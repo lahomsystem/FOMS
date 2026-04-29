@@ -1,10 +1,11 @@
 import copy
+import io
 
 from werkzeug.security import generate_password_hash
 
 from foms.api import erp_orders_structured
 from db import db_session
-from models import Order, User
+from models import Order, OrderAttachment, User
 import foms.services.channel_delivery as channel_delivery_service
 
 
@@ -351,3 +352,87 @@ def test_payment_confirm_rejects_unfinalized_draft(client):
     )
 
     assert response.status_code == 404
+
+
+def test_erp_draft_accepts_legacy_attachment_upload_before_final_save(client, monkeypatch):
+    _login_as_admin(client, username="erp-draft-legacy-attachment")
+    created = client.post("/api/orders/erp/draft").get_json()
+    order_id = created["order_id"]
+
+    class DummyStorage:
+        def upload_file(self, file_obj, filename, folder):
+            return {"success": True, "key": f"{folder}/{filename}"}
+
+        def get_file_type(self, filename):
+            return "image"
+
+    monkeypatch.setattr("foms.api.files.order_routes.get_storage", lambda: DummyStorage())
+
+    response = client.post(
+        f"/api/orders/{order_id}/attachments",
+        data={
+            "category": "measurement",
+            "file": (io.BytesIO(b"fake image"), "draft-photo.jpg"),
+        },
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+
+    db_session.expire_all()
+    draft = db_session.get(Order, order_id)
+    assert draft.status == "DRAFT"
+    assert (draft.structured_data or {}).get("meta", {}).get("draft") is True
+    attachment = (
+        db_session.query(OrderAttachment)
+        .filter(OrderAttachment.order_id == order_id)
+        .one()
+    )
+    assert attachment.filename == "draft-photo.jpg"
+    assert attachment.category == "measurement"
+
+
+def test_erp_draft_accepts_direct_attachment_complete_before_final_save(client, monkeypatch):
+    _login_as_admin(client, username="erp-draft-direct-attachment")
+    created = client.post("/api/orders/erp/draft").get_json()
+    order_id = created["order_id"]
+
+    class DummyStorage:
+        storage_type = "local"
+
+        def object_exists(self, key):
+            return True
+
+        def get_file_type(self, filename):
+            return "image"
+
+    monkeypatch.setattr("foms.api.files.direct_upload.get_storage", lambda: DummyStorage())
+
+    response = client.post(
+        f"/api/orders/{order_id}/attachments/complete",
+        json={
+            "key": f"orders/{order_id}/measurement/draft-direct.jpg",
+            "filename": "draft-direct.jpg",
+            "category": "measurement",
+            "item_index": 0,
+            "size": 12,
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+
+    db_session.expire_all()
+    draft = db_session.get(Order, order_id)
+    assert draft.status == "DRAFT"
+    assert (draft.structured_data or {}).get("meta", {}).get("draft") is True
+    attachment = (
+        db_session.query(OrderAttachment)
+        .filter(OrderAttachment.order_id == order_id)
+        .one()
+    )
+    assert attachment.filename == "draft-direct.jpg"
+    assert attachment.item_index == 0

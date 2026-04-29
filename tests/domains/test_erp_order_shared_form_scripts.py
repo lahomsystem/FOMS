@@ -194,16 +194,16 @@ def test_shared_erp_order_js_does_not_auto_save_before_user_save() -> None:
     item_upload_start = text.index("async function erpUploadItemAttachments")
     item_upload_end = text.index("function erpRenderItemAttachmentPanels", item_upload_start)
     item_upload_block = text[item_upload_start:item_upload_end]
-    assert "erpRequireOrderIdOrWarn('제품 이미지 업로드:')" not in item_upload_block
     assert "erpSaveStructured(" not in item_upload_block
-    assert "erpCanUsePersistedOrderAction('제품 이미지 업로드는')" in item_upload_block
+    assert "const targetId = await erpRequireOrderIdOrWarn('제품 이미지 업로드:');" in item_upload_block
+    assert "erpCanUsePersistedOrderAction('제품 이미지 업로드는')" not in item_upload_block
 
     common_upload_start = text.index("async function erpUploadSelectedAttachments")
     common_upload_end = text.index("function erpGenerateConversionText", common_upload_start)
     common_upload_block = text[common_upload_start:common_upload_end]
-    assert "erpRequireOrderIdOrWarn('첨부 업로드:')" not in common_upload_block
     assert "erpSaveStructured(" not in common_upload_block
-    assert "erpCanUsePersistedOrderAction('첨부 업로드는')" in common_upload_block
+    assert "const targetId = await erpRequireOrderIdOrWarn('첨부 업로드:');" in common_upload_block
+    assert "erpCanUsePersistedOrderAction('첨부 업로드는')" not in common_upload_block
 
     push_start = text.index("document.getElementById('erp-channeltalk-push-btn')")
     push_end = text.index("initErpMainDatePickers();", push_start)

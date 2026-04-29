@@ -1721,7 +1721,8 @@ async function erpUploadItemAttachments(itemIndex, files) {
         erpAttachmentsSetStatus('유효한 제품 항목을 찾지 못했습니다.', true);
         return;
     }
-    if (!erpCanUsePersistedOrderAction('제품 이미지 업로드는')) {
+    const targetId = await erpRequireOrderIdOrWarn('제품 이미지 업로드:');
+    if (!targetId) {
         return;
     }
     if (!Array.isArray(files) || !files.length) {
@@ -2148,7 +2149,8 @@ async function erpUploadSelectedAttachments() {
         return;
     }
     const files = Array.from(input.files);
-    if (!erpCanUsePersistedOrderAction('첨부 업로드는')) {
+    const targetId = await erpRequireOrderIdOrWarn('첨부 업로드:');
+    if (!targetId) {
         return;
     }
     const categoryEl = document.getElementById('erp-attachments-category');
