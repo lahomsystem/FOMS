@@ -9,15 +9,19 @@ import foms.services.channel_policy as channel_policy
 
 
 class _FakeAddOnlyDB:
-    def __init__(self) -> None:
+    def __init__(self, existing=None) -> None:
         self.added = []
         self.flushed = False
+        self._existing = existing
 
     def add(self, obj) -> None:
         self.added.append(obj)
 
     def flush(self) -> None:
         self.flushed = True
+
+    def query(self, _model):
+        return _FakeQuery(self._existing)
 
 
 class _FakeQuery:
@@ -64,6 +68,32 @@ def test_create_pending_delivery_uses_policy_group_and_flushes(monkeypatch) -> N
     assert log.target_group_snapshot == "group-1"
     assert log.template_key == "update"
     assert log.masked_request_payload["files"][0]["url"] == "[MASKED]"
+
+
+def test_create_pending_delivery_reuses_existing_event_target(monkeypatch) -> None:
+    monkeypatch.setattr(channel_policy, "get_routing_group_id", lambda event_type, data: "group-1")
+
+    existing = ChannelDeliveryLog(
+        event_key="order_123_update_7",
+        target_type="group",
+        target_id="group-1",
+        status="pending",
+    )
+    db = _FakeAddOnlyDB(existing=existing)
+    order = SimpleNamespace(channel_source_seq=7)
+
+    log = channel_delivery.create_pending_delivery(
+        db,
+        order_id=123,
+        event_type="update",
+        payload={"change_lines": []},
+        order=order,
+    )
+
+    assert log is existing
+    assert getattr(log, "_foms_reused_existing_delivery") is True
+    assert db.added == []
+    assert db.flushed is False
 
 
 def test_mark_delivery_status_updates_message_and_sent_timestamp() -> None:

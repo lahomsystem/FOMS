@@ -11,6 +11,7 @@ import uuid
 from typing import Any, Dict, Optional
 
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 
 from db import get_db
 from models import ChannelDeliveryLog, ChannelInboundEventLog, Order
@@ -55,6 +56,23 @@ def create_pending_delivery(
     from foms.services.channel_policy import get_routing_group_id
 
     target_group_id = get_routing_group_id(event_type, {"order_id": order_id})
+    existing = (
+        db.query(ChannelDeliveryLog)
+        .filter(
+            ChannelDeliveryLog.event_key == event_key,
+            ChannelDeliveryLog.target_type == "group",
+            ChannelDeliveryLog.target_id == target_group_id,
+        )
+        .first()
+    )
+    if existing is not None:
+        logger.info(
+            "[ChannelDelivery] Reusing existing delivery event_key=%s target=%s",
+            event_key,
+            target_group_id,
+        )
+        setattr(existing, "_foms_reused_existing_delivery", True)
+        return existing
 
     log = ChannelDeliveryLog(
         event_key=event_key,
@@ -73,7 +91,28 @@ def create_pending_delivery(
     )
     db.add(log)
     # Flush so callers can safely enqueue by primary key after their commit.
-    db.flush()
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        existing = (
+            db.query(ChannelDeliveryLog)
+            .filter(
+                ChannelDeliveryLog.event_key == event_key,
+                ChannelDeliveryLog.target_type == "group",
+                ChannelDeliveryLog.target_id == target_group_id,
+            )
+            .first()
+        )
+        if existing is not None:
+            logger.info(
+                "[ChannelDelivery] Reusing duplicate delivery event_key=%s target=%s",
+                event_key,
+                target_group_id,
+            )
+            setattr(existing, "_foms_reused_existing_delivery", True)
+            return existing
+        raise
     return log
 
 
@@ -239,6 +278,8 @@ def mark_order_updated_for_channel(
         db = db_session.object_session(order)
         if db:
             log = create_pending_delivery(db, order.id, event_type, payload=payload, order=order)
+            if getattr(log, "_foms_reused_existing_delivery", False):
+                return None
             return log.id
     except Exception as e:
         logger.error("[ChannelDelivery] Failed to create pending delivery: %s", e)
