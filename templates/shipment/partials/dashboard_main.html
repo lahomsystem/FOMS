@@ -1126,18 +1126,6 @@
           if (!list) return;
           e.preventDefault();
           e.stopPropagation();
-          var reusable = Array.from(list.querySelectorAll('.shipment-text-row')).find(function (candidate) {
-            var candidateInput = candidate.querySelector('.shipment-text-input');
-            return candidateInput && !trimShipmentEditValue(candidateInput.value);
-          });
-          if (reusable) {
-            reusable.classList.remove('has-value');
-            reusable.classList.remove('is-empty');
-            reusable.classList.add('editing');
-            var reusableInput = reusable.querySelector('.shipment-text-input');
-            if (reusableInput) reusableInput.focus();
-            return;
-          }
           var row = buildShipmentTextRow(list, '');
           var actionsRow = addBtn.closest('.actions-on-hover');
           list.insertBefore(row, actionsRow || null);

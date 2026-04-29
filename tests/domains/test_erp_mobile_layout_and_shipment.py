@@ -95,14 +95,15 @@ def test_shipment_mobile_markup_includes_colgroup_reset_override(client, monkeyp
     assert body.count('value=""\n                            placeholder="시공자"') == 0
 
 
-def test_shipment_text_edit_contract_reuses_blank_rows_and_has_readable_widths() -> None:
+def test_shipment_text_edit_contract_adds_new_blank_rows_and_has_readable_widths() -> None:
     root = Path(__file__).resolve().parents[2]
     template = (root / "templates/shipment/partials/dashboard_main.html").read_text(encoding="utf-8")
     css = (root / "static/css/contexts/shipment/dashboard-table-extras.css").read_text(encoding="utf-8")
     columns = (root / "static/js/shipment/dashboard-columns.js").read_text(encoding="utf-8")
 
     assert "input-group input-group-sm flex-nowrap" in template
-    assert "var reusable = Array.from(list.querySelectorAll('.shipment-text-row')).find" in template
+    assert "var reusable = Array.from(list.querySelectorAll('.shipment-text-row')).find" not in template
+    assert "list.insertBefore(row, actionsRow || null);" in template
     assert "throw new Error((data && data.message) || ('HTTP ' + r.status));" in template
     assert "min-width: 8rem !important;" in css
     assert 'construction_time:    { defaultWidth: 150, minWidth: 140' in columns
