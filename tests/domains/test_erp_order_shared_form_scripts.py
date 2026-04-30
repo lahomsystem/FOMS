@@ -224,6 +224,9 @@ def test_shared_erp_order_supports_scoped_clipboard_image_upload() -> None:
     assert "이미지를 붙여넣으면 바로 업로드됩니다." in template_text
     assert "Ctrl+V로 바로 업로드" in template_text
 
+    assert 'data-erp-attachment-paste-zone="item"' in js_text
+    assert "이 항목에 바로 업로드됩니다." in js_text
+    assert "캡처 이미지를 항목에 바로 업로드" in js_text
     assert "async function erpUploadCommonAttachmentFiles(files, options = {})" in js_text
     assert "await erpUploadCommonAttachmentFiles(files);" in js_text
     assert "function erpGetClipboardImageFiles(event)" in js_text
@@ -231,7 +234,8 @@ def test_shared_erp_order_supports_scoped_clipboard_image_upload() -> None:
     assert "startsWith('image/')" in js_text
     assert "item.getAsFile()" in js_text
     assert "new File([rawFile], name" in js_text
-    assert "zone.addEventListener('paste', erpHandleAttachmentPaste);" in js_text
+    assert "root.addEventListener('paste', erpHandleAttachmentPaste);" in js_text
+    assert "await erpUploadItemAttachments(itemIndex, files);" in js_text
     assert "document.addEventListener('paste'" not in js_text
 
 

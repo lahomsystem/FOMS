@@ -633,7 +633,8 @@ function erpNewItemRow(item = {}) {
         placeholder="추가 내용을 입력하세요 (여러 줄 가능)" lang="ko">${escapeHtml(extraInput)}</textarea>
 </div>
 <div class="col-12">
-    <div class="border rounded p-2 bg-light">
+    <div class="border rounded p-2 bg-light" data-erp-attachment-paste-zone="item" tabindex="0"
+        aria-label="제품 항목 실측 이미지 업로드 영역. 이미지를 붙여넣으면 이 항목에 바로 업로드됩니다.">
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
             <div class="small fw-semibold text-muted erp-item-attachment-hint">항목 실측 이미지</div>
             <div class="d-flex gap-1">
@@ -643,6 +644,7 @@ function erpNewItemRow(item = {}) {
                 </button>
             </div>
         </div>
+        <div class="small text-muted mt-1">이 박스를 클릭 후 Ctrl+V로 캡처 이미지를 항목에 바로 업로드할 수 있습니다.</div>
         <div class="d-flex flex-wrap gap-1 mt-2 erp-item-attachments-gallery">
             <div class="small text-muted">연결된 실측 이미지가 없습니다.</div>
         </div>
@@ -2384,16 +2386,26 @@ function erpGetClipboardImageFiles(event) {
 
 function erpFindAttachmentPasteZone(target) {
     if (!target || typeof target.closest !== 'function') return null;
-    return target.closest('[data-erp-attachment-paste-zone="common"]');
+    return target.closest('[data-erp-attachment-paste-zone]');
 }
 
 async function erpHandleAttachmentPaste(event) {
-    const targetZone = erpFindAttachmentPasteZone(event.target);
-    const activeZone = erpFindAttachmentPasteZone(document.activeElement);
-    if (!targetZone && !activeZone) return;
+    const zone = erpFindAttachmentPasteZone(event.target) || erpFindAttachmentPasteZone(document.activeElement);
+    if (!zone) return;
     const files = erpGetClipboardImageFiles(event);
     if (!files.length) return;
     event.preventDefault();
+    if (zone.getAttribute('data-erp-attachment-paste-zone') === 'item') {
+        const row = zone.closest('.erp-item-row');
+        const rows = Array.from(document.querySelectorAll('.erp-item-row'));
+        const itemIndex = row ? rows.indexOf(row) : -1;
+        if (itemIndex < 0) {
+            erpAttachmentsSetStatus('붙여넣을 제품 항목을 찾지 못했습니다.', true);
+            return;
+        }
+        await erpUploadItemAttachments(itemIndex, files);
+        return;
+    }
     await erpUploadCommonAttachmentFiles(files, {
         statusVerb: '붙여넣은 이미지 업로드',
         doneVerb: '붙여넣은 이미지 업로드 완료'
@@ -2401,12 +2413,13 @@ async function erpHandleAttachmentPaste(event) {
 }
 
 function erpBindAttachmentPasteUpload() {
-    const zone = document.querySelector('[data-erp-attachment-paste-zone="common"]');
-    if (!zone || zone._erpPasteUploadBound) return;
-    zone._erpPasteUploadBound = true;
-    zone.addEventListener('paste', erpHandleAttachmentPaste);
-    zone.addEventListener('click', function (event) {
-        if (event.target && event.target.closest('button,a,input,select,textarea')) return;
+    const root = document.getElementById('erp-order');
+    if (!root || root._erpPasteUploadBound) return;
+    root._erpPasteUploadBound = true;
+    root.addEventListener('paste', erpHandleAttachmentPaste);
+    root.addEventListener('click', function (event) {
+        const zone = erpFindAttachmentPasteZone(event.target);
+        if (!zone || (event.target && event.target.closest('button,a,input,select,textarea'))) return;
         try { zone.focus({ preventScroll: true }); } catch (_) { zone.focus(); }
     });
 }
