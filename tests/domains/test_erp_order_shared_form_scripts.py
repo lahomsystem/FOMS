@@ -221,12 +221,19 @@ def test_shared_erp_order_supports_scoped_clipboard_image_upload() -> None:
     ).read_text(encoding="utf-8")
 
     assert 'data-erp-attachment-paste-zone="common"' in template_text
+    assert 'data-erp-attachment-paste-zone="as-receive"' in template_text
     assert "이미지를 붙여넣으면 바로 업로드됩니다." in template_text
     assert "Ctrl+V로 바로 업로드" in template_text
+    assert "AS 첨부에 바로 추가됩니다." in template_text
 
     assert 'data-erp-attachment-paste-zone="item"' in js_text
     assert "이 항목에 바로 업로드됩니다." in js_text
     assert "캡처 이미지를 항목에 바로 업로드" in js_text
+    assert "function erpAppendAsReceiveFiles(files)" in js_text
+    assert "function erpSetFileInputFiles(input, files)" in js_text
+    assert "function erpRenderAsReceiveFilePreview(files)" in js_text
+    assert "erpAppendAsReceiveFiles(files);" in js_text
+    assert "window.__erpAsReceiveClipboardFiles" in js_text
     assert "async function erpUploadCommonAttachmentFiles(files, options = {})" in js_text
     assert "await erpUploadCommonAttachmentFiles(files);" in js_text
     assert "function erpGetClipboardImageFiles(event)" in js_text
