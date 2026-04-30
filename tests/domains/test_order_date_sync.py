@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from models import Order
 
 import foms.services.order_date_sync as order_date_sync
+from foms.services.measurement_dates import extract_all_measurement_dates
 
 
 class _FakeOrderScheduleDate:
@@ -34,8 +35,7 @@ def test_collect_order_schedule_date_specs_normalizes_and_deduplicates_dates():
     specs = order_date_sync.collect_order_schedule_date_specs(order)
 
     assert specs == [
-        {"kind": "measurement", "date": "2026-04-01", "source": "legacy_column", "item_index": None},
-        {"kind": "measurement", "date": "2026-04-02", "source": "legacy_column", "item_index": None},
+        {"kind": "measurement", "date": "2026-04-02", "source": "beta_schedule", "item_index": None},
         {"kind": "measurement", "date": "2026-04-03", "source": "beta_schedule", "item_index": None},
         {"kind": "measurement", "date": "2026-04-04", "source": "beta_item", "item_index": 0},
         {"kind": "as_visit", "date": "2026-06-07", "source": "structured_schedule", "item_index": None},
@@ -44,6 +44,51 @@ def test_collect_order_schedule_date_specs_normalizes_and_deduplicates_dates():
         {"kind": "construction", "date": "2026-05-04", "source": "beta_schedule", "item_index": None},
         {"kind": "construction", "date": "2026-05-03", "source": "beta_item", "item_index": 1},
     ]
+
+
+def test_collect_order_schedule_date_specs_uses_legacy_measurement_when_erp_schedule_missing():
+    order = SimpleNamespace(
+        measurement_date="2026-4-1",
+        scheduled_date="",
+        is_erp_order=True,
+        structured_data={"schedule": {"measurement": {"date": ""}}},
+    )
+
+    specs = order_date_sync.collect_order_schedule_date_specs(order)
+
+    assert specs == [
+        {"kind": "measurement", "date": "2026-04-01", "source": "legacy_column", "item_index": None},
+    ]
+
+
+def test_collect_order_schedule_date_specs_uses_legacy_when_erp_schedule_is_not_date():
+    order = SimpleNamespace(
+        measurement_date="2026-4-1",
+        scheduled_date="",
+        is_erp_order=True,
+        structured_data={"schedule": {"measurement": {"date": "상담"}}},
+    )
+
+    specs = order_date_sync.collect_order_schedule_date_specs(order)
+
+    assert specs == [
+        {"kind": "measurement", "date": "2026-04-01", "source": "legacy_column", "item_index": None},
+        {"kind": "measurement", "date": "상담", "source": "beta_schedule", "item_index": None},
+    ]
+
+
+def test_extract_all_measurement_dates_skips_stale_legacy_for_erp_schedule():
+    order = SimpleNamespace(
+        measurement_date="2026-05-04",
+        is_erp_order=True,
+        structured_data={"schedule": {"measurement": {"date": "2026-05-06"}}},
+        schedule_dates=[
+            SimpleNamespace(kind="measurement", date="2026-05-04", source="legacy_column"),
+            SimpleNamespace(kind="measurement", date="2026-05-06", source="beta_schedule"),
+        ],
+    )
+
+    assert extract_all_measurement_dates(order) == ["2026-05-06"]
 
 
 def test_sync_order_dates_uses_get_db_when_session_missing(monkeypatch):

@@ -47,6 +47,14 @@ def test_runtime_shell_prefetch_warm_nav_hooks(runtime_shell_src: str) -> None:
     assert "scrollMemory" in runtime_shell_src
 
 
+def test_runtime_shell_does_not_cache_measurement_dashboard(runtime_shell_src: str) -> None:
+    """Measurement rows are date-sensitive; shell cache must not serve stale fragments."""
+    assert "NO_FRAGMENT_CACHE_PATHS" in runtime_shell_src
+    assert "'/erp/measurement'" in runtime_shell_src
+    assert "isFragmentCacheable" in runtime_shell_src
+    assert "window.FOMS_ERP_SHELL.isFragmentCacheable" in runtime_shell_src
+
+
 def test_runtime_shell_fragment_loading_overlay(runtime_shell_src: str) -> None:
     """UX: network fragment fetch shows loading overlay (not for cache-only swap)."""
     assert "setShellFragmentLoading" in runtime_shell_src

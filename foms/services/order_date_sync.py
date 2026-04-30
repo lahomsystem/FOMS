@@ -48,8 +48,26 @@ def collect_order_schedule_date_specs(order: Any) -> list[dict[str, Any]]:
     specs: list[dict[str, Any]] = []
 
     m_dates = set()
+    is_erp_order = is_erp_order_record(order)
+    sd = (
+        order.structured_data
+        if is_erp_order and isinstance(getattr(order, "structured_data", None), dict)
+        else {}
+    )
+    beta_m = (sd.get("schedule") or {}).get("measurement") or {}
+    beta_measurement_raw = beta_m.get("date") if isinstance(beta_m, dict) else None
+
+    def _looks_like_yyyymmdd(raw: Any) -> bool:
+        normalized = _normalize_date_str(str(raw or "").strip())
+        return bool(re.match(r"^\d{4}-\d{2}-\d{2}$", str(normalized or "")))
+
+    has_beta_measurement_date = any(
+        _looks_like_yyyymmdd(d)
+        for d in str(beta_measurement_raw or "").split(",")
+    )
+
     legacy_m = getattr(order, "measurement_date", None)
-    if legacy_m:
+    if legacy_m and not (is_erp_order and has_beta_measurement_date):
         for d in str(legacy_m).split(","):
             if d.strip():
                 nd = _normalize_date_str(d.strip())
@@ -63,10 +81,7 @@ def collect_order_schedule_date_specs(order: Any) -> list[dict[str, Any]]:
                 )
                 m_dates.add(nd)
 
-    if is_erp_order_record(order) and isinstance(getattr(order, "structured_data", None), dict):
-        sd = order.structured_data
-
-        beta_m = (sd.get("schedule") or {}).get("measurement") or {}
+    if is_erp_order and sd:
         if isinstance(beta_m, dict):
             bmd = beta_m.get("date")
             if bmd:
@@ -139,9 +154,7 @@ def collect_order_schedule_date_specs(order: Any) -> list[dict[str, Any]]:
                 )
                 c_dates.add(nd)
 
-    if is_erp_order_record(order) and isinstance(getattr(order, "structured_data", None), dict):
-        sd = order.structured_data
-
+    if is_erp_order and sd:
         s_date = None
         sc = sd.get("schedule") or {}
         if isinstance(sc, dict):

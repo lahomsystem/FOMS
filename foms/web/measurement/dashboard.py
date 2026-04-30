@@ -318,13 +318,15 @@ def erp_measurement_dashboard():
         if self_measurement_four_checks_done(order):
             continue
         if use_single_day and selected_date:
-            # SQL WHERE OrderScheduleDate.date == selected_date 로 이미 필터됨
-            # extract_all_measurement_dates 재호출은 불필요 중복 — 직접 포함
-            rows.append(order)
+            if _order_matches_measurement_window(order, selected_date=selected_date):
+                rows.append(order)
         elif use_range and date_from and date_to:
-            # SQL WHERE OrderScheduleDate.date BETWEEN date_from AND date_to 로 이미 필터됨
-            # Python 날짜 재검증은 불필요 중복
-            rows.append(order)
+            if _order_matches_measurement_window(
+                order,
+                date_from=date_from,
+                date_to=date_to,
+            ):
+                rows.append(order)
         else:
             rows.append(order)
 

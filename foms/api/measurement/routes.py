@@ -315,7 +315,19 @@ def api_erp_measurement_route():
     if manager_filter:
         query = query.filter(Order.manager_name.ilike(f'%{manager_filter}%'))
 
-    orders = query.order_by(Order.measurement_time.asc().nullslast(), Order.id.asc()).limit(limit).all()
+    ordered_query = query.order_by(
+        Order.measurement_time.asc().nullslast(),
+        Order.id.asc(),
+    )
+    if date_filter:
+        candidate_orders = ordered_query.all()
+        orders = [
+            order
+            for order in candidate_orders
+            if date_filter in extract_all_measurement_dates(order)
+        ][:limit]
+    else:
+        orders = ordered_query.limit(limit).all()
 
     converter = FOMSAddressConverter()
     points = []
