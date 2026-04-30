@@ -81,6 +81,8 @@ def index():
             status_filter = 'MEASURE'
         region_filter = request.args.get('region')
         search_query = get_search_query_arg('search', 'q')
+        effective_status_filter = None if search_query else status_filter
+        effective_region_filter = None if search_query else region_filter
         page = request.args.get('page', 1, type=int)
         per_page = 100
 
@@ -97,11 +99,11 @@ def index():
         active_column_filters = {k: v for k, v in column_filters.items() if v}
 
         query = db.query(Order).filter(Order.active_filter())
-        if status_filter and status_filter != 'ALL':
-            query = query.filter(Order.status == status_filter)
-        if region_filter == 'metro':
+        if effective_status_filter and effective_status_filter != 'ALL':
+            query = query.filter(Order.status == effective_status_filter)
+        if effective_region_filter == 'metro':
             query = query.filter(Order.is_regional == False)
-        elif region_filter == 'regional':
+        elif effective_region_filter == 'regional':
             query = query.filter(Order.is_regional == True)
         if search_query:
             search_term = f"%{search_query}%"
@@ -188,7 +190,7 @@ def index():
             orders=processed_orders,
             status_list=STATUS,
             STATUS=STATUS,
-            current_status=status_filter,
+            current_status=effective_status_filter,
             search_query=search_query,
             sort_column='id',
             sort_direction='desc',
@@ -197,7 +199,7 @@ def index():
             total_orders=total_orders,
             active_column_filters=column_filters,
             user=user,
-            current_region=region_filter,
+            current_region=effective_region_filter,
             parent_template=parent,
         )
         resp = make_response(html)

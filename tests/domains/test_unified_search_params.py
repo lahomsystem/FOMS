@@ -46,6 +46,23 @@ def test_order_list_accepts_q_alias_and_preserves_search_value(login):
     assert "정재교 고객" in body
 
 
+def test_order_list_whole_search_ignores_active_status_tab(login):
+    target = _add_erp_order("정재교 실측")
+    target.status = "MEASURE"
+    received = _add_erp_order("접수 고객")
+    received.status = "RECEIVED"
+    db_session.commit()
+
+    response = login.get("/?status=RECEIVED&search=정재교")
+    body = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert 'value="정재교"' in body
+    assert "정재교 실측" in body
+    assert "접수 고객" not in body
+    assert 'name="status" value="RECEIVED"' not in body
+
+
 def test_erp_dashboard_accepts_search_alias_and_preserves_q_value(login):
     _add_erp_order("정재교 고객")
 

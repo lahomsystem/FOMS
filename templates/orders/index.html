@@ -590,10 +590,8 @@
     </header>
 
     {# === 검색 폼 (hidden, 검색 input과 연결) === #}
-    <form method="get" action="{{ url_for('order_pages.index') }}" id="main-filter-form" style="display: none;">
-        {% if request.args.get('status') %}
-        <input type="hidden" name="status" value="{{ request.args.get('status') }}">
-        {% endif %}
+    <form method="get" action="{{ url_for('order_pages.index') }}" id="main-filter-form" style="display: none;"
+        data-current-status="{{ current_status or '' }}" data-current-region="{{ current_region or '' }}">
     </form>
 
     {# === 통합 도구바: 일괄작업 + 검색 === #}
@@ -632,7 +630,7 @@
         <div class="order-list-search" role="search">
             <label for="order-search-input" class="visually-hidden">주문 전체 검색</label>
             <input type="text" id="order-search-input" name="search" form="main-filter-form" placeholder="전체 검색..."
-                value="{{ request.args.get('search') or request.args.get('q') or '' }}">
+                value="{{ search_query or '' }}">
             <button type="submit" form="main-filter-form" class="erp-pro-btn erp-pro-btn--primary erp-pro-btn--sm" aria-label="전체 검색">
                 <i class="fas fa-search"></i>
             </button>
@@ -641,7 +639,7 @@
         <div class="order-list-filter-actions">
             <button type="button" id="apply-column-filters-btn"
                 class="erp-pro-btn erp-pro-btn--secondary erp-pro-btn--sm" title="컬럼 필터 적용">필터 적용</button>
-            <a href="{{ url_for('order_pages.index', status=request.args.get('status'), search=request.args.get('search')) }}"
+            <a href="{{ url_for('order_pages.index', status=current_status, search=search_query) }}"
                 class="erp-pro-btn erp-pro-btn--outline erp-pro-btn--sm" title="컬럼 필터 초기화">초기화</a>
         </div>
     </div>
@@ -1399,6 +1397,20 @@
             applyColBtn.addEventListener('click', function () {
                 var mainForm = document.getElementById('main-filter-form');
                 if (!mainForm) return;
+                if (mainForm.dataset.currentStatus) {
+                    var statusInput = document.createElement('input');
+                    statusInput.type = 'hidden';
+                    statusInput.name = 'status';
+                    statusInput.value = mainForm.dataset.currentStatus;
+                    mainForm.appendChild(statusInput);
+                }
+                if (mainForm.dataset.currentRegion) {
+                    var regionInput = document.createElement('input');
+                    regionInput.type = 'hidden';
+                    regionInput.name = 'region';
+                    regionInput.value = mainForm.dataset.currentRegion;
+                    mainForm.appendChild(regionInput);
+                }
                 document.querySelectorAll('.column-filter').forEach(function (filter) {
                     if (filter.value) {
                         var input = document.createElement('input');
