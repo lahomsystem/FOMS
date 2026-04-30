@@ -4,11 +4,29 @@
 
 ## 최근 세션
 
+### Session: 05d2bc7a
+- **시작**: 2026-04-30 14:09:00
+- **상태**: completed
+- **편집 파일**: `docs/specs/2026-04-30-shared-harness-task-classification_SPEC.md`, `unknown`, `docs/ARCHIVE_INDEX.md`, `.cursor/agents/grand-develop-master.md`, `docs/harness/policy/DECISIONS.md`, `docs/guides/HARNESS_ENGINEERING_OPERATOR_GUIDE.md`, `.cursor/rules/00-project-context.mdc`, `CLAUDE.md`, `AGENTS.md`, `tests/harness/test_hooks_smoke.py`
+- **종료**: 2026-04-30 14:43:00
+
+### Session: 4cef9e19
+- **시작**: 2026-04-28 16:19:43
+- **상태**: completed
+- **편집 파일**: `tests/domains/test_erp_orders_structured_put.py`, `tests/domains/test_erp_order_shared_form_scripts.py`, `foms/api/erp_orders_structured.py`, `static/js/orders/erp-order-shared.js`, `unknown`, `templates/cs/partials/as_dashboard_body.html`, `static/css/contexts/cs/as-dashboard-body.css`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-b1df2123-4b03-4a42-9241-3e2dee05d2c1.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-79590bd9-b79c-4e2f-8e72-c1a06cd93534.png`, `tests/domains/test_channel_push_messages.py`
+- **종료**: 2026-04-30 14:11:10
+
+### Session: 88c75c5e
+- **시작**: 2026-04-28 16:19:25
+- **상태**: unknown
+- **편집 파일**: `unknown`, `templates/cs/partials/as_dashboard_body.html`, `static/css/contexts/cs/as-dashboard-body.css`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-b1df2123-4b03-4a42-9241-3e2dee05d2c1.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-79590bd9-b79c-4e2f-8e72-c1a06cd93534.png`, `tests/domains/test_erp_orders_structured_put.py`, `tests/domains/test_channel_push_messages.py`, `foms/api/erp_orders_structured.py`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-4d5a2c71-dee4-4ea1-bce3-c0092b226e50.png`, `tests/domains/test_channel_integration_smoke.py`
+- **종료**: 2026-04-28 16:19:40
+
 ### Session: 1682c246
 - **시작**: 2026-04-27 13:42:37
-- **상태**: aborted
-- **편집 파일**: `static/css/contexts/cs/as-dashboard-body.css`, `templates/cs/partials/as_dashboard_body.html`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-b1df2123-4b03-4a42-9241-3e2dee05d2c1.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-79590bd9-b79c-4e2f-8e72-c1a06cd93534.png`, `tests/domains/test_erp_orders_structured_put.py`, `tests/domains/test_channel_push_messages.py`, `foms/api/erp_orders_structured.py`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-4d5a2c71-dee4-4ea1-bce3-c0092b226e50.png`, `tests/domains/test_channel_integration_smoke.py`, `tests/contracts/runtime/foms_namespace_surface_tests.py`
-- **종료**: 2026-04-28 14:05:01
+- **상태**: unknown
+- **편집 파일**: `unknown`, `templates/cs/partials/as_dashboard_body.html`, `static/css/contexts/cs/as-dashboard-body.css`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-b1df2123-4b03-4a42-9241-3e2dee05d2c1.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-79590bd9-b79c-4e2f-8e72-c1a06cd93534.png`, `tests/domains/test_erp_orders_structured_put.py`, `tests/domains/test_channel_push_messages.py`, `foms/api/erp_orders_structured.py`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-4d5a2c71-dee4-4ea1-bce3-c0092b226e50.png`, `tests/domains/test_channel_integration_smoke.py`
+- **종료**: 2026-04-28 16:19:25
 
 ### Session: 6f2c8c77
 - **시작**: 2026-04-23 08:29:48
@@ -25,8 +43,8 @@
 ### Session: 6c6dd810
 - **시작**: 2026-04-20 16:12:00
 - **상태**: unknown
-- **편집 파일**: `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-b1df2123-4b03-4a42-9241-3e2dee05d2c1.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-79590bd9-b79c-4e2f-8e72-c1a06cd93534.png`, `tests/domains/test_erp_orders_structured_put.py`, `tests/domains/test_channel_push_messages.py`, `foms/api/erp_orders_structured.py`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-4d5a2c71-dee4-4ea1-bce3-c0092b226e50.png`, `tests/domains/test_channel_integration_smoke.py`, `tests/contracts/runtime/foms_namespace_surface_tests.py`, `foms/services/channel_event_payloads.py`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-df528d3e-fab3-48e3-ba12-19c396f63ea2.png`
-- **종료**: 2026-04-27 13:42:30
+- **편집 파일**: `unknown`, `templates/cs/partials/as_dashboard_body.html`, `static/css/contexts/cs/as-dashboard-body.css`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-b1df2123-4b03-4a42-9241-3e2dee05d2c1.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-79590bd9-b79c-4e2f-8e72-c1a06cd93534.png`, `tests/domains/test_erp_orders_structured_put.py`, `tests/domains/test_channel_push_messages.py`, `foms/api/erp_orders_structured.py`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-4d5a2c71-dee4-4ea1-bce3-c0092b226e50.png`, `tests/domains/test_channel_integration_smoke.py`
+- **종료**: 2026-04-28 16:19:38
 
 ### Session: fbcc41c6
 - **시작**: 2026-04-18 12:40:37
@@ -37,8 +55,8 @@
 ### Session: a0f6c282
 - **시작**: 2026-04-17 13:39:37
 - **상태**: unknown
-- **편집 파일**: `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-b1df2123-4b03-4a42-9241-3e2dee05d2c1.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-79590bd9-b79c-4e2f-8e72-c1a06cd93534.png`, `tests/domains/test_erp_orders_structured_put.py`, `tests/domains/test_channel_push_messages.py`, `foms/api/erp_orders_structured.py`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-4d5a2c71-dee4-4ea1-bce3-c0092b226e50.png`, `tests/domains/test_channel_integration_smoke.py`, `tests/contracts/runtime/foms_namespace_surface_tests.py`, `foms/services/channel_event_payloads.py`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-df528d3e-fab3-48e3-ba12-19c396f63ea2.png`
-- **종료**: 2026-04-27 13:42:31
+- **편집 파일**: `unknown`, `templates/cs/partials/as_dashboard_body.html`, `static/css/contexts/cs/as-dashboard-body.css`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-b1df2123-4b03-4a42-9241-3e2dee05d2c1.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-79590bd9-b79c-4e2f-8e72-c1a06cd93534.png`, `tests/domains/test_erp_orders_structured_put.py`, `tests/domains/test_channel_push_messages.py`, `foms/api/erp_orders_structured.py`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-4d5a2c71-dee4-4ea1-bce3-c0092b226e50.png`, `tests/domains/test_channel_integration_smoke.py`
+- **종료**: 2026-04-28 16:19:25
 
 ### Session: 07c148aa
 - **시작**: 2026-04-17 12:45:33
@@ -249,3 +267,29 @@
 | 2026-04-28 14:04:39 | END (Claude Code) | 수정: (없음) |
 
 | 2026-04-28 14:05:01 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-28 14:49:30 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-28 14:59:15 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-28 15:04:34 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-28 15:16:21 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-30 14:09:27 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-30 14:10:13 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-30 14:11:10 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-30 14:12:39 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-30 14:15:05 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-30 14:18:40 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-30 14:29:22 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-30 14:33:50 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-30 14:43:00 | END (Claude Code) | 수정: (없음) |

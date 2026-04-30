@@ -1,22 +1,22 @@
 # Context Compact Checkpoint
 
 > **경고**: 컨텍스트 압축이 발생했습니다. 이 파일을 읽어 이전 작업을 복원하세요.
-> 생성 시각: 2026-04-23 09:46:57
-> 세션: 6f2c8c77
+> 생성 시각: 2026-04-30 14:42:39
+> 세션: 05d2bc7a
 
 ## 압축 직전 상태
 
 ### 최근 편집된 파일
-- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-df528d3e-fab3-48e3-ba12-19c396f63ea2.png` <- 1 edit(s), ~0 chars (2026-04-23 09:46:00)
-- `tests/test_as_received_date_kst.py` <- 2 edit(s), ~128 chars (2026-04-23 08:55:00)
-- `tests/test_as_received_date_kst.py` <- 2 edit(s), ~62 chars (2026-04-23 08:54:59)
-- `tests/test_as_received_date_kst.py` <- 1 edit(s), ~145 chars (2026-04-23 08:54:43)
-- `tests/domains/test_channel_push_messages.py` <- 1 edit(s), ~57 chars (2026-04-23 08:32:09)
-- `foms/services/channel_policy.py` <- 1 edit(s), ~68 chars (2026-04-23 08:32:09)
-- `tests/domains/test_channel_push_messages.py` <- 1 edit(s), ~49 chars (2026-04-23 08:32:08)
-- `foms/services/channel_policy.py` <- 1 edit(s), ~88 chars (2026-04-23 08:32:08)
-- `templates/orders/partials/dashboard_scripts_detail_dom.html` <- 1 edit(s), ~102 chars (2026-04-22 10:59:22)
-- `static/js/orders/dashboard/erp-dashboard-detail-dom.js` <- 1 edit(s), ~102 chars (2026-04-22 10:59:21)
+- `docs/specs/2026-04-30-shared-harness-task-classification_SPEC.md` <- 1 edit(s), ~122 chars (2026-04-30 14:42:09)
+- `unknown` <- 0 edit(s), ~0 chars (2026-04-30 14:41:49)
+- `docs/ARCHIVE_INDEX.md` <- 1 edit(s), ~206 chars (2026-04-30 14:41:06)
+- `.cursor/agents/grand-develop-master.md` <- 1 edit(s), ~417 chars (2026-04-30 14:40:58)
+- `docs/harness/policy/DECISIONS.md` <- 1 edit(s), ~873 chars (2026-04-30 14:40:46)
+- `docs/guides/HARNESS_ENGINEERING_OPERATOR_GUIDE.md` <- 3 edit(s), ~979 chars (2026-04-30 14:40:39)
+- `.cursor/rules/00-project-context.mdc` <- 1 edit(s), ~464 chars (2026-04-30 14:40:31)
+- `CLAUDE.md` <- 1 edit(s), ~431 chars (2026-04-30 14:40:24)
+- `AGENTS.md` <- 1 edit(s), ~227 chars (2026-04-30 14:40:15)
+- `tests/harness/test_hooks_smoke.py` <- 4 edit(s), ~409 chars (2026-04-30 14:39:30)
 
 ### 진행 중이던 작업
 - [2026-04-17] **ERP fast-page `EPT-B8`:** run record `docs/plans/2026-04-17-ept-b8-verification-railway-evidence-run-record.md` — 로컬 게이트 완료; staging HTTP 하네스로 **§4 표·§5** 부분 채움; **closeout** 은 deploy ID·§6 모드·hard stop 조건 충족 후.

@@ -4,7 +4,7 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-04-18 10:27:02 | allow | `-` | `if (Get-Command railway -ErrorAction SilentlyContinue) { railway status }` |
+| 2026-04-30 14:41:56 | allow | `-` | `python "tools\harness\verify_result.py" --json` |
 | 2026-04-18 10:27:26 | allow | `-` | `alembic heads` |
 | 2026-04-18 10:28:05 | allow | `-` | `railway variables --help` |
 | 2026-04-18 10:28:29 | allow | `-` | `railway variable list --json | python -c "import sys, json; data=json.load(sys.stdin); keys=set(); if isinstance(data, dict): items = data.items() if all(isinst` |
@@ -231,3 +231,28 @@
 | 2026-04-28 14:05:30 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch -a; git diff --stat` |
 | 2026-04-28 14:05:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat HEAD; git diff foms/services/channel_event_payloads.py 2>&1 | Select-Object -F` |
 | 2026-04-28 14:05:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add static/css/contexts/cs/as-dashboard-body.css templates/cs/partials/as_dashboard_body.h` |
+| 2026-04-28 14:49:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production; git pull origin production` |
+| 2026-04-28 14:49:08 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin; git log --oneline origin/deploy..origin/production -5; git log --oneline ori` |
+| 2026-04-28 14:49:16 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy:production` |
+| 2026-04-28 14:49:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin production; git branch -f production origin/production; git checkout deploy; ` |
+| 2026-04-28 15:03:26 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-04-28 15:03:50 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb; git branch --show-current` |
+| 2026-04-28 15:03:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_as_dashboard_tabs.py -q --tb=short 2>&1` |
+| 2026-04-28 15:03:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/harness/verify_result.py --json 2>&1` |
+| 2026-04-28 15:04:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "open('commit_msg_tmp.txt','w',encoding='utf-8').write('feat: AS ??쒕낫??怨좉컼??諛쒖＜???쒖` |
+| 2026-04-28 15:04:20 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "open('commit_msg_tmp.txt','w',encoding='utf-8').write('feat: AS ??쒕낫??怨좉컼??諛쒖＜???쒖` |
+| 2026-04-28 15:04:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add templates/cs/partials/as_dashboard_body.html static/css/contexts/cs/as-dashboard-body.` |
+| 2026-04-28 15:16:12 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin; git log -1 --oneline deploy; git log -1 --oneline origin/production 2>$null;` |
+| 2026-04-30 14:06:03 | allow | `-` | `Get-ChildItem "C:\Users\USER\.cursor\projects\c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS\terminals" | Select-Object Name,Length,LastWriteTime; g` |
+| 2026-04-30 14:08:12 | allow | `-` | `python -m pytest tests\domains\test_erp_order_shared_form_scripts.py tests\domains\test_erp_orders_structured_put.py -q` |
+| 2026-04-30 14:08:30 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-04-30 14:08:42 | allow | `-` | `python tools\harness\verify_result.py --json` |
+| 2026-04-30 14:39:37 | allow | `-` | `Get-ChildItem "C:\Users\USER\.cursor\projects\c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS\terminals" | Select-Object Name,Length,LastWriteTime` |
+| 2026-04-30 14:39:42 | allow | `-` | `python -m py_compile "tools\harness\task_classifier.py" "tools\harness\prompt_router.py"` |
+| 2026-04-30 14:39:42 | allow | `-` | `python -m pytest "tests\harness\test_task_classifier.py" -q` |
+| 2026-04-30 14:39:53 | allow | `-` | `powershell -NoProfile -File "tools\harness\run_codex.ps1" -Profile review -Target "tools\harness\build_context_bundle.py" -DryRun` |
+| 2026-04-30 14:39:53 | allow | `-` | `powershell -NoProfile -File "tools\harness\run_codex.ps1" -Profile review -Target "docs\AI_STATUS.md" -AdditionalPrompt "[level=top]" -DryRun` |
+| 2026-04-30 14:41:13 | allow | `-` | `python "tools\harness\build_context_bundle.py" --all` |
+| 2026-04-30 14:41:22 | allow | `-` | `python -m pytest "tests\harness\test_task_classifier.py" "tests\harness\test_hooks_smoke.py" "tests\harness\test_run_codex_levels.py" -q` |
+| 2026-04-30 14:41:56 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-04-30 14:42:15 | allow | `-` | `python "tools\harness\verify_result.py" --json` |

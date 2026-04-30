@@ -270,6 +270,7 @@
 ## 구현 스펙 (docs/specs/)
 | 파일 | 키워드 | 요약 |
 |------|--------|------|
+| 2026-04-30-shared-harness-task-classification_SPEC.md | harness, classifier, cursor, codex, claude, wave3 | Cursor hook, Codex wrapper, Claude/Codex plugin preflight가 공유하는 단일 task classification 계약 |
 | 2026-04-17-erp-shell-fragment-contract_SPEC.md | erp, shell, fragment, canonical-url, history, micro-cache, contract | ERP 4탭 fast-page tranche: full vs fragment 요청 판별, browser cache 키, micro-cache 유지, GET/비-JS fallback 경계를 고정한 계약 SPEC |
 | 2026-04-13-foms-modular-monolith-rebaseline_SPEC.md | foms, modular-monolith, rebaseline, structure, chunk, folder-taxonomy, wdcalculator | FOMS 전체를 단일 modular monolith로 더 선명하게 정리하기 위한 상위 구조 기준선으로, 폴더 체계, canonical 경계, chunk-first 분해 규칙, quarantine 정책, migration wave를 정의하는 전사 구조 재기준선 스펙 |
 | 2026-04-11-measurement-legacy-loader-hardening_SPEC.md | measurement, legacy-shim, loader, csp, document-write, compat-mirror | measurement legacy shim 경로의 `document.write` loader를 제거하고 canonical JS mirror + sync regression test로 호환성을 유지하는 품질 배치 스펙 |

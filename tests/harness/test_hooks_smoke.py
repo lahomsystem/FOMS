@@ -205,6 +205,8 @@ def test_before_submit_prompt_routes_harness_implement_request(tmp_path: Path) -
     assert "-Profile implement" in payload["agentMessage"]
     assert "-Plan" in payload["agentMessage"]
     assert "RPI" in payload["agentMessage"]
+    assert "Shared classification: route=implement, level=high" in payload["agentMessage"]
+    assert "Ask the user for direction before coding" in payload["agentMessage"]
 
 
 def test_before_submit_prompt_prefers_implement_over_url_hint(tmp_path: Path) -> None:
@@ -232,6 +234,7 @@ def test_before_submit_prompt_prefers_implement_over_url_hint(tmp_path: Path) ->
     assert "run_codex.ps1" in payload["agentMessage"]
     assert "-Profile implement" in payload["agentMessage"]
     assert "run_gstack_qa.ps1" not in payload["agentMessage"]
+    assert "Shared classification: route=implement" in payload["agentMessage"]
 
 
 def test_before_submit_prompt_review_of_test_file_stays_review(tmp_path: Path) -> None:
@@ -253,6 +256,7 @@ def test_before_submit_prompt_review_of_test_file_stays_review(tmp_path: Path) -
     assert payload["continue"] is True
     assert "-Profile review" in payload["agentMessage"]
     assert "run_gstack_qa.ps1" not in payload["agentMessage"]
+    assert "Shared classification: route=review" in payload["agentMessage"]
 
 
 def test_before_submit_prompt_test_file_path_without_qa_words_stays_generic(tmp_path: Path) -> None:
@@ -315,3 +319,4 @@ def test_before_submit_prompt_routes_qa_request(tmp_path: Path) -> None:
     assert "run_gstack_qa.ps1" in payload["agentMessage"]
     assert "https://example.com" in payload["agentMessage"]
     assert "erp-smoke" in payload["agentMessage"]
+    assert "Shared classification: route=qa, level=medium" in payload["agentMessage"]

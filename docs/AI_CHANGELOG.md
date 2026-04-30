@@ -4,6 +4,9 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-04-30 | 세션 자동 기록 | CLAUDE.md, AGENTS.md, test_hooks_smoke.py 외 2개 | 8bc353fe |
+| 2026-04-30 | 세션 자동 기록 | test_erp_orders_structured_put.py, test_erp_order_shared_form_scripts.py, erp_orders_structured.py 외 2개 | b8efb48f |
+| 2026-04-28 | 세션 자동 기록 | as_dashboard_body.html, as-dashboard-body.css, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-b1df2123-4b03-4a42-9241-3e2dee05d2c1.png 외 2개 | daf83b6d |
 | 2026-04-28 | 세션 자동 기록 | as-dashboard-body.css, as_dashboard_body.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-b1df2123-4b03-4a42-9241-3e2dee05d2c1.png 외 2개 | e9742ce3 |
 | 2026-04-28 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-b1df2123-4b03-4a42-9241-3e2dee05d2c1.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-79590bd9-b79c-4e2f-8e72-c1a06cd93534.png, test_erp_orders_structured_put.py 외 2개 | e9742ce3 |
 | 2026-04-27 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-b1df2123-4b03-4a42-9241-3e2dee05d2c1.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-79590bd9-b79c-4e2f-8e72-c1a06cd93534.png, test_erp_orders_structured_put.py 외 2개 | bd27a007 |
@@ -21,6 +24,3 @@
 | 2026-04-20 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-9c2b7aa3-89e8-4c99-9100-1b78a8602d88.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-a36cebdc-7e49-4258-b764-5a48fa560063.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-7c9e03c9-38eb-4a37-8935-a6f88886f897.png 외 2개 | 74b60488 |
 | 2026-04-20 | 세션 자동 기록 | dashboard.py, dashboard_main.html, layout_scripts.html 외 2개 | b202f575 |
 | 2026-04-20 | 세션 자동 기록 | dashboard-notifications.js, dashboard_scripts_drawing.html, dashboard_scripts_detail_dom.html 외 2개 | b202f575 |
-| 2026-04-20 | 세션 자동 기록 | wdcalculator_db.py, test_db_url_resolver.py, foms_namespace_surface_tests.py 외 2개 | b202f575 |
-| 2026-04-20 | 세션 자동 기록 | test_db_url_resolver.py, foms_namespace_surface_tests.py, db.py 외 2개 | f318a73f |
-| 2026-04-20 | 세션 자동 기록 | test_db_url_resolver.py, db_url_resolver.py, db.py 외 2개 | 444525d2 |

@@ -6,6 +6,12 @@
 
 ---
 
+### [2026-04-30] Shared harness task classifier
+- **키워드**: harness, classifier, prompt-router, codex, claude, cursor, wave3
+- **결정**: Cursor `beforeSubmitPrompt`, `run_codex.ps1`, Claude/Codex 플러그인 preflight가 `tools/harness/task_classifier.py`의 단일 결정적 JSON 분류 결과를 사용한다. 분류 결과는 `route_kind`, `level`, `context_mode`, runner별 bundle, RPI, 사용자 방향 확인, 자원 힌트를 포함한다.
+- **이유**: 기존에는 `prompt_router.py`의 intent 분류와 `run_codex.ps1`의 Wave 3 level 분류가 분리되어 Cursor/Codex/Claude 경로 간 drift와 과장된 자동화 기대가 생겼다. 플러그인 hook 한계를 인정하되 같은 preflight 결과를 공유해야 운영 품질이 안정된다.
+- **영향**: `tools/harness/task_classifier.py`, `tools/harness/prompt_router.py`, `tools/harness/run_codex.ps1`, `tests/harness/*`, `AGENTS.md`, `CLAUDE.md`, `.cursor/rules/00-project-context.mdc`, `docs/guides/HARNESS_ENGINEERING_OPERATOR_GUIDE.md`, `docs/harness/bundles/*`
+
 ### [2026-04-19] 견적 결제정보 accounts + 레거시 단일 필드 병행
 - **키워드**: estimate, payment_info, accounts, 견적, ERP, 하위호환
 - **결정**: `ESTIMATE_PAYMENT_INFO`는 다중 계좌 `accounts[]`를 정식 필드로 두고, 기존 단일 `bank`/`account`/`holder`는 프리뷰·API 소비자 하위 호환용으로 유지한다. 출고 설정 실측담당자 행의 너비는 인라인이 아니라 `.setting-mm-phone` 등 CSS 클래스로만 제어한다.
