@@ -147,6 +147,7 @@ def test_namespaced_request_utils_shim_preserves_canonical_functions() -> None:
     """The legacy services path should re-export the canonical request utils public API."""
     assert namespaced_request_utils.__all__ == [
         "get_preserved_filter_args",
+        "get_search_query_arg",
         "redirect_if_legacy_open_erp_beta",
     ]
 
@@ -2474,4 +2475,3 @@ def test_pac_b1_partials_shared_html_exact_allowlist() -> None:
         f"  expected={sorted(_PAC_PARTIALS_SHARED_HTML_ALLOWLIST)}\n"
         f"  actual={sorted(actual)}"
     )
-

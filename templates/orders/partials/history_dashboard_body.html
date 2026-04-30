@@ -287,7 +287,7 @@
             <label class="erp-pro-filters__label">검색어 (고객명, 전화번호, 주소 등)</label>
             <div class="input-group input-group-sm">
               <span class="input-group-text"><i class="fas fa-search"></i></span>
-              <input type="text" name="q" class="form-control" placeholder="전체 검색" value="{{ request.args.get('q', '') }}">
+              <input type="text" name="q" class="form-control" placeholder="전체 검색..." value="{{ request.args.get('q') or request.args.get('search') or '' }}">
             </div>
           </div>
           <div class="col-12 col-md-2">

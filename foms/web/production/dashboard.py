@@ -26,6 +26,7 @@ from foms.services.erp_display import (
 )
 from foms.services.erp_order_detail import attach_order_detail_payloads
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
+from foms.services.request_utils import get_search_query_arg
 
 
 erp_production_page_bp = Blueprint(
@@ -314,7 +315,7 @@ def erp_production_dashboard():
     is_admin = user and user.role == 'ADMIN'
 
     f_stage = (request.args.get('stage') or '').strip()
-    f_q = (request.args.get('q') or '').strip()
+    f_q = get_search_query_arg('q', 'search')
     erp_mine_only = request.args.get('mine') == '1'
 
     stage_col = cast(Order.structured_data['workflow']['stage'], String)

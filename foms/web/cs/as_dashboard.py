@@ -16,6 +16,7 @@ from foms.services.common.erp_shell_http import (
     wants_erp_shell_tab_body,
 )
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
+from foms.services.request_utils import get_search_query_arg
 
 
 erp_as_page_bp = Blueprint('erp_as_page', __name__, url_prefix='/erp')
@@ -242,7 +243,7 @@ def erp_as_dashboard():
     """ERP Order - AS 대시보드 (MVP: AS 상태 주문 리스트)"""
     db = get_db()
     status_filter = (request.args.get('status') or '').strip()
-    search_q = (request.args.get('q') or request.args.get('manager') or '').strip()
+    search_q = get_search_query_arg('q', 'search', 'manager')
     selected_date = request.args.get('date')
     open_map = request.args.get('open_map') == '1'
     tab = (request.args.get('tab') or 'incomplete').strip()

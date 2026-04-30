@@ -21,6 +21,7 @@ from foms.services.erp_display import (
 from foms.services.erp_shipment_settings import is_order_mine_for_user
 from foms.services.erp_product_items import build_product_items_for_order
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
+from foms.services.request_utils import get_search_query_arg
 
 erp_drawing_workbench_bp = Blueprint('erp_drawing_workbench', __name__, url_prefix='/erp')
 
@@ -31,7 +32,7 @@ def erp_drawing_workbench_dashboard():
     """도면 작업실 대시보드: 도면 단계 협업 전용 화면(목록형)"""
     db = get_db()
     current_user = getattr(g, 'current_user', None)
-    q_raw = (request.args.get('q') or '').strip()
+    q_raw = get_search_query_arg('q', 'search')
     q = q_raw.lower()
     status_filter = (request.args.get('status') or '').strip().upper()
     # ERP 공통: mine은 URL 쿼리만 사용 (layout에서 쿠키→URL 동기화)

@@ -28,6 +28,7 @@ from foms.services.erp_display import (
 from foms.services.erp_order_detail import build_order_detail_payload_map
 from foms.services.erp_shipment_settings import is_order_mine_for_user
 from foms.services.orders.status_constants import BULK_ACTION_STATUS
+from foms.services.request_utils import get_search_query_arg
 from foms.services.common.dashboard_cache import (
     TTL_ATTACHMENT_COUNT_MAP,
     TTL_PAYLOAD_ASSEMBLY,
@@ -76,7 +77,7 @@ def erp_dashboard():
     f_urgent = (request.args.get('urgent') or '').strip()
     f_has_alert = (request.args.get('has_alert') or '').strip()
     f_alert_type = (request.args.get('alert_type') or '').strip()
-    f_q = (request.args.get('q') or '').strip()
+    f_q = get_search_query_arg('q', 'search')
     f_team = (request.args.get('team') or '').strip()
 
     # Phase H: 대시보드 운영 화면은 최근 활성 데이터만 조회 (과거 완료건 제외)

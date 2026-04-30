@@ -11,6 +11,7 @@ from foms.services.erp_order_flags import is_erp_order_record
 from sqlalchemy import or_, cast, String
 
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
+from foms.services.request_utils import get_search_query_arg
 
 erp_history_bp = Blueprint('erp_history', __name__, url_prefix='/erp/history')
 
@@ -21,7 +22,7 @@ def history_dashboard():
     db = get_db()
     
     # 1. 필수 필터 여부 확인 (무차별 Full Scan 방지)
-    f_q = (request.args.get('q') or '').strip()
+    f_q = get_search_query_arg('q', 'search')
     f_stage = (request.args.get('stage') or '').strip()
     f_date_from = (request.args.get('date_from') or '').strip()
     f_date_to = (request.args.get('date_to') or '').strip()
