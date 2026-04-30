@@ -2209,12 +2209,24 @@ async function erpUploadSelectedAttachments() {
         return;
     }
     const files = Array.from(input.files);
+    await erpUploadCommonAttachmentFiles(files);
+    input.value = '';
+}
+
+async function erpUploadCommonAttachmentFiles(files, options = {}) {
+    if (!ERP_ORDER_ENABLED) return;
+    if (!Array.isArray(files) || files.length === 0) {
+        erpAttachmentsSetStatus('업로드할 파일을 선택하세요.', true);
+        return;
+    }
     const targetId = await erpRequireOrderIdOrWarn('첨부 업로드:');
     if (!targetId) {
         return;
     }
     const categoryEl = document.getElementById('erp-attachments-category');
     const category = erpNormalizeAttachmentCategory(categoryEl ? categoryEl.value : 'measurement');
+    const statusVerb = options.statusVerb || '업로드';
+    const doneVerb = options.doneVerb || '업로드 완료';
     // --- Optimistic UI Start ---
     const galleryWrap = document.getElementById('erp-attachments-gallery');
     if (galleryWrap) {
@@ -2242,7 +2254,7 @@ async function erpUploadSelectedAttachments() {
     }
     // --- Optimistic UI End ---
 
-    erpAttachmentsSetStatus(`업로드 중... (${files.length}개)`);
+    erpAttachmentsSetStatus(`${statusVerb} 중... (${files.length}개)`);
 
     const progressWrap = document.getElementById('erp-attachments-progress');
     const progressBar = document.getElementById('erp-attachments-progress-bar');
@@ -2324,9 +2336,79 @@ async function erpUploadSelectedAttachments() {
     if (progressWrap) progressWrap.classList.add('d-none');
     if (progressBar) { progressBar.style.width = '0%'; progressBar.textContent = '0%'; }
 
-    input.value = '';
-    erpAttachmentsSetStatus(`업로드 완료: ${ok}/${files.length}`);
+    erpAttachmentsSetStatus(`${doneVerb}: ${ok}/${files.length}`);
     await erpLoadAttachments();
+}
+
+function erpBuildClipboardImageFilename(file, index) {
+    const now = new Date();
+    const stamp = [
+        now.getFullYear(),
+        String(now.getMonth() + 1).padStart(2, '0'),
+        String(now.getDate()).padStart(2, '0')
+    ].join('') + '-' + [
+        String(now.getHours()).padStart(2, '0'),
+        String(now.getMinutes()).padStart(2, '0'),
+        String(now.getSeconds()).padStart(2, '0')
+    ].join('');
+    const mime = String(file?.type || '').toLowerCase();
+    const ext = mime === 'image/jpeg' ? 'jpg'
+        : mime === 'image/webp' ? 'webp'
+            : mime === 'image/gif' ? 'gif'
+                : 'png';
+    const suffix = index > 0 ? '-' + (index + 1) : '';
+    return `capture-${stamp}${suffix}.${ext}`;
+}
+
+function erpGetClipboardImageFiles(event) {
+    const items = event && event.clipboardData && event.clipboardData.items;
+    if (!items || !items.length) return [];
+    const files = [];
+    for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (!item || item.kind !== 'file' || !String(item.type || '').startsWith('image/')) {
+            continue;
+        }
+        const rawFile = item.getAsFile();
+        if (!rawFile) continue;
+        const type = rawFile.type || item.type || 'image/png';
+        const name = erpBuildClipboardImageFilename({ type }, files.length);
+        try {
+            files.push(new File([rawFile], name, { type: type, lastModified: Date.now() }));
+        } catch (_) {
+            files.push(rawFile);
+        }
+    }
+    return files;
+}
+
+function erpFindAttachmentPasteZone(target) {
+    if (!target || typeof target.closest !== 'function') return null;
+    return target.closest('[data-erp-attachment-paste-zone="common"]');
+}
+
+async function erpHandleAttachmentPaste(event) {
+    const targetZone = erpFindAttachmentPasteZone(event.target);
+    const activeZone = erpFindAttachmentPasteZone(document.activeElement);
+    if (!targetZone && !activeZone) return;
+    const files = erpGetClipboardImageFiles(event);
+    if (!files.length) return;
+    event.preventDefault();
+    await erpUploadCommonAttachmentFiles(files, {
+        statusVerb: '붙여넣은 이미지 업로드',
+        doneVerb: '붙여넣은 이미지 업로드 완료'
+    });
+}
+
+function erpBindAttachmentPasteUpload() {
+    const zone = document.querySelector('[data-erp-attachment-paste-zone="common"]');
+    if (!zone || zone._erpPasteUploadBound) return;
+    zone._erpPasteUploadBound = true;
+    zone.addEventListener('paste', erpHandleAttachmentPaste);
+    zone.addEventListener('click', function (event) {
+        if (event.target && event.target.closest('button,a,input,select,textarea')) return;
+        try { zone.focus({ preventScroll: true }); } catch (_) { zone.focus(); }
+    });
 }
 
 async function erpDeleteAttachment(attachmentId) {
@@ -2768,6 +2850,7 @@ function fomsMountErpOrderSurface() {
     };
 
     document.getElementById('erp-attachments-upload-btn')?.addEventListener('click', erpUploadSelectedAttachments);
+    erpBindAttachmentPasteUpload();
     document.getElementById('erp-gen-text-btn')?.addEventListener('click', erpGenerateConversionText);
     document.getElementById('erp-copy-text-btn')?.addEventListener('click', erpCopyToClipboard);
 
@@ -2874,6 +2957,7 @@ function fomsMountErpOrderSurface() {
         if (fileInput) {
             fileInput.value = '';
         }
+        erpBindAttachmentPasteUpload();
         if (isErpOrderDraftMode() && (!ORDER_ID || ORDER_ID <= 0)) {
             const now = new Date();
             const localDateStr = [

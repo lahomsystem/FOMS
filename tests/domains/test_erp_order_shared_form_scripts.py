@@ -212,6 +212,29 @@ def test_shared_erp_order_js_does_not_auto_save_before_user_save() -> None:
     assert "erpCanUsePersistedOrderAction('푸쉬는')" in push_block
 
 
+def test_shared_erp_order_supports_scoped_clipboard_image_upload() -> None:
+    """Clipboard screenshots should upload through the same attachment path, scoped to the attachment box."""
+    root = Path(__file__).resolve().parents[2]
+    js_text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+    template_text = (
+        root / "templates" / "orders" / "partials" / "erp_order_tab.html"
+    ).read_text(encoding="utf-8")
+
+    assert 'data-erp-attachment-paste-zone="common"' in template_text
+    assert "이미지를 붙여넣으면 바로 업로드됩니다." in template_text
+    assert "Ctrl+V로 바로 업로드" in template_text
+
+    assert "async function erpUploadCommonAttachmentFiles(files, options = {})" in js_text
+    assert "await erpUploadCommonAttachmentFiles(files);" in js_text
+    assert "function erpGetClipboardImageFiles(event)" in js_text
+    assert "item.kind !== 'file'" in js_text
+    assert "startsWith('image/')" in js_text
+    assert "item.getAsFile()" in js_text
+    assert "new File([rawFile], name" in js_text
+    assert "zone.addEventListener('paste', erpHandleAttachmentPaste);" in js_text
+    assert "document.addEventListener('paste'" not in js_text
+
+
 def test_shared_erp_order_js_guards_duplicate_save_clicks_and_tokens_draft_create() -> None:
     """Save clicks must be single-flight, and draft creation must carry a page token."""
     root = Path(__file__).resolve().parents[2]

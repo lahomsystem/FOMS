@@ -334,7 +334,9 @@ ERP Order Tab Pane (shared between add_order and edit_order)
 
                     <hr class="my-3">
                     <div class="fw-bold mb-2"><i class="fas fa-paperclip"></i> 공통 첨부(사진/동영상)</div>
-                    <div class="border rounded p-3" style="border-style: dashed !important; background-color: #f8f9fa;">
+                    <div class="border rounded p-3" style="border-style: dashed !important; background-color: #f8f9fa;"
+                        data-erp-attachment-paste-zone="common" tabindex="0"
+                        aria-label="공통 첨부 파일 업로드 영역. 이미지를 붙여넣으면 바로 업로드됩니다.">
                         <div class="d-flex flex-wrap gap-2 align-items-center">
                             <select id="erp-attachments-category" class="form-select form-select-sm" style="max-width: 140px;">
                                 <option value="measurement">실측</option>
@@ -348,7 +350,7 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                                 id="erp-attachments-upload-btn">
                                 <i class="fas fa-upload"></i> 업로드
                             </button>
-                            <small class="text-muted">여러 개 선택 가능</small>
+                            <small class="text-muted">여러 개 선택 가능 · 캡처 이미지는 이 박스를 클릭 후 Ctrl+V로 바로 업로드</small>
                         </div>
                         <div class="small text-muted mt-2" id="erp-attachments-status"></div>
                         <div id="erp-attachments-progress" class="mt-2 d-none">
