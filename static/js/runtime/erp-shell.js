@@ -39,6 +39,9 @@
   var IDLE_PREFETCH_MAX = 3;
   var HOVER_DEBOUNCE_MS = 180;
   var IDLE_DELAY_MS = 1600;
+  var NO_FRAGMENT_CACHE_PATHS = [
+    '/erp/measurement',
+  ];
 
   /** pathname+search cache key — sorted query keys, stable for warm hit / scroll memory. */
   var fragmentHtmlCache = Object.create(null);
@@ -127,6 +130,10 @@
   /** True when fetch+swap is allowed (9 primary + B5 subordinates). Full-document map surface excluded. */
   function isShellFragmentSwapUrl(url) {
     return isFragmentReadyPath(url) || isSubordinateShellFragmentPath(url);
+  }
+
+  function isFragmentCacheable(url) {
+    return NO_FRAGMENT_CACHE_PATHS.indexOf(pathOnly(url)) === -1;
   }
 
   function getCacheKey(url) {
@@ -247,6 +254,7 @@
     var fetchUrl = new URL(canonical.toString());
     fetchUrl.searchParams.set('view', 'fragment');
     var key = getCacheKey(canonical.href);
+    var cacheable = isFragmentCacheable(canonical.href);
     if (inflightFetches[key]) {
       return inflightFetches[key];
     }
@@ -267,7 +275,9 @@
         return r.text();
       })
       .then(function (html) {
-        cachePut(key, html);
+        if (cacheable) {
+          cachePut(key, html);
+        }
         return html;
       })
       .finally(function () {
@@ -304,7 +314,7 @@
       }
     }
 
-    if (!opts.bypassCache) {
+    if (!opts.bypassCache && isFragmentCacheable(canonical.href)) {
       var cached = cacheGet(destKey);
       if (cached && applyFragmentToMain(cached, canonical.href)) {
         if (!opts.fromPopState && window.history && window.history.pushState) {
@@ -341,6 +351,9 @@
   function prefetchShellFragment(url) {
     var canonical = new URL(url, window.location.origin);
     if (!isShellFragmentSwapUrl(canonical.href)) {
+      return;
+    }
+    if (!isFragmentCacheable(canonical.href)) {
       return;
     }
     var key = getCacheKey(canonical.href);
@@ -511,6 +524,7 @@
     window.FOMS_ERP_SHELL.PRIMARY_NAV_PATHS = PRIMARY_NAV_PATHS;
     window.FOMS_ERP_SHELL.FRAGMENT_READY_PATHS = FRAGMENT_READY_PATHS;
     window.FOMS_ERP_SHELL.isShellFragmentSwapUrl = isShellFragmentSwapUrl;
+    window.FOMS_ERP_SHELL.isFragmentCacheable = isFragmentCacheable;
     window.FOMS_ERP_SHELL.prefetchShellFragment = prefetchShellFragment;
     window.FOMS_ERP_SHELL.getCacheKey = getCacheKey;
   }

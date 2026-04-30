@@ -152,3 +152,53 @@ def test_measurement_mobile_page_uses_normalized_manager_name(client, monkeypatc
     assert match is not None
     assert match.group(1).strip()
     assert match.group(1).strip() != str(manager_user_id)
+
+
+def test_measurement_dashboard_excludes_stale_legacy_schedule_date(client, monkeypatch):
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    fake_today = date(2026, 5, 4)
+    monkeypatch.setattr(erp_measurement_dashboard, "get_today_kst", lambda: fake_today)
+    _login_erp_admin(client)
+
+    order = Order(
+        received_date="2026-05-01",
+        customer_name="Stale Legacy Measurement",
+        phone="010-9999-0000",
+        address="Seoul",
+        product="Cabinet",
+        status="MEASURE",
+        measurement_date="2026-05-04",
+        is_erp_order=True,
+        erp_measurement_date="2026-05-06",
+        structured_data={
+            "schedule": {"measurement": {"date": "2026-05-06"}},
+            "items": [{"product_name": "Cabinet"}],
+        },
+    )
+    db_session.add(order)
+    db_session.flush()
+    db_session.add_all(
+        [
+            OrderScheduleDate(
+                order_id=order.id,
+                kind="measurement",
+                date="2026-05-04",
+                source="legacy_column",
+            ),
+            OrderScheduleDate(
+                order_id=order.id,
+                kind="measurement",
+                date="2026-05-06",
+                source="beta_schedule",
+            ),
+        ]
+    )
+    db_session.commit()
+
+    stale_response = client.get("/erp/measurement?date=2026-05-04")
+    fresh_response = client.get("/erp/measurement?date=2026-05-06")
+
+    assert stale_response.status_code == 200
+    assert fresh_response.status_code == 200
+    assert "Stale Legacy Measurement" not in stale_response.get_data(as_text=True)
+    assert "Stale Legacy Measurement" in fresh_response.get_data(as_text=True)
