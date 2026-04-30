@@ -448,9 +448,12 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                 </div>
                 <div class="mb-3">
                     <label class="form-label fw-bold">사진/동영상 첨부</label>
-                    <input type="file" id="as-receive-files" class="form-control"
-                        multiple accept="image/*,video/*,.gif">
-                    <div class="small text-muted mt-1">동영상 10MB 초과 시 업로드가 지연될 수 있습니다.</div>
+                    <div class="border rounded p-2 bg-light" data-erp-attachment-paste-zone="as-receive" tabindex="0"
+                        aria-label="AS 사진 동영상 첨부 업로드 영역. 이미지를 붙여넣으면 AS 첨부에 바로 추가됩니다.">
+                        <input type="file" id="as-receive-files" class="form-control"
+                            multiple accept="image/*,video/*,.gif">
+                        <div class="small text-muted mt-1">동영상 10MB 초과 시 업로드가 지연될 수 있습니다. 캡처 이미지는 이 박스를 클릭 후 Ctrl+V로 바로 추가됩니다.</div>
+                    </div>
                     <div id="as-receive-preview" class="d-flex flex-wrap gap-2 mt-2"></div>
                 </div>
             </div>

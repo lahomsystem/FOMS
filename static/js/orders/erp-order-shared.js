@@ -1204,6 +1204,7 @@ async function erpSaveStructuredOnce(opts = {}) {
                 const previewEl = document.getElementById('as-receive-preview');
                 if (contentEl) contentEl.value = (window.__erpLastStructuredData?.shipment?.as_content || '').trim();
                 if (filesEl) filesEl.value = '';
+                window.__erpAsReceiveClipboardFiles = [];
                 if (previewEl) previewEl.innerHTML = '';
                 bootstrap.Modal.getOrCreateInstance(modalEl).show();
             }
@@ -1517,25 +1518,12 @@ ${escapeHtml(sub)}</div>` : ''}`;
         const filesEl = document.getElementById('as-receive-files');
         const previewEl = document.getElementById('as-receive-preview');
         const submitBtn = document.getElementById('as-receive-submit-btn');
-        const AS_VIDEO_SIZE_WARN = 10 * 1024 * 1024; // 10MB
 
         if (filesEl && previewEl) {
             filesEl.addEventListener('change', function () {
-                previewEl.innerHTML = '';
+                window.__erpAsReceiveClipboardFiles = [];
                 const files = Array.from(this.files || []);
-                files.forEach(function (f) {
-                    const isVideo = (f.type || '').startsWith('video/');
-                    if (isVideo && f.size > AS_VIDEO_SIZE_WARN) {
-                        const warn = document.createElement('div');
-                        warn.className = 'small text-warning';
-                        warn.textContent = f.name + ' (10MB 초과, 업로드 지연 가능)';
-                        previewEl.appendChild(warn);
-                    }
-                    const span = document.createElement('span');
-                    span.className = 'badge bg-secondary';
-                    span.textContent = f.name;
-                    previewEl.appendChild(span);
-                });
+                erpRenderAsReceiveFilePreview(files);
             });
         }
 
@@ -1578,7 +1566,11 @@ ${escapeHtml(sub)}</div>` : ''}`;
                         throw new Error(regData.message || 'AS 접수 등록 실패');
                     }
 
-                    const files = filesEl?.files ? Array.from(filesEl.files) : [];
+                    const fallbackFiles = Array.isArray(window.__erpAsReceiveClipboardFiles)
+                        ? window.__erpAsReceiveClipboardFiles
+                        : [];
+                    const nativeFiles = filesEl?.files ? Array.from(filesEl.files) : [];
+                    const files = fallbackFiles.length ? fallbackFiles : nativeFiles;
                     if (files.length > 0) {
                         const folder = `orders/${targetId}/attachments`;
                         const category = 'as';
@@ -2398,6 +2390,52 @@ function erpSetAttachmentPasteZoneActive(zone, isActive) {
     zone.style.backgroundColor = isActive ? '#eef6ff' : '';
 }
 
+function erpRenderAsReceiveFilePreview(files) {
+    const previewEl = document.getElementById('as-receive-preview');
+    if (!previewEl) return;
+    const AS_VIDEO_SIZE_WARN = 10 * 1024 * 1024;
+    previewEl.innerHTML = '';
+    (Array.isArray(files) ? files : []).forEach(function (f) {
+        const isVideo = (f.type || '').startsWith('video/');
+        if (isVideo && f.size > AS_VIDEO_SIZE_WARN) {
+            const warn = document.createElement('div');
+            warn.className = 'small text-warning';
+            warn.textContent = f.name + ' (10MB 초과, 업로드 지연 가능)';
+            previewEl.appendChild(warn);
+        }
+        const span = document.createElement('span');
+        span.className = 'badge bg-secondary';
+        span.textContent = f.name;
+        previewEl.appendChild(span);
+    });
+}
+
+function erpSetFileInputFiles(input, files) {
+    if (!input || typeof DataTransfer !== 'function') return false;
+    const dt = new DataTransfer();
+    (Array.isArray(files) ? files : []).forEach(function (file) {
+        dt.items.add(file);
+    });
+    input.files = dt.files;
+    return true;
+}
+
+function erpAppendAsReceiveFiles(files) {
+    const filesEl = document.getElementById('as-receive-files');
+    if (!filesEl) {
+        erpAttachmentsSetStatus('AS 첨부 입력 영역을 찾지 못했습니다.', true);
+        return;
+    }
+    const mergedFiles = Array.from(filesEl.files || []).concat(files || []);
+    if (erpSetFileInputFiles(filesEl, mergedFiles)) {
+        window.__erpAsReceiveClipboardFiles = [];
+        filesEl.dispatchEvent(new Event('change', { bubbles: true }));
+    } else {
+        window.__erpAsReceiveClipboardFiles = mergedFiles;
+        erpRenderAsReceiveFilePreview(mergedFiles);
+    }
+}
+
 async function erpHandleAttachmentPaste(event) {
     const zone = erpFindAttachmentPasteZone(event.target) || erpFindAttachmentPasteZone(document.activeElement);
     if (!zone) return;
@@ -2413,6 +2451,10 @@ async function erpHandleAttachmentPaste(event) {
             return;
         }
         await erpUploadItemAttachments(itemIndex, files);
+        return;
+    }
+    if (zone.getAttribute('data-erp-attachment-paste-zone') === 'as-receive') {
+        erpAppendAsReceiveFiles(files);
         return;
     }
     await erpUploadCommonAttachmentFiles(files, {
