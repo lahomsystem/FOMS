@@ -235,6 +235,10 @@ def test_shared_erp_order_supports_scoped_clipboard_image_upload() -> None:
     assert "item.getAsFile()" in js_text
     assert "new File([rawFile], name" in js_text
     assert "root.addEventListener('paste', erpHandleAttachmentPaste);" in js_text
+    assert "function erpSetAttachmentPasteZoneActive(zone, isActive)" in js_text
+    assert "root.addEventListener('focusin'" in js_text
+    assert "root.addEventListener('focusout'" in js_text
+    assert "rgba(13,110,253,0.18)" in js_text
     assert "await erpUploadItemAttachments(itemIndex, files);" in js_text
     assert "document.addEventListener('paste'" not in js_text
 

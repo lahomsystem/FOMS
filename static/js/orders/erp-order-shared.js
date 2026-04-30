@@ -2389,6 +2389,15 @@ function erpFindAttachmentPasteZone(target) {
     return target.closest('[data-erp-attachment-paste-zone]');
 }
 
+function erpSetAttachmentPasteZoneActive(zone, isActive) {
+    if (!zone) return;
+    zone.classList.toggle('border-primary', !!isActive);
+    zone.classList.toggle('shadow-sm', !!isActive);
+    zone.style.borderColor = isActive ? '#0d6efd' : '';
+    zone.style.boxShadow = isActive ? '0 0 0 0.2rem rgba(13,110,253,0.18)' : '';
+    zone.style.backgroundColor = isActive ? '#eef6ff' : '';
+}
+
 async function erpHandleAttachmentPaste(event) {
     const zone = erpFindAttachmentPasteZone(event.target) || erpFindAttachmentPasteZone(document.activeElement);
     if (!zone) return;
@@ -2421,6 +2430,14 @@ function erpBindAttachmentPasteUpload() {
         const zone = erpFindAttachmentPasteZone(event.target);
         if (!zone || (event.target && event.target.closest('button,a,input,select,textarea'))) return;
         try { zone.focus({ preventScroll: true }); } catch (_) { zone.focus(); }
+    });
+    root.addEventListener('focusin', function (event) {
+        const zone = erpFindAttachmentPasteZone(event.target);
+        if (zone) erpSetAttachmentPasteZoneActive(zone, true);
+    });
+    root.addEventListener('focusout', function (event) {
+        const zone = erpFindAttachmentPasteZone(event.target);
+        if (zone) erpSetAttachmentPasteZoneActive(zone, false);
     });
 }
 
