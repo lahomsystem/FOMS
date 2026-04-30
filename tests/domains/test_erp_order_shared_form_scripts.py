@@ -212,6 +212,27 @@ def test_shared_erp_order_js_does_not_auto_save_before_user_save() -> None:
     assert "erpCanUsePersistedOrderAction('푸쉬는')" in push_block
 
 
+def test_shared_erp_order_js_guards_duplicate_save_clicks_and_tokens_draft_create() -> None:
+    """Save clicks must be single-flight, and draft creation must carry a page token."""
+    root = Path(__file__).resolve().parents[2]
+    text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+
+    save_start = text.index("async function erpSaveStructured(opts = {})")
+    save_end = text.index("async function erpSaveStructuredOnce(opts = {})", save_start)
+    save_block = text[save_start:save_end]
+    assert "_erpSaveStructuredInFlight" in save_block
+    assert "return _erpSaveStructuredInFlight;" in save_block
+    assert "erpSetSaveButtonBusy(true);" in save_block
+    assert "erpSetSaveButtonBusy(false);" in save_block
+
+    draft_start = text.index("var erpGetDraftRequestToken")
+    draft_end = text.index("window.erpEnsureDraftOrderId = erpEnsureDraftOrderId;", draft_start)
+    draft_block = text[draft_start:draft_end]
+    assert "window.__ERP_DRAFT_REQUEST_TOKEN" in draft_block
+    assert "crypto.randomUUID" in draft_block
+    assert "body: JSON.stringify({ draft_token: erpGetDraftRequestToken() })" in draft_block
+
+
 def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
     """ERP Order 저장은 잔금을 canonical final amount로 유지하되 변환 텍스트에는 잔금 라인을 내보내지 않는다."""
     root = Path(__file__).resolve().parents[2]

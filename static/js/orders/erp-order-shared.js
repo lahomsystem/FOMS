@@ -237,6 +237,21 @@ var erpGetDraftEndpoint =
     };
 window.erpGetDraftEndpoint = erpGetDraftEndpoint;
 
+var erpGetDraftRequestToken =
+    window.erpGetDraftRequestToken ||
+    function erpGetDraftRequestToken() {
+        if (!window.__ERP_DRAFT_REQUEST_TOKEN) {
+            if (window.crypto && typeof window.crypto.randomUUID === "function") {
+                window.__ERP_DRAFT_REQUEST_TOKEN = window.crypto.randomUUID();
+            } else {
+                window.__ERP_DRAFT_REQUEST_TOKEN =
+                    String(Date.now()) + "-" + String(Math.random()).slice(2);
+            }
+        }
+        return window.__ERP_DRAFT_REQUEST_TOKEN;
+    };
+window.erpGetDraftRequestToken = erpGetDraftRequestToken;
+
 var erpSetDraftBanner =
     window.erpSetDraftBanner ||
     function erpSetDraftBanner(orderId) {
@@ -283,7 +298,11 @@ var erpEnsureDraftOrderId =
         if (!isErpOrderDraftMode()) return ORDER_ID || 0;
         if (ORDER_ID && ORDER_ID > 0) return ORDER_ID;
 
-        var res = await fetch(erpGetDraftEndpoint(), { method: "POST" });
+        var res = await fetch(erpGetDraftEndpoint(), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ draft_token: erpGetDraftRequestToken() }),
+        });
         var data = await res.json();
         if (!data || !data.success) {
             throw new Error(
@@ -1051,8 +1070,49 @@ function erpCollectStructured() {
  * @returns {Promise<{success: boolean, message?: string}>}
  */
 async function erpSaveStructured(opts = {}) {
-    const doRedirect = opts.redirect !== false;
     if (!ERP_ORDER_ENABLED) return { success: false, message: 'ERP Order 비활성' };
+    if (_erpSaveStructuredInFlight) {
+        erpSetStatus('저장 중...');
+        return _erpSaveStructuredInFlight;
+    }
+
+    erpSetStatus('저장 중...');
+    erpSetSaveButtonBusy(true);
+    _erpSaveStructuredInFlight = erpSaveStructuredOnce(opts);
+    try {
+        return await _erpSaveStructuredInFlight;
+    } finally {
+        _erpSaveStructuredInFlight = null;
+        erpSetSaveButtonBusy(false);
+    }
+}
+
+let _erpSaveStructuredInFlight = null;
+
+function erpSetSaveButtonBusy(isBusy) {
+    const btn = document.getElementById('erp-save-btn');
+    if (!btn) return;
+
+    if (isBusy) {
+        if (!btn.dataset.erpOriginalHtml) {
+            btn.dataset.erpOriginalHtml = btn.innerHTML;
+        }
+        btn.disabled = true;
+        btn.setAttribute('aria-busy', 'true');
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>저장 중...';
+        return;
+    }
+
+    btn.disabled = false;
+    btn.removeAttribute('aria-busy');
+    if (btn.dataset.erpOriginalHtml) {
+        btn.innerHTML = btn.dataset.erpOriginalHtml;
+        delete btn.dataset.erpOriginalHtml;
+    }
+}
+
+async function erpSaveStructuredOnce(opts = {}) {
+    const doRedirect = opts.redirect !== false;
 
     // 필수 입력값 검증 (사용자 직접 저장 시에만 적용, 자동 저장 예외)
     if (opts._skipValidation !== true) {

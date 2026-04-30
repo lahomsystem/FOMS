@@ -46,8 +46,54 @@ TEAM_LABELS = {
 }
 _CUSTOMER_PLACEHOLDERS = {ERP_DRAFT_PLACEHOLDER_CUSTOMER}
 _PRODUCT_PLACEHOLDERS = {ERP_DRAFT_PLACEHOLDER_PRODUCT}
+_ERP_DRAFT_TOKEN_MAX_LENGTH = 128
 
 erp_orders_structured_bp = Blueprint('erp_orders_structured', __name__, url_prefix='/api')
+
+
+def _coerce_draft_token(value: Any) -> str:
+    """Return a compact draft idempotency token from request data."""
+    if not isinstance(value, str):
+        return ''
+    token = value.strip()
+    if not token or len(token) > _ERP_DRAFT_TOKEN_MAX_LENGTH:
+        return ''
+    return token
+
+
+def _lock_draft_token_if_supported(db: Session, draft_token: str) -> None:
+    """Serialize same-token draft creation on PostgreSQL."""
+    if not draft_token:
+        return
+    try:
+        bind = db.get_bind()
+        dialect_name = getattr(getattr(bind, 'dialect', None), 'name', '')
+        if dialect_name == 'postgresql':
+            db.execute(
+                text("SELECT pg_advisory_xact_lock(hashtext(:lock_key))"),
+                {'lock_key': f'erp-draft:{draft_token}'},
+            )
+    except Exception as e:
+        logger.warning("draft token lock failed: %s", e, exc_info=True)
+
+
+def _find_existing_draft_by_token(db: Session, draft_token: str) -> Optional[Order]:
+    """Find a still-open draft created by the same browser-page token."""
+    if not draft_token:
+        return None
+    candidates = (
+        db.query(Order)
+        .filter(Order.status == 'DRAFT', Order.not_deleted_filter())
+        .order_by(Order.id.desc())
+        .limit(50)
+        .all()
+    )
+    for order in candidates:
+        structured_data = order.structured_data if isinstance(order.structured_data, dict) else {}
+        meta = structured_data.get('meta') if isinstance(structured_data.get('meta'), dict) else {}
+        if meta.get('draft_token') == draft_token and is_erp_order_draft(order):
+            return order
+    return None
 
 
 def _first_product_name_from_structured_data(structured_data: dict) -> str:
@@ -508,12 +554,23 @@ def api_erp_create_draft():
     """ERP '새 주문' 화면용 draft 주문 생성. order_id를 먼저 확보."""
     db = get_db()
     try:
+        payload = request.get_json(silent=True) or {}
+        draft_token = _coerce_draft_token(
+            payload.get('draft_token') or request.headers.get('X-ERP-Draft-Token')
+        )
+        _lock_draft_token_if_supported(db, draft_token)
+
         existing_id = session.get('erp_draft_order_id')
         if existing_id:
             order = db.query(Order).filter(Order.id == int(existing_id), Order.not_deleted_filter()).first()
             if order and is_erp_order_draft(order):
                 return jsonify({'success': True, 'order_id': order.id, 'reused': True})
             session.pop('erp_draft_order_id', None)
+
+        token_order = _find_existing_draft_by_token(db, draft_token)
+        if token_order:
+            session['erp_draft_order_id'] = token_order.id
+            return jsonify({'success': True, 'order_id': token_order.id, 'reused': True})
 
         now = datetime.datetime.now()
         today = now.strftime('%Y-%m-%d')
@@ -525,6 +582,8 @@ def api_erp_create_draft():
             'schedule': {},
             'meta': {'draft': True, 'created_via': 'ADD_ORDER'},
         }
+        if draft_token:
+            structured['meta']['draft_token'] = draft_token
 
         order = Order(
             received_date=today,

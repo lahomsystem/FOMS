@@ -252,6 +252,39 @@ def test_erp_draft_create_is_hidden_from_active_orders_and_reused(client):
     assert reused_data["order_id"] == order_id
 
 
+def test_erp_draft_create_reuses_same_browser_token_without_session_key(client):
+    """Concurrent draft requests can arrive before the session cookie receives the draft id."""
+    _login_as_admin(client, username="erp-draft-token-reuse")
+    draft_token = "draft-token-same-page"
+
+    response = client.post("/api/orders/erp/draft", json={"draft_token": draft_token})
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    order_id = data["order_id"]
+
+    with client.session_transaction() as sess:
+        sess.pop("erp_draft_order_id", None)
+
+    reused = client.post("/api/orders/erp/draft", json={"draft_token": draft_token})
+
+    assert reused.status_code == 200
+    reused_data = reused.get_json()
+    assert reused_data["success"] is True
+    assert reused_data["reused"] is True
+    assert reused_data["order_id"] == order_id
+
+    db_session.expire_all()
+    token_drafts = []
+    for order in db_session.query(Order).filter(Order.status == "DRAFT").all():
+        structured_data = order.structured_data if isinstance(order.structured_data, dict) else {}
+        meta = structured_data.get("meta") if isinstance(structured_data.get("meta"), dict) else {}
+        if meta.get("draft_token") == draft_token:
+            token_drafts.append(order)
+    assert [order.id for order in token_drafts] == [order_id]
+
+
 def test_erp_draft_status_is_hidden_even_without_meta_marker(client):
     _login_as_admin(client, username="erp-draft-status-hidden")
     structured = _structured_payload("서울 테헤란로 123")
