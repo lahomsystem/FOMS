@@ -107,6 +107,75 @@ function Test-HttpUrl {
     return $uri.Scheme -in @("http", "https")
 }
 
+function Invoke-TaskClassifier {
+    param(
+        [string]$RepoRoot,
+        [string]$ProfileName,
+        [string]$PromptText,
+        [string]$PathValue,
+        [string]$ContextSignalPath,
+        [string]$PlanPath,
+        [string]$UrlValue,
+        [string]$ScenarioText,
+        [string]$AdditionalPromptText,
+        [string]$RequestedContextMode,
+        [string]$RequestedBundlePath
+    )
+
+    $pythonPath = Get-ToolPath -Name "python"
+    if ($null -eq $pythonPath) {
+        Write-Error "Python is not available on PATH; cannot run shared harness task classifier."
+    }
+
+    $classifierPath = Join-Path $PSScriptRoot "task_classifier.py"
+    if (-not (Test-Path $classifierPath)) {
+        Write-Error "Shared harness task classifier is missing: $classifierPath"
+    }
+
+    $classifierArgs = @(
+        $classifierPath,
+        "--repo-root", $RepoRoot,
+        "--profile", $ProfileName,
+        "--context-mode", $RequestedContextMode,
+        "--json"
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($PromptText)) {
+        $classifierArgs += @("--prompt", $PromptText)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($PathValue)) {
+        $classifierArgs += @("--path", $PathValue)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($ContextSignalPath)) {
+        $classifierArgs += @("--context-signal-path", $ContextSignalPath)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($PlanPath)) {
+        $classifierArgs += @("--plan", $PlanPath)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($UrlValue)) {
+        $classifierArgs += @("--url", $UrlValue)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($ScenarioText)) {
+        $classifierArgs += @("--scenario", $ScenarioText)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($AdditionalPromptText)) {
+        $classifierArgs += @("--additional-prompt", $AdditionalPromptText)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($RequestedBundlePath)) {
+        $classifierArgs += @("--bundle-path", $RequestedBundlePath)
+    }
+
+    $jsonText = & $pythonPath @classifierArgs
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Shared harness task classifier failed with exit code $LASTEXITCODE."
+    }
+    if ([string]::IsNullOrWhiteSpace($jsonText)) {
+        Write-Error "Shared harness task classifier returned empty output."
+    }
+
+    return ($jsonText | ConvertFrom-Json)
+}
+
 function Test-HarnessContextPath {
     param([string]$RepoRelativePath)
 
@@ -616,6 +685,8 @@ $taskPromptLines = @()
 
 $contextSignalPath = $null
 $planResolved = $null
+$planPromptPath = $null
+$classifierPathValue = $null
 
 switch ($Profile) {
     "review" {
@@ -625,6 +696,7 @@ switch ($Profile) {
         $targetResolved = Resolve-RepoPath -RepoRoot $repoRoot -PathValue $Target
         $targetPromptPath = Get-RepoRelativePath -RepoRoot $repoRoot -ResolvedPath $targetResolved
         $contextSignalPath = $targetPromptPath
+        $classifierPathValue = $targetPromptPath
         $taskPromptLines += "Then review `"$targetPromptPath`" and any directly relevant surrounding code."
         $taskPromptLines += "Return findings first, ordered by severity. Focus on bugs, regressions, security risks, and missing verification."
         $taskPromptLines += "Do not modify files."
@@ -636,6 +708,7 @@ switch ($Profile) {
         $planResolved = Resolve-RepoPath -RepoRoot $repoRoot -PathValue $Plan
         $planPromptPath = Get-RepoRelativePath -RepoRoot $repoRoot -ResolvedPath $planResolved
         $contextSignalPath = $planPromptPath
+        $classifierPathValue = $planPromptPath
         $taskPromptLines += "Then read plan `"$planPromptPath`"."
         $taskPromptLines += "Continue only the next approved implementation step from that plan."
         $taskPromptLines += "Keep unrelated dirty files untouched, follow Root Cause Fix, and verify before claiming success."
@@ -660,24 +733,37 @@ switch ($Profile) {
     }
 }
 
-$overrideInfo = Get-RequestedLevelOverride -Text $AdditionalPrompt
-$autoLevelInfo = Get-AutoTaskLevel -ProfileName $Profile -ContextSignalPath $contextSignalPath -PlanResolvedPath $planResolved -ScenarioText $Scenario -AdditionalPromptText $AdditionalPrompt
-$resolvedLevel = if ($null -ne $overrideInfo.Level) { $overrideInfo.Level } else { $autoLevelInfo.Level }
-$resolvedReason = if ($null -ne $overrideInfo.Level) {
-    "user override via $($overrideInfo.Source); auto was $($autoLevelInfo.Level) ($($autoLevelInfo.Reason))"
-} else {
-    $autoLevelInfo.Reason
-}
-$guidance = Get-LevelGuidance -Level $resolvedLevel
+$classification = Invoke-TaskClassifier `
+    -RepoRoot $repoRoot `
+    -ProfileName $Profile `
+    -PromptText "" `
+    -PathValue $classifierPathValue `
+    -ContextSignalPath $contextSignalPath `
+    -PlanPath $planPromptPath `
+    -UrlValue $Url `
+    -ScenarioText $Scenario `
+    -AdditionalPromptText $AdditionalPrompt `
+    -RequestedContextMode $ContextMode `
+    -RequestedBundlePath $BundlePath
 
-$requiresRiskyOverrideAck = $false
-if (
-    $null -ne $overrideInfo.Level -and
-    (Get-LevelRank -Level $autoLevelInfo.Level) -ge (Get-LevelRank -Level "high") -and
-    (Get-LevelRank -Level $overrideInfo.Level) -lt (Get-LevelRank -Level $autoLevelInfo.Level)
-) {
-    $requiresRiskyOverrideAck = $true
+$overrideInfo = [pscustomobject]@{
+    Level = $classification.override_level
+    Source = $classification.override_source
+    MatchedText = $classification.override_matched_text
 }
+$autoLevelInfo = [pscustomobject]@{
+    Level = $classification.auto_level
+    Reason = $classification.auto_reason
+    PlanMetadata = $classification.plan_metadata
+}
+$resolvedLevel = $classification.level
+$resolvedReason = $classification.reason
+$guidance = [pscustomobject]@{
+    Verification = $classification.verification
+    PromptLines = @($classification.prompt_lines)
+}
+
+$requiresRiskyOverrideAck = [bool]$classification.risky_override_ack_required
 
 if ($requiresRiskyOverrideAck -and -not $DryRun) {
     $warningMessage = "High-risk task auto-classified as $($autoLevelInfo.Level) ($($autoLevelInfo.Reason)). Use -AllowRiskyLevelOverride or rerun interactively to confirm the downgrade to $($overrideInfo.Level)."
@@ -693,7 +779,7 @@ if ($requiresRiskyOverrideAck -and -not $DryRun) {
     }
 }
 
-$resolvedBundlePath = Resolve-CodexBundlePath -RequestedBundlePath $BundlePath -RequestedContextMode $ContextMode -ResolvedLevel $resolvedLevel
+$resolvedBundlePath = $classification.codex_bundle_path
 $bundleResolved = Resolve-RepoPath -RepoRoot $repoRoot -PathValue $resolvedBundlePath
 $bundlePromptPath = Get-RepoRelativePath -RepoRoot $repoRoot -ResolvedPath $bundleResolved
 $resolvedContextMode = if ($bundlePromptPath -like "*_HARNESS.md") { "harness" } else { "daily" }

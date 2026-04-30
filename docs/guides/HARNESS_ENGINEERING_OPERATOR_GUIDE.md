@@ -43,9 +43,18 @@ These bundles are operator-facing reference artifacts. Cursor/Claude/Codex exten
 
 The daily bundles are intentionally slimmed for token efficiency. Use the `_HARNESS` variants only when the task itself edits harness architecture, hooks, rules, bundles, or verification flows.
 
+## Shared Task Classification
+- `tools/harness/task_classifier.py` is the single deterministic classifier for Cursor prompt hooks, the Codex wrapper, and Claude/Codex plugin preflight.
+- It returns `route_kind`, `level`, `context_mode`, runner bundle paths, RPI flags, user-direction flags, and resource hints as JSON.
+- Direct preflight example:
+```powershell
+python "tools/harness/task_classifier.py" --profile auto --prompt "review tools/harness/run_codex.ps1" --json
+```
+- Plugin panels may not always execute repo hooks. When a Claude/Codex-in-Cursor panel does not show the auto-entry message, run the preflight command or use `run_codex.ps1` so the same classification is applied.
+
 ## Prompt Auto Entry In Cursor
 - Cursor now uses `.cursor/hooks/before_submit_prompt.py` on `beforeSubmitPrompt`.
-- The hook classifies prompt-side intent into `review`, `implement`, `qa`, or `generic`.
+- The hook consumes the shared classifier and shows prompt-side intent (`review`, `implement`, `qa`, or `generic`) plus the shared `low / medium / high / top` task level.
 - Matching prompts receive a short wrapper-first `agentMessage` automatically:
   - review -> `tools/harness/run_codex.ps1 -Profile review -Target ...`
   - implement -> `tools/harness/run_codex.ps1 -Profile implement -Plan ...`
@@ -54,7 +63,7 @@ The daily bundles are intentionally slimmed for token efficiency. Use the `_HARN
 - This is prompt-time routing guidance only. It does **not** secretly run wrappers, and it does **not** auto-inject the full bundle body. Full bundle injection still happens only inside `run_codex.ps1`.
 
 ## Wave 3 Auto Level Routing
-- `tools/harness/run_codex.ps1` classifies work into `low / medium / high / top`.
+- `tools/harness/run_codex.ps1` calls `tools/harness/task_classifier.py` and uses its `low / medium / high / top` result.
 - Default mapping:
   - `low` / `medium`: daily bundle
   - `high` / `top`: `_HARNESS` bundle
