@@ -632,7 +632,7 @@
         <div class="order-list-search" role="search">
             <label for="order-search-input" class="visually-hidden">주문 전체 검색</label>
             <input type="text" id="order-search-input" name="search" form="main-filter-form" placeholder="전체 검색..."
-                value="{{ request.args.get('search', '') }}">
+                value="{{ request.args.get('search') or request.args.get('q') or '' }}">
             <button type="submit" form="main-filter-form" class="erp-pro-btn erp-pro-btn--primary erp-pro-btn--sm" aria-label="전체 검색">
                 <i class="fas fa-search"></i>
             </button>

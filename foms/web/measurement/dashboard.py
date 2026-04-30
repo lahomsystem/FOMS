@@ -36,6 +36,7 @@ from foms.services.common.erp_shell_http import (
     apply_erp_shell_fragment_headers,
     wants_erp_shell_tab_body,
 )
+from foms.services.request_utils import get_search_query_arg
 
 erp_measurement_dashboard_bp = Blueprint(
     'erp_measurement_dashboard', __name__, url_prefix='/erp'
@@ -117,7 +118,7 @@ def erp_measurement_dashboard():
     db = get_db()
     today_kst = get_today_kst()
     today_date = today_kst.strftime('%Y-%m-%d')
-    search_q = (request.args.get('q') or request.args.get('manager') or '').strip()
+    search_q = get_search_query_arg('q', 'search', 'manager')
     date_from = (request.args.get('date_from') or '').strip()
     date_to = (request.args.get('date_to') or '').strip()
     req_date = (request.args.get('date') or '').strip()

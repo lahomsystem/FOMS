@@ -30,6 +30,7 @@ from foms.services.common.erp_shell_http import (
     wants_erp_shell_tab_body,
 )
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
+from foms.services.request_utils import get_search_query_arg
 
 # 실행 계획 §3.1.1 shipment — read-model slices:
 # - ``panel_aggregates``: construction_counts / assigned_workers / spec_units (JSON)
@@ -173,7 +174,7 @@ def erp_shipment_dashboard():
     today_kst = get_today_kst()
     today_date = today_kst.strftime('%Y-%m-%d')
     today_dt = today_kst
-    search_q = (request.args.get('q') or request.args.get('manager') or '').strip()
+    search_q = get_search_query_arg('q', 'search', 'manager')
     date_from = (request.args.get('date_from') or '').strip()
     date_to = (request.args.get('date_to') or '').strip()
     req_date = request.args.get('date') or ''

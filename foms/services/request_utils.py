@@ -7,7 +7,20 @@ from urllib.parse import urlencode
 
 from flask import Response, redirect, request, url_for
 
-__all__ = ["get_preserved_filter_args", "redirect_if_legacy_open_erp_beta"]
+__all__ = [
+    "get_preserved_filter_args",
+    "get_search_query_arg",
+    "redirect_if_legacy_open_erp_beta",
+]
+
+
+def get_search_query_arg(*names: str) -> str:
+    """Return the first non-blank search query from equivalent request parameters."""
+    for name in names:
+        value = request.args.get(name)
+        if value and value.strip():
+            return value.strip()
+    return ""
 
 
 def get_preserved_filter_args(request_args: Any) -> dict[str, Any]:

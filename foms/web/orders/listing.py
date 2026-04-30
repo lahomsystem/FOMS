@@ -19,7 +19,11 @@ from foms.services.orders.status_constants import STATUS
 from foms.services.order_display_utils import format_options_for_display, _ensure_dict
 from foms.services.jobs.queue import enqueue_geocode_order_address
 from foms.services.erp_sync_columns import sync_erp_flat_columns
-from foms.services.request_utils import get_preserved_filter_args, redirect_if_legacy_open_erp_beta
+from foms.services.request_utils import (
+    get_preserved_filter_args,
+    get_search_query_arg,
+    redirect_if_legacy_open_erp_beta,
+)
 from foms.services.gnav_contract import gnav_orders_layout_parent, wants_gnav_fragment
 
 
@@ -76,7 +80,7 @@ def index():
         if status_filter == 'MEASURED':  # 레거시 호환
             status_filter = 'MEASURE'
         region_filter = request.args.get('region')
-        search_query = request.args.get('search', '').strip()
+        search_query = get_search_query_arg('search', 'q')
         page = request.args.get('page', 1, type=int)
         per_page = 100
 

@@ -21,6 +21,7 @@ from foms.services.erp_order_detail import attach_order_detail_payloads
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
 from foms.services.erp_permissions import build_mine_sql_filter, can_edit_erp
 from foms.services.erp_policy import STAGE_LABELS
+from foms.services.request_utils import get_search_query_arg
 from models import Order
 
 erp_construction_page_bp = Blueprint("erp_construction_page", __name__, url_prefix="/erp")
@@ -44,7 +45,7 @@ def erp_construction_dashboard():
     is_admin = user and user.role == "ADMIN"
 
     f_stage = (request.args.get("stage") or "").strip()
-    f_q = (request.args.get("q") or "").strip()
+    f_q = get_search_query_arg("q", "search")
     is_construction = user and getattr(user, "team", None) == "CONSTRUCTION"
     mine_only = is_construction or (request.args.get("mine") == "1")
 
