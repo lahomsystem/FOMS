@@ -258,10 +258,18 @@ def test_shared_erp_order_js_guards_duplicate_save_clicks_and_tokens_draft_creat
     save_start = text.index("async function erpSaveStructured(opts = {})")
     save_end = text.index("async function erpSaveStructuredOnce(opts = {})", save_start)
     save_block = text[save_start:save_end]
+    assert "typeof opts.preventDefault === 'function'" in save_block
+    assert "opts.preventDefault();" in save_block
+    assert "opts.stopPropagation" in save_block
+    assert "opts = {};" in save_block
     assert "_erpSaveStructuredInFlight" in save_block
     assert "return _erpSaveStructuredInFlight;" in save_block
     assert "erpSetSaveButtonBusy(true);" in save_block
     assert "erpSetSaveButtonBusy(false);" in save_block
+    assert "function erpFocusWithoutScroll(el)" in text
+    assert "el.focus({ preventScroll: true });" in text
+    assert "erpFocusWithoutScroll(document.getElementById('erp-customer-name'))" in text
+    assert "erpFocusWithoutScroll(firstItem);" in text
 
     draft_start = text.index("var erpGetDraftRequestToken")
     draft_end = text.index("window.erpEnsureDraftOrderId = erpEnsureDraftOrderId;", draft_start)
