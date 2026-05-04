@@ -221,6 +221,21 @@ var syncWorkflowStageByOrderer =
     };
 window.syncWorkflowStageByOrderer = syncWorkflowStageByOrderer;
 
+var syncWorkflowStageByMeasurementDate =
+    window.syncWorkflowStageByMeasurementDate ||
+    function syncWorkflowStageByMeasurementDate() {
+        var measurementDateEl = document.getElementById("erp-measurement-date");
+        var stageEl = document.getElementById("erp-workflow-stage");
+        if (!measurementDateEl || !stageEl) return;
+        var hasMeasurementDate = (measurementDateEl.value || "").trim() !== "";
+        if (hasMeasurementDate && stageEl.querySelector('option[value="MEASURE"]')) {
+            stageEl.value = "MEASURE";
+        } else if (!hasMeasurementDate && stageEl.querySelector('option[value="RECEIVED"]')) {
+            stageEl.value = "RECEIVED";
+        }
+    };
+window.syncWorkflowStageByMeasurementDate = syncWorkflowStageByMeasurementDate;
+
 var adjustTextareaHeight =
     window.adjustTextareaHeight ||
     function adjustTextareaHeight(textarea) {
@@ -2911,7 +2926,12 @@ function fomsMountErpOrderSurface() {
         if (typeof flatpickr !== 'function') return;
         const opts = { mode: 'multiple', dateFormat: 'Y-m-d', locale: 'ko', allowInput: true };
         if (mEl && !mEl._flatpickr) {
-            window._erpMeasurementDatePicker = flatpickr(mEl, opts);
+            window._erpMeasurementDatePicker = flatpickr(mEl, {
+                ...opts,
+                onChange: function () {
+                    syncWorkflowStageByMeasurementDate();
+                }
+            });
         }
         if (cEl && !cEl._flatpickr) {
             window._erpConstructionDatePicker = flatpickr(cEl, opts);
@@ -2925,6 +2945,11 @@ function fomsMountErpOrderSurface() {
         if (cOpen && window._erpConstructionDatePicker && !cOpen._erpDateBound) {
             cOpen._erpDateBound = true;
             cOpen.addEventListener('click', function () { window._erpConstructionDatePicker.open(); });
+        }
+        if (mEl && !mEl._erpStageSyncBound) {
+            mEl._erpStageSyncBound = true;
+            mEl.addEventListener('change', syncWorkflowStageByMeasurementDate);
+            mEl.addEventListener('input', syncWorkflowStageByMeasurementDate);
         }
     }
     window.erpInitFlatpickrForItemRow = function (row) {
