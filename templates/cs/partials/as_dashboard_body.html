@@ -1857,6 +1857,7 @@
           var thumb = a.thumbnail_view_url || a.view_url || '#';
           var viewUrl = a.view_url || '#';
           var downloadUrl = a.download_url || '#';
+          var attachmentId = a.id ? String(a.id) : '';
           var cat = __activeAttachmentCategory;
           var mediaHtml;
           if (type === 'video') {
@@ -1880,6 +1881,8 @@
             '<button type="button" class="btn btn-outline-secondary" title="미리보기" onclick="window.openAttachmentFromCategoryAs && window.openAttachmentFromCategoryAs(\'' + cat + '\', ' + index + ')">' +
             '<i class="fas fa-eye"></i></button>' +
             '<a class="btn btn-outline-primary" href="' + escapeHtml(downloadUrl) + '" title="다운로드" target="_blank" rel="noopener"><i class="fas fa-download"></i></a>' +
+            '<button type="button" class="btn btn-outline-danger" title="삭제" onclick="window.deleteAttachmentFromCategoryAs && window.deleteAttachmentFromCategoryAs(\'' + cat + '\', ' + index + ', \'' + escapeHtml(attachmentId) + '\')">' +
+            '<i class="fas fa-trash"></i></button>' +
             '</div></div></div></div></div>';
         }).join('');
       }
@@ -1904,8 +1907,35 @@
         __currentAttachmentList = list;
         showAttachmentAtIndex(index);
       }
+      async function deleteAttachmentFromCategory(category, index, attachmentId) {
+        var orderId = __currentAsModalOrderId;
+        var key = normalizeAttachmentCategory(category);
+        var list = __attachmentsByCategory[key] || [];
+        var attachment = list[index] || {};
+        var id = attachmentId || attachment.id;
+        if (!orderId || !id) {
+          showFeedback('삭제할 첨부 파일을 찾을 수 없습니다.', true);
+          return;
+        }
+        if (!confirm('첨부 파일을 삭제하시겠습니까?')) return;
+        try {
+          var res = await fetch('/api/orders/' + encodeURIComponent(orderId) + '/attachments/' + encodeURIComponent(id), {
+            method: 'DELETE'
+          });
+          var data = await res.json();
+          if (!res.ok || !data.success) {
+            showFeedback((data && data.message) || '첨부 파일 삭제에 실패했습니다.', true);
+            return;
+          }
+          await refreshAsModalAttachments();
+          showFeedback('첨부 파일을 삭제했습니다.');
+        } catch (err) {
+          showFeedback(err && err.message ? err.message : '첨부 파일 삭제 중 오류가 발생했습니다.', true);
+        }
+      }
       window.selectAttachmentCategoryAs = selectAttachmentCategory;
       window.openAttachmentFromCategoryAs = openAttachmentFromCategory;
+      window.deleteAttachmentFromCategoryAs = deleteAttachmentFromCategory;
 
       var __currentAsModalOrderId = null;
 
