@@ -270,6 +270,7 @@ def test_shared_erp_order_js_guards_duplicate_save_clicks_and_tokens_draft_creat
     assert "el.focus({ preventScroll: true });" in text
     assert "erpFocusWithoutScroll(document.getElementById('erp-customer-name'))" in text
     assert "erpFocusWithoutScroll(firstItem);" in text
+    assert "erpSaveStructured({ redirect: false });" in text
 
     draft_start = text.index("var erpGetDraftRequestToken")
     draft_end = text.index("window.erpEnsureDraftOrderId = erpEnsureDraftOrderId;", draft_start)

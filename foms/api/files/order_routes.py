@@ -247,8 +247,8 @@ def api_order_attachments_delete(order_id, attachment_id):
             if keys_to_delete:
                 with ThreadPoolExecutor(max_workers=2) as executor:
                     list(executor.map(storage.delete_file, keys_to_delete))
-        except Exception:
-            pass
+        except Exception as storage_error:
+            print(f"주문 첨부 스토리지 삭제 오류: {storage_error}")
 
         db.delete(attachment)
         db.commit()
