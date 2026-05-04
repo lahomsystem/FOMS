@@ -78,6 +78,7 @@ def erp_dashboard():
     f_has_alert = (request.args.get('has_alert') or '').strip()
     f_alert_type = (request.args.get('alert_type') or '').strip()
     f_q = get_search_query_arg('q', 'search')
+    effective_stage = '' if f_q else f_stage
     f_team = (request.args.get('team') or '').strip()
 
     # Phase H: 대시보드 운영 화면은 최근 활성 데이터만 조회 (과거 완료건 제외)
@@ -119,8 +120,8 @@ def erp_dashboard():
     _q_stats = _q.order_by(None)
 
     # A-1. f_stage SQL 필터
-    if f_stage:
-        target_stages = STAGE_SQL_FILTER_MAP.get(f_stage, [])
+    if effective_stage:
+        target_stages = STAGE_SQL_FILTER_MAP.get(effective_stage, [])
         if target_stages:
             flat_target_stages = [s.strip('"\'') for s in target_stages]
             _q = _q.filter(Order.erp_stage_code.in_(flat_target_stages))
@@ -157,8 +158,8 @@ def erp_dashboard():
             )
 
     # 순수 DB 정렬: 실측/시공 단계 진입 시 해당 날짜 내림차순 정렬 우선
-    if f_stage:
-        _req_code = STAGE_NAME_TO_CODE.get(f_stage, f_stage)
+    if effective_stage:
+        _req_code = STAGE_NAME_TO_CODE.get(effective_stage, effective_stage)
         if _req_code == 'MEASURE':
             _q = _q.order_by(Order.erp_measurement_date.desc().nullslast(), Order.created_at.desc())
         elif _req_code == 'CONSTRUCTION':
@@ -677,7 +678,7 @@ def erp_dashboard():
         kpis=kpis,
         process_steps=process_steps,
         filters={
-            'stage': f_stage,
+            'stage': effective_stage,
             'urgent': f_urgent,
             'has_alert': f_has_alert,
             'alert_type': f_alert_type,

@@ -74,6 +74,18 @@ def test_erp_dashboard_accepts_search_alias_and_preserves_q_value(login):
     assert "정재교 고객" in body
 
 
+def test_erp_dashboard_whole_search_ignores_active_stage_pipeline(login):
+    _add_erp_order("이은지 고객")
+
+    response = login.get("/erp/dashboard?stage=AS처리&q=이은지")
+    body = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert 'name="q" placeholder="전체 검색..." value="이은지"' in body
+    assert "이은지 고객" in body
+    assert 'value="AS처리" selected' not in body
+
+
 def test_erp_search_placeholders_use_whole_search_label():
     template_paths = [
         "templates/orders/partials/dashboard_filters.html",
