@@ -1072,6 +1072,11 @@ function erpCollectStructured() {
  * @returns {Promise<{success: boolean, message?: string}>}
  */
 async function erpSaveStructured(opts = {}) {
+    if (opts && typeof opts.preventDefault === 'function') {
+        opts.preventDefault();
+        if (typeof opts.stopPropagation === 'function') opts.stopPropagation();
+        opts = {};
+    }
     if (!ERP_ORDER_ENABLED) return { success: false, message: 'ERP Order 비활성' };
     if (_erpSaveStructuredInFlight) {
         erpSetStatus('저장 중...');
@@ -1113,6 +1118,15 @@ function erpSetSaveButtonBusy(isBusy) {
     }
 }
 
+function erpFocusWithoutScroll(el) {
+    if (!el || typeof el.focus !== 'function') return;
+    try {
+        el.focus({ preventScroll: true });
+    } catch (e) {
+        el.focus();
+    }
+}
+
 async function erpSaveStructuredOnce(opts = {}) {
     const doRedirect = opts.redirect !== false;
 
@@ -1138,12 +1152,12 @@ async function erpSaveStructuredOnce(opts = {}) {
         if (missing.length > 0) {
             alert(`다음 필수 항목을 입력해주세요:\n\n• ${missing.join('\n• ')}`);
             // 첫 번째 누락 필드에 포커스
-            if (!nameVal) document.getElementById('erp-customer-name')?.focus();
-            else if (!phoneVal) document.getElementById('erp-customer-phone')?.focus();
-            else if (!addrVal) document.getElementById('erp-address')?.focus();
+            if (!nameVal) erpFocusWithoutScroll(document.getElementById('erp-customer-name'));
+            else if (!phoneVal) erpFocusWithoutScroll(document.getElementById('erp-customer-phone'));
+            else if (!addrVal) erpFocusWithoutScroll(document.getElementById('erp-address'));
             else {
                 const firstItem = document.querySelector('#erp-items .erp-item-row [data-erp="product_name"]');
-                firstItem?.focus();
+                erpFocusWithoutScroll(firstItem);
             }
             return { success: false, message: '필수 항목 미입력' };
         }
