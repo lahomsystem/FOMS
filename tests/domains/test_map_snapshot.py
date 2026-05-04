@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from db import db_session
 from models import Order, OrderScheduleDate
 from foms.services.map_snapshot import build_measurement_snapshot
+from foms.services.measurement_manager_colors import MEASUREMENT_MANAGER_PALETTE
 
 
 def _make_order(order_id, lat, lng, address, customer_name, manager_name="이시영"):
@@ -100,9 +101,9 @@ def test_build_measurement_snapshot_marks_duplicate_locations_and_addresses():
     assert markers[102]["customer_name"] == "김나래"
     assert markers[103]["customer_name"] == "박성준"
     assert markers[101]["manager_name"] == "이성민(서서울)"
-    assert markers[101]["manager_bg_color"] == "#FADADD"
-    assert markers[102]["manager_bg_color"] == "#DCEBFF"
-    assert rows[103]["manager_bg_color"] == "#FFF1BF"
+    assert markers[101]["manager_bg_color"] == MEASUREMENT_MANAGER_PALETTE[0]
+    assert markers[102]["manager_bg_color"] == MEASUREMENT_MANAGER_PALETTE[1]
+    assert rows[103]["manager_bg_color"] == MEASUREMENT_MANAGER_PALETTE[2]
     assert rows[103]["manager_text_color"] == "#000000"
 
 
