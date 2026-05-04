@@ -20,8 +20,8 @@
         if (!tbody) return;
 
         const MANAGER_FALLBACK_COLORS = [
-            '#FADADD', '#DCEBFF', '#FFF1BF', '#DDF4E4', '#E8DDF8',
-            '#D9F3F0', '#FFE6CC', '#F9D9EC', '#E5F5D2', '#FDE2E4'
+            '#C3B6F7', '#C3F7B6', '#F7B6DD', '#B6F7D0', '#EAB6F7',
+            '#EAF7B6', '#B6D0F7', '#F7B6B6', '#B6F7F7', '#F7DDB6'
         ];
         const DEFAULT_MANAGER_BG_COLOR = '#CCCCCC';
         const DEFAULT_MANAGER_TEXT_COLOR = '#000000';
