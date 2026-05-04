@@ -279,6 +279,26 @@ def test_shared_erp_order_js_guards_duplicate_save_clicks_and_tokens_draft_creat
     assert "body: JSON.stringify({ draft_token: erpGetDraftRequestToken() })" in draft_block
 
 
+def test_shared_erp_order_js_syncs_stage_from_measurement_date() -> None:
+    """실측일 선택/해제는 단계 select를 실측/주문접수로 즉시 동기화한다."""
+    root = Path(__file__).resolve().parents[2]
+    text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+
+    sync_start = text.index("var syncWorkflowStageByMeasurementDate")
+    sync_end = text.index("var adjustTextareaHeight", sync_start)
+    sync_block = text[sync_start:sync_end]
+
+    assert 'document.getElementById("erp-measurement-date")' in sync_block
+    assert 'document.getElementById("erp-workflow-stage")' in sync_block
+    assert 'stageEl.value = "MEASURE";' in sync_block
+    assert 'stageEl.value = "RECEIVED";' in sync_block
+    assert "window.syncWorkflowStageByMeasurementDate = syncWorkflowStageByMeasurementDate;" in sync_block
+    assert "onChange: function ()" in text
+    assert "syncWorkflowStageByMeasurementDate();" in text
+    assert "mEl.addEventListener('change', syncWorkflowStageByMeasurementDate);" in text
+    assert "mEl.addEventListener('input', syncWorkflowStageByMeasurementDate);" in text
+
+
 def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
     """ERP Order 저장은 잔금을 canonical final amount로 유지하되 변환 텍스트에는 잔금 라인을 내보내지 않는다."""
     root = Path(__file__).resolve().parents[2]
