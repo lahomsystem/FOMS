@@ -17,16 +17,16 @@ __all__ = [
 
 
 MEASUREMENT_MANAGER_PALETTE = (
-    '#C3B6F7',
-    '#C3F7B6',
-    '#F7B6DD',
-    '#B6F7D0',
-    '#EAB6F7',
-    '#EAF7B6',
-    '#B6D0F7',
-    '#F7B6B6',
-    '#B6F7F7',
-    '#F7DDB6',
+    '#FADADD',
+    '#DCEBFF',
+    '#FFF1BF',
+    '#DDF4E4',
+    '#E8DDF8',
+    '#D9F3F0',
+    '#FFE6CC',
+    '#F9D9EC',
+    '#E5F5D2',
+    '#FDE2E4',
 )
 
 DEFAULT_MEASUREMENT_MANAGER_BG_COLOR = '#CCCCCC'
