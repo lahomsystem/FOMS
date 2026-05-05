@@ -306,11 +306,11 @@
                       <a href="{{ url_for('order_edit.edit_order', order_id=r.id, return_to='erp_shipment_dashboard') }}?open=erp-order"
                         class="btn btn-sm btn-outline-primary" title="주문 상세"><i class="fas fa-edit"></i></a>
                       {% if r.shipment_as_recommendation_link %}
-                      <button type="button" class="btn btn-sm btn-outline-danger js-shipment-as-rec-cancel"
-                        title="출고 추천으로 연결된 AS 일정을 해제"
+                      <button type="button" class="badge rounded-pill bg-danger text-white border-0 p-1 lh-1 js-shipment-as-rec-cancel"
+                        title="출고 추천으로 연결된 AS 일정을 해제" aria-label="추천 취소"
                         data-shipment-order-id="{{ r.shipment_as_recommendation_link.shipment_order_id }}"
                         data-as-order-id="{{ r.shipment_as_recommendation_link.as_order_id }}"
-                        data-as-info-id="{{ r.shipment_as_recommendation_link.as_info_id or '' }}">추천 취소</button>
+                        data-as-info-id="{{ r.shipment_as_recommendation_link.as_info_id or '' }}"><i class="fas fa-times" aria-hidden="true"></i></button>
                       {% endif %}
                     </div>
                     {% else %}

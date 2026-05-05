@@ -508,6 +508,8 @@ def recommend_nearby_schedules_for_targets(
             continue
         ranked: list[tuple[float, dict[str, Any], float, float]] = []
         for cand in candidates:
+            if (cand.get("current_visit_date") or "").strip():
+                continue
             caddr = (cand.get("address") or "").strip()
             if not caddr:
                 continue
@@ -609,11 +611,9 @@ def recommend_nearby_schedules_for_targets(
                 )
 
         def primary_sort_key(rec: dict[str, Any]) -> tuple:
-            visit_penalty = 1 if (rec.get("current_visit_date") or "").strip() else 0
             return (
                 rec.get("route_duration_min") or 9999,
                 rec.get("route_distance_km") or 9999,
-                visit_penalty,
                 rec.get("sort_date") or "9999-99-99",
                 rec["as_order_id"],
             )

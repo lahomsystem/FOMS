@@ -206,6 +206,47 @@ def test_recommend_no_fallback_when_route_succeeds_but_over_duration_cap() -> No
     assert tgt["message"] != ""
 
 
+def test_recommend_excludes_already_scheduled_as_candidates() -> None:
+    conv = _StubRouteConverter({"status": "success", "distance_km": 4.0, "duration_min": 12})
+    out = recommend_nearby_schedules_for_targets(
+        converter=conv,
+        targets=[
+            {
+                "order_id": 1,
+                "customer_name": "S",
+                "address": "서울 SHIP_TGT_MARK",
+                "target_date": "2026-05-04",
+                "workers": [],
+            }
+        ],
+        candidates=[
+            {
+                "order_id": 200,
+                "customer_name": "Already",
+                "address": "서울 AS_CAND_MARK scheduled",
+                "current_visit_date": "2026-05-06",
+                "sort_date": "2026-01-01",
+                "as_info_id": 1,
+            },
+            {
+                "order_id": 201,
+                "customer_name": "Open",
+                "address": "서울 AS_CAND_MARK open",
+                "current_visit_date": "",
+                "sort_date": "2026-01-02",
+                "as_info_id": 2,
+            },
+        ],
+        per_target_limit=2,
+        duration_limit_min=30,
+        route_candidates_per_target=10,
+        include_workers=True,
+    )
+    recs = out["targets"][0]["recommendations"]
+    assert [r["as_order_id"] for r in recs] == [201]
+    assert all(not r.get("already_scheduled") for r in recs)
+
+
 def test_recommend_token_fallback_only_when_no_route_success() -> None:
     conv = _StubRouteConverter({"status": "error", "message": "route_fail"})
     out = recommend_nearby_schedules_for_targets(
@@ -451,6 +492,57 @@ def test_as_recommendations_apply_force_overwrites_visit(client) -> None:
     meta = sd["schedule"]["as_visit"]["shipment_recommendation"]
     assert meta["source"] == shipment_rec_api.SHREC_SOURCE
     assert meta["shipment_order_id"] == ship_id
+
+
+def test_as_recommendations_cancel_clears_visit_even_when_previous_date_existed(client) -> None:
+    """추천 취소는 출고에 추가한 AS 방문일 자체를 삭제한다."""
+    _login_cs_staff(client, "shipment-rec-cancel-clears-prev")
+    ship = _make_shipment_target_order()
+    ship_id = ship.id
+    as_order = _make_as_order_for_apply(
+        visit_date="2099-12-31",
+        as_info=[
+            {
+                "id": 1,
+                "status": "OPEN",
+                "visit_date": "2099-12-31",
+                "visit_time": "",
+            }
+        ],
+    )
+    as_id = as_order.id
+    apply_response = client.post(
+        "/api/erp/shipment/as-recommendations/apply",
+        json={
+            "shipment_order_id": ship_id,
+            "as_order_id": as_id,
+            "as_info_id": 1,
+            "force": True,
+        },
+    )
+    assert apply_response.status_code == 200
+
+    cancel_response = client.post(
+        "/api/erp/shipment/as-recommendations/cancel",
+        json={
+            "shipment_order_id": ship_id,
+            "as_order_id": as_id,
+            "as_info_id": 1,
+        },
+    )
+    assert cancel_response.status_code == 200
+    db_session.expire_all()
+    refreshed = db_session.get(Order, as_id)
+    sd = refreshed.structured_data
+    assert sd["schedule"]["as_visit"]["date"] == ""
+    assert sd["schedule"]["as_visit"]["time"] == ""
+    assert "shipment_recommendation" not in sd["schedule"]["as_visit"]
+    assert sd["as_info"][0]["visit_date"] is None
+    assert not [
+        d
+        for d in refreshed.schedule_dates
+        if d.kind == "as_visit" and d.date
+    ]
 
 
 def test_as_recommendations_cancel_wrong_shipment_returns_409(client) -> None:
