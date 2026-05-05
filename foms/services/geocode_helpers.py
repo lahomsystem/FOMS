@@ -12,6 +12,7 @@ __all__ = [
     "compute_address_hash",
     "extract_address_from_structured_data",
     "extract_address_from_order",
+    "get_order_display_address",
 ]
 
 
@@ -66,3 +67,24 @@ def extract_address_from_order(order: Any) -> str:
                 return f"{str(main).strip()} {str(detail).strip()}"
             return str(main).strip()
     return (order.address or '').strip()
+
+
+def get_order_display_address(order: Any) -> str:
+    """
+    출고/AS batch 추천·nearby와 동일한 표시·지오코딩용 주소 (spec §2.7).
+    structured_data.site 우선, 없으면 order.address.
+    """
+    if not order:
+        return ""
+    structured_data = getattr(order, "structured_data", None)
+    if isinstance(structured_data, dict):
+        site = structured_data.get("site") or {}
+        address_full = site.get("address_full")
+        address_main = site.get("address_main")
+        address_detail = site.get("address_detail")
+        if address_full:
+            return str(address_full).strip()
+        if address_main:
+            detail = (address_detail or "").strip()
+            return f"{address_main.strip()} {detail}".strip() if detail else address_main.strip()
+    return (getattr(order, "address", None) or "").strip()

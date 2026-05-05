@@ -111,6 +111,102 @@ def test_shipment_text_edit_contract_adds_new_blank_rows_and_has_readable_widths
     assert 'construction_workers: { defaultWidth: 170, minWidth: 150' in columns
 
 
+def test_shipment_dashboard_template_includes_as_recommend_entrypoint() -> None:
+    """AS 일정 추천 버튼은 편집 가능한 출고 대시보드에만 노출되도록 템플릿에 포함된다."""
+    root = Path(__file__).resolve().parents[2]
+    template = (root / "templates/shipment/partials/dashboard_main.html").read_text(encoding="utf-8")
+    assert 'id="shipment-as-recommend-btn"' in template
+    assert "shipmentAsRecommendModal" in template
+    assert "{% if can_edit_shipment %}" in template
+
+
+def test_shipment_dashboard_hides_as_recommend_for_construction_team(client):
+    """시공팀은 can_edit_shipment가 꺼져 AS 일정 추천 버튼이 렌더되지 않는다."""
+    user = User(
+        username="erp_shipment_construction_staff",
+        password=generate_password_hash("admin"),
+        role="STAFF",
+        team="CONSTRUCTION",
+        name="Construction Ship",
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+
+    with client.session_transaction() as sess:
+        sess["user_id"] = user.id
+        sess["username"] = user.username
+        sess["role"] = user.role
+
+    today = date.today().strftime("%Y-%m-%d")
+    order = Order(
+        received_date=today,
+        customer_name="시공팀 출고",
+        phone="010-0000-0000",
+        address="Seoul",
+        product="붙박이장",
+        status="IN_CONSTRUCTION",
+        manager_name="Bob",
+        is_erp_order=True,
+        structured_data={
+            "schedule": {"construction": {"date": today}},
+            "shipment": {"construction_workers": ["시공1"]},
+        },
+    )
+    db_session.add(order)
+    db_session.flush()
+    db_session.add(
+        OrderScheduleDate(
+            order_id=order.id,
+            kind="construction",
+            date=today,
+            source="beta_schedule",
+        )
+    )
+    db_session.commit()
+
+    response = client.get("/erp/shipment")
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert 'id="shipment-as-recommend-btn"' not in body
+
+
+def test_shipment_dashboard_shows_as_recommend_for_cs_staff(client):
+    """CS/STAFF는 출고 편집 가능 시 AS 일정 추천 버튼이 보인다."""
+    _login_erp_admin(client)
+    today = date.today().strftime("%Y-%m-%d")
+    order = Order(
+        received_date=today,
+        customer_name="CS 출고",
+        phone="010-1111-2222",
+        address="Seoul",
+        product="붙박이장",
+        status="IN_CONSTRUCTION",
+        manager_name="Alice",
+        is_erp_order=True,
+        structured_data={
+            "schedule": {"construction": {"date": today}},
+            "shipment": {"construction_workers": ["시공1"]},
+        },
+    )
+    db_session.add(order)
+    db_session.flush()
+    db_session.add(
+        OrderScheduleDate(
+            order_id=order.id,
+            kind="construction",
+            date=today,
+            source="beta_schedule",
+        )
+    )
+    db_session.commit()
+
+    response = client.get("/erp/shipment")
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert 'id="shipment-as-recommend-btn"' in body
+
+
 def test_shipment_dashboard_allows_past_date_search(client):
     _login_erp_admin(client)
 

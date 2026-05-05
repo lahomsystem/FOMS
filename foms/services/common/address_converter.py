@@ -411,8 +411,13 @@ class FOMSAddressConverter:
         
         return results
     
-    def calculate_route(self, start_lat, start_lng, end_lat, end_lng):
-        """두 좌표 간의 차량 경로 및 소요시간 계산"""
+    def calculate_route(self, start_lat, start_lng, end_lat, end_lng, timeout=None):
+        """두 좌표 간의 차량 경로 및 소요시간 계산.
+
+        Args:
+            timeout: Optional seconds for the HTTP request. When omitted, behavior
+                matches historical calls (no explicit requests timeout).
+        """
         try:
             # 카카오 내비게이션 API 사용
             url = self.directions_url
@@ -424,8 +429,11 @@ class FOMSAddressConverter:
                 'car_hipass': 'false',
                 'alternatives': 'false'
             }
-            
-            response = requests.get(url, params=params, headers=self.headers)
+
+            req_kwargs = {}
+            if timeout is not None:
+                req_kwargs["timeout"] = timeout
+            response = requests.get(url, params=params, headers=self.headers, **req_kwargs)
             
             if response.status_code == 200:
                 data = response.json()

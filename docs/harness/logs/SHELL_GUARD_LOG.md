@@ -4,60 +4,7 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-04-30 14:41:56 | allow | `-` | `python "tools\harness\verify_result.py" --json` |
-| 2026-04-18 10:27:26 | allow | `-` | `alembic heads` |
-| 2026-04-18 10:28:05 | allow | `-` | `railway variables --help` |
-| 2026-04-18 10:28:29 | allow | `-` | `railway variable list --json | python -c "import sys, json; data=json.load(sys.stdin); keys=set(); if isinstance(data, dict): items = data.items() if all(isinst` |
-| 2026-04-18 10:28:45 | allow | `-` | `railway ssh --help` |
-| 2026-04-18 10:28:45 | allow | `-` | `railway --help` |
-| 2026-04-18 10:28:58 | allow | `-` | `railway ssh alembic current` |
-| 2026-04-18 10:32:49 | allow | `-` | `python -c "import app; print('APP_OK')"` |
-| 2026-04-18 10:32:49 | allow | `-` | `pytest tests/contracts/runtime/foms_namespace_surface_tests.py tests/domains/test_app_init.py tests/domains/test_db_indexes.py tests/domains/test_erp_order_shar` |
-| 2026-04-18 11:22:10 | allow | `-` | `python -c "import app; print('APP_OK')"` |
-| 2026-04-18 11:23:56 | allow | `-` | `dir static\js\runtime; echo ---; dir foms\services\common` |
-| 2026-04-18 11:24:06 | allow | `-` | `if exist "docs\context\PTC_RUNTIME_COMMON_INVENTORY.md" (echo EXISTS) else (echo MISSING)` |
-| 2026-04-18 11:25:37 | allow | `-` | `python -m pytest tests/contracts/ -q 2>&1 | Select-Object -Last 30` |
-| 2026-04-18 11:25:50 | allow | `-` | `python -c "import app; print('APP_OK')"` |
-| 2026-04-18 11:40:23 | allow | `-` | `powershell -NoProfile -Command "Get-ChildItem -Path 'static/css/foundation' -Recurse -File | Select-Object -ExpandProperty FullName"` |
-| 2026-04-18 11:43:25 | allow | `-` | `python -c "import app; print('APP_OK')"` |
-| 2026-04-18 11:43:41 | allow | `-` | `python -m pytest tests/domains/test_erp_runtime_shell_js_contract.py tests/domains/test_erp_mobile_layout_and_shipment.py -x -q 2>&1 | Select-Object -Last 40` |
-| 2026-04-18 11:43:51 | allow | `-` | `python -m pytest tests/contracts/runtime/test_ptc_physical_exactness.py -x -q 2>&1 | Select-Object -Last 30` |
-| 2026-04-18 11:44:01 | allow | `-` | `python -m pytest tests/domains -k "erp" -x -q 2>&1 | Select-Object -Last 30` |
-| 2026-04-18 11:44:37 | allow | `-` | `python -m pytest tests/domains/test_notification_badge_dedup.py::test_erp_pages_use_single_notification_badge_fetch -x -q 2>&1 | Select-Object -Last 15` |
-| 2026-04-18 11:44:53 | allow | `-` | `python -m pytest tests/domains -k "erp and not test_erp_pages_use_single_notification_badge_fetch" -q 2>&1 | Select-Object -Last 10` |
-| 2026-04-18 11:45:19 | allow | `-` | `python -m pytest tests/domains -k "edit_order or erp_order_bootstrap or structured_bootstrap" -q 2>&1 | Select-Object -Last 15` |
-| 2026-04-18 12:21:37 | allow | `-` | `Get-ChildItem -Path . -Filter "railway*" -File -Force -ErrorAction SilentlyContinue; Get-ChildItem -Path . -Filter "*.toml" -File -Force -ErrorAction SilentlyCo` |
-| 2026-04-18 12:23:38 | allow | `-` | `railway status 2>&1 | Select-Object -First 30` |
-| 2026-04-18 12:23:44 | allow | `-` | `railway deployment list --json 2>&1 | Select-Object -First 200` |
-| 2026-04-18 12:41:08 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb` |
-| 2026-04-18 12:44:50 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json; pytest ` |
-| 2026-04-18 12:45:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; pytest tests/domains/test_sqlite_startup_compat.py tests/domains/test_app_init.py tests/domain` |
-| 2026-04-18 12:50:09 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; pytest tests/domains/test_erp_order_shared_form_scrip` |
-| 2026-04-18 12:50:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/harness/verify_result.py --json` |
-| 2026-04-18 12:52:20 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway --version 2>&1; railway status 2>&1` |
-| 2026-04-18 12:52:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway variables --json 2>&1 | Select-Object -First 5` |
-| 2026-04-18 12:52:38 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway variables --json 2>&1 | python -c "import sys,json,re; d=json.load(sys.stdin); out={};` |
-| 2026-04-18 12:52:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway variables --json 2>&1 | python -c "import sys,json; d=json.load(sys.stdin); keys=sorte` |
-| 2026-04-18 12:52:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run -- python -c "import os; print('DATABASE_URL_set', bool(os.environ.get('DATABASE_U` |
-| 2026-04-18 12:53:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; if (Test-Path .\.venv\Scripts\python.exe) { .\.venv\Scripts\python.exe -c "import sqlalchemy; ` |
-| 2026-04-18 12:53:09 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run -- .\.venv\Scripts\python.exe -c " import os, json from sqlalchemy import create_e` |
-| 2026-04-18 12:53:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run -- "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\.venv\Scripts\pyth` |
-| 2026-04-18 12:53:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run .\.venv\Scripts\python.exe tools\harness\_tmp_railway_db_gate_snapshot.py` |
-| 2026-04-18 12:53:33 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Test-Path .\.venv\Scripts\python.exe; Get-Command python | Select-Object -ExpandProperty Sourc` |
-| 2026-04-18 12:53:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python tools\harness\_tmp_railway_db_gate_snapshot.py` |
-| 2026-04-18 12:53:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway run python -c "import os; k=[x for x in os.environ if 'DATABASE' in x or x.startswith(` |
-| 2026-04-18 12:53:49 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway ssh --help 2>&1 | Select-Object -First 40` |
-| 2026-04-18 12:53:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway ssh python -c "import os; print('has_db', 'DATABASE_URL' in os.environ)"` |
-| 2026-04-18 12:54:03 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway ssh -- python -c "import os; print('DATABASE_URL' in os.environ)"` |
-| 2026-04-18 12:54:10 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway ssh -- bash -lc "pwd; ls -la /app 2>/dev/null | head -5"` |
-| 2026-04-18 12:54:16 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway ssh -- bash -lc "cd /app && python tools/harness/_tmp_railway_db_gate_snapshot.py"` |
-| 2026-04-18 12:54:25 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway ssh -- bash -lc "cd /app && python -c \"import os,json; from sqlalchemy import create_` |
-| 2026-04-18 12:54:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway --help 2>&1 | Select-String -Pattern "database|connect|shell"` |
-| 2026-04-18 12:54:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway connect --help` |
-| 2026-04-18 12:54:46 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway service list 2>&1; railway status -v 2>&1` |
-| 2026-04-18 12:54:51 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway service --help 2>&1` |
-| 2026-04-18 12:54:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway connect 2>&1` |
-| 2026-04-18 12:55:02 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; foreach ($n in @('Postgres','postgres','PostgreSQL','FOMS-Postgres','Database')) { Write-Host ` |
+| 2026-04-30 15:28:10 | allow | `-` | `python -m pytest tests\domains\test_erp_order_shared_form_scripts.py -q` |
 | 2026-04-18 12:55:10 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; railway connect Postgres -- -c "SELECT column_name FROM information_schema.columns WHERE table` |
 | 2026-04-18 12:55:25 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; @' cd /app && ls tools/harness/railway_db_gate_snapshot.py 2>&1 '@ | railway ssh bash -s` |
 | 2026-04-18 12:56:01 | allow | `-` | `Stop-Process -Id 27768 -Force -ErrorAction SilentlyContinue` |
@@ -256,3 +203,22 @@
 | 2026-04-30 14:41:22 | allow | `-` | `python -m pytest "tests\harness\test_task_classifier.py" "tests\harness\test_hooks_smoke.py" "tests\harness\test_run_codex_levels.py" -q` |
 | 2026-04-30 14:41:56 | allow | `-` | `python -c "import app; print('APP_OK')"` |
 | 2026-04-30 14:42:15 | allow | `-` | `python "tools\harness\verify_result.py" --json` |
+| 2026-04-30 15:01:41 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-04-30 15:17:31 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-04-30 15:17:31 | allow | `-` | `python -m pytest tests\domains\test_erp_order_shared_form_scripts.py -q` |
+| 2026-04-30 15:23:43 | allow | `-` | `python -m pytest tests\domains\test_erp_order_shared_form_scripts.py -q` |
+| 2026-04-30 15:28:10 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-05-05 10:49:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-05-05 11:16:58 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; python -c "import app; print('APP_OK')" ; pytest tests/domains/test_orders_boundary_contract.` |
+| 2026-05-05 11:18:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; pytest tests/domains/test_orders_boundary_contract.py tests/domains/test_erp_mobile_layout_an` |
+| 2026-05-05 11:18:38 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; pytest tests/contracts/runtime/foms_namespace_surface_tests.py -q --timeout=120` |
+| 2026-05-05 11:18:46 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" ; pytest tests/contracts/runtime/foms_namespace_surface_tests.py -q` |
+| 2026-05-05 11:49:29 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python -m pytest tests/domains/test_shipment_as_recom` |
+| 2026-05-05 11:50:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_shipment_as_recommendations.py -v` |
+| 2026-05-05 11:51:26 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-05-05 12:03:38 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python -m pytest tests/domains/test_shipment_as_recom` |
+| 2026-05-05 12:04:13 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_orders_boundary_contract.py tests/domains/test_erp_mobile_` |
+| 2026-05-05 12:06:46 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/contracts/runtime/foms_namespace_surface_tests.py::test_namespaced_geoc` |
+| 2026-05-05 16:17:59 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch --show-current` |
+| 2026-05-05 16:18:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat static/js/runtime/erp-shell.js` |
+| 2026-05-05 16:18:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git commit --trailer "Co-authored-by: Cursor <cursoragent@cursor.com>" -F .git_com` |

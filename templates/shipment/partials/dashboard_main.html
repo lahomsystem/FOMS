@@ -55,9 +55,43 @@
             <i class="fas fa-search"></i>
             <span>조회</span>
           </button>
+          {% if can_edit_shipment %}
+          <button type="button" id="shipment-as-recommend-btn" class="erp-pro-btn erp-pro-btn--secondary ms-2" title="현재 표시된 출고 건 기준 인근 AS 일정 추천">
+            <i class="fas fa-magic"></i>
+            <span>AS일정 추천</span>
+          </button>
+          {% endif %}
         </div>
       </form>
     </div>
+    {% if can_edit_shipment %}
+    <div class="modal fade" id="shipmentAsRecommendModal" tabindex="-1" aria-labelledby="shipmentAsRecommendModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-fullscreen-sm-down modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="shipmentAsRecommendModalLabel">AS 일정 추천</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <!-- §2.6: compact groups (no nested cards); fullscreen-sm improves small-viewport scanning -->
+          <div class="modal-body">
+            <div id="shipment-as-rec-status" class="small text-muted mb-2" role="status"></div>
+            <div id="shipment-as-rec-progress" class="progress mb-3 d-none" style="height: 6px;">
+              <div class="progress-bar" role="progressbar" style="width: 0%;"></div>
+            </div>
+            <div id="shipment-as-rec-empty" class="alert alert-light border d-none">표시할 일반 출고/시공 행이 없습니다. (AS 행은 기준에서 제외됩니다.)</div>
+            <div id="shipment-as-rec-linked" class="mb-3 d-none">
+              <h6 class="fw-bold">추가된 AS 일정</h6>
+              <div id="shipment-as-rec-linked-body" class="small"></div>
+            </div>
+            <div id="shipment-as-rec-groups"></div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
     <div class="card-body">
       <div class="erp-shipment-mobile-summary d-lg-none" aria-label="출고 작업 요약">
         <span class="erp-shipment-mobile-summary__eyebrow">Shipment Queue</span>
@@ -1239,6 +1273,366 @@
         });
       });
     })();
+
+    {% if can_edit_shipment %}
+    window.__shipmentAsRecPageDate = {{ selected_date|default('', true)|tojson }};
+    (function shipmentAsRecommendUi() {
+      var CHUNK = 5;
+      window.__shipmentAsRecModalEl = window.__shipmentAsRecModalEl || null;
+      window.__shipmentAsRecNeedsReload = false;
+
+      function adoptModalFromMain() {
+        var main = document.getElementById('main-content');
+        if (!main) return;
+        var fresh = main.querySelector('#shipmentAsRecommendModal');
+        if (!fresh) return;
+        var prev = window.__shipmentAsRecModalEl;
+        if (prev && prev !== fresh && prev.parentNode) {
+          prev.remove();
+        }
+        document.body.appendChild(fresh);
+        window.__shipmentAsRecModalEl = fresh;
+      }
+
+      adoptModalFromMain();
+
+      function collectTargetOrderIds() {
+        var tbody = document.querySelector('#shipment-dashboard-table tbody') || document.querySelector('.shipment-table tbody');
+        if (!tbody) return [];
+        var rows = tbody.querySelectorAll('tr.shipment-row[data-order-id]');
+        var ids = [];
+        rows.forEach(function (tr) {
+          if (String(tr.getAttribute('data-as') || '0') !== '0') return;
+          var id = parseInt(tr.getAttribute('data-order-id'), 10);
+          if (id) ids.push(id);
+        });
+        return ids;
+      }
+
+      function escHtml(s) {
+        return String(s || '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
+
+      function getModal() {
+        return window.__shipmentAsRecModalEl || document.getElementById('shipmentAsRecommendModal');
+      }
+
+      function setStatus(msg) {
+        var el = document.getElementById('shipment-as-rec-status');
+        if (el) el.textContent = msg || '';
+      }
+
+      function showProgress(pct) {
+        var wrap = document.getElementById('shipment-as-rec-progress');
+        var bar = wrap && wrap.querySelector('.progress-bar');
+        if (!wrap || !bar) return;
+        if (pct == null) {
+          wrap.classList.add('d-none');
+          return;
+        }
+        wrap.classList.remove('d-none');
+        bar.style.width = Math.min(100, Math.max(0, pct)) + '%';
+      }
+
+      function refreshShipmentFragment() {
+        var shell = window.FOMS_ERP_SHELL;
+        if (shell && typeof shell.navigateByShell === 'function') {
+          return shell.navigateByShell(
+            window.location.pathname + window.location.search + window.location.hash,
+            { bypassCache: true }
+          );
+        }
+        window.location.reload();
+        return Promise.resolve();
+      }
+
+      function renderAll(payload) {
+        var groupsEl = document.getElementById('shipment-as-rec-groups');
+        var emptyEl = document.getElementById('shipment-as-rec-empty');
+        var linkedWrap = document.getElementById('shipment-as-rec-linked');
+        var linkedBody = document.getElementById('shipment-as-rec-linked-body');
+        if (!groupsEl) return;
+        var targets = (payload && payload.targets) || [];
+        if (!targets.length) {
+          groupsEl.innerHTML = '';
+          if (emptyEl) emptyEl.classList.remove('d-none');
+          if (linkedWrap) linkedWrap.classList.add('d-none');
+          return;
+        }
+        if (emptyEl) emptyEl.classList.add('d-none');
+        var linkedHtml = '';
+        targets.forEach(function (t) {
+          (t.linked_as_schedules || []).forEach(function (L) {
+            linkedHtml +=
+              '<div class="d-flex flex-wrap align-items-center gap-2 border rounded px-2 py-1 mb-1">' +
+              '<span>AS #' + escHtml(L.as_order_id) + ' ' + escHtml(L.customer_name) + '</span>' +
+              '<span class="text-muted">' + escHtml(L.applied_date) + '</span>' +
+              '<button type="button" class="btn btn-sm btn-outline-danger js-shipment-as-rec-cancel" ' +
+              'data-shipment-order-id="' + escHtml(t.order_id) + '" data-as-order-id="' + escHtml(L.as_order_id) + '" ' +
+              'data-as-info-id="' + escHtml(L.as_info_id != null ? L.as_info_id : '') + '">삭제</button>' +
+              '</div>';
+          });
+        });
+        if (linkedBody) linkedBody.innerHTML = linkedHtml || '<span class="text-muted">없음</span>';
+        if (linkedWrap) linkedWrap.classList.toggle('d-none', !linkedHtml);
+
+        var html = '';
+        targets.forEach(function (t) {
+          var recs = t.recommendations || [];
+          var recCount = recs.length;
+          var collapseId = 'asrec-m-' + String(t.order_id);
+          html += '<div class="card mb-3 asrec-target-group border">';
+          html += '<button type="button" class="card-header py-2 px-3 d-lg-none btn btn-light w-100 text-start border-0 rounded-0 d-flex justify-content-between align-items-center" data-bs-toggle="collapse" data-bs-target="#' + collapseId + '" aria-expanded="false">';
+          html += '<span><strong>출고 #' + escHtml(t.order_id) + '</strong> · ' + escHtml(t.customer_name) + ' · 추천 ' + recCount + '건</span>';
+          html += '<span class="text-muted small">펼침</span>';
+          html += '</button>';
+          html += '<div class="card-header py-2 d-none d-lg-block border-bottom-0 bg-white">';
+          html += '<strong>출고 #' + escHtml(t.order_id) + '</strong> ';
+          html += escHtml(t.customer_name) + ' <span class="text-muted small">' + escHtml(t.address) + '</span>';
+          if (t.message) html += '<div class="small text-warning mt-1">' + escHtml(t.message) + '</div>';
+          html += '</div>';
+          html += '<div id="' + collapseId + '" class="collapse asrec-target-detail"><div class="card-body py-2 border-top">';
+          if (t.message) {
+            html += '<div class="d-lg-none small text-warning mb-2">' + escHtml(t.message) + '</div>';
+          }
+          html += '<div class="text-muted small d-lg-none mb-2">' + escHtml(t.address) + '</div>';
+          if (!recs.length) {
+            html += '<div class="text-muted small">추천 후보가 없거나 주소/경로 조건을 만족하지 않습니다.</div>';
+          }
+          recs.forEach(function (r) {
+            var workersLabel = (r.will_apply_workers && r.will_apply_workers.length)
+              ? escHtml(r.will_apply_workers.join(', '))
+              : '시공자 공란으로 적용';
+            var disabled = r.linked_from_shipment_order_id ? 'disabled' : '';
+            var badge = '';
+            if (r.linked_from_shipment_order_id) {
+              badge = '<span class="badge bg-secondary ms-1">이미 추가됨</span>';
+            }
+            html += '<div class="border rounded p-2 mb-2 small" data-as-order-id="' + escHtml(r.as_order_id) + '">';
+            html += '<div class="fw-bold">AS #' + escHtml(r.as_order_id) + ' ' + escHtml(r.customer_name) + badge + '</div>';
+            html += '<div class="text-muted">' + escHtml(r.address) + '</div>';
+            html += '<div>현재 방문일: <span class="js-asrec-visit">' + escHtml(r.current_visit_date || '(없음)') + '</span></div>';
+            html += '<div>' + escHtml(r.score_text || '') + '</div>';
+            html += '<div class="mt-1">적용 시 시공자: ' + workersLabel + '</div>';
+            html += '<div class="js-asrec-err text-danger mt-1"></div>';
+            html += '<button type="button" class="btn btn-sm btn-primary mt-2 js-shipment-as-rec-apply" ' + disabled + ' ';
+            html += 'data-shipment-order-id="' + escHtml(t.order_id) + '" data-as-order-id="' + escHtml(r.as_order_id) + '" ';
+            html += 'data-as-info-id="' + escHtml(r.as_info_id != null ? r.as_info_id : '') + '" ';
+            html += 'data-already-scheduled="' + (r.already_scheduled ? '1' : '0') + '">';
+            html += (r.linked_from_shipment_order_id ? '다른 출고에 연결됨' : '추가') + '</button>';
+            html += '</div>';
+          });
+          html += '</div></div></div>';
+        });
+        groupsEl.innerHTML = html;
+        if (payload && payload.warnings && payload.warnings.length) {
+          setStatus('참고 알림 ' + payload.warnings.length + '건 (경로 계산 한도·화면 기준일 불일치 등)');
+        }
+      }
+
+      function mergeTargets(acc, batch) {
+        var tg = (batch && batch.targets) || [];
+        tg.forEach(function (t) {
+          acc.push(t);
+        });
+        return acc;
+      }
+
+      function loadRecommendations() {
+        var modal = getModal();
+        if (!modal || typeof bootstrap === 'undefined') return;
+        var ids = collectTargetOrderIds();
+        var inst = bootstrap.Modal.getOrCreateInstance(modal);
+        inst.show();
+        if (!ids.length) {
+          setStatus('');
+          showProgress(null);
+          var emptyA = document.getElementById('shipment-as-rec-empty');
+          var groupsA = document.getElementById('shipment-as-rec-groups');
+          var linkedA = document.getElementById('shipment-as-rec-linked');
+          if (emptyA) emptyA.classList.remove('d-none');
+          if (groupsA) groupsA.innerHTML = '';
+          if (linkedA) linkedA.classList.add('d-none');
+          return;
+        }
+        var emptyB = document.getElementById('shipment-as-rec-empty');
+        if (emptyB) emptyB.classList.add('d-none');
+        setStatus('추천을 불러오는 중…');
+        showProgress(5);
+        var chunks = [];
+        for (var i = 0; i < ids.length; i += CHUNK) {
+          chunks.push(ids.slice(i, i + CHUNK));
+        }
+        var merged = { targets: [], partial: false, warnings: [] };
+        var step = 0;
+        function runChunk() {
+          if (step >= chunks.length) {
+            showProgress(100);
+            setTimeout(function () { showProgress(null); }, 400);
+            setStatus(chunks.length > 1 ? '조회 완료 (' + chunks.length + '회 분할 요청)' : '');
+            renderAll(merged);
+            return;
+          }
+          var part = chunks[step];
+          fetch('/api/erp/shipment/as-recommendations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            body: JSON.stringify({
+              order_ids: part,
+              selected_date: (function () {
+                var sd = window.__shipmentAsRecPageDate;
+                if (sd == null || sd === '') return null;
+                var s = String(sd).trim();
+                return s || null;
+              })(),
+            }),
+          })
+            .then(function (r) {
+              return r.json().then(function (data) {
+                if (!r.ok || !data || !data.success) {
+                  throw new Error((data && data.message) || 'HTTP ' + r.status);
+                }
+                return data;
+              });
+            })
+            .then(function (data) {
+              mergeTargets(merged.targets, data);
+              if (data.partial) merged.partial = true;
+              if (data.warnings && data.warnings.length) {
+                merged.warnings = merged.warnings.concat(data.warnings);
+              }
+              step += 1;
+              showProgress((step / chunks.length) * 100);
+              runChunk();
+            })
+            .catch(function (err) {
+              showProgress(null);
+              setStatus('오류: ' + (err && err.message ? err.message : String(err)));
+            });
+        }
+        runChunk();
+      }
+
+      function postApply(shipmentOrderId, asOrderId, asInfoId, force) {
+        return fetch('/api/erp/shipment/as-recommendations/apply', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+          body: JSON.stringify({
+            shipment_order_id: shipmentOrderId,
+            as_order_id: asOrderId,
+            as_info_id: asInfoId === '' || asInfoId == null ? null : parseInt(asInfoId, 10),
+            force: !!force,
+          }),
+        }).then(function (r) {
+          return r.json().then(function (data) {
+            return { ok: r.ok, status: r.status, data: data };
+          });
+        });
+      }
+
+      function postCancel(shipmentOrderId, asOrderId, asInfoId) {
+        return fetch('/api/erp/shipment/as-recommendations/cancel', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+          body: JSON.stringify({
+            shipment_order_id: shipmentOrderId,
+            as_order_id: asOrderId,
+            as_info_id: asInfoId === '' || asInfoId == null ? null : parseInt(asInfoId, 10),
+          }),
+        }).then(function (r) {
+          return r.json().then(function (data) {
+            return { ok: r.ok, status: r.status, data: data };
+          });
+        });
+      }
+
+      document.addEventListener('click', function (ev) {
+        var openBtn = ev.target.closest && ev.target.closest('#shipment-as-recommend-btn');
+        if (openBtn) {
+          ev.preventDefault();
+          adoptModalFromMain();
+          loadRecommendations();
+          return;
+        }
+        var modalRoot = ev.target.closest && ev.target.closest('#shipmentAsRecommendModal');
+        if (!modalRoot) return;
+
+        var applyBtn = ev.target.closest && ev.target.closest('.js-shipment-as-rec-apply');
+        if (applyBtn && !applyBtn.disabled) {
+          ev.preventDefault();
+          var row = applyBtn.closest('[data-as-order-id]');
+          var errEl = row ? row.querySelector('.js-asrec-err') : null;
+          if (errEl) errEl.textContent = '';
+          var sid = parseInt(applyBtn.getAttribute('data-shipment-order-id'), 10);
+          var aid = parseInt(applyBtn.getAttribute('data-as-order-id'), 10);
+          var infoRaw = applyBtn.getAttribute('data-as-info-id');
+          var force = false;
+          if (applyBtn.getAttribute('data-already-scheduled') === '1') {
+            if (!window.confirm('이미 방문일이 있는 AS입니다. 출고 일정으로 덮어쓸까요?')) {
+              return;
+            }
+            force = true;
+          }
+          postApply(sid, aid, infoRaw, force).then(function (res) {
+            if (res.ok && res.data && res.data.success) {
+              applyBtn.disabled = true;
+              applyBtn.textContent = '추가 완료';
+              window.__shipmentAsRecNeedsReload = true;
+              refreshShipmentFragment();
+              return;
+            }
+            var msg = (res.data && res.data.message) || '';
+            if (res.status === 409 && msg.indexOf('force') >= 0) {
+              if (window.confirm(msg + '\n\n강제로 덮어쓸까요?')) {
+                return postApply(sid, aid, infoRaw, true).then(function (res2) {
+                  if (res2.ok && res2.data && res2.data.success) {
+                    applyBtn.disabled = true;
+                    applyBtn.textContent = '추가 완료';
+                    window.__shipmentAsRecNeedsReload = true;
+                    refreshShipmentFragment();
+                  } else if (errEl) {
+                    errEl.textContent = (res2.data && res2.data.message) || '적용 실패';
+                  }
+                });
+              }
+              return;
+            }
+            if (errEl) errEl.textContent = msg || '적용 실패';
+          });
+          return;
+        }
+        var cancelBtn = ev.target.closest && ev.target.closest('.js-shipment-as-rec-cancel');
+        if (cancelBtn) {
+          ev.preventDefault();
+          if (!window.confirm('이 AS 일정 연결을 삭제할까요?')) return;
+          var csid = parseInt(cancelBtn.getAttribute('data-shipment-order-id'), 10);
+          var caid = parseInt(cancelBtn.getAttribute('data-as-order-id'), 10);
+          var cinfo = cancelBtn.getAttribute('data-as-info-id');
+          postCancel(csid, caid, cinfo).then(function (res) {
+            if (res.ok && res.data && res.data.success) {
+              window.__shipmentAsRecNeedsReload = true;
+              refreshShipmentFragment();
+              return;
+            }
+            window.alert((res.data && res.data.message) || '삭제 실패');
+          });
+        }
+      }, true);
+
+      document.addEventListener('foms:main-content-swapped', function () {
+        adoptModalFromMain();
+        var el = window.__shipmentAsRecModalEl;
+        if (el && el.classList.contains('show') && window.__shipmentAsRecNeedsReload) {
+          window.__shipmentAsRecNeedsReload = false;
+          loadRecommendations();
+        }
+      });
+    })();
+    {% endif %}
 
     document.querySelectorAll('.js-shipment-export-trigger').forEach(function (btn) {
       btn.addEventListener('click', function () {

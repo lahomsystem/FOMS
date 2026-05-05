@@ -79,6 +79,56 @@ def test_api_orders_nearby_requires_address(client) -> None:
     assert "error" in payload
 
 
+def test_api_orders_nearby_success_contract_keys(client, monkeypatch) -> None:
+    """Success path must expose by_distance/by_date/by_combined + radius/ref coords (no Kakao)."""
+    import foms.api.orders.nearby as nearby_module
+
+    _login_as_admin(client, "orders-contract-nearby-success")
+
+    monkeypatch.setattr(
+        nearby_module,
+        "resolve_nearby_start_coordinates",
+        lambda *args, **kwargs: (37.5, 127.0),
+    )
+    fixed = {
+        "success": True,
+        "by_distance": [],
+        "by_date": [],
+        "by_combined": [],
+        "search_radius_km": 30.0,
+        "ref_lat": 37.5,
+        "ref_lng": 127.0,
+    }
+    monkeypatch.setattr(
+        nearby_module,
+        "compute_construction_nearby_success_payload",
+        lambda **kwargs: fixed.copy(),
+    )
+    monkeypatch.setattr(
+        nearby_module,
+        "load_construction_nearby_valid_items",
+        lambda *args, **kwargs: [],
+    )
+
+    response = client.get(
+        "/api/orders/nearby",
+        query_string={"address": "Seoul Test Ward", "date": "2026-05-10"},
+    )
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["success"] is True
+    assert set(payload.keys()) >= {
+        "by_distance",
+        "by_date",
+        "by_combined",
+        "search_radius_km",
+        "ref_lat",
+        "ref_lng",
+    }
+    assert payload["ref_lat"] == 37.5
+    assert payload["ref_lng"] == 127.0
+
+
 def test_update_regional_status_rejects_non_regional_order(client) -> None:
     """Regional status route must reject non-regional orders with a 404 contract."""
     _login_as_admin(client, "orders-contract-regional-status-admin")
