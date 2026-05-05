@@ -43,7 +43,7 @@ SHREC_SOURCE = "shipment_dashboard_as_recommendation"
 AS_STATUSES = ("AS", "AS_RECEIVED")
 SHIPMENT_AS_ROW_STATUSES = ("AS", "AS_RECEIVED", "AS_COMPLETED")
 
-RULE_VERSION = "shipment_asrec_target_v1:duration30:limit2:route10"
+RULE_VERSION = "shipment_asrec_target_v2:duration30:limit2:route10:unscheduled-only"
 
 
 def _invalidate_asrec_after_commit(reason: str) -> None:
@@ -681,8 +681,6 @@ def api_shipment_as_recommendations_cancel():
             }
         ), 409
 
-    prev_date = str(meta.get("previous_visit_date") or "").strip()
-    prev_time = str(meta.get("previous_visit_time") or "").strip()
     prev_workers = meta.get("previous_workers_snapshot")
     if not isinstance(prev_workers, list):
         prev_workers = []
@@ -704,16 +702,12 @@ def api_shipment_as_recommendations_cancel():
         target_info_id = int(target_info_id)
     open_entries = _open_as_entries(sd_as)
 
-    def sync_as_info_visit(clear: bool) -> None:
+    def clear_as_info_visit() -> None:
         if target_info_id is not None:
             for entry in open_entries:
                 if entry.get("id") == target_info_id:
-                    if clear:
-                        entry["visit_date"] = None
-                        entry["visit_time"] = None
-                    else:
-                        entry["visit_date"] = prev_date or None
-                        entry["visit_time"] = prev_time or None
+                    entry["visit_date"] = None
+                    entry["visit_time"] = None
                     entry["scheduled_by"] = actor_name
                     entry["scheduled_at"] = dt.datetime.now().isoformat()
                     break
@@ -727,24 +721,15 @@ def api_shipment_as_recommendations_cancel():
         if len(matches) > 1:
             raise ValueError("AS 항목 매칭이 모호합니다.")
         if len(matches) == 1:
-            if clear:
-                matches[0]["visit_date"] = None
-                matches[0]["visit_time"] = None
-            else:
-                matches[0]["visit_date"] = prev_date or None
-                matches[0]["visit_time"] = prev_time or None
+            matches[0]["visit_date"] = None
+            matches[0]["visit_time"] = None
 
     workers_cleared_flag = cur_workers == applied_snap
 
     try:
-        if prev_date:
-            as_visit["date"] = prev_date
-            as_visit["time"] = prev_time
-            sync_as_info_visit(clear=False)
-        else:
-            as_visit["date"] = ""
-            as_visit["time"] = ""
-            sync_as_info_visit(clear=True)
+        as_visit["date"] = ""
+        as_visit["time"] = ""
+        clear_as_info_visit()
     except ValueError as exc:
         return jsonify({"success": False, "message": str(exc)}), 409
 
