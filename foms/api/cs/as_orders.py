@@ -3,6 +3,7 @@ ERP 주문 AS(설치) API. (Phase 4-5h)
 erp.py에서 분리: as/start, as/complete, as/schedule.
 """
 import datetime
+import logging
 
 from flask import Blueprint, jsonify, request, session
 from sqlalchemy.orm.attributes import flag_modified
@@ -19,11 +20,31 @@ from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.erp_utils import ensure_path
 from models import Order, OrderEvent, SecurityLog
 
+logger = logging.getLogger(__name__)
+
 erp_orders_as_bp = Blueprint(
     "erp_orders_as",
     __name__,
     url_prefix="/api/orders",
 )
+
+
+def _invalidate_shipment_asrec_caches(reason: str) -> None:
+    """Dashboard + shipment AS recommendation cache bust (commit-after, best-effort)."""
+    try:
+        from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+
+        invalidate_all_dashboard_slice_caches()
+    except Exception:
+        logger.warning("[AS-REC] dashboard cache invalidate failed (%s)", reason, exc_info=True)
+    try:
+        from foms.services.shipment_as_recommendation_cache import (
+            invalidate_shipment_as_recommendation_cache,
+        )
+
+        invalidate_shipment_as_recommendation_cache(reason=reason)
+    except Exception:
+        logger.warning("[AS-REC] shipment asrec cache invalidate failed (%s)", reason, exc_info=True)
 
 
 def _load_order_structured_data_for_update(order):
@@ -110,6 +131,7 @@ def api_as_start(order_id):
         ))
         db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 시작: {as_reason}"))
         db.commit()
+        _invalidate_shipment_asrec_caches("api_as_start")
 
         return jsonify({
             "success": True,
@@ -196,6 +218,7 @@ def api_as_complete(order_id):
         ))
         db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 완료 -> CS 복귀"))
         db.commit()
+        _invalidate_shipment_asrec_caches("api_as_complete")
 
         return jsonify({"success": True, "message": "AS가 완료되었습니다.", "new_status": "CS"})
     except ValueError as e:
@@ -240,6 +263,7 @@ def api_as_register(order_id):
 
         db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 접수 등록 (접수일: {today})"))
         db.commit()
+        _invalidate_shipment_asrec_caches("api_as_register")
 
         return jsonify({
             "success": True,
@@ -314,6 +338,7 @@ def api_as_schedule(order_id):
 
         db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 방문일 확정: {visit_date}"))
         db.commit()
+        _invalidate_shipment_asrec_caches("api_as_schedule")
 
         return jsonify({
             "success": True,

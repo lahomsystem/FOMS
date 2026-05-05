@@ -87,6 +87,22 @@ def api_erp_shipment_settings_save():
                 else:
                     current[key] = [str(value).strip() for value in payload[key] if str(value).strip()]
         if save_erp_shipment_settings(current):
+            if "construction_workers" in payload:
+                try:
+                    from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+                    from foms.services.shipment_as_recommendation_cache import (
+                        invalidate_shipment_as_recommendation_cache,
+                    )
+
+                    invalidate_all_dashboard_slice_caches()
+                    invalidate_shipment_as_recommendation_cache(
+                        reason="erp_shipment_settings_construction_workers",
+                    )
+                except Exception:
+                    logger.warning(
+                        "[AS-REC] shipment settings cache invalidate failed",
+                        exc_info=True,
+                    )
             return jsonify({"success": True})
         return jsonify({"success": False, "message": "저장 실패"}), 500
     except Exception as exc:

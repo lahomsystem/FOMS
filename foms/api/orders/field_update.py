@@ -143,6 +143,8 @@ def update_order_field_response(
     if not order:
         return jsonify({"success": False, "message": "유효하지 않은 주문입니다."}), 404
 
+    status_snapshot = getattr(order, "status", None)
+
     user = get_user_by_id(session.get("user_id")) if session.get("user_id") else None
     if not user:
         return jsonify({"success": False, "message": "로그인이 필요합니다."}), 401
@@ -278,6 +280,31 @@ def update_order_field_response(
             )
 
         db.commit()
+
+        inv_fields = {
+            "as_visit_date",
+            "status",
+            "address",
+            "manager_name",
+            "as_content",
+            "as_content_2",
+            "sales_delivery",
+        }
+        if field in inv_fields or status_snapshot in ("AS", "AS_RECEIVED", "AS_COMPLETED"):
+            try:
+                from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+                from foms.services.shipment_as_recommendation_cache import (
+                    invalidate_shipment_as_recommendation_cache,
+                )
+
+                invalidate_all_dashboard_slice_caches()
+                invalidate_shipment_as_recommendation_cache(reason=f"field_update:{field}")
+            except Exception:
+                current_app.logger.warning(
+                    "[AS-REC] post field_update cache invalidate failed",
+                    exc_info=True,
+                )
+
         return jsonify(_build_order_update_response(order, field, value, structured_data))
     except ValueError as exc:
         db.rollback()

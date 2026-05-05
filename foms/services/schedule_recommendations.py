@@ -475,6 +475,7 @@ def recommend_nearby_schedules_for_targets(
     include_workers: bool = False,
     route_worker_concurrency: int = 5,
     log_warning: Callable[..., None] | None = None,
+    route_provider: Callable[..., Any] | None = None,
 ) -> dict[str, Any]:
     """Batch AS recommendations for shipment dashboard targets (spec §2.2–2.4)."""
     warn = log_warning or _LOGGER.warning
@@ -528,13 +529,15 @@ def recommend_nearby_schedules_for_targets(
 
     route_by_pair: dict[tuple[int, int], dict[str, Any]] = {}
 
+    provider = route_provider or converter.calculate_route
+
     def run_route(
         job: tuple[int, dict[str, Any], float, float, float, float, float],
     ) -> None:
         t_idx, cand, slat, slng, elat, elng, skm = job
         oid = int(cand["order_id"])
         try:
-            info = converter.calculate_route(
+            info = provider(
                 slat, slng, elat, elng, timeout=route_timeout_sec
             )
         except Exception as exc:

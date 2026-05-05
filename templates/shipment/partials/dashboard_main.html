@@ -302,8 +302,17 @@
                   data-manager="{{ (r.manager_name or '')|e }}">
                   <td data-label="상세" style="border-right: 1px solid #e0e0e0;">
                     {% if can_edit_shipment %}
-                    <a href="{{ url_for('order_edit.edit_order', order_id=r.id, return_to='erp_shipment_dashboard') }}?open=erp-order"
-                      class="btn btn-sm btn-outline-primary" title="주문 상세"><i class="fas fa-edit"></i></a>
+                    <div class="d-flex flex-column gap-1 align-items-start">
+                      <a href="{{ url_for('order_edit.edit_order', order_id=r.id, return_to='erp_shipment_dashboard') }}?open=erp-order"
+                        class="btn btn-sm btn-outline-primary" title="주문 상세"><i class="fas fa-edit"></i></a>
+                      {% if r.shipment_as_recommendation_link %}
+                      <button type="button" class="btn btn-sm btn-outline-danger js-shipment-as-rec-cancel"
+                        title="출고 추천으로 연결된 AS 일정을 해제"
+                        data-shipment-order-id="{{ r.shipment_as_recommendation_link.shipment_order_id }}"
+                        data-as-order-id="{{ r.shipment_as_recommendation_link.as_order_id }}"
+                        data-as-info-id="{{ r.shipment_as_recommendation_link.as_info_id or '' }}">추천 취소</button>
+                      {% endif %}
+                    </div>
                     {% else %}
                     <span class="text-muted small">(권한없음)</span>
                     {% endif %}
@@ -1558,6 +1567,25 @@
           loadRecommendations();
           return;
         }
+
+        var cancelBtn = ev.target.closest && ev.target.closest('.js-shipment-as-rec-cancel');
+        if (cancelBtn) {
+          ev.preventDefault();
+          if (!window.confirm('이 AS 일정 연결을 삭제할까요?')) return;
+          var csid = parseInt(cancelBtn.getAttribute('data-shipment-order-id'), 10);
+          var caid = parseInt(cancelBtn.getAttribute('data-as-order-id'), 10);
+          var cinfo = cancelBtn.getAttribute('data-as-info-id');
+          postCancel(csid, caid, cinfo).then(function (res) {
+            if (res.ok && res.data && res.data.success) {
+              window.__shipmentAsRecNeedsReload = true;
+              refreshShipmentFragment();
+              return;
+            }
+            window.alert((res.data && res.data.message) || '삭제 실패');
+          });
+          return;
+        }
+
         var modalRoot = ev.target.closest && ev.target.closest('#shipmentAsRecommendModal');
         if (!modalRoot) return;
 
@@ -1605,26 +1633,60 @@
           });
           return;
         }
-        var cancelBtn = ev.target.closest && ev.target.closest('.js-shipment-as-rec-cancel');
-        if (cancelBtn) {
-          ev.preventDefault();
-          if (!window.confirm('이 AS 일정 연결을 삭제할까요?')) return;
-          var csid = parseInt(cancelBtn.getAttribute('data-shipment-order-id'), 10);
-          var caid = parseInt(cancelBtn.getAttribute('data-as-order-id'), 10);
-          var cinfo = cancelBtn.getAttribute('data-as-info-id');
-          postCancel(csid, caid, cinfo).then(function (res) {
-            if (res.ok && res.data && res.data.success) {
-              window.__shipmentAsRecNeedsReload = true;
-              refreshShipmentFragment();
+      }, true);
+
+      function scheduleShipmentAsRecPrewarm() {
+        var ids = collectTargetOrderIds();
+        if (!ids.length) return;
+        var key = 'shipment-asrec-prewarm:' + window.location.pathname + window.location.search + ':' + ids.join(',');
+        try {
+          if (sessionStorage.getItem(key) === '1') return;
+        } catch (e) { /* ignore */ }
+        function run() {
+          var chunks = [];
+          for (var i = 0; i < ids.length; i += CHUNK) {
+            chunks.push(ids.slice(i, i + CHUNK));
+          }
+          var idx = 0;
+          function next() {
+            if (idx >= chunks.length) {
+              try {
+                sessionStorage.setItem(key, '1');
+              } catch (e) { /* ignore */ }
               return;
             }
-            window.alert((res.data && res.data.message) || '삭제 실패');
-          });
+            var part = chunks[idx];
+            fetch('/api/erp/shipment/as-recommendations/prewarm', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+              body: JSON.stringify({
+                order_ids: part,
+                selected_date: (function () {
+                  var sd = window.__shipmentAsRecPageDate;
+                  if (sd == null || sd === '') return null;
+                  var s = String(sd).trim();
+                  return s || null;
+                })(),
+              }),
+            }).finally(function () {
+              idx += 1;
+              next();
+            });
+          }
+          next();
         }
-      }, true);
+        if (typeof window.requestIdleCallback === 'function') {
+          window.requestIdleCallback(function () { run(); }, { timeout: 8000 });
+        } else {
+          window.setTimeout(run, 1600);
+        }
+      }
+
+      scheduleShipmentAsRecPrewarm();
 
       document.addEventListener('foms:main-content-swapped', function () {
         adoptModalFromMain();
+        scheduleShipmentAsRecPrewarm();
         var el = window.__shipmentAsRecModalEl;
         if (el && el.classList.contains('show') && window.__shipmentAsRecNeedsReload) {
           window.__shipmentAsRecNeedsReload = false;

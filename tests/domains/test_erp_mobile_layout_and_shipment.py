@@ -111,6 +111,13 @@ def test_shipment_text_edit_contract_adds_new_blank_rows_and_has_readable_widths
     assert 'construction_workers: { defaultWidth: 170, minWidth: 150' in columns
 
 
+def test_shipment_dashboard_template_includes_as_recommendation_prewarm_endpoint() -> None:
+    root = Path(__file__).resolve().parents[2]
+    template = (root / "templates/shipment/partials/dashboard_main.html").read_text(encoding="utf-8")
+    assert "/api/erp/shipment/as-recommendations/prewarm" in template
+    assert "scheduleShipmentAsRecPrewarm" in template or "shipment-asrec-prewarm:" in template
+
+
 def test_shipment_dashboard_template_includes_as_recommend_entrypoint() -> None:
     """AS 일정 추천 버튼은 편집 가능한 출고 대시보드에만 노출되도록 템플릿에 포함된다."""
     root = Path(__file__).resolve().parents[2]

@@ -1,5 +1,6 @@
 import re
 from datetime import date
+from pathlib import Path
 
 from werkzeug.security import generate_password_hash
 
@@ -65,6 +66,15 @@ def _create_as_order(
     db_session.add(order)
     db_session.commit()
     return order
+
+
+def test_as_dashboard_base_query_includes_pure_as_status():
+    """후속 계획: ERP AS 대시보드가 status=AS 주문도 목록에 포함한다."""
+    src = (
+        Path(__file__).resolve().parents[2] / "foms/web/cs/as_dashboard.py"
+    ).read_text(encoding="utf-8")
+    assert "Order.status.in_(['AS', 'AS_RECEIVED', 'AS_COMPLETED'])" in src
+    assert "Order.status == 'AS'" in src
 
 
 def test_as_dashboard_renders_primary_and_secondary_tabs(client, monkeypatch):
