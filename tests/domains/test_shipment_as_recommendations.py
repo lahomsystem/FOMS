@@ -244,6 +244,10 @@ def test_recommend_excludes_already_scheduled_as_candidates() -> None:
     )
     recs = out["targets"][0]["recommendations"]
     assert [r["as_order_id"] for r in recs] == [201]
+    assert out["targets"][0]["lat"] == 37.0
+    assert out["targets"][0]["lng"] == 127.0
+    assert recs[0]["lat"] == 37.05
+    assert recs[0]["lng"] == 127.05
     assert all(not r.get("already_scheduled") for r in recs)
 
 

@@ -222,3 +222,18 @@
 | 2026-05-05 16:17:59 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch --show-current` |
 | 2026-05-05 16:18:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat static/js/runtime/erp-shell.js` |
 | 2026-05-05 16:18:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git commit --trailer "Co-authored-by: Cursor <cursoragent@cursor.com>" -F .git_com` |
+| 2026-05-05 16:18:48 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git ls-files .git_commit_msg_deploy.txt; if (Test-Path .git_commit_msg_deploy.txt) { Get-Item ` |
+| 2026-05-05 16:18:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git rm -f .git_commit_msg_deploy.txt; git commit --trailer "Co-authored-by: Cursor <cursoragen` |
+| 2026-05-05 16:19:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
+| 2026-05-05 19:01:26 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_shipment_as_recommendations.py -q; python -m pytest tests/` |
+| 2026-05-05 19:01:59 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_shipment_as_recommendations.py -q` |
+| 2026-05-05 19:33:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/harness/verify_result.py --json; python -c "import app; print('APP_OK')"; python ` |
+| 2026-05-05 19:34:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add foms/api/cs/as_orders.py foms/api/orders/field_update.py foms/api/shipment/recommendat` |
+| 2026-05-05 19:34:11 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Co-authored-by: Cursor <cursoragent@cursor.com>" -F .git_commit_msg_depl` |
+| 2026-05-05 19:34:20 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb` |
+| 2026-05-06 08:21:20 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-05-06 08:35:48 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_display.py tests/domains/test_erp_sync_columns.py -q` |
+| 2026-05-06 08:36:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_display.py tests/domains/test_erp_sync_columns.py -q; ` |
+| 2026-05-06 08:42:56 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch --show-current` |
+| 2026-05-06 08:43:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat` |
+| 2026-05-06 08:43:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -u; git commit --trailer "Co-authored-by: Cursor <cursoragent@cursor.com>" -F commit_m` |

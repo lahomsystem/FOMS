@@ -119,6 +119,44 @@ def test_structured_put_skips_channel_side_effects_when_structured_data_missing(
     assert saved_order.structured_data == original_structured
 
 
+def test_structured_put_clears_order_notes_when_notes_empty_string(client, monkeypatch):
+    """ERP 비고 필드: 빈 문자열을 보내면 order.notes가 None으로 비워져야 한다 (JSON에서 키 생략 금지)."""
+    _login_as_admin(client, username="erp-notes-clear")
+    order = _create_order()
+    order_id = order.id
+    order.notes = "기존 비고"
+    db_session.commit()
+
+    monkeypatch.setattr(erp_orders_structured, "_handle_stage_transition", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "_record_structured_events", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "_apply_structured_side_effects", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "_finalize_draft_state", lambda *a, **k: False)
+    monkeypatch.setattr(erp_orders_structured, "sync_erp_flat_columns", lambda *a, **k: None)
+    monkeypatch.setattr(
+        channel_delivery_service,
+        "mark_order_updated_for_channel",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(erp_orders_structured, "enqueue_geocode_order_address", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "enqueue_channeltalk_push", lambda *a, **k: None)
+
+    sd = copy.deepcopy(order.structured_data)
+    response = client.put(
+        f"/api/orders/{order_id}/structured",
+        json={
+            "structured_data": sd,
+            "structured_schema_version": 1,
+            "notes": "",
+        },
+    )
+
+    assert response.status_code == 200
+    db_session.expire_all()
+    saved_order = db_session.get(Order, order_id)
+    assert saved_order is not None
+    assert saved_order.notes is None
+
+
 def test_structured_put_rejects_address_clear_before_geocode_reset(client, monkeypatch):
     _login_as_admin(client, username="erp-structured-address-clear")
     order = _create_order()
