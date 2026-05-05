@@ -1245,7 +1245,9 @@ async function erpSaveStructuredOnce(opts = {}) {
         const receivedTimeEl = document.getElementById('erp-received-time');
         const received_date = receivedDateEl ? (receivedDateEl.value || '').trim() : '';
         const received_time = receivedTimeEl ? (receivedTimeEl.value || '').trim() : '';
-        const notesVal = (typeof getVal === 'function' ? getVal('erp-notes') : (document.getElementById('erp-notes')?.value || '')).trim();
+        // 비고: 빈 문자열도 반드시 전송해야 한다. `notes: x || undefined`는 JSON.stringify 시 키가
+        // 빠져 서버가 column을 갱신하지 않아(이전 값 유지) 삭제·변경이 반영되지 않는 버그가 난다.
+        const notesVal = (document.getElementById('erp-notes')?.value ?? '').trim();
 
         const res = await fetch(`/api/orders/${targetId}/structured`, {
             method: 'PUT',
@@ -1257,7 +1259,7 @@ async function erpSaveStructuredOnce(opts = {}) {
                 structured_confidence: structured_data.confidence,
                 received_date: received_date || undefined,
                 received_time: received_time || undefined,
-                notes: notesVal || undefined,
+                notes: notesVal,
                 is_self_measurement: document.getElementById('erp-self-measurement')?.checked === true
             })
         });

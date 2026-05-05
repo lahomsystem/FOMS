@@ -576,10 +576,12 @@ def recommend_nearby_schedules_for_targets(
             base["message"] = "출고 주소 좌표를 확인할 수 없어 추천하지 않았습니다."
             out_targets.append(base)
             continue
+        base["lat"] = float(slat)
+        base["lng"] = float(slng)
 
         ranked = ranked_by_target.get(t_idx) or []
         raw_recs: list[dict[str, Any]] = []
-        for skm, cand, _elat, _elng in ranked:
+        for skm, cand, elat, elng in ranked:
             oid = int(cand["order_id"])
             payload = route_by_pair.get((t_idx, oid))
             if not payload:
@@ -597,6 +599,8 @@ def recommend_nearby_schedules_for_targets(
                         "customer_name": cand.get("customer_name") or "",
                         "address": (cand.get("address") or "").strip(),
                         "current_visit_date": cur_visit,
+                        "lat": float(elat),
+                        "lng": float(elng),
                         "route_distance_km": dist,
                         "route_duration_min": dur,
                         "straight_distance_km": round(payload["straight_km"], 2),
@@ -649,6 +653,9 @@ def recommend_nearby_schedules_for_targets(
                 for tok, skm, cand in fb2[:per_target_limit]:
                     if tok <= 0 and skm <= 0:
                         continue
+                    elat, elng = _entity_lat_lng(cand, geo_map)
+                    if elat is None or elng is None:
+                        continue
                     cur_visit = (cand.get("current_visit_date") or "").strip()
                     chosen.append(
                         {
@@ -656,6 +663,8 @@ def recommend_nearby_schedules_for_targets(
                             "customer_name": cand.get("customer_name") or "",
                             "address": (cand.get("address") or "").strip(),
                             "current_visit_date": cur_visit,
+                            "lat": float(elat),
+                            "lng": float(elng),
                             "route_distance_km": None,
                             "route_duration_min": None,
                             "straight_distance_km": round(skm, 2),

@@ -4,11 +4,23 @@
 
 ## 최근 세션
 
+### Session: 18d58c57
+- **시작**: 2026-05-06 08:18:30
+- **상태**: completed
+- **편집 파일**: `foms/services/erp_display.py`, `tests/domains/test_erp_display.py`, `tests/domains/test_erp_sync_columns.py`, `foms/services/erp_sync_columns.py`, `foms/web/orders/listing.py`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-20f41b8a-1146-4639-a604-92a16614f9c2.png`, `tests/domains/test_erp_orders_structured_put.py`, `static/js/orders/erp-order-shared.js`, `.git_commit_msg_deploy_gdm.txt`, `tests/domains/test_shipment_as_recommendations.py`
+- **종료**: 2026-05-06 08:36:29
+
+### Session: 6214e73b
+- **시작**: 2026-05-05 18:54:12
+- **상태**: completed
+- **편집 파일**: `.git_commit_msg_deploy_gdm.txt`, `tests/domains/test_shipment_as_recommendations.py`, `tests/domains/test_erp_as_dashboard_tabs.py`, `tests/domains/test_erp_mobile_layout_and_shipment.py`, `templates/shipment/partials/dashboard_main.html`, `foms/web/shipment/dashboard.py`, `foms/web/cs/as_dashboard.py`, `foms/api/shipment/settings.py`, `foms/api/cs/as_orders.py`, `foms/api/orders/field_update.py`
+- **종료**: 2026-05-05 19:34:28
+
 ### Session: 09a96157
 - **시작**: 2026-05-05 10:42:16
 - **상태**: completed
-- **편집 파일**: `tests/contracts/runtime/foms_namespace_surface_tests.py`, `unknown`, `tests/domains/test_shipment_as_recommendations.py`, `static/css/foundation/erp-pro.css`, `templates/shipment/partials/dashboard_main.html`, `foms/api/shipment/recommendations.py`, `foms/services/schedule_recommendations.py`, `foms/services/geocode_helpers.py`, `tests/domains/test_orders_boundary_contract.py`, `tests/domains/test_erp_mobile_layout_and_shipment.py`
-- **종료**: 2026-05-05 16:16:58
+- **편집 파일**: `.git_commit_msg_fix.txt`, `.git_commit_msg_deploy.txt`, `tests/contracts/runtime/foms_namespace_surface_tests.py`, `unknown`, `tests/domains/test_shipment_as_recommendations.py`, `static/css/foundation/erp-pro.css`, `templates/shipment/partials/dashboard_main.html`, `foms/api/shipment/recommendations.py`, `foms/services/schedule_recommendations.py`, `foms/services/geocode_helpers.py`
+- **종료**: 2026-05-05 16:19:17
 
 ### Session: 640f60ea
 - **시작**: 2026-04-30 14:55:32
@@ -341,3 +353,13 @@
 | 2026-05-05 12:07:27 | END (Claude Code) | 수정: (없음) |
 
 | 2026-05-05 16:16:58 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-05 16:19:17 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-05 19:02:28 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-05 19:34:28 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-06 08:21:48 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-06 08:36:29 | END (Claude Code) | 수정: (없음) |

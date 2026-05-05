@@ -35,6 +35,7 @@ def test_sync_erp_flat_columns_updates_expected_flat_columns() -> None:
         erp_urgent=False,
         erp_drawing_updated_at=None,
         erp_owner_team_code=None,
+        payment_amount=0,
     )
     structured_data = {
         "parties": {"manager": {"name": "Manager Kim"}},
@@ -48,6 +49,7 @@ def test_sync_erp_flat_columns_updates_expected_flat_columns() -> None:
         },
         "flags": {"urgent": True},
         "assignments": {"owner_team": "CONSTRUCTION"},
+        "totals": {"items_total": 1_198_400},
     }
 
     sync_erp_flat_columns(order, structured_data)
@@ -59,3 +61,4 @@ def test_sync_erp_flat_columns_updates_expected_flat_columns() -> None:
     assert order.erp_urgent is True
     assert order.erp_drawing_updated_at.isoformat() == "2026-04-08T12:34:56+00:00"
     assert order.erp_owner_team_code == "CONSTRUCTION"
+    assert order.payment_amount == 1_198_400

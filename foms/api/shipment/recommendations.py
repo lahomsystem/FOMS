@@ -43,7 +43,7 @@ SHREC_SOURCE = "shipment_dashboard_as_recommendation"
 AS_STATUSES = ("AS", "AS_RECEIVED")
 SHIPMENT_AS_ROW_STATUSES = ("AS", "AS_RECEIVED", "AS_COMPLETED")
 
-RULE_VERSION = "shipment_asrec_target_v2:duration30:limit2:route10:unscheduled-only"
+RULE_VERSION = "shipment_asrec_target_v3:duration30:limit2:route10:unscheduled-only:map-coords"
 
 
 def _invalidate_asrec_after_commit(reason: str) -> None:

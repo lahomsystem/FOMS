@@ -25,6 +25,7 @@ __all__ = [
     "clean_dict_like_name",
     "_ensure_dict",
     "_normalize_date_to_yyyymmdd",
+    "erp_payment_amount_from_structured",
     "apply_erp_display_fields",
     "_erp_get_urgent_flag",
     "_erp_get_stage",
@@ -205,6 +206,64 @@ def _normalize_date_to_yyyymmdd(value):
     return None
 
 
+def _erp_coerce_item_price_krw(item: dict) -> int:
+    """structured_data.items[] 행에서 단가(원) 정수 추출. 클라이언트 erpRecalcItemsTotal과 동일하게 숫자만 파싱."""
+    if not isinstance(item, dict):
+        return 0
+    raw = item.get('price')
+    if raw is None or raw is False:
+        return 0
+    if isinstance(raw, bool):
+        return 0
+    try:
+        if isinstance(raw, (int, float)):
+            if raw < 0:
+                return 0
+            return int(raw) if raw == int(raw) else int(float(raw))
+        digits = ''.join(c for c in str(raw) if c.isdigit())
+        return int(digits) if digits else 0
+    except (TypeError, ValueError):
+        return 0
+
+
+def _erp_coerce_items_total_krw(raw) -> int | None:
+    """structured_data.totals.items_total 단일 값 정규화. 불가 시 None."""
+    if raw is None or raw is False:
+        return None
+    if isinstance(raw, bool):
+        return None
+    try:
+        if isinstance(raw, (int, float)):
+            if raw < 0:
+                return None
+            return int(raw) if raw == int(raw) else int(float(raw))
+        s = str(raw).strip().replace(',', '')
+        if not s:
+            return None
+        v = int(float(s))
+        return max(0, v)
+    except (TypeError, ValueError):
+        return None
+
+
+def erp_payment_amount_from_structured(sd: dict) -> int | None:
+    """
+    ERP 주문 structured_data에서 목록/결제금액 컬럼과 동일한 품목 합계(원)를 산출한다.
+    웹 클라이언트 `#erp-items-total`은 totals.items_total 또는 품목 price 합과 일치한다.
+    """
+    if not isinstance(sd, dict):
+        return None
+    totals = sd.get('totals')
+    if isinstance(totals, dict) and 'items_total' in totals:
+        coerced = _erp_coerce_items_total_krw(totals.get('items_total'))
+        if coerced is not None:
+            return coerced
+    items = sd.get('items')
+    if not isinstance(items, list) or not items:
+        return None
+    return sum(_erp_coerce_item_price_krw(it) for it in items)
+
+
 def apply_erp_display_fields(order):
     """structured_data에서 Order 표시용 속성 채우기 (customer_name, phone, product 등)"""
     if not order or not order.structured_data:
@@ -224,7 +283,7 @@ def apply_erp_display_fields(order):
     manager_name = normalize_manager_name(raw_manager, getattr(order, 'manager_name', ''))
     if manager_name:
         order.manager_name = manager_name
-    elif order.manager_name and isinstance(order.manager_name, str):
+    elif getattr(order, 'manager_name', None) and isinstance(order.manager_name, str):
         cleaned = clean_dict_like_name(order.manager_name)
         if cleaned != order.manager_name:
             order.manager_name = cleaned
@@ -289,6 +348,12 @@ def apply_erp_display_fields(order):
         normalized_legacy = _normalize_date_to_yyyymmdd(order.measurement_date)
         if normalized_legacy:
             order.measurement_date = normalized_legacy
+
+    # 결제금액: ERP는 structured totals/품목 합이 진실값 — 레거시 payment_amount 컬럼이 0으로 남는 경우 보정
+    if is_erp_order:
+        pa = erp_payment_amount_from_structured(sd)
+        if pa is not None:
+            order.payment_amount = pa
 
 
 def _erp_get_urgent_flag(structured_data):

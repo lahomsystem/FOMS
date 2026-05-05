@@ -1,22 +1,22 @@
 # Context Compact Checkpoint
 
 > **경고**: 컨텍스트 압축이 발생했습니다. 이 파일을 읽어 이전 작업을 복원하세요.
-> 생성 시각: 2026-05-05 12:03:34
-> 세션: 09a96157
+> 생성 시각: 2026-05-06 08:34:56
+> 세션: 18d58c57
 
 ## 압축 직전 상태
 
 ### 최근 편집된 파일
-- `unknown` <- 0 edit(s), ~0 chars (2026-05-05 12:03:33)
-- `tests/domains/test_shipment_as_recommendations.py` <- 1 edit(s), ~29 chars (2026-05-05 12:02:52)
-- `tests/domains/test_shipment_as_recommendations.py` <- 1 edit(s), ~29 chars (2026-05-05 12:02:51)
-- `static/css/foundation/erp-pro.css` <- 1 edit(s), ~391 chars (2026-05-05 12:02:25)
-- `templates/shipment/partials/dashboard_main.html` <- 1 edit(s), ~94 chars (2026-05-05 12:02:22)
-- `templates/shipment/partials/dashboard_main.html` <- 1 edit(s), ~82 chars (2026-05-05 12:02:19)
-- `templates/shipment/partials/dashboard_main.html` <- 1 edit(s), ~337 chars (2026-05-05 12:01:53)
-- `templates/shipment/partials/dashboard_main.html` <- 1 edit(s), ~39 chars (2026-05-05 12:01:49)
-- `templates/shipment/partials/dashboard_main.html` <- 2 edit(s), ~1282 chars (2026-05-05 12:01:48)
-- `foms/api/shipment/recommendations.py` <- 1 edit(s), ~67 chars (2026-05-05 12:01:15)
+- `foms/services/erp_display.py` <- 2 edit(s), ~231 chars (2026-05-06 08:34:55)
+- `foms/services/erp_display.py` <- 1 edit(s), ~1924 chars (2026-05-06 08:34:54)
+- `foms/services/erp_display.py` <- 1 edit(s), ~41 chars (2026-05-06 08:34:50)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-20f41b8a-1146-4639-a604-92a16614f9c2.png` <- 1 edit(s), ~0 chars (2026-05-06 08:33:14)
+- `tests/domains/test_erp_orders_structured_put.py` <- 1 edit(s), ~1619 chars (2026-05-06 08:21:09)
+- `static/js/orders/erp-order-shared.js` <- 2 edit(s), ~287 chars (2026-05-06 08:21:03)
+- `.git_commit_msg_deploy_gdm.txt` <- 1 edit(s), ~400 chars (2026-05-05 19:33:56)
+- `tests/domains/test_shipment_as_recommendations.py` <- 1 edit(s), ~80 chars (2026-05-05 19:01:56)
+- `tests/domains/test_erp_as_dashboard_tabs.py` <- 1 edit(s), ~363 chars (2026-05-05 19:01:21)
+- `tests/domains/test_erp_as_dashboard_tabs.py` <- 1 edit(s), ~24 chars (2026-05-05 19:01:20)
 
 ### 진행 중이던 작업
 - [2026-04-17] **ERP fast-page `EPT-B8`:** run record `docs/plans/2026-04-17-ept-b8-verification-railway-evidence-run-record.md` — 로컬 게이트 완료; staging HTTP 하네스로 **§4 표·§5** 부분 채움; **closeout** 은 deploy ID·§6 모드·hard stop 조건 충족 후.

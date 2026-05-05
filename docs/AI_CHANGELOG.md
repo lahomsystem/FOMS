@@ -4,6 +4,9 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-05-06 | 세션 자동 기록 | erp_display.py, test_erp_display.py, test_erp_sync_columns.py 외 2개 | 28804f9a |
+| 2026-05-06 | 세션 자동 기록 | test_erp_orders_structured_put.py, erp-order-shared.js, .git_commit_msg_deploy_gdm.txt 외 2개 | 28804f9a |
+| 2026-05-05 | 세션 자동 기록 | .git_commit_msg_deploy_gdm.txt, test_shipment_as_recommendations.py, test_erp_as_dashboard_tabs.py 외 2개 | f0238521 |
 | 2026-05-05 | 세션 자동 기록 | test_shipment_as_recommendations.py, test_erp_as_dashboard_tabs.py, test_erp_mobile_layout_and_shipment.py 외 2개 | 1a6de169 |
 | 2026-05-05 | 세션 자동 기록 | .git_commit_msg_fix.txt, .git_commit_msg_deploy.txt, foms_namespace_surface_tests.py 외 2개 | 1a6de169 |
 | 2026-05-05 | 세션 자동 기록 | foms_namespace_surface_tests.py, test_shipment_as_recommendations.py, erp-pro.css 외 2개 | 90aa366e |
@@ -21,6 +24,3 @@
 | 2026-04-28 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-b1df2123-4b03-4a42-9241-3e2dee05d2c1.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-79590bd9-b79c-4e2f-8e72-c1a06cd93534.png, test_erp_orders_structured_put.py 외 2개 | e9742ce3 |
 | 2026-04-27 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-b1df2123-4b03-4a42-9241-3e2dee05d2c1.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-79590bd9-b79c-4e2f-8e72-c1a06cd93534.png, test_erp_orders_structured_put.py 외 2개 | bd27a007 |
 | 2026-04-24 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-b1df2123-4b03-4a42-9241-3e2dee05d2c1.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-79590bd9-b79c-4e2f-8e72-c1a06cd93534.png, test_erp_orders_structured_put.py 외 2개 | bd27a007 |
-| 2026-04-23 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-b1df2123-4b03-4a42-9241-3e2dee05d2c1.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-79590bd9-b79c-4e2f-8e72-c1a06cd93534.png, test_erp_orders_structured_put.py 외 2개 | bd27a007 |
-| 2026-04-23 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-79590bd9-b79c-4e2f-8e72-c1a06cd93534.png, test_erp_orders_structured_put.py, test_channel_push_messages.py 외 2개 | bd27a007 |
-| 2026-04-23 | 세션 자동 기록 | test_erp_orders_structured_put.py, test_channel_push_messages.py, erp_orders_structured.py 외 2개 | e9e1a321 |

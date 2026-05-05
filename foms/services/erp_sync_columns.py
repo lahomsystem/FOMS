@@ -2,7 +2,11 @@
 
 from datetime import datetime
 
-from foms.services.erp_display import _normalize_date_to_yyyymmdd, clean_dict_like_name
+from foms.services.erp_display import (
+    _normalize_date_to_yyyymmdd,
+    clean_dict_like_name,
+    erp_payment_amount_from_structured,
+)
 from foms.services.erp_order_flags import is_erp_order_record
 
 __all__ = ["sync_erp_flat_columns"]
@@ -43,3 +47,7 @@ def sync_erp_flat_columns(order, structured_data: dict) -> None:
     assignments = (structured_data.get('assignments') or {})
     owner_team = assignments.get('owner_team')
     order.erp_owner_team_code = owner_team if isinstance(owner_team, str) else None
+
+    pa = erp_payment_amount_from_structured(structured_data)
+    if pa is not None:
+        order.payment_amount = pa
