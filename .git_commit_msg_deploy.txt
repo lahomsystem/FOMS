@@ -1,7 +1,0 @@
-feat: 출고 대시보드 AS 일정 추천 기능 및 deploy 반영
-
-- POST as-recommendations/apply/cancel API와 schedule_recommendations 서비스
-- /api/orders/nearby를 공유 서비스로 연동, calculate_route timeout 옵션
-- geocode_helpers.get_order_display_address, selected_date·include_workers·경고
-- 출고 모달 5건 chunk, 모바일 펼침 UI, fragment 갱신 연동
-- 단위·계약 테스트 및 계획 문서 추가
