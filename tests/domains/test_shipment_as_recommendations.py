@@ -1,0 +1,558 @@
+"""Shipment dashboard AS schedule recommendation API contracts."""
+
+import copy
+from datetime import date
+
+from sqlalchemy.orm.attributes import flag_modified
+from werkzeug.security import generate_password_hash
+
+from db import db_session
+from models import Order, OrderScheduleDate, User
+
+import foms.api.shipment.recommendations as shipment_rec_api
+from foms.services.schedule_recommendations import recommend_nearby_schedules_for_targets
+
+
+def _login_cs_staff(client, username: str) -> User:
+    """STAFF + CS can call shipment recommendation APIs."""
+    user = User(
+        username=username,
+        password=generate_password_hash("secret"),
+        role="STAFF",
+        team="CS",
+        name="Shipment Rec Tester",
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    with client.session_transaction() as sess:
+        sess["user_id"] = user.id
+        sess["username"] = user.username
+        sess["role"] = user.role
+    return user
+
+
+def _login_construction_admin(client) -> User:
+    """ADMIN + CONSTRUCTION hits the shipment-domain construction block."""
+    user = User(
+        username="shipment_as_rec_construction_admin",
+        password=generate_password_hash("secret"),
+        role="ADMIN",
+        team="CONSTRUCTION",
+        name="Constr Admin",
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    with client.session_transaction() as sess:
+        sess["user_id"] = user.id
+        sess["username"] = user.username
+        sess["role"] = user.role
+    return user
+
+
+def _make_shipment_target_order() -> Order:
+    today = date.today().strftime("%Y-%m-%d")
+    order = Order(
+        received_date=today,
+        customer_name="출고 추천 대상",
+        phone="010-3333-4444",
+        address="Seoul Gangnam",
+        product="장",
+        status="IN_CONSTRUCTION",
+        is_erp_order=True,
+        structured_data={
+            "schedule": {"construction": {"date": today}},
+            "shipment": {"construction_workers": ["A"]},
+        },
+    )
+    db_session.add(order)
+    db_session.flush()
+    db_session.add(
+        OrderScheduleDate(
+            order_id=order.id,
+            kind="construction",
+            date=today,
+            source="beta_schedule",
+        )
+    )
+    db_session.commit()
+    return order
+
+
+def test_as_recommendations_batch_requires_order_ids(client) -> None:
+    _login_cs_staff(client, "shipment-rec-empty")
+    response = client.post("/api/erp/shipment/as-recommendations", json={})
+    assert response.status_code == 400
+    assert response.get_json()["success"] is False
+
+
+def test_as_recommendations_forbidden_for_construction_admin(client) -> None:
+    _login_construction_admin(client)
+    response = client.post(
+        "/api/erp/shipment/as-recommendations", json={"order_ids": [1]}
+    )
+    assert response.status_code == 403
+    message = response.get_json().get("message", "")
+    assert "시공팀" in message
+
+
+def test_as_recommendations_batch_success_shape(client, monkeypatch) -> None:
+    _login_cs_staff(client, "shipment-rec-batch")
+    order = _make_shipment_target_order()
+
+    def fake_recommend(**kwargs):
+        targets_in = kwargs.get("targets") or []
+        outs = []
+        for t in targets_in:
+            outs.append(
+                {
+                    "order_id": t["order_id"],
+                    "customer_name": t.get("customer_name", ""),
+                    "address": t.get("address", ""),
+                    "target_date": t.get("target_date", ""),
+                    "workers": t.get("workers") or [],
+                    "recommendations": [],
+                }
+            )
+        return {"targets": outs, "partial": False, "warnings": []}
+
+    monkeypatch.setattr(
+        shipment_rec_api, "recommend_nearby_schedules_for_targets", fake_recommend
+    )
+
+    response = client.post(
+        "/api/erp/shipment/as-recommendations",
+        json={"order_ids": [order.id]},
+    )
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["success"] is True
+    assert payload["per_target_limit"] == 2
+    assert isinstance(payload["warnings"], list)
+    assert "targets" in payload
+    targets = payload["targets"]
+    assert len(targets) == 1
+    assert targets[0]["order_id"] == order.id
+    assert "linked_as_schedules" in targets[0]
+
+
+def test_as_recommendations_apply_requires_body_fields(client) -> None:
+    _login_cs_staff(client, "shipment-rec-apply-val")
+    response = client.post("/api/erp/shipment/as-recommendations/apply", json={})
+    assert response.status_code == 400
+    assert response.get_json()["success"] is False
+
+
+def test_as_recommendations_cancel_requires_body_fields(client) -> None:
+    _login_cs_staff(client, "shipment-rec-cancel-val")
+    response = client.post("/api/erp/shipment/as-recommendations/cancel", json={})
+    assert response.status_code == 400
+    assert response.get_json()["success"] is False
+
+
+class _StubRouteConverter:
+    """Minimal FOMSAddressConverter stand-in for batch recommendation tests."""
+
+    def __init__(self, route_payload: dict) -> None:
+        self._route_payload = route_payload
+
+    def analyze_address(self, address: str):
+        a = str(address)
+        if "SHIP_TGT_MARK" in a:
+            return (37.0, 127.0, "ok", None)
+        if "AS_CAND_MARK" in a:
+            return (37.05, 127.05, "ok", None)
+        return (37.0, 127.0, "ok", None)
+
+    def calculate_route(self, slat, slng, elat, elng, timeout=None):
+        return dict(self._route_payload)
+
+
+def test_recommend_no_fallback_when_route_succeeds_but_over_duration_cap() -> None:
+    """§2.4.15: successful routes that exceed 30min must not become token fallback rows."""
+    conv = _StubRouteConverter(
+        {"status": "success", "distance_km": 12.0, "duration_min": 45}
+    )
+    out = recommend_nearby_schedules_for_targets(
+        converter=conv,
+        targets=[
+            {
+                "order_id": 1,
+                "customer_name": "S",
+                "address": "서울 SHIP_TGT_MARK",
+                "target_date": "2026-05-04",
+                "workers": [],
+            }
+        ],
+        candidates=[
+            {
+                "order_id": 200,
+                "customer_name": "A",
+                "address": "서울 AS_CAND_MARK",
+                "current_visit_date": "",
+                "sort_date": "2026-01-01",
+                "as_info_id": 1,
+            }
+        ],
+        per_target_limit=2,
+        duration_limit_min=30,
+        route_candidates_per_target=10,
+        include_workers=True,
+    )
+    tgt = out["targets"][0]
+    assert tgt["recommendations"] == []
+    assert "30분" in tgt["message"]
+    assert tgt["message"] != ""
+
+
+def test_recommend_token_fallback_only_when_no_route_success() -> None:
+    conv = _StubRouteConverter({"status": "error", "message": "route_fail"})
+    out = recommend_nearby_schedules_for_targets(
+        converter=conv,
+        targets=[
+            {
+                "order_id": 1,
+                "customer_name": "S",
+                "address": "서울 SHIP_TGT_MARK",
+                "target_date": "2026-05-04",
+                "workers": [],
+            }
+        ],
+        candidates=[
+            {
+                "order_id": 200,
+                "customer_name": "A",
+                "address": "서울 AS_CAND_MARK",
+                "current_visit_date": "",
+                "sort_date": "2026-01-01",
+                "as_info_id": 1,
+            }
+        ],
+        per_target_limit=2,
+        duration_limit_min=30,
+        route_candidates_per_target=10,
+        include_workers=True,
+    )
+    tgt = out["targets"][0]
+    assert len(tgt["recommendations"]) >= 1
+    assert all(r.get("fallback") is True for r in tgt["recommendations"])
+    assert tgt.get("message") == ""
+
+
+def test_recommend_reference_date_mismatch_warns() -> None:
+    """§2.3: 화면 selected_date와 서버 시공일 불일치 시 경고."""
+    conv = _StubRouteConverter({"status": "success", "distance_km": 1.0, "duration_min": 5})
+    out = recommend_nearby_schedules_for_targets(
+        converter=conv,
+        targets=[
+            {
+                "order_id": 1,
+                "customer_name": "S",
+                "address": "서울 SHIP_TGT_MARK",
+                "target_date": "2026-05-04",
+                "workers": ["W1"],
+            }
+        ],
+        candidates=[
+            {
+                "order_id": 200,
+                "customer_name": "A",
+                "address": "서울 AS_CAND_MARK",
+                "current_visit_date": "",
+                "sort_date": "2026-01-01",
+                "as_info_id": 1,
+            }
+        ],
+        per_target_limit=2,
+        duration_limit_min=30,
+        route_candidates_per_target=10,
+        reference_date="2026-01-01",
+        include_workers=True,
+    )
+    assert any("화면 기준일" in w for w in out["warnings"])
+    assert out["targets"][0]["recommendations"][0]["will_apply_workers"] == ["W1"]
+
+
+def test_recommend_include_workers_false_strips_worker_fields() -> None:
+    """§2.2 include_workers=False 시 응답에서 시공자 목록 생략."""
+    conv = _StubRouteConverter({"status": "success", "distance_km": 1.0, "duration_min": 5})
+    out = recommend_nearby_schedules_for_targets(
+        converter=conv,
+        targets=[
+            {
+                "order_id": 1,
+                "customer_name": "S",
+                "address": "서울 SHIP_TGT_MARK",
+                "target_date": "2026-05-04",
+                "workers": ["W1"],
+            }
+        ],
+        candidates=[
+            {
+                "order_id": 200,
+                "customer_name": "A",
+                "address": "서울 AS_CAND_MARK",
+                "current_visit_date": "",
+                "sort_date": "2026-01-01",
+                "as_info_id": 1,
+            }
+        ],
+        per_target_limit=2,
+        duration_limit_min=30,
+        route_candidates_per_target=10,
+        include_workers=False,
+    )
+    tgt = out["targets"][0]
+    assert tgt["workers"] == []
+    assert tgt["recommendations"][0]["will_apply_workers"] == []
+
+
+def test_geocode_helpers_get_order_display_address_uses_site_full() -> None:
+    from types import SimpleNamespace
+
+    from foms.services import geocode_helpers
+
+    order = SimpleNamespace(
+        structured_data={"site": {"address_full": "서울시 테스트로 1"}},
+        address="폴백",
+    )
+    assert geocode_helpers.get_order_display_address(order) == "서울시 테스트로 1"
+
+
+def test_as_recommendations_batch_forwards_selected_date(client, monkeypatch) -> None:
+    _login_cs_staff(client, "shipment-rec-seldate")
+    order = _make_shipment_target_order()
+    captured: dict = {}
+
+    def spy(**kwargs):
+        captured["reference_date"] = kwargs.get("reference_date")
+        captured["include_workers"] = kwargs.get("include_workers")
+        return {
+            "targets": [
+                {
+                    "order_id": order.id,
+                    "customer_name": "",
+                    "address": "",
+                    "target_date": "",
+                    "workers": [],
+                    "recommendations": [],
+                    "linked_as_schedules": [],
+                    "message": "",
+                }
+            ],
+            "partial": False,
+            "warnings": [],
+        }
+
+    monkeypatch.setattr(shipment_rec_api, "recommend_nearby_schedules_for_targets", spy)
+    client.post(
+        "/api/erp/shipment/as-recommendations",
+        json={"order_ids": [order.id], "selected_date": "2099-12-31"},
+    )
+    assert captured.get("reference_date") == "2099-12-31"
+    assert captured.get("include_workers") is True
+
+
+def _make_as_order_for_apply(
+    *,
+    visit_date: str,
+    as_info: list[dict],
+) -> Order:
+    today = date.today().strftime("%Y-%m-%d")
+    order = Order(
+        received_date=today,
+        customer_name="AS 추천 대상",
+        phone="010-1111-2222",
+        address="Seoul AS",
+        product="AS",
+        status="AS_RECEIVED",
+        is_erp_order=True,
+        structured_data={
+            "schedule": {
+                "as_visit": {
+                    "date": visit_date,
+                    "time": "",
+                    "type": "AS",
+                }
+            },
+            "shipment": {"construction_workers": ["OldWorker"]},
+            "as_info": as_info,
+        },
+    )
+    db_session.add(order)
+    db_session.commit()
+    return order
+
+
+def test_as_recommendations_apply_conflict_without_force_returns_409(client) -> None:
+    _login_cs_staff(client, "shipment-rec-apply-409")
+    ship = _make_shipment_target_order()
+    ship_id = ship.id
+    as_order = _make_as_order_for_apply(
+        visit_date="2099-12-31",
+        as_info=[
+            {
+                "id": 1,
+                "status": "OPEN",
+                "visit_date": None,
+                "visit_time": None,
+            }
+        ],
+    )
+    as_id = as_order.id
+    response = client.post(
+        "/api/erp/shipment/as-recommendations/apply",
+        json={
+            "shipment_order_id": ship_id,
+            "as_order_id": as_id,
+            "as_info_id": 1,
+            "force": False,
+        },
+    )
+    assert response.status_code == 409
+    assert "force" in response.get_json().get("message", "")
+
+
+def test_as_recommendations_apply_force_overwrites_visit(client) -> None:
+    _login_cs_staff(client, "shipment-rec-apply-force")
+    ship = _make_shipment_target_order()
+    ship_id = ship.id
+    as_order = _make_as_order_for_apply(
+        visit_date="2099-12-31",
+        as_info=[
+            {
+                "id": 1,
+                "status": "OPEN",
+                "visit_date": None,
+                "visit_time": None,
+            }
+        ],
+    )
+    as_id = as_order.id
+    ship_date = date.today().strftime("%Y-%m-%d")
+    response = client.post(
+        "/api/erp/shipment/as-recommendations/apply",
+        json={
+            "shipment_order_id": ship_id,
+            "as_order_id": as_id,
+            "as_info_id": 1,
+            "force": True,
+        },
+    )
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["success"] is True
+    db_session.expire_all()
+    refreshed = db_session.get(Order, as_id)
+    sd = refreshed.structured_data
+    assert sd["schedule"]["as_visit"]["date"] == ship_date
+    meta = sd["schedule"]["as_visit"]["shipment_recommendation"]
+    assert meta["source"] == shipment_rec_api.SHREC_SOURCE
+    assert meta["shipment_order_id"] == ship_id
+
+
+def test_as_recommendations_cancel_wrong_shipment_returns_409(client) -> None:
+    _login_cs_staff(client, "shipment-rec-cancel-ship")
+    ship = _make_shipment_target_order()
+    ship_id = ship.id
+    other_ship = _make_shipment_target_order()
+    other_ship_id = other_ship.id
+    as_order = _make_as_order_for_apply(
+        visit_date="",
+        as_info=[
+            {"id": 1, "status": "OPEN", "visit_date": None, "visit_time": None},
+        ],
+    )
+    as_id = as_order.id
+    client.post(
+        "/api/erp/shipment/as-recommendations/apply",
+        json={
+            "shipment_order_id": ship_id,
+            "as_order_id": as_id,
+            "as_info_id": 1,
+            "force": False,
+        },
+    )
+    response = client.post(
+        "/api/erp/shipment/as-recommendations/cancel",
+        json={
+            "shipment_order_id": other_ship_id,
+            "as_order_id": as_id,
+            "as_info_id": 1,
+        },
+    )
+    assert response.status_code == 409
+    assert "출고" in response.get_json().get("message", "")
+
+
+def test_as_recommendations_cancel_after_manual_date_change_returns_409(client) -> None:
+    _login_cs_staff(client, "shipment-rec-cancel-manual")
+    ship = _make_shipment_target_order()
+    ship_id = ship.id
+    as_order = _make_as_order_for_apply(
+        visit_date="",
+        as_info=[
+            {"id": 1, "status": "OPEN", "visit_date": None, "visit_time": None},
+        ],
+    )
+    as_id = as_order.id
+    client.post(
+        "/api/erp/shipment/as-recommendations/apply",
+        json={
+            "shipment_order_id": ship_id,
+            "as_order_id": as_id,
+            "as_info_id": 1,
+            "force": False,
+        },
+    )
+    db_session.expire_all()
+    row = db_session.get(Order, as_id)
+    sd = copy.deepcopy(row.structured_data)
+    sd["schedule"]["as_visit"]["date"] = "2099-06-01"
+    row.structured_data = sd
+    flag_modified(row, "structured_data")
+    db_session.commit()
+
+    response = client.post(
+        "/api/erp/shipment/as-recommendations/cancel",
+        json={
+            "shipment_order_id": ship_id,
+            "as_order_id": as_id,
+            "as_info_id": 1,
+        },
+    )
+    assert response.status_code == 409
+    assert "수동" in response.get_json().get("message", "")
+
+
+def test_as_recommendations_cancel_as_info_id_mismatch_returns_409(client) -> None:
+    _login_cs_staff(client, "shipment-rec-cancel-infoid")
+    ship = _make_shipment_target_order()
+    ship_id = ship.id
+    as_order = _make_as_order_for_apply(
+        visit_date="",
+        as_info=[
+            {"id": 1, "status": "OPEN", "visit_date": None, "visit_time": None},
+        ],
+    )
+    as_id = as_order.id
+    client.post(
+        "/api/erp/shipment/as-recommendations/apply",
+        json={
+            "shipment_order_id": ship_id,
+            "as_order_id": as_id,
+            "as_info_id": 1,
+            "force": False,
+        },
+    )
+    response = client.post(
+        "/api/erp/shipment/as-recommendations/cancel",
+        json={
+            "shipment_order_id": ship_id,
+            "as_order_id": as_id,
+            "as_info_id": 99,
+        },
+    )
+    assert response.status_code == 409
+    assert "일치" in response.get_json().get("message", "")

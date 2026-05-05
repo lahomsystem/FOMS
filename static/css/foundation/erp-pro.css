@@ -22,6 +22,19 @@
     min-height: 96px;
 }
 
+/* 출고 AS 추천 모달 §2.6: 모바일 접기, lg 이상에서는 항상 펼침 */
+@media (min-width: 992px) {
+    #shipmentAsRecommendModal .asrec-target-detail.collapse {
+        display: block !important;
+        height: auto !important;
+        visibility: visible !important;
+    }
+    #shipmentAsRecommendModal .asrec-target-detail.collapsing {
+        transition: none;
+        height: auto !important;
+    }
+}
+
 .erp-attach-thumb {
     width: 80px;
     height: 60px;

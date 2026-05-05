@@ -1,22 +1,22 @@
 # Context Compact Checkpoint
 
 > **경고**: 컨텍스트 압축이 발생했습니다. 이 파일을 읽어 이전 작업을 복원하세요.
-> 생성 시각: 2026-04-30 14:42:39
-> 세션: 05d2bc7a
+> 생성 시각: 2026-05-05 12:03:34
+> 세션: 09a96157
 
 ## 압축 직전 상태
 
 ### 최근 편집된 파일
-- `docs/specs/2026-04-30-shared-harness-task-classification_SPEC.md` <- 1 edit(s), ~122 chars (2026-04-30 14:42:09)
-- `unknown` <- 0 edit(s), ~0 chars (2026-04-30 14:41:49)
-- `docs/ARCHIVE_INDEX.md` <- 1 edit(s), ~206 chars (2026-04-30 14:41:06)
-- `.cursor/agents/grand-develop-master.md` <- 1 edit(s), ~417 chars (2026-04-30 14:40:58)
-- `docs/harness/policy/DECISIONS.md` <- 1 edit(s), ~873 chars (2026-04-30 14:40:46)
-- `docs/guides/HARNESS_ENGINEERING_OPERATOR_GUIDE.md` <- 3 edit(s), ~979 chars (2026-04-30 14:40:39)
-- `.cursor/rules/00-project-context.mdc` <- 1 edit(s), ~464 chars (2026-04-30 14:40:31)
-- `CLAUDE.md` <- 1 edit(s), ~431 chars (2026-04-30 14:40:24)
-- `AGENTS.md` <- 1 edit(s), ~227 chars (2026-04-30 14:40:15)
-- `tests/harness/test_hooks_smoke.py` <- 4 edit(s), ~409 chars (2026-04-30 14:39:30)
+- `unknown` <- 0 edit(s), ~0 chars (2026-05-05 12:03:33)
+- `tests/domains/test_shipment_as_recommendations.py` <- 1 edit(s), ~29 chars (2026-05-05 12:02:52)
+- `tests/domains/test_shipment_as_recommendations.py` <- 1 edit(s), ~29 chars (2026-05-05 12:02:51)
+- `static/css/foundation/erp-pro.css` <- 1 edit(s), ~391 chars (2026-05-05 12:02:25)
+- `templates/shipment/partials/dashboard_main.html` <- 1 edit(s), ~94 chars (2026-05-05 12:02:22)
+- `templates/shipment/partials/dashboard_main.html` <- 1 edit(s), ~82 chars (2026-05-05 12:02:19)
+- `templates/shipment/partials/dashboard_main.html` <- 1 edit(s), ~337 chars (2026-05-05 12:01:53)
+- `templates/shipment/partials/dashboard_main.html` <- 1 edit(s), ~39 chars (2026-05-05 12:01:49)
+- `templates/shipment/partials/dashboard_main.html` <- 2 edit(s), ~1282 chars (2026-05-05 12:01:48)
+- `foms/api/shipment/recommendations.py` <- 1 edit(s), ~67 chars (2026-05-05 12:01:15)
 
 ### 진행 중이던 작업
 - [2026-04-17] **ERP fast-page `EPT-B8`:** run record `docs/plans/2026-04-17-ept-b8-verification-railway-evidence-run-record.md` — 로컬 게이트 완료; staging HTTP 하네스로 **§4 표·§5** 부분 채움; **closeout** 은 deploy ID·§6 모드·hard stop 조건 충족 후.

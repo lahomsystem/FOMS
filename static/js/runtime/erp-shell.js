@@ -527,5 +527,6 @@
     window.FOMS_ERP_SHELL.isFragmentCacheable = isFragmentCacheable;
     window.FOMS_ERP_SHELL.prefetchShellFragment = prefetchShellFragment;
     window.FOMS_ERP_SHELL.getCacheKey = getCacheKey;
+    window.FOMS_ERP_SHELL.navigateByShell = navigateByShell;
   }
 })();

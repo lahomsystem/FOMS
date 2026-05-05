@@ -1489,6 +1489,7 @@ def test_namespaced_geocode_helpers_shim_preserves_canonical_contract() -> None:
         "compute_address_hash",
         "extract_address_from_structured_data",
         "extract_address_from_order",
+        "get_order_display_address",
     ]
 
     assert namespaced_geocode_helpers.__all__ == expected_public_names

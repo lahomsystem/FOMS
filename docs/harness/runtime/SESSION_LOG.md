@@ -4,11 +4,23 @@
 
 ## 최근 세션
 
+### Session: 09a96157
+- **시작**: 2026-05-05 10:42:16
+- **상태**: completed
+- **편집 파일**: `tests/contracts/runtime/foms_namespace_surface_tests.py`, `unknown`, `tests/domains/test_shipment_as_recommendations.py`, `static/css/foundation/erp-pro.css`, `templates/shipment/partials/dashboard_main.html`, `foms/api/shipment/recommendations.py`, `foms/services/schedule_recommendations.py`, `foms/services/geocode_helpers.py`, `tests/domains/test_orders_boundary_contract.py`, `tests/domains/test_erp_mobile_layout_and_shipment.py`
+- **종료**: 2026-05-05 16:16:58
+
+### Session: 640f60ea
+- **시작**: 2026-04-30 14:55:32
+- **상태**: unknown
+- **편집 파일**: `tests/domains/test_erp_order_shared_form_scripts.py`, `static/js/orders/erp-order-shared.js`, `templates/orders/partials/erp_order_tab.html`, `unknown`, `docs/specs/2026-04-30-shared-harness-task-classification_SPEC.md`, `docs/ARCHIVE_INDEX.md`, `.cursor/agents/grand-develop-master.md`, `docs/harness/policy/DECISIONS.md`, `docs/guides/HARNESS_ENGINEERING_OPERATOR_GUIDE.md`, `.cursor/rules/00-project-context.mdc`
+- **종료**: 2026-05-05 10:42:12
+
 ### Session: 05d2bc7a
 - **시작**: 2026-04-30 14:09:00
-- **상태**: completed
+- **상태**: unknown
 - **편집 파일**: `docs/specs/2026-04-30-shared-harness-task-classification_SPEC.md`, `unknown`, `docs/ARCHIVE_INDEX.md`, `.cursor/agents/grand-develop-master.md`, `docs/harness/policy/DECISIONS.md`, `docs/guides/HARNESS_ENGINEERING_OPERATOR_GUIDE.md`, `.cursor/rules/00-project-context.mdc`, `CLAUDE.md`, `AGENTS.md`, `tests/harness/test_hooks_smoke.py`
-- **종료**: 2026-04-30 14:43:00
+- **종료**: 2026-04-30 14:55:29
 
 ### Session: 4cef9e19
 - **시작**: 2026-04-28 16:19:43
@@ -293,3 +305,39 @@
 | 2026-04-30 14:33:50 | END (Claude Code) | 수정: (없음) |
 
 | 2026-04-30 14:43:00 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-30 14:47:35 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-30 14:52:42 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-30 14:58:39 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-30 15:02:25 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-30 15:11:20 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-30 15:17:51 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-30 15:18:59 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-30 15:24:33 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-30 15:28:33 | END (Claude Code) | 수정: (없음) |
+
+| 2026-04-30 15:30:23 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-05 10:46:32 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-05 11:12:18 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-05 11:19:17 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-05 11:44:10 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-05 11:51:53 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-05 11:56:29 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-05 12:07:27 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-05 16:16:58 | END (Claude Code) | 수정: (없음) |
