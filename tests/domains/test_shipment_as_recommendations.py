@@ -346,6 +346,7 @@ def test_as_recommendations_batch_forwards_selected_date(client, monkeypatch) ->
         }
 
     monkeypatch.setattr(shipment_rec_api, "recommend_nearby_schedules_for_targets", spy)
+    monkeypatch.setattr(shipment_rec_api, "get_cached_target", lambda _ck: None)
     client.post(
         "/api/erp/shipment/as-recommendations",
         json={"order_ids": [order.id], "selected_date": "2099-12-31"},
@@ -556,3 +557,46 @@ def test_as_recommendations_cancel_as_info_id_mismatch_returns_409(client) -> No
     )
     assert response.status_code == 409
     assert "일치" in response.get_json().get("message", "")
+
+
+def test_prewarm_endpoint_requires_order_ids(client) -> None:
+    _login_cs_staff(client, "shipment-rec-prewarm-empty")
+    response = client.post("/api/erp/shipment/as-recommendations/prewarm", json={})
+    assert response.status_code == 400
+    assert response.get_json()["success"] is False
+
+
+def test_prewarm_endpoint_returns_prewarmed_flag_and_stats(client, monkeypatch) -> None:
+    """§5: prewarm은 targets 없이 warmed_targets + cache 메타를 반환한다."""
+    _login_cs_staff(client, "shipment-rec-prewarm-ok")
+    order = _make_shipment_target_order()
+
+    def fake_compute(**kwargs):
+        assert kwargs.get("return_targets") is False
+        return {
+            "targets": [],
+            "targets_len": 1,
+            "partial": False,
+            "warnings": [],
+            "cache": {
+                "candidate_pool_hit": True,
+                "candidate_count": 3,
+                "target_hits": 0,
+                "target_misses": 1,
+                "route_hits": 0,
+                "route_misses": 2,
+                "prewarmed": False,
+            },
+        }
+
+    monkeypatch.setattr(shipment_rec_api, "_compute_recommendation_payload", fake_compute)
+    response = client.post(
+        "/api/erp/shipment/as-recommendations/prewarm",
+        json={"order_ids": [order.id]},
+    )
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["success"] is True
+    assert payload["warmed_targets"] == 1
+    assert payload.get("prewarmed") is True
+    assert payload.get("candidate_pool_hit") is True

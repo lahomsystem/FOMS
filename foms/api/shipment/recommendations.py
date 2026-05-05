@@ -7,6 +7,8 @@ import datetime as dt
 import logging
 from typing import Any
 
+from copy import deepcopy
+
 from flask import g, jsonify, request, session
 from sqlalchemy.orm import load_only
 from sqlalchemy.orm.attributes import flag_modified
@@ -23,6 +25,15 @@ from foms.services.schedule_recommendations import (
     get_order_display_customer_name,
     recommend_nearby_schedules_for_targets,
 )
+from foms.services.shipment_as_recommendation_cache import (
+    build_target_cache_key,
+    get_cached_target,
+    get_or_compute_candidate_pool,
+    invalidate_shipment_as_recommendation_cache,
+    make_route_provider,
+    set_cached_target,
+)
+from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
 from foms.web.auth import login_required, role_required
 from models import Order, OrderEvent, SecurityLog
 
@@ -31,6 +42,172 @@ logger = logging.getLogger(__name__)
 SHREC_SOURCE = "shipment_dashboard_as_recommendation"
 AS_STATUSES = ("AS", "AS_RECEIVED")
 SHIPMENT_AS_ROW_STATUSES = ("AS", "AS_RECEIVED", "AS_COMPLETED")
+
+RULE_VERSION = "shipment_asrec_target_v1:duration30:limit2:route10"
+
+
+def _invalidate_asrec_after_commit(reason: str) -> None:
+    """Best-effort AS recommendation cache bust after DB writes."""
+    try:
+        invalidate_shipment_as_recommendation_cache(reason=reason)
+    except Exception:
+        logger.warning("[AS-REC] shipment recommendation cache invalidate failed", exc_info=True)
+
+
+def _invalidate_dashboard_after_commit() -> None:
+    try:
+        invalidate_all_dashboard_slice_caches()
+    except Exception:
+        logger.warning("[AS-REC] dashboard slice cache invalidate failed", exc_info=True)
+
+
+def _build_targets_for_order_ids(db, order_ids: list[int]) -> list[dict[str, Any]]:
+    """Build shipment target rows for recommendation (same shape as legacy API)."""
+    shipment_orders = _load_orders_map(db, order_ids)
+    targets_in: list[dict[str, Any]] = []
+    for oid in order_ids:
+        order = shipment_orders.get(oid)
+        if not order or not _is_valid_shipment_target(order):
+            continue
+        cdate = _shipment_construction_date(order)
+        workers = _shipment_workers(order)
+        row: dict[str, Any] = {
+            "order_id": oid,
+            "customer_name": get_order_display_customer_name(order),
+            "address": get_order_display_address(order),
+            "target_date": cdate,
+            "workers": workers,
+        }
+        if order.lat and order.lng and order.geocode_status == "success":
+            row["cached_lat"] = float(order.lat)
+            row["cached_lng"] = float(order.lng)
+        targets_in.append(row)
+    return targets_in
+
+
+def _compute_recommendation_payload(
+    *,
+    db,
+    order_ids: list[int],
+    selected_date: str | None,
+    return_targets: bool,
+) -> dict[str, Any]:
+    """
+    Shared core for GET-like recommendation + prewarm.
+    Candidate pool cache + per-target cache + route_provider injection.
+    """
+    converter = FOMSAddressConverter()
+    pool, pool_stats = get_or_compute_candidate_pool(
+        db,
+        converter,
+        source_value=SHREC_SOURCE,
+        as_statuses=AS_STATUSES,
+        log_warning=logger.warning,
+    )
+    link_as_to_shipment = {}
+    raw_link = pool.get("link_as_to_shipment") or {}
+    for k, v in raw_link.items():
+        try:
+            link_as_to_shipment[int(k)] = int(v)
+        except (TypeError, ValueError):
+            continue
+
+    candidates_in = pool.get("candidates") or []
+    pool_version = str(pool.get("pool_version") or "")
+
+    targets_in = _build_targets_for_order_ids(db, order_ids)
+    cache_meta: dict[str, Any] = {
+        "candidate_pool_hit": bool(pool_stats.get("candidate_pool_hit")),
+        "candidate_count": int(pool_stats.get("candidate_count") or 0),
+        "target_hits": 0,
+        "target_misses": 0,
+        "route_hits": 0,
+        "route_misses": 0,
+        "prewarmed": False,
+    }
+
+    route_stats: dict[str, Any] = {"route_hits": 0, "route_misses": 0}
+    route_provider = make_route_provider(converter, route_stats, log_warning=logger.warning)
+
+    hits: dict[int, dict[str, Any]] = {}
+    miss_list: list[dict[str, Any]] = []
+    for tgt in targets_in:
+        oid = int(tgt["order_id"])
+        ck = build_target_cache_key(tgt, pool_version, RULE_VERSION)
+        cached = get_cached_target(ck)
+        if cached:
+            hits[oid] = deepcopy(cached)
+            cache_meta["target_hits"] += 1
+        else:
+            miss_list.append(tgt)
+            cache_meta["target_misses"] += 1
+
+    merged_miss: dict[int, dict[str, Any]] = {}
+    partial_all = False
+    warnings_all: list[str] = []
+
+    if miss_list:
+        chunk_size = 5
+        for i in range(0, len(miss_list), chunk_size):
+            chunk = miss_list[i : i + chunk_size]
+            batch = recommend_nearby_schedules_for_targets(
+                converter=converter,
+                targets=chunk,
+                candidates=candidates_in,
+                route_provider=route_provider,
+                reference_date=selected_date,
+                include_workers=True,
+                log_warning=logger.warning,
+            )
+            partial_all = partial_all or bool(batch.get("partial"))
+            warnings_all.extend(list(batch.get("warnings") or []))
+            for src_tgt, tgt_row in zip(chunk, batch.get("targets") or []):
+                oid = int(tgt_row["order_id"])
+                merged_miss[oid] = tgt_row
+                ck = build_target_cache_key(src_tgt, pool_version, RULE_VERSION)
+                to_store = deepcopy(tgt_row)
+                to_store.pop("linked_as_schedules", None)
+                set_cached_target(ck, to_store)
+
+    cache_meta["route_hits"] = int(route_stats.get("route_hits") or 0)
+    cache_meta["route_misses"] = int(route_stats.get("route_misses") or 0)
+
+    final_targets: list[dict[str, Any]] = []
+    for tgt in targets_in:
+        oid = int(tgt["order_id"])
+        row = hits.get(oid) or merged_miss.get(oid)
+        if row is None:
+            final_targets.append(
+                {
+                    "order_id": oid,
+                    "customer_name": tgt.get("customer_name") or "",
+                    "address": (tgt.get("address") or "").strip(),
+                    "target_date": tgt.get("target_date") or "",
+                    "workers": list(tgt.get("workers") or []),
+                    "recommendations": [],
+                    "linked_as_schedules": [],
+                    "message": "추천 결과를 만들 수 없습니다.",
+                }
+            )
+            continue
+        final_targets.append(deepcopy(row))
+
+    for tgt in final_targets:
+        tgt.pop("linked_as_schedules", None)
+
+    _enrich_recommendations(final_targets, link_as_to_shipment)
+    linked_by = _build_linked_schedules_for_targets(db, order_ids, link_as_to_shipment)
+    for tgt in final_targets:
+        tgt["linked_as_schedules"] = linked_by.get(int(tgt["order_id"]), [])
+
+    out_targets = final_targets if return_targets else []
+    return {
+        "targets": out_targets,
+        "targets_len": len(final_targets),
+        "partial": partial_all,
+        "warnings": warnings_all,
+        "cache": cache_meta,
+    }
 
 
 def _construction_team_forbidden() -> Any | None:
@@ -222,111 +399,57 @@ def api_shipment_as_recommendations():
         return jsonify({"success": False, "message": "order_ids 형식이 올바르지 않습니다."}), 400
 
     db = get_db()
-    shipment_orders = _load_orders_map(db, order_ids)
-    targets_in: list[dict[str, Any]] = []
-    for oid in order_ids:
-        order = shipment_orders.get(oid)
-        if not order or not _is_valid_shipment_target(order):
-            continue
-        cdate = _shipment_construction_date(order)
-        workers = _shipment_workers(order)
-        row: dict[str, Any] = {
-            "order_id": oid,
-            "customer_name": get_order_display_customer_name(order),
-            "address": get_order_display_address(order),
-            "target_date": cdate,
-            "workers": workers,
-        }
-        if order.lat and order.lng and order.geocode_status == "success":
-            row["cached_lat"] = float(order.lat)
-            row["cached_lng"] = float(order.lng)
-        targets_in.append(row)
-
-    cand_query = (
-        db.query(Order)
-        .options(
-            load_only(
-                Order.id,
-                Order.status,
-                Order.deleted_at,
-                Order.address,
-                Order.is_erp_order,
-                Order.structured_data,
-                Order.customer_name,
-                Order.lat,
-                Order.lng,
-                Order.geocode_status,
-            )
-        )
-        .filter(
-            Order.status.in_(AS_STATUSES),
-            Order.active_filter(),
-        )
-        .order_by(Order.id.desc())
-        .limit(800)
+    body = _compute_recommendation_payload(
+        db=db,
+        order_ids=order_ids,
+        selected_date=selected_date,
+        return_targets=True,
     )
-    candidates_in: list[dict[str, Any]] = []
-    link_as_to_shipment: dict[int, int] = {}
-    for order in cand_query:
-        sd = order.structured_data if isinstance(order.structured_data, dict) else {}
-        addr = get_order_display_address(order)
-        if not addr.strip():
-            continue
-        meta = _shipment_rec_meta(sd)
-        if meta and meta.get("source") == SHREC_SOURCE:
-            sid = meta.get("shipment_order_id")
-            if sid is not None:
-                try:
-                    link_as_to_shipment[order.id] = int(sid)
-                except (TypeError, ValueError):
-                    pass
-        info_id, ambiguous = _candidate_as_info_id(sd)
-        candidates_in.append(
-            {
-                "order_id": order.id,
-                "customer_name": get_order_display_customer_name(order),
-                "address": addr,
-                "current_visit_date": _visit_date_str(order, sd),
-                "status": order.status,
-                "sort_date": _as_sort_date(order, sd),
-                "as_info_id": None if ambiguous else info_id,
-                "as_info_ambiguous": ambiguous,
-                **(
-                    {
-                        "cached_lat": float(order.lat),
-                        "cached_lng": float(order.lng),
-                    }
-                    if order.lat and order.lng and order.geocode_status == "success"
-                    else {}
-                ),
-            }
-        )
-
-    converter = FOMSAddressConverter()
-    batch = recommend_nearby_schedules_for_targets(
-        converter=converter,
-        targets=targets_in,
-        candidates=candidates_in,
-        reference_date=selected_date,
-        include_workers=True,
-        log_warning=logger.warning,
-    )
-    targets_out = batch["targets"]
-    _enrich_recommendations(targets_out, link_as_to_shipment)
-    linked_by = _build_linked_schedules_for_targets(db, order_ids, link_as_to_shipment)
-    for tgt in targets_out:
-        tgt["linked_as_schedules"] = linked_by.get(int(tgt["order_id"]), [])
-
     return jsonify(
         {
             "success": True,
             "per_target_limit": 2,
             "duration_limit_min": 30,
-            "partial": batch["partial"],
-            "warnings": batch["warnings"],
-            "targets": targets_out,
+            "partial": body["partial"],
+            "warnings": body["warnings"],
+            "cache": body["cache"],
+            "targets": body["targets"],
         }
     )
+
+
+@erp_shipment_bp.route("/api/erp/shipment/as-recommendations/prewarm", methods=["POST"])
+@login_required
+@erp_edit_required
+@role_required(["ADMIN", "MANAGER", "STAFF"])
+def api_shipment_as_recommendations_prewarm():
+    blocked = _construction_team_forbidden()
+    if blocked:
+        return blocked
+    payload = request.get_json(silent=True) or {}
+    raw_ids = payload.get("order_ids") or []
+    selected_raw = payload.get("selected_date")
+    selected_date: str | None = None
+    if selected_raw is not None and str(selected_raw).strip():
+        selected_date = str(selected_raw).strip()
+    if not isinstance(raw_ids, list) or not raw_ids:
+        return jsonify({"success": False, "message": "order_ids가 필요합니다."}), 400
+    try:
+        order_ids = sorted({int(x) for x in raw_ids})
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "message": "order_ids 형식이 올바르지 않습니다."}), 400
+
+    db = get_db()
+    body = _compute_recommendation_payload(
+        db=db,
+        order_ids=order_ids,
+        selected_date=selected_date,
+        return_targets=False,
+    )
+    warmed = int(body.get("targets_len") or 0)
+    cache = dict(body["cache"])
+    cache["prewarmed"] = True
+    return jsonify({"success": True, "warmed_targets": warmed, **cache})
 
 
 def _load_sd_for_write(order: Order) -> dict[str, Any]:
@@ -480,6 +603,8 @@ def api_shipment_as_recommendations_apply():
             )
         )
         db.commit()
+        _invalidate_dashboard_after_commit()
+        _invalidate_asrec_after_commit("shipment_as_recommendations_apply")
     except Exception as exc:
         db.rollback()
         logger.exception("[AS-REC] apply 실패: %s", exc)
@@ -491,6 +616,8 @@ def api_shipment_as_recommendations_apply():
             "as_order_id": as_order_id,
             "applied_date": shipment_date,
             "applied_workers": workers,
+            "as_visit_date": shipment_date,
+            "status": getattr(as_order, "status", None),
             "message": "AS 일정이 출고 일정에 추가되었습니다.",
         }
     )
@@ -654,6 +781,8 @@ def api_shipment_as_recommendations_cancel():
             )
         )
         db.commit()
+        _invalidate_dashboard_after_commit()
+        _invalidate_asrec_after_commit("shipment_as_recommendations_cancel")
     except Exception as exc:
         db.rollback()
         logger.exception("[AS-REC] cancel 실패: %s", exc)

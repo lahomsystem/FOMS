@@ -31,6 +31,7 @@ from foms.services.common.erp_shell_http import (
 )
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
 from foms.services.request_utils import get_search_query_arg
+from foms.api.shipment.recommendations import SHREC_SOURCE
 
 # 실행 계획 §3.1.1 shipment — read-model slices:
 # - ``panel_aggregates``: construction_counts / assigned_workers / spec_units (JSON)
@@ -501,10 +502,33 @@ def erp_shipment_dashboard():
     rows = rows[:300]
 
     for r in rows:
+        r.shipment_as_recommendation_link = None
         r.structured_data = _ensure_dict(r.structured_data)  # type: ignore[assignment]
         sd = r.structured_data
         shipment = (sd.get('shipment') or {}) if isinstance(sd, dict) else {}
         r.as_content_text = as_content_html_to_text(shipment.get('as_content') or '')
+
+        if is_as_order(r):
+            sched = (sd.get("schedule") or {}) if isinstance(sd, dict) else {}
+            av = sched.get("as_visit") if isinstance(sched, dict) else {}
+            sr = av.get("shipment_recommendation") if isinstance(av, dict) else None
+            if isinstance(sr, dict) and sr.get("source") == SHREC_SOURCE:
+                sid_raw = sr.get("shipment_order_id")
+                try:
+                    sid_int = int(sid_raw) if sid_raw is not None else None
+                except (TypeError, ValueError):
+                    sid_int = None
+                info_raw = sr.get("as_info_id")
+                try:
+                    info_int = int(info_raw) if info_raw is not None else None
+                except (TypeError, ValueError):
+                    info_int = None
+                r.shipment_as_recommendation_link = {
+                    "shipment_order_id": sid_int,
+                    "as_order_id": r.id,
+                    "as_info_id": info_int,
+                    "applied_date": str(sr.get("applied_date") or av.get("date") or ""),
+                }
 
         r.is_production_approved = False
         quests = sd.get('quests') or []

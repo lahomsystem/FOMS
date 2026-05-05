@@ -226,6 +226,7 @@ def _count_cases(query, *definitions):
 def _erp_as_incomplete_condition():
     """AS 미완료 탭 공통 조건."""
     return or_(
+        Order.status == 'AS',
         Order.status == 'AS_RECEIVED',
         and_(
             Order.status == 'AS_COMPLETED',
@@ -266,7 +267,7 @@ def erp_as_dashboard():
     customer_name_expr = _display_customer_name_expr(dialect_name=dialect_name)
 
     base_query = db.query(Order).filter(Order.active_filter())
-    base_query = base_query.filter(Order.status.in_(['AS_RECEIVED', 'AS_COMPLETED']))
+    base_query = base_query.filter(Order.status.in_(['AS', 'AS_RECEIVED', 'AS_COMPLETED']))
 
     if status_filter:
         base_query = base_query.filter(Order.status == status_filter)
