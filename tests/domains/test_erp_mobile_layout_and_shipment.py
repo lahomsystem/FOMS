@@ -127,6 +127,14 @@ def test_shipment_dashboard_template_includes_as_recommend_entrypoint() -> None:
     assert "{% if can_edit_shipment %}" in template
 
 
+def test_shipment_dashboard_as_rec_modal_has_rich_preview_hydration() -> None:
+    root = Path(__file__).resolve().parents[2]
+    template = (root / "templates/shipment/partials/dashboard_main.html").read_text(encoding="utf-8")
+    assert "hydrateAsRecRichPreviews" in template
+    assert "data-asrec-rich" in template
+    assert "asrec-rich-preview" in template
+
+
 def test_shipment_dashboard_hides_as_recommend_for_construction_team(client):
     """시공팀은 can_edit_shipment가 꺼져 AS 일정 추천 버튼이 렌더되지 않는다."""
     user = User(

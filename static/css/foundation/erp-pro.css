@@ -35,6 +35,24 @@
     }
 }
 
+/* AS 일정 추천: 대시보드 as_content-input과 동일 타이포의 읽기 전용 리치 미리보기 */
+#shipmentAsRecommendModal .asrec-rich-preview.erp-pro-input.as-content-input {
+    width: 100%;
+    min-height: 60px;
+    max-height: 250px;
+    overflow-y: auto;
+    padding: 8px;
+    border: none;
+    outline: none;
+    white-space: pre-wrap;
+    font-size: 14px;
+    background: #fff;
+}
+
+#shipmentAsRecommendModal .asrec-rich-preview.asrec-rich-preview--plain {
+    white-space: pre-wrap;
+}
+
 .erp-attach-thumb {
     width: 80px;
     height: 60px;
