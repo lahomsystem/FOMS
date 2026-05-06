@@ -1539,11 +1539,7 @@ ${escapeHtml(sub)}</div>` : ''}`;
             erpRenderAttachments();
         }
     });
-    document.getElementById('erp-save-btn')?.addEventListener('click', function (event) {
-        event.preventDefault();
-        event.stopPropagation();
-        erpSaveStructured({ redirect: false });
-    });
+    document.getElementById('erp-save-btn')?.addEventListener('click', erpSaveStructured);
     document.getElementById('erp-load-btn')?.addEventListener('click', erpLoadStructured);
 
     // AS 접수 모달: 파일 미리보기, 10MB 경고, 제출, 취소 시 롤백
