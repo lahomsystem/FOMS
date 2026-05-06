@@ -77,6 +77,34 @@ def test_as_dashboard_base_query_includes_pure_as_status():
     assert "Order.status == 'AS'" in src
 
 
+def test_as_dashboard_script_runs_after_erp_shell_fragment_swap():
+    """AS fragment 재삽입 뒤에도 날짜/일정찾기 이벤트가 다시 붙어야 한다."""
+    src = (
+        Path(__file__).resolve().parents[2] / "templates/cs/partials/as_dashboard_body.html"
+    ).read_text(encoding="utf-8")
+
+    assert "function initAsDashboard()" in src
+    assert "document.readyState === 'loading'" in src
+    assert "initAsDashboard();" in src
+    assert "DOMContentLoaded', function" not in src
+    assert "window.__fomsAsDashboardAbortController" in src
+    assert "addAsDashboardListener(document.body, 'click', async function (e) {" in src
+    assert "e.target.closest('.find-schedule-btn')" in src
+
+
+def test_as_visit_date_visual_state_updates_optimistically():
+    """AS 방문일 입력 즉시 방문일 cell 색상이 바뀌고 실패 시 저장값으로 복구해야 한다."""
+    src = (
+        Path(__file__).resolve().parents[2] / "templates/cs/partials/as_dashboard_body.html"
+    ).read_text(encoding="utf-8")
+
+    assert re.search(
+        r"input\.style\.backgroundColor = '#fff3cd';\s+syncDateFieldVisuals\(orderId, fieldName, value\);",
+        src,
+    )
+    assert "syncDateFieldInputs(orderId, fieldName, state.savedValue || '');" in src
+
+
 def test_as_dashboard_renders_primary_and_secondary_tabs(client, monkeypatch):
     monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
     _login_as_admin(client)
