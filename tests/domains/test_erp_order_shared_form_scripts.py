@@ -271,6 +271,9 @@ def test_shared_erp_order_js_guards_duplicate_save_clicks_and_tokens_draft_creat
     assert "erpFocusWithoutScroll(document.getElementById('erp-customer-name'))" in text
     assert "erpFocusWithoutScroll(firstItem);" in text
     assert "document.getElementById('erp-save-btn')?.addEventListener('click', erpSaveStructured);" in text
+    assert "function erpNavigateAfterStructuredSave(targetUrl)" in text
+    assert "window.history.back();" in text
+    assert "erpNavigateAfterStructuredSave(targetUrl);" in text
 
     draft_start = text.index("var erpGetDraftRequestToken")
     draft_end = text.index("window.erpEnsureDraftOrderId = erpEnsureDraftOrderId;", draft_start)
