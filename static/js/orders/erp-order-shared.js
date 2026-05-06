@@ -1142,6 +1142,43 @@ function erpFocusWithoutScroll(el) {
     }
 }
 
+function erpNavigateAfterStructuredSave(targetUrl) {
+    if (!targetUrl) {
+        window.location.href = '/erp/dashboard';
+        return;
+    }
+
+    let target;
+    try {
+        target = new URL(targetUrl, window.location.origin);
+    } catch (e) {
+        window.location.href = targetUrl;
+        return;
+    }
+
+    try {
+        const ref = document.referrer ? new URL(document.referrer) : null;
+        if (
+            ref &&
+            ref.origin === window.location.origin &&
+            target.origin === window.location.origin &&
+            ref.pathname === target.pathname &&
+            ref.search === target.search &&
+            ref.hash === target.hash &&
+            target.pathname !== window.location.pathname &&
+            window.history &&
+            window.history.length > 1
+        ) {
+            window.history.back();
+            return;
+        }
+    } catch (e) {
+        // Fall through to normal navigation when referrer parsing is unavailable.
+    }
+
+    window.location.href = target.href;
+}
+
 async function erpSaveStructuredOnce(opts = {}) {
     const doRedirect = opts.redirect !== false;
 
@@ -1294,7 +1331,7 @@ async function erpSaveStructuredOnce(opts = {}) {
                 const referrerInput = document.querySelector('input[name="referrer"]');
                 let targetUrl = referrerInput ? referrerInput.value : document.referrer;
                 if (!targetUrl || targetUrl.includes(window.location.pathname)) targetUrl = '/erp/dashboard';
-                window.location.href = targetUrl;
+                erpNavigateAfterStructuredSave(targetUrl);
             }
         }
         return { success: true };
