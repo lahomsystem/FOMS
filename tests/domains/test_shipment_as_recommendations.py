@@ -275,6 +275,7 @@ def test_recommend_carries_as_content_text_to_result() -> None:
                 "sort_date": "2026-01-02",
                 "as_info_id": 2,
                 "as_content_text": "힌지 교체 필요\n문짝 처짐",
+                "as_content_html": "<div><b>힌지 교체 필요</b><br><br>문짝 처짐</div>",
             },
         ],
         per_target_limit=2,
@@ -284,6 +285,7 @@ def test_recommend_carries_as_content_text_to_result() -> None:
     )
     rec = out["targets"][0]["recommendations"][0]
     assert rec["as_content_text"] == "힌지 교체 필요\n문짝 처짐"
+    assert rec["as_content_html"] == "<div><b>힌지 교체 필요</b><br><br>문짝 처짐</div>"
 
 
 def test_candidate_pool_extracts_safe_as_content_text(client) -> None:
@@ -319,7 +321,43 @@ def test_candidate_pool_extracts_safe_as_content_text(client) -> None:
     assert "상부 레일 불량" in row["as_content_text"]
     assert "방문 전 연락 필요" in row["as_content_text"]
     assert "<script>" not in row["as_content_text"]
+    assert "<script>" not in row["as_content_html"]
+    assert "레일 불량" in row["as_content_html"]
+    assert "연락 필요" in row["as_content_html"]
     assert row["as_info_id"] == 7
+
+
+def test_candidate_pool_as_content_html_includes_notes_when_tab2_absent(client) -> None:
+    """as_dashboard와 동일: shipment에 as_content_2 키가 없으면 notes를 탭2 소스로 sanitize."""
+    today = date.today().strftime("%Y-%m-%d")
+    order = Order(
+        received_date=today,
+        customer_name="notes tab2",
+        phone="010-0000-0000",
+        address="서울 AS_CAND_MARK notes2",
+        product="AS",
+        status="AS_RECEIVED",
+        is_erp_order=True,
+        notes="<font color='red'>노트내용</font>",
+        structured_data={
+            "shipment": {"as_content": "<b>본문</b>"},
+            "as_info": [{"id": 9, "status": "OPEN"}],
+        },
+    )
+    db_session.add(order)
+    db_session.commit()
+
+    pool = shipment_rec_cache._build_candidate_pool_payload(
+        db_session,
+        _StubRouteConverter({"status": "success", "distance_km": 1.0, "duration_min": 5}),
+        source_value=shipment_rec_api.SHREC_SOURCE,
+        as_statuses=("AS_RECEIVED",),
+        log_warning=None,
+    )
+    row = next(c for c in pool["candidates"] if c["order_id"] == order.id)
+    assert "본문" in row["as_content_html"]
+    assert "노트내용" in row["as_content_html"]
+    assert "<font color=\"red\">노트내용</font>" in row["as_content_html"] or "red" in row["as_content_html"]
 
 
 def test_shipment_as_recommendation_map_reuses_global_leaflet_instance() -> None:

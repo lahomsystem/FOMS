@@ -1587,6 +1587,25 @@
         return Promise.resolve();
       }
 
+      function hydrateAsRecRichPreviews(payload, rootEl) {
+        if (!rootEl) return;
+        var targets = (payload && payload.targets) || [];
+        targets.forEach(function (t) {
+          (t.recommendations || []).forEach(function (r) {
+            var key = String(t.order_id) + '-' + String(r.as_order_id);
+            var el = rootEl.querySelector('[data-asrec-rich="' + key + '"]');
+            if (!el) return;
+            if (r.as_content_html) {
+              el.innerHTML = r.as_content_html;
+              el.classList.remove('asrec-rich-preview--plain');
+            } else if (r.as_content_text) {
+              el.textContent = r.as_content_text;
+              el.classList.add('asrec-rich-preview--plain');
+            }
+          });
+        });
+      }
+
       function renderAll(payload) {
         var groupsEl = document.getElementById('shipment-as-rec-groups');
         var emptyEl = document.getElementById('shipment-as-rec-empty');
@@ -1654,13 +1673,13 @@
             var recLat = Number(r.lat);
             var recLng = Number(r.lng);
             var canOpenMap = Number.isFinite(targetLat) && Number.isFinite(targetLng) && Number.isFinite(recLat) && Number.isFinite(recLng);
+            var richKey = String(t.order_id) + '-' + String(r.as_order_id);
             html += '<div class="border rounded p-2 mb-2 small" data-as-order-id="' + escHtml(r.as_order_id) + '">';
+            html += '<div class="row g-2 align-items-stretch">';
+            html += '<div class="col-12 col-md-6 asrec-card-meta">';
             html += '<div class="fw-bold">AS #' + escHtml(r.as_order_id) + ' ' + escHtml(r.customer_name) + badge + '</div>';
             html += '<div class="text-muted">' + escHtml(r.address) + '</div>';
-            if (r.as_content_text) {
-              html += '<div class="asrec-content-box border rounded bg-light p-2 mt-2 mb-2" style="max-height: 72px; overflow-y: auto; white-space: pre-wrap;">' + escHtml(r.as_content_text) + '</div>';
-            }
-            html += '<div>현재 방문일: <span class="js-asrec-visit">' + escHtml(r.current_visit_date || '(없음)') + '</span></div>';
+            html += '<div class="mt-2">현재 방문일: <span class="js-asrec-visit">' + escHtml(r.current_visit_date || '(없음)') + '</span></div>';
             html += '<div>' + escHtml(r.score_text || '') + '</div>';
             html += '<div class="mt-1">적용 시 시공자: ' + workersLabel + '</div>';
             html += '<div class="js-asrec-err text-danger mt-1"></div>';
@@ -1680,10 +1699,18 @@
             }
             html += '</div>';
             html += '</div>';
+            html += '<div class="col-12 col-md-6 asrec-card-content">';
+            html += '<div class="border rounded bg-light h-100 p-2">';
+            html += '<div class="erp-pro-input as-content-input asrec-rich-preview js-asrec-rich-preview" ';
+            html += 'contenteditable="false" tabindex="-1" role="region" aria-readonly="true" aria-label="AS 내용" ';
+            html += 'data-asrec-rich="' + escHtml(richKey) + '"></div>';
+            html += '</div></div>';
+            html += '</div></div>';
           });
           html += '</div></div></div>';
         });
         groupsEl.innerHTML = html;
+        hydrateAsRecRichPreviews(payload, groupsEl);
         if (payload && payload.warnings && payload.warnings.length) {
           setStatus('참고 알림 ' + payload.warnings.length + '건 (경로 계산 한도·화면 기준일 불일치 등)');
         }

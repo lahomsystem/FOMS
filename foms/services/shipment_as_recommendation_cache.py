@@ -13,7 +13,7 @@ from typing import Any, Callable
 
 from sqlalchemy.orm import load_only
 
-from foms.services.as_content_safety import as_content_html_to_text
+from foms.services.as_content_safety import as_content_html_to_text, sanitize_as_content_html
 from foms.services.common.dashboard_cache import get_dashboard_redis
 from foms.services.geocode_helpers import get_order_display_address
 from foms.services.schedule_recommendations import get_order_display_customer_name
@@ -124,6 +124,24 @@ def _as_content_text(sd: dict[str, Any]) -> str:
     return "\n\n".join(part for part in parts if part)
 
 
+def _as_content_html(order: Order, sd: dict[str, Any]) -> str:
+    """AS 대시보드와 동일 sanitize + 탭2 notes 폴백(as_dashboard) 후 HTML 결합."""
+    shipment = sd.get("shipment") or {}
+    if not isinstance(shipment, dict):
+        return ""
+    primary = sanitize_as_content_html(shipment.get("as_content"))
+    has_secondary_key = "as_content_2" in shipment
+    secondary = sanitize_as_content_html(shipment.get("as_content_2"))
+    if not has_secondary_key and not secondary:
+        secondary = sanitize_as_content_html(getattr(order, "notes", None) or "")
+    chunks: list[str] = []
+    if primary:
+        chunks.append(primary)
+    if secondary:
+        chunks.append(secondary)
+    return "<br><br>".join(chunks)
+
+
 def _shipment_rec_meta(sd: dict[str, Any]) -> dict[str, Any] | None:
     av = (sd.get("schedule") or {}).get("as_visit") or {}
     if not isinstance(av, dict):
@@ -175,6 +193,7 @@ def _order_candidate_fingerprint(order: Order, sd: dict[str, Any], *, source_val
                 "customer": get_order_display_customer_name(order),
                 "visit": _visit_date_str(order, sd),
                 "as_content": _as_content_text(sd),
+                "as_content_html": _as_content_html(order, sd),
             }
         ),
     }
@@ -205,6 +224,7 @@ def _build_candidate_pool_payload(
                 Order.geocode_status,
                 Order.structured_updated_at,
                 Order.created_at,
+                Order.notes,
             )
         )
         .filter(
@@ -243,6 +263,7 @@ def _build_candidate_pool_payload(
             "as_info_id": None if ambiguous else info_id,
             "as_info_ambiguous": ambiguous,
             "as_content_text": _as_content_text(sd),
+            "as_content_html": _as_content_html(order, sd),
         }
         if order.lat and order.lng and order.geocode_status == "success":
             row["cached_lat"] = float(order.lat)
