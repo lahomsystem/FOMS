@@ -13,6 +13,7 @@ from typing import Any, Callable
 
 from sqlalchemy.orm import load_only
 
+from foms.services.as_content_safety import as_content_html_to_text
 from foms.services.common.dashboard_cache import get_dashboard_redis
 from foms.services.geocode_helpers import get_order_display_address
 from foms.services.schedule_recommendations import get_order_display_customer_name
@@ -20,7 +21,7 @@ from models import Order
 
 logger = logging.getLogger(__name__)
 
-KEY_VERSION = "v1"
+KEY_VERSION = "v2"
 KEY_PREFIX = f"foms:asrec:{KEY_VERSION}"
 
 TTL_CANDIDATE_POOL_SECONDS = 300
@@ -112,6 +113,17 @@ def _visit_date_str(order: Order, sd: dict[str, Any]) -> str:
     return ""
 
 
+def _as_content_text(sd: dict[str, Any]) -> str:
+    shipment = sd.get("shipment") or {}
+    if not isinstance(shipment, dict):
+        return ""
+    parts = [
+        as_content_html_to_text(shipment.get("as_content")),
+        as_content_html_to_text(shipment.get("as_content_2")),
+    ]
+    return "\n\n".join(part for part in parts if part)
+
+
 def _shipment_rec_meta(sd: dict[str, Any]) -> dict[str, Any] | None:
     av = (sd.get("schedule") or {}).get("as_visit") or {}
     if not isinstance(av, dict):
@@ -162,6 +174,7 @@ def _order_candidate_fingerprint(order: Order, sd: dict[str, Any], *, source_val
             {
                 "customer": get_order_display_customer_name(order),
                 "visit": _visit_date_str(order, sd),
+                "as_content": _as_content_text(sd),
             }
         ),
     }
@@ -229,6 +242,7 @@ def _build_candidate_pool_payload(
             "sort_date": _as_sort_date(order, sd),
             "as_info_id": None if ambiguous else info_id,
             "as_info_ambiguous": ambiguous,
+            "as_content_text": _as_content_text(sd),
         }
         if order.lat and order.lng and order.geocode_status == "success":
             row["cached_lat"] = float(order.lat)
