@@ -2,6 +2,7 @@
 
 import copy
 from datetime import date
+from pathlib import Path
 
 from sqlalchemy.orm.attributes import flag_modified
 from werkzeug.security import generate_password_hash
@@ -10,6 +11,7 @@ from db import db_session
 from models import Order, OrderScheduleDate, User
 
 import foms.api.shipment.recommendations as shipment_rec_api
+import foms.services.shipment_as_recommendation_cache as shipment_rec_cache
 from foms.services.schedule_recommendations import recommend_nearby_schedules_for_targets
 
 
@@ -249,6 +251,87 @@ def test_recommend_excludes_already_scheduled_as_candidates() -> None:
     assert recs[0]["lat"] == 37.05
     assert recs[0]["lng"] == 127.05
     assert all(not r.get("already_scheduled") for r in recs)
+
+
+def test_recommend_carries_as_content_text_to_result() -> None:
+    conv = _StubRouteConverter({"status": "success", "distance_km": 4.0, "duration_min": 12})
+    out = recommend_nearby_schedules_for_targets(
+        converter=conv,
+        targets=[
+            {
+                "order_id": 1,
+                "customer_name": "S",
+                "address": "서울 SHIP_TGT_MARK",
+                "target_date": "2026-05-04",
+                "workers": [],
+            }
+        ],
+        candidates=[
+            {
+                "order_id": 201,
+                "customer_name": "Open",
+                "address": "서울 AS_CAND_MARK open",
+                "current_visit_date": "",
+                "sort_date": "2026-01-02",
+                "as_info_id": 2,
+                "as_content_text": "힌지 교체 필요\n문짝 처짐",
+            },
+        ],
+        per_target_limit=2,
+        duration_limit_min=30,
+        route_candidates_per_target=10,
+        include_workers=True,
+    )
+    rec = out["targets"][0]["recommendations"][0]
+    assert rec["as_content_text"] == "힌지 교체 필요\n문짝 처짐"
+
+
+def test_candidate_pool_extracts_safe_as_content_text(client) -> None:
+    today = date.today().strftime("%Y-%m-%d")
+    order = Order(
+        received_date=today,
+        customer_name="AS 내용 후보",
+        phone="010-0000-0000",
+        address="서울 AS_CAND_MARK 내용",
+        product="AS",
+        status="AS_RECEIVED",
+        is_erp_order=True,
+        structured_data={
+            "shipment": {
+                "as_content": "<div>상부 레일 불량<script>alert(1)</script></div>",
+                "as_content_2": "<div>방문 전 연락 필요</div>",
+            },
+            "as_info": [{"id": 7, "status": "OPEN"}],
+        },
+    )
+    db_session.add(order)
+    db_session.commit()
+
+    pool = shipment_rec_cache._build_candidate_pool_payload(
+        db_session,
+        _StubRouteConverter({"status": "success", "distance_km": 1.0, "duration_min": 5}),
+        source_value=shipment_rec_api.SHREC_SOURCE,
+        as_statuses=("AS_RECEIVED",),
+        log_warning=None,
+    )
+
+    row = next(c for c in pool["candidates"] if c["order_id"] == order.id)
+    assert "상부 레일 불량" in row["as_content_text"]
+    assert "방문 전 연락 필요" in row["as_content_text"]
+    assert "<script>" not in row["as_content_text"]
+    assert row["as_info_id"] == 7
+
+
+def test_shipment_as_recommendation_map_reuses_global_leaflet_instance() -> None:
+    src = (
+        Path(__file__).resolve().parents[2]
+        / "templates/shipment/partials/dashboard_main.html"
+    ).read_text(encoding="utf-8")
+
+    assert "window.__shipmentAsRecMapLeaflet" in src
+    assert "function getFreshScheduleMapContainer()" in src
+    assert "container._leaflet_id" in src
+    assert "replaceChild(clone, container)" in src
 
 
 def test_recommend_token_fallback_only_when_no_route_success() -> None:

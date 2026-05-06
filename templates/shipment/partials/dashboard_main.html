@@ -1311,7 +1311,7 @@
       window.__shipmentAsRecMapModalEl = window.__shipmentAsRecMapModalEl || null;
       window.__shipmentAsRecNeedsReload = false;
       var shipmentAsRecMapModalInstance = null;
-      var shipmentAsRecMapLeaflet = null;
+      window.__shipmentAsRecMapLeaflet = window.__shipmentAsRecMapLeaflet || null;
       var shipmentAsRecMapGen = 0;
       var shipmentAsRecLeafletPromise = null;
       var shipmentAsRecRouteCache = new Map();
@@ -1400,12 +1400,24 @@
       }
 
       function resetShipmentAsRecMap() {
-        if (shipmentAsRecMapLeaflet) {
+        if (window.__shipmentAsRecMapLeaflet) {
           try {
-            shipmentAsRecMapLeaflet.remove();
+            window.__shipmentAsRecMapLeaflet.remove();
           } catch (e) { /* ignore */ }
-          shipmentAsRecMapLeaflet = null;
+          window.__shipmentAsRecMapLeaflet = null;
         }
+      }
+
+      function getFreshScheduleMapContainer() {
+        var container = document.getElementById('scheduleMapContainer');
+        if (!container) return null;
+        if (container._leaflet_id) {
+          var clone = container.cloneNode(false);
+          container.parentNode.replaceChild(clone, container);
+          container = clone;
+        }
+        container.replaceChildren();
+        return container;
       }
 
       function openShipmentAsRecMap(refAddr, refLat, refLng, tgtLat, tgtLng, tgtAddr, tgtName, scoreText) {
@@ -1425,11 +1437,10 @@
             modalEl.removeEventListener('shown.bs.modal', onShown);
             if (myGen !== shipmentAsRecMapGen) return;
             resetShipmentAsRecMap();
-            var container = document.getElementById('scheduleMapContainer');
+            var container = getFreshScheduleMapContainer();
             if (!container) return;
-            container.replaceChildren();
             var map = L.map(container).setView([refLat, refLng], 11);
-            shipmentAsRecMapLeaflet = map;
+            window.__shipmentAsRecMapLeaflet = map;
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
               maxZoom: 19,
               attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" rel="noopener">OpenStreetMap</a>'
@@ -1451,7 +1462,7 @@
             map.fitBounds(L.latLngBounds([[refLat, refLng], [tgtLat, tgtLng]]), { padding: [50, 50], maxZoom: 14 });
 
             function bumpMapSize() {
-              if (myGen !== shipmentAsRecMapGen || shipmentAsRecMapLeaflet !== map) return;
+              if (myGen !== shipmentAsRecMapGen || window.__shipmentAsRecMapLeaflet !== map) return;
               try {
                 map.invalidateSize({ animate: false });
               } catch (e) { /* ignore */ }
@@ -1480,7 +1491,7 @@
               });
 
             routePromise.then(function (routeJson) {
-              if (myGen !== shipmentAsRecMapGen || shipmentAsRecMapLeaflet !== map) return;
+              if (myGen !== shipmentAsRecMapGen || window.__shipmentAsRecMapLeaflet !== map) return;
               if (routeJson && routeJson.success && routeJson.data &&
                   routeJson.data.route_coords && routeJson.data.route_coords.length > 0) {
                 var routeData = routeJson.data;
@@ -1646,6 +1657,9 @@
             html += '<div class="border rounded p-2 mb-2 small" data-as-order-id="' + escHtml(r.as_order_id) + '">';
             html += '<div class="fw-bold">AS #' + escHtml(r.as_order_id) + ' ' + escHtml(r.customer_name) + badge + '</div>';
             html += '<div class="text-muted">' + escHtml(r.address) + '</div>';
+            if (r.as_content_text) {
+              html += '<div class="asrec-content-box border rounded bg-light p-2 mt-2 mb-2" style="max-height: 72px; overflow-y: auto; white-space: pre-wrap;">' + escHtml(r.as_content_text) + '</div>';
+            }
             html += '<div>현재 방문일: <span class="js-asrec-visit">' + escHtml(r.current_visit_date || '(없음)') + '</span></div>';
             html += '<div>' + escHtml(r.score_text || '') + '</div>';
             html += '<div class="mt-1">적용 시 시공자: ' + workersLabel + '</div>';
