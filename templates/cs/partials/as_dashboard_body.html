@@ -594,7 +594,8 @@
 </div>
 
 <script>
-  document.addEventListener('DOMContentLoaded', function () {
+  (function () {
+    function initAsDashboard() {
     // 브리핑 보드 등에서 focus_order 파라미터로 진입 시 해당 주문 행/카드로 스크롤 및 하이라이트
     (function () {
       const urlParams = new URLSearchParams(window.location.search);
@@ -620,6 +621,30 @@
     const asContentHtmlCache = new WeakMap();
     const asContentSaveState = new Map();
     const dateFieldSaveState = new Map();
+    const previousAsDashboardController = window.__fomsAsDashboardAbortController;
+    if (previousAsDashboardController && typeof previousAsDashboardController.abort === 'function') {
+      previousAsDashboardController.abort();
+    }
+    const asDashboardAbortController = typeof AbortController !== 'undefined'
+      ? new AbortController()
+      : null;
+    window.__fomsAsDashboardAbortController = asDashboardAbortController;
+
+    function addAsDashboardListener(target, type, handler, options) {
+      if (!target || !target.addEventListener) return;
+      const listenerOptions = options && typeof options === 'object'
+        ? Object.assign({}, options)
+        : options;
+      if (asDashboardAbortController) {
+        if (listenerOptions && typeof listenerOptions === 'object') {
+          listenerOptions.signal = listenerOptions.signal || asDashboardAbortController.signal;
+        } else {
+          target.addEventListener(type, handler, { signal: asDashboardAbortController.signal });
+          return;
+        }
+      }
+      target.addEventListener(type, handler, listenerOptions);
+    }
 
     function normalizeAsHtmlValue(value) {
       return String(value == null ? '' : value).trim();
@@ -1237,6 +1262,7 @@
         return state.pendingSavePromise;
       }
       input.style.backgroundColor = '#fff3cd';
+      syncDateFieldVisuals(orderId, fieldName, value);
       const requestPromise = fetch('/api/update_order_field', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1278,6 +1304,7 @@
             const msg = err && err.message ? err.message : '네트워크 오류가 발생했습니다.';
             showFeedback('저장 실패: ' + msg, true);
           }
+          syncDateFieldInputs(orderId, fieldName, state.savedValue || '');
           throw err;
         })
         .finally(() => {
@@ -1314,29 +1341,29 @@
       setAsContentRawHtml(input, input.innerHTML || '');
       getAsContentSaveState(input);
       input.dataset.highlightApplied = '0';
-      input.addEventListener('mousedown', function () {
+      addAsDashboardListener(input, 'mousedown', function () {
         prepareAsContentEditing(this);
       });
-      input.addEventListener('beforeinput', function () {
+      addAsDashboardListener(input, 'beforeinput', function () {
         prepareAsContentEditing(this);
       });
     });
     syncAsContentSearchTabs();
     syncVisibleAsContentHighlights();
     let asHighlightResizeTimer = null;
-    window.addEventListener('resize', function () {
+    addAsDashboardListener(window, 'resize', function () {
       if (!searchQueryCompact) return;
       if (asHighlightResizeTimer) clearTimeout(asHighlightResizeTimer);
       asHighlightResizeTimer = setTimeout(syncVisibleAsContentHighlights, 120);
     });
 
-    document.addEventListener('mousedown', function (e) {
+    addAsDashboardListener(document, 'mousedown', function (e) {
       const btn = e.target.closest('.as-rich-toolbar button');
       if (!btn) return;
       e.preventDefault();
     });
 
-    document.addEventListener('click', async function (e) {
+    addAsDashboardListener(document, 'click', async function (e) {
       const tabBtn = e.target.closest('.as-content-tab-btn');
       if (!tabBtn) return;
       e.preventDefault();
@@ -1357,7 +1384,7 @@
       syncVisibleAsContentHighlights();
     });
 
-    document.addEventListener('click', function (e) {
+    addAsDashboardListener(document, 'click', function (e) {
       const btn = e.target.closest('.as-rich-command-btn');
       if (!btn) return;
       e.preventDefault();
@@ -1377,7 +1404,7 @@
       scheduleAsContentSave(input);
     });
 
-    document.addEventListener('click', async function (e) {
+    addAsDashboardListener(document, 'click', async function (e) {
       const btn = e.target.closest('.as-sales-delivery-btn');
       if (!btn) return;
       e.preventDefault();
@@ -1591,7 +1618,7 @@
         }
       }
 
-      document.getElementById('scheduleSortTabs').addEventListener('click', function (e) {
+      addAsDashboardListener(document.getElementById('scheduleSortTabs'), 'click', function (e) {
         const tab = e.target.closest('[data-sort]');
         if (!tab) return;
         this.querySelectorAll('.nav-link').forEach(t => t.classList.remove('active'));
@@ -1599,7 +1626,7 @@
         renderResults(_lists[tab.dataset.sort] || [], tab.dataset.sort);
       });
 
-      document.body.addEventListener('click', async function (e) {
+      addAsDashboardListener(document.body, 'click', async function (e) {
         const btn = e.target.closest('.find-schedule-btn');
         if (!btn) return;
         const addr = btn.dataset.address;
@@ -1619,7 +1646,7 @@
       // 주소 수정 후 재검색 — 잘못된 주소 직접 고쳐서 다시 검색 가능
       const retryBtn = document.getElementById('scheduleSearchRetryBtn');
       if (retryBtn) {
-        retryBtn.addEventListener('click', async function () {
+        addAsDashboardListener(retryBtn, 'click', async function () {
           const addrEl = document.getElementById('scheduleSearchAddr');
           const newAddr = addrEl ? addrEl.value.trim() : '';
           if (!newAddr) return;
@@ -1630,7 +1657,7 @@
 
       const scheduleMapModalEl = document.getElementById('scheduleMapModal');
       if (scheduleMapModalEl) {
-        scheduleMapModalEl.addEventListener('hidden.bs.modal', function () {
+        addAsDashboardListener(scheduleMapModalEl, 'hidden.bs.modal', function () {
           if (_scheduleMapLeaflet) {
             try {
               _scheduleMapLeaflet.remove();
@@ -1774,11 +1801,11 @@
           })();
         };
 
-        modalEl.addEventListener('shown.bs.modal', onShown, { once: true });
+        addAsDashboardListener(modalEl, 'shown.bs.modal', onShown, { once: true });
         _scheduleMapModalInstance.show();
       }
 
-      document.body.addEventListener('click', function (e) {
+      addAsDashboardListener(document.body, 'click', function (e) {
         const btn = e.target.closest('.schedule-map-btn');
         if (!btn) return;
         e.stopPropagation();
@@ -1967,7 +1994,7 @@
         }
       }
 
-      document.body.addEventListener('click', async function (e) {
+      addAsDashboardListener(document.body, 'click', async function (e) {
         var btn = e.target.closest('.as-photos-btn');
         if (!btn) return;
         var orderId = btn.dataset.orderId;
@@ -1993,12 +2020,12 @@
       var asUploadBtn = document.getElementById('as-modal-upload-btn');
       var asUploadStatus = document.getElementById('as-modal-upload-status');
       if (asUploadBtn && asUploadInput) {
-        asUploadBtn.addEventListener('click', function () {
+        addAsDashboardListener(asUploadBtn, 'click', function () {
           if (!__currentAsModalOrderId) return;
           asUploadInput.value = '';
           asUploadInput.click();
         });
-        asUploadInput.addEventListener('change', async function () {
+        addAsDashboardListener(asUploadInput, 'change', async function () {
           var orderId = __currentAsModalOrderId;
           var files = this.files ? Array.from(this.files) : [];
           this.value = '';
@@ -2218,13 +2245,13 @@
     // AS 방문일/완료일 자동 저장
     document.querySelectorAll('.editable-date-as').forEach(input => {
       getDateFieldSaveState(input);
-      input.addEventListener('change', function () {
+      addAsDashboardListener(input, 'change', function () {
         saveDateField(this, { redirectAfterComplete: true }).catch(() => {});
       });
     });
 
     // AS 미결 버튼 클릭: 미결 ↔ 미결 해제 토글 (낙관적 UI 후 서버와 동기화)
-    document.addEventListener('click', function (e) {
+    addAsDashboardListener(document, 'click', function (e) {
       var btn = e.target && e.target.closest('.as-pending-btn');
       if (!btn || !btn.dataset.orderId) return;
       e.preventDefault();
@@ -2256,7 +2283,7 @@
         });
     });
 
-    document.addEventListener('change', function (e) {
+    addAsDashboardListener(document, 'change', function (e) {
       const checkbox = e.target && e.target.closest('.as-blueprint-checkbox');
       if (!checkbox || !checkbox.dataset.orderId) return;
 
@@ -2301,23 +2328,23 @@
     // AS 내용 자동 저장 (Blur 시 + 디바운스 자동 저장으로 새로고침 시에도 유지)
     document.querySelectorAll('.as-content-input').forEach(input => {
       getAsContentSaveState(input);
-      input.addEventListener('blur', function () {
+      addAsDashboardListener(input, 'blur', function () {
         flushAsContentIfNeeded(this).catch(() => {});
       });
 
-      input.addEventListener('input', function () {
+      addAsDashboardListener(input, 'input', function () {
         updateAsContentDraft(this, this.innerHTML || '');
         scheduleAsContentSave(this);
       });
 
-      input.addEventListener('keypress', function (e) {
+      addAsDashboardListener(input, 'keypress', function (e) {
         if (e.key === 'Enter' && !e.shiftKey && this.tagName !== 'TEXTAREA' && !this.hasAttribute('contenteditable')) this.blur();
       });
 
       // Textarea 자동 높이 조절 (선택 사항)
       if (input.tagName === 'TEXTAREA') {
         input.style.overflow = 'hidden';
-        input.addEventListener('input', function () {
+        addAsDashboardListener(input, 'input', function () {
           this.style.height = 'auto';
           this.style.height = (this.scrollHeight) + 'px';
         });
@@ -2326,5 +2353,12 @@
         input.style.height = (input.scrollHeight) + 'px';
       }
     });
-  });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initAsDashboard, { once: true });
+    } else {
+      initAsDashboard();
+    }
+  })();
 </script>
