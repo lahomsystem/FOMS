@@ -63,6 +63,17 @@ def test_order_list_whole_search_ignores_active_status_tab(login):
     assert 'name="status" value="RECEIVED"' not in body
 
 
+def test_order_list_refreshes_bfcache_after_erp_save_back_navigation():
+    text = Path("templates/orders/index.html").read_text(encoding="utf-8")
+
+    assert "foms:reload-order-list-after-erp-save" in text
+    assert "window.addEventListener('pageshow'" in text
+    assert "event.persisted" in text
+    assert "window.location.reload();" in text
+    assert "foms:restore-order-list-scroll" in text
+    assert "window.scrollTo(0, scrollY);" in text
+
+
 def test_erp_dashboard_accepts_search_alias_and_preserves_q_value(login):
     _add_erp_order("정재교 고객")
 
