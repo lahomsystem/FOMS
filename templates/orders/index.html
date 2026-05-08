@@ -1055,6 +1055,66 @@
 </div>
 
 <script>
+    (function () {
+        var reloadKey = 'foms:reload-order-list-after-erp-save';
+        var scrollKey = 'foms:restore-order-list-scroll';
+
+        function sameOrderListUrl(expectedUrl) {
+            if (!expectedUrl) return false;
+            try {
+                var expected = new URL(expectedUrl, window.location.origin);
+                return expected.origin === window.location.origin
+                    && expected.pathname === window.location.pathname
+                    && expected.search === window.location.search;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        window.addEventListener('pageshow', function (event) {
+            var expectedUrl = '';
+            try {
+                expectedUrl = sessionStorage.getItem(reloadKey) || '';
+            } catch (e) {
+                expectedUrl = '';
+            }
+            if (!event.persisted || !sameOrderListUrl(expectedUrl)) return;
+
+            try {
+                sessionStorage.removeItem(reloadKey);
+                sessionStorage.setItem(scrollKey, String(window.scrollY || document.documentElement.scrollTop || 0));
+            } catch (e) {
+                // Best-effort only; fresh data is more important than scroll restoration.
+            }
+            window.location.reload();
+        });
+
+        window.addEventListener('DOMContentLoaded', function () {
+            try {
+                var expectedUrl = sessionStorage.getItem(reloadKey) || '';
+                if (sameOrderListUrl(expectedUrl)) {
+                    sessionStorage.removeItem(reloadKey);
+                }
+            } catch (e) {
+                // Ignore storage cleanup failures; the page itself is already fresh.
+            }
+
+            var y = '';
+            try {
+                y = sessionStorage.getItem(scrollKey) || '';
+                sessionStorage.removeItem(scrollKey);
+            } catch (e) {
+                y = '';
+            }
+            if (!y) return;
+            var scrollY = parseInt(y, 10);
+            if (!Number.isFinite(scrollY) || scrollY <= 0) return;
+            requestAnimationFrame(function () {
+                window.scrollTo(0, scrollY);
+            });
+        });
+    })();
+
     document.addEventListener('DOMContentLoaded', function () {
         // 전화번호 포맷팅 함수
         function formatKoreanPhoneNumber(phoneNumber) {

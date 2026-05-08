@@ -274,6 +274,8 @@ def test_shared_erp_order_js_guards_duplicate_save_clicks_and_tokens_draft_creat
     assert "function erpNavigateAfterStructuredSave(targetUrl)" in text
     assert "window.history.back();" in text
     assert "erpNavigateAfterStructuredSave(targetUrl);" in text
+    assert "foms:reload-order-list-after-erp-save" in text
+    assert "sessionStorage.setItem('foms:reload-order-list-after-erp-save', target.href);" in text
 
     draft_start = text.index("var erpGetDraftRequestToken")
     draft_end = text.index("window.erpEnsureDraftOrderId = erpEnsureDraftOrderId;", draft_start)
