@@ -59,6 +59,33 @@ def _orders_user_visibility_fingerprint(current_user, is_admin: bool) -> dict:
     }
 
 
+def _erp_dashboard_search_filter(search_term: str):
+    """ERP 작업 큐의 화면 노출 주요 필드만 전체 검색 대상으로 삼는다."""
+    from sqlalchemy import and_, or_, String
+
+    structured_visible_fields = [
+        Order.structured_data[("parties", "customer", "name")].as_string(),
+        Order.structured_data[("parties", "customer", "phone")].as_string(),
+        Order.structured_data[("parties", "manager", "name")].as_string(),
+        Order.structured_data[("parties", "orderer", "name")].as_string(),
+        Order.structured_data[("site", "address_full")].as_string(),
+        Order.structured_data[("site", "address_main")].as_string(),
+    ]
+
+    return or_(
+        Order.id.cast(String).ilike(search_term),
+        Order.customer_name.ilike(search_term),
+        Order.phone.ilike(search_term),
+        Order.address.ilike(search_term),
+        Order.product.ilike(search_term),
+        Order.manager_name.ilike(search_term),
+        *[
+            and_(Order.is_erp_order == True, field.ilike(search_term))
+            for field in structured_visible_fields
+        ],
+    )
+
+
 @erp_dashboard_bp.route('/dashboard')
 @login_required
 def erp_dashboard():
@@ -84,19 +111,10 @@ def erp_dashboard():
     # Phase H: 대시보드 운영 화면은 최근 활성 데이터만 조회 (과거 완료건 제외)
     _q = db.query(Order).filter(Order.dashboard_active_filter(days=60), Order.is_erp_order.is_(True))
 
-    from sqlalchemy import or_, and_, cast, String
+    from sqlalchemy import or_, and_
     if f_q:
         search_term = f"%{f_q}%"
-        _q = _q.filter(
-            or_(
-                Order.id.cast(String).ilike(search_term),
-                Order.customer_name.ilike(search_term),
-                Order.phone.ilike(search_term),
-                Order.address.ilike(search_term),
-                Order.manager_name.ilike(search_term),
-                cast(Order.structured_data, String).ilike(search_term)
-            )
-        )
+        _q = _q.filter(_erp_dashboard_search_filter(search_term))
 
     if request.args.get('mine') == '1' and current_user:
         from foms.services.erp_permissions import build_mine_sql_filter
