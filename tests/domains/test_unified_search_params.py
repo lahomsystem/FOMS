@@ -86,6 +86,28 @@ def test_erp_dashboard_whole_search_ignores_active_stage_pipeline(login):
     assert 'value="AS처리" selected' not in body
 
 
+def test_erp_dashboard_search_ignores_hidden_structured_item_memo(login):
+    hidden = _add_erp_order("노출되면안됨 고객")
+    hidden.structured_data["items"] = [
+        {"product_name": "붙박이장", "extra_input": "견적가 이미지 참고"}
+    ]
+    hidden.product = "붙박이장"
+
+    visible = _add_erp_order("이미지 고객")
+    visible.structured_data["items"] = [
+        {"product_name": "슬라이딩"}
+    ]
+    visible.product = "슬라이딩"
+    db_session.commit()
+
+    response = login.get("/erp/dashboard?q=이미지")
+    body = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "이미지 고객" in body
+    assert "노출되면안됨 고객" not in body
+
+
 def test_erp_search_placeholders_use_whole_search_label():
     template_paths = [
         "templates/orders/partials/dashboard_filters.html",
