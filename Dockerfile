@@ -4,6 +4,10 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_DEFAULT_TIMEOUT=120 \
+    PIP_RETRIES=10
+
 # 시스템 의존성 (PostgreSQL 클라이언트, gevent 등)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
@@ -11,7 +15,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # 의존성 설치
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN python -m pip install --upgrade pip setuptools wheel \
+    && python -m pip install --no-cache-dir --timeout 120 --retries 10 -r requirements.txt
 
 # 앱 코드 복사
 COPY . .
