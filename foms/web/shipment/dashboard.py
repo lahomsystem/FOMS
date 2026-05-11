@@ -7,7 +7,7 @@ from foms.web.auth import login_required
 import datetime
 import hashlib
 import json
-from sqlalchemy import or_, and_, cast, String
+from sqlalchemy import or_, and_
 from sqlalchemy.orm import load_only
 from foms.services.common.business_calendar import get_holidays_kr
 from foms.services.erp_permissions import can_edit_erp
@@ -31,6 +31,10 @@ from foms.services.common.erp_shell_http import (
 )
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
 from foms.services.request_utils import get_search_query_arg
+from foms.services.erp_dashboard_search import (
+    SHIPMENT_SEARCH_FOCUS_SCHEDULE_HALF_RANGE_DAYS,
+    erp_order_dashboard_search_predicate,
+)
 from foms.api.shipment.recommendations import SHREC_SOURCE
 
 # 실행 계획 §3.1.1 shipment — read-model slices:
@@ -148,22 +152,72 @@ def _get_order_spec_units(order):
     return total
 
 
+def _shipment_dashboard_order_scope():
+    """출고 대시보드 상단 패널·목록에 포함되는 주문 범위."""
+    return or_(
+        Order.is_erp_order == True,
+        Order.status.in_(AS_SHIPMENT_STATUSES),
+        and_(
+            Order.is_erp_order == False,
+            Order.scheduled_date != None,
+            Order.scheduled_date != '',
+        ),
+    )
+
+
 def _erp_order_search_filter(query, q):
-    """고객·담당자·시공자·주소 전체 검색 (Order 컬럼 + ERP Beta structured_data 텍스트)."""
+    """고객·연락처·담당·주소·품목·주문번호·ERP 노출 필드·structured_data 전반."""
     if not q or not q.strip():
         return query
     term = f'%{q.strip()}%'
     return query.filter(
-        or_(
-            Order.customer_name.ilike(term),
-            Order.manager_name.ilike(term),
-            Order.address.ilike(term),
-            and_(
-                Order.is_erp_order == True,
-                cast(Order.structured_data, String).ilike(term)
-            )
+        erp_order_dashboard_search_predicate(
+            term,
+            include_structured_data_blob=True,
         )
     )
+
+
+def _pick_shipment_search_focus_date(scoped_orders_query, today_kst):
+    """
+    검색어가 있을 때 14일 패널 밖의 시공·AS 방문 일정도 포함해 포커스 날짜를 고른다.
+
+    Args:
+        scoped_orders_query: active_filter + 검색 + _shipment_dashboard_order_scope()까지 적용된 쿼리.
+        today_kst: 오늘(KST) 기준 datetime.
+
+    Returns:
+        'YYYY-MM-DD' 또는 매칭 일정이 없으면 None.
+    """
+    from models import OrderScheduleDate
+
+    half = SHIPMENT_SEARCH_FOCUS_SCHEDULE_HALF_RANGE_DAYS
+    past = (today_kst - datetime.timedelta(days=half)).strftime('%Y-%m-%d')
+    future = (today_kst + datetime.timedelta(days=half)).strftime('%Y-%m-%d')
+    q = scoped_orders_query.join(OrderScheduleDate, Order.id == OrderScheduleDate.order_id).filter(
+        or_(
+            and_(Order.status.in_(AS_SHIPMENT_STATUSES), OrderScheduleDate.kind == 'as_visit'),
+            and_(~Order.status.in_(AS_SHIPMENT_STATUSES), OrderScheduleDate.kind == 'construction'),
+        ),
+        OrderScheduleDate.date >= past,
+        OrderScheduleDate.date <= future,
+    ).with_entities(OrderScheduleDate.date).distinct()
+    rows = q.all()
+    dates = sorted({str(r[0]) for r in rows if r and r[0]})
+    if not dates:
+        return None
+    today_d = today_kst.date()
+    future_or_today = [
+        d for d in dates
+        if datetime.datetime.strptime(d, '%Y-%m-%d').date() >= today_d
+    ]
+    past_only = [
+        d for d in dates
+        if datetime.datetime.strptime(d, '%Y-%m-%d').date() < today_d
+    ]
+    if future_or_today:
+        return min(future_or_today)
+    return max(past_only)
 
 
 @erp_shipment_page_bp.route('/shipment')
@@ -178,7 +232,8 @@ def erp_shipment_dashboard():
     search_q = get_search_query_arg('q', 'search', 'manager')
     date_from = (request.args.get('date_from') or '').strip()
     date_to = (request.args.get('date_to') or '').strip()
-    req_date = request.args.get('date') or ''
+    date_arg_raw = (request.args.get('date') or '').strip()
+    req_date = date_arg_raw
 
     is_construction = current_user and getattr(current_user, 'team', None) == 'CONSTRUCTION'
     mine_only = is_construction or (request.args.get('mine') == '1')
@@ -201,25 +256,32 @@ def erp_shipment_dashboard():
         req_date = today_date
         use_single_day = True
     selected_date = req_date
-    
+
+    user_locked_calendar_date = bool(date_arg_raw)
+
     base_query = db.query(Order).filter(Order.active_filter())
     base_query = _erp_order_search_filter(base_query, search_q)
+
+    scoped_for_search = base_query.filter(_shipment_dashboard_order_scope())
+    search_auto_date_applied = False
+    if (
+        search_q
+        and search_q.strip()
+        and not use_range
+        and use_single_day
+        and not user_locked_calendar_date
+    ):
+        picked = _pick_shipment_search_focus_date(scoped_for_search, today_kst)
+        if picked:
+            selected_date = picked
+            req_date = picked
+            search_auto_date_applied = True
 
     from models import OrderScheduleDate
     from sqlalchemy.orm import selectinload
 
     # 시공/출고 대시보드는 AS 및 시공 관련이므로 Order.status 필터를 적용
-    panel_query = base_query.filter(
-        or_(
-            Order.is_erp_order == True,
-            Order.status.in_(AS_SHIPMENT_STATUSES),
-            and_(
-                Order.is_erp_order == False,
-                Order.scheduled_date != None,
-                Order.scheduled_date != ''
-            )
-        )
-    )
+    panel_query = base_query.filter(_shipment_dashboard_order_scope())
 
     panel_range_start = today_kst.strftime('%Y-%m-%d')
     panel_range_end = (today_kst + datetime.timedelta(days=14)).strftime('%Y-%m-%d')
@@ -335,24 +397,31 @@ def erp_shipment_dashboard():
     }
     spec_units_by_date = _agg_blob["spec_units_by_date"]
 
-    # 검색 시 자동으로 검색 결과가 있는 날짜로 이동 (날짜 수동 클릭 번거로움 제거)
-    if search_q and not use_range and (not req_date or req_date == today_date):
+    # 검색 시 광범위 일정 조회가 실패했을 때만 14일 패널 집계로 포커스 날짜 보조
+    if (
+        search_q
+        and search_q.strip()
+        and not use_range
+        and use_single_day
+        and not user_locked_calendar_date
+        and not search_auto_date_applied
+    ):
         dates_with_counts = [d for d, c in construction_counts.items() if c > 0]
         if dates_with_counts:
             today_d = today_kst
             future_or_today = [
                 d for d in dates_with_counts
-                if datetime.datetime.strptime(d, '%Y-%m-%d').date() >= today_d
+                if datetime.datetime.strptime(d, '%Y-%m-%d').date() >= today_d.date()
             ]
             past = [
                 d for d in dates_with_counts
-                if datetime.datetime.strptime(d, '%Y-%m-%d').date() < today_d
+                if datetime.datetime.strptime(d, '%Y-%m-%d').date() < today_d.date()
             ]
             if future_or_today:
                 selected_date = min(future_or_today)
             else:
                 selected_date = max(past)
-            use_single_day = True
+            req_date = selected_date
 
     _ws_canon = json.dumps(worker_settings, sort_keys=True, ensure_ascii=False, default=str)
     _worker_settings_fp = hashlib.sha256(_ws_canon.encode("utf-8")).hexdigest()[:20]
@@ -447,11 +516,14 @@ def erp_shipment_dashboard():
     remaining_panel_dates = _derived_blob["remaining_panel_dates"]
 
     # 패널 데이터에서 rows 추출 (쿼리 2회→1회 통합: panel_orders가 이미 14일치 + mine_only 필터 적용됨)
+    # 검색 중에는 매칭이 14일 밖에 있어도 전체 rows 쿼리로 통합 (전체 검색 의미 유지)
     _derive_from_panel = False
-    if use_single_day and panel_range_start <= selected_date <= panel_range_end:
-        _derive_from_panel = True
-    elif use_range and date_from >= panel_range_start and date_to <= panel_range_end:
-        _derive_from_panel = True
+    _search_active = bool(search_q and search_q.strip())
+    if not _search_active:
+        if use_single_day and panel_range_start <= selected_date <= panel_range_end:
+            _derive_from_panel = True
+        elif use_range and date_from >= panel_range_start and date_to <= panel_range_end:
+            _derive_from_panel = True
 
     if _derive_from_panel:
         if use_single_day:
@@ -463,17 +535,7 @@ def erp_shipment_dashboard():
                            for d in extract_dashboard_target_dates(o))]
     else:
         # Edge case: 패널 범위(14일) 밖 날짜 → 별도 쿼리 (fallback)
-        rows_query = base_query.filter(
-            or_(
-                Order.is_erp_order == True,
-                Order.status.in_(AS_SHIPMENT_STATUSES),
-                and_(
-                    Order.is_erp_order == False,
-                    Order.scheduled_date != None,
-                    Order.scheduled_date != ''
-                )
-            )
-        )
+        rows_query = base_query.filter(_shipment_dashboard_order_scope())
         if use_range or use_single_day:
             rows_query = rows_query.join(OrderScheduleDate, Order.id == OrderScheduleDate.order_id)
             rows_query = rows_query.filter(
