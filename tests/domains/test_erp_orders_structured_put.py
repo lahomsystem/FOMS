@@ -219,8 +219,8 @@ def test_erp_order_party_workflow_notes_layout_is_two_rows():
     assert orderer_idx < manager_idx < construction_idx < stage_idx < notes_idx
     assert '<div class="col-md-4">\n                            <label class="form-label mb-1">담당자</label>' in tpl
     assert '<div class="col-md-4">\n                            <label class="form-label mb-1">시공 담당자</label>' in tpl
-    assert '<div class="col-md-6">\n                            <label class="form-label mb-1">단계(Workflow)</label>' in tpl
-    assert '<div class="col-md-6">\n                            <label class="form-label mb-1">비고</label>' in tpl
+    assert '<div class="col-md-4">\n                            <label class="form-label mb-1">단계(Workflow)</label>' in tpl
+    assert '<div class="col-md-8">\n                            <label class="form-label mb-1">비고</label>' in tpl
 
 
 def test_structured_put_rejects_address_clear_before_geocode_reset(client, monkeypatch):
