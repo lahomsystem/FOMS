@@ -92,6 +92,19 @@ def test_as_dashboard_script_runs_after_erp_shell_fragment_swap():
     assert "e.target.closest('.find-schedule-btn')" in src
 
 
+def test_as_dashboard_construction_worker_contract_is_wired():
+    src = (
+        Path(__file__).resolve().parents[2] / "templates/cs/partials/as_dashboard_body.html"
+    ).read_text(encoding="utf-8")
+
+    assert "<th style=\"width: 140px;\">시공자</th>" in src
+    assert "as-construction-worker-input" in src
+    assert "data-field=\"construction_workers\"" in src
+    assert "saveOrderFieldDirect(orderId, 'construction_workers', nextWorkers)" in src
+    assert "현재 출고 대시보드 시공자:" in src
+    assert "datalist-construction-workers" in src
+
+
 def test_as_visit_date_visual_state_updates_optimistically():
     """AS 방문일 입력 즉시 방문일 cell 색상이 바뀌고 실패 시 저장값으로 복구해야 한다."""
     src = (
@@ -119,6 +132,44 @@ def test_as_dashboard_renders_primary_and_secondary_tabs(client, monkeypatch):
     assert 'data-field-name="as_content"' in body
     assert 'data-field-name="as_content_2"' in body
     assert "2번 내용" in body
+
+
+def test_as_dashboard_renders_construction_workers_column(client):
+    _login_as_admin(client)
+    _create_as_order(shipment_extra={"construction_workers": ["김시공", "박시공"]})
+
+    response = client.get("/erp/as")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert ">시공자<" in body
+    assert 'class="form-control form-control-sm shipment-text-input as-construction-worker-input"' in body
+    assert 'value="김시공, 박시공"' in body
+
+
+def test_update_order_field_saves_construction_workers(client):
+    _login_as_admin(client)
+    order = _create_as_order(shipment_extra={"construction_workers": ["기존시공"]})
+
+    response = client.post(
+        "/api/update_order_field",
+        json={
+            "order_id": order.id,
+            "field_name": "construction_workers",
+            "new_value": ["신규시공", "보조시공"],
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    assert data["construction_workers"] == ["신규시공", "보조시공"]
+    assert data["normalized_value"] == ["신규시공", "보조시공"]
+
+    db_session.expire_all()
+    saved_order = db_session.get(Order, order.id)
+    assert saved_order is not None
+    assert saved_order.structured_data["shipment"]["construction_workers"] == ["신규시공", "보조시공"]
 
 
 def test_update_order_field_saves_secondary_as_content(client):

@@ -81,6 +81,29 @@
 {% endif %}
 {%- endmacro %}
 
+{% macro render_as_construction_workers(order_id, workers_text, can_edit) -%}
+{% set display_text = workers_text or '' %}
+{% if can_edit %}
+<div class="shipment-text-edit input-group input-group-sm flex-nowrap as-construction-worker-edit">
+  <input type="text"
+    class="form-control form-control-sm shipment-text-input as-construction-worker-input"
+    data-order-id="{{ order_id }}"
+    data-field="construction_workers"
+    data-saved-value="{{ display_text }}"
+    value="{{ display_text }}"
+    placeholder="시공자"
+    list="datalist-construction-workers"
+    lang="ko">
+  <button type="button" class="btn btn-sm btn-outline-secondary as-btn-load-saved-worker" title="저장된 값 불러오기">
+    <i class="fas fa-list"></i>
+  </button>
+  <button type="button" class="btn btn-sm btn-outline-danger as-btn-clear-construction-worker" title="삭제">&times;</button>
+</div>
+{% else %}
+<span class="erp-as-construction-worker-text">{{ display_text or '-' }}</span>
+{% endif %}
+{%- endmacro %}
+
 <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/cs/as-dashboard-body.css') }}">
 <div class="erp-pro erp-mobile-shell erp-as-dashboard" data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
   {% if erp_mobile_v2_enabled %}
@@ -222,6 +245,7 @@
               <th style="width: 150px;">AS 방문일</th>
               <th style="width: 120px;">AS 완료일</th>
               <th style="width: 120px;">담당자</th>
+              <th style="width: 140px;">시공자</th>
               <th style="width: 120px;">고객</th>
               <th style="width: 450px;">주소</th>
               <th style="width: 60px;">첨부</th>
@@ -261,6 +285,7 @@
                   data-order-id="{{ r.id }}" data-field="as_completed_date" style="width: 100%;">
               </td>
               <td>{{ r.manager_name or '-' }}</td>
+              <td>{{ render_as_construction_workers(r.id, r.construction_workers_text, can_edit_erp|default(false)) }}</td>
               <td class="{% if r.as_pending %}erp-as-customer-cell--pending{% endif %}">
                 <span class="d-block">{{ (r.customer_name or '-') }}{% if r.is_self_measurement|default(false) %}
                   <span class="badge bg-info text-white ms-1" title="자가실측"><i class="fas fa-ruler-combined"></i> 자가실측</span>{% endif %}</span>
@@ -310,7 +335,7 @@
             {% endfor %}
             {% else %}
             <tr>
-              <td colspan="11" class="text-center text-muted py-4">데이터가 없습니다.</td>
+              <td colspan="12" class="text-center text-muted py-4">데이터가 없습니다.</td>
             </tr>
             {% endif %}
           </tbody>
@@ -348,6 +373,12 @@
             <div class="erp-pro-order-card__row">
               <span class="erp-pro-order-card__label">담당자</span>
               <span class="erp-pro-order-card__value">{{ r.manager_name or '-' }}</span>
+            </div>
+            <div class="erp-pro-order-card__row">
+              <span class="erp-pro-order-card__label">시공자</span>
+              <div class="erp-pro-order-card__value w-100">
+                {{ render_as_construction_workers(r.id, r.construction_workers_text, can_edit_erp|default(false)) }}
+              </div>
             </div>
             <div class="erp-pro-order-card__row">
               <span class="erp-pro-order-card__label">AS 접수</span>
@@ -462,6 +493,8 @@
   </div>
   {% endif %}
 </div><!-- end erp-pro -->
+
+<datalist id="datalist-construction-workers"></datalist>
 
 <!-- Toast 알림 -->
 <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1060;">
@@ -666,6 +699,158 @@
     function getDateInputsForOrder(orderId, field) {
       if (!orderId || !field) return [];
       return Array.from(document.querySelectorAll(`.editable-date-as[data-order-id="${orderId}"][data-field="${field}"]`));
+    }
+
+    let asConstructionWorkerOptions = [];
+    let asConstructionWorkerOptionsLoaded = false;
+    let activeAsConstructionWorkerMenu = null;
+
+    function normalizeAsConstructionWorkers(value) {
+      const rawValues = Array.isArray(value)
+        ? value
+        : String(value || '').replace(/\n/g, ',').split(',');
+      const workers = [];
+      rawValues.forEach((item) => {
+        const rawName = item && typeof item === 'object'
+          ? (item.name || item.text || item.value || '')
+          : item;
+        const name = String(rawName || '').trim();
+        if (name && !workers.includes(name)) workers.push(name);
+      });
+      return workers;
+    }
+
+    function formatAsConstructionWorkers(value) {
+      return normalizeAsConstructionWorkers(value).join(', ');
+    }
+
+    function constructionWorkersEqual(left, right) {
+      const a = normalizeAsConstructionWorkers(left);
+      const b = normalizeAsConstructionWorkers(right);
+      return a.length === b.length && a.every((value, index) => value === b[index]);
+    }
+
+    function getConstructionWorkerInputsForOrder(orderId) {
+      if (!orderId) return [];
+      return Array.from(document.querySelectorAll(`.as-construction-worker-input[data-order-id="${orderId}"]`));
+    }
+
+    function setConstructionWorkerInputs(orderId, workers) {
+      const text = formatAsConstructionWorkers(workers);
+      getConstructionWorkerInputsForOrder(orderId).forEach((input) => {
+        input.value = text;
+        input.dataset.savedValue = text;
+      });
+    }
+
+    function updateConstructionWorkerDatalist() {
+      const datalist = document.getElementById('datalist-construction-workers');
+      if (!datalist) return;
+      datalist.innerHTML = '';
+      asConstructionWorkerOptions.forEach((name) => {
+        const option = document.createElement('option');
+        option.value = name;
+        datalist.appendChild(option);
+      });
+    }
+
+    async function loadConstructionWorkerOptions() {
+      if (asConstructionWorkerOptionsLoaded) return asConstructionWorkerOptions;
+      const res = await fetch('/api/erp/shipment-settings', { headers: { Accept: 'application/json' } });
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.message || '저장된 시공자 목록을 불러오지 못했습니다.');
+      }
+      asConstructionWorkerOptions = normalizeAsConstructionWorkers(
+        (data.settings && data.settings.construction_workers) || []
+      );
+      asConstructionWorkerOptionsLoaded = true;
+      updateConstructionWorkerDatalist();
+      return asConstructionWorkerOptions;
+    }
+
+    async function saveConstructionWorkersInput(input) {
+      if (!input || !input.dataset.orderId) return { success: false, skipped: true };
+      const orderId = input.dataset.orderId;
+      const previousWorkers = normalizeAsConstructionWorkers(input.dataset.savedValue || '');
+      const nextWorkers = normalizeAsConstructionWorkers(input.value || '');
+      if (constructionWorkersEqual(previousWorkers, nextWorkers)) {
+        setConstructionWorkerInputs(orderId, previousWorkers);
+        return { success: true, skipped: true };
+      }
+      if (previousWorkers.length) {
+        const nextLabel = nextWorkers.length ? nextWorkers.join(', ') : '공란';
+        const confirmed = window.confirm(
+          '현재 출고 대시보드 시공자: ' +
+          previousWorkers.join(', ') +
+          '. ' +
+          nextLabel +
+          '(으)로 변경하시겠습니까?'
+        );
+        if (!confirmed) {
+          setConstructionWorkerInputs(orderId, previousWorkers);
+          return { success: false, cancelled: true };
+        }
+      }
+
+      const relatedInputs = getConstructionWorkerInputsForOrder(orderId);
+      relatedInputs.forEach((el) => { el.disabled = true; });
+      input.value = formatAsConstructionWorkers(nextWorkers);
+      try {
+        const data = await saveOrderFieldDirect(orderId, 'construction_workers', nextWorkers);
+        const savedWorkers = normalizeAsConstructionWorkers(
+          Object.prototype.hasOwnProperty.call(data, 'construction_workers')
+            ? data.construction_workers
+            : (Object.prototype.hasOwnProperty.call(data, 'normalized_value') ? data.normalized_value : nextWorkers)
+        );
+        setConstructionWorkerInputs(orderId, savedWorkers);
+        showFeedback('시공자가 저장되었습니다.');
+        return data;
+      } catch (err) {
+        setConstructionWorkerInputs(orderId, previousWorkers);
+        showFeedback('저장 실패: ' + String(err?.message || err || ''), true);
+        throw err;
+      } finally {
+        relatedInputs.forEach((el) => { el.disabled = false; });
+      }
+    }
+
+    function closeAsConstructionWorkerMenu() {
+      if (activeAsConstructionWorkerMenu) {
+        activeAsConstructionWorkerMenu.remove();
+        activeAsConstructionWorkerMenu = null;
+      }
+    }
+
+    async function openAsConstructionWorkerMenu(button, input) {
+      closeAsConstructionWorkerMenu();
+      try {
+        const options = await loadConstructionWorkerOptions();
+        if (!options.length) {
+          showFeedback('저장된 시공자가 없습니다.', true);
+          return;
+        }
+        const menu = document.createElement('div');
+        menu.className = 'as-construction-worker-menu';
+        options.forEach((name) => {
+          const item = document.createElement('button');
+          item.type = 'button';
+          item.className = 'as-construction-worker-menu__item';
+          item.textContent = name;
+          item.addEventListener('click', function () {
+            input.value = name;
+            closeAsConstructionWorkerMenu();
+            saveConstructionWorkersInput(input).catch(() => {});
+          });
+          menu.appendChild(item);
+        });
+        const wrap = button.closest('.as-construction-worker-edit') || button.parentElement;
+        if (!wrap) return;
+        wrap.appendChild(menu);
+        activeAsConstructionWorkerMenu = menu;
+      } catch (err) {
+        showFeedback('저장된 값 불러오기 실패: ' + String(err?.message || err || ''), true);
+      }
     }
 
     function getTableRowForOrder(orderId) {
@@ -2248,6 +2433,49 @@
       addAsDashboardListener(input, 'change', function () {
         saveDateField(this, { redirectAfterComplete: true }).catch(() => {});
       });
+    });
+
+    document.querySelectorAll('.as-construction-worker-input').forEach(input => {
+      const savedText = formatAsConstructionWorkers(input.dataset.savedValue || input.value || '');
+      input.dataset.savedValue = savedText;
+      input.value = savedText;
+      addAsDashboardListener(input, 'change', function () {
+        saveConstructionWorkersInput(this).catch(() => {});
+      });
+      addAsDashboardListener(input, 'keydown', function (e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          this.blur();
+        }
+      });
+    });
+    loadConstructionWorkerOptions().catch(() => {});
+
+    addAsDashboardListener(document, 'click', function (e) {
+      const loadBtn = e.target && e.target.closest('.as-btn-load-saved-worker');
+      if (loadBtn) {
+        e.preventDefault();
+        const wrap = loadBtn.closest('.as-construction-worker-edit');
+        const input = wrap ? wrap.querySelector('.as-construction-worker-input') : null;
+        if (input) openAsConstructionWorkerMenu(loadBtn, input);
+        return;
+      }
+
+      const clearBtn = e.target && e.target.closest('.as-btn-clear-construction-worker');
+      if (clearBtn) {
+        e.preventDefault();
+        closeAsConstructionWorkerMenu();
+        const wrap = clearBtn.closest('.as-construction-worker-edit');
+        const input = wrap ? wrap.querySelector('.as-construction-worker-input') : null;
+        if (!input) return;
+        input.value = '';
+        saveConstructionWorkersInput(input).catch(() => {});
+        return;
+      }
+
+      if (activeAsConstructionWorkerMenu && !e.target.closest('.as-construction-worker-edit')) {
+        closeAsConstructionWorkerMenu();
+      }
     });
 
     // AS 미결 버튼 클릭: 미결 ↔ 미결 해제 토글 (낙관적 UI 후 서버와 동기화)

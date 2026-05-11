@@ -949,7 +949,10 @@
       const registerRes = await fetch(`/api/orders/${orderId}/as/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ as_content: asContent })
+        body: JSON.stringify({
+          as_content: asContent,
+          source_screen: 'erp_construction_dashboard'
+        })
       });
       const registerData = await registerRes.json();
       if (!registerData.success) {

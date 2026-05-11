@@ -142,6 +142,46 @@ def _get_actor_name(db: Session) -> Optional[str]:
     return user.name if user and getattr(user, 'name', None) else (session.get('username') or None)
 
 
+def _normalize_construction_workers(value: Any) -> list[str]:
+    if isinstance(value, list):
+        raw_values = value
+    else:
+        raw_values = str(value or '').replace('\n', ',').split(',')
+    workers: list[str] = []
+    for item in raw_values:
+        if isinstance(item, dict):
+            raw_name = item.get('name') or item.get('text') or item.get('value') or ''
+        else:
+            raw_name = item
+        name = str(raw_name or '').strip()
+        if name and name not in workers:
+            workers.append(name)
+    return workers
+
+
+def _preserve_or_normalize_construction_workers(old_sd: dict, structured_data: dict) -> None:
+    """Keep shipment construction workers unless the caller explicitly sends the field."""
+    shipment = structured_data.get('shipment')
+    old_shipment = old_sd.get('shipment') if isinstance(old_sd.get('shipment'), dict) else {}
+    old_workers = _normalize_construction_workers(
+        old_shipment.get('construction_workers') if isinstance(old_shipment, dict) else None
+    )
+    if shipment is None:
+        if old_workers:
+            structured_data['shipment'] = {'construction_workers': old_workers}
+        return
+    if not isinstance(shipment, dict):
+        structured_data['shipment'] = {'construction_workers': old_workers} if old_workers else {}
+        return
+    if 'construction_workers' not in shipment:
+        if old_workers:
+            shipment['construction_workers'] = old_workers
+        return
+    shipment['construction_workers'] = _normalize_construction_workers(
+        shipment.get('construction_workers')
+    )
+
+
 def _handle_stage_transition(
     db: Session,
     order: Order,
@@ -389,6 +429,7 @@ def api_put_order_structured(order_id):
                 structured_data['flags'] = {}
             if not structured_data.get('assignments'):
                 structured_data['assignments'] = {}
+            _preserve_or_normalize_construction_workers(old_sd, structured_data)
 
             try:
                 _handle_stage_transition(db, order, old_sd, structured_data)

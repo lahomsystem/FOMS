@@ -192,6 +192,78 @@ var getOrdererValue =
     };
 window.getOrdererValue = getOrdererValue;
 
+var erpNormalizeConstructionWorkers =
+    window.erpNormalizeConstructionWorkers ||
+    function erpNormalizeConstructionWorkers(value) {
+        var rawValues;
+        if (Array.isArray(value)) {
+            rawValues = value;
+        } else {
+            rawValues = String(value || "").replace(/\n/g, ",").split(",");
+        }
+        var workers = [];
+        rawValues.forEach(function (item) {
+            var rawName = item;
+            if (item && typeof item === "object") {
+                rawName = item.name || item.text || item.value || "";
+            }
+            var name = String(rawName || "").trim();
+            if (name && workers.indexOf(name) === -1) workers.push(name);
+        });
+        return workers;
+    };
+window.erpNormalizeConstructionWorkers = erpNormalizeConstructionWorkers;
+
+var erpFormatConstructionWorkers =
+    window.erpFormatConstructionWorkers ||
+    function erpFormatConstructionWorkers(value) {
+        return erpNormalizeConstructionWorkers(value).join(", ");
+    };
+window.erpFormatConstructionWorkers = erpFormatConstructionWorkers;
+
+function erpConstructionWorkersEqual(left, right) {
+    var a = erpNormalizeConstructionWorkers(left);
+    var b = erpNormalizeConstructionWorkers(right);
+    if (a.length !== b.length) return false;
+    for (var i = 0; i < a.length; i += 1) {
+        if (a[i] !== b[i]) return false;
+    }
+    return true;
+}
+
+function erpConfirmConstructionWorkerOverwrite() {
+    var inputEl = document.getElementById("erp-construction-workers");
+    if (!inputEl) return true;
+
+    var previousWorkers = erpNormalizeConstructionWorkers(
+        window.__erpLastStructuredData?.shipment?.construction_workers
+    );
+    var nextWorkers = erpNormalizeConstructionWorkers(inputEl.value);
+    if (!previousWorkers.length || erpConstructionWorkersEqual(previousWorkers, nextWorkers)) {
+        inputEl.value = erpFormatConstructionWorkers(nextWorkers);
+        return true;
+    }
+
+    var nextLabel = nextWorkers.length ? nextWorkers.join(", ") : "공란";
+    var confirmed = window.confirm(
+        "현재 출고 대시보드 시공자: " +
+        previousWorkers.join(", ") +
+        ". " +
+        nextLabel +
+        "(으)로 변경하시겠습니까?"
+    );
+    if (confirmed) {
+        inputEl.value = erpFormatConstructionWorkers(nextWorkers);
+        return true;
+    }
+
+    inputEl.value = erpFormatConstructionWorkers(previousWorkers);
+    if (typeof erpSetStatus === "function") {
+        erpSetStatus("시공 담당자 변경이 취소되었습니다.", true);
+    }
+    return false;
+}
+
 var toggleOrdererUI =
     window.toggleOrdererUI ||
     function toggleOrdererUI() {
@@ -834,6 +906,10 @@ async function erpLoadStructured(bootstrapData, options) {
         toggleOrdererUI();
     })();
     document.getElementById('erp-manager').value = sd?.parties?.manager?.name || '';
+    const erpConstructionWorkersEl = document.getElementById('erp-construction-workers');
+    if (erpConstructionWorkersEl) {
+        erpConstructionWorkersEl.value = erpFormatConstructionWorkers(sd?.shipment?.construction_workers || []);
+    }
     document.getElementById('erp-workflow-stage').value = sd?.workflow?.stage || '';
     const erpNotesEl = document.getElementById('erp-notes');
     if (erpNotesEl) erpNotesEl.value = data.notes || '';
@@ -1077,6 +1153,16 @@ function erpCollectStructured() {
         }
     });
 
+    const constructionWorkersEl = document.getElementById('erp-construction-workers');
+    if (constructionWorkersEl) {
+        if (!structured.shipment || typeof structured.shipment !== 'object' || Array.isArray(structured.shipment)) {
+            structured.shipment = {};
+        }
+        structured.shipment.construction_workers = erpNormalizeConstructionWorkers(
+            constructionWorkersEl.value
+        );
+    }
+
     return structured;
 }
 
@@ -1247,6 +1333,10 @@ async function erpSaveStructuredOnce(opts = {}) {
     if (targetId <= 0) {
         erpSetStatus('주문 ID를 찾을 수 없습니다.', true);
         return { success: false, message: '주문 ID를 찾을 수 없습니다.' };
+    }
+
+    if (!erpConfirmConstructionWorkerOverwrite()) {
+        return { success: false, message: '시공 담당자 변경이 취소되었습니다.' };
     }
 
     erpSetStatus('저장 중...');
