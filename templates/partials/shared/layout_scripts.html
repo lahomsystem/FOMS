@@ -91,6 +91,95 @@
         let currentBlueprintUrl = null;
         let currentBlueprintOrderId = null;
 
+        // =====================================================================
+        // Global ERP Dashboard Reload Logic (for when returning from edit page)
+        // =====================================================================
+        (function () {
+            var reloadKey = 'foms:reload-order-list-after-erp-save';
+            var scrollKey = 'foms:restore-order-list-scroll';
+
+            function sameOrderListUrl(expectedUrl) {
+                if (!expectedUrl) return false;
+                try {
+                    var expected = new URL(expectedUrl, window.location.origin);
+                    return expected.origin === window.location.origin
+                        && expected.pathname === window.location.pathname
+                        && expected.search === window.location.search;
+                } catch (e) {
+                    return false;
+                }
+            }
+
+            window.addEventListener('pageshow', function (event) {
+                var expectedUrl = '';
+                try {
+                    expectedUrl = sessionStorage.getItem(reloadKey) || '';
+                } catch (e) {
+                    expectedUrl = '';
+                }
+                
+                // If the key is not for this page, do nothing.
+                if (!sameOrderListUrl(expectedUrl)) return;
+
+                // Check if this is a back/forward navigation (either bfcache or HTTP cache)
+                var isBackForward = event.persisted;
+                if (!isBackForward && window.performance) {
+                    var navEntries = performance.getEntriesByType("navigation");
+                    if (navEntries.length > 0 && navEntries[0].type === "back_forward") {
+                        isBackForward = true;
+                    }
+                }
+
+                if (!isBackForward) return;
+
+                try {
+                    sessionStorage.removeItem(reloadKey);
+                    sessionStorage.setItem(scrollKey, String(window.scrollY || document.documentElement.scrollTop || 0));
+                } catch (e) {
+                    // Best-effort only; fresh data is more important than scroll restoration.
+                }
+                window.location.reload();
+            });
+
+            window.addEventListener('DOMContentLoaded', function () {
+                try {
+                    var expectedUrl = sessionStorage.getItem(reloadKey) || '';
+                    if (sameOrderListUrl(expectedUrl)) {
+                        // Check if this is a back/forward navigation
+                        var isBackForward = false;
+                        if (window.performance) {
+                            var navEntries = performance.getEntriesByType("navigation");
+                            if (navEntries.length > 0 && navEntries[0].type === "back_forward") {
+                                isBackForward = true;
+                            }
+                        }
+                        
+                        // If it's a back navigation, DO NOT remove the key here, let pageshow handle it and reload.
+                        // If it's a fresh load (e.g. they clicked a link to here), remove the key to prevent future reloads.
+                        if (!isBackForward) {
+                            sessionStorage.removeItem(reloadKey);
+                        }
+                    }
+                } catch (e) {
+                    // Ignore storage cleanup failures; the page itself is already fresh.
+                }
+
+                var y = '';
+                try {
+                    y = sessionStorage.getItem(scrollKey) || '';
+                    sessionStorage.removeItem(scrollKey);
+                } catch (e) {
+                    y = '';
+                }
+                if (!y) return;
+                var scrollY = parseInt(y, 10);
+                if (!Number.isFinite(scrollY) || scrollY <= 0) return;
+                requestAnimationFrame(function () {
+                    window.scrollTo(0, scrollY);
+                });
+            });
+        })();
+
         // 도면 다운로드 함수
         function downloadBlueprint() {
             if (!currentBlueprintUrl) {

@@ -1255,12 +1255,10 @@ function erpNavigateAfterStructuredSave(targetUrl) {
             window.history &&
             window.history.length > 1
         ) {
-            if (target.pathname === '/' || target.pathname === '/erp/dashboard') {
-                try {
-                    sessionStorage.setItem('foms:reload-order-list-after-erp-save', target.href);
-                } catch (e) {
-                    // sessionStorage may be unavailable in hardened browser modes.
-                }
+            try {
+                sessionStorage.setItem('foms:reload-order-list-after-erp-save', target.href);
+            } catch (e) {
+                // sessionStorage may be unavailable in hardened browser modes.
             }
             window.history.back();
             return;
