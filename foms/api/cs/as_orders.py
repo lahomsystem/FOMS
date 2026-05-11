@@ -57,6 +57,15 @@ def _load_order_structured_data_for_update(order):
         ) from exc
 
 
+def _confirmed_construction_worker_name(user) -> str:
+    """Return the construction worker name confirmed by the AS register actor."""
+    if not user:
+        return ""
+    return str(
+        getattr(user, "name", None) or getattr(user, "username", None) or ""
+    ).strip()
+
+
 @erp_orders_as_bp.route("/<int:order_id>/as/start", methods=["POST"])
 @login_required
 @erp_edit_required
@@ -242,6 +251,7 @@ def api_as_register(order_id):
 
         data = request.get_json(silent=True) or {}
         as_content = sanitize_as_content_html(data.get("as_content"))
+        source_screen = str(data.get("source_screen") or "").strip()
 
         today = get_today_kst().strftime("%Y-%m-%d")
         user_id = session.get("user_id")
@@ -249,6 +259,9 @@ def api_as_register(order_id):
         sd = _load_order_structured_data_for_update(order)
         shipment = ensure_path(sd, "shipment")
         shipment["as_content"] = as_content
+        construction_worker_name = _confirmed_construction_worker_name(user)
+        if source_screen == "erp_construction_dashboard" and construction_worker_name:
+            shipment["construction_workers"] = [construction_worker_name]
         wf = sd.get("workflow") or {}
         wf["stage"] = "AS_RECEIVED"
         wf["stage_updated_at"] = datetime.datetime.now().isoformat()
@@ -270,6 +283,7 @@ def api_as_register(order_id):
             "message": "AS 접수가 등록되었습니다.",
             "as_received_date": today,
             "new_status": "AS_RECEIVED",
+            "construction_workers": shipment.get("construction_workers") or [],
         })
     except ValueError as e:
         db.rollback()

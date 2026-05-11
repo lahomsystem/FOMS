@@ -159,6 +159,25 @@ def _order_is_sales_delivery(order):
     return shipment.get('sales_delivery') is True
 
 
+def _normalize_construction_worker_names(value):
+    """Return display-ready construction worker names from legacy or ERP payloads."""
+    if isinstance(value, list):
+        raw_values = value
+    else:
+        raw_values = str(value or '').replace('\n', ',').split(',')
+
+    workers = []
+    for item in raw_values:
+        if isinstance(item, dict):
+            raw_name = item.get('name') or item.get('text') or item.get('value') or ''
+        else:
+            raw_name = item
+        name = str(raw_name or '').strip()
+        if name and name not in workers:
+            workers.append(name)
+    return workers
+
+
 def _erp_order_search_filter(query, q, *, dialect_name='', use_postgres_regex=False):
     """고객명·전화·주소·내용 전체 검색 (공백 무시 + AS 내용 포함)."""
     compact_q = _compact_search_text(q)
@@ -413,6 +432,10 @@ def erp_as_dashboard():
         r.as_pending = shipment.get('as_pending') is True
         r.has_as_blueprint = shipment.get('as_blueprint') is True
         r.is_sales_delivery = shipment.get('sales_delivery') is True
+        r.construction_workers = _normalize_construction_worker_names(
+            shipment.get('construction_workers')
+        )
+        r.construction_workers_text = ', '.join(r.construction_workers)
         r.as_content_html = sanitize_as_content_html(shipment.get('as_content'))
         has_secondary_as_content = 'as_content_2' in shipment
         secondary_as_content_html = sanitize_as_content_html(shipment.get('as_content_2'))

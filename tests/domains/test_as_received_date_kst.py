@@ -1,5 +1,6 @@
 from datetime import date
 import importlib
+from pathlib import Path
 
 from flask import session
 import pytest
@@ -17,6 +18,26 @@ def _login_as_admin(client, username="as-date-admin"):
         role="ADMIN",
         team="CS",
         name="AS Date Admin",
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+
+    with client.session_transaction() as sess:
+        sess["user_id"] = user.id
+        sess["username"] = user.username
+        sess["role"] = user.role
+
+    return user
+
+
+def _login_as_construction(client, username="as-register-construction"):
+    user = User(
+        username=username,
+        password=generate_password_hash("worker"),
+        role="USER",
+        team="CONSTRUCTION",
+        name="확정시공자",
         is_active=True,
     )
     db_session.add(user)
@@ -75,6 +96,46 @@ def test_as_register_uses_kst_received_date(client, monkeypatch):
     saved_order = db_session.get(Order, order_id)
     assert saved_order is not None
     assert saved_order.as_received_date == "2026-04-08"
+
+
+def test_as_register_matches_confirmed_construction_worker(client, monkeypatch):
+    _login_as_construction(client)
+    order = _create_order(
+        status="AS",
+        structured_data={
+            "workflow": {"stage": "AS"},
+            "shipment": {"construction_workers": ["출고배정자"]},
+        },
+    )
+    order_id = order.id
+
+    as_orders = importlib.import_module("foms.api.cs.as_orders")
+    monkeypatch.setattr(as_orders, "get_today_kst", lambda: date(2026, 4, 8))
+
+    response = client.post(
+        f"/api/orders/{order_id}/as/register",
+        json={
+            "as_content": "Needs service",
+            "source_screen": "erp_construction_dashboard",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    assert data["construction_workers"] == ["확정시공자"]
+
+    db_session.expire_all()
+    saved_order = db_session.get(Order, order_id)
+    assert saved_order is not None
+    assert saved_order.structured_data["shipment"]["construction_workers"] == ["확정시공자"]
+
+
+def test_construction_dashboard_as_register_marks_source_screen():
+    src = (
+        Path(__file__).resolve().parents[2] / "templates/construction/partials/scripts.html"
+    ).read_text(encoding="utf-8")
+    assert "source_screen: 'erp_construction_dashboard'" in src
 
 
 @pytest.mark.parametrize(

@@ -45,6 +45,7 @@ ORDER_UPDATE_ALLOWED_FIELDS = [
     "is_cabinet",
     "cabinet_status",
     "shipping_fee",
+    "construction_workers",
 ]
 
 STRUCTURED_SYNC_FIELDS = {
@@ -54,6 +55,7 @@ STRUCTURED_SYNC_FIELDS = {
     "as_pending",
     "as_blueprint",
     "sales_delivery",
+    "construction_workers",
 }
 
 
@@ -75,6 +77,25 @@ def _coerce_bool_value(value: Any) -> bool:
     if isinstance(value, (int, float)):
         return value != 0
     return str(value).strip().lower() in ("1", "true", "yes", "y", "on")
+
+
+def _normalize_construction_workers_value(value: Any) -> list[str]:
+    """Normalize comma/newline/list construction worker input into unique names."""
+    if isinstance(value, list):
+        raw_values = value
+    else:
+        raw_values = str(value or "").replace("\n", ",").split(",")
+
+    workers: list[str] = []
+    for item in raw_values:
+        if isinstance(item, dict):
+            raw_name = item.get("name") or item.get("text") or item.get("value") or ""
+        else:
+            raw_name = item
+        name = str(raw_name or "").strip()
+        if name and name not in workers:
+            workers.append(name)
+    return workers
 
 
 def _load_order_structured_data_for_update(order: Order) -> dict[str, Any]:
@@ -106,6 +127,10 @@ def _build_order_update_response(
         normalized_value = shipment.get("as_blueprint") is True
     elif field == "sales_delivery":
         normalized_value = shipment.get("sales_delivery") is True
+    elif field == "construction_workers":
+        normalized_value = _normalize_construction_workers_value(
+            shipment.get("construction_workers")
+        )
     elif field == "as_visit_date":
         normalized_value = as_visit.get("date") or ""
     else:
@@ -124,6 +149,9 @@ def _build_order_update_response(
         "as_pending": shipment.get("as_pending") is True,
         "as_blueprint": shipment.get("as_blueprint") is True,
         "sales_delivery": shipment.get("sales_delivery") is True,
+        "construction_workers": _normalize_construction_workers_value(
+            shipment.get("construction_workers")
+        ),
     }
 
 
@@ -189,6 +217,7 @@ def update_order_field_response(
             "as_pending",
             "as_blueprint",
             "sales_delivery",
+            "construction_workers",
         ):
             pass
         else:
@@ -233,6 +262,10 @@ def update_order_field_response(
             elif field == "sales_delivery":
                 shipment = ensure_path(structured_data, "shipment")
                 shipment["sales_delivery"] = _coerce_bool_value(value)
+                structured_changed = True
+            elif field == "construction_workers":
+                shipment = ensure_path(structured_data, "shipment")
+                shipment["construction_workers"] = _normalize_construction_workers_value(value)
                 structured_changed = True
             elif field == "manager_name":
                 clean_value = clean_dict_like_name(value)
@@ -289,6 +322,7 @@ def update_order_field_response(
             "as_content",
             "as_content_2",
             "sales_delivery",
+            "construction_workers",
         }
         if field in inv_fields or status_snapshot in ("AS", "AS_RECEIVED", "AS_COMPLETED"):
             try:

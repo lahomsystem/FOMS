@@ -1,5 +1,6 @@
 import copy
 import io
+from pathlib import Path
 
 from werkzeug.security import generate_password_hash
 
@@ -155,6 +156,54 @@ def test_structured_put_clears_order_notes_when_notes_empty_string(client, monke
     saved_order = db_session.get(Order, order_id)
     assert saved_order is not None
     assert saved_order.notes is None
+
+
+def test_structured_put_preserves_shipment_construction_workers_when_missing(client, monkeypatch):
+    _login_as_admin(client, username="erp-workers-preserve")
+    original_sd = _structured_payload("서울 테헤란로 123")
+    original_sd["shipment"] = {
+        "construction_workers": ["김시공", "박시공"],
+        "as_content": "AS 내용",
+    }
+    order = _create_order(structured_data=original_sd)
+    order_id = order.id
+
+    monkeypatch.setattr(erp_orders_structured, "_handle_stage_transition", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "_record_structured_events", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "_apply_structured_side_effects", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "_finalize_draft_state", lambda *a, **k: False)
+    monkeypatch.setattr(erp_orders_structured, "sync_erp_flat_columns", lambda *a, **k: None)
+    monkeypatch.setattr(
+        erp_orders_structured,
+        "build_structured_update_payload",
+        lambda *a, **k: {"event_type": "order_updated", "change_lines": []},
+    )
+
+    next_sd = _structured_payload("서울 테헤란로 123")
+    next_sd.pop("shipment")
+    response = client.put(
+        f"/api/orders/{order_id}/structured",
+        json={"structured_data": next_sd, "structured_schema_version": 1},
+    )
+
+    assert response.status_code == 200
+
+    db_session.expire_all()
+    saved_order = db_session.get(Order, order_id)
+    assert saved_order is not None
+    assert saved_order.structured_data["shipment"]["construction_workers"] == ["김시공", "박시공"]
+
+
+def test_erp_order_construction_worker_input_contract_is_wired():
+    root = Path(__file__).resolve().parents[2]
+    tpl = (root / "templates/orders/partials/erp_order_tab.html").read_text(encoding="utf-8")
+    js = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+
+    assert 'id="erp-construction-workers"' in tpl
+    assert "erpNormalizeConstructionWorkers" in js
+    assert "structured.shipment.construction_workers" in js
+    assert "erpConfirmConstructionWorkerOverwrite" in js
+    assert "현재 출고 대시보드 시공자:" in js
 
 
 def test_structured_put_rejects_address_clear_before_geocode_reset(client, monkeypatch):
