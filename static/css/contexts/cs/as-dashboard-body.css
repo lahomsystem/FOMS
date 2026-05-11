@@ -249,13 +249,106 @@
     word-break: break-word;
   }
 
+  .as-construction-worker-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 160px;
+    min-height: 28px;
+    cursor: pointer;
+  }
+
+  .as-construction-worker-row {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+  }
+
+  .as-construction-worker-view {
+    display: none;
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 3px 0;
+    line-height: 1.3;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+  }
+
+  .as-construction-worker-row.has-value .as-construction-worker-view {
+    display: block;
+  }
+
+  .as-construction-worker-row.editing .as-construction-worker-view {
+    display: none;
+  }
+
   .as-construction-worker-edit {
     position: relative;
-    min-width: 130px;
+    display: none;
+    align-items: stretch;
+    gap: 3px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .as-construction-worker-row.editing .as-construction-worker-edit {
+    display: flex;
   }
 
   .as-construction-worker-input {
-    min-width: 0;
+    flex: 1 1 auto;
+    min-width: 7.5rem;
+    height: 44px;
+    padding: 0.45rem 0.55rem;
+  }
+
+  .as-construction-worker-action-stack {
+    display: flex;
+    flex: 0 0 30px;
+    flex-direction: column;
+    gap: 2px;
+    width: 30px;
+  }
+
+  .as-construction-worker-action-stack .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    min-width: 30px;
+    height: 21px;
+    min-height: 21px;
+    padding: 0;
+    font-size: 0.7rem;
+    line-height: 1;
+  }
+
+  .as-construction-worker-actions-row {
+    display: flex;
+    opacity: 0;
+    max-height: 0;
+    overflow: hidden;
+    transition: opacity 0.15s;
+  }
+
+  .as-construction-worker-list:hover .as-construction-worker-actions-row,
+  .as-construction-worker-list.show-add-actions .as-construction-worker-actions-row {
+    opacity: 1;
+    max-height: 2rem;
+    overflow: visible;
+    margin-top: 2px;
+  }
+
+  .as-btn-add-construction-worker {
+    width: 30px;
+    height: 28px;
+    padding: 0;
+    font-size: 0.9rem;
+    line-height: 1;
   }
 
   .as-construction-worker-menu {
