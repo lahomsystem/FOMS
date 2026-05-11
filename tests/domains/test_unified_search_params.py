@@ -64,7 +64,10 @@ def test_order_list_whole_search_ignores_active_status_tab(login):
 
 
 def test_order_list_refreshes_bfcache_after_erp_save_back_navigation():
-    text = Path("templates/orders/index.html").read_text(encoding="utf-8")
+    """ERP 저장 후 history.back 시 목록이 stale하지 않도록 전역 레이아웃 스크립트가 갱신한다."""
+    text = Path("templates/partials/shared/layout_scripts.html").read_text(
+        encoding="utf-8"
+    )
 
     assert "foms:reload-order-list-after-erp-save" in text
     assert "window.addEventListener('pageshow'" in text
