@@ -107,7 +107,9 @@ def extract_as_visit_dates(order):
 
 def extract_dashboard_target_dates(order):
     if is_as_order(order):
-        return extract_as_visit_dates(order)
+        dates = extract_as_visit_dates(order)
+        dates.update(extract_all_construction_dates(order))
+        return dates
     return extract_all_construction_dates(order)
 
 
@@ -197,7 +199,7 @@ def _pick_shipment_search_focus_date(scoped_orders_query, today_kst):
     q = scoped_orders_query.join(OrderScheduleDate, Order.id == OrderScheduleDate.order_id).filter(
         or_(
             and_(Order.status.in_(AS_SHIPMENT_STATUSES), OrderScheduleDate.kind == 'as_visit'),
-            and_(~Order.status.in_(AS_SHIPMENT_STATUSES), OrderScheduleDate.kind == 'construction'),
+            OrderScheduleDate.kind == 'construction',
         ),
         OrderScheduleDate.date >= past,
         OrderScheduleDate.date <= future,
@@ -289,7 +291,7 @@ def erp_shipment_dashboard():
     panel_query = panel_query.filter(
         or_(
             and_(Order.status.in_(AS_SHIPMENT_STATUSES), OrderScheduleDate.kind == 'as_visit'),
-            and_(~Order.status.in_(AS_SHIPMENT_STATUSES), OrderScheduleDate.kind == 'construction'),
+            OrderScheduleDate.kind == 'construction',
         ),
         OrderScheduleDate.date >= panel_range_start,
         OrderScheduleDate.date <= panel_range_end,
@@ -541,7 +543,7 @@ def erp_shipment_dashboard():
             rows_query = rows_query.filter(
                 or_(
                     and_(Order.status.in_(AS_SHIPMENT_STATUSES), OrderScheduleDate.kind == 'as_visit'),
-                    and_(~Order.status.in_(AS_SHIPMENT_STATUSES), OrderScheduleDate.kind == 'construction'),
+                    OrderScheduleDate.kind == 'construction',
                 )
             )
             if use_range:
