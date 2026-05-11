@@ -98,11 +98,29 @@ def test_as_dashboard_construction_worker_contract_is_wired():
     ).read_text(encoding="utf-8")
 
     assert "<th style=\"width: 140px;\">시공자</th>" in src
+    assert "as-construction-worker-list" in src
+    assert "as-construction-worker-row" in src
+    assert "as-construction-worker-view" in src
     assert "as-construction-worker-input" in src
+    assert "as-btn-add-construction-worker" in src
+    assert "as-btn-remove-construction-worker" in src
     assert "data-field=\"construction_workers\"" in src
     assert "saveOrderFieldDirect(orderId, 'construction_workers', nextWorkers)" in src
     assert "현재 출고 대시보드 시공자:" in src
     assert "datalist-construction-workers" in src
+
+
+def test_as_dashboard_construction_worker_css_uses_compact_edit_mode():
+    src = (
+        Path(__file__).resolve().parents[2] / "static/css/contexts/cs/as-dashboard-body.css"
+    ).read_text(encoding="utf-8")
+
+    assert ".as-construction-worker-row.has-value .as-construction-worker-view" in src
+    assert ".as-construction-worker-row.editing .as-construction-worker-edit" in src
+    assert ".as-construction-worker-action-stack" in src
+    assert "flex-direction: column;" in src
+    assert "min-height: 28px;" in src
+    assert ".as-construction-worker-list:hover .as-construction-worker-actions-row" in src
 
 
 def test_as_visit_date_visual_state_updates_optimistically():
@@ -143,8 +161,14 @@ def test_as_dashboard_renders_construction_workers_column(client):
     assert response.status_code == 200
     body = response.get_data(as_text=True)
     assert ">시공자<" in body
-    assert 'class="form-control form-control-sm shipment-text-input as-construction-worker-input"' in body
-    assert 'value="김시공, 박시공"' in body
+    assert 'class="as-construction-worker-list mb-0"' in body
+    assert 'class="as-construction-worker-view">김시공</span>' in body
+    assert 'class="as-construction-worker-view">박시공</span>' in body
+    assert 'class="as-construction-worker-row has-value"' in body
+    assert 'data-saved-value="김시공, 박시공"' in body
+    assert 'class="form-control form-control-sm as-construction-worker-input"' in body
+    assert 'value="김시공"' in body
+    assert 'value="박시공"' in body
 
 
 def test_update_order_field_saves_construction_workers(client):
