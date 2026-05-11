@@ -683,9 +683,15 @@
 
     function addAsDashboardListener(target, type, handler, options) {
       if (!target || !target.addEventListener) return;
-      const listenerOptions = options && typeof options === 'object'
-        ? Object.assign({}, options)
-        : options;
+      /** Normalize addEventListener 4th arg: boolean useCapture must stay capture when merging AbortSignal. */
+      let listenerOptions;
+      if (options === true || options === false) {
+        listenerOptions = { capture: options };
+      } else if (options && typeof options === 'object') {
+        listenerOptions = Object.assign({}, options);
+      } else {
+        listenerOptions = options;
+      }
       if (asDashboardAbortController) {
         if (listenerOptions && typeof listenerOptions === 'object') {
           listenerOptions.signal = listenerOptions.signal || asDashboardAbortController.signal;

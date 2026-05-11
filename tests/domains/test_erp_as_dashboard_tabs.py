@@ -110,6 +110,16 @@ def test_as_dashboard_construction_worker_contract_is_wired():
     assert "datalist-construction-workers" in src
 
 
+def test_as_dashboard_add_listener_keeps_capture_when_abort_controller_active():
+    """blur는 버블링되지 않음 — document 위임 시 capture:true 필수. options가 true일 때 signal만 붙이면 저장 안 됨."""
+    src = (
+        Path(__file__).resolve().parents[2] / "templates/cs/partials/as_dashboard_body.html"
+    ).read_text(encoding="utf-8")
+
+    assert "if (options === true || options === false)" in src
+    assert "listenerOptions = { capture: options };" in src
+
+
 def test_as_dashboard_construction_worker_css_uses_compact_edit_mode():
     src = (
         Path(__file__).resolve().parents[2] / "static/css/contexts/cs/as-dashboard-body.css"
