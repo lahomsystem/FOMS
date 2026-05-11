@@ -15,8 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # 의존성 설치
 COPY requirements.txt .
-RUN python -m pip install --upgrade pip setuptools wheel \
-    && python -m pip install --no-cache-dir --timeout 120 --retries 10 -r requirements.txt
+RUN python -m pip install --no-cache-dir --timeout 120 --retries 10 -r requirements.txt
 
 # 앱 코드 복사
 COPY . .
