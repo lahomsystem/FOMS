@@ -1255,7 +1255,7 @@ function erpNavigateAfterStructuredSave(targetUrl) {
             window.history &&
             window.history.length > 1
         ) {
-            if (target.pathname === '/') {
+            if (target.pathname === '/' || target.pathname === '/erp/dashboard') {
                 try {
                     sessionStorage.setItem('foms:reload-order-list-after-erp-save', target.href);
                 } catch (e) {
