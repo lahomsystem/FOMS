@@ -183,6 +183,63 @@ def test_as_dashboard_renders_construction_workers_column(client):
     assert 'value="박시공"' in body
 
 
+def test_as_pending_cleared_when_visit_then_received_cleared(client):
+    """미결 해제는 접수일·방문일이 모두 소거된 뒤(ERP) 서버 저장 시에 적용된다."""
+    _login_as_admin(client)
+    as_day = date.today().strftime("%Y-%m-%d")
+    order = _create_as_order(
+        shipment_extra={"as_pending": True},
+        schedule_extra={"as_visit": {"date": as_day}},
+    )
+
+    r1 = client.post(
+        "/api/update_order_field",
+        json={"order_id": order.id, "field": "as_visit_date", "value": ""},
+    )
+    assert r1.status_code == 200
+    assert r1.get_json()["as_pending"] is True
+
+    r2 = client.post(
+        "/api/update_order_field",
+        json={"order_id": order.id, "field": "as_received_date", "value": ""},
+    )
+    assert r2.status_code == 200
+    assert r2.get_json()["as_pending"] is False
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order.id)
+    assert saved is not None
+    assert (saved.structured_data.get("shipment") or {}).get("as_pending") is not True
+
+
+def test_as_pending_cleared_when_received_then_visit_cleared(client):
+    _login_as_admin(client)
+    as_day = date.today().strftime("%Y-%m-%d")
+    order = _create_as_order(
+        shipment_extra={"as_pending": True},
+        schedule_extra={"as_visit": {"date": as_day}},
+    )
+
+    r1 = client.post(
+        "/api/update_order_field",
+        json={"order_id": order.id, "field": "as_received_date", "value": ""},
+    )
+    assert r1.status_code == 200
+    assert r1.get_json()["as_pending"] is True
+
+    r2 = client.post(
+        "/api/update_order_field",
+        json={"order_id": order.id, "field": "as_visit_date", "value": ""},
+    )
+    assert r2.status_code == 200
+    assert r2.get_json()["as_pending"] is False
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order.id)
+    assert saved is not None
+    assert (saved.structured_data.get("shipment") or {}).get("as_pending") is not True
+
+
 def test_update_order_field_saves_construction_workers(client):
     _login_as_admin(client)
     order = _create_as_order(shipment_extra={"construction_workers": ["기존시공"]})

@@ -17,6 +17,7 @@ from foms.services.as_content_safety import (
 )
 from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.erp_permissions import can_edit_erp
+from foms.services.erp_display import _normalize_date_to_yyyymmdd
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from models import Order
 
@@ -68,6 +69,32 @@ def ensure_path(parent: dict[str, Any], key: str) -> dict[str, Any]:
         parent[key] = {}
         child = parent[key]
     return child
+
+
+def _clear_as_pending_if_both_as_dates_empty(order: Order, structured_data: dict[str, Any]) -> bool:
+    """접수일과 schedule.as_visit.date가 모두 비면 미결 플래그를 끈다.
+
+    미결 버튼이 방문일 기준이지만, 접수·방문이 모두 소거되면 AS 접수 화면으로
+    원상복구해야 하므로 JSONB 진실값(shipment.as_pending)을 직접 정리한다.
+    """
+    shipment = structured_data.get("shipment") or {}
+    if not isinstance(shipment, dict) or shipment.get("as_pending") is not True:
+        return False
+    received = getattr(order, "as_received_date", None)
+    if str(received or "").strip():
+        return False
+    schedule = structured_data.get("schedule")
+    visit_raw = ""
+    if isinstance(schedule, dict):
+        visit_block = schedule.get("as_visit")
+        if isinstance(visit_block, dict):
+            visit_raw = visit_block.get("date")
+    if str(visit_raw or "").strip():
+        return False
+    if str(getattr(order, "as_visit_date", None) or "").strip():
+        return False
+    ensure_path(structured_data, "shipment")["as_pending"] = False
+    return True
 
 
 def _coerce_bool_value(value: Any) -> bool:
@@ -289,9 +316,18 @@ def update_order_field_response(
                 as_visit = ensure_path(schedule, "as_visit")
                 as_visit["date"] = value
                 structured_changed = True
+                trimmed = str(value or "").strip()
+                if trimmed:
+                    setattr(order, "as_visit_date", _normalize_date_to_yyyymmdd(trimmed))
+                else:
+                    setattr(order, "as_visit_date", None)
             elif field in ("as_content", "as_content_2"):
                 shipment = ensure_path(structured_data, "shipment")
                 shipment[field] = value
+                structured_changed = True
+
+        if is_erp_order and field in ("as_received_date", "as_visit_date"):
+            if _clear_as_pending_if_both_as_dates_empty(order, structured_data):
                 structured_changed = True
 
         if structured_changed:
