@@ -1,4 +1,4 @@
-# Repo Surface Cleanup Execution Plan
+Repo Surface Cleanup Execution Plan
 > 작성일: 2026-04-16 | 상태: 🟢 승인됨
 
 ## 1. What — 무엇을 만드는가
