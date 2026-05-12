@@ -4,11 +4,17 @@
 
 ## 최근 세션
 
+### Session: b09e7a36
+- **시작**: 2026-05-07 07:58:51
+- **상태**: completed
+- **편집 파일**: `tests/domains/test_erp_as_dashboard_tabs.py`, `templates/cs/partials/as_dashboard_body.html`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-6d452f8c-9feb-4661-aeef-fed5d5ac6d3f.png`, `_commit_msg_fix_test_layout_reload.txt`, `tests/domains/test_unified_search_params.py`, `templates/orders/index.html`, `static/js/orders/dashboard/erp-dashboard-detail-dom.js`, `templates/partials/shared/layout_scripts.html`, `static/js/orders/erp-order-shared.js`, `foms/web/shipment/dashboard.py`
+- **종료**: 2026-05-12 13:58:05
+
 ### Session: 18d58c57
 - **시작**: 2026-05-06 08:18:30
 - **상태**: completed
-- **편집 파일**: `foms/services/erp_display.py`, `tests/domains/test_erp_display.py`, `tests/domains/test_erp_sync_columns.py`, `foms/services/erp_sync_columns.py`, `foms/web/orders/listing.py`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-20f41b8a-1146-4639-a604-92a16614f9c2.png`, `tests/domains/test_erp_orders_structured_put.py`, `static/js/orders/erp-order-shared.js`, `.git_commit_msg_deploy_gdm.txt`, `tests/domains/test_shipment_as_recommendations.py`
-- **종료**: 2026-05-06 08:36:29
+- **편집 파일**: `commit_msg_deploy.txt`, `foms/services/erp_display.py`, `tests/domains/test_erp_display.py`, `tests/domains/test_erp_sync_columns.py`, `foms/services/erp_sync_columns.py`, `foms/web/orders/listing.py`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-20f41b8a-1146-4639-a604-92a16614f9c2.png`, `tests/domains/test_erp_orders_structured_put.py`, `static/js/orders/erp-order-shared.js`, `.git_commit_msg_deploy_gdm.txt`
+- **종료**: 2026-05-06 11:07:16
 
 ### Session: 6214e73b
 - **시작**: 2026-05-05 18:54:12
@@ -363,3 +369,41 @@
 | 2026-05-06 08:21:48 | END (Claude Code) | 수정: (없음) |
 
 | 2026-05-06 08:36:29 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-06 11:07:16 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-07 08:05:10 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-07 08:06:34 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-07 08:12:14 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-07 08:12:48 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-11 11:01:43 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-11 11:09:28 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-11 11:17:14 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-11 11:24:23 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-11 11:24:52 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-11 11:29:11 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-11 11:37:23 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-11 12:03:49 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-11 12:23:19 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-11 13:12:47 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-11 13:36:54 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-11 13:38:42 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-11 13:46:54 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-12 13:58:05 | END (Claude Code) | 수정: (없음) |

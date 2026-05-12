@@ -237,3 +237,61 @@
 | 2026-05-06 08:42:56 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch --show-current` |
 | 2026-05-06 08:43:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat` |
 | 2026-05-06 08:43:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -u; git commit --trailer "Co-authored-by: Cursor <cursoragent@cursor.com>" -F commit_m` |
+| 2026-05-06 11:06:39 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin deploy; git log --oneline -5 production; git log --oneline -5 origin/deploy; ` |
+| 2026-05-06 11:06:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git merge origin/deploy -m "merge: origin/deploy into production (shipment AS recommendations)` |
+| 2026-05-06 11:06:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production; git checkout deploy; git stash list` |
+| 2026-05-07 08:11:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_app_init.py -v --tb=short` |
+| 2026-05-07 08:12:03 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_app_init.py -v --tb=short` |
+| 2026-05-07 08:12:12 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-05-07 08:12:39 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status --short "foms/services/app_init.py" "tests/domains/test_app_init.py"` |
+| 2026-05-07 08:12:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git restore "foms/services/app_init.py" "tests/domains/test_app_init.py"; git status --short "` |
+| 2026-05-11 11:01:23 | allow | `-` | `python -m pytest tests/contracts/runtime/test_dockerfile_deploy_contract.py -q` |
+| 2026-05-11 11:09:10 | allow | `-` | `python -c "from pathlib import Path; Path('commit_msg.txt').write_text('Railway Docker pip ?낃렇?덉씠??蹂듭썝\n\nDocker 鍮뚮뱶媛 ?먮┛ ?⑦궎吏 ?ㅼ슫濡쒕뱶?먮룄 ?덉젙?곸쑝濡?pip ?꾧뎄瑜?媛깆떊?` |
+| 2026-05-11 11:16:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin; git branch -vv; git log origin/production..origin/deploy --oneline` |
+| 2026-05-11 11:16:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status --short; git log --oneline origin/production..origin/deploy; git log --oneline orig` |
+| 2026-05-11 11:17:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git stash push -m "wip: pre-production-merge"; git checkout production; git pull origin produc` |
+| 2026-05-11 11:23:58 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-05-11 11:24:11 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_mobile_layout_and_shipment.py::test_shipment_dashboard` |
+| 2026-05-11 11:28:12 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_dashboard_search_service.py tests/domains/test_unified` |
+| 2026-05-11 11:28:21 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_mobile_layout_and_shipment.py::test_shipment_dashboard` |
+| 2026-05-11 11:28:38 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch --show-current` |
+| 2026-05-11 11:28:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add "foms/services/erp_dashboard_search.py" "foms/web/orders/dashboard.py" "foms/web/shipm` |
+| 2026-05-11 11:33:13 | allow | `-` | `pytest tests/domains/test_erp_mobile_layout_and_shipment.py` |
+| 2026-05-11 11:33:27 | allow | `-` | `pytest tests/domains/test_shipment_as_recommendations.py` |
+| 2026-05-11 11:33:42 | allow | `-` | `pytest tests/domains/test_order_date_sync.py` |
+| 2026-05-11 11:34:23 | allow | `-` | `pytest tests/domains/test_erp_mobile_layout_and_shipment.py` |
+| 2026-05-11 11:34:35 | allow | `-` | `pytest tests/domains/test_shipment_as_recommendations.py` |
+| 2026-05-11 11:36:25 | allow | `-` | `pytest tests/domains/test_erp_mobile_layout_and_shipment.py tests/domains/test_shipment_as_recommendations.py tests/domains/test_order_date_sync.py` |
+| 2026-05-11 11:57:22 | allow | `-` | `python tools/harness/verify_result.py --json` |
+| 2026-05-11 11:57:36 | allow | `-` | `python -m pytest tests/domains/test_erp_mobile_layout_and_shipment.py tests/domains/test_shipment_as_recommendations.py tests/domains/test_erp_dashboard_search_` |
+| 2026-05-11 11:59:42 | allow | `-` | `grep -rn "pageshow" templates/shipment/ templates/cs/` |
+| 2026-05-11 12:00:17 | allow | `-` | `grep -rn "foms:reload-order-list-after-erp-save" static/js/` |
+| 2026-05-11 12:00:34 | allow | `-` | `cat templates/layout.html | head -n 50` |
+| 2026-05-11 12:02:36 | allow | `-` | `cat templates/orders/index.html | grep -n -A 80 "ERP Dashboard Reload Logic"` |
+| 2026-05-11 12:03:17 | allow | `-` | `python tools/harness/verify_result.py --json` |
+| 2026-05-11 12:22:48 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_unified_search_params.py::test_order_list_refreshes_bfcach` |
+| 2026-05-11 12:23:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add tests/domains/test_unified_search_params.py; git commit --trailer "Co-authored-by: Cur` |
+| 2026-05-11 12:23:08 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production; git merge origin/deploy --ff-only; git push origin production; git ch` |
+| 2026-05-11 13:12:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin; git branch -vv; git log --oneline origin/production..origin/deploy -5; git l` |
+| 2026-05-11 13:12:30 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git rev-parse origin/deploy origin/production` |
+| 2026-05-11 13:12:34 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status --short; git log origin/production..HEAD --oneline` |
+| 2026-05-11 13:12:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production` |
+| 2026-05-11 13:36:10 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_as_dashboard_tabs.py::test_as_dashboard_add_listener_k` |
+| 2026-05-11 13:36:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/harness/verify_result.py --json` |
+| 2026-05-11 13:36:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb` |
+| 2026-05-11 13:36:39 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; @" fix(AS ??쒕낫??: ?쒓났??吏곸젒 ?낅젰 blur ??capture ?좎?濡?利됱떆 ???n addAsDashboardListener?먯꽌 AbortC` |
+| 2026-05-11 13:36:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
+| 2026-05-11 13:38:30 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb; git log origin/deploy..HEAD --oneline 2>$null` |
+| 2026-05-11 13:38:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
+| 2026-05-11 13:46:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb; git branch -vv | Select-String "deploy|production"` |
+| 2026-05-11 13:46:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin; git log production..deploy --oneline` |
+| 2026-05-11 13:46:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production` |
+| 2026-05-11 13:46:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git merge deploy --ff-only; git push origin production` |
+| 2026-05-11 13:46:49 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy` |
+| 2026-05-12 13:57:45 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_as_dashboard_tabs.py::test_as_dashboard_construction_w` |
+| 2026-05-12 14:00:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch -a` |
+| 2026-05-12 14:00:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat` |
+| 2026-05-12 14:00:33 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --name-only` |
+| 2026-05-12 14:00:38 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff AGENTS.md` |
+| 2026-05-12 14:00:45 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff static/js/orders/dashboard/erp-dashboard-detail-dom.js | Select-Object -First 80` |
+| 2026-05-12 14:00:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git restore AGENTS.md "foms/api/erp_orders_structured.py" "templates/orders/partials/erp_order` |

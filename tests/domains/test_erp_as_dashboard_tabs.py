@@ -108,6 +108,8 @@ def test_as_dashboard_construction_worker_contract_is_wired():
     assert "saveOrderFieldDirect(orderId, 'construction_workers', nextWorkers)" in src
     assert "현재 출고 대시보드 시공자:" in src
     assert "datalist-construction-workers" in src
+    # PC 테이블: 주문→…→담당→시공자(6)→고객(7); 미결 하이라이트는 고객 열을 가리켜야 함
+    assert "querySelector('td:nth-child(7)')" in src
 
 
 def test_as_dashboard_add_listener_keeps_capture_when_abort_controller_active():
