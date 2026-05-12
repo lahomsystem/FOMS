@@ -59,3 +59,12 @@ def test_runtime_shell_fragment_loading_overlay(runtime_shell_src: str) -> None:
     """UX: network fragment fetch shows loading overlay (not for cache-only swap)."""
     assert "setShellFragmentLoading" in runtime_shell_src
     assert "foms-erp-shell-loading-overlay" in runtime_shell_src
+
+
+def test_runtime_shell_uses_final_fetch_url_for_redirected_fragments(runtime_shell_src: str) -> None:
+    """Dashboard search can 302 to history; shell state must follow the final canonical URL."""
+    assert "canonicalFromFetchResponse" in runtime_shell_src
+    assert "X-FOMS-Canonical-URL" in runtime_shell_src
+    assert "r.url" in runtime_shell_src
+    assert "finalUrl.pathname + finalUrl.search + finalUrl.hash" in runtime_shell_src
+    assert "unsafe redirected fragment url" in runtime_shell_src

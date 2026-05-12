@@ -1,7 +1,7 @@
 """ERP 메인 대시보드 (ERP-SLIM-4; canonical, SFC-B11B). /erp/dashboard."""
 import datetime
 import time
-from flask import Blueprint, make_response, render_template, request, g
+from flask import Blueprint, flash, make_response, redirect, render_template, request, g, url_for
 from db import get_db
 from models import Order, User
 from foms.web.auth import login_required
@@ -45,6 +45,27 @@ from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
 
 
 erp_dashboard_bp = Blueprint('erp_dashboard', __name__, url_prefix='/erp')
+
+
+def _dashboard_search_history_redirect_blocked(f_team: str, f_urgent: str, f_has_alert: str, f_alert_type: str) -> bool:
+    """Return True when a search is scoped by operations-only filters."""
+    return any(
+        (
+            request.args.get('mine') == '1',
+            bool(f_team),
+            f_urgent == '1',
+            f_has_alert == '1',
+            bool(f_alert_type),
+        )
+    )
+
+
+def _redirect_to_history_for_dashboard_search(f_q: str):
+    target_args = {"q": f_q, "from_dashboard": "1"}
+    if wants_erp_shell_tab_body(request):
+        target_args["view"] = "fragment"
+    flash("ERP 대시보드에서 결과가 없어 과거 이력 검색으로 이동했습니다.", "info")
+    return redirect(url_for("erp_history.history_dashboard", **target_args))
 
 
 def _orders_user_visibility_fingerprint(current_user, is_admin: bool) -> dict:
@@ -175,6 +196,16 @@ def erp_dashboard():
     # count는 SQL count를 그대로 사용 (약간의 오차 허용)
     total_orders = _q.count()
     total_pages = (total_orders + per_page - 1) // per_page
+
+    if (
+        f_q
+        and page == 1
+        and total_orders == 0
+        and request.args.get('from_history') != '1'
+        and request.args.get('from_dashboard') != '1'
+        and not _dashboard_search_history_redirect_blocked(f_team, f_urgent, f_has_alert, f_alert_type)
+    ):
+        return _redirect_to_history_for_dashboard_search(f_q)
 
     orders = _q.offset((page - 1) * per_page).limit(per_page).all()
 

@@ -156,6 +156,26 @@
     return u.pathname + (parts.length ? '?' + parts.join('&') : '');
   }
 
+  function canonicalFromFetchResponse(responseUrl) {
+    if (typeof responseUrl !== 'string' || !responseUrl) {
+      return null;
+    }
+    var finalUrl;
+    try {
+      finalUrl = new URL(responseUrl, window.location.origin);
+    } catch (e) {
+      return null;
+    }
+    if (finalUrl.origin !== window.location.origin) {
+      return null;
+    }
+    finalUrl.searchParams.delete('view');
+    if (!isShellFragmentSwapUrl(finalUrl.href)) {
+      return null;
+    }
+    return finalUrl;
+  }
+
   function cachePut(key, html) {
     var now = Date.now();
     if (fragmentHtmlCache[key]) {
@@ -272,13 +292,28 @@
         if (r.headers.get('X-FOMS-ERP-FRAGMENT') !== '1') {
           throw new Error('not fragment');
         }
-        return r.text();
-      })
-      .then(function (html) {
-        if (cacheable) {
-          cachePut(key, html);
+        var finalCanonical = canonicalFromFetchResponse(
+          r.headers.get('X-FOMS-Canonical-URL') || r.url
+        );
+        if (!finalCanonical) {
+          throw new Error('unsafe redirected fragment url');
         }
-        return html;
+        return r.text().then(function (html) {
+          return {
+            html: html,
+            finalUrl: finalCanonical,
+          };
+        });
+      })
+      .then(function (payload) {
+        var finalKey = getCacheKey(payload.finalUrl.href);
+        if (isFragmentCacheable(payload.finalUrl.href)) {
+          cachePut(finalKey, payload.html);
+        }
+        if (cacheable && finalKey !== key) {
+          delete fragmentHtmlCache[key];
+        }
+        return payload;
       })
       .finally(function () {
         delete inflightFetches[key];
@@ -327,14 +362,15 @@
 
     setShellFragmentLoading(true);
     return fetchFragment(canonical)
-      .then(function (html) {
-        if (!applyFragmentToMain(html, canonical.href)) {
+      .then(function (payload) {
+        var finalUrl = payload.finalUrl || canonical;
+        if (!applyFragmentToMain(payload.html, finalUrl.href)) {
           setShellFragmentLoading(false);
           window.location.href = canonical.pathname + canonical.search + canonical.hash;
           return;
         }
         if (!opts.fromPopState && window.history && window.history.pushState) {
-          window.history.pushState({ fomsErpShell: true }, '', canonical.pathname + canonical.search + canonical.hash);
+          window.history.pushState({ fomsErpShell: true }, '', finalUrl.pathname + finalUrl.search + finalUrl.hash);
         }
         afterSwap();
       })

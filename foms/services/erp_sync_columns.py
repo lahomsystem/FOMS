@@ -12,6 +12,15 @@ from foms.services.erp_order_flags import is_erp_order_record
 __all__ = ["sync_erp_flat_columns"]
 
 
+def _parse_stage_updated_at(value):
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+    except (ValueError, TypeError):
+        return None
+
+
 def sync_erp_flat_columns(order, structured_data: dict) -> None:
     """Synchronize ERP Order flat columns from structured order data before commit."""
     if not is_erp_order_record(order):
@@ -36,13 +45,9 @@ def sync_erp_flat_columns(order, structured_data: dict) -> None:
     order.erp_urgent = str(flags.get('urgent')).lower() == 'true' or flags.get('urgent') is True
 
     stage_updated_at = workflow.get('stage_updated_at')
-    parsed_date = None
-    if stage_updated_at:
-        try:
-            parsed_date = datetime.fromisoformat(str(stage_updated_at).replace('Z', '+00:00'))
-        except (ValueError, TypeError):
-            pass
+    parsed_date = _parse_stage_updated_at(stage_updated_at)
     order.erp_drawing_updated_at = parsed_date
+    order.erp_stage_updated_at = parsed_date
 
     assignments = (structured_data.get('assignments') or {})
     owner_team = assignments.get('owner_team')

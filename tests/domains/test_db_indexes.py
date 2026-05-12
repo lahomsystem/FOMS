@@ -75,10 +75,11 @@ def test_ensure_erp_date_columns_executes_expected_sql_and_commits(monkeypatch, 
 
     assert db.commit_calls == 1
     assert db.rollback_calls == 0
-    assert len(db.executed_sql) == 13
+    assert len(db.executed_sql) == 15
     assert any("SET LOCAL lock_timeout" in sql for sql in db.executed_sql)
     assert any("ADD COLUMN IF NOT EXISTS erp_measurement_date" in sql for sql in db.executed_sql)
     assert any("ix_orders_erp_stage_code" in sql for sql in db.executed_sql)
+    assert any("ix_orders_erp_stage_updated_at" in sql for sql in db.executed_sql)
     assert any("ix_orders_erp_owner_team_code" in sql for sql in db.executed_sql)
     assert any("Phase B & D flat columns verified." in record.message for record in caplog.records)
 

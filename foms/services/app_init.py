@@ -109,6 +109,7 @@ def _verify_erp_flat_columns_ready() -> None:
                     erp_stage_code,
                     erp_urgent,
                     erp_drawing_updated_at,
+                    erp_stage_updated_at,
                     erp_owner_team_code
                 FROM orders
                 WHERE 1 = 0

@@ -46,6 +46,7 @@ def test_verify_erp_flat_columns_ready_executes_zero_row_probe(monkeypatch, caps
     captured = capsys.readouterr().out
     assert any("SET LOCAL lock_timeout" in sql for sql in session.executed_sql)
     assert any("erp_measurement_date" in sql for sql in session.executed_sql)
+    assert any("erp_stage_updated_at" in sql for sql in session.executed_sql)
     assert session.rollbacks == 1
     assert "ERP flat-column readiness verified." in captured
 

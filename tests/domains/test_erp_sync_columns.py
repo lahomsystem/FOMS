@@ -14,6 +14,7 @@ def test_sync_erp_flat_columns_returns_early_for_non_erp_order() -> None:
         erp_stage_code="OLD",
         erp_urgent=False,
         erp_drawing_updated_at="unchanged",
+        erp_stage_updated_at="unchanged",
         erp_owner_team_code="legacy",
     )
 
@@ -23,6 +24,7 @@ def test_sync_erp_flat_columns_returns_early_for_non_erp_order() -> None:
     assert order.erp_measurement_date == "2025-01-01"
     assert order.erp_stage_code == "OLD"
     assert order.erp_drawing_updated_at == "unchanged"
+    assert order.erp_stage_updated_at == "unchanged"
 
 
 def test_sync_erp_flat_columns_updates_expected_flat_columns() -> None:
@@ -34,6 +36,7 @@ def test_sync_erp_flat_columns_updates_expected_flat_columns() -> None:
         erp_stage_code=None,
         erp_urgent=False,
         erp_drawing_updated_at=None,
+        erp_stage_updated_at=None,
         erp_owner_team_code=None,
         payment_amount=0,
     )
@@ -60,5 +63,6 @@ def test_sync_erp_flat_columns_updates_expected_flat_columns() -> None:
     assert order.erp_stage_code == "DRAWING"
     assert order.erp_urgent is True
     assert order.erp_drawing_updated_at.isoformat() == "2026-04-08T12:34:56+00:00"
+    assert order.erp_stage_updated_at.isoformat() == "2026-04-08T12:34:56+00:00"
     assert order.erp_owner_team_code == "CONSTRUCTION"
     assert order.payment_amount == 1_198_400
