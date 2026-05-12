@@ -88,6 +88,7 @@ class Order(Base):
     erp_stage_code = Column(String(30), nullable=True, index=True)         # workflow.stage (ex: "RECEIVED", "MEASURE")
     erp_urgent = Column(Boolean, nullable=False, default=False, server_default='false', index=True)  # flags.urgent
     erp_drawing_updated_at = Column(DateTime, nullable=True)               # workflow.stage_updated_at (DRAWING/CONFIRM용)
+    erp_stage_updated_at = Column(DateTime, nullable=True, index=True)     # workflow.stage_updated_at (stage transition truth)
     erp_owner_team_code = Column(String(20), nullable=True, index=True)    # assignments.owner_team
 
     # ============================================
@@ -159,8 +160,17 @@ class Order(Base):
                 cls.erp_stage_code.is_(None),
                 ~cls.erp_stage_code.in_(completed_stages),
                 or_(
-                    and_(cls.structured_updated_at.isnot(None), cls.structured_updated_at >= cutoff_date),
-                    and_(cls.structured_updated_at.is_(None), cls.created_at >= cutoff_date)
+                    cls.erp_stage_updated_at >= cutoff_date,
+                    and_(
+                        cls.erp_stage_updated_at.is_(None),
+                        cls.structured_updated_at.isnot(None),
+                        cls.structured_updated_at >= cutoff_date,
+                    ),
+                    and_(
+                        cls.erp_stage_updated_at.is_(None),
+                        cls.structured_updated_at.is_(None),
+                        cls.created_at >= cutoff_date,
+                    )
                 )
             )
         )

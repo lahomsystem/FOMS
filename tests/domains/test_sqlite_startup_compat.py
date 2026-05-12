@@ -147,6 +147,7 @@ def test_db_index_bootstrap_skips_postgres_only_bits_on_sqlite(monkeypatch, capl
 
     order_columns = {column["name"] for column in inspect(engine).get_columns("orders")}
     assert "erp_measurement_date" in order_columns
+    assert "erp_stage_updated_at" in order_columns
     assert "erp_owner_team_code" in order_columns
     assert any("Skipping pg_trgm indexes" in record.message for record in caplog.records)
     assert not any("Could not create trigram indexes" in record.message for record in caplog.records)

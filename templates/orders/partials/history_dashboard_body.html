@@ -278,6 +278,12 @@
   {% set erp_sub_nav_active = 'history' %}
   {% include 'partials/shared/erp_sub_nav.html' %}
 
+  {% if from_dashboard %}
+    <div class="alert alert-info py-2 mb-3" role="status">
+      ERP 대시보드에서 현재 운영 주문을 찾지 못해 과거 이력 검색으로 이동했습니다.
+    </div>
+  {% endif %}
+
   <!-- Filters -->
   <div class="erp-pro-card erp-pro-card--filters">
     <div class="erp-pro-card__body">

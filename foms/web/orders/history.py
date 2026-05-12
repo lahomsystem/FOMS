@@ -2,7 +2,7 @@
 
 from copy import deepcopy
 
-from flask import Blueprint, make_response, render_template, request, g
+from flask import Blueprint, make_response, render_template, request, g, url_for
 from db import get_db
 from models import Order
 from foms.web.auth import login_required
@@ -26,6 +26,7 @@ def history_dashboard():
     f_stage = (request.args.get('stage') or '').strip()
     f_date_from = (request.args.get('date_from') or '').strip()
     f_date_to = (request.args.get('date_to') or '').strip()
+    from_dashboard = (request.args.get('from_dashboard') or '') == '1'
     
     has_filter = bool(f_q or f_stage or f_date_from or f_date_to)
 
@@ -120,7 +121,15 @@ def history_dashboard():
             total_pages=total_pages,
             total_orders=total_orders,
             has_filter=has_filter,
+            from_dashboard=from_dashboard,
         )
     )
     apply_erp_shell_fragment_headers(response, request)
+    if wants_erp_shell_tab_body(request):
+        canonical_args = request.args.to_dict(flat=True)
+        canonical_args.pop('view', None)
+        response.headers['X-FOMS-Canonical-URL'] = url_for(
+            'erp_history.history_dashboard',
+            **canonical_args,
+        )
     return response
