@@ -72,12 +72,10 @@ export function InspectorPanel() {
 
 const styles: Record<string, React.CSSProperties> = {
   panel: {
-    width: 220,
     background: '#16213e',
-    borderRight: '1px solid #2d3748',
     padding: 12,
     overflowY: 'auto',
-    flexShrink: 0,
+    flex: 1,
   },
   header: {
     display: 'flex',
