@@ -281,7 +281,7 @@ def erp_dashboard():
 
     # --- A-0. kpis / step_stats 집계 (limit 무관하게 _q_stats에서 산출) ---
     _summary_fp = {
-        "v": 2,
+        "v": 3,
         "user": _orders_user_visibility_fingerprint(current_user, is_admin),
         "filters": {
             "mine": (request.args.get('mine') or '').strip(),
@@ -314,19 +314,6 @@ def erp_dashboard():
             else_='기타'
         )
 
-        stats_rows = (
-            _q_stats
-            .with_entities(stage_bucket_expr.label('bucket'), func.count(Order.id).label('cnt'))
-            .group_by(stage_bucket_expr)
-            .all()
-        )
-        for row in stats_rows:
-            if row.bucket in step_stats:
-                step_stats[row.bucket]['count'] = row.cnt
-
-        # KPI 집계 (SQL 활용 및 타겟 대상만 파이썬 연산)
-        kpis['urgent_count'] = _q_stats.filter(Order.erp_urgent == True).count()
-
         today_date = datetime.date.today()
         measurement_d4_dates = _business_alert_date_values(
             today_date,
@@ -347,46 +334,43 @@ def erp_dashboard():
             Order.erp_construction_date.in_(production_d2_dates),
             or_(Order.erp_stage_code.is_(None), Order.erp_stage_code != 'CONSTRUCTION'),
         )
-
-        kpis['measurement_d4_count'] = _q_stats.filter(
-            Order.erp_measurement_date.in_(measurement_d4_dates)
-        ).count()
-        kpis['construction_d3_count'] = _q_stats.filter(
-            Order.erp_construction_date.in_(construction_d3_dates)
-        ).count()
-        kpis['production_d2_count'] = _q_stats.filter(production_d2_filter).count()
-
         imminent_filter = or_(
             Order.erp_measurement_date.in_(measurement_d4_dates),
             Order.erp_construction_date.in_(construction_d3_dates),
             production_d2_filter,
         )
-        imminent_rows = (
-            _q_stats
-            .filter(imminent_filter)
-            .with_entities(stage_bucket_expr.label('bucket'), func.count(Order.id).label('cnt'))
-            .group_by(stage_bucket_expr)
-            .all()
-        )
-        for row in imminent_rows:
-            if row.bucket in step_stats:
-                step_stats[row.bucket]['imminent'] = row.cnt
 
         drawing_overdue_cutoff = datetime.datetime.now() - datetime.timedelta(hours=48)
-        overdue_rows = (
+        drawing_overdue_filter = and_(
+            Order.erp_stage_code.in_(['DRAWING', 'CONFIRM']),
+            Order.erp_stage_updated_at.isnot(None),
+            Order.erp_stage_updated_at <= drawing_overdue_cutoff,
+        )
+
+        summary_rows = (
             _q_stats
-            .filter(
-                Order.erp_stage_code.in_(['DRAWING', 'CONFIRM']),
-                Order.erp_stage_updated_at.isnot(None),
-                Order.erp_stage_updated_at <= drawing_overdue_cutoff,
+            .with_entities(
+                stage_bucket_expr.label('bucket'),
+                func.count(Order.id).label('cnt'),
+                func.coalesce(func.sum(sql_case((Order.erp_urgent == True, 1), else_=0)), 0).label('urgent_cnt'),
+                func.coalesce(func.sum(sql_case((Order.erp_measurement_date.in_(measurement_d4_dates), 1), else_=0)), 0).label('measurement_d4_cnt'),
+                func.coalesce(func.sum(sql_case((Order.erp_construction_date.in_(construction_d3_dates), 1), else_=0)), 0).label('construction_d3_cnt'),
+                func.coalesce(func.sum(sql_case((production_d2_filter, 1), else_=0)), 0).label('production_d2_cnt'),
+                func.coalesce(func.sum(sql_case((imminent_filter, 1), else_=0)), 0).label('imminent_cnt'),
+                func.coalesce(func.sum(sql_case((drawing_overdue_filter, 1), else_=0)), 0).label('overdue_cnt'),
             )
-            .with_entities(stage_bucket_expr.label('bucket'), func.count(Order.id).label('cnt'))
             .group_by(stage_bucket_expr)
             .all()
         )
-        for row in overdue_rows:
+        for row in summary_rows:
+            kpis['urgent_count'] += int(row.urgent_cnt or 0)
+            kpis['measurement_d4_count'] += int(row.measurement_d4_cnt or 0)
+            kpis['construction_d3_count'] += int(row.construction_d3_cnt or 0)
+            kpis['production_d2_count'] += int(row.production_d2_cnt or 0)
             if row.bucket in step_stats:
-                step_stats[row.bucket]['overdue'] = row.cnt
+                step_stats[row.bucket]['count'] = int(row.cnt or 0)
+                step_stats[row.bucket]['imminent'] = int(row.imminent_cnt or 0)
+                step_stats[row.bucket]['overdue'] = int(row.overdue_cnt or 0)
 
         process_steps = [
             {'label': '주문접수', **step_stats['주문접수']},
