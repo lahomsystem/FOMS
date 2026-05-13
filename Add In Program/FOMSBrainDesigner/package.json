@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "build:copy": "vite build && node scripts/copy-to-static.js",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"
   },
