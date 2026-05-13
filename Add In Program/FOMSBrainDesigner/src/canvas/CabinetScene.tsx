@@ -2,6 +2,7 @@ import { useRef } from 'react'
 import * as THREE from 'three'
 import { useDesignerStore } from '../stores/designerStore'
 import { DimensionLines } from './DimensionLines'
+import { SelectionGizmo } from './SelectionGizmo'
 import type { DesignComponent } from '../domain/designTypes'
 
 const MM = 0.001
@@ -66,6 +67,12 @@ export function CabinetScene() {
           onSelect={setSelected}
         />
       ))}
+
+      {/* Selection gizmo – rendered on top of selected component */}
+      {selectedId && (() => {
+        const sel = design.components.find((c) => c.id === selectedId)
+        return sel ? <SelectionGizmo key={`gizmo-${sel.id}`} component={sel} /> : null
+      })()}
 
       {/* Dimension lines */}
       <DimensionLines cabinet={design.cabinet} />
