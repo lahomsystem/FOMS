@@ -6,10 +6,15 @@ from werkzeug.security import generate_password_hash
 # 1. Set environment variable for test database BEFORE importing app/db
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 os.environ["SECRET_KEY"] = "test-secret-key"
+os.environ["DESIGNER_AI_FAKE"] = "1"
 
 from app import app as flask_app
 from db import init_db, db_session, Base, engine
 from models import User
+
+# Ensure designer models are registered in Base
+import foms.persistence.designer.models  # noqa: F401
+
 
 @pytest.fixture
 def app():
@@ -49,4 +54,27 @@ def login(client):
         "password": "admin"
     }, follow_redirects=True)
     
+    return client
+
+
+@pytest.fixture
+def auth_client(app):
+    """Test client with an authenticated admin session."""
+    # Ensure table exists
+    Base.metadata.create_all(bind=engine)
+
+    # Create admin user if not exists
+    existing = db_session.query(User).filter_by(username="testadmin").first()
+    if not existing:
+        user = User(
+            username="testadmin",
+            password=generate_password_hash("testpass"),
+            role="ADMIN",
+            name="Test Admin",
+        )
+        db_session.add(user)
+        db_session.commit()
+
+    client = app.test_client()
+    client.post("/login", data={"username": "testadmin", "password": "testpass"}, follow_redirects=True)
     return client

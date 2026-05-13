@@ -26,6 +26,8 @@ if config.config_file_name is not None:
 sys.path.insert(0, os.path.realpath(os.path.join(os.path.dirname(__file__), '..')))
 from db import Base
 from models import Order, User, AccessLog, SecurityLog
+# Designer AX models must be imported so Alembic sees their tables
+import foms.persistence.designer.models  # noqa: F401
 target_metadata = Base.metadata
 
 def _normalize_postgres_url(url: str) -> str:

@@ -1,0 +1,44 @@
+{% extends "wdcalculator/layout.html" %}
+
+{% block head %}
+<title>FOMS Brain AX Designer - 설정 안내</title>
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-sm border-0">
+                <div class="card-body p-5 text-center">
+                    <div class="mb-4">
+                        <i class="fas fa-brain fa-4x text-primary"></i>
+                    </div>
+                    <h2 class="h3 fw-bold mb-3">FOMS Brain AX Designer</h2>
+                    <p class="text-muted mb-4">
+                        빌드 파일이 아직 준비되지 않았습니다.<br>
+                        프론트엔드 애드인을 빌드하면 이 페이지가 자동으로 활성화됩니다.
+                    </p>
+                    <div class="bg-light rounded p-4 text-start">
+                        <h6 class="fw-bold text-secondary mb-3">
+                            <i class="fas fa-terminal me-2"></i>빌드 명령어
+                        </h6>
+                        <code class="d-block mb-2">cd "Add In Program\FOMSBrainDesigner"</code>
+                        <code class="d-block mb-2">npm install</code>
+                        <code class="d-block">npm run build</code>
+                    </div>
+                    <div class="mt-4">
+                        <a href="{{ url_for('designer.wdplanner_v2') }}"
+                           class="btn btn-primary me-2">
+                            <i class="fas fa-sync me-1"></i>다시 시도
+                        </a>
+                        <a href="{{ url_for('erp_dashboard.erp_dashboard') }}"
+                           class="btn btn-outline-secondary">
+                            <i class="fas fa-home me-1"></i>ERP 대시보드로
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

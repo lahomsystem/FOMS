@@ -84,6 +84,13 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     from foms.api.erp_orders_blueprint import erp_orders_blueprint_bp
     from foms.api.erp_orders_structured import erp_orders_structured_bp
     from foms.web.wdcalculator import wdplanner_bp
+    from foms.web.designer import designer_bp
+    from foms.api.designer import (
+        designer_projects_bp,
+        designer_validation_bp,
+        designer_ai_runs_bp,
+        designer_ontology_bp,
+    )
     from foms.api.channel import (
         channel_functions_bp,
         channel_integration_bp,
@@ -146,6 +153,11 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     app.register_blueprint(order_trash_bp)
     app.register_blueprint(excel_bp)
     app.register_blueprint(wdplanner_bp)
+    app.register_blueprint(designer_bp)
+    app.register_blueprint(designer_projects_bp)
+    app.register_blueprint(designer_validation_bp)
+    app.register_blueprint(designer_ai_runs_bp)
+    app.register_blueprint(designer_ontology_bp)
     # Channel: three modules, six registrations (channel_wam exports three blueprints)
     app.register_blueprint(channel_integration_bp)
     app.register_blueprint(channel_functions_bp)

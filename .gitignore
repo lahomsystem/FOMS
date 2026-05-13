@@ -120,3 +120,5 @@ tools/request_log.txt
 .agents/skills/gstack/design/dist/
 .cursor/hooks/__pycache__/
 .gstack/
+
+Add In Program/FOMSBrainDesigner/node_modules/
