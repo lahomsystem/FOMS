@@ -17,6 +17,10 @@ export function AIPanel() {
 
   async function handleSubmit() {
     if (!aiPrompt.trim()) return
+    if (!projectId) {
+      setError('프로젝트가 아직 초기화 중입니다. 잠시 후 다시 시도하세요.')
+      return
+    }
     setSubmitting(true)
     setError(null)
     try {
