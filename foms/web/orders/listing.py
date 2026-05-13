@@ -26,6 +26,7 @@ from foms.services.request_utils import (
     redirect_if_legacy_open_erp_beta,
 )
 from foms.services.gnav_contract import gnav_orders_layout_parent, wants_gnav_fragment
+from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
 
 
 def _extract_orderer_from_options(options_str):
@@ -110,22 +111,19 @@ def index():
             search_term = f"%{search_query}%"
             query = query.filter(
                 or_(
-                    Order.id.cast(String).like(search_term),
+                    erp_order_dashboard_search_predicate(
+                        search_term,
+                        include_structured_data_blob=False,
+                    ),
                     Order.received_date.like(search_term),
                     Order.received_time.like(search_term),
-                    Order.customer_name.like(search_term),
-                    Order.phone.like(search_term),
-                    Order.address.like(search_term),
-                    Order.product.like(search_term),
                     Order.options.like(search_term),
                     Order.notes.like(search_term),
                     Order.status.like(search_term),
                     Order.measurement_date.like(search_term),
                     Order.measurement_time.like(search_term),
                     Order.scheduled_date.like(search_term),
-                    Order.completion_date.like(search_term),
-                    Order.manager_name.like(search_term),
-                    Order.structured_data.cast(String).like(search_term)
+                    Order.completion_date.like(search_term)
                 )
             )
         for column, filter_value in active_column_filters.items():

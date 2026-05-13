@@ -27,12 +27,17 @@ def erp_order_dashboard_search_predicate(
         SQLAlchemy ``or_(...)`` 술어.
     """
     structured_visible_fields = [
-        Order.structured_data[('parties', 'customer', 'name')].as_string(),
-        Order.structured_data[('parties', 'customer', 'phone')].as_string(),
-        Order.structured_data[('parties', 'manager', 'name')].as_string(),
-        Order.structured_data[('parties', 'orderer', 'name')].as_string(),
-        Order.structured_data[('site', 'address_full')].as_string(),
-        Order.structured_data[('site', 'address_main')].as_string(),
+        Order.structured_data["parties"]["customer"]["name"].as_string(),
+        Order.structured_data["parties"]["customer"]["phone"].as_string(),
+        Order.structured_data["parties"]["manager"]["name"].as_string(),
+        Order.structured_data["parties"]["orderer"]["name"].as_string(),
+        Order.structured_data["site"]["address_full"].as_string(),
+        Order.structured_data["site"]["address_main"].as_string(),
+        Order.structured_data["items"][0]["product_name"].as_string(),
+        Order.structured_data["items"][0]["name"].as_string(),
+        Order.structured_data["schedule"]["measurement"]["date"].as_string(),
+        Order.structured_data["schedule"]["measurement"]["time"].as_string(),
+        Order.structured_data["schedule"]["construction"]["date"].as_string(),
     ]
 
     clauses = [

@@ -59,9 +59,10 @@ T = TypeVar("T")
 KEY_VERSION: Final[str] = "v1"
 CACHE_KEY_PREFIX: Final[str] = f"foms:dashcache:{KEY_VERSION}"
 
-# TTL 기본값(초) — 실행 계획 §3.1.3
-TTL_SUMMARY_COUNTS: Final[int] = 30
-TTL_PANEL_ROWS: Final[int] = 30
+# TTL 기본값(초) — mutation 후 family invalidation으로 신선도를 보장하고,
+# 조회-only 새로고침은 짧은 TTL 만료로 비싼 slice를 반복 계산하지 않게 둔다.
+TTL_SUMMARY_COUNTS: Final[int] = 120
+TTL_PANEL_ROWS: Final[int] = 120
 TTL_ATTACHMENT_COUNT_MAP: Final[int] = 45
 TTL_ASSIGNEE_OPTIONS_LOOKUP: Final[int] = 60
 TTL_PAYLOAD_ASSEMBLY: Final[int] = 30

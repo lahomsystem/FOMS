@@ -119,6 +119,27 @@ def test_sync_order_dates_uses_get_db_when_session_missing(monkeypatch):
     ]
 
 
+def test_sync_order_dates_skips_relationship_rewrite_when_signature_unchanged(monkeypatch):
+    existing = _FakeOrderScheduleDate(
+        kind="measurement",
+        date="2026-04-01",
+        source="legacy_column",
+        item_index=None,
+    )
+    order = SimpleNamespace(schedule_dates=[existing])
+
+    monkeypatch.setattr(
+        order_date_sync,
+        "collect_order_schedule_date_specs",
+        lambda _order: [
+            {"kind": "measurement", "date": "2026-04-01", "source": "legacy_column", "item_index": None},
+        ],
+    )
+
+    assert order_date_sync.sync_order_dates(order, object()) is False
+    assert order.schedule_dates == [existing]
+
+
 def test_register_date_sync_listener_syncs_only_changed_orders(monkeypatch):
     captured = {"listeners": {}}
     sync_calls = []
@@ -144,3 +165,33 @@ def test_register_date_sync_listener_syncs_only_changed_orders(monkeypatch):
     assert "before_flush" in captured["listeners"]
     assert "after_commit" in captured["listeners"]
     assert sync_calls == [(order, session)]
+
+
+def test_date_sync_listener_invalidates_only_schedule_dashboards_on_real_change(monkeypatch):
+    captured = {"listeners": {}}
+    invalidated = []
+
+    def _fake_listens_for(target, event_name):
+        captured["target"] = target
+
+        def _decorator(fn):
+            captured["listeners"][event_name] = fn
+            return fn
+
+        return _decorator
+
+    monkeypatch.setattr("sqlalchemy.event.listens_for", _fake_listens_for)
+    monkeypatch.setattr(order_date_sync, "sync_order_dates", lambda order, session: True)
+    monkeypatch.setattr(
+        "foms.services.common.dashboard_cache.invalidate_dashboard_family",
+        lambda family: invalidated.append(family) or 1,
+    )
+
+    order_date_sync.register_date_sync_listener()
+
+    order = Order()
+    session = SimpleNamespace(new=set(), dirty={order}, info={})
+    captured["listeners"]["before_flush"](session, None, None)
+    captured["listeners"]["after_commit"](session)
+
+    assert invalidated == ["measurement", "shipment"]

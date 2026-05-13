@@ -3,6 +3,7 @@ from pathlib import Path
 from db import db_session
 from foms.services.request_utils import get_search_query_arg
 from models import Order
+from sqlalchemy.orm.attributes import flag_modified
 
 
 def _add_erp_order(customer_name: str) -> Order:
@@ -18,7 +19,7 @@ def _add_erp_order(customer_name: str) -> Order:
             "workflow": {"stage": "MEASURE"},
             "parties": {
                 "customer": {"name": customer_name},
-                "manager": {"name": "정재교 담당"},
+                "manager": {"name": "기본 담당"},
             },
             "site": {"address_full": "서울시 테스트구 검색로 1"},
         },
@@ -61,6 +62,72 @@ def test_order_list_whole_search_ignores_active_status_tab(login):
     assert "정재교 실측" in body
     assert "접수 고객" not in body
     assert 'name="status" value="RECEIVED"' not in body
+
+
+def test_order_list_search_ignores_hidden_structured_item_memo(login):
+    hidden = _add_erp_order("숨은메모 고객")
+    hidden.structured_data["items"] = [
+        {"product_name": "붙박이장", "extra_input": "견적가 이미지 참고 9547"}
+    ]
+    hidden.product = "붙박이장"
+    flag_modified(hidden, "structured_data")
+
+    visible = _add_erp_order("컬럼고객")
+    visible.structured_data["parties"]["customer"]["name"] = "이미지 고객"
+    visible.structured_data["items"] = [
+        {"product_name": "슬라이딩"}
+    ]
+    visible.product = "슬라이딩"
+    flag_modified(visible, "structured_data")
+    db_session.commit()
+
+    response = login.get("/?search=이미지")
+    body = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "이미지 고객" in body
+    assert "숨은메모 고객" not in body
+
+
+def test_order_list_phone_last4_search_does_not_match_hidden_structured_numbers(login):
+    hidden = _add_erp_order("숨은번호 고객")
+    hidden.structured_data["items"] = [
+        {"product_name": "붙박이장", "extra_input": "내부 참고 번호 9547"}
+    ]
+    flag_modified(hidden, "structured_data")
+
+    visible = _add_erp_order("전화번호 고객")
+    visible.structured_data["parties"]["customer"]["phone"] = "010-1234-9547"
+    flag_modified(visible, "structured_data")
+    db_session.commit()
+
+    response = login.get("/?search=9547")
+    body = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "전화번호 고객" in body
+    assert "숨은번호 고객" not in body
+
+
+def test_order_list_searches_visible_structured_product_and_schedule(login):
+    visible = _add_erp_order("표시필드 고객")
+    visible.product = "레거시 제품"
+    visible.measurement_date = ""
+    visible.structured_data["items"] = [{"product_name": "구조화도어"}]
+    visible.structured_data["schedule"] = {
+        "measurement": {"date": "2026-06-17", "time": "오전"},
+        "construction": {"date": "2026-06-20"},
+    }
+    flag_modified(visible, "structured_data")
+    db_session.commit()
+
+    product_response = login.get("/?search=구조화도어")
+    date_response = login.get("/?search=2026-06-17")
+
+    assert product_response.status_code == 200
+    assert "표시필드 고객" in product_response.get_data(as_text=True)
+    assert date_response.status_code == 200
+    assert "표시필드 고객" in date_response.get_data(as_text=True)
 
 
 def test_order_list_refreshes_bfcache_after_erp_save_back_navigation():

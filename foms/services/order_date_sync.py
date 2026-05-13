@@ -198,12 +198,44 @@ def collect_order_schedule_date_specs(order: Any) -> list[dict[str, Any]]:
     return specs
 
 
-def sync_order_dates(order: Any, db_session: Any = None) -> None:
-    """Extract dates from an order and refresh its ``schedule_dates`` relationship."""
+def _schedule_date_signature(rows: Any) -> tuple[tuple[str, str, str, Any], ...]:
+    """Return the comparable schedule-date relationship signature."""
+    return tuple(
+        sorted(
+            (
+                str(getattr(row, "kind", "") or ""),
+                str(getattr(row, "date", "") or ""),
+                str(getattr(row, "source", "") or ""),
+                getattr(row, "item_index", None),
+            )
+            for row in (rows or [])
+        )
+    )
+
+
+def _spec_signature(specs: list[dict[str, Any]]) -> tuple[tuple[str, str, str, Any], ...]:
+    return tuple(
+        sorted(
+            (
+                str(spec.get("kind") or ""),
+                str(spec.get("date") or ""),
+                str(spec.get("source") or ""),
+                spec.get("item_index"),
+            )
+            for spec in specs
+        )
+    )
+
+
+def sync_order_dates(order: Any, db_session: Any = None) -> bool:
+    """Extract dates from an order and refresh ``schedule_dates`` only when changed."""
     if db_session is None:
         db_session = get_db()
 
     specs = collect_order_schedule_date_specs(order)
+    if _schedule_date_signature(getattr(order, "schedule_dates", [])) == _spec_signature(specs):
+        return False
+
     order.schedule_dates = [
         OrderScheduleDate(
             kind=spec["kind"],
@@ -213,6 +245,7 @@ def sync_order_dates(order: Any, db_session: Any = None) -> None:
         )
         for spec in specs
     ]
+    return True
 
 
 def register_date_sync_listener() -> None:
@@ -228,10 +261,11 @@ def register_date_sync_listener() -> None:
             obj for obj in session.new.union(session.dirty) if isinstance(obj, Order)
         ]
 
+        schedule_changed = False
         for order in changed_orders:
-            sync_order_dates(order, session)
+            schedule_changed = sync_order_dates(order, session) or schedule_changed
 
-        if changed_orders:
+        if schedule_changed or any(order in session.new for order in changed_orders):
             session.info["foms_dashcache_order_dates"] = True
 
     @event.listens_for(Session, "after_commit")
@@ -239,9 +273,10 @@ def register_date_sync_listener() -> None:
         if not session.info.pop("foms_dashcache_order_dates", None):
             return
         try:
-            from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+            from foms.services.common.dashboard_cache import invalidate_dashboard_family
 
-            invalidate_all_dashboard_slice_caches()
+            invalidate_dashboard_family("measurement")
+            invalidate_dashboard_family("shipment")
         except Exception as exc:
             logger.warning(
                 "[DashCache] after_commit invalidate failed (non-fatal): %s",
