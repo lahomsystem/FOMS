@@ -281,7 +281,7 @@ def erp_dashboard():
 
     # --- A-0. kpis / step_stats 집계 (limit 무관하게 _q_stats에서 산출) ---
     _summary_fp = {
-        "v": 1,
+        "v": 2,
         "user": _orders_user_visibility_fingerprint(current_user, is_admin),
         "filters": {
             "mine": (request.args.get('mine') or '').strip(),
