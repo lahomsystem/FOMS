@@ -1,0 +1,129 @@
+{% extends "wdcalculator/layout.html" %}
+
+{% block head %}
+<title>FOMS Brain AX Designer - 가구 주문 관리 시스템</title>
+<style>
+    body.designer-page .container-fluid {
+        padding: 0 !important;
+        margin: 0 !important;
+        height: 100%;
+        max-width: 100% !important;
+    }
+
+    .designer-wrapper {
+        position: fixed;
+        left: 0;
+        right: 0;
+        width: 100vw;
+        margin: 0;
+        padding: 0;
+        background-color: #1a1a2e;
+        overflow: hidden;
+        z-index: 1;
+    }
+
+    #designer-iframe {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        border: none;
+        display: block;
+        margin: 0;
+        padding: 0;
+    }
+
+    .designer-loading {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        z-index: 100;
+        background-color: rgba(26, 26, 46, 0.95);
+        padding: 2rem;
+        border-radius: 8px;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+        color: #e2e8f0;
+    }
+
+    .designer-loading .spinner-border {
+        width: 3rem;
+        height: 3rem;
+        border-width: 0.3rem;
+        color: #667eea;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="designer-wrapper">
+    <div class="designer-loading" id="designer-loading">
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">로딩 중...</span>
+        </div>
+        <p class="mt-3" style="color: #a0aec0;">FOMS Brain AX Designer를 불러오는 중...</p>
+    </div>
+    <iframe
+        id="designer-iframe"
+        src="{{ url_for('designer.wdplanner_v2_app') }}"
+        title="FOMS Brain AX Designer - 붙박이장 3D 설계 V2"
+        allow="fullscreen"
+        onload="document.getElementById('designer-loading').style.display='none';"
+    ></iframe>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.body.classList.add('designer-page');
+
+    function adjustDesignerHeight() {
+        const wrapper = document.querySelector('.designer-wrapper');
+        if (!wrapper) return;
+        const header = document.querySelector('header.layout-header, header.bg-light');
+        const nav = document.querySelector('nav.layout-global-nav, nav.navbar');
+        const viewportHeight = window.innerHeight;
+        let totalHeight = 0;
+        if (header) totalHeight += header.offsetHeight || header.clientHeight || 0;
+        if (nav) totalHeight += nav.offsetHeight || nav.clientHeight || 0;
+        if (totalHeight < 1) totalHeight = Math.min(160, Math.round(viewportHeight * 0.14));
+        wrapper.style.top = totalHeight + 'px';
+        wrapper.style.height = Math.max(0, viewportHeight - totalHeight) + 'px';
+        wrapper.style.width = '100vw';
+    }
+
+    function initDesigner() {
+        adjustDesignerHeight();
+        let resizeTimer;
+        window.addEventListener('resize', function () {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(adjustDesignerHeight, 100);
+        });
+        setTimeout(adjustDesignerHeight, 100);
+        setTimeout(adjustDesignerHeight, 300);
+        setTimeout(adjustDesignerHeight, 500);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initDesigner);
+    } else {
+        initDesigner();
+    }
+
+    const iframe = document.getElementById('designer-iframe');
+    if (iframe) {
+        iframe.addEventListener('error', function () {
+            const loading = document.getElementById('designer-loading');
+            if (loading) {
+                loading.innerHTML = '<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> FOMS Brain Designer를 불러올 수 없습니다. 빌드 파일이 준비되었는지 확인하세요.</div>';
+            }
+        });
+        iframe.addEventListener('load', function () {
+            adjustDesignerHeight();
+            setTimeout(adjustDesignerHeight, 200);
+        });
+    }
+</script>
+{% endblock %}
