@@ -170,6 +170,49 @@ def update_ai_run(
 
 
 # ---------------------------------------------------------------------------
+# Version helpers (DK-B7/B9)
+# ---------------------------------------------------------------------------
+
+def get_project_version(
+    project_id: int,
+    version_id: Optional[int] = None,
+) -> Optional[DesignerProjectVersion]:
+    """Get a specific project version, or the current version if version_id is None."""
+    if version_id is not None:
+        version = db_session.get(DesignerProjectVersion, version_id)
+        if version and version.project_id == project_id:
+            return version
+        return None
+    # Get current version via project
+    project = db_session.get(DesignerProject, project_id)
+    if not project or not project.current_version_id:
+        return None
+    return db_session.get(DesignerProjectVersion, project.current_version_id)
+
+
+def save_design_version(
+    project_id: int,
+    design_json: dict,
+    user_id: Optional[int] = None,
+) -> Optional[DesignerProjectVersion]:
+    """Save a new design version after hard validator passes.
+
+    DK-B9: version save only after validator v2 gate.
+    Returns None if validation fails.
+    """
+    from foms.services.designer.validator import validate_design
+    result = validate_design(design_json)
+    if not result.valid:
+        return None
+    return create_project_version(
+        project_id=project_id,
+        design_json=design_json,
+        validation_json=result.to_dict(),
+        user_id=user_id,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Corrections
 # ---------------------------------------------------------------------------
 

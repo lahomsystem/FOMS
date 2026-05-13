@@ -1,7 +1,10 @@
-"""FOMS Brain AX Designer – MVP Design Validator.
+"""FOMS Brain AX Designer – Design Validator (V1 legacy + V2 dispatch gate).
 
 Hard rules enforced here are the final gate before any design data
 is persisted. No save is permitted if valid is False.
+
+DK-B3 upgrade: schema v2 designs are validated via constraint_engine.
+Schema v1 designs continue to use the legacy cabinet-level rules below.
 """
 
 from __future__ import annotations
@@ -35,14 +38,49 @@ class ValidationResult:
 
 
 def validate_design(design_json: Any) -> ValidationResult:
-    """Validate a raw design_json dict against MVP hard rules.
+    """Validate a raw design_json dict against hard rules.
+
+    Schema v2: delegates to constraint_engine.validate_design_graph_from_dict.
+    Schema v1: uses legacy cabinet-level rules.
 
     Returns ValidationResult. If valid is False, callers MUST NOT persist.
     """
+    if isinstance(design_json, dict) and design_json.get("schema_version") == 2:
+        return _validate_v2(design_json)
+    return _validate_v1(design_json)
+
+
+def _validate_v2(design_json: dict) -> ValidationResult:
+    """Validate schema v2 DesignGraph via constraint engine."""
+    from foms.services.designer.constraint_engine import validate_design_graph_from_dict
+    result = validate_design_graph_from_dict(design_json)
+    errors = [
+        ValidationError(
+            code=v.code,
+            message=v.message,
+            path=v.path,
+        )
+        for v in result.violations
+        if v.severity == "error"
+    ]
+    warnings = [
+        ValidationError(
+            code=v.code,
+            message=v.message,
+            path=v.path,
+        )
+        for v in result.violations
+        if v.severity == "warning"
+    ]
+    return ValidationResult(valid=result.valid, errors=errors, warnings=warnings)
+
+
+def _validate_v1(design_json: Any) -> ValidationResult:
+    """Legacy schema v1 cabinet-level validation."""
     errors: list[ValidationError] = []
     warnings: list[ValidationError] = []
 
-    if not isinstance(design_json, dict):
+    if not isinstance(design_json, dict):  # type: ignore[arg-type]
         errors.append(ValidationError(code="INVALID_FORMAT", message="design_json은 객체여야 합니다.", path="$"))
         return ValidationResult(valid=False, errors=errors)
 

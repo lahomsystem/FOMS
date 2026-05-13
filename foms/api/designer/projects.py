@@ -12,6 +12,7 @@ from foms.persistence.designer import (
     list_projects,
 )
 from foms.services.designer.defaults import default_design_json
+from foms.services.designer.assembly_factories import default_design_json_v2
 from foms.services.designer.validator import validate_design
 
 designer_projects_bp = Blueprint("designer_projects", __name__, url_prefix="/api/designer")
@@ -66,8 +67,8 @@ def create_project_route():
 
     project = create_project(name=name, order_id=order_id, user_id=user_id)
 
-    # Create initial version with default design
-    default = default_design_json()
+    # DK-B9: New projects always use schema v2
+    default = default_design_json_v2()
     vr = validate_design(default)
     create_project_version(
         project_id=project.id,

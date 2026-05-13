@@ -1,10 +1,13 @@
-"""FOMS Brain AX Designer – default design factory."""
+"""FOMS Brain AX Designer — default design factory.
+
+DK-B9: includes v1→v2 normalize helper.
+"""
 
 from __future__ import annotations
 
 
 def default_design_json() -> dict:
-    """Return the canonical default design JSON for a new project."""
+    """Return the canonical default design JSON (schema v1, kept for backward compat)."""
     return {
         "schema_version": 1,
         "unit": "mm",
@@ -22,3 +25,33 @@ def default_design_json() -> dict:
         ],
         "relations": [],
     }
+
+
+def normalize_to_v2(design_json: dict) -> dict:
+    """Normalize a schema v1 design_json to schema v2 DesignGraph.
+
+    DK-B9: old projects load as v2 on read. Uses the v1 cabinet dimensions
+    to create a wardrobe assembly factory result.
+
+    If design_json is already v2, returns it unchanged.
+    """
+    if design_json.get("schema_version") == 2:
+        return design_json
+
+    # Extract v1 cabinet dimensions
+    cabinet = design_json.get("cabinet", {})
+    width = int(cabinet.get("width", 2400))
+    height = int(cabinet.get("height", 2200))
+    depth = int(cabinet.get("depth", 600))
+
+    from foms.services.designer.assembly_factories import default_design_json_v2
+    v2 = default_design_json_v2(
+        width=width,
+        height=height,
+        depth=depth,
+        module_count=2,
+        door_type="sliding",
+    )
+    # Mark as migrated
+    v2.setdefault("metadata", {})["migrated_from_v1"] = True
+    return v2
