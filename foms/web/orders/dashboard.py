@@ -25,6 +25,7 @@ from foms.services.erp_display import (
     _erp_alerts,
     _erp_has_media,
 )
+from foms.services.common.business_calendar import business_days_until
 from foms.services.erp_order_detail import build_order_detail_payload_map
 from foms.services.erp_shipment_settings import is_order_mine_for_user
 from foms.services.orders.status_constants import BULK_ACTION_STATUS
@@ -79,6 +80,22 @@ def _orders_user_visibility_fingerprint(current_user, is_admin: bool) -> dict:
         "name": getattr(current_user, "name", None),
         "is_admin": bool(is_admin),
     }
+
+
+def _business_alert_date_values(
+    today_date: datetime.date,
+    *,
+    max_business_days: int,
+    calendar_window_days: int,
+) -> list[str]:
+    """Return date strings matching the existing business-day alert rule."""
+    values: list[str] = []
+    for offset in range(calendar_window_days + 1):
+        value = today_date + datetime.timedelta(days=offset)
+        days_until = business_days_until(value.isoformat(), today=today_date)
+        if days_until is not None and 0 <= days_until <= max_business_days:
+            values.append(value.isoformat())
+    return values
 
 
 @erp_dashboard_bp.route('/dashboard')
@@ -311,54 +328,65 @@ def erp_dashboard():
         kpis['urgent_count'] = _q_stats.filter(Order.erp_urgent == True).count()
 
         today_date = datetime.date.today()
+        measurement_d4_dates = _business_alert_date_values(
+            today_date,
+            max_business_days=4,
+            calendar_window_days=12,
+        )
+        construction_d3_dates = _business_alert_date_values(
+            today_date,
+            max_business_days=3,
+            calendar_window_days=10,
+        )
+        production_d2_dates = _business_alert_date_values(
+            today_date,
+            max_business_days=2,
+            calendar_window_days=10,
+        )
+        production_d2_filter = and_(
+            Order.erp_construction_date.in_(production_d2_dates),
+            or_(Order.erp_stage_code.is_(None), Order.erp_stage_code != 'CONSTRUCTION'),
+        )
 
-        # measurement_d4 candidates
-        m_cutoff = (today_date + datetime.timedelta(days=12)).isoformat()
-        m_cands = _q_stats.filter(
-            Order.erp_measurement_date.isnot(None),
-            Order.erp_measurement_date >= today_date.isoformat(),
-            Order.erp_measurement_date <= m_cutoff
-        ).with_entities(Order.id, Order.structured_data).all()
+        kpis['measurement_d4_count'] = _q_stats.filter(
+            Order.erp_measurement_date.in_(measurement_d4_dates)
+        ).count()
+        kpis['construction_d3_count'] = _q_stats.filter(
+            Order.erp_construction_date.in_(construction_d3_dates)
+        ).count()
+        kpis['production_d2_count'] = _q_stats.filter(production_d2_filter).count()
 
-        # construction_d3 & production_d2 candidates
-        c_cutoff = (today_date + datetime.timedelta(days=10)).isoformat()
-        c_cands = _q_stats.filter(
-            Order.erp_construction_date.isnot(None),
-            Order.erp_construction_date >= today_date.isoformat(),
-            Order.erp_construction_date <= c_cutoff
-        ).with_entities(Order.id, Order.structured_data).all()
+        imminent_filter = or_(
+            Order.erp_measurement_date.in_(measurement_d4_dates),
+            Order.erp_construction_date.in_(construction_d3_dates),
+            production_d2_filter,
+        )
+        imminent_rows = (
+            _q_stats
+            .filter(imminent_filter)
+            .with_entities(stage_bucket_expr.label('bucket'), func.count(Order.id).label('cnt'))
+            .group_by(stage_bucket_expr)
+            .all()
+        )
+        for row in imminent_rows:
+            if row.bucket in step_stats:
+                step_stats[row.bucket]['imminent'] = row.cnt
 
-        # drawing overdue candidates (stage DRAWING/CONFIRM)
-        d_cands = _q_stats.filter(
-            Order.erp_stage_code.in_(['DRAWING', 'CONFIRM'])
-        ).with_entities(Order.id, Order.structured_data).all()
-
-        # 합집합 후보군에 대해서만 alerts 연산
-        cand_dict = {row.id: row.structured_data for row in m_cands + c_cands + d_cands}
-        for oid, sd in cand_dict.items():
-            sd = _ensure_dict(sd)
-            alerts = _erp_alerts(None, sd, 0)
-            stage = _erp_get_stage(None, sd)
-
-            if alerts.get('measurement_d4'):
-                kpis['measurement_d4_count'] += 1
-            if alerts.get('construction_d3'):
-                kpis['construction_d3_count'] += 1
-            if alerts.get('production_d2'):
-                kpis['production_d2_count'] += 1
-
-            if stage in ('AS접수', 'AS처리'):
-                bucket = 'AS처리'
-            elif stage == 'AS완료':
-                bucket = '완료'
-            else:
-                bucket = stage
-
-            if bucket in step_stats:
-                if alerts.get('drawing_overdue'):
-                    step_stats[bucket]['overdue'] += 1
-                if alerts.get('measurement_d4') or alerts.get('construction_d3') or alerts.get('production_d2'):
-                    step_stats[bucket]['imminent'] += 1
+        drawing_overdue_cutoff = datetime.datetime.now() - datetime.timedelta(hours=48)
+        overdue_rows = (
+            _q_stats
+            .filter(
+                Order.erp_stage_code.in_(['DRAWING', 'CONFIRM']),
+                Order.erp_stage_updated_at.isnot(None),
+                Order.erp_stage_updated_at <= drawing_overdue_cutoff,
+            )
+            .with_entities(stage_bucket_expr.label('bucket'), func.count(Order.id).label('cnt'))
+            .group_by(stage_bucket_expr)
+            .all()
+        )
+        for row in overdue_rows:
+            if row.bucket in step_stats:
+                step_stats[row.bucket]['overdue'] = row.cnt
 
         process_steps = [
             {'label': '주문접수', **step_stats['주문접수']},
