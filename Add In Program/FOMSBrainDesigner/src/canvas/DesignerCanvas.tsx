@@ -16,10 +16,11 @@ function LoadingFallback() {
 /** Main 3D canvas for the designer. */
 export function DesignerCanvas() {
   const design = useDesignerStore((s) => s.design)
-  const w = design.cabinet.width * 0.001
-  const h = design.cabinet.height * 0.001
+  // DK-B5: schema v2 uses assembly.dimensions
+  const asm = design.assembly
+  const w = asm.dimensions.width * 0.001
+  const h = asm.dimensions.height * 0.001
 
-  // Camera positioned to see the full cabinet
   const camDist = Math.max(w, h) * 2.2
 
   return (
@@ -54,7 +55,7 @@ export function DesignerCanvas() {
           enablePan
           enableZoom
           enableRotate
-          target={[w / 2, h / 2, design.cabinet.depth * 0.001 / 2]}
+          target={[w / 2, h / 2, asm.dimensions.depth * 0.001 / 2]}
           minDistance={0.1}
           maxDistance={20}
         />

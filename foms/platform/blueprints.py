@@ -91,6 +91,7 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
         designer_ai_runs_bp,
         designer_ontology_bp,
     )
+    from foms.api.designer.commands import commands_bp as designer_commands_bp
     from foms.api.channel import (
         channel_functions_bp,
         channel_integration_bp,
@@ -158,6 +159,7 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     app.register_blueprint(designer_validation_bp)
     app.register_blueprint(designer_ai_runs_bp)
     app.register_blueprint(designer_ontology_bp)
+    app.register_blueprint(designer_commands_bp)
     # Channel: three modules, six registrations (channel_wam exports three blueprints)
     app.register_blueprint(channel_integration_bp)
     app.register_blueprint(channel_functions_bp)
