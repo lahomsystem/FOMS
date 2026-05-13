@@ -1,6 +1,8 @@
 import datetime
 
 from db import db_session
+from foms.services.common.business_calendar import business_days_until
+from foms.web.orders.dashboard import _business_alert_date_values
 from models import Order
 
 
@@ -79,3 +81,20 @@ def test_completed_order_falls_back_to_structured_then_created_when_stage_timest
     assert structured_recent in results
     assert created_recent in results
     assert all_old not in results
+
+
+def test_summary_alert_date_values_match_business_day_rule():
+    today = datetime.date(2026, 5, 13)
+
+    values = _business_alert_date_values(
+        today,
+        max_business_days=4,
+        calendar_window_days=12,
+    )
+
+    assert values
+    assert all(
+        0 <= business_days_until(value, today=today) <= 4
+        for value in values
+    )
+    assert "2026-05-13" in values
