@@ -24,7 +24,7 @@ Design Kernel V1 + Post-V1 seed는 "커널 및 backend seed"다.
 | overlay_review_ui | 원본 도면 위 bbox + extracted fields + candidate diff UI | PG-B8 | ⚠️ PARTIAL (API/contract 완료, React overlay UI 미구현) |
 | white_workbench_shell | SketchUp desktop-like 흰색 workbench + design system | PG-B1 | ✅ DONE |
 | factory_selector_ui | wardrobe/shoe_rack/kitchen_base/kitchen_wall frontend 연결 | PG-B10 | ✅ DONE |
-| editor_lego_workbench | 3D 모듈 선택/치수편집/블럭추가/스냅/undo-redo | PG-B9 | ❌ MISSING |
+| editor_lego_workbench | 3D 모듈 선택/치수편집/블럭추가/스냅/undo-redo | PG-B9 | ✅ DONE (moveTool drag/snap 향후 고도화) |
 | correction_clusterer_implemented | correction clustering + evidence-backed rule candidates | PG-B11 | ✅ DONE |
 | no_auto_ontology_promotion | 자동 온톨로지 승격 금지 invariant | (기존 계약) | ✅ 계약 존재 |
 | design_case_memory | 승인된 설계 사례/옵션/BOM 저장 | PG-L1 | ✅ DONE |
@@ -33,7 +33,7 @@ Design Kernel V1 + Post-V1 seed는 "커널 및 backend seed"다.
 | self_evaluation_dashboard | 월별 self-improvement scorecard | PG-L5 | ✅ DONE |
 | finetune_dataset_export | 승인/익명화 JSONL export | PG-L6 | ✅ DONE |
 
-**통과 gate: 16 / 18** (fixture corpus는 인프라 완료+실제 도면+승인 대기; overlay review UI는 API 완료+React UI 대기; PG-B9 LEGO Workbench 미구현)
+**통과 gate: 17 / 18** (fixture corpus 인프라 완료+실제 도면 승인 대기; overlay_review_ui는 API 완료+React UI 대기)
 
 ## 현재 실제 구현 수준
 
@@ -69,8 +69,8 @@ Design Kernel V1 + Post-V1 seed는 "커널 및 backend seed"다.
 ✅ 638+ designer domain tests passing
 
 ❌ 실제 17장 도면 파일 + approved expected JSON 미등록
+✅ PG-B9 LEGO Workbench: click-select, W/H/D edit, add shelf/drawer/rod/door, undo/redo, AI→3D 로드
 ⚠️ drawing overlay review API 있음, React overlay UI 없음
-❌ PG-B9 LEGO Workbench 없음 (3D 직접 선택/치수편집/블럭추가/스냅/undo-redo)
 ```
 
 ## 제품급 완료 조건 (PG-B13 closeout 기준)
