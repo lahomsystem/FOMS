@@ -85,12 +85,122 @@ def create_project_version(
 # ---------------------------------------------------------------------------
 
 def get_active_ontology() -> Optional[DesignerOntologyVersion]:
-    return (
+    """Return the single active ontology version.
+
+    Invariant: at most ONE active ontology row exists.
+    If multiple active rows are found (data corruption), returns the most recent
+    and logs a critical warning — callers should investigate.
+    """
+    import logging
+    rows = (
         db_session.query(DesignerOntologyVersion)
         .filter(DesignerOntologyVersion.status == "active")
         .order_by(DesignerOntologyVersion.created_at.desc())
-        .first()
+        .all()
     )
+    if len(rows) > 1:
+        logging.getLogger(__name__).critical(
+            "[DESIGNER] INVARIANT VIOLATION: %d active ontology rows found. "
+            "Expected exactly 1. Run de-duplication immediately.",
+            len(rows),
+        )
+    return rows[0] if rows else None
+
+
+def promote_ontology_version(
+    candidate_id: int,
+    user_id: Optional[int] = None,
+) -> DesignerOntologyVersion:
+    """Promote a draft ontology to active.
+
+    PV2-B0 / PV2-B9: DB-level invariant:
+    - Retires ALL existing active rows inside one transaction.
+    - Sets candidate to active.
+    - AI MUST NOT call this directly — human approval required.
+
+    Raises ValueError if candidate is not found or not in draft status.
+    """
+    candidate = db_session.get(DesignerOntologyVersion, candidate_id)
+    if not candidate:
+        raise ValueError(f"Ontology candidate {candidate_id} not found")
+    if candidate.status != "draft":
+        raise ValueError(
+            f"Cannot promote ontology {candidate_id}: status is {candidate.status!r}, expected 'draft'"
+        )
+
+    try:
+        # Retire all currently active rows in one transaction
+        active_rows = (
+            db_session.query(DesignerOntologyVersion)
+            .filter(DesignerOntologyVersion.status == "active")
+            .all()
+        )
+        for row in active_rows:
+            row.status = "retired"
+        db_session.flush()
+
+        # Promote candidate
+        candidate.status = "active"
+        db_session.commit()
+        db_session.refresh(candidate)
+        return candidate
+    except Exception:
+        db_session.rollback()
+        raise
+
+
+def rollback_to_previous_active(
+    retired_ontology_id: int,
+) -> DesignerOntologyVersion:
+    """Reactivate a previously retired ontology version.
+
+    PV2-B9: rollback path after a failed or unwanted promotion.
+    Requires no other active row to exist.
+
+    Raises ValueError if the target is not in retired status.
+    """
+    target = db_session.get(DesignerOntologyVersion, retired_ontology_id)
+    if not target:
+        raise ValueError(f"Ontology {retired_ontology_id} not found")
+    if target.status != "retired":
+        raise ValueError(
+            f"Cannot rollback ontology {retired_ontology_id}: status is {target.status!r}, expected 'retired'"
+        )
+
+    try:
+        # Retire current active
+        active_rows = (
+            db_session.query(DesignerOntologyVersion)
+            .filter(DesignerOntologyVersion.status == "active")
+            .all()
+        )
+        for row in active_rows:
+            row.status = "retired"
+        db_session.flush()
+
+        target.status = "active"
+        db_session.commit()
+        db_session.refresh(target)
+        return target
+    except Exception:
+        db_session.rollback()
+        raise
+
+
+def assert_single_active_ontology() -> None:
+    """Repository-level invariant check: raises if active count != 1.
+
+    Use in tests and integration checks.
+    """
+    count = (
+        db_session.query(DesignerOntologyVersion)
+        .filter(DesignerOntologyVersion.status == "active")
+        .count()
+    )
+    if count > 1:
+        raise RuntimeError(
+            f"INVARIANT VIOLATION: {count} active ontology rows found. Expected at most 1."
+        )
 
 
 def get_or_create_default_ontology() -> DesignerOntologyVersion:
