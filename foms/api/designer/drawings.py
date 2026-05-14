@@ -386,12 +386,107 @@ def approve_fixture(fixture_id: str):
     })
 
 
+# In-memory candidate store (MVP — production uses DesignerExtractionCandidate table)
+_CANDIDATE_STORE: dict[str, dict] = {}
+
+
+# ──────────────────────────────────────────────────────────
+# 일반 학습 저장 (fixture 미지정 / 부분 추출 포함)
+# ──────────────────────────────────────────────────────────
+
+@drawings_bp.route("/save-learning-sample", methods=["POST"])
+@login_required
+def save_learning_sample():
+    """POST /api/designer/drawings/save-learning-sample
+
+    Fixture ID 없이도 추출 결과를 학습 샘플로 저장한다.
+    unresolved_fields가 있어도 저장 가능 (학습 데이터로 사용).
+
+    Body:
+      { extraction: {...}, metrics: {...}, filename: "..." }
+
+    Returns:
+      { success, data: { saved: true, learning_record_id, candidate_id }, error }
+    """
+    body = request.get_json(silent=True) or {}
+    extraction = body.get("extraction", {})
+    metrics = body.get("metrics", {})
+    filename = body.get("filename", "unknown")
+
+    if not extraction:
+        return jsonify({"success": False, "error": "extraction 데이터가 없습니다."}), 400
+
+    notes = []
+
+    # 1. 온톨로지 매핑으로 후보 생성 (unresolved 있어도 진행)
+    candidate = None
+    try:
+        from foms.services.designer.ontology_mapper import build_candidate
+        candidate = build_candidate(extraction, run_validator=False)
+        _CANDIDATE_STORE[candidate.candidate_id] = candidate.to_dict()
+        notes.append(f"candidate: {candidate.candidate_id[:8]}...")
+    except Exception as exc:
+        logger.warning("[SAVE-LEARNING] candidate build failed: %s", exc)
+
+    # 2. PII redaction
+    try:
+        from foms.services.designer.pii_redactor import RedactionContext
+        ctx = RedactionContext()
+        redacted_extraction = ctx.redact_extraction(extraction)
+    except Exception:
+        redacted_extraction = extraction
+
+    # 3. DB 저장 (CorrectionDelta 재사용 — lightweight)
+    saved_id = None
+    try:
+        from db import db_session
+        from foms.persistence.designer.models import DesignerCorrection
+        corr = DesignerCorrection(
+            before_json={},
+            after_json={
+                "source": "learning_sample_upload",
+                "filename": filename,
+                "furniture_type": extraction.get("furniture_type", "unknown"),
+                "candidate_rule_hint": "learning_upload",
+                "extraction_confidence": extraction.get("confidence", 0.0),
+                "unresolved_count": len(extraction.get("unresolved_fields") or []),
+                "metrics": metrics,
+                "redacted_extraction": redacted_extraction,
+            },
+            reason_text=f"학습 샘플: {filename}",
+            created_by_user_id=getattr(g, "user_id", None),
+        )
+        db_session.add(corr)
+        db_session.commit()
+        db_session.refresh(corr)
+        saved_id = corr.id
+    except Exception as exc:
+        logger.warning("[SAVE-LEARNING] DB save failed (non-fatal): %s", exc)
+        notes.append(f"DB 저장 실패: {exc}")
+
+    logger.info(
+        "[SAVE-LEARNING] filename=%s type=%s confidence=%.2f saved_id=%s",
+        filename,
+        extraction.get("furniture_type", "?"),
+        extraction.get("confidence", 0.0),
+        saved_id,
+    )
+
+    return jsonify({
+        "success": True,
+        "data": {
+            "saved": True,
+            "learning_record_id": saved_id,
+            "candidate_id": candidate.candidate_id if candidate else None,
+            "notes": notes,
+        },
+        "error": None,
+    })
+
+
 # ──────────────────────────────────────────────────────────
 # PG-B7/B8: Candidate Build + Correction + Approve-and-Save
 # ──────────────────────────────────────────────────────────
-
-# In-memory candidate store (MVP — production uses DesignerExtractionCandidate table)
-_CANDIDATE_STORE: dict[str, dict] = {}
 
 
 @drawings_bp.route("/candidates/build", methods=["POST"])
