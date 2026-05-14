@@ -38,11 +38,58 @@ export default function App() {
   const setDesign = useDesignerStore((s) => s.setDesign)
   const markSaved = useDesignerStore((s) => s.markSaved)
 
+  const undo = useDesignerStore((s) => s.undo)
+  const redo = useDesignerStore((s) => s.redo)
+  const canUndo = useDesignerStore((s) => s.canUndo)
+  const canRedo = useDesignerStore((s) => s.canRedo)
+  const removeComponent = useDesignerStore((s) => s.removeComponent)
+  const selectedId = useDesignerStore((s) => s.selectedComponentId)
+  const loadCandidateGraph = useDesignerStore((s) => s.loadCandidateGraph)
+
   const [initStatus, setInitStatus] = useState<InitStatus>('loading')
   const [initError, setInitError] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('3d')
   const [activeTool, setActiveTool] = useState<ToolMode>('select')
   const [rightTab, setRightTab] = useState<'module' | 'command' | 'tray'>('tray')
+
+  // ── Keyboard shortcuts (PG-B9) ──────────────────────────
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement
+      // Don't intercept when typing in inputs
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault()
+        if (e.shiftKey) { redo() } else { undo() }
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+        e.preventDefault()
+        redo()
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedId) {
+          e.preventDefault()
+          removeComponent(selectedId)
+        }
+      } else if (e.key === 'Escape') {
+        useDesignerStore.getState().setSelectedComponent(null)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [undo, redo, removeComponent, selectedId])
+
+  // ── postMessage listener: load AI candidate into 3D (PG-B9) ─
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (!e.data) return
+      if (e.data.type === 'FOMS_LOAD_CANDIDATE' && e.data.candidate) {
+        const { furniture_type, factory_params } = e.data.candidate
+        loadCandidateGraph({ furniture_type, factory_params: factory_params || {} })
+      }
+    }
+    window.addEventListener('message', handler)
+    return () => window.removeEventListener('message', handler)
+  }, [loadCandidateGraph])
 
   // ── Init ────────────────────────────────────────────────
   useEffect(() => {

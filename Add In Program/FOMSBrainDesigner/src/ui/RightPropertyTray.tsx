@@ -7,6 +7,8 @@
 
 import { useDesignerStore } from '../stores/designerStore'
 import { S, COLORS, TYPOGRAPHY, SPACING } from '../styles/sketchupTheme'
+import { ComponentDimensionEditor } from './ComponentDimensionEditor'
+import { LegoBlockPalette } from './LegoBlockPalette'
 import type React from 'react'
 
 // ──────────────────────────────────────────────────────────
@@ -56,16 +58,15 @@ export function RightPropertyTray() {
       <TraySection title="선택된 컴포넌트">
         {selectedComp ? (
           <>
-            <TrayField label="UUID" value={selectedComp.id.slice(0, 8) + '…'} />
+            {/* Quick info */}
             <TrayField label="종류" value={selectedComp.kind} />
             <TrayField label="역할" value={selectedComp.role} />
             <TrayField label="소재" value={selectedComp.material_id ?? '없음'} />
-            <TrayField label="W" value={`${selectedComp.dimensions.width} mm`} />
-            <TrayField label="H" value={`${selectedComp.dimensions.height} mm`} />
-            <TrayField label="D" value={`${selectedComp.dimensions.depth} mm`} />
-            <TrayField label="X" value={`${selectedComp.position.x} mm`} />
-            <TrayField label="Y" value={`${selectedComp.position.y} mm`} />
-            <TrayField label="Z" value={`${selectedComp.position.z} mm`} />
+            <TrayField label="UUID" value={selectedComp.id.slice(0, 8) + '…'} />
+
+            {/* Direct dimension editor (PG-B9) */}
+            <ComponentDimensionEditor component={selectedComp} />
+
             <div style={{ padding: '6px 10px' }}>
               <button
                 onClick={() => setSelected(null)}
@@ -77,7 +78,7 @@ export function RightPropertyTray() {
                   color: COLORS.textMuted,
                 }}
               >
-                선택 해제
+                선택 해제 (Esc)
               </button>
             </div>
           </>
@@ -102,6 +103,11 @@ export function RightPropertyTray() {
         <TrayField label="받침대" value={`${asm.base_height} mm`} />
         <TrayField label="상부SR" value={`${asm.top_sr} mm`} />
         <TrayField label="컴포넌트" value={`${design.components.length}개`} />
+      </TraySection>
+
+      {/* ── LEGO Block Palette (PG-B9) ── */}
+      <TraySection title="블럭 조립">
+        <LegoBlockPalette />
       </TraySection>
 
       {/* ── Validation ── */}

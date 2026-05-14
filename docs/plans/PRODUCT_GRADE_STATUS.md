@@ -20,19 +20,20 @@ Design Kernel V1 + Post-V1 seed는 "커널 및 backend seed"다.
 | pii_redactor_implemented | 고객명/전화/주소 pseudonymization + Gemini payload 분리 | PG-B3A | ✅ DONE |
 | drawing_artifact_db_model | DrawingArtifact/Page/Extraction/Candidate 영구 DB 모델 | PG-B3 | ✅ DONE |
 | parts_table_parser_recall_90 | [SR]/[EP]/[DOOR]/[마이다] 등 parts table recall >= 90% | PG-B5 | ✅ DONE (unit/sample 기준, 17 fixture 실측 필요) |
-| dimension_parser_wdh_95 | W/D/H extraction >= 95% (CV + multimodal merge) | PG-B6 | ❌ MISSING |
-| overlay_review_ui | 원본 도면 위 bbox + extracted fields + candidate diff UI | PG-B8 | ❌ MISSING |
+| dimension_parser_wdh_95 | W/D/H extraction >= 95% (CV + multimodal merge) | PG-B6 | ✅ DONE (parser 구현, 17 fixture 실측 필요) |
+| overlay_review_ui | 원본 도면 위 bbox + extracted fields + candidate diff UI | PG-B8 | ⚠️ PARTIAL (API/contract 완료, React overlay UI 미구현) |
 | white_workbench_shell | SketchUp desktop-like 흰색 workbench + design system | PG-B1 | ✅ DONE |
 | factory_selector_ui | wardrobe/shoe_rack/kitchen_base/kitchen_wall frontend 연결 | PG-B10 | ✅ DONE |
-| correction_clusterer_implemented | correction clustering + evidence-backed rule candidates | PG-B11 | ❌ MISSING |
+| editor_lego_workbench | 3D 모듈 선택/치수편집/블럭추가/스냅/undo-redo | PG-B9 | ❌ MISSING |
+| correction_clusterer_implemented | correction clustering + evidence-backed rule candidates | PG-B11 | ✅ DONE |
 | no_auto_ontology_promotion | 자동 온톨로지 승격 금지 invariant | (기존 계약) | ✅ 계약 존재 |
-| design_case_memory | 승인된 설계 사례/옵션/BOM 저장 | PG-L1 | ❌ MISSING |
-| retrieval_design_brain | 유사 승인 사례 검색 기반 자동 설계 | PG-L2 | ❌ MISSING |
-| product_archetype_learning | 새 제품/내부 구조 후보 학습 | PG-L3 | ❌ MISSING |
-| self_evaluation_dashboard | 월별 self-improvement scorecard | PG-L5 | ❌ MISSING |
-| finetune_dataset_export | 승인/익명화 JSONL export | PG-L6 | ❌ MISSING |
+| design_case_memory | 승인된 설계 사례/옵션/BOM 저장 | PG-L1 | ✅ DONE |
+| retrieval_design_brain | 유사 승인 사례 검색 기반 자동 설계 | PG-L2 | ✅ DONE |
+| product_archetype_learning | 새 제품/내부 구조 후보 학습 | PG-L3 | ✅ DONE |
+| self_evaluation_dashboard | 월별 self-improvement scorecard | PG-L5 | ✅ DONE |
+| finetune_dataset_export | 승인/익명화 JSONL export | PG-L6 | ✅ DONE |
 
-**통과 gate: 15 / 17** (fixture corpus는 인프라 완료+실제 도면+승인 대기; overlay review UI는 API 완료+React UI 대기)
+**통과 gate: 16 / 18** (fixture corpus는 인프라 완료+실제 도면+승인 대기; overlay review UI는 API 완료+React UI 대기; PG-B9 LEGO Workbench 미구현)
 
 ## 현재 실제 구현 수준
 
@@ -55,18 +56,21 @@ Design Kernel V1 + Post-V1 seed는 "커널 및 backend seed"다.
 ✅ DrawingArtifact/Page/Extraction/Candidate DB 모델 + migration
 ✅ PII redaction
 ✅ parts table parser
+✅ dimension/view parser
+✅ ontology mapper + candidate graph builder
+✅ correction clusterer + replay gate
+✅ design case memory
+✅ retrieval design brain
+✅ product archetype learning
+✅ self-evaluation scorecard
+✅ fine-tuning JSONL export
 ✅ white SketchUp-like workbench shell
 ✅ furniture type selector UI
-✅ 461+ designer domain tests passing
+✅ 638+ designer domain tests passing
 
 ❌ 실제 17장 도면 파일 + approved expected JSON 미등록
-❌ drawing overlay review UI 없음
-❌ dimension parser (real) 없음
-❌ ontology mapper 없음
-❌ correction clusterer 없음
-❌ design case memory 없음
-❌ retrieval design brain 없음
-❌ product archetype learning 없음
+⚠️ drawing overlay review API 있음, React overlay UI 없음
+❌ PG-B9 LEGO Workbench 없음 (3D 직접 선택/치수편집/블럭추가/스냅/undo-redo)
 ```
 
 ## 제품급 완료 조건 (PG-B13 closeout 기준)
@@ -99,7 +103,16 @@ Design Kernel V1 + Post-V1 seed는 "커널 및 backend seed"다.
 | PR-7 | Session-7 | PG-B3A PII Redactor | ✅ 완료 |
 | PR-8 | Session-8 | PG-B4 Template Classifier + Model Router | ✅ 완료 |
 | PR-9 | Session-9 | PG-B5 Parts Table Parser | ✅ 완료 |
-| PR-L1 | Next | Design Case Memory | ⏸️ 다음 진행 전 승인 대기 |
+| PR-10 | Session-10 | PG-L1 Design Case Memory | ✅ 완료 |
+| PR-11 | Session-11 | PG-B6 Dimension/View Parser | ✅ 완료 |
+| PR-12 | Session-12 | PG-B7 Ontology Mapper | ✅ 완료 |
+| PR-13 | Session-13 | PG-B8 Drawing Review API | ✅ API 완료 / React UI 대기 |
+| PR-14 | Session-14 | PG-B11 Learning Loop | ✅ 완료 |
+| PR-15 | Session-15 | PG-L2 Retrieval Brain | ✅ 완료 |
+| PR-16 | Session-16 | PG-L3 Product Archetype Learning | ✅ 완료 |
+| PR-17 | Session-17 | PG-L5 Self-Evaluation | ✅ 완료 |
+| PR-18 | Session-18 | PG-L6 Fine-tuning Export | ✅ 완료 |
+| PR-Next | Next | PG-B9 LEGO Workbench | ⏸️ 다음 구현 대상 |
 
 ## PG-B0A 완료 요약
 
