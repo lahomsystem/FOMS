@@ -10,18 +10,64 @@
         max-width: 100% !important;
     }
 
-    .designer-wrapper {
+    /* ── 전체 wrapper (designer + drawing panel 공유) ── */
+    .designer-outer {
         position: fixed;
         left: 0;
         right: 0;
         width: 100vw;
-        margin: 0;
-        padding: 0;
-        background-color: #1a1a2e;
-        overflow: hidden;
         z-index: 1;
+        display: flex;
+        flex-direction: column;
     }
 
+    /* ── 모드 전환 탭바 ── */
+    .designer-modebar {
+        background: #16213e;
+        border-bottom: 1px solid #2d3748;
+        display: flex;
+        align-items: center;
+        padding: 0 12px;
+        gap: 4px;
+        height: 38px;
+        flex-shrink: 0;
+    }
+    .designer-modebar .mode-btn {
+        border: none;
+        background: transparent;
+        color: #a0aec0;
+        font-size: 12px;
+        font-weight: 600;
+        padding: 4px 14px;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background 0.15s;
+    }
+    .designer-modebar .mode-btn.active {
+        background: #667eea;
+        color: #fff;
+    }
+    .designer-modebar .mode-btn:hover:not(.active) {
+        background: #2d3748;
+        color: #e2e8f0;
+    }
+    .designer-modebar .corpus-badge {
+        margin-left: auto;
+        font-size: 11px;
+        color: #68d391;
+        background: rgba(104,211,145,0.1);
+        border: 1px solid rgba(104,211,145,0.3);
+        border-radius: 10px;
+        padding: 2px 8px;
+    }
+
+    /* ── 3D Designer 래퍼 ── */
+    .designer-wrapper {
+        flex: 1;
+        position: relative;
+        overflow: hidden;
+        background-color: #1a1a2e;
+    }
     #designer-iframe {
         position: absolute;
         top: 0;
@@ -29,11 +75,7 @@
         width: 100%;
         height: 100%;
         border: none;
-        display: block;
-        margin: 0;
-        padding: 0;
     }
-
     .designer-loading {
         position: absolute;
         top: 50%;
@@ -47,83 +89,602 @@
         box-shadow: 0 4px 24px rgba(0,0,0,0.4);
         color: #e2e8f0;
     }
-
     .designer-loading .spinner-border {
-        width: 3rem;
-        height: 3rem;
-        border-width: 0.3rem;
-        color: #667eea;
+        width: 3rem; height: 3rem; border-width: 0.3rem; color: #667eea;
     }
+
+    /* ── 도면 등록 패널 ── */
+    #drawing-panel {
+        flex: 1;
+        overflow-y: auto;
+        background: #f8f9fa;
+        display: none;
+    }
+    .drawing-panel-inner {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 24px 20px;
+    }
+
+    /* Drop zone */
+    .drop-zone {
+        border: 2px dashed #dee2e6;
+        border-radius: 12px;
+        background: #fff;
+        text-align: center;
+        padding: 48px 24px;
+        cursor: pointer;
+        transition: border-color 0.2s, background 0.2s;
+    }
+    .drop-zone.drag-over {
+        border-color: #667eea;
+        background: #f0f1ff;
+    }
+    .drop-zone .drop-icon { font-size: 48px; margin-bottom: 12px; }
+    .drop-zone .drop-label { font-size: 15px; color: #495057; font-weight: 600; }
+    .drop-zone .drop-hint { font-size: 12px; color: #6c757d; margin-top: 4px; }
+
+    /* Extraction result */
+    .extraction-card {
+        background: #fff;
+        border-radius: 10px;
+        border: 1px solid #dee2e6;
+        padding: 20px;
+        margin-top: 20px;
+    }
+    .confidence-bar {
+        height: 8px;
+        border-radius: 4px;
+        background: #e9ecef;
+        overflow: hidden;
+    }
+    .confidence-fill {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 0.5s;
+    }
+    .field-row {
+        display: flex;
+        align-items: flex-start;
+        border-bottom: 1px solid #f1f3f5;
+        padding: 8px 0;
+        gap: 12px;
+    }
+    .field-row:last-child { border-bottom: none; }
+    .field-label {
+        min-width: 110px;
+        font-size: 12px;
+        color: #6c757d;
+        font-weight: 600;
+        padding-top: 2px;
+    }
+    .field-value {
+        flex: 1;
+        font-size: 13px;
+        color: #212529;
+    }
+    .badge-unresolved {
+        background: #fff3cd;
+        color: #856404;
+        border: 1px solid #ffc107;
+        font-size: 11px;
+        padding: 2px 6px;
+        border-radius: 4px;
+        display: inline-block;
+        margin: 2px;
+    }
+
+    /* Fixture list */
+    .fixture-item {
+        display: flex;
+        align-items: center;
+        padding: 10px 14px;
+        border-bottom: 1px solid #f1f3f5;
+        gap: 12px;
+        cursor: pointer;
+        transition: background 0.1s;
+    }
+    .fixture-item:hover { background: #f8f9fa; }
+    .fixture-item.selected { background: #e8eaff; }
+    .fixture-id {
+        font-size: 12px;
+        font-weight: 700;
+        color: #495057;
+        min-width: 80px;
+    }
+    .fixture-desc {
+        flex: 1;
+        font-size: 13px;
+        color: #212529;
+    }
+    .fixture-status { font-size: 11px; font-weight: 600; }
+    .status-pending { color: #6c757d; }
+    .status-draft { color: #fd7e14; }
+    .status-pending_approval { color: #0dcaf0; }
+    .status-approved { color: #198754; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="designer-wrapper">
-    <div class="designer-loading" id="designer-loading">
-        <div class="spinner-border" role="status">
-            <span class="visually-hidden">로딩 중...</span>
-        </div>
-        <p class="mt-3" style="color: #a0aec0;">FOMS Brain AX Designer를 불러오는 중...</p>
+<div class="designer-outer" id="designer-outer">
+    <!-- 모드 전환 탭바 -->
+    <div class="designer-modebar">
+        <button class="mode-btn active" id="btn-mode-designer" onclick="switchMode('designer')">
+            🧠 3D 설계 편집기
+        </button>
+        <button class="mode-btn" id="btn-mode-drawing" onclick="switchMode('drawing')">
+            📐 도면 등록 · 학습
+        </button>
+        <span class="corpus-badge" id="corpus-badge">corpus: 0/17 approved</span>
     </div>
-    <iframe
-        id="designer-iframe"
-        src="{{ url_for('designer.wdplanner_v2_app') }}"
-        title="FOMS Brain AX Designer - 붙박이장 3D 설계 V2"
-        allow="fullscreen"
-        onload="document.getElementById('designer-loading').style.display='none';"
-    ></iframe>
+
+    <!-- 3D 설계 편집기 iframe -->
+    <div class="designer-wrapper" id="designer-pane">
+        <div class="designer-loading" id="designer-loading">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">로딩 중...</span>
+            </div>
+            <p class="mt-3" style="color: #a0aec0;">FOMS Brain AX Designer를 불러오는 중...</p>
+        </div>
+        <iframe
+            id="designer-iframe"
+            src="{{ url_for('designer.wdplanner_v2_app') }}"
+            title="FOMS Brain AX Designer - 붙박이장 3D 설계 V2"
+            allow="fullscreen"
+            onload="document.getElementById('designer-loading').style.display='none';"
+        ></iframe>
+    </div>
+
+    <!-- 도면 등록 패널 -->
+    <div id="drawing-panel">
+        <div class="drawing-panel-inner">
+            <div class="row g-4">
+                <!-- 왼쪽: 업로드 + 추출 결과 -->
+                <div class="col-lg-7">
+                    <h5 class="fw-bold mb-1">도면 업로드 &amp; Gemini 추출</h5>
+                    <p class="text-muted small mb-3">도면 이미지(JPG/PNG) 또는 PDF를 업로드하면 Gemini가 자동으로 가구 정보를 추출합니다.</p>
+
+                    <!-- Fixture 선택 -->
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small">Fixture ID (선택)</label>
+                        <select class="form-select form-select-sm" id="fixture-select">
+                            <option value="">-- 새 등록 (fixture 미지정) --</option>
+                        </select>
+                        <div class="form-text">fixture ID를 선택하면 추출 결과가 해당 fixture의 expected JSON으로 저장됩니다.</div>
+                    </div>
+
+                    <!-- Drop zone -->
+                    <div class="drop-zone" id="drop-zone"
+                         onclick="document.getElementById('file-input').click()">
+                        <div class="drop-icon">📄</div>
+                        <div class="drop-label">도면 파일을 드래그하거나 클릭하여 선택</div>
+                        <div class="drop-hint">JPG · PNG · PDF · WEBP | 최대 20MB</div>
+                        <input type="file" id="file-input" style="display:none"
+                               accept=".jpg,.jpeg,.png,.pdf,.webp">
+                    </div>
+
+                    <!-- 진행 상태 -->
+                    <div id="upload-progress" style="display:none" class="mt-3">
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="spinner-border spinner-border-sm text-primary"></div>
+                            <span class="text-muted small" id="progress-msg">Gemini 추출 중...</span>
+                        </div>
+                    </div>
+
+                    <!-- 추출 결과 -->
+                    <div id="extraction-result" style="display:none" class="extraction-card">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div>
+                                <h6 class="fw-bold mb-0" id="res-furniture-type">--</h6>
+                                <span class="text-muted small" id="res-filename">--</span>
+                            </div>
+                            <div class="text-end">
+                                <div class="small text-muted">신뢰도</div>
+                                <div class="fw-bold" id="res-confidence">--</div>
+                            </div>
+                        </div>
+                        <div class="confidence-bar mb-3">
+                            <div class="confidence-fill" id="res-confidence-bar" style="width:0%;background:#667eea"></div>
+                        </div>
+
+                        <!-- 필드 요약 -->
+                        <div id="res-fields"></div>
+
+                        <!-- unresolved -->
+                        <div id="res-unresolved-wrap" style="display:none" class="mt-2">
+                            <div class="small text-warning fw-semibold mb-1">⚠️ 미확인 필드</div>
+                            <div id="res-unresolved"></div>
+                        </div>
+
+                        <!-- 비용/latency -->
+                        <div class="mt-3 pt-2 border-top">
+                            <div class="d-flex gap-3 small text-muted">
+                                <span>⏱ <span id="res-latency">--</span>ms</span>
+                                <span>💰 $<span id="res-cost">--</span></span>
+                                <span>🤖 <span id="res-model">--</span></span>
+                            </div>
+                        </div>
+
+                        <!-- 저장 버튼 -->
+                        <div class="mt-3 d-flex gap-2" id="res-actions">
+                            <button class="btn btn-primary btn-sm" id="btn-save-draft"
+                                    onclick="saveDraft()" style="display:none">
+                                💾 초안 저장
+                            </button>
+                            <button class="btn btn-success btn-sm" id="btn-approve"
+                                    onclick="approveDraft()" style="display:none">
+                                ✅ 승인 (Corpus 등록)
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm"
+                                    onclick="resetUpload()">
+                                🔄 다시 업로드
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 오른쪽: Fixture 목록 -->
+                <div class="col-lg-5">
+                    <h5 class="fw-bold mb-1">Fixture Corpus 현황</h5>
+                    <div class="d-flex gap-2 mb-3">
+                        <span class="badge bg-secondary" id="badge-total">전체 0</span>
+                        <span class="badge bg-success" id="badge-approved">승인 0</span>
+                        <span class="badge bg-warning text-dark" id="badge-pending">대기 0</span>
+                    </div>
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-body p-0">
+                            <div id="fixture-list" style="max-height: 480px; overflow-y: auto;">
+                                <div class="text-center py-4 text-muted small">로딩 중...</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-2 text-muted small">
+                        💡 목록에서 fixture를 클릭하면 기존 추출 결과를 확인합니다.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-    document.body.classList.add('designer-page');
+document.body.classList.add('designer-page');
 
-    function adjustDesignerHeight() {
-        const wrapper = document.querySelector('.designer-wrapper');
-        if (!wrapper) return;
-        const header = document.querySelector('header.layout-header, header.bg-light');
-        const nav = document.querySelector('nav.layout-global-nav, nav.navbar');
-        const viewportHeight = window.innerHeight;
-        let totalHeight = 0;
-        if (header) totalHeight += header.offsetHeight || header.clientHeight || 0;
-        if (nav) totalHeight += nav.offsetHeight || nav.clientHeight || 0;
-        if (totalHeight < 1) totalHeight = Math.min(160, Math.round(viewportHeight * 0.14));
-        wrapper.style.top = totalHeight + 'px';
-        wrapper.style.height = Math.max(0, viewportHeight - totalHeight) + 'px';
-        wrapper.style.width = '100vw';
-    }
+// ── 높이 조정 ──────────────────────────────────────────────
+function adjustOuterHeight() {
+    const outer = document.getElementById('designer-outer');
+    if (!outer) return;
+    const header = document.querySelector('header.layout-header, header.bg-light');
+    const nav = document.querySelector('nav.layout-global-nav, nav.navbar');
+    const viewportHeight = window.innerHeight;
+    let topOffset = 0;
+    if (header) topOffset += header.offsetHeight || 0;
+    if (nav) topOffset += nav.offsetHeight || 0;
+    if (topOffset < 1) topOffset = Math.min(160, Math.round(viewportHeight * 0.14));
+    outer.style.top = topOffset + 'px';
+    outer.style.height = Math.max(0, viewportHeight - topOffset) + 'px';
+}
 
-    function initDesigner() {
-        adjustDesignerHeight();
-        let resizeTimer;
-        window.addEventListener('resize', function () {
-            clearTimeout(resizeTimer);
-            resizeTimer = setTimeout(adjustDesignerHeight, 100);
-        });
-        setTimeout(adjustDesignerHeight, 100);
-        setTimeout(adjustDesignerHeight, 300);
-        setTimeout(adjustDesignerHeight, 500);
-    }
+window.addEventListener('resize', function() {
+    clearTimeout(window._resizeTimer);
+    window._resizeTimer = setTimeout(adjustOuterHeight, 100);
+});
+[0, 100, 300, 500].forEach(t => setTimeout(adjustOuterHeight, t));
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initDesigner);
+const iframe = document.getElementById('designer-iframe');
+if (iframe) {
+    iframe.addEventListener('error', function() {
+        const loading = document.getElementById('designer-loading');
+        if (loading) loading.innerHTML = '<div class="alert alert-danger m-3">FOMS Brain Designer를 불러올 수 없습니다. 빌드 파일을 확인하세요.</div>';
+    });
+    iframe.addEventListener('load', function() {
+        document.getElementById('designer-loading').style.display = 'none';
+        setTimeout(adjustOuterHeight, 200);
+    });
+}
+
+// ── 모드 전환 ───────────────────────────────────────────────
+function switchMode(mode) {
+    const designerPane = document.getElementById('designer-pane');
+    const drawingPanel = document.getElementById('drawing-panel');
+    const btnD = document.getElementById('btn-mode-designer');
+    const btnDr = document.getElementById('btn-mode-drawing');
+
+    if (mode === 'designer') {
+        designerPane.style.display = '';
+        drawingPanel.style.display = 'none';
+        btnD.classList.add('active');
+        btnDr.classList.remove('active');
     } else {
-        initDesigner();
+        designerPane.style.display = 'none';
+        drawingPanel.style.display = '';
+        btnD.classList.remove('active');
+        btnDr.classList.add('active');
+        loadFixtures();
+    }
+    adjustOuterHeight();
+}
+
+// ── 상태 변수 ───────────────────────────────────────────────
+let currentExtraction = null;
+let currentMetrics = null;
+let currentFixtureId = null;
+let currentFilename = null;
+
+// ── Fixture 목록 로드 ────────────────────────────────────────
+async function loadFixtures() {
+    try {
+        const resp = await fetch('/api/designer/drawings/fixtures', { credentials: 'same-origin' });
+        const json = await resp.json();
+        if (!json.success) throw new Error(json.error);
+        const { fixtures, summary } = json.data;
+
+        document.getElementById('badge-total').textContent = '전체 ' + summary.total;
+        document.getElementById('badge-approved').textContent = '승인 ' + summary.approved;
+        document.getElementById('badge-pending').textContent = '대기 ' + (summary.total - summary.approved);
+        document.getElementById('corpus-badge').textContent = 'corpus: ' + summary.approved + '/17 approved';
+
+        // Populate fixture select
+        const sel = document.getElementById('fixture-select');
+        sel.innerHTML = '<option value="">-- 새 등록 (fixture 미지정) --</option>';
+        fixtures.forEach(f => {
+            const opt = document.createElement('option');
+            opt.value = f.id;
+            opt.textContent = f.id + ' — ' + f.description;
+            if (f.approval_status === 'approved') opt.textContent += ' ✅';
+            sel.appendChild(opt);
+        });
+
+        // Render fixture list
+        const list = document.getElementById('fixture-list');
+        if (!fixtures.length) {
+            list.innerHTML = '<div class="text-center py-3 text-muted small">등록된 fixture가 없습니다.</div>';
+            return;
+        }
+        list.innerHTML = fixtures.map(f => `
+            <div class="fixture-item" onclick="selectFixture('${f.id}')">
+                <span class="fixture-id">${f.id}</span>
+                <span class="fixture-desc">${f.description}</span>
+                <span class="fixture-status status-${f.approval_status}">${statusLabel(f.approval_status)}</span>
+            </div>
+        `).join('');
+    } catch(e) {
+        console.error('[loadFixtures]', e);
+    }
+}
+
+function statusLabel(s) {
+    return { pending: '대기', draft: '초안', pending_approval: '검토중', approved: '승인완료' }[s] || s;
+}
+
+async function selectFixture(id) {
+    document.getElementById('fixture-select').value = id;
+    document.querySelectorAll('.fixture-item').forEach(el => el.classList.remove('selected'));
+    event.currentTarget.classList.add('selected');
+
+    // Load existing expected JSON if any
+    try {
+        const resp = await fetch(`/api/designer/drawings/fixtures/${id}/expected`, { credentials: 'same-origin' });
+        const json = await resp.json();
+        if (json.success && json.data) {
+            showExistingExpected(json.data, id);
+        } else {
+            resetUpload();
+        }
+    } catch(e) { resetUpload(); }
+}
+
+function showExistingExpected(ej, fixtureId) {
+    currentFixtureId = fixtureId;
+    currentExtraction = { ...ej };
+    currentFilename = '기존 데이터';
+    renderExtractionResult({
+        extraction: {
+            furniture_type: ej.furniture_type,
+            site_size: ej.site_size || {},
+            parts_table: ej.parts_table || [],
+            unresolved_fields: ej.unresolved_fields || [],
+            confidence: ej.confidence || 0,
+        },
+        metrics: {
+            latency_ms: ej._ai_draft_latency_ms || 0,
+            cost_usd: ej._ai_draft_cost_usd || 0,
+            model: ej._ai_draft_model || '--',
+        },
+        filename: '기존 데이터',
+        alreadyApproved: ej.approval_status === 'approved',
+    });
+}
+
+// ── 파일 업로드 처리 ─────────────────────────────────────────
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    const files = e.dataTransfer.files;
+    if (files.length) handleFile(files[0]);
+});
+fileInput.addEventListener('change', () => {
+    if (fileInput.files.length) handleFile(fileInput.files[0]);
+});
+
+async function handleFile(file) {
+    currentFilename = file.name;
+    const fixtureId = document.getElementById('fixture-select').value;
+    currentFixtureId = fixtureId || null;
+
+    // Show progress
+    document.getElementById('upload-progress').style.display = '';
+    document.getElementById('progress-msg').textContent = `"${file.name}" Gemini 추출 중...`;
+    document.getElementById('extraction-result').style.display = 'none';
+
+    const formData = new FormData();
+    formData.append('file', file);
+    if (fixtureId) formData.append('fixture_id', fixtureId);
+
+    try {
+        const resp = await fetch('/api/designer/drawings/upload-and-extract', {
+            method: 'POST',
+            credentials: 'same-origin',
+            body: formData,
+        });
+        const json = await resp.json();
+        document.getElementById('upload-progress').style.display = 'none';
+
+        if (!json.success) {
+            if (json.code === 'GEMINI_KEY_MISSING') {
+                showAlert('GEMINI_API_KEY가 설정되지 않았습니다. Railway 환경변수를 확인하세요.', 'warning');
+            } else {
+                showAlert('추출 실패: ' + json.error, 'danger');
+            }
+            return;
+        }
+        currentExtraction = json.data.extraction;
+        currentMetrics = json.data.metrics;
+        renderExtractionResult(json.data);
+    } catch(e) {
+        document.getElementById('upload-progress').style.display = 'none';
+        showAlert('네트워크 오류: ' + e.message, 'danger');
+    }
+}
+
+function renderExtractionResult(data) {
+    const { extraction, metrics, filename, alreadyApproved } = data;
+    const ss = extraction.site_size || {};
+    const conf = Math.round((extraction.confidence || 0) * 100);
+
+    document.getElementById('res-furniture-type').textContent =
+        furnitureTypeLabel(extraction.furniture_type) + ' — ' + (filename || currentFilename || '--');
+    document.getElementById('res-filename').textContent =
+        `신뢰도 ${conf}%  |  W${ss.width_mm||'?'} × H${ss.height_mm||'?'} × D${ss.depth_mm||'?'} mm`;
+    document.getElementById('res-confidence').textContent = conf + '%';
+    const bar = document.getElementById('res-confidence-bar');
+    bar.style.width = conf + '%';
+    bar.style.background = conf >= 80 ? '#48bb78' : conf >= 50 ? '#ed8936' : '#fc8181';
+
+    // Fields
+    const parts = extraction.parts_table || [];
+    let html = '';
+    html += fieldRow('가구 유형', furnitureTypeLabel(extraction.furniture_type));
+    html += fieldRow('현장 규격', `W${ss.width_mm||'?'} × H${ss.height_mm||'?'} × D${ss.depth_mm||'?'} mm`);
+    if (parts.length) {
+        html += fieldRow('부품표', parts.map(p => `${p.code} ×${p.quantity}`).join(', '));
+    } else {
+        html += fieldRow('부품표', '(추출 없음)');
+    }
+    document.getElementById('res-fields').innerHTML = html;
+
+    // Unresolved
+    const unresolved = extraction.unresolved_fields || [];
+    if (unresolved.length) {
+        document.getElementById('res-unresolved-wrap').style.display = '';
+        document.getElementById('res-unresolved').innerHTML =
+            unresolved.map(u => `<span class="badge-unresolved">${u}</span>`).join('');
+    } else {
+        document.getElementById('res-unresolved-wrap').style.display = 'none';
     }
 
-    const iframe = document.getElementById('designer-iframe');
-    if (iframe) {
-        iframe.addEventListener('error', function () {
-            const loading = document.getElementById('designer-loading');
-            if (loading) {
-                loading.innerHTML = '<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> FOMS Brain Designer를 불러올 수 없습니다. 빌드 파일이 준비되었는지 확인하세요.</div>';
-            }
-        });
-        iframe.addEventListener('load', function () {
-            adjustDesignerHeight();
-            setTimeout(adjustDesignerHeight, 200);
-        });
+    document.getElementById('res-latency').textContent = metrics.latency_ms || '--';
+    document.getElementById('res-cost').textContent = (metrics.cost_usd || 0).toFixed(5);
+    document.getElementById('res-model').textContent = metrics.model || '--';
+
+    document.getElementById('extraction-result').style.display = '';
+
+    if (alreadyApproved) {
+        document.getElementById('btn-save-draft').style.display = 'none';
+        document.getElementById('btn-approve').style.display = 'none';
+    } else if (currentFixtureId) {
+        document.getElementById('btn-save-draft').style.display = '';
+        document.getElementById('btn-approve').style.display = '';
+    } else {
+        document.getElementById('btn-save-draft').style.display = 'none';
+        document.getElementById('btn-approve').style.display = 'none';
     }
+}
+
+function fieldRow(label, value) {
+    return `<div class="field-row"><span class="field-label">${label}</span><span class="field-value">${value}</span></div>`;
+}
+
+function furnitureTypeLabel(t) {
+    return { wardrobe: '붙박이장', shoe_rack: '신발장', kitchen_base: '주방 하부장', kitchen_wall: '주방 상부장', custom_storage: '수납장' }[t] || t;
+}
+
+// ── 초안 저장 ──────────────────────────────────────────────
+async function saveDraft() {
+    if (!currentFixtureId || !currentExtraction) return;
+    const btn = document.getElementById('btn-save-draft');
+    btn.disabled = true; btn.textContent = '저장 중...';
+    try {
+        const resp = await fetch(`/api/designer/drawings/fixtures/${currentFixtureId}/save-draft`, {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ extraction: currentExtraction, metrics: currentMetrics || {} }),
+        });
+        const json = await resp.json();
+        if (json.success) {
+            showAlert('초안이 저장되었습니다. 내용을 검토 후 승인해 주세요.', 'success');
+            loadFixtures();
+        } else {
+            showAlert('저장 실패: ' + json.error, 'danger');
+        }
+    } catch(e) { showAlert('오류: ' + e.message, 'danger'); }
+    finally { btn.disabled = false; btn.textContent = '💾 초안 저장'; }
+}
+
+// ── 승인 ──────────────────────────────────────────────────
+async function approveDraft() {
+    if (!currentFixtureId) return;
+    if (!confirm(`"${currentFixtureId}" fixture를 corpus에 최종 등록(승인)하시겠습니까?\n\n승인된 expected JSON이 추출 정확도 측정 기준이 됩니다.`)) return;
+
+    const btn = document.getElementById('btn-approve');
+    btn.disabled = true; btn.textContent = '승인 중...';
+    try {
+        const resp = await fetch(`/api/designer/drawings/fixtures/${currentFixtureId}/approve`, {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({}),
+        });
+        const json = await resp.json();
+        if (json.success) {
+            const approved = json.data.total_approved;
+            showAlert(`✅ 승인 완료! 현재 corpus: ${approved}/17 승인됨.`, 'success');
+            document.getElementById('btn-save-draft').style.display = 'none';
+            document.getElementById('btn-approve').style.display = 'none';
+            loadFixtures();
+        } else {
+            showAlert('승인 실패: ' + json.error, 'danger');
+        }
+    } catch(e) { showAlert('오류: ' + e.message, 'danger'); }
+    finally { btn.disabled = false; btn.textContent = '✅ 승인 (Corpus 등록)'; }
+}
+
+function resetUpload() {
+    currentExtraction = null; currentMetrics = null; currentFilename = null;
+    document.getElementById('extraction-result').style.display = 'none';
+    document.getElementById('upload-progress').style.display = 'none';
+    document.getElementById('file-input').value = '';
+}
+
+function showAlert(msg, type) {
+    let container = document.getElementById('alert-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'alert-container';
+        container.style.cssText = 'position:fixed;top:80px;right:20px;z-index:9999;max-width:380px;';
+        document.body.appendChild(container);
+    }
+    const div = document.createElement('div');
+    div.className = `alert alert-${type} alert-dismissible shadow-sm`;
+    div.innerHTML = msg + '<button type="button" class="btn-close" onclick="this.parentElement.remove()"></button>';
+    container.prepend(div);
+    setTimeout(() => div.remove(), 5000);
+}
 </script>
 {% endblock %}
