@@ -174,6 +174,10 @@
         margin: 2px;
     }
 
+    /* Batch result rows */
+    #batch-results { font-size: 12px; }
+    #batch-results .border-bottom:last-child { border-bottom: none !important; }
+
     /* Fixture list */
     .fixture-item {
         display: flex;
@@ -259,26 +263,41 @@
                         <div class="form-text">일반 학습은 미지정으로 두어도 됩니다. 추출 결과는 설계 학습 메모리에 자동 저장됩니다.</div>
                     </div>
 
-                    <!-- Drop zone -->
+                    <!-- Gemini API 키 경고 배너 (API 키 미설정 시 표시) -->
+                    <div id="gemini-key-warning" style="display:none;" class="alert alert-warning py-2 mb-3 small">
+                        <strong>⚠️ Gemini API 키 미설정</strong><br>
+                        Railway 대시보드 → 프로젝트 → Variables 탭에서 아래 변수를 추가하세요:<br>
+                        <code>GEMINI_API_KEY = &lt;발급받은 키&gt;</code><br>
+                        <span class="text-muted">키 없이도 업로드는 되지만 AI 추출이 비활성화됩니다.</span>
+                    </div>
+
+                    <!-- Drop zone — 다중 파일 지원 -->
                     <div class="drop-zone" id="drop-zone"
                          onclick="document.getElementById('file-input').click()">
                         <div class="drop-icon">📄</div>
                         <div class="drop-label">도면 파일을 드래그하거나 클릭하여 선택</div>
-                        <div class="drop-hint">JPG · PNG · PDF · WEBP | 최대 20MB</div>
+                        <div class="drop-hint">여러 장 동시 선택 가능 · JPG · PNG · PDF · WEBP · 장당 최대 20MB</div>
                         <input type="file" id="file-input" style="display:none"
-                               accept=".jpg,.jpeg,.png,.pdf,.webp">
+                               accept=".jpg,.jpeg,.png,.pdf,.webp" multiple>
                     </div>
 
-                    <!-- 진행 상태 -->
-                    <div id="upload-progress" style="display:none" class="mt-3">
-                        <div class="d-flex align-items-center gap-2">
-                            <div class="spinner-border spinner-border-sm text-primary"></div>
-                            <span class="text-muted small" id="progress-msg">Gemini 추출 중...</span>
+                    <!-- 배치 진행 상태 -->
+                    <div id="batch-progress" style="display:none" class="mt-3">
+                        <div class="d-flex align-items-center justify-content-between mb-1">
+                            <span class="fw-semibold small" id="batch-title">처리 중...</span>
+                            <span class="text-muted small" id="batch-counter">0/0</span>
+                        </div>
+                        <div class="progress" style="height:6px;">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated"
+                                 id="batch-bar" role="progressbar" style="width:0%"></div>
                         </div>
                     </div>
 
-                    <!-- 추출 결과 -->
-                    <div id="extraction-result" style="display:none" class="extraction-card">
+                    <!-- 배치 결과 목록 -->
+                    <div id="batch-results" class="mt-3"></div>
+
+                    <!-- 단일 파일 추출 결과 (상세) -->
+                    <div id="extraction-result" style="display:none" class="extraction-card mt-3">
                         <div class="d-flex justify-content-between align-items-start mb-3">
                             <div>
                                 <h6 class="fw-bold mb-0" id="res-furniture-type">--</h6>
@@ -511,59 +530,155 @@ function showExistingExpected(ej, fixtureId) {
     });
 }
 
-// ── 파일 업로드 처리 ─────────────────────────────────────────
+// ── 파일 업로드 처리 — 다중 파일 지원 ──────────────────────────
 const dropZone = document.getElementById('drop-zone');
 const fileInput = document.getElementById('file-input');
+let _geminiKeyMissing = false;
 
 dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
 dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
 dropZone.addEventListener('drop', e => {
     e.preventDefault();
     dropZone.classList.remove('drag-over');
-    const files = e.dataTransfer.files;
-    if (files.length) handleFile(files[0]);
+    if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
 });
 fileInput.addEventListener('change', () => {
-    if (fileInput.files.length) handleFile(fileInput.files[0]);
+    if (fileInput.files.length) handleFiles(fileInput.files);
 });
 
-async function handleFile(file) {
-    currentFilename = file.name;
+// 다중 파일 진입점
+async function handleFiles(fileList) {
+    const files = Array.from(fileList);
+    if (!files.length) return;
+
     const fixtureId = document.getElementById('fixture-select').value;
     currentFixtureId = fixtureId || null;
 
-    // Show progress
-    document.getElementById('upload-progress').style.display = '';
-    document.getElementById('progress-msg').textContent = `"${file.name}" Gemini 추출 중...`;
-    document.getElementById('extraction-result').style.display = 'none';
+    // 단일 파일 → 기존 상세 뷰
+    if (files.length === 1) {
+        await handleSingleFile(files[0]);
+        return;
+    }
 
+    // 다중 파일 → 배치 처리
+    await handleBatchFiles(files);
+}
+
+// 단일 파일 처리 (상세 결과 표시)
+async function handleSingleFile(file) {
+    currentFilename = file.name;
+    document.getElementById('batch-progress').style.display = 'none';
+    document.getElementById('batch-results').innerHTML = '';
+    document.getElementById('extraction-result').style.display = 'none';
+    document.getElementById('batch-title').textContent = `"${file.name}" Gemini 추출 중...`;
+    document.getElementById('batch-progress').style.display = 'block';
+    document.getElementById('batch-bar').style.width = '50%';
+    document.getElementById('batch-counter').textContent = '1/1';
+
+    const result = await uploadAndExtract(file, currentFixtureId);
+
+    document.getElementById('batch-progress').style.display = 'none';
+
+    if (result.success) {
+        currentExtraction = result.data.extraction;
+        currentMetrics = result.data.metrics;
+        renderExtractionResult(result.data);
+    } else {
+        handleUploadError(result);
+    }
+}
+
+// 배치(다중) 파일 처리
+async function handleBatchFiles(files) {
+    document.getElementById('extraction-result').style.display = 'none';
+    document.getElementById('batch-results').innerHTML = '';
+
+    const batchProgress = document.getElementById('batch-progress');
+    const batchBar = document.getElementById('batch-bar');
+    const batchCounter = document.getElementById('batch-counter');
+    const batchTitle = document.getElementById('batch-title');
+    const batchResults = document.getElementById('batch-results');
+    batchProgress.style.display = 'block';
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        batchTitle.textContent = `파일 ${i + 1}/${files.length}: ${file.name} 추출 중...`;
+        batchCounter.textContent = `${i}/${files.length}`;
+        batchBar.style.width = Math.round((i / files.length) * 100) + '%';
+
+        // 개별 파일 결과 행 추가 (처리 중 상태)
+        const rowId = 'batch-row-' + i;
+        batchResults.insertAdjacentHTML('beforeend', `
+            <div id="${rowId}" class="d-flex align-items-center gap-2 py-2 border-bottom small">
+                <div class="spinner-border spinner-border-sm text-primary" style="flex-shrink:0;"></div>
+                <span class="text-muted flex-grow-1 text-truncate" title="${file.name}">${file.name}</span>
+                <span class="text-muted">처리 중...</span>
+            </div>`);
+
+        const result = await uploadAndExtract(file, currentFixtureId);
+        const row = document.getElementById(rowId);
+
+        if (result.success) {
+            successCount++;
+            const ext = result.data.extraction;
+            const ss = ext.site_size || {};
+            const conf = Math.round((ext.confidence || 0) * 100);
+            const dim = `W${ss.width_mm||'?'} H${ss.height_mm||'?'} D${ss.depth_mm||'?'}`;
+            row.innerHTML = `
+                <span style="color:#198754;flex-shrink:0;">✅</span>
+                <span class="flex-grow-1 text-truncate" title="${file.name}">${file.name}</span>
+                <span class="text-muted">${furnitureTypeLabel(ext.furniture_type)} · ${dim} · ${conf}%</span>`;
+        } else {
+            failCount++;
+            const isKeyMissing = result.code === 'GEMINI_KEY_MISSING';
+            row.innerHTML = `
+                <span style="color:#dc3545;flex-shrink:0;">❌</span>
+                <span class="flex-grow-1 text-truncate" title="${file.name}">${file.name}</span>
+                <span class="text-danger">${isKeyMissing ? 'API 키 미설정' : (result.error || '실패')}</span>`;
+            if (isKeyMissing) {
+                document.getElementById('gemini-key-warning').style.display = 'block';
+                _geminiKeyMissing = true;
+            }
+        }
+    }
+
+    batchBar.style.width = '100%';
+    batchBar.classList.remove('progress-bar-animated', 'progress-bar-striped');
+    batchBar.classList.add(failCount === 0 ? 'bg-success' : 'bg-warning');
+    batchTitle.textContent = `완료: ${successCount}개 성공 / ${failCount}개 실패 (총 ${files.length}장)`;
+    batchCounter.textContent = `${files.length}/${files.length}`;
+    fileInput.value = '';
+    loadFixtures();
+}
+
+// API 호출 (단일 파일)
+async function uploadAndExtract(file, fixtureId) {
     const formData = new FormData();
     formData.append('file', file);
     if (fixtureId) formData.append('fixture_id', fixtureId);
-
     try {
         const resp = await fetch('/api/designer/drawings/upload-and-extract', {
-            method: 'POST',
-            credentials: 'same-origin',
-            body: formData,
+            method: 'POST', credentials: 'same-origin', body: formData,
         });
         const json = await resp.json();
-        document.getElementById('upload-progress').style.display = 'none';
-
         if (!json.success) {
-            if (json.code === 'GEMINI_KEY_MISSING') {
-                showAlert('GEMINI_API_KEY가 설정되지 않았습니다. Railway 환경변수를 확인하세요.', 'warning');
-            } else {
-                showAlert('추출 실패: ' + json.error, 'danger');
-            }
-            return;
+            return { success: false, error: json.error, code: json.code };
         }
-        currentExtraction = json.data.extraction;
-        currentMetrics = json.data.metrics;
-        renderExtractionResult(json.data);
+        return { success: true, data: json.data };
     } catch(e) {
-        document.getElementById('upload-progress').style.display = 'none';
-        showAlert('네트워크 오류: ' + e.message, 'danger');
+        return { success: false, error: e.message };
+    }
+}
+
+function handleUploadError(result) {
+    if (result.code === 'GEMINI_KEY_MISSING') {
+        document.getElementById('gemini-key-warning').style.display = 'block';
+        _geminiKeyMissing = true;
+    } else {
+        showAlert('추출 실패: ' + (result.error || '알 수 없는 오류'), 'danger');
     }
 }
 
@@ -694,8 +809,12 @@ async function approveDraft() {
 function resetUpload() {
     currentExtraction = null; currentMetrics = null; currentFilename = null;
     document.getElementById('extraction-result').style.display = 'none';
-    document.getElementById('upload-progress').style.display = 'none';
+    document.getElementById('batch-progress').style.display = 'none';
+    document.getElementById('batch-results').innerHTML = '';
     document.getElementById('file-input').value = '';
+    // 결과 안내 메시지도 초기화
+    const infoEl = document.getElementById('general-upload-info');
+    if (infoEl) infoEl.style.display = 'none';
 }
 
 function showAlert(msg, type) {
