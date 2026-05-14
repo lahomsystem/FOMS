@@ -2127,7 +2127,10 @@ def test_strict_canonical_scripts_taxonomy() -> None:
 
 
 def test_strict_canonical_tools_taxonomy() -> None:
-    """§2.2.1: tools/ contains harness/, ops/, smoke/, research_center/ (+ README)."""
+    """§2.2.1: tools/ contains harness/, ops/, smoke/, research_center/, designer/ (+ README).
+
+    designer/ added (PG-B2/PG-B5+): fixture management CLI tools for FOMS Brain.
+    """
     tools_dir = _REPO_ROOT / "tools"
     assert tools_dir.is_dir()
     assert (tools_dir / "README.md").is_file()
@@ -2135,14 +2138,18 @@ def test_strict_canonical_tools_taxonomy() -> None:
         if p.name.startswith(".") or p.name == "README.md" or p.name == "__pycache__":
             continue
         assert p.is_dir(), f"tools/ must not contain loose non-README files: {p.name}"
-        assert p.name in {"harness", "ops", "smoke", "research_center"}, f"unexpected tools child: {p.name}"
+        assert p.name in {"harness", "ops", "smoke", "research_center", "designer"}, \
+            f"unexpected tools child: {p.name}"
 
 
 def test_strict_canonical_docs_taxonomy() -> None:
-    """§2.2.1: docs/ top-level dirs + root file allowlist; nested guides/validation + context bundles."""
+    """§2.2.1: docs/ top-level dirs + root file allowlist; nested guides/validation + context bundles.
+
+    design/ added (PG-B1): FOMS Brain design system documentation.
+    """
     docs = _REPO_ROOT / "docs"
     allowed_dirs = frozenset(
-        {"specs", "plans", "evolution", "guides", "incidents", "harness", "context"}
+        {"specs", "plans", "evolution", "guides", "incidents", "harness", "context", "design"}
     )
     allowed_root_files = frozenset({"AI_STATUS.md", "AI_CHANGELOG.md", "ARCHIVE_INDEX.md"})
     for p in docs.iterdir():
