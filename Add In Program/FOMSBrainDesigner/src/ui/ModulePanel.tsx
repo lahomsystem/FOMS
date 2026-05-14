@@ -1,9 +1,11 @@
 /**
- * ModulePanel — module count, door type, EP/SR 편집 UI.
+ * ModulePanel — 가구 유형 선택 + 파라미터 편집 UI.
+ * PG-B10: wardrobe/shoe_rack/kitchen_base/kitchen_wall 선택 + 타입별 파라미터.
  * DK-B6: wardrobe 파라미터 변경 시 즉시 assembly 재생성.
  */
 
 import { useDesignerStore } from '../stores/designerStore'
+import { FURNITURE_TYPE_REGISTRY, type FurnitureType } from '../domain/factoryRegistry'
 import type { DoorType } from '../domain/ontologyTypes'
 
 const DOOR_TYPES: { value: DoorType; label: string }[] = [
@@ -14,6 +16,8 @@ const DOOR_TYPES: { value: DoorType; label: string }[] = [
 
 export function ModulePanel() {
   const design = useDesignerStore((s) => s.design)
+  const currentFurnitureType = useDesignerStore((s) => s.currentFurnitureType)
+  const switchFurnitureType = useDesignerStore((s) => s.switchFurnitureType)
   const regenerateWardrobe = useDesignerStore((s) => s.regenerateWardrobe)
   const updateAssembly = useDesignerStore((s) => s.updateAssembly)
   const constraintResult = useDesignerStore((s) => s.constraintResult)
@@ -94,6 +98,29 @@ export function ModulePanel() {
       <div style={styles.header}>
         <span style={styles.title}>모듈 설정</span>
         <span style={{ ...styles.statusDot, background: isValid ? '#68d391' : '#fc8181' }} />
+      </div>
+
+      {/* PG-B10: Furniture Type Selector */}
+      <div style={styles.section}>
+        <div style={styles.sectionTitle}>가구 유형</div>
+        <div style={styles.typeGrid}>
+          {FURNITURE_TYPE_REGISTRY.map(({ type, label, icon }) => (
+            <button
+              key={type}
+              onClick={() => switchFurnitureType(type as FurnitureType)}
+              style={{
+                ...styles.typeBtn,
+                background: currentFurnitureType === type ? '#667eea' : '#1a1a2e',
+                color: currentFurnitureType === type ? '#fff' : '#a0aec0',
+                borderColor: currentFurnitureType === type ? '#667eea' : '#2d3748',
+              }}
+              title={label}
+            >
+              <span style={{ fontSize: 16 }}>{icon}</span>
+              <span style={{ fontSize: 9, marginTop: 2, lineHeight: 1 }}>{label}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Assembly dimensions */}
@@ -227,6 +254,20 @@ const styles: Record<string, React.CSSProperties> = {
     outline: 'none',
     width: 80,
     textAlign: 'right',
+  },
+  typeGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 },
+  typeBtn: {
+    border: '1px solid #2d3748',
+    borderRadius: 6,
+    padding: '6px 4px',
+    cursor: 'pointer',
+    fontSize: 11,
+    fontWeight: 600,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 2,
+    transition: 'all 0.15s',
   },
   buttonRow: { display: 'flex', gap: 4, flexWrap: 'wrap' },
   countBtn: {

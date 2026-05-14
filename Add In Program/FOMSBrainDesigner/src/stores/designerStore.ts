@@ -14,6 +14,7 @@ import { createDefaultWardrobe, createWardrobeAssembly } from '../domain/assembl
 import { validateDesignGraph } from '../domain/constraintEngine'
 import { recalculateGraph } from '../domain/formulaEngine'
 import type { WardrobeParams } from '../domain/assemblyFactories'
+import { createDefaultDesign, type FurnitureType } from '../domain/factoryRegistry'
 
 // ──────────────────────────────────────────────────────────
 // Constraint result (mapped from ConstraintResult)
@@ -62,6 +63,9 @@ interface DesignerState {
   aiPrompt: string
   isAiRunning: boolean
 
+  // Furniture type (PG-B10)
+  currentFurnitureType: FurnitureType
+
   // UI
   selectedComponentId: string | null
   showAIPanel: boolean
@@ -71,6 +75,9 @@ interface DesignerState {
   // ── Actions ──────────────────────────────────────────────
   setProject: (project: DesignerProject) => void
   setDesign: (design: DesignGraph) => void
+
+  /** Switch furniture type and regenerate assembly with factory defaults. */
+  switchFurnitureType: (type: FurnitureType) => void
 
   /** Regenerate assembly with new wardrobe parameters and validate. */
   regenerateWardrobe: (params: WardrobeParams) => void
@@ -110,6 +117,7 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
   design: INITIAL_DESIGN,
   isDirty: false,
   constraintResult: INITIAL_CONSTRAINT,
+  currentFurnitureType: 'wardrobe',
   aiRunId: null,
   aiRun: null,
   aiPrompt: '',
@@ -120,6 +128,13 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
   showComponentTree: true,
 
   setProject: (project) => set({ project, projectId: project.id }),
+
+  switchFurnitureType: (type: FurnitureType) => {
+    const newDesign = createDefaultDesign(type)
+    const { graph: recalculated } = recalculateGraph(newDesign)
+    const constraintResult = toStoreConstraintResult(validateDesignGraph(recalculated))
+    set({ design: recalculated, isDirty: true, constraintResult, currentFurnitureType: type, selectedComponentId: null })
+  },
 
   setDesign: (design) => {
     const { graph: recalculated } = recalculateGraph(design)
