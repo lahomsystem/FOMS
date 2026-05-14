@@ -122,11 +122,12 @@ class TestPGModulesImplementedAndMissing:
         assert callable(sc.score_wdh)
         assert callable(sc.run_scorecard_from_manifest)
 
-    # ── PG-B3A: STILL MISSING ──
-    def test_pii_redactor_module_missing(self):
-        """foms.services.designer.pii_redactor does not exist yet (PG-B3A scope)."""
-        with pytest.raises(ImportError):
-            import foms.services.designer.pii_redactor  # noqa: F401
+    # ── PG-B3A: IMPLEMENTED ──
+    def test_pii_redactor_module_implemented(self):
+        """pii_redactor.py is now implemented (PG-B3A complete)."""
+        import foms.services.designer.pii_redactor as pr  # noqa: F401
+        assert callable(pr.scan_for_raw_pii)
+        assert callable(pr.build_gemini_payload)
 
     # ── PG-B4: STILL MISSING ──
     def test_model_router_module_missing(self):
@@ -281,7 +282,7 @@ PRODUCT_GRADE_GATES: dict[str, bool] = {
     "gemini_provider_implemented": True,        # ✅ PG-B0A complete
     "extraction_scorecard_implemented": True,   # ✅ PG-B0A complete
     "fixture_corpus_17_drawings": False,        # PG-B2 pending
-    "pii_redactor_implemented": False,          # PG-B3A pending
+    "pii_redactor_implemented": True,           # ✅ PG-B3A complete
     "parts_table_parser_recall_90": False,      # PG-B5 pending
     "dimension_parser_wdh_95": False,           # PG-B6 pending
     "overlay_review_ui": False,                 # PG-B8 pending
