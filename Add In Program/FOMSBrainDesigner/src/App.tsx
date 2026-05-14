@@ -256,9 +256,9 @@ export default function App() {
           <ModulePanel />
         </div>
 
-        {/* 3D Canvas */}
+        {/* 3D Canvas with ViewCube */}
         <div style={S.canvas}>
-          <DesignerCanvas />
+          <DesignerCanvas viewMode={viewMode} onViewModeChange={setViewMode} />
         </div>
 
         {/* Component tree (collapsible) */}

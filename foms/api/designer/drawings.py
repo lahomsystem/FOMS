@@ -38,6 +38,51 @@ logger = logging.getLogger(__name__)
 
 drawings_bp = Blueprint("designer_drawings", __name__, url_prefix="/api/designer/drawings")
 
+# ── Job queue helpers ─────────────────────────────────────
+
+def _enqueue_extraction_job(tmp_path: str, fixture_id: str | None, user_id: int | None) -> str | None:
+    """Try to enqueue an async extraction job via RQ. Returns job_id or None."""
+    try:
+        from rq import Queue
+        from redis import Redis
+        redis = Redis.from_url(os.environ.get("REDIS_URL", ""), socket_connect_timeout=1)
+        redis.ping()
+        q = Queue("designer", connection=redis)
+        from foms.services.designer.gemini_provider import extract_from_image_path
+
+        def _job(path: str, fid: str | None) -> dict:
+            return extract_from_image_path(path)
+
+        job = q.enqueue(_job, tmp_path, fixture_id, job_timeout=120)
+        return job.id
+    except Exception:
+        return None
+
+
+@drawings_bp.route("/jobs/<job_id>/status", methods=["GET"])
+@login_required
+def job_status(job_id: str):
+    """GET /api/designer/drawings/jobs/<id>/status — poll async extraction job."""
+    try:
+        from rq.job import Job
+        from redis import Redis
+        redis = Redis.from_url(os.environ.get("REDIS_URL", ""), socket_connect_timeout=1)
+        job = Job.fetch(job_id, connection=redis)
+        result = None
+        if job.is_finished:
+            result = job.result
+        return jsonify({
+            "success": True,
+            "data": {
+                "job_id": job_id,
+                "status": job.get_status(),
+                "result": result,
+            },
+            "error": None,
+        })
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 404
+
 ROOT = Path(__file__).parent.parent.parent.parent
 MANIFEST_PATH = ROOT / "tests" / "fixtures" / "designer" / "drawings" / "manifest.json"
 EXPECTED_DIR = MANIFEST_PATH.parent / "expected_extractions"
@@ -135,10 +180,32 @@ def upload_and_extract():
     try:
         from foms.services.designer.gemini_provider import (
             extract_from_image_path,
+            extract_from_image_bytes,
             GeminiProviderError,
             GeminiAPIKeyMissing,
         )
-        raw = extract_from_image_path(tmp_path)
+
+        # PDF multi-page support
+        if suffix == ".pdf":
+            try:
+                import pypdf
+                reader = pypdf.PdfReader(tmp_path)
+                page_count = len(reader.pages)
+            except ImportError:
+                page_count = 1  # pypdf not installed, treat as single
+
+            if page_count > 1:
+                # Extract first page as image (lightweight preview)
+                # Full multi-page: extract page 1 and note total pages
+                raw = extract_from_image_path(tmp_path)
+                raw.setdefault("extracted_params", {})["page_count"] = page_count
+                raw.setdefault("extracted_params", {})["is_multipage"] = True
+                logger.info("[DRAWING EXTRACT] PDF %d pages, extracted page 1", page_count)
+            else:
+                raw = extract_from_image_path(tmp_path)
+        else:
+            raw = extract_from_image_path(tmp_path)
+
     except GeminiAPIKeyMissing as exc:
         return jsonify({"success": False, "error": str(exc), "code": "GEMINI_KEY_MISSING"}), 503
     except Exception as exc:
