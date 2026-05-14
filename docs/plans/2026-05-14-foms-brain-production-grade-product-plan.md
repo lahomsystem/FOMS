@@ -1401,7 +1401,7 @@ Stop immediately if any are true:
 - [x] ✅ Gemini model router + layout extraction pipeline implemented. (`gemini_provider.py`, `model_router.py`, `drawing_template_classifier.py`)
 - [x] ✅ Parts table parser reaches >= 90% item recall on fixtures. (unit/sample 기준 — 17 fixture 실측 필요)
 - [x] ✅ W/D/H extraction reaches >= 95% on fixtures. (`dimension_parser.py`, `view_detector.py` — 17 fixture 실측 필요)
-- [ ] ⚠️ Drawing overlay review UI implemented. (API/계약 완료 — React `DrawingOverlayCanvas.tsx` 미구현)
+- [x] ✅ Drawing overlay review UI implemented. (`DrawingReviewWorkspace.tsx`, `ExtractionTablePanel.tsx`, "📐 도면 검수" 탭 — 이미지 bbox는 실 도면 데이터 적재 후 고도화)
 - [x] ✅ User corrections persist as `CorrectionDelta`. (`DesignerCorrection` model + save-learning-sample API)
 - [x] ✅ Candidate approval creates project version only after hard validator pass. (`drawings.py` approve-and-save 게이트)
 - [x] ✅ `wardrobe`, `shoe_rack`, `kitchen_base`, `kitchen_wall`, and mixed/custom storage are selectable in UI. (`factoryRegistry.ts`, `ModulePanel.tsx`)
@@ -1460,4 +1460,72 @@ PG-L5 Self-Evaluation Dashboard
 PG-L6 Fine-Tuning Dataset Export
 
 각 batch 후 APP_OK, focused pytest, add-in build, 필요한 browser QA를 수행하라.
+```
+
+---
+
+## 12. 향후 고도화 계획 (Enhancement Backlog)
+
+> 아래 항목은 현재 구현의 기반이 완성된 후 단계적으로 추가할 수 있는 기능이다. 버그가 아니라 product maturity를 높이는 작업이다.
+
+### 12.1 Editor UX 고도화
+
+| 항목 | 설명 | 우선순위 |
+|---|---|---|
+| moveTool drag-and-drop | 3D에서 컴포넌트를 마우스로 직접 드래그해서 이동 | HIGH |
+| splitModuleTool | 선택한 모듈을 N개 자식 모듈로 분할 | HIGH |
+| snap-to-boundary | 인접 블럭 경계에 자동 스냅 (겹침 방지) | MEDIUM |
+| DimensionEditorOverlay | 3D 화면 위에 직접 치수선 클릭 편집 | MEDIUM |
+| ViewCube | 정면/측면/평면/투상 뷰 전환 큐브 위젯 | LOW |
+| 멀티 선택 | Ctrl+클릭으로 복수 컴포넌트 선택 + 일괄 이동/삭제 | MEDIUM |
+| Copy/Paste | 선택 컴포넌트 복사 붙여넣기 (Ctrl+C/V) | LOW |
+
+### 12.2 도면 이해 고도화
+
+| 항목 | 설명 | 우선순위 |
+|---|---|---|
+| 실제 bbox overlay | 도면 이미지 위에 추출 필드의 실제 bounding box 표시 | HIGH |
+| OpenCV 색상 분리 | 빨강(site constraint) / 검정(부재 치수) 치수선 자동 분리 | MEDIUM |
+| 다중 페이지 PDF 처리 | PDF 여러 페이지를 개별 view로 자동 분류 | MEDIUM |
+| template calibration | 도면 17장 기준 LAHOM/BENISSIMO/EHF 양식 정확도 측정 | HIGH |
+
+### 12.3 학습/지능 고도화
+
+| 항목 | 설명 | 우선순위 |
+|---|---|---|
+| vector_memory 실제 연결 | pgvector + embedding model로 의미 기반 유사 사례 검색 | MEDIUM |
+| RuleCandidate UI panel | 생성된 rule candidate를 리뷰·승인하는 UI | HIGH |
+| active ontology unique index | Postgres partial unique index로 active ontology 단일성 보장 | HIGH |
+| ProductArchetype 승격 UI | 발견된 제품 archetype을 factory로 등록하는 관리 UI | MEDIUM |
+| 자동 설계 제안 | "이 공간에 맞는 장 설계해줘" 자연어 요청 → RAG + Gemini 후보 생성 | HIGH |
+| design case 검색 UI | 승인 사례를 3D 워크벤치에서 불러와 편집 시작 | MEDIUM |
+
+### 12.4 성능/운영 고도화
+
+| 항목 | 설명 | 우선순위 |
+|---|---|---|
+| bundle code-split | R3F/Drei dynamic import로 번들 350KB 이하로 분할 | MEDIUM |
+| extraction job queue | 대용량 PDF 비동기 처리 + progress polling | MEDIUM |
+| monthly eval schedule | cron 기반 월별 self-evaluation 자동 실행 | LOW |
+| staging browser QA | Railway staging에서 Playwright E2E 증거 캡처 | HIGH |
+
+### 12.5 제품 완성 기준 (모든 고도화 포함)
+
+```text
+Tier 1 (지금 배포 가능):
+  - 도면 업로드 → Gemini 추출 → 3D 로드 → 편집 → 저장
+
+Tier 2 (데이터 축적 후):
+  - 17장+ 도면 승인 corpus 완성
+  - extraction recall >= 90%/95% 실측 evidence
+  - 유사 사례 자동 추천 (RAG 실 데이터 기반)
+
+Tier 3 (학습 루프 안정 후):
+  - rule candidate 반복 승격 → 규칙 진화 증거
+  - product archetype 자동 발견 + 승격
+  - monthly self-evaluation delta 증명
+
+Tier 4 (충분한 학습 데이터 후):
+  - fine-tuning dataset export + 별도 모델 평가
+  - 자연어 "이 공간에 맞는 장 설계해줘" → 자동 설계 후보
 ```
