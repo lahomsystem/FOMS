@@ -5,16 +5,9 @@
  */
 
 import { S, COLORS } from '../styles/sketchupTheme'
+import type { ToolMode } from '../domain/toolMode'
 
-export type ToolMode =
-  | 'select'
-  | 'move'
-  | 'dimension'
-  | 'split'
-  | 'shelf'
-  | 'door'
-  | 'cutout'
-  | 'upload'
+export type { ToolMode }
 
 interface Tool {
   mode: ToolMode

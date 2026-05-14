@@ -16,6 +16,7 @@ import { recalculateGraph } from '../domain/formulaEngine'
 import type { WardrobeParams } from '../domain/assemblyFactories'
 import { createDefaultDesign, type FurnitureType } from '../domain/factoryRegistry'
 import { commandHistory } from '../domain/commandHistory'
+import type { ToolMode } from '../domain/toolMode'
 
 // ──────────────────────────────────────────────────────────
 // Constraint result (mapped from ConstraintResult)
@@ -74,6 +75,10 @@ interface DesignerState {
   showAIPanel: boolean
   showValidationPanel: boolean
   showComponentTree: boolean
+
+  /** Left palette active tool (SketchUp-like). */
+  activeTool: ToolMode
+  setActiveTool: (tool: ToolMode) => void
 
   // ── Actions ──────────────────────────────────────────────
   setProject: (project: DesignerProject) => void
@@ -165,6 +170,8 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
   showAIPanel: false,
   showValidationPanel: false,
   showComponentTree: true,
+  activeTool: 'select',
+  setActiveTool: (tool) => set({ activeTool: tool }),
 
   setProject: (project) => set({ project, projectId: project.id }),
 

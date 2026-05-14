@@ -765,24 +765,9 @@ def default_self_manifest() -> Dict[str, Any]:
                 "auto_create_stub": True,
             },
         ],
-        "skills": [
-            {
-                "name": "tech-stack-evaluator",
-                "path": ".cursor/skills/skills/tech-stack-evaluator/SKILL.md",
-            },
-            {
-                "name": "self-evolution-factory",
-                "path": ".cursor/skills/skills/self-evolution-factory/SKILL.md",
-            },
-            {
-                "name": "context7-auto-research",
-                "path": ".cursor/skills/skills/context7-auto-research/SKILL.md",
-            },
-            {
-                "name": "agent-orchestration-multi-agent-optimize",
-                "path": ".cursor/skills/skills/agent-orchestration-multi-agent-optimize/SKILL.md",
-            },
-        ],
+        # Third-party skill packs under `.cursor/skills/skills/` were removed from the repo
+        # to reduce Cursor indexing/context load. Optional installs go to vendor-skills/.
+        "skills": [],
         "hooks": [
             {"name": "guard_shell", "path": ".cursor/hooks/guard_shell.py"},
             {"name": "session_start", "path": ".cursor/hooks/session_start.py"},
@@ -921,6 +906,9 @@ def install_missing_skills(audit: Dict[str, Any]) -> List[Dict[str, str]]:
     if not installer.exists():
         return [{"name": "skill-installer", "status": "missing-installer"}]
 
+    vendor_root = ROOT / ".cursor" / "skills" / "vendor-skills"
+    ensure_dir(vendor_root)
+
     for item in audit.get("skills", []):
         if item.get("exists"):
             continue
@@ -943,7 +931,7 @@ def install_missing_skills(audit: Dict[str, Any]) -> List[Dict[str, str]]:
             "--name",
             str(item.get("name", "")),
             "--dest",
-            str(ROOT / ".cursor" / "skills" / "skills"),
+            str(vendor_root),
         ]
         try:
             proc = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=180)

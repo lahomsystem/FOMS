@@ -4,14 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-05-13 22:28:56 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')" 2>&1 | tail -1` |
-| 2026-05-13 22:29:03 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')" 2>&1 | Select-Object -Last 2` |
-| 2026-05-13 22:29:13 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status --short 2>&1 | Select-Object -First 40` |
-| 2026-05-13 22:29:21 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" # Stage all designer-related new files git add "Add In Program/FOMSBrainDesigner/" git add stat` |
-| 2026-05-13 22:30:11 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git reset HEAD "Add In Program/FOMSBrainDesigner/node_modules/" 2>$null; git rm -r --cached "A` |
-| 2026-05-13 22:30:18 | allow | `-` | `Get-Content "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\.gitignore" | Select-String "node_modules"` |
-| 2026-05-13 22:30:25 | allow | `-` | `Add-Content "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\.gitignore" "`nAdd In Program/FOMSBrainDesigner/node_modules/"` |
-| 2026-05-13 22:30:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" git add "Add In Program/FOMSBrainDesigner/package.json" git add "Add In Program/FOMSBrainDesign` |
 | 2026-05-13 22:30:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" $msg = @" feat: FOMS Brain AX Designer V2 MVP 援ы쁽 (B0-B8 ?꾨즺) - /wdplanner-v2 蹂묓뻾 ?댁쁺 route 諛?n` |
 | 2026-05-13 22:31:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin HEAD 2>&1 | Select-Object -Last 5` |
 | 2026-05-13 22:34:07 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; dir "foms\web\designer" /b; dir "foms\api\designer" /b; dir "foms\persistence\designer" /b; di` |
@@ -304,3 +296,11 @@
 | 2026-05-14 17:11:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add "Add In Program/FOMSBrainDesigner/src/ui/ViewCube.tsx" "Add In Program/FOMSBrainDesign` |
 | 2026-05-14 19:23:49 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log --oneline origin/deploy..HEAD; git status --short | Select-Object -First 8` |
 | 2026-05-14 19:24:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add AGENTS.md "docs/AI_CHANGELOG.md" "docs/AI_STATUS.md" "docs/ARCHIVE_INDEX.md" "docs/con` |
+| 2026-05-15 08:54:25 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\Add In Program\FOMSBrainDesigner"; npm run build` |
+| 2026-05-15 08:54:25 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-05-15 08:55:34 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\Add In Program\FOMSBrainDesigner"; npm run build` |
+| 2026-05-15 08:56:39 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Get-ChildItem -LiteralPath ".cursor\skills" -Force | Select-Object Name, Mode` |
+| 2026-05-15 08:56:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; dir ".cursor\skills"` |
+| 2026-05-15 08:56:51 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; dir ".agents\skills\gstack" | Select-Object -First 30` |
+| 2026-05-15 08:57:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch --show-current` |
+| 2026-05-15 08:57:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -u; git add "Add In Program\FOMSBrainDesigner\src\domain\blockPlacement.ts"; git add "` |

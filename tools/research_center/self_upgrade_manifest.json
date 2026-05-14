@@ -33,24 +33,7 @@
       "auto_create_stub": true
     }
   ],
-  "skills": [
-    {
-      "name": "tech-stack-evaluator",
-      "path": ".cursor/skills/skills/tech-stack-evaluator/SKILL.md"
-    },
-    {
-      "name": "self-evolution-factory",
-      "path": ".cursor/skills/skills/self-evolution-factory/SKILL.md"
-    },
-    {
-      "name": "context7-auto-research",
-      "path": ".cursor/skills/skills/context7-auto-research/SKILL.md"
-    },
-    {
-      "name": "agent-orchestration-multi-agent-optimize",
-      "path": ".cursor/skills/skills/agent-orchestration-multi-agent-optimize/SKILL.md"
-    }
-  ],
+  "skills": [],
   "hooks": [
     {
       "name": "guard_shell",

@@ -64,11 +64,11 @@ Report To: `grand-develop-master`
 - 이번 리뷰에서 미검증 영역
 ```
 
-## 참조 Skills
-- `.cursor/skills/skills/code-reviewer/SKILL.md`
-- `.cursor/skills/skills/find-bugs/SKILL.md`
-- `.cursor/skills/skills/security-auditor/SKILL.md`
-- `.cursor/skills/skills/clean-code/SKILL.md`
+## 참조 Skills (gstack · 저장소)
+- **`.agents/skills/gstack/review/SKILL.md`** (PR·랜딩 전 리뷰 워크플로)
+- 보안 심화가 필요하면 **`.agents/skills/gstack/cso/SKILL.md`**
+- 디버깅·RCA는 **`.agents/skills/gstack/investigate/SKILL.md`**
+- 코어 규칙: `AGENTS.md`, `.cursor/rules/*.mdc`, `.cursor/skills/manuals/01-clean-code.md`
 
 
 ##  [System 4 규칙] 필수 보고 체계
