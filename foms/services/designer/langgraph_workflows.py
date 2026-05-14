@@ -1,15 +1,19 @@
-"""FOMS Brain AX Designer – LangGraph Design Assist Graph (MVP).
+"""FOMS Brain AX Designer – LangGraph Design Assist Graph.
+
+PV2-B0: LangGraph output now routes through DesignCommand preview/apply.
+        AI MUST NOT modify design_json directly.
 
 When DESIGNER_AI_FAKE=1, the graph runs deterministically without any
 LLM API calls.  All paths still:
  - record a designer_ai_runs row
- - run the validator
+ - run the constraint validator
  - only persist a project version when valid + approved
  - record a correction log entry
 
 Graph nodes:
-  START -> load_context -> parse_intent -> propose_design_patch
-        -> run_validator -> maybe_interrupt_for_review -> persist_result -> END
+  START -> load_context -> parse_intent -> propose_command
+        -> preview_command_result -> maybe_interrupt_for_review
+        -> apply_command_result -> END
 """
 
 from __future__ import annotations
@@ -40,8 +44,11 @@ class DesignGraphState(TypedDict, total=False):
     design_json: dict
     ontology_rules: dict
     intent: dict
-    proposed_patch: dict
-    patched_design: dict
+    # PV2-B0: proposed_command replaces direct patched_design mutation
+    proposed_command: Optional[dict]   # DesignCommand dict
+    command_preview_result: Optional[dict]  # preview() return value
+    proposed_patch: dict               # kept for correction log
+    patched_design: dict               # result after safe apply
     validation_result: dict
     needs_interrupt: bool
     interrupt_reason: str
@@ -66,54 +73,103 @@ def load_context(state: DesignGraphState) -> DesignGraphState:
 
 
 def parse_intent(state: DesignGraphState) -> DesignGraphState:
-    """Parse user prompt into a structured intent command.
+    """Parse user prompt into a structured DesignCommand.
 
-    In fake mode: returns a deterministic width-change intent.
-    In real mode: calls LLM (placeholder – extend with actual LLM call).
+    PV2-B0: intent is now a DesignCommand dict, NOT a direct design mutation.
+
+    In fake mode: returns a deterministic generate_layout command.
+    In real mode: placeholder — replace with LUI parser (PV2-B1).
     """
-    if _FAKE_MODE:
-        state["intent"] = {
-            "action": "update_dimensions",
-            "target": "cabinet",
-            "changes": {"width": state["design_json"].get("cabinet", {}).get("width", 2400)},
-            "source": "fake_mode",
-        }
-        return state
+    import uuid as _uuid
+    design = state.get("design_json", {})
+    assembly = design.get("assembly", {})
+    asm_id = assembly.get("id", "unknown")
 
-    # Real mode placeholder (extend with actual LLM call)
-    prompt = state.get("prompt", "")
-    state["intent"] = {"action": "noop", "prompt": prompt, "source": "placeholder"}
+    if _FAKE_MODE:
+        # Fake: generate_layout command — changes nothing by default (no-op safe)
+        state["intent"] = {
+            "intent": "generate_layout",
+            "source": "fake_mode",
+            "target_component_id": asm_id,
+            "operation": {},
+        }
+    else:
+        # Real mode: route through LUI parser when available (PV2-B1)
+        # For now: noop command so no mutations happen
+        prompt = state.get("prompt", "")
+        state["intent"] = {
+            "intent": "generate_layout",
+            "source": "placeholder",
+            "target_component_id": asm_id,
+            "operation": {},
+            "raw_prompt": prompt,
+        }
     return state
 
 
-def propose_design_patch(state: DesignGraphState) -> DesignGraphState:
-    """Generate a design_json patch from the intent.
+def propose_command(state: DesignGraphState) -> DesignGraphState:
+    """Build a DesignCommand from parsed intent.
 
-    MVP: only width/height/depth changes are allowed.
+    PV2-B0: AI MUST NOT modify design_json directly.
+    All mutations go through DesignCommand -> preview -> apply.
+    """
+    import uuid as _uuid
+    intent_data = state.get("intent", {})
+
+    cmd: dict[str, Any] = {
+        "command_id": str(_uuid.uuid4()),
+        "source": intent_data.get("source", "ai"),
+        "intent": intent_data.get("intent", "generate_layout"),
+        "target": {"component_id": intent_data.get("target_component_id", "")},
+        "operation": intent_data.get("operation", {}),
+        "preview_only": True,
+    }
+    state["proposed_command"] = cmd
+    state["proposed_patch"] = {}
+    return state
+
+
+def preview_command_result(state: DesignGraphState) -> DesignGraphState:
+    """Preview the proposed DesignCommand without applying it.
+
+    PV2-B0: replaces direct patched_design mutation.
+    Sets validation_result from constraint_engine via command preview.
     """
     import copy
-    intent = state.get("intent", {})
+    from foms.services.designer.ontology_types import DesignCommand as _DC, DesignGraph as _DG
+    from foms.services.designer.command_engine import preview_command as _preview
+
     design = state.get("design_json", {})
+    cmd_data = state.get("proposed_command")
 
-    patched = copy.deepcopy(design)
-    state["proposed_patch"] = {}
+    # Fall back to original design if no command or schema v1
+    if not cmd_data or design.get("schema_version") != 2:
+        state["patched_design"] = copy.deepcopy(design)
+        state["validation_result"] = validate_design(design).to_dict()
+        state["command_preview_result"] = {"success": True, "patches": []}
+        return state
 
-    if intent.get("action") == "update_dimensions":
-        changes: dict[str, Any] = intent.get("changes", {})
-        for key in ("width", "height", "depth"):
-            if key in changes:
-                old_val = patched.get("cabinet", {}).get(key)
-                new_val = changes[key]
-                if old_val != new_val:
-                    patched.setdefault("cabinet", {})[key] = new_val
-                    state["proposed_patch"][key] = {"before": old_val, "after": new_val}
+    try:
+        graph = _DG.from_dict(design)
+        cmd = _DC.from_dict(cmd_data)
+        preview = _preview(cmd, graph)
+        state["command_preview_result"] = preview
+        state["validation_result"] = preview.get("constraint_result", validate_design(design).to_dict())
+        # proposed_patch: collect first patch for correction log
+        patches = preview.get("patches", [])
+        state["proposed_patch"] = {p["prop_path"]: {"before": p["before"], "after": p["after"]} for p in patches}
+        # patched_design stays original until apply
+        state["patched_design"] = copy.deepcopy(design)
+    except Exception as exc:
+        state["command_preview_result"] = {"success": False, "error": str(exc)}
+        state["validation_result"] = validate_design(design).to_dict()
+        state["patched_design"] = copy.deepcopy(design)
 
-    state["patched_design"] = patched
     return state
 
 
 def run_validator(state: DesignGraphState) -> DesignGraphState:
-    """Run the hard-rule validator against the proposed patched design."""
+    """Re-validate patched_design (safety net after preview)."""
     result = validate_design(state.get("patched_design", {}))
     state["validation_result"] = result.to_dict()
     return state
@@ -222,8 +278,8 @@ def run_design_assist_graph(
     try:
         state = load_context(state)
         state = parse_intent(state)
-        state = propose_design_patch(state)
-        state = run_validator(state)
+        state = propose_command(state)
+        state = preview_command_result(state)
         state = maybe_interrupt_for_review(state)
 
         if state.get("needs_interrupt"):
