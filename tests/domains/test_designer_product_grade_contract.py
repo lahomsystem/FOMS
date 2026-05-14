@@ -154,11 +154,13 @@ class TestPGModulesImplementedAndMissing:
         assert callable(dp.parse_gemini_dimensions)
         assert callable(vd.detect_view_from_text)
 
-    # ── PG-B11: STILL MISSING ──
-    def test_correction_clusterer_module_missing(self):
-        """foms.services.designer.correction_clusterer does not exist yet (PG-B11 scope)."""
-        with pytest.raises(ImportError):
-            import foms.services.designer.correction_clusterer  # noqa: F401
+    # ── PG-B11: IMPLEMENTED ──
+    def test_correction_clusterer_module_implemented(self):
+        """correction_clusterer.py + rule_replay.py implemented (PG-B11 complete)."""
+        import foms.services.designer.correction_clusterer as cc  # noqa: F401
+        import foms.services.designer.rule_replay as rr  # noqa: F401
+        assert callable(cc.cluster_corrections)
+        assert callable(rr.check_promotion_gate)
 
 
 # ──────────────────────────────────────────────────────────
