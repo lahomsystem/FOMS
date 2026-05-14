@@ -182,6 +182,61 @@ def compute_snapshot(period: str | None = None) -> EvalSnapshot:
     return snap
 
 
+def save_snapshot_to_db(snap: EvalSnapshot) -> int | None:
+    """Persist an EvalSnapshot to designer_eval_snapshots table.
+
+    Returns row ID or None on failure.
+    """
+    try:
+        from db import db_session
+        from sqlalchemy import text
+
+        db_session.execute(
+            text("""
+                INSERT INTO designer_eval_snapshots
+                  (period, captured_at, extraction_correction_rate,
+                   candidate_approval_rate, rule_candidate_pass_rate,
+                   design_cases_accumulated, new_archetype_candidates,
+                   total_extraction_cost_usd, overall_health_score,
+                   regression_detected, notes_json)
+                VALUES
+                  (:period, NOW(), :corr_rate, :appr_rate, :rule_rate,
+                   :cases, :archetypes, :cost, :health, :regression, CAST(:notes AS JSON))
+                ON CONFLICT DO NOTHING
+            """),
+            {
+                "period": snap.period,
+                "corr_rate": snap.extraction_correction_rate,
+                "appr_rate": snap.candidate_approval_rate,
+                "rule_rate": snap.rule_candidate_pass_rate,
+                "cases": snap.design_cases_accumulated,
+                "archetypes": snap.new_archetype_candidates,
+                "cost": snap.total_extraction_cost_usd,
+                "health": snap.overall_health_score(),
+                "regression": snap.regression_detected,
+                "notes": __import__("json").dumps(snap.notes, ensure_ascii=False),
+            },
+        )
+        db_session.commit()
+        logger.info("[EVAL] snapshot saved for period=%s", snap.period)
+        return 1
+    except Exception as exc:
+        logger.warning("[EVAL] DB save failed (non-fatal): %s", exc)
+        return None
+
+
+def run_monthly_evaluation(period: str | None = None, save_to_db: bool = True) -> dict[str, Any]:
+    """Compute and optionally persist the monthly evaluation snapshot.
+
+    Returns:
+        EvalSnapshot.to_dict()
+    """
+    snap = compute_snapshot(period)
+    if save_to_db:
+        save_snapshot_to_db(snap)
+    return snap.to_dict()
+
+
 # ──────────────────────────────────────────────────────────
 # Trend comparison
 # ──────────────────────────────────────────────────────────

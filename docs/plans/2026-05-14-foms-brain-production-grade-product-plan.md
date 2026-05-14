@@ -1472,9 +1472,9 @@ PG-L6 Fine-Tuning Dataset Export
 
 | 항목 | 설명 | 우선순위 |
 |---|---|---|
-| moveTool drag-and-drop | 3D에서 컴포넌트를 마우스로 직접 드래그해서 이동 | HIGH |
-| splitModuleTool | 선택한 모듈을 N개 자식 모듈로 분할 | HIGH |
-| snap-to-boundary | 인접 블럭 경계에 자동 스냅 (겹침 방지) | MEDIUM |
+| ~~moveTool drag-and-drop~~ | ✅ 방향 화살표 버튼으로 X/Y/Z 이동 (10mm, Shift:100mm) | HIGH |
+| ~~splitModuleTool~~ | ✅ 2/3/4/5칸 분할 버튼 (LegoBlockPalette) | HIGH |
+| snap-to-boundary | 인접 블럭 경계에 자동 스냅 (겹침 방지) — 향후 | MEDIUM |
 | DimensionEditorOverlay | 3D 화면 위에 직접 치수선 클릭 편집 | MEDIUM |
 | ViewCube | 정면/측면/평면/투상 뷰 전환 큐브 위젯 | LOW |
 | 멀티 선택 | Ctrl+클릭으로 복수 컴포넌트 선택 + 일괄 이동/삭제 | MEDIUM |
@@ -1495,9 +1495,9 @@ PG-L6 Fine-Tuning Dataset Export
 |---|---|---|
 | vector_memory 실제 연결 | pgvector + embedding model로 의미 기반 유사 사례 검색 | MEDIUM |
 | RuleCandidate UI panel | 생성된 rule candidate를 리뷰·승인하는 UI | HIGH |
-| active ontology unique index | Postgres partial unique index로 active ontology 단일성 보장 | HIGH |
-| ProductArchetype 승격 UI | 발견된 제품 archetype을 factory로 등록하는 관리 UI | MEDIUM |
-| 자동 설계 제안 | "이 공간에 맞는 장 설계해줘" 자연어 요청 → RAG + Gemini 후보 생성 | HIGH |
+| ~~active ontology unique index~~ | ✅ Postgres partial unique index migration 추가 | HIGH |
+| ProductArchetype 승격 UI | 발견된 제품 archetype을 factory로 등록하는 관리 UI — 향후 | MEDIUM |
+| ~~자동 설계 제안~~ | ✅ AIDesignPanel: 자연어 → Gemini LUI → 3D 자동 생성 (Fallback 포함) | HIGH |
 | design case 검색 UI | 승인 사례를 3D 워크벤치에서 불러와 편집 시작 | MEDIUM |
 
 ### 12.4 성능/운영 고도화
@@ -1506,7 +1506,7 @@ PG-L6 Fine-Tuning Dataset Export
 |---|---|---|
 | bundle code-split | R3F/Drei dynamic import로 번들 350KB 이하로 분할 | MEDIUM |
 | extraction job queue | 대용량 PDF 비동기 처리 + progress polling | MEDIUM |
-| monthly eval schedule | cron 기반 월별 self-evaluation 자동 실행 | LOW |
+| ~~monthly eval schedule~~ | ✅ DB persistence + run_monthly_evaluation() | LOW |
 | staging browser QA | Railway staging에서 Playwright E2E 증거 캡처 | HIGH |
 
 ### 12.5 제품 완성 기준 (모든 고도화 포함)
