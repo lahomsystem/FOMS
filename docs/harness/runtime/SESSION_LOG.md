@@ -4,11 +4,47 @@
 
 ## 최근 세션
 
+### Session: e88aa64b
+- **시작**: 2026-05-15 08:54:18
+- **상태**: completed
+- **편집 파일**: `Add In Program/FOMSBrainDesigner/src/canvas/CabinetScene.tsx`, `templates/designer/wdplanner_v2.html`, `Add In Program/FOMSBrainDesigner/src/ui/ModulePanel.tsx`, `Add In Program/FOMSBrainDesigner/src/App.tsx`, `Add In Program/FOMSBrainDesigner/src/canvas/DesignerCanvas.tsx`, `Add In Program/FOMSBrainDesigner/src/canvas/SelectionGizmo.tsx`, `Add In Program/FOMSBrainDesigner/src/canvas/DimensionLines.tsx`, `Add In Program/FOMSBrainDesigner/src/ui/LegoBlockPalette.tsx`, `Add In Program/FOMSBrainDesigner/src/ui/LeftToolPalette.tsx`, `Add In Program/FOMSBrainDesigner/src/domain/blockPlacement.ts`
+- **종료**: 2026-05-15 08:55:59
+
+### Session: ca84090b
+- **시작**: 2026-05-15 08:44:19
+- **상태**: completed
+- **편집 파일**: `Add In Program/FOMSBrainDesigner/src/canvas/CabinetScene.tsx`, `templates/designer/wdplanner_v2.html`, `Add In Program/FOMSBrainDesigner/src/ui/ModulePanel.tsx`, `Add In Program/FOMSBrainDesigner/src/App.tsx`, `Add In Program/FOMSBrainDesigner/src/canvas/DesignerCanvas.tsx`, `Add In Program/FOMSBrainDesigner/src/canvas/SelectionGizmo.tsx`, `Add In Program/FOMSBrainDesigner/src/canvas/DimensionLines.tsx`, `Add In Program/FOMSBrainDesigner/src/ui/LegoBlockPalette.tsx`, `Add In Program/FOMSBrainDesigner/src/ui/LeftToolPalette.tsx`, `Add In Program/FOMSBrainDesigner/src/domain/blockPlacement.ts`
+- **종료**: 2026-05-15 08:55:49
+
+### Session: ab1bc7d5
+- **시작**: 2026-05-14 15:31:54
+- **상태**: unknown
+- **편집 파일**: `docs/plans/2026-05-14-foms-brain-production-grade-product-plan.md`, `foms/api/designer/drawings.py`, `foms/api/designer/learning_ui.py`, `tools/designer/run_calibration.py`, `Add In Program/FOMSBrainDesigner/vite.config.ts`, `Add In Program/FOMSBrainDesigner/src/canvas/SelectionGizmo.tsx`, `Add In Program/FOMSBrainDesigner/src/canvas/DimensionLines.tsx`, `Add In Program/FOMSBrainDesigner/src/App.tsx`, `Add In Program/FOMSBrainDesigner/src/canvas/DesignerCanvas.tsx`, `Add In Program/FOMSBrainDesigner/src/ui/ViewCube.tsx`
+- **종료**: 2026-05-15 08:39:31
+
+### Session: e6c2730f
+- **시작**: 2026-05-14 08:46:21
+- **상태**: unknown
+- **편집 파일**: `docs/plans/2026-05-14-foms-brain-production-grade-product-plan.md`, `foms/api/designer/drawings.py`, `foms/api/designer/learning_ui.py`, `tools/designer/run_calibration.py`, `Add In Program/FOMSBrainDesigner/vite.config.ts`, `Add In Program/FOMSBrainDesigner/src/canvas/SelectionGizmo.tsx`, `Add In Program/FOMSBrainDesigner/src/canvas/DimensionLines.tsx`, `Add In Program/FOMSBrainDesigner/src/App.tsx`, `Add In Program/FOMSBrainDesigner/src/canvas/DesignerCanvas.tsx`, `Add In Program/FOMSBrainDesigner/src/ui/ViewCube.tsx`
+- **종료**: 2026-05-15 08:44:14
+
+### Session: eff213b7
+- **시작**: 2026-05-14 08:25:20
+- **상태**: unknown
+- **편집 파일**: `docs/plans/2026-05-14-foms-brain-production-grade-product-plan.md`, `docs/plans/2026-05-14-foms-brain-production-grade-next-llm-execution-prompt.md`, `unknown`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images____0-c20290ce-6c2e-4bda-adb1-e35065281b49.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images______1-45e023d3-9c87-486a-a711-1f3e041adabe.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images____0-fcff8f32-ac81-4bd5-9bf9-e289cb25d20c.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images____1-e2557e09-a1c5-4417-8012-9d7e521109de.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images____1-f9708bbb-4101-4b95-95ed-6b7f586dd4a6.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images____0-c75ba01e-3d76-42a3-8567-d6d1033f3878.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images____2-6969f6c2-5a51-42e1-acde-28361a293213.png`
+- **종료**: 2026-05-14 12:00:17
+
+### Session: 86c90236
+- **시작**: 2026-05-13 09:55:52
+- **상태**: unknown
+- **편집 파일**: `docs/plans/2026-05-14-foms-brain-production-grade-product-plan.md`, `docs/plans/2026-05-14-foms-brain-production-grade-next-llm-execution-prompt.md`, `unknown`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images____0-c20290ce-6c2e-4bda-adb1-e35065281b49.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images______1-45e023d3-9c87-486a-a711-1f3e041adabe.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images____0-fcff8f32-ac81-4bd5-9bf9-e289cb25d20c.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images____1-e2557e09-a1c5-4417-8012-9d7e521109de.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images____1-f9708bbb-4101-4b95-95ed-6b7f586dd4a6.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images____0-c75ba01e-3d76-42a3-8567-d6d1033f3878.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images____2-6969f6c2-5a51-42e1-acde-28361a293213.png`
+- **종료**: 2026-05-14 12:00:17
+
 ### Session: b09e7a36
 - **시작**: 2026-05-07 07:58:51
-- **상태**: completed
-- **편집 파일**: `tests/domains/test_erp_as_dashboard_tabs.py`, `templates/cs/partials/as_dashboard_body.html`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-6d452f8c-9feb-4661-aeef-fed5d5ac6d3f.png`, `_commit_msg_fix_test_layout_reload.txt`, `tests/domains/test_unified_search_params.py`, `templates/orders/index.html`, `static/js/orders/dashboard/erp-dashboard-detail-dom.js`, `templates/partials/shared/layout_scripts.html`, `static/js/orders/erp-order-shared.js`, `foms/web/shipment/dashboard.py`
-- **종료**: 2026-05-12 13:58:05
+- **상태**: unknown
+- **편집 파일**: `commit_msg.txt`, `tests/domains/test_erp_as_dashboard_tabs.py`, `foms/api/orders/field_update.py`, `templates/cs/partials/as_dashboard_body.html`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-6d452f8c-9feb-4661-aeef-fed5d5ac6d3f.png`, `_commit_msg_fix_test_layout_reload.txt`, `tests/domains/test_unified_search_params.py`, `templates/orders/index.html`, `static/js/orders/dashboard/erp-dashboard-detail-dom.js`, `templates/partials/shared/layout_scripts.html`
+- **종료**: 2026-05-13 09:55:49
 
 ### Session: 18d58c57
 - **시작**: 2026-05-06 08:18:30
@@ -407,3 +443,163 @@
 | 2026-05-11 13:46:54 | END (Claude Code) | 수정: (없음) |
 
 | 2026-05-12 13:58:05 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-12 14:01:35 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-12 14:06:10 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-12 14:07:44 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-12 14:10:47 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-13 16:36:34 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-13 17:03:49 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-13 22:31:58 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-13 22:36:38 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-13 22:49:06 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-13 22:55:51 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-13 23:09:48 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-13 23:11:14 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-13 23:17:39 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-13 23:22:08 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-13 23:26:53 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 08:21:46 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 08:23:17 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 08:27:43 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 08:56:31 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 09:03:47 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 09:21:59 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 09:23:43 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 09:25:28 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 09:28:05 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 09:50:38 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 09:57:42 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 10:21:14 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 10:47:05 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 10:50:38 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 10:59:04 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 11:04:37 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 11:07:53 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 11:14:36 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 11:19:01 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 11:38:02 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 11:42:51 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 11:44:47 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 11:49:35 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 11:53:28 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 11:55:38 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 11:58:02 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 12:03:49 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 12:37:29 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 12:41:47 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 12:46:14 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 12:51:40 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 12:59:11 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 13:07:24 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 13:11:16 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 13:40:22 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 13:44:22 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 13:47:08 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 13:49:36 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 13:54:33 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 14:16:19 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 14:24:00 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 14:30:07 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 14:34:42 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 14:53:27 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 14:57:01 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 15:16:23 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 15:17:08 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 15:18:03 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 15:20:00 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 15:23:33 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 15:34:20 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 15:38:12 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 15:38:39 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 15:46:26 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 15:51:43 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 15:56:31 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 16:03:57 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 16:39:49 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 16:49:50 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 17:12:20 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-14 19:24:21 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-15 08:46:23 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-15 08:51:35 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-15 08:55:49 | END (Claude Code) | 수정: (없음) |
+
+| 2026-05-15 08:55:59 | END (Claude Code) | 수정: (없음) |

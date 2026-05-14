@@ -7,6 +7,7 @@
 import { useDesignerStore } from '../stores/designerStore'
 import { FURNITURE_TYPE_REGISTRY, type FurnitureType } from '../domain/factoryRegistry'
 import type { DoorType } from '../domain/ontologyTypes'
+import { wardrobeParamsFromDesign, wardrobeParamsWithModuleCount } from '../domain/wardrobeParamsHelpers'
 
 const DOOR_TYPES: { value: DoorType; label: string }[] = [
   { value: 'sliding', label: '슬라이딩' },
@@ -25,50 +26,22 @@ export function ModulePanel() {
   const asm = design.assembly
 
   function handleModuleCount(count: number) {
-    if (count < 1 || count > 6) return
-    regenerateWardrobe({
-      width: asm.dimensions.width,
-      height: asm.dimensions.height,
-      depth: asm.dimensions.depth,
-      moduleCount: count,
-      doorType: asm.door_type as DoorType,
-      epLeft: asm.ep_left,
-      epRight: asm.ep_right,
-      epTop: asm.ep_top,
-      baseHeight: asm.base_height,
-      topSr: asm.top_sr,
-    })
+    regenerateWardrobe(wardrobeParamsWithModuleCount(design, count))
   }
 
   function handleDoorType(doorType: DoorType) {
-    regenerateWardrobe({
-      width: asm.dimensions.width,
-      height: asm.dimensions.height,
-      depth: asm.dimensions.depth,
-      moduleCount: asm.module_count,
-      doorType,
-      epLeft: asm.ep_left,
-      epRight: asm.ep_right,
-      epTop: asm.ep_top,
-      baseHeight: asm.base_height,
-      topSr: asm.top_sr,
-    })
+    regenerateWardrobe({ ...wardrobeParamsFromDesign(design), doorType })
   }
 
   function handleAssemblyDim(field: 'width' | 'height' | 'depth', value: string) {
     const num = parseInt(value, 10)
     if (!isNaN(num) && num > 0) {
+      const base = wardrobeParamsFromDesign(design)
       regenerateWardrobe({
+        ...base,
         width: field === 'width' ? num : asm.dimensions.width,
         height: field === 'height' ? num : asm.dimensions.height,
         depth: field === 'depth' ? num : asm.dimensions.depth,
-        moduleCount: asm.module_count,
-        doorType: asm.door_type as DoorType,
-        epLeft: asm.ep_left,
-        epRight: asm.ep_right,
-        epTop: asm.ep_top,
-        baseHeight: asm.base_height,
-        topSr: asm.top_sr,
       })
     }
   }
@@ -76,15 +49,11 @@ export function ModulePanel() {
   function handleSpacerChange(field: 'epLeft' | 'epRight' | 'topSr' | 'baseHeight', value: string) {
     const num = parseInt(value, 10)
     if (!isNaN(num) && num >= 0) {
+      const base = wardrobeParamsFromDesign(design)
       regenerateWardrobe({
-        width: asm.dimensions.width,
-        height: asm.dimensions.height,
-        depth: asm.dimensions.depth,
-        moduleCount: asm.module_count,
-        doorType: asm.door_type as DoorType,
+        ...base,
         epLeft: field === 'epLeft' ? num : asm.ep_left,
         epRight: field === 'epRight' ? num : asm.ep_right,
-        epTop: asm.ep_top,
         baseHeight: field === 'baseHeight' ? num : asm.base_height,
         topSr: field === 'topSr' ? num : asm.top_sr,
       })

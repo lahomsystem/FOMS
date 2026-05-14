@@ -48,11 +48,9 @@ git push origin deploy  # Railway 자동 배포
 - `KAKAO_REST_API_KEY` - 카카오 API
 - 하드코딩 절대 금지
 
-## 참조 Skills
-- `.cursor/skills/skills/git-advanced-workflows/SKILL.md`
-- `.cursor/skills/skills/deployment-procedures/SKILL.md`
-- `.cursor/skills/skills/docker-expert/SKILL.md`
-- `.cursor/skills/skills/server-management/SKILL.md`
+## 참조 Skills (gstack · 저장소)
+- 배포·머지 검증: **`.agents/skills/gstack/land-and-deploy/SKILL.md`**, **`.agents/skills/gstack/ship/SKILL.md`**, **`.agents/skills/gstack/canary/SKILL.md`**
+- Git 규칙: `CLAUDE.md`, `.cursor/rules/50-win11-shell.mdc`
 
 ## 참조 MCP
 - `memory`: 배포 기록 저장/조회

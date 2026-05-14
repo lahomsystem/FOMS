@@ -35,6 +35,7 @@ function snapToAssembly(
 export function SelectionGizmo({ component: c }: SelectionGizmoProps) {
   const updateComponent = useDesignerStore((s) => s.updateComponent)
   const assemblyDims = useDesignerStore((s) => s.design.assembly.dimensions)
+  const showMoveControls = useDesignerStore((s) => s.activeTool === 'move')
   const w = c.dimensions.width * MM
   const h = c.dimensions.height * MM
   const d = c.dimensions.depth * MM
@@ -88,7 +89,8 @@ export function SelectionGizmo({ component: c }: SelectionGizmoProps) {
             {c.dimensions.width} × {c.dimensions.height} × {c.dimensions.depth} mm
           </div>
 
-          {/* Move arrows */}
+          {/* Move arrows (이동 도구일 때만) */}
+          {showMoveControls && (
           <div style={{ display: 'flex', gap: 3, marginTop: 5, justifyContent: 'center', flexWrap: 'wrap' }}>
             {([
               { label: '←', dx: -1, dy: 0, dz: 0, title: 'X- (Shift: -100mm)' },
@@ -123,6 +125,7 @@ export function SelectionGizmo({ component: c }: SelectionGizmoProps) {
               </button>
             ))}
           </div>
+          )}
           <div style={uuidStyle} title={c.id}>
             {c.id.slice(0, 8)}… | Shift:×10 | Alt:스냅
           </div>

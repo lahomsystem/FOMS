@@ -52,6 +52,7 @@ export function DesignerCanvas({
   onViewModeChange?: (v: ViewMode) => void
 }) {
   const design = useDesignerStore((s) => s.design)
+  const activeTool = useDesignerStore((s) => s.activeTool)
   const asm = design.assembly
   const w = asm.dimensions.width * 0.001
   const h = asm.dimensions.height * 0.001
@@ -92,7 +93,7 @@ export function DesignerCanvas({
         <OrbitControls
           enablePan
           enableZoom
-          enableRotate
+          enableRotate={activeTool !== 'move'}
           target={target}
           minDistance={0.1}
           maxDistance={20}

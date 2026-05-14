@@ -167,18 +167,10 @@ Evolve  -> Rules/Skills/Hooks/Agents로 승격
 9. `migration-executor`: macro/micro 설계 실행
 10. `context-manager`: 결정 및 작업 이력 기록
 
-## 참조 Skills
-- `.cursor/skills/skills/tech-stack-evaluator/SKILL.md`
-- `.cursor/skills/skills/self-evolution-factory/SKILL.md`
-- `.cursor/skills/skills/architect-review/SKILL.md`
-- `.cursor/skills/skills/backend-architect/SKILL.md`
-- `.cursor/skills/skills/python-pro/SKILL.md`
-- `.cursor/skills/skills/api-design-principles/SKILL.md`
-- `.cursor/skills/skills/frontend-design/SKILL.md`
-- `.cursor/skills/skills/ui-ux-pro-max/SKILL.md`
-- `.cursor/skills/skills/database-architect/SKILL.md`
-- `.cursor/skills/skills/deployment-procedures/SKILL.md`
-- `.cursor/skills/skills/production-code-audit/SKILL.md`
+## 참조 Skills (gstack · 저장소)
+- 로드맵·자동 리뷰: **`.agents/skills/gstack/autoplan/SKILL.md`**, **`.agents/skills/gstack/plan-eng-review/SKILL.md`**, **`.agents/skills/gstack/plan-design-review/SKILL.md`**
+- 스택·품질 신호: **`.agents/skills/gstack/health/SKILL.md`**, **`.agents/skills/gstack/review/SKILL.md`**
+- 진화 기록은 본 문서의 `docs/evolution/*` 경로를 유지한다.
 
 ## 참조 MCP
 - `sequential-thinking`: 로드맵/우선순위 의사결정

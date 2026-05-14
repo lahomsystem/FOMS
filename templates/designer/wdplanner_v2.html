@@ -559,6 +559,21 @@ function switchMode(mode) {
     adjustOuterHeight();
 }
 
+// ── Brain Designer 임베드(자식 iframe)에서 도면 업로드 모드 요청 ──
+window.addEventListener('message', function (ev) {
+    try {
+        var d = ev.data;
+        if (!d || d.type !== 'FOMS_SWITCH_MODE' || d.mode !== 'drawing') return;
+        if (typeof ev.origin === 'string' && ev.origin && ev.origin !== window.location.origin) {
+            console.warn('[wdplanner_v2] FOMS_SWITCH_MODE ignored: origin mismatch', ev.origin);
+            return;
+        }
+        switchMode('drawing');
+    } catch (err) {
+        console.warn('[wdplanner_v2] FOMS_SWITCH_MODE handler error', err);
+    }
+});
+
 // ── ProductArchetype 관리 ──────────────────────────────────
 async function loadArchetypes() {
     try {

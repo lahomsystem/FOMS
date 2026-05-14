@@ -43,13 +43,10 @@ try {
 - BEM 또는 기능 기반: `erp-grid-cell`, `status-badge-received`
 - Bootstrap 클래스 우선, 커스텀 CSS 최소화
 
-## 참조 Skills
-- `.cursor/skills/skills/frontend-design/SKILL.md`
-- `.cursor/skills/web-design-guidelines/SKILL.md`
-- `.cursor/skills/skills/javascript-pro/SKILL.md`
-- `.cursor/skills/skills/ui-skills/SKILL.md`
-- `.cursor/skills/skills/ui-ux-designer/SKILL.md`
-- `.cursor/skills/skills/ui-ux-pro-max/SKILL.md`
+## 참조 Skills (gstack · 저장소)
+- 워크플로 스킬은 **`.agents/skills/gstack/`** 번들을 우선한다 (예: `.agents/skills/gstack/design-review/SKILL.md`, `.agents/skills/gstack/design-html/SKILL.md`, `.agents/skills/gstack/qa/SKILL.md`).
+- UI 가이드라인 보조: `.cursor/skills/web-design-guidelines/SKILL.md`
+- 코어 규칙: `AGENTS.md`, `CLAUDE.md`, `.cursor/rules/*.mdc`, `.cursor/skills/manuals/`
 
 ## 참조 MCP
 - `context7`: Bootstrap 문서 조회

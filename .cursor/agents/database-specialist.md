@@ -61,11 +61,9 @@ structured_data = db.Column(
 - `upgrade`/`downgrade` 리허설로 롤백 가능성 검증
 - 프로덕션 적용 전 로컬 검증 필수
 
-## 참조 Skills
-- `.cursor/skills/skills/database-architect/SKILL.md`
-- `.cursor/skills/skills/sql-optimization-patterns/SKILL.md`
-- `.cursor/skills/skills/postgresql/SKILL.md`
-- `.cursor/skills/skills/database-migration/SKILL.md`
+## 참조 Skills (gstack · 저장소)
+- **`.agents/skills/gstack/health/SKILL.md`** (품질·점검 워크플로가 필요할 때)
+- 스키마·마이그레이션은 `CLAUDE.md` DB 절 + `.cursor/skills/manuals/03-python.md` 의 SQLAlchemy/Alembic 규칙을 따른다.
 
 ## 참조 MCP
 - `postgres`: DB 스키마 확인, 쿼리 실행, 성능 분석

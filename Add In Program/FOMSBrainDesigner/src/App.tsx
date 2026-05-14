@@ -16,7 +16,9 @@ import { CommandPanel } from './ui/CommandPanel'
 import { ValidationPanel } from './ui/ValidationPanel'
 import { AIPanel } from './ui/AIPanel'
 import { TopToolBar } from './ui/TopToolBar'
-import { LeftToolPalette, type ToolMode } from './ui/LeftToolPalette'
+import { LeftToolPalette } from './ui/LeftToolPalette'
+import type { ToolMode } from './domain/toolMode'
+import { wardrobeParamsWithModuleCount } from './domain/wardrobeParamsHelpers'
 import { RightPropertyTray } from './ui/RightPropertyTray'
 import { DrawingReviewWorkspace } from './ui/DrawingReviewWorkspace'
 import { AIDesignPanel } from './ui/AIDesignPanel'
@@ -40,56 +42,90 @@ export default function App() {
   const setDesign = useDesignerStore((s) => s.setDesign)
   const markSaved = useDesignerStore((s) => s.markSaved)
 
-  const undo = useDesignerStore((s) => s.undo)
-  const redo = useDesignerStore((s) => s.redo)
-  const canUndo = useDesignerStore((s) => s.canUndo)
-  const canRedo = useDesignerStore((s) => s.canRedo)
-  const removeComponent = useDesignerStore((s) => s.removeComponent)
-  const removeSelectedComponents = useDesignerStore((s) => s.removeSelectedComponents)
-  const copySelected = useDesignerStore((s) => s.copySelected)
-  const pasteClipboard = useDesignerStore((s) => s.pasteClipboard)
-  const selectedId = useDesignerStore((s) => s.selectedComponentId)
   const loadCandidateGraph = useDesignerStore((s) => s.loadCandidateGraph)
+  const activeTool = useDesignerStore((s) => s.activeTool)
+  const setActiveTool = useDesignerStore((s) => s.setActiveTool)
+  const currentFurnitureType = useDesignerStore((s) => s.currentFurnitureType)
 
   const [initStatus, setInitStatus] = useState<InitStatus>('loading')
   const [initError, setInitError] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('3d')
-  const [activeTool, setActiveTool] = useState<ToolMode>('select')
   const [rightTab, setRightTab] = useState<'module' | 'command' | 'tray' | 'ai'>('tray')
   const [appMode, setAppMode] = useState<'editor' | 'review'>('editor')
 
-  // ── Keyboard shortcuts (PG-B9) ──────────────────────────
+  // ── Keyboard shortcuts (PG-B9) + 도구 단축키 / split +/- ──
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement
-      // Don't intercept when typing in inputs
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
+
+      const st = useDesignerStore.getState()
 
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
         e.preventDefault()
-        if (e.shiftKey) { redo() } else { undo() }
-      } else if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+        if (e.shiftKey) st.redo()
+        else st.undo()
+        return
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
         e.preventDefault()
-        redo()
-      } else if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+        st.redo()
+        return
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
         e.preventDefault()
-        copySelected()
-      } else if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+        st.copySelected()
+        return
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
         e.preventDefault()
-        pasteClipboard()
-      } else if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (selectedId) {
+        st.pasteClipboard()
+        return
+      }
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (st.selectedComponentId || st.selectedComponentIds.size > 0) {
           e.preventDefault()
-          removeSelectedComponents()
+          st.removeSelectedComponents()
         }
-      } else if (e.key === 'Escape') {
-        useDesignerStore.getState().setSelectedComponent(null)
-        useDesignerStore.getState().clearMultiSelection()
+        return
+      }
+      if (e.key === 'Escape') {
+        st.setSelectedComponent(null)
+        st.clearMultiSelection()
+        st.setActiveTool('select')
+        return
+      }
+
+      const toolByKey: Record<string, ToolMode> = {
+        s: 'select',
+        m: 'move',
+        d: 'dimension',
+        x: 'split',
+        l: 'shelf',
+        o: 'door',
+        c: 'cutout',
+      }
+      const ch = e.key.length === 1 ? e.key.toLowerCase() : ''
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && ch && toolByKey[ch]) {
+        e.preventDefault()
+        st.setActiveTool(toolByKey[ch])
+        return
+      }
+
+      if (st.activeTool === 'split' && st.currentFurnitureType === 'wardrobe') {
+        const inc = e.key === '+' || e.key === '=' || e.code === 'NumpadAdd'
+        const dec = e.key === '-' || e.code === 'NumpadSubtract'
+        if (inc || dec) {
+          e.preventDefault()
+          const cur = st.design.assembly.module_count
+          const next = inc ? cur + 1 : cur - 1
+          st.regenerateWardrobe(wardrobeParamsWithModuleCount(st.design, next))
+        }
       }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [undo, redo, removeComponent, selectedId])
+  }, [])
 
   // ── postMessage listeners (PG-B8/B9) ────────────────────
   useEffect(() => {
@@ -313,12 +349,30 @@ export default function App() {
       <div style={S.statusBar}>
         {(() => {
           const multiCount = useDesignerStore.getState().selectedComponentIds.size
-          return multiCount > 1 ? (
-            <span style={{ color: COLORS.accent }}>
-              {multiCount}개 선택됨 | Ctrl+C 복사 | Delete 일괄 삭제
+          if (multiCount > 1) {
+            return (
+              <span style={{ color: COLORS.accent }}>
+                {multiCount}개 선택됨 | Ctrl+C 복사 | Delete 일괄 삭제
+              </span>
+            )
+          }
+          if (activeTool === 'split') {
+            return currentFurnitureType === 'wardrobe' ? (
+              <span>
+                도구: <b style={{ color: COLORS.textPrimary }}>split</b>
+                {' · '}
+                <span style={{ color: COLORS.textMuted }}>붙박이장: + / - 로 통 수 조절 (1~5)</span>
+              </span>
+            ) : (
+              <span style={{ color: COLORS.textMuted }}>
+                모듈 분할은 붙박이장(wardrobe) 선택 시 + / - 가 적용됩니다.
+              </span>
+            )
+          }
+          return (
+            <span>
+              도구: <b style={{ color: COLORS.textPrimary }}>{activeTool}</b>
             </span>
-          ) : (
-            <span>도구: <b style={{ color: COLORS.textPrimary }}>{activeTool}</b></span>
           )
         })()}
         <span>뷰: <b style={{ color: COLORS.textPrimary }}>{viewMode}</b></span>

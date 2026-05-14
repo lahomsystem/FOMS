@@ -181,7 +181,7 @@ Phase 4: 확장 (새 기능, AI 통합)
 | 컴포넌트 | 위치 | 생성 방법 |
 |----------|------|-----------|
 | Rule | `.cursor/rules/XX-name.mdc` | YAML frontmatter + Markdown |
-| Skill | `.cursor/skills/skills/<이름>/SKILL.md` (예: `grand-develop-master`) | Markdown (SKILL.md) |
+| Skill | `.agents/skills/gstack/<워크플로>/SKILL.md` (gstack 번들) 또는 필요 시 소형 전용 스킬만 `.cursor/skills/` 하위에 추가 | Markdown (SKILL.md) |
 | Agent | `.cursor/agents/name.md` | YAML frontmatter + Markdown |
 | Hook | `.cursor/hooks/name.py` + `hooks.json` | Python 스크립트 + JSON 등록 |
 | MCP | `~/.cursor/mcp.json` | JSON 설정 추가 |
@@ -236,7 +236,7 @@ Phase 4: 확장 (새 기능, AI 통합)
 5. 대안 비교 매트릭스 작성 (확장성·비용·위험도)
 6. 추천안 보고 (비용/이점 포함, 비전문가 언어)
 ```
-참조: `tech-stack-evaluator/SKILL.md`
+참조: **context7 MCP**(공식 문서)·**web_search**·`docs/harness/policy/DECISIONS.md`
 
 ### GDM 방향 제시 호출 시
 ```
@@ -327,13 +327,10 @@ Phase 4: 확장 (새 기능, AI 통합)
   - §5 **검증 체크리스트**: 매 작업 완료 후 `python -c "import app"`, 서버 기동, ReadLints, AI_STATUS/AI_CHANGELOG 자동 갱신 확인
   - §6 **금지 사항 (재확인)**, §7 **문제 해결 원칙 (The GDM Way)** — 근본 해결·임시 방편 금지와 정합
 
-## 참조 Skills
-- `.cursor/skills/skills/grand-develop-master/SKILL.md` (종합 감독 방법론)
-- `.cursor/skills/skills/tech-stack-evaluator/SKILL.md` (기술 스택 평가)
-- `.cursor/skills/skills/self-evolution-factory/SKILL.md` (자가 진화 공장)
-- `.cursor/skills/skills/architect-review/SKILL.md` (아키텍처 리뷰)
-- `.cursor/skills/skills/code-reviewer/SKILL.md` (코드 리뷰)
-- `.cursor/skills/skills/production-code-audit/SKILL.md` (프로덕션 코드 감사)
+## 참조 Skills (gstack · 저장소)
+- 종합 워크플로·QA·리뷰: **`.agents/skills/gstack/`** (예: `.agents/skills/gstack/review/SKILL.md`, `.agents/skills/gstack/qa/SKILL.md`, `.agents/skills/gstack/autoplan/SKILL.md`, `.agents/skills/gstack/health/SKILL.md`)
+- UI 보조: `.cursor/skills/web-design-guidelines/SKILL.md`
+- 운영 규칙: `AGENTS.md`, `.cursor/rules/00-project-context.mdc`, `.cursor/skills/manuals/`
 
 ## 참조 Agents
 - `.cursor/agents/python-backend.md` (Flask API/백엔드 아키텍처)

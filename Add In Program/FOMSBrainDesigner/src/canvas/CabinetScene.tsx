@@ -11,6 +11,11 @@ import { useDesignerStore } from '../stores/designerStore'
 import { DimensionLines } from './DimensionLines'
 import { SelectionGizmo } from './SelectionGizmo'
 import type { Component, ComponentKind } from '../domain/ontologyTypes'
+import {
+  createShelfPlacementComponent,
+  createDoorPlacementComponent,
+  createCutoutPlacementComponent,
+} from '../domain/blockPlacement'
 
 const MM = 0.001  // convert mm → Three.js units (metres)
 
@@ -116,6 +121,9 @@ export function CabinetScene() {
   const setSelected = useDesignerStore((s) => s.setSelectedComponent)
   const toggleMultiSelect = useDesignerStore((s) => s.toggleComponentSelection)
   const clearMultiSelection = useDesignerStore((s) => s.clearMultiSelection)
+  const activeTool = useDesignerStore((s) => s.activeTool)
+  const addComponent = useDesignerStore((s) => s.addComponent)
+  const setActiveTool = useDesignerStore((s) => s.setActiveTool)
 
   function handleSelect(id: string, ctrlKey: boolean) {
     if (ctrlKey) {
@@ -134,6 +142,28 @@ export function CabinetScene() {
   const selectedComponent = selectedId
     ? design.components.find(c => c.id === selectedId) ?? null
     : null
+
+  function handleFloorPlaneClick() {
+    const dims = design.assembly.dimensions
+    if (activeTool === 'shelf') {
+      addComponent(createShelfPlacementComponent(dims))
+      setActiveTool('select')
+      return
+    }
+    if (activeTool === 'door') {
+      addComponent(createDoorPlacementComponent(dims))
+      setActiveTool('select')
+      return
+    }
+    if (activeTool === 'cutout') {
+      addComponent(createCutoutPlacementComponent(dims))
+      setActiveTool('select')
+      return
+    }
+    if (activeTool === 'select') {
+      setSelected(null)
+    }
+  }
 
   // Render order: structural first (ep, base, sr, panels), then doors/drawers on top
   const structural = design.components.filter(c =>
@@ -175,14 +205,14 @@ export function CabinetScene() {
         <SelectionGizmo key={`gizmo-${selectedComponent.id}`} component={selectedComponent} />
       )}
 
-      {/* Dimension lines */}
-      <DimensionLines />
+      {/* Dimension lines — 치수 도구에서만 표시 */}
+      <DimensionLines visible={activeTool === 'dimension'} />
 
-      {/* Deselect on background click */}
+      {/* 바닥 클릭: 배치 모드(선반/도어/컷아웃) 또는 선택 해제 */}
       <mesh
         position={[w / 2, -0.02, d / 2]}
         rotation={[-Math.PI / 2, 0, 0]}
-        onClick={() => setSelected(null)}
+        onClick={handleFloorPlaneClick}
         receiveShadow
       >
         <planeGeometry args={[20, 20]} />

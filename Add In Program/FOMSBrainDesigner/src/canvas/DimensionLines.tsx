@@ -23,10 +23,17 @@ const labelStyle: React.CSSProperties = {
   userSelect: 'none',
 }
 
+interface DimensionLinesProps {
+  /** When false, skips rendering (default true for backward compatibility). */
+  visible?: boolean
+}
+
 /** Renders dimension lines + mm labels around the assembly bounding box. */
-export function DimensionLines() {
+export function DimensionLines({ visible = true }: DimensionLinesProps) {
   const design = useDesignerStore((s) => s.design)
   const asm = design.assembly
+
+  if (!visible) return null
 
   const w = asm.dimensions.width * MM
   const h = asm.dimensions.height * MM

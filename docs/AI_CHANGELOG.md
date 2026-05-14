@@ -4,6 +4,8 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-05-15 | 세션 자동 기록 | CabinetScene.tsx, wdplanner_v2.html, ModulePanel.tsx 외 2개 | 51d4471d |
+| 2026-05-15 | 세션 자동 기록 | drawings.py, learning_ui.py, run_calibration.py 외 2개 | 51d4471d |
 | 2026-05-14 | 세션 자동 기록 | drawings.py, learning_ui.py, run_calibration.py 외 2개 | e446a72b |
 | 2026-05-14 | 세션 자동 기록 | blueprints.py, learning_ui.py, wdplanner_v2.html 외 2개 | ffd5eeb6 |
 | 2026-05-14 | 세션 자동 기록 | evolution_api.py, wdplanner_v2.html, self_evaluation.py 외 2개 | bdce9456 |
@@ -22,5 +24,3 @@
 | 2026-05-14 | 세션 자동 기록 | requirements.txt, test_designer_product_grade_contract.py, test_designer_gemini_provider.py 외 2개 | 75b635be |
 | 2026-05-14 | 세션 자동 기록 | test_designer_product_grade_contract.py, test_designer_gemini_provider.py, gemini_provider.py 외 2개 | 98450b3e |
 | 2026-05-14 | 세션 자동 기록 | test_designer_product_grade_contract.py, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images____0-c20290ce-6c2e-4bda-adb1-e35065281b49.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images______1-45e023d3-9c87-486a-a711-1f3e041adabe.png 외 2개 | 1d85a017 |
-| 2026-05-14 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images____0-c20290ce-6c2e-4bda-adb1-e35065281b49.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images______1-45e023d3-9c87-486a-a711-1f3e041adabe.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images____0-fcff8f32-ac81-4bd5-9bf9-e289cb25d20c.png 외 2개 | 300a0f52 |
-| 2026-05-14 | 세션 자동 기록 | assemblyFactories.ts, qa_deploy_test.py, commands.py 외 2개 | 300a0f52 |
