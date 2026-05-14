@@ -161,3 +161,137 @@ class DesignerEmbedding(Base):
     # embedding column added in separate pgvector migration (B7)
     metadata_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
+
+
+# ──────────────────────────────────────────────────────────
+# PG-B3: Drawing Intake Data Models
+# ──────────────────────────────────────────────────────────
+
+class DesignerDrawingArtifact(Base):
+    """Raw drawing file attached to a project. Intake does NOT create a project version.
+
+    A drawing artifact is immutable — the original file is never modified.
+    Extraction results are stored in DesignerDrawingExtraction separately.
+    """
+
+    __tablename__ = "designer_drawing_artifacts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("designer_projects.id"), nullable=True
+    )
+    attachment_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # FOMS attachment
+    file_url: Mapped[str] = mapped_column(String(2000), nullable=False)
+    file_type: Mapped[str] = mapped_column(
+        Enum("jpg", "jpeg", "png", "pdf", "webp", name="designer_drawing_file_type", native_enum=False),
+        nullable=False, default="jpg",
+    )
+    page_count: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    source: Mapped[str] = mapped_column(
+        Enum("upload", "erp_attachment", "manual", name="designer_drawing_source", native_enum=False),
+        nullable=False, default="upload",
+    )
+    status: Mapped[str] = mapped_column(
+        Enum("pending", "processing", "done", "error",
+             name="designer_drawing_artifact_status", native_enum=False),
+        nullable=False, default="pending",
+    )
+    created_by_user_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
+
+    pages: Mapped[list["DesignerDrawingPage"]] = relationship(
+        "DesignerDrawingPage", back_populates="artifact", cascade="all, delete-orphan"
+    )
+
+
+class DesignerDrawingPage(Base):
+    """Single page of a drawing artifact (PDF may have multiple pages)."""
+
+    __tablename__ = "designer_drawing_pages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    artifact_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("designer_drawing_artifacts.id"), nullable=False
+    )
+    page_no: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    image_url: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    width_px: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    height_px: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    rotation_deg: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    template_key: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
+
+    artifact: Mapped[DesignerDrawingArtifact] = relationship("DesignerDrawingArtifact", back_populates="pages")
+    extractions: Mapped[list["DesignerDrawingExtraction"]] = relationship(
+        "DesignerDrawingExtraction", back_populates="page", cascade="all, delete-orphan"
+    )
+
+
+class DesignerDrawingExtraction(Base):
+    """Extraction run result for one drawing page. Never auto-approved.
+
+    Includes raw model output, parsed structured data, and confidence.
+    Human review required before project version creation.
+    """
+
+    __tablename__ = "designer_drawing_extractions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    page_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("designer_drawing_pages.id"), nullable=False
+    )
+    extractor_version: Mapped[str] = mapped_column(String(50), nullable=False, default="gemini-v1")
+    raw_ocr_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    layout_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    parsed_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    confidence_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    status: Mapped[str] = mapped_column(
+        Enum("draft", "pending_approval", "approved", "rejected",
+             name="designer_extraction_status", native_enum=False),
+        nullable=False, default="draft",
+    )
+    approved_by_user_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    model_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cost_usd: Mapped[float | None] = mapped_column(nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
+
+    page: Mapped[DesignerDrawingPage] = relationship("DesignerDrawingPage", back_populates="extractions")
+    candidates: Mapped[list["DesignerExtractionCandidate"]] = relationship(
+        "DesignerExtractionCandidate", back_populates="extraction", cascade="all, delete-orphan"
+    )
+
+
+class DesignerExtractionCandidate(Base):
+    """Design graph candidate generated from a drawing extraction.
+
+    Never auto-applied. Requires human approval before project version creation.
+    unresolved_fields must be empty before approval is permitted.
+    """
+
+    __tablename__ = "designer_extraction_candidates"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    extraction_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("designer_drawing_extractions.id"), nullable=False
+    )
+    furniture_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    extracted_params_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    unresolved_fields_json: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    confidence: Mapped[float] = mapped_column(nullable=False, default=0.0)
+    approved: Mapped[bool] = mapped_column(nullable=False, default=False)
+    approved_by_user_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # correction_deltas stored in DesignerCorrection linked to this candidate
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
+
+    extraction: Mapped[DesignerDrawingExtraction] = relationship(
+        "DesignerDrawingExtraction", back_populates="candidates"
+    )
