@@ -219,6 +219,9 @@
         <button class="mode-btn" id="btn-mode-drawing" onclick="switchMode('drawing')">
             📐 도면 등록 · 학습
         </button>
+        <button class="mode-btn" id="btn-mode-rules" onclick="switchMode('rules')">
+            🧠 규칙 후보
+        </button>
         <span class="corpus-badge" id="corpus-badge">학습 corpus: 로딩중...</span>
     </div>
 
@@ -237,6 +240,23 @@
             allow="fullscreen"
             onload="document.getElementById('designer-loading').style.display='none';"
         ></iframe>
+    </div>
+
+    <!-- 규칙 후보 패널 -->
+    <div id="rules-panel" style="display:none; flex:1; overflow-y:auto; background:#f8f9fa;">
+        <div class="drawing-panel-inner">
+            <h5 class="fw-bold mb-1">규칙 후보 관리 <span class="badge bg-secondary ms-2" id="rule-badge">0</span></h5>
+            <p class="text-muted small mb-3">사용자 수정 패턴에서 자동 발견된 설계 규칙 후보입니다. Replay 검증 후 승인하면 활성 규칙으로 승격됩니다.</p>
+
+            <div class="d-flex gap-2 mb-3">
+                <button class="btn btn-outline-primary btn-sm" onclick="runClustering()">🔍 새 후보 탐색</button>
+                <button class="btn btn-outline-secondary btn-sm" onclick="loadRuleCandidates()">🔄 새로고침</button>
+            </div>
+
+            <div id="rule-list">
+                <div class="text-center py-4 text-muted small">로딩 중...</div>
+            </div>
+        </div>
     </div>
 
     <!-- 도면 등록 패널 -->
@@ -435,22 +455,117 @@ if (iframe) {
 function switchMode(mode) {
     const designerPane = document.getElementById('designer-pane');
     const drawingPanel = document.getElementById('drawing-panel');
+    const rulesPanel = document.getElementById('rules-panel');
     const btnD = document.getElementById('btn-mode-designer');
     const btnDr = document.getElementById('btn-mode-drawing');
+    const btnR = document.getElementById('btn-mode-rules');
+
+    // Hide all panels first
+    designerPane.style.display = 'none';
+    drawingPanel.style.display = 'none';
+    rulesPanel.style.display = 'none';
+    [btnD, btnDr, btnR].forEach(b => b && b.classList.remove('active'));
 
     if (mode === 'designer') {
-        designerPane.style.display = 'flex';   // 기존 flex 레이아웃 복원
-        drawingPanel.style.display = 'none';
+        designerPane.style.display = 'flex';
         btnD.classList.add('active');
-        btnDr.classList.remove('active');
-    } else {
-        designerPane.style.display = 'none';
-        drawingPanel.style.display = 'block';  // 핵심: '' 대신 명시적 'block'
-        btnD.classList.remove('active');
+    } else if (mode === 'drawing') {
+        drawingPanel.style.display = 'block';
         btnDr.classList.add('active');
         loadFixtures();
+    } else if (mode === 'rules') {
+        rulesPanel.style.display = 'flex';
+        btnR && btnR.classList.add('active');
+        loadRuleCandidates();
     }
     adjustOuterHeight();
+}
+
+// ── Rule Candidate 관리 ─────────────────────────────────────
+async function loadRuleCandidates() {
+    const list = document.getElementById('rule-list');
+    try {
+        const resp = await fetch('/api/designer/evolution/candidates', { credentials: 'same-origin' });
+        const json = await resp.json();
+        if (!json.success) throw new Error(json.error);
+        const candidates = json.data || [];
+        document.getElementById('rule-badge').textContent = candidates.length;
+        if (!candidates.length) {
+            list.innerHTML = '<div class="text-center py-4 text-muted small">규칙 후보가 없습니다. "새 후보 탐색"을 클릭하세요.</div>';
+            return;
+        }
+        list.innerHTML = candidates.map(c => `
+            <div class="card mb-2 border-0 shadow-sm">
+                <div class="card-body py-2 px-3">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1 me-2">
+                            <span class="badge ${statusBadgeClass(c.status)} me-2">${c.status}</span>
+                            <strong class="small">${c.candidate_json?.rule_hint || '알 수 없는 패턴'}</strong>
+                            <div class="text-muted" style="font-size:11px;">
+                                근거 수정: ${c.candidate_json?.correction_count || 0}개
+                                ${c.replay_report_json ? ` | Replay: ${c.replay_report_json.pass_count || 0}통과 ${c.replay_report_json.fail_count || 0}실패` : ''}
+                            </div>
+                        </div>
+                        <div class="d-flex gap-1 flex-shrink-0">
+                            ${c.status === 'draft' ? `<button class="btn btn-outline-info btn-xs" onclick="replayCandidate(${c.id})" style="font-size:10px;padding:2px 6px;">▶ Replay</button>` : ''}
+                            ${c.status === 'draft' && c.replay_report_json ? `<button class="btn btn-outline-success btn-xs" onclick="approveCandidate(${c.id})" style="font-size:10px;padding:2px 6px;">✅ 승인</button>` : ''}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    } catch(e) {
+        list.innerHTML = `<div class="alert alert-warning small">${e.message}</div>`;
+    }
+}
+
+function statusBadgeClass(s) {
+    return {draft:'bg-secondary', approved:'bg-success', rejected:'bg-danger', promoted:'bg-primary'}[s] || 'bg-secondary';
+}
+
+async function runClustering() {
+    try {
+        const resp = await fetch('/api/designer/evolution/cluster', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({}),
+        });
+        const json = await resp.json();
+        if (json.success) {
+            showAlert(`새 후보 ${json.data?.created || 0}개 생성됨`, 'success');
+            loadRuleCandidates();
+        } else {
+            showAlert('탐색 실패: ' + json.error, 'warning');
+        }
+    } catch(e) { showAlert('오류: ' + e.message, 'danger'); }
+}
+
+async function replayCandidate(id) {
+    try {
+        const resp = await fetch(`/api/designer/evolution/candidates/${id}/replay`, {
+            method: 'POST', credentials: 'same-origin',
+        });
+        const json = await resp.json();
+        if (json.success) {
+            const r = json.data;
+            showAlert(`Replay 완료: ${r.pass_count}통과 / ${r.fail_count}실패`, r.fail_count === 0 ? 'success' : 'warning');
+            loadRuleCandidates();
+        }
+    } catch(e) { showAlert('오류: ' + e.message, 'danger'); }
+}
+
+async function approveCandidate(id) {
+    if (!confirm('이 규칙 후보를 승인하시겠습니까?\nReplay 실패가 있으면 승격이 차단됩니다.')) return;
+    try {
+        const resp = await fetch(`/api/designer/evolution/candidates/${id}/set-approved`, {
+            method: 'POST', credentials: 'same-origin',
+        });
+        const json = await resp.json();
+        if (json.success) {
+            showAlert('승인 완료. 승격 조건 충족 시 활성 규칙으로 등록됩니다.', 'success');
+            loadRuleCandidates();
+        }
+    } catch(e) { showAlert('오류: ' + e.message, 'danger'); }
 }
 
 // ── 상태 변수 ───────────────────────────────────────────────

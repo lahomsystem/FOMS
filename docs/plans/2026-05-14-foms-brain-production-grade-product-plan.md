@@ -1494,7 +1494,7 @@ PG-L6 Fine-Tuning Dataset Export
 | 항목 | 설명 | 우선순위 |
 |---|---|---|
 | vector_memory 실제 연결 | pgvector + embedding model로 의미 기반 유사 사례 검색 | MEDIUM |
-| RuleCandidate UI panel | 생성된 rule candidate를 리뷰·승인하는 UI | HIGH |
+| ~~RuleCandidate UI panel~~ | ✅ /wdplanner-v2 "🧠 규칙 후보" 탭: 탐색/Replay/승인 UI | HIGH |
 | ~~active ontology unique index~~ | ✅ Postgres partial unique index migration 추가 | HIGH |
 | ProductArchetype 승격 UI | 발견된 제품 archetype을 factory로 등록하는 관리 UI — 향후 | MEDIUM |
 | ~~자동 설계 제안~~ | ✅ AIDesignPanel: 자연어 → Gemini LUI → 3D 자동 생성 (Fallback 포함) | HIGH |

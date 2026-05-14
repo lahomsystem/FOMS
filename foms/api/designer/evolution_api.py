@@ -112,6 +112,18 @@ def set_approved(candidate_id: int):
     })
 
 
+@evolution_bp.route("/evolution/cluster", methods=["POST"])
+@login_required
+def run_cluster():
+    """POST /api/designer/evolution/cluster — run correction clustering pipeline."""
+    from foms.services.designer.correction_clusterer import run_correction_clustering_pipeline
+    try:
+        created_ids = run_correction_clustering_pipeline()
+        return jsonify({"success": True, "data": {"created": len(created_ids), "ids": created_ids}, "error": None})
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
 @evolution_bp.route("/evolution/candidates/<int:candidate_id>/promote", methods=["POST"])
 @login_required
 def promote(candidate_id: int):
