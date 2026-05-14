@@ -4,23 +4,23 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
-| 2026-05-12 | 세션 자동 기록 | test_erp_as_dashboard_tabs.py, as_dashboard_body.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-6d452f8c-9feb-4661-aeef-fed5d5ac6d3f.png 외 2개 | a1f9e054 |
-| 2026-05-11 | 세션 자동 기록 | test_erp_as_dashboard_tabs.py, as_dashboard_body.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-6d452f8c-9feb-4661-aeef-fed5d5ac6d3f.png 외 2개 | a1f9e054 |
-| 2026-05-11 | 세션 자동 기록 | _commit_msg_fix_test_layout_reload.txt, test_unified_search_params.py, index.html 외 2개 | a4811084 |
-| 2026-05-11 | 세션 자동 기록 | index.html, erp-dashboard-detail-dom.js, layout_scripts.html 외 2개 | 6f158862 |
-| 2026-05-11 | 세션 자동 기록 | erp-dashboard-detail-dom.js, erp-order-shared.js, index.html 외 2개 | ea5ebc0c |
-| 2026-05-11 | 세션 자동 기록 | dashboard.py, _commit_msg_deploy_erp_search.txt, test_erp_dashboard_search_service.py 외 2개 | 5ceb1561 |
-| 2026-05-11 | 세션 자동 기록 | _commit_msg_deploy_erp_search.txt, test_erp_dashboard_search_service.py, dashboard.py 외 2개 | b05dc8f5 |
-| 2026-05-11 | 세션 자동 기록 | dashboard.py, Dockerfile, app_init.py 외 2개 | cb4e14e4 |
-| 2026-05-11 | 세션 자동 기록 | Dockerfile, app_init.py, test_app_init.py 외 2개 | 0450199a |
-| 2026-05-07 | 세션 자동 기록 | app_init.py, test_app_init.py, commit_msg_deploy.txt 외 2개 | 4a0ed1ca |
-| 2026-05-07 | 세션 자동 기록 | commit_msg_deploy.txt, erp_display.py, test_erp_display.py 외 2개 | 4a0ed1ca |
-| 2026-05-06 | 세션 자동 기록 | commit_msg_deploy.txt, erp_display.py, test_erp_display.py 외 2개 | 048751b1 |
-| 2026-05-06 | 세션 자동 기록 | erp_display.py, test_erp_display.py, test_erp_sync_columns.py 외 2개 | 28804f9a |
-| 2026-05-06 | 세션 자동 기록 | test_erp_orders_structured_put.py, erp-order-shared.js, .git_commit_msg_deploy_gdm.txt 외 2개 | 28804f9a |
-| 2026-05-05 | 세션 자동 기록 | .git_commit_msg_deploy_gdm.txt, test_shipment_as_recommendations.py, test_erp_as_dashboard_tabs.py 외 2개 | f0238521 |
-| 2026-05-05 | 세션 자동 기록 | test_shipment_as_recommendations.py, test_erp_as_dashboard_tabs.py, test_erp_mobile_layout_and_shipment.py 외 2개 | 1a6de169 |
-| 2026-05-05 | 세션 자동 기록 | .git_commit_msg_fix.txt, .git_commit_msg_deploy.txt, foms_namespace_surface_tests.py 외 2개 | 1a6de169 |
-| 2026-05-05 | 세션 자동 기록 | foms_namespace_surface_tests.py, test_shipment_as_recommendations.py, erp-pro.css 외 2개 | 90aa366e |
-| 2026-05-05 | 세션 자동 기록 | dashboard_main.html, test_shipment_as_recommendations.py, schedule_recommendations.py 외 2개 | 90aa366e |
-| 2026-05-05 | 세션 자동 기록 | test_orders_boundary_contract.py, recommendations.py, test_erp_mobile_layout_and_shipment.py 외 2개 | 90aa366e |
+| 2026-05-14 | 세션 자동 기록 | drawings.py, learning_ui.py, run_calibration.py 외 2개 | e446a72b |
+| 2026-05-14 | 세션 자동 기록 | blueprints.py, learning_ui.py, wdplanner_v2.html 외 2개 | ffd5eeb6 |
+| 2026-05-14 | 세션 자동 기록 | evolution_api.py, wdplanner_v2.html, self_evaluation.py 외 2개 | bdce9456 |
+| 2026-05-14 | 세션 자동 기록 | wdplanner_v2.html, App.tsx, DrawingReviewWorkspace.tsx 외 2개 | e357a96f |
+| 2026-05-14 | 세션 자동 기록 | designerStore.ts, wdplanner_v2.html, TopToolBar.tsx 외 2개 | 7f8cbcbf |
+| 2026-05-14 | 세션 자동 기록 | wdplanner_v2.html, drawings.py, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-9dcb5e3a-969c-48a9-b85f-acde52209d64.png 외 2개 | b39a9bbf |
+| 2026-05-14 | 세션 자동 기록 | test_designer_product_performance.py, export_finetune_dataset.py, test_designer_self_evaluation.py 외 2개 | 6e673a54 |
+| 2026-05-14 | 세션 자동 기록 | wdplanner_v2.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-9dd91185-5890-4420-84d1-6ec945850d14.png, foms_namespace_surface_tests.py 외 2개 | 72415e4b |
+| 2026-05-14 | 세션 자동 기록 | foms_namespace_surface_tests.py, wdplanner_v2.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-29736be4-da40-4a67-bbb9-a5849d2d27a5.png 외 2개 | 9e13e490 |
+| 2026-05-14 | 세션 자동 기록 | wdplanner_v2.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-29736be4-da40-4a67-bbb9-a5849d2d27a5.png, test_designer_learning_loop_product.py 외 2개 | c830560f |
+| 2026-05-14 | 세션 자동 기록 | test_designer_learning_loop_product.py, test_designer_product_grade_contract.py, rule_replay.py 외 2개 | a5cc6cd4 |
+| 2026-05-14 | 세션 자동 기록 | test_designer_product_grade_contract.py, test_designer_model_router.py, model_router.py 외 2개 | 62cf82e5 |
+| 2026-05-14 | 세션 자동 기록 | blueprints.py, wdplanner_v2.html, drawings.py 외 2개 | fb66ecfe |
+| 2026-05-14 | 세션 자동 기록 | build_drawing_fixture_manifest.py, test_designer_product_grade_contract.py, test_designer_drawing_fixture_manifest.py 외 2개 | a3555385 |
+| 2026-05-14 | 세션 자동 기록 | test_designer_gemini_provider.py, gemini_provider.py, requirements.txt 외 2개 | 07e2a7f9 |
+| 2026-05-14 | 세션 자동 기록 | requirements.txt, test_designer_product_grade_contract.py, test_designer_gemini_provider.py 외 2개 | 75b635be |
+| 2026-05-14 | 세션 자동 기록 | test_designer_product_grade_contract.py, test_designer_gemini_provider.py, gemini_provider.py 외 2개 | 98450b3e |
+| 2026-05-14 | 세션 자동 기록 | test_designer_product_grade_contract.py, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images____0-c20290ce-6c2e-4bda-adb1-e35065281b49.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images______1-45e023d3-9c87-486a-a711-1f3e041adabe.png 외 2개 | 1d85a017 |
+| 2026-05-14 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images____0-c20290ce-6c2e-4bda-adb1-e35065281b49.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images______1-45e023d3-9c87-486a-a711-1f3e041adabe.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images____0-fcff8f32-ac81-4bd5-9bf9-e289cb25d20c.png 외 2개 | 300a0f52 |
+| 2026-05-14 | 세션 자동 기록 | assemblyFactories.ts, qa_deploy_test.py, commands.py 외 2개 | 300a0f52 |

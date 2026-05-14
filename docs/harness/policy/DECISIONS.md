@@ -6,6 +6,12 @@
 
 ---
 
+### [2026-05-13] FOMS Brain AX Designer add-in stack boundary
+- **키워드**: foms-brain, ax, designer, wdplanner-v2, r3f, babylon, langgraph, add-in, pgvector
+- **결정**: WDPlanner 대체 제품인 FOMS Brain AX Designer는 기존 `Add In Program/WDPlanner`의 Babylon.js/Electron 구현을 확장하지 않고, `/wdplanner-v2` 병행 운영 add-in으로 새 React/Vite + R3F/Drei/Zustand 프론트를 둔다. AI orchestration은 FOMS backend/worker의 LangGraph가 담당하고, vector memory는 FOMS PostgreSQL + pgvector 경계를 우선한다. Next.js/Supabase는 독립 SaaS 전환 결정 전까지 도입하지 않는다.
+- **이유**: 최초 AX 제품 목표는 R3F/Drei 기반 설계 UX와 LangGraph 중심 self-evolving ontology를 요구한다. 기존 WDPlanner의 Babylon/Electron 노하우 일부는 기능 inventory로 참고하되, FOMS 운영 경계에서는 Flask modular monolith + static add-in + API/worker 구조가 인증/DB/source-of-truth drift를 줄인다.
+- **영향**: `docs/plans/2026-05-13-foms-brain-ax-designer-blueprint-v2-implementation-map.md`, future `Add In Program/FOMSBrainDesigner`, `static/designer`, `foms/web/designer`, `foms/api/designer`, `foms/services/designer`, `foms/persistence/designer`, `migrations/versions/*designer*`
+
 ### [2026-04-30] Shared harness task classifier
 - **키워드**: harness, classifier, prompt-router, codex, claude, cursor, wave3
 - **결정**: Cursor `beforeSubmitPrompt`, `run_codex.ps1`, Claude/Codex 플러그인 preflight가 `tools/harness/task_classifier.py`의 단일 결정적 JSON 분류 결과를 사용한다. 분류 결과는 `route_kind`, `level`, `context_mode`, runner별 bundle, RPI, 사용자 방향 확인, 자원 힌트를 포함한다.
@@ -89,21 +95,3 @@
 - **결정**: AS/시공/도면 대시보드 모두 배치 Presigned URL 요청 + 병렬 업로드 (최대 10개 동시)
 - **이유**: 업로드 속도 개선 + 파일명 충돌 방지 (UUID 포함 키)
 - **영향**: `templates/partials/erp_dashboard_scripts_drawing.html`, `templates/erp_drawing_workbench_detail.html`, `services/storage.py`
-
-### [2026-02-23] Direct R2 Upload (Phase D)
-- **키워드**: R2, 직접업로드, Presigned PUT, 서버경유제거
-- **결정**: 브라우저 → R2 Presigned PUT 직접 업로드. 앱 서버 파일 경유 없음
-- **이유**: 서버 메모리/CPU 절약, 업로드 속도 향상
-- **영향**: `services/storage.py`, `apps/api/attachments.py`, 모든 업로드 프론트엔드
-
-### [2026-02-22] Railway Worker + Geocode 컬럼
-- **키워드**: Railway, Worker, geocode, RQ, 비동기
-- **결정**: Railway Worker 서비스 추가, `orders.lat/lng/geocode_status` 컬럼 추가, RQ Job Queue로 비동기 geocode
-- **이유**: 지도 로드 시 실시간 Kakao API 호출 병목 제거
-- **영향**: `railway-worker.toml`, `models.py`, `services/jobs/`
-
-### [2026-02-20] Production 다중 사용자 확장
-- **키워드**: Railway, Replica, Worker, DB풀, 확장
-- **결정**: Web Replica 2개, Worker 1개, DB 풀 환경변수화
-- **이유**: 동시 사용자 증가 대응
-- **영향**: `railway.toml`, `db.py`
