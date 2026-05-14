@@ -96,6 +96,7 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     from foms.api.designer.vision import vision_bp as designer_vision_bp
     from foms.api.designer.evolution_api import evolution_bp as designer_evolution_bp
     from foms.api.designer.drawings import drawings_bp as designer_drawings_bp
+    from foms.api.designer.learning_ui import learning_ui_bp as designer_learning_ui_bp
     from foms.api.channel import (
         channel_functions_bp,
         channel_integration_bp,
@@ -168,6 +169,7 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     app.register_blueprint(designer_vision_bp)
     app.register_blueprint(designer_evolution_bp)
     app.register_blueprint(designer_drawings_bp)
+    app.register_blueprint(designer_learning_ui_bp)
     # Channel: three modules, six registrations (channel_wam exports three blueprints)
     app.register_blueprint(channel_integration_bp)
     app.register_blueprint(channel_functions_bp)

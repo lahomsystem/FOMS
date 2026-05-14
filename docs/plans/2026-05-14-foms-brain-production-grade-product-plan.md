@@ -1477,8 +1477,8 @@ PG-L6 Fine-Tuning Dataset Export
 | snap-to-boundary | 인접 블럭 경계에 자동 스냅 (겹침 방지) — 향후 | MEDIUM |
 | DimensionEditorOverlay | 3D 화면 위에 직접 치수선 클릭 편집 | MEDIUM |
 | ViewCube | 정면/측면/평면/투상 뷰 전환 큐브 위젯 | LOW |
-| 멀티 선택 | Ctrl+클릭으로 복수 컴포넌트 선택 + 일괄 이동/삭제 | MEDIUM |
-| Copy/Paste | 선택 컴포넌트 복사 붙여넣기 (Ctrl+C/V) | LOW |
+| ~~멀티 선택~~ | ✅ Ctrl+클릭 복수 선택, 보라색 하이라이트, 일괄 Delete | MEDIUM |
+| ~~Copy/Paste~~ | ✅ Ctrl+C/V 컴포넌트 복사 붙여넣기 (+50mm offset) | LOW |
 
 ### 12.2 도면 이해 고도화
 
@@ -1496,9 +1496,9 @@ PG-L6 Fine-Tuning Dataset Export
 | vector_memory 실제 연결 | pgvector + embedding model로 의미 기반 유사 사례 검색 | MEDIUM |
 | ~~RuleCandidate UI panel~~ | ✅ /wdplanner-v2 "🧠 규칙 후보" 탭: 탐색/Replay/승인 UI | HIGH |
 | ~~active ontology unique index~~ | ✅ Postgres partial unique index migration 추가 | HIGH |
-| ProductArchetype 승격 UI | 발견된 제품 archetype을 factory로 등록하는 관리 UI — 향후 | MEDIUM |
+| ~~ProductArchetype 승격 UI~~ | ✅ "🏷 Archetype" 탭: 패턴 분석/알려진 10종/신규 후보 표시 | MEDIUM |
 | ~~자동 설계 제안~~ | ✅ AIDesignPanel: 자연어 → Gemini LUI → 3D 자동 생성 (Fallback 포함) | HIGH |
-| design case 검색 UI | 승인 사례를 3D 워크벤치에서 불러와 편집 시작 | MEDIUM |
+| ~~design case 검색 UI~~ | ✅ "📦 설계 사례" 탭: 가구 유형/치수 필터 검색 → 3D 편집 로드 | MEDIUM |
 
 ### 12.4 성능/운영 고도화
 

@@ -41,10 +41,13 @@ const HOVER_COLOR = '#7c8ef0'     // lighter purple for hover
 interface ComponentMeshProps {
   component: Component
   selected: boolean
-  onSelect: (id: string) => void
+  multiSelected: boolean
+  onSelect: (id: string, ctrlKey: boolean) => void
 }
 
-function ComponentMesh({ component: c, selected, onSelect }: ComponentMeshProps) {
+const MULTI_SELECT_COLOR = '#9f7aea'   // soft purple for multi-selected
+
+function ComponentMesh({ component: c, selected, multiSelected, onSelect }: ComponentMeshProps) {
   const ref = useRef<THREE.Mesh>(null)
   const [hovered, setHovered] = useState(false)
 
@@ -56,14 +59,14 @@ function ComponentMesh({ component: c, selected, onSelect }: ComponentMeshProps)
   const pz = c.position.z * MM + d / 2
 
   const baseColor = KIND_COLORS[c.kind] ?? '#cccccc'
-  const color = selected ? SELECTED_COLOR : (hovered ? HOVER_COLOR : baseColor)
+  const color = selected ? SELECTED_COLOR : multiSelected ? MULTI_SELECT_COLOR : (hovered ? HOVER_COLOR : baseColor)
   const opacity = c.kind === 'door' ? 0.65 : (c.kind === 'cutout' ? 0.4 : 0.92)
 
   return (
     <mesh
       ref={ref}
       position={[px, py, pz]}
-      onClick={(e) => { e.stopPropagation(); onSelect(c.id) }}
+      onClick={(e) => { e.stopPropagation(); onSelect(c.id, e.ctrlKey || e.metaKey) }}
       onPointerOver={(e) => { e.stopPropagation(); setHovered(true) }}
       onPointerOut={() => setHovered(false)}
       castShadow
@@ -109,7 +112,19 @@ function AssemblyOutline() {
 export function CabinetScene() {
   const design = useDesignerStore((s) => s.design)
   const selectedId = useDesignerStore((s) => s.selectedComponentId)
+  const selectedIds = useDesignerStore((s) => s.selectedComponentIds)
   const setSelected = useDesignerStore((s) => s.setSelectedComponent)
+  const toggleMultiSelect = useDesignerStore((s) => s.toggleComponentSelection)
+  const clearMultiSelection = useDesignerStore((s) => s.clearMultiSelection)
+
+  function handleSelect(id: string, ctrlKey: boolean) {
+    if (ctrlKey) {
+      toggleMultiSelect(id)
+    } else {
+      clearMultiSelection()
+      setSelected(id)
+    }
+  }
 
   const asm = design.assembly
   const w = asm.dimensions.width * MM
@@ -139,7 +154,8 @@ export function CabinetScene() {
           key={comp.id}
           component={comp}
           selected={selectedId === comp.id}
-          onSelect={setSelected}
+          multiSelected={selectedIds.has(comp.id)}
+          onSelect={handleSelect}
         />
       ))}
 
@@ -149,7 +165,8 @@ export function CabinetScene() {
           key={comp.id}
           component={comp}
           selected={selectedId === comp.id}
-          onSelect={setSelected}
+          multiSelected={selectedIds.has(comp.id)}
+          onSelect={handleSelect}
         />
       ))}
 
