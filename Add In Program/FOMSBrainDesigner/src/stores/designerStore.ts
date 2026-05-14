@@ -69,6 +69,8 @@ interface DesignerState {
 
   // UI
   selectedComponentId: string | null
+  selectedComponentIds: Set<string>       // multi-select
+  clipboard: Component[]                  // copy/paste
   showAIPanel: boolean
   showValidationPanel: boolean
   showComponentTree: boolean
@@ -114,6 +116,16 @@ interface DesignerState {
   addComponent: (component: Component) => void
   /** Remove a component by ID. */
   removeComponent: (componentId: string) => void
+  /** Remove all selected components (multi-delete). */
+  removeSelectedComponents: () => void
+
+  // ── Multi-select (Ctrl+click) ────────────────────────────
+  toggleComponentSelection: (id: string) => void
+  clearMultiSelection: () => void
+
+  // ── Copy / Paste (Ctrl+C / Ctrl+V) ──────────────────────
+  copySelected: () => void
+  pasteClipboard: () => void
 
   /**
    * Load a candidate from AI extraction into editable 3D view.
@@ -148,6 +160,8 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
   aiPrompt: '',
   isAiRunning: false,
   selectedComponentId: null,
+  selectedComponentIds: new Set<string>(),
+  clipboard: [],
   showAIPanel: false,
   showValidationPanel: false,
   showComponentTree: true,
@@ -303,6 +317,71 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
     } catch (err) {
       console.error('[loadCandidateGraph] failed:', err)
     }
+  },
+
+  removeSelectedComponents: () => {
+    const { selectedComponentIds, selectedComponentId } = get()
+    const toRemove = new Set(selectedComponentIds)
+    if (selectedComponentId) toRemove.add(selectedComponentId)
+    if (toRemove.size === 0) return
+    commandHistory.push(get().design)
+    set((state) => {
+      const newDesign = {
+        ...state.design,
+        components: state.design.components.filter((c) => !toRemove.has(c.id)),
+      }
+      const { graph: recalculated } = recalculateGraph(newDesign)
+      const constraintResult = toStoreConstraintResult(validateDesignGraph(recalculated))
+      return {
+        design: recalculated, isDirty: true, constraintResult,
+        selectedComponentId: null,
+        selectedComponentIds: new Set<string>(),
+      }
+    })
+  },
+
+  toggleComponentSelection: (id: string) => {
+    set((state) => {
+      const next = new Set(state.selectedComponentIds)
+      if (next.has(id)) { next.delete(id) } else { next.add(id) }
+      return { selectedComponentIds: next, selectedComponentId: id }
+    })
+  },
+
+  clearMultiSelection: () => set({ selectedComponentIds: new Set<string>() }),
+
+  copySelected: () => {
+    const { design, selectedComponentId, selectedComponentIds } = get()
+    const ids = new Set(selectedComponentIds)
+    if (selectedComponentId) ids.add(selectedComponentId)
+    const comps = design.components.filter((c) => ids.has(c.id))
+    if (comps.length > 0) set({ clipboard: comps })
+  },
+
+  pasteClipboard: () => {
+    const { clipboard } = get()
+    if (!clipboard.length) return
+    commandHistory.push(get().design)
+    const OFFSET = 50 // mm offset for pasted components
+    const pasted: Component[] = clipboard.map((c) => ({
+      ...c,
+      id: crypto.randomUUID(),
+      position: {
+        x: c.position.x + OFFSET,
+        y: c.position.y,
+        z: c.position.z,
+      },
+      name: c.name + ' (복사)',
+    }))
+    set((state) => {
+      const newDesign = {
+        ...state.design,
+        components: [...state.design.components, ...pasted],
+      }
+      const { graph: recalculated } = recalculateGraph(newDesign)
+      const constraintResult = toStoreConstraintResult(validateDesignGraph(recalculated))
+      return { design: recalculated, isDirty: true, constraintResult }
+    })
   },
 
   recalculateAndValidate: () => {

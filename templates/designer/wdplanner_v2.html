@@ -222,6 +222,12 @@
         <button class="mode-btn" id="btn-mode-rules" onclick="switchMode('rules')">
             🧠 규칙 후보
         </button>
+        <button class="mode-btn" id="btn-mode-archetypes" onclick="switchMode('archetypes')">
+            🏷 Archetype
+        </button>
+        <button class="mode-btn" id="btn-mode-cases" onclick="switchMode('cases')">
+            📦 설계 사례
+        </button>
         <span class="corpus-badge" id="corpus-badge">학습 corpus: 로딩중...</span>
     </div>
 
@@ -255,6 +261,63 @@
 
             <div id="rule-list">
                 <div class="text-center py-4 text-muted small">로딩 중...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ProductArchetype 패널 -->
+    <div id="archetypes-panel" style="display:none; flex:1; overflow-y:auto; background:#f8f9fa;">
+        <div class="drawing-panel-inner">
+            <h5 class="fw-bold mb-1">제품 Archetype 관리 <span class="badge bg-secondary ms-2" id="archetype-badge">0</span></h5>
+            <p class="text-muted small mb-3">반복 등장하는 새 제품 구조를 분석해 factory 후보로 등록합니다.</p>
+            <div class="d-flex gap-2 mb-3">
+                <button class="btn btn-outline-primary btn-sm" onclick="runArchetypeDiscovery()">🔍 패턴 분석</button>
+                <button class="btn btn-outline-secondary btn-sm" onclick="loadArchetypes()">🔄 새로고침</button>
+            </div>
+            <div class="row g-3 mb-3">
+                <div class="col-12">
+                    <div class="card border-0 bg-white shadow-sm">
+                        <div class="card-body p-3">
+                            <div class="fw-semibold small mb-2">알려진 확장 Archetype (10종)</div>
+                            <div id="known-archetypes" class="d-flex flex-wrap gap-1">
+                                <div class="text-muted small">로딩 중...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="archetype-candidates-list">
+                <div class="text-center py-3 text-muted small">패턴 분석 후 신규 archetype 후보가 표시됩니다.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Design Case 검색 패널 -->
+    <div id="cases-panel" style="display:none; flex:1; overflow-y:auto; background:#f8f9fa;">
+        <div class="drawing-panel-inner">
+            <h5 class="fw-bold mb-1">승인 설계 사례 <span class="badge bg-success ms-2" id="cases-badge">0</span></h5>
+            <p class="text-muted small mb-3">과거 승인된 설계를 불러와 3D 편집기에서 바로 편집하세요.</p>
+            <div class="row g-2 mb-3">
+                <div class="col-sm-5">
+                    <select class="form-select form-select-sm" id="case-type-filter" onchange="loadCases()">
+                        <option value="">모든 가구 유형</option>
+                        <option value="wardrobe">붙박이장</option>
+                        <option value="shoe_rack">신발장</option>
+                        <option value="kitchen_base">주방 하부장</option>
+                        <option value="kitchen_wall">주방 상부장</option>
+                        <option value="custom_storage">수납장</option>
+                    </select>
+                </div>
+                <div class="col-sm-4">
+                    <input type="number" class="form-control form-control-sm" id="case-width-filter"
+                           placeholder="W (mm)" onchange="loadCases()">
+                </div>
+                <div class="col-sm-3">
+                    <button class="btn btn-outline-secondary btn-sm w-100" onclick="loadCases()">🔍</button>
+                </div>
+            </div>
+            <div id="cases-list">
+                <div class="text-center py-3 text-muted small">로딩 중...</div>
             </div>
         </div>
     </div>
@@ -460,11 +523,18 @@ function switchMode(mode) {
     const btnDr = document.getElementById('btn-mode-drawing');
     const btnR = document.getElementById('btn-mode-rules');
 
+    const archetypesPanel = document.getElementById('archetypes-panel');
+    const casesPanel = document.getElementById('cases-panel');
+    const btnA = document.getElementById('btn-mode-archetypes');
+    const btnC = document.getElementById('btn-mode-cases');
+
     // Hide all panels first
     designerPane.style.display = 'none';
     drawingPanel.style.display = 'none';
     rulesPanel.style.display = 'none';
-    [btnD, btnDr, btnR].forEach(b => b && b.classList.remove('active'));
+    if (archetypesPanel) archetypesPanel.style.display = 'none';
+    if (casesPanel) casesPanel.style.display = 'none';
+    [btnD, btnDr, btnR, btnA, btnC].forEach(b => b && b.classList.remove('active'));
 
     if (mode === 'designer') {
         designerPane.style.display = 'flex';
@@ -477,8 +547,123 @@ function switchMode(mode) {
         rulesPanel.style.display = 'flex';
         btnR && btnR.classList.add('active');
         loadRuleCandidates();
+    } else if (mode === 'archetypes') {
+        archetypesPanel.style.display = 'flex';
+        btnA && btnA.classList.add('active');
+        loadArchetypes();
+    } else if (mode === 'cases') {
+        casesPanel.style.display = 'flex';
+        btnC && btnC.classList.add('active');
+        loadCases();
     }
     adjustOuterHeight();
+}
+
+// ── ProductArchetype 관리 ──────────────────────────────────
+async function loadArchetypes() {
+    try {
+        const resp = await fetch('/api/designer/archetypes/summary', { credentials: 'same-origin' });
+        const json = await resp.json();
+        if (!json.success) throw new Error(json.error);
+        const { known_extended, discovered_candidates, total_known } = json.data;
+
+        document.getElementById('archetype-badge').textContent = total_known;
+
+        // Known archetypes badges
+        const knownEl = document.getElementById('known-archetypes');
+        knownEl.innerHTML = (known_extended || []).map(k => {
+            const labels = {no_molding_wardrobe:'무몰딩장',reform_wardrobe:'리폼장',refrigerator_cabinet:'내장고장',tv_unit:'TV장',bathroom_cabinet:'화장실장',combined_storage:'복합수납',dressroom:'드레스룸',split_wardrobe:'상하분할장',kitchen_combined:'주방상하복합',shoetrack_hanger:'신발장+행거'};
+            return `<span class="badge bg-light text-dark border">${labels[k] || k}</span>`;
+        }).join('');
+
+        // Discovered candidates
+        const listEl = document.getElementById('archetype-candidates-list');
+        if (!discovered_candidates?.length) {
+            listEl.innerHTML = '<div class="text-center py-3 text-muted small">발견된 신규 패턴이 없습니다. 도면을 더 업로드하고 승인하면 패턴이 쌓입니다.</div>';
+        } else {
+            listEl.innerHTML = discovered_candidates.map(c => `
+                <div class="card mb-2 border-0 shadow-sm">
+                    <div class="card-body py-2 px-3">
+                        <div class="fw-semibold small">${c.label_ko || c.key}</div>
+                        <div class="text-muted" style="font-size:11px;">기반 타입: ${c.base_type} | 근거: ${c.evidence_count}개</div>
+                        <div class="d-flex flex-wrap gap-1 mt-1">
+                            ${(c.tag_pattern||[]).map(t=>`<span class="badge bg-secondary" style="font-size:9px;">${t}</span>`).join('')}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+    } catch(e) {
+        document.getElementById('archetype-candidates-list').innerHTML = `<div class="alert alert-warning small">${e.message}</div>`;
+    }
+}
+
+async function runArchetypeDiscovery() {
+    try {
+        const resp = await fetch('/api/designer/archetypes/discover', { method: 'POST', credentials: 'same-origin' });
+        const json = await resp.json();
+        if (json.success) {
+            showAlert(`${json.data?.candidates || 0}개 패턴 발견`, 'success');
+            loadArchetypes();
+        }
+    } catch(e) { showAlert('오류: ' + e.message, 'danger'); }
+}
+
+// ── Design Case 검색 ────────────────────────────────────────
+async function loadCases() {
+    const ft = document.getElementById('case-type-filter').value;
+    const w = document.getElementById('case-width-filter').value;
+    const params = new URLSearchParams();
+    if (ft) params.set('furniture_type', ft);
+    if (w) { params.set('width_mm_min', w - 200); params.set('width_mm_max', w - -200); }
+    params.set('limit', '20');
+
+    try {
+        const resp = await fetch('/api/designer/cases?' + params, { credentials: 'same-origin' });
+        const json = await resp.json();
+        if (!json.success) throw new Error(json.error);
+        const cases = json.data?.cases || [];
+        document.getElementById('cases-badge').textContent = json.data?.total || cases.length;
+        const listEl = document.getElementById('cases-list');
+        if (!cases.length) {
+            listEl.innerHTML = '<div class="text-center py-3 text-muted small">승인된 설계 사례가 없습니다. 도면을 업로드하고 승인하면 사례가 쌓입니다.</div>';
+            return;
+        }
+        const ftLabels = {wardrobe:'붙박이장',shoe_rack:'신발장',kitchen_base:'주방 하부',kitchen_wall:'주방 상부',custom_storage:'수납장'};
+        listEl.innerHTML = cases.map(c => `
+            <div class="card mb-2 border-0 shadow-sm">
+                <div class="card-body py-2 px-3 d-flex align-items-center gap-3">
+                    <div class="flex-grow-1">
+                        <div class="fw-semibold small">${ftLabels[c.furniture_type]||c.furniture_type} ${c.product_name?'— '+c.product_name:''}</div>
+                        <div class="text-muted" style="font-size:11px;">W${c.width_mm||'?'} × H${c.height_mm||'?'} × D${c.depth_mm||'?'}mm | ${c.module_count||'?'}통</div>
+                    </div>
+                    <button class="btn btn-sm btn-outline-dark flex-shrink-0" style="font-size:10px;" onclick='loadCaseToEditor(${JSON.stringify(c)})'>🧊 3D 편집</button>
+                </div>
+            </div>
+        `).join('');
+    } catch(e) {
+        document.getElementById('cases-list').innerHTML = `<div class="alert alert-warning small">${e.message}</div>`;
+    }
+}
+
+function loadCaseToEditor(caseData) {
+    switchMode('designer');
+    const iframe = document.getElementById('designer-iframe');
+    if (iframe && iframe.contentWindow) {
+        iframe.contentWindow.postMessage({
+            type: 'FOMS_LOAD_CANDIDATE',
+            candidate: {
+                furniture_type: caseData.furniture_type,
+                factory_params: {
+                    width: caseData.width_mm,
+                    height: caseData.height_mm,
+                    depth: caseData.depth_mm,
+                    module_count: caseData.module_count,
+                },
+            },
+        }, '*');
+        showAlert(`"${caseData.product_name || caseData.furniture_type}" 설계를 3D 편집기에 로드했습니다.`, 'success');
+    }
 }
 
 // ── Rule Candidate 관리 ─────────────────────────────────────

@@ -45,6 +45,9 @@ export default function App() {
   const canUndo = useDesignerStore((s) => s.canUndo)
   const canRedo = useDesignerStore((s) => s.canRedo)
   const removeComponent = useDesignerStore((s) => s.removeComponent)
+  const removeSelectedComponents = useDesignerStore((s) => s.removeSelectedComponents)
+  const copySelected = useDesignerStore((s) => s.copySelected)
+  const pasteClipboard = useDesignerStore((s) => s.pasteClipboard)
   const selectedId = useDesignerStore((s) => s.selectedComponentId)
   const loadCandidateGraph = useDesignerStore((s) => s.loadCandidateGraph)
 
@@ -68,13 +71,20 @@ export default function App() {
       } else if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
         e.preventDefault()
         redo()
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+        e.preventDefault()
+        copySelected()
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+        e.preventDefault()
+        pasteClipboard()
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
         if (selectedId) {
           e.preventDefault()
-          removeComponent(selectedId)
+          removeSelectedComponents()
         }
       } else if (e.key === 'Escape') {
         useDesignerStore.getState().setSelectedComponent(null)
+        useDesignerStore.getState().clearMultiSelection()
       }
     }
     window.addEventListener('keydown', handler)
@@ -301,7 +311,16 @@ export default function App() {
 
       {/* ── Status Bar ── */}
       <div style={S.statusBar}>
-        <span>도구: <b style={{ color: COLORS.textPrimary }}>{activeTool}</b></span>
+        {(() => {
+          const multiCount = useDesignerStore.getState().selectedComponentIds.size
+          return multiCount > 1 ? (
+            <span style={{ color: COLORS.accent }}>
+              {multiCount}개 선택됨 | Ctrl+C 복사 | Delete 일괄 삭제
+            </span>
+          ) : (
+            <span>도구: <b style={{ color: COLORS.textPrimary }}>{activeTool}</b></span>
+          )
+        })()}
         <span>뷰: <b style={{ color: COLORS.textPrimary }}>{viewMode}</b></span>
         <div style={{ flex: 1 }} />
         <button
