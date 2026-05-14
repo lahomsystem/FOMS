@@ -215,7 +215,7 @@
         <button class="mode-btn" id="btn-mode-drawing" onclick="switchMode('drawing')">
             📐 도면 등록 · 학습
         </button>
-        <span class="corpus-badge" id="corpus-badge">corpus: 0/17 approved</span>
+        <span class="corpus-badge" id="corpus-badge">학습 corpus: 로딩중...</span>
     </div>
 
     <!-- 3D 설계 편집기 iframe -->
@@ -236,21 +236,27 @@
     </div>
 
     <!-- 도면 등록 패널 -->
-    <div id="drawing-panel">
+    <div id="drawing-panel" style="display:none;">
         <div class="drawing-panel-inner">
             <div class="row g-4">
                 <!-- 왼쪽: 업로드 + 추출 결과 -->
                 <div class="col-lg-7">
                     <h5 class="fw-bold mb-1">도면 업로드 &amp; Gemini 추출</h5>
-                    <p class="text-muted small mb-3">도면 이미지(JPG/PNG) 또는 PDF를 업로드하면 Gemini가 자동으로 가구 정보를 추출합니다.</p>
+                    <p class="text-muted small mb-3">
+                        도면 이미지(JPG/PNG) 또는 PDF를 업로드하면 Gemini가 자동으로 가구 정보를 추출합니다.<br>
+                        <span class="text-muted">도면은 무제한으로 학습할 수 있습니다. 초기 17장은 정밀 검수용 기준 세트입니다.</span>
+                    </p>
 
-                    <!-- Fixture 선택 -->
+                    <!-- Fixture 선택 (선택사항 — 기준 corpus 등록 시만 사용) -->
                     <div class="mb-3">
-                        <label class="form-label fw-semibold small">Fixture ID (선택)</label>
+                        <label class="form-label fw-semibold small">
+                            기준 Fixture ID
+                            <span class="text-muted fw-normal">(선택 — 초기 17장 정밀 corpus 등록 시만 선택)</span>
+                        </label>
                         <select class="form-select form-select-sm" id="fixture-select">
-                            <option value="">-- 새 등록 (fixture 미지정) --</option>
+                            <option value="">-- 일반 학습 업로드 (fixture 미지정) --</option>
                         </select>
-                        <div class="form-text">fixture ID를 선택하면 추출 결과가 해당 fixture의 expected JSON으로 저장됩니다.</div>
+                        <div class="form-text">일반 학습은 미지정으로 두어도 됩니다. 추출 결과는 설계 학습 메모리에 자동 저장됩니다.</div>
                     </div>
 
                     <!-- Drop zone -->
@@ -325,9 +331,13 @@
 
                 <!-- 오른쪽: Fixture 목록 -->
                 <div class="col-lg-5">
-                    <h5 class="fw-bold mb-1">Fixture Corpus 현황</h5>
+                    <h5 class="fw-bold mb-1">기준 Corpus (초기 17장)</h5>
+                    <p class="text-muted small mb-2">
+                        초기 17장은 추출 정확도 측정 기준으로 사용됩니다.
+                        일반 학습 도면은 별도 등록 없이 업로드하면 됩니다.
+                    </p>
                     <div class="d-flex gap-2 mb-3">
-                        <span class="badge bg-secondary" id="badge-total">전체 0</span>
+                        <span class="badge bg-secondary" id="badge-total">기준 0</span>
                         <span class="badge bg-success" id="badge-approved">승인 0</span>
                         <span class="badge bg-warning text-dark" id="badge-pending">대기 0</span>
                     </div>
@@ -339,7 +349,8 @@
                         </div>
                     </div>
                     <div class="mt-2 text-muted small">
-                        💡 목록에서 fixture를 클릭하면 기존 추출 결과를 확인합니다.
+                        💡 초기 17장 외 도면은 <strong>fixture 미지정</strong>으로 바로 업로드하세요.<br>
+                        추출 결과는 Gemini가 자동으로 학습 메모리에 저장합니다.
                     </div>
                 </div>
             </div>
@@ -393,13 +404,13 @@ function switchMode(mode) {
     const btnDr = document.getElementById('btn-mode-drawing');
 
     if (mode === 'designer') {
-        designerPane.style.display = '';
+        designerPane.style.display = 'flex';   // 기존 flex 레이아웃 복원
         drawingPanel.style.display = 'none';
         btnD.classList.add('active');
         btnDr.classList.remove('active');
     } else {
         designerPane.style.display = 'none';
-        drawingPanel.style.display = '';
+        drawingPanel.style.display = 'block';  // 핵심: '' 대신 명시적 'block'
         btnD.classList.remove('active');
         btnDr.classList.add('active');
         loadFixtures();
@@ -421,10 +432,12 @@ async function loadFixtures() {
         if (!json.success) throw new Error(json.error);
         const { fixtures, summary } = json.data;
 
-        document.getElementById('badge-total').textContent = '전체 ' + summary.total;
+        document.getElementById('badge-total').textContent = '기준 corpus ' + summary.total;
         document.getElementById('badge-approved').textContent = '승인 ' + summary.approved;
         document.getElementById('badge-pending').textContent = '대기 ' + (summary.total - summary.approved);
-        document.getElementById('corpus-badge').textContent = 'corpus: ' + summary.approved + '/17 approved';
+        // corpus badge: 기준 17장 + 일반 학습은 무제한
+        document.getElementById('corpus-badge').textContent =
+            '기준 corpus ' + summary.approved + '/17 | 일반 학습 ∞';
 
         // Populate fixture select
         const sel = document.getElementById('fixture-select');
@@ -600,11 +613,24 @@ function renderExtractionResult(data) {
         document.getElementById('btn-save-draft').style.display = 'none';
         document.getElementById('btn-approve').style.display = 'none';
     } else if (currentFixtureId) {
+        // 기준 corpus fixture: 초안 저장 + 승인 모두 가능
         document.getElementById('btn-save-draft').style.display = '';
         document.getElementById('btn-approve').style.display = '';
     } else {
+        // 일반 학습 업로드: 저장 버튼 숨기되 안내 표시
         document.getElementById('btn-save-draft').style.display = 'none';
         document.getElementById('btn-approve').style.display = 'none';
+        // 일반 학습 안내 메시지 추가
+        let infoEl = document.getElementById('general-upload-info');
+        if (!infoEl) {
+            infoEl = document.createElement('div');
+            infoEl.id = 'general-upload-info';
+            infoEl.className = 'alert alert-info py-2 mt-2 small';
+            infoEl.innerHTML = '✅ 추출 완료. 일반 학습 도면은 자동으로 학습 메모리에 저장됩니다. 기준 corpus에 등록하려면 Fixture ID를 선택하세요.';
+            document.getElementById('res-actions').appendChild(infoEl);
+        } else {
+            infoEl.style.display = '';
+        }
     }
 }
 
