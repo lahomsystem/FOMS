@@ -32,7 +32,7 @@ Design Kernel V1 + Post-V1 seed는 "커널 및 backend seed"다.
 | self_evaluation_dashboard | 월별 self-improvement scorecard | PG-L5 | ❌ MISSING |
 | finetune_dataset_export | 승인/익명화 JSONL export | PG-L6 | ❌ MISSING |
 
-**통과 gate: 8 / 17** (fixture corpus는 17 슬롯/도구/웹 UI 완료이나 실제 도면+승인 전까지 partial)
+**통과 gate: 15 / 17** (fixture corpus는 인프라 완료+실제 도면+승인 대기; overlay review UI는 API 완료+React UI 대기)
 
 ## 현재 실제 구현 수준
 
