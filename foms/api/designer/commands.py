@@ -28,15 +28,22 @@ def _parse_command(data: dict) -> DesignCommand | None:
 
 
 def _load_graph(project_id: int, version_id: int | None = None) -> DesignGraph | None:
-    """Load DesignGraph from DB. Returns None if not found or schema v1."""
+    """Load DesignGraph from DB, normalizing v1 → v2 on the fly.
+
+    V1 projects are normalized to schema v2 via defaults.normalize_to_v2 so
+    the command engine can operate on them without requiring a prior save.
+    """
     from foms.persistence.designer.repositories import get_project_version
     from foms.services.designer.ontology_types import DesignGraph as _DG
+    from foms.services.designer.defaults import normalize_to_v2
 
     try:
         version = get_project_version(project_id, version_id)
         if not version:
             return None
         design_json = version.design_json or {}
+        # Normalize v1 → v2 transparently
+        design_json = normalize_to_v2(design_json)
         if design_json.get("schema_version") != 2:
             return None
         return _DG.from_dict(design_json)
