@@ -30,9 +30,9 @@ logger = logging.getLogger(__name__)
 # ──────────────────────────────────────────────────────────
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-# Default model: gemini-1.5-flash (free tier available, reliable multimodal)
-# Override with DESIGNER_GEMINI_MODEL env var for paid tier models (e.g. gemini-2.0-flash)
-GEMINI_MODEL = os.environ.get("DESIGNER_GEMINI_MODEL", "gemini-1.5-flash")
+# Default model: gemini-2.5-flash (latest multimodal, billing required)
+# Override with DESIGNER_GEMINI_MODEL env var if needed
+GEMINI_MODEL = os.environ.get("DESIGNER_GEMINI_MODEL", "gemini-2.5-flash")
 
 # Valid furniture types (must match VALID_FURNITURE_TYPES in vision_types.py)
 _VALID_FURNITURE_TYPES = frozenset(
