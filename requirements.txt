@@ -71,9 +71,9 @@ proxy_tools==0.1.0
 psycopg2-binary==2.9.9
 pyasn1==0.4.8
 pycparser==2.22
-pydantic==2.5.3
-pydantic-settings==2.1.0
-pydantic_core==2.14.6
+pydantic>=2.9.0,<3.0.0
+pydantic-settings>=2.3.0
+pydantic_core>=2.23.0
 pyinstaller==6.3.0
 pyinstaller-hooks-contrib==2025.3
 pyproject_hooks==1.2.0
