@@ -1,0 +1,236 @@
+{
+  "version": "1.0",
+  "scope": "PG-B2 Drawing Corpus v1 — 17 fixtures",
+  "created_at": "2026-05-14",
+  "targets": {
+    "wdh_accuracy_min": 0.95,
+    "parts_recall_min": 0.9,
+    "dimension_recall_min": 0.9
+  },
+  "corpus_plan": {
+    "v0": {
+      "target": 5,
+      "approved": 0,
+      "description": "POC 대표 샘플"
+    },
+    "v1": {
+      "target": 17,
+      "approved": 0,
+      "description": "전체 유형 커버"
+    },
+    "v2": {
+      "target": 50,
+      "description": "익명화 corpus"
+    },
+    "v3": {
+      "target": 100,
+      "description": "운영 regression"
+    }
+  },
+  "fixtures": [
+    {
+      "id": "wrd_001",
+      "category": "wardrobe_basic",
+      "description": "붙박이장 3칸 기본형 정면도",
+      "file_path": "tests/fixtures/designer/drawings/wrd_001.jpg",
+      "file_status": "pending",
+      "furniture_type_expected": "wardrobe",
+      "expected_json_path": "tests/fixtures/designer/drawings/expected_extractions/wrd_001_expected.json",
+      "approval_status": "draft",
+      "approved_by": null,
+      "notes": "W2400 H2400 D620 예상. 3칸 기본 붙박이장."
+    },
+    {
+      "id": "wrd_002",
+      "category": "wardrobe_basic",
+      "description": "붙박이장 5칸 대형 정면도",
+      "file_path": "tests/fixtures/designer/drawings/wrd_002.jpg",
+      "file_status": "pending",
+      "furniture_type_expected": "wardrobe",
+      "expected_json_path": "tests/fixtures/designer/drawings/expected_extractions/wrd_002_expected.json",
+      "approval_status": "draft",
+      "approved_by": null,
+      "notes": "W3600 H2400 D600 예상. 5칸 대형."
+    },
+    {
+      "id": "wrd_003",
+      "category": "wardrobe_upper_lower",
+      "description": "붙박이장 상하분할 구성",
+      "file_path": "tests/fixtures/designer/drawings/wrd_003.jpg",
+      "file_status": "pending",
+      "furniture_type_expected": "wardrobe",
+      "expected_json_path": "tests/fixtures/designer/drawings/expected_extractions/wrd_003_expected.json",
+      "approval_status": "draft",
+      "approved_by": null,
+      "notes": "상부/하부 분리 도면. [마이다] 포함 가능."
+    },
+    {
+      "id": "wrd_004",
+      "category": "wardrobe_corner",
+      "description": "코너형 붙박이장 ㄱ자",
+      "file_path": "tests/fixtures/designer/drawings/wrd_004.jpg",
+      "file_status": "pending",
+      "furniture_type_expected": "wardrobe",
+      "expected_json_path": "tests/fixtures/designer/drawings/expected_extractions/wrd_004_expected.json",
+      "approval_status": "draft",
+      "approved_by": null,
+      "notes": "ㄱ자 구성. 코너 처리 방식 추출 포함."
+    },
+    {
+      "id": "wrd_005",
+      "category": "wardrobe_no_molding",
+      "description": "무몰딩 붙박이장",
+      "file_path": "tests/fixtures/designer/drawings/wrd_005.jpg",
+      "file_status": "pending",
+      "furniture_type_expected": "wardrobe",
+      "expected_json_path": "tests/fixtures/designer/drawings/expected_extractions/wrd_005_expected.json",
+      "approval_status": "draft",
+      "approved_by": null,
+      "notes": "무몰딩 처리. 상단 마감 방식 포함."
+    },
+    {
+      "id": "wrd_006",
+      "category": "wardrobe_parts_table",
+      "description": "부품표 포함 붙박이장 도면",
+      "file_path": "tests/fixtures/designer/drawings/wrd_006.jpg",
+      "file_status": "pending",
+      "furniture_type_expected": "wardrobe",
+      "expected_json_path": "tests/fixtures/designer/drawings/expected_extractions/wrd_006_expected.json",
+      "approval_status": "draft",
+      "approved_by": null,
+      "notes": "[SR][EP][DOOR][마이다][옷봉] 부품표 포함. parts recall 핵심 테스트."
+    },
+    {
+      "id": "wrd_007",
+      "category": "wardrobe_multipage",
+      "description": "다중 페이지 붙박이장 도면 (정면+측면+부품표)",
+      "file_path": "tests/fixtures/designer/drawings/wrd_007.pdf",
+      "file_status": "pending",
+      "furniture_type_expected": "wardrobe",
+      "expected_json_path": "tests/fixtures/designer/drawings/expected_extractions/wrd_007_expected.json",
+      "approval_status": "draft",
+      "approved_by": null,
+      "notes": "PDF 다중 페이지. 정면도+측면도+부품표 분리 추출 검증."
+    },
+    {
+      "id": "wrd_008",
+      "category": "wardrobe_reform",
+      "description": "기존장 포함 리폼 도면",
+      "file_path": "tests/fixtures/designer/drawings/wrd_008.jpg",
+      "file_status": "pending",
+      "furniture_type_expected": "wardrobe",
+      "expected_json_path": "tests/fixtures/designer/drawings/expected_extractions/wrd_008_expected.json",
+      "approval_status": "draft",
+      "approved_by": null,
+      "notes": "기존 가구 포함. 신규/기존 구분 추출 필요."
+    },
+    {
+      "id": "wrd_009",
+      "category": "wardrobe_handwritten",
+      "description": "손글씨/현장사진 포함 도면",
+      "file_path": "tests/fixtures/designer/drawings/wrd_009.jpg",
+      "file_status": "pending",
+      "furniture_type_expected": "wardrobe",
+      "expected_json_path": "tests/fixtures/designer/drawings/expected_extractions/wrd_009_expected.json",
+      "approval_status": "draft",
+      "approved_by": null,
+      "notes": "손글씨 메모 포함. Gemini handwriting 인식 검증."
+    },
+    {
+      "id": "wrd_010",
+      "category": "wardrobe_3d_isometric",
+      "description": "3D 투상도 포함 도면",
+      "file_path": "tests/fixtures/designer/drawings/wrd_010.jpg",
+      "file_status": "pending",
+      "furniture_type_expected": "wardrobe",
+      "expected_json_path": "tests/fixtures/designer/drawings/expected_extractions/wrd_010_expected.json",
+      "approval_status": "draft",
+      "approved_by": null,
+      "notes": "3D 투상도 + 정면도 혼합. view_type 분류 검증."
+    },
+    {
+      "id": "shr_001",
+      "category": "shoe_rack_standard",
+      "description": "신발장 표준형",
+      "file_path": "tests/fixtures/designer/drawings/shr_001.jpg",
+      "file_status": "pending",
+      "furniture_type_expected": "shoe_rack",
+      "expected_json_path": "tests/fixtures/designer/drawings/expected_extractions/shr_001_expected.json",
+      "approval_status": "draft",
+      "approved_by": null,
+      "notes": "4단 신발장. W800 H1200 D350 예상."
+    },
+    {
+      "id": "shr_002",
+      "category": "shoe_rack_combined",
+      "description": "신발장 + 붙박이장 복합형",
+      "file_path": "tests/fixtures/designer/drawings/shr_002.jpg",
+      "file_status": "pending",
+      "furniture_type_expected": "shoe_rack",
+      "expected_json_path": "tests/fixtures/designer/drawings/expected_extractions/shr_002_expected.json",
+      "approval_status": "draft",
+      "approved_by": null,
+      "notes": "현관 입구 수납. 신발장+행거 복합."
+    },
+    {
+      "id": "ktc_001",
+      "category": "kitchen_base_l",
+      "description": "주방 하부장 ㄱ자형",
+      "file_path": "tests/fixtures/designer/drawings/ktc_001.jpg",
+      "file_status": "pending",
+      "furniture_type_expected": "kitchen_base",
+      "expected_json_path": "tests/fixtures/designer/drawings/expected_extractions/ktc_001_expected.json",
+      "approval_status": "draft",
+      "approved_by": null,
+      "notes": "L자형 주방. 싱크대+조리대. 부품표 포함."
+    },
+    {
+      "id": "ktc_002",
+      "category": "kitchen_combined",
+      "description": "주방 상하부장 복합 도면",
+      "file_path": "tests/fixtures/designer/drawings/ktc_002.jpg",
+      "file_status": "pending",
+      "furniture_type_expected": "kitchen_base",
+      "expected_json_path": "tests/fixtures/designer/drawings/expected_extractions/ktc_002_expected.json",
+      "approval_status": "draft",
+      "approved_by": null,
+      "notes": "상부+하부 동시 포함. kitchen_wall 혼합 도면."
+    },
+    {
+      "id": "ktc_003",
+      "category": "kitchen_wall",
+      "description": "주방 상부장 단독",
+      "file_path": "tests/fixtures/designer/drawings/ktc_003.jpg",
+      "file_status": "pending",
+      "furniture_type_expected": "kitchen_wall",
+      "expected_json_path": "tests/fixtures/designer/drawings/expected_extractions/ktc_003_expected.json",
+      "approval_status": "draft",
+      "approved_by": null,
+      "notes": "주방 상부장. 힌지 방향 포함."
+    },
+    {
+      "id": "etc_001",
+      "category": "tv_unit",
+      "description": "TV장/거실장",
+      "file_path": "tests/fixtures/designer/drawings/etc_001.jpg",
+      "file_status": "pending",
+      "furniture_type_expected": "custom_storage",
+      "expected_json_path": "tests/fixtures/designer/drawings/expected_extractions/etc_001_expected.json",
+      "approval_status": "draft",
+      "approved_by": null,
+      "notes": "TV 매립 거실장. 내장고장 포함 가능."
+    },
+    {
+      "id": "etc_002",
+      "category": "complex_multipage",
+      "description": "복합 수납 다중 페이지 (사진+정면도+부품표)",
+      "file_path": "tests/fixtures/designer/drawings/etc_002.pdf",
+      "file_status": "pending",
+      "furniture_type_expected": "wardrobe",
+      "expected_json_path": "tests/fixtures/designer/drawings/expected_extractions/etc_002_expected.json",
+      "approval_status": "draft",
+      "approved_by": null,
+      "notes": "현장 사진 + 정면도 + 3D + 부품표 + title block 혼합. 최고 난이도."
+    }
+  ]
+}
