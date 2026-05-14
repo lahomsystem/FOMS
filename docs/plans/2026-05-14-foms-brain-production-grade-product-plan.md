@@ -927,28 +927,74 @@ view geometry -> relation candidates
 - [ ] approve disabled until validator passes.
 - [ ] reject keeps raw artifact and candidate history.
 
-### PG-B9 — Product-Grade Editor Tools
+### PG-B9 — Product-Grade Editor Tools / LEGO Workbench
 
-**Goal:** SketchUp-like 편집 경험을 제품급으로 만든다.
+**Goal:** SketchUp-like 편집 경험을 제품급으로 만든다. AI가 도면에서 생성한 3D 모듈 초안을 사용자가 직접 선택하고, 치수/위치/옵션을 바꾸며, 선반·서랍·도어·옷봉·EP/SR·모듈 블럭을 레고처럼 조립할 수 있어야 한다.
 
 **Files:**
 - Create: `Add In Program/FOMSBrainDesigner/src/tools/selectTool.ts`
 - Create: `Add In Program/FOMSBrainDesigner/src/tools/moveTool.ts`
 - Create: `Add In Program/FOMSBrainDesigner/src/tools/dimensionTool.ts`
 - Create: `Add In Program/FOMSBrainDesigner/src/tools/splitModuleTool.ts`
+- Create: `Add In Program/FOMSBrainDesigner/src/tools/addShelfTool.ts`
+- Create: `Add In Program/FOMSBrainDesigner/src/tools/addDrawerTool.ts`
+- Create: `Add In Program/FOMSBrainDesigner/src/tools/addRodTool.ts`
+- Create: `Add In Program/FOMSBrainDesigner/src/tools/addDoorTool.ts`
+- Create: `Add In Program/FOMSBrainDesigner/src/tools/commandHistory.ts`
+- Create: `Add In Program/FOMSBrainDesigner/src/domain/legoAssemblyRules.ts`
 - Create: `Add In Program/FOMSBrainDesigner/src/ui/ViewCube.tsx`
 - Create: `Add In Program/FOMSBrainDesigner/src/ui/DimensionEditorOverlay.tsx`
+- Create: `Add In Program/FOMSBrainDesigner/src/ui/LegoBlockPalette.tsx`
+- Create: `Add In Program/FOMSBrainDesigner/src/ui/ComponentDimensionEditor.tsx`
 - Modify: `CabinetScene.tsx`
 - Modify: `SelectionGizmo.tsx`
+- Modify: `RightPropertyTray.tsx`
+- Modify: `designerStore.ts`
 - Test: `tests/domains/test_designer_editor_tool_contract.py`
+
+**Required User Flow:**
+
+```text
+AI/Gemini drawing extraction
+  -> OntologyMapper builds DesignGraphCandidate
+  -> Candidate preview loads into 3D workbench
+  -> User clicks module/component by UUID
+  -> RightPropertyTray shows W/H/D, position, material, role, formula refs
+  -> User edits dimensions/position/options
+  -> DesignCommand created (not direct mutation)
+  -> command preview
+  -> validator
+  -> apply to DesignGraph
+  -> 3D scene, dimension lines, BOM update
+```
+
+**LEGO Workbench Capabilities:**
+
+- select module/component by direct 3D click.
+- resize selected component with numeric W/H/D editor.
+- move selected component with axis constraints and collision validation.
+- split a module into N child modules.
+- add shelf / drawer / rod / door / EP / SR block.
+- duplicate module/block.
+- snap adjacent blocks to module boundaries.
+- combine modules into linear, stacked, or L-shaped layout.
+- undo/redo every command.
+- every edit creates `DesignCommand` and optional `CorrectionDelta`.
+- no component transform bypasses formula/constraint validator.
 
 **Acceptance:**
 
 - [ ] Select/move/resize tools are explicit modes.
 - [ ] dimension line edit maps to `DesignCommand`.
+- [ ] selected component W/H/D numeric edit updates the 3D scene.
+- [ ] selected module can be split into child modules.
+- [ ] shelf/drawer/rod/door blocks can be added from a palette.
+- [ ] block snap/placement never creates invalid overlap.
 - [ ] undo/redo exists for command history.
 - [ ] view mode switch preserves selection.
 - [ ] component transform never bypasses validator.
+- [ ] AI-generated candidate graph can be loaded into editable preview mode.
+- [ ] accepted edits persist as `CorrectionDelta`.
 
 ### PG-B10 — Furniture Type UI Integration
 
@@ -1310,20 +1356,20 @@ Browser QA:
 | PG-B4 Template Classifier | LAHOM/BENISSIMO/EHF/multi/unknown classification | `foms/services/designer/drawing_template_classifier.py` | done | 실제 도면 기반 classifier calibration 필요 |
 | PG-B4 Model Router | Gemini/fake routing, model choice, explicit errors | `foms/services/designer/model_router.py`, `tests/domains/test_designer_model_router.py` | done | `drawings.py` upload path가 model_router를 경유하도록 통합 필요 |
 | PG-B5 Parts Table Parser | `[SR]`, `[EP]`, `[DOOR]`, `[마이다]`, `[옷봉]`, 보조목 parsing | `foms/services/designer/parts_table_parser.py`, `tests/domains/test_designer_parts_table_parser.py` | done | 17 fixture recall >= 90% 실측 필요 |
-| PG-B6 Dimension/View Parser | W/D/H, stacked heights, depth labels, view detection | 없음 | missing | `dimension_parser.py`, `view_detector.py`, `geometry_candidate_builder.py` |
-| PG-B7 Ontology Mapper | extracted fields -> factory params -> candidate graph | 없음 | missing | `ontology_mapper.py`, candidate graph builder |
-| PG-B8 Drawing Overlay UI | original image overlay + bbox + extracted fields editing | 없음 | missing | `DrawingOverlayReview.tsx`, API history |
-| PG-B9 Editor Tools | explicit select/move/dimension/split/undo-redo | seed only | partial | tool modules + command history |
+| PG-B6 Dimension/View Parser | W/D/H, stacked heights, depth labels, view detection | `foms/services/designer/dimension_parser.py`, `foms/services/designer/view_detector.py`, `tests/domains/test_designer_dimension_parser.py` | done | 17 fixture W/D/H >= 95% 실측 필요 |
+| PG-B7 Ontology Mapper | extracted fields -> factory params -> candidate graph | `foms/services/designer/ontology_mapper.py`, `tests/domains/test_designer_ontology_mapper.py` | done | candidate graph를 iframe 3D preview로 자동 로드하는 UI 연결 필요 |
+| PG-B8 Drawing Overlay UI | original image overlay + bbox + extracted fields editing | `foms/api/designer/drawings.py`, `tests/domains/test_designer_drawing_review_contract.py` | partial | React overlay 컴포넌트(`DrawingOverlayCanvas.tsx` 등) 미구현 |
+| PG-B9 Editor Tools / LEGO Workbench | explicit select/move/dimension/split/undo-redo, block add/snap | seed only: `selectedComponentId`, `RightPropertyTray`, `CommandPanel`, `command_engine.py` | partial | `tools/*`, command history, LEGO block palette, direct 3D edit UX 필요 |
 | PG-B10 Furniture Type UI | wardrobe/shoe_rack/kitchen_base/kitchen_wall selector | `factoryRegistry.ts`, TS factories, `designerStore.ts`, `ModulePanel.tsx`, `tests/domains/test_designer_frontend_factory_contract.py` | done | UX polish after PG-B1 screenshot |
-| PG-B11 Learning Loop | correction cluster, rule candidate, replay, promotion guard | `foms/services/designer/evolution.py` seed | partial | `correction_clusterer.py`, `rule_replay.py`, UI panel, active unique index |
-| PG-L1 Design Case Memory | approved design case 저장 | 없음 | missing | `designer_design_cases`, `design_case_memory.py` |
-| PG-L2 Retrieval Brain | approved case/correction/rule retrieval | `vector_memory.py` stub | missing | real retrieval + vector/fallback implementation |
-| PG-L3 Product Archetype Learning | repeated new product/internal structure 후보화 | 없음 | missing | `product_archetype_learning.py` |
-| PG-L4 Rule Discovery | correction -> DSL candidate | `evolution.py` seed | partial | evidence-backed clustering + DSL generator |
-| PG-L5 Self-Evaluation Dashboard | 월별 개선 scorecard | 없음 | missing | `self_evaluation.py`, UI panel |
-| PG-L6 Fine-tuning Export | approved-only redacted JSONL export | 없음 | missing | `tools/designer/export_finetune_dataset.py` |
+| PG-B11 Learning Loop | correction cluster, rule candidate, replay, promotion guard | `foms/services/designer/correction_clusterer.py`, `foms/services/designer/rule_replay.py`, `foms/services/designer/evolution.py`, `tests/domains/test_designer_learning_loop_product.py` | done | RuleCandidate UI, active ontology DB unique index hardening 필요 |
+| PG-L1 Design Case Memory | approved design case 저장 | `DesignerDesignCase`, `design_case_memory.py`, `designer_design_case_memory.py`, `tests/domains/test_designer_design_case_memory.py` | done | 실제 승인 사례 누적 필요 |
+| PG-L2 Retrieval Brain | approved case/correction/rule retrieval | `foms/services/designer/design_retrieval.py`, `tests/domains/test_designer_design_retrieval.py` | done | `vector_memory.py` 실제 pgvector/embedding 연결 필요 |
+| PG-L3 Product Archetype Learning | repeated new product/internal structure 후보화 | `product_archetype_types.py`, `product_archetype_learning.py`, `tests/domains/test_designer_product_archetype_learning.py` | done | UI 승인/승격 플로우 필요 |
+| PG-L4 Rule Discovery | correction -> DSL candidate | `correction_clusterer.py`, `rule_replay.py`, `evolution.py` | partial | rule DSL 생성기 + UI panel + replay corpus 통합 고도화 |
+| PG-L5 Self-Evaluation Dashboard | 월별 개선 scorecard | `self_evaluation.py`, `tests/domains/test_designer_self_evaluation.py` | done | UI panel + 월별 persistence 필요 |
+| PG-L6 Fine-tuning Export | approved-only redacted JSONL export | `tools/designer/export_finetune_dataset.py`, `tests/domains/test_designer_finetune_export.py` | done | 실제 승인 데이터 적재 후 export evidence 필요 |
 
-**현재 결론:** PG-B0/B0A/B1/B2 infra/B2.5/B3/B3A/B4/B5/B10은 구현되었지만, 실제 “학습하며 진화하는 가구 설계 AI”의 핵심은 아직 PG-L1~L6가 시작되지 않았다. 다음 단계 구현 전에 PG-L1 Design Case Memory를 우선 삽입하는 것이 맞다.
+**현재 결론:** backend/service 계층의 도면 이해·학습·진화 기반은 대부분 구현되었다. 남은 핵심은 사용자가 체감하는 제품 UX다: (1) 실제 도면 17장+무제한 학습 도면을 업로드해 승인 데이터 축적, (2) AI가 만든 candidate graph를 3D workbench에 자동 로드, (3) PG-B9 LEGO Workbench로 선택/치수편집/블럭조립/undo-redo를 구현, (4) PG-B8 React overlay UI로 도면 위 검수 경험 완성.
 
 ## 9. Stop Rules
 

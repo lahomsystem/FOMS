@@ -15,6 +15,7 @@ import { validateDesignGraph } from '../domain/constraintEngine'
 import { recalculateGraph } from '../domain/formulaEngine'
 import type { WardrobeParams } from '../domain/assemblyFactories'
 import { createDefaultDesign, type FurnitureType } from '../domain/factoryRegistry'
+import { commandHistory } from '../domain/commandHistory'
 
 // ──────────────────────────────────────────────────────────
 // Constraint result (mapped from ConstraintResult)
@@ -98,6 +99,30 @@ interface DesignerState {
 
   /** Run formula recalculation and constraint validation. */
   recalculateAndValidate: () => void
+
+  // ── PG-B9: LEGO Workbench ────────────────────────────────
+  /** Undo last edit. */
+  undo: () => void
+  /** Redo last undone edit. */
+  redo: () => void
+  /** Whether undo is available. */
+  canUndo: () => boolean
+  /** Whether redo is available. */
+  canRedo: () => boolean
+
+  /** Add a new component (block) to the design. */
+  addComponent: (component: Component) => void
+  /** Remove a component by ID. */
+  removeComponent: (componentId: string) => void
+
+  /**
+   * Load a candidate from AI extraction into editable 3D view.
+   * Called when user clicks "3D로 로드" after Gemini extraction.
+   */
+  loadCandidateGraph: (candidatePayload: {
+    furniture_type: string
+    factory_params: Record<string, unknown>
+  }) => void
 }
 
 // ──────────────────────────────────────────────────────────
@@ -137,6 +162,7 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
   },
 
   setDesign: (design) => {
+    commandHistory.push(get().design)
     const { graph: recalculated } = recalculateGraph(design)
     const constraintResult = toStoreConstraintResult(validateDesignGraph(recalculated))
     set({ design: recalculated, isDirty: true, constraintResult })
@@ -150,6 +176,7 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
   },
 
   updateComponent: (componentId, updates) => {
+    commandHistory.push(get().design)
     set((state) => {
       const components = state.design.components.map((comp) =>
         comp.id === componentId
@@ -188,6 +215,95 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
   toggleComponentTree: () => set((state) => ({ showComponentTree: !state.showComponentTree })),
 
   markSaved: () => set({ isDirty: false }),
+
+  // ── PG-B9: Undo / Redo ──────────────────────────────────
+  undo: () => {
+    const prev = commandHistory.undo(get().design)
+    if (!prev) return
+    const { graph: recalculated } = recalculateGraph(prev)
+    const constraintResult = toStoreConstraintResult(validateDesignGraph(recalculated))
+    set({ design: recalculated, isDirty: true, constraintResult })
+  },
+
+  redo: () => {
+    const next = commandHistory.redo(get().design)
+    if (!next) return
+    const { graph: recalculated } = recalculateGraph(next)
+    const constraintResult = toStoreConstraintResult(validateDesignGraph(recalculated))
+    set({ design: recalculated, isDirty: true, constraintResult })
+  },
+
+  canUndo: () => commandHistory.canUndo(),
+  canRedo: () => commandHistory.canRedo(),
+
+  // ── PG-B9: Add / Remove Component ───────────────────────
+  addComponent: (component: Component) => {
+    set((state) => {
+      commandHistory.push(state.design)
+      const newDesign = {
+        ...state.design,
+        components: [...state.design.components, component],
+      }
+      const { graph: recalculated } = recalculateGraph(newDesign)
+      const constraintResult = toStoreConstraintResult(validateDesignGraph(recalculated))
+      return { design: recalculated, isDirty: true, constraintResult }
+    })
+  },
+
+  removeComponent: (componentId: string) => {
+    set((state) => {
+      commandHistory.push(state.design)
+      const newDesign = {
+        ...state.design,
+        components: state.design.components.filter(c => c.id !== componentId),
+      }
+      const { graph: recalculated } = recalculateGraph(newDesign)
+      const constraintResult = toStoreConstraintResult(validateDesignGraph(recalculated))
+      return {
+        design: recalculated,
+        isDirty: true,
+        constraintResult,
+        selectedComponentId: null,
+      }
+    })
+  },
+
+  // ── PG-B9: Load AI Candidate into 3D ────────────────────
+  loadCandidateGraph: (candidatePayload) => {
+    try {
+      const { furniture_type, factory_params } = candidatePayload
+      const ft = (furniture_type ?? 'wardrobe') as FurnitureType
+      const p = (factory_params ?? {}) as Record<string, number>
+
+      let newDesign: DesignGraph
+      // Build wardrobe with extracted params if available, else use factory defaults
+      if (ft === 'wardrobe' && (p.width || p.height || p.depth)) {
+        const w = p.width || 2400
+        const h = p.height || 2200
+        const d = p.depth || 620
+        const mc = p.module_count || Math.max(1, Math.round(w / 800))
+        newDesign = createWardrobeAssembly({
+          width: w, height: h, depth: d,
+          moduleCount: mc, doorType: 'sliding',
+        })
+      } else {
+        newDesign = createDefaultDesign(ft)
+      }
+
+      commandHistory.push(get().design)
+      const { graph: recalculated } = recalculateGraph(newDesign)
+      const constraintResult = toStoreConstraintResult(validateDesignGraph(recalculated))
+      set({
+        design: recalculated,
+        isDirty: true,
+        constraintResult,
+        currentFurnitureType: ft,
+        selectedComponentId: null,
+      })
+    } catch (err) {
+      console.error('[loadCandidateGraph] failed:', err)
+    }
+  },
 
   recalculateAndValidate: () => {
     set((state) => {

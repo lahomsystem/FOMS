@@ -332,6 +332,11 @@
 
                         <!-- 저장 버튼 -->
                         <div class="mt-3 d-flex gap-2 flex-wrap" id="res-actions">
+                            <!-- 3D 워크벤치로 로드 (PG-B9) -->
+                            <button class="btn btn-dark btn-sm" id="btn-load-3d"
+                                    onclick="loadTo3D()" style="display:none" title="추출 결과를 3D 편집기로 불러옵니다">
+                                🧊 3D로 로드
+                            </button>
                             <!-- 일반 학습 저장 (fixture 미지정) -->
                             <button class="btn btn-success btn-sm" id="btn-save-learning"
                                     onclick="saveLearning()" style="display:none">
@@ -730,21 +735,21 @@ function renderExtractionResult(data) {
 
     document.getElementById('extraction-result').style.display = '';
 
+    // "3D로 로드" 버튼: 추출 결과가 있으면 항상 표시
+    document.getElementById('btn-load-3d').style.display = '';
+
     if (alreadyApproved) {
         document.getElementById('btn-save-draft').style.display = 'none';
         document.getElementById('btn-approve').style.display = 'none';
         document.getElementById('btn-save-learning').style.display = 'none';
     } else if (currentFixtureId) {
-        // 기준 corpus fixture: 초안 저장 + 승인 모두 가능
         document.getElementById('btn-save-draft').style.display = '';
         document.getElementById('btn-approve').style.display = '';
         document.getElementById('btn-save-learning').style.display = 'none';
     } else {
-        // 일반 학습 업로드: "학습 저장" 버튼 표시
         document.getElementById('btn-save-draft').style.display = 'none';
         document.getElementById('btn-approve').style.display = 'none';
         document.getElementById('btn-save-learning').style.display = '';
-        // 안내 메시지 초기화
         const infoEl = document.getElementById('general-upload-info');
         if (infoEl) infoEl.style.display = 'none';
     }
@@ -756,6 +761,53 @@ function fieldRow(label, value) {
 
 function furnitureTypeLabel(t) {
     return { wardrobe: '붙박이장', shoe_rack: '신발장', kitchen_base: '주방 하부장', kitchen_wall: '주방 상부장', custom_storage: '수납장' }[t] || t;
+}
+
+// ── 3D 워크벤치로 로드 (PG-B9) ──────────────────────────────
+async function loadTo3D() {
+    if (!currentExtraction) return;
+    const btn = document.getElementById('btn-load-3d');
+    btn.disabled = true; btn.textContent = '⏳ 로딩...';
+
+    try {
+        // 1. Candidate 빌드
+        const resp = await fetch('/api/designer/drawings/candidates/build', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ extraction: currentExtraction }),
+        });
+        const json = await resp.json();
+
+        if (json.success && json.data && json.data.candidate) {
+            const candidate = json.data.candidate;
+            // 2. 모드 전환
+            switchMode('designer');
+            // 3. iframe에 candidate 전달
+            const iframe = document.getElementById('designer-iframe');
+            if (iframe && iframe.contentWindow) {
+                iframe.contentWindow.postMessage({
+                    type: 'FOMS_LOAD_CANDIDATE',
+                    candidate: {
+                        furniture_type: candidate.furniture_type || currentExtraction.furniture_type || 'wardrobe',
+                        factory_params: candidate.factory_params || {},
+                    },
+                }, '*');
+                showAlert(
+                    `"${currentFilename || '도면'}" 을 3D 편집기에 로드했습니다.<br>`
+                    + `가구 유형: ${candidate.furniture_type || '?'} | `
+                    + `미확인 필드: ${(candidate.unresolved_fields || []).length}개`,
+                    'success'
+                );
+            }
+        } else {
+            showAlert('3D 로드 실패: ' + (json.error || '알 수 없는 오류'), 'danger');
+        }
+    } catch(e) {
+        showAlert('오류: ' + e.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🧊 3D로 로드';
+    }
 }
 
 // ── 일반 학습 저장 (fixture 미지정) ────────────────────────
@@ -852,6 +904,8 @@ function resetUpload() {
     // 버튼 초기화
     const btnL = document.getElementById('btn-save-learning');
     if (btnL) { btnL.style.display = 'none'; btnL.disabled = false; btnL.textContent = '💾 학습 저장'; btnL.className = 'btn btn-success btn-sm'; }
+    const btn3d = document.getElementById('btn-load-3d');
+    if (btn3d) { btn3d.style.display = 'none'; btn3d.disabled = false; btn3d.textContent = '🧊 3D로 로드'; }
     const infoEl = document.getElementById('general-upload-info');
     if (infoEl) infoEl.style.display = 'none';
 }

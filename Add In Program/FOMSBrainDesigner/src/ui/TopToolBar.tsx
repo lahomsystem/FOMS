@@ -30,6 +30,10 @@ export function TopToolBar({ viewMode, onViewModeChange }: TopToolBarProps) {
   const markSaved = useDesignerStore((s) => s.markSaved)
   const constraintResult = useDesignerStore((s) => s.constraintResult)
   const currentFurnitureType = useDesignerStore((s) => s.currentFurnitureType)
+  const undo = useDesignerStore((s) => s.undo)
+  const redo = useDesignerStore((s) => s.redo)
+  const canUndo = useDesignerStore((s) => s.canUndo)
+  const canRedo = useDesignerStore((s) => s.canRedo)
 
   const isValid = constraintResult?.valid ?? true
   const asm = design.assembly
@@ -71,6 +75,38 @@ export function TopToolBar({ viewMode, onViewModeChange }: TopToolBarProps) {
         title={isDirty ? '저장 (미저장 변경사항 있음)' : '저장됨'}
       >
         {isDirty ? '● 저장' : '✓ 저장됨'}
+      </button>
+
+      <div style={S.tbSep} />
+
+      {/* Undo/Redo (PG-B9) */}
+      <button
+        onClick={undo}
+        disabled={!canUndo()}
+        title="실행 취소 (Ctrl+Z)"
+        style={{
+          ...S.tbBtn,
+          opacity: canUndo() ? 1 : 0.35,
+          cursor: canUndo() ? 'pointer' : 'default',
+          fontSize: 14,
+          padding: '4px 7px',
+        }}
+      >
+        ↩
+      </button>
+      <button
+        onClick={redo}
+        disabled={!canRedo()}
+        title="다시 실행 (Ctrl+Y)"
+        style={{
+          ...S.tbBtn,
+          opacity: canRedo() ? 1 : 0.35,
+          cursor: canRedo() ? 'pointer' : 'default',
+          fontSize: 14,
+          padding: '4px 7px',
+        }}
+      >
+        ↪
       </button>
 
       <div style={S.tbSep} />
