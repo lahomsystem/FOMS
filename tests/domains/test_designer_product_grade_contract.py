@@ -145,11 +145,14 @@ class TestPGModulesImplementedAndMissing:
         assert callable(ptp.parse_gemini_parts_table)
         assert callable(ptp.score_parts_recall)
 
-    # ── PG-B6: STILL MISSING ──
-    def test_dimension_parser_module_missing(self):
-        """foms.services.designer.dimension_parser does not exist yet (PG-B6 scope)."""
-        with pytest.raises(ImportError):
-            import foms.services.designer.dimension_parser  # noqa: F401
+    # ── PG-B6: IMPLEMENTED ──
+    def test_dimension_parser_module_implemented(self):
+        """dimension_parser.py + view_detector.py implemented (PG-B6 complete)."""
+        import foms.services.designer.dimension_parser as dp  # noqa: F401
+        import foms.services.designer.view_detector as vd  # noqa: F401
+        assert callable(dp.parse_ocr_text)
+        assert callable(dp.parse_gemini_dimensions)
+        assert callable(vd.detect_view_from_text)
 
     # ── PG-B11: STILL MISSING ──
     def test_correction_clusterer_module_missing(self):
