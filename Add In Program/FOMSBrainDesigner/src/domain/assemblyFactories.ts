@@ -106,16 +106,16 @@ export function createWardrobeAssembly(params: WardrobeParams): DesignGraph {
     ['side_panel_height'],
   ))
 
-  // SR Top
+  // SR Top — spacer batten, not a standard PB sheet → null material (matches Python factory)
   components.push(makeComponent(
-    'sr', 'top_sr', '상부 SR', assemblyId, 'PB_18T_WHITE',
+    'sr', 'top_sr', '상부 SR', assemblyId, null,
     { width: p.width - p.epLeft - p.epRight, height: p.topSr, depth: p.depth - bt },
     { x: p.epLeft, y: p.height - p.topSr, z: 0 },
   ))
 
-  // Base
+  // Base — spacer structure → null material (matches Python factory)
   components.push(makeComponent(
-    'base', 'base', '받침대', assemblyId, 'PB_18T_WHITE',
+    'base', 'base', '받침대', assemblyId, null,
     { width: p.width - p.epLeft - p.epRight, height: p.baseHeight, depth: p.depth - bt - 50 },
     { x: p.epLeft, y: 0, z: 50 },
   ))
