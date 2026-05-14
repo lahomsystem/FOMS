@@ -1,21 +1,25 @@
-"""FOMS Brain PG-B2/B3 — Drawing Upload & Fixture Registration API.
+"""FOMS Brain PG-B2/B3/B7/B8 — Drawing Upload, Fixture, Candidate & Correction API.
 
-Endpoints:
+Endpoints (PG-B2/B3):
   POST /api/designer/drawings/upload-and-extract
-       도면 파일을 업로드하고 Gemini로 추출한다.
   GET  /api/designer/drawings/fixtures
-       fixture manifest 현황을 반환한다.
-  POST /api/designer/drawings/fixtures/<fixture_id>/save-draft
-       Gemini 추출 결과를 expected JSON 초안으로 저장한다.
-  POST /api/designer/drawings/fixtures/<fixture_id>/approve
-       expected JSON 초안을 사용자가 승인한다.
-  GET  /api/designer/drawings/fixtures/<fixture_id>/expected
-       기존 expected JSON을 반환한다.
+  POST /api/designer/drawings/fixtures/<id>/save-draft
+  POST /api/designer/drawings/fixtures/<id>/approve
+  GET  /api/designer/drawings/fixtures/<id>/expected
+
+Endpoints (PG-B7/B8 — Candidate & Correction):
+  POST /api/designer/drawings/candidates/build
+       추출 결과에서 MappedCandidate를 생성한다.
+  POST /api/designer/drawings/candidates/<id>/correct
+       사용자 수정을 CorrectionDelta로 저장한다. Project version은 생성하지 않는다.
+  POST /api/designer/drawings/candidates/<id>/approve-and-save
+       검증 통과 후 project version을 생성한다.
 
 Contract:
-- 파일은 서버 임시 경로에 저장 후 Gemini 전송, 완료 후 삭제 or R2 업로드.
-- approved=false 상태의 데이터는 절대 project version으로 저장되지 않는다.
-- PII(고객명/전화/주소)는 expected JSON에만 저장, Gemini 전송 시 redaction 필요 (PG-B3A).
+- approved=false 상태의 데이터는 project version으로 저장 불가.
+- CorrectionDelta는 모든 사용자 수정을 기록한다.
+- Candidate validator 통과 없이 approve-and-save 불가.
+- PII는 Gemini 전송 전 redaction (PG-B3A).
 """
 
 from __future__ import annotations
@@ -377,6 +381,208 @@ def approve_fixture(fixture_id: str):
             "approval_status": "approved",
             "total_approved": approved_count,
             "expected_json": ej,
+        },
+        "error": None,
+    })
+
+
+# ──────────────────────────────────────────────────────────
+# PG-B7/B8: Candidate Build + Correction + Approve-and-Save
+# ──────────────────────────────────────────────────────────
+
+# In-memory candidate store (MVP — production uses DesignerExtractionCandidate table)
+_CANDIDATE_STORE: dict[str, dict] = {}
+
+
+@drawings_bp.route("/candidates/build", methods=["POST"])
+@login_required
+def build_candidate_route():
+    """POST /api/designer/drawings/candidates/build
+
+    Build a MappedCandidate from a Gemini extraction result.
+
+    Body: { extraction: {...}, source_extraction_id: int | null }
+
+    Returns:
+      { success, data: { candidate }, error }
+    """
+    body = request.get_json(silent=True) or {}
+    extraction = body.get("extraction")
+    if not extraction:
+        return jsonify({"success": False, "error": "extraction 필드가 없습니다."}), 400
+
+    source_id = body.get("source_extraction_id")
+
+    try:
+        from foms.services.designer.ontology_mapper import build_candidate
+        candidate = build_candidate(extraction, source_extraction_id=source_id)
+        _CANDIDATE_STORE[candidate.candidate_id] = candidate.to_dict()
+    except Exception as exc:
+        logger.error("[CANDIDATE BUILD] error: %s", exc)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+    return jsonify({
+        "success": True,
+        "data": {"candidate": candidate.to_dict()},
+        "error": None,
+    })
+
+
+@drawings_bp.route("/candidates/<candidate_id>/correct", methods=["POST"])
+@login_required
+def correct_candidate(candidate_id: str):
+    """POST /api/designer/drawings/candidates/<id>/correct
+
+    Record a user correction on a candidate field. Stores CorrectionDelta.
+    Does NOT create a project version.
+
+    Body:
+      { corrections: {field: value, ...}, reason: "string" }
+
+    Returns:
+      { success, data: { candidate, correction_id }, error }
+    """
+    candidate_data = _CANDIDATE_STORE.get(candidate_id)
+    if not candidate_data:
+        return jsonify({"success": False, "error": f"Candidate {candidate_id} not found"}), 404
+
+    body = request.get_json(silent=True) or {}
+    corrections = body.get("corrections", {})
+    reason = body.get("reason", "user_manual_edit")
+
+    if not corrections:
+        return jsonify({"success": False, "error": "corrections 필드가 없습니다."}), 400
+
+    before = {
+        "factory_params": dict(candidate_data.get("factory_params", {})),
+        "unresolved_fields": list(candidate_data.get("unresolved_fields", [])),
+    }
+
+    # Apply corrections
+    for field, value in corrections.items():
+        candidate_data.setdefault("factory_params", {})[field] = value
+        # Remove from unresolved if now provided
+        urf = candidate_data.get("unresolved_fields", [])
+        if field in urf:
+            urf.remove(field)
+            candidate_data["unresolved_fields"] = urf
+
+    after = {
+        "factory_params": dict(candidate_data.get("factory_params", {})),
+        "unresolved_fields": list(candidate_data.get("unresolved_fields", [])),
+        "candidate_rule_hint": "user_correction",
+        "source": "user_manual_edit",
+    }
+
+    _CANDIDATE_STORE[candidate_id] = candidate_data
+
+    # Persist correction delta to DB
+    correction_id = None
+    try:
+        from db import db_session
+        from foms.persistence.designer.models import DesignerCorrection
+
+        corr = DesignerCorrection(
+            before_json=before,
+            after_json=after,
+            reason_text=reason,
+            created_by_user_id=getattr(g, "user_id", None),
+        )
+        db_session.add(corr)
+        db_session.commit()
+        db_session.refresh(corr)
+        correction_id = corr.id
+    except Exception as exc:
+        logger.warning("[CORRECT] DB write failed (non-fatal): %s", exc)
+
+    return jsonify({
+        "success": True,
+        "data": {
+            "candidate": candidate_data,
+            "correction_id": correction_id,
+        },
+        "error": None,
+    })
+
+
+@drawings_bp.route("/candidates/<candidate_id>/approve-and-save", methods=["POST"])
+@login_required
+def approve_and_save_candidate(candidate_id: str):
+    """POST /api/designer/drawings/candidates/<id>/approve-and-save
+
+    Approve a candidate and create a project version.
+    Requires: unresolved_fields == [] AND validator passes.
+
+    Body: { project_id: int }
+
+    Returns:
+      { success, data: { project_version_id, candidate }, error }
+    """
+    candidate_data = _CANDIDATE_STORE.get(candidate_id)
+    if not candidate_data:
+        return jsonify({"success": False, "error": f"Candidate {candidate_id} not found"}), 404
+
+    # Safety gate 1: no unresolved fields
+    unresolved = candidate_data.get("unresolved_fields", [])
+    if unresolved:
+        return jsonify({
+            "success": False,
+            "error": f"미확인 필드가 있어 저장할 수 없습니다: {unresolved}",
+            "code": "UNRESOLVED_FIELDS",
+        }), 422
+
+    body = request.get_json(silent=True) or {}
+    project_id = body.get("project_id")
+    if not project_id:
+        return jsonify({"success": False, "error": "project_id가 필요합니다."}), 400
+
+    # Build design graph from factory params
+    furniture_type = candidate_data.get("furniture_type", "wardrobe")
+    factory_params = candidate_data.get("factory_params", {})
+
+    try:
+        from foms.services.designer.factory_registry import create_design
+        design_graph = create_design(furniture_type, factory_params)
+    except Exception as exc:
+        logger.error("[APPROVE-SAVE] factory create failed: %s", exc)
+        return jsonify({"success": False, "error": f"설계 생성 실패: {exc}"}), 500
+
+    # Safety gate 2: hard validator must pass
+    try:
+        from foms.services.designer.validator import validate_design
+        val_result = validate_design(design_graph)
+        if val_result.errors:
+            return jsonify({
+                "success": False,
+                "error": f"검증 오류: {[e.message for e in val_result.errors[:3]]}",
+                "code": "VALIDATOR_FAILED",
+            }), 422
+    except Exception as exc:
+        return jsonify({"success": False, "error": f"검증 실패: {exc}"}), 500
+
+    # Create project version
+    try:
+        from foms.persistence.designer import create_project_version
+        version = create_project_version(
+            project_id=int(project_id),
+            design_json=design_graph if isinstance(design_graph, dict) else design_graph.to_dict(),
+            user_id=getattr(g, "user_id", None),
+        )
+    except Exception as exc:
+        logger.error("[APPROVE-SAVE] version create failed: %s", exc)
+        return jsonify({"success": False, "error": f"버전 저장 실패: {exc}"}), 500
+
+    # Mark candidate approved
+    candidate_data["approved"] = True
+    _CANDIDATE_STORE[candidate_id] = candidate_data
+
+    logger.info("[APPROVE-SAVE] project_version_id=%d candidate=%s", version.id, candidate_id)
+
+    return jsonify({
+        "success": True,
+        "data": {
+            "project_version_id": version.id,
+            "candidate": candidate_data,
         },
         "error": None,
     })
