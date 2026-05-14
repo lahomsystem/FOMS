@@ -1,12 +1,14 @@
 """FOMS Brain Post-V1 — Vision Extractor.
 
-PV2-B6: fake deterministic extractor + provider adapter interface.
+PV2-B6 + PG-B0A: fake deterministic extractor + Gemini provider routing.
 
 Contract:
 - Output is ALWAYS DesignGraphCandidate — never design truth.
-- candidate.can_apply() returns False until human approval.
+- candidate.approved is always False on exit (human review required).
 - Real provider is env-gated; unavailable is explicit error (not silent).
 - unresolved fields must be empty before apply is permitted.
+- DESIGNER_VISION_PROVIDER=gemini routes to gemini_provider.py (PG-B0A).
+- DESIGNER_FAKE_VISION=1 uses test fixture lookup (tests only).
 """
 
 from __future__ import annotations
@@ -32,21 +34,72 @@ class VisionProviderUnavailable(Exception):
 
 
 def _call_real_provider(vision_input: VisionInput) -> dict[str, Any]:
-    """Call external OCR/vision provider.
+    """Call external vision provider.
 
     This is the ONLY place real provider calls should happen.
     Raises VisionProviderUnavailable explicitly — never silent.
+
+    Supported providers (DESIGNER_VISION_PROVIDER env):
+      gemini  — Google Gemini multimodal API (PG-B0A, requires GEMINI_API_KEY)
     """
-    if not _VISION_PROVIDER:
+    provider = os.environ.get("DESIGNER_VISION_PROVIDER", _VISION_PROVIDER)
+    if not provider:
         raise VisionProviderUnavailable(
             "DESIGNER_VISION_PROVIDER is not set. "
-            "Set to a supported provider name or use DESIGNER_FAKE_VISION=1."
+            "Set DESIGNER_VISION_PROVIDER=gemini and GEMINI_API_KEY, "
+            "or use DESIGNER_FAKE_VISION=1 for tests."
         )
-    # Future: dispatch to provider adapter (Google Vision, Azure CV, etc.)
+
+    if provider == "gemini":
+        return _call_gemini_provider(vision_input)
+
     raise VisionProviderUnavailable(
-        f"Provider {_VISION_PROVIDER!r} is not yet implemented. "
-        "Set DESIGNER_FAKE_VISION=1 to use the test extractor."
+        f"Provider {provider!r} is not implemented. "
+        "Supported: 'gemini'. Use DESIGNER_FAKE_VISION=1 for tests."
     )
+
+
+def _call_gemini_provider(vision_input: VisionInput) -> dict[str, Any]:
+    """Route to Gemini provider (PG-B0A).
+
+    Supports: image_url (http/https or file path), attachment_id (R2 URL lookup).
+    Returns raw extraction dict from gemini_provider.
+    """
+    try:
+        from foms.services.designer.gemini_provider import (
+            extract_from_url,
+            extract_from_image_path,
+            GeminiProviderError,
+            GeminiAPIKeyMissing,
+        )
+    except ImportError as exc:
+        raise VisionProviderUnavailable(
+            "gemini_provider module not importable. "
+            f"Check google-genai installation. error={exc}"
+        ) from exc
+
+    try:
+        if vision_input.image_url:
+            url = vision_input.image_url
+            if url.startswith("http://") or url.startswith("https://"):
+                return extract_from_url(url)
+            else:
+                # Treat as local file path
+                return extract_from_image_path(url)
+        elif vision_input.attachment_id:
+            # TODO PG-B3: resolve attachment_id to R2 signed URL
+            raise VisionProviderUnavailable(
+                f"attachment_id={vision_input.attachment_id} → R2 URL resolution "
+                "not yet implemented. Provide image_url instead (PG-B3 scope)."
+            )
+        else:
+            raise VisionProviderUnavailable(
+                "No image_url or attachment_id provided in VisionInput."
+            )
+    except GeminiAPIKeyMissing as exc:
+        raise VisionProviderUnavailable(str(exc)) from exc
+    except GeminiProviderError as exc:
+        raise VisionProviderUnavailable(f"Gemini extraction failed: {exc}") from exc
 
 
 # ──────────────────────────────────────────────────────────
@@ -141,7 +194,19 @@ def extract_candidate(vision_input: VisionInput) -> DesignGraphCandidate:
             raise
 
     furniture_type = data.get("furniture_type") or vision_input.target_furniture_type or "wardrobe"
+    # Gemini returns full extracted_params including W/D/H + extras; fake returns simple dict
     extracted_params = data.get("extracted_params", {})
+    # Flatten top-level parts_table, customer_info, drawing_meta into extracted_params extras
+    # so they're accessible from the candidate without schema change
+    if "parts_table" in data:
+        extracted_params["_parts_table"] = data["parts_table"]
+    if "customer_info" in data:
+        extracted_params["_customer_info"] = data["customer_info"]
+    if "drawing_meta" in data:
+        extracted_params["_drawing_meta"] = data["drawing_meta"]
+    if "_metrics" in data:
+        extracted_params["_metrics"] = data["_metrics"]
+
     unresolved = data.get("unresolved_fields", [])
     confidence = float(data.get("confidence", 0.0))
 

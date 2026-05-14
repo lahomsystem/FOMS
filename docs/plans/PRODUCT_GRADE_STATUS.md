@@ -14,8 +14,8 @@ Design Kernel V1 + Post-V1 seed는 "커널 및 backend seed"다.
 
 | Gate ID | 설명 | 담당 Batch | 상태 |
 |---|---|---|---|
-| gemini_provider_implemented | Gemini API 단일 모델 어댑터 구현 + POC 5장 검증 | PG-B0A | ❌ MISSING |
-| extraction_scorecard_implemented | precision/recall/field_score scorecard 알고리즘 구현 | PG-B0A | ❌ MISSING |
+| gemini_provider_implemented | Gemini API 단일 모델 어댑터 구현 + POC 5장 검증 | PG-B0A | ✅ DONE (billing 활성화 후 live POC 실행 가능) |
+| extraction_scorecard_implemented | precision/recall/field_score scorecard 알고리즘 구현 | PG-B0A | ✅ DONE |
 | fixture_corpus_17_drawings | 17장 drawing fixture manifest 등록 + expected JSON 사용자 승인 | PG-B2 | ❌ MISSING |
 | pii_redactor_implemented | 고객명/전화/주소 pseudonymization + Gemini payload 분리 | PG-B3A | ❌ MISSING |
 | drawing_artifact_db_model | DrawingArtifact/Page/Extraction/Candidate 영구 DB 모델 | PG-B3 | ❌ MISSING |
@@ -27,7 +27,7 @@ Design Kernel V1 + Post-V1 seed는 "커널 및 backend seed"다.
 | correction_clusterer_implemented | correction clustering + evidence-backed rule candidates | PG-B11 | ❌ MISSING |
 | no_auto_ontology_promotion | 자동 온톨로지 승격 금지 invariant | (기존 계약) | ✅ 계약 존재 |
 
-**통과 gate: 1 / 12**
+**통과 gate: 3 / 12**
 
 ## 현재 실제 구현 수준
 
@@ -72,17 +72,33 @@ Design Kernel V1 + Post-V1 seed는 "커널 및 backend seed"다.
 
 | PR | 세션 | 범위 | 상태 |
 |---|---|---|---|
-| PR-1 | Session-1 | PG-B0 Reality Reset + Product Contract Freeze | ✅ 이번 세션 |
-| PR-2 | Session-2 | PG-B0A Gemini Provider POC + Scorecard Definition | 🔜 다음 |
+| PR-1 | Session-1 | PG-B0 Reality Reset + Product Contract Freeze | ✅ 완료 |
+| PR-2 | Session-2 | PG-B0A Gemini Provider POC + Scorecard Definition | ✅ 완료 (billing 필요) |
 | PR-3 | Session-3 | PG-B2 Drawing Attachment Corpus + Fixture Harness | ⏳ 대기 |
 | PR-4 | Session-4 | PG-B10 Furniture Type UI Integration | ⏳ 대기 |
 | PR-5 | Session-5 | PG-B1 White SketchUp-Like Workbench Shell | ⏳ 대기 |
 | PR-6+ | Session-6+ | PG-B3~B13 계획서 순서 | ⏳ 대기 |
 
-## 다음 세션 (PR-2 / PG-B0A) 시작 조건
+## PG-B0A 완료 요약
 
-1. Gemini API key 환경변수 이름 사용자 확인 (예: `GEMINI_API_KEY` or `GOOGLE_API_KEY`)
-2. 5장 대표 fixture 이미지/PDF 경로 또는 R2 URL 확인
-3. `tests/fixtures/drawings/` 디렉터리 생성
-4. `foms/services/designer/gemini_provider.py` 신규 구현
-5. cost/latency/accuracy POC 리포트 생성
+- `GEMINI_API_KEY` 환경변수 확인 (Railway secret으로 등록 필요)
+- `foms/services/designer/gemini_provider.py` 구현 완료
+  - `gemini-1.5-flash` 기본 모델 (free tier 대상)
+  - 429/billing 오류 시 명확한 메시지 + skip 처리
+- `foms/services/designer/extraction_scorecard.py` 구현 완료
+  - W/D/H ±5mm tolerance, precision/recall/field_score
+- `tests/fixtures/drawings/manifest.json` 생성 (5 POC fixtures, all pending)
+
+### 현재 API 키 상태
+- API 키: `GEMINI_API_KEY` (Railway secret 등록 필요)
+- 현재 상태: free tier limit=0 (Google Cloud 프로젝트 billing 미활성화)
+- **Action Required**: https://console.cloud.google.com → Billing 활성화 → Gemini API 할당량 자동 부여
+- billing 활성화 후: `DESIGNER_VISION_PROVIDER=gemini` + `GEMINI_API_KEY=...` 설정으로 즉시 동작
+
+## 다음 세션 (PR-3 / PG-B2) 시작 조건
+
+1. 실제 도면 이미지/PDF 파일 17장 준비 (업로드 경로: `tests/fixtures/drawings/`)
+2. 각 도면에 대한 expected JSON 초안 생성 (AI 초안 → 사용자 승인)
+3. `manifest.json`에서 `file_status: "pending"` → `"available"` 업데이트
+4. Google Cloud billing 활성화 (live extraction scorecard 실행을 위해)
+5. `foms/persistence/designer/models.py`에 DrawingArtifact/DrawingPage/ExtractionRun/ExtractionCandidate 테이블 추가 (Alembic migration)

@@ -106,39 +106,47 @@ class TestFakeExtractorNotProductComplete:
 # PG-B0-02: Gemini provider module does NOT yet exist
 # ──────────────────────────────────────────────────────────
 
-class TestGeminiProviderNotYetImplemented:
-    """Confirms Gemini provider is missing — will invert when PG-B0A ships."""
+class TestPGModulesImplementedAndMissing:
+    """Tracks which PG-B* modules are implemented vs still missing."""
 
-    def test_gemini_provider_module_missing(self):
-        """foms.services.designer.gemini_provider does not exist yet (PG-B0A scope)."""
-        with pytest.raises(ImportError):
-            import foms.services.designer.gemini_provider  # noqa: F401
+    # ── PG-B0A: IMPLEMENTED ──
+    def test_gemini_provider_module_implemented(self):
+        """gemini_provider.py is now implemented (PG-B0A complete)."""
+        import foms.services.designer.gemini_provider as gp  # noqa: F401
+        assert callable(gp.check_connectivity)
+        assert callable(gp.extract_from_image_bytes)
 
-    def test_extraction_scorecard_module_missing(self):
-        """foms.services.designer.extraction_scorecard does not exist yet (PG-B0A scope)."""
-        with pytest.raises(ImportError):
-            import foms.services.designer.extraction_scorecard  # noqa: F401
+    def test_extraction_scorecard_module_implemented(self):
+        """extraction_scorecard.py is now implemented (PG-B0A complete)."""
+        import foms.services.designer.extraction_scorecard as sc  # noqa: F401
+        assert callable(sc.score_wdh)
+        assert callable(sc.run_scorecard_from_manifest)
 
+    # ── PG-B3A: STILL MISSING ──
     def test_pii_redactor_module_missing(self):
         """foms.services.designer.pii_redactor does not exist yet (PG-B3A scope)."""
         with pytest.raises(ImportError):
             import foms.services.designer.pii_redactor  # noqa: F401
 
+    # ── PG-B4: STILL MISSING ──
     def test_model_router_module_missing(self):
         """foms.services.designer.model_router does not exist yet (PG-B4 scope)."""
         with pytest.raises(ImportError):
             import foms.services.designer.model_router  # noqa: F401
 
+    # ── PG-B5: STILL MISSING ──
     def test_parts_table_parser_module_missing(self):
         """foms.services.designer.parts_table_parser does not exist yet (PG-B5 scope)."""
         with pytest.raises(ImportError):
             import foms.services.designer.parts_table_parser  # noqa: F401
 
+    # ── PG-B6: STILL MISSING ──
     def test_dimension_parser_module_missing(self):
         """foms.services.designer.dimension_parser does not exist yet (PG-B6 scope)."""
         with pytest.raises(ImportError):
             import foms.services.designer.dimension_parser  # noqa: F401
 
+    # ── PG-B11: STILL MISSING ──
     def test_correction_clusterer_module_missing(self):
         """foms.services.designer.correction_clusterer does not exist yet (PG-B11 scope)."""
         with pytest.raises(ImportError):
@@ -149,27 +157,35 @@ class TestGeminiProviderNotYetImplemented:
 # PG-B0-03: Drawing fixture corpus does NOT exist
 # ──────────────────────────────────────────────────────────
 
-class TestFixtureCorpusNotYetRegistered:
-    """Confirms fixture corpus is 0 — will invert when PG-B2 ships."""
+class TestFixtureCorpusState:
+    """Tracks fixture corpus state across PG batches.
+
+    PG-B0A: manifest exists (5 POC fixtures, all pending — no files yet)
+    PG-B2:  17 fixtures registered, files available, expected_json approved
+    """
 
     FIXTURE_MANIFEST_PATH = Path(__file__).parent.parent / "fixtures" / "drawings" / "manifest.json"
 
-    def test_drawing_fixture_manifest_missing(self):
-        """tests/fixtures/drawings/manifest.json does not exist yet (PG-B2 scope)."""
-        assert not self.FIXTURE_MANIFEST_PATH.exists(), (
-            f"Fixture manifest found at {self.FIXTURE_MANIFEST_PATH}. "
-            "If PG-B2 is complete, remove this test and add corpus tests instead."
+    def test_drawing_fixture_manifest_exists(self):
+        """PG-B0A: tests/fixtures/drawings/manifest.json now exists."""
+        assert self.FIXTURE_MANIFEST_PATH.exists(), (
+            f"Fixture manifest missing at {self.FIXTURE_MANIFEST_PATH}. "
+            "PG-B0A should have created this file."
         )
 
-    def test_drawing_fixture_directory_missing_or_empty(self):
-        """tests/fixtures/drawings/ directory does not exist or is empty (PG-B2 scope)."""
-        drawings_dir = self.FIXTURE_MANIFEST_PATH.parent
-        if drawings_dir.exists():
-            json_files = list(drawings_dir.glob("*.json"))
-            assert len(json_files) == 0, (
-                f"Found {len(json_files)} JSON fixture file(s) — expected 0 until PG-B2. "
-                "If PG-B2 is complete, replace this test with corpus coverage tests."
-            )
+    def test_fixture_corpus_not_17_drawings_yet(self):
+        """PG-B2 not yet complete: fewer than 17 approved fixtures (currently 5 POC, all pending)."""
+        import json
+        with open(self.FIXTURE_MANIFEST_PATH, encoding="utf-8") as f:
+            data = json.load(f)
+        approved = [
+            f for f in data.get("fixtures", [])
+            if f.get("file_status") == "available" and f.get("expected_json") is not None
+        ]
+        assert len(approved) < 17, (
+            f"Found {len(approved)} approved fixtures — if PG-B2 is complete (17 drawings), "
+            "update PRODUCT_GRADE_GATES['fixture_corpus_17_drawings'] to True."
+        )
 
 
 # ──────────────────────────────────────────────────────────
@@ -250,16 +266,16 @@ class TestRouteRegression:
 # ──────────────────────────────────────────────────────────
 
 PRODUCT_GRADE_GATES: dict[str, bool] = {
-    "gemini_provider_implemented": False,       # PG-B0A
-    "extraction_scorecard_implemented": False,  # PG-B0A
-    "fixture_corpus_17_drawings": False,        # PG-B2
-    "pii_redactor_implemented": False,          # PG-B3A
-    "parts_table_parser_recall_90": False,      # PG-B5
-    "dimension_parser_wdh_95": False,           # PG-B6
-    "overlay_review_ui": False,                 # PG-B8
-    "white_workbench_shell": False,             # PG-B1
-    "factory_selector_ui": False,               # PG-B10
-    "correction_clusterer_implemented": False,  # PG-B11
+    "gemini_provider_implemented": True,        # ✅ PG-B0A complete
+    "extraction_scorecard_implemented": True,   # ✅ PG-B0A complete
+    "fixture_corpus_17_drawings": False,        # PG-B2 pending
+    "pii_redactor_implemented": False,          # PG-B3A pending
+    "parts_table_parser_recall_90": False,      # PG-B5 pending
+    "dimension_parser_wdh_95": False,           # PG-B6 pending
+    "overlay_review_ui": False,                 # PG-B8 pending
+    "white_workbench_shell": False,             # PG-B1 pending
+    "factory_selector_ui": False,               # PG-B10 pending
+    "correction_clusterer_implemented": False,  # PG-B11 pending
     "no_auto_ontology_promotion": True,         # already enforced by contract
 }
 
