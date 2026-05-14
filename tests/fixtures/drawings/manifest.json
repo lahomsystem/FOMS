@@ -1,0 +1,62 @@
+{
+  "version": "0.1",
+  "scope": "PG-B0A POC — 5 representative fixtures",
+  "created_at": "2026-05-14",
+  "notes": "월 50~100장 중 대표 5장. file_status=pending 상태는 실제 파일 미제공. PG-B2에서 17장 전체로 확장.",
+  "targets": {
+    "wdh_accuracy_min": 0.95,
+    "parts_recall_min": 0.90
+  },
+  "fixtures": [
+    {
+      "id": "poc_001",
+      "description": "wardrobe_3bay_2400w",
+      "file_path": "tests/fixtures/drawings/poc_001.jpg",
+      "file_status": "pending",
+      "furniture_type_expected": "wardrobe",
+      "expected_json": null,
+      "approved_by": null,
+      "notes": "3칸 붙박이장 정면도 샘플. W2400 H2400 D620 예상."
+    },
+    {
+      "id": "poc_002",
+      "description": "wardrobe_2bay_3000w",
+      "file_path": "tests/fixtures/drawings/poc_002.jpg",
+      "file_status": "pending",
+      "furniture_type_expected": "wardrobe",
+      "expected_json": null,
+      "approved_by": null,
+      "notes": "2칸 대형 붙박이장. W3000 H2600 D600 예상."
+    },
+    {
+      "id": "poc_003",
+      "description": "shoe_rack_4tier",
+      "file_path": "tests/fixtures/drawings/poc_003.jpg",
+      "file_status": "pending",
+      "furniture_type_expected": "shoe_rack",
+      "expected_json": null,
+      "approved_by": null,
+      "notes": "4단 신발장 정면도. W800 H1200 D350 예상."
+    },
+    {
+      "id": "poc_004",
+      "description": "kitchen_base_u_shaped",
+      "file_path": "tests/fixtures/drawings/poc_004.jpg",
+      "file_status": "pending",
+      "furniture_type_expected": "kitchen_base",
+      "expected_json": null,
+      "approved_by": null,
+      "notes": "주방 하부장 ㄷ자형. parts table 포함 예상."
+    },
+    {
+      "id": "poc_005",
+      "description": "wardrobe_with_parts_table",
+      "file_path": "tests/fixtures/drawings/poc_005.jpg",
+      "file_status": "pending",
+      "furniture_type_expected": "wardrobe",
+      "expected_json": null,
+      "approved_by": null,
+      "notes": "[SR][EP][DOOR][마이다] 부품표 포함 도면. parts recall 검증용."
+    }
+  ]
+}

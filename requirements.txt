@@ -135,3 +135,6 @@ rq>=1.15.0
 # 데이터 최적화 (압축 및 정적 파일)
 Flask-Compress>=1.14
 whitenoise>=6.6.0
+
+# FOMS Brain AI provider (PG-B0A)
+google-genai>=2.2.0
