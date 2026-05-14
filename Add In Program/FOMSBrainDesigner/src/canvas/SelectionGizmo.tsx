@@ -18,9 +18,23 @@ interface SelectionGizmoProps {
 const MOVE_STEP = 10    // mm per click
 const MOVE_BIG = 100   // mm per Shift+click
 
+function snapToAssembly(
+  val: number,
+  axis: 'x' | 'y' | 'z',
+  assemblyDims: { width: number; height: number; depth: number },
+): number {
+  const maxMap = { x: assemblyDims.width, y: assemblyDims.height, z: assemblyDims.depth }
+  const max = maxMap[axis]
+  const SNAP_DIST = 15 // mm - snap within 15mm of boundary
+  if (Math.abs(val) < SNAP_DIST) return 0
+  if (Math.abs(val - max) < SNAP_DIST) return max
+  return val
+}
+
 /** Animated bounding-box gizmo drawn around the selected component. */
 export function SelectionGizmo({ component: c }: SelectionGizmoProps) {
   const updateComponent = useDesignerStore((s) => s.updateComponent)
+  const assemblyDims = useDesignerStore((s) => s.design.assembly.dimensions)
   const w = c.dimensions.width * MM
   const h = c.dimensions.height * MM
   const d = c.dimensions.depth * MM
@@ -90,11 +104,16 @@ export function SelectionGizmo({ component: c }: SelectionGizmoProps) {
                 onClick={(e) => {
                   e.stopPropagation()
                   const step = e.shiftKey ? MOVE_BIG : MOVE_STEP
+                  const rawX = c.position.x + dx * step
+                  const rawY = c.position.y + dy * step
+                  const rawZ = c.position.z + dz * step
+                  // Alt key: snap to assembly boundary
+                  const snap = e.altKey
                   updateComponent(c.id, {
                     position: {
-                      x: c.position.x + dx * step,
-                      y: c.position.y + dy * step,
-                      z: c.position.z + dz * step,
+                      x: snap ? snapToAssembly(rawX, 'x', assemblyDims) : rawX,
+                      y: snap ? snapToAssembly(rawY, 'y', assemblyDims) : rawY,
+                      z: snap ? snapToAssembly(rawZ, 'z', assemblyDims) : rawZ,
                     },
                   })
                 }}
@@ -105,7 +124,7 @@ export function SelectionGizmo({ component: c }: SelectionGizmoProps) {
             ))}
           </div>
           <div style={uuidStyle} title={c.id}>
-            {c.id.slice(0, 8)}… | Shift: ×10
+            {c.id.slice(0, 8)}… | Shift:×10 | Alt:스냅
           </div>
         </div>
       </Html>

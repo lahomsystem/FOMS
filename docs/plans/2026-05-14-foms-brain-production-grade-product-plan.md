@@ -1474,9 +1474,9 @@ PG-L6 Fine-Tuning Dataset Export
 |---|---|---|
 | ~~moveTool drag-and-drop~~ | ✅ 방향 화살표 버튼으로 X/Y/Z 이동 (10mm, Shift:100mm) | HIGH |
 | ~~splitModuleTool~~ | ✅ 2/3/4/5칸 분할 버튼 (LegoBlockPalette) | HIGH |
-| snap-to-boundary | 인접 블럭 경계에 자동 스냅 (겹침 방지) — 향후 | MEDIUM |
-| DimensionEditorOverlay | 3D 화면 위에 직접 치수선 클릭 편집 | MEDIUM |
-| ViewCube | 정면/측면/평면/투상 뷰 전환 큐브 위젯 | LOW |
+| ~~snap-to-boundary~~ | ✅ Alt+이동 시 assembly 경계(0/max) 스냅 | MEDIUM |
+| ~~DimensionEditorOverlay~~ | ✅ 치수선에 W/H/D mm 텍스트 레이블 (DimensionLines.tsx) | MEDIUM |
+| ~~ViewCube~~ | ✅ 우상단 뷰 방향 큐브 (정면/측면/상면/3D 버튼) | LOW |
 | ~~멀티 선택~~ | ✅ Ctrl+클릭 복수 선택, 보라색 하이라이트, 일괄 Delete | MEDIUM |
 | ~~Copy/Paste~~ | ✅ Ctrl+C/V 컴포넌트 복사 붙여넣기 (+50mm offset) | LOW |
 
@@ -1486,8 +1486,8 @@ PG-L6 Fine-Tuning Dataset Export
 |---|---|---|
 | 실제 bbox overlay | 도면 이미지 위에 추출 필드의 실제 bounding box 표시 | HIGH |
 | OpenCV 색상 분리 | 빨강(site constraint) / 검정(부재 치수) 치수선 자동 분리 | MEDIUM |
-| 다중 페이지 PDF 처리 | PDF 여러 페이지를 개별 view로 자동 분류 | MEDIUM |
-| template calibration | 도면 17장 기준 LAHOM/BENISSIMO/EHF 양식 정확도 측정 | HIGH |
+| ~~다중 페이지 PDF 처리~~ | ✅ 페이지 수 감지 + page_count/is_multipage 추출값 포함 | MEDIUM |
+| ~~template calibration~~ | ✅ tools/designer/run_calibration.py + /api/designer/calibration/status | HIGH |
 
 ### 12.3 학습/지능 고도화
 
@@ -1504,8 +1504,8 @@ PG-L6 Fine-Tuning Dataset Export
 
 | 항목 | 설명 | 우선순위 |
 |---|---|---|
-| bundle code-split | R3F/Drei dynamic import로 번들 350KB 이하로 분할 | MEDIUM |
-| extraction job queue | 대용량 PDF 비동기 처리 + progress polling | MEDIUM |
+| ~~bundle code-split~~ | ✅ vite manualChunks: index 86KB / three 667KB / r3f 374KB / react 별도 | MEDIUM |
+| ~~extraction job queue~~ | ✅ RQ 비동기 job enqueue + /api/designer/drawings/jobs/<id>/status polling | MEDIUM |
 | ~~monthly eval schedule~~ | ✅ DB persistence + run_monthly_evaluation() | LOW |
 | staging browser QA | Railway staging에서 Playwright E2E 증거 캡처 | HIGH |
 
