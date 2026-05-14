@@ -1,0 +1,74 @@
+{
+  "_comment": "FOMS Brain Drawing Fixture — Expected Extraction JSON 스키마 정의",
+  "_version": "1.0",
+  "_fields": {
+    "drawing_id": "fixture ID (manifest id와 동일)",
+    "page_no": "도면 페이지 번호 (1-indexed)",
+    "approval_status": "draft|approved (사용자 승인 전까지 draft)",
+    "approved_by": "승인한 사용자 이름",
+    "approved_at": "승인 일시 (ISO 8601)",
+    "customer_name": "고객명 (raw — PII, 내부용)",
+    "product_name": "제품명",
+    "site_size": {
+      "width_mm": "현장 폭 (mm)",
+      "height_mm": "현장 높이 (mm)",
+      "depth_mm": "현장 깊이 (mm)",
+      "notes": "추가 치수 메모"
+    },
+    "furniture_type": "wardrobe|shoe_rack|kitchen_base|kitchen_wall|custom_storage",
+    "module_widths_mm": [800, 800, 800],
+    "parts_table": [
+      {
+        "code": "[SR]",
+        "description": "선반",
+        "quantity": 6,
+        "note": ""
+      }
+    ],
+    "dimension_candidates": [
+      {
+        "value_mm": 2400,
+        "axis": "width|depth|height|module_width|shelf_height",
+        "view": "front|side|top|isometric|unknown",
+        "source": "drawing|annotation|title_block"
+      }
+    ],
+    "views": ["front", "side", "top", "isometric"],
+    "drawing_style": "technical|sketch|photo|mixed",
+    "notes": "손글씨/메모/특이사항",
+    "color": "색상 코드 또는 이름",
+    "hardware": "손잡이/힌지/슬라이드 메모"
+  },
+  "_example": {
+    "drawing_id": "wrd_001",
+    "page_no": 1,
+    "approval_status": "draft",
+    "approved_by": null,
+    "approved_at": null,
+    "customer_name": "홍길동",
+    "product_name": "붙박이장",
+    "site_size": {
+      "width_mm": 2400,
+      "height_mm": 2400,
+      "depth_mm": 620,
+      "notes": ""
+    },
+    "furniture_type": "wardrobe",
+    "module_widths_mm": [800, 800, 800],
+    "parts_table": [
+      {"code": "[SR]", "description": "선반", "quantity": 6, "note": ""},
+      {"code": "[EP]", "description": "경첩", "quantity": 12, "note": ""},
+      {"code": "[DOOR]", "description": "도어", "quantity": 3, "note": ""}
+    ],
+    "dimension_candidates": [
+      {"value_mm": 2400, "axis": "width", "view": "front", "source": "drawing"},
+      {"value_mm": 2400, "axis": "height", "view": "front", "source": "drawing"},
+      {"value_mm": 620, "axis": "depth", "view": "side", "source": "drawing"}
+    ],
+    "views": ["front", "side"],
+    "drawing_style": "technical",
+    "notes": "",
+    "color": "화이트",
+    "hardware": "손잡이 없음"
+  }
+}

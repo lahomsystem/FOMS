@@ -160,30 +160,42 @@ class TestPGModulesImplementedAndMissing:
 class TestFixtureCorpusState:
     """Tracks fixture corpus state across PG batches.
 
-    PG-B0A: manifest exists (5 POC fixtures, all pending — no files yet)
-    PG-B2:  17 fixtures registered, files available, expected_json approved
+    PG-B0A: POC manifest existed at tests/fixtures/drawings/ (5 POC fixtures)
+    PG-B2:  Canonical manifest at tests/fixtures/designer/drawings/ (17 fixtures)
+            Files provided → file_status=available → expected_json generated → approved
     """
 
-    FIXTURE_MANIFEST_PATH = Path(__file__).parent.parent / "fixtures" / "drawings" / "manifest.json"
+    # PG-B2 canonical path
+    FIXTURE_MANIFEST_PATH = (
+        Path(__file__).parent.parent / "fixtures" / "designer" / "drawings" / "manifest.json"
+    )
 
-    def test_drawing_fixture_manifest_exists(self):
-        """PG-B0A: tests/fixtures/drawings/manifest.json now exists."""
+    def test_canonical_fixture_manifest_exists(self):
+        """PG-B2: tests/fixtures/designer/drawings/manifest.json exists."""
         assert self.FIXTURE_MANIFEST_PATH.exists(), (
-            f"Fixture manifest missing at {self.FIXTURE_MANIFEST_PATH}. "
-            "PG-B0A should have created this file."
+            f"Canonical fixture manifest missing at {self.FIXTURE_MANIFEST_PATH}. "
+            "PG-B2 should have created this file."
         )
 
-    def test_fixture_corpus_not_17_drawings_yet(self):
-        """PG-B2 not yet complete: fewer than 17 approved fixtures (currently 5 POC, all pending)."""
+    def test_canonical_manifest_has_17_fixtures(self):
+        """PG-B2: Canonical manifest has 17 fixture slots."""
+        import json
+        with open(self.FIXTURE_MANIFEST_PATH, encoding="utf-8") as f:
+            data = json.load(f)
+        count = len(data.get("fixtures", []))
+        assert count == 17, f"Expected 17 fixtures in canonical manifest, got {count}"
+
+    def test_fixture_corpus_not_17_approved_yet(self):
+        """PG-B2 files not provided yet: 0 approved fixtures (gate will pass when 17 approved)."""
         import json
         with open(self.FIXTURE_MANIFEST_PATH, encoding="utf-8") as f:
             data = json.load(f)
         approved = [
             f for f in data.get("fixtures", [])
-            if f.get("file_status") == "available" and f.get("expected_json") is not None
+            if f.get("approval_status") == "approved"
         ]
         assert len(approved) < 17, (
-            f"Found {len(approved)} approved fixtures — if PG-B2 is complete (17 drawings), "
+            f"Found {len(approved)} approved fixtures — if PG-B2 is complete (17 approved), "
             "update PRODUCT_GRADE_GATES['fixture_corpus_17_drawings'] to True."
         )
 
