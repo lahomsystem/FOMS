@@ -397,7 +397,7 @@ class TestGeminiConnectivityLive:
     Tests are skipped gracefully on 429 rate limit.
     """
 
-    DEFAULT_MODEL = "gemini-1.5-flash"
+    DEFAULT_MODEL = "gemini-2.5-flash"
 
     def test_connectivity_ping(self):
         """Gemini API connectivity ping succeeds (requires billing enabled)."""
