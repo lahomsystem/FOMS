@@ -100,24 +100,36 @@ function checkMaterialMaxSize(graph: DesignGraph): ConstraintViolation[] {
     const mat = MATERIAL_CATALOG[comp.material_id]
     if (!mat || !['board', 'door'].includes(mat.category)) continue
 
+    // Back panels are multi-piece in practice — skip max-size check
+    if (comp.role === 'back_panel') continue
+
     const dims = [comp.dimensions.width, comp.dimensions.height, comp.dimensions.depth]
     const flatDims = dims.filter(d => d > mat.thickness).sort((a, b) => b - a)
 
-    if (flatDims[0] > mat.max_width) {
+    if (!flatDims.length) continue
+
+    const longSide = flatDims[0]
+    const shortSide = flatDims[1] ?? 0
+
+    // Orientation-aware check: board can be rotated.
+    // mat_long = larger of max_width / max_height; mat_short = smaller.
+    const matLong = Math.max(mat.max_width, mat.max_height)
+    const matShort = Math.min(mat.max_width, mat.max_height)
+
+    if (longSide > matLong) {
       violations.push({
         constraint_id: 'max_size',
         severity: 'error',
         code: 'MATERIAL_MAX_SIZE_EXCEEDED',
-        message: `부재 '${comp.id}' 의 최대 치수 ${flatDims[0]}mm 가 자재 최대 규격 ${mat.max_width}mm 초과`,
+        message: `부재 '${comp.id}' 의 최대 치수 ${longSide}mm 가 자재 최대 규격 ${matLong}mm 초과`,
         path: `components[${comp.id}].dimensions`,
       })
-    }
-    if (flatDims[1] !== undefined && flatDims[1] > mat.max_height) {
+    } else if (shortSide > matShort) {
       violations.push({
         constraint_id: 'max_size',
         severity: 'error',
         code: 'MATERIAL_MAX_SIZE_EXCEEDED',
-        message: `부재 '${comp.id}' 의 두 번째 치수 ${flatDims[1]}mm 가 자재 최대 높이 ${mat.max_height}mm 초과`,
+        message: `부재 '${comp.id}' 의 단변 ${shortSide}mm 가 자재 단변 최대 규격 ${matShort}mm 초과`,
         path: `components[${comp.id}].dimensions`,
       })
     }
