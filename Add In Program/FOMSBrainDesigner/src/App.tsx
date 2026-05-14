@@ -19,6 +19,7 @@ import { TopToolBar } from './ui/TopToolBar'
 import { LeftToolPalette, type ToolMode } from './ui/LeftToolPalette'
 import { RightPropertyTray } from './ui/RightPropertyTray'
 import { DrawingReviewWorkspace } from './ui/DrawingReviewWorkspace'
+import { AIDesignPanel } from './ui/AIDesignPanel'
 import { useDesignerStore } from './stores/designerStore'
 import { designerApi } from './api/client'
 import { S, COLORS, TYPOGRAPHY, SPACING } from './styles/sketchupTheme'
@@ -51,7 +52,7 @@ export default function App() {
   const [initError, setInitError] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('3d')
   const [activeTool, setActiveTool] = useState<ToolMode>('select')
-  const [rightTab, setRightTab] = useState<'module' | 'command' | 'tray'>('tray')
+  const [rightTab, setRightTab] = useState<'module' | 'command' | 'tray' | 'ai'>('tray')
   const [appMode, setAppMode] = useState<'editor' | 'review'>('editor')
 
   // ── Keyboard shortcuts (PG-B9) ──────────────────────────
@@ -267,7 +268,7 @@ export default function App() {
         <div style={{ ...S.tray, flexDirection: 'column' }}>
           {/* Tab selector */}
           <div style={{ display: 'flex', borderBottom: `1px solid ${COLORS.panelBorder}`, flexShrink: 0 }}>
-            {(['tray', 'command', 'module'] as const).map(tab => (
+            {(['tray', 'ai', 'command'] as const).map(tab => (
               <button
                 key={tab}
                 onClick={() => setRightTab(tab)}
@@ -282,15 +283,15 @@ export default function App() {
                   borderBottom: rightTab === tab ? `2px solid ${COLORS.accent}` : '2px solid transparent',
                 }}
               >
-                {tab === 'tray' ? '속성' : tab === 'command' ? '명령' : '모듈'}
+                {tab === 'tray' ? '속성' : tab === 'ai' ? '🤖 AI' : '명령'}
               </button>
             ))}
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto' }}>
             {rightTab === 'tray' && <RightPropertyTray />}
+            {rightTab === 'ai' && <AIDesignPanel />}
             {rightTab === 'command' && <CommandPanel />}
-            {rightTab === 'module' && <ValidationPanel />}
           </div>
         </div>
 

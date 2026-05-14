@@ -121,8 +121,30 @@ export function LegoBlockPalette() {
   const selectedId = useDesignerStore((s) => s.selectedComponentId)
   const addComponent = useDesignerStore((s) => s.addComponent)
   const removeComponent = useDesignerStore((s) => s.removeComponent)
+  const updateComponent = useDesignerStore((s) => s.updateComponent)
+  const regenerateWardrobe = useDesignerStore((s) => s.regenerateWardrobe)
+  const currentFurnitureType = useDesignerStore((s) => s.currentFurnitureType)
 
   const asm = design.assembly
+
+  function splitIntoModules(moduleCount: number) {
+    // Split wardrobe by regenerating with new module count
+    if (currentFurnitureType === 'wardrobe') {
+      const a = asm
+      regenerateWardrobe({
+        width: a.dimensions.width,
+        height: a.dimensions.height,
+        depth: a.dimensions.depth,
+        moduleCount,
+        doorType: (a.door_type as 'sliding' | 'swing' | 'open') || 'sliding',
+        epLeft: a.ep_left,
+        epRight: a.ep_right,
+        epTop: a.ep_top,
+        baseHeight: a.base_height,
+        topSr: a.top_sr,
+      })
+    }
+  }
 
   function handleAdd(block: BlockDef) {
     const dims = block.defaultDims({
@@ -193,6 +215,40 @@ export function LegoBlockPalette() {
           </button>
         ))}
       </div>
+
+      {/* Separator */}
+      <div style={{ borderTop: `1px solid ${COLORS.toolbarBorder}`, margin: '8px 0 4px' }} />
+
+      {/* Split module tool */}
+      {currentFurnitureType === 'wardrobe' && (
+        <div>
+          <div style={{ fontSize: TYPOGRAPHY.sizeXS, fontWeight: TYPOGRAPHY.weightBold, color: COLORS.textMuted, textTransform: 'uppercase' as const, letterSpacing: '0.05em', marginBottom: 4, paddingLeft: 2 }}>
+            모듈 분할
+          </div>
+          <div style={{ display: 'flex', gap: 3 }}>
+            {[2, 3, 4, 5].map((n) => (
+              <button
+                key={n}
+                onClick={() => splitIntoModules(n)}
+                title={`${n}칸으로 분할`}
+                style={{
+                  flex: 1,
+                  background: COLORS.surfaceWhite,
+                  border: `1px solid ${COLORS.panelBorder}`,
+                  borderRadius: 5,
+                  padding: '4px 2px',
+                  cursor: 'pointer',
+                  fontSize: 10,
+                  color: COLORS.textSecondary,
+                  fontFamily: TYPOGRAPHY.fontFamily,
+                }}
+              >
+                {n}칸
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Delete selected */}
       {selectedId && (

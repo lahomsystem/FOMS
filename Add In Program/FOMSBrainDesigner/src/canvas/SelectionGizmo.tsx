@@ -1,11 +1,12 @@
 /**
- * SelectionGizmo — 선택된 부재 위에 표시되는 3D 하이라이트 기즈모.
- * DK-B5: schema v2 Component 기반으로 업데이트.
- * UUID/kind/role/dimensions를 표시.
+ * FOMS Brain PG-B9/Enhancement — SelectionGizmo.
+ * 선택된 부재 위에 표시되는 3D 하이라이트 + 이동 화살표.
+ * moveTool: ← → ↑ ↓ 버튼으로 X/Y 축 이동 (10mm 단위, Shift: 100mm).
  */
 
 import * as THREE from 'three'
 import { Html } from '@react-three/drei'
+import { useDesignerStore } from '../stores/designerStore'
 import type { Component } from '../domain/ontologyTypes'
 
 const MM = 0.001
@@ -14,8 +15,12 @@ interface SelectionGizmoProps {
   component: Component
 }
 
+const MOVE_STEP = 10    // mm per click
+const MOVE_BIG = 100   // mm per Shift+click
+
 /** Animated bounding-box gizmo drawn around the selected component. */
 export function SelectionGizmo({ component: c }: SelectionGizmoProps) {
+  const updateComponent = useDesignerStore((s) => s.updateComponent)
   const w = c.dimensions.width * MM
   const h = c.dimensions.height * MM
   const d = c.dimensions.depth * MM
@@ -55,12 +60,12 @@ export function SelectionGizmo({ component: c }: SelectionGizmoProps) {
         </mesh>
       ))}
 
-      {/* Label overlay: UUID/kind/role/dimensions */}
+      {/* Label + move controls overlay */}
       <Html
-        position={[0, eh / 2 + 0.04, 0]}
+        position={[0, eh / 2 + 0.05, 0]}
         center
         occlude={false}
-        style={{ pointerEvents: 'none' }}
+        style={{ pointerEvents: 'auto', userSelect: 'none' }}
       >
         <div style={labelStyle}>
           <div style={nameStyle}>{c.name}</div>
@@ -68,8 +73,39 @@ export function SelectionGizmo({ component: c }: SelectionGizmoProps) {
           <div style={dimStyle}>
             {c.dimensions.width} × {c.dimensions.height} × {c.dimensions.depth} mm
           </div>
+
+          {/* Move arrows */}
+          <div style={{ display: 'flex', gap: 3, marginTop: 5, justifyContent: 'center', flexWrap: 'wrap' }}>
+            {([
+              { label: '←', dx: -1, dy: 0, dz: 0, title: 'X- (Shift: -100mm)' },
+              { label: '→', dx: 1,  dy: 0, dz: 0, title: 'X+ (Shift: +100mm)' },
+              { label: '↑', dx: 0,  dy: 1, dz: 0, title: 'Y+ (Shift: +100mm)' },
+              { label: '↓', dx: 0,  dy: -1, dz: 0, title: 'Y- (Shift: -100mm)' },
+              { label: '◀', dx: 0,  dy: 0, dz: -1, title: 'Z- depth' },
+              { label: '▶', dx: 0,  dy: 0, dz: 1, title: 'Z+ depth' },
+            ] as const).map(({ label, dx, dy, dz, title }) => (
+              <button
+                key={label}
+                title={title}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  const step = e.shiftKey ? MOVE_BIG : MOVE_STEP
+                  updateComponent(c.id, {
+                    position: {
+                      x: c.position.x + dx * step,
+                      y: c.position.y + dy * step,
+                      z: c.position.z + dz * step,
+                    },
+                  })
+                }}
+                style={arrowBtnStyle}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <div style={uuidStyle} title={c.id}>
-            UUID: {c.id.slice(0, 8)}…
+            {c.id.slice(0, 8)}… | Shift: ×10
           </div>
         </div>
       </Html>
@@ -115,5 +151,21 @@ const uuidStyle: React.CSSProperties = {
   fontSize: 9,
   fontFamily: 'monospace',
   textAlign: 'center',
-  marginTop: 2,
+  marginTop: 4,
+}
+
+const arrowBtnStyle: React.CSSProperties = {
+  background: 'rgba(0, 229, 255, 0.15)',
+  border: '1px solid rgba(0, 229, 255, 0.4)',
+  borderRadius: 4,
+  color: '#00e5ff',
+  fontSize: 11,
+  width: 22,
+  height: 22,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  cursor: 'pointer',
+  padding: 0,
+  fontFamily: 'monospace',
 }
