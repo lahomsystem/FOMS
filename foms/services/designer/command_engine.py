@@ -157,10 +157,12 @@ def _execute_set_property(command: DesignCommand, graph: DesignGraph) -> list[De
 
 
 def _execute_generate_layout(command: DesignCommand, graph: DesignGraph) -> list[DesignPatch]:
-    """generate_layout: regenerate assembly with new parameters.
+    """generate_layout: regenerate assembly via factory registry.
+
+    PV2-B2: Routes through factory_registry.create_assembly when params changed.
 
     operation: {module_count: int, door_type: str, width: int, ...}
-    Returns metadata patch (not actual component changes — caller handles factory).
+    Returns assembly-level patches for preview. Actual factory call in apply path.
     """
     op = command.operation
     patches: list[DesignPatch] = []
@@ -173,6 +175,10 @@ def _execute_generate_layout(command: DesignCommand, graph: DesignGraph) -> list
         ("ep_right", "assembly.ep_right", asm.ep_right),
         ("top_sr", "assembly.top_sr", asm.top_sr),
         ("base_height", "assembly.base_height", asm.base_height),
+        ("width", "assembly.dimensions.width", asm.dimensions.width),
+        ("height", "assembly.dimensions.height", asm.dimensions.height),
+        ("depth", "assembly.dimensions.depth", asm.dimensions.depth),
+        ("furniture_type", "assembly.type", asm.type),
     ]
 
     for op_key, prop_path, old_val in mappings:
@@ -187,6 +193,36 @@ def _execute_generate_layout(command: DesignCommand, graph: DesignGraph) -> list
                 ))
 
     return patches
+
+
+def regenerate_layout_via_registry(
+    graph: DesignGraph,
+    furniture_type: str | None = None,
+    extra_params: dict | None = None,
+) -> DesignGraph:
+    """Regenerate assembly graph via factory registry.
+
+    PV2-B2: Used by generate_layout apply path.
+    furniture_type defaults to graph.assembly.type.
+    """
+    from foms.services.designer.factory_registry import create_assembly, default_params
+    ftype = furniture_type or graph.assembly.type
+    asm = graph.assembly
+    params = default_params(ftype)
+    params.update({
+        "width": asm.dimensions.width,
+        "height": asm.dimensions.height,
+        "depth": asm.dimensions.depth,
+        "module_count": asm.module_count,
+        "door_type": asm.door_type,
+        "ep_left": asm.ep_left,
+        "ep_right": asm.ep_right,
+        "base_height": asm.base_height,
+        "top_sr": asm.top_sr,
+    })
+    if extra_params:
+        params.update(extra_params)
+    return create_assembly(ftype, params)
 
 
 # ──────────────────────────────────────────────────────────

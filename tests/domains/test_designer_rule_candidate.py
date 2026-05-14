@@ -1,8 +1,15 @@
-"""PV2-B8/B9 Rule Candidate + Replay + Promotion tests."""
+"""PV2-B8/B9 Rule Candidate + Replay + Promotion tests.
+
+Note: tests that touch DB use the `app` fixture so that SQLite in-memory
+tables are created via Base.metadata.create_all() before each test.
+"""
 
 from __future__ import annotations
 
 import pytest
+
+# Ensure all DB tests get a fresh in-memory DB with designer tables created.
+pytestmark = pytest.mark.usefixtures("app")
 
 from foms.services.designer.evolution import (
     replay_rule_candidate,
