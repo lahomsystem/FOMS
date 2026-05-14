@@ -71,3 +71,10 @@
 | 2026-04-21 11:03:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git checkout deploy && git merge --ff-only feature/modular-monolith-wip && git push origin d` |
 | 2026-04-21 11:03:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git checkout production && git merge --no-ff deploy -F c:/tmp/foms_merge_deploy_msg.txt && g` |
 | 2026-04-21 11:03:49 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && git checkout feature/modular-monolith-wip && rm c:/tmp/foms_merge_deploy_msg.txt 2>&1` |
+| 2026-05-13 16:35:13 | allow | `-` | `ls "Add In Program/" 2>&1 | head -20` |
+| 2026-05-13 16:35:14 | allow | `-` | `ls foms/web/wdcalculator/ foms/platform/ 2>&1 | head -30` |
+| 2026-05-13 16:35:15 | allow | `-` | `test -f package.json && echo "ROOT_PKG_EXISTS" || echo "ROOT_PKG_MISSING"; ls static/wdplanner/ 2>&1 | head -5` |
+| 2026-05-13 16:35:22 | allow | `-` | `ls "Add In Program/WDPlanner/" 2>&1 | head -10; echo "---"; test -f "Add In Program/WDPlanner/package.json" && head -30 "Add In Program/WDPlanner/package.json"` |
+| 2026-05-13 16:35:23 | allow | `-` | `wc -l docs/plans/2026-05-13-foms-brain-ax-designer-blueprint.md docs/plans/2026-05-13-foms-brain-ax-designer-blueprint-v2-implementation-map.md 2>&1` |
+| 2026-05-13 17:02:56 | allow | `-` | `test -d tests/harness && echo "TESTS_HARNESS_EXISTS" || echo "TESTS_HARNESS_MISSING"; test -d tools/harness && ls tools/harness/ | head -10` |
+| 2026-05-13 17:03:06 | allow | `-` | `test -f tools/harness/audit_designer_stack.py && echo "AUDIT_EXISTS" || echo "AUDIT_NOT_CREATED_YET"` |
