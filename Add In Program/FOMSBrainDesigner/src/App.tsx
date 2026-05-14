@@ -1,42 +1,50 @@
 /**
  * FOMS Brain AX Designer — Root App Component
- * DK-B5/B6: schema v2 기반 UI. ModulePanel, ComponentTreePanel, CommandPanel 추가.
+ * PG-B1: White SketchUp-Like Workbench Shell
+ *
+ * Layout:
+ *   [TopToolBar]
+ *   [LeftToolPalette] [DesignerCanvas] [RightPropertyTray]
+ *   [StatusBar]
  */
 
 import { useEffect, useState } from 'react'
 import { DesignerCanvas } from './canvas/DesignerCanvas'
-import { InspectorPanel } from './ui/InspectorPanel'
 import { ModulePanel } from './ui/ModulePanel'
 import { ComponentTreePanel } from './ui/ComponentTreePanel'
 import { CommandPanel } from './ui/CommandPanel'
 import { ValidationPanel } from './ui/ValidationPanel'
 import { AIPanel } from './ui/AIPanel'
+import { TopToolBar } from './ui/TopToolBar'
+import { LeftToolPalette, type ToolMode } from './ui/LeftToolPalette'
+import { RightPropertyTray } from './ui/RightPropertyTray'
 import { useDesignerStore } from './stores/designerStore'
 import { designerApi } from './api/client'
+import { S, COLORS, TYPOGRAPHY, SPACING } from './styles/sketchupTheme'
 import type { DesignerProject } from './domain/designTypes'
 import type { DesignGraph } from './domain/ontologyTypes'
 import { normalize_to_v2_client } from './domain/legacyCompat'
 
 type InitStatus = 'loading' | 'ready' | 'error'
-type RightTab = 'inspector' | 'command'
+type ViewMode = '3d' | 'front' | 'side' | 'top'
 
 export default function App() {
-  const showAIPanel = useDesignerStore((s) => s.showAIPanel)
   const showComponentTree = useDesignerStore((s) => s.showComponentTree)
-  const toggleAI = useDesignerStore((s) => s.toggleAIPanel)
   const toggleComponentTree = useDesignerStore((s) => s.toggleComponentTree)
-  const isDirty = useDesignerStore((s) => s.isDirty)
+  const showAIPanel = useDesignerStore((s) => s.showAIPanel)
+  const toggleAI = useDesignerStore((s) => s.toggleAIPanel)
   const project = useDesignerStore((s) => s.project)
   const setProject = useDesignerStore((s) => s.setProject)
   const setDesign = useDesignerStore((s) => s.setDesign)
-  const design = useDesignerStore((s) => s.design)
   const markSaved = useDesignerStore((s) => s.markSaved)
-  const constraintResult = useDesignerStore((s) => s.constraintResult)
 
   const [initStatus, setInitStatus] = useState<InitStatus>('loading')
   const [initError, setInitError] = useState<string | null>(null)
-  const [rightTab, setRightTab] = useState<RightTab>('inspector')
+  const [viewMode, setViewMode] = useState<ViewMode>('3d')
+  const [activeTool, setActiveTool] = useState<ToolMode>('select')
+  const [rightTab, setRightTab] = useState<'module' | 'command' | 'tray'>('tray')
 
+  // ── Init ────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false
     async function init() {
@@ -52,9 +60,7 @@ export default function App() {
             if (!cancelled && projResp.success && projResp.data) {
               const p = projResp.data as DesignerProject & { current_version?: { design_json: unknown } }
               if (p.current_version?.design_json) {
-                const loaded = p.current_version.design_json as Record<string, unknown>
-                // DK-B9: normalize v1 → v2 on load
-                const v2 = normalize_to_v2_client(loaded)
+                const v2 = normalize_to_v2_client(p.current_version.design_json as Record<string, unknown>)
                 setDesign(v2 as DesignGraph)
                 markSaved()
               }
@@ -86,143 +92,142 @@ export default function App() {
     return () => { cancelled = true }
   }, [])
 
+  // ── Loading / Error screens ─────────────────────────────
   if (initStatus === 'loading') {
     return (
-      <div style={styles.centerScreen}>
-        <div style={styles.spinner} />
-        <p style={styles.centerMsg}>프로젝트 초기화 중...</p>
+      <div style={{ ...S.root, alignItems: 'center', justifyContent: 'center', gap: 16, background: COLORS.canvasBg }}>
+        <div style={{ width: 36, height: 36, borderRadius: '50%', border: `3px solid ${COLORS.panelBorder}`, borderTopColor: COLORS.accent, animation: 'spin 0.8s linear infinite' }} />
+        <p style={{ color: COLORS.textMuted, fontSize: TYPOGRAPHY.sizeMD }}>프로젝트 초기화 중...</p>
       </div>
     )
   }
 
   if (initStatus === 'error') {
     return (
-      <div style={styles.centerScreen}>
-        <div style={styles.errorIcon}>⚠️</div>
-        <p style={styles.centerMsg}>{initError}</p>
-        <button style={styles.reloadBtn} onClick={() => window.location.reload()}>새로고침</button>
+      <div style={{ ...S.root, alignItems: 'center', justifyContent: 'center', gap: 16, background: COLORS.canvasBg }}>
+        <div style={{ fontSize: 32 }}>⚠️</div>
+        <p style={{ color: COLORS.textSecondary, fontSize: TYPOGRAPHY.sizeMD, textAlign: 'center', maxWidth: 320 }}>{initError}</p>
+        <button
+          style={{ padding: '8px 24px', background: COLORS.accent, border: 'none', borderRadius: 6, color: '#fff', fontSize: TYPOGRAPHY.sizeMD, cursor: 'pointer', fontWeight: TYPOGRAPHY.weightSemibold }}
+          onClick={() => window.location.reload()}
+        >
+          새로고침
+        </button>
       </div>
     )
   }
 
-  const isValid = constraintResult?.valid ?? true
-  const asm = design.assembly
+  function handleUploadClick() {
+    // Navigate to drawing registration mode in the outer FOMS page
+    try {
+      window.parent.postMessage({ type: 'FOMS_SWITCH_MODE', mode: 'drawing' }, '*')
+    } catch {
+      /* cross-origin safe */
+    }
+  }
 
   return (
-    <div style={styles.root}>
-      {/* Toolbar */}
-      <div style={styles.toolbar}>
-        <div style={styles.brand}>
-          <span style={styles.brandIcon}>🧠</span>
-          <span style={styles.brandName}>FOMS Brain AX Designer</span>
-          <span style={styles.version}>Design Kernel V1</span>
-        </div>
-        <div style={styles.toolbarCenter}>
-          <span style={styles.dimLabel}>
-            {asm.dimensions.width} × {asm.dimensions.height} × {asm.dimensions.depth} mm
-          </span>
-          <span style={styles.dimSep}>|</span>
-          <span style={styles.dimLabel}>{asm.module_count}통 {asm.door_type}</span>
-          <span style={styles.dimSep}>|</span>
-          <span style={{ ...styles.statusDot, color: isValid ? '#68d391' : '#fc8181' }}>
-            {isValid ? '✓ 유효' : `✗ 오류 ${constraintResult?.errorCount}`}
-          </span>
-        </div>
-        <div style={styles.toolbarActions}>
-          {project && (
-            <span style={styles.projectBadge} title={`ID: ${project.id}`}>
-              📁 {project.name}
-            </span>
-          )}
-          {isDirty
-            ? <span style={styles.dirtyBadge}>● 미저장</span>
-            : <span style={styles.savedBadge}>✓ 저장됨</span>
-          }
-          <button onClick={toggleComponentTree} style={{ ...styles.toolBtn, background: showComponentTree ? '#667eea' : '#2d3748' }}>
-            🗂️ 목록
-          </button>
-          <button onClick={toggleAI} style={{ ...styles.toolBtn, background: showAIPanel ? '#667eea' : '#2d3748' }}>
-            🤖 AI
-          </button>
-        </div>
-      </div>
+    <div style={S.root}>
+      {/* ── Top Toolbar ── */}
+      <TopToolBar viewMode={viewMode} onViewModeChange={setViewMode} />
 
-      {/* Main layout */}
-      <div style={styles.main}>
-        {/* Left: Module settings */}
-        <div style={styles.leftSidebar}>
+      {/* ── Workspace ── */}
+      <div style={S.workspace}>
+
+        {/* Left tool palette */}
+        <LeftToolPalette
+          activeTool={activeTool}
+          onToolChange={setActiveTool}
+          onUploadClick={handleUploadClick}
+        />
+
+        {/* Module settings panel (collapsible, opens left of canvas) */}
+        <div style={{
+          width: 200,
+          background: COLORS.panelBg,
+          borderRight: `1px solid ${COLORS.panelBorder}`,
+          flexShrink: 0,
+          overflowY: 'auto',
+        }}>
           <ModulePanel />
-          <ValidationPanel />
         </div>
 
-        {/* Center: 3D Canvas */}
-        <div style={styles.canvasWrap}>
+        {/* 3D Canvas */}
+        <div style={S.canvas}>
           <DesignerCanvas />
         </div>
 
-        {/* Right: Component tree (collapsible) */}
+        {/* Component tree (collapsible) */}
         {showComponentTree && (
-          <div style={styles.rightSidebar}>
+          <div style={{
+            width: 180,
+            background: COLORS.panelBg,
+            borderLeft: `1px solid ${COLORS.panelBorder}`,
+            flexShrink: 0,
+            overflowY: 'auto',
+          }}>
             <ComponentTreePanel />
           </div>
         )}
 
-        {/* Far right: Inspector + Command tabs */}
-        <div style={styles.inspectorSidebar}>
-          <div style={styles.tabs}>
-            <button
-              onClick={() => setRightTab('inspector')}
-              style={{ ...styles.tab, background: rightTab === 'inspector' ? '#2d3748' : 'transparent' }}
-            >
-              Inspector
-            </button>
-            <button
-              onClick={() => setRightTab('command')}
-              style={{ ...styles.tab, background: rightTab === 'command' ? '#2d3748' : 'transparent' }}
-            >
-              Command
-            </button>
+        {/* Right property tray */}
+        <div style={{ ...S.tray, flexDirection: 'column' }}>
+          {/* Tab selector */}
+          <div style={{ display: 'flex', borderBottom: `1px solid ${COLORS.panelBorder}`, flexShrink: 0 }}>
+            {(['tray', 'command', 'module'] as const).map(tab => (
+              <button
+                key={tab}
+                onClick={() => setRightTab(tab)}
+                style={{
+                  flex: 1, padding: '5px 0',
+                  border: 'none',
+                  background: rightTab === tab ? COLORS.surfaceWhite : 'transparent',
+                  color: rightTab === tab ? COLORS.textPrimary : COLORS.textMuted,
+                  fontSize: TYPOGRAPHY.sizeXS,
+                  fontWeight: rightTab === tab ? TYPOGRAPHY.weightSemibold : TYPOGRAPHY.weightNormal,
+                  cursor: 'pointer',
+                  borderBottom: rightTab === tab ? `2px solid ${COLORS.accent}` : '2px solid transparent',
+                }}
+              >
+                {tab === 'tray' ? '속성' : tab === 'command' ? '명령' : '모듈'}
+              </button>
+            ))}
           </div>
-          <div style={styles.tabContent}>
-            {rightTab === 'inspector' && <InspectorPanel />}
+
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            {rightTab === 'tray' && <RightPropertyTray />}
             {rightTab === 'command' && <CommandPanel />}
+            {rightTab === 'module' && <ValidationPanel />}
           </div>
         </div>
 
-        {/* AI Panel */}
+        {/* AI Panel (floating) */}
         {showAIPanel && <AIPanel />}
+      </div>
+
+      {/* ── Status Bar ── */}
+      <div style={S.statusBar}>
+        <span>도구: <b style={{ color: COLORS.textPrimary }}>{activeTool}</b></span>
+        <span>뷰: <b style={{ color: COLORS.textPrimary }}>{viewMode}</b></span>
+        <div style={{ flex: 1 }} />
+        <button
+          onClick={toggleComponentTree}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: showComponentTree ? COLORS.accent : COLORS.textMuted, fontSize: TYPOGRAPHY.sizeXS }}
+        >
+          🗂 목록
+        </button>
+        <button
+          onClick={toggleAI}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: showAIPanel ? COLORS.accent : COLORS.textMuted, fontSize: TYPOGRAPHY.sizeXS }}
+        >
+          🤖 AI
+        </button>
+        {project && (
+          <span style={{ color: COLORS.textMuted, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {project.name}
+          </span>
+        )}
       </div>
     </div>
   )
-}
-
-const styles: Record<string, React.CSSProperties> = {
-  root: { width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column', background: '#1a1a2e', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' },
-  toolbar: { height: 44, background: '#16213e', borderBottom: '1px solid #2d3748', display: 'flex', alignItems: 'center', padding: '0 12px', gap: 12, flexShrink: 0 },
-  brand: { display: 'flex', alignItems: 'center', gap: 6 },
-  brandIcon: { fontSize: 18 },
-  brandName: { color: '#e2e8f0', fontWeight: 700, fontSize: 13, whiteSpace: 'nowrap' },
-  version: { color: '#4a5568', fontSize: 10, fontWeight: 600, background: '#2d3748', padding: '1px 6px', borderRadius: 10 },
-  toolbarCenter: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  dimLabel: { color: '#718096', fontSize: 12 },
-  dimSep: { color: '#2d3748' },
-  statusDot: { fontSize: 11, fontWeight: 700 },
-  toolbarActions: { display: 'flex', alignItems: 'center', gap: 8 },
-  projectBadge: { color: '#a0aec0', fontSize: 11, maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  dirtyBadge: { color: '#ed8936', fontSize: 11 },
-  savedBadge: { color: '#68d391', fontSize: 11 },
-  toolBtn: { padding: '5px 10px', border: 'none', borderRadius: 5, color: '#e2e8f0', fontSize: 12, cursor: 'pointer', fontWeight: 600 },
-  main: { flex: 1, display: 'flex', overflow: 'hidden' },
-  leftSidebar: { width: 200, display: 'flex', flexDirection: 'column', background: '#16213e', borderRight: '1px solid #2d3748', flexShrink: 0, overflowY: 'auto' },
-  canvasWrap: { flex: 1, position: 'relative', overflow: 'hidden' },
-  rightSidebar: { width: 180, background: '#16213e', borderLeft: '1px solid #2d3748', flexShrink: 0, overflowY: 'auto' },
-  inspectorSidebar: { width: 220, display: 'flex', flexDirection: 'column', background: '#16213e', borderLeft: '1px solid #2d3748', flexShrink: 0 },
-  tabs: { display: 'flex', borderBottom: '1px solid #2d3748', flexShrink: 0 },
-  tab: { flex: 1, padding: '6px 0', border: 'none', color: '#a0aec0', fontSize: 11, cursor: 'pointer', fontWeight: 600 },
-  tabContent: { flex: 1, overflowY: 'auto' },
-  centerScreen: { width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#1a1a2e', gap: 16 },
-  spinner: { width: 36, height: 36, borderRadius: '50%', border: '3px solid #2d3748', borderTopColor: '#667eea' },
-  centerMsg: { color: '#a0aec0', fontSize: 14 },
-  errorIcon: { fontSize: 36 },
-  reloadBtn: { padding: '8px 20px', background: '#667eea', border: 'none', borderRadius: 6, color: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 600 },
 }

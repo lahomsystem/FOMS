@@ -24,7 +24,7 @@ export function DesignerCanvas() {
   const camDist = Math.max(w, h) * 2.2
 
   return (
-    <div style={{ width: '100%', height: '100%', background: '#1a1a2e' }}>
+    <div style={{ width: '100%', height: '100%', background: '#f0f0f0' }}>
       <Canvas
         camera={{
           position: [camDist * 0.8, camDist * 0.6, camDist * 1.2],
@@ -36,7 +36,7 @@ export function DesignerCanvas() {
         gl={{ antialias: true }}
         style={{ width: '100%', height: '100%' }}
       >
-        <color attach="background" args={['#1a1a2e']} />
+        <color attach="background" args={['#f0f0f0']} />
         <ambientLight intensity={0.5} />
         <directionalLight
           position={[5, 10, 5]}
