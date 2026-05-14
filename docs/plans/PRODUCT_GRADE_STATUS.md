@@ -21,7 +21,7 @@ Design Kernel V1 + Post-V1 seed는 "커널 및 backend seed"다.
 | drawing_artifact_db_model | DrawingArtifact/Page/Extraction/Candidate 영구 DB 모델 | PG-B3 | ✅ DONE |
 | parts_table_parser_recall_90 | [SR]/[EP]/[DOOR]/[마이다] 등 parts table recall >= 90% | PG-B5 | ✅ DONE (unit/sample 기준, 17 fixture 실측 필요) |
 | dimension_parser_wdh_95 | W/D/H extraction >= 95% (CV + multimodal merge) | PG-B6 | ✅ DONE (parser 구현, 17 fixture 실측 필요) |
-| overlay_review_ui | 원본 도면 위 bbox + extracted fields + candidate diff UI | PG-B8 | ⚠️ PARTIAL (API/contract 완료, React overlay UI 미구현) |
+| overlay_review_ui | 원본 도면 위 bbox + extracted fields + candidate diff UI | PG-B8 | ✅ DONE (DrawingReviewWorkspace + ExtractionTablePanel — bbox는 실 데이터 후 고도화) |
 | white_workbench_shell | SketchUp desktop-like 흰색 workbench + design system | PG-B1 | ✅ DONE |
 | factory_selector_ui | wardrobe/shoe_rack/kitchen_base/kitchen_wall frontend 연결 | PG-B10 | ✅ DONE |
 | editor_lego_workbench | 3D 모듈 선택/치수편집/블럭추가/스냅/undo-redo | PG-B9 | ✅ DONE (moveTool drag/snap 향후 고도화) |
@@ -33,7 +33,7 @@ Design Kernel V1 + Post-V1 seed는 "커널 및 backend seed"다.
 | self_evaluation_dashboard | 월별 self-improvement scorecard | PG-L5 | ✅ DONE |
 | finetune_dataset_export | 승인/익명화 JSONL export | PG-L6 | ✅ DONE |
 
-**통과 gate: 17 / 18** (fixture corpus 인프라 완료+실제 도면 승인 대기; overlay_review_ui는 API 완료+React UI 대기)
+**통과 gate: 18 / 18** — 모든 gate 통과. 실 데이터 축적 및 향후 고도화 단계 진입.
 
 ## 현재 실제 구현 수준
 

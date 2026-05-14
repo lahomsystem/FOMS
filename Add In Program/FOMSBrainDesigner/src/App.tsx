@@ -18,6 +18,7 @@ import { AIPanel } from './ui/AIPanel'
 import { TopToolBar } from './ui/TopToolBar'
 import { LeftToolPalette, type ToolMode } from './ui/LeftToolPalette'
 import { RightPropertyTray } from './ui/RightPropertyTray'
+import { DrawingReviewWorkspace } from './ui/DrawingReviewWorkspace'
 import { useDesignerStore } from './stores/designerStore'
 import { designerApi } from './api/client'
 import { S, COLORS, TYPOGRAPHY, SPACING } from './styles/sketchupTheme'
@@ -51,6 +52,7 @@ export default function App() {
   const [viewMode, setViewMode] = useState<ViewMode>('3d')
   const [activeTool, setActiveTool] = useState<ToolMode>('select')
   const [rightTab, setRightTab] = useState<'module' | 'command' | 'tray'>('tray')
+  const [appMode, setAppMode] = useState<'editor' | 'review'>('editor')
 
   // ── Keyboard shortcuts (PG-B9) ──────────────────────────
   useEffect(() => {
@@ -78,17 +80,38 @@ export default function App() {
     return () => window.removeEventListener('keydown', handler)
   }, [undo, redo, removeComponent, selectedId])
 
-  // ── postMessage listener: load AI candidate into 3D (PG-B9) ─
+  // ── postMessage listeners (PG-B8/B9) ────────────────────
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       if (!e.data) return
+      // Load AI candidate into 3D editor (PG-B9)
       if (e.data.type === 'FOMS_LOAD_CANDIDATE' && e.data.candidate) {
         const { furniture_type, factory_params } = e.data.candidate
         loadCandidateGraph({ furniture_type, factory_params: factory_params || {} })
       }
+      // Open drawing review workspace (PG-B8)
+      if (e.data.type === 'FOMS_REVIEW_EXTRACTION') {
+        setAppMode('review')
+      }
     }
     window.addEventListener('message', handler)
     return () => window.removeEventListener('message', handler)
+  }, [loadCandidateGraph])
+
+  // ── Internal event: load candidate from review workspace ──
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (detail?.furniture_type) {
+        loadCandidateGraph({
+          furniture_type: detail.furniture_type,
+          factory_params: detail.factory_params || {},
+        })
+        setAppMode('editor')
+      }
+    }
+    window.addEventListener('FOMS_LOAD_CANDIDATE_INTERNAL', handler)
+    return () => window.removeEventListener('FOMS_LOAD_CANDIDATE_INTERNAL', handler)
   }, [loadCandidateGraph])
 
   // ── Init ────────────────────────────────────────────────
@@ -175,6 +198,29 @@ export default function App() {
 
   return (
     <div style={S.root}>
+      {/* ── App Mode Tab Bar (PG-B8) ── */}
+      <div style={{ display: 'flex', background: COLORS.toolbarBg, borderBottom: `1px solid ${COLORS.toolbarBorder}`, padding: '0 8px', height: 30, alignItems: 'center', gap: 4, flexShrink: 0 }}>
+        {(['editor', 'review'] as const).map((mode) => (
+          <button
+            key={mode}
+            onClick={() => setAppMode(mode)}
+            style={{ border: 'none', background: appMode === mode ? COLORS.surfaceWhite : 'transparent', borderRadius: '4px 4px 0 0', padding: '4px 12px', fontSize: TYPOGRAPHY.sizeXS, fontWeight: TYPOGRAPHY.weightSemibold, color: appMode === mode ? COLORS.accent : COLORS.textMuted, cursor: 'pointer', borderBottom: appMode === mode ? `2px solid ${COLORS.accent}` : '2px solid transparent' }}
+          >
+            {mode === 'editor' ? '🧊 3D 편집기' : '📐 도면 검수'}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Drawing Review Mode (PG-B8) ── */}
+      {appMode === 'review' && (
+        <div style={{ flex: 1, overflow: 'hidden' }}>
+          <DrawingReviewWorkspace onClose={() => setAppMode('editor')} />
+        </div>
+      )}
+
+      {/* ── 3D Editor Mode ── */}
+      {appMode === 'editor' && (
+        <>
       {/* ── Top Toolbar ── */}
       <TopToolBar viewMode={viewMode} onViewModeChange={setViewMode} />
 
@@ -275,6 +321,8 @@ export default function App() {
           </span>
         )}
       </div>
+        </>
+      )}
     </div>
   )
 }

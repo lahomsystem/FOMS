@@ -332,6 +332,11 @@
 
                         <!-- 저장 버튼 -->
                         <div class="mt-3 d-flex gap-2 flex-wrap" id="res-actions">
+                            <!-- 도면 검수 워크스페이스로 열기 (PG-B8) -->
+                            <button class="btn btn-outline-secondary btn-sm" id="btn-open-review"
+                                    onclick="openReview()" style="display:none" title="도면 검수 워크스페이스에서 상세 검토">
+                                📐 검수
+                            </button>
                             <!-- 3D 워크벤치로 로드 (PG-B9) -->
                             <button class="btn btn-dark btn-sm" id="btn-load-3d"
                                     onclick="loadTo3D()" style="display:none" title="추출 결과를 3D 편집기로 불러옵니다">
@@ -735,7 +740,8 @@ function renderExtractionResult(data) {
 
     document.getElementById('extraction-result').style.display = '';
 
-    // "3D로 로드" 버튼: 추출 결과가 있으면 항상 표시
+    // "검수" + "3D로 로드" 버튼: 추출 결과가 있으면 항상 표시
+    document.getElementById('btn-open-review').style.display = '';
     document.getElementById('btn-load-3d').style.display = '';
 
     if (alreadyApproved) {
@@ -761,6 +767,26 @@ function fieldRow(label, value) {
 
 function furnitureTypeLabel(t) {
     return { wardrobe: '붙박이장', shoe_rack: '신발장', kitchen_base: '주방 하부장', kitchen_wall: '주방 상부장', custom_storage: '수납장' }[t] || t;
+}
+
+// ── 도면 검수 워크스페이스 열기 (PG-B8) ─────────────────────
+function openReview() {
+    if (!currentExtraction) return;
+    // 1. 3D 편집기 탭으로 전환
+    switchMode('designer');
+    // 2. iframe에 검수 payload 전달 → DrawingReviewWorkspace가 열림
+    const iframe = document.getElementById('designer-iframe');
+    if (iframe && iframe.contentWindow) {
+        iframe.contentWindow.postMessage({
+            type: 'FOMS_REVIEW_EXTRACTION',
+            payload: {
+                extraction: currentExtraction,
+                filename: currentFilename || 'unknown',
+                metrics: currentMetrics || {},
+                fixtureId: currentFixtureId || null,
+            },
+        }, '*');
+    }
 }
 
 // ── 3D 워크벤치로 로드 (PG-B9) ──────────────────────────────
@@ -906,6 +932,8 @@ function resetUpload() {
     if (btnL) { btnL.style.display = 'none'; btnL.disabled = false; btnL.textContent = '💾 학습 저장'; btnL.className = 'btn btn-success btn-sm'; }
     const btn3d = document.getElementById('btn-load-3d');
     if (btn3d) { btn3d.style.display = 'none'; btn3d.disabled = false; btn3d.textContent = '🧊 3D로 로드'; }
+    const btnReview = document.getElementById('btn-open-review');
+    if (btnReview) { btnReview.style.display = 'none'; }
     const infoEl = document.getElementById('general-upload-info');
     if (infoEl) infoEl.style.display = 'none';
 }
