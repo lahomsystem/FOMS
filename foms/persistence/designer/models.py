@@ -10,8 +10,10 @@ import enum
 from datetime import datetime, timezone
 
 from sqlalchemy import (
+    Boolean,
     DateTime,
     Enum,
+    Float,
     ForeignKey,
     Integer,
     JSON,
@@ -294,4 +296,77 @@ class DesignerExtractionCandidate(Base):
 
     extraction: Mapped[DesignerDrawingExtraction] = relationship(
         "DesignerDrawingExtraction", back_populates="candidates"
+    )
+
+
+# ──────────────────────────────────────────────────────────
+# PG-L1: Design Case Memory
+# ──────────────────────────────────────────────────────────
+
+class DesignerDesignCase(Base):
+    """PG-L1: Approved design case — the core learning asset.
+
+    Stores every human-approved, validator-passed design together with its
+    provenance so future requests can retrieve similar cases.
+
+    Contract:
+    - Only created after project_version_id exists (validator passed).
+    - Only created after an approved extraction or direct approval action.
+    - raw PII fields (customer_name, phone, address) are NOT stored here;
+      they remain in DesignerDrawingExtraction / DesignerDrawingArtifact.
+    - design_graph_json, bom_json, options_json, internal_structure_json are
+      safe to include in retrieval payloads (no PII).
+    - AI MUST NOT create DesignerDesignCase directly; service layer only.
+    """
+
+    __tablename__ = "designer_design_cases"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+    # Provenance
+    project_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("designer_projects.id"), nullable=True
+    )
+    project_version_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("designer_project_versions.id"), nullable=True
+    )
+    drawing_artifact_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("designer_drawing_artifacts.id"), nullable=True
+    )
+    approved_extraction_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("designer_drawing_extractions.id"), nullable=True
+    )
+
+    # Classification — safe for retrieval / no PII
+    furniture_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    product_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+
+    # Design payload — PII-free
+    design_graph_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    bom_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    options_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    internal_structure_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    tags_json: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+
+    # Dimensions — for similarity search without opening the full graph
+    width_mm: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    height_mm: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    depth_mm: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    module_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # Quality signal
+    source_quality_score: Mapped[float] = mapped_column(
+        Float, nullable=False, default=1.0
+    )
+
+    # Approval metadata
+    approval_user_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )
+    approved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, nullable=False
     )
