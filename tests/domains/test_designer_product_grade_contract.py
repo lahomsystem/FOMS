@@ -137,11 +137,13 @@ class TestPGModulesImplementedAndMissing:
         assert callable(mr.route)
         assert callable(dtc.classify_from_filename)
 
-    # ── PG-B5: STILL MISSING ──
-    def test_parts_table_parser_module_missing(self):
-        """foms.services.designer.parts_table_parser does not exist yet (PG-B5 scope)."""
-        with pytest.raises(ImportError):
-            import foms.services.designer.parts_table_parser  # noqa: F401
+    # ── PG-B5: IMPLEMENTED ──
+    def test_parts_table_parser_module_implemented(self):
+        """parts_table_parser.py implemented (PG-B5 complete)."""
+        import foms.services.designer.parts_table_parser as ptp  # noqa: F401
+        assert callable(ptp.parse_text)
+        assert callable(ptp.parse_gemini_parts_table)
+        assert callable(ptp.score_parts_recall)
 
     # ── PG-B6: STILL MISSING ──
     def test_dimension_parser_module_missing(self):
