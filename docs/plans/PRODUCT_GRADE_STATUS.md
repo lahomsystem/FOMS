@@ -16,18 +16,23 @@ Design Kernel V1 + Post-V1 seed는 "커널 및 backend seed"다.
 |---|---|---|---|
 | gemini_provider_implemented | Gemini API 단일 모델 어댑터 구현 + POC 5장 검증 | PG-B0A | ✅ DONE (billing 활성화 후 live POC 실행 가능) |
 | extraction_scorecard_implemented | precision/recall/field_score scorecard 알고리즘 구현 | PG-B0A | ✅ DONE |
-| fixture_corpus_17_drawings | 17장 drawing fixture manifest 등록 + expected JSON 사용자 승인 | PG-B2 | ❌ MISSING |
-| pii_redactor_implemented | 고객명/전화/주소 pseudonymization + Gemini payload 분리 | PG-B3A | ❌ MISSING |
-| drawing_artifact_db_model | DrawingArtifact/Page/Extraction/Candidate 영구 DB 모델 | PG-B3 | ❌ MISSING |
-| parts_table_parser_recall_90 | [SR]/[EP]/[DOOR]/[마이다] 등 parts table recall >= 90% | PG-B5 | ❌ MISSING |
+| fixture_corpus_17_drawings | 17장 drawing fixture manifest 등록 + expected JSON 사용자 승인 | PG-B2 | ⚠️ PARTIAL (17 슬롯/스키마/웹 등록 UI 완료, 실제 도면+승인 미완료) |
+| pii_redactor_implemented | 고객명/전화/주소 pseudonymization + Gemini payload 분리 | PG-B3A | ✅ DONE |
+| drawing_artifact_db_model | DrawingArtifact/Page/Extraction/Candidate 영구 DB 모델 | PG-B3 | ✅ DONE |
+| parts_table_parser_recall_90 | [SR]/[EP]/[DOOR]/[마이다] 등 parts table recall >= 90% | PG-B5 | ✅ DONE (unit/sample 기준, 17 fixture 실측 필요) |
 | dimension_parser_wdh_95 | W/D/H extraction >= 95% (CV + multimodal merge) | PG-B6 | ❌ MISSING |
 | overlay_review_ui | 원본 도면 위 bbox + extracted fields + candidate diff UI | PG-B8 | ❌ MISSING |
-| white_workbench_shell | SketchUp desktop-like 흰색 workbench + design system | PG-B1 | ❌ MISSING |
-| factory_selector_ui | wardrobe/shoe_rack/kitchen_base/kitchen_wall frontend 연결 | PG-B10 | ❌ MISSING |
+| white_workbench_shell | SketchUp desktop-like 흰색 workbench + design system | PG-B1 | ✅ DONE |
+| factory_selector_ui | wardrobe/shoe_rack/kitchen_base/kitchen_wall frontend 연결 | PG-B10 | ✅ DONE |
 | correction_clusterer_implemented | correction clustering + evidence-backed rule candidates | PG-B11 | ❌ MISSING |
 | no_auto_ontology_promotion | 자동 온톨로지 승격 금지 invariant | (기존 계약) | ✅ 계약 존재 |
+| design_case_memory | 승인된 설계 사례/옵션/BOM 저장 | PG-L1 | ❌ MISSING |
+| retrieval_design_brain | 유사 승인 사례 검색 기반 자동 설계 | PG-L2 | ❌ MISSING |
+| product_archetype_learning | 새 제품/내부 구조 후보 학습 | PG-L3 | ❌ MISSING |
+| self_evaluation_dashboard | 월별 self-improvement scorecard | PG-L5 | ❌ MISSING |
+| finetune_dataset_export | 승인/익명화 JSONL export | PG-L6 | ❌ MISSING |
 
-**통과 gate: 3 / 12**
+**통과 gate: 8 / 17** (fixture corpus는 17 슬롯/도구/웹 UI 완료이나 실제 도면+승인 전까지 partial)
 
 ## 현재 실제 구현 수준
 
@@ -43,17 +48,25 @@ Design Kernel V1 + Post-V1 seed는 "커널 및 backend seed"다.
 ✅ rule candidate / evolution seed
 ✅ vision_types.py (VisionInput, DesignGraphCandidate shape)
 ✅ vision_extractor.py (fake extractor + provider interface)
-✅ 118+ designer domain tests passing
+✅ Gemini API 실제 연결 (`gemini-2.5-flash`)
+✅ extraction scorecard
+✅ 17장 fixture manifest 슬롯 + expected JSON 스키마
+✅ /wdplanner-v2 도면 등록/추출/초안저장/승인 UI
+✅ DrawingArtifact/Page/Extraction/Candidate DB 모델 + migration
+✅ PII redaction
+✅ parts table parser
+✅ white SketchUp-like workbench shell
+✅ furniture type selector UI
+✅ 461+ designer domain tests passing
 
-❌ Gemini API 실제 연결 없음 — fake_extractor only
-❌ 17장 도면 fixture corpus 없음
-❌ extraction scorecard 없음
+❌ 실제 17장 도면 파일 + approved expected JSON 미등록
 ❌ drawing overlay review UI 없음
-❌ white SketchUp-like workbench 없음
-❌ PII redaction 없음
-❌ parts table parser 없음
 ❌ dimension parser (real) 없음
+❌ ontology mapper 없음
 ❌ correction clusterer 없음
+❌ design case memory 없음
+❌ retrieval design brain 없음
+❌ product archetype learning 없음
 ```
 
 ## 제품급 완료 조건 (PG-B13 closeout 기준)
@@ -67,6 +80,11 @@ Design Kernel V1 + Post-V1 seed는 "커널 및 backend seed"다.
 - [ ] 0 invalid project versions saved
 - [ ] no auto promotion of ontology
 - [ ] active ontology invariant exists
+- [ ] approved design cases stored as searchable learning memory
+- [ ] similar approved cases retrieved for new design requests
+- [ ] product archetype candidates generated from repeated approved cases
+- [ ] monthly self-evaluation scorecard exists
+- [ ] fine-tuning/eval JSONL export uses approved, PII-redacted data only
 
 ## 세션별 실행 계획 (PR 분할)
 
@@ -74,10 +92,14 @@ Design Kernel V1 + Post-V1 seed는 "커널 및 backend seed"다.
 |---|---|---|---|
 | PR-1 | Session-1 | PG-B0 Reality Reset + Product Contract Freeze | ✅ 완료 |
 | PR-2 | Session-2 | PG-B0A Gemini Provider POC + Scorecard Definition | ✅ 완료 (billing 필요) |
-| PR-3 | Session-3 | PG-B2 Drawing Attachment Corpus + Fixture Harness | ⏳ 대기 |
-| PR-4 | Session-4 | PG-B10 Furniture Type UI Integration | ⏳ 대기 |
-| PR-5 | Session-5 | PG-B1 White SketchUp-Like Workbench Shell | ⏳ 대기 |
-| PR-6+ | Session-6+ | PG-B3~B13 계획서 순서 | ⏳ 대기 |
+| PR-3 | Session-3 | PG-B2 Drawing Attachment Corpus + Fixture Harness | ✅ infra 완료 / 실제 도면 승인 대기 |
+| PR-4 | Session-4 | PG-B10 Furniture Type UI Integration | ✅ 완료 |
+| PR-5 | Session-5 | PG-B1 White SketchUp-Like Workbench Shell | ✅ 완료 |
+| PR-6 | Session-6 | PG-B3 Drawing Intake DB Models | ✅ 완료 |
+| PR-7 | Session-7 | PG-B3A PII Redactor | ✅ 완료 |
+| PR-8 | Session-8 | PG-B4 Template Classifier + Model Router | ✅ 완료 |
+| PR-9 | Session-9 | PG-B5 Parts Table Parser | ✅ 완료 |
+| PR-L1 | Next | Design Case Memory | ⏸️ 다음 진행 전 승인 대기 |
 
 ## PG-B0A 완료 요약
 

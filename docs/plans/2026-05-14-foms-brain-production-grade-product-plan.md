@@ -2,9 +2,9 @@
 
 > **For implementing agent:** Execute this plan task-by-task with verification after each batch.
 
-**Goal:** FOMS Brain을 “커널 MVP”가 아니라, 사용자가 제공하는 월 50~100장 학습용 도면을 기반으로 스스로 설계 지식을 축적하고, 사용자가 기본장/커스텀장을 레고 블럭처럼 직접 설계하거나 AI에게 요청해 자동 설계할 수 있는 제품급 설계 전문 AI 프로그램으로 만든다.
+**Goal:** FOMS Brain을 “커널 MVP”가 아니라, 사용자가 제공하는 월 50~100장 학습용 도면을 기반으로 스스로 설계 지식을 축적하고, 사용자가 기본장/커스텀장을 레고 블럭처럼 직접 설계하거나 AI에게 요청해 자동 설계할 수 있는 제품급 설계 전문 AI 프로그램으로 만든다. 최종 목표는 단순 도면 파싱이 아니라, 검증된 도면·수정·승인 설계 사례를 지속 학습해 새로운 가구 설계 레이아웃, 제품 archetype, 내부 구조, 옵션, BOM/하드웨어 규칙을 점진적으로 개선하는 **가구 설계 지능체**다.
 
-**Architecture:** 기존 Design Kernel V1의 schema v2, formula engine, constraint engine, factory registry, command engine은 유지하되 입력/편집/학습 계층을 제품급으로 재구성한다. 첨부 도면은 raw artifact로 보존하고, **Gemini API 단일 모델**이 도면 이해·추론·설계 후보 통합·자동 설계 제안의 전체 오케스트레이터/최종 판단자를 담당한다. Gemini는 `DesignGraphCandidate`, `DesignCommand[]`, `LearningCandidate`만 생성하며, OpenCV/전처리/OCR은 1차 판단자가 아니라 좌표·색상·선분 후보를 보조하는 도구로 둔다. 사용자가 review UI에서 승인해야만 project version으로 저장되며, Gemini가 깨우친 규칙도 replay + human approval + active ontology invariant를 통과해야 ontology에 반영된다.
+**Architecture:** 기존 Design Kernel V1의 schema v2, formula engine, constraint engine, factory registry, command engine은 유지하되 입력/편집/학습 계층을 제품급으로 재구성한다. 첨부 도면은 raw artifact로 보존하고, **Gemini API 단일 모델**이 도면 이해·추론·설계 후보 통합·자동 설계 제안의 전체 오케스트레이터/최종 판단자를 담당한다. Gemini는 `DesignGraphCandidate`, `DesignCommand[]`, `LearningCandidate`, `ProductArchetypeCandidate`, `DesignPatternCandidate`만 생성하며, OpenCV/전처리/OCR은 1차 판단자가 아니라 좌표·색상·선분 후보를 보조하는 도구로 둔다. 사용자가 review UI에서 승인해야만 project version으로 저장되며, Gemini가 깨우친 규칙도 replay + human approval + active ontology invariant를 통과해야 ontology에 반영된다. “LLM 학습하듯 진화”는 Gemini의 weight를 매 요청마다 직접 학습시키는 것이 아니라, FOMS 내부에 **Design Case Memory + Retrieval + Rule/Ontology Evolution + Fine-tuning Dataset Export** 계층을 구축해 Gemini가 매번 더 좋은 근거와 규칙을 사용하도록 만드는 방식으로 구현한다.
 
 **Tech Stack:** Flask modular monolith, SQLAlchemy/PostgreSQL, R2 attachments, Jinja route `/wdplanner-v2`, React/Vite/R3F/Drei/Zustand static add-in, deterministic Python services, Gemini API adapter behind env-gated model router, optional OpenCV preprocessing, pytest + browser QA.
 
@@ -116,6 +116,69 @@ rule candidate / replay / promotion seed
 - AI/vision extraction:
   - fake fixture < 1s
   - Gemini real provider async job < 60s per page target
+
+### 2.2A 학습/진화 완료 정의
+
+FOMS Brain의 “학습”은 단순히 Gemini 호출 결과를 저장하는 수준이 아니다. 제품급 학습 완료는 다음을 만족해야 한다.
+
+- 업로드된 도면은 원본 raw artifact, Gemini extraction, 사용자 수정, 승인된 최종 design graph, BOM/옵션/하드웨어 메모로 분리 저장된다.
+- 승인된 설계는 `DesignCaseMemory`로 축적되어 이후 자동 설계 요청의 retrieval 근거가 된다.
+- 사용자의 반복 correction은 최소 3개 독립 예시 이상일 때만 `DesignPatternCandidate` 또는 `RuleCandidate`로 후보화된다.
+- 새 제품 유형/내부 구조/옵션이 반복 등장하면 `ProductArchetypeCandidate`로 생성되며, 즉시 production factory가 되지 않는다.
+- 모든 후보는 fixture corpus replay, validator, human approval을 통과해야 active ontology/rule/factory로 승격된다.
+- 시스템은 월별 self-improvement scorecard를 가진다:
+  - extraction correction rate 감소
+  - approved candidate graph 비율 증가
+  - parts/dimension recall 향상
+  - 자동 설계 제안 승인율 증가
+  - replay fail_count 0 유지
+- 충분한 승인 데이터가 누적되면 Gemini/외부 모델 fine-tuning 또는 distillation용 JSONL dataset을 export할 수 있다. 단, export 데이터는 PII redaction과 사용자 승인 상태를 반드시 포함한다.
+
+### 2.2B 학습 기억 계층
+
+```text
+Layer 1. Raw Corpus
+  - 원본 도면/PDF/사진
+  - 변경 불가 보존
+  - designer_drawing_artifacts / R2 file_url
+
+Layer 2. Extraction Memory
+  - Gemini raw output, parsed fields, confidence, cost, latency
+  - designer_drawing_extractions
+
+Layer 3. Correction Memory
+  - 사용자가 고친 치수/부품/구조/옵션
+  - before_json / after_json / reason_text
+  - designer_corrections
+
+Layer 4. Design Case Memory
+  - 승인된 최종 설계 graph, BOM, 옵션, 내부 구조, 제품 유형
+  - 새 자동 설계 요청의 retrieval 근거
+  - 신규 테이블 필요: designer_design_cases
+
+Layer 5. Rule / Ontology / Product Memory
+  - 반복 correction에서 추출된 규칙 후보
+  - 새 제품 archetype 후보
+  - replay + human approval 후 active ontology/factory/rule로 승격
+  - designer_rule_candidates / designer_ontology_versions
+```
+
+### 2.2C “LLM 학습하듯 진화” 구현 방식
+
+FOMS Brain은 매 요청마다 Gemini 모델의 내부 weight를 수정하지 않는다. 대신 다음 6개 루프로 self-improvement를 구현한다.
+
+1. **Case-Based Learning**
+   - 승인된 유사 도면/공간/옵션/제품 사례를 검색해 Gemini 프롬프트와 설계 후보 생성에 넣는다.
+2. **Rule Induction**
+   - 반복 correction에서 “이 조건이면 이 구조가 맞다”는 rule DSL 후보를 만든다.
+3. **Product Archetype Learning**
+   - 리폼장, 무몰딩장, 내장고장, 화장실장 등 새 제품 구조가 반복되면 product archetype 후보를 만든다.
+4. **Prompt/Router Self-Improvement**
+   - 양식별 오답률/비용/latency를 기록하고 model router, prompt, parser 전략을 개선한다.
+5. **Replay-Based Promotion**
+   - 새 규칙/제품 archetype/factory 후보는 fixture corpus replay에서 fail_count 0이어야 승격 가능하다.
+6. **Fine-tuning Dataset Export**
+   - 승인된 도면/추출/수정/최종 설계만 JSONL로 export한다. raw PII는 export하지 않는다.
 
 ### 2.3 실행 전 사용자 결정 필요사항
 
@@ -280,9 +343,21 @@ R2 / FOMS attachment
   -> Human Approval
   -> Validator
   -> Project Version
+  -> DesignCaseMemory
+       - approved design graph
+       - BOM / options / internal structure
+       - furniture archetype evidence
   -> Learning Candidate
+       - RuleCandidate
+       - DesignPatternCandidate
+       - ProductArchetypeCandidate
+  -> Retrieval-Augmented Design Brain
+       - similar drawings
+       - similar approved designs
+       - similar corrections
   -> Replay
   -> Human Promotion
+  -> Active Ontology / Rule / Factory version
 ```
 
 ## 5. Execution Tranches
@@ -304,6 +379,12 @@ PG-B10 Furniture Type UI Integration
 PG-B11 Learning Loop Productionization
 PG-B12 Performance/Security/Observability
 PG-B13 Full QA/Canary/Release Closeout
+PG-L1 Design Case Memory
+PG-L2 Retrieval-Augmented Design Brain
+PG-L3 Product Archetype Learning
+PG-L4 Rule Discovery Engine
+PG-L5 Self-Evaluation Dashboard
+PG-L6 Fine-Tuning Dataset Export
 ```
 
 ### 5.1 PR / Session Strategy
@@ -322,6 +403,7 @@ PG-B13 Full QA/Canary/Release Closeout
 | PR-8 | PG-B8~B9 | drawing review overlay + product editor tools |
 | PR-9 | PG-B11 | learning loop productionization |
 | PR-10 | PG-B12~B13 | performance/security/canary closeout |
+| PR-L1+ | PG-L1~L6 | “LLM 학습하듯 진화” 계층: case memory, retrieval, archetype learning, self-evaluation, dataset export |
 
 각 PR은 `APP_OK`, focused pytest, add-in build, 필요한 browser evidence를 별도로 남긴다.
 
@@ -908,6 +990,170 @@ view geometry -> relation candidates
 - [ ] active ontology partial unique index exists in Postgres migration.
 - [ ] rollback is tested.
 
+### PG-L1 — Design Case Memory
+
+**Goal:** 사람이 승인한 도면/설계/옵션/BOM을 “학습 사례”로 저장한다. 이 계층이 없으면 업로드 도면은 fixture일 뿐이고, 새로운 가구 설계 지능으로 축적되지 않는다.
+
+**Files:**
+- Create: `foms/services/designer/design_case_memory.py`
+- Modify: `foms/persistence/designer/models.py`
+- Create: `migrations/versions/*designer_design_case_memory*.py`
+- Test: `tests/domains/test_designer_design_case_memory.py`
+
+**Tables:**
+
+```text
+designer_design_cases
+  id
+  project_id
+  drawing_artifact_id
+  approved_extraction_id
+  project_version_id
+  furniture_type
+  product_name
+  design_graph_json
+  bom_json
+  options_json
+  internal_structure_json
+  tags_json
+  source_quality_score
+  approval_user_id
+  approved_at
+  created_at
+```
+
+**Acceptance:**
+
+- [ ] 승인된 extraction + validator-passed project version만 design case로 저장된다.
+- [ ] raw PII는 design case search payload에 포함되지 않는다.
+- [ ] furniture_type/product_name/options/internal_structure가 검색 가능한 형태로 저장된다.
+- [ ] design case 저장은 project version 생성 이후에만 가능하다.
+
+### PG-L2 — Retrieval-Augmented Design Brain
+
+**Goal:** 새 설계 요청 또는 새 도면 분석 시 과거 승인 사례를 검색해 Gemini에 근거로 제공한다.
+
+**Files:**
+- Create: `foms/services/designer/design_retrieval.py`
+- Modify: `foms/services/designer/vector_memory.py`
+- Test: `tests/domains/test_designer_design_retrieval.py`
+
+**Retrieval Sources:**
+
+```text
+similar drawings        -> drawing template / dimensions / furniture_type
+similar design cases    -> approved design graph / BOM / options
+similar corrections     -> repeated human fixes
+similar rule candidates -> replay-passed candidate rules
+```
+
+**Acceptance:**
+
+- [ ] approved cases only are retrievable.
+- [ ] retrieval payload is PII-redacted.
+- [ ] Gemini prompt includes top-k approved examples with source IDs.
+- [ ] missing vector backend fails explicitly or uses deterministic fallback in tests.
+
+### PG-L3 — Product Archetype Learning
+
+**Goal:** 반복 등장하는 새로운 제품/내부 구조/옵션 조합을 `ProductArchetypeCandidate`로 생성한다.
+
+**Examples:**
+
+```text
+무몰딩장
+리폼장
+내장고장
+TV/거실장
+화장실장
+신발장+행거 복합형
+주방 상하부 복합형
+```
+
+**Files:**
+- Create: `foms/services/designer/product_archetype_learning.py`
+- Create: `foms/services/designer/product_archetype_types.py`
+- Create: `foms/api/designer/product_archetypes.py`
+- Test: `tests/domains/test_designer_product_archetype_learning.py`
+
+**Acceptance:**
+
+- [ ] 최소 3개 승인 design case에서 반복 등장해야 후보화된다.
+- [ ] 후보는 supporting evidence case IDs를 가진다.
+- [ ] 후보는 바로 factory가 되지 않고 human approval + replay를 기다린다.
+- [ ] 승인 후 factory registry에 신규 factory 후보로 노출된다.
+
+### PG-L4 — Rule Discovery Engine
+
+**Goal:** correction cluster에서 사람이 반복 수정한 설계 규칙을 DSL 후보로 만든다.
+
+**Files:**
+- Create: `foms/services/designer/correction_clusterer.py`
+- Create: `foms/services/designer/rule_discovery.py`
+- Create: `foms/services/designer/rule_replay.py`
+- Test: `tests/domains/test_designer_rule_discovery.py`
+
+**Acceptance:**
+
+- [ ] correction cluster requires >= 3 independent examples.
+- [ ] candidate rule includes before/after pattern and source evidence.
+- [ ] replay runs against fixture corpus + design case memory.
+- [ ] fail_count > 0 blocks promotion.
+
+### PG-L5 — Self-Evaluation Dashboard
+
+**Goal:** FOMS Brain이 시간이 지나며 실제로 개선되는지 월 단위로 수치화한다.
+
+**Metrics:**
+
+```text
+extraction_correction_rate
+parts_table_recall
+dimension_wdh_accuracy
+candidate_graph_approval_rate
+auto_design_suggestion_accept_rate
+rule_candidate_replay_pass_rate
+new_archetype_approval_rate
+cost_per_approved_case
+```
+
+**Files:**
+- Create: `foms/services/designer/self_evaluation.py`
+- Create: `foms/api/designer/self_evaluation.py`
+- Create: `Add In Program/FOMSBrainDesigner/src/ui/SelfEvaluationPanel.tsx`
+- Test: `tests/domains/test_designer_self_evaluation.py`
+
+**Acceptance:**
+
+- [ ] 월별 scorecard가 저장된다.
+- [ ] 이전 달 대비 개선/악화가 표시된다.
+- [ ] regression threshold를 넘으면 신규 rule/archetype promotion이 block된다.
+
+### PG-L6 — Fine-Tuning Dataset Export
+
+**Goal:** 충분한 승인 데이터가 쌓였을 때 외부 모델 학습/평가용 JSONL dataset을 생성한다.
+
+**Files:**
+- Create: `tools/designer/export_finetune_dataset.py`
+- Create: `tests/domains/test_designer_finetune_export.py`
+
+**Export Sources:**
+
+```text
+approved extraction JSON
+approved design graph
+correction before/after
+approved rule candidates
+approved product archetypes
+```
+
+**Acceptance:**
+
+- [ ] 승인된 데이터만 export된다.
+- [ ] raw customer_name/phone/address는 export되지 않는다.
+- [ ] dataset row includes source IDs for audit.
+- [ ] export format supports JSONL for fine-tuning or eval harness.
+
 ### PG-B12 — Performance/Security/Observability
 
 **Goal:** 제품급 운영 성능/보안을 고정한다.
@@ -1047,6 +1293,38 @@ Browser QA:
 | Security | file type/size, PII redaction, no secret logs |
 | Performance | load, interaction, API p95 |
 
+### 8.1 2026-05-14 구현 코드 1:1 대조
+
+> 기준: 현재 repository source truth. `partial`은 `done`이 아니다.
+
+| 계획 항목 | 기대 파일/기능 | 현재 구현 파일 | 판정 | 남은 조치 |
+|---|---|---|---|---|
+| PG-B0 Reality Reset | product-grade contract | `tests/domains/test_designer_product_grade_contract.py` | done | 없음 |
+| PG-B0A Gemini Provider | Gemini API adapter, cost/latency | `foms/services/designer/gemini_provider.py`, `tests/domains/test_designer_gemini_provider.py` | done | real drawing scorecard는 corpus 승인 후 |
+| PG-B0A Scorecard | W/D/H, parts recall score | `foms/services/designer/extraction_scorecard.py` | done | 17장 승인 corpus 기준 실측 필요 |
+| PG-B1 White Workbench | white SketchUp shell, top toolbar, left palette, right tray, design system | `Add In Program/FOMSBrainDesigner/src/App.tsx`, `styles/sketchupTheme.ts`, `ui/TopToolBar.tsx`, `ui/LeftToolPalette.tsx`, `ui/RightPropertyTray.tsx`, `docs/design/FOMS_BRAIN_DESIGN_SYSTEM.md` | done | browser screenshot baseline은 PG-B13 evidence |
+| PG-B2 Corpus Harness | 17 fixture manifest, expected schema, ingest/approve workflow | `tests/fixtures/designer/drawings/manifest.json`, `expected_extractions/_SCHEMA.json`, `tools/designer/build_drawing_fixture_manifest.py`, `tools/designer/generate_expected_json.py` | partial | 실제 17개 도면 파일 + 사용자 승인 expected JSON 필요 |
+| PG-B2.5 Web Drawing Upload | `/wdplanner-v2` 내 도면 등록 UI + upload/extract/save/approve API | `templates/designer/wdplanner_v2.html`, `foms/api/designer/drawings.py` | done | staging secret/실제 파일로 browser QA 필요 |
+| PG-B3 Drawing Intake DB | artifact/page/extraction/candidate persistent models + migration | `foms/persistence/designer/models.py`, `migrations/versions/designer_drawing_intake.py`, `tests/domains/test_designer_drawing_intake.py` | done | migration 적용 및 운영 DB 확인 필요 |
+| PG-B3A PII Redaction | customer/phone/address pseudonymization + payload gate | `foms/services/designer/pii_redactor.py`, `tests/domains/test_designer_pii_redactor.py` | done | `drawings.py` upload path에 redaction 강제 연결은 추가 hardening 필요 |
+| PG-B4 Template Classifier | LAHOM/BENISSIMO/EHF/multi/unknown classification | `foms/services/designer/drawing_template_classifier.py` | done | 실제 도면 기반 classifier calibration 필요 |
+| PG-B4 Model Router | Gemini/fake routing, model choice, explicit errors | `foms/services/designer/model_router.py`, `tests/domains/test_designer_model_router.py` | done | `drawings.py` upload path가 model_router를 경유하도록 통합 필요 |
+| PG-B5 Parts Table Parser | `[SR]`, `[EP]`, `[DOOR]`, `[마이다]`, `[옷봉]`, 보조목 parsing | `foms/services/designer/parts_table_parser.py`, `tests/domains/test_designer_parts_table_parser.py` | done | 17 fixture recall >= 90% 실측 필요 |
+| PG-B6 Dimension/View Parser | W/D/H, stacked heights, depth labels, view detection | 없음 | missing | `dimension_parser.py`, `view_detector.py`, `geometry_candidate_builder.py` |
+| PG-B7 Ontology Mapper | extracted fields -> factory params -> candidate graph | 없음 | missing | `ontology_mapper.py`, candidate graph builder |
+| PG-B8 Drawing Overlay UI | original image overlay + bbox + extracted fields editing | 없음 | missing | `DrawingOverlayReview.tsx`, API history |
+| PG-B9 Editor Tools | explicit select/move/dimension/split/undo-redo | seed only | partial | tool modules + command history |
+| PG-B10 Furniture Type UI | wardrobe/shoe_rack/kitchen_base/kitchen_wall selector | `factoryRegistry.ts`, TS factories, `designerStore.ts`, `ModulePanel.tsx`, `tests/domains/test_designer_frontend_factory_contract.py` | done | UX polish after PG-B1 screenshot |
+| PG-B11 Learning Loop | correction cluster, rule candidate, replay, promotion guard | `foms/services/designer/evolution.py` seed | partial | `correction_clusterer.py`, `rule_replay.py`, UI panel, active unique index |
+| PG-L1 Design Case Memory | approved design case 저장 | 없음 | missing | `designer_design_cases`, `design_case_memory.py` |
+| PG-L2 Retrieval Brain | approved case/correction/rule retrieval | `vector_memory.py` stub | missing | real retrieval + vector/fallback implementation |
+| PG-L3 Product Archetype Learning | repeated new product/internal structure 후보화 | 없음 | missing | `product_archetype_learning.py` |
+| PG-L4 Rule Discovery | correction -> DSL candidate | `evolution.py` seed | partial | evidence-backed clustering + DSL generator |
+| PG-L5 Self-Evaluation Dashboard | 월별 개선 scorecard | 없음 | missing | `self_evaluation.py`, UI panel |
+| PG-L6 Fine-tuning Export | approved-only redacted JSONL export | 없음 | missing | `tools/designer/export_finetune_dataset.py` |
+
+**현재 결론:** PG-B0/B0A/B1/B2 infra/B2.5/B3/B3A/B4/B5/B10은 구현되었지만, 실제 “학습하며 진화하는 가구 설계 AI”의 핵심은 아직 PG-L1~L6가 시작되지 않았다. 다음 단계 구현 전에 PG-L1 Design Case Memory를 우선 삽입하는 것이 맞다.
+
 ## 9. Stop Rules
 
 Stop immediately if any are true:
@@ -1078,6 +1356,11 @@ Stop immediately if any are true:
 - [ ] Learning loop creates evidence-backed rule candidates.
 - [ ] Replay blocks unsafe ontology promotion.
 - [ ] Active ontology DB invariant exists.
+- [ ] Approved design cases are stored as `DesignCaseMemory`.
+- [ ] Similar approved cases are retrieved for new design requests.
+- [ ] Repeated new product/internal-structure patterns create `ProductArchetypeCandidate`.
+- [ ] Monthly self-evaluation proves improvement or blocks unsafe promotion.
+- [ ] Fine-tuning/eval JSONL export exists and contains approved, PII-redacted data only.
 - [ ] 0 invalid design versions saved in QA.
 - [ ] 60fps-ish interaction target verified for standard design.
 - [ ] Staging browser QA evidence captured.
@@ -1089,7 +1372,7 @@ FOMS repo에서 docs/plans/2026-05-14-foms-brain-production-grade-product-plan.m
 
 중요:
 기존 V1/Post-V1은 커널과 backend seed일 뿐이다.
-사용자가 요구한 제품은 첨부 도면을 실제로 읽고, 원본 도면 위 overlay로 검수하고, 흰색 SketchUp-like workbench에서 수정하고, correction을 학습 후보로 만드는 production-grade product다.
+사용자가 요구한 제품은 첨부 도면을 실제로 읽고, 원본 도면 위 overlay로 검수하고, 흰색 SketchUp-like workbench에서 수정하고, correction을 학습 후보로 만드는 production-grade product다. 최종 목표는 승인된 설계 사례와 반복 correction을 계속 축적해 새 가구 레이아웃, 새 제품 archetype, 내부 구조, 옵션, 규칙을 점진적으로 개선하는 가구 설계 지능체다.
 
 절대 규칙:
 1. 첨부 도면 fixture corpus 없이 제품 완료라고 말하지 마라.
@@ -1115,6 +1398,12 @@ PG-B10 Furniture Type UI Integration
 PG-B11 Learning Loop Productionization
 PG-B12 Performance/Security/Observability
 PG-B13 Full QA/Canary/Release Closeout
+PG-L1 Design Case Memory
+PG-L2 Retrieval-Augmented Design Brain
+PG-L3 Product Archetype Learning
+PG-L4 Rule Discovery Engine
+PG-L5 Self-Evaluation Dashboard
+PG-L6 Fine-Tuning Dataset Export
 
 각 batch 후 APP_OK, focused pytest, add-in build, 필요한 browser QA를 수행하라.
 ```
