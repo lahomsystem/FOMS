@@ -129,11 +129,13 @@ class TestPGModulesImplementedAndMissing:
         assert callable(pr.scan_for_raw_pii)
         assert callable(pr.build_gemini_payload)
 
-    # ── PG-B4: STILL MISSING ──
-    def test_model_router_module_missing(self):
-        """foms.services.designer.model_router does not exist yet (PG-B4 scope)."""
-        with pytest.raises(ImportError):
-            import foms.services.designer.model_router  # noqa: F401
+    # ── PG-B4: IMPLEMENTED ──
+    def test_model_router_module_implemented(self):
+        """model_router.py + drawing_template_classifier.py implemented (PG-B4 complete)."""
+        import foms.services.designer.model_router as mr  # noqa: F401
+        import foms.services.designer.drawing_template_classifier as dtc  # noqa: F401
+        assert callable(mr.route)
+        assert callable(dtc.classify_from_filename)
 
     # ── PG-B5: STILL MISSING ──
     def test_parts_table_parser_module_missing(self):
@@ -283,7 +285,7 @@ PRODUCT_GRADE_GATES: dict[str, bool] = {
     "extraction_scorecard_implemented": True,   # ✅ PG-B0A complete
     "fixture_corpus_17_drawings": False,        # PG-B2 pending
     "pii_redactor_implemented": True,           # ✅ PG-B3A complete
-    "parts_table_parser_recall_90": False,      # PG-B5 pending
+    "parts_table_parser_recall_90": False,      # PG-B4 model router ✅, PG-B5 parts parser pending
     "dimension_parser_wdh_95": False,           # PG-B6 pending
     "overlay_review_ui": False,                 # PG-B8 pending
     "white_workbench_shell": False,             # PG-B1 pending
