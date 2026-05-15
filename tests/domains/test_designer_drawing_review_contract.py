@@ -220,3 +220,11 @@ class TestDrawingReviewFileStructure:
         assert "DESIGNER_UPLOAD_TIMEOUT_MS" in content
         assert "AbortController" in content
         assert "UPLOAD_TIMEOUT" in content
+
+    def test_approve_save_preserves_design_understanding_for_learning(self):
+        """Approved drawing cases must carry layout/category learning payloads."""
+        content = (ROOT / "foms" / "api" / "designer" / "drawings.py").read_text(encoding="utf-8")
+        assert "design_understanding" in content
+        assert "internal_structure=design_understanding" in content
+        assert "extract_tags_from_case" in content
+        assert "tags=learning_tags" in content

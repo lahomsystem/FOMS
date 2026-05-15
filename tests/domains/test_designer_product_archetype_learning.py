@@ -89,6 +89,31 @@ class TestTagExtraction:
         tags = extract_tags_from_case(case)
         assert "existing_tag" in tags
 
+    def test_extract_design_understanding_category_tags(self):
+        case = {
+            "furniture_type": "custom_storage",
+            "internal_structure_json": {
+                "learned_design_category": {
+                    "category_key": "floating_tv_wall_unit",
+                    "similarity_tags": ["tv_wall", "floating"],
+                    "layout_signature": {
+                        "module_pattern": "wide_center_open",
+                        "zone_roles": ["open_space", "drawer_stack"],
+                        "dominant_structure": "wall_mounted_storage",
+                    },
+                },
+                "block_candidates": [
+                    {"block_key": "custom_storage.tv_wall.floating_drawer"},
+                ],
+            },
+        }
+        tags = extract_tags_from_case(case)
+        assert "floating_tv_wall_unit" in tags
+        assert "tv_wall" in tags
+        assert "wide_center_open" in tags
+        assert "wall_mounted_storage" in tags
+        assert "custom_storage.tv_wall.floating_drawer" in tags
+
 
 class TestArchetypeDiscovery:
     def _make_cases(self, n: int, ft: str, product_name: str, tags: list) -> list[dict]:

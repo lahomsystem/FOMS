@@ -743,9 +743,26 @@ def approve_and_save_candidate(candidate_id: str):
         # Create DesignerDesignCase
         try:
             from foms.services.designer.design_case_memory import save_design_case
+            from foms.services.designer.product_archetype_learning import extract_tags_from_case
+            from foms.persistence.designer.models import DesignerDrawingExtraction
 
             # Resolve extraction id for provenance
             extraction_id = candidate_row.extraction_id
+            extraction_payload: dict = {}
+            if extraction_id:
+                extraction_row = db_session.get(DesignerDrawingExtraction, extraction_id)
+                if extraction_row is not None:
+                    extraction_payload = dict(extraction_row.parsed_json or {})
+
+            design_understanding = extraction_payload.get("design_understanding") or {}
+            customer_info = extraction_payload.get("customer_info") or {}
+            product_name = customer_info.get("product_name") or extraction_payload.get("product_name")
+            learning_tags = extract_tags_from_case({
+                "furniture_type": furniture_type,
+                "product_name": product_name or "",
+                "options_json": {"design_understanding": design_understanding},
+                "internal_structure_json": design_understanding,
+            })
 
             case_result = save_design_case(
                 project_version_id=version.id,
@@ -753,6 +770,9 @@ def approve_and_save_candidate(candidate_id: str):
                 design_graph=design_dict,
                 project_id=int(project_id),
                 approved_extraction_id=extraction_id,
+                product_name=product_name,
+                internal_structure=design_understanding,
+                tags=learning_tags,
                 source_quality_score=float(candidate_row.confidence or 1.0),
                 approval_user_id=user_id,
             )

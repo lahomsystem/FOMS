@@ -66,13 +66,18 @@ FOMS Brain Designer가 재사용 가능한 설계 블록/규칙/재질 후보를
 1. 모든 치수는 밀리미터(mm) 단위입니다. 단위 표시 없는 숫자도 mm로 처리합니다.
 2. 도면에서 명확히 읽을 수 있는 값만 확정값으로 추출하세요. 추측하지 마세요.
 3. 읽을 수 없거나 도면에 없는 필드는 unresolved_fields에 추가하세요.
-4. furniture_type은 반드시 다음 중 하나여야 합니다:
+4. furniture_type은 3D 생성/검증용 상위 실행 타입입니다. 반드시 다음 중 가장 가까운 하나를 선택하세요:
    wardrobe / shoe_rack / kitchen_base / kitchen_wall / custom_storage
+   단, 새로운 커스텀 디자인 카테고리는 furniture_type을 새 문자열로 만들지 말고
+   design_understanding.learned_design_category에 후보로 기록하세요.
 5. confidence는 0.0(데이터 없음)~1.0(완전히 확신) 범위입니다.
 6. parts_table의 code는 [SR], [EP], [DOOR], [마이다], [옷봉], 보조목 등을 그대로 추출합니다.
 7. 설계 이해는 layout_graph, block_candidates, materials_textures, construction_rules에 기록하세요.
 8. 새 블록/규칙은 "후보"로만 기록하세요. 프로그램에 자동 반영할 확정값처럼 쓰지 마세요.
 9. 확정 치수와 추론한 설계 패턴을 구분하세요. 추론은 confidence와 evidence를 함께 기록하세요.
+10. custom_storage처럼 기존 분류로 부족한 디자인은 learned_design_category.is_new_category_candidate=true로 두고,
+    category_key, label_ko, similarity_tags, layout_signature를 기록하세요.
+11. 비슷한 도면들이 나중에 자동 그루핑될 수 있도록 similarity_tags와 layout_signature는 일관된 짧은 키로 작성하세요.
 
 다음 JSON 구조로만 응답하세요 (JSON 외 텍스트 금지):
 {
@@ -140,6 +145,26 @@ FOMS Brain Designer가 재사용 가능한 설계 블록/규칙/재질 후보를
         "confidence": 0.0
       }
     ],
+    "learned_design_category": {
+      "category_key": null,
+      "label_ko": null,
+      "base_furniture_type": "custom_storage",
+      "is_new_category_candidate": false,
+      "similarity_tags": [],
+      "layout_signature": {
+        "module_pattern": null,
+        "zone_roles": [],
+        "dominant_structure": null,
+        "material_signature": [],
+        "hardware_signature": []
+      },
+      "grouping_hints": {
+        "similar_to_known": [],
+        "distinguishing_features": [],
+        "evidence": []
+      },
+      "confidence": 0.0
+    },
     "materials_textures": [
       {
         "part": "door|body|shelf|hardware|unknown",

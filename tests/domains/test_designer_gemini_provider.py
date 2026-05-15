@@ -134,6 +134,9 @@ class TestGeminiProviderInterface:
         assert "design_understanding" in gp._EXTRACTION_PROMPT
         assert "layout_graph" in gp._EXTRACTION_PROMPT
         assert "block_candidates" in gp._EXTRACTION_PROMPT
+        assert "learned_design_category" in gp._EXTRACTION_PROMPT
+        assert "similarity_tags" in gp._EXTRACTION_PROMPT
+        assert "layout_signature" in gp._EXTRACTION_PROMPT
         assert "materials_textures" in gp._EXTRACTION_PROMPT
         assert "construction_rules" in gp._EXTRACTION_PROMPT
 
