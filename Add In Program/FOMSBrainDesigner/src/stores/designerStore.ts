@@ -307,29 +307,30 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
       // B4: Prefer schema v2 design_graph over factory_params quick-preview path
       if (design_graph && typeof design_graph === 'object') {
         const components = (design_graph.components ?? []) as unknown[]
-        if (!Array.isArray(components) || components.length === 0) {
-          set({ candidateLoadError: '3D 미리보기 불가: 컴포넌트가 없습니다. (zero components)' })
+        if (Array.isArray(components) && components.length > 0) {
+          const graphAsDesign = design_graph as unknown as DesignGraph
+          commandHistory.push(get().design)
+          const { graph: recalculated } = recalculateGraph(graphAsDesign)
+          const constraintResult = toStoreConstraintResult(validateDesignGraph(recalculated))
+          set({
+            design: recalculated,
+            isDirty: true,
+            constraintResult,
+            currentFurnitureType: ft,
+            selectedComponentId: null,
+            candidateLoadError: null,
+          })
           return
         }
-        const graphAsDesign = design_graph as unknown as DesignGraph
-        commandHistory.push(get().design)
-        const { graph: recalculated } = recalculateGraph(graphAsDesign)
-        const constraintResult = toStoreConstraintResult(validateDesignGraph(recalculated))
-        set({
-          design: recalculated,
-          isDirty: true,
-          constraintResult,
-          currentFurnitureType: ft,
-          selectedComponentId: null,
-          candidateLoadError: null,
-        })
-        return
+        // design_graph exists but has zero components — log and fall through to factory_params
+        console.warn('[loadCandidateGraph] design_graph has zero components, falling back to factory_params')
       }
 
       // Fallback: factory_params quick-preview (built-in assembly)
+      // Use actual extraction dimensions for any furniture type (not just wardrobe)
       const p = (factory_params ?? {}) as Record<string, number>
       let newDesign: DesignGraph
-      if (ft === 'wardrobe' && (p.width || p.height || p.depth)) {
+      if (p.width || p.height || p.depth) {
         const w = p.width || 2400
         const h = p.height || 2200
         const d = p.depth || 620
