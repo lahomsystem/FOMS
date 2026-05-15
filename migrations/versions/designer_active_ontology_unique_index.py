@@ -3,7 +3,7 @@
 Ensures at most one row has status='active' in designer_ontology_versions.
 This is a DB-level enforcement of the active ontology invariant.
 
-Revision ID: designer_active_ontology_unique_index
+Revision ID: designer_active_ontology_uq
 Revises: designer_design_case_memory
 """
 
@@ -12,7 +12,7 @@ from __future__ import annotations
 from alembic import op
 import sqlalchemy as sa
 
-revision = "designer_active_ontology_unique_index"
+revision = "designer_active_ontology_uq"
 down_revision = "designer_design_case_memory"
 branch_labels = None
 depends_on = None
