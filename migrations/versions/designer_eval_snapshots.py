@@ -4,7 +4,7 @@ Stores monthly self-evaluation snapshots in DB so trend analysis
 is possible across months.
 
 Revision ID: designer_eval_snapshots
-Revises: designer_active_ontology_unique_index
+Revises: designer_active_ontology_uq
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "designer_eval_snapshots"
-down_revision = "designer_active_ontology_unique_index"
+down_revision = "designer_active_ontology_uq"
 branch_labels = None
 depends_on = None
 
