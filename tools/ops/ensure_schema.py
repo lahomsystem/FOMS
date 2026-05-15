@@ -41,12 +41,12 @@ cur.execute("SELECT version_num FROM alembic_version")
 versions = [r[0] for r in cur.fetchall()]
 print(f"[SCHEMA] alembic_version: {versions}")
 
-if "designer_wdplanner_v2_remediation" not in versions:
+if "designer_wdplanner_v2_fix" not in versions:
     cur.execute(
-        "UPDATE alembic_version SET version_num = 'designer_wdplanner_v2_remediation' "
+        "UPDATE alembic_version SET version_num = 'designer_wdplanner_v2_fix' "
         "WHERE version_num = 'designer_eval_snapshots'"
     )
-    print("[SCHEMA] alembic_version -> designer_wdplanner_v2_remediation 갱신")
+    print("[SCHEMA] alembic_version -> designer_wdplanner_v2_fix 갱신")
 
 conn.commit()
 conn.close()
