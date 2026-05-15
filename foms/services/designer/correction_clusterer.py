@@ -18,6 +18,17 @@ logger = logging.getLogger(__name__)
 
 MIN_CLUSTER_SIZE = 3  # minimum independent corrections to form a candidate
 
+# Source/hint values that must never seed a rule candidate.
+# These are generic upload/test markers, not independent correction evidence.
+_BLOCKED_HINT_SOURCES = frozenset({
+    "learning_upload",
+    "raw_learning_sample",
+    "learning_sample_upload",
+    "qa_test",
+    "qa_seed",
+    "generic",
+})
+
 
 # ──────────────────────────────────────────────────────────
 # Clustering logic
@@ -37,7 +48,9 @@ def cluster_corrections(
         List of cluster dicts, each with:
           pattern_key, correction_ids, sample_deltas, count, evidence_strength
     """
-    # Group by candidate_rule_hint or source field
+    # Group by candidate_rule_hint or source field.
+    # Skip corrections whose pattern key resolves to a blocked generic source —
+    # these are raw uploads or test records, not independent correction evidence.
     groups: dict[str, list[dict]] = {}
     for corr in corrections:
         hint = (
@@ -45,6 +58,9 @@ def cluster_corrections(
             or corr.get("source")
             or "generic"
         )
+        if hint in _BLOCKED_HINT_SOURCES:
+            logger.debug("[CLUSTERER] skip blocked hint source=%r", hint)
+            continue
         groups.setdefault(hint, []).append(corr)
 
     clusters = []

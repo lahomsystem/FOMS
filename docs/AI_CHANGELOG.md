@@ -4,6 +4,7 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-05-15 | 세션 자동 기록 | _amend_ai_changelog.txt, _commit_msg_skills_cleanup.txt, coding_research_center.py 외 2개 | 28cc592b |
 | 2026-05-15 | 레거시 스킬 정리 | `.agents/skills/` 중복 디렉터리·루트 `.cursor/skills/` 제거, 에이전트·하네스 번들 참조 재정렬, `gstack/hosts/cursor.ts` 로컬 경로 정합 | 동일 레포 브랜치 상단 한글 커밋(주제 chore(skills)) |
 | 2026-05-15 | 세션 자동 기록 | test_designer_gemini_provider.py, test_designer_model_router.py, drawing_template_classifier.py 외 2개 | 52a314d3 |
 | 2026-05-15 | 세션 자동 기록 | 04d1160e-85a0-43a3-8a47-96f6e1c038a3.txt, 185d3d32-7387-4e24-a433-0111860ac105.txt, 59da07a0-80a4-41ce-9766-947f4acfa64c.txt 외 2개 | 52a314d3 |

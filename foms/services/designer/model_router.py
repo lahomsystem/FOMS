@@ -12,9 +12,10 @@ Architecture:
 - Provider logs store redacted payloads only.
 
 Provider selection:
-  gemini-2.5-flash    — default (cost-efficient, good accuracy)
-  gemini-2.5-pro      — complex multi-page / low confidence cases
-  fake                — tests only
+  gemini-3.1-pro-preview — default via DESIGNER_GEMINI_MODEL (advanced multimodal)
+  gemini-3.1-pro-preview — complex multi-page (same tier; avoids older Pro downgrade)
+  Other IDs             — DESIGNER_GEMINI_MODEL override (e.g. flash for cost)
+  fake                  — tests only
 
 Cost tracking:
   Every provider call records latency_ms + cost_usd in _metrics.
@@ -39,7 +40,7 @@ class ModelRouteResult:
     """Result of model routing decision."""
 
     provider: str       # "gemini" | "fake"
-    model_name: str     # e.g. "gemini-2.5-flash"
+    model_name: str     # e.g. "gemini-3.1-pro-preview"
     template_key: str
     reasoning: str
     estimated_cost_usd: float = 0.0
@@ -61,6 +62,8 @@ class ModelRouteResult:
 _MODEL_COST_PER_1K: dict[str, float] = {
     "gemini-2.5-flash": 0.000075,
     "gemini-2.5-pro": 0.00125,
+    # Estimate aligned with Pro-tier pricing until a dedicated row is published.
+    "gemini-3.1-pro-preview": 0.00125,
     "fake": 0.0,
 }
 
@@ -113,23 +116,21 @@ def route(
             "Set GEMINI_API_KEY or use DESIGNER_FAKE_VISION=1 for tests."
         )
 
-    env_model = os.environ.get("DESIGNER_GEMINI_MODEL", "gemini-2.5-flash")
+    env_model = os.environ.get("DESIGNER_GEMINI_MODEL", "gemini-3.1-pro-preview")
 
     if force_model:
         model_name = force_model
         reasoning = f"force_model override: {force_model}"
     elif page_count > 2 or template_key == "multi_page_detail":
-        # Complex multi-page: use pro model for better accuracy
-        model_name = "gemini-2.5-pro"
-        reasoning = f"multi-page (page_count={page_count}) -> pro model"
+        # Complex multi-page: use Gemini 3.1 Pro (same as default; do not downgrade to 2.5 Pro)
+        model_name = "gemini-3.1-pro-preview"
+        reasoning = f"multi-page (page_count={page_count}) -> gemini-3.1-pro-preview"
     elif template_key == "unknown":
-        # Unknown template: use flash but note lower expected accuracy
         model_name = env_model
-        reasoning = "unknown template -> flash (lower accuracy expected)"
+        reasoning = "unknown template -> DESIGNER_GEMINI_MODEL default (lower accuracy expected)"
     else:
-        # Known template: flash is sufficient
         model_name = env_model
-        reasoning = f"known template '{template_key}' -> flash"
+        reasoning = f"known template '{template_key}' -> DESIGNER_GEMINI_MODEL default"
 
     cost = _MODEL_COST_PER_1K.get(model_name, 0.0) * _TYPICAL_IMAGE_TOKENS / 1000 * page_count
 
@@ -178,22 +179,9 @@ def route_and_extract(
         classification = classify_from_metadata(filename, page_count)
 
     # Step 2: Route
-    try:
-        route_result = route(classification.template_key, page_count)
-    except RuntimeError as exc:
-        # Fall back to fake mode if key missing
-        logger.warning("[ROUTER] routing failed: %s, using fake", exc)
-        from foms.services.designer.vision_extractor import extract_candidate
-        from foms.services.designer.vision_types import VisionInput
-        vi = VisionInput(image_url=filename, source="manual_upload")
-        candidate = extract_candidate(vi)
-        return {
-            **candidate.to_dict(),
-            "_routing": {
-                "classification": classification.to_dict(),
-                "route": {"provider": "fake", "model_name": "fallback", "error": str(exc)},
-            }
-        }
+    # RuntimeError from route() (missing GEMINI_API_KEY) propagates to caller.
+    # No silent fallback to fake provider in this function.
+    route_result = route(classification.template_key, page_count)
 
     # Step 3: Extract
     if route_result.provider == "fake" or image_bytes is None:

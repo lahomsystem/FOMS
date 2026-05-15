@@ -1,57 +1,16 @@
 # Edit Log
 
-> 이 파일은 Cursor Hooks에 의해 자동 관리됩니다.
-> 최근 50개 편집 기록만 유지합니다.
+> Claude Code Hook(`PostToolUse:Edit|Write`)가 자동 기록합니다.
 
-## 최근 파일 편집
-
-- `_commit_msg_skills_cleanup.txt` <- 1 edit(s), ~546 chars (2026-05-15 09:56:42)
-- `docs/AI_CHANGELOG.md` <- 1 edit(s), ~176 chars (2026-05-15 09:56:38)
-- `docs/AI_CHANGELOG.md` <- 1 edit(s), ~0 chars (2026-05-15 09:56:09)
-- `docs/AI_STATUS.md` <- 1 edit(s), ~279 chars (2026-05-15 09:56:01)
-- `docs/AI_CHANGELOG.md` <- 1 edit(s), ~164 chars (2026-05-15 09:56:00)
-- `docs/plans/2026-04-16-repo-surface-cleanup-execution-plan.md` <- 1 edit(s), ~210 chars (2026-05-15 09:55:59)
-- `docs/context/analysis/2026-04-16-repo-surface-cleanup-triage.md` <- 1 edit(s), ~260 chars (2026-05-15 09:55:45)
-- `docs/context/analysis/2026-04-16-repo-surface-cleanup-triage.md` <- 1 edit(s), ~126 chars (2026-05-15 09:55:36)
-- `docs/plans/2026-04-05-cursor-claude-codex-harness-engineering-master-plan.md` <- 1 edit(s), ~172 chars (2026-05-15 09:55:35)
-- `docs/plans/2026-04-16-repo-surface-cleanup-execution-plan.md` <- 1 edit(s), ~223 chars (2026-05-15 09:55:35)
-- `docs/plans/2026-04-05-cursor-claude-codex-harness-engineering-master-plan.md` <- 1 edit(s), ~83 chars (2026-05-15 09:55:34)
-- `docs/plans/2026-04-05-cursor-claude-codex-harness-engineering-master-plan.md` <- 1 edit(s), ~131 chars (2026-05-15 09:55:34)
-- `docs/harness/runtime/EDIT_LOG.md` <- 1 edit(s), ~126 chars (2026-05-15 09:55:25)
-- `docs/harness/bundles/HARNESS_BUNDLE_CLAUDE_HARNESS.md` <- 1 edit(s), ~172 chars (2026-05-15 09:55:19)
-- `docs/harness/bundles/HARNESS_BUNDLE_CLAUDE_HARNESS.md` <- 1 edit(s), ~83 chars (2026-05-15 09:55:18)
-- `docs/harness/bundles/HARNESS_BUNDLE_CODEX_HARNESS.md` <- 1 edit(s), ~172 chars (2026-05-15 09:55:18)
-- `docs/harness/bundles/HARNESS_BUNDLE_CLAUDE_HARNESS.md` <- 1 edit(s), ~131 chars (2026-05-15 09:55:17)
-- `docs/harness/bundles/HARNESS_BUNDLE_CODEX_HARNESS.md` <- 1 edit(s), ~83 chars (2026-05-15 09:55:17)
-- `docs/harness/bundles/HARNESS_BUNDLE_CODEX_HARNESS.md` <- 1 edit(s), ~131 chars (2026-05-15 09:55:16)
-- `docs/harness/bundles/HARNESS_BUNDLE_CURSOR_HARNESS.md` <- 1 edit(s), ~196 chars (2026-05-15 09:55:16)
-- `docs/harness/bundles/HARNESS_BUNDLE_CURSOR_HARNESS.md` <- 1 edit(s), ~199 chars (2026-05-15 09:55:12)
-- `docs/harness/bundles/HARNESS_BUNDLE_CURSOR_HARNESS.md` <- 1 edit(s), ~83 chars (2026-05-15 09:55:05)
-- `docs/harness/bundles/HARNESS_BUNDLE_CURSOR_HARNESS.md` <- 1 edit(s), ~131 chars (2026-05-15 09:55:04)
-- `tools/research_center/coding_research_center.py` <- 1 edit(s), ~226 chars (2026-05-15 09:55:04)
-- `.cursor/agents/grand-develop-master.md` <- 1 edit(s), ~260 chars (2026-05-15 09:54:53)
-- `.cursor/agents/grand-develop-master.md` <- 1 edit(s), ~260 chars (2026-05-15 09:54:52)
-- `.cursor/agents/code-reviewer.md` <- 1 edit(s), ~131 chars (2026-05-15 09:54:51)
-- `.cursor/agents/database-specialist.md` <- 1 edit(s), ~108 chars (2026-05-15 09:54:50)
-- `.cursor/agents/python-backend.md` <- 1 edit(s), ~143 chars (2026-05-15 09:54:49)
-- `.agents/skills/gstack/hosts/cursor.ts` <- 1 edit(s), ~67 chars (2026-05-15 09:54:49)
-- `.cursor/agents/frontend-ui.md` <- 1 edit(s), ~265 chars (2026-05-15 09:54:49)
-- `.agents/skills/gstack/hosts/cursor.ts` <- 1 edit(s), ~42 chars (2026-05-15 09:54:48)
-- `docs/plans/2026-05-14-foms-brain-production-grade-run-record.md` <- 1 edit(s), ~73 chars (2026-05-15 09:13:18)
-- `docs/plans/2026-05-14-foms-brain-production-grade-run-record.md` <- 1 edit(s), ~58 chars (2026-05-15 09:13:17)
-- `docs/plans/2026-05-14-foms-brain-production-grade-run-record.md` <- 1 edit(s), ~76 chars (2026-05-15 09:13:17)
-- `tests/domains/test_designer_gemini_provider.py` <- 2 edit(s), ~136 chars (2026-05-15 09:13:16)
-- `tests/domains/test_designer_model_router.py` <- 2 edit(s), ~144 chars (2026-05-15 09:13:16)
-- `foms/services/designer/drawing_template_classifier.py` <- 1 edit(s), ~72 chars (2026-05-15 09:13:15)
-- `foms/api/designer/drawings.py` <- 1 edit(s), ~90 chars (2026-05-15 09:13:15)
-- `foms/services/designer/drawing_template_classifier.py` <- 1 edit(s), ~84 chars (2026-05-15 09:13:14)
-- `foms/services/designer/model_router.py` <- 6 edit(s), ~492 chars (2026-05-15 09:13:12)
-- `foms/services/designer/model_router.py` <- 1 edit(s), ~119 chars (2026-05-15 09:13:11)
-- `foms/services/designer/model_router.py` <- 1 edit(s), ~55 chars (2026-05-15 09:13:10)
-- `foms/services/designer/model_router.py` <- 1 edit(s), ~284 chars (2026-05-15 09:13:09)
-- `foms/services/designer/gemini_provider.py` <- 1 edit(s), ~243 chars (2026-05-15 09:13:09)
-- `foms/services/designer/gemini_provider.py` <- 1 edit(s), ~80 chars (2026-05-15 09:13:08)
-- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/agent-tools/04d1160e-85a0-43a3-8a47-96f6e1c038a3.txt` <- 1 edit(s), ~23339 chars (2026-05-15 09:05:57)
-- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/agent-tools/185d3d32-7387-4e24-a433-0111860ac105.txt` <- 1 edit(s), ~55898 chars (2026-05-15 09:05:57)
-- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/agent-tools/59da07a0-80a4-41ce-9766-947f4acfa64c.txt` <- 1 edit(s), ~23339 chars (2026-05-15 09:05:35)
-- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-aa931749-3293-4d1f-bddd-919900ef7bf2.png` <- 1 edit(s), ~0 chars (2026-05-15 09:03:09)
+| Time | File | Tool |
+|------|------|------|
+| 2026-05-15 10:52:02 | `migrations/versions/designer_wdplanner_v2_remediation.py` | Write |
+| 2026-05-15 10:52:12 | `foms/persistence/designer/models.py` | Edit |
+| 2026-05-15 10:53:26 | `foms/services/designer/drawing_intake_pipeline.py` | Write |
+| 2026-05-15 10:55:08 | `foms/api/designer/drawings.py` | Write |
+| 2026-05-15 10:55:27 | `foms/services/designer/model_router.py` | Edit |
+| 2026-05-15 11:06:08 | `tests/domains/test_designer_intake_pipeline.py` | Write |
+| 2026-05-15 11:12:07 | `foms/services/designer/drawing_intake_pipeline.py` | Edit |
+| 2026-05-15 11:12:17 | `tests/domains/test_designer_intake_pipeline.py` | Edit |
+| 2026-05-15 11:18:26 | `foms/services/designer/drawing_intake_pipeline.py` | Edit |
+| 2026-05-15 11:18:32 | `foms/services/designer/correction_clusterer.py` | Edit |

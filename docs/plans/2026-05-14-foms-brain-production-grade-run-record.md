@@ -10,7 +10,7 @@
 | Batch | 커밋 | 완료 내용 |
 |---|---|---|
 | PG-B0 | 1d85a017 | Reality Reset + Product Contract Freeze |
-| PG-B0A | 98450b3e | Gemini Provider (gemini-2.5-flash) + Scorecard |
+| PG-B0A | 98450b3e | Gemini Provider (gemini-3.1-pro-preview) + Scorecard |
 | PG-B2 | a3555385 | Drawing Corpus 17장 + Fixture Harness |
 | PG-B2.5 | fb66ecfe | /wdplanner-v2 도면 등록 UI + Drawing API |
 | PG-B3 | 4e7495e8 | Drawing Intake DB Models |
@@ -64,7 +64,7 @@ npm run build (Add In Program/FOMSBrainDesigner)
 
 | Gate | 상태 |
 |---|---|
-| gemini_provider_implemented | ✅ gemini-2.5-flash |
+| gemini_provider_implemented | ✅ gemini-3.1-pro-preview |
 | extraction_scorecard_implemented | ✅ W/D/H ±5mm, parts recall |
 | pii_redactor_implemented | ✅ CUSTOMER_001/PHONE_001/ADDRESS_001 |
 | drawing_artifact_db_model | ✅ 4개 테이블 + 인덱스 |
@@ -120,6 +120,6 @@ npm run build (Add In Program/FOMSBrainDesigner)
 | 변수명 | 설명 |
 |---|---|
 | `GEMINI_API_KEY` | Gemini 2.5-flash API 키 (필수) |
-| `DESIGNER_GEMINI_MODEL` | 모델명 override (기본: gemini-2.5-flash) |
+| `DESIGNER_GEMINI_MODEL` | 모델명 override (기본: gemini-3.1-pro-preview) |
 | `DESIGNER_VISION_PROVIDER` | gemini 고정 (설정 불필요) |
 | `DESIGNER_FAKE_VISION` | 1이면 fake 모드 (테스트용) |
