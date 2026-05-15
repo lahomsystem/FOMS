@@ -4,6 +4,7 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-05-15 | 세션 자동 기록 | .git_commit_msg_tmp.txt | 3eba385b |
 | 2026-05-15 | 세션 자동 기록 | _amend_ai_changelog.txt, _commit_msg_skills_cleanup.txt, coding_research_center.py 외 2개 | 28cc592b |
 | 2026-05-15 | 레거시 스킬 정리 | `.agents/skills/` 중복 디렉터리·루트 `.cursor/skills/` 제거, 에이전트·하네스 번들 참조 재정렬, `gstack/hosts/cursor.ts` 로컬 경로 정합 | 동일 레포 브랜치 상단 한글 커밋(주제 chore(skills)) |
 | 2026-05-15 | 세션 자동 기록 | test_designer_gemini_provider.py, test_designer_model_router.py, drawing_template_classifier.py 외 2개 | 52a314d3 |
@@ -23,4 +24,3 @@
 | 2026-05-14 | 세션 자동 기록 | foms_namespace_surface_tests.py, wdplanner_v2.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-29736be4-da40-4a67-bbb9-a5849d2d27a5.png 외 2개 | 9e13e490 |
 | 2026-05-14 | 세션 자동 기록 | wdplanner_v2.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-29736be4-da40-4a67-bbb9-a5849d2d27a5.png, test_designer_learning_loop_product.py 외 2개 | c830560f |
 | 2026-05-14 | 세션 자동 기록 | test_designer_learning_loop_product.py, test_designer_product_grade_contract.py, rule_replay.py 외 2개 | a5cc6cd4 |
-| 2026-05-14 | 세션 자동 기록 | test_designer_product_grade_contract.py, test_designer_model_router.py, model_router.py 외 2개 | 62cf82e5 |
