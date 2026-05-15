@@ -162,6 +162,7 @@ def classify_with_gemini(
     filename: str,
     image_bytes: bytes | None = None,
     page_count: int = 1,
+    mime_type: str = "image/jpeg",
 ) -> TemplateClassificationResult:
     """Use Gemini to classify the drawing template.
 
@@ -178,10 +179,11 @@ def classify_with_gemini(
         return fast_result
 
     try:
-        from foms.services.designer.gemini_provider import GEMINI_MODEL, _get_client
+        from foms.services.designer.gemini_provider import GEMINI_MODEL, _get_client, _get_timeout_ms
         from google.genai import types
 
         client = _get_client()
+        timeout_ms = _get_timeout_ms()
         prompt = (
             "도면 이미지의 양식을 분류하세요. "
             "반드시 다음 중 하나만 JSON으로 답하세요:\n"
@@ -189,15 +191,21 @@ def classify_with_gemini(
             '"confidence": 0.0-1.0, "reason": "..."}'
         )
 
+        logger.info(
+            "[CLASSIFY] Gemini classification start file=%s mime=%s bytes=%d timeout_ms=%d",
+            filename, mime_type, len(image_bytes), timeout_ms,
+        )
         response = client.models.generate_content(
             model=os.environ.get("DESIGNER_GEMINI_MODEL", GEMINI_MODEL),
             contents=[
-                types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg"),
+                types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
                 prompt,
             ],
             config=types.GenerateContentConfig(
                 temperature=0.0,
                 response_mime_type="application/json",
+                max_output_tokens=256,
+                http_options=types.HttpOptions(timeout=timeout_ms),
             ),
         )
 
@@ -207,7 +215,7 @@ def classify_with_gemini(
         if template_key not in TEMPLATE_KEYS:
             template_key = "unknown"
 
-        return TemplateClassificationResult(
+        result = TemplateClassificationResult(
             template_key=template_key,
             confidence=float(data.get("confidence", 0.5)),
             method="gemini",
@@ -215,6 +223,11 @@ def classify_with_gemini(
             is_multi_page=page_count > 1,
             hints={"reason": data.get("reason", "")},
         )
+        logger.info(
+            "[CLASSIFY] Gemini classification ok file=%s template=%s confidence=%.2f",
+            filename, result.template_key, result.confidence,
+        )
+        return result
 
     except Exception as exc:
         logger.warning("[CLASSIFY] Gemini classification failed: %s, using metadata", exc)

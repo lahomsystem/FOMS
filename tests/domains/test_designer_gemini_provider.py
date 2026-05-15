@@ -52,6 +52,28 @@ class TestGeminiProviderInterface:
             if prev is not None:
                 os.environ["GEMINI_API_KEY"] = prev
 
+    def test_gemini_timeout_default_and_env_override(self, monkeypatch):
+        """Gemini provider uses an explicit bounded SDK timeout."""
+        import foms.services.designer.gemini_provider as gp
+
+        monkeypatch.delenv("DESIGNER_GEMINI_TIMEOUT_SECONDS", raising=False)
+        assert gp._get_timeout_ms() == 90000
+
+        monkeypatch.setenv("DESIGNER_GEMINI_TIMEOUT_SECONDS", "120")
+        assert gp._get_timeout_ms() == 120000
+
+    def test_gemini_timeout_env_validation(self, monkeypatch):
+        """Invalid timeout env values must fail loudly, not leave requests unbounded."""
+        import foms.services.designer.gemini_provider as gp
+
+        monkeypatch.setenv("DESIGNER_GEMINI_TIMEOUT_SECONDS", "abc")
+        with pytest.raises(gp.GeminiProviderError):
+            gp._get_timeout_ms()
+
+        monkeypatch.setenv("DESIGNER_GEMINI_TIMEOUT_SECONDS", "5")
+        with pytest.raises(gp.GeminiProviderError):
+            gp._get_timeout_ms()
+
     def test_gemini_cost_estimation(self):
         """estimate_cost_usd returns reasonable USD cost for typical token counts."""
         import foms.services.designer.gemini_provider as gp

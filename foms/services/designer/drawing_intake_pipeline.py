@@ -198,6 +198,7 @@ def run_intake_pipeline(
       RuntimeError: If DB persistence fails.
     """
     import os
+    import time
     from foms.services.designer.gemini_provider import GeminiAPIKeyMissing, GeminiProviderError
 
     # Pre-check: API key required before any DB work (no silent fallback)
@@ -225,6 +226,12 @@ def run_intake_pipeline(
 
     suffix = filename.rsplit(".", 1)[-1].lower() if "." in filename else "jpg"
     extra_blocking: list[str] = []
+    pipeline_t0 = time.monotonic()
+
+    logger.info(
+        "[PIPELINE] intake start file=%s mime=%s bytes=%d user_id=%s project_id=%s",
+        filename, mime_type, len(image_bytes), user_id, project_id,
+    )
 
     # ── Step 1: Page count ───────────────────────────────
     page_count = 1
@@ -285,7 +292,12 @@ def run_intake_pipeline(
         from foms.services.designer.drawing_template_classifier import classify_with_gemini
         import os
         if os.environ.get("GEMINI_API_KEY"):
-            classification = classify_with_gemini(filename, image_bytes, page_count)
+            classification = classify_with_gemini(
+                filename,
+                image_bytes,
+                page_count,
+                mime_type=mime_type,
+            )
         else:
             classification = classify_from_metadata(filename, page_count)
     except Exception as exc:
@@ -294,6 +306,10 @@ def run_intake_pipeline(
 
     page.template_key = classification.template_key
     db_session.flush()
+    logger.info(
+        "[PIPELINE] classification done file=%s template=%s method=%s confidence=%.2f",
+        filename, classification.template_key, classification.method, classification.confidence,
+    )
 
     # ── Step 5: Model routing ────────────────────────────
     # Raises RuntimeError if GEMINI_API_KEY missing (no fake fallback in pipeline)
@@ -301,10 +317,18 @@ def run_intake_pipeline(
         template_key=classification.template_key,
         page_count=page_count,
     )
+    logger.info(
+        "[PIPELINE] routing done file=%s provider=%s model=%s template=%s",
+        filename, route_result.provider, route_result.model_name, route_result.template_key,
+    )
 
     # ── Step 6: Gemini extraction ────────────────────────
     raw = extract_from_image_bytes(image_bytes, mime_type=mime_type, model=route_result.model_name)
     metrics = raw.pop("_metrics", {})
+    logger.info(
+        "[PIPELINE] extraction done file=%s model=%s latency_ms=%s",
+        filename, metrics.get("model") or route_result.model_name, metrics.get("latency_ms"),
+    )
 
     # ── Step 7: Text PII redaction ───────────────────────
     pii_ctx = RedactionContext(artifact_id=artifact.id, project_id=project_id)
@@ -353,6 +377,10 @@ def run_intake_pipeline(
     )
     db_session.add(extraction_row)
     db_session.flush()
+    logger.info(
+        "[PIPELINE] extraction persisted file=%s artifact_id=%d extraction_id=%d",
+        filename, artifact.id, extraction_row.id,
+    )
 
     # ── Step 10: Build MappedCandidate ───────────────────
     candidate = build_candidate(extraction_dict, source_extraction_id=extraction_row.id)
@@ -383,12 +411,13 @@ def run_intake_pipeline(
     db_session.commit()
 
     logger.info(
-        "[PIPELINE] complete artifact=%d extraction=%d candidate=%d "
-        "type=%s unresolved=%d can_preview_3d=%s cost=$%.5f",
-        artifact.id, extraction_row.id, candidate_row.id,
+        "[PIPELINE] complete file=%s artifact=%d extraction=%d candidate=%d "
+        "type=%s unresolved=%d can_preview_3d=%s cost=$%.5f total_ms=%d",
+        filename, artifact.id, extraction_row.id, candidate_row.id,
         candidate.furniture_type, len(candidate.unresolved_fields),
         ui_state["can_preview_3d"],
         metrics.get("cost_usd", 0.0),
+        int((time.monotonic() - pipeline_t0) * 1000),
     )
 
     return DrawingPipelineResult(

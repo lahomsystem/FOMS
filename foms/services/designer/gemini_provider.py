@@ -33,6 +33,7 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 # Default model: gemini-3.1-pro-preview (Gemini 3.1 Pro Preview — billing required)
 # Override with DESIGNER_GEMINI_MODEL env var (e.g. gemini-2.5-flash for cost)
 GEMINI_MODEL = os.environ.get("DESIGNER_GEMINI_MODEL", "gemini-3.1-pro-preview")
+GEMINI_TIMEOUT_SECONDS = 90
 
 # Valid furniture types (must match VALID_FURNITURE_TYPES in vision_types.py)
 _VALID_FURNITURE_TYPES = frozenset(
@@ -125,12 +126,45 @@ def _get_client():
         )
     try:
         from google import genai
-        return genai.Client(api_key=key)
+        from google.genai import types
+        return genai.Client(
+            api_key=key,
+            http_options=types.HttpOptions(timeout=_get_timeout_ms()),
+        )
     except ImportError as exc:
         raise GeminiProviderError(
             "google-genai package not installed. "
             "Run: pip install google-genai"
         ) from exc
+
+
+def _get_timeout_seconds() -> int:
+    raw = os.environ.get("DESIGNER_GEMINI_TIMEOUT_SECONDS", str(GEMINI_TIMEOUT_SECONDS))
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise GeminiProviderError(
+            "DESIGNER_GEMINI_TIMEOUT_SECONDS must be an integer number of seconds."
+        ) from exc
+    if value < 10 or value > 600:
+        raise GeminiProviderError(
+            "DESIGNER_GEMINI_TIMEOUT_SECONDS must be between 10 and 600 seconds."
+        )
+    return value
+
+
+def _get_timeout_ms() -> int:
+    return _get_timeout_seconds() * 1000
+
+
+def _format_gemini_call_error(exc: Exception, elapsed_ms: int) -> str:
+    timeout_ms = _get_timeout_ms()
+    if elapsed_ms >= timeout_ms - 1000:
+        return (
+            f"Gemini API call timed out after {_get_timeout_seconds()}s "
+            f"(configured by DESIGNER_GEMINI_TIMEOUT_SECONDS)."
+        )
+    return f"Gemini API call failed after {elapsed_ms}ms: {exc}"
 
 
 # ──────────────────────────────────────────────────────────
@@ -168,6 +202,11 @@ def extract_from_image_bytes(
 
     t0 = time.monotonic()
     try:
+        timeout_ms = _get_timeout_ms()
+        logger.info(
+            "[GEMINI] extraction start model=%s mime=%s bytes=%d timeout_ms=%d",
+            model_name, mime_type, len(image_bytes), timeout_ms,
+        )
         response = client.models.generate_content(
             model=model_name,
             contents=[
@@ -177,10 +216,12 @@ def extract_from_image_bytes(
             config=types.GenerateContentConfig(
                 temperature=0.0,  # deterministic extraction
                 response_mime_type="application/json",
+                http_options=types.HttpOptions(timeout=timeout_ms),
             ),
         )
     except Exception as exc:
-        raise GeminiProviderError(f"Gemini API call failed: {exc}") from exc
+        elapsed_ms = int((time.monotonic() - t0) * 1000)
+        raise GeminiProviderError(_format_gemini_call_error(exc, elapsed_ms)) from exc
 
     latency_ms = int((time.monotonic() - t0) * 1000)
 
@@ -247,12 +288,14 @@ def check_connectivity(model: str | None = None) -> dict[str, Any]:
     t0 = time.monotonic()
     try:
         from google.genai import types
+        timeout_ms = _get_timeout_ms()
         response = client.models.generate_content(
             model=model_name,
             contents=_CONNECTIVITY_PROMPT,
             config=types.GenerateContentConfig(
                 temperature=0.0,
                 response_mime_type="application/json",
+                http_options=types.HttpOptions(timeout=timeout_ms),
             ),
         )
         latency_ms = int((time.monotonic() - t0) * 1000)
@@ -264,8 +307,9 @@ def check_connectivity(model: str | None = None) -> dict[str, Any]:
         raise
     except Exception as exc:
         latency_ms = int((time.monotonic() - t0) * 1000)
-        logger.error("[GEMINI] connectivity FAILED model=%s error=%s", model_name, exc)
-        return {"ok": False, "model": model_name, "latency_ms": latency_ms, "error": str(exc)}
+        error = _format_gemini_call_error(exc, latency_ms)
+        logger.error("[GEMINI] connectivity FAILED model=%s error=%s", model_name, error)
+        return {"ok": False, "model": model_name, "latency_ms": latency_ms, "error": error}
 
 
 # ──────────────────────────────────────────────────────────
