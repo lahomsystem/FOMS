@@ -55,20 +55,9 @@ class ModelRouteResult:
         }
 
 
-# ──────────────────────────────────────────────────────────
-# Model costs (USD per 1K input tokens)
-# ──────────────────────────────────────────────────────────
-
-_MODEL_COST_PER_1K: dict[str, float] = {
-    "gemini-2.5-flash": 0.000075,
-    "gemini-2.5-pro": 0.00125,
-    # Estimate aligned with Pro-tier pricing until a dedicated row is published.
-    "gemini-3.1-pro-preview": 0.00125,
-    "fake": 0.0,
-}
-
 # Typical input tokens for a drawing page (~2000px image)
 _TYPICAL_IMAGE_TOKENS = 2000
+_TYPICAL_OUTPUT_TOKENS = 500
 
 
 # ──────────────────────────────────────────────────────────
@@ -132,7 +121,13 @@ def route(
         model_name = env_model
         reasoning = f"known template '{template_key}' -> DESIGNER_GEMINI_MODEL default"
 
-    cost = _MODEL_COST_PER_1K.get(model_name, 0.0) * _TYPICAL_IMAGE_TOKENS / 1000 * page_count
+    from foms.services.designer.gemini_provider import estimate_cost_usd
+
+    cost = estimate_cost_usd(
+        input_tokens=_TYPICAL_IMAGE_TOKENS * page_count,
+        output_tokens=_TYPICAL_OUTPUT_TOKENS,
+        model_name=model_name,
+    )
 
     logger.info("[ROUTER] provider=gemini model=%s template=%s pages=%d cost_est=$%.5f",
                 model_name, template_key, page_count, cost)
