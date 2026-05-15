@@ -18,6 +18,12 @@ type ExtractionPayload = {
   filename?: string
   metrics?: { latency_ms?: number; cost_usd?: number; model?: string }
   fixtureId?: string
+  /** B4: schema v2 graph from layout_graph_mapper, if already built by backend intake pipeline. */
+  design_graph_candidate?: Record<string, unknown>
+  /** B4: blocking reasons that prevent approval (empty = can approve). */
+  blocking_reasons?: string[]
+  /** B4: mapping report from layout_graph_mapper. */
+  mapping_report?: Record<string, unknown>
 }
 
 interface DrawingReviewWorkspaceProps {
@@ -66,6 +72,8 @@ export function DrawingReviewWorkspace({ onClose }: DrawingReviewWorkspaceProps)
       detail: {
         furniture_type: ext.furniture_type ?? 'wardrobe',
         factory_params: ext.extracted_params ?? {},
+        // B4: pass schema v2 graph so loadCandidateGraph uses graph-first path
+        design_graph: payload.design_graph_candidate ?? null,
       },
     }))
     onClose?.()
@@ -252,6 +260,26 @@ export function DrawingReviewWorkspace({ onClose }: DrawingReviewWorkspaceProps)
         </div>
 
         {/* Status bar */}
+        {/* B4: Blocking reasons panel — shown when approval is blocked */}
+        {(payload.blocking_reasons ?? []).length > 0 && (
+          <div
+            style={{
+              padding: '8px 12px',
+              background: '#fffbeb',
+              borderTop: '1px solid #fbbf24',
+              fontSize: TYPOGRAPHY.sizeXS,
+              color: '#92400e',
+              flexShrink: 0,
+            }}
+          >
+            <strong>승인 차단 사유:</strong>
+            <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
+              {(payload.blocking_reasons ?? []).map((r) => (
+                <li key={r}>{r}</li>
+              ))}
+            </ul>
+          </div>
+        )}
         {status !== 'idle' && (
           <div
             style={{

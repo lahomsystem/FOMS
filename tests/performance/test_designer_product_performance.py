@@ -166,3 +166,86 @@ class TestRAGPerformance:
             build_rag_context(furniture_type="wardrobe", width_mm=2400)
             times.append(time.monotonic() - t0)
         assert _p95(times) < 200
+
+
+# ──────────────────────────────────────────────────────────
+# PG-B12-06: Layout graph mapper performance (B7)
+# ──────────────────────────────────────────────────────────
+
+class TestLayoutGraphMapperPerformance:
+    """B7: candidate mapping p95 < 2s for single-page fixture."""
+
+    FIXTURE_EXTRACTION = {
+        "furniture_type": "wardrobe",
+        "extracted_params": {
+            "width": 2400,
+            "height": 2200,
+            "depth": 620,
+            "module_widths": [800, 800, 800],
+        },
+        "site_size": {"width_mm": 2400, "height_mm": 2200, "depth_mm": 620},
+        "parts_table": [
+            {"code": "[SR]", "width": 780, "height": 18, "count": 9},
+            {"code": "[EP]", "width": 620, "height": 2200, "count": 4},
+            {"code": "[DOOR]", "width": 798, "height": 2182, "count": 3},
+        ],
+        "design_understanding": {
+            "layout_graph": {
+                "modules": [
+                    {"id": "m1", "type": "vertical_bay", "zone_role": "hanging",
+                     "x_mm": 0, "width_mm": 800, "height_mm": 2200},
+                    {"id": "m2", "type": "vertical_bay", "zone_role": "shelves",
+                     "x_mm": 800, "width_mm": 800, "height_mm": 2200},
+                    {"id": "m3", "type": "vertical_bay", "zone_role": "drawers",
+                     "x_mm": 1600, "width_mm": 800, "height_mm": 2200},
+                ],
+                "panels": [
+                    {"id": "p1", "role": "left_ep", "thickness_mm": 18},
+                    {"id": "p2", "role": "right_ep", "thickness_mm": 18},
+                ],
+            },
+            "learned_design_category": {
+                "category_key": "standard_wardrobe",
+                "layout_signature": {
+                    "module_pattern": "3bay_hanging_shelves_drawers",
+                    "dominant_structure": "floor_standing_wardrobe",
+                    "zone_roles": ["hanging", "shelves", "drawers"],
+                },
+                "similarity_tags": ["3bay", "no_molding"],
+            },
+            "block_candidates": [
+                {"block_key": "wardrobe.hanging_bay.standard"},
+                {"block_key": "wardrobe.shelf_stack.standard"},
+            ],
+        },
+        "confidence": 0.88,
+    }
+
+    def test_mapping_p95_under_2000ms(self):
+        """B7: map_extraction_to_design_graph p95 < 2s for single-page fixture."""
+        from foms.services.designer.layout_graph_mapper import map_extraction_to_design_graph
+        times = []
+        for _ in range(20):
+            t0 = time.monotonic()
+            result = map_extraction_to_design_graph(self.FIXTURE_EXTRACTION)
+            times.append(time.monotonic() - t0)
+        p95 = _p95(times)
+        assert p95 < 2000, f"Mapping p95={p95:.1f}ms exceeds 2000ms"
+
+    def test_mapping_returns_valid_result(self):
+        """B7: mapper returns LayoutMappingResult with design_graph dict."""
+        from foms.services.designer.layout_graph_mapper import map_extraction_to_design_graph
+        result = map_extraction_to_design_graph(self.FIXTURE_EXTRACTION)
+        assert isinstance(result.design_graph, dict)
+        assert result.mapping_report is not None
+        assert isinstance(result.approval_blocking_reasons, list)
+
+    def test_mapping_custom_storage_returns_candidate(self):
+        """B7: custom_storage produces a reviewable generic graph, not an error."""
+        from foms.services.designer.layout_graph_mapper import map_extraction_to_design_graph
+        extraction = dict(self.FIXTURE_EXTRACTION, furniture_type="custom_storage")
+        result = map_extraction_to_design_graph(extraction)
+        # Must not raise; must return a dict (even if sparse)
+        assert isinstance(result.design_graph, dict)
+        # approval_blocking_reasons may be non-empty for unknown type — that's ok
+        assert isinstance(result.approval_blocking_reasons, list)

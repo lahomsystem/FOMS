@@ -230,6 +230,56 @@ def run_archetype_discovery_pipeline(
     return [c.to_dict() for c in candidates]
 
 
+def propose_archetype_candidates(
+    design_case_id: int,
+    min_count: int = MIN_CASES,
+) -> list[dict[str, Any]]:
+    """Propose archetype candidates based on the newly saved design case.
+
+    B5 evidence gate: only runs discovery if MIN_CASES or more similar cases
+    exist. Never auto-promotes — returns dicts for human review only.
+
+    Args:
+        design_case_id: Newly approved DesignerDesignCase.id.
+        min_count: Minimum similar cases to trigger archetype proposal.
+
+    Returns:
+        List of archetype candidate dicts (empty if evidence gate not met).
+    """
+    try:
+        from foms.services.designer.design_case_memory import list_design_cases
+        from foms.persistence.designer.models import DesignerDesignCase
+        from db import db_session
+
+        # Look up the target case to get its furniture_type
+        target = db_session.get(DesignerDesignCase, design_case_id)
+        if target is None:
+            logger.warning("[ARCHETYPE] design_case_id=%d not found", design_case_id)
+            return []
+
+        # Check evidence gate before running discovery
+        cases = list_design_cases(furniture_type=target.furniture_type, limit=200)
+        if len(cases) < min_count:
+            logger.info(
+                "[ARCHETYPE] evidence gate not met: type=%s count=%d min=%d",
+                target.furniture_type, len(cases), min_count,
+            )
+            return []
+
+        candidates = discover_archetypes_from_cases(cases, min_count=min_count)
+        result = [c.to_dict() for c in candidates]
+        if result:
+            logger.info(
+                "[ARCHETYPE] proposed %d candidates for type=%s (evidence=%d)",
+                len(result), target.furniture_type, len(cases),
+            )
+        return result
+
+    except Exception as exc:
+        logger.warning("[ARCHETYPE] propose_archetype_candidates failed (non-fatal): %s", exc)
+        return []
+
+
 def get_archetype_summary() -> dict[str, Any]:
     """Return summary of known and discovered archetypes."""
     discovered = run_archetype_discovery_pipeline()

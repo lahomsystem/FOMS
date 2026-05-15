@@ -132,13 +132,20 @@ interface DesignerState {
   copySelected: () => void
   pasteClipboard: () => void
 
+  /** Last candidate load error message (null = no error). */
+  candidateLoadError: string | null
+  setCandidateLoadError: (msg: string | null) => void
+
   /**
    * Load a candidate from AI extraction into editable 3D view.
-   * Called when user clicks "3D로 로드" after Gemini extraction.
+   * Prefers design_graph (schema v2) over factory_params quick-preview path.
+   * Sets candidateLoadError if the graph has zero components.
    */
   loadCandidateGraph: (candidatePayload: {
     furniture_type: string
     factory_params: Record<string, unknown>
+    /** B4: schema v2 DesignGraph dict from layout_graph_mapper. Takes priority over factory_params. */
+    design_graph?: Record<string, unknown>
   }) => void
 }
 
@@ -171,7 +178,9 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
   showValidationPanel: false,
   showComponentTree: true,
   activeTool: 'select',
+  candidateLoadError: null,
   setActiveTool: (tool) => set({ activeTool: tool }),
+  setCandidateLoadError: (msg) => set({ candidateLoadError: msg }),
 
   setProject: (project) => set({ project, projectId: project.id }),
 
@@ -289,15 +298,37 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
     })
   },
 
-  // ── PG-B9: Load AI Candidate into 3D ────────────────────
+  // ── B4: Load AI Candidate into 3D (graph-first) ─────────
   loadCandidateGraph: (candidatePayload) => {
     try {
-      const { furniture_type, factory_params } = candidatePayload
+      const { furniture_type, factory_params, design_graph } = candidatePayload
       const ft = (furniture_type ?? 'wardrobe') as FurnitureType
-      const p = (factory_params ?? {}) as Record<string, number>
 
+      // B4: Prefer schema v2 design_graph over factory_params quick-preview path
+      if (design_graph && typeof design_graph === 'object') {
+        const components = (design_graph.components ?? []) as unknown[]
+        if (!Array.isArray(components) || components.length === 0) {
+          set({ candidateLoadError: '3D 미리보기 불가: 컴포넌트가 없습니다. (zero components)' })
+          return
+        }
+        const graphAsDesign = design_graph as unknown as DesignGraph
+        commandHistory.push(get().design)
+        const { graph: recalculated } = recalculateGraph(graphAsDesign)
+        const constraintResult = toStoreConstraintResult(validateDesignGraph(recalculated))
+        set({
+          design: recalculated,
+          isDirty: true,
+          constraintResult,
+          currentFurnitureType: ft,
+          selectedComponentId: null,
+          candidateLoadError: null,
+        })
+        return
+      }
+
+      // Fallback: factory_params quick-preview (built-in assembly)
+      const p = (factory_params ?? {}) as Record<string, number>
       let newDesign: DesignGraph
-      // Build wardrobe with extracted params if available, else use factory defaults
       if (ft === 'wardrobe' && (p.width || p.height || p.depth)) {
         const w = p.width || 2400
         const h = p.height || 2200
@@ -320,9 +351,11 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
         constraintResult,
         currentFurnitureType: ft,
         selectedComponentId: null,
+        candidateLoadError: null,
       })
     } catch (err) {
       console.error('[loadCandidateGraph] failed:', err)
+      set({ candidateLoadError: `로드 실패: ${err}` })
     }
   },
 
