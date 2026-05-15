@@ -9,7 +9,7 @@ else
   echo "Migrations complete."
 
   # WDPlanner V2 컬럼 보정 (alembic_version 불일치 복구)
-  python tools/ensure_schema.py
+  python tools/ops/ensure_schema.py
 
   exec gunicorn -k gevent -w 2 --timeout 120 --graceful-timeout 30 --keep-alive 5 --bind "0.0.0.0:${PORT:-8080}" app:app
 fi

@@ -36,7 +36,7 @@ def upgrade() -> None:
         "designer_ontology_versions",
         sa.Column("id", sa.Integer(), primary_key=True, nullable=False),
         sa.Column("version_key", sa.String(100), unique=True, nullable=False),
-        sa.Column("status", sa.Enum("active", "draft", "retired", name="designer_ontology_status"), nullable=False, server_default="draft"),
+        sa.Column("status", sa.Enum("active", "draft", "retired", name="designer_ontology_status", create_type=False), nullable=False, server_default="draft"),
         sa.Column("rules_json", postgresql.JSONB(), nullable=False, server_default="{}"),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
     )
@@ -74,7 +74,7 @@ def upgrade() -> None:
         sa.Column("graph_name", sa.String(100), nullable=False),
         sa.Column("graph_version", sa.String(50), nullable=False, server_default="0.1.0"),
         sa.Column("thread_id", sa.String(200), nullable=False),
-        sa.Column("status", sa.Enum("queued", "running", "interrupt", "succeeded", "failed", "cancelled", name="designer_ai_run_status"), nullable=False, server_default="queued"),
+        sa.Column("status", sa.Enum("queued", "running", "interrupt", "succeeded", "failed", "cancelled", name="designer_ai_run_status", create_type=False), nullable=False, server_default="queued"),
         sa.Column("input_json", postgresql.JSONB(), nullable=False, server_default="{}"),
         sa.Column("state_json", postgresql.JSONB(), nullable=False, server_default="{}"),
         sa.Column("output_json", postgresql.JSONB(), nullable=True),
@@ -105,7 +105,7 @@ def upgrade() -> None:
         sa.Column("source_correction_ids", postgresql.JSONB(), nullable=False, server_default="[]"),
         sa.Column("candidate_json", postgresql.JSONB(), nullable=False, server_default="{}"),
         sa.Column("replay_report_json", postgresql.JSONB(), nullable=True),
-        sa.Column("status", sa.Enum("draft", "approved", "rejected", "promoted", name="designer_rule_candidate_status"), nullable=False, server_default="draft"),
+        sa.Column("status", sa.Enum("draft", "approved", "rejected", "promoted", name="designer_rule_candidate_status", create_type=False), nullable=False, server_default="draft"),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
     )
 
