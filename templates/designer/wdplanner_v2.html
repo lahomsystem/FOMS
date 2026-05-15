@@ -1181,11 +1181,29 @@ async function loadTo3D() {
             // 3. iframe에 candidate 전달 — ack가 toast 표시를 담당하므로 여기서 toast 없음
             const iframe = document.getElementById('designer-iframe');
             if (iframe && iframe.contentWindow) {
+                // factory_params에 추출된 치수를 보장 (ontology_mapper가 비워도 currentExtraction에서 채움)
+                const ep = (currentExtraction && currentExtraction.extracted_params) || {};
+                const baseParams = candidate.factory_params || {};
+                const mergedParams = {
+                    width:  baseParams.width  || ep.width  || null,
+                    height: baseParams.height || ep.height || null,
+                    depth:  baseParams.depth  || ep.depth  || null,
+                    module_count: baseParams.module_count || ep.module_count || null,
+                };
+                // furniture_type 한글→영문 정규화
+                const KO_FT_MAP = {
+                    '수납장': 'custom_storage', '붙박이장': 'wardrobe',
+                    '신발장': 'shoe_rack', '주방하부장': 'kitchen_base',
+                    '주방상부장': 'kitchen_wall', '드레스룸': 'wardrobe',
+                    '거실장': 'custom_storage', 'TV장': 'custom_storage',
+                };
+                const rawFt = candidate.furniture_type || currentExtraction.furniture_type || 'wardrobe';
+                const normalizedFt = KO_FT_MAP[rawFt] || rawFt;
                 iframe.contentWindow.postMessage({
                     type: 'FOMS_LOAD_CANDIDATE',
                     candidate: {
-                        furniture_type: candidate.furniture_type || currentExtraction.furniture_type || 'wardrobe',
-                        factory_params: candidate.factory_params || {},
+                        furniture_type: normalizedFt,
+                        factory_params: mergedParams,
                         // B4: prefer graph from intake pipeline (stored at upload time)
                         design_graph: currentDesignGraphCandidate || candidate.design_graph_candidate || null,
                     },
