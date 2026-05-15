@@ -82,6 +82,30 @@ class LayoutMappingInput:
     learned_design_category: dict[str, Any] = field(default_factory=dict)
     similar_cases: list[dict[str, Any]] = field(default_factory=list)
     ontology_rules: dict[str, Any] = field(default_factory=dict)
+    extracted_params: dict[str, Any] = field(default_factory=dict)
+
+    # Known Korean furniture type names → FOMS canonical English keys
+    _KO_FURNITURE_TYPE_MAP: dict[str, str] = field(default_factory=lambda: {
+        "수납장": "custom_storage",
+        "붙박이장": "wardrobe",
+        "신발장": "shoe_rack",
+        "주방하부장": "kitchen_base",
+        "주방상부장": "kitchen_wall",
+        "드레스룸": "wardrobe",
+        "거실장": "custom_storage",
+        "TV장": "custom_storage",
+    })
+
+    def __post_init__(self) -> None:
+        # Normalize Korean furniture type to English canonical key
+        ko_map = {
+            "수납장": "custom_storage", "붙박이장": "wardrobe",
+            "신발장": "shoe_rack", "주방하부장": "kitchen_base",
+            "주방상부장": "kitchen_wall", "드레스룸": "wardrobe",
+            "거실장": "custom_storage", "TV장": "custom_storage",
+        }
+        if self.furniture_type in ko_map:
+            self.furniture_type = ko_map[self.furniture_type]
 
     @classmethod
     def from_extraction(cls, extraction: dict[str, Any], **kwargs: Any) -> "LayoutMappingInput":
@@ -105,6 +129,7 @@ class LayoutMappingInput:
             block_candidates=du.get("block_candidates") or [],
             parts_table=extraction.get("parts_table") or [],
             learned_design_category=du.get("learned_design_category") or {},
+            extracted_params=ep,
             **kwargs,
         )
 
@@ -556,6 +581,61 @@ def map_layout_to_design_graph(mapping_input: LayoutMappingInput) -> LayoutMappi
             all_unresolved.extend(c_unresolved)
             report.warnings.extend(c_warnings)
 
+    # ── 4b. Fallback: build modules from extracted_params.module_widths ──
+    # Triggers when layout_graph had no zones/modules (common for custom_storage drawings)
+    if not modules:
+        mw_list = [
+            w for w in (mapping_input.extracted_params.get("module_widths") or [])
+            if _parse_dim(w) is not None
+        ]
+        if mw_list and asm_h:
+            report.warnings.append(
+                f"No layout_graph zones/modules — building {len(mw_list)} modules "
+                "from extracted_params.module_widths"
+            )
+            x_offset = 0
+            for i, raw_mw in enumerate(mw_list):
+                mw = _parse_dim(raw_mw) or 0
+                mod_id = _stable_id("module", extraction_id, f"epmod_{i}")
+                module = {
+                    "id": mod_id,
+                    "type": furniture_type,
+                    "name": f"모듈 {i + 1}",
+                    "dimensions": {
+                        "width": mw,
+                        "height": asm_h,
+                        "depth": asm_d or 600,
+                    },
+                    "position": {"x": x_offset, "y": 0, "z": 0},
+                    "component_ids": [],
+                    "door_type": "open",
+                    "source_ep": f"extracted_params.module_widths[{i}]",
+                }
+                modules.append(module)
+                # Frame component for this module
+                comp_id = _stable_id("comp", extraction_id, f"epmod_{i}", "frame")
+                comp = {
+                    "id": comp_id,
+                    "kind": "box",
+                    "role": "generic",
+                    "name": f"모듈 {i + 1} 프레임",
+                    "parent_id": mod_id,
+                    "material_id": None,
+                    "dimensions": {"width": mw, "height": asm_h, "depth": asm_d or 600},
+                    "position": {"x": x_offset, "y": 0, "z": 0},
+                    "edge_banding": {},
+                    "formula_refs": [],
+                    "custom_props": {"source": "extracted_params_module_widths"},
+                }
+                all_components.append(comp)
+                module["component_ids"].append(comp_id)
+                report.mapped_components.append({
+                    "component_id": comp_id,
+                    "source": f"extracted_params.module_widths[{i}]",
+                    "kind": "box",
+                })
+                x_offset += mw
+
     # ── 5. Block candidates fallback: create module if none exists ─
     if not modules and mapping_input.block_candidates:
         report.warnings.append("No modules from zones — creating fallback module from block_candidates")
@@ -573,6 +653,43 @@ def map_layout_to_design_graph(mapping_input: LayoutMappingInput) -> LayoutMappi
             "door_type": "open",
         }
         modules.append(fallback_module)
+
+    # ── 5c. Last-resort fallback: overall dimensions box ─────
+    # When all other sources failed but we have site dimensions, create a single box
+    # so the 3D editor shows something reviewable rather than empty.
+    if not modules and asm_w and asm_h:
+        report.warnings.append(
+            "No structural data found — creating single overview box from site dimensions"
+        )
+        fb_mod_id = _stable_id("module", extraction_id, "dim_fallback")
+        fb_comp_id = _stable_id("comp", extraction_id, "dim_fallback", "box")
+        modules.append({
+            "id": fb_mod_id,
+            "type": furniture_type,
+            "name": "전체 박스 (치수 기반)",
+            "dimensions": {"width": asm_w, "height": asm_h, "depth": asm_d or 600},
+            "position": {"x": 0, "y": 0, "z": 0},
+            "component_ids": [fb_comp_id],
+            "door_type": "open",
+        })
+        all_components.append({
+            "id": fb_comp_id,
+            "kind": "box",
+            "role": "generic",
+            "name": "전체 박스",
+            "parent_id": fb_mod_id,
+            "material_id": None,
+            "dimensions": {"width": asm_w, "height": asm_h, "depth": asm_d or 600},
+            "position": {"x": 0, "y": 0, "z": 0},
+            "edge_banding": {},
+            "formula_refs": [],
+            "custom_props": {"source": "site_dimensions_fallback"},
+        })
+        report.mapped_components.append({
+            "component_id": fb_comp_id,
+            "source": "site_dimensions_fallback",
+            "kind": "box",
+        })
 
     # ── 6. Block candidates as supplementary components ───
     first_module_id = modules[0]["id"] if modules else None
