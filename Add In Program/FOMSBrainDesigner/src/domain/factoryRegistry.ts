@@ -13,6 +13,7 @@ export type FurnitureType =
   | 'shoe_rack'
   | 'kitchen_base'
   | 'kitchen_wall'
+  | 'custom_storage'
 
 export interface FurnitureTypeMeta {
   type: FurnitureType
@@ -53,6 +54,16 @@ export const FURNITURE_TYPE_REGISTRY: FurnitureTypeMeta[] = [
     labelEn: 'Kitchen Wall',
     icon: '🔼',
     createDefault: createDefaultKitchenWall,
+  },
+  {
+    type: 'custom_storage',
+    label: '수납장',
+    labelEn: 'Custom Storage',
+    icon: '📦',
+    createDefault: () => createWardrobeAssembly({
+      width: 2400, height: 2200, depth: 600,
+      moduleCount: 3, doorType: 'sliding',
+    }),
   },
 ]
 
