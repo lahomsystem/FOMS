@@ -109,7 +109,7 @@ class TestModelRouterFake:
                 os.environ["GEMINI_API_KEY"] = prev_key
 
     def test_multi_page_routes_to_pro(self):
-        """Multi-page documents get pro model (higher accuracy)."""
+        """Multi-page documents get Gemini 3.1 Pro Preview (higher accuracy)."""
         prev_key = os.environ.get("GEMINI_API_KEY", "")
         prev_fake = os.environ.get("DESIGNER_FAKE_VISION", "0")
         os.environ["DESIGNER_FAKE_VISION"] = "0"
@@ -119,7 +119,7 @@ class TestModelRouterFake:
             import importlib
             importlib.reload(model_router)
             result = model_router.route("multi_page_detail", page_count=3)
-            assert result.model_name == "gemini-2.5-pro"
+            assert result.model_name == "gemini-3.1-pro-preview"
         finally:
             os.environ["DESIGNER_FAKE_VISION"] = prev_fake
             if prev_key:
