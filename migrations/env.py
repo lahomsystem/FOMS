@@ -7,6 +7,7 @@ load_dotenv()
 
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
+from sqlalchemy import text
 
 from alembic import context
 
@@ -29,6 +30,8 @@ from models import Order, User, AccessLog, SecurityLog
 # Designer AX models must be imported so Alembic sees their tables
 import foms.persistence.designer.models  # noqa: F401
 target_metadata = Base.metadata
+
+_POSTGRES_ALEMBIC_LOCK_ID = 782364901234567890
 
 def _normalize_postgres_url(url: str) -> str:
     """
@@ -98,6 +101,13 @@ def run_migrations_online() -> None:
         )
 
         with context.begin_transaction():
+            if connection.dialect.name == "postgresql":
+                print("[ALEMBIC] Waiting for PostgreSQL migration advisory lock...")
+                connection.execute(
+                    text("SELECT pg_advisory_xact_lock(:lock_id)"),
+                    {"lock_id": _POSTGRES_ALEMBIC_LOCK_ID},
+                )
+                print("[ALEMBIC] PostgreSQL migration advisory lock acquired.")
             context.run_migrations()
 
 
