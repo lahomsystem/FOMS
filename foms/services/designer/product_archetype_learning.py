@@ -56,7 +56,60 @@ def extract_tags_from_case(case: dict[str, Any]) -> list[str]:
         if any(h.lower() in all_text for h in hints):
             tags.add(tag)
 
+    for understanding in _iter_design_understanding_payloads(case):
+        category = understanding.get("learned_design_category") or {}
+        for tag in category.get("similarity_tags") or []:
+            _add_normalized_tag(tags, tag)
+
+        category_key = category.get("category_key")
+        if category_key:
+            _add_normalized_tag(tags, category_key)
+
+        signature = category.get("layout_signature") or {}
+        for key in ("module_pattern", "dominant_structure"):
+            _add_normalized_tag(tags, signature.get(key))
+        for key in ("zone_roles", "material_signature", "hardware_signature"):
+            for tag in signature.get(key) or []:
+                _add_normalized_tag(tags, tag)
+
+        summary = understanding.get("learning_summary") or {}
+        for key in ("reusable_patterns", "new_module_candidates"):
+            for tag in summary.get(key) or []:
+                _add_normalized_tag(tags, tag)
+
+        for block in understanding.get("block_candidates") or []:
+            if isinstance(block, dict):
+                _add_normalized_tag(tags, block.get("block_key"))
+
     return sorted(tags)
+
+
+def _iter_design_understanding_payloads(case: dict[str, Any]) -> list[dict[str, Any]]:
+    payloads: list[dict[str, Any]] = []
+    candidates = [
+        case,
+        case.get("options_json") or {},
+        case.get("internal_structure_json") or {},
+        case.get("design_graph_json") or {},
+        case.get("redacted_extraction") or {},
+    ]
+    for candidate in candidates:
+        if not isinstance(candidate, dict):
+            continue
+        if "layout_graph" in candidate or "learned_design_category" in candidate:
+            payloads.append(candidate)
+        nested = candidate.get("design_understanding")
+        if isinstance(nested, dict):
+            payloads.append(nested)
+    return payloads
+
+
+def _add_normalized_tag(tags: set[str], value: Any) -> None:
+    if value is None:
+        return
+    tag = str(value).strip().lower().replace(" ", "_")
+    if tag:
+        tags.add(tag)
 
 
 # ──────────────────────────────────────────────────────────
