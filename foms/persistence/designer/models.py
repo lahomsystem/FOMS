@@ -261,6 +261,8 @@ class DesignerDrawingExtraction(Base):
     model_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     cost_usd: Mapped[float | None] = mapped_column(nullable=True)
+    routing_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    redaction_report_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
 
     page: Mapped[DesignerDrawingPage] = relationship("DesignerDrawingPage", back_populates="extractions")
@@ -291,6 +293,16 @@ class DesignerExtractionCandidate(Base):
         Integer, ForeignKey("users.id"), nullable=True
     )
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    status: Mapped[str] = mapped_column(
+        Enum(
+            "pending_review", "corrected", "rejected", "approved",
+            name="designer_candidate_status",
+            native_enum=False,
+        ),
+        nullable=False,
+        default="pending_review",
+    )
+    blocking_reasons_json: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     # correction_deltas stored in DesignerCorrection linked to this candidate
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
 
@@ -335,6 +347,9 @@ class DesignerDesignCase(Base):
     )
     approved_extraction_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("designer_drawing_extractions.id"), nullable=True
+    )
+    source_candidate_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("designer_extraction_candidates.id"), nullable=True
     )
 
     # Classification — safe for retrieval / no PII

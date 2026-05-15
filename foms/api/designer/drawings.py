@@ -1,25 +1,34 @@
-"""FOMS Brain PG-B2/B3/B7/B8 — Drawing Upload, Fixture, Candidate & Correction API.
+"""FOMS Brain PG-R1/R2/B3/B7/B8 — Drawing Upload, Fixture, Candidate & Correction API.
 
-Endpoints (PG-B2/B3):
+Endpoints (Upload pipeline — R1/R2):
   POST /api/designer/drawings/upload-and-extract
+       Full intake pipeline: artifact -> classify -> route -> Gemini -> persist extraction+candidate -> ui_state
+
+Endpoints (Corpus fixtures — B3):
   GET  /api/designer/drawings/fixtures
   POST /api/designer/drawings/fixtures/<id>/save-draft
   POST /api/designer/drawings/fixtures/<id>/approve
   GET  /api/designer/drawings/fixtures/<id>/expected
 
-Endpoints (PG-B7/B8 — Candidate & Correction):
+Endpoints (Candidate & Correction — B7/B8):
   POST /api/designer/drawings/candidates/build
-       추출 결과에서 MappedCandidate를 생성한다.
   POST /api/designer/drawings/candidates/<id>/correct
-       사용자 수정을 CorrectionDelta로 저장한다. Project version은 생성하지 않는다.
   POST /api/designer/drawings/candidates/<id>/approve-and-save
-       검증 통과 후 project version을 생성한다.
+
+Learning:
+  POST /api/designer/drawings/save-learning-sample
+
+Async jobs:
+  GET  /api/designer/drawings/jobs/<id>/status
 
 Contract:
-- approved=false 상태의 데이터는 project version으로 저장 불가.
-- CorrectionDelta는 모든 사용자 수정을 기록한다.
-- Candidate validator 통과 없이 approve-and-save 불가.
-- PII는 Gemini 전송 전 redaction (PG-B3A).
+- upload-and-extract uses drawing_intake_pipeline.run_intake_pipeline() — no direct Gemini calls.
+- GEMINI_API_KEY missing → 503. No silent fallback to fake provider.
+- CorrectionDelta records all user corrections with before/after/source.
+- Candidate validator must pass before approve-and-save.
+- approve-and-save creates project version AND DesignerDesignCase.
+- save-learning-sample never sets candidate_rule_hint (prevents learning pollution).
+- PII redaction happens inside the pipeline (text output only; image bytes have no OCR).
 """
 
 from __future__ import annotations
@@ -38,26 +47,17 @@ logger = logging.getLogger(__name__)
 
 drawings_bp = Blueprint("designer_drawings", __name__, url_prefix="/api/designer/drawings")
 
-# ── Job queue helpers ─────────────────────────────────────
+ROOT = Path(__file__).parent.parent.parent.parent
+MANIFEST_PATH = ROOT / "tests" / "fixtures" / "designer" / "drawings" / "manifest.json"
+EXPECTED_DIR = MANIFEST_PATH.parent / "expected_extractions"
 
-def _enqueue_extraction_job(tmp_path: str, fixture_id: str | None, user_id: int | None) -> str | None:
-    """Try to enqueue an async extraction job via RQ. Returns job_id or None."""
-    try:
-        from rq import Queue
-        from redis import Redis
-        redis = Redis.from_url(os.environ.get("REDIS_URL", ""), socket_connect_timeout=1)
-        redis.ping()
-        q = Queue("designer", connection=redis)
-        from foms.services.designer.gemini_provider import extract_from_image_path
+ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".pdf", ".webp"}
+MAX_FILE_SIZE_MB = 20
 
-        def _job(path: str, fid: str | None) -> dict:
-            return extract_from_image_path(path)
 
-        job = q.enqueue(_job, tmp_path, fixture_id, job_timeout=120)
-        return job.id
-    except Exception:
-        return None
-
+# ──────────────────────────────────────────────────────────
+# Async job status (legacy RQ path — kept for compatibility)
+# ──────────────────────────────────────────────────────────
 
 @drawings_bp.route("/jobs/<job_id>/status", methods=["GET"])
 @login_required
@@ -82,13 +82,6 @@ def job_status(job_id: str):
         })
     except Exception as exc:
         return jsonify({"success": False, "error": str(exc)}), 404
-
-ROOT = Path(__file__).parent.parent.parent.parent
-MANIFEST_PATH = ROOT / "tests" / "fixtures" / "designer" / "drawings" / "manifest.json"
-EXPECTED_DIR = MANIFEST_PATH.parent / "expected_extractions"
-
-ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".pdf", ".webp"}
-MAX_FILE_SIZE_MB = 20
 
 
 # ──────────────────────────────────────────────────────────
@@ -117,20 +110,28 @@ def _gemini_available() -> bool:
 
 
 # ──────────────────────────────────────────────────────────
-# POST /api/designer/drawings/upload-and-extract
+# POST /api/designer/drawings/upload-and-extract  (R1/R2 SSOT)
 # ──────────────────────────────────────────────────────────
 
 @drawings_bp.route("/upload-and-extract", methods=["POST"])
 @login_required
 def upload_and_extract():
-    """도면 파일 업로드 + Gemini 추출.
+    """도면 파일 업로드 + 전체 intake pipeline 실행.
+
+    Pipeline: artifact persist -> PII policy -> template classify ->
+              model route -> Gemini extract -> text PII redact ->
+              extraction persist -> candidate build -> candidate persist -> ui_state
 
     Multipart form fields:
       file:       도면 이미지/PDF 파일
-      fixture_id: manifest fixture ID (optional, for corpus registration)
+      fixture_id: manifest fixture ID (optional)
 
     Returns:
-      { success, data: { extraction, fixture_id, metrics }, error }
+      { success, data: {
+          artifact_id, extraction_id, candidate_id, candidate_db_id,
+          extraction, candidate, metrics, routing, redaction_report,
+          ui_state, fixture_id, filename
+        }, error }
     """
     if "file" not in request.files:
         return jsonify({"success": False, "error": "파일이 없습니다. 'file' 필드를 포함하세요."}), 400
@@ -165,98 +166,50 @@ def upload_and_extract():
             "code": "GEMINI_KEY_MISSING"
         }), 503
 
-    # Save to temp file
     mime_map = {
         ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
         ".png": "image/png", ".pdf": "application/pdf",
         ".webp": "image/webp",
     }
     mime_type = mime_map.get(suffix, "image/jpeg")
-
-    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-        f.save(tmp.name)
-        tmp_path = tmp.name
+    image_bytes = f.read()
 
     try:
-        from foms.services.designer.gemini_provider import (
-            extract_from_image_path,
-            extract_from_image_bytes,
-            GeminiProviderError,
-            GeminiAPIKeyMissing,
+        from foms.services.designer.drawing_intake_pipeline import run_intake_pipeline
+        from foms.services.designer.gemini_provider import GeminiAPIKeyMissing, GeminiProviderError
+
+        result = run_intake_pipeline(
+            image_bytes=image_bytes,
+            filename=f.filename,
+            mime_type=mime_type,
+            user_id=getattr(g, "user_id", None),
+            project_id=None,
         )
-
-        # PDF multi-page support
-        if suffix == ".pdf":
-            try:
-                import pypdf
-                reader = pypdf.PdfReader(tmp_path)
-                page_count = len(reader.pages)
-            except ImportError:
-                page_count = 1  # pypdf not installed, treat as single
-
-            if page_count > 1:
-                # Extract first page as image (lightweight preview)
-                # Full multi-page: extract page 1 and note total pages
-                raw = extract_from_image_path(tmp_path)
-                raw.setdefault("extracted_params", {})["page_count"] = page_count
-                raw.setdefault("extracted_params", {})["is_multipage"] = True
-                logger.info("[DRAWING EXTRACT] PDF %d pages, extracted page 1", page_count)
-            else:
-                raw = extract_from_image_path(tmp_path)
-        else:
-            raw = extract_from_image_path(tmp_path)
 
     except GeminiAPIKeyMissing as exc:
         return jsonify({"success": False, "error": str(exc), "code": "GEMINI_KEY_MISSING"}), 503
-    except Exception as exc:
-        logger.error("[DRAWING EXTRACT] error: %s", exc)
+    except GeminiProviderError as exc:
+        logger.error("[UPLOAD] Gemini provider error: %s", exc)
         return jsonify({"success": False, "error": f"Gemini 추출 실패: {exc}"}), 500
-    finally:
-        try:
-            os.unlink(tmp_path)
-        except OSError:
-            pass
-
-    # Build extraction summary for UI
-    metrics = raw.pop("_metrics", {})
-    extracted_params = raw.get("extracted_params", {})
-    parts_table = raw.get("parts_table") or extracted_params.pop("_parts_table", []) or []
-    customer_info = raw.get("customer_info") or extracted_params.pop("_customer_info", {}) or {}
-    drawing_meta = raw.get("drawing_meta") or extracted_params.pop("_drawing_meta", {}) or {}
-
-    extraction = {
-        "furniture_type": raw.get("furniture_type", "wardrobe"),
-        "site_size": {
-            "width_mm": extracted_params.get("width"),
-            "depth_mm": extracted_params.get("depth"),
-            "height_mm": extracted_params.get("height"),
-        },
-        "module_widths_mm": extracted_params.get("module_widths") or [],
-        "parts_table": parts_table,
-        "customer_info": customer_info,
-        "drawing_meta": drawing_meta,
-        "unresolved_fields": raw.get("unresolved_fields", []),
-        "confidence": raw.get("confidence", 0.0),
-    }
+    except Exception as exc:
+        logger.exception("[UPLOAD] pipeline error: %s", exc)
+        return jsonify({"success": False, "error": f"업로드 처리 실패: {exc}"}), 500
 
     logger.info(
-        "[DRAWING EXTRACT] fixture=%s type=%s confidence=%.2f cost=$%.5f",
+        "[UPLOAD] fixture=%s artifact=%d extraction=%d candidate_db=%d "
+        "type=%s can_preview_3d=%s cost=$%.5f",
         fixture_id or "none",
-        extraction["furniture_type"],
-        extraction["confidence"],
-        metrics.get("cost_usd", 0),
+        result.artifact_id, result.extraction_id, result.candidate_db_id,
+        result.extraction.get("furniture_type", "?"),
+        result.ui_state.get("can_preview_3d"),
+        result.metrics.get("cost_usd", 0),
     )
 
-    return jsonify({
-        "success": True,
-        "data": {
-            "extraction": extraction,
-            "fixture_id": fixture_id or None,
-            "metrics": metrics,
-            "filename": f.filename,
-        },
-        "error": None,
-    })
+    response_data = result.to_api_response()
+    response_data["fixture_id"] = fixture_id or None
+    response_data["filename"] = f.filename
+
+    return jsonify({"success": True, "data": response_data, "error": None})
 
 
 # ──────────────────────────────────────────────────────────
@@ -306,10 +259,7 @@ def get_expected_json(fixture_id: str):
 @drawings_bp.route("/fixtures/<fixture_id>/save-draft", methods=["POST"])
 @login_required
 def save_draft(fixture_id: str):
-    """Gemini 추출 결과를 expected JSON 초안으로 저장.
-
-    Body: { extraction: {...} }
-    """
+    """Gemini 추출 결과를 expected JSON 초안으로 저장."""
     fixture = _get_fixture(fixture_id)
     if not fixture:
         return jsonify({"success": False, "error": f"Fixture '{fixture_id}' not found"}), 404
@@ -320,7 +270,6 @@ def save_draft(fixture_id: str):
     if not extraction:
         return jsonify({"success": False, "error": "extraction 데이터가 없습니다."}), 400
 
-    # Build expected JSON
     from datetime import datetime, timezone
     expected_json = {
         "drawing_id": fixture_id,
@@ -328,7 +277,7 @@ def save_draft(fixture_id: str):
         "approval_status": "draft",
         "approved_by": None,
         "approved_at": None,
-        "_ai_draft_model": body.get("metrics", {}).get("model", "gemini-2.5-flash"),
+        "_ai_draft_model": body.get("metrics", {}).get("model", "gemini-3.1-pro-preview"),
         "_ai_draft_latency_ms": body.get("metrics", {}).get("latency_ms", 0),
         "_ai_draft_cost_usd": body.get("metrics", {}).get("cost_usd", 0.0),
         "customer_name": extraction.get("customer_info", {}).get("customer_name"),
@@ -348,13 +297,11 @@ def save_draft(fixture_id: str):
         "draft_saved_at": datetime.now(timezone.utc).isoformat(),
     }
 
-    # Save expected JSON
     ej_path = ROOT / fixture.get("expected_json_path", "")
     ej_path.parent.mkdir(parents=True, exist_ok=True)
     with open(ej_path, "w", encoding="utf-8") as f:
         json.dump(expected_json, f, ensure_ascii=False, indent=2)
 
-    # Update manifest: mark as pending_approval if was draft
     data = _load_manifest()
     for fix in data["fixtures"]:
         if fix["id"] == fixture_id:
@@ -387,10 +334,7 @@ def _build_dimension_candidates(extraction: dict) -> list:
 @drawings_bp.route("/fixtures/<fixture_id>/approve", methods=["POST"])
 @login_required
 def approve_fixture(fixture_id: str):
-    """Expected JSON 초안을 사용자가 승인.
-
-    Body: { corrections: {...} }  (optional — user edits applied before approval)
-    """
+    """Expected JSON 초안을 사용자가 승인 (corpus fixture 전용)."""
     fixture = _get_fixture(fixture_id)
     if not fixture:
         return jsonify({"success": False, "error": f"Fixture '{fixture_id}' not found"}), 404
@@ -405,14 +349,12 @@ def approve_fixture(fixture_id: str):
     with open(ej_path, encoding="utf-8") as f:
         ej = json.load(f)
 
-    # Apply user corrections if provided
     body = request.get_json(silent=True) or {}
     corrections = body.get("corrections", {})
     if corrections:
         for key, value in corrections.items():
             ej[key] = value
 
-    # Mark as approved
     from datetime import datetime, timezone
     user_id = getattr(g, "user_id", None)
     ej["approval_status"] = "approved"
@@ -422,7 +364,6 @@ def approve_fixture(fixture_id: str):
     with open(ej_path, "w", encoding="utf-8") as f:
         json.dump(ej, f, ensure_ascii=False, indent=2)
 
-    # Update manifest
     data = _load_manifest()
     approved_count = 0
     for fix in data["fixtures"]:
@@ -431,7 +372,6 @@ def approve_fixture(fixture_id: str):
         if fix.get("approval_status") == "approved":
             approved_count += 1
 
-    # Update corpus plan approved counts
     if "corpus_plan" in data:
         for v_key in ["v0", "v1"]:
             if v_key in data["corpus_plan"]:
@@ -453,12 +393,8 @@ def approve_fixture(fixture_id: str):
     })
 
 
-# In-memory candidate store (MVP — production uses DesignerExtractionCandidate table)
-_CANDIDATE_STORE: dict[str, dict] = {}
-
-
 # ──────────────────────────────────────────────────────────
-# 일반 학습 저장 (fixture 미지정 / 부분 추출 포함)
+# POST /api/designer/drawings/save-learning-sample
 # ──────────────────────────────────────────────────────────
 
 @drawings_bp.route("/save-learning-sample", methods=["POST"])
@@ -466,14 +402,11 @@ _CANDIDATE_STORE: dict[str, dict] = {}
 def save_learning_sample():
     """POST /api/designer/drawings/save-learning-sample
 
-    Fixture ID 없이도 추출 결과를 학습 샘플로 저장한다.
-    unresolved_fields가 있어도 저장 가능 (학습 데이터로 사용).
+    학습 샘플 저장. raw learning sample이므로 candidate_rule_hint를 설정하지 않는다.
+    hint 없이 저장해야 correction_clusterer가 이 샘플을 rule candidate로 오염하지 않는다.
 
     Body:
       { extraction: {...}, metrics: {...}, filename: "..." }
-
-    Returns:
-      { success, data: { saved: true, learning_record_id, candidate_id }, error }
     """
     body = request.get_json(silent=True) or {}
     extraction = body.get("extraction", {})
@@ -485,25 +418,16 @@ def save_learning_sample():
 
     notes = []
 
-    # 1. 온톨로지 매핑으로 후보 생성 (unresolved 있어도 진행)
-    candidate = None
-    try:
-        from foms.services.designer.ontology_mapper import build_candidate
-        candidate = build_candidate(extraction, run_validator=False)
-        _CANDIDATE_STORE[candidate.candidate_id] = candidate.to_dict()
-        notes.append(f"candidate: {candidate.candidate_id[:8]}...")
-    except Exception as exc:
-        logger.warning("[SAVE-LEARNING] candidate build failed: %s", exc)
-
-    # 2. PII redaction
+    # PII redaction before DB storage
     try:
         from foms.services.designer.pii_redactor import RedactionContext
         ctx = RedactionContext()
         redacted_extraction = ctx.redact_extraction(extraction)
-    except Exception:
+    except Exception as exc:
+        logger.warning("[SAVE-LEARNING] PII redaction failed: %s", exc)
         redacted_extraction = extraction
 
-    # 3. DB 저장 (CorrectionDelta 재사용 — lightweight)
+    # DB 저장 — raw_learning_sample 소스, hint 없음
     saved_id = None
     try:
         from db import db_session
@@ -511,10 +435,10 @@ def save_learning_sample():
         corr = DesignerCorrection(
             before_json={},
             after_json={
-                "source": "learning_sample_upload",
+                "source": "raw_learning_sample",
                 "filename": filename,
                 "furniture_type": extraction.get("furniture_type", "unknown"),
-                "candidate_rule_hint": "learning_upload",
+                # candidate_rule_hint intentionally absent — prevents rule clustering pollution
                 "extraction_confidence": extraction.get("confidence", 0.0),
                 "unresolved_count": len(extraction.get("unresolved_fields") or []),
                 "metrics": metrics,
@@ -544,7 +468,6 @@ def save_learning_sample():
         "data": {
             "saved": True,
             "learning_record_id": saved_id,
-            "candidate_id": candidate.candidate_id if candidate else None,
             "notes": notes,
         },
         "error": None,
@@ -552,21 +475,18 @@ def save_learning_sample():
 
 
 # ──────────────────────────────────────────────────────────
-# PG-B7/B8: Candidate Build + Correction + Approve-and-Save
+# POST /api/designer/drawings/candidates/build
 # ──────────────────────────────────────────────────────────
-
 
 @drawings_bp.route("/candidates/build", methods=["POST"])
 @login_required
 def build_candidate_route():
     """POST /api/designer/drawings/candidates/build
 
-    Build a MappedCandidate from a Gemini extraction result.
+    추출 결과로부터 MappedCandidate를 빌드하고 DB에 저장한다.
+    upload-and-extract 이후 수동으로 candidate를 (재)빌드할 때 사용.
 
     Body: { extraction: {...}, source_extraction_id: int | null }
-
-    Returns:
-      { success, data: { candidate }, error }
     """
     body = request.get_json(silent=True) or {}
     extraction = body.get("extraction")
@@ -577,35 +497,70 @@ def build_candidate_route():
 
     try:
         from foms.services.designer.ontology_mapper import build_candidate
+        from foms.services.designer.drawing_intake_pipeline import compute_ui_state
         candidate = build_candidate(extraction, source_extraction_id=source_id)
-        _CANDIDATE_STORE[candidate.candidate_id] = candidate.to_dict()
+        ui_state = compute_ui_state(
+            furniture_type=candidate.furniture_type,
+            unresolved_fields=candidate.unresolved_fields,
+            validation_result=candidate.validation_result,
+        )
     except Exception as exc:
         logger.error("[CANDIDATE BUILD] error: %s", exc)
         return jsonify({"success": False, "error": str(exc)}), 500
 
+    # Persist to DB if source_extraction_id provided
+    candidate_db_id = None
+    if source_id:
+        try:
+            from db import db_session
+            from foms.persistence.designer.models import DesignerExtractionCandidate
+            row = DesignerExtractionCandidate(
+                extraction_id=source_id,
+                furniture_type=candidate.furniture_type,
+                extracted_params_json=candidate.factory_params,
+                unresolved_fields_json=candidate.unresolved_fields,
+                confidence=candidate.confidence,
+                approved=False,
+                status="pending_review",
+                blocking_reasons_json=ui_state["blocking_reasons"],
+            )
+            db_session.add(row)
+            db_session.commit()
+            db_session.refresh(row)
+            candidate_db_id = row.id
+        except Exception as exc:
+            logger.warning("[CANDIDATE BUILD] DB persist failed: %s", exc)
+
     return jsonify({
         "success": True,
-        "data": {"candidate": candidate.to_dict()},
+        "data": {
+            "candidate": candidate.to_dict(),
+            "candidate_db_id": candidate_db_id,
+            "ui_state": ui_state,
+        },
         "error": None,
     })
 
+
+# ──────────────────────────────────────────────────────────
+# POST /api/designer/drawings/candidates/<id>/correct
+# ──────────────────────────────────────────────────────────
 
 @drawings_bp.route("/candidates/<candidate_id>/correct", methods=["POST"])
 @login_required
 def correct_candidate(candidate_id: str):
     """POST /api/designer/drawings/candidates/<id>/correct
 
-    Record a user correction on a candidate field. Stores CorrectionDelta.
-    Does NOT create a project version.
+    사용자 수정을 CorrectionDelta로 저장하고 candidate를 rebuild한다.
+    candidate_id는 DesignerExtractionCandidate.id (DB integer).
+    Project version은 생성하지 않는다.
 
     Body:
       { corrections: {field: value, ...}, reason: "string" }
-
-    Returns:
-      { success, data: { candidate, correction_id }, error }
     """
-    candidate_data = _CANDIDATE_STORE.get(candidate_id)
-    if not candidate_data:
+    # DB 조회 우선
+    candidate_row = _get_candidate_row(candidate_id)
+    if candidate_row is None:
         return jsonify({"success": False, "error": f"Candidate {candidate_id} not found"}), 404
 
     body = request.get_json(silent=True) or {}
@@ -615,77 +570,115 @@ def correct_candidate(candidate_id: str):
     if not corrections:
         return jsonify({"success": False, "error": "corrections 필드가 없습니다."}), 400
 
-    before = {
-        "factory_params": dict(candidate_data.get("factory_params", {})),
-        "unresolved_fields": list(candidate_data.get("unresolved_fields", [])),
-    }
+    before_params = dict(candidate_row.extracted_params_json or {})
+    before_unresolved = list(candidate_row.unresolved_fields_json or [])
 
-    # Apply corrections
-    for field, value in corrections.items():
-        candidate_data.setdefault("factory_params", {})[field] = value
-        # Remove from unresolved if now provided
-        urf = candidate_data.get("unresolved_fields", [])
-        if field in urf:
-            urf.remove(field)
-            candidate_data["unresolved_fields"] = urf
+    # Apply corrections to factory_params
+    updated_params = dict(before_params)
+    updated_unresolved = list(before_unresolved)
+    for field_name, value in corrections.items():
+        updated_params[field_name] = value
+        if field_name in updated_unresolved:
+            updated_unresolved.remove(field_name)
 
-    after = {
-        "factory_params": dict(candidate_data.get("factory_params", {})),
-        "unresolved_fields": list(candidate_data.get("unresolved_fields", [])),
-        "candidate_rule_hint": "user_correction",
-        "source": "user_manual_edit",
-    }
+    # Rebuild validation
+    validation_result = None
+    if not updated_unresolved:
+        try:
+            from foms.services.designer.factory_registry import validate_params
+            errors = validate_params(candidate_row.furniture_type, updated_params)
+            validation_result = {"valid": len(errors) == 0, "errors": errors, "warnings": []}
+        except Exception as exc:
+            logger.warning("[CORRECT] validator failed: %s", exc)
+            validation_result = {"valid": False, "errors": [str(exc)], "warnings": []}
 
-    _CANDIDATE_STORE[candidate_id] = candidate_data
+    # Recompute ui_state
+    from foms.services.designer.drawing_intake_pipeline import compute_ui_state
+    ui_state = compute_ui_state(
+        furniture_type=candidate_row.furniture_type,
+        unresolved_fields=updated_unresolved,
+        validation_result=validation_result,
+    )
 
-    # Persist correction delta to DB
+    # Persist correction delta
     correction_id = None
     try:
         from db import db_session
         from foms.persistence.designer.models import DesignerCorrection
-
         corr = DesignerCorrection(
-            before_json=before,
-            after_json=after,
+            before_json={
+                "factory_params": before_params,
+                "unresolved_fields": before_unresolved,
+            },
+            after_json={
+                "factory_params": updated_params,
+                "unresolved_fields": updated_unresolved,
+                "source": "user_manual_edit",
+            },
             reason_text=reason,
             created_by_user_id=getattr(g, "user_id", None),
         )
         db_session.add(corr)
+
+        # Update candidate row
+        import copy
+        from sqlalchemy.orm.attributes import flag_modified
+        candidate_row.extracted_params_json = copy.deepcopy(updated_params)
+        candidate_row.unresolved_fields_json = updated_unresolved
+        candidate_row.status = "corrected"
+        candidate_row.blocking_reasons_json = ui_state["blocking_reasons"]
+        flag_modified(candidate_row, "extracted_params_json")
+        flag_modified(candidate_row, "unresolved_fields_json")
+        flag_modified(candidate_row, "blocking_reasons_json")
+
         db_session.commit()
         db_session.refresh(corr)
         correction_id = corr.id
     except Exception as exc:
         logger.warning("[CORRECT] DB write failed (non-fatal): %s", exc)
 
+    candidate_dict = {
+        "candidate_id": str(candidate_row.id),
+        "furniture_type": candidate_row.furniture_type,
+        "factory_params": updated_params,
+        "unresolved_fields": updated_unresolved,
+        "approved": candidate_row.approved,
+        "status": "corrected",
+        "validation_result": validation_result,
+        "can_apply": False,
+    }
+
     return jsonify({
         "success": True,
         "data": {
-            "candidate": candidate_data,
+            "candidate": candidate_dict,
             "correction_id": correction_id,
+            "ui_state": ui_state,
         },
         "error": None,
     })
 
+
+# ──────────────────────────────────────────────────────────
+# POST /api/designer/drawings/candidates/<id>/approve-and-save
+# ──────────────────────────────────────────────────────────
 
 @drawings_bp.route("/candidates/<candidate_id>/approve-and-save", methods=["POST"])
 @login_required
 def approve_and_save_candidate(candidate_id: str):
     """POST /api/designer/drawings/candidates/<id>/approve-and-save
 
-    Approve a candidate and create a project version.
-    Requires: unresolved_fields == [] AND validator passes.
+    검증 통과 후 project version 생성 + DesignerDesignCase 저장.
+    candidate_id는 DesignerExtractionCandidate.id (DB integer).
 
     Body: { project_id: int }
-
-    Returns:
-      { success, data: { project_version_id, candidate }, error }
     """
-    candidate_data = _CANDIDATE_STORE.get(candidate_id)
-    if not candidate_data:
+    candidate_row = _get_candidate_row(candidate_id)
+    if candidate_row is None:
         return jsonify({"success": False, "error": f"Candidate {candidate_id} not found"}), 404
 
-    # Safety gate 1: no unresolved fields
-    unresolved = candidate_data.get("unresolved_fields", [])
+    # Gate 1: no unresolved fields
+    unresolved = list(candidate_row.unresolved_fields_json or [])
     if unresolved:
         return jsonify({
             "success": False,
@@ -698,10 +691,10 @@ def approve_and_save_candidate(candidate_id: str):
     if not project_id:
         return jsonify({"success": False, "error": "project_id가 필요합니다."}), 400
 
-    # Build design graph from factory params
-    furniture_type = candidate_data.get("furniture_type", "wardrobe")
-    factory_params = candidate_data.get("factory_params", {})
+    furniture_type = candidate_row.furniture_type
+    factory_params = dict(candidate_row.extracted_params_json or {})
 
+    # Build design graph
     try:
         from foms.services.designer.factory_registry import create_design
         design_graph = create_design(furniture_type, factory_params)
@@ -709,7 +702,7 @@ def approve_and_save_candidate(candidate_id: str):
         logger.error("[APPROVE-SAVE] factory create failed: %s", exc)
         return jsonify({"success": False, "error": f"설계 생성 실패: {exc}"}), 500
 
-    # Safety gate 2: hard validator must pass
+    # Gate 2: validator must pass
     try:
         from foms.services.designer.validator import validate_design
         val_result = validate_design(design_graph)
@@ -725,26 +718,91 @@ def approve_and_save_candidate(candidate_id: str):
     # Create project version
     try:
         from foms.persistence.designer import create_project_version
+        design_dict = design_graph if isinstance(design_graph, dict) else design_graph.to_dict()
         version = create_project_version(
             project_id=int(project_id),
-            design_json=design_graph if isinstance(design_graph, dict) else design_graph.to_dict(),
+            design_json=design_dict,
             user_id=getattr(g, "user_id", None),
         )
     except Exception as exc:
         logger.error("[APPROVE-SAVE] version create failed: %s", exc)
         return jsonify({"success": False, "error": f"버전 저장 실패: {exc}"}), 500
 
-    # Mark candidate approved
-    candidate_data["approved"] = True
-    _CANDIDATE_STORE[candidate_id] = candidate_data
+    # Mark candidate approved + persist
+    design_case_id = None
+    try:
+        from db import db_session
+        from datetime import datetime, timezone
+        user_id = getattr(g, "user_id", None)
+        candidate_row.approved = True
+        candidate_row.status = "approved"
+        candidate_row.approved_by_user_id = user_id
+        candidate_row.approved_at = datetime.now(timezone.utc)
+        db_session.flush()
 
-    logger.info("[APPROVE-SAVE] project_version_id=%d candidate=%s", version.id, candidate_id)
+        # Create DesignerDesignCase
+        try:
+            from foms.services.designer.design_case_memory import save_design_case
+
+            # Resolve extraction id for provenance
+            extraction_id = candidate_row.extraction_id
+
+            case_result = save_design_case(
+                project_version_id=version.id,
+                furniture_type=furniture_type,
+                design_graph=design_dict,
+                project_id=int(project_id),
+                approved_extraction_id=extraction_id,
+                source_quality_score=float(candidate_row.confidence or 1.0),
+                approval_user_id=user_id,
+            )
+            design_case_id = case_result.get("id")
+
+            # Link source_candidate_id if DesignerDesignCase supports it
+            if design_case_id:
+                from foms.persistence.designer.models import DesignerDesignCase
+                dc = db_session.get(DesignerDesignCase, design_case_id)
+                if dc is not None:
+                    dc.source_candidate_id = candidate_row.id
+        except Exception as exc:
+            logger.error("[APPROVE-SAVE] design case creation failed: %s", exc)
+            # Non-fatal: project version was already created. Log and continue.
+
+        db_session.commit()
+    except Exception as exc:
+        logger.error("[APPROVE-SAVE] DB update failed: %s", exc)
+        return jsonify({"success": False, "error": f"후보 승인 저장 실패: {exc}"}), 500
+
+    logger.info(
+        "[APPROVE-SAVE] project_version_id=%d candidate_db=%s design_case_id=%s",
+        version.id, candidate_id, design_case_id,
+    )
 
     return jsonify({
         "success": True,
         "data": {
             "project_version_id": version.id,
-            "candidate": candidate_data,
+            "design_case_id": design_case_id,
+            "candidate_id": candidate_id,
         },
         "error": None,
     })
+
+
+# ──────────────────────────────────────────────────────────
+# DB lookup helper
+# ──────────────────────────────────────────────────────────
+
+def _get_candidate_row(candidate_id: str):
+    """Look up DesignerExtractionCandidate by integer id. Returns None if not found."""
+    try:
+        row_id = int(candidate_id)
+    except (ValueError, TypeError):
+        return None
+    try:
+        from db import db_session
+        from foms.persistence.designer.models import DesignerExtractionCandidate
+        return db_session.get(DesignerExtractionCandidate, row_id)
+    except Exception as exc:
+        logger.warning("[LOOKUP] candidate %s fetch failed: %s", candidate_id, exc)
+        return None

@@ -4,46 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-05-13 22:30:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" $msg = @" feat: FOMS Brain AX Designer V2 MVP 援ы쁽 (B0-B8 ?꾨즺) - /wdplanner-v2 蹂묓뻾 ?댁쁺 route 諛?n` |
-| 2026-05-13 22:31:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin HEAD 2>&1 | Select-Object -Last 5` |
-| 2026-05-13 22:34:07 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; dir "foms\web\designer" /b; dir "foms\api\designer" /b; dir "foms\persistence\designer" /b; di` |
-| 2026-05-13 22:34:08 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; dir "templates\designer" /b; dir "static\designer" /b; dir "migrations\versions" /b | Select-S` |
-| 2026-05-13 22:34:16 | allow | `-` | `$base = "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" Get-ChildItem "$base\foms\web\designer" | Select-Object Name Get-ChildItem "$base\foms\api` |
-| 2026-05-13 22:34:18 | allow | `-` | `$base = "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" Get-ChildItem "$base\templates\designer" | Select-Object Name Get-ChildItem "$base\static\` |
-| 2026-05-13 22:39:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\Add In Program\FOMSBrainDesigner"; npm run build 2>&1` |
-| 2026-05-13 22:39:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')" 2>&1 | Select-Object -Last 2` |
-| 2026-05-13 22:39:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" git add "Add In Program/FOMSBrainDesigner/src/canvas/SelectionGizmo.tsx" git add "Add In Progra` |
-| 2026-05-13 22:40:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin HEAD 2>&1 | Select-Object -Last 3` |
-| 2026-05-13 22:41:23 | allow | `-` | `Test-Path "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\Add In Program\FOMSBrainDesigner\scripts\copy-to-static.js" Get-ChildItem "c:\Users\USER\` |
-| 2026-05-13 22:41:30 | allow | `-` | `Get-ChildItem "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\docs\plans" | Select-Object Name` |
-| 2026-05-13 22:41:33 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" python -m pytest tests/domains/test_designer_routes.py tests/domains/test_designer_projects_api` |
-| 2026-05-13 22:45:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')" 2>&1 | Select-Object -Last 2` |
-| 2026-05-13 22:45:39 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" git add "Add In Program/FOMSBrainDesigner/package.json" git add "docs/plans/2026-05-13-foms-bra` |
-| 2026-05-13 22:45:47 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin HEAD 2>&1 | Select-Object -Last 3` |
-| 2026-05-13 22:46:44 | allow | `-` | `Get-ChildItem "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\tests\domains" | Where-Object {$_.Name -like "*namespace*"} | Select-Object Name` |
-| 2026-05-13 22:47:00 | allow | `-` | `Select-String -Path "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\tests\domains\test_foms_namespace_imports.py" -Pattern "wdcalculator" | Select-` |
-| 2026-05-13 22:47:08 | allow | `-` | `Get-Content "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\tests\domains\test_foms_namespace_imports.py" -Encoding UTF8 | Select-Object -First 5` |
-| 2026-05-13 22:47:15 | allow | `-` | `Get-Content "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\tests\domains\test_foms_namespace_imports.py" -Encoding UTF8` |
-| 2026-05-13 22:47:35 | allow | `-` | `Select-String -Path "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\tests\contracts\runtime\foms_namespace_surface_tests.py" -Pattern "wdcalculator` |
-| 2026-05-13 22:48:26 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_foms_namespace_imports.py::test_slg_literal_gap_templates_` |
-| 2026-05-13 22:48:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" git add tests/contracts/runtime/foms_namespace_surface_tests.py $msg = @" fix: namespace closed` |
-| 2026-05-13 22:48:51 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin HEAD 2>&1 | Select-Object -Last 3` |
-| 2026-05-13 22:54:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\Add In Program\FOMSBrainDesigner"; npm run build 2>&1` |
-| 2026-05-13 22:55:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')" 2>&1 | Select-Object -Last 2` |
-| 2026-05-13 22:55:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" git add "Add In Program/FOMSBrainDesigner/src/App.tsx" git add "Add In Program/FOMSBrainDesigne` |
-| 2026-05-13 22:55:30 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin HEAD 2>&1 | Select-Object -Last 3` |
-| 2026-05-13 23:09:18 | allow | `-` | `Get-ChildItem "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\Add In Program\WDPlanner\src" -Recurse -File | Where-Object {$_.Extension -eq ".tsx" ` |
-| 2026-05-13 23:09:30 | allow | `-` | `Get-Content "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\Add In Program\WDPlanner\src\components\Canvas3D.tsx" | Select-Object -First 30` |
-| 2026-05-13 23:09:39 | allow | `-` | `Get-ChildItem "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\Add In Program\WDPlanner\src" -Recurse -File | Select-Object FullName | ForEach-Objec` |
-| 2026-05-14 08:28:44 | allow | `-` | `Get-ChildItem "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\Add In Program\FOMSBrainDesigner\src" -Recurse -Name 2>$null | head -80` |
-| 2026-05-14 08:28:52 | allow | `-` | `Get-ChildItem "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\Add In Program\FOMSBrainDesigner\src" -Recurse -Name 2>$null | Select-Object -First 8` |
-| 2026-05-14 08:28:54 | allow | `-` | `Get-ChildItem "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\foms\services\designer" -Name 2>$null; Get-ChildItem "c:\Users\USER\OneDrive\Desktop\` |
-| 2026-05-14 08:37:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')" 2>&1` |
-| 2026-05-14 08:38:13 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_designer_design_kernel.py tests/domains/test_designer_form` |
-| 2026-05-14 08:40:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_designer_design_kernel.py tests/domains/test_designer_form` |
-| 2026-05-14 08:40:59 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_designer_design_kernel.py::TestWardrobeFactory::test_valid` |
-| 2026-05-14 08:41:51 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_designer_design_kernel.py tests/domains/test_designer_form` |
-| 2026-05-14 08:42:33 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_designer_design_kernel.py tests/domains/test_designer_form` |
 | 2026-05-14 08:44:48 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')" 2>&1 | Select-Object -Last 5` |
 | 2026-05-14 08:45:18 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')" 2>&1 | Select-Object -Last 5` |
 | 2026-05-14 08:46:21 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_designer_command_engine.py tests/domains/test_designer_cor` |
@@ -304,3 +264,43 @@
 | 2026-05-15 08:56:51 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; dir ".agents\skills\gstack" | Select-Object -First 30` |
 | 2026-05-15 08:57:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch --show-current` |
 | 2026-05-15 08:57:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -u; git add "Add In Program\FOMSBrainDesigner\src\domain\blockPlacement.ts"; git add "` |
+| 2026-05-15 08:57:38 | ask | `remove-item\s+.+-recurse.+-force` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Remove-Item -LiteralPath ".cursor\skills\skills" -Recurse -Force -ErrorAction Stop; Test-Path ` |
+| 2026-05-15 08:57:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
+| 2026-05-15 08:57:47 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-05-15 08:57:54 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Co-authored-by: Cursor <cursoragent@cursor.com>" -F "_commit_msg_deploy.` |
+| 2026-05-15 08:57:59 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
+| 2026-05-15 08:58:21 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Test-Path ".cursor\skills\gstack"; dir ".cursor\skills" | Select-Object Name` |
+| 2026-05-15 08:58:26 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Get-ChildItem ".cursor\skills" -Name` |
+| 2026-05-15 09:13:21 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK'); from foms.services.designer.gemini_provider import GEM` |
+| 2026-05-15 09:13:29 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_designer_model_router.py tests/domains/test_designer_gemin` |
+| 2026-05-15 09:23:11 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Invoke-WebRequest -Uri "https://lahom-dev.up.railway.app/wdplanner-v2" -MaximumRedirection 0 -` |
+| 2026-05-15 09:23:18 | allow | `-` | `curl.exe -sS -o NUL -w "%{http_code}" -L "https://lahom-dev.up.railway.app/wdplanner-v2" 2>&1 | Out-String` |
+| 2026-05-15 09:23:27 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $cj = Join-Path $env:TEMP "foms_audit_cookies.txt"; if (Test-Path $cj) { Remove-Item $cj }; cu` |
+| 2026-05-15 09:23:35 | allow | `-` | `$cj = Join-Path $env:TEMP "foms_audit_cookies.txt"; curl.exe -sS -b $cj -o NUL -w "%{http_code}" "https://lahom-dev.up.railway.app/wdplanner-v2"` |
+| 2026-05-15 09:23:35 | allow | `-` | `$cj = Join-Path $env:TEMP "foms_audit_cookies.txt"; curl.exe -sS -b $cj "https://lahom-dev.up.railway.app/api/designer/drawings/fixtures" | Select-Object -First` |
+| 2026-05-15 09:23:48 | allow | `-` | `$png = Join-Path $env:TEMP "tiny_audit.png"; [IO.File]::WriteAllBytes($png, [Convert]::FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR` |
+| 2026-05-15 09:23:48 | allow | `-` | `$cj = Join-Path $env:TEMP "foms_audit_cookies.txt"; curl.exe -sS -b $cj -o NUL -w "%{http_code}" "https://lahom-dev.up.railway.app/wdplanner-v2/app"` |
+| 2026-05-15 09:23:48 | allow | `-` | `$cj = Join-Path $env:TEMP "foms_audit_cookies.txt"; curl.exe -sS -b $cj "https://lahom-dev.up.railway.app/api/designer/evolution/candidates" | Select-Object -Fi` |
+| 2026-05-15 09:23:55 | allow | `-` | `$cj = Join-Path $env:TEMP "foms_audit_cookies.txt"; curl.exe -sS -b $cj "https://lahom-dev.up.railway.app/api/designer/archetypes/summary" | Select-Object -Firs` |
+| 2026-05-15 09:23:57 | allow | `-` | `$cj = Join-Path $env:TEMP "foms_audit_cookies.txt"; $body = '{"extraction":{"furniture_type":"wardrobe","site_size":{"width_mm":2400,"height_mm":2400,"depth_mm"` |
+| 2026-05-15 09:23:57 | allow | `-` | `$cj = Join-Path $env:TEMP "foms_audit_cookies.txt"; curl.exe -sS -b $cj "https://lahom-dev.up.railway.app/api/designer/projects" | Select-Object -First 1` |
+| 2026-05-15 09:42:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $png = [Convert]::FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42m` |
+| 2026-05-15 09:44:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; try { $r = Invoke-WebRequest -Uri "https://lahom-dev.up.railway.app/wdplanner-v2" -MaximumRedi` |
+| 2026-05-15 09:53:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Get-ChildItem -Path ".agents\skills" -ErrorAction SilentlyContinue | Select-Object Name; Get-C` |
+| 2026-05-15 09:53:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; dir .agents\skills; dir .cursor 2>$null; dir .cursor\skills 2>$null` |
+| 2026-05-15 09:53:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\.agents\skills"; Get-ChildItem | ForEach-Object { $_.Name + " -> " + (Get-Item $_.FullName | Sel` |
+| 2026-05-15 09:54:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\.agents\skills"; cmd /c "dir /al"` |
+| 2026-05-15 09:54:16 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\.agents\skills"; (Get-Item "gstack-autoplan").LinkType; (Get-Item "gstack-autoplan").Target; cmd` |
+| 2026-05-15 09:54:28 | ask | `remove-item\s+.+-recurse.+-force` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Get-ChildItem -Path ".agents\skills" -Directory | Where-Object { $_.Name -ne "gstack" } | ForE` |
+| 2026-05-15 09:55:50 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python -c "import json; json.load(open('.vscode/setti` |
+| 2026-05-15 09:56:16 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb; git remote -v` |
+| 2026-05-15 09:56:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat -- .agents/skills/; git check-ignore -v .agents/skills/gstack-autoplan 2>$null` |
+| 2026-05-15 09:56:48 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --name-only HEAD -- docs/plans/2026-05-14-foms-brain-production-grade-run-record.md` |
+| 2026-05-15 09:56:54 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add .agents/skills/gstack/hosts/cursor.ts; git add .cursor/agents/code-reviewer.md .cursor` |
+| 2026-05-15 09:57:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git reset HEAD _commit_msg_skills_cleanup.txt 2>$null; git commit --trailer "Co-authored-by: C` |
+| 2026-05-15 09:57:20 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git rev-parse HEAD; git status -sb` |
+| 2026-05-15 09:57:29 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/AI_CHANGELOG.md; git commit --trailer "Co-authored-by: Cursor <cursoragent@cursor` |
+| 2026-05-15 09:57:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git rev-parse HEAD; git rev-parse --short HEAD` |
+| 2026-05-15 09:58:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git rev-parse HEAD; git status docs/AI_CHANGELOG.md -sb` |
+| 2026-05-15 09:58:16 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/AI_CHANGELOG.md; git commit --trailer "Co-authored-by: Cursor <cursoragent@cursor` |
+| 2026-05-15 09:58:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
