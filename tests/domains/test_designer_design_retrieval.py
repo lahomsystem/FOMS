@@ -73,3 +73,57 @@ class TestGeminiContextPrompt:
         """build_rag_context never raises — returns empty string on DB error."""
         ctx = build_rag_context(furniture_type="wardrobe", width_mm=9999999)
         assert isinstance(ctx, str)
+
+
+class TestB6RetrievalContracts:
+    """B6: Retrieval use in new candidates — acceptance criteria."""
+
+    def test_layout_signature_accumulation_increases_confidence(self):
+        """B6: More cases with same layout_signature → higher evidence → higher confidence."""
+        from foms.services.designer.product_archetype_learning import (
+            discover_archetypes_from_cases, extract_tags_from_case,
+        )
+        def make_case(i):
+            return {
+                "id": i, "furniture_type": "wardrobe", "product_name": "무몰딩장",
+                "tags": ["no_molding"], "options_json": {},
+                "width_mm": 2400,
+                "internal_structure_json": {
+                    "learned_design_category": {
+                        "layout_signature": {"module_pattern": "3bay_hanging_shelves"},
+                    },
+                },
+            }
+        # 3 cases = min confidence
+        cases3 = [make_case(i) for i in range(3)]
+        cands3 = discover_archetypes_from_cases(cases3, min_count=3)
+        # 7 cases = higher confidence
+        cases7 = [make_case(i) for i in range(7)]
+        cands7 = discover_archetypes_from_cases(cases7, min_count=3)
+        assert len(cands3) == 1 and len(cands7) == 1
+        assert cands7[0].confidence > cands3[0].confidence
+
+    def test_retrieval_failure_returns_empty_not_raises(self):
+        """B6: retrieval failure is non-silent — returns empty, logs warning (not silent success)."""
+        from foms.services.designer.design_retrieval import retrieve_similar_cases
+        from unittest.mock import patch
+
+        # Patch the source functions in design_case_memory (where retrieve_similar_cases imports from)
+        with patch(
+            'foms.services.designer.design_case_memory.find_similar',
+            side_effect=RuntimeError("DB down"),
+        ):
+            result = retrieve_similar_cases(furniture_type="wardrobe", width_mm=2400)
+        # Must return empty list, never raise
+        assert result == []
+
+    def test_retrieval_result_pii_free_for_langgraph(self):
+        """B6: PII-free payload only enters LangGraph state."""
+        pii_case = {
+            "furniture_type": "wardrobe", "width_mm": 2400,
+            "customer_name": "홍길동", "phone": "010-1234-5678",
+        }
+        clean = _ensure_pii_free(pii_case)
+        assert "customer_name" not in clean
+        assert "phone" not in clean
+        assert clean["furniture_type"] == "wardrobe"

@@ -222,9 +222,47 @@ class TestDrawingReviewFileStructure:
         assert "UPLOAD_TIMEOUT" in content
 
     def test_approve_save_preserves_design_understanding_for_learning(self):
-        """Approved drawing cases must carry layout/category learning payloads."""
+        """Approved drawing cases must carry layout/category learning payloads.
+
+        B2: internal_structure now includes design_understanding + mapping_report.
+        """
         content = (ROOT / "foms" / "api" / "designer" / "drawings.py").read_text(encoding="utf-8")
         assert "design_understanding" in content
-        assert "internal_structure=design_understanding" in content
+        # B2: internal_structure is a composite dict with design_understanding + mapping_report
+        assert "internal_structure" in content
+        assert "mapping_report" in content
         assert "extract_tags_from_case" in content
         assert "tags=learning_tags" in content
+
+    def test_approve_save_legacy_candidate_returns_422(self):
+        """B2: Legacy candidate (no design_graph_candidate_json) must return 422."""
+        content = (ROOT / "foms" / "api" / "designer" / "drawings.py").read_text(encoding="utf-8")
+        assert "legacy_candidate_requires_reextract" in content
+        assert "is_legacy" in content
+
+    def test_approve_save_already_approved_returns_409(self):
+        """B2: Re-approving an already-approved candidate must return 409."""
+        content = (ROOT / "foms" / "api" / "designer" / "drawings.py").read_text(encoding="utf-8")
+        assert "already_approved" in content or "already_" in content
+        assert "409" in content
+
+    def test_approve_save_prefers_graph_candidate_json(self):
+        """B2: approve-and-save must use design_graph_candidate_json first."""
+        content = (ROOT / "foms" / "api" / "designer" / "drawings.py").read_text(encoding="utf-8")
+        assert "design_graph_candidate_json" in content
+        assert "graph-first" in content
+
+    def test_candidate_model_has_b2_columns(self):
+        """B2: DesignerExtractionCandidate must have graph-first preview columns."""
+        from foms.persistence.designer.models import DesignerExtractionCandidate
+        cols = {col.key for col in DesignerExtractionCandidate.__table__.columns}
+        assert "design_graph_candidate_json" in cols
+        assert "mapping_report_json" in cols
+        assert "validation_json" in cols
+        assert "preview_allowed" in cols
+
+    def test_candidate_is_legacy_method(self):
+        """B2: is_legacy() is implemented in DesignerExtractionCandidate."""
+        from foms.persistence.designer.models import DesignerExtractionCandidate
+        assert hasattr(DesignerExtractionCandidate, "is_legacy")
+        assert callable(DesignerExtractionCandidate.is_legacy)

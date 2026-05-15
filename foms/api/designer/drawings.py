@@ -671,19 +671,64 @@ def approve_and_save_candidate(candidate_id: str):
     검증 통과 후 project version 생성 + DesignerDesignCase 저장.
     candidate_id는 DesignerExtractionCandidate.id (DB integer).
 
+    B2 계약:
+    - legacy candidate → HTTP 422 + legacy_candidate_requires_reextract
+    - 이미 approve/promoted → HTTP 409
+    - blocking_reasons 있으면 → HTTP 422 + approve_blocked
+    - design_graph_candidate_json 우선 사용, fallback factory_params
+
     Body: { project_id: int }
     """
-    candidate_row = _get_candidate_row(candidate_id)
+    from db import db_session
+    from foms.persistence.designer.models import DesignerExtractionCandidate
+
+    # Lock candidate row for concurrent approve prevention
+    try:
+        row_id = int(candidate_id)
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "error": f"Invalid candidate_id: {candidate_id}"}), 400
+
+    candidate_row = (
+        db_session.query(DesignerExtractionCandidate)
+        .filter(DesignerExtractionCandidate.id == row_id)
+        .with_for_update()
+        .first()
+    )
     if candidate_row is None:
         return jsonify({"success": False, "error": f"Candidate {candidate_id} not found"}), 404
 
-    # Gate 1: no unresolved fields
+    # Gate 0: already approved/promoted → 409
+    if candidate_row.status in ("approved", "promoted_to_project_version"):
+        return jsonify({
+            "success": False,
+            "error": "approve_blocked",
+            "data": {"reasons": [f"already_{candidate_row.status}"]},
+        }), 409
+
+    # Gate 1: legacy candidate → 422
+    if candidate_row.is_legacy():
+        return jsonify({
+            "success": False,
+            "error": "approve_blocked",
+            "data": {"reasons": ["legacy_candidate_requires_reextract"]},
+        }), 422
+
+    # Gate 2: blocking reasons → 422
+    blocking = list(candidate_row.blocking_reasons_json or [])
+    if blocking:
+        return jsonify({
+            "success": False,
+            "error": "approve_blocked",
+            "data": {"reasons": blocking},
+        }), 422
+
+    # Gate 3: no unresolved fields in legacy path
     unresolved = list(candidate_row.unresolved_fields_json or [])
     if unresolved:
         return jsonify({
             "success": False,
-            "error": f"미확인 필드가 있어 저장할 수 없습니다: {unresolved}",
-            "code": "UNRESOLVED_FIELDS",
+            "error": "approve_blocked",
+            "data": {"reasons": [f"unresolved_field:{u}" for u in unresolved]},
         }), 422
 
     body = request.get_json(silent=True) or {}
@@ -692,33 +737,58 @@ def approve_and_save_candidate(candidate_id: str):
         return jsonify({"success": False, "error": "project_id가 필요합니다."}), 400
 
     furniture_type = candidate_row.furniture_type
-    factory_params = dict(candidate_row.extracted_params_json or {})
 
-    # Build design graph
-    try:
-        from foms.services.designer.factory_registry import create_design
-        design_graph = create_design(furniture_type, factory_params)
-    except Exception as exc:
-        logger.error("[APPROVE-SAVE] factory create failed: %s", exc)
-        return jsonify({"success": False, "error": f"설계 생성 실패: {exc}"}), 500
+    # B2: Prefer design_graph_candidate_json, fallback to factory_params
+    design_dict: dict | None = None
 
-    # Gate 2: validator must pass
+    if candidate_row.design_graph_candidate_json:
+        design_dict = dict(candidate_row.design_graph_candidate_json)
+        logger.info("[APPROVE-SAVE] using graph-first design_graph_candidate_json candidate=%s", candidate_id)
+    else:
+        # Legacy fallback: factory_params path (for backwards compat during migration window)
+        factory_params = dict(candidate_row.extracted_params_json or {})
+        try:
+            from foms.services.designer.factory_registry import create_design
+            design_graph = create_design(furniture_type, factory_params)
+            design_dict = design_graph if isinstance(design_graph, dict) else design_graph.to_dict()
+            logger.info("[APPROVE-SAVE] using factory fallback candidate=%s", candidate_id)
+        except Exception as exc:
+            logger.error("[APPROVE-SAVE] factory create failed: %s", exc)
+            return jsonify({"success": False, "error": f"설계 생성 실패: {exc}"}), 500
+
+    # Gate 4: no-op / empty graph rejection
+    if not design_dict:
+        return jsonify({
+            "success": False,
+            "error": "approve_blocked",
+            "data": {"reasons": ["empty_design_graph"]},
+        }), 422
+
+    components = design_dict.get("components", [])
+    if not components:
+        return jsonify({
+            "success": False,
+            "error": "approve_blocked",
+            "data": {"reasons": ["no_components_in_design_graph"]},
+        }), 422
+
+    # Gate 5: validator must pass
     try:
         from foms.services.designer.validator import validate_design
-        val_result = validate_design(design_graph)
+        val_result = validate_design(design_dict)
         if val_result.errors:
+            reasons = [e.message for e in val_result.errors[:5]]
             return jsonify({
                 "success": False,
-                "error": f"검증 오류: {[e.message for e in val_result.errors[:3]]}",
-                "code": "VALIDATOR_FAILED",
+                "error": "approve_blocked",
+                "data": {"reasons": reasons},
             }), 422
     except Exception as exc:
         return jsonify({"success": False, "error": f"검증 실패: {exc}"}), 500
 
-    # Create project version
+    # Create project version (atomic: check current_version → create → update)
     try:
         from foms.persistence.designer import create_project_version
-        design_dict = design_graph if isinstance(design_graph, dict) else design_graph.to_dict()
         version = create_project_version(
             project_id=int(project_id),
             design_json=design_dict,
@@ -728,10 +798,9 @@ def approve_and_save_candidate(candidate_id: str):
         logger.error("[APPROVE-SAVE] version create failed: %s", exc)
         return jsonify({"success": False, "error": f"버전 저장 실패: {exc}"}), 500
 
-    # Mark candidate approved + persist
+    # Mark candidate approved + create DesignerDesignCase
     design_case_id = None
     try:
-        from db import db_session
         from datetime import datetime, timezone
         user_id = getattr(g, "user_id", None)
         candidate_row.approved = True
@@ -740,13 +809,11 @@ def approve_and_save_candidate(candidate_id: str):
         candidate_row.approved_at = datetime.now(timezone.utc)
         db_session.flush()
 
-        # Create DesignerDesignCase
         try:
             from foms.services.designer.design_case_memory import save_design_case
             from foms.services.designer.product_archetype_learning import extract_tags_from_case
             from foms.persistence.designer.models import DesignerDrawingExtraction
 
-            # Resolve extraction id for provenance
             extraction_id = candidate_row.extraction_id
             extraction_payload: dict = {}
             if extraction_id:
@@ -755,13 +822,18 @@ def approve_and_save_candidate(candidate_id: str):
                     extraction_payload = dict(extraction_row.parsed_json or {})
 
             design_understanding = extraction_payload.get("design_understanding") or {}
+            # B5: store mapping_report alongside design_understanding in internal_structure_json
+            internal_structure = {
+                "design_understanding": design_understanding,
+                "mapping_report": dict(candidate_row.mapping_report_json or {}),
+            }
             customer_info = extraction_payload.get("customer_info") or {}
             product_name = customer_info.get("product_name") or extraction_payload.get("product_name")
             learning_tags = extract_tags_from_case({
                 "furniture_type": furniture_type,
                 "product_name": product_name or "",
                 "options_json": {"design_understanding": design_understanding},
-                "internal_structure_json": design_understanding,
+                "internal_structure_json": internal_structure,
             })
 
             case_result = save_design_case(
@@ -771,22 +843,20 @@ def approve_and_save_candidate(candidate_id: str):
                 project_id=int(project_id),
                 approved_extraction_id=extraction_id,
                 product_name=product_name,
-                internal_structure=design_understanding,
+                internal_structure=internal_structure,
                 tags=learning_tags,
                 source_quality_score=float(candidate_row.confidence or 1.0),
                 approval_user_id=user_id,
             )
             design_case_id = case_result.get("id")
 
-            # Link source_candidate_id if DesignerDesignCase supports it
             if design_case_id:
                 from foms.persistence.designer.models import DesignerDesignCase
                 dc = db_session.get(DesignerDesignCase, design_case_id)
                 if dc is not None:
                     dc.source_candidate_id = candidate_row.id
         except Exception as exc:
-            logger.error("[APPROVE-SAVE] design case creation failed: %s", exc)
-            # Non-fatal: project version was already created. Log and continue.
+            logger.error("[APPROVE-SAVE] design case creation failed (non-fatal): %s", exc)
 
         db_session.commit()
     except Exception as exc:

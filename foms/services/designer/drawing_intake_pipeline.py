@@ -56,6 +56,10 @@ class DrawingPipelineResult:
     candidate: dict[str, Any]     # MappedCandidate.to_dict()
     metrics: dict[str, Any]       # Gemini provider _metrics
     ui_state: dict[str, Any]      # can_review/can_preview_3d/can_approve/…
+    # B4: schema v2 graph from layout_graph_mapper (None if not yet mapped)
+    design_graph_candidate: dict[str, Any] | None = None
+    # B4: mapping blocking reasons
+    graph_blocking_reasons: list[str] | None = None
 
     def to_api_response(self) -> dict[str, Any]:
         return {
@@ -69,6 +73,9 @@ class DrawingPipelineResult:
             "candidate": self.candidate,
             "metrics": self.metrics,
             "ui_state": self.ui_state,
+            # B4: include graph so frontend can use graph-first 3D load path
+            "design_graph_candidate": self.design_graph_candidate,
+            "graph_blocking_reasons": self.graph_blocking_reasons or [],
         }
 
 
@@ -384,16 +391,48 @@ def run_intake_pipeline(
         filename, artifact.id, extraction_row.id,
     )
 
-    # ── Step 10: Build MappedCandidate ───────────────────
+    # ── Step 10: Build MappedCandidate (factory-params path) ──
     candidate = build_candidate(extraction_dict, source_extraction_id=extraction_row.id)
 
+    # ── Step 10b: Layout graph mapping (B2 — graph-first path) ─
+    # This runs deterministically after Gemini, never re-calls Gemini.
+    graph_candidate_json = None
+    mapping_report_json = None
+    validation_json_b2 = None
+    preview_allowed_b2 = False
+    graph_blocking_reasons: list[str] = []
+
+    try:
+        from foms.services.designer.layout_graph_mapper import map_extraction_to_design_graph
+        mapping_result = map_extraction_to_design_graph(
+            extraction_dict,
+            source_extraction_id=extraction_row.id,
+        )
+        graph_candidate_json = mapping_result.design_graph
+        mapping_report_json = mapping_result.mapping_report.to_dict()
+        validation_json_b2 = {"valid": not mapping_result.approval_blocking_reasons}
+        preview_allowed_b2 = mapping_result.preview_allowed
+        graph_blocking_reasons = mapping_result.approval_blocking_reasons
+        logger.info(
+            "[PIPELINE] layout_graph_mapper done extraction=%d preview=%s blocking=%d",
+            extraction_row.id, preview_allowed_b2, len(graph_blocking_reasons),
+        )
+    except Exception as exc:
+        logger.warning("[PIPELINE] layout_graph_mapper failed (non-fatal): %s", exc)
+        mapping_report_json = {"warnings": [f"mapper_error:{exc}"]}
+        graph_blocking_reasons = [f"mapper_error:{type(exc).__name__}"]
+
     # ── Step 11: Compute ui_state ────────────────────────
+    combined_blocking = list(extra_blocking) + graph_blocking_reasons
     ui_state = compute_ui_state(
         furniture_type=candidate.furniture_type,
         unresolved_fields=candidate.unresolved_fields,
         validation_result=candidate.validation_result,
-        extra_blocking_reasons=extra_blocking,
+        extra_blocking_reasons=combined_blocking,
     )
+    # Merge graph preview_allowed into ui_state
+    if preview_allowed_b2:
+        ui_state["can_preview_3d_graph"] = True
 
     # ── Step 12: Persist candidate ───────────────────────
     candidate_row = DesignerExtractionCandidate(
@@ -405,6 +444,11 @@ def run_intake_pipeline(
         approved=False,
         status="pending_review",
         blocking_reasons_json=ui_state["blocking_reasons"],
+        # B2 graph-first columns
+        design_graph_candidate_json=graph_candidate_json,
+        mapping_report_json=mapping_report_json,
+        validation_json=validation_json_b2,
+        preview_allowed=preview_allowed_b2,
     )
     db_session.add(candidate_row)
 
@@ -433,4 +477,6 @@ def run_intake_pipeline(
         candidate=candidate.to_dict(),
         metrics=metrics,
         ui_state=ui_state,
+        design_graph_candidate=graph_candidate_json,
+        graph_blocking_reasons=graph_blocking_reasons,
     )

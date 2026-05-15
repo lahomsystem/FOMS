@@ -773,6 +773,9 @@ let currentExtraction = null;
 let currentMetrics = null;
 let currentFixtureId = null;
 let currentFilename = null;
+// B4: schema v2 graph from layout_graph_mapper (populated after upload)
+let currentDesignGraphCandidate = null;
+let currentGraphBlockingReasons = [];
 
 // ── Fixture 목록 로드 ────────────────────────────────────────
 async function loadFixtures() {
@@ -914,6 +917,9 @@ async function handleSingleFile(file) {
     if (result.success) {
         currentExtraction = result.data.extraction;
         currentMetrics = result.data.metrics;
+        // B4: store graph-first candidate data from intake pipeline
+        currentDesignGraphCandidate = result.data.design_graph_candidate || null;
+        currentGraphBlockingReasons = result.data.graph_blocking_reasons || [];
         renderExtractionResult(result.data);
     } else {
         handleUploadError(result);
@@ -1127,19 +1133,40 @@ function openReview() {
                 filename: currentFilename || 'unknown',
                 metrics: currentMetrics || {},
                 fixtureId: currentFixtureId || null,
+                // B4: pass graph-first data so DrawingReviewWorkspace can use it
+                design_graph_candidate: currentDesignGraphCandidate || null,
+                blocking_reasons: currentGraphBlockingReasons || [],
             },
         }, '*');
     }
 }
 
-// ── 3D 워크벤치로 로드 (PG-B9) ──────────────────────────────
+// ── B4: ack listener — show success toast only when iframe confirms component load ──
+(function() {
+    window.addEventListener('message', function(e) {
+        if (!e.data || e.data.type !== 'FOMS_CANDIDATE_LOADED_ACK') return;
+        if (e.data.success && e.data.component_count > 0) {
+            showAlert(
+                `3D 편집기에 로드 완료 — 컴포넌트 ${e.data.component_count}개`,
+                'success'
+            );
+        } else if (!e.data.success || e.data.component_count === 0) {
+            showAlert(
+                '3D 로드 실패: ' + (e.data.error || 'component가 없습니다.'),
+                'danger'
+            );
+        }
+    });
+})();
+
+// ── 3D 워크벤치로 로드 (B4: graph-first) ─────────────────────
 async function loadTo3D() {
     if (!currentExtraction) return;
     const btn = document.getElementById('btn-load-3d');
     btn.disabled = true; btn.textContent = '⏳ 로딩...';
 
     try {
-        // 1. Candidate 빌드
+        // 1. Candidate 빌드 (includes design_graph_candidate if intake ran layout_graph_mapper)
         const resp = await fetch('/api/designer/drawings/candidates/build', {
             method: 'POST', credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json' },
@@ -1151,7 +1178,7 @@ async function loadTo3D() {
             const candidate = json.data.candidate;
             // 2. 모드 전환
             switchMode('designer');
-            // 3. iframe에 candidate 전달
+            // 3. iframe에 candidate 전달 — ack가 toast 표시를 담당하므로 여기서 toast 없음
             const iframe = document.getElementById('designer-iframe');
             if (iframe && iframe.contentWindow) {
                 iframe.contentWindow.postMessage({
@@ -1159,14 +1186,11 @@ async function loadTo3D() {
                     candidate: {
                         furniture_type: candidate.furniture_type || currentExtraction.furniture_type || 'wardrobe',
                         factory_params: candidate.factory_params || {},
+                        // B4: prefer graph from intake pipeline (stored at upload time)
+                        design_graph: currentDesignGraphCandidate || candidate.design_graph_candidate || null,
                     },
                 }, '*');
-                showAlert(
-                    `"${currentFilename || '도면'}" 을 3D 편집기에 로드했습니다.<br>`
-                    + `가구 유형: ${candidate.furniture_type || '?'} | `
-                    + `미확인 필드: ${(candidate.unresolved_fields || []).length}개`,
-                    'success'
-                );
+                // Toast is deferred to FOMS_CANDIDATE_LOADED_ACK handler (see above)
             }
         } else {
             showAlert('3D 로드 실패: ' + (json.error || '알 수 없는 오류'), 'danger');
@@ -1266,6 +1290,7 @@ async function approveDraft() {
 
 function resetUpload() {
     currentExtraction = null; currentMetrics = null; currentFilename = null;
+    currentDesignGraphCandidate = null; currentGraphBlockingReasons = [];
     document.getElementById('extraction-result').style.display = 'none';
     document.getElementById('batch-progress').style.display = 'none';
     document.getElementById('batch-results').innerHTML = '';

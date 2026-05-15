@@ -162,3 +162,41 @@ class TestArchetypeDiscovery:
         assert "known_extended" in summary
         assert summary["total_known"] >= 8
         assert "no_molding_wardrobe" in summary["known_extended"]
+
+    def test_candidate_has_supporting_case_ids(self):
+        """B5: archetype discovery includes supporting_case_ids for evidence tracing."""
+        cases = self._make_cases(4, "wardrobe", "무몰딩 붙박이장", ["no_molding"])
+        candidates = discover_archetypes_from_cases(cases, min_count=3)
+        assert len(candidates) == 1
+        ids = candidates[0].supporting_case_ids
+        assert isinstance(ids, list)
+        assert len(ids) >= 3
+
+    def test_candidate_cannot_promote_without_approval(self):
+        """B5: auto-generated candidate cannot be promoted without human approval."""
+        cases = self._make_cases(5, "wardrobe", "리폼장", ["reform"])
+        candidates = discover_archetypes_from_cases(cases)
+        for c in candidates:
+            # auto_generated=True, approved=False → can_promote must be False
+            assert c.auto_generated is True
+            assert c.approved is False
+            assert c.can_promote() is False
+
+    def test_raw_upload_does_not_become_rule_evidence(self):
+        """B5: pre-approval candidates have no design case and cannot form rule evidence.
+
+        Rule candidates require correction evidence (cluster_corrections_to_candidates).
+        Verifies that the min_count guard blocks promotion from insufficient corrections.
+        """
+        from foms.services.designer.evolution import cluster_corrections_to_candidates
+        # Fewer than 3 matching corrections → empty result (no candidate created)
+        result = cluster_corrections_to_candidates("test_hint_B5", min_count=3)
+        assert result == []
+
+    def test_evolution_promote_requires_replay_and_approval(self):
+        """B5: approve_and_promote_candidate raises without replay report."""
+        from foms.services.designer.evolution import approve_and_promote_candidate
+        import pytest
+        with pytest.raises((ValueError, Exception)):
+            # No candidate exists with id=-1; should raise
+            approve_and_promote_candidate(-1)

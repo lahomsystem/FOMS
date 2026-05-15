@@ -51,16 +51,24 @@ def cluster_corrections_to_candidates(
     """Query corrections with matching candidate_rule_hint and group them.
 
     Returns list of candidate dicts ready for create_rule_candidate_from_corrections.
+    Returns [] on DB failure (non-fatal).
     """
-    from db import db_session
-    from foms.persistence.designer.models import DesignerCorrection
-    import json
+    try:
+        from db import db_session
+        from foms.persistence.designer.models import DesignerCorrection
+    except Exception as exc:
+        logger.warning("[EVOLUTION] cluster_corrections: import failed: %s", exc)
+        return []
 
-    query = db_session.query(DesignerCorrection)
-    if project_id is not None:
-        query = query.filter(DesignerCorrection.project_id == project_id)
+    try:
+        query = db_session.query(DesignerCorrection)
+        if project_id is not None:
+            query = query.filter(DesignerCorrection.project_id == project_id)
 
-    corrections = query.order_by(DesignerCorrection.created_at.desc()).limit(200).all()
+        corrections = query.order_by(DesignerCorrection.created_at.desc()).limit(200).all()
+    except Exception as exc:
+        logger.warning("[EVOLUTION] cluster_corrections: DB query failed: %s", exc)
+        return []
 
     # Filter by candidate_rule_hint in after_json
     matching_ids: list[int] = []

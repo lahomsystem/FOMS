@@ -303,12 +303,37 @@ class DesignerExtractionCandidate(Base):
         default="pending_review",
     )
     blocking_reasons_json: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+
+    # B2: layout_graph_mapper result — 3D preview contract
+    # NULL on legacy rows (pre-B2) → use review_status='legacy_requires_reextract'
+    design_graph_candidate_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    mapping_report_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    validation_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    preview_allowed: Mapped[bool] = mapped_column(nullable=False, default=False)
+
     # correction_deltas stored in DesignerCorrection linked to this candidate
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
 
     extraction: Mapped[DesignerDrawingExtraction] = relationship(
         "DesignerDrawingExtraction", back_populates="candidates"
     )
+
+    def is_legacy(self) -> bool:
+        """True if this candidate was created before B2 and lacks graph payload."""
+        return self.design_graph_candidate_json is None
+
+    def can_preview(self) -> bool:
+        """True if 3D editor can load this candidate."""
+        return self.preview_allowed and not self.is_legacy()
+
+    def can_approve(self) -> bool:
+        """True if approve-and-save is permitted (not legacy, no blocking reasons)."""
+        return (
+            not self.is_legacy()
+            and self.status not in ("rejected", "approved", "promoted_to_project_version")
+            and not self.blocking_reasons_json
+            and self.preview_allowed
+        )
 
 
 # ──────────────────────────────────────────────────────────

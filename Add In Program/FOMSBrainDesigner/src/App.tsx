@@ -127,14 +127,24 @@ export default function App() {
     return () => window.removeEventListener('keydown', handler)
   }, [])
 
-  // ── postMessage listeners (PG-B8/B9) ────────────────────
+  // ── postMessage listeners (B4: graph-first) ─────────────
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       if (!e.data) return
-      // Load AI candidate into 3D editor (PG-B9)
+      // Load AI candidate into 3D editor (B4: prefer design_graph)
       if (e.data.type === 'FOMS_LOAD_CANDIDATE' && e.data.candidate) {
-        const { furniture_type, factory_params } = e.data.candidate
-        loadCandidateGraph({ furniture_type, factory_params: factory_params || {} })
+        const { furniture_type, factory_params, design_graph } = e.data.candidate
+        loadCandidateGraph({ furniture_type, factory_params: factory_params || {}, design_graph })
+        // Send ack with component count so outer page can suppress toast on zero-component load
+        const { design: loaded, candidateLoadError } = useDesignerStore.getState()
+        try {
+          window.parent.postMessage({
+            type: 'FOMS_CANDIDATE_LOADED_ACK',
+            success: !candidateLoadError,
+            component_count: loaded.components.length,
+            error: candidateLoadError ?? null,
+          }, '*')
+        } catch (_) {}
       }
       // Open drawing review workspace (PG-B8)
       if (e.data.type === 'FOMS_REVIEW_EXTRACTION') {
@@ -153,6 +163,7 @@ export default function App() {
         loadCandidateGraph({
           furniture_type: detail.furniture_type,
           factory_params: detail.factory_params || {},
+          design_graph: detail.design_graph,
         })
         setAppMode('editor')
       }
