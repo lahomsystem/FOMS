@@ -35,7 +35,7 @@
 | `docs/context/2026-04-16-project-delta-analysis-eb01c5d7-to-4c3aaffb.md` | 보관-재분류 | 참조 0건, `ARCHIVE_INDEX` 미등재, one-off 분석 메모 성격이 강하다. | `docs/context/analysis/` 하위로 이동해 archive-class로 명시하거나 삭제 여부를 별도 결재 |
 | `docs/context/COMPACT_CHECKPOINT.md` + `docs/harness/runtime/COMPACT_CHECKPOINT.md` | 보관-재분류 | 둘 다 참조가 남아 있고 역할도 다르다. 지금은 "context handoff"와 "runtime checkpoint"가 공존한다. | canonical owner를 하나로 고정하고 나머지는 historical alias 또는 retire |
 | `docs/plans/` 내 low-ref 미인덱스 조기 계획 문서군 | 보관-재분류 | early-March 계획 문서 중 ref가 낮고 `ARCHIVE_INDEX` 미등재인 파일이 다수 있다. | `living / archived / disposable` 3분류 후 archive bucket 정리 |
-| `.cursor/skills/**`, `.agents/skills/gstack/**` | 보관-재분류 | repo 표면적의 가장 큰 비제품 비중이지만, 실제 도구 체인과 연결돼 있어 blind delete 불가 | vendored skill retention policy 또는 external mirror 정책 필요 |
+| ~~`.cursor/skills/**`~~ (2026-05-15 제거) 및 `.agents/skills/gstack/**` 표준 근원 | 유지 정리 완료 | 레거시 벌크 카탈로그는 저장소에서 제거; 워크플로 스킬은 gstack 디렉터리만 사용 | IDE 전역 스킬은 `%USERPROFILE%\.cursor` 등 저장소 외부; gstack 업그레이드는 `.agents/skills/gstack`만 따른다 |
 | `backups/**` | 보관-재분류 | 역사 보존 가치는 있으나 repo 시각적 복잡도를 크게 늘린다. | 보존 정책/외부 저장소 이전 여부를 별도 결정 |
 | `docs/context/manual-artifacts/**` | 보관-재분류 | manual artifact bucket이며 active source는 아니지만 historical reference 가능성이 있다. | archive-only 선언 또는 외부 문서 저장소 이전 검토 |
 

@@ -63,7 +63,7 @@ structured_data = db.Column(
 
 ## 참조 Skills (gstack · 저장소)
 - **`.agents/skills/gstack/health/SKILL.md`** (품질·점검 워크플로가 필요할 때)
-- 스키마·마이그레이션은 `CLAUDE.md` DB 절 + `.cursor/skills/manuals/03-python.md` 의 SQLAlchemy/Alembic 규칙을 따른다.
+- 스키마·마이그레이션은 **`CLAUDE.md` DB 절** + **`AGENTS.md`** 코어 규칙 및 SQLAlchemy/Alembic 관련 프로젝트 규약을 따른다.
 
 ## 참조 MCP
 - `postgres`: DB 스키마 확인, 쿼리 실행, 성능 분석

@@ -68,7 +68,7 @@ Report To: `grand-develop-master`
 - **`.agents/skills/gstack/review/SKILL.md`** (PR·랜딩 전 리뷰 워크플로)
 - 보안 심화가 필요하면 **`.agents/skills/gstack/cso/SKILL.md`**
 - 디버깅·RCA는 **`.agents/skills/gstack/investigate/SKILL.md`**
-- 코어 규칙: `AGENTS.md`, `.cursor/rules/*.mdc`, `.cursor/skills/manuals/01-clean-code.md`
+- 코어 규칙·클린코드 원칙: **`AGENTS.md`** (Root Cause Fix Only), **`.cursor/rules/*.mdc`**, 필요 시 **`CLAUDE.md`** 코딩 규칙과 동일 기준 적용.
 
 
 ##  [System 4 규칙] 필수 보고 체계

@@ -54,7 +54,7 @@ def create_app() -> Flask:
 
 ## 참조 Skills (gstack · 저장소)
 - 워크플로는 **`.agents/skills/gstack/`** 를 참고한다 (예: `health`, `review`, `investigate`).
-- Flask/Python 규칙: `CLAUDE.md`, `.cursor/skills/manuals/03-python.md`, `.cursor/rules/00-project-context.mdc`
+- Flask/Python·ORM 규칙: **`CLAUDE.md`**, **`AGENTS.md`**, `.cursor/rules/00-project-context.mdc` (별도 레거시 `.cursor/skills/manuals` 매뉴얼 미사용).
 
 ## 참조 MCP
 - `context7`: Flask/SQLAlchemy 문서 조회

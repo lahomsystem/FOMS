@@ -64,7 +64,7 @@
 3. 브라우저 QA, canary, benchmark, release gate가 **문서/수동 절차** 중심이다.
 4. 훅 구현 일부가 프로젝트 정책과 충돌한다.
 5. 스킬/정책/워크플로의 **drift 검증**이 약하다.
-6. `.cursor/skills`는 방대하지만, 실제 **하네스 코어**와 **보조 스킬**의 경계가 흐리다.
+6. **(2026-05-15)** 레거시 워크스페이스 `.cursor/skills/` 벌크 패키지는 제거했다. 저장소 안 보조 스킬 단일 근원은 **`.agents/skills/gstack/`** 이다.
 
 ---
 
@@ -233,7 +233,7 @@ repo-local로 gstack를 도입하되, FOMS 하네스 바깥이 아닌 **관리 �
 
 ### 5.3 유지하되 역할 명확화
 
-- `.cursor/skills/` 전체
+- `.agents/skills/gstack/` (워크플로 번들) + 사용자 Cursor 전역 스킬(UI가 관리, 저장소 미포함)
 - `docs/AI_STATUS.md`
 - `docs/AI_CHANGELOG.md`
 - `docs/harness/runtime/SESSION_LOG.md`
@@ -484,7 +484,7 @@ powershell -NoProfile -File "tools/harness/run_gstack_qa.ps1" -Url "https://stag
 | Windows 마찰 | PowerShell, Git Bash, Bun/Node 혼합 | wrapper 스크립트로 표준화 |
 | 훅 의존성 | Cursor 훅은 Codex CLI에서 자동 실행되지 않음 | Codex wrapper에 preflight/postflight 추가 |
 | 브라우저 충돌 | Cursor MCP와 gstack browse가 서로 역할을 침범 | 사용 목적을 문서로 고정 |
-| 하네스 비대화 | `.cursor/skills`와 gstack가 함께 비대해짐 | harness core vs optional skills 분리 |
+| 하네스 비대화 | 구 `.cursor/skills` 벌크 + gstack 이중 적재 위험 → 워크스페이스 `.cursor/skills` 제거(2026-05-15), `.agents/skills/gstack/` 유지 | harness core vs optional skills 분리 |
 
 ---
 

@@ -60,7 +60,7 @@ Repo Surface Cleanup Execution Plan
 - [ ] `RSC-B3`: workspace cleanup 스크립트/운영 규칙으로 `.pytest_cache`, `__pycache__`, load results, hook runtime residue를 정리한다.
 - [ ] `RSC-B4`: `2026-04-16-project-delta-analysis...` 같은 one-off 분석 문서를 `analysis/` 또는 archive bucket으로 재배치하고 index를 맞춘다.
 - [ ] `RSC-B5`: `docs/context/COMPACT_CHECKPOINT.md`와 `docs/harness/runtime/COMPACT_CHECKPOINT.md`의 canonical owner를 결정하고 refs/spec/docs를 동기화한다.
-- [ ] `RSC-B6`: early low-ref plan docs, `.cursor/skills/**`, `.agents/skills/gstack/**`, `backups/**`, `manual-artifacts/**`에 대한 retention policy를 별도 문서로 잠그거나 archive tranche를 연다.
+- [ ] `RSC-B6`: early low-ref plan docs, ~~`.cursor/skills/**`~~(2026-05-15 제거 완료), `.agents/skills/gstack/**`, `backups/**`, `manual-artifacts/**`에 대한 retention policy를 별도 문서로 잠그거나 archive tranche를 연다.
 
 ## 4. 검증 기준
 - [ ] `rg -n "docs/context/SHELL_GUARD_LOG.md" .claude .cursor docs tests tools` 결과가 historical docs를 제외하면 old generator path를 남기지 않는다.

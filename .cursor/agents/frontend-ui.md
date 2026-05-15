@@ -45,8 +45,8 @@ try {
 
 ## 참조 Skills (gstack · 저장소)
 - 워크플로 스킬은 **`.agents/skills/gstack/`** 번들을 우선한다 (예: `.agents/skills/gstack/design-review/SKILL.md`, `.agents/skills/gstack/design-html/SKILL.md`, `.agents/skills/gstack/qa/SKILL.md`).
-- UI 가이드라인 보조: `.cursor/skills/web-design-guidelines/SKILL.md`
-- 코어 규칙: `AGENTS.md`, `CLAUDE.md`, `.cursor/rules/*.mdc`, `.cursor/skills/manuals/`
+- UI·접근성 가이드: `CLAUDE.md`/`AGENTS.md` 프론트 절 및 **`.agents/skills/gstack/design-review/SKILL.md`** (플랜 검토 시 **plan-design-review** 계열 SKILL).
+- 코어 규칙: `AGENTS.md`, `CLAUDE.md`, `.cursor/rules/*.mdc`, 하네스 번들 `docs/harness/bundles/HARNESS_BUNDLE_CURSOR*.md`.
 
 ## 참조 MCP
 - `context7`: Bootstrap 문서 조회

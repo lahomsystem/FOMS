@@ -765,8 +765,8 @@ def default_self_manifest() -> Dict[str, Any]:
                 "auto_create_stub": True,
             },
         ],
-        # Third-party skill packs under `.cursor/skills/skills/` were removed from the repo
-        # to reduce Cursor indexing/context load. Optional installs go to vendor-skills/.
+        # Repo workspace `.cursor/skills/` bulk catalog (skills_index/manuals/vendor packs) removed 2026-05-15.
+        # Canonical workflow skills stay under `.agents/skills/gstack/`. IDE-only/global skills stay outside repo.
         "skills": [],
         "hooks": [
             {"name": "guard_shell", "path": ".cursor/hooks/guard_shell.py"},
