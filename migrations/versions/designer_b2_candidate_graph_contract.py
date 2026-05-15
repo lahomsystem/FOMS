@@ -15,7 +15,7 @@ Backfill policy for existing rows (legacy candidates):
 
 Legacy rows will return HTTP 422 + legacy_candidate_requires_reextract from approve API.
 
-Revision ID: designer_b2_candidate_graph_contract
+Revision ID: designer_b2_graph_contract
 Revises: designer_wdplanner_v2_fix
 """
 
@@ -24,7 +24,7 @@ from __future__ import annotations
 from alembic import op
 import sqlalchemy as sa
 
-revision = "designer_b2_candidate_graph_contract"
+revision = "designer_b2_graph_contract"
 down_revision = "designer_wdplanner_v2_fix"
 branch_labels = None
 depends_on = None
