@@ -70,6 +70,15 @@ class TestTemplateClassifier:
         assert "confidence" in d
         assert "method" in d
 
+    def test_gemini_classifier_accepts_actual_mime_type(self):
+        """PNG/PDF uploads must not be sent to Gemini as hardcoded JPEG."""
+        import inspect
+        from foms.services.designer.drawing_template_classifier import classify_with_gemini
+
+        sig = inspect.signature(classify_with_gemini)
+        assert "mime_type" in sig.parameters
+        assert sig.parameters["mime_type"].default == "image/jpeg"
+
 
 # ──────────────────────────────────────────────────────────
 # PG-B4-02: Model Router (fake mode)

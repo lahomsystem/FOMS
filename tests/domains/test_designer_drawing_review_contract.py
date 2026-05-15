@@ -213,3 +213,10 @@ class TestDrawingReviewFileStructure:
         assert "drawing-panel" in content
         assert "upload-and-extract" in content
         assert "save-draft" in content or "approve" in content
+
+    def test_wdplanner_v2_upload_has_client_timeout(self):
+        """The upload UI must not leave Gemini requests spinning until proxy 499."""
+        content = (ROOT / "templates" / "designer" / "wdplanner_v2.html").read_text(encoding="utf-8")
+        assert "DESIGNER_UPLOAD_TIMEOUT_MS" in content
+        assert "AbortController" in content
+        assert "UPLOAD_TIMEOUT" in content

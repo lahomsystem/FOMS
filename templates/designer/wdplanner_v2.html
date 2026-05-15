@@ -865,6 +865,7 @@ function showExistingExpected(ej, fixtureId) {
 const dropZone = document.getElementById('drop-zone');
 const fileInput = document.getElementById('file-input');
 let _geminiKeyMissing = false;
+const DESIGNER_UPLOAD_TIMEOUT_MS = 240000;
 
 dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
 dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
@@ -990,17 +991,44 @@ async function uploadAndExtract(file, fixtureId) {
     const formData = new FormData();
     formData.append('file', file);
     if (fixtureId) formData.append('fixture_id', fixtureId);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), DESIGNER_UPLOAD_TIMEOUT_MS);
     try {
         const resp = await fetch('/api/designer/drawings/upload-and-extract', {
-            method: 'POST', credentials: 'same-origin', body: formData,
+            method: 'POST',
+            credentials: 'same-origin',
+            body: formData,
+            signal: controller.signal,
         });
-        const json = await resp.json();
-        if (!json.success) {
-            return { success: false, error: json.error, code: json.code };
+        const text = await resp.text();
+        let json = null;
+        try {
+            json = text ? JSON.parse(text) : null;
+        } catch(e) {
+            return {
+                success: false,
+                error: `서버 응답 파싱 실패 (HTTP ${resp.status}): ${text.slice(0, 160)}`,
+            };
+        }
+        if (!resp.ok || !json || !json.success) {
+            return {
+                success: false,
+                error: (json && json.error) || `업로드 요청 실패 (HTTP ${resp.status})`,
+                code: json && json.code,
+            };
         }
         return { success: true, data: json.data };
     } catch(e) {
+        if (e.name === 'AbortError') {
+            return {
+                success: false,
+                code: 'UPLOAD_TIMEOUT',
+                error: `Gemini 응답 대기 시간이 ${Math.round(DESIGNER_UPLOAD_TIMEOUT_MS / 1000)}초를 초과했습니다. 서버 로그의 [CLASSIFY]/[GEMINI] 단계에서 지연 지점을 확인하세요.`,
+            };
+        }
         return { success: false, error: e.message };
+    } finally {
+        clearTimeout(timer);
     }
 }
 
