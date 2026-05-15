@@ -4,7 +4,7 @@ Single-model Gemini adapter for Korean furniture drawing extraction.
 
 Architecture contract:
 - GEMINI_API_KEY environment variable required. Never hardcoded.
-- DESIGNER_GEMINI_MODEL env var selects model (default: gemini-2.0-flash).
+- DESIGNER_GEMINI_MODEL env var selects model (default: gemini-3.1-pro-preview).
 - All calls are logged with latency_ms and token usage for cost tracking.
 - Returns raw extraction dict matching extract_candidate() interface.
 - PII fields (customer_name, phone, address) are returned RAW here.
@@ -30,9 +30,9 @@ logger = logging.getLogger(__name__)
 # ──────────────────────────────────────────────────────────
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-# Default model: gemini-2.5-flash (latest multimodal, billing required)
-# Override with DESIGNER_GEMINI_MODEL env var if needed
-GEMINI_MODEL = os.environ.get("DESIGNER_GEMINI_MODEL", "gemini-2.5-flash")
+# Default model: gemini-3.1-pro-preview (Gemini 3.1 Pro Preview — billing required)
+# Override with DESIGNER_GEMINI_MODEL env var (e.g. gemini-2.5-flash for cost)
+GEMINI_MODEL = os.environ.get("DESIGNER_GEMINI_MODEL", "gemini-3.1-pro-preview")
 
 # Valid furniture types (must match VALID_FURNITURE_TYPES in vision_types.py)
 _VALID_FURNITURE_TYPES = frozenset(

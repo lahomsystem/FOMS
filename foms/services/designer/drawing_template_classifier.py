@@ -178,7 +178,7 @@ def classify_with_gemini(
         return fast_result
 
     try:
-        from foms.services.designer.gemini_provider import _get_client
+        from foms.services.designer.gemini_provider import GEMINI_MODEL, _get_client
         from google.genai import types
 
         client = _get_client()
@@ -190,7 +190,7 @@ def classify_with_gemini(
         )
 
         response = client.models.generate_content(
-            model=os.environ.get("DESIGNER_GEMINI_MODEL", "gemini-2.5-flash"),
+            model=os.environ.get("DESIGNER_GEMINI_MODEL", GEMINI_MODEL),
             contents=[
                 types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg"),
                 prompt,

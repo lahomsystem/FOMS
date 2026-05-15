@@ -393,11 +393,11 @@ def _skip_if_quota_issue(e: Exception) -> None:
 class TestGeminiConnectivityLive:
     """Live Gemini API tests. Only run when GEMINI_API_KEY is set.
 
-    Uses gemini-1.5-flash by default (free tier available).
+    Uses configured default model (gemini-3.1-pro-preview when DESIGNER_GEMINI_MODEL unset).
     Tests are skipped gracefully on 429 rate limit.
     """
 
-    DEFAULT_MODEL = "gemini-2.5-flash"
+    DEFAULT_MODEL = "gemini-3.1-pro-preview"
 
     def test_connectivity_ping(self):
         """Gemini API connectivity ping succeeds (requires billing enabled)."""
