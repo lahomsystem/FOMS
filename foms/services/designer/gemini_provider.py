@@ -403,7 +403,9 @@ def check_connectivity(model: str | None = None) -> dict[str, Any]:
 # ──────────────────────────────────────────────────────────
 
 # Gemini Developer API paid standard tier, USD per 1M tokens.
-# Gemini 3.1 Pro output price includes thinking tokens.
+# Default cost estimate follows the current dev extraction model: gemini-2.5-flash.
+# Output price includes thinking tokens for models that report them.
+_DEFAULT_PRICING_MODEL = "gemini-2.5-flash"
 _MODEL_PRICING_PER_1M: dict[str, dict[str, float]] = {
     "gemini-3.1-pro-preview": {
         "input_le_200k": 2.00,
@@ -463,12 +465,12 @@ def estimate_cost_usd(
 ) -> float:
     """Return estimated USD cost for a single Gemini call.
 
-    Gemini 3.1 Pro switches to long-context pricing when the prompt exceeds
-    200k input tokens. Output token counts include thinking tokens when the API
-    reports them in candidates_token_count.
+    Uses gemini-2.5-flash pricing by default. Gemini 3.1 Pro pricing remains
+    available when model_name explicitly points to a 3.1 Pro model. Output token
+    counts include thinking tokens when the API reports them in candidates_token_count.
     """
-    model = model_name or os.environ.get("DESIGNER_GEMINI_MODEL", GEMINI_MODEL)
-    pricing = _MODEL_PRICING_PER_1M.get(model, _MODEL_PRICING_PER_1M["gemini-3.1-pro-preview"])
+    model = model_name or os.environ.get("DESIGNER_GEMINI_MODEL", _DEFAULT_PRICING_MODEL)
+    pricing = _MODEL_PRICING_PER_1M.get(model, _MODEL_PRICING_PER_1M[_DEFAULT_PRICING_MODEL])
     suffix = "gt_200k" if input_tokens > 200_000 else "le_200k"
     input_cost = input_tokens * pricing[f"input_{suffix}"] / 1_000_000
     output_cost = output_tokens * pricing[f"output_{suffix}"] / 1_000_000

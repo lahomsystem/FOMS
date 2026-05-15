@@ -98,13 +98,32 @@ class TestGeminiProviderInterface:
         assert cost == pytest.approx(0.818004)
 
     def test_gemini_flash_cost_estimation(self):
-        """Flash estimates remain model-specific instead of inheriting Pro pricing."""
+        """Flash estimates use Gemini 2.5 Flash standard pricing."""
         import foms.services.designer.gemini_provider as gp
 
         cost = gp.estimate_cost_usd(
             input_tokens=2000,
             output_tokens=500,
             model_name="gemini-2.5-flash",
+        )
+        assert cost == pytest.approx(0.00185)
+
+    def test_gemini_cost_default_is_flash(self, monkeypatch):
+        """Default estimates must use Gemini 2.5 Flash pricing."""
+        import foms.services.designer.gemini_provider as gp
+
+        monkeypatch.delenv("DESIGNER_GEMINI_MODEL", raising=False)
+        cost = gp.estimate_cost_usd(input_tokens=2000, output_tokens=500)
+        assert cost == pytest.approx(0.00185)
+
+    def test_gemini_unknown_model_falls_back_to_flash(self):
+        """Unknown model estimates must not fall back to Pro pricing."""
+        import foms.services.designer.gemini_provider as gp
+
+        cost = gp.estimate_cost_usd(
+            input_tokens=2000,
+            output_tokens=500,
+            model_name="gemini-unknown-experimental",
         )
         assert cost == pytest.approx(0.00185)
 
