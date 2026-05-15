@@ -181,7 +181,7 @@ Phase 4: 확장 (새 기능, AI 통합)
 | 컴포넌트 | 위치 | 생성 방법 |
 |----------|------|-----------|
 | Rule | `.cursor/rules/XX-name.mdc` | YAML frontmatter + Markdown |
-| Skill | `.agents/skills/gstack/<워크플로>/SKILL.md` (gstack 번들) 또는 필요 시 소형 전용 스킬만 `.cursor/skills/` 하위에 추가 | Markdown (SKILL.md) |
+| Skill | `.agents/skills/gstack/<워크플로>/SKILL.md` (gstack 번들). Cursor 사용자 전역 스킬만 `%USERPROFILE%\.cursor`(저장소 밖, IDE 설정이 관리하는 경로 가능) 에 둘 수 있다. 워크스페이스 루트 `.cursor/skills`(대형 서드파티 카탈로그)는 레거시로 폐기됨 — 저장소 재도입 금지. | Markdown (SKILL.md) |
 | Agent | `.cursor/agents/name.md` | YAML frontmatter + Markdown |
 | Hook | `.cursor/hooks/name.py` + `hooks.json` | Python 스크립트 + JSON 등록 |
 | MCP | `~/.cursor/mcp.json` | JSON 설정 추가 |
@@ -329,8 +329,8 @@ Phase 4: 확장 (새 기능, AI 통합)
 
 ## 참조 Skills (gstack · 저장소)
 - 종합 워크플로·QA·리뷰: **`.agents/skills/gstack/`** (예: `.agents/skills/gstack/review/SKILL.md`, `.agents/skills/gstack/qa/SKILL.md`, `.agents/skills/gstack/autoplan/SKILL.md`, `.agents/skills/gstack/health/SKILL.md`)
-- UI 보조: `.cursor/skills/web-design-guidelines/SKILL.md`
-- 운영 규칙: `AGENTS.md`, `.cursor/rules/00-project-context.mdc`, `.cursor/skills/manuals/`
+- UI·디자인 워크플로: 같은 트리의 **design-review**, **plan-design-review**, **design-html** 등 `.agents/skills/gstack/*/SKILL.md`.
+- 운영 규칙: **`AGENTS.md`**, **`CLAUDE.md`**, `.cursor/rules/00-project-context.mdc`, 및 `docs/harness/bundles/HARNESS_BUNDLE_CURSOR.md`류.
 
 ## 참조 Agents
 - `.cursor/agents/python-backend.md` (Flask API/백엔드 아키텍처)

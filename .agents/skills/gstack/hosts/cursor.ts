@@ -7,7 +7,7 @@ const cursor: HostConfig = {
   cliAliases: [],
 
   globalRoot: '.cursor/skills/gstack',
-  localSkillRoot: '.cursor/skills/gstack',
+  localSkillRoot: '.agents/skills/gstack',
   hostSubdir: '.cursor',
   usesEnvVars: true,
 
@@ -24,8 +24,7 @@ const cursor: HostConfig = {
 
   pathRewrites: [
     { from: '~/.claude/skills/gstack', to: '~/.cursor/skills/gstack' },
-    { from: '.claude/skills/gstack', to: '.cursor/skills/gstack' },
-    { from: '.claude/skills', to: '.cursor/skills' },
+    { from: '.claude/skills/gstack', to: '.agents/skills/gstack' },
   ],
 
   runtimeRoot: {
