@@ -7,7 +7,7 @@ Adds:
 - designer_extraction_candidates.blocking_reasons_json: computed gate reasons
 - designer_design_cases.source_candidate_id: FK to originating candidate
 
-Revision ID: designer_wdplanner_v2_remediation
+Revision ID: designer_wdplanner_v2_fix
 Revises: designer_eval_snapshots
 """
 
@@ -16,7 +16,7 @@ from __future__ import annotations
 from alembic import op
 import sqlalchemy as sa
 
-revision = "designer_wdplanner_v2_remediation"
+revision = "designer_wdplanner_v2_fix"
 down_revision = "designer_eval_snapshots"
 branch_labels = None
 depends_on = None
