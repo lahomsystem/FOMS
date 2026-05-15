@@ -23,44 +23,27 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # designer_drawing_extractions: routing + redaction report
-    op.add_column(
-        "designer_drawing_extractions",
-        sa.Column("routing_json", sa.JSON(), nullable=True),
+    # IF NOT EXISTS 사용 — 이전 배포에서 부분 적용된 경우에도 안전하게 재실행 가능
+    op.execute(
+        "ALTER TABLE designer_drawing_extractions "
+        "ADD COLUMN IF NOT EXISTS routing_json JSON"
     )
-    op.add_column(
-        "designer_drawing_extractions",
-        sa.Column("redaction_report_json", sa.JSON(), nullable=True),
+    op.execute(
+        "ALTER TABLE designer_drawing_extractions "
+        "ADD COLUMN IF NOT EXISTS redaction_report_json JSON"
     )
-
-    # designer_extraction_candidates: status lifecycle + blocking reasons
-    op.add_column(
-        "designer_extraction_candidates",
-        sa.Column(
-            "status",
-            sa.Enum(
-                "pending_review", "corrected", "rejected", "approved",
-                name="designer_candidate_status",
-                native_enum=False,
-            ),
-            nullable=False,
-            server_default="pending_review",
-        ),
+    op.execute(
+        "ALTER TABLE designer_extraction_candidates "
+        "ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'pending_review'"
     )
-    op.add_column(
-        "designer_extraction_candidates",
-        sa.Column("blocking_reasons_json", sa.JSON(), nullable=False, server_default="[]"),
+    op.execute(
+        "ALTER TABLE designer_extraction_candidates "
+        "ADD COLUMN IF NOT EXISTS blocking_reasons_json JSON NOT NULL DEFAULT '[]'"
     )
-
-    # designer_design_cases: source candidate provenance
-    op.add_column(
-        "designer_design_cases",
-        sa.Column(
-            "source_candidate_id",
-            sa.Integer(),
-            sa.ForeignKey("designer_extraction_candidates.id"),
-            nullable=True,
-        ),
+    op.execute(
+        "ALTER TABLE designer_design_cases "
+        "ADD COLUMN IF NOT EXISTS source_candidate_id INTEGER "
+        "REFERENCES designer_extraction_candidates(id)"
     )
 
 
