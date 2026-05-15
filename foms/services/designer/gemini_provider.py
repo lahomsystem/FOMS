@@ -57,17 +57,22 @@ class GeminiAPIKeyMissing(GeminiProviderError):
 # Extraction prompt
 # ──────────────────────────────────────────────────────────
 
-_EXTRACTION_PROMPT = """당신은 한국 가구 도면 전문 데이터 추출 AI입니다.
-제공된 가구 도면 이미지를 분석하여 아래 JSON 형식으로 정확하게 정보를 추출하세요.
+_EXTRACTION_PROMPT = """당신은 한국 가구 도면 전문 설계 이해 AI입니다.
+목표는 단순 치수 OCR이 아니라, 도면의 가구 설계 의도와 조립 구조를 이해하여
+FOMS Brain Designer가 재사용 가능한 설계 블록/규칙/재질 후보를 학습할 수 있게 하는 것입니다.
+제공된 가구 도면 이미지를 분석하여 아래 JSON 형식으로 정확하게 추출하세요.
 
 규칙:
 1. 모든 치수는 밀리미터(mm) 단위입니다. 단위 표시 없는 숫자도 mm로 처리합니다.
-2. 도면에서 명확히 읽을 수 있는 값만 추출하세요. 추측하지 마세요.
+2. 도면에서 명확히 읽을 수 있는 값만 확정값으로 추출하세요. 추측하지 마세요.
 3. 읽을 수 없거나 도면에 없는 필드는 unresolved_fields에 추가하세요.
 4. furniture_type은 반드시 다음 중 하나여야 합니다:
    wardrobe / shoe_rack / kitchen_base / kitchen_wall / custom_storage
 5. confidence는 0.0(데이터 없음)~1.0(완전히 확신) 범위입니다.
 6. parts_table의 code는 [SR], [EP], [DOOR], [마이다], [옷봉], 보조목 등을 그대로 추출합니다.
+7. 설계 이해는 layout_graph, block_candidates, materials_textures, construction_rules에 기록하세요.
+8. 새 블록/규칙은 "후보"로만 기록하세요. 프로그램에 자동 반영할 확정값처럼 쓰지 마세요.
+9. 확정 치수와 추론한 설계 패턴을 구분하세요. 추론은 confidence와 evidence를 함께 기록하세요.
 
 다음 JSON 구조로만 응답하세요 (JSON 외 텍스트 금지):
 {
@@ -96,6 +101,87 @@ _EXTRACTION_PROMPT = """당신은 한국 가구 도면 전문 데이터 추출 A
     "page_number": null,
     "view_type": "front",
     "drawing_style": "technical"
+  },
+  "design_understanding": {
+    "layout_graph": {
+      "coordinate_system": "front_view_mm",
+      "overall_shape": null,
+      "zones": [
+        {
+          "id": "zone_1",
+          "role": "hanging|shelves|drawers|appliance|open_space|unknown",
+          "x_mm": null,
+          "y_mm": null,
+          "width_mm": null,
+          "height_mm": null,
+          "depth_mm": null,
+          "evidence": "dimension_line|parts_table|visual_layout|text_label"
+        }
+      ],
+      "modules": [
+        {
+          "id": "module_1",
+          "type": "vertical_bay|drawer_stack|shelf_stack|door_panel|side_panel|top_panel|bottom_panel|rail|hardware|unknown",
+          "position": {"x_mm": null, "y_mm": null, "z_mm": null},
+          "dimensions": {"width_mm": null, "height_mm": null, "depth_mm": null},
+          "relations": ["left_of:module_2", "contains:part_1"],
+          "confidence": 0.0
+        }
+      ]
+    },
+    "block_candidates": [
+      {
+        "block_key": "wardrobe.vertical_bay.shelf_stack",
+        "label": "재사용 가능한 설계 블록명",
+        "furniture_types": ["wardrobe"],
+        "factory_params": {},
+        "constraints": [],
+        "source_evidence": [],
+        "confidence": 0.0
+      }
+    ],
+    "materials_textures": [
+      {
+        "part": "door|body|shelf|hardware|unknown",
+        "material": null,
+        "color": null,
+        "texture": null,
+        "evidence": "text_label|visual_pattern|unknown",
+        "confidence": 0.0
+      }
+    ],
+    "hardware_and_joinery": [
+      {
+        "name": null,
+        "code": null,
+        "quantity": null,
+        "used_for": null,
+        "confidence": 0.0
+      }
+    ],
+    "construction_rules": [
+      {
+        "rule_key": "module_width_sum_equals_total_width",
+        "description": "설계/시공 규칙",
+        "condition": null,
+        "formula": null,
+        "evidence": [],
+        "confidence": 0.0
+      }
+    ],
+    "dimension_rules": [
+      {
+        "target": "width|height|depth|module_width|gap|offset",
+        "formula": null,
+        "source_dimensions": [],
+        "confidence": 0.0
+      }
+    ],
+    "learning_summary": {
+      "reusable_patterns": [],
+      "new_module_candidates": [],
+      "uncertain_design_points": []
+    }
   },
   "unresolved_fields": [],
   "confidence": 0.0
@@ -316,15 +402,77 @@ def check_connectivity(model: str | None = None) -> dict[str, Any]:
 # Cost estimation
 # ──────────────────────────────────────────────────────────
 
-# Gemini 2.0 Flash pricing (2026-05 per Google AI pricing page)
-# Input: $0.075 / 1M tokens | Output: $0.30 / 1M tokens
-_COST_PER_INPUT_TOKEN = 0.075 / 1_000_000
-_COST_PER_OUTPUT_TOKEN = 0.30 / 1_000_000
+# Gemini Developer API paid standard tier, USD per 1M tokens.
+# Gemini 3.1 Pro output price includes thinking tokens.
+_MODEL_PRICING_PER_1M: dict[str, dict[str, float]] = {
+    "gemini-3.1-pro-preview": {
+        "input_le_200k": 2.00,
+        "output_le_200k": 12.00,
+        "input_gt_200k": 4.00,
+        "output_gt_200k": 18.00,
+    },
+    "gemini-3.1-pro-preview-customtools": {
+        "input_le_200k": 2.00,
+        "output_le_200k": 12.00,
+        "input_gt_200k": 4.00,
+        "output_gt_200k": 18.00,
+    },
+    "gemini-2.5-flash": {
+        "input_le_200k": 0.30,
+        "output_le_200k": 2.50,
+        "input_gt_200k": 0.30,
+        "output_gt_200k": 2.50,
+    },
+    "gemini-2.5-pro": {
+        "input_le_200k": 1.25,
+        "output_le_200k": 10.00,
+        "input_gt_200k": 2.50,
+        "output_gt_200k": 15.00,
+    },
+    "gemini-2.0-flash": {
+        "input_le_200k": 0.10,
+        "output_le_200k": 0.40,
+        "input_gt_200k": 0.10,
+        "output_gt_200k": 0.40,
+    },
+    "gemini-2.0-flash-001": {
+        "input_le_200k": 0.10,
+        "output_le_200k": 0.40,
+        "input_gt_200k": 0.10,
+        "output_gt_200k": 0.40,
+    },
+    "gemini-2.0-flash-lite": {
+        "input_le_200k": 0.05,
+        "output_le_200k": 0.20,
+        "input_gt_200k": 0.05,
+        "output_gt_200k": 0.20,
+    },
+    "gemini-2.0-flash-lite-001": {
+        "input_le_200k": 0.05,
+        "output_le_200k": 0.20,
+        "input_gt_200k": 0.05,
+        "output_gt_200k": 0.20,
+    },
+}
 
 
-def estimate_cost_usd(input_tokens: int, output_tokens: int) -> float:
-    """Return estimated USD cost for a single extraction call."""
-    return (input_tokens * _COST_PER_INPUT_TOKEN) + (output_tokens * _COST_PER_OUTPUT_TOKEN)
+def estimate_cost_usd(
+    input_tokens: int,
+    output_tokens: int,
+    model_name: str | None = None,
+) -> float:
+    """Return estimated USD cost for a single Gemini call.
+
+    Gemini 3.1 Pro switches to long-context pricing when the prompt exceeds
+    200k input tokens. Output token counts include thinking tokens when the API
+    reports them in candidates_token_count.
+    """
+    model = model_name or os.environ.get("DESIGNER_GEMINI_MODEL", GEMINI_MODEL)
+    pricing = _MODEL_PRICING_PER_1M.get(model, _MODEL_PRICING_PER_1M["gemini-3.1-pro-preview"])
+    suffix = "gt_200k" if input_tokens > 200_000 else "le_200k"
+    input_cost = input_tokens * pricing[f"input_{suffix}"] / 1_000_000
+    output_cost = output_tokens * pricing[f"output_{suffix}"] / 1_000_000
+    return input_cost + output_cost
 
 
 # ──────────────────────────────────────────────────────────
@@ -364,11 +512,12 @@ def _parse_and_validate(
     data.setdefault("parts_table", [])
     data.setdefault("customer_info", {})
     data.setdefault("drawing_meta", {})
+    data.setdefault("design_understanding", {})
     data.setdefault("unresolved_fields", [])
     data.setdefault("confidence", 0.0)
 
     # Attach provider metrics (prefixed with _ to distinguish from extraction data)
-    cost_usd = estimate_cost_usd(input_tokens, output_tokens)
+    cost_usd = estimate_cost_usd(input_tokens, output_tokens, model_name=model_name)
     data["_metrics"] = {
         "model": model_name,
         "latency_ms": latency_ms,

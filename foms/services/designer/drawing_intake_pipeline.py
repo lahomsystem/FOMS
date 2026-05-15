@@ -345,6 +345,7 @@ def run_intake_pipeline(
     parts_table = raw.get("parts_table") or []
     customer_info = raw.get("customer_info") or {}
     drawing_meta = raw.get("drawing_meta") or {}
+    design_understanding = raw.get("design_understanding") or {}
 
     extraction_dict = {
         "furniture_type": raw.get("furniture_type", "custom_storage"),
@@ -358,6 +359,7 @@ def run_intake_pipeline(
         "parts_table": parts_table,
         "customer_info": customer_info,
         "drawing_meta": drawing_meta,
+        "design_understanding": design_understanding,
         "unresolved_fields": raw.get("unresolved_fields") or [],
         "confidence": raw.get("confidence", 0.0),
     }

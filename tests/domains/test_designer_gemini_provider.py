@@ -74,13 +74,49 @@ class TestGeminiProviderInterface:
         with pytest.raises(gp.GeminiProviderError):
             gp._get_timeout_ms()
 
-    def test_gemini_cost_estimation(self):
-        """estimate_cost_usd returns reasonable USD cost for typical token counts."""
+    def test_gemini_31_pro_cost_estimation(self):
+        """estimate_cost_usd uses Gemini 3.1 Pro standard pricing."""
         import foms.services.designer.gemini_provider as gp
-        # Typical drawing extraction: ~2000 input tokens, ~500 output tokens
-        cost = gp.estimate_cost_usd(input_tokens=2000, output_tokens=500)
-        # Should be in range $0.0001 ~ $0.005 per drawing (cheap)
-        assert 0.0001 <= cost <= 0.01, f"Unexpected cost: ${cost:.6f}"
+
+        # 2k input at $2/1M + 500 output at $12/1M = $0.0100
+        cost = gp.estimate_cost_usd(
+            input_tokens=2000,
+            output_tokens=500,
+            model_name="gemini-3.1-pro-preview",
+        )
+        assert cost == pytest.approx(0.0100)
+
+    def test_gemini_31_pro_long_context_cost_estimation(self):
+        """Gemini 3.1 Pro switches pricing when input prompt exceeds 200k tokens."""
+        import foms.services.designer.gemini_provider as gp
+
+        cost = gp.estimate_cost_usd(
+            input_tokens=200_001,
+            output_tokens=1000,
+            model_name="gemini-3.1-pro-preview",
+        )
+        assert cost == pytest.approx(0.818004)
+
+    def test_gemini_flash_cost_estimation(self):
+        """Flash estimates remain model-specific instead of inheriting Pro pricing."""
+        import foms.services.designer.gemini_provider as gp
+
+        cost = gp.estimate_cost_usd(
+            input_tokens=2000,
+            output_tokens=500,
+            model_name="gemini-2.5-flash",
+        )
+        assert cost == pytest.approx(0.00185)
+
+    def test_extraction_prompt_requests_design_understanding(self):
+        """Prompt must preserve design-learning fields, not only dimensions."""
+        import foms.services.designer.gemini_provider as gp
+
+        assert "design_understanding" in gp._EXTRACTION_PROMPT
+        assert "layout_graph" in gp._EXTRACTION_PROMPT
+        assert "block_candidates" in gp._EXTRACTION_PROMPT
+        assert "materials_textures" in gp._EXTRACTION_PROMPT
+        assert "construction_rules" in gp._EXTRACTION_PROMPT
 
     def test_gemini_parse_valid_json(self):
         """_parse_and_validate handles valid Gemini JSON response."""
@@ -97,6 +133,7 @@ class TestGeminiProviderInterface:
         result = gp._parse_and_validate(raw, "gemini-2.0-flash", 1500, 2000, 400)
         assert result["furniture_type"] == "wardrobe"
         assert result["extracted_params"]["width"] == 2400
+        assert result["design_understanding"] == {}
         assert result["confidence"] == 0.92
         assert result["_metrics"]["latency_ms"] == 1500
         assert result["_metrics"]["model"] == "gemini-2.0-flash"
@@ -479,7 +516,7 @@ class TestGeminiConnectivityLive:
 
         input_tokens = getattr(getattr(response, "usage_metadata", None), "prompt_token_count", 0) or 0
         output_tokens = getattr(getattr(response, "usage_metadata", None), "candidates_token_count", 0) or 0
-        cost = gp.estimate_cost_usd(input_tokens, output_tokens)
+        cost = gp.estimate_cost_usd(input_tokens, output_tokens, model_name=self.DEFAULT_MODEL)
         # POC report (visible with pytest -s)
         print(
             f"\n[POC REPORT] model={self.DEFAULT_MODEL} "
