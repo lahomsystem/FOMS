@@ -749,7 +749,7 @@ powershell -NoProfile -File "tools/harness/run_gstack_qa.ps1" -Url "https://stag
 | Windows 마찰 | PowerShell, Git Bash, Bun/Node 혼합 | wrapper 스크립트로 표준화 |
 | 훅 의존성 | Cursor 훅은 Codex CLI에서 자동 실행되지 않음 | Codex wrapper에 preflight/postflight 추가 |
 | 브라우저 충돌 | Cursor MCP와 gstack browse가 서로 역할을 침범 | 사용 목적을 문서로 고정 |
-| 하네스 비대화 | 구 `.cursor/skills` 벌크 + gstack 이중 적재 위험이 있었다 → 워크스페이스 `.cursor/skills` 제거(2026-05-15), gstack 단일 디렉터리 `.agents/skills/gstack/` 유지 | harness core vs optional skills 분리 |
+| 하네스 비대화 | 구 `.cursor/skills` 벌크 + gstack 이중 적재 위험 → 워크스페이스 `.cursor/skills` 제거(2026-05-15), `.agents/skills/gstack/` 유지 | harness core vs optional skills 분리 |
 
 ---
 
