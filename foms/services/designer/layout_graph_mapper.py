@@ -83,6 +83,7 @@ class LayoutMappingInput:
     similar_cases: list[dict[str, Any]] = field(default_factory=list)
     ontology_rules: dict[str, Any] = field(default_factory=dict)
     extracted_params: dict[str, Any] = field(default_factory=dict)
+    outline_polygon: dict[str, Any] | None = None
 
     # Known Korean furniture type names → FOMS canonical English keys
     _KO_FURNITURE_TYPE_MAP: dict[str, str] = field(default_factory=lambda: {
@@ -122,6 +123,8 @@ class LayoutMappingInput:
                 "depth_mm": ep.get("depth"),
             }
 
+        outline_polygon = du.get("outline_polygon")  # None when absent or explicitly null
+
         return cls(
             furniture_type=extraction.get("furniture_type", "custom_storage"),
             site_size=ss,
@@ -130,6 +133,7 @@ class LayoutMappingInput:
             parts_table=extraction.get("parts_table") or [],
             learned_design_category=du.get("learned_design_category") or {},
             extracted_params=ep,
+            outline_polygon=outline_polygon,
             **kwargs,
         )
 
@@ -142,14 +146,18 @@ class MappingReport:
     unresolved_fields: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     source_evidence: list[str] = field(default_factory=list)
+    outline_shape_type: str | None = None  # populated when outline_polygon is valid
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        result: dict[str, Any] = {
             "mapped_components": self.mapped_components,
             "unresolved_fields": self.unresolved_fields,
             "warnings": self.warnings,
             "source_evidence": self.source_evidence,
         }
+        if self.outline_shape_type is not None:
+            result["outline_shape_type"] = self.outline_shape_type
+        return result
 
 
 @dataclass
@@ -469,6 +477,15 @@ def map_layout_to_design_graph(mapping_input: LayoutMappingInput) -> LayoutMappi
     # Assembly ID
     asm_id = _stable_id("assembly", extraction_id)
     furniture_type = mapping_input.furniture_type or "custom_storage"
+
+    # ── 1b. Process outline_polygon (C1) ─────────────────
+    asm_w, asm_h = _apply_outline_polygon(
+        mapping_input.outline_polygon,
+        asm_w,
+        asm_h,
+        report,
+        approval_blocking,
+    )
 
     # ── 2. Parse zones → modules ──────────────────────────
     layout_graph = mapping_input.layout_graph
@@ -804,6 +821,81 @@ def map_layout_to_design_graph(mapping_input: LayoutMappingInput) -> LayoutMappi
 # ──────────────────────────────────────────────────────────
 # Internal validation helpers
 # ──────────────────────────────────────────────────────────
+
+def _apply_outline_polygon(
+    outline_polygon: dict[str, Any] | None,
+    asm_w: int | None,
+    asm_h: int | None,
+    report: MappingReport,
+    approval_blocking: list[str],
+) -> tuple[int | None, int | None]:
+    """Process the C1 outline_polygon field and update assembly dimensions.
+
+    - If outline_polygon is None → no action (existing path preserved).
+    - If outline_polygon is present but invalid → append blocking reason.
+    - If outline_polygon is valid → override asm_w/asm_h from bounding box,
+      and record outline_shape_type in the mapping report.
+
+    Args:
+        outline_polygon: Dict from design_understanding.outline_polygon or None.
+        asm_w: Current assembly width (mm) — may be None.
+        asm_h: Current assembly height (mm) — may be None.
+        report: MappingReport to update in-place.
+        approval_blocking: List to append blocking reasons to.
+
+    Returns:
+        Tuple (asm_w, asm_h), potentially updated from bounding box.
+    """
+    if outline_polygon is None:
+        return asm_w, asm_h
+
+    try:
+        from foms.services.designer.outline_polygon_validator import validate_polygon
+    except ImportError:
+        report.warnings.append("outline_polygon_validator not available — skipping C1 validation")
+        return asm_w, asm_h
+
+    raw_vertices = outline_polygon.get("vertices_mm")
+    if not raw_vertices or not isinstance(raw_vertices, list):
+        approval_blocking.append("outline_polygon_invalid:missing_vertices_mm")
+        return asm_w, asm_h
+
+    result = validate_polygon(raw_vertices)
+
+    if not result.is_valid:
+        approval_blocking.append(f"outline_polygon_invalid:{result.error}")
+        logger.warning("[LAYOUT_MAPPER] outline_polygon invalid: %s", result.error)
+        return asm_w, asm_h
+
+    # Valid polygon — record shape type in report
+    report.outline_shape_type = result.shape_type
+
+    # Compute bounding box and update assembly dimensions
+    xs = [v[0] for v in raw_vertices]
+    ys = [v[1] for v in raw_vertices]
+    bbox_w = _parse_dim(max(xs) - min(xs))
+    bbox_h = _parse_dim(max(ys) - min(ys))
+
+    if bbox_w is not None and bbox_w > 0:
+        if asm_w is None:
+            asm_w = bbox_w
+            logger.info("[LAYOUT_MAPPER] asm_w set from outline_polygon bbox: %d", asm_w)
+        elif asm_w != bbox_w:
+            report.warnings.append(
+                f"outline_polygon bbox_w={bbox_w} differs from site_size.width_mm={asm_w} — using site_size"
+            )
+
+    if bbox_h is not None and bbox_h > 0:
+        if asm_h is None:
+            asm_h = bbox_h
+            logger.info("[LAYOUT_MAPPER] asm_h set from outline_polygon bbox: %d", asm_h)
+        elif asm_h != bbox_h:
+            report.warnings.append(
+                f"outline_polygon bbox_h={bbox_h} differs from site_size.height_mm={asm_h} — using site_size"
+            )
+
+    return asm_w, asm_h
+
 
 def _belongs_to_zone(gemini_module: dict[str, Any], zone: dict[str, Any]) -> bool:
     """Check if a Gemini module visually overlaps with a zone based on relations or position."""

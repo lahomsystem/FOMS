@@ -410,3 +410,225 @@ class DesignerDesignCase(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_now, nullable=False
     )
+
+
+# ──────────────────────────────────────────────────────────
+# C0: Contract Freeze — Lego Ontology & Reusable Block Schema
+# ──────────────────────────────────────────────────────────
+
+
+class DesignerReusableBlock(Base):
+    """C0: Reusable geometry block — the Lego brick of the design system.
+
+    A block encapsulates a geometry subset (components + relations) that
+    can be stamped into any design graph. Blocks must be human-approved
+    before use (status='approved').
+
+    Contract:
+    - block_key is the stable identifier referenced by ontology relations.
+    - geometry_json stores a components+relations subset conforming to
+      geometry_schema_version (currently "v2").
+    - parameters_json defines the adjustable variables (width_range, etc.)
+      that the stamper resolves at call time.
+    - auto_generated=True blocks are AI-proposed and require approval.
+    - AI MUST NOT auto-promote blocks to approved; service layer only.
+    """
+
+    __tablename__ = "designer_reusable_blocks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    block_key: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    label_ko: Mapped[str] = mapped_column(String(200), nullable=False)
+    label_en: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    category: Mapped[str] = mapped_column(
+        Enum("panel", "module", "assembly", "hardware", "other",
+             name="designer_block_category", native_enum=False),
+        nullable=False,
+        default="panel",
+    )
+    geometry_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    parameters_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    geometry_schema_version: Mapped[str] = mapped_column(String(20), nullable=False, default="v2")
+    status: Mapped[str] = mapped_column(
+        Enum("draft", "approved", "rejected", "retired",
+             name="designer_block_status", native_enum=False),
+        nullable=False,
+        default="draft",
+    )
+    auto_generated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    usage_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    tags_json: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    source_design_case_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("designer_design_cases.id"), nullable=True
+    )
+    created_by_user_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )
+    approved_by_user_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, onupdate=_now, nullable=False
+    )
+
+
+class DesignerBlockOntologyVersion(Base):
+    """C0: Versioned snapshot of the block relation ontology.
+
+    Each version captures a coherent set of block-to-block relations
+    (DesignerBlockOntologyRelation). Only one version may be 'active'
+    at a time. AI MUST NOT promote a version to active; service layer only.
+    """
+
+    __tablename__ = "designer_block_ontology_versions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    version_key: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    status: Mapped[str] = mapped_column(
+        Enum("draft", "active", "retired",
+             name="designer_block_ontology_version_status", native_enum=False),
+        nullable=False,
+        default="draft",
+    )
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by_user_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )
+    approved_by_user_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
+
+    relations: Mapped[list["DesignerBlockOntologyRelation"]] = relationship(
+        "DesignerBlockOntologyRelation",
+        back_populates="ontology_version",
+        cascade="all, delete-orphan",
+    )
+
+
+class DesignerBlockOntologyRelation(Base):
+    """C0: A single block-to-block relation within an ontology version.
+
+    Captures how one block connects to another (contains, attaches_to, etc.)
+    and the evidence cases that support the relation.
+
+    Status lifecycle: candidate → approved / rejected → promoted
+    AI MUST NOT set status='approved' directly; service layer only.
+    """
+
+    __tablename__ = "designer_block_ontology_relations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ontology_version_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("designer_block_ontology_versions.id"), nullable=False
+    )
+    relation_key: Mapped[str] = mapped_column(String(200), nullable=False)
+    from_block_key: Mapped[str] = mapped_column(String(100), nullable=False)
+    to_block_key: Mapped[str] = mapped_column(String(100), nullable=False)
+    relation_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    params_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    evidence_case_ids_json: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    evidence_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    replay_report_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    status: Mapped[str] = mapped_column(
+        Enum("candidate", "approved", "rejected", "promoted",
+             name="designer_block_relation_status", native_enum=False),
+        nullable=False,
+        default="candidate",
+    )
+    created_by_user_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )
+    approved_by_user_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
+
+    ontology_version: Mapped[DesignerBlockOntologyVersion] = relationship(
+        "DesignerBlockOntologyVersion", back_populates="relations"
+    )
+
+
+class DesignerComponentExplanation(Base):
+    """C0: Human-readable rationale for a single graph component.
+
+    Stores PII-redacted explanation text and the rationale category so
+    retrieval can surface 'why this component exists' alongside the design.
+
+    embedding_id links to a pre-computed vector for semantic search.
+    AI MUST NOT approve explanations directly; service layer only.
+    """
+
+    __tablename__ = "designer_component_explanations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    design_case_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("designer_design_cases.id"), nullable=True
+    )
+    component_id_in_graph: Mapped[str] = mapped_column(String(200), nullable=False)
+    explanation_text: Mapped[str] = mapped_column(Text, nullable=False)
+    rationale_category: Mapped[str] = mapped_column(
+        Enum("constraint", "preference", "customer_request", "codified_rule", "other",
+             name="designer_explanation_rationale", native_enum=False),
+        nullable=False,
+        default="other",
+    )
+    confidence: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
+    usage_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    status: Mapped[str] = mapped_column(
+        Enum("draft", "approved", "rejected", "retired",
+             name="designer_explanation_status", native_enum=False),
+        nullable=False,
+        default="draft",
+    )
+    created_by_user_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )
+    approved_by_user_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    embedding_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("designer_embeddings.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, onupdate=_now, nullable=False
+    )
+
+
+class DesignerOutlinePolygon(Base):
+    """C0: Outline polygon extracted from a drawing for a given view.
+
+    Captures the silhouette of a furniture piece in front/side/top view
+    as an ordered vertex list in millimetres. Used by the Lego stamper to
+    validate that assembled blocks match the client drawing.
+
+    Validation (is_valid) confirms the polygon is closed and self-intersection-free.
+    AI MUST NOT set is_valid=True without calling the geometry validator service.
+    """
+
+    __tablename__ = "designer_outline_polygons"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    extraction_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("designer_drawing_extractions.id"), nullable=False
+    )
+    view: Mapped[str] = mapped_column(String(20), nullable=False, default="front")
+    vertices_mm_json: Mapped[list] = mapped_column(JSON, nullable=False)
+    shape_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    confidence: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    area_mm2: Mapped[float | None] = mapped_column(Float, nullable=True)
+    is_valid: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    validation_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(
+        Enum("pending", "validated", "rejected",
+             name="designer_polygon_status", native_enum=False),
+        nullable=False,
+        default="pending",
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)

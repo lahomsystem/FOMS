@@ -291,3 +291,70 @@ def build_rag_context(
 def _ensure_pii_free(case: dict[str, Any]) -> dict[str, Any]:
     """Strip any PII that may have leaked into a case dict."""
     return {k: v for k, v in case.items() if k not in _PII_KEYS}
+
+
+# ──────────────────────────────────────────────────────────
+# C9: Explanation-Augmented Retrieval
+# ──────────────────────────────────────────────────────────
+
+def build_explanation_rag_context(
+    query: str,
+    top_k: int = 5,
+    approved_only: bool = True,
+) -> dict[str, Any]:
+    """Build RAG context from approved component explanations.
+
+    Contract:
+    - Only approved explanations enter AI prompt context.
+    - draft/rejected explanations are strictly excluded.
+    - Returns empty context (not error) when no matches found.
+    - Never raises: all exceptions are caught and reported via retrieval_warning.
+
+    Args:
+        query: Natural language query to match against explanations.
+        top_k: Maximum number of explanations to include.
+        approved_only: If True (default), exclude non-approved explanations.
+
+    Returns:
+        {
+            "explanations": [{"component_id", "explanation_text",
+                               "rationale_category", "design_case_id"}],
+            "context_text": "... formatted for Gemini prompt ...",
+            "match_count": int,
+            "retrieval_warning": str | None  # set if search failed
+        }
+    """
+    try:
+        from foms.services.designer.explanation_service import search_explanations
+        results = search_explanations(query=query, top_k=top_k, approved_only=approved_only)
+    except Exception as exc:
+        logger.warning("[RAG] explanation search failed (non-fatal): %s", exc)
+        return {
+            "explanations": [],
+            "context_text": "",
+            "match_count": 0,
+            "retrieval_warning": f"explanation_search_failed: {exc}",
+        }
+
+    if not results:
+        return {
+            "explanations": results,
+            "context_text": "",
+            "match_count": 0,
+            "retrieval_warning": None,
+        }
+
+    # Format for Gemini prompt injection
+    lines = ["## 관련 설계 의도 (승인된 학습 데이터)"]
+    for i, exp in enumerate(results[:top_k], 1):
+        cat = exp.get("rationale_category", "other")
+        text = exp.get("explanation_text", "")
+        lines.append(f"{i}. [{cat}] {text}")
+    context_text = "\n".join(lines)
+
+    return {
+        "explanations": results,
+        "context_text": context_text,
+        "match_count": len(results),
+        "retrieval_warning": None,
+    }

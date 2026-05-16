@@ -46,7 +46,8 @@ class TestComputeUiState:
         assert "unresolved_fields" in reasons
 
     def test_can_preview_3d_false_when_unsupported_type(self):
-        state = self._fn("custom_storage", [], {"valid": True, "errors": []})
+        # custom_storage is now supported (C-1 fix). Use a genuinely unknown type.
+        state = self._fn("office_desk", [], {"valid": True, "errors": []})
         assert state["can_preview_3d"] is False
         reasons = " ".join(state["blocking_reasons"])
         assert "unsupported_furniture_type" in reasons
