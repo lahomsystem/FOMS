@@ -68,6 +68,8 @@ class DesignGraphState(TypedDict, total=False):
     approved: bool
     persisted_version_id: Optional[int]
     error: Optional[str]
+    # C9: Explanation-Augmented Retrieval context
+    explanation_rag_context: Optional[dict]
 
 
 # ---------------------------------------------------------------------------
@@ -82,6 +84,29 @@ def load_context(state: DesignGraphState) -> DesignGraphState:
         state["ontology_rules"] = ontology.rules_json or {}
     except Exception:
         state["ontology_rules"] = {}
+    return state
+
+
+def explanation_retrieval_node(state: DesignGraphState) -> DesignGraphState:
+    """Retrieve approved component explanations for RAG context.
+
+    C9: Adds explanation_rag_context to state for downstream nodes.
+    Failure is non-fatal: warning is stored in retrieval_warning, empty context used.
+    """
+    from foms.services.designer.design_retrieval import build_explanation_rag_context
+
+    user_prompt = state.get("prompt") or ""
+    if not user_prompt:
+        state["explanation_rag_context"] = {
+            "explanations": [],
+            "context_text": "",
+            "match_count": 0,
+            "retrieval_warning": None,
+        }
+        return state
+
+    ctx = build_explanation_rag_context(query=user_prompt, top_k=5, approved_only=True)
+    state["explanation_rag_context"] = ctx
     return state
 
 
@@ -284,12 +309,14 @@ def run_design_assist_graph(
         "approved": False,
         "persisted_version_id": None,
         "error": None,
+        "explanation_rag_context": None,  # C9: populated by explanation_retrieval_node
     }
 
     update_ai_run(run_id, "running", state_json=dict(state))
 
     try:
         state = load_context(state)
+        state = explanation_retrieval_node(state)  # C9: Explanation RAG
         state = parse_intent(state)
         state = propose_command(state)
         state = preview_command_result(state)

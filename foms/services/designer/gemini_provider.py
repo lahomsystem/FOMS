@@ -78,6 +78,11 @@ FOMS Brain Designer가 재사용 가능한 설계 블록/규칙/재질 후보를
 10. custom_storage처럼 기존 분류로 부족한 디자인은 learned_design_category.is_new_category_candidate=true로 두고,
     category_key, label_ko, similarity_tags, layout_signature를 기록하세요.
 11. 비슷한 도면들이 나중에 자동 그루핑될 수 있도록 similarity_tags와 layout_signature는 일관된 짧은 키로 작성하세요.
+12. design_understanding.outline_polygon에 도면 외관 폴리곤을 추출하세요.
+    - view: 도면 투영 방향 (front/side/top)
+    - vertices_mm: mm 단위 꼭짓점 좌표 목록 (시계 반대 방향 또는 시계 방향 순서)
+    - shape_type: rect(직사각형)/L_shape(ㄱ자)/T_shape(ㅜ자)/U_shape(ㄷ자)/irregular(기타)
+    - 도면에서 외관선이 명확하지 않으면 outline_polygon을 null로 반환하세요.
 
 다음 JSON 구조로만 응답하세요 (JSON 외 텍스트 금지):
 {
@@ -206,6 +211,12 @@ FOMS Brain Designer가 재사용 가능한 설계 블록/규칙/재질 후보를
       "reusable_patterns": [],
       "new_module_candidates": [],
       "uncertain_design_points": []
+    },
+    "outline_polygon": {
+      "view": "front",
+      "vertices_mm": [[0,0], [2288,0], [2288,1880], [1376,1880], [1376,2225], [0,2225]],
+      "shape_type": "L_shape",
+      "confidence": 0.9
     }
   },
   "unresolved_fields": [],

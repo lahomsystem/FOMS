@@ -1,9 +1,28 @@
 /**
  * InspectorPanel — 선택된 부재의 UUID/kind/role/dimensions 편집기.
  * DK-B6: schema v2 Component 기반 실제 파라미터 편집.
+ * Phase C8: 설계 의도(Annotation) 섹션 추가.
  */
 
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useDesignerStore } from '../stores/designerStore'
+
+// ──────────────────────────────────────────────────────────
+// Explanation (Annotation) types — Phase C8
+// ──────────────────────────────────────────────────────────
+
+type RationaleCategory = 'constraint' | 'preference' | 'customer_request' | 'codified_rule' | 'other'
+
+interface ExplanationRecord {
+  id: number
+  explanation_text: string
+  rationale_category: RationaleCategory
+  status: string
+}
+
+// ──────────────────────────────────────────────────────────
+// InspectorPanel
+// ──────────────────────────────────────────────────────────
 
 export function InspectorPanel() {
   const design = useDesignerStore((s) => s.design)
@@ -13,6 +32,82 @@ export function InspectorPanel() {
 
   const selectedComp = design.components.find((c) => c.id === selectedId) ?? null
   const hasErrors = (constraintResult?.errorCount ?? 0) > 0
+
+  // ── C8: Explanation state ────────────────────────────────
+  const [explanationText, setExplanationText] = useState('')
+  const [rationaleCategory, setRationaleCategory] = useState<RationaleCategory>('constraint')
+  const [savedExplanations, setSavedExplanations] = useState<ExplanationRecord[]>([])
+  const [expError, setExpError] = useState<string | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // selectedId가 바뀌면 설명 목록 초기화 후 새로 로드
+  const loadExplanations = useCallback(async (componentId: string) => {
+    try {
+      const res = await fetch(
+        `/api/designer/explanations/by-component/${componentId}?include_drafts=true`,
+        { credentials: 'same-origin' },
+      )
+      const data = await res.json()
+      if (data.success) {
+        setSavedExplanations(data.data ?? [])
+      }
+    } catch {
+      // 로드 실패는 조용히 무시 (UI 차단하지 않음)
+    }
+  }, [])
+
+  useEffect(() => {
+    setSavedExplanations([])
+    setExplanationText('')
+    setExpError(null)
+    if (selectedId) {
+      loadExplanations(selectedId)
+    }
+  }, [selectedId, loadExplanations])
+
+  // ── C8: 키보드 단축키 E → explanation textarea 포커스 ───
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (
+        e.key === 'e' &&
+        !e.ctrlKey && !e.metaKey && !e.altKey &&
+        !(e.target instanceof HTMLInputElement) &&
+        !(e.target instanceof HTMLTextAreaElement) &&
+        !(e.target instanceof HTMLSelectElement)
+      ) {
+        textareaRef.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
+  // ── C8: 설명 저장 ────────────────────────────────────────
+  async function saveExplanation() {
+    if (!selectedId || !explanationText.trim()) return
+    setExpError(null)
+    try {
+      const resp = await fetch('/api/designer/explanations', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          component_id_in_graph: selectedId,
+          explanation_text: explanationText,
+          rationale_category: rationaleCategory,
+        }),
+      })
+      const json = await resp.json()
+      if (!json.success) {
+        setExpError(json.error ?? '저장에 실패했습니다.')
+        return
+      }
+      setExplanationText('')
+      loadExplanations(selectedId)
+    } catch {
+      setExpError('네트워크 오류가 발생했습니다.')
+    }
+  }
 
   function handleDimChange(dim: 'width' | 'height' | 'depth', value: string) {
     if (!selectedComp) return
@@ -108,6 +203,62 @@ export function InspectorPanel() {
               {v.message}
             </div>
           ))}
+
+          {/* ── 설계 의도 (Phase C8) ── */}
+          <div style={styles.section}>
+            <div style={styles.sectionTitle}>설계 의도 (E)</div>
+
+            {expError && (
+              <div style={styles.expErrorBanner}>{expError}</div>
+            )}
+
+            <textarea
+              ref={textareaRef}
+              rows={3}
+              placeholder="이 부분이 왜 이렇게 설계되었는지 설명..."
+              value={explanationText}
+              onChange={(e) => setExplanationText(e.target.value)}
+              style={styles.expTextarea}
+            />
+
+            <div style={styles.expControls}>
+              <select
+                value={rationaleCategory}
+                onChange={(e) => setRationaleCategory(e.target.value as RationaleCategory)}
+                style={styles.expSelect}
+              >
+                <option value="constraint">제약 조건</option>
+                <option value="preference">선호도</option>
+                <option value="customer_request">고객 요청</option>
+                <option value="codified_rule">설계 규칙</option>
+                <option value="other">기타</option>
+              </select>
+              <button
+                onClick={saveExplanation}
+                disabled={!explanationText.trim()}
+                style={{
+                  ...styles.expSaveBtn,
+                  ...(!explanationText.trim() ? styles.expSaveBtnDisabled : {}),
+                }}
+              >
+                저장
+              </button>
+            </div>
+
+            {savedExplanations.length > 0 && (
+              <div style={{ marginTop: 8 }}>
+                <div style={{ ...styles.label, marginBottom: 4 }}>기존 설명</div>
+                {savedExplanations.map((exp) => (
+                  <div key={exp.id} style={styles.expCard}>
+                    <div style={styles.expCardText}>{exp.explanation_text}</div>
+                    <div style={styles.expCardMeta}>
+                      {exp.rationale_category} · {exp.status}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

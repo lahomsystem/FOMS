@@ -147,6 +147,9 @@ interface DesignerState {
     /** B4: schema v2 DesignGraph dict from layout_graph_mapper. Takes priority over factory_params. */
     design_graph?: Record<string, unknown>
   }) => void
+
+  /** 선택된 컴포넌트들을 재사용 블록으로 저장 (Phase C4) */
+  saveSelectionAsBlock: (label: string, category?: string) => Promise<{ success: boolean; error?: string }>
 }
 
 // ──────────────────────────────────────────────────────────
@@ -431,5 +434,27 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
       const constraintResult = toStoreConstraintResult(validateDesignGraph(recalculated))
       return { design: recalculated, constraintResult }
     })
+  },
+
+  // ── Phase C4: Save Selection As Block ───────────────────
+  saveSelectionAsBlock: async (label, category = 'panel') => {
+    const { design, selectedComponentId, selectedComponentIds } = get()
+    const ids = new Set(selectedComponentIds)
+    if (selectedComponentId) ids.add(selectedComponentId)
+    const comps = design.components.filter((c) => ids.has(c.id))
+    if (comps.length === 0) return { success: false, error: '선택된 컴포넌트가 없습니다.' }
+
+    try {
+      const resp = await fetch('/api/designer/blocks/save', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label_ko: label, category, component_dicts: comps }),
+      })
+      const json = await resp.json()
+      return json.success ? { success: true } : { success: false, error: json.error }
+    } catch {
+      return { success: false, error: '네트워크 오류가 발생했습니다.' }
+    }
   },
 }))
