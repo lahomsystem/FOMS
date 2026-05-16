@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 # Frontend-supported furniture types (must match factory_registry + React add-in)
 _FRONTEND_SUPPORTED_TYPES = frozenset({
-    "wardrobe", "shoe_rack", "kitchen_base", "kitchen_wall",
+    "wardrobe", "shoe_rack", "kitchen_base", "kitchen_wall", "custom_storage",
 })
 
 
