@@ -83,6 +83,13 @@ FOMS Brain Designer가 재사용 가능한 설계 블록/규칙/재질 후보를
     - vertices_mm: mm 단위 꼭짓점 좌표 목록 (시계 반대 방향 또는 시계 방향 순서)
     - shape_type: rect(직사각형)/L_shape(ㄱ자)/T_shape(ㅜ자)/U_shape(ㄷ자)/irregular(기타)
     - 도면에서 외관선이 명확하지 않으면 outline_polygon을 null로 반환하세요.
+13. 주방/부엌/D자/ㄱ자/ㄷ자처럼 여러 방향으로 꺾인 도면은
+    design_understanding.plan_view_layout을 반드시 작성하세요.
+    - 도면에 정면도/상면도/입체도가 섞여 있으면, 실제 3D 배치의 기준은 상면/평면 레이아웃입니다.
+    - runs는 가구 라인 하나입니다. horizontal은 X축 방향, vertical은 Z축(깊이/전후) 방향입니다.
+    - 각 run은 x_mm, z_mm, length_mm, depth_mm, height_mm를 가져야 합니다.
+    - segments/modules는 run 내부 칸 분할입니다. 예: 1250/600/820, 900/600, 식세기, 싱크장 등.
+    - 단일 큰 박스만 만들 수밖에 없으면 unresolved_fields에 plan_view_layout.runs를 추가하세요.
 
 다음 JSON 구조로만 응답하세요 (JSON 외 텍스트 금지):
 {
@@ -217,6 +224,38 @@ FOMS Brain Designer가 재사용 가능한 설계 블록/규칙/재질 후보를
       "vertices_mm": [[0,0], [2288,0], [2288,1880], [1376,1880], [1376,2225], [0,2225]],
       "shape_type": "L_shape",
       "confidence": 0.9
+    },
+    "plan_view_layout": {
+      "view": "top",
+      "shape_type": "line|L_shape|U_shape|D_shape|irregular",
+      "runs": [
+        {
+          "id": "run_top",
+          "label": "상부 라인",
+          "orientation": "horizontal",
+          "x_mm": 0,
+          "z_mm": 0,
+          "length_mm": 2770,
+          "depth_mm": 650,
+          "height_mm": 860,
+          "segments": [
+            {"id": "seg_1", "label": "수납", "length_mm": 1250, "role": "storage", "door_type": "swing"},
+            {"id": "seg_2", "label": "오픈", "length_mm": 600, "role": "open_space", "door_type": "open"}
+          ],
+          "evidence": "top_view_dimension_line"
+        },
+        {
+          "id": "run_left",
+          "label": "세로 라인",
+          "orientation": "vertical",
+          "x_mm": 0,
+          "z_mm": 650,
+          "length_mm": 1880,
+          "depth_mm": 700,
+          "height_mm": 860,
+          "segments": []
+        }
+      ]
     }
   },
   "unresolved_fields": [],
