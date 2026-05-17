@@ -314,6 +314,79 @@ D_SHAPE_GEOMETRY_ONLY_EXTRACTION = {
     },
 }
 
+D_SHAPE_PLAN_VIEW_EXTRACTION = {
+    "furniture_type": "kitchen_base",
+    "site_size": {"width_mm": 2770, "height_mm": 860, "depth_mm": 650},
+    "extracted_params": {"width": 2770, "height": 860, "depth": 650},
+    "parts_table": [
+        {"code": "[EP]", "description": "측판", "quantity": 8},
+        {"code": "[SR]", "description": "선반", "quantity": 6},
+        {"code": "도어", "description": "내림도어", "quantity": 5},
+    ],
+    "confidence": 0.82,
+    "unresolved_fields": [],
+    "design_understanding": {
+        "layout_graph": {"zones": [], "modules": [], "overall_shape": "D_shape"},
+        "plan_view_layout": {
+            "view": "top",
+            "shape_type": "D_shape",
+            "runs": [
+                {
+                    "id": "top_2770",
+                    "label": "상부 2770 라인",
+                    "orientation": "horizontal",
+                    "x_mm": 0,
+                    "z_mm": 0,
+                    "length_mm": 2770,
+                    "depth_mm": 650,
+                    "height_mm": 860,
+                    "door_type": "swing",
+                    "segments": [
+                        {"id": "top_1250", "label": "수납 1250", "length_mm": 1250, "role": "storage"},
+                        {"id": "top_600", "label": "오픈 600", "length_mm": 600, "role": "open_space", "door_type": "open"},
+                        {"id": "top_820", "label": "수납 820", "length_mm": 820, "role": "storage"},
+                    ],
+                },
+                {
+                    "id": "left_2530",
+                    "label": "세로 2530 라인",
+                    "orientation": "vertical",
+                    "x_mm": 0,
+                    "z_mm": 650,
+                    "length_mm": 1880,
+                    "depth_mm": 700,
+                    "height_mm": 860,
+                    "segments": [
+                        {"id": "left_1230", "label": "코너/연결", "length_mm": 1230, "role": "storage"},
+                        {"id": "left_570", "label": "하부 수납", "length_mm": 570, "role": "drawer"},
+                    ],
+                },
+                {
+                    "id": "bottom_2240",
+                    "label": "하부 2240 라인",
+                    "orientation": "horizontal",
+                    "x_mm": 530,
+                    "z_mm": 1880,
+                    "length_mm": 2240,
+                    "depth_mm": 650,
+                    "height_mm": 860,
+                    "segments": [
+                        {"id": "bottom_630", "label": "좌측 수납", "length_mm": 630, "role": "storage"},
+                        {"id": "bottom_600", "label": "오븐/오픈", "length_mm": 600, "role": "open_space", "door_type": "open"},
+                        {"id": "bottom_900", "label": "수납/서랍", "length_mm": 900, "role": "drawer"},
+                    ],
+                },
+            ],
+        },
+        "block_candidates": [],
+        "learned_design_category": {
+            "label_ko": "D자 부엌가구",
+            "category_key": "kitchen_d_shape",
+            "confidence": 0.84,
+        },
+    },
+}
+
 
 # ──────────────────────────────────────────────────────────
 # B1-01: 3-bay wardrobe maps to 3 modules
@@ -506,6 +579,58 @@ class TestGeometryDerivedPreviewDimensions:
             "assembly.dimensions.width_is_zero_or_missing" in reason
             for reason in result.approval_blocking_reasons
         )
+
+
+# ──────────────────────────────────────────────────────────
+# C2: multi-run plan-view layouts drive D/L/U kitchen geometry
+# ──────────────────────────────────────────────────────────
+
+class TestPlanViewLayoutRuns:
+    def test_d_shape_plan_view_runs_create_footprint_modules(self):
+        result = map_extraction_to_design_graph(
+            D_SHAPE_PLAN_VIEW_EXTRACTION,
+            source_extraction_id=2424,
+        )
+
+        assembly = result.design_graph["assembly"]
+        assert result.preview_allowed is True
+        assert result.design_graph["metadata"]["mapped_by"] == "plan_view_layout_runs_c2"
+        assert assembly["module_count"] == 8
+        assert assembly["dimensions"] == {"width": 2770, "height": 860, "depth": 2530}
+        assert assembly["custom_props"]["plan_view_layout"]["shape_type"] == "D_shape"
+
+    def test_d_shape_plan_view_does_not_fall_back_to_single_box(self):
+        result = map_extraction_to_design_graph(
+            D_SHAPE_PLAN_VIEW_EXTRACTION,
+            source_extraction_id=2424,
+        )
+        modules = result.design_graph["assembly"]["modules"]
+        components = result.design_graph["components"]
+        module_sources = {m["custom_props"].get("source") for m in modules}
+        sources = {c["custom_props"].get("source") for c in components}
+        kinds = {c["kind"] for c in components}
+
+        assert "plan_view_layout" in module_sources
+        assert "site_dimensions_fallback" not in sources
+        assert {"ep", "panel", "shelf"}.issubset(kinds)
+        assert len(components) >= result.design_graph["assembly"]["module_count"] * 5
+
+    def test_plan_view_vertical_run_uses_z_axis_not_front_view_height(self):
+        result = map_extraction_to_design_graph(
+            D_SHAPE_PLAN_VIEW_EXTRACTION,
+            source_extraction_id=2424,
+        )
+        modules = result.design_graph["assembly"]["modules"]
+        vertical_modules = [
+            m for m in modules
+            if m.get("custom_props", {}).get("source_run_id") == "left_2530"
+        ]
+
+        assert len(vertical_modules) == 2
+        assert vertical_modules[0]["position"]["z"] == 650
+        assert vertical_modules[0]["dimensions"]["depth"] == 1230
+        assert vertical_modules[1]["position"]["z"] == 1880
+        assert vertical_modules[1]["dimensions"]["depth"] == 570
 
 
 # ──────────────────────────────────────────────────────────

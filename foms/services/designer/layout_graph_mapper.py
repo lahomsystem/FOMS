@@ -84,6 +84,7 @@ class LayoutMappingInput:
     ontology_rules: dict[str, Any] = field(default_factory=dict)
     extracted_params: dict[str, Any] = field(default_factory=dict)
     outline_polygon: dict[str, Any] | None = None
+    plan_view_layout: dict[str, Any] = field(default_factory=dict)
 
     # Known Korean furniture type names → FOMS canonical English keys
     _KO_FURNITURE_TYPE_MAP: dict[str, str] = field(default_factory=lambda: {
@@ -125,17 +126,24 @@ class LayoutMappingInput:
                 "depth_mm": ep.get("depth"),
             }
 
+        layout_graph = du.get("layout_graph") or {}
         outline_polygon = du.get("outline_polygon")  # None when absent or explicitly null
+        plan_view_layout = (
+            du.get("plan_view_layout")
+            or layout_graph.get("plan_view_layout")
+            or {}
+        )
 
         return cls(
             furniture_type=extraction.get("furniture_type", "custom_storage"),
             site_size=ss,
-            layout_graph=du.get("layout_graph") or {},
+            layout_graph=layout_graph,
             block_candidates=du.get("block_candidates") or [],
             parts_table=extraction.get("parts_table") or [],
             learned_design_category=du.get("learned_design_category") or {},
             extracted_params=ep,
             outline_polygon=outline_polygon,
+            plan_view_layout=plan_view_layout,
             **kwargs,
         )
 
@@ -557,6 +565,7 @@ def _build_zone_scaffold_components(
     z = _parse_coord(pos.get("z")) or 0
     module_id = str(module.get("id") or "module")
     module_type = str(module.get("type") or "")
+    door_type = str(module.get("door_type") or "open").lower()
     source_key = str(module.get("source_zone_id") or module_id)
     t = _STANDARD_PANEL_THICKNESS
     back_t = 9
@@ -646,7 +655,341 @@ def _build_zone_scaffold_components(
                 )
             )
 
+    if door_type != "open" and module_type not in {"open_space", "appliance_bay"}:
+        door_count = 2 if door_type == "sliding" and w >= 900 else 1
+        door_w = max(t, round(inner_w / door_count))
+        for idx in range(door_count):
+            components.append(
+                comp(
+                    f"door_{idx + 1}",
+                    "door",
+                    "door",
+                    f"도어-{idx + 1}",
+                    {"width": door_w, "height": max(t, h - 2), "depth": t},
+                    {"x": x + t + door_w * idx, "y": y + 1, "z": z - t},
+                )
+            )
+
     return components
+
+
+def _coalesce_plan_view_layout(
+    plan_view_layout: dict[str, Any],
+    layout_graph: dict[str, Any],
+) -> dict[str, Any]:
+    """Return the first supported plan-view run layout payload.
+
+    Complex kitchen/interior drawings often include multiple views.  The
+    front-view outline is not enough to rebuild D/L/U shaped furniture, so the
+    C2 path accepts an explicit top-plan run list.
+    """
+    if isinstance(plan_view_layout, dict) and plan_view_layout.get("runs"):
+        return plan_view_layout
+
+    embedded = layout_graph.get("plan_view_layout")
+    if isinstance(embedded, dict) and embedded.get("runs"):
+        return embedded
+
+    for key in ("layout_runs", "runs"):
+        runs = layout_graph.get(key)
+        if isinstance(runs, list) and runs:
+            return {
+                "shape_type": layout_graph.get("overall_shape") or "multi_run",
+                "runs": runs,
+            }
+
+    return {}
+
+
+def _parse_plan_orientation(value: Any) -> str:
+    text = str(value or "").strip().lower()
+    if text in {"vertical", "z", "z_axis", "depth_axis", "front_back", "y_axis", "세로"}:
+        return "vertical"
+    return "horizontal"
+
+
+def _plan_module_type(role_value: Any) -> str:
+    role = str(role_value or "").strip().lower()
+    if any(token in role for token in ("drawer", "서랍")):
+        return "drawer_stack"
+    if any(token in role for token in ("sink", "appliance", "식세기", "기기", "수전")):
+        return "appliance_bay"
+    if any(token in role for token in ("shelf", "shelves", "수납", "선반")):
+        return "shelf_stack"
+    if any(token in role for token in ("open", "void", "오픈")):
+        return "open_space"
+    return "storage_box"
+
+
+def _segment_length(
+    segment: dict[str, Any],
+    run: dict[str, Any],
+    remaining: int | None,
+    single_segment: bool,
+) -> int | None:
+    value = _parse_dim_from(segment, "length_mm", "length", "run_length_mm")
+    if value is not None:
+        return value
+
+    value = _parse_dim_from(segment, "width_mm", "width")
+    if value is not None:
+        return value
+
+    if single_segment:
+        return _parse_dim_from(run, "length_mm", "length", "width_mm", "width")
+
+    return remaining
+
+
+def _map_plan_view_layout_runs(
+    mapping_input: LayoutMappingInput,
+    layout_graph: dict[str, Any],
+    asm_w: int | None,
+    asm_h: int | None,
+    asm_d: int | None,
+    all_unresolved: list[str],
+    approval_blocking: list[str],
+    report: MappingReport,
+    extraction_id: str,
+    furniture_type: str,
+    asm_id: str,
+) -> LayoutMappingResult | None:
+    """Map top-plan layout runs to real 3D modules/components.
+
+    This path is intentionally more specific than the generic zone fallback:
+    each run segment becomes an individual module in X/Z footprint space, then
+    deterministic scaffold components are generated for rendering and block
+    extraction.  It prevents D/L/U drawings from collapsing into one big box.
+    """
+    plan_layout = _coalesce_plan_view_layout(
+        mapping_input.plan_view_layout,
+        layout_graph,
+    )
+    runs = plan_layout.get("runs") if isinstance(plan_layout, dict) else None
+    if not isinstance(runs, list) or not runs:
+        return None
+
+    modules: list[dict[str, Any]] = []
+    components: list[dict[str, Any]] = []
+    relations: list[dict[str, Any]] = []
+    local_unresolved: list[str] = []
+
+    max_x = 0
+    max_z = 0
+    max_h = asm_h or 0
+    cabinet_depths: list[int] = []
+
+    for run_idx, run in enumerate(runs):
+        if not isinstance(run, dict):
+            local_unresolved.append(f"plan_view_layout.runs[{run_idx}]")
+            continue
+
+        run_id = str(run.get("id") or f"run_{run_idx + 1}")
+        orientation = _parse_plan_orientation(run.get("orientation") or run.get("axis"))
+        run_x = _parse_coord_from(run, "x_mm", "x") or 0
+        run_z = _parse_coord_from(run, "z_mm", "z", "y_mm", "y") or 0
+        run_len = _parse_dim_from(run, "length_mm", "length", "width_mm", "width")
+        run_depth = _parse_dim_from(run, "depth_mm", "depth") or asm_d
+        run_height = _parse_dim_from(run, "height_mm", "height") or asm_h
+
+        if run_len is None:
+            local_unresolved.append(f"plan_view_layout.{run_id}.length_mm")
+            continue
+        if run_depth is None:
+            local_unresolved.append(f"plan_view_layout.{run_id}.depth_mm")
+            continue
+        if run_height is None:
+            local_unresolved.append(f"plan_view_layout.{run_id}.height_mm")
+            continue
+
+        cabinet_depths.append(run_depth)
+        raw_segments = run.get("segments") or run.get("modules") or run.get("bays") or []
+        if not isinstance(raw_segments, list) or not raw_segments:
+            raw_segments = [{
+                "id": f"{run_id}_segment_1",
+                "length_mm": run_len,
+                "role": run.get("role") or "storage",
+                "label": run.get("label") or run.get("name") or run_id,
+                "door_type": run.get("door_type") or "open",
+            }]
+
+        offset = 0
+        for seg_idx, segment_raw in enumerate(raw_segments):
+            if not isinstance(segment_raw, dict):
+                local_unresolved.append(f"plan_view_layout.{run_id}.segments[{seg_idx}]")
+                continue
+
+            remaining = max(0, run_len - offset)
+            seg_len = _segment_length(
+                segment_raw,
+                run,
+                remaining if seg_idx == len(raw_segments) - 1 else None,
+                len(raw_segments) == 1,
+            )
+            if seg_len is None or seg_len <= 0:
+                local_unresolved.append(
+                    f"plan_view_layout.{run_id}.segments[{seg_idx}].length_mm"
+                )
+                continue
+
+            seg_depth = _parse_dim_from(segment_raw, "depth_mm", "depth") or run_depth
+            seg_height = _parse_dim_from(segment_raw, "height_mm", "height") or run_height
+            seg_role = segment_raw.get("role") or run.get("role") or "storage"
+            module_type = _plan_module_type(seg_role)
+            door_type = str(segment_raw.get("door_type") or run.get("door_type") or "open")
+            if module_type in {"open_space", "appliance_bay"}:
+                door_type = "open"
+
+            if orientation == "vertical":
+                width = seg_depth
+                depth = seg_len
+                pos_x = run_x
+                pos_z = run_z + offset
+            else:
+                width = seg_len
+                depth = seg_depth
+                pos_x = run_x + offset
+                pos_z = run_z
+
+            seg_id = str(segment_raw.get("id") or f"{run_id}_seg_{seg_idx + 1}")
+            module_id = _stable_id("plan_run_module", extraction_id, run_id, seg_id)
+            module = {
+                "id": module_id,
+                "type": module_type,
+                "name": str(
+                    segment_raw.get("label")
+                    or segment_raw.get("name")
+                    or f"{run_id}-{seg_idx + 1}"
+                ),
+                "dimensions": {
+                    "width": width,
+                    "height": seg_height,
+                    "depth": depth,
+                },
+                "position": {"x": pos_x, "y": 0, "z": pos_z},
+                "component_ids": [],
+                "door_type": door_type,
+                "custom_props": {
+                    "source": "plan_view_layout",
+                    "source_run_id": run_id,
+                    "source_segment_id": seg_id,
+                    "orientation": orientation,
+                    "role": seg_role,
+                    "cabinet_depth_mm": seg_depth,
+                    "run_length_mm": seg_len,
+                },
+            }
+            scaffold = _build_zone_scaffold_components(module, extraction_id)
+            module["component_ids"].extend(c["id"] for c in scaffold)
+            modules.append(module)
+            components.extend(scaffold)
+            for comp in scaffold:
+                relations.append({
+                    "from": module_id,
+                    "to": comp["id"],
+                    "type": "contains_component",
+                })
+                report.mapped_components.append({
+                    "component_id": comp["id"],
+                    "source": f"plan_view_layout:{run_id}/{seg_id}",
+                    "kind": comp["kind"],
+                })
+
+            max_x = max(max_x, pos_x + width)
+            max_z = max(max_z, pos_z + depth)
+            max_h = max(max_h, seg_height)
+            offset += seg_len
+
+        if run_len and offset and abs(offset - run_len) > 5:
+            report.warnings.append(
+                f"plan_view_layout.{run_id} segment length sum {offset}mm "
+                f"differs from run length {run_len}mm"
+            )
+
+    if not modules or not components:
+        approval_blocking.append("plan_view_layout:no_modules_mapped")
+        all_unresolved.extend(local_unresolved)
+        return None
+
+    all_unresolved.extend(local_unresolved)
+    if max_x > 0:
+        asm_w = max(asm_w or 0, max_x)
+        _remove_resolution_marker(all_unresolved, approval_blocking, "site_size.width_mm")
+    if max_h > 0:
+        asm_h = max_h
+        _remove_resolution_marker(all_unresolved, approval_blocking, "site_size.height_mm")
+    if max_z > 0:
+        if asm_d and max_z != asm_d:
+            report.warnings.append(
+                f"plan_view_layout footprint depth {max_z}mm differs from "
+                f"cabinet depth {asm_d}mm — assembly.depth uses footprint depth"
+            )
+        asm_d = max_z
+        _remove_resolution_marker(all_unresolved, approval_blocking, "site_size.depth_mm")
+
+    report.unresolved_fields = list(dict.fromkeys(all_unresolved))
+    if report.unresolved_fields:
+        for item in report.unresolved_fields:
+            marker = f"unresolved_field:{item}"
+            if marker not in approval_blocking:
+                approval_blocking.append(marker)
+
+    assembly_dict = {
+        "id": asm_id,
+        "type": furniture_type,
+        "name": mapping_input.learned_design_category.get("label_ko") or furniture_type,
+        "dimensions": {
+            "width": asm_w or 0,
+            "height": asm_h or 0,
+            "depth": asm_d or 0,
+        },
+        "modules": modules,
+        "ep_left": _STANDARD_PANEL_THICKNESS,
+        "ep_right": _STANDARD_PANEL_THICKNESS,
+        "ep_top": _STANDARD_PANEL_THICKNESS,
+        "base_height": 60,
+        "top_sr": _STANDARD_PANEL_THICKNESS,
+        "module_count": len(modules),
+        "door_type": "open",
+        "custom_props": {
+            "plan_view_layout": {
+                "shape_type": plan_layout.get("shape_type") or layout_graph.get("overall_shape"),
+                "run_count": len(runs),
+                "cabinet_depths_mm": sorted(set(cabinet_depths)),
+            }
+        },
+    }
+
+    design_graph = {
+        "schema_version": 2,
+        "unit": "mm",
+        "assembly": assembly_dict,
+        "components": components,
+        "constraints": [],
+        "relations": relations,
+        "metadata": {
+            "source_extraction_id": mapping_input.source_extraction_id,
+            "source_candidate_id": mapping_input.source_candidate_id,
+            "furniture_type": furniture_type,
+            "mapped_by": "plan_view_layout_runs_c2",
+        },
+    }
+
+    validation_errors = _validate_design_graph(design_graph, report)
+    for err in validation_errors:
+        if err not in approval_blocking:
+            approval_blocking.append(err)
+
+    report.source_evidence.append(f"extraction_id:{extraction_id}")
+    report.source_evidence.append(f"plan_view_layout:{len(runs)}_runs")
+
+    return LayoutMappingResult(
+        design_graph=design_graph,
+        mapping_report=report,
+        confidence=0.82 if not approval_blocking else 0.62,
+        preview_allowed=bool(components),
+        approval_blocking_reasons=approval_blocking,
+    )
 
 
 # ──────────────────────────────────────────────────────────
@@ -702,6 +1045,23 @@ def map_layout_to_design_graph(mapping_input: LayoutMappingInput) -> LayoutMappi
     if asm_h is not None:
         _remove_resolution_marker(all_unresolved, approval_blocking, "site_size.height_mm")
 
+    layout_graph = mapping_input.layout_graph
+    plan_result = _map_plan_view_layout_runs(
+        mapping_input,
+        layout_graph,
+        asm_w,
+        asm_h,
+        asm_d,
+        all_unresolved,
+        approval_blocking,
+        report,
+        extraction_id,
+        furniture_type,
+        asm_id,
+    )
+    if plan_result is not None:
+        return plan_result
+
     outline_result = _map_valid_outline_polygon(
         mapping_input.outline_polygon,
         asm_d,
@@ -716,7 +1076,6 @@ def map_layout_to_design_graph(mapping_input: LayoutMappingInput) -> LayoutMappi
         return outline_result
 
     # ── 2. Parse zones → modules ──────────────────────────
-    layout_graph = mapping_input.layout_graph
     zones = layout_graph.get("zones") or []
     gemini_modules = layout_graph.get("modules") or []
 
