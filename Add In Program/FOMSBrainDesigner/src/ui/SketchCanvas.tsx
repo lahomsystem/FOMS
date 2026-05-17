@@ -177,7 +177,11 @@ export function SketchCanvas({ onClose }: SketchCanvasProps) {
 
   function addShape(points: SketchPoint[], drawTool: DrawTool) {
     const validation = validateSketch(points, PIXELS_PER_MM)
-    if (!validation.valid) return // silently skip invalid shapes
+    if (!validation.valid) {
+      setSaveError(validation.error ?? '유효하지 않은 스케치입니다.')
+      return
+    }
+    setSaveError(null)
     setShapes((prev) => [
       ...prev,
       { id: `shape-${Date.now()}`, points, tool: drawTool },
@@ -205,7 +209,7 @@ export function SketchCanvas({ onClose }: SketchCanvasProps) {
       const res = await fetch('/api/designer/blocks/', {
         method: 'POST',
         credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-FOMS-Designer-Write': '1' },
         body: JSON.stringify(payload),
       })
       const data = await res.json()
@@ -220,7 +224,8 @@ export function SketchCanvas({ onClose }: SketchCanvasProps) {
         setSaveSuccess(false)
         setShowSaveDialog(false)
       }, 1500)
-    } catch {
+    } catch (err) {
+      console.warn('[SketchCanvas] save block failed:', err)
       setSaveError('네트워크 오류가 발생했습니다.')
     } finally {
       setSaving(false)

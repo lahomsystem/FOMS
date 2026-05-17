@@ -310,6 +310,8 @@ def _build_assembly(
     bbox = _bounding_box(vertices_mm)
 
     modules: list[dict[str, Any]] = []
+    components: list[dict[str, Any]] = []
+    relations: list[dict[str, Any]] = []
     for idx, rect in enumerate(module_rects):
         w = max(1, round(rect["width"]))
         h = max(1, round(rect["height"]))
@@ -318,26 +320,48 @@ def _build_assembly(
         y = round(rect["y"])
 
         module_id = _stable_id("module", str(idx), str(x), str(y), str(w), str(h))
-        components = _module_components(module_id, w, h, d)
+        module_components = _module_components(module_id, w, h, d, module_x=x, module_y=y)
+        component_ids = [c["id"] for c in module_components]
+        components.extend(module_components)
+        relations.extend(
+            {"from": module_id, "to": component_id, "type": "contains_component"}
+            for component_id in component_ids
+        )
 
         modules.append(
             {
                 "id": module_id,
                 "type": "storage_box",
+                "name": f"구역-{idx + 1}",
                 "label": f"구역-{idx + 1}",
-                "dimensions": {"width_mm": w, "height_mm": h, "depth_mm": d},
-                "position": {"x_mm": x, "y_mm": y, "z_mm": 0},
-                "components": components,
+                "dimensions": {
+                    "width": w,
+                    "height": h,
+                    "depth": d,
+                    "width_mm": w,
+                    "height_mm": h,
+                    "depth_mm": d,
+                },
+                "position": {"x": x, "y": y, "z": 0, "x_mm": x, "y_mm": y, "z_mm": 0},
+                "component_ids": component_ids,
+                "components": module_components,
+                "door_type": "open",
             }
         )
 
     return {
-        "schema_version": "v2",
+        "schema_version": 2,
+        "unit": "mm",
         "assembly": {
             "id": assembly_id,
+            "type": furniture_type,
             "furniture_type": furniture_type,
+            "name": furniture_type,
             "shape_type": shape_type,
             "dimensions": {
+                "width": round(bbox["width"]),
+                "height": round(bbox["height"]),
+                "depth": round(depth_mm),
                 "width_mm": round(bbox["width"]),
                 "height_mm": round(bbox["height"]),
                 "depth_mm": round(depth_mm),
@@ -349,8 +373,21 @@ def _build_assembly(
                 }
             },
             "modules": modules,
-            "constraints": [],
-            "relations": [],
+            "ep_left": _PANEL_THICKNESS,
+            "ep_right": _PANEL_THICKNESS,
+            "ep_top": _PANEL_THICKNESS,
+            "base_height": 60,
+            "top_sr": _PANEL_THICKNESS,
+            "module_count": len(modules),
+            "door_type": "open",
+        },
+        "components": components,
+        "constraints": [],
+        "relations": relations,
+        "metadata": {
+            "source": "outline_polygon",
+            "mapped_by": "outline_to_3d",
+            "outline_shape_type": shape_type,
         },
     }
 
@@ -360,6 +397,8 @@ def _module_components(
     width_mm: int,
     height_mm: int,
     depth_mm: int,
+    module_x: int = 0,
+    module_y: int = 0,
 ) -> list[dict[str, Any]]:
     """Generate structural ep/sr components for a rectangular module.
 
@@ -380,33 +419,57 @@ def _module_components(
             "id": _stable_id("ep_left", module_id),
             "kind": "ep",
             "role": "left_ep",
+            "name": "좌측판",
             "label": "좌측판",
-            "dimensions": {"width_mm": T, "height_mm": height_mm, "depth_mm": depth_mm},
-            "position": {"x_mm": 0, "y_mm": 0, "z_mm": 0},
+            "parent_id": module_id,
+            "material_id": None,
+            "dimensions": _dims(T, height_mm, depth_mm),
+            "position": _pos(module_x, module_y, 0),
+            "edge_banding": {},
+            "formula_refs": [],
+            "custom_props": {"source": "outline_to_3d"},
         },
         {
             "id": _stable_id("ep_right", module_id),
             "kind": "ep",
             "role": "right_ep",
+            "name": "우측판",
             "label": "우측판",
-            "dimensions": {"width_mm": T, "height_mm": height_mm, "depth_mm": depth_mm},
-            "position": {"x_mm": width_mm - T, "y_mm": 0, "z_mm": 0},
+            "parent_id": module_id,
+            "material_id": None,
+            "dimensions": _dims(T, height_mm, depth_mm),
+            "position": _pos(module_x + width_mm - T, module_y, 0),
+            "edge_banding": {},
+            "formula_refs": [],
+            "custom_props": {"source": "outline_to_3d"},
         },
         {
             "id": _stable_id("sr_base", module_id),
             "kind": "sr",
             "role": "base",
+            "name": "바닥판",
             "label": "바닥판",
-            "dimensions": {"width_mm": inner_w, "height_mm": T, "depth_mm": depth_mm},
-            "position": {"x_mm": T, "y_mm": 0, "z_mm": 0},
+            "parent_id": module_id,
+            "material_id": None,
+            "dimensions": _dims(inner_w, T, depth_mm),
+            "position": _pos(module_x + T, module_y, 0),
+            "edge_banding": {},
+            "formula_refs": [],
+            "custom_props": {"source": "outline_to_3d"},
         },
         {
             "id": _stable_id("sr_top", module_id),
             "kind": "sr",
-            "role": "top",
+            "role": "top_sr",
+            "name": "천판",
             "label": "천판",
-            "dimensions": {"width_mm": inner_w, "height_mm": T, "depth_mm": depth_mm},
-            "position": {"x_mm": T, "y_mm": height_mm - T, "z_mm": 0},
+            "parent_id": module_id,
+            "material_id": None,
+            "dimensions": _dims(inner_w, T, depth_mm),
+            "position": _pos(module_x + T, module_y + height_mm - T, 0),
+            "edge_banding": {},
+            "formula_refs": [],
+            "custom_props": {"source": "outline_to_3d"},
         },
     ]
 
@@ -420,13 +483,15 @@ def _module_components(
                     "id": _stable_id("sr_mid", module_id, str(k)),
                     "kind": "sr",
                     "role": "shelf",
+                    "name": f"선반-{k}",
                     "label": f"선반-{k}",
-                    "dimensions": {
-                        "width_mm": inner_w,
-                        "height_mm": T,
-                        "depth_mm": depth_mm,
-                    },
-                    "position": {"x_mm": T, "y_mm": y_pos, "z_mm": 0},
+                    "parent_id": module_id,
+                    "material_id": None,
+                    "dimensions": _dims(inner_w, T, depth_mm),
+                    "position": _pos(module_x + T, module_y + y_pos, 0),
+                    "edge_banding": {},
+                    "formula_refs": [],
+                    "custom_props": {"source": "outline_to_3d"},
                 }
             )
 
@@ -442,6 +507,23 @@ def _stable_id(prefix: str, *keys: str) -> str:
     """Generate a deterministic UUID from prefix + keys."""
     name = f"{prefix}:{'|'.join(str(k) for k in keys)}"
     return str(uuid.uuid5(uuid.NAMESPACE_OID, name))
+
+
+def _dims(width: int, height: int, depth: int) -> dict[str, int]:
+    """Return dimensions in frontend v2 shape plus *_mm aliases for traceability."""
+    return {
+        "width": width,
+        "height": height,
+        "depth": depth,
+        "width_mm": width,
+        "height_mm": height,
+        "depth_mm": depth,
+    }
+
+
+def _pos(x: int, y: int, z: int) -> dict[str, int]:
+    """Return position in frontend v2 shape plus *_mm aliases for traceability."""
+    return {"x": x, "y": y, "z": z, "x_mm": x, "y_mm": y, "z_mm": z}
 
 
 def _bounding_box(vertices_mm: list[list[float]]) -> dict[str, float]:

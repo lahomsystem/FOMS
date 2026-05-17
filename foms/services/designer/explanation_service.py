@@ -36,7 +36,7 @@ def save_explanation(
     """PII 레닥션 후 설명 저장.
 
     Steps:
-    1. scan_for_raw_pii()로 설명 텍스트 PII 패턴 스캔 (경고만, 블록 안 함)
+    1. redact_raw_pii_text()로 설명 텍스트 PII 패턴 제거
     2. DesignerComponentExplanation 생성 (status="draft")
     3. designer_embeddings에 텍스트 저장 (text_only, embedding 컬럼 없이)
     4. embedding_id FK 업데이트
@@ -44,7 +44,7 @@ def save_explanation(
 
     Args:
         component_id_in_graph: 그래프 내 컴포넌트 식별자.
-        explanation_text: 사람이 작성한 설명 (PII 스캔 후 저장).
+        explanation_text: 사람이 작성한 설명 (PII 레닥션 후 저장).
         design_case_id: 연결된 디자인 케이스 ID (선택).
         rationale_category: constraint / preference / customer_request / codified_rule / other.
         confidence: 0.0–1.0 확신도.
@@ -62,8 +62,8 @@ def save_explanation(
             f"Valid: {sorted(_VALID_RATIONALE_CATEGORIES)}"
         )
 
-    # Step 1: PII 스캔 — 텍스트는 블록하지 않고 경고 로그만
-    _warn_if_pii_detected(explanation_text, component_id_in_graph)
+    # Step 1: PII 레닥션 — DB/RAG/embedding에 원문 PII를 저장하지 않는다.
+    safe_text, pii_types = _redact_explanation_text(explanation_text, component_id_in_graph)
 
     from db import db_session
     from foms.persistence.designer.models import (
@@ -75,7 +75,7 @@ def save_explanation(
     explanation = DesignerComponentExplanation(
         design_case_id=design_case_id,
         component_id_in_graph=component_id_in_graph,
-        explanation_text=explanation_text,
+        explanation_text=safe_text,
         rationale_category=rationale_category,
         confidence=max(0.0, min(1.0, confidence)),
         status="draft",
@@ -88,11 +88,13 @@ def save_explanation(
     embedding = DesignerEmbedding(
         owner_type="component_explanation",
         owner_id=explanation.id,
-        text=explanation_text,
+        text=safe_text,
         metadata_json={
             "component_id_in_graph": component_id_in_graph,
             "design_case_id": design_case_id,
             "rationale_category": rationale_category,
+            "pii_redacted": bool(pii_types),
+            "pii_types": pii_types,
         },
     )
     db_session.add(embedding)
@@ -262,25 +264,23 @@ def search_explanations(
 # Internal helpers
 # ──────────────────────────────────────────────────────────
 
-def _warn_if_pii_detected(text: str, component_id: str) -> None:
-    """설명 텍스트에서 PII 패턴 스캔 — 경고 로그만, 블록하지 않음.
-
-    텍스트 PII는 정책 범위가 좁으므로 저장을 막지는 않는다.
-    운영팀이 로그를 보고 수동 검토할 수 있도록 기록만 남긴다.
+def _redact_explanation_text(text: str, component_id: str) -> tuple[str, list[str]]:
+    """설명 텍스트에서 PII 패턴을 제거하고 레닥션 타입을 반환한다.
 
     Args:
-        text: 스캔할 설명 텍스트.
+        text: 레닥션할 설명 텍스트.
         component_id: 로그 맥락용 컴포넌트 식별자.
     """
-    from foms.services.designer.pii_redactor import scan_for_raw_pii
+    from foms.services.designer.pii_redactor import redact_raw_pii_text
 
-    found = scan_for_raw_pii(text)
+    redacted, found = redact_raw_pii_text(text)
     if found:
         logger.warning(
-            "[EXPLANATION] PII pattern detected in explanation text "
-            "(component=%s, types=%s). Storing as-is — manual review required.",
+            "[EXPLANATION] PII redacted from explanation text "
+            "(component=%s, types=%s).",
             component_id, found,
         )
+    return redacted, found
 
 
 def _explanation_to_dict(explanation: Any) -> dict[str, Any]:

@@ -486,6 +486,23 @@ def map_layout_to_design_graph(mapping_input: LayoutMappingInput) -> LayoutMappi
         report,
         approval_blocking,
     )
+    if asm_w is not None:
+        _remove_resolution_marker(all_unresolved, approval_blocking, "site_size.width_mm")
+    if asm_h is not None:
+        _remove_resolution_marker(all_unresolved, approval_blocking, "site_size.height_mm")
+
+    outline_result = _map_valid_outline_polygon(
+        mapping_input.outline_polygon,
+        asm_d,
+        furniture_type,
+        extraction_id,
+        report,
+        approval_blocking,
+        mapping_input.source_extraction_id,
+        mapping_input.source_candidate_id,
+    )
+    if outline_result is not None:
+        return outline_result
 
     # ── 2. Parse zones → modules ──────────────────────────
     layout_graph = mapping_input.layout_graph
@@ -895,6 +912,104 @@ def _apply_outline_polygon(
             )
 
     return asm_w, asm_h
+
+
+def _remove_resolution_marker(
+    unresolved: list[str],
+    approval_blocking: list[str],
+    field_name: str,
+) -> None:
+    """Remove missing-site-size markers once outline geometry supplies them."""
+    while field_name in unresolved:
+        unresolved.remove(field_name)
+    marker = f"unresolved_required_field:{field_name}"
+    while marker in approval_blocking:
+        approval_blocking.remove(marker)
+
+
+def _map_valid_outline_polygon(
+    outline_polygon: dict[str, Any] | None,
+    asm_d: int | None,
+    furniture_type: str,
+    extraction_id: str,
+    report: MappingReport,
+    approval_blocking: list[str],
+    source_extraction_id: int | None,
+    source_candidate_id: int | None,
+) -> LayoutMappingResult | None:
+    """Return a DesignGraph generated from outline_polygon when possible.
+
+    This is the C1/C2 production path: a valid outline polygon is converted to
+    modules/components immediately instead of falling through to a bounding-box
+    fallback.
+    """
+    if outline_polygon is None:
+        return None
+    raw_vertices = outline_polygon.get("vertices_mm")
+    if not raw_vertices or not isinstance(raw_vertices, list):
+        return None
+    if asm_d is None:
+        return None
+
+    from foms.services.designer.outline_to_3d import outline_to_3d
+
+    result = outline_to_3d(
+        vertices_mm=raw_vertices,
+        depth_mm=float(asm_d),
+        furniture_type=furniture_type,
+        source_polygon_id=str(outline_polygon.get("id") or extraction_id),
+    )
+    if result.blocking_reasons:
+        for reason in result.blocking_reasons:
+            if reason not in approval_blocking:
+                approval_blocking.append(reason)
+        return None
+
+    design_graph = result.design_graph
+    if not design_graph.get("components"):
+        approval_blocking.append("outline_to_3d:no_components_mapped")
+        return None
+
+    design_graph.setdefault("metadata", {})
+    design_graph["metadata"].update({
+        "source_extraction_id": source_extraction_id,
+        "source_candidate_id": source_candidate_id,
+        "furniture_type": furniture_type,
+        "mapped_by": "outline_to_3d_c2",
+    })
+
+    for component in design_graph.get("components", []):
+        report.mapped_components.append({
+            "component_id": component.get("id"),
+            "source": "outline_polygon",
+            "kind": component.get("kind"),
+        })
+    report.warnings.extend(result.warnings)
+    report.source_evidence.append(f"extraction_id:{extraction_id}")
+    report.source_evidence.append(f"outline_polygon:{len(raw_vertices)}_vertices")
+
+    validation_errors = _validate_design_graph(design_graph, report)
+    for err in validation_errors:
+        if err not in approval_blocking:
+            approval_blocking.append(err)
+
+    logger.info(
+        "[LAYOUT_MAPPER] extraction_id=%s outline_to_3d modules=%d components=%d "
+        "approval_blocking=%d preview=%s",
+        extraction_id,
+        len((design_graph.get("assembly") or {}).get("modules") or []),
+        len(design_graph.get("components") or []),
+        len(approval_blocking),
+        not approval_blocking,
+    )
+
+    return LayoutMappingResult(
+        design_graph=design_graph,
+        mapping_report=report,
+        confidence=0.85 if not approval_blocking else 0.65,
+        preview_allowed=bool(design_graph.get("components")),
+        approval_blocking_reasons=approval_blocking,
+    )
 
 
 def _belongs_to_zone(gemini_module: dict[str, Any], zone: dict[str, Any]) -> bool:

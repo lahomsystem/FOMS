@@ -229,6 +229,31 @@ BLOCK_ONLY_EXTRACTION = {
     },
 }
 
+OUTLINE_ONLY_EXTRACTION = {
+    "furniture_type": "custom_storage",
+    "site_size": {"depth_mm": 600},
+    "extracted_params": {"depth": 600},
+    "parts_table": [],
+    "confidence": 0.8,
+    "unresolved_fields": [],
+    "design_understanding": {
+        "outline_polygon": {
+            "vertices_mm": [
+                [0.0, 0.0],
+                [2288.0, 0.0],
+                [2288.0, 1880.0],
+                [1376.0, 1880.0],
+                [1376.0, 2225.0],
+                [0.0, 2225.0],
+            ],
+            "confidence": 0.9,
+        },
+        "layout_graph": {"zones": [], "modules": []},
+        "block_candidates": [],
+        "learned_design_category": {},
+    },
+}
+
 
 # ──────────────────────────────────────────────────────────
 # B1-01: 3-bay wardrobe maps to 3 modules
@@ -365,6 +390,30 @@ class TestBlockCandidatesOnly:
         result = map_extraction_to_design_graph(BLOCK_ONLY_EXTRACTION)
         # Fallback module created from block_candidates
         assert result.preview_allowed is True
+
+
+# ──────────────────────────────────────────────────────────
+# C1/C2: outline_polygon drives diverse layout modules
+# ──────────────────────────────────────────────────────────
+
+class TestOutlinePolygonMapping:
+    def test_outline_polygon_generates_real_components(self):
+        result = map_extraction_to_design_graph(OUTLINE_ONLY_EXTRACTION, source_extraction_id=77)
+        assert result.preview_allowed is True
+        assert result.approval_blocking_reasons == []
+        assert result.mapping_report.outline_shape_type == "L_shape"
+        assert result.design_graph["metadata"]["mapped_by"] == "outline_to_3d_c2"
+        assert result.design_graph["assembly"]["module_count"] == 2
+        assert len(result.design_graph["components"]) > 0
+
+    def test_outline_polygon_supplies_missing_width_height(self):
+        result = map_extraction_to_design_graph(OUTLINE_ONLY_EXTRACTION, source_extraction_id=77)
+        reasons = " ".join(result.approval_blocking_reasons)
+        assert "site_size.width_mm" not in reasons
+        assert "site_size.height_mm" not in reasons
+        dims = result.design_graph["assembly"]["dimensions"]
+        assert dims["width"] == 2288
+        assert dims["height"] == 2225
 
 
 # ──────────────────────────────────────────────────────────

@@ -1,10 +1,10 @@
 """FOMS Brain C6 — Block Ontology API.
 
 Endpoints:
-  POST /api/designer/ontology/relations/propose
-  GET  /api/designer/ontology/relations
-  POST /api/designer/ontology/relations/<id>/approve
-  POST /api/designer/ontology/relations/<id>/reject
+  POST /api/designer/block-ontology/relations/propose
+  GET  /api/designer/block-ontology/relations
+  POST /api/designer/block-ontology/relations/<id>/approve
+  POST /api/designer/block-ontology/relations/<id>/reject
 """
 
 from __future__ import annotations
@@ -14,20 +14,22 @@ import logging
 from flask import Blueprint, request, jsonify
 
 from foms.web.auth import login_required
+from foms.api.designer.security import require_designer_write
 
 logger = logging.getLogger(__name__)
 
 block_ontology_bp = Blueprint(
     "designer_block_ontology",
     __name__,
-    url_prefix="/api/designer/ontology",
+    url_prefix="/api/designer/block-ontology",
 )
 
 
 @block_ontology_bp.route("/relations/propose", methods=["POST"])
 @login_required
+@require_designer_write
 def propose_relations():
-    """POST /api/designer/ontology/relations/propose — 관계 후보 자동 생성.
+    """POST /api/designer/block-ontology/relations/propose — 관계 후보 자동 생성.
 
     Request JSON (모두 optional):
         ontology_version_id (int): 귀속 버전 ID. 생략 시 최신 draft 사용.
@@ -64,7 +66,7 @@ def propose_relations():
 @block_ontology_bp.route("/relations", methods=["GET"])
 @login_required
 def get_relations():
-    """GET /api/designer/ontology/relations — 관계 목록 조회.
+    """GET /api/designer/block-ontology/relations — 관계 목록 조회.
 
     Query params (모두 optional):
         ontology_version_id (int): 버전 필터.
@@ -103,8 +105,9 @@ def get_relations():
 
 @block_ontology_bp.route("/relations/<int:relation_id>/approve", methods=["POST"])
 @login_required
+@require_designer_write
 def approve_relation_endpoint(relation_id: int):
-    """POST /api/designer/ontology/relations/<id>/approve — 관계 승인.
+    """POST /api/designer/block-ontology/relations/<id>/approve — 관계 승인.
 
     Args:
         relation_id: URL 경로 파라미터.
@@ -143,8 +146,9 @@ def approve_relation_endpoint(relation_id: int):
 
 @block_ontology_bp.route("/relations/<int:relation_id>/reject", methods=["POST"])
 @login_required
+@require_designer_write
 def reject_relation_endpoint(relation_id: int):
-    """POST /api/designer/ontology/relations/<id>/reject — 관계 거부.
+    """POST /api/designer/block-ontology/relations/<id>/reject — 관계 거부.
 
     Args:
         relation_id: URL 경로 파라미터.

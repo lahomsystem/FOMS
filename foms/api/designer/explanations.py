@@ -18,6 +18,7 @@ import logging
 from flask import Blueprint, request, jsonify
 
 from foms.web.auth import login_required
+from foms.api.designer.security import require_designer_write
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,7 @@ explanations_bp = Blueprint(
 
 @explanations_bp.route("", methods=["POST"])
 @login_required
+@require_designer_write
 def create_explanation():
     """설명 저장 (status=draft).
 
@@ -184,6 +186,7 @@ def list_by_component(component_id: str):
 
 @explanations_bp.route("/<int:explanation_id>/approve", methods=["POST"])
 @login_required
+@require_designer_write
 def approve_explanation_endpoint(explanation_id: int):
     """설명 승인 (draft → approved).
 

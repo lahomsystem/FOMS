@@ -49,8 +49,10 @@ def infer_ontology_from_case(design_case_id: int) -> list[dict[str, Any]]:
     graph = case.design_graph_json or {}
     components = graph.get("components") or []
 
-    # from_block_key가 있는 컴포넌트만 필터
-    block_comps = [c for c in components if c.get("custom_props", {}).get("from_block_key")]
+    block_comps = [
+        c for c in components
+        if _component_block_key(c) is not None
+    ]
 
     relations: list[dict[str, Any]] = []
     for i, comp_a in enumerate(block_comps):
@@ -59,8 +61,8 @@ def infer_ontology_from_case(design_case_id: int) -> list[dict[str, Any]]:
             if rel is None:
                 continue
             relations.append({
-                "from_block_key": comp_a["custom_props"]["from_block_key"],
-                "to_block_key": comp_b["custom_props"]["from_block_key"],
+                "from_block_key": _component_block_key(comp_a),
+                "to_block_key": _component_block_key(comp_b),
                 "relation_type": rel["relation_type"],
                 "params_json": rel["params_json"],
                 "case_id": design_case_id,
@@ -281,14 +283,14 @@ def _classify_relation(
         {relation_type, params_json} 또는 관계 없으면 None.
     """
     pos_a = comp_a.get("position") or {}
-    size_a = comp_a.get("size") or {}
+    size_a = comp_a.get("size") or comp_a.get("dimensions") or {}
     pos_b = comp_b.get("position") or {}
-    size_b = comp_b.get("size") or {}
+    size_b = comp_b.get("size") or comp_b.get("dimensions") or {}
 
     ax, ay = float(pos_a.get("x", 0)), float(pos_a.get("y", 0))
-    aw, ah = float(size_a.get("w", 0)), float(size_a.get("h", 0))
+    aw, ah = _width_height(size_a)
     bx, by = float(pos_b.get("x", 0)), float(pos_b.get("y", 0))
-    bw, bh = float(size_b.get("w", 0)), float(size_b.get("h", 0))
+    bw, bh = _width_height(size_b)
 
     # contains: A의 bounding box가 B를 완전히 포함
     if ax <= bx and ay <= by and (ax + aw) >= (bx + bw) and (ay + ah) >= (by + bh):
@@ -310,6 +312,18 @@ def _classify_relation(
         }
 
     return None
+
+
+def _component_block_key(component: dict[str, Any]) -> str | None:
+    custom_props = component.get("custom_props") or {}
+    key = custom_props.get("from_block_key") or custom_props.get("block_key") or custom_props.get("source_block_key")
+    return str(key) if key else None
+
+
+def _width_height(size: dict[str, Any]) -> tuple[float, float]:
+    width = size.get("w", size.get("width", size.get("width_mm", 0)))
+    height = size.get("h", size.get("height", size.get("height_mm", 0)))
+    return float(width or 0), float(height or 0)
 
 
 def _merge_params(params_list: list[dict[str, Any]]) -> dict[str, Any]:

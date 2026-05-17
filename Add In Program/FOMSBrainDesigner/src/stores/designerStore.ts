@@ -448,12 +448,13 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
       const resp = await fetch('/api/designer/blocks/save', {
         method: 'POST',
         credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ label_ko: label, category, component_dicts: comps }),
+        headers: { 'Content-Type': 'application/json', 'X-FOMS-Designer-Write': '1' },
+        body: JSON.stringify({ label_ko: label, category, components: comps }),
       })
       const json = await resp.json()
       return json.success ? { success: true } : { success: false, error: json.error }
-    } catch {
+    } catch (err) {
+      console.warn('[saveSelectionAsBlock] request failed:', err)
       return { success: false, error: '네트워크 오류가 발생했습니다.' }
     }
   },

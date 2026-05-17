@@ -20,6 +20,7 @@ import logging
 from flask import Blueprint, request, jsonify
 
 from foms.web.auth import login_required
+from foms.api.designer.security import require_designer_write
 
 logger = logging.getLogger(__name__)
 
@@ -65,8 +66,10 @@ def list_blocks_route():
         return jsonify({"success": False, "data": None, "error": str(exc)}), 500
 
 
+@designer_blocks_bp.route("/", methods=["POST"])
 @designer_blocks_bp.route("/save", methods=["POST"])
 @login_required
+@require_designer_write
 def save_block_route():
     """POST /api/designer/blocks/save — 컴포넌트로부터 재사용 블록 저장.
 
@@ -86,10 +89,13 @@ def save_block_route():
     body = request.get_json(silent=True) or {}
 
     components = body.get("components")
+    if components is None:
+        components = body.get("component_dicts")
+    geometry_json = body.get("geometry_json")
     label_ko = body.get("label_ko", "").strip()
 
-    if not components or not isinstance(components, list):
-        return jsonify({"success": False, "data": None, "error": "components 목록이 필요합니다."}), 400
+    if geometry_json is None and (not components or not isinstance(components, list)):
+        return jsonify({"success": False, "data": None, "error": "components 또는 geometry_json이 필요합니다."}), 400
     if not label_ko:
         return jsonify({"success": False, "data": None, "error": "label_ko가 필요합니다."}), 400
 
@@ -97,7 +103,7 @@ def save_block_route():
     block_key = body.get("block_key") or None
     tags = body.get("tags") or []
     source_design_case_id = body.get("source_design_case_id")
-    parameters = body.get("parameters") or {}
+    parameters = body.get("parameters") or body.get("parameters_json") or {}
     auto_generated = bool(body.get("auto_generated", False))
 
     # 로그인 사용자 ID 추출 (g.current_user는 before_request에서 설정됨)
@@ -108,7 +114,7 @@ def save_block_route():
     try:
         from foms.services.designer.block_library import save_block_from_components
         result = save_block_from_components(
-            component_dicts=components,
+            component_dicts=components or [],
             label_ko=label_ko,
             category=category,
             block_key=block_key,
@@ -117,6 +123,7 @@ def save_block_route():
             source_design_case_id=source_design_case_id,
             parameters=parameters,
             auto_generated=auto_generated,
+            geometry_json=geometry_json,
         )
         return jsonify({"success": True, "data": result, "error": None}), 201
     except ValueError as exc:
@@ -150,6 +157,7 @@ def get_block_route(block_id: int):
 
 @designer_blocks_bp.route("/<int:block_id>/instantiate", methods=["POST"])
 @login_required
+@require_designer_write
 def instantiate_block_route(block_id: int):
     """POST /api/designer/blocks/<id>/instantiate — 블록 인스턴스화.
 
@@ -179,6 +187,7 @@ def instantiate_block_route(block_id: int):
 
 @designer_blocks_bp.route("/<int:block_id>/approve", methods=["POST"])
 @login_required
+@require_designer_write
 def approve_block_route(block_id: int):
     """POST /api/designer/blocks/<id>/approve — 블록 승인 (draft → approved).
 

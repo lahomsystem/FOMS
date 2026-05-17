@@ -22,6 +22,8 @@ import { wardrobeParamsWithModuleCount } from './domain/wardrobeParamsHelpers'
 import { RightPropertyTray } from './ui/RightPropertyTray'
 import { DrawingReviewWorkspace } from './ui/DrawingReviewWorkspace'
 import { AIDesignPanel } from './ui/AIDesignPanel'
+import { BlockLibraryPanel } from './ui/BlockLibraryPanel'
+import { SketchCanvas } from './ui/SketchCanvas'
 import { useDesignerStore } from './stores/designerStore'
 import { designerApi } from './api/client'
 import { S, COLORS, TYPOGRAPHY, SPACING } from './styles/sketchupTheme'
@@ -31,6 +33,9 @@ import { normalize_to_v2_client } from './domain/legacyCompat'
 
 type InitStatus = 'loading' | 'ready' | 'error'
 type ViewMode = '3d' | 'front' | 'side' | 'top'
+type RightTab = 'module' | 'command' | 'tray' | 'ai' | 'library' | 'sketch'
+
+const SAME_ORIGIN = window.location.origin
 
 export default function App() {
   const showComponentTree = useDesignerStore((s) => s.showComponentTree)
@@ -50,7 +55,7 @@ export default function App() {
   const [initStatus, setInitStatus] = useState<InitStatus>('loading')
   const [initError, setInitError] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('3d')
-  const [rightTab, setRightTab] = useState<'module' | 'command' | 'tray' | 'ai'>('tray')
+  const [rightTab, setRightTab] = useState<RightTab>('tray')
   const [appMode, setAppMode] = useState<'editor' | 'review'>('editor')
 
   // ── Keyboard shortcuts (PG-B9) + 도구 단축키 / split +/- ──
@@ -130,6 +135,7 @@ export default function App() {
   // ── postMessage listeners (B4: graph-first) ─────────────
   useEffect(() => {
     const handler = (e: MessageEvent) => {
+      if (e.origin !== SAME_ORIGIN) return
       if (!e.data) return
       // Load AI candidate into 3D editor (B4: prefer design_graph)
       if (e.data.type === 'FOMS_LOAD_CANDIDATE' && e.data.candidate) {
@@ -140,11 +146,13 @@ export default function App() {
         try {
           window.parent.postMessage({
             type: 'FOMS_CANDIDATE_LOADED_ACK',
-            success: !candidateLoadError,
-            component_count: loaded.components.length,
-            error: candidateLoadError ?? null,
-          }, '*')
-        } catch (_) {}
+          success: !candidateLoadError,
+          component_count: loaded.components.length,
+          error: candidateLoadError ?? null,
+          }, SAME_ORIGIN)
+        } catch (err) {
+          console.warn('[postMessage] failed to send candidate ACK:', err)
+        }
       }
       // Open drawing review workspace (PG-B8)
       if (e.data.type === 'FOMS_REVIEW_EXTRACTION') {
@@ -248,9 +256,9 @@ export default function App() {
   function handleUploadClick() {
     // Navigate to drawing registration mode in the outer FOMS page
     try {
-      window.parent.postMessage({ type: 'FOMS_SWITCH_MODE', mode: 'drawing' }, '*')
-    } catch {
-      /* cross-origin safe */
+      window.parent.postMessage({ type: 'FOMS_SWITCH_MODE', mode: 'drawing' }, SAME_ORIGIN)
+    } catch (err) {
+      console.warn('[postMessage] failed to request drawing mode:', err)
     }
   }
 
@@ -325,7 +333,7 @@ export default function App() {
         <div style={{ ...S.tray, flexDirection: 'column' }}>
           {/* Tab selector */}
           <div style={{ display: 'flex', borderBottom: `1px solid ${COLORS.panelBorder}`, flexShrink: 0 }}>
-            {(['tray', 'ai', 'command'] as const).map(tab => (
+            {(['tray', 'library', 'sketch', 'ai', 'command'] as const).map(tab => (
               <button
                 key={tab}
                 onClick={() => setRightTab(tab)}
@@ -340,13 +348,15 @@ export default function App() {
                   borderBottom: rightTab === tab ? `2px solid ${COLORS.accent}` : '2px solid transparent',
                 }}
               >
-                {tab === 'tray' ? '속성' : tab === 'ai' ? '🤖 AI' : '명령'}
+                {tab === 'tray' ? '속성' : tab === 'library' ? '블록' : tab === 'sketch' ? '스케치' : tab === 'ai' ? 'AI' : '명령'}
               </button>
             ))}
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto' }}>
             {rightTab === 'tray' && <RightPropertyTray />}
+            {rightTab === 'library' && <BlockLibraryPanel />}
+            {rightTab === 'sketch' && <SketchCanvas />}
             {rightTab === 'ai' && <AIDesignPanel />}
             {rightTab === 'command' && <CommandPanel />}
           </div>

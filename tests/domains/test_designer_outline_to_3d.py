@@ -7,7 +7,7 @@ Covers:
   4.  U_shape polygon → 3 modules
   5.  invalid polygon (self-intersecting) → blocking_reason
   6.  depth_mm <= 0 → blocking_reason
-  7.  Assembly schema_version is "v2"
+  7.  Assembly schema_version is 2
   8.  Module dimensions match rect dimensions
   9.  Each module has ep_left, ep_right, base, top components
   10. outline_polygon stored in assembly custom_props
@@ -127,7 +127,8 @@ def test_non_positive_depth_is_blocked():
 
 def test_assembly_schema_version_is_v2():
     result = outline_to_3d(RECT_4V, _DEPTH)
-    assert result.design_graph["schema_version"] == "v2"
+    assert result.design_graph["schema_version"] == 2
+    assert result.design_graph["unit"] == "mm"
 
 
 # ── Test 8: module dimensions match rect dimensions ───────────────────────────
@@ -149,7 +150,9 @@ def test_rect_module_has_structural_components():
     assert "left_ep" in roles
     assert "right_ep" in roles
     assert "base" in roles
-    assert "top" in roles
+    assert "top_sr" in roles
+    assert len(result.design_graph["components"]) == len(mod["components"])
+    assert all(c["parent_id"] == mod["id"] for c in result.design_graph["components"])
 
 
 # ── Test 10: outline_polygon stored in custom_props ──────────────────────────

@@ -13,6 +13,8 @@ import { useEffect, useState } from 'react'
 import { COLORS, TYPOGRAPHY } from '../styles/sketchupTheme'
 import { ExtractionTablePanel } from './ExtractionTablePanel'
 
+const SAME_ORIGIN = window.location.origin
+
 type ExtractionPayload = {
   extraction: Record<string, unknown>
   filename?: string
@@ -37,6 +39,7 @@ export function DrawingReviewWorkspace({ onClose }: DrawingReviewWorkspaceProps)
   // Listen for extraction data from outer page
   useEffect(() => {
     const handler = (e: MessageEvent) => {
+      if (e.origin !== SAME_ORIGIN) return
       if (e.data?.type === 'FOMS_REVIEW_EXTRACTION' && e.data.payload) {
         setPayload(e.data.payload as ExtractionPayload)
         setStatus('idle')
@@ -54,15 +57,19 @@ export function DrawingReviewWorkspace({ onClose }: DrawingReviewWorkspaceProps)
         type: 'FOMS_EXTRACTION_APPROVED',
         corrected,
         fixtureId: payload?.fixtureId,
-      }, '*')
-    } catch (_) {}
+      }, SAME_ORIGIN)
+    } catch (err) {
+      console.warn('[postMessage] failed to send extraction approval:', err)
+    }
   }
 
   function handleReject() {
     setStatus('rejected')
     try {
-      window.parent.postMessage({ type: 'FOMS_EXTRACTION_REJECTED' }, '*')
-    } catch (_) {}
+      window.parent.postMessage({ type: 'FOMS_EXTRACTION_REJECTED' }, SAME_ORIGIN)
+    } catch (err) {
+      console.warn('[postMessage] failed to send extraction rejection:', err)
+    }
   }
 
   function handleLoad3D() {
