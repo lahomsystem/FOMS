@@ -49,10 +49,10 @@ export function InspectorPanel() {
       )
       const data = await res.json()
       if (data.success) {
-        setSavedExplanations(data.data ?? [])
+        setSavedExplanations(Array.isArray(data.data?.results) ? data.data.results : [])
       }
-    } catch {
-      // 로드 실패는 조용히 무시 (UI 차단하지 않음)
+    } catch (err) {
+      console.warn('[InspectorPanel] load explanations failed:', err)
     }
   }, [])
 
@@ -90,7 +90,7 @@ export function InspectorPanel() {
       const resp = await fetch('/api/designer/explanations', {
         method: 'POST',
         credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-FOMS-Designer-Write': '1' },
         body: JSON.stringify({
           component_id_in_graph: selectedId,
           explanation_text: explanationText,
@@ -104,7 +104,8 @@ export function InspectorPanel() {
       }
       setExplanationText('')
       loadExplanations(selectedId)
-    } catch {
+    } catch (err) {
+      console.warn('[InspectorPanel] save explanation failed:', err)
       setExpError('네트워크 오류가 발생했습니다.')
     }
   }

@@ -9,7 +9,7 @@
 
 Contract:
 - reusable_blocks, component_explanations: 사람이 승인(status='approved')해야만 사용 가능
-- block_ontology_versions: 한 번에 하나만 'active' 허용 (별도 unique 인덱스 추가 예정)
+- block_ontology_versions: partial unique index로 한 번에 하나만 'active' 허용
 - outline_polygons: is_valid=True 는 geometry validator 서비스 통과 후에만 설정
 - AI는 어떤 테이블도 직접 approved/active 로 승격 불가 — 서비스 레이어 전용
 
@@ -130,6 +130,13 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.text("NOW()"),
         ),
+    )
+    op.create_index(
+        "uq_designer_block_ontology_versions_one_active",
+        "designer_block_ontology_versions",
+        ["status"],
+        unique=True,
+        postgresql_where=sa.text("status = 'active'"),
     )
 
     # ── 3. designer_block_ontology_relations ─────────────────
@@ -289,5 +296,10 @@ def downgrade() -> None:
     op.drop_table("designer_outline_polygons")
     op.drop_table("designer_component_explanations")
     op.drop_table("designer_block_ontology_relations")
+    op.drop_index(
+        "uq_designer_block_ontology_versions_one_active",
+        table_name="designer_block_ontology_versions",
+        postgresql_where=sa.text("status = 'active'"),
+    )
     op.drop_table("designer_block_ontology_versions")
     op.drop_table("designer_reusable_blocks")

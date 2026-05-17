@@ -85,8 +85,9 @@ export function BlockLibraryPanel({ onClose }: BlockLibraryPanelProps) {
         setError(data.error ?? '블록 목록을 불러오지 못했습니다.')
         return
       }
-      setBlocks(data.data ?? [])
-    } catch {
+      setBlocks(Array.isArray(data.data?.blocks) ? data.data.blocks : [])
+    } catch (err) {
+      console.warn('[BlockLibraryPanel] fetch blocks failed:', err)
       setError('네트워크 오류가 발생했습니다.')
     } finally {
       setLoading(false)
@@ -106,7 +107,7 @@ export function BlockLibraryPanel({ onClose }: BlockLibraryPanelProps) {
       const res = await fetch(`/api/designer/blocks/${block.id}/instantiate`, {
         method: 'POST',
         credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-FOMS-Designer-Write': '1' },
         body: JSON.stringify({}),
       })
       const data = await res.json()
@@ -116,7 +117,8 @@ export function BlockLibraryPanel({ onClose }: BlockLibraryPanelProps) {
       }
       const component = data.data as Component
       addComponent(component)
-    } catch {
+    } catch (err) {
+      console.warn('[BlockLibraryPanel] instantiate failed:', err)
       setError('네트워크 오류가 발생했습니다.')
     } finally {
       setInstantiatingId(null)

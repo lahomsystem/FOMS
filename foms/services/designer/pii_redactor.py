@@ -37,6 +37,16 @@ _PHONE_PATTERN = re.compile(
     r'(?:0\d{1,2}[-\s]?\d{3,4}[-\s]?\d{4})'
 )
 
+# Free-text redaction patterns used for human-authored explanation/RAG text.
+_NAME_CONTEXT_PATTERN = re.compile(
+    r'(?P<label>고객|고객명|성함|이름)\s*[:：]?\s*(?P<name>[가-힣]{2,5})'
+)
+_HONORIFIC_NAME_PATTERN = re.compile(r'(?P<name>[가-힣]{2,5})(?=님)')
+_ADDRESS_FRAGMENT_PATTERN = re.compile(
+    r'((?:[가-힣A-Za-z0-9]+(?:시|도|군|구|읍|면|동|로|길)\s*){2,}'
+    r'(?:\d+(?:-\d+)?(?:번지)?\s*)?(?:\d+호)?)'
+)
+
 # Korean address indicators (partial — for log scanning only)
 _ADDRESS_KEYWORDS = {"시", "구", "동", "로", "길", "아파트", "빌라", "번지", "호"}
 
@@ -167,6 +177,60 @@ def scan_for_raw_pii(text: str, known_raw_values: list[str] | None = None) -> li
                 break
 
     return found
+
+
+def redact_raw_pii_text(
+    text: str,
+    known_raw_values: list[str] | None = None,
+) -> tuple[str, list[str]]:
+    """Redact raw PII from free-form text before persistence or RAG.
+
+    This is intentionally conservative: it removes clear phone/address/name
+    patterns and exact known values while leaving dimensions, part names, and
+    design rationale intact.
+
+    Returns:
+        (redacted_text, detected_types)
+    """
+    if not text:
+        return text, []
+
+    redacted = text
+    found: list[str] = []
+
+    if known_raw_values:
+        for raw in known_raw_values:
+            if raw and len(raw) >= 2 and raw in redacted:
+                redacted = redacted.replace(raw, "[PII_REDACTED]")
+                if "known_pii_value" not in found:
+                    found.append("known_pii_value")
+
+    redacted, phone_count = _PHONE_PATTERN.subn("[PHONE_REDACTED]", redacted)
+    if phone_count:
+        found.append("phone")
+
+    def _redact_name(match: re.Match[str]) -> str:
+        label = match.group("label")
+        return f"{label} [CUSTOMER_REDACTED]"
+
+    redacted, name_count = _NAME_CONTEXT_PATTERN.subn(_redact_name, redacted)
+    if name_count:
+        found.append("customer_name")
+
+    redacted, honorific_count = _HONORIFIC_NAME_PATTERN.subn("[CUSTOMER_REDACTED]", redacted)
+    if honorific_count:
+        found.append("customer_name")
+
+    redacted, address_count = _ADDRESS_FRAGMENT_PATTERN.subn("[ADDRESS_REDACTED]", redacted)
+    if address_count:
+        found.append("address")
+
+    # Run the existing scanner as a safety net for patterns not replaced above.
+    for pii_type in scan_for_raw_pii(redacted, known_raw_values=None):
+        if pii_type not in found:
+            found.append(pii_type)
+
+    return redacted, found
 
 
 def assert_no_raw_pii_in_payload(payload: str, known_raw_values: list[str] | None = None) -> None:

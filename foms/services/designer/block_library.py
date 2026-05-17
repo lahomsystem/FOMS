@@ -95,6 +95,7 @@ def save_block_from_components(
     source_design_case_id: int | None = None,
     parameters: dict | None = None,
     auto_generated: bool = False,
+    geometry_json: dict | None = None,
 ) -> dict:
     """사용자 선택 컴포넌트를 재사용 블록으로 저장 (status=draft).
 
@@ -103,6 +104,8 @@ def save_block_from_components(
 
     Args:
         component_dicts: geometry_json의 components로 저장할 컴포넌트 dict 목록.
+        geometry_json: 스케치/커스텀 블록이 이미 구성한 geometry_json. 지정 시
+            component_dicts 기반 생성보다 우선한다.
         label_ko: 블록의 한국어 레이블.
         category: "panel" | "module" | "assembly" | "hardware" | "other".
         block_key: 블록 고유 키. None이면 UUID 12자 자동 생성.
@@ -130,7 +133,13 @@ def save_block_from_components(
     if existing is not None:
         raise ValueError(f"block_key 중복: {resolved_key!r}")
 
-    geometry = _build_geometry_json(component_dicts)
+    geometry = copy.deepcopy(geometry_json) if geometry_json is not None else _build_geometry_json(component_dicts)
+    if not isinstance(geometry, dict):
+        raise ValueError("geometry_json은 dict여야 합니다.")
+    geometry.setdefault("schema_version", "v2")
+    if "components" not in geometry:
+        geometry["components"] = component_dicts or []
+    geometry.setdefault("relations", [])
 
     block = DesignerReusableBlock(
         block_key=resolved_key,
@@ -290,6 +299,7 @@ def instantiate_block(
         "position": position,
         "custom_props": {
             "from_block_id": block_id,
+            "from_block_key": block.block_key,
             "block_key": block.block_key,
             "scale": scale,
         },
