@@ -5,7 +5,7 @@
  * 카테고리별 탭으로 표시하고, "추가" 버튼으로 캔버스에 인스턴스를 추가한다.
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useDesignerStore } from '../stores/designerStore'
 import { COLORS, TYPOGRAPHY } from '../styles/sketchupTheme'
 import type { Component } from '../domain/ontologyTypes'
@@ -17,12 +17,16 @@ import type { Component } from '../domain/ontologyTypes'
 type BlockCategory = 'all' | 'panel' | 'module' | 'assembly' | 'hardware' | 'other'
 
 interface BlockDef {
-  id: number
+  id: number | string
   label_ko: string
   label_en?: string
   category: string
   description?: string
   is_draft?: boolean
+  status?: string
+  auto_generated?: boolean
+  isLocalCandidate?: boolean
+  components?: Component[]
 }
 
 interface BlockLibraryPanelProps {
@@ -59,13 +63,36 @@ function getCategoryBadge(category: string) {
 // ──────────────────────────────────────────────────────────
 
 export function BlockLibraryPanel({ onClose }: BlockLibraryPanelProps) {
+  const design = useDesignerStore((s) => s.design)
   const addComponent = useDesignerStore((s) => s.addComponent)
 
   const [blocks, setBlocks] = useState<BlockDef[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeCategory, setActiveCategory] = useState<BlockCategory>('all')
-  const [instantiatingId, setInstantiatingId] = useState<number | null>(null)
+  const [instantiatingId, setInstantiatingId] = useState<number | string | null>(null)
+
+  const localCandidates = useMemo<BlockDef[]>(() => {
+    const byId = new Map(design.components.map((comp) => [comp.id, comp]))
+    const candidates: BlockDef[] = []
+    design.assembly.modules.forEach((mod, idx) => {
+      const components = mod.component_ids
+        .map((id) => byId.get(id))
+        .filter((comp): comp is Component => Boolean(comp))
+      if (components.length === 0) return
+      candidates.push({
+        id: `local-${mod.id}`,
+        label_ko: `${mod.name || `모듈 ${idx + 1}`} 후보`,
+        category: 'module',
+        description: `${components.length}개 부재 / ${mod.dimensions.width}×${mod.dimensions.height}×${mod.dimensions.depth}`,
+        status: 'local_candidate',
+        auto_generated: true,
+        isLocalCandidate: true,
+        components,
+      })
+    })
+    return candidates
+  }, [design])
 
   // ── Fetch block list ─────────────────────────────────────
 
@@ -73,7 +100,7 @@ export function BlockLibraryPanel({ onClose }: BlockLibraryPanelProps) {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/designer/blocks/?include_drafts=false', {
+      const res = await fetch('/api/designer/blocks/?include_drafts=true', {
         credentials: 'same-origin',
       })
       if (!res.ok) {
@@ -100,10 +127,47 @@ export function BlockLibraryPanel({ onClose }: BlockLibraryPanelProps) {
 
   // ── Instantiate block ────────────────────────────────────
 
+  async function saveLocalCandidate(block: BlockDef) {
+    if (!block.components?.length) {
+      setError('저장할 부재가 없습니다.')
+      return
+    }
+    const res = await fetch('/api/designer/blocks/save', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-FOMS-Designer-Write': '1' },
+      body: JSON.stringify({
+        label_ko: block.label_ko,
+        category: 'module',
+        components: block.components,
+        tags: ['drawing_generated', design.assembly.type],
+        parameters: {
+          source: 'current_design_module',
+          assembly_type: design.assembly.type,
+        },
+        auto_generated: true,
+      }),
+    })
+    const data = await res.json()
+    if (!data.success) {
+      setError(data.error ?? '블록 초안 저장에 실패했습니다.')
+      return
+    }
+    await fetchBlocks()
+  }
+
   async function handleAdd(block: BlockDef) {
     if (instantiatingId !== null) return
     setInstantiatingId(block.id)
     try {
+      if (block.isLocalCandidate) {
+        await saveLocalCandidate(block)
+        return
+      }
+      if (block.status && block.status !== 'approved') {
+        setError('draft 블록은 승인 후 3D에 추가할 수 있습니다.')
+        return
+      }
       const res = await fetch(`/api/designer/blocks/${block.id}/instantiate`, {
         method: 'POST',
         credentials: 'same-origin',
@@ -128,8 +192,8 @@ export function BlockLibraryPanel({ onClose }: BlockLibraryPanelProps) {
   // ── Filtered blocks ──────────────────────────────────────
 
   const filteredBlocks = activeCategory === 'all'
-    ? blocks
-    : blocks.filter((b) => b.category === activeCategory)
+    ? [...localCandidates, ...blocks]
+    : [...localCandidates, ...blocks].filter((b) => b.category === activeCategory)
 
   // ── Render ───────────────────────────────────────────────
 
@@ -210,7 +274,7 @@ export function BlockLibraryPanel({ onClose }: BlockLibraryPanelProps) {
                     <div style={panelStyles.cardDesc}>{block.description}</div>
                   )}
                   <span style={{ ...panelStyles.badge, background: badge.bg, color: badge.text }}>
-                    {block.category}
+                    {block.isLocalCandidate ? '현재 설계 후보' : (block.status === 'draft' ? 'draft' : block.category)}
                   </span>
                 </div>
                 <button
@@ -222,7 +286,7 @@ export function BlockLibraryPanel({ onClose }: BlockLibraryPanelProps) {
                     ...(isAdding ? panelStyles.addBtnDisabled : {}),
                   }}
                 >
-                  {isAdding ? '...' : '추가'}
+                  {isAdding ? '...' : (block.isLocalCandidate ? '초안 저장' : block.status === 'draft' ? '승인 필요' : '추가')}
                 </button>
               </div>
             )
@@ -233,7 +297,7 @@ export function BlockLibraryPanel({ onClose }: BlockLibraryPanelProps) {
       {/* Footer count */}
       {!loading && (
         <div style={panelStyles.footer}>
-          {filteredBlocks.length}/{blocks.length}개 표시
+          {filteredBlocks.length}/{blocks.length + localCandidates.length}개 표시
         </div>
       )}
     </div>

@@ -58,6 +58,15 @@ def test_block_list_uses_backend_blocks_array_contract():
     assert "setBlocks(data.data ?? [])" not in panel
 
 
+def test_block_library_shows_current_design_module_candidates():
+    panel = _read("ui/BlockLibraryPanel.tsx")
+
+    assert "const localCandidates = useMemo<BlockDef[]>" in panel
+    assert "현재 설계 후보" in panel
+    assert "초안 저장" in panel
+    assert "include_drafts=true" in panel
+
+
 def test_cabinet_scene_renders_box_components_as_transparent_layout_shells():
     scene = _read("canvas/CabinetScene.tsx")
 

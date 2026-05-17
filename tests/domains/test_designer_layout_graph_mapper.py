@@ -408,6 +408,15 @@ class TestTvStandCustomStorage:
             f"Unexpected blocking: {result.approval_blocking_reasons}"
         )
 
+    def test_zone_only_layout_generates_real_parts_not_only_boxes(self):
+        result = map_extraction_to_design_graph(TV_STAND)
+        kinds = {c["kind"] for c in result.design_graph["components"]}
+        assert {"ep", "panel"}.issubset(kinds)
+        assert any(
+            c.get("custom_props", {}).get("source") == "layout_zone_scaffold"
+            for c in result.design_graph["components"]
+        )
+
 
 # ──────────────────────────────────────────────────────────
 # B1-03: Missing required dimensions → approval blocked
