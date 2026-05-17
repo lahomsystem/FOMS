@@ -92,6 +92,7 @@ class LayoutMappingInput:
         "신발장": "shoe_rack",
         "주방하부장": "kitchen_base",
         "주방상부장": "kitchen_wall",
+        "부엌가구": "kitchen_base",
         "드레스룸": "wardrobe",
         "거실장": "custom_storage",
         "TV장": "custom_storage",
@@ -102,7 +103,8 @@ class LayoutMappingInput:
         ko_map = {
             "수납장": "custom_storage", "붙박이장": "wardrobe",
             "신발장": "shoe_rack", "주방하부장": "kitchen_base",
-            "주방상부장": "kitchen_wall", "드레스룸": "wardrobe",
+            "주방상부장": "kitchen_wall", "부엌가구": "kitchen_base",
+            "드레스룸": "wardrobe",
             "거실장": "custom_storage", "TV장": "custom_storage",
         }
         if self.furniture_type in ko_map:
@@ -207,11 +209,42 @@ def _parse_dim(value: Any) -> int | None:
     return None
 
 
+def _parse_coord(value: Any) -> int | None:
+    """Parse a coordinate value to int mm, allowing 0 and negative offsets."""
+    if value is None:
+        return None
+    try:
+        v = int(float(str(value)))
+    except (TypeError, ValueError):
+        return None
+    if -_MAX_VALID_DIM <= v <= _MAX_VALID_DIM:
+        return v
+    return None
+
+
+def _parse_dim_from(source: dict[str, Any], *keys: str) -> int | None:
+    """Parse the first valid dimension from a dict key list."""
+    for key in keys:
+        parsed = _parse_dim(source.get(key))
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def _parse_coord_from(source: dict[str, Any], *keys: str) -> int | None:
+    """Parse the first valid coordinate from a dict key list."""
+    for key in keys:
+        parsed = _parse_coord(source.get(key))
+        if parsed is not None:
+            return parsed
+    return None
+
+
 def _parse_site_size(site_size: dict[str, Any]) -> tuple[int | None, int | None, int | None, list[str]]:
     """Extract (width, height, depth, unresolved) from site_size dict."""
-    w = _parse_dim(site_size.get("width_mm") or site_size.get("width"))
-    h = _parse_dim(site_size.get("height_mm") or site_size.get("height"))
-    d = _parse_dim(site_size.get("depth_mm") or site_size.get("depth"))
+    w = _parse_dim_from(site_size, "width_mm", "width")
+    h = _parse_dim_from(site_size, "height_mm", "height")
+    d = _parse_dim_from(site_size, "depth_mm", "depth")
 
     unresolved: list[str] = []
     if w is None:
@@ -260,6 +293,67 @@ def _resolve_component_kind_role(
     return kind, role
 
 
+def _derive_assembly_dimensions_from_geometry(
+    asm_w: int | None,
+    asm_h: int | None,
+    asm_d: int | None,
+    modules: list[dict[str, Any]],
+    components: list[dict[str, Any]],
+    report: MappingReport,
+) -> tuple[int | None, int | None, int | None]:
+    """Fill missing assembly W/H/D from mapped module/component extents.
+
+    The derived dimensions are for preview geometry only. Missing site_size
+    fields remain unresolved so approval still requires human review.
+    """
+    max_x = max_y = max_z = None
+
+    def absorb(item: dict[str, Any]) -> None:
+        nonlocal max_x, max_y, max_z
+        dims = item.get("dimensions") or {}
+        pos = item.get("position") or {}
+        w = _parse_dim(dims.get("width"))
+        h = _parse_dim(dims.get("height"))
+        d = _parse_dim(dims.get("depth"))
+        if w is None or h is None or d is None:
+            return
+        x = _parse_coord(pos.get("x")) or 0
+        y = _parse_coord(pos.get("y")) or 0
+        z = _parse_coord(pos.get("z")) or 0
+        max_x = max(max_x or 0, x + w)
+        max_y = max(max_y or 0, y + h)
+        max_z = max(max_z or 0, z + d)
+
+    for module in modules:
+        absorb(module)
+    for component in components:
+        absorb(component)
+
+    derived = {"width": max_x, "height": max_y, "depth": max_z}
+    current = {"width": asm_w, "height": asm_h, "depth": asm_d}
+    changed: list[str] = []
+
+    if asm_w is None and derived["width"]:
+        asm_w = derived["width"]
+        changed.append(f"width={asm_w}")
+    if asm_h is None and derived["height"]:
+        asm_h = derived["height"]
+        changed.append(f"height={asm_h}")
+    if asm_d is None and derived["depth"]:
+        asm_d = derived["depth"]
+        changed.append(f"depth={asm_d}")
+
+    if changed:
+        missing_axes = [axis for axis, value in current.items() if value is None]
+        report.warnings.append(
+            "Assembly dimensions derived from mapped geometry for preview: "
+            + ", ".join(changed)
+            + f" (site_size still unresolved: {','.join(missing_axes)})"
+        )
+
+    return asm_w, asm_h, asm_d
+
+
 def _map_zone_to_module(
     zone: dict[str, Any],
     assembly_w: int | None,
@@ -276,11 +370,11 @@ def _map_zone_to_module(
     role = str(zone.get("role") or "unknown")
     module_type = _ZONE_ROLE_TO_MODULE_TYPE.get(role, "storage_box")
 
-    w = _parse_dim(zone.get("width_mm"))
-    h = _parse_dim(zone.get("height_mm"))
-    d = _parse_dim(zone.get("depth_mm")) or assembly_d
-    x = _parse_dim(zone.get("x_mm")) or 0
-    y = _parse_dim(zone.get("y_mm")) or 0
+    w = _parse_dim_from(zone, "width_mm", "width")
+    h = _parse_dim_from(zone, "height_mm", "height")
+    d = _parse_dim_from(zone, "depth_mm", "depth") or assembly_d
+    x = _parse_coord_from(zone, "x_mm", "x") or 0
+    y = _parse_coord_from(zone, "y_mm", "y") or 0
 
     unresolved: list[str] = []
     warnings: list[str] = []
@@ -330,12 +424,12 @@ def _map_gemini_module_to_component(
     dims = gm.get("dimensions") or {}
     pos = gm.get("position") or {}
 
-    w = _parse_dim(dims.get("width_mm"))
-    h = _parse_dim(dims.get("height_mm"))
-    d = _parse_dim(dims.get("depth_mm"))
-    x = _parse_dim(pos.get("x_mm")) or 0
-    y = _parse_dim(pos.get("y_mm")) or 0
-    z = _parse_dim(pos.get("z_mm")) or 0
+    w = _parse_dim_from(dims, "width_mm", "width")
+    h = _parse_dim_from(dims, "height_mm", "height")
+    d = _parse_dim_from(dims, "depth_mm", "depth")
+    x = _parse_coord_from(pos, "x_mm", "x") or 0
+    y = _parse_coord_from(pos, "y_mm", "y") or 0
+    z = _parse_coord_from(pos, "z_mm", "z") or 0
     confidence = float(gm.get("confidence") or 0.0)
 
     unresolved: list[str] = []
@@ -743,6 +837,15 @@ def map_layout_to_design_graph(mapping_input: LayoutMappingInput) -> LayoutMappi
 
     # ── 5. Apply parts table hints to fill material/roles ─
     _apply_parts_table_hints(all_components, mapping_input.parts_table)
+
+    asm_w, asm_h, asm_d = _derive_assembly_dimensions_from_geometry(
+        asm_w,
+        asm_h,
+        asm_d,
+        modules,
+        all_components,
+        report,
+    )
 
     # ── 6. Confidence calculation ─────────────────────────
     overall_conf = layout_graph.get("overall_shape") and 0.5 or 0.3

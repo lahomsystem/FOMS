@@ -1170,13 +1170,16 @@ async function loadTo3D() {
         // 1. Candidate 빌드 (includes design_graph_candidate if intake ran layout_graph_mapper)
         const resp = await fetch('/api/designer/drawings/candidates/build', {
             method: 'POST', credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-FOMS-Designer-Write': '1' },
             body: JSON.stringify({ extraction: currentExtraction }),
         });
         const json = await resp.json();
 
         if (json.success && json.data && json.data.candidate) {
             const candidate = json.data.candidate;
+            const freshDesignGraph = candidate.design_graph_candidate || json.data.design_graph_candidate || currentDesignGraphCandidate || null;
+            currentDesignGraphCandidate = freshDesignGraph;
+            currentGraphBlockingReasons = candidate.graph_blocking_reasons || json.data.graph_blocking_reasons || currentGraphBlockingReasons || [];
             // 2. 모드 전환
             switchMode('designer');
             // 3. iframe에 candidate 전달 — ack가 toast 표시를 담당하므로 여기서 toast 없음
@@ -1205,8 +1208,8 @@ async function loadTo3D() {
                     candidate: {
                         furniture_type: normalizedFt,
                         factory_params: mergedParams,
-                        // B4: prefer graph from intake pipeline (stored at upload time)
-                        design_graph: currentDesignGraphCandidate || candidate.design_graph_candidate || null,
+                        // B4/C-fix: prefer the freshly rebuilt graph, then intake graph.
+                        design_graph: freshDesignGraph,
                     },
                 }, window.location.origin);
                 // Toast is deferred to FOMS_CANDIDATE_LOADED_ACK handler (see above)
@@ -1230,7 +1233,7 @@ async function saveLearning() {
     try {
         const resp = await fetch('/api/designer/drawings/save-learning-sample', {
             method: 'POST', credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-FOMS-Designer-Write': '1' },
             body: JSON.stringify({
                 extraction: currentExtraction,
                 metrics: currentMetrics || {},
@@ -1238,18 +1241,22 @@ async function saveLearning() {
             }),
         });
         const json = await resp.json();
-        if (json.success) {
+        const saved = json.success && json.data && json.data.saved && json.data.learning_record_id;
+        if (saved) {
+            const storage = json.data.storage || {};
             btn.textContent = '✅ 저장됨';
             btn.disabled = true;
             btn.classList.replace('btn-success', 'btn-secondary');
             showAlert(
-                `학습 샘플로 저장되었습니다. (ID: ${json.data.learning_record_id || '-'})<br>`
-                + `이 도면의 추출 결과가 Gemini 학습 컨텍스트로 활용됩니다.`,
+                `raw 학습 샘플로 저장되었습니다. (ID: ${json.data.learning_record_id})<br>`
+                + `저장 위치: ${storage.table || 'designer_corrections'}.id=${storage.id || json.data.learning_record_id}`
+                + ` / ${storage.field || 'after_json.redacted_extraction'}<br>`
+                + `승인 corpus가 아니며 검수/재학습 분석용 샘플입니다.`,
                 'success'
             );
             loadFixtures();
         } else {
-            showAlert('저장 실패: ' + json.error, 'danger');
+            showAlert('저장 실패: ' + (json.error || '저장 ID가 생성되지 않았습니다.'), 'danger');
             btn.disabled = false; btn.textContent = '💾 학습 저장';
         }
     } catch(e) {
@@ -1266,7 +1273,7 @@ async function saveDraft() {
     try {
         const resp = await fetch(`/api/designer/drawings/fixtures/${currentFixtureId}/save-draft`, {
             method: 'POST', credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-FOMS-Designer-Write': '1' },
             body: JSON.stringify({ extraction: currentExtraction, metrics: currentMetrics || {} }),
         });
         const json = await resp.json();
@@ -1290,7 +1297,7 @@ async function approveDraft() {
     try {
         const resp = await fetch(`/api/designer/drawings/fixtures/${currentFixtureId}/approve`, {
             method: 'POST', credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-FOMS-Designer-Write': '1' },
             body: JSON.stringify({}),
         });
         const json = await resp.json();

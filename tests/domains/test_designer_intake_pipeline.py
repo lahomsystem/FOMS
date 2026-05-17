@@ -241,3 +241,31 @@ class TestSaveLearningHintPollution:
         source = "raw_learning_sample"
         assert source != "learning_upload"
         assert source != "learning_sample_upload"
+
+    def test_learning_sample_api_returns_storage_contract_only_after_db_success(self):
+        """The API must not mark a learning sample saved without a DB id."""
+        from pathlib import Path
+
+        content = (
+            Path(__file__).resolve().parents[2]
+            / "foms" / "api" / "designer" / "drawings.py"
+        ).read_text(encoding="utf-8")
+
+        assert '"table": "designer_corrections"' in content
+        assert '"field": "after_json.redacted_extraction"' in content
+        assert '"saved": True' in content
+        assert '"saved": False' in content
+        assert "redacted_extraction = extraction" not in content
+
+    def test_candidate_build_route_returns_graph_first_payload(self):
+        """Manual candidate rebuild must return the same graph payload used by 3D load."""
+        from pathlib import Path
+
+        content = (
+            Path(__file__).resolve().parents[2]
+            / "foms" / "api" / "designer" / "drawings.py"
+        ).read_text(encoding="utf-8")
+
+        assert "map_extraction_to_design_graph" in content
+        assert 'candidate_payload["design_graph_candidate"] = graph_candidate_json' in content
+        assert '"design_graph_candidate": graph_candidate_json' in content
