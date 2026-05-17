@@ -532,6 +532,123 @@ def _map_block_candidates_to_components(
     return components, warnings
 
 
+def _build_zone_scaffold_components(
+    module: dict[str, Any],
+    extraction_id: str,
+) -> list[dict[str, Any]]:
+    """Expand a zone-only module into real reviewable cabinet parts.
+
+    Gemini often extracts only layout zones for complex shop drawings. A large
+    opaque zone box is not a useful 3D candidate, so this deterministic scaffold
+    creates the minimum physical parts needed for visual review and block
+    candidate grouping. The result remains approval-blocked if source
+    dimensions are unresolved.
+    """
+    dims = module.get("dimensions") or {}
+    pos = module.get("position") or {}
+    w = _parse_dim(dims.get("width")) or 0
+    h = _parse_dim(dims.get("height")) or 0
+    d = _parse_dim(dims.get("depth")) or 0
+    if w <= 0 or h <= 0 or d <= 0:
+        return []
+
+    x = _parse_coord(pos.get("x")) or 0
+    y = _parse_coord(pos.get("y")) or 0
+    z = _parse_coord(pos.get("z")) or 0
+    module_id = str(module.get("id") or "module")
+    module_type = str(module.get("type") or "")
+    source_key = str(module.get("source_zone_id") or module_id)
+    t = _STANDARD_PANEL_THICKNESS
+    back_t = 9
+    inner_w = max(t, w - 2 * t)
+    inner_h = max(t, h - 2 * t)
+    inner_d = max(t, d - back_t)
+
+    def comp(
+        suffix: str,
+        kind: str,
+        role: str,
+        name: str,
+        cdims: dict[str, int],
+        cpos: dict[str, int],
+    ) -> dict[str, Any]:
+        return {
+            "id": _stable_id("zone_scaffold", extraction_id, module_id, suffix),
+            "kind": kind,
+            "role": role,
+            "name": name,
+            "parent_id": module_id,
+            "material_id": None,
+            "dimensions": cdims,
+            "position": cpos,
+            "edge_banding": {},
+            "formula_refs": [],
+            "custom_props": {
+                "source": "layout_zone_scaffold",
+                "source_zone_id": source_key,
+                "source_module_type": module_type,
+            },
+        }
+
+    components: list[dict[str, Any]] = [
+        comp("left_ep", "ep", "left_ep", "좌측 EP", {"width": t, "height": h, "depth": inner_d}, {"x": x, "y": y, "z": z}),
+        comp("right_ep", "ep", "right_ep", "우측 EP", {"width": t, "height": h, "depth": inner_d}, {"x": x + w - t, "y": y, "z": z}),
+        comp("bottom", "panel", "bottom_panel", "하판", {"width": inner_w, "height": t, "depth": inner_d}, {"x": x + t, "y": y, "z": z}),
+        comp("top", "panel", "top_panel", "상판", {"width": inner_w, "height": t, "depth": inner_d}, {"x": x + t, "y": y + h - t, "z": z}),
+        comp("back", "panel", "back_panel", "후판", {"width": inner_w, "height": inner_h, "depth": back_t}, {"x": x + t, "y": y + t, "z": z + d - back_t}),
+    ]
+
+    bay_count = min(6, max(1, round(w / 700))) if w >= 1100 else 1
+    if bay_count > 1:
+        bay_w = inner_w / bay_count
+        for idx in range(1, bay_count):
+            div_x = round(x + t + bay_w * idx - t / 2)
+            components.append(
+                comp(
+                    f"divider_{idx}",
+                    "panel",
+                    "right_side",
+                    f"분리판-{idx}",
+                    {"width": t, "height": inner_h, "depth": inner_d},
+                    {"x": div_x, "y": y + t, "z": z},
+                )
+            )
+
+    shelf_like = module_type in {"shelf_stack", "storage_box", "hanging_bay"}
+    if shelf_like and h >= 500:
+        shelf_count = min(3, max(1, h // 450 - 1))
+        for idx in range(1, shelf_count + 1):
+            shelf_y = round(y + t + (inner_h / (shelf_count + 1)) * idx)
+            components.append(
+                comp(
+                    f"shelf_{idx}",
+                    "shelf",
+                    "shelf",
+                    f"선반-{idx}",
+                    {"width": inner_w, "height": t, "depth": inner_d},
+                    {"x": x + t, "y": shelf_y, "z": z},
+                )
+            )
+
+    if module_type == "drawer_stack":
+        drawer_count = min(4, max(2, h // 280))
+        drawer_h = max(80, round((inner_h - (drawer_count - 1) * 3) / drawer_count))
+        for idx in range(drawer_count):
+            drawer_y = y + t + idx * (drawer_h + 3)
+            components.append(
+                comp(
+                    f"drawer_{idx + 1}",
+                    "drawer",
+                    "drawer",
+                    f"서랍-{idx + 1}",
+                    {"width": inner_w, "height": drawer_h, "depth": t},
+                    {"x": x + t, "y": drawer_y, "z": z - t},
+                )
+            )
+
+    return components
+
+
 # ──────────────────────────────────────────────────────────
 # Primary mapping function
 # ──────────────────────────────────────────────────────────
@@ -650,31 +767,47 @@ def map_layout_to_design_graph(mapping_input: LayoutMappingInput) -> LayoutMappi
     # (e.g. TV stand zones with no gemini modules defined)
     for module in modules:
         if not module.get("component_ids") and module["dimensions"]["width"] > 0:
-            zone_comp_id = _stable_id("zone_frame", extraction_id, module["id"])
-            zone_frame = {
-                "id": zone_comp_id,
-                "kind": "box",
-                "role": "generic",
-                "name": module["name"],
-                "parent_id": module["id"],
-                "material_id": None,
-                "dimensions": {
-                    "width": module["dimensions"]["width"],
-                    "height": module["dimensions"]["height"],
-                    "depth": module["dimensions"]["depth"],
-                },
-                "position": {"x": module["position"]["x"], "y": 0, "z": 0},
-                "edge_banding": {},
-                "formula_refs": [],
-                "custom_props": {"source": "zone_frame_auto"},
-            }
-            all_components.append(zone_frame)
-            module["component_ids"].append(zone_comp_id)
-            report.mapped_components.append({
-                "component_id": zone_comp_id,
-                "source": f"zone_frame:{module.get('source_zone_id', module['id'])}",
-                "kind": "box",
-            })
+            scaffold_components = _build_zone_scaffold_components(module, extraction_id)
+            if scaffold_components:
+                all_components.extend(scaffold_components)
+                module["component_ids"].extend(c["id"] for c in scaffold_components)
+                for comp in scaffold_components:
+                    relations.append({
+                        "from": module["id"],
+                        "to": comp["id"],
+                        "type": "contains_component",
+                    })
+                    report.mapped_components.append({
+                        "component_id": comp["id"],
+                        "source": f"layout_zone_scaffold:{module.get('source_zone_id', module['id'])}",
+                        "kind": comp["kind"],
+                    })
+            else:
+                zone_comp_id = _stable_id("zone_frame", extraction_id, module["id"])
+                zone_frame = {
+                    "id": zone_comp_id,
+                    "kind": "box",
+                    "role": "generic",
+                    "name": module["name"],
+                    "parent_id": module["id"],
+                    "material_id": None,
+                    "dimensions": {
+                        "width": module["dimensions"]["width"],
+                        "height": module["dimensions"]["height"],
+                        "depth": module["dimensions"]["depth"],
+                    },
+                    "position": {"x": module["position"]["x"], "y": 0, "z": 0},
+                    "edge_banding": {},
+                    "formula_refs": [],
+                    "custom_props": {"source": "zone_frame_auto"},
+                }
+                all_components.append(zone_frame)
+                module["component_ids"].append(zone_comp_id)
+                report.mapped_components.append({
+                    "component_id": zone_comp_id,
+                    "source": f"zone_frame:{module.get('source_zone_id', module['id'])}",
+                    "kind": "box",
+                })
 
     # ── 4. Fallback: if no zones, try gemini modules directly ─
     if not zones and gemini_modules:
