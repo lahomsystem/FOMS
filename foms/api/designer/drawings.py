@@ -424,11 +424,14 @@ def save_learning_sample():
         ctx = RedactionContext()
         redacted_extraction = ctx.redact_extraction(extraction)
     except Exception as exc:
-        logger.warning("[SAVE-LEARNING] PII redaction failed: %s", exc)
-        redacted_extraction = extraction
+        logger.exception("[SAVE-LEARNING] PII redaction failed; sample not saved")
+        return jsonify({
+            "success": False,
+            "data": None,
+            "error": f"PII 제거 실패로 학습 샘플을 저장하지 않았습니다: {exc}",
+        }), 500
 
     # DB 저장 — raw_learning_sample 소스, hint 없음
-    saved_id = None
     try:
         from db import db_session
         from foms.persistence.designer.models import DesignerCorrection
@@ -452,8 +455,24 @@ def save_learning_sample():
         db_session.refresh(corr)
         saved_id = corr.id
     except Exception as exc:
-        logger.warning("[SAVE-LEARNING] DB save failed (non-fatal): %s", exc)
-        notes.append(f"DB 저장 실패: {exc}")
+        try:
+            db_session.rollback()  # type: ignore[name-defined]
+        except Exception:
+            logger.exception("[SAVE-LEARNING] DB rollback failed after save error")
+        logger.exception("[SAVE-LEARNING] DB save failed; sample not saved")
+        return jsonify({
+            "success": False,
+            "data": {"saved": False, "notes": [f"DB 저장 실패: {exc}"]},
+            "error": f"학습 샘플 DB 저장 실패: {exc}",
+        }), 500
+
+    if not saved_id:
+        logger.error("[SAVE-LEARNING] DB commit returned empty correction id")
+        return jsonify({
+            "success": False,
+            "data": {"saved": False, "notes": ["DB 저장 ID가 생성되지 않았습니다."]},
+            "error": "학습 샘플 저장 ID가 생성되지 않았습니다.",
+        }), 500
 
     logger.info(
         "[SAVE-LEARNING] filename=%s type=%s confidence=%.2f saved_id=%s",
@@ -468,6 +487,12 @@ def save_learning_sample():
         "data": {
             "saved": True,
             "learning_record_id": saved_id,
+            "storage": {
+                "table": "designer_corrections",
+                "id": saved_id,
+                "field": "after_json.redacted_extraction",
+                "source": "raw_learning_sample",
+            },
             "notes": notes,
         },
         "error": None,
@@ -495,15 +520,32 @@ def build_candidate_route():
 
     source_id = body.get("source_extraction_id")
 
+    graph_candidate_json = None
+    mapping_report_json = None
+    graph_preview_allowed = False
+    graph_blocking_reasons: list[str] = []
+
     try:
         from foms.services.designer.ontology_mapper import build_candidate
         from foms.services.designer.drawing_intake_pipeline import compute_ui_state
+        from foms.services.designer.layout_graph_mapper import map_extraction_to_design_graph
         candidate = build_candidate(extraction, source_extraction_id=source_id)
+        mapping_result = map_extraction_to_design_graph(
+            extraction,
+            source_extraction_id=source_id,
+        )
+        graph_candidate_json = mapping_result.design_graph
+        mapping_report_json = mapping_result.mapping_report.to_dict()
+        graph_preview_allowed = mapping_result.preview_allowed
+        graph_blocking_reasons = mapping_result.approval_blocking_reasons
         ui_state = compute_ui_state(
             furniture_type=candidate.furniture_type,
             unresolved_fields=candidate.unresolved_fields,
             validation_result=candidate.validation_result,
+            extra_blocking_reasons=graph_blocking_reasons,
         )
+        if graph_preview_allowed:
+            ui_state["can_preview_3d_graph"] = True
     except Exception as exc:
         logger.error("[CANDIDATE BUILD] error: %s", exc)
         return jsonify({"success": False, "error": str(exc)}), 500
@@ -523,19 +565,42 @@ def build_candidate_route():
                 approved=False,
                 status="pending_review",
                 blocking_reasons_json=ui_state["blocking_reasons"],
+                design_graph_candidate_json=graph_candidate_json,
+                mapping_report_json=mapping_report_json,
+                validation_json={"valid": not graph_blocking_reasons},
+                preview_allowed=graph_preview_allowed,
             )
             db_session.add(row)
             db_session.commit()
             db_session.refresh(row)
             candidate_db_id = row.id
         except Exception as exc:
-            logger.warning("[CANDIDATE BUILD] DB persist failed: %s", exc)
+            try:
+                db_session.rollback()  # type: ignore[name-defined]
+            except Exception:
+                logger.exception("[CANDIDATE BUILD] DB rollback failed after persist error")
+            logger.exception("[CANDIDATE BUILD] DB persist failed")
+            return jsonify({
+                "success": False,
+                "data": {"candidate_db_id": None},
+                "error": f"Candidate DB 저장 실패: {exc}",
+            }), 500
+
+    candidate_payload = candidate.to_dict()
+    candidate_payload["design_graph_candidate"] = graph_candidate_json
+    candidate_payload["mapping_report"] = mapping_report_json or {}
+    candidate_payload["graph_preview_allowed"] = graph_preview_allowed
+    candidate_payload["graph_blocking_reasons"] = graph_blocking_reasons
 
     return jsonify({
         "success": True,
         "data": {
-            "candidate": candidate.to_dict(),
+            "candidate": candidate_payload,
             "candidate_db_id": candidate_db_id,
+            "design_graph_candidate": graph_candidate_json,
+            "mapping_report": mapping_report_json or {},
+            "graph_preview_allowed": graph_preview_allowed,
+            "graph_blocking_reasons": graph_blocking_reasons,
             "ui_state": ui_state,
         },
         "error": None,

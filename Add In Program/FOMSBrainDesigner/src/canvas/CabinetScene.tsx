@@ -65,7 +65,8 @@ function ComponentMesh({ component: c, selected, multiSelected, onSelect }: Comp
 
   const baseColor = KIND_COLORS[c.kind] ?? '#cccccc'
   const color = selected ? SELECTED_COLOR : multiSelected ? MULTI_SELECT_COLOR : (hovered ? HOVER_COLOR : baseColor)
-  const opacity = c.kind === 'door' ? 0.65 : (c.kind === 'cutout' ? 0.4 : 0.92)
+  const isLayoutBox = c.kind === 'box'
+  const opacity = isLayoutBox ? 0.14 : (c.kind === 'door' ? 0.65 : (c.kind === 'cutout' ? 0.4 : 0.92))
 
   return (
     <mesh
@@ -82,9 +83,10 @@ function ComponentMesh({ component: c, selected, multiSelected, onSelect }: Comp
         color={color}
         opacity={opacity}
         transparent={opacity < 1}
+        depthWrite={!isLayoutBox}
         roughness={c.kind === 'door' ? 0.08 : 0.65}
         metalness={c.kind === 'hardware' ? 0.6 : 0.02}
-        wireframe={false}
+        wireframe={isLayoutBox}
       />
     </mesh>
   )

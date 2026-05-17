@@ -254,6 +254,66 @@ OUTLINE_ONLY_EXTRACTION = {
     },
 }
 
+D_SHAPE_GEOMETRY_ONLY_EXTRACTION = {
+    "furniture_type": "custom_storage",
+    "site_size": {},
+    "extracted_params": {},
+    "parts_table": [
+        {"code": "[EP]", "description": "측판", "quantity": 4},
+        {"code": "[SR]", "description": "선반", "quantity": 3},
+    ],
+    "confidence": 0.7,
+    "unresolved_fields": [],
+    "design_understanding": {
+        "layout_graph": {
+            "coordinate_system": "front_view_mm",
+            "overall_shape": "D_shape_kitchen",
+            "zones": [
+                {
+                    "id": "wall_run",
+                    "role": "shelves",
+                    "x_mm": 0,
+                    "y_mm": 0,
+                    "width_mm": 2770,
+                    "height_mm": 650,
+                    "depth_mm": 320,
+                    "evidence": "dimension_line",
+                },
+                {
+                    "id": "base_run",
+                    "role": "drawers",
+                    "x_mm": 0,
+                    "y_mm": 0,
+                    "width_mm": 2240,
+                    "height_mm": 860,
+                    "depth_mm": 650,
+                    "evidence": "dimension_line",
+                },
+            ],
+            "modules": [
+                {
+                    "id": "base_left_side",
+                    "type": "side_panel",
+                    "position": {"x": 0, "y": 0, "z": 0},
+                    "dimensions": {"width": 60, "height": 860, "depth": 650},
+                    "relations": ["in_zone:base_run"],
+                    "confidence": 0.9,
+                },
+                {
+                    "id": "base_shelf",
+                    "type": "shelf_stack",
+                    "position": {"x_mm": 60, "y_mm": 115, "z_mm": 0},
+                    "dimensions": {"width_mm": 900, "height_mm": 18, "depth_mm": 650},
+                    "relations": ["in_zone:base_run"],
+                    "confidence": 0.9,
+                },
+            ],
+        },
+        "block_candidates": [],
+        "learned_design_category": {},
+    },
+}
+
 
 # ──────────────────────────────────────────────────────────
 # B1-01: 3-bay wardrobe maps to 3 modules
@@ -414,6 +474,29 @@ class TestOutlinePolygonMapping:
         dims = result.design_graph["assembly"]["dimensions"]
         assert dims["width"] == 2288
         assert dims["height"] == 2225
+
+
+# ──────────────────────────────────────────────────────────
+# C3: graph preview dimensions from geometry when site_size is missing
+# ──────────────────────────────────────────────────────────
+
+class TestGeometryDerivedPreviewDimensions:
+    def test_missing_site_size_does_not_load_zero_size_assembly(self):
+        result = map_extraction_to_design_graph(
+            D_SHAPE_GEOMETRY_ONLY_EXTRACTION,
+            source_extraction_id=2417,
+        )
+
+        dims = result.design_graph["assembly"]["dimensions"]
+        assert dims == {"width": 2770, "height": 860, "depth": 650}
+        assert result.preview_allowed is True
+        assert any(
+            "site_size.width_mm" in reason for reason in result.approval_blocking_reasons
+        ), "Derived preview dimensions must not silently approve missing site_size."
+        assert not any(
+            "assembly.dimensions.width_is_zero_or_missing" in reason
+            for reason in result.approval_blocking_reasons
+        )
 
 
 # ──────────────────────────────────────────────────────────

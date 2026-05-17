@@ -37,6 +37,8 @@ _PRODUCT_NAME_HINTS: dict[str, str] = {
     "신발장": "shoe_rack",
     "슈즈장": "shoe_rack",
     "주방": "kitchen_base",
+    "부엌": "kitchen_base",
+    "부엌가구": "kitchen_base",
     "싱크대": "kitchen_base",
     "상부장": "kitchen_wall",
     "주방상부": "kitchen_wall",
