@@ -65,6 +65,16 @@ def test_block_library_shows_current_design_module_candidates():
     assert "현재 설계 후보" in panel
     assert "초안 저장" in panel
     assert "include_drafts=true" in panel
+    assert "handleApprove" in panel
+    assert "addBlockInstance(instance.module, instance.components)" in panel
+
+
+def test_store_can_add_reusable_block_instance_as_module_plus_components():
+    store = _read("stores/designerStore.ts")
+
+    assert "addBlockInstance: (module: Module, components: Component[]) => void" in store
+    assert "modules: nextModules" in store
+    assert "components: [...state.design.components, ...components]" in store
 
 
 def test_cabinet_scene_renders_box_components_as_transparent_layout_shells():

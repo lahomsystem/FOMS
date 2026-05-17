@@ -237,14 +237,129 @@ def get_block(block_id: int) -> dict | None:
     return _block_to_dict(block)
 
 
+def _scale_number(value: Any, scale: float) -> Any:
+    if isinstance(value, (int, float)):
+        return round(value * scale, 2)
+    return value
+
+
+def _instantiate_geometry(
+    *,
+    block_id: int,
+    block_key: str,
+    label_ko: str,
+    category: str,
+    geometry: dict,
+    at_position: dict | None = None,
+    scale: float = 1.0,
+) -> dict:
+    """Instantiate saved block geometry as a module plus cloned components."""
+    raw_components = copy.deepcopy(geometry.get("components") or [])
+    if not raw_components:
+        raise ValueError("블록 geometry_json.components가 비어 있습니다.")
+
+    position = at_position if at_position is not None else {"x": 0, "y": 0, "z": 0}
+    base_x = float(position.get("x") or 0)
+    base_y = float(position.get("y") or 0)
+    base_z = float(position.get("z") or 0)
+
+    def pos_of(component: dict) -> dict:
+        return component.get("position") or {}
+
+    min_x = min(float(pos_of(c).get("x") or 0) for c in raw_components)
+    min_y = min(float(pos_of(c).get("y") or 0) for c in raw_components)
+    min_z = min(float(pos_of(c).get("z") or 0) for c in raw_components)
+
+    module_id = str(uuid.uuid4())
+    id_map: dict[str, str] = {}
+    components: list[dict] = []
+
+    for source in raw_components:
+        original_id = str(source.get("id") or uuid.uuid4())
+        new_id = str(uuid.uuid4())
+        id_map[original_id] = new_id
+
+        dims = copy.deepcopy(source.get("dimensions") or {})
+        scaled_dims = {
+            key: _scale_number(value, scale)
+            for key, value in dims.items()
+            if key in {"width", "height", "depth", "width_mm", "height_mm", "depth_mm"}
+        }
+        for axis in ("width", "height", "depth"):
+            if axis not in scaled_dims:
+                scaled_dims[axis] = _scale_number(dims.get(axis) or 1, scale)
+
+        src_pos = source.get("position") or {}
+        new_pos = {
+            "x": round(base_x + (float(src_pos.get("x") or 0) - min_x) * scale, 2),
+            "y": round(base_y + (float(src_pos.get("y") or 0) - min_y) * scale, 2),
+            "z": round(base_z + (float(src_pos.get("z") or 0) - min_z) * scale, 2),
+        }
+
+        custom_props = copy.deepcopy(source.get("custom_props") or {})
+        custom_props.update({
+            "from_block_id": block_id,
+            "from_block_key": block_key,
+            "source_component_id": original_id,
+            "scale": scale,
+        })
+
+        cloned = copy.deepcopy(source)
+        cloned.update({
+            "id": new_id,
+            "parent_id": module_id,
+            "dimensions": scaled_dims,
+            "position": new_pos,
+            "custom_props": custom_props,
+        })
+        components.append(cloned)
+
+    def extent(axis: str) -> float:
+        return max(
+            float(c["position"][axis]) + float(c["dimensions"][{"x": "width", "y": "height", "z": "depth"}[axis]])
+            for c in components
+        ) - {"x": base_x, "y": base_y, "z": base_z}[axis]
+
+    module = {
+        "id": module_id,
+        "type": f"reusable_block_{category}",
+        "name": f"{label_ko} 인스턴스",
+        "dimensions": {
+            "width": round(max(1.0, extent("x")), 2),
+            "height": round(max(1.0, extent("y")), 2),
+            "depth": round(max(1.0, extent("z")), 2),
+        },
+        "position": {"x": base_x, "y": base_y, "z": base_z},
+        "component_ids": [c["id"] for c in components],
+        "door_type": "open",
+        "custom_props": {
+            "from_block_id": block_id,
+            "from_block_key": block_key,
+            "scale": scale,
+        },
+    }
+
+    return {
+        "block_id": block_id,
+        "block_key": block_key,
+        "module": module,
+        "components": components,
+        "relations": [
+            {"from": module_id, "to": c["id"], "type": "contains_component"}
+            for c in components
+        ],
+        "id_map": id_map,
+    }
+
+
 def instantiate_block(
     block_id: int,
     at_position: dict | None = None,
     scale: float = 1.0,
 ) -> dict:
-    """블록을 특정 위치에 인스턴스화하여 컴포넌트 dict를 반환.
+    """블록을 특정 위치에 인스턴스화하여 모듈 + 부재 목록을 반환.
 
-    반환된 dict는 design_graph.components 배열에 직접 추가 가능.
+    반환된 dict는 design_graph.assembly.modules와 components에 함께 추가한다.
     승인(approved)된 블록만 인스턴스화 가능 — RAG/active asset 정책 준수.
 
     Args:
@@ -253,7 +368,7 @@ def instantiate_block(
         scale: 스케일 배율 (기본 1.0).
 
     Returns:
-        {id, name, kind, dimensions, position, custom_props} 컴포넌트 dict.
+        {module, components, relations, block_id, block_key} dict.
 
     Raises:
         ValueError: 블록이 존재하지 않거나 approved 상태가 아닐 때.
@@ -271,39 +386,20 @@ def instantiate_block(
             "인스턴스화 불가. approved 블록만 사용 가능."
         )
 
-    position = at_position if at_position is not None else {"x": 0, "y": 0, "z": 0}
-
     # usage_count 증가 (JSONB가 아니므로 단순 정수 갱신)
     block.usage_count = (block.usage_count or 0) + 1
     db_session.commit()
 
     geometry = copy.deepcopy(block.geometry_json or {})
-    components = geometry.get("components", [])
-
-    # 대표 치수: 첫 번째 컴포넌트에서 추출, 없으면 빈 dict
-    base_dims: dict = {}
-    if components:
-        base_dims = copy.deepcopy(components[0].get("dimensions", {}))
-        if scale != 1.0:
-            for k, v in base_dims.items():
-                if isinstance(v, (int, float)):
-                    base_dims[k] = round(v * scale, 2)
-
-    instance_id = str(uuid.uuid4())
-
-    return {
-        "id": instance_id,
-        "name": f"{block.label_ko} (인스턴스)",
-        "kind": block.category,
-        "dimensions": base_dims,
-        "position": position,
-        "custom_props": {
-            "from_block_id": block_id,
-            "from_block_key": block.block_key,
-            "block_key": block.block_key,
-            "scale": scale,
-        },
-    }
+    return _instantiate_geometry(
+        block_id=block.id,
+        block_key=block.block_key,
+        label_ko=block.label_ko,
+        category=block.category,
+        geometry=geometry,
+        at_position=at_position,
+        scale=scale,
+    )
 
 
 def approve_block(block_id: int, approved_by_user_id: int | None = None) -> dict:

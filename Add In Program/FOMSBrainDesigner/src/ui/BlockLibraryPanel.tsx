@@ -8,7 +8,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useDesignerStore } from '../stores/designerStore'
 import { COLORS, TYPOGRAPHY } from '../styles/sketchupTheme'
-import type { Component } from '../domain/ontologyTypes'
+import type { Component, Module } from '../domain/ontologyTypes'
 
 // ──────────────────────────────────────────────────────────
 // Types
@@ -65,6 +65,7 @@ function getCategoryBadge(category: string) {
 export function BlockLibraryPanel({ onClose }: BlockLibraryPanelProps) {
   const design = useDesignerStore((s) => s.design)
   const addComponent = useDesignerStore((s) => s.addComponent)
+  const addBlockInstance = useDesignerStore((s) => s.addBlockInstance)
 
   const [blocks, setBlocks] = useState<BlockDef[]>([])
   const [loading, setLoading] = useState(true)
@@ -179,10 +180,39 @@ export function BlockLibraryPanel({ onClose }: BlockLibraryPanelProps) {
         setError(data.error ?? '블록 추가에 실패했습니다.')
         return
       }
-      const component = data.data as Component
-      addComponent(component)
+      const instance = data.data as { module?: Module; components?: Component[] } | Component
+      if ('module' in instance && instance.module && Array.isArray(instance.components)) {
+        addBlockInstance(instance.module, instance.components)
+        return
+      }
+      addComponent(instance as Component)
     } catch (err) {
       console.warn('[BlockLibraryPanel] instantiate failed:', err)
+      setError('네트워크 오류가 발생했습니다.')
+    } finally {
+      setInstantiatingId(null)
+    }
+  }
+
+  async function handleApprove(block: BlockDef) {
+    if (typeof block.id !== 'number') return
+    if (instantiatingId !== null) return
+    setInstantiatingId(block.id)
+    try {
+      const res = await fetch(`/api/designer/blocks/${block.id}/approve`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-FOMS-Designer-Write': '1' },
+        body: JSON.stringify({}),
+      })
+      const data = await res.json()
+      if (!data.success) {
+        setError(data.error ?? '블록 승인에 실패했습니다.')
+        return
+      }
+      await fetchBlocks()
+    } catch (err) {
+      console.warn('[BlockLibraryPanel] approve failed:', err)
       setError('네트워크 오류가 발생했습니다.')
     } finally {
       setInstantiatingId(null)
@@ -277,17 +307,33 @@ export function BlockLibraryPanel({ onClose }: BlockLibraryPanelProps) {
                     {block.isLocalCandidate ? '현재 설계 후보' : (block.status === 'draft' ? 'draft' : block.category)}
                   </span>
                 </div>
-                <button
-                  onClick={() => handleAdd(block)}
-                  disabled={isAdding || instantiatingId !== null}
-                  title={`${block.label_ko} 추가`}
-                  style={{
-                    ...panelStyles.addBtn,
-                    ...(isAdding ? panelStyles.addBtnDisabled : {}),
-                  }}
-                >
-                  {isAdding ? '...' : (block.isLocalCandidate ? '초안 저장' : block.status === 'draft' ? '승인 필요' : '추가')}
-                </button>
+                <div style={panelStyles.actions}>
+                  {block.status === 'draft' && !block.isLocalCandidate && (
+                    <button
+                      onClick={() => handleApprove(block)}
+                      disabled={isAdding || instantiatingId !== null}
+                      title={`${block.label_ko} 승인`}
+                      style={{
+                        ...panelStyles.addBtn,
+                        ...panelStyles.approveBtn,
+                        ...(isAdding ? panelStyles.addBtnDisabled : {}),
+                      }}
+                    >
+                      승인
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleAdd(block)}
+                    disabled={isAdding || instantiatingId !== null}
+                    title={block.isLocalCandidate ? `${block.label_ko} 초안 저장` : `${block.label_ko} 추가`}
+                    style={{
+                      ...panelStyles.addBtn,
+                      ...(isAdding || block.status === 'draft' ? panelStyles.addBtnDisabled : {}),
+                    }}
+                  >
+                    {isAdding ? '...' : (block.isLocalCandidate ? '초안 저장' : block.status === 'draft' ? '대기' : '추가')}
+                  </button>
+                </div>
               </div>
             )
           })
@@ -444,6 +490,15 @@ const panelStyles: Record<string, React.CSSProperties> = {
     fontWeight: TYPOGRAPHY.weightSemibold,
     fontFamily: TYPOGRAPHY.fontFamily,
     flexShrink: 0,
+  },
+  actions: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 4,
+    flexShrink: 0,
+  },
+  approveBtn: {
+    background: COLORS.valid,
   },
   addBtnDisabled: {
     background: COLORS.textMuted,
