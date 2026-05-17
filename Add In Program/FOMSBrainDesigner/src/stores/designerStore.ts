@@ -7,7 +7,7 @@
 
 import { create } from 'zustand'
 import type {
-  DesignGraph, Component, Assembly, CorrectionDelta,
+  DesignGraph, Component, Assembly, Module, CorrectionDelta,
 } from '../domain/ontologyTypes'
 import type { DesignerProject, AIRun, ValidationResult } from '../domain/designTypes'
 import { createDefaultWardrobe, createWardrobeAssembly } from '../domain/assemblyFactories'
@@ -119,6 +119,8 @@ interface DesignerState {
 
   /** Add a new component (block) to the design. */
   addComponent: (component: Component) => void
+  /** Add an instantiated reusable block as one module plus its components. */
+  addBlockInstance: (module: Module, components: Component[]) => void
   /** Remove a component by ID. */
   removeComponent: (componentId: string) => void
   /** Remove all selected components (multi-delete). */
@@ -276,6 +278,26 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
       const newDesign = {
         ...state.design,
         components: [...state.design.components, component],
+      }
+      const { graph: recalculated } = recalculateGraph(newDesign)
+      const constraintResult = toStoreConstraintResult(validateDesignGraph(recalculated))
+      return { design: recalculated, isDirty: true, constraintResult }
+    })
+  },
+
+  addBlockInstance: (module, components) => {
+    if (!components.length) return
+    set((state) => {
+      commandHistory.push(state.design)
+      const nextModules = [...state.design.assembly.modules, module]
+      const newDesign = {
+        ...state.design,
+        assembly: {
+          ...state.design.assembly,
+          modules: nextModules,
+          module_count: nextModules.length,
+        },
+        components: [...state.design.components, ...components],
       }
       const { graph: recalculated } = recalculateGraph(newDesign)
       const constraintResult = toStoreConstraintResult(validateDesignGraph(recalculated))

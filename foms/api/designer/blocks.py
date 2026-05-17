@@ -176,8 +176,8 @@ def instantiate_block_route(block_id: int):
 
     try:
         from foms.services.designer.block_library import instantiate_block
-        component = instantiate_block(block_id=block_id, at_position=at_position, scale=scale)
-        return jsonify({"success": True, "data": component, "error": None})
+        instance = instantiate_block(block_id=block_id, at_position=at_position, scale=scale)
+        return jsonify({"success": True, "data": instance, "error": None})
     except ValueError as exc:
         return jsonify({"success": False, "data": None, "error": str(exc)}), 400
     except Exception as exc:
