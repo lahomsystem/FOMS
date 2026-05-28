@@ -218,7 +218,6 @@ def register_http_bootstrap(
             path == "/"
             or path.startswith("/?")
             or path.startswith("/trash")
-            or path.startswith("/wdplanner")
             or path.startswith("/wdcalculator")
             or path.startswith("/storage_dashboard")
             or path.startswith("/regional_dashboard")

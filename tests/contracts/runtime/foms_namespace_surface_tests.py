@@ -2049,7 +2049,6 @@ def test_strict_canonical_root_manual_artifacts_sfc_b10a() -> None:
     """§6.13 SFC-B10A: manuals/scripts/data DB artifacts cleared from repo root."""
     root = _REPO_ROOT
     forbidden = (
-        "build_wdplanner.bat",
         "start_foms_utf8.bat",
         "findings.md",
         "progress.md",
@@ -2068,7 +2067,6 @@ def test_strict_canonical_root_manual_artifacts_sfc_b10a() -> None:
     for name in forbidden:
         assert not (root / name).exists(), f"B10A: root must not contain {name}"
 
-    assert (root / "scripts" / "maintenance" / "build_wdplanner.bat").is_file()
     assert (root / "scripts" / "maintenance" / "start_foms_utf8.bat").is_file()
     assert (root / "docs" / "context" / "analysis" / "findings.md").is_file()
     assert (root / "docs" / "context" / "analysis" / "progress.md").is_file()

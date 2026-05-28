@@ -6,6 +6,5 @@ re-exports the same blueprint as `foms.api.wdcalculator`.
 """
 
 from foms.api.wdcalculator import wdcalculator_bp
-from foms.web.wdcalculator.planner import wdplanner_bp
 
-__all__ = ["wdcalculator_bp", "wdplanner_bp"]
+__all__ = ["wdcalculator_bp"]
