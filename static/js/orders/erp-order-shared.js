@@ -2553,23 +2553,55 @@ function erpSetAttachmentPasteZoneActive(zone, isActive) {
     zone.style.backgroundColor = isActive ? '#eef6ff' : '';
 }
 
+function erpRemoveAsReceiveFile(idx) {
+    const filesEl = document.getElementById('as-receive-files');
+    if (!filesEl) return;
+    const files = Array.from(filesEl.files || []);
+    files.splice(idx, 1);
+    erpSetFileInputFiles(filesEl, files);
+    erpRenderAsReceiveFilePreview(files);
+}
+
 function erpRenderAsReceiveFilePreview(files) {
     const previewEl = document.getElementById('as-receive-preview');
     if (!previewEl) return;
     const AS_VIDEO_SIZE_WARN = 10 * 1024 * 1024;
+    (previewEl._objectUrls || []).forEach(function (u) { try { URL.revokeObjectURL(u); } catch (_) {} });
+    previewEl._objectUrls = [];
     previewEl.innerHTML = '';
-    (Array.isArray(files) ? files : []).forEach(function (f) {
+    (Array.isArray(files) ? files : []).forEach(function (f, idx) {
+        const isImage = (f.type || '').startsWith('image/');
         const isVideo = (f.type || '').startsWith('video/');
-        if (isVideo && f.size > AS_VIDEO_SIZE_WARN) {
-            const warn = document.createElement('div');
-            warn.className = 'small text-warning';
-            warn.textContent = f.name + ' (10MB 초과, 업로드 지연 가능)';
-            previewEl.appendChild(warn);
+        const isSizeWarn = isVideo && f.size > AS_VIDEO_SIZE_WARN;
+        let thumbHtml = '';
+        if (isImage) {
+            const objUrl = URL.createObjectURL(f);
+            previewEl._objectUrls.push(objUrl);
+            thumbHtml = `<img src="${objUrl}" class="img-fluid rounded" style="max-height:90px;object-fit:cover;width:100%;">`;
+        } else if (isVideo) {
+            thumbHtml = `<div class="d-flex align-items-center justify-content-center bg-dark rounded" style="height:70px;">
+                <i class="fas fa-video text-white" style="font-size:1.3rem;"></i></div>`;
+        } else {
+            thumbHtml = `<div class="d-flex align-items-center justify-content-center bg-light rounded" style="height:70px;">
+                <i class="fas fa-file text-secondary" style="font-size:1.3rem;"></i></div>`;
         }
-        const span = document.createElement('span');
-        span.className = 'badge bg-secondary';
-        span.textContent = f.name;
-        previewEl.appendChild(span);
+        const col = document.createElement('div');
+        col.className = 'col-6 col-sm-4 col-md-3';
+        col.innerHTML = `<div class="card h-100">
+            <div class="card-body p-2">
+                ${thumbHtml}
+                ${isSizeWarn ? '<div class="small text-warning mt-1">10MB 초과 - 지연 가능</div>' : ''}
+                <div class="d-flex justify-content-between align-items-center mt-1">
+                    <div class="small text-truncate" style="max-width:70%;" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</div>
+                    <button type="button" class="btn btn-outline-danger btn-sm py-0 px-1" data-idx="${idx}" title="삭제">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div></div>`;
+        col.querySelector('[data-idx]').addEventListener('click', function () {
+            erpRemoveAsReceiveFile(parseInt(this.getAttribute('data-idx'), 10));
+        });
+        previewEl.appendChild(col);
     });
 }
 
