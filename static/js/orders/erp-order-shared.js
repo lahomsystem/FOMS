@@ -2626,6 +2626,41 @@ async function erpHandleAttachmentPaste(event) {
     });
 }
 
+function erpBindAsReceiveModalPaste() {
+    const modal = document.getElementById('asReceiveModal');
+    if (!modal || modal._erpAsReceivePasteBound) return;
+    modal._erpAsReceivePasteBound = true;
+
+    const zone = modal.querySelector('[data-erp-attachment-paste-zone="as-receive"]');
+
+    // 모달 열릴 때 zone 자동 포커스 → 시각적 활성화 피드백
+    modal.addEventListener('shown.bs.modal', function () {
+        if (zone) {
+            try { zone.focus({ preventScroll: true }); } catch (_) { zone.focus(); }
+        }
+    });
+
+    // 파일 인풋 포커스 시 파일 다이얼로그가 포커스를 가져가므로
+    // document 캡처로 모달이 열린 동안 paste를 직접 감청
+    document.addEventListener('paste', function (event) {
+        if (!modal.classList.contains('show')) return;
+        const ae = document.activeElement;
+        // textarea·text 계열 인풋은 일반 붙여넣기 허용
+        if (ae) {
+            const tag = ae.tagName;
+            const type = (ae.type || '').toLowerCase();
+            if (tag === 'TEXTAREA' || (tag === 'INPUT' && type !== 'file')) return;
+        }
+        const files = erpGetClipboardImageFiles(event);
+        if (!files.length) return;
+        event.preventDefault();
+        event.stopPropagation();
+        erpAppendAsReceiveFiles(files);
+        erpSetAttachmentPasteZoneActive(zone, true);
+        setTimeout(function () { erpSetAttachmentPasteZoneActive(zone, false); }, 800);
+    }, true);
+}
+
 function erpBindAttachmentPasteUpload() {
     const root = document.getElementById('erp-order');
     if (!root || root._erpPasteUploadBound) return;
@@ -2633,8 +2668,7 @@ function erpBindAttachmentPasteUpload() {
     root.addEventListener('paste', erpHandleAttachmentPaste);
     root.addEventListener('click', function (event) {
         const zone = erpFindAttachmentPasteZone(event.target);
-        if (!zone || (event.target && event.target.closest('button,a,select,textarea'))) return;
-        if (event.target && event.target.closest('input:not([type="file"])')) return;
+        if (!zone || (event.target && event.target.closest('button,a,input,select,textarea'))) return;
         try { zone.focus({ preventScroll: true }); } catch (_) { zone.focus(); }
     });
     root.addEventListener('focusin', function (event) {
@@ -2645,6 +2679,7 @@ function erpBindAttachmentPasteUpload() {
         const zone = erpFindAttachmentPasteZone(event.target);
         if (zone) erpSetAttachmentPasteZoneActive(zone, false);
     });
+    erpBindAsReceiveModalPaste();
 }
 
 async function erpDeleteAttachment(attachmentId) {
