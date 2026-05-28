@@ -2658,6 +2658,24 @@ async function erpHandleAttachmentPaste(event) {
     });
 }
 
+// =====================================================
+// AS접수 모달 클립보드 이미지 붙여넣기 (전면 재설계)
+// =====================================================
+// 설계 원칙
+//   1) #asReceiveModal은 #erp-order DOM 바깥(sibling) → root paste 핸들러 불가
+//   2) paste는 DOM 조상 체인을 따라 버블링 → focus가 modal 안에 있어야 modal 리스너 발화
+//   3) document 레벨 paste 금지(테스트 계약: scoped only)
+//
+// 4중 focus 안전망 — focus를 zone에 공격적으로 강제하여 paste 수신 보장
+//   [A] shown.bs.modal           → zone.focus()
+//   [B] fileInput.mousedown      → preventDefault (포커스 이탈 차단)
+//   [C] fileInput.click          → setTimeout으로 다이얼로그 종료 후 zone 재포커스
+//   [D] modal.click (비입력)     → zone 재포커스 (백드롭/빈영역 클릭 대응)
+//
+// paste 흐름
+//   Ctrl+V → focus한 element(보장: zone 또는 modal 내부)에서 paste fire
+//   → modal로 버블링 → 핸들러가 image item 추출 → erpAppendAsReceiveFiles
+//   textarea/text input에 focus한 경우는 early return → 일반 텍스트 붙여넣기 정상 동작
 function erpBindAsReceiveModalPaste() {
     const modal = document.getElementById('asReceiveModal');
     if (!modal || modal._erpAsReceivePasteBound) return;
@@ -2665,21 +2683,39 @@ function erpBindAsReceiveModalPaste() {
 
     const zone = modal.querySelector('[data-erp-attachment-paste-zone="as-receive"]');
     const fileInput = modal.querySelector('#as-receive-files');
+    if (!zone) return;
 
-    // 모달 열릴 때 zone 자동 포커스 → 시각적 활성화 피드백
-    modal.addEventListener('shown.bs.modal', function () {
-        if (zone) {
-            try { zone.focus({ preventScroll: true }); } catch (_) { zone.focus(); }
-        }
+    const focusZone = function () {
+        if (!modal.classList.contains('show')) return;
+        try { zone.focus({ preventScroll: true }); } catch (_) { zone.focus(); }
+    };
+
+    // [A] 모달 열림 → zone 자동 포커스
+    modal.addEventListener('shown.bs.modal', focusZone);
+
+    // [B][C] 파일 인풋 포커스 이탈 차단 + 다이얼로그 종료 후 zone 복귀
+    if (fileInput) {
+        fileInput.addEventListener('mousedown', function (e) { e.preventDefault(); });
+        fileInput.addEventListener('click', function () {
+            setTimeout(focusZone, 250);
+        });
+    }
+
+    // [D] 모달 빈 영역 클릭 → zone 재포커스 (입력 요소는 제외)
+    modal.addEventListener('click', function (event) {
+        const tgt = event.target;
+        if (!tgt) return;
+        if (tgt.closest('textarea,input,button,a,select,[data-bs-dismiss],[role="button"]')) return;
+        focusZone();
     });
 
-    // #asReceiveModal은 #erp-order 바깥(sibling) — paste 이벤트가 root 리스너에 도달 불가.
-    // modal 자체에 리스너를 걸어 scoped 처리. document 레벨 아님 → 테스트 계약 충족.
+    // Modal-scoped paste 리스너 (document 레벨 아님 → 테스트 계약 충족)
     modal.addEventListener('paste', function (event) {
         const ae = document.activeElement;
         if (ae) {
             const tag = ae.tagName;
             const type = (ae.type || '').toLowerCase();
+            // 텍스트 입력 영역에서는 일반 텍스트 붙여넣기 허용
             if (tag === 'TEXTAREA' || (tag === 'INPUT' && type !== 'file')) return;
         }
         const files = erpGetClipboardImageFiles(event);
@@ -2691,11 +2727,9 @@ function erpBindAsReceiveModalPaste() {
         setTimeout(function () { erpSetAttachmentPasteZoneActive(zone, false); }, 800);
     });
 
-    if (fileInput) {
-        fileInput.addEventListener('mousedown', function (e) {
-            e.preventDefault();
-        });
-    }
+    // Zone 포커스 시각 피드백
+    zone.addEventListener('focus', function () { erpSetAttachmentPasteZoneActive(zone, true); });
+    zone.addEventListener('blur', function () { erpSetAttachmentPasteZoneActive(zone, false); });
 }
 
 function erpBindAttachmentPasteUpload() {
