@@ -95,7 +95,6 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     from foms.api.designer.vision import vision_bp as designer_vision_bp
     from foms.api.designer.evolution_api import evolution_bp as designer_evolution_bp
     from foms.api.designer.drawings import drawings_bp as designer_drawings_bp
-    from foms.api.designer.sketchup import designer_sketchup_bp
     from foms.api.designer.learning_ui import learning_ui_bp as designer_learning_ui_bp
     from foms.api.designer.blocks import designer_blocks_bp
     from foms.api.designer.block_ontology import block_ontology_bp as designer_block_ontology_bp
@@ -171,7 +170,6 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     app.register_blueprint(designer_vision_bp)
     app.register_blueprint(designer_evolution_bp)
     app.register_blueprint(designer_drawings_bp)
-    app.register_blueprint(designer_sketchup_bp)
     app.register_blueprint(designer_learning_ui_bp)
     app.register_blueprint(designer_blocks_bp)
     app.register_blueprint(designer_block_ontology_bp)
