@@ -2664,6 +2664,7 @@ function erpBindAsReceiveModalPaste() {
     modal._erpAsReceivePasteBound = true;
 
     const zone = modal.querySelector('[data-erp-attachment-paste-zone="as-receive"]');
+    const fileInput = modal.querySelector('#as-receive-files');
 
     // 모달 열릴 때 zone 자동 포커스 → 시각적 활성화 피드백
     modal.addEventListener('shown.bs.modal', function () {
@@ -2672,25 +2673,14 @@ function erpBindAsReceiveModalPaste() {
         }
     });
 
-    // 파일 인풋 포커스 시 파일 다이얼로그가 포커스를 가져가므로
-    // document 캡처로 모달이 열린 동안 paste를 직접 감청
-    document.addEventListener('paste', function (event) {
-        if (!modal.classList.contains('show')) return;
-        const ae = document.activeElement;
-        // textarea·text 계열 인풋은 일반 붙여넣기 허용
-        if (ae) {
-            const tag = ae.tagName;
-            const type = (ae.type || '').toLowerCase();
-            if (tag === 'TEXTAREA' || (tag === 'INPUT' && type !== 'file')) return;
-        }
-        const files = erpGetClipboardImageFiles(event);
-        if (!files.length) return;
-        event.preventDefault();
-        event.stopPropagation();
-        erpAppendAsReceiveFiles(files);
-        erpSetAttachmentPasteZoneActive(zone, true);
-        setTimeout(function () { erpSetAttachmentPasteZoneActive(zone, false); }, 800);
-    }, true);
+    // mousedown.preventDefault(): 파일 인풋의 포커스 이동만 차단.
+    // click 이벤트는 여전히 발생하므로 파일 다이얼로그는 정상 열림.
+    // zone이 포커스를 유지하므로 다이얼로그 닫힌 후 Ctrl+V가 root 핸들러로 전달됨.
+    if (fileInput) {
+        fileInput.addEventListener('mousedown', function (e) {
+            e.preventDefault();
+        });
+    }
 }
 
 function erpBindAttachmentPasteUpload() {
