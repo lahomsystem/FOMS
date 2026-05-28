@@ -2633,7 +2633,8 @@ function erpBindAttachmentPasteUpload() {
     root.addEventListener('paste', erpHandleAttachmentPaste);
     root.addEventListener('click', function (event) {
         const zone = erpFindAttachmentPasteZone(event.target);
-        if (!zone || (event.target && event.target.closest('button,a,input,select,textarea'))) return;
+        if (!zone || (event.target && event.target.closest('button,a,select,textarea'))) return;
+        if (event.target && event.target.closest('input:not([type="file"])')) return;
         try { zone.focus({ preventScroll: true }); } catch (_) { zone.focus(); }
     });
     root.addEventListener('focusin', function (event) {
