@@ -4,7 +4,7 @@ import pytest
 from werkzeug.security import generate_password_hash
 
 # 1. Set environment variable for test database BEFORE importing app/db
-os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 os.environ["SECRET_KEY"] = "test-secret-key"
 os.environ["DESIGNER_AI_FAKE"] = "1"
 
