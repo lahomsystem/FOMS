@@ -1,0 +1,71 @@
+"""Environment-backed feature flags and cohort rollout helpers."""
+
+from __future__ import annotations
+
+import os
+
+__all__ = [
+    "env_bool",
+    "env_id_list",
+    "is_enabled_for_user",
+]
+
+_TRUTHY = frozenset({"true", "1", "yes", "y", "on"})
+
+
+def env_bool(key: str, default: bool = False) -> bool:
+    """Return whether an environment variable is truthy.
+
+    Args:
+        key: Environment variable name.
+        default: Value used when ``key`` is unset.
+
+    Returns:
+        True when the normalized env value is one of true/1/yes/y/on.
+    """
+    raw = os.getenv(key, str(default))
+    return raw.strip().lower() in _TRUTHY
+
+
+def env_id_list(key: str) -> set[int]:
+    """Parse a comma-separated list of integer user ids from the environment.
+
+    Args:
+        key: Environment variable name.
+
+    Returns:
+        Set of parsed integer ids; non-numeric tokens are ignored.
+    """
+    raw = os.getenv(key, "")
+    return {int(part) for part in raw.split(",") if part.strip().isdigit()}
+
+
+def is_enabled_for_user(
+    flag: str,
+    user_id: int | None = None,
+    cohort_key: str | None = None,
+) -> bool:
+    """Check whether a flag is enabled for a specific user via cohort whitelist.
+
+    Global flag must be truthy and the cohort list must be non-empty. When the
+    cohort env is empty, the flag is treated as disabled even if the global
+    switch is on.
+
+    Args:
+        flag: Flag name, with or without the ``_ENABLED`` suffix.
+        user_id: Current user id, or None when unauthenticated.
+        cohort_key: Optional env var name for the cohort id list. When omitted,
+            ``{base}_COHORT`` is derived from ``flag``.
+
+    Returns:
+        True only when the flag is on, cohort is non-empty, and ``user_id`` is
+        in the cohort.
+    """
+    enabled_key = flag if flag.endswith("_ENABLED") else f"{flag}_ENABLED"
+    if not env_bool(enabled_key):
+        return False
+    base = flag[:-8] if flag.endswith("_ENABLED") else flag
+    cohort = env_id_list(cohort_key or f"{base}_COHORT")
+    if not cohort:
+        return False
+    return user_id is not None and user_id in cohort

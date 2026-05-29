@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import json
-import os
 from typing import Any
 
 from flask import g, session, url_for
 
+from foms.services.feature_flags import env_bool, is_enabled_for_user
 from foms.web.auth import ROLES
 from foms.services.orders.status_constants import BULK_ACTION_STATUS, STATUS
 from foms.persistence.main.db import get_db
@@ -75,26 +75,14 @@ def inject_status_list() -> dict[str, Any]:
             .all()
         )
 
-    erp_order_enabled = str(os.getenv("ERP_ORDER_ENABLED", "true")).lower() in [
-        "1",
-        "true",
-        "yes",
-        "y",
-        "on",
-    ]
-    erp_mobile_v2_enabled = str(os.getenv("ERP_MOBILE_V2_ENABLED", "false")).lower() in [
-        "1",
-        "true",
-        "yes",
-        "y",
-        "on",
-    ]
-    use_direct_upload_env = str(os.getenv("USE_DIRECT_UPLOAD", "1")).lower() in [
-        "1",
-        "true",
-        "yes",
-        "on",
-    ]
+    erp_order_enabled = env_bool("ERP_ORDER_ENABLED", default=True)
+    uid = current_user.id if current_user else None
+    erp_mobile_v2_enabled = is_enabled_for_user(
+        "ERP_MOBILE_V2_ENABLED",
+        uid,
+        cohort_key="FOMS_V3_SHELL_COHORT",
+    )
+    use_direct_upload_env = env_bool("USE_DIRECT_UPLOAD", default=True)
     try:
         from foms.services.storage import get_storage
 
