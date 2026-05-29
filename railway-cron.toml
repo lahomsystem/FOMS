@@ -1,0 +1,8 @@
+# Cron 서비스 전용 Railway Config (P0-00C)
+# Railway 대시보드 > Cron 서비스 > Settings > Config Path: railway-cron.toml
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "python tools/cron/cleanup_order_drafts.py --execute"
+cronSchedule = "0 17 * * *"  # UTC 17:00 = KST 02:00
