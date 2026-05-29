@@ -185,6 +185,7 @@ repo root
 - `README.md`
 - `railway.toml`
 - `railway-worker.toml`
+- `railway-cron.toml`
 - `requirements.txt`
 - `run.py`
 - `start.sh`

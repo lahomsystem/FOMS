@@ -197,6 +197,7 @@ current proof gap:
   - `README.md`
   - `railway.toml`
   - `railway-worker.toml`
+  - `railway-cron.toml`
   - `requirements.txt`
   - `run.py`
   - `start.sh`
@@ -361,6 +362,7 @@ final workspace exactness에서 금지:
   - `README.md`
   - `railway.toml`
   - `railway-worker.toml`
+  - `railway-cron.toml`
   - `requirements.txt`
   - `run.py`
   - `start.sh`
