@@ -11,6 +11,8 @@ from pathlib import Path
 import pytest
 from PIL import Image
 from werkzeug.security import generate_password_hash
+
+from tests.postgres_guard import assert_visual_test_database, resolve_sqlite_file_path
 from werkzeug.serving import make_server
 
 BASELINE_DIR = Path(__file__).parent / "baseline"
@@ -19,8 +21,6 @@ VISUAL_ADMIN_PASSWORD = "visualpass"
 VISUAL_SERVER_HOST = "127.0.0.1"
 VISUAL_SERVER_PORT = 5001
 PIXEL_DIFF_THRESHOLD = 0.001
-
-pytest_plugins = ("pytest_playwright",)
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -119,6 +119,39 @@ def _wait_for_server(base_url: str, timeout_s: float = 10.0) -> None:
     raise RuntimeError(f"Visual live server did not start: {last_error}")
 
 
+def _reset_visual_sqlite_file(db_url: str) -> None:
+    """
+    Remove stale visual SQLite so create_all seeds a full schema.
+
+    Partial schemas from prior runs caused missing `users` and login failures.
+    Root tests/conftest.py imports db before this fixture runs; dispose first
+    so Windows can delete the file (WinError 32 otherwise).
+    PostgreSQL and paths outside tests/visual/ are rejected before any I/O.
+    """
+    assert_visual_test_database(db_url)
+    db_path = resolve_sqlite_file_path(db_url)
+    if db_path is None:
+        return
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+
+    from db import Base, db_session, engine
+
+    import foms.persistence.designer.models  # noqa: F401
+
+    db_session.remove()
+    engine.dispose()
+
+    if not db_path.exists():
+        return
+
+    try:
+        db_path.unlink()
+    except PermissionError:
+        # Last resort on Win32 if another handle still holds the file.
+        Base.metadata.drop_all(bind=engine)
+        Base.metadata.create_all(bind=engine)
+
+
 @pytest.fixture(scope="session")
 def visual_live_server() -> str:
     """
@@ -127,17 +160,12 @@ def visual_live_server() -> str:
     Requires DATABASE_URL=file-backed sqlite (not :memory:) before app import.
     """
     db_url = __import__("os").environ.get("DATABASE_URL", "")
-    if ":memory:" in db_url:
-        pytest.fail(
-            "Visual tests require file-backed SQLite. "
-            "Set DATABASE_URL=sqlite:///tests/visual/visual_local.sqlite"
-        )
+    assert_visual_test_database(db_url)
+    _reset_visual_sqlite_file(db_url)
 
     from app import app as flask_app
     from db import Base, db_session, engine
     from models import User
-
-    import foms.persistence.designer.models  # noqa: F401
 
     flask_app.config["TESTING"] = True
     Base.metadata.create_all(bind=engine)

@@ -3,8 +3,12 @@ import os
 import pytest
 from werkzeug.security import generate_password_hash
 
+from tests.postgres_guard import assert_not_postgresql, assert_safe_for_schema_reset
+
 # 1. Set environment variable for test database BEFORE importing app/db
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
+_db_url = os.environ.get("DATABASE_URL", "").strip()
+assert_not_postgresql(_db_url, context="pytest session (tests/conftest.py)")
 os.environ["SECRET_KEY"] = "test-secret-key"
 os.environ["DESIGNER_AI_FAKE"] = "1"
 
@@ -28,6 +32,10 @@ def app():
     
     # Cleanup
     db_session.remove()
+    assert_safe_for_schema_reset(
+        os.environ.get("DATABASE_URL", ""),
+        context="tests/conftest.py app fixture teardown",
+    )
     Base.metadata.drop_all(bind=engine)
 
 @pytest.fixture

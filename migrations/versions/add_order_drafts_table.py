@@ -1,7 +1,7 @@
 """add order_drafts table for mobile wizard autosave
 
 Revision ID: add_order_drafts_table
-Revises: designer_sketchup_intake
+Revises: designer_c0_lego_ontology
 Create Date: 2026-05-29
 
 """
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 revision: str = 'add_order_drafts_table'
-down_revision: Union[str, None] = 'designer_sketchup_intake'
+down_revision: Union[str, None] = 'designer_c0_lego_ontology'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
