@@ -2125,19 +2125,30 @@ def test_strict_canonical_scripts_taxonomy() -> None:
 
 
 def test_strict_canonical_tools_taxonomy() -> None:
-    """§2.2.1: tools/ contains harness/, ops/, smoke/, research_center/, designer/ (+ README).
+    """§2.2.1: tools/ contains harness/, ops/, smoke/, research_center/, designer/, cron/, design/ (+ README).
 
     designer/ added (PG-B2/PG-B5+): fixture management CLI tools for FOMS Brain.
+    cron/ added: Railway scheduled job entrypoints (e.g. cleanup_order_drafts).
+    design/ added: design SSOT lint helpers (ssot_lint.py).
     """
     tools_dir = _REPO_ROOT / "tools"
     assert tools_dir.is_dir()
     assert (tools_dir / "README.md").is_file()
+    allowed = {
+        "harness",
+        "ops",
+        "smoke",
+        "research_center",
+        "designer",
+        "cron",
+        "design",
+        "sketchup_analyzer",
+    }
     for p in tools_dir.iterdir():
         if p.name.startswith(".") or p.name == "README.md" or p.name == "__pycache__":
             continue
         assert p.is_dir(), f"tools/ must not contain loose non-README files: {p.name}"
-        assert p.name in {"harness", "ops", "smoke", "research_center", "designer"}, \
-            f"unexpected tools child: {p.name}"
+        assert p.name in allowed, f"unexpected tools child: {p.name}"
 
 
 def test_strict_canonical_docs_taxonomy() -> None:

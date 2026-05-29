@@ -32,7 +32,8 @@ def test_measurement_mobile_page_renders_item_attachment_group_keys(client, monk
     monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
     fake_today = date(2026, 4, 8)
     monkeypatch.setattr(erp_measurement_dashboard, "get_today_kst", lambda: fake_today)
-    _login_erp_admin(client)
+    user = _login_erp_admin(client)
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
 
     today = fake_today.strftime("%Y-%m-%d")
     order = Order(
@@ -92,7 +93,8 @@ def test_measurement_mobile_page_uses_normalized_manager_name(client, monkeypatc
     monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
     fake_today = date(2026, 4, 8)
     monkeypatch.setattr(erp_measurement_dashboard, "get_today_kst", lambda: fake_today)
-    _login_erp_admin(client)
+    user = _login_erp_admin(client)
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
     manager_user = User(
         username="measurement_mobile_manager",
         password=generate_password_hash("manager"),
@@ -158,7 +160,8 @@ def test_measurement_dashboard_excludes_stale_legacy_schedule_date(client, monke
     monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
     fake_today = date(2026, 5, 4)
     monkeypatch.setattr(erp_measurement_dashboard, "get_today_kst", lambda: fake_today)
-    _login_erp_admin(client)
+    user = _login_erp_admin(client)
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
 
     order = Order(
         received_date="2026-05-01",
