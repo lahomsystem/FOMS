@@ -225,7 +225,7 @@ def _pick_shipment_search_focus_date(scoped_orders_query, today_kst):
 @erp_shipment_page_bp.route('/shipment')
 @login_required
 def erp_shipment_dashboard():
-    """ERP Order - 출고 대시보드 (날짜별 시공 건수, AS 포함, 출고일지 스타일)"""
+    """ERP Order - 출고 대시보드 (날짜별 순수 시공 건수, AS 제외, 출고일지 스타일)"""
     db = get_db()
     current_user = getattr(g, 'current_user', None)
     today_kst = get_today_kst()
@@ -326,7 +326,7 @@ def erp_shipment_dashboard():
         holiday_dates |= get_holidays_kr(y)
 
     _agg_fp = {
-        "v": 1,
+        "v": 2,
         "user": _shipment_user_visibility_fingerprint(current_user),
         "filters": {
             "q": search_q,
@@ -344,8 +344,10 @@ def erp_shipment_dashboard():
         aw = {}
         su = {}
         for order in panel_orders:
-            target_dates = extract_dashboard_target_dates(order)
-            for date_value in target_dates:
+            if is_as_order(order):
+                continue
+
+            for date_value in extract_all_construction_dates(order):
                 try:
                     d = datetime.datetime.strptime(date_value, '%Y-%m-%d').date()
                 except Exception:
@@ -354,9 +356,6 @@ def erp_shipment_dashboard():
                     continue
                 key = d.strftime('%Y-%m-%d')
                 cc[key] = cc.get(key, 0) + 1
-
-            if is_as_order(order):
-                continue
 
             all_construction_dates = extract_all_construction_dates(order)
             for date_value in all_construction_dates:
