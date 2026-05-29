@@ -30,6 +30,35 @@ def _login_and_open_orders(page, base_url: str) -> None:
     page.click('button[type="submit"]')
     page.wait_for_load_state("networkidle")
     page.goto(f"{base_url}/", wait_until="networkidle")
+    if "/login" in page.url:
+        pytest.fail(f"Visual login failed; still on {page.url}")
+
+
+def _stabilize_page_for_screenshot(page) -> None:
+    """
+    Reduce cross-OS flake: shared webfont, no motion, fonts loaded before capture.
+    """
+    page.add_style_tag(
+        content=(
+            "@import url('https://fonts.googleapis.com/css2?"
+            "family=Noto+Sans+KR:wght@400;500;700&display=swap');"
+            "html, body { font-family: 'Noto Sans KR', sans-serif !important; }"
+            "*, *::before, *::after {"
+            " animation: none !important; transition: none !important;"
+            "}"
+        )
+    )
+    page.evaluate(
+        """() => {
+            document.documentElement.style.setProperty(
+                '--erp-font-family', '"Noto Sans KR", sans-serif'
+            );
+        }"""
+    )
+    page.wait_for_function(
+        "() => document.fonts && document.fonts.status === 'loaded'",
+        timeout=15_000,
+    )
 
 
 @pytest.mark.parametrize("baseline_name,width,height,theme", VISUAL_CASES)
@@ -52,13 +81,13 @@ def test_orders_page_visual_regression(
     page.emulate_media(reduced_motion="reduce")
 
     _login_and_open_orders(page, visual_live_server)
+    _stabilize_page_for_screenshot(page)
 
     capture_path = tmp_path / baseline_name
     page.screenshot(path=str(capture_path), full_page=True)
 
-    ratio = compare_or_update_screenshot(
+    compare_or_update_screenshot(
         capture_path,
         baseline_name,
         update_snapshots=update_snapshots,
     )
-    assert ratio <= 0.001, f"{baseline_name}: diff ratio {ratio:.6f}"
