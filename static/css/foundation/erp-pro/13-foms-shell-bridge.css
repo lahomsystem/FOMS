@@ -1,0 +1,42 @@
+/**
+ * P0-01: Global nav (768px expand-md) vs ERP mobile shell (992px) bridge.
+ * Roadmap slot 12 is occupied by 12-runtime-shell-loading.css — this file uses 13.
+ */
+
+.layout-global-nav {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background-color: #fff !important;
+}
+
+.global-notification-panel {
+  position: absolute;
+  top: 140%;
+  right: 0;
+  width: 420px;
+  max-width: min(420px, calc(100vw - 24px));
+  max-height: 480px;
+  overflow-y: auto;
+  z-index: 9999;
+  border-radius: 12px;
+}
+
+/* 768–991px: hide legacy global nav when ERP v2 shell is active */
+@media (max-width: 991.98px) {
+  body.erp-mobile-v2-layout .layout-global-nav,
+  .layout-global-nav.layout-global-nav--erp-v2-suppressed {
+    display: none !important;
+  }
+
+  body.erp-mobile-v2-layout .layout-global-nav .navbar-collapse.show {
+    display: none !important;
+  }
+}
+
+/* ≥992px: cohort ERP users may keep desktop global nav */
+@media (min-width: 992px) {
+  .layout-global-nav.layout-global-nav--erp-v2-suppressed {
+    display: flex !important;
+  }
+}

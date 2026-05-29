@@ -10,6 +10,7 @@
 @import url("erp-pro/10-erp-mobile-v2-shell.css");
 @import url("erp-pro/11-queue-family-mobile.css");
 @import url("erp-pro/12-runtime-shell-loading.css");
+@import url("erp-pro/13-foms-shell-bridge.css");
 
 /* 주문 상세 2단 렌더 로딩 영역: 썸네일 행 높이 예약으로 CLS 방지 */
 .order-detail-attach-loading {

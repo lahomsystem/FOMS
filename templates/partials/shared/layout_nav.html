@@ -44,7 +44,7 @@
                     <!-- Notification Panel -->
                     <div class="dropdown-menu dropdown-menu-end p-0 shadow-lg border-0 global-notification-panel"
                         id="global-notification-panel" role="region" aria-label="전역 알림"
-                        style="display: none; position: absolute; top: 140%; right: 0; width: 420px; max-width: min(420px, calc(100vw - 24px)); max-height: 480px; overflow-y: auto; z-index: 9999; border-radius: 12px;">
+                        style="display: none;">
                         <div
                             class="p-3 border-bottom d-flex justify-content-between align-items-center bg-white sticky-top">
                             <h6 class="mb-0 fw-bold"><i class="fas fa-bell text-warning me-2"></i>알림</h6>
@@ -145,8 +145,9 @@
         {% endif %}
 
         {% if current_user %}
-        <nav class="layout-global-nav navbar navbar-expand-md navbar-light bg-light border-bottom px-2 px-lg-4" aria-label="메인 메뉴"
-            style="position: sticky; top: 0; z-index: 1000; background-color: white !important;">
+        {% set suppress_global_nav_erp_v2 = erp_mobile_v2_enabled and request.path.startswith('/erp') %}
+        <nav class="layout-global-nav navbar navbar-expand-md navbar-light bg-light border-bottom px-2 px-lg-4{% if suppress_global_nav_erp_v2 %} layout-global-nav--erp-v2-suppressed d-none d-lg-block{% endif %}"
+            aria-label="메인 메뉴"{% if suppress_global_nav_erp_v2 %} data-erp-v2-global-nav="suppressed"{% endif %}>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>

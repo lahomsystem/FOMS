@@ -29,13 +29,29 @@ def _login_erp_admin(client):
 
 def test_erp_pages_mark_body_for_mobile_layout_shell(client, monkeypatch):
     monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
-    _login_erp_admin(client)
+    user = _login_erp_admin(client)
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
 
     response = client.get("/erp/dashboard")
 
     assert response.status_code == 200
     body = response.get_data(as_text=True)
     assert 'class="erp-mobile-v2-layout"' in body
+    assert 'layout-global-nav--erp-v2-suppressed' in body
+    assert 'data-erp-v2-global-nav="suppressed"' in body
+    assert "erp-pro.css" in body
+
+
+def test_erp_pages_without_cohort_keeps_unsuppressed_global_nav(client, monkeypatch):
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    _login_erp_admin(client)
+
+    response = client.get("/erp/dashboard")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert 'class="erp-mobile-v2-layout"' not in body
+    assert 'layout-global-nav--erp-v2-suppressed' not in body
     assert 'class="layout-global-nav navbar' in body
 
 
