@@ -301,3 +301,74 @@ def test_shipment_update_noop_does_not_create_channel_delivery(client):
         .count()
         == 0
     )
+
+
+def test_shipment_construction_panel_count_excludes_as_orders(client):
+    """날짜별 시공 패널 badge-count는 AS 건을 제외한 순수 시공 건수만 집계한다."""
+    _login_erp_admin(client)
+    today = date.today().strftime("%Y-%m-%d")
+
+    construction_order = Order(
+        received_date=today,
+        customer_name="순수 시공",
+        phone="010-2222-3333",
+        address="Seoul",
+        product="붙박이장",
+        status="IN_CONSTRUCTION",
+        manager_name="Alice",
+        is_erp_order=True,
+        structured_data={"schedule": {"construction": {"date": today}}},
+    )
+    as_order = Order(
+        received_date=today,
+        customer_name="AS 방문",
+        phone="010-4444-5555",
+        address="Busan",
+        product="붙박이장",
+        status="AS_RECEIVED",
+        manager_name="Bob",
+        is_erp_order=True,
+        structured_data={
+            "schedule": {
+                "as_visit": {"date": today},
+                "construction": {"date": today},
+            }
+        },
+    )
+    db_session.add(construction_order)
+    db_session.add(as_order)
+    db_session.flush()
+    db_session.add_all(
+        [
+            OrderScheduleDate(
+                order_id=construction_order.id,
+                kind="construction",
+                date=today,
+                source="beta_schedule",
+            ),
+            OrderScheduleDate(
+                order_id=as_order.id,
+                kind="as_visit",
+                date=today,
+                source="beta_schedule",
+            ),
+            OrderScheduleDate(
+                order_id=as_order.id,
+                kind="construction",
+                date=today,
+                source="beta_schedule",
+            ),
+        ]
+    )
+    db_session.commit()
+
+    response = client.get(f"/erp/shipment?date={today}")
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+
+    anchor = f'id="date-{today}"'
+    start = body.find(anchor)
+    assert start != -1
+    snippet = body[start : start + 600]
+    assert 'class="badge badge-count ms-auto">1</span>' in snippet
+    assert 'class="badge badge-count ms-auto">2</span>' not in snippet
