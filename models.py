@@ -1,5 +1,5 @@
 import datetime
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Float, ForeignKey, func, JSON
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Float, ForeignKey, func, JSON, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -619,6 +619,37 @@ class OrderEstimate(Base):
             'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else None,
             'updated_at': self.updated_at.strftime('%Y-%m-%d %H:%M:%S') if self.updated_at else None,
         }
+
+
+class OrderDraft(Base):
+    """모바일 wizard 자동저장 draft (TTL 7일, P0-00B)."""
+
+    __tablename__ = 'order_drafts'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(
+        Integer,
+        ForeignKey('users.id', ondelete='CASCADE'),
+        nullable=False,
+        index=True,
+    )
+    order_id = Column(
+        Integer,
+        ForeignKey('orders.id', ondelete='CASCADE'),
+        nullable=True,
+        index=True,
+    )
+    draft_key = Column(String(64), nullable=False)
+    step = Column(Integer, nullable=False, default=1)
+    payload = Column(JSONColumn, nullable=False, default=dict)
+    schema_version = Column(Integer, nullable=False, default=1)
+    created_at = Column(DateTime, default=datetime.datetime.now)
+    updated_at = Column(DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now)
+    expires_at = Column(DateTime, nullable=False, index=True)
+
+    __table_args__ = (
+        UniqueConstraint('user_id', 'draft_key', name='uq_order_drafts_user_key'),
+    )
 
 
 class ChannelDeliveryLog(Base):
