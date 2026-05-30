@@ -1,0 +1,19 @@
+/* P0-05 C12 photo-capture (AS modal + shared file inputs) */
+.foms-photo-capture__actions .btn-lg {
+    min-height: 48px;
+}
+
+@media (max-width: 575.98px) {
+    #asReceiveModal .modal-dialog {
+        max-width: min(100%, 390px);
+        margin: 0.75rem auto;
+    }
+
+    #asReceiveModal .modal-footer {
+        position: sticky;
+        bottom: 0;
+        background: var(--bs-body-bg, #fff);
+        z-index: 2;
+        border-top: 1px solid var(--bs-border-color, #dee2e6);
+    }
+}

@@ -11,6 +11,11 @@ from foms.services.erp_display import _normalize_for_search
 from foms.services.erp_permissions import can_edit_erp
 from foms.services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders, get_today_kst
 from foms.services.as_content_safety import sanitize_as_content_html
+from foms.services.as_dashboard_display import (
+    as_stage_badge_modifier,
+    as_thumb_enabled,
+    batch_resolve_as_thumbnail_urls,
+)
 from foms.services.common.erp_shell_http import (
     apply_erp_shell_fragment_headers,
     wants_erp_shell_tab_body,
@@ -426,6 +431,8 @@ def erp_as_dashboard():
             OrderAttachment.category == 'as'
         ).distinct().all()
         as_photo_order_ids = {x[0] for x in as_with_photos}
+    thumb_flag = as_thumb_enabled()
+    thumb_urls = batch_resolve_as_thumbnail_urls(order_ids, db) if order_ids else {}
     for r in rows:
         r.has_as_photos = r.id in as_photo_order_ids
         shipment = r.structured_data.get('shipment') or {}
@@ -442,6 +449,12 @@ def erp_as_dashboard():
         if not has_secondary_as_content and not secondary_as_content_html:
             secondary_as_content_html = sanitize_as_content_html(getattr(r, 'notes', '') or '')
         r.as_content_2_html = secondary_as_content_html
+        r.as_thumb_enabled = thumb_flag
+        r.thumbnail_url = thumb_urls.get(r.id) if thumb_flag else None
+        r.stage_badge_modifier = as_stage_badge_modifier(
+            status=str(r.status or ""),
+            as_pending=bool(r.as_pending),
+        )
     # 시공자가 아닌 사용자만 AS 카테고리 사진 조회 가능 (관리자 등)
     can_view_as_photos = not (current_user and (current_user.team or '').strip() == 'CONSTRUCTION')
     template_name = (

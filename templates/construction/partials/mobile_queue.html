@@ -22,7 +22,15 @@
         {% elif o.stage == '시공완료' %}
           {% set task_action = {'label': 'AS 접수', 'icon': 'fas fa-tools', 'data_action': 'openAsAcceptModal', 'button_class': 'erp-construction-action'} %}
         {% endif %}
-        {{ render_queue_card(o, can_edit_erp|default(false), task_action) }}
+        {{ render_queue_card(
+          o,
+          can_edit_erp|default(false),
+          task_action,
+          o.stage_badge_modifier|default(none),
+          o.attachment_previews|default([]),
+          o.thumbnail_url|default(none),
+          o.construction_thumb_active|default(false)
+        ) }}
       {% endfor %}
     </div>
   {% else %}

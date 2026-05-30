@@ -1,0 +1,64 @@
+/**
+ * P0-02 — ERP drawing workbench mobile card (16:9 thumb + controls)
+ */
+
+.erp-drawing-mobile-controls {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+  margin-bottom: 0.75rem;
+}
+
+.erp-drawing-mobile-controls__search {
+  display: flex;
+  flex: 1;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.erp-drawing-mobile-controls__search .erp-pro-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.erp-drawing-mobile-controls__filter-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.erp-drawing-mobile-card__thumb {
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  margin: 0 0 0.75rem;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background: var(--erp-pro-surface-muted, #f1f5f9);
+}
+
+.erp-drawing-mobile-card__thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.erp-drawing-mobile-card__thumb.is-placeholder,
+.erp-drawing-mobile-card__thumb-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-height: 6rem;
+  color: var(--erp-pro-text-muted, #64748b);
+  font-size: 0.85rem;
+}
+
+.erp-drawing-mobile-card__thumb-placeholder i {
+  font-size: 1.25rem;
+  opacity: 0.65;
+}
+
+.erp-drawing-mobile-filter-drawer .offcanvas-body {
+  padding-bottom: 1.5rem;
+}

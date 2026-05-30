@@ -1,0 +1,30 @@
+{# P0-02: 모바일 검색 + 필터 offcanvas (ERP v2 shell) #}
+<div class="erp-drawing-mobile-controls d-lg-none" data-erp-drawing-mobile-controls>
+  <form class="erp-drawing-mobile-controls__search" method="get" role="search">
+    <label class="visually-hidden" for="erp-drawing-mobile-q">도면 작업실 검색</label>
+    <input
+      type="search"
+      class="erp-pro-input"
+      id="erp-drawing-mobile-q"
+      name="q"
+      value="{{ filters.get('q') or '' }}"
+      placeholder="고객명, 주문번호, 담당자 검색"
+      autocomplete="off"
+    >
+    <button class="erp-pro-btn erp-pro-btn--primary" type="submit" aria-label="검색">
+      <i class="fas fa-search" aria-hidden="true"></i>
+    </button>
+  </form>
+  <button
+    type="button"
+    class="erp-pro-btn erp-pro-btn--outline erp-drawing-mobile-controls__filter-btn"
+    data-bs-toggle="offcanvas"
+    data-bs-target="#erp-drawing-mobile-filter-drawer"
+    aria-controls="erp-drawing-mobile-filter-drawer"
+    aria-label="필터 열기"
+  >
+    <i class="fas fa-sliders-h" aria-hidden="true"></i>
+    <span>필터</span>
+  </button>
+</div>
+{% include 'drawing/partials/_mobile_filter_drawer.html' %}

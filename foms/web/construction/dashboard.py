@@ -22,6 +22,7 @@ from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers
 from foms.services.erp_permissions import build_mine_sql_filter, can_edit_erp
 from foms.services.erp_policy import STAGE_LABELS
 from foms.services.request_utils import get_search_query_arg
+from foms.services.construction_dashboard_display import enrich_construction_mobile_rows
 from models import Order
 
 erp_construction_page_bp = Blueprint("erp_construction_page", __name__, url_prefix="/erp")
@@ -193,6 +194,7 @@ def erp_construction_dashboard():
     total_orders = len(enriched)
     total_pages = (total_orders + per_page - 1) // per_page
     paginated_orders = enriched[(page - 1) * per_page : page * per_page]
+    enrich_construction_mobile_rows(paginated_orders, db)
     attach_order_detail_payloads(db, paginated_orders)
 
     template_name = (

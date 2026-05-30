@@ -22,6 +22,10 @@ from foms.services.erp_shipment_settings import is_order_mine_for_user
 from foms.services.erp_product_items import build_product_items_for_order
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
 from foms.services.request_utils import get_search_query_arg
+from foms.services.drawing_workbench_display import (
+    drawing_thumb_enabled,
+    resolve_row_thumbnail_url,
+)
 
 erp_drawing_workbench_bp = Blueprint('erp_drawing_workbench', __name__, url_prefix='/erp')
 
@@ -141,6 +145,7 @@ def erp_drawing_workbench_dashboard():
             'drawing_status': drawing_status,
             'drawing_status_label': _drawing_status_label(drawing_status),
             'file_count': len(drawing_files),
+            'thumbnail_url': resolve_row_thumbnail_url(o.id, drawing_files, db),
             'target_no': latest_request_no,
             'next_action': _drawing_next_action_text(drawing_status, has_assignee),
             'latest_event_at': (last_event or {}).get('transferred_at') or (last_event or {}).get('at') or '-',
@@ -210,6 +215,7 @@ def erp_drawing_workbench_dashboard():
             can_edit_erp=can_edit_erp(current_user),
             erp_order_enabled=True,
             erp_mine_only=mine_only,
+            drawing_thumb_enabled=drawing_thumb_enabled(),
         )
     )
     apply_erp_shell_fragment_headers(response, request)

@@ -21,6 +21,7 @@ __all__ = [
     "inject_status_list",
     "utility_processor",
     "inject_menu",
+    "inject_foms_flags",
     "register_context_processors",
 ]
 
@@ -132,6 +133,23 @@ def inject_menu() -> dict[str, Any]:
     return {"menu": menu}
 
 
+def inject_foms_flags() -> dict[str, Any]:
+    """Inject v1.1 design feature flags for template cohort rollout."""
+    current_user = getattr(g, "current_user", None)
+    uid = current_user.id if current_user else None
+    return {
+        "flag_mobile_v2": is_enabled_for_user(
+            "ERP_MOBILE_V2_ENABLED",
+            uid,
+            cohort_key="FOMS_V3_SHELL_COHORT",
+        ),
+        "flag_tokens_v2": env_bool("FOMS_DESIGN_TOKENS_V2_ENABLED", True),
+        "flag_wizard": env_bool("FOMS_WIZARD_NEW_ORDER_ENABLED"),
+        "flag_inline": env_bool("FOMS_INLINE_EDIT_ENABLED"),
+        "flag_split_view": env_bool("FOMS_TABLET_SPLIT_VIEW_ENABLED"),
+    }
+
+
 def register_context_processors(app) -> None:
     """Register all template filters and context processors on the Flask app."""
     app.add_template_filter(parse_json_string_filter, "parse_json_string")
@@ -139,3 +157,4 @@ def register_context_processors(app) -> None:
     app.context_processor(inject_status_list)
     app.context_processor(utility_processor)
     app.context_processor(inject_menu)
+    app.context_processor(inject_foms_flags)

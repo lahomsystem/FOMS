@@ -1,4 +1,4 @@
-{% macro render_queue_card(order, can_edit, task_action=None) -%}
+{% macro render_queue_card(order, can_edit, task_action=None, stage_badge_modifier=None, attachment_previews=None, thumbnail_url=None, construction_thumb_active=False) -%}
   {% set primary_alerts = [] %}
   {% if order.alerts.urgent %}
     {% set _ = primary_alerts.append({'label': '긴급', 'class': 'is-danger'}) %}
@@ -49,9 +49,13 @@
     {% set secondary_icon = None %}
   {% endif %}
 
-  <article class="erp-mobile-queue-card">
+  <article class="erp-mobile-queue-card{% if stage_badge_modifier %} erp-construction-mobile-card{% endif %}">
     <div class="erp-mobile-queue-card__topline">
-      <span class="erp-mobile-queue-card__stage">{{ order.stage or '-' }}</span>
+      {% if stage_badge_modifier %}
+        <span class="foms-stage-badge foms-stage-badge{{ stage_badge_modifier }}">{{ order.stage or '-' }}</span>
+      {% else %}
+        <span class="erp-mobile-queue-card__stage">{{ order.stage or '-' }}</span>
+      {% endif %}
       {% if primary_alerts %}
         <div class="erp-mobile-queue-card__alerts">
           {% for alert in primary_alerts[:2] %}
@@ -65,6 +69,29 @@
       <strong class="erp-mobile-queue-card__customer">{{ order.customer_name or '-' }}</strong>
       <span class="erp-mobile-queue-card__order-id">#{{ order.id }}</span>
     </div>
+
+    {% if stage_badge_modifier and construction_thumb_active %}
+      {% if attachment_previews and attachment_previews|length > 0 %}
+        <div class="erp-construction-mobile-card__thumb-grid" role="group" aria-label="도면·실측 미리보기">
+          {% for url in attachment_previews %}
+            <div class="erp-construction-mobile-card__thumb-cell">
+              <img src="{{ url }}" alt="" loading="lazy" decoding="async">
+            </div>
+          {% endfor %}
+        </div>
+      {% elif thumbnail_url %}
+        <div class="erp-construction-mobile-card__thumb">
+          <img src="{{ thumbnail_url }}" alt="" loading="lazy" decoding="async">
+        </div>
+      {% else %}
+        <div class="erp-construction-mobile-card__thumb is-placeholder">
+          <div class="erp-construction-mobile-card__thumb-placeholder">
+            <i class="fas fa-image" aria-hidden="true"></i>
+            <span>도면·실측 사진 없음</span>
+          </div>
+        </div>
+      {% endif %}
+    {% endif %}
 
     {% if order.current_quest and order.current_quest.title %}
       <p class="erp-mobile-queue-card__quest">

@@ -1,0 +1,49 @@
+/**
+ * P0-07: Theme preference control (ERP mobile drawer).
+ */
+.foms-theme-toggle {
+  margin-top: var(--foms-space-4);
+  padding: var(--foms-space-3);
+  border-radius: var(--foms-radius-lg);
+  border: 1px solid var(--foms-border-subtle);
+  background: var(--foms-surface-raised);
+}
+
+.foms-theme-toggle__label {
+  display: block;
+  margin-bottom: var(--foms-space-2);
+  font-size: var(--foms-font-size-sm);
+  font-weight: var(--foms-font-weight-semibold);
+  color: var(--foms-text-secondary);
+}
+
+.foms-theme-toggle__group {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--foms-space-2);
+}
+
+.foms-theme-toggle__btn {
+  min-height: var(--foms-touch-target-min);
+  padding: 0 var(--foms-space-2);
+  font-size: var(--foms-font-size-sm);
+  font-weight: var(--foms-font-weight-semibold);
+  color: var(--foms-text-primary);
+  background: var(--foms-surface-base);
+  border: 1px solid var(--foms-border-default);
+  border-radius: var(--foms-radius-md);
+  cursor: pointer;
+  transition: background var(--foms-duration-fast), border-color var(--foms-duration-fast),
+    color var(--foms-duration-fast);
+}
+
+.foms-theme-toggle__btn.is-active {
+  color: #fff;
+  background: var(--foms-interactive-primary);
+  border-color: var(--foms-interactive-primary);
+}
+
+.foms-theme-toggle__btn:focus-visible {
+  outline: none;
+  box-shadow: var(--foms-shadow-focus-ring);
+}

@@ -1,5 +1,9 @@
 {% extends "cs/layout.html" %}
 
+{% block head_extra %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-mobile-card.css') }}">
+{% endblock %}
+
 {% block content %}
 {% include 'cs/partials/as_dashboard_body.html' %}
 {% endblock %}

@@ -228,18 +228,23 @@ def visual_live_server() -> str:
     flask_app.config["TESTING"] = True
     Base.metadata.create_all(bind=engine)
 
+    os.environ["ERP_MOBILE_V2_ENABLED"] = "true"
+
     existing = db_session.query(User).filter_by(username=VISUAL_ADMIN_USERNAME).first()
     if existing is None:
-        db_session.add(
-            User(
-                username=VISUAL_ADMIN_USERNAME,
-                password=generate_password_hash(VISUAL_ADMIN_PASSWORD),
-                role="admin",
-                name="Visual Admin",
-                is_active=True,
-            )
+        existing = User(
+            username=VISUAL_ADMIN_USERNAME,
+            password=generate_password_hash(VISUAL_ADMIN_PASSWORD),
+            role="admin",
+            name="Visual Admin",
+            is_active=True,
         )
+        db_session.add(existing)
         db_session.commit()
+    else:
+        db_session.commit()
+
+    os.environ["FOMS_V3_SHELL_COHORT"] = str(existing.id)
 
     server = make_server(
         VISUAL_SERVER_HOST,

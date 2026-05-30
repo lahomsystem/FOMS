@@ -1,5 +1,8 @@
 {% extends "drawing/layout.html" %}
 
-{% block head_extra %}{% include 'drawing/partials/workbench_dashboard_styles.html' %}{% endblock %}
+{% block head_extra %}
+  {% include 'drawing/partials/workbench_dashboard_styles.html' %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-drawing-mobile-card.css') }}">
+{% endblock %}
 
 {% block content %}{% include 'drawing/partials/workbench_dashboard_body.html' %}{% endblock %}

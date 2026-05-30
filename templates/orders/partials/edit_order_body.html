@@ -71,7 +71,7 @@
                     <div class="tab-pane fade show active" id="order-info" role="tabpanel">
                         <form method="post"
                             action="{{ url_for('order_edit.edit_order', order_id=order.id, **preserved_args) }}"
-                            id="editOrderForm">
+                            class="foms-page-form" id="editOrderForm">
                             <input type="hidden" name="referrer"
                                 value="{{ request.referrer or url_for('order_pages.index') }}">
                             <div class="row mb-3">
@@ -429,11 +429,11 @@
                             {% endfor %}
                             {% endif %}
 
-                            <div class="d-flex justify-content-between">
+                            <footer class="foms-sticky-action-bar" role="group" aria-label="주문 저장">
                                 <a href="{{ request.referrer or (url_for('order_pages.index', **preserved_args) if preserved_args else url_for('order_pages.index')) }}"
                                     class="btn btn-secondary">취소</a>
                                 <button type="submit" class="btn btn-primary">주문 수정</button>
-                            </div>
+                            </footer>
                         </form>
                     </div>
                     {% endif %}
@@ -482,7 +482,7 @@
                                     <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-2"></i>
                                     <p class="text-muted mb-0">도면 이미지를 드래그하거나 클릭하여 업로드</p>
                                     <small class="text-muted">(PNG, JPG, JPEG, GIF, WEBP - 최대 50MB)</small>
-                                    <input type="file" id="blueprint-file-input" accept="image/*" style="display: none;"
+                                    <input type="file" id="blueprint-file-input" accept="image/*" capture="environment" style="display: none;"
                                         onchange="handleBlueprintSelect(event)">
                                 </div>
                             </div>

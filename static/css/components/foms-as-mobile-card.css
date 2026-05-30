@@ -1,0 +1,73 @@
+/**
+ * P0-03 — ERP AS dashboard mobile (sticky controls + v1.1 stage badge + 16:9 thumb)
+ */
+
+.erp-as-mobile-list__sticky {
+  position: sticky;
+  top: 0;
+  z-index: 1020;
+  background: var(--erp-pro-surface, #fff);
+  padding-bottom: 0.5rem;
+  margin: 0 -0.25rem 0.75rem;
+  padding-left: 0.25rem;
+  padding-right: 0.25rem;
+  border-bottom: 1px solid var(--erp-pro-border, #e2e8f0);
+}
+
+.foms-stage-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 4px;
+  color: #fff;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.foms-stage-badge--cs {
+  background: #ef4444;
+}
+
+.foms-stage-badge--completed {
+  background: #4b525d;
+}
+
+.erp-as-mobile-card__thumb {
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  margin: 0 0 0.75rem;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background: var(--erp-pro-surface-muted, #f1f5f9);
+}
+
+.erp-as-mobile-card__thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.erp-as-mobile-card__thumb.is-placeholder,
+.erp-as-mobile-card__thumb-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-height: 6rem;
+  color: var(--erp-pro-text-muted, #64748b);
+  font-size: 0.85rem;
+}
+
+.erp-as-mobile-card__thumb-placeholder i {
+  font-size: 1.25rem;
+  opacity: 0.65;
+}
+
+.erp-as-mobile-list .erp-as-mobile-controls {
+  margin-bottom: 0;
+}
