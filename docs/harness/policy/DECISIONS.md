@@ -6,6 +6,30 @@
 
 ---
 
+### [2026-05-31] Mobile tablet redesign P0~P3 (Decision Log D01–D10)
+- **키워드**: mobile, tablet, ERP_MOBILE_V2, HTMX, Alpine, feature-flag, cohort, MIGRATION_ROADMAP
+- **결정**: `docs/design/REVIEW_ENTRY.md` Decision Log D01–D10을 코드 SSOT로 실행. P0~P3는 feature flag default OFF + cohort 점진 출시. HTMX/Alpine는 new surface only(D06). 신규=마법사+OrderDraft, 수정=인라인+critical explicit save(D07). Bottom nav HTMX는 P3-01 별도 flag.
+- **이유**: 70% 기존 ERP mobile shell 재사용, `erp-shell.js` 회귀 회피, ops 롤백은 cohort/env OFF로 즉시 가능.
+- **영향**: `foms/services/feature_flags.py`, `foms/api/*`, `static/js/foms/*`, `templates/partials/shared/erp_mobile_*`, `tests/domains/test_p*_gate.py`, `docs/design/MIGRATION_ROADMAP.md`
+
+### [2026-05-30] Global team skills surface
+- **키워드**: skills, gstack, global-team-install, cursor, claude, codex, context
+- **결정**: Cursor IDE 안에서 Claude·Codex 플러그인을 함께 쓰는 운영 모델은 `~/.claude/skills/gstack`을 단일 global team install source/runtime으로 사용한다. Repo-local `.agents/skills/gstack`, user-level `~/.cursor/skills`·`~/.codex/skills`의 gstack/caveman 복사본, `~/.claude/skills/gstack-*` top-level generated duplicate, 그리고 `~/.claude/skills/gstack/.{agents,cursor,factory,gbrain,hermes,kiro,openclaw,opencode,slate}` host trees는 discoverable skills 중복으로 보며 quarantine 대상으로 둔다.
+- **이유**: Cursor context panel에서 Skills가 약 146K tokens(사용 context의 약 80%)를 점유했고, 조사 결과 1,209개 `SKILL.md` 중 normalized unique는 132개뿐이었다. 같은 gstack skill이 20벌 이상 발견되면 full-body/metadata 주입이 폭증해 일상 코딩 context가 고갈된다.
+- **영향**: `~/.claude/skills/gstack`, `~/.cursor/skills`, `~/.codex/skills`, `.agents/skills`, `tools/harness/cleanup_global_skills.ps1`, `tools/harness/setup_gstack.ps1`, `tools/harness/run_gstack_qa.ps1`, `tools/harness/run_codex.ps1`
+
+### [2026-05-28] Caveman default agenting style
+- **키워드**: caveman, token, response-style, cursor, claude, codex, bundles
+- **결정**: `caveman`을 수동 호출용 skill에만 두지 않고 FOMS 기본 응답 스타일로 승격한다. `AGENTS.md`, `CLAUDE.md`, `.cursor/rules/00-project-context.mdc`, 새 `.cursor/rules/20-caveman-default.mdc`, harness manifest/profile/bundle에 반영한다.
+- **이유**: 웹 리서치상 caveman은 내부 추론이 아니라 agent-visible prose 절감 도구이며, 항상 적용하려면 skill 설치만으로는 부족하고 상위 규칙/세션 컨텍스트가 필요하다. 단, 보안 경고·파괴적 작업·migration·data deletion·force push·production deploy에서는 full clarity가 우선한다.
+- **영향**: `AGENTS.md`, `CLAUDE.md`, `.cursor/rules/00-project-context.mdc`, `.cursor/rules/20-caveman-default.mdc`, `tools/harness/manifest.yaml`, `tools/harness/profiles/*.yaml`, `docs/harness/bundles/*`
+
+### [2026-05-28] Fresh gstack + caveman skills boundary
+- **키워드**: skills, gstack, caveman, cursor, claude, codex, safety-policy
+- **결정**: 기존 gstack 파생/generated 중복 skills를 삭제하고 `garrytan/gstack` 원본 fresh install(`gstack-*` 네임스페이스)과 `Shawnchee/caveman-skill`의 `caveman`만 Cursor/Claude/Codex skills 계층에 둔다. FOMS 위험 명령 판단은 `tools/harness/safety_policy.py`로 공용화하고 Cursor/Claude guard가 이를 사용한다.
+- **이유**: 이전 tree는 upstream source, generated host outputs, runtime assets, nested host packages가 섞여 있어 출처·중복·안전 우선순위가 불명확했다. fresh source와 공용 safety adapter를 분리해야 gstack 역할 skills와 caveman 압축이 FOMS hard safety/RPI 정책을 덮지 않는다.
+- **영향**: `.agents/skills`, `~/.cursor/skills`, `~/.claude/skills`, `~/.codex/skills`, `tools/harness/safety_policy.py`, `.cursor/hooks/guard_shell.py`, `.claude/hooks/guard_shell.py`, `tools/harness/setup_gstack.ps1`, `docs/context/analysis/skills-fresh-rebuild-*.md`
+
 ### [2026-05-13] FOMS Brain AX Designer add-in stack boundary
 - **키워드**: foms-brain, ax, designer, wdplanner-v2, r3f, babylon, langgraph, add-in, pgvector
 - **결정**: WDPlanner 대체 제품인 FOMS Brain AX Designer는 기존 `Add In Program/WDPlanner`의 Babylon.js/Electron 구현을 확장하지 않고, `/wdplanner-v2` 병행 운영 add-in으로 새 React/Vite + R3F/Drei/Zustand 프론트를 둔다. AI orchestration은 FOMS backend/worker의 LangGraph가 담당하고, vector memory는 FOMS PostgreSQL + pgvector 경계를 우선한다. Next.js/Supabase는 독립 SaaS 전환 결정 전까지 도입하지 않는다.

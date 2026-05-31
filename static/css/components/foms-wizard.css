@@ -77,6 +77,17 @@
   margin: 0 0 var(--foms-space-5, 20px);
 }
 
+.foms-wizard__error {
+  margin: 0;
+  color: var(--foms-color-danger-500, #ef4444);
+  font-size: var(--foms-text-xs, 12px);
+}
+
+.foms-wizard__add-product {
+  width: 100%;
+  margin-top: var(--foms-space-3, 12px);
+}
+
 .foms-wizard__field {
   display: grid;
   gap: 8px;

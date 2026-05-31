@@ -28,6 +28,18 @@ def test_foms_kv_macro_deeplinks() -> None:
     assert "tel:" in macro
     assert "map.kakao.com" in macro
     assert "mailto:" in macro
+
+
+def test_wizard_alpine_validation_and_multi_product() -> None:
+    shell = (ROOT / "templates/orders/wizard/wizard_shell.html").read_text(encoding="utf-8")
+    assert 'x-data="fomsWizardValidation"' in shell
+    step1 = (ROOT / "templates/orders/wizard/step1_basic.html").read_text(encoding="utf-8")
+    assert "foms-wizard__error" in step1
+    step2 = (ROOT / "templates/orders/wizard/step2_products.html").read_text(encoding="utf-8")
+    assert "foms-wizard-add-product" in step2
+    js = (ROOT / "static/js/foms/wizard.js").read_text(encoding="utf-8")
+    assert "cloneProductCard" in js
+    assert "applyAlpineErrors" in js
     css = (ROOT / "static/css/foundation/erp-pro.css").read_text(encoding="utf-8")
     assert "foms-kv-row.css" in css
 

@@ -61,6 +61,7 @@ def test_p2_06_manifest_and_head() -> None:
     assert '"display": "standalone"' in manifest
     head = (ROOT / "templates/partials/shared/layout_head.html").read_text(encoding="utf-8")
     assert "manifest.json" in head
+    assert "apple-touch-icon" in head
     a2hs = (ROOT / "static/js/foms/a2hs-prompt.js").read_text(encoding="utf-8")
     assert "beforeinstallprompt" in a2hs
 

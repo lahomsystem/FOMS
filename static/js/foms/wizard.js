@@ -101,11 +101,40 @@
     });
   }
 
-  function applyProducts(root, items) {
-    if (!items || !items.length) return;
-    var card = root.querySelector("[data-product-index]");
-    if (!card) return;
-    var item = items[0];
+  function applyAlpineErrors(root, errorMap) {
+    if (!window.Alpine || typeof Alpine.$data !== "function") {
+      return;
+    }
+    var data = Alpine.$data(root);
+    if (!data || typeof data.errors !== "object") {
+      return;
+    }
+    data.errors = errorMap || {};
+  }
+
+  function clearAlpineErrors(root) {
+    applyAlpineErrors(root, {});
+  }
+
+  function cloneProductCard(container) {
+    var cards = container.querySelectorAll("[data-product-index]");
+    var template = cards[0];
+    if (!template) {
+      return null;
+    }
+    var clone = template.cloneNode(true);
+    clone.setAttribute("data-product-index", String(cards.length));
+    clone.querySelectorAll("input, textarea").forEach(function (input) {
+      input.value = "";
+    });
+    container.appendChild(clone);
+    return clone;
+  }
+
+  function fillProductCard(card, item) {
+    if (!card || !item) {
+      return;
+    }
     var fields = [
       "product_name",
       "internal",
@@ -122,33 +151,60 @@
       }
     });
     var spec = (item.spec_rows && item.spec_rows[0]) || {};
-    var specMap = {
-      spec_width: spec.spec_width,
-      spec_depth: spec.spec_depth,
-      spec_height: spec.spec_height,
-    };
-    Object.keys(specMap).forEach(function (name) {
+    ["spec_width", "spec_depth", "spec_height"].forEach(function (name) {
       var el = card.querySelector('[data-product-field="' + name + '"]');
-      if (el && specMap[name]) {
-        el.value = specMap[name];
+      if (el && spec[name]) {
+        el.value = spec[name];
       }
     });
   }
 
   function validateStep(root, step) {
+    var errors = {};
     if (step === 1) {
       var basic = collectBasic(root);
-      if (!basic.customer_name) return "고객명을 입력해주세요.";
-      if (!basic.phone) return "연락처를 입력해주세요.";
-      if (!basic.address) return "주소를 입력해주세요.";
+      if (!basic.customer_name) {
+        errors.customer_name = "고객명을 입력해주세요.";
+      }
+      if (!basic.phone) {
+        errors.phone = "연락처를 입력해주세요.";
+      }
+      if (!basic.address) {
+        errors.address = "주소를 입력해주세요.";
+      }
     }
     if (step === 2) {
       var items = collectProducts(root);
-      if (!items.length || !items[0].product_name) {
-        return "제품명을 입력해주세요.";
+      var missing = items.some(function (item) {
+        return !item.product_name;
+      });
+      if (!items.length || missing) {
+        errors.product_name = "제품명을 입력해주세요.";
       }
     }
+    if (Object.keys(errors).length) {
+      applyAlpineErrors(root, errors);
+      return errors[Object.keys(errors)[0]];
+    }
+    clearAlpineErrors(root);
     return "";
+  }
+
+  function applyProducts(root, items) {
+    if (!items || !items.length) {
+      return;
+    }
+    var container = root.querySelector("#foms-wizard-products");
+    if (!container) {
+      return;
+    }
+    while (container.querySelectorAll("[data-product-index]").length < items.length) {
+      cloneProductCard(container);
+    }
+    items.forEach(function (item, idx) {
+      var card = container.querySelector('[data-product-index="' + idx + '"]');
+      fillProductCard(card, item);
+    });
   }
 
   function renderSummary(root) {
@@ -265,6 +321,18 @@
 
     draftClient.bindAutosave();
     setStep(root, currentStep);
+
+    var addProductBtn = root.querySelector("#foms-wizard-add-product");
+    if (addProductBtn) {
+      addProductBtn.addEventListener("click", function () {
+        var container = root.querySelector("#foms-wizard-products");
+        if (!container) {
+          return;
+        }
+        cloneProductCard(container);
+        draftClient.scheduleSave();
+      });
+    }
 
     draftClient.load().then(function (remote) {
       if (!remote || !remote.payload) {
