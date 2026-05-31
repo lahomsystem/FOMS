@@ -228,6 +228,20 @@
     }
   }
   @media (max-width: 991.98px) {
+    .erp-history-mobile-shell[data-erp-mobile-v2='true'] .erp-pro-header {
+      order: 2;
+    }
+    .erp-history-mobile-shell[data-erp-mobile-v2='true'] .erp-pro-card--filters {
+      order: 1;
+      position: sticky;
+      top: calc(56px + env(safe-area-inset-top, 0px));
+      z-index: 110;
+      margin-bottom: 0.75rem;
+    }
+    .erp-history-mobile-shell[data-erp-mobile-v2='true'] {
+      display: flex;
+      flex-direction: column;
+    }
     .erp-history-mobile-shell[data-erp-mobile-v2='true'] .erp-history-mobile-list {
       display: grid;
       gap: 0.875rem;
@@ -293,7 +307,7 @@
             <label class="erp-pro-filters__label">검색어 (고객명, 전화번호, 주소 등)</label>
             <div class="input-group input-group-sm">
               <span class="input-group-text"><i class="fas fa-search"></i></span>
-              <input type="text" name="q" class="form-control" placeholder="전체 검색..." value="{{ request.args.get('q') or request.args.get('search') or '' }}">
+              <input type="text" name="q" id="erp-history-search-q" class="form-control" placeholder="전체 검색..." value="{{ request.args.get('q') or request.args.get('search') or '' }}" enterkeyhint="search">
             </div>
           </div>
           <div class="col-12 col-md-2">
@@ -379,14 +393,8 @@
               <dt>제품</dt>
               <dd>{{ d.product }}</dd>
             </div>
-            <div class="erp-history-mobile-card__meta-row">
-              <dt>전화</dt>
-              <dd>{{ d.phone }}</dd>
-            </div>
-            <div class="erp-history-mobile-card__meta-row">
-              <dt>주소</dt>
-              <dd>{{ d.address }}</dd>
-            </div>
+            {% from 'partials/shared/foms_order_contact_kv.html' import foms_order_contact_kv %}
+            {{ foms_order_contact_kv({'phone': d.phone, 'address': d.address, 'manager_name': d.manager_name}) }}
             <div class="erp-history-mobile-card__meta-row">
               <dt>생성</dt>
               <dd>{{ o.created_at.strftime('%Y-%m-%d') if o.created_at else '-' }}</dd>
@@ -497,11 +505,11 @@
                         <div class="small fw-semibold text-muted mb-2"><i class="fas fa-image"></i> 첨부 파일 (실측/사진)</div>
                         {% set measure_imgs = prod_item.get('measurement_images') or [] %}
                         {% if measure_imgs %}
-                          <div class="dw-attach-grid">
+                          <div class="dw-attach-grid" data-foms-lightbox-gallery>
                             {% for photo in measure_imgs %}
                             <div>
-                              <div class="dw-attach-thumb" data-group-key="history_{{ o.id }}_item_{{ loop.index0 }}" data-index="{{ loop.index0 }}" onclick="if(window.openDrawingGatewayImageViewer) { window.openDrawingGatewayImageViewer(this.dataset.groupKey, Number(this.dataset.index)); } else { window.open('{{ photo.view_url }}', '_blank'); }">
-                                <img data-src="{{ photo.view_url }}" alt="{{ photo.filename }}" class="lazy-detail-img">
+                              <div class="dw-attach-thumb" data-group-key="history_{{ o.id }}_item_{{ loop.index0 }}" data-index="{{ loop.index0 }}">
+                                <img data-src="{{ photo.view_url }}" data-foms-lightbox-src="{{ photo.view_url }}" alt="{{ photo.filename }}" class="lazy-detail-img">
                               </div>
                             </div>
                             {% endfor %}
@@ -585,3 +593,4 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 <script src="{{ url_for('static', filename='js/orders/history-mobile.js') }}?v=20260402a" defer></script>
+<script src="{{ url_for('static', filename='js/foms/history-mobile.js') }}?v=20260530" defer></script>

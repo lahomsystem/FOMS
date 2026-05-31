@@ -1,4 +1,5 @@
 {% macro render_queue_card(order, can_edit, task_action=None, stage_badge_modifier=None, attachment_previews=None, thumbnail_url=None, construction_thumb_active=False) -%}
+  {% from 'partials/shared/foms_order_contact_kv.html' import foms_order_contact_kv %}
   {% set primary_alerts = [] %}
   {% if order.alerts.urgent %}
     {% set _ = primary_alerts.append({'label': '긴급', 'class': 'is-danger'}) %}
@@ -40,7 +41,7 @@
     {% set secondary_label = '전화' %}
     {% set secondary_icon = 'fas fa-phone' %}
   {% elif has_address %}
-    {% set secondary_href = 'https://www.google.com/maps/search/?api=1&query=' ~ (order.address|urlencode) %}
+    {% set secondary_href = 'https://map.kakao.com/?q=' ~ (order.address|urlencode) %}
     {% set secondary_label = '지도' %}
     {% set secondary_icon = 'fas fa-map-marker-alt' %}
   {% else %}
@@ -49,7 +50,11 @@
     {% set secondary_icon = None %}
   {% endif %}
 
-  <article class="erp-mobile-queue-card{% if stage_badge_modifier %} erp-construction-mobile-card{% endif %}">
+  <article class="erp-mobile-queue-card{% if stage_badge_modifier %} erp-construction-mobile-card{% endif %}" data-foms-swipe-card data-order-id="{{ order.id }}">
+    <div class="erp-mobile-queue-card__swipe-actions" aria-hidden="true">
+      <button type="button" class="erp-mobile-queue-card__swipe-btn is-approve" data-foms-swipe-action="approve">승인</button>
+      <button type="button" class="erp-mobile-queue-card__swipe-btn is-hold" data-foms-swipe-action="hold">보류</button>
+    </div>
     <div class="erp-mobile-queue-card__topline">
       {% if stage_badge_modifier %}
         <span class="foms-stage-badge foms-stage-badge{{ stage_badge_modifier }}">{{ order.stage or '-' }}</span>
@@ -72,16 +77,16 @@
 
     {% if stage_badge_modifier and construction_thumb_active %}
       {% if attachment_previews and attachment_previews|length > 0 %}
-        <div class="erp-construction-mobile-card__thumb-grid" role="group" aria-label="도면·실측 미리보기">
+        <div class="erp-construction-mobile-card__thumb-grid" role="group" aria-label="도면·실측 미리보기" data-foms-lightbox-gallery>
           {% for url in attachment_previews %}
             <div class="erp-construction-mobile-card__thumb-cell">
-              <img src="{{ url }}" alt="" loading="lazy" decoding="async">
+              <img src="{{ url }}" alt="" loading="lazy" decoding="async" data-foms-lightbox-src="{{ url }}">
             </div>
           {% endfor %}
         </div>
       {% elif thumbnail_url %}
-        <div class="erp-construction-mobile-card__thumb">
-          <img src="{{ thumbnail_url }}" alt="" loading="lazy" decoding="async">
+        <div class="erp-construction-mobile-card__thumb" data-foms-lightbox-gallery>
+          <img src="{{ thumbnail_url }}" alt="" loading="lazy" decoding="async" data-foms-lightbox-src="{{ thumbnail_url }}">
         </div>
       {% else %}
         <div class="erp-construction-mobile-card__thumb is-placeholder">
@@ -150,42 +155,17 @@
 
     <div class="collapse erp-mobile-queue-card__detail" id="erp-mobile-queue-detail-{{ order.id }}">
       <div class="erp-mobile-queue-card__detail-body">
-        <dl class="erp-mobile-queue-card__detail-grid">
-          <div>
-            <dt>연락처</dt>
-            <dd>{{ order.phone or '-' }}</dd>
-          </div>
-          <div>
-            <dt>담당</dt>
-            <dd>{{ order.manager_name or '-' }}</dd>
-          </div>
-          {% if order.orderer_name %}
-            <div>
-              <dt>발주처</dt>
-              <dd>{{ order.orderer_name }}</dd>
-            </div>
-          {% endif %}
-          {% if schedule_value %}
-            <div>
-              <dt>{{ schedule_label }}</dt>
-              <dd>{{ schedule_value }}</dd>
-            </div>
-          {% endif %}
-          <div class="is-full">
-            <dt>주소</dt>
-            <dd>{{ order.address or '-' }}</dd>
-          </div>
-          {% if order.attachments_count is defined %}
-            <div>
-              <dt>첨부</dt>
-              <dd>{{ order.attachments_count }}건</dd>
-            </div>
-          {% endif %}
-          <div>
-            <dt>상태</dt>
-            <dd>{{ order.stage or '-' }}</dd>
-          </div>
-        </dl>
+        {{ foms_order_contact_kv(order, include_manager=true, include_schedule=true, schedule_label=schedule_label, schedule_value=schedule_value) }}
+        {% if order.orderer_name %}
+          <dl class="foms-kv-list">
+            <div class="foms-kv-row"><dt class="foms-kv-row__label">발주처</dt><dd class="foms-kv-row__value"><span class="foms-kv-row__text">{{ order.orderer_name }}</span></dd></div>
+          </dl>
+        {% endif %}
+        {% if order.attachments_count is defined %}
+          <dl class="foms-kv-list">
+            <div class="foms-kv-row"><dt class="foms-kv-row__label">첨부</dt><dd class="foms-kv-row__value"><span class="foms-kv-row__text">{{ order.attachments_count }}건</span></dd></div>
+          </dl>
+        {% endif %}
         {% if can_edit %}
           <div class="erp-mobile-queue-card__detail-actions">
             <a

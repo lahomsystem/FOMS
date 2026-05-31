@@ -1,0 +1,69 @@
+/* P2-04 lightbox overlay */
+.foms-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1500;
+  background: rgba(0, 0, 0, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.foms-lightbox[hidden] {
+  display: none !important;
+}
+
+.foms-lightbox__stage {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+}
+
+.foms-lightbox__img {
+  max-width: min(96vw, 1200px);
+  max-height: 86vh;
+  object-fit: contain;
+  transform-origin: center center;
+  user-select: none;
+}
+
+.foms-lightbox__close,
+.foms-lightbox__nav,
+.foms-lightbox__btn {
+  position: absolute;
+  border: 0;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 999px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.foms-lightbox__close { top: 16px; right: 16px; font-size: 1.5rem; }
+.foms-lightbox__nav--prev { left: 12px; top: 50%; transform: translateY(-50%); }
+.foms-lightbox__nav--next { right: 12px; top: 50%; transform: translateY(-50%); }
+.foms-lightbox__toolbar {
+  position: absolute;
+  left: 50%;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+}
+
+html.foms-lightbox-open {
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .foms-lightbox__img {
+    transition: none !important;
+  }
+}

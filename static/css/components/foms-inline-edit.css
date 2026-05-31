@@ -1,0 +1,57 @@
+/* P1-04 inline edit affordances */
+
+.foms-inline-enabled [data-foms-inline] {
+  border-radius: var(--foms-radius-sm, 4px);
+  transition: box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.foms-inline-enabled [data-foms-inline]:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--foms-interactive-primary, #2563eb) 35%, transparent);
+}
+
+.foms-inline-enabled [data-foms-inline-critical] {
+  border-left: 3px solid var(--foms-color-warning-500, #f59e0b);
+  padding-left: 0.35rem;
+}
+
+.foms-inline-save-btn {
+  margin-top: 0.25rem;
+  min-height: 32px;
+  font-size: var(--foms-font-size-xs, 12px);
+}
+
+.foms-inline-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(5.5rem + env(safe-area-inset-bottom, 0));
+  transform: translateX(-50%);
+  background: #111827;
+  color: #fff;
+  padding: 0.5rem 0.85rem;
+  border-radius: 999px;
+  font-size: 0.875rem;
+  z-index: 1200;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.foms-inline-toast.is-visible {
+  opacity: 1;
+}
+
+.foms-inline-toast__undo {
+  margin-left: 0.75rem;
+  color: #93c5fd;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-size: inherit;
+}
+
+.foms-inline-onboarding {
+  font-size: 0.8125rem;
+  color: var(--foms-text-secondary, #4b5563);
+  margin-bottom: 0.75rem;
+}

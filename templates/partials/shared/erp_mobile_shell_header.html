@@ -8,6 +8,13 @@
       <strong class="erp-mobile-shell-header__title">{{ _current.item.label if _current.item else 'ERP' }}</strong>
     </div>
     <button
+      class="erp-mobile-shell-header__search"
+      type="button"
+      data-foms-search-open
+      aria-label="통합 검색">
+      <i class="fas fa-search" aria-hidden="true"></i>
+    </button>
+    <button
       class="erp-mobile-shell-header__menu"
       type="button"
       data-bs-toggle="offcanvas"

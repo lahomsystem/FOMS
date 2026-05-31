@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from foms.api.files import build_file_view_url
-from foms.services.feature_flags import env_bool
+from foms.services.feature_flags import env_bool_or_mobile_v2
 from models import OrderAttachment
 
 __all__ = [
@@ -16,13 +16,19 @@ __all__ = [
 _IMAGE_SUFFIXES = (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp")
 
 
-def drawing_thumb_enabled() -> bool:
+def drawing_thumb_enabled(*, mobile_v2_active: bool = False) -> bool:
     """Return whether mobile drawing card thumbnails are enabled.
 
+    Args:
+        mobile_v2_active: ERP mobile v2 cohort active for current user.
+
     Returns:
-        True when ``FOMS_V3_DRAWING_THUMB_ENABLED`` is truthy.
+        True when explicit env is truthy, or env unset and ``mobile_v2_active``.
     """
-    return env_bool("FOMS_V3_DRAWING_THUMB_ENABLED", default=False)
+    return env_bool_or_mobile_v2(
+        "FOMS_V3_DRAWING_THUMB_ENABLED",
+        mobile_v2_active=mobile_v2_active,
+    )
 
 
 def _is_image_file(file_entry: dict[str, Any]) -> bool:
@@ -41,6 +47,8 @@ def resolve_row_thumbnail_url(
     order_id: int,
     drawing_files: list[Any],
     db: Any,
+    *,
+    mobile_v2_active: bool = False,
 ) -> str | None:
     """Resolve a view URL for the first image drawing file on a workbench row.
 
@@ -52,7 +60,7 @@ def resolve_row_thumbnail_url(
     Returns:
         View URL string, or None when thumbnails are disabled or no image exists.
     """
-    if not drawing_thumb_enabled():
+    if not drawing_thumb_enabled(mobile_v2_active=mobile_v2_active):
         return None
 
     for entry in drawing_files:

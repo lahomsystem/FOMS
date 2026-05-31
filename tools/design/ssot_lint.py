@@ -34,6 +34,7 @@ SSOT_STALE_PATTERNS: tuple[StalePattern, ...] = (
     ),
     StalePattern("old_artifact_count", re.compile(r"11\s*개\s*산출물")),
     StalePattern("old_shell_flag_default", re.compile(r"FOMS_V3_SHELL_ENABLED.*기본\s*ON")),
+    StalePattern("old_p0_duration", re.compile(r"P0\s*5\s*[~\-]\s*6\s*작업일")),
 )
 
 

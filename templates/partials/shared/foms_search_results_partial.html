@@ -1,0 +1,32 @@
+{# P1-02: HTMX / fetch target — grouped search hits #}
+{% macro _items(items) -%}
+  {% for item in items %}
+    <li>
+      <a class="foms-search-overlay__link" href="{{ item.href }}" data-search-result>
+        <span class="foms-search-overlay__link-title">{{ item.title }}</span>
+        {% if item.subtitle %}
+          <span class="foms-search-overlay__link-sub">{{ item.subtitle }}</span>
+        {% endif %}
+      </a>
+    </li>
+  {% else %}
+    <li class="foms-search-overlay__empty">결과 없음</li>
+  {% endfor %}
+{%- endmacro %}
+
+{% if active_group == 'all' %}
+  {% for group_id, label in [('customer', '고객'), ('order', '주문'), ('drawing', '도면')] %}
+    {% set items = results.get(group_id, []) %}
+    {% if items %}
+      <section class="foms-search-overlay__group" data-group="{{ group_id }}">
+        <h4 class="foms-search-overlay__group-title">{{ label }}</h4>
+        <ul class="foms-search-overlay__items">{{ _items(items) }}</ul>
+      </section>
+    {% endif %}
+  {% endfor %}
+  {% if not results.get('customer') and not results.get('order') and not results.get('drawing') %}
+    <p class="foms-search-overlay__empty">검색 결과가 없습니다.</p>
+  {% endif %}
+{% else %}
+  <ul class="foms-search-overlay__items">{{ _items(results.get(active_group, [])) }}</ul>
+{% endif %}

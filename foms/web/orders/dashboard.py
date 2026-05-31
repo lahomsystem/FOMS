@@ -31,6 +31,8 @@ from foms.services.erp_shipment_settings import is_order_mine_for_user
 from foms.services.orders.status_constants import BULK_ACTION_STATUS
 from foms.services.request_utils import get_search_query_arg
 from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
+from foms.services.feature_flags import env_bool
+from foms.services.foms_split_view import build_split_master_cards, default_split_side_items
 from foms.services.common.dashboard_cache import (
     TTL_ATTACHMENT_COUNT_MAP,
     TTL_PAYLOAD_ASSEMBLY,
@@ -734,6 +736,12 @@ def erp_dashboard():
         page=page,
         total_pages=total_pages,
         total_orders=total_orders,
+        foms_split_enabled=env_bool('FOMS_TABLET_SPLIT_VIEW_ENABLED'),
+        master_cards=build_split_master_cards(
+            paginated_orders,
+            active_order_id=int(request.args.get('order') or 0) or None,
+        ) if env_bool('FOMS_TABLET_SPLIT_VIEW_ENABLED') else [],
+        side_items=default_split_side_items() if env_bool('FOMS_TABLET_SPLIT_VIEW_ENABLED') else [],
     )
     _render_ms = (time.perf_counter() - _t0) * 1000.0
     response = make_response(_body)

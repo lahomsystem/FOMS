@@ -1,0 +1,13 @@
+{# P2 bundle — new ERP mobile surfaces only (D06). #}
+{% if flag_mobile_v2 %}
+  {% include 'partials/shared/alpine_layout.html' %}
+  {% include 'partials/shared/foms_alpine_toast.html' %}
+  <script src="{{ url_for('static', filename='js/foms/lightbox.js') }}?v=20260530a" defer></script>
+  <script src="{{ url_for('static', filename='js/foms/voice-input.js') }}?v=20260530a" defer></script>
+  <script src="{{ url_for('static', filename='js/foms/haptic.js') }}?v=20260530a" defer></script>
+  <script src="{{ url_for('static', filename='js/foms/swipe-actions.js') }}?v=20260530a" defer></script>
+  <script src="{{ url_for('static', filename='js/foms/orientation-layout.js') }}?v=20260530a" defer></script>
+  <script src="{{ url_for('static', filename='js/foms/sync.js') }}?v=20260530a" defer></script>
+  <script src="{{ url_for('static', filename='js/foms/a2hs-prompt.js') }}?v=20260530a" defer></script>
+  <script src="{{ url_for('static', filename='js/foms/bottom-nav-shell.js') }}?v=20260530a" defer></script>
+{% endif %}

@@ -74,17 +74,11 @@
               <dt>제품</dt>
               <dd>{{ product_text }}</dd>
             </div>
-            <div class="erp-measurement-mobile-card__meta-row">
-              <dt>주소</dt>
-              <dd data-measurement-mobile-field="address">{{ r.address or '-' }}</dd>
-            </div>
+            {% from 'partials/shared/foms_order_contact_kv.html' import foms_order_contact_kv %}
+            {{ foms_order_contact_kv({'phone': r.phone, 'address': r.address, 'manager_name': manager_name}) }}
             <div class="erp-measurement-mobile-card__meta-row">
               <dt>발주사</dt>
               <dd>{{ rsd_orderer.get('name') or r.orderer_name or '-' }}</dd>
-            </div>
-            <div class="erp-measurement-mobile-card__meta-row">
-              <dt>연락처</dt>
-              <dd data-measurement-mobile-field="phone">{{ r.phone|format_phone }}</dd>
             </div>
           </dl>
 

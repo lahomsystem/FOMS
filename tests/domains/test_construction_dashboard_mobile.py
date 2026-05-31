@@ -73,6 +73,7 @@ def test_construction_stage_badge_modifier_in_progress():
 def test_construction_thumb_enabled_respects_env(monkeypatch):
     monkeypatch.delenv("FOMS_V3_CONSTRUCTION_THUMB_ENABLED", raising=False)
     assert construction_thumb_enabled() is False
+    assert construction_thumb_enabled(mobile_v2_active=True) is True
     monkeypatch.setenv("FOMS_V3_CONSTRUCTION_THUMB_ENABLED", "true")
     assert construction_thumb_enabled() is True
 

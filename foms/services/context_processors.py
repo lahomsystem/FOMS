@@ -8,6 +8,7 @@ from typing import Any
 from flask import g, session, url_for
 
 from foms.services.feature_flags import env_bool, is_enabled_for_user
+from foms.services.dashboard_counts import get_nav_badge_counts
 from foms.web.auth import ROLES
 from foms.services.orders.status_constants import BULK_ACTION_STATUS, STATUS
 from foms.persistence.main.db import get_db
@@ -22,6 +23,7 @@ __all__ = [
     "utility_processor",
     "inject_menu",
     "inject_foms_flags",
+    "inject_foms_nav_badges",
     "register_context_processors",
 ]
 
@@ -147,7 +149,23 @@ def inject_foms_flags() -> dict[str, Any]:
         "flag_wizard": env_bool("FOMS_WIZARD_NEW_ORDER_ENABLED"),
         "flag_inline": env_bool("FOMS_INLINE_EDIT_ENABLED"),
         "flag_split_view": env_bool("FOMS_TABLET_SPLIT_VIEW_ENABLED"),
+        "flag_rum_baseline": env_bool("FOMS_RUM_BASELINE_ENABLED", True),
+        "flag_offline_sw": env_bool("FOMS_OFFLINE_SW_ENABLED"),
+        "flag_bottom_nav_htmx": env_bool("FOMS_BOTTOM_NAV_HTMX_ENABLED"),
     }
+
+
+def inject_foms_nav_badges() -> dict[str, Any]:
+    """Inject bottom-nav stage badge counts (P1-01, ERP mobile v2 cohort only)."""
+    current_user = getattr(g, "current_user", None)
+    uid = current_user.id if current_user else None
+    if not is_enabled_for_user(
+        "ERP_MOBILE_V2_ENABLED",
+        uid,
+        cohort_key="FOMS_V3_SHELL_COHORT",
+    ):
+        return {"foms_nav_badges": {}}
+    return {"foms_nav_badges": get_nav_badge_counts(current_user)}
 
 
 def register_context_processors(app) -> None:
@@ -158,3 +176,4 @@ def register_context_processors(app) -> None:
     app.context_processor(utility_processor)
     app.context_processor(inject_menu)
     app.context_processor(inject_foms_flags)
+    app.context_processor(inject_foms_nav_badges)

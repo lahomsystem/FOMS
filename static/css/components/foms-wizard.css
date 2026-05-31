@@ -1,0 +1,207 @@
+/* P1-03 mobile new-order wizard (mockup: mobile-wizard-new-order.html) */
+
+.foms-wizard-page .navbar,
+.foms-wizard-page .sidebar,
+.foms-wizard-page .gnav-shell {
+  display: none !important;
+}
+
+.foms-wizard-page #main-content {
+  padding: 0 !important;
+  max-width: 100% !important;
+}
+
+.foms-wizard {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--foms-surface-base, #fff);
+}
+
+.foms-wizard__head {
+  flex-shrink: 0;
+  padding: var(--foms-space-3, 12px) var(--foms-space-4, 16px) var(--foms-space-2, 8px);
+  border-bottom: 1px solid var(--foms-border-subtle, #e5e7eb);
+  display: grid;
+  gap: var(--foms-space-3, 12px);
+}
+
+.foms-wizard__head-top {
+  display: grid;
+  grid-template-columns: 44px 1fr 44px;
+  align-items: center;
+}
+
+.foms-wizard__counter {
+  text-align: center;
+  font-size: var(--foms-font-size-sm, 14px);
+  color: var(--foms-text-tertiary, #6b7280);
+  font-variant-numeric: tabular-nums;
+}
+
+.foms-wizard__progress {
+  display: flex;
+  gap: 4px;
+}
+
+.foms-wizard__progress-seg {
+  flex: 1;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--foms-border-subtle, #e5e7eb);
+}
+
+.foms-wizard__progress-seg.is-done {
+  background: var(--foms-color-success-500, #22c55e);
+}
+
+.foms-wizard__progress-seg.is-current {
+  background: var(--foms-interactive-primary, #2563eb);
+}
+
+.foms-wizard__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--foms-space-4, 16px);
+  padding-bottom: calc(92px + env(safe-area-inset-bottom, 0));
+}
+
+.foms-wizard__title {
+  font-size: var(--foms-font-size-2xl, 24px);
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+
+.foms-wizard__subtitle {
+  color: var(--foms-text-secondary, #4b5563);
+  margin: 0 0 var(--foms-space-5, 20px);
+}
+
+.foms-wizard__field {
+  display: grid;
+  gap: 8px;
+  margin-bottom: var(--foms-space-4, 16px);
+}
+
+.foms-wizard__label--required::after {
+  content: " *";
+  color: var(--foms-color-danger-500, #ef4444);
+}
+
+.foms-wizard__autosave {
+  position: fixed;
+  top: 14px;
+  right: 60px;
+  font-size: 11px;
+  color: var(--foms-color-success-600, #16a34a);
+  background: var(--foms-color-success-50, #f0fdf4);
+  padding: 2px 8px;
+  border-radius: 999px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+  z-index: 20;
+}
+
+.foms-wizard__autosave.is-visible {
+  opacity: 1;
+}
+
+.foms-wizard__action-bar {
+  position: fixed;
+  inset: auto 0 0 0;
+  display: flex;
+  gap: 12px;
+  padding: 12px 16px;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0));
+  background: var(--foms-surface-base, #fff);
+  border-top: 1px solid var(--foms-border-subtle, #e5e7eb);
+  box-shadow: 0 -4px 12px rgba(15, 17, 21, 0.06);
+  z-index: 10;
+}
+
+.foms-wizard__action-bar .foms-btn {
+  flex: 1;
+}
+
+.foms-wizard__action-bar .foms-btn--primary {
+  flex: 2;
+}
+
+.foms-wizard__step {
+  display: none;
+}
+
+.foms-wizard__step.is-active {
+  display: block;
+}
+
+.foms-wizard__product-card {
+  border: 1px solid var(--foms-border-subtle, #e5e7eb);
+  border-radius: var(--foms-radius-lg, 12px);
+  padding: 12px;
+  margin-bottom: 16px;
+}
+
+.foms-wizard__spec-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.foms-wizard__grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 12px;
+}
+
+.foms-wizard__summary {
+  border: 1px solid var(--foms-border-subtle, #e5e7eb);
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.foms-wizard__conflict {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 16px;
+}
+
+.foms-wizard__conflict.is-open {
+  display: flex;
+}
+
+.foms-wizard__conflict-panel {
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  max-width: 360px;
+  width: 100%;
+}
+
+.foms-wizard__recover-toast {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: calc(96px + env(safe-area-inset-bottom, 0));
+  background: #1f2937;
+  color: #fff;
+  padding: 12px 16px;
+  border-radius: 12px;
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  z-index: 30;
+}
+
+.foms-wizard__recover-toast.is-visible {
+  display: flex;
+}

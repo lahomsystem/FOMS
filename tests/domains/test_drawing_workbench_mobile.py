@@ -67,8 +67,11 @@ def _drawing_order(structured_data=None):
 def test_drawing_thumb_enabled_respects_env(monkeypatch):
     monkeypatch.delenv("FOMS_V3_DRAWING_THUMB_ENABLED", raising=False)
     assert drawing_thumb_enabled() is False
+    assert drawing_thumb_enabled(mobile_v2_active=True) is True
     monkeypatch.setenv("FOMS_V3_DRAWING_THUMB_ENABLED", "true")
     assert drawing_thumb_enabled() is True
+    monkeypatch.setenv("FOMS_V3_DRAWING_THUMB_ENABLED", "false")
+    assert drawing_thumb_enabled(mobile_v2_active=True) is False
 
 
 def test_resolve_row_thumbnail_prefers_view_url(monkeypatch):

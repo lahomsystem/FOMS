@@ -1,3 +1,5 @@
+@import url("../foms-tokens.css");
+
 /* ============================================
    FOMS ERP Pro Dashboard - Modern SaaS Design System
    Version: 2.0
@@ -85,4 +87,12 @@
   --erp-transition-fast: 150ms ease;
   --erp-transition: 200ms ease;
   --erp-transition-slow: 300ms ease;
+}
+
+/* P1-06 Phase 2 bridge: legacy ERP literals preserved; new surfaces use --foms-* from foms-tokens.css */
+:root {
+  --foms-bridge-erp-primary: var(--erp-primary);
+  --foms-bridge-erp-success: var(--erp-success);
+  --foms-bridge-erp-danger: var(--erp-danger);
+  --foms-bridge-erp-border: var(--erp-border);
 }

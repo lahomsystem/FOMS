@@ -1,0 +1,49 @@
+<section class="foms-wizard__step" data-wizard-step="2" aria-labelledby="wizard-step2-title">
+  <h2 class="foms-wizard__title" id="wizard-step2-title">제품 항목</h2>
+  <p class="foms-wizard__subtitle">시공할 제품을 추가해주세요</p>
+
+  <div id="foms-wizard-products">
+    <div class="foms-wizard__product-card" data-product-index="0">
+      <div class="foms-wizard__field">
+        <label class="field__label foms-wizard__label--required">제품명</label>
+        <input class="foms-input" name="product_name" data-wizard-field data-product-field="product_name" placeholder="예: 거실 몰딩라운드장" />
+      </div>
+      <div class="foms-wizard__field">
+        <label class="field__label">규격 (폭·깊이·높이)</label>
+        <div class="foms-wizard__spec-rows" data-spec-rows>
+          <div class="foms-wizard__spec-row" data-spec-row>
+            <input class="foms-input foms-tabular" name="spec_width" data-wizard-field data-product-field="spec_width" inputmode="numeric" placeholder="W" aria-label="폭" />
+            <input class="foms-input foms-tabular" name="spec_depth" data-wizard-field data-product-field="spec_depth" inputmode="numeric" placeholder="D" aria-label="깊이" />
+            <input class="foms-input foms-tabular" name="spec_height" data-wizard-field data-product-field="spec_height" inputmode="numeric" placeholder="H" aria-label="높이" />
+          </div>
+        </div>
+      </div>
+      <div class="foms-wizard__grid-2">
+        <div class="foms-wizard__field">
+          <label class="field__label">내부</label>
+          <input class="foms-input" data-wizard-field data-product-field="internal" placeholder="상담" />
+        </div>
+        <div class="foms-wizard__field">
+          <label class="field__label">색상</label>
+          <input class="foms-input" data-wizard-field data-product-field="color" placeholder="상담" />
+        </div>
+        <div class="foms-wizard__field">
+          <label class="field__label">옵션</label>
+          <input class="foms-input" data-wizard-field data-product-field="option_detail" placeholder="상담" />
+        </div>
+        <div class="foms-wizard__field">
+          <label class="field__label">손잡이</label>
+          <input class="foms-input" data-wizard-field data-product-field="handle" placeholder="상담" />
+        </div>
+        <div class="foms-wizard__field">
+          <label class="field__label">기타·설치</label>
+          <input class="foms-input" data-wizard-field data-product-field="misc" placeholder="상담" />
+        </div>
+        <div class="foms-wizard__field">
+          <label class="field__label">금액(원)</label>
+          <input class="foms-input foms-tabular" data-wizard-field data-product-field="price" inputmode="numeric" placeholder="0" />
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,69 @@
+{% extends "orders/layout.html" %}
+
+{% block content %}
+<div
+  class="foms-wizard"
+  id="foms-wizard-root"
+  data-draft-key="{{ draft_key }}"
+  data-initial-step="{{ initial_step }}"
+  data-received-date="{{ today }}"
+  data-received-time="{{ current_time }}"
+>
+  <header class="foms-wizard__head">
+    <div class="foms-wizard__head-top">
+      <button type="button" class="icon-btn" id="foms-wizard-close" aria-label="닫기">✕</button>
+      <span class="foms-wizard__counter" id="foms-wizard-counter">1 / 4</span>
+      <span aria-hidden="true"></span>
+    </div>
+    <div class="foms-wizard__progress" id="foms-wizard-progress" aria-hidden="true">
+      <span class="foms-wizard__progress-seg is-current"></span>
+      <span class="foms-wizard__progress-seg"></span>
+      <span class="foms-wizard__progress-seg"></span>
+      <span class="foms-wizard__progress-seg"></span>
+    </div>
+  </header>
+
+  <span class="foms-wizard__autosave" id="foms-wizard-autosave" aria-live="polite">✓ 자동저장됨</span>
+
+  <div class="foms-wizard__body">
+    {% include 'orders/wizard/step1_basic.html' %}
+    {% include 'orders/wizard/step2_products.html' %}
+    {% include 'orders/wizard/step3_schedule.html' %}
+    {% include 'orders/wizard/step4_confirm.html' %}
+  </div>
+
+  <footer class="foms-wizard__action-bar">
+    <button type="button" class="foms-btn foms-btn--secondary" id="foms-wizard-prev">이전</button>
+    <button type="button" class="foms-btn foms-btn--primary foms-btn--lg" id="foms-wizard-next">다음 →</button>
+  </footer>
+
+  <div class="foms-wizard__recover-toast" id="foms-wizard-recover" role="dialog" aria-label="임시 저장 복구">
+    <span>이전에 작성하던 내용이 있습니다.</span>
+    <button type="button" class="foms-btn foms-btn--sm foms-btn--primary" id="foms-wizard-recover-btn">복구</button>
+  </div>
+
+  <div class="foms-wizard__conflict" id="foms-wizard-conflict" role="dialog" aria-modal="true" aria-label="저장 충돌">
+    <div class="foms-wizard__conflict-panel">
+      <h3 class="foms-wizard__title" style="font-size:18px">다른 기기에서 변경됨</h3>
+      <p class="foms-wizard__subtitle">어떤 내용을 유지할까요?</p>
+      <div style="display:grid;gap:8px;margin-top:12px">
+        <button type="button" class="foms-btn foms-btn--secondary" data-conflict="mine">내 변경 유지</button>
+        <button type="button" class="foms-btn foms-btn--secondary" data-conflict="remote">다른 기기 내용</button>
+        <button type="button" class="foms-btn foms-btn--ghost" data-conflict="dismiss">나중에</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.body.classList.add("foms-wizard-page");
+</script>
+{% include 'partials/shared/alpine_layout.html' %}
+{% include 'partials/shared/foms_alpine_toast.html' %}
+<script src="{{ url_for('static', filename='js/foms/haptic.js') }}?v=20260530a" defer></script>
+<script src="{{ url_for('static', filename='js/foms/voice-input.js') }}?v=20260530a" defer></script>
+<script src="{{ url_for('static', filename='js/foms/draft.js') }}?v=20260530a" defer></script>
+<script src="{{ url_for('static', filename='js/foms/wizard.js') }}?v=20260530a" defer></script>
+{% endblock %}

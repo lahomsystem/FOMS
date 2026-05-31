@@ -66,6 +66,6 @@ jobs:
         SECRET_KEY: "ci-secret-key"
         FLASK_ENV: "testing"
         ERP_MOBILE_V2_ENABLED: "false"
-        VISUAL_PIXEL_DIFF_THRESHOLD: "0.05"
+        VISUAL_PIXEL_DIFF_THRESHOLD: "0.001"
       run: |
         pytest tests/visual/ -v -p pytest_playwright

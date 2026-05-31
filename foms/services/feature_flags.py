@@ -6,6 +6,7 @@ import os
 
 __all__ = [
     "env_bool",
+    "env_bool_or_mobile_v2",
     "env_id_list",
     "is_enabled_for_user",
 ]
@@ -24,6 +25,25 @@ def env_bool(key: str, default: bool = False) -> bool:
         True when the normalized env value is one of true/1/yes/y/on.
     """
     raw = os.getenv(key, str(default))
+    return raw.strip().lower() in _TRUTHY
+
+
+def env_bool_or_mobile_v2(key: str, *, mobile_v2_active: bool = False) -> bool:
+    """Return explicit env flag, or mobile v2 cohort when env is unset.
+
+    P0-02~04 gap patch: cohort users see thumbnails without extra ops flags.
+    Explicit ``false`` / ``0`` still disables rollout.
+
+    Args:
+        key: Environment variable name (e.g. ``FOMS_V3_DRAWING_THUMB_ENABLED``).
+        mobile_v2_active: Whether ERP mobile v2 shell is active for the user.
+
+    Returns:
+        Parsed env value when set; otherwise ``mobile_v2_active``.
+    """
+    raw = os.getenv(key)
+    if raw is None or not raw.strip():
+        return mobile_v2_active
     return raw.strip().lower() in _TRUTHY
 
 

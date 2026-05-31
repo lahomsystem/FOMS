@@ -224,7 +224,8 @@ def test_shared_erp_order_supports_scoped_clipboard_image_upload() -> None:
     assert 'data-erp-attachment-paste-zone="as-receive"' in template_text
     assert "이미지를 붙여넣으면 바로 업로드됩니다." in template_text
     assert "Ctrl+V로 바로 업로드" in template_text
-    assert "AS 첨부에 바로 추가됩니다." in template_text
+    assert "카메라로 촬영" in template_text
+    assert 'data-foms-photo-capture' in template_text
 
     assert 'data-erp-attachment-paste-zone="item"' in js_text
     assert "이 항목에 바로 업로드됩니다." in js_text

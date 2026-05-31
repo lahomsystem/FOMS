@@ -23,6 +23,7 @@ from foms.services.erp_permissions import build_mine_sql_filter, can_edit_erp
 from foms.services.erp_policy import STAGE_LABELS
 from foms.services.request_utils import get_search_query_arg
 from foms.services.construction_dashboard_display import enrich_construction_mobile_rows
+from foms.services.feature_flags import is_enabled_for_user
 from models import Order
 
 erp_construction_page_bp = Blueprint("erp_construction_page", __name__, url_prefix="/erp")
@@ -194,7 +195,16 @@ def erp_construction_dashboard():
     total_orders = len(enriched)
     total_pages = (total_orders + per_page - 1) // per_page
     paginated_orders = enriched[(page - 1) * per_page : page * per_page]
-    enrich_construction_mobile_rows(paginated_orders, db)
+    current_user = getattr(g, "current_user", None)
+    enrich_construction_mobile_rows(
+        paginated_orders,
+        db,
+        mobile_v2_active=is_enabled_for_user(
+            "ERP_MOBILE_V2_ENABLED",
+            current_user.id if current_user else None,
+            cohort_key="FOMS_V3_SHELL_COHORT",
+        ),
+    )
     attach_order_detail_payloads(db, paginated_orders)
 
     template_name = (

@@ -1,0 +1,64 @@
+/* P2-07 swipe reveal actions on queue cards */
+.erp-mobile-queue-card[data-foms-swipe-card] {
+  position: relative;
+  transition: transform 160ms ease;
+}
+
+.erp-mobile-queue-card__swipe-actions {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 96px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px;
+  transform: translateX(100%);
+  transition: transform 160ms ease;
+}
+
+.erp-mobile-queue-card.is-swipe-open .erp-mobile-queue-card__swipe-actions {
+  transform: translateX(0);
+}
+
+.erp-mobile-queue-card__swipe-btn {
+  min-height: 40px;
+  border: 0;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 0.8125rem;
+}
+
+.erp-mobile-queue-card__swipe-btn.is-approve {
+  background: var(--foms-color-success, #059669);
+}
+
+.erp-mobile-queue-card__swipe-btn.is-hold {
+  background: var(--foms-color-warning, #d97706);
+}
+
+.foms-voice-btn {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--erp-mobile-color-surface-alt, #f7f7f7);
+  color: var(--erp-mobile-color-text, #131e29);
+}
+
+.foms-voice-btn.is-active {
+  color: var(--erp-mobile-color-brand, #0070f2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .erp-mobile-queue-card[data-foms-swipe-card],
+  .erp-mobile-queue-card__swipe-actions {
+    transition: none !important;
+  }
+}

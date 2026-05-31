@@ -1,0 +1,16 @@
+{# P2-02 Alpine toast host (new surfaces) #}
+<div
+  id="foms-alpine-toast-root"
+  x-data
+  x-cloak
+  aria-live="polite"
+  aria-atomic="true"
+>
+  <div
+    class="foms-alpine-toast"
+    x-show="$store.fomsToast.visible"
+    x-transition.opacity
+    x-text="$store.fomsToast.message"
+    role="status"
+  ></div>
+</div>

@@ -18,7 +18,7 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                 {% if erp_order_feature_enabled %}ON{% else %}OFF{% endif %}
             </span>
         </div>
-        <div class="card-body">
+        <div class="card-body foms-page-form">
             {% if not erp_order_feature_enabled %}
             <div class="alert alert-secondary mb-0">
                 ERP Order 패널은 현재 비활성입니다.
@@ -304,15 +304,6 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                         </div>
                     </div>
 
-                    <hr class="my-3">
-                    <div class="d-flex gap-2">
-                        <button class="btn btn-sm btn-primary" type="button" id="erp-save-btn">
-                            <i class="fas fa-save"></i> 저장
-                        </button>
-                        <button class="btn btn-sm btn-outline-secondary" type="button" id="erp-load-btn">
-                            <i class="fas fa-sync"></i> 불러오기
-                        </button>
-                    </div>
                     <div class="small text-muted mt-2" id="erp-status-text"></div>
 
                     <div class="card border-secondary mt-3">
@@ -372,6 +363,14 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                 {% include 'orders/partials/estimate_pane.html' %}
 
             </div>
+            <footer class="foms-sticky-action-bar" role="group" aria-label="ERP 주문 저장">
+                <button class="btn btn-outline-secondary" type="button" id="erp-load-btn">
+                    <i class="fas fa-sync"></i> 불러오기
+                </button>
+                <button class="btn btn-primary" type="button" id="erp-save-btn">
+                    <i class="fas fa-save"></i> 저장
+                </button>
+            </footer>
             {% endif %}
         </div>
     </div>

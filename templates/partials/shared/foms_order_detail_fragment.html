@@ -1,0 +1,8 @@
+{# P2-01: HTMX swap target for tablet split-view order detail (new surface only) #}
+<div class="foms-order-detail-fragment" data-foms-order-fragment="{{ order.id }}">
+  {% include 'orders/partials/edit_order_body.html' %}
+</div>
+{% include 'orders/partials/erp_order_js.html' %}
+<script>
+  document.dispatchEvent(new CustomEvent('foms:main-content-swapped', { detail: { source: 'split-fragment' } }));
+</script>

@@ -25,6 +25,7 @@ from foms.services.request_utils import (
     get_search_query_arg,
     redirect_if_legacy_open_erp_beta,
 )
+from foms.services.feature_flags import env_bool
 from foms.services.gnav_contract import gnav_orders_layout_parent, wants_gnav_fragment
 from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
 
@@ -413,6 +414,21 @@ def add_order():
 
     today = datetime.datetime.now().strftime('%Y-%m-%d')
     current_time = datetime.datetime.now().strftime('%H:%M')
+    if env_bool("FOMS_WIZARD_NEW_ORDER_ENABLED"):
+        import uuid
+
+        draft_key = (request.args.get('key') or '').strip() or f"new.{uuid.uuid4().hex[:16]}"
+        try:
+            initial_step = max(1, min(4, int(request.args.get('step') or 1)))
+        except (TypeError, ValueError):
+            initial_step = 1
+        return render_template(
+            'orders/wizard/wizard_shell.html',
+            today=today,
+            current_time=current_time,
+            draft_key=draft_key,
+            initial_step=initial_step,
+        )
     return render_template('orders/add_order.html', today=today, current_time=current_time)
 
 

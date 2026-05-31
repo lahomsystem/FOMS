@@ -1,0 +1,20 @@
+.foms-a2hs-bar {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(var(--erp-mobile-shell-nav-height, 72px) + 12px + env(safe-area-inset-bottom, 0px));
+  z-index: 1300;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--foms-surface-base, #fff);
+  border: 1px solid var(--foms-border-subtle, #e5e7eb);
+  box-shadow: 0 8px 24px rgba(15, 17, 21, 0.12);
+  font-size: 0.875rem;
+}
+
+.foms-a2hs-bar > span {
+  flex: 1;
+}

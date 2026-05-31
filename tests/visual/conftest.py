@@ -149,6 +149,11 @@ def compare_or_update_screenshot(
     baseline_dir.mkdir(parents=True, exist_ok=True)
 
     if update_snapshots or not baseline_path.exists():
+        if not baseline_path.exists() and not update_snapshots and os.environ.get("CI"):
+            pytest.fail(
+                f"Missing baseline {baseline_name} under {baseline_dir}; "
+                "commit PNGs to tests/visual/baseline/"
+            )
         baseline_path.write_bytes(screenshot_path.read_bytes())
         screenshot_path.unlink(missing_ok=True)
         return 0.0
@@ -215,7 +220,8 @@ def visual_live_server() -> str:
     """
     Seed file-backed SQLite and run Flask on port 5001 in a background thread.
 
-    Requires DATABASE_URL=file-backed sqlite (not :memory:) before app import.
+    Feature flags are toggled per test module via autouse monkeypatch fixtures
+    (legacy order list vs ERP v2 dashboard).
     """
     db_url = __import__("os").environ.get("DATABASE_URL", "")
     assert_visual_test_database(db_url)
@@ -228,20 +234,20 @@ def visual_live_server() -> str:
     flask_app.config["TESTING"] = True
     Base.metadata.create_all(bind=engine)
 
-    os.environ["ERP_MOBILE_V2_ENABLED"] = "true"
-
     existing = db_session.query(User).filter_by(username=VISUAL_ADMIN_USERNAME).first()
     if existing is None:
         existing = User(
             username=VISUAL_ADMIN_USERNAME,
             password=generate_password_hash(VISUAL_ADMIN_PASSWORD),
-            role="admin",
+            role="ADMIN",
             name="Visual Admin",
             is_active=True,
         )
         db_session.add(existing)
         db_session.commit()
     else:
+        if existing.role != "ADMIN":
+            existing.role = "ADMIN"
         db_session.commit()
 
     os.environ["FOMS_V3_SHELL_COHORT"] = str(existing.id)
@@ -265,10 +271,28 @@ def visual_live_server() -> str:
         db_session.remove()
 
 
+@pytest.fixture(scope="session")
+def visual_cohort_user_id(visual_live_server: str) -> str:
+    """Cohort user id seeded by visual_live_server for ERP v2 captures."""
+    return os.environ.get("FOMS_V3_SHELL_COHORT", "")
+
+
+@pytest.fixture(scope="session")
+def visual_live_server_legacy(visual_live_server: str) -> str:
+    """Alias for legacy order-list captures (env set in test module autouse)."""
+    return visual_live_server
+
+
+@pytest.fixture(scope="session")
+def visual_live_server_erp_v2(visual_live_server: str) -> str:
+    """Alias for ERP v2 dashboard captures (env set in test module autouse)."""
+    return visual_live_server
+
+
 @pytest.fixture
 def dark_mode_page(page):
-    """Playwright page with Bootstrap dark theme forced via data-bs-theme."""
+    """Playwright page with FOMS dark theme forced via data-theme."""
     page.add_init_script(
-        "document.documentElement.setAttribute('data-bs-theme', 'dark')"
+        "document.documentElement.setAttribute('data-theme', 'dark')"
     )
     return page

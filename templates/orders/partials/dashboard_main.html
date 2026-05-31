@@ -9,6 +9,9 @@
   {% if erp_mobile_v2_enabled %}
     {% include 'partials/shared/erp_mobile_shell.html' %}
   {% endif %}
+  {% if foms_split_enabled %}
+    {% include 'partials/shared/foms_split_shell.html' %}
+  {% endif %}
   <!-- Modern Header -->
   <header class="erp-pro-header">
     <h1 class="erp-pro-header__title">

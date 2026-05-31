@@ -16,6 +16,7 @@ from foms.services.as_dashboard_display import (
     as_thumb_enabled,
     batch_resolve_as_thumbnail_urls,
 )
+from foms.services.feature_flags import is_enabled_for_user
 from foms.services.common.erp_shell_http import (
     apply_erp_shell_fragment_headers,
     wants_erp_shell_tab_body,
@@ -431,7 +432,13 @@ def erp_as_dashboard():
             OrderAttachment.category == 'as'
         ).distinct().all()
         as_photo_order_ids = {x[0] for x in as_with_photos}
-    thumb_flag = as_thumb_enabled()
+    thumb_flag = as_thumb_enabled(
+        mobile_v2_active=is_enabled_for_user(
+            "ERP_MOBILE_V2_ENABLED",
+            current_user.id if current_user else None,
+            cohort_key="FOMS_V3_SHELL_COHORT",
+        )
+    )
     thumb_urls = batch_resolve_as_thumbnail_urls(order_ids, db) if order_ids else {}
     for r in rows:
         r.has_as_photos = r.id in as_photo_order_ids

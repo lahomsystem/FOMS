@@ -1,0 +1,17 @@
+{# P1-05 master order list pane #}
+<div class="foms-split-master" data-foms-master-list>
+  {% for card in master_cards | default([]) %}
+  <a
+    class="foms-master-card{% if card.active %} is-active{% endif %}"
+    data-foms-master-card
+    data-order-id="{{ card.order_id }}"
+    data-href="{{ card.detail_href }}"
+    href="{{ card.detail_href }}"
+  >
+    <div class="foms-master-card__title">{{ card.title }}</div>
+    <div class="foms-master-card__meta">{{ card.meta }}</div>
+  </a>
+  {% else %}
+  <div class="p-3 text-muted small">표시할 주문이 없습니다.</div>
+  {% endfor %}
+</div>

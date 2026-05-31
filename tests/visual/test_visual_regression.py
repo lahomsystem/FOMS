@@ -12,6 +12,14 @@ from tests.visual.conftest import (
     compare_or_update_screenshot,
 )
 
+
+@pytest.fixture(autouse=True)
+def _legacy_visual_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """P0-00D: capture legacy UI with cohort off."""
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "false")
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", "")
+
+
 VISUAL_CASES = [
     pytest.param("orders_320_light.png", 320, 568, "light", id="320-light"),
     pytest.param("orders_320_dark.png", 320, 568, "dark", id="320-dark"),
@@ -64,7 +72,7 @@ def _stabilize_page_for_screenshot(page) -> None:
 @pytest.mark.parametrize("baseline_name,width,height,theme", VISUAL_CASES)
 def test_orders_page_visual_regression(
     page,
-    visual_live_server,
+    visual_live_server_legacy,
     update_snapshots,
     baseline_name,
     width,
@@ -75,12 +83,12 @@ def test_orders_page_visual_regression(
     """Capture order_pages.index (/) and compare to baseline PNG."""
     if theme == "dark":
         page.add_init_script(
-            "document.documentElement.setAttribute('data-bs-theme', 'dark')"
+            "document.documentElement.setAttribute('data-theme', 'dark')"
         )
     page.set_viewport_size({"width": width, "height": height})
     page.emulate_media(reduced_motion="reduce")
 
-    _login_and_open_orders(page, visual_live_server)
+    _login_and_open_orders(page, visual_live_server_legacy)
     _stabilize_page_for_screenshot(page)
 
     capture_path = tmp_path / baseline_name

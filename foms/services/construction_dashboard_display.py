@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from foms.api.files import build_file_view_url
-from foms.services.feature_flags import env_bool
+from foms.services.feature_flags import env_bool_or_mobile_v2
 from models import OrderAttachment
 
 __all__ = [
@@ -23,13 +23,19 @@ _ATTACHMENT_CATEGORIES = _DRAWING_CATEGORIES | _MEASUREMENT_CATEGORIES | frozens
 _MAX_PREVIEW_COUNT = 4
 
 
-def construction_thumb_enabled() -> bool:
+def construction_thumb_enabled(*, mobile_v2_active: bool = False) -> bool:
     """Return whether construction mobile card thumbnails are enabled.
 
+    Args:
+        mobile_v2_active: ERP mobile v2 cohort active for current user.
+
     Returns:
-        True when ``FOMS_V3_CONSTRUCTION_THUMB_ENABLED`` is truthy.
+        True when explicit env is truthy, or env unset and ``mobile_v2_active``.
     """
-    return env_bool("FOMS_V3_CONSTRUCTION_THUMB_ENABLED", default=False)
+    return env_bool_or_mobile_v2(
+        "FOMS_V3_CONSTRUCTION_THUMB_ENABLED",
+        mobile_v2_active=mobile_v2_active,
+    )
 
 
 def construction_stage_badge_modifier(stage: str | None) -> str:
@@ -140,14 +146,19 @@ def _collect_preview_urls(row: dict[str, Any], db: Any) -> list[str]:
     return urls[:_MAX_PREVIEW_COUNT]
 
 
-def enrich_construction_mobile_rows(rows: list[dict[str, Any]], db: Any) -> None:
+def enrich_construction_mobile_rows(
+    rows: list[dict[str, Any]],
+    db: Any,
+    *,
+    mobile_v2_active: bool = False,
+) -> None:
     """Attach v1.1 badge + thumbnail fields to construction ``paginated_orders`` dicts.
 
     Args:
         rows: Mutable list of row dicts built in ``construction.dashboard``.
         db: SQLAlchemy session for attachment lookup.
     """
-    thumb_on = construction_thumb_enabled()
+    thumb_on = construction_thumb_enabled(mobile_v2_active=mobile_v2_active)
     for row in rows:
         stage = row.get("stage")
         row["stage_badge_modifier"] = construction_stage_badge_modifier(

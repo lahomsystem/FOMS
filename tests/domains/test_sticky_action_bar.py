@@ -106,3 +106,34 @@ def test_edit_order_non_erp_renders_sticky_bar(erp_editor_client) -> None:
     body = response.get_data(as_text=True)
     assert "foms-sticky-action-bar" in body
     assert 'id="editOrderForm"' in body
+
+
+def test_erp_order_tab_template_sticky_footer() -> None:
+    text = (ROOT / "templates/orders/partials/erp_order_tab.html").read_text(
+        encoding="utf-8"
+    )
+    assert 'class="card-body foms-page-form"' in text
+    assert '<footer class="foms-sticky-action-bar"' in text
+    assert 'id="erp-save-btn"' in text
+    assert 'id="erp-load-btn"' in text
+
+
+def test_edit_order_erp_renders_sticky_bar(erp_editor_client) -> None:
+    order = Order(
+        received_date="2026-05-29",
+        customer_name="Sticky ERP",
+        phone="010-7777-8888",
+        address="Seoul",
+        product="Kitchen",
+        status="RECEIVED",
+        is_erp_order=True,
+        structured_data={"schema_version": 1},
+    )
+    db_session.add(order)
+    db_session.commit()
+
+    response = erp_editor_client.get(f"/edit/{order.id}?open=erp-order")
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert "foms-sticky-action-bar" in body
+    assert 'id="erp-save-btn"' in body

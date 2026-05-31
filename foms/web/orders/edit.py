@@ -23,6 +23,7 @@ from db import get_db
 from models import Order
 from foms.services.orders.status_constants import STATUS
 from foms.services.request_utils import get_preserved_filter_args, redirect_if_legacy_open_erp_beta
+from foms.services.order_edit_view_context import build_order_edit_get_context
 from foms.services.jobs.queue import enqueue_geocode_order_address
 from foms.services.order_geocode import (
     apply_erp_order_site_address_to_sd,
@@ -347,17 +348,13 @@ def edit_order(order_id):
             return resp_err
 
     preserved_args = get_preserved_filter_args(request.args)
-    erp_bootstrap = _build_erp_order_bootstrap(order) if is_erp_order_record(order) else None
+    ctx = build_order_edit_get_context(order)
     tpl = 'orders/edit_order.html'
     response = make_response(
         render_template(
             tpl,
-            order=order,
-            option_type=option_type,
-            online_options=online_options,
-            direct_options=direct_options,
             preserved_args=preserved_args,
-            erp_bootstrap=erp_bootstrap,
+            **ctx,
         )
     )
     return response

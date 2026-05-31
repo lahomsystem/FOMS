@@ -26,6 +26,7 @@ from foms.services.drawing_workbench_display import (
     drawing_thumb_enabled,
     resolve_row_thumbnail_url,
 )
+from foms.services.feature_flags import is_enabled_for_user
 
 erp_drawing_workbench_bp = Blueprint('erp_drawing_workbench', __name__, url_prefix='/erp')
 
@@ -48,6 +49,11 @@ def erp_drawing_workbench_dashboard():
     sort_by = (request.args.get('sort') or '').strip().lower()
     page = max(1, int(request.args.get('page') or '1'))
     per_page = 25
+    mobile_v2_active = is_enabled_for_user(
+        "ERP_MOBILE_V2_ENABLED",
+        current_user.id if current_user else None,
+        cohort_key="FOMS_V3_SHELL_COHORT",
+    )
 
     orders = (
         db.query(Order)
@@ -145,7 +151,9 @@ def erp_drawing_workbench_dashboard():
             'drawing_status': drawing_status,
             'drawing_status_label': _drawing_status_label(drawing_status),
             'file_count': len(drawing_files),
-            'thumbnail_url': resolve_row_thumbnail_url(o.id, drawing_files, db),
+            'thumbnail_url': resolve_row_thumbnail_url(
+                o.id, drawing_files, db, mobile_v2_active=mobile_v2_active
+            ),
             'target_no': latest_request_no,
             'next_action': _drawing_next_action_text(drawing_status, has_assignee),
             'latest_event_at': (last_event or {}).get('transferred_at') or (last_event or {}).get('at') or '-',
@@ -215,7 +223,7 @@ def erp_drawing_workbench_dashboard():
             can_edit_erp=can_edit_erp(current_user),
             erp_order_enabled=True,
             erp_mine_only=mine_only,
-            drawing_thumb_enabled=drawing_thumb_enabled(),
+            drawing_thumb_enabled=drawing_thumb_enabled(mobile_v2_active=mobile_v2_active),
         )
     )
     apply_erp_shell_fragment_headers(response, request)

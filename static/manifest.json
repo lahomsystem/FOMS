@@ -1,0 +1,20 @@
+{
+  "name": "FOMS ERP Mobile",
+  "short_name": "FOMS",
+  "description": "FOMS Furniture Order Management — ERP mobile shell",
+  "start_url": "/erp/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f5f6f7",
+  "theme_color": "#0070f2",
+  "lang": "ko-KR",
+  "icons": [
+    {
+      "src": "/static/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

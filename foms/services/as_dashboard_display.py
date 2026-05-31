@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from foms.api.files import build_file_view_url
-from foms.services.feature_flags import env_bool
+from foms.services.feature_flags import env_bool_or_mobile_v2
 from models import OrderAttachment
 
 __all__ = [
@@ -17,13 +17,19 @@ __all__ = [
 _IMAGE_SUFFIXES = (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp")
 
 
-def as_thumb_enabled() -> bool:
+def as_thumb_enabled(*, mobile_v2_active: bool = False) -> bool:
     """Return whether mobile AS card thumbnails are enabled.
 
+    Args:
+        mobile_v2_active: ERP mobile v2 cohort active for current user.
+
     Returns:
-        True when ``FOMS_V3_AS_THUMB_ENABLED`` is truthy.
+        True when explicit env is truthy, or env unset and ``mobile_v2_active``.
     """
-    return env_bool("FOMS_V3_AS_THUMB_ENABLED", default=False)
+    return env_bool_or_mobile_v2(
+        "FOMS_V3_AS_THUMB_ENABLED",
+        mobile_v2_active=mobile_v2_active,
+    )
 
 
 def as_stage_badge_modifier(*, status: str, as_pending: bool) -> str:

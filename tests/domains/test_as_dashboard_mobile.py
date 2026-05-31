@@ -72,6 +72,7 @@ def test_as_stage_badge_modifier_cs_pending():
 def test_as_thumb_enabled_respects_env(monkeypatch):
     monkeypatch.delenv("FOMS_V3_AS_THUMB_ENABLED", raising=False)
     assert as_thumb_enabled() is False
+    assert as_thumb_enabled(mobile_v2_active=True) is True
     monkeypatch.setenv("FOMS_V3_AS_THUMB_ENABLED", "true")
     assert as_thumb_enabled() is True
 
