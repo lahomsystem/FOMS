@@ -154,6 +154,16 @@ if (Test-Path $bundleBuilder) {
         if ($LASTEXITCODE -ne 0) {
             throw "harness bundle drift — 위 HARNESS_BUNDLE_*.md를 git add 후 커밋하고 다시 push 하세요 (Harness CI 'Check harness bundle drift'와 동일)."
         }
+        # Inverse trap: bundles match the working tree, but a bundle SOURCE
+        # (manifest / profile yaml) is uncommitted. CI regenerates from the
+        # committed sources, so an uncommitted source makes CI drift even when
+        # local bundles look clean. This is the most common cause of "push마다
+        # Harness CI 실패": bundle committed, source yaml 미커밋.
+        $dirtySources = @(& git status --porcelain -- tools/harness/manifest.yaml tools/harness/profiles | Where-Object { $_ -ne "" })
+        if ($dirtySources.Count -gt 0) {
+            $dirtySources | ForEach-Object { Write-Host "  uncommitted bundle source: $_" -ForegroundColor Red }
+            throw "harness 번들 소스(manifest.yaml/profiles)가 미커밋 상태 — CI는 커밋된 소스로 재생성하므로 드리프트가 납니다. 위 소스를 커밋한 뒤 push 하세요."
+        }
     }
 } else {
     Write-StepSkip "tools/harness/build_context_bundle.py not found"
