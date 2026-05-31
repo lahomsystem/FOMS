@@ -141,6 +141,24 @@ if (Test-Path $ssotPath) {
     Write-StepSkip "tools/design/ssot_lint.py not found"
 }
 
+$bundleBuilder = Join-Path $root "tools\harness\build_context_bundle.py"
+if (Test-Path $bundleBuilder) {
+    Invoke-SmokeStep -Name "Harness bundle drift (regenerate + git diff)" -Action {
+        # Mirror Harness CI 'Check harness bundle drift': regenerate bundles from
+        # sources (AGENTS.md, manifest.yaml profiles, ...) and fail if the committed
+        # HARNESS_BUNDLE_*.md differ. The regenerated files are left in the working
+        # tree so the fix is just `git add` + commit.
+        Invoke-PythonCommand "tools/harness/build_context_bundle.py --all"
+        & git diff --name-only -- docs/harness/bundles/HARNESS_BUNDLE_*.md
+        & git diff --quiet -- docs/harness/bundles/HARNESS_BUNDLE_*.md
+        if ($LASTEXITCODE -ne 0) {
+            throw "harness bundle drift — 위 HARNESS_BUNDLE_*.md를 git add 후 커밋하고 다시 push 하세요 (Harness CI 'Check harness bundle drift'와 동일)."
+        }
+    }
+} else {
+    Write-StepSkip "tools/harness/build_context_bundle.py not found"
+}
+
 if ($Full) {
     Invoke-SmokeStep -Name "Full pytest (no visual, no playwright) — SLOW" -Action {
         Invoke-PythonCommand "-m pytest -v --ignore=tests/visual -p no:playwright"
