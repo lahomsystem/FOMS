@@ -42,9 +42,13 @@ jobs:
   visual:
     runs-on: ubuntu-latest
     needs: test
+    permissions:
+      contents: write
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
     - name: Set up Python 3.12
       uses: actions/setup-python@v5
@@ -59,6 +63,37 @@ jobs:
 
     - name: Install Playwright Chromium
       run: playwright install chromium --with-deps
+
+    - name: Seed Linux baselines when missing
+      id: seed_linux
+      env:
+        DATABASE_URL: "sqlite:///tests/visual/visual_ci.sqlite"
+        SECRET_KEY: "ci-secret-key"
+        FLASK_ENV: "testing"
+        ERP_MOBILE_V2_ENABLED: "false"
+      run: |
+        missing=$(python -c "from pathlib import Path; from tests.visual.conftest import missing_baseline_names, BASELINE_ROOT; print(len(missing_baseline_names(BASELINE_ROOT / 'linux')))")
+        echo "missing=${missing}"
+        if [ "${missing}" = "0" ]; then
+          echo "seeded=false" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        pytest tests/visual/test_visual_regression.py tests/visual/test_erp_mobile_v2_shell_regression.py \
+          --update-snapshots -q -p pytest_playwright
+        echo "seeded=true" >> "$GITHUB_OUTPUT"
+
+    - name: Commit Linux baselines
+      if: steps.seed_linux.outputs.seeded == 'true'
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git add tests/visual/baseline/linux/*.png
+        if git diff --staged --quiet; then
+          echo "No baseline PNG changes to commit."
+          exit 0
+        fi
+        git commit -m "chore: seed visual baselines linux SSOT [skip ci]"
+        git push
 
     - name: Run visual regression tests
       env:

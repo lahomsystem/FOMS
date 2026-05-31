@@ -18,10 +18,10 @@ Manifest: `VISUAL_BASELINE_NAMES` in `tests/visual/conftest.py`.
 
 ### GitHub Actions (recommended)
 
-1. **Auto-seed on push to `deploy`** when `linux/` is incomplete — workflow `visual-baseline-linux.yml`
-2. **Manual**: Actions → *Visual baseline (Linux)* → Run workflow
+1. **CI visual job** (`ci.yml`) — `linux/` 비어 있으면 같은 job에서 `--update-snapshots` 후 compare (자동)
+2. **수동 갱신**: Actions → *Visual baseline (Linux)* → Run workflow
 
-Commit message from bot includes `[skip ci]` to avoid infinite loops.
+Bot 커밋 메시지는 `[skip ci]`를 포함해 무한 루프를 막는다. `deploy` branch protection이 bot push를 막으면 artifact를 받아 수동 커밋한다.
 
 ### Local Windows
 
