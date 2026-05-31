@@ -69,10 +69,21 @@
 
     var params = new URLSearchParams(window.location.search);
     var activeId = params.get("order");
-    if (activeId) {
-      var active = list.querySelector('[data-order-id="' + activeId + '"]');
-      if (active) active.classList.add("is-active");
+
+    // Populate the detail pane on load so no tablet size shows an empty
+    // placeholder: select the ?order card if present, else the first card.
+    // Guarded to when the split is actually visible (tablet band) — on phone
+    // and desktop the split shell is display:none (offsetParent null), so skip
+    // and avoid a wasted detail fetch.
+    function selectInitial() {
+      if (root.offsetParent === null) return;
+      var target = activeId
+        ? list.querySelector('[data-order-id="' + activeId + '"]')
+        : null;
+      if (!target) target = list.querySelector("[data-foms-master-card]");
+      if (target) target.click();
     }
+    selectInitial();
 
     document.body.addEventListener("htmx:afterSwap", function (event) {
       if (!detail.contains(event.detail.target) && event.detail.target !== detail) {

@@ -1,9 +1,14 @@
 /* P1-05 tablet split-view shell.
-   3-tier responsive (mobile-v2 cohort):
+   3-tier responsive (mobile-v2 cohort), purely width-based:
      < 992px         → mobile single-column queue (split hidden)
      992–1365.98px   → tablet master-detail split (THIS shell, legacy hidden)
      ≥ 1366px        → legacy desktop ERP dashboard (split hidden)
-   D03 (태블릿 가로 split 360+fluid) realized here. */
+   D03 (태블릿 가로 split 360+fluid) realized here. The split grid below is
+   orientation-INDEPENDENT: 72+360+detail fits the whole band in both portrait
+   (e.g. iPad Pro 12.9 1024×1366) and landscape, so no orientation gate is used.
+   The earlier P2-08 orientation overlay (orientation-layout.js +
+   foms-orientation-layout.css) hid side-tab+master in portrait, which blanked
+   portrait tablets — it was removed. Do NOT re-introduce a portrait band-aid. */
 
 .foms-split-shell {
   display: block;

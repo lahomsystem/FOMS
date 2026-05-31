@@ -75,13 +75,34 @@ def test_p2_07_swipe_and_haptic() -> None:
     assert "prefers-reduced-motion" in haptic
 
 
-def test_p2_08_orientation_layout() -> None:
-    js = (ROOT / "static/js/foms/orientation-layout.js").read_text(encoding="utf-8")
-    assert "foms-split-landscape" in js
-    css = (ROOT / "static/css/foundation/foms-orientation-layout.css").read_text(encoding="utf-8")
-    assert "foms-split-portrait" in css
+def test_p2_08_orientation_overlay_removed() -> None:
+    """T1: the P2-08 orientation overlay blanked portrait tablets and was removed.
+
+    The split is now orientation-independent (the 72+360+detail grid fits the whole
+    992–1365.98 band in both portrait and landscape). Guard that the band-aid stays
+    gone and is not referenced, and that the detail pane auto-populates so no tablet
+    size shows an empty placeholder.
+    """
+    assert not (ROOT / "static/js/foms/orientation-layout.js").exists()
+    assert not (ROOT / "static/css/foundation/foms-orientation-layout.css").exists()
+
     split = (ROOT / "templates/partials/shared/foms_split_shell.html").read_text(encoding="utf-8")
-    assert "orientation-layout.js" in split
+    assert "orientation-layout.js" not in split
+
+    surfaces = (ROOT / "static/css/foundation/foms-mobile-surfaces.css").read_text(encoding="utf-8")
+    assert "foms-orientation-layout.css" not in surfaces
+
+    bundle = (ROOT / "templates/partials/shared/foms_p2_surface_bundle.html").read_text(encoding="utf-8")
+    assert "orientation-layout.js" not in bundle
+
+    # No orientation gate may hide the split columns (the original blank-screen cause).
+    split_css = (ROOT / "static/css/foundation/foms-split-view.css").read_text(encoding="utf-8")
+    assert "orientation: portrait" not in split_css
+
+    # Detail pane auto-selects on load (covers the wide empty-detail case).
+    shell_js = (ROOT / "static/js/foms/split-shell.js").read_text(encoding="utf-8")
+    assert "selectInitial" in shell_js
+    assert "offsetParent" in shell_js
 
 
 def test_p2_offline_sw_flag_default_off(monkeypatch: pytest.MonkeyPatch) -> None:
