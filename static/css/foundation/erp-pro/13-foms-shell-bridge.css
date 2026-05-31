@@ -32,6 +32,15 @@
   body.erp-mobile-v2-layout .layout-global-nav .navbar-collapse.show {
     display: none !important;
   }
+
+  /* P1 mockup parity: the legacy global brand/account header (layout-header)
+     is replaced by the foms shell header (☰ + title + search) on mobile v2.
+     Account actions (profile/admin/logout) live in the bottom menu drawer.
+     Hidden only below 992px and only for the erp-mobile-v2 cohort layout so
+     desktop ≥992px is untouched. */
+  body.erp-mobile-v2-layout .layout-header {
+    display: none !important;
+  }
 }
 
 /* ≥992px: cohort ERP users may keep desktop global nav */

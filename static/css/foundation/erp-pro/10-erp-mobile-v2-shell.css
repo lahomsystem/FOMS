@@ -247,6 +247,66 @@
     font-weight: 600;
     line-height: 1.3;
   }
+
+  /* Account section: profile / admin / logout migrated from the legacy
+     layout-header (hidden on mobile v2). Keeps logout reachable. */
+  .erp-mobile-menu-drawer__account {
+    margin-top: 1rem;
+    padding-top: 0.875rem;
+    border-top: 1px solid var(--erp-mobile-color-border-soft);
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .erp-mobile-menu-drawer__account-id {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+  }
+
+  .erp-mobile-menu-drawer__account-name {
+    font-family: var(--erp-mobile-font-family);
+    font-size: var(--erp-mobile-font-base);
+    font-weight: 700;
+    color: var(--erp-mobile-color-text);
+  }
+
+  .erp-mobile-menu-drawer__account-role {
+    font-family: var(--erp-mobile-font-family);
+    font-size: var(--erp-mobile-font-xs);
+    color: var(--erp-mobile-color-text-muted);
+  }
+
+  .erp-mobile-menu-drawer__account-links {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .erp-mobile-menu-drawer__account-link {
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 0.875rem;
+    border-radius: var(--erp-mobile-radius-md);
+    border: 1px solid var(--erp-mobile-color-border-soft);
+    background: var(--erp-mobile-color-surface);
+    color: var(--erp-mobile-color-text);
+    font-family: var(--erp-mobile-font-family);
+    font-size: var(--erp-mobile-font-base);
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .erp-mobile-menu-drawer__account-link i {
+    color: var(--erp-mobile-color-brand);
+  }
+
+  .erp-mobile-menu-drawer__account-link--danger,
+  .erp-mobile-menu-drawer__account-link--danger i {
+    color: #c0392b;
+  }
 }
 
 @media (min-width: 992px) {
