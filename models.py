@@ -90,6 +90,7 @@ class Order(Base):
     erp_drawing_updated_at = Column(DateTime, nullable=True)               # workflow.stage_updated_at (DRAWING/CONFIRM용)
     erp_stage_updated_at = Column(DateTime, nullable=True, index=True)     # workflow.stage_updated_at (stage transition truth)
     erp_owner_team_code = Column(String(20), nullable=True, index=True)    # assignments.owner_team
+    erp_phone_digits = Column(String(20), nullable=True, index=True)       # customer phone digits-only (P1-02 search)
 
     # ============================================
     # ChannelTalk 연동 (Phase 0)

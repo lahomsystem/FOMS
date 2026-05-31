@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
 from foms.services.erp_display import _ensure_dict, _normalize_for_search
+from foms.services.phone_search import extract_phone_digit_query, normalize_phone_digits
 from models import Order
 
 SearchGroup = Literal["all", "customer", "order", "drawing"]
@@ -78,12 +79,23 @@ def _order_href(order_id: int) -> str:
     return f"/edit/{order_id}?open=erp-order"
 
 
+def _matches_phone(phone: str | None, erp_phone_digits: str | None, query: str) -> bool:
+    """Match formatted phone text or indexed digit column."""
+    if matches_query(phone, query):
+        return True
+    digits_q = extract_phone_digit_query(query)
+    if not digits_q:
+        return False
+    digits_h = erp_phone_digits or normalize_phone_digits(phone)
+    return bool(digits_h and digits_q in digits_h)
+
+
 def _classify_order_hit(order: Order, query: str) -> set[str]:
     """Return search groups matched by this order."""
     groups: set[str] = set()
     customer = _order_customer_name(order)
     phone = _order_phone(order)
-    if matches_query(customer, query) or matches_query(phone, query):
+    if matches_query(customer, query) or _matches_phone(phone, order.erp_phone_digits, query):
         groups.add("customer")
     order_fields = [
         str(order.id),
@@ -105,8 +117,27 @@ def _classify_order_hit(order: Order, query: str) -> set[str]:
     return groups
 
 
+def _phone_digit_prefilter(db: Session, query: str):
+    """Indexed ``erp_phone_digits`` lookup for digit-heavy queries (P1-02)."""
+    digits = extract_phone_digit_query(query)
+    if not digits:
+        return None
+    q = db.query(Order).filter(Order.active_filter(), Order.is_erp_order.is_(True))
+    return (
+        q.filter(Order.erp_phone_digits.isnot(None))
+        .filter(Order.erp_phone_digits.contains(digits))
+        .order_by(Order.id.desc())
+        .limit(_MAX_SQL_ROWS)
+        .all()
+    )
+
+
 def _base_orders_query(db: Session, query: str):
     """SQL prefilter for non-jamo queries."""
+    phone_hits = _phone_digit_prefilter(db, query)
+    if phone_hits is not None:
+        return phone_hits
+
     q = db.query(Order).filter(Order.active_filter(), Order.is_erp_order.is_(True))
     if is_chosung_query(query):
         return (
