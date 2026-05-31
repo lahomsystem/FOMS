@@ -60,4 +60,4 @@
 
 ## 푸시 전 로컬 검증 (deploy/main)
 
-`deploy` / `main` push **직전** 수동 실행: `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` (APP_OK, harness verify, SSOT lint, CI 자주 실패 pytest subset, ~2–5분). 머지 직전 전체 pytest: `-Full` (느림). **git push 시 자동 실행 아님** — GitHub Actions가 전체 CI를 담당. 에이전트는 push마다 full suite 대신 **사용자가 로컬 스크립트 실행**을 권장 (비용·시간 절약). 상세: [`docs/guides/PRE_PUSH_SMOKE.md`](docs/guides/PRE_PUSH_SMOKE.md).
+`deploy` / `main` push **직전** 수동 실행: `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` (APP_OK, harness verify, SSOT lint, CI 자주 실패 pytest subset, ~2–5분). 머지 직전 전체 pytest: `-Full` (느림). 로컬 Playwright visual regression(win32 baseline, CI 무영향): `-Visual` (playwright 미설치 시 SKIP). **git push 시 자동 실행 아님** — GitHub Actions가 전체 CI를 담당. 에이전트는 push마다 full suite 대신 **사용자가 로컬 스크립트 실행**을 권장 (비용·시간 절약). 상세: [`docs/guides/PRE_PUSH_SMOKE.md`](docs/guides/PRE_PUSH_SMOKE.md).

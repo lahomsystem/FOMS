@@ -112,7 +112,7 @@
 - **선택적 접두어**: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`
 - **대형 변경**: feature 브랜치에서 작업
 - **브랜치 전략**: `deploy` (스테이징) → `production` (운영)
-- **푸시 전 스모크**: `deploy`/`main` push **직전** `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` 실행(APP_OK·harness verify·SSOT lint·CI 자주 실패 pytest subset, ~2–5분). 실패 시 수정 후 재실행하여 exit 0 확인 후 push. git push 자동 실행 아님(GitHub Actions가 전체 CI 담당). 상세: `AGENTS.md § 푸시 전 로컬 검증` + `docs/guides/PRE_PUSH_SMOKE.md`
+- **푸시 전 스모크**: `deploy`/`main` push **직전** `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` 실행(APP_OK·harness verify·SSOT lint·CI 자주 실패 pytest subset, ~2–5분). 실패 시 수정 후 재실행하여 exit 0 확인 후 push. 전체 pytest는 `-Full`, 로컬 Playwright visual regression(win32 baseline, CI 무영향)은 `-Visual`. git push 자동 실행 아님(GitHub Actions가 전체 CI 담당). 상세: `AGENTS.md § 푸시 전 로컬 검증` + `docs/guides/PRE_PUSH_SMOKE.md`
 
 ## 셸 환경 (Claude Code 전용)
 - Claude Code는 **bash 셸** 사용 (Unix 문법: `/dev/null`, `&&`, forward slash). **이 절의 예시는 Claude Code에만 적용**; 저장소 README·규칙 문서에 적는 기본 예시는 PowerShell 5.x를 따른다.

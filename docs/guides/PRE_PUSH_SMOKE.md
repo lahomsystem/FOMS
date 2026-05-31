@@ -24,6 +24,21 @@ powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1 -Full
 
 `-Full`은 CI `test` job과 유사하게 `tests/visual` 제외 전체 pytest를 실행합니다. 수 분 이상 걸릴 수 있습니다.
 
+### 로컬 visual regression (win32 baseline)
+
+```powershell
+powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1 -Visual
+```
+
+`-Visual`은 Playwright 기반 `tests/visual` 전체(PNG regression 포함)를 로컬에서 실행합니다. 약 30초~수 분.
+
+- **선행조건**: `pip install playwright; python -m playwright install chromium`. 미설치 시 `[SKIP]` 후 통과.
+- **env**: `TEMP/TMP=C:\tmp`, `DATABASE_URL=sqlite:///tests/visual/visual_local.sqlite`(live-server fixture가 파일 DB 공유)를 스크립트가 자동 설정.
+- **플랫폼 baseline**: 로컬은 `tests/visual/baseline/win32/`. CI는 `linux` baseline을 쓰므로 **Windows에서 linux baseline을 재생성하지 말 것**. CI는 `--ignore=tests/visual`이라 본 단계가 CI를 게이트하지 않습니다.
+- **baseline 갱신(의도된 시각 변경 시만)**: `$env:TEMP='C:\tmp'; $env:DATABASE_URL='sqlite:///tests/visual/visual_local.sqlite'; python -m pytest tests/visual --update-snapshots` 후 PNG diff 검토하고 커밋.
+
+`-Full -Visual`처럼 조합 가능합니다.
+
 ## 무엇을 검사하나
 
 | 단계 | 설명 |

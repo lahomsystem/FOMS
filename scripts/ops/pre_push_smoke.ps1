@@ -11,11 +11,21 @@
   Slow pre-merge check: full pytest suite (ignores tests/visual, no playwright).
   Expect several minutes.
 
+.PARAMETER Visual
+  Local-only Playwright visual regression (tests/visual, win32 baselines).
+  Requires `pip install playwright; playwright install chromium`. Skipped with a
+  notice when playwright is missing. CI is unaffected (CI ignores tests/visual);
+  baselines are platform-specific so do not regenerate linux baselines here.
+  Combine with default subset or -Full.
+
 .EXAMPLE
   powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1
 
 .EXAMPLE
   powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1 -Full
+
+.EXAMPLE
+  powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1 -Visual
 
 .NOTES
   Win11 / PowerShell 5.x. GitHub Actions still runs the full CI pipeline on push.
@@ -23,7 +33,8 @@
 #>
 
 param(
-    [switch]$Full
+    [switch]$Full,
+    [switch]$Visual
 )
 
 $ErrorActionPreference = "Stop"
@@ -101,7 +112,7 @@ function Invoke-PythonCommand {
 
 Write-Host "FOMS pre-push smoke" -ForegroundColor Cyan
 Write-Host "Root: $root"
-Write-Host "Mode: $(if ($Full) { 'Full (slow)' } else { 'Fast subset' })"
+Write-Host "Mode: $(if ($Full) { 'Full (slow)' } else { 'Fast subset' })$(if ($Visual) { ' + Visual regression' })"
 
 # Test env (matches .github/workflows/ci.yml test job)
 $env:DATABASE_URL = "sqlite:///:memory:"
@@ -164,6 +175,28 @@ if ($Full) {
     } else {
         Write-StepFail "No pytest targets found"
         $script:FailedSteps.Add("Pytest subset")
+    }
+}
+
+if ($Visual) {
+    # Local-only Playwright visual regression. CI ignores tests/visual and uses
+    # linux baselines, so this never gates CI; it catches local win32 drift.
+    & python -c "import playwright" 2>$null
+    $playwrightOk = ($LASTEXITCODE -eq 0)
+
+    if (-not $playwrightOk) {
+        Write-StepSkip "Visual regression — playwright not installed (pip install playwright; python -m playwright install chromium)"
+    } else {
+        if (-not (Test-Path "C:\tmp")) {
+            New-Item -ItemType Directory -Path "C:\tmp" -Force | Out-Null
+        }
+        Invoke-SmokeStep -Name "Visual regression (tests/visual, win32 baselines, local only)" -Action {
+            # File-backed SQLite so the Playwright live-server fixture shares state.
+            $env:TEMP = "C:\tmp"
+            $env:TMP = "C:\tmp"
+            $env:DATABASE_URL = "sqlite:///tests/visual/visual_local.sqlite"
+            Invoke-PythonCommand "-m pytest tests/visual -q"
+        }
     }
 }
 
