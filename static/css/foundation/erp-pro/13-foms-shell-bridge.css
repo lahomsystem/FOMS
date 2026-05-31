@@ -41,6 +41,15 @@
   body.erp-mobile-v2-layout .layout-header {
     display: none !important;
   }
+
+  /* New-order wizard (/add when FOMS_WIZARD_NEW_ORDER_ENABLED) is a mobile-first
+     focused flow with its own stepper header; the legacy global brand header and
+     nav are redundant chrome on mobile. Suppress both below 992px. The wizard is
+     gated by its own flag, so this is independent of the erp-mobile-v2 cohort. */
+  body.foms-wizard-active .layout-header,
+  body.foms-wizard-active .layout-global-nav {
+    display: none !important;
+  }
 }
 
 /* ≥992px: cohort ERP users may keep desktop global nav */

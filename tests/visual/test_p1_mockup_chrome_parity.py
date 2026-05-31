@@ -60,3 +60,20 @@ def test_drawer_exposes_account_actions() -> None:
     assert "erp-mobile-menu-drawer__account" in drawer
     assert "auth.logout" in drawer
     assert "auth.profile" in drawer
+
+
+def test_wizard_suppresses_legacy_header_on_mobile() -> None:
+    """New-order wizard (/add) hides legacy global header + nav below 992px.
+
+    The wizard is a mobile-first focused flow with its own stepper header; the
+    legacy global brand bar must not double up on mobile (mockup parity).
+    """
+    css = _css("foundation/erp-pro/13-foms-shell-bridge.css")
+    block = re.search(r"@media \(max-width: 991\.98px\) \{.*?\n\}", css, re.S)
+    assert block, "expected a max-width:991.98px media block"
+    body = block.group(0)
+    assert "body.foms-wizard-active .layout-header" in body
+    assert "body.foms-wizard-active .layout-global-nav" in body
+    layout = (ROOT / "templates/orders/layout.html").read_text(encoding="utf-8")
+    assert "foms-wizard-active" in layout
+    assert "order_pages.add_order" in layout

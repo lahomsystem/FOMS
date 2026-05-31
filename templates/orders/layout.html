@@ -7,8 +7,11 @@
 {% block styles %}{% endblock %}
 </head>
 
+{% set _body_classes = [] %}
+{% if erp_mobile_v2_enabled and request.path.startswith('/erp') %}{% set _ = _body_classes.append('erp-mobile-v2-layout') %}{% endif %}
+{% if flag_wizard and request.endpoint == 'order_pages.add_order' %}{% set _ = _body_classes.append('foms-wizard-active') %}{% endif %}
 <body
-    class="{% if erp_mobile_v2_enabled and request.path.startswith('/erp') %}erp-mobile-v2-layout{% endif %}"
+    class="{{ _body_classes|join(' ') }}"
     style="width: 100% !important; max-width: 100% !important; margin: 0 !important; padding: 0 !important; box-sizing: border-box;">
 {% include 'partials/shared/layout_nav.html' %}
 
