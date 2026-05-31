@@ -4,6 +4,7 @@
   {% if erp_mobile_v2_enabled %}
     {% include 'partials/shared/erp_mobile_shell.html' %}
   {% endif %}
+  <div class="foms-shell-desktop-only">
   <!-- Modern Header -->
   <header class="erp-pro-header">
     <h1 class="erp-pro-header__title">
@@ -29,6 +30,7 @@
   </header>
   {% set erp_sub_nav_active = 'shipment' %}
   {% include 'partials/shared/erp_sub_nav.html' %}
+  </div>{# /.foms-shell-desktop-only #}
   {# 시공팀은 출고 대시보드에서 수정 불가 (조회만) #}
   {% set can_edit_shipment = (can_edit_erp|default(false)) and (not (is_construction_team|default(false))) %}
 
@@ -41,7 +43,7 @@
   </div>
   {% else %}
   <div class="erp-pro-card">
-    <div class="erp-pro-card__header erp-pro-card__header--filter">
+    <div class="erp-pro-card__header erp-pro-card__header--filter{% if erp_mobile_v2_enabled %} erp-shipment-desktop-filter d-none d-md-block{% endif %}">
       <form class="erp-pro-filter-form erp-pro-filter-form--inline-mobile" method="get">
         <div class="erp-pro-filter-group">
           <label class="erp-pro-filter-label">검색</label>
@@ -114,6 +116,13 @@
     </div>
     {% endif %}
     <div class="card-body">
+      {% if erp_mobile_v2_enabled %}
+      <div class="erp-shipment-mobile-list d-lg-none" aria-label="출고 모바일 큐">
+        <div class="erp-shipment-mobile-list__sticky">
+          {% include 'shipment/partials/shipment_mobile_controls.html' %}
+        </div>
+      </div>
+      {% else %}
       <div class="erp-shipment-mobile-summary d-lg-none" aria-label="출고 작업 요약">
         <span class="erp-shipment-mobile-summary__eyebrow">Shipment Queue</span>
         <div class="erp-shipment-mobile-summary__title-row">
@@ -137,6 +146,7 @@
           </button>
         </div>
       </div>
+      {% endif %}
       <div class="row g-3">
         <div class="col-12 col-xl-2 col-lg-2">
           <div class="card border-0 shadow-sm">

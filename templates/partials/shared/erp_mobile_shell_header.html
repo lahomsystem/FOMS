@@ -1,27 +1,29 @@
-<header class="erp-mobile-shell-header" aria-label="ERP 모바일 셸">
+<header class="erp-mobile-shell-header foms-shell-header" aria-label="ERP 모바일 셸">
   <div class="erp-mobile-shell-header__inner">
-    <a class="erp-mobile-shell-header__home" href="{{ _home_href }}" aria-label="ERP 홈으로 이동">
-      <i class="fas fa-cube"></i>
-    </a>
-    <div class="erp-mobile-shell-header__context">
-      <span class="erp-mobile-shell-header__eyebrow">{{ _eyebrow }}</span>
-      <strong class="erp-mobile-shell-header__title">{{ _current.item.label if _current.item else 'ERP' }}</strong>
-    </div>
     <button
-      class="erp-mobile-shell-header__search"
-      type="button"
-      data-foms-search-open
-      aria-label="통합 검색">
-      <i class="fas fa-search" aria-hidden="true"></i>
-    </button>
-    <button
-      class="erp-mobile-shell-header__menu"
+      class="erp-mobile-shell-header__menu foms-icon-btn"
       type="button"
       data-bs-toggle="offcanvas"
       data-bs-target="#erp-mobile-menu-drawer"
       aria-controls="erp-mobile-menu-drawer"
       aria-label="ERP 메뉴 열기">
-      <i class="fas fa-bars"></i>
+      <i class="fas fa-bars" aria-hidden="true"></i>
     </button>
+    <div class="erp-mobile-shell-header__context">
+      <strong class="erp-mobile-shell-header__title foms-shell-title">{{ mobile_shell_title or (_current.item.label if _current.item else '홈') }}</strong>
+    </div>
+    <button
+      class="erp-mobile-shell-header__search foms-icon-btn"
+      type="button"
+      data-foms-search-open
+      aria-label="통합 검색">
+      <i class="fas fa-search" aria-hidden="true"></i>
+    </button>
+    <a
+      class="erp-mobile-shell-header__notify foms-icon-btn"
+      href="{{ _home_href }}"
+      aria-label="ERP 홈">
+      <i class="fas fa-bell" aria-hidden="true"></i>
+    </a>
   </div>
 </header>

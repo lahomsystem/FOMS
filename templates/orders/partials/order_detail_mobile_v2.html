@@ -1,0 +1,144 @@
+{% from 'partials/shared/foms_order_contact_kv.html' import foms_order_contact_kv %}
+
+<div class="foms-detail-page">
+  <div class="foms-shell-body">
+    <header class="detail-hero foms-detail-hero">
+      <div class="detail-hero__badges foms-detail-hero__badges">
+        <span class="foms-stage-badge foms-stage-badge{{ order.stage_badge_modifier|default('--received') }}">
+          {{ order.stage_badge_label|default(order.stage or '-') }}
+        </span>
+        {% if order.alerts.urgent %}
+          <span class="foms-badge foms-badge--alert">긴급</span>
+        {% endif %}
+      </div>
+      <h1 class="detail-hero__customer foms-detail-hero__customer">{{ order.customer_name or '-' }}</h1>
+      {% if order.product_subtitle %}
+        <p class="detail-hero__product foms-detail-hero__product">{{ order.product_subtitle }}</p>
+      {% endif %}
+    </header>
+
+    {% set safe_phone = (order.phone or '')|replace('-', '')|replace(' ', '') %}
+    {% set has_phone = safe_phone and safe_phone != '-' %}
+    {% set has_address = order.address and order.address != '-' %}
+    {% set copy_summary = (order.customer_name or '') ~ ' / ' ~ (order.phone or '') ~ ' / ' ~ (order.address or '') %}
+
+    <div class="quick-actions foms-quick-actions" role="toolbar" aria-label="빠른 작업">
+      {% if has_phone %}
+        <a class="quick-action foms-quick-action" href="tel:{{ safe_phone }}">
+          <span class="quick-action__icon foms-quick-action__icon"><i class="fas fa-phone"></i></span>
+          전화
+        </a>
+      {% else %}
+        <span class="quick-action foms-quick-action foms-quick-action--disabled" aria-disabled="true">
+          <span class="quick-action__icon foms-quick-action__icon"><i class="fas fa-phone"></i></span>
+          전화
+        </span>
+      {% endif %}
+      {% if has_address %}
+        <a class="quick-action foms-quick-action" href="https://map.kakao.com/?q={{ order.address|urlencode }}" target="_blank" rel="noopener">
+          <span class="quick-action__icon foms-quick-action__icon"><i class="fas fa-map-marker-alt"></i></span>
+          지도
+        </a>
+      {% else %}
+        <span class="quick-action foms-quick-action foms-quick-action--disabled" aria-disabled="true">
+          <span class="quick-action__icon foms-quick-action__icon"><i class="fas fa-map-marker-alt"></i></span>
+          지도
+        </span>
+      {% endif %}
+      {% if has_phone %}
+        <a class="quick-action foms-quick-action" href="sms:{{ safe_phone }}">
+          <span class="quick-action__icon foms-quick-action__icon"><i class="fas fa-comment-dots"></i></span>
+          채팅
+        </a>
+      {% else %}
+        <span class="quick-action foms-quick-action foms-quick-action--disabled" aria-disabled="true">
+          <span class="quick-action__icon foms-quick-action__icon"><i class="fas fa-comment-dots"></i></span>
+          채팅
+        </span>
+      {% endif %}
+      <button
+        type="button"
+        class="quick-action foms-quick-action foms-quick-action--button"
+        data-copy-value="{{ copy_summary|e }}"
+        data-copy-label="주문 요약">
+        <span class="quick-action__icon foms-quick-action__icon"><i class="fas fa-copy"></i></span>
+        복사
+      </button>
+    </div>
+
+    <section class="foms-detail-section" aria-labelledby="foms-detail-contact-title">
+      <div class="foms-detail-section__head">
+        <h2 class="foms-detail-section__title" id="foms-detail-contact-title">연락 · 일정</h2>
+      </div>
+      {{ foms_order_contact_kv(order, include_manager=true, include_schedule=true) }}
+    </section>
+
+    {% if order.current_quest and order.current_quest.title %}
+      <section class="foms-detail-section" aria-labelledby="foms-detail-quest-title">
+        <div class="foms-detail-section__head">
+          <h2 class="foms-detail-section__title" id="foms-detail-quest-title">현재 작업</h2>
+        </div>
+        <p class="mb-0">{{ order.current_quest.title }}</p>
+      </section>
+    {% endif %}
+
+    {% if order.attachments %}
+      <section class="foms-detail-section" aria-labelledby="foms-detail-attach-title">
+        <div class="foms-detail-section__head">
+          <h2 class="foms-detail-section__title" id="foms-detail-attach-title">첨부</h2>
+          <span class="foms-detail-section__count">{{ order.attachments_count }}건</span>
+        </div>
+        <div class="attach-grid foms-attach-grid">
+          {% for att in order.attachments %}
+            <a
+              class="attach-item foms-attach-item foms-attach-item--{{ att.category }}"
+              href="{{ url_for('order_edit.edit_order', order_id=order.id, open='erp-order') }}#attachments"
+              title="{{ att.label }}">
+              <span class="attach-item__label foms-attach-item__label">{{ att.label }}</span>
+            </a>
+          {% endfor %}
+          <a
+            class="attach-add foms-attach-add"
+            href="{{ url_for('order_edit.edit_order', order_id=order.id, open='erp-order') }}#attachments"
+            aria-label="첨부 추가">
+            <i class="fas fa-plus" aria-hidden="true"></i>
+          </a>
+        </div>
+      </section>
+    {% elif order.attachments_count is defined and order.attachments_count > 0 %}
+      <section class="foms-detail-section" aria-labelledby="foms-detail-attach-title">
+        <div class="foms-detail-section__head">
+          <h2 class="foms-detail-section__title" id="foms-detail-attach-title">첨부</h2>
+        </div>
+        <p class="mb-0 foms-tabular">{{ order.attachments_count }}건</p>
+      </section>
+    {% endif %}
+
+    {% if order.timeline_events %}
+      <section class="foms-detail-section" aria-labelledby="foms-detail-timeline-title">
+        <div class="foms-detail-section__head">
+          <h2 class="foms-detail-section__title" id="foms-detail-timeline-title">타임라인</h2>
+        </div>
+        <div class="timeline foms-timeline">
+          {% for ev in order.timeline_events %}
+            <div class="timeline-item foms-timeline-item{% if ev.done %} timeline-item--done foms-timeline-item--done{% endif %}">
+              <div class="timeline-item__dot foms-timeline-item__dot" aria-hidden="true">✓</div>
+              <div class="timeline-item__body foms-timeline-item__body">
+                <h3 class="timeline-item__title foms-timeline-item__title">{{ ev.title }}</h3>
+                {% if ev.meta %}
+                  <span class="timeline-item__meta foms-timeline-item__meta">{{ ev.meta }}</span>
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </section>
+    {% endif %}
+  </div>
+
+  <div class="foms-detail-sticky-cta">
+    <a class="foms-btn foms-btn--primary foms-btn--full" href="{{ url_for('order_edit.edit_order', order_id=order.id, open='erp-order') }}">
+      ERP 주문 편집
+    </a>
+  </div>
+</div>

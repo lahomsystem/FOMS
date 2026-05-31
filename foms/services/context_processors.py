@@ -7,7 +7,7 @@ from typing import Any
 
 from flask import g, session, url_for
 
-from foms.services.feature_flags import env_bool, is_enabled_for_user
+from foms.services.feature_flags import env_bool, env_bool_or_mobile_v2, is_enabled_for_user
 from foms.services.dashboard_counts import get_nav_badge_counts
 from foms.web.auth import ROLES
 from foms.services.orders.status_constants import BULK_ACTION_STATUS, STATUS
@@ -139,16 +139,22 @@ def inject_foms_flags() -> dict[str, Any]:
     """Inject v1.1 design feature flags for template cohort rollout."""
     current_user = getattr(g, "current_user", None)
     uid = current_user.id if current_user else None
+    mobile_v2 = is_enabled_for_user(
+        "ERP_MOBILE_V2_ENABLED",
+        uid,
+        cohort_key="FOMS_V3_SHELL_COHORT",
+    )
+    split_flag = env_bool_or_mobile_v2(
+        "FOMS_TABLET_SPLIT_VIEW_ENABLED",
+        mobile_v2_active=mobile_v2,
+    )
     return {
-        "flag_mobile_v2": is_enabled_for_user(
-            "ERP_MOBILE_V2_ENABLED",
-            uid,
-            cohort_key="FOMS_V3_SHELL_COHORT",
-        ),
+        "flag_mobile_v2": mobile_v2,
         "flag_tokens_v2": env_bool("FOMS_DESIGN_TOKENS_V2_ENABLED", True),
         "flag_wizard": env_bool("FOMS_WIZARD_NEW_ORDER_ENABLED"),
         "flag_inline": env_bool("FOMS_INLINE_EDIT_ENABLED"),
-        "flag_split_view": env_bool("FOMS_TABLET_SPLIT_VIEW_ENABLED"),
+        "flag_split_view": split_flag,
+        "foms_split_enabled": mobile_v2 and split_flag,
         "flag_rum_baseline": env_bool("FOMS_RUM_BASELINE_ENABLED", True),
         "flag_offline_sw": env_bool("FOMS_OFFLINE_SW_ENABLED"),
         "flag_bottom_nav_htmx": env_bool("FOMS_BOTTOM_NAV_HTMX_ENABLED"),

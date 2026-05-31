@@ -1,0 +1,18 @@
+{# C01: FOMS app shell — single mobile chrome entry (mockup shell-header + bottom nav) #}
+<div
+  class="foms-app-shell erp-mobile-shell-chrome"
+  data-foms-app-shell
+  data-erp-mobile-shell
+  data-offline-sw="{{ 'true' if flag_offline_sw else 'false' }}"
+  data-bottom-nav-htmx="{{ 'true' if flag_bottom_nav_htmx else 'false' }}">
+  {% include 'partials/shared/erp_mobile_shell_header.html' %}
+  {% include 'partials/shared/erp_mobile_bottom_nav.html' %}
+  {% include 'partials/shared/erp_mobile_menu_drawer.html' %}
+  {% include 'partials/shared/foms_search_overlay.html' %}
+  {% include 'partials/shared/htmx_layout.html' %}
+  {% include 'partials/shared/foms_p2_surface_bundle.html' %}
+  <script src="{{ url_for('static', filename='js/foms/search.js') }}?v=20260531c" defer></script>
+  <script src="{{ url_for('static', filename='js/foms/kv-copy.js') }}?v=20260531c" defer></script>
+  <script src="{{ url_for('static', filename='js/foms/mobile-queue-scroll.js') }}?v=20260531c" defer></script>
+  <script src="{{ url_for('static', filename='js/runtime/erp-mobile-shell.js') }}?v=20260402a" defer></script>
+</div>

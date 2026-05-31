@@ -1,27 +1,28 @@
 
 /* ===== ERP Mobile V2 Shell (mobile-only, desktop untouched) ===== */
 :root {
-  --erp-mobile-shell-nav-height: 72px;
-  --erp-mobile-font-family: "72", "72full", "Segoe UI", "Malgun Gothic", Arial, sans-serif;
-  --erp-mobile-font-xs: 0.75rem;
-  --erp-mobile-font-sm: 0.8125rem;
-  --erp-mobile-font-base: 0.875rem;
-  --erp-mobile-font-md: 0.9375rem;
-  --erp-mobile-font-lg: 1rem;
-  --erp-mobile-color-app-bg: #f5f6f7;
-  --erp-mobile-color-surface: #ffffff;
-  --erp-mobile-color-surface-alt: #f7f7f7;
-  --erp-mobile-color-selected: #ebf8ff;
-  --erp-mobile-color-border: #d9d9d9;
-  --erp-mobile-color-border-soft: #e5e5e5;
-  --erp-mobile-color-text: #131e29;
-  --erp-mobile-color-text-muted: #556b82;
-  --erp-mobile-color-brand: #0070f2;
-  --erp-mobile-color-brand-strong: #0057d2;
+  /* D09 phase 2: legacy --erp-mobile-* alias to --foms-* (Pretendard via foms-mobile-surfaces) */
+  --erp-mobile-shell-nav-height: var(--foms-shell-bottom-nav-h, 72px);
+  --erp-mobile-font-family: var(--foms-font-sans, "Pretendard", "Segoe UI", sans-serif);
+  --erp-mobile-font-xs: var(--foms-font-size-xs, 0.75rem);
+  --erp-mobile-font-sm: var(--foms-font-size-sm, 0.8125rem);
+  --erp-mobile-font-base: var(--foms-font-size-base, 0.875rem);
+  --erp-mobile-font-md: var(--foms-font-size-md, 0.9375rem);
+  --erp-mobile-font-lg: var(--foms-font-size-lg, 1rem);
+  --erp-mobile-color-app-bg: var(--foms-surface-overlay, #f5f6f7);
+  --erp-mobile-color-surface: var(--foms-surface-base, #ffffff);
+  --erp-mobile-color-surface-alt: var(--foms-surface-muted, #f7f7f7);
+  --erp-mobile-color-selected: var(--foms-interactive-secondary, #ebf8ff);
+  --erp-mobile-color-border: var(--foms-border-default, #d9d9d9);
+  --erp-mobile-color-border-soft: var(--foms-border-subtle, #e5e5e5);
+  --erp-mobile-color-text: var(--foms-text-primary, #131e29);
+  --erp-mobile-color-text-muted: var(--foms-text-secondary, #556b82);
+  --erp-mobile-color-brand: var(--foms-interactive-primary, #0070f2);
+  --erp-mobile-color-brand-strong: var(--foms-color-brand-700, #0057d2);
   --erp-mobile-color-shadow: rgba(17, 24, 39, 0.08);
-  --erp-mobile-radius-sm: 0.5rem;
-  --erp-mobile-radius-md: 0.75rem;
-  --erp-mobile-radius-lg: 1rem;
+  --erp-mobile-radius-sm: var(--foms-radius-sm, 0.5rem);
+  --erp-mobile-radius-md: var(--foms-radius-md, 0.75rem);
+  --erp-mobile-radius-lg: var(--foms-radius-lg, 1rem);
 }
 
 .erp-mobile-shell-chrome {
@@ -38,7 +39,8 @@
     display: block;
   }
 
-  .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-pro-header {
+  /* P1 mockup: legacy erp-pro-header hidden when foms-shell.css active (body.erp-mobile-v2-layout) */
+  body:not(.erp-mobile-v2-layout) .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-pro-header {
     display: flex;
     flex-direction: column;
     align-items: stretch;

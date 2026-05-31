@@ -1,0 +1,120 @@
+{% from 'partials/shared/erp_mobile_queue_card_v2.html' import render_queue_card_v2 %}
+
+{% set _filters = filters or {} %}
+{% set _base_url = url_for('erp_dashboard.erp_dashboard') %}
+{% set _sort = _filters.get('sort') or 'latest' %}
+{% set _chip_params = [] %}
+{% if _filters.get('q') %}{% set _ = _chip_params.append('q=' ~ (_filters.q|urlencode)) %}{% endif %}
+{% if _filters.get('team') %}{% set _ = _chip_params.append('team=' ~ (_filters.team|urlencode)) %}{% endif %}
+{% if _filters.get('mine') %}{% set _ = _chip_params.append('mine=' ~ (_filters.mine|urlencode)) %}{% endif %}
+{% if _filters.get('stage') %}{% set _ = _chip_params.append('stage=' ~ (_filters.stage|urlencode)) %}{% endif %}
+{% if _filters.get('urgent') %}{% set _ = _chip_params.append('urgent=' ~ (_filters.urgent|urlencode)) %}{% endif %}
+{% if _filters.get('has_alert') %}{% set _ = _chip_params.append('has_alert=' ~ (_filters.has_alert|urlencode)) %}{% endif %}
+{% if _filters.get('alert_type') %}{% set _ = _chip_params.append('alert_type=' ~ (_filters.alert_type|urlencode)) %}{% endif %}
+{% if _sort and _sort != 'latest' %}{% set _ = _chip_params.append('sort=' ~ (_sort|urlencode)) %}{% endif %}
+{% set _urgent_orders = [] %}
+{% set _other_orders = [] %}
+{% for o in orders %}
+  {% if o.alerts.urgent or o.alerts.drawing_overdue %}
+    {% set _ = _urgent_orders.append(o) %}
+  {% else %}
+    {% set _ = _other_orders.append(o) %}
+  {% endif %}
+{% endfor %}
+
+<section
+  class="foms-shell-body foms-mobile-v2-dashboard"
+  aria-label="모바일 홈 대시보드"
+  data-foms-mobile-queue-scroll
+  data-next-page="{{ page + 1 if page < total_pages else 0 }}"
+  data-total-pages="{{ total_pages }}"
+  data-page-label="{{ page }} / {{ total_pages }}">
+  <nav class="chip-strip foms-chip-strip" aria-label="필터">
+    <a
+      class="chip foms-chip{% if not _filters.get('stage') and not _filters.get('urgent') and not _filters.get('has_alert') and not _filters.get('alert_type') %} is-active{% endif %}"
+      href="{{ _base_url }}{% if _chip_params %}?{{ _chip_params|join('&') }}{% endif %}">
+      전체 ({{ total_orders }})
+    </a>
+    <a
+      class="chip foms-chip{% if _filters.get('alert_type') == 'urgent' or _filters.get('urgent') == '1' %} is-active{% endif %}"
+      href="{{ _base_url }}?{% if _chip_params %}{{ _chip_params|join('&') }}&{% endif %}alert_type=urgent">
+      긴급 ({{ kpis.urgent_count }})
+    </a>
+    <a
+      class="chip foms-chip{% if _filters.get('has_alert') == '1' %} is-active{% endif %}"
+      href="{{ _base_url }}?{% if _chip_params %}{{ _chip_params|join('&') }}&{% endif %}has_alert=1">
+      미처리
+    </a>
+    <a
+      class="chip foms-chip{% if _filters.get('mine') == '1' %} is-active{% endif %}"
+      href="{{ _base_url }}?{% if _chip_params %}{{ _chip_params|join('&') }}&{% endif %}mine=1">
+      내 작업
+    </a>
+  </nav>
+
+  <nav class="chip-strip foms-chip-strip foms-chip-strip--sort" aria-label="정렬">
+    <a
+      class="chip foms-chip{% if _sort == 'latest' %} is-active{% endif %}"
+      href="{{ _base_url }}?{% if _chip_params %}{{ _chip_params|join('&') }}&{% endif %}sort=latest">
+      최신순
+    </a>
+    <a
+      class="chip foms-chip{% if _sort == 'schedule' %} is-active{% endif %}"
+      href="{{ _base_url }}?{% if _chip_params %}{{ _chip_params|join('&') }}&{% endif %}sort=schedule">
+      일정순
+    </a>
+    {% if page and total_pages %}
+      <span class="chip foms-chip foms-chip--meta" data-foms-mobile-queue-page>{{ page }} / {{ total_pages }}</span>
+    {% endif %}
+  </nav>
+
+  {% if orders %}
+    <div class="foms-mobile-queue-list" data-foms-mobile-queue-list>
+      <div data-foms-mobile-queue-chunk>
+      {% if _urgent_orders %}
+        <div class="foms-section-header section-header">
+          <h2 class="section-header__title foms-section-header__title">긴급 · 오늘 처리 필요</h2>
+          <span class="section-header__count foms-section-header__count">{{ _urgent_orders|length }}건</span>
+        </div>
+        {% for o in _urgent_orders %}
+          {{ render_queue_card_v2(o, can_edit_erp|default(false)) }}
+        {% endfor %}
+      {% endif %}
+
+      {% if _other_orders %}
+        <div class="foms-section-header section-header">
+          <h2 class="section-header__title foms-section-header__title">작업 큐</h2>
+          <span class="section-header__count foms-section-header__count">{{ _other_orders|length }}건</span>
+        </div>
+        {% for o in _other_orders %}
+          {{ render_queue_card_v2(o, can_edit_erp|default(false)) }}
+        {% endfor %}
+      {% endif %}
+      </div>
+    </div>
+
+    {% if page < total_pages %}
+      <div class="foms-mobile-queue-more" data-foms-mobile-queue-sentinel>
+        <a
+          class="foms-btn foms-btn--secondary foms-btn--full"
+          href="{{ _base_url }}?{% if _chip_params %}{{ _chip_params|join('&') }}&{% endif %}page={{ page + 1 }}">
+          더 보기 ({{ page }}/{{ total_pages }})
+        </a>
+      </div>
+    {% endif %}
+  {% else %}
+    <div class="foms-mobile-empty">
+      <i class="fas fa-inbox" aria-hidden="true"></i>
+      <p class="mb-1">조건에 맞는 주문이 없습니다.</p>
+      <small>칩 필터를 바꾸거나 검색어를 지워 보세요.</small>
+      <a class="foms-btn foms-btn--primary foms-btn--sm mt-3" href="{{ _base_url }}">필터 초기화</a>
+    </div>
+  {% endif %}
+
+  <a
+    class="foms-shell-fab"
+    href="{{ url_for('order_pages.add_order', open='erp-order') }}"
+    aria-label="주문 생성">
+    <i class="fas fa-plus" aria-hidden="true"></i>
+  </a>
+</section>

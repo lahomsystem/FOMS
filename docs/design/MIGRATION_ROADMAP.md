@@ -722,6 +722,23 @@ class OrderDraft(Base):
 | SSOT stale | `ssot_lint.py` PASS |
 | mockup/spec/code | C14 accordion · KV 15파일 manifest · split HTMX |
 
+### P1 visual/mockup gate (2026-05-31)
+
+> **Wiring gate와 분리** — 플래그·API·KV macro는 위 게이트; 아래는 mockup DOM/CSS·cohort 가시성만 검증.  
+> DoD checklist: `docs/design/P1_VISUAL_DOD.md` (REDESIGN §6).
+
+| 항목 | 결과 |
+|---|---|
+| C01 `foms_app_shell.html` | ✅ `erp_mobile_shell.html` alias |
+| Mockup CSS bundle | ✅ `foms-shell.css` + chip/queue/detail-hero |
+| Dashboard mobile v2 body | ✅ chips · sort · urgent/other sections · infinite scroll sentinel |
+| Mobile order detail route | ✅ `/erp/orders/<id>/mobile` + hero/timeline/attach grid |
+| Desktop chrome hide (mobile v2) | ✅ `foms-shell.css` `.erp-pro-header` / `.erp-pro-nav` |
+| D09 token alias phase 2 | ✅ `10-erp-mobile-v2-shell.css` `:root` `--foms-*` bridge |
+| Structure tests | ✅ `test_p1_mockup_structure.py` |
+| Visibility gate | ✅ `test_p1_mockup_visual_gate.py` (no `display:none` ancestor) |
+| Visual regression | ✅ `test_erp_mobile_v2_shell_regression.py` 6 baselines |
+
 ---
 
 ## P2 — 중기 (3개월)

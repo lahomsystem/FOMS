@@ -1,0 +1,152 @@
+/* P1 mockup — queue card list (mobile-home-dashboard.html) */
+
+@media (max-width: 991.98px) {
+  body.erp-mobile-v2-layout .foms-mobile-queue-list {
+    display: grid;
+    gap: var(--foms-space-3);
+  }
+
+  body.erp-mobile-v2-layout .queue-card,
+  body.erp-mobile-v2-layout .foms-queue-card-v2 {
+    display: grid;
+    gap: var(--foms-space-2);
+    padding: var(--foms-space-3);
+    background: var(--foms-surface-base);
+    border-radius: var(--foms-radius-lg);
+    box-shadow: var(--foms-shadow-sm);
+  }
+
+  body.erp-mobile-v2-layout .queue-card__head,
+  body.erp-mobile-v2-layout .foms-queue-card-v2__head {
+    display: flex;
+    align-items: center;
+    gap: var(--foms-space-2);
+    flex-wrap: wrap;
+  }
+
+  body.erp-mobile-v2-layout .queue-card__time,
+  body.erp-mobile-v2-layout .foms-queue-card-v2__time {
+    margin-left: auto;
+    font-size: var(--foms-font-size-xs);
+    color: var(--foms-text-tertiary);
+  }
+
+  body.erp-mobile-v2-layout .queue-card__title,
+  body.erp-mobile-v2-layout .foms-queue-card-v2__title {
+    margin: 0;
+    font-size: var(--foms-font-size-lg);
+    font-weight: var(--foms-font-weight-semibold);
+    line-height: var(--foms-line-height-snug);
+  }
+
+  body.erp-mobile-v2-layout .queue-card__subtitle,
+  body.erp-mobile-v2-layout .foms-queue-card-v2__subtitle {
+    display: block;
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-normal);
+    color: var(--foms-text-secondary);
+    margin-top: 2px;
+  }
+
+  body.erp-mobile-v2-layout .queue-card__meta,
+  body.erp-mobile-v2-layout .foms-queue-card-v2__meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--foms-space-1) var(--foms-space-3);
+    margin: 0;
+    font-size: var(--foms-font-size-sm);
+  }
+
+  body.erp-mobile-v2-layout .queue-card__meta dt,
+  body.erp-mobile-v2-layout .foms-queue-card-v2__meta dt {
+    font-size: var(--foms-font-size-xs);
+    color: var(--foms-text-tertiary);
+    margin: 0;
+  }
+
+  body.erp-mobile-v2-layout .queue-card__meta dd,
+  body.erp-mobile-v2-layout .foms-queue-card-v2__meta dd {
+    margin: 0;
+    color: var(--foms-text-primary);
+  }
+
+  body.erp-mobile-v2-layout .queue-card__meta a,
+  body.erp-mobile-v2-layout .foms-queue-card-v2__meta a {
+    color: var(--foms-text-link);
+  }
+
+  body.erp-mobile-v2-layout .queue-card__action,
+  body.erp-mobile-v2-layout .foms-queue-card-v2__action {
+    display: flex;
+    gap: var(--foms-space-2);
+    padding-top: var(--foms-space-2);
+    border-top: 1px solid var(--foms-border-subtle);
+  }
+
+  body.erp-mobile-v2-layout .queue-card__action .foms-btn,
+  body.erp-mobile-v2-layout .foms-queue-card-v2__action .foms-btn {
+    flex: 1;
+  }
+
+  body.erp-mobile-v2-layout .queue-card__attachments,
+  body.erp-mobile-v2-layout .foms-queue-card-v2__attachments {
+    display: flex;
+    gap: var(--foms-space-2);
+    align-items: center;
+  }
+
+  body.erp-mobile-v2-layout .queue-card__attach-thumb,
+  body.erp-mobile-v2-layout .foms-queue-card-v2__attach-thumb {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--foms-radius-md);
+    background: linear-gradient(135deg, var(--foms-color-neutral-300), var(--foms-color-neutral-500));
+    flex-shrink: 0;
+  }
+
+  body.erp-mobile-v2-layout .queue-card__attach-more,
+  body.erp-mobile-v2-layout .foms-queue-card-v2__attach-more {
+    font-size: var(--foms-font-size-xs);
+    color: var(--foms-text-tertiary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  body.erp-mobile-v2-layout .section-header,
+  body.erp-mobile-v2-layout .foms-section-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: var(--foms-space-2) 0;
+  }
+
+  body.erp-mobile-v2-layout .section-header__title,
+  body.erp-mobile-v2-layout .foms-section-header__title {
+    font-size: var(--foms-font-size-xs);
+    font-weight: var(--foms-font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--foms-text-tertiary);
+    margin: 0;
+  }
+
+  body.erp-mobile-v2-layout .section-header__count,
+  body.erp-mobile-v2-layout .foms-section-header__count {
+    font-size: var(--foms-font-size-xs);
+    color: var(--foms-text-tertiary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  body.erp-mobile-v2-layout .foms-mobile-empty {
+    text-align: center;
+    padding: var(--foms-space-8) var(--foms-space-4);
+    color: var(--foms-text-secondary);
+    background: var(--foms-surface-base);
+    border-radius: var(--foms-radius-lg);
+  }
+
+  body.erp-mobile-v2-layout .foms-mobile-empty i {
+    font-size: 2rem;
+    color: var(--foms-text-tertiary);
+    margin-bottom: var(--foms-space-3);
+  }
+}

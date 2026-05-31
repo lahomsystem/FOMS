@@ -3,7 +3,14 @@
   <p class="foms-wizard__subtitle">시공할 제품을 추가해주세요</p>
 
   <div id="foms-wizard-products">
-    <div class="foms-wizard__product-card" data-product-index="0">
+    <div class="foms-product-item foms-wizard__product-card" data-product-index="0">
+      <div class="foms-product-item__head" data-foms-product-toggle role="button" tabindex="0" aria-expanded="true">
+        <span class="foms-product-item__index">#1</span>
+        <span class="foms-product-item__title" data-foms-product-title>제품 1</span>
+        <button type="button" class="foms-product-item__expand" aria-label="펼치기">▾</button>
+      </div>
+      <p class="foms-product-item__summary" data-foms-product-summary>제품명을 입력하세요</p>
+      <div class="foms-product-item__body">
       <div class="foms-wizard__field">
         <label class="field__label foms-wizard__label--required">제품명</label>
         <input class="foms-input" name="product_name" data-wizard-field data-product-field="product_name" placeholder="예: 거실 몰딩라운드장" @input="clear('product_name')" />
@@ -44,6 +51,21 @@
           <label class="field__label">금액(원)</label>
           <input class="foms-input foms-tabular" data-wizard-field data-product-field="price" inputmode="numeric" placeholder="0" />
         </div>
+      </div>
+      <div class="foms-wizard__field foms-wizard__attachments" data-wizard-attachments>
+        <label class="field__label">실측 이미지</label>
+        <div class="foms-photo-capture foms-wizard__photo-capture" data-foms-photo-capture data-target-input="wiz-attach-input-0">
+          <div class="foms-photo-capture__actions foms-wizard__photo-actions">
+            <button type="button" class="foms-btn foms-btn--primary foms-btn--sm" data-action="camera">📷 촬영</button>
+            <button type="button" class="foms-btn foms-btn--secondary foms-btn--sm" data-action="gallery">🖼 갤러리</button>
+          </div>
+          <input type="file" id="wiz-attach-input-0" class="visually-hidden" data-wizard-attachment-input
+            multiple accept="image/*,video/*,.gif" capture="environment" tabindex="-1" aria-hidden="true" />
+          <input type="file" class="visually-hidden foms-photo-capture__gallery-input"
+            multiple accept="image/*,video/*,.gif" tabindex="-1" aria-hidden="true" />
+        </div>
+        <div class="foms-wizard__attachment-preview" data-wizard-attachment-preview data-empty="true"></div>
+      </div>
       </div>
     </div>
   </div>

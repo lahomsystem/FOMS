@@ -169,15 +169,17 @@ v1.0 audit 오류 정정 + 외부 LLM 평가 5건 + 사용자 지적 2건 흡수
 3. ✅ **외부 LLM 평가 2회차 (v1.1이 SSOT 위반)** — 본 파일·ROADMAP·REVIEW_ENTRY 직접 흡수 완료
 4. ✅ **(3회차) Claude Code SSOT 재검증 완료** — v1.1 SSOT 9.2/10, 의미적 stale 0건 확인
 5. 🟡 **4회차 독립 LLM blind 평가** — 점수 비공개 prompt로 self-confirming bias 차단
-6. 🟡 `docs/AI_STATUS.md`에 본 작업 등록 + `docs/harness/policy/DECISIONS.md`에 Decision Log 10건 등록
-7. 🟡 보완 액션 Top 3 — FAB overlap 시각 검증·Railway Cron ops 등록 (코드 완료 항목은 ✅)
+6. ✅ `docs/harness/policy/DECISIONS.md`에 Decision Log D01~D10 등록 (2026-05-31)
+7. 🟡 보완 액션 Top 3 — FAB overlap 시각 검증·Railway Cron ops 등록 (`scripts/ops/verify_mobile_v2_rollout.ps1` preflight OK)
 8. ✅ P0-01~07 코드·테스트 완료 — cohort Day 1~7 ops rollout + KPI RUM baseline 운영 확인
 9. ✅ P0-00 포함 P0 8개 PR 58h(약 7 작업일) 코드 게이트 통과 — ops(cohort 일지·Cron deploy)만 잔여
-10. ✅ P1-01~07 코드·게이트 완료 — flag default OFF, pytest/visual/UX smoke PASS (`MIGRATION_ROADMAP.md` P1 게이트)
+10. ✅ P1-01~07 **코드 wiring·게이트** 완료 — flag default OFF, pytest/visual/UX smoke PASS (`MIGRATION_ROADMAP.md` P1 게이트)
+10b. ✅ P1 **목업 시각 레이어** (wiring gate #10과 분리) — DoD: `P1_VISUAL_DOD.md` · C01 `foms_app_shell.html` · mockup CSS bundle · `dashboard_mobile_v2_body` (sort/urgent sections/scroll) · `/erp/orders/<id>/mobile` (timeline/attach/copy) · `test_p1_mockup_structure.py` + `test_p1_mockup_visual_gate.py` · ROADMAP **P1 visual/mockup gate**
 11. ✅ P2-01~08 코드·게이트 완료 — `test_p2_gate.py` + `test_p2_htmx_fragment.py` + visual **15** PASS
 12. ✅ P3-01~04 코드·게이트 완료 — `test_p3_gate.py` **6** tests, `FOMS_BOTTOM_NAV_HTMX_ENABLED` default OFF
-13. 🟡 사용자 cohort (안중훈씨) 7일 사용 일지 + 인터뷰
-14. 🟡 P2/P3 ops — `FOMS_OFFLINE_SW_ENABLED` · `FOMS_BOTTOM_NAV_HTMX_ENABLED` cohort 실기기 검증
+13. 🟡 사용자 cohort (안중훈씨) 7일 사용 일지 + 인터뷰 — env template: `scripts/ops/mobile_v2_railway_env.example`
+14. 🟡 P2/P3 ops — `FOMS_OFFLINE_SW_ENABLED` · `FOMS_BOTTOM_NAV_HTMX_ENABLED` cohort 실기기 검증 (`test_mobile_device_qa_contract.py` contract PASS)
+15. ✅ 출고 모바일 sticky search/filter — `shipment_mobile_controls.html` (optional P0 gap)
 
 ---
 

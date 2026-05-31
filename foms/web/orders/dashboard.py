@@ -25,13 +25,18 @@ from foms.services.erp_display import (
     _erp_alerts,
     _erp_has_media,
 )
+from foms.services.erp_mobile_order_display import (
+    product_subtitle_from_sd,
+    stage_badge_label,
+    stage_badge_modifier,
+)
 from foms.services.common.business_calendar import business_days_until
 from foms.services.erp_order_detail import build_order_detail_payload_map
 from foms.services.erp_shipment_settings import is_order_mine_for_user
 from foms.services.orders.status_constants import BULK_ACTION_STATUS
 from foms.services.request_utils import get_search_query_arg
 from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
-from foms.services.feature_flags import env_bool
+from foms.services.feature_flags import env_bool, env_bool_or_mobile_v2, is_enabled_for_user
 from foms.services.foms_split_view import build_split_master_cards, default_split_side_items
 from foms.services.common.dashboard_cache import (
     TTL_ATTACHMENT_COUNT_MAP,
@@ -121,6 +126,9 @@ def erp_dashboard():
     f_q = get_search_query_arg('q', 'search')
     effective_stage = '' if f_q else f_stage
     f_team = (request.args.get('team') or '').strip()
+    f_sort = (request.args.get('sort') or 'latest').strip()
+    if f_sort not in ('latest', 'schedule'):
+        f_sort = 'latest'
 
     # Phase H: 대시보드 운영 화면은 최근 활성 데이터만 조회 (과거 완료건 제외)
     _q = db.query(Order).filter(Order.dashboard_active_filter(days=60), Order.is_erp_order.is_(True))
@@ -280,6 +288,17 @@ def erp_dashboard():
             'stage': stage,
             'alerts': alerts,
         })
+
+    if f_sort == 'schedule':
+        def _schedule_sort_key(item: dict) -> str:
+            schedule = (item.get('_sd') or {}).get('schedule') or {}
+            md = (schedule.get('measurement') or {}).get('date') or '9999-99-99'
+            cd = (schedule.get('construction') or {}).get('date') or '9999-99-99'
+            return min(str(md), str(cd))
+
+        filtered.sort(key=_schedule_sort_key)
+    else:
+        filtered.sort(key=lambda item: item['_order'].id, reverse=True)
 
     # --- A-0. kpis / step_stats 집계 (limit 무관하게 _q_stats에서 산출) ---
     _summary_fp = {
@@ -656,6 +675,9 @@ def erp_dashboard():
             'attachments_count': cnt,
             'recommended_owner_team': recommend_owner_team(sd) or None,
             'current_quest': quest_payload,
+            'stage_badge_modifier': stage_badge_modifier(stage),
+            'stage_badge_label': stage_badge_label(stage),
+            'product_subtitle': product_subtitle_from_sd(sd),
         })
 
     paginated_orders = enriched
@@ -713,6 +735,16 @@ def erp_dashboard():
         else 'orders/dashboard.html'
     )
     _t0 = time.perf_counter()
+    uid = current_user.id if current_user else None
+    mobile_v2 = is_enabled_for_user(
+        "ERP_MOBILE_V2_ENABLED",
+        uid,
+        cohort_key="FOMS_V3_SHELL_COHORT",
+    )
+    split_enabled = mobile_v2 and env_bool_or_mobile_v2(
+        "FOMS_TABLET_SPLIT_VIEW_ENABLED",
+        mobile_v2_active=mobile_v2,
+    )
     _body = render_template(
         template_name,
         erp_dashboard_fragment=wants_erp_shell_tab_body(request),
@@ -727,6 +759,7 @@ def erp_dashboard():
             'q': f_q,
             'team': f_team,
             'mine': request.args.get('mine') or '',
+            'sort': (request.args.get('sort') or 'latest').strip(),
         },
         team_labels=TEAM_LABELS,
         stage_labels=STAGE_LABELS,
@@ -736,15 +769,44 @@ def erp_dashboard():
         page=page,
         total_pages=total_pages,
         total_orders=total_orders,
-        foms_split_enabled=env_bool('FOMS_TABLET_SPLIT_VIEW_ENABLED'),
+        foms_split_enabled=split_enabled,
         master_cards=build_split_master_cards(
             paginated_orders,
             active_order_id=int(request.args.get('order') or 0) or None,
-        ) if env_bool('FOMS_TABLET_SPLIT_VIEW_ENABLED') else [],
-        side_items=default_split_side_items() if env_bool('FOMS_TABLET_SPLIT_VIEW_ENABLED') else [],
+        ) if split_enabled else [],
+        side_items=default_split_side_items() if split_enabled else [],
     )
     _render_ms = (time.perf_counter() - _t0) * 1000.0
     response = make_response(_body)
     apply_erp_shell_fragment_headers(response, request)
     apply_ept_b7_render_headers(response, route_id="erp_dashboard", render_ms=_render_ms)
     return response
+
+
+@erp_dashboard_bp.route('/orders/<int:order_id>/mobile')
+@login_required
+def erp_order_mobile_detail(order_id: int):
+    """P1 mockup: 모바일 주문 상세 (/erp/orders/<id>/mobile)."""
+    db = get_db()
+    order = (
+        db.query(Order)
+        .filter(Order.id == order_id, Order.is_erp_order.is_(True))
+        .first()
+    )
+    if not order:
+        flash('주문을 찾을 수 없습니다.', 'warning')
+        return redirect(url_for('erp_dashboard.erp_dashboard'))
+
+    from foms.services.erp_mobile_order_display import build_mobile_queue_order_row
+
+    order_row = build_mobile_queue_order_row(db, order)
+    current_user = getattr(g, 'current_user', None)
+    can_edit_erp_flag = can_edit_erp(current_user)
+
+    return render_template(
+        'orders/mobile_order_detail.html',
+        order=order_row,
+        can_edit_erp=can_edit_erp_flag,
+        erp_sub_nav_active='dashboard',
+        mobile_shell_title='주문 상세',
+    )

@@ -1,7 +1,9 @@
 {% extends "orders/layout.html" %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-wizard.css') }}?v=20260531a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-wizard.css') }}?v=20260531b">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-product-item.css') }}?v=20260531b">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/foms/photo-capture.css') }}?v=20260531b">
 {% endblock %}
 
 {% block content %}
@@ -54,6 +56,7 @@
       <div style="display:grid;gap:8px;margin-top:12px">
         <button type="button" class="foms-btn foms-btn--secondary" data-conflict="mine">내 변경 유지</button>
         <button type="button" class="foms-btn foms-btn--secondary" data-conflict="remote">다른 기기 내용</button>
+        <button type="button" class="foms-btn foms-btn--primary" data-conflict="merge">병합</button>
         <button type="button" class="foms-btn foms-btn--ghost" data-conflict="dismiss">나중에</button>
       </div>
     </div>
@@ -73,5 +76,7 @@
 <script src="{{ url_for('static', filename='js/foms/sync.js') }}?v=20260531a" defer></script>
 {% endif %}
 <script src="{{ url_for('static', filename='js/foms/draft.js') }}?v=20260530a" defer></script>
-<script src="{{ url_for('static', filename='js/foms/wizard.js') }}?v=20260530a" defer></script>
+<script src="{{ url_for('static', filename='js/foms/photo-capture.js') }}?v=20260531b" defer></script>
+<script src="{{ url_for('static', filename='js/foms/wizard-attachments.js') }}?v=20260531b" defer></script>
+<script src="{{ url_for('static', filename='js/foms/wizard.js') }}?v=20260531b" defer></script>
 {% endblock %}

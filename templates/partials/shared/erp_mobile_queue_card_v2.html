@@ -1,0 +1,112 @@
+{% macro render_queue_card_v2(order, can_edit=false) -%}
+  {% set primary_alerts = [] %}
+  {% if order.alerts.urgent %}
+    {% set _ = primary_alerts.append({'label': '긴급', 'class': 'foms-badge--alert'}) %}
+  {% endif %}
+  {% if order.alerts.drawing_overdue %}
+    {% set _ = primary_alerts.append({'label': '도면 지연', 'class': 'foms-badge--alert'}) %}
+  {% endif %}
+  {% if order.alerts.measurement_d4 %}
+    {% set _ = primary_alerts.append({'label': '실측 임박', 'class': 'foms-badge--alert'}) %}
+  {% endif %}
+  {% if order.alerts.construction_d3 %}
+    {% set _ = primary_alerts.append({'label': '시공 임박', 'class': 'foms-badge--alert'}) %}
+  {% endif %}
+  {% if order.alerts.production_d2 %}
+    {% set _ = primary_alerts.append({'label': '생산 임박', 'class': 'foms-badge--alert'}) %}
+  {% endif %}
+
+  {% set schedule_label = None %}
+  {% set schedule_value = None %}
+  {% if order.measurement_date %}
+    {% set schedule_label = '실측' %}
+    {% set schedule_value = order.measurement_date %}
+  {% elif order.construction_date %}
+    {% set schedule_label = '시공' %}
+    {% set schedule_value = order.construction_date %}
+  {% endif %}
+
+  {% set safe_phone = (order.phone or '')|replace('-', '')|replace(' ', '') %}
+  {% set has_phone = safe_phone and safe_phone != '-' %}
+  {% set has_address = order.address and order.address != '-' %}
+  {% set badge_mod = order.stage_badge_modifier|default('--received') %}
+  {% set badge_label = order.stage_badge_label|default(order.stage or '-') %}
+
+  <article class="queue-card foms-queue-card-v2" data-order-id="{{ order.id }}">
+    <header class="queue-card__head foms-queue-card-v2__head">
+      <span class="foms-stage-badge foms-stage-badge{{ badge_mod }}">{{ badge_label }}</span>
+      {% if order.alerts.drawing_overdue or order.alerts.urgent %}
+        <span class="alert-dot" aria-label="주의"></span>
+      {% endif %}
+      {% for alert in primary_alerts[:2] %}
+        <span class="foms-badge {{ alert.class }}">{{ alert.label }}</span>
+      {% endfor %}
+      {% if order.id %}
+        <span class="queue-card__time foms-queue-card-v2__time">#{{ order.id }}</span>
+      {% endif %}
+    </header>
+
+    <h3 class="queue-card__title foms-queue-card-v2__title">
+      {{ order.customer_name or '-' }}
+      {% if order.product_subtitle or order.current_quest %}
+        <span class="queue-card__subtitle foms-queue-card-v2__subtitle">
+          {{ order.product_subtitle or order.current_quest.title }}
+        </span>
+      {% endif %}
+    </h3>
+
+    {% if order.attachments_count is defined and order.attachments_count > 0 %}
+      <div class="queue-card__attachments foms-queue-card-v2__attachments" aria-label="첨부 {{ order.attachments_count }}건">
+        {% set _thumb_n = [order.attachments_count, 3]|min %}
+        {% for _ in range(_thumb_n) %}
+          <span class="queue-card__attach-thumb foms-queue-card-v2__attach-thumb"></span>
+        {% endfor %}
+        {% if order.attachments_count > 3 %}
+          <span class="queue-card__attach-more foms-queue-card-v2__attach-more">+{{ order.attachments_count - 3 }}</span>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    <dl class="queue-card__meta foms-queue-card-v2__meta">
+      {% if has_address %}
+        <div>
+          <dt>주소</dt>
+          <dd><a href="https://map.kakao.com/?q={{ order.address|urlencode }}" target="_blank" rel="noopener">{{ order.address }}</a></dd>
+        </div>
+      {% endif %}
+      {% if has_phone %}
+        <div>
+          <dt>연락처</dt>
+          <dd><a href="tel:{{ safe_phone }}">{{ order.phone }}</a></dd>
+        </div>
+      {% endif %}
+      {% if schedule_value %}
+        <div>
+          <dt>{{ schedule_label }}</dt>
+          <dd class="foms-tabular">{{ schedule_value }}</dd>
+        </div>
+      {% endif %}
+      <div>
+        <dt>담당</dt>
+        <dd>{{ order.manager_name or '-' }}</dd>
+      </div>
+    </dl>
+
+    <footer class="queue-card__action foms-queue-card-v2__action">
+      <a
+        class="foms-btn foms-btn--ghost foms-btn--sm"
+        href="{{ url_for('erp_dashboard.erp_order_mobile_detail', order_id=order.id) }}">
+        상세
+      </a>
+      {% if has_phone %}
+        <a class="foms-btn foms-btn--primary foms-btn--sm" href="tel:{{ safe_phone }}">전화</a>
+      {% elif can_edit %}
+        <a
+          class="foms-btn foms-btn--primary foms-btn--sm"
+          href="{{ url_for('order_edit.edit_order', order_id=order.id, open='erp-order') }}">
+          편집
+        </a>
+      {% endif %}
+    </footer>
+  </article>
+{%- endmacro %}

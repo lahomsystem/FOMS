@@ -57,16 +57,4 @@
   {% set _current.item = _drawer_items[0] %}
 {% endif %}
 {% set _home_href = (_primary_items[0].href if _primary_items else url_for('erp_dashboard.erp_dashboard')) %}
-{% set _eyebrow = 'FOMS ERP Mobile' %}
-
-<div class="erp-mobile-shell-chrome" data-erp-mobile-shell data-offline-sw="{{ 'true' if flag_offline_sw else 'false' }}" data-bottom-nav-htmx="{{ 'true' if flag_bottom_nav_htmx else 'false' }}">
-  {% include 'partials/shared/erp_mobile_shell_header.html' %}
-  {% include 'partials/shared/erp_mobile_bottom_nav.html' %}
-  {% include 'partials/shared/erp_mobile_menu_drawer.html' %}
-  {% include 'partials/shared/foms_search_overlay.html' %}
-  {% include 'partials/shared/htmx_layout.html' %}
-  {% include 'partials/shared/foms_p2_surface_bundle.html' %}
-  <script src="{{ url_for('static', filename='js/foms/search.js') }}?v=20260530a" defer></script>
-  <script src="{{ url_for('static', filename='js/foms/kv-copy.js') }}?v=20260530d" defer></script>
-  <script src="{{ url_for('static', filename='js/runtime/erp-mobile-shell.js') }}?v=20260402a" defer></script>
-</div>
+{% include 'partials/shared/foms_app_shell.html' %}

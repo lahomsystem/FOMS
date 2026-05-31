@@ -16,6 +16,26 @@
   display: flex;
   flex-direction: column;
   background: var(--foms-surface-base, #fff);
+  font-family: var(--foms-font-sans);
+}
+
+.foms-wizard .icon-btn,
+.foms-wizard-page .icon-btn {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--foms-radius-md, 8px);
+  color: var(--foms-text-primary, #111);
+  cursor: pointer;
+}
+
+.foms-wizard .icon-btn:active,
+.foms-wizard-page .icon-btn:active {
+  background: var(--foms-interactive-secondary, #f3f4f6);
 }
 
 .foms-wizard__head {
@@ -42,6 +62,7 @@
 .foms-wizard__progress {
   display: flex;
   gap: 4px;
+  margin: 0;
 }
 
 .foms-wizard__progress-seg {
@@ -69,12 +90,14 @@
 .foms-wizard__title {
   font-size: var(--foms-font-size-2xl, 24px);
   font-weight: 700;
-  margin: 0 0 4px;
+  margin: 0 0 var(--foms-space-1, 4px);
+  line-height: var(--foms-line-height-tight, 1.25);
 }
 
 .foms-wizard__subtitle {
   color: var(--foms-text-secondary, #4b5563);
   margin: 0 0 var(--foms-space-5, 20px);
+  font-size: var(--foms-font-size-base, 1rem);
 }
 
 .foms-wizard__error {
@@ -215,4 +238,41 @@
 
 .foms-wizard__recover-toast.is-visible {
   display: flex;
+}
+
+.foms-wizard__photo-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.foms-wizard__attachment-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.foms-wizard__attachment-preview[data-empty="true"]::before {
+  content: "아직 첨부된 파일이 없습니다";
+  color: var(--foms-text-tertiary, #6b7280);
+  font-size: 12px;
+}
+
+.foms-wizard__attachment-thumb {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  border: 1px solid var(--foms-border-subtle, #e5e7eb);
+  padding: 0;
+  overflow: hidden;
+  background: var(--foms-surface-muted, #f3f4f6);
+  font-size: 10px;
+}
+
+.foms-wizard__attachment-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }

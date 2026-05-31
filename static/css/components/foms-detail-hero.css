@@ -1,0 +1,236 @@
+/* P1 mockup — mobile order detail hero, quick actions, sections */
+
+@media (max-width: 991.98px) {
+  body.erp-mobile-v2-layout .foms-detail-page .foms-shell-body {
+    padding-left: 0;
+    padding-right: 0;
+    padding-top: 0;
+  }
+
+  body.erp-mobile-v2-layout .detail-hero,
+  body.erp-mobile-v2-layout .foms-detail-hero {
+    background: var(--foms-surface-base);
+    padding: var(--foms-space-4) var(--foms-space-4) var(--foms-space-3);
+    display: grid;
+    gap: var(--foms-space-2);
+    border-bottom: 1px solid var(--foms-border-subtle);
+  }
+
+  body.erp-mobile-v2-layout .detail-hero__badges,
+  body.erp-mobile-v2-layout .foms-detail-hero__badges {
+    display: flex;
+    gap: var(--foms-space-2);
+    flex-wrap: wrap;
+  }
+
+  body.erp-mobile-v2-layout .detail-hero__customer,
+  body.erp-mobile-v2-layout .foms-detail-hero__customer {
+    font-size: var(--foms-font-size-2xl);
+    font-weight: var(--foms-font-weight-bold);
+    margin: 0;
+    line-height: var(--foms-line-height-tight);
+  }
+
+  body.erp-mobile-v2-layout .detail-hero__product,
+  body.erp-mobile-v2-layout .foms-detail-hero__product {
+    font-size: var(--foms-font-size-base);
+    color: var(--foms-text-secondary);
+    margin: 0;
+  }
+
+  body.erp-mobile-v2-layout .quick-actions,
+  body.erp-mobile-v2-layout .foms-quick-actions {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--foms-space-2);
+    padding: var(--foms-space-3) var(--foms-space-4);
+    background: var(--foms-surface-base);
+    border-bottom: 1px solid var(--foms-border-subtle);
+  }
+
+  body.erp-mobile-v2-layout .quick-action,
+  body.erp-mobile-v2-layout .foms-quick-action {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 4px;
+    background: var(--foms-surface-overlay);
+    border: none;
+    border-radius: var(--foms-radius-md);
+    font-size: 11px;
+    color: var(--foms-text-secondary);
+    cursor: pointer;
+    min-height: 56px;
+    text-decoration: none;
+  }
+
+  body.erp-mobile-v2-layout .quick-action__icon,
+  body.erp-mobile-v2-layout .foms-quick-action__icon {
+    font-size: 20px;
+  }
+
+  body.erp-mobile-v2-layout .foms-detail-section {
+    background: var(--foms-surface-base);
+    margin-top: var(--foms-space-2);
+    padding: var(--foms-space-4);
+  }
+
+  body.erp-mobile-v2-layout .foms-detail-section__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--foms-space-3);
+  }
+
+  body.erp-mobile-v2-layout .foms-detail-section__title {
+    font-size: var(--foms-font-size-xs);
+    font-weight: var(--foms-font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--foms-text-tertiary);
+    margin: 0;
+  }
+
+  body.erp-mobile-v2-layout .foms-detail-sticky-cta {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: calc(var(--foms-shell-bottom-nav-h) + var(--foms-safe-area-bottom));
+    padding: var(--foms-space-3) var(--foms-space-4);
+    background: var(--foms-surface-base);
+    border-top: 1px solid var(--foms-border-subtle);
+    box-shadow: var(--foms-shadow-md);
+    z-index: var(--foms-z-action-bar);
+    display: grid;
+    gap: var(--foms-space-2);
+  }
+
+  body.erp-mobile-v2-layout .quick-action--button,
+  body.erp-mobile-v2-layout .foms-quick-action--button {
+    border: none;
+    background: var(--foms-surface-overlay);
+    font: inherit;
+  }
+
+  body.erp-mobile-v2-layout .foms-quick-action--disabled {
+    opacity: 0.45;
+    pointer-events: none;
+  }
+
+  body.erp-mobile-v2-layout .attach-grid,
+  body.erp-mobile-v2-layout .foms-attach-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--foms-space-2);
+  }
+
+  body.erp-mobile-v2-layout .attach-item,
+  body.erp-mobile-v2-layout .foms-attach-item {
+    aspect-ratio: 1;
+    border-radius: var(--foms-radius-md);
+    border: none;
+    background: linear-gradient(135deg, var(--foms-color-neutral-300), var(--foms-color-neutral-500));
+    color: #fff;
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    padding: var(--foms-space-2);
+    text-decoration: none;
+    overflow: hidden;
+  }
+
+  body.erp-mobile-v2-layout .attach-item__label,
+  body.erp-mobile-v2-layout .foms-attach-item__label {
+    font-size: 11px;
+    background: rgba(0, 0, 0, 0.55);
+    padding: 2px 6px;
+    border-radius: var(--foms-radius-sm);
+  }
+
+  body.erp-mobile-v2-layout .attach-add,
+  body.erp-mobile-v2-layout .foms-attach-add {
+    aspect-ratio: 1;
+    border-radius: var(--foms-radius-md);
+    border: 1px dashed var(--foms-border-default);
+    background: var(--foms-surface-overlay);
+    color: var(--foms-text-tertiary);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    text-decoration: none;
+    font-size: var(--foms-font-size-xs);
+  }
+
+  body.erp-mobile-v2-layout .timeline,
+  body.erp-mobile-v2-layout .foms-timeline {
+    display: grid;
+    gap: var(--foms-space-3);
+  }
+
+  body.erp-mobile-v2-layout .timeline-item,
+  body.erp-mobile-v2-layout .foms-timeline-item {
+    display: grid;
+    grid-template-columns: 24px 1fr;
+    gap: var(--foms-space-3);
+    position: relative;
+  }
+
+  body.erp-mobile-v2-layout .timeline-item::before,
+  body.erp-mobile-v2-layout .foms-timeline-item::before {
+    content: '';
+    position: absolute;
+    left: 11px;
+    top: 24px;
+    bottom: -12px;
+    width: 2px;
+    background: var(--foms-border-subtle);
+  }
+
+  body.erp-mobile-v2-layout .timeline-item:last-child::before,
+  body.erp-mobile-v2-layout .foms-timeline-item:last-child::before {
+    display: none;
+  }
+
+  body.erp-mobile-v2-layout .timeline-item__dot,
+  body.erp-mobile-v2-layout .foms-timeline-item__dot {
+    width: 24px;
+    height: 24px;
+    border-radius: var(--foms-radius-full);
+    background: var(--foms-color-brand-100);
+    color: var(--foms-color-brand-700);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  body.erp-mobile-v2-layout .timeline-item--done .timeline-item__dot,
+  body.erp-mobile-v2-layout .foms-timeline-item--done .foms-timeline-item__dot {
+    background: var(--foms-color-success-500);
+    color: #fff;
+  }
+
+  body.erp-mobile-v2-layout .timeline-item__body,
+  body.erp-mobile-v2-layout .foms-timeline-item__body {
+    display: grid;
+    gap: 2px;
+    padding-bottom: var(--foms-space-3);
+  }
+
+  body.erp-mobile-v2-layout .timeline-item__title,
+  body.erp-mobile-v2-layout .foms-timeline-item__title {
+    font-size: var(--foms-font-size-base);
+    font-weight: var(--foms-font-weight-medium);
+    margin: 0;
+  }
+
+  body.erp-mobile-v2-layout .timeline-item__meta,
+  body.erp-mobile-v2-layout .foms-timeline-item__meta {
+    font-size: var(--foms-font-size-sm);
+    color: var(--foms-text-tertiary);
+  }
+}
