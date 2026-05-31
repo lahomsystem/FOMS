@@ -93,3 +93,39 @@ def test_is_enabled_for_user_false_when_user_id_missing(monkeypatch) -> None:
         None,
         cohort_key="FOMS_V3_SHELL_COHORT",
     ) is False
+
+
+@pytest.mark.parametrize("cohort_value", ["all", "ALL", "*", " All ", "*,25"])
+def test_is_cohort_all_recognizes_rollout_tokens(monkeypatch, cohort_value: str) -> None:
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", cohort_value)
+    assert feature_flags.is_cohort_all("FOMS_V3_SHELL_COHORT") is True
+
+
+def test_is_cohort_all_false_for_id_list_only(monkeypatch) -> None:
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", "3,17")
+    assert feature_flags.is_cohort_all("FOMS_V3_SHELL_COHORT") is False
+
+
+@pytest.mark.parametrize("cohort_value", ["all", "ALL", "*"])
+def test_is_enabled_for_user_true_for_any_user_when_cohort_all(
+    monkeypatch, cohort_value: str
+) -> None:
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", cohort_value)
+    assert feature_flags.is_enabled_for_user(
+        "ERP_MOBILE_V2_ENABLED",
+        99,
+        cohort_key="FOMS_V3_SHELL_COHORT",
+    ) is True
+
+
+def test_is_enabled_for_user_false_when_cohort_all_but_user_id_missing(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", "all")
+    assert feature_flags.is_enabled_for_user(
+        "ERP_MOBILE_V2_ENABLED",
+        None,
+        cohort_key="FOMS_V3_SHELL_COHORT",
+    ) is False

@@ -29,7 +29,8 @@ Railway **staging (deploy 브랜치)** Web 서비스 Variables:
 **안전 검증** (`MIGRATION_ROADMAP.md:60`):
 
 - `ERP_MOBILE_V2_ENABLED=true` + `FOMS_V3_SHELL_COHORT=` (빈) → **아무도** 새 셸 진입 불가
-- cohort id만 포함 user → mobile shell (`context_processors.py` + `is_enabled_for_user`)
+- `FOMS_V3_SHELL_COHORT=all` (또는 `*`, `ALL`) → **모든** 인증 사용자 mobile v2
+- numeric cohort id만 포함 user → mobile shell (`context_processors.py` + `is_enabled_for_user`)
 
 ## 3. Cohort Day 1~7 확장
 
@@ -39,9 +40,16 @@ Railway **staging (deploy 브랜치)** Web 서비스 Variables:
 | 2~3 | +1~2 id | — |
 | 4 | 기존 유지 | `FOMS_OFFLINE_SW_ENABLED=true` (실기기 OK 후) |
 | 5 | 기존 유지 | `FOMS_BOTTOM_NAV_HTMX_ENABLED=true` (실기기 OK 후) |
-| 7 | 전체 rollout 검토 | KPI/RUM baseline 비교 |
+| 7 | `all` (또는 `*`, `ALL`) | 전체 인증 사용자 mobile v2 (`ERP_MOBILE_V2_ENABLED=true` 필요) |
 
 ## 4. Railway Cron Service (P0-00C)
+
+로컬 preflight:
+
+```powershell
+cd "C:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"
+powershell -NoProfile -File scripts/ops/verify_mobile_v2_rollout.ps1
+```
 
 1. Railway 프로젝트 → **New Service** → 같은 repo, **deploy** 브랜치
 2. Settings → **Config Path**: `railway-cron.toml`
@@ -58,6 +66,8 @@ python tools/cron/cleanup_order_drafts.py
 첫 실행 로그: `mode=execute scanned=N deleted=M`
 
 ## 5. 실기기 QA (Day 4~5)
+
+자동 contract (로컬): `pytest tests/domains/test_mobile_device_qa_contract.py -q`
 
 - [ ] cohort user 로그인 → bottom nav 5탭 + 검색 overlay (`010-xxxx` digit search)
 - [ ] `FOMS_OFFLINE_SW_ENABLED=1` → offline badge / draft queue

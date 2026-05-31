@@ -8,10 +8,12 @@ __all__ = [
     "env_bool",
     "env_bool_or_mobile_v2",
     "env_id_list",
+    "is_cohort_all",
     "is_enabled_for_user",
 ]
 
 _TRUTHY = frozenset({"true", "1", "yes", "y", "on"})
+_COHORT_ALL_TOKENS = frozenset({"all", "*"})
 
 
 def env_bool(key: str, default: bool = False) -> bool:
@@ -60,6 +62,26 @@ def env_id_list(key: str) -> set[int]:
     return {int(part) for part in raw.split(",") if part.strip().isdigit()}
 
 
+def is_cohort_all(key: str) -> bool:
+    """Return whether a cohort env value requests rollout to all users.
+
+    Recognizes comma-separated tokens ``all``, ``*``, or ``ALL`` (case-insensitive
+    for ``all``). Numeric ids in the same value are ignored when an all-token is
+    present.
+
+    Args:
+        key: Environment variable name (e.g. ``FOMS_V3_SHELL_COHORT``).
+
+    Returns:
+        True when any comma-separated token is an all-rollout sentinel.
+    """
+    raw = os.getenv(key, "")
+    for part in raw.split(","):
+        if part.strip().lower() in _COHORT_ALL_TOKENS:
+            return True
+    return False
+
+
 def is_enabled_for_user(
     flag: str,
     user_id: int | None = None,
@@ -67,7 +89,8 @@ def is_enabled_for_user(
 ) -> bool:
     """Check whether a flag is enabled for a specific user via cohort whitelist.
 
-    Global flag must be truthy and the cohort list must be non-empty. When the
+    Global flag must be truthy. Cohort may be a numeric id list, the sentinel
+    ``all`` / ``*`` / ``ALL`` (case-insensitive for ``all``), or empty. When the
     cohort env is empty, the flag is treated as disabled even if the global
     switch is on.
 
@@ -78,14 +101,17 @@ def is_enabled_for_user(
             ``{base}_COHORT`` is derived from ``flag``.
 
     Returns:
-        True only when the flag is on, cohort is non-empty, and ``user_id`` is
-        in the cohort.
+        True when the flag is on, ``user_id`` is set, and either the cohort env
+        contains an all-rollout token or ``user_id`` is in the parsed id list.
     """
     enabled_key = flag if flag.endswith("_ENABLED") else f"{flag}_ENABLED"
     if not env_bool(enabled_key):
         return False
     base = flag[:-8] if flag.endswith("_ENABLED") else flag
-    cohort = env_id_list(cohort_key or f"{base}_COHORT")
+    ck = cohort_key or f"{base}_COHORT"
+    if is_cohort_all(ck):
+        return user_id is not None
+    cohort = env_id_list(ck)
     if not cohort:
         return False
     return user_id is not None and user_id in cohort
