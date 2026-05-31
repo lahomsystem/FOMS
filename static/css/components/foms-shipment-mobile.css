@@ -127,3 +127,23 @@
     display: none !important;
   }
 }
+
+@media (max-width: 991.98px) {
+  /* Home IA parity: the shipment mobile shell wraps the sticky controls; the
+     legacy .card-body already owns padding, so the foms-shell-body marker stays
+     layout-neutral (queue itself stays the erp-mobile-card-table). */
+  body.erp-mobile-v2-layout .erp-shipment-mobile-list.foms-shell-body {
+    display: block;
+    padding: 0;
+  }
+
+  /* Quick-actions adopt the standard chip-strip pill look but stay inline (no
+     sticky bleed / negative margin) inside the already-sticky controls header. */
+  body.erp-mobile-v2-layout .erp-shipment-mobile-controls .foms-chip-strip {
+    position: static;
+    margin: 0.25rem 0 0;
+    padding: 0;
+    border-bottom: 0;
+    background: transparent;
+  }
+}

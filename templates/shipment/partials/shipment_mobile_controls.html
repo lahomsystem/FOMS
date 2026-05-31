@@ -1,10 +1,10 @@
 <section class="erp-shipment-mobile-controls" aria-label="출고 모바일 컨트롤">
-  <div class="erp-shipment-mobile-controls__summary">
+  <div class="erp-shipment-mobile-controls__summary foms-section-header section-header">
     <div>
       <span class="erp-shipment-mobile-controls__eyebrow">Shipment</span>
-      <h2 class="erp-shipment-mobile-controls__title">출고 작업 큐</h2>
+      <h2 class="erp-shipment-mobile-controls__title foms-section-header__title">출고 작업 큐</h2>
     </div>
-    <span class="erp-shipment-mobile-controls__count">{{ rows|length }}건</span>
+    <span class="erp-shipment-mobile-controls__count foms-section-header__count">{{ rows|length }}건</span>
   </div>
 
   <form method="get" action="{{ url_for('erp_shipment_page.erp_shipment_dashboard') }}" class="erp-shipment-mobile-controls__search">
@@ -40,37 +40,37 @@
     </button>
   </form>
 
-  <div class="erp-shipment-mobile-controls__quick-actions">
+  <nav class="erp-shipment-mobile-controls__quick-actions chip-strip foms-chip-strip" aria-label="출고 빠른 필터">
     <a
-      class="erp-shipment-mobile-controls__quick-link"
+      class="erp-shipment-mobile-controls__quick-link chip foms-chip{% if selected_date == today_date and not use_date_range %} is-active{% endif %}"
       href="{{ url_for('erp_shipment_page.erp_shipment_dashboard', date=today_date, q=search_q or '', mine='1' if erp_mine_only else None) }}">
       <i class="fas fa-calendar-day"></i>
       <span>오늘</span>
     </a>
     {% if search_q %}
-      <span class="erp-shipment-mobile-controls__quick-pill is-active">
+      <span class="erp-shipment-mobile-controls__quick-pill chip foms-chip is-active">
         <i class="fas fa-search"></i>
         <span>{{ search_q }}</span>
       </span>
     {% endif %}
     {% if use_date_range %}
-      <span class="erp-shipment-mobile-controls__quick-pill is-active">
+      <span class="erp-shipment-mobile-controls__quick-pill chip foms-chip is-active">
         <i class="fas fa-calendar-alt"></i>
         <span>{{ date_from }} ~ {{ date_to }}</span>
       </span>
     {% elif selected_date %}
-      <span class="erp-shipment-mobile-controls__quick-pill">
+      <span class="erp-shipment-mobile-controls__quick-pill chip foms-chip">
         <i class="fas fa-calendar"></i>
         <span>{{ selected_date }}</span>
       </span>
     {% endif %}
     {% if erp_mine_only %}
-      <span class="erp-shipment-mobile-controls__quick-pill is-active">
+      <span class="erp-shipment-mobile-controls__quick-pill chip foms-chip is-active">
         <i class="fas fa-user-check"></i>
         <span>내 담당</span>
       </span>
     {% endif %}
-  </div>
+  </nav>
 
   <div
     class="offcanvas offcanvas-bottom erp-shipment-mobile-controls__drawer"

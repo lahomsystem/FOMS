@@ -117,11 +117,14 @@
     {% endif %}
     <div class="card-body">
       {% if erp_mobile_v2_enabled %}
-      <div class="erp-shipment-mobile-list d-lg-none" aria-label="출고 모바일 큐">
+      <div class="erp-shipment-mobile-list foms-shell-body d-lg-none" aria-label="출고 모바일 큐">
         <div class="erp-shipment-mobile-list__sticky">
           {% include 'shipment/partials/shipment_mobile_controls.html' %}
         </div>
       </div>
+      <a class="foms-shell-fab d-lg-none" href="{{ url_for('order_pages.add_order', open='erp-order') }}" aria-label="주문 생성">
+        <i class="fas fa-plus" aria-hidden="true"></i>
+      </a>
       {% else %}
       <div class="erp-shipment-mobile-summary d-lg-none" aria-label="출고 작업 요약">
         <span class="erp-shipment-mobile-summary__eyebrow">Shipment Queue</span>

@@ -341,3 +341,40 @@ def test_p1_production_dashboard_renders_home_ia(
         "foms-shell-fab",
     ):
         assert selector in html, selector
+
+
+def test_p1_shipment_mobile_v2_home_ia_parity() -> None:
+    """탭4 출고: 모바일 v2가 홈 IA 셸/칩/섹션/FAB 셀렉터를 사용한다 (큐는 card-table 변형)."""
+    body = (ROOT / "templates/shipment/partials/dashboard_main.html").read_text(
+        encoding="utf-8"
+    )
+    controls = (
+        ROOT / "templates/shipment/partials/shipment_mobile_controls.html"
+    ).read_text(encoding="utf-8")
+    for selector in ("foms-shell-body", "foms-shell-fab"):
+        assert selector in body, selector
+    for selector in ("chip-strip", "foms-chip-strip", "foms-section-header"):
+        assert selector in controls, selector
+
+
+def test_p1_shipment_dashboard_renders_home_ia(
+    client,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cohort 출고 대시보드 HTML이 홈 IA 셸/칩/FAB DOM 훅을 렌더한다."""
+    user = _login_admin(client)
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+
+    resp = client.get("/erp/shipment")
+    assert resp.status_code == 200
+    html = resp.get_data(as_text=True)
+    assert 'class="erp-mobile-v2-layout"' in html
+    for selector in (
+        "foms-shell-body",
+        "chip-strip",
+        "foms-chip-strip",
+        "foms-section-header",
+        "foms-shell-fab",
+    ):
+        assert selector in html, selector
