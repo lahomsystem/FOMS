@@ -206,3 +206,49 @@ def test_p1_dashboard_mobile_chunk_fragment(
     html = resp.get_data(as_text=True)
     assert "data-foms-mobile-queue-chunk" in html
     assert "foms-mobile-v2-dashboard" not in html
+
+
+def test_p1_measurement_mobile_v2_home_ia_parity() -> None:
+    """탭1 실측: 모바일 v2 분기가 홈 IA 표준 셸/칩/큐/FAB 셀렉터를 사용한다."""
+    main = (ROOT / "templates/measurement/partials/dashboard_main.html").read_text(
+        encoding="utf-8"
+    )
+    filters = (ROOT / "templates/measurement/partials/mobile_filters.html").read_text(
+        encoding="utf-8"
+    )
+    listing = (ROOT / "templates/measurement/partials/mobile_list.html").read_text(
+        encoding="utf-8"
+    )
+    # 셸 래퍼 + FAB (홈 dashboard_mobile_v2_body 동형)
+    for selector in ("foms-shell-body", "foms-mobile-v2-dashboard", "foms-shell-fab"):
+        assert selector in main, selector
+    # 표준 칩 스트립 (bespoke quick-actions 대체)
+    for selector in ("chip-strip", "foms-chip-strip"):
+        assert selector in filters, selector
+    # 큐 리스트 컨테이너 + 섹션 헤더
+    for selector in ("foms-mobile-queue-list", "foms-section-header"):
+        assert selector in listing, selector
+
+
+def test_p1_measurement_dashboard_renders_home_ia(
+    client,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cohort 실측 대시보드 HTML이 홈 IA 셸/칩/FAB DOM 훅을 렌더한다."""
+    user = _login_admin(client)
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+
+    resp = client.get("/erp/measurement")
+    assert resp.status_code == 200
+    html = resp.get_data(as_text=True)
+    assert 'class="erp-mobile-v2-layout"' in html
+    for selector in (
+        "foms-shell-body",
+        "foms-mobile-v2-dashboard",
+        "chip-strip",
+        "foms-chip-strip",
+        "foms-section-header",
+        "foms-shell-fab",
+    ):
+        assert selector in html, selector

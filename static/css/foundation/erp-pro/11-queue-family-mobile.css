@@ -391,6 +391,18 @@
     overflow-x: hidden;
   }
 
+  /* Home IA parity: measurement mobile lives inside the shared foms-shell-body
+     wrapper (.erp-measurement-mobile-v2). The shell owns horizontal padding
+     (space-4) + row gap, so the bespoke sections drop their own side padding /
+     top margin to avoid doubling the inset. */
+  body.erp-mobile-v2-layout .erp-measurement-mobile-v2 .erp-measurement-mobile-filters,
+  body.erp-mobile-v2-layout .erp-measurement-mobile-v2 .erp-measurement-mobile-dates,
+  body.erp-mobile-v2-layout .erp-measurement-mobile-v2 .erp-measurement-mobile-list {
+    padding-left: 0;
+    padding-right: 0;
+    margin-top: 0;
+  }
+
   .erp-measurement-dashboard[data-erp-mobile-v2='true'] .erp-measurement-mobile-filters__search {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto auto;

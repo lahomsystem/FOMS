@@ -5,16 +5,16 @@
 {% set measurement_list_map_url = measurement_list_map_url ~ '&open_map=1' %}
 
 <section class="erp-measurement-mobile-list" aria-label="실측 모바일 일정">
-  <div class="erp-measurement-mobile-list__summary">
+  <div class="erp-measurement-mobile-list__summary foms-section-header section-header">
     <div>
       <span class="erp-measurement-mobile-list__eyebrow">Measurement Queue</span>
-      <h2 class="erp-measurement-mobile-list__title">실측 일정</h2>
+      <h2 class="erp-measurement-mobile-list__title foms-section-header__title">실측 일정</h2>
     </div>
-    <span class="erp-measurement-mobile-list__count">{{ rows|length }}건</span>
+    <span class="erp-measurement-mobile-list__count foms-section-header__count">{{ rows|length }}건</span>
   </div>
 
   {% if rows %}
-    <div class="erp-measurement-mobile-cards">
+    <div class="erp-measurement-mobile-cards foms-mobile-queue-list">
       {% for r in rows %}
         {% set manager_name = r.manager_name %}
         {% set manager_name = (manager_name or '')|trim %}
