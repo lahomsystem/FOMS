@@ -2,11 +2,6 @@
 <div
   id="foms-alpine-toast-root"
   x-data
-  x-init="
-    // #region agent log
-    fetch('http://127.0.0.1:7309/ingest/2d47bfab-a311-4a20-bcce-343e7171cc9a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f2330d'},body:JSON.stringify({sessionId:'f2330d',runId:'pre-fix',hypothesisId:'A',location:'foms_alpine_toast.html:x-init',message:'toast root init',data:{storeExists:!!($store && $store.fomsToast)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-  "
   x-cloak
   aria-live="polite"
   aria-atomic="true"

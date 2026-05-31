@@ -1,37 +1,7 @@
 /**
  * P2-02 Alpine store: toast + modal helpers for new FOMS surfaces.
  */
-// #region agent log
-fetch("http://127.0.0.1:7309/ingest/2d47bfab-a311-4a20-bcce-343e7171cc9a", {
-  method: "POST",
-  headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "f2330d" },
-  body: JSON.stringify({
-    sessionId: "f2330d",
-    runId: "pre-fix",
-    hypothesisId: "A",
-    location: "alpine-store.js:load",
-    message: "alpine-store.js parsed",
-    data: { hasAlpine: !!window.Alpine },
-    timestamp: Date.now(),
-  }),
-}).catch(function () {});
-// #endregion
 document.addEventListener("alpine:init", function () {
-  // #region agent log
-  fetch("http://127.0.0.1:7309/ingest/2d47bfab-a311-4a20-bcce-343e7171cc9a", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "f2330d" },
-    body: JSON.stringify({
-      sessionId: "f2330d",
-      runId: "pre-fix",
-      hypothesisId: "A",
-      location: "alpine-store.js:alpine:init",
-      message: "fomsToast store registering",
-      data: {},
-      timestamp: Date.now(),
-    }),
-  }).catch(function () {});
-  // #endregion
   Alpine.store("fomsToast", {
     message: "",
     visible: false,
