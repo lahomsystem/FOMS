@@ -11,6 +11,19 @@
 @import url("erp-pro/11-queue-family-mobile.css");
 @import url("erp-pro/12-runtime-shell-loading.css");
 @import url("erp-pro/13-foms-shell-bridge.css");
+@import url("../components/foms-sticky-action-bar.css");
+@import url("../components/foms-bottom-nav.css");
+@import url("../components/foms-search-overlay.css");
+@import url("../components/foms-wizard.css");
+@import url("../components/foms-inline-edit.css");
+@import url("../foundation/foms-split-view.css");
+@import url("../components/foms-kv-row.css");
+@import url("../components/foms-product-item.css");
+@import url("../components/foms-alpine-toast.css");
+@import url("../components/foms-lightbox.css");
+@import url("../components/foms-swipe-actions.css");
+@import url("../components/foms-a2hs-bar.css");
+@import url("../foundation/foms-orientation-layout.css");
 
 /* 주문 상세 2단 렌더 로딩 영역: 썸네일 행 높이 예약으로 CLS 방지 */
 .order-detail-attach-loading {

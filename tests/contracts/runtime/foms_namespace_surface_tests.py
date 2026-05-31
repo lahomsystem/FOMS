@@ -1169,6 +1169,8 @@ def test_namespaced_context_processors_shim_preserves_canonical_contract() -> No
         "inject_status_list",
         "utility_processor",
         "inject_menu",
+        "inject_foms_flags",
+        "inject_foms_nav_badges",
         "register_context_processors",
     ]
 
@@ -2158,7 +2160,18 @@ def test_strict_canonical_docs_taxonomy() -> None:
     """
     docs = _REPO_ROOT / "docs"
     allowed_dirs = frozenset(
-        {"specs", "plans", "evolution", "guides", "incidents", "harness", "context", "design"}
+        {
+            "specs",
+            "plans",
+            "evolution",
+            "guides",
+            "incidents",
+            "harness",
+            "context",
+            "design",
+            "research",
+            "runbooks",
+        }
     )
     allowed_root_files = frozenset({"AI_STATUS.md", "AI_CHANGELOG.md", "ARCHIVE_INDEX.md"})
     for p in docs.iterdir():
@@ -2217,6 +2230,7 @@ _SLG_TEMPLATES_TOP_LEVEL_ALLOWED = frozenset(
         "cs",
         "designer",
         "drawing",
+        "macros",
         "measurement",
         "orders",
         "partials",
@@ -2422,16 +2436,28 @@ def test_slg_literal_gap_no_orders_erp_policy_internal_dir() -> None:
 
 _PAC_PARTIALS_SHARED_HTML_ALLOWLIST = frozenset(
     {
-        "layout_head.html",
-        "layout_nav.html",
-        "layout_flash.html",
-        "layout_scripts.html",
-        "erp_mobile_shell.html",
-        "erp_mobile_shell_header.html",
+        "alpine_layout.html",
         "erp_mobile_bottom_nav.html",
         "erp_mobile_menu_drawer.html",
         "erp_mobile_queue_card.html",
+        "erp_mobile_shell.html",
+        "erp_mobile_shell_header.html",
         "erp_sub_nav.html",
+        "foms_alpine_toast.html",
+        "foms_master_list.html",
+        "foms_order_contact_kv.html",
+        "foms_order_detail_fragment.html",
+        "foms_p2_surface_bundle.html",
+        "foms_search_overlay.html",
+        "foms_search_results_partial.html",
+        "foms_side_tab.html",
+        "foms_split_shell.html",
+        "foms_theme_toggle.html",
+        "htmx_layout.html",
+        "layout_flash.html",
+        "layout_head.html",
+        "layout_nav.html",
+        "layout_scripts.html",
     }
 )
 
