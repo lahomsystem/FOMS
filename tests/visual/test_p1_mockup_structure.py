@@ -378,3 +378,45 @@ def test_p1_shipment_dashboard_renders_home_ia(
         "foms-shell-fab",
     ):
         assert selector in html, selector
+
+
+def test_p1_as_mobile_v2_home_ia_parity() -> None:
+    """탭5 AS: 모바일 v2가 홈 IA 셸/칩/큐/FAB + AS 카메라 바 셀렉터를 사용한다."""
+    body = (ROOT / "templates/cs/partials/as_dashboard_body.html").read_text(
+        encoding="utf-8"
+    )
+    controls = (ROOT / "templates/cs/partials/as_mobile_controls.html").read_text(
+        encoding="utf-8"
+    )
+    camera = (ROOT / "templates/cs/partials/as_mobile_v2_camera_bar.html").read_text(
+        encoding="utf-8"
+    )
+    for selector in ("foms-shell-body", "foms-mobile-queue-list", "foms-shell-fab"):
+        assert selector in body, selector
+    for selector in ("chip-strip", "foms-chip-strip", "foms-section-header"):
+        assert selector in controls, selector
+    assert "foms-as-camera-bar" in camera
+
+
+def test_p1_as_dashboard_renders_home_ia(
+    client,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cohort AS 대시보드 HTML이 홈 IA 셸/칩/FAB + 카메라 바 DOM 훅을 렌더한다."""
+    user = _login_admin(client)
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+
+    resp = client.get("/erp/as")
+    assert resp.status_code == 200
+    html = resp.get_data(as_text=True)
+    assert 'class="erp-mobile-v2-layout"' in html
+    for selector in (
+        "foms-shell-body",
+        "chip-strip",
+        "foms-chip-strip",
+        "foms-section-header",
+        "foms-shell-fab",
+        "foms-as-camera-bar",
+    ):
+        assert selector in html, selector

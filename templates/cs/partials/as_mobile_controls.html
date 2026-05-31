@@ -6,12 +6,12 @@
 {% endif %}
 
 <section class="erp-as-mobile-controls" aria-label="AS 모바일 컨트롤">
-  <div class="erp-as-mobile-controls__summary">
+  <div class="erp-as-mobile-controls__summary foms-section-header section-header">
     <div>
       <span class="erp-as-mobile-controls__eyebrow">After Service</span>
-      <h2 class="erp-as-mobile-controls__title">{{ as_active_title }}</h2>
+      <h2 class="erp-as-mobile-controls__title foms-section-header__title">{{ as_active_title }}</h2>
     </div>
-    <span class="erp-as-mobile-controls__count">{{ total_orders }}건</span>
+    <span class="erp-as-mobile-controls__count foms-section-header__count">{{ total_orders }}건</span>
   </div>
 
   <nav class="erp-as-mobile-tabs" aria-label="AS 분류">
@@ -75,26 +75,28 @@
     </button>
   </form>
 
-  <div class="erp-as-mobile-controls__quick-actions">
+  <nav class="erp-as-mobile-controls__quick-actions chip-strip foms-chip-strip" aria-label="AS 빠른 필터">
     {% if selected_date %}
       <a
-        class="erp-as-mobile-controls__quick-link"
+        class="erp-as-mobile-controls__quick-link chip foms-chip"
         href="{{ url_for('erp_as_page.erp_as_dashboard', date=selected_date, tab=as_tab, status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '', open_map='1') }}">
         <i class="fas fa-map-marked-alt"></i>
         <span>지도</span>
       </a>
     {% endif %}
-    <span class="erp-as-mobile-controls__quick-pill{% if erp_mine_only %} is-active{% endif %}">
+    <a
+      class="erp-as-mobile-controls__quick-pill chip foms-chip{% if erp_mine_only %} is-active{% endif %}"
+      href="{{ url_for('erp_as_page.erp_as_dashboard', tab=as_tab, status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='' if erp_mine_only else '1') }}">
       <i class="fas fa-user-check"></i>
       <span>{% if erp_mine_only %}내 담당만{% else %}전체 보기{% endif %}</span>
-    </span>
+    </a>
     {% if status_filter %}
-      <span class="erp-as-mobile-controls__quick-pill is-active">
+      <span class="erp-as-mobile-controls__quick-pill chip foms-chip is-active">
         <i class="fas fa-filter"></i>
         <span>{{ status_filter }}</span>
       </span>
     {% endif %}
-  </div>
+  </nav>
 
   <div
     class="offcanvas offcanvas-bottom erp-as-mobile-controls__drawer"

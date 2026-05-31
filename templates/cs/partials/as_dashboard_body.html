@@ -129,6 +129,9 @@
     {% include 'partials/shared/erp_mobile_shell.html' %}
     {% include 'partials/shared/erp_mobile_v2_tab_notice.html' %}
     {% include 'cs/partials/as_mobile_v2_camera_bar.html' %}
+    <a class="foms-shell-fab d-md-none" href="{{ url_for('order_pages.add_order', open='erp-order') }}" aria-label="주문 생성">
+      <i class="fas fa-plus" aria-hidden="true"></i>
+    </a>
   {% endif %}
   <!-- Modern Header -->
   <header class="erp-pro-header">
@@ -361,7 +364,7 @@
       </div>
 
       <!-- Mobile Card View -->
-      <div class="erp-pro-order-cards d-md-none{% if erp_mobile_v2_enabled %} erp-as-mobile-list{% endif %}">
+      <div class="erp-pro-order-cards d-md-none{% if erp_mobile_v2_enabled %} erp-as-mobile-list foms-shell-body foms-mobile-queue-list{% endif %}">
         {% if erp_mobile_v2_enabled %}
         <div class="erp-as-mobile-list__sticky">
           {% include 'cs/partials/as_mobile_controls.html' %}
