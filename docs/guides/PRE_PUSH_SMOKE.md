@@ -7,6 +7,7 @@
 - `deploy` / `main`으로 push 직전
 - PR 머지 전 자신감 확인 (빠른 회귀 방지)
 - CI에서 자주 깨지는 영역(배포 Dockerfile, import 계약, HTMX, visual asset) 변경 후
+- **UI/CSS/레이아웃 변경 후**: 기본 subset에 더해 `-Visual`까지 실행 (CI `visual` job과 동일한 PNG 회귀). win32 baseline 갱신 후 커밋하면 CI가 `linux/` SSOT를 자동 refresh합니다.
 
 ## 명령 (Win11 / PowerShell 5.x)
 
@@ -48,7 +49,7 @@ powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1 -Visual
 | Harness | `tools/harness/verify_result.py --json` (있을 때) |
 | Design SSOT | `tools/design/ssot_lint.py docs/design` (있을 때) |
 | Harness 번들 drift | `build_context_bundle.py --all` 재생성 후 `docs/harness/bundles/HARNESS_BUNDLE_*.md` drift 검사 (Harness CI와 동일). 드리프트면 FAIL — 재생성본을 커밋하면 해소 |
-| Pytest subset | Dockerfile 계약, namespace import, search overlay, HTMX fragment, staging mobile v2 / P1 mockup visual |
+| Pytest subset | Dockerfile 계약, namespace import, search overlay, HTMX fragment, staging mobile v2 / P1 mockup visual / P1 chrome parity (CSS 계약) |
 
 > **Harness 번들 드리프트가 자주 CI를 깨뜨립니다.** `AGENTS.md`·`CLAUDE.md`·`tools/harness/*.yaml` 등 번들 소스를 수정하면 `python tools/harness/build_context_bundle.py --all`로 `docs/harness/bundles/HARNESS_BUNDLE_*.md`를 재생성하고 **함께 커밋**해야 합니다. 빠뜨리면 Harness CI의 `Check harness bundle drift`(`git diff --exit-code`)가 실패합니다. 본 스모크가 push 전에 이를 잡습니다.
 

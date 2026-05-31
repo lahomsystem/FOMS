@@ -181,7 +181,8 @@ if ($Full) {
         "tests/domains/test_p2_htmx_fragment.py",
         "tests/visual/test_staging_mobile_v2_assets.py",
         "tests/visual/test_p1_mockup_structure.py",
-        "tests/visual/test_p1_mockup_png_baseline.py"
+        "tests/visual/test_p1_mockup_png_baseline.py",
+        "tests/visual/test_p1_mockup_chrome_parity.py"
     )
 
     $existingTargets = @()
