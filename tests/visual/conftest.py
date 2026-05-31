@@ -18,6 +18,21 @@ from tests.postgres_guard import assert_visual_test_database, resolve_sqlite_fil
 from werkzeug.serving import make_server
 
 BASELINE_ROOT = Path(__file__).parent / "baseline"
+ARTIFACT_ROOT = Path(__file__).parent / "artifacts"
+VISUAL_BASELINE_NAMES: tuple[str, ...] = (
+    "orders_320_light.png",
+    "orders_320_dark.png",
+    "orders_390_light.png",
+    "orders_390_dark.png",
+    "orders_767_light.png",
+    "orders_767_dark.png",
+    "erp_v2_390_light.png",
+    "erp_v2_390_dark.png",
+    "erp_v2_768_light.png",
+    "erp_v2_768_dark.png",
+    "erp_v2_1280_light.png",
+    "erp_v2_1280_dark.png",
+)
 VISUAL_ADMIN_USERNAME = "visual_admin"
 VISUAL_ADMIN_PASSWORD = "visualpass"
 VISUAL_SERVER_HOST = "127.0.0.1"
@@ -31,9 +46,14 @@ def resolve_baseline_dir() -> Path:
     """
     Return platform-specific baseline directory.
 
-    Windows baselines live under baseline/win32; Linux CI uses baseline/linux.
-    Falls back to baseline/ when the platform subdir has no PNGs yet.
+    Linux CI uses baseline/linux (SSOT). Windows dev uses baseline/win32.
+    Legacy root baseline/ is not used for compare (PNG must live in subdirs).
+    Override with VISUAL_BASELINE_DIR for harness scripts.
     """
+    override = os.environ.get("VISUAL_BASELINE_DIR", "").strip()
+    if override:
+        return Path(override)
+
     if sys.platform.startswith("linux"):
         platform_dir = BASELINE_ROOT / "linux"
     elif sys.platform == "win32":
@@ -43,9 +63,29 @@ def resolve_baseline_dir() -> Path:
     else:
         platform_dir = BASELINE_ROOT / sys.platform.replace("/", "_")
 
-    if any(platform_dir.glob("*.png")):
-        return platform_dir
-    return BASELINE_ROOT
+    return platform_dir
+
+
+def missing_baseline_names(baseline_dir: Path | None = None) -> list[str]:
+    """Return baseline filenames absent from the platform directory."""
+    directory = baseline_dir or resolve_baseline_dir()
+    return [name for name in VISUAL_BASELINE_NAMES if not (directory / name).is_file()]
+
+
+def assert_linux_baselines_ready_for_ci(update_snapshots: bool) -> None:
+    """Fail fast on Linux CI when SSOT baselines are not committed yet."""
+    if not os.environ.get("CI") or update_snapshots:
+        return
+    if not sys.platform.startswith("linux"):
+        return
+    missing = missing_baseline_names()
+    if missing:
+        pytest.fail(
+            "Missing Linux visual baselines under tests/visual/baseline/linux/: "
+            f"{', '.join(missing)}. Run workflow "
+            "'.github/workflows/visual-baseline-linux.yml' or "
+            "pytest tests/visual/ --update-snapshots on Ubuntu, then commit."
+        )
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -54,7 +94,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         "--update-snapshots",
         action="store_true",
         default=False,
-        help="Write captured PNGs to tests/visual/baseline/",
+        help="Write captured PNGs to the platform baseline dir (linux/ or win32/).",
     )
 
 
@@ -125,6 +165,48 @@ def compute_pixel_diff_ratio(
     return diff_count / (width * height)
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _visual_baseline_gate(update_snapshots: bool) -> None:
+    """Ensure Linux CI has committed SSOT PNGs before running captures."""
+    assert_linux_baselines_ready_for_ci(update_snapshots)
+
+
+def _write_diff_artifacts(
+    baseline_path: Path,
+    actual_path: Path,
+    baseline_name: str,
+    *,
+    ratio: float,
+) -> None:
+    """Persist actual + diff PNGs for CI artifact upload (not committed)."""
+    ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
+    stem = baseline_path.stem
+    actual_copy = ARTIFACT_ROOT / f"{stem}.actual.png"
+    actual_copy.write_bytes(actual_path.read_bytes())
+
+    baseline = Image.open(baseline_path).convert("RGB")
+    actual = Image.open(actual_path).convert("RGB")
+    baseline, actual = _crop_to_common_size(baseline, actual)
+    diff = Image.new("RGB", baseline.size)
+    diff_px = diff.load()
+    baseline_px = baseline.load()
+    actual_px = actual.load()
+    width, height = baseline.size
+    for y in range(height):
+        for x in range(width):
+            if _rgb_pixels_differ(
+                baseline_px[x, y], actual_px[x, y], tolerance=COLOR_TOLERANCE
+            ):
+                diff_px[x, y] = (255, 0, 0)
+            else:
+                diff_px[x, y] = baseline_px[x, y]
+    diff.save(ARTIFACT_ROOT / f"{stem}.diff.png")
+    (ARTIFACT_ROOT / f"{stem}.meta.txt").write_text(
+        f"baseline={baseline_name}\nratio={ratio:.6f}\nthreshold={PIXEL_DIFF_THRESHOLD}\n",
+        encoding="utf-8",
+    )
+
+
 def compare_or_update_screenshot(
     screenshot_path: Path,
     baseline_name: str,
@@ -152,18 +234,23 @@ def compare_or_update_screenshot(
         if not baseline_path.exists() and not update_snapshots and os.environ.get("CI"):
             pytest.fail(
                 f"Missing baseline {baseline_name} under {baseline_dir}; "
-                "commit PNGs to tests/visual/baseline/"
+                "commit PNGs to tests/visual/baseline/linux/ (CI) or win32/ (local)."
             )
         baseline_path.write_bytes(screenshot_path.read_bytes())
         screenshot_path.unlink(missing_ok=True)
         return 0.0
 
     ratio = compute_pixel_diff_ratio(baseline_path, screenshot_path)
-    screenshot_path.unlink(missing_ok=True)
     if ratio > threshold:
-        pytest.fail(
-            f"{baseline_name}: pixel diff ratio {ratio:.6f} exceeds threshold {threshold}"
+        _write_diff_artifacts(
+            baseline_path, screenshot_path, baseline_name, ratio=ratio
         )
+        screenshot_path.unlink(missing_ok=True)
+        pytest.fail(
+            f"{baseline_name}: pixel diff ratio {ratio:.6f} exceeds threshold {threshold} "
+            f"(see tests/visual/artifacts/)"
+        )
+    screenshot_path.unlink(missing_ok=True)
     return ratio
 
 

@@ -118,11 +118,13 @@ def test_p1_kv_rollout_manifest_coverage() -> None:
 def test_p1_spec_artifacts_exist() -> None:
     required = [
         "static/css/components/foms-product-item.css",
+        "static/js/foms/product-item.js",
         "static/js/foms/kv-copy.js",
         "static/js/foms/inline-edit.js",
         "static/js/foms/wizard.js",
         "static/js/foms/split-shell.js",
         "templates/macros/foms_kv.html",
+        "templates/macros/foms_product_item.html",
         "templates/partials/shared/foms_split_shell.html",
         "templates/orders/wizard/wizard_shell.html",
     ]

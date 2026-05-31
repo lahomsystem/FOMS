@@ -44,6 +44,17 @@ def test_wizard_alpine_validation_and_multi_product() -> None:
     assert "foms-kv-row.css" in css
 
 
+def test_c14_product_item_contract() -> None:
+    macro = (ROOT / "templates/macros/foms_product_item.html").read_text(encoding="utf-8")
+    js = (ROOT / "static/js/foms/product-item.js").read_text(encoding="utf-8")
+    assert "foms_product_item" in macro
+    assert "foms-product-item__head" in macro
+    assert "fomsProductItem" in js
+    assert "foms-product-item--collapsed" in js
+    edit = (ROOT / "templates/orders/edit_order.html").read_text(encoding="utf-8")
+    assert "foms-product-item.css" in edit
+
+
 def test_build_split_master_cards() -> None:
     from foms.services.foms_split_view import build_split_master_cards
 

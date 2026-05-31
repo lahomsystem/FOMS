@@ -99,6 +99,15 @@
         } else {
           toast("저장됨");
         }
+        if (fieldPath.indexOf("items.") === 0) {
+          var parts = fieldPath.split(".");
+          var itemIndex = Number(parts[1]);
+          if (!Number.isNaN(itemIndex)) {
+            document.dispatchEvent(
+              new CustomEvent("foms-inline-saved", { detail: { field: fieldPath, itemIndex: itemIndex } })
+            );
+          }
+        }
         return true;
       })
       .catch(function () {
@@ -217,33 +226,6 @@
       });
   }
 
-  function wrapAccordions(root) {
-    var wrap = root.querySelector("#erp-items");
-    if (!wrap) return;
-    wrap.querySelectorAll(".erp-item-row").forEach(function (row) {
-      if (row.dataset.fomsAccordion === "1") return;
-      row.dataset.fomsAccordion = "1";
-      row.classList.add("foms-product-item");
-      var headBar = row.querySelector(".d-flex.justify-content-between");
-      if (headBar) {
-        headBar.classList.add("foms-product-item__head");
-        headBar.setAttribute("role", "button");
-        headBar.setAttribute("aria-expanded", "true");
-        headBar.addEventListener("click", function (ev) {
-          if (ev.target.closest(".erp-remove-item-btn")) return;
-          row.classList.toggle("foms-product-item--collapsed");
-          headBar.setAttribute(
-            "aria-expanded",
-            row.classList.contains("foms-product-item--collapsed") ? "false" : "true"
-          );
-        });
-      }
-      row.querySelectorAll(":scope > .row, :scope > .col-12, :scope > div:not(.foms-product-item__head)").forEach(function (el) {
-        el.classList.add("foms-product-item__body");
-      });
-    });
-  }
-
   function init() {
     var config = document.getElementById("erp-order-config");
     if (!config || config.getAttribute("data-foms-inline-enabled") !== "true") {
@@ -268,12 +250,8 @@
     loadUpdatedAt().then(function () {
       bindHeaderFields(root);
       bindItemDelegation();
-      wrapAccordions(root);
-      var items = document.getElementById("erp-items");
-      if (items && window.MutationObserver) {
-        new MutationObserver(function () {
-          wrapAccordions(root);
-        }).observe(items, { childList: true, subtree: false });
+      if (window.fomsProductItem && window.fomsProductItem.init) {
+        window.fomsProductItem.init(root);
       }
     });
   }

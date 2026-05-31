@@ -2,6 +2,7 @@
 
 {% block styles %}
 {% if flag_inline %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-product-item.css') }}?v=20260531a">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-inline-edit.css') }}?v=20260531a">
 {% endif %}
 {% endblock %}

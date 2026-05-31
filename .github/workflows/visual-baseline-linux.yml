@@ -1,0 +1,90 @@
+name: Visual baseline (Linux)
+
+on:
+  workflow_dispatch:
+    inputs:
+      auto_commit:
+        description: "Commit refreshed PNGs to the triggering branch"
+        required: false
+        default: true
+        type: boolean
+  push:
+    branches: [deploy]
+
+permissions:
+  contents: read
+
+jobs:
+  seed-linux-baselines:
+    if: github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[skip ci]')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect missing Linux baselines
+        id: detect
+        run: |
+          missing=0
+          for name in orders_320_light.png orders_320_dark.png orders_390_light.png orders_390_dark.png orders_767_light.png orders_767_dark.png erp_v2_390_light.png erp_v2_390_dark.png erp_v2_768_light.png erp_v2_768_dark.png erp_v2_1280_light.png erp_v2_1280_dark.png; do
+            if [ ! -f "tests/visual/baseline/linux/${name}" ]; then
+              missing=$((missing + 1))
+            fi
+          done
+          echo "missing=${missing}" >> "$GITHUB_OUTPUT"
+          echo "Linux baseline PNGs missing: ${missing}"
+
+      - name: Skip when Linux baselines complete
+        if: steps.detect.outputs.missing == '0' && github.event_name != 'workflow_dispatch'
+        run: echo "All Linux baselines present; seed skipped."
+
+      - name: Set up Python 3.12
+        if: steps.detect.outputs.missing != '0' || github.event_name == 'workflow_dispatch'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        if: steps.detect.outputs.missing != '0' || github.event_name == 'workflow_dispatch'
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install -r requirements.txt
+          playwright install chromium --with-deps
+
+      - name: Regenerate Linux baselines
+        if: steps.detect.outputs.missing != '0' || github.event_name == 'workflow_dispatch'
+        env:
+          DATABASE_URL: sqlite:///tests/visual/visual_ci.sqlite
+          SECRET_KEY: ci-secret-key
+          FLASK_ENV: testing
+          ERP_MOBILE_V2_ENABLED: "false"
+        run: |
+          pytest tests/visual/test_visual_regression.py tests/visual/test_erp_mobile_v2_shell_regression.py \
+            --update-snapshots -q -p pytest_playwright
+
+      - name: Upload baseline artifact
+        if: steps.detect.outputs.missing != '0' || github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-baseline-linux
+          path: tests/visual/baseline/linux/*.png
+          if-no-files-found: error
+
+      - name: Commit Linux baselines
+        if: >-
+          (steps.detect.outputs.missing != '0' || github.event_name == 'workflow_dispatch') &&
+          (github.event_name == 'workflow_dispatch' && inputs.auto_commit == true || github.event_name == 'push')
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/visual/baseline/linux/*.png
+          if git diff --staged --quiet; then
+            echo "No baseline changes to commit."
+            exit 0
+          fi
+          git commit -m "chore: refresh visual baselines (linux SSOT) [skip ci]"
+          git push
