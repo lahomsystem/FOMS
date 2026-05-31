@@ -1,16 +1,16 @@
 {% from 'partials/shared/erp_mobile_queue_card.html' import render_queue_card %}
 
 <section class="erp-mobile-queue-section" aria-label="생산 모바일 작업 큐">
-  <div class="erp-mobile-queue-section__summary">
+  <div class="erp-mobile-queue-section__summary foms-section-header section-header">
     <div>
       <span class="erp-mobile-queue-section__eyebrow">Production Queue</span>
-      <h2 class="erp-mobile-queue-section__title">생산 작업 큐</h2>
+      <h2 class="erp-mobile-queue-section__title foms-section-header__title">생산 작업 큐</h2>
     </div>
-    <span class="erp-mobile-queue-section__count">현재 {{ orders|length }}건 / 전체 {{ total_orders }}건</span>
+    <span class="erp-mobile-queue-section__count foms-section-header__count">현재 {{ orders|length }}건 / 전체 {{ total_orders }}건</span>
   </div>
 
   {% if orders %}
-    <div class="erp-mobile-queue-section__list">
+    <div class="erp-mobile-queue-section__list foms-mobile-queue-list">
       {% for o in orders %}
         {% set task_action = None %}
         {% if o.stage == '시작대기' and o.is_sales_approved %}

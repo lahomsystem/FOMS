@@ -28,6 +28,23 @@
     </button>
   </form>
 
+  {% set _pr_base = url_for('erp_production_page.erp_production_dashboard') %}
+  {% set _pr_keep = [] %}
+  {% if filters.get('q') %}{% set _ = _pr_keep.append('q=' ~ filters.get('q')|urlencode) %}{% endif %}
+  {% if erp_mine_only %}{% set _ = _pr_keep.append('mine=1') %}{% endif %}
+  {% set _pr_keep_qs = _pr_keep|join('&') %}
+  {% set _pr_stage = filters.get('stage') or '' %}
+  {% set _pr_ctx = [] %}
+  {% if filters.get('q') %}{% set _ = _pr_ctx.append('q=' ~ filters.get('q')|urlencode) %}{% endif %}
+  {% if _pr_stage %}{% set _ = _pr_ctx.append('stage=' ~ _pr_stage|urlencode) %}{% endif %}
+  <nav class="chip-strip foms-chip-strip" aria-label="생산 단계 필터">
+    <a class="chip foms-chip{% if not _pr_stage %} is-active{% endif %}" href="{{ _pr_base }}{% if _pr_keep_qs %}?{{ _pr_keep_qs }}{% endif %}">전체 {{ total_orders }}</a>
+    {% for step in process_steps %}
+    <a class="chip foms-chip{% if _pr_stage == step.label %} is-active{% endif %}" href="{{ _pr_base }}?stage={{ step.label|urlencode }}{% if _pr_keep_qs %}&{{ _pr_keep_qs }}{% endif %}">{{ step.display|default(step.label) }} {{ step.count }}</a>
+    {% endfor %}
+    <a class="chip foms-chip{% if erp_mine_only %} is-active{% endif %}" href="{{ _pr_base }}?{{ _pr_ctx|join('&') }}{% if not erp_mine_only %}{% if _pr_ctx %}&{% endif %}mine=1{% endif %}">내 작업</a>
+  </nav>
+
   <div
     class="offcanvas offcanvas-bottom erp-mobile-queue-filters__drawer"
     tabindex="-1"
