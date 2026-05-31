@@ -39,6 +39,26 @@
     });
   };
 
+  window.fomsOfflineEnabled = function () {
+    if (window.FOMS_OFFLINE_SW_ENABLED === true) {
+      return true;
+    }
+    return !!document.querySelector("[data-offline-sw='true']");
+  };
+
+  window.fomsOfflineEnqueueRequest = function (url, options) {
+    if (!window.fomsOfflineEnabled() || !window.fomsOfflineQueueWrite) {
+      return Promise.reject(new Error("offline queue disabled"));
+    }
+    options = options || {};
+    return window.fomsOfflineQueueWrite({
+      url: url,
+      method: options.method || "GET",
+      headers: options.headers || {},
+      body: options.body || null,
+    });
+  };
+
   function flushQueue() {
     if (!navigator.onLine) return Promise.resolve(0);
     return openDb().then(function (db) {

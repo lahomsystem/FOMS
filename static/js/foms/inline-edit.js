@@ -58,7 +58,8 @@
   }
 
   function patchField(fieldPath, value, previousValue, critical) {
-    return fetch("/api/orders/" + orderId + "/structured/fields", {
+    var url = "/api/orders/" + orderId + "/structured/fields";
+    var options = {
       method: "PATCH",
       credentials: "same-origin",
       headers: {
@@ -66,7 +67,14 @@
         "X-If-Match": updatedAt || "",
       },
       body: JSON.stringify({ field: fieldPath, value: value }),
-    })
+    };
+    if (!navigator.onLine && window.fomsOfflineEnqueueRequest) {
+      return window.fomsOfflineEnqueueRequest(url, options).then(function () {
+        toast("오프라인 저장됨 · 연결 시 동기화");
+        return true;
+      });
+    }
+    return fetch(url, options)
       .then(function (res) {
         return res.json().then(function (data) {
           return { status: res.status, data: data };
@@ -94,6 +102,12 @@
         return true;
       })
       .catch(function () {
+        if (window.fomsOfflineEnqueueRequest) {
+          return window.fomsOfflineEnqueueRequest(url, options).then(function () {
+            toast("오프라인 저장됨 · 연결 시 동기화");
+            return true;
+          });
+        }
         toast("저장 실패");
         return false;
       });

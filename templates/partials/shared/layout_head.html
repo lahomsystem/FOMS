@@ -2,6 +2,9 @@
         if (typeof window.FOMS_DEBUG === 'undefined') {
             window.FOMS_DEBUG = false;
         }
+        if (typeof window.FOMS_OFFLINE_SW_ENABLED === 'undefined') {
+            window.FOMS_OFFLINE_SW_ENABLED = {{ 'true' if flag_offline_sw else 'false' }};
+        }
     </script>
 
     <meta charset="UTF-8">

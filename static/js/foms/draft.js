@@ -104,6 +104,16 @@
         return false;
       })
       .catch(function () {
+        if (window.fomsOfflineEnqueueRequest) {
+          return window.fomsOfflineEnqueueRequest(API_BASE, {
+            method: "PUT",
+            headers: self._headers(true),
+            body: JSON.stringify(body),
+          }).then(function () {
+            self._showAutosave();
+            return true;
+          });
+        }
         return false;
       });
   };
@@ -159,14 +169,19 @@
       if (!self.draftKey) {
         return;
       }
+      var payload = JSON.stringify(self._body());
+      var req = {
+        method: "PUT",
+        credentials: "same-origin",
+        headers: self._headers(true),
+        body: payload,
+      };
+      if (!navigator.onLine && window.fomsOfflineEnqueueRequest) {
+        window.fomsOfflineEnqueueRequest(API_BASE, req);
+        return;
+      }
       try {
-        fetch(API_BASE, {
-          method: "PUT",
-          credentials: "same-origin",
-          headers: self._headers(true),
-          body: JSON.stringify(self._body()),
-          keepalive: true,
-        });
+        fetch(API_BASE, Object.assign({ keepalive: true }, req));
       } catch (_e) {
         /* keepalive optional */
       }

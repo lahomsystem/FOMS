@@ -64,6 +64,9 @@
 {% include 'partials/shared/foms_alpine_toast.html' %}
 <script src="{{ url_for('static', filename='js/foms/haptic.js') }}?v=20260530a" defer></script>
 <script src="{{ url_for('static', filename='js/foms/voice-input.js') }}?v=20260530a" defer></script>
+{% if flag_offline_sw %}
+<script src="{{ url_for('static', filename='js/foms/sync.js') }}?v=20260531a" defer></script>
+{% endif %}
 <script src="{{ url_for('static', filename='js/foms/draft.js') }}?v=20260530a" defer></script>
 <script src="{{ url_for('static', filename='js/foms/wizard.js') }}?v=20260530a" defer></script>
 {% endblock %}

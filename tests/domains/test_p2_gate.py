@@ -35,6 +35,9 @@ def test_p2_03_offline_sw_and_api() -> None:
     assert (ROOT / "static/js/foms/sync.js").exists()
     sync = (ROOT / "static/js/foms/sync.js").read_text(encoding="utf-8")
     assert "fomsOfflineQueueWrite" in sync
+    assert "fomsOfflineEnqueueRequest" in sync
+    inline = (ROOT / "static/js/foms/inline-edit.js").read_text(encoding="utf-8")
+    assert "fomsOfflineEnqueueRequest" in inline
     offline = (ROOT / "foms/api/foms_offline.py").read_text(encoding="utf-8")
     assert "/queue" in offline
 
@@ -76,6 +79,8 @@ def test_p2_08_orientation_layout() -> None:
     assert "foms-split-landscape" in js
     css = (ROOT / "static/css/foundation/foms-orientation-layout.css").read_text(encoding="utf-8")
     assert "foms-split-portrait" in css
+    split = (ROOT / "templates/partials/shared/foms_split_shell.html").read_text(encoding="utf-8")
+    assert "orientation-layout.js" in split
 
 
 def test_p2_offline_sw_flag_default_off(monkeypatch: pytest.MonkeyPatch) -> None:
