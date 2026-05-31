@@ -24,6 +24,6 @@
     "browser": "Codex has no first-class browser tool in this harness; use generated repo-local gstack QA skills for repeatable smoke checks and Cursor browser MCP for exploratory/manual web work.",
     "runner_entry": "FOMS wrapper-driven runs can auto-route harness file reviews and harness plan implementation to HARNESS_BUNDLE_CODEX_HARNESS.md when BundlePath is not explicitly overridden.",
     "verification": "Follow verify-result workflow expectations when claiming harness-internal build, import, or runner setup verification complete.",
-    "pre_push_smoke": "Harness·deploy/main push 직전에도 동일: `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` (exit 0). 머지·대형 변경 전 `-Full`. UI/CSS는 `docs/runbooks/visual-regression-baselines.md`. 상세: `docs/guides/PRE_PUSH_SMOKE.md`."
+    "pre_push_smoke": "Harness·deploy/main push 직전: `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` (exit 0). UI/CSS 변경 시 win32 baseline 갱신·`-Visual` 필수. 상세: `docs/guides/PRE_PUSH_SMOKE.md`."
   }
 }

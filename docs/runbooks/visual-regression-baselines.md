@@ -35,10 +35,13 @@ Writes to `baseline/win32/` only.
 
 ## UI change checklist
 
-1. Implement CSS/JS/template change
-2. Run Linux baseline refresh (workflow or Ubuntu)
-3. Commit `baseline/linux/*.png` in same PR or immediate follow-up
-4. CI `visual` job must pass at `VISUAL_PIXEL_DIFF_THRESHOLD=0.001`
+정본 워크플로는 **`docs/guides/PRE_PUSH_SMOKE.md` § Visual regression 정본 워크플로** 를 따릅니다.
+
+1. Implement CSS/JS/template change (`static/css/`, `static/js/`, `templates/`)
+2. **Windows:** `pytest tests/visual/ --update-snapshots` → commit `baseline/win32/*.png`
+3. **Pre-push:** `pre_push_smoke.ps1 -Visual` (exit 0)
+4. Push → CI visual job refreshes `baseline/linux/` when win32 ERP PNGs are newer
+5. CI `visual` job must pass at `VISUAL_PIXEL_DIFF_THRESHOLD=0.001`
 
 ## Related
 

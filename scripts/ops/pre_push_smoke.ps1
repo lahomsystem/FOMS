@@ -74,9 +74,6 @@ function Invoke-SmokeStep {
     Write-StepHeader $Name
     try {
         & $Action
-        if ($LASTEXITCODE -ne 0 -and $null -ne $LASTEXITCODE) {
-            throw "Command exited with code $LASTEXITCODE"
-        }
         Write-StepOk $Name
     } catch {
         $detail = $_.Exception.Message
@@ -113,6 +110,67 @@ function Invoke-PythonCommand {
 Write-Host "FOMS pre-push smoke" -ForegroundColor Cyan
 Write-Host "Root: $root"
 Write-Host "Mode: $(if ($Full) { 'Full (slow)' } else { 'Fast subset' })$(if ($Visual) { ' + Visual regression' })"
+
+$visualStaleScript = Join-Path $root "scripts\ops\visual_baseline_stale.py"
+$visualGateRequired = $false
+$win32BaselineStale = $false
+
+if (Test-Path $visualStaleScript) {
+    Write-StepHeader "Visual-affecting change gate (CSS/templates/static)"
+    $prevErrorAction = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    $sinceRef = ""
+    $remoteDeploy = (& git rev-parse --verify origin/deploy 2>$null)
+    if ($LASTEXITCODE -eq 0) {
+        $sinceRef = "origin/deploy"
+    }
+
+    $listArgs = @("scripts/ops/visual_baseline_stale.py", "--list-visual-affecting-changes")
+    if ($sinceRef) {
+        $listArgs += @("--since-ref", $sinceRef)
+    }
+    & python @listArgs 2>&1 | ForEach-Object {
+        Write-Host "  visual change: $_" -ForegroundColor Yellow
+        $visualGateRequired = $true
+    }
+    if ($LASTEXITCODE -eq 1) {
+        $visualGateRequired = $true
+    } else {
+        Write-StepOk "No pending visual-affecting path changes detected"
+    }
+
+    & python scripts/ops/visual_baseline_stale.py --check-win32-vs-sources 2>&1 | ForEach-Object {
+        Write-Host "  $_" -ForegroundColor Yellow
+    }
+    if ($LASTEXITCODE -eq 1) {
+        $win32BaselineStale = $true
+        if (-not $Visual) {
+            Write-StepFail "win32 baseline stale vs CSS/templates — regenerate win32 PNGs, commit, then re-run with -Visual"
+            Write-Host "  1) `$env:TEMP='C:\tmp'; `$env:DATABASE_URL='sqlite:///tests/visual/visual_local.sqlite'" -ForegroundColor DarkGray
+            Write-Host "  2) python -m pytest tests/visual --update-snapshots -q" -ForegroundColor DarkGray
+            Write-Host "  3) git add tests/visual/baseline/win32/*.png" -ForegroundColor DarkGray
+            Write-Host "  4) powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1 -Visual" -ForegroundColor DarkGray
+            Write-Host "  SSOT: docs/guides/PRE_PUSH_SMOKE.md" -ForegroundColor DarkGray
+            $script:FailedSteps.Add("Visual win32 baseline freshness")
+        } else {
+            Write-Host "[WARN] win32 baselines older than visual sources — -Visual must pass after --update-snapshots" -ForegroundColor Yellow
+        }
+    } else {
+        Write-StepOk "win32 baselines fresh vs visual sources"
+    }
+
+    if ($visualGateRequired -and -not $Visual) {
+        Write-StepFail "Visual-affecting files changed — re-run with -Visual (and refresh win32 baselines if stale)"
+        Write-Host "  powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1 -Visual" -ForegroundColor DarkGray
+        Write-Host "  Workflow: CSS change -> win32 --update-snapshots -> commit PNGs -> CI refreshes linux/" -ForegroundColor DarkGray
+        $script:FailedSteps.Add("Visual-affecting change gate (-Visual required)")
+    } elseif ($visualGateRequired -and $Visual) {
+        Write-StepOk "Visual-affecting changes present; -Visual enabled"
+    }
+    $ErrorActionPreference = $prevErrorAction
+} else {
+    Write-StepSkip "scripts/ops/visual_baseline_stale.py not found"
+}
 
 # Test env (matches .github/workflows/ci.yml test job)
 $env:DATABASE_URL = "sqlite:///:memory:"
@@ -214,7 +272,12 @@ if ($Visual) {
     $playwrightOk = ($LASTEXITCODE -eq 0)
 
     if (-not $playwrightOk) {
-        Write-StepSkip "Visual regression — playwright not installed (pip install playwright; python -m playwright install chromium)"
+        if ($visualGateRequired -or $win32BaselineStale) {
+            Write-StepFail "Visual regression — playwright required for CSS/visual changes (pip install playwright; python -m playwright install chromium)"
+            $script:FailedSteps.Add("Visual regression (playwright missing)")
+        } else {
+            Write-StepSkip "Visual regression — playwright not installed (pip install playwright; python -m playwright install chromium)"
+        }
     } else {
         if (-not (Test-Path "C:\tmp")) {
             New-Item -ItemType Directory -Path "C:\tmp" -Force | Out-Null

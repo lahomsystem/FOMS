@@ -34,7 +34,7 @@ Codex has no first-class browser tool in this harness; use generated repo-local 
 ### Additional runner notes
 
 - **codex_cli**: In Cursor, the Codex extension and Codex CLI share the same baseline through HARNESS_BUNDLE_CODEX.md; AGENTS.md remains the portable policy root. For harness-internal architecture or policy work, switch to HARNESS_BUNDLE_CODEX_HARNESS.md or let `run_codex.ps1` auto-route when reviewing harness files/plans.
-- **pre_push_smoke**: `deploy`/`main` push 직전: `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` (exit 0 확인). 머지·대형 변경 전 `-Full` 선택. 기본 smoke는 FOMS CI/visual(Linux Playwright baseline) 미포함 — UI/CSS 변경은 `docs/runbooks/visual-regression-baselines.md` 워크플로 따름. 실패 시 push 금지; deploy에 `[skip ci]` 루틴 사용 금지. 로컬 pytest는 LLM 토큰 미소비. 상세: `docs/guides/PRE_PUSH_SMOKE.md` (AGENTS.md § 푸시 전 로컬 검증).
+- **pre_push_smoke**: `deploy`/`main` push 직전: `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` (exit 0). UI/CSS/템플릿 변경 시 win32 `--update-snapshots` → PNG 커밋 → `-Visual` 필수(스크립트가 visual 경로·win32 stale 감지). CI가 linux SSOT refresh. 머지·대형 변경 전 `-Full`. 실패 시 push 금지. 상세: `docs/guides/PRE_PUSH_SMOKE.md`.
 - **runner_entry**: Prepare Codex-side generated skills with .agents/skills/gstack/setup --host codex --no-prefix. FOMS wrapper-driven runs use codex exec -s workspace-write.
 - **verification**: Follow verify-result workflow expectations when claiming build, import, or runner setup verification complete. Read the harness master plan separately only for harness-internal work.
 
@@ -105,7 +105,7 @@ Codex has no first-class browser tool in this harness; use generated repo-local 
 
 ## 푸시 전 로컬 검증 (deploy/main)
 
-`deploy` / `main` push **직전** 수동 실행: `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` (APP_OK, harness verify, SSOT lint, CI 자주 실패 pytest subset, ~2–5분). 머지 직전 전체 pytest: `-Full` (느림). 로컬 Playwright visual regression(win32 baseline, CI 무영향): `-Visual` (playwright 미설치 시 SKIP). **git push 시 자동 실행 아님** — GitHub Actions가 전체 CI를 담당. 에이전트는 push마다 full suite 대신 **사용자가 로컬 스크립트 실행**을 권장 (비용·시간 절약). 상세: [`docs/guides/PRE_PUSH_SMOKE.md`](docs/guides/PRE_PUSH_SMOKE.md).
+`deploy` / `main` push **직전** 수동 실행: `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` (APP_OK, harness verify, SSOT lint, CI 자주 실패 pytest subset, ~2–5분). **UI/CSS/템플릿 변경 시** win32 baseline `--update-snapshots` → PNG 커밋 → **`-Visual` 필수**; 스크립트가 visual 경로 변경·win32 stale(vs CSS 소스)을 감지하면 `-Visual` 없이 FAIL. CI는 push 후 `baseline/linux/` ERP SSOT를 자동 refresh. 머지 직전 전체 pytest: `-Full` (느림). **git push 시 자동 실행 아님** — GitHub Actions가 전체 CI를 담당. 상세 워크플로: [`docs/guides/PRE_PUSH_SMOKE.md`](docs/guides/PRE_PUSH_SMOKE.md).
 
 ---
 
