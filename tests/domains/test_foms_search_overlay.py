@@ -34,11 +34,15 @@ def test_search_overlay_template_contract() -> None:
         encoding="utf-8"
     )
     assert "data-foms-search-open" in header
+    app_shell = (ROOT / "templates/partials/shared/foms_app_shell.html").read_text(
+        encoding="utf-8"
+    )
     shell = (ROOT / "templates/partials/shared/erp_mobile_shell.html").read_text(
         encoding="utf-8"
     )
-    assert "foms_search_overlay.html" in shell
-    assert "js/foms/search.js" in shell
+    assert "foms_app_shell.html" in shell
+    assert "foms_search_overlay.html" in app_shell
+    assert "js/foms/search.js" in app_shell
 
 
 def test_search_assets_imported() -> None:

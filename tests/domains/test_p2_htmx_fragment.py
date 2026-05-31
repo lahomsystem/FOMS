@@ -17,9 +17,15 @@ def test_htmx_vendor_and_layout_contract() -> None:
     layout = (ROOT / "templates/partials/shared/htmx_layout.html").read_text(encoding="utf-8")
     assert "js/vendor/htmx.min.js" in layout
     assert "unpkg.com" not in layout
-    shell = (ROOT / "templates/partials/shared/erp_mobile_shell.html").read_text(encoding="utf-8")
-    assert "htmx_layout.html" in shell
-    assert "unpkg.com/htmx" not in shell
+    app_shell = (ROOT / "templates/partials/shared/foms_app_shell.html").read_text(
+        encoding="utf-8"
+    )
+    shell = (ROOT / "templates/partials/shared/erp_mobile_shell.html").read_text(
+        encoding="utf-8"
+    )
+    assert "foms_app_shell.html" in shell
+    assert "htmx_layout.html" in app_shell
+    assert "unpkg.com/htmx" not in app_shell
 
 
 def test_split_master_cards_use_fragment_href() -> None:
