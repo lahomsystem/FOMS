@@ -58,3 +58,15 @@
     display: flex !important;
   }
 }
+
+/* Tablet split band (992–1365.98px), mobile-v2 cohort: the master-detail
+   split-view (D03) owns the surface, so the legacy global brand header + nav are
+   hidden like on mobile. Placed after the ≥992 show rule so source order wins.
+   ≥1366px keeps the desktop dashboard + its header/nav. */
+@media (min-width: 992px) and (max-width: 1365.98px) {
+  body.erp-mobile-v2-layout .layout-header,
+  body.erp-mobile-v2-layout .layout-global-nav,
+  body.erp-mobile-v2-layout .layout-global-nav.layout-global-nav--erp-v2-suppressed {
+    display: none !important;
+  }
+}

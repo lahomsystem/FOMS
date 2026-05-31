@@ -19,37 +19,58 @@ def _css(rel: str) -> str:
     return (ROOT / "static/css" / rel).read_text(encoding="utf-8")
 
 
-def test_legacy_layout_header_hidden_on_mobile_v2() -> None:
-    """Bridge CSS hides .layout-header for the v2 cohort below 992px only."""
+def test_legacy_layout_header_hidden_on_mobile_and_tablet() -> None:
+    """Bridge CSS hides the legacy global header for the v2 cohort on mobile
+    (≤991.98px) and the tablet split band (992–1365.98px); true desktop
+    (≥1366px), where the legacy ERP dashboard renders, keeps it."""
     css = _css("foundation/erp-pro/13-foms-shell-bridge.css")
-    block = re.search(r"@media \(max-width: 991\.98px\) \{.*?\n\}", css, re.S)
-    assert block, "expected a max-width:991.98px media block"
-    assert "body.erp-mobile-v2-layout .layout-header" in block.group(0)
-    # Desktop must keep the header: no unscoped/min-width hide of layout-header.
-    assert ".layout-header" not in _css("foundation/erp-pro/13-foms-shell-bridge.css").split(
-        "@media (min-width: 992px)"
-    )[-1]
+    mobile = re.search(r"@media \(max-width: 991\.98px\) \{.*?\n\}", css, re.S)
+    assert mobile, "expected a max-width:991.98px media block"
+    assert "body.erp-mobile-v2-layout .layout-header" in mobile.group(0)
+    tablet = re.search(
+        r"@media \(min-width: 992px\) and \(max-width: 1365\.98px\) \{.*?\n\}", css, re.S
+    )
+    assert tablet, "expected a tablet 992–1365.98px media block"
+    assert "body.erp-mobile-v2-layout .layout-header" in tablet.group(0)
+    # Desktop ≥1366px must keep the legacy header: no min-width:1366px hide here.
+    assert "min-width: 1366px" not in css
 
 
-def test_split_detail_collapses_below_tablet() -> None:
-    """foms-split-detail joins side-tab/master in the <=1023px hide rule."""
+def test_split_hidden_on_mobile_and_desktop() -> None:
+    """3-tier (D03): the split renders only in the tablet band; it is hidden
+    below 992px (mobile single-column queue) and at/above 1366px (legacy desktop
+    ERP dashboard) so the two surfaces never double up."""
     css = _css("foundation/foms-split-view.css")
-    block = re.search(r"@media \(max-width: 1023px\) \{.*?\n\}", css, re.S)
-    assert block, "expected a max-width:1023px media block"
-    body = block.group(0)
-    for sel in (".foms-split-side-tab", ".foms-split-master", ".foms-split-detail"):
-        assert sel in body, f"{sel} must be hidden below tablet breakpoint"
+    hide = re.search(
+        r"@media \(max-width: 991\.98px\), \(min-width: 1366px\) \{.*?\n\}",
+        css,
+        re.S,
+    )
+    assert hide, "expected combined mobile+desktop split hide media query"
+    assert "body.erp-mobile-v2-layout .foms-split-enabled" in hide.group(0)
 
 
-def test_split_shell_hidden_on_desktop_erp_v2() -> None:
-    """Desktop PC must not show tablet split chrome alongside legacy ERP dashboard."""
+def test_tablet_split_grid_and_legacy_hidden() -> None:
+    """Tablet band (992–1365.98px): the split grid (72/360/fluid) shows and the
+    legacy desktop dashboard chrome is hidden."""
     css = _css("foundation/foms-split-view.css")
-    block = re.search(r"@media \(min-width: 992px\) \{.*?\n\}", css, re.S)
-    assert block, "expected desktop split hide media block"
-    assert "body.erp-mobile-v2-layout .foms-split-enabled" in block.group(0)
+    grid = re.search(
+        r"@media \(min-width: 992px\) and \(max-width: 1365\.98px\) \{"
+        r".*?grid-template-columns: 72px 360px",
+        css,
+        re.S,
+    )
+    assert grid, "expected tablet split grid 72px 360px in the 992–1365.98px band"
     shell = _css("foundation/foms-shell.css")
+    legacy = re.search(
+        r"@media \(min-width: 992px\) and \(max-width: 1365\.98px\) \{"
+        r".*?\.foms-shell-desktop-only.*?display: none !important",
+        shell,
+        re.S,
+    )
+    assert legacy, "tablet band must hide .foms-shell-desktop-only (legacy dashboard)"
+    # Mobile single-column queue still hidden at >=992px.
     assert "body.erp-mobile-v2-layout .foms-mobile-v2-dashboard" in shell
-    assert "display: none !important" in shell.split("@media (min-width: 992px)")[-1]
 
 
 def test_drawer_exposes_account_actions() -> None:

@@ -207,9 +207,21 @@
   }
 }
 
-/* Desktop PC (≥992px): show legacy ERP dashboard only; mobile queue is ≤991.98px. */
+/* ≥992px: the mobile single-column queue is for phones only. */
 @media (min-width: 992px) {
   body.erp-mobile-v2-layout .foms-mobile-v2-dashboard {
+    display: none !important;
+  }
+}
+
+/* Tablet band (992–1365.98px), mobile-v2 cohort: the tablet master-detail
+   split-view (foms-split-view.css, D03) replaces the legacy desktop ERP
+   dashboard. Hide the legacy chrome + grid here so the two never double up.
+   ≥1366px keeps the legacy dashboard (see foms-split-view.css). */
+@media (min-width: 992px) and (max-width: 1365.98px) {
+  body.erp-mobile-v2-layout
+    .erp-mobile-shell[data-erp-mobile-v2='true']
+    .foms-shell-desktop-only {
     display: none !important;
   }
 }

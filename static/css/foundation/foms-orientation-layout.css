@@ -4,9 +4,14 @@ html.foms-split-portrait .foms-split-shell .foms-split-master {
   display: none;
 }
 
-html.foms-split-landscape .foms-split-shell .foms-split-side-tab,
-html.foms-split-landscape .foms-split-shell .foms-split-master {
+html.foms-split-landscape .foms-split-shell .foms-split-side-tab {
   display: flex;
+}
+
+/* Master is a vertical card list — block, not flex (flex row laid cards out
+   horizontally and shrank each to ~72px). */
+html.foms-split-landscape .foms-split-shell .foms-split-master {
+  display: block;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -12,7 +12,8 @@ def test_split_shell_templates() -> None:
     assert "data-foms-split-shell" in shell
     assert "foms_master_list.html" in shell
     css = (ROOT / "static/css/foundation/foms-split-view.css").read_text(encoding="utf-8")
-    assert "1024px" in css
+    # 3-tier split band: tablet master-detail renders 992–1365.98px (D03).
+    assert "max-width: 1365.98px" in css
     js = (ROOT / "static/js/foms/split-shell.js").read_text(encoding="utf-8")
     assert "data-foms-master-card" in js
 
