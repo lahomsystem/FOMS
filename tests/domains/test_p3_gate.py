@@ -16,7 +16,7 @@ def test_p3_01_bottom_nav_shell_assets() -> None:
     js = (ROOT / "static/js/foms/bottom-nav-shell.js").read_text(encoding="utf-8")
     assert "foms:erp-shell-fragment-swapped" in js
     assert "navigateBottomNavHtmx" in js
-    shell = (ROOT / "templates/partials/shared/erp_mobile_shell.html").read_text(encoding="utf-8")
+    shell = (ROOT / "templates/partials/shared/foms_app_shell.html").read_text(encoding="utf-8")
     assert "data-bottom-nav-htmx" in shell
     bundle = (ROOT / "templates/partials/shared/foms_p2_surface_bundle.html").read_text(encoding="utf-8")
     assert "bottom-nav-shell.js" in bundle

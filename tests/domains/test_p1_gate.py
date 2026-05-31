@@ -59,6 +59,8 @@ def test_p1_flag_combination_api_gating(
     monkeypatch.setenv("FOMS_WIZARD_NEW_ORDER_ENABLED", "true" if wizard else "false")
     monkeypatch.setenv("FOMS_INLINE_EDIT_ENABLED", "true" if inline else "false")
     monkeypatch.setenv("FOMS_TABLET_SPLIT_VIEW_ENABLED", "true" if split else "false")
+    if split:
+        monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
 
     with app.app_context():
         user = User(
@@ -69,6 +71,9 @@ def test_p1_flag_combination_api_gating(
             name="Matrix",
         )
         db_session.add(user)
+        db_session.flush()
+        if split:
+            monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
         order = Order(
             received_date="2026-05-30",
             customer_name="M",
