@@ -47,6 +47,9 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-theme-toggle.css') }}?v=20260529c">
     <!-- ERP Pro Dashboard Styles (Modern SaaS Design System) -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/erp-pro.css') }}?v=20260529c">
+    {% if erp_mobile_v2_enabled and request.path.startswith('/erp') %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-mobile-surfaces.css') }}?v=20260531a">
+    {% endif %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/foms/photo-capture.css') }}?v=20260529a">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-sticky-action-bar.css') }}?v=20260529b">
     <!-- Flatpickr (다중 실측일/시공일 선택) -->

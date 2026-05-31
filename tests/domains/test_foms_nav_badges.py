@@ -31,8 +31,8 @@ def test_bottom_nav_template_renders_badge_from_foms_nav_badges():
 
 
 def test_foms_bottom_nav_css_imported():
-    erp_pro = _read("static/css/foundation/erp-pro.css")
-    assert "foms-bottom-nav.css" in erp_pro
+    surfaces = _read("static/css/foundation/foms-mobile-surfaces.css")
+    assert "foms-bottom-nav.css" in surfaces
     badge_css = _read("static/css/components/foms-bottom-nav.css")
     assert ".erp-mobile-bottom-nav__badge" in badge_css
 

@@ -1,5 +1,9 @@
 {% extends "orders/layout.html" %}
 
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-wizard.css') }}?v=20260531a">
+{% endblock %}
+
 {% block content %}
 <div
   class="foms-wizard"

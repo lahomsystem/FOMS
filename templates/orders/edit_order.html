@@ -1,5 +1,11 @@
 {% extends "orders/layout.html" %}
 
+{% block styles %}
+{% if flag_inline %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-inline-edit.css') }}?v=20260531a">
+{% endif %}
+{% endblock %}
+
 {% block content %}
 {% include "orders/partials/edit_order_body.html" %}
 {% endblock %}

@@ -40,7 +40,7 @@ def test_wizard_alpine_validation_and_multi_product() -> None:
     js = (ROOT / "static/js/foms/wizard.js").read_text(encoding="utf-8")
     assert "cloneProductCard" in js
     assert "applyAlpineErrors" in js
-    css = (ROOT / "static/css/foundation/erp-pro.css").read_text(encoding="utf-8")
+    css = (ROOT / "static/css/foundation/foms-mobile-surfaces.css").read_text(encoding="utf-8")
     assert "foms-kv-row.css" in css
 
 

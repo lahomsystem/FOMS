@@ -42,9 +42,9 @@ def test_search_overlay_template_contract() -> None:
 
 
 def test_search_assets_imported() -> None:
-    erp_pro = (ROOT / "static/css/foundation/erp-pro.css").read_text(encoding="utf-8")
+    surfaces = (ROOT / "static/css/foundation/foms-mobile-surfaces.css").read_text(encoding="utf-8")
     js = (ROOT / "static/js/foms/search.js").read_text(encoding="utf-8")
-    assert "foms-search-overlay.css" in erp_pro
+    assert "foms-search-overlay.css" in surfaces
     assert "foms.search.recent.v1" in js
     assert "ArrowDown" in js
 

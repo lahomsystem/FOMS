@@ -1,0 +1,11 @@
+/* P1–P3 mobile surface components — ERP mobile v2 shell only (layout_head cohort gate). */
+@import url("../components/foms-bottom-nav.css");
+@import url("../components/foms-search-overlay.css");
+@import url("../foundation/foms-split-view.css");
+@import url("../components/foms-kv-row.css");
+@import url("../components/foms-product-item.css");
+@import url("../components/foms-alpine-toast.css");
+@import url("../components/foms-lightbox.css");
+@import url("../components/foms-swipe-actions.css");
+@import url("../components/foms-a2hs-bar.css");
+@import url("../foundation/foms-orientation-layout.css");
