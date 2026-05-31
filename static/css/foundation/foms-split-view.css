@@ -125,6 +125,17 @@
 .foms-split-enabled {
   container-type: inline-size;
   container-name: foms-split;
+  width: 100%;
+  min-width: 0;
+}
+
+/* Desktop PC (≥992px): tablet split shell must not compete with the legacy ERP
+   dashboard (.foms-shell-desktop-only). When both render, container-query grid
+   can collapse to ~1ch columns and strand the detail placeholder. */
+@media (min-width: 992px) {
+  body.erp-mobile-v2-layout .foms-split-enabled {
+    display: none !important;
+  }
 }
 
 @media (max-width: 1023px) {

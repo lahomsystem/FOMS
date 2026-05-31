@@ -31,5 +31,5 @@ def default_split_side_items() -> list[dict[str, str]]:
     """Minimal side-tab items for ERP dashboard split shell."""
     return [
         {"id": "dashboard", "label": "대시", "icon": "fas fa-layer-group", "href": "/erp/dashboard", "active": "true"},
-        {"id": "orders", "label": "주문", "icon": "fas fa-list", "href": "/orders/", "active": ""},
+        {"id": "orders", "label": "주문", "icon": "fas fa-list", "href": "/", "active": ""},
     ]

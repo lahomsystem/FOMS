@@ -166,6 +166,7 @@
     margin-bottom: var(--foms-space-3);
     opacity: 0.5;
   }
+
   body.erp-mobile-v2-layout .erp-mobile-bottom-nav {
     height: calc(var(--foms-shell-bottom-nav-h) + var(--foms-safe-area-bottom));
     padding-bottom: var(--foms-safe-area-bottom);
@@ -203,5 +204,12 @@
     z-index: var(--foms-z-fab);
     cursor: pointer;
     text-decoration: none;
+  }
+}
+
+/* Desktop PC (≥992px): show legacy ERP dashboard only; mobile queue is ≤991.98px. */
+@media (min-width: 992px) {
+  body.erp-mobile-v2-layout .foms-mobile-v2-dashboard {
+    display: none !important;
   }
 }

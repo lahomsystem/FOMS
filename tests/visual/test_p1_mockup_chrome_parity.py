@@ -41,6 +41,17 @@ def test_split_detail_collapses_below_tablet() -> None:
         assert sel in body, f"{sel} must be hidden below tablet breakpoint"
 
 
+def test_split_shell_hidden_on_desktop_erp_v2() -> None:
+    """Desktop PC must not show tablet split chrome alongside legacy ERP dashboard."""
+    css = _css("foundation/foms-split-view.css")
+    block = re.search(r"@media \(min-width: 992px\) \{.*?\n\}", css, re.S)
+    assert block, "expected desktop split hide media block"
+    assert "body.erp-mobile-v2-layout .foms-split-enabled" in block.group(0)
+    shell = _css("foundation/foms-shell.css")
+    assert "body.erp-mobile-v2-layout .foms-mobile-v2-dashboard" in shell
+    assert "display: none !important" in shell.split("@media (min-width: 992px)")[-1]
+
+
 def test_drawer_exposes_account_actions() -> None:
     """Menu drawer keeps logout/profile reachable once header is hidden."""
     drawer = (

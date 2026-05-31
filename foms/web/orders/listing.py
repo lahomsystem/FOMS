@@ -73,6 +73,14 @@ def order_link_filter(s):
     return Markup(re.sub(r'주문 #(\d+)', repl, s))
 
 
+@order_pages_bp.route('/orders/')
+@order_pages_bp.route('/orders')
+@login_required
+def orders_index_alias():
+    """Legacy /orders/ path → canonical 주문 목록 at /."""
+    return redirect(url_for('order_pages.index', **request.args))
+
+
 @order_pages_bp.route('/')
 @login_required
 def index():
