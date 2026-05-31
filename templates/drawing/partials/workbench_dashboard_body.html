@@ -22,8 +22,8 @@
   {% set erp_sub_nav_active = 'drawing_workbench' %}
   {% include 'partials/shared/erp_sub_nav.html' %}
 
-  <!-- ERP 프로세스 맵 스타일 요약 -->
-  <div class="erp-pro-card mb-2 dw-process-map">
+  <!-- ERP 프로세스 맵 스타일 요약 (모바일 v2는 chip-strip로 대체) -->
+  <div class="erp-pro-card mb-2 dw-process-map{% if erp_mobile_v2_enabled %} d-none d-lg-block{% endif %}">
     <div class="erp-pro-card__header py-2">
       <h3 class="erp-pro-card__title mb-0">
         <i class="fas fa-project-diagram"></i>
@@ -317,13 +317,13 @@
       {% endif %}
       
       <!-- Phase 5: 모바일 카드 레이아웃 -->
-      <div class="mobile-card-list d-lg-none erp-drawing-mobile-list">
-        <div class="erp-drawing-mobile-list__summary">
+      <div class="mobile-card-list d-lg-none erp-drawing-mobile-list foms-mobile-queue-list">
+        <div class="erp-drawing-mobile-list__summary foms-section-header section-header">
           <div>
             <span class="erp-drawing-mobile-list__eyebrow">Drawing Queue</span>
-            <h2 class="erp-drawing-mobile-list__title">도면 작업 큐</h2>
+            <h2 class="erp-drawing-mobile-list__title foms-section-header__title">도면 작업 큐</h2>
           </div>
-          <span class="erp-drawing-mobile-list__count">{{ rows|length }}건 / 전체 {{ pagination.total_count }}건</span>
+          <span class="erp-drawing-mobile-list__count foms-section-header__count">{{ rows|length }}건 / 전체 {{ pagination.total_count }}건</span>
         </div>
         {% for r in rows %}
         <div class="card mb-2 mobile-order-card erp-drawing-mobile-card" data-href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=r.id) }}?tab=timeline" tabindex="0" role="link" aria-label="주문 {{ r.id }} 상세 열기">
@@ -418,6 +418,11 @@
       {% endif %}
     </div>
   </div>
+  {% if erp_mobile_v2_enabled %}
+  <a class="foms-shell-fab" href="{{ url_for('order_pages.add_order', open='erp-order') }}" aria-label="주문 생성">
+    <i class="fas fa-plus" aria-hidden="true"></i>
+  </a>
+  {% endif %}
 </div>
 
 <!-- 담당자 일괄 지정 모달: 바깥 클릭 시 닫히지 않음 -->

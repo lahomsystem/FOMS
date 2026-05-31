@@ -252,3 +252,49 @@ def test_p1_measurement_dashboard_renders_home_ia(
         "foms-shell-fab",
     ):
         assert selector in html, selector
+
+
+def test_p1_drawing_mobile_v2_home_ia_parity() -> None:
+    """탭2 도면: 모바일 v2가 홈 IA 셸/칩/큐/FAB 셀렉터를 사용하고 process-map은 모바일 hide."""
+    body = (ROOT / "templates/drawing/partials/workbench_dashboard_body.html").read_text(
+        encoding="utf-8"
+    )
+    controls = (
+        ROOT / "templates/drawing/partials/drawing_mobile_controls.html"
+    ).read_text(encoding="utf-8")
+    gallery = (
+        ROOT / "templates/drawing/partials/drawing_mobile_v2_gallery.html"
+    ).read_text(encoding="utf-8")
+    # 큐 리스트 + 섹션 헤더 + FAB
+    for selector in ("foms-mobile-queue-list", "foms-section-header", "foms-shell-fab"):
+        assert selector in body, selector
+    # 레거시 process-map은 모바일 v2에서 hide (chip-strip로 대체)
+    assert 'dw-process-map{% if erp_mobile_v2_enabled %} d-none d-lg-block' in body
+    # 표준 칩 스트립 (상태 필터)
+    for selector in ("chip-strip", "foms-chip-strip"):
+        assert selector in controls, selector
+    # 갤러리는 foms-shell-body
+    assert "foms-shell-body" in gallery
+
+
+def test_p1_drawing_dashboard_renders_home_ia(
+    client,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cohort 도면 작업실 HTML이 홈 IA 셸/칩/FAB DOM 훅을 렌더한다."""
+    user = _login_admin(client)
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+
+    resp = client.get("/erp/drawing-workbench")
+    assert resp.status_code == 200
+    html = resp.get_data(as_text=True)
+    assert 'class="erp-mobile-v2-layout"' in html
+    for selector in (
+        "foms-shell-body",
+        "chip-strip",
+        "foms-chip-strip",
+        "foms-section-header",
+        "foms-shell-fab",
+    ):
+        assert selector in html, selector
