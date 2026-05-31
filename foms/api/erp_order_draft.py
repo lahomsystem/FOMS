@@ -10,6 +10,12 @@ from flask import Blueprint, jsonify, request, session
 
 from db import get_db
 from foms.services.feature_flags import env_bool
+from foms.api.files.routes import build_file_view_url
+from foms.services.order_draft_attachments import (
+    draft_attachment_folder,
+    promote_draft_attachments,
+    validate_draft_attachment_upload,
+)
 from foms.services.order_draft_service import (
     OrderDraftConflictError,
     delete_draft,
@@ -19,6 +25,7 @@ from foms.services.order_draft_service import (
     upsert_draft,
     validate_draft_payload,
 )
+from foms.services.storage import get_storage
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.jobs.queue import enqueue_geocode_order_address
 from foms.services.orders.estimate_defaults import (
@@ -244,6 +251,66 @@ def api_delete_order_draft() -> tuple[Any, int]:
     return jsonify({"success": True}), 200
 
 
+@erp_order_draft_bp.route("/order-draft/attachments", methods=["POST"])
+@login_required
+@role_required(["ADMIN", "MANAGER", "STAFF"])
+def api_upload_order_draft_attachment() -> tuple[Any, int]:
+    """Upload a wizard draft attachment; returns tmp_key for draft payload."""
+    blocked = _require_wizard()
+    if blocked is not None:
+        return blocked
+
+    draft_key = str(request.form.get("draft_key") or "").strip()
+    if not draft_key:
+        return jsonify({"success": False, "error": "MISSING_KEY"}), 400
+
+    uid = _user_id()
+    if uid is None:
+        return jsonify({"success": False, "error": "UNAUTHORIZED"}), 401
+
+    if "file" not in request.files:
+        return jsonify({"success": False, "error": "NO_FILE"}), 400
+    file = request.files["file"]
+    if not file or not file.filename:
+        return jsonify({"success": False, "error": "NO_FILE"}), 400
+
+    import os
+
+    file.seek(0, os.SEEK_END)
+    file_size = file.tell()
+    file.seek(0)
+    err = validate_draft_attachment_upload(file.filename, file_size)
+    if err:
+        return jsonify({"success": False, "error": err}), 400
+
+    folder = draft_attachment_folder(uid, draft_key)
+    storage = get_storage()
+    result = storage.upload_file(file, file.filename, folder)
+    if not result.get("success"):
+        return (
+            jsonify({"success": False, "error": result.get("message") or "UPLOAD_FAILED"}),
+            500,
+        )
+
+    tmp_key = str(result.get("key") or "").strip()
+    if not tmp_key:
+        return jsonify({"success": False, "error": "UPLOAD_FAILED"}), 500
+
+    return (
+        jsonify(
+            {
+                "success": True,
+                "data": {
+                    "tmp_key": tmp_key,
+                    "filename": file.filename,
+                    "view_url": build_file_view_url(tmp_key),
+                },
+            }
+        ),
+        200,
+    )
+
+
 @erp_order_draft_bp.route("/order-draft/submit", methods=["POST"])
 @login_required
 @role_required(["ADMIN", "MANAGER", "STAFF"])
@@ -316,6 +383,13 @@ def api_submit_order_draft() -> tuple[Any, int]:
     db.add(new_order)
     db.flush()
     sync_erp_flat_columns(new_order, structured_data)
+    items_in = data.get("items") if isinstance(data.get("items"), list) else []
+    promote_draft_attachments(
+        db,
+        order_id=new_order.id,
+        items=items_in,
+        user_id=uid,
+    )
     delete_draft(db, uid, draft_key)
     db.commit()
     enqueue_geocode_order_address(new_order.id)

@@ -1,0 +1,25 @@
+{# §6.3 도면: 16:9 카드 + lightbox trigger (mobile v2 cohort) #}
+<section class="foms-shell-body foms-drawing-mobile-v2" aria-label="도면 모바일 갤러리">
+  <div class="foms-section-header section-header">
+    <h2 class="section-header__title foms-section-header__title">도면 미리보기</h2>
+    <span class="section-header__count foms-section-header__count">16:9</span>
+  </div>
+  <div class="foms-drawing-card-grid attach-grid foms-attach-grid" data-foms-lightbox-gallery>
+    {% for card in drawing_preview_cards|default([]) %}
+      <button
+        type="button"
+        class="foms-drawing-card attach-item foms-attach-item"
+        data-foms-lightbox-src="{{ card.url }}"
+        aria-label="{{ card.label }}">
+        {% if card.url %}
+          <img src="{{ card.url }}" alt="{{ card.label }}" loading="lazy" class="foms-drawing-card__img">
+        {% else %}
+          <span class="attach-item__label foms-attach-item__label">{{ card.label }}</span>
+        {% endif %}
+      </button>
+    {% else %}
+      <p class="foms-mobile-empty mb-0">표시할 도면이 없습니다. 데스크톱 작업실에서 업로드하세요.</p>
+    {% endfor %}
+  </div>
+  <p class="foms-drawing-mobile-v2__hint">좌우 스와이프로 승인 · 핀치로 확대 (lightbox)</p>
+</section>

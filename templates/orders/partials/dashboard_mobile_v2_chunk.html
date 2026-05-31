@@ -1,0 +1,33 @@
+{% from 'partials/shared/erp_mobile_queue_card_v2.html' import render_queue_card_v2 %}
+
+{% set _urgent_orders = [] %}
+{% set _other_orders = [] %}
+{% for o in orders %}
+  {% if o.alerts.urgent or o.alerts.drawing_overdue %}
+    {% set _ = _urgent_orders.append(o) %}
+  {% else %}
+    {% set _ = _other_orders.append(o) %}
+  {% endif %}
+{% endfor %}
+
+<div data-foms-mobile-queue-chunk data-next-page="{{ page + 1 if page < total_pages else 0 }}" data-total-pages="{{ total_pages }}" data-page-label="{{ page }} / {{ total_pages }}">
+  {% if _urgent_orders %}
+    <div class="foms-section-header section-header">
+      <h2 class="section-header__title foms-section-header__title">긴급 · 오늘 처리 필요</h2>
+      <span class="section-header__count foms-section-header__count">{{ _urgent_orders|length }}건</span>
+    </div>
+    {% for o in _urgent_orders %}
+      {{ render_queue_card_v2(o, can_edit_erp|default(false)) }}
+    {% endfor %}
+  {% endif %}
+
+  {% if _other_orders %}
+    <div class="foms-section-header section-header">
+      <h2 class="section-header__title foms-section-header__title">작업 큐</h2>
+      <span class="section-header__count foms-section-header__count">{{ _other_orders|length }}건</span>
+    </div>
+    {% for o in _other_orders %}
+      {{ render_queue_card_v2(o, can_edit_erp|default(false)) }}
+    {% endfor %}
+  {% endif %}
+</div>

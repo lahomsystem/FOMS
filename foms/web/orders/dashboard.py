@@ -29,6 +29,7 @@ from foms.services.erp_mobile_order_display import (
     product_subtitle_from_sd,
     stage_badge_label,
     stage_badge_modifier,
+    batch_resolve_queue_attachment_urls,
 )
 from foms.services.common.business_calendar import business_days_until
 from foms.services.erp_order_detail import build_order_detail_payload_map
@@ -127,8 +128,9 @@ def erp_dashboard():
     effective_stage = '' if f_q else f_stage
     f_team = (request.args.get('team') or '').strip()
     f_sort = (request.args.get('sort') or 'latest').strip()
-    if f_sort not in ('latest', 'schedule'):
+    if f_sort not in ('latest', 'schedule', 'amount'):
         f_sort = 'latest'
+    f_today = (request.args.get('today') or '').strip()
 
     # Phase H: 대시보드 운영 화면은 최근 활성 데이터만 조회 (과거 완료건 제외)
     _q = db.query(Order).filter(Order.dashboard_active_filter(days=60), Order.is_erp_order.is_(True))
@@ -148,6 +150,16 @@ def erp_dashboard():
         mine_conds = build_mine_sql_filter(current_user)
         if mine_conds:
             _q = _q.filter(or_(*mine_conds))
+
+    today_date = datetime.date.today()
+    today_iso = today_date.isoformat()
+    if f_today == '1':
+        _q = _q.filter(
+            or_(
+                Order.erp_measurement_date == today_iso,
+                Order.erp_construction_date == today_iso,
+            )
+        )
 
     # C. f_team SQL 필터
     if f_team and not is_admin:
@@ -201,6 +213,16 @@ def erp_dashboard():
                 Order.erp_construction_date <= cutoff,
                 Order.erp_stage_code != 'CONSTRUCTION'
             )
+
+    if f_today == '1':
+        today_iso = datetime.date.today().isoformat()
+        _q = _q.filter(
+            or_(
+                Order.erp_measurement_date == today_iso,
+                Order.erp_construction_date == today_iso,
+                Order.received_date == today_iso,
+            )
+        )
 
     # 순수 DB 정렬: 실측/시공 단계 진입 시 해당 날짜 내림차순 정렬 우선
     if effective_stage:
@@ -297,6 +319,21 @@ def erp_dashboard():
             return min(str(md), str(cd))
 
         filtered.sort(key=_schedule_sort_key)
+    elif f_sort == 'amount':
+        def _amount_sort_key(item: dict) -> int:
+            sd = item.get('_sd') or {}
+            total = 0
+            for it in sd.get('items') or []:
+                if not isinstance(it, dict):
+                    continue
+                raw = it.get('price') or it.get('amount') or 0
+                try:
+                    total += int(str(raw).replace(',', '').strip() or 0)
+                except (TypeError, ValueError):
+                    continue
+            return total
+
+        filtered.sort(key=_amount_sort_key, reverse=True)
     else:
         filtered.sort(key=lambda item: item['_order'].id, reverse=True)
 
@@ -313,7 +350,7 @@ def erp_dashboard():
     _summary_key = build_dashboard_cache_key("orders", "summary_counts", _summary_fp)
 
     def _compute_orders_summary_slice():
-        kpis = {'urgent_count': 0, 'measurement_d4_count': 0, 'construction_d3_count': 0, 'production_d2_count': 0}
+        kpis = {'urgent_count': 0, 'measurement_d4_count': 0, 'construction_d3_count': 0, 'production_d2_count': 0, 'today_count': 0}
         step_stats = {k: {'count': 0, 'overdue': 0, 'imminent': 0} for k in [
             '주문접수', '실측', '도면', '고객컨펌', '생산', '시공', 'CS', '완료', 'AS처리'
         ]}
@@ -336,6 +373,7 @@ def erp_dashboard():
         )
 
         today_date = datetime.date.today()
+        today_iso = today_date.isoformat()
         measurement_d4_dates = _business_alert_date_values(
             today_date,
             max_business_days=4,
@@ -382,6 +420,14 @@ def erp_dashboard():
             )
             .group_by(stage_bucket_expr)
             .all()
+        )
+        kpis['today_count'] = (
+            _q_stats.filter(
+                or_(
+                    Order.erp_measurement_date == today_iso,
+                    Order.erp_construction_date == today_iso,
+                )
+            ).count()
         )
         for row in summary_rows:
             kpis['urgent_count'] += int(row.urgent_cnt or 0)
@@ -682,6 +728,12 @@ def erp_dashboard():
 
     paginated_orders = enriched
 
+    _preview_urls = batch_resolve_queue_attachment_urls(
+        db, [int(r["id"]) for r in paginated_orders if r.get("id")]
+    )
+    for row in paginated_orders:
+        row["attachment_preview_urls"] = _preview_urls.get(int(row["id"]), [])
+
     # §3.1.1 order detail payload assembly — JSON DTO slice (slim structured_data preload)
     _detail_fp = {
         "v": 1,
@@ -745,6 +797,37 @@ def erp_dashboard():
         "FOMS_TABLET_SPLIT_VIEW_ENABLED",
         mobile_v2_active=mobile_v2,
     )
+
+    _mobile_ctx = {
+        "orders": paginated_orders,
+        "filters": {
+            'stage': effective_stage,
+            'urgent': f_urgent,
+            'has_alert': f_has_alert,
+            'alert_type': f_alert_type,
+            'q': f_q,
+            'team': f_team,
+            'mine': request.args.get('mine') or '',
+            'sort': f_sort,
+            'today': f_today,
+        },
+        "kpis": kpis,
+        "page": page,
+        "total_pages": total_pages,
+        "total_orders": total_orders,
+        "can_edit_erp": can_edit_erp_flag,
+        "current_user": current_user,
+    }
+
+    if mobile_v2 and request.args.get('mobile_chunk') == '1':
+        _chunk = render_template(
+            'orders/partials/dashboard_mobile_v2_chunk.html',
+            **_mobile_ctx,
+        )
+        response = make_response(_chunk)
+        apply_erp_shell_fragment_headers(response, request)
+        return response
+
     _body = render_template(
         template_name,
         erp_dashboard_fragment=wants_erp_shell_tab_body(request),
@@ -759,7 +842,8 @@ def erp_dashboard():
             'q': f_q,
             'team': f_team,
             'mine': request.args.get('mine') or '',
-            'sort': (request.args.get('sort') or 'latest').strip(),
+            'sort': f_sort,
+            'today': f_today,
         },
         team_labels=TEAM_LABELS,
         stage_labels=STAGE_LABELS,

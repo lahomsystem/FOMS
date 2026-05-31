@@ -148,6 +148,62 @@
     toggleRow(row, !!collapseDefault);
   }
 
+  function initWizardProducts(root) {
+    var scope = root || document;
+    scope.querySelectorAll(".foms-wizard__product-card[data-product-index]").forEach(function (row, idx) {
+      if (row.dataset.fomsWizardProductBound === "1") {
+        return;
+      }
+      row.dataset.fomsWizardProductBound = "1";
+      var collapsed = idx > 0;
+      row.classList.toggle("foms-product-item--collapsed", collapsed);
+      var head = row.querySelector("[data-foms-product-toggle]");
+      if (head) {
+        head.setAttribute("aria-expanded", collapsed ? "false" : "true");
+      }
+      var expand = row.querySelector(".foms-product-item__expand");
+      if (expand) {
+        expand.textContent = collapsed ? "▾" : "▴";
+      }
+      var summary = row.querySelector("[data-foms-product-summary]");
+      if (summary) {
+        summary.textContent = readValue(row.querySelector('[data-product-field="product_name"]')) || "제품명을 입력하세요";
+      }
+      if (head) {
+        head.addEventListener("click", function () {
+          toggleRow(row, !row.classList.contains("foms-product-item--collapsed"));
+        });
+      }
+      row.querySelectorAll("[data-product-field]").forEach(function (input) {
+        input.addEventListener("input", function () {
+          var titleEl = row.querySelector("[data-foms-product-title]");
+          if (titleEl && input.getAttribute("data-product-field") === "product_name") {
+            titleEl.textContent = readValue(input) || "제품 " + (idx + 1);
+          }
+          if (summary) {
+            summary.textContent = buildWizardSummary(row);
+          }
+        });
+      });
+    });
+  }
+
+  function readValue(el) {
+    return el && el.value ? String(el.value).trim() : "";
+  }
+
+  function buildWizardSummary(row) {
+    var specRow = row.querySelector("[data-spec-row]");
+    var parts = ["spec_width", "spec_depth", "spec_height"].map(function (field) {
+      return readValue(specRow && specRow.querySelector('[data-product-field="' + field + '"]'));
+    }).filter(Boolean);
+    var chunks = [];
+    if (parts.length) chunks.push(parts.join("×"));
+    var price = readValue(row.querySelector('[data-product-field="price"]'));
+    if (price) chunks.push(price + "원");
+    return chunks.join(" · ") || readValue(row.querySelector('[data-product-field="product_name"]')) || "제품명 미입력";
+  }
+
   function enhanceAll(root) {
     var wrap = (root || document).querySelector("#erp-items");
     if (!wrap) return;
@@ -200,6 +256,7 @@
   window.fomsProductItem = {
     enhance: enhanceAll,
     showAutosave: showAutosave,
+    initWizardProducts: initWizardProducts,
     init: function (root) {
       root = root || document;
       enhanceAll(root);
@@ -219,5 +276,13 @@
     if (detail.itemIndex == null) return;
     var rows = document.querySelectorAll("#erp-items .erp-item-row");
     showAutosave(rows[detail.itemIndex]);
+  });
+
+  document.addEventListener("DOMContentLoaded", function () {
+    initWizardProducts(document);
+  });
+  document.addEventListener("foms:wizard-product-added", function (ev) {
+    var row = ev.detail && ev.detail.row;
+    if (row) initWizardProducts(row.parentElement || document);
   });
 })();

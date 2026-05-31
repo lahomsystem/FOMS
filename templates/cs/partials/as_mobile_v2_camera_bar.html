@@ -1,0 +1,36 @@
+{# §6.5 AS: camera-first sticky bar (mobile v2 cohort) #}
+<section class="foms-as-camera-bar" aria-label="AS 촬영 우선">
+  <div class="foms-as-camera-bar__inner">
+    <div>
+      <span class="foms-as-camera-bar__eyebrow">AS 접수</span>
+      <h2 class="foms-as-camera-bar__title">현장 사진 먼저</h2>
+    </div>
+    <button
+      type="button"
+      class="foms-btn foms-btn--primary foms-as-camera-bar__cta"
+      data-foms-as-camera-open
+      aria-controls="foms-as-camera-modal">
+      <i class="fas fa-camera" aria-hidden="true"></i>
+      촬영
+    </button>
+  </div>
+
+  <div class="foms-as-camera-modal" id="foms-as-camera-modal" hidden role="dialog" aria-modal="true" aria-label="AS 현장 촬영">
+    <div class="foms-as-camera-modal__panel">
+      <header class="foms-as-camera-modal__head">
+        <h3>현장 촬영</h3>
+        <button type="button" class="icon-btn" data-foms-as-camera-close aria-label="닫기">✕</button>
+      </header>
+      <div class="foms-photo-capture foms-as-camera-modal__capture" data-foms-photo-capture>
+        <div class="foms-photo-capture__actions">
+          <button type="button" class="foms-btn foms-btn--primary foms-btn--full" data-action="camera">📷 카메라로 촬영</button>
+          <button type="button" class="foms-btn foms-btn--secondary foms-btn--full" data-action="gallery">🖼 갤러리에서 선택</button>
+        </div>
+        <input type="file" class="visually-hidden" accept="image/*" capture="environment" tabindex="-1" aria-hidden="true">
+        <input type="file" class="visually-hidden foms-photo-capture__gallery-input" accept="image/*" tabindex="-1" aria-hidden="true">
+      </div>
+      <p class="foms-as-camera-modal__hint">촬영 후 AS 메모 영역에 붙여넣거나 첨부하세요.</p>
+    </div>
+  </div>
+</section>
+<script src="{{ url_for('static', filename='js/foms/as-camera-bar.js') }}?v=20260531c" defer></script>

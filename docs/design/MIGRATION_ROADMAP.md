@@ -730,14 +730,18 @@ class OrderDraft(Base):
 | 항목 | 결과 |
 |---|---|
 | C01 `foms_app_shell.html` | ✅ `erp_mobile_shell.html` alias |
-| Mockup CSS bundle | ✅ `foms-shell.css` + chip/queue/detail-hero |
-| Dashboard mobile v2 body | ✅ chips · sort · urgent/other sections · infinite scroll sentinel |
-| Mobile order detail route | ✅ `/erp/orders/<id>/mobile` + hero/timeline/attach grid |
+| Mockup CSS bundle | ✅ `foms-shell.css` + chip/queue/detail-hero + drawing/as/shipment |
+| Dashboard mobile v2 body | ✅ chips(전체·오늘·긴급·미처리·담당)·sort(최신·일정·금액)·urgent/other·mobile_chunk IO·R2 thumbs |
+| Mobile order detail route | ✅ `/erp/orders/<id>/mobile` · KV 4섹션 · C07 lightbox · C14 read-only |
 | Desktop chrome hide (mobile v2) | ✅ `foms-shell.css` `.erp-pro-header` / `.erp-pro-nav` |
 | D09 token alias phase 2 | ✅ `10-erp-mobile-v2-shell.css` `:root` `--foms-*` bridge |
-| Structure tests | ✅ `test_p1_mockup_structure.py` |
-| Visibility gate | ✅ `test_p1_mockup_visual_gate.py` (no `display:none` ancestor) |
+| Wizard deploy gap | ✅ `wizard-attachments.js` + `product-item.js` tracked |
+| §6.3 / §6.5 surfaces | ✅ drawing 16:9 gallery + AS camera-first bar (cohort) |
+| Structure tests | ✅ `test_p1_mockup_structure.py` + `test_p1_mockup_png_baseline.py` |
+| Visibility gate | ✅ `test_p1_mockup_visual_gate.py` |
 | Visual regression | ✅ `test_erp_mobile_v2_shell_regression.py` 6 baselines |
+| **mockup PNG 390×844** | ⏳ backlog (Playwright vs `docs/design/mockups/`) |
+| **Railway cohort 실측** | ⏳ `staging_mobile_v2_smoke.ps1` + 390px browser checklist |
 
 ---
 

@@ -64,13 +64,16 @@ def test_p1_dashboard_mobile_v2_body_mockup_selectors() -> None:
         "foms-chip-strip--sort",
         "sort=latest",
         "sort=schedule",
+        "sort=amount",
+        "today=1",
+        "담당:",
         "data-foms-mobile-queue-scroll",
         "data-foms-mobile-queue-sentinel",
         "data-foms-mobile-queue-chunk",
         "긴급 · 오늘 처리 필요",
     ):
         assert selector in body
-    for selector in ("queue-card", "foms-queue-card-v2", "foms-queue-card-v2__attachments"):
+    for selector in ("queue-card", "foms-queue-card-v2", "foms-queue-card-v2__attachments", "data-foms-lightbox-src"):
         assert selector in card
 
 
@@ -87,6 +90,10 @@ def test_p1_order_detail_mobile_v2_mockup_selectors() -> None:
     body = (ROOT / "templates/orders/partials/order_detail_mobile_v2.html").read_text(
         encoding="utf-8"
     )
+    products = (
+        ROOT / "templates/orders/partials/order_detail_mobile_products.html"
+    ).read_text(encoding="utf-8")
+    combined = body + products
     for selector in (
         "foms-detail-hero",
         "foms-quick-actions",
@@ -95,8 +102,13 @@ def test_p1_order_detail_mobile_v2_mockup_selectors() -> None:
         "foms-attach-grid",
         "foms-timeline",
         "data-copy-value",
+        "foms-detail-customer-title",
+        "foms-detail-schedule-title",
+        "foms-detail-amount-title",
+        "data-foms-lightbox-gallery",
+        "data-foms-mobile-product",
     ):
-        assert selector in body
+        assert selector in combined
 
 
 def test_p1_shell_hides_desktop_chrome_on_mobile_v2() -> None:
@@ -178,3 +190,19 @@ def test_p1_mobile_order_detail_route(
     assert "P1 Mockup Customer" in html
     assert "data-copy-value" in html
     assert "foms-timeline" in html
+
+
+def test_p1_dashboard_mobile_chunk_fragment(
+    client,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """mobile_chunk=1 returns queue chunk partial only."""
+    user = _login_admin(client)
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+
+    resp = client.get("/erp/dashboard?mobile_chunk=1&page=1")
+    assert resp.status_code == 200
+    html = resp.get_data(as_text=True)
+    assert "data-foms-mobile-queue-chunk" in html
+    assert "foms-mobile-v2-dashboard" not in html

@@ -4,6 +4,16 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-05-31 | 세션 자동 기록 | test_p1_mockup_png_baseline.py, dashboard_body.html, dashboard_body.html 외 2개 | 64ce749b |
+| 2026-05-31 | 세션 자동 기록 | commit_msg_fix.txt, test_mobile_device_qa_contract.py, test_p3_gate.py 외 2개 | 64ce749b |
+| 2026-05-31 | 세션 자동 기록 | dashboard_main.html, test_p1_mockup_structure.py, dashboard.py 외 2개 | 675d36a0 |
+| 2026-05-31 | 세션 자동 기록 | _commit_msg.txt, foms_alpine_toast.html, alpine-store.js 외 2개 | d10c2c26 |
+| 2026-05-31 | 세션 자동 기록 | _commit_msg_cohort_all.txt, verify_mobile_v2_rollout.ps1, mobile_v2_railway_env.example 외 2개 | 4eb07d21 |
+| 2026-05-31 | 세션 자동 기록 | railway_configure_cron_service.py, _graphql_cron_verify.py, _graphql_service_connect.py 외 2개 | e75bec6f |
+| 2026-05-31 | 세션 자동 기록 | list_active_users.py, _commit_msg.txt, add_erp_phone_digits.py 외 2개 | e75bec6f |
+| 2026-05-31 | 세션 자동 기록 | verify_mobile_v2_rollout.ps1, mobile_v2_railway_env.example, test_mobile_device_qa_contract.py 외 2개 | d5155c63 |
+| 2026-05-31 | 세션 자동 기록 | order_draft_attachments.py, test_erp_order_draft_wizard.py, wizard_shell.html 외 2개 | d5155c63 |
+| 2026-05-31 | 세션 자동 기록 | _commit_msg.txt, add_erp_phone_digits.py | d5155c63 |
 | 2026-05-15 | 세션 자동 기록 | .git_commit_msg_tmp.txt | 3eba385b |
 | 2026-05-15 | 세션 자동 기록 | _amend_ai_changelog.txt, _commit_msg_skills_cleanup.txt, coding_research_center.py 외 2개 | 28cc592b |
 | 2026-05-15 | 레거시 스킬 정리 | `.agents/skills/` 중복 디렉터리·루트 `.cursor/skills/` 제거, 에이전트·하네스 번들 참조 재정렬, `gstack/hosts/cursor.ts` 로컬 경로 정합 | 동일 레포 브랜치 상단 한글 커밋(주제 chore(skills)) |
@@ -14,13 +24,3 @@
 | 2026-05-15 | 세션 자동 기록 | CabinetScene.tsx, wdplanner_v2.html, ModulePanel.tsx 외 2개 | 51d4471d |
 | 2026-05-15 | 세션 자동 기록 | drawings.py, learning_ui.py, run_calibration.py 외 2개 | 51d4471d |
 | 2026-05-14 | 세션 자동 기록 | drawings.py, learning_ui.py, run_calibration.py 외 2개 | e446a72b |
-| 2026-05-14 | 세션 자동 기록 | blueprints.py, learning_ui.py, wdplanner_v2.html 외 2개 | ffd5eeb6 |
-| 2026-05-14 | 세션 자동 기록 | evolution_api.py, wdplanner_v2.html, self_evaluation.py 외 2개 | bdce9456 |
-| 2026-05-14 | 세션 자동 기록 | wdplanner_v2.html, App.tsx, DrawingReviewWorkspace.tsx 외 2개 | e357a96f |
-| 2026-05-14 | 세션 자동 기록 | designerStore.ts, wdplanner_v2.html, TopToolBar.tsx 외 2개 | 7f8cbcbf |
-| 2026-05-14 | 세션 자동 기록 | wdplanner_v2.html, drawings.py, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-9dcb5e3a-969c-48a9-b85f-acde52209d64.png 외 2개 | b39a9bbf |
-| 2026-05-14 | 세션 자동 기록 | test_designer_product_performance.py, export_finetune_dataset.py, test_designer_self_evaluation.py 외 2개 | 6e673a54 |
-| 2026-05-14 | 세션 자동 기록 | wdplanner_v2.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-9dd91185-5890-4420-84d1-6ec945850d14.png, foms_namespace_surface_tests.py 외 2개 | 72415e4b |
-| 2026-05-14 | 세션 자동 기록 | foms_namespace_surface_tests.py, wdplanner_v2.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-29736be4-da40-4a67-bbb9-a5849d2d27a5.png 외 2개 | 9e13e490 |
-| 2026-05-14 | 세션 자동 기록 | wdplanner_v2.html, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-29736be4-da40-4a67-bbb9-a5849d2d27a5.png, test_designer_learning_loop_product.py 외 2개 | c830560f |
-| 2026-05-14 | 세션 자동 기록 | test_designer_learning_loop_product.py, test_designer_product_grade_contract.py, rule_replay.py 외 2개 | a5cc6cd4 |

@@ -9,3 +9,8 @@
   {% include 'orders/partials/order_detail_mobile_v2.html' %}
 </div>
 {% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/foms/lightbox.js') }}?v=20260531c" defer></script>
+<script src="{{ url_for('static', filename='js/foms/mobile-detail-products.js') }}?v=20260531c" defer></script>
+{% endblock %}

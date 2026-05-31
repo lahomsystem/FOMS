@@ -6,6 +6,11 @@
     data-foms-master-card
     data-order-id="{{ card.order_id }}"
     data-href="{{ card.detail_href }}"
+    data-customer="{{ card.title|e }}"
+    data-stage="{{ card.meta|e }}"
+    data-phone="{{ card.phone|default('-', true)|e }}"
+    data-address="{{ card.address|default('-', true)|e }}"
+    data-manager="{{ card.manager|default('-', true)|e }}"
     href="{{ card.detail_href }}"
   >
     <div class="foms-master-card__title">{{ card.title }}</div>

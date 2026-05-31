@@ -1,0 +1,129 @@
+/**
+ * Shipment dashboard mobile v2 — sticky search/filter (P0 optional gap)
+ */
+
+.erp-shipment-mobile-list__sticky {
+  position: sticky;
+  top: 0;
+  z-index: 1020;
+  background: var(--erp-pro-surface, #fff);
+  padding-bottom: 0.5rem;
+  margin: 0 -0.25rem 0.75rem;
+  padding-left: 0.25rem;
+  padding-right: 0.25rem;
+  border-bottom: 1px solid var(--erp-pro-border, #e2e8f0);
+}
+
+.erp-shipment-mobile-controls__summary {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.erp-shipment-mobile-controls__eyebrow {
+  display: block;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--erp-pro-text-muted, #64748b);
+}
+
+.erp-shipment-mobile-controls__title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+.erp-shipment-mobile-controls__count {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--erp-pro-primary, #2563eb);
+}
+
+.erp-shipment-mobile-controls__search {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.erp-shipment-mobile-controls__input,
+.erp-shipment-mobile-controls__date {
+  min-height: 44px;
+  border: 1px solid var(--erp-pro-border, #e2e8f0);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 1rem;
+}
+
+.erp-shipment-mobile-controls__date {
+  max-width: 9.5rem;
+}
+
+.erp-shipment-mobile-controls__submit,
+.erp-shipment-mobile-controls__open {
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid var(--erp-pro-border, #e2e8f0);
+  border-radius: 0.5rem;
+  background: var(--erp-pro-surface, #fff);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0 0.75rem;
+}
+
+.erp-shipment-mobile-controls__open span {
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.erp-shipment-mobile-controls__quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.erp-shipment-mobile-controls__quick-link,
+.erp-shipment-mobile-controls__quick-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 36px;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  text-decoration: none;
+  color: inherit;
+  border: 1px solid var(--erp-pro-border, #e2e8f0);
+  background: var(--erp-pro-surface-muted, #f8fafc);
+}
+
+.erp-shipment-mobile-controls__quick-pill.is-active {
+  border-color: var(--erp-pro-primary, #2563eb);
+  background: rgba(37, 99, 235, 0.08);
+  color: var(--erp-pro-primary, #2563eb);
+}
+
+.erp-shipment-mobile-controls__field {
+  margin-bottom: 0.75rem;
+}
+
+.erp-shipment-mobile-controls__field label {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+
+@media (max-width: 767.98px) {
+  .erp-pro-card__header--filter.erp-shipment-desktop-filter {
+    display: none !important;
+  }
+}

@@ -35,6 +35,7 @@
           loading = true;
           var url = new URL(window.location.href);
           url.searchParams.set('page', String(nextPage));
+          url.searchParams.set('mobile_chunk', '1');
           fetch(url.toString(), {
             headers: { 'X-Requested-With': 'XMLHttpRequest' },
             credentials: 'same-origin',
@@ -46,12 +47,29 @@
               var parser = new DOMParser();
               var doc = parser.parseFromString(html, 'text/html');
               var chunk = doc.querySelector('[data-foms-mobile-queue-chunk]');
+              if (!chunk && html.indexOf('data-foms-mobile-queue-chunk') !== -1) {
+                var wrap = document.createElement('div');
+                wrap.innerHTML = html.trim();
+                chunk = wrap.querySelector('[data-foms-mobile-queue-chunk]');
+              }
               var list = root.querySelector('[data-foms-mobile-queue-list]');
               if (chunk && list) {
                 list.insertAdjacentHTML('beforeend', chunk.innerHTML);
               }
               var fresh = doc.querySelector('[data-foms-mobile-queue-scroll]');
-              if (fresh) {
+              if (!fresh && chunk) {
+                nextPage = parseInt(chunk.getAttribute('data-next-page') || '0', 10);
+                totalPages = parseInt(chunk.getAttribute('data-total-pages') || String(totalPages), 10);
+                root.dataset.nextPage = String(nextPage);
+                root.dataset.totalPages = String(totalPages);
+                var indicator = root.querySelector('[data-foms-mobile-queue-page]');
+                if (indicator && chunk.getAttribute('data-page-label')) {
+                  indicator.textContent = chunk.getAttribute('data-page-label');
+                }
+              } else if (!fresh && nextPage <= totalPages) {
+                nextPage += 1;
+                root.dataset.nextPage = String(Math.min(nextPage, totalPages + 1));
+              } else if (fresh) {
                 nextPage = parseInt(fresh.dataset.nextPage || '0', 10);
                 totalPages = parseInt(fresh.dataset.totalPages || '0', 10);
                 root.dataset.nextPage = String(nextPage);

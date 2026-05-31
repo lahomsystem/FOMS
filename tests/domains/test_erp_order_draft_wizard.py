@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import io
 from pathlib import Path
 
 import pytest
@@ -46,9 +47,19 @@ def test_wizard_template_contract() -> None:
     assert "step1_basic.html" in shell
     assert "js/foms/draft.js" in shell
     assert "js/foms/wizard.js" in shell
+    assert "js/foms/wizard-attachments.js" in shell
+    assert "js/foms/photo-capture.js" in shell
+    assert 'data-conflict="merge"' in shell
     css = (ROOT / "static/css/components/foms-wizard.css").read_text(encoding="utf-8")
     assert ".foms-wizard" in css
     assert "foms-wizard.css" in shell
+    step2 = (ROOT / "templates/orders/wizard/step2_products.html").read_text(encoding="utf-8")
+    assert "data-foms-photo-capture" in step2
+    assert "data-wizard-attachment-input" in step2
+    js = (ROOT / "static/js/foms/wizard.js").read_text(encoding="utf-8")
+    assert "mergeDraftPayload" in js
+    assert 'action === "merge"' in js
+    assert "FomsWizardMergeDraftPayload" in js
 
 
 def test_order_draft_get_empty(client, app, wizard_enabled) -> None:
@@ -189,6 +200,96 @@ def test_add_order_renders_wizard_when_flag_on(client, app, wizard_enabled) -> N
     body = response.get_data(as_text=True)
     assert "foms-wizard-root" in body
     assert "wizard_shell" not in body  # rendered, not raw path leak required — ok if template name absent
+
+
+def test_order_draft_attachment_upload(client, app, wizard_enabled, monkeypatch) -> None:
+    _login(client, app, "wizard_attach_user")
+
+    class DummyStorage:
+        storage_type = "local"
+
+        def upload_file(self, file_obj, filename, folder):
+            return {"success": True, "key": f"{folder}/{filename}"}
+
+        def object_exists(self, key):
+            return True
+
+    monkeypatch.setattr("foms.api.erp_order_draft.get_storage", lambda: DummyStorage())
+
+    response = client.post(
+        "/api/erp/order-draft/attachments",
+        data={
+            "draft_key": "new.test-attach",
+            "item_index": "0",
+            "file": (io.BytesIO(b"fake image"), "measure.jpg"),
+        },
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["success"] is True
+    assert payload["data"]["tmp_key"].endswith("measure.jpg")
+    assert payload["data"]["filename"] == "measure.jpg"
+
+
+def test_order_draft_submit_promotes_attachments(client, app, wizard_enabled, monkeypatch) -> None:
+    from db import db_session
+    from models import OrderAttachment
+
+    _login(client, app, "wizard_attach_submit")
+
+    class DummyStorage:
+        storage_type = "local"
+
+        def object_exists(self, key):
+            return key.startswith("order-drafts/")
+
+        def get_file_type(self, filename):
+            return "image"
+
+    monkeypatch.setattr("foms.api.erp_order_draft.get_storage", lambda: DummyStorage())
+    monkeypatch.setattr("foms.services.order_draft_attachments.get_storage", lambda: DummyStorage())
+
+    key = "new.test-attach-submit"
+    tmp_key = "order-drafts/1/new.test-attach-submit/measure.jpg"
+    payload = {
+        "schema_version": 1,
+        "step": 4,
+        "data": {
+            "customer_name": "첨부테스트",
+            "phone": "010-1234-5678",
+            "address": "서울",
+            "received_date": "2026-05-30",
+            "items": [
+                {
+                    "product_name": "주방",
+                    "spec_rows": [{}],
+                    "attachments": [{"tmp_key": tmp_key, "filename": "measure.jpg"}],
+                }
+            ],
+            "schedule": {},
+        },
+    }
+    client.put(
+        "/api/erp/order-draft",
+        data=json.dumps({"draft_key": key, "step": 4, "payload": payload}),
+        content_type="application/json",
+    )
+    submit = client.post(
+        "/api/erp/order-draft/submit",
+        data=json.dumps({"draft_key": key}),
+        content_type="application/json",
+    )
+    assert submit.status_code == 200
+    order_id = submit.get_json()["data"]["order_id"]
+    with app.app_context():
+        attachment = (
+            db_session.query(OrderAttachment)
+            .filter(OrderAttachment.order_id == order_id)
+            .one()
+        )
+        assert attachment.filename == "measure.jpg"
+        assert attachment.item_index == 0
 
 
 def test_wizard_disabled_returns_403(client, app, monkeypatch: pytest.MonkeyPatch) -> None:

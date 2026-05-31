@@ -32,6 +32,7 @@
   function collectProducts(root) {
     var cards = root.querySelectorAll("[data-product-index]");
     var items = [];
+    var readAtt = window.FomsWizardAttachments && window.FomsWizardAttachments.readAttachments;
     cards.forEach(function (card) {
       var specRow = card.querySelector("[data-spec-row]");
       var spec = {
@@ -51,10 +52,106 @@
         measurement_date: "",
         construction_date: "",
         extra_input: "",
-        attachments: [],
+        attachments: readAtt ? readAtt(card) : [],
       });
     });
     return items;
+  }
+
+  function preferNonEmpty(localVal, remoteVal) {
+    var local = (localVal || "").trim();
+    if (local) {
+      return local;
+    }
+    return (remoteVal || "").trim();
+  }
+
+  function mergeAttachmentLists(localList, remoteList) {
+    var merged = [];
+    var seen = {};
+    [remoteList, localList].forEach(function (list) {
+      if (!Array.isArray(list)) {
+        return;
+      }
+      list.forEach(function (raw) {
+        if (!raw || !raw.tmp_key || seen[raw.tmp_key]) {
+          return;
+        }
+        seen[raw.tmp_key] = true;
+        merged.push({ tmp_key: raw.tmp_key, filename: raw.filename || "" });
+      });
+    });
+    return merged;
+  }
+
+  function mergeProductItem(localItem, remoteItem) {
+    var local = localItem || {};
+    var remote = remoteItem || {};
+    var localSpec = (local.spec_rows && local.spec_rows[0]) || {};
+    var remoteSpec = (remote.spec_rows && remote.spec_rows[0]) || {};
+    return {
+      product_name: preferNonEmpty(local.product_name, remote.product_name),
+      spec_rows: [
+        {
+          spec_width: preferNonEmpty(localSpec.spec_width, remoteSpec.spec_width),
+          spec_depth: preferNonEmpty(localSpec.spec_depth, remoteSpec.spec_depth),
+          spec_height: preferNonEmpty(localSpec.spec_height, remoteSpec.spec_height),
+        },
+      ],
+      internal: preferNonEmpty(local.internal, remote.internal),
+      color: preferNonEmpty(local.color, remote.color),
+      option_detail: preferNonEmpty(local.option_detail, remote.option_detail),
+      handle: preferNonEmpty(local.handle, remote.handle),
+      misc: preferNonEmpty(local.misc, remote.misc),
+      price: preferNonEmpty(local.price, remote.price),
+      measurement_date: preferNonEmpty(local.measurement_date, remote.measurement_date),
+      construction_date: preferNonEmpty(local.construction_date, remote.construction_date),
+      extra_input: preferNonEmpty(local.extra_input, remote.extra_input),
+      attachments: mergeAttachmentLists(local.attachments, remote.attachments),
+    };
+  }
+
+  function mergeSchedule(localSchedule, remoteSchedule) {
+    var local = localSchedule || {};
+    var remote = remoteSchedule || {};
+    return {
+      measurement_date: preferNonEmpty(local.measurement_date, remote.measurement_date),
+      measurement_time: preferNonEmpty(local.measurement_time, remote.measurement_time),
+      construction_date: preferNonEmpty(local.construction_date, remote.construction_date),
+      construction_time: preferNonEmpty(local.construction_time, remote.construction_time),
+    };
+  }
+
+  function mergeDraftPayload(localPayload, remotePayload) {
+    var local = (localPayload && localPayload.data) || {};
+    var remote = (remotePayload && remotePayload.data) || {};
+    var mergedData = {
+      customer_name: preferNonEmpty(local.customer_name, remote.customer_name),
+      phone: preferNonEmpty(local.phone, remote.phone),
+      orderer: preferNonEmpty(local.orderer, remote.orderer),
+      address: preferNonEmpty(local.address, remote.address),
+      received_date: preferNonEmpty(local.received_date, remote.received_date),
+      items: [],
+      schedule: mergeSchedule(local.schedule, remote.schedule),
+    };
+    var localItems = Array.isArray(local.items) ? local.items : [];
+    var remoteItems = Array.isArray(remote.items) ? remote.items : [];
+    var maxLen = Math.max(localItems.length, remoteItems.length, 1);
+    for (var i = 0; i < maxLen; i += 1) {
+      mergedData.items.push(mergeProductItem(localItems[i], remoteItems[i]));
+    }
+    return {
+      schema_version: 1,
+      step: Math.max(localPayload.step || 1, remotePayload.step || 1),
+      data: mergedData,
+    };
+  }
+
+  function applyPayload(root, payload, draftKey, scheduleSave) {
+    var data = (payload && payload.data) || {};
+    applyBasic(root, data);
+    applyProducts(root, data.items, draftKey, scheduleSave);
+    applySchedule(root, data.schedule);
   }
 
   function buildPayload(root, step) {
@@ -116,18 +213,36 @@
     applyAlpineErrors(root, {});
   }
 
-  function cloneProductCard(container) {
+  function cloneProductCard(container, draftKey, scheduleSave) {
     var cards = container.querySelectorAll("[data-product-index]");
     var template = cards[0];
     if (!template) {
       return null;
     }
     var clone = template.cloneNode(true);
-    clone.setAttribute("data-product-index", String(cards.length));
+    var nextIndex = cards.length;
+    clone.setAttribute("data-product-index", String(nextIndex));
     clone.querySelectorAll("input, textarea").forEach(function (input) {
       input.value = "";
     });
+    var input = clone.querySelector("[data-wizard-attachment-input]");
+    if (input) {
+      input.id = "wiz-attach-input-" + nextIndex;
+    }
+    var widget = clone.querySelector("[data-foms-photo-capture]");
+    if (widget) {
+      widget.setAttribute("data-target-input", "wiz-attach-input-" + nextIndex);
+    }
+    clone._wizardAttachmentsBound = false;
     container.appendChild(clone);
+    if (window.FomsWizardAttachments) {
+      window.FomsWizardAttachments.resetCard(clone);
+      window.FomsWizardAttachments.bindCard(clone, draftKey, scheduleSave);
+    }
+    clone.dataset.fomsWizardProductBound = "";
+    if (window.fomsProductItem && typeof window.fomsProductItem.initWizardProducts === "function") {
+      window.fomsProductItem.initWizardProducts(container);
+    }
     return clone;
   }
 
@@ -157,6 +272,9 @@
         el.value = spec[name];
       }
     });
+    if (window.FomsWizardAttachments) {
+      window.FomsWizardAttachments.applyAttachments(card, item.attachments);
+    }
   }
 
   function validateStep(root, step) {
@@ -190,7 +308,7 @@
     return "";
   }
 
-  function applyProducts(root, items) {
+  function applyProducts(root, items, draftKey, scheduleSave) {
     if (!items || !items.length) {
       return;
     }
@@ -199,7 +317,7 @@
       return;
     }
     while (container.querySelectorAll("[data-product-index]").length < items.length) {
-      cloneProductCard(container);
+      cloneProductCard(container, draftKey, scheduleSave);
     }
     items.forEach(function (item, idx) {
       var card = container.querySelector('[data-product-index="' + idx + '"]');
@@ -293,6 +411,8 @@
       currentStep = MAX_STEP;
     }
 
+    var draftKey = root.getAttribute("data-draft-key") || "";
+
     var draftClient = new window.FomsDraftClient(root, {
       getStep: function () {
         return currentStep;
@@ -308,10 +428,9 @@
       },
       onRecovered: function (remote) {
         var payload = remote.payload || {};
-        var data = payload.data || {};
-        applyBasic(root, data);
-        applyProducts(root, data.items);
-        applySchedule(root, data.schedule);
+        applyPayload(root, payload, draftKey, function () {
+          draftClient.scheduleSave();
+        });
         if (payload.step) {
           currentStep = payload.step;
           setStep(root, currentStep);
@@ -322,6 +441,15 @@
     draftClient.bindAutosave();
     setStep(root, currentStep);
 
+    if (window.FomsWizardAttachments) {
+      window.FomsWizardAttachments.bindAll(root, draftKey, function () {
+        draftClient.scheduleSave();
+      });
+    }
+    if (window.fomsProductItem && typeof window.fomsProductItem.initWizardProducts === "function") {
+      window.fomsProductItem.initWizardProducts(root);
+    }
+
     var addProductBtn = root.querySelector("#foms-wizard-add-product");
     if (addProductBtn) {
       addProductBtn.addEventListener("click", function () {
@@ -329,7 +457,9 @@
         if (!container) {
           return;
         }
-        cloneProductCard(container);
+        cloneProductCard(container, draftKey, function () {
+          draftClient.scheduleSave();
+        });
         draftClient.scheduleSave();
       });
     }
@@ -361,10 +491,23 @@
         var btn = ev.target.closest("[data-conflict]");
         if (!btn) return;
         var action = btn.getAttribute("data-conflict");
-        if (action === "remote" && conflict._remote) {
-          draftClient.applyRemote(conflict._remote);
+        var remoteRow = conflict._remote || {};
+        var remotePayload = remoteRow.payload || {};
+        if (action === "remote" && remoteRow) {
+          draftClient.applyRemote(remoteRow);
         }
-        if (action === "mine") {
+        if (action === "mine" && remoteRow.updated_at) {
+          draftClient.updatedAt = remoteRow.updated_at;
+          draftClient.flush();
+        }
+        if (action === "merge" && remotePayload) {
+          var merged = mergeDraftPayload(buildPayload(root, currentStep), remotePayload);
+          applyPayload(root, merged, draftKey, function () {
+            draftClient.scheduleSave();
+          });
+          currentStep = merged.step || currentStep;
+          setStep(root, currentStep);
+          draftClient.updatedAt = remoteRow.updated_at || draftClient.updatedAt;
           draftClient.flush();
         }
         conflict.classList.remove("is-open");
@@ -415,6 +558,8 @@
       });
     }
   }
+
+  window.FomsWizardMergeDraftPayload = mergeDraftPayload;
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);

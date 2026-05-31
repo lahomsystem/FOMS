@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from typing import Any
 
+from foms.api.files.routes import build_file_view_url
 from foms.services.erp_display import (
     _ensure_dict,
     _erp_alerts,
     _erp_get_stage,
     _erp_has_media,
+    erp_payment_amount_from_structured,
 )
 from foms.services.erp_policy import STAGE_LABELS, STAGE_NAME_TO_CODE
 
@@ -19,8 +21,13 @@ __all__ = [
     "build_mobile_queue_order_row",
     "mobile_timeline_events",
     "mobile_attachment_items",
+    "batch_resolve_queue_attachment_urls",
+    "mobile_product_items",
+    "mobile_amount_summary",
 ]
 
+_IMAGE_SUFFIXES = (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp")
+_MAX_QUEUE_PREVIEW_COUNT = 3
 
 _EVENT_LABELS: dict[str, str] = {
     "STAGE_CHANGED": "단계 변경",
@@ -49,16 +56,7 @@ def _format_event_meta(event, payload: dict) -> str:
 
 
 def mobile_timeline_events(db, order_id: int, *, limit: int = 12) -> list[dict[str, Any]]:
-    """Recent OrderEvent rows for mobile detail timeline (newest first).
-
-    Args:
-        db: SQLAlchemy session.
-        order_id: Order primary key.
-        limit: Maximum events to return.
-
-    Returns:
-        List of dicts with title, meta, and done flag for template rendering.
-    """
+    """Recent OrderEvent rows for mobile detail timeline (newest first)."""
     try:
         from models import OrderEvent
 
@@ -86,17 +84,134 @@ def mobile_timeline_events(db, order_id: int, *, limit: int = 12) -> list[dict[s
     return items
 
 
+def _is_image_filename(filename: str | None) -> bool:
+    name = (filename or "").strip().lower()
+    return bool(name) and name.endswith(_IMAGE_SUFFIXES)
+
+
+def _attachment_image_url(attachment) -> str | None:
+    """Resolve thumbnail or image view URL for an OrderAttachment."""
+    thumb_key = (getattr(attachment, "thumbnail_key", None) or "").strip()
+    if thumb_key:
+        return build_file_view_url(thumb_key)
+    storage_key = (getattr(attachment, "storage_key", None) or "").strip()
+    if not storage_key:
+        return None
+    file_type = (getattr(attachment, "file_type", None) or "").strip().lower()
+    filename = getattr(attachment, "filename", None)
+    if file_type == "image" or _is_image_filename(filename):
+        return build_file_view_url(storage_key)
+    return None
+
+
+def batch_resolve_queue_attachment_urls(
+    db,
+    order_ids: list[int],
+    *,
+    limit_per_order: int = _MAX_QUEUE_PREVIEW_COUNT,
+) -> dict[int, list[str]]:
+    """Batch-resolve image preview URLs for mobile v2 queue cards."""
+    if not order_ids:
+        return {}
+    try:
+        from models import OrderAttachment
+
+        rows = (
+            db.query(OrderAttachment)
+            .filter(OrderAttachment.order_id.in_(order_ids))
+            .order_by(OrderAttachment.order_id.asc(), OrderAttachment.created_at.desc())
+            .all()
+        )
+    except Exception:
+        return {}
+
+    out: dict[int, list[str]] = {oid: [] for oid in order_ids}
+    for att in rows:
+        oid = int(att.order_id)
+        bucket = out.get(oid)
+        if bucket is None or len(bucket) >= limit_per_order:
+            continue
+        url = _attachment_image_url(att)
+        if url:
+            bucket.append(url)
+    return out
+
+
+def mobile_product_items(sd: dict, *, limit: int = 8) -> list[dict[str, Any]]:
+    """Product accordion rows for mobile order detail (C14 markup)."""
+    items = sd.get("items") or []
+    if not isinstance(items, list):
+        return []
+    rows: list[dict[str, Any]] = []
+    for idx, raw in enumerate(items[:limit]):
+        if not isinstance(raw, dict):
+            continue
+        name = raw.get("product_name") or raw.get("name") or f"항목 {idx + 1}"
+        spec = " × ".join(
+            str(raw.get(k) or "").strip()
+            for k in ("spec_width", "spec_depth", "spec_height", "width", "depth", "height")
+            if raw.get(k)
+        )
+        price_raw = raw.get("price")
+        price_label = "-"
+        if price_raw not in (None, ""):
+            try:
+                price_label = f"{int(float(price_raw)):,}원"
+            except (TypeError, ValueError):
+                price_label = str(price_raw)
+        summary_bits = [p for p in (spec, price_label if price_label != "-" else None) if p]
+        rows.append(
+            {
+                "index": idx + 1,
+                "title": str(name),
+                "internal": raw.get("internal") or raw.get("interior") or "-",
+                "color": raw.get("color") or "-",
+                "option_detail": raw.get("option_detail") or raw.get("option") or "-",
+                "handle": raw.get("handle") or "-",
+                "misc": raw.get("misc") or raw.get("install_notes") or "-",
+                "price_label": price_label,
+                "summary": " · ".join(summary_bits) if summary_bits else str(name),
+                "collapsed_default": idx > 0,
+            }
+        )
+    return rows
+
+
+def mobile_amount_summary(sd: dict) -> dict[str, Any]:
+    """Amount KV block for mobile detail (items total + deposit when present)."""
+    totals = sd.get("totals") if isinstance(sd.get("totals"), dict) else {}
+    pricing = sd.get("pricing") if isinstance(sd.get("pricing"), dict) else {}
+    items_total = erp_payment_amount_from_structured(sd)
+    contract = pricing.get("contract_total") or pricing.get("total") or sd.get("contract_amount")
+    deposit = totals.get("deposit_amount") or totals.get("deposit") or pricing.get("deposit")
+    balance = pricing.get("balance") or totals.get("balance") or sd.get("balance")
+
+    def _fmt(value) -> str | None:
+        if value in (None, ""):
+            return None
+        try:
+            return f"{int(float(value)):,}원"
+        except (TypeError, ValueError):
+            return str(value)
+
+    items_label = f"{items_total:,}원" if items_total is not None else _fmt(contract) or "-"
+    deposit_label = _fmt(deposit)
+    balance_label = _fmt(balance)
+    if balance_label is None and items_total is not None and deposit_label:
+        try:
+            dep_val = int(float(deposit))
+            balance_label = f"{max(0, items_total - dep_val):,}원"
+        except (TypeError, ValueError):
+            balance_label = None
+    return {
+        "items_total_label": items_label,
+        "deposit_label": deposit_label,
+        "balance_label": balance_label,
+    }
+
+
 def mobile_attachment_items(db, order_id: int, *, limit: int = 8) -> list[dict[str, Any]]:
-    """Attachment summary rows for mobile detail attach grid.
-
-    Args:
-        db: SQLAlchemy session.
-        order_id: Order primary key.
-        limit: Maximum attachments.
-
-    Returns:
-        List of dicts with label and category for attach grid cells.
-    """
+    """Attachment summary rows for mobile detail attach grid."""
     try:
         from models import OrderAttachment
 
@@ -120,19 +235,21 @@ def mobile_attachment_items(db, order_id: int, *, limit: int = 8) -> list[dict[s
     for att in rows:
         cat = (att.category or "measurement").lower()
         label = att.filename or category_labels.get(cat, cat)
-        items.append({"label": label, "category": cat, "id": att.id})
+        view_url = _attachment_image_url(att)
+        items.append(
+            {
+                "label": label,
+                "category": cat,
+                "id": att.id,
+                "thumb_url": view_url,
+                "view_url": view_url,
+            }
+        )
     return items
 
 
 def stage_badge_modifier(stage: str | None) -> str:
-    """Map ERP stage label/code to foms-stage-badge BEM modifier suffix.
-
-    Args:
-        stage: Human-readable stage label or internal code.
-
-    Returns:
-        Modifier suffix including leading dashes, e.g. ``--measure``.
-    """
+    """Map ERP stage label/code to foms-stage-badge BEM modifier suffix."""
     if not stage:
         return "--received"
     code = STAGE_NAME_TO_CODE.get(stage, stage)
@@ -202,15 +319,7 @@ def _attachment_count(db, order_id: int) -> int:
 
 
 def build_mobile_queue_order_row(db, order) -> dict[str, Any]:
-    """Build a dashboard-compatible dict for mobile v2 queue/detail templates.
-
-    Args:
-        db: SQLAlchemy session.
-        order: Order ORM instance.
-
-    Returns:
-        Dict with customer, stage, alerts, and badge modifiers.
-    """
+    """Build a dashboard-compatible dict for mobile v2 queue/detail templates."""
     sd = _ensure_dict(getattr(order, "structured_data", None))
     cnt = _attachment_count(db, order.id)
     stage = _erp_get_stage(order, sd)
@@ -224,6 +333,8 @@ def build_mobile_queue_order_row(db, order) -> dict[str, Any]:
         if isinstance(q, dict) and (q.get("status") or "").upper() != "DONE":
             current_quest = q
             break
+    previews = batch_resolve_queue_attachment_urls(db, [order.id]).get(order.id, [])
+    received = schedule.get("received") or {}
 
     return {
         "id": order.id,
@@ -232,6 +343,7 @@ def build_mobile_queue_order_row(db, order) -> dict[str, Any]:
         "address": site.get("address_full") or site.get("address_main") or "-",
         "measurement_date": (schedule.get("measurement") or {}).get("date"),
         "construction_date": (schedule.get("construction") or {}).get("date"),
+        "received_date": received.get("date") or getattr(order, "received_date", None),
         "manager_name": (parties.get("manager") or {}).get("name") or "-",
         "orderer_name": (parties.get("orderer") or {}).get("name") or None,
         "stage": stage,
@@ -241,8 +353,11 @@ def build_mobile_queue_order_row(db, order) -> dict[str, Any]:
         "alerts": alerts,
         "has_media": _erp_has_media(order, cnt),
         "attachments_count": cnt,
+        "attachment_previews": previews,
         "attachments": mobile_attachment_items(db, order.id),
         "timeline_events": mobile_timeline_events(db, order.id),
+        "product_items": mobile_product_items(sd),
+        "amount_summary": mobile_amount_summary(sd),
         "structured_data": sd,
         "current_quest": {"title": current_quest.get("title", "")} if current_quest else None,
     }

@@ -3,7 +3,9 @@
   data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
   {% if erp_mobile_v2_enabled %}
     {% include 'partials/shared/erp_mobile_shell.html' %}
+    {% include 'partials/shared/erp_mobile_v2_tab_notice.html' %}
   {% endif %}
+  <div class="foms-shell-desktop-only">
   <!-- Modern Header -->
   <header class="erp-pro-header">
     <h1 class="erp-pro-header__title">
@@ -29,6 +31,7 @@
   </header>
   {% set erp_sub_nav_active = 'construction' %}
   {% include 'partials/shared/erp_sub_nav.html' %}
+  </div>{# /.foms-shell-desktop-only #}
 
   <!-- Process Map - Modern Pipeline Design -->
   <div class="erp-pro-card erp-pro-card--process-map">

@@ -256,3 +256,22 @@
   }
 }
 
+.foms-mobile-v2-tab-notice {
+  margin: var(--foms-space-3, 12px) var(--foms-space-4, 16px);
+  padding: var(--foms-space-3, 12px);
+  border-radius: var(--foms-radius-md, 8px);
+  background: var(--foms-color-surface-muted, #f8fafc);
+  border: 1px solid var(--foms-color-border, #e2e8f0);
+}
+
+.foms-mobile-v2-tab-notice__title {
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+
+.foms-mobile-v2-tab-notice__body {
+  margin: 0 0 8px;
+  font-size: 0.875rem;
+  color: var(--foms-color-text-muted, #64748b);
+}
+

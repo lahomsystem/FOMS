@@ -57,12 +57,28 @@
 
     {% if order.attachments_count is defined and order.attachments_count > 0 %}
       <div class="queue-card__attachments foms-queue-card-v2__attachments" aria-label="첨부 {{ order.attachments_count }}건">
-        {% set _thumb_n = [order.attachments_count, 3]|min %}
-        {% for _ in range(_thumb_n) %}
-          <span class="queue-card__attach-thumb foms-queue-card-v2__attach-thumb"></span>
-        {% endfor %}
-        {% if order.attachments_count > 3 %}
-          <span class="queue-card__attach-more foms-queue-card-v2__attach-more">+{{ order.attachments_count - 3 }}</span>
+        {% set preview_urls = order.attachment_preview_urls or order.attachment_previews or [] %}
+        {% if preview_urls %}
+          {% for url in preview_urls[:3] %}
+            <img
+              class="queue-card__attach-thumb foms-queue-card-v2__attach-thumb"
+              src="{{ url }}"
+              alt=""
+              loading="lazy"
+              decoding="async"
+              data-foms-lightbox-src="{{ url }}">
+          {% endfor %}
+          {% if order.attachments_count > preview_urls|length %}
+            <span class="queue-card__attach-more foms-queue-card-v2__attach-more">+{{ order.attachments_count - preview_urls|length }}</span>
+          {% endif %}
+        {% else %}
+          {% set _thumb_n = [order.attachments_count, 3]|min %}
+          {% for _ in range(_thumb_n) %}
+            <span class="queue-card__attach-thumb foms-queue-card-v2__attach-thumb"></span>
+          {% endfor %}
+          {% if order.attachments_count > 3 %}
+            <span class="queue-card__attach-more foms-queue-card-v2__attach-more">+{{ order.attachments_count - 3 }}</span>
+          {% endif %}
         {% endif %}
       </div>
     {% endif %}
@@ -98,7 +114,13 @@
         href="{{ url_for('erp_dashboard.erp_order_mobile_detail', order_id=order.id) }}">
         상세
       </a>
-      {% if has_phone %}
+      {% if order.current_quest and order.current_quest.title %}
+        <a
+          class="foms-btn foms-btn--primary foms-btn--sm"
+          href="{{ url_for('order_edit.edit_order', order_id=order.id, open='erp-order') }}">
+          {{ order.current_quest.title }}
+        </a>
+      {% elif has_phone %}
         <a class="foms-btn foms-btn--primary foms-btn--sm" href="tel:{{ safe_phone }}">전화</a>
       {% elif can_edit %}
         <a

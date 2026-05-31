@@ -127,6 +127,8 @@
 <div class="erp-pro erp-mobile-shell erp-as-dashboard" data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
   {% if erp_mobile_v2_enabled %}
     {% include 'partials/shared/erp_mobile_shell.html' %}
+    {% include 'partials/shared/erp_mobile_v2_tab_notice.html' %}
+    {% include 'cs/partials/as_mobile_v2_camera_bar.html' %}
   {% endif %}
   <!-- Modern Header -->
   <header class="erp-pro-header">

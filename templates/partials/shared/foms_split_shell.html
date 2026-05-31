@@ -9,10 +9,24 @@
       {% if detail_fragment_url %}hx-get="{{ detail_fragment_url }}" hx-trigger="none"{% endif %}
     >
       {% if detail_html %}{{ detail_html | safe }}{% else %}
-      <div class="p-4 text-muted">좌측에서 주문을 선택하세요.</div>
+      <div class="foms-split-detail-placeholder" data-foms-split-detail-placeholder>
+        <p class="text-muted mb-3">좌측에서 주문을 선택하세요.</p>
+        <div class="foms-detail-section foms-split-detail-kv" hidden data-foms-split-detail-kv>
+          <div class="foms-detail-section__head">
+            <h2 class="foms-detail-section__title">주문 요약</h2>
+          </div>
+          <dl class="foms-kv-list">
+            <div class="kv-row foms-kv-row"><dt>고객</dt><dd data-foms-split-kv="customer">-</dd></div>
+            <div class="kv-row foms-kv-row"><dt>단계</dt><dd data-foms-split-kv="stage">-</dd></div>
+            <div class="kv-row foms-kv-row"><dt>연락처</dt><dd data-foms-split-kv="phone">-</dd></div>
+            <div class="kv-row foms-kv-row"><dt>주소</dt><dd data-foms-split-kv="address">-</dd></div>
+            <div class="kv-row foms-kv-row"><dt>담당</dt><dd data-foms-split-kv="manager">-</dd></div>
+          </dl>
+        </div>
+      </div>
       {% endif %}
     </div>
   </div>
 </div>
 <script src="{{ url_for('static', filename='js/foms/orientation-layout.js') }}?v=20260531a" defer></script>
-<script src="{{ url_for('static', filename='js/foms/split-shell.js') }}?v=20260530c" defer></script>
+<script src="{{ url_for('static', filename='js/foms/split-shell.js') }}?v=20260531b" defer></script>

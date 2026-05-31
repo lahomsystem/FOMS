@@ -10,8 +10,8 @@ from db import get_db
 from models import Order
 from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.erp_permissions import can_edit_erp
-from foms.services.order_edit_view_context import build_order_edit_get_context
-from foms.services.request_utils import get_preserved_filter_args
+from foms.services.erp_mobile_order_display import build_mobile_queue_order_row
+from foms.services.feature_flags import is_enabled_for_user
 from foms.web.auth import get_user_by_id, login_required, role_required
 
 foms_fragment_bp = Blueprint("foms_fragment", __name__, url_prefix="/api/foms/fragment")
@@ -39,8 +39,24 @@ def _order_edit_fragment_response(order_id: int) -> Any:
 
     ctx = build_order_edit_get_context(order)
     ctx["preserved_args"] = get_preserved_filter_args(request.args)
+    uid = session.get("user_id")
+    mobile_v2 = is_enabled_for_user(
+        "ERP_MOBILE_V2_ENABLED",
+        uid,
+        cohort_key="FOMS_V3_SHELL_COHORT",
+    )
+    split_v2 = mobile_v2 and is_enabled_for_user(
+        "FOMS_TABLET_SPLIT_VIEW_ENABLED",
+        uid,
+        cohort_key="FOMS_V3_SHELL_COHORT",
+    )
+    if split_v2:
+        ctx["mobile_order_row"] = build_mobile_queue_order_row(db, order)
+        template = "orders/partials/order_detail_split_panel.html"
+    else:
+        template = "partials/shared/foms_order_detail_fragment.html"
     body = render_template(
-        "partials/shared/foms_order_detail_fragment.html",
+        template,
         **ctx,
     )
     response = make_response(body)

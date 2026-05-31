@@ -174,7 +174,7 @@ v1.0 audit 오류 정정 + 외부 LLM 평가 5건 + 사용자 지적 2건 흡수
 8. ✅ P0-01~07 코드·테스트 완료 — cohort Day 1~7 ops rollout + KPI RUM baseline 운영 확인
 9. ✅ P0-00 포함 P0 8개 PR 58h(약 7 작업일) 코드 게이트 통과 — ops(cohort 일지·Cron deploy)만 잔여
 10. ✅ P1-01~07 **코드 wiring·게이트** 완료 — flag default OFF, pytest/visual/UX smoke PASS (`MIGRATION_ROADMAP.md` P1 게이트)
-10b. ✅ P1 **목업 시각 레이어** (wiring gate #10과 분리) — DoD: `P1_VISUAL_DOD.md` · C01 `foms_app_shell.html` · mockup CSS bundle · `dashboard_mobile_v2_body` (sort/urgent sections/scroll) · `/erp/orders/<id>/mobile` (timeline/attach/copy) · `test_p1_mockup_structure.py` + `test_p1_mockup_visual_gate.py` · ROADMAP **P1 visual/mockup gate**
+10b. **P1 목업 시각 레이어 (진행 중 — wiring gate #10과 분리)** — DoD: `P1_VISUAL_DOD.md` · DOM ~65% / mockup 1:1 ~45% (2026-05-31 갭 재검증) · C01 `foms_app_shell.html` · 홈 §6.2 (오늘/담당 칩·금액순·thumb·mobile_chunk) · 상세 KV 4섹션+C07 lightbox · wizard C14+attachments · §6.3 도면/§6.5 AS camera bar · `test_p1_mockup_*` + staging smoke
 11. ✅ P2-01~08 코드·게이트 완료 — `test_p2_gate.py` + `test_p2_htmx_fragment.py` + visual **15** PASS
 12. ✅ P3-01~04 코드·게이트 완료 — `test_p3_gate.py` **6** tests, `FOMS_BOTTOM_NAV_HTMX_ENABLED` default OFF
 13. 🟡 사용자 cohort (안중훈씨) 7일 사용 일지 + 인터뷰 — env template: `scripts/ops/mobile_v2_railway_env.example`

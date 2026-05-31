@@ -3,6 +3,8 @@
 <div class="erp-pro erp-mobile-shell" data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
   {% if erp_mobile_v2_enabled %}
     {% include 'partials/shared/erp_mobile_shell.html' %}
+    {% include 'partials/shared/erp_mobile_v2_tab_notice.html' %}
+    {% include 'drawing/partials/drawing_mobile_v2_gallery.html' %}
   {% endif %}
   <header class="erp-pro-header">
     <h1 class="erp-pro-header__title">

@@ -1,0 +1,115 @@
+<section class="erp-shipment-mobile-controls" aria-label="출고 모바일 컨트롤">
+  <div class="erp-shipment-mobile-controls__summary">
+    <div>
+      <span class="erp-shipment-mobile-controls__eyebrow">Shipment</span>
+      <h2 class="erp-shipment-mobile-controls__title">출고 작업 큐</h2>
+    </div>
+    <span class="erp-shipment-mobile-controls__count">{{ rows|length }}건</span>
+  </div>
+
+  <form method="get" action="{{ url_for('erp_shipment_page.erp_shipment_dashboard') }}" class="erp-shipment-mobile-controls__search">
+    {% if erp_mine_only %}
+      <input type="hidden" name="mine" value="1">
+    {% endif %}
+    <label class="visually-hidden" for="erp-shipment-mobile-search">검색</label>
+    <input
+      id="erp-shipment-mobile-search"
+      type="search"
+      name="q"
+      class="erp-shipment-mobile-controls__input"
+      value="{{ search_q or '' }}"
+      placeholder="고객·주소·담당 검색..."
+      autocomplete="off">
+    <input
+      type="date"
+      name="date"
+      class="erp-shipment-mobile-controls__date"
+      value="{{ selected_date if not use_date_range else '' }}"
+      aria-label="기준 날짜">
+    <button class="erp-shipment-mobile-controls__submit" type="submit" aria-label="조회">
+      <i class="fas fa-search"></i>
+    </button>
+    <button
+      class="erp-shipment-mobile-controls__open"
+      type="button"
+      data-bs-toggle="offcanvas"
+      data-bs-target="#erp-shipment-mobile-filter-drawer"
+      aria-controls="erp-shipment-mobile-filter-drawer">
+      <i class="fas fa-sliders-h"></i>
+      <span>필터</span>
+    </button>
+  </form>
+
+  <div class="erp-shipment-mobile-controls__quick-actions">
+    <a
+      class="erp-shipment-mobile-controls__quick-link"
+      href="{{ url_for('erp_shipment_page.erp_shipment_dashboard', date=today_date, q=search_q or '', mine='1' if erp_mine_only else None) }}">
+      <i class="fas fa-calendar-day"></i>
+      <span>오늘</span>
+    </a>
+    {% if search_q %}
+      <span class="erp-shipment-mobile-controls__quick-pill is-active">
+        <i class="fas fa-search"></i>
+        <span>{{ search_q }}</span>
+      </span>
+    {% endif %}
+    {% if use_date_range %}
+      <span class="erp-shipment-mobile-controls__quick-pill is-active">
+        <i class="fas fa-calendar-alt"></i>
+        <span>{{ date_from }} ~ {{ date_to }}</span>
+      </span>
+    {% elif selected_date %}
+      <span class="erp-shipment-mobile-controls__quick-pill">
+        <i class="fas fa-calendar"></i>
+        <span>{{ selected_date }}</span>
+      </span>
+    {% endif %}
+    {% if erp_mine_only %}
+      <span class="erp-shipment-mobile-controls__quick-pill is-active">
+        <i class="fas fa-user-check"></i>
+        <span>내 담당</span>
+      </span>
+    {% endif %}
+  </div>
+
+  <div
+    class="offcanvas offcanvas-bottom erp-shipment-mobile-controls__drawer"
+    tabindex="-1"
+    id="erp-shipment-mobile-filter-drawer"
+    aria-labelledby="erp-shipment-mobile-filter-drawer-label">
+    <div class="offcanvas-header">
+      <h2 class="offcanvas-title" id="erp-shipment-mobile-filter-drawer-label">출고 필터</h2>
+      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="닫기"></button>
+    </div>
+    <div class="offcanvas-body">
+      <form method="get" action="{{ url_for('erp_shipment_page.erp_shipment_dashboard') }}" class="erp-shipment-mobile-controls__form">
+        <div class="erp-shipment-mobile-controls__field">
+          <label for="erp-shipment-mobile-q">검색</label>
+          <input id="erp-shipment-mobile-q" type="search" class="form-control" name="q" value="{{ search_q or '' }}" placeholder="전체 검색">
+        </div>
+        <div class="erp-shipment-mobile-controls__field">
+          <label for="erp-shipment-mobile-date">기준 날짜</label>
+          <input id="erp-shipment-mobile-date" type="date" class="form-control" name="date" value="{{ selected_date if not use_date_range else '' }}">
+        </div>
+        <div class="erp-shipment-mobile-controls__field">
+          <label for="erp-shipment-mobile-from">기간 시작</label>
+          <input id="erp-shipment-mobile-from" type="date" class="form-control" name="date_from" value="{{ date_from or '' }}">
+        </div>
+        <div class="erp-shipment-mobile-controls__field">
+          <label for="erp-shipment-mobile-to">기간 종료</label>
+          <input id="erp-shipment-mobile-to" type="date" class="form-control" name="date_to" value="{{ date_to or '' }}">
+        </div>
+        {% if not is_construction_team %}
+        <div class="erp-shipment-mobile-controls__field form-check">
+          <input class="form-check-input" type="checkbox" name="mine" value="1" id="erp-shipment-mobile-mine" {% if erp_mine_only %}checked{% endif %}>
+          <label class="form-check-label" for="erp-shipment-mobile-mine">내 담당만</label>
+        </div>
+        {% endif %}
+        <div class="d-flex gap-2 mt-3">
+          <button type="submit" class="btn btn-primary flex-grow-1">적용</button>
+          <a class="btn btn-outline-secondary" href="{{ url_for('erp_shipment_page.erp_shipment_dashboard') }}">초기화</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</section>

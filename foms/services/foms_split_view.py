@@ -16,7 +16,10 @@ def build_split_master_cards(orders: list[dict[str, Any]], *, active_order_id: i
             {
                 "order_id": oid,
                 "title": str(row.get("customer_name") or f"#{oid}"),
-                "meta": str(row.get("product") or row.get("erp_stage_code") or ""),
+                "meta": str(row.get("stage_badge_label") or row.get("stage") or row.get("product_subtitle") or ""),
+                "phone": str(row.get("phone") or "-"),
+                "address": str(row.get("address") or "-"),
+                "manager": str(row.get("manager_name") or "-"),
                 "detail_href": f"/api/foms/fragment/order/{oid}/edit?open=erp-order",
                 "active": active_order_id is not None and oid == active_order_id,
             }

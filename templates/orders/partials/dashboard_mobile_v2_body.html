@@ -11,6 +11,7 @@
 {% if _filters.get('urgent') %}{% set _ = _chip_params.append('urgent=' ~ (_filters.urgent|urlencode)) %}{% endif %}
 {% if _filters.get('has_alert') %}{% set _ = _chip_params.append('has_alert=' ~ (_filters.has_alert|urlencode)) %}{% endif %}
 {% if _filters.get('alert_type') %}{% set _ = _chip_params.append('alert_type=' ~ (_filters.alert_type|urlencode)) %}{% endif %}
+{% if _filters.get('today') == '1' %}{% set _ = _chip_params.append('today=1') %}{% endif %}
 {% if _sort and _sort != 'latest' %}{% set _ = _chip_params.append('sort=' ~ (_sort|urlencode)) %}{% endif %}
 {% set _urgent_orders = [] %}
 {% set _other_orders = [] %}
@@ -31,9 +32,14 @@
   data-page-label="{{ page }} / {{ total_pages }}">
   <nav class="chip-strip foms-chip-strip" aria-label="필터">
     <a
-      class="chip foms-chip{% if not _filters.get('stage') and not _filters.get('urgent') and not _filters.get('has_alert') and not _filters.get('alert_type') %} is-active{% endif %}"
-      href="{{ _base_url }}{% if _chip_params %}?{{ _chip_params|join('&') }}{% endif %}">
+      class="chip foms-chip{% if not _filters.get('stage') and not _filters.get('urgent') and not _filters.get('has_alert') and not _filters.get('alert_type') and _filters.get('today') != '1' and _filters.get('mine') != '1' %} is-active{% endif %}"
+      href="{{ _base_url }}">
       전체 ({{ total_orders }})
+    </a>
+    <a
+      class="chip foms-chip{% if _filters.get('today') == '1' %} is-active{% endif %}"
+      href="{{ _base_url }}?{% if _chip_params %}{{ _chip_params|join('&') }}&{% endif %}today=1">
+      오늘 ({{ kpis.today_count|default(0) }})
     </a>
     <a
       class="chip foms-chip{% if _filters.get('alert_type') == 'urgent' or _filters.get('urgent') == '1' %} is-active{% endif %}"
@@ -48,7 +54,7 @@
     <a
       class="chip foms-chip{% if _filters.get('mine') == '1' %} is-active{% endif %}"
       href="{{ _base_url }}?{% if _chip_params %}{{ _chip_params|join('&') }}&{% endif %}mine=1">
-      내 작업
+      {% if current_user and current_user.name %}담당: {{ current_user.name }}{% else %}내 작업{% endif %}
     </a>
   </nav>
 
@@ -62,6 +68,11 @@
       class="chip foms-chip{% if _sort == 'schedule' %} is-active{% endif %}"
       href="{{ _base_url }}?{% if _chip_params %}{{ _chip_params|join('&') }}&{% endif %}sort=schedule">
       일정순
+    </a>
+    <a
+      class="chip foms-chip{% if _sort == 'amount' %} is-active{% endif %}"
+      href="{{ _base_url }}?{% if _chip_params %}{{ _chip_params|join('&') }}&{% endif %}sort=amount">
+      금액순
     </a>
     {% if page and total_pages %}
       <span class="chip foms-chip foms-chip--meta" data-foms-mobile-queue-page>{{ page }} / {{ total_pages }}</span>

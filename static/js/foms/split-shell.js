@@ -15,9 +15,28 @@
     list.addEventListener("click", function (ev) {
       var card = ev.target.closest("[data-foms-master-card]");
       if (!card) return;
+      ev.preventDefault();
       var href = card.getAttribute("data-href");
       var orderId = card.getAttribute("data-order-id");
       if (!href) return;
+
+      var kv = detail.querySelector("[data-foms-split-detail-kv]");
+      if (kv) {
+        kv.hidden = false;
+        var map = {
+          customer: card.getAttribute("data-customer"),
+          stage: card.getAttribute("data-stage"),
+          phone: card.getAttribute("data-phone"),
+          address: card.getAttribute("data-address"),
+          manager: card.getAttribute("data-manager"),
+        };
+        Object.keys(map).forEach(function (key) {
+          var node = kv.querySelector('[data-foms-split-kv="' + key + '"]');
+          if (node) node.textContent = map[key] || "-";
+        });
+      }
+      var placeholder = detail.querySelector("[data-foms-split-detail-placeholder] p");
+      if (placeholder) placeholder.textContent = "주문 상세 로딩 중…";
 
       list.querySelectorAll("[data-foms-master-card].is-active").forEach(function (el) {
         el.classList.remove("is-active");
