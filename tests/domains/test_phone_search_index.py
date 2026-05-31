@@ -15,6 +15,11 @@ def test_normalize_phone_digits_strips_formatting() -> None:
     assert normalize_phone_digits("  ") is None
 
 
+def test_normalize_phone_digits_truncates_to_column_limit() -> None:
+    long_raw = "0" * 30
+    assert normalize_phone_digits(long_raw) == "0" * 20
+
+
 def test_is_phone_digit_query_requires_digit_heavy_input() -> None:
     assert is_phone_digit_query("0102690") is True
     assert is_phone_digit_query("010-2690-2242") is True

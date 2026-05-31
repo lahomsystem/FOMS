@@ -19,6 +19,7 @@ branch_labels = None
 depends_on = None
 
 _DIGIT_RE = re.compile(r"[^0-9]")
+_MAX_DIGITS = 20
 
 
 def _is_postgresql(conn) -> bool:
@@ -33,6 +34,8 @@ def _backfill_erp_phone_digits(conn) -> None:
     for row in rows:
         raw = row.phone if row.phone is not None else ""
         digits = _DIGIT_RE.sub("", str(raw).strip()) or None
+        if digits and len(digits) > _MAX_DIGITS:
+            digits = digits[:_MAX_DIGITS]
         conn.execute(
             text("UPDATE orders SET erp_phone_digits = :digits WHERE id = :id"),
             {"digits": digits, "id": row.id},
@@ -48,7 +51,10 @@ def upgrade() -> None:
         op.execute(
             """
             UPDATE orders
-            SET erp_phone_digits = NULLIF(regexp_replace(COALESCE(phone, ''), '[^0-9]', '', 'g'), '')
+            SET erp_phone_digits = LEFT(
+                NULLIF(regexp_replace(COALESCE(phone, ''), '[^0-9]', '', 'g'), ''),
+                20
+            )
             WHERE erp_phone_digits IS NULL
             """
         )

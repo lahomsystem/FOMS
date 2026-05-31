@@ -11,6 +11,7 @@ __all__ = [
 ]
 
 _DIGIT_RE = re.compile(r"[^0-9]")
+_MAX_PHONE_DIGITS = 20
 
 
 def normalize_phone_digits(phone: str | None) -> str | None:
@@ -26,7 +27,11 @@ def normalize_phone_digits(phone: str | None) -> str | None:
     if phone is None:
         return None
     digits = _DIGIT_RE.sub("", str(phone).strip())
-    return digits or None
+    if not digits:
+        return None
+    if len(digits) > _MAX_PHONE_DIGITS:
+        digits = digits[:_MAX_PHONE_DIGITS]
+    return digits
 
 
 def extract_phone_digit_query(query: str) -> str | None:
