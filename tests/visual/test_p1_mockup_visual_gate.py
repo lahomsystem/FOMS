@@ -67,7 +67,7 @@ def test_p1_mobile_dashboard_markers_not_display_none_scoped(
     client,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Chip strip and queue scroll hooks render outside desktop-only layout region."""
+    """Queue scroll hooks render outside desktop-only layout region."""
     user = _login_admin(client)
     monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
     monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
@@ -75,7 +75,6 @@ def test_p1_mobile_dashboard_markers_not_display_none_scoped(
     resp = client.get("/erp/dashboard")
     html = resp.get_data(as_text=True)
     for snippet in (
-        "foms-chip-strip--sort",
         "data-foms-mobile-queue-scroll",
     ):
         _mobile_marker_after_desktop_layout(html, snippet)

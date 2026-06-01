@@ -1,4 +1,4 @@
-"""P1 §6.2 home dashboard mockup parity — chips, sort, chunk endpoint."""
+"""P1 §6.2 home dashboard parity — app-like queue, no chip rows, chunk endpoint."""
 
 from __future__ import annotations
 
@@ -31,11 +31,16 @@ def _login_admin(client) -> User:
     return user
 
 
-def test_home_mobile_v2_body_has_today_and_assignee_chips() -> None:
-    """Dashboard mobile v2 partial exposes mockup filter chips."""
+def test_home_mobile_v2_body_removes_chip_rows() -> None:
+    """Dashboard mobile v2 no longer exposes filter/sort chip strips."""
     body = (ROOT / "templates/orders/partials/dashboard_mobile_v2_body.html").read_text(encoding="utf-8")
-    for token in ("today=1", "오늘 (", "담당:", "sort=amount", "금액순"):
+    filter_sheet = (ROOT / "templates/orders/partials/dashboard_mobile_filter_sheet.html").read_text(encoding="utf-8")
+    for token in ("foms-mobile-queue-list", "data-foms-mobile-queue-scroll", "foms-shell-fab"):
         assert token in body
+    for token in ("data-foms-mobile-filter-open", "foms-mobile-filter-sheet", 'name="sort"'):
+        assert token in filter_sheet
+    for removed in ("오늘 (", "담당:", "foms-chip-strip", 'aria-label="정렬"'):
+        assert removed not in body
 
 
 def test_home_mobile_v2_chunk_partial_exists() -> None:
@@ -60,11 +65,11 @@ def test_dashboard_mobile_chunk_endpoint(
     assert "foms-mobile-v2-dashboard" not in html
 
 
-def test_dashboard_today_filter_query(
+def test_dashboard_today_filter_query_still_loads_without_chips(
     client,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """today=1 filter renders active chip without error."""
+    """Legacy today=1 query remains accepted even though chips are removed."""
     user = _login_admin(client)
     monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
     monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
@@ -72,5 +77,5 @@ def test_dashboard_today_filter_query(
     resp = client.get("/erp/dashboard?today=1")
     assert resp.status_code == 200
     html = resp.get_data(as_text=True)
-    assert "today=1" in html
-    assert "is-active" in html
+    assert "foms-mobile-v2-dashboard" in html
+    assert 'aria-label="필터"' not in html

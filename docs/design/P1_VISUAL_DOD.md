@@ -30,10 +30,10 @@ cohort 사용자 + `/erp/*` + viewport별로 **mockup 4종 IA/컴포넌트/토�
 
 | Mockup | DOM/IA 체크 | Visual (390×844) |
 |---|---|---|
-| mobile-home-dashboard | chip-strip (전체·오늘·미처리·긴급·담당), section-header, queue-card+thumb, FAB, sort(최신·일정·금액), mobile_chunk IO | Playwright baseline vs `docs/design/mockups/` (**backlog**) |
+| mobile-home-dashboard | app-like full queue, compact queue-card+thumb, workflow-stage action, toolbar filter bottom sheet, FAB, mobile_chunk IO. 필터/정렬 chip-strip 제거. | Playwright baseline vs `docs/design/mockups/` (**backlog**) |
 | mobile-order-detail | hero, quick×4, KV 4섹션(고객·일정·제품·금액), attach-grid+lightbox, timeline, sticky CTA | 동일 (**backlog**) |
 | mobile-wizard-new-order | stepper, C14 accordion, summary | 동일. wizard `/add` 레거시 헤더 suppress (`foms-wizard-active`) |
-| tablet-split-view | 72+360+fluid master cards | **D03 실현 (2026-05-31)**: 3-tier 반응형 — 모바일 <992 단일 큐 / 태블릿 992–1365.98 split / 데스크톱 ≥1366 레거시 대시보드. master 세로 스택(orientation landscape `display:block`), 태블릿 band에서 레거시 header/nav/grid hide. gstack 390/1280/1440 실측 |
+| tablet-split-view | 72+360+fluid master cards | **D03 실현 (2026-05-31)**: 3-tier 반응형 — 모바일 <992 단일 큐 / 태블릿 992–1365.98 split / 데스크톱 ≥1366 레거시 대시보드. master 세로 스택(작업 큐 head + stage/id/subtitle/meta), 태블릿 band에서 레거시 header/nav/grid hide. gstack 390/1280/1440 실측 |
 
 ### B3. 컴포넌트 C01–C14
 

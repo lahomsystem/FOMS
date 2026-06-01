@@ -71,6 +71,15 @@ def test_tablet_split_grid_and_legacy_hidden() -> None:
     assert legacy, "tablet band must hide .foms-shell-desktop-only (legacy dashboard)"
     # Mobile single-column queue still hidden at >=992px.
     assert "body.erp-mobile-v2-layout .foms-mobile-v2-dashboard" in shell
+    master = (ROOT / "templates/partials/shared/foms_master_list.html").read_text(
+        encoding="utf-8"
+    )
+    for selector in (
+        "foms-split-master__head",
+        "foms-master-card__stage",
+        "foms-master-card__subtitle",
+    ):
+        assert selector in master
 
 
 def test_drawer_exposes_account_actions() -> None:

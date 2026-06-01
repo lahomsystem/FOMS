@@ -323,6 +323,8 @@ def build_mobile_queue_order_row(db, order) -> dict[str, Any]:
     sd = _ensure_dict(getattr(order, "structured_data", None))
     cnt = _attachment_count(db, order.id)
     stage = _erp_get_stage(order, sd)
+    stage_key = stage if isinstance(stage, str) else ""
+    stage_code = STAGE_NAME_TO_CODE.get(stage_key, stage_key)
     alerts = _erp_alerts(order, sd, cnt)
     parties = sd.get("parties") or {}
     site = sd.get("site") or {}
@@ -347,6 +349,7 @@ def build_mobile_queue_order_row(db, order) -> dict[str, Any]:
         "manager_name": (parties.get("manager") or {}).get("name") or "-",
         "orderer_name": (parties.get("orderer") or {}).get("name") or None,
         "stage": stage,
+        "stage_code": stage_code,
         "stage_badge_modifier": stage_badge_modifier(stage),
         "stage_badge_label": stage_badge_label(stage),
         "product_subtitle": product_subtitle_from_sd(sd),

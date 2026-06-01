@@ -12,11 +12,24 @@ def build_split_master_cards(orders: list[dict[str, Any]], *, active_order_id: i
         oid = int(row.get("id") or 0)
         if not oid:
             continue
+        stage = str(row.get("stage_badge_label") or row.get("stage") or "")
+        schedule_label = ""
+        schedule_value = ""
+        if row.get("measurement_date"):
+            schedule_label = "실측"
+            schedule_value = str(row.get("measurement_date") or "")
+        elif row.get("construction_date"):
+            schedule_label = "시공"
+            schedule_value = str(row.get("construction_date") or "")
         cards.append(
             {
                 "order_id": oid,
                 "title": str(row.get("customer_name") or f"#{oid}"),
-                "meta": str(row.get("stage_badge_label") or row.get("stage") or row.get("product_subtitle") or ""),
+                "stage": stage,
+                "meta": stage,
+                "subtitle": str(row.get("product_subtitle") or ""),
+                "schedule_label": schedule_label,
+                "schedule_value": schedule_value,
                 "phone": str(row.get("phone") or "-"),
                 "address": str(row.get("address") or "-"),
                 "manager": str(row.get("manager_name") or "-"),

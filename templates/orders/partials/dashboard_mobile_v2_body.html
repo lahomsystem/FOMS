@@ -30,54 +30,7 @@
   data-next-page="{{ page + 1 if page < total_pages else 0 }}"
   data-total-pages="{{ total_pages }}"
   data-page-label="{{ page }} / {{ total_pages }}">
-  <nav class="chip-strip foms-chip-strip" aria-label="필터">
-    <a
-      class="chip foms-chip{% if not _filters.get('stage') and not _filters.get('urgent') and not _filters.get('has_alert') and not _filters.get('alert_type') and _filters.get('today') != '1' and _filters.get('mine') != '1' %} is-active{% endif %}"
-      href="{{ _base_url }}">
-      전체 ({{ total_orders }})
-    </a>
-    <a
-      class="chip foms-chip{% if _filters.get('today') == '1' %} is-active{% endif %}"
-      href="{{ _base_url }}?{% if _chip_params %}{{ _chip_params|join('&') }}&{% endif %}today=1">
-      오늘 ({{ kpis.today_count|default(0) }})
-    </a>
-    <a
-      class="chip foms-chip{% if _filters.get('alert_type') == 'urgent' or _filters.get('urgent') == '1' %} is-active{% endif %}"
-      href="{{ _base_url }}?{% if _chip_params %}{{ _chip_params|join('&') }}&{% endif %}alert_type=urgent">
-      긴급 ({{ kpis.urgent_count }})
-    </a>
-    <a
-      class="chip foms-chip{% if _filters.get('has_alert') == '1' %} is-active{% endif %}"
-      href="{{ _base_url }}?{% if _chip_params %}{{ _chip_params|join('&') }}&{% endif %}has_alert=1">
-      미처리
-    </a>
-    <a
-      class="chip foms-chip{% if _filters.get('mine') == '1' %} is-active{% endif %}"
-      href="{{ _base_url }}?{% if _chip_params %}{{ _chip_params|join('&') }}&{% endif %}mine=1">
-      {% if current_user and current_user.name %}담당: {{ current_user.name }}{% else %}내 작업{% endif %}
-    </a>
-  </nav>
-
-  <nav class="chip-strip foms-chip-strip foms-chip-strip--sort" aria-label="정렬">
-    <a
-      class="chip foms-chip{% if _sort == 'latest' %} is-active{% endif %}"
-      href="{{ _base_url }}?{% if _chip_params %}{{ _chip_params|join('&') }}&{% endif %}sort=latest">
-      최신순
-    </a>
-    <a
-      class="chip foms-chip{% if _sort == 'schedule' %} is-active{% endif %}"
-      href="{{ _base_url }}?{% if _chip_params %}{{ _chip_params|join('&') }}&{% endif %}sort=schedule">
-      일정순
-    </a>
-    <a
-      class="chip foms-chip{% if _sort == 'amount' %} is-active{% endif %}"
-      href="{{ _base_url }}?{% if _chip_params %}{{ _chip_params|join('&') }}&{% endif %}sort=amount">
-      금액순
-    </a>
-    {% if page and total_pages %}
-      <span class="chip foms-chip foms-chip--meta" data-foms-mobile-queue-page>{{ page }} / {{ total_pages }}</span>
-    {% endif %}
-  </nav>
+  {% include 'orders/partials/dashboard_mobile_filter_sheet.html' %}
 
   {% if orders %}
     <div class="foms-mobile-queue-list" data-foms-mobile-queue-list>
@@ -117,7 +70,7 @@
     <div class="foms-mobile-empty">
       <i class="fas fa-inbox" aria-hidden="true"></i>
       <p class="mb-1">조건에 맞는 주문이 없습니다.</p>
-      <small>칩 필터를 바꾸거나 검색어를 지워 보세요.</small>
+      <small>검색어 또는 현재 조건을 지워 보세요.</small>
       <a class="foms-btn foms-btn--primary foms-btn--sm mt-3" href="{{ _base_url }}">필터 초기화</a>
     </div>
   {% endif %}

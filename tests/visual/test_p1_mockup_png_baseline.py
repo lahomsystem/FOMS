@@ -36,9 +36,9 @@ def test_mockup_home_dashboard_anchor_classes() -> None:
     body = (ROOT / "templates/orders/partials/dashboard_mobile_v2_body.html").read_text(encoding="utf-8")
     _required_from_mockup(
         "mobile-home-dashboard.html",
-        ("chip-strip", "queue-card", "foms-shell-fab"),
+        ("queue-card", "foms-shell-fab"),
     )
-    for needle in ("today=1", "sort=amount", "data-foms-mobile-queue-chunk"):
+    for needle in ("foms-mobile-queue-list", "dashboard_mobile_filter_sheet.html", "data-foms-mobile-queue-chunk"):
         assert needle in body
 
 

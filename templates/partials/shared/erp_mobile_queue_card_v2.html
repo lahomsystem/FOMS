@@ -31,8 +31,9 @@
   {% set has_address = order.address and order.address != '-' %}
   {% set badge_mod = badge_modifier or order.stage_badge_modifier|default('--received') %}
   {% set badge_label = badge_text or order.stage_badge_label|default(order.stage or '-') %}
+  {% set workflow_stage = order.stage_code|default(order.stage|default('')) %}
 
-  <article class="queue-card foms-queue-card-v2" data-order-id="{{ order.id }}">
+  <article class="queue-card foms-queue-card-v2" data-order-id="{{ order.id }}" data-workflow-stage="{{ workflow_stage }}">
     <header class="queue-card__head foms-queue-card-v2__head">
       <span class="foms-stage-badge foms-stage-badge{{ badge_mod }}">{{ badge_label }}</span>
       {% if order.alerts.drawing_overdue or order.alerts.urgent %}
@@ -122,20 +123,15 @@
           data-action="{{ task_action.data_action }}">
           {% if task_action.icon %}<i class="{{ task_action.icon }}" aria-hidden="true"></i> {% endif %}{{ task_action.label }}
         </button>
-      {% elif order.current_quest and order.current_quest.title %}
+      {% elif can_edit or (order.current_quest and order.current_quest.title) %}
         <a
           class="foms-btn foms-btn--primary foms-btn--sm"
-          href="{{ url_for('order_edit.edit_order', order_id=order.id, open='erp-order') }}">
-          {{ order.current_quest.title }}
+          href="{{ url_for('order_edit.edit_order', order_id=order.id, open='erp-order') }}"
+          aria-label="{{ badge_label }} 단계 ERP 주문 열기">
+          {{ badge_label }}
         </a>
       {% elif has_phone %}
         <a class="foms-btn foms-btn--primary foms-btn--sm" href="tel:{{ safe_phone }}">전화</a>
-      {% elif can_edit %}
-        <a
-          class="foms-btn foms-btn--primary foms-btn--sm"
-          href="{{ url_for('order_edit.edit_order', order_id=order.id, open='erp-order') }}">
-          편집
-        </a>
       {% endif %}
     </footer>
   </article>

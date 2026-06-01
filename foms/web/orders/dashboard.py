@@ -716,6 +716,7 @@ def erp_dashboard():
             'orderer_name': (parties.get('orderer') or {}).get('name') or None,
             'owner_team': responsible_team,
             'stage': stage,
+            'stage_code': stage_code,
             'alerts': alerts,
             'has_media': has_media,
             'attachments_count': cnt,

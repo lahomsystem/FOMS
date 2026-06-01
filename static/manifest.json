@@ -2,9 +2,11 @@
   "name": "FOMS ERP Mobile",
   "short_name": "FOMS",
   "description": "FOMS Furniture Order Management — ERP mobile shell",
-  "start_url": "/erp/dashboard",
+  "id": "/erp/dashboard",
+  "start_url": "/erp/dashboard?mobile_app=1",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "orientation": "any",
   "background_color": "#f5f6f7",
   "theme_color": "#0070f2",
@@ -15,6 +17,26 @@
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
+    },
+    {
+      "src": "/static/icons/foms-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/icons/foms-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "작업 큐",
+      "short_name": "작업 큐",
+      "url": "/erp/dashboard?mobile_app=1",
+      "description": "FOMS 모바일 작업 큐 열기"
     }
   ]
 }

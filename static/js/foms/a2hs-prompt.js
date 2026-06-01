@@ -6,6 +6,14 @@
 
   var deferredPrompt = null;
 
+  function registerPwaServiceWorker() {
+    if (!("serviceWorker" in navigator)) return;
+    if (!document.querySelector("[data-erp-mobile-shell]")) return;
+    navigator.serviceWorker.register("/static/sw.js", { scope: "/" }).catch(function (err) {
+      console.warn("[foms-a2hs] service worker registration failed", err);
+    });
+  }
+
   window.addEventListener("beforeinstallprompt", function (ev) {
     ev.preventDefault();
     deferredPrompt = ev;
@@ -42,5 +50,11 @@
       }
       bar.remove();
     });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", registerPwaServiceWorker);
+  } else {
+    registerPwaServiceWorker();
   }
 })();

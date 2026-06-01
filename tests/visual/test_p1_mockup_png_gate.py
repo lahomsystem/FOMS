@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[2]
 MOCKUP_CLASS_CONTRACTS: dict[str, tuple[str, tuple[str, ...]]] = {
     "mobile-home-dashboard": (
         "templates/orders/partials/dashboard_mobile_v2_body.html",
-        ("chip-strip", "foms-shell-fab", "foms-mobile-v2-dashboard", "today=1"),
+        ("foms-shell-fab", "foms-mobile-v2-dashboard", "foms-mobile-queue-list", "dashboard_mobile_filter_sheet.html"),
     ),
     "mobile-order-detail": (
         "templates/orders/partials/order_detail_mobile_v2.html",

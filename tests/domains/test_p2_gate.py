@@ -59,11 +59,17 @@ def test_p2_05_voice_input_script() -> None:
 def test_p2_06_manifest_and_head() -> None:
     manifest = (ROOT / "static/manifest.json").read_text(encoding="utf-8")
     assert '"display": "standalone"' in manifest
+    assert "foms-icon-192.png" in manifest
+    assert "foms-icon-512.png" in manifest
     head = (ROOT / "templates/partials/shared/layout_head.html").read_text(encoding="utf-8")
     assert "manifest.json" in head
     assert "apple-touch-icon" in head
+    assert "foms-icon-180.png" in head
+    assert "apple-mobile-web-app-capable" in head
+    assert "mobile-web-app-capable" in head
     a2hs = (ROOT / "static/js/foms/a2hs-prompt.js").read_text(encoding="utf-8")
     assert "beforeinstallprompt" in a2hs
+    assert 'register("/static/sw.js"' in a2hs
 
 
 def test_p2_07_swipe_and_haptic() -> None:

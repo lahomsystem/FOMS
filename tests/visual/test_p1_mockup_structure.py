@@ -48,32 +48,51 @@ def test_p1_mockup_css_bundle_imports() -> None:
 
 
 def test_p1_dashboard_mobile_v2_body_mockup_selectors() -> None:
-    """Dashboard mobile v2 partial uses mockup class names."""
+    """Dashboard mobile v2 partial keeps app-like queue chrome without filter chip rows."""
     body = (ROOT / "templates/orders/partials/dashboard_mobile_v2_body.html").read_text(
         encoding="utf-8"
     )
+    filters = (
+        ROOT / "templates/orders/partials/dashboard_mobile_filter_sheet.html"
+    ).read_text(encoding="utf-8")
     card = (ROOT / "templates/partials/shared/erp_mobile_queue_card_v2.html").read_text(
         encoding="utf-8"
     )
     for selector in (
-        "chip-strip",
-        "foms-chip-strip",
         "foms-shell-fab",
         "foms-mobile-queue-list",
         "foms-section-header",
-        "foms-chip-strip--sort",
-        "sort=latest",
-        "sort=schedule",
-        "sort=amount",
-        "today=1",
-        "담당:",
         "data-foms-mobile-queue-scroll",
         "data-foms-mobile-queue-sentinel",
         "data-foms-mobile-queue-chunk",
         "긴급 · 오늘 처리 필요",
     ):
         assert selector in body
-    for selector in ("queue-card", "foms-queue-card-v2", "foms-queue-card-v2__attachments", "data-foms-lightbox-src"):
+    assert "dashboard_mobile_filter_sheet.html" in body
+    for selector in (
+        "foms-mobile-queue-toolbar",
+        "data-foms-mobile-filter-open",
+        "foms-mobile-filter-sheet",
+        "erp-dashboard-mobile-filter-drawer",
+        'name="sort"',
+    ):
+        assert selector in filters
+    for removed_selector in (
+        "foms-chip-strip--sort",
+        "sort=latest",
+        "sort=schedule",
+        'aria-label="필터"',
+        'aria-label="정렬"',
+    ):
+        assert removed_selector not in body
+    for selector in (
+        "queue-card",
+        "foms-queue-card-v2",
+        "foms-queue-card-v2__attachments",
+        "data-foms-lightbox-src",
+        "data-workflow-stage",
+        "{{ badge_label }} 단계 ERP 주문 열기",
+    ):
         assert selector in card
 
 
@@ -123,7 +142,7 @@ def test_p1_shell_hides_desktop_chrome_on_mobile_v2() -> None:
 @pytest.mark.parametrize(
     ("path", "expected"),
     [
-        ("/erp/dashboard", "chip-strip"),
+        ("/erp/dashboard", "foms-mobile-empty"),
         ("/erp/dashboard", "foms-mobile-v2-dashboard"),
     ],
 )
