@@ -463,3 +463,39 @@ def test_p1_construction_dashboard_renders_home_ia(
         "foms-shell-fab",
     ):
         assert selector in html, selector
+
+
+def test_p1_completion_mobile_v2_home_ia_parity() -> None:
+    """탭7 시공완료: 모바일 v2가 홈 IA 셸/큐/섹션/FAB 셀렉터를 사용한다 (JS 리뷰 리스트, 필터 없음)."""
+    body = (ROOT / "templates/cs/partials/completion_dashboard_body.html").read_text(
+        encoding="utf-8"
+    )
+    for selector in (
+        "foms-shell-body",
+        "foms-mobile-queue-list",
+        "foms-section-header",
+        "foms-shell-fab",
+    ):
+        assert selector in body, selector
+
+
+def test_p1_completion_dashboard_renders_home_ia(
+    client,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cohort 시공완료 대시보드 HTML이 홈 IA 셸/큐/섹션/FAB DOM 훅을 렌더한다."""
+    user = _login_admin(client)
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+
+    resp = client.get("/erp/completion")
+    assert resp.status_code == 200
+    html = resp.get_data(as_text=True)
+    assert 'class="erp-mobile-v2-layout"' in html
+    for selector in (
+        "foms-shell-body",
+        "foms-mobile-queue-list",
+        "foms-section-header",
+        "foms-shell-fab",
+    ):
+        assert selector in html, selector
