@@ -4,6 +4,9 @@
   body.erp-mobile-v2-layout .foms-mobile-queue-list {
     display: grid;
     gap: var(--foms-space-4);
+    /* 그리드 아이템이 콘텐츠 min-content 아래로 줄어들 수 있게 해
+       긴 제품명/주소 한 건이 리스트 폭(=뷰포트)을 넘기지 않도록 한다. */
+    min-width: 0;
   }
 
   body.erp-mobile-v2-layout .foms-mobile-queue-toolbar {
@@ -126,6 +129,7 @@
   body.erp-mobile-v2-layout [data-foms-mobile-queue-chunk] {
     display: grid;
     gap: var(--foms-space-4);
+    min-width: 0;
   }
 
   body.erp-mobile-v2-layout .queue-card,
@@ -137,6 +141,7 @@
     border-radius: var(--foms-radius-lg);
     box-shadow: var(--foms-shadow-sm);
     border: 1px solid var(--foms-border-subtle);
+    min-width: 0;
   }
 
   body.erp-mobile-v2-layout .queue-card__head,
@@ -145,6 +150,7 @@
     align-items: center;
     gap: var(--foms-space-2);
     flex-wrap: wrap;
+    min-width: 0;
   }
 
   body.erp-mobile-v2-layout .queue-card__time,
@@ -160,6 +166,9 @@
     font-size: var(--foms-font-size-base);
     font-weight: var(--foms-font-weight-semibold);
     line-height: var(--foms-line-height-snug);
+    /* 공백 없는 긴 고객명/회사명도 카드 안에서 줄바꿈되도록 한다. */
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 
   body.erp-mobile-v2-layout .queue-card__subtitle,
@@ -177,7 +186,9 @@
   body.erp-mobile-v2-layout .queue-card__meta,
   body.erp-mobile-v2-layout .foms-queue-card-v2__meta {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    /* minmax(0, 1fr): 1fr 트랙의 기본 최소값(auto=콘텐츠 폭) 대신 0을 써
+       긴 값이 들어와도 컬럼이 카드 폭을 넘기지 않게 한다. */
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: var(--foms-space-1) var(--foms-space-3);
     margin: 0;
     font-size: var(--foms-font-size-sm);
