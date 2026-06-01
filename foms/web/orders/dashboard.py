@@ -867,6 +867,13 @@ def erp_dashboard():
     return response
 
 
+@erp_dashboard_bp.route('/dashboard/')
+@login_required
+def erp_dashboard_trailing_slash():
+    """Normalize mobile/browser-saved trailing-slash dashboard URLs."""
+    return redirect(url_for('erp_dashboard.erp_dashboard', **request.args))
+
+
 @erp_dashboard_bp.route('/orders/<int:order_id>/mobile')
 @login_required
 def erp_order_mobile_detail(order_id: int):

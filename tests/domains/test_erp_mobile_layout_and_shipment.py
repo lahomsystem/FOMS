@@ -43,6 +43,16 @@ def test_erp_pages_mark_body_for_mobile_layout_shell(client, monkeypatch):
     assert "erp-pro.css" in body
 
 
+def test_erp_dashboard_trailing_slash_redirects_to_canonical(client, monkeypatch):
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    _login_erp_admin(client)
+
+    response = client.get("/erp/dashboard/?stage=MEASURE", follow_redirects=False)
+
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/erp/dashboard?stage=MEASURE")
+
+
 def test_erp_pages_without_cohort_keeps_unsuppressed_global_nav(client, monkeypatch):
     monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
     _login_erp_admin(client)
