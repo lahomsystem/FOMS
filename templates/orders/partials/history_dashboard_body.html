@@ -267,6 +267,16 @@
     .erp-history-mobile-shell[data-erp-mobile-v2='true'] .erp-history-mobile-card__detail .dw-attach-grid {
       grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
     }
+
+    /* Home IA parity: stage chip-strip pills under the search form, kept inline
+       (no sticky bleed / edge-to-edge negative margin) inside the sticky filter card. */
+    .erp-history-mobile-shell[data-erp-mobile-v2='true'] .erp-history-stage-chips.foms-chip-strip {
+      position: static;
+      margin: 0.625rem 0 0;
+      padding: 0;
+      border-bottom: 0;
+      background: transparent;
+    }
   }
 </style>
 
@@ -275,6 +285,9 @@
   {% if erp_mobile_v2_enabled %}
     {% include 'partials/shared/erp_mobile_shell.html' %}
     {% include 'partials/shared/erp_mobile_v2_tab_notice.html' %}
+    <a class="foms-shell-fab d-lg-none" href="{{ url_for('order_pages.add_order', open='erp-order') }}" aria-label="주문 생성">
+      <i class="fas fa-plus" aria-hidden="true"></i>
+    </a>
   {% endif %}
   <!-- Modern Header -->
   <header class="erp-pro-header">
@@ -342,6 +355,20 @@
           </div>
         </div>
       </form>
+      {% set _h_base = url_for('erp_history.history_dashboard') %}
+      {% set _h_keep = [] %}
+      {% if request.args.get('q') %}{% set _ = _h_keep.append('q=' ~ request.args.get('q')|urlencode) %}{% endif %}
+      {% if request.args.get('date_from') %}{% set _ = _h_keep.append('date_from=' ~ request.args.get('date_from')|urlencode) %}{% endif %}
+      {% if request.args.get('date_to') %}{% set _ = _h_keep.append('date_to=' ~ request.args.get('date_to')|urlencode) %}{% endif %}
+      {% set _h_keep_qs = _h_keep|join('&') %}
+      {% set _h_stage = request.args.get('stage') or '' %}
+      {% set _h_stages = [('주문접수','RECEIVED'),('실측','MEASURE'),('도면','DRAWING'),('고객컨펌','CONFIRM'),('생산','PRODUCTION'),('시공','CONSTRUCTION'),('완료','COMPLETED'),('AS접수','AS_RECEIVED'),('AS처리','AS'),('AS완료','AS_COMPLETED')] %}
+      <nav class="chip-strip foms-chip-strip erp-history-stage-chips d-lg-none" aria-label="단계 빠른 필터">
+        <a class="chip foms-chip{% if not _h_stage %} is-active{% endif %}" href="{{ _h_base }}{% if _h_keep_qs %}?{{ _h_keep_qs }}{% endif %}">전체</a>
+        {% for label, code in _h_stages %}
+        <a class="chip foms-chip{% if _h_stage == code %} is-active{% endif %}" href="{{ _h_base }}?stage={{ code }}{% if _h_keep_qs %}&{{ _h_keep_qs }}{% endif %}">{{ label }}</a>
+        {% endfor %}
+      </nav>
     </div>
   </div>
 
@@ -358,14 +385,14 @@
   </div>
   {% else %}
   <div class="erp-pro-card mt-3">
-    <div class="erp-pro-card__header">
-      <h3 class="erp-pro-card__title">
+    <div class="erp-pro-card__header foms-section-header section-header">
+      <h3 class="erp-pro-card__title foms-section-header__title">
         <i class="fas fa-list"></i> 검색 결과 (총 {{ total_orders }}건)
       </h3>
     </div>
-    <div class="erp-pro-card__body p-0">
+    <div class="erp-pro-card__body p-0 foms-shell-body">
       {% if erp_mobile_v2_enabled %}
-      <div class="erp-history-mobile-list d-lg-none">
+      <div class="erp-history-mobile-list foms-mobile-queue-list d-lg-none">
         <div class="erp-history-mobile-list__summary">
           <div>
             <span class="erp-history-mobile-list__eyebrow">History Queue</span>

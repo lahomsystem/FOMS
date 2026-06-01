@@ -499,3 +499,61 @@ def test_p1_completion_dashboard_renders_home_ia(
         "foms-shell-fab",
     ):
         assert selector in html, selector
+
+
+def test_p1_history_mobile_v2_home_ia_parity() -> None:
+    """탭8 과거이력: 모바일 v2가 홈 IA 셸/칩/큐/섹션/FAB 셀렉터를 사용한다."""
+    body = (ROOT / "templates/orders/partials/history_dashboard_body.html").read_text(
+        encoding="utf-8"
+    )
+    for selector in (
+        "foms-shell-body",
+        "chip-strip",
+        "foms-chip-strip",
+        "foms-mobile-queue-list",
+        "foms-section-header",
+        "foms-shell-fab",
+    ):
+        assert selector in body, selector
+
+
+def test_p1_history_dashboard_renders_home_ia(
+    client,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cohort 과거이력 대시보드(필터 적용)가 홈 IA 셸/칩/큐/FAB DOM 훅을 렌더한다."""
+    import datetime
+
+    from models import Order
+
+    user = _login_admin(client)
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+
+    order = Order(
+        received_date=datetime.date.today().isoformat(),
+        customer_name="P1 History Customer",
+        phone="010-1234-5678",
+        address="안양시 동안구 학의로 1",
+        product="맞춤 가구",
+        status="COMPLETED",
+        is_erp_order=True,
+        erp_stage_code="COMPLETED",
+        structured_data={"parties": {"customer": {"name": "P1 History Customer"}}},
+    )
+    db_session.add(order)
+    db_session.commit()
+
+    resp = client.get("/erp/history/?stage=COMPLETED")
+    assert resp.status_code == 200
+    html = resp.get_data(as_text=True)
+    assert 'class="erp-mobile-v2-layout"' in html
+    for selector in (
+        "foms-shell-body",
+        "chip-strip",
+        "foms-chip-strip",
+        "foms-mobile-queue-list",
+        "foms-section-header",
+        "foms-shell-fab",
+    ):
+        assert selector in html, selector
