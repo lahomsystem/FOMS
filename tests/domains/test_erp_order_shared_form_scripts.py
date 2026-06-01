@@ -338,16 +338,16 @@ def test_erp_amount_surfaces_read_modern_payment_deposit_and_stored_final() -> N
     measurement_desktop = (
         root / "templates/measurement/partials/dashboard_main.html"
     ).read_text(encoding="utf-8")
-    measurement_mobile = (
-        root / "templates/measurement/partials/mobile_list.html"
-    ).read_text(encoding="utf-8")
 
     for source in (dashboard_js, dashboard_template):
         assert "coerceAmount((sd.payment || {}).deposit)" in source
         assert "coerceAmount((sd.payments || {}).deposit)" in source
         assert "totals.final_amount == null ? totals.balance_amount : totals.final_amount" in source
 
-    for source in (measurement_desktop, measurement_mobile):
+    # 실측 데스크톱 상세는 ERP payment.deposit + final totals 우선 사용.
+    # (모바일 v2 큐는 홈과 동일한 깔끔한 queue-card-v2로, 금액 표시는 상세 페이지의
+    #  mobile_amount_summary로 이동했다 — 큐 카드에 인라인 금액을 두지 않는다.)
+    for source in (measurement_desktop,):
         assert "rsd_payment.get('deposit') or rsd_payments.get('deposit', 0)" in source
         assert "rsd_totals.get('final_amount')" in source
         assert "rsd_totals.get('balance_amount')" in source

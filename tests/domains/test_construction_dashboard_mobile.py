@@ -137,18 +137,19 @@ def test_enrich_construction_mobile_rows_attachment_fallback(mock_url, monkeypat
 
 def test_construction_dashboard_mobile_wiring_contract():
     root = Path(__file__).resolve().parents[2]
-    dash_src = (root / "templates/construction/dashboard.html").read_text(encoding="utf-8")
     queue_src = (root / "templates/construction/partials/mobile_queue.html").read_text(
         encoding="utf-8"
     )
-    macro_src = (root / "templates/partials/shared/erp_mobile_queue_card.html").read_text(
+    macro_src = (root / "templates/partials/shared/erp_mobile_queue_card_v2.html").read_text(
         encoding="utf-8"
     )
 
-    assert "foms-construction-mobile-card.css" in dash_src
-    assert "stage_badge_modifier" in queue_src
-    assert "erp-construction-mobile-card__thumb-grid" in macro_src
-    assert "foms-stage-badge{{ stage_badge_modifier }}" in macro_src
+    # 모바일 v2 큐는 홈과 동일한 깔끔한 queue-card-v2를 쓰고 시공 배지를 명시 전달한다.
+    assert "render_queue_card_v2" in queue_src
+    assert "shared/erp_mobile_queue_card_v2.html" in queue_src
+    assert "--construction" in queue_src
+    # v2 카드는 badge override(modifier)를 stage 배지에 반영한다.
+    assert "foms-stage-badge{{ badge_mod }}" in macro_src
 
 
 def test_construction_dashboard_renders_v11_badge(client, monkeypatch):
