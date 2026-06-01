@@ -257,11 +257,57 @@
     }
   }
 
+  /**
+   * Tear down any Bootstrap offcanvas/modal that is open inside the region about
+   * to be replaced. Bootstrap keeps its overlay state (the backdrop element plus
+   * the `<body>` scroll-lock) on `<body>`, which lives *outside* #main-content.
+   * Replacing #main-content innerHTML removes the overlay element without running
+   * Bootstrap's hide transition, so that body-level state is orphaned and the
+   * page can no longer scroll. Disposing the instance and completing the cleanup
+   * here keeps the fragment-swap navigation (e.g. the mobile filter sheet's GET
+   * "적용") from freezing the page.
+   * @param {HTMLElement} container
+   */
+  function teardownOpenOverlays(container) {
+    if (!container || !window.bootstrap) {
+      return;
+    }
+    [
+      ['offcanvas', window.bootstrap.Offcanvas],
+      ['modal', window.bootstrap.Modal],
+    ].forEach(function (pair) {
+      var kind = pair[0];
+      var Ctor = pair[1];
+      if (!Ctor) {
+        return;
+      }
+      container.querySelectorAll('.' + kind + '.show').forEach(function (el) {
+        var instance = Ctor.getInstance(el);
+        if (instance) {
+          try {
+            instance.dispose();
+          } catch (e) {
+            /* ignore */
+          }
+        }
+      });
+    });
+    document
+      .querySelectorAll('.offcanvas-backdrop, .modal-backdrop')
+      .forEach(function (backdrop) {
+        backdrop.remove();
+      });
+    document.body.classList.remove('modal-open');
+    document.body.style.removeProperty('overflow');
+    document.body.style.removeProperty('padding-right');
+  }
+
   function applyFragmentToMain(html, swapUrl) {
     var main = document.getElementById('main-content');
     if (!main) {
       return false;
     }
+    teardownOpenOverlays(main);
     main.innerHTML = html;
     activateScripts(main);
     if (typeof swapUrl === 'string' && swapUrl) {

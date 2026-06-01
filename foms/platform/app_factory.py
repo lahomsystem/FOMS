@@ -30,6 +30,26 @@ class AppFactoryResult:
     socketio: Any
 
 
+def _add_static_response_headers(headers: Any, path: str, url: str) -> None:
+    """Attach per-file headers to WhiteNoise-served static assets.
+
+    The PWA service worker (`/static/sw.js`) is registered with `scope: "/"` so
+    it can control every ERP route, but its script lives under `/static/`. A
+    browser only allows a scope above the script's own directory when the script
+    response carries `Service-Worker-Allowed`. Without it the registration fails
+    with "The path of the provided scope ('/') is not under the max scope
+    allowed ('/static/')". Serving the header here is the spec-sanctioned fix and
+    keeps the script URL (asserted by the P2 gate) unchanged.
+
+    Args:
+        headers: WSGI ``Headers`` instance for the outgoing static response.
+        path: Absolute filesystem path of the asset (unused).
+        url: Request URL path for the asset, e.g. ``/static/sw.js``.
+    """
+    if url == "/static/sw.js":
+        headers["Service-Worker-Allowed"] = "/"
+
+
 def build_app(*, socketio_available: bool) -> AppFactoryResult:
     """Build the root Flask app while preserving the existing runtime order."""
     app = Flask("app")
@@ -46,6 +66,7 @@ def build_app(*, socketio_available: bool) -> AppFactoryResult:
         prefix="static/",
         autorefresh=not is_production,
         max_age=31536000 if is_production else 0,
+        add_headers_function=_add_static_response_headers,
     )
 
     app.secret_key = os.environ.get("SECRET_KEY")
