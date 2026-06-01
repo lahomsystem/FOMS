@@ -557,3 +557,35 @@ def test_p1_history_dashboard_renders_home_ia(
         "foms-shell-fab",
     ):
         assert selector in html, selector
+
+
+def test_p1_workflow_tabs_use_clean_queue_card_v2() -> None:
+    """홈 외 워크플로 탭(실측/생산/시공)도 홈과 동일한 깔끔한 queue-card-v2를 쓴다.
+
+    레거시 v1 카드(erp_mobile_queue_card.html — 스와이프 액션 peek)는 쓰지 않는다.
+    """
+    for rel in (
+        "templates/measurement/partials/mobile_list.html",
+        "templates/production/partials/mobile_queue.html",
+        "templates/construction/partials/mobile_queue.html",
+    ):
+        src = (ROOT / rel).read_text(encoding="utf-8")
+        assert "shared/erp_mobile_queue_card_v2.html" in src, rel
+        assert "render_queue_card_v2" in src, rel
+        assert "shared/erp_mobile_queue_card.html" not in src, rel
+
+
+def test_p1_mobile_v2_only_surfaces_hidden_on_desktop() -> None:
+    """모바일 v2 전용 표면(도면 갤러리·AS 카메라 바·FAB)이 데스크톱에서 숨겨진다."""
+    shell = (ROOT / "static/css/foundation/foms-shell.css").read_text(encoding="utf-8")
+    assert "foms-drawing-mobile-v2" in shell
+    assert "foms-shell-fab" in shell
+    assert "foms-as-camera-bar" in shell
+    # 워크플로 탭 본문에서 '레거시 모바일' 안내 notice 제거됨
+    for rel in (
+        "templates/measurement/partials/dashboard_main.html",
+        "templates/production/partials/dashboard_body.html",
+        "templates/construction/partials/dashboard_body.html",
+    ):
+        body = (ROOT / rel).read_text(encoding="utf-8")
+        assert "erp_mobile_v2_tab_notice.html" not in body, rel

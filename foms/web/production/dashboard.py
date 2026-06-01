@@ -336,6 +336,11 @@ def erp_production_dashboard():
 
     att_counts = _fetch_attachment_counts(db, page_rows)
     enriched = _build_production_enriched_rows(page_rows, att_counts)
+    # 모바일 v2 큐 카드 썸네일: 페이지 주문 첨부 미리보기 URL 일괄 해소
+    from foms.services.erp_mobile_order_display import batch_resolve_queue_attachment_urls
+    _queue_previews = batch_resolve_queue_attachment_urls(db, [r['id'] for r in enriched])
+    for _r in enriched:
+        _r['attachment_previews'] = _queue_previews.get(_r['id'], [])
     process_steps = _production_process_steps_bar(step_stats)
     attach_order_detail_payloads(db, enriched)
 

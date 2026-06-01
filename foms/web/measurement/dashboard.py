@@ -471,6 +471,27 @@ def erp_measurement_dashboard():
         # 실측 대시보드 지도는 항상 실측 주문만 표시한다.
         return redirect(url_for('erp_map.map_view', date=selected_date, status='ALL', dashboard='measurement', q=search_q))
 
+    # 모바일 v2 큐: 홈과 동일한 깔끔한 queue-card-v2용 view-model (cohort에서만 계산)
+    from foms.services.feature_flags import is_enabled_for_user
+    from foms.services.erp_mobile_order_display import build_mobile_queue_order_row
+    mobile_v2_active = is_enabled_for_user(
+        "ERP_MOBILE_V2_ENABLED",
+        current_user.id if current_user else None,
+        cohort_key="FOMS_V3_SHELL_COHORT",
+    )
+    mobile_queue_rows = []
+    if mobile_v2_active:
+        for _o in rows:
+            _row = build_mobile_queue_order_row(db, _o)
+            # 실측은 담당이 user id로 저장되는 케이스가 있어 표시명으로 정규화
+            _mgr = normalize_manager_name(
+                ((_o.structured_data or {}).get('parties') or {}).get('manager'),
+                getattr(_o, 'manager_name', None),
+            )
+            if _mgr:
+                _row['manager_name'] = _mgr
+            mobile_queue_rows.append(_row)
+
     template_name = (
         'measurement/partials/dashboard_fragment.html'
         if wants_erp_shell_tab_body(request)
@@ -485,6 +506,7 @@ def erp_measurement_dashboard():
             date_to=date_to,
             use_date_range=use_range,
             rows=rows,
+            mobile_queue_rows=mobile_queue_rows,
             measurement_panel_dates=measurement_panel_dates,
             measurement_manager_options=measurement_manager_options,
             measurement_manager_color_map=measurement_manager_color_map,

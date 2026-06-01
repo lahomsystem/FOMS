@@ -1,4 +1,3 @@
-import re
 from datetime import date
 
 from foms.web.measurement import dashboard as erp_measurement_dashboard
@@ -28,7 +27,7 @@ def _login_erp_admin(client):
     return user
 
 
-def test_measurement_mobile_page_renders_item_attachment_group_keys(client, monkeypatch):
+def test_measurement_mobile_page_renders_queue_card_attachments(client, monkeypatch):
     monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
     fake_today = date(2026, 4, 8)
     monkeypatch.setattr(erp_measurement_dashboard, "get_today_kst", lambda: fake_today)
@@ -85,8 +84,10 @@ def test_measurement_mobile_page_renders_item_attachment_group_keys(client, monk
 
     assert response.status_code == 200
     body = response.get_data(as_text=True)
-    assert f'data-group-key="measurement_mobile_{order_id}_item_0"' in body
-    assert "erp-measurement-mobile-attachment" in body
+    # 모바일 v2 큐는 홈과 동일한 queue-card-v2 — 첨부는 카드 썸네일 그리드로 노출
+    # (제품 항목별 인라인 편집/첨부 그룹은 상세 페이지로 이동).
+    assert "모바일 실측" in body
+    assert "foms-queue-card-v2__attachments" in body
 
 
 def test_measurement_mobile_page_uses_normalized_manager_name(client, monkeypatch):
@@ -147,13 +148,10 @@ def test_measurement_mobile_page_uses_normalized_manager_name(client, monkeypatc
 
     assert response.status_code == 200
     body = response.get_data(as_text=True)
-    customer_idx = body.find("Mobile Manager Restore")
-    assert customer_idx != -1
-    snippet = body[customer_idx:customer_idx + 500]
-    match = re.search(r'data-measurement-mobile-manager>([^<]+)<', snippet)
-    assert match is not None
-    assert match.group(1).strip()
-    assert match.group(1).strip() != str(manager_user_id)
+    assert "Mobile Manager Restore" in body
+    # 담당은 user id가 아니라 표시명(Resolved Manager)으로 정규화되어 카드에 노출
+    assert "Resolved Manager" in body
+    assert f"담당 {manager_user_id}" not in body
 
 
 def test_measurement_dashboard_excludes_stale_legacy_schedule_date(client, monkeypatch):

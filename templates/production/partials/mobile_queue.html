@@ -1,29 +1,29 @@
-{% from 'partials/shared/erp_mobile_queue_card.html' import render_queue_card %}
+{% from 'partials/shared/erp_mobile_queue_card_v2.html' import render_queue_card_v2 %}
 
-<section class="erp-mobile-queue-section" aria-label="생산 모바일 작업 큐">
+<section class="erp-mobile-queue-section foms-mobile-queue-section" aria-label="생산 모바일 작업 큐">
   <div class="erp-mobile-queue-section__summary foms-section-header section-header">
     <div>
-      <span class="erp-mobile-queue-section__eyebrow">Production Queue</span>
-      <h2 class="erp-mobile-queue-section__title foms-section-header__title">생산 작업 큐</h2>
+      <span class="erp-mobile-queue-section__eyebrow">생산 작업 큐</span>
+      <h2 class="erp-mobile-queue-section__title foms-section-header__title">제작 대기·진행</h2>
     </div>
-    <span class="erp-mobile-queue-section__count foms-section-header__count">현재 {{ orders|length }}건 / 전체 {{ total_orders }}건</span>
+    <span class="erp-mobile-queue-section__count foms-section-header__count">{{ orders|length }} / 전체 {{ total_orders }}건</span>
   </div>
 
   {% if orders %}
     <div class="erp-mobile-queue-section__list foms-mobile-queue-list">
       {% for o in orders %}
         {% set task_action = None %}
-        {% if o.stage == '시작대기' and o.is_sales_approved %}
-          {% set task_action = {'label': '시작', 'icon': 'fas fa-play', 'data_action': 'startProduction', 'button_class': 'erp-production-action'} %}
+        {% if o.stage == '제작대기' and o.is_sales_approved %}
+          {% set task_action = {'label': '생산 시작', 'icon': 'fas fa-play', 'data_action': 'startProduction', 'button_class': 'erp-production-action'} %}
         {% endif %}
-        {{ render_queue_card(o, can_edit_erp|default(false), task_action) }}
+        {{ render_queue_card_v2(o, can_edit_erp|default(false), task_action, '--production', o.stage) }}
       {% endfor %}
     </div>
   {% else %}
-    <div class="erp-mobile-queue-section__empty">
+    <div class="foms-mobile-empty">
       <i class="fas fa-inbox" aria-hidden="true"></i>
       <p class="mb-1">조건에 맞는 생산 주문이 없습니다.</p>
-      <small>필터를 바꾸거나 검색어를 지워 보세요.</small>
+      <small>칩 필터를 바꾸거나 검색어를 지워 보세요.</small>
     </div>
   {% endif %}
 </section>

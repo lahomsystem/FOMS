@@ -207,9 +207,20 @@
   }
 }
 
-/* ≥992px: the mobile single-column queue is for phones only. */
+/* ≥992px: the mobile single-column queue is for phones only.
+   Hide every mobile-v2-only surface so it never leaks onto the legacy
+   desktop / tablet view (drawing gallery, FAB, any standalone shell body). */
 @media (min-width: 992px) {
-  body.erp-mobile-v2-layout .foms-mobile-v2-dashboard {
+  body.erp-mobile-v2-layout .foms-mobile-v2-dashboard,
+  body.erp-mobile-v2-layout .foms-drawing-mobile-v2,
+  body.erp-mobile-v2-layout .foms-shell-fab {
+    display: none !important;
+  }
+}
+
+/* The AS camera bar follows the AS dashboard's md (768px) breakpoint. */
+@media (min-width: 768px) {
+  body.erp-mobile-v2-layout .foms-as-camera-bar {
     display: none !important;
   }
 }
