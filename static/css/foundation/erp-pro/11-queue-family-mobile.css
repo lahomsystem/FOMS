@@ -29,10 +29,12 @@
     margin-top: 0.875rem;
   }
 
-  /* Home IA parity: production mobile lives inside the shared foms-shell-body
-     wrapper (.erp-production-mobile-v2); the shell owns side padding + row gap. */
+  /* Home IA parity: production/construction mobile lives inside the shared
+     foms-shell-body wrapper; the shell owns side padding + row gap. */
   body.erp-mobile-v2-layout .erp-production-mobile-v2 .erp-mobile-queue-filters,
-  body.erp-mobile-v2-layout .erp-production-mobile-v2 .erp-mobile-queue-section {
+  body.erp-mobile-v2-layout .erp-production-mobile-v2 .erp-mobile-queue-section,
+  body.erp-mobile-v2-layout .erp-construction-mobile-v2 .erp-mobile-queue-filters,
+  body.erp-mobile-v2-layout .erp-construction-mobile-v2 .erp-mobile-queue-section {
     padding-left: 0;
     padding-right: 0;
     margin-top: 0;

@@ -420,3 +420,46 @@ def test_p1_as_dashboard_renders_home_ia(
         "foms-as-camera-bar",
     ):
         assert selector in html, selector
+
+
+def test_p1_construction_mobile_v2_home_ia_parity() -> None:
+    """탭6 시공: 모바일 v2가 홈 IA 셸/칩/큐/FAB 셀렉터를 사용한다."""
+    body = (ROOT / "templates/construction/partials/dashboard_body.html").read_text(
+        encoding="utf-8"
+    )
+    filters = (
+        ROOT / "templates/construction/partials/mobile_filters.html"
+    ).read_text(encoding="utf-8")
+    queue = (ROOT / "templates/construction/partials/mobile_queue.html").read_text(
+        encoding="utf-8"
+    )
+    for selector in ("foms-shell-body", "foms-mobile-v2-dashboard", "foms-shell-fab"):
+        assert selector in body, selector
+    for selector in ("chip-strip", "foms-chip-strip"):
+        assert selector in filters, selector
+    for selector in ("foms-mobile-queue-list", "foms-section-header"):
+        assert selector in queue, selector
+
+
+def test_p1_construction_dashboard_renders_home_ia(
+    client,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cohort 시공 대시보드 HTML이 홈 IA 셸/칩/FAB DOM 훅을 렌더한다."""
+    user = _login_admin(client)
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+
+    resp = client.get("/erp/construction/dashboard")
+    assert resp.status_code == 200
+    html = resp.get_data(as_text=True)
+    assert 'class="erp-mobile-v2-layout"' in html
+    for selector in (
+        "foms-shell-body",
+        "foms-mobile-v2-dashboard",
+        "chip-strip",
+        "foms-chip-strip",
+        "foms-section-header",
+        "foms-shell-fab",
+    ):
+        assert selector in html, selector
