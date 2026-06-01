@@ -35,8 +35,13 @@
     padding-bottom: calc(var(--erp-mobile-shell-nav-height) + env(safe-area-inset-bottom, 0px));
   }
 
+  /* display:contents (not block) so the sticky shell header is NOT trapped in a
+     short wrapper box. With a block wrapper, position:sticky's containing block
+     is the chrome (≈header height), so the header unsticks after ~56px. Removing
+     the wrapper box promotes the header into .erp-mobile-shell, whose height
+     spans the full queue, so top:0 stays pinned through the whole page scroll. */
   .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-mobile-shell-chrome {
-    display: block;
+    display: contents;
   }
 
   /* P1 mockup: legacy erp-pro-header hidden when foms-shell.css active (body.erp-mobile-v2-layout) */

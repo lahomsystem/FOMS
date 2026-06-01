@@ -42,6 +42,18 @@
     display: none !important;
   }
 
+  /* The global rule `body > .container-fluid { overflow-x: auto }` (style.css,
+     for wide desktop tables) turns this wrapper into a scroll container. Any
+     non-visible overflow on an ancestor makes IT the scroll context for
+     descendant position:sticky — but this wrapper grows with content (min-height
+     :100vh) and never scrolls (the page/body does), so the shell header sticks
+     to a box that never moves and scrolls away. Desktop tables are hidden on
+     mobile v2, so restore visible overflow to give the header a working sticky
+     context. */
+  body.erp-mobile-v2-layout > .container-fluid {
+    overflow: visible;
+  }
+
   /* New-order wizard (/add when FOMS_WIZARD_NEW_ORDER_ENABLED) is a mobile-first
      focused flow with its own stepper header; the legacy global brand header and
      nav are redundant chrome on mobile. Suppress both below 992px. The wizard is
