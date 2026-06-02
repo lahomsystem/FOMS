@@ -14,6 +14,10 @@ from foms.services.erp_display import (
     _erp_get_stage,
     apply_erp_display_fields,
 )
+from foms.services.order_event_display import (
+    format_timeline_description,
+    translate_event_type_to_korean,
+)
 from foms.services.erp_order_flags import is_erp_order_record
 from models import Order, OrderEvent
 
@@ -203,25 +207,10 @@ def _normalize_items(structured_data: dict[str, Any], fallback_product: str) -> 
 
 
 def _timeline_label(event_type: str, payload: dict[str, Any]) -> str:
-    return (
-        payload.get("title")
-        or payload.get("label")
-        or payload.get("field_label")
-        or event_type.replace("_", " ").title()
-    )
-
-
-def _timeline_description(event_type: str, payload: dict[str, Any]) -> str:
-    from_value = payload.get("from") or payload.get("old_value")
-    to_value = payload.get("to") or payload.get("new_value")
-    if from_value not in (None, "") or to_value not in (None, ""):
-        return f"{_value_or_dash(from_value)} -> {_value_or_dash(to_value)}"
-
-    for key in ("message", "summary", "reason", "status", "value"):
-        value = payload.get(key)
-        if value not in (None, ""):
-            return str(value)
-    return event_type
+    custom = payload.get("title") or payload.get("label") or payload.get("field_label")
+    if custom not in (None, ""):
+        return str(custom)
+    return translate_event_type_to_korean(event_type)
 
 
 def _load_timeline(order_id: int, limit: int = 5) -> list[WamTimelineEntry]:
@@ -241,7 +230,7 @@ def _load_timeline(order_id: int, limit: int = 5) -> list[WamTimelineEntry]:
             WamTimelineEntry(
                 event_type=str(event.event_type or "event"),
                 label=_timeline_label(str(event.event_type or "event"), payload),
-                description=_timeline_description(str(event.event_type or "event"), payload),
+                description=format_timeline_description(str(event.event_type or "event"), payload),
                 created_at_label=event.created_at.strftime("%Y-%m-%d %H:%M")
                 if event.created_at
                 else None,

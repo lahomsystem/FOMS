@@ -13,6 +13,10 @@ from foms.services.erp_display import (
     erp_payment_amount_from_structured,
 )
 from foms.services.erp_policy import STAGE_LABELS, STAGE_NAME_TO_CODE
+from foms.services.order_event_display import (
+    format_timeline_meta,
+    translate_event_type_to_korean,
+)
 
 __all__ = [
     "stage_badge_modifier",
@@ -29,30 +33,6 @@ __all__ = [
 _IMAGE_SUFFIXES = (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp")
 _MAX_QUEUE_PREVIEW_COUNT = 3
 
-_EVENT_LABELS: dict[str, str] = {
-    "STAGE_CHANGED": "단계 변경",
-    "URGENT_CHANGED": "긴급 상태 변경",
-    "MEASUREMENT_DATE_CHANGED": "실측 일정 변경",
-    "CONSTRUCTION_DATE_CHANGED": "시공 일정 변경",
-    "OWNER_TEAM_CHANGED": "담당팀 변경",
-}
-
-
-def _format_event_meta(event, payload: dict) -> str:
-    """Human-readable meta line for a timeline row."""
-    parts: list[str] = []
-    created_by = getattr(event, "created_by", None)
-    if created_by and getattr(created_by, "name", None):
-        parts.append(str(created_by.name))
-    created_at = getattr(event, "created_at", None)
-    if created_at:
-        parts.append(created_at.strftime("%Y-%m-%d %H:%M"))
-    if payload.get("to") and event.event_type == "STAGE_CHANGED":
-        to_stage = payload.get("to")
-        parts.append(stage_badge_label(str(to_stage)) if to_stage else "")
-    elif payload.get("to") is not None:
-        parts.append(str(payload.get("to")))
-    return " · ".join(p for p in parts if p)
 
 
 def mobile_timeline_events(db, order_id: int, *, limit: int = 12) -> list[dict[str, Any]]:
@@ -73,11 +53,18 @@ def mobile_timeline_events(db, order_id: int, *, limit: int = 12) -> list[dict[s
     items: list[dict[str, Any]] = []
     for ev in rows:
         payload = ev.payload if isinstance(ev.payload, dict) else {}
-        title = _EVENT_LABELS.get(ev.event_type or "", ev.event_type or "이벤트")
+        event_type = ev.event_type or ""
+        created_by = getattr(ev, "created_by", None)
+        actor_name = str(created_by.name) if created_by and getattr(created_by, "name", None) else None
         items.append(
             {
-                "title": title,
-                "meta": _format_event_meta(ev, payload),
+                "title": translate_event_type_to_korean(event_type),
+                "meta": format_timeline_meta(
+                    event_type,
+                    payload,
+                    actor_name=actor_name,
+                    created_at=getattr(ev, "created_at", None),
+                ),
                 "done": True,
             }
         )
