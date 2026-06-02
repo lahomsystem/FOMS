@@ -9,11 +9,28 @@
   display: none;
 }
 
+.erp-shipment-mobile-v2,
+.erp-shipment-mobile-v2 > *,
+.erp-shipment-mobile-controls,
+.erp-shipment-mobile-dates,
+.erp-shipment-mobile-queue {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.erp-shipment-mobile-controls,
+.erp-shipment-mobile-dates,
+.erp-shipment-mobile-queue {
+  overflow-x: hidden;
+}
+
 .erp-shipment-mobile-controls__search {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 0.5rem;
   align-items: center;
+  min-width: 0;
 }
 
 .erp-shipment-mobile-controls__input,
@@ -56,6 +73,8 @@
 
 .erp-shipment-mobile-controls .foms-chip-strip {
   margin-top: 0.75rem;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .erp-shipment-mobile-controls__drawer {
@@ -211,6 +230,7 @@
 .erp-shipment-mobile-cards {
   display: grid;
   gap: 0.875rem;
+  min-width: 0;
 }
 
 .erp-shipment-mobile-v2 .foms-mobile-queue-list {

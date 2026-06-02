@@ -48,6 +48,19 @@ def test_shipment_mobile_controls_template_contract() -> None:
     assert "foms-shipment-mobile.css" in dash
 
 
+def test_shipment_mobile_sections_do_not_expand_viewport() -> None:
+    css = (ROOT / "static/css/components/foms-shipment-mobile.css").read_text(
+        encoding="utf-8"
+    )
+
+    assert ".erp-shipment-mobile-v2 > *" in css
+    assert "min-width: 0;" in css
+    assert "max-width: 100%;" in css
+    assert ".erp-shipment-mobile-dates__track" in css
+    assert "overflow-x: auto;" in css
+    assert "overflow-x: hidden;" in css
+
+
 def test_shipment_dashboard_renders_mobile_v2_queue_surface(client, monkeypatch) -> None:
     monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
     user = _login_admin(client)
