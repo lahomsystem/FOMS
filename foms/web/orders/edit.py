@@ -343,6 +343,8 @@ def edit_order(order_id):
                     option_type=option_type,
                     online_options=online_options,
                     direct_options=direct_options,
+                    mobile_shell_title='주문 수정',
+                    erp_sub_nav_active='dashboard',
                 )
             )
             return resp_err
@@ -354,6 +356,8 @@ def edit_order(order_id):
         render_template(
             tpl,
             preserved_args=preserved_args,
+            mobile_shell_title='주문 수정',
+            erp_sub_nav_active='dashboard',
             **ctx,
         )
     )

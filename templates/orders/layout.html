@@ -8,7 +8,10 @@
 </head>
 
 {% set _body_classes = [] %}
-{% if erp_mobile_v2_enabled and request.path.startswith('/erp') %}{% set _ = _body_classes.append('erp-mobile-v2-layout') %}{% endif %}
+{# Order edit (/edit/<id>) is the canonical ERP order surface reached from mobile
+   queue cards, so it joins the erp-mobile-v2 shell cohort alongside the /erp/* pages. #}
+{% set _erp_mobile_v2_surface = request.path.startswith('/erp') or request.endpoint == 'order_edit.edit_order' %}
+{% if erp_mobile_v2_enabled and _erp_mobile_v2_surface %}{% set _ = _body_classes.append('erp-mobile-v2-layout') %}{% endif %}
 {% if flag_wizard and request.endpoint == 'order_pages.add_order' %}{% set _ = _body_classes.append('foms-wizard-active') %}{% endif %}
 <body
     class="{{ _body_classes|join(' ') }}"

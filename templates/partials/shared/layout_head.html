@@ -53,7 +53,9 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-theme-toggle.css') }}?v=20260529c">
     <!-- ERP Pro Dashboard Styles (Modern SaaS Design System) -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/erp-pro.css') }}?v=20260529c">
-    {% if erp_mobile_v2_enabled and request.path.startswith('/erp') %}
+    {# Order edit (/edit/<id>) joins the erp-mobile-v2 shell cohort (see orders/layout.html),
+       so it must load the same mobile shell CSS bundle that styles the foms header + surfaces. #}
+    {% if erp_mobile_v2_enabled and (request.path.startswith('/erp') or request.endpoint == 'order_edit.edit_order') %}
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" crossorigin="anonymous">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-mobile-surfaces.css') }}?v=20260531c">
     {% endif %}
