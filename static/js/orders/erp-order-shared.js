@@ -2537,27 +2537,153 @@ async function erpLoadAttachments() {
     }
 }
 
+function erpEnsureAttachmentPreviewModalZoomReset() {
+    var modalEl = document.getElementById('erpAttachmentPreviewModal');
+    if (!modalEl || modalEl._erpPreviewZoomResetBound) return;
+    modalEl._erpPreviewZoomResetBound = true;
+    modalEl.addEventListener('hidden.bs.modal', function () {
+        var body = document.getElementById('erp-attachment-preview-body');
+        var img = body && body.querySelector('img');
+        if (img) erpResetAttachmentPreviewZoom(img);
+    });
+}
+
+function erpResetAttachmentPreviewZoom(img) {
+    if (!img) return;
+    img._erpPreviewZoomState = { scale: 1, tx: 0, ty: 0 };
+    img.classList.remove('erp-attachment-preview-img--expanded');
+    erpApplyAttachmentPreviewZoom(img);
+}
+
+function erpApplyAttachmentPreviewZoom(img) {
+    var st = img._erpPreviewZoomState || { scale: 1, tx: 0, ty: 0 };
+    img.style.transform = 'translate3d(' + st.tx + 'px,' + st.ty + 'px,0) scale(' + st.scale + ')';
+    var zoomed = st.scale > 1.05;
+    img.classList.toggle('erp-attachment-preview-img--expanded', zoomed);
+    img.setAttribute('aria-label', zoomed ? '이미지 축소' : '이미지 확대');
+}
+
 function erpBindAttachmentPreviewImageZoom(bodyEl) {
     if (!bodyEl) return;
     var img = bodyEl.querySelector('img');
     if (!img) return;
+
+    erpEnsureAttachmentPreviewModalZoomReset();
+
     img.classList.add('erp-attachment-preview-img');
     img.setAttribute('role', 'button');
     img.setAttribute('tabindex', '0');
-    img.setAttribute('aria-label', '이미지 확대');
-    var openZoom = function () {
-        img.classList.toggle('erp-attachment-preview-img--expanded');
-        var expanded = img.classList.contains('erp-attachment-preview-img--expanded');
-        img.setAttribute('aria-label', expanded ? '이미지 축소' : '이미지 확대');
-    };
+    img.draggable = false;
+
+    var stage = img.parentElement;
+    if (!stage || !stage.classList.contains('erp-attachment-preview-zoom-stage')) {
+        stage = document.createElement('div');
+        stage.className = 'erp-attachment-preview-zoom-stage';
+        img.parentNode.insertBefore(stage, img);
+        stage.appendChild(img);
+    }
+
+    erpResetAttachmentPreviewZoom(img);
+
     if (img._erpPreviewZoomBound) return;
     img._erpPreviewZoomBound = true;
-    img.addEventListener('click', openZoom);
+
+    var MIN_SCALE = 1;
+    var MAX_SCALE = 4;
+    var TAP_SCALE = 2;
+
+    function setScale(next) {
+        var st = img._erpPreviewZoomState;
+        st.scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, next));
+        if (st.scale <= MIN_SCALE) {
+            st.scale = MIN_SCALE;
+            st.tx = 0;
+            st.ty = 0;
+        }
+        erpApplyAttachmentPreviewZoom(img);
+    }
+
+    function toggleTapZoom() {
+        var st = img._erpPreviewZoomState;
+        if (st.scale > MIN_SCALE + 0.05) {
+            erpResetAttachmentPreviewZoom(img);
+        } else {
+            st.scale = TAP_SCALE;
+            erpApplyAttachmentPreviewZoom(img);
+        }
+    }
+
+    var clickTimer = null;
+    img.addEventListener('click', function (ev) {
+        ev.preventDefault();
+        if (clickTimer) clearTimeout(clickTimer);
+        clickTimer = setTimeout(function () {
+            clickTimer = null;
+            toggleTapZoom();
+        }, 250);
+    });
     img.addEventListener('keydown', function (ev) {
         if (ev.key === 'Enter' || ev.key === ' ') {
             ev.preventDefault();
-            openZoom();
+            toggleTapZoom();
         }
+    });
+    img.addEventListener('dblclick', function (ev) {
+        ev.preventDefault();
+        if (clickTimer) {
+            clearTimeout(clickTimer);
+            clickTimer = null;
+        }
+        toggleTapZoom();
+    });
+
+    stage.addEventListener('wheel', function (ev) {
+        if (!img.isConnected) return;
+        ev.preventDefault();
+        var st = img._erpPreviewZoomState;
+        var delta = ev.deltaY > 0 ? -0.12 : 0.12;
+        setScale(st.scale + delta);
+    }, { passive: false });
+
+    var pinchStartDist = 0;
+    var panStart = null;
+    stage.addEventListener('touchstart', function (ev) {
+        if (ev.touches.length === 2) {
+            pinchStartDist = Math.hypot(
+                ev.touches[0].clientX - ev.touches[1].clientX,
+                ev.touches[0].clientY - ev.touches[1].clientY
+            );
+        } else if (ev.touches.length === 1 && img._erpPreviewZoomState.scale > MIN_SCALE) {
+            panStart = {
+                x: ev.touches[0].clientX,
+                y: ev.touches[0].clientY,
+                tx: img._erpPreviewZoomState.tx,
+                ty: img._erpPreviewZoomState.ty
+            };
+        }
+    }, { passive: true });
+
+    stage.addEventListener('touchmove', function (ev) {
+        var st = img._erpPreviewZoomState;
+        if (ev.touches.length === 2 && pinchStartDist) {
+            ev.preventDefault();
+            var dist = Math.hypot(
+                ev.touches[0].clientX - ev.touches[1].clientX,
+                ev.touches[0].clientY - ev.touches[1].clientY
+            );
+            setScale(st.scale + (dist - pinchStartDist) * 0.01);
+            pinchStartDist = dist;
+        } else if (ev.touches.length === 1 && panStart && st.scale > MIN_SCALE) {
+            ev.preventDefault();
+            st.tx = panStart.tx + (ev.touches[0].clientX - panStart.x);
+            st.ty = panStart.ty + (ev.touches[0].clientY - panStart.y);
+            erpApplyAttachmentPreviewZoom(img);
+        }
+    }, { passive: false });
+
+    stage.addEventListener('touchend', function () {
+        pinchStartDist = 0;
+        panStart = null;
     });
 }
 
@@ -2595,8 +2721,7 @@ function erpOpenAttachmentPreview(attachmentId) {
 `;
     } else {
         body.innerHTML = `
-<img src="${viewUrl}" alt="${escapeHtml(a.filename || '')}" class="img-fluid rounded erp-attachment-preview-img"
-style="background:#fff; padding:4px;">
+<img src="${viewUrl}" alt="${escapeHtml(a.filename || '')}" class="img-fluid rounded erp-attachment-preview-img">
 <div class="small text-muted mt-2">${escapeHtml(a.filename || '')}</div>
 `;
         erpBindAttachmentPreviewImageZoom(body);

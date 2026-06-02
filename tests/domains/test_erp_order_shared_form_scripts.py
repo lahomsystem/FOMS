@@ -367,6 +367,38 @@ def test_edit_order_matched_estimate_card_uses_order_payment_payload() -> None:
     assert "(최종 금액 - ${escapeHtml(paymentLabel)})" in text
 
 
+def test_attachment_preview_zoom_scoped_to_modal_not_mobile_form() -> None:
+    """Preview zoom CSS must target the modal; the dialog sits outside .erp-order-mobile-form."""
+    root = Path(__file__).resolve().parents[2]
+    css_text = (root / "static/css/components/foms-form-field.css").read_text(encoding="utf-8")
+    mobile_partial = (
+        root / "templates" / "orders" / "partials" / "erp_order_tab_mobile.html"
+    ).read_text(encoding="utf-8")
+
+    modal_idx = mobile_partial.index('id="erpAttachmentPreviewModal"')
+    form_idx = mobile_partial.index("erp-order-mobile-form")
+    assert form_idx < modal_idx
+
+    assert "#erpAttachmentPreviewModal #erp-attachment-preview-body" in css_text
+    assert "#erpAttachmentPreviewModal .erp-attachment-preview-zoom-stage" in css_text
+    assert ".erp-order-mobile-form #erp-attachment-preview-body .erp-attachment-preview-img" not in css_text
+
+
+def test_attachment_preview_image_zoom_supports_in_modal_gestures() -> None:
+    """Attachment preview binds transform zoom (tap, wheel, pinch) inside the compact modal."""
+    root = Path(__file__).resolve().parents[2]
+    js_text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+
+    assert "function erpBindAttachmentPreviewImageZoom(bodyEl)" in js_text
+    assert "function erpApplyAttachmentPreviewZoom(img)" in js_text
+    assert "function erpResetAttachmentPreviewZoom(img)" in js_text
+    assert "erp-attachment-preview-zoom-stage" in js_text
+    assert "translate3d(" in js_text
+    assert "addEventListener('wheel'" in js_text
+    assert "ev.touches.length === 2" in js_text
+    assert "fomsOpenLightboxUrl" not in js_text
+
+
 def test_edit_order_initial_mount_releases_surface_before_deferred_panels() -> None:
     """Initial edit-page paint should reveal the ERP pane before quest/attachment fetches finish."""
     root = Path(__file__).resolve().parents[2]
