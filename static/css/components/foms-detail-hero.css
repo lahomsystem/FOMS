@@ -127,6 +127,7 @@
 
   body.erp-mobile-v2-layout .attach-item,
   body.erp-mobile-v2-layout .foms-attach-item {
+    position: relative;
     aspect-ratio: 1;
     border-radius: var(--foms-radius-md);
     border: none;
@@ -138,6 +139,17 @@
     padding: var(--foms-space-2);
     text-decoration: none;
     overflow: hidden;
+  }
+
+  body.erp-mobile-v2-layout .attach-item > img,
+  body.erp-mobile-v2-layout .foms-attach-item > img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    pointer-events: none;
   }
 
   body.erp-mobile-v2-layout .attach-item__label,

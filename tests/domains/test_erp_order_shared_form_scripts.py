@@ -431,6 +431,7 @@ def test_mobile_detail_attach_grid_uses_modal_preview_not_lightbox() -> None:
     assert "data-foms-attachment-preview-gallery" in partial
     assert "data-foms-attachment-preview" in partial
     assert "data-foms-attachment-view-url" in partial
+    assert 'src="{{ att.view_url or att.thumb_url }}"' in partial
     assert "data-foms-lightbox-gallery" not in partial
     assert "foms_attachment_preview_modal.html" in partial
     assert "attachment-preview-zoom.js" in page

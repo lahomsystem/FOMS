@@ -2088,6 +2088,11 @@ function erpBuildAttachmentMediaTile(a) {
     const type = a.file_type || 'file';
     const thumb = a.thumbnail_view_url || a.view_url || '';
     const viewUrl = a.view_url || thumb || '#';
+    const isMobileLayout = erpIsMobileAttachmentLayout();
+    const gridImageSrc =
+        type === 'image' && isMobileLayout
+            ? (a.view_url || a.thumbnail_view_url || '')
+            : (a.thumbnail_view_url || a.view_url || '');
 
     if (type === 'video') {
         return `
@@ -2099,7 +2104,7 @@ function erpBuildAttachmentMediaTile(a) {
     if (type === 'image') {
         return `
 <div class="erp-attachment-tile__media">
-    <img src="${thumb || viewUrl}" alt="${name}">
+    <img src="${gridImageSrc || viewUrl}" alt="${name}" loading="lazy" decoding="async">
 </div>`;
     }
     return `

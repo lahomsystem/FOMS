@@ -89,11 +89,16 @@ def _is_image_filename(filename: str | None) -> bool:
     return bool(name) and name.endswith(_IMAGE_SUFFIXES)
 
 
-def _attachment_image_url(attachment) -> str | None:
-    """Resolve thumbnail or image view URL for an OrderAttachment."""
+def _attachment_thumbnail_url(attachment) -> str | None:
+    """Small generated thumb (typically max 300px) — queue cards only."""
     thumb_key = (getattr(attachment, "thumbnail_key", None) or "").strip()
     if thumb_key:
         return build_file_view_url(thumb_key)
+    return None
+
+
+def _attachment_full_view_url(attachment) -> str | None:
+    """Full-resolution image view URL for grid tiles and modal preview."""
     storage_key = (getattr(attachment, "storage_key", None) or "").strip()
     if not storage_key:
         return None
@@ -102,6 +107,11 @@ def _attachment_image_url(attachment) -> str | None:
     if file_type == "image" or _is_image_filename(filename):
         return build_file_view_url(storage_key)
     return None
+
+
+def _attachment_image_url(attachment) -> str | None:
+    """Resolve preview URL for queue cards (prefer thumbnail for bandwidth)."""
+    return _attachment_thumbnail_url(attachment) or _attachment_full_view_url(attachment)
 
 
 def batch_resolve_queue_attachment_urls(
@@ -235,7 +245,8 @@ def mobile_attachment_items(db, order_id: int, *, limit: int = 8) -> list[dict[s
     for att in rows:
         cat = (att.category or "measurement").lower()
         label = att.filename or category_labels.get(cat, cat)
-        view_url = _attachment_image_url(att)
+        thumb_url = _attachment_thumbnail_url(att)
+        view_url = _attachment_full_view_url(att)
         storage_key = (getattr(att, "storage_key", None) or "").strip()
         download_url = build_file_download_url(storage_key) if storage_key else None
         items.append(
@@ -243,7 +254,7 @@ def mobile_attachment_items(db, order_id: int, *, limit: int = 8) -> list[dict[s
                 "label": label,
                 "category": cat,
                 "id": att.id,
-                "thumb_url": view_url,
+                "thumb_url": thumb_url,
                 "view_url": view_url,
                 "download_url": download_url,
             }

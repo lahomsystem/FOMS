@@ -159,7 +159,7 @@
                 data-foms-attachment-label="{{ att.label }}"
                 {% if att.download_url %}data-foms-attachment-download-url="{{ att.download_url }}"{% endif %}
                 title="{{ att.label }}">
-                <img src="{{ att.thumb_url or att.view_url }}" alt="" loading="lazy" decoding="async">
+                <img src="{{ att.view_url or att.thumb_url }}" alt="" loading="lazy" decoding="async">
                 <span class="attach-item__label foms-attach-item__label">{{ att.label }}</span>
               </button>
             {% else %}
