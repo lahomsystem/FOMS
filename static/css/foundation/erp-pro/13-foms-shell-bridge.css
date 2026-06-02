@@ -50,7 +50,12 @@
      to a box that never moves and scrolls away. Desktop tables are hidden on
      mobile v2, so restore visible overflow to give the header a working sticky
      context. */
-  body.erp-mobile-v2-layout > .container-fluid {
+  body.erp-mobile-v2-layout > .container-fluid,
+  /* orders/layout nests a second .container-fluid around #main-content; without
+     visible overflow, shell header sticky/fixed and bottom nav pin to the wrong
+     scroll ancestor on /edit/<id> and other non-/erp mobile-v2 surfaces. */
+  body.erp-mobile-v2-layout .container-fluid,
+  body.erp-mobile-v2-layout #main-content {
     overflow: visible;
   }
 

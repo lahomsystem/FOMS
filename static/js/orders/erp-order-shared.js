@@ -2537,6 +2537,35 @@ async function erpLoadAttachments() {
     }
 }
 
+function erpBindAttachmentPreviewImageZoom(bodyEl) {
+    if (!bodyEl) return;
+    var img = bodyEl.querySelector('img');
+    if (!img) return;
+    img.classList.add('erp-attachment-preview-img');
+    img.setAttribute('role', 'button');
+    img.setAttribute('tabindex', '0');
+    img.setAttribute('aria-label', '이미지 확대');
+    var openZoom = function () {
+        var src = img.currentSrc || img.getAttribute('src') || '';
+        if (!src || src === '#') return;
+        var dl = document.getElementById('erp-attachment-preview-download');
+        if (typeof window.fomsOpenLightboxUrl === 'function') {
+            window.fomsOpenLightboxUrl(src, { downloadUrl: dl ? dl.href : '' });
+            return;
+        }
+        img.classList.toggle('erp-attachment-preview-img--expanded');
+    };
+    if (img._erpPreviewZoomBound) return;
+    img._erpPreviewZoomBound = true;
+    img.addEventListener('click', openZoom);
+    img.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Enter' || ev.key === ' ') {
+            ev.preventDefault();
+            openZoom();
+        }
+    });
+}
+
 function erpOpenAttachmentPreview(attachmentId) {
     const targetId = Number(attachmentId);
     const a = (__erpAttachments || []).find(x => Number(x.id) === targetId);
@@ -2571,10 +2600,11 @@ function erpOpenAttachmentPreview(attachmentId) {
 `;
     } else {
         body.innerHTML = `
-<img src="${viewUrl}" alt="${escapeHtml(a.filename || '')}" class="img-fluid rounded"
+<img src="${viewUrl}" alt="${escapeHtml(a.filename || '')}" class="img-fluid rounded erp-attachment-preview-img"
 style="background:#fff; padding:4px;">
 <div class="small text-muted mt-2">${escapeHtml(a.filename || '')}</div>
 `;
+        erpBindAttachmentPreviewImageZoom(body);
     }
 
     const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
@@ -2594,7 +2624,10 @@ style="background:#fff; padding:4px;">
                 }
                 if (data.view_url) {
                     var img = body.querySelector('img');
-                    if (img) img.src = data.view_url;
+                    if (img) {
+                        img.src = data.view_url;
+                        erpBindAttachmentPreviewImageZoom(body);
+                    }
                     var video = body.querySelector('video');
                     if (video) video.src = data.view_url;
                 }

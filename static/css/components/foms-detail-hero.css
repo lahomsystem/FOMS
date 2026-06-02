@@ -233,4 +233,46 @@
     font-size: var(--foms-font-size-sm);
     color: var(--foms-text-tertiary);
   }
+
+  /* Order edit + mobile detail: shell chrome must pin to the viewport while the
+     form scrolls. Sticky alone fails when any ancestor is a non-scrolling overflow
+     box (nested container-fluid on orders/layout). Fixed chrome + body padding. */
+  body.erp-mobile-v2-layout
+    .foms-detail-page-wrap.erp-mobile-shell[data-erp-mobile-v2='true'] {
+    padding-top: calc(
+      var(--foms-shell-header-h, 56px) + var(--foms-safe-area-top, 0px)
+    );
+    padding-bottom: calc(
+      var(--foms-shell-bottom-nav-h, 72px) + var(--foms-safe-area-bottom, 0px)
+    );
+  }
+
+  body.erp-mobile-v2-layout .foms-detail-page-wrap .erp-mobile-shell-header,
+  body.erp-mobile-v2-layout .foms-detail-page-wrap .foms-shell-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    z-index: var(--foms-z-sticky, 120);
+  }
+
+  body.erp-mobile-v2-layout .foms-detail-page-wrap .erp-mobile-bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    z-index: 125;
+  }
+
+  body.erp-mobile-v2-layout
+    .foms-detail-page-wrap
+    .erp-mobile-sticky-action-bar {
+    bottom: calc(
+      var(--foms-shell-bottom-nav-h, 72px) + var(--foms-keyboard-h, 0px) +
+        env(safe-area-inset-bottom, 0px)
+    );
+    z-index: 110;
+  }
 }

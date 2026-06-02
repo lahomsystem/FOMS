@@ -177,6 +177,30 @@
     });
   }
 
+  /**
+   * Open the shared lightbox for a single image URL (ERP attachment preview, etc.).
+   * @param {string} url
+   * @param {{ downloadUrl?: string }} [opts]
+   */
+  function openLightboxUrl(url, opts) {
+    if (!url) return;
+    opts = opts || {};
+    var tmp = document.createElement("div");
+    tmp.hidden = true;
+    tmp.setAttribute("data-foms-lightbox-gallery", "");
+    var stub = document.createElement("img");
+    stub.setAttribute("data-foms-lightbox-src", url);
+    stub.setAttribute("alt", "");
+    tmp.appendChild(stub);
+    document.body.appendChild(tmp);
+    var lb = new FomsLightbox(tmp);
+    lb.open(0);
+    if (opts.downloadUrl) {
+      var dl = lb.shell && lb.shell.querySelector('[data-action="download"]');
+      if (dl) dl.href = opts.downloadUrl;
+    }
+  }
+
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", mountAll);
   } else {
@@ -184,4 +208,5 @@
   }
   document.body.addEventListener("htmx:afterSwap", mountAll);
   window.fomsMountLightboxes = mountAll;
+  window.fomsOpenLightboxUrl = openLightboxUrl;
 })();

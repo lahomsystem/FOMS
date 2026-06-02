@@ -486,6 +486,28 @@
   -webkit-line-clamp: 2;
 }
 
+.erp-order-mobile-form #erp-attachment-preview-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+}
+
+.erp-order-mobile-form #erp-attachment-preview-body .erp-attachment-preview-img {
+  cursor: zoom-in;
+  max-height: min(60vh, 520px);
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+  touch-action: manipulation;
+}
+
+.erp-order-mobile-form #erp-attachment-preview-body .erp-attachment-preview-img:focus-visible {
+  outline: 2px solid var(--foms-border-focus);
+  outline-offset: 2px;
+}
+
 .erp-order-mobile-form .erp-attachment-preview-actions {
   display: flex;
   flex-wrap: nowrap;

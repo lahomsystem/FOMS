@@ -13,7 +13,7 @@
    the mockup chrome (foms shell header + bottom nav) instead of the legacy
    desktop header. Desktop (>=992px) hides the chrome via CSS, so editing there is
    unchanged. Mirrors orders/mobile_order_detail.html. #}
-<div class="erp-mobile-shell foms-detail-page-wrap" data-erp-mobile-v2="true">
+<div class="container-fluid erp-pro erp-mobile-shell foms-detail-page-wrap" data-erp-mobile-v2="true">
   {% include 'partials/shared/erp_mobile_shell.html' %}
   {% include "orders/partials/edit_order_body.html" %}
 </div>
@@ -23,6 +23,9 @@
 {% endblock %}
 
 {% block scripts %}
+{% if erp_mobile_v2_enabled %}
+<script src="{{ url_for('static', filename='js/foms/lightbox.js') }}?v=20260531c" defer></script>
+{% endif %}
 {% include "orders/partials/erp_order_js.html" %}
 <script>
     var USE_DIRECT_UPLOAD = window.USE_DIRECT_UPLOAD = ("{{ 'true' if use_direct_upload else 'false' }}" === "true");
