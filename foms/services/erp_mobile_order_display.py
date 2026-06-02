@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from foms.api.files.routes import build_file_view_url
+from foms.api.files.routes import build_file_download_url, build_file_view_url
 from foms.services.erp_display import (
     _ensure_dict,
     _erp_alerts,
@@ -236,6 +236,8 @@ def mobile_attachment_items(db, order_id: int, *, limit: int = 8) -> list[dict[s
         cat = (att.category or "measurement").lower()
         label = att.filename or category_labels.get(cat, cat)
         view_url = _attachment_image_url(att)
+        storage_key = (getattr(att, "storage_key", None) or "").strip()
+        download_url = build_file_download_url(storage_key) if storage_key else None
         items.append(
             {
                 "label": label,
@@ -243,6 +245,7 @@ def mobile_attachment_items(db, order_id: int, *, limit: int = 8) -> list[dict[s
                 "id": att.id,
                 "thumb_url": view_url,
                 "view_url": view_url,
+                "download_url": download_url,
             }
         )
     return items

@@ -148,13 +148,16 @@
           <h2 class="foms-detail-section__title" id="foms-detail-attach-title">첨부</h2>
           <span class="foms-detail-section__count">{{ order.attachments_count }}건</span>
         </div>
-        <div class="attach-grid foms-attach-grid" data-foms-lightbox-gallery>
+        <div class="attach-grid foms-attach-grid" data-foms-attachment-preview-gallery>
           {% for att in order.attachments %}
             {% if att.view_url or att.thumb_url %}
               <button
                 type="button"
                 class="attach-item foms-attach-item foms-attach-item--{{ att.category }}"
-                data-foms-lightbox-src="{{ att.view_url or att.thumb_url }}"
+                data-foms-attachment-preview
+                data-foms-attachment-view-url="{{ att.view_url or att.thumb_url }}"
+                data-foms-attachment-label="{{ att.label }}"
+                {% if att.download_url %}data-foms-attachment-download-url="{{ att.download_url }}"{% endif %}
                 title="{{ att.label }}">
                 <img src="{{ att.thumb_url or att.view_url }}" alt="" loading="lazy" decoding="async">
                 <span class="attach-item__label foms-attach-item__label">{{ att.label }}</span>
@@ -213,3 +216,5 @@
     </a>
   </div>
 </div>
+
+{% include 'partials/shared/foms_attachment_preview_modal.html' %}

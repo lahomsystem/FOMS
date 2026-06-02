@@ -374,34 +374,68 @@ def test_attachment_preview_zoom_scoped_to_modal_not_mobile_form() -> None:
     mobile_partial = (
         root / "templates" / "orders" / "partials" / "erp_order_tab_mobile.html"
     ).read_text(encoding="utf-8")
+    detail_partial = (
+        root / "templates" / "partials" / "shared" / "foms_attachment_preview_modal.html"
+    ).read_text(encoding="utf-8")
 
     modal_idx = mobile_partial.index('id="erpAttachmentPreviewModal"')
     form_idx = mobile_partial.index("erp-order-mobile-form")
     assert form_idx < modal_idx
 
     assert "#erpAttachmentPreviewModal #erp-attachment-preview-body" in css_text
+    assert "#fomsAttachmentPreviewModal #foms-attachment-preview-body" in css_text
     assert "#erpAttachmentPreviewModal .erp-attachment-preview-zoom-stage" in css_text
+    assert "#fomsAttachmentPreviewModal .erp-attachment-preview-zoom-stage" in css_text
     assert ".erp-order-mobile-form #erp-attachment-preview-body .erp-attachment-preview-img" not in css_text
+    assert 'id="fomsAttachmentPreviewModal"' in detail_partial
+    assert 'id="foms-attachment-preview-body"' in detail_partial
 
 
 def test_attachment_preview_image_zoom_supports_in_modal_gestures() -> None:
     """Attachment preview binds transform zoom (tap, wheel, pinch) inside the compact modal."""
     root = Path(__file__).resolve().parents[2]
-    js_text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+    shared_js = (root / "static/js/foms/attachment-preview-zoom.js").read_text(encoding="utf-8")
+    erp_js = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+    mobile_js = (root / "static/js/foms/mobile-detail-attachments.js").read_text(encoding="utf-8")
 
-    assert "function erpBindAttachmentPreviewImageZoom(bodyEl)" in js_text
-    assert "function erpApplyAttachmentPreviewZoom(img)" in js_text
-    assert "function erpResetAttachmentPreviewZoom(img)" in js_text
-    assert "erp-attachment-preview-zoom-stage" in js_text
-    assert "translate3d(" in js_text
-    assert "addEventListener('wheel'" in js_text
-    assert "ev.touches.length === 2" in js_text
-    assert "fomsOpenLightboxUrl" not in js_text
-    assert "function erpReleaseAttachmentPreviewModalFocus(modalEl)" in js_text
-    assert "addEventListener('hide.bs.modal'" in js_text
-    assert "erpReleaseAttachmentPreviewModalFocus(modalEl)" in js_text
-    assert "erpEnsureAttachmentPreviewModalZoomReset();" in js_text
-    assert "erpOpenAttachmentPreview(attachmentId)" in js_text
+    assert "function bindImageZoom(bodyEl, options)" in shared_js or "bindImageZoom" in shared_js
+    assert "fomsResetAttachmentPreviewZoom" in shared_js
+    assert "fomsBindAttachmentPreviewImageZoom" in shared_js
+    assert "erp-attachment-preview-zoom-stage" in shared_js
+    assert "translate3d(" in shared_js
+    assert '"wheel"' in shared_js
+    assert "ev.touches.length === 2" in shared_js
+
+    assert "function erpBindAttachmentPreviewImageZoom(bodyEl)" in erp_js
+    assert "function erpApplyAttachmentPreviewZoom(img)" in erp_js
+    assert "function erpResetAttachmentPreviewZoom(img)" in erp_js
+    assert "fomsBindAttachmentPreviewImageZoom" in erp_js
+    assert "fomsOpenLightboxUrl" not in erp_js
+    assert "function erpReleaseAttachmentPreviewModalFocus(modalEl)" in erp_js
+    assert "fomsBindAttachmentPreviewModalZoomReset" in erp_js
+    assert "erpOpenAttachmentPreview(attachmentId)" in erp_js
+
+    assert "data-foms-attachment-preview-gallery" in mobile_js
+    assert "fomsAttachmentPreviewModal" in mobile_js
+    assert "fomsBindAttachmentPreviewImageZoom" in mobile_js
+
+
+def test_mobile_detail_attach_grid_uses_modal_preview_not_lightbox() -> None:
+    """Mobile order detail attach section opens compact modal preview instead of fullscreen lightbox."""
+    root = Path(__file__).resolve().parents[2]
+    partial = (
+        root / "templates" / "orders" / "partials" / "order_detail_mobile_v2.html"
+    ).read_text(encoding="utf-8")
+    page = (root / "templates/orders/mobile_order_detail.html").read_text(encoding="utf-8")
+
+    assert "data-foms-attachment-preview-gallery" in partial
+    assert "data-foms-attachment-preview" in partial
+    assert "data-foms-attachment-view-url" in partial
+    assert "data-foms-lightbox-gallery" not in partial
+    assert "foms_attachment_preview_modal.html" in partial
+    assert "attachment-preview-zoom.js" in page
+    assert "mobile-detail-attachments.js" in page
+    assert "lightbox.js" not in page
 
 
 def test_edit_order_initial_mount_releases_surface_before_deferred_panels() -> None:
