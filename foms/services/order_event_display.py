@@ -34,12 +34,74 @@ _STAGE_EVENT_TYPES = frozenset(
     {"STAGE_CHANGED", "STAGE_AUTO_TRANSITIONED", "STAGE_MANUAL_OVERRIDE"}
 )
 
+_EMPTY_DISPLAY_VALUES = frozenset({"", "none", "null"})
+
 _DRAWING_STATUS_MAP: dict[str, str] = {
+    # ERP uppercase codes (payload / structured_data)
+    "PENDING": "작업중",
+    "WAITING": "대기",
+    "IN_PROGRESS": "진행중",
+    "TRANSFERRED": "확정 대기",
+    "RETURNED": "수정 요청됨",
+    "CONFIRMED": "완료",
+    "DONE": "완료",
+    # Legacy lowercase codes
     "pending": "대기중",
     "sent": "전달됨",
     "confirmed": "확인완료",
     "revision_requested": "수정요청",
 }
+
+_APPROVAL_STATUS_MAP: dict[str, str] = {
+    "not_approved": "미승인",
+    "approved": "승인됨",
+    "pending": "대기중",
+    "rejected": "반려됨",
+}
+
+_APPROVAL_EVENT_TYPES = frozenset({"QUEST_APPROVAL_CHANGED", "QUEST_ASSIGNEE_APPROVED"})
+_ASSIGNEE_EVENT_TYPES = frozenset({"DRAWING_ASSIGNEE_SET", "ASSIGNMENT_CHANGED", "manager_changed"})
+
+
+def _is_empty_display_value(value: Any) -> bool:
+    """True when value is None, blank, or a string sentinel like 'None'."""
+    if value in (None, ""):
+        return True
+    return str(value).strip().lower() in _EMPTY_DISPLAY_VALUES
+
+
+def _lookup_status_map(value: Any, mapping: dict[str, str]) -> str:
+    """Case-insensitive lookup for coded status strings."""
+    text = str(value).strip()
+    if not text:
+        return ""
+    return (
+        mapping.get(text)
+        or mapping.get(text.upper())
+        or mapping.get(text.lower())
+        or text
+    )
+
+
+def _translate_drawing_status(value: Any) -> str:
+    """Drawing status code → Korean label (aligned with erp_display._drawing_status_label)."""
+    return _lookup_status_map(value, _DRAWING_STATUS_MAP)
+
+
+def _translate_approval_status(value: Any) -> str:
+    """Quest approval code → Korean label."""
+    if isinstance(value, bool):
+        return "승인됨" if value else "미승인"
+    if isinstance(value, dict):
+        if value.get("approved"):
+            return f"승인됨 ({value.get('approved_by_name', '담당자')})"
+        return "미승인"
+    return _lookup_status_map(value, _APPROVAL_STATUS_MAP)
+
+
+def _empty_transition_label(event_type: str) -> str:
+    """Label for null/empty before or after in timeline transitions."""
+    return "없음"
 
 
 def translate_target_to_korean(target: str) -> str:
@@ -161,7 +223,9 @@ def translate_stage_code(value: Any) -> str:
 
 def translate_payload_field(event_type: str, field: str, value: Any) -> str:
     """Translate a timeline payload field (to/from/before/after) for display."""
-    if value in (None, ""):
+    if _is_empty_display_value(value):
+        if event_type in _ASSIGNEE_EVENT_TYPES or event_type in _APPROVAL_EVENT_TYPES:
+            return _empty_transition_label(event_type)
         return ""
 
     if event_type in _STAGE_EVENT_TYPES and field in ("to", "from", "before", "after"):
@@ -180,8 +244,14 @@ def translate_payload_field(event_type: str, field: str, value: Any) -> str:
         if lowered in ("false", "0", "no"):
             return "일반"
 
+    if event_type in _APPROVAL_EVENT_TYPES and field in ("to", "from", "before", "after"):
+        return _translate_approval_status(value)
+
+    if event_type in _ASSIGNEE_EVENT_TYPES and field in ("to", "from", "before", "after"):
+        return str(value).strip()
+
     if event_type == "DRAWING_STATUS_CHANGED" and field in ("to", "from", "before", "after"):
-        return _DRAWING_STATUS_MAP.get(str(value), str(value))
+        return _translate_drawing_status(value)
 
     if event_type in ("MEASUREMENT_DATE_CHANGED", "CONSTRUCTION_DATE_CHANGED"):
         return str(value).strip()
@@ -191,24 +261,25 @@ def translate_payload_field(event_type: str, field: str, value: Any) -> str:
 
 def translate_value_to_korean(target: str, value: Any) -> str:
     """값을 한글로 변환."""
-    if not value and value is not False:
+    if _is_empty_display_value(value):
         return "없음"
 
     if isinstance(value, bool):
         return "완료" if value else "미완료"
 
-    if "stage" in target.lower():
+    target_lower = target.lower()
+
+    if "stage" in target_lower:
         return translate_stage_code(value)
 
-    if "approval" in target.lower():
-        if isinstance(value, dict):
-            if value.get("approved"):
-                return f"승인됨 ({value.get('approved_by_name', '담당자')})"
-            return "미승인"
-        return "승인됨" if value else "미승인"
+    if "approval" in target_lower:
+        return _translate_approval_status(value)
 
-    if "drawing" in target.lower() and "status" in target.lower():
-        return _DRAWING_STATUS_MAP.get(str(value), str(value))
+    if "assignee" in target_lower:
+        return str(value).strip()
+
+    if "drawing" in target_lower and "status" in target_lower:
+        return _translate_drawing_status(value)
 
     return str(value)
 
@@ -324,10 +395,25 @@ def _resolve_payload_transition(
     """Extract from/to (or before/after) with Korean labels when applicable."""
     from_key = "from" if "from" in payload else "before"
     to_key = "to" if "to" in payload else "after"
+    from_present = from_key in payload
+    to_present = to_key in payload
     from_raw = payload.get(from_key)
     to_raw = payload.get(to_key)
-    from_label = translate_payload_field(event_type, from_key, from_raw) if from_raw not in (None, "") else None
-    to_label = translate_payload_field(event_type, to_key, to_raw) if to_raw not in (None, "") else None
+
+    if not from_present:
+        from_label: str | None = None
+    elif _is_empty_display_value(from_raw):
+        from_label = _empty_transition_label(event_type)
+    else:
+        from_label = translate_payload_field(event_type, from_key, from_raw) or None
+
+    if not to_present:
+        to_label: str | None = None
+    elif _is_empty_display_value(to_raw):
+        to_label = _empty_transition_label(event_type)
+    else:
+        to_label = translate_payload_field(event_type, to_key, to_raw) or None
+
     return from_label, to_label
 
 
