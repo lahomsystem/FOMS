@@ -89,8 +89,12 @@ function networkFirst(request, cacheName) {
   return fetch(request, { cache: "no-cache" })
     .then(function (response) {
       if (response && response.ok) {
+        // Clone synchronously, before returning the response to the page. If we
+        // cloned inside the async caches.open().then() the page may have already
+        // consumed the body → "Failed to execute 'clone': body is already used".
+        var copy = response.clone();
         caches.open(cacheName).then(function (cache) {
-          cache.put(request, response.clone());
+          cache.put(request, copy);
         });
       }
       return response;
