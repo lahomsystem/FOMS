@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[2]
 REQUIRED_ASSETS = (
     "static/css/foundation/foms-mobile-surfaces.css",
     "static/css/foundation/foms-shell.css",
+    "static/css/components/foms-form-field.css",
     "static/js/foms/mobile-queue-scroll.js",
     "static/js/foms/wizard-attachments.js",
 )

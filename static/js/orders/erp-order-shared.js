@@ -617,6 +617,10 @@ function erpNewItemRow(item = {}) {
         const s = String(v ?? '').trim();
         return s ? s : '상담';
     };
+    const isMobileForm = !!document.querySelector('.erp-order-mobile-form');
+    const inputClass = isMobileForm ? 'foms-input' : 'form-control form-control-sm';
+    const tabularInputClass = isMobileForm ? 'foms-input foms-tabular' : 'form-control form-control-sm';
+    const textareaClass = isMobileForm ? 'foms-textarea' : 'form-control form-control-sm';
 
     const productName = String(item.product_name || '').trim();
     // 규격 행 목록: spec_rows 우선, 없으면 단일 spec_width/spec_depth/spec_height 또는 spec 파싱
@@ -647,9 +651,9 @@ function erpNewItemRow(item = {}) {
         const h = escapeHtml(String((sr.spec_height ?? sr.h ?? '')).trim());
         const showDel = specRows.length > 1 ? '' : ' style="display:none;"';
         return `<div class="erp-spec-row d-flex flex-wrap gap-2 align-items-end mb-1">
-<div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">W(폭)</label><input class="form-control form-control-sm" data-erp="spec_width" data-spec-row placeholder="폭" value="${w}" lang="ko"></div>
-<div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">D(깊이)</label><input class="form-control form-control-sm" data-erp="spec_depth" data-spec-row placeholder="깊이" value="${d}" lang="ko"></div>
-<div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">H(높이)</label><input class="form-control form-control-sm" data-erp="spec_height" data-spec-row placeholder="높이" value="${h}" lang="ko"></div>
+<div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">W(폭)</label><input class="${tabularInputClass}" data-erp="spec_width" data-spec-row placeholder="폭" value="${w}" lang="ko"></div>
+<div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">D(깊이)</label><input class="${tabularInputClass}" data-erp="spec_depth" data-spec-row placeholder="깊이" value="${d}" lang="ko"></div>
+<div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">H(높이)</label><input class="${tabularInputClass}" data-erp="spec_height" data-spec-row placeholder="높이" value="${h}" lang="ko"></div>
 <button type="button" class="btn btn-sm btn-outline-secondary erp-remove-spec-row-btn"${showDel}><i class="fas fa-minus"></i></button>
 </div>`;
     }).join('');
@@ -675,7 +679,7 @@ function erpNewItemRow(item = {}) {
 <div class="row g-2">
 <div class="col-12">
     <label class="form-label mb-1 small text-primary">제품명</label>
-    <input class="form-control form-control-sm" data-erp="product_name" value="${escapeHtml(productName)}" lang="ko">
+    <input class="${inputClass}" data-erp="product_name" value="${escapeHtml(productName)}" lang="ko">
 </div>
 <div class="col-12">
     <label class="form-label mb-1 small text-primary">규격 (폭·깊이·높이)</label>
@@ -684,39 +688,39 @@ function erpNewItemRow(item = {}) {
 </div>
 <div class="col-md-6">
     <label class="form-label mb-1 small text-primary">내부</label>
-    <input class="form-control form-control-sm" data-erp="internal" value="${escapeHtml(internal)}" lang="ko">
+    <input class="${inputClass}" data-erp="internal" value="${escapeHtml(internal)}" lang="ko">
 </div>
 <div class="col-md-6">
     <label class="form-label mb-1 small text-primary">색상</label>
-    <input class="form-control form-control-sm" data-erp="color" value="${escapeHtml(color)}" lang="ko">
+    <input class="${inputClass}" data-erp="color" value="${escapeHtml(color)}" lang="ko">
 </div>
 <div class="col-md-6">
     <label class="form-label mb-1 small text-primary">옵션</label>
-    <input class="form-control form-control-sm" data-erp="option_detail" value="${escapeHtml(optionDetail)}" lang="ko">
+    <input class="${inputClass}" data-erp="option_detail" value="${escapeHtml(optionDetail)}" lang="ko">
 </div>
 <div class="col-md-6">
     <label class="form-label mb-1 small text-primary">손잡이</label>
-    <input class="form-control form-control-sm" data-erp="handle" value="${escapeHtml(handle)}" lang="ko">
+    <input class="${inputClass}" data-erp="handle" value="${escapeHtml(handle)}" lang="ko">
 </div>
 <div class="col-md-6">
     <label class="form-label mb-1 small text-primary">기타 / 설치위치</label>
-    <input class="form-control form-control-sm" data-erp="misc" value="${escapeHtml(misc)}" lang="ko">
+    <input class="${inputClass}" data-erp="misc" value="${escapeHtml(misc)}" lang="ko">
 </div>
 <div class="col-md-6">
     <label class="form-label mb-1 small text-primary">항목 금액(원)</label>
-    <input class="form-control form-control-sm" data-erp="price" inputmode="numeric" value="${escapeHtml(price)}" lang="ko">
+    <input class="${tabularInputClass}" data-erp="price" inputmode="numeric" value="${escapeHtml(price)}" lang="ko">
 </div>
 <div class="col-md-6">
     <label class="form-label mb-1 small text-primary">항목 실측일</label>
-    <input type="text" class="form-control form-control-sm erp-item-date-multiple" data-erp="measurement_date" placeholder="여러 날짜 가능" value="${escapeHtml(String(item.measurement_date || '').trim())}" lang="ko">
+    <input type="text" class="${tabularInputClass} erp-item-date-multiple" data-erp="measurement_date" placeholder="여러 날짜 가능" value="${escapeHtml(String(item.measurement_date || '').trim())}" lang="ko">
 </div>
 <div class="col-md-6">
     <label class="form-label mb-1 small text-primary">항목 시공일</label>
-    <input type="text" class="form-control form-control-sm erp-item-date-multiple" data-erp="construction_date" placeholder="여러 날짜 가능" value="${escapeHtml(String(item.construction_date || '').trim())}" lang="ko">
+    <input type="text" class="${tabularInputClass} erp-item-date-multiple" data-erp="construction_date" placeholder="여러 날짜 가능" value="${escapeHtml(String(item.construction_date || '').trim())}" lang="ko">
 </div>
 <div class="col-12">
     <label class="form-label mb-1 small text-primary">추가 입력</label>
-    <textarea class="form-control form-control-sm" data-erp="extra_input" rows="3"
+    <textarea class="${textareaClass}" data-erp="extra_input" rows="3"
         placeholder="추가 내용을 입력하세요 (여러 줄 가능)" lang="ko">${escapeHtml(extraInput)}</textarea>
 </div>
 <div class="col-12">
@@ -753,9 +757,9 @@ function erpNewItemRow(item = {}) {
         if (!container) return;
         const div = document.createElement('div');
         div.className = 'erp-spec-row d-flex flex-wrap gap-2 align-items-end mb-1';
-        div.innerHTML = `<div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">W(폭)</label><input class="form-control form-control-sm" data-erp="spec_width" data-spec-row placeholder="폭" value="" lang="ko"></div>
-<div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">D(깊이)</label><input class="form-control form-control-sm" data-erp="spec_depth" data-spec-row placeholder="깊이" value="" lang="ko"></div>
-<div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">H(높이)</label><input class="form-control form-control-sm" data-erp="spec_height" data-spec-row placeholder="높이" value="" lang="ko"></div>
+        div.innerHTML = `<div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">W(폭)</label><input class="${tabularInputClass}" data-erp="spec_width" data-spec-row placeholder="폭" value="" lang="ko"></div>
+<div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">D(깊이)</label><input class="${tabularInputClass}" data-erp="spec_depth" data-spec-row placeholder="깊이" value="" lang="ko"></div>
+<div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">H(높이)</label><input class="${tabularInputClass}" data-erp="spec_height" data-spec-row placeholder="높이" value="" lang="ko"></div>
 <button type="button" class="btn btn-sm btn-outline-secondary erp-remove-spec-row-btn"><i class="fas fa-minus"></i></button>`;
         div.querySelector('.erp-remove-spec-row-btn').addEventListener('click', () => {
             div.remove();

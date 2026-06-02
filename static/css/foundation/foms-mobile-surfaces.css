@@ -1,6 +1,7 @@
 /* P1–P3 mobile surface components — ERP mobile v2 shell only (layout_head cohort gate). */
 @import url("../foundation/foms-shell.css");
 @import url("../components/foms-buttons.css");
+@import url("../components/foms-form-field.css");
 @import url("../components/foms-chip-strip.css");
 @import url("../components/foms-queue-card-v2.css");
 @import url("../components/foms-detail-hero.css");

@@ -533,7 +533,11 @@
                     <!-- ERP Order 탭 (shared partial) -->
                     {% if erp_order_feature_enabled and is_erp_order_flag %}
                     {% set erp_order_active = is_erp_order %}
+                    {% if erp_mobile_v2_enabled %}
+                    {% include "orders/partials/erp_order_tab_mobile.html" %}
+                    {% else %}
                     {% include "orders/partials/erp_order_tab.html" %}
+                    {% endif %}
                     {% endif %}
                 </div>
             </div>

@@ -4,6 +4,7 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-06-02 | 모바일 ERP Order 편집 폼 mockup 컴포넌트 구현 | erp_order_tab_mobile.html, foms-form-field.css, erp-order-shared.js 외 | 미커밋 |
 | 2026-05-31 | 세션 자동 기록 | test_p1_mockup_png_baseline.py, dashboard_body.html, dashboard_body.html 외 2개 | 64ce749b |
 | 2026-05-31 | 세션 자동 기록 | commit_msg_fix.txt, test_mobile_device_qa_contract.py, test_p3_gate.py 외 2개 | 64ce749b |
 | 2026-05-31 | 세션 자동 기록 | dashboard_main.html, test_p1_mockup_structure.py, dashboard.py 외 2개 | 675d36a0 |
