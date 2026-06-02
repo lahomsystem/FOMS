@@ -52,7 +52,7 @@ ERP Order mobile-v2 tab pane.
                             </div>
                             <div class="field">
                                 <label class="field__label" for="erp-received-time-select">접수시간</label>
-                                <div class="erp-mobile-received-time-control">
+                                <div class="erp-mobile-time-inline" id="erp-received-time-control">
                                     <select class="foms-select foms-tabular" id="erp-received-time-select" autocomplete="off">
                                         <option value="">시간 선택</option>
                                         <option value="오전">오전</option>
@@ -74,7 +74,7 @@ ERP Order mobile-v2 tab pane.
                                 <span>자가실측</span>
                             </label>
                         </div>
-                        <div class="field">
+                        <div class="field d-none" id="erp-urgent-reason-field">
                             <label class="field__label" for="erp-urgent-reason">긴급 사유</label>
                             <input type="text" class="foms-input" id="erp-urgent-reason"
                                 placeholder="시공일 임박/현장 변경/자재 이슈" autocomplete="off" lang="ko">
@@ -243,25 +243,31 @@ ERP Order mobile-v2 tab pane.
                         <div class="field-grid-2">
                             <div class="field">
                                 <label class="field__label" for="erp-measurement-time-select">실측시간</label>
-                                <select class="foms-select" id="erp-measurement-time-select" autocomplete="off">
-                                    <option value="__direct__" selected>직접 입력</option>
-                                    <option value="오전">오전</option>
-                                    <option value="오후">오후</option>
-                                    <option value="종일">종일</option>
-                                </select>
-                                <input type="text" class="foms-input foms-tabular" id="erp-measurement-time"
-                                    placeholder="10:30 / 오전 / 오후 / 종일" autocomplete="off" lang="ko">
+                                <div class="erp-mobile-time-inline" id="erp-measurement-time-control">
+                                    <select class="foms-select" id="erp-measurement-time-select" autocomplete="off">
+                                        <option value="">시간 선택</option>
+                                        <option value="오전">오전</option>
+                                        <option value="오후">오후</option>
+                                        <option value="종일">종일</option>
+                                        <option value="__direct__">직접 입력</option>
+                                    </select>
+                                    <input type="text" class="foms-input foms-tabular d-none" id="erp-measurement-time"
+                                        placeholder="직접 입력" autocomplete="off" lang="ko">
+                                </div>
                             </div>
                             <div class="field">
                                 <label class="field__label" for="erp-construction-time-select">시공시간</label>
-                                <select class="foms-select" id="erp-construction-time-select" autocomplete="off">
-                                    <option value="__direct__" selected>직접 입력</option>
-                                    <option value="오전">오전</option>
-                                    <option value="오후">오후</option>
-                                    <option value="종일">종일</option>
-                                </select>
-                                <input type="text" class="foms-input foms-tabular" id="erp-construction-time"
-                                    placeholder="10:30 / 오전 / 오후 / 종일" autocomplete="off" lang="ko">
+                                <div class="erp-mobile-time-inline" id="erp-construction-time-control">
+                                    <select class="foms-select" id="erp-construction-time-select" autocomplete="off">
+                                        <option value="">시간 선택</option>
+                                        <option value="오전">오전</option>
+                                        <option value="오후">오후</option>
+                                        <option value="종일">종일</option>
+                                        <option value="__direct__">직접 입력</option>
+                                    </select>
+                                    <input type="text" class="foms-input foms-tabular d-none" id="erp-construction-time"
+                                        placeholder="직접 입력" autocomplete="off" lang="ko">
+                                </div>
                             </div>
                         </div>
                     </section>

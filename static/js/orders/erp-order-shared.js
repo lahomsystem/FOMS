@@ -558,7 +558,7 @@ function erpRecalcItemsTotal() {
     });
     totalEl.textContent = erpFormatMoneyKRW(sum);
     if (remainingSection) {
-        remainingSection.style.display = (sum === 0 || !Number.isFinite(sum)) ? 'none' : 'flex';
+        remainingSection.style.display = (sum === 0 || !Number.isFinite(sum)) ? 'none' : 'grid';
     }
     erpCalculateRemaining();
 }
@@ -606,6 +606,37 @@ function erpRefreshItemRowIndices() {
             hintEl.textContent = name ? `${name} 실측 이미지` : `항목 ${idx + 1} 실측 이미지`;
         }
     });
+}
+
+function erpAutosizeTextarea(el) {
+    if (!el || el.tagName !== 'TEXTAREA') return;
+    el.style.height = 'auto';
+    el.style.height = Math.max(el.scrollHeight, el.dataset.erpMinHeight ? Number(el.dataset.erpMinHeight) : 0) + 'px';
+}
+
+function erpBindAutosizeTextareas(root) {
+    const scope = root || document;
+    scope.querySelectorAll('textarea.erp-autosize-textarea').forEach((el) => {
+        if (el.dataset.erpAutosizeBound !== '1') {
+            el.dataset.erpAutosizeBound = '1';
+            el.addEventListener('input', () => erpAutosizeTextarea(el));
+            el.addEventListener('change', () => erpAutosizeTextarea(el));
+        }
+        window.requestAnimationFrame
+            ? window.requestAnimationFrame(() => erpAutosizeTextarea(el))
+            : erpAutosizeTextarea(el);
+    });
+}
+
+function erpMobileFlexibleControl(name, label, value, options = {}) {
+    const escapedValue = escapeHtml(value);
+    if (!options.isMobileForm) {
+        return `<input class="${options.inputClass}" data-erp="${name}" value="${escapedValue}" lang="ko">`;
+    }
+    const rows = options.rows || 1;
+    const minHeight = options.minHeight || 44;
+    const placeholder = options.placeholder || '';
+    return `<textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea" data-erp="${name}" rows="${rows}" data-erp-min-height="${minHeight}" placeholder="${escapeHtml(placeholder)}" lang="ko">${escapedValue}</textarea>`;
 }
 
 function erpNewItemRow(item = {}) {
@@ -686,25 +717,25 @@ function erpNewItemRow(item = {}) {
     <div class="erp-spec-rows">${specRowsHtml}</div>
     <button type="button" class="btn btn-sm btn-outline-primary mt-1 erp-add-spec-row-btn"><i class="fas fa-plus"></i> 규격 1행 추가</button>
 </div>
-<div class="col-md-6">
+<div class="col-md-6 erp-mobile-full-row">
     <label class="form-label mb-1 small text-primary">내부</label>
-    <input class="${inputClass}" data-erp="internal" value="${escapeHtml(internal)}" lang="ko">
+    ${erpMobileFlexibleControl('internal', '내부', internal, { isMobileForm, inputClass, placeholder: '상담' })}
 </div>
 <div class="col-md-6">
     <label class="form-label mb-1 small text-primary">색상</label>
     <input class="${inputClass}" data-erp="color" value="${escapeHtml(color)}" lang="ko">
 </div>
-<div class="col-md-6">
+<div class="col-md-6 erp-mobile-full-row">
     <label class="form-label mb-1 small text-primary">옵션</label>
-    <input class="${inputClass}" data-erp="option_detail" value="${escapeHtml(optionDetail)}" lang="ko">
+    ${erpMobileFlexibleControl('option_detail', '옵션', optionDetail, { isMobileForm, inputClass, placeholder: '상담' })}
 </div>
 <div class="col-md-6">
     <label class="form-label mb-1 small text-primary">손잡이</label>
     <input class="${inputClass}" data-erp="handle" value="${escapeHtml(handle)}" lang="ko">
 </div>
-<div class="col-md-6">
+<div class="col-md-6 erp-mobile-full-row">
     <label class="form-label mb-1 small text-primary">기타 / 설치위치</label>
-    <input class="${inputClass}" data-erp="misc" value="${escapeHtml(misc)}" lang="ko">
+    ${erpMobileFlexibleControl('misc', '기타 / 설치위치', misc, { isMobileForm, inputClass, placeholder: '상담' })}
 </div>
 <div class="col-md-6">
     <label class="form-label mb-1 small text-primary">항목 금액(원)</label>
@@ -720,7 +751,7 @@ function erpNewItemRow(item = {}) {
 </div>
 <div class="col-12">
     <label class="form-label mb-1 small text-primary">추가 입력</label>
-    <textarea class="${textareaClass}" data-erp="extra_input" rows="3"
+    <textarea class="${textareaClass} erp-autosize-textarea erp-flex-textarea erp-flex-textarea--large" data-erp="extra_input" rows="2" data-erp-min-height="72"
         placeholder="추가 내용을 입력하세요 (여러 줄 가능)" lang="ko">${escapeHtml(extraInput)}</textarea>
 </div>
 <div class="col-12">
@@ -743,6 +774,7 @@ function erpNewItemRow(item = {}) {
 </div>
 </div>
 `;
+    erpBindAutosizeTextareas(row);
 
     function updateSpecRowRemoveVisibility() {
         const container = row.querySelector('.erp-spec-rows');
@@ -901,15 +933,18 @@ function erpSetReceivedTimeControlValue(value) {
         : false;
     if (!normalized) {
         select.value = '';
+        select.closest('.erp-mobile-time-inline')?.classList.remove('is-direct');
         input?.classList.add('d-none');
         return;
     }
     if (hasPreset) {
         select.value = normalized;
+        select.closest('.erp-mobile-time-inline')?.classList.remove('is-direct');
         input?.classList.add('d-none');
         return;
     }
     select.value = ERP_RECEIVED_TIME_DIRECT_VALUE;
+    select.closest('.erp-mobile-time-inline')?.classList.add('is-direct');
     input?.classList.remove('d-none');
 }
 
@@ -920,10 +955,12 @@ function erpBindReceivedTimeControl() {
     select.dataset.erpBound = '1';
     select.addEventListener('change', function () {
         if (this.value === ERP_RECEIVED_TIME_DIRECT_VALUE) {
+            this.closest('.erp-mobile-time-inline')?.classList.add('is-direct');
             input.classList.remove('d-none');
             erpFocusWithoutScroll(input);
             return;
         }
+        this.closest('.erp-mobile-time-inline')?.classList.remove('is-direct');
         input.value = this.value || '';
         input.classList.add('d-none');
     });
@@ -933,6 +970,74 @@ function erpBindReceivedTimeControl() {
         }
     });
     erpSetReceivedTimeControlValue(input.value || '');
+}
+
+function erpSetScheduleTimeControlValue(selectId, inputId, value) {
+    const select = document.getElementById(selectId);
+    const input = document.getElementById(inputId);
+    if (!select || !input) return;
+    const normalized = String(value || '').trim();
+    const isPreset = normalized === '오전' || normalized === '오후' || normalized === '종일';
+    if (!normalized) {
+        select.value = '';
+        input.value = '';
+        input.classList.add('d-none');
+        select.closest('.erp-mobile-time-inline')?.classList.remove('is-direct');
+        return;
+    }
+    if (isPreset) {
+        select.value = normalized;
+        input.value = '';
+        input.classList.add('d-none');
+        select.closest('.erp-mobile-time-inline')?.classList.remove('is-direct');
+        return;
+    }
+    select.value = ERP_RECEIVED_TIME_DIRECT_VALUE;
+    input.value = normalized;
+    input.classList.remove('d-none');
+    select.closest('.erp-mobile-time-inline')?.classList.add('is-direct');
+    erpAutosizeTextarea(input);
+}
+
+function erpBindScheduleTimeControl(selectId, inputId) {
+    const select = document.getElementById(selectId);
+    const input = document.getElementById(inputId);
+    if (!select || !input || select.dataset.erpBound === '1') return;
+    select.dataset.erpBound = '1';
+    select.addEventListener('change', function () {
+        if (this.value === ERP_RECEIVED_TIME_DIRECT_VALUE) {
+            this.closest('.erp-mobile-time-inline')?.classList.add('is-direct');
+            input.classList.remove('d-none');
+            erpFocusWithoutScroll(input);
+            return;
+        }
+        this.closest('.erp-mobile-time-inline')?.classList.remove('is-direct');
+        input.value = '';
+        input.classList.add('d-none');
+    });
+}
+
+function erpSyncUrgentReasonVisibility(options = {}) {
+    const urgent = document.getElementById('erp-urgent-flag');
+    const field = document.getElementById('erp-urgent-reason-field');
+    const input = document.getElementById('erp-urgent-reason');
+    if (!urgent || !field || !input) return;
+    if (urgent.checked) {
+        field.classList.remove('d-none');
+        return;
+    }
+    field.classList.add('d-none');
+    if (options.clear !== false) input.value = '';
+}
+
+function erpBindUrgentReasonControl() {
+    const urgent = document.getElementById('erp-urgent-flag');
+    if (!urgent || urgent.dataset.erpUrgentBound === '1') return;
+    urgent.dataset.erpUrgentBound = '1';
+    urgent.addEventListener('change', function () {
+        erpSyncUrgentReasonVisibility({ clear: true });
+    });
+    erpSyncUrgentReasonVisibility({ clear: !urgent.checked });
 }
 
 async function erpLoadStructured(bootstrapData, options) {
@@ -1000,6 +1105,7 @@ async function erpLoadStructured(bootstrapData, options) {
     if (erpNotesEl) erpNotesEl.value = data.notes || '';
     document.getElementById('erp-urgent-flag').checked = !!sd?.flags?.urgent;
     document.getElementById('erp-urgent-reason').value = sd?.flags?.urgent_reason || '';
+    erpSyncUrgentReasonVisibility({ clear: !sd?.flags?.urgent });
     const selfMeasEl = document.getElementById('erp-self-measurement');
     if (selfMeasEl) selfMeasEl.checked = !!data.is_self_measurement;
     // 주소 로드: 주소+상세주소는 한 필드(erp-address)에 함께 표기
@@ -1015,23 +1121,7 @@ async function erpLoadStructured(bootstrapData, options) {
         if (dates.length) window._erpMeasurementDatePicker.setDate(dates);
     }
     const measurementTime = sd?.schedule?.measurement?.time || '';
-    const erpMeasurementTimeSelect = document.getElementById('erp-measurement-time-select');
-    const erpMeasurementTimeInput = document.getElementById('erp-measurement-time');
-    if (erpMeasurementTimeSelect) {
-        if (measurementTime === '오전' || measurementTime === '오후' || measurementTime === '종일') {
-            erpMeasurementTimeSelect.value = measurementTime;
-            if (erpMeasurementTimeInput) {
-                erpMeasurementTimeInput.value = '';
-                erpMeasurementTimeInput.style.display = 'none';
-            }
-        } else {
-            erpMeasurementTimeSelect.value = '__direct__';
-            if (erpMeasurementTimeInput) {
-                erpMeasurementTimeInput.value = measurementTime || '';
-                erpMeasurementTimeInput.style.display = 'block';
-            }
-        }
-    }
+    erpSetScheduleTimeControlValue('erp-measurement-time-select', 'erp-measurement-time', measurementTime);
     document.getElementById('erp-measurement-note').value = sd?.notes?.measurement_note || '';
     const constructionDateVal = sd?.schedule?.construction?.date || '';
     document.getElementById('erp-construction-date').value = constructionDateVal;
@@ -1040,23 +1130,7 @@ async function erpLoadStructured(bootstrapData, options) {
         if (dates.length) window._erpConstructionDatePicker.setDate(dates);
     }
     const constructionTime = sd?.schedule?.construction?.time || '';
-    const erpConstructionTimeSelect = document.getElementById('erp-construction-time-select');
-    const erpConstructionTimeInput = document.getElementById('erp-construction-time');
-    if (erpConstructionTimeSelect) {
-        if (constructionTime === '오전' || constructionTime === '오후' || constructionTime === '종일') {
-            erpConstructionTimeSelect.value = constructionTime;
-            if (erpConstructionTimeInput) {
-                erpConstructionTimeInput.value = '';
-                erpConstructionTimeInput.style.display = 'none';
-            }
-        } else {
-            erpConstructionTimeSelect.value = '__direct__';
-            if (erpConstructionTimeInput) {
-                erpConstructionTimeInput.value = constructionTime || '';
-                erpConstructionTimeInput.style.display = 'block';
-            }
-        }
-    }
+    erpSetScheduleTimeControlValue('erp-construction-time-select', 'erp-construction-time', constructionTime);
 
     const itemsWrap = document.getElementById('erp-items');
     itemsWrap.innerHTML = '';
@@ -1530,6 +1604,10 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     if (!ERP_ORDER_ENABLED) return;
     erpBindReceivedTimeControl();
+    erpBindScheduleTimeControl('erp-measurement-time-select', 'erp-measurement-time');
+    erpBindScheduleTimeControl('erp-construction-time-select', 'erp-construction-time');
+    erpBindUrgentReasonControl();
+    erpBindAutosizeTextareas(document);
 
 window.erpTogglePayment = async function(btn, pType) {
     if (_paymentTogglePending) return;
@@ -1711,33 +1789,6 @@ ${escapeHtml(sub)}</div>` : ''}`;
     if (erpManualPhone) {
         erpManualPhone.addEventListener('change', function () {
             if (!this.checked) applyErpPhoneFormat();
-        });
-    }
-
-    // ERP Order: 실측시간 직접 입력 처리
-    const erpMeasurementTimeSelect = document.getElementById('erp-measurement-time-select');
-    const erpMeasurementTimeInput = document.getElementById('erp-measurement-time');
-    if (erpMeasurementTimeSelect && erpMeasurementTimeInput) {
-        erpMeasurementTimeSelect.addEventListener('change', function () {
-            if (this.value === '__direct__') {
-                erpMeasurementTimeInput.style.display = 'block';
-            } else {
-                erpMeasurementTimeInput.style.display = 'none';
-                erpMeasurementTimeInput.value = '';
-            }
-        });
-    }
-
-    const erpConstructionTimeSelect = document.getElementById('erp-construction-time-select');
-    const erpConstructionTimeInput = document.getElementById('erp-construction-time');
-    if (erpConstructionTimeSelect && erpConstructionTimeInput) {
-        erpConstructionTimeSelect.addEventListener('change', function () {
-            if (this.value === '__direct__') {
-                erpConstructionTimeInput.style.display = 'block';
-            } else {
-                erpConstructionTimeInput.style.display = 'none';
-                erpConstructionTimeInput.value = '';
-            }
         });
     }
 
@@ -3246,6 +3297,10 @@ function fomsMountErpOrderSurface() {
     }
     mountRoot.dataset.erpOrderMounted = "1";
     erpBindReceivedTimeControl();
+    erpBindScheduleTimeControl('erp-measurement-time-select', 'erp-measurement-time');
+    erpBindScheduleTimeControl('erp-construction-time-select', 'erp-construction-time');
+    erpBindUrgentReasonControl();
+    erpBindAutosizeTextareas(mountRoot);
 
     // 실패/예외 경로에서도 surface가 영구 hidden으로 남지 않도록 최후 failsafe.
     var _erpReadyFailsafeId = window.setTimeout(_erpMarkSurfaceReady, 3000);

@@ -93,7 +93,11 @@ MOBILE_OMITTED_ERP_IDS = {
 }
 
 MOBILE_ONLY_ERP_IDS = {
+    "erp-urgent-reason-field",
     "erp-received-time-select",
+    "erp-received-time-control",
+    "erp-measurement-time-control",
+    "erp-construction-time-control",
     "erp-order-measurement-panel-toggle",
     "erp-order-measurement-panel-collapse",
 }
@@ -185,6 +189,8 @@ def test_edit_erp_order_uses_mobile_form_for_cohort(
     assert "foms-input" in erp_form
     assert "field__label" in erp_form
     assert "form-control form-control-sm" not in erp_form
+    assert "erp-mobile-time-inline" in erp_form
+    assert 'id="erp-urgent-reason-field"' in erp_form
     assert "erp-received-time-select" in erp_form
     assert "erp-order-measurement-panel-collapse" in erp_form
     assert "계약 텍스트" not in erp_form
