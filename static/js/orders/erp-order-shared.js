@@ -603,7 +603,7 @@ function erpRefreshItemRowIndices() {
         const hintEl = row.querySelector('.erp-item-attachment-hint');
         if (hintEl) {
             const name = String(row.querySelector('[data-erp="product_name"]')?.value || '').trim();
-            hintEl.textContent = name ? `${name} 실측 이미지` : `항목 ${idx + 1} 실측 이미지`;
+            hintEl.textContent = name ? `${name} 사진/동영상` : `항목 ${idx + 1} 사진/동영상`;
         }
     });
 }
@@ -652,6 +652,7 @@ function erpNewItemRow(item = {}) {
     const inputClass = isMobileForm ? 'foms-input' : 'form-control form-control-sm';
     const tabularInputClass = isMobileForm ? 'foms-input foms-tabular' : 'form-control form-control-sm';
     const textareaClass = isMobileForm ? 'foms-textarea' : 'form-control form-control-sm';
+    const itemScheduleFieldClass = isMobileForm ? 'col-md-6 d-none erp-mobile-rare-field' : 'col-md-6';
 
     const productName = String(item.product_name || '').trim();
     // 규격 행 목록: spec_rows 우선, 없으면 단일 spec_width/spec_depth/spec_height 또는 spec 파싱
@@ -725,13 +726,13 @@ function erpNewItemRow(item = {}) {
     <label class="form-label mb-1 small text-primary">색상</label>
     <input class="${inputClass}" data-erp="color" value="${escapeHtml(color)}" lang="ko">
 </div>
-<div class="col-md-6 erp-mobile-full-row">
-    <label class="form-label mb-1 small text-primary">옵션</label>
-    ${erpMobileFlexibleControl('option_detail', '옵션', optionDetail, { isMobileForm, inputClass, placeholder: '상담' })}
-</div>
 <div class="col-md-6">
     <label class="form-label mb-1 small text-primary">손잡이</label>
     <input class="${inputClass}" data-erp="handle" value="${escapeHtml(handle)}" lang="ko">
+</div>
+<div class="col-md-6 erp-mobile-full-row">
+    <label class="form-label mb-1 small text-primary">옵션</label>
+    ${erpMobileFlexibleControl('option_detail', '옵션', optionDetail, { isMobileForm, inputClass, placeholder: '상담' })}
 </div>
 <div class="col-md-6 erp-mobile-full-row">
     <label class="form-label mb-1 small text-primary">기타 / 설치위치</label>
@@ -741,11 +742,11 @@ function erpNewItemRow(item = {}) {
     <label class="form-label mb-1 small text-primary">항목 금액(원)</label>
     <input class="${tabularInputClass}" data-erp="price" inputmode="numeric" value="${escapeHtml(price)}" lang="ko">
 </div>
-<div class="col-md-6">
+<div class="${itemScheduleFieldClass}">
     <label class="form-label mb-1 small text-primary">항목 실측일</label>
     <input type="text" class="${tabularInputClass} erp-item-date-multiple" data-erp="measurement_date" placeholder="여러 날짜 가능" value="${escapeHtml(String(item.measurement_date || '').trim())}" lang="ko">
 </div>
-<div class="col-md-6">
+<div class="${itemScheduleFieldClass}">
     <label class="form-label mb-1 small text-primary">항목 시공일</label>
     <input type="text" class="${tabularInputClass} erp-item-date-multiple" data-erp="construction_date" placeholder="여러 날짜 가능" value="${escapeHtml(String(item.construction_date || '').trim())}" lang="ko">
 </div>
@@ -756,11 +757,11 @@ function erpNewItemRow(item = {}) {
 </div>
 <div class="col-12">
     <div class="border rounded p-2 bg-light" data-erp-attachment-paste-zone="item" tabindex="0"
-        aria-label="제품 항목 실측 이미지 업로드 영역. 이미지를 붙여넣으면 이 항목에 바로 업로드됩니다.">
+        aria-label="제품 항목 사진 및 동영상 업로드 영역. 이미지를 붙여넣으면 이 항목에 바로 업로드됩니다.">
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
-            <div class="small fw-semibold text-muted erp-item-attachment-hint">항목 실측 이미지</div>
+            <div class="small fw-semibold text-muted erp-item-attachment-hint">항목 사진/동영상</div>
             <div class="d-flex gap-1">
-                <input type="file" class="d-none erp-item-attachments-input" accept="image/*" capture="environment" multiple onchange="erpUploadItemAttachmentsPromptless(this)">
+                <input type="file" class="d-none erp-item-attachments-input" accept="image/*,video/*" capture="environment" multiple onchange="erpUploadItemAttachmentsPromptless(this)">
                 <button type="button" class="btn btn-sm btn-outline-primary" onclick="this.previousElementSibling.click()">
                     <i class="fas fa-image"></i> 즉시 추가
                 </button>
@@ -768,7 +769,7 @@ function erpNewItemRow(item = {}) {
         </div>
         <div class="small text-muted mt-1">이 박스를 클릭 후 Ctrl+V로 캡처 이미지를 항목에 바로 업로드할 수 있습니다.</div>
         <div class="d-flex flex-wrap gap-1 mt-2 erp-item-attachments-gallery">
-            <div class="small text-muted">연결된 실측 이미지가 없습니다.</div>
+            <div class="small text-muted">연결된 사진/동영상이 없습니다.</div>
         </div>
     </div>
 </div>
@@ -2043,11 +2044,102 @@ async function erpLinkAttachmentToItem(attachmentId, itemIndexValue) {
             throw new Error('유효한 항목을 선택하세요.');
         }
         await erpPatchAttachmentItemIndex(attachmentId, itemIndex);
-        erpAttachmentsSetStatus('이미지 연결이 변경되었습니다.');
+        erpAttachmentsSetStatus('첨부 연결이 변경되었습니다.');
         await erpLoadAttachments();
     } catch (e) {
         console.error(e);
         erpAttachmentsSetStatus(String(e?.message || e), true);
+    }
+}
+
+function erpIsMobileAttachmentLayout() {
+    return !!document.querySelector('.erp-order-mobile-form');
+}
+
+function erpBuildAttachmentMediaTile(a) {
+    const name = escapeHtml(a.filename || '');
+    const type = a.file_type || 'file';
+    const thumb = a.thumbnail_view_url || a.view_url || '';
+    const viewUrl = a.view_url || thumb || '#';
+
+    if (type === 'video') {
+        return `
+<div class="erp-attachment-tile__media erp-attachment-tile__media--video">
+    ${thumb ? `<img src="${thumb}" alt="${name}">` : `<video src="${viewUrl}" muted playsinline preload="metadata"></video>`}
+    <span class="erp-attachment-tile__type"><i class="fas fa-video"></i></span>
+</div>`;
+    }
+    if (type === 'image') {
+        return `
+<div class="erp-attachment-tile__media">
+    <img src="${thumb || viewUrl}" alt="${name}">
+</div>`;
+    }
+    return `
+<div class="erp-attachment-tile__media erp-attachment-tile__media--file">
+    <i class="fas fa-file-alt"></i>
+</div>`;
+}
+
+function erpBuildAttachmentTile(a, options = {}) {
+    const name = escapeHtml(a.filename || '첨부');
+    const itemIndex = erpParseAttachmentItemIndex(a.item_index);
+    const badge = options.showItemBadge && itemIndex !== null ? `<span class="erp-attachment-tile__badge">항목 ${itemIndex + 1}</span>` : '';
+    return `
+<button type="button" class="erp-attachment-tile" data-erp-attachment-id="${escapeHtml(String(a.id))}"
+    title="${name}" onclick="erpOpenAttachmentPreview('${a.id}')">
+    ${erpBuildAttachmentMediaTile(a)}
+    <span class="erp-attachment-tile__name">${name}</span>
+    ${badge}
+</button>`;
+}
+
+function erpSyncAttachmentPreviewActions(attachment) {
+    const a = attachment || null;
+    const select = document.getElementById('erp-attachment-preview-item-select');
+    const unlinkBtn = document.getElementById('erp-attachment-preview-unlink');
+    const deleteBtn = document.getElementById('erp-attachment-preview-delete');
+    if (!select && !unlinkBtn && !deleteBtn) return;
+
+    const isMeasurement = a && erpNormalizeAttachmentCategory(a.category) === 'measurement';
+    const linkedIndex = a ? erpParseAttachmentItemIndex(a.item_index) : null;
+
+    if (select) {
+        select.classList.toggle('d-none', !isMeasurement);
+        select.disabled = !isMeasurement;
+        if (isMeasurement) {
+            select.innerHTML = erpBuildAttachmentItemOptions(a.item_index);
+            select.onchange = async function () {
+                await erpLinkAttachmentToItem(a.id, this.value);
+                const fresh = erpGetAttachmentById(a.id) || Object.assign({}, a, { item_index: this.value || null });
+                erpSyncAttachmentPreviewActions(fresh);
+            };
+        } else {
+            select.innerHTML = '';
+            select.onchange = null;
+        }
+    }
+
+    if (unlinkBtn) {
+        unlinkBtn.classList.toggle('d-none', !isMeasurement || linkedIndex === null);
+        unlinkBtn.onclick = (!isMeasurement || linkedIndex === null) ? null : async function () {
+            await erpLinkAttachmentToItem(a.id, '');
+            const fresh = erpGetAttachmentById(a.id) || Object.assign({}, a, { item_index: null });
+            erpSyncAttachmentPreviewActions(fresh);
+        };
+    }
+
+    if (deleteBtn) {
+        deleteBtn.classList.toggle('d-none', !a);
+        deleteBtn.onclick = !a ? null : async function () {
+            await erpDeleteAttachment(a.id);
+            if (!erpGetAttachmentById(a.id)) {
+                const modalEl = document.getElementById('erpAttachmentPreviewModal');
+                if (modalEl && window.bootstrap) {
+                    bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+                }
+            }
+        };
     }
 }
 
@@ -2075,12 +2167,12 @@ async function erpUploadItemAttachments(itemIndex, files) {
         erpAttachmentsSetStatus('유효한 제품 항목을 찾지 못했습니다.', true);
         return;
     }
-    const targetId = await erpRequireOrderIdOrWarn('제품 이미지 업로드:');
+    const targetId = await erpRequireOrderIdOrWarn('제품 첨부 업로드:');
     if (!targetId) {
         return;
     }
     if (!Array.isArray(files) || !files.length) {
-        erpAttachmentsSetStatus('업로드할 이미지를 선택하세요.', true);
+        erpAttachmentsSetStatus('업로드할 파일을 선택하세요.', true);
         return;
     }
 
@@ -2089,7 +2181,7 @@ async function erpUploadItemAttachments(itemIndex, files) {
     const row = erpGetItemRows()[itemIndex];
     const galleryWrap = row ? row.querySelector('.erp-item-attachments-gallery') : null;
     if (galleryWrap) {
-        // "연결된 실측 이미지가 없습니다." 텍스트 제거
+        // 빈 상태 텍스트 제거
         const emptyText = galleryWrap.querySelector('.text-muted');
         if (emptyText && emptyText.textContent.includes('없습니다')) emptyText.remove();
 
@@ -2100,7 +2192,18 @@ async function erpUploadItemAttachments(itemIndex, files) {
             let previewUrl = '';
             try { previewUrl = URL.createObjectURL(f); } catch (e) { }
 
-            const placeholderHtml = `
+            const isMobilePlaceholder = erpIsMobileAttachmentLayout();
+            const isVideo = String(f.type || '').startsWith('video/');
+            const placeholderHtml = isMobilePlaceholder ? `
+<div id="${uniqueId}" class="erp-attachment-tile erp-attachment-tile--pending opacity-75">
+    <div class="erp-attachment-tile__media ${isVideo ? 'erp-attachment-tile__media--video' : ''}">
+        ${isVideo
+                    ? `<i class="fas fa-video"></i><span class="erp-attachment-tile__type"><i class="fas fa-spinner fa-spin"></i></span>`
+                    : `<img src="${previewUrl}" alt="${name}" style="filter:grayscale(100%);">`}
+    </div>
+    <span class="erp-attachment-tile__name">${name}</span>
+    <span class="erp-attachment-tile__badge opt-pct">0%</span>
+</div>` : `
 <div id="${uniqueId}" class="border rounded bg-light p-1 d-flex align-items-center gap-1 opacity-75" style="max-width: 200px;">
 <div class="position-relative">
     <img src="${previewUrl}" class="rounded" style="width:40px;height:40px;object-fit:cover;filter:grayscale(100%);">
@@ -2114,7 +2217,7 @@ async function erpUploadItemAttachments(itemIndex, files) {
     }
     // --- Optimistic UI End ---
 
-    erpAttachmentsSetStatus(`제품 항목 ${itemIndex + 1} 이미지 등록 중... (${files.length}개)`);
+    erpAttachmentsSetStatus(`제품 항목 ${itemIndex + 1} 첨부 등록 중... (${files.length}개)`);
     const progressWrap = document.getElementById('erp-attachments-progress');
     const progressBar = document.getElementById('erp-attachments-progress-bar');
     if (progressWrap) progressWrap.classList.remove('d-none');
@@ -2192,7 +2295,7 @@ async function erpUploadItemAttachments(itemIndex, files) {
     }
     if (progressWrap) progressWrap.classList.add('d-none');
     if (progressBar) { progressBar.style.width = '0%'; progressBar.textContent = '0%'; }
-    erpAttachmentsSetStatus(`제품 항목 ${itemIndex + 1} 신속 등록 완료: ${ok}/${files.length}`);
+    erpAttachmentsSetStatus(`제품 항목 ${itemIndex + 1} 첨부 등록 완료: ${ok}/${files.length}`);
     await erpLoadAttachments();
 }
 
@@ -2212,21 +2315,34 @@ async function erpUploadItemAttachmentsPromptless(inputElement) {
 function erpRenderItemAttachmentPanels() {
     const rows = erpGetItemRows();
     const measurementItems = (__erpAttachments || []).filter((a) => erpNormalizeAttachmentCategory(a.category) === 'measurement');
+    const isMobileLayout = erpIsMobileAttachmentLayout();
     rows.forEach((row, idx) => {
         const wrap = row.querySelector('.erp-item-attachments-gallery');
         if (!wrap) return;
+        wrap.classList.toggle('erp-attachment-tile-grid', isMobileLayout);
         const linked = measurementItems.filter((a) => erpParseAttachmentItemIndex(a.item_index) === idx);
         if (!linked.length) {
-            wrap.innerHTML = '<div class="small text-muted">연결된 실측 이미지가 없습니다.</div>';
+            wrap.innerHTML = '<div class="small text-muted erp-attachment-empty">연결된 사진/동영상이 없습니다.</div>';
             return;
         }
         wrap.innerHTML = linked.map((a) => {
+            if (isMobileLayout) {
+                return erpBuildAttachmentTile(a, { showItemBadge: false });
+            }
             const thumb = a.thumbnail_view_url || a.view_url || '';
             const name = escapeHtml(a.filename || '');
+            const type = a.file_type || 'file';
+            const mediaHtml = type === 'video'
+                ? `<button type="button" class="btn btn-light border p-0" style="width:40px;height:40px;"
+    title="${name}" onclick="erpOpenAttachmentPreview('${a.id}')"><i class="fas fa-video"></i></button>`
+                : type === 'image'
+                    ? `<img src="${thumb}" alt="${name}" style="width:40px;height:40px;object-fit:cover;border-radius:4px;cursor:zoom-in;"
+    onclick="erpOpenAttachmentPreview('${a.id}')">`
+                    : `<button type="button" class="btn btn-light border p-0" style="width:40px;height:40px;"
+    title="${name}" onclick="erpOpenAttachmentPreview('${a.id}')"><i class="fas fa-file-alt"></i></button>`;
             return `
 <div class="border rounded bg-white p-1 d-flex align-items-center gap-1" style="max-width: 200px;">
-<img src="${thumb}" alt="${name}" style="width:40px;height:40px;object-fit:cover;border-radius:4px;cursor:zoom-in;"
-    onclick="erpOpenAttachmentPreview('${a.id}')">
+${mediaHtml}
 <div class="small text-truncate flex-grow-1" style="max-width: 80px;" title="${name}">${name}</div>
 <div class="d-flex gap-1">
     <button type="button" class="btn btn-sm btn-outline-secondary" title="공통으로 이동"
@@ -2247,8 +2363,10 @@ function erpRenderAttachments() {
     const wrap = document.getElementById('erp-attachments-gallery');
     if (!wrap) return;
     const items = Array.isArray(__erpAttachments) ? __erpAttachments : [];
+    const isMobileLayout = erpIsMobileAttachmentLayout();
+    wrap.classList.toggle('erp-attachment-tile-grid', isMobileLayout);
     if (!items.length) {
-        wrap.innerHTML = `<div class="col-12">
+        wrap.innerHTML = `<div class="col-12 erp-attachment-empty">
 <div class="small text-muted">첨부된 파일이 없습니다.</div>
 </div>`;
         erpRenderItemAttachmentPanels();
@@ -2260,6 +2378,31 @@ function erpRenderAttachments() {
         const key = erpNormalizeAttachmentCategory(a.category);
         grouped[key].push(Object.assign({}, a, { category: key }));
     });
+
+    const order = ['measurement', 'drawing', 'construction', 'as'];
+
+    if (isMobileLayout) {
+        const sections = order
+            .map((key) => ({ key, list: grouped[key] || [] }))
+            .filter((section) => section.list.length > 0);
+        if (!sections.length) {
+            wrap.innerHTML = `<div class="erp-attachment-empty small text-muted">첨부된 파일이 없습니다.</div>`;
+            erpRenderItemAttachmentPanels();
+            return;
+        }
+        wrap.innerHTML = sections.map(({ key, list }) => {
+            const label = ERP_ATTACHMENT_CATEGORY_LABELS[key] || key;
+            return `
+<div class="erp-attachment-group-header">
+    <div class="fw-semibold">${label}</div>
+    <span class="badge bg-primary">${list.length}</span>
+</div>
+${list.map((a) => erpBuildAttachmentTile(a, { showItemBadge: erpNormalizeAttachmentCategory(a.category) === 'measurement' })).join('')}
+`;
+        }).join('');
+        erpRenderItemAttachmentPanels();
+        return;
+    }
 
     const renderCard = (a) => {
         const name = escapeHtml(a.filename || '');
@@ -2319,7 +2462,6 @@ style="height: 220px;">
 `;
     };
 
-    const order = ['measurement', 'drawing', 'construction', 'as'];
     wrap.innerHTML = order.map((key) => {
         const list = grouped[key] || [];
         const label = ERP_ATTACHMENT_CATEGORY_LABELS[key] || key;
@@ -2380,6 +2522,7 @@ function erpOpenAttachmentPreview(attachmentId) {
     const viewUrl = a.view_url || '#';
     const downloadUrl = a.download_url || '#';
     dl.href = downloadUrl;
+    erpSyncAttachmentPreviewActions(a);
 
     if (a.file_type === 'video') {
         body.innerHTML = `
@@ -2531,7 +2674,18 @@ async function erpUploadCommonAttachmentFiles(files, options = {}) {
             let previewUrl = '';
             try { previewUrl = URL.createObjectURL(f); } catch (e) { }
 
-            const placeholderHtml = `
+            const isMobilePlaceholder = erpIsMobileAttachmentLayout();
+            const isVideo = String(f.type || '').startsWith('video/');
+            const placeholderHtml = isMobilePlaceholder ? `
+<div id="${uniqueId}" class="erp-attachment-tile erp-attachment-tile--pending opacity-75">
+    <div class="erp-attachment-tile__media ${isVideo ? 'erp-attachment-tile__media--video' : ''}">
+        ${isVideo
+                    ? `<i class="fas fa-video"></i><span class="erp-attachment-tile__type"><i class="fas fa-spinner fa-spin"></i></span>`
+                    : `<img src="${previewUrl}" alt="${name}" style="filter:grayscale(80%);">`}
+    </div>
+    <span class="erp-attachment-tile__name">${name}</span>
+    <span class="erp-attachment-tile__badge opt-pct">0%</span>
+</div>` : `
 <div id="${uniqueId}" class="col-md-4 col-sm-6 col-12 opacity-75">
 <div class="card h-100 bg-light border-dashed">
     <div class="card-body p-2 d-flex flex-column align-items-center justify-content-center position-relative">

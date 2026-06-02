@@ -374,6 +374,143 @@
   background: var(--foms-surface-base);
 }
 
+.erp-order-mobile-form #erp-attachments-gallery.erp-attachment-tile-grid,
+.erp-order-mobile-form #erp-items .erp-item-attachments-gallery.erp-attachment-tile-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+  gap: var(--foms-space-2) !important;
+  align-items: start;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.erp-order-mobile-form #erp-items .erp-item-attachments-gallery.erp-attachment-tile-grid {
+  margin-top: var(--foms-space-2) !important;
+}
+
+.erp-order-mobile-form .erp-attachment-group-header,
+.erp-order-mobile-form .erp-attachment-empty {
+  grid-column: 1 / -1;
+}
+
+.erp-order-mobile-form .erp-attachment-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--foms-space-2);
+  margin-top: var(--foms-space-1);
+}
+
+.erp-order-mobile-form .erp-attachment-empty {
+  padding: var(--foms-space-2);
+  border: 1px solid var(--foms-border-subtle, #e5e7eb);
+  border-radius: var(--foms-radius-md);
+  background: var(--foms-surface-muted, #f8fafc);
+}
+
+.erp-order-mobile-form .erp-attachment-tile {
+  position: relative;
+  display: grid;
+  gap: var(--foms-space-1);
+  width: 100%;
+  min-width: 0;
+  padding: 4px;
+  border: 1px solid var(--foms-border-subtle, #e5e7eb);
+  border-radius: var(--foms-radius-md);
+  background: var(--foms-surface-base);
+  box-shadow: var(--foms-shadow-sm, 0 1px 2px rgba(15, 23, 42, 0.08));
+  color: var(--foms-text-primary);
+  text-align: left;
+}
+
+.erp-order-mobile-form .erp-attachment-tile:focus-visible {
+  outline: 2px solid var(--foms-ring, #2563eb);
+  outline-offset: 2px;
+}
+
+.erp-order-mobile-form .erp-attachment-tile__media {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: calc(var(--foms-radius-md) - 2px);
+  background: var(--foms-surface-muted, #f8fafc);
+}
+
+.erp-order-mobile-form .erp-attachment-tile__media img,
+.erp-order-mobile-form .erp-attachment-tile__media video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.erp-order-mobile-form .erp-attachment-tile__media--file,
+.erp-order-mobile-form .erp-attachment-tile__media--video {
+  color: var(--foms-text-secondary);
+}
+
+.erp-order-mobile-form .erp-attachment-tile__type,
+.erp-order-mobile-form .erp-attachment-tile__badge {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.82);
+  color: #fff;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.erp-order-mobile-form .erp-attachment-tile__badge {
+  top: 4px;
+  bottom: auto;
+  background: var(--foms-interactive-primary, #2563eb);
+}
+
+.erp-order-mobile-form .erp-attachment-tile__name {
+  display: -webkit-box;
+  min-height: 2.4em;
+  overflow: hidden;
+  color: var(--foms-text-primary);
+  font-size: 11px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.erp-attachment-preview-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--foms-space-2, 8px);
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.erp-attachment-preview-actions .form-select {
+  flex: 1 1 11rem;
+  min-width: 0;
+  max-width: 14rem;
+  min-height: 44px;
+}
+
+.erp-attachment-preview-actions .btn {
+  display: inline-flex;
+  flex: 0 0 44px;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  min-height: 44px;
+  padding: 0;
+}
+
 .erp-mobile-sticky-action-bar {
   gap: var(--foms-space-2);
 }

@@ -100,6 +100,9 @@ MOBILE_ONLY_ERP_IDS = {
     "erp-construction-time-control",
     "erp-order-measurement-panel-toggle",
     "erp-order-measurement-panel-collapse",
+    "erp-attachment-preview-item-select",
+    "erp-attachment-preview-unlink",
+    "erp-attachment-preview-delete",
 }
 
 PARENT_ERP_IDS = {"erp-order-config", "erp-order-bootstrap", "erp-order-tab"}

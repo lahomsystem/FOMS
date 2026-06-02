@@ -195,7 +195,8 @@ def test_shared_erp_order_js_does_not_auto_save_before_user_save() -> None:
     item_upload_end = text.index("function erpRenderItemAttachmentPanels", item_upload_start)
     item_upload_block = text[item_upload_start:item_upload_end]
     assert "erpSaveStructured(" not in item_upload_block
-    assert "const targetId = await erpRequireOrderIdOrWarn('제품 이미지 업로드:');" in item_upload_block
+    assert "const targetId = await erpRequireOrderIdOrWarn('제품 첨부 업로드:');" in item_upload_block
+    assert "erpCanUsePersistedOrderAction('제품 첨부 업로드는')" not in item_upload_block
     assert "erpCanUsePersistedOrderAction('제품 이미지 업로드는')" not in item_upload_block
 
     common_upload_start = text.index("async function erpUploadSelectedAttachments")
