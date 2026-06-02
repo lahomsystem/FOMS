@@ -1,5 +1,15 @@
 <header class="erp-mobile-shell-header foms-shell-header" aria-label="ERP 모바일 셸">
   <div class="erp-mobile-shell-header__inner">
+    {% if mobile_shell_show_back %}
+    <button
+      class="erp-mobile-shell-header__home foms-icon-btn"
+      type="button"
+      data-foms-shell-back
+      {% if mobile_shell_back_href %}data-foms-shell-back-href="{{ mobile_shell_back_href }}"{% endif %}
+      aria-label="뒤로 가기">
+      <i class="fas fa-arrow-left" aria-hidden="true"></i>
+    </button>
+    {% else %}
     <button
       class="erp-mobile-shell-header__menu foms-icon-btn"
       type="button"
@@ -9,6 +19,7 @@
       aria-label="ERP 메뉴 열기">
       <i class="fas fa-bars" aria-hidden="true"></i>
     </button>
+    {% endif %}
     <div class="erp-mobile-shell-header__context">
       <strong class="erp-mobile-shell-header__title foms-shell-title">{{ mobile_shell_title or (_current.item.label if _current.item else '홈') }}</strong>
     </div>

@@ -278,6 +278,13 @@ def test_shared_erp_order_js_guards_duplicate_save_clicks_and_tokens_draft_creat
     assert "function erpNavigateAfterStructuredSave(targetUrl)" in text
     assert "window.history.back();" in text
     assert "erpNavigateAfterStructuredSave(targetUrl);" in text
+    assert "fomsMountErpOrderSurface" in text
+    dom_ready_start = text.index("document.addEventListener('DOMContentLoaded', function () {")
+    dom_ready_end = text.index("// ============================================\n// ERP Order: Attachments", dom_ready_start)
+    dom_ready_block = text[dom_ready_start:dom_ready_end]
+    assert "erpLoadStructured();" not in dom_ready_block
+    assert "function erpExpandMobileAttachmentSections()" in text
+    assert "function erpItemAttachmentLinksForRow(" in text
     assert "foms:reload-order-list-after-erp-save" in text
     assert "sessionStorage.setItem('foms:reload-order-list-after-erp-save', target.href);" in text
 

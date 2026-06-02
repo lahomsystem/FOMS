@@ -839,12 +839,12 @@
         }
 
         // 계산기 탭 클릭 시 매칭된 견적 로드
-        document.getElementById('calculator-tab').addEventListener('shown.bs.tab', function () {
+        document.getElementById('calculator-tab')?.addEventListener('shown.bs.tab', function () {
             loadMatchedEstimates();
         });
 
         // 견적 검색 및 매칭
-        document.getElementById('searchEstimatesForMatchBtn').addEventListener('click', function () {
+        document.getElementById('searchEstimatesForMatchBtn')?.addEventListener('click', function () {
             const customerName = document.getElementById('matchCustomerName').value.trim();
             if (!customerName) {
                 alert('고객명을 입력해주세요.');

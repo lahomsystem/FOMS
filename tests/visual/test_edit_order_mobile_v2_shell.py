@@ -64,6 +64,8 @@ def test_edit_has_mobile_shell_for_cohort(client, monkeypatch: pytest.MonkeyPatc
     # the mobile shell chrome wrapper + foms header
     assert 'data-erp-mobile-v2="true"' in html
     assert "erp-mobile-shell-header" in html
+    assert "data-foms-shell-back" in html
+    assert f"/erp/orders/{order.id}/mobile" in html
     assert "주문 수정" in html
     # the mobile shell CSS bundle (styles the foms header grid + sticky) must load
     assert "foms-mobile-surfaces.css" in html

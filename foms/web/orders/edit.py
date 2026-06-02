@@ -344,6 +344,10 @@ def edit_order(order_id):
                     online_options=online_options,
                     direct_options=direct_options,
                     mobile_shell_title='주문 수정',
+                    mobile_shell_show_back=True,
+                    mobile_shell_back_href=url_for(
+                        'erp_dashboard.erp_order_mobile_detail', order_id=order.id
+                    ),
                     erp_sub_nav_active='dashboard',
                 )
             )
@@ -357,6 +361,10 @@ def edit_order(order_id):
             tpl,
             preserved_args=preserved_args,
             mobile_shell_title='주문 수정',
+            mobile_shell_show_back=True,
+            mobile_shell_back_href=url_for(
+                'erp_dashboard.erp_order_mobile_detail', order_id=order.id
+            ),
             erp_sub_nav_active='dashboard',
             **ctx,
         )

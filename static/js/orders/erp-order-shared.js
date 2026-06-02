@@ -1968,10 +1968,10 @@ ${escapeHtml(sub)}</div>` : ''}`;
     }
 
 
-    // add_order(draft) 모드에선 tab 오픈 시 draft 생성 후 로드, edit_order에선 즉시 로드
-    if (!isErpOrderDraftMode()) {
-        erpLoadStructured();
-    } else {
+    // 초기 structured/첨부 로드는 fomsMountErpOrderSurface가 담당한다.
+    // (여기서 erpLoadStructured를 또 호출하면 edit 화면에서 이중 fetch·DOM 주입이 발생해
+    // 모바일 크롬이 STATUS_BREAKPOINT로 다운될 수 있다.)
+    if (isErpOrderDraftMode()) {
         // [자동 완성 함수]
         function fillErpDateTime() {
             const rDate = document.getElementById('erp-received-date');
@@ -2347,6 +2347,43 @@ async function erpUploadItemAttachmentsPromptless(inputElement) {
     inputElement.value = ''; // Reset input to allow triggering change event again with same files
 }
 
+function erpExpandMobileAttachmentSections() {
+    if (!erpIsMobileFormContext()) return;
+    const items = Array.isArray(__erpAttachments) ? __erpAttachments : [];
+    if (!items.length) return;
+
+    const collapseIds = [
+        'erp-mobile-collapse-attachments-body',
+    ];
+    collapseIds.forEach((bodyId) => {
+        const body = document.getElementById(bodyId);
+        if (!body || body.classList.contains('show')) return;
+        if (typeof window.bootstrap !== 'undefined' && window.bootstrap.Collapse) {
+            window.bootstrap.Collapse.getOrCreateInstance(body, { toggle: false }).show();
+            return;
+        }
+        body.classList.add('show');
+        const toggle = document.querySelector(`[data-bs-target="#${bodyId}"]`);
+        if (toggle) {
+            toggle.setAttribute('aria-expanded', 'true');
+            const icon = toggle.querySelector('i');
+            if (icon) {
+                icon.classList.remove('fa-chevron-right');
+                icon.classList.add('fa-chevron-down');
+            }
+        }
+    });
+}
+
+function erpItemAttachmentLinksForRow(measurementItems, idx, rowCount) {
+    const linked = measurementItems.filter((a) => erpParseAttachmentItemIndex(a.item_index) === idx);
+    if (linked.length || rowCount !== 1 || idx !== 0) {
+        return linked;
+    }
+    // 단일 제품 행: item_index 미지정(공통) 실측 첨부도 항목 갤러리에 노출
+    return measurementItems.filter((a) => erpParseAttachmentItemIndex(a.item_index) === null);
+}
+
 function erpRenderItemAttachmentPanels() {
     const rows = erpGetItemRows();
     const measurementItems = (__erpAttachments || []).filter((a) => erpNormalizeAttachmentCategory(a.category) === 'measurement');
@@ -2355,7 +2392,7 @@ function erpRenderItemAttachmentPanels() {
         const wrap = row.querySelector('.erp-item-attachments-gallery');
         if (!wrap) return;
         wrap.classList.toggle('erp-attachment-tile-grid', isMobileLayout);
-        const linked = measurementItems.filter((a) => erpParseAttachmentItemIndex(a.item_index) === idx);
+        const linked = erpItemAttachmentLinksForRow(measurementItems, idx, rows.length);
         if (!linked.length) {
             wrap.innerHTML = `<div class="small text-muted${isMobileLayout ? ' erp-attachment-empty' : ''}">${erpItemAttachmentEmptyText()}</div>`;
             return;
@@ -2539,6 +2576,7 @@ async function erpLoadAttachments() {
         if (!data.success) throw new Error(data.message || '첨부 목록 조회 실패');
         __erpAttachments = data.attachments || [];
         erpRenderAttachments();
+        erpExpandMobileAttachmentSections();
     } catch (e) {
         console.error(e);
         erpAttachmentsSetStatus(String(e?.message || e), true);

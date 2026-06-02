@@ -901,4 +901,6 @@ def erp_order_mobile_detail(order_id: int):
         can_edit_erp=can_edit_erp_flag,
         erp_sub_nav_active='dashboard',
         mobile_shell_title='주문 상세',
+        mobile_shell_show_back=True,
+        mobile_shell_back_href=url_for('erp_dashboard.erp_dashboard'),
     )
