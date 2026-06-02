@@ -33,13 +33,26 @@ class AppFactoryResult:
 def _add_static_response_headers(headers: Any, path: str, url: str) -> None:
     """Attach per-file headers to WhiteNoise-served static assets.
 
-    The PWA service worker (`/static/sw.js`) is registered with `scope: "/"` so
-    it can control every ERP route, but its script lives under `/static/`. A
-    browser only allows a scope above the script's own directory when the script
-    response carries `Service-Worker-Allowed`. Without it the registration fails
-    with "The path of the provided scope ('/') is not under the max scope
-    allowed ('/static/')". Serving the header here is the spec-sanctioned fix and
-    keeps the script URL (asserted by the P2 gate) unchanged.
+    Two concerns:
+
+    1. PWA service worker (`/static/sw.js`) is registered with `scope: "/"` so it
+       can control every ERP route, but its script lives under `/static/`. A
+       browser only allows a scope above the script's own directory when the
+       script response carries `Service-Worker-Allowed`. Without it the
+       registration fails with "The path of the provided scope ('/') is not under
+       the max scope allowed ('/static/')". Serving the header here is the
+       spec-sanctioned fix and keeps the script URL (P2 gate) unchanged.
+
+    2. Cache freshness. WhiteNoise serves every asset as 1-year immutable
+       (`max_age`). That is correct only for content-addressed URLs, but FOMS
+       CSS/JS are NOT hashed: top-level links carry a `?v=` query, yet the CSS
+       files `@import` each other with plain unversioned URLs. So an edit to an
+       `@import`-ed sub-file (or any unversioned asset) stays stranded in browser
+       and service-worker caches for up to a year — deploys silently fail to
+       apply. CSS/JS (and the SW controller) must revalidate instead. `no-cache`
+       forces an ETag conditional request (304 when unchanged, so still cheap)
+       while guaranteeing every deploy reaches clients. Images/fonts keep the
+       long immutable cache.
 
     Args:
         headers: WSGI ``Headers`` instance for the outgoing static response.
@@ -48,6 +61,10 @@ def _add_static_response_headers(headers: Any, path: str, url: str) -> None:
     """
     if url == "/static/sw.js":
         headers["Service-Worker-Allowed"] = "/"
+        headers["Cache-Control"] = "no-cache"
+        return
+    if url.endswith(".css") or url.endswith(".js"):
+        headers["Cache-Control"] = "no-cache"
 
 
 def build_app(*, socketio_available: bool) -> AppFactoryResult:
