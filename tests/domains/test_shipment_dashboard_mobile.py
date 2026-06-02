@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import date
 from pathlib import Path
 
 from werkzeug.security import generate_password_hash
 
 from db import db_session
+from foms.services.erp_display import get_today_kst
 from models import Order, OrderScheduleDate, User
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -83,7 +83,7 @@ def test_shipment_dashboard_renders_mobile_v2_queue_card(client, monkeypatch) ->
     user = _login_admin(client)
     monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
 
-    today = date.today().strftime("%Y-%m-%d")
+    today = get_today_kst().strftime("%Y-%m-%d")
     order = Order(
         received_date=today,
         customer_name="출고 모바일 고객",
