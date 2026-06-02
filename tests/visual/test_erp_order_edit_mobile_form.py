@@ -188,6 +188,20 @@ def test_mobile_surfaces_import_form_field_css() -> None:
     assert "foms-form-field.css" in bundle
 
 
+def test_mobile_erp_form_uses_foms_select_not_legacy_bootstrap_select() -> None:
+    """ERP form pane uses foms-select atoms; legacy form-select stays out of the form body."""
+    mobile = (
+        ROOT / "templates" / "orders" / "partials" / "erp_order_tab_mobile.html"
+    ).read_text(encoding="utf-8")
+    form_start = mobile.index('id="erp-form"')
+    form_end = mobile.index("{% include 'orders/partials/estimate_pane.html' %}", form_start)
+    erp_form = mobile[form_start:form_end]
+
+    assert "foms-select" in erp_form
+    assert "form-select" not in erp_form
+    assert 'id="erp-workflow-stage"' in erp_form
+
+
 def test_edit_erp_order_ships_responsive_form_mounts_for_cohort(
     client, monkeypatch: pytest.MonkeyPatch
 ) -> None:

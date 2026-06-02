@@ -52,10 +52,20 @@
   font-family: inherit;
   font-size: max(16px, var(--foms-font-size-base));
   color: var(--foms-text-primary);
-  background: var(--foms-surface-base);
+  background-color: var(--foms-surface-base);
   border: 1px solid var(--foms-border-default);
   border-radius: var(--foms-radius-md);
   appearance: none;
+  line-height: 1.2;
+}
+
+.foms-select {
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7380' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right var(--foms-space-3) center;
+  background-repeat: no-repeat;
+  background-size: 1.125em 1.125em;
+  padding-right: calc(var(--foms-space-3) + 1.25rem);
 }
 
 .foms-input:focus,
@@ -64,6 +74,7 @@
   outline: none;
   border-color: var(--foms-border-focus);
   box-shadow: var(--foms-shadow-focus-ring);
+  background-color: var(--foms-surface-base);
 }
 
 .foms-textarea {
@@ -92,6 +103,73 @@
 .erp-order-mobile-form .field {
   gap: var(--foms-space-1);
   margin-bottom: var(--foms-space-3);
+}
+
+/* Mobile ERP form selects: full-width v2 tokens; override legacy form-select/style-pro-max leaks */
+body.erp-mobile-v2-layout .erp-order-mobile-form .foms-select,
+body.erp-mobile-v2-layout .erp-order-mobile-form select.foms-select {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: var(--foms-touch-target-min);
+  margin: 0;
+  background-color: var(--foms-surface-base);
+  border: 1px solid var(--foms-border-default);
+  border-radius: var(--foms-radius-md);
+  color: var(--foms-text-primary);
+  font-size: max(16px, var(--foms-font-size-base));
+}
+
+body.erp-mobile-v2-layout .erp-order-mobile-form .form-select,
+body.erp-mobile-v2-layout #erpAttachmentPreviewModal .erp-attachment-preview-actions select {
+  appearance: none;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: var(--foms-touch-target-min);
+  padding: var(--foms-space-2) var(--foms-space-3);
+  padding-right: calc(var(--foms-space-3) + 1.25rem);
+  background-color: var(--foms-surface-base) !important;
+  border: 1px solid var(--foms-border-default) !important;
+  border-radius: var(--foms-radius-md) !important;
+  color: var(--foms-text-primary);
+  font-size: max(16px, var(--foms-font-size-base));
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7380' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right var(--foms-space-3) center;
+  background-repeat: no-repeat;
+  background-size: 1.125em 1.125em;
+}
+
+body.erp-mobile-v2-layout .erp-order-mobile-form .field-grid-2 .foms-select,
+body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-time-inline .foms-select {
+  width: 100%;
+}
+
+body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls {
+  grid-template-columns: 1fr;
+  align-items: stretch;
+}
+
+body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls .foms-select {
+  width: 100%;
+}
+
+@media (max-width: 991.98px) {
+  body.erp-mobile-v2-layout .erp-pro .erp-order-mobile-form .erp-order-tabs-nav {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    overflow-x: visible;
+    flex-wrap: unset;
+    gap: var(--foms-space-2);
+    padding-bottom: 0;
+  }
+
+  body.erp-mobile-v2-layout .erp-pro .erp-order-mobile-form .erp-order-tabs-nav .nav-item {
+    flex-shrink: 1;
+    width: 100%;
+  }
 }
 
 .erp-order-mobile-form .erp-order-tabs-nav {
@@ -590,11 +668,14 @@
   justify-content: flex-end;
 }
 
-.erp-order-mobile-form .erp-attachment-preview-actions .form-select {
-  flex: 1 1 11rem;
+#erpAttachmentPreviewModal .erp-attachment-preview-actions .foms-select,
+#erpAttachmentPreviewModal .erp-attachment-preview-actions .form-select,
+#fomsAttachmentPreviewModal .foms-attachment-preview-actions .foms-select,
+#fomsAttachmentPreviewModal .foms-attachment-preview-actions .form-select {
+  flex: 1 1 auto;
   min-width: 0;
-  max-width: 14rem;
-  min-height: 44px;
+  max-width: none;
+  min-height: var(--foms-touch-target-min);
 }
 
 .erp-order-mobile-form .erp-attachment-preview-actions .btn {
@@ -623,7 +704,8 @@
 }
 
 .erp-order-mobile-form #erp-items .form-control.form-control-sm,
-.erp-order-mobile-form #erp-items .form-select.form-select-sm {
+.erp-order-mobile-form #erp-items .form-select.form-select-sm,
+.erp-order-mobile-form #erp-items .foms-select {
   min-height: var(--foms-touch-target-min);
   border-radius: var(--foms-radius-md);
   font-size: max(16px, var(--foms-font-size-base));
