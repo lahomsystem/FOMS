@@ -287,6 +287,11 @@ if ($Visual) {
             $env:TEMP = "C:\tmp"
             $env:TMP = "C:\tmp"
             $env:DATABASE_URL = "sqlite:///tests/visual/visual_local.sqlite"
+            # Drop committed/stale DB before pytest (OneDrive locks; conftest also resets).
+            $visualDb = Join-Path $root "tests\visual\visual_local.sqlite"
+            Remove-Item -Force $visualDb -ErrorAction SilentlyContinue
+            Get-ChildItem -Path (Join-Path $root "tests\visual") -Filter "visual_local.sqlite*" -ErrorAction SilentlyContinue |
+                Remove-Item -Force -ErrorAction SilentlyContinue
             Invoke-PythonCommand "-m pytest tests/visual -q"
         }
     }

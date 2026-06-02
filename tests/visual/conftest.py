@@ -269,6 +269,54 @@ def _wait_for_server(base_url: str, timeout_s: float = 10.0) -> None:
     raise RuntimeError(f"Visual live server did not start: {last_error}")
 
 
+def _visual_sqlite_paths(db_path: Path) -> list[Path]:
+    """Main DB file plus SQLite WAL/SHM/journal sidecars."""
+    candidates = [
+        db_path,
+        db_path.with_name(f"{db_path.name}-wal"),
+        db_path.with_name(f"{db_path.name}-shm"),
+        db_path.with_name(f"{db_path.name}-journal"),
+    ]
+    return [path for path in candidates if path.exists()]
+
+
+def _unlink_visual_sqlite_files(paths: list[Path], *, retries: int = 8) -> bool:
+    """
+    Delete visual SQLite files with short retries (OneDrive / Win32 locks).
+
+    Returns:
+        True when every path is gone or was already absent.
+    """
+    for path in paths:
+        for attempt in range(retries):
+            if not path.exists():
+                break
+            try:
+                path.unlink()
+                break
+            except PermissionError:
+                if attempt >= retries - 1:
+                    return False
+                time.sleep(0.05 * (attempt + 1))
+    return True
+
+
+def _quarantine_visual_sqlite_files(db_path: Path) -> None:
+    """
+    Rename locked DB files aside so a fresh file can be created at db_path.
+
+    drop_all on a partial/corrupt file caused missing `users` and UNIQUE errors.
+    """
+    stamp = f"{os.getpid()}.{int(time.time() * 1000)}"
+    for path in _visual_sqlite_paths(db_path):
+        dest = path.with_name(f"{path.name}.stale.{stamp}")
+        try:
+            path.rename(dest)
+        except OSError:
+            # If rename fails, leave cleanup to the next pytest run / manual step.
+            pass
+
+
 def _reset_visual_sqlite_file(db_url: str) -> None:
     """
     Remove stale visual SQLite so create_all seeds a full schema.
@@ -284,22 +332,19 @@ def _reset_visual_sqlite_file(db_url: str) -> None:
         return
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
-    from db import Base, db_session, engine
+    from db import db_session, engine
 
     import foms.persistence.designer.models  # noqa: F401
 
     db_session.remove()
     engine.dispose()
 
-    if not db_path.exists():
+    paths = _visual_sqlite_paths(db_path)
+    if not paths:
         return
 
-    try:
-        db_path.unlink()
-    except PermissionError:
-        # Last resort on Win32 if another handle still holds the file.
-        Base.metadata.drop_all(bind=engine)
-        Base.metadata.create_all(bind=engine)
+    if not _unlink_visual_sqlite_files(paths):
+        _quarantine_visual_sqlite_files(db_path)
 
 
 @pytest.fixture(scope="session")

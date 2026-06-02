@@ -28,6 +28,10 @@ ENV/
 *.db
 *.sqlite3
 foms.dump
+# Playwright visual tests (regenerated each session; never commit)
+tests/visual/visual_local.sqlite
+tests/visual/visual_local.sqlite-*
+tests/visual/*.sqlite.stale.*
 
 # 환경 변수 파일
 .env

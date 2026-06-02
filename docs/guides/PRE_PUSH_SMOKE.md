@@ -74,6 +74,21 @@ powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1 -Visual
 
 - **선행조건**: `pip install playwright; python -m playwright install chromium`. 미설치 시 visual **FAIL**(silent skip 없음 — CSS 변경 게이트와 함께 사용 시).
 - **env**: `TEMP/TMP=C:\tmp`, `DATABASE_URL=sqlite:///tests/visual/visual_local.sqlite`(live-server fixture가 파일 DB 공유)를 스크립트가 자동 설정.
+- **visual DB**: `tests/visual/visual_local.sqlite`는 **git에 커밋하지 않음**(로컬 전용). `-Visual` 실행 시 스크립트가 기존 파일을 삭제한 뒤 pytest `visual_live_server` fixture가 스키마를 재생성합니다.
+
+### visual DB 오류 복구 (login 실패 / UNIQUE / no such table: users)
+
+증상: Playwright가 `/login?next=...`에 머무름, `IntegrityError`, `no such table: users`.
+
+```powershell
+cd "C:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"
+Remove-Item -Force "tests\visual\visual_local.sqlite*" -ErrorAction SilentlyContinue
+$env:TEMP = "C:\tmp"; $env:TMP = "C:\tmp"
+$env:DATABASE_URL = "sqlite:///tests/visual/visual_local.sqlite"
+python -m pytest tests/visual -q
+```
+
+OneDrive 잠금이 있으면 `TEMP`를 `C:\tmp`로 두고, 그래도 실패하면 레포를 OneDrive 밖 경로로 clone하거나 동기화 일시 중지 후 재시도합니다.
 - **플랫폼 baseline**: 로컬은 `tests/visual/baseline/win32/`. CI는 `linux` baseline을 쓰므로 **Windows에서 linux baseline을 재생성하지 말 것**. CI `test` job은 `--ignore=tests/visual`; visual job이 linux SSOT를 refresh합니다.
 
 `-Full -Visual`처럼 조합 가능합니다.
