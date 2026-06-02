@@ -105,35 +105,26 @@
   margin-bottom: var(--foms-space-3);
 }
 
-/* Mobile ERP form selects: full-width v2 tokens; override legacy form-select/style-pro-max leaks */
+/* Mobile ERP form selects only — full width, 48px touch, v2 tokens (mockup .select) */
 body.erp-mobile-v2-layout .erp-order-mobile-form .foms-select,
-body.erp-mobile-v2-layout .erp-order-mobile-form select.foms-select {
+body.erp-mobile-v2-layout .erp-order-mobile-form select.foms-select,
+body.erp-mobile-v2-layout .erp-order-mobile-form .form-select {
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
   min-width: 0;
   min-height: var(--foms-touch-target-min);
   margin: 0;
+  padding: var(--foms-space-2) var(--foms-space-3);
+  padding-right: calc(var(--foms-space-3) + 1.25rem);
+  appearance: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.2;
   background-color: var(--foms-surface-base);
   border: 1px solid var(--foms-border-default);
   border-radius: var(--foms-radius-md);
-  color: var(--foms-text-primary);
-  font-size: max(16px, var(--foms-font-size-base));
-}
-
-body.erp-mobile-v2-layout .erp-order-mobile-form .form-select,
-body.erp-mobile-v2-layout #erpAttachmentPreviewModal .erp-attachment-preview-actions select {
-  appearance: none;
-  box-sizing: border-box;
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
-  min-height: var(--foms-touch-target-min);
-  padding: var(--foms-space-2) var(--foms-space-3);
-  padding-right: calc(var(--foms-space-3) + 1.25rem);
-  background-color: var(--foms-surface-base) !important;
-  border: 1px solid var(--foms-border-default) !important;
-  border-radius: var(--foms-radius-md) !important;
   color: var(--foms-text-primary);
   font-size: max(16px, var(--foms-font-size-base));
   background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7380' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
@@ -142,23 +133,15 @@ body.erp-mobile-v2-layout #erpAttachmentPreviewModal .erp-attachment-preview-act
   background-size: 1.125em 1.125em;
 }
 
-body.erp-mobile-v2-layout .erp-order-mobile-form .field-grid-2 .foms-select,
-body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-time-inline .foms-select {
-  width: 100%;
-}
-
-body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls {
-  grid-template-columns: 1fr;
-  align-items: stretch;
-}
-
 body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls .foms-select {
   width: 100%;
+  min-width: 0;
 }
 
+/* Beat erp-pro horizontal tab scroll; mobile ERP has exactly two pills (mockup .main-tabs) */
 @media (max-width: 991.98px) {
-  body.erp-mobile-v2-layout .erp-pro .erp-order-mobile-form .erp-order-tabs-nav {
-    display: grid;
+  body.erp-mobile-v2-layout .erp-order-mobile-form .erp-order-tabs-nav {
+    display: grid !important;
     grid-template-columns: 1fr 1fr;
     overflow-x: visible;
     flex-wrap: unset;
@@ -166,7 +149,7 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
     padding-bottom: 0;
   }
 
-  body.erp-mobile-v2-layout .erp-pro .erp-order-mobile-form .erp-order-tabs-nav .nav-item {
+  body.erp-mobile-v2-layout .erp-order-mobile-form .erp-order-tabs-nav .nav-item {
     flex-shrink: 1;
     width: 100%;
   }
@@ -668,13 +651,13 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
   justify-content: flex-end;
 }
 
-#erpAttachmentPreviewModal .erp-attachment-preview-actions .foms-select,
-#erpAttachmentPreviewModal .erp-attachment-preview-actions .form-select,
-#fomsAttachmentPreviewModal .foms-attachment-preview-actions .foms-select,
-#fomsAttachmentPreviewModal .foms-attachment-preview-actions .form-select {
-  flex: 1 1 auto;
+body.erp-mobile-v2-layout #erpAttachmentPreviewModal .erp-attachment-preview-actions .foms-select,
+body.erp-mobile-v2-layout #erpAttachmentPreviewModal .erp-attachment-preview-actions .form-select,
+body.erp-mobile-v2-layout #fomsAttachmentPreviewModal .foms-attachment-preview-actions .foms-select,
+body.erp-mobile-v2-layout #fomsAttachmentPreviewModal .foms-attachment-preview-actions .form-select {
+  flex: 1 1 11rem;
   min-width: 0;
-  max-width: none;
+  max-width: 14rem;
   min-height: var(--foms-touch-target-min);
 }
 
