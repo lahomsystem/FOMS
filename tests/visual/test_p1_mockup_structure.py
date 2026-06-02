@@ -364,17 +364,26 @@ def test_p1_production_dashboard_renders_home_ia(
 
 
 def test_p1_shipment_mobile_v2_home_ia_parity() -> None:
-    """탭4 출고: 모바일 v2가 홈 IA 셸/칩/섹션/FAB 셀렉터를 사용한다 (큐는 card-table 변형)."""
+    """탭4 출고: 모바일 v2가 실측형 셸/칩/날짜/queue-card-v2/FAB 셀렉터를 사용한다."""
     body = (ROOT / "templates/shipment/partials/dashboard_main.html").read_text(
         encoding="utf-8"
     )
     controls = (
         ROOT / "templates/shipment/partials/shipment_mobile_controls.html"
     ).read_text(encoding="utf-8")
-    for selector in ("foms-shell-body", "foms-shell-fab"):
+    dates = (
+        ROOT / "templates/shipment/partials/shipment_mobile_dates.html"
+    ).read_text(encoding="utf-8")
+    queue = (
+        ROOT / "templates/shipment/partials/shipment_mobile_queue.html"
+    ).read_text(encoding="utf-8")
+    for selector in ("foms-shell-body", "foms-mobile-v2-dashboard", "foms-shell-fab"):
         assert selector in body, selector
-    for selector in ("chip-strip", "foms-chip-strip", "foms-section-header"):
+    for selector in ("chip-strip", "foms-chip-strip"):
         assert selector in controls, selector
+    assert "erp-shipment-mobile-date-chip" in dates
+    for selector in ("foms-mobile-queue-list", "foms-section-header", "render_queue_card_v2"):
+        assert selector in queue, selector
 
 
 def test_p1_shipment_dashboard_renders_home_ia(
@@ -392,9 +401,11 @@ def test_p1_shipment_dashboard_renders_home_ia(
     assert 'class="erp-mobile-v2-layout"' in html
     for selector in (
         "foms-shell-body",
+        "foms-mobile-v2-dashboard",
         "chip-strip",
         "foms-chip-strip",
         "foms-section-header",
+        "erp-shipment-mobile-queue",
         "foms-shell-fab",
     ):
         assert selector in html, selector
@@ -588,6 +599,7 @@ def test_p1_workflow_tabs_use_clean_queue_card_v2() -> None:
         "templates/measurement/partials/mobile_list.html",
         "templates/production/partials/mobile_queue.html",
         "templates/construction/partials/mobile_queue.html",
+        "templates/shipment/partials/shipment_mobile_queue.html",
     ):
         src = (ROOT / rel).read_text(encoding="utf-8")
         assert "shared/erp_mobile_queue_card_v2.html" in src, rel

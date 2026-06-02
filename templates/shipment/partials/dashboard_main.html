@@ -42,7 +42,17 @@
     </div>
   </div>
   {% else %}
-  <div class="erp-pro-card">
+  {% if erp_mobile_v2_enabled %}
+    <section class="foms-shell-body foms-mobile-v2-dashboard erp-shipment-mobile-v2" aria-label="출고 모바일 대시보드">
+      {% include 'shipment/partials/shipment_mobile_controls.html' %}
+      {% include 'shipment/partials/shipment_mobile_dates.html' %}
+      {% include 'shipment/partials/shipment_mobile_queue.html' %}
+      <a class="foms-shell-fab" href="{{ url_for('order_pages.add_order', open='erp-order') }}" aria-label="주문 생성">
+        <i class="fas fa-plus" aria-hidden="true"></i>
+      </a>
+    </section>
+  {% endif %}
+  <div class="erp-pro-card erp-shipment-desktop-shell">
     <div class="erp-pro-card__header erp-pro-card__header--filter{% if erp_mobile_v2_enabled %} erp-shipment-desktop-filter d-none d-md-block{% endif %}">
       <form class="erp-pro-filter-form erp-pro-filter-form--inline-mobile" method="get">
         <div class="erp-pro-filter-group">
@@ -116,16 +126,7 @@
     </div>
     {% endif %}
     <div class="card-body">
-      {% if erp_mobile_v2_enabled %}
-      <div class="erp-shipment-mobile-list foms-shell-body d-lg-none" aria-label="출고 모바일 큐">
-        <div class="erp-shipment-mobile-list__sticky">
-          {% include 'shipment/partials/shipment_mobile_controls.html' %}
-        </div>
-      </div>
-      <a class="foms-shell-fab d-lg-none" href="{{ url_for('order_pages.add_order', open='erp-order') }}" aria-label="주문 생성">
-        <i class="fas fa-plus" aria-hidden="true"></i>
-      </a>
-      {% else %}
+      {% if not erp_mobile_v2_enabled %}
       <div class="erp-shipment-mobile-summary d-lg-none" aria-label="출고 작업 요약">
         <span class="erp-shipment-mobile-summary__eyebrow">Shipment Queue</span>
         <div class="erp-shipment-mobile-summary__title-row">
@@ -1847,7 +1848,7 @@
       }
 
       document.addEventListener('click', function (ev) {
-        var openBtn = ev.target.closest && ev.target.closest('#shipment-as-recommend-btn');
+        var openBtn = ev.target.closest && ev.target.closest('#shipment-as-recommend-btn, [data-shipment-as-recommend-open]');
         if (openBtn) {
           ev.preventDefault();
           adoptModalFromMain();

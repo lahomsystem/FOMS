@@ -1,0 +1,63 @@
+{% from 'partials/shared/erp_mobile_queue_card_v2.html' import render_queue_card_v2 %}
+
+<section class="erp-shipment-mobile-queue foms-mobile-queue-section" aria-label="출고 모바일 작업 큐">
+  <div class="erp-shipment-mobile-queue__summary foms-section-header section-header">
+    <div>
+      <span class="erp-shipment-mobile-queue__eyebrow">출고 작업 큐</span>
+      <h2 class="erp-shipment-mobile-queue__title foms-section-header__title">출고 일정</h2>
+    </div>
+    <span class="erp-shipment-mobile-queue__count foms-section-header__count">{{ mobile_queue_rows|length }}건</span>
+  </div>
+
+  {% if mobile_queue_rows %}
+    <div class="erp-shipment-mobile-cards foms-mobile-queue-list">
+      {% for o in mobile_queue_rows %}
+        {% set meta = o.shipment_meta or {} %}
+        {% set has_detail = meta.construction_time or meta.drawing_managers or meta.construction_workers or meta.spec_units or (meta.is_as and meta.as_content_text) %}
+        <div class="erp-shipment-mobile-card{% if has_detail %} erp-shipment-mobile-card--with-detail{% endif %}">
+          {{ render_queue_card_v2(o, can_edit_shipment|default(false), None, '--shipment', '출고') }}
+          {% if has_detail %}
+          <dl class="erp-shipment-mobile-card__detail">
+            {% if meta.construction_time %}
+            <div>
+              <dt>시공시간</dt>
+              <dd>{{ meta.construction_time }}</dd>
+            </div>
+            {% endif %}
+            {% if meta.drawing_managers %}
+            <div>
+              <dt>도면</dt>
+              <dd>{{ meta.drawing_managers|join(', ') }}</dd>
+            </div>
+            {% endif %}
+            {% if meta.construction_workers %}
+            <div>
+              <dt>시공자</dt>
+              <dd>{{ meta.construction_workers|join(', ') }}</dd>
+            </div>
+            {% endif %}
+            {% if meta.spec_units %}
+            <div>
+              <dt>W/300</dt>
+              <dd>{{ '%.1f'|format(meta.spec_units) }}</dd>
+            </div>
+            {% endif %}
+            {% if meta.is_as and meta.as_content_text %}
+            <div class="erp-shipment-mobile-card__full">
+              <dt>AS</dt>
+              <dd>{{ meta.as_content_text }}</dd>
+            </div>
+            {% endif %}
+          </dl>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="foms-mobile-empty">
+      <i class="fas fa-inbox" aria-hidden="true"></i>
+      <p class="mb-1">조건에 맞는 출고 일정이 없습니다.</p>
+      <small>칩 필터를 바꾸거나 검색어를 지워 보세요.</small>
+    </div>
+  {% endif %}
+</section>

@@ -1,13 +1,14 @@
-"""Shipment dashboard mobile v2 sticky search/filter (optional P0 gap)."""
+"""Shipment dashboard mobile/tablet v2 queue surface."""
 
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 
 from werkzeug.security import generate_password_hash
 
 from db import db_session
-from models import User
+from models import Order, OrderScheduleDate, User
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -40,12 +41,14 @@ def test_shipment_mobile_controls_template_contract() -> None:
     assert "erp-shipment-mobile-controls" in controls
     assert 'id="erp-shipment-mobile-search"' in controls
     assert "erp-shipment-mobile-filter-drawer" in controls
-    assert "erp-shipment-mobile-list__sticky" in main
+    assert "erp-shipment-mobile-v2" in main
+    assert "shipment_mobile_dates.html" in main
+    assert "shipment_mobile_queue.html" in main
     assert "shipment_mobile_controls.html" in main
     assert "foms-shipment-mobile.css" in dash
 
 
-def test_shipment_dashboard_renders_mobile_v2_controls(client, monkeypatch) -> None:
+def test_shipment_dashboard_renders_mobile_v2_queue_surface(client, monkeypatch) -> None:
     monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
     user = _login_admin(client)
     monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
@@ -55,5 +58,64 @@ def test_shipment_dashboard_renders_mobile_v2_controls(client, monkeypatch) -> N
     assert response.status_code == 200
     body = response.get_data(as_text=True)
     assert 'data-erp-mobile-v2="true"' in body
-    assert "erp-shipment-mobile-list__sticky" in body
+    assert "foms-mobile-v2-dashboard" in body
+    assert "erp-shipment-mobile-dates" in body
+    assert "erp-shipment-mobile-queue" in body
+    assert "foms-mobile-empty" in body
     assert 'id="erp-shipment-mobile-search"' in body
+
+
+def test_shipment_dashboard_renders_mobile_v2_queue_card(client, monkeypatch) -> None:
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    user = _login_admin(client)
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+
+    today = date.today().strftime("%Y-%m-%d")
+    order = Order(
+        received_date=today,
+        customer_name="출고 모바일 고객",
+        phone="010-1000-2000",
+        address="서울시 출고구 모바일로 1",
+        product="싱크대",
+        status="IN_CONSTRUCTION",
+        scheduled_date=today,
+        manager_name="출고담당",
+        is_erp_order=True,
+        structured_data={
+            "workflow": {"stage": "SHIPMENT"},
+            "parties": {
+                "customer": {"name": "출고 모바일 고객", "phone": "010-1000-2000"},
+                "manager": {"name": "출고담당"},
+            },
+            "site": {"address_full": "서울시 출고구 모바일로 1"},
+            "schedule": {"construction": {"date": today}},
+            "items": [{"product_name": "싱크대", "spec_width": "1200"}],
+            "shipment": {
+                "construction_time": "오전 10:30",
+                "drawing_managers": ["도면1"],
+                "construction_workers": ["시공1"],
+            },
+        },
+    )
+    db_session.add(order)
+    db_session.flush()
+    db_session.add(
+        OrderScheduleDate(
+            order_id=order.id,
+            kind="construction",
+            date=today,
+            source="shipment_mobile_test",
+        )
+    )
+    db_session.commit()
+
+    response = client.get("/erp/shipment")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert "foms-queue-card-v2" in body
+    assert "erp-shipment-mobile-card--with-detail" in body
+    assert "출고 모바일 고객" in body
+    assert "오전 10:30" in body
+    assert "도면1" in body
+    assert "시공1" in body
