@@ -2537,14 +2537,48 @@ async function erpLoadAttachments() {
     }
 }
 
+function erpReleaseAttachmentPreviewModalFocus(modalEl) {
+    if (!modalEl) return;
+    var active = document.activeElement;
+    if (active && (modalEl === active || modalEl.contains(active))) {
+        if (typeof active.blur === 'function') active.blur();
+    }
+    if (modalEl === document.activeElement && typeof modalEl.blur === 'function') {
+        modalEl.blur();
+    }
+}
+
+function erpRestoreAttachmentPreviewModalFocus(modalEl) {
+    if (!modalEl) return;
+    var target = modalEl._erpPreviewReturnFocus;
+    modalEl._erpPreviewReturnFocus = null;
+    if (!target || typeof target.focus !== 'function' || !document.contains(target)) return;
+    if (target === modalEl || modalEl.contains(target)) return;
+    try {
+        target.focus({ preventScroll: true });
+    } catch (err) {
+        try { target.focus(); } catch (ignored) { /* noop */ }
+    }
+}
+
 function erpEnsureAttachmentPreviewModalZoomReset() {
     var modalEl = document.getElementById('erpAttachmentPreviewModal');
     if (!modalEl || modalEl._erpPreviewZoomResetBound) return;
     modalEl._erpPreviewZoomResetBound = true;
+    modalEl.addEventListener('show.bs.modal', function () {
+        var active = document.activeElement;
+        if (active && active !== document.body && active !== document.documentElement) {
+            modalEl._erpPreviewReturnFocus = active;
+        }
+    });
+    modalEl.addEventListener('hide.bs.modal', function () {
+        erpReleaseAttachmentPreviewModalFocus(modalEl);
+    });
     modalEl.addEventListener('hidden.bs.modal', function () {
         var body = document.getElementById('erp-attachment-preview-body');
         var img = body && body.querySelector('img');
         if (img) erpResetAttachmentPreviewZoom(img);
+        erpRestoreAttachmentPreviewModalFocus(modalEl);
     });
 }
 
@@ -2726,6 +2760,8 @@ function erpOpenAttachmentPreview(attachmentId) {
 `;
         erpBindAttachmentPreviewImageZoom(body);
     }
+
+    erpEnsureAttachmentPreviewModalZoomReset();
 
     const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
     modal.show();

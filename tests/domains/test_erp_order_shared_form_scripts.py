@@ -397,6 +397,11 @@ def test_attachment_preview_image_zoom_supports_in_modal_gestures() -> None:
     assert "addEventListener('wheel'" in js_text
     assert "ev.touches.length === 2" in js_text
     assert "fomsOpenLightboxUrl" not in js_text
+    assert "function erpReleaseAttachmentPreviewModalFocus(modalEl)" in js_text
+    assert "addEventListener('hide.bs.modal'" in js_text
+    assert "erpReleaseAttachmentPreviewModalFocus(modalEl)" in js_text
+    assert "erpEnsureAttachmentPreviewModalZoomReset();" in js_text
+    assert "erpOpenAttachmentPreview(attachmentId)" in js_text
 
 
 def test_edit_order_initial_mount_releases_surface_before_deferred_panels() -> None:
