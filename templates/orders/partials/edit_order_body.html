@@ -534,7 +534,22 @@
                     {% if erp_order_feature_enabled and is_erp_order_flag %}
                     {% set erp_order_active = is_erp_order %}
                     {% if erp_mobile_v2_enabled %}
+                    {# Cohort: ship both variants; inline script keeps one surface by viewport (no duplicate ids for ERP JS). #}
+                    <div id="erp-order-form-legacy">
+                    {% include "orders/partials/erp_order_tab.html" %}
+                    </div>
+                    <div id="erp-order-form-mobile">
                     {% include "orders/partials/erp_order_tab_mobile.html" %}
+                    </div>
+                    <script>
+                    (function () {
+                        var legacy = document.getElementById('erp-order-form-legacy');
+                        var mobile = document.getElementById('erp-order-form-mobile');
+                        if (!legacy || !mobile) return;
+                        var useMobile = window.matchMedia('(max-width: 991.98px)').matches;
+                        (useMobile ? legacy : mobile).remove();
+                    })();
+                    </script>
                     {% else %}
                     {% include "orders/partials/erp_order_tab.html" %}
                     {% endif %}

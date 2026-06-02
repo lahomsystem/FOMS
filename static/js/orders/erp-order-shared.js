@@ -603,7 +603,7 @@ function erpRefreshItemRowIndices() {
         const hintEl = row.querySelector('.erp-item-attachment-hint');
         if (hintEl) {
             const name = String(row.querySelector('[data-erp="product_name"]')?.value || '').trim();
-            hintEl.textContent = name ? `${name} 사진/동영상` : `항목 ${idx + 1} 사진/동영상`;
+            hintEl.textContent = erpItemAttachmentHintText(name, idx);
         }
     });
 }
@@ -628,6 +628,21 @@ function erpBindAutosizeTextareas(root) {
     });
 }
 
+function erpIsMobileFormContext() {
+    return !!document.querySelector('.erp-order-mobile-form');
+}
+
+function erpItemAttachmentHintText(productName, itemIndex) {
+    if (erpIsMobileFormContext()) {
+        return productName ? `${productName} 사진/동영상` : `항목 ${itemIndex + 1} 사진/동영상`;
+    }
+    return productName ? `${productName} 실측 이미지` : `항목 ${itemIndex + 1} 실측 이미지`;
+}
+
+function erpItemAttachmentEmptyText() {
+    return erpIsMobileFormContext() ? '연결된 사진/동영상이 없습니다.' : '연결된 실측 이미지가 없습니다.';
+}
+
 function erpMobileFlexibleControl(name, label, value, options = {}) {
     const escapedValue = escapeHtml(value);
     if (!options.isMobileForm) {
@@ -648,13 +663,18 @@ function erpNewItemRow(item = {}) {
         const s = String(v ?? '').trim();
         return s ? s : '상담';
     };
-    const isMobileForm = !!document.querySelector('.erp-order-mobile-form');
+    const isMobileForm = erpIsMobileFormContext();
     const inputClass = isMobileForm ? 'foms-input' : 'form-control form-control-sm';
     const tabularInputClass = isMobileForm ? 'foms-input foms-tabular' : 'form-control form-control-sm';
     const textareaClass = isMobileForm ? 'foms-textarea' : 'form-control form-control-sm';
     const itemScheduleFieldClass = isMobileForm ? 'col-md-6 d-none erp-mobile-rare-field' : 'col-md-6';
-
     const productName = String(item.product_name || '').trim();
+    const itemAttachmentAccept = isMobileForm ? 'image/*,video/*' : 'image/*';
+    const itemAttachmentAriaLabel = isMobileForm
+        ? '제품 항목 사진 및 동영상 업로드 영역. 이미지를 붙여넣으면 이 항목에 바로 업로드됩니다.'
+        : '제품 항목 실측 이미지 업로드 영역. 이미지를 붙여넣으면 이 항목에 바로 업로드됩니다.';
+    const itemAttachmentHint = erpItemAttachmentHintText(productName, 0).replace('항목 1', '항목');
+    const itemAttachmentEmpty = erpItemAttachmentEmptyText();
     // 규격 행 목록: spec_rows 우선, 없으면 단일 spec_width/spec_depth/spec_height 또는 spec 파싱
     let specRows = Array.isArray(item.spec_rows) ? item.spec_rows : [];
     if (specRows.length === 0) {
@@ -700,6 +720,24 @@ function erpNewItemRow(item = {}) {
     const misc = defaultConsult(item.misc);
     const price = String(item.price ?? '').trim();
     const extraInput = String(item.extra_input ?? '').trim();
+    const colorFieldHtml = `
+<div class="col-md-6">
+    <label class="form-label mb-1 small text-primary">색상</label>
+    <input class="${inputClass}" data-erp="color" value="${escapeHtml(color)}" lang="ko">
+</div>`;
+    const optionFieldHtml = `
+<div class="col-md-6 erp-mobile-full-row">
+    <label class="form-label mb-1 small text-primary">옵션</label>
+    ${erpMobileFlexibleControl('option_detail', '옵션', optionDetail, { isMobileForm, inputClass, placeholder: '상담' })}
+</div>`;
+    const handleFieldHtml = `
+<div class="col-md-6">
+    <label class="form-label mb-1 small text-primary">손잡이</label>
+    <input class="${inputClass}" data-erp="handle" value="${escapeHtml(handle)}" lang="ko">
+</div>`;
+    const attributeFieldsHtml = isMobileForm
+        ? `${colorFieldHtml}${handleFieldHtml}${optionFieldHtml}`
+        : `${colorFieldHtml}${optionFieldHtml}${handleFieldHtml}`;
 
     row.innerHTML = `
 <div class="d-flex justify-content-between align-items-center mb-2">
@@ -722,18 +760,7 @@ function erpNewItemRow(item = {}) {
     <label class="form-label mb-1 small text-primary">내부</label>
     ${erpMobileFlexibleControl('internal', '내부', internal, { isMobileForm, inputClass, placeholder: '상담' })}
 </div>
-<div class="col-md-6">
-    <label class="form-label mb-1 small text-primary">색상</label>
-    <input class="${inputClass}" data-erp="color" value="${escapeHtml(color)}" lang="ko">
-</div>
-<div class="col-md-6">
-    <label class="form-label mb-1 small text-primary">손잡이</label>
-    <input class="${inputClass}" data-erp="handle" value="${escapeHtml(handle)}" lang="ko">
-</div>
-<div class="col-md-6 erp-mobile-full-row">
-    <label class="form-label mb-1 small text-primary">옵션</label>
-    ${erpMobileFlexibleControl('option_detail', '옵션', optionDetail, { isMobileForm, inputClass, placeholder: '상담' })}
-</div>
+${attributeFieldsHtml}
 <div class="col-md-6 erp-mobile-full-row">
     <label class="form-label mb-1 small text-primary">기타 / 설치위치</label>
     ${erpMobileFlexibleControl('misc', '기타 / 설치위치', misc, { isMobileForm, inputClass, placeholder: '상담' })}
@@ -757,11 +784,11 @@ function erpNewItemRow(item = {}) {
 </div>
 <div class="col-12">
     <div class="border rounded p-2 bg-light" data-erp-attachment-paste-zone="item" tabindex="0"
-        aria-label="제품 항목 사진 및 동영상 업로드 영역. 이미지를 붙여넣으면 이 항목에 바로 업로드됩니다.">
+        aria-label="${itemAttachmentAriaLabel}">
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
-            <div class="small fw-semibold text-muted erp-item-attachment-hint">항목 사진/동영상</div>
+            <div class="small fw-semibold text-muted erp-item-attachment-hint">${itemAttachmentHint}</div>
             <div class="d-flex gap-1">
-                <input type="file" class="d-none erp-item-attachments-input" accept="image/*,video/*" capture="environment" multiple onchange="erpUploadItemAttachmentsPromptless(this)">
+                <input type="file" class="d-none erp-item-attachments-input" accept="${itemAttachmentAccept}" capture="environment" multiple onchange="erpUploadItemAttachmentsPromptless(this)">
                 <button type="button" class="btn btn-sm btn-outline-primary" onclick="this.previousElementSibling.click()">
                     <i class="fas fa-image"></i> 즉시 추가
                 </button>
@@ -769,7 +796,7 @@ function erpNewItemRow(item = {}) {
         </div>
         <div class="small text-muted mt-1">이 박스를 클릭 후 Ctrl+V로 캡처 이미지를 항목에 바로 업로드할 수 있습니다.</div>
         <div class="d-flex flex-wrap gap-1 mt-2 erp-item-attachments-gallery">
-            <div class="small text-muted">연결된 사진/동영상이 없습니다.</div>
+            <div class="small text-muted">${itemAttachmentEmpty}</div>
         </div>
     </div>
 </div>
@@ -2053,7 +2080,7 @@ async function erpLinkAttachmentToItem(attachmentId, itemIndexValue) {
 }
 
 function erpIsMobileAttachmentLayout() {
-    return !!document.querySelector('.erp-order-mobile-form');
+    return erpIsMobileFormContext();
 }
 
 function erpBuildAttachmentMediaTile(a) {
@@ -2322,7 +2349,7 @@ function erpRenderItemAttachmentPanels() {
         wrap.classList.toggle('erp-attachment-tile-grid', isMobileLayout);
         const linked = measurementItems.filter((a) => erpParseAttachmentItemIndex(a.item_index) === idx);
         if (!linked.length) {
-            wrap.innerHTML = '<div class="small text-muted erp-attachment-empty">연결된 사진/동영상이 없습니다.</div>';
+            wrap.innerHTML = `<div class="small text-muted${isMobileLayout ? ' erp-attachment-empty' : ''}">${erpItemAttachmentEmptyText()}</div>`;
             return;
         }
         wrap.innerHTML = linked.map((a) => {

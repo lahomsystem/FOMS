@@ -486,7 +486,7 @@
   -webkit-line-clamp: 2;
 }
 
-.erp-attachment-preview-actions {
+.erp-order-mobile-form .erp-attachment-preview-actions {
   display: flex;
   flex-wrap: nowrap;
   gap: var(--foms-space-2, 8px);
@@ -494,14 +494,14 @@
   justify-content: flex-end;
 }
 
-.erp-attachment-preview-actions .form-select {
+.erp-order-mobile-form .erp-attachment-preview-actions .form-select {
   flex: 1 1 11rem;
   min-width: 0;
   max-width: 14rem;
   min-height: 44px;
 }
 
-.erp-attachment-preview-actions .btn {
+.erp-order-mobile-form .erp-attachment-preview-actions .btn {
   display: inline-flex;
   flex: 0 0 44px;
   align-items: center;

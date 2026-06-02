@@ -152,6 +152,14 @@ def _erp_form_html(html: str) -> str:
     return html[start:end]
 
 
+def _erp_form_html_in_mount(html: str, mount_id: str) -> str:
+    mount_start = html.index(f'id="{mount_id}"')
+    mount_chunk = html[mount_start:]
+    form_start = mount_chunk.index('id="erp-form"')
+    form_end = mount_chunk.index('id="erp-estimate"', form_start)
+    return mount_chunk[form_start:form_end]
+
+
 def test_mobile_template_preserves_critical_erp_ids() -> None:
     legacy_ids = _template_ids("templates/orders/partials/erp_order_tab.html")
     mobile_ids = _template_ids("templates/orders/partials/erp_order_tab_mobile.html")
@@ -174,7 +182,7 @@ def test_mobile_surfaces_import_form_field_css() -> None:
     assert "foms-form-field.css" in bundle
 
 
-def test_edit_erp_order_uses_mobile_form_for_cohort(
+def test_edit_erp_order_ships_responsive_form_mounts_for_cohort(
     client, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     user = _login_admin(client, "erp_mobile_form_on")
@@ -185,18 +193,24 @@ def test_edit_erp_order_uses_mobile_form_for_cohort(
     resp = client.get(f"/edit/{order.id}?open=erp-order")
     assert resp.status_code == 200
     html = resp.get_data(as_text=True)
-    erp_form = _erp_form_html(html)
+    legacy_form = _erp_form_html_in_mount(html, "erp-order-form-legacy")
+    mobile_form = _erp_form_html_in_mount(html, "erp-order-form-mobile")
 
     assert "foms-mobile-surfaces.css" in html
+    assert 'id="erp-order-form-legacy"' in html
+    assert 'id="erp-order-form-mobile"' in html
+    assert "matchMedia" in html
     assert "erp_order_tab_mobile.html" not in html
-    assert "foms-input" in erp_form
-    assert "field__label" in erp_form
-    assert "form-control form-control-sm" not in erp_form
-    assert "erp-mobile-time-inline" in erp_form
-    assert 'id="erp-urgent-reason-field"' in erp_form
-    assert "erp-received-time-select" in erp_form
-    assert "erp-order-measurement-panel-collapse" in erp_form
-    assert "계약 텍스트" not in erp_form
+    assert "form-control form-control-sm" in legacy_form
+    assert "foms-input" not in legacy_form
+    assert "foms-input" in mobile_form
+    assert "field__label" in mobile_form
+    assert "form-control form-control-sm" not in mobile_form
+    assert "erp-mobile-time-inline" in mobile_form
+    assert 'id="erp-urgent-reason-field"' in mobile_form
+    assert "erp-received-time-select" in mobile_form
+    assert "erp-order-measurement-panel-collapse" in mobile_form
+    assert "계약 텍스트" not in mobile_form
 
 
 def test_edit_erp_order_keeps_legacy_form_when_cohort_off(
