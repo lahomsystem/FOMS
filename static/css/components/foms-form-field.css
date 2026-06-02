@@ -508,6 +508,30 @@
   outline-offset: 2px;
 }
 
+.erp-order-mobile-form #erp-attachment-preview-body .erp-attachment-preview-img--expanded {
+  cursor: zoom-out;
+  max-height: min(75vh, 640px);
+}
+
+/* Mobile edit: keep attachment preview as a centered dialog, not .erp-pro fullscreen modals */
+@media (max-width: 992px) {
+  #erpAttachmentPreviewModal .modal-dialog {
+    max-width: min(92vw, 36rem);
+    margin: 0.5rem auto;
+    min-height: 0;
+  }
+
+  #erpAttachmentPreviewModal .modal-content {
+    min-height: 0;
+    max-height: calc(100dvh - 1rem);
+    border-radius: var(--bs-modal-border-radius, 0.5rem);
+  }
+
+  #erpAttachmentPreviewModal .modal-body {
+    overflow: auto;
+  }
+}
+
 .erp-order-mobile-form .erp-attachment-preview-actions {
   display: flex;
   flex-wrap: nowrap;

@@ -23,9 +23,6 @@
 {% endblock %}
 
 {% block scripts %}
-{% if erp_mobile_v2_enabled %}
-<script src="{{ url_for('static', filename='js/foms/lightbox.js') }}?v=20260531c" defer></script>
-{% endif %}
 {% include "orders/partials/erp_order_js.html" %}
 <script>
     var USE_DIRECT_UPLOAD = window.USE_DIRECT_UPLOAD = ("{{ 'true' if use_direct_upload else 'false' }}" === "true");

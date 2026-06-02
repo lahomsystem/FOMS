@@ -2546,14 +2546,9 @@ function erpBindAttachmentPreviewImageZoom(bodyEl) {
     img.setAttribute('tabindex', '0');
     img.setAttribute('aria-label', '이미지 확대');
     var openZoom = function () {
-        var src = img.currentSrc || img.getAttribute('src') || '';
-        if (!src || src === '#') return;
-        var dl = document.getElementById('erp-attachment-preview-download');
-        if (typeof window.fomsOpenLightboxUrl === 'function') {
-            window.fomsOpenLightboxUrl(src, { downloadUrl: dl ? dl.href : '' });
-            return;
-        }
         img.classList.toggle('erp-attachment-preview-img--expanded');
+        var expanded = img.classList.contains('erp-attachment-preview-img--expanded');
+        img.setAttribute('aria-label', expanded ? '이미지 축소' : '이미지 확대');
     };
     if (img._erpPreviewZoomBound) return;
     img._erpPreviewZoomBound = true;
