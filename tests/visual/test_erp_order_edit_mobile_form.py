@@ -223,6 +223,7 @@ def test_edit_erp_order_ships_responsive_form_mounts_for_cohort(
     assert 'class="collapse"' in mobile_form
     assert 'id="erp-mobile-collapse-order-toggle"' in mobile_form
     assert 'id="erp-mobile-collapse-attachments-toggle"' in mobile_form
+    assert "erp-mobile-pre-sticky-footer" in mobile_form
 
 
 def test_mobile_erp_form_sections_collapsed_by_default() -> None:

@@ -281,10 +281,14 @@
   body.erp-mobile-v2-layout
     .foms-detail-page-wrap
     .erp-mobile-sticky-action-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
     bottom: calc(
       var(--foms-shell-bottom-nav-h, 72px) + var(--foms-keyboard-h, 0px) +
         env(safe-area-inset-bottom, 0px)
     );
     z-index: 110;
+    margin-bottom: 0;
   }
 }

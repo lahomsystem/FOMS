@@ -228,6 +228,17 @@
   margin-top: var(--foms-space-3);
 }
 
+/* Last section before sticky 저장/불러오기 bar: keep collapse toggle visible when body is folded. */
+@media (max-width: 991.98px) {
+  .erp-order-mobile-form .erp-mobile-pre-sticky-footer {
+    margin-bottom: 4.75rem;
+  }
+
+  .erp-order-mobile-form .erp-mobile-pre-sticky-footer > .erp-mobile-collapse-toggle {
+    scroll-margin-bottom: 5rem;
+  }
+}
+
 .erp-mobile-measurement-panel {
   margin-top: var(--foms-space-2);
   max-height: 360px;
@@ -598,6 +609,13 @@
 
 .erp-mobile-sticky-action-bar {
   gap: var(--foms-space-2);
+}
+
+@media (max-width: 991.98px) {
+  /* foms-sticky-action-bar negative margin-bottom pulls over the last field; reset for ERP mobile footer. */
+  .erp-order-mobile-form .erp-mobile-sticky-action-bar.foms-sticky-action-bar {
+    margin-bottom: 0;
+  }
 }
 
 .erp-mobile-sticky-action-bar .foms-btn {
