@@ -1,0 +1,614 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mobile ERP Order Compact Proposal</title>
+  <style>
+    :root {
+      --bg: #edf2f8;
+      --surface: #fff;
+      --surface-soft: #f7f9fc;
+      --text: #111827;
+      --muted: #667085;
+      --line: #d8dee8;
+      --line-soft: #e9edf4;
+      --blue: #2563eb;
+      --blue-soft: #eef4ff;
+      --red: #ef4444;
+      --radius: 10px;
+      --shadow: 0 12px 32px rgba(15, 23, 42, .12);
+      font-family: Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      display: grid;
+      place-items: start center;
+      min-height: 100vh;
+      padding: 18px;
+    }
+
+    .phone {
+      width: min(412px, 100%);
+      height: 915px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      position: relative;
+      border: 1px solid #d1d9e6;
+    }
+
+    .topbar {
+      height: 48px;
+      display: grid;
+      grid-template-columns: 44px 1fr 44px 44px;
+      align-items: center;
+      border-bottom: 1px solid var(--line-soft);
+      font-size: 15px;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .icon-btn {
+      min-width: 44px;
+      min-height: 44px;
+      border: 0;
+      background: transparent;
+      color: var(--text);
+      font-size: 18px;
+    }
+
+    .content {
+      height: calc(100% - 48px - 58px);
+      overflow: auto;
+      padding: 12px 10px 16px;
+    }
+
+    .main-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+
+    .tab {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .tab.is-active {
+      color: var(--blue);
+      background: var(--blue-soft);
+      border-color: var(--blue);
+    }
+
+    .compact-section {
+      padding: 10px 0;
+      border-top: 1px solid var(--line-soft);
+    }
+
+    .compact-section:first-of-type { border-top: 0; padding-top: 0; }
+
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-height: 30px;
+      margin-bottom: 6px;
+    }
+
+    .section-title {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .section-summary {
+      min-width: 0;
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 6px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .field {
+      display: grid;
+      gap: 3px;
+      min-width: 0;
+    }
+
+    .label {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+
+    .input,
+    .select {
+      width: 100%;
+      min-height: 44px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--text);
+      padding: 8px 10px;
+      font-size: 15px;
+      line-height: 1.2;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .input--soft {
+      background: var(--surface-soft);
+    }
+
+    .chip-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 6px;
+    }
+
+    .chip {
+      min-height: 34px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 0 10px;
+      color: var(--muted);
+      background: var(--surface);
+      font-size: 12px;
+    }
+
+    .chip.is-on {
+      color: var(--blue);
+      background: var(--blue-soft);
+      border-color: #b8cdfb;
+      font-weight: 700;
+    }
+
+    .check {
+      width: 14px;
+      height: 14px;
+      border: 1px solid #c7ced9;
+      border-radius: 4px;
+      display: inline-grid;
+      place-items: center;
+      color: #fff;
+      font-size: 10px;
+      line-height: 1;
+    }
+
+    .is-on .check {
+      background: var(--blue);
+      border-color: var(--blue);
+    }
+
+    .inline-action {
+      min-height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--muted);
+      padding: 0 10px;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .address-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 54px;
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    .schedule-toggle {
+      min-height: 40px;
+      display: grid;
+      grid-template-columns: 24px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 6px;
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface-soft);
+      padding: 0 10px;
+      text-align: left;
+    }
+
+    .day-strip {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 5px;
+      margin-top: 6px;
+    }
+
+    .day {
+      min-height: 38px;
+      border: 1px solid var(--line-soft);
+      border-radius: 8px;
+      background: var(--surface);
+      padding: 4px 5px;
+      font-size: 10px;
+      color: var(--muted);
+      display: grid;
+      align-content: center;
+      gap: 2px;
+    }
+
+    .day strong {
+      color: var(--text);
+      font-size: 11px;
+    }
+
+    .badge {
+      justify-self: end;
+      min-width: 18px;
+      height: 16px;
+      display: inline-grid;
+      place-items: center;
+      border-radius: 999px;
+      background: var(--blue);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 800;
+    }
+
+    .schedule-panel[hidden] {
+      display: none;
+    }
+
+    .product-card {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--surface);
+      padding: 9px;
+    }
+
+    .product-head {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 8px;
+      min-height: 34px;
+      margin-bottom: 6px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 26px;
+      padding: 0 8px;
+      border-radius: 999px;
+      background: var(--blue-soft);
+      color: var(--blue);
+      font-weight: 800;
+      font-size: 12px;
+    }
+
+    .delete {
+      width: 34px;
+      height: 34px;
+      border: 1px solid var(--line-soft);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--red);
+      font-size: 16px;
+    }
+
+    .spec-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    .mini-actions {
+      display: flex;
+      justify-content: space-between;
+      gap: 6px;
+      margin-top: 7px;
+    }
+
+    .mini-link {
+      min-height: 34px;
+      border: 0;
+      background: transparent;
+      color: var(--blue);
+      font-weight: 700;
+      font-size: 12px;
+      padding: 0;
+    }
+
+    .amount-bar {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .amount {
+      min-height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface-soft);
+      padding: 5px 8px;
+      display: grid;
+      gap: 2px;
+    }
+
+    .amount span {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .amount strong {
+      font-size: 14px;
+      text-align: right;
+    }
+
+    .hidden-section {
+      display: none;
+    }
+
+    .bottom {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 58px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      padding: 7px 10px;
+      background: rgba(255, 255, 255, .96);
+      border-top: 1px solid var(--line-soft);
+      backdrop-filter: blur(10px);
+    }
+
+    .bottom button {
+      min-height: 44px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      font-size: 15px;
+      font-weight: 800;
+    }
+
+    .primary {
+      background: var(--blue);
+      color: #fff;
+      border-color: var(--blue) !important;
+    }
+
+    @media (max-width: 374px) {
+      .content { padding-inline: 8px; }
+      .input, .select { padding-inline: 8px; font-size: 14px; }
+      .grid-2 { gap: 5px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="phone" aria-label="모바일 ERP 주문 편집 컴팩트 목업">
+    <header class="topbar">
+      <button class="icon-btn" aria-label="메뉴">☰</button>
+      <div>주문 수정</div>
+      <button class="icon-btn" aria-label="검색">⌕</button>
+      <button class="icon-btn" aria-label="알림">●</button>
+    </header>
+
+    <div class="content">
+      <nav class="main-tabs" aria-label="ERP 입력 탭">
+        <div class="tab is-active">✎ 구조화 입력</div>
+        <div class="tab">▣ 계약서</div>
+      </nav>
+
+      <section class="compact-section" aria-label="기본 정보">
+        <div class="section-head">
+          <h2 class="section-title">기본</h2>
+          <div class="section-summary">접수/고객/연락처 핵심 4칸</div>
+        </div>
+        <div class="grid-2">
+          <div class="field">
+            <span class="label">접수일</span>
+            <div class="input">2026-03-19</div>
+          </div>
+          <div class="field">
+            <span class="label">접수시간</span>
+            <div class="input">오전 08:13</div>
+          </div>
+          <div class="field">
+            <span class="label">고객명</span>
+            <div class="input">박태준</div>
+          </div>
+          <div class="field">
+            <span class="label">연락처</span>
+            <div class="input">010-9409-8108</div>
+          </div>
+        </div>
+        <div class="chip-row">
+          <span class="chip is-on"><span class="check">✓</span>긴급</span>
+          <span class="chip"><span class="check"></span>자가실측</span>
+          <span class="chip"><span class="check"></span>수동입력</span>
+          <button class="inline-action">연락처 특이사항</button>
+        </div>
+        <div class="address-row">
+          <div class="field">
+            <span class="label">주소</span>
+            <div class="input">서울시 강남구 1</div>
+          </div>
+          <button class="inline-action" style="min-height:44px">찾기</button>
+        </div>
+      </section>
+
+      <section class="compact-section" aria-label="발주 정보">
+        <div class="section-head">
+          <h2 class="section-title">발주</h2>
+          <button class="inline-action">직접입력</button>
+        </div>
+        <div class="grid-2">
+          <div class="field">
+            <span class="label">발주사</span>
+            <div class="select">하우드</div>
+          </div>
+          <div class="field">
+            <span class="label">담당자</span>
+            <div class="input">한용희</div>
+          </div>
+          <div class="field">
+            <span class="label">시공 담당</span>
+            <div class="input">시공자1, 시공자2</div>
+          </div>
+          <div class="field">
+            <span class="label">단계</span>
+            <div class="select">C. 실측</div>
+          </div>
+        </div>
+        <div class="field" style="margin-top:6px">
+          <span class="label">비고</span>
+          <div class="input input--soft">주문 비고</div>
+        </div>
+      </section>
+
+      <section class="compact-section" aria-label="일정 정보">
+        <div class="section-head">
+          <h2 class="section-title">일정</h2>
+          <div class="section-summary">실측 현황은 기본 접힘</div>
+        </div>
+        <button class="schedule-toggle" aria-expanded="false">
+          <span>▸</span>
+          <strong>실측 일정 현황</strong>
+          <span class="section-summary">14일 · 총 0건</span>
+        </button>
+        <div class="schedule-panel" hidden>
+          <div class="day-strip" aria-hidden="true">
+            <div class="day"><strong>06-08</strong><span>월</span><span class="badge">0</span></div>
+            <div class="day"><strong>06-09</strong><span>화</span><span class="badge">0</span></div>
+            <div class="day"><strong>06-10</strong><span>수</span><span class="badge">0</span></div>
+            <div class="day"><strong>06-11</strong><span>목</span><span class="badge">0</span></div>
+            <div class="day"><strong>06-12</strong><span>금</span><span class="badge">0</span></div>
+          </div>
+          <div class="grid-2" style="margin-top:8px">
+            <div class="field">
+              <span class="label">실측일</span>
+              <div class="input">2026-06-08</div>
+            </div>
+            <div class="field">
+              <span class="label">시공일</span>
+              <div class="input">2026-06-15</div>
+            </div>
+            <div class="field">
+              <span class="label">실측시간</span>
+              <div class="select">오전</div>
+            </div>
+            <div class="field">
+              <span class="label">시공시간</span>
+              <div class="select">직접 입력</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="compact-section" aria-label="제품 항목">
+        <div class="section-head">
+          <h2 class="section-title">제품 항목</h2>
+          <button class="inline-action">+ 항목 추가</button>
+        </div>
+        <article class="product-card">
+          <div class="product-head">
+            <span class="pill">항목 1</span>
+            <strong>냉장고장</strong>
+            <button class="delete" aria-label="항목 삭제">×</button>
+          </div>
+          <div class="field">
+            <span class="label">제품명</span>
+            <div class="input">냉장고장</div>
+          </div>
+          <div class="field" style="margin-top:6px">
+            <span class="label">규격 W/D/H</span>
+            <div class="spec-row">
+              <div class="input">2000이하</div>
+              <div class="input">깊이</div>
+              <div class="input">높이</div>
+            </div>
+          </div>
+          <div class="mini-actions">
+            <button class="mini-link">+ 규격 1행 추가</button>
+            <button class="mini-link">실측 이미지</button>
+          </div>
+          <div class="grid-2">
+            <div class="field">
+              <span class="label">내부</span>
+              <div class="input">상담</div>
+            </div>
+            <div class="field">
+              <span class="label">색상</span>
+              <div class="input">(SK)</div>
+            </div>
+            <div class="field">
+              <span class="label">옵션</span>
+              <div class="input">상담</div>
+            </div>
+            <div class="field">
+              <span class="label">손잡이</span>
+              <div class="input">상담</div>
+            </div>
+            <div class="field">
+              <span class="label">기타/설치</span>
+              <div class="input">상담</div>
+            </div>
+            <div class="field">
+              <span class="label">금액</span>
+              <div class="input">655,000</div>
+            </div>
+          </div>
+          <div class="amount-bar">
+            <div class="amount"><span>출고가</span><strong>655,000원</strong></div>
+            <div class="amount"><span>예약금</span><strong>100,000원</strong></div>
+          </div>
+        </article>
+      </section>
+
+      <section class="compact-section hidden-section" aria-label="계약 텍스트">
+        계약 텍스트는 모바일/태블릿에서 렌더하지 않음
+      </section>
+    </div>
+
+    <footer class="bottom">
+      <button>불러오기</button>
+      <button class="primary">저장</button>
+    </footer>
+  </main>
+</body>
+</html>

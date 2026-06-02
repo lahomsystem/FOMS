@@ -85,6 +85,19 @@ CRITICAL_ERP_IDS = {
     "erp-collapse-measure-note",
 }
 
+MOBILE_OMITTED_ERP_IDS = {
+    "erp-channeltalk-push-btn",
+    "erp-gen-text-btn",
+    "erp-conversion-text",
+    "erp-copy-text-btn",
+}
+
+MOBILE_ONLY_ERP_IDS = {
+    "erp-received-time-select",
+    "erp-order-measurement-panel-toggle",
+    "erp-order-measurement-panel-collapse",
+}
+
 PARENT_ERP_IDS = {"erp-order-config", "erp-order-bootstrap", "erp-order-tab"}
 
 
@@ -139,7 +152,12 @@ def test_mobile_template_preserves_critical_erp_ids() -> None:
 
     assert PARENT_ERP_IDS <= parent_ids
     assert CRITICAL_ERP_IDS - PARENT_ERP_IDS <= legacy_ids
-    assert sorted((CRITICAL_ERP_IDS - PARENT_ERP_IDS) - mobile_ids) == []
+    assert sorted(
+        ((CRITICAL_ERP_IDS - PARENT_ERP_IDS) - MOBILE_OMITTED_ERP_IDS) - mobile_ids
+    ) == []
+    assert MOBILE_OMITTED_ERP_IDS <= legacy_ids
+    assert sorted(MOBILE_OMITTED_ERP_IDS & mobile_ids) == []
+    assert MOBILE_ONLY_ERP_IDS <= mobile_ids
 
 
 def test_mobile_surfaces_import_form_field_css() -> None:
@@ -167,6 +185,9 @@ def test_edit_erp_order_uses_mobile_form_for_cohort(
     assert "foms-input" in erp_form
     assert "field__label" in erp_form
     assert "form-control form-control-sm" not in erp_form
+    assert "erp-received-time-select" in erp_form
+    assert "erp-order-measurement-panel-collapse" in erp_form
+    assert "계약 텍스트" not in erp_form
 
 
 def test_edit_erp_order_keeps_legacy_form_when_cohort_off(

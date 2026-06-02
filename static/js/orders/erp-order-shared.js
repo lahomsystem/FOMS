@@ -855,6 +855,86 @@ function _erpConsumeBootstrap() {
     }
 }
 
+const ERP_RECEIVED_TIME_DIRECT_VALUE = '__direct__';
+
+function erpFormatHalfHourTime(date) {
+    const d = date instanceof Date ? new Date(date.getTime()) : new Date();
+    let hours = d.getHours();
+    const minutes = d.getMinutes();
+    let roundedMinutes = 0;
+    if (minutes >= 15 && minutes < 45) {
+        roundedMinutes = 30;
+    } else if (minutes >= 45) {
+        hours = (hours + 1) % 24;
+    }
+    return String(hours).padStart(2, '0') + ':' + String(roundedMinutes).padStart(2, '0');
+}
+
+function erpEnsureReceivedTimeOptions() {
+    const select = document.getElementById('erp-received-time-select');
+    if (!select || select.dataset.erpTimeOptionsBuilt === '1') return select;
+    const directOption = select.querySelector(`option[value="${ERP_RECEIVED_TIME_DIRECT_VALUE}"]`);
+    if (!select.querySelector('option[value="00:00"]')) {
+        for (let hour = 0; hour < 24; hour += 1) {
+            for (let minute = 0; minute < 60; minute += 30) {
+                const value = String(hour).padStart(2, '0') + ':' + String(minute).padStart(2, '0');
+                const option = document.createElement('option');
+                option.value = value;
+                option.textContent = value;
+                select.insertBefore(option, directOption || null);
+            }
+        }
+    }
+    select.dataset.erpTimeOptionsBuilt = '1';
+    return select;
+}
+
+function erpSetReceivedTimeControlValue(value) {
+    const select = erpEnsureReceivedTimeOptions();
+    const input = document.getElementById('erp-received-time');
+    const normalized = String(value || '').trim();
+    if (input) input.value = normalized;
+    if (!select) return;
+
+    const hasPreset = normalized
+        ? Array.from(select.options || []).some(function (opt) { return opt.value === normalized; })
+        : false;
+    if (!normalized) {
+        select.value = '';
+        input?.classList.add('d-none');
+        return;
+    }
+    if (hasPreset) {
+        select.value = normalized;
+        input?.classList.add('d-none');
+        return;
+    }
+    select.value = ERP_RECEIVED_TIME_DIRECT_VALUE;
+    input?.classList.remove('d-none');
+}
+
+function erpBindReceivedTimeControl() {
+    const select = erpEnsureReceivedTimeOptions();
+    const input = document.getElementById('erp-received-time');
+    if (!select || !input || select.dataset.erpBound === '1') return;
+    select.dataset.erpBound = '1';
+    select.addEventListener('change', function () {
+        if (this.value === ERP_RECEIVED_TIME_DIRECT_VALUE) {
+            input.classList.remove('d-none');
+            erpFocusWithoutScroll(input);
+            return;
+        }
+        input.value = this.value || '';
+        input.classList.add('d-none');
+    });
+    input.addEventListener('input', function () {
+        if (!input.classList.contains('d-none')) {
+            select.value = ERP_RECEIVED_TIME_DIRECT_VALUE;
+        }
+    });
+    erpSetReceivedTimeControlValue(input.value || '');
+}
+
 async function erpLoadStructured(bootstrapData, options) {
     if (!ERP_ORDER_ENABLED) return;
     if (!ORDER_ID) return;
@@ -884,6 +964,7 @@ async function erpLoadStructured(bootstrapData, options) {
     const receivedTimeEl = document.getElementById('erp-received-time');
     if (receivedDateEl) receivedDateEl.value = data.received_date || '';
     if (receivedTimeEl) receivedTimeEl.value = data.received_time || '';
+    erpSetReceivedTimeControlValue(data.received_time || '');
     document.getElementById('erp-customer-name').value = sd?.parties?.customer?.name || '';
     document.getElementById('erp-customer-phone').value = sd?.parties?.customer?.phone || '';
     try {
@@ -1448,6 +1529,7 @@ document.addEventListener('DOMContentLoaded', function () {
         syncErpOrderGlobalsFromDom();
     }
     if (!ERP_ORDER_ENABLED) return;
+    erpBindReceivedTimeControl();
 
 window.erpTogglePayment = async function(btn, pType) {
     if (_paymentTogglePending) return;
@@ -1821,9 +1903,9 @@ ${escapeHtml(sub)}</div>` : ''}`;
             }
             if (rTime && !rTime.value) {
                 const now = new Date();
-                const hh = String(now.getHours()).padStart(2, '0');
-                const mi = String(now.getMinutes()).padStart(2, '0');
-                rTime.value = `${hh}:${mi}`;
+                const timeValue = erpFormatHalfHourTime(now);
+                rTime.value = timeValue;
+                erpSetReceivedTimeControlValue(timeValue);
             }
         }
 
@@ -3163,6 +3245,7 @@ function fomsMountErpOrderSurface() {
         return;
     }
     mountRoot.dataset.erpOrderMounted = "1";
+    erpBindReceivedTimeControl();
 
     // 실패/예외 경로에서도 surface가 영구 hidden으로 남지 않도록 최후 failsafe.
     var _erpReadyFailsafeId = window.setTimeout(_erpMarkSurfaceReady, 3000);
@@ -3323,12 +3406,15 @@ function fomsMountErpOrderSurface() {
                 String(now.getMonth() + 1).padStart(2, '0'),
                 String(now.getDate()).padStart(2, '0')
             ].join('-');
-            const localTimeStr = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+            const localTimeStr = erpFormatHalfHourTime(now);
 
             const rd = document.getElementById('erp-received-date');
             const rt = document.getElementById('erp-received-time');
             if (rd) rd.value = localDateStr;
-            if (rt) rt.value = localTimeStr;
+            if (rt) {
+                rt.value = localTimeStr;
+                erpSetReceivedTimeControlValue(localTimeStr);
+            }
             const stageEl = document.getElementById('erp-workflow-stage');
             if (stageEl && !stageEl.value) stageEl.value = 'RECEIVED';
             syncWorkflowStageByOrderer();
