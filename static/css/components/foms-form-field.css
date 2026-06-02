@@ -219,6 +219,15 @@
   transform: rotate(90deg);
 }
 
+.erp-form-section > .erp-mobile-collapse-toggle {
+  margin-bottom: 0;
+}
+
+.erp-form-section > .collapse.show,
+.erp-form-section > .collapse.collapsing {
+  margin-top: var(--foms-space-3);
+}
+
 .erp-mobile-measurement-panel {
   margin-top: var(--foms-space-2);
   max-height: 360px;

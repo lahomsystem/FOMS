@@ -231,6 +231,8 @@ def test_shared_erp_order_supports_scoped_clipboard_image_upload() -> None:
     assert 'data-erp-attachment-paste-zone="item"' in js_text
     assert "이 항목에 바로 업로드됩니다." in js_text
     assert "캡처 이미지를 항목에 바로 업로드" in js_text
+    assert "const itemAttachmentPasteHint = isMobileForm" in js_text
+    assert "itemAttachmentPasteHint" in js_text
     assert "function erpAppendAsReceiveFiles(files)" in js_text
     assert "function erpSetFileInputFiles(input, files)" in js_text
     assert "function erpRenderAsReceiveFilePreview(files)" in js_text

@@ -100,6 +100,12 @@ MOBILE_ONLY_ERP_IDS = {
     "erp-construction-time-control",
     "erp-order-measurement-panel-toggle",
     "erp-order-measurement-panel-collapse",
+    "erp-mobile-collapse-received-toggle",
+    "erp-mobile-collapse-received-body",
+    "erp-mobile-collapse-order-toggle",
+    "erp-mobile-collapse-order-body",
+    "erp-mobile-collapse-attachments-toggle",
+    "erp-mobile-collapse-attachments-body",
     "erp-attachment-preview-item-select",
     "erp-attachment-preview-unlink",
     "erp-attachment-preview-delete",
@@ -211,6 +217,35 @@ def test_edit_erp_order_ships_responsive_form_mounts_for_cohort(
     assert "erp-received-time-select" in mobile_form
     assert "erp-order-measurement-panel-collapse" in mobile_form
     assert "계약 텍스트" not in mobile_form
+    assert 'id="erp-mobile-collapse-received-toggle"' in mobile_form
+    assert 'aria-expanded="false"' in mobile_form
+    assert 'id="erp-mobile-collapse-received-body"' in mobile_form
+    assert 'class="collapse"' in mobile_form
+    assert 'id="erp-mobile-collapse-order-toggle"' in mobile_form
+    assert 'id="erp-mobile-collapse-attachments-toggle"' in mobile_form
+
+
+def test_mobile_erp_form_sections_collapsed_by_default() -> None:
+    """접수·발주·공통 첨부는 모바일 partial에서 Bootstrap collapse로 기본 접힘."""
+    mobile = (
+        ROOT / "templates" / "orders" / "partials" / "erp_order_tab_mobile.html"
+    ).read_text(encoding="utf-8")
+
+    for toggle_id, body_id in (
+        ("erp-mobile-collapse-received-toggle", "erp-mobile-collapse-received-body"),
+        ("erp-mobile-collapse-order-toggle", "erp-mobile-collapse-order-body"),
+        ("erp-mobile-collapse-attachments-toggle", "erp-mobile-collapse-attachments-body"),
+    ):
+        toggle_idx = mobile.index(f'id="{toggle_id}"')
+        body_marker = f'id="{body_id}"'
+        body_idx = mobile.index(body_marker)
+        toggle_chunk = mobile[toggle_idx:body_idx]
+        assert 'aria-expanded="false"' in toggle_chunk
+        assert 'data-bs-toggle="collapse"' in toggle_chunk
+        assert f'data-bs-target="#{body_id}"' in toggle_chunk
+        body_open = mobile[body_idx - 40:body_idx + len(body_marker) + 20]
+        assert 'class="collapse"' in body_open
+        assert " show" not in body_open.split(">", 1)[0]
 
 
 def test_edit_erp_order_keeps_legacy_form_when_cohort_off(

@@ -44,7 +44,14 @@ ERP Order mobile-v2 tab pane.
             <div class="tab-content">
                 <div class="tab-pane fade show active" id="erp-form" role="tabpanel">
                     <section class="erp-form-section" aria-label="접수 정보">
-                        <h3 class="erp-form-section__title">접수</h3>
+                        <button class="erp-mobile-collapse-toggle" type="button" id="erp-mobile-collapse-received-toggle"
+                            data-bs-toggle="collapse" data-bs-target="#erp-mobile-collapse-received-body"
+                            aria-expanded="false" aria-controls="erp-mobile-collapse-received-body">
+                            <span aria-hidden="true"><i class="fas fa-chevron-right"></i></span>
+                            <strong>접수</strong>
+                            <span>기본 접힘</span>
+                        </button>
+                        <div class="collapse" id="erp-mobile-collapse-received-body">
                         <div class="field-grid-2">
                             <div class="field">
                                 <label class="field__label" for="erp-received-date">접수일</label>
@@ -78,6 +85,7 @@ ERP Order mobile-v2 tab pane.
                             <label class="field__label" for="erp-urgent-reason">긴급 사유</label>
                             <input type="text" class="foms-input" id="erp-urgent-reason"
                                 placeholder="시공일 임박/현장 변경/자재 이슈" autocomplete="off" lang="ko">
+                        </div>
                         </div>
                     </section>
 
@@ -132,7 +140,14 @@ ERP Order mobile-v2 tab pane.
                     </section>
 
                     <section class="erp-form-section" aria-label="발주와 담당">
-                        <h3 class="erp-form-section__title">발주</h3>
+                        <button class="erp-mobile-collapse-toggle" type="button" id="erp-mobile-collapse-order-toggle"
+                            data-bs-toggle="collapse" data-bs-target="#erp-mobile-collapse-order-body"
+                            aria-expanded="false" aria-controls="erp-mobile-collapse-order-body">
+                            <span aria-hidden="true"><i class="fas fa-chevron-right"></i></span>
+                            <strong>발주</strong>
+                            <span>기본 접힘</span>
+                        </button>
+                        <div class="collapse" id="erp-mobile-collapse-order-body">
                         <div class="field">
                             <div class="erp-mobile-section-head">
                                 <label class="field__label" for="erp-orderer-select">발주사</label>
@@ -179,6 +194,7 @@ ERP Order mobile-v2 tab pane.
                                 <label class="field__label" for="erp-notes">비고</label>
                                 <input type="text" class="foms-input" id="erp-notes" placeholder="주문 비고" autocomplete="off" lang="ko">
                             </div>
+                        </div>
                         </div>
                     </section>
 
@@ -308,7 +324,14 @@ ERP Order mobile-v2 tab pane.
                     </section>
 
                     <section class="erp-form-section" aria-label="공통 첨부">
-                        <h3 class="erp-form-section__title">공통 첨부</h3>
+                        <button class="erp-mobile-collapse-toggle" type="button" id="erp-mobile-collapse-attachments-toggle"
+                            data-bs-toggle="collapse" data-bs-target="#erp-mobile-collapse-attachments-body"
+                            aria-expanded="false" aria-controls="erp-mobile-collapse-attachments-body">
+                            <span aria-hidden="true"><i class="fas fa-chevron-right"></i></span>
+                            <strong>공통 첨부</strong>
+                            <span>기본 접힘</span>
+                        </button>
+                        <div class="collapse" id="erp-mobile-collapse-attachments-body">
                         <div class="erp-mobile-dropzone" data-erp-attachment-paste-zone="common" tabindex="0"
                             aria-label="공통 첨부 파일 업로드 영역. 이미지를 붙여넣으면 바로 업로드됩니다.">
                             <div class="erp-mobile-attachment-controls">
@@ -331,6 +354,7 @@ ERP Order mobile-v2 tab pane.
                             </div>
                         </div>
                         <div class="row g-2 mt-2" id="erp-attachments-gallery"></div>
+                        </div>
                     </section>
                 </div>
 

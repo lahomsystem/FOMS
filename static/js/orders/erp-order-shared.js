@@ -675,6 +675,9 @@ function erpNewItemRow(item = {}) {
         : '제품 항목 실측 이미지 업로드 영역. 이미지를 붙여넣으면 이 항목에 바로 업로드됩니다.';
     const itemAttachmentHint = erpItemAttachmentHintText(productName, 0).replace('항목 1', '항목');
     const itemAttachmentEmpty = erpItemAttachmentEmptyText();
+    const itemAttachmentPasteHint = isMobileForm
+        ? ''
+        : '<div class="small text-muted mt-1">이 박스를 클릭 후 Ctrl+V로 캡처 이미지를 항목에 바로 업로드할 수 있습니다.</div>';
     // 규격 행 목록: spec_rows 우선, 없으면 단일 spec_width/spec_depth/spec_height 또는 spec 파싱
     let specRows = Array.isArray(item.spec_rows) ? item.spec_rows : [];
     if (specRows.length === 0) {
@@ -794,7 +797,7 @@ ${attributeFieldsHtml}
                 </button>
             </div>
         </div>
-        <div class="small text-muted mt-1">이 박스를 클릭 후 Ctrl+V로 캡처 이미지를 항목에 바로 업로드할 수 있습니다.</div>
+        ${itemAttachmentPasteHint}
         <div class="d-flex flex-wrap gap-1 mt-2 erp-item-attachments-gallery">
             <div class="small text-muted">${itemAttachmentEmpty}</div>
         </div>
