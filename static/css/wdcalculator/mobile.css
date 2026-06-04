@@ -1,0 +1,129 @@
+/**
+ * WDCalculator 모바일 레이아웃 (<=991.98px). docs/design/mockups/mobile-wdcalculator.html 구현.
+ * 모든 규칙은 body.wd-calc-mobile(모바일 전용 JS가 부여) + 모바일 미디어쿼리로 게이트 →
+ * 데스크톱(>=992px) 및 비계산기 페이지 무영향. 기존 마크업/ID 보존, 스타일만 재정의.
+ */
+@media (max-width: 991.98px) {
+  /* 레거시 데스크톱 chrome 숨김 → 계산기 전용 모바일 헤더로 대체 */
+  body.wd-calc-mobile .layout-header,
+  body.wd-calc-mobile .layout-global-nav {
+    display: none !important;
+  }
+  body.wd-calc-mobile {
+    background: var(--foms-surface-overlay, #f5f6f7);
+    padding-top: 56px;   /* 고정 헤더 */
+    padding-bottom: 84px; /* 고정 총액바 */
+  }
+
+  /* ---- 모바일 툴 헤더 ---- */
+  .wd-mhead {
+    position: fixed; top: 0; left: 0; right: 0; height: 56px; z-index: 1040;
+    display: grid; grid-template-columns: 44px 1fr auto; align-items: center;
+    padding: 0 var(--foms-space-2); background: var(--foms-surface-base);
+    border-bottom: 1px solid var(--foms-border-subtle);
+  }
+  .wd-mhead__title { text-align: center; font-size: var(--foms-font-size-lg); font-weight: var(--foms-font-weight-semibold); }
+  .wd-mhead__actions { display: flex; }
+  .wd-mhead__btn { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center;
+    background: transparent; border: none; cursor: pointer; border-radius: var(--foms-radius-md);
+    color: var(--foms-text-primary); font-size: 18px; text-decoration: none; position: relative; }
+  .wd-mhead__btn:active { background: var(--foms-interactive-secondary); }
+  .wd-mhead__dot:empty { display: none; }
+
+  /* ---- 본문 reflow: 단일 컬럼, 데스크톱 높이/스크롤 제약 해제 ---- */
+  body.wd-calc-mobile .wdcalculator-container { padding: var(--foms-space-3) !important; }
+  body.wd-calc-mobile .wdcalculator-shell { display: block !important; margin: 0 !important; }
+  body.wd-calc-mobile .wdcalculator-main-column { width: 100% !important; max-width: 100% !important; flex: 0 0 100% !important; padding: 0 !important; }
+  body.wd-calc-mobile .wdcalculator-main-scroll { height: auto !important; min-height: 0 !important; max-height: none !important; overflow: visible !important; }
+  body.wd-calc-mobile .wdcalculator-main-column .row { margin: 0 !important; }
+  body.wd-calc-mobile .wdcalculator-main-column .row > [class*="col-"] { width: 100% !important; max-width: 100% !important; flex: 0 0 100% !important; padding: 0 !important; margin-bottom: var(--foms-space-3) !important; }
+  /* 페이지 제목줄(가구 견적 계산기 + 제품설정) → 헤더로 대체되므로 숨김 */
+  body.wd-calc-mobile .wdcalculator-main-scroll > .d-flex.justify-content-between.align-items-center { display: none !important; }
+
+  /* ---- 카드/섹션 ---- */
+  body.wd-calc-mobile .card {
+    border: 1px solid var(--foms-border-subtle) !important; border-radius: var(--foms-radius-lg) !important;
+    box-shadow: none !important; border-left-width: 1px !important; margin-bottom: var(--foms-space-3);
+  }
+  body.wd-calc-mobile .card-header {
+    background: var(--foms-surface-base) !important; color: var(--foms-text-primary) !important;
+    border-bottom: 1px solid var(--foms-border-subtle) !important; padding: var(--foms-space-3) !important;
+  }
+  body.wd-calc-mobile .card-header h5,
+  body.wd-calc-mobile .card-header h6 { font-size: var(--foms-font-size-base) !important; font-weight: var(--foms-font-weight-semibold) !important; }
+  body.wd-calc-mobile .card-body { padding: var(--foms-space-3) !important; }
+
+  /* ---- 입력/버튼: foms 스타일 (터치 44px, 16px 줌방지) ---- */
+  body.wd-calc-mobile .form-control,
+  body.wd-calc-mobile .form-select {
+    min-height: 44px; font-size: max(16px, var(--foms-font-size-base)) !important;
+    border-radius: var(--foms-radius-md) !important; border-color: var(--foms-border-default) !important;
+  }
+  body.wd-calc-mobile .form-control-sm,
+  body.wd-calc-mobile .form-select-sm { min-height: 40px; }
+  body.wd-calc-mobile .form-label { font-size: var(--foms-font-size-sm); font-weight: var(--foms-font-weight-medium); color: var(--foms-text-secondary); margin-bottom: 4px; }
+  body.wd-calc-mobile .btn { min-height: 40px; border-radius: var(--foms-radius-md); font-weight: var(--foms-font-weight-semibold); }
+  body.wd-calc-mobile .btn-success.w-100,
+  body.wd-calc-mobile .btn-primary.w-100,
+  body.wd-calc-mobile .btn-info.w-100 { min-height: 46px; }
+
+  /* ---- 기본 구성 행 → 카드 ---- */
+  body.wd-calc-mobile .base-component-row {
+    border: 1px solid var(--foms-border-default) !important; border-radius: var(--foms-radius-md) !important;
+    background: var(--foms-surface-base) !important; margin-bottom: var(--foms-space-2) !important;
+  }
+  body.wd-calc-mobile .base-component-row[data-mode="manual"] { border-color: var(--foms-color-warning-500) !important; }
+  /* 방식 토글(선택/직접) 풀폭 세그먼트 느낌 */
+  body.wd-calc-mobile .base-component-row .btn-group { width: 100%; }
+  body.wd-calc-mobile .base-component-row .btn-group .btn { flex: 1; min-height: 40px; }
+  /* 행 내부 col-* 들 모바일에서 세로 적층 + 충분한 간격 */
+  body.wd-calc-mobile .base-component-row .row > [class*="col-"] { margin-bottom: 8px; }
+
+  /* ---- 추가 옵션 / 비고 행 ---- */
+  body.wd-calc-mobile .additional-option-item,
+  body.wd-calc-mobile .note-item {
+    border: 1px solid var(--foms-border-subtle); border-radius: var(--foms-radius-md);
+    padding: var(--foms-space-2) var(--foms-space-3); margin-bottom: 8px;
+  }
+
+  /* ---- 저장된 견적: 인라인 사이드바 자리 숨김(노드는 JS가 sheet로 이동) ---- */
+  /* (이동 후 원래 컬럼이 비므로 잔여 마진 제거) */
+  body.wd-calc-mobile .saved-estimates-sidebar { margin: 0 !important; }
+
+  /* ---- 하단 sticky 총액바 ---- */
+  .wd-mtotal {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 1040;
+    display: flex; align-items: center; gap: var(--foms-space-3);
+    padding: 10px var(--foms-space-3); padding-bottom: calc(10px + env(safe-area-inset-bottom, 0));
+    background: var(--foms-surface-base); border-top: 1px solid var(--foms-border-subtle);
+    box-shadow: 0 -4px 16px rgba(15, 17, 21, 0.08);
+  }
+  .wd-mtotal__sum { display: grid; gap: 1px; flex: 1; min-width: 0; }
+  .wd-mtotal__label { font-size: var(--foms-font-size-xs); color: var(--foms-text-tertiary); }
+  .wd-mtotal__val { font-size: var(--foms-font-size-xl); font-weight: var(--foms-font-weight-bold);
+    color: var(--foms-color-brand-700); font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .wd-mtotal__acts { display: flex; gap: 6px; flex-shrink: 0; }
+  .wd-mtotal__save { min-height: 44px; min-width: 48px; border: 1px solid var(--foms-border-default);
+    background: var(--foms-surface-base); border-radius: var(--foms-radius-md); cursor: pointer; font-size: 18px; }
+  .wd-mtotal__add { min-height: 44px; padding: 0 18px; border: none; background: var(--foms-interactive-primary);
+    color: #fff; border-radius: var(--foms-radius-md); font-weight: var(--foms-font-weight-semibold); font-size: var(--foms-font-size-base); cursor: pointer; }
+
+  /* ---- 저장된 견적 bottom sheet ---- */
+  .wd-msheet-backdrop { position: fixed; inset: 0; background: rgba(15, 17, 21, 0.45); z-index: 1050; }
+  .wd-msheet { position: fixed; left: 0; right: 0; bottom: 0; max-height: 82%; z-index: 1051;
+    background: var(--foms-surface-base); border-radius: 20px 20px 0 0; display: flex; flex-direction: column;
+    box-shadow: var(--foms-shadow-xl); }
+  .wd-msheet[hidden], .wd-msheet-backdrop[hidden] { display: none; }
+  .wd-msheet__grip { width: 40px; height: 4px; background: var(--foms-border-default); border-radius: var(--foms-radius-full); margin: 10px auto 6px; }
+  .wd-msheet__head { display: flex; align-items: center; justify-content: space-between; padding: 0 var(--foms-space-4) var(--foms-space-2); }
+  .wd-msheet__title { font-size: var(--foms-font-size-lg); font-weight: var(--foms-font-weight-bold); }
+  .wd-msheet__body { flex: 1; overflow-y: auto; padding: 0 var(--foms-space-3) var(--foms-space-4); }
+  /* sheet 안으로 옮긴 사이드바 카드의 데스크톱 제약 해제 */
+  .wd-msheet__body .saved-estimates-card { max-height: none !important; height: auto !important; box-shadow: none !important; border: none !important; }
+  .wd-msheet__body .saved-estimates-card .card-header { display: none !important; } /* sheet 헤더로 대체 */
+}
+
+/* 데스크톱: JS가 만든 모바일 chrome 잔존 시에도 노출 안 되게 */
+@media (min-width: 992px) {
+  .wd-mhead, .wd-mtotal, .wd-msheet, .wd-msheet-backdrop { display: none !important; }
+}
