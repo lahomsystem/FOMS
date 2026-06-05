@@ -68,6 +68,9 @@ static/uploads/*
 .DS_Store
 Thumbs.db
 
+# 로컬 DB/코드 백업 (repo 미추적; admin backup_service 출력도 동일)
+backups/
+
 # 임시·백업 파일 (파일 정리 Phase 1)
 *.tmp
 *.bak
