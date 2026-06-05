@@ -80,7 +80,6 @@ FOMS 저장소 전체를 앞으로 어떤 기준으로 정리할지에 대한 **
 | `static/css/` | root 유지, 내부는 foundation/layout/component/context 기준으로 정리 |
 | `tests/` | chunk-level contract와 domain regression 중심으로 정리 |
 | `docs/` | spec/plan/evolution/harness taxonomy 유지 |
-| `backups/` | quarantine zone으로 유지. product source of truth 금지 |
 | `Add In Program/`, `SCheduler/` | non-product / side-project / legacy-lab zone으로 취급. 신규 product source 금지 |
 
 ### 2.2 목표 디렉터리 구조
@@ -239,7 +238,6 @@ repo root
   .github/
   .vscode/
 
-  backups/
   Add In Program/
   SCheduler/
 ```
@@ -266,9 +264,9 @@ transition overlay
 - `foms/services/notifications/` 안의 leaf 이름으로 `realtime_notifications.py` 같은 모듈을 둘 수는 있지만, 최종 context package 이름은 `notifications`로 고정한다.
 - Alembic revision의 source of truth는 `migrations/`뿐이다. `scripts/migrations/`는 one-off operational helper나 data/backfill script만 허용한다.
 - `src/`는 final canonical tree의 일부가 아니다. Wave 1에서 tooling, 별도 non-product track, 또는 quarantine 중 하나로 분류되지 않으면 더 이상 성장시킬 수 없다.
-- `data/`는 versioned non-secret config/seed/reference만 허용한다. dump, SQLite, migration scratch DB, browser QA DB 등 **런타임 산출물은 repo `data/` 안에 두지 않는다.** 로컬 운영자 산출물의 정본 루트는 **`FOMS_RUNTIME_OUTPUT_ROOT`** 이며, 미설정 시 기본값은 **`%USERPROFILE%\FOMS-runtime`** (Windows). 하위 경로 계약은 `docs/plans/2026-04-16-strict-final-canonical-tree-physical-tree-code-convergence-plan.md` §3.4와 동일하다. `backups/`는 quarantine·보관 구역으로 유지하되, **런타임 출력의 정본 위치를 `data/`로만 옮겨 해결한 것으로 주장하는 것은 금지**다.
+- `data/`는 versioned non-secret config/seed/reference만 허용한다. dump, SQLite, migration scratch DB, browser QA DB 등 **런타임 산출물은 repo `data/` 안에 두지 않는다.** 로컬 운영자 산출물의 정본 루트는 **`FOMS_RUNTIME_OUTPUT_ROOT`** 이며, 미설정 시 기본값은 **`%USERPROFILE%\FOMS-runtime`** (Windows). 하위 경로 계약은 `docs/plans/2026-04-16-strict-final-canonical-tree-physical-tree-code-convergence-plan.md` §3.4와 동일하다. 로컬 백업·덤프 출력 정본 또한 `${FOMS_RUNTIME_OUTPUT_ROOT}/dumps/...` (예: `foms.dump`, `order_schedule_dates-*.json`)이며, repo 루트에 별도 `backups/` 트리를 두지 않는다 (`docs/specs/2026-06-05-backup-feature-retirement_SPEC.md`).
 - 루트 허용 파일/폴더의 **정본 목록**은 `docs/specs/2026-04-07-repo-structure-governance_SPEC.md` **§2.6.1 Final root allowlist (exact set; dual-spec lock)** 와 단일하다. 본 절 §2.2.1 final-form tree는 그 목록을 도식화한 것이며, 충돌 시 **§2.6.1 텍스트가 우선**한다.
-- `backups/`, `Add In Program/`, `SCheduler/`는 저장소 taxonomy의 일부로는 인정하지만, 끝까지 product source of truth가 될 수 없다.
+- `Add In Program/`, `SCheduler/`는 저장소 taxonomy의 일부로는 인정하지만, 끝까지 product source of truth가 될 수 없다.
 
 #### 2.2.3 FR20 — local `README.md` authoritative home (PTC dual-spec lock)
 
@@ -342,7 +340,7 @@ transition overlay
 6. IDE / agent / automation supply chain
    - `.cursor/`, `.claude/`, `.agents/`, `.github/`, `.vscode/`
 7. quarantine / non-product
-   - `backups/`, `Add In Program/`, `SCheduler/`
+   - `Add In Program/`, `SCheduler/`
 
 **PTC dual-spec lock:** 위 일곱 범주는 **분류 언어**다. **최종 committed tree에서 허용되는 루트 엔트리의 정확한 집합**은 `docs/specs/2026-04-07-repo-structure-governance_SPEC.md` **§2.6.1** 과 `docs/plans/2026-04-16-strict-final-canonical-tree-physical-tree-code-convergence-plan.md` **§4.1** 과 단일하다. PTC 최종 closeout에서는 **`apps/`·루트 `services/`·`src/`가 루트에 없어야** 하며(§4.1·§8), 전환기 오버레이는 수렴 전까지만 본 절 §2.2.2에서 규율한다.
 
@@ -354,7 +352,7 @@ transition overlay
 - 비제품 실험 코드를 product source와 같은 수준에서 늘리는 것
 
 비제품 구역 규칙:
-- `backups/`, `Add In Program/`, `SCheduler/`는 FOMS canonical source가 될 수 없다.
+- `Add In Program/`, `SCheduler/`는 FOMS canonical source가 될 수 없다.
 - product tree에서 quarantine / non-product tree로의 runtime import가 발생하면 안 된다.
 - 향후 정리 시에는 하나의 quarantine namespace로 통합할 수 있으나, 그 전까지는 "새 product code 금지"만 먼저 강제한다.
 - 분류되지 않은 top-level code directory(예: `src/`처럼 product/tooling/quarantine 중 어디인지 모호한 경우)는 Wave 1에서 역할을 명시해야 하며, 역할이 정해지기 전까지 product source 확장의 근거가 될 수 없다.
@@ -484,7 +482,7 @@ WDCalculator batch 승인 조건:
 
 #### Wave 1 — Root / folder hygiene
 - `2026-04-07` Step 2 closeout 이후의 **지속적** 루트/taxonomy 정렬을 수행한다.
-- non-product zones(`backups/`, `Add In Program/`, `SCheduler/`)를 quarantine로 명시한다.
+- non-product zones(`Add In Program/`, `SCheduler/`)를 quarantine로 명시한다.
 - product tree 밖으로 새로운 source of truth가 생기지 않도록 차단한다.
 - root allowlist inventory를 만들고, runtime contract가 아닌 root standalone script는 `scripts/`/`tools/`로 수렴시키는 방향을 우선 적용한다.
 - `src/` 등 모호한 top-level code directory는 product/tooling/quarantine 중 하나로 역할을 고정한다.

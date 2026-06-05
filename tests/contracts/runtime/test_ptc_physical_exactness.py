@@ -25,7 +25,6 @@ _PTC_ROOT_ALLOWLIST: frozenset[str] = frozenset(
         ".github",
         ".vscode",
         "Add In Program",
-        "backups",
         "data",
         "docs",
         "foms",

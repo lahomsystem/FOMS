@@ -155,7 +155,6 @@ repo root
 - `.github`
 - `.vscode`
 - `Add In Program`
-- `backups`
 - `data`
 - `docs`
 - `foms`

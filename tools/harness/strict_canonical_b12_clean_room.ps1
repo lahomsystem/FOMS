@@ -87,7 +87,7 @@ try {
     $allowedRoot = @(
         '.agents', '.claude', '.cursor', '.github', '.vscode',
         '.dockerignore', '.gcloudignore', '.gitattributes', '.gitignore', '.python-version',
-        'Add In Program', 'AGENTS.md', 'alembic.ini', 'app.py', 'backups', 'CLAUDE.md', 'data', 'db.py',
+        'Add In Program', 'AGENTS.md', 'alembic.ini', 'app.py', 'CLAUDE.md', 'data', 'db.py',
         'Dockerfile', 'docs', 'foms', 'migrations', 'models.py', 'Procfile', 'README.md',
         'railway.toml', 'railway-worker.toml', 'railway-cron.toml', 'requirements.txt', 'run.py', 'SCheduler',
         'scripts', 'start.sh', 'static', 'templates', 'tests', 'tools', 'wdcalculator_db.py', 'wdcalculator_models.py'
