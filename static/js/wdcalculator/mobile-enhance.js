@@ -506,6 +506,29 @@
       observeChildList(container, mobilizeEstimatesList);
     }
 
+    /* ---- 비고 섹션 → 기본 접힌 아코디언 (사용자 요청) ----
+       비고는 선택 입력이라 기본 접어 화면을 간결하게. 헤더 '📝 비고'만 보이고
+       탭하면 펼쳐 입력. 호스트의 #notesContainer / #btnAddNote 노드를 그대로 이동
+       (이벤트·렌더링 유지). */
+    function buildNotesAccordion() {
+      var notesContainer = document.getElementById("notesContainer");
+      if (!notesContainer) return;
+      var section = notesContainer.closest(".mb-3");
+      if (!section || section.querySelector(".wd-nacc")) return;
+      section.classList.add("wd-nacc-host");
+      var details = document.createElement("details");
+      details.className = "wd-nacc";
+      details.innerHTML =
+        '<summary class="wd-nacc__sum"><span class="wd-nacc__title">📝 비고</span>' +
+        '<span class="wd-nacc__chev">▾</span></summary>' +
+        '<div class="wd-nacc__body"></div>';
+      var body = details.querySelector(".wd-nacc__body");
+      while (section.firstChild) {
+        body.appendChild(section.firstChild);
+      }
+      section.appendChild(details);
+    }
+
     function enable() {
       if (built) return;
       built = true;
@@ -517,6 +540,7 @@
       initToggleEnhancements();
       initMobileSelects();
       initEstimatesListMobile();
+      buildNotesAccordion();
       buildAdvancedAccordion();
     }
 

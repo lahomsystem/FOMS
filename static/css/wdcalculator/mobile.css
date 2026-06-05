@@ -121,6 +121,12 @@
   /* sheet 안으로 옮긴 사이드바 카드의 데스크톱 제약 해제 */
   .wd-msheet__body .saved-estimates-card { max-height: none !important; height: auto !important; box-shadow: none !important; border: none !important; }
   .wd-msheet__body .saved-estimates-card .card-header { display: none !important; } /* sheet 헤더로 대체 */
+  /* 저장된 견적 sheet는 전용 스크롤 면 → 인라인 사이드바용 모바일 1건 제한 해제(전부 표시).
+     호스트는 ≤576px에서 첫 1건만 보이고 나머지에 .saved-estimate-item--hidden-mobile 부여 +
+     '더보기'(d-none이라 미노출)로 막힘. sheet 안에서는 모두 노출하고 더보기/접기 숨김. */
+  .wd-msheet__body .saved-estimates-list .saved-estimate-item--hidden-mobile { display: block !important; }
+  .wd-msheet__body #savedEstimatesMoreWrap,
+  .wd-msheet__body #savedEstimatesCollapseBar { display: none !important; }
 
   /* ============================================================
      [v2] 목업 구현: 입력 카드를 분리 섹션으로, 기본구성을 아코디언으로
@@ -208,6 +214,24 @@
     box-shadow: var(--foms-shadow-sm); font-weight: var(--foms-font-weight-semibold);
   }
   body.wd-calc-mobile .wd-seg-src { display: none !important; }
+
+  /* ---- 비고 섹션 기본 접힘 아코디언 ---- */
+  body.wd-calc-mobile .wd-nacc-host {
+    padding: 0 !important; border: none !important; background: transparent !important;
+    margin-bottom: var(--foms-space-3) !important;
+  }
+  .wd-nacc {
+    background: var(--foms-surface-base); border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-lg); overflow: hidden;
+  }
+  .wd-nacc > summary { list-style: none; cursor: pointer; padding: var(--foms-space-3);
+    display: flex; align-items: center; justify-content: space-between; }
+  .wd-nacc > summary::-webkit-details-marker { display: none; }
+  .wd-nacc__title { font-size: var(--foms-font-size-base); font-weight: var(--foms-font-weight-semibold); }
+  .wd-nacc__chev { color: var(--foms-text-tertiary); transition: transform 0.15s; }
+  .wd-nacc[open] .wd-nacc__chev { transform: rotate(180deg); }
+  .wd-nacc__body { padding: 0 var(--foms-space-3) var(--foms-space-3); }
+  .wd-nacc__body > .form-label:first-child { display: none; } /* summary가 '비고' 라벨 대체 */
 
   /* ---- 할인·배송 하단 collapsed accordion ---- */
   .wd-macc {
@@ -347,4 +371,8 @@
   .wd-bc-summary, .wd-bc-chip, .wd-bc-sub, .wd-seg { display: none !important; }
   /* 데스크톱에선 원래 아이콘 토글 복원 */
   .wd-seg-src { display: inline-flex !important; }
+  /* 비고 아코디언: 데스크톱에선 summary 숨기고 내용 항상 노출(접힘으로 입력 가려짐 방지) */
+  .wd-nacc > summary { display: none !important; }
+  .wd-nacc > .wd-nacc__body { display: block !important; }
+  .wd-nacc__body > .form-label:first-child { display: block !important; }
 }
