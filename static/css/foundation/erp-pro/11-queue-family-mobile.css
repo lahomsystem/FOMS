@@ -38,6 +38,10 @@
     padding-left: 0;
     padding-right: 0;
     margin-top: 0;
+    /* 셸(flex/grid) 자식의 min-width:auto가 칩스트립 min-content(全칩 펼침)로
+       확장돼 화면 폭을 넘기던 문제 → 셸 폭으로 수축시켜 칩스트립은 내부 스크롤. */
+    min-width: 0;
+    max-width: 100%;
   }
 
   .erp-mobile-queue-filters__search {
