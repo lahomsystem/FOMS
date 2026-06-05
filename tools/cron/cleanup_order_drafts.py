@@ -52,23 +52,31 @@ def _make_session():
     # Railway Postgres URL은 postgres:// → postgresql:// 변환 필요
     if url.startswith("postgres://"):
         url = "postgresql://" + url[len("postgres://"):]
-    engine = create_engine(url, connect_args={"connect_timeout": 10}, pool_pre_ping=True)
+    engine_kwargs: dict = {"pool_pre_ping": True}
+    # connect_timeout는 psycopg2 전용; pytest sqlite:// 에서는 TypeError 발생
+    if "sqlite" not in url:
+        engine_kwargs["connect_args"] = {"connect_timeout": 10}
+    engine = create_engine(url, **engine_kwargs)
     Session = sessionmaker(bind=engine)
     return Session(), engine
 
 
-def run(*, execute: bool = False) -> tuple[int, int]:
+def run(*, execute: bool = False, session=None) -> tuple[int, int]:
     """Count and optionally delete expired OrderDraft rows.
 
     Args:
         execute: When True, delete rows with expires_at < now().
+        session: Optional SQLAlchemy session (pytest uses Flask ``db_session``).
 
     Returns:
         Tuple of (scanned_count, deleted_count).
     """
     from sqlalchemy import text
 
-    session, engine = _make_session()
+    owns_session = session is None
+    engine = None
+    if owns_session:
+        session, engine = _make_session()
     now = datetime.utcnow()
     try:
         scanned_row = session.execute(
@@ -90,8 +98,10 @@ def run(*, execute: bool = False) -> tuple[int, int]:
         session.rollback()
         raise
     finally:
-        session.close()
-        engine.dispose()
+        if owns_session:
+            session.close()
+            if engine is not None:
+                engine.dispose()
 
 
 def main() -> int:

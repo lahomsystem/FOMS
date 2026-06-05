@@ -43,7 +43,7 @@ class TestCleanupOrderDrafts:
         expired_id = _make_draft(user, "new.expired", expired=True).id
         active_id = _make_draft(user, "new.active", expired=False).id
 
-        scanned, deleted = run(execute=False)
+        scanned, deleted = run(execute=False, session=db_session)
 
         assert scanned == 1
         assert deleted == 0
@@ -55,7 +55,7 @@ class TestCleanupOrderDrafts:
         expired_id = _make_draft(user, "new.expired-exec", expired=True).id
         active_id = _make_draft(user, "new.active-exec", expired=False).id
 
-        scanned, deleted = run(execute=True)
+        scanned, deleted = run(execute=True, session=db_session)
 
         assert scanned == 1
         assert deleted == 1
