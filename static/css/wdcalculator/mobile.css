@@ -225,11 +225,38 @@
   .wd-macc__body .card { border: none !important; box-shadow: none !important; margin-bottom: 0; }
   .wd-macc__body .card > .card-header { display: none !important; }
   .wd-macc__body .card > .card-body { padding: 0 !important; }
+
+  /* ---- 견적 결과: '기본 견적' 값을 다른 행과 동일하게 우측 정렬 ---- */
+  body.wd-calc-mobile .border-left-success .d-flex.justify-content-between.flex-wrap { flex-wrap: nowrap !important; }
+  body.wd-calc-mobile .border-left-success .d-flex.justify-content-between > .d-flex.justify-content-end {
+    margin-left: auto; min-width: 0; flex-wrap: nowrap; text-align: right;
+  }
+  body.wd-calc-mobile #currentQuoteUnitPriceMeta:empty { display: none !important; }
+  body.wd-calc-mobile #totalBasePrice { white-space: nowrap; }
+
+  /* ---- 모바일 select 피커 bottom sheet ---- */
+  .wd-selsheet-backdrop { position: fixed; inset: 0; background: rgba(15, 17, 21, 0.45); z-index: 1060; }
+  .wd-selsheet {
+    position: fixed; left: 0; right: 0; bottom: 0; max-height: 72%; z-index: 1061;
+    background: var(--foms-surface-base); border-radius: 20px 20px 0 0; display: flex; flex-direction: column;
+    box-shadow: var(--foms-shadow-xl);
+  }
+  .wd-selsheet[hidden], .wd-selsheet-backdrop[hidden] { display: none; }
+  .wd-selsheet__title { font-size: var(--foms-font-size-lg); font-weight: var(--foms-font-weight-bold); }
+  .wd-selsheet__body { flex: 1; overflow-y: auto; padding: 0 var(--foms-space-3) var(--foms-space-4); display: grid; gap: 2px; }
+  .wd-selsheet__opt {
+    text-align: left; border: none; background: transparent; cursor: pointer; font-family: inherit;
+    padding: 14px 12px; border-radius: var(--foms-radius-md); border-bottom: 1px solid var(--foms-border-subtle);
+    font-size: max(16px, var(--foms-font-size-base)); color: var(--foms-text-primary); line-height: 1.4;
+  }
+  .wd-selsheet__opt:active { background: var(--foms-interactive-secondary); }
+  .wd-selsheet__opt.is-active { color: var(--foms-color-brand-700); font-weight: var(--foms-font-weight-semibold); background: var(--foms-color-brand-50); }
 }
 
 /* 데스크톱: JS가 만든 모바일 chrome 잔존 시에도 노출 안 되게 */
 @media (min-width: 992px) {
-  .wd-mhead, .wd-mtotal, .wd-msheet, .wd-msheet-backdrop { display: none !important; }
+  .wd-mhead, .wd-mtotal, .wd-msheet, .wd-msheet-backdrop,
+  .wd-selsheet, .wd-selsheet-backdrop { display: none !important; }
   /* 모바일→데스크톱 리사이즈 시 잔존 향상 노드 비노출 */
   .wd-bc-summary, .wd-bc-chip, .wd-bc-sub, .wd-seg { display: none !important; }
   /* 데스크톱에선 원래 아이콘 토글 복원 */

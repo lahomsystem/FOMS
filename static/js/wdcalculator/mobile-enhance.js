@@ -276,19 +276,11 @@
       });
       refreshBaseSummaries();
       if (window.MutationObserver) {
-        new MutationObserver(function (mutations) {
-          var addedRows = [];
-          mutations.forEach(function (m) {
-            forEachNode(m.addedNodes, function (n) {
-              if (n.nodeType === 1 && n.classList && n.classList.contains("base-component-row")) {
-                addedRows.push(n);
-              }
-            });
-          });
-          var totalRows = container.querySelectorAll(".base-component-row").length;
-          var incremental = addedRows.length === 1 && totalRows > 1;
+        // 재렌더/행추가 시 새 행을 향상. 신규 행도 항상 collapsed(사용자 요청):
+        // 추가 후 요약만 보이고, 편집은 탭해서 펼침.
+        new MutationObserver(function () {
           forEachNode(container.querySelectorAll(".base-component-row:not(.wd-bc-enh)"), function (rowEl) {
-            enhanceBaseRow(rowEl, incremental && addedRows.indexOf(rowEl) >= 0);
+            enhanceBaseRow(rowEl, false);
           });
           scheduleBaseRefresh();
         }).observe(container, { childList: true });
@@ -402,6 +394,93 @@
       observeChildList(noteContainer, enhanceNotes);
     }
 
+    /* ---- 모바일 select 피커: PC 드롭다운 → bottom sheet (목업 톤) ----
+       native <select>는 데이터 소스로 유지(호스트 change 위임·계약 보존).
+       모바일에서 select 탭 시 native 팝업을 막고 sheet로 옵션 선택 → value 설정 +
+       change 디스패치. 동적 행/옵션은 body 위임 + 열 때 live 옵션 읽기로 자동 대응. */
+    function isMobileSelect(sel) {
+      if (!sel || sel.tagName !== "SELECT") return false;
+      return (
+        sel.classList.contains("base-product-select") ||
+        sel.hasAttribute("data-category-option-select") ||
+        sel.classList.contains("note-select")
+      );
+    }
+    function ensureSelectSheet() {
+      if (document.querySelector(".wd-selsheet")) return;
+      var backdrop = document.createElement("div");
+      backdrop.className = "wd-selsheet-backdrop";
+      backdrop.hidden = true;
+      var sheet = document.createElement("div");
+      sheet.className = "wd-selsheet";
+      sheet.hidden = true;
+      sheet.innerHTML =
+        '<div class="wd-msheet__grip"></div>' +
+        '<div class="wd-msheet__head"><span class="wd-selsheet__title">선택</span>' +
+        '<button type="button" class="wd-mhead__btn" data-wd-selclose aria-label="닫기">✕</button></div>' +
+        '<div class="wd-selsheet__body"></div>';
+      document.body.appendChild(backdrop);
+      document.body.appendChild(sheet);
+      backdrop.addEventListener("click", closeSelectSheet);
+      sheet.querySelector("[data-wd-selclose]").addEventListener("click", closeSelectSheet);
+    }
+    function closeSelectSheet() {
+      var sheet = document.querySelector(".wd-selsheet");
+      var backdrop = document.querySelector(".wd-selsheet-backdrop");
+      if (sheet) sheet.hidden = true;
+      if (backdrop) backdrop.hidden = true;
+    }
+    function selectFieldLabel(sel) {
+      var wrap = sel.closest(".field, .mb-3, .col-md-5, .base-select-area, .base-component-row");
+      var label = wrap ? wrap.querySelector("label") : null;
+      var txt = label ? (label.textContent || "").trim() : "";
+      return txt || "선택";
+    }
+    function openSelectSheet(sel) {
+      ensureSelectSheet();
+      var sheet = document.querySelector(".wd-selsheet");
+      var backdrop = document.querySelector(".wd-selsheet-backdrop");
+      var body = sheet.querySelector(".wd-selsheet__body");
+      sheet.querySelector(".wd-selsheet__title").textContent = selectFieldLabel(sel);
+      body.innerHTML = "";
+      forEachNode(sel.options, function (opt) {
+        var item = document.createElement("button");
+        item.type = "button";
+        item.className = "wd-selsheet__opt" + (opt.value === sel.value ? " is-active" : "");
+        item.textContent = opt.textContent;
+        item.addEventListener("click", function () {
+          if (sel.value !== opt.value) {
+            sel.value = opt.value;
+            sel.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+          closeSelectSheet();
+        });
+        body.appendChild(item);
+      });
+      sheet.hidden = false;
+      backdrop.hidden = false;
+      var active = body.querySelector(".wd-selsheet__opt.is-active");
+      if (active && active.scrollIntoView) active.scrollIntoView({ block: "center" });
+    }
+    function initMobileSelects() {
+      // mousedown preventDefault → native 팝업 차단 후 sheet 오픈(위임 → 동적 행 대응)
+      document.body.addEventListener("mousedown", function (e) {
+        var sel = e.target && e.target.closest ? e.target.closest("select") : null;
+        if (!isMobileSelect(sel)) return;
+        e.preventDefault();
+        openSelectSheet(sel);
+      });
+      // 키보드 접근성: 포커스 후 Enter/Space로도 오픈
+      document.body.addEventListener("keydown", function (e) {
+        var sel = e.target && e.target.closest ? e.target.closest("select") : null;
+        if (!isMobileSelect(sel)) return;
+        if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+          e.preventDefault();
+          openSelectSheet(sel);
+        }
+      });
+    }
+
     function enable() {
       if (built) return;
       built = true;
@@ -411,6 +490,7 @@
       buildTotalbar();
       initBaseEnhancements();
       initToggleEnhancements();
+      initMobileSelects();
       buildAdvancedAccordion();
     }
 
