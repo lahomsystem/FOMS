@@ -121,9 +121,117 @@
   /* sheet 안으로 옮긴 사이드바 카드의 데스크톱 제약 해제 */
   .wd-msheet__body .saved-estimates-card { max-height: none !important; height: auto !important; box-shadow: none !important; border: none !important; }
   .wd-msheet__body .saved-estimates-card .card-header { display: none !important; } /* sheet 헤더로 대체 */
+
+  /* ============================================================
+     [v2] 목업 구현: 입력 카드를 분리 섹션으로, 기본구성을 아코디언으로
+     ============================================================ */
+
+  /* ---- '견적 정보 입력' 카드 → 고객명/기본구성/추가옵션/비고 분리 섹션 ---- */
+  body.wd-calc-mobile .border-left-primary {
+    border: none !important; box-shadow: none !important; background: transparent !important;
+  }
+  body.wd-calc-mobile .border-left-primary > .card-header.header-primary { display: none !important; }
+  body.wd-calc-mobile .border-left-primary > .card-body { padding: 0 !important; background: transparent !important; }
+  body.wd-calc-mobile .border-left-primary > .card-body > .mb-3 {
+    background: var(--foms-surface-base); border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-lg); padding: var(--foms-space-3); margin-bottom: var(--foms-space-3) !important;
+  }
+  body.wd-calc-mobile .border-left-primary > .card-body > .mb-3 > .form-label:first-child {
+    font-size: var(--foms-font-size-base); font-weight: var(--foms-font-weight-semibold);
+    color: var(--foms-text-primary); margin-bottom: var(--foms-space-2);
+  }
+
+  /* ---- 기본 구성: collapsed accordion 요약 ---- */
+  body.wd-calc-mobile .base-component-row.wd-bc-enh { overflow: hidden; }
+  body.wd-calc-mobile .base-component-row.wd-bc-enh > .card-body { display: none !important; }
+  body.wd-calc-mobile .base-component-row.wd-bc-enh.wd-open > .card-body { display: block !important; border-top: 1px solid var(--foms-border-subtle); }
+  .wd-bc-summary {
+    display: grid; grid-template-columns: 24px 1fr auto 16px; align-items: center; gap: 10px;
+    width: 100%; border: none; background: transparent; cursor: pointer; text-align: left;
+    padding: var(--foms-space-3); font-family: inherit; color: var(--foms-text-primary);
+  }
+  .wd-bc-idx {
+    width: 24px; height: 24px; border-radius: var(--foms-radius-full); background: var(--foms-color-brand-500);
+    color: #fff; font-size: var(--foms-font-size-xs); font-weight: var(--foms-font-weight-bold);
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  body.wd-calc-mobile .base-component-row[data-mode="manual"] .wd-bc-idx { background: var(--foms-color-warning-500); }
+  .wd-bc-text { min-width: 0; display: grid; }
+  .wd-bc-name { font-weight: var(--foms-font-weight-semibold); font-size: var(--foms-font-size-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .wd-bc-spec { font-size: var(--foms-font-size-xs); color: var(--foms-text-tertiary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .wd-bc-price { font-weight: var(--foms-font-weight-bold); font-variant-numeric: tabular-nums; font-size: var(--foms-font-size-sm); }
+  .wd-bc-chev { color: var(--foms-text-tertiary); transition: transform 0.15s; text-align: center; }
+  body.wd-calc-mobile .base-component-row.wd-open .wd-bc-chev { transform: rotate(180deg); }
+
+  /* ---- 라이브 단가칩 ---- */
+  .wd-bc-chip {
+    display: inline-flex; flex-wrap: wrap; gap: 4px 10px; padding: 8px 10px; margin-top: 8px;
+    background: var(--foms-color-brand-50); border-radius: var(--foms-radius-md);
+    font-size: var(--foms-font-size-xs); color: var(--foms-color-brand-700); font-variant-numeric: tabular-nums;
+  }
+  .wd-bc-chip b { color: var(--foms-color-brand-800); }
+  .wd-bc-chip:empty { display: none; }
+
+  /* ---- 구성 소계 ---- */
+  .wd-bc-sub {
+    display: flex; align-items: center; justify-content: space-between; margin-top: var(--foms-space-3);
+    padding-top: var(--foms-space-2); border-top: 1px dashed var(--foms-border-subtle);
+  }
+  .wd-bc-sub > span:first-child { font-size: var(--foms-font-size-sm); color: var(--foms-text-secondary); }
+  .wd-bc-subval { font-size: var(--foms-font-size-lg); font-weight: var(--foms-font-weight-bold); font-variant-numeric: tabular-nums; }
+
+  /* ---- 방식(선택/직접) btn-group → 세그먼트 톤 ---- */
+  body.wd-calc-mobile .base-component-row .btn-group {
+    background: var(--foms-color-neutral-100); border-radius: var(--foms-radius-md); padding: 3px; gap: 2px;
+  }
+  body.wd-calc-mobile .base-component-row .btn-group .btn { border: none !important; border-radius: calc(var(--foms-radius-md) - 3px) !important; }
+
+  /* ---- 견적 결과 → 견적 요약 톤 + 중복 액션버튼 숨김(하단 sticky바로 대체) ---- */
+  body.wd-calc-mobile #calculateBtn,
+  body.wd-calc-mobile #addEstimateBtn,
+  body.wd-calc-mobile #saveEstimateBtn { display: none !important; }
+  body.wd-calc-mobile .final-summary-card { border: none !important; background: var(--foms-color-brand-50) !important; }
+  body.wd-calc-mobile .final-price-display { color: var(--foms-color-brand-700); font-variant-numeric: tabular-nums; font-weight: var(--foms-font-weight-bold); }
+
+  /* ---- 추가 옵션 / 비고: 불러오기|직접 세그먼트 ---- */
+  .wd-seg {
+    display: inline-grid; grid-auto-flow: column; gap: 2px; padding: 3px; margin-bottom: 8px;
+    background: var(--foms-color-neutral-100); border-radius: var(--foms-radius-md);
+  }
+  .wd-seg__btn {
+    border: none; background: transparent; padding: 6px 14px; cursor: pointer;
+    border-radius: calc(var(--foms-radius-md) - 3px); font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-medium); color: var(--foms-text-secondary); font-family: inherit;
+  }
+  .wd-seg__btn.is-active {
+    background: var(--foms-surface-base); color: var(--foms-color-brand-700);
+    box-shadow: var(--foms-shadow-sm); font-weight: var(--foms-font-weight-semibold);
+  }
+  body.wd-calc-mobile .wd-seg-src { display: none !important; }
+
+  /* ---- 할인·배송 하단 collapsed accordion ---- */
+  .wd-macc {
+    background: var(--foms-surface-base); border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-lg); overflow: hidden; margin-top: var(--foms-space-3) !important;
+  }
+  .wd-macc > summary { list-style: none; cursor: pointer; padding: var(--foms-space-3);
+    display: flex; align-items: center; justify-content: space-between; }
+  .wd-macc > summary::-webkit-details-marker { display: none; }
+  .wd-macc__title { font-size: var(--foms-font-size-base); font-weight: var(--foms-font-weight-semibold); }
+  .wd-macc__chev { color: var(--foms-text-tertiary); transition: transform 0.15s; }
+  .wd-macc[open] .wd-macc__chev { transform: rotate(180deg); }
+  .wd-macc__body { padding: 0 var(--foms-space-3) var(--foms-space-3); }
+  .wd-macc__body .row.mt-4 { margin-top: var(--foms-space-3) !important; }
+  .wd-macc__body .card { border: none !important; box-shadow: none !important; margin-bottom: 0; }
+  .wd-macc__body .card > .card-header { display: none !important; }
+  .wd-macc__body .card > .card-body { padding: 0 !important; }
 }
 
 /* 데스크톱: JS가 만든 모바일 chrome 잔존 시에도 노출 안 되게 */
 @media (min-width: 992px) {
   .wd-mhead, .wd-mtotal, .wd-msheet, .wd-msheet-backdrop { display: none !important; }
+  /* 모바일→데스크톱 리사이즈 시 잔존 향상 노드 비노출 */
+  .wd-bc-summary, .wd-bc-chip, .wd-bc-sub, .wd-seg { display: none !important; }
+  /* 데스크톱에선 원래 아이콘 토글 복원 */
+  .wd-seg-src { display: inline-flex !important; }
 }

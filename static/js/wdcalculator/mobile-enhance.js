@@ -123,6 +123,285 @@
       if (fp && out) out.textContent = (fp.textContent || "0원").trim();
     }
 
+    /* ---- 기본 구성 카드: collapsed accordion 요약 + 라이브 단가칩 + 구성 소계 ----
+       공유 렌더러(renderBaseComponentRow)는 건드리지 않고, 렌더된 행을 모바일에서만
+       progressive-disclosure 카드로 향상. 소계는 기존 가격 엔진을 단일 행으로
+       재호출(wdcComputeCurrentEstimateMath([row]...))해 계산 → 가격 로직 중복 없음. */
+    function forEachNode(list, fn) {
+      if (!list) return;
+      Array.prototype.forEach.call(list, fn);
+    }
+    function getProductList() {
+      var st = window.WdCalculatorProductsState;
+      return (st && typeof st.getProducts === "function" && st.getProducts()) || [];
+    }
+    function readBaseRows() {
+      var ui = window.WdCalculatorBaseComponentsUI;
+      return (ui && typeof ui.readBaseComponentsFromUI === "function" && ui.readBaseComponentsFromUI()) || [];
+    }
+    function fmtNum(n) {
+      var v = Number(n) || 0;
+      if (typeof window.formatNumber === "function") return window.formatNumber(v);
+      return v.toLocaleString("ko-KR");
+    }
+    function computeRowSubtotal(row) {
+      var fn = window.wdcComputeCurrentEstimateMath;
+      if (typeof fn !== "function") return 0;
+      try {
+        var math = fn([row], getProductList(), []);
+        return (math && Number(math.basePriceCalculate)) || 0;
+      } catch (e) {
+        return 0;
+      }
+    }
+    function describeBaseRow(row) {
+      var products = getProductList();
+      var mode = (row && row.mode) || "select";
+      var width = Number(row && row.widthMm) || 0;
+      var name = "";
+      var unitText = "";
+      var chipHtml = "";
+      if (mode === "manual") {
+        var mp = (row && row.manualPricing) || {};
+        if (mp.pricing_type === "1m") {
+          var p1m = Number(mp.price_1m) || 0;
+          name = "직접입력 (1m)";
+          unitText = "1m " + fmtNum(p1m);
+          chipHtml = p1m ? "1m <b>" + fmtNum(p1m) + "원</b>" : "";
+        } else {
+          var p30 = Number(mp.price_30cm) || 0;
+          var p1 = Number(mp.price_1cm) || 0;
+          name = "직접입력 (30cm)";
+          unitText = "30cm " + fmtNum(p30);
+          chipHtml = p30 ? "30cm <b>" + fmtNum(p30) + "원</b> · 1cm <b>" + fmtNum(p1) + "원</b>" : "";
+        }
+      } else {
+        var prod = products.filter(function (p) {
+          return String(p.id) === String(row && row.productId);
+        })[0];
+        if (prod) {
+          name = prod.name || "제품";
+          if (prod.pricing_type === "1m") {
+            var pp1m = Number(prod.price_1m) || 0;
+            unitText = "1m " + fmtNum(pp1m);
+            chipHtml = pp1m ? "1m <b>" + fmtNum(pp1m) + "원</b>" : "";
+          } else {
+            var pp30 = Number(prod.price_30cm) || 0;
+            var pp1 = Number(prod.price_1cm) || 0;
+            unitText = "30cm " + fmtNum(pp30);
+            chipHtml = pp30 ? "30cm <b>" + fmtNum(pp30) + "원</b> · 1cm <b>" + fmtNum(pp1) + "원</b>" : "";
+          }
+        } else {
+          name = "제품 미선택";
+        }
+      }
+      var specParts = [mode === "manual" ? "직접" : "선택"];
+      if (width > 0) specParts.push(fmtNum(width) + "mm");
+      if (unitText) specParts.push(unitText);
+      return { name: name, spec: specParts.join(" · "), chipHtml: chipHtml };
+    }
+
+    function enhanceBaseRow(rowEl, expand) {
+      if (!rowEl || rowEl.classList.contains("wd-bc-enh")) return;
+      rowEl.classList.add("wd-bc-enh");
+      var summary = document.createElement("button");
+      summary.type = "button";
+      summary.className = "wd-bc-summary";
+      summary.innerHTML =
+        '<span class="wd-bc-idx"></span>' +
+        '<span class="wd-bc-text"><span class="wd-bc-name"></span><span class="wd-bc-spec"></span></span>' +
+        '<span class="wd-bc-price"></span>' +
+        '<span class="wd-bc-chev">▾</span>';
+      rowEl.insertBefore(summary, rowEl.firstChild);
+      summary.addEventListener("click", function () {
+        rowEl.classList.toggle("wd-open");
+      });
+      var body = rowEl.querySelector(".card-body");
+      if (body) {
+        var chip = document.createElement("div");
+        chip.className = "wd-bc-chip";
+        var feesList = body.querySelector(".base-additional-fees-list");
+        var feeWrap = feesList ? feesList.closest(".mt-2") : null;
+        body.insertBefore(chip, feeWrap || null);
+        var sub = document.createElement("div");
+        sub.className = "wd-bc-sub";
+        sub.innerHTML = '<span>구성 소계</span><span class="wd-bc-subval">0원</span>';
+        body.appendChild(sub);
+      }
+      if (expand) rowEl.classList.add("wd-open");
+    }
+
+    function refreshBaseSummaries() {
+      var container = document.getElementById("baseComponentsContainer");
+      if (!container) return;
+      var rowEls = container.querySelectorAll(".base-component-row");
+      var data = readBaseRows();
+      forEachNode(rowEls, function (rowEl, i) {
+        var row = data[i] || {};
+        var info = describeBaseRow(row);
+        var price = computeRowSubtotal(row);
+        var idxEl = rowEl.querySelector(".wd-bc-idx");
+        if (idxEl) idxEl.textContent = String(i + 1);
+        var nameEl = rowEl.querySelector(".wd-bc-name");
+        if (nameEl) nameEl.textContent = info.name;
+        var specEl = rowEl.querySelector(".wd-bc-spec");
+        if (specEl) specEl.textContent = info.spec;
+        var priceEl = rowEl.querySelector(".wd-bc-price");
+        if (priceEl) priceEl.textContent = fmtNum(price) + "원";
+        var chipEl = rowEl.querySelector(".wd-bc-chip");
+        if (chipEl) {
+          chipEl.innerHTML = info.chipHtml;
+          chipEl.style.display = info.chipHtml ? "" : "none";
+        }
+        var subValEl = rowEl.querySelector(".wd-bc-subval");
+        if (subValEl) subValEl.textContent = fmtNum(price) + "원";
+      });
+    }
+
+    var refreshScheduled = false;
+    function scheduleBaseRefresh() {
+      if (refreshScheduled) return;
+      refreshScheduled = true;
+      setTimeout(function () {
+        refreshScheduled = false;
+        refreshBaseSummaries();
+      }, 0);
+    }
+
+    function initBaseEnhancements() {
+      var container = document.getElementById("baseComponentsContainer");
+      if (!container) return;
+      forEachNode(container.querySelectorAll(".base-component-row"), function (rowEl) {
+        enhanceBaseRow(rowEl, false);
+      });
+      refreshBaseSummaries();
+      if (window.MutationObserver) {
+        new MutationObserver(function (mutations) {
+          var addedRows = [];
+          mutations.forEach(function (m) {
+            forEachNode(m.addedNodes, function (n) {
+              if (n.nodeType === 1 && n.classList && n.classList.contains("base-component-row")) {
+                addedRows.push(n);
+              }
+            });
+          });
+          var totalRows = container.querySelectorAll(".base-component-row").length;
+          var incremental = addedRows.length === 1 && totalRows > 1;
+          forEachNode(container.querySelectorAll(".base-component-row:not(.wd-bc-enh)"), function (rowEl) {
+            enhanceBaseRow(rowEl, incremental && addedRows.indexOf(rowEl) >= 0);
+          });
+          scheduleBaseRefresh();
+        }).observe(container, { childList: true });
+      }
+      container.addEventListener("input", scheduleBaseRefresh);
+      container.addEventListener("change", scheduleBaseRefresh);
+    }
+
+    /* ---- 할인·배송 → 하단 collapsed accordion (고급/선택 설정) ---- */
+    function buildAdvancedAccordion() {
+      var scroll = document.querySelector(".wdcalculator-main-scroll");
+      if (!scroll || document.querySelector(".wd-macc")) return;
+      var rows = Array.prototype.slice.call(scroll.children).filter(function (el) {
+        return (
+          el.classList &&
+          el.classList.contains("row") &&
+          el.classList.contains("mt-4") &&
+          (el.querySelector("#globalCouponValue") || el.querySelector("#shippingCost"))
+        );
+      });
+      if (!rows.length) return;
+      var details = document.createElement("details");
+      details.className = "wd-macc";
+      details.innerHTML =
+        '<summary class="wd-macc__sum"><span class="wd-macc__title">⚙ 할인 · 배송 설정</span>' +
+        '<span class="wd-macc__chev">▾</span></summary>' +
+        '<div class="wd-macc__body"></div>';
+      scroll.appendChild(details);
+      var body = details.querySelector(".wd-macc__body");
+      rows.forEach(function (r) {
+        body.appendChild(r);
+      });
+    }
+
+    /* ---- 추가 옵션 / 비고: 아이콘 토글 → 불러오기|직접 세그먼트 (목업 동일) ----
+       공유 렌더러는 그대로 두고, 모바일에서만 각 행 상단에 세그먼트를 주입.
+       세그먼트 버튼은 기존 토글 버튼(.toggle-note-type / [data-toggle-direct-input])을
+       대신 click 해 동작 → 계산/모드 전환 로직은 호스트 코드가 그대로 소유. */
+    function observeChildList(container, cb) {
+      if (!container || !window.MutationObserver) return;
+      new MutationObserver(function () {
+        cb();
+      }).observe(container, { childList: true });
+    }
+    function buildSegment() {
+      var seg = document.createElement("div");
+      seg.className = "wd-seg";
+      seg.innerHTML =
+        '<button type="button" class="wd-seg__btn" data-seg="select">불러오기</button>' +
+        '<button type="button" class="wd-seg__btn" data-seg="input">직접</button>';
+      return seg;
+    }
+    function setSegActive(seg, mode) {
+      forEachNode(seg.querySelectorAll(".wd-seg__btn"), function (b) {
+        if (b.getAttribute("data-seg") === mode) b.classList.add("is-active");
+        else b.classList.remove("is-active");
+      });
+    }
+    function enhanceToggleItem(item, cfg) {
+      if (!item || item.classList.contains("wd-seg-enh")) return;
+      var toggleBtn = item.querySelector(cfg.toggleSelector);
+      var probe = item.querySelector(cfg.probeSelector);
+      if (!toggleBtn || !probe) return;
+      item.classList.add("wd-seg-enh");
+      toggleBtn.classList.add("wd-seg-src");
+      var seg = buildSegment();
+      item.insertBefore(seg, item.firstChild);
+      function currentMode() {
+        return probe.style.display !== "none" ? "select" : "input";
+      }
+      function sync() {
+        setSegActive(seg, currentMode());
+      }
+      sync();
+      seg.addEventListener("click", function (e) {
+        var btn = e.target.closest(".wd-seg__btn");
+        if (!btn) return;
+        if (btn.getAttribute("data-seg") !== currentMode()) {
+          toggleBtn.click();
+        }
+        sync(); // 옵션: 호스트가 동기 전환 → 즉시 반영
+        setTimeout(sync, 0); // 비고: 노드 재생성 대비(옵저버가 재향상도 수행)
+      });
+      var selChange = item.querySelector(cfg.probeSelector);
+      if (selChange) {
+        selChange.addEventListener("change", function () {
+          setTimeout(sync, 0);
+        });
+      }
+    }
+    function initToggleEnhancements() {
+      var optContainer = document.getElementById("additionalOptionsContainer");
+      var noteContainer = document.getElementById("notesContainer");
+      var optCfg = { toggleSelector: "[data-toggle-direct-input]", probeSelector: "[data-category-option-select]" };
+      var noteCfg = { toggleSelector: ".toggle-note-type", probeSelector: ".note-select" };
+      function enhanceOpts() {
+        if (!optContainer) return;
+        forEachNode(optContainer.querySelectorAll(".additional-option-item"), function (it) {
+          enhanceToggleItem(it, optCfg);
+        });
+      }
+      function enhanceNotes() {
+        if (!noteContainer) return;
+        forEachNode(noteContainer.querySelectorAll(".note-item"), function (it) {
+          enhanceToggleItem(it, noteCfg);
+        });
+      }
+      enhanceOpts();
+      enhanceNotes();
+      observeChildList(optContainer, enhanceOpts);
+      observeChildList(noteContainer, enhanceNotes);
+    }
+
     function enable() {
       if (built) return;
       built = true;
@@ -130,6 +409,9 @@
       buildHeader();
       buildSheet();
       buildTotalbar();
+      initBaseEnhancements();
+      initToggleEnhancements();
+      buildAdvancedAccordion();
     }
 
     if (mq.matches) enable();
