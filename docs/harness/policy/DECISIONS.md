@@ -6,6 +6,12 @@
 
 ---
 
+### [2026-06-05] backup feature retirement + backups/ 거버넌스 제거
+- **키워드**: backup, retirement, governance, dual-spec, PTC, allowlist, FOMS_RUNTIME_OUTPUT_ROOT, railway-postgresql
+- **결정**: `SimpleBackupSystem` / `/api/simple_backup` / `/api/backup_status` / `backups/` 트리를 전부 폐기한다. production 백업 정본은 Railway PostgreSQL 자체 백업/스냅샷이며, 로컬 운영자 백업은 `scripts/ops/sync_local_to_railway.ps1` (`${FOMS_RUNTIME_OUTPUT_ROOT}/dumps/foms.dump`)로 단일화한다. PTC root allowlist + dual-spec(2026-04-07 §2.6.1, 2026-04-13 §2.2.1/§2.5) + clean-room 스크립트 + `.gitignore` + git 트리를 단일 PR에서 동시 갱신했다. backup 재도입 차단을 위한 별도 negative gate는 두지 않으며, allowlist exactness + RPI 절차가 게이트 역할을 한다.
+- **이유**: `SimpleBackupSystem`은 Windows pg_dump.exe 경로 하드코딩 + ephemeral filesystem 가정으로 Railway Linux 컨테이너에서 시작부터 실패한다. admin UI 버튼은 production에서 silent fail만 일으켜 사용자 신뢰를 깎았다. 동시에 `backups/` 디렉터리를 quarantine으로 governance allowlist에 박아둔 채 `.gitkeep`만 트리에 두는 구조는 dual-spec lock과 PTC test의 짐만 늘렸다. 로컬 안전망(Phase 4 OrderScheduleDate)은 유지하되 출력은 `${FOMS_RUNTIME_OUTPUT_ROOT}/dumps/`로 합쳐 mental model을 0개 더한다.
+- **영향**: `foms/api/backup.py` 삭제, `foms/services/admin/backup_service.py` 삭제, `foms/platform/blueprints.py` backup_bp 등록 제거, `templates/admin/admin.html` 백업 카드/버튼/JS 제거, `scripts/ops/simple_backup_system.py` 삭제, `scripts/maintenance/🚨_간단_백업.bat` 삭제, `scripts/ops/clone_prod_to_deploy.ps1` 삭제, `scripts/maintenance/backup_order_schedule_dates.py` 출력 경로 repath, `tests/contracts/runtime/test_ptc_physical_exactness.py` allowlist, `tests/contracts/runtime/foms_namespace_surface_tests.py` B11B 클러스터, `tools/harness/strict_canonical_b12_clean_room.ps1`, `.gitignore`, `docs/specs/2026-04-07-repo-structure-governance_SPEC.md` §2.6.1, `docs/specs/2026-04-13-foms-modular-monolith-rebaseline_SPEC.md` 6곳, `docs/plans/2026-04-16-strict-final-canonical-tree-physical-tree-code-convergence-plan.md` 4곳, `foms/README.md`, `backups/.gitkeep` 삭제, `docs/specs/2026-06-05-backup-feature-retirement_SPEC.md` 신규.
+
 ### [2026-05-31] Mobile tablet redesign P0~P3 (Decision Log D01–D10)
 - **키워드**: mobile, tablet, ERP_MOBILE_V2, HTMX, Alpine, feature-flag, cohort, MIGRATION_ROADMAP
 - **결정**: `docs/design/REVIEW_ENTRY.md` Decision Log D01–D10을 코드 SSOT로 실행. P0~P3는 feature flag default OFF + cohort 점진 출시. HTMX/Alpine는 new surface only(D06). 신규=마법사+OrderDraft, 수정=인라인+critical explicit save(D07). Bottom nav HTMX는 P3-01 별도 flag.
