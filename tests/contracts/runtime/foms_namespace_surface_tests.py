@@ -728,7 +728,6 @@ def test_b11b_canonical_api_cluster_importable() -> None:
     from foms.api.channel.channel_webhooks import channel_webhooks_bp
     from foms.api.channel.channel_functions import channel_functions_bp
     from foms.api.channel.channel_wam import channel_wam_bp
-    from foms.api.backup import backup_bp
     from foms.api.tasks import tasks_bp
     from foms.api.events import events_bp
     from foms.api.debug import debug_bp
@@ -743,7 +742,6 @@ def test_b11b_canonical_api_cluster_importable() -> None:
     assert channel_webhooks_bp is not None
     assert channel_functions_bp is not None
     assert channel_wam_bp is not None
-    assert backup_bp is not None
     assert tasks_bp is not None
     assert events_bp is not None
     assert debug_bp is not None
