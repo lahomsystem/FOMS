@@ -142,7 +142,9 @@
     bottom: 0;
     z-index: 125;
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    /* 항목 수(현재 5 nav + 계산기 + 더보기)에 맞춰 한 줄 균등 분할 */
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
     gap: 0;
     background: rgba(255, 255, 255, 0.98);
     border-top: 1px solid var(--erp-mobile-color-border-soft);
