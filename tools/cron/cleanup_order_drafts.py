@@ -1,6 +1,10 @@
 """Delete expired OrderDraft rows (P0-00C).
 
 Default is dry-run. Pass --execute to delete rows where expires_at < now().
+
+Flask app은 import하지 않는다. 전체 app 초기화(gevent patch, DB auto-init,
+auto-migrate 등)는 Railway Heartbeat timeout의 원인이 되므로 DATABASE_URL로
+직접 SQLAlchemy 엔진을 생성해 작업한다.
 """
 
 from __future__ import annotations
@@ -8,15 +12,10 @@ from __future__ import annotations
 import argparse
 import logging
 import os
-import sys
 import time
 from datetime import datetime
 
 logger = logging.getLogger("cleanup_order_drafts")
-
-sys.path.append(
-    os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
-)
 
 
 def _parse_args() -> argparse.Namespace:
@@ -42,6 +41,22 @@ def _setup_logging() -> None:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 
+def _make_session():
+    """Create a bare SQLAlchemy session from DATABASE_URL (no Flask app)."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    url = os.environ.get("DATABASE_URL")
+    if not url:
+        raise RuntimeError("DATABASE_URL is not set")
+    # Railway Postgres URL은 postgres:// → postgresql:// 변환 필요
+    if url.startswith("postgres://"):
+        url = "postgresql://" + url[len("postgres://"):]
+    engine = create_engine(url, connect_args={"connect_timeout": 10}, pool_pre_ping=True)
+    Session = sessionmaker(bind=engine)
+    return Session(), engine
+
+
 def run(*, execute: bool = False) -> tuple[int, int]:
     """Count and optionally delete expired OrderDraft rows.
 
@@ -51,25 +66,32 @@ def run(*, execute: bool = False) -> tuple[int, int]:
     Returns:
         Tuple of (scanned_count, deleted_count).
     """
-    from app import app
-    from db import get_db
-    from models import OrderDraft
+    from sqlalchemy import text
 
-    now = datetime.now()
-    with app.app_context():
-        db = get_db()
-        expired_filter = OrderDraft.expires_at < now
-        scanned = db.query(OrderDraft).filter(expired_filter).count()
-        if execute:
-            deleted = (
-                db.query(OrderDraft)
-                .filter(expired_filter)
-                .delete(synchronize_session=False)
+    session, engine = _make_session()
+    now = datetime.utcnow()
+    try:
+        scanned_row = session.execute(
+            text("SELECT COUNT(*) FROM order_drafts WHERE expires_at < :now"),
+            {"now": now},
+        ).fetchone()
+        scanned = scanned_row[0] if scanned_row else 0
+
+        deleted = 0
+        if execute and scanned > 0:
+            result = session.execute(
+                text("DELETE FROM order_drafts WHERE expires_at < :now"),
+                {"now": now},
             )
-            db.commit()
-        else:
-            deleted = 0
-    return scanned, deleted
+            deleted = result.rowcount
+            session.commit()
+        return scanned, deleted
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+        engine.dispose()
 
 
 def main() -> int:
