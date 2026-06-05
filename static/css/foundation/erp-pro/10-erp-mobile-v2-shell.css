@@ -181,7 +181,11 @@
   }
 
   .erp-mobile-menu-drawer {
-    z-index: 130;
+    /* 드로어가 열리면 backdrop(Bootstrap 1040)·FAB(--foms-z-fab 1050) 위에 있어야
+       메뉴 링크 탭이 가로채이지 않는다. 이전 z-index:130은 backdrop/FAB 아래라
+       탭이 backdrop(드로어 닫힘)이나 FAB로 떨어져 "선택 안 됨"이 발생.
+       modal(--foms-z-modal 1070)보다는 아래로 유지. */
+    z-index: 1060;
     height: auto;
     background: var(--erp-mobile-color-surface);
     border-radius: 1.25rem 1.25rem 0 0;
