@@ -1,0 +1,9 @@
+# backups/ — 런타임 백업 quarantine zone
+
+이 디렉터리는 거버넌스 정본 트리(PTC §2.6.1, repo-structure-governance SPEC)상
+루트 allowlist 항목이며, `foms/services/admin/backup_service.py`(SimpleBackupSystem)의
+출력 경로(`backups/tier1_primary`, `backups/tier2_secondary`)다.
+
+- 실제 백업 산출물(SQL/dump 등)은 `.gitignore`로 **미추적**한다.
+- 디렉터리 자체는 `.gitkeep`으로 트리에 보존한다(allowlist 충족).
+- product source of truth로 사용 금지(quarantine 유지).

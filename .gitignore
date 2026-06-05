@@ -69,7 +69,10 @@ static/uploads/*
 Thumbs.db
 
 # 로컬 DB/코드 백업 (repo 미추적; admin backup_service 출력도 동일)
-backups/
+# 디렉터리는 거버넌스 allowlist(PTC §2.6.1) + 런타임 backup_service 출력 경로라 트리에 유지.
+# 실제 백업 산출물(SQL/dump 등)은 계속 미추적, .gitkeep만 추적해 디렉터리를 보존한다.
+backups/*
+!backups/.gitkeep
 
 # 임시·백업 파일 (파일 정리 Phase 1)
 *.tmp
