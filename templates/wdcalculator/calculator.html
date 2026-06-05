@@ -5,12 +5,12 @@
 {% block styles %}
 {{ super() }}
 {% include 'wdcalculator/partials/wdcalculator_styles.html' %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/wdcalculator/mobile.css') }}?v=20260605d">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/wdcalculator/mobile.css') }}?v=20260605e">
 {% endblock %}
 
 {% block content %}
 {% include 'wdcalculator/partials/wdcalculator_body.html' %}
 {% include 'wdcalculator/partials/wdcalculator_scripts_config.html' %}
 {% include 'wdcalculator/partials/wdcalculator_scripts.html' %}
-<script src="{{ url_for('static', filename='js/wdcalculator/mobile-enhance.js') }}?v=20260605d" defer></script>
+<script src="{{ url_for('static', filename='js/wdcalculator/mobile-enhance.js') }}?v=20260605e" defer></script>
 {% endblock %}

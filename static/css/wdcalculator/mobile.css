@@ -251,6 +251,92 @@
   }
   .wd-selsheet__opt:active { background: var(--foms-interactive-secondary); }
   .wd-selsheet__opt.is-active { color: var(--foms-color-brand-700); font-weight: var(--foms-font-weight-semibold); background: var(--foms-color-brand-50); }
+
+  /* ============================================================
+     진행 중인 견적 리스트 → 모바일 컴팩트 카드 (인라인 스타일은 JS가 제거)
+     ============================================================ */
+  body.wd-calc-mobile #estimatesListContainer .row { margin: 0 !important; row-gap: var(--foms-space-3); }
+  body.wd-calc-mobile #estimatesListContainer [class*="col-"] {
+    width: 100% !important; max-width: 100% !important; flex: 0 0 100% !important; padding: 0 !important; margin-top: 0 !important;
+  }
+  body.wd-calc-mobile #estimatesListContainer .w-100.d-none { display: none !important; }
+
+  /* 견적 카드 */
+  body.wd-calc-mobile #estimatesListContainer .card[data-estimate-id] {
+    border: 1px solid var(--foms-border-subtle) !important; border-radius: var(--foms-radius-lg) !important;
+    box-shadow: none !important; height: auto !important;
+  }
+  body.wd-calc-mobile #estimatesListContainer .card[data-estimate-id] > .card-header {
+    background: var(--foms-surface-base) !important; border-bottom: 1px solid var(--foms-border-subtle) !important;
+    padding: var(--foms-space-2) var(--foms-space-3) !important; gap: 4px;
+  }
+  body.wd-calc-mobile #estimatesListContainer .card[data-estimate-id] > .card-header strong {
+    font-size: var(--foms-font-size-sm); white-space: nowrap; color: var(--foms-text-tertiary); font-weight: var(--foms-font-weight-semibold);
+  }
+  body.wd-calc-mobile #estimatesListContainer .card[data-estimate-id] > .card-header .text-muted { white-space: nowrap; }
+  /* 좌측 이름 그룹은 줄임표, 우측 버튼 그룹은 줄바꿈 금지 (제거된 인라인 min-width:0 복원) */
+  body.wd-calc-mobile #estimatesListContainer .card[data-estimate-id] > .card-header > .d-flex:first-child {
+    min-width: 0; flex: 1 1 auto; overflow: hidden;
+  }
+  body.wd-calc-mobile #estimatesListContainer .card[data-estimate-id] > .card-header > div:last-child {
+    flex-shrink: 0; display: flex; gap: 4px; white-space: nowrap;
+  }
+  body.wd-calc-mobile #estimatesListContainer .estimate-display-name {
+    font-size: var(--foms-font-size-sm); max-width: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  body.wd-calc-mobile #estimatesListContainer .card[data-estimate-id] > .card-header .btn {
+    min-height: 32px; padding: 4px 8px; border-radius: var(--foms-radius-sm);
+  }
+  body.wd-calc-mobile #estimatesListContainer .edit-estimate-name-btn { min-height: 0; padding: 0 2px; font-size: var(--foms-font-size-xs); }
+  body.wd-calc-mobile #estimatesListContainer .card[data-estimate-id] > .card-body { padding: var(--foms-space-3) !important; }
+
+  /* 항목: 라벨 좌 + 금액 우, 상세는 다음 줄 */
+  body.wd-calc-mobile #estimatesListContainer .estimate-card-item {
+    margin-bottom: var(--foms-space-2) !important; display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 8px;
+  }
+  body.wd-calc-mobile #estimatesListContainer .estimate-header-base,
+  body.wd-calc-mobile #estimatesListContainer .estimate-header-options {
+    font-size: var(--foms-font-size-sm); color: var(--foms-text-secondary); font-weight: var(--foms-font-weight-medium); margin: 0; display: inline;
+  }
+  body.wd-calc-mobile #estimatesListContainer .estimate-price {
+    font-size: var(--foms-font-size-base); font-weight: var(--foms-font-weight-semibold); color: var(--foms-text-primary);
+    font-variant-numeric: tabular-nums; margin: 0 0 0 auto; order: 2;
+  }
+  body.wd-calc-mobile #estimatesListContainer .estimate-detail-base,
+  body.wd-calc-mobile #estimatesListContainer .estimate-detail-options {
+    font-size: var(--foms-font-size-xs); color: var(--foms-text-tertiary); flex-basis: 100%; order: 3; margin: 0;
+  }
+  body.wd-calc-mobile #estimatesListContainer .wd-estimate-unit-meta {
+    font-size: var(--foms-font-size-xs); color: var(--foms-text-tertiary); flex-basis: 100%; order: 4; margin-top: 2px;
+  }
+  body.wd-calc-mobile #estimatesListContainer hr { margin: var(--foms-space-2) 0 !important; }
+  /* 총견적 행 */
+  body.wd-calc-mobile #estimatesListContainer .card[data-estimate-id] .card-body > .mt-3 {
+    margin-top: var(--foms-space-2) !important; display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  }
+  body.wd-calc-mobile #estimatesListContainer .card[data-estimate-id] .card-body > .mt-3 > small {
+    font-size: var(--foms-font-size-sm) !important; color: var(--foms-text-secondary); margin: 0 !important;
+  }
+  body.wd-calc-mobile #estimatesListContainer .estimate-total-price {
+    font-size: var(--foms-font-size-lg); font-weight: var(--foms-font-weight-bold); color: var(--foms-color-brand-700);
+    font-variant-numeric: tabular-nums; margin: 0;
+  }
+
+  /* 전체 견적 총 합계 */
+  body.wd-calc-mobile #totalEstimatesSummary .card { border: 1px solid var(--foms-color-brand-500) !important; border-radius: var(--foms-radius-lg) !important; box-shadow: none !important; }
+  body.wd-calc-mobile #totalEstimatesSummary > .card > .card-header {
+    background: var(--foms-color-brand-600) !important; padding: var(--foms-space-2) var(--foms-space-3) !important;
+  }
+  body.wd-calc-mobile #totalEstimatesSummary > .card > .card-header h5 { font-size: var(--foms-font-size-base) !important; }
+  body.wd-calc-mobile #totalEstimatesSummary > .card > .card-body { padding: var(--foms-space-3) !important; }
+  body.wd-calc-mobile #totalEstimatesSummary .row > [class*="col-"] { margin-bottom: var(--foms-space-2); }
+  body.wd-calc-mobile #totalEstimatesSummary .final-summary-card { border: none !important; background: var(--foms-color-brand-50) !important; }
+  body.wd-calc-mobile #totalEstimatesSummary #totalAllFinalPrice {
+    font-size: var(--foms-font-size-xl); font-weight: var(--foms-font-weight-bold); color: var(--foms-color-brand-700); font-variant-numeric: tabular-nums; line-height: 1.1;
+  }
+  body.wd-calc-mobile #totalEstimatesSummary #totalAllBasePrice,
+  body.wd-calc-mobile #totalEstimatesSummary #totalAllAdditionalPrice,
+  body.wd-calc-mobile #totalEstimatesSummary #totalAllPrice { font-variant-numeric: tabular-nums; }
 }
 
 /* 데스크톱: JS가 만든 모바일 chrome 잔존 시에도 노출 안 되게 */

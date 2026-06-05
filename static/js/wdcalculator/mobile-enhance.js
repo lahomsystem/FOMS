@@ -481,6 +481,31 @@
       });
     }
 
+    /* ---- 진행 중인 견적 리스트: PC 카드 → 모바일 컴팩트 톤 ----
+       renderEstimatesList()가 인라인 !important 스타일을 박아넣어 CSS로 못 덮음.
+       모바일에서만 견적 카드 내부의 인라인 스타일을 제거해 모바일 CSS가 적용되게 함.
+       수정/삭제/이름수정 버튼은 document 위임(handleEstimateListClick)이라
+       클래스·data-estimate-id만 보존되면 동작 유지 → 마크업 구조는 건드리지 않음. */
+    function mobilizeEstimatesList() {
+      var container = document.getElementById("estimatesListContainer");
+      if (!container) return;
+      forEachNode(container.querySelectorAll(".card[data-estimate-id] [style]"), function (el) {
+        el.removeAttribute("style");
+      });
+      var summary = document.getElementById("totalEstimatesSummary");
+      if (summary) {
+        forEachNode(summary.querySelectorAll("[style]"), function (el) {
+          el.removeAttribute("style");
+        });
+      }
+    }
+    function initEstimatesListMobile() {
+      var container = document.getElementById("estimatesListContainer");
+      if (!container) return;
+      mobilizeEstimatesList();
+      observeChildList(container, mobilizeEstimatesList);
+    }
+
     function enable() {
       if (built) return;
       built = true;
@@ -491,6 +516,7 @@
       initBaseEnhancements();
       initToggleEnhancements();
       initMobileSelects();
+      initEstimatesListMobile();
       buildAdvancedAccordion();
     }
 
