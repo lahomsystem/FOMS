@@ -28,17 +28,22 @@ function setNoteMode(selectEl, textareaEl, mode) {
 }
 
 function createNotesSelectOptions() {
+    // 카테고리는 optgroup 헤더로, 옵션 줄은 옵션명만 짧게.
+    // value는 '카테고리 > 옵션명' 인코딩을 유지(loadNotes/collectNotes/renderNoteItem 매칭 근거).
     let optionsHtml = '<option value="">저장된 비고 선택</option>';
     if (notesCategories && Array.isArray(notesCategories)) {
         notesCategories.forEach((category) => {
             if (category && category.options && Array.isArray(category.options)) {
+                let groupHtml = "";
                 category.options.forEach((option) => {
                     if (option && option.name) {
                         const value = `${category.name} > ${option.name}`;
-                        const escapedValue = escapeHtml(value);
-                        optionsHtml += `<option value="${escapedValue}">${escapedValue}</option>`;
+                        groupHtml += `<option value="${escapeHtml(value)}">${escapeHtml(option.name)}</option>`;
                     }
                 });
+                if (groupHtml) {
+                    optionsHtml += `<optgroup label="${escapeHtml(category.name)}">${groupHtml}</optgroup>`;
+                }
             }
         });
     }
@@ -381,37 +386,49 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
     }
 
     function getProductsOptionsHtml() {
-        // 카테고리별 그룹(optgroup)으로 묶어 '카테고리 > 제품' 형태로 짧게 노출한다.
+        // 카테고리별 optgroup으로 묶고, 카테고리 → 제품명 순으로 정렬해 노출한다.
         // 카테고리가 없는 제품은 그룹 없이 평평하게 먼저 노출(하위호환 + 계약 보존).
         var html = '<option value="">제품을 선택하세요</option>';
-        var products = getProducts() || [];
+        var products = (getProducts() || []).filter(function (p) {
+            return !!p;
+        });
         var grouped = {};
-        var order = [];
-        var uncategorized = "";
+        var uncategorized = [];
 
+        function byName(a, b) {
+            return String(a.name || "").localeCompare(String(b.name || ""), "ko");
+        }
         function optionHtml(p) {
             var optionValue = escapeHtml(String(p.id != null ? p.id : ""));
             return '<option value="' + optionValue + '">' + escapeHtml(p.name || "") + "</option>";
         }
 
         products.forEach(function (p) {
-            if (!p) return;
             var category = p.category != null ? String(p.category).trim() : "";
             if (!category) {
-                uncategorized += optionHtml(p);
+                uncategorized.push(p);
                 return;
             }
             if (!grouped[category]) {
-                grouped[category] = "";
-                order.push(category);
+                grouped[category] = [];
             }
-            grouped[category] += optionHtml(p);
+            grouped[category].push(p);
         });
 
-        html += uncategorized;
-        order.forEach(function (category) {
-            html += '<optgroup label="' + escapeHtml(category) + '">' + grouped[category] + "</optgroup>";
+        uncategorized.sort(byName).forEach(function (p) {
+            html += optionHtml(p);
         });
+        Object.keys(grouped)
+            .sort(function (a, b) {
+                return a.localeCompare(b, "ko");
+            })
+            .forEach(function (category) {
+                html += '<optgroup label="' + escapeHtml(category) + '">';
+                grouped[category].sort(byName).forEach(function (p) {
+                    html += optionHtml(p);
+                });
+                html += "</optgroup>";
+            });
         return html;
     }
 
