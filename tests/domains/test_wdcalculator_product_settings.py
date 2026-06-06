@@ -885,6 +885,44 @@ def test_wdcalculator_products_api_keeps_legacy_success_shape(
     assert first_product["price_1cm"] == 10
 
 
+def test_wdcalculator_product_settings_page_exposes_category(wdcalculator_settings_env, login):
+    """제품 설정 페이지는 제품 카테고리 입력칸과 목록 컬럼을 노출해야 한다."""
+    client = login
+
+    response = client.get("/wdcalculator/product-settings")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert 'id="productCategory"' in body
+    assert 'name="category"' in body
+    assert "<th>카테고리</th>" in body
+
+
+def test_wdcalculator_product_save_persists_category(wdcalculator_settings_env, login):
+    """제품 저장 시 category가 그대로 보존·반환되어야 한다(드롭다운 카테고리 그룹핑 근거)."""
+    client = login
+
+    save_response = client.post(
+        "/api/wdcalculator/products",
+        json={
+            "name": "몰딩(푸쉬)",
+            "category": "몰딩",
+            "pricing_type": "1m",
+            "additional_options": [],
+            "coupon_type": "percentage",
+            "coupon_value": 0,
+            "price_1m": 50000,
+        },
+    )
+
+    assert save_response.status_code == 200
+    assert save_response.get_json()["success"] is True
+
+    reloaded = client.get("/api/wdcalculator/products").get_json()["products"]
+    saved = next(product for product in reloaded if product["name"] == "몰딩(푸쉬)")
+    assert saved["category"] == "몰딩"
+
+
 def test_wdcalculator_calculate_save_and_load_estimate_smoke(wdcalculator_settings_env, login):
     """Core WDCalculator API flow must keep calculate -> save -> load roundtrip working."""
     client = login

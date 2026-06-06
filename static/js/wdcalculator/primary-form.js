@@ -381,12 +381,36 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
     }
 
     function getProductsOptionsHtml() {
+        // 카테고리별 그룹(optgroup)으로 묶어 '카테고리 > 제품' 형태로 짧게 노출한다.
+        // 카테고리가 없는 제품은 그룹 없이 평평하게 먼저 노출(하위호환 + 계약 보존).
         var html = '<option value="">제품을 선택하세요</option>';
         var products = getProducts() || [];
+        var grouped = {};
+        var order = [];
+        var uncategorized = "";
+
+        function optionHtml(p) {
+            var optionValue = escapeHtml(String(p.id != null ? p.id : ""));
+            return '<option value="' + optionValue + '">' + escapeHtml(p.name || "") + "</option>";
+        }
+
         products.forEach(function (p) {
             if (!p) return;
-            var optionValue = escapeHtml(String(p.id != null ? p.id : ""));
-            html += '<option value="' + optionValue + '">' + escapeHtml(p.name || "") + "</option>";
+            var category = p.category != null ? String(p.category).trim() : "";
+            if (!category) {
+                uncategorized += optionHtml(p);
+                return;
+            }
+            if (!grouped[category]) {
+                grouped[category] = "";
+                order.push(category);
+            }
+            grouped[category] += optionHtml(p);
+        });
+
+        html += uncategorized;
+        order.forEach(function (category) {
+            html += '<optgroup label="' + escapeHtml(category) + '">' + grouped[category] + "</optgroup>";
         });
         return html;
     }
@@ -809,13 +833,16 @@ var WdCalculatorAdditionalOptionsUI = window.WdCalculatorAdditionalOptionsUI || 
     }
 
     function getAllOptionsHtml() {
+        // 카테고리는 optgroup 헤더로 한 번만 노출하고, 옵션 줄은 '옵션명 (가격원)'으로 짧게.
+        // value는 'category|name|price' 인코딩을 그대로 유지(선택 시 이름/가격 분해에 사용).
         var html = '<option value="">카테고리 > 옵션을 선택하세요</option>';
         var categories = getCategories() || [];
         categories.forEach(function (category) {
             if (!(category && Array.isArray(category.options) && category.options.length)) return;
+            var groupHtml = "";
             category.options.forEach(function (option) {
                 if (!(option && option.name && option.price !== undefined)) return;
-                html +=
+                groupHtml +=
                     '<option value="' +
                     category.name +
                     "|" +
@@ -823,13 +850,14 @@ var WdCalculatorAdditionalOptionsUI = window.WdCalculatorAdditionalOptionsUI || 
                     "|" +
                     option.price +
                     '">' +
-                    category.name +
-                    " > " +
                     option.name +
                     " (" +
                     formatNumber(option.price) +
                     "원)</option>";
             });
+            if (groupHtml) {
+                html += '<optgroup label="' + category.name + '">' + groupHtml + "</optgroup>";
+            }
         });
         return html;
     }
