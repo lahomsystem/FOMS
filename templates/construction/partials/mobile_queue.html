@@ -6,6 +6,15 @@
       <span class="erp-mobile-queue-section__eyebrow">시공 작업 큐</span>
       <h2 class="erp-mobile-queue-section__title foms-section-header__title">시공 대기·진행</h2>
     </div>
+    {% set _mq_base = url_for('erp_construction_page.erp_construction_dashboard') %}
+    {% set _mq_ctx = [] %}
+    {% if filters and filters.get('q') %}{% set _ = _mq_ctx.append('q=' ~ filters.get('q')|urlencode) %}{% endif %}
+    {% if filters and filters.get('stage') %}{% set _ = _mq_ctx.append('stage=' ~ filters.get('stage')|urlencode) %}{% endif %}
+    <a class="erp-mobile-queue-section__mine{% if erp_mine_only %} is-active{% endif %}"
+       href="{{ _mq_base }}?{{ _mq_ctx|join('&') }}{% if not erp_mine_only %}{% if _mq_ctx %}&{% endif %}mine=1{% endif %}"
+       aria-pressed="{{ 'true' if erp_mine_only else 'false' }}">
+      <i class="fas fa-user-check" aria-hidden="true"></i><span>내 작업</span>
+    </a>
     <span class="erp-mobile-queue-section__count foms-section-header__count">{{ orders|length }} / 전체 {{ total_orders }}건</span>
   </div>
 

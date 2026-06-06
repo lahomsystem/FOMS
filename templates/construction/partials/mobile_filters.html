@@ -42,7 +42,7 @@
     {% for step in process_steps %}
     <a class="chip foms-chip{% if _ct_stage == step.label %} is-active{% endif %}" href="{{ _ct_base }}?stage={{ step.label|urlencode }}{% if _ct_keep_qs %}&{{ _ct_keep_qs }}{% endif %}">{{ step.display|default(step.label) }} {{ step.count }}</a>
     {% endfor %}
-    <a class="chip foms-chip{% if erp_mine_only %} is-active{% endif %}" href="{{ _ct_base }}?{{ _ct_ctx|join('&') }}{% if not erp_mine_only %}{% if _ct_ctx %}&{% endif %}mine=1{% endif %}">내 작업</a>
+    {# '내 작업'은 섹션 헤더(작업 큐 요약줄)로 분리됨 — mobile_queue.html 참조 #}
   </nav>
 
   <div

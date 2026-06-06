@@ -19,7 +19,9 @@
   max-width: 100%;
 }
 
-.erp-shipment-mobile-controls,
+/* controls는 제외: 칩스트립 full-bleed 흰배경(좌우 -space-4)이 여기서 클립되면
+   실측과 달리 흰박스가 화면 폭을 꽉 채우지 못한다. 가로 넘침은 칩스트립 자체의
+   overflow-x:auto가 처리하므로 controls 클립은 불필요. */
 .erp-shipment-mobile-dates,
 .erp-shipment-mobile-queue {
   overflow-x: hidden;

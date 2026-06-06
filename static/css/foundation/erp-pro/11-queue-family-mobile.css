@@ -44,6 +44,37 @@
     max-width: 100%;
   }
 
+  /* 작업 큐 요약줄의 '내 작업' 토글(칩스트립에서 분리, 헤더 중간 배치) */
+  body.erp-mobile-v2-layout .erp-mobile-queue-section__mine {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+    padding: 5px 12px;
+    border-radius: 999px;
+    font-size: var(--foms-font-size-sm, 0.8125rem);
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    text-decoration: none;
+    background: var(--foms-surface-overlay, #f1f5f9);
+    color: var(--foms-text-secondary, #556b82);
+    border: 1px solid transparent;
+  }
+  body.erp-mobile-v2-layout .erp-mobile-queue-section__mine.is-active {
+    background: var(--foms-color-brand-50, #ebf5ff);
+    color: var(--foms-color-brand-700, #0057d2);
+    border-color: var(--foms-color-brand-300, #9cc6ff);
+  }
+  body.erp-mobile-v2-layout .erp-mobile-queue-section__mine i {
+    font-size: 0.85em;
+  }
+  /* 요약줄: 제목 / 내작업(중간) / 카운트 3분할 */
+  body.erp-mobile-v2-layout .erp-construction-mobile-v2 .erp-mobile-queue-section__summary {
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
   .erp-mobile-queue-filters__search {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto auto;
