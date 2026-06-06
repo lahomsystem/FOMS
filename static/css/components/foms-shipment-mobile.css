@@ -73,8 +73,9 @@
 
 .erp-shipment-mobile-controls .foms-chip-strip {
   margin-top: 0.75rem;
-  min-width: 0;
-  max-width: 100%;
+  /* min-width:0/max-width:100%는 칩스트립의 full-bleed 음수마진(좌우 -space-4)
+     중 우측 bleed를 막아 스트립이 비대칭(좌측 쏠림)이 되게 했다. 가로 넘침은
+     이제 flex-wrap으로 처리하므로 폭 제약을 제거해 좌우 대칭 bleed + 정중앙 유지. */
 }
 
 .erp-shipment-mobile-controls__drawer {
