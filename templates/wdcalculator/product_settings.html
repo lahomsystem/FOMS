@@ -131,6 +131,7 @@
         .wdcalc-mobile-card-table .btn { min-height: 44px; }
     }
 </style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/wdcalculator/product-settings-mobile.css') }}?v=20260607a">
 {% endblock %}
 
 {% block content %}
@@ -1951,5 +1952,9 @@ document.addEventListener('DOMContentLoaded', function() {
     attachNotesCategoryEventListeners();
 });
 </script>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/wdcalculator/product-settings-mobile.js') }}?v=20260607a" defer></script>
 {% endblock %}
 
