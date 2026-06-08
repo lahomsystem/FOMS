@@ -37,15 +37,20 @@
     var items = [];
     var readAtt = window.FomsWizardAttachments && window.FomsWizardAttachments.readAttachments;
     cards.forEach(function (card) {
-      var specRow = card.querySelector("[data-spec-row]");
-      var spec = {
-        spec_width: readValue(specRow && specRow.querySelector('[data-product-field="spec_width"]')),
-        spec_depth: readValue(specRow && specRow.querySelector('[data-product-field="spec_depth"]')),
-        spec_height: readValue(specRow && specRow.querySelector('[data-product-field="spec_height"]')),
-      };
+      var specRows = [];
+      card.querySelectorAll("[data-spec-row]").forEach(function (sr) {
+        specRows.push({
+          spec_width: readValue(sr.querySelector('[data-product-field="spec_width"]')),
+          spec_depth: readValue(sr.querySelector('[data-product-field="spec_depth"]')),
+          spec_height: readValue(sr.querySelector('[data-product-field="spec_height"]')),
+        });
+      });
+      if (!specRows.length) {
+        specRows = [{ spec_width: "", spec_depth: "", spec_height: "" }];
+      }
       items.push({
         product_name: readValue(card.querySelector('[data-product-field="product_name"]')),
-        spec_rows: [spec],
+        spec_rows: specRows,
         internal: readValue(card.querySelector('[data-product-field="internal"]')),
         color: readValue(card.querySelector('[data-product-field="color"]')),
         option_detail: readValue(card.querySelector('[data-product-field="option_detail"]')),
@@ -235,6 +240,19 @@
     clone.querySelectorAll("input, textarea").forEach(function (input) {
       input.value = "";
     });
+    // 규격은 1행으로 리셋(템플릿이 다중 행 상태였을 수 있음).
+    var specRowsWrap = clone.querySelector("[data-spec-rows]");
+    if (specRowsWrap) {
+      var srows = specRowsWrap.querySelectorAll("[data-spec-row]");
+      for (var si = srows.length - 1; si >= 1; si -= 1) {
+        srows[si].remove();
+      }
+    }
+    // ERP 폼 방식: 내부/색상/옵션/손잡이/기타 신규 항목 기본값 '상담'.
+    clone.querySelectorAll("[data-default-consult]").forEach(function (el) {
+      el.value = "상담";
+    });
+    updateSpecDelVisibility(clone);
     var input = clone.querySelector("[data-wizard-attachment-input]");
     if (input) {
       input.id = "wiz-attach-input-" + nextIndex;
@@ -256,6 +274,44 @@
     return clone;
   }
 
+  /* ---- 규격 다중 행 (ERP 모바일 폼 방식) ---- */
+  function updateSpecDelVisibility(card) {
+    var rowsWrap = card.querySelector("[data-spec-rows]");
+    if (!rowsWrap) return;
+    var rows = rowsWrap.querySelectorAll("[data-spec-row]");
+    rows.forEach(function (r) {
+      var del = r.querySelector("[data-spec-del]");
+      if (del) del.hidden = rows.length <= 1;
+    });
+  }
+  function addSpecRow(card) {
+    var rowsWrap = card.querySelector("[data-spec-rows]");
+    if (!rowsWrap) return null;
+    var first = rowsWrap.querySelector("[data-spec-row]");
+    if (!first) return null;
+    var clone = first.cloneNode(true);
+    clone.querySelectorAll("input").forEach(function (i) {
+      i.value = "";
+    });
+    rowsWrap.appendChild(clone);
+    updateSpecDelVisibility(card);
+    return clone;
+  }
+  function setSpecRowCount(card, n) {
+    var rowsWrap = card.querySelector("[data-spec-rows]");
+    if (!rowsWrap) return;
+    var rows = rowsWrap.querySelectorAll("[data-spec-row]");
+    while (rows.length < n) {
+      addSpecRow(card);
+      rows = rowsWrap.querySelectorAll("[data-spec-row]");
+    }
+    while (rows.length > n && rows.length > 1) {
+      rows[rows.length - 1].remove();
+      rows = rowsWrap.querySelectorAll("[data-spec-row]");
+    }
+    updateSpecDelVisibility(card);
+  }
+
   function fillProductCard(card, item) {
     if (!card || !item) {
       return;
@@ -268,8 +324,6 @@
       "handle",
       "misc",
       "price",
-      "measurement_date",
-      "construction_date",
       "extra_input",
     ];
     fields.forEach(function (name) {
@@ -278,12 +332,16 @@
         el.value = item[name];
       }
     });
-    var spec = (item.spec_rows && item.spec_rows[0]) || {};
-    ["spec_width", "spec_depth", "spec_height"].forEach(function (name) {
-      var el = card.querySelector('[data-product-field="' + name + '"]');
-      if (el && spec[name]) {
-        el.value = spec[name];
-      }
+    var specRows = item.spec_rows && item.spec_rows.length ? item.spec_rows : [{}];
+    setSpecRowCount(card, specRows.length);
+    var rowEls = card.querySelectorAll("[data-spec-row]");
+    specRows.forEach(function (sr, i) {
+      var rowEl = rowEls[i];
+      if (!rowEl) return;
+      ["spec_width", "spec_depth", "spec_height"].forEach(function (name) {
+        var inp = rowEl.querySelector('[data-product-field="' + name + '"]');
+        if (inp) inp.value = sr[name] != null ? sr[name] : "";
+      });
     });
     if (window.FomsWizardAttachments) {
       window.FomsWizardAttachments.applyAttachments(card, item.attachments);
@@ -506,6 +564,33 @@
         draftClient.scheduleSave();
       });
     }
+
+    // 규격 행 추가/삭제(위임 → 동적 카드/행 대응).
+    root.querySelectorAll("[data-product-index]").forEach(updateSpecDelVisibility);
+    root.addEventListener("click", function (e) {
+      var addBtn = e.target.closest("[data-spec-add]");
+      if (addBtn) {
+        var card = addBtn.closest("[data-product-index]");
+        if (card) {
+          var newRow = addSpecRow(card);
+          if (newRow) {
+            var f = newRow.querySelector("input");
+            if (f && f.focus) f.focus();
+          }
+          draftClient.scheduleSave();
+        }
+        return;
+      }
+      var delBtn = e.target.closest("[data-spec-del]");
+      if (delBtn) {
+        var rowEl = delBtn.closest("[data-spec-row]");
+        var delCard = delBtn.closest("[data-product-index]");
+        if (rowEl) rowEl.remove();
+        if (delCard) updateSpecDelVisibility(delCard);
+        draftClient.scheduleSave();
+        return;
+      }
+    });
 
     draftClient.load().then(function (remote) {
       if (!remote || !remote.payload) {

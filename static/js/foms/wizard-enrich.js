@@ -151,5 +151,23 @@
       fromCanonical();
     }
     Array.prototype.forEach.call(root.querySelectorAll("[data-combo]"), bindCombo);
+
+    /* autosize textarea (ERP 폼 방식: 내부/옵션/기타/추가입력 자동 높이) */
+    function sizeTextarea(ta) {
+      ta.style.height = "auto";
+      ta.style.height = Math.max(ta.scrollHeight, 44) + "px";
+    }
+    function sizeAll() {
+      Array.prototype.forEach.call(root.querySelectorAll("textarea.foms-wizard__autosize"), sizeTextarea);
+    }
+    root.addEventListener("input", function (e) {
+      if (e.target && e.target.matches && e.target.matches("textarea.foms-wizard__autosize")) {
+        sizeTextarea(e.target);
+      }
+    });
+    if (window.MutationObserver) {
+      new MutationObserver(sizeAll).observe(root, { childList: true, subtree: true });
+    }
+    sizeAll();
   });
 })();

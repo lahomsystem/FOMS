@@ -179,9 +179,34 @@
 
 .foms-wizard__spec-row {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr auto;
   gap: 8px;
   margin-bottom: 8px;
+  align-items: center;
+}
+.foms-wizard__spec-del {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--foms-border-default, #ced4da);
+  background: var(--foms-surface-base, #fff);
+  color: var(--foms-color-danger-500, #dc3545);
+  border-radius: var(--foms-radius-md, 8px);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.foms-wizard__spec-del[hidden] {
+  display: none;
+}
+.foms-wizard__spec-add {
+  margin-top: 4px;
+  color: var(--foms-color-brand-600, #2563eb);
+}
+.foms-wizard__autosize {
+  resize: none;
+  overflow: hidden;
+  min-height: 44px;
+  line-height: 1.4;
 }
 
 .foms-wizard__grid-2 {
