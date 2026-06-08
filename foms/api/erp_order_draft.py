@@ -9,7 +9,7 @@ from typing import Any
 from flask import Blueprint, jsonify, request, session
 
 from db import get_db
-from foms.services.feature_flags import env_bool
+from foms.services.feature_flags import env_bool, wizard_new_order_enabled
 from foms.api.files.routes import build_file_view_url
 from foms.services.order_draft_attachments import (
     draft_attachment_folder,
@@ -40,7 +40,8 @@ erp_order_draft_bp = Blueprint("erp_order_draft", __name__, url_prefix="/api/erp
 
 
 def _wizard_enabled() -> bool:
-    return env_bool("FOMS_WIZARD_NEW_ORDER_ENABLED")
+    # 렌더 게이트(order_pages.add_order)와 동일 기준: 전역 플래그 OR 모바일 v2 코호트.
+    return wizard_new_order_enabled(_user_id())
 
 
 def _require_wizard() -> tuple[Any, int] | None:

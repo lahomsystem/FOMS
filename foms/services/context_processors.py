@@ -151,7 +151,9 @@ def inject_foms_flags() -> dict[str, Any]:
     return {
         "flag_mobile_v2": mobile_v2,
         "flag_tokens_v2": env_bool("FOMS_DESIGN_TOKENS_V2_ENABLED", True),
-        "flag_wizard": env_bool("FOMS_WIZARD_NEW_ORDER_ENABLED"),
+        # wizard 활성 = 전역 플래그 OR 모바일 v2 코호트(렌더·draft API와 동일 기준).
+        # add_order에서 .foms-wizard-active body class(레거시 chrome 숨김)를 켜 wizard 풀스크린 유지.
+        "flag_wizard": env_bool("FOMS_WIZARD_NEW_ORDER_ENABLED") or mobile_v2,
         "flag_inline": env_bool("FOMS_INLINE_EDIT_ENABLED"),
         "flag_split_view": split_flag,
         "foms_split_enabled": mobile_v2 and split_flag,

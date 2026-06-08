@@ -25,7 +25,7 @@ from foms.services.request_utils import (
     get_search_query_arg,
     redirect_if_legacy_open_erp_beta,
 )
-from foms.services.feature_flags import env_bool
+from foms.services.feature_flags import env_bool, wizard_new_order_enabled
 from foms.services.gnav_contract import gnav_orders_layout_parent, wants_gnav_fragment
 from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
 
@@ -422,7 +422,10 @@ def add_order():
 
     today = datetime.datetime.now().strftime('%Y-%m-%d')
     current_time = datetime.datetime.now().strftime('%H:%M')
-    if env_bool("FOMS_WIZARD_NEW_ORDER_ENABLED"):
+    _uid_raw = session.get('user_id')
+    _uid = int(_uid_raw) if _uid_raw is not None else None
+    # 전역 wizard 플래그 OR ERP 모바일 v2 코호트 → 모바일 셸 '주문 생성' FAB가 wizard로 진입.
+    if wizard_new_order_enabled(_uid):
         import uuid
 
         draft_key = (request.args.get('key') or '').strip() or f"new.{uuid.uuid4().hex[:16]}"

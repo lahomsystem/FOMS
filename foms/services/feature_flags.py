@@ -10,6 +10,7 @@ __all__ = [
     "env_id_list",
     "is_cohort_all",
     "is_enabled_for_user",
+    "wizard_new_order_enabled",
 ]
 
 _TRUTHY = frozenset({"true", "1", "yes", "y", "on"})
@@ -115,3 +116,24 @@ def is_enabled_for_user(
     if not cohort:
         return False
     return user_id is not None and user_id in cohort
+
+
+def wizard_new_order_enabled(user_id: int | None = None) -> bool:
+    """주문 생성 wizard(모바일 4단계) 활성 여부.
+
+    전역 ``FOMS_WIZARD_NEW_ORDER_ENABLED`` 플래그가 켜져 있거나, 사용자가 ERP
+    모바일 v2 코호트에 속하면 활성으로 본다. 모바일 v2 셸의 '주문 생성' FAB가
+    레거시 ``add_order`` 폼이 아니라 모바일 wizard로 진입하도록 단일 기준을
+    제공한다(렌더·draft API·chrome 숨김 body class가 동일 판정을 공유).
+
+    Args:
+        user_id: 현재 사용자 id(미인증 시 None).
+
+    Returns:
+        wizard를 노출/활성화해야 하면 True.
+    """
+    if env_bool("FOMS_WIZARD_NEW_ORDER_ENABLED"):
+        return True
+    return is_enabled_for_user(
+        "ERP_MOBILE_V2_ENABLED", user_id, cohort_key="FOMS_V3_SHELL_COHORT"
+    )
