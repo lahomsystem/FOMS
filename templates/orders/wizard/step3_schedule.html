@@ -8,22 +8,27 @@
       <input class="foms-input foms-tabular" id="wiz-measurement-date" name="measurement_date" data-wizard-field data-schedule-field type="date" />
     </div>
     <div class="foms-wizard__field">
-      <label class="field__label" for="wiz-measurement-time">실측 시간</label>
-      <input class="foms-input foms-tabular" id="wiz-measurement-time" name="measurement_time" data-wizard-field data-schedule-field type="time" />
+      <label class="field__label" for="wiz-measurement-time-mode">실측 시간</label>
+      <select class="foms-select foms-tabular" id="wiz-measurement-time-mode" data-combo="time" data-combo-for="wiz-measurement-time">
+        <option value="">선택</option>
+        <option value="__custom__">직접 입력</option>
+      </select>
+      <input class="foms-input foms-tabular foms-wizard__combo-custom" id="wiz-measurement-time-custom" type="time" hidden />
+      <input type="hidden" id="wiz-measurement-time" name="measurement_time" data-wizard-field data-schedule-field />
     </div>
     <div class="foms-wizard__field">
       <label class="field__label" for="wiz-construction-date">시공일</label>
       <input class="foms-input foms-tabular" id="wiz-construction-date" name="construction_date" data-wizard-field data-schedule-field type="date" />
     </div>
     <div class="foms-wizard__field">
-      <label class="field__label" for="wiz-construction-time">시공 시간</label>
-      <input class="foms-input foms-tabular" id="wiz-construction-time" name="construction_time" data-wizard-field data-schedule-field type="time" />
+      <label class="field__label" for="wiz-construction-time-mode">시공 시간</label>
+      <select class="foms-select foms-tabular" id="wiz-construction-time-mode" data-combo="time" data-combo-for="wiz-construction-time">
+        <option value="">선택</option>
+        <option value="__custom__">직접 입력</option>
+      </select>
+      <input class="foms-input foms-tabular foms-wizard__combo-custom" id="wiz-construction-time-custom" type="time" hidden />
+      <input type="hidden" id="wiz-construction-time" name="construction_time" data-wizard-field data-schedule-field />
     </div>
-  </div>
-
-  <div class="foms-wizard__field">
-    <label class="field__label" for="wiz-load-date">상차 예정</label>
-    <input class="foms-input foms-tabular" id="wiz-load-date" name="load_date" data-wizard-field data-schedule-field type="date" />
   </div>
 
   <div class="foms-wizard__grid-2">
@@ -31,14 +36,14 @@
       <label class="field__label" for="wiz-sales-manager">영업 담당</label>
       <select class="foms-select" id="wiz-sales-manager" name="sales_manager" data-wizard-field data-schedule-field>
         <option value="">선택</option>
-        {% for staff in wizard_staff or [] %}<option value="{{ staff }}">{{ staff }}</option>{% endfor %}
+        {% for staff in wizard_sales_staff or [] %}<option value="{{ staff }}">{{ staff }}</option>{% endfor %}
       </select>
     </div>
     <div class="foms-wizard__field">
       <label class="field__label" for="wiz-construction-manager">시공 담당</label>
       <select class="foms-select" id="wiz-construction-manager" name="construction_manager" data-wizard-field data-schedule-field>
         <option value="">선택</option>
-        {% for staff in wizard_staff or [] %}<option value="{{ staff }}">{{ staff }}</option>{% endfor %}
+        {% for staff in wizard_construction_staff or [] %}<option value="{{ staff }}">{{ staff }}</option>{% endfor %}
       </select>
     </div>
   </div>

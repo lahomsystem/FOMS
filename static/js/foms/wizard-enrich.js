@@ -79,5 +79,77 @@
         else window.alert(msg);
       });
     }
+
+    /* 콤보 필드: 프리셋 select + '직접 입력' → custom 입력. 실제 값은 canonical hidden에 동기화.
+       data-combo="time"이면 08:30~17:00 30분 옵션을 주입. data-combo-for=canonical id,
+       custom 입력 id = <canonical id>-custom. */
+    function pad2(n) {
+      return (n < 10 ? "0" : "") + n;
+    }
+    function injectTimeOptions(sel) {
+      var custOpt = sel.querySelector('option[value="__custom__"]');
+      for (var t = 8 * 60 + 30; t <= 17 * 60; t += 30) {
+        var v = pad2(Math.floor(t / 60)) + ":" + pad2(t % 60);
+        var o = document.createElement("option");
+        o.value = v;
+        o.textContent = v;
+        sel.insertBefore(o, custOpt || null);
+      }
+    }
+    function bindCombo(sel) {
+      var canonical = document.getElementById(sel.getAttribute("data-combo-for"));
+      if (!canonical) return;
+      var custom = document.getElementById(sel.getAttribute("data-combo-for") + "-custom");
+      if (sel.getAttribute("data-combo") === "time") injectTimeOptions(sel);
+
+      function showCustom(on) {
+        if (custom) custom.hidden = !on;
+      }
+      function fromCanonical() {
+        var v = (canonical.value || "").trim();
+        var isPreset =
+          v &&
+          Array.prototype.some.call(sel.options, function (o) {
+            return o.value === v && o.value !== "__custom__";
+          });
+        if (isPreset) {
+          sel.value = v;
+          showCustom(false);
+        } else if (v) {
+          sel.value = "__custom__";
+          if (custom) custom.value = v;
+          showCustom(true);
+        } else {
+          sel.value = "";
+          showCustom(false);
+        }
+      }
+      function pushCanonical() {
+        if (sel.value === "__custom__") {
+          showCustom(true);
+          canonical.value = custom ? custom.value : "";
+        } else {
+          showCustom(false);
+          canonical.value = sel.value;
+        }
+        canonical.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+      sel.addEventListener("change", function () {
+        pushCanonical();
+        if (sel.value === "__custom__" && custom) custom.focus();
+      });
+      if (custom) {
+        custom.addEventListener("input", function () {
+          if (sel.value === "__custom__") {
+            canonical.value = custom.value;
+            canonical.dispatchEvent(new Event("input", { bubbles: true }));
+          }
+        });
+      }
+      // 복구/프로그램적 적용(wizard.js apply*가 canonical에 change 디스패치) → 표시 재동기화.
+      canonical.addEventListener("change", fromCanonical);
+      fromCanonical();
+    }
+    Array.prototype.forEach.call(root.querySelectorAll("[data-combo]"), bindCombo);
   });
 })();

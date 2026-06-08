@@ -19,11 +19,14 @@
   </div>
 
   <div class="foms-wizard__field">
-    <label class="field__label" for="wiz-orderer">발주사</label>
-    <select class="foms-select" id="wiz-orderer" name="orderer" data-wizard-field>
+    <label class="field__label" for="wiz-orderer-mode">발주사</label>
+    <select class="foms-select" id="wiz-orderer-mode" data-combo="text" data-combo-for="wiz-orderer">
       <option value="라홈">라홈 (계약서)</option>
       <option value="하우드">하우드</option>
+      <option value="__custom__">직접 입력</option>
     </select>
+    <input class="foms-input foms-wizard__combo-custom" id="wiz-orderer-custom" placeholder="발주사 직접 입력" hidden />
+    <input type="hidden" id="wiz-orderer" name="orderer" data-wizard-field value="라홈" />
   </div>
 
   <div class="foms-wizard__field">

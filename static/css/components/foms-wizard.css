@@ -277,6 +277,11 @@
   display: block;
 }
 
+/* 콤보 필드(프리셋 select + 직접입력 custom 입력) 간격 */
+.foms-wizard__combo-custom {
+  margin-top: var(--foms-space-2, 8px);
+}
+
 /* ── Step 1: 연락처/주소 보조 버튼(addon) + 힌트 ── */
 .foms-wizard__addon {
   display: grid;

@@ -26,7 +26,6 @@
       measurement_time: readValue(root.querySelector("#wiz-measurement-time")),
       construction_date: readValue(root.querySelector("#wiz-construction-date")),
       construction_time: readValue(root.querySelector("#wiz-construction-time")),
-      load_date: readValue(root.querySelector("#wiz-load-date")),
       sales_manager: readValue(root.querySelector("#wiz-sales-manager")),
       construction_manager: readValue(root.querySelector("#wiz-construction-manager")),
       notes: readValue(root.querySelector("#wiz-notes")),
@@ -182,6 +181,8 @@
       var el = root.querySelector(sel);
       if (el && map[sel]) {
         el.value = map[sel];
+        // combo(발주사 등) 표시 컨트롤이 canonical 값으로 재동기화되도록 알림.
+        el.dispatchEvent(new Event("change", { bubbles: true }));
       }
     });
   }
@@ -193,7 +194,6 @@
       "#wiz-measurement-time": schedule.measurement_time,
       "#wiz-construction-date": schedule.construction_date,
       "#wiz-construction-time": schedule.construction_time,
-      "#wiz-load-date": schedule.load_date,
       "#wiz-sales-manager": schedule.sales_manager,
       "#wiz-construction-manager": schedule.construction_manager,
       "#wiz-notes": schedule.notes,
@@ -202,6 +202,8 @@
       var el = root.querySelector(sel);
       if (el && map[sel]) {
         el.value = map[sel];
+        // 시간 combo의 표시 select/custom이 canonical 값으로 재동기화되도록 알림.
+        el.dispatchEvent(new Event("change", { bubbles: true }));
       }
     });
   }

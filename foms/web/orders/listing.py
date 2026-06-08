@@ -433,26 +433,40 @@ def add_order():
             initial_step = max(1, min(4, int(request.args.get('step') or 1)))
         except (TypeError, ValueError):
             initial_step = 1
-        # 영업·시공 담당 드롭다운 옵션(활성 사용자 이름).
+        # 담당 드롭다운: 영업담당 = 영업팀(SALES) + 관리자(ADMIN), 시공담당 = 시공팀(CONSTRUCTION).
+        wizard_sales_staff = []
+        wizard_construction_staff = []
         try:
-            wizard_staff = [
-                row[0]
-                for row in get_db()
-                .query(User.name)
+            _rows = (
+                get_db()
+                .query(User.name, User.team, User.role)
                 .filter(User.is_active.is_(True))
                 .order_by(User.name)
                 .all()
-                if row[0]
-            ]
+            )
+            _seen_sales = set()
+            _seen_cons = set()
+            for _name, _team, _role in _rows:
+                _nm = (_name or '').strip()
+                if not _nm:
+                    continue
+                if (_team == 'SALES' or _role == 'ADMIN') and _nm not in _seen_sales:
+                    _seen_sales.add(_nm)
+                    wizard_sales_staff.append(_nm)
+                if _team == 'CONSTRUCTION' and _nm not in _seen_cons:
+                    _seen_cons.add(_nm)
+                    wizard_construction_staff.append(_nm)
         except Exception:
-            wizard_staff = []
+            wizard_sales_staff = []
+            wizard_construction_staff = []
         return render_template(
             'orders/wizard/wizard_shell.html',
             today=today,
             current_time=current_time,
             draft_key=draft_key,
             initial_step=initial_step,
-            wizard_staff=wizard_staff,
+            wizard_sales_staff=wizard_sales_staff,
+            wizard_construction_staff=wizard_construction_staff,
         )
     return render_template('orders/add_order.html', today=today, current_time=current_time)
 
