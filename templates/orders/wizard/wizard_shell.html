@@ -1,6 +1,11 @@
 {% extends "orders/layout.html" %}
 
 {% block styles %}
+{# foms 컴포넌트 기본 스타일(.foms-input/.foms-select/.foms-btn). /add는 /erp 경로가
+   아니라 layout_head의 foms-mobile-surfaces 번들 조건을 타지 않으므로 직접 로드한다.
+   누락 시 입력이 네이티브 기본형으로 렌더되어 plain·가로 오버플로 발생. #}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-buttons.css') }}?v=20260608a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-form-field.css') }}?v=20260608a">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-wizard.css') }}?v=20260608a">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-product-item.css') }}?v=20260531b">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/foms/photo-capture.css') }}?v=20260531b">
