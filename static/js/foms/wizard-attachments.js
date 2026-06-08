@@ -28,20 +28,29 @@
     }
     preview.removeAttribute("data-empty");
     entries.forEach(function (entry, idx) {
-      var btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "foms-wizard__attachment-thumb";
-      btn.setAttribute("data-attachment-index", String(idx));
-      btn.setAttribute("aria-label", entry.filename || "첨부");
+      var thumb = document.createElement("div");
+      thumb.className = "foms-wizard__attachment-thumb";
+      thumb.setAttribute("data-attachment-index", String(idx));
+      thumb.setAttribute("title", entry.filename || "첨부");
       if (entry.view_url) {
         var img = document.createElement("img");
         img.src = entry.view_url;
         img.alt = entry.filename || "";
-        btn.appendChild(img);
+        thumb.appendChild(img);
       } else {
-        btn.textContent = entry.filename || "파일";
+        var name = document.createElement("span");
+        name.className = "foms-wizard__attachment-name";
+        name.textContent = entry.filename || "파일";
+        thumb.appendChild(name);
       }
-      preview.appendChild(btn);
+      var remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "foms-wizard__attachment-remove";
+      remove.setAttribute("data-attachment-remove", "");
+      remove.setAttribute("aria-label", (entry.filename || "첨부") + " 삭제");
+      remove.innerHTML = "&times;";
+      thumb.appendChild(remove);
+      preview.appendChild(thumb);
     });
   }
 
@@ -113,18 +122,29 @@
     var preview = card.querySelector("[data-wizard-attachment-preview]");
     if (preview) {
       preview.addEventListener("click", function (ev) {
-        var btn = ev.target.closest("[data-attachment-index]");
-        if (!btn) {
+        // 삭제는 명시적 × 버튼으로만. 썸네일 본문 클릭은 미리보기(새 탭)로 동작.
+        var removeBtn = ev.target.closest("[data-attachment-remove]");
+        if (removeBtn) {
+          var thumb = removeBtn.closest("[data-attachment-index]");
+          var idx = thumb ? parseInt(thumb.getAttribute("data-attachment-index"), 10) : NaN;
+          if (isNaN(idx) || !Array.isArray(card._wizardAttachments)) {
+            return;
+          }
+          card._wizardAttachments.splice(idx, 1);
+          renderPreview(card);
+          if (scheduleSave) {
+            scheduleSave();
+          }
           return;
         }
-        var idx = parseInt(btn.getAttribute("data-attachment-index"), 10);
-        if (isNaN(idx) || !Array.isArray(card._wizardAttachments)) {
+        var openThumb = ev.target.closest("[data-attachment-index]");
+        if (!openThumb) {
           return;
         }
-        card._wizardAttachments.splice(idx, 1);
-        renderPreview(card);
-        if (scheduleSave) {
-          scheduleSave();
+        var openIdx = parseInt(openThumb.getAttribute("data-attachment-index"), 10);
+        var entry = (card._wizardAttachments || [])[openIdx];
+        if (entry && entry.view_url) {
+          window.open(entry.view_url, "_blank", "noopener");
         }
       });
     }

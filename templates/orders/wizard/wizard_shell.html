@@ -6,7 +6,7 @@
    누락 시 입력이 네이티브 기본형으로 렌더되어 plain·가로 오버플로 발생. #}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-buttons.css') }}?v=20260608a">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-form-field.css') }}?v=20260608a">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-wizard.css') }}?v=20260608c">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-wizard.css') }}?v=20260608e">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-product-item.css') }}?v=20260531b">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/foms/photo-capture.css') }}?v=20260531b">
 {% endblock %}
@@ -76,15 +76,15 @@
 {% include 'partials/shared/alpine_layout.html' %}
 {% include 'partials/shared/foms_alpine_toast.html' %}
 <script src="{{ url_for('static', filename='js/foms/haptic.js') }}?v=20260530a" defer></script>
-<script src="{{ url_for('static', filename='js/foms/voice-input.js') }}?v=20260530a" defer></script>
+<script src="{{ url_for('static', filename='js/foms/voice-input.js') }}?v=20260608e" defer></script>
 {% if flag_offline_sw %}
 <script src="{{ url_for('static', filename='js/foms/sync.js') }}?v=20260531a" defer></script>
 {% endif %}
 <script src="{{ url_for('static', filename='js/foms/draft.js') }}?v=20260530a" defer></script>
 <script src="{{ url_for('static', filename='js/foms/photo-capture.js') }}?v=20260531b" defer></script>
 <script src="{{ url_for('static', filename='js/foms/product-item.js') }}?v=20260531c" defer></script>
-<script src="{{ url_for('static', filename='js/foms/wizard-attachments.js') }}?v=20260531b" defer></script>
+<script src="{{ url_for('static', filename='js/foms/wizard-attachments.js') }}?v=20260608e" defer></script>
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js" defer></script>
 <script src="{{ url_for('static', filename='js/foms/wizard-enrich.js') }}?v=20260608c" defer></script>
-<script src="{{ url_for('static', filename='js/foms/wizard.js') }}?v=20260608d" defer></script>
+<script src="{{ url_for('static', filename='js/foms/wizard.js') }}?v=20260608e" defer></script>
 {% endblock %}

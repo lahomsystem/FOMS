@@ -295,6 +295,7 @@
 }
 
 .foms-wizard__attachment-thumb {
+  position: relative;
   width: 56px;
   height: 56px;
   border-radius: 8px;
@@ -303,6 +304,7 @@
   overflow: hidden;
   background: var(--foms-surface-muted, #f3f4f6);
   font-size: 10px;
+  cursor: pointer;
 }
 
 .foms-wizard__attachment-thumb img {
@@ -312,9 +314,79 @@
   display: block;
 }
 
+.foms-wizard__attachment-name {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 4px;
+  text-align: center;
+  word-break: break-all;
+  color: var(--foms-text-secondary, #4b5563);
+}
+
+/* 삭제는 명시적 × 버튼으로만 — 썸네일 클릭만으로 사라지던 문제 방지 */
+.foms-wizard__attachment-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(15, 17, 21, 0.6);
+  color: #fff;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.foms-wizard__attachment-remove:active {
+  background: rgba(15, 17, 21, 0.8);
+}
+
 /* 콤보 필드(프리셋 select + 직접입력 custom 입력) 간격 */
 .foms-wizard__combo-custom {
   margin-top: var(--foms-space-2, 8px);
+}
+
+/* 음성 입력(P2-05 voice-input.js): 입력칸 우측 내부 심플 마이크.
+   wizard는 foms-swipe-actions.css(.foms-voice-btn 정의)를 로드하지 않으므로 여기서 정의. */
+.foms-voice-wrap {
+  position: relative;
+  display: block;
+}
+.foms-input.foms-voice-has-btn {
+  padding-right: 40px;
+}
+.foms-voice-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--foms-radius-md, 8px);
+  background: transparent;
+  color: var(--foms-text-tertiary, #6b7280);
+  font-size: 15px;
+  cursor: pointer;
+}
+.foms-voice-btn:active {
+  background: var(--foms-interactive-secondary, #f3f4f6);
+}
+.foms-voice-btn.is-active {
+  color: var(--foms-interactive-primary, #2563eb);
+  background: var(--foms-color-brand-50, #eff6ff);
 }
 
 /* ── Step 1: 연락처/주소 보조 버튼(addon) + 힌트 ── */

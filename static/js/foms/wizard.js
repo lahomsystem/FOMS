@@ -252,6 +252,14 @@
     clone.querySelectorAll("[data-default-consult]").forEach(function (el) {
       el.value = "상담";
     });
+    // 음성 입력 마이크는 첫 카드에서 바인딩된 것이라 복제되면 리스너가 없는 죽은 버튼이다.
+    // 복제본의 마이크 버튼/바인딩 표식을 제거(래퍼는 재사용)하고 아래에서 새로 부착한다.
+    clone.querySelectorAll(".foms-voice-btn").forEach(function (b) {
+      b.remove();
+    });
+    clone.querySelectorAll("[data-foms-voice-bound]").forEach(function (el) {
+      el.removeAttribute("data-foms-voice-bound");
+    });
     updateSpecDelVisibility(clone);
     var input = clone.querySelector("[data-wizard-attachment-input]");
     if (input) {
@@ -270,6 +278,9 @@
     clone.dataset.fomsWizardProductBound = "";
     if (window.fomsProductItem && typeof window.fomsProductItem.initWizardProducts === "function") {
       window.fomsProductItem.initWizardProducts(container);
+    }
+    if (window.FomsVoiceInput && typeof window.FomsVoiceInput.attachWizard === "function") {
+      window.FomsVoiceInput.attachWizard(clone);
     }
     return clone;
   }
