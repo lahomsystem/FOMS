@@ -9,7 +9,7 @@ from sqlalchemy import or_, String
 
 from foms.web.auth import login_required, role_required, log_access, get_user_by_id
 from db import get_db
-from models import Order
+from models import Order, User
 from foms.services.orders.estimate_defaults import (
     ERP_DRAFT_PLACEHOLDER_CUSTOMER,
     ERP_DRAFT_PLACEHOLDER_PHONE,
@@ -433,12 +433,26 @@ def add_order():
             initial_step = max(1, min(4, int(request.args.get('step') or 1)))
         except (TypeError, ValueError):
             initial_step = 1
+        # 영업·시공 담당 드롭다운 옵션(활성 사용자 이름).
+        try:
+            wizard_staff = [
+                row[0]
+                for row in get_db()
+                .query(User.name)
+                .filter(User.is_active.is_(True))
+                .order_by(User.name)
+                .all()
+                if row[0]
+            ]
+        except Exception:
+            wizard_staff = []
         return render_template(
             'orders/wizard/wizard_shell.html',
             today=today,
             current_time=current_time,
             draft_key=draft_key,
             initial_step=initial_step,
+            wizard_staff=wizard_staff,
         )
     return render_template('orders/add_order.html', today=today, current_time=current_time)
 

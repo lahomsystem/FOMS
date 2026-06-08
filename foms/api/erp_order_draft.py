@@ -111,7 +111,8 @@ def _draft_payload_to_structured(data: dict[str, Any]) -> dict[str, Any]:
         "meta": {"wizard_v1": True},
     }
     if data.get("orderer"):
-        structured.setdefault("parties", {})["orderer"] = str(data.get("orderer")).strip()
+        # canonical: parties.orderer = {"name": ...} (erp_display/listing이 .name으로 읽음).
+        structured.setdefault("parties", {})["orderer"] = {"name": str(data.get("orderer")).strip()}
     meas = str(schedule_in.get("measurement_date") or "").strip()
     cons = str(schedule_in.get("construction_date") or "").strip()
     if meas:
@@ -122,6 +123,19 @@ def _draft_payload_to_structured(data: dict[str, Any]) -> dict[str, Any]:
         structured["schedule"]["construction"] = {"date": cons}
         if schedule_in.get("construction_time"):
             structured["schedule"]["construction"]["time"] = str(schedule_in.get("construction_time")).strip()
+    load_date = str(schedule_in.get("load_date") or "").strip()
+    if load_date:
+        structured["schedule"]["load"] = {"date": load_date}
+    sales_mgr = str(schedule_in.get("sales_manager") or "").strip()
+    if sales_mgr:
+        # parties.manager.name → sync_erp_flat_columns가 order.manager_name으로 동기화.
+        structured.setdefault("parties", {}).setdefault("manager", {})["name"] = sales_mgr
+    cons_mgr = str(schedule_in.get("construction_manager") or "").strip()
+    if cons_mgr:
+        structured.setdefault("assignments", {})["construction_manager"] = cons_mgr
+    notes = str(schedule_in.get("notes") or "").strip()
+    if notes:
+        structured["notes"] = notes
     return structured
 
 
@@ -332,7 +346,16 @@ def api_submit_order_draft() -> tuple[Any, int]:
 
     db = get_db()
     row = get_draft(db, uid, draft_key)
-    payload = row.payload if row and isinstance(row.payload, dict) else body.get("payload")
+    # 사용자가 step4에서 확인한 현재 클라이언트 상태(body.payload)를 우선 사용한다.
+    # debounce된 autosave가 아직 flush되지 않았어도 최신 입력이 유실되지 않도록 보장.
+    # body.payload가 없거나 형식이 아니면 서버 저장 draft(row.payload)로 폴백.
+    body_payload = body.get("payload")
+    if isinstance(body_payload, dict) and isinstance(body_payload.get("data"), dict):
+        payload = body_payload
+    elif row and isinstance(row.payload, dict):
+        payload = row.payload
+    else:
+        payload = None
     if not isinstance(payload, dict):
         return jsonify({"success": False, "error": "NO_DRAFT"}), 400
 
@@ -372,7 +395,7 @@ def api_submit_order_draft() -> tuple[Any, int]:
         address=addr,
         product=prod,
         options=None,
-        notes=None,
+        notes=(structured_data.get("notes") or None),
         status="RECEIVED",
         is_erp_order=True,
         raw_order_text="",

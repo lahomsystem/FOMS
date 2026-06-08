@@ -1,7 +1,7 @@
 {% extends "orders/layout.html" %}
 
 {% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-wizard.css') }}?v=20260531b">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-wizard.css') }}?v=20260608a">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-product-item.css') }}?v=20260531b">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/foms/photo-capture.css') }}?v=20260531b">
 {% endblock %}
@@ -20,7 +20,7 @@
     <div class="foms-wizard__head-top">
       <button type="button" class="icon-btn" id="foms-wizard-close" aria-label="닫기">✕</button>
       <span class="foms-wizard__counter" id="foms-wizard-counter">1 / 4</span>
-      <span aria-hidden="true"></span>
+      <button type="button" class="icon-btn" data-wizard-help aria-label="도움말">?</button>
     </div>
     <div class="foms-wizard__progress" id="foms-wizard-progress" aria-hidden="true">
       <span class="foms-wizard__progress-seg is-current"></span>
@@ -79,5 +79,7 @@
 <script src="{{ url_for('static', filename='js/foms/photo-capture.js') }}?v=20260531b" defer></script>
 <script src="{{ url_for('static', filename='js/foms/product-item.js') }}?v=20260531c" defer></script>
 <script src="{{ url_for('static', filename='js/foms/wizard-attachments.js') }}?v=20260531b" defer></script>
-<script src="{{ url_for('static', filename='js/foms/wizard.js') }}?v=20260531b" defer></script>
+<script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js" defer></script>
+<script src="{{ url_for('static', filename='js/foms/wizard-enrich.js') }}?v=20260608a" defer></script>
+<script src="{{ url_for('static', filename='js/foms/wizard.js') }}?v=20260608a" defer></script>
 {% endblock %}

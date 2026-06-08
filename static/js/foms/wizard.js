@@ -26,6 +26,10 @@
       measurement_time: readValue(root.querySelector("#wiz-measurement-time")),
       construction_date: readValue(root.querySelector("#wiz-construction-date")),
       construction_time: readValue(root.querySelector("#wiz-construction-time")),
+      load_date: readValue(root.querySelector("#wiz-load-date")),
+      sales_manager: readValue(root.querySelector("#wiz-sales-manager")),
+      construction_manager: readValue(root.querySelector("#wiz-construction-manager")),
+      notes: readValue(root.querySelector("#wiz-notes")),
     };
   }
 
@@ -49,9 +53,9 @@
         handle: readValue(card.querySelector('[data-product-field="handle"]')),
         misc: readValue(card.querySelector('[data-product-field="misc"]')),
         price: readValue(card.querySelector('[data-product-field="price"]')),
-        measurement_date: "",
-        construction_date: "",
-        extra_input: "",
+        measurement_date: readValue(card.querySelector('[data-product-field="measurement_date"]')),
+        construction_date: readValue(card.querySelector('[data-product-field="construction_date"]')),
+        extra_input: readValue(card.querySelector('[data-product-field="extra_input"]')),
         attachments: readAtt ? readAtt(card) : [],
       });
     });
@@ -189,6 +193,10 @@
       "#wiz-measurement-time": schedule.measurement_time,
       "#wiz-construction-date": schedule.construction_date,
       "#wiz-construction-time": schedule.construction_time,
+      "#wiz-load-date": schedule.load_date,
+      "#wiz-sales-manager": schedule.sales_manager,
+      "#wiz-construction-manager": schedule.construction_manager,
+      "#wiz-notes": schedule.notes,
     };
     Object.keys(map).forEach(function (sel) {
       var el = root.querySelector(sel);
@@ -258,6 +266,9 @@
       "handle",
       "misc",
       "price",
+      "measurement_date",
+      "construction_date",
+      "extra_input",
     ];
     fields.forEach(function (name) {
       var el = card.querySelector('[data-product-field="' + name + '"]');
@@ -325,41 +336,71 @@
     });
   }
 
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function parseAmount(s) {
+    var n = parseInt(String(s || "").replace(/[^\d]/g, ""), 10);
+    return isNaN(n) ? 0 : n;
+  }
+  function sumRow(dt, ddHtml) {
+    return '<div class="foms-wizard__summary-row"><dt>' + esc(dt) + "</dt><dd>" + ddHtml + "</dd></div>";
+  }
+
   function renderSummary(root) {
     var basic = collectBasic(root);
     var schedule = collectSchedule(root);
     var items = collectProducts(root);
+
     var basicBody = root.querySelector("#foms-wizard-summary-basic-body");
     if (basicBody) {
       basicBody.innerHTML =
-        "<dt>고객</dt><dd>" +
-        basic.customer_name +
-        " / " +
-        basic.phone +
-        "</dd>" +
-        "<dt>주소</dt><dd>" +
-        basic.address +
-        "</dd>";
+        sumRow("고객", esc(basic.customer_name) || "-") +
+        sumRow("연락처", '<span class="foms-tabular">' + (esc(basic.phone) || "-") + "</span>") +
+        sumRow("주소", esc(basic.address) || "-") +
+        (basic.orderer ? sumRow("발주사", esc(basic.orderer)) : "");
     }
-    var schedBody = root.querySelector("#foms-wizard-summary-schedule-body");
-    if (schedBody) {
-      schedBody.innerHTML =
-        "<dt>실측</dt><dd>" +
-        (schedule.measurement_date || "-") +
-        " " +
-        (schedule.measurement_time || "") +
-        "</dd>" +
-        "<dt>시공</dt><dd>" +
-        (schedule.construction_date || "-") +
-        " " +
-        (schedule.construction_time || "") +
-        "</dd>";
-    }
+
+    var total = 0;
     var prodBody = root.querySelector("#foms-wizard-summary-products-body");
     if (prodBody) {
-      prodBody.textContent = items.map(function (i) {
-        return i.product_name || "(제품)";
-      }).join(", ");
+      prodBody.innerHTML = items
+        .map(function (i, idx) {
+          var spec = (i.spec_rows && i.spec_rows[0]) || {};
+          var dims = [spec.spec_width, spec.spec_depth, spec.spec_height].filter(Boolean).join(" × ");
+          var amt = parseAmount(i.price);
+          total += amt;
+          return (
+            '<div class="foms-wizard__summary-product">' +
+            '<span class="foms-wizard__summary-product-name">' +
+            (esc(i.product_name) || "(제품 " + (idx + 1) + ")") +
+            "</span>" +
+            (dims ? '<span class="foms-wizard__summary-product-spec foms-tabular">' + esc(dims) + "</span>" : "") +
+            (amt ? '<span class="foms-wizard__summary-product-amt foms-tabular">' + amt.toLocaleString("ko-KR") + "원</span>" : "") +
+            "</div>"
+          );
+        })
+        .join("");
+    }
+
+    var schedBody = root.querySelector("#foms-wizard-summary-schedule-body");
+    if (schedBody) {
+      var meas = [schedule.measurement_date, schedule.measurement_time].filter(Boolean).join(" ");
+      var cons = [schedule.construction_date, schedule.construction_time].filter(Boolean).join(" ");
+      schedBody.innerHTML =
+        sumRow("실측", '<span class="foms-tabular">' + (esc(meas) || "-") + "</span>") +
+        sumRow("시공", '<span class="foms-tabular">' + (esc(cons) || "-") + "</span>") +
+        (schedule.load_date ? sumRow("상차", '<span class="foms-tabular">' + esc(schedule.load_date) + "</span>") : "") +
+        (schedule.sales_manager ? sumRow("영업", esc(schedule.sales_manager)) : "") +
+        (schedule.construction_manager ? sumRow("시공담당", esc(schedule.construction_manager)) : "") +
+        (schedule.notes ? sumRow("비고", esc(schedule.notes)) : "");
+    }
+
+    var totalEl = root.querySelector("#foms-wizard-summary-total");
+    if (totalEl) {
+      totalEl.textContent = total.toLocaleString("ko-KR") + "원";
     }
   }
 
@@ -547,6 +588,18 @@
       currentStep += 1;
       setStep(root, currentStep);
       draftClient.scheduleSave();
+    });
+
+    root.querySelectorAll("[data-wizard-goto]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var target = parseInt(btn.getAttribute("data-wizard-goto"), 10);
+        if (isNaN(target) || target < 1 || target > MAX_STEP) {
+          return;
+        }
+        currentStep = target;
+        setStep(root, currentStep);
+        draftClient.scheduleSave();
+      });
     });
 
     var closeBtn = root.querySelector("#foms-wizard-close");

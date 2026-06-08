@@ -276,3 +276,105 @@
   object-fit: cover;
   display: block;
 }
+
+/* ── Step 1: 연락처/주소 보조 버튼(addon) + 힌트 ── */
+.foms-wizard__addon {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--foms-space-2, 8px);
+  align-items: stretch;
+}
+.foms-wizard__addon .foms-btn--sm {
+  min-height: 44px;
+  min-width: 48px;
+  font-size: 18px;
+}
+.foms-wizard__hint {
+  display: block;
+  font-size: var(--foms-font-size-xs, 12px);
+  color: var(--foms-text-tertiary, #6b7280);
+  margin-top: 4px;
+}
+
+/* ── Step 4: 확인 요약 카드 ── */
+.foms-wizard__summary-card {
+  background: var(--foms-surface-raised, #f9fafb);
+  border: 1px solid var(--foms-border-subtle, #e5e7eb);
+  border-radius: var(--foms-radius-lg, 12px);
+  padding: var(--foms-space-3, 12px);
+  margin-bottom: var(--foms-space-3, 12px);
+}
+.foms-wizard__summary-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--foms-space-2, 8px);
+}
+.foms-wizard__summary-title {
+  font-size: var(--foms-font-size-xs, 12px);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--foms-text-tertiary, #6b7280);
+  margin: 0;
+}
+.foms-wizard__summary-edit {
+  font-size: var(--foms-font-size-sm, 14px);
+  color: var(--foms-text-link, #2563eb);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px 6px;
+  min-height: 32px;
+}
+.foms-wizard__summary-dl {
+  margin: 0;
+}
+.foms-wizard__summary-row {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: var(--foms-space-2, 8px);
+  padding: 3px 0;
+  font-size: var(--foms-font-size-sm, 14px);
+}
+.foms-wizard__summary-row dt {
+  color: var(--foms-text-tertiary, #6b7280);
+  margin: 0;
+}
+.foms-wizard__summary-row dd {
+  margin: 0;
+}
+.foms-wizard__summary-product {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  padding: 6px 0;
+  border-top: 1px solid var(--foms-border-subtle, #e5e7eb);
+  font-size: var(--foms-font-size-sm, 14px);
+}
+.foms-wizard__summary-product:first-child {
+  border-top: none;
+}
+.foms-wizard__summary-product-name {
+  font-weight: 600;
+}
+.foms-wizard__summary-product-spec {
+  color: var(--foms-text-tertiary, #6b7280);
+}
+.foms-wizard__summary-product-amt {
+  margin-left: auto;
+  font-weight: 600;
+  color: var(--foms-color-brand-700, #1d4ed8);
+}
+.foms-wizard__summary-card--total {
+  background: var(--foms-color-success-50, #f0fdf4);
+  border-color: var(--foms-color-success-200, #bbf7d0);
+}
+.foms-wizard__summary-card--total .foms-wizard__summary-title {
+  color: var(--foms-color-success-600, #16a34a);
+}
+.foms-wizard__summary-total {
+  font-weight: 700;
+  font-size: 1.125rem;
+}
