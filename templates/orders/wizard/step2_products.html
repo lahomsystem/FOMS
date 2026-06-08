@@ -20,9 +20,18 @@
         <label class="field__label">규격 (폭·깊이·높이)</label>
         <div class="foms-wizard__spec-rows" data-spec-rows>
           <div class="foms-wizard__spec-row" data-spec-row>
-            <input class="foms-input foms-tabular" data-product-field="spec_width" inputmode="numeric" placeholder="W" aria-label="폭" />
-            <input class="foms-input foms-tabular" data-product-field="spec_depth" inputmode="numeric" placeholder="D" aria-label="깊이" />
-            <input class="foms-input foms-tabular" data-product-field="spec_height" inputmode="numeric" placeholder="H" aria-label="높이" />
+            <div class="foms-wizard__spec-cell">
+              <label class="foms-wizard__spec-lbl">W(폭)</label>
+              <input class="foms-input foms-tabular" data-product-field="spec_width" inputmode="numeric" placeholder="폭" aria-label="폭" />
+            </div>
+            <div class="foms-wizard__spec-cell">
+              <label class="foms-wizard__spec-lbl">D(깊이)</label>
+              <input class="foms-input foms-tabular" data-product-field="spec_depth" inputmode="numeric" placeholder="깊이" aria-label="깊이" />
+            </div>
+            <div class="foms-wizard__spec-cell">
+              <label class="foms-wizard__spec-lbl">H(높이)</label>
+              <input class="foms-input foms-tabular" data-product-field="spec_height" inputmode="numeric" placeholder="높이" aria-label="높이" />
+            </div>
             <button type="button" class="foms-wizard__spec-del" data-spec-del aria-label="규격 행 삭제" hidden>−</button>
           </div>
         </div>

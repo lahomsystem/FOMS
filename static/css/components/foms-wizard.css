@@ -182,7 +182,17 @@
   grid-template-columns: 1fr 1fr 1fr auto;
   gap: 8px;
   margin-bottom: 8px;
-  align-items: center;
+  align-items: end;
+}
+.foms-wizard__spec-cell {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.foms-wizard__spec-lbl {
+  margin: 0;
+  font-size: var(--foms-font-size-xs, 12px);
+  color: var(--foms-text-tertiary, #6b7280);
 }
 .foms-wizard__spec-del {
   width: 36px;
