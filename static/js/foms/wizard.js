@@ -304,7 +304,17 @@
     clone.querySelectorAll("input").forEach(function (i) {
       i.value = "";
     });
+    // 규격칸도 음성 입력 대상이라 복제된 죽은 마이크를 제거하고 새 행에 재부착한다.
+    clone.querySelectorAll(".foms-voice-btn").forEach(function (b) {
+      b.remove();
+    });
+    clone.querySelectorAll("[data-foms-voice-bound]").forEach(function (el) {
+      el.removeAttribute("data-foms-voice-bound");
+    });
     rowsWrap.appendChild(clone);
+    if (window.FomsVoiceInput && typeof window.FomsVoiceInput.attachWizard === "function") {
+      window.FomsVoiceInput.attachWizard(clone);
+    }
     updateSpecDelVisibility(card);
     return clone;
   }

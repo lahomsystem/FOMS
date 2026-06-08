@@ -83,12 +83,22 @@
 
   // wizard 입력칸(메모류 textarea + text input)에 확인-덮어쓰기 마이크 부착.
   // 동적으로 추가된 제품 카드(scope=클론)에도 재호출 가능.
+  function isWizardVoiceTarget(el) {
+    if (!el) return false;
+    if (el.tagName === "TEXTAREA") return true;
+    if (el.tagName !== "INPUT") return false;
+    // 숨김 입력(콤보 '직접입력' custom 등) 제외 — 숨겨진 칸에 마이크만 떠다니는 것 방지.
+    if (el.hidden) return false;
+    // 자유 입력칸 전체(텍스트 + 숫자 inputmode 포함; type 미지정 input은 'text').
+    // date/tel/checkbox 등 네이티브 컨트롤은 제외.
+    var type = (el.getAttribute("type") || "text").toLowerCase();
+    return type === "text" || type === "search";
+  }
+
   function attachWizard(scope) {
     if (!scope) return;
-    // 메모류 textarea + 노출된 text input만. 숨김 입력(콤보 '직접입력' custom 등)은
-    // 제외 — 숨겨진 입력칸에 마이크 버튼만 떠다니는 것을 방지.
-    scope.querySelectorAll("textarea, input[type='text']:not([hidden])").forEach(function (el) {
-      attachMic(el, "confirm-replace");
+    scope.querySelectorAll("textarea, input").forEach(function (el) {
+      if (isWizardVoiceTarget(el)) attachMic(el, "confirm-replace");
     });
   }
 

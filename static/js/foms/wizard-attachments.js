@@ -28,10 +28,13 @@
     }
     preview.removeAttribute("data-empty");
     entries.forEach(function (entry, idx) {
-      var thumb = document.createElement("div");
+      // 클릭 시 ERP order 방식 미리보기 모달을 연다(삭제는 모달 내부 버튼으로).
+      var thumb = document.createElement("button");
+      thumb.type = "button";
       thumb.className = "foms-wizard__attachment-thumb";
       thumb.setAttribute("data-attachment-index", String(idx));
       thumb.setAttribute("title", entry.filename || "첨부");
+      thumb.setAttribute("aria-label", (entry.filename || "첨부") + " 미리보기");
       if (entry.view_url) {
         var img = document.createElement("img");
         img.src = entry.view_url;
@@ -43,15 +46,88 @@
         name.textContent = entry.filename || "파일";
         thumb.appendChild(name);
       }
-      var remove = document.createElement("button");
-      remove.type = "button";
-      remove.className = "foms-wizard__attachment-remove";
-      remove.setAttribute("data-attachment-remove", "");
-      remove.setAttribute("aria-label", (entry.filename || "첨부") + " 삭제");
-      remove.innerHTML = "&times;";
-      thumb.appendChild(remove);
       preview.appendChild(thumb);
     });
+  }
+
+  var VIDEO_RE = /\.(mp4|mov|webm|avi|mkv|m4v)$/i;
+  var activePreview = null;
+
+  function fillPreviewBody(entry) {
+    var body = document.getElementById("wizard-attachment-preview-body");
+    if (!body) {
+      return;
+    }
+    body.innerHTML = "";
+    var url = entry.view_url || "";
+    if (url && VIDEO_RE.test(entry.filename || url)) {
+      var video = document.createElement("video");
+      video.src = url;
+      video.controls = true;
+      video.className = "foms-wizard__preview-media";
+      body.appendChild(video);
+    } else if (url) {
+      var img = document.createElement("img");
+      img.src = url;
+      img.alt = entry.filename || "";
+      img.className = "foms-wizard__preview-media";
+      body.appendChild(img);
+    } else {
+      var p = document.createElement("p");
+      p.className = "text-muted";
+      p.textContent = entry.filename || "미리보기를 사용할 수 없습니다.";
+      body.appendChild(p);
+    }
+  }
+
+  function openPreviewModal(card, idx, scheduleSave) {
+    var entry = (card._wizardAttachments || [])[idx];
+    if (!entry) {
+      return;
+    }
+    var modalEl = document.getElementById("wizardAttachmentPreviewModal");
+    if (!modalEl || !window.bootstrap || !window.bootstrap.Modal) {
+      // Bootstrap 미가용 시 새 탭 폴백.
+      if (entry.view_url) {
+        window.open(entry.view_url, "_blank", "noopener");
+      }
+      return;
+    }
+    activePreview = { card: card, idx: idx, scheduleSave: scheduleSave };
+    fillPreviewBody(entry);
+    var dl = document.getElementById("wizard-attachment-preview-download");
+    if (dl) {
+      dl.href = entry.view_url || "#";
+    }
+    window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
+  }
+
+  function bindPreviewModal() {
+    var modalEl = document.getElementById("wizardAttachmentPreviewModal");
+    if (!modalEl || modalEl.dataset.wizardPreviewBound) {
+      return;
+    }
+    modalEl.dataset.wizardPreviewBound = "1";
+    var del = document.getElementById("wizard-attachment-preview-delete");
+    if (del) {
+      del.addEventListener("click", function () {
+        if (!activePreview || !activePreview.card) {
+          return;
+        }
+        var card = activePreview.card;
+        if (Array.isArray(card._wizardAttachments)) {
+          card._wizardAttachments.splice(activePreview.idx, 1);
+          renderPreview(card);
+          if (activePreview.scheduleSave) {
+            activePreview.scheduleSave();
+          }
+        }
+        activePreview = null;
+        if (window.bootstrap && window.bootstrap.Modal) {
+          window.bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+        }
+      });
+    }
   }
 
   function uploadFiles(card, draftKey, files, onDone) {
@@ -122,30 +198,16 @@
     var preview = card.querySelector("[data-wizard-attachment-preview]");
     if (preview) {
       preview.addEventListener("click", function (ev) {
-        // 삭제는 명시적 × 버튼으로만. 썸네일 본문 클릭은 미리보기(새 탭)로 동작.
-        var removeBtn = ev.target.closest("[data-attachment-remove]");
-        if (removeBtn) {
-          var thumb = removeBtn.closest("[data-attachment-index]");
-          var idx = thumb ? parseInt(thumb.getAttribute("data-attachment-index"), 10) : NaN;
-          if (isNaN(idx) || !Array.isArray(card._wizardAttachments)) {
-            return;
-          }
-          card._wizardAttachments.splice(idx, 1);
-          renderPreview(card);
-          if (scheduleSave) {
-            scheduleSave();
-          }
+        // 썸네일 클릭 → ERP order 방식 미리보기 모달(삭제는 모달 내부 버튼).
+        var thumb = ev.target.closest("[data-attachment-index]");
+        if (!thumb) {
           return;
         }
-        var openThumb = ev.target.closest("[data-attachment-index]");
-        if (!openThumb) {
+        var idx = parseInt(thumb.getAttribute("data-attachment-index"), 10);
+        if (isNaN(idx)) {
           return;
         }
-        var openIdx = parseInt(openThumb.getAttribute("data-attachment-index"), 10);
-        var entry = (card._wizardAttachments || [])[openIdx];
-        if (entry && entry.view_url) {
-          window.open(entry.view_url, "_blank", "noopener");
-        }
+        openPreviewModal(card, idx, scheduleSave);
       });
     }
   }
@@ -154,6 +216,7 @@
     if (!root) {
       return;
     }
+    bindPreviewModal();
     root.querySelectorAll("[data-product-index]").forEach(function (card) {
       bindCard(card, draftKey, scheduleSave);
     });
