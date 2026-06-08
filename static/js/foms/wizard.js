@@ -348,6 +348,49 @@
     }
   }
 
+  function expandWizardCard(card) {
+    if (!card) return;
+    card.classList.remove("foms-product-item--collapsed");
+    var head = card.querySelector("[data-foms-product-toggle], .foms-product-item__head");
+    if (head) head.setAttribute("aria-expanded", "true");
+    var expand = card.querySelector(".foms-product-item__expand");
+    if (expand) expand.textContent = "▴";
+  }
+
+  // 미입력 제품 카드가 접혀 있거나 화면 밖이면 사용자가 인지하지 못해
+  // "제품명을 입력했는데도 계속 입력하라고" 보인다. 실제 빈 카드를 펼쳐 노출·포커스한다.
+  function revealEmptyProductCard(card) {
+    expandWizardCard(card);
+    var nameEl = card.querySelector('[data-product-field="product_name"]');
+    if (!nameEl) return;
+    try {
+      nameEl.scrollIntoView({ block: "center", behavior: "smooth" });
+    } catch (e) {
+      nameEl.scrollIntoView();
+    }
+    window.setTimeout(function () {
+      try {
+        nameEl.focus({ preventScroll: true });
+      } catch (e2) {
+        nameEl.focus();
+      }
+    }, 50);
+  }
+
+  function findFirstEmptyProductCard(root) {
+    var container = root.querySelector("#foms-wizard-products");
+    var cards = container ? container.querySelectorAll("[data-product-index]") : [];
+    var firstEmpty = null;
+    Array.prototype.forEach.call(cards, function (card) {
+      if (firstEmpty) return;
+      var nameEl = card.querySelector('[data-product-field="product_name"]');
+      if (!nameEl || !readValue(nameEl)) {
+        firstEmpty = card;
+      }
+    });
+    return { count: cards.length, firstEmpty: firstEmpty };
+  }
+
   function validateStep(root, step) {
     var errors = {};
     if (step === 1) {
@@ -363,12 +406,12 @@
       }
     }
     if (step === 2) {
-      var items = collectProducts(root);
-      var missing = items.some(function (item) {
-        return !item.product_name;
-      });
-      if (!items.length || missing) {
+      var scan = findFirstEmptyProductCard(root);
+      if (!scan.count || scan.firstEmpty) {
         errors.product_name = "제품명을 입력해주세요.";
+        if (scan.firstEmpty) {
+          revealEmptyProductCard(scan.firstEmpty);
+        }
       }
     }
     if (Object.keys(errors).length) {
@@ -562,6 +605,24 @@
           draftClient.scheduleSave();
         });
         draftClient.scheduleSave();
+      });
+    }
+
+    // 제품명 에러는 전역 키(errors.product_name)라 모든 카드를 함께 검사해야 한다.
+    // 개별 카드 @input 즉시해제는 (1) 다른 카드가 비어도 조기 해제되어 다음 단계에서
+    // 다시 뜨고 (2) 복제 카드에서 Alpine 디렉티브 바인딩이 누락될 수 있다.
+    // 위임 리스너로 '모든 카드가 채워졌을 때만' 해제한다(복제 카드 포함 안정 동작).
+    var productsContainer = root.querySelector("#foms-wizard-products");
+    if (productsContainer) {
+      productsContainer.addEventListener("input", function (e) {
+        var target = e.target;
+        if (!target || !target.matches || !target.matches('[data-product-field="product_name"]')) {
+          return;
+        }
+        var scan = findFirstEmptyProductCard(root);
+        if (scan.count && !scan.firstEmpty) {
+          clearAlpineErrors(root);
+        }
       });
     }
 
