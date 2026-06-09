@@ -361,6 +361,52 @@
   body.wd-calc-mobile #totalEstimatesSummary #totalAllBasePrice,
   body.wd-calc-mobile #totalEstimatesSummary #totalAllAdditionalPrice,
   body.wd-calc-mobile #totalEstimatesSummary #totalAllPrice { font-variant-numeric: tabular-nums; }
+
+  /* ============================================================
+     특정 필드 1줄 묶음 — 전면 세로 적층(상단 .row > col 100% 규칙) 예외
+     ============================================================ */
+  /* [기본 구성·직접 모드] 30cm · 1cm · 가로를 한 줄로.
+     단가/30cm/1cm 래퍼(base-details-area/base-manual-area/inner .row)를
+     display:contents로 평탄화 → 30cm·1cm 칸이 바깥 행의 '가로' 칸과
+     같은 flex 줄에 놓인다. (선택 모드는 미적용) */
+  body.wd-calc-mobile .base-component-row[data-mode="manual"] .base-details-area,
+  body.wd-calc-mobile .base-component-row[data-mode="manual"] .base-manual-area,
+  body.wd-calc-mobile .base-component-row[data-mode="manual"] .base-manual-area > .row {
+    display: contents !important;
+  }
+  /* 한 줄에 놓인 칸 사이 간격(전역 규칙이 col padding을 0으로 만들어 붙는 것 보정) */
+  body.wd-calc-mobile .base-component-row[data-mode="manual"] .card-body > .row,
+  body.wd-calc-mobile .additional-option-item > .row {
+    column-gap: 8px !important;
+  }
+  body.wd-calc-mobile .base-component-row[data-mode="manual"] .base-manual-30cm-col,
+  body.wd-calc-mobile .base-component-row[data-mode="manual"] .base-manual-1cm-col,
+  body.wd-calc-mobile .base-component-row[data-mode="manual"] .base-manual-1m-col,
+  body.wd-calc-mobile .base-component-row[data-mode="manual"] .base-width-col {
+    flex: 1 1 0 !important;
+    width: auto !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    margin-bottom: 8px !important;
+  }
+
+  /* [추가 옵션] 가격 · 수량을 한 줄로(같은 행이라 폭만 재지정).
+     셀렉터는 전역 '.row > col 100%' 규칙(specificity 0,4,1)과 동일하게 맞추고
+     뒤에 선언해 우선 적용되게 한다. */
+  body.wd-calc-mobile .additional-option-item .row > .price-col {
+    flex: 1 1 auto !important;
+    width: auto !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    margin-bottom: 8px !important;
+  }
+  body.wd-calc-mobile .additional-option-item .row > .quantity-col {
+    flex: 0 0 38% !important;
+    width: 38% !important;
+    max-width: 38% !important;
+    min-width: 0 !important;
+    margin-bottom: 8px !important;
+  }
 }
 
 /* 데스크톱: JS가 만든 모바일 chrome 잔존 시에도 노출 안 되게 */
