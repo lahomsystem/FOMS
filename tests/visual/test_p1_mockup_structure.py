@@ -284,15 +284,20 @@ def test_p1_drawing_mobile_v2_home_ia_parity() -> None:
     body = (ROOT / "templates/drawing/partials/workbench_dashboard_body.html").read_text(
         encoding="utf-8"
     )
+    queue = (ROOT / "templates/drawing/partials/workbench_mobile_queue.html").read_text(
+        encoding="utf-8"
+    )
+    combined = body + queue
     controls = (
         ROOT / "templates/drawing/partials/drawing_mobile_controls.html"
     ).read_text(encoding="utf-8")
     gallery = (
         ROOT / "templates/drawing/partials/drawing_mobile_v2_gallery.html"
     ).read_text(encoding="utf-8")
-    # 큐 리스트 + 섹션 헤더 + FAB
-    for selector in ("foms-mobile-queue-list", "foms-section-header", "foms-shell-fab"):
-        assert selector in body, selector
+    # 큐 리스트 + 섹션 헤더 + FAB. v2는 legacy erp-pro-card 밖 foms-shell-body 표면에서 렌더한다.
+    for selector in ("foms-drawing-mobile-dashboard", "foms-mobile-queue-list", "foms-section-header", "foms-shell-fab"):
+        assert selector in combined, selector
+    assert "drawing_mobile_v2_gallery.html" not in body
     # 레거시 process-map은 모바일 v2에서 hide (chip-strip로 대체)
     assert 'dw-process-map{% if erp_mobile_v2_enabled %} d-none d-lg-block' in body
     # 표준 칩 스트립 (상태 필터)
@@ -330,6 +335,36 @@ def test_p1_drawing_handoff_mobile_v2_mockup_selectors() -> None:
         assert selector in body, selector
     assert "GlobalImageViewer.open" in js
     assert "btn-confirm-receipt" in js
+
+
+def test_p1_fragment_scripts_are_redeclaration_safe() -> None:
+    """ERP shell fragment scripts may run more than once; top-level labels/state must not use lexical declarations."""
+    for rel in (
+        "templates/production/partials/scripts.html",
+        "templates/construction/partials/scripts.html",
+    ):
+        src = (ROOT / rel).read_text(encoding="utf-8")
+        for forbidden in (
+            "const TEAM_LABELS",
+            "const STAGE_LABELS",
+            "let __selectedOrderId",
+            "let __attachmentsCache",
+            "const ATTACHMENT_CATEGORY_META",
+            "let notificationPanelOpen",
+        ):
+            assert forbidden not in src, f"{rel}: {forbidden}"
+        assert "var TEAM_LABELS" in src
+
+
+def test_p1_global_image_viewer_touch_pan_after_pinch() -> None:
+    """첨부 뷰어는 핀치 줌 후 남은 한 손가락 이동을 pan으로 이어받는다."""
+    src = (ROOT / "templates/partials/shared/layout_scripts.html").read_text(
+        encoding="utf-8"
+    )
+    assert "function beginTouchPan" in src
+    assert "remaining === 1" in src
+    assert "beginTouchPan(e.touches[0])" in src
+    assert "touch-action: none;" in src
 
 
 def test_p1_drawing_dashboard_renders_home_ia(

@@ -28,6 +28,11 @@ def test_win32_stale_when_source_epoch_newer(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setattr(policy, "git_commit_epoch", lambda _path: 100)
     monkeypatch.setattr(
         policy,
+        "win32_baseline_has_worktree_refresh",
+        lambda _name: False,
+    )
+    monkeypatch.setattr(
+        policy,
         "VISUAL_BASELINE_NAMES",
         ("erp_v2_1280_light.png",),
     )
@@ -44,6 +49,11 @@ def test_win32_fresh_when_baseline_epoch_matches_sources(
 ) -> None:
     monkeypatch.setattr(policy, "newest_visual_source_epoch", lambda: 200)
     monkeypatch.setattr(policy, "git_commit_epoch", lambda _path: 200)
+    monkeypatch.setattr(
+        policy,
+        "win32_baseline_has_worktree_refresh",
+        lambda _name: False,
+    )
     monkeypatch.setattr(
         policy,
         "VISUAL_BASELINE_NAMES",

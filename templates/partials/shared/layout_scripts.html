@@ -478,6 +478,7 @@
                 state.pinching = false;
                 state.panning = false;
                 state.touching = false;
+                state.dragging = false;
                 setGestureTransition(false);
                 updateTransform();
 
@@ -545,6 +546,13 @@
                 e.preventDefault();
                 const delta = e.deltaY > 0 ? -0.1 : 0.1;
                 state.scale = Math.max(0.1, Math.min(5, state.scale + delta));
+                if (state.scale <= 1.05) {
+                    state.scale = 1;
+                    state.tx = 0;
+                    state.ty = 0;
+                } else {
+                    clampPan();
+                }
                 updateTransform();
             }
 
@@ -601,6 +609,17 @@
                 return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
             }
 
+            function beginTouchPan(touch) {
+                if (!touch) return;
+                state.panning = true;
+                state.touching = false;
+                state.panStartX = touch.clientX;
+                state.panStartY = touch.clientY;
+                state.panBaseTx = state.tx;
+                state.panBaseTy = state.ty;
+                setGestureTransition(true);
+            }
+
             function clampPan() {
                 // Keep the (scaled) image from being dragged completely off the stage.
                 if (!els.image) return;
@@ -637,12 +656,7 @@
                     state.touchLastY = t.clientY;
                     if (state.scale > 1.05) {
                         // Zoomed in → one-finger drag pans the image.
-                        state.panning = true;
-                        state.panStartX = t.clientX;
-                        state.panStartY = t.clientY;
-                        state.panBaseTx = state.tx;
-                        state.panBaseTy = state.ty;
-                        setGestureTransition(true);
+                        beginTouchPan(t);
                     } else {
                         // Not zoomed → candidate for swipe navigation.
                         state.touching = true;
@@ -678,6 +692,12 @@
                     return;
                 }
 
+                if (!state.pinching && !state.panning && state.scale > 1.05 && e.touches && e.touches.length === 1) {
+                    e.preventDefault();
+                    beginTouchPan(e.touches[0]);
+                    return;
+                }
+
                 if (state.touching && e.touches && e.touches.length === 1) {
                     const t = e.touches[0];
                     state.touchLastX = t.clientX;
@@ -691,12 +711,16 @@
                 if (state.pinching) {
                     if (remaining < 2) {
                         state.pinching = false;
-                        setGestureTransition(false);
                         if (state.scale <= 1.05) {
                             state.scale = 1;
                             state.tx = 0;
                             state.ty = 0;
+                            setGestureTransition(false);
                             updateTransform();
+                        } else if (remaining === 1 && e.touches && e.touches[0]) {
+                            beginTouchPan(e.touches[0]);
+                        } else {
+                            setGestureTransition(false);
                         }
                     }
                     return;
@@ -858,6 +882,7 @@
             max-width: 95vw;
             max-height: 90vh;
             transform-origin: center center;
+            touch-action: none;
             cursor: grab;
             user-select: none;
             box-shadow: 0 0 50px rgba(0, 0, 0, 0.5);

@@ -144,9 +144,11 @@ def test_drawing_workbench_mobile_markup_with_v2_and_thumb(client, monkeypatch):
     body = response.get_data(as_text=True)
     assert "erp-drawing-mobile-controls" in body
     assert "erp-drawing-mobile-filter-drawer" in body
+    assert "foms-drawing-mobile-dashboard" in body
     assert "foms-drawing-queue-card__thumb" in body
     assert "erp-drawing-mobile-list" in body
     assert "foms-drawing-mobile-card.css" in body
+    assert "foms-drawing-mobile-v2" not in body
     assert "erp-pro-card__header--filter d-none d-lg-block" in body
 
 

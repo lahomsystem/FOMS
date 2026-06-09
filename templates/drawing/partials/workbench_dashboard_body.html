@@ -3,7 +3,6 @@
 <div class="erp-pro erp-mobile-shell" data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
   {% if erp_mobile_v2_enabled %}
     {% include 'partials/shared/erp_mobile_shell.html' %}
-    {% include 'drawing/partials/drawing_mobile_v2_gallery.html' %}
   {% endif %}
   <header class="erp-pro-header">
     <h1 class="erp-pro-header__title">
@@ -80,10 +79,14 @@
     </div>
   </div>
 
-  <div class="erp-pro-card" style="margin-right: 20px;">
-    {% if erp_mobile_v2_enabled %}
-      {% include 'drawing/partials/drawing_mobile_controls.html' %}
-    {% endif %}
+  {% if erp_mobile_v2_enabled %}
+  <section class="foms-shell-body foms-drawing-mobile-dashboard d-lg-none" aria-label="도면 작업 큐">
+    {% include 'drawing/partials/drawing_mobile_controls.html' %}
+    {% include 'drawing/partials/workbench_mobile_queue.html' %}
+  </section>
+  {% endif %}
+
+  <div class="erp-pro-card erp-drawing-dashboard-desktop-card{% if erp_mobile_v2_enabled %} d-none d-lg-block{% endif %}">
     <div class="erp-pro-card__header erp-pro-card__header--filter{% if erp_mobile_v2_enabled %} d-none d-lg-block{% endif %}">
       <form class="erp-pro-filter-form erp-pro-filter-form--inline-mobile" method="get">
         <div class="erp-pro-filter-group">
@@ -322,35 +325,10 @@
       </div>
       {% endif %}
 
-      <!-- 표면 A: 모바일 도면 작업 큐 (항상 렌더 · 빈 상태 포함, 무한스크롤 단일 리스트, my_todo 서버 우선정렬) -->
-      {% set _dw_loaded = [pagination.page * pagination.per_page, pagination.total_count] | min %}
-      <div class="mobile-card-list d-lg-none erp-drawing-mobile-list foms-mobile-queue-list foms-drawing-queue"
-        data-foms-mobile-queue-scroll
-        data-next-page="{{ pagination.page + 1 if pagination.page < pagination.total_pages else 0 }}"
-        data-total-pages="{{ pagination.total_pages }}"
-        data-page-label="{{ _dw_loaded }}건 / 전체 {{ pagination.total_count }}건">
-        <div class="erp-drawing-mobile-list__summary foms-section-header section-header">
-          <div>
-            <span class="erp-drawing-mobile-list__eyebrow">Drawing Queue</span>
-            <h2 class="erp-drawing-mobile-list__title foms-section-header__title">도면 작업 큐</h2>
-          </div>
-          <span class="erp-drawing-mobile-list__count foms-section-header__count" data-foms-mobile-queue-page>{{ _dw_loaded }}건 / 전체 {{ pagination.total_count }}건</span>
-        </div>
-        {% if rows %}
-          <div class="foms-drawing-queue__list" data-foms-mobile-queue-list>
-            {% include 'drawing/partials/workbench_mobile_queue_chunk.html' %}
-          </div>
-          {% if pagination.page < pagination.total_pages %}
-            <div class="foms-mobile-queue-more" data-foms-mobile-queue-sentinel>
-              <a class="foms-btn foms-btn--secondary foms-btn--full" href="?{{ wb.build_page_url(pagination.page + 1) }}">
-                더 보기 ({{ _dw_loaded }}/{{ pagination.total_count }})
-              </a>
-            </div>
-          {% endif %}
-        {% else %}
-          <div class="foms-mobile-empty foms-drawing-queue__empty">지금 바로 처리할 도면 작업이 없습니다.</div>
-        {% endif %}
-      </div>
+      {% if not erp_mobile_v2_enabled %}
+      <!-- 표면 A: 모바일 도면 작업 큐 (non-cohort legacy mobile fallback) -->
+      {% include 'drawing/partials/workbench_mobile_queue.html' %}
+      {% endif %}
     </div>
   </div>
   {% if erp_mobile_v2_enabled %}

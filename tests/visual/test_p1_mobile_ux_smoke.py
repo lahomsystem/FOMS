@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 import pytest
 
+from db import db_session
+from models import Order
 from tests.visual.conftest import VISUAL_ADMIN_PASSWORD, VISUAL_ADMIN_USERNAME
 
 
@@ -24,6 +28,48 @@ def _login(page, base_url: str) -> None:
     page.wait_for_load_state("networkidle")
     if "/login" in page.url:
         page.goto(f"{base_url}/erp/dashboard", wait_until="networkidle")
+
+
+def _seed_drawing_order() -> Order:
+    order = Order(
+        received_date=date.today().strftime("%Y-%m-%d"),
+        customer_name="모바일 도면 QA",
+        phone="010-9999-0000",
+        address="Seoul",
+        product="문지영",
+        status="DRAWING",
+        manager_name="최상용",
+        is_erp_order=True,
+        structured_data={
+            "parties": {
+                "customer": {"name": "모바일 도면 QA"},
+                "manager": {"name": "최상용"},
+            },
+            "workflow": {"stage": "DRAWING"},
+            "drawing": {"status": "TRANSFERRED"},
+            "drawing_status": "TRANSFERRED",
+            "drawing_current_files": [
+                {
+                    "key": "drawings/mobile-qa.png",
+                    "filename": "mobile-qa.png",
+                    "view_url": "/static/images/lahom-logo.png",
+                }
+            ],
+            "drawing_transfer_history": [
+                {
+                    "action": "TRANSFER",
+                    "at": "2026-06-09 10:00:00",
+                    "by_user_name": "도면팀",
+                    "note": "도면 1차 전달",
+                    "files": [],
+                }
+            ],
+            "drawing_assignees": [],
+        },
+    )
+    db_session.add(order)
+    db_session.commit()
+    return order
 
 
 @pytest.mark.parametrize("width,height", [(390, 844), (1280, 800)])
@@ -59,3 +105,20 @@ def test_p1_wizard_shell_smoke(page, visual_live_server_erp_v2) -> None:
         pytest.fail(f"Wizard smoke login failed; still on {page.url}")
     assert page.locator("#foms-wizard-root").count() == 1
     assert page.locator('[data-wizard-step="1"]').count() >= 1
+
+
+def test_p1_drawing_mobile_queue_smoke(page, visual_live_server_erp_v2) -> None:
+    page.set_viewport_size({"width": 390, "height": 844})
+    errors: list[str] = []
+    page.on("console", lambda msg: errors.append(msg.text) if msg.type == "error" else None)
+    _seed_drawing_order()
+    _login(page, visual_live_server_erp_v2)
+
+    page.goto(f"{visual_live_server_erp_v2}/erp/drawing-workbench", wait_until="networkidle")
+
+    assert page.locator(".foms-drawing-mobile-dashboard").is_visible()
+    assert page.locator(".foms-mobile-queue-list").is_visible()
+    assert page.locator(".foms-drawing-queue-card").count() >= 1
+    assert page.locator(".foms-drawing-mobile-v2").count() == 0
+    assert page.locator(".erp-drawing-dashboard-desktop-card").is_hidden()
+    assert not any("Identifier 'TEAM_LABELS'" in error for error in errors)

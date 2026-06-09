@@ -259,3 +259,75 @@
   background: var(--foms-color-brand-500, #5a67d8);
   color: #fff;
 }
+
+@media (max-width: 991.98px) {
+  body.erp-mobile-v2-layout .foms-drawing-mobile-dashboard {
+    padding: var(--foms-space-3, 12px) var(--foms-space-4, 16px)
+      calc(var(--foms-shell-bottom-nav-h, 72px) + var(--foms-space-4, 16px));
+    display: grid;
+    gap: var(--foms-space-3, 12px);
+    background: var(--foms-surface-overlay, #eef0f3);
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-mobile-dashboard .erp-drawing-mobile-controls {
+    margin: 0;
+    gap: var(--foms-space-2, 8px);
+    align-items: center;
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-mobile-dashboard .erp-drawing-mobile-controls__search {
+    gap: var(--foms-space-2, 8px);
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-mobile-dashboard .erp-drawing-mobile-controls__search .erp-pro-input {
+    min-height: 40px;
+    border-radius: 8px;
+    background: var(--foms-surface-base, #fff);
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-mobile-dashboard .erp-drawing-mobile-controls__search .erp-pro-btn {
+    flex: 0 0 44px;
+    min-width: 44px;
+    min-height: 40px;
+    padding: 0;
+    border-radius: 8px;
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-mobile-dashboard .erp-drawing-mobile-controls__filter-btn {
+    min-height: 40px;
+    border-radius: 8px;
+    background: var(--foms-surface-base, #fff);
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-mobile-dashboard .foms-chip-strip--drawing {
+    position: static;
+    top: auto;
+    z-index: auto;
+    justify-content: flex-start;
+    margin: 0 calc(-1 * var(--foms-space-4, 16px));
+    padding: 0 var(--foms-space-4, 16px) 2px;
+    border-bottom: 0;
+    background: transparent;
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-mobile-dashboard .foms-drawing-queue {
+    gap: var(--foms-space-3, 12px);
+    min-width: 0;
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-mobile-dashboard .foms-drawing-queue__list,
+  body.erp-mobile-v2-layout .foms-drawing-mobile-dashboard [data-foms-mobile-queue-chunk] {
+    display: grid;
+    gap: 0.625rem;
+    min-width: 0;
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-mobile-dashboard .foms-drawing-queue-card {
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(15, 17, 21, 0.06);
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-mobile-dashboard .foms-drawing-queue-card__grid {
+    padding: 0.75rem;
+  }
+}
