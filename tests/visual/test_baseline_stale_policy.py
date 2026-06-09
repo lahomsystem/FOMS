@@ -173,3 +173,30 @@ def test_all_linux_fresh_when_refresh_marker_newer(
 
     monkeypatch.setattr(Path, "is_file", _exists, raising=False)
     assert policy.linux_baselines_stale() == []
+
+
+def test_linux_marker_same_epoch_as_win32_does_not_hide_stale_png(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _epoch(path: Path) -> int:
+        posix = path.as_posix()
+        if posix.endswith(".refresh_epoch"):
+            return 200
+        if "win32" in posix:
+            return 200
+        if "linux" in posix:
+            return 100
+        return 0
+
+    monkeypatch.setattr(policy, "git_commit_epoch", _epoch)
+    monkeypatch.setattr(
+        policy,
+        "VISUAL_BASELINE_NAMES",
+        ("erp_v2_390_light.png",),
+    )
+
+    def _exists(self: Path) -> bool:
+        return self.name in {".refresh_epoch", "erp_v2_390_light.png"}
+
+    monkeypatch.setattr(Path, "is_file", _exists, raising=False)
+    assert policy.linux_baselines_stale() == ["erp_v2_390_light.png"]

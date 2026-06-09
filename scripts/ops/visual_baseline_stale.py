@@ -205,8 +205,13 @@ def linux_baselines_stale(
         if not linux_path.is_file():
             stale.append(name)
             continue
-        linux_epoch = max(git_commit_epoch(linux_path), refresh_epoch)
-        if linux_epoch < git_commit_epoch(win32_path):
+        win32_epoch = git_commit_epoch(win32_path)
+        linux_epoch = git_commit_epoch(linux_path)
+        # Marker can stand in for byte-identical Linux PNG refreshes only when
+        # it was committed after the win32 counterpart it refreshes.
+        if 0 < win32_epoch < refresh_epoch:
+            linux_epoch = max(linux_epoch, refresh_epoch)
+        if linux_epoch < win32_epoch:
             stale.append(name)
     return stale
 
