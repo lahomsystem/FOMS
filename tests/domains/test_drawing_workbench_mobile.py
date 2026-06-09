@@ -144,7 +144,7 @@ def test_drawing_workbench_mobile_markup_with_v2_and_thumb(client, monkeypatch):
     body = response.get_data(as_text=True)
     assert "erp-drawing-mobile-controls" in body
     assert "erp-drawing-mobile-filter-drawer" in body
-    assert "erp-drawing-mobile-card__thumb" in body
+    assert "foms-drawing-queue-card__thumb" in body
     assert "erp-drawing-mobile-list" in body
     assert "foms-drawing-mobile-card.css" in body
     assert "erp-pro-card__header--filter d-none d-lg-block" in body
@@ -160,10 +160,11 @@ def test_drawing_workbench_thumb_hidden_when_flag_off(client, monkeypatch):
     response = client.get("/erp/drawing-workbench")
     assert response.status_code == 200
     body = response.get_data(as_text=True)
-    assert "erp-drawing-mobile-card__thumb" not in body
+    assert "foms-drawing-queue-card__thumb" not in body
 
 
-def test_drawing_workbench_mobile_groups_turn_sections(client, monkeypatch):
+def test_drawing_workbench_mobile_single_list_my_first(client, monkeypatch):
+    """무한스크롤 단일 리스트 + '내 차례' 서버 우선정렬. 목업 §5.2 '내 차례/상대 차례' 그룹 구분 노출."""
     monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
     monkeypatch.setenv("FOMS_V3_DRAWING_THUMB_ENABLED", "true")
     user = _login_drawing_admin(client)
@@ -174,9 +175,35 @@ def test_drawing_workbench_mobile_groups_turn_sections(client, monkeypatch):
     assert response.status_code == 200
     body = response.get_data(as_text=True)
     assert "foms-drawing-queue" in body
-    assert "내 차례" in body
-    assert "상대 차례" in body
-    assert "foms-drawing-queue-card__turn" in body
+    assert "data-foms-mobile-queue-scroll" in body
+    assert "foms-drawing-queue-card__turn" in body  # 카드별 차례 표시 유지
+    # 목업 프레임 A: my_todo 우선정렬 단일 리스트에 '내 차례/상대 차례' 그룹 헤더를 얹는다.
+    assert "foms-drawing-queue__group" in body
+    assert ("내 차례" in body) or ("상대 차례" in body)
+
+
+def test_drawing_workbench_mobile_infinite_scroll_pagination(client, monkeypatch):
+    """회귀: per_page=25 도면 모바일 큐가 25건에서 멈추지 않고 무한스크롤 청크로 이어진다."""
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    user = _login_drawing_admin(client)
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+    for _ in range(30):
+        _drawing_order()
+
+    page1 = client.get("/erp/drawing-workbench")
+    assert page1.status_code == 200
+    body = page1.get_data(as_text=True)
+    assert "data-foms-mobile-queue-scroll" in body
+    assert 'data-total-pages="2"' in body
+    assert 'data-next-page="2"' in body
+    assert "data-foms-mobile-queue-sentinel" in body
+
+    chunk = client.get("/erp/drawing-workbench?mobile_chunk=1&page=2")
+    assert chunk.status_code == 200
+    chunk_body = chunk.get_data(as_text=True)
+    assert "data-foms-mobile-queue-chunk" in chunk_body
+    assert 'data-next-page="0"' in chunk_body
+    assert "data-foms-mobile-queue-scroll" not in chunk_body
 
 
 def test_drawing_workbench_multi_file_detail_opens_mobile_list(client, monkeypatch):

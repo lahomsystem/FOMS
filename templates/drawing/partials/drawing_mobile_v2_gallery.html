@@ -1,11 +1,13 @@
-{# §6.3 도면: 16:9 카드 + lightbox trigger (mobile v2 cohort) #}
-<section class="foms-shell-body foms-drawing-mobile-v2" aria-label="도면 모바일 갤러리">
+{# §6.3 도면: 16:9 미리보기 카드 + lightbox trigger (mobile v2 cohort).
+   미리보기 카드가 있을 때만 노출한다. 비어 있으면 :empty 규칙으로 숨겨(빈 패널 노이즈 제거),
+   목업 프레임 A(큐는 카드 리스트만)와 일치시킨다. #}
+<section class="foms-shell-body foms-drawing-mobile-v2" aria-label="도면 모바일 갤러리">{% if drawing_preview_cards %}
   <div class="foms-section-header section-header">
     <h2 class="section-header__title foms-section-header__title">도면 미리보기</h2>
     <span class="section-header__count foms-section-header__count">16:9</span>
   </div>
   <div class="foms-drawing-card-grid attach-grid foms-attach-grid" data-foms-lightbox-gallery>
-    {% for card in drawing_preview_cards|default([]) %}
+    {% for card in drawing_preview_cards %}
       <button
         type="button"
         class="foms-drawing-card attach-item foms-attach-item"
@@ -17,9 +19,7 @@
           <span class="attach-item__label foms-attach-item__label">{{ card.label }}</span>
         {% endif %}
       </button>
-    {% else %}
-      <p class="foms-mobile-empty mb-0">표시할 도면이 없습니다. 데스크톱 작업실에서 업로드하세요.</p>
     {% endfor %}
   </div>
   <p class="foms-drawing-mobile-v2__hint">좌우 스와이프로 승인 · 핀치로 확대 (lightbox)</p>
-</section>
+{% endif %}</section>

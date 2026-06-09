@@ -3,6 +3,11 @@
   padding: var(--foms-space-3, 12px);
 }
 
+/* 미리보기 카드가 없으면(콘텐츠 미주입) 빈 패널을 숨긴다 — 큐는 목업 프레임 A처럼 카드 리스트만. */
+.foms-drawing-mobile-v2:empty {
+  display: none;
+}
+
 .foms-drawing-card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));

@@ -1,0 +1,19 @@
+{# 도면 모바일 큐 카드 청크 — 초기 렌더(workbench_dashboard_body.html include)와 무한스크롤 조각(mobile_chunk=1) 공유 SSOT.
+   서버에서 '내 차례' 우선 정렬되므로 모바일은 단일 리스트(섹션 분할 없음)로 무한스크롤. #}
+<div data-foms-mobile-queue-chunk
+     data-next-page="{{ pagination.page + 1 if pagination.page < pagination.total_pages else 0 }}"
+     data-total-pages="{{ pagination.total_pages }}"
+     data-page-label="{{ [pagination.page * pagination.per_page, pagination.total_count] | min }}건 / 전체 {{ pagination.total_count }}건">
+  {% for r in rows %}
+    {% if loop.first %}
+      {% if r.my_todo %}
+      <div class="foms-drawing-queue__group foms-drawing-queue__group--mine">내 차례 {{ rows|selectattr('my_todo')|list|length }}건</div>
+      {% else %}
+      <div class="foms-drawing-queue__group">상대 차례 {{ rows|rejectattr('my_todo')|list|length }}건</div>
+      {% endif %}
+    {% elif not r.my_todo and loop.previtem.my_todo %}
+      <div class="foms-drawing-queue__group">상대 차례 {{ rows|rejectattr('my_todo')|list|length }}건</div>
+    {% endif %}
+    {% include 'drawing/partials/workbench_mobile_queue_card.html' %}
+  {% endfor %}
+</div>

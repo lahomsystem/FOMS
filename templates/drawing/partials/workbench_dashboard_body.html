@@ -266,9 +266,9 @@
         </table>
       </div>
       
-      <!-- Phase 3: 페이지네이션 -->
+      <!-- Phase 3: 페이지네이션 (모바일 v2는 무한스크롤이 대체 → 데스크톱 전용) -->
       {% if pagination.total_pages > 1 %}
-      <nav aria-label="Page navigation" class="mt-3">
+      <nav aria-label="Page navigation" class="mt-3{% if erp_mobile_v2_enabled %} d-none d-lg-block{% endif %}">
         <ul class="pagination justify-content-center mb-0">
           <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
             <a class="page-link" href="?{{ wb.build_page_url(pagination.page - 1) }}" aria-label="이전">
@@ -315,47 +315,42 @@
       </nav>
       {% endif %}
       
-      <!-- 표면 A: 모바일 도면 작업 큐 -->
-      <div class="mobile-card-list d-lg-none erp-drawing-mobile-list foms-mobile-queue-list foms-drawing-queue">
+      {% else %}
+      <div class="text-center text-muted py-5 d-none d-lg-block">
+        <i class="fas fa-inbox mb-2" style="font-size:1.6rem;"></i>
+        <div>조건에 맞는 도면 작업 건이 없습니다.</div>
+      </div>
+      {% endif %}
+
+      <!-- 표면 A: 모바일 도면 작업 큐 (항상 렌더 · 빈 상태 포함, 무한스크롤 단일 리스트, my_todo 서버 우선정렬) -->
+      {% set _dw_loaded = [pagination.page * pagination.per_page, pagination.total_count] | min %}
+      <div class="mobile-card-list d-lg-none erp-drawing-mobile-list foms-mobile-queue-list foms-drawing-queue"
+        data-foms-mobile-queue-scroll
+        data-next-page="{{ pagination.page + 1 if pagination.page < pagination.total_pages else 0 }}"
+        data-total-pages="{{ pagination.total_pages }}"
+        data-page-label="{{ _dw_loaded }}건 / 전체 {{ pagination.total_count }}건">
         <div class="erp-drawing-mobile-list__summary foms-section-header section-header">
           <div>
             <span class="erp-drawing-mobile-list__eyebrow">Drawing Queue</span>
             <h2 class="erp-drawing-mobile-list__title foms-section-header__title">도면 작업 큐</h2>
           </div>
-          <span class="erp-drawing-mobile-list__count foms-section-header__count">{{ rows|length }}건 / 전체 {{ pagination.total_count }}건</span>
+          <span class="erp-drawing-mobile-list__count foms-section-header__count" data-foms-mobile-queue-page>{{ _dw_loaded }}건 / 전체 {{ pagination.total_count }}건</span>
         </div>
-        {% set my_rows = rows|selectattr('my_todo')|list %}
-        {% set other_rows = rows|rejectattr('my_todo')|list %}
-
-        <section class="foms-drawing-queue__section" aria-labelledby="drawing-queue-my-turn">
-          <div class="foms-drawing-queue__section-head">
-            <h3 id="drawing-queue-my-turn">내 차례 {{ my_rows|length }}건</h3>
+        {% if rows %}
+          <div class="foms-drawing-queue__list" data-foms-mobile-queue-list>
+            {% include 'drawing/partials/workbench_mobile_queue_chunk.html' %}
           </div>
-          {% if my_rows %}
-            {% for r in my_rows %}
-              {% include 'drawing/partials/workbench_mobile_queue_card.html' %}
-            {% endfor %}
-          {% else %}
-          <div class="foms-mobile-empty foms-drawing-queue__empty">지금 바로 처리할 도면 작업이 없습니다.</div>
+          {% if pagination.page < pagination.total_pages %}
+            <div class="foms-mobile-queue-more" data-foms-mobile-queue-sentinel>
+              <a class="foms-btn foms-btn--secondary foms-btn--full" href="?{{ wb.build_page_url(pagination.page + 1) }}">
+                더 보기 ({{ _dw_loaded }}/{{ pagination.total_count }})
+              </a>
+            </div>
           {% endif %}
-        </section>
-
-        <section class="foms-drawing-queue__section" aria-labelledby="drawing-queue-other-turn">
-          <div class="foms-drawing-queue__section-head">
-            <h3 id="drawing-queue-other-turn">상대 차례 {{ other_rows|length }}건</h3>
-          </div>
-          {% for r in other_rows %}
-            {% include 'drawing/partials/workbench_mobile_queue_card.html' %}
-          {% endfor %}
-        </section>
+        {% else %}
+          <div class="foms-mobile-empty foms-drawing-queue__empty">지금 바로 처리할 도면 작업이 없습니다.</div>
+        {% endif %}
       </div>
-      
-      {% else %}
-      <div class="text-center text-muted py-5">
-        <i class="fas fa-inbox mb-2" style="font-size:1.6rem;"></i>
-        <div>조건에 맞는 도면 작업 건이 없습니다.</div>
-      </div>
-      {% endif %}
     </div>
   </div>
   {% if erp_mobile_v2_enabled %}
