@@ -41,10 +41,14 @@ def test_p1_mobile_tablet_ux_smoke(page, visual_live_server_erp_v2, width, heigh
         assert page.locator(".foms-split-master").count() >= 1
     else:
         assert page.locator('[data-foms-search-open]').count() >= 1
-        assert page.locator('[data-foms-mobile-filter-open]').count() >= 1
         assert page.locator(".erp-mobile-shell-chrome").count() >= 1
+        assert page.locator('[data-foms-tower]').count() >= 1
         page.locator('[data-foms-search-open]').first.click()
         assert page.locator("#foms-search-overlay").is_visible()
+
+        page.goto(f"{visual_live_server_erp_v2}/erp/dashboard?view=queue")
+        page.wait_for_load_state("networkidle")
+        assert page.locator('[data-foms-mobile-filter-open]').count() >= 1
 
 
 def test_p1_wizard_shell_smoke(page, visual_live_server_erp_v2) -> None:

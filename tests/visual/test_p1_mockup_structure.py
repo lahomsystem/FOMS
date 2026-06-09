@@ -302,6 +302,36 @@ def test_p1_drawing_mobile_v2_home_ia_parity() -> None:
     assert "foms-shell-body" in gallery
 
 
+def test_p1_drawing_handoff_mobile_v2_mockup_selectors() -> None:
+    """도면 핸드오프 목업 A/B/C가 모바일 v2 partial/CSS/JS hook으로 연결된다."""
+    body = (ROOT / "templates/drawing/partials/workbench_mobile_handoff.html").read_text(
+        encoding="utf-8"
+    )
+    queue = (ROOT / "templates/drawing/partials/workbench_mobile_queue_card.html").read_text(
+        encoding="utf-8"
+    )
+    css = (ROOT / "static/css/components/foms-drawing-mobile.css").read_text(
+        encoding="utf-8"
+    )
+    js = (ROOT / "static/js/foms/drawing-handoff.js").read_text(encoding="utf-8")
+    for selector in (
+        "foms-drawing-handoff",
+        "foms-drawing-sheet-list",
+        "foms-drawing-handoff-detail",
+        "foms-drawing-viewer",
+        "foms-drawing-thread",
+        "foms-drawing-action-bar",
+    ):
+        assert selector in body, selector
+        assert selector in css, selector
+    for selector in ("foms-drawing-queue-card__turn", "primary_action_label"):
+        assert selector in queue, selector
+    for selector in ("data-drawing-handoff-open", "data-drawing-handoff-action"):
+        assert selector in body, selector
+    assert "GlobalImageViewer.open" in js
+    assert "btn-confirm-receipt" in js
+
+
 def test_p1_drawing_dashboard_renders_home_ia(
     client,
     monkeypatch: pytest.MonkeyPatch,

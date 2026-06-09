@@ -26,6 +26,10 @@ MOCKUP_CLASS_CONTRACTS: dict[str, tuple[str, tuple[str, ...]]] = {
         "templates/partials/shared/foms_split_shell.html",
         ("foms-split-shell", "foms-split-detail", "data-foms-split-detail-kv"),
     ),
+    "mobile-drawing-handoff": (
+        "templates/drawing/partials/workbench_mobile_handoff.html",
+        ("foms-drawing-handoff", "foms-drawing-sheet-list", "foms-drawing-handoff-detail", "foms-drawing-thread"),
+    ),
 }
 
 

@@ -67,17 +67,18 @@ def test_p1_mobile_dashboard_markers_not_display_none_scoped(
     client,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Queue scroll hooks render outside desktop-only layout region."""
+    """Home tower and queue hooks render outside desktop-only layout region."""
     user = _login_admin(client)
     monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
     monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
 
-    resp = client.get("/erp/dashboard")
-    html = resp.get_data(as_text=True)
-    for snippet in (
-        "data-foms-mobile-queue-scroll",
-    ):
-        _mobile_marker_after_desktop_layout(html, snippet)
+    home_resp = client.get("/erp/dashboard")
+    home_html = home_resp.get_data(as_text=True)
+    _mobile_marker_after_desktop_layout(home_html, "data-foms-tower")
+
+    queue_resp = client.get("/erp/dashboard?view=queue")
+    queue_html = queue_resp.get_data(as_text=True)
+    _mobile_marker_after_desktop_layout(queue_html, "data-foms-mobile-queue-scroll")
 
 
 def test_p1_foms_shell_css_hides_header_globally() -> None:

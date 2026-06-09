@@ -1,0 +1,184 @@
+<div class="erp-mobile-shell foms-drawing-handoff d-lg-none"
+  data-handoff-mode="{{ mobile_handoff_view }}"
+  data-selected-drawing-key="{{ mobile_handoff_selected_file.key if mobile_handoff_selected_file else '' }}">
+  {% include 'partials/shared/erp_mobile_shell.html' %}
+
+  <main class="foms-shell-body foms-drawing-handoff__body">
+    <section class="foms-drawing-turn foms-drawing-turn--{{ mobile_handoff_turn.tone }}">
+      <span class="foms-drawing-turn__dot" aria-hidden="true"></span>
+      <div>
+        <h2>{{ mobile_handoff_turn.label }}</h2>
+        <p>{{ mobile_handoff_turn.sub }}</p>
+      </div>
+    </section>
+
+    <section class="foms-drawing-handoff__order">
+      <div>
+        <strong>{{ customer_name }}</strong>
+        <span>#{{ order.id }} · {{ order.address or '-' }}</span>
+      </div>
+      <p>주문 담당 {{ manager_name }} · 도면 담당 {{ assignee_text }}</p>
+    </section>
+
+    {% if mobile_handoff_invalid_drawing_key %}
+    <div class="foms-drawing-handoff__notice" role="status">
+      <i class="fas fa-circle-info" aria-hidden="true"></i>
+      <span>{{ mobile_handoff_invalid_drawing_key }}</span>
+    </div>
+    {% endif %}
+
+    {% if mobile_handoff_view == 'list' %}
+    <section class="foms-drawing-sheet-list" aria-labelledby="drawing-sheet-list-title">
+      <div class="foms-drawing-sheet-list__head">
+        <div>
+          <span>Drawing Inbox</span>
+          <h3 id="drawing-sheet-list-title">도면 목록</h3>
+        </div>
+        <strong>{{ mobile_handoff_files|length }}장</strong>
+      </div>
+      <p class="foms-drawing-sheet-list__hint">도면을 눌러 크게 보기 · 수정요청은 상세에서 도면 번호로 지정</p>
+      {% for file in mobile_handoff_files %}
+      <a class="foms-drawing-sheet-row" href="{{ file.detail_url }}" aria-label="{{ file.no }}번 {{ file.filename }} 보기">
+        <span class="foms-drawing-sheet-row__thumb">
+          {% if file.is_image and file.view_url %}
+          <img src="{{ file.view_url }}" alt="" loading="lazy" decoding="async">
+          {% else %}
+          <i class="fas fa-file-lines" aria-hidden="true"></i>
+          {% endif %}
+        </span>
+        <span class="foms-drawing-sheet-row__body">
+          <span class="foms-drawing-sheet-row__title">
+            <small>{{ file.no }}번</small>
+            <strong>{{ file.filename }}</strong>
+            {% if file.chip %}<em>{{ file.chip }}</em>{% endif %}
+          </span>
+          <span class="foms-drawing-sheet-row__meta">{{ file.meta }}{% if file.note %} · {{ file.note }}{% endif %}</span>
+        </span>
+        <i class="fas fa-chevron-right" aria-hidden="true"></i>
+      </a>
+      {% endfor %}
+    </section>
+    {% else %}
+    <section class="foms-drawing-handoff-detail" aria-labelledby="drawing-handoff-detail-title">
+      {% set selected = mobile_handoff_selected_file %}
+      <div class="foms-drawing-sheet-pager">
+        {% if mobile_handoff_prev_url %}
+        <a href="{{ mobile_handoff_prev_url }}" aria-label="이전 도면"><i class="fas fa-chevron-left"></i></a>
+        {% else %}
+        <span aria-hidden="true"><i class="fas fa-chevron-left"></i></span>
+        {% endif %}
+        <h3 id="drawing-handoff-detail-title">
+          도면 {{ selected.no if selected else 0 }} / {{ mobile_handoff_files|length }}
+          {% if selected %}<small>{{ selected.filename }}</small>{% endif %}
+        </h3>
+        {% if mobile_handoff_next_url %}
+        <a href="{{ mobile_handoff_next_url }}" aria-label="다음 도면"><i class="fas fa-chevron-right"></i></a>
+        {% else %}
+        <span aria-hidden="true"><i class="fas fa-chevron-right"></i></span>
+        {% endif %}
+        {% if mobile_handoff_files|length > 1 %}
+        <a class="foms-drawing-sheet-pager__list" href="{{ mobile_handoff_list_url }}">
+          <i class="fas fa-list"></i><span>목록</span>
+        </a>
+        {% endif %}
+      </div>
+
+      <div class="foms-drawing-viewer">
+        <div class="foms-drawing-viewer__bar">
+          <span>{% if selected %}{{ selected.no }}번 · {{ selected.filename }}{% else %}도면 없음{% endif %}</span>
+          <span>원본 비율 유지 · 전체 보기</span>
+        </div>
+        {% if selected and selected.view_url %}
+        <button type="button" class="foms-drawing-viewer__canvas"
+          data-drawing-handoff-open="current"
+          data-handoff-view-url="{{ selected.view_url }}"
+          data-handoff-download-url="{{ selected.download_url }}"
+          data-handoff-filename="{{ selected.filename }}"
+          data-handoff-key="{{ selected.key }}"
+          aria-label="{{ selected.filename }} 크게 보기">
+          {% if selected.is_image %}
+          <img src="{{ selected.view_url }}" alt="{{ selected.filename }}" loading="lazy" decoding="async">
+          {% else %}
+          <i class="fas fa-file-lines" aria-hidden="true"></i>
+          <span>파일 미리보기</span>
+          {% endif %}
+        </button>
+        {% else %}
+        <div class="foms-drawing-viewer__empty">등록된 도면이 없습니다.</div>
+        {% endif %}
+      </div>
+    </section>
+
+    <details class="foms-drawing-material" open>
+      <summary><span><i class="fas fa-ruler-combined"></i> 제작 자료</span></summary>
+      <div class="foms-drawing-material__body">
+        {% if product_items %}
+        {% for item in product_items[:2] %}
+        {% set spec_w = item.get('spec_width') or item.get('width') or '' %}
+        {% set spec_d = item.get('spec_depth') or item.get('depth') or '' %}
+        {% set spec_h = item.get('spec_height') or item.get('height') or '' %}
+        <div class="foms-drawing-material__item">
+          <strong>{{ item.get('product_name') or ('제품 항목 ' ~ loop.index) }}</strong>
+          <dl>
+            <div><dt>규격</dt><dd>W {{ spec_w or '-' }} / D {{ spec_d or '-' }} / H {{ spec_h or '-' }}</dd></div>
+            <div><dt>색상</dt><dd>{{ item.get('color') or '-' }}</dd></div>
+            <div><dt>손잡이</dt><dd>{{ item.get('handle') or '-' }}</dd></div>
+          </dl>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="foms-drawing-material__empty">등록된 제품 정보가 없습니다.</div>
+        {% endif %}
+      </div>
+    </details>
+
+    <section class="foms-drawing-thread" aria-label="도면 대화 스레드">
+      {% if mobile_handoff_thread %}
+      {% for event in mobile_handoff_thread %}
+      <article class="foms-drawing-thread__msg foms-drawing-thread__msg--{{ event.side }}{% if event.is_highlight %} is-highlight{% endif %}">
+        <div class="foms-drawing-thread__who">{{ event.by_text }}</div>
+        <div class="foms-drawing-thread__bubble">
+          <span class="foms-drawing-thread__tag">{{ event.tag }}{% if event.target_text %} · {{ event.target_text }}{% endif %}</span>
+          {% if event.note %}<p>{{ event.note }}</p>{% endif %}
+          {% if event.files %}<small>첨부 {{ event.files|length }}건</small>{% endif %}
+        </div>
+        <time>{{ event.at_text }}</time>
+      </article>
+      {% endfor %}
+      {% else %}
+      <div class="foms-drawing-thread__empty">아직 전달/수정요청 이력이 없습니다.</div>
+      {% endif %}
+    </section>
+    {% endif %}
+  </main>
+
+  <div class="foms-drawing-action-bar">
+    {% if can_transfer %}
+      {% if can_open_transfer %}
+      <button class="foms-drawing-action-bar__btn foms-drawing-action-bar__btn--primary" type="button" data-bs-toggle="modal" data-bs-target="#dwTransferModal">
+        <i class="fas fa-paper-plane"></i><span>{% if drawing_status == 'RETURNED' %}수정본 전달{% else %}도면 전달{% endif %}</span>
+      </button>
+      {% else %}
+      <button class="foms-drawing-action-bar__btn foms-drawing-action-bar__btn--primary" type="button" disabled>
+        <i class="fas fa-paper-plane"></i><span>전달 대기</span>
+      </button>
+      {% endif %}
+    {% endif %}
+    {% if can_request_revision and drawing_status in ['TRANSFERRED', 'CONFIRMED'] %}
+    <button class="foms-drawing-action-bar__btn" type="button" data-bs-toggle="modal" data-bs-target="#dwRevisionModal"
+      data-drawing-handoff-action="revision" data-drawing-key="{{ mobile_handoff_selected_file.key if mobile_handoff_selected_file else '' }}">
+      <i class="fas fa-undo"></i><span>수정요청</span>
+    </button>
+    {% endif %}
+    {% if can_confirm_receipt %}
+    <button class="foms-drawing-action-bar__btn foms-drawing-action-bar__btn--primary" type="button" data-drawing-handoff-action="confirm">
+      <i class="fas fa-check-double"></i><span>수령 확정</span>
+    </button>
+    {% endif %}
+    {% if can_cancel_transfer and drawing_status != 'CONFIRMED' %}
+    <button class="foms-drawing-action-bar__btn" type="button" data-drawing-handoff-action="cancel">
+      <i class="fas fa-xmark"></i><span>전달 취소</span>
+    </button>
+    {% endif %}
+  </div>
+</div>

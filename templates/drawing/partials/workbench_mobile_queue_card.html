@@ -1,0 +1,91 @@
+<div class="card mb-2 mobile-order-card erp-drawing-mobile-card foms-drawing-queue-card foms-drawing-queue-card--{{ r.turn_tone }}"
+  data-href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=r.id) }}"
+  tabindex="0" role="link" aria-label="주문 {{ r.id }} 도면 협업 열기">
+  <div class="card-body">
+    <div class="foms-drawing-queue-card__turn">
+      <span class="foms-drawing-queue-card__dot" aria-hidden="true"></span>
+      <div>
+        <div class="foms-drawing-queue-card__turn-label">{{ r.turn_label }}</div>
+        <div class="foms-drawing-queue-card__turn-sub">{{ r.turn_sub }}</div>
+      </div>
+    </div>
+
+    {% if drawing_thumb_enabled %}
+    <div class="erp-drawing-mobile-card__thumb{% if not r.thumbnail_url %} is-placeholder{% endif %}">
+      {% if r.thumbnail_url %}
+      <img src="{{ r.thumbnail_url }}" alt="" loading="lazy" decoding="async">
+      {% else %}
+      <div class="erp-drawing-mobile-card__thumb-placeholder" aria-hidden="true">
+        <i class="fas fa-image"></i>
+        <span>도면 미리보기 없음</span>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="erp-drawing-mobile-card__topline">
+      <div>
+        <div class="erp-drawing-mobile-card__title">{{ r.customer_name }}{% if r.is_self_measurement|default(false) %}
+          <span class="badge bg-info text-white ms-1" title="자가실측"><i class="fas fa-ruler-combined"></i> 자가실측</span>{% endif %}</div>
+        <div class="erp-drawing-mobile-card__sub">#{{ r.id }} · 주문 담당 {{ r.manager_name }}</div>
+      </div>
+      <div>
+        {% set badge_cls = 'bg-secondary' %}
+        {% if r.drawing_status == 'PENDING' %}{% set badge_cls = 'bg-warning text-dark' %}{% endif %}
+        {% if r.drawing_status == 'TRANSFERRED' %}{% set badge_cls = 'bg-info text-dark' %}{% endif %}
+        {% if r.drawing_status == 'RETURNED' %}{% set badge_cls = 'bg-danger' %}{% endif %}
+        {% if r.drawing_status == 'CONFIRMED' %}{% set badge_cls = 'bg-success' %}{% endif %}
+        <span class="badge {{ badge_cls }} erp-drawing-mobile-card__status">{{ r.drawing_status_label }}</span>
+      </div>
+    </div>
+
+    <div class="erp-drawing-mobile-card__meta">
+      <div class="erp-drawing-mobile-card__meta-row">
+        <strong>담당</strong>
+        <div>{{ r.assignee_text }}</div>
+      </div>
+      <div class="erp-drawing-mobile-card__meta-row">
+        <strong>최근</strong>
+        <div>
+          {% if r.latest_event_label != '-' %}
+          <div>{{ r.latest_event_label }}</div>
+          {% if r.latest_event_at %}
+          <div class="erp-drawing-mobile-card__sub">{{ r.latest_event_at }}</div>
+          {% endif %}
+          {% else %}
+          <div class="text-muted">-</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="erp-drawing-mobile-card__chips">
+      {% if r.target_no %}
+      <span class="erp-drawing-mobile-card__chip">대상 {{ r.target_no }}번</span>
+      {% endif %}
+      <span class="erp-drawing-mobile-card__chip">도면 {{ r.file_count }}장</span>
+      {% if r.unread_count > 0 %}
+      <span class="erp-drawing-mobile-card__chip">미확인 {{ r.unread_count }}건</span>
+      {% endif %}
+      {% if r.sla_level == '지연' %}
+      <span class="erp-drawing-mobile-card__chip">지연</span>
+      {% elif r.sla_level == '오늘 마감' %}
+      <span class="erp-drawing-mobile-card__chip">오늘 마감</span>
+      {% endif %}
+      {% if r.my_todo %}
+      <span class="erp-drawing-mobile-card__chip">내 할 일</span>
+      {% endif %}
+    </div>
+
+    <div class="erp-drawing-mobile-card__actions">
+      <button type="button" class="erp-drawing-mobile-card__action" onclick="event.preventDefault(); event.stopPropagation(); openSingleAssignModal({{ r.id }})" title="담당자 변경">
+        <i class="fas fa-user-edit"></i>
+        <span>담당자</span>
+      </button>
+      <a href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=r.id) }}" class="erp-drawing-mobile-card__action is-primary">
+        <i class="fas {{ r.primary_action_icon }}"></i>
+        <span>{{ r.primary_action_label }}</span>
+      </a>
+    </div>
+  </div>
+</div>

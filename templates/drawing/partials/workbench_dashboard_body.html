@@ -3,7 +3,6 @@
 <div class="erp-pro erp-mobile-shell" data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
   {% if erp_mobile_v2_enabled %}
     {% include 'partials/shared/erp_mobile_shell.html' %}
-    {% include 'partials/shared/erp_mobile_v2_tab_notice.html' %}
     {% include 'drawing/partials/drawing_mobile_v2_gallery.html' %}
   {% endif %}
   <header class="erp-pro-header">
@@ -316,8 +315,8 @@
       </nav>
       {% endif %}
       
-      <!-- Phase 5: 모바일 카드 레이아웃 -->
-      <div class="mobile-card-list d-lg-none erp-drawing-mobile-list foms-mobile-queue-list">
+      <!-- 표면 A: 모바일 도면 작업 큐 -->
+      <div class="mobile-card-list d-lg-none erp-drawing-mobile-list foms-mobile-queue-list foms-drawing-queue">
         <div class="erp-drawing-mobile-list__summary foms-section-header section-header">
           <div>
             <span class="erp-drawing-mobile-list__eyebrow">Drawing Queue</span>
@@ -325,89 +324,30 @@
           </div>
           <span class="erp-drawing-mobile-list__count foms-section-header__count">{{ rows|length }}건 / 전체 {{ pagination.total_count }}건</span>
         </div>
-        {% for r in rows %}
-        <div class="card mb-2 mobile-order-card erp-drawing-mobile-card" data-href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=r.id) }}?tab=timeline" tabindex="0" role="link" aria-label="주문 {{ r.id }} 상세 열기">
-          <div class="card-body">
-            {% if drawing_thumb_enabled %}
-            <div class="erp-drawing-mobile-card__thumb{% if not r.thumbnail_url %} is-placeholder{% endif %}">
-              {% if r.thumbnail_url %}
-              <img src="{{ r.thumbnail_url }}" alt="" loading="lazy" decoding="async">
-              {% else %}
-              <div class="erp-drawing-mobile-card__thumb-placeholder" aria-hidden="true">
-                <i class="fas fa-image"></i>
-                <span>도면 미리보기 없음</span>
-              </div>
-              {% endif %}
-            </div>
-            {% endif %}
-            <div class="erp-drawing-mobile-card__topline">
-              <div>
-                <div class="erp-drawing-mobile-card__title">{{ r.customer_name }}{% if r.is_self_measurement|default(false) %}
-                  <span class="badge bg-info text-white ms-1" title="자가실측"><i class="fas fa-ruler-combined"></i> 자가실측</span>{% endif %}</div>
-                <div class="erp-drawing-mobile-card__sub">#{{ r.id }} · 주문 담당 {{ r.manager_name }}</div>
-              </div>
-              <div>
-                {% set badge_cls = 'bg-secondary' %}
-                {% if r.drawing_status == 'PENDING' %}{% set badge_cls = 'bg-warning text-dark' %}{% endif %}
-                {% if r.drawing_status == 'TRANSFERRED' %}{% set badge_cls = 'bg-info text-dark' %}{% endif %}
-                {% if r.drawing_status == 'RETURNED' %}{% set badge_cls = 'bg-danger' %}{% endif %}
-                {% if r.drawing_status == 'CONFIRMED' %}{% set badge_cls = 'bg-success' %}{% endif %}
-                <span class="badge {{ badge_cls }} erp-drawing-mobile-card__status">{{ r.drawing_status_label }}</span>
-              </div>
-            </div>
-            <div class="erp-drawing-mobile-card__meta">
-              <div class="erp-drawing-mobile-card__meta-row">
-                <strong>담당</strong>
-                <div>{{ r.assignee_text }}</div>
-              </div>
-              <div class="erp-drawing-mobile-card__meta-row">
-                <strong>다음 액션</strong>
-                <div>{{ r.next_action }}</div>
-              </div>
-              <div class="erp-drawing-mobile-card__meta-row">
-                <strong>최근 이벤트</strong>
-                <div>
-                  {% if r.latest_event_label != '-' %}
-                  <div>{{ r.latest_event_label }}</div>
-                  {% if r.latest_event_at %}
-                  <div class="erp-drawing-mobile-card__sub">{{ r.latest_event_at }}</div>
-                  {% endif %}
-                  {% else %}
-                  <div class="text-muted">-</div>
-                  {% endif %}
-                </div>
-              </div>
-            </div>
-            <div class="erp-drawing-mobile-card__chips">
-              {% if r.target_no %}
-              <span class="erp-drawing-mobile-card__chip">대상 {{ r.target_no }}번</span>
-              {% endif %}
-              <span class="erp-drawing-mobile-card__chip">파일 {{ r.file_count }}건</span>
-              {% if r.unread_count > 0 %}
-              <span class="erp-drawing-mobile-card__chip">미확인 {{ r.unread_count }}건</span>
-              {% endif %}
-              {% if r.sla_level == '지연' %}
-              <span class="erp-drawing-mobile-card__chip">지연</span>
-              {% elif r.sla_level == '오늘 마감' %}
-              <span class="erp-drawing-mobile-card__chip">오늘 마감</span>
-              {% endif %}
-              {% if r.my_todo %}
-              <span class="erp-drawing-mobile-card__chip">내 할 일</span>
-              {% endif %}
-            </div>
-            <div class="erp-drawing-mobile-card__actions">
-              <button type="button" class="erp-drawing-mobile-card__action" onclick="event.preventDefault(); event.stopPropagation(); openSingleAssignModal({{ r.id }})" title="담당자 변경">
-                <i class="fas fa-user-edit"></i>
-                <span>담당자</span>
-              </button>
-              <a href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=r.id) }}?tab=timeline" class="erp-drawing-mobile-card__action is-primary">
-                <i class="fas fa-external-link-alt"></i>
-                <span>작업 열기</span>
-              </a>
-            </div>
+        {% set my_rows = rows|selectattr('my_todo')|list %}
+        {% set other_rows = rows|rejectattr('my_todo')|list %}
+
+        <section class="foms-drawing-queue__section" aria-labelledby="drawing-queue-my-turn">
+          <div class="foms-drawing-queue__section-head">
+            <h3 id="drawing-queue-my-turn">내 차례 {{ my_rows|length }}건</h3>
           </div>
-        </div>
-        {% endfor %}
+          {% if my_rows %}
+            {% for r in my_rows %}
+              {% include 'drawing/partials/workbench_mobile_queue_card.html' %}
+            {% endfor %}
+          {% else %}
+          <div class="foms-mobile-empty foms-drawing-queue__empty">지금 바로 처리할 도면 작업이 없습니다.</div>
+          {% endif %}
+        </section>
+
+        <section class="foms-drawing-queue__section" aria-labelledby="drawing-queue-other-turn">
+          <div class="foms-drawing-queue__section-head">
+            <h3 id="drawing-queue-other-turn">상대 차례 {{ other_rows|length }}건</h3>
+          </div>
+          {% for r in other_rows %}
+            {% include 'drawing/partials/workbench_mobile_queue_card.html' %}
+          {% endfor %}
+        </section>
       </div>
       
       {% else %}

@@ -63,3 +63,14 @@ def test_mockup_wizard_and_split_anchors_on_disk() -> None:
     assert "master-list" in split and "foms-split-shell" in split_shell
     assert "wizard-attachments.js" in shell
     assert "product-item.js" in shell
+
+
+def test_mockup_drawing_handoff_anchor_classes() -> None:
+    """Drawing handoff mockup anchors map to the mobile v2 handoff partial."""
+    body = (ROOT / "templates/drawing/partials/workbench_mobile_handoff.html").read_text(encoding="utf-8")
+    _required_from_mockup(
+        "mobile-drawing-handoff.html",
+        ("viewer", "sheet-pager", "srow", "action-bar"),
+    )
+    for needle in ("foms-drawing-sheet-list", "foms-drawing-handoff-detail", "foms-drawing-action-bar"):
+        assert needle in body

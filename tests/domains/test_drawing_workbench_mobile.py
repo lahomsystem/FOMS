@@ -64,6 +64,45 @@ def _drawing_order(structured_data=None):
     return order
 
 
+def _multi_drawing_order():
+    return _drawing_order(
+        {
+            "drawing": {"status": "TRANSFERRED"},
+            "drawing_status": "TRANSFERRED",
+            "drawing_current_files": [
+                {
+                    "key": "drawings/living.png",
+                    "filename": "living.png",
+                    "view_url": "/api/files/view/drawings/living.png",
+                },
+                {
+                    "key": "drawings/kitchen.png",
+                    "filename": "kitchen.png",
+                    "view_url": "/api/files/view/drawings/kitchen.png",
+                },
+            ],
+            "drawing_transfer_history": [
+                {
+                    "action": "TRANSFER",
+                    "at": "2026-06-01 10:00:00",
+                    "by_user_name": "도면팀A",
+                    "note": "1차 전달",
+                    "files": [],
+                },
+                {
+                    "action": "REQUEST_REVISION",
+                    "at": "2026-06-02 11:00:00",
+                    "by_user_name": "영업A",
+                    "note": "2번 높이 수정",
+                    "target_drawing_keys": ["drawings/kitchen.png"],
+                    "target_drawing_numbers": [2],
+                    "target_drawing_number": 2,
+                },
+            ],
+        }
+    )
+
+
 def test_drawing_thumb_enabled_respects_env(monkeypatch):
     monkeypatch.delenv("FOMS_V3_DRAWING_THUMB_ENABLED", raising=False)
     assert drawing_thumb_enabled() is False
@@ -122,3 +161,102 @@ def test_drawing_workbench_thumb_hidden_when_flag_off(client, monkeypatch):
     assert response.status_code == 200
     body = response.get_data(as_text=True)
     assert "erp-drawing-mobile-card__thumb" not in body
+
+
+def test_drawing_workbench_mobile_groups_turn_sections(client, monkeypatch):
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    monkeypatch.setenv("FOMS_V3_DRAWING_THUMB_ENABLED", "true")
+    user = _login_drawing_admin(client)
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+    _drawing_order()
+
+    response = client.get("/erp/drawing-workbench")
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert "foms-drawing-queue" in body
+    assert "내 차례" in body
+    assert "상대 차례" in body
+    assert "foms-drawing-queue-card__turn" in body
+
+
+def test_drawing_workbench_multi_file_detail_opens_mobile_list(client, monkeypatch):
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    user = _login_drawing_admin(client)
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+    order = _multi_drawing_order()
+
+    response = client.get(f"/erp/drawing-workbench/{order.id}")
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert 'data-handoff-mode="list"' in body
+    assert "foms-drawing-sheet-list" in body
+    assert "living.png" in body
+    assert "kitchen.png" in body
+
+
+def test_drawing_workbench_valid_drawing_key_opens_mobile_detail(client, monkeypatch):
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    user = _login_drawing_admin(client)
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+    order = _multi_drawing_order()
+
+    response = client.get(f"/erp/drawing-workbench/{order.id}?drawing_key=drawings/kitchen.png")
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert 'data-handoff-mode="detail"' in body
+    assert "foms-drawing-handoff-detail" in body
+    assert "도면 2 / 2" in body
+    assert "data-selected-drawing-key=\"drawings/kitchen.png\"" in body
+
+
+def test_drawing_workbench_invalid_drawing_key_returns_mobile_list_notice(client, monkeypatch):
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    user = _login_drawing_admin(client)
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+    order = _multi_drawing_order()
+
+    response = client.get(f"/erp/drawing-workbench/{order.id}?drawing_key=missing")
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert 'data-handoff-mode="list"' in body
+    assert "선택한 도면을 찾을 수 없습니다." in body
+
+
+def test_drawing_workbench_single_file_invalid_key_normalizes_to_detail(client, monkeypatch):
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    user = _login_drawing_admin(client)
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+    order = _drawing_order()
+
+    response = client.get(f"/erp/drawing-workbench/{order.id}?drawing_key=missing")
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert 'data-handoff-mode="detail"' in body
+    assert 'data-selected-drawing-key="drawings/test-plan.png"' in body
+    assert "foms-drawing-handoff-detail" in body
+
+
+def test_drawing_workbench_target_deeplink_prefers_mobile_detail(client, monkeypatch):
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    user = _login_drawing_admin(client)
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+    order = _multi_drawing_order()
+
+    response = client.get(f"/erp/drawing-workbench/{order.id}?target_no=2")
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert 'data-handoff-mode="detail"' in body
+    assert "도면 2 / 2" in body
+    assert "foms-drawing-thread__msg" in body
+
+
+def test_drawing_workbench_non_cohort_keeps_legacy_detail(client, monkeypatch):
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "false")
+    _login_drawing_admin(client)
+    order = _multi_drawing_order()
+
+    response = client.get(f"/erp/drawing-workbench/{order.id}")
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert "foms-drawing-handoff" not in body
+    assert "도면 작업실 실행판" in body
