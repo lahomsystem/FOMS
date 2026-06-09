@@ -6,6 +6,7 @@ import unicodedata
 import pytz
 
 from foms.services.common.business_calendar import business_days_until
+from foms.services.datetime_kst import format_datetime_kst
 from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.erp_policy import (
     STAGE_LABELS,
@@ -17,6 +18,7 @@ from foms.services.erp_policy import (
 __all__ = [
     "_normalize_for_search",
     "get_today_kst",
+    "format_datetime_kst",
     "self_measurement_four_checks_done",
     "_extract_name_candidate",
     "_manager_candidates",

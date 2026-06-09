@@ -1545,6 +1545,7 @@ def test_namespaced_erp_display_shim_preserves_canonical_contract() -> None:
     expected_public_names = [
         "_normalize_for_search",
         "get_today_kst",
+        "format_datetime_kst",
         "self_measurement_four_checks_done",
         "_extract_name_candidate",
         "_manager_candidates",

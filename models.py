@@ -6,6 +6,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 # JSON Type Compatibility Layer
 JSONColumn = JSON().with_variant(JSONB, 'postgresql')
 from db import Base
+from foms.services.datetime_kst import format_datetime_kst
 
 class Order(Base):
     __tablename__ = 'orders'
@@ -617,8 +618,8 @@ class OrderEstimate(Base):
             'status': self.status,
             'notes': self.notes,
             'created_by_user_id': self.created_by_user_id,
-            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else None,
-            'updated_at': self.updated_at.strftime('%Y-%m-%d %H:%M:%S') if self.updated_at else None,
+            'created_at': format_datetime_kst(self.created_at),
+            'updated_at': format_datetime_kst(self.updated_at),
         }
 
 
