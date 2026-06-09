@@ -1,5 +1,9 @@
 {% from 'partials/shared/erp_mobile_queue_card_v2.html' import render_queue_card_v2 %}
 
+{% if tower_mode|default(false) and control_tower %}
+{% include 'orders/partials/dashboard_mobile_tower.html' %}
+{% else %}
+
 {% set _filters = filters or {} %}
 {% set _base_url = url_for('erp_dashboard.erp_dashboard') %}
 {% set _sort = _filters.get('sort') or 'latest' %}
@@ -82,3 +86,4 @@
     <i class="fas fa-plus" aria-hidden="true"></i>
   </a>
 </section>
+{% endif %}

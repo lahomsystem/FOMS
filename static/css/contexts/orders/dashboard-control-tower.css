@@ -1,0 +1,110 @@
+/* 모바일 홈 — 오퍼레이션 컨트롤 타워.
+   .foms-tower 는 .foms-shell-body 위에 얹혀 스크롤/패딩/grid gap을 상속한다
+   (foundation/foms-shell.css 의 body.erp-mobile-v2-layout .foms-shell-body).
+   여기서는 타워 전용 컴포넌트만 정의하고 전부 --foms-* 토큰을 쓴다. */
+
+.foms-tower { align-content: start; }
+
+/* 섹션 헤더 */
+.foms-tower__head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: var(--foms-space-2);
+}
+.foms-tower__head-title {
+  margin: 0; font-size: var(--foms-font-size-sm);
+  font-weight: var(--foms-font-weight-bold); display: flex; align-items: center; gap: 6px;
+}
+.foms-tower__head-action { font-size: var(--foms-font-size-xs); font-weight: var(--foms-font-weight-semibold); color: var(--foms-text-link); }
+.foms-tower__head-action--muted { color: var(--foms-text-tertiary); }
+.foms-tower__dot-risk { width: 7px; height: 7px; border-radius: 50%; background: var(--foms-color-danger-500); display: inline-block; }
+
+/* (A) 이번주 현장 */
+.foms-tower__week {
+  background: linear-gradient(135deg, var(--foms-color-brand-700) 0%, var(--foms-color-brand-500) 70%, #7882f0 100%);
+  border-radius: var(--foms-radius-xl); padding: var(--foms-space-3) var(--foms-space-2);
+  color: #fff; box-shadow: var(--foms-shadow-md);
+}
+.foms-tower__week-top { display: flex; align-items: baseline; justify-content: space-between; padding: 0 var(--foms-space-2) var(--foms-space-2); gap: var(--foms-space-2); }
+.foms-tower__week-title { font-size: var(--foms-font-size-base); font-weight: var(--foms-font-weight-bold); }
+.foms-tower__week-link { font-size: var(--foms-font-size-xs); color: #fff; opacity: .9; white-space: nowrap; }
+.foms-tower__week-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.foms-tower__day { border-radius: var(--foms-radius-md); padding: var(--foms-space-2) 2px; text-align: center; background: rgba(255,255,255,.10); position: relative; display: grid; gap: 2px; }
+.foms-tower__day.is-today { background: #fff; color: var(--foms-color-brand-700); box-shadow: var(--foms-shadow-sm); }
+.foms-tower__day-dow { font-size: 9px; opacity: .82; }
+.foms-tower__day-date { font-size: var(--foms-font-size-base); font-weight: var(--foms-font-weight-bold); line-height: 1.1; }
+.foms-tower__day-counts { font-size: 9px; opacity: .92; line-height: 1.3; }
+.foms-tower__day-risk { position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--foms-color-danger-500); }
+
+/* (B) 오늘의 현장 */
+.foms-tower__field-list { display: grid; gap: var(--foms-space-2); }
+.foms-tower__field {
+  display: grid; grid-template-columns: 52px 1fr; gap: var(--foms-space-2); align-items: center;
+  background: var(--foms-surface-base); border: 1px solid var(--foms-border-subtle); border-left-width: 4px;
+  border-radius: var(--foms-radius-md); padding: var(--foms-space-2) var(--foms-space-3);
+  text-decoration: none; color: var(--foms-text-primary);
+}
+.foms-tower__field--ok { border-left-color: var(--foms-stage-construction); }
+.foms-tower__field--warn { border-left-color: var(--foms-stage-production); }
+.foms-tower__field--risk { border-left-color: var(--foms-color-danger-500); }
+.foms-tower__field-time { text-align: center; }
+.foms-tower__field-hh { display: block; font-size: var(--foms-font-size-sm); font-weight: var(--foms-font-weight-bold); font-variant-numeric: tabular-nums; line-height: 1.05; }
+.foms-tower__field-type { font-size: 9px; color: var(--foms-text-tertiary); }
+.foms-tower__field-name { display: flex; align-items: center; gap: 6px; font-size: var(--foms-font-size-sm); font-weight: var(--foms-font-weight-semibold); }
+.foms-tower__field-addr { display: block; font-size: var(--foms-font-size-xs); color: var(--foms-text-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 1px; }
+.foms-tower__field-foot { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.foms-tower__field-who { font-size: 10px; color: var(--foms-text-tertiary); margin-left: auto; }
+.foms-tower__chip { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: var(--foms-radius-full); }
+.foms-tower__chip--ok { background: var(--foms-color-success-50); color: var(--foms-color-success-600); }
+.foms-tower__chip--warn { background: var(--foms-color-warning-50); color: var(--foms-color-warning-600); }
+.foms-tower__chip--risk { background: var(--foms-color-danger-50); color: var(--foms-color-danger-600); }
+
+/* (C) 위험 레이더 */
+.foms-tower__risk-list { display: grid; gap: var(--foms-space-2); }
+.foms-tower__risk {
+  display: flex; align-items: center; gap: var(--foms-space-2);
+  background: var(--foms-surface-base); border: 1px solid var(--foms-border-subtle);
+  border-radius: var(--foms-radius-md); padding: var(--foms-space-2) var(--foms-space-3);
+  text-decoration: none; color: var(--foms-text-primary);
+}
+.foms-tower__risk-icon { width: 30px; height: 30px; flex-shrink: 0; border-radius: var(--foms-radius-md); display: flex; align-items: center; justify-content: center; font-size: 14px; color: #fff; }
+.foms-tower__risk-icon--red { background: var(--foms-color-danger-500); }
+.foms-tower__risk-icon--amber { background: var(--foms-color-warning-500); }
+.foms-tower__risk-body { flex: 1; min-width: 0; }
+.foms-tower__risk-title { display: block; font-size: var(--foms-font-size-sm); font-weight: var(--foms-font-weight-semibold); }
+.foms-tower__risk-why { display: block; font-size: var(--foms-font-size-xs); color: var(--foms-text-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.foms-tower__risk-count { font-size: var(--foms-font-size-lg); font-weight: var(--foms-font-weight-bold); color: var(--foms-color-danger-600); font-variant-numeric: tabular-nums; }
+.foms-tower__risk-count span { font-size: 10px; color: var(--foms-text-tertiary); font-weight: 400; }
+
+/* 빈 상태 */
+.foms-tower__empty { padding: var(--foms-space-4); text-align: center; font-size: var(--foms-font-size-sm); color: var(--foms-text-tertiary); background: var(--foms-surface-base); border: 1px dashed var(--foms-border-default); border-radius: var(--foms-radius-lg); }
+.foms-tower__empty--ok { color: var(--foms-color-success-600); border-color: var(--foms-color-success-500); background: var(--foms-color-success-50); }
+
+/* (D) 처리 대기 */
+.foms-tower__quick { display: grid; grid-template-columns: 1fr 1fr; gap: var(--foms-space-2); }
+.foms-tower__quick-card { display: grid; gap: 2px; padding: var(--foms-space-3); background: var(--foms-surface-base); border: 1px solid var(--foms-border-subtle); border-radius: var(--foms-radius-lg); box-shadow: var(--foms-shadow-sm); text-decoration: none; color: var(--foms-text-primary); }
+.foms-tower__quick-num { font-size: var(--foms-font-size-2xl); font-weight: var(--foms-font-weight-bold); line-height: 1; font-variant-numeric: tabular-nums; color: var(--foms-color-brand-600); }
+.foms-tower__quick-label { font-size: var(--foms-font-size-xs); color: var(--foms-text-secondary); }
+
+/* (F) 전체 파이프라인 (접힘) */
+.foms-tower__pipeline > summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; font-size: var(--foms-font-size-sm); font-weight: var(--foms-font-weight-bold); color: var(--foms-text-secondary); padding: var(--foms-space-2) 0; }
+.foms-tower__pipeline > summary::-webkit-details-marker { display: none; }
+.foms-tower__pipeline-toggle { font-size: var(--foms-font-size-xs); color: var(--foms-text-link); font-weight: var(--foms-font-weight-semibold); }
+.foms-tower__pipeline[open] .foms-tower__pipeline-toggle::after { content: ' 접기'; }
+.foms-tower__stage-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--foms-space-2); margin-top: var(--foms-space-2); }
+.foms-tower__stage { display: grid; gap: 3px; padding: var(--foms-space-2) 2px; text-align: center; background: var(--foms-surface-base); border: 1px solid var(--foms-border-subtle); border-radius: var(--foms-radius-md); text-decoration: none; color: var(--foms-text-primary); position: relative; }
+.foms-tower__stage-count { font-size: var(--foms-font-size-lg); font-weight: var(--foms-font-weight-bold); font-variant-numeric: tabular-nums; line-height: 1; }
+.foms-tower__stage-label { font-size: 10px; color: var(--foms-text-secondary); }
+.foms-tower__stage-dot { width: 6px; height: 6px; border-radius: 50%; margin: 0 auto; }
+.foms-tower__stage-dot--received { background: var(--foms-stage-received); }
+.foms-tower__stage-dot--measure { background: var(--foms-stage-measure); }
+.foms-tower__stage-dot--drawing { background: var(--foms-stage-drawing); }
+.foms-tower__stage-dot--confirm { background: var(--foms-stage-confirm); }
+.foms-tower__stage-dot--production { background: var(--foms-stage-production); }
+.foms-tower__stage-dot--construction { background: var(--foms-stage-construction); }
+.foms-tower__stage-dot--completed { background: var(--foms-stage-completed); }
+.foms-tower__stage-dot--cs { background: var(--foms-stage-cs); }
+.foms-tower__stage-badges { position: absolute; top: 4px; right: 4px; display: flex; gap: 2px; }
+.foms-tower__mini { min-width: 14px; height: 14px; padding: 0 3px; border-radius: var(--foms-radius-full); font-size: 8px; font-weight: 700; color: #fff; display: flex; align-items: center; justify-content: center; }
+.foms-tower__mini--overdue { background: var(--foms-color-danger-500); }
+.foms-tower__mini--imminent { background: var(--foms-color-warning-500); }
+.foms-tower__all-queue { display: block; text-align: center; margin-top: var(--foms-space-3); font-size: var(--foms-font-size-sm); font-weight: var(--foms-font-weight-semibold); color: var(--foms-text-link); }

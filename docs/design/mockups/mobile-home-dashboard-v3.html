@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover" />
+<title>FOMS · 홈 대시보드 v3 (오퍼레이션 컨트롤 타워)</title>
+<link rel="stylesheet" href="_tokens.css" />
+<style>
+/* ───────── 홈 대시보드 v3 — 오퍼레이션 컨트롤 타워 ─────────
+   사용자 = 라홈 사무실 오케스트레이터/대표 (생산 라인 작업자 아님).
+   핵심 질문(매일 아침):
+     ① 오늘/이번주 나가야 할 현장(실측·시공)은? 각각 준비됐나?
+     ② 약속일 펑크날 위험(시퀀스 위반)은?
+     ③ 내가 처리해야 진행되는 병목은?
+     ④ 새로 들어온 건은?
+   → 단계별 개수(인벤토리/funnel)는 '전체 파이프라인'으로 강등(접힘).
+   레이아웃 우선순위: 이번주 → 오늘 현장(준비도) → 위험 레이더 → 내 할 일 → 신규 → (접힘)파이프라인
+   FOMS 데이터 1:1 매핑:
+     erp_measurement_date / erp_construction_date (약속일)
+     erp_stage_code (현재 단계)  · erp_stage_updated_at (도면 48h 지연)
+     OrderAttachment count (도면 유무)  · pricing.balance/totals.deposit (잔금)
+     _erp_alerts + business_days_until (D-day 엔진 재사용)
+*/
+body { background:#eef0f3; }
+.preview-wrap { display:flex; justify-content:center; padding:24px 12px; }
+.preview-frame { width:390px; height:844px; background:var(--foms-surface-overlay); border-radius:32px; box-shadow:var(--foms-shadow-xl); overflow:hidden; position:relative; border:8px solid #0f1115; }
+.preview-label { text-align:center; font-size:13px; color:var(--foms-text-tertiary); margin:0 0 4px; }
+.shell { position:absolute; inset:0; display:flex; flex-direction:column; background:var(--foms-surface-overlay); }
+
+/* Header */
+.shell-header { height:var(--foms-shell-header-h); flex-shrink:0; display:grid; grid-template-columns:44px 1fr 44px 44px; align-items:center; padding:0 var(--foms-space-2); background:var(--foms-surface-base); border-bottom:1px solid var(--foms-border-subtle); position:sticky; top:0; z-index:var(--foms-z-sticky); }
+.icon-btn { width:44px; height:44px; display:flex; align-items:center; justify-content:center; background:transparent; border:none; cursor:pointer; border-radius:var(--foms-radius-md); color:var(--foms-text-primary); font-size:18px; position:relative; }
+.icon-btn:active { background:var(--foms-interactive-secondary); }
+.shell-title { font-size:var(--foms-font-size-lg); font-weight:var(--foms-font-weight-semibold); text-align:center; }
+.hdr-badge { position:absolute; top:6px; right:4px; min-width:16px; height:16px; padding:0 4px; background:var(--foms-color-danger-500); color:#fff; font-size:9px; font-weight:700; border-radius:var(--foms-radius-full); display:flex; align-items:center; justify-content:center; }
+
+.shell-body { flex:1; overflow-y:auto; padding:var(--foms-space-3) var(--foms-space-4) calc(var(--foms-shell-bottom-nav-h) + var(--foms-space-6)); display:grid; gap:var(--foms-space-5); align-content:start; }
+
+/* 섹션 헤더 */
+.section-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:var(--foms-space-2); }
+.section-head__title { font-size:var(--foms-font-size-sm); font-weight:var(--foms-font-weight-bold); margin:0; display:flex; align-items:center; gap:6px; }
+.section-head__title .dot-risk { width:7px; height:7px; border-radius:50%; background:var(--foms-color-danger-500); display:inline-block; }
+.section-head__action { font-size:var(--foms-font-size-xs); color:var(--foms-text-link); font-weight:var(--foms-font-weight-semibold); }
+
+/* (A) 이번주 작전 — week strip */
+.week-card { background:linear-gradient(135deg,var(--foms-color-brand-700) 0%,var(--foms-color-brand-500) 70%,#7882f0 100%); border-radius:var(--foms-radius-xl); padding:var(--foms-space-3) var(--foms-space-2) var(--foms-space-3); color:#fff; box-shadow:var(--foms-shadow-md); }
+.week-card__top { display:flex; align-items:baseline; justify-content:space-between; padding:0 var(--foms-space-2) var(--foms-space-2); }
+.week-card__title { font-size:var(--foms-font-size-base); font-weight:var(--foms-font-weight-bold); }
+.week-card__sub { font-size:var(--foms-font-size-xs); opacity:.85; }
+.week-strip { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+.day { border-radius:var(--foms-radius-md); padding:var(--foms-space-2) 2px; text-align:center; background:rgba(255,255,255,.10); position:relative; }
+.day.is-today { background:#fff; color:var(--foms-color-brand-700); box-shadow:var(--foms-shadow-sm); }
+.day__dow { font-size:9px; opacity:.8; }
+.day.is-today .day__dow { opacity:.6; }
+.day__date { font-size:var(--foms-font-size-base); font-weight:var(--foms-font-weight-bold); line-height:1.1; }
+.day__counts { font-size:9px; margin-top:3px; line-height:1.3; opacity:.92; }
+.day__risk { position:absolute; top:4px; right:4px; width:6px; height:6px; border-radius:50%; background:var(--foms-color-danger-500); }
+.day.is-today .day__risk { background:var(--foms-color-danger-500); }
+
+/* (B) 오늘의 현장 — 준비도 타임라인 */
+.field-list { display:grid; gap:var(--foms-space-2); }
+.field-row { display:grid; grid-template-columns:46px 1fr; gap:var(--foms-space-2); background:var(--foms-surface-base); border:1px solid var(--foms-border-subtle); border-left-width:4px; border-radius:var(--foms-radius-md); padding:var(--foms-space-2) var(--foms-space-3); text-decoration:none; color:var(--foms-text-primary); align-items:center; }
+.field-row--ready { border-left-color:var(--foms-stage-construction); }
+.field-row--warn  { border-left-color:var(--foms-stage-production); }
+.field-row--risk  { border-left-color:var(--foms-color-danger-500); }
+.field-row__time { text-align:center; }
+.field-row__hh { font-size:var(--foms-font-size-base); font-weight:var(--foms-font-weight-bold); font-variant-numeric:tabular-nums; line-height:1; }
+.field-row__type { font-size:9px; color:var(--foms-text-tertiary); margin-top:2px; }
+.field-row__name { font-size:var(--foms-font-size-sm); font-weight:var(--foms-font-weight-semibold); display:flex; align-items:center; gap:6px; }
+.field-row__addr { font-size:var(--foms-font-size-xs); color:var(--foms-text-tertiary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.field-row__foot { display:flex; align-items:center; gap:8px; margin-top:3px; }
+.ready-chip { font-size:10px; font-weight:700; padding:2px 7px; border-radius:var(--foms-radius-full); }
+.ready-chip--ok   { background:var(--foms-color-success-50); color:var(--foms-color-success-600); }
+.ready-chip--warn { background:var(--foms-color-warning-50); color:var(--foms-color-warning-600); }
+.ready-chip--risk { background:var(--foms-color-danger-50); color:var(--foms-color-danger-600); }
+.field-row__who { font-size:10px; color:var(--foms-text-tertiary); margin-left:auto; }
+
+/* (C) 위험 레이더 */
+.risk-list { display:grid; gap:var(--foms-space-2); }
+.risk-row { display:flex; align-items:center; gap:var(--foms-space-2); background:var(--foms-surface-base); border:1px solid var(--foms-border-subtle); border-radius:var(--foms-radius-md); padding:var(--foms-space-2) var(--foms-space-3); text-decoration:none; color:var(--foms-text-primary); }
+.risk-row__icon { width:30px; height:30px; flex-shrink:0; border-radius:var(--foms-radius-md); display:flex; align-items:center; justify-content:center; font-size:14px; color:#fff; }
+.risk-row__icon--red { background:var(--foms-color-danger-500); }
+.risk-row__icon--amber { background:var(--foms-color-warning-500); }
+.risk-row__body { flex:1; min-width:0; }
+.risk-row__title { font-size:var(--foms-font-size-sm); font-weight:var(--foms-font-weight-semibold); }
+.risk-row__why { font-size:var(--foms-font-size-xs); color:var(--foms-text-tertiary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.risk-row__count { font-size:var(--foms-font-size-lg); font-weight:var(--foms-font-weight-bold); color:var(--foms-color-danger-600); font-variant-numeric:tabular-nums; }
+.risk-row__count span { font-size:10px; color:var(--foms-text-tertiary); font-weight:400; }
+
+/* (D) 내 할 일 — 액션 칩 */
+.todo-rail { display:flex; gap:var(--foms-space-2); flex-wrap:wrap; }
+.todo-chip { display:inline-flex; align-items:center; gap:6px; padding:var(--foms-space-2) var(--foms-space-3); background:var(--foms-surface-base); border:1px solid var(--foms-border-subtle); border-radius:var(--foms-radius-full); font-size:var(--foms-font-size-sm); font-weight:var(--foms-font-weight-semibold); color:var(--foms-text-primary); text-decoration:none; }
+.todo-chip b { color:var(--foms-color-brand-600); font-variant-numeric:tabular-nums; }
+.todo-chip .pip { min-width:18px; height:18px; padding:0 4px; border-radius:var(--foms-radius-full); background:var(--foms-color-brand-500); color:#fff; font-size:10px; display:flex; align-items:center; justify-content:center; }
+
+/* (E) 신규 유입 */
+.inbound { display:flex; align-items:center; gap:var(--foms-space-3); background:var(--foms-surface-base); border:1px dashed var(--foms-border-default); border-radius:var(--foms-radius-lg); padding:var(--foms-space-3); }
+.inbound__num { font-size:var(--foms-font-size-2xl); font-weight:var(--foms-font-weight-bold); color:var(--foms-text-primary); font-variant-numeric:tabular-nums; line-height:1; }
+.inbound__body { flex:1; }
+.inbound__body strong { font-size:var(--foms-font-size-sm); display:block; }
+.inbound__body span { font-size:var(--foms-font-size-xs); color:var(--foms-text-tertiary); }
+
+/* (F) 전체 파이프라인 — 접힘 */
+details.pipeline { background:transparent; }
+details.pipeline > summary { list-style:none; cursor:pointer; display:flex; align-items:center; justify-content:space-between; font-size:var(--foms-font-size-sm); font-weight:var(--foms-font-weight-bold); color:var(--foms-text-secondary); padding:var(--foms-space-2) 0; }
+details.pipeline > summary::-webkit-details-marker { display:none; }
+.stage-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:var(--foms-space-2); margin-top:var(--foms-space-2); }
+.stage-tile { display:grid; gap:3px; padding:var(--foms-space-2) 2px; text-align:center; background:var(--foms-surface-base); border:1px solid var(--foms-border-subtle); border-radius:var(--foms-radius-md); text-decoration:none; color:var(--foms-text-primary); position:relative; }
+.stage-tile__count { font-size:var(--foms-font-size-lg); font-weight:var(--foms-font-weight-bold); font-variant-numeric:tabular-nums; line-height:1; }
+.stage-tile__label { font-size:10px; color:var(--foms-text-secondary); }
+.stage-tile__dot { width:6px; height:6px; border-radius:50%; margin:0 auto; }
+.stage-tile__badges { position:absolute; top:4px; right:4px; display:flex; gap:2px; }
+.mini-badge { min-width:14px; height:14px; padding:0 3px; border-radius:var(--foms-radius-full); font-size:8px; font-weight:700; color:#fff; display:flex; align-items:center; justify-content:center; }
+.mini-badge--overdue { background:var(--foms-color-danger-500); }
+.mini-badge--imminent { background:var(--foms-color-warning-500); }
+
+/* FAB + bottom nav */
+.fab { position:absolute; bottom:calc(var(--foms-shell-bottom-nav-h) + var(--foms-space-4)); right:var(--foms-space-4); width:var(--foms-shell-fab-size); height:var(--foms-shell-fab-size); border-radius:var(--foms-radius-full); background:var(--foms-interactive-primary); color:#fff; display:flex; align-items:center; justify-content:center; box-shadow:var(--foms-shadow-lg); border:none; font-size:24px; z-index:var(--foms-z-fab); cursor:pointer; }
+.bottom-nav { height:var(--foms-shell-bottom-nav-h); flex-shrink:0; display:grid; grid-template-columns:repeat(6,1fr); background:var(--foms-surface-base); border-top:1px solid var(--foms-border-subtle); box-shadow:0 -2px 12px rgba(15,17,21,.06); position:sticky; bottom:0; }
+.bottom-nav__item { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; font-size:10px; color:var(--foms-text-tertiary); text-decoration:none; position:relative; background:transparent; border:none; cursor:pointer; }
+.bottom-nav__item.is-active { color:var(--foms-interactive-primary); font-weight:var(--foms-font-weight-semibold); }
+.bottom-nav__icon { font-size:20px; line-height:1; }
+.bottom-nav__badge { position:absolute; top:5px; right:calc(50% - 20px); min-width:16px; height:16px; padding:0 4px; background:var(--foms-color-danger-500); color:#fff; font-size:9px; font-weight:700; border-radius:var(--foms-radius-full); display:flex; align-items:center; justify-content:center; }
+</style>
+</head>
+<body>
+
+<p class="preview-label">▼ FOMS 홈 v3 · 오퍼레이션 컨트롤 타워 · 390×844 · [<a href="?theme=light">라이트</a>] [<a href="?theme=dark">다크</a>]</p>
+
+<div class="preview-wrap">
+<div class="preview-frame">
+  <div class="shell">
+    <header class="shell-header">
+      <button class="icon-btn" aria-label="메뉴">☰</button>
+      <h1 class="shell-title">대시보드</h1>
+      <button class="icon-btn" aria-label="검색">🔍</button>
+      <button class="icon-btn" aria-label="알림">🔔<span class="hdr-badge">3</span></button>
+    </header>
+
+    <div class="shell-body">
+
+      <!-- (A) 이번주 작전 -->
+      <section class="week-card">
+        <div class="week-card__top">
+          <span class="week-card__title">이번주 현장</span>
+          <span class="week-card__sub">실측 12 · 시공 9 · 위험 3</span>
+        </div>
+        <div class="week-strip">
+          <div class="day"><div class="day__dow">월</div><div class="day__date">8</div><div class="day__counts">📐1·🔨2</div></div>
+          <div class="day is-today"><div class="day__risk"></div><div class="day__dow">오늘</div><div class="day__date">9</div><div class="day__counts">📐2·🔨1</div></div>
+          <div class="day"><div class="day__risk"></div><div class="day__dow">수</div><div class="day__date">10</div><div class="day__counts">📐3·🔨2</div></div>
+          <div class="day"><div class="day__dow">목</div><div class="day__date">11</div><div class="day__counts">📐2·🔨1</div></div>
+          <div class="day"><div class="day__risk"></div><div class="day__dow">금</div><div class="day__date">12</div><div class="day__counts">📐1·🔨3</div></div>
+          <div class="day"><div class="day__dow">토</div><div class="day__date">13</div><div class="day__counts">📐3·🔨0</div></div>
+          <div class="day"><div class="day__dow">일</div><div class="day__date">14</div><div class="day__counts">·</div></div>
+        </div>
+      </section>
+
+      <!-- (B) 오늘의 현장 -->
+      <section>
+        <div class="section-head">
+          <h2 class="section-head__title">📍 오늘의 현장</h2>
+          <span class="section-head__action">3건 · 지도 보기 →</span>
+        </div>
+        <div class="field-list">
+          <a class="field-row field-row--ready" href="#">
+            <span class="field-row__time"><span class="field-row__hh">10:00</span><span class="field-row__type">실측</span></span>
+            <span>
+              <span class="field-row__name">박태준 <span class="foms-stage-badge foms-stage-badge--measure">실측</span></span>
+              <span class="field-row__addr">광지 트라펠리스 B동 1104</span>
+              <span class="field-row__foot"><span class="ready-chip ready-chip--ok">준비완료</span><span class="field-row__who">담당 한용희</span></span>
+            </span>
+          </a>
+          <a class="field-row field-row--risk" href="#">
+            <span class="field-row__time"><span class="field-row__hh">14:00</span><span class="field-row__type">시공</span></span>
+            <span>
+              <span class="field-row__name">강채린 <span class="foms-stage-badge foms-stage-badge--construction">시공</span></span>
+              <span class="field-row__addr">동안구 학의로 146 207동 701</span>
+              <span class="field-row__foot"><span class="ready-chip ready-chip--risk">⚠ 출고 미확인</span><span class="field-row__who">담당 안중훈</span></span>
+            </span>
+          </a>
+          <a class="field-row field-row--warn" href="#">
+            <span class="field-row__time"><span class="field-row__hh">16:30</span><span class="field-row__type">실측</span></span>
+            <span>
+              <span class="field-row__name">이준호 <span class="foms-stage-badge foms-stage-badge--measure">실측</span></span>
+              <span class="field-row__addr">광교 자연앤힐스테이트 502-1903</span>
+              <span class="field-row__foot"><span class="ready-chip ready-chip--warn">담당 미배정</span><span class="field-row__who">배정 필요</span></span>
+            </span>
+          </a>
+        </div>
+      </section>
+
+      <!-- (C) 위험 레이더 -->
+      <section>
+        <div class="section-head">
+          <h2 class="section-head__title"><span class="dot-risk"></span> 위험 레이더</h2>
+          <span class="section-head__action">6건</span>
+        </div>
+        <div class="risk-list">
+          <a class="risk-row" href="#">
+            <span class="risk-row__icon risk-row__icon--red">🔨</span>
+            <span class="risk-row__body"><span class="risk-row__title">시공 임박인데 미준비</span><span class="risk-row__why">강채린 D-2 · 생산중 / 박서연 D-3 · 출고 미예약</span></span>
+            <span class="risk-row__count">2<span>건</span></span>
+          </a>
+          <a class="risk-row" href="#">
+            <span class="risk-row__icon risk-row__icon--amber">⏳</span>
+            <span class="risk-row__body"><span class="risk-row__title">도면 컨펌 48h+ 정체</span><span class="risk-row__why">문지영 · 고객 컨펌 3일째 → 생산 지연</span></span>
+            <span class="risk-row__count">1<span>건</span></span>
+          </a>
+          <a class="risk-row" href="#">
+            <span class="risk-row__icon risk-row__icon--amber">📐</span>
+            <span class="risk-row__body"><span class="risk-row__title">실측 예정 · 담당 미배정</span><span class="risk-row__why">이준호 오늘 16:30 / 외 2건</span></span>
+            <span class="risk-row__count">3<span>건</span></span>
+          </a>
+          <a class="risk-row" href="#">
+            <span class="risk-row__icon risk-row__icon--red">💰</span>
+            <span class="risk-row__body"><span class="risk-row__title">잔금 미수 · 시공 임박</span><span class="risk-row__why">한지민 잔금 141만원 · 시공 D-1</span></span>
+            <span class="risk-row__count">1<span>건</span></span>
+          </a>
+        </div>
+      </section>
+
+      <!-- (D) 내 할 일 -->
+      <section>
+        <div class="section-head"><h2 class="section-head__title">✅ 내 승인·할 일</h2></div>
+        <div class="todo-rail">
+          <a class="todo-chip" href="#">도면 승인 <span class="pip">2</span></a>
+          <a class="todo-chip" href="#">팀 승인 <span class="pip">1</span></a>
+          <a class="todo-chip" href="#">해피콜 <span class="pip">4</span></a>
+        </div>
+      </section>
+
+      <!-- (E) 신규 유입 -->
+      <section>
+        <div class="section-head"><h2 class="section-head__title">🆕 신규 유입</h2></div>
+        <a class="inbound" href="#">
+          <span class="inbound__num">8</span>
+          <span class="inbound__body"><strong>접수 · 해피콜 대기</strong><span>접수 8 · 해피콜 미완료 5 — 분류 필요</span></span>
+          <span class="foms-btn foms-btn--secondary foms-btn--sm">분류</span>
+        </a>
+      </section>
+
+      <!-- (F) 전체 파이프라인 (접힘) -->
+      <details class="pipeline">
+        <summary>📊 전체 파이프라인 (316건) <span>펼치기 ▾</span></summary>
+        <div class="stage-grid">
+          <a class="stage-tile" href="#"><span class="stage-tile__dot" style="background:var(--foms-stage-received)"></span><span class="stage-tile__count">48</span><span class="stage-tile__label">주문접수</span></a>
+          <a class="stage-tile" href="#"><span class="stage-tile__badges"><span class="mini-badge mini-badge--imminent">4</span></span><span class="stage-tile__dot" style="background:var(--foms-stage-measure)"></span><span class="stage-tile__count">37</span><span class="stage-tile__label">실측</span></a>
+          <a class="stage-tile" href="#"><span class="stage-tile__badges"><span class="mini-badge mini-badge--overdue">1</span></span><span class="stage-tile__dot" style="background:var(--foms-stage-drawing)"></span><span class="stage-tile__count">22</span><span class="stage-tile__label">도면</span></a>
+          <a class="stage-tile" href="#"><span class="stage-tile__dot" style="background:var(--foms-stage-confirm)"></span><span class="stage-tile__count">15</span><span class="stage-tile__label">고객컨펌</span></a>
+          <a class="stage-tile" href="#"><span class="stage-tile__badges"><span class="mini-badge mini-badge--imminent">6</span></span><span class="stage-tile__dot" style="background:var(--foms-stage-production)"></span><span class="stage-tile__count">29</span><span class="stage-tile__label">생산</span></a>
+          <a class="stage-tile" href="#"><span class="stage-tile__badges"><span class="mini-badge mini-badge--imminent">3</span></span><span class="stage-tile__dot" style="background:var(--foms-stage-construction)"></span><span class="stage-tile__count">41</span><span class="stage-tile__label">시공</span></a>
+          <a class="stage-tile" href="#"><span class="stage-tile__dot" style="background:var(--foms-stage-completed)"></span><span class="stage-tile__count">63</span><span class="stage-tile__label">완료</span></a>
+          <a class="stage-tile" href="#"><span class="stage-tile__dot" style="background:var(--foms-stage-cs)"></span><span class="stage-tile__count">9</span><span class="stage-tile__label">CS</span></a>
+          <a class="stage-tile" href="#"><span class="stage-tile__badges"><span class="mini-badge mini-badge--overdue">2</span></span><span class="stage-tile__dot" style="background:var(--foms-stage-cs)"></span><span class="stage-tile__count">5</span><span class="stage-tile__label">AS처리</span></a>
+        </div>
+      </details>
+
+    </div>
+
+    <button class="fab" aria-label="신규 주문">＋</button>
+
+    <nav class="bottom-nav" aria-label="주요 메뉴">
+      <button class="bottom-nav__item is-active"><span class="bottom-nav__icon">▦</span><span>대시보드</span><span class="bottom-nav__badge">3</span></button>
+      <button class="bottom-nav__item"><span class="bottom-nav__icon">📐</span><span>실측</span><span class="bottom-nav__badge">99+</span></button>
+      <button class="bottom-nav__item"><span class="bottom-nav__icon">🚚</span><span>출고</span><span class="bottom-nav__badge">2</span></button>
+      <button class="bottom-nav__item"><span class="bottom-nav__icon">🔨</span><span>시공</span><span class="bottom-nav__badge">99+</span></button>
+      <button class="bottom-nav__item"><span class="bottom-nav__icon">🧮</span><span>계산기</span></button>
+      <button class="bottom-nav__item"><span class="bottom-nav__icon">⋯</span><span>더보기</span></button>
+    </nav>
+
+  </div>
+</div>
+</div>
+
+<script>
+const params = new URLSearchParams(location.search);
+document.documentElement.setAttribute('data-theme', params.get('theme') === 'dark' ? 'dark' : 'light');
+</script>
+</body>
+</html>

@@ -39,6 +39,7 @@ from foms.services.request_utils import get_search_query_arg
 from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
 from foms.services.feature_flags import env_bool, env_bool_or_mobile_v2, is_enabled_for_user
 from foms.services.foms_split_view import build_split_master_cards, default_split_side_items
+from foms.services.orders.dashboard_control_tower import build_mobile_control_tower
 from foms.services.common.dashboard_cache import (
     TTL_ATTACHMENT_COUNT_MAP,
     TTL_PAYLOAD_ASSEMBLY,
@@ -799,6 +800,32 @@ def erp_dashboard():
         mobile_v2_active=mobile_v2,
     )
 
+    # 모바일 홈 = 오퍼레이션 컨트롤 타워. 드릴(검색/필터/단계/내것/뷰=큐)이 없을 때만 타워,
+    # 드릴이 걸리면 기존 작업 큐로 전환한다. (단계 타일·위험 카드가 큐로 연결됨)
+    _has_drill = any((
+        f_q, effective_stage, f_urgent == '1', f_has_alert == '1', f_alert_type,
+        f_team, request.args.get('mine') == '1', f_today == '1',
+        request.args.get('view') == 'queue',
+    ))
+    # mobile_chunk(무한스크롤 조각 요청)은 큐 전용 → 타워 페이로드 계산을 건너뛴다.
+    _is_chunk = request.args.get('mobile_chunk') == '1'
+    tower_mode = bool(mobile_v2 and not _has_drill and not _is_chunk)
+    control_tower = None
+    if tower_mode:
+        _tower_fp = {
+            "v": 1,
+            "user": _orders_user_visibility_fingerprint(current_user, is_admin),
+            "date": today_iso,
+        }
+        _tower_key = build_dashboard_cache_key("orders", "mobile_control_tower", _tower_fp)
+        control_tower = get_or_compute_dashboard_slice(
+            _tower_key,
+            TTL_SUMMARY_COUNTS,
+            lambda: build_mobile_control_tower(db, current_user, today=datetime.date.today()),
+            page="orders",
+            slice_name="mobile_control_tower",
+        )
+
     _mobile_ctx = {
         "orders": paginated_orders,
         "filters": {
@@ -835,6 +862,8 @@ def erp_dashboard():
         orders=paginated_orders,
         kpis=kpis,
         process_steps=process_steps,
+        tower_mode=tower_mode,
+        control_tower=control_tower,
         filters={
             'stage': effective_stage,
             'urgent': f_urgent,

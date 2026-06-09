@@ -143,8 +143,13 @@ def test_p1_shell_hides_desktop_chrome_on_mobile_v2() -> None:
 @pytest.mark.parametrize(
     ("path", "expected"),
     [
-        ("/erp/dashboard", "foms-mobile-empty"),
+        # 홈(드릴 없음) = 오퍼레이션 컨트롤 타워.
         ("/erp/dashboard", "foms-mobile-v2-dashboard"),
+        ("/erp/dashboard", "foms-tower"),
+        ("/erp/dashboard", "data-foms-tower"),
+        # 드릴(view=queue) = 기존 작업 큐. 빈 DB면 큐 빈 상태(foms-mobile-empty).
+        ("/erp/dashboard?view=queue", "foms-mobile-v2-dashboard"),
+        ("/erp/dashboard?view=queue", "foms-mobile-empty"),
     ],
 )
 def test_p1_dashboard_renders_mockup_structure(
@@ -153,7 +158,7 @@ def test_p1_dashboard_renders_mockup_structure(
     path: str,
     expected: str,
 ) -> None:
-    """Cohort ERP dashboard HTML includes P1 mockup DOM hooks."""
+    """Cohort ERP dashboard: 홈은 컨트롤 타워, 드릴은 작업 큐 DOM hook을 노출한다."""
     user = _login_admin(client)
     monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
     monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
