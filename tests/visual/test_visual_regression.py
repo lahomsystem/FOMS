@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+from db import db_session
+from models import Order
 from tests.visual.conftest import (
     VISUAL_ADMIN_PASSWORD,
     VISUAL_ADMIN_USERNAME,
@@ -40,6 +42,50 @@ def _login_and_open_orders(page, base_url: str) -> None:
     page.goto(f"{base_url}/", wait_until="networkidle")
     if "/login" in page.url:
         pytest.fail(f"Visual login failed; still on {page.url}")
+
+
+def _reset_and_seed_legacy_order() -> None:
+    """Keep legacy order-list baselines independent from other visual tests."""
+    db_session.query(Order).delete(synchronize_session=False)
+    db_session.add(
+        Order(
+            received_date="2026-06-09",
+            customer_name="모바일 도면 QA",
+            phone="010-9999-0000",
+            address="Seoul",
+            product="문지영",
+            status="DRAWING",
+            manager_name="최상용",
+            is_erp_order=True,
+            structured_data={
+                "parties": {
+                    "customer": {"name": "모바일 도면 QA"},
+                    "manager": {"name": "최상용"},
+                },
+                "workflow": {"stage": "DRAWING"},
+                "drawing": {"status": "TRANSFERRED"},
+                "drawing_status": "TRANSFERRED",
+                "drawing_current_files": [
+                    {
+                        "key": "drawings/mobile-qa.png",
+                        "filename": "mobile-qa.png",
+                        "view_url": "/static/images/lahom-logo.png",
+                    }
+                ],
+                "drawing_transfer_history": [
+                    {
+                        "action": "TRANSFER",
+                        "at": "2026-06-09 10:00:00",
+                        "by_user_name": "도면팀",
+                        "note": "도면 1차 전달",
+                        "files": [],
+                    }
+                ],
+                "drawing_assignees": [],
+            },
+        )
+    )
+    db_session.commit()
 
 
 def _stabilize_page_for_screenshot(page) -> None:
@@ -88,6 +134,7 @@ def test_orders_page_visual_regression(
     page.set_viewport_size({"width": width, "height": height})
     page.emulate_media(reduced_motion="reduce")
 
+    _reset_and_seed_legacy_order()
     _login_and_open_orders(page, visual_live_server_legacy)
     _stabilize_page_for_screenshot(page)
 

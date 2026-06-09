@@ -64,7 +64,7 @@ jobs:
     - name: Install Playwright Chromium
       run: playwright install chromium --with-deps
 
-    - name: Seed Linux baselines when missing or ERP v2 stale
+    - name: Seed Linux baselines when missing or stale
       id: seed_linux
       env:
         DATABASE_URL: "sqlite:///tests/visual/visual_ci.sqlite"
@@ -73,23 +73,19 @@ jobs:
         ERP_MOBILE_V2_ENABLED: "false"
       run: |
         missing=$(python -c "from pathlib import Path; from tests.visual.conftest import missing_baseline_names, BASELINE_ROOT; print(len(missing_baseline_names(BASELINE_ROOT / 'linux')))")
-        stale_erp=0
-        if ! python scripts/ops/visual_erp_linux_stale.py; then
-          stale_erp=1
+        stale_linux=0
+        if ! python scripts/ops/visual_baseline_stale.py --check-all-linux-vs-win32; then
+          stale_linux=1
         fi
         echo "missing=${missing}"
-        echo "stale_erp=${stale_erp}"
-        if [ "${missing}" = "0" ] && [ "${stale_erp}" = "0" ]; then
+        echo "stale_linux=${stale_linux}"
+        if [ "${missing}" = "0" ] && [ "${stale_linux}" = "0" ]; then
           echo "seeded=false" >> "$GITHUB_OUTPUT"
           exit 0
         fi
-        if [ "${missing}" != "0" ]; then
-          pytest tests/visual/test_visual_regression.py tests/visual/test_erp_mobile_v2_shell_regression.py \
-            --update-snapshots -q -p pytest_playwright
-        else
-          pytest tests/visual/test_erp_mobile_v2_shell_regression.py \
-            --update-snapshots -q -p pytest_playwright
-        fi
+        pytest tests/visual/test_visual_regression.py tests/visual/test_erp_mobile_v2_shell_regression.py \
+          --update-snapshots -q -p pytest_playwright
+        date -u +%Y-%m-%dT%H:%M:%SZ > tests/visual/baseline/linux/.refresh_epoch
         echo "seeded=true" >> "$GITHUB_OUTPUT"
 
     - name: Commit Linux baselines
@@ -99,7 +95,7 @@ jobs:
       run: |
         git config user.name "github-actions[bot]"
         git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-        git add tests/visual/baseline/linux/*.png
+        git add tests/visual/baseline/linux/*.png tests/visual/baseline/linux/.refresh_epoch
         if git diff --staged --quiet; then
           echo "No baseline PNG changes to commit."
           exit 0

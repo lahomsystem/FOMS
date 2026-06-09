@@ -2,7 +2,8 @@
 
 Win32 staleness compares last git commit touching visual-affecting paths
 (static/css, static/js, templates) against each win32 baseline PNG commit.
-Linux staleness (CI) compares linux vs win32 baseline commit times.
+Linux staleness (CI) compares linux vs win32 baseline commit times, with a
+linux refresh marker for byte-identical regenerated PNGs.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 WIN32 = ROOT / "tests/visual/baseline/win32"
 LINUX = ROOT / "tests/visual/baseline/linux"
+LINUX_REFRESH_MARKER = LINUX / ".refresh_epoch"
 
 # Paths that can change captured PNGs (SSOT for pre-push visual gate).
 VISUAL_AFFECTING_PREFIXES: tuple[str, ...] = (
@@ -176,8 +178,26 @@ def erp_linux_baselines_stale() -> list[str]:
 
     Used by CI visual job to refresh Linux SSOT after win32-only updates.
     """
+    return linux_baselines_stale(ERP_V2_BASELINE_NAMES)
+
+
+def linux_baselines_stale(
+    baseline_names: tuple[str, ...] = VISUAL_BASELINE_NAMES,
+) -> list[str]:
+    """
+    Linux baselines missing or older than win32 counterpart commits.
+
+    A visual-affecting change can update legacy order-list and ERP v2 PNGs in
+    the same commit. CI must refresh the same baseline family that changed,
+    not only ERP v2, before running strict visual comparison.
+    """
     stale: list[str] = []
-    for name in ERP_V2_BASELINE_NAMES:
+    refresh_epoch = (
+        git_commit_epoch(LINUX_REFRESH_MARKER)
+        if LINUX_REFRESH_MARKER.is_file()
+        else 0
+    )
+    for name in baseline_names:
         win32_path = WIN32 / name
         linux_path = LINUX / name
         if not win32_path.is_file():
@@ -185,7 +205,8 @@ def erp_linux_baselines_stale() -> list[str]:
         if not linux_path.is_file():
             stale.append(name)
             continue
-        if git_commit_epoch(linux_path) < git_commit_epoch(win32_path):
+        linux_epoch = max(git_commit_epoch(linux_path), refresh_epoch)
+        if linux_epoch < git_commit_epoch(win32_path):
             stale.append(name)
     return stale
 
@@ -209,6 +230,11 @@ def main(argv: list[str] | None = None) -> int:
         help="Exit 1 when linux erp_v2 baselines are older than win32 (CI seed).",
     )
     parser.add_argument(
+        "--check-all-linux-vs-win32",
+        action="store_true",
+        help="Exit 1 when any linux baseline is older than its win32 counterpart.",
+    )
+    parser.add_argument(
         "--list-visual-affecting-changes",
         action="store_true",
         help="Print visual-affecting changed paths (one per line) and exit 1 if any.",
@@ -230,6 +256,11 @@ def main(argv: list[str] | None = None) -> int:
         _print_stale("stale", stale)
         return 1 if stale else 0
 
+    if args.check_all_linux_vs_win32:
+        stale = linux_baselines_stale()
+        _print_stale("stale", stale)
+        return 1 if stale else 0
+
     if args.list_visual_affecting_changes:
         since = args.since_ref.strip() or None
         changed = visual_affecting_changed_paths(since_ref=since)
@@ -237,7 +268,7 @@ def main(argv: list[str] | None = None) -> int:
             print(path)
         return 1 if changed else 0
 
-    parser.error("Specify --check-win32-vs-sources, --check-linux-vs-win32, or --list-visual-affecting-changes")
+    parser.error("Specify --check-win32-vs-sources, --check-linux-vs-win32, --check-all-linux-vs-win32, or --list-visual-affecting-changes")
 
 
 if __name__ == "__main__":

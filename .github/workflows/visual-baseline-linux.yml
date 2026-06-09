@@ -26,54 +26,52 @@ jobs:
         id: detect
         run: |
           missing=$(python -c "from pathlib import Path; from tests.visual.conftest import missing_baseline_names, BASELINE_ROOT; print(len(missing_baseline_names(BASELINE_ROOT / 'linux')))")
-          stale_erp=0
-          if ! python scripts/ops/visual_erp_linux_stale.py; then
-            stale_erp=1
+          stale_linux=0
+          if ! python scripts/ops/visual_baseline_stale.py --check-all-linux-vs-win32; then
+            stale_linux=1
           fi
           echo "missing=${missing}" >> "$GITHUB_OUTPUT"
-          echo "stale_erp=${stale_erp}" >> "$GITHUB_OUTPUT"
-          echo "Linux baseline missing=${missing} stale_erp=${stale_erp}"
+          echo "stale_linux=${stale_linux}" >> "$GITHUB_OUTPUT"
+          echo "Linux baseline missing=${missing} stale_linux=${stale_linux}"
 
       - name: Skip when Linux baselines complete
-        if: steps.detect.outputs.missing == '0' && steps.detect.outputs.stale_erp == '0' && github.event_name != 'workflow_dispatch'
-        run: echo "All Linux baselines present and ERP v2 fresh; seed skipped."
+        if: steps.detect.outputs.missing == '0' && steps.detect.outputs.stale_linux == '0' && github.event_name != 'workflow_dispatch'
+        run: echo "All Linux baselines present and fresh; seed skipped."
 
       - name: Set up Python 3.12
-        if: steps.detect.outputs.missing != '0' || steps.detect.outputs.stale_erp != '0' || github.event_name == 'workflow_dispatch'
+        if: steps.detect.outputs.missing != '0' || steps.detect.outputs.stale_linux != '0' || github.event_name == 'workflow_dispatch'
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
 
       - name: Install dependencies
-        if: steps.detect.outputs.missing != '0' || steps.detect.outputs.stale_erp != '0' || github.event_name == 'workflow_dispatch'
+        if: steps.detect.outputs.missing != '0' || steps.detect.outputs.stale_linux != '0' || github.event_name == 'workflow_dispatch'
         run: |
           python -m pip install --upgrade pip setuptools wheel
           pip install -r requirements.txt
           playwright install chromium --with-deps
 
       - name: Regenerate Linux baselines
-        if: steps.detect.outputs.missing != '0' || steps.detect.outputs.stale_erp != '0' || github.event_name == 'workflow_dispatch'
+        if: steps.detect.outputs.missing != '0' || steps.detect.outputs.stale_linux != '0' || github.event_name == 'workflow_dispatch'
         env:
           DATABASE_URL: sqlite:///tests/visual/visual_ci.sqlite
           SECRET_KEY: ci-secret-key
           FLASK_ENV: testing
           ERP_MOBILE_V2_ENABLED: "false"
         run: |
-          if [ "${{ steps.detect.outputs.missing }}" != "0" ]; then
-            pytest tests/visual/test_visual_regression.py tests/visual/test_erp_mobile_v2_shell_regression.py \
-              --update-snapshots -q -p pytest_playwright
-          else
-            pytest tests/visual/test_erp_mobile_v2_shell_regression.py \
-              --update-snapshots -q -p pytest_playwright
-          fi
+          pytest tests/visual/test_visual_regression.py tests/visual/test_erp_mobile_v2_shell_regression.py \
+            --update-snapshots -q -p pytest_playwright
+          date -u +%Y-%m-%dT%H:%M:%SZ > tests/visual/baseline/linux/.refresh_epoch
 
       - name: Upload baseline artifact
-        if: steps.detect.outputs.missing != '0' || steps.detect.outputs.stale_erp != '0' || github.event_name == 'workflow_dispatch'
+        if: steps.detect.outputs.missing != '0' || steps.detect.outputs.stale_linux != '0' || github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
           name: visual-baseline-linux
-          path: tests/visual/baseline/linux/*.png
+          path: |
+            tests/visual/baseline/linux/*.png
+            tests/visual/baseline/linux/.refresh_epoch
           if-no-files-found: error
 
       - name: Commit Linux baselines
@@ -81,7 +79,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add tests/visual/baseline/linux/*.png
+          git add tests/visual/baseline/linux/*.png tests/visual/baseline/linux/.refresh_epoch
           if git diff --staged --quiet; then
             echo "No baseline changes to commit."
             exit 0

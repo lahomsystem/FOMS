@@ -110,3 +110,66 @@ def test_erp_linux_stale_when_linux_older(monkeypatch: pytest.MonkeyPatch) -> No
 
     monkeypatch.setattr(Path, "is_file", _exists, raising=False)
     assert policy.erp_linux_baselines_stale() == ["erp_v2_390_light.png"]
+
+
+def test_all_linux_stale_includes_order_and_erp_baselines(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    epochs = {
+        "win32": 200,
+        "linux": 100,
+    }
+
+    def _epoch(path: Path) -> int:
+        if "win32" in path.as_posix():
+            return epochs["win32"]
+        if "linux" in path.as_posix():
+            return epochs["linux"]
+        return 0
+
+    monkeypatch.setattr(policy, "git_commit_epoch", _epoch)
+    monkeypatch.setattr(
+        policy,
+        "VISUAL_BASELINE_NAMES",
+        ("orders_320_light.png", "erp_v2_1280_light.png"),
+    )
+
+    def _exists(self: Path) -> bool:
+        return self.name in {"orders_320_light.png", "erp_v2_1280_light.png"}
+
+    monkeypatch.setattr(Path, "is_file", _exists, raising=False)
+    assert policy.linux_baselines_stale() == [
+        "orders_320_light.png",
+        "erp_v2_1280_light.png",
+    ]
+
+
+def test_all_linux_fresh_when_refresh_marker_newer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _epoch(path: Path) -> int:
+        posix = path.as_posix()
+        if posix.endswith(".refresh_epoch"):
+            return 250
+        if "win32" in posix:
+            return 200
+        if "linux" in posix:
+            return 100
+        return 0
+
+    monkeypatch.setattr(policy, "git_commit_epoch", _epoch)
+    monkeypatch.setattr(
+        policy,
+        "VISUAL_BASELINE_NAMES",
+        ("orders_320_light.png", "erp_v2_1280_light.png"),
+    )
+
+    def _exists(self: Path) -> bool:
+        return self.name in {
+            ".refresh_epoch",
+            "orders_320_light.png",
+            "erp_v2_1280_light.png",
+        }
+
+    monkeypatch.setattr(Path, "is_file", _exists, raising=False)
+    assert policy.linux_baselines_stale() == []

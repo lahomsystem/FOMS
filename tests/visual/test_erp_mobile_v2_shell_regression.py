@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+from db import db_session
+from models import Order
 from tests.visual.conftest import (
     VISUAL_ADMIN_PASSWORD,
     VISUAL_ADMIN_USERNAME,
@@ -44,6 +46,12 @@ def _login_and_open_erp_dashboard(page, base_url: str) -> None:
         pytest.fail(f"Visual ERP login failed; still on {page.url}")
 
 
+def _reset_dashboard_orders() -> None:
+    """Keep ERP visual baselines independent from other visual smoke seeds."""
+    db_session.query(Order).delete(synchronize_session=False)
+    db_session.commit()
+
+
 def _stabilize_page_for_screenshot(page) -> None:
     page.add_style_tag(
         content=(
@@ -80,6 +88,7 @@ def test_erp_mobile_v2_dashboard_visual_regression(
     page.set_viewport_size({"width": width, "height": height})
     page.emulate_media(reduced_motion="reduce")
 
+    _reset_dashboard_orders()
     _login_and_open_erp_dashboard(page, visual_live_server_erp_v2)
     _stabilize_page_for_screenshot(page)
 
