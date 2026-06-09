@@ -140,16 +140,98 @@ def test_construction_dashboard_mobile_wiring_contract():
     queue_src = (root / "templates/construction/partials/mobile_queue.html").read_text(
         encoding="utf-8"
     )
+    chunk_src = (root / "templates/construction/partials/mobile_queue_chunk.html").read_text(
+        encoding="utf-8"
+    )
     macro_src = (root / "templates/partials/shared/erp_mobile_queue_card_v2.html").read_text(
         encoding="utf-8"
     )
 
-    # 모바일 v2 큐는 홈과 동일한 깔끔한 queue-card-v2를 쓰고 시공 배지를 명시 전달한다.
-    assert "render_queue_card_v2" in queue_src
-    assert "shared/erp_mobile_queue_card_v2.html" in queue_src
-    assert "--construction" in queue_src
+    # 카드 렌더는 초기/무한스크롤이 공유하는 청크 파티얼에 모인다(SSOT).
+    assert "render_queue_card_v2" in chunk_src
+    assert "shared/erp_mobile_queue_card_v2.html" in chunk_src
+    assert "--construction" in chunk_src
+    assert "data-foms-mobile-queue-chunk" in chunk_src
+    # 큐 셸은 청크를 include 하고 무한스크롤 배선(scroll/sentinel)을 갖춘다.
+    assert "construction/partials/mobile_queue_chunk.html" in queue_src
+    assert "data-foms-mobile-queue-scroll" in queue_src
+    assert "data-foms-mobile-queue-sentinel" in queue_src
     # v2 카드는 badge override(modifier)를 stage 배지에 반영한다.
     assert "foms-stage-badge{{ badge_mod }}" in macro_src
+
+
+def _login_plain_admin(client):
+    """mine_only 강제(CONSTRUCTION 팀)를 피하려고 팀 없는 ADMIN으로 로그인."""
+    user = User(
+        username="erp_construction_pager_admin",
+        password=generate_password_hash("admin"),
+        role="ADMIN",
+        team=None,
+        name="ERP Construction Pager Admin",
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+
+    with client.session_transaction() as sess:
+        sess["user_id"] = user.id
+        sess["username"] = user.username
+        sess["role"] = user.role
+
+    return user
+
+
+def test_construction_mobile_queue_infinite_scroll_pagination(client, monkeypatch):
+    """회귀: 시공 모바일 큐가 50건에서 멈추지 않고 무한스크롤 청크로 이어진다.
+
+    증상(사용자 스크린샷): "50 / 전체 163건"에서 더 이상 로딩 안 됨.
+    근본원인: mobile_queue.html에 무한스크롤 배선(scroll/sentinel/chunk) 부재.
+    """
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    monkeypatch.setenv("FOMS_V3_CONSTRUCTION_THUMB_ENABLED", "false")
+    user = _login_plain_admin(client)
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+
+    from datetime import date
+
+    today = date.today().strftime("%Y-%m-%d")
+    for i in range(60):
+        db_session.add(
+            Order(
+                received_date=today,
+                customer_name=f"시공 페이저 {i}",
+                phone="010-0000-0000",
+                address="Seoul",
+                product="붙박이장",
+                status="CONSTRUCTION",
+                manager_name="Bob",
+                is_erp_order=True,
+                structured_data={"workflow": {"stage": "CONSTRUCTION"}},
+            )
+        )
+    db_session.commit()
+
+    # 페이지 1: 무한스크롤 배선 + sentinel + 첫 50건 / 전체 60건
+    page1 = client.get("/erp/construction/dashboard")
+    assert page1.status_code == 200
+    body = page1.get_data(as_text=True)
+    assert "data-foms-mobile-queue-scroll" in body
+    assert 'data-total-pages="2"' in body
+    assert 'data-next-page="2"' in body
+    assert "data-foms-mobile-queue-sentinel" in body
+    assert "data-foms-mobile-queue-chunk" in body
+    assert "50 / 전체 60건" in body
+
+    # 페이지 2 청크: 카드 조각만, 다음 페이지 없음(0), 전체 셸 미포함
+    chunk = client.get("/erp/construction/dashboard?mobile_chunk=1&page=2")
+    assert chunk.status_code == 200
+    chunk_body = chunk.get_data(as_text=True)
+    assert "data-foms-mobile-queue-chunk" in chunk_body
+    assert 'data-next-page="0"' in chunk_body
+    assert "data-foms-mobile-queue-scroll" not in chunk_body  # 청크는 셸 아님
+    assert "60 / 전체 60건" in chunk_body
+    # 2페이지 카드 10건이 실제 렌더됨 (시공대기 → '시공 시작' 액션 버튼)
+    assert chunk_body.count("data-action=\"startConstruction\"") == 10
 
 
 def test_construction_dashboard_renders_v11_badge(client, monkeypatch):

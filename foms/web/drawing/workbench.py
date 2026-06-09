@@ -352,11 +352,26 @@ def erp_drawing_workbench_dashboard():
         elif sort_by == 'id':
             rows.sort(key=lambda r: int(r.get('id') or 0), reverse=reverse)
 
+    # 모바일 단일 리스트 무한스크롤: 정렬 무관 '내 차례'를 항상 앞으로(안정 정렬로 그룹 보존).
+    rows.sort(key=lambda r: 0 if r.get('my_todo') else 1)
+
     total_count = len(rows)
     total_pages = max(1, (total_count + per_page - 1) // per_page) if per_page > 0 else 1
     page = min(page, total_pages)
     start_idx = (page - 1) * per_page
     rows = rows[start_idx:start_idx + per_page]
+
+    # 모바일 v2 무한스크롤 조각 요청 → 카드 청크만 반환 (mobile-queue-scroll.js가 append).
+    if mobile_v2_active and request.args.get('mobile_chunk') == '1':
+        chunk = render_template(
+            'drawing/partials/workbench_mobile_queue_chunk.html',
+            rows=rows,
+            pagination={'page': page, 'per_page': per_page, 'total_count': total_count, 'total_pages': total_pages},
+            drawing_thumb_enabled=drawing_thumb_enabled(mobile_v2_active=mobile_v2_active),
+        )
+        response = make_response(chunk)
+        apply_erp_shell_fragment_headers(response, request)
+        return response
 
     template_name = (
         'drawing/partials/workbench_dashboard_fragment.html'

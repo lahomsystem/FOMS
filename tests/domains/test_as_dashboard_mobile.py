@@ -115,18 +115,51 @@ def test_batch_resolve_as_thumbnail_urls_first_as_image(mock_url, monkeypatch, a
 
 
 def test_as_dashboard_mobile_v2_wiring_contract():
-    body_src = (
-        Path(__file__).resolve().parents[2] / "templates/cs/partials/as_dashboard_body.html"
-    ).read_text(encoding="utf-8")
-    dash_src = (Path(__file__).resolve().parents[2] / "templates/cs/as_dashboard.html").read_text(
-        encoding="utf-8"
-    )
+    root = Path(__file__).resolve().parents[2]
+    body_src = (root / "templates/cs/partials/as_dashboard_body.html").read_text(encoding="utf-8")
+    dash_src = (root / "templates/cs/as_dashboard.html").read_text(encoding="utf-8")
+    card_src = (root / "templates/cs/partials/as_mobile_order_card.html").read_text(encoding="utf-8")
+    chunk_src = (root / "templates/cs/partials/as_mobile_card_chunk.html").read_text(encoding="utf-8")
 
     assert "foms-as-mobile-card.css" in dash_src
     assert "erp-as-mobile-list__sticky" in body_src
-    assert "foms-stage-badge{{ r.stage_badge_modifier }}" in body_src
-    assert "erp-as-mobile-card__thumb" in body_src
+    # 카드 마크업은 공용 단일 카드 파티얼로 이동(SSOT)
+    assert "foms-stage-badge{{ r.stage_badge_modifier }}" in card_src
+    assert "erp-as-mobile-card__thumb" in card_src
+    # 무한스크롤 배선
+    assert "data-foms-mobile-queue-scroll" in body_src
+    assert "data-foms-mobile-queue-sentinel" in body_src
+    assert "data-foms-mobile-queue-list" in body_src
+    assert "as_mobile_order_card.html" in chunk_src
+    assert "data-foms-mobile-queue-chunk" in chunk_src
     assert body_src.count("as_mobile_controls.html") == 1
+
+
+def test_as_content_input_saves_on_blur_not_while_typing():
+    """요청: 입력 중 실시간 자동저장 제거, blur(입력박스 밖 클릭) 시에만 저장."""
+    body_src = (
+        Path(__file__).resolve().parents[2] / "templates/cs/partials/as_dashboard_body.html"
+    ).read_text(encoding="utf-8")
+    # 디바운스 실시간 저장 스케줄러 완전 제거
+    assert "scheduleAsContentSave" not in body_src
+    # blur 시 저장(flush) + 멱등 재배선 함수 존재
+    assert "flushAsContentIfNeeded" in body_src
+    assert "bindAsContentAutosaveInputs" in body_src
+
+
+def test_as_dashboard_mobile_chunk_endpoint(client, monkeypatch):
+    """무한스크롤 조각 요청 → 카드 청크만 반환(셸 미포함)."""
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    user = _login_as_admin(client)
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+    _create_as_order(customer_name="청크 AS")
+
+    resp = client.get("/erp/as?tab=incomplete&mobile_chunk=1&page=1")
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
+    assert "data-foms-mobile-queue-chunk" in body
+    assert "data-foms-mobile-queue-scroll" not in body  # 청크는 셸 아님
+    assert "erp-as-mobile-card" in body  # 카드 실제 렌더
 
 
 def test_as_dashboard_renders_mobile_v2_markup(client, monkeypatch):

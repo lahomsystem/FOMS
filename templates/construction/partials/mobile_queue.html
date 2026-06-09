@@ -1,39 +1,42 @@
 {% from 'partials/shared/erp_mobile_queue_card_v2.html' import render_queue_card_v2 %}
+{% set _mq_base = url_for('erp_construction_page.erp_construction_dashboard') %}
+{% set _mq_ctx = [] %}
+{% if filters and filters.get('q') %}{% set _ = _mq_ctx.append('q=' ~ filters.get('q')|urlencode) %}{% endif %}
+{% if filters and filters.get('stage') %}{% set _ = _mq_ctx.append('stage=' ~ filters.get('stage')|urlencode) %}{% endif %}
+{% if erp_mine_only %}{% set _ = _mq_ctx.append('mine=1') %}{% endif %}
+{% set _mq_loaded = [page * per_page, total_orders] | min %}
 
-<section class="erp-mobile-queue-section foms-mobile-queue-section" aria-label="시공 모바일 작업 큐">
+<section class="erp-mobile-queue-section foms-mobile-queue-section" aria-label="시공 모바일 작업 큐"
+  data-foms-mobile-queue-scroll
+  data-next-page="{{ page + 1 if page < total_pages else 0 }}"
+  data-total-pages="{{ total_pages }}"
+  data-page-label="{{ _mq_loaded }} / 전체 {{ total_orders }}건">
   <div class="erp-mobile-queue-section__summary foms-section-header section-header">
     <div>
       <span class="erp-mobile-queue-section__eyebrow">시공 작업 큐</span>
       <h2 class="erp-mobile-queue-section__title foms-section-header__title">시공 대기·진행</h2>
     </div>
-    {% set _mq_base = url_for('erp_construction_page.erp_construction_dashboard') %}
-    {% set _mq_ctx = [] %}
-    {% if filters and filters.get('q') %}{% set _ = _mq_ctx.append('q=' ~ filters.get('q')|urlencode) %}{% endif %}
-    {% if filters and filters.get('stage') %}{% set _ = _mq_ctx.append('stage=' ~ filters.get('stage')|urlencode) %}{% endif %}
     <a class="erp-mobile-queue-section__mine{% if erp_mine_only %} is-active{% endif %}"
        href="{{ _mq_base }}?{{ _mq_ctx|join('&') }}{% if not erp_mine_only %}{% if _mq_ctx %}&{% endif %}mine=1{% endif %}"
        aria-pressed="{{ 'true' if erp_mine_only else 'false' }}">
       <i class="fas fa-user-check" aria-hidden="true"></i><span>내 작업</span>
     </a>
-    <span class="erp-mobile-queue-section__count foms-section-header__count">{{ orders|length }} / 전체 {{ total_orders }}건</span>
+    <span class="erp-mobile-queue-section__count foms-section-header__count" data-foms-mobile-queue-page>{{ _mq_loaded }} / 전체 {{ total_orders }}건</span>
   </div>
 
   {% if orders %}
-    <div class="erp-mobile-queue-section__list foms-mobile-queue-list">
-      {% for o in orders %}
-        {% set task_action = None %}
-        {% if o.stage == '시공대기' %}
-          {% set task_action = {'label': '시공 시작', 'icon': 'fas fa-play', 'data_action': 'startConstruction', 'button_class': 'erp-construction-action'} %}
-        {% elif o.stage == '시공중' %}
-          {% set task_action = {'label': '시공 완료', 'icon': 'fas fa-check', 'data_action': 'completeConstruction', 'button_class': 'erp-construction-action'} %}
-        {% elif o.stage == '시공완료' and o.as_received_done %}
-          {% set task_action = {'label': 'AS 재업로드', 'icon': 'fas fa-redo', 'data_action': 'openAsReuploadModal', 'button_class': 'erp-construction-action'} %}
-        {% elif o.stage == '시공완료' %}
-          {% set task_action = {'label': 'AS 접수', 'icon': 'fas fa-tools', 'data_action': 'openAsAcceptModal', 'button_class': 'erp-construction-action'} %}
-        {% endif %}
-        {{ render_queue_card_v2(o, can_edit_erp|default(false), task_action, '--construction', o.stage) }}
-      {% endfor %}
+    <div class="erp-mobile-queue-section__list foms-mobile-queue-list" data-foms-mobile-queue-list>
+      {% include 'construction/partials/mobile_queue_chunk.html' %}
     </div>
+
+    {% if page < total_pages %}
+      <div class="foms-mobile-queue-more" data-foms-mobile-queue-sentinel>
+        <a class="foms-btn foms-btn--secondary foms-btn--full"
+           href="{{ _mq_base }}?{% if _mq_ctx %}{{ _mq_ctx|join('&') }}&{% endif %}page={{ page + 1 }}">
+          더 보기 ({{ _mq_loaded }}/{{ total_orders }})
+        </a>
+      </div>
+    {% endif %}
   {% else %}
     <div class="foms-mobile-empty">
       <i class="fas fa-inbox" aria-hidden="true"></i>

@@ -28,7 +28,8 @@
           if (!entry.isIntersecting || loading) {
             return;
           }
-          if (nextPage > totalPages) {
+          // nextPage 0(또는 NaN) = 더 이상 페이지 없음 → page=0 재요청(서버 1로 클램프 → 중복 append) 방지.
+          if (!nextPage || nextPage > totalPages) {
             observer.disconnect();
             return;
           }
@@ -55,6 +56,10 @@
               var list = root.querySelector('[data-foms-mobile-queue-list]');
               if (chunk && list) {
                 list.insertAdjacentHTML('beforeend', chunk.innerHTML);
+                // append된 카드에 모듈별 per-card 핸들러 재배선 기회 제공 (예: AS 자동저장).
+                document.dispatchEvent(new CustomEvent('foms:mobile-queue-appended', {
+                  detail: { root: root, list: list },
+                }));
               }
               var fresh = doc.querySelector('[data-foms-mobile-queue-scroll]');
               if (!fresh && chunk) {

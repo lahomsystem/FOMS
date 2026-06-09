@@ -196,16 +196,32 @@ def erp_construction_dashboard():
     total_pages = (total_orders + per_page - 1) // per_page
     paginated_orders = enriched[(page - 1) * per_page : page * per_page]
     current_user = getattr(g, "current_user", None)
+    mobile_v2_active = is_enabled_for_user(
+        "ERP_MOBILE_V2_ENABLED",
+        current_user.id if current_user else None,
+        cohort_key="FOMS_V3_SHELL_COHORT",
+    )
     enrich_construction_mobile_rows(
         paginated_orders,
         db,
-        mobile_v2_active=is_enabled_for_user(
-            "ERP_MOBILE_V2_ENABLED",
-            current_user.id if current_user else None,
-            cohort_key="FOMS_V3_SHELL_COHORT",
-        ),
+        mobile_v2_active=mobile_v2_active,
     )
     attach_order_detail_payloads(db, paginated_orders)
+
+    # 모바일 v2 무한스크롤 조각 요청 → 카드 청크만 반환 (mobile-queue-scroll.js가 append).
+    if mobile_v2_active and request.args.get("mobile_chunk") == "1":
+        chunk = render_template(
+            "construction/partials/mobile_queue_chunk.html",
+            orders=paginated_orders,
+            can_edit_erp=can_edit_erp(user),
+            page=page,
+            per_page=per_page,
+            total_pages=total_pages,
+            total_orders=total_orders,
+        )
+        response = make_response(chunk)
+        apply_erp_shell_fragment_headers(response, request)
+        return response
 
     template_name = (
         "construction/partials/dashboard_fragment.html"
@@ -225,6 +241,7 @@ def erp_construction_dashboard():
             can_edit_erp=can_edit_erp(user),
             erp_mine_only=mine_only,
             page=page,
+            per_page=per_page,
             total_pages=total_pages,
             total_orders=total_orders,
         )

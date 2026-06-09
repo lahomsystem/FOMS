@@ -1,0 +1,125 @@
+{# AS 카드 공용 매크로 — 데스크톱 테이블·모바일 카드·무한스크롤 청크가 공유(SSOT).
+   원래 as_dashboard_body.html 인라인 정의였으나, 청크 백엔드 단독 렌더에서 import 가능하도록 분리. #}
+{% macro render_as_rich_toolbar(order_id, is_sales_delivery) -%}
+<div class="as-rich-toolbar" style="background: #f8f9fa; border-bottom: 1px solid #ced4da; padding: 2px 4px; display: flex; gap: 4px;">
+  <button type="button"
+    class="btn btn-sm p-1 as-sales-delivery-btn {{ 'btn-warning' if is_sales_delivery else 'btn-outline-warning' }}"
+    data-order-id="{{ order_id }}"
+    data-sales-delivery-active="{{ '1' if is_sales_delivery else '0' }}"
+    title="영업/전달 분류 토글 후 탭 이동"
+    style="font-size: 0.75rem; font-weight: 600;">{{ '☑' if is_sales_delivery else '☐' }} 영업/전달</button>
+  <button type="button" class="btn btn-sm btn-light p-1 as-rich-command-btn" data-rich-command="bold" title="굵게" style="min-width: 28px; font-weight: bold;">B</button>
+  <button type="button" class="btn btn-sm btn-light p-1 as-rich-command-btn" data-rich-command="foreColor" data-rich-value="red" title="빨간색" style="min-width: 28px; color: red; font-weight: bold;">A</button>
+  <button type="button" class="btn btn-sm btn-light p-1 as-rich-command-btn" data-rich-command="foreColor" data-rich-value="blue" title="파란색" style="min-width: 28px; color: blue; font-weight: bold;">A</button>
+  <button type="button" class="btn btn-sm btn-light p-1 as-rich-command-btn" data-rich-command="clear-format" title="서식 초기화" style="min-width: 28px; color: black;">
+    <i class="fas fa-eraser"></i>
+  </button>
+</div>
+{%- endmacro %}
+
+{% macro render_as_content_tabs(order_id, is_sales_delivery, as_content_html, as_content_2_html, min_height='60px') -%}
+{% set initial_tab = '2' if (not as_content_html and as_content_2_html) else '1' %}
+<div class="as-tabbed-editor" data-order-id="{{ order_id }}" data-active-tab="{{ initial_tab }}">
+  <div class="as-content-tab-buttons" role="tablist" aria-label="주문 #{{ order_id }} AS 내용 탭">
+    <button type="button"
+      class="as-content-tab-btn{% if initial_tab == '1' %} is-active{% endif %}"
+      data-order-id="{{ order_id }}"
+      data-as-tab-target="1"
+      role="tab"
+      aria-selected="{{ 'true' if initial_tab == '1' else 'false' }}">
+      1
+    </button>
+    <button type="button"
+      class="as-content-tab-btn{% if initial_tab == '2' %} is-active{% endif %}"
+      data-order-id="{{ order_id }}"
+      data-as-tab-target="2"
+      role="tab"
+      aria-selected="{{ 'true' if initial_tab == '2' else 'false' }}">
+      2
+    </button>
+  </div>
+  <div class="as-content-tab-panel{% if initial_tab == '1' %} is-active{% endif %}"
+    data-order-id="{{ order_id }}"
+    data-as-tab-panel="1"
+    {% if initial_tab != '1' %}hidden{% endif %}>
+    <div class="as-rich-editor" style="border: 1px solid #ced4da; border-radius: 4px; overflow: hidden; background: #fff;">
+      {{ render_as_rich_toolbar(order_id, is_sales_delivery) }}
+      <div class="erp-pro-input as-content-input" contenteditable="true" data-order-id="{{ order_id }}"
+        data-field-name="as_content"
+        style="width: 100%; min-height: {{ min_height }}; max-height: 250px; overflow-y: auto; padding: 8px; border: none; outline: none; white-space: pre-wrap; font-size: 14px;"
+        data-placeholder="내용 입력...">{{ as_content_html | safe }}</div>
+    </div>
+  </div>
+  <div class="as-content-tab-panel{% if initial_tab == '2' %} is-active{% endif %}"
+    data-order-id="{{ order_id }}"
+    data-as-tab-panel="2"
+    {% if initial_tab != '2' %}hidden{% endif %}>
+    <div class="as-rich-editor" style="border: 1px solid #ced4da; border-radius: 4px; overflow: hidden; background: #fff;">
+      {{ render_as_rich_toolbar(order_id, is_sales_delivery) }}
+      <div class="erp-pro-input as-content-input" contenteditable="true" data-order-id="{{ order_id }}"
+        data-field-name="as_content_2"
+        style="width: 100%; min-height: {{ min_height }}; max-height: 250px; overflow-y: auto; padding: 8px; border: none; outline: none; white-space: pre-wrap; font-size: 14px;"
+        data-placeholder="내용 입력...">{{ as_content_2_html | safe }}</div>
+    </div>
+  </div>
+</div>
+{%- endmacro %}
+
+{# 발주사: 라홈/하우드 로고, 그 외 파란색 이름, 없음 '-' #}
+{% macro render_as_orderer_line(orderer_name) -%}
+{% set raw = (orderer_name or '') | trim %}
+{% if not raw %}
+<span class="d-block small erp-as-orderer-line text-muted">-</span>
+{% elif '라홈' in raw %}
+<span class="d-block erp-as-orderer-line">
+  <img src="{{ url_for('static', filename='images/lahom-logo.png') }}" alt="라홈" class="erp-as-orderer-logo erp-as-orderer-logo--lahom" loading="lazy">
+</span>
+{% elif '하우드' in raw %}
+<span class="d-block erp-as-orderer-line">
+  <img src="{{ url_for('static', filename='images/haud-logo.png') }}" alt="하우드" class="erp-as-orderer-logo erp-as-orderer-logo--haud" loading="lazy">
+</span>
+{% else %}
+<span class="d-block small erp-as-orderer-line erp-as-orderer-name text-primary">{{ raw }}</span>
+{% endif %}
+{%- endmacro %}
+
+{% macro render_as_construction_workers(order_id, workers, can_edit) -%}
+{% set values = workers or [] %}
+{% set display_text = values | join(', ') %}
+{% if can_edit %}
+<ul class="as-construction-worker-list mb-0"
+  data-order-id="{{ order_id }}"
+  data-field="construction_workers"
+  data-saved-value="{{ display_text }}"
+  data-placeholder="시공자"
+  data-datalist-id="datalist-construction-workers">
+  {% for worker in values %}
+  <li class="as-construction-worker-row has-value">
+    <span class="as-construction-worker-view">{{ worker }}</span>
+    <div class="as-construction-worker-edit">
+      <input type="text"
+        class="form-control form-control-sm as-construction-worker-input"
+        data-order-id="{{ order_id }}"
+        data-field="construction_workers"
+        value="{{ worker }}"
+        placeholder="시공자"
+        list="datalist-construction-workers"
+        lang="ko">
+      <div class="as-construction-worker-action-stack">
+        <button type="button" class="btn btn-sm btn-outline-secondary as-btn-load-saved-worker" title="저장된 값 불러오기">
+          <i class="fas fa-list"></i>
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-danger as-btn-remove-construction-worker" title="삭제">&times;</button>
+      </div>
+    </div>
+  </li>
+  {% endfor %}
+  <li class="as-construction-worker-actions-row">
+    <button type="button" class="btn btn-sm btn-outline-success as-btn-add-construction-worker"
+      data-order-id="{{ order_id }}" title="시공자 추가">+</button>
+  </li>
+</ul>
+{% else %}
+<span class="erp-as-construction-worker-text">{{ display_text or '-' }}</span>
+{% endif %}
+{%- endmacro %}
