@@ -68,3 +68,64 @@ def test_risk_group_shape():
     g = ct._risk_group("k", "🔨", "red", "t", "why", 3, {"stage": "시공"})
     assert g["key"] == "k" and g["tone"] == "red" and g["count"] == 3
     assert g["filter"] == {"stage": "시공"}
+
+
+class _FakeQuery:
+    """filter/order_by/limit/count/all 만 지원하는 최소 쿼리 스텁."""
+
+    def __init__(self, rows):
+        self._rows = list(rows)
+
+    def filter(self, *a, **k):
+        return self
+
+    def order_by(self, *a, **k):
+        return self
+
+    def limit(self, n):
+        return _FakeQuery(self._rows[:n])
+
+    def count(self):
+        return len(self._rows)
+
+    def all(self):
+        return list(self._rows)
+
+
+def _order_with_balance(oid, bal):
+    return _Order(
+        id=oid,
+        erp_stage_code="PRODUCTION",
+        structured_data={"parties": {"customer": {"name": f"고객{oid}"}}, "pricing": {"balance": bal}},
+    )
+
+
+def test_business_window_dates_includes_today_excludes_far():
+    import datetime
+    today = datetime.date(2026, 6, 9)  # 화요일
+    dates = ct._business_window_dates(today, max_business_days=3, window_days=10)
+    assert today.isoformat() in dates  # D-0 포함
+    assert (today + datetime.timedelta(days=10)).isoformat() not in dates  # 영업일 D-3 초과 제외
+
+
+def test_risk_balance_due_targets_construction_d3_superset_queue():
+    """잔금 미수 카드는 시공 임박(construction_d3) 큐로 연결돼야 한다(카운트 집합 포함)."""
+    base = _FakeQuery([_order_with_balance(1, 100000), _order_with_balance(2, 0), _order_with_balance(3, 50000)])
+    g = ct._risk_balance_due(base, ["2026-06-10"])
+    assert g is not None
+    assert g["count"] == 2  # 잔금>0 인 건만
+    assert g["filter"] == {"alert_type": "construction_d3"}  # stage=시공(불일치) 아님
+
+
+def test_risk_drawing_stalled_targets_drawing_overdue_queue():
+    base = _FakeQuery([_Order(id=1, structured_data={"parties": {"customer": {"name": "가"}}})])
+    g = ct._risk_drawing_stalled(base)
+    assert g is not None
+    assert g["filter"] == {"alert_type": "drawing_overdue"}  # stage=도면(CONFIRM 누락) 아님
+
+
+def test_risk_groups_none_when_empty():
+    base = _FakeQuery([])
+    assert ct._risk_drawing_stalled(base) is None
+    assert ct._risk_balance_due(base, ["2026-06-10"]) is None
+    assert ct._risk_measure_unassigned(base, ["2026-06-10"]) is None

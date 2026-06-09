@@ -20,7 +20,7 @@
 
 /* (A) 이번주 현장 */
 .foms-tower__week {
-  background: linear-gradient(135deg, var(--foms-color-brand-700) 0%, var(--foms-color-brand-500) 70%, #7882f0 100%);
+  background: linear-gradient(135deg, var(--foms-color-brand-700) 0%, var(--foms-color-brand-500) 70%, var(--foms-color-brand-400) 100%);
   border-radius: var(--foms-radius-xl); padding: var(--foms-space-3) var(--foms-space-2);
   color: #fff; box-shadow: var(--foms-shadow-md);
 }

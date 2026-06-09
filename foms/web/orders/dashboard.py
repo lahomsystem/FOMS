@@ -189,10 +189,17 @@ def erp_dashboard():
         _q = _q.filter(Order.erp_urgent == True)
 
     # B-4. D-day SQL 후보군 필터 (1차)
-    if f_alert_type in ('measurement_d4', 'construction_d3', 'production_d2'):
+    if f_alert_type in ('measurement_d4', 'construction_d3', 'production_d2', 'drawing_overdue'):
         today_date = datetime.date.today()
-        
-        if f_alert_type == 'measurement_d4':
+
+        if f_alert_type == 'drawing_overdue':
+            drawing_cutoff = datetime.datetime.now() - datetime.timedelta(hours=48)
+            _q = _q.filter(
+                Order.erp_stage_code.in_(['DRAWING', 'CONFIRM']),
+                Order.erp_stage_updated_at.isnot(None),
+                Order.erp_stage_updated_at <= drawing_cutoff,
+            )
+        elif f_alert_type == 'measurement_d4':
             cutoff = (today_date + datetime.timedelta(days=12)).isoformat()
             _q = _q.filter(
                 Order.erp_measurement_date.isnot(None),
@@ -290,6 +297,8 @@ def erp_dashboard():
             elif f_alert_type == 'construction_d3' and not alerts.get('construction_d3'):
                 continue
             elif f_alert_type == 'production_d2' and not alerts.get('production_d2'):
+                continue
+            elif f_alert_type == 'drawing_overdue' and not alerts.get('drawing_overdue'):
                 continue
         
         # --- C: f_team 인메모리 2차 확인 (CS 오버라이드 보완) ---

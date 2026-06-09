@@ -106,7 +106,11 @@ def _construction_readiness(order: Any, sd: dict) -> tuple[str, str]:
 
 
 def _business_window_dates(today: datetime.date, *, max_business_days: int, window_days: int) -> list[str]:
-    """오늘부터 window_days 안에서 영업일 기준 D-max 이하인 날짜 iso 목록."""
+    """오늘부터 window_days 안에서 영업일 기준 D-max 이하인 날짜 iso 목록.
+
+    규칙 출처(SSOT)는 business_days_until(=대시보드 alert 엔진). foms.web.orders.dashboard의
+    _business_alert_date_values와 동일 규칙을 의도적으로 따른다(타워/큐 카운트 정합).
+    """
     out: list[str] = []
     for offset in range(window_days + 1):
         day = today + datetime.timedelta(days=offset)
@@ -233,64 +237,85 @@ def _samples_balance(orders: list) -> str:
     return " / ".join(parts)
 
 
-def _risk_radar(base: Any, today: datetime.date) -> list[dict[str, Any]]:
-    """돈/신뢰를 잃는 시퀀스 위반 예외만 그룹핑. 건수 0인 그룹은 제외."""
-    groups: list[dict[str, Any]] = []
-    cons_dates = _business_window_dates(today, max_business_days=3, window_days=10)
-    meas_dates = _business_window_dates(today, max_business_days=4, window_days=12)
+# 위험 후보 스캔 캡. JSONB(담당/잔금)은 SQL count가 어려워 후보를 메모리에서 거른다.
+# 12일 윈도우에서 200건 초과는 실무상 비현실적이므로 정확 카운트를 보장하는 상한.
+_RISK_CAND_LIMIT = 200
 
-    # 1) 시공 임박인데 설치단계 미도달
-    q1 = base.filter(
+
+def _risk_construction_unready(base: Any, today: datetime.date, cons_dates: list[str]) -> dict[str, Any] | None:
+    """시공 임박(D-3)인데 설치단계 미도달. 탭→construction_d3(임박 전체, 미준비 포함 상위집합)."""
+    q = base.filter(
         Order.erp_construction_date.in_(cons_dates),
         or_(Order.erp_stage_code.is_(None), Order.erp_stage_code.notin_(_INSTALL_READY_CODES)),
     )
-    c1 = int(q1.count() or 0)
-    if c1:
-        groups.append(_risk_group(
-            "construction_unready", "🔨", "red", "시공 임박인데 미준비",
-            _samples_construction(q1.order_by(Order.erp_construction_date.asc()).limit(2).all(), today),
-            c1, {"alert_type": "production_d2"},
-        ))
+    count = int(q.count() or 0)
+    if not count:
+        return None
+    why = _samples_construction(q.order_by(Order.erp_construction_date.asc()).limit(2).all(), today)
+    return _risk_group("construction_unready", "🔨", "red", "시공 임박인데 미준비", why, count, {"alert_type": "construction_d3"})
 
-    # 2) 도면/컨펌 48h+ 정체 → lead time 잠식
+
+def _risk_drawing_stalled(base: Any) -> dict[str, Any] | None:
+    """도면/컨펌 48h+ 정체. 탭→drawing_overdue(DRAWING+CONFIRM 정체 정확 일치)."""
     cutoff = datetime.datetime.now() - datetime.timedelta(hours=48)
-    q2 = base.filter(
+    q = base.filter(
         Order.erp_stage_code.in_(["DRAWING", "CONFIRM"]),
         Order.erp_stage_updated_at.isnot(None),
         Order.erp_stage_updated_at <= cutoff,
     )
-    c2 = int(q2.count() or 0)
-    if c2:
-        groups.append(_risk_group(
-            "drawing_stalled", "⏳", "amber", "도면 컨펌 48h+ 정체",
-            _samples_names(q2.order_by(Order.erp_stage_updated_at.asc()).limit(2).all(), fallback="컨펌 지연"),
-            c2, {"stage": "도면"},
-        ))
+    count = int(q.count() or 0)
+    if not count:
+        return None
+    why = _samples_names(q.order_by(Order.erp_stage_updated_at.asc()).limit(2).all(), fallback="컨펌 지연")
+    return _risk_group("drawing_stalled", "⏳", "amber", "도면 컨펌 48h+ 정체", why, count, {"alert_type": "drawing_overdue"})
 
-    # 3) 실측 임박인데 담당 미배정
-    cand3 = base.filter(Order.erp_measurement_date.in_(meas_dates)).limit(60).all()
-    unassigned = [o for o in cand3 if not _measure_assigned(o, _ensure_dict(getattr(o, "structured_data", None)))]
-    if unassigned:
-        groups.append(_risk_group(
-            "measure_unassigned", "📐", "amber", "실측 예정 · 담당 미배정",
-            _samples_names(unassigned[:2], fallback="담당 미배정"),
-            len(unassigned), {"alert_type": "measurement_d4"},
-        ))
 
-    # 4) 잔금 미수인데 시공 임박
-    cand4 = base.filter(Order.erp_construction_date.in_(cons_dates)).limit(60).all()
-    due = [o for o in cand4 if (_balance_remaining(_ensure_dict(getattr(o, "structured_data", None))) or 0) > 0]
-    if due:
-        groups.append(_risk_group(
-            "balance_due", "💰", "red", "잔금 미수 · 시공 임박",
-            _samples_balance(due[:2]), len(due), {"stage": "시공"},
-        ))
+def _risk_measure_unassigned(base: Any, meas_dates: list[str]) -> dict[str, Any] | None:
+    """실측 임박(D-4)인데 담당 미배정. 탭→measurement_d4(임박 전체 상위집합)."""
+    cand = base.filter(Order.erp_measurement_date.in_(meas_dates)).limit(_RISK_CAND_LIMIT).all()
+    unassigned = [o for o in cand if not _measure_assigned(o, _ensure_dict(getattr(o, "structured_data", None)))]
+    if not unassigned:
+        return None
+    return _risk_group("measure_unassigned", "📐", "amber", "실측 예정 · 담당 미배정",
+                       _samples_names(unassigned[:2], fallback="담당 미배정"), len(unassigned), {"alert_type": "measurement_d4"})
 
-    return groups
+
+def _risk_balance_due(base: Any, cons_dates: list[str]) -> dict[str, Any] | None:
+    """잔금 미수인데 시공 임박. 탭→construction_d3(임박 전체, 잔금건 포함 상위집합)."""
+    cand = base.filter(Order.erp_construction_date.in_(cons_dates)).limit(_RISK_CAND_LIMIT).all()
+    due = [o for o in cand if (_balance_remaining(_ensure_dict(getattr(o, "structured_data", None))) or 0) > 0]
+    if not due:
+        return None
+    return _risk_group("balance_due", "💰", "red", "잔금 미수 · 시공 임박",
+                       _samples_balance(due[:2]), len(due), {"alert_type": "construction_d3"})
+
+
+def _risk_radar(base: Any, today: datetime.date) -> list[dict[str, Any]]:
+    """돈/신뢰를 잃는 시퀀스 위반 예외만. 건수 0 그룹 제외. 각 탭→큐는 카운트 집합의 상위집합/정확."""
+    cons_dates = _business_window_dates(today, max_business_days=3, window_days=10)
+    meas_dates = _business_window_dates(today, max_business_days=4, window_days=12)
+    candidates = [
+        _risk_construction_unready(base, today, cons_dates),
+        _risk_drawing_stalled(base),
+        _risk_measure_unassigned(base, meas_dates),
+        _risk_balance_due(base, cons_dates),
+    ]
+    return [g for g in candidates if g]
+
+
+def _today_total(base: Any, today_iso: str) -> int:
+    """오늘 실측 또는 시공 약속 전체 건수 (표시 limit과 무관한 정확 카운트)."""
+    return int(
+        base.filter(
+            or_(Order.erp_measurement_date == today_iso, Order.erp_construction_date == today_iso)
+        ).count()
+        or 0
+    )
 
 
 def _inbound_count(base: Any) -> int:
-    return int(base.filter(Order.status.in_(["RECEIVED", "HAPPYCALL"])).count() or 0)
+    """신규 접수 대기 = ERP 단계 RECEIVED (큐 링크 stage=주문접수와 동일 기준)."""
+    return int(base.filter(Order.erp_stage_code.in_(["RECEIVED"])).count() or 0)
 
 
 def _mine_open_count(base: Any, current_user: Any) -> int:
@@ -310,13 +335,14 @@ def _mine_open_count(base: Any, current_user: Any) -> int:
 def build_mobile_control_tower(db: Any, current_user: Any, *, today: datetime.date | None = None) -> dict[str, Any]:
     """모바일 홈 컨트롤 타워 전체 페이로드 (JSON 직렬화 가능)."""
     today = today or datetime.date.today()
+    today_iso = today.isoformat()
     base = _tower_base_query(db, current_user)
     risk = _risk_radar(base, today)
-    field_ops = _today_field_ops(base, today.isoformat())
+    field_ops = _today_field_ops(base, today_iso)
     return {
         "week": _week_strip(base, today),
         "today_field_ops": field_ops,
-        "today_count": len(field_ops),
+        "today_count": _today_total(base, today_iso),
         "risk_groups": risk,
         "risk_total": sum(g["count"] for g in risk),
         "inbound_count": _inbound_count(base),
