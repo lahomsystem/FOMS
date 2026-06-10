@@ -139,7 +139,8 @@
           <h2 class="foms-detail-section__title" id="foms-detail-quest-title">현재 작업</h2>
         </div>
         <p class="mb-0">{{ order.current_quest.title }}</p>
-        {% if can_edit_erp %}
+        {% set can_approve_quest = can_edit_erp or (order.current_quest and order.current_quest.can_assignee_approve) %}
+        {% if can_approve_quest %}
           <div class="foms-detail-action-stack mt-3" id="mobile-quest-approvals-{{ order.id }}">
             {% if order.current_quest.approval_mode == 'assignee' %}
               {% set assignee_approval = order.current_quest.assignee_approval or {} %}
@@ -287,7 +288,7 @@
       if (!data.success) {
         throw new Error(data.message || data.error || '승인 실패');
       }
-      window.location.reload();
+      location.href = location.pathname + location.search + '#foms-detail-quest';
     } catch (error) {
       btn.disabled = false;
       alert(String((error && error.message) || error || '승인 중 오류가 발생했습니다.'));

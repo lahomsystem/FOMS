@@ -1,5 +1,5 @@
 # FOMS 현재 상태
-> 자동 업데이트: 2026-06-02 | **모바일 ERP Order 편집 폼** — mobile-v2 cohort 전용 mockup field 컴포넌트 템플릿 구현, 데스크톱 레거시 분기 유지. gstack 412px file 렌더 스모크 PASS.
+> 자동 업데이트: 2026-06-11 | **모바일 ERP Order 편집 폼** — mobile-v2 cohort 전용 mockup field 컴포넌트 템플릿 구현, 데스크톱 레거시 분기 유지. gstack 412px file 렌더 스모크 PASS.
 
 ## 스택
 Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)

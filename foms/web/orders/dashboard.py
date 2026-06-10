@@ -13,11 +13,7 @@ from foms.services.erp_policy import (
     STAGE_LABELS,
     STAGE_SQL_FILTER_MAP,
     STAGES_REQUIRING_TEAM,
-    get_quest_template_for_stage,
-    create_quest_from_template,
-    get_required_approval_teams_for_stage,
     recommend_owner_team,
-    can_modify_domain,
 )
 from foms.services.erp_display import (
     _ensure_dict,
@@ -25,6 +21,7 @@ from foms.services.erp_display import (
     _erp_alerts,
     _erp_has_media,
 )
+from foms.services.erp_quest_display import build_current_quest_payload
 from foms.services.erp_mobile_order_display import (
     product_subtitle_from_sd,
     stage_badge_label,
@@ -567,148 +564,22 @@ def erp_dashboard():
         stage = _erp_get_stage(o, sd)
         alerts = _erp_alerts(o, sd, cnt)
         has_media = _erp_has_media(o, cnt)
-        current_quest = None
-        quests = sd.get('quests') or []
-        if stage:
-            stage_code = STAGE_NAME_TO_CODE.get(stage, stage)
-            stage_label_from_code = STAGE_LABELS.get(stage_code, stage)
-            if stage_code == 'CONSTRUCTION':
-                pass  # 시공 단계 퀘스트는 시공 대시보드에서만 처리
-            elif stage_code != 'DRAWING':
-                possible_stages = {stage, stage_code, stage_label_from_code}
-                if stage in STAGE_NAME_TO_CODE:
-                    possible_stages.add(STAGE_NAME_TO_CODE[stage])
-                if stage_code in STAGE_LABELS:
-                    possible_stages.add(STAGE_LABELS[stage_code])
-                matching_quests = [q for q in quests if isinstance(q, dict) and q.get('stage') in possible_stages]
-                if matching_quests:
-                    open_quests = [q for q in matching_quests if str(q.get('status', 'OPEN')).upper() == 'OPEN']
-                    sort_key = lambda x: (x.get('created_at') or x.get('updated_at') or '1970-01-01T00:00:00',)
-                    (open_quests if open_quests else matching_quests).sort(key=sort_key, reverse=True)
-                    current_quest = (open_quests if open_quests else matching_quests)[0]
-                else:
-                    quest_tpl = get_quest_template_for_stage(stage)
-                    if quest_tpl:
-                        temp_quest = create_quest_from_template(stage, None, sd)
-                        if temp_quest:
-                            current_quest = temp_quest
-                        else:
-                            team_approvals_template = {
-                                str(team): {'approved': False, 'approved_by': None, 'approved_at': None}
-                                for team in quest_tpl.get('required_approvals', []) if team
-                            }
-                            current_quest = {
-                                'stage': stage,
-                                'title': quest_tpl.get('title', ''),
-                                'description': quest_tpl.get('description', ''),
-                                'owner_team': quest_tpl.get('owner_team', ''),
-                                'status': 'OPEN',
-                                'team_approvals': team_approvals_template
-                            }
-
-        all_approved = False
-        missing_teams = []
-        team_approvals = {}
-        required_teams = []
-        if current_quest:
-            quest_status = str(current_quest.get('status', 'OPEN')).upper()
-            team_approvals_raw = current_quest.get('team_approvals', {})
-            required_teams = get_required_approval_teams_for_stage(stage)
-            if stage in ("실측", "MEASURE", "고객컨펌", "CONFIRM"):
-                orderer_name = (((sd.get("parties") or {}).get("orderer") or {}).get("name") or "").strip()
-                if orderer_name and "라홈" in orderer_name:
-                    current_quest['owner_team'] = 'CS'
-                    required_teams = ['CS']
-                    existing_cs = current_quest.get('team_approvals', {}).get('CS', {})
-                    approved = existing_cs.get('approved', False) if isinstance(existing_cs, dict) else bool(existing_cs)
-                    current_quest['team_approvals'] = {
-                        'CS': {
-                            'approved': approved,
-                            'approved_by': existing_cs.get('approved_by') if isinstance(existing_cs, dict) else None,
-                            'approved_at': existing_cs.get('approved_at') if isinstance(existing_cs, dict) else None,
-                        }
-                    }
-                    team_approvals_raw = current_quest.get('team_approvals', {})
-            if quest_status == 'OPEN':
-                missing_teams = required_teams.copy() if required_teams else []
-                team_approvals = {team: False for team in required_teams}
-            elif quest_status == 'COMPLETED':
-                team_approvals = {team: True for team in required_teams}
-            else:
-                if not required_teams:
-                    all_approved = (quest_status == 'COMPLETED')
-                else:
-                    team_approvals = {}
-                    for team in required_teams:
-                        ad = team_approvals_raw.get(str(team)) or team_approvals_raw.get(team)
-                        team_approvals[team] = ad.get('approved', False) if isinstance(ad, dict) else bool(ad) if ad is not None else False
-                    missing_teams = [t for t in required_teams if not team_approvals.get(t, False)]
-                    all_approved = (len(missing_teams) == 0)
-
         stage_key = stage if isinstance(stage, str) else ''
         stage_code = STAGE_NAME_TO_CODE.get(stage_key, stage_key)
+        quest_payload = build_current_quest_payload(
+            sd=sd,
+            stage=stage,
+            stage_code=stage_code,
+            order=o,
+            current_user=current_user,
+            user_map=user_map,
+        )
         responsible_team = DEFAULT_OWNER_TEAM_BY_STAGE.get(stage_code, None)
         if stage_code in ("MEASURE", "CONFIRM"):
             orderer_check = (((sd.get("parties") or {}).get("orderer") or {}).get("name") or "").strip()
             if orderer_check and "라홈" in orderer_check:
                 responsible_team = 'CS'
 
-        assignee_display_names = []
-        can_assignee_approve = False
-        if current_quest:
-            approval_mode = current_quest.get('approval_mode') or ('assignee' if stage_code in ('MEASURE', 'DRAWING', 'CONFIRM') else 'team')
-            if approval_mode == 'assignee':
-                assignments = sd.get('assignments') or {}
-                user_ids = []
-                if stage_code in ('MEASURE', 'CONFIRM'):
-                    user_ids = assignments.get('sales_assignee_user_ids') or []
-                elif stage_code == 'DRAWING':
-                    user_ids = assignments.get('drawing_assignee_user_ids') or []
-                    if not user_ids:
-                        for a in ((assignments.get('drawing_assignees') or []) + (sd.get('drawing_assignees') or [])):
-                            if isinstance(a, dict) and a.get('id'):
-                                user_ids.append(a['id'])
-                user_ids = [int(uid) for uid in user_ids if isinstance(uid, (int, str)) and str(uid).isdigit()]
-                if user_ids:
-                    assignee_display_names = []
-                    for uid in user_ids:
-                        mapped_name = user_map.get(uid)
-                        if isinstance(mapped_name, str) and mapped_name:
-                            assignee_display_names.append(mapped_name)
-                elif stage_code in ('MEASURE', 'CONFIRM'):
-                    mgr = (((sd.get('parties') or {}).get('manager') or {}).get('name')) or o.manager_name or current_quest.get('owner_person') or ''
-                    if str(mgr).strip():
-                        assignee_display_names = [str(mgr).strip()]
-                if current_user:
-                    domain = 'DRAWING_DOMAIN' if stage_code == 'DRAWING' else ('SALES_DOMAIN' if stage_code in ('MEASURE', 'CONFIRM') else None)
-                    if domain:
-                        can_assignee_approve = can_modify_domain(current_user, o, domain, False, None)
-                        if (not can_assignee_approve) and domain == 'SALES_DOMAIN' and not user_ids:
-                            manager_names = set()
-                            for src in [((sd.get('parties') or {}).get('manager') or {}).get('name'), o.manager_name, current_quest.get('owner_person')]:
-                                if str(src or '').strip():
-                                    manager_names.add(str(src).strip().lower())
-                            un = (current_user.name or '').strip().lower()
-                            uu = (current_user.username or '').strip().lower()
-                            if un in manager_names or uu in manager_names:
-                                can_assignee_approve = True
-
-        quest_payload = None
-        if current_quest:
-            quest_payload = {
-                'title': current_quest.get('title', ''),
-                'description': current_quest.get('description', ''),
-                'owner_team': current_quest.get('owner_team', ''),
-                'status': current_quest.get('status', 'OPEN'),
-                'all_approved': all_approved,
-                'missing_teams': missing_teams,
-                'required_approvals': required_teams,
-                'team_approvals': team_approvals,
-                'approval_mode': current_quest.get('approval_mode') or ('assignee' if stage_code in ('MEASURE', 'DRAWING', 'CONFIRM') else 'team'),
-                'assignee_approval': current_quest.get('assignee_approval'),
-                'assignee_display_names': assignee_display_names,
-                'can_assignee_approve': can_assignee_approve,
-            }
         parties = sd.get('parties') or {}
         site = sd.get('site') or {}
         schedule = sd.get('schedule') or {}
@@ -929,8 +800,8 @@ def erp_order_mobile_detail(order_id: int):
 
     from foms.services.erp_mobile_order_display import build_mobile_queue_order_row
 
-    order_row = build_mobile_queue_order_row(db, order)
     current_user = getattr(g, 'current_user', None)
+    order_row = build_mobile_queue_order_row(db, order, current_user)
     can_edit_erp_flag = can_edit_erp(current_user)
     return_to = (request.args.get('return_to') or '').strip()
     back_endpoint_by_return_to = {

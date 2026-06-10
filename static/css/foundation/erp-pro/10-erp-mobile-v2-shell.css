@@ -188,12 +188,22 @@
        탭이 backdrop(드로어 닫힘)이나 FAB로 떨어져 "선택 안 됨"이 발생.
        modal(--foms-z-modal 1070)보다는 아래로 유지. */
     z-index: 1060;
+    display: flex;
+    flex-direction: column;
+    min-height: min(76vh, 700px);
+    max-height: min(90vh, 840px);
     height: auto;
     background: var(--erp-mobile-color-surface);
     border-radius: 1.25rem 1.25rem 0 0;
     border: 1px solid var(--erp-mobile-color-border-soft);
     border-bottom: 0;
-    max-height: min(78vh, 700px);
+  }
+
+  .erp-mobile-menu-drawer .offcanvas-body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
   }
 
   .erp-mobile-menu-drawer .offcanvas-header {

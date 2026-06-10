@@ -34,8 +34,8 @@ def _order_edit_fragment_response(order_id: int) -> Any:
     if order is None:
         abort(404)
 
+    user = get_user_by_id(session.get("user_id"))
     if is_erp_order_record(order):
-        user = get_user_by_id(session.get("user_id"))
         if not can_edit_erp(user):
             abort(403)
 
@@ -53,7 +53,7 @@ def _order_edit_fragment_response(order_id: int) -> Any:
         cohort_key="FOMS_V3_SHELL_COHORT",
     )
     if split_v2:
-        ctx["mobile_order_row"] = build_mobile_queue_order_row(db, order)
+        ctx["mobile_order_row"] = build_mobile_queue_order_row(db, order, user)
         template = "orders/partials/order_detail_split_panel.html"
     else:
         template = "partials/shared/foms_order_detail_fragment.html"

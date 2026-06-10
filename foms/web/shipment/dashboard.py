@@ -650,7 +650,7 @@ def erp_shipment_dashboard():
     )
     if mobile_v2_active:
         for order in rows:
-            row = build_mobile_queue_order_row(db, order)
+            row = build_mobile_queue_order_row(db, order, current_user)
             sd = order.structured_data if isinstance(order.structured_data, dict) else {}
             shipment = sd.get("shipment") or {}
             drawing_managers = [

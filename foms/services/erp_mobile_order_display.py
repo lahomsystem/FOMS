@@ -13,6 +13,7 @@ from foms.services.erp_display import (
     erp_payment_amount_from_structured,
 )
 from foms.services.erp_policy import STAGE_LABELS, STAGE_NAME_TO_CODE
+from foms.services.erp_quest_display import build_current_quest_payload, load_assignee_user_map
 from foms.services.order_event_display import (
     format_timeline_meta,
     translate_event_type_to_korean,
@@ -319,7 +320,7 @@ def _attachment_count(db, order_id: int) -> int:
         return 0
 
 
-def build_mobile_queue_order_row(db, order) -> dict[str, Any]:
+def build_mobile_queue_order_row(db, order, current_user=None) -> dict[str, Any]:
     """Build a dashboard-compatible dict for mobile v2 queue/detail templates."""
     sd = _ensure_dict(getattr(order, "structured_data", None))
     cnt = _attachment_count(db, order.id)
@@ -330,24 +331,15 @@ def build_mobile_queue_order_row(db, order) -> dict[str, Any]:
     parties = sd.get("parties") or {}
     site = sd.get("site") or {}
     schedule = sd.get("schedule") or {}
-    quests = sd.get("quests") or []
-    current_quest = None
-    for q in quests:
-        if isinstance(q, dict) and (q.get("status") or "").upper() != "DONE":
-            current_quest = q
-            break
-    current_quest_payload = None
-    if current_quest:
-        current_quest_payload = {
-            "title": current_quest.get("title", ""),
-            "owner_team": current_quest.get("owner_team") or current_quest.get("team") or "",
-            "required_approvals": current_quest.get("required_approvals") or [],
-            "team_approvals": current_quest.get("team_approvals") or {},
-            "approval_mode": current_quest.get("approval_mode") or "team",
-            "assignee_approval": current_quest.get("assignee_approval") or {},
-            "assignee_display_names": current_quest.get("assignee_display_names") or [],
-            "all_approved": bool(current_quest.get("all_approved")),
-        }
+    user_map = load_assignee_user_map(db, sd)
+    current_quest_payload = build_current_quest_payload(
+        sd=sd,
+        stage=stage,
+        stage_code=stage_code,
+        order=order,
+        current_user=current_user,
+        user_map=user_map,
+    )
     previews = batch_resolve_queue_attachment_urls(db, [order.id]).get(order.id, [])
     received = schedule.get("received") or {}
 

@@ -18,7 +18,7 @@
           data-address="{{ o.address or '' }}"
           data-phone="{{ o.phone or '' }}"
           data-manager="{{ o.manager_name or '' }}">
-          {{ render_queue_card_v2(o, can_edit_erp|default(false), None, '--measure', '실측', edit_return_to='erp_measurement_dashboard', detail_return_to='erp_measurement_dashboard') }}
+          {{ render_queue_card_v2(o, can_edit_erp|default(false), None, None, None, edit_return_to='erp_measurement_dashboard', detail_return_to='erp_measurement_dashboard') }}
           {% if can_edit_erp|default(false) %}
             <div class="erp-measurement-mobile-card__edit" aria-label="실측 정보 빠른 수정">
               <button

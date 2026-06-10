@@ -482,7 +482,7 @@ def erp_measurement_dashboard():
     mobile_queue_rows = []
     if mobile_v2_active:
         for _o in rows:
-            _row = build_mobile_queue_order_row(db, _o)
+            _row = build_mobile_queue_order_row(db, _o, current_user)
             # 실측은 담당이 user id로 저장되는 케이스가 있어 표시명으로 정규화
             _mgr = normalize_manager_name(
                 ((_o.structured_data or {}).get('parties') or {}).get('manager'),
