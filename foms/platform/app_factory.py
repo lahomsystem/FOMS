@@ -63,6 +63,9 @@ def _add_static_response_headers(headers: Any, path: str, url: str) -> None:
         headers["Service-Worker-Allowed"] = "/"
         headers["Cache-Control"] = "no-cache"
         return
+    if url.endswith("/manifest.json") or url.split("?", 1)[0].endswith("/manifest.json"):
+        headers["Cache-Control"] = "no-cache"
+        return
     if url.endswith(".css") or url.endswith(".js"):
         headers["Cache-Control"] = "no-cache"
 

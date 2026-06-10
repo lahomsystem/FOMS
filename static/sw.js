@@ -2,7 +2,7 @@
  * CACHE_VERSION bumped to v2: the v1 caches were populated while /static was served
  * 1-year-immutable, so they hold stale CSS/JS. Bumping purges them on activate; going
  * forward the origin serves CSS/JS as no-cache so revalidation keeps them fresh. */
-var CACHE_VERSION = "foms-p2-v2";
+var CACHE_VERSION = "foms-p2-v3";
 var STATIC_CACHE = CACHE_VERSION + "-static";
 var API_CACHE = CACHE_VERSION + "-api";
 
