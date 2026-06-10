@@ -47,6 +47,8 @@ def test_production_mobile_queue_wiring_contract():
     assert 'data_action\': \'startProduction\'' in queue_src
     assert 'data_action\': \'completeProduction\'' in queue_src
     assert "고객 컨펌 전" in queue_src
+    assert "o.stage == '제작완료'" in queue_src
+    assert "'badge_only': true" in queue_src
 
 
 def test_production_mobile_queue_numbered_pagination(client, monkeypatch):
@@ -114,4 +116,47 @@ def test_production_mobile_queue_renders_complete_and_edit_for_in_progress(clien
     body = response.get_data(as_text=True)
     assert 'data-action="completeProduction"' in body
     assert "제작 완료" in body
+    assert "?open=erp-order" in body
+
+
+def test_production_mobile_completed_shows_status_not_stage_edit_cta(client, monkeypatch):
+    """제작완료(시공 단계) 행은 workflow 종료 표시만 두고 단계명 primary ERP 링크를 쓰지 않는다."""
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    user = _login_plain_admin(client)
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+
+    today = date.today().strftime("%Y-%m-%d")
+    db_session.add(
+        Order(
+            received_date=today,
+            customer_name="제작완료 모바일 고객",
+            phone="010-0000-0000",
+            address="Seoul",
+            product="붙박이장",
+            status="CONSTRUCTION",
+            manager_name="Bob",
+            is_erp_order=True,
+            structured_data={
+                "parties": {
+                    "customer": {"name": "제작완료 모바일 고객", "phone": "010-0000-0000"},
+                    "manager": {"name": "Bob"},
+                },
+                "site": {"address_full": "Seoul"},
+                "workflow": {"stage": "시공"},
+            },
+        )
+    )
+    db_session.commit()
+
+    response = client.get("/erp/production/dashboard?stage=제작완료")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert "제작완료 모바일 고객" in body
+    assert 'role="status"' in body
+    assert "제작 완료" in body
+    assert 'data-action="completeProduction"' not in body
+    assert 'data-action="startProduction"' not in body
+    assert 'aria-label="제작완료 단계 ERP 주문 열기"' not in body
+    assert "ERP 편집" in body
     assert "?open=erp-order" in body

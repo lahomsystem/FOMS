@@ -140,8 +140,8 @@
         <a
           class="foms-btn {% if action_list %}foms-btn--secondary{% else %}foms-btn--primary{% endif %} foms-btn--sm"
           href="{% if edit_return_to %}{{ url_for('order_edit.edit_order', order_id=order.id, open='erp-order', return_to=edit_return_to) }}{% else %}{{ url_for('order_edit.edit_order', order_id=order.id, open='erp-order') }}{% endif %}"
-          aria-label="{{ badge_label }} 단계 ERP 주문 열기">
-          {{ edit_label if action_list else badge_label }}
+          aria-label="{{ edit_label }}">
+          {{ edit_label }}
         </a>
       {% elif has_phone %}
         <a class="foms-btn foms-btn--primary foms-btn--sm" href="tel:{{ safe_phone }}">전화</a>

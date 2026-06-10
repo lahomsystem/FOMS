@@ -92,7 +92,8 @@ def test_p1_dashboard_mobile_v2_body_mockup_selectors() -> None:
         "foms-queue-card-v2__attachments",
         "data-foms-lightbox-src",
         "data-workflow-stage",
-        "{{ badge_label }} 단계 ERP 주문 열기",
+        'aria-label="{{ edit_label }}"',
+        "{{ edit_label }}",
     ):
         assert selector in card
 

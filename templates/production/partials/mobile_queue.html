@@ -26,6 +26,8 @@
           {% set task_action = {'label': '고객 컨펌 전', 'icon': 'fas fa-pause-circle', 'badge_only': true, 'button_class': 'foms-production-status'} %}
         {% elif o.stage == '제작중' %}
           {% set task_action = {'label': '제작 완료', 'icon': 'fas fa-check', 'data_action': 'completeProduction', 'button_class': 'erp-production-action'} %}
+        {% elif o.stage == '제작완료' %}
+          {% set task_action = {'label': '제작 완료', 'icon': 'fas fa-check-circle', 'badge_only': true, 'button_class': 'foms-production-status'} %}
         {% endif %}
         {{ render_queue_card_v2(o, can_edit_erp|default(false), task_action, '--production', o.stage) }}
       {% endfor %}
