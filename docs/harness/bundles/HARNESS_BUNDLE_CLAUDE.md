@@ -105,7 +105,7 @@ Web exploration and manual QA still use Cursor browser MCP. Repeatable smoke/QA 
 
 ## 푸시 전 로컬 검증 (deploy/main)
 
-`deploy` / `main` push **직전** 수동 실행: `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` (APP_OK, harness verify, SSOT lint, CI 자주 실패 pytest subset, ~2–5분). **UI/CSS/템플릿 변경 시** win32 baseline `--update-snapshots` → PNG 커밋 → **`-Visual` 필수**; 스크립트가 visual 경로 변경·win32 stale(vs CSS 소스)을 감지하면 `-Visual` 없이 FAIL. CI는 push 후 `baseline/linux/` ERP SSOT를 자동 refresh. 머지 직전 전체 pytest: `-Full` (느림). **git push 시 자동 실행 아님** — GitHub Actions가 전체 CI를 담당. 상세 워크플로: [`docs/guides/PRE_PUSH_SMOKE.md`](docs/guides/PRE_PUSH_SMOKE.md).
+`deploy` / `main` push **직전** 수동 실행: `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` (APP_OK, harness verify, SSOT lint, CI 자주 실패 pytest subset, ~2–5분). **UI/CSS/템플릿 변경 시** 기본 게이트는 PNG visual regression이 아니라 **`test_p1_mockup_*` 구조 테스트**(subset 포함). win32 PNG `--update-snapshots`·`-Visual`은 UI 안정기에만 선택. 머지 직전 전체 pytest: `-Full` (느림). **git push 시 자동 실행 아님** — GitHub Actions가 전체 CI를 담당. 상세: [`docs/guides/PRE_PUSH_SMOKE.md`](docs/guides/PRE_PUSH_SMOKE.md).
 
 ---
 
@@ -225,7 +225,7 @@ Web exploration and manual QA still use Cursor browser MCP. Repeatable smoke/QA 
 - **선택적 접두어**: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`
 - **대형 변경**: feature 브랜치에서 작업
 - **브랜치 전략**: `deploy` (스테이징) → `production` (운영)
-- **푸시 전 스모크**: `deploy`/`main` push **직전** `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` (APP_OK·harness verify·SSOT lint·CI subset). **UI/CSS/템플릿 변경** → win32 `--update-snapshots` → PNG 커밋 → **`-Visual` 필수** (스크립트가 visual 경로·win32 stale 감지). 실패 시 exit 0 확인 후 push. `-Full`은 머지 직전 전체 pytest. 상세: `docs/guides/PRE_PUSH_SMOKE.md`
+- **푸시 전 스모크**: `deploy`/`main` push **직전** `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` (APP_OK·harness verify·SSOT lint·CI subset·`test_p1_mockup_*` 구조 테스트). **UI/CSS/템플릿 변경** 시 PNG `-Visual`/win32 baseline은 필수 아님(선택). exit 0 확인 후 push. `-Full`은 머지 직전 전체 pytest. 상세: `docs/guides/PRE_PUSH_SMOKE.md`
 
 ## 셸 환경 (Claude Code 전용)
 - Claude Code는 **bash 셸** 사용 (Unix 문법: `/dev/null`, `&&`, forward slash). **이 절의 예시는 Claude Code에만 적용**; 저장소 README·규칙 문서에 적는 기본 예시는 PowerShell 5.x를 따른다.
