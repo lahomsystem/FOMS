@@ -52,6 +52,8 @@ def test_shipment_mobile_controls_template_contract() -> None:
     pc = (ROOT / "templates/shipment/partials/dashboard_main.html").read_text(encoding="utf-8")
     assert "/api/erp/shipment/update/" in queue
     assert "data-shipment-mobile-edit-trigger" in queue
+    assert "data-shipment-mobile-detail-field" in queue
+    assert "syncShipmentMobileDetail" in queue
     assert "js-shipment-as-rec-cancel" in queue
     for field in ("site_extra", "construction_time", "drawing_managers", "construction_workers"):
         assert field in pc
@@ -117,6 +119,7 @@ def test_shipment_dashboard_renders_mobile_v2_queue_card(client, monkeypatch) ->
                 "construction_time": "오전 10:30",
                 "drawing_managers": ["도면1"],
                 "construction_workers": ["시공1"],
+                "site_extra": [{"text": "엘리베이터 사용"}],
             },
         },
     )
@@ -144,3 +147,5 @@ def test_shipment_dashboard_renders_mobile_v2_queue_card(client, monkeypatch) ->
     assert "오전 10:30" in body
     assert "도면1" in body
     assert "시공1" in body
+    assert "엘리베이터 사용" in body
+    assert 'data-shipment-mobile-detail-field="site_extra"' in body

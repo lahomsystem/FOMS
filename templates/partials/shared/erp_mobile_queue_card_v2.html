@@ -88,13 +88,13 @@
       {% if has_address %}
         <div>
           <dt>주소</dt>
-          <dd><a href="https://map.kakao.com/?q={{ order.address|urlencode }}" target="_blank" rel="noopener">{{ order.address }}</a></dd>
+          <dd data-queue-card-field="address"><a data-queue-card-map-link href="https://map.kakao.com/?q={{ order.address|urlencode }}" target="_blank" rel="noopener">{{ order.address }}</a></dd>
         </div>
       {% endif %}
       {% if has_phone %}
         <div>
           <dt>연락처</dt>
-          <dd><a href="tel:{{ safe_phone }}">{{ order.phone }}</a></dd>
+          <dd data-queue-card-field="phone"><a data-queue-card-call-link href="tel:{{ safe_phone }}">{{ order.phone }}</a></dd>
         </div>
       {% endif %}
       {% if schedule_value %}
@@ -105,7 +105,7 @@
       {% endif %}
       <div>
         <dt>담당</dt>
-        <dd>{{ order.manager_name or '-' }}</dd>
+        <dd data-queue-card-field="manager">{{ order.manager_name or '-' }}</dd>
       </div>
     </dl>
 

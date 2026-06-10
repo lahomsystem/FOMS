@@ -46,6 +46,9 @@ def test_measurement_mobile_edit_contract_is_wired_to_v2_cards():
     mobile_list = Path("templates/measurement/partials/mobile_list.html").read_text(
         encoding="utf-8"
     )
+    shared_card = Path("templates/partials/shared/erp_mobile_queue_card_v2.html").read_text(
+        encoding="utf-8"
+    )
     pc_dashboard = Path("templates/measurement/partials/dashboard_main.html").read_text(
         encoding="utf-8"
     )
@@ -54,6 +57,11 @@ def test_measurement_mobile_edit_contract_is_wired_to_v2_cards():
     assert "erp-measurement-mobile-edit-sheet" in mobile_list
     assert "data-measurement-mobile-edit-trigger" in mobile_list
     assert "data-measurement-mobile-manager-select-sheet" in mobile_list
+    assert 'data-queue-card-field="address"' in shared_card
+    assert 'data-queue-card-field="phone"' in shared_card
+    assert 'data-queue-card-field="manager"' in shared_card
+    assert "data-queue-card-call-link" in mobile_js
+    assert "data-queue-card-map-link" in mobile_js
     for field in ('data-field="address"', 'data-field="phone"', 'data-field="manager"'):
         assert field in pc_dashboard
     for field in ('data-field="address"', 'data-field="phone"', 'data-field="manager"'):

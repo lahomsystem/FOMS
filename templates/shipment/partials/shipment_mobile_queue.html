@@ -13,29 +13,27 @@
     <div class="erp-shipment-mobile-cards foms-mobile-queue-list">
       {% for o in mobile_queue_rows %}
         {% set meta = o.shipment_meta or {} %}
-        {% set has_detail = meta.construction_time or meta.drawing_managers or meta.construction_workers or meta.spec_units or (meta.is_as and meta.as_content_text) %}
+        {% set has_detail = meta.construction_time or meta.drawing_managers or meta.construction_workers or meta.site_extra or meta.spec_units or (meta.is_as and meta.as_content_text) %}
         <div class="erp-shipment-mobile-card{% if has_detail %} erp-shipment-mobile-card--with-detail{% endif %}">
           {{ render_queue_card_v2(o, can_edit_shipment|default(false), None, '--shipment', '출고', edit_return_to='erp_shipment_dashboard', detail_return_to='erp_shipment_dashboard') }}
-          {% if has_detail %}
-          <dl class="erp-shipment-mobile-card__detail">
-            {% if meta.construction_time %}
-            <div>
+          {% if has_detail or can_edit_shipment|default(false) %}
+          <dl class="erp-shipment-mobile-card__detail" data-shipment-mobile-detail {% if not has_detail %}hidden{% endif %}>
+            <div data-shipment-mobile-detail-row="construction_time" {% if not meta.construction_time %}hidden{% endif %}>
               <dt>시공시간</dt>
-              <dd>{{ meta.construction_time }}</dd>
+              <dd data-shipment-mobile-detail-field="construction_time">{{ meta.construction_time }}</dd>
             </div>
-            {% endif %}
-            {% if meta.drawing_managers %}
-            <div>
+            <div data-shipment-mobile-detail-row="drawing_managers" {% if not meta.drawing_managers %}hidden{% endif %}>
               <dt>도면</dt>
-              <dd>{{ meta.drawing_managers|join(', ') }}</dd>
+              <dd data-shipment-mobile-detail-field="drawing_managers">{{ meta.drawing_managers|join(', ') }}</dd>
             </div>
-            {% endif %}
-            {% if meta.construction_workers %}
-            <div>
+            <div data-shipment-mobile-detail-row="construction_workers" {% if not meta.construction_workers %}hidden{% endif %}>
               <dt>시공자</dt>
-              <dd>{{ meta.construction_workers|join(', ') }}</dd>
+              <dd data-shipment-mobile-detail-field="construction_workers">{{ meta.construction_workers|join(', ') }}</dd>
             </div>
-            {% endif %}
+            <div data-shipment-mobile-detail-row="site_extra" {% if not meta.site_extra %}hidden{% endif %}>
+              <dt>현장추가</dt>
+              <dd data-shipment-mobile-detail-field="site_extra">{{ (meta.site_extra or [])|join(', ') }}</dd>
+            </div>
             {% if meta.spec_units %}
             <div>
               <dt>W/300</dt>
@@ -139,6 +137,10 @@
         .filter(Boolean);
     }
 
+    function listText(values) {
+      return Array.isArray(values) ? values.join(', ') : String(values || '').trim();
+    }
+
     function setError(message) {
       errorEl.textContent = message || '';
       errorEl.classList.toggle('d-none', !message);
@@ -147,6 +149,32 @@
     function setLoading(isLoading) {
       submitBtn.disabled = isLoading;
       submitBtn.textContent = isLoading ? '저장 중...' : '저장';
+    }
+
+    function syncDetailField(card, field, value) {
+      if (!card) return;
+      var row = card.querySelector('[data-shipment-mobile-detail-row="' + field + '"]');
+      var output = card.querySelector('[data-shipment-mobile-detail-field="' + field + '"]');
+      var text = listText(value);
+      if (output) output.textContent = text;
+      if (row) row.hidden = !text;
+    }
+
+    function syncShipmentMobileDetail(card, payload) {
+      if (!card) return;
+      var detail = card.querySelector('[data-shipment-mobile-detail]');
+      syncDetailField(card, 'construction_time', payload.construction_time);
+      syncDetailField(card, 'drawing_managers', payload.drawing_managers);
+      syncDetailField(card, 'construction_workers', payload.construction_workers);
+      syncDetailField(card, 'site_extra', payload.site_extra);
+      var hasVisibleEditableDetail = Boolean(
+        payload.construction_time ||
+        payload.drawing_managers.length ||
+        payload.construction_workers.length ||
+        payload.site_extra.length
+      );
+      if (detail) detail.hidden = !hasVisibleEditableDetail && !detail.querySelector('div:not([hidden])');
+      card.classList.toggle('erp-shipment-mobile-card--with-detail', !!detail && !detail.hidden);
     }
 
     document.querySelectorAll('[data-shipment-mobile-edit-trigger]').forEach(function (trigger) {
@@ -191,6 +219,7 @@
           activeTrigger.dataset.constructionWorkers = payload.construction_workers.join(', ');
           activeTrigger.dataset.siteExtra = payload.site_extra.join('\n');
           var card = activeTrigger.closest('.erp-shipment-mobile-card');
+          syncShipmentMobileDetail(card, payload);
           var status = card ? card.querySelector('[data-shipment-mobile-edit-status]') : null;
           if (status) status.textContent = '저장되었습니다.';
         }
