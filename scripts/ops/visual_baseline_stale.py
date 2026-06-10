@@ -16,6 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 WIN32 = ROOT / "tests/visual/baseline/win32"
 LINUX = ROOT / "tests/visual/baseline/linux"
+WIN32_REFRESH_MARKER = WIN32 / ".refresh_epoch"
 LINUX_REFRESH_MARKER = LINUX / ".refresh_epoch"
 
 # Paths that can change captured PNGs (SSOT for pre-push visual gate).
@@ -144,6 +145,12 @@ def win32_baseline_has_worktree_refresh(name: str, *, cwd: Path = ROOT) -> bool:
     return rel in _git_paths_with_changes(cwd=cwd)
 
 
+def win32_refresh_marker_has_worktree_refresh(*, cwd: Path = ROOT) -> bool:
+    """True when a byte-identical win32 refresh marker is pending commit."""
+    rel = "tests/visual/baseline/win32/.refresh_epoch"
+    return rel in _git_paths_with_changes(cwd=cwd)
+
+
 def win32_baselines_stale_vs_sources(
     *,
     source_epoch: int | None = None,
@@ -159,6 +166,14 @@ def win32_baselines_stale_vs_sources(
     if newest == 0:
         return []
 
+    refresh_epoch = (
+        git_commit_epoch(WIN32_REFRESH_MARKER)
+        if WIN32_REFRESH_MARKER.is_file()
+        else 0
+    )
+    if win32_refresh_marker_has_worktree_refresh():
+        refresh_epoch = max(refresh_epoch, newest)
+
     stale: list[str] = []
     for name in VISUAL_BASELINE_NAMES:
         win32_path = WIN32 / name
@@ -167,7 +182,8 @@ def win32_baselines_stale_vs_sources(
             continue
         if win32_baseline_has_worktree_refresh(name):
             continue
-        if git_commit_epoch(win32_path) < newest:
+        baseline_epoch = max(git_commit_epoch(win32_path), refresh_epoch)
+        if baseline_epoch < newest:
             stale.append(name)
     return stale
 
@@ -192,7 +208,12 @@ def linux_baselines_stale(
     not only ERP v2, before running strict visual comparison.
     """
     stale: list[str] = []
-    refresh_epoch = (
+    win32_refresh_epoch = (
+        git_commit_epoch(WIN32_REFRESH_MARKER)
+        if WIN32_REFRESH_MARKER.is_file()
+        else 0
+    )
+    linux_refresh_epoch = (
         git_commit_epoch(LINUX_REFRESH_MARKER)
         if LINUX_REFRESH_MARKER.is_file()
         else 0
@@ -205,12 +226,12 @@ def linux_baselines_stale(
         if not linux_path.is_file():
             stale.append(name)
             continue
-        win32_epoch = git_commit_epoch(win32_path)
+        win32_epoch = max(git_commit_epoch(win32_path), win32_refresh_epoch)
         linux_epoch = git_commit_epoch(linux_path)
         # Marker can stand in for byte-identical Linux PNG refreshes only when
         # it was committed after the win32 counterpart it refreshes.
-        if 0 < win32_epoch < refresh_epoch:
-            linux_epoch = max(linux_epoch, refresh_epoch)
+        if 0 < win32_epoch < linux_refresh_epoch:
+            linux_epoch = max(linux_epoch, linux_refresh_epoch)
         if linux_epoch < win32_epoch:
             stale.append(name)
     return stale

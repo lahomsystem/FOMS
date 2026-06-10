@@ -33,6 +33,11 @@ def test_win32_stale_when_source_epoch_newer(monkeypatch: pytest.MonkeyPatch) ->
     )
     monkeypatch.setattr(
         policy,
+        "win32_refresh_marker_has_worktree_refresh",
+        lambda: False,
+    )
+    monkeypatch.setattr(
+        policy,
         "VISUAL_BASELINE_NAMES",
         ("erp_v2_1280_light.png",),
     )
@@ -56,12 +61,54 @@ def test_win32_fresh_when_baseline_epoch_matches_sources(
     )
     monkeypatch.setattr(
         policy,
+        "win32_refresh_marker_has_worktree_refresh",
+        lambda: False,
+    )
+    monkeypatch.setattr(
+        policy,
         "VISUAL_BASELINE_NAMES",
         ("erp_v2_1280_light.png",),
     )
 
     def _exists(self: Path) -> bool:
         return self.name == "erp_v2_1280_light.png"
+
+    monkeypatch.setattr(Path, "is_file", _exists, raising=False)
+    assert policy.win32_baselines_stale_vs_sources() == []
+
+
+def test_win32_fresh_when_refresh_marker_newer_than_sources(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(policy, "newest_visual_source_epoch", lambda: 200)
+
+    def _epoch(path: Path) -> int:
+        posix = path.as_posix()
+        if posix.endswith("baseline/win32/.refresh_epoch"):
+            return 250
+        if "win32" in posix:
+            return 100
+        return 0
+
+    monkeypatch.setattr(policy, "git_commit_epoch", _epoch)
+    monkeypatch.setattr(
+        policy,
+        "VISUAL_BASELINE_NAMES",
+        ("erp_v2_1280_light.png",),
+    )
+    monkeypatch.setattr(
+        policy,
+        "win32_baseline_has_worktree_refresh",
+        lambda _name: False,
+    )
+    monkeypatch.setattr(
+        policy,
+        "win32_refresh_marker_has_worktree_refresh",
+        lambda: False,
+    )
+
+    def _exists(self: Path) -> bool:
+        return self.name in {".refresh_epoch", "erp_v2_1280_light.png"}
 
     monkeypatch.setattr(Path, "is_file", _exists, raising=False)
     assert policy.win32_baselines_stale_vs_sources() == []
@@ -81,6 +128,11 @@ def test_win32_not_stale_when_worktree_refresh_pending(
         policy,
         "win32_baseline_has_worktree_refresh",
         lambda _name: True,
+    )
+    monkeypatch.setattr(
+        policy,
+        "win32_refresh_marker_has_worktree_refresh",
+        lambda: False,
     )
 
     def _exists(self: Path) -> bool:
@@ -149,8 +201,10 @@ def test_all_linux_fresh_when_refresh_marker_newer(
 ) -> None:
     def _epoch(path: Path) -> int:
         posix = path.as_posix()
-        if posix.endswith(".refresh_epoch"):
+        if posix.endswith("baseline/linux/.refresh_epoch"):
             return 250
+        if posix.endswith("baseline/win32/.refresh_epoch"):
+            return 0
         if "win32" in posix:
             return 200
         if "linux" in posix:
@@ -173,6 +227,35 @@ def test_all_linux_fresh_when_refresh_marker_newer(
 
     monkeypatch.setattr(Path, "is_file", _exists, raising=False)
     assert policy.linux_baselines_stale() == []
+
+
+def test_all_linux_stale_when_win32_refresh_marker_newer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _epoch(path: Path) -> int:
+        posix = path.as_posix()
+        if posix.endswith("baseline/win32/.refresh_epoch"):
+            return 250
+        if posix.endswith("baseline/linux/.refresh_epoch"):
+            return 0
+        if "win32" in posix:
+            return 100
+        if "linux" in posix:
+            return 200
+        return 0
+
+    monkeypatch.setattr(policy, "git_commit_epoch", _epoch)
+    monkeypatch.setattr(
+        policy,
+        "VISUAL_BASELINE_NAMES",
+        ("orders_320_light.png",),
+    )
+
+    def _exists(self: Path) -> bool:
+        return self.name in {".refresh_epoch", "orders_320_light.png"}
+
+    monkeypatch.setattr(Path, "is_file", _exists, raising=False)
+    assert policy.linux_baselines_stale() == ["orders_320_light.png"]
 
 
 def test_linux_marker_same_epoch_as_win32_does_not_hide_stale_png(
