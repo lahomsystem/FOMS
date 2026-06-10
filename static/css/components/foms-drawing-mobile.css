@@ -83,7 +83,7 @@
   body.erp-mobile-v2-layout .foms-drawing-handoff__body {
     display: grid;
     gap: 0.75rem;
-    padding: calc(var(--foms-shell-header-h, 48px) + 0.75rem) 0.75rem 5.5rem;
+    padding: 0.5rem 0.75rem 5.25rem;
   }
 
   body.erp-mobile-v2-layout .foms-drawing-turn,
@@ -459,16 +459,36 @@
 
   body.erp-mobile-v2-layout .foms-drawing-action-bar__btn {
     display: inline-flex;
+    flex-direction: column;
     flex: 1 1 0;
     align-items: center;
     justify-content: center;
-    gap: 0.4rem;
-    min-height: var(--foms-touch-target-min, 48px);
+    gap: 0.18rem;
+    min-width: 0;
+    min-height: 3rem;
+    padding: 0.35rem 0.25rem;
     border: 1px solid var(--foms-border-default, #c1c7d0);
     border-radius: 8px;
     background: var(--foms-surface-base, #fff);
     color: var(--foms-text-primary, #14171c);
+    font-size: 0.72rem;
     font-weight: 800;
+    line-height: 1.05;
+    text-align: center;
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-action-bar__btn i {
+    flex: 0 0 auto;
+    font-size: 0.95rem;
+    line-height: 1;
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-action-bar__btn span {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: clip;
+    white-space: nowrap;
   }
 
   body.erp-mobile-v2-layout .foms-drawing-action-bar__btn--primary {

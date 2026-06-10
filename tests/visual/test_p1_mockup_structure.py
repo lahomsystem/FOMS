@@ -333,6 +333,9 @@ def test_p1_drawing_handoff_mobile_v2_mockup_selectors() -> None:
         assert selector in queue, selector
     for selector in ("data-drawing-handoff-open", "data-drawing-handoff-action"):
         assert selector in body, selector
+    assert "padding: 0.5rem 0.75rem 5.25rem;" in css
+    assert "body.erp-mobile-v2-layout .foms-drawing-action-bar__btn span" in css
+    assert "white-space: nowrap;" in css
     assert "GlobalImageViewer.open" in js
     assert "btn-confirm-receipt" in js
 
