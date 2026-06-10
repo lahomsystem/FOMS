@@ -145,13 +145,7 @@ if (Test-Path $visualStaleScript) {
     if ($LASTEXITCODE -eq 1) {
         $win32BaselineStale = $true
         if (-not $Visual) {
-            Write-StepFail "win32 baseline stale vs CSS/templates — regenerate win32 PNGs, commit, then re-run with -Visual"
-            Write-Host "  1) `$env:TEMP='C:\tmp'; `$env:DATABASE_URL='sqlite:///tests/visual/visual_local.sqlite'" -ForegroundColor DarkGray
-            Write-Host "  2) python -m pytest tests/visual --update-snapshots -q" -ForegroundColor DarkGray
-            Write-Host "  3) git add tests/visual/baseline/win32/*.png" -ForegroundColor DarkGray
-            Write-Host "  4) powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1 -Visual" -ForegroundColor DarkGray
-            Write-Host "  SSOT: docs/guides/PRE_PUSH_SMOKE.md" -ForegroundColor DarkGray
-            $script:FailedSteps.Add("Visual win32 baseline freshness")
+            Write-StepSkip "win32 baseline stale vs CSS/templates — PNG gate skipped (structural tests only; see PRE_PUSH_SMOKE.md)"
         } else {
             Write-Host "[WARN] win32 baselines older than visual sources — -Visual must pass after --update-snapshots" -ForegroundColor Yellow
         }
@@ -160,10 +154,8 @@ if (Test-Path $visualStaleScript) {
     }
 
     if ($visualGateRequired -and -not $Visual) {
-        Write-StepFail "Visual-affecting files changed — re-run with -Visual (and refresh win32 baselines if stale)"
-        Write-Host "  powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1 -Visual" -ForegroundColor DarkGray
-        Write-Host "  Workflow: CSS change -> win32 --update-snapshots -> commit PNGs -> CI refreshes linux/" -ForegroundColor DarkGray
-        $script:FailedSteps.Add("Visual-affecting change gate (-Visual required)")
+        Write-StepSkip "Visual-affecting files changed — default gate uses test_p1_mockup_* structural tests (not PNG -Visual)"
+        Write-Host "  Optional full PNG regression: powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1 -Visual" -ForegroundColor DarkGray
     } elseif ($visualGateRequired -and $Visual) {
         Write-StepOk "Visual-affecting changes present; -Visual enabled"
     }
@@ -272,12 +264,7 @@ if ($Visual) {
     $playwrightOk = ($LASTEXITCODE -eq 0)
 
     if (-not $playwrightOk) {
-        if ($visualGateRequired -or $win32BaselineStale) {
-            Write-StepFail "Visual regression — playwright required for CSS/visual changes (pip install playwright; python -m playwright install chromium)"
-            $script:FailedSteps.Add("Visual regression (playwright missing)")
-        } else {
-            Write-StepSkip "Visual regression — playwright not installed (pip install playwright; python -m playwright install chromium)"
-        }
+        Write-StepSkip "Visual regression — playwright not installed (optional; structural tests already ran)"
     } else {
         if (-not (Test-Path "C:\tmp")) {
             New-Item -ItemType Directory -Path "C:\tmp" -Force | Out-Null

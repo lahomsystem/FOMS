@@ -439,6 +439,18 @@ def test_queue_card_v2_supports_pc_workflow_action_parity() -> None:
     assert "edit_return_to" in card
     assert "flex-wrap: wrap;" in css
     assert "min-height: var(--foms-touch-target-min);" in css
+    # 액션 없는 카드(메인/실측/출고 등)는 stage 워크플로우 액션을 1순위로 노출하고
+    # ERP 편집은 secondary로 강등한다.
+    # - 미승인 퀘스트: 상세 승인 섹션으로 deep-link(맥락/권한 재검증)
+    # - 도면 단계(메인 enrichment에서 퀘스트 미생성): 도면 창구로 직접 진입
+    assert "quest_actionable" in card
+    assert "퀘스트 승인" in card
+    assert "#foms-detail-quest" in card
+    assert "can_assignee_approve" in card
+    assert "drawing_actionable" in card
+    assert "도면 창구" in card
+    assert "erp_drawing_workbench.erp_drawing_workbench_detail" in card
+    assert "action_list or workflow_actionable" in card
 
 
 def test_p1_production_dashboard_renders_home_ia(

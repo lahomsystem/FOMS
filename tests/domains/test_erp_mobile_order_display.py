@@ -63,3 +63,12 @@ def test_erp_mobile_tile_prefers_view_url_for_grid_src() -> None:
     assert "const gridImageSrc =" in shared_js
     assert "isMobileLayout" in shared_js
     assert "(a.view_url || a.thumbnail_view_url || '')" in shared_js
+
+
+def test_mobile_detail_quest_section_has_deep_link_anchor() -> None:
+    """카드의 '퀘스트 승인' deep-link 대상 앵커가 상세 퀘스트 섹션에 존재한다."""
+    partial = (
+        ROOT / "templates" / "orders" / "partials" / "order_detail_mobile_v2.html"
+    ).read_text(encoding="utf-8")
+    assert 'id="foms-detail-quest"' in partial
+    assert "erp-mobile-quest-approve-team" in partial

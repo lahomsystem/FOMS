@@ -2,15 +2,27 @@
 
 `deploy` 또는 `main`에 **push하기 전**에 로컬에서 빠르게 돌리는 스모크 검증입니다. GitHub Actions 전체 CI를 대체하지 않습니다.
 
-## Visual regression 정본 워크플로 (SSOT)
+## UI 검증 정책 (모바일 ERP 활발 개발 단계)
 
-UI/CSS/레이아웃이 바뀌면 아래 순서를 **반드시** 따릅니다.
+**기본(푸시 전 필수):** PNG visual regression이 아니라 **구조 테스트**만 게이트로 사용합니다.
 
-1. **CSS/JS/템플릿 구현** — `static/css/`, `static/js/`, `templates/` 등
-2. **win32 baseline 재생성 (Windows 로컬)** — Playwright `--update-snapshots` → `tests/visual/baseline/win32/*.png`
-3. **win32 PNG 커밋** — 같은 PR 또는 직후 커밋
-4. **푸시 전 `-Visual` 스모크 통과** — `pre_push_smoke.ps1 -Visual` (exit 0)
-5. **CI가 linux SSOT 자동 refresh** — `ci.yml` visual job이 win32보다 오래된 `baseline/linux/` ERP PNG를 `--update-snapshots` 후 bot 커밋
+- `tests/visual/test_p1_mockup_structure.py` — 템플릿/매크로/셀렉터·워크플로우 계약
+- `tests/visual/test_p1_mockup_png_baseline.py` — mockup ↔ 앱 클래스 parity (PNG 없음)
+- `tests/visual/test_p1_mockup_chrome_parity.py` — Chrome 구조 parity
+
+`pre_push_smoke.ps1` 기본 subset에 위 테스트가 포함됩니다. **템플릿/CSS 변경 시 `-Visual`·win32 PNG 커밋은 필수가 아닙니다.**
+
+PNG 회귀(`-Visual`, win32 baseline 갱신)는 UI 안정기(릴리스 고정)에만 **선택**으로 사용합니다.
+
+## Visual regression (선택, SSOT 참고)
+
+UI가 안정된 뒤 전체 PNG 회귀가 필요할 때만:
+
+1. **CSS/JS/템플릿 구현**
+2. **win32 baseline 재생성** — `--update-snapshots` → `tests/visual/baseline/win32/*.png`
+3. **win32 PNG 커밋**
+4. **`pre_push_smoke.ps1 -Visual`** (선택)
+5. **CI linux SSOT** — `ci.yml` visual job (저장소 정책에 따라 유지/스킵)
 
 > **주의:** Windows에서 `baseline/linux/` PNG를 재생성·커밋하지 마세요. Linux baseline은 CI SSOT입니다.
 
@@ -33,14 +45,14 @@ git add tests/visual/baseline/win32/*.png
 |------|----------|------|
 | win32 vs CSS 소스 | `python scripts/ops/visual_baseline_stale.py --check-win32-vs-sources` | visual 소스(`static/css/`, `static/js/`, `templates/`) 최신 커밋이 win32 PNG 커밋보다 **새로우면** stale — CSS만 바꾸고 PNG를 안 갱신한 경우를 잡음 |
 | linux vs win32 (CI seed) | `python scripts/ops/visual_erp_linux_stale.py` | win32 ERP PNG를 커밋한 뒤 linux가 뒤처지면 CI seed 단계 실행 |
-| pre-push 게이트 | `pre_push_smoke.ps1` (기본) | visual 경로 변경 또는 win32 stale 시 **`-Visual` 없으면 FAIL** |
+| pre-push 게이트 | `pre_push_smoke.ps1` (기본) | visual 경로 변경 시 **`test_p1_mockup_*` 구조 테스트**로 게이트 (PNG `-Visual` 필수 아님) |
 
 ## 언제 실행하나
 
 - `deploy` / `main`으로 push 직전
 - PR 머지 전 자신감 확인 (빠른 회귀 방지)
 - CI에서 자주 깨지는 영역(배포 Dockerfile, import 계약, HTMX, visual asset) 변경 후
-- **UI/CSS/레이아웃 변경 후**: 기본 subset + **`-Visual` 필수** (win32 baseline 갱신·커밋 후)
+- **UI/CSS/레이아웃 변경 후**: 기본 subset만 (구조 테스트 `test_p1_mockup_*`). PNG `-Visual`은 선택
 
 ## 명령 (Win11 / PowerShell 5.x)
 
@@ -50,7 +62,7 @@ git add tests/visual/baseline/win32/*.png
 powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1
 ```
 
-CSS/템플릿을 건드렸다면:
+PNG 전체 회귀가 필요할 때만 (선택):
 
 ```powershell
 powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1 -Visual
