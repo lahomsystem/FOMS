@@ -15,7 +15,7 @@ sys.path.insert(0, str(ROOT))
 from tools.design.foms_icon_version import ICON_CACHE_VERSION  # noqa: E402
 STATIC = ROOT / "static"
 IMPORT_SCRIPT = ROOT / "tools" / "design" / "import_user_spade_icon.py"
-MASTER_PNG = STATIC / "icons" / "foms-spade-master-512.png"
+MASTER_PNG = STATIC / "icons" / "foms-spade-master-1024.png"
 MANIFEST_PATH = STATIC / "manifest.json"
 
 

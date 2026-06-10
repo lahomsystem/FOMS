@@ -2,4 +2,4 @@
 
 from __future__ import annotations
 
-ICON_CACHE_VERSION = "20260611c"
+ICON_CACHE_VERSION = "20260611d"
