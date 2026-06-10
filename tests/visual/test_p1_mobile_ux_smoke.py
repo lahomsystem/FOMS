@@ -115,9 +115,15 @@ def test_p1_drawing_mobile_queue_smoke(page, visual_live_server_erp_v2) -> None:
     _login(page, visual_live_server_erp_v2)
 
     page.goto(f"{visual_live_server_erp_v2}/erp/dashboard", wait_until="networkidle")
+    drawer = page.locator("#erp-mobile-menu-drawer")
     page.get_by_role("button", name="더보기 메뉴").click()
-    page.locator('a.erp-mobile-menu-drawer__link[href="/erp/drawing-workbench"]').click()
-    page.wait_for_load_state("networkidle")
+    drawer.wait_for(state="visible")
+    drawing_link = drawer.locator(
+        'a.erp-mobile-menu-drawer__link[href="/erp/drawing-workbench"]'
+    )
+    drawing_link.wait_for(state="visible")
+    drawing_link.evaluate("link => link.click()")
+    page.wait_for_url("**/erp/drawing-workbench", wait_until="networkidle")
 
     assert page.locator(".foms-drawing-mobile-dashboard").is_visible()
     assert page.locator(".foms-mobile-queue-list").is_visible()
