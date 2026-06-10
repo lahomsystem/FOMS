@@ -114,11 +114,33 @@ def test_p1_drawing_mobile_queue_smoke(page, visual_live_server_erp_v2) -> None:
     _seed_drawing_order()
     _login(page, visual_live_server_erp_v2)
 
-    page.goto(f"{visual_live_server_erp_v2}/erp/drawing-workbench", wait_until="networkidle")
+    page.goto(f"{visual_live_server_erp_v2}/erp/dashboard", wait_until="networkidle")
+    page.get_by_role("button", name="더보기 메뉴").click()
+    page.locator('a.erp-mobile-menu-drawer__link[href="/erp/drawing-workbench"]').click()
+    page.wait_for_load_state("networkidle")
 
     assert page.locator(".foms-drawing-mobile-dashboard").is_visible()
     assert page.locator(".foms-mobile-queue-list").is_visible()
     assert page.locator(".foms-drawing-queue-card").count() >= 1
     assert page.locator(".foms-drawing-mobile-v2").count() == 0
     assert page.locator(".erp-drawing-dashboard-desktop-card").is_hidden()
+    metrics = page.locator(".foms-drawing-queue-card").first.evaluate(
+        """card => {
+          const grid = card.querySelector('.foms-drawing-queue-card__grid');
+          const thumb = card.querySelector('.foms-drawing-queue-card__thumb');
+          const gridStyle = window.getComputedStyle(grid);
+          const thumbRect = thumb.getBoundingClientRect();
+          return {
+            display: gridStyle.display,
+            columns: gridStyle.gridTemplateColumns,
+            thumbWidth: Math.round(thumbRect.width),
+            thumbHeight: Math.round(thumbRect.height),
+            cardWidth: Math.round(card.getBoundingClientRect().width),
+          };
+        }"""
+    )
+    assert metrics["display"] == "grid"
+    assert metrics["thumbWidth"] <= 90
+    assert metrics["thumbHeight"] <= 90
+    assert metrics["cardWidth"] > metrics["thumbWidth"] * 2
     assert not any("Identifier 'TEAM_LABELS'" in error for error in errors)
