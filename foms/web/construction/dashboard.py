@@ -208,21 +208,6 @@ def erp_construction_dashboard():
     )
     attach_order_detail_payloads(db, paginated_orders)
 
-    # 모바일 v2 무한스크롤 조각 요청 → 카드 청크만 반환 (mobile-queue-scroll.js가 append).
-    if mobile_v2_active and request.args.get("mobile_chunk") == "1":
-        chunk = render_template(
-            "construction/partials/mobile_queue_chunk.html",
-            orders=paginated_orders,
-            can_edit_erp=can_edit_erp(user),
-            page=page,
-            per_page=per_page,
-            total_pages=total_pages,
-            total_orders=total_orders,
-        )
-        response = make_response(chunk)
-        apply_erp_shell_fragment_headers(response, request)
-        return response
-
     template_name = (
         "construction/partials/dashboard_fragment.html"
         if wants_erp_shell_tab_body(request)

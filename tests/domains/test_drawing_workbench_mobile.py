@@ -166,7 +166,7 @@ def test_drawing_workbench_thumb_hidden_when_flag_off(client, monkeypatch):
 
 
 def test_drawing_workbench_mobile_single_list_my_first(client, monkeypatch):
-    """무한스크롤 단일 리스트 + '내 차례' 서버 우선정렬. 목업 §5.2 '내 차례/상대 차례' 그룹 구분 노출."""
+    """단일 리스트 + '내 차례' 서버 우선정렬. 목업 §5.2 '내 차례/상대 차례' 그룹 구분 노출(번호 페이저)."""
     monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
     monkeypatch.setenv("FOMS_V3_DRAWING_THUMB_ENABLED", "true")
     user = _login_drawing_admin(client)
@@ -177,15 +177,15 @@ def test_drawing_workbench_mobile_single_list_my_first(client, monkeypatch):
     assert response.status_code == 200
     body = response.get_data(as_text=True)
     assert "foms-drawing-queue" in body
-    assert "data-foms-mobile-queue-scroll" in body
+    assert "data-foms-mobile-queue-scroll" not in body  # 무한스크롤 아닌 번호 페이저
     assert "foms-drawing-queue-card__turn" in body  # 카드별 차례 표시 유지
     # 목업 프레임 A: my_todo 우선정렬 단일 리스트에 '내 차례/상대 차례' 그룹 헤더를 얹는다.
     assert "foms-drawing-queue__group" in body
     assert ("내 차례" in body) or ("상대 차례" in body)
 
 
-def test_drawing_workbench_mobile_infinite_scroll_pagination(client, monkeypatch):
-    """회귀: per_page=25 도면 모바일 큐가 25건에서 멈추지 않고 무한스크롤 청크로 이어진다."""
+def test_drawing_workbench_mobile_numbered_pagination(client, monkeypatch):
+    """회귀: per_page=25 도면 모바일 큐가 25건 초과 시 하단 PC식 번호 페이저로 페이지 이동."""
     monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
     user = _login_drawing_admin(client)
     monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
@@ -195,17 +195,16 @@ def test_drawing_workbench_mobile_infinite_scroll_pagination(client, monkeypatch
     page1 = client.get("/erp/drawing-workbench")
     assert page1.status_code == 200
     body = page1.get_data(as_text=True)
-    assert "data-foms-mobile-queue-scroll" in body
-    assert 'data-total-pages="2"' in body
-    assert 'data-next-page="2"' in body
-    assert "data-foms-mobile-queue-sentinel" in body
+    assert "foms-mobile-pager" in body
+    assert "page=2" in body
+    assert "data-foms-mobile-queue-scroll" not in body
+    assert "data-foms-mobile-queue-sentinel" not in body
 
-    chunk = client.get("/erp/drawing-workbench?mobile_chunk=1&page=2")
-    assert chunk.status_code == 200
-    chunk_body = chunk.get_data(as_text=True)
-    assert "data-foms-mobile-queue-chunk" in chunk_body
-    assert 'data-next-page="0"' in chunk_body
-    assert "data-foms-mobile-queue-scroll" not in chunk_body
+    page2 = client.get("/erp/drawing-workbench?page=2")
+    assert page2.status_code == 200
+    body2 = page2.get_data(as_text=True)
+    assert "foms-mobile-pager" in body2
+    assert 'aria-current="page"' in body2  # 현재 페이지(2) 표시 → 1페이지 복귀 가능
 
 
 def test_drawing_workbench_multi_file_detail_opens_mobile_list(client, monkeypatch):

@@ -119,19 +119,17 @@ def test_as_dashboard_mobile_v2_wiring_contract():
     body_src = (root / "templates/cs/partials/as_dashboard_body.html").read_text(encoding="utf-8")
     dash_src = (root / "templates/cs/as_dashboard.html").read_text(encoding="utf-8")
     card_src = (root / "templates/cs/partials/as_mobile_order_card.html").read_text(encoding="utf-8")
-    chunk_src = (root / "templates/cs/partials/as_mobile_card_chunk.html").read_text(encoding="utf-8")
 
     assert "foms-as-mobile-card.css" in dash_src
     assert "erp-as-mobile-list__sticky" in body_src
     # 카드 마크업은 공용 단일 카드 파티얼로 이동(SSOT)
     assert "foms-stage-badge{{ r.stage_badge_modifier }}" in card_src
     assert "erp-as-mobile-card__thumb" in card_src
-    # 무한스크롤 배선
-    assert "data-foms-mobile-queue-scroll" in body_src
-    assert "data-foms-mobile-queue-sentinel" in body_src
-    assert "data-foms-mobile-queue-list" in body_src
-    assert "as_mobile_order_card.html" in chunk_src
-    assert "data-foms-mobile-queue-chunk" in chunk_src
+    # PC식 번호 페이저(무한스크롤 아님)
+    assert "render_mobile_pager" in body_src
+    assert "as_mobile_order_card.html" in body_src
+    assert "data-foms-mobile-queue-scroll" not in body_src
+    assert "data-foms-mobile-queue-sentinel" not in body_src
     assert body_src.count("as_mobile_controls.html") == 1
 
 
@@ -147,19 +145,19 @@ def test_as_content_input_saves_on_blur_not_while_typing():
     assert "bindAsContentAutosaveInputs" in body_src
 
 
-def test_as_dashboard_mobile_chunk_endpoint(client, monkeypatch):
-    """무한스크롤 조각 요청 → 카드 청크만 반환(셸 미포함)."""
+def test_as_dashboard_mobile_renders_cards_without_scroll(client, monkeypatch):
+    """모바일 v2 AS 큐는 카드 렌더 + 무한스크롤 배선 없음(번호 페이저 사용)."""
     monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
     user = _login_as_admin(client)
     monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
-    _create_as_order(customer_name="청크 AS")
+    _create_as_order(customer_name="페이저 AS")
 
-    resp = client.get("/erp/as?tab=incomplete&mobile_chunk=1&page=1")
+    resp = client.get("/erp/as?tab=incomplete")
     assert resp.status_code == 200
     body = resp.get_data(as_text=True)
-    assert "data-foms-mobile-queue-chunk" in body
-    assert "data-foms-mobile-queue-scroll" not in body  # 청크는 셸 아님
     assert "erp-as-mobile-card" in body  # 카드 실제 렌더
+    assert "data-foms-mobile-queue-scroll" not in body
+    assert "data-foms-mobile-queue-sentinel" not in body
 
 
 def test_as_dashboard_renders_mobile_v2_markup(client, monkeypatch):

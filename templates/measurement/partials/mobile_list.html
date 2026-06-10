@@ -12,7 +12,53 @@
   {% if mobile_queue_rows %}
     <div class="erp-measurement-mobile-cards foms-mobile-queue-list">
       {% for o in mobile_queue_rows %}
-        {{ render_queue_card_v2(o, can_edit_erp|default(false), None, '--measure', '실측') }}
+        <div
+          class="erp-measurement-mobile-card"
+          data-measurement-mobile-order-id="{{ o.id }}"
+          data-address="{{ o.address or '' }}"
+          data-phone="{{ o.phone or '' }}"
+          data-manager="{{ o.manager_name or '' }}">
+          {{ render_queue_card_v2(o, can_edit_erp|default(false), None, '--measure', '실측', edit_return_to='erp_measurement_dashboard', detail_return_to='erp_measurement_dashboard') }}
+          {% if can_edit_erp|default(false) %}
+            <div class="erp-measurement-mobile-card__edit" aria-label="실측 정보 빠른 수정">
+              <button
+                type="button"
+                class="foms-btn foms-btn--ghost foms-btn--sm"
+                data-measurement-mobile-edit-trigger
+                data-order-id="{{ o.id }}"
+                data-is-erp="true"
+                data-field="address"
+                data-current-value="{{ o.address or '' }}">
+                주소
+              </button>
+              <button
+                type="button"
+                class="foms-btn foms-btn--ghost foms-btn--sm"
+                data-measurement-mobile-edit-trigger
+                data-order-id="{{ o.id }}"
+                data-is-erp="true"
+                data-field="phone"
+                data-current-value="{{ o.phone or '' }}">
+                연락처
+              </button>
+              <button
+                type="button"
+                class="foms-btn foms-btn--ghost foms-btn--sm"
+                data-measurement-mobile-edit-trigger
+                data-order-id="{{ o.id }}"
+                data-is-erp="true"
+                data-field="manager"
+                data-current-value="{{ o.manager_name or '' }}">
+                담당
+              </button>
+              <span class="erp-measurement-mobile-card__status" data-measurement-mobile-manager-status aria-live="polite"></span>
+              <span class="visually-hidden" data-measurement-mobile-field="address">{{ o.address or '-' }}</span>
+              <span class="visually-hidden" data-measurement-mobile-field="phone">{{ o.phone or '-' }}</span>
+              <span class="visually-hidden" data-measurement-mobile-manager>{{ o.manager_name or '-' }}</span>
+              <span class="visually-hidden" data-measurement-mobile-detail-manager>{{ o.manager_name or '-' }}</span>
+            </div>
+          {% endif %}
+        </div>
       {% endfor %}
     </div>
   {% else %}
@@ -23,3 +69,33 @@
     </div>
   {% endif %}
 </section>
+
+{% if can_edit_erp|default(false) %}
+<div class="offcanvas offcanvas-bottom" tabindex="-1" id="erp-measurement-mobile-edit-sheet" aria-labelledby="erp-measurement-mobile-edit-title">
+  <div class="offcanvas-header">
+    <div>
+      <h5 class="offcanvas-title" id="erp-measurement-mobile-edit-title" data-measurement-mobile-edit-label>실측 정보 수정</h5>
+      <p class="mb-0 small text-muted" data-measurement-mobile-edit-hint></p>
+    </div>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="닫기"></button>
+  </div>
+  <div class="offcanvas-body">
+    <form data-measurement-mobile-edit-form>
+      <input type="hidden" name="order_id">
+      <input type="hidden" name="field">
+      <input type="hidden" name="is_erp" value="true">
+      <div class="mb-3">
+        <input class="form-control" name="value" autocomplete="off">
+        <select class="form-select d-none" data-measurement-mobile-manager-select-sheet>
+          <option value="">담당 미지정</option>
+          {% for manager in measurement_manager_options %}
+            <option value="{{ manager }}">{{ manager }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="alert alert-danger d-none" data-measurement-mobile-edit-error></div>
+      <button type="submit" class="foms-btn foms-btn--primary foms-btn--full" data-measurement-mobile-edit-submit>저장</button>
+    </form>
+  </div>
+</div>
+{% endif %}

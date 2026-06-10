@@ -665,6 +665,14 @@ def erp_shipment_dashboard():
                 for value in (shipment.get("construction_workers") or [])
                 if str(value or "").strip()
             ]
+            site_extra = []
+            for value in (shipment.get("site_extra") or []):
+                if isinstance(value, dict):
+                    text_value = str(value.get("text") or "").strip()
+                else:
+                    text_value = str(value or "").strip()
+                if text_value:
+                    site_extra.append(text_value)
             row["customer_name"] = row.get("customer_name") or order.customer_name or "-"
             if row["customer_name"] == "-":
                 row["customer_name"] = order.customer_name or "-"
@@ -677,6 +685,7 @@ def erp_shipment_dashboard():
                 "construction_time": shipment.get("construction_time") or "",
                 "drawing_managers": drawing_managers,
                 "construction_workers": construction_workers,
+                "site_extra": site_extra,
                 "spec_units": _get_order_spec_units(order),
                 "is_as": is_as_order(order),
                 "as_content_text": getattr(order, "as_content_text", "") or "",

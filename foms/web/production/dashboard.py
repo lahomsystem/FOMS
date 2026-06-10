@@ -27,7 +27,6 @@ from foms.services.erp_display import (
 from foms.services.erp_order_detail import attach_order_detail_payloads
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
 from foms.services.request_utils import get_search_query_arg
-from foms.services.feature_flags import is_enabled_for_user
 
 
 erp_production_page_bp = Blueprint(
@@ -344,26 +343,6 @@ def erp_production_dashboard():
         _r['attachment_previews'] = _queue_previews.get(_r['id'], [])
     process_steps = _production_process_steps_bar(step_stats)
     attach_order_detail_payloads(db, enriched)
-
-    # 모바일 v2 무한스크롤 조각 요청 → 카드 청크만 반환 (mobile-queue-scroll.js가 append).
-    mobile_v2_active = is_enabled_for_user(
-        "ERP_MOBILE_V2_ENABLED",
-        user.id if user else None,
-        cohort_key="FOMS_V3_SHELL_COHORT",
-    )
-    if mobile_v2_active and request.args.get('mobile_chunk') == '1':
-        chunk = render_template(
-            'production/partials/mobile_queue_chunk.html',
-            orders=enriched,
-            can_edit_erp=can_edit_erp(user),
-            page=page,
-            per_page=PRODUCTION_DASHBOARD_PAGE_SIZE,
-            total_pages=total_pages,
-            total_orders=total_orders,
-        )
-        response = make_response(chunk)
-        apply_erp_shell_fragment_headers(response, request)
-        return response
 
     template_name = (
         'production/partials/dashboard_fragment.html'

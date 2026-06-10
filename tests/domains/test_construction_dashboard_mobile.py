@@ -140,24 +140,30 @@ def test_construction_dashboard_mobile_wiring_contract():
     queue_src = (root / "templates/construction/partials/mobile_queue.html").read_text(
         encoding="utf-8"
     )
-    chunk_src = (root / "templates/construction/partials/mobile_queue_chunk.html").read_text(
+    pc_grid = (root / "templates/construction/partials/filters_grid.html").read_text(
         encoding="utf-8"
     )
     macro_src = (root / "templates/partials/shared/erp_mobile_queue_card_v2.html").read_text(
         encoding="utf-8"
     )
 
-    # 카드 렌더는 초기/무한스크롤이 공유하는 청크 파티얼에 모인다(SSOT).
-    assert "render_queue_card_v2" in chunk_src
-    assert "shared/erp_mobile_queue_card_v2.html" in chunk_src
-    assert "--construction" in chunk_src
-    assert "data-foms-mobile-queue-chunk" in chunk_src
-    # 큐 셸은 청크를 include 하고 무한스크롤 배선(scroll/sentinel)을 갖춘다.
-    assert "construction/partials/mobile_queue_chunk.html" in queue_src
-    assert "data-foms-mobile-queue-scroll" in queue_src
-    assert "data-foms-mobile-queue-sentinel" in queue_src
+    # 모바일 큐는 queue-card-v2 + PC식 번호 페이저(무한스크롤 아님).
+    assert "render_queue_card_v2" in queue_src
+    assert "--construction" in queue_src
+    assert "render_mobile_pager" in queue_src
+    assert "data-foms-mobile-queue-scroll" not in queue_src
+    assert "data-foms-mobile-queue-sentinel" not in queue_src
     # v2 카드는 badge override(modifier)를 stage 배지에 반영한다.
     assert "foms-stage-badge{{ badge_mod }}" in macro_src
+    # PC workflow baseline: 시공완료는 사진 재업로드와 AS 액션이 병존한다.
+    assert 'data-action="reuploadConstructionPhotos"' in pc_grid
+    assert 'data-action="openAsAcceptModal"' in pc_grid
+    assert 'data-action="openAsReuploadModal"' in pc_grid
+    # Mobile must preserve the same critical action set.
+    assert "'reuploadConstructionPhotos'" in queue_src
+    assert "'openAsAcceptModal'" in queue_src
+    assert "'openAsReuploadModal'" in queue_src
+    assert "task_actions=task_actions" in queue_src
 
 
 def _login_plain_admin(client):
@@ -181,11 +187,10 @@ def _login_plain_admin(client):
     return user
 
 
-def test_construction_mobile_queue_infinite_scroll_pagination(client, monkeypatch):
-    """회귀: 시공 모바일 큐가 50건에서 멈추지 않고 무한스크롤 청크로 이어진다.
+def test_construction_mobile_queue_numbered_pagination(client, monkeypatch):
+    """회귀: 시공 모바일 큐가 50건 초과 시 하단 PC식 번호 페이저로 페이지 이동.
 
-    증상(사용자 스크린샷): "50 / 전체 163건"에서 더 이상 로딩 안 됨.
-    근본원인: mobile_queue.html에 무한스크롤 배선(scroll/sentinel/chunk) 부재.
+    증상: 무한스크롤은 앞으로만 로딩되고 이전 페이지로 못 돌아감 → 번호 페이저로 교체.
     """
     monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
     monkeypatch.setenv("FOMS_V3_CONSTRUCTION_THUMB_ENABLED", "false")
@@ -211,27 +216,24 @@ def test_construction_mobile_queue_infinite_scroll_pagination(client, monkeypatc
         )
     db_session.commit()
 
-    # 페이지 1: 무한스크롤 배선 + sentinel + 첫 50건 / 전체 60건
+    # 페이지 1: 번호 페이저(2페이지 링크) + 첫 50건, 무한스크롤 배선 없음
     page1 = client.get("/erp/construction/dashboard")
     assert page1.status_code == 200
     body = page1.get_data(as_text=True)
-    assert "data-foms-mobile-queue-scroll" in body
-    assert 'data-total-pages="2"' in body
-    assert 'data-next-page="2"' in body
-    assert "data-foms-mobile-queue-sentinel" in body
-    assert "data-foms-mobile-queue-chunk" in body
+    assert "foms-mobile-pager" in body
+    assert "page=2" in body
+    assert "data-foms-mobile-queue-scroll" not in body
+    assert "data-foms-mobile-queue-sentinel" not in body
     assert "50 / 전체 60건" in body
 
-    # 페이지 2 청크: 카드 조각만, 다음 페이지 없음(0), 전체 셸 미포함
-    chunk = client.get("/erp/construction/dashboard?mobile_chunk=1&page=2")
-    assert chunk.status_code == 200
-    chunk_body = chunk.get_data(as_text=True)
-    assert "data-foms-mobile-queue-chunk" in chunk_body
-    assert 'data-next-page="0"' in chunk_body
-    assert "data-foms-mobile-queue-scroll" not in chunk_body  # 청크는 셸 아님
-    assert "60 / 전체 60건" in chunk_body
-    # 2페이지 카드 10건이 실제 렌더됨 (시공대기 → '시공 시작' 액션 버튼)
-    assert chunk_body.count("data-action=\"startConstruction\"") == 10
+    # 페이지 2 직접 접근 → 나머지 10건, 페이저로 1페이지 복귀 가능
+    page2 = client.get("/erp/construction/dashboard?page=2")
+    assert page2.status_code == 200
+    body2 = page2.get_data(as_text=True)
+    assert "foms-mobile-pager" in body2
+    assert "60 / 전체 60건" in body2
+    assert 'aria-current="page"' in body2  # 현재 페이지(2) 표시
+    assert "page=1" in body2  # 1페이지로 돌아가는 링크
 
 
 def test_construction_dashboard_renders_v11_badge(client, monkeypatch):
@@ -257,3 +259,23 @@ def test_construction_dashboard_renders_v11_badge(client, monkeypatch):
     assert 'data-erp-mobile-v2="true"' in body
     assert "foms-stage-badge foms-stage-badge--construction" in body
     assert "erp-construction-mobile-card__thumb-grid" not in body
+
+
+def test_construction_mobile_completed_renders_reupload_as_and_edit(client, monkeypatch):
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    monkeypatch.setenv("FOMS_V3_CONSTRUCTION_THUMB_ENABLED", "false")
+    user = _login_plain_admin(client)
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+
+    _create_construction_order(
+        customer_name="시공완료 모바일 고객",
+        structured_data={"workflow": {"stage": "COMPLETED"}},
+    )
+
+    response = client.get("/erp/construction/dashboard")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert 'data-action="reuploadConstructionPhotos"' in body
+    assert 'data-action="openAsAcceptModal"' in body
+    assert "?open=erp-order" in body

@@ -46,6 +46,16 @@ def test_shipment_mobile_controls_template_contract() -> None:
     assert "shipment_mobile_queue.html" in main
     assert "shipment_mobile_controls.html" in main
     assert "foms-shipment-mobile.css" in dash
+    queue = (ROOT / "templates/shipment/partials/shipment_mobile_queue.html").read_text(
+        encoding="utf-8"
+    )
+    pc = (ROOT / "templates/shipment/partials/dashboard_main.html").read_text(encoding="utf-8")
+    assert "/api/erp/shipment/update/" in queue
+    assert "data-shipment-mobile-edit-trigger" in queue
+    assert "js-shipment-as-rec-cancel" in queue
+    for field in ("site_extra", "construction_time", "drawing_managers", "construction_workers"):
+        assert field in pc
+        assert field in queue
 
 
 def test_shipment_mobile_sections_do_not_expand_viewport() -> None:
@@ -128,6 +138,8 @@ def test_shipment_dashboard_renders_mobile_v2_queue_card(client, monkeypatch) ->
     body = response.get_data(as_text=True)
     assert "foms-queue-card-v2" in body
     assert "erp-shipment-mobile-card--with-detail" in body
+    assert "data-shipment-mobile-edit-trigger" in body
+    assert "출고 정보 수정" in body
     assert "출고 모바일 고객" in body
     assert "오전 10:30" in body
     assert "도면1" in body

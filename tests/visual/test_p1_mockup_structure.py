@@ -422,6 +422,24 @@ def test_p1_production_mobile_v2_home_ia_parity() -> None:
         assert selector in queue, selector
 
 
+def test_queue_card_v2_supports_pc_workflow_action_parity() -> None:
+    """Mobile v2 cards must keep workflow actions and ERP edit as separate affordances."""
+    card = (ROOT / "templates/partials/shared/erp_mobile_queue_card_v2.html").read_text(
+        encoding="utf-8"
+    )
+    css = (ROOT / "static/css/components/foms-queue-card-v2.css").read_text(
+        encoding="utf-8"
+    )
+
+    assert "task_actions=None" in card
+    assert "action_list" in card
+    assert "for action in action_list" in card
+    assert "open='erp-order'" in card
+    assert "edit_return_to" in card
+    assert "flex-wrap: wrap;" in css
+    assert "min-height: var(--foms-touch-target-min);" in css
+
+
 def test_p1_production_dashboard_renders_home_ia(
     client,
     monkeypatch: pytest.MonkeyPatch,

@@ -361,18 +361,6 @@ def erp_drawing_workbench_dashboard():
     start_idx = (page - 1) * per_page
     rows = rows[start_idx:start_idx + per_page]
 
-    # 모바일 v2 무한스크롤 조각 요청 → 카드 청크만 반환 (mobile-queue-scroll.js가 append).
-    if mobile_v2_active and request.args.get('mobile_chunk') == '1':
-        chunk = render_template(
-            'drawing/partials/workbench_mobile_queue_chunk.html',
-            rows=rows,
-            pagination={'page': page, 'per_page': per_page, 'total_count': total_count, 'total_pages': total_pages},
-            drawing_thumb_enabled=drawing_thumb_enabled(mobile_v2_active=mobile_v2_active),
-        )
-        response = make_response(chunk)
-        apply_erp_shell_fragment_headers(response, request)
-        return response
-
     template_name = (
         'drawing/partials/workbench_dashboard_fragment.html'
         if wants_erp_shell_tab_body(request)

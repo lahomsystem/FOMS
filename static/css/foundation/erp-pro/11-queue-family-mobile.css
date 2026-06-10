@@ -1337,3 +1337,50 @@
     gap: 0.75rem;
   }
 }
+
+/* ===== 모바일 작업 큐 번호 페이저 (PC식 1,2,3,4 하단 페이지네이션) ===== */
+@media (max-width: 991.98px) {
+  .foms-mobile-pager {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 1rem 0.75rem calc(1.25rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .foms-mobile-pager__num,
+  .foms-mobile-pager__nav {
+    min-width: 42px;
+    height: 42px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0.5rem;
+    border: 1px solid var(--foms-border-default, #d9d9d9);
+    border-radius: 11px;
+    background: var(--foms-surface-base, #ffffff);
+    color: var(--foms-text-primary, #131e29);
+    font-size: 0.9375rem;
+    font-weight: 600;
+    line-height: 1;
+    text-decoration: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .foms-mobile-pager__num.is-current {
+    background: var(--foms-interactive-primary, #0070f2);
+    border-color: var(--foms-interactive-primary, #0070f2);
+    color: #ffffff;
+  }
+
+  .foms-mobile-pager__nav.is-disabled {
+    opacity: 0.4;
+    pointer-events: none;
+  }
+
+  .foms-mobile-pager__gap {
+    padding: 0 0.125rem;
+    color: var(--foms-text-secondary, #556b82);
+  }
+}

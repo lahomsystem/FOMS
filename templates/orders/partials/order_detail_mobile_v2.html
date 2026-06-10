@@ -139,6 +139,54 @@
           <h2 class="foms-detail-section__title" id="foms-detail-quest-title">현재 작업</h2>
         </div>
         <p class="mb-0">{{ order.current_quest.title }}</p>
+        {% if can_edit_erp %}
+          <div class="foms-detail-action-stack mt-3" id="mobile-quest-approvals-{{ order.id }}">
+            {% if order.current_quest.approval_mode == 'assignee' %}
+              {% set assignee_approval = order.current_quest.assignee_approval or {} %}
+              {% if assignee_approval.get('approved') %}
+                <span class="foms-badge foms-badge--count">승인완료</span>
+              {% else %}
+                <button
+                  type="button"
+                  class="foms-btn foms-btn--primary foms-btn--full erp-mobile-quest-approve-assignee"
+                  data-order-id="{{ order.id }}">
+                  담당자 승인
+                </button>
+              {% endif %}
+            {% else %}
+              {% for team in order.current_quest.required_approvals or [] %}
+                {% set approved = (order.current_quest.team_approvals or {}).get(team) %}
+                {% if approved is mapping %}
+                  {% set is_approved = approved.get('approved') %}
+                {% else %}
+                  {% set is_approved = approved %}
+                {% endif %}
+                {% if is_approved %}
+                  <span class="foms-badge foms-badge--count">{{ team }} 승인완료</span>
+                {% else %}
+                  <button
+                    type="button"
+                    class="foms-btn foms-btn--primary foms-btn--full erp-mobile-quest-approve-team"
+                    data-order-id="{{ order.id }}"
+                    data-team="{{ team }}">
+                    {{ team }} 승인
+                  </button>
+                {% endif %}
+              {% endfor %}
+            {% endif %}
+          </div>
+        {% endif %}
+      </section>
+    {% endif %}
+
+    {% if order.stage_code == 'DRAWING' or order.stage in ['DRAWING', '도면'] %}
+      <section class="foms-detail-section" aria-labelledby="foms-detail-drawing-title">
+        <div class="foms-detail-section__head">
+          <h2 class="foms-detail-section__title" id="foms-detail-drawing-title">도면 작업</h2>
+        </div>
+        <a class="foms-btn foms-btn--secondary foms-btn--full" href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=order.id) }}">
+          도면 창구 열기
+        </a>
       </section>
     {% endif %}
 
@@ -218,3 +266,31 @@
 </div>
 
 {% include 'partials/shared/foms_attachment_preview_modal.html' %}
+
+<script>
+  document.addEventListener('click', async function (event) {
+    const teamBtn = event.target.closest('.erp-mobile-quest-approve-team');
+    const assigneeBtn = event.target.closest('.erp-mobile-quest-approve-assignee');
+    const btn = teamBtn || assigneeBtn;
+    if (!btn) return;
+    const orderId = btn.getAttribute('data-order-id');
+    const team = btn.getAttribute('data-team');
+    if (!orderId) return;
+    btn.disabled = true;
+    try {
+      const res = await fetch(`/api/orders/${orderId}/quest/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(team ? { team: team } : {})
+      });
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.message || data.error || '승인 실패');
+      }
+      window.location.reload();
+    } catch (error) {
+      btn.disabled = false;
+      alert(String((error && error.message) || error || '승인 중 오류가 발생했습니다.'));
+    }
+  });
+</script>

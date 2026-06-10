@@ -1,4 +1,4 @@
-{% macro render_queue_card_v2(order, can_edit=false, task_action=None, badge_modifier=None, badge_text=None) -%}
+{% macro render_queue_card_v2(order, can_edit=false, task_action=None, badge_modifier=None, badge_text=None, task_actions=None, edit_return_to=None, detail_return_to=None, edit_label='ERP 편집') -%}
   {% set primary_alerts = [] %}
   {% if order.alerts.urgent %}
     {% set _ = primary_alerts.append({'label': '긴급', 'class': 'foms-badge--alert'}) %}
@@ -109,26 +109,39 @@
       </div>
     </dl>
 
+    {% set action_list = task_actions if task_actions is not none else [] %}
+    {% if task_actions is none and task_action %}
+      {% set _ = action_list.append(task_action) %}
+    {% endif %}
+
     <footer class="queue-card__action foms-queue-card-v2__action">
       <a
         class="foms-btn foms-btn--ghost foms-btn--sm"
-        href="{{ url_for('erp_dashboard.erp_order_mobile_detail', order_id=order.id) }}">
+        href="{% if detail_return_to %}{{ url_for('erp_dashboard.erp_order_mobile_detail', order_id=order.id, return_to=detail_return_to) }}{% else %}{{ url_for('erp_dashboard.erp_order_mobile_detail', order_id=order.id) }}{% endif %}">
         상세
       </a>
-      {% if task_action and task_action.data_action %}
-        <button
-          class="foms-btn foms-btn--primary foms-btn--sm {{ task_action.button_class or '' }}"
-          type="button"
-          data-order-id="{{ order.id }}"
-          data-action="{{ task_action.data_action }}">
-          {% if task_action.icon %}<i class="{{ task_action.icon }}" aria-hidden="true"></i> {% endif %}{{ task_action.label }}
-        </button>
-      {% elif can_edit or (order.current_quest and order.current_quest.title) %}
+      {% for action in action_list %}
+        {% if action.badge_only %}
+          <span class="foms-btn foms-btn--secondary foms-btn--sm {{ action.button_class or '' }}" role="status">
+            {% if action.icon %}<i class="{{ action.icon }}" aria-hidden="true"></i> {% endif %}{{ action.label }}
+          </span>
+        {% else %}
+          <button
+            class="foms-btn foms-btn--primary foms-btn--sm {{ action.button_class or '' }}"
+            type="button"
+            data-order-id="{{ order.id }}"
+            {% if action.data_action %}data-action="{{ action.data_action }}"{% endif %}
+            {% if action.disabled %}disabled aria-disabled="true"{% endif %}>
+            {% if action.icon %}<i class="{{ action.icon }}" aria-hidden="true"></i> {% endif %}{{ action.label }}
+          </button>
+        {% endif %}
+      {% endfor %}
+      {% if can_edit or (order.current_quest and order.current_quest.title) %}
         <a
-          class="foms-btn foms-btn--primary foms-btn--sm"
-          href="{{ url_for('order_edit.edit_order', order_id=order.id, open='erp-order') }}"
+          class="foms-btn {% if action_list %}foms-btn--secondary{% else %}foms-btn--primary{% endif %} foms-btn--sm"
+          href="{% if edit_return_to %}{{ url_for('order_edit.edit_order', order_id=order.id, open='erp-order', return_to=edit_return_to) }}{% else %}{{ url_for('order_edit.edit_order', order_id=order.id, open='erp-order') }}{% endif %}"
           aria-label="{{ badge_label }} 단계 ERP 주문 열기">
-          {{ badge_label }}
+          {{ edit_label if action_list else badge_label }}
         </a>
       {% elif has_phone %}
         <a class="foms-btn foms-btn--primary foms-btn--sm" href="tel:{{ safe_phone }}">전화</a>

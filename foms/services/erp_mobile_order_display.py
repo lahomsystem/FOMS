@@ -336,6 +336,18 @@ def build_mobile_queue_order_row(db, order) -> dict[str, Any]:
         if isinstance(q, dict) and (q.get("status") or "").upper() != "DONE":
             current_quest = q
             break
+    current_quest_payload = None
+    if current_quest:
+        current_quest_payload = {
+            "title": current_quest.get("title", ""),
+            "owner_team": current_quest.get("owner_team") or current_quest.get("team") or "",
+            "required_approvals": current_quest.get("required_approvals") or [],
+            "team_approvals": current_quest.get("team_approvals") or {},
+            "approval_mode": current_quest.get("approval_mode") or "team",
+            "assignee_approval": current_quest.get("assignee_approval") or {},
+            "assignee_display_names": current_quest.get("assignee_display_names") or [],
+            "all_approved": bool(current_quest.get("all_approved")),
+        }
     previews = batch_resolve_queue_attachment_urls(db, [order.id]).get(order.id, [])
     received = schedule.get("received") or {}
 
@@ -363,5 +375,5 @@ def build_mobile_queue_order_row(db, order) -> dict[str, Any]:
         "product_items": mobile_product_items(sd),
         "amount_summary": mobile_amount_summary(sd),
         "structured_data": sd,
-        "current_quest": {"title": current_quest.get("title", "")} if current_quest else None,
+        "current_quest": current_quest_payload,
     }

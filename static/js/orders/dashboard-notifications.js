@@ -86,7 +86,7 @@
                 if (deepTargetNo) url += `&target_no=${encodeURIComponent(deepTargetNo)}`;
                 window.location.href = url;
               } else {
-                window.location.href = `/edit/${orderId}`;
+                window.location.href = `/edit/${orderId}?open=erp-order`;
               }
             }
           } catch (e) {

@@ -77,6 +77,32 @@ def test_as_dashboard_base_query_includes_pure_as_status():
     assert "Order.status == 'AS'" in src
 
 
+def test_as_pc_and_mobile_workflow_affordances_are_present():
+    root = Path(__file__).resolve().parents[2]
+    body = (root / "templates/cs/partials/as_dashboard_body.html").read_text(
+        encoding="utf-8"
+    )
+    mobile_card = (root / "templates/cs/partials/as_mobile_order_card.html").read_text(
+        encoding="utf-8"
+    )
+    card_macros = (root / "templates/cs/partials/as_card_macros.html").read_text(
+        encoding="utf-8"
+    )
+
+    for token in (
+        "editable-date-as",
+        "as-pending-btn",
+        "as-blueprint-checkbox",
+        "as-photos-btn",
+    ):
+        assert token in body
+        assert token in mobile_card
+    assert "as-content-tab-btn" in body
+    assert "as-content-tab-btn" in card_macros
+    assert "render_as_content_tabs" in mobile_card
+    assert "?open=erp-order" in mobile_card
+
+
 def test_as_dashboard_script_runs_after_erp_shell_fragment_swap():
     """AS fragment 재삽입 뒤에도 날짜/일정찾기 이벤트가 다시 붙어야 한다."""
     src = (

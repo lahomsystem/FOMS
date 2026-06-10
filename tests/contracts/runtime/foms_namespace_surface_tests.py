@@ -2461,6 +2461,7 @@ _PAC_PARTIALS_SHARED_HTML_ALLOWLIST = frozenset(
         "layout_head.html",
         "layout_nav.html",
         "layout_scripts.html",
+        "mobile_queue_pager.html",
     }
 )
 

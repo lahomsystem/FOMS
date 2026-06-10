@@ -72,6 +72,51 @@ def _seed_drawing_order() -> Order:
     return order
 
 
+def _seed_mobile_workflow_parity_orders() -> None:
+    today = date.today().strftime("%Y-%m-%d")
+    db_session.add(
+        Order(
+            received_date=today,
+            customer_name="모바일 제작완료 QA",
+            phone="010-1111-2222",
+            address="Seoul",
+            product="붙박이장",
+            status="PRODUCTION",
+            manager_name="Visual Admin",
+            is_erp_order=True,
+            structured_data={
+                "parties": {
+                    "customer": {"name": "모바일 제작완료 QA", "phone": "010-1111-2222"},
+                    "manager": {"name": "Visual Admin"},
+                },
+                "site": {"address_full": "Seoul"},
+                "workflow": {"stage": "생산"},
+            },
+        )
+    )
+    db_session.add(
+        Order(
+            received_date=today,
+            customer_name="모바일 시공완료 QA",
+            phone="010-3333-4444",
+            address="Seoul",
+            product="싱크대",
+            status="COMPLETED",
+            manager_name="Visual Admin",
+            is_erp_order=True,
+            structured_data={
+                "parties": {
+                    "customer": {"name": "모바일 시공완료 QA", "phone": "010-3333-4444"},
+                    "manager": {"name": "Visual Admin"},
+                },
+                "site": {"address_full": "Seoul"},
+                "workflow": {"stage": "COMPLETED"},
+            },
+        )
+    )
+    db_session.commit()
+
+
 @pytest.mark.parametrize("width,height", [(390, 844), (1280, 800)])
 def test_p1_mobile_tablet_ux_smoke(page, visual_live_server_erp_v2, width, height) -> None:
     """Smoke: search overlay, split shell, nav badges wiring on dashboard."""
@@ -150,3 +195,29 @@ def test_p1_drawing_mobile_queue_smoke(page, visual_live_server_erp_v2) -> None:
     assert metrics["thumbHeight"] <= 90
     assert metrics["cardWidth"] > metrics["thumbWidth"] * 2
     assert not any("Identifier 'TEAM_LABELS'" in error for error in errors)
+
+
+@pytest.mark.parametrize("width,height", [(320, 844), (412, 915), (768, 900)])
+def test_mobile_workflow_parity_buttons_smoke(page, visual_live_server_erp_v2, width, height) -> None:
+    """Actual mobile browser smoke for PC workflow parity buttons."""
+    _seed_mobile_workflow_parity_orders()
+    page.set_viewport_size({"width": width, "height": height})
+    _login(page, visual_live_server_erp_v2)
+
+    page.goto(f"{visual_live_server_erp_v2}/erp/production/dashboard", wait_until="networkidle")
+    complete_btn = page.locator('[data-action="completeProduction"]').first
+    complete_btn.wait_for(state="visible")
+    assert page.locator('a[href*="open=erp-order"]').count() >= 1
+    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1")
+
+    page.goto(f"{visual_live_server_erp_v2}/erp/construction/dashboard", wait_until="networkidle")
+    reupload_btn = page.locator('[data-action="reuploadConstructionPhotos"]').first
+    as_btn = page.locator('[data-action="openAsAcceptModal"]').first
+    reupload_btn.wait_for(state="visible")
+    as_btn.wait_for(state="visible")
+    assert page.locator('a[href*="open=erp-order"]').count() >= 1
+    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1")
+    min_height = page.locator(".foms-queue-card-v2__action .foms-btn").first.evaluate(
+        "el => Math.round(el.getBoundingClientRect().height)"
+    )
+    assert min_height >= 44

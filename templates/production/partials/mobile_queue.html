@@ -1,4 +1,5 @@
 {% from 'partials/shared/erp_mobile_queue_card_v2.html' import render_queue_card_v2 %}
+{% from 'partials/shared/mobile_queue_pager.html' import render_mobile_pager %}
 {% set _mq_base = url_for('erp_production_page.erp_production_dashboard') %}
 {% set _mq_ctx = [] %}
 {% if filters and filters.get('q') %}{% set _ = _mq_ctx.append('q=' ~ filters.get('q')|urlencode) %}{% endif %}
@@ -6,32 +7,30 @@
 {% if erp_mine_only %}{% set _ = _mq_ctx.append('mine=1') %}{% endif %}
 {% set _mq_loaded = [page * per_page, total_orders] | min %}
 
-<section class="erp-mobile-queue-section foms-mobile-queue-section" aria-label="생산 모바일 작업 큐"
-  data-foms-mobile-queue-scroll
-  data-next-page="{{ page + 1 if page < total_pages else 0 }}"
-  data-total-pages="{{ total_pages }}"
-  data-page-label="{{ _mq_loaded }} / 전체 {{ total_orders }}건">
+<section class="erp-mobile-queue-section foms-mobile-queue-section" aria-label="생산 모바일 작업 큐">
   <div class="erp-mobile-queue-section__summary foms-section-header section-header">
     <div>
       <span class="erp-mobile-queue-section__eyebrow">생산 작업 큐</span>
       <h2 class="erp-mobile-queue-section__title foms-section-header__title">제작 대기·진행</h2>
     </div>
-    <span class="erp-mobile-queue-section__count foms-section-header__count" data-foms-mobile-queue-page>{{ _mq_loaded }} / 전체 {{ total_orders }}건</span>
+    <span class="erp-mobile-queue-section__count foms-section-header__count">{{ _mq_loaded }} / 전체 {{ total_orders }}건</span>
   </div>
 
   {% if orders %}
-    <div class="erp-mobile-queue-section__list foms-mobile-queue-list" data-foms-mobile-queue-list>
-      {% include 'production/partials/mobile_queue_chunk.html' %}
+    <div class="erp-mobile-queue-section__list foms-mobile-queue-list">
+      {% for o in orders %}
+        {% set task_action = None %}
+        {% if o.stage == '제작대기' and o.is_sales_approved %}
+          {% set task_action = {'label': '제작 시작', 'icon': 'fas fa-play', 'data_action': 'startProduction', 'button_class': 'erp-production-action'} %}
+        {% elif o.stage == '제작대기' %}
+          {% set task_action = {'label': '고객 컨펌 전', 'icon': 'fas fa-pause-circle', 'badge_only': true, 'button_class': 'foms-production-status'} %}
+        {% elif o.stage == '제작중' %}
+          {% set task_action = {'label': '제작 완료', 'icon': 'fas fa-check', 'data_action': 'completeProduction', 'button_class': 'erp-production-action'} %}
+        {% endif %}
+        {{ render_queue_card_v2(o, can_edit_erp|default(false), task_action, '--production', o.stage) }}
+      {% endfor %}
     </div>
-
-    {% if page < total_pages %}
-      <div class="foms-mobile-queue-more" data-foms-mobile-queue-sentinel>
-        <a class="foms-btn foms-btn--secondary foms-btn--full"
-           href="{{ _mq_base }}?{% if _mq_ctx %}{{ _mq_ctx|join('&') }}&{% endif %}page={{ page + 1 }}">
-          더 보기 ({{ _mq_loaded }}/{{ total_orders }})
-        </a>
-      </div>
-    {% endif %}
+    {{ render_mobile_pager(_mq_base, _mq_ctx|join('&'), page, total_pages) }}
   {% else %}
     <div class="foms-mobile-empty">
       <i class="fas fa-inbox" aria-hidden="true"></i>

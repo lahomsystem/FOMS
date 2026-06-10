@@ -39,3 +39,23 @@ def test_manager_dropdown_cleanup_is_centralized():
     assert "function closeManagerDropdown(options)" in content
     assert "let _activeManagerDropdown = null;" in content
     assert "closeManagerDropdown();" in content
+
+
+def test_measurement_mobile_edit_contract_is_wired_to_v2_cards():
+    mobile_js = Path("static/js/measurement/mobile.js").read_text(encoding="utf-8")
+    mobile_list = Path("templates/measurement/partials/mobile_list.html").read_text(
+        encoding="utf-8"
+    )
+    pc_dashboard = Path("templates/measurement/partials/dashboard_main.html").read_text(
+        encoding="utf-8"
+    )
+
+    assert "data-measurement-mobile-edit-trigger" in mobile_js
+    assert "erp-measurement-mobile-edit-sheet" in mobile_list
+    assert "data-measurement-mobile-edit-trigger" in mobile_list
+    assert "data-measurement-mobile-manager-select-sheet" in mobile_list
+    for field in ('data-field="address"', 'data-field="phone"', 'data-field="manager"'):
+        assert field in pc_dashboard
+    for field in ('data-field="address"', 'data-field="phone"', 'data-field="manager"'):
+        assert field in mobile_list
+    assert "edit_return_to='erp_measurement_dashboard'" in mobile_list

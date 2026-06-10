@@ -243,27 +243,22 @@
 
       <!-- Mobile Card View -->
       {% if erp_mobile_v2_enabled %}
-      {% set _as_loaded = [page * per_page, total_orders] | min %}
-      <section class="erp-as-mobile-list foms-shell-body d-md-none"
-        data-foms-mobile-queue-scroll
-        data-next-page="{{ page + 1 if page < total_pages else 0 }}"
-        data-total-pages="{{ total_pages }}"
-        data-page-label="{{ _as_loaded }} / 전체 {{ total_orders }}건">
+      {% from 'partials/shared/mobile_queue_pager.html' import render_mobile_pager %}
+      {% set _as_ctx = [] %}
+      {% if as_tab %}{% set _ = _as_ctx.append('tab=' ~ as_tab|urlencode) %}{% endif %}
+      {% if status_filter %}{% set _ = _as_ctx.append('status=' ~ status_filter|urlencode) %}{% endif %}
+      {% if search_q %}{% set _ = _as_ctx.append('q=' ~ search_q|urlencode) %}{% endif %}
+      {% if sort_dir %}{% set _ = _as_ctx.append('sort_dir=' ~ sort_dir|urlencode) %}{% endif %}
+      {% if erp_mine_only %}{% set _ = _as_ctx.append('mine=1') %}{% endif %}
+      <section class="erp-as-mobile-list foms-shell-body d-md-none">
         <div class="erp-as-mobile-list__sticky">
           {% include 'cs/partials/as_mobile_controls.html' %}
         </div>
         {% if rows %}
-          <div class="erp-pro-order-cards" data-foms-mobile-queue-list>
+          <div class="erp-pro-order-cards foms-mobile-queue-list">
             {% for r in rows %}{% include 'cs/partials/as_mobile_order_card.html' %}{% endfor %}
           </div>
-          {% if page < total_pages %}
-          <div class="foms-mobile-queue-more" data-foms-mobile-queue-sentinel>
-            <a class="foms-btn foms-btn--secondary foms-btn--full"
-               href="{{ url_for('erp_as_page.erp_as_dashboard', page=page+1, tab=as_tab, status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}">
-              더 보기 ({{ _as_loaded }}/{{ total_orders }})
-            </a>
-          </div>
-          {% endif %}
+          {{ render_mobile_pager(url_for('erp_as_page.erp_as_dashboard'), _as_ctx|join('&'), page, total_pages) }}
         {% else %}
           <div class="erp-pro-empty">
             <i class="fas fa-inbox"></i>
@@ -2511,14 +2506,7 @@
     // AS 내용 자동 저장 (입력 중엔 로컬 draft만, blur=입력박스 밖 클릭 시 저장)
     bindAsContentAutosaveInputs(document);
 
-    // 무한스크롤로 append된 AS 카드에 동일 per-card 핸들러 재배선 (멱등 가드로 기존 카드 스킵).
-    addAsDashboardListener(document, 'foms:mobile-queue-appended', function () {
-      bindAsContentEditableInputs(document);
-      bindAsDateAndWorkerInputs(document);
-      bindAsContentAutosaveInputs(document);
-    });
-
-    // --- per-card 바인딩 함수 (초기 렌더 + 무한스크롤 append 공용, dataset 가드로 멱등) ---
+    // --- per-card 바인딩 함수 (페이지별 렌더마다 init에서 호출, dataset 가드로 멱등) ---
     function bindAsContentEditableInputs(scope) {
       (scope || document).querySelectorAll('.as-content-input[contenteditable="true"]').forEach((input) => {
         if (input.dataset.asEditableBound === '1') return;

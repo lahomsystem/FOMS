@@ -932,6 +932,14 @@ def erp_order_mobile_detail(order_id: int):
     order_row = build_mobile_queue_order_row(db, order)
     current_user = getattr(g, 'current_user', None)
     can_edit_erp_flag = can_edit_erp(current_user)
+    return_to = (request.args.get('return_to') or '').strip()
+    back_endpoint_by_return_to = {
+        'erp_measurement_dashboard': 'erp_measurement_dashboard.erp_measurement_dashboard',
+        'erp_shipment_dashboard': 'erp_shipment_page.erp_shipment_dashboard',
+        'erp_production_dashboard': 'erp_production_page.erp_production_dashboard',
+        'erp_construction_dashboard': 'erp_construction_page.erp_construction_dashboard',
+    }
+    back_endpoint = back_endpoint_by_return_to.get(return_to, 'erp_dashboard.erp_dashboard')
 
     return render_template(
         'orders/mobile_order_detail.html',
@@ -940,5 +948,5 @@ def erp_order_mobile_detail(order_id: int):
         erp_sub_nav_active='dashboard',
         mobile_shell_title='주문 상세',
         mobile_shell_show_back=True,
-        mobile_shell_back_href=url_for('erp_dashboard.erp_dashboard'),
+        mobile_shell_back_href=url_for(back_endpoint),
     )

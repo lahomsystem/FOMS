@@ -464,22 +464,6 @@ def erp_as_dashboard():
     # 시공자가 아닌 사용자만 AS 카테고리 사진 조회 가능 (관리자 등)
     can_view_as_photos = not (current_user and (current_user.team or '').strip() == 'CONSTRUCTION')
 
-    # 모바일 v2 무한스크롤 조각 요청 → 카드 청크만 반환 (mobile-queue-scroll.js가 append).
-    if mobile_v2_active and request.args.get('mobile_chunk') == '1':
-        chunk = render_template(
-            'cs/partials/as_mobile_card_chunk.html',
-            rows=rows,
-            can_edit_erp=can_edit_erp(current_user),
-            can_view_as_photos=can_view_as_photos,
-            page=page,
-            per_page=per_page,
-            total_pages=total_pages,
-            total_orders=total_orders,
-        )
-        response = make_response(chunk)
-        apply_erp_shell_fragment_headers(response, request)
-        return response
-
     template_name = (
         'cs/partials/as_dashboard_fragment.html'
         if wants_erp_shell_tab_body(request)
