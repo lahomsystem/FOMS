@@ -22,7 +22,7 @@ UI가 안정된 뒤 전체 PNG 회귀가 필요할 때만:
 2. **win32 baseline 재생성** — `--update-snapshots` → `tests/visual/baseline/win32/*.png`
 3. **win32 PNG 커밋**
 4. **`pre_push_smoke.ps1 -Visual`** (선택)
-5. **CI linux SSOT** — `ci.yml` visual job (저장소 정책에 따라 유지/스킵)
+5. **CI linux SSOT (선택)** — `workflow_dispatch`용 `.github/workflows/visual-baseline-linux.yml`만 수동 실행
 
 > **주의:** Windows에서 `baseline/linux/` PNG를 재생성·커밋하지 마세요. Linux baseline은 CI SSOT입니다.
 
@@ -101,7 +101,7 @@ python -m pytest tests/visual -q
 ```
 
 OneDrive 잠금이 있으면 `TEMP`를 `C:\tmp`로 두고, 그래도 실패하면 레포를 OneDrive 밖 경로로 clone하거나 동기화 일시 중지 후 재시도합니다.
-- **플랫폼 baseline**: 로컬은 `tests/visual/baseline/win32/`. CI는 `linux` baseline을 쓰므로 **Windows에서 linux baseline을 재생성하지 말 것**. CI `test` job은 `--ignore=tests/visual`; visual job이 linux SSOT를 refresh합니다.
+- **플랫폼 baseline**: 로컬은 `tests/visual/baseline/win32/`. CI `test` job은 Playwright PNG 회귀 없이 `test_p1_mockup_*` 구조 테스트만 실행합니다. linux SSOT refresh는 `visual-baseline-linux.yml` 수동 워크플로만 사용합니다.
 
 `-Full -Visual`처럼 조합 가능합니다.
 
