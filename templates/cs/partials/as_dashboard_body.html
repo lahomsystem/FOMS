@@ -108,23 +108,24 @@
     </div>
     <div class="erp-pro-card__body">
       {% if as_tab == 'incomplete' %}
-      <div class="erp-as-summary-strip{% if erp_mobile_v2_enabled %} d-none d-md-grid{% endif %}" aria-label="AS 미완료 요약">
-        <div class="erp-as-summary-pill" data-as-incomplete-summary="total" data-count="{{ as_incomplete_summary.total }}">
-          <span class="erp-as-summary-pill__label">총 건수</span>
-          <span class="erp-as-summary-pill__value">{{ as_incomplete_summary.total }}건</span>
-        </div>
-        <div class="erp-as-summary-pill" data-as-incomplete-summary="visit_confirmed" data-count="{{ as_incomplete_summary.visit_confirmed }}">
-          <span class="erp-as-summary-pill__label">방문 확정</span>
-          <span class="erp-as-summary-pill__value">{{ as_incomplete_summary.visit_confirmed }}건</span>
-        </div>
-        <div class="erp-as-summary-pill" data-as-incomplete-summary="pending" data-count="{{ as_incomplete_summary.pending }}">
-          <span class="erp-as-summary-pill__label">미결</span>
-          <span class="erp-as-summary-pill__value">{{ as_incomplete_summary.pending }}건</span>
-        </div>
-        <div class="erp-as-summary-pill" data-as-incomplete-summary="unassigned" data-count="{{ as_incomplete_summary.unassigned }}">
-          <span class="erp-as-summary-pill__label">아직 미정</span>
-          <span class="erp-as-summary-pill__value">{{ as_incomplete_summary.unassigned }}건</span>
-        </div>
+      {# 요약 pill = 버킷 필터 링크(데스크톱). 모바일 stats 칩과 동일 백엔드(bucket) 사용. #}
+      <div class="erp-as-summary-strip{% if erp_mobile_v2_enabled %} d-none d-md-grid{% endif %}" role="group" aria-label="AS 미완료 버킷 필터">
+        {% for b in [
+          {'key': 'total', 'label': '총 건수'},
+          {'key': 'visit_confirmed', 'label': '방문 확정'},
+          {'key': 'pending', 'label': '미결'},
+          {'key': 'unassigned', 'label': '아직 미정'}
+        ] %}
+        {% set _bucket_active = (as_bucket == b.key) or (b.key == 'total' and not as_bucket) %}
+        <a class="erp-as-summary-pill{% if _bucket_active %} is-active{% endif %}"
+          data-as-incomplete-summary="{{ b.key }}"
+          data-count="{{ as_incomplete_summary[b.key] }}"
+          {% if _bucket_active %}aria-current="true"{% endif %}
+          href="{{ url_for('erp_as_page.erp_as_dashboard', tab='incomplete', bucket=(none if b.key == 'total' else b.key), status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}">
+          <span class="erp-as-summary-pill__label">{{ b.label }}</span>
+          <span class="erp-as-summary-pill__value">{{ as_incomplete_summary[b.key] }}건</span>
+        </a>
+        {% endfor %}
       </div>
       {% endif %}
       <!-- PC Table View -->
@@ -246,13 +247,15 @@
       {% set _as_ctx = [] %}
       {% if as_tab %}{% set _ = _as_ctx.append('tab=' ~ as_tab|urlencode) %}{% endif %}
       {% if status_filter %}{% set _ = _as_ctx.append('status=' ~ status_filter|urlencode) %}{% endif %}
+      {% if as_bucket %}{% set _ = _as_ctx.append('bucket=' ~ as_bucket|urlencode) %}{% endif %}
       {% if search_q %}{% set _ = _as_ctx.append('q=' ~ search_q|urlencode) %}{% endif %}
       {% if sort_dir %}{% set _ = _as_ctx.append('sort_dir=' ~ sort_dir|urlencode) %}{% endif %}
       {% if erp_mine_only %}{% set _ = _as_ctx.append('mine=1') %}{% endif %}
       <section class="erp-as-mobile-list foms-shell-body d-md-none">
         <div class="erp-as-mobile-list__sticky">
-          {% include 'cs/partials/as_mobile_controls.html' %}
+          {% include 'cs/partials/as_mobile_summary.html' %}
         </div>
+        {% include 'cs/partials/as_mobile_controls.html' %}
         {% if rows %}
           <div class="erp-pro-order-cards foms-mobile-queue-list">
             {% for r in rows %}{% include 'cs/partials/as_mobile_order_card.html' %}{% endfor %}

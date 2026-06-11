@@ -130,7 +130,7 @@ def test_as_dashboard_mobile_v2_wiring_contract():
     assert "erp-as-mobile-card__thumb" in card_src
     assert "erp-as-mobile-card__contact-row" in card_src
     assert "erp-as-mobile-card__action--pending" in card_src
-    assert "grid-template-columns: 68px minmax(0, 1fr) minmax(0, 1fr)" in css_src
+    assert "grid-template-columns: 78px minmax(0, 1fr) minmax(0, 1fr)" in css_src  # 접수 날짜 풀표시(2026-06-11 비클립)
     assert "grid-template-columns: minmax(0, 1fr)" in css_src
     assert "min-width: 0;" in css_src
     # PC식 번호 페이저(무한스크롤 아님)
@@ -217,3 +217,67 @@ def test_as_dashboard_hides_thumb_when_flag_off(client, monkeypatch):
     body = response.get_data(as_text=True)
     assert "erp-as-mobile-list__sticky" in body
     assert "erp-as-mobile-card__thumb" not in body
+
+
+def _create_bucket_order(name, *, pending=False, visit=None):
+    from datetime import date
+
+    today = date.today().strftime("%Y-%m-%d")
+    sd = {"shipment": {"as_content": "<div>n</div>", "as_pending": pending}}
+    if visit:
+        sd["schedule"] = {"as_visit": {"date": visit}}
+    order = Order(
+        received_date=today,
+        customer_name=name,
+        phone="010-0000-0000",
+        address="Seoul",
+        product="x",
+        status="AS_RECEIVED",
+        manager_name="M",
+        as_received_date=today,
+        is_erp_order=True,
+        structured_data=sd,
+    )
+    db_session.add(order)
+    db_session.commit()
+    return order
+
+
+def test_as_dashboard_bucket_filter_narrows_list(client):
+    """stats 버킷 필터: ?bucket=pending|visit_confirmed|unassigned가 목록을 좁힌다.
+    잘못된 bucket은 무시(전체 미완료). 버킷은 mutually exclusive."""
+    from datetime import date
+
+    _login_as_admin(client)
+    today = date.today().strftime("%Y-%m-%d")
+    _create_bucket_order("미결고객", pending=True, visit=today)         # pending
+    _create_bucket_order("방문확정고객", pending=False, visit=today)     # visit_confirmed
+    _create_bucket_order("미정고객", pending=False, visit=None)          # unassigned
+
+    def body(url):
+        resp = client.get(url)
+        assert resp.status_code == 200
+        return resp.get_data(as_text=True)
+
+    b_all = body("/erp/as?tab=incomplete")
+    assert "미결고객" in b_all and "방문확정고객" in b_all and "미정고객" in b_all
+
+    b_pending = body("/erp/as?tab=incomplete&bucket=pending")
+    assert "미결고객" in b_pending
+    assert "방문확정고객" not in b_pending and "미정고객" not in b_pending
+
+    b_visit = body("/erp/as?tab=incomplete&bucket=visit_confirmed")
+    assert "방문확정고객" in b_visit
+    assert "미결고객" not in b_visit and "미정고객" not in b_visit
+
+    b_unassigned = body("/erp/as?tab=incomplete&bucket=unassigned")
+    assert "미정고객" in b_unassigned
+    assert "미결고객" not in b_unassigned and "방문확정고객" not in b_unassigned
+
+    # 잘못된 bucket → 필터 무시(전체)
+    b_bad = body("/erp/as?tab=incomplete&bucket=zzz")
+    assert "미결고객" in b_bad and "방문확정고객" in b_bad and "미정고객" in b_bad
+
+    # 버킷은 미완료 탭에서만 적용(완료 탭에선 무시)
+    b_completed = body("/erp/as?tab=completed&bucket=pending")
+    assert "미결고객" not in b_completed  # 완료 탭엔 미완료 건 없음

@@ -1,11 +1,12 @@
-/* §6.5 AS camera-first bar (mobile v2) */
+/* §6.5 AS camera-first bar (mobile v2)
+   position:sticky;top:0였으나 셸 헤더(z120)가 항상 덮어 스크롤 시 가려지는
+   死구역이었다. 촬영은 1회성 인테이크 프롬프트이므로 일반 흐름으로 흘려보내고,
+   고정 chrome 높이를 줄여 케이스 목록이 더 빨리 보이게 한다. */
 .foms-as-camera-bar {
-  position: sticky;
-  top: 0;
-  z-index: 20;
+  position: static;
   background: var(--foms-color-surface, #fff);
   border-bottom: 1px solid var(--foms-color-border, #e2e8f0);
-  padding: var(--foms-space-3, 12px);
+  padding: var(--foms-space-2, 8px) var(--foms-space-3, 12px);
 }
 
 .foms-as-camera-bar__inner {

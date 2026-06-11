@@ -109,12 +109,7 @@
       <span>{% if r.as_pending %}해제{% else %}미결{% endif %}</span>
     </button>
     {% endif %}
-    <label class="erp-as-mobile-card__action erp-as-mobile-card__blueprint">
-      <input type="checkbox" class="form-check-input as-blueprint-checkbox" data-order-id="{{ r.id }}"
-        {% if r.has_as_blueprint %}checked{% endif %}
-        aria-label="주문 #{{ r.id }} AS도면 여부">
-      <span>도면</span>
-    </label>
+    {# 모바일 v2: 'AS도면' 체크는 현장 빠른작업 흐름에 불필요 → 데스크톱/레거시 카드에만 유지 #}
     {% if has_phone %}
     <a class="erp-as-mobile-card__action" href="tel:{{ safe_phone }}">
       <i class="fas fa-phone" aria-hidden="true"></i>

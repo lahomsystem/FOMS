@@ -570,12 +570,20 @@ def test_p1_as_mobile_v2_home_ia_parity() -> None:
     controls = (ROOT / "templates/cs/partials/as_mobile_controls.html").read_text(
         encoding="utf-8"
     )
+    summary = (ROOT / "templates/cs/partials/as_mobile_summary.html").read_text(
+        encoding="utf-8"
+    )
     camera = (ROOT / "templates/cs/partials/as_mobile_v2_camera_bar.html").read_text(
         encoding="utf-8"
     )
     for selector in ("foms-shell-body", "foms-mobile-queue-list", "foms-shell-fab"):
         assert selector in body, selector
-    for selector in ("foms-mobile-filter-bar", "chip-strip", "foms-chip-strip", "foms-section-header"):
+    # 슬림 sticky 요약 바(section-header + 내담당만 토글)는 as_mobile_summary.html로 분리
+    assert "as_mobile_summary.html" in body
+    assert "foms-section-header" in summary
+    assert "erp-as-mobile-controls__mine-toggle" in summary
+    # 스크롤로 흘려보내는 보조 컨트롤(필터 바·칩 스트립)은 controls에 유지
+    for selector in ("foms-mobile-filter-bar", "chip-strip", "foms-chip-strip"):
         assert selector in controls, selector
     assert "foms-as-camera-bar" in camera
 
