@@ -117,11 +117,11 @@ def test_batch_resolve_as_thumbnail_urls_first_as_image(mock_url, monkeypatch, a
 def test_as_dashboard_mobile_v2_wiring_contract():
     root = Path(__file__).resolve().parents[2]
     body_src = (root / "templates/cs/partials/as_dashboard_body.html").read_text(encoding="utf-8")
-    dash_src = (root / "templates/cs/as_dashboard.html").read_text(encoding="utf-8")
     card_src = (root / "templates/cs/partials/as_mobile_order_card.html").read_text(encoding="utf-8")
     css_src = (root / "static/css/components/foms-as-mobile-card.css").read_text(encoding="utf-8")
 
-    assert "foms-as-mobile-card.css" in dash_src
+    # 카드 CSS 링크는 body 파셜에 있어야 fast-tab 프래그먼트(head 없음)에도 실려 FOUC가 없다
+    assert "foms-as-mobile-card.css" in body_src
     assert "erp-as-mobile-list__sticky" in body_src
     assert "foms-mobile-v2-tab-notice" not in body_src
     assert "모바일 홈 대시보드 v2" not in body_src
@@ -281,3 +281,24 @@ def test_as_dashboard_bucket_filter_narrows_list(client):
     # 버킷은 미완료 탭에서만 적용(완료 탭에선 무시)
     b_completed = body("/erp/as?tab=completed&bucket=pending")
     assert "미결고객" not in b_completed  # 완료 탭엔 미완료 건 없음
+
+
+def test_as_fast_tab_fragment_includes_card_css(client, monkeypatch):
+    """FOUC 가드: fast-tab 프래그먼트 응답(head 없음)에도 카드 CSS가 실려야
+    탭 첫 진입에서 카드가 원시(미스타일)로 뜨지 않는다."""
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    user = _login_as_admin(client)
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+    _create_as_order(customer_name="프래그먼트 AS")
+
+    full = client.get("/erp/as?tab=incomplete").get_data(as_text=True)
+    assert "foms-as-mobile-card.css" in full
+
+    frag_resp = client.get(
+        "/erp/as?tab=incomplete&view=fragment",
+        headers={"X-FOMS-ERP-SHELL": "1"},
+    )
+    assert frag_resp.status_code == 200
+    frag = frag_resp.get_data(as_text=True)
+    assert "foms-as-mobile-card.css" in frag  # 프래그먼트에도 카드 CSS 동반(FOUC 방지)
+    assert "<html" not in frag.lower()  # 전체 문서가 아닌 부분 스왑이어야
