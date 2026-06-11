@@ -954,48 +954,52 @@
 </script>
 
 <script>
-    // ERP 대시보드/알림에서 바로 ERP Order 탭으로 오픈 (?open=erp-order)
+    // ERP 대시보드/알림/통합검색에서 바로 ERP Order 탭으로 오픈 (?open=erp-order)
     // 첨부로 포커스: ?focus=attachments&category=drawing
     document.addEventListener('DOMContentLoaded', function () {
         try {
             const qs = new URLSearchParams(window.location.search || '');
             const openTarget = qs.get('open');
-            if (openTarget === 'erp-order') {
-                const btn = document.getElementById('erp-order-tab');
-                if (btn && typeof bootstrap !== 'undefined' && bootstrap.Tab) {
-                    const focusTarget = (qs.get('focus') || '').trim();
-                    const category = (qs.get('category') || '').trim().toLowerCase();
-                    if (focusTarget === 'attachments') {
-                        btn.addEventListener('shown.bs.tab', function () {
-                            setTimeout(() => {
-                                if (category) {
-                                    const categorySelect = document.getElementById('erp-attachments-category');
-                                    if (categorySelect && ['measurement', 'drawing', 'construction', 'as'].includes(category)) {
-                                        categorySelect.value = category;
-                                    }
-                                }
-                                const target =
-                                    document.getElementById('erp-attachments-gallery')
-                                    || document.getElementById('erp-attachments-category')
-                                    || document.getElementById('erp-attachments-input')
-                                    || document.getElementById('erp-attachments-status');
-                                if (target) {
-                                    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                    const prevOutline = target.style.outline;
-                                    const prevOffset = target.style.outlineOffset;
-                                    target.style.outline = '3px solid rgba(13,110,253,0.5)';
-                                    target.style.outlineOffset = '4px';
-                                    setTimeout(() => {
-                                        target.style.outline = prevOutline;
-                                        target.style.outlineOffset = prevOffset;
-                                    }, 1400);
-                                }
-                            }, 350);
-                        }, { once: true });
-                    }
-                    bootstrap.Tab.getOrCreateInstance(btn).show();
-                }
+            if (openTarget !== 'erp-order') {
+                return;
             }
+            const btn = document.getElementById('erp-order-tab');
+            if (!btn || typeof bootstrap === 'undefined' || !bootstrap.Tab) {
+                return;
+            }
+
+            const focusTarget = (qs.get('focus') || '').trim();
+            const category = (qs.get('category') || '').trim().toLowerCase();
+            if (focusTarget === 'attachments') {
+                btn.addEventListener('shown.bs.tab', function () {
+                    setTimeout(() => {
+                        if (category) {
+                            const categorySelect = document.getElementById('erp-attachments-category');
+                            if (categorySelect && ['measurement', 'drawing', 'construction', 'as'].includes(category)) {
+                                categorySelect.value = category;
+                            }
+                        }
+                        const target =
+                            document.getElementById('erp-attachments-gallery')
+                            || document.getElementById('erp-attachments-category')
+                            || document.getElementById('erp-attachments-input')
+                            || document.getElementById('erp-attachments-status');
+                        if (target) {
+                            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            const prevOutline = target.style.outline;
+                            const prevOffset = target.style.outlineOffset;
+                            target.style.outline = '3px solid rgba(13,110,253,0.5)';
+                            target.style.outlineOffset = '4px';
+                            setTimeout(() => {
+                                target.style.outline = prevOutline;
+                                target.style.outlineOffset = prevOffset;
+                            }, 1400);
+                        }
+                    }, 350);
+                }, { once: true });
+            }
+
+            bootstrap.Tab.getOrCreateInstance(btn).show();
         } catch (e) { }
     });
 

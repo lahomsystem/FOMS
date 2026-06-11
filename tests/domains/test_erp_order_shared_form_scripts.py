@@ -128,7 +128,8 @@ def test_edit_order_page_uses_canonical_open_erp_order_deep_link_only(erp_editor
     response = erp_editor_client.get(f"/edit/{order.id}?open=erp-order")
     assert response.status_code == 200
     body = response.get_data(as_text=True)
-    assert "openTarget === 'erp-order'" in body
+    assert "openTarget !== 'erp-order'" in body
+    assert "bootstrap.Tab.getOrCreateInstance(btn).show()" in body
     assert "erp-beta" not in body
 
 

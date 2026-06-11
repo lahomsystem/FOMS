@@ -51,6 +51,10 @@ def test_search_assets_imported() -> None:
     assert "foms-search-overlay.css" in surfaces
     assert "foms.search.recent.v1" in js
     assert "ArrowDown" in js
+    assert "navigateToResult" in js
+    assert "data-foms-erp-no-shell" in (ROOT / "templates/partials/shared/foms_search_results_partial.html").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_unified_search_finds_customer(app) -> None:
@@ -86,8 +90,38 @@ def test_unified_search_finds_customer(app) -> None:
 
         by_name = search_unified(db_session, "고명")
         assert by_name["customer"]
+        assert by_name["customer"][0]["href"] == f"/edit/{order.id}?open=erp-order"
         by_chosung = search_unified(db_session, "ㄱㅁㅇ")
         assert by_chosung["customer"]
+
+
+def test_unified_search_drawing_href_uses_workbench(app) -> None:
+    from db import db_session
+    from foms.services.foms_unified_search import search_unified
+    from models import Order
+
+    with app.app_context():
+        order = Order(
+            received_date="2026-05-30",
+            customer_name="도면고객",
+            phone="010-1111-2222",
+            address="Seoul",
+            product="붙박이",
+            status="DRAWING",
+            erp_stage_code="DRAWING",
+            is_erp_order=True,
+            blueprint_image_url="https://example.com/plan.png",
+            structured_data={
+                "parties": {"customer": {"name": "도면고객"}},
+                "workflow": {"stage": "DRAWING"},
+            },
+        )
+        db_session.add(order)
+        db_session.commit()
+
+        hits = search_unified(db_session, "도면고객", group="drawing")
+        assert hits["drawing"]
+        assert hits["drawing"][0]["href"] == f"/erp/drawing-workbench/{order.id}"
 
 
 def test_search_api_json(client, app) -> None:
@@ -141,4 +175,9 @@ def test_search_fragment_route(client, app) -> None:
     )
     response = client.get("/api/foms/search/fragment?q=test&group=all")
     assert response.status_code == 200
-    assert "foms-search-overlay" in response.get_data(as_text=True)
+    body = response.get_data(as_text=True)
+    assert "foms-search-overlay" in body or "foms-search-overlay__empty" in body
+    partial = (ROOT / "templates/partials/shared/foms_search_results_partial.html").read_text(
+        encoding="utf-8"
+    )
+    assert "data-foms-erp-no-shell" in partial

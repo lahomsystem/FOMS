@@ -75,8 +75,26 @@ def _order_phone(order: Order) -> str:
     return _normalize_for_search(customer.get("phone") or order.phone)
 
 
-def _order_href(order_id: int) -> str:
+def _order_edit_href(order_id: int) -> str:
+    """Mobile search → ERP Order edit tab (same contract as queue cards / notifications)."""
     return f"/edit/{order_id}?open=erp-order"
+
+
+def _order_drawing_href(order_id: int) -> str:
+    """Drawing bucket → stage-native workbench detail (not generic edit redirect)."""
+    return f"/erp/drawing-workbench/{order_id}"
+
+
+def _order_href(order_id: int, group: str) -> str:
+    """
+    Resolve search result navigation target by bucket.
+
+    Customer/order hits open the ERP Order tab on edit so the structured form
+    hydrates for that order. Drawing hits open the workbench detail surface.
+    """
+    if group == "drawing":
+        return _order_drawing_href(order_id)
+    return _order_edit_href(order_id)
 
 
 def _matches_phone(phone: str | None, erp_phone_digits: str | None, query: str) -> bool:
@@ -194,10 +212,15 @@ def search_unified(
             "order_id": order.id,
             "title": customer or f"주문 #{order.id}",
             "subtitle": phone or (order.product or ""),
-            "href": _order_href(order.id),
         }
         if "customer" in matched and len(buckets["customer"]) < limit_per_group:
-            buckets["customer"].append({**base, "group": "customer"})
+            buckets["customer"].append(
+                {
+                    **base,
+                    "group": "customer",
+                    "href": _order_href(order.id, "customer"),
+                }
+            )
         if "order" in matched and len(buckets["order"]) < limit_per_group:
             buckets["order"].append(
                 {
@@ -205,6 +228,7 @@ def search_unified(
                     "group": "order",
                     "title": f"#{order.id} · {customer or '주문'}",
                     "subtitle": order.product or phone,
+                    "href": _order_href(order.id, "order"),
                 }
             )
         if "drawing" in matched and len(buckets["drawing"]) < limit_per_group:
@@ -214,6 +238,7 @@ def search_unified(
                     "group": "drawing",
                     "title": f"도면 · #{order.id}",
                     "subtitle": customer,
+                    "href": _order_href(order.id, "drawing"),
                 }
             )
 

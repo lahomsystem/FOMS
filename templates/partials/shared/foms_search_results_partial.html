@@ -2,7 +2,7 @@
 {% macro _items(items) -%}
   {% for item in items %}
     <li>
-      <a class="foms-search-overlay__link" href="{{ item.href }}" data-search-result>
+      <a class="foms-search-overlay__link" href="{{ item.href }}" data-search-result data-foms-erp-no-shell="1">
         <span class="foms-search-overlay__link-title">{{ item.title }}</span>
         {% if item.subtitle %}
           <span class="foms-search-overlay__link-sub">{{ item.subtitle }}</span>

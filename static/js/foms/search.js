@@ -125,6 +125,21 @@
     );
   }
 
+  function navigateToResult(link) {
+    if (!link) {
+      return;
+    }
+    var href = (link.getAttribute('href') || '').trim();
+    if (!href || href === '#') {
+      return;
+    }
+    if (input) {
+      pushRecent(input.value);
+    }
+    closeDialog();
+    window.location.assign(href);
+  }
+
   function highlightIndex(index) {
     var links = resultLinks();
     links.forEach(function (link, i) {
@@ -179,8 +194,7 @@
         highlightIndex(Math.max(activeIndex - 1, 0));
       } else if (event.key === 'Enter' && activeIndex >= 0 && links[activeIndex]) {
         event.preventDefault();
-        pushRecent(input.value);
-        window.location.href = links[activeIndex].href;
+        navigateToResult(links[activeIndex]);
       }
     });
   }
@@ -190,9 +204,8 @@
     if (!target || !dialog.contains(target)) {
       return;
     }
-    if (input) {
-      pushRecent(input.value);
-    }
+    event.preventDefault();
+    navigateToResult(target);
   });
 
   document.body.addEventListener('htmx:afterSwap', function (event) {
