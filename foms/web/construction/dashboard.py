@@ -54,7 +54,7 @@ def erp_construction_dashboard():
     query = db.query(Order).filter(Order.dashboard_active_filter(days=60), Order.is_erp_order.is_(True))
 
     if mine_only and user:
-        mine_conds = build_mine_sql_filter(user)
+        mine_conds = build_mine_sql_filter(user, scope="construction")
         if mine_conds:
             query = query.filter(or_(*mine_conds))
 

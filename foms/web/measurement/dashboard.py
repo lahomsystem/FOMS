@@ -180,7 +180,7 @@ def erp_measurement_dashboard():
 
     # mine 필터를 SQL WHERE로 적용 (Python 루프 대신)
     if mine_filter_active:
-        mine_conds = build_mine_sql_filter(current_user)
+        mine_conds = build_mine_sql_filter(current_user, scope="sales")
         if mine_conds:
             query = query.filter(or_(*mine_conds))
 
@@ -214,7 +214,7 @@ def erp_measurement_dashboard():
             OrderScheduleDate.date <= range_end_str,
         ).distinct()
         if mine_filter_active:
-            p_mine_conds = build_mine_sql_filter(current_user)
+            p_mine_conds = build_mine_sql_filter(current_user, scope="sales")
             if p_mine_conds:
                 panel_query = panel_query.filter(or_(*p_mine_conds))
         panel_orders = panel_query.options(
@@ -242,7 +242,7 @@ def erp_measurement_dashboard():
         if panel_fallback_filter is not None:
             panel_fallback_query = base_query.filter(panel_fallback_filter)
             if mine_filter_active:
-                p_mine_conds = build_mine_sql_filter(current_user)
+                p_mine_conds = build_mine_sql_filter(current_user, scope="sales")
                 if p_mine_conds:
                     panel_fallback_query = panel_fallback_query.filter(or_(*p_mine_conds))
             panel_fallback_orders = panel_fallback_query.options(
@@ -347,7 +347,7 @@ def erp_measurement_dashboard():
     if row_fallback_filter is not None:
         row_fallback_query = base_query.filter(row_fallback_filter)
         if mine_filter_active:
-            r_mine_conds = build_mine_sql_filter(current_user)
+            r_mine_conds = build_mine_sql_filter(current_user, scope="sales")
             if r_mine_conds:
                 row_fallback_query = row_fallback_query.filter(or_(*r_mine_conds))
         fallback_rows = row_fallback_query.options(selectinload(Order.schedule_dates)).order_by(Order.id.desc()).limit(1500).all()

@@ -42,7 +42,7 @@
     {% for step in process_steps %}
     <a class="chip foms-chip{% if _pr_stage == step.label %} is-active{% endif %}" href="{{ _pr_base }}?stage={{ step.label|urlencode }}{% if _pr_keep_qs %}&{{ _pr_keep_qs }}{% endif %}">{{ step.display|default(step.label) }} {{ step.count }}</a>
     {% endfor %}
-    <a class="chip foms-chip{% if erp_mine_only %} is-active{% endif %}" href="{{ _pr_base }}?{{ _pr_ctx|join('&') }}{% if not erp_mine_only %}{% if _pr_ctx %}&{% endif %}mine=1{% endif %}">내 작업</a>
+    <a class="chip foms-chip{% if erp_mine_only %} is-active{% endif %}" href="{{ _pr_base }}?{{ _pr_ctx|join('&') }}{% if not erp_mine_only %}{% if _pr_ctx %}&{% endif %}mine=1{% endif %}">내 담당</a>
   </nav>
 
   <div
@@ -80,7 +80,7 @@
         </div>
         <label class="erp-mobile-queue-filters__check">
           <input type="checkbox" name="mine" value="1" {% if erp_mine_only %}checked{% endif %}>
-          <span>내 작업만 보기</span>
+          <span>내 담당만 보기</span>
         </label>
         <div class="erp-mobile-queue-filters__actions">
           <a class="btn btn-outline-secondary" href="{{ url_for('erp_production_page.erp_production_dashboard') }}">초기화</a>
