@@ -48,13 +48,12 @@ def test_search_overlay_template_contract() -> None:
 def test_search_assets_imported() -> None:
     surfaces = (ROOT / "static/css/foundation/foms-mobile-surfaces.css").read_text(encoding="utf-8")
     js = (ROOT / "static/js/foms/search.js").read_text(encoding="utf-8")
+    app_shell = (ROOT / "templates/partials/shared/foms_app_shell.html").read_text(encoding="utf-8")
     assert "foms-search-overlay.css" in surfaces
     assert "foms.search.recent.v1" in js
     assert "ArrowDown" in js
     assert "navigateToResult" in js
-    assert "data-foms-erp-no-shell" in (ROOT / "templates/partials/shared/foms_search_results_partial.html").read_text(
-        encoding="utf-8"
-    )
+    assert "mobile-queue-focus.js" in app_shell
 
 
 def test_unified_search_finds_customer(app) -> None:
@@ -90,7 +89,10 @@ def test_unified_search_finds_customer(app) -> None:
 
         by_name = search_unified(db_session, "고명")
         assert by_name["customer"]
-        assert by_name["customer"][0]["href"] == f"/edit/{order.id}?open=erp-order"
+        href = by_name["customer"][0]["href"]
+        assert f"focus_order={order.id}" in href
+        assert "open=erp-order" not in href
+        assert "view=queue" in href or "/erp/" in href
         by_chosung = search_unified(db_session, "ㄱㅁㅇ")
         assert by_chosung["customer"]
 
@@ -121,7 +123,10 @@ def test_unified_search_drawing_href_uses_workbench(app) -> None:
 
         hits = search_unified(db_session, "도면고객", group="drawing")
         assert hits["drawing"]
-        assert hits["drawing"][0]["href"] == f"/erp/drawing-workbench/{order.id}"
+        href = hits["drawing"][0]["href"]
+        assert href.startswith("/erp/drawing-workbench?")
+        assert f"focus_order={order.id}" in href
+        assert "open=erp-order" not in href
 
 
 def test_search_api_json(client, app) -> None:

@@ -1297,4 +1297,11 @@
     padding: 0 0.125rem;
     color: var(--foms-text-secondary, #556b82);
   }
+
+  .foms-queue-card-v2.is-focused,
+  .foms-drawing-queue-card.is-focused,
+  .erp-drawing-mobile-card.is-focused {
+    transform: translateY(-2px);
+    box-shadow: 0 0 0 2px rgba(10, 110, 209, 0.14), 0 14px 30px rgba(10, 110, 209, 0.16);
+  }
 }

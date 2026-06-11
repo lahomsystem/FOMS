@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
 from foms.services.erp_display import _ensure_dict, _normalize_for_search
+from foms.services.erp_order_deeplink import build_order_queue_focus_href
 from foms.services.phone_search import extract_phone_digit_query, normalize_phone_digits
 from models import Order
 
@@ -73,28 +74,6 @@ def _order_phone(order: Order) -> str:
     parties = sd.get("parties") if isinstance(sd.get("parties"), dict) else {}
     customer = parties.get("customer") if isinstance(parties.get("customer"), dict) else {}
     return _normalize_for_search(customer.get("phone") or order.phone)
-
-
-def _order_edit_href(order_id: int) -> str:
-    """Mobile search → ERP Order edit tab (same contract as queue cards / notifications)."""
-    return f"/edit/{order_id}?open=erp-order"
-
-
-def _order_drawing_href(order_id: int) -> str:
-    """Drawing bucket → stage-native workbench detail (not generic edit redirect)."""
-    return f"/erp/drawing-workbench/{order_id}"
-
-
-def _order_href(order_id: int, group: str) -> str:
-    """
-    Resolve search result navigation target by bucket.
-
-    Customer/order hits open the ERP Order tab on edit so the structured form
-    hydrates for that order. Drawing hits open the workbench detail surface.
-    """
-    if group == "drawing":
-        return _order_drawing_href(order_id)
-    return _order_edit_href(order_id)
 
 
 def _matches_phone(phone: str | None, erp_phone_digits: str | None, query: str) -> bool:
@@ -218,7 +197,7 @@ def search_unified(
                 {
                     **base,
                     "group": "customer",
-                    "href": _order_href(order.id, "customer"),
+                    "href": build_order_queue_focus_href(order, search_query=trimmed),
                 }
             )
         if "order" in matched and len(buckets["order"]) < limit_per_group:
@@ -228,7 +207,7 @@ def search_unified(
                     "group": "order",
                     "title": f"#{order.id} · {customer or '주문'}",
                     "subtitle": order.product or phone,
-                    "href": _order_href(order.id, "order"),
+                    "href": build_order_queue_focus_href(order, search_query=trimmed),
                 }
             )
         if "drawing" in matched and len(buckets["drawing"]) < limit_per_group:
@@ -238,7 +217,7 @@ def search_unified(
                     "group": "drawing",
                     "title": f"도면 · #{order.id}",
                     "subtitle": customer,
-                    "href": _order_href(order.id, "drawing"),
+                    "href": build_order_queue_focus_href(order, search_query=trimmed),
                 }
             )
 

@@ -1,4 +1,5 @@
 <div class="card mobile-order-card erp-drawing-mobile-card foms-drawing-queue-card foms-drawing-queue-card--{{ r.turn_tone }}"
+  data-order-id="{{ r.id }}"
   data-href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=r.id) }}"
   tabindex="0" role="link" aria-label="주문 {{ r.id }} {{ r.customer_name }} 도면 협업 열기">
   <div class="card-body foms-drawing-queue-card__grid">

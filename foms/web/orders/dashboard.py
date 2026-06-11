@@ -687,6 +687,7 @@ def erp_dashboard():
         f_q, effective_stage, f_urgent == '1', f_has_alert == '1', f_alert_type,
         f_team, request.args.get('mine') == '1', f_today == '1',
         request.args.get('view') == 'queue',
+        request.args.get('focus_order'),
     ))
     # mobile_chunk(무한스크롤 조각 요청)은 큐 전용 → 타워 페이로드 계산을 건너뛴다.
     _is_chunk = request.args.get('mobile_chunk') == '1'

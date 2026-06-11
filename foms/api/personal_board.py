@@ -34,19 +34,7 @@ personal_board_bp = Blueprint(
 )
 
 # 단계별 딥링크 URL 매핑 (해당 단계의 전용 대시보드로 직접 이동)
-STAGE_DASHBOARD_URL = {
-    "RECEIVED": "/erp/dashboard",
-    "MEASURE": "/erp/measurement",
-    "DRAWING": "/erp/drawing-workbench",
-    "CONFIRM": "/erp/dashboard",
-    "PRODUCTION": "/erp/production/dashboard",
-    "CONSTRUCTION": "/erp/construction/dashboard",
-    "CS": "/erp/dashboard",
-    "COMPLETED": "/erp/completion",
-    "AS": "/erp/as",
-    "AS_RECEIVED": "/erp/as",
-    "AS_COMPLETED": "/erp/as",
-}
+from foms.services.erp_order_deeplink import STAGE_DASHBOARD_URL
 
 
 def _display_customer_name(customer_name, structured_data, order_id):
