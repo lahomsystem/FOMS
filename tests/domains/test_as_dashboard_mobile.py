@@ -119,12 +119,20 @@ def test_as_dashboard_mobile_v2_wiring_contract():
     body_src = (root / "templates/cs/partials/as_dashboard_body.html").read_text(encoding="utf-8")
     dash_src = (root / "templates/cs/as_dashboard.html").read_text(encoding="utf-8")
     card_src = (root / "templates/cs/partials/as_mobile_order_card.html").read_text(encoding="utf-8")
+    css_src = (root / "static/css/components/foms-as-mobile-card.css").read_text(encoding="utf-8")
 
     assert "foms-as-mobile-card.css" in dash_src
     assert "erp-as-mobile-list__sticky" in body_src
+    assert "foms-mobile-v2-tab-notice" not in body_src
+    assert "모바일 홈 대시보드 v2" not in body_src
     # 카드 마크업은 공용 단일 카드 파티얼로 이동(SSOT)
     assert "foms-stage-badge{{ r.stage_badge_modifier }}" in card_src
     assert "erp-as-mobile-card__thumb" in card_src
+    assert "erp-as-mobile-card__contact-row" in card_src
+    assert "erp-as-mobile-card__action--pending" in card_src
+    assert "grid-template-columns: 68px minmax(0, 1fr) minmax(0, 1fr)" in css_src
+    assert "grid-template-columns: minmax(0, 1fr)" in css_src
+    assert "min-width: 0;" in css_src
     # PC식 번호 페이저(무한스크롤 아님)
     assert "render_mobile_pager" in body_src
     assert "as_mobile_order_card.html" in body_src

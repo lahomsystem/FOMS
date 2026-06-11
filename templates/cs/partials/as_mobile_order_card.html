@@ -27,53 +27,50 @@
           {% else %}
           <span class="erp-as-mobile-card__id erp-pro-order-card__id">#{{ r.id }}</span>
           {% endif %}
-          <span
-            class="foms-stage-badge foms-stage-badge{{ r.stage_badge_modifier }} erp-as-status-badge"
-            data-order-id="{{ r.id }}"
-            role="status">
-            {% if r.as_pending %}미결{% else %}{{ STATUS.get(r.status, r.status) }}{% endif %}
-          </span>
         </div>
         <h3 class="erp-as-mobile-card__customer">
           {{ (r.customer_name or '-') }}{% if r.is_self_measurement|default(false) %}
           <span class="erp-as-mobile-card__self-badge" title="자가실측"><i class="fas fa-ruler-combined"></i></span>{% endif %}
         </h3>
-        {% if has_phone %}
-        <a class="erp-as-mobile-card__phone" href="tel:{{ safe_phone }}">{{ r.phone|format_phone }}</a>
-        {% else %}
-        <span class="erp-as-mobile-card__phone text-muted">-</span>
+        <div class="erp-as-mobile-card__contact-row">
+          {% if has_phone %}
+          <a class="erp-as-mobile-card__phone" href="tel:{{ safe_phone }}">{{ r.phone|format_phone }}</a>
+          {% else %}
+          <span class="erp-as-mobile-card__phone text-muted">-</span>
+          {% endif %}
+          <span class="erp-as-mobile-card__manager">
+            <span class="erp-as-mobile-card__manager-label">담당</span>
+            <span class="erp-as-mobile-card__manager-value">{{ r.manager_name or '-' }}</span>
+          </span>
+        </div>
+        {% if r.orderer_name %}
+        <div class="erp-as-mobile-card__orderer" aria-label="발주처">{{ render_as_orderer_line(r.orderer_name) }}</div>
         {% endif %}
-        <div class="erp-as-mobile-card__orderer">{{ render_as_orderer_line(r.orderer_name) }}</div>
       </div>
     </div>
-    <div class="erp-as-mobile-card__staff">
-      <span class="erp-as-mobile-card__staff-item">
-        <span class="erp-as-mobile-card__staff-label">담당</span>
-        <span class="erp-as-mobile-card__staff-value">{{ r.manager_name or '-' }}</span>
-      </span>
-    </div>
+    <span
+      class="foms-stage-badge foms-stage-badge{{ r.stage_badge_modifier }} erp-as-status-badge"
+      data-order-id="{{ r.id }}"
+      role="status">
+      {% if r.as_pending %}미결{% else %}{{ STATUS.get(r.status, r.status) }}{% endif %}
+    </span>
   </header>
 
   <div class="erp-as-mobile-card__schedule">
-    <div class="erp-as-mobile-card__date erp-pro-order-card__row">
+    <div class="erp-as-mobile-card__date erp-as-mobile-card__date--received erp-pro-order-card__row">
       <span class="erp-as-mobile-card__date-label">접수</span>
       <span class="erp-as-mobile-card__date-value foms-tabular">{{ r.as_received_date or '-' }}</span>
     </div>
     <div
-      class="erp-as-mobile-card__date erp-pro-order-card__row erp-as-visit-cell {% if r.as_visit_date %}erp-as-visit-row--set{% endif %}">
+      class="erp-as-mobile-card__date erp-as-mobile-card__date--visit erp-pro-order-card__row erp-as-visit-cell {% if r.as_visit_date %}erp-as-visit-row--set{% endif %}">
       <span class="erp-as-mobile-card__date-label">방문</span>
       <div class="erp-as-visit-cell-wrap">
         <input type="date" class="erp-pro-input editable-date-as" value="{{ r.as_visit_date or '' }}"
           data-order-id="{{ r.id }}" data-field="as_visit_date" aria-label="AS 방문일">
       </div>
-      {% if r.as_visit_date %}
-      <button type="button" class="erp-as-pending-btn as-pending-btn{% if r.as_pending %} erp-as-pending-btn--active{% endif %}" data-order-id="{{ r.id }}"
-        data-as-pending="{% if r.as_pending %}1{% else %}0{% endif %}"
-        title="{% if r.as_pending %}미결 표시 해제{% else %}미결 표시{% endif %}">{% if r.as_pending %}해제{% else %}미결{% endif %}</button>
-      {% endif %}
     </div>
     <div
-      class="erp-as-mobile-card__date erp-pro-order-card__row {% if r.as_completed_date %}erp-as-complete-row--set{% endif %}">
+      class="erp-as-mobile-card__date erp-as-mobile-card__date--complete erp-pro-order-card__row {% if r.as_completed_date %}erp-as-complete-row--set{% endif %}">
       <span class="erp-as-mobile-card__date-label">완료</span>
       <input type="date" class="erp-pro-input editable-date-as" value="{{ r.as_completed_date or '' }}"
         data-order-id="{{ r.id }}" data-field="as_completed_date" aria-label="AS 완료일">
@@ -102,6 +99,14 @@
       data-order-id="{{ r.id }}" title="AS 사진 보기">
       <i class="fas fa-paperclip" aria-hidden="true"></i>
       <span>사진</span>
+    </button>
+    {% endif %}
+    {% if r.as_visit_date %}
+    <button type="button" class="erp-as-mobile-card__action erp-as-mobile-card__action--pending erp-as-pending-btn as-pending-btn{% if r.as_pending %} erp-as-pending-btn--active{% endif %}" data-order-id="{{ r.id }}"
+      data-as-pending="{% if r.as_pending %}1{% else %}0{% endif %}"
+      title="{% if r.as_pending %}미결 표시 해제{% else %}미결 표시{% endif %}">
+      <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
+      <span>{% if r.as_pending %}해제{% else %}미결{% endif %}</span>
     </button>
     {% endif %}
     <label class="erp-as-mobile-card__action erp-as-mobile-card__blueprint">
