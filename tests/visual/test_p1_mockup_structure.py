@@ -335,6 +335,8 @@ def test_p1_drawing_handoff_mobile_v2_mockup_selectors() -> None:
         "foms-drawing-sheet-list",
         "foms-drawing-handoff-detail",
         "foms-drawing-viewer",
+        "foms-drawing-viewer__download",
+        "foms-drawing-viewer__stage",
         "foms-drawing-thread",
         "foms-drawing-action-bar",
     ):

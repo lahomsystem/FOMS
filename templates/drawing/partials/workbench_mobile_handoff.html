@@ -89,20 +89,28 @@
           <span>원본 비율 유지 · 전체 보기</span>
         </div>
         {% if selected and selected.view_url %}
-        <button type="button" class="foms-drawing-viewer__canvas"
-          data-drawing-handoff-open="current"
-          data-handoff-view-url="{{ selected.view_url }}"
-          data-handoff-download-url="{{ selected.download_url }}"
-          data-handoff-filename="{{ selected.filename }}"
-          data-handoff-key="{{ selected.key }}"
-          aria-label="{{ selected.filename }} 크게 보기">
-          {% if selected.is_image %}
-          <img src="{{ selected.view_url }}" alt="{{ selected.filename }}" loading="lazy" decoding="async">
-          {% else %}
-          <i class="fas fa-file-lines" aria-hidden="true"></i>
-          <span>파일 미리보기</span>
+        <div class="foms-drawing-viewer__stage">
+          {% if selected.download_url %}
+          <a class="foms-drawing-viewer__download" href="{{ selected.download_url }}" target="_blank" rel="noopener"
+            aria-label="{{ selected.filename }} 다운로드" title="다운로드">
+            <i class="fas fa-download" aria-hidden="true"></i>
+          </a>
           {% endif %}
-        </button>
+          <button type="button" class="foms-drawing-viewer__canvas"
+            data-drawing-handoff-open="current"
+            data-handoff-view-url="{{ selected.view_url }}"
+            data-handoff-download-url="{{ selected.download_url }}"
+            data-handoff-filename="{{ selected.filename }}"
+            data-handoff-key="{{ selected.key }}"
+            aria-label="{{ selected.filename }} 크게 보기">
+            {% if selected.is_image %}
+            <img src="{{ selected.view_url }}" alt="{{ selected.filename }}" loading="lazy" decoding="async">
+            {% else %}
+            <i class="fas fa-file-lines" aria-hidden="true"></i>
+            <span>파일 미리보기</span>
+            {% endif %}
+          </button>
+        </div>
         {% else %}
         <div class="foms-drawing-viewer__empty">등록된 도면이 없습니다.</div>
         {% endif %}

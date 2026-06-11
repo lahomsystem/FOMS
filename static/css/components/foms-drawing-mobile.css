@@ -323,6 +323,34 @@
     color: var(--foms-text-secondary, #4b525d);
   }
 
+  body.erp-mobile-v2-layout .foms-drawing-viewer__stage {
+    position: relative;
+    width: 100%;
+    background: #fff;
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-viewer__download {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.94);
+    color: var(--foms-text-secondary, #4b525d);
+    text-decoration: none;
+    box-shadow: 0 2px 8px rgba(15, 17, 21, 0.08);
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-viewer__download:active {
+    transform: scale(0.96);
+  }
+
   body.erp-mobile-v2-layout .foms-drawing-viewer__canvas,
   body.erp-mobile-v2-layout .foms-drawing-viewer__empty {
     display: flex;

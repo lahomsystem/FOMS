@@ -35,6 +35,10 @@
     <!-- Global Immersive Image Viewer -->
     <div id="global-image-viewer" aria-hidden="true" style="display:none;">
         <div id="global-viewer-backdrop"></div>
+        <a id="global-viewer-download" href="#" target="_blank" rel="noopener" title="다운로드" aria-label="다운로드"
+            style="display:none;">
+            <i class="fas fa-download"></i>
+        </a>
         <button type="button" id="global-viewer-close" title="닫기" aria-label="닫기">
             <i class="fas fa-times"></i>
         </button>
@@ -368,6 +372,7 @@
                     root: document.getElementById('global-image-viewer'),
                     backdrop: document.getElementById('global-viewer-backdrop'),
                     closeBtn: document.getElementById('global-viewer-close'),
+                    downloadBtn: document.getElementById('global-viewer-download'),
                     prevBtn: document.getElementById('global-viewer-prev'),
                     nextBtn: document.getElementById('global-viewer-next'),
                     stage: document.getElementById('global-viewer-stage'),
@@ -499,6 +504,16 @@
                 }
 
                 els.filename.textContent = file.filename;
+
+                if (els.downloadBtn) {
+                    if (file.download_url) {
+                        els.downloadBtn.href = file.download_url;
+                        els.downloadBtn.style.display = 'flex';
+                    } else {
+                        els.downloadBtn.removeAttribute('href');
+                        els.downloadBtn.style.display = 'none';
+                    }
+                }
 
                 if (state.files.length > 1) {
                     els.counter.textContent = `${state.index + 1} / ${state.files.length}`;
@@ -938,6 +953,30 @@
             .global-viewer-nav {
                 display: none !important;
             }
+        }
+
+        #global-viewer-download {
+            position: absolute;
+            right: 84px;
+            top: 24px;
+            width: 48px;
+            height: 48px;
+            border: none;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.3);
+            color: #fff;
+            z-index: 3;
+            font-size: 20px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+
+        #global-viewer-download:hover {
+            background: rgba(255, 255, 255, 0.22);
+            color: #fff;
         }
 
         #global-viewer-close {

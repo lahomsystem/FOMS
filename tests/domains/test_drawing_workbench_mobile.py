@@ -235,6 +235,8 @@ def test_drawing_workbench_valid_drawing_key_opens_mobile_detail(client, monkeyp
     assert "foms-drawing-handoff-detail" in body
     assert "도면 2 / 2" in body
     assert "data-selected-drawing-key=\"drawings/kitchen.png\"" in body
+    assert "foms-drawing-viewer__download" in body
+    assert "/api/files/download/drawings/kitchen.png" in body
 
 
 def test_drawing_workbench_invalid_drawing_key_returns_mobile_list_notice(client, monkeypatch):
