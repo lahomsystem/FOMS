@@ -1,5 +1,5 @@
-<section class="erp-mobile-queue-filters" aria-label="시공 대시보드 모바일 필터">
-  <form method="get" action="{{ url_for('erp_construction_page.erp_construction_dashboard') }}" class="erp-mobile-queue-filters__search">
+<section class="erp-mobile-queue-filters foms-mobile-filter-bar" aria-label="시공 대시보드 모바일 필터">
+  <form method="get" action="{{ url_for('erp_construction_page.erp_construction_dashboard') }}" class="foms-mobile-filter-bar__toolbar erp-mobile-queue-filters__search">
     {% if erp_mine_only %}
       <input type="hidden" name="mine" value="1">
     {% endif %}

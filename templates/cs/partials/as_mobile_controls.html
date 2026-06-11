@@ -5,7 +5,7 @@
   {% set as_active_title = 'AS 완료' %}
 {% endif %}
 
-<section class="erp-as-mobile-controls" aria-label="AS 모바일 컨트롤">
+<section class="erp-as-mobile-controls foms-mobile-filter-bar" aria-label="AS 모바일 컨트롤">
   <div class="erp-as-mobile-controls__summary foms-section-header section-header">
     <div>
       <span class="erp-as-mobile-controls__eyebrow">After Service</span>
@@ -44,7 +44,7 @@
     </a>
   </nav>
 
-  <form method="get" action="{{ url_for('erp_as_page.erp_as_dashboard') }}" class="erp-as-mobile-controls__search">
+  <form method="get" action="{{ url_for('erp_as_page.erp_as_dashboard') }}" class="foms-mobile-filter-bar__toolbar erp-as-mobile-controls__search">
     <input type="hidden" name="tab" value="{{ as_tab or 'incomplete' }}">
     <input type="hidden" name="sort_dir" value="{{ sort_dir or 'desc' }}">
     {% if erp_mine_only %}

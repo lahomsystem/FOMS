@@ -5,8 +5,8 @@
 {% endif %}
 {% set shipment_mine_toggle_url = shipment_base_url ~ '?date=' ~ (selected_date or today_date) ~ '&q=' ~ (search_q or '')|urlencode %}
 
-<section class="erp-shipment-mobile-controls" aria-label="출고 모바일 필터">
-  <form method="get" action="{{ shipment_base_url }}" class="erp-shipment-mobile-controls__search">
+<section class="erp-shipment-mobile-controls foms-mobile-filter-bar" aria-label="출고 모바일 필터">
+  <form method="get" action="{{ shipment_base_url }}" class="foms-mobile-filter-bar__toolbar erp-shipment-mobile-controls__search">
     {% if erp_mine_only %}
       <input type="hidden" name="mine" value="1">
     {% endif %}

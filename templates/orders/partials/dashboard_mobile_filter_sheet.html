@@ -31,7 +31,8 @@
   'AS처리': 'fa-wrench',
 } %}
 
-<div class="foms-mobile-queue-toolbar" aria-label="작업 큐 보기 설정">
+<section class="foms-mobile-filter-bar foms-mobile-filter-bar--dashboard-queue" aria-label="작업 큐 필터">
+<div class="foms-mobile-filter-bar__toolbar foms-mobile-queue-toolbar" aria-label="작업 큐 보기 설정">
   <div class="foms-mobile-queue-toolbar__summary">
     <strong>작업 큐</strong>
     {% if page and total_pages and total_pages > 1 %}
@@ -53,7 +54,7 @@
   </button>
 </div>
 
-<nav class="chip-strip foms-chip-strip foms-chip-strip--dashboard-queue" aria-label="작업 큐 단계 필터">
+<nav class="chip-strip foms-chip-strip" aria-label="작업 큐 단계 필터">
   <a
     class="chip foms-chip foms-chip--filter{% if not _dq_stage %} is-active{% endif %}"
     href="{{ _base_url }}?{{ _dq_keep_qs }}">
@@ -73,6 +74,7 @@
     {% endif %}
   {% endfor %}
 </nav>
+</section>
 
 <div
   class="offcanvas offcanvas-bottom foms-mobile-filter-sheet"

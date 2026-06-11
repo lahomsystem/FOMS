@@ -40,6 +40,7 @@ def test_p1_mockup_css_bundle_imports() -> None:
         "foms-shell.css",
         "foms-buttons.css",
         "foms-chip-strip.css",
+        "foms-mobile-filter-bar.css",
         "foms-queue-card-v2.css",
         "foms-detail-hero.css",
         "foms-detail-extras.css",
@@ -94,7 +95,8 @@ def test_p1_dashboard_mobile_v2_body_mockup_selectors() -> None:
         "foms-mobile-filter-sheet",
         "erp-dashboard-mobile-filter-drawer",
         'name="sort"',
-        "foms-chip-strip--dashboard-queue",
+        "foms-mobile-filter-bar",
+        "foms-mobile-filter-bar--dashboard-queue",
         'aria-label="작업 큐 단계 필터"',
         'name="view"',
         "foms-chip--filter",
@@ -173,7 +175,7 @@ def test_p1_shell_hides_desktop_chrome_on_mobile_v2() -> None:
     assert ".layout-header" in head
     assert ".layout-global-nav--erp-v2-suppressed" in head
     assert 'erp-dashboard\\00002d layout' in head
-    assert "foms-mobile-surfaces.css') }}?v=20260611a" in head
+    assert "foms-mobile-surfaces.css') }}?v=20260611b" in head
     assert head.index("foms-mobile-v2-critical-css") < head.index("foms-mobile-surfaces.css")
 
 
@@ -187,7 +189,7 @@ def test_p1_shell_hides_desktop_chrome_on_mobile_v2() -> None:
         # 드릴(view=queue) = 기존 작업 큐. 빈 DB면 큐 빈 상태(foms-mobile-empty).
         ("/erp/dashboard?view=queue", "foms-mobile-v2-dashboard"),
         ("/erp/dashboard?view=queue", "foms-mobile-empty"),
-        ("/erp/dashboard?mine=1&view=queue", "foms-chip-strip--dashboard-queue"),
+        ("/erp/dashboard?mine=1&view=queue", "foms-mobile-filter-bar--dashboard-queue"),
         ("/erp/dashboard?mine=1&view=queue", 'aria-label="작업 큐 단계 필터"'),
     ],
 )
@@ -286,8 +288,8 @@ def test_p1_measurement_mobile_v2_home_ia_parity() -> None:
     # 셸 래퍼 + FAB (홈 dashboard_mobile_v2_body 동형)
     for selector in ("foms-shell-body", "foms-mobile-v2-dashboard", "foms-shell-fab"):
         assert selector in main, selector
-    # 표준 칩 스트립 (bespoke quick-actions 대체)
-    for selector in ("chip-strip", "foms-chip-strip"):
+    # 표준 필터 바 + 칩 스트립 (bespoke quick-actions 대체)
+    for selector in ("foms-mobile-filter-bar", "chip-strip", "foms-chip-strip"):
         assert selector in filters, selector
     # 큐 리스트 컨테이너 + 섹션 헤더
     for selector in ("foms-mobile-queue-list", "foms-section-header"):
@@ -339,8 +341,8 @@ def test_p1_drawing_mobile_v2_home_ia_parity() -> None:
     assert "drawing_mobile_v2_gallery.html" not in body
     # 레거시 process-map은 모바일 v2에서 hide (chip-strip로 대체)
     assert 'dw-process-map{% if erp_mobile_v2_enabled %} d-none d-lg-block' in body
-    # 표준 칩 스트립 (상태 필터)
-    for selector in ("chip-strip", "foms-chip-strip"):
+    # 표준 필터 바 + 칩 스트립 (상태 필터)
+    for selector in ("foms-mobile-filter-bar", "foms-mobile-filter-bar--drawing", "chip-strip", "foms-chip-strip"):
         assert selector in controls, selector
     # 갤러리는 foms-shell-body
     assert "foms-shell-body" in gallery
@@ -447,7 +449,7 @@ def test_p1_production_mobile_v2_home_ia_parity() -> None:
     )
     for selector in ("foms-shell-body", "foms-mobile-v2-dashboard", "foms-shell-fab"):
         assert selector in body, selector
-    for selector in ("chip-strip", "foms-chip-strip"):
+    for selector in ("foms-mobile-filter-bar", "chip-strip", "foms-chip-strip"):
         assert selector in filters, selector
     for selector in ("foms-mobile-queue-list", "foms-section-header"):
         assert selector in queue, selector
@@ -523,7 +525,7 @@ def test_p1_shipment_mobile_v2_home_ia_parity() -> None:
     ).read_text(encoding="utf-8")
     for selector in ("foms-shell-body", "foms-mobile-v2-dashboard", "foms-shell-fab"):
         assert selector in body, selector
-    for selector in ("chip-strip", "foms-chip-strip"):
+    for selector in ("foms-mobile-filter-bar", "chip-strip", "foms-chip-strip"):
         assert selector in controls, selector
     assert "erp-shipment-mobile-date-chip" in dates
     for selector in ("foms-mobile-queue-list", "foms-section-header", "render_queue_card_v2"):
@@ -568,7 +570,7 @@ def test_p1_as_mobile_v2_home_ia_parity() -> None:
     )
     for selector in ("foms-shell-body", "foms-mobile-queue-list", "foms-shell-fab"):
         assert selector in body, selector
-    for selector in ("chip-strip", "foms-chip-strip", "foms-section-header"):
+    for selector in ("foms-mobile-filter-bar", "chip-strip", "foms-chip-strip", "foms-section-header"):
         assert selector in controls, selector
     assert "foms-as-camera-bar" in camera
 
@@ -610,7 +612,7 @@ def test_p1_construction_mobile_v2_home_ia_parity() -> None:
     )
     for selector in ("foms-shell-body", "foms-mobile-v2-dashboard", "foms-shell-fab"):
         assert selector in body, selector
-    for selector in ("chip-strip", "foms-chip-strip"):
+    for selector in ("foms-mobile-filter-bar", "chip-strip", "foms-chip-strip"):
         assert selector in filters, selector
     for selector in ("foms-mobile-queue-list", "foms-section-header"):
         assert selector in queue, selector

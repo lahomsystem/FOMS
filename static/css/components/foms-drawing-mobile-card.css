@@ -269,7 +269,8 @@
     background: var(--foms-surface-overlay, #eef0f3);
   }
 
-  body.erp-mobile-v2-layout .foms-drawing-mobile-dashboard .erp-drawing-mobile-controls {
+  body.erp-mobile-v2-layout .foms-drawing-mobile-dashboard .foms-mobile-filter-bar__toolbar.erp-drawing-mobile-controls {
+    display: flex;
     margin: 0;
     gap: var(--foms-space-2, 8px);
     align-items: center;
@@ -297,17 +298,6 @@
     min-height: 40px;
     border-radius: 8px;
     background: var(--foms-surface-base, #fff);
-  }
-
-  body.erp-mobile-v2-layout .foms-drawing-mobile-dashboard .foms-chip-strip--drawing {
-    position: static;
-    top: auto;
-    z-index: auto;
-    justify-content: flex-start;
-    margin: 0 calc(-1 * var(--foms-space-4, 16px));
-    padding: 0 var(--foms-space-4, 16px) 2px;
-    border-bottom: 0;
-    background: transparent;
   }
 
   body.erp-mobile-v2-layout .foms-drawing-mobile-dashboard .foms-drawing-queue {

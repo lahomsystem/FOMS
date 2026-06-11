@@ -384,17 +384,3 @@
     background: #f1f5f9;
   }
 
-@media (max-width: 991.98px) {
-  /* Home IA parity: AS quick-actions adopt the standard chip-strip pill look,
-     but stay inline inside the already-sticky controls (no sticky bleed /
-     edge-to-edge negative margin / border). */
-  body.erp-mobile-v2-layout .erp-as-mobile-controls .foms-chip-strip {
-    position: static;
-    margin-left: 0;
-    margin-right: 0;
-    padding-left: 0;
-    padding-right: 0;
-    border-bottom: 0;
-    background: transparent;
-  }
-}

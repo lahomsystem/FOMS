@@ -41,7 +41,7 @@ def test_home_mobile_v2_body_removes_chip_rows() -> None:
         "data-foms-mobile-filter-open",
         "foms-mobile-filter-sheet",
         'name="sort"',
-        "foms-chip-strip--dashboard-queue",
+        "foms-mobile-filter-bar--dashboard-queue",
     ):
         assert token in filter_sheet
     for removed in ("오늘 (", "담당:", 'aria-label="정렬"'):

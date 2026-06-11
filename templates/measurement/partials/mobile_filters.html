@@ -6,8 +6,8 @@
   {% set measurement_map_url = measurement_map_url ~ '&mine=1' %}
 {% endif %}
 
-<section class="erp-measurement-mobile-filters" aria-label="실측 모바일 필터">
-  <form method="get" action="{{ measurement_base_url }}" class="erp-measurement-mobile-filters__search">
+<section class="erp-measurement-mobile-filters foms-mobile-filter-bar" aria-label="실측 모바일 필터">
+  <form method="get" action="{{ measurement_base_url }}" class="foms-mobile-filter-bar__toolbar erp-measurement-mobile-filters__search">
     {% if erp_mine_only %}
       <input type="hidden" name="mine" value="1">
     {% endif %}

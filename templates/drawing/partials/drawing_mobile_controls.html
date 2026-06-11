@@ -1,42 +1,44 @@
 {# P0-02: 모바일 검색 + 필터 offcanvas (ERP v2 shell) #}
-<div class="erp-drawing-mobile-controls d-lg-none" data-erp-drawing-mobile-controls>
-  <form class="erp-drawing-mobile-controls__search" method="get" role="search">
-    <label class="visually-hidden" for="erp-drawing-mobile-q">도면 작업실 검색</label>
-    <input
-      type="search"
-      class="erp-pro-input"
-      id="erp-drawing-mobile-q"
-      name="q"
-      value="{{ filters.get('q') or '' }}"
-      placeholder="고객명, 주문번호, 담당자 검색"
-      autocomplete="off"
+<section class="foms-mobile-filter-bar foms-mobile-filter-bar--drawing d-lg-none" data-erp-drawing-mobile-controls aria-label="도면 모바일 필터">
+  <div class="foms-mobile-filter-bar__toolbar erp-drawing-mobile-controls">
+    <form class="erp-drawing-mobile-controls__search" method="get" role="search">
+      <label class="visually-hidden" for="erp-drawing-mobile-q">도면 작업실 검색</label>
+      <input
+        type="search"
+        class="erp-pro-input"
+        id="erp-drawing-mobile-q"
+        name="q"
+        value="{{ filters.get('q') or '' }}"
+        placeholder="고객명, 주문번호, 담당자 검색"
+        autocomplete="off"
+      >
+      <button class="erp-pro-btn erp-pro-btn--primary" type="submit" aria-label="검색">
+        <i class="fas fa-search" aria-hidden="true"></i>
+      </button>
+    </form>
+    <button
+      type="button"
+      class="erp-pro-btn erp-pro-btn--outline erp-drawing-mobile-controls__filter-btn"
+      data-bs-toggle="offcanvas"
+      data-bs-target="#erp-drawing-mobile-filter-drawer"
+      aria-controls="erp-drawing-mobile-filter-drawer"
+      aria-label="필터 열기"
     >
-    <button class="erp-pro-btn erp-pro-btn--primary" type="submit" aria-label="검색">
-      <i class="fas fa-search" aria-hidden="true"></i>
+      <i class="fas fa-sliders-h" aria-hidden="true"></i>
+      <span>필터</span>
     </button>
-  </form>
-  <button
-    type="button"
-    class="erp-pro-btn erp-pro-btn--outline erp-drawing-mobile-controls__filter-btn"
-    data-bs-toggle="offcanvas"
-    data-bs-target="#erp-drawing-mobile-filter-drawer"
-    aria-controls="erp-drawing-mobile-filter-drawer"
-    aria-label="필터 열기"
-  >
-    <i class="fas fa-sliders-h" aria-hidden="true"></i>
-    <span>필터</span>
-  </button>
-</div>
-{% set _dw_base = url_for('erp_drawing_workbench.erp_drawing_workbench_dashboard') %}
-{% set _dw_qs = ('&q=' ~ (filters.get('q')|urlencode)) if filters.get('q') else '' %}
-{% set _dw_status = filters.get('status') or '' %}
-{% set _dw_is_all = (not _dw_status) and filters.get('unread') != '1' and filters.get('due_today') != '1' %}
-<nav class="chip-strip foms-chip-strip foms-chip-strip--drawing d-lg-none" aria-label="도면 상태 필터">
-  <a class="chip foms-chip{% if _dw_is_all %} is-active{% endif %}" href="{{ _dw_base }}?{{ _dw_qs[1:] }}">전체 {{ stats.total }}</a>
-  <a class="chip foms-chip{% if _dw_status == 'WAITING' %} is-active{% endif %}" href="{{ _dw_base }}?status=WAITING{{ _dw_qs }}">대기중 {{ stats.WAITING }}</a>
-  <a class="chip foms-chip{% if _dw_status == 'IN_PROGRESS' %} is-active{% endif %}" href="{{ _dw_base }}?status=IN_PROGRESS{{ _dw_qs }}">작업중 {{ stats.IN_PROGRESS }}</a>
-  <a class="chip foms-chip{% if _dw_status == 'RETURNED' %} is-active{% endif %}" href="{{ _dw_base }}?status=RETURNED{{ _dw_qs }}">수정요청 {{ stats.RETURNED }}</a>
-  <a class="chip foms-chip{% if filters.get('due_today') == '1' %} is-active{% endif %}" href="{{ _dw_base }}?due_today=1{{ _dw_qs }}">지연 {{ stats.overdue }}</a>
-  <a class="chip foms-chip{% if filters.get('unread') == '1' %} is-active{% endif %}" href="{{ _dw_base }}?unread=1{{ _dw_qs }}">미확인 {{ stats.unread }}</a>
-</nav>
-{% include 'drawing/partials/_mobile_filter_drawer.html' %}
+  </div>
+  {% set _dw_base = url_for('erp_drawing_workbench.erp_drawing_workbench_dashboard') %}
+  {% set _dw_qs = ('&q=' ~ (filters.get('q')|urlencode)) if filters.get('q') else '' %}
+  {% set _dw_status = filters.get('status') or '' %}
+  {% set _dw_is_all = (not _dw_status) and filters.get('unread') != '1' and filters.get('due_today') != '1' %}
+  <nav class="chip-strip foms-chip-strip" aria-label="도면 상태 필터">
+    <a class="chip foms-chip{% if _dw_is_all %} is-active{% endif %}" href="{{ _dw_base }}?{{ _dw_qs[1:] }}">전체 {{ stats.total }}</a>
+    <a class="chip foms-chip{% if _dw_status == 'WAITING' %} is-active{% endif %}" href="{{ _dw_base }}?status=WAITING{{ _dw_qs }}">대기중 {{ stats.WAITING }}</a>
+    <a class="chip foms-chip{% if _dw_status == 'IN_PROGRESS' %} is-active{% endif %}" href="{{ _dw_base }}?status=IN_PROGRESS{{ _dw_qs }}">작업중 {{ stats.IN_PROGRESS }}</a>
+    <a class="chip foms-chip{% if _dw_status == 'RETURNED' %} is-active{% endif %}" href="{{ _dw_base }}?status=RETURNED{{ _dw_qs }}">수정요청 {{ stats.RETURNED }}</a>
+    <a class="chip foms-chip{% if filters.get('due_today') == '1' %} is-active{% endif %}" href="{{ _dw_base }}?due_today=1{{ _dw_qs }}">지연 {{ stats.overdue }}</a>
+    <a class="chip foms-chip{% if filters.get('unread') == '1' %} is-active{% endif %}" href="{{ _dw_base }}?unread=1{{ _dw_qs }}">미확인 {{ stats.unread }}</a>
+  </nav>
+  {% include 'drawing/partials/_mobile_filter_drawer.html' %}
+</section>

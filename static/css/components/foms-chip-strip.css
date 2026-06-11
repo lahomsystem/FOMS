@@ -1,32 +1,6 @@
-/* P1 mockup — filter chip strip (mobile-home-dashboard.html) — v20260611a */
+/* P1 mockup — chip pill 스타일 (레이아웃/밴드는 foms-mobile-filter-bar.css SSOT) — v20260611b */
 
 @media (max-width: 991.98px) {
-  body.erp-mobile-v2-layout .chip-strip,
-  body.erp-mobile-v2-layout .foms-chip-strip {
-    position: sticky;
-    top: calc(var(--foms-shell-header-h) + var(--foms-safe-area-top));
-    z-index: calc(var(--foms-z-sticky) - 1);
-    background: var(--foms-surface-base);
-    padding: var(--foms-space-3) var(--foms-space-4);
-    border-bottom: 1px solid var(--foms-border-subtle);
-    display: flex;
-    gap: var(--foms-space-2);
-    /* 한 줄 유지(줄바꿈 없음). 칩이 폭에 들어오면 좌우 대칭 정중앙, 넘치면
-       start로 폴백 + 가로 스크롤(safe). 출고/실측처럼 칩 적은 탭은 중앙,
-       시공처럼 많은 탭은 1줄 스크롤이 된다. */
-    justify-content: safe center;
-    overflow-x: auto;
-    scrollbar-width: none;
-    margin: 0 calc(-1 * var(--foms-space-4));
-    padding-left: var(--foms-space-4);
-    padding-right: var(--foms-space-4);
-  }
-
-  body.erp-mobile-v2-layout .chip-strip::-webkit-scrollbar,
-  body.erp-mobile-v2-layout .foms-chip-strip::-webkit-scrollbar {
-    display: none;
-  }
-
   body.erp-mobile-v2-layout .chip,
   body.erp-mobile-v2-layout .foms-chip {
     display: inline-flex;
@@ -43,6 +17,7 @@
     cursor: pointer;
     min-height: 36px;
     text-decoration: none;
+    flex-shrink: 0;
   }
 
   body.erp-mobile-v2-layout .chip.is-active,
