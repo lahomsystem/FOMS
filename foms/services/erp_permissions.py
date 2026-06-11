@@ -65,14 +65,15 @@ def build_mine_sql_filter(user: Any, scope: str = "all") -> list[Any]:
         user: 현재 사용자.
         scope: "내 항목"을 좁힐 이해관계자 역할.
             ``"all"`` (기본·기존 동작) — 모든 역할 union.
-            ``"sales"`` — 영업 담당(manager_name/parties.manager/quest.owner_person
+            ``"sales"`` — 영업 담당(소유자=manager/parties.manager/quest.owner_person
                 + assignments.sales_assignee_user_ids).
+            ``"construction"`` — 시공 담당(소유자=manager + shipment.construction_workers).
             ``"drawing"`` — 도면 담당(assignments.drawing_assignees + drawing_assignee_user_ids).
-            ``"construction"`` — 시공 작업자(shipment.construction_workers).
+                도면담당은 보통 영업(manager)과 다른 사람이라 manager는 제외한다.
 
-    역할 scope는 해당 탭의 "내 차례"를 정확히 집계한다(예: 시공 탭은 manager가 아닌
-    시공 작업자만). 새 역할 scope 추가 시 그 역할의 배정 필드가 여기와 일치하는지
-    확인할 것(불일치 시 본인 건 누락=undercount).
+    영업·시공은 담당자가 주문 manager로 기록되므로 소유자(manager) 신호를 포함한다.
+    construction_workers는 외주 기사일 수 있어 단독으로는 본인 건을 누락(undercount)한다.
+    새 역할 scope 추가 시 그 역할의 배정 필드가 manager인지 assignee인지 먼저 확인할 것.
 
     scope="all"은 기존 계약 보존: conds[0]은 manager_name ilike, 그룹 합산 개수 동일.
     """
@@ -108,8 +109,8 @@ def build_mine_sql_filter(user: Any, scope: str = "all") -> list[Any]:
 
     groups: dict[str, list[Any]] = {
         "sales": manager_conds + sales_conds,
+        "construction": manager_conds + construction_conds,
         "drawing": drawing_conds,
-        "construction": construction_conds,
         "all": manager_conds + sales_conds + drawing_conds + construction_conds,
     }
     return groups.get(scope, groups["all"])
