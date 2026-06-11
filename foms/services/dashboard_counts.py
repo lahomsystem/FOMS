@@ -47,9 +47,17 @@ _cache_lock = Lock()
 _cache: dict[tuple[int, bool], _CacheEntry] = {}
 
 
+# 배지를 "내 차례"로 집계하는 팀: 시공 + 영업 통합(SALES/MEASURE).
+# 영업 통합은 manager_name이 본인이라 담당자 매칭(_apply_mine_filter)이 신뢰 가능 →
+# 배지가 팀 전체 backlog가 아닌 "내 할 일 N건"이 된다.
+# 도면(DRAWING)은 manager가 아니라 drawing_assignee로 배정되므로 제외(전체 집계 유지,
+# 도면 워크벤치 my_todo가 별도 SSOT) — 포함하면 본인 큐를 대량 누락한다.
+MINE_ONLY_TEAMS = frozenset({"CONSTRUCTION", "SALES", "MEASURE"})
+
+
 def _mine_only_for_user(user: Any) -> bool:
-    """시공팀은 대시보드와 동일하게 담당 주문만 집계한다."""
-    return bool(user and (getattr(user, "team", None) or "") == "CONSTRUCTION")
+    """시공·영업 통합은 대시보드와 동일하게 담당 주문만 집계한다(배지 = 내 차례)."""
+    return bool(user and (getattr(user, "team", None) or "") in MINE_ONLY_TEAMS)
 
 
 def _apply_mine_filter(query: Any, user: Any) -> Any:
