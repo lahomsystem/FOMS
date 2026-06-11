@@ -53,6 +53,9 @@ def test_p1_dashboard_mobile_v2_body_mockup_selectors() -> None:
     body = (ROOT / "templates/orders/partials/dashboard_mobile_v2_body.html").read_text(
         encoding="utf-8"
     )
+    sections = (
+        ROOT / "templates/orders/partials/dashboard_mobile_queue_sections.html"
+    ).read_text(encoding="utf-8")
     filters = (
         ROOT / "templates/orders/partials/dashboard_mobile_filter_sheet.html"
     ).read_text(encoding="utf-8")
@@ -62,13 +65,18 @@ def test_p1_dashboard_mobile_v2_body_mockup_selectors() -> None:
     for selector in (
         "foms-shell-fab",
         "foms-mobile-queue-list",
-        "foms-section-header",
         "data-foms-mobile-queue-scroll",
         "data-foms-mobile-queue-sentinel",
         "data-foms-mobile-queue-chunk",
-        "긴급 · 오늘 처리 필요",
+        "dashboard_mobile_queue_sections.html",
     ):
         assert selector in body
+    for selector in (
+        "foms-section-header",
+        "foms-section-header--stage",
+        "긴급 · 오늘 처리 필요",
+    ):
+        assert selector in sections
     assert "dashboard_mobile_filter_sheet.html" in body
     for selector in (
         "foms-mobile-queue-toolbar",
@@ -76,6 +84,9 @@ def test_p1_dashboard_mobile_v2_body_mockup_selectors() -> None:
         "foms-mobile-filter-sheet",
         "erp-dashboard-mobile-filter-drawer",
         'name="sort"',
+        "foms-chip-strip--dashboard-queue",
+        'aria-label="작업 큐 단계 필터"',
+        'name="view"',
     ):
         assert selector in filters
     for removed_selector in (
@@ -161,6 +172,8 @@ def test_p1_shell_hides_desktop_chrome_on_mobile_v2() -> None:
         # 드릴(view=queue) = 기존 작업 큐. 빈 DB면 큐 빈 상태(foms-mobile-empty).
         ("/erp/dashboard?view=queue", "foms-mobile-v2-dashboard"),
         ("/erp/dashboard?view=queue", "foms-mobile-empty"),
+        ("/erp/dashboard?mine=1&view=queue", "foms-chip-strip--dashboard-queue"),
+        ("/erp/dashboard?mine=1&view=queue", 'aria-label="작업 큐 단계 필터"'),
     ],
 )
 def test_p1_dashboard_renders_mockup_structure(

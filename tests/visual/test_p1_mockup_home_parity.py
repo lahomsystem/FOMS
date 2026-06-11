@@ -32,14 +32,19 @@ def _login_admin(client) -> User:
 
 
 def test_home_mobile_v2_body_removes_chip_rows() -> None:
-    """Dashboard mobile v2 no longer exposes filter/sort chip strips."""
+    """Dashboard mobile v2: stage chips live in filter sheet, not inline sort chip rows."""
     body = (ROOT / "templates/orders/partials/dashboard_mobile_v2_body.html").read_text(encoding="utf-8")
     filter_sheet = (ROOT / "templates/orders/partials/dashboard_mobile_filter_sheet.html").read_text(encoding="utf-8")
     for token in ("foms-mobile-queue-list", "data-foms-mobile-queue-scroll", "foms-shell-fab"):
         assert token in body
-    for token in ("data-foms-mobile-filter-open", "foms-mobile-filter-sheet", 'name="sort"'):
+    for token in (
+        "data-foms-mobile-filter-open",
+        "foms-mobile-filter-sheet",
+        'name="sort"',
+        "foms-chip-strip--dashboard-queue",
+    ):
         assert token in filter_sheet
-    for removed in ("오늘 (", "담당:", "foms-chip-strip", 'aria-label="정렬"'):
+    for removed in ("오늘 (", "담당:", 'aria-label="정렬"'):
         assert removed not in body
 
 

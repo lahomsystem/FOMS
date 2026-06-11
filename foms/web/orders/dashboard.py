@@ -346,12 +346,13 @@ def erp_dashboard():
 
     # --- A-0. kpis / step_stats 집계 (limit 무관하게 _q_stats에서 산출) ---
     _summary_fp = {
-        "v": 3,
+        "v": 4,
         "user": _orders_user_visibility_fingerprint(current_user, is_admin),
         "filters": {
             "mine": (request.args.get('mine') or '').strip(),
             "q": f_q,
             "team": f_team,
+            "today": f_today,
         },
     }
     _summary_key = build_dashboard_cache_key("orders", "summary_counts", _summary_fp)
@@ -720,6 +721,7 @@ def erp_dashboard():
             'today': f_today,
         },
         "kpis": kpis,
+        "process_steps": process_steps,
         "page": page,
         "total_pages": total_pages,
         "total_orders": total_orders,
