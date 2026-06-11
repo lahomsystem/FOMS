@@ -14,6 +14,27 @@
     <span class="erp-as-mobile-controls__count foms-section-header__count">{{ total_orders }}건</span>
   </div>
 
+  {% if as_tab == 'incomplete' and as_incomplete_summary is defined %}
+  <div class="erp-as-mobile-controls__stats chip-strip foms-chip-strip" aria-label="AS 미완료 요약">
+    <span class="chip foms-chip" data-as-incomplete-summary="total" data-count="{{ as_incomplete_summary.total }}">
+      <span class="erp-as-mobile-controls__stat-label">총</span>
+      <strong>{{ as_incomplete_summary.total }}</strong>
+    </span>
+    <span class="chip foms-chip" data-as-incomplete-summary="visit_confirmed" data-count="{{ as_incomplete_summary.visit_confirmed }}">
+      <span class="erp-as-mobile-controls__stat-label">방문확정</span>
+      <strong>{{ as_incomplete_summary.visit_confirmed }}</strong>
+    </span>
+    <span class="chip foms-chip" data-as-incomplete-summary="pending" data-count="{{ as_incomplete_summary.pending }}">
+      <span class="erp-as-mobile-controls__stat-label">미결</span>
+      <strong>{{ as_incomplete_summary.pending }}</strong>
+    </span>
+    <span class="chip foms-chip" data-as-incomplete-summary="unassigned" data-count="{{ as_incomplete_summary.unassigned }}">
+      <span class="erp-as-mobile-controls__stat-label">미정</span>
+      <strong>{{ as_incomplete_summary.unassigned }}</strong>
+    </span>
+  </div>
+  {% endif %}
+
   <nav class="erp-as-mobile-tabs" aria-label="AS 분류">
     <a
       class="erp-as-mobile-tabs__item{% if as_tab == 'sales_delivery' %} is-active{% endif %}"

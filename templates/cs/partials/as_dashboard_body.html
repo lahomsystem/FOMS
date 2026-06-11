@@ -5,7 +5,6 @@
 <div class="erp-pro erp-mobile-shell erp-as-dashboard" data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
   {% if erp_mobile_v2_enabled %}
     {% include 'partials/shared/erp_mobile_shell.html' %}
-    {% include 'partials/shared/erp_mobile_v2_tab_notice.html' %}
     {% include 'cs/partials/as_mobile_v2_camera_bar.html' %}
     <a class="foms-shell-fab d-md-none" href="{{ url_for('order_pages.add_order', open='erp-order') }}" aria-label="주문 생성">
       <i class="fas fa-plus" aria-hidden="true"></i>
@@ -109,7 +108,7 @@
     </div>
     <div class="erp-pro-card__body">
       {% if as_tab == 'incomplete' %}
-      <div class="erp-as-summary-strip" aria-label="AS 미완료 요약">
+      <div class="erp-as-summary-strip{% if erp_mobile_v2_enabled %} d-none d-md-grid{% endif %}" aria-label="AS 미완료 요약">
         <div class="erp-as-summary-pill" data-as-incomplete-summary="total" data-count="{{ as_incomplete_summary.total }}">
           <span class="erp-as-summary-pill__label">총 건수</span>
           <span class="erp-as-summary-pill__value">{{ as_incomplete_summary.total }}건</span>
@@ -1291,13 +1290,23 @@
 
       const rowBadge = row ? row.querySelector('.erp-as-status-cell .erp-pro-badge') : null;
       const cardBadge = card ? card.querySelector('.erp-as-status-badge') : null;
+      const cardStageBadge = card ? card.querySelector('.foms-stage-badge[data-order-id]') : null;
       if (rowBadge) {
         rowBadge.textContent = badgeText;
         rowBadge.className = badgeClass;
       }
       if (cardBadge) {
-        cardBadge.textContent = badgeText;
-        cardBadge.className = `erp-pro-badge erp-as-status-badge ${badgeClass.replace('erp-pro-badge ', '')}`;
+        if (cardBadge.classList.contains('foms-stage-badge')) {
+          cardBadge.textContent = badgeText;
+          cardBadge.classList.toggle('foms-stage-badge--cs', asPending);
+          cardBadge.classList.toggle('foms-stage-badge--completed', !asPending && status === 'AS_COMPLETED');
+        } else {
+          cardBadge.textContent = badgeText;
+          cardBadge.className = `erp-pro-badge erp-as-status-badge ${badgeClass.replace('erp-pro-badge ', '')}`;
+        }
+      }
+      if (cardStageBadge && cardStageBadge !== cardBadge) {
+        cardStageBadge.textContent = badgeText;
       }
 
       if (row) {
@@ -1305,7 +1314,9 @@
         if (customerTd) customerTd.classList.toggle('erp-as-customer-cell--pending', asPending);
       }
       if (card) {
-        const customerRow = card.querySelector('.erp-pro-order-card__body .erp-pro-order-card__row');
+        card.classList.toggle('is-pending', asPending);
+        const customerRow = card.querySelector('.erp-pro-order-card__body .erp-pro-order-card__row')
+          || card.querySelector('.erp-as-mobile-card__head');
         if (customerRow) customerRow.classList.toggle('erp-as-customer-row--pending', asPending);
       }
 
