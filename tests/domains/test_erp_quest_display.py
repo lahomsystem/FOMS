@@ -101,6 +101,38 @@ def test_mobile_detail_template_allows_assignee_gate() -> None:
     ).read_text(encoding="utf-8")
     assert "can_approve_quest" in partial
     assert "can_assignee_approve" in partial
+    assert "invalidatePrimaryNavFragmentCache" in partial
+
+
+def test_build_payload_none_for_drawing_stage() -> None:
+    sd = {
+        "workflow": {"stage": "DRAWING"},
+        "quests": [
+            {
+                "stage": "실측",
+                "title": "실측",
+                "status": "COMPLETED",
+                "approval_mode": "assignee",
+                "assignee_approval": {"approved": True},
+            }
+        ],
+    }
+    order = SimpleNamespace(id=2761, manager_name="Test", structured_data=sd)
+    payload = qd.build_current_quest_payload(
+        sd=sd,
+        stage="도면",
+        stage_code="DRAWING",
+        order=order,
+        current_user=None,
+        user_map={},
+    )
+    assert payload is None
+
+
+def test_erp_shell_exports_fragment_cache_invalidation() -> None:
+    shell_js = (ROOT / "static" / "js" / "runtime" / "erp-shell.js").read_text(encoding="utf-8")
+    assert "invalidatePrimaryNavFragmentCache" in shell_js
+    assert "invalidateFragmentCache" in shell_js
 
 
 def test_measurement_mobile_list_does_not_force_measure_badge() -> None:

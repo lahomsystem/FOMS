@@ -21,6 +21,9 @@
   {% set _active = 'dashboard' %}
 {% endif %}
 {% set _construction_only = current_user and (current_user.team or '') == 'CONSTRUCTION' %}
+{# 영업 통합(SALES)·도면(DRAWING)은 도면 창구가 일일 소통 채널 → primary 승격, 시공은 drawer로.
+   MEASURE는 레거시 계정 방어용. 시공팀 3중 정합(primary+drawer+badge) 패턴 복제. #}
+{% set _sales_drawing_cohort = current_user and (current_user.team or '') in ['SALES', 'DRAWING', 'MEASURE'] %}
 {% set _all_items = [
   {'id': 'dashboard', 'label': '대시보드', 'icon': 'fas fa-layer-group', 'href': url_for('erp_dashboard.erp_dashboard')},
   {'id': 'measurement', 'label': '실측', 'icon': 'fas fa-ruler-combined', 'href': url_for('erp_measurement_dashboard.erp_measurement_dashboard')},
@@ -35,6 +38,9 @@
 {% if _construction_only %}
   {% set _primary_ids = ['shipment', 'construction', 'completion', 'history'] %}
   {% set _allowed_ids = ['shipment', 'construction', 'completion', 'history'] %}
+{% elif _sales_drawing_cohort %}
+  {% set _primary_ids = ['dashboard', 'measurement', 'drawing_workbench', 'shipment'] %}
+  {% set _allowed_ids = ['dashboard', 'measurement', 'drawing_workbench', 'production', 'shipment', 'as', 'construction', 'completion', 'history'] %}
 {% else %}
   {% set _primary_ids = ['dashboard', 'measurement', 'construction', 'shipment'] %}
   {% set _allowed_ids = ['dashboard', 'measurement', 'drawing_workbench', 'production', 'shipment', 'as', 'construction', 'completion', 'history'] %}

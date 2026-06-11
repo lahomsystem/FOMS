@@ -24,7 +24,9 @@ NAV_BADGE_CACHE_TTL_SEC = 30
 # nav tab id → Order.status keys (MOBILE_TABLET_REDESIGN_PLAN §Bottom Nav)
 NAV_STATUS_BUCKETS: dict[str, frozenset[str]] = {
     "dashboard": frozenset({"RECEIVED", "HAPPYCALL", "ON_HOLD", "RECHECK"}),
-    "measurement": frozenset({"MEASURE", "DRAWING"}),
+    # DRAWING은 drawing_workbench bucket 전담(아래). 실측 탭 배지에 합산하면
+    # 영업 통합 사용자가 "밀린 실측"으로 오해 → 단계별 배지 SSOT 정합.
+    "measurement": frozenset({"MEASURE"}),
     "shipment": frozenset({"CONFIRM", "PRODUCTION"}),
     "construction": frozenset({"CONSTRUCTION", "CS", "AS"}),
     "completion": frozenset({"COMPLETED", "AS_COMPLETED"}),

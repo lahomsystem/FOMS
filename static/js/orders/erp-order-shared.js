@@ -3951,6 +3951,10 @@ async function erpApproveQuestTeam(team) {
             return;
         }
 
+        if (window.FOMS_ERP_SHELL && typeof window.FOMS_ERP_SHELL.invalidatePrimaryNavFragmentCache === 'function') {
+            window.FOMS_ERP_SHELL.invalidatePrimaryNavFragmentCache();
+        }
+
         __erpQuest = data.quest;
         erpRenderQuest();
 

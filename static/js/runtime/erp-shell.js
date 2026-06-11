@@ -36,6 +36,15 @@
 
   var CACHE_MAX_ENTRIES = 28;
   var CACHE_TTL_MS = 5 * 60 * 1000;
+  /**
+   * Mutation-sensitive surfaces (other users/devices change them between visits):
+   * shorter warm-cache freshness + revalidate-on-focus so a tab-switch back never
+   * serves a stale post-approve home. Full page reload already bypasses this cache.
+   */
+  var FRESH_TTL_MS = 30 * 1000;
+  var FRESH_TTL_PATHS = [
+    '/erp/dashboard',
+  ];
   var IDLE_PREFETCH_MAX = 3;
   var HOVER_DEBOUNCE_MS = 180;
   var IDLE_DELAY_MS = 1600;
@@ -192,12 +201,18 @@
     }
   }
 
+  /** Per-path warm-cache freshness: mutation-sensitive surfaces expire fast. */
+  function cacheTtlForKey(key) {
+    var path = key.split('?')[0];
+    return FRESH_TTL_PATHS.indexOf(path) >= 0 ? FRESH_TTL_MS : CACHE_TTL_MS;
+  }
+
   function cacheGet(key) {
     var row = fragmentHtmlCache[key];
     if (!row) {
       return null;
     }
-    if (Date.now() - row.ts > CACHE_TTL_MS) {
+    if (Date.now() - row.ts > cacheTtlForKey(key)) {
       delete fragmentHtmlCache[key];
       var ix = fragmentCacheOrder.indexOf(key);
       if (ix >= 0) {
@@ -206,6 +221,37 @@
       return null;
     }
     return row.html;
+  }
+
+  /**
+   * Drop warm fragment HTML after server-side mutations (quest approve, stage change).
+   * @param {string|boolean|undefined} urlOrAll — omit or true to clear all; URL string to drop one entry.
+   */
+  function invalidateFragmentCache(urlOrAll) {
+    if (!urlOrAll || urlOrAll === true) {
+      fragmentHtmlCache = Object.create(null);
+      fragmentCacheOrder.length = 0;
+      return;
+    }
+    try {
+      var canonical = new URL(String(urlOrAll), window.location.origin);
+      var key = getCacheKey(canonical.href);
+      delete fragmentHtmlCache[key];
+      var ix = fragmentCacheOrder.indexOf(key);
+      if (ix >= 0) {
+        fragmentCacheOrder.splice(ix, 1);
+      }
+    } catch (e) {
+      fragmentHtmlCache = Object.create(null);
+      fragmentCacheOrder.length = 0;
+    }
+  }
+
+  /** Clear cached HTML for all 9 primary ERP nav surfaces. */
+  function invalidatePrimaryNavFragmentCache() {
+    PRIMARY_NAV_PATHS.forEach(function (p) {
+      invalidateFragmentCache(window.location.origin + p);
+    });
   }
 
   function activateScripts(container) {
@@ -590,6 +636,30 @@
     navigateByShell(url, { fromPopState: true });
   });
 
+  /**
+   * Revalidate-on-focus: while this tab was hidden, another user/device may have
+   * mutated a mutation-sensitive surface (quest approve → stage change). Drop its
+   * warm cache so the next tab-switch back refetches instead of serving stale HTML.
+   */
+  function invalidateFreshTtlSurfaces() {
+    FRESH_TTL_PATHS.forEach(function (p) {
+      invalidateFragmentCache(window.location.origin + p);
+    });
+  }
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') {
+      invalidateFreshTtlSurfaces();
+    }
+  });
+
+  /* bfcache restore brings back the in-memory cache wholesale → drop fresh surfaces too. */
+  window.addEventListener('pageshow', function (e) {
+    if (e && e.persisted) {
+      invalidateFreshTtlSurfaces();
+    }
+  });
+
   if (typeof window.requestIdleCallback === 'function') {
     window.requestIdleCallback(
       function () {
@@ -610,5 +680,7 @@
     window.FOMS_ERP_SHELL.prefetchShellFragment = prefetchShellFragment;
     window.FOMS_ERP_SHELL.getCacheKey = getCacheKey;
     window.FOMS_ERP_SHELL.navigateByShell = navigateByShell;
+    window.FOMS_ERP_SHELL.invalidateFragmentCache = invalidateFragmentCache;
+    window.FOMS_ERP_SHELL.invalidatePrimaryNavFragmentCache = invalidatePrimaryNavFragmentCache;
   }
 })();

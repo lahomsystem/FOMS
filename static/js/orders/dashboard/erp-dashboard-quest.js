@@ -23,15 +23,21 @@ function renderBadges(alerts) {
               return;
             }
 
+            if (window.FOMS_ERP_SHELL && typeof window.FOMS_ERP_SHELL.invalidatePrimaryNavFragmentCache === 'function') {
+              window.FOMS_ERP_SHELL.invalidatePrimaryNavFragmentCache();
+            }
+
+            let _toastMsg;
             if (data.auto_transitioned && data.next_stage) {
               const nextStageLabel = label(STAGE_LABELS, data.next_stage, data.next_stage);
-              alert('✅ 모든 팀 승인 완료! 다음 단계(' + nextStageLabel + ')로 자동 전환되었습니다.');
+              _toastMsg = '✅ 승인 완료 — ' + nextStageLabel + ' 단계로 이동';
             } else if (data.all_approved) {
-              alert('✅ 모든 팀 승인 완료!');
+              _toastMsg = '✅ 모든 팀 승인 완료';
             } else {
               const missingTeams = data.missing_teams.map(t => label(TEAM_LABELS, t, t)).join(', ');
-              alert('승인 완료. 남은 팀: ' + missingTeams);
+              _toastMsg = '승인 완료 — 남은 팀: ' + missingTeams;
             }
+            if (window.fomsFlashToast) { window.fomsFlashToast(_toastMsg); } else { alert(_toastMsg); }
 
             await loadQuestDetail(orderId);
             window.location.reload();
@@ -55,11 +61,19 @@ function renderBadges(alerts) {
               return;
             }
 
+            if (window.FOMS_ERP_SHELL && typeof window.FOMS_ERP_SHELL.invalidatePrimaryNavFragmentCache === 'function') {
+              window.FOMS_ERP_SHELL.invalidatePrimaryNavFragmentCache();
+            }
+
+            let _toastMsg;
             if (data.auto_transitioned && data.next_stage) {
               const nextStageLabel = label(STAGE_LABELS, data.next_stage, data.next_stage);
-              alert('✅ 담당자 승인 완료! 다음 단계(' + nextStageLabel + ')로 자동 전환되었습니다.');
+              _toastMsg = '✅ 담당자 승인 완료 — ' + nextStageLabel + ' 단계로 이동';
             } else if (data.all_approved) {
-              alert('✅ 담당자 승인 완료!');
+              _toastMsg = '✅ 담당자 승인 완료';
+            }
+            if (_toastMsg) {
+              if (window.fomsFlashToast) { window.fomsFlashToast(_toastMsg); } else { alert(_toastMsg); }
             }
 
             window.location.reload();

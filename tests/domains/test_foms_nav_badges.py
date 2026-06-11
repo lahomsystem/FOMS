@@ -18,6 +18,23 @@ def test_nav_status_buckets_cover_primary_tabs():
         assert nav_id in NAV_STATUS_BUCKETS
 
 
+def test_measurement_bucket_excludes_drawing():
+    """실측 탭 배지는 MEASURE만 — DRAWING은 drawing_workbench 전담 (영업 통합 SSOT)."""
+    from foms.services.dashboard_counts import NAV_STATUS_BUCKETS
+
+    assert NAV_STATUS_BUCKETS["measurement"] == frozenset({"MEASURE"})
+    assert "DRAWING" not in NAV_STATUS_BUCKETS["measurement"]
+    assert NAV_STATUS_BUCKETS["drawing_workbench"] == frozenset({"DRAWING"})
+
+
+def test_sales_drawing_cohort_primary_nav_promotes_drawing():
+    """영업·도면 cohort는 bottom-nav primary에 도면(drawing_workbench)을 노출한다."""
+    shell = _read("templates/partials/shared/erp_mobile_shell.html")
+    assert "_sales_drawing_cohort" in shell
+    assert "'SALES', 'DRAWING', 'MEASURE'" in shell
+    assert "['dashboard', 'measurement', 'drawing_workbench', 'shipment']" in shell
+
+
 def test_context_processor_registers_inject_foms_nav_badges():
     src = _read("foms/services/context_processors.py")
     assert "def inject_foms_nav_badges" in src

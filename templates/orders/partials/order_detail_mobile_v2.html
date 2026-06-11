@@ -288,6 +288,11 @@
       if (!data.success) {
         throw new Error(data.message || data.error || '승인 실패');
       }
+      if (window.FOMS_ERP_SHELL && typeof window.FOMS_ERP_SHELL.invalidatePrimaryNavFragmentCache === 'function') {
+        window.FOMS_ERP_SHELL.invalidatePrimaryNavFragmentCache();
+      } else if (window.FOMS_ERP_SHELL && typeof window.FOMS_ERP_SHELL.invalidateFragmentCache === 'function') {
+        window.FOMS_ERP_SHELL.invalidateFragmentCache(true);
+      }
       location.href = location.pathname + location.search + '#foms-detail-quest';
     } catch (error) {
       btn.disabled = false;
