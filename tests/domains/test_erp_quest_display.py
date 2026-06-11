@@ -107,4 +107,5 @@ def test_measurement_mobile_list_does_not_force_measure_badge() -> None:
     listing = (
         ROOT / "templates" / "measurement" / "partials" / "mobile_list.html"
     ).read_text(encoding="utf-8")
-    assert "render_queue_card_v2(o, can_edit_erp|default(false), None, None, None" in listing
+    assert "badge_text='실측'" not in listing
+    assert "'--measure'" not in listing

@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import copy
+import logging
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from foms.services.erp_policy import (
     STAGE_LABELS,
@@ -261,6 +265,7 @@ def build_current_quest_payload(
     current_quest = resolve_current_quest(sd, stage, stage_code)
     if not current_quest:
         return None
+    current_quest = copy.deepcopy(current_quest)
 
     stage_key = stage if isinstance(stage, str) else ""
     stage_code_key = stage_code or STAGE_NAME_TO_CODE.get(stage_key, stage_key)
@@ -321,7 +326,8 @@ def load_assignee_user_map(db, sd: dict[str, Any]) -> dict[int, str]:
         from models import User
 
         rows = db.query(User).filter(User.id.in_(user_ids)).all()
-    except Exception:
+    except Exception as exc:
+        logger.warning("load_assignee_user_map failed: %s", exc)
         return {}
     out: dict[int, str] = {}
     for u in rows:

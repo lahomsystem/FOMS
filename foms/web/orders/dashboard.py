@@ -791,7 +791,7 @@ def erp_order_mobile_detail(order_id: int):
     db = get_db()
     order = (
         db.query(Order)
-        .filter(Order.id == order_id, Order.is_erp_order.is_(True))
+        .filter(Order.id == order_id, Order.is_erp_order.is_(True), Order.not_deleted_filter())
         .first()
     )
     if not order:
