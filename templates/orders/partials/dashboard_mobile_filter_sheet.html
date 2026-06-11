@@ -19,11 +19,24 @@
 {% set _dq_keep_qs = _dq_keep|join('&') %}
 {% set _dq_stage = _filters.get('stage') or '' %}
 {% set _dq_steps = process_steps or [] %}
+{% set _stage_chip_icons = {
+  '주문접수': 'fa-inbox',
+  '실측': 'fa-ruler-combined',
+  '도면': 'fa-drafting-compass',
+  '고객컨펌': 'fa-user-check',
+  '생산': 'fa-industry',
+  '시공': 'fa-hammer',
+  '완료': 'fa-flag-checkered',
+  'CS': 'fa-headset',
+  'AS처리': 'fa-wrench',
+} %}
 
 <div class="foms-mobile-queue-toolbar" aria-label="작업 큐 보기 설정">
   <div class="foms-mobile-queue-toolbar__summary">
     <strong>작업 큐</strong>
-    <span>{{ total_orders }}건{% if page and total_pages %} · {{ page }}/{{ total_pages }}{% endif %}</span>
+    {% if page and total_pages and total_pages > 1 %}
+      <span>{{ page }}/{{ total_pages }} 페이지</span>
+    {% endif %}
   </div>
   <button
     class="foms-mobile-filter-trigger"
@@ -42,16 +55,20 @@
 
 <nav class="chip-strip foms-chip-strip foms-chip-strip--dashboard-queue" aria-label="작업 큐 단계 필터">
   <a
-    class="chip foms-chip{% if not _dq_stage %} is-active{% endif %}"
+    class="chip foms-chip foms-chip--filter{% if not _dq_stage %} is-active{% endif %}"
     href="{{ _base_url }}?{{ _dq_keep_qs }}">
-    전체 {{ total_orders }}
+    <i class="fas fa-layer-group foms-chip__icon" aria-hidden="true"></i>
+    <span class="foms-chip__label">전체</span>
+    <span class="foms-chip__count">{{ total_orders }}</span>
   </a>
   {% for step in _dq_steps %}
     {% if step.count > 0 %}
       <a
-        class="chip foms-chip{% if _dq_stage == step.label %} is-active{% endif %}"
+        class="chip foms-chip foms-chip--filter{% if _dq_stage == step.label %} is-active{% endif %}"
         href="{{ _base_url }}?stage={{ step.label|urlencode }}&{{ _dq_keep_qs }}">
-        {{ step.label }} {{ step.count }}
+        <i class="fas {{ _stage_chip_icons.get(step.label, 'fa-circle') }} foms-chip__icon" aria-hidden="true"></i>
+        <span class="foms-chip__label">{{ step.label }}</span>
+        <span class="foms-chip__count">{{ step.count }}</span>
       </a>
     {% endif %}
   {% endfor %}

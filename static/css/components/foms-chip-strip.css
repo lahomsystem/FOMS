@@ -1,4 +1,4 @@
-/* P1 mockup — filter chip strip (mobile-home-dashboard.html) */
+/* P1 mockup — filter chip strip (mobile-home-dashboard.html) — v20260611a */
 
 @media (max-width: 991.98px) {
   body.erp-mobile-v2-layout .chip-strip,
@@ -50,5 +50,27 @@
     background: var(--foms-color-brand-50);
     color: var(--foms-color-brand-700);
     border-color: var(--foms-color-brand-300);
+  }
+
+  /* 단계 필터 칩: 아이콘 + 라벨 + 건수 (대시보드 작업 큐 SSOT) */
+  body.erp-mobile-v2-layout .foms-chip--filter .foms-chip__icon {
+    font-size: 0.8125rem;
+    opacity: 0.88;
+    flex-shrink: 0;
+  }
+
+  body.erp-mobile-v2-layout .foms-chip--filter .foms-chip__label {
+    font-weight: var(--foms-font-weight-medium);
+  }
+
+  body.erp-mobile-v2-layout .foms-chip--filter .foms-chip__count {
+    font-variant-numeric: tabular-nums;
+    font-weight: var(--foms-font-weight-semibold);
+    min-width: 1.25rem;
+    text-align: center;
+  }
+
+  body.erp-mobile-v2-layout .foms-chip--filter.is-active .foms-chip__icon {
+    opacity: 1;
   }
 }

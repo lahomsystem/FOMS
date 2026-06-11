@@ -44,8 +44,18 @@ def test_p1_mockup_css_bundle_imports() -> None:
         "foms-detail-hero.css",
         "foms-detail-extras.css",
         "foms-drawing-mobile-card.css",
+        "dashboard-control-tower.css",
     ):
         assert fragment in bundle
+
+
+def test_p1_dashboard_tower_has_no_fragment_stylesheet_link() -> None:
+    """Tower CSS must live in mobile-surfaces bundle — fragment <link> causes shell-swap FOUC."""
+    tower = (ROOT / "templates/orders/partials/dashboard_mobile_tower.html").read_text(
+        encoding="utf-8"
+    )
+    assert 'rel="stylesheet"' not in tower
+    assert "<link " not in tower
 
 
 def test_p1_dashboard_mobile_v2_body_mockup_selectors() -> None:
@@ -87,8 +97,13 @@ def test_p1_dashboard_mobile_v2_body_mockup_selectors() -> None:
         "foms-chip-strip--dashboard-queue",
         'aria-label="작업 큐 단계 필터"',
         'name="view"',
+        "foms-chip--filter",
+        "foms-chip__count",
+        "fa-hammer",
+        "fa-layer-group",
     ):
         assert selector in filters
+    assert "{{ total_orders }}건" not in filters
     for removed_selector in (
         "foms-chip-strip--sort",
         "sort=latest",
@@ -158,7 +173,7 @@ def test_p1_shell_hides_desktop_chrome_on_mobile_v2() -> None:
     assert ".layout-header" in head
     assert ".layout-global-nav--erp-v2-suppressed" in head
     assert 'erp-dashboard\\00002d layout' in head
-    assert "foms-mobile-surfaces.css') }}?v=20260610a" in head
+    assert "foms-mobile-surfaces.css') }}?v=20260611a" in head
     assert head.index("foms-mobile-v2-critical-css") < head.index("foms-mobile-surfaces.css")
 
 

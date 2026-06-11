@@ -2,7 +2,7 @@
 @import url("../foundation/foms-shell.css");
 @import url("../components/foms-buttons.css");
 @import url("../components/foms-form-field.css");
-@import url("../components/foms-chip-strip.css?v=20260606b");
+@import url("../components/foms-chip-strip.css?v=20260611a");
 @import url("../components/foms-queue-card-v2.css");
 @import url("../components/foms-detail-hero.css");
 @import url("../components/foms-detail-extras.css");
@@ -18,4 +18,5 @@
 @import url("../components/foms-shipment-mobile.css");
 @import url("../components/foms-drawing-mobile.css?v=20260609b");
 @import url("../components/foms-drawing-mobile-card.css?v=20260610a");
+@import url("../contexts/orders/dashboard-control-tower.css?v=20260611a");
 @import url("../components/foms-as-camera.css");

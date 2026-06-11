@@ -1,7 +1,7 @@
 {# 모바일 홈 — 오퍼레이션 컨트롤 타워 (tower_mode 전용).
    데이터: control_tower (foms.services.orders.dashboard_control_tower), process_steps.
-   레이아웃: 이번주 → 오늘의 현장(준비도) → 위험 레이더 → 내것/신규 → (접힘)파이프라인 #}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/orders/dashboard-control-tower.css') }}?v=20260609a">
+   레이아웃: 이번주 → 오늘의 현장(준비도) → 위험 레이더 → 내것/신규 → (접힘)파이프라인
+   CSS: dashboard-control-tower.css — foms-mobile-surfaces.css 번들( fragment swap 시 <link> FOUC 방지). #}
 
 {% set ct = control_tower %}
 {% set week = ct.week %}
