@@ -302,6 +302,18 @@
   body.wd-builder #estimatesListContainer .estimate-detail-options > div {
     color: var(--foms-color-success-700, #0d7a3d) !important; font-size: 13px !important; line-height: 1.45 !important;
     font-weight: 700 !important; margin: 2px 0 0; }
+  /* [fix] 비고 블록: 풀폭 스택(narrow 컬럼 char-wrap '깨짐' 해결) + 사이즈 정리 */
+  body.wd-builder #estimatesListContainer .estimate-header-notes {
+    grid-column: 1 / -1 !important; grid-row: auto !important; display: block !important; margin: 0 !important;
+    color: var(--foms-text-secondary) !important; font-size: 12px !important; line-height: 1.2 !important; font-weight: 800 !important; }
+  body.wd-builder #estimatesListContainer .estimate-detail-notes {
+    grid-column: 1 / -1 !important; margin: 2px 0 0 !important; }
+  body.wd-builder #estimatesListContainer .estimate-detail-notes > div {
+    color: var(--foms-color-success-700, #0d7a3d) !important; font-size: 13px !important; line-height: 1.45 !important;
+    font-weight: 700 !important; word-break: keep-all; overflow-wrap: anywhere; }
+  /* [fix] 추가옵션 합계/비고 빈 값이면 행 숨김(값 있는 것만 표시).
+     specificity: 기존 .card[data-estimate-id] .estimate-card-item{display:grid!important}를 이기게 매칭 */
+  body.wd-builder #estimatesListContainer .card[data-estimate-id] .estimate-card-item.wd-hide-empty { display: none !important; }
   body.wd-builder #estimatesListContainer .wd-estimate-unit-meta {
     grid-column: 1 / -1; width: fit-content; max-width: 100%; margin-top: 2px !important; padding: 5px 8px;
     border-radius: 9px; background: var(--foms-surface-base); color: var(--foms-color-brand-700);

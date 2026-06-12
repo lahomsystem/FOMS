@@ -65,6 +65,25 @@
       sheet.querySelector(".wd-msheet__body").appendChild(sidebar);
       backdrop.addEventListener("click", closeSheet);
       sheet.querySelector("[data-wd-close]").addEventListener("click", closeSheet);
+      // [fix] 저장된 견적 '불러오기'(폴더) 클릭 → 로드되면 시트 자동 닫힘(수동 X 불필요).
+      // host load 핸들러가 bubble서 stopPropagation + confirm → capture로 수신하고,
+      // 로드 성공(고객명 반영) 시에만 닫음(confirm 취소 시 유지).
+      sheet.addEventListener(
+        "click",
+        function (e) {
+          var btn = e.target.closest(".load-estimate-btn");
+          if (!btn) return;
+          var row = btn.closest(".saved-estimate-row");
+          var nameEl = row ? row.querySelector(".saved-estimate-customer-name") : null;
+          var expectName = nameEl ? (nameEl.textContent || "").trim() : null;
+          setTimeout(function () {
+            var cur = document.getElementById("customerName");
+            var curName = cur ? (cur.value || "").trim() : "";
+            if (!expectName || curName === expectName) closeSheet();
+          }, 80);
+        },
+        true
+      );
     }
 
     function openSheet() {
@@ -873,10 +892,35 @@
         });
       }
     }
+    // [fix] 카트 카드: 추가옵션 합계/비고가 비어 있으면 그 행 숨김(class 기반 → style-strip 무관)
+    function hideEmptyCartRows() {
+      var container = document.getElementById("estimatesListContainer");
+      if (!container) return;
+      forEachNode(container.querySelectorAll(".card[data-estimate-id] .estimate-card-item"), function (item) {
+        var hide = false;
+        if (item.querySelector(".estimate-header-options")) {
+          var price = item.querySelector(".estimate-price");
+          var detail = item.querySelector(".estimate-detail-options");
+          var priceNum = price ? (price.textContent || "").replace(/[^0-9]/g, "") : "";
+          var detailTxt = detail ? (detail.textContent || "").trim() : "";
+          if ((priceNum === "" || priceNum === "0") && (detailTxt === "" || detailTxt === "없음")) hide = true;
+        }
+        if (item.querySelector(".estimate-header-notes")) {
+          var ndetail = item.querySelector(".estimate-detail-notes");
+          var ntxt = ndetail ? (ndetail.textContent || "").trim() : "";
+          if (ntxt === "") hide = true;
+        }
+        item.classList.toggle("wd-hide-empty", hide);
+      });
+    }
     function mobilizeEstimatesListAfterRender() {
       mobilizeEstimatesList();
+      hideEmptyCartRows();
       // renderEstimatesList() reapplies forced inline styles after 10ms; clear them after that pass.
-      setTimeout(mobilizeEstimatesList, 30);
+      setTimeout(function () {
+        mobilizeEstimatesList();
+        hideEmptyCartRows();
+      }, 30);
     }
     function initEstimatesListMobile() {
       var container = document.getElementById("estimatesListContainer");
