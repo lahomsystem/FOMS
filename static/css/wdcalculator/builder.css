@@ -1,0 +1,155 @@
+/**
+ * WDCalculator 모바일 "견적 빌더" 셸 (<=991.98px) — IA 재설계 v3.
+ * master(카트: 고객칩+총액 HERO+견적 카드 리스트) ↔ detail(편집 bottom sheet: 구성·옵션·비고 탭).
+ * mockup: docs/design/mockups/mobile-wdcalculator-v3-builder.html
+ * 전부 body.wd-builder + 미디어쿼리 게이트. host 마크업/ID/계산 로직 무변경(노드 재배치 + 재표현).
+ * field-level(기본행/selsheet/옵션세그/입력)은 mobile.css가 계속 담당; 본 파일은 셸 IA만.
+ */
+@media (max-width: 991.98px) {
+  /* ===== 빌더 활성 시 레거시/리니어 셸 잔재 숨김 ===== */
+  body.wd-builder .layout-header,
+  body.wd-builder .layout-global-nav,
+  body.wd-builder .wd-mtotal { display: none !important; }
+  body.wd-builder {
+    background: var(--foms-surface-overlay, #eef0f3);
+    padding-top: 0 !important;     /* 헤더 오프셋은 .wd-master가 자체 처리(글로벌 override 무관) */
+    padding-bottom: 0 !important;
+  }
+  /* 원본 컨테이너: 내용은 master/sheet로 이동 → 잔여 골격 숨김 */
+  body.wd-builder .wdcalculator-container { display: none !important; }
+
+  /* ===== MASTER ===== */
+  .wd-master { padding: 70px 14px 110px; display: grid; gap: 14px; align-content: start; }
+
+  /* 고객 칩 */
+  .wd-cust { display: flex; align-items: center; gap: 10px; background: var(--foms-surface-base);
+    border: 1px solid var(--foms-border-subtle); border-radius: 14px; padding: 10px 14px; }
+  .wd-cust__ic { width: 34px; height: 34px; border-radius: 999px; background: var(--foms-color-brand-50);
+    color: var(--foms-color-brand-600); display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+  body.wd-builder .wd-cust #customerName,
+  body.wd-builder .wd-cust input { flex: 1; border: none !important; background: transparent !important; box-shadow: none !important;
+    font-size: 16px; font-weight: 600; color: var(--foms-text-primary); padding: 0 !important; min-height: 0 !important; }
+
+  /* 총액 HERO */
+  .wd-hero { background: linear-gradient(135deg, var(--foms-color-brand-600), var(--foms-color-brand-500));
+    border-radius: 18px; padding: 18px; color: #fff; box-shadow: 0 10px 24px rgba(90,103,216,.28); }
+  .wd-hero__label { font-size: 13px; opacity: .85; font-weight: 500; }
+  .wd-hero__val { font-size: 34px; font-weight: 800; line-height: 1.05; margin: 2px 0 8px;
+    font-variant-numeric: tabular-nums; letter-spacing: -.5px; transition: transform .2s; }
+  .wd-hero__val.wd-pulse { animation: wdHeroPulse .5s ease-out; }
+  @keyframes wdHeroPulse { 0% { transform: scale(1.08); } 100% { transform: scale(1); } }
+  .wd-hero__meta { display: flex; gap: 8px; flex-wrap: wrap; }
+  .wd-hero__pill { background: rgba(255,255,255,.18); border-radius: 999px; padding: 3px 10px; font-size: 12px; font-weight: 600; }
+
+  /* 섹션 라벨 */
+  .wd-cart-head { display: flex; align-items: center; justify-content: space-between; margin: 2px 2px -4px; }
+  .wd-cart-head__t { font-size: 14px; font-weight: 700; color: var(--foms-text-secondary); }
+  .wd-cart-head__a { display: flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 600; color: var(--foms-color-brand-600); }
+
+  /* ===== CART (host #estimatesListContainer 재표현) ===== */
+  body.wd-builder #estimatesListContainer > .row { margin: 0 !important; display: grid !important; gap: 12px; }
+  body.wd-builder #estimatesListContainer [class*="col-"] { width: 100% !important; max-width: 100% !important;
+    flex: 0 0 100% !important; padding: 0 !important; margin: 0 !important; }
+  body.wd-builder #estimatesListContainer .w-100.d-none { display: none !important; }
+  /* 빈 카트 안내 */
+  body.wd-builder #estimatesListContainer > .text-muted { padding: 30px 16px; border: 1px dashed var(--foms-border-default);
+    border-radius: 16px; background: var(--foms-surface-base); }
+
+  /* 견적 카드 → qcard */
+  body.wd-builder #estimatesListContainer .card[data-estimate-id] {
+    border: 1px solid var(--foms-border-subtle) !important; border-radius: 16px !important; box-shadow: 0 1px 2px rgba(15,17,21,.04) !important;
+    height: auto !important; cursor: pointer; overflow: hidden; position: relative; }
+  body.wd-builder #estimatesListContainer .card[data-estimate-id]:active { background: var(--foms-color-neutral-50); }
+  body.wd-builder #estimatesListContainer .card[data-estimate-id] > .card-header {
+    background: var(--foms-surface-base) !important; border-bottom: none !important; padding: 12px 12px 4px !important; gap: 4px; }
+  body.wd-builder #estimatesListContainer .card[data-estimate-id] > .card-header strong { font-size: 12px; color: var(--foms-color-brand-600); font-weight: 700; }
+  body.wd-builder #estimatesListContainer .estimate-display-name { font-size: 15px !important; font-weight: 700; max-width: 150px !important; color: var(--foms-text-primary); }
+  body.wd-builder #estimatesListContainer .card[data-estimate-id] > .card-header .btn { min-height: 34px; padding: 4px 9px; border-radius: 9px; }
+  body.wd-builder #estimatesListContainer .edit-estimate-name-btn { min-height: 0 !important; padding: 0 3px !important; }
+  body.wd-builder #estimatesListContainer .card[data-estimate-id] > .card-body { padding: 4px 14px 14px !important; }
+  /* 카트는 스캔용 — 상세(기본/옵션/비고) 접고 총견적만 강조 */
+  body.wd-builder #estimatesListContainer .card[data-estimate-id] .estimate-card-item,
+  body.wd-builder #estimatesListContainer .card[data-estimate-id] .estimate-notes-block,
+  body.wd-builder #estimatesListContainer .card[data-estimate-id] hr { display: none !important; }
+  body.wd-builder #estimatesListContainer .card[data-estimate-id] .card-body > .mt-3 { margin: 0 !important;
+    display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  body.wd-builder #estimatesListContainer .card[data-estimate-id] .card-body > .mt-3 > small {
+    font-size: 13px !important; color: var(--foms-text-tertiary) !important; margin: 0 !important; }
+  body.wd-builder #estimatesListContainer .estimate-total-price { font-size: 20px !important; font-weight: 800 !important;
+    color: var(--foms-color-brand-700) !important; margin: 0 !important; font-variant-numeric: tabular-nums; }
+  /* 전체 합계 카드 → 숨김(HERO가 대체) */
+  body.wd-builder #totalEstimatesSummary { display: none !important; }
+
+  /* ===== FAB (master sticky) ===== */
+  .wd-fab { position: fixed; left: 0; right: 0; bottom: 0; z-index: 1040; display: flex; gap: 10px; align-items: center;
+    background: var(--foms-surface-base); border-top: 1px solid var(--foms-border-subtle); box-shadow: 0 -4px 16px rgba(15,17,21,.08);
+    padding: 12px 14px; padding-bottom: calc(12px + env(safe-area-inset-bottom,0)); }
+  .wd-fab__save { min-height: 50px; min-width: 54px; border: 1px solid var(--foms-border-default); background: var(--foms-surface-base);
+    border-radius: 14px; cursor: pointer; font-size: 19px; color: var(--foms-text-secondary); }
+  .wd-fab__new { flex: 1; min-height: 50px; border: none; background: var(--foms-color-brand-500); color: #fff; border-radius: 14px;
+    font-size: 16px; font-weight: 700; cursor: pointer; box-shadow: 0 6px 14px rgba(90,103,216,.3); }
+  .wd-fab__save:active, .wd-fab__new:active { filter: brightness(.96); }
+
+  /* ===== EDITOR SHEET (detail) ===== */
+  .wd-esheet-backdrop { position: fixed; inset: 0; background: rgba(15,17,21,.5); z-index: 1050; opacity: 0; transition: opacity .22s; }
+  .wd-esheet { position: fixed; inset: 64px 0 0 0; z-index: 1051; background: var(--foms-surface-overlay);
+    border-radius: 22px 22px 0 0; display: flex; flex-direction: column; box-shadow: 0 -10px 40px rgba(0,0,0,.25);
+    overflow: hidden; transform: translateY(100%); transition: transform .26s cubic-bezier(.2,.8,.2,1); }
+  body.wd-esheet-open .wd-esheet { transform: translateY(0); }
+  body.wd-esheet-open .wd-esheet-backdrop { opacity: 1; }
+  .wd-esheet[hidden], .wd-esheet-backdrop[hidden] { display: none; }
+  .wd-esheet__grip { width: 42px; height: 5px; background: var(--foms-border-default); border-radius: 999px; margin: 9px auto 4px; flex-shrink: 0; }
+  .wd-esheet__head { display: flex; align-items: center; justify-content: space-between; padding: 2px 10px 10px 18px; flex-shrink: 0; }
+  .wd-esheet__title { font-size: 17px; font-weight: 800; }
+  .wd-esheet__sub { font-size: 12px; color: var(--foms-text-tertiary); font-weight: 600; margin-top: 1px; }
+  /* 세그먼트 탭 */
+  .wd-esheet__tabs { display: flex; gap: 4px; padding: 4px; margin: 0 14px 10px; background: var(--foms-color-neutral-100); border-radius: 12px; flex-shrink: 0; }
+  .wd-etab { flex: 1; border: none; background: transparent; padding: 9px 0; border-radius: 9px; font-size: 14px; font-weight: 600;
+    color: var(--foms-text-secondary); cursor: pointer; font-family: inherit; }
+  .wd-etab.is-active { background: var(--foms-surface-base); color: var(--foms-color-brand-700); box-shadow: 0 1px 3px rgba(15,17,21,.12); font-weight: 700; }
+  .wd-etab__c { font-size: 11px; opacity: .7; }
+  .wd-esheet__body { flex: 1; overflow-y: auto; padding: 0 14px 18px; }
+  .wd-panel { display: none; }
+  .wd-panel.is-active { display: block; }
+
+  /* sheet 내부 섹션 라벨(원본 .form-label 첫줄) 정리 */
+  body.wd-builder .wd-panel > .mb-3 > .form-label:first-child,
+  body.wd-builder .wd-panel > .form-label:first-child { display: none; }
+
+  /* 할인·배송 collapsible (sheet 하단) */
+  .wd-esheet-settings { background: var(--foms-surface-base); border: 1px solid var(--foms-border-subtle);
+    border-radius: 14px; overflow: hidden; margin-top: 12px; }
+  .wd-esheet-settings > summary { list-style: none; cursor: pointer; padding: 14px; display: flex; align-items: center;
+    justify-content: space-between; font-size: 14px; font-weight: 700; color: var(--foms-text-secondary); }
+  .wd-esheet-settings > summary::-webkit-details-marker { display: none; }
+  .wd-esheet-settings[open] > summary { border-bottom: 1px solid var(--foms-border-subtle); }
+  .wd-esheet-settings__chev { transition: transform .15s; color: var(--foms-text-tertiary); }
+  .wd-esheet-settings[open] .wd-esheet-settings__chev { transform: rotate(180deg); }
+  .wd-esheet-settings__body { padding: 14px; }
+  body.wd-builder .wd-esheet-settings__body .card { border: none !important; box-shadow: none !important; margin: 0 0 10px !important; }
+  body.wd-builder .wd-esheet-settings__body .card:last-child { margin-bottom: 0 !important; }
+  body.wd-builder .wd-esheet-settings__body .card > .card-header { display: none !important; }
+  body.wd-builder .wd-esheet-settings__body .card > .card-body { padding: 0 !important; }
+
+  /* sheet 하단 sticky foot */
+  .wd-esheet__foot { flex-shrink: 0; background: var(--foms-surface-base); border-top: 1px solid var(--foms-border-subtle);
+    padding: 12px 14px; padding-bottom: calc(12px + env(safe-area-inset-bottom,0)); display: flex; align-items: center; gap: 12px; }
+  .wd-esheet__sum { flex: 1; display: grid; gap: 1px; min-width: 0; }
+  .wd-esheet__sum-l { font-size: 12px; color: var(--foms-text-tertiary); }
+  .wd-esheet__sum-v { font-size: 22px; font-weight: 800; color: var(--foms-color-brand-700); font-variant-numeric: tabular-nums; line-height: 1.05; }
+  .wd-esheet__sum-v.wd-pulse { animation: wdHeroPulse .45s ease-out; }
+  .wd-esheet__done { min-height: 48px; padding: 0 24px; border: none; border-radius: 13px; background: var(--foms-color-brand-500);
+    color: #fff; font-size: 16px; font-weight: 700; cursor: pointer; flex-shrink: 0; }
+  .wd-esheet__done:active { filter: brightness(.96); }
+
+  /* sheet 안: '+ 추가' 류 버튼 풀폭 점선(기존 outline 버튼 재활용) */
+  body.wd-builder .wd-panel #addBaseComponentBtn,
+  body.wd-builder .wd-panel #addOptionBtn,
+  body.wd-builder .wd-panel #btnAddNote { width: 100%; border-style: dashed !important; min-height: 46px; border-radius: 12px; }
+  body.wd-builder .wd-panel .d-flex.gap-2.mt-2 { display: block !important; }
+}
+
+/* 데스크톱: 빌더 셸 노출 안 함 */
+@media (min-width: 992px) {
+  .wd-master, .wd-fab, .wd-esheet, .wd-esheet-backdrop, .wd-cust, .wd-hero, .wd-cart-head { display: none !important; }
+}

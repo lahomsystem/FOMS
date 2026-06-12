@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover" />
+<title>FOMS · 견적 빌더 (모바일 재설계 v3)</title>
+<link rel="stylesheet" href="_tokens.css" />
+<!--
+  ============================================================================
+  WDCalculator 모바일 IA 재설계 v3 — 2026-06-12  "견적 빌더 (master-detail 카트형)"
+  ----------------------------------------------------------------------------
+  [v1~v2 문제] 데스크톱 입력폼을 모바일에 additive 리스타일 → IA는 단일 메가스크롤
+   (편집폼 위 / 리스트·총액 아래)로 그대로. 편집·리스트·총액이 한 화면서 경쟁,
+   세로 스크롤만 길어짐 → "PC 욱여넣은 느낌" 잔존.
+
+  [v3 핵심: IA 자체 전환 — POS/장바구니 패턴]
+   · MASTER(메인) = 견적 카드 리스트 + 총액 HERO + "+새 견적"(thumb zone).
+     한눈에 '지금까지 담은 견적'과 합계. 스캔 중심.
+   · DETAIL(편집) = 풀높이 BOTTOM SHEET. 한 견적만 집중 편집.
+     세그먼트 [구성|옵션|비고]로 섹션 전환(긴 스크롤 제거).
+     시트 하단 sticky = 이 견적 소계 + [완료].
+   근거: NN/G Bottom Sheets, POS 카트(Square: 항목추가=시트+러닝토탈),
+         master-detail(리스트=master, 상세=시트), bottom sheet +25~30% engagement.
+
+  [전환 요약]  edit-form-on-top 메가스크롤  →  cart-first + focused sheet editor
+  ============================================================================
+-->
+<style>
+  body { margin:0; background:var(--foms-color-neutral-100); font-family:var(--foms-font-sans,"Pretendard","Segoe UI",sans-serif); -webkit-font-smoothing:antialiased; }
+  .preview-row { display:flex; gap:32px; flex-wrap:wrap; justify-content:center; padding:28px 12px; }
+  .preview-col { display:flex; flex-direction:column; align-items:center; }
+  .preview-label { text-align:center; font-size:13px; color:var(--foms-text-tertiary); margin:10px 0 0; font-weight:600; max-width:390px; }
+  .preview-frame { width:390px; height:844px; background:var(--foms-surface-base); border-radius:32px; box-shadow:var(--foms-shadow-xl,0 24px 48px rgba(15,17,21,.18)); overflow:hidden; position:relative; border:8px solid #0f1115; }
+  .shell { position:absolute; inset:0; display:flex; flex-direction:column; background:var(--foms-surface-overlay); }
+
+  /* Header */
+  .head { flex-shrink:0; height:56px; display:grid; grid-template-columns:44px 1fr auto; align-items:center; padding:0 8px; background:var(--foms-surface-base); border-bottom:1px solid var(--foms-border-subtle); }
+  .head__title { font-size:17px; font-weight:600; text-align:center; }
+  .icon-btn { width:44px; height:44px; display:inline-flex; align-items:center; justify-content:center; background:transparent; border:none; cursor:pointer; border-radius:10px; color:var(--foms-text-primary); font-size:18px; position:relative; }
+  .icon-btn__dot { position:absolute; top:7px; right:7px; min-width:16px; height:16px; padding:0 4px; border-radius:999px; background:var(--foms-color-brand-500); color:#fff; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center; }
+
+  /* Body scroll */
+  .body { flex:1; overflow-y:auto; padding:14px 14px 110px; display:grid; gap:14px; align-content:start; }
+
+  /* Customer chip */
+  .cust { display:flex; align-items:center; gap:10px; background:var(--foms-surface-base); border:1px solid var(--foms-border-subtle); border-radius:14px; padding:12px 14px; }
+  .cust__ic { width:34px; height:34px; border-radius:999px; background:var(--foms-color-brand-50); color:var(--foms-color-brand-600); display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
+  .cust__in { flex:1; border:none; background:transparent; font-size:16px; font-weight:600; color:var(--foms-text-primary); padding:0; }
+  .cust__in::placeholder { color:var(--foms-text-tertiary); font-weight:500; }
+  .cust__edit { color:var(--foms-text-tertiary); font-size:13px; }
+
+  /* HERO total */
+  .hero { background:linear-gradient(135deg,var(--foms-color-brand-600),var(--foms-color-brand-500)); border-radius:18px; padding:18px 18px 16px; color:#fff; box-shadow:0 10px 24px rgba(90,103,216,.28); }
+  .hero__label { font-size:13px; opacity:.85; font-weight:500; }
+  .hero__val { font-size:34px; font-weight:800; line-height:1.05; margin:2px 0 6px; font-variant-numeric:tabular-nums; letter-spacing:-.5px; }
+  .hero__meta { display:flex; gap:8px; flex-wrap:wrap; }
+  .hero__pill { background:rgba(255,255,255,.18); border-radius:999px; padding:3px 10px; font-size:12px; font-weight:600; }
+
+  /* Section label row */
+  .seclab { display:flex; align-items:center; justify-content:space-between; margin:2px 2px -2px; }
+  .seclab__t { font-size:14px; font-weight:700; color:var(--foms-text-secondary); }
+  .seclab__a { font-size:13px; font-weight:600; color:var(--foms-color-brand-600); }
+
+  /* Quote card (master list) */
+  .qcard { display:grid; grid-template-columns:30px 1fr auto; grid-template-rows:auto auto auto; gap:2px 10px; background:var(--foms-surface-base); border:1px solid var(--foms-border-subtle); border-radius:16px; padding:14px; position:relative; cursor:pointer; box-shadow:0 1px 2px rgba(15,17,21,.04); }
+  .qcard:active { background:var(--foms-color-neutral-50); }
+  .qcard__idx { grid-row:1/2; width:28px; height:28px; border-radius:999px; background:var(--foms-color-brand-500); color:#fff; font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center; }
+  .qcard__idx--manual { background:var(--foms-color-warning-500); }
+  .qcard__name { grid-column:2/3; font-size:16px; font-weight:700; color:var(--foms-text-primary); align-self:center; }
+  .qcard__price { grid-column:3/4; grid-row:1/2; font-size:17px; font-weight:800; color:var(--foms-color-brand-700); font-variant-numeric:tabular-nums; align-self:center; }
+  .qcard__spec { grid-column:2/4; font-size:13px; color:var(--foms-text-tertiary); }
+  .qcard__tags { grid-column:2/4; display:flex; gap:6px; margin-top:6px; flex-wrap:wrap; }
+  .qtag { font-size:11px; font-weight:600; color:var(--foms-text-secondary); background:var(--foms-color-neutral-100); border-radius:6px; padding:2px 8px; }
+  .qtag--unit { color:var(--foms-color-brand-700); background:var(--foms-color-brand-50); }
+  .qcard__go { position:absolute; right:14px; bottom:12px; color:var(--foms-text-tertiary); font-size:13px; }
+
+  /* Empty state */
+  .empty { text-align:center; padding:48px 24px; color:var(--foms-text-tertiary); }
+  .empty__ic { font-size:44px; margin-bottom:10px; opacity:.5; }
+  .empty__t { font-size:15px; font-weight:600; color:var(--foms-text-secondary); }
+  .empty__s { font-size:13px; margin-top:4px; }
+
+  /* Sticky action bar (primary) */
+  .actbar { position:absolute; inset:auto 0 0 0; background:var(--foms-surface-base); border-top:1px solid var(--foms-border-subtle); box-shadow:0 -4px 16px rgba(15,17,21,.08); padding:12px 14px; padding-bottom:calc(12px + env(safe-area-inset-bottom,0)); display:flex; gap:10px; align-items:center; }
+  .btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:50px; border-radius:14px; border:1px solid transparent; font-size:16px; font-weight:700; cursor:pointer; font-family:inherit; }
+  .btn--primary { flex:1; background:var(--foms-color-brand-500); color:#fff; box-shadow:0 6px 14px rgba(90,103,216,.3); }
+  .btn--ghost { background:var(--foms-surface-base); color:var(--foms-text-secondary); border-color:var(--foms-border-default); min-width:54px; }
+  .btn--block { width:100%; }
+
+  /* ===== Editor BOTTOM SHEET (detail) ===== */
+  .backdrop { position:absolute; inset:0; background:rgba(15,17,21,.5); }
+  .sheet { position:absolute; inset:64px 0 0 0; background:var(--foms-surface-overlay); border-radius:22px 22px 0 0; display:flex; flex-direction:column; box-shadow:0 -10px 40px rgba(0,0,0,.25); overflow:hidden; }
+  .sheet__grip { width:42px; height:5px; background:var(--foms-border-default); border-radius:999px; margin:9px auto 4px; flex-shrink:0; }
+  .sheet__head { display:flex; align-items:center; justify-content:space-between; padding:2px 12px 10px 18px; flex-shrink:0; }
+  .sheet__title { font-size:17px; font-weight:800; }
+  .sheet__sub { font-size:12px; color:var(--foms-text-tertiary); font-weight:600; }
+  /* segment tabs */
+  .segtabs { display:flex; gap:4px; padding:4px; margin:0 14px 10px; background:var(--foms-color-neutral-100); border-radius:12px; flex-shrink:0; }
+  .segtab { flex:1; border:none; background:transparent; padding:9px 0; border-radius:9px; font-size:14px; font-weight:600; color:var(--foms-text-secondary); cursor:pointer; font-family:inherit; }
+  .segtab.is-active { background:var(--foms-surface-base); color:var(--foms-color-brand-700); box-shadow:0 1px 3px rgba(15,17,21,.12); font-weight:700; }
+  .sheet__body { flex:1; overflow-y:auto; padding:0 14px 16px; display:grid; gap:12px; align-content:start; }
+
+  .card { background:var(--foms-surface-base); border:1px solid var(--foms-border-subtle); border-radius:14px; padding:14px; }
+  .field { display:grid; gap:6px; margin-bottom:12px; }
+  .field:last-child { margin-bottom:0; }
+  .flabel { font-size:13px; font-weight:600; color:var(--foms-text-secondary); }
+  .in { width:100%; min-height:46px; padding:11px 13px; font-size:16px; color:var(--foms-text-primary); background:var(--foms-surface-base); border:1px solid var(--foms-border-default); border-radius:11px; box-sizing:border-box; font-family:inherit; }
+  .in--tab { font-variant-numeric:tabular-nums; }
+  .selrow { display:flex; align-items:center; justify-content:space-between; width:100%; min-height:46px; padding:11px 13px; background:var(--foms-surface-base); border:1px solid var(--foms-border-default); border-radius:11px; font-size:16px; cursor:pointer; }
+  .selrow__ph { color:var(--foms-text-tertiary); }
+  .seg2 { display:flex; gap:3px; padding:3px; background:var(--foms-color-neutral-100); border-radius:10px; }
+  .seg2 button { flex:1; border:none; background:transparent; padding:9px 0; border-radius:8px; font-size:14px; font-weight:600; color:var(--foms-text-secondary); cursor:pointer; font-family:inherit; }
+  .seg2 button.on { background:var(--foms-surface-base); color:var(--foms-color-brand-700); box-shadow:0 1px 2px rgba(0,0,0,.1); }
+  .seg2 button.on--w { color:var(--foms-color-warning-600); }
+  .unitchip { display:inline-flex; flex-wrap:wrap; gap:4px 10px; padding:9px 11px; background:var(--foms-color-brand-50); border-radius:10px; font-size:13px; color:var(--foms-color-brand-700); font-variant-numeric:tabular-nums; }
+  .unitchip b { color:var(--foms-color-brand-800); }
+  .subrow { display:flex; align-items:center; justify-content:space-between; margin-top:12px; padding-top:10px; border-top:1px dashed var(--foms-border-subtle); }
+  .subrow__l { font-size:14px; color:var(--foms-text-secondary); }
+  .subrow__v { font-size:18px; font-weight:800; font-variant-numeric:tabular-nums; }
+  .addrow { display:flex; align-items:center; justify-content:center; gap:6px; width:100%; min-height:46px; border:1px dashed var(--foms-border-default); border-radius:12px; background:transparent; color:var(--foms-text-secondary); font-size:14px; font-weight:600; cursor:pointer; font-family:inherit; }
+  .cardtop { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+  .del { width:36px; height:36px; border:none; background:transparent; color:var(--foms-color-danger-500); font-size:18px; border-radius:9px; cursor:pointer; }
+
+  /* sheet sticky footer */
+  .sheetfoot { flex-shrink:0; background:var(--foms-surface-base); border-top:1px solid var(--foms-border-subtle); padding:12px 14px; padding-bottom:calc(12px + env(safe-area-inset-bottom,0)); display:flex; align-items:center; gap:12px; }
+  .sheetfoot__sum { flex:1; display:grid; gap:1px; }
+  .sheetfoot__l { font-size:12px; color:var(--foms-text-tertiary); }
+  .sheetfoot__v { font-size:22px; font-weight:800; color:var(--foms-color-brand-700); font-variant-numeric:tabular-nums; line-height:1.05; }
+  .sheetfoot__done { min-height:48px; padding:0 22px; border:none; border-radius:13px; background:var(--foms-color-brand-500); color:#fff; font-size:16px; font-weight:700; cursor:pointer; }
+</style>
+</head>
+<body>
+<div class="preview-row">
+
+  <!-- ========================================================= -->
+  <!-- FRAME 1 — MASTER: 견적 카트 (리스트 + 총액 HERO + 새 견적)  -->
+  <!-- ========================================================= -->
+  <div class="preview-col">
+  <div class="preview-frame"><div class="shell">
+    <header class="head">
+      <button class="icon-btn">‹</button>
+      <div class="head__title">견적 빌더</div>
+      <div style="display:flex">
+        <button class="icon-btn">🗂<span class="icon-btn__dot">12</span></button>
+        <button class="icon-btn">⚙</button>
+      </div>
+    </header>
+    <div class="body">
+      <!-- 고객 -->
+      <div class="cust">
+        <span class="cust__ic">👤</span>
+        <input class="cust__in" value="김현장 고객님" />
+        <span class="cust__edit">변경</span>
+      </div>
+      <!-- 총액 HERO -->
+      <div class="hero">
+        <div class="hero__label">총 견적 (현재)</div>
+        <div class="hero__val">1,029,700원</div>
+        <div class="hero__meta">
+          <span class="hero__pill">견적 1건</span>
+          <span class="hero__pill">11,000원 할인 적용</span>
+        </div>
+      </div>
+      <!-- 견적 리스트 -->
+      <div class="seclab"><span class="seclab__t">담은 견적</span><span class="seclab__a">단가 표시 ✓</span></div>
+
+      <div class="qcard">
+        <span class="qcard__idx">1</span>
+        <div class="qcard__name">몰딩(푸쉬)</div>
+        <div class="qcard__price">970,700원</div>
+        <div class="qcard__spec">선택 · 3,450mm</div>
+        <div class="qcard__tags">
+          <span class="qtag qtag--unit">30cm 84,400 · 1cm 2,820</span>
+          <span class="qtag">옵션 1</span>
+          <span class="qtag">비고 2</span>
+        </div>
+      </div>
+
+      <button class="addrow" style="min-height:52px">＋ 견적 추가</button>
+    </div>
+    <!-- sticky 액션바 -->
+    <div class="actbar">
+      <button class="btn btn--ghost">💾</button>
+      <button class="btn btn--primary">＋ 새 견적 만들기</button>
+    </div>
+  </div></div>
+  <p class="preview-label">① MASTER — 견적 카트: 총액 HERO + 카드 리스트 + 하단 "새 견적"(thumb). 한눈에 담긴 견적·합계.</p>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- FRAME 2 — DETAIL: 편집 BOTTOM SHEET (구성 탭)               -->
+  <!-- ========================================================= -->
+  <div class="preview-col">
+  <div class="preview-frame"><div class="shell">
+    <header class="head">
+      <button class="icon-btn">‹</button>
+      <div class="head__title">견적 빌더</div>
+      <div style="display:flex"><button class="icon-btn">🗂</button><button class="icon-btn">⚙</button></div>
+    </header>
+    <div class="body" style="filter:blur(1.5px)">
+      <div class="cust" style="height:34px"></div>
+      <div class="hero" style="height:70px"></div>
+    </div>
+    <div class="backdrop"></div>
+    <div class="sheet">
+      <div class="sheet__grip"></div>
+      <div class="sheet__head">
+        <div><div class="sheet__title">견적 편집</div><div class="sheet__sub">몰딩(푸쉬) · 3,450mm</div></div>
+        <button class="icon-btn">✕</button>
+      </div>
+      <div class="segtabs">
+        <button class="segtab is-active">구성 1</button>
+        <button class="segtab">옵션 1</button>
+        <button class="segtab">비고 2</button>
+      </div>
+      <div class="sheet__body">
+        <div class="card">
+          <div class="cardtop">
+            <div class="seg2" style="width:60%"><button class="on">선택</button><button>직접</button></div>
+            <button class="del">🗑</button>
+          </div>
+          <div class="field"><label class="flabel">제품</label>
+            <div class="selrow"><span>몰딩(푸쉬)</span><span>▾</span></div></div>
+          <div class="field"><label class="flabel">가로 (mm)</label>
+            <input class="in in--tab" inputmode="numeric" value="3,450" /></div>
+          <div class="unitchip">30cm <b>84,400원</b> · 1cm <b>2,820원</b></div>
+          <div class="subrow"><span class="subrow__l">구성 소계</span><span class="subrow__v">970,700원</span></div>
+        </div>
+        <button class="addrow">＋ 구성 추가</button>
+      </div>
+      <div class="sheetfoot">
+        <div class="sheetfoot__sum"><span class="sheetfoot__l">이 견적</span><span class="sheetfoot__v">1,040,700원</span></div>
+        <button class="sheetfoot__done">완료</button>
+      </div>
+    </div>
+  </div></div>
+  <p class="preview-label">② DETAIL — 편집 시트: 한 견적만 집중. 세그먼트 [구성·옵션·비고]로 섹션 전환. 시트 하단 소계+완료.</p>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- FRAME 3 — DETAIL: 옵션 탭 + 빈 카트                          -->
+  <!-- ========================================================= -->
+  <div class="preview-col">
+  <div class="preview-frame"><div class="shell">
+    <header class="head">
+      <button class="icon-btn">‹</button>
+      <div class="head__title">견적 빌더</div>
+      <div style="display:flex"><button class="icon-btn">🗂</button><button class="icon-btn">⚙</button></div>
+    </header>
+    <div class="body" style="filter:blur(1.5px)"><div class="hero" style="height:70px"></div></div>
+    <div class="backdrop"></div>
+    <div class="sheet">
+      <div class="sheet__grip"></div>
+      <div class="sheet__head">
+        <div><div class="sheet__title">견적 편집</div><div class="sheet__sub">몰딩(푸쉬) · 3,450mm</div></div>
+        <button class="icon-btn">✕</button>
+      </div>
+      <div class="segtabs">
+        <button class="segtab">구성 1</button>
+        <button class="segtab is-active">옵션 1</button>
+        <button class="segtab">비고 2</button>
+      </div>
+      <div class="sheet__body">
+        <div class="card">
+          <div class="cardtop"><div class="seg2" style="width:55%"><button>불러오기</button><button class="on on--w">직접</button></div><button class="del">✕</button></div>
+          <div class="field"><label class="flabel">옵션명</label><input class="in" value="EP > 폭 601~800mm" /></div>
+          <div class="field" style="margin:0"><label class="flabel">금액 (원)</label><input class="in in--tab" inputmode="numeric" value="70,000" /></div>
+        </div>
+        <button class="addrow">＋ 옵션 추가</button>
+        <div class="unitchip" style="background:var(--foms-color-success-50);color:var(--foms-color-success-600)">옵션 합계 <b>70,000원</b></div>
+      </div>
+      <div class="sheetfoot">
+        <div class="sheetfoot__sum"><span class="sheetfoot__l">이 견적</span><span class="sheetfoot__v">1,040,700원</span></div>
+        <button class="sheetfoot__done">완료</button>
+      </div>
+    </div>
+  </div></div>
+  <p class="preview-label">③ DETAIL — 옵션 탭(불러오기/직접 동일). 시트 안에서 섹션만 바뀌고 소계는 항상 하단.</p>
+  </div>
+
+</div>
+</body>
+</html>

@@ -86,35 +86,233 @@
       }
     }
 
-    function buildTotalbar() {
-      if (document.querySelector(".wd-mtotal")) return;
-      var bar = document.createElement("div");
-      bar.className = "wd-mtotal";
-      bar.innerHTML =
-        '<div class="wd-mtotal__sum"><span class="wd-mtotal__label">최종 견적 (현재)</span>' +
-        '<span class="wd-mtotal__val" data-wd-final>0원</span></div>' +
-        '<div class="wd-mtotal__acts">' +
-        '<button type="button" class="wd-mtotal__save" data-wd-save aria-label="견적 저장">💾</button>' +
-        '<button type="button" class="wd-mtotal__add" data-wd-add>＋ 견적 추가</button>' +
-        "</div>";
-      document.body.appendChild(bar);
-      bar.querySelector("[data-wd-add]").addEventListener("click", function () {
-        var b = document.getElementById("addEstimateBtn");
-        if (b) b.click();
+    /* ============================================================
+       [v3] 견적 빌더 셸 (master-detail). 리니어 sticky(buildTotalbar) 대체.
+       master = 카트(고객칩 + 총액 HERO + 견적 카드 리스트),
+       detail = 편집 bottom sheet(구성·옵션·비고 탭 + 할인·배송 + 완료).
+       host 노드를 재배치하고 host 버튼을 위임 → 계산/CRUD/계약 로직 무변경.
+       ============================================================ */
+    var lastHero = null;
+    var lastEditorFinal = null;
+
+    function buildBuilderMaster() {
+      if (document.querySelector(".wd-master")) return;
+      var master = document.createElement("div");
+      master.className = "wd-master";
+      var cust = document.createElement("div");
+      cust.className = "wd-cust";
+      cust.innerHTML = '<span class="wd-cust__ic">👤</span>';
+      var custInput = document.getElementById("customerName");
+      if (custInput) cust.appendChild(custInput); // 노드 이동 → ID/핸들러 유지
+      master.appendChild(cust);
+      var hero = document.createElement("div");
+      hero.className = "wd-hero";
+      hero.innerHTML =
+        '<div class="wd-hero__label">총 견적 (현재)</div>' +
+        '<div class="wd-hero__val" data-wd-hero>0원</div>' +
+        '<div class="wd-hero__meta">' +
+        '<span class="wd-hero__pill" data-wd-hero-count>견적 0건</span>' +
+        '<span class="wd-hero__pill" data-wd-hero-coupon>쿠폰가 미적용</span></div>';
+      master.appendChild(hero);
+      var ch = document.createElement("div");
+      ch.className = "wd-cart-head";
+      ch.innerHTML = '<span class="wd-cart-head__t">담은 견적</span>';
+      master.appendChild(ch);
+      var list = document.getElementById("estimatesListContainer");
+      if (list) master.appendChild(list); // 카트로 이동(host가 ID로 렌더)
+      var header = document.querySelector(".wd-mhead");
+      if (header && header.nextSibling) document.body.insertBefore(master, header.nextSibling);
+      else document.body.appendChild(master);
+    }
+
+    function moveSectionByContainer(containerId) {
+      var c = document.getElementById(containerId);
+      return c ? c.closest(".mb-3") : null;
+    }
+
+    function buildEditorSheet() {
+      if (document.querySelector(".wd-esheet")) return;
+      var backdrop = document.createElement("div");
+      backdrop.className = "wd-esheet-backdrop";
+      backdrop.hidden = true;
+      var sheet = document.createElement("div");
+      sheet.className = "wd-esheet";
+      sheet.hidden = true;
+      sheet.innerHTML =
+        '<div class="wd-esheet__grip"></div>' +
+        '<div class="wd-esheet__head"><div><div class="wd-esheet__title">견적 편집</div>' +
+        '<div class="wd-esheet__sub" data-wd-esub></div></div>' +
+        '<button type="button" class="wd-mhead__btn" data-wd-eclose aria-label="닫기">✕</button></div>' +
+        '<div class="wd-esheet__tabs">' +
+        '<button type="button" class="wd-etab is-active" data-tab="base">구성</button>' +
+        '<button type="button" class="wd-etab" data-tab="opt">옵션</button>' +
+        '<button type="button" class="wd-etab" data-tab="note">비고</button></div>' +
+        '<div class="wd-esheet__body">' +
+        '<div class="wd-panel is-active" data-panel="base"></div>' +
+        '<div class="wd-panel" data-panel="opt"></div>' +
+        '<div class="wd-panel" data-panel="note"></div>' +
+        '<details class="wd-esheet-settings"><summary>⚙ 할인 · 배송 설정' +
+        '<span class="wd-esheet-settings__chev">▾</span></summary>' +
+        '<div class="wd-esheet-settings__body"></div></details></div>' +
+        '<div class="wd-esheet__foot"><div class="wd-esheet__sum">' +
+        '<span class="wd-esheet__sum-l">이 견적</span>' +
+        '<span class="wd-esheet__sum-v" data-wd-efinal>0원</span></div>' +
+        '<button type="button" class="wd-esheet__done" data-wd-edone>완료</button></div>';
+      document.body.appendChild(backdrop);
+      document.body.appendChild(sheet);
+      var baseSec = moveSectionByContainer("baseComponentsContainer");
+      var optSec = moveSectionByContainer("additionalOptionsContainer");
+      var noteSec = moveSectionByContainer("notesContainer");
+      if (baseSec) sheet.querySelector('[data-panel="base"]').appendChild(baseSec);
+      if (optSec) sheet.querySelector('[data-panel="opt"]').appendChild(optSec);
+      if (noteSec) sheet.querySelector('[data-panel="note"]').appendChild(noteSec);
+      var settingsBody = sheet.querySelector(".wd-esheet-settings__body");
+      var coupon = document.querySelector(".border-left-info");
+      var shipping = document.querySelector(".border-left-warning");
+      if (coupon) settingsBody.appendChild(coupon.closest(".col-12") || coupon);
+      if (shipping) settingsBody.appendChild(shipping.closest(".col-12") || shipping);
+      sheet.querySelector(".wd-esheet__tabs").addEventListener("click", function (e) {
+        var btn = e.target.closest(".wd-etab");
+        if (!btn) return;
+        var tab = btn.getAttribute("data-tab");
+        forEachNode(sheet.querySelectorAll(".wd-etab"), function (b) {
+          b.classList.toggle("is-active", b === btn);
+        });
+        forEachNode(sheet.querySelectorAll(".wd-panel"), function (p) {
+          p.classList.toggle("is-active", p.getAttribute("data-panel") === tab);
+        });
       });
-      bar.querySelector("[data-wd-save]").addEventListener("click", function () {
+      backdrop.addEventListener("click", closeEditor);
+      sheet.querySelector("[data-wd-eclose]").addEventListener("click", closeEditor);
+      sheet.querySelector("[data-wd-edone]").addEventListener("click", function () {
+        var b = document.getElementById("addEstimateBtn");
+        if (b) b.click(); // host: 견적 추가 / 수정 적용
+        setTimeout(closeEditor, 60);
+      });
+      var fp = document.getElementById("finalPrice");
+      if (fp && window.MutationObserver) {
+        new MutationObserver(syncEditorFinal).observe(fp, {
+          childList: true, characterData: true, subtree: true,
+        });
+      }
+      syncEditorFinal();
+    }
+
+    function buildFabBar() {
+      if (document.querySelector(".wd-fab")) return;
+      var fab = document.createElement("div");
+      fab.className = "wd-fab";
+      fab.innerHTML =
+        '<button type="button" class="wd-fab__save" data-wd-save aria-label="견적 저장">💾</button>' +
+        '<button type="button" class="wd-fab__new" data-wd-new>＋ 새 견적 만들기</button>';
+      document.body.appendChild(fab);
+      fab.querySelector("[data-wd-save]").addEventListener("click", function () {
         var b = document.getElementById("saveEstimateBtn");
         if (b) b.click();
       });
-      syncFinal();
-      var fp = document.getElementById("finalPrice");
-      if (fp && window.MutationObserver) {
-        new MutationObserver(syncFinal).observe(fp, {
-          childList: true,
-          characterData: true,
-          subtree: true,
-        });
+      fab.querySelector("[data-wd-new]").addEventListener("click", function () {
+        resetToNewEstimate();
+        openEditor("새 견적", "base");
+      });
+    }
+
+    function resetToNewEstimate() {
+      var r = window.WdCalculatorResetInputFormKeepCustomer;
+      if (r && typeof r.resetInputFormToNewEstimate === "function") {
+        try {
+          r.resetInputFormToNewEstimate();
+        } catch (e) {}
       }
+    }
+
+    function openEditor(subText, defaultTab) {
+      var sheet = document.querySelector(".wd-esheet");
+      var backdrop = document.querySelector(".wd-esheet-backdrop");
+      if (!sheet || !backdrop) return;
+      var tab = defaultTab || "base";
+      var sub = sheet.querySelector("[data-wd-esub]");
+      if (sub) sub.textContent = subText || "";
+      forEachNode(sheet.querySelectorAll(".wd-etab"), function (b) {
+        b.classList.toggle("is-active", b.getAttribute("data-tab") === tab);
+      });
+      forEachNode(sheet.querySelectorAll(".wd-panel"), function (p) {
+        p.classList.toggle("is-active", p.getAttribute("data-panel") === tab);
+      });
+      sheet.hidden = false;
+      backdrop.hidden = false;
+      var body = sheet.querySelector(".wd-esheet__body");
+      if (body) body.scrollTop = 0;
+      requestAnimationFrame(function () {
+        document.body.classList.add("wd-esheet-open");
+      });
+      syncEditorFinal();
+    }
+
+    function closeEditor() {
+      var sheet = document.querySelector(".wd-esheet");
+      var backdrop = document.querySelector(".wd-esheet-backdrop");
+      document.body.classList.remove("wd-esheet-open");
+      setTimeout(function () {
+        if (sheet) sheet.hidden = true;
+        if (backdrop) backdrop.hidden = true;
+      }, 260);
+    }
+
+    function syncEditorFinal() {
+      var fp = document.getElementById("finalPrice");
+      var out = document.querySelector("[data-wd-efinal]");
+      if (!fp || !out) return;
+      var v = (fp.textContent || "0원").trim();
+      if (lastEditorFinal !== null && v !== lastEditorFinal) {
+        out.classList.remove("wd-pulse");
+        void out.offsetWidth;
+        out.classList.add("wd-pulse");
+      }
+      out.textContent = v;
+      lastEditorFinal = v;
+    }
+
+    function syncHero() {
+      var heroVal = document.querySelector("[data-wd-hero]");
+      if (!heroVal) return;
+      var countEl = document.querySelector("[data-wd-hero-count]");
+      var couponEl = document.querySelector("[data-wd-hero-coupon]");
+      var fin = document.getElementById("totalAllFinalPrice");
+      var cards = document.querySelectorAll("#estimatesListContainer .card[data-estimate-id]");
+      var coupon = document.getElementById("totalAllCouponInfo");
+      var v = fin ? (fin.textContent || "0원").trim() : "0원";
+      if (lastHero !== null && v !== lastHero) {
+        heroVal.classList.remove("wd-pulse");
+        void heroVal.offsetWidth;
+        heroVal.classList.add("wd-pulse");
+      }
+      heroVal.textContent = v;
+      lastHero = v;
+      if (countEl) countEl.textContent = "견적 " + cards.length + "건";
+      if (couponEl) couponEl.textContent = coupon ? (coupon.textContent || "").trim() : "쿠폰가 미적용";
+    }
+
+    function wireBuilderFlows() {
+      var list = document.getElementById("estimatesListContainer");
+      if (list) {
+        list.addEventListener("click", function (e) {
+          // 삭제·이름수정은 host가 처리(시트 안 엶)
+          if (e.target.closest(".delete-estimate-btn") || e.target.closest(".edit-estimate-name-btn")) return;
+          var card = e.target.closest(".card[data-estimate-id]");
+          if (!card) return;
+          // 카드 본문 탭 시 host 수정 로드 트리거(수정 버튼이 아니면 위임 클릭)
+          if (!e.target.closest(".edit-estimate-btn")) {
+            var editBtn = card.querySelector(".edit-estimate-btn");
+            if (editBtn) editBtn.click();
+          }
+          var name = (card.querySelector(".estimate-display-name") || {}).textContent || "견적 편집";
+          openEditor(name.trim(), "base");
+        });
+        if (window.MutationObserver) {
+          new MutationObserver(syncHero).observe(list, { childList: true, subtree: true });
+        }
+      }
+      syncHero();
     }
 
     var lastFinalText = null;
@@ -642,18 +840,19 @@
     function enable() {
       if (built) return;
       built = true;
-      document.body.classList.add("wd-calc-mobile");
+      document.body.classList.add("wd-calc-mobile"); // field-level mobile.css 재사용
+      document.body.classList.add("wd-builder"); // 빌더 셸 IA
       buildHeader();
-      buildSheet();
-      buildTotalbar();
+      buildSheet(); // 저장된 견적 🗂 sheet (재사용)
+      buildBuilderMaster(); // 고객칩 + 총액 HERO + 카트(estimatesList 이동)
+      buildEditorSheet(); // 편집 bottom sheet + 탭 + 컨테이너 이동 + foot
+      buildFabBar(); // master sticky: 저장 + 새 견적
       initBaseEnhancements();
       initToggleEnhancements();
       initMobileSelects();
-      initEstimatesListMobile();
-      buildNotesAccordion();
-      buildAdvancedAccordion();
-      relabelFinalTitle();
+      initEstimatesListMobile(); // 카트 카드 인라인 스타일 제거
       applyNumericInputmode(document);
+      wireBuilderFlows(); // 카드탭→수정 / HERO 미러 / 흐름 배선
     }
 
     if (mq.matches) enable();
