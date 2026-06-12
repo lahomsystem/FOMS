@@ -917,10 +917,8 @@
       mobilizeEstimatesList();
       hideEmptyCartRows();
       // renderEstimatesList() reapplies forced inline styles after 10ms; clear them after that pass.
-      setTimeout(function () {
-        mobilizeEstimatesList();
-        hideEmptyCartRows();
-      }, 30);
+      setTimeout(mobilizeEstimatesList, 30);
+      setTimeout(hideEmptyCartRows, 30);
     }
     function initEstimatesListMobile() {
       var container = document.getElementById("estimatesListContainer");
