@@ -11,6 +11,12 @@ from foms.services.erp_display import _normalize_for_search
 from foms.services.erp_permissions import can_edit_erp
 from foms.services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders, get_today_kst
 from foms.services.as_content_safety import sanitize_as_content_html
+from foms.services.as_dashboard_display import (
+    as_stage_badge_modifier,
+    as_thumb_enabled,
+    batch_resolve_as_thumbnail_urls,
+)
+from foms.services.feature_flags import is_enabled_for_user
 from foms.services.common.erp_shell_http import (
     apply_erp_shell_fragment_headers,
     wants_erp_shell_tab_body,
@@ -364,6 +370,17 @@ def erp_as_dashboard():
         sales_delivery_true,
     )
 
+    # 미완료 stats 칩 → 버킷 필터(방문확정/미결/미정). 요약 집계와 필터가 같은 조건을
+    # 단일 출처(SSOT)로 공유해 칩 카운트와 실제 목록 결과가 항상 일치하게 한다.
+    incomplete_buckets = {
+        'visit_confirmed': and_(incomplete_non_sales_condition, ~as_pending_true, as_visit_date_present),
+        'pending': and_(incomplete_non_sales_condition, as_pending_true),
+        'unassigned': and_(incomplete_non_sales_condition, ~as_pending_true, ~as_visit_date_present),
+    }
+    as_bucket = (request.args.get('bucket') or '').strip()
+    if tab != 'incomplete' or as_bucket not in incomplete_buckets:
+        as_bucket = ''  # 'total'·빈값·타 탭 → 버킷 필터 없음(전체 미완료)
+
     as_tab_counts = _count_cases(
         filtered_base_query,
         ('sales_delivery', sales_delivery_condition),
@@ -373,9 +390,9 @@ def erp_as_dashboard():
     as_incomplete_summary = _count_cases(
         filtered_base_query,
         ('total', incomplete_non_sales_condition),
-        ('visit_confirmed', and_(incomplete_non_sales_condition, ~as_pending_true, as_visit_date_present)),
-        ('pending', and_(incomplete_non_sales_condition, as_pending_true)),
-        ('unassigned', and_(incomplete_non_sales_condition, ~as_pending_true, ~as_visit_date_present)),
+        ('visit_confirmed', incomplete_buckets['visit_confirmed']),
+        ('pending', incomplete_buckets['pending']),
+        ('unassigned', incomplete_buckets['unassigned']),
     )
 
     # 하단 탭: 완료 안된 건 vs 완료 된 건 vs 전체
@@ -387,6 +404,9 @@ def erp_as_dashboard():
     else:
         # 완료 안된 건(X): AS 미완료 중 영업/택배로 분류되지 않은 주문만 표시
         query = query.filter(incomplete_non_sales_condition)
+        if as_bucket:
+            # stats 칩에서 고른 버킷(방문확정/미결/미정)으로 추가 좁힘
+            query = query.filter(incomplete_buckets[as_bucket])
 
     sort_dir = (request.args.get('sort_dir') or 'desc').strip().lower()
     if sort_dir != 'asc':
@@ -394,6 +414,9 @@ def erp_as_dashboard():
     order_col = Order.as_received_date
     focus_order_id = request.args.get('focus_order', type=int)
     total_orders = int(as_tab_counts.get(tab, 0))
+    if as_bucket:
+        # 버킷 필터 시 헤더 건수·페이지 수도 좁혀진 결과 기준으로
+        total_orders = int(as_incomplete_summary.get(as_bucket, 0))
     sort_clauses = []
     if focus_order_id:
         sort_clauses.append(case((Order.id == focus_order_id, 0), else_=1))
@@ -426,6 +449,13 @@ def erp_as_dashboard():
             OrderAttachment.category == 'as'
         ).distinct().all()
         as_photo_order_ids = {x[0] for x in as_with_photos}
+    mobile_v2_active = is_enabled_for_user(
+        "ERP_MOBILE_V2_ENABLED",
+        current_user.id if current_user else None,
+        cohort_key="FOMS_V3_SHELL_COHORT",
+    )
+    thumb_flag = as_thumb_enabled(mobile_v2_active=mobile_v2_active)
+    thumb_urls = batch_resolve_as_thumbnail_urls(order_ids, db) if order_ids else {}
     for r in rows:
         r.has_as_photos = r.id in as_photo_order_ids
         shipment = r.structured_data.get('shipment') or {}
@@ -442,8 +472,15 @@ def erp_as_dashboard():
         if not has_secondary_as_content and not secondary_as_content_html:
             secondary_as_content_html = sanitize_as_content_html(getattr(r, 'notes', '') or '')
         r.as_content_2_html = secondary_as_content_html
+        r.as_thumb_enabled = thumb_flag
+        r.thumbnail_url = thumb_urls.get(r.id) if thumb_flag else None
+        r.stage_badge_modifier = as_stage_badge_modifier(
+            status=str(r.status or ""),
+            as_pending=bool(r.as_pending),
+        )
     # 시공자가 아닌 사용자만 AS 카테고리 사진 조회 가능 (관리자 등)
     can_view_as_photos = not (current_user and (current_user.team or '').strip() == 'CONSTRUCTION')
+
     template_name = (
         'cs/partials/as_dashboard_fragment.html'
         if wants_erp_shell_tab_body(request)
@@ -463,8 +500,10 @@ def erp_as_dashboard():
         as_tab=tab,
         as_tab_counts=as_tab_counts,
         as_incomplete_summary=as_incomplete_summary,
+        as_bucket=as_bucket,
         compact_search_q=compact_q,
         page=page,
+        per_page=per_page,
         total_pages=total_pages,
         total_orders=total_orders,
     )

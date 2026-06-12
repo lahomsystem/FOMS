@@ -131,6 +131,7 @@
         .wdcalc-mobile-card-table .btn { min-height: 44px; }
     }
 </style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/wdcalculator/product-settings-mobile.css') }}?v=20260607a">
 {% endblock %}
 
 {% block content %}
@@ -158,13 +159,21 @@
                         <input type="hidden" id="productId" name="id" value="">
                         
                         <div class="row mb-3">
-                            <div class="col-md-6">
+                            <div class="col-md-4">
                                 <label for="productName" class="form-label">제품명 <span class="text-danger">*</span></label>
                                 <input type="text" class="form-control" id="productName" name="name" required>
                             </div>
-                            <div class="col-md-6">
+                            <div class="col-md-4">
+                                <label for="productCategory" class="form-label">카테고리</label>
+                                <input type="text" class="form-control" id="productCategory" name="category" list="productCategoryList" placeholder="예: 붙박이장, 몰딩, 주방">
+                                <datalist id="productCategoryList">
+                                    {% for p in products if p.category %}<option value="{{ p.category }}">{% endfor %}
+                                </datalist>
+                                <small class="form-text text-muted">같은 카테고리끼리 묶여 표시됩니다 (비우면 '미분류')</small>
+                            </div>
+                            <div class="col-md-4">
                                 <label for="pricingType" class="form-label">가격 산정 옵션 <span class="text-danger">*</span></label>
-                                <select class="form-select" id="pricingType" name="pricing_type" required>
+                                <select class="form-select" id="pricingType" name="pricing_type" data-sheet required>
                                     <option value="">선택하세요</option>
                                     <option value="1m">1m</option>
                                     <option value="30cm">30cm</option>
@@ -196,7 +205,7 @@
                         <div class="row mb-3">
                             <div class="col-md-4">
                                 <label for="couponType" class="form-label">쿠폰가 타입</label>
-                                <select class="form-select" id="couponType" name="coupon_type">
+                                <select class="form-select" id="couponType" name="coupon_type" data-sheet>
                                     <option value="percentage">할인율 (%)</option>
                                     <option value="fixed">고정 금액 (원)</option>
                                 </select>
@@ -238,6 +247,7 @@
                                 <tr>
                                     <th style="width: 60px;">ID</th>
                                     <th>제품명</th>
+                                    <th>카테고리</th>
                                     <th>가격 옵션</th>
                                     <th>비용 정보</th>
                                     <th>쿠폰가</th>
@@ -249,6 +259,13 @@
                                 <tr class="product-row" data-product-id="{{ product.id }}">
                                     <td data-label="ID">{{ product.id }}</td>
                                     <td data-label="제품명"><strong>{{ product.name }}</strong></td>
+                                    <td data-label="카테고리">
+                                        {% if product.category %}
+                                            <span class="badge bg-secondary">{{ product.category }}</span>
+                                        {% else %}
+                                            <span class="text-muted">미분류</span>
+                                        {% endif %}
+                                    </td>
                                     <td data-label="가격 옵션">
                                         {% if product.pricing_type == '1m' %}
                                             <span class="badge bg-info">1m</span>
@@ -596,6 +613,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const formData = {
             id: editingProductId || null,
             name: document.getElementById('productName').value,
+            category: document.getElementById('productCategory').value.trim(),
             pricing_type: document.getElementById('pricingType').value,
             additional_options: [],  // 추가 옵션은 더 이상 제품에 연결되지 않음
             coupon_type: document.getElementById('couponType').value,
@@ -638,6 +656,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('resetFormBtn').addEventListener('click', function() {
         document.getElementById('productForm').reset();
         document.getElementById('productId').value = '';
+        document.getElementById('productCategory').value = '';
         editingProductId = null;
         document.getElementById('price1mGroup').classList.remove('show');
         document.getElementById('price30cmGroup').classList.remove('show');
@@ -653,6 +672,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 editingProductId = productId;
                 document.getElementById('productId').value = productId;
                 document.getElementById('productName').value = product.name;
+                document.getElementById('productCategory').value = product.category || '';
                 document.getElementById('pricingType').value = product.pricing_type;
                 document.getElementById('pricingType').dispatchEvent(new Event('change'));
                 
@@ -1932,5 +1952,9 @@ document.addEventListener('DOMContentLoaded', function() {
     attachNotesCategoryEventListeners();
 });
 </script>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/wdcalculator/product-settings-mobile.js') }}?v=20260607a" defer></script>
 {% endblock %}
 

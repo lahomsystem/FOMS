@@ -1,0 +1,137 @@
+/**
+ * WDCalculator 제품 설정 모바일 (<=991.98px).
+ * docs/design/mockups/mobile-wdcalculator-product-settings.html 구현.
+ * 모든 규칙은 body.ps-mobile(모바일 전용 JS 부여) + 모바일 미디어쿼리로 게이트 →
+ * 데스크톱(>=992px) 및 비-제품설정 페이지 무영향. 기존 마크업/ID 보존.
+ */
+@media (max-width: 991.98px) {
+  /* 레거시 데스크톱 chrome + 본문 숨김 → 모바일 셸로 대체 */
+  body.ps-mobile .layout-header,
+  body.ps-mobile .layout-global-nav { display: none !important; }
+  body.ps-mobile #main-content { display: none !important; }
+  body.ps-mobile { background: var(--foms-surface-overlay, #f5f6f7); }
+  body.ps-mobile .toast-container { z-index: 1100; }
+  body.wdps-sheet-open { overflow: hidden; }
+
+  /* ---- 모바일 헤더 ---- */
+  .wdps-head {
+    position: fixed; top: 0; left: 0; right: 0; height: 56px; z-index: 1040;
+    display: grid; grid-template-columns: 44px 1fr 44px; align-items: center;
+    padding: 0 var(--foms-space-2, 8px); background: var(--foms-surface-base, #fff);
+    border-bottom: 1px solid var(--foms-border-subtle, #e9ecef);
+  }
+  .wdps-head__title { text-align: center; font-size: var(--foms-font-size-lg, 18px); font-weight: var(--foms-font-weight-semibold, 600); }
+  .wdps-icon {
+    width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center;
+    background: transparent; border: none; cursor: pointer; border-radius: var(--foms-radius-md, 8px);
+    color: var(--foms-text-primary, #212529); font-size: 18px; text-decoration: none;
+  }
+  .wdps-icon:active { background: var(--foms-interactive-secondary, #f1f3f5); }
+
+  /* ---- 셸: 탭 + 본문 + 추가바 ---- */
+  .wdps-shell {
+    position: fixed; top: 56px; left: 0; right: 0; bottom: 0; z-index: 1030;
+    display: flex; flex-direction: column; background: var(--foms-surface-overlay, #f5f6f7);
+  }
+  .wdps-tabs {
+    flex-shrink: 0; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 2px; padding: 8px;
+    background: var(--foms-surface-base, #fff); border-bottom: 1px solid var(--foms-border-subtle, #e9ecef);
+  }
+  .wdps-tab {
+    display: flex; align-items: center; justify-content: center; gap: 5px; min-height: 40px; border: none;
+    background: var(--foms-color-neutral-100, #f1f3f5); border-radius: var(--foms-radius-md, 8px);
+    font-family: inherit; font-size: var(--foms-font-size-sm, 14px); font-weight: var(--foms-font-weight-medium, 500);
+    color: var(--foms-text-secondary, #495057); cursor: pointer;
+  }
+  .wdps-tab.is-active { background: var(--foms-interactive-primary, #0d6efd); color: #fff; font-weight: var(--foms-font-weight-semibold, 600); }
+  .wdps-tab__n { font-size: var(--foms-font-size-xs, 12px); opacity: .85; }
+
+  .wdps-body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 12px 12px 88px; }
+  .wdps-panel { display: none; }
+  .wdps-panel.is-active { display: grid; gap: 8px; align-content: start; }
+  .wdps-empty { text-align: center; color: var(--foms-text-tertiary, #868e96); padding: 48px 16px; font-size: 14px; line-height: 1.6; }
+
+  /* ---- 제품 카드 ---- */
+  .wdps-card {
+    background: var(--foms-surface-base, #fff); border: 1px solid var(--foms-border-subtle, #e9ecef);
+    border-radius: var(--foms-radius-md, 8px); padding: 12px; display: grid; gap: 8px;
+  }
+  .wdps-card__top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+  .wdps-card__name { font-weight: var(--foms-font-weight-semibold, 600); font-size: var(--foms-font-size-base, 15px); line-height: 1.35; }
+  .wdps-card__acts { display: flex; gap: 2px; flex-shrink: 0; }
+  .wdps-act {
+    width: 34px; height: 34px; border: none; background: transparent; color: var(--foms-text-tertiary, #868e96);
+    border-radius: var(--foms-radius-sm, 6px); cursor: pointer; font-size: 15px; line-height: 1;
+  }
+  .wdps-act:active { background: var(--foms-color-neutral-100, #f1f3f5); }
+  .wdps-act--del { color: var(--foms-color-danger-500, #dc3545); }
+
+  .wdps-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .wdps-chip {
+    font-size: var(--foms-font-size-xs, 12px); padding: 4px 9px; border-radius: var(--foms-radius-full, 999px);
+    background: var(--foms-color-neutral-100, #f1f3f5); color: var(--foms-text-secondary, #495057); font-variant-numeric: tabular-nums;
+  }
+  .wdps-chip--price { background: var(--foms-color-brand-50, #e7f1ff); color: var(--foms-color-brand-700, #0a58ca); }
+  .wdps-chip--price b { color: var(--foms-color-brand-800, #084298); }
+  .wdps-chip--coupon { background: var(--foms-color-warning-50, #fff8e1); color: var(--foms-color-warning-600, #b8860b); }
+
+  /* ---- 카테고리 그룹 (추가옵션 / 비고) ---- */
+  .wdps-group {
+    background: var(--foms-surface-base, #fff); border: 1px solid var(--foms-border-subtle, #e9ecef);
+    border-radius: var(--foms-radius-md, 8px); overflow: hidden;
+  }
+  .wdps-group__head {
+    display: flex; align-items: center; justify-content: space-between; padding: 10px 12px;
+    background: var(--foms-color-neutral-50, #f8f9fa); border-bottom: 1px solid var(--foms-border-subtle, #e9ecef);
+  }
+  .wdps-group__name { font-weight: var(--foms-font-weight-semibold, 600); font-size: var(--foms-font-size-sm, 14px); display: flex; align-items: center; gap: 6px; }
+  .wdps-group__n { font-size: var(--foms-font-size-xs, 12px); color: var(--foms-text-tertiary, #868e96); }
+  .wdps-row {
+    display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 8px; padding: 8px 12px;
+    border-bottom: 1px solid var(--foms-border-subtle, #e9ecef);
+  }
+  .wdps-row--note { grid-template-columns: 1fr auto; }
+  .wdps-row:last-child { border-bottom: none; }
+  .wdps-row__name { font-size: var(--foms-font-size-sm, 14px); }
+  .wdps-row__price { font-size: var(--foms-font-size-sm, 14px); font-weight: var(--foms-font-weight-semibold, 600); font-variant-numeric: tabular-nums; color: var(--foms-color-brand-700, #0a58ca); }
+  .wdps-row__acts { display: flex; }
+
+  /* ---- 하단 sticky 추가바 ---- */
+  .wdps-addbar {
+    position: absolute; left: 0; right: 0; bottom: 0; background: var(--foms-surface-base, #fff);
+    border-top: 1px solid var(--foms-border-subtle, #e9ecef); box-shadow: 0 -4px 16px rgba(15, 17, 21, .08);
+    padding: 10px 12px; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0)); z-index: 5;
+  }
+  .wdps-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 46px; padding: 0 16px;
+    border-radius: var(--foms-radius-md, 8px); border: 1px solid transparent; font-family: inherit;
+    font-size: var(--foms-font-size-base, 15px); font-weight: var(--foms-font-weight-semibold, 600); cursor: pointer;
+  }
+  .wdps-btn--primary { background: var(--foms-interactive-primary, #0d6efd); color: #fff; }
+  .wdps-btn--full { width: 100%; }
+
+  /* ---- Bottom sheet (추가/수정 폼) ---- */
+  .wdps-backdrop { position: fixed; inset: 0; background: rgba(15, 17, 21, .45); z-index: 1050; }
+  .wdps-sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; max-height: 90%; z-index: 1055;
+    background: var(--foms-surface-base, #fff); border-radius: 20px 20px 0 0;
+    display: flex; flex-direction: column; box-shadow: var(--foms-shadow-xl, 0 -8px 40px rgba(0, 0, 0, .2));
+  }
+  .wdps-sheet__grip { width: 40px; height: 4px; background: var(--foms-border-default, #ced4da); border-radius: var(--foms-radius-full, 999px); margin: 10px auto 6px; }
+  .wdps-sheet__head { display: flex; align-items: center; justify-content: space-between; padding: 4px 16px 8px; }
+  .wdps-sheet__title { font-size: var(--foms-font-size-lg, 18px); font-weight: var(--foms-font-weight-bold, 700); }
+  .wdps-sheet__body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 8px 16px 20px; }
+
+  /* 시트 내부 폼: Bootstrap 그리드 → 단일 컬럼 + 터치/줌방지 사이즈 */
+  .wdps-sheet__body .row { margin: 0; }
+  .wdps-sheet__body .row > [class*="col-"] { width: 100%; max-width: 100%; flex: 0 0 100%; padding: 0; margin-bottom: 12px; }
+  .wdps-sheet__body .form-control,
+  .wdps-sheet__body .form-select {
+    min-height: 44px; font-size: max(16px, var(--foms-font-size-base, 15px));
+    border-radius: var(--foms-radius-md, 8px); border-color: var(--foms-border-default, #ced4da);
+  }
+  .wdps-sheet__body .form-label { font-size: var(--foms-font-size-sm, 14px); font-weight: var(--foms-font-weight-medium, 500); color: var(--foms-text-secondary, #495057); margin-bottom: 4px; }
+  .wdps-sheet__body .btn { min-height: 46px; border-radius: var(--foms-radius-md, 8px); font-weight: var(--foms-font-weight-semibold, 600); }
+  .wdps-sheet__body .d-flex.gap-2 { gap: 8px; }
+  .wdps-sheet__body .d-flex.gap-2 .btn { flex: 1; }
+}

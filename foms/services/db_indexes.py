@@ -141,6 +141,7 @@ def ensure_erp_date_columns() -> None:
             db.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS erp_drawing_updated_at TIMESTAMP"))
             db.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS erp_stage_updated_at TIMESTAMP"))
             db.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS erp_owner_team_code VARCHAR(20)"))
+            db.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS erp_phone_digits VARCHAR(20)"))
         else:
             _ensure_column(db, "orders", "erp_measurement_date", "VARCHAR(10)")
             _ensure_column(db, "orders", "erp_construction_date", "VARCHAR(10)")
@@ -149,6 +150,7 @@ def ensure_erp_date_columns() -> None:
             _ensure_column(db, "orders", "erp_drawing_updated_at", "TIMESTAMP")
             _ensure_column(db, "orders", "erp_stage_updated_at", "TIMESTAMP")
             _ensure_column(db, "orders", "erp_owner_team_code", "VARCHAR(20)")
+            _ensure_column(db, "orders", "erp_phone_digits", "VARCHAR(20)")
 
         db.execute(text("CREATE INDEX IF NOT EXISTS ix_orders_erp_measurement_date ON orders (erp_measurement_date)"))
         db.execute(text("CREATE INDEX IF NOT EXISTS ix_orders_erp_construction_date ON orders (erp_construction_date)"))
@@ -156,6 +158,7 @@ def ensure_erp_date_columns() -> None:
         db.execute(text("CREATE INDEX IF NOT EXISTS ix_orders_erp_urgent ON orders (erp_urgent)"))
         db.execute(text("CREATE INDEX IF NOT EXISTS ix_orders_erp_stage_updated_at ON orders (erp_stage_updated_at)"))
         db.execute(text("CREATE INDEX IF NOT EXISTS ix_orders_erp_owner_team_code ON orders (erp_owner_team_code)"))
+        db.execute(text("CREATE INDEX IF NOT EXISTS ix_orders_erp_phone_digits ON orders (erp_phone_digits)"))
 
         db.commit()
         _log.info("[AUTO-INIT] Phase B & D flat columns verified.")

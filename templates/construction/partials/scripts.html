@@ -38,9 +38,9 @@
   }
 
   var _cfg = document.getElementById('erp-dashboard-config');
-  const TEAM_LABELS = _cfg ? safeJsonParse(_cfg.getAttribute('data-team-labels'), {}) : {};
-  const STAGE_LABELS = _cfg ? safeJsonParse(_cfg.getAttribute('data-stage-labels'), {}) : {};
-  const CURRENT_USER_ID = _cfg ? (parseInt(_cfg.getAttribute('data-current-user-id'), 10) || null) : null;
+  var TEAM_LABELS = _cfg ? safeJsonParse(_cfg.getAttribute('data-team-labels'), {}) : {};
+  var STAGE_LABELS = _cfg ? safeJsonParse(_cfg.getAttribute('data-stage-labels'), {}) : {};
+  var CURRENT_USER_ID = _cfg ? (parseInt(_cfg.getAttribute('data-current-user-id'), 10) || null) : null;
 
   function label(map, code, fallback = '-') {
     if (!code) return fallback;
@@ -62,7 +62,7 @@
     }
   }
 
-  const __orderDetailPayloadCache = {};
+  var __orderDetailPayloadCache = {};
 
   function getPreloadedOrderDetailPayload(orderId) {
     if (__orderDetailPayloadCache[orderId]) {
@@ -120,14 +120,14 @@
     }
   }
 
-  let __selectedOrderId = null;
-  let __attachmentsCache = {};
-  let __attachmentsCacheAt = {};
-  let __constructionDetailLoadGen = {};
-  let __currentAttachmentList = [];
-  let __currentAttachmentIndex = 0;
-  let __activeAttachmentCategory = 'measurement';
-  let __attachmentsByCategory = {
+  var __selectedOrderId = null;
+  var __attachmentsCache = {};
+  var __attachmentsCacheAt = {};
+  var __constructionDetailLoadGen = {};
+  var __currentAttachmentList = [];
+  var __currentAttachmentIndex = 0;
+  var __activeAttachmentCategory = 'measurement';
+  var __attachmentsByCategory = {
     measurement: [],
     drawing: [],
     construction: [],
@@ -149,7 +149,7 @@
   // Zone 2: 첨부파일 뷰어 및 줌
   // ═══════════════════════════════════════════════════════════════
 
-  const ATTACHMENT_CATEGORY_META = {
+  var ATTACHMENT_CATEGORY_META = {
     measurement: { label: '실측', icon: 'fa-ruler-combined' },
     drawing: { label: '도면', icon: 'fa-drafting-compass' },
     construction: { label: '시공', icon: 'fa-hammer' },
@@ -1473,7 +1473,7 @@
   // Zone 7: 알림(Notification) 시스템
   // ═══════════════════════════════════════════════════════════════
 
-  let notificationPanelOpen = false;
+  var notificationPanelOpen = false;
 
   function renderNotificationBadge(count) {
     const badge = document.getElementById('notification-badge');

@@ -1,3 +1,4 @@
+import re
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -29,13 +30,39 @@ def _login_erp_admin(client):
 
 def test_erp_pages_mark_body_for_mobile_layout_shell(client, monkeypatch):
     monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
-    _login_erp_admin(client)
+    user = _login_erp_admin(client)
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
 
     response = client.get("/erp/dashboard")
 
     assert response.status_code == 200
     body = response.get_data(as_text=True)
     assert 'class="erp-mobile-v2-layout"' in body
+    assert 'layout-global-nav--erp-v2-suppressed' in body
+    assert 'data-erp-v2-global-nav="suppressed"' in body
+    assert "erp-pro.css" in body
+
+
+def test_erp_dashboard_trailing_slash_redirects_to_canonical(client, monkeypatch):
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    _login_erp_admin(client)
+
+    response = client.get("/erp/dashboard/?stage=MEASURE", follow_redirects=False)
+
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/erp/dashboard?stage=MEASURE")
+
+
+def test_erp_pages_without_cohort_keeps_unsuppressed_global_nav(client, monkeypatch):
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    _login_erp_admin(client)
+
+    response = client.get("/erp/dashboard")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert 'class="erp-mobile-v2-layout"' not in body
+    assert 'layout-global-nav--erp-v2-suppressed' not in body
     assert 'class="layout-global-nav navbar' in body
 
 
@@ -303,10 +330,14 @@ def test_shipment_update_noop_does_not_create_channel_delivery(client):
     )
 
 
-def test_shipment_construction_panel_count_excludes_as_orders(client):
+def test_shipment_construction_panel_count_excludes_as_orders(client, monkeypatch):
     """날짜별 시공 패널 badge-count는 AS 건을 제외한 순수 시공 건수만 집계한다."""
+    from foms.web.shipment import dashboard as shipment_dashboard
+
+    fake_today = date(2026, 5, 30)
+    monkeypatch.setattr(shipment_dashboard, "get_today_kst", lambda: fake_today)
     _login_erp_admin(client)
-    today = date.today().strftime("%Y-%m-%d")
+    today = fake_today.strftime("%Y-%m-%d")
 
     construction_order = Order(
         received_date=today,
@@ -367,8 +398,11 @@ def test_shipment_construction_panel_count_excludes_as_orders(client):
     body = response.get_data(as_text=True)
 
     anchor = f'id="date-{today}"'
-    start = body.find(anchor)
-    assert start != -1
-    snippet = body[start : start + 600]
+    anchor_idx = body.find(anchor)
+    assert anchor_idx != -1, f"construction panel row for {today} missing"
+    # measurement-panel-item <a> is multiline; [^>]* regex cannot span newlines.
+    close_idx = body.find("</a>", anchor_idx)
+    assert close_idx != -1, f"construction panel row for {today} not closed"
+    snippet = body[anchor_idx: close_idx + len("</a>")]
     assert 'class="badge badge-count ms-auto">1</span>' in snippet
     assert 'class="badge badge-count ms-auto">2</span>' not in snippet

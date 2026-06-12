@@ -16,6 +16,7 @@ def test_sync_erp_flat_columns_returns_early_for_non_erp_order() -> None:
         erp_drawing_updated_at="unchanged",
         erp_stage_updated_at="unchanged",
         erp_owner_team_code="legacy",
+        erp_phone_digits="unchanged",
     )
 
     sync_erp_flat_columns(order, {"workflow": {"stage": "MEASURE"}})
@@ -38,10 +39,14 @@ def test_sync_erp_flat_columns_updates_expected_flat_columns() -> None:
         erp_drawing_updated_at=None,
         erp_stage_updated_at=None,
         erp_owner_team_code=None,
+        erp_phone_digits=None,
         payment_amount=0,
     )
     structured_data = {
-        "parties": {"manager": {"name": "Manager Kim"}},
+        "parties": {
+            "manager": {"name": "Manager Kim"},
+            "customer": {"phone": "010-1234-5678"},
+        },
         "schedule": {
             "measurement": {"date": "2026-04-08T09:30:00"},
             "construction": {"date": {"year": 2026, "month": 4, "day": 9}},
@@ -65,4 +70,5 @@ def test_sync_erp_flat_columns_updates_expected_flat_columns() -> None:
     assert order.erp_drawing_updated_at.isoformat() == "2026-04-08T12:34:56+00:00"
     assert order.erp_stage_updated_at.isoformat() == "2026-04-08T12:34:56+00:00"
     assert order.erp_owner_team_code == "CONSTRUCTION"
+    assert order.erp_phone_digits == "01012345678"
     assert order.payment_amount == 1_198_400

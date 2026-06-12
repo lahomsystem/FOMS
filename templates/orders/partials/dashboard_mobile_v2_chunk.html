@@ -1,0 +1,3 @@
+<div data-foms-mobile-queue-chunk data-next-page="{{ page + 1 if page < total_pages else 0 }}" data-total-pages="{{ total_pages }}" data-page-label="{{ page }} / {{ total_pages }}">
+  {% include 'orders/partials/dashboard_mobile_queue_sections.html' %}
+</div>

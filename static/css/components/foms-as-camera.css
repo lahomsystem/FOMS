@@ -1,0 +1,74 @@
+/* §6.5 AS camera-first bar (mobile v2)
+   position:sticky;top:0였으나 셸 헤더(z120)가 항상 덮어 스크롤 시 가려지는
+   死구역이었다. 촬영은 1회성 인테이크 프롬프트이므로 일반 흐름으로 흘려보내고,
+   고정 chrome 높이를 줄여 케이스 목록이 더 빨리 보이게 한다. */
+.foms-as-camera-bar {
+  position: static;
+  background: var(--foms-color-surface, #fff);
+  border-bottom: 1px solid var(--foms-color-border, #e2e8f0);
+  padding: var(--foms-space-2, 8px) var(--foms-space-3, 12px);
+}
+
+.foms-as-camera-bar__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--foms-space-3, 12px);
+}
+
+.foms-as-camera-bar__eyebrow {
+  display: block;
+  font-size: 11px;
+  color: var(--foms-color-text-muted, #64748b);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.foms-as-camera-bar__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.foms-as-camera-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.foms-as-camera-modal[hidden] {
+  display: none !important;
+}
+
+.foms-as-camera-modal__panel {
+  width: min(100%, 480px);
+  background: var(--foms-color-surface, #fff);
+  border-radius: 16px 16px 0 0;
+  padding: var(--foms-space-4, 16px);
+}
+
+.foms-as-camera-modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--foms-space-3, 12px);
+}
+
+.foms-as-camera-modal__head h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.foms-as-camera-modal__hint {
+  margin: var(--foms-space-3, 12px) 0 0;
+  font-size: 12px;
+  color: var(--foms-color-text-muted, #64748b);
+}
+
+body.foms-as-camera-open {
+  overflow: hidden;
+}

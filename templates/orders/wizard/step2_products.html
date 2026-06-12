@@ -1,0 +1,88 @@
+<section class="foms-wizard__step" data-wizard-step="2" aria-labelledby="wizard-step2-title">
+  <h2 class="foms-wizard__title" id="wizard-step2-title">제품 항목</h2>
+  <p class="foms-wizard__subtitle">시공할 제품을 추가해주세요</p>
+
+  <div id="foms-wizard-products">
+    <div class="foms-product-item foms-wizard__product-card" data-product-index="0">
+      <div class="foms-product-item__head" data-foms-product-toggle role="button" tabindex="0" aria-expanded="true">
+        <span class="foms-product-item__index">#1</span>
+        <span class="foms-product-item__title" data-foms-product-title>제품 1</span>
+        <button type="button" class="foms-product-item__expand" aria-label="펼치기">▾</button>
+      </div>
+      <p class="foms-product-item__summary" data-foms-product-summary>제품명을 입력하세요</p>
+      <div class="foms-product-item__body">
+      <div class="foms-wizard__field">
+        <label class="field__label foms-wizard__label--required">제품명</label>
+        <input class="foms-input" name="product_name" data-wizard-field data-product-field="product_name" placeholder="예: 거실 몰딩라운드장" />
+        <p class="foms-wizard__error" x-show="has('product_name')" x-text="errors.product_name" role="alert"></p>
+      </div>
+      <div class="foms-wizard__field">
+        <label class="field__label">규격 (폭·깊이·높이)</label>
+        <div class="foms-wizard__spec-rows" data-spec-rows>
+          <div class="foms-wizard__spec-row" data-spec-row>
+            <div class="foms-wizard__spec-cell">
+              <label class="foms-wizard__spec-lbl">W(폭)</label>
+              <input class="foms-input foms-tabular" data-product-field="spec_width" inputmode="numeric" placeholder="폭" aria-label="폭" />
+            </div>
+            <div class="foms-wizard__spec-cell">
+              <label class="foms-wizard__spec-lbl">D(깊이)</label>
+              <input class="foms-input foms-tabular" data-product-field="spec_depth" inputmode="numeric" placeholder="깊이" aria-label="깊이" />
+            </div>
+            <div class="foms-wizard__spec-cell">
+              <label class="foms-wizard__spec-lbl">H(높이)</label>
+              <input class="foms-input foms-tabular" data-product-field="spec_height" inputmode="numeric" placeholder="높이" aria-label="높이" />
+            </div>
+            <button type="button" class="foms-wizard__spec-del" data-spec-del aria-label="규격 행 삭제" hidden>−</button>
+          </div>
+        </div>
+        <button type="button" class="foms-btn foms-btn--ghost foms-btn--sm foms-wizard__spec-add" data-spec-add>＋ 규격 1행 추가</button>
+      </div>
+      <div class="foms-wizard__field">
+        <label class="field__label">내부</label>
+        <textarea class="foms-input foms-wizard__autosize" rows="1" data-wizard-field data-product-field="internal" data-default-consult placeholder="상담">상담</textarea>
+      </div>
+      <div class="foms-wizard__grid-2">
+        <div class="foms-wizard__field">
+          <label class="field__label">색상</label>
+          <input class="foms-input" data-wizard-field data-product-field="color" data-default-consult placeholder="상담" value="상담" />
+        </div>
+        <div class="foms-wizard__field">
+          <label class="field__label">손잡이</label>
+          <input class="foms-input" data-wizard-field data-product-field="handle" data-default-consult placeholder="상담" value="상담" />
+        </div>
+      </div>
+      <div class="foms-wizard__field">
+        <label class="field__label">옵션</label>
+        <textarea class="foms-input foms-wizard__autosize" rows="1" data-wizard-field data-product-field="option_detail" data-default-consult placeholder="상담">상담</textarea>
+      </div>
+      <div class="foms-wizard__field">
+        <label class="field__label">기타 / 설치위치</label>
+        <textarea class="foms-input foms-wizard__autosize" rows="1" data-wizard-field data-product-field="misc" data-default-consult placeholder="상담">상담</textarea>
+      </div>
+      <div class="foms-wizard__field">
+        <label class="field__label">금액(원)</label>
+        <input class="foms-input foms-tabular" data-wizard-field data-product-field="price" inputmode="numeric" placeholder="0" />
+      </div>
+      <div class="foms-wizard__field">
+        <label class="field__label">추가 입력</label>
+        <textarea class="foms-input foms-wizard__autosize" rows="2" data-wizard-field data-product-field="extra_input" placeholder="추가 내용 (여러 줄 가능)"></textarea>
+      </div>
+      <div class="foms-wizard__field foms-wizard__attachments" data-wizard-attachments>
+        <label class="field__label">실측 이미지</label>
+        <div class="foms-photo-capture foms-wizard__photo-capture" data-foms-photo-capture data-target-input="wiz-attach-input-0">
+          <div class="foms-photo-capture__actions foms-wizard__photo-actions">
+            <button type="button" class="foms-btn foms-btn--primary foms-btn--sm" data-action="camera">📷 촬영</button>
+            <button type="button" class="foms-btn foms-btn--secondary foms-btn--sm" data-action="gallery">🖼 갤러리</button>
+          </div>
+          <input type="file" id="wiz-attach-input-0" class="visually-hidden" data-wizard-attachment-input
+            multiple accept="image/*,video/*,.gif" capture="environment" tabindex="-1" aria-hidden="true" />
+          <input type="file" class="visually-hidden foms-photo-capture__gallery-input"
+            multiple accept="image/*,video/*,.gif" tabindex="-1" aria-hidden="true" />
+        </div>
+        <div class="foms-wizard__attachment-preview" data-wizard-attachment-preview data-empty="true"></div>
+      </div>
+      </div>
+    </div>
+  </div>
+  <button type="button" class="foms-btn foms-btn--secondary foms-wizard__add-product" id="foms-wizard-add-product">+ 제품 추가</button>
+</section>

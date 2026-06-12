@@ -419,6 +419,11 @@ def wdcalculator_product_settings():
         products = load_products() or []
     except Exception:
         products = []
+    # 제품 목록 정렬: 카테고리 → 제품명 순(미분류는 맨 뒤).
+    def _product_sort_key(product):
+        category = str((product or {}).get('category') or '').strip()
+        return (category == '', category, str((product or {}).get('name') or ''))
+    products = sorted(products, key=_product_sort_key)
     try:
         categories = load_additional_option_categories()
         categories = clean_categories_data(categories or [])

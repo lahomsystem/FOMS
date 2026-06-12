@@ -5,29 +5,8 @@
 {%- endmacro %}
 
 {% macro kv_row(label, value, tone='default', href=None, href_label=None, copy_value=None, external=False, muted=False) -%}
-  <div class="wam-kv-row">
-    <dt class="wam-kv-row__label">{{ label }}</dt>
-    <dd class="wam-kv-row__value{% if muted %} is-muted{% endif %}{% if tone != 'default' %} is-{{ tone }}{% endif %}">
-      <span class="wam-kv-row__value-text">{{ value if value else '정보 없음' }}</span>
-      <span class="wam-kv-row__actions">
-        {% if href %}
-          <a
-            class="wam-inline-action"
-            href="{{ href }}"
-            {% if external %}target="_blank" rel="noopener noreferrer"{% endif %}
-          >{{ href_label if href_label else '열기' }}</a>
-        {% endif %}
-        {% if copy_value %}
-          <button
-            class="wam-inline-action wam-inline-action--button"
-            type="button"
-            data-copy-value="{{ copy_value }}"
-            data-copy-label="{{ label }}"
-          >복사</button>
-        {% endif %}
-      </span>
-    </dd>
-  </div>
+  {% from 'macros/foms_kv.html' import foms_kv_row %}
+  {{ foms_kv_row(label, value, tone=tone, href=href, href_label=href_label, copy_value=copy_value, muted=muted) }}
 {%- endmacro %}
 
 {% macro action_icon(name) -%}

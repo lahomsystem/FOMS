@@ -1,0 +1,238 @@
+/**
+ * P1 mockup shell — mobile-home-dashboard / order-detail / wizard header grid.
+ * Scoped to erp-mobile-v2-layout; desktop ERP (≥992px) unchanged.
+ */
+
+@media (max-width: 991.98px) {
+  body.erp-mobile-v2-layout {
+    font-family: var(--foms-font-sans);
+    background: var(--foms-surface-overlay);
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-shell[data-erp-mobile-v2='true'] {
+    background: var(--foms-surface-overlay);
+    padding-bottom: calc(
+      var(--foms-shell-bottom-nav-h) + var(--foms-safe-area-bottom)
+    );
+  }
+
+  /* Hide legacy desktop chrome on all erp-mobile-v2 shells (not only .foms-shell-desktop-only) */
+  body.erp-mobile-v2-layout
+    .erp-mobile-shell[data-erp-mobile-v2='true']
+    .foms-shell-desktop-only,
+  body.erp-mobile-v2-layout
+    .erp-mobile-shell[data-erp-mobile-v2='true']
+    .erp-pro-header,
+  body.erp-mobile-v2-layout
+    .erp-mobile-shell[data-erp-mobile-v2='true']
+    .erp-pro-nav,
+  body.erp-mobile-v2-layout
+    .erp-mobile-shell[data-erp-mobile-v2='true']
+    .erp-dashboard-layout,
+  body.erp-mobile-v2-layout
+    .erp-mobile-shell[data-erp-mobile-v2='true']
+    .table-responsive.d-none.d-lg-block {
+    display: none !important;
+  }
+
+  /* Shell header — mockup grid 44×1×44×44 */
+  body.erp-mobile-v2-layout .foms-shell-header,
+  body.erp-mobile-v2-layout .erp-mobile-shell-header {
+    height: calc(var(--foms-shell-header-h) + var(--foms-safe-area-top));
+    flex-shrink: 0;
+    display: grid;
+    grid-template-columns: 44px 1fr 44px 44px;
+    align-items: center;
+    padding: var(--foms-safe-area-top) var(--foms-space-2) 0;
+    background: var(--foms-surface-base);
+    border-bottom: 1px solid var(--foms-border-subtle);
+    position: sticky;
+    top: 0;
+    z-index: var(--foms-z-sticky);
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-shell-header__inner {
+    display: contents;
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-shell-header__home,
+  body.erp-mobile-v2-layout .erp-mobile-shell-header__search,
+  body.erp-mobile-v2-layout .erp-mobile-shell-header__menu,
+  body.erp-mobile-v2-layout .erp-mobile-shell-header__notify,
+  body.erp-mobile-v2-layout .foms-icon-btn {
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: var(--foms-radius-md);
+    color: var(--foms-text-primary);
+    text-decoration: none;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-shell-header__home:active,
+  body.erp-mobile-v2-layout .erp-mobile-shell-header__search:active,
+  body.erp-mobile-v2-layout .erp-mobile-shell-header__menu:active,
+  body.erp-mobile-v2-layout .erp-mobile-shell-header__notify:active,
+  body.erp-mobile-v2-layout .foms-icon-btn:active {
+    background: var(--foms-interactive-secondary);
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-shell-header__context {
+    grid-column: 2;
+    min-width: 0;
+    text-align: center;
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-shell-header__eyebrow {
+    display: none;
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-shell-header__title,
+  body.erp-mobile-v2-layout .foms-shell-title {
+    font-size: var(--foms-font-size-lg);
+    font-weight: var(--foms-font-weight-semibold);
+    line-height: var(--foms-line-height-tight);
+    margin: 0;
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-shell-header__search {
+    grid-column: 3;
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-shell-header__menu {
+    grid-column: 1;
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-shell-header__notify {
+    grid-column: 4;
+  }
+
+  /* Main scroll region */
+  body.erp-mobile-v2-layout .foms-shell-body {
+    padding: var(--foms-space-3) var(--foms-space-4)
+      calc(var(--foms-shell-bottom-nav-h) + var(--foms-space-4));
+    display: grid;
+    gap: var(--foms-space-3);
+  }
+
+  body.erp-mobile-v2-layout
+    .erp-mobile-shell[data-erp-mobile-v2='true']
+    .erp-pro-card--process-map,
+  body.erp-mobile-v2-layout
+    .erp-mobile-shell[data-erp-mobile-v2='true']
+    .erp-measurement-desktop-shell,
+  body.erp-mobile-v2-layout
+    .erp-mobile-shell[data-erp-mobile-v2='true']
+    .erp-as-desktop-nav,
+  body.erp-mobile-v2-layout
+    .erp-mobile-shell[data-erp-mobile-v2='true']
+    .erp-as-desktop-filters {
+    display: none !important;
+  }
+
+  body.erp-mobile-v2-layout .foms-section-header,
+  body.erp-mobile-v2-layout .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 var(--foms-space-1);
+  }
+
+  body.erp-mobile-v2-layout .foms-section-header__title,
+  body.erp-mobile-v2-layout .section-header__title {
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-bold);
+    margin: 0;
+    color: var(--foms-text-secondary);
+  }
+
+  body.erp-mobile-v2-layout .foms-chip-strip--sort {
+    margin-top: calc(var(--foms-space-2) * -1);
+  }
+
+  body.erp-mobile-v2-layout .foms-mobile-empty {
+    text-align: center;
+    padding: var(--foms-space-8) var(--foms-space-4);
+    color: var(--foms-text-tertiary);
+  }
+
+  body.erp-mobile-v2-layout .foms-mobile-empty i {
+    font-size: 2rem;
+    margin-bottom: var(--foms-space-3);
+    opacity: 0.5;
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-bottom-nav {
+    height: calc(var(--foms-shell-bottom-nav-h) + var(--foms-safe-area-bottom));
+    padding-bottom: var(--foms-safe-area-bottom);
+    background: var(--foms-surface-base);
+    border-top: 1px solid var(--foms-border-subtle);
+    box-shadow: 0 -2px 12px rgba(15, 17, 21, 0.06);
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-bottom-nav__item {
+    font-size: 11px;
+    color: var(--foms-text-tertiary);
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-bottom-nav__item.is-active {
+    color: var(--foms-interactive-primary);
+    font-weight: var(--foms-font-weight-semibold);
+  }
+
+  /* FAB */
+  body.erp-mobile-v2-layout .foms-shell-fab {
+    position: fixed;
+    bottom: calc(var(--foms-shell-bottom-nav-h) + var(--foms-space-4) + var(--foms-safe-area-bottom));
+    right: var(--foms-space-4);
+    width: var(--foms-shell-fab-size);
+    height: var(--foms-shell-fab-size);
+    border-radius: var(--foms-radius-full);
+    background: var(--foms-interactive-primary);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--foms-shadow-lg);
+    border: none;
+    font-size: 24px;
+    z-index: var(--foms-z-fab);
+    cursor: pointer;
+    text-decoration: none;
+  }
+}
+
+/* ≥992px: the mobile single-column queue is for phones only.
+   Hide every mobile-v2-only surface so it never leaks onto the legacy
+   desktop / tablet view (drawing gallery, FAB, any standalone shell body). */
+@media (min-width: 992px) {
+  body.erp-mobile-v2-layout .foms-mobile-v2-dashboard,
+  body.erp-mobile-v2-layout .foms-drawing-mobile-v2,
+  body.erp-mobile-v2-layout .foms-shell-fab {
+    display: none !important;
+  }
+}
+
+/* The AS camera bar follows the AS dashboard's md (768px) breakpoint. */
+@media (min-width: 768px) {
+  body.erp-mobile-v2-layout .foms-as-camera-bar {
+    display: none !important;
+  }
+}
+
+/* Tablet band (992–1365.98px), mobile-v2 cohort: the tablet master-detail
+   split-view (foms-split-view.css, D03) replaces the legacy desktop ERP
+   dashboard. Hide the legacy chrome + grid here so the two never double up.
+   ≥1366px keeps the legacy dashboard (see foms-split-view.css). */
+@media (min-width: 992px) and (max-width: 1365.98px) {
+  body.erp-mobile-v2-layout
+    .erp-mobile-shell[data-erp-mobile-v2='true']
+    .foms-shell-desktop-only {
+    display: none !important;
+  }
+}

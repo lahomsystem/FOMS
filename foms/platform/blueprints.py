@@ -75,7 +75,6 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     from foms.api.personal_board import personal_board_bp
     from foms.web.admin import excel_bp, storage_dashboard_bp
     from foms.api.wdcalculator import wdcalculator_bp
-    from foms.api.backup import backup_bp
     from foms.web.admin import admin_bp
     from foms.api.attachments import attachments_bp
     from foms.api.tasks import tasks_bp
@@ -83,6 +82,7 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     from foms.api.quest import quest_bp
     from foms.api.erp_orders_blueprint import erp_orders_blueprint_bp
     from foms.api.erp_orders_structured import erp_orders_structured_bp
+    from foms.api.erp_order_draft import erp_order_draft_bp
     from foms.web.designer import designer_bp
     from foms.api.designer import (
         designer_projects_bp,
@@ -111,6 +111,11 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     )
     from foms.web.channel import channel_chat_pages_bp
     from foms.api.erp_estimates import erp_estimates_bp
+    from foms.api.foms_rum import foms_rum_bp
+    from foms.api.foms_search import foms_search_bp
+    from foms.api.fragment import foms_fragment_bp
+    from foms.api.foms_offline import foms_offline_bp
+    from foms.api.foms_queue_actions import foms_queue_actions_bp
     from foms.api.debug import debug_bp
 
     # --- Registration sequence (frozen): ERP page blueprints ---
@@ -141,12 +146,11 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     app.register_blueprint(erp_orders_completion_bp)
     app.register_blueprint(personal_board_bp)
     app.register_blueprint(erp_orders_confirm_bp)
-    # Storage UI, chat (Socket.IO handler binding imported with chat_bp), WD calculator, backup
+    # Storage UI, chat (Socket.IO handler binding imported with chat_bp), WD calculator
     app.register_blueprint(storage_dashboard_bp)
     app.register_blueprint(channel_chat_pages_bp)
     app.register_blueprint(chat_bp)
     app.register_blueprint(wdcalculator_bp)
-    app.register_blueprint(backup_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(dashboards_bp)
     # Auxiliary APIs: attachments / tasks / events / quest / structured order payloads
@@ -156,6 +160,7 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     app.register_blueprint(quest_bp)
     app.register_blueprint(erp_orders_blueprint_bp)
     app.register_blueprint(erp_orders_structured_bp)
+    app.register_blueprint(erp_order_draft_bp)
     app.register_blueprint(order_pages_bp)
     app.register_blueprint(order_edit_bp)
     app.register_blueprint(order_trash_bp)
@@ -182,6 +187,11 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     app.register_blueprint(channel_wam_bp)
     app.register_blueprint(channel_wam_api_bp)
     app.register_blueprint(erp_estimates_bp)
+    app.register_blueprint(foms_rum_bp)
+    app.register_blueprint(foms_search_bp)
+    app.register_blueprint(foms_fragment_bp)
+    app.register_blueprint(foms_offline_bp)
+    app.register_blueprint(foms_queue_actions_bp)
     app.register_blueprint(debug_bp)
 
     return BlueprintBindings(

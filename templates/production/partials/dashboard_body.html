@@ -4,6 +4,7 @@
   {% if erp_mobile_v2_enabled %}
     {% include 'partials/shared/erp_mobile_shell.html' %}
   {% endif %}
+  <div class="foms-shell-desktop-only">
   <!-- Modern Header -->
   <header class="erp-pro-header">
     <h1 class="erp-pro-header__title">
@@ -29,6 +30,7 @@
   </header>
   {% set erp_sub_nav_active = 'production' %}
   {% include 'partials/shared/erp_sub_nav.html' %}
+  </div>{# /.foms-shell-desktop-only #}
 
   <!-- Process Map - Modern Pipeline Design -->
   <div class="erp-pro-card erp-pro-card--process-map">
@@ -117,8 +119,13 @@
   <!-- 3-Panel Layout -->
   {% include 'production/partials/styles.html' %}
   {% if erp_mobile_v2_enabled %}
-    {% include 'production/partials/mobile_filters.html' %}
-    {% include 'production/partials/mobile_queue.html' %}
+    <section class="foms-shell-body foms-mobile-v2-dashboard erp-production-mobile-v2" aria-label="생산 모바일 대시보드">
+      {% include 'production/partials/mobile_filters.html' %}
+      {% include 'production/partials/mobile_queue.html' %}
+      <a class="foms-shell-fab" href="{{ url_for('order_pages.add_order', open='erp-order') }}" aria-label="주문 생성">
+        <i class="fas fa-plus" aria-hidden="true"></i>
+      </a>
+    </section>
   {% endif %}
   {% include 'production/partials/filters_grid.html' %}
   {% include 'production/partials/modals.html' %}

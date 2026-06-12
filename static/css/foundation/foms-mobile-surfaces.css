@@ -1,0 +1,23 @@
+/* P1–P3 mobile surface components — ERP mobile v2 shell only (layout_head cohort gate). */
+@import url("../foundation/foms-shell.css");
+@import url("../components/foms-buttons.css");
+@import url("../components/foms-form-field.css");
+@import url("../components/foms-chip-strip.css?v=20260611b");
+@import url("../components/foms-mobile-filter-bar.css?v=20260611c");
+@import url("../components/foms-queue-card-v2.css");
+@import url("../components/foms-detail-hero.css");
+@import url("../components/foms-detail-extras.css");
+@import url("../components/foms-bottom-nav.css");
+@import url("../components/foms-search-overlay.css");
+@import url("../foundation/foms-split-view.css");
+@import url("../components/foms-kv-row.css");
+@import url("../components/foms-product-item.css");
+@import url("../components/foms-alpine-toast.css");
+@import url("../components/foms-lightbox.css");
+@import url("../components/foms-swipe-actions.css");
+@import url("../components/foms-a2hs-bar.css");
+@import url("../components/foms-shipment-mobile.css");
+@import url("../components/foms-drawing-mobile.css?v=20260609b");
+@import url("../components/foms-drawing-mobile-card.css?v=20260610a");
+@import url("../contexts/orders/dashboard-control-tower.css?v=20260611a");
+@import url("../components/foms-as-camera.css");

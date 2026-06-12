@@ -1,0 +1,2 @@
+# Playwright visual regression failure artifacts (local + CI upload). Do not commit.
+tests/visual/artifacts/

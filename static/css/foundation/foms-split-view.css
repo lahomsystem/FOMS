@@ -1,0 +1,191 @@
+/* P1-05 tablet split-view shell.
+   3-tier responsive (mobile-v2 cohort), purely width-based:
+     < 992px         → mobile single-column queue (split hidden)
+     992–1365.98px   → tablet master-detail split (THIS shell, legacy hidden)
+     ≥ 1366px        → legacy desktop ERP dashboard (split hidden)
+   D03 (태블릿 가로 split 360+fluid) realized here. The split grid below is
+   orientation-INDEPENDENT: 72+360+detail fits the whole band in both portrait
+   (e.g. iPad Pro 12.9 1024×1366) and landscape, so no orientation gate is used.
+   The earlier P2-08 orientation overlay (orientation-layout.js +
+   foms-orientation-layout.css) hid side-tab+master in portrait, which blanked
+   portrait tablets — it was removed. Do NOT re-introduce a portrait band-aid. */
+
+.foms-split-shell {
+  display: block;
+}
+
+@media (min-width: 992px) and (max-width: 1365.98px) {
+  .foms-split-shell {
+    display: grid;
+    grid-template-columns: 72px 360px minmax(0, 1fr);
+    min-height: calc(100dvh - 4rem);
+    background: var(--foms-surface-overlay, #f3f4f6);
+  }
+
+  .foms-split-shell .erp-mobile-shell-chrome .erp-mobile-bottom-nav {
+    display: none;
+  }
+
+  .foms-split-side-tab {
+    border-right: 1px solid var(--foms-border-subtle, #e5e7eb);
+    background: var(--foms-surface-raised, #fff);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: var(--foms-space-3, 12px);
+    gap: 4px;
+  }
+
+  .foms-split-side-tab__brand {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 56px;
+    font-size: 20px;
+    font-weight: var(--foms-font-weight-bold, 700);
+    color: var(--foms-color-brand-600, #2563eb);
+    margin-bottom: var(--foms-space-4, 16px);
+  }
+
+  .foms-split-side-tab__item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: var(--foms-space-3, 12px) 0;
+    width: 100%;
+    font-size: 11px;
+    color: var(--foms-text-tertiary, #6b7280);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    position: relative;
+    text-decoration: none;
+  }
+
+  .foms-split-side-tab__item.is-active {
+    color: var(--foms-interactive-primary, #2563eb);
+    font-weight: var(--foms-font-weight-semibold, 600);
+    background: var(--foms-color-brand-50, #eff6ff);
+  }
+
+  .foms-split-side-tab__item.is-active::before {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 4px;
+    background: var(--foms-interactive-primary, #2563eb);
+    border-radius: 0 4px 4px 0;
+  }
+
+  .foms-split-side-tab__icon {
+    font-size: 22px;
+  }
+
+  .foms-split-master__head {
+    flex-shrink: 0;
+    padding: var(--foms-space-3, 12px) var(--foms-space-4, 16px);
+    border-bottom: 1px solid var(--foms-border-subtle, #e5e7eb);
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--foms-space-2, 8px);
+  }
+
+  .foms-split-master__title {
+    font-size: var(--foms-font-size-lg, 1.125rem);
+    font-weight: var(--foms-font-weight-semibold, 600);
+    margin: 0;
+  }
+
+  .foms-split-master__count {
+    font-size: 0.8125rem;
+    color: var(--foms-text-tertiary, #6b7280);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .foms-split-master {
+    display: block; /* vertical card list; override inherited flex row */
+    border-right: 1px solid var(--foms-border-subtle, #e5e7eb);
+    overflow-y: auto;
+    background: var(--foms-surface-base, #fff);
+  }
+
+  .foms-split-detail {
+    overflow: auto;
+    background: var(--foms-surface-base, #fff);
+  }
+
+  .foms-master-card {
+    display: block;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--foms-border-subtle, #e5e7eb);
+    text-decoration: none;
+    color: inherit;
+    border-left: 3px solid transparent;
+    cursor: pointer;
+  }
+
+  .foms-master-card__topline,
+  .foms-master-card__meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .foms-master-card__stage {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--foms-interactive-primary, #2563eb);
+  }
+
+  .foms-master-card__id {
+    font-size: 0.75rem;
+    color: var(--foms-text-tertiary, #6b7280);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .foms-master-card.is-active {
+    background: var(--foms-color-brand-50, #eff6ff);
+    border-left-color: var(--foms-interactive-primary, #2563eb);
+  }
+
+  .foms-master-card__title {
+    font-weight: 600;
+    font-size: 0.9375rem;
+    margin-top: 4px;
+  }
+
+  .foms-master-card__subtitle {
+    margin-top: 2px;
+    font-size: 0.8125rem;
+    color: var(--foms-text-secondary, #4b5563);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .foms-master-card__meta {
+    margin-top: 6px;
+    font-size: 0.8125rem;
+    color: var(--foms-text-tertiary, #6b7280);
+  }
+}
+
+.foms-split-enabled {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Outside the tablet band the split shell must not render:
+   < 992px  → mobile single-column queue (dashboard_mobile_v2_body) is the column;
+              the detail "좌측에서 주문을 선택하세요" placeholder must not leak.
+   ≥ 1366px → legacy desktop ERP dashboard owns the surface (no double chrome). */
+@media (max-width: 991.98px), (min-width: 1366px) {
+  body.erp-mobile-v2-layout .foms-split-enabled {
+    display: none !important;
+  }
+}

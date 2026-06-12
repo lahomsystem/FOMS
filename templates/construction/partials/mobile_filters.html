@@ -1,5 +1,5 @@
-<section class="erp-mobile-queue-filters" aria-label="시공 대시보드 모바일 필터">
-  <form method="get" action="{{ url_for('erp_construction_page.erp_construction_dashboard') }}" class="erp-mobile-queue-filters__search">
+<section class="erp-mobile-queue-filters foms-mobile-filter-bar" aria-label="시공 대시보드 모바일 필터">
+  <form method="get" action="{{ url_for('erp_construction_page.erp_construction_dashboard') }}" class="foms-mobile-filter-bar__toolbar erp-mobile-queue-filters__search">
     {% if erp_mine_only %}
       <input type="hidden" name="mine" value="1">
     {% endif %}
@@ -27,6 +27,23 @@
       <span>필터</span>
     </button>
   </form>
+
+  {% set _ct_base = url_for('erp_construction_page.erp_construction_dashboard') %}
+  {% set _ct_keep = [] %}
+  {% if filters.get('q') %}{% set _ = _ct_keep.append('q=' ~ filters.get('q')|urlencode) %}{% endif %}
+  {% if erp_mine_only %}{% set _ = _ct_keep.append('mine=1') %}{% endif %}
+  {% set _ct_keep_qs = _ct_keep|join('&') %}
+  {% set _ct_stage = filters.get('stage') or '' %}
+  {% set _ct_ctx = [] %}
+  {% if filters.get('q') %}{% set _ = _ct_ctx.append('q=' ~ filters.get('q')|urlencode) %}{% endif %}
+  {% if _ct_stage %}{% set _ = _ct_ctx.append('stage=' ~ _ct_stage|urlencode) %}{% endif %}
+  <nav class="chip-strip foms-chip-strip" aria-label="시공 단계 필터">
+    <a class="chip foms-chip{% if not _ct_stage %} is-active{% endif %}" href="{{ _ct_base }}{% if _ct_keep_qs %}?{{ _ct_keep_qs }}{% endif %}">전체 {{ total_orders }}</a>
+    {% for step in process_steps %}
+    <a class="chip foms-chip{% if _ct_stage == step.label %} is-active{% endif %}" href="{{ _ct_base }}?stage={{ step.label|urlencode }}{% if _ct_keep_qs %}&{{ _ct_keep_qs }}{% endif %}">{{ step.display|default(step.label) }} {{ step.count }}</a>
+    {% endfor %}
+    {# '내 작업'은 섹션 헤더(작업 큐 요약줄)로 분리됨 — mobile_queue.html 참조 #}
+  </nav>
 
   <div
     class="offcanvas offcanvas-bottom erp-mobile-queue-filters__drawer"

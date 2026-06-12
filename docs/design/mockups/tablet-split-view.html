@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover" />
+<title>FOMS · 태블릿 가로 split-view</title>
+<link rel="stylesheet" href="_tokens.css" />
+<style>
+.preview-frame {
+  width: 1280px;
+  height: 920px;
+  margin: 24px auto;
+  background: var(--foms-surface-overlay);
+  border-radius: 16px;
+  box-shadow: var(--foms-shadow-xl);
+  overflow: hidden;
+  position: relative;
+  border: 10px solid #0f1115;
+}
+.preview-label { text-align: center; font-size: 14px; color: var(--foms-text-tertiary); margin: 8px 0; }
+
+.shell {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: var(--foms-shell-side-tab-w) var(--foms-shell-master-list-w) 1fr;
+  background: var(--foms-surface-overlay);
+}
+
+/* Side tab */
+.side-tab {
+  background: var(--foms-surface-raised);
+  border-right: 1px solid var(--foms-border-subtle);
+  display: flex;
+  flex-direction: column;
+  padding-top: var(--foms-space-3);
+}
+.side-tab__brand {
+  display: flex; align-items: center; justify-content: center;
+  height: 56px;
+  font-size: 20px;
+  font-weight: var(--foms-font-weight-bold);
+  color: var(--foms-color-brand-600);
+  margin-bottom: var(--foms-space-4);
+}
+.side-tab__item {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 4px;
+  padding: var(--foms-space-3) 0;
+  font-size: 11px;
+  color: var(--foms-text-tertiary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  position: relative;
+}
+.side-tab__item.is-active {
+  color: var(--foms-interactive-primary);
+  font-weight: var(--foms-font-weight-semibold);
+  background: var(--foms-color-brand-50);
+}
+.side-tab__item.is-active::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--foms-interactive-primary);
+  border-radius: 0 4px 4px 0;
+}
+.side-tab__icon { font-size: 22px; }
+.side-tab__badge {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  min-width: 18px; height: 18px;
+  padding: 0 5px;
+  background: var(--foms-color-danger-500);
+  color: white;
+  font-size: 10px; font-weight: 700;
+  border-radius: var(--foms-radius-full);
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* Master list */
+.master-list {
+  display: flex;
+  flex-direction: column;
+  background: var(--foms-surface-base);
+  border-right: 1px solid var(--foms-border-subtle);
+}
+.master-list__head {
+  flex-shrink: 0;
+  padding: var(--foms-space-3) var(--foms-space-4);
+  border-bottom: 1px solid var(--foms-border-subtle);
+  display: grid;
+  gap: var(--foms-space-3);
+}
+.master-list__title-row {
+  display: flex; align-items: center; justify-content: space-between;
+}
+.master-list__title {
+  font-size: var(--foms-font-size-xl);
+  font-weight: var(--foms-font-weight-bold);
+  margin: 0;
+}
+.master-list__search {
+  width: 100%;
+  height: 40px;
+  padding: 0 var(--foms-space-3);
+  background: var(--foms-surface-overlay);
+  border: 1px solid transparent;
+  border-radius: var(--foms-radius-md);
+  font-size: var(--foms-font-size-sm);
+}
+.master-list__chips {
+  display: flex; gap: var(--foms-space-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 10px;
+  font-size: var(--foms-font-size-xs);
+  font-weight: var(--foms-font-weight-medium);
+  background: var(--foms-surface-overlay);
+  color: var(--foms-text-secondary);
+  border-radius: var(--foms-radius-full);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.chip.is-active {
+  background: var(--foms-color-brand-100);
+  color: var(--foms-color-brand-700);
+}
+.master-list__items {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--foms-space-3) var(--foms-space-3);
+  display: grid;
+  gap: var(--foms-space-2);
+}
+
+/* Queue card (compact) */
+.qc {
+  padding: var(--foms-space-3);
+  background: var(--foms-surface-base);
+  border-radius: var(--foms-radius-md);
+  border: 1px solid var(--foms-border-subtle);
+  cursor: pointer;
+  display: grid;
+  gap: var(--foms-space-1);
+}
+.qc.is-selected {
+  background: var(--foms-color-brand-50);
+  border-color: var(--foms-color-brand-300);
+  border-left-width: 4px;
+}
+.qc__head {
+  display: flex; align-items: center; gap: var(--foms-space-2);
+}
+.qc__time {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--foms-text-tertiary);
+}
+.qc__title {
+  font-size: var(--foms-font-size-base);
+  font-weight: var(--foms-font-weight-semibold);
+  margin: 0;
+}
+.qc__sub {
+  font-size: var(--foms-font-size-xs);
+  color: var(--foms-text-secondary);
+}
+.qc__meta {
+  display: flex; gap: var(--foms-space-3);
+  font-size: var(--foms-font-size-xs);
+  color: var(--foms-text-tertiary);
+  margin-top: 4px;
+}
+
+/* Detail panel */
+.detail-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.detail-panel__head {
+  flex-shrink: 0;
+  padding: var(--foms-space-4) var(--foms-space-6) var(--foms-space-3);
+  background: var(--foms-surface-base);
+  border-bottom: 1px solid var(--foms-border-subtle);
+}
+.detail-panel__breadcrumb {
+  font-size: var(--foms-font-size-xs);
+  color: var(--foms-text-tertiary);
+  margin-bottom: var(--foms-space-2);
+}
+.detail-panel__title {
+  font-size: var(--foms-font-size-2xl);
+  font-weight: var(--foms-font-weight-bold);
+  margin: 0 0 var(--foms-space-1);
+}
+.detail-panel__subtitle {
+  color: var(--foms-text-secondary);
+  font-size: var(--foms-font-size-base);
+  margin: 0 0 var(--foms-space-3);
+}
+.detail-panel__badges {
+  display: flex; gap: var(--foms-space-2); align-items: center; margin-bottom: var(--foms-space-3);
+}
+.detail-panel__cta {
+  display: flex; gap: var(--foms-space-2);
+}
+.detail-panel__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--foms-space-4) var(--foms-space-6);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--foms-space-4);
+}
+.detail-panel__col {
+  display: grid;
+  gap: var(--foms-space-3);
+}
+
+.card {
+  background: var(--foms-surface-base);
+  border-radius: var(--foms-radius-lg);
+  padding: var(--foms-space-4);
+  border: 1px solid var(--foms-border-subtle);
+}
+.card__head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: var(--foms-space-3);
+}
+.card__title {
+  font-size: var(--foms-font-size-xs);
+  font-weight: var(--foms-font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--foms-text-tertiary);
+  margin: 0;
+}
+.card__edit {
+  font-size: var(--foms-font-size-sm);
+  color: var(--foms-text-link);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+.kv-row {
+  display: grid;
+  grid-template-columns: 88px 1fr;
+  gap: var(--foms-space-2);
+  padding: var(--foms-space-2) 0;
+  font-size: var(--foms-font-size-sm);
+  border-bottom: 1px solid var(--foms-border-subtle);
+}
+.kv-row:last-child { border-bottom: none; }
+.kv-row dt { color: var(--foms-text-tertiary); margin: 0; }
+.kv-row dd { margin: 0; }
+
+.attach-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--foms-space-2);
+}
+.attach-item {
+  aspect-ratio: 4/3;
+  background: linear-gradient(135deg, #c1c7d0, #6b7380);
+  border-radius: var(--foms-radius-sm);
+  cursor: pointer;
+  border: none;
+  position: relative;
+}
+.attach-item__lbl {
+  position: absolute;
+  bottom: 4px; right: 4px;
+  font-size: 10px;
+  color: white;
+  background: rgba(0,0,0,0.6);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.timeline-item {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  gap: var(--foms-space-2);
+  position: relative;
+  padding-bottom: var(--foms-space-3);
+}
+.timeline-item::before {
+  content: '';
+  position: absolute;
+  left: 9px; top: 20px; bottom: 0;
+  width: 2px;
+  background: var(--foms-border-subtle);
+}
+.timeline-item:last-child::before { display: none; }
+.timeline-item__dot {
+  width: 20px; height: 20px;
+  border-radius: var(--foms-radius-full);
+  background: var(--foms-color-success-500);
+  color: white;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+}
+.timeline-item__body { font-size: var(--foms-font-size-sm); }
+.timeline-item__title { font-weight: var(--foms-font-weight-medium); }
+.timeline-item__meta { font-size: var(--foms-font-size-xs); color: var(--foms-text-tertiary); }
+</style>
+</head>
+<body>
+
+<p class="preview-label">▼ 태블릿 가로 (1280×920) · master-detail split-view · [<a href="?theme=light">라이트</a>] [<a href="?theme=dark">다크</a>]</p>
+
+<div class="preview-frame">
+  <div class="shell">
+
+    <!-- Side tab -->
+    <aside class="side-tab" aria-label="주요 메뉴">
+      <div class="side-tab__brand">FO</div>
+      <button class="side-tab__item is-active">
+        <span class="side-tab__icon">🏠</span>
+        <span>홈</span>
+        <span class="side-tab__badge">12</span>
+      </button>
+      <button class="side-tab__item">
+        <span class="side-tab__icon">📐</span>
+        <span>실측</span>
+        <span class="side-tab__badge">5</span>
+      </button>
+      <button class="side-tab__item">
+        <span class="side-tab__icon">🏭</span>
+        <span>생산</span>
+        <span class="side-tab__badge">8</span>
+      </button>
+      <button class="side-tab__item">
+        <span class="side-tab__icon">🔧</span>
+        <span>시공</span>
+        <span class="side-tab__badge">3</span>
+      </button>
+      <button class="side-tab__item">
+        <span class="side-tab__icon">📚</span>
+        <span>이력</span>
+      </button>
+      <button class="side-tab__item" style="margin-top:auto;margin-bottom:var(--foms-space-4)">
+        <span class="side-tab__icon">⚙</span>
+        <span>설정</span>
+      </button>
+    </aside>
+
+    <!-- Master list -->
+    <section class="master-list">
+      <header class="master-list__head">
+        <div class="master-list__title-row">
+          <h1 class="master-list__title">전체 큐</h1>
+          <button class="foms-btn foms-btn--primary foms-btn--sm">＋ 신규</button>
+        </div>
+        <input class="master-list__search" type="search" placeholder="고객명·전화·주소 검색" />
+        <div class="master-list__chips">
+          <button class="chip is-active">전체 (28)</button>
+          <button class="chip">오늘 (5)</button>
+          <button class="chip">미처리 (12)</button>
+          <button class="chip">긴급 (2)</button>
+        </div>
+      </header>
+      <div class="master-list__items">
+        <article class="qc is-selected">
+          <div class="qc__head">
+            <span class="foms-stage-badge foms-stage-badge--cs">AS</span>
+            <span class="foms-badge foms-badge--alert">2일 경과</span>
+            <span class="qc__time">14:39</span>
+          </div>
+          <h3 class="qc__title">고명옥</h3>
+          <span class="qc__sub">거실 몰딩라운드장 · 2번장 옷봉 10mm 조정</span>
+          <div class="qc__meta">
+            <span>📞 010-2690-2242</span>
+            <span>📍 안양</span>
+          </div>
+        </article>
+
+        <article class="qc">
+          <div class="qc__head">
+            <span class="foms-stage-badge foms-stage-badge--shipment">출고</span>
+            <span class="qc__time">6/3</span>
+          </div>
+          <h3 class="qc__title">강채린</h3>
+          <span class="qc__sub">슬라이딩 3310×700×2290</span>
+          <div class="qc__meta">
+            <span>📞 010-9091-8676</span>
+            <span>💰 잔금 완납</span>
+          </div>
+        </article>
+
+        <article class="qc">
+          <div class="qc__head">
+            <span class="foms-stage-badge foms-stage-badge--drawing">도면</span>
+            <span class="qc__time">6/1</span>
+          </div>
+          <h3 class="qc__title">박지애</h3>
+          <span class="qc__sub">도어 교체 2장 · 포그그레이</span>
+          <div class="qc__meta">
+            <span>📞 010-4123-0655</span>
+            <span>📍 고덕</span>
+          </div>
+        </article>
+
+        <article class="qc">
+          <div class="qc__head">
+            <span class="foms-stage-badge foms-stage-badge--measure">실측</span>
+            <span class="qc__time">6/4</span>
+          </div>
+          <h3 class="qc__title">이준호</h3>
+          <span class="qc__sub">주방 상부장 교체</span>
+          <div class="qc__meta">
+            <span>📍 광교</span>
+          </div>
+        </article>
+
+        <article class="qc">
+          <div class="qc__head">
+            <span class="foms-stage-badge foms-stage-badge--production">생산</span>
+            <span class="qc__time">6/5</span>
+          </div>
+          <h3 class="qc__title">김민서</h3>
+          <span class="qc__sub">현관장 슬라이딩</span>
+          <div class="qc__meta">
+            <span>📍 분당</span>
+          </div>
+        </article>
+
+        <article class="qc">
+          <div class="qc__head">
+            <span class="foms-stage-badge foms-stage-badge--happycall">해피콜</span>
+            <span class="qc__time">5/30</span>
+          </div>
+          <h3 class="qc__title">정유진</h3>
+          <span class="qc__sub">옷방 시스템장</span>
+          <div class="qc__meta">
+            <span>📍 일산</span>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- Detail panel -->
+    <section class="detail-panel">
+      <header class="detail-panel__head">
+        <div class="detail-panel__breadcrumb">홈 / AS / #L-2026-0522</div>
+        <div class="detail-panel__badges">
+          <span class="foms-stage-badge foms-stage-badge--construction">시공 완료</span>
+          <span class="foms-badge foms-badge--alert">AS 진행 중</span>
+        </div>
+        <h1 class="detail-panel__title">고명옥 · 거실 몰딩라운드장</h1>
+        <p class="detail-panel__subtitle">3500 × 540 × 2305 · 한솔 크림화이트 · 로얄오크 · 시공일 2026-05-22</p>
+        <div class="detail-panel__cta">
+          <button class="foms-btn foms-btn--primary">방문 일정 잡기</button>
+          <button class="foms-btn foms-btn--secondary">📞 전화</button>
+          <button class="foms-btn foms-btn--ghost">🗺 지도</button>
+          <button class="foms-btn foms-btn--ghost">📋 복사</button>
+          <button class="foms-btn foms-btn--ghost" style="margin-left:auto">⋮</button>
+        </div>
+      </header>
+
+      <div class="detail-panel__body">
+        <div class="detail-panel__col">
+          <article class="card">
+            <header class="card__head">
+              <h3 class="card__title">고객 · 일정</h3>
+              <button class="card__edit">편집</button>
+            </header>
+            <dl style="margin:0">
+              <div class="kv-row"><dt>이름</dt><dd>고명옥</dd></div>
+              <div class="kv-row"><dt>연락처</dt><dd><a href="tel:010-2690-2242" style="color:var(--foms-text-link)">010-2690-2242</a></dd></div>
+              <div class="kv-row"><dt>주소</dt><dd>안양시 충훈로14, 102동 1304호</dd></div>
+              <div class="kv-row"><dt>발주사</dt><dd>라홈 (계약서)</dd></div>
+              <div class="kv-row"><dt>접수</dt><dd class="foms-tabular">5/19 11:20</dd></div>
+              <div class="kv-row"><dt>실측</dt><dd class="foms-tabular">5/20 14:00</dd></div>
+              <div class="kv-row"><dt>시공</dt><dd class="foms-tabular">5/22 09:00 (완료)</dd></div>
+              <div class="kv-row"><dt>AS 접수</dt><dd class="foms-tabular">5/27 14:39</dd></div>
+            </dl>
+          </article>
+
+          <article class="card">
+            <header class="card__head">
+              <h3 class="card__title">금액</h3>
+              <button class="card__edit">편집</button>
+            </header>
+            <dl style="margin:0">
+              <div class="kv-row"><dt>출고가</dt><dd class="foms-tabular">655,000원</dd></div>
+              <div class="kv-row"><dt>예약금</dt><dd class="foms-tabular">100,000원</dd></div>
+              <div class="kv-row"><dt>잔금</dt><dd class="foms-tabular">555,000원 <span class="foms-stage-badge foms-stage-badge--construction" style="font-size:9px">완납</span></dd></div>
+              <div class="kv-row"><dt>현금영수증</dt><dd class="foms-tabular">010-2690-2242</dd></div>
+            </dl>
+          </article>
+        </div>
+
+        <div class="detail-panel__col">
+          <article class="card">
+            <header class="card__head">
+              <h3 class="card__title">도면 · 사진 (6)</h3>
+              <button class="card__edit">전체 보기</button>
+            </header>
+            <div class="attach-grid">
+              <button class="attach-item"><span class="attach-item__lbl">도면 v3</span></button>
+              <button class="attach-item" style="background:linear-gradient(135deg,#9ea4ff,#5a67d8)"><span class="attach-item__lbl">실측</span></button>
+              <button class="attach-item" style="background:linear-gradient(135deg,#a78bfa,#7c3aed)"><span class="attach-item__lbl">완성</span></button>
+              <button class="attach-item" style="background:linear-gradient(135deg,#fbbf24,#d97706)"><span class="attach-item__lbl">AS 1</span></button>
+              <button class="attach-item" style="background:linear-gradient(135deg,#f472b6,#db2777)"><span class="attach-item__lbl">AS 2</span></button>
+              <button class="attach-item" style="background:var(--foms-surface-overlay);border:2px dashed var(--foms-border-default)">
+                <span class="attach-item__lbl" style="background:transparent;color:var(--foms-text-tertiary)">+ 추가</span>
+              </button>
+            </div>
+          </article>
+
+          <article class="card">
+            <header class="card__head">
+              <h3 class="card__title">이력</h3>
+            </header>
+            <div>
+              <div class="timeline-item">
+                <div class="timeline-item__dot">✓</div>
+                <div class="timeline-item__body">
+                  <div class="timeline-item__title">AS 접수</div>
+                  <div class="timeline-item__meta">안중훈 · 14:39 · 2번장 옷봉 10mm 조정</div>
+                </div>
+              </div>
+              <div class="timeline-item">
+                <div class="timeline-item__dot">✓</div>
+                <div class="timeline-item__body">
+                  <div class="timeline-item__title">시공 완료</div>
+                  <div class="timeline-item__meta">5/22 14:30 · 최상용</div>
+                </div>
+              </div>
+              <div class="timeline-item">
+                <div class="timeline-item__dot">✓</div>
+                <div class="timeline-item__body">
+                  <div class="timeline-item__title">출고</div>
+                  <div class="timeline-item__meta">5/21 16:00</div>
+                </div>
+              </div>
+              <div class="timeline-item">
+                <div class="timeline-item__dot">✓</div>
+                <div class="timeline-item__body">
+                  <div class="timeline-item__title">생산 완료</div>
+                  <div class="timeline-item__meta">5/21 11:00</div>
+                </div>
+              </div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<script>
+const p = new URLSearchParams(location.search);
+document.documentElement.setAttribute('data-theme', p.get('theme') || 'light');
+</script>
+
+</body>
+</html>

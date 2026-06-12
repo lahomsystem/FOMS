@@ -3,6 +3,7 @@ from sqlalchemy.orm import relationship, backref
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import JSONB
 from wdcalculator_db import WDCalculatorBase
+from foms.services.datetime_kst import format_datetime_kst
 import json
 
 SETTINGS_JSON_TYPE = JSON().with_variant(JSONB(), 'postgresql')
@@ -35,8 +36,8 @@ class Estimate(WDCalculatorBase):
             'id': self.id,
             'customer_name': self.customer_name,
             'estimate_data': self.estimate_data,  # JSONB는 자동으로 dict로 변환됨
-            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else None,
-            'updated_at': self.updated_at.strftime('%Y-%m-%d %H:%M:%S') if self.updated_at else None
+            'created_at': format_datetime_kst(self.created_at),
+            'updated_at': format_datetime_kst(self.updated_at),
         }
 
 class EstimateHistory(WDCalculatorBase):

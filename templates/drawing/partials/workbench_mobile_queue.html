@@ -1,0 +1,43 @@
+{# 도면 작업 큐 모바일 표면 A. workbench_dashboard_body.html의 v2/legacy 모바일 렌더가 공유한다.
+   PC식 번호 페이저(하단 1,2,3,4)로 페이지 이동. my_todo 우선정렬 + 내차례/상대차례 그룹 헤더는 청크가 렌더. #}
+{% set _dw_loaded = [pagination.page * pagination.per_page, pagination.total_count] | min %}
+<div class="mobile-card-list d-lg-none erp-drawing-mobile-list foms-mobile-queue-list foms-drawing-queue">
+  <div class="erp-drawing-mobile-list__summary foms-section-header section-header">
+    <div>
+      <span class="erp-drawing-mobile-list__eyebrow">Drawing Queue</span>
+      <h2 class="erp-drawing-mobile-list__title foms-section-header__title">도면 작업 큐</h2>
+    </div>
+    <span class="erp-drawing-mobile-list__count foms-section-header__count">{{ _dw_loaded }}건 / 전체 {{ pagination.total_count }}건</span>
+  </div>
+  {% if rows %}
+    <div class="foms-drawing-queue__list">
+      {% include 'drawing/partials/workbench_mobile_queue_chunk.html' %}
+    </div>
+    {% if pagination.total_pages > 1 %}
+    <nav class="foms-mobile-pager" aria-label="페이지 이동" data-foms-mobile-pager>
+      <a class="foms-mobile-pager__nav{% if pagination.page <= 1 %} is-disabled{% endif %}"
+         href="?{{ wb.build_page_url(pagination.page - 1 if pagination.page > 1 else 1) }}"
+         {% if pagination.page <= 1 %}aria-disabled="true" tabindex="-1"{% endif %} aria-label="이전 페이지">‹</a>
+      {% set _start = [1, pagination.page - 2] | max %}
+      {% set _end = [pagination.total_pages, pagination.page + 2] | min %}
+      {% if _start > 1 %}
+      <a class="foms-mobile-pager__num" href="?{{ wb.build_page_url(1) }}">1</a>
+      {% if _start > 2 %}<span class="foms-mobile-pager__gap">…</span>{% endif %}
+      {% endif %}
+      {% for p in range(_start, _end + 1) %}
+      <a class="foms-mobile-pager__num{% if p == pagination.page %} is-current{% endif %}"
+         href="?{{ wb.build_page_url(p) }}"{% if p == pagination.page %} aria-current="page"{% endif %}>{{ p }}</a>
+      {% endfor %}
+      {% if _end < pagination.total_pages %}
+      {% if _end < pagination.total_pages - 1 %}<span class="foms-mobile-pager__gap">…</span>{% endif %}
+      <a class="foms-mobile-pager__num" href="?{{ wb.build_page_url(pagination.total_pages) }}">{{ pagination.total_pages }}</a>
+      {% endif %}
+      <a class="foms-mobile-pager__nav{% if pagination.page >= pagination.total_pages %} is-disabled{% endif %}"
+         href="?{{ wb.build_page_url(pagination.page + 1 if pagination.page < pagination.total_pages else pagination.total_pages) }}"
+         {% if pagination.page >= pagination.total_pages %}aria-disabled="true" tabindex="-1"{% endif %} aria-label="다음 페이지">›</a>
+    </nav>
+    {% endif %}
+  {% else %}
+    <div class="foms-mobile-empty foms-drawing-queue__empty">지금 바로 처리할 도면 작업이 없습니다.</div>
+  {% endif %}
+</div>

@@ -174,6 +174,13 @@ class DesignerDrawingArtifact(Base):
 
     A drawing artifact is immutable — the original file is never modified.
     Extraction results are stored in DesignerDrawingExtraction separately.
+
+    SketchUp note: `.skp`/`.skb` uploads reuse this artifact table via
+    `file_type` ∈ {"skp", "skb"} and `source` ∈ {"sketchup_upload"}. The
+    underlying parse job lives in `designer_sketchup_parse_jobs` and the
+    resulting model snapshot in `designer_sketchup_model_snapshots`.
+    `analysis_kind` distinguishes drawing image vs. sketchup model so the
+    intake pipeline can branch without sniffing extensions at runtime.
     """
 
     __tablename__ = "designer_drawing_artifacts"
@@ -185,12 +192,20 @@ class DesignerDrawingArtifact(Base):
     attachment_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # FOMS attachment
     file_url: Mapped[str] = mapped_column(String(2000), nullable=False)
     file_type: Mapped[str] = mapped_column(
-        Enum("jpg", "jpeg", "png", "pdf", "webp", name="designer_drawing_file_type", native_enum=False),
+        Enum(
+            "jpg", "jpeg", "png", "pdf", "webp", "skp", "skb",
+            name="designer_drawing_file_type",
+            native_enum=False,
+        ),
         nullable=False, default="jpg",
     )
     page_count: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     source: Mapped[str] = mapped_column(
-        Enum("upload", "erp_attachment", "manual", name="designer_drawing_source", native_enum=False),
+        Enum(
+            "upload", "erp_attachment", "manual", "sketchup_upload", "sketchup_worker",
+            name="designer_drawing_source",
+            native_enum=False,
+        ),
         nullable=False, default="upload",
     )
     status: Mapped[str] = mapped_column(
@@ -198,6 +213,15 @@ class DesignerDrawingArtifact(Base):
              name="designer_drawing_artifact_status", native_enum=False),
         nullable=False, default="pending",
     )
+    # SketchUp intake extension (also useful as audit metadata for legacy
+    # drawing uploads). Nullable so existing rows stay valid.
+    original_filename: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    storage_key: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    mime_type: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    analysis_kind: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
     created_by_user_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("users.id"), nullable=True
     )
@@ -310,6 +334,17 @@ class DesignerExtractionCandidate(Base):
     mapping_report_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     validation_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     preview_allowed: Mapped[bool] = mapped_column(nullable=False, default=False)
+
+    # Preview ack ledger — source of truth for the approval gate.
+    # The 3D editor must post-ack a load and the API records the canonical
+    # SHA256 of design_graph_candidate_json at that moment. Approval is
+    # rejected if the current candidate hash diverges from last_preview_ack_hash
+    # or if last_preview_ack_error is non-null.
+    last_preview_ack_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_preview_ack_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    last_preview_ack_error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # correction_deltas stored in DesignerCorrection linked to this candidate
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
@@ -632,3 +667,137 @@ class DesignerOutlinePolygon(Base):
         default="pending",
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
+
+
+# ──────────────────────────────────────────────────────────
+# B1: SketchUp Intake — parse job + raw model snapshot
+# ──────────────────────────────────────────────────────────
+
+
+class DesignerSketchUpParseJob(Base):
+    """SketchUp parse job — PostgreSQL row-locking queue contract.
+
+    Workers claim jobs with `SELECT ... FOR UPDATE SKIP LOCKED` keyed on
+    `(status, lease_expires_at, created_at)`. Lease ownership is asserted
+    on every status mutation via (`lease_owner`, `lease_token`) so an
+    expired worker cannot smuggle in a stale `succeeded` payload — late
+    results are discarded and the job is moved to `retryable`.
+
+    `idempotency_key` is a stable hash of
+    `(project_id, input_sha256, parser_code, analyzer_contract_version)`.
+    The DB enforces uniqueness so reuploading the same model on the same
+    parser version returns the existing job instead of creating a new one.
+
+    Presigned storage URLs are NEVER persisted here. `storage_keys_json`
+    only carries opaque storage object keys + their artifact role. Workers
+    re-request short-lived presigned URLs from the API endpoint guarded by
+    lease ownership.
+    """
+
+    __tablename__ = "designer_sketchup_parse_jobs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    artifact_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("designer_drawing_artifacts.id"), nullable=False
+    )
+    project_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("designer_projects.id"), nullable=True
+    )
+
+    status: Mapped[str] = mapped_column(
+        Enum(
+            "queued", "running", "succeeded", "failed", "cancelled", "retryable",
+            name="designer_sketchup_job_status",
+            native_enum=False,
+        ),
+        nullable=False,
+        default="queued",
+    )
+    worker_kind: Mapped[str | None] = mapped_column(
+        Enum(
+            "c_api", "desktop_ruby", "fake_contract",
+            name="designer_sketchup_worker_kind",
+            native_enum=False,
+        ),
+        nullable=True,
+    )
+
+    parser_version: Mapped[str] = mapped_column(String(100), nullable=False)
+    input_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    # 255 chars accommodates future parser code + analyzer_contract_version
+    # combinations. Plan §4.2.2 invariant: idempotency_key is a hash, not
+    # the raw parser version string.
+    idempotency_key: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+
+    lease_owner: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    lease_token: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_heartbeat_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+
+    storage_keys_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    error_code: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    error_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    metrics_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    created_by_user_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, onupdate=_now, nullable=False
+    )
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class DesignerSketchUpModelSnapshot(Base):
+    """Immutable parse-time snapshot for a successful SketchUp parse job.
+
+    Stores the canonical `SketchUpRawModelJson` payload alongside derived
+    indexes (component, material, preview asset references) that the
+    intake pipeline consumes when building a `DesignerExtractionCandidate`.
+
+    A snapshot is only inserted after schema validation succeeds. Schema
+    invalid analyzer output causes the parse job to transition to
+    `failed`/`retryable` without leaving partial snapshot rows behind.
+    """
+
+    __tablename__ = "designer_sketchup_model_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    artifact_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("designer_drawing_artifacts.id"), nullable=False
+    )
+    parse_job_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("designer_sketchup_parse_jobs.id"), nullable=False
+    )
+    extraction_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("designer_drawing_extractions.id"), nullable=True
+    )
+
+    parser_version: Mapped[str] = mapped_column(String(100), nullable=False)
+    sketchup_api_version: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    sketchup_model_version: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    load_status: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+    units_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    bbox_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    raw_model_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    layout_graph_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    component_index_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    material_index_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    preview_assets_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    warnings_json: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, nullable=False
+    )

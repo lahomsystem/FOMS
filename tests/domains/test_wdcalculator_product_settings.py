@@ -885,6 +885,89 @@ def test_wdcalculator_products_api_keeps_legacy_success_shape(
     assert first_product["price_1cm"] == 10
 
 
+def test_wdcalculator_product_settings_page_exposes_category(wdcalculator_settings_env, login):
+    """제품 설정 페이지는 제품 카테고리 입력칸과 목록 컬럼을 노출해야 한다."""
+    client = login
+
+    response = client.get("/wdcalculator/product-settings")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert 'id="productCategory"' in body
+    assert 'name="category"' in body
+    assert "<th>카테고리</th>" in body
+
+
+def test_wdcalculator_product_save_persists_category(wdcalculator_settings_env, login):
+    """제품 저장 시 category가 그대로 보존·반환되어야 한다(드롭다운 카테고리 그룹핑 근거)."""
+    client = login
+
+    save_response = client.post(
+        "/api/wdcalculator/products",
+        json={
+            "name": "몰딩(푸쉬)",
+            "category": "몰딩",
+            "pricing_type": "1m",
+            "additional_options": [],
+            "coupon_type": "percentage",
+            "coupon_value": 0,
+            "price_1m": 50000,
+        },
+    )
+
+    assert save_response.status_code == 200
+    assert save_response.get_json()["success"] is True
+
+    reloaded = client.get("/api/wdcalculator/products").get_json()["products"]
+    saved = next(product for product in reloaded if product["name"] == "몰딩(푸쉬)")
+    assert saved["category"] == "몰딩"
+
+
+def test_wdcalculator_calculator_page_includes_category_picker_assets(wdcalculator_settings_env, login):
+    """계산기 페이지는 카테고리 2단 피커 자산(js/css)을 로드해야 한다."""
+    client = login
+
+    response = client.get("/wdcalculator")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert "js/wdcalculator/category-picker.js" in body
+    assert "css/wdcalculator/category-picker.css" in body
+    # primary-form(셀렉트 생성) 이후 category-picker(셀렉트 enhance)가 로드돼야 한다.
+    assert body.index("js/wdcalculator/primary-form.js") < body.index(
+        "js/wdcalculator/category-picker.js"
+    )
+
+
+def test_wdcalculator_product_settings_orders_by_category_then_name(wdcalculator_settings_env, login):
+    """제품 목록은 카테고리 → 제품명 순(미분류 맨 뒤)으로 정렬되어야 한다."""
+    client = login
+    payloads = [
+        {"name": "ZZ제품", "category": "몰딩"},
+        {"name": "AA제품", "category": "몰딩"},
+        {"name": "MM제품", "category": "가구"},
+    ]
+    for payload in payloads:
+        payload.update(
+            {
+                "pricing_type": "1m",
+                "additional_options": [],
+                "coupon_type": "percentage",
+                "coupon_value": 0,
+                "price_1m": 1000,
+            }
+        )
+        assert client.post("/api/wdcalculator/products", json=payload).get_json()["success"] is True
+
+    body = client.get("/wdcalculator/product-settings").get_data(as_text=True)
+    # '가구' < '몰딩' < 미분류(Seed Product), 같은 카테고리 내 이름 오름차순(AA < ZZ).
+    i_mm = body.index("<strong>MM제품</strong>")
+    i_aa = body.index("<strong>AA제품</strong>")
+    i_zz = body.index("<strong>ZZ제품</strong>")
+    i_seed = body.index("<strong>Seed Product</strong>")
+    assert i_mm < i_aa < i_zz < i_seed
+
+
 def test_wdcalculator_calculate_save_and_load_estimate_smoke(wdcalculator_settings_env, login):
     """Core WDCalculator API flow must keep calculate -> save -> load roundtrip working."""
     client = login

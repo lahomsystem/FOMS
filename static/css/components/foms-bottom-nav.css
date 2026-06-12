@@ -1,0 +1,24 @@
+/* P1-01: ERP mobile bottom nav — stage badge (COMPONENT_LIBRARY_MOBILE C02) */
+
+.erp-mobile-bottom-nav__item {
+  position: relative;
+}
+
+.erp-mobile-bottom-nav__badge {
+  position: absolute;
+  top: 4px;
+  right: calc(50% - 20px);
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background: var(--foms-color-danger-500, #ef4444);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  border-radius: var(--foms-radius-full, 999px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}

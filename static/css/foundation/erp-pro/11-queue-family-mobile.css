@@ -29,6 +29,52 @@
     margin-top: 0.875rem;
   }
 
+  /* Home IA parity: production/construction mobile lives inside the shared
+     foms-shell-body wrapper; the shell owns side padding + row gap. */
+  body.erp-mobile-v2-layout .erp-production-mobile-v2 .erp-mobile-queue-filters,
+  body.erp-mobile-v2-layout .erp-production-mobile-v2 .erp-mobile-queue-section,
+  body.erp-mobile-v2-layout .erp-construction-mobile-v2 .erp-mobile-queue-filters,
+  body.erp-mobile-v2-layout .erp-construction-mobile-v2 .erp-mobile-queue-section {
+    padding-left: 0;
+    padding-right: 0;
+    margin-top: 0;
+    /* 셸(flex/grid) 자식의 min-width:auto가 칩스트립 min-content(全칩 펼침)로
+       확장돼 화면 폭을 넘기던 문제 → 셸 폭으로 수축시켜 칩스트립은 내부 스크롤. */
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  /* 작업 큐 요약줄의 '내 작업' 토글(칩스트립에서 분리, 헤더 중간 배치) */
+  body.erp-mobile-v2-layout .erp-mobile-queue-section__mine {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+    padding: 5px 12px;
+    border-radius: 999px;
+    font-size: var(--foms-font-size-sm, 0.8125rem);
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    text-decoration: none;
+    background: var(--foms-surface-overlay, #f1f5f9);
+    color: var(--foms-text-secondary, #556b82);
+    border: 1px solid transparent;
+  }
+  body.erp-mobile-v2-layout .erp-mobile-queue-section__mine.is-active {
+    background: var(--foms-color-brand-50, #ebf5ff);
+    color: var(--foms-color-brand-700, #0057d2);
+    border-color: var(--foms-color-brand-300, #9cc6ff);
+  }
+  body.erp-mobile-v2-layout .erp-mobile-queue-section__mine i {
+    font-size: 0.85em;
+  }
+  /* 요약줄: 제목 / 내작업(중간) / 카운트 3분할 */
+  body.erp-mobile-v2-layout .erp-construction-mobile-v2 .erp-mobile-queue-section__summary {
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
   .erp-mobile-queue-filters__search {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto auto;
@@ -389,6 +435,18 @@
 
   .erp-measurement-dashboard[data-erp-mobile-v2='true'] .erp-measurement-mobile-dates {
     overflow-x: hidden;
+  }
+
+  /* Home IA parity: measurement mobile lives inside the shared foms-shell-body
+     wrapper (.erp-measurement-mobile-v2). The shell owns horizontal padding
+     (space-4) + row gap, so the bespoke sections drop their own side padding /
+     top margin to avoid doubling the inset. */
+  body.erp-mobile-v2-layout .erp-measurement-mobile-v2 .erp-measurement-mobile-filters,
+  body.erp-mobile-v2-layout .erp-measurement-mobile-v2 .erp-measurement-mobile-dates,
+  body.erp-mobile-v2-layout .erp-measurement-mobile-v2 .erp-measurement-mobile-list {
+    padding-left: 0;
+    padding-right: 0;
+    margin-top: 0;
   }
 
   .erp-measurement-dashboard[data-erp-mobile-v2='true'] .erp-measurement-mobile-filters__search {
@@ -1130,97 +1188,11 @@
     padding: 0 1rem 1rem;
   }
 
-  .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-pro-order-card {
-    border: 1px solid #d9e3ef;
-    border-radius: 18px;
-    background: #fff;
-    box-shadow: 0 10px 24px rgba(17, 24, 39, 0.08);
-    overflow: visible;
-  }
-
-  .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-pro-order-card__header {
-    padding: 1rem;
-    background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
-    border-bottom: 1px solid #e5edf5;
-    align-items: flex-start;
-  }
-
-  .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-pro-order-card__id {
-    color: #0a6ed1;
-    font-size: 14px;
-    font-weight: 700;
-    text-decoration: none;
-  }
-
-  .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-status-badge {
-    min-height: 28px;
-    padding: 0.25rem 0.625rem;
+  /* AS v2 compact cards: see foms-as-mobile-card.css (erp-as-mobile-card--v2) */
+  .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-mobile-card--v2 .foms-stage-badge {
+    min-height: 24px;
+    padding: 0.125rem 0.5rem;
     border-radius: 999px;
-  }
-
-  .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-pro-order-card__body {
-    padding: 1rem;
-    display: grid;
-    gap: 0.75rem;
-  }
-
-  .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-pro-order-card__row {
-    grid-template-columns: 1fr;
-    gap: 0.375rem;
-    padding: 0.75rem;
-    border: 1px solid #edf2f8;
-    border-radius: 14px;
-    background: #fbfdff;
-  }
-
-  .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-pro-order-card__row--full {
-    grid-template-columns: 1fr;
-  }
-
-  .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-pro-order-card__label {
-    color: #556b82;
-    font-size: 12px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-  }
-
-  .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-pro-order-card__value {
-    color: #131e29;
-    font-size: 14px;
-    line-height: 1.45;
-  }
-
-  .erp-as-dashboard[data-erp-mobile-v2='true'] .editable-date-as,
-  .erp-as-dashboard[data-erp-mobile-v2='true'] .as-photos-btn,
-  .erp-as-dashboard[data-erp-mobile-v2='true'] .find-schedule-btn {
-    min-height: 44px;
-  }
-
-  .erp-as-dashboard[data-erp-mobile-v2='true'] .as-rich-editor {
-    width: 100%;
-    border-radius: 14px !important;
-    border-color: #d6e2ef !important;
-    overflow: hidden;
-  }
-
-  .erp-as-dashboard[data-erp-mobile-v2='true'] .as-rich-toolbar {
-    padding: 0.375rem !important;
-    gap: 0.375rem !important;
-    flex-wrap: wrap;
-  }
-
-  .erp-as-dashboard[data-erp-mobile-v2='true'] .as-content-input {
-    min-height: 96px !important;
-    padding: 0.75rem !important;
-    font-size: 14px !important;
-    background: #fff;
-  }
-
-  .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-pending-btn {
-    position: static;
-    margin-top: 0.5rem;
-    min-height: 32px;
   }
 
   .erp-as-dashboard[data-erp-mobile-v2='true'] .pagination {
@@ -1277,5 +1249,59 @@
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.75rem;
+  }
+}
+
+/* ===== 모바일 작업 큐 번호 페이저 (PC식 1,2,3,4 하단 페이지네이션) ===== */
+@media (max-width: 991.98px) {
+  .foms-mobile-pager {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 1rem 0.75rem calc(1.25rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .foms-mobile-pager__num,
+  .foms-mobile-pager__nav {
+    min-width: 42px;
+    height: 42px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0.5rem;
+    border: 1px solid var(--foms-border-default, #d9d9d9);
+    border-radius: 11px;
+    background: var(--foms-surface-base, #ffffff);
+    color: var(--foms-text-primary, #131e29);
+    font-size: 0.9375rem;
+    font-weight: 600;
+    line-height: 1;
+    text-decoration: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .foms-mobile-pager__num.is-current {
+    background: var(--foms-interactive-primary, #0070f2);
+    border-color: var(--foms-interactive-primary, #0070f2);
+    color: #ffffff;
+  }
+
+  .foms-mobile-pager__nav.is-disabled {
+    opacity: 0.4;
+    pointer-events: none;
+  }
+
+  .foms-mobile-pager__gap {
+    padding: 0 0.125rem;
+    color: var(--foms-text-secondary, #556b82);
+  }
+
+  .foms-queue-card-v2.is-focused,
+  .foms-drawing-queue-card.is-focused,
+  .erp-drawing-mobile-card.is-focused {
+    transform: translateY(-2px);
+    box-shadow: 0 0 0 2px rgba(10, 110, 209, 0.14), 0 14px 30px rgba(10, 110, 209, 0.16);
   }
 }

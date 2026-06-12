@@ -6,6 +6,14 @@
         balanceUnconfirmed: "{{ url_for('static', filename='images/pay-bill-gray.png') }}"
     };
 </script>
+<script src="{{ url_for('static', filename='js/foms/attachment-preview-zoom.js') }}?v=20260602a"></script>
 <script src="{{ url_for('static', filename='js/orders/erp-order-shared.js') }}"></script>
+{% if flag_inline %}
+{% if flag_offline_sw %}
+<script src="{{ url_for('static', filename='js/foms/sync.js') }}?v=20260531a" defer></script>
+{% endif %}
+<script src="{{ url_for('static', filename='js/foms/product-item.js') }}?v=20260531a" defer></script>
+<script src="{{ url_for('static', filename='js/foms/inline-edit.js') }}?v=20260531b" defer></script>
+{% endif %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="{{ url_for('static', filename='js/orders/estimate-preview.js') }}"></script>

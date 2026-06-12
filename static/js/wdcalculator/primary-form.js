@@ -28,17 +28,22 @@ function setNoteMode(selectEl, textareaEl, mode) {
 }
 
 function createNotesSelectOptions() {
+    // 카테고리는 optgroup 헤더로, 옵션 줄은 옵션명만 짧게.
+    // value는 '카테고리 > 옵션명' 인코딩을 유지(loadNotes/collectNotes/renderNoteItem 매칭 근거).
     let optionsHtml = '<option value="">저장된 비고 선택</option>';
     if (notesCategories && Array.isArray(notesCategories)) {
         notesCategories.forEach((category) => {
             if (category && category.options && Array.isArray(category.options)) {
+                let groupHtml = "";
                 category.options.forEach((option) => {
                     if (option && option.name) {
                         const value = `${category.name} > ${option.name}`;
-                        const escapedValue = escapeHtml(value);
-                        optionsHtml += `<option value="${escapedValue}">${escapedValue}</option>`;
+                        groupHtml += `<option value="${escapeHtml(value)}">${escapeHtml(option.name)}</option>`;
                     }
                 });
+                if (groupHtml) {
+                    optionsHtml += `<optgroup label="${escapeHtml(category.name)}">${groupHtml}</optgroup>`;
+                }
             }
         });
     }
@@ -381,13 +386,49 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
     }
 
     function getProductsOptionsHtml() {
+        // 카테고리별 optgroup으로 묶고, 카테고리 → 제품명 순으로 정렬해 노출한다.
+        // 카테고리가 없는 제품은 그룹 없이 평평하게 먼저 노출(하위호환 + 계약 보존).
         var html = '<option value="">제품을 선택하세요</option>';
-        var products = getProducts() || [];
-        products.forEach(function (p) {
-            if (!p) return;
-            var optionValue = escapeHtml(String(p.id != null ? p.id : ""));
-            html += '<option value="' + optionValue + '">' + escapeHtml(p.name || "") + "</option>";
+        var products = (getProducts() || []).filter(function (p) {
+            return !!p;
         });
+        var grouped = {};
+        var uncategorized = [];
+
+        function byName(a, b) {
+            return String(a.name || "").localeCompare(String(b.name || ""), "ko");
+        }
+        function optionHtml(p) {
+            var optionValue = escapeHtml(String(p.id != null ? p.id : ""));
+            return '<option value="' + optionValue + '">' + escapeHtml(p.name || "") + "</option>";
+        }
+
+        products.forEach(function (p) {
+            var category = p.category != null ? String(p.category).trim() : "";
+            if (!category) {
+                uncategorized.push(p);
+                return;
+            }
+            if (!grouped[category]) {
+                grouped[category] = [];
+            }
+            grouped[category].push(p);
+        });
+
+        uncategorized.sort(byName).forEach(function (p) {
+            html += optionHtml(p);
+        });
+        Object.keys(grouped)
+            .sort(function (a, b) {
+                return a.localeCompare(b, "ko");
+            })
+            .forEach(function (category) {
+                html += '<optgroup label="' + escapeHtml(category) + '">';
+                grouped[category].sort(byName).forEach(function (p) {
+                    html += optionHtml(p);
+                });
+                html += "</optgroup>";
+            });
         return html;
     }
 
@@ -441,7 +482,7 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
             (manualPricingType === "1m" ? "" : "display:none;") +
             '">\n                                        <label class="form-label small mb-1">1m(원)</label>\n                                        <input type="number" class="form-control form-control-sm base-manual-price1m" min="0" step="1" placeholder="예: 330000" value="' +
             escapeHtml(String(price1m)) +
-            '">\n                                    </div>\n                                </div>\n                                \n                            </div>\n                        </div>\n\n                        <!-- 가로 (직접: 마지막 / 선택: 제품 다음) -->\n                        <div class="col-6 col-md-3">\n                            <label class="form-label small mb-1">가로(mm)</label>\n                            <input type="number" class="form-control form-control-sm base-width-input" min="0" step="1" placeholder="예: 4470" value="' +
+            '">\n                                    </div>\n                                </div>\n                                \n                            </div>\n                        </div>\n\n                        <!-- 가로 (직접: 마지막 / 선택: 제품 다음) -->\n                        <div class="col-6 col-md-3 base-width-col">\n                            <label class="form-label small mb-1">가로(mm)</label>\n                            <input type="number" class="form-control form-control-sm base-width-input" min="0" step="1" placeholder="예: 4470" value="' +
             escapeHtml(String(widthMm)) +
             '">\n                        </div>\n\n                        <!-- 삭제 -->\n                        <div class="col-6 col-md-1 text-end">\n                            <button type="button" class="btn btn-sm btn-outline-danger base-remove-btn" title="삭제">\n                                <i class="fas fa-times"></i>\n                            </button>\n                        </div>\n                    </div>\n                    \n                    <!-- 두 번째 행: 추가금 입력 (리스트 형태) -->\n                    <div class="mt-2">\n                        <label class="form-label small mb-2">추가금</label>\n                        <div class="base-additional-fees-list">\n                            ' +
             additionalFees
@@ -809,13 +850,16 @@ var WdCalculatorAdditionalOptionsUI = window.WdCalculatorAdditionalOptionsUI || 
     }
 
     function getAllOptionsHtml() {
+        // 카테고리는 optgroup 헤더로 한 번만 노출하고, 옵션 줄은 '옵션명 (가격원)'으로 짧게.
+        // value는 'category|name|price' 인코딩을 그대로 유지(선택 시 이름/가격 분해에 사용).
         var html = '<option value="">카테고리 > 옵션을 선택하세요</option>';
         var categories = getCategories() || [];
         categories.forEach(function (category) {
             if (!(category && Array.isArray(category.options) && category.options.length)) return;
+            var groupHtml = "";
             category.options.forEach(function (option) {
                 if (!(option && option.name && option.price !== undefined)) return;
-                html +=
+                groupHtml +=
                     '<option value="' +
                     category.name +
                     "|" +
@@ -823,13 +867,14 @@ var WdCalculatorAdditionalOptionsUI = window.WdCalculatorAdditionalOptionsUI || 
                     "|" +
                     option.price +
                     '">' +
-                    category.name +
-                    " > " +
                     option.name +
                     " (" +
                     formatNumber(option.price) +
                     "원)</option>";
             });
+            if (groupHtml) {
+                html += '<optgroup label="' + category.name + '">' + groupHtml + "</optgroup>";
+            }
         });
         return html;
     }

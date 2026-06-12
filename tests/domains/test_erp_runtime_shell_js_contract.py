@@ -55,6 +55,20 @@ def test_runtime_shell_does_not_cache_measurement_dashboard(runtime_shell_src: s
     assert "window.FOMS_ERP_SHELL.isFragmentCacheable" in runtime_shell_src
 
 
+def test_runtime_shell_dashboard_fresh_ttl_and_focus_revalidate(runtime_shell_src: str) -> None:
+    """I-1/I-4: home is mutation-sensitive → short warm TTL + revalidate on focus/bfcache.
+
+    Cross-user/device quest approve must not leave the home tab serving stale HTML
+    after a shell nav-back. Full reload already bypasses the cache; this covers tab-switch.
+    """
+    assert "FRESH_TTL_PATHS" in runtime_shell_src
+    assert "'/erp/dashboard'" in runtime_shell_src
+    assert "cacheTtlForKey" in runtime_shell_src
+    assert "visibilitychange" in runtime_shell_src
+    assert "invalidateFreshTtlSurfaces" in runtime_shell_src
+    assert "e.persisted" in runtime_shell_src
+
+
 def test_runtime_shell_fragment_loading_overlay(runtime_shell_src: str) -> None:
     """UX: network fragment fetch shows loading overlay (not for cache-only swap)."""
     assert "setShellFragmentLoading" in runtime_shell_src

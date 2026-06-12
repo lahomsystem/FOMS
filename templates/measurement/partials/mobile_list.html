@@ -1,332 +1,101 @@
-{% set measurement_list_map_url = url_for('erp_measurement_dashboard.erp_measurement_dashboard', date=selected_date or today_date, q=search_q or '') %}
-{% if erp_mine_only %}
-  {% set measurement_list_map_url = measurement_list_map_url ~ '&mine=1' %}
-{% endif %}
-{% set measurement_list_map_url = measurement_list_map_url ~ '&open_map=1' %}
+{% from 'partials/shared/erp_mobile_queue_card_v2.html' import render_queue_card_v2 %}
 
-<section class="erp-measurement-mobile-list" aria-label="실측 모바일 일정">
-  <div class="erp-measurement-mobile-list__summary">
+<section class="erp-measurement-mobile-list foms-mobile-queue-section" aria-label="실측 모바일 일정">
+  <div class="erp-measurement-mobile-list__summary foms-section-header section-header">
     <div>
-      <span class="erp-measurement-mobile-list__eyebrow">Measurement Queue</span>
-      <h2 class="erp-measurement-mobile-list__title">실측 일정</h2>
+      <span class="erp-measurement-mobile-list__eyebrow">실측 작업 큐</span>
+      <h2 class="erp-measurement-mobile-list__title foms-section-header__title">실측 일정</h2>
     </div>
-    <span class="erp-measurement-mobile-list__count">{{ rows|length }}건</span>
+    <span class="erp-measurement-mobile-list__count foms-section-header__count">{{ mobile_queue_rows|length }}건</span>
   </div>
 
-  {% if rows %}
-    <div class="erp-measurement-mobile-cards">
-      {% for r in rows %}
-        {% set manager_name = r.manager_name %}
-        {% set manager_name = (manager_name or '')|trim %}
-        {% set product_text = ((r.product or '-')|strip_product_w) or '-' %}
-        {% set measurement_dates = r.measurement_dates_display if r.measurement_dates_display is defined else [] %}
-        {% set rsd = r.structured_data or {} %}
-        {% set rsd_notes = rsd.get('notes', {}) %}
-        {% set rsd_schedule = rsd.get('schedule', {}) %}
-        {% set rsd_orderer = rsd.get('parties', {}).get('orderer', {}) %}
-        {% set rsd_payment = rsd.get('payment', {}) if rsd else {} %}
-        {% set rsd_payments = rsd.get('payments', {}) if rsd else {} %}
-        {% set rsd_totals = rsd.get('totals', {}) %}
-        {% set rsd_items_total = rsd_totals.get('items_total', 0) | int %}
-        {% set rsd_deposit_raw = rsd_payment.get('deposit') or rsd_payments.get('deposit', 0) %}
-        {% set rsd_deposit = (rsd_deposit_raw.get('amount', 0) if rsd_deposit_raw is mapping else rsd_deposit_raw) | int %}
-        {% set rsd_final_raw = rsd_totals.get('final_amount') if rsd_totals.get('final_amount') is not none else rsd_totals.get('balance_amount') %}
-        {% set rsd_remain = ([0, rsd_final_raw | int] | max) if rsd_final_raw is not none else ([0, rsd_items_total - rsd_deposit] | max) %}
-        {% set deposit_val = rsd_deposit %}
-        {% set measurement_display = (rsd_schedule.get('measurement', {}).get('date') or '')|schedule_datetime_display(rsd_schedule.get('measurement', {}).get('time')) %}
-        {% set construction_display = (rsd_schedule.get('construction', {}).get('date') or '')|schedule_datetime_display(rsd_schedule.get('construction', {}).get('time')) %}
-        {% set product_items_row = r.product_items if r.product_items is defined else [] %}
-        {% set image_ns = namespace(count=0) %}
-        {% for item in product_items_row %}
-          {% set image_ns.count = image_ns.count + ((item.get('measurement_images') or [])|length) %}
-        {% endfor %}
-        {% set is_erp_order = r.is_erp_order %}
-        {% set can_assign_manager = (can_edit_erp|default(false)) or (not is_erp_order) %}
-        <article class="erp-measurement-mobile-card" data-measurement-mobile-order-id="{{ r.id }}" data-order-id="{{ r.id }}" data-is-erp="{{ 'true' if is_erp_order else 'false' }}" data-phone="{{ r.phone or '' }}" data-address="{{ r.address or '' }}">
-          <div class="erp-measurement-mobile-card__topline">
-            <div class="erp-measurement-mobile-card__identity">
-              <strong class="erp-measurement-mobile-card__customer">{{ r.customer_name or '-' }}</strong>
-              <span class="erp-measurement-mobile-card__order-id">#{{ r.id }}</span>
-            </div>
-            <span class="erp-measurement-mobile-card__manager{% if not manager_name %} is-unassigned{% endif %}" data-measurement-mobile-manager>{{ manager_name or '담당 미지정' }}</span>
-          </div>
-
-          <div class="erp-measurement-mobile-card__badges">
-            {% if measurement_display %}
-              <span class="erp-measurement-mobile-card__badge is-primary">{{ measurement_display }}</span>
-            {% endif %}
-            {% if r.is_self_measurement|default(false) %}
-              <span class="erp-measurement-mobile-card__badge is-info">자가실측</span>
-            {% endif %}
-            {% if deposit_val > 0 and rsd_payment.get('deposit_confirmed') | payment_confirmed_bool %}
-              <span class="erp-measurement-mobile-card__badge is-success">계약금 확인</span>
-            {% endif %}
-            {% if rsd_payment.get('balance_confirmed') | payment_confirmed_bool %}
-              <span class="erp-measurement-mobile-card__badge is-neutral">잔금 확인</span>
-            {% endif %}
-            {% if image_ns.count %}
-              <span class="erp-measurement-mobile-card__badge">{{ image_ns.count }}장 첨부</span>
-            {% endif %}
-          </div>
-
-          <dl class="erp-measurement-mobile-card__meta">
-            <div class="erp-measurement-mobile-card__meta-row">
-              <dt>제품</dt>
-              <dd>{{ product_text }}</dd>
-            </div>
-            <div class="erp-measurement-mobile-card__meta-row">
-              <dt>주소</dt>
-              <dd data-measurement-mobile-field="address">{{ r.address or '-' }}</dd>
-            </div>
-            <div class="erp-measurement-mobile-card__meta-row">
-              <dt>발주사</dt>
-              <dd>{{ rsd_orderer.get('name') or r.orderer_name or '-' }}</dd>
-            </div>
-            <div class="erp-measurement-mobile-card__meta-row">
-              <dt>연락처</dt>
-              <dd data-measurement-mobile-field="phone">{{ r.phone|format_phone }}</dd>
-            </div>
-          </dl>
-
-          {% if measurement_dates %}
-            <div class="erp-measurement-mobile-card__dates">
-              {% for date_value in measurement_dates %}
-                {% set is_match = (not use_date_range and selected_date and date_value == selected_date) or (use_date_range and date_from and date_to and date_value >= date_from and date_value <= date_to) %}
-                <span class="erp-measurement-mobile-card__date{% if is_match %} is-selected{% endif %}">{{ date_value }}</span>
-              {% endfor %}
+  {% if mobile_queue_rows %}
+    <div class="erp-measurement-mobile-cards foms-mobile-queue-list">
+      {% for o in mobile_queue_rows %}
+        <div
+          class="erp-measurement-mobile-card"
+          data-measurement-mobile-order-id="{{ o.id }}"
+          data-address="{{ o.address or '' }}"
+          data-phone="{{ o.phone or '' }}"
+          data-manager="{{ o.manager_name or '' }}">
+          {{ render_queue_card_v2(o, can_edit_erp|default(false), None, None, None, edit_return_to='erp_measurement_dashboard', detail_return_to='erp_measurement_dashboard') }}
+          {% if can_edit_erp|default(false) %}
+            <div class="erp-measurement-mobile-card__edit" aria-label="실측 정보 빠른 수정">
+              <button
+                type="button"
+                class="foms-btn foms-btn--ghost foms-btn--sm"
+                data-measurement-mobile-edit-trigger
+                data-order-id="{{ o.id }}"
+                data-is-erp="true"
+                data-field="address"
+                data-current-value="{{ o.address or '' }}">
+                주소
+              </button>
+              <button
+                type="button"
+                class="foms-btn foms-btn--ghost foms-btn--sm"
+                data-measurement-mobile-edit-trigger
+                data-order-id="{{ o.id }}"
+                data-is-erp="true"
+                data-field="phone"
+                data-current-value="{{ o.phone or '' }}">
+                연락처
+              </button>
+              <button
+                type="button"
+                class="foms-btn foms-btn--ghost foms-btn--sm"
+                data-measurement-mobile-edit-trigger
+                data-order-id="{{ o.id }}"
+                data-is-erp="true"
+                data-field="manager"
+                data-current-value="{{ o.manager_name or '' }}">
+                담당
+              </button>
+              <span class="erp-measurement-mobile-card__status" data-measurement-mobile-manager-status aria-live="polite"></span>
+              <span class="visually-hidden" data-measurement-mobile-field="address">{{ o.address or '-' }}</span>
+              <span class="visually-hidden" data-measurement-mobile-field="phone">{{ o.phone or '-' }}</span>
+              <span class="visually-hidden" data-measurement-mobile-manager>{{ o.manager_name or '-' }}</span>
+              <span class="visually-hidden" data-measurement-mobile-detail-manager>{{ o.manager_name or '-' }}</span>
             </div>
           {% endif %}
-
-          <div class="erp-measurement-mobile-card__actions">
-            <button
-              class="erp-measurement-mobile-card__action is-primary"
-              type="button"
-              data-bs-toggle="collapse"
-              data-bs-target="#erp-measurement-mobile-detail-{{ r.id }}"
-              aria-expanded="false"
-              aria-controls="erp-measurement-mobile-detail-{{ r.id }}">
-              <i class="fas fa-chevron-down"></i>
-              <span>상세</span>
-            </button>
-            {% if can_edit_erp|default(false) %}
-              <a
-                class="erp-measurement-mobile-card__action"
-                href="{{ url_for('order_edit.edit_order', order_id=r.id, return_to='erp_measurement_dashboard') }}?open=erp-order">
-                <i class="fas fa-pen"></i>
-                <span>ERP 편집</span>
-              </a>
-            {% elif r.phone %}
-              <a class="erp-measurement-mobile-card__action" href="tel:{{ (r.phone or '')|replace('-', '')|replace(' ', '') }}" data-measurement-mobile-call-link>
-                <i class="fas fa-phone"></i>
-                <span>전화</span>
-              </a>
-            {% else %}
-              <a class="erp-measurement-mobile-card__action" href="https://map.kakao.com/link/search/{{ (r.address or '')|urlencode }}" target="_blank" rel="noopener" data-measurement-mobile-map-link>
-                <i class="fas fa-map-marked-alt"></i>
-                <span>지도</span>
-              </a>
-            {% endif %}
-          </div>
-
-          <div class="collapse erp-measurement-mobile-card__detail" id="erp-measurement-mobile-detail-{{ r.id }}">
-            <div class="erp-measurement-mobile-card__detail-body">
-              <dl class="erp-measurement-mobile-card__detail-grid">
-                <div>
-                  <dt>실측 일정</dt>
-                  <dd>{{ measurement_display or '-' }}</dd>
-                </div>
-                <div>
-                  <dt>시공 일정</dt>
-                  <dd>{{ construction_display or '-' }}</dd>
-                </div>
-                <div>
-                  <dt>담당자</dt>
-                  <dd data-measurement-mobile-detail-manager>{{ manager_name or '-' }}</dd>
-                </div>
-                <div>
-                  <dt>잔액</dt>
-                  <dd>{% if rsd_items_total > 0 %}{{ '{:,}'.format(rsd_remain) }}원{% else %}-{% endif %}</dd>
-                </div>
-                <div class="is-full">
-                  <dt>주소 메모</dt>
-                  <dd>{{ rsd_notes.get('address_note') or '-' }}</dd>
-                </div>
-                <div class="is-full">
-                  <dt>실측 메모</dt>
-                  <dd>{{ rsd_notes.get('measurement_note') or '-' }}</dd>
-                </div>
-              </dl>
-
-              {% if can_assign_manager and measurement_manager_options %}
-                <div class="erp-measurement-mobile-card__manager-assign">
-                  <label for="erp-measurement-mobile-manager-{{ r.id }}">담당자 빠른 배정</label>
-                  <select
-                    id="erp-measurement-mobile-manager-{{ r.id }}"
-                    class="form-select"
-                    data-measurement-mobile-manager-select
-                    data-order-id="{{ r.id }}"
-                    data-is-erp="{{ 'true' if is_erp_order else 'false' }}"
-                    data-current-value="{{ manager_name or '' }}">
-                    <option value="">담당 미지정</option>
-                    {% for option in measurement_manager_options %}
-                      <option value="{{ option.name }}" {% if option.name == manager_name %}selected{% endif %}>{{ option.name }}</option>
-                    {% endfor %}
-                  </select>
-                  <p class="erp-measurement-mobile-card__manager-status" data-measurement-mobile-manager-status></p>
-                </div>
-              {% endif %}
-
-              {% if product_items_row %}
-                <div class="erp-measurement-mobile-card__products">
-                  {% for item in product_items_row %}
-                    {% set item_index = loop.index0 %}
-                    {% set item_measurements = item.get('measurement_images') or [] %}
-                    {% set spec_w = item.get('spec_width') or item.get('width') or '' %}
-                    {% set spec_d = item.get('spec_depth') or item.get('depth') or '' %}
-                    {% set spec_h = item.get('spec_height') or item.get('height') or '' %}
-                    {% set location_text = item.get('misc') or '' %}
-                    <section class="erp-measurement-mobile-product">
-                      <div class="erp-measurement-mobile-product__head">
-                        <strong>{{ item.get('product_name') or ('제품 항목 ' ~ loop.index) }}</strong>
-                        {% if item.get('quantity') %}
-                          <span class="erp-measurement-mobile-product__qty">수량 {{ item.get('quantity') }}</span>
-                        {% endif %}
-                      </div>
-                      <dl class="erp-measurement-mobile-product__specs">
-                        <div>
-                          <dt>규격</dt>
-                          <dd>W {{ spec_w or '-' }} / D {{ spec_d or '-' }} / H {{ spec_h or '-' }}</dd>
-                        </div>
-                        <div>
-                          <dt>색상</dt>
-                          <dd>{{ item.get('color') or '-' }}</dd>
-                        </div>
-                        <div>
-                          <dt>옵션</dt>
-                          <dd>{{ item.get('option_detail') or '-' }}</dd>
-                        </div>
-                        <div class="is-full">
-                          <dt>기타</dt>
-                          <dd>{{ location_text or item.get('extra_input') or '-' }}</dd>
-                        </div>
-                      </dl>
-
-                      {% if item_measurements %}
-                        <div class="erp-measurement-mobile-product__attachments">
-                          {% for photo in item_measurements %}
-                            <button
-                              type="button"
-                              class="erp-measurement-mobile-attachment"
-                              data-group-key="measurement_mobile_{{ r.id }}_item_{{ item_index }}"
-                              data-index="{{ loop.index0 }}"
-                              data-view-url="{{ photo.view_url }}"
-                              data-download-url="{{ photo.download_url }}"
-                              data-filename="{{ photo.filename }}"
-                              data-key="{{ photo.key }}"
-                              onclick="openDrawingGatewayImageViewer(this.dataset.groupKey, Number(this.dataset.index))">
-                              <img data-src="{{ photo.view_url }}" alt="{{ photo.filename }}" class="lazy-detail-img">
-                              <span>{{ photo.filename }}</span>
-                            </button>
-                          {% endfor %}
-                        </div>
-                      {% endif %}
-                    </section>
-                  {% endfor %}
-                </div>
-              {% endif %}
-
-              <div class="erp-measurement-mobile-card__detail-actions">
-                {% if r.phone %}
-                  <a class="erp-measurement-mobile-card__detail-link" href="tel:{{ (r.phone or '')|replace('-', '')|replace(' ', '') }}" data-measurement-mobile-call-link>
-                    <i class="fas fa-phone"></i>
-                    <span>전화 걸기</span>
-                  </a>
-                {% else %}
-                  <a class="erp-measurement-mobile-card__detail-link" href="https://map.kakao.com/link/search/{{ (r.address or '')|urlencode }}" target="_blank" rel="noopener" data-measurement-mobile-map-link>
-                    <i class="fas fa-map-marked-alt"></i>
-                    <span>지도 열기</span>
-                  </a>
-                {% endif %}
-                {% if can_edit_erp|default(false) and is_erp_order %}
-                  <button
-                    type="button"
-                    class="erp-measurement-mobile-card__detail-link"
-                    data-measurement-mobile-edit-trigger
-                    data-field="phone"
-                    data-order-id="{{ r.id }}"
-                    data-is-erp="true"
-                    data-current-value="{{ r.phone or '' }}"
-                    data-label="연락처">
-                    <i class="fas fa-phone"></i>
-                    <span>연락처 수정</span>
-                  </button>
-                  <button
-                    type="button"
-                    class="erp-measurement-mobile-card__detail-link"
-                    data-measurement-mobile-edit-trigger
-                    data-field="address"
-                    data-order-id="{{ r.id }}"
-                    data-is-erp="true"
-                    data-current-value="{{ r.address or '' }}"
-                    data-label="주소">
-                    <i class="fas fa-location-dot"></i>
-                    <span>주소 수정</span>
-                  </button>
-                {% endif %}
-                {% if can_edit_erp|default(false) %}
-                  <a
-                    class="erp-measurement-mobile-card__detail-link"
-                    href="{{ url_for('order_edit.edit_order', order_id=r.id, return_to='erp_measurement_dashboard') }}?open=erp-order">
-                    <i class="fas fa-arrow-right"></i>
-                    <span>ERP 상세 열기</span>
-                  </a>
-                {% endif %}
-              </div>
-            </div>
-          </div>
-        </article>
+        </div>
       {% endfor %}
     </div>
   {% else %}
-    <div class="erp-measurement-mobile-list__empty">
-      <i class="fas fa-inbox"></i>
-      <p>조건에 맞는 실측 일정이 없습니다.</p>
+    <div class="foms-mobile-empty">
+      <i class="fas fa-inbox" aria-hidden="true"></i>
+      <p class="mb-1">조건에 맞는 실측 일정이 없습니다.</p>
+      <small>칩 필터를 바꾸거나 검색어를 지워 보세요.</small>
     </div>
   {% endif %}
-  <div
-    class="offcanvas offcanvas-bottom erp-measurement-mobile-edit-sheet"
-    tabindex="-1"
-    id="erp-measurement-mobile-edit-sheet"
-    aria-labelledby="erp-measurement-mobile-edit-sheet-label">
-    <div class="offcanvas-header">
-      <h2 class="offcanvas-title" id="erp-measurement-mobile-edit-sheet-label">실측 정보 수정</h2>
-      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="닫기"></button>
-    </div>
-    <div class="offcanvas-body">
-      <form class="erp-measurement-mobile-edit-sheet__form" data-measurement-mobile-edit-form>
-        <input type="hidden" name="order_id">
-        <input type="hidden" name="field">
-        <input type="hidden" name="is_erp">
-
-        <div class="erp-measurement-mobile-edit-sheet__field">
-          <label for="erp-measurement-mobile-edit-value" data-measurement-mobile-edit-label>값</label>
-          <input id="erp-measurement-mobile-edit-value" class="form-control" type="text" name="value">
-          <select class="form-select d-none" name="manager_value" data-measurement-mobile-manager-select-sheet>
-            <option value="">담당 미지정</option>
-            {% for option in measurement_manager_options %}
-              <option value="{{ option.name }}">{{ option.name }}</option>
-            {% endfor %}
-          </select>
-        </div>
-
-        <div class="erp-measurement-mobile-edit-sheet__hint" data-measurement-mobile-edit-hint></div>
-        <div class="erp-measurement-mobile-edit-sheet__error d-none" data-measurement-mobile-edit-error></div>
-
-        <div class="erp-measurement-mobile-edit-sheet__actions">
-          <button class="erp-pro-btn erp-pro-btn--outline" type="button" data-bs-dismiss="offcanvas">취소</button>
-          <button class="erp-pro-btn erp-pro-btn--primary" type="submit" data-measurement-mobile-edit-submit>저장</button>
-        </div>
-      </form>
-    </div>
-  </div>
 </section>
+
+{% if can_edit_erp|default(false) %}
+<div class="offcanvas offcanvas-bottom" tabindex="-1" id="erp-measurement-mobile-edit-sheet" aria-labelledby="erp-measurement-mobile-edit-title">
+  <div class="offcanvas-header">
+    <div>
+      <h5 class="offcanvas-title" id="erp-measurement-mobile-edit-title" data-measurement-mobile-edit-label>실측 정보 수정</h5>
+      <p class="mb-0 small text-muted" data-measurement-mobile-edit-hint></p>
+    </div>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="닫기"></button>
+  </div>
+  <div class="offcanvas-body">
+    <form data-measurement-mobile-edit-form>
+      <input type="hidden" name="order_id">
+      <input type="hidden" name="field">
+      <input type="hidden" name="is_erp" value="true">
+      <div class="mb-3">
+        <input class="form-control" name="value" autocomplete="off">
+        <select class="form-select d-none" data-measurement-mobile-manager-select-sheet>
+          <option value="">담당 미지정</option>
+          {% for manager in measurement_manager_options %}
+            <option value="{{ manager }}">{{ manager }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="alert alert-danger d-none" data-measurement-mobile-edit-error></div>
+      <button type="submit" class="foms-btn foms-btn--primary foms-btn--full" data-measurement-mobile-edit-submit>저장</button>
+    </form>
+  </div>
+</div>
+{% endif %}

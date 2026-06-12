@@ -26,6 +26,10 @@ jobs:
       run: |
         python -m pip install --upgrade pip setuptools wheel
         pip install -r requirements.txt
+
+    - name: Run design SSOT lint
+      run: |
+        python tools/design/ssot_lint.py docs/design
         
     - name: Run tests
       env:
@@ -33,4 +37,17 @@ jobs:
         SECRET_KEY: "ci-secret-key"
         FLASK_ENV: "testing"
       run: |
-        python -m pytest -v
+        python -m pytest -v --ignore=tests/visual -p no:playwright
+
+    - name: Run UI structural tests (no Playwright PNG regression)
+      env:
+        DATABASE_URL: "sqlite:///:memory:"
+        SECRET_KEY: "ci-secret-key"
+        FLASK_ENV: "testing"
+      run: |
+        python -m pytest -v \
+          tests/visual/test_p1_mockup_structure.py \
+          tests/visual/test_p1_mockup_png_baseline.py \
+          tests/visual/test_p1_mockup_chrome_parity.py \
+          tests/visual/test_staging_mobile_v2_assets.py \
+          -p no:playwright

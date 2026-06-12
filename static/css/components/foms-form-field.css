@@ -1,0 +1,761 @@
+/* Shipped form atoms ported from mobile wizard mockups. */
+.field {
+  display: grid;
+  gap: var(--foms-space-2);
+  margin-bottom: var(--foms-space-4);
+}
+
+.field__label {
+  font-size: var(--foms-font-size-sm);
+  font-weight: var(--foms-font-weight-medium);
+  color: var(--foms-text-secondary);
+}
+
+.field__label--required::after {
+  content: " *";
+  color: var(--foms-color-danger-500);
+}
+
+.field__hint {
+  font-size: var(--foms-font-size-xs);
+  color: var(--foms-text-tertiary);
+}
+
+.field__addon {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--foms-space-2);
+  align-items: center;
+}
+
+.field__addon .foms-btn {
+  min-height: var(--foms-touch-target-min);
+}
+
+.field-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--foms-space-2) var(--foms-space-3);
+  margin-bottom: var(--foms-space-3);
+}
+
+.field-grid-2 .field {
+  margin-bottom: 0;
+}
+
+.foms-input,
+.foms-textarea,
+.foms-select {
+  width: 100%;
+  min-height: var(--foms-touch-target-min);
+  padding: var(--foms-space-2) var(--foms-space-3);
+  font-family: inherit;
+  font-size: max(16px, var(--foms-font-size-base));
+  color: var(--foms-text-primary);
+  background-color: var(--foms-surface-base);
+  border: 1px solid var(--foms-border-default);
+  border-radius: var(--foms-radius-md);
+  appearance: none;
+  line-height: 1.2;
+}
+
+.foms-select {
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7380' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right var(--foms-space-3) center;
+  background-repeat: no-repeat;
+  background-size: 1.125em 1.125em;
+  padding-right: calc(var(--foms-space-3) + 1.25rem);
+}
+
+.foms-input:focus,
+.foms-textarea:focus,
+.foms-select:focus {
+  outline: none;
+  border-color: var(--foms-border-focus);
+  box-shadow: var(--foms-shadow-focus-ring);
+  background-color: var(--foms-surface-base);
+}
+
+.foms-textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.foms-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.erp-order-mobile-card {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.erp-order-mobile-card > .card-header {
+  display: none;
+}
+
+.erp-order-mobile-form {
+  padding: 0;
+}
+
+.erp-order-mobile-form .field {
+  gap: var(--foms-space-1);
+  margin-bottom: var(--foms-space-3);
+}
+
+/* Mobile ERP form selects only — full width, 48px touch, v2 tokens (mockup .select) */
+body.erp-mobile-v2-layout .erp-order-mobile-form .foms-select,
+body.erp-mobile-v2-layout .erp-order-mobile-form select.foms-select,
+body.erp-mobile-v2-layout .erp-order-mobile-form .form-select {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: var(--foms-touch-target-min);
+  margin: 0;
+  padding: var(--foms-space-2) var(--foms-space-3);
+  padding-right: calc(var(--foms-space-3) + 1.25rem);
+  appearance: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.2;
+  background-color: var(--foms-surface-base);
+  border: 1px solid var(--foms-border-default);
+  border-radius: var(--foms-radius-md);
+  color: var(--foms-text-primary);
+  font-size: max(16px, var(--foms-font-size-base));
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7380' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right var(--foms-space-3) center;
+  background-repeat: no-repeat;
+  background-size: 1.125em 1.125em;
+}
+
+body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls .foms-select {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Beat erp-pro horizontal tab scroll; mobile ERP has exactly two pills (mockup .main-tabs) */
+@media (max-width: 991.98px) {
+  body.erp-mobile-v2-layout .erp-order-mobile-form .erp-order-tabs-nav {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    overflow-x: visible;
+    flex-wrap: unset;
+    gap: var(--foms-space-2);
+    padding-bottom: 0;
+  }
+
+  body.erp-mobile-v2-layout .erp-order-mobile-form .erp-order-tabs-nav .nav-item {
+    flex-shrink: 1;
+    width: 100%;
+  }
+}
+
+.erp-order-mobile-form .erp-order-tabs-nav {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--foms-space-2);
+  margin: 0 0 var(--foms-space-4);
+  padding: 0;
+}
+
+.erp-order-mobile-form .erp-order-tabs-nav .nav-link {
+  width: 100%;
+  min-height: var(--foms-touch-target-min);
+  border: 1px solid var(--foms-border-default);
+  border-radius: var(--foms-radius-md);
+  background: var(--foms-surface-base);
+  color: var(--foms-text-secondary);
+  font-weight: var(--foms-font-weight-medium);
+}
+
+.erp-order-mobile-form .erp-order-tabs-nav .nav-link.active {
+  border-color: var(--foms-border-focus);
+  background: var(--foms-interactive-secondary);
+  color: var(--foms-text-primary);
+}
+
+.erp-form-section {
+  padding: var(--foms-space-3) 0;
+  border-top: 1px solid var(--foms-border-subtle, #e5e7eb);
+}
+
+.erp-form-section:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.erp-form-section__title {
+  margin: 0 0 var(--foms-space-3);
+  font-size: var(--foms-font-size-base);
+  font-weight: var(--foms-font-weight-semibold);
+  color: var(--foms-text-primary);
+}
+
+.erp-mobile-time-inline {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--foms-space-2);
+  align-items: center;
+}
+
+.erp-mobile-time-inline.is-direct {
+  grid-template-columns: minmax(5.75rem, 0.85fr) minmax(0, 1fr);
+}
+
+.erp-mobile-time-inline .foms-input,
+.erp-mobile-time-inline .foms-select {
+  min-width: 0;
+}
+
+.erp-mobile-toggle-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--foms-space-2);
+  margin-bottom: var(--foms-space-3);
+}
+
+.erp-mobile-check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--foms-space-2);
+  min-height: 40px;
+  padding: 0 var(--foms-space-3);
+  border: 1px solid var(--foms-border-default);
+  border-radius: var(--foms-radius-full);
+  background: var(--foms-surface-base);
+  color: var(--foms-text-secondary);
+  font-size: var(--foms-font-size-sm);
+}
+
+.erp-mobile-check .form-check-input {
+  margin: 0;
+}
+
+.erp-mobile-date-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--foms-touch-target-min);
+  gap: var(--foms-space-2);
+}
+
+.erp-mobile-date-field .foms-btn {
+  padding: 0;
+}
+
+.erp-mobile-square-action {
+  width: var(--foms-touch-target-min);
+  min-width: var(--foms-touch-target-min);
+  height: var(--foms-touch-target-min);
+  min-height: var(--foms-touch-target-min);
+  padding: 0;
+  border-radius: var(--foms-radius-md);
+}
+
+.erp-mobile-collapse-toggle {
+  width: 100%;
+  min-height: var(--foms-touch-target-min);
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+  gap: var(--foms-space-2);
+  align-items: center;
+  padding: 0 var(--foms-space-3);
+  border: 1px solid var(--foms-border-default);
+  border-radius: var(--foms-radius-md);
+  background: var(--foms-surface-subtle, #f8fafc);
+  color: var(--foms-text-primary);
+  text-align: left;
+}
+
+.erp-mobile-collapse-toggle > span:last-child {
+  color: var(--foms-text-tertiary);
+  font-size: var(--foms-font-size-xs);
+  white-space: nowrap;
+}
+
+.erp-mobile-collapse-toggle[aria-expanded="true"] .fa-chevron-right {
+  transform: rotate(90deg);
+}
+
+.erp-form-section > .erp-mobile-collapse-toggle {
+  margin-bottom: 0;
+}
+
+.erp-form-section > .collapse.show,
+.erp-form-section > .collapse.collapsing {
+  margin-top: var(--foms-space-3);
+}
+
+/* Last section before sticky 저장/불러오기 bar: keep collapse toggle visible when body is folded. */
+@media (max-width: 991.98px) {
+  .erp-order-mobile-form .erp-mobile-pre-sticky-footer {
+    margin-bottom: 4.75rem;
+  }
+
+  .erp-order-mobile-form .erp-mobile-pre-sticky-footer > .erp-mobile-collapse-toggle {
+    scroll-margin-bottom: 5rem;
+  }
+}
+
+.erp-mobile-measurement-panel {
+  margin-top: var(--foms-space-2);
+  max-height: 360px;
+  overflow-y: auto;
+  padding: var(--foms-space-2);
+  border: 1px solid var(--foms-border-default);
+  border-radius: var(--foms-radius-md);
+  background: var(--foms-surface-base);
+}
+
+.erp-order-mobile-form #erp-order-measurement-panel.measurement-panel-list {
+  max-height: 340px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.erp-order-mobile-form #erp-order-measurement-panel .measurement-panel-item {
+  display: block;
+  padding: 5px 8px;
+  margin-bottom: 4px;
+  border-radius: 6px;
+  border: 1px solid #f1f3f5;
+  background: #fff;
+  color: #212529;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.erp-order-mobile-form #erp-order-measurement-panel .measurement-panel-item:hover {
+  background: #f8f9fa;
+  border-color: #dee2e6;
+}
+
+.erp-order-mobile-form #erp-order-measurement-panel .measurement-panel-item.is-selected {
+  border-color: #0d6efd;
+  box-shadow: 0 0 0 1px rgba(13, 110, 253, 0.2);
+}
+
+.erp-order-mobile-form #erp-order-measurement-panel .measurement-panel-item.is-weekend {
+  background: #fff7e6;
+}
+
+.erp-order-mobile-form #erp-order-measurement-panel .measurement-panel-item.is-holiday {
+  background: #fff1f1;
+}
+
+.erp-order-mobile-form #erp-order-measurement-panel .measurement-panel-item.is-today {
+  border-color: #198754;
+  box-shadow: 0 0 0 1px rgba(25, 135, 84, 0.25);
+}
+
+.erp-order-mobile-form #erp-order-measurement-panel .measurement-panel-date {
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.erp-order-mobile-form #erp-order-measurement-panel .measurement-panel-day {
+  font-size: 0.8rem;
+  color: #6c757d;
+}
+
+.erp-order-mobile-form #erp-order-measurement-panel .badge-count {
+  min-width: 28px;
+  padding: 2px 6px;
+  background-color: #0d6efd;
+  color: #fff;
+  font-size: 0.85rem;
+}
+
+.erp-mobile-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--foms-space-2);
+  margin-bottom: var(--foms-space-3);
+}
+
+.erp-mobile-section-head .erp-form-section__title {
+  margin: 0;
+}
+
+.erp-mobile-amounts {
+  display: grid;
+  gap: var(--foms-space-1);
+  margin-top: var(--foms-space-4);
+  padding-top: var(--foms-space-2);
+  border-top: 1px solid var(--foms-border-subtle, #e5e7eb);
+}
+
+.erp-mobile-amount-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(9.25rem, 9.25rem);
+  gap: var(--foms-space-2);
+  align-items: center;
+  min-height: var(--foms-touch-target-min);
+}
+
+.erp-mobile-amount-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--foms-space-1);
+  color: var(--foms-text-secondary);
+  font-size: var(--foms-font-size-sm);
+  font-weight: var(--foms-font-weight-medium);
+  min-width: 0;
+}
+
+.erp-mobile-amount-chip {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+  min-height: 40px;
+  align-items: center;
+  padding: 0 var(--foms-space-3);
+  border-radius: var(--foms-radius-md);
+  background: var(--foms-interactive-secondary);
+  color: var(--foms-text-primary);
+  font-weight: var(--foms-font-weight-semibold);
+}
+
+.erp-order-mobile-form input.erp-amount-value {
+  text-align: right;
+}
+
+.erp-order-mobile-form .erp-mobile-amount-row > .erp-amount-value {
+  width: 100%;
+  justify-self: stretch;
+  text-align: right;
+}
+
+.erp-mobile-action-panel {
+  display: grid;
+  gap: var(--foms-space-3);
+}
+
+.erp-mobile-action-row,
+.erp-mobile-attachment-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--foms-space-2);
+}
+
+.erp-mobile-attachment-controls {
+  grid-template-columns: minmax(0, 9rem) minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.erp-mobile-dropzone {
+  padding: var(--foms-space-3);
+  border: 1px dashed var(--foms-border-default);
+  border-radius: var(--foms-radius-md);
+  background: var(--foms-surface-base);
+}
+
+.erp-order-mobile-form #erp-attachments-gallery.erp-attachment-tile-grid,
+.erp-order-mobile-form #erp-items .erp-item-attachments-gallery.erp-attachment-tile-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+  gap: var(--foms-space-2) !important;
+  align-items: start;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.erp-order-mobile-form #erp-items .erp-item-attachments-gallery.erp-attachment-tile-grid {
+  margin-top: var(--foms-space-2) !important;
+}
+
+.erp-order-mobile-form .erp-attachment-group-header,
+.erp-order-mobile-form .erp-attachment-empty {
+  grid-column: 1 / -1;
+}
+
+.erp-order-mobile-form .erp-attachment-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--foms-space-2);
+  margin-top: var(--foms-space-1);
+}
+
+.erp-order-mobile-form .erp-attachment-empty {
+  padding: var(--foms-space-2);
+  border: 1px solid var(--foms-border-subtle, #e5e7eb);
+  border-radius: var(--foms-radius-md);
+  background: var(--foms-surface-muted, #f8fafc);
+}
+
+.erp-order-mobile-form .erp-attachment-tile {
+  position: relative;
+  display: grid;
+  gap: var(--foms-space-1);
+  width: 100%;
+  min-width: 0;
+  padding: 4px;
+  border: 1px solid var(--foms-border-subtle, #e5e7eb);
+  border-radius: var(--foms-radius-md);
+  background: var(--foms-surface-base);
+  box-shadow: var(--foms-shadow-sm, 0 1px 2px rgba(15, 23, 42, 0.08));
+  color: var(--foms-text-primary);
+  text-align: left;
+}
+
+.erp-order-mobile-form .erp-attachment-tile:focus-visible {
+  outline: 2px solid var(--foms-ring, #2563eb);
+  outline-offset: 2px;
+}
+
+.erp-order-mobile-form .erp-attachment-tile__media {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: calc(var(--foms-radius-md) - 2px);
+  background: var(--foms-surface-muted, #f8fafc);
+}
+
+.erp-order-mobile-form .erp-attachment-tile__media img,
+.erp-order-mobile-form .erp-attachment-tile__media video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.erp-order-mobile-form .erp-attachment-tile__media--file,
+.erp-order-mobile-form .erp-attachment-tile__media--video {
+  color: var(--foms-text-secondary);
+}
+
+.erp-order-mobile-form .erp-attachment-tile__type,
+.erp-order-mobile-form .erp-attachment-tile__badge {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.82);
+  color: #fff;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.erp-order-mobile-form .erp-attachment-tile__badge {
+  top: 4px;
+  bottom: auto;
+  background: var(--foms-interactive-primary, #2563eb);
+}
+
+.erp-order-mobile-form .erp-attachment-tile__name {
+  display: -webkit-box;
+  min-height: 2.4em;
+  overflow: hidden;
+  color: var(--foms-text-primary);
+  font-size: 11px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* Modal is a sibling of .erp-order-mobile-form — scope by modal id, not form wrapper */
+#erpAttachmentPreviewModal #erp-attachment-preview-body,
+#fomsAttachmentPreviewModal #foms-attachment-preview-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+}
+
+#erpAttachmentPreviewModal .erp-attachment-preview-zoom-stage,
+#fomsAttachmentPreviewModal .erp-attachment-preview-zoom-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  touch-action: none;
+  max-height: min(60vh, 520px);
+}
+
+#erpAttachmentPreviewModal .erp-attachment-preview-zoom-stage .erp-attachment-preview-img,
+#fomsAttachmentPreviewModal .erp-attachment-preview-zoom-stage .erp-attachment-preview-img {
+  cursor: zoom-in;
+  max-height: min(60vh, 520px);
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+  transform-origin: center center;
+  background: #fff;
+  padding: 4px;
+  transition: transform 0.15s ease-out;
+}
+
+#erpAttachmentPreviewModal .erp-attachment-preview-zoom-stage .erp-attachment-preview-img:focus-visible,
+#fomsAttachmentPreviewModal .erp-attachment-preview-zoom-stage .erp-attachment-preview-img:focus-visible {
+  outline: 2px solid var(--foms-border-focus);
+  outline-offset: 2px;
+}
+
+#erpAttachmentPreviewModal .erp-attachment-preview-zoom-stage .erp-attachment-preview-img--expanded,
+#fomsAttachmentPreviewModal .erp-attachment-preview-zoom-stage .erp-attachment-preview-img--expanded {
+  cursor: zoom-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #erpAttachmentPreviewModal .erp-attachment-preview-zoom-stage .erp-attachment-preview-img,
+  #fomsAttachmentPreviewModal .erp-attachment-preview-zoom-stage .erp-attachment-preview-img {
+    transition: none;
+  }
+}
+
+/* Mobile edit: keep attachment preview as a centered dialog, not .erp-pro fullscreen modals */
+@media (max-width: 992px) {
+  #erpAttachmentPreviewModal .modal-dialog,
+  #fomsAttachmentPreviewModal .modal-dialog {
+    max-width: min(92vw, 36rem);
+    margin: 0.5rem auto;
+    min-height: 0;
+  }
+
+  #erpAttachmentPreviewModal .modal-content,
+  #fomsAttachmentPreviewModal .modal-content {
+    min-height: 0;
+    max-height: calc(100dvh - 1rem);
+    border-radius: var(--bs-modal-border-radius, 0.5rem);
+  }
+
+  #erpAttachmentPreviewModal .modal-body,
+  #fomsAttachmentPreviewModal .modal-body {
+    overflow: auto;
+  }
+}
+
+.erp-order-mobile-form .erp-attachment-preview-actions,
+.foms-attachment-preview-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--foms-space-2, 8px);
+  align-items: center;
+  justify-content: flex-end;
+}
+
+body.erp-mobile-v2-layout #erpAttachmentPreviewModal .erp-attachment-preview-actions .foms-select,
+body.erp-mobile-v2-layout #erpAttachmentPreviewModal .erp-attachment-preview-actions .form-select,
+body.erp-mobile-v2-layout #fomsAttachmentPreviewModal .foms-attachment-preview-actions .foms-select,
+body.erp-mobile-v2-layout #fomsAttachmentPreviewModal .foms-attachment-preview-actions .form-select {
+  flex: 1 1 11rem;
+  min-width: 0;
+  max-width: 14rem;
+  min-height: var(--foms-touch-target-min);
+}
+
+.erp-order-mobile-form .erp-attachment-preview-actions .btn {
+  display: inline-flex;
+  flex: 0 0 44px;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  min-height: 44px;
+  padding: 0;
+}
+
+.erp-mobile-sticky-action-bar {
+  gap: var(--foms-space-2);
+}
+
+@media (max-width: 991.98px) {
+  /* foms-sticky-action-bar negative margin-bottom pulls over the last field; reset for ERP mobile footer. */
+  .erp-order-mobile-form .erp-mobile-sticky-action-bar.foms-sticky-action-bar {
+    margin-bottom: 0;
+  }
+}
+
+.erp-mobile-sticky-action-bar .foms-btn {
+  flex: 1 1 0;
+}
+
+.erp-order-mobile-form #erp-items .form-control.form-control-sm,
+.erp-order-mobile-form #erp-items .form-select.form-select-sm,
+.erp-order-mobile-form #erp-items .foms-select {
+  min-height: var(--foms-touch-target-min);
+  border-radius: var(--foms-radius-md);
+  font-size: max(16px, var(--foms-font-size-base));
+}
+
+.erp-order-mobile-form #erp-items .erp-item-row {
+  padding: var(--foms-space-2) !important;
+  border-radius: var(--foms-radius-md) !important;
+  background: var(--foms-surface-base);
+}
+
+.erp-order-mobile-form #erp-items .erp-item-row > .row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--foms-space-2);
+  margin: 0;
+}
+
+.erp-order-mobile-form #erp-items .erp-item-row > .row > [class*="col-"] {
+  width: auto;
+  max-width: none;
+  padding: 0;
+}
+
+.erp-order-mobile-form #erp-items .erp-item-row > .row > .col-12 {
+  grid-column: 1 / -1;
+}
+
+.erp-order-mobile-form #erp-items .erp-item-row > .row > .erp-mobile-full-row {
+  grid-column: 1 / -1;
+}
+
+.erp-order-mobile-form #erp-items .erp-flex-textarea {
+  min-height: var(--foms-touch-target-min);
+  overflow: hidden;
+  resize: none;
+  line-height: 1.35;
+  white-space: pre-wrap;
+}
+
+.erp-order-mobile-form #erp-items .erp-flex-textarea--large {
+  min-height: 72px;
+}
+
+.erp-order-mobile-form #erp-items .erp-spec-row {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  gap: var(--foms-space-2) !important;
+  align-items: end;
+  margin-bottom: var(--foms-space-1) !important;
+}
+
+.erp-order-mobile-form #erp-items .erp-spec-row > [class*="col-"] {
+  width: auto;
+  max-width: none;
+  padding: 0;
+}
+
+.erp-order-mobile-form #erp-items .erp-remove-spec-row-btn {
+  min-height: var(--foms-touch-target-min);
+  min-width: 2.25rem;
+  padding: 0;
+}
+
+@media (max-width: 420px) {
+  .erp-mobile-action-row,
+  .erp-mobile-attachment-controls {
+    grid-template-columns: 1fr;
+  }
+}

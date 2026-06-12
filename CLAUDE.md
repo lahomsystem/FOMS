@@ -112,6 +112,7 @@
 - **선택적 접두어**: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`
 - **대형 변경**: feature 브랜치에서 작업
 - **브랜치 전략**: `deploy` (스테이징) → `production` (운영)
+- **푸시 전 스모크**: `deploy`/`main` push **직전** `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` (APP_OK·harness verify·SSOT lint·CI subset·`test_p1_mockup_*` 구조 테스트). **UI/CSS/템플릿 변경** 시 PNG `-Visual`/win32 baseline은 필수 아님(선택). exit 0 확인 후 push. `-Full`은 머지 직전 전체 pytest. 상세: `docs/guides/PRE_PUSH_SMOKE.md`
 
 ## 셸 환경 (Claude Code 전용)
 - Claude Code는 **bash 셸** 사용 (Unix 문법: `/dev/null`, `&&`, forward slash). **이 절의 예시는 Claude Code에만 적용**; 저장소 README·규칙 문서에 적는 기본 예시는 PowerShell 5.x를 따른다.
@@ -137,6 +138,7 @@
 - [ ] `python tools/harness/verify_result.py --json` 또는 최소 `python -c "import app; print('APP_OK')"` 성공
 - [ ] 주요 수정 파일 lint 확인
 - [ ] docs/AI_STATUS.md 갱신 (상태 변경 시)
+- [ ] `deploy`/`main` push 직전 `scripts/ops/pre_push_smoke.ps1` 실행 → exit 0 확인
 
 ## 참조 문서
 - `docs/AI_STATUS.md` → 프로젝트 현재 상태

@@ -1,5 +1,9 @@
 {% extends "shipment/layout.html" %}
 
+{% block head_extra %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-shipment-mobile.css') }}">
+{% endblock %}
+
 {% block content %}
 {% include 'shipment/partials/dashboard_main.html' %}
 {% endblock %}

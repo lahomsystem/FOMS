@@ -1,0 +1,16 @@
+{# P1-07: shared order contact KV rows with deeplinks #}
+{% from 'macros/foms_kv.html' import foms_kv_row, foms_kv_list %}
+
+{% macro foms_order_contact_kv(order, include_manager=false, include_schedule=false, schedule_label=None, schedule_value=None) -%}
+  {% set rows = [
+    {'label': '연락처', 'value': order.phone or '-', 'tel_value': order.phone, 'copy_value': order.phone},
+    {'label': '주소', 'value': order.address or '-', 'map_query': order.address, 'copy_value': order.address},
+  ] %}
+  {% if include_manager %}
+    {% set _ = rows.append({'label': '담당', 'value': order.manager_name or '-'}) %}
+  {% endif %}
+  {% if include_schedule and schedule_label and schedule_value %}
+    {% set _ = rows.append({'label': schedule_label, 'value': schedule_value}) %}
+  {% endif %}
+  {{ foms_kv_list(rows) }}
+{%- endmacro %}

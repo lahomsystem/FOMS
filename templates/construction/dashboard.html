@@ -1,3 +1,7 @@
 {% extends "construction/layout.html" %}
 
+{% block head %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-construction-mobile-card.css') }}">
+{% endblock %}
+
 {% block content %}{% include 'construction/partials/dashboard_body.html' %}{% endblock %}

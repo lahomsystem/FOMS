@@ -21,6 +21,33 @@
           <span class="erp-mobile-menu-drawer__label">{{ item.label }}</span>
         </a>
       {% endfor %}
+        </div>
+        {% if current_user %}
+        <div class="erp-mobile-menu-drawer__account">
+          <div class="erp-mobile-menu-drawer__account-id">
+            <span class="erp-mobile-menu-drawer__account-name">{{ current_user.name }}</span>
+            <span class="erp-mobile-menu-drawer__account-role">{{ ROLES[current_user.role] }}</span>
+          </div>
+          <nav class="erp-mobile-menu-drawer__account-links" aria-label="계정">
+            <a class="erp-mobile-menu-drawer__account-link" href="{{ url_for('auth.profile') }}">
+              <i class="fas fa-user-cog" aria-hidden="true"></i><span>내 정보</span>
+            </a>
+            {% if current_user.role == 'ADMIN' %}
+            <a class="erp-mobile-menu-drawer__account-link" href="{{ url_for('admin.admin') }}">
+              <i class="fas fa-cog" aria-hidden="true"></i><span>관리자</span>
+            </a>
+            {% endif %}
+            {% if impersonating_from_id %}
+            <a class="erp-mobile-menu-drawer__account-link" href="{{ url_for('auth.switch_back') }}">
+              <i class="fas fa-undo" aria-hidden="true"></i><span>관리자 복귀</span>
+            </a>
+            {% endif %}
+            <a class="erp-mobile-menu-drawer__account-link erp-mobile-menu-drawer__account-link--danger" href="{{ url_for('auth.logout') }}">
+              <i class="fas fa-sign-out-alt" aria-hidden="true"></i><span>로그아웃</span>
+            </a>
+          </nav>
+        </div>
+        {% endif %}
+        {% include 'partials/shared/foms_theme_toggle.html' %}
     </div>
-  </div>
 </div>

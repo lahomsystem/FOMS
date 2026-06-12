@@ -144,6 +144,110 @@ def test_build_mine_sql_filter_matches_sqlite_json_worker_names(app) -> None:
     assert [row.id for row in rows] == [mine_order.id]
 
 
+def test_build_mine_sql_filter_scope_construction_owner_and_worker_not_other_roles(app) -> None:
+    """시공 scope = 소유자(manager)+시공 작업자. 도면 배정으로만 잡힌 건은 제외(scope 좁힘)."""
+    user = User(
+        username="cons_scope",
+        password=generate_password_hash("pw"),
+        name="시공담당고유",
+        role="USER",
+        team="CONSTRUCTION",
+    )
+    worker_order = Order(  # 시공 작업자 = 본인 → 포함
+        received_date="2026-04-12",
+        customer_name="시공내건",
+        phone="010-3333-3333",
+        address="서울시 송파구 3",
+        product="주방장",
+        status="IN_CONSTRUCTION",
+        is_erp_order=True,
+        manager_name="다른매니저",
+        structured_data={"shipment": {"construction_workers": ["시공담당고유"]}},
+    )
+    manager_order = Order(  # 소유자(manager) = 본인 → 포함 (시공팀은 manager로 배정됨)
+        received_date="2026-04-12",
+        customer_name="관리내건",
+        phone="010-4444-4444",
+        address="서울시 송파구 4",
+        product="주방장",
+        status="IN_CONSTRUCTION",
+        is_erp_order=True,
+        manager_name="시공담당고유",
+        structured_data={"shipment": {"construction_workers": ["타인시공"]}},
+    )
+    drawing_only_order = Order(  # 도면 배정으로만 잡힘 → 시공 scope 제외
+        received_date="2026-04-12",
+        customer_name="도면만내건",
+        phone="010-7777-7777",
+        address="서울시 송파구 7",
+        product="주방장",
+        status="IN_CONSTRUCTION",
+        is_erp_order=True,
+        manager_name="딴사람",
+        structured_data={"assignments": {"drawing_assignees": ["시공담당고유"]}},
+    )
+    db_session.add_all([user, worker_order, manager_order, drawing_only_order])
+    db_session.commit()
+
+    conds = erp_permissions.build_mine_sql_filter(user, scope="construction")
+    ids = {
+        row.id
+        for row in db_session.query(Order.id)
+        .filter(Order.id.in_([worker_order.id, manager_order.id, drawing_only_order.id]))
+        .filter(or_(*conds))
+        .all()
+    }
+    assert worker_order.id in ids  # 시공 작업자
+    assert manager_order.id in ids  # 소유자(manager) — 시공팀 배정 방식
+    assert drawing_only_order.id not in ids  # 도면 배정만으론 시공 scope 제외
+
+
+def test_build_mine_sql_filter_scope_sales_excludes_worker_only(app) -> None:
+    """영업 scope는 manager/sales_assignee만 — 시공 작업자로만 잡힌 건은 제외."""
+    user = User(
+        username="sales_scope",
+        password=generate_password_hash("pw"),
+        name="영업담당고유",
+        role="USER",
+        team="SALES",
+    )
+    manager_order = Order(  # manager = 본인 → 영업 scope 포함
+        received_date="2026-04-12",
+        customer_name="영업내건",
+        phone="010-5555-5555",
+        address="서울시 송파구 5",
+        product="주방장",
+        status="MEASURE",
+        is_erp_order=True,
+        manager_name="영업담당고유",
+        structured_data={},
+    )
+    worker_only_order = Order(  # 시공 작업자만 본인, manager 타인 → 영업 scope 제외
+        received_date="2026-04-12",
+        customer_name="시공만내건",
+        phone="010-6666-6666",
+        address="서울시 송파구 6",
+        product="주방장",
+        status="MEASURE",
+        is_erp_order=True,
+        manager_name="딴사람",
+        structured_data={"shipment": {"construction_workers": ["영업담당고유"]}},
+    )
+    db_session.add_all([user, manager_order, worker_only_order])
+    db_session.commit()
+
+    conds = erp_permissions.build_mine_sql_filter(user, scope="sales")
+    ids = {
+        row.id
+        for row in db_session.query(Order.id)
+        .filter(Order.id.in_([manager_order.id, worker_only_order.id]))
+        .filter(or_(*conds))
+        .all()
+    }
+    assert manager_order.id in ids
+    assert worker_only_order.id not in ids  # 시공 작업자로만 잡힌 건은 영업 scope에서 제외
+
+
 def test_construction_dashboard_applies_mine_filter_for_construction_team(app, client) -> None:
     user = User(
         username="worker1",

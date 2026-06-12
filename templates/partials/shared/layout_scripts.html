@@ -35,6 +35,10 @@
     <!-- Global Immersive Image Viewer -->
     <div id="global-image-viewer" aria-hidden="true" style="display:none;">
         <div id="global-viewer-backdrop"></div>
+        <a id="global-viewer-download" href="#" target="_blank" rel="noopener" title="다운로드" aria-label="다운로드"
+            style="display:none;">
+            <i class="fas fa-download"></i>
+        </a>
         <button type="button" id="global-viewer-close" title="닫기" aria-label="닫기">
             <i class="fas fa-times"></i>
         </button>
@@ -57,6 +61,13 @@
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/foms/photo-capture.js') }}?v=20260529a"></script>
+<script src="{{ url_for('static', filename='js/foms/visual-viewport.js') }}?v=20260529c"></script>
+<script src="{{ url_for('static', filename='js/foms/theme.js') }}?v=20260529c"></script>
+<script src="{{ url_for('static', filename='js/components/foms-mobile-select.js') }}?v=20260607a" defer></script>
+{% if flag_rum_baseline %}
+<script src="{{ url_for('static', filename='js/foms/rum-baseline.js') }}?v=20260530a"></script>
+{% endif %}
     <!-- Custom JS -->
     <script src="{{ url_for('static', filename='js/runtime/script.js') }}"></script>
     <script src="{{ url_for('static', filename='js/runtime/upload-progress.js') }}"></script>
@@ -341,7 +352,15 @@
                 touchStartY: 0,
                 touchLastX: 0,
                 touchLastY: 0,
-                touching: false
+                touching: false,
+                pinching: false,
+                pinchStartDist: 0,
+                pinchStartScale: 1,
+                panning: false,
+                panStartX: 0,
+                panStartY: 0,
+                panBaseTx: 0,
+                panBaseTy: 0
             };
 
             let els = {};
@@ -353,6 +372,7 @@
                     root: document.getElementById('global-image-viewer'),
                     backdrop: document.getElementById('global-viewer-backdrop'),
                     closeBtn: document.getElementById('global-viewer-close'),
+                    downloadBtn: document.getElementById('global-viewer-download'),
                     prevBtn: document.getElementById('global-viewer-prev'),
                     nextBtn: document.getElementById('global-viewer-next'),
                     stage: document.getElementById('global-viewer-stage'),
@@ -402,10 +422,12 @@
                     if (e.target === els.stage) close();
                 });
 
-                // Mobile swipe navigation
+                // Mobile gestures: 1-finger pan when zoomed, 2-finger pinch zoom, swipe nav when not zoomed.
+                // touchmove must be non-passive so pan/pinch can preventDefault the browser's native zoom/scroll.
                 els.stage?.addEventListener('touchstart', handleTouchStart, { passive: true });
-                els.stage?.addEventListener('touchmove', handleTouchMove, { passive: true });
+                els.stage?.addEventListener('touchmove', handleTouchMove, { passive: false });
                 els.stage?.addEventListener('touchend', handleTouchEnd, { passive: true });
+                els.stage?.addEventListener('touchcancel', handleTouchEnd, { passive: true });
             }
 
             function open(files, startIndex = 0) {
@@ -454,10 +476,15 @@
                 const file = state.files[state.index];
                 if (!file) return;
 
-                // Reset transform
+                // Reset transform + gesture state
                 state.scale = 1;
                 state.tx = 0;
                 state.ty = 0;
+                state.pinching = false;
+                state.panning = false;
+                state.touching = false;
+                state.dragging = false;
+                setGestureTransition(false);
                 updateTransform();
 
                 var isVideo = (file.url || '').match(/\.(mp4|webm|ogg)$/i) || (file.filename || '').match(/\.(mp4|webm|ogg)$/i);
@@ -477,6 +504,16 @@
                 }
 
                 els.filename.textContent = file.filename;
+
+                if (els.downloadBtn) {
+                    if (file.download_url) {
+                        els.downloadBtn.href = file.download_url;
+                        els.downloadBtn.style.display = 'flex';
+                    } else {
+                        els.downloadBtn.removeAttribute('href');
+                        els.downloadBtn.style.display = 'none';
+                    }
+                }
 
                 if (state.files.length > 1) {
                     els.counter.textContent = `${state.index + 1} / ${state.files.length}`;
@@ -524,6 +561,13 @@
                 e.preventDefault();
                 const delta = e.deltaY > 0 ? -0.1 : 0.1;
                 state.scale = Math.max(0.1, Math.min(5, state.scale + delta));
+                if (state.scale <= 1.05) {
+                    state.scale = 1;
+                    state.tx = 0;
+                    state.ty = 0;
+                } else {
+                    clampPan();
+                }
                 updateTransform();
             }
 
@@ -542,6 +586,7 @@
                 e.preventDefault();
                 state.tx = state.baseTx + (e.clientX - state.dragStartX);
                 state.ty = state.baseTy + (e.clientY - state.dragStartY);
+                clampPan();
                 updateTransform();
             }
 
@@ -570,27 +615,140 @@
                 els.nextBtn.style.top = '50%';
             }
 
+            function setGestureTransition(active) {
+                // Disable the 0.1s transform transition during active gestures so pan/pinch tracks the finger.
+                if (els.image) els.image.style.transition = active ? 'none' : '';
+            }
+
+            function touchDistance(a, b) {
+                return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+            }
+
+            function beginTouchPan(touch) {
+                if (!touch) return;
+                state.panning = true;
+                state.touching = false;
+                state.panStartX = touch.clientX;
+                state.panStartY = touch.clientY;
+                state.panBaseTx = state.tx;
+                state.panBaseTy = state.ty;
+                setGestureTransition(true);
+            }
+
+            function clampPan() {
+                // Keep the (scaled) image from being dragged completely off the stage.
+                if (!els.image) return;
+                if (state.scale <= 1) { state.tx = 0; state.ty = 0; return; }
+                const imgRect = els.image.getBoundingClientRect();
+                const stageRect = els.stage
+                    ? els.stage.getBoundingClientRect()
+                    : { width: window.innerWidth, height: window.innerHeight };
+                const maxX = Math.max(0, (imgRect.width - stageRect.width) / 2);
+                const maxY = Math.max(0, (imgRect.height - stageRect.height) / 2);
+                state.tx = Math.max(-maxX, Math.min(maxX, state.tx));
+                state.ty = Math.max(-maxY, Math.min(maxY, state.ty));
+            }
+
             function handleTouchStart(e) {
-                if (!e.touches || e.touches.length !== 1) {
+                if (!e.touches) return;
+
+                if (e.touches.length === 2) {
+                    // Begin pinch-zoom (viewer owns zoom; native page zoom is blocked via touch-action).
+                    state.pinching = true;
+                    state.panning = false;
                     state.touching = false;
+                    state.pinchStartDist = touchDistance(e.touches[0], e.touches[1]);
+                    state.pinchStartScale = state.scale;
+                    setGestureTransition(true);
                     return;
                 }
-                const t = e.touches[0];
-                state.touching = true;
-                state.touchStartX = t.clientX;
-                state.touchStartY = t.clientY;
-                state.touchLastX = t.clientX;
-                state.touchLastY = t.clientY;
+
+                if (e.touches.length === 1) {
+                    const t = e.touches[0];
+                    state.touchStartX = t.clientX;
+                    state.touchStartY = t.clientY;
+                    state.touchLastX = t.clientX;
+                    state.touchLastY = t.clientY;
+                    if (state.scale > 1.05) {
+                        // Zoomed in → one-finger drag pans the image.
+                        beginTouchPan(t);
+                    } else {
+                        // Not zoomed → candidate for swipe navigation.
+                        state.touching = true;
+                    }
+                }
             }
 
             function handleTouchMove(e) {
-                if (!state.touching || !e.touches || e.touches.length !== 1) return;
-                const t = e.touches[0];
-                state.touchLastX = t.clientX;
-                state.touchLastY = t.clientY;
+                if (state.pinching && e.touches && e.touches.length === 2) {
+                    e.preventDefault();
+                    const dist = touchDistance(e.touches[0], e.touches[1]);
+                    if (state.pinchStartDist > 0) {
+                        const next = state.pinchStartScale * (dist / state.pinchStartDist);
+                        state.scale = Math.max(1, Math.min(5, next));
+                        if (state.scale <= 1.01) {
+                            state.tx = 0;
+                            state.ty = 0;
+                        } else {
+                            clampPan();
+                        }
+                        updateTransform();
+                    }
+                    return;
+                }
+
+                if (state.panning && e.touches && e.touches.length === 1) {
+                    e.preventDefault();
+                    const t = e.touches[0];
+                    state.tx = state.panBaseTx + (t.clientX - state.panStartX);
+                    state.ty = state.panBaseTy + (t.clientY - state.panStartY);
+                    clampPan();
+                    updateTransform();
+                    return;
+                }
+
+                if (!state.pinching && !state.panning && state.scale > 1.05 && e.touches && e.touches.length === 1) {
+                    e.preventDefault();
+                    beginTouchPan(e.touches[0]);
+                    return;
+                }
+
+                if (state.touching && e.touches && e.touches.length === 1) {
+                    const t = e.touches[0];
+                    state.touchLastX = t.clientX;
+                    state.touchLastY = t.clientY;
+                }
             }
 
-            function handleTouchEnd() {
+            function handleTouchEnd(e) {
+                const remaining = e && e.touches ? e.touches.length : 0;
+
+                if (state.pinching) {
+                    if (remaining < 2) {
+                        state.pinching = false;
+                        if (state.scale <= 1.05) {
+                            state.scale = 1;
+                            state.tx = 0;
+                            state.ty = 0;
+                            setGestureTransition(false);
+                            updateTransform();
+                        } else if (remaining === 1 && e.touches && e.touches[0]) {
+                            beginTouchPan(e.touches[0]);
+                        } else {
+                            setGestureTransition(false);
+                        }
+                    }
+                    return;
+                }
+
+                if (state.panning) {
+                    if (remaining === 0) {
+                        state.panning = false;
+                        setGestureTransition(false);
+                    }
+                    return;
+                }
+
                 if (!state.touching) return;
                 state.touching = false;
 
@@ -730,12 +888,16 @@
             align-items: center;
             justify-content: center;
             overflow: hidden;
+            /* Viewer owns all touch gestures (pan/pinch/swipe); stop the browser's native
+               page zoom/scroll from hijacking them so panning works while zoomed in. */
+            touch-action: none;
         }
 
         #global-viewer-image {
             max-width: 95vw;
             max-height: 90vh;
             transform-origin: center center;
+            touch-action: none;
             cursor: grab;
             user-select: none;
             box-shadow: 0 0 50px rgba(0, 0, 0, 0.5);
@@ -791,6 +953,30 @@
             .global-viewer-nav {
                 display: none !important;
             }
+        }
+
+        #global-viewer-download {
+            position: absolute;
+            right: 84px;
+            top: 24px;
+            width: 48px;
+            height: 48px;
+            border: none;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.3);
+            color: #fff;
+            z-index: 3;
+            font-size: 20px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+
+        #global-viewer-download:hover {
+            background: rgba(255, 255, 255, 0.22);
+            color: #fff;
         }
 
         #global-viewer-close {

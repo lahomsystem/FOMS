@@ -558,7 +558,7 @@ function erpRecalcItemsTotal() {
     });
     totalEl.textContent = erpFormatMoneyKRW(sum);
     if (remainingSection) {
-        remainingSection.style.display = (sum === 0 || !Number.isFinite(sum)) ? 'none' : 'flex';
+        remainingSection.style.display = (sum === 0 || !Number.isFinite(sum)) ? 'none' : 'grid';
     }
     erpCalculateRemaining();
 }
@@ -603,9 +603,55 @@ function erpRefreshItemRowIndices() {
         const hintEl = row.querySelector('.erp-item-attachment-hint');
         if (hintEl) {
             const name = String(row.querySelector('[data-erp="product_name"]')?.value || '').trim();
-            hintEl.textContent = name ? `${name} 실측 이미지` : `항목 ${idx + 1} 실측 이미지`;
+            hintEl.textContent = erpItemAttachmentHintText(name, idx);
         }
     });
+}
+
+function erpAutosizeTextarea(el) {
+    if (!el || el.tagName !== 'TEXTAREA') return;
+    el.style.height = 'auto';
+    el.style.height = Math.max(el.scrollHeight, el.dataset.erpMinHeight ? Number(el.dataset.erpMinHeight) : 0) + 'px';
+}
+
+function erpBindAutosizeTextareas(root) {
+    const scope = root || document;
+    scope.querySelectorAll('textarea.erp-autosize-textarea').forEach((el) => {
+        if (el.dataset.erpAutosizeBound !== '1') {
+            el.dataset.erpAutosizeBound = '1';
+            el.addEventListener('input', () => erpAutosizeTextarea(el));
+            el.addEventListener('change', () => erpAutosizeTextarea(el));
+        }
+        window.requestAnimationFrame
+            ? window.requestAnimationFrame(() => erpAutosizeTextarea(el))
+            : erpAutosizeTextarea(el);
+    });
+}
+
+function erpIsMobileFormContext() {
+    return !!document.querySelector('.erp-order-mobile-form');
+}
+
+function erpItemAttachmentHintText(productName, itemIndex) {
+    if (erpIsMobileFormContext()) {
+        return productName ? `${productName} 사진/동영상` : `항목 ${itemIndex + 1} 사진/동영상`;
+    }
+    return productName ? `${productName} 실측 이미지` : `항목 ${itemIndex + 1} 실측 이미지`;
+}
+
+function erpItemAttachmentEmptyText() {
+    return erpIsMobileFormContext() ? '연결된 사진/동영상이 없습니다.' : '연결된 실측 이미지가 없습니다.';
+}
+
+function erpMobileFlexibleControl(name, label, value, options = {}) {
+    const escapedValue = escapeHtml(value);
+    if (!options.isMobileForm) {
+        return `<input class="${options.inputClass}" data-erp="${name}" value="${escapedValue}" lang="ko">`;
+    }
+    const rows = options.rows || 1;
+    const minHeight = options.minHeight || 44;
+    const placeholder = options.placeholder || '';
+    return `<textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea" data-erp="${name}" rows="${rows}" data-erp-min-height="${minHeight}" placeholder="${escapeHtml(placeholder)}" lang="ko">${escapedValue}</textarea>`;
 }
 
 function erpNewItemRow(item = {}) {
@@ -617,8 +663,21 @@ function erpNewItemRow(item = {}) {
         const s = String(v ?? '').trim();
         return s ? s : '상담';
     };
-
+    const isMobileForm = erpIsMobileFormContext();
+    const inputClass = isMobileForm ? 'foms-input' : 'form-control form-control-sm';
+    const tabularInputClass = isMobileForm ? 'foms-input foms-tabular' : 'form-control form-control-sm';
+    const textareaClass = isMobileForm ? 'foms-textarea' : 'form-control form-control-sm';
+    const itemScheduleFieldClass = isMobileForm ? 'col-md-6 d-none erp-mobile-rare-field' : 'col-md-6';
     const productName = String(item.product_name || '').trim();
+    const itemAttachmentAccept = isMobileForm ? 'image/*,video/*' : 'image/*';
+    const itemAttachmentAriaLabel = isMobileForm
+        ? '제품 항목 사진 및 동영상 업로드 영역. 이미지를 붙여넣으면 이 항목에 바로 업로드됩니다.'
+        : '제품 항목 실측 이미지 업로드 영역. 이미지를 붙여넣으면 이 항목에 바로 업로드됩니다.';
+    const itemAttachmentHint = erpItemAttachmentHintText(productName, 0).replace('항목 1', '항목');
+    const itemAttachmentEmpty = erpItemAttachmentEmptyText();
+    const itemAttachmentPasteHint = isMobileForm
+        ? ''
+        : '<div class="small text-muted mt-1">이 박스를 클릭 후 Ctrl+V로 캡처 이미지를 항목에 바로 업로드할 수 있습니다.</div>';
     // 규격 행 목록: spec_rows 우선, 없으면 단일 spec_width/spec_depth/spec_height 또는 spec 파싱
     let specRows = Array.isArray(item.spec_rows) ? item.spec_rows : [];
     if (specRows.length === 0) {
@@ -647,9 +706,9 @@ function erpNewItemRow(item = {}) {
         const h = escapeHtml(String((sr.spec_height ?? sr.h ?? '')).trim());
         const showDel = specRows.length > 1 ? '' : ' style="display:none;"';
         return `<div class="erp-spec-row d-flex flex-wrap gap-2 align-items-end mb-1">
-<div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">W(폭)</label><input class="form-control form-control-sm" data-erp="spec_width" data-spec-row placeholder="폭" value="${w}" lang="ko"></div>
-<div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">D(깊이)</label><input class="form-control form-control-sm" data-erp="spec_depth" data-spec-row placeholder="깊이" value="${d}" lang="ko"></div>
-<div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">H(높이)</label><input class="form-control form-control-sm" data-erp="spec_height" data-spec-row placeholder="높이" value="${h}" lang="ko"></div>
+<div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">W(폭)</label><input class="${tabularInputClass}" data-erp="spec_width" data-spec-row placeholder="폭" value="${w}" lang="ko"></div>
+<div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">D(깊이)</label><input class="${tabularInputClass}" data-erp="spec_depth" data-spec-row placeholder="깊이" value="${d}" lang="ko"></div>
+<div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">H(높이)</label><input class="${tabularInputClass}" data-erp="spec_height" data-spec-row placeholder="높이" value="${h}" lang="ko"></div>
 <button type="button" class="btn btn-sm btn-outline-secondary erp-remove-spec-row-btn"${showDel}><i class="fas fa-minus"></i></button>
 </div>`;
     }).join('');
@@ -664,6 +723,24 @@ function erpNewItemRow(item = {}) {
     const misc = defaultConsult(item.misc);
     const price = String(item.price ?? '').trim();
     const extraInput = String(item.extra_input ?? '').trim();
+    const colorFieldHtml = `
+<div class="col-md-6">
+    <label class="form-label mb-1 small text-primary">색상</label>
+    <input class="${inputClass}" data-erp="color" value="${escapeHtml(color)}" lang="ko">
+</div>`;
+    const optionFieldHtml = `
+<div class="col-md-6 erp-mobile-full-row">
+    <label class="form-label mb-1 small text-primary">옵션</label>
+    ${erpMobileFlexibleControl('option_detail', '옵션', optionDetail, { isMobileForm, inputClass, placeholder: '상담' })}
+</div>`;
+    const handleFieldHtml = `
+<div class="col-md-6">
+    <label class="form-label mb-1 small text-primary">손잡이</label>
+    <input class="${inputClass}" data-erp="handle" value="${escapeHtml(handle)}" lang="ko">
+</div>`;
+    const attributeFieldsHtml = isMobileForm
+        ? `${colorFieldHtml}${handleFieldHtml}${optionFieldHtml}`
+        : `${colorFieldHtml}${optionFieldHtml}${handleFieldHtml}`;
 
     row.innerHTML = `
 <div class="d-flex justify-content-between align-items-center mb-2">
@@ -675,70 +752,60 @@ function erpNewItemRow(item = {}) {
 <div class="row g-2">
 <div class="col-12">
     <label class="form-label mb-1 small text-primary">제품명</label>
-    <input class="form-control form-control-sm" data-erp="product_name" value="${escapeHtml(productName)}" lang="ko">
+    <input class="${inputClass}" data-erp="product_name" value="${escapeHtml(productName)}" lang="ko">
 </div>
 <div class="col-12">
     <label class="form-label mb-1 small text-primary">규격 (폭·깊이·높이)</label>
     <div class="erp-spec-rows">${specRowsHtml}</div>
     <button type="button" class="btn btn-sm btn-outline-primary mt-1 erp-add-spec-row-btn"><i class="fas fa-plus"></i> 규격 1행 추가</button>
 </div>
-<div class="col-md-6">
+<div class="col-md-6 erp-mobile-full-row">
     <label class="form-label mb-1 small text-primary">내부</label>
-    <input class="form-control form-control-sm" data-erp="internal" value="${escapeHtml(internal)}" lang="ko">
+    ${erpMobileFlexibleControl('internal', '내부', internal, { isMobileForm, inputClass, placeholder: '상담' })}
 </div>
-<div class="col-md-6">
-    <label class="form-label mb-1 small text-primary">색상</label>
-    <input class="form-control form-control-sm" data-erp="color" value="${escapeHtml(color)}" lang="ko">
-</div>
-<div class="col-md-6">
-    <label class="form-label mb-1 small text-primary">옵션</label>
-    <input class="form-control form-control-sm" data-erp="option_detail" value="${escapeHtml(optionDetail)}" lang="ko">
-</div>
-<div class="col-md-6">
-    <label class="form-label mb-1 small text-primary">손잡이</label>
-    <input class="form-control form-control-sm" data-erp="handle" value="${escapeHtml(handle)}" lang="ko">
-</div>
-<div class="col-md-6">
+${attributeFieldsHtml}
+<div class="col-md-6 erp-mobile-full-row">
     <label class="form-label mb-1 small text-primary">기타 / 설치위치</label>
-    <input class="form-control form-control-sm" data-erp="misc" value="${escapeHtml(misc)}" lang="ko">
+    ${erpMobileFlexibleControl('misc', '기타 / 설치위치', misc, { isMobileForm, inputClass, placeholder: '상담' })}
 </div>
 <div class="col-md-6">
     <label class="form-label mb-1 small text-primary">항목 금액(원)</label>
-    <input class="form-control form-control-sm" data-erp="price" inputmode="numeric" value="${escapeHtml(price)}" lang="ko">
+    <input class="${tabularInputClass}" data-erp="price" inputmode="numeric" value="${escapeHtml(price)}" lang="ko">
 </div>
-<div class="col-md-6">
+<div class="${itemScheduleFieldClass}">
     <label class="form-label mb-1 small text-primary">항목 실측일</label>
-    <input type="text" class="form-control form-control-sm erp-item-date-multiple" data-erp="measurement_date" placeholder="여러 날짜 가능" value="${escapeHtml(String(item.measurement_date || '').trim())}" lang="ko">
+    <input type="text" class="${tabularInputClass} erp-item-date-multiple" data-erp="measurement_date" placeholder="여러 날짜 가능" value="${escapeHtml(String(item.measurement_date || '').trim())}" lang="ko">
 </div>
-<div class="col-md-6">
+<div class="${itemScheduleFieldClass}">
     <label class="form-label mb-1 small text-primary">항목 시공일</label>
-    <input type="text" class="form-control form-control-sm erp-item-date-multiple" data-erp="construction_date" placeholder="여러 날짜 가능" value="${escapeHtml(String(item.construction_date || '').trim())}" lang="ko">
+    <input type="text" class="${tabularInputClass} erp-item-date-multiple" data-erp="construction_date" placeholder="여러 날짜 가능" value="${escapeHtml(String(item.construction_date || '').trim())}" lang="ko">
 </div>
 <div class="col-12">
     <label class="form-label mb-1 small text-primary">추가 입력</label>
-    <textarea class="form-control form-control-sm" data-erp="extra_input" rows="3"
+    <textarea class="${textareaClass} erp-autosize-textarea erp-flex-textarea erp-flex-textarea--large" data-erp="extra_input" rows="2" data-erp-min-height="72"
         placeholder="추가 내용을 입력하세요 (여러 줄 가능)" lang="ko">${escapeHtml(extraInput)}</textarea>
 </div>
 <div class="col-12">
     <div class="border rounded p-2 bg-light" data-erp-attachment-paste-zone="item" tabindex="0"
-        aria-label="제품 항목 실측 이미지 업로드 영역. 이미지를 붙여넣으면 이 항목에 바로 업로드됩니다.">
+        aria-label="${itemAttachmentAriaLabel}">
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
-            <div class="small fw-semibold text-muted erp-item-attachment-hint">항목 실측 이미지</div>
+            <div class="small fw-semibold text-muted erp-item-attachment-hint">${itemAttachmentHint}</div>
             <div class="d-flex gap-1">
-                <input type="file" class="d-none erp-item-attachments-input" accept="image/*" multiple onchange="erpUploadItemAttachmentsPromptless(this)">
+                <input type="file" class="d-none erp-item-attachments-input" accept="${itemAttachmentAccept}" capture="environment" multiple onchange="erpUploadItemAttachmentsPromptless(this)">
                 <button type="button" class="btn btn-sm btn-outline-primary" onclick="this.previousElementSibling.click()">
                     <i class="fas fa-image"></i> 즉시 추가
                 </button>
             </div>
         </div>
-        <div class="small text-muted mt-1">이 박스를 클릭 후 Ctrl+V로 캡처 이미지를 항목에 바로 업로드할 수 있습니다.</div>
+        ${itemAttachmentPasteHint}
         <div class="d-flex flex-wrap gap-1 mt-2 erp-item-attachments-gallery">
-            <div class="small text-muted">연결된 실측 이미지가 없습니다.</div>
+            <div class="small text-muted">${itemAttachmentEmpty}</div>
         </div>
     </div>
 </div>
 </div>
 `;
+    erpBindAutosizeTextareas(row);
 
     function updateSpecRowRemoveVisibility() {
         const container = row.querySelector('.erp-spec-rows');
@@ -753,9 +820,9 @@ function erpNewItemRow(item = {}) {
         if (!container) return;
         const div = document.createElement('div');
         div.className = 'erp-spec-row d-flex flex-wrap gap-2 align-items-end mb-1';
-        div.innerHTML = `<div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">W(폭)</label><input class="form-control form-control-sm" data-erp="spec_width" data-spec-row placeholder="폭" value="" lang="ko"></div>
-<div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">D(깊이)</label><input class="form-control form-control-sm" data-erp="spec_depth" data-spec-row placeholder="깊이" value="" lang="ko"></div>
-<div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">H(높이)</label><input class="form-control form-control-sm" data-erp="spec_height" data-spec-row placeholder="높이" value="" lang="ko"></div>
+        div.innerHTML = `<div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">W(폭)</label><input class="${tabularInputClass}" data-erp="spec_width" data-spec-row placeholder="폭" value="" lang="ko"></div>
+<div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">D(깊이)</label><input class="${tabularInputClass}" data-erp="spec_depth" data-spec-row placeholder="깊이" value="" lang="ko"></div>
+<div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">H(높이)</label><input class="${tabularInputClass}" data-erp="spec_height" data-spec-row placeholder="높이" value="" lang="ko"></div>
 <button type="button" class="btn btn-sm btn-outline-secondary erp-remove-spec-row-btn"><i class="fas fa-minus"></i></button>`;
         div.querySelector('.erp-remove-spec-row-btn').addEventListener('click', () => {
             div.remove();
@@ -851,6 +918,159 @@ function _erpConsumeBootstrap() {
     }
 }
 
+const ERP_RECEIVED_TIME_DIRECT_VALUE = '__direct__';
+
+function erpFormatHalfHourTime(date) {
+    const d = date instanceof Date ? new Date(date.getTime()) : new Date();
+    let hours = d.getHours();
+    const minutes = d.getMinutes();
+    let roundedMinutes = 0;
+    if (minutes >= 15 && minutes < 45) {
+        roundedMinutes = 30;
+    } else if (minutes >= 45) {
+        hours = (hours + 1) % 24;
+    }
+    return String(hours).padStart(2, '0') + ':' + String(roundedMinutes).padStart(2, '0');
+}
+
+function erpEnsureReceivedTimeOptions() {
+    const select = document.getElementById('erp-received-time-select');
+    if (!select || select.dataset.erpTimeOptionsBuilt === '1') return select;
+    const directOption = select.querySelector(`option[value="${ERP_RECEIVED_TIME_DIRECT_VALUE}"]`);
+    if (!select.querySelector('option[value="00:00"]')) {
+        for (let hour = 0; hour < 24; hour += 1) {
+            for (let minute = 0; minute < 60; minute += 30) {
+                const value = String(hour).padStart(2, '0') + ':' + String(minute).padStart(2, '0');
+                const option = document.createElement('option');
+                option.value = value;
+                option.textContent = value;
+                select.insertBefore(option, directOption || null);
+            }
+        }
+    }
+    select.dataset.erpTimeOptionsBuilt = '1';
+    return select;
+}
+
+function erpSetReceivedTimeControlValue(value) {
+    const select = erpEnsureReceivedTimeOptions();
+    const input = document.getElementById('erp-received-time');
+    const normalized = String(value || '').trim();
+    if (input) input.value = normalized;
+    if (!select) return;
+
+    const hasPreset = normalized
+        ? Array.from(select.options || []).some(function (opt) { return opt.value === normalized; })
+        : false;
+    if (!normalized) {
+        select.value = '';
+        select.closest('.erp-mobile-time-inline')?.classList.remove('is-direct');
+        input?.classList.add('d-none');
+        return;
+    }
+    if (hasPreset) {
+        select.value = normalized;
+        select.closest('.erp-mobile-time-inline')?.classList.remove('is-direct');
+        input?.classList.add('d-none');
+        return;
+    }
+    select.value = ERP_RECEIVED_TIME_DIRECT_VALUE;
+    select.closest('.erp-mobile-time-inline')?.classList.add('is-direct');
+    input?.classList.remove('d-none');
+}
+
+function erpBindReceivedTimeControl() {
+    const select = erpEnsureReceivedTimeOptions();
+    const input = document.getElementById('erp-received-time');
+    if (!select || !input || select.dataset.erpBound === '1') return;
+    select.dataset.erpBound = '1';
+    select.addEventListener('change', function () {
+        if (this.value === ERP_RECEIVED_TIME_DIRECT_VALUE) {
+            this.closest('.erp-mobile-time-inline')?.classList.add('is-direct');
+            input.classList.remove('d-none');
+            erpFocusWithoutScroll(input);
+            return;
+        }
+        this.closest('.erp-mobile-time-inline')?.classList.remove('is-direct');
+        input.value = this.value || '';
+        input.classList.add('d-none');
+    });
+    input.addEventListener('input', function () {
+        if (!input.classList.contains('d-none')) {
+            select.value = ERP_RECEIVED_TIME_DIRECT_VALUE;
+        }
+    });
+    erpSetReceivedTimeControlValue(input.value || '');
+}
+
+function erpSetScheduleTimeControlValue(selectId, inputId, value) {
+    const select = document.getElementById(selectId);
+    const input = document.getElementById(inputId);
+    if (!select || !input) return;
+    const normalized = String(value || '').trim();
+    const isPreset = normalized === '오전' || normalized === '오후' || normalized === '종일';
+    if (!normalized) {
+        select.value = '';
+        input.value = '';
+        input.classList.add('d-none');
+        select.closest('.erp-mobile-time-inline')?.classList.remove('is-direct');
+        return;
+    }
+    if (isPreset) {
+        select.value = normalized;
+        input.value = '';
+        input.classList.add('d-none');
+        select.closest('.erp-mobile-time-inline')?.classList.remove('is-direct');
+        return;
+    }
+    select.value = ERP_RECEIVED_TIME_DIRECT_VALUE;
+    input.value = normalized;
+    input.classList.remove('d-none');
+    select.closest('.erp-mobile-time-inline')?.classList.add('is-direct');
+    erpAutosizeTextarea(input);
+}
+
+function erpBindScheduleTimeControl(selectId, inputId) {
+    const select = document.getElementById(selectId);
+    const input = document.getElementById(inputId);
+    if (!select || !input || select.dataset.erpBound === '1') return;
+    select.dataset.erpBound = '1';
+    select.addEventListener('change', function () {
+        if (this.value === ERP_RECEIVED_TIME_DIRECT_VALUE) {
+            this.closest('.erp-mobile-time-inline')?.classList.add('is-direct');
+            input.classList.remove('d-none');
+            erpFocusWithoutScroll(input);
+            return;
+        }
+        this.closest('.erp-mobile-time-inline')?.classList.remove('is-direct');
+        input.value = '';
+        input.classList.add('d-none');
+    });
+}
+
+function erpSyncUrgentReasonVisibility(options = {}) {
+    const urgent = document.getElementById('erp-urgent-flag');
+    const field = document.getElementById('erp-urgent-reason-field');
+    const input = document.getElementById('erp-urgent-reason');
+    if (!urgent || !field || !input) return;
+    if (urgent.checked) {
+        field.classList.remove('d-none');
+        return;
+    }
+    field.classList.add('d-none');
+    if (options.clear !== false) input.value = '';
+}
+
+function erpBindUrgentReasonControl() {
+    const urgent = document.getElementById('erp-urgent-flag');
+    if (!urgent || urgent.dataset.erpUrgentBound === '1') return;
+    urgent.dataset.erpUrgentBound = '1';
+    urgent.addEventListener('change', function () {
+        erpSyncUrgentReasonVisibility({ clear: true });
+    });
+    erpSyncUrgentReasonVisibility({ clear: !urgent.checked });
+}
+
 async function erpLoadStructured(bootstrapData, options) {
     if (!ERP_ORDER_ENABLED) return;
     if (!ORDER_ID) return;
@@ -880,6 +1100,7 @@ async function erpLoadStructured(bootstrapData, options) {
     const receivedTimeEl = document.getElementById('erp-received-time');
     if (receivedDateEl) receivedDateEl.value = data.received_date || '';
     if (receivedTimeEl) receivedTimeEl.value = data.received_time || '';
+    erpSetReceivedTimeControlValue(data.received_time || '');
     document.getElementById('erp-customer-name').value = sd?.parties?.customer?.name || '';
     document.getElementById('erp-customer-phone').value = sd?.parties?.customer?.phone || '';
     try {
@@ -915,6 +1136,7 @@ async function erpLoadStructured(bootstrapData, options) {
     if (erpNotesEl) erpNotesEl.value = data.notes || '';
     document.getElementById('erp-urgent-flag').checked = !!sd?.flags?.urgent;
     document.getElementById('erp-urgent-reason').value = sd?.flags?.urgent_reason || '';
+    erpSyncUrgentReasonVisibility({ clear: !sd?.flags?.urgent });
     const selfMeasEl = document.getElementById('erp-self-measurement');
     if (selfMeasEl) selfMeasEl.checked = !!data.is_self_measurement;
     // 주소 로드: 주소+상세주소는 한 필드(erp-address)에 함께 표기
@@ -930,23 +1152,7 @@ async function erpLoadStructured(bootstrapData, options) {
         if (dates.length) window._erpMeasurementDatePicker.setDate(dates);
     }
     const measurementTime = sd?.schedule?.measurement?.time || '';
-    const erpMeasurementTimeSelect = document.getElementById('erp-measurement-time-select');
-    const erpMeasurementTimeInput = document.getElementById('erp-measurement-time');
-    if (erpMeasurementTimeSelect) {
-        if (measurementTime === '오전' || measurementTime === '오후' || measurementTime === '종일') {
-            erpMeasurementTimeSelect.value = measurementTime;
-            if (erpMeasurementTimeInput) {
-                erpMeasurementTimeInput.value = '';
-                erpMeasurementTimeInput.style.display = 'none';
-            }
-        } else {
-            erpMeasurementTimeSelect.value = '__direct__';
-            if (erpMeasurementTimeInput) {
-                erpMeasurementTimeInput.value = measurementTime || '';
-                erpMeasurementTimeInput.style.display = 'block';
-            }
-        }
-    }
+    erpSetScheduleTimeControlValue('erp-measurement-time-select', 'erp-measurement-time', measurementTime);
     document.getElementById('erp-measurement-note').value = sd?.notes?.measurement_note || '';
     const constructionDateVal = sd?.schedule?.construction?.date || '';
     document.getElementById('erp-construction-date').value = constructionDateVal;
@@ -955,23 +1161,7 @@ async function erpLoadStructured(bootstrapData, options) {
         if (dates.length) window._erpConstructionDatePicker.setDate(dates);
     }
     const constructionTime = sd?.schedule?.construction?.time || '';
-    const erpConstructionTimeSelect = document.getElementById('erp-construction-time-select');
-    const erpConstructionTimeInput = document.getElementById('erp-construction-time');
-    if (erpConstructionTimeSelect) {
-        if (constructionTime === '오전' || constructionTime === '오후' || constructionTime === '종일') {
-            erpConstructionTimeSelect.value = constructionTime;
-            if (erpConstructionTimeInput) {
-                erpConstructionTimeInput.value = '';
-                erpConstructionTimeInput.style.display = 'none';
-            }
-        } else {
-            erpConstructionTimeSelect.value = '__direct__';
-            if (erpConstructionTimeInput) {
-                erpConstructionTimeInput.value = constructionTime || '';
-                erpConstructionTimeInput.style.display = 'block';
-            }
-        }
-    }
+    erpSetScheduleTimeControlValue('erp-construction-time-select', 'erp-construction-time', constructionTime);
 
     const itemsWrap = document.getElementById('erp-items');
     itemsWrap.innerHTML = '';
@@ -1444,6 +1634,11 @@ document.addEventListener('DOMContentLoaded', function () {
         syncErpOrderGlobalsFromDom();
     }
     if (!ERP_ORDER_ENABLED) return;
+    erpBindReceivedTimeControl();
+    erpBindScheduleTimeControl('erp-measurement-time-select', 'erp-measurement-time');
+    erpBindScheduleTimeControl('erp-construction-time-select', 'erp-construction-time');
+    erpBindUrgentReasonControl();
+    erpBindAutosizeTextareas(document);
 
 window.erpTogglePayment = async function(btn, pType) {
     if (_paymentTogglePending) return;
@@ -1628,33 +1823,6 @@ ${escapeHtml(sub)}</div>` : ''}`;
         });
     }
 
-    // ERP Order: 실측시간 직접 입력 처리
-    const erpMeasurementTimeSelect = document.getElementById('erp-measurement-time-select');
-    const erpMeasurementTimeInput = document.getElementById('erp-measurement-time');
-    if (erpMeasurementTimeSelect && erpMeasurementTimeInput) {
-        erpMeasurementTimeSelect.addEventListener('change', function () {
-            if (this.value === '__direct__') {
-                erpMeasurementTimeInput.style.display = 'block';
-            } else {
-                erpMeasurementTimeInput.style.display = 'none';
-                erpMeasurementTimeInput.value = '';
-            }
-        });
-    }
-
-    const erpConstructionTimeSelect = document.getElementById('erp-construction-time-select');
-    const erpConstructionTimeInput = document.getElementById('erp-construction-time');
-    if (erpConstructionTimeSelect && erpConstructionTimeInput) {
-        erpConstructionTimeSelect.addEventListener('change', function () {
-            if (this.value === '__direct__') {
-                erpConstructionTimeInput.style.display = 'block';
-            } else {
-                erpConstructionTimeInput.style.display = 'none';
-                erpConstructionTimeInput.value = '';
-            }
-        });
-    }
-
     // 기본 항목 1개
     const itemsWrap = document.getElementById('erp-items');
     if (itemsWrap && itemsWrap.children.length === 0) {
@@ -1800,10 +1968,10 @@ ${escapeHtml(sub)}</div>` : ''}`;
     }
 
 
-    // add_order(draft) 모드에선 tab 오픈 시 draft 생성 후 로드, edit_order에선 즉시 로드
-    if (!isErpOrderDraftMode()) {
-        erpLoadStructured();
-    } else {
+    // 초기 structured/첨부 로드는 fomsMountErpOrderSurface가 담당한다.
+    // (여기서 erpLoadStructured를 또 호출하면 edit 화면에서 이중 fetch·DOM 주입이 발생해
+    // 모바일 크롬이 STATUS_BREAKPOINT로 다운될 수 있다.)
+    if (isErpOrderDraftMode()) {
         // [자동 완성 함수]
         function fillErpDateTime() {
             const rDate = document.getElementById('erp-received-date');
@@ -1817,9 +1985,9 @@ ${escapeHtml(sub)}</div>` : ''}`;
             }
             if (rTime && !rTime.value) {
                 const now = new Date();
-                const hh = String(now.getHours()).padStart(2, '0');
-                const mi = String(now.getMinutes()).padStart(2, '0');
-                rTime.value = `${hh}:${mi}`;
+                const timeValue = erpFormatHalfHourTime(now);
+                rTime.value = timeValue;
+                erpSetReceivedTimeControlValue(timeValue);
             }
         }
 
@@ -1906,11 +2074,107 @@ async function erpLinkAttachmentToItem(attachmentId, itemIndexValue) {
             throw new Error('유효한 항목을 선택하세요.');
         }
         await erpPatchAttachmentItemIndex(attachmentId, itemIndex);
-        erpAttachmentsSetStatus('이미지 연결이 변경되었습니다.');
+        erpAttachmentsSetStatus('첨부 연결이 변경되었습니다.');
         await erpLoadAttachments();
     } catch (e) {
         console.error(e);
         erpAttachmentsSetStatus(String(e?.message || e), true);
+    }
+}
+
+function erpIsMobileAttachmentLayout() {
+    return erpIsMobileFormContext();
+}
+
+function erpBuildAttachmentMediaTile(a) {
+    const name = escapeHtml(a.filename || '');
+    const type = a.file_type || 'file';
+    const thumb = a.thumbnail_view_url || a.view_url || '';
+    const viewUrl = a.view_url || thumb || '#';
+    const isMobileLayout = erpIsMobileAttachmentLayout();
+    const gridImageSrc =
+        type === 'image' && isMobileLayout
+            ? (a.view_url || a.thumbnail_view_url || '')
+            : (a.thumbnail_view_url || a.view_url || '');
+
+    if (type === 'video') {
+        return `
+<div class="erp-attachment-tile__media erp-attachment-tile__media--video">
+    ${thumb ? `<img src="${thumb}" alt="${name}">` : `<video src="${viewUrl}" muted playsinline preload="metadata"></video>`}
+    <span class="erp-attachment-tile__type"><i class="fas fa-video"></i></span>
+</div>`;
+    }
+    if (type === 'image') {
+        return `
+<div class="erp-attachment-tile__media">
+    <img src="${gridImageSrc || viewUrl}" alt="${name}" loading="lazy" decoding="async">
+</div>`;
+    }
+    return `
+<div class="erp-attachment-tile__media erp-attachment-tile__media--file">
+    <i class="fas fa-file-alt"></i>
+</div>`;
+}
+
+function erpBuildAttachmentTile(a, options = {}) {
+    const name = escapeHtml(a.filename || '첨부');
+    const itemIndex = erpParseAttachmentItemIndex(a.item_index);
+    const badge = options.showItemBadge && itemIndex !== null ? `<span class="erp-attachment-tile__badge">항목 ${itemIndex + 1}</span>` : '';
+    return `
+<button type="button" class="erp-attachment-tile" data-erp-attachment-id="${escapeHtml(String(a.id))}"
+    title="${name}" onclick="erpOpenAttachmentPreview('${a.id}')">
+    ${erpBuildAttachmentMediaTile(a)}
+    <span class="erp-attachment-tile__name">${name}</span>
+    ${badge}
+</button>`;
+}
+
+function erpSyncAttachmentPreviewActions(attachment) {
+    const a = attachment || null;
+    const select = document.getElementById('erp-attachment-preview-item-select');
+    const unlinkBtn = document.getElementById('erp-attachment-preview-unlink');
+    const deleteBtn = document.getElementById('erp-attachment-preview-delete');
+    if (!select && !unlinkBtn && !deleteBtn) return;
+
+    const isMeasurement = a && erpNormalizeAttachmentCategory(a.category) === 'measurement';
+    const linkedIndex = a ? erpParseAttachmentItemIndex(a.item_index) : null;
+
+    if (select) {
+        select.classList.toggle('d-none', !isMeasurement);
+        select.disabled = !isMeasurement;
+        if (isMeasurement) {
+            select.innerHTML = erpBuildAttachmentItemOptions(a.item_index);
+            select.onchange = async function () {
+                await erpLinkAttachmentToItem(a.id, this.value);
+                const fresh = erpGetAttachmentById(a.id) || Object.assign({}, a, { item_index: this.value || null });
+                erpSyncAttachmentPreviewActions(fresh);
+            };
+        } else {
+            select.innerHTML = '';
+            select.onchange = null;
+        }
+    }
+
+    if (unlinkBtn) {
+        unlinkBtn.classList.toggle('d-none', !isMeasurement || linkedIndex === null);
+        unlinkBtn.onclick = (!isMeasurement || linkedIndex === null) ? null : async function () {
+            await erpLinkAttachmentToItem(a.id, '');
+            const fresh = erpGetAttachmentById(a.id) || Object.assign({}, a, { item_index: null });
+            erpSyncAttachmentPreviewActions(fresh);
+        };
+    }
+
+    if (deleteBtn) {
+        deleteBtn.classList.toggle('d-none', !a);
+        deleteBtn.onclick = !a ? null : async function () {
+            await erpDeleteAttachment(a.id);
+            if (!erpGetAttachmentById(a.id)) {
+                const modalEl = document.getElementById('erpAttachmentPreviewModal');
+                if (modalEl && window.bootstrap) {
+                    bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+                }
+            }
+        };
     }
 }
 
@@ -1938,12 +2202,12 @@ async function erpUploadItemAttachments(itemIndex, files) {
         erpAttachmentsSetStatus('유효한 제품 항목을 찾지 못했습니다.', true);
         return;
     }
-    const targetId = await erpRequireOrderIdOrWarn('제품 이미지 업로드:');
+    const targetId = await erpRequireOrderIdOrWarn('제품 첨부 업로드:');
     if (!targetId) {
         return;
     }
     if (!Array.isArray(files) || !files.length) {
-        erpAttachmentsSetStatus('업로드할 이미지를 선택하세요.', true);
+        erpAttachmentsSetStatus('업로드할 파일을 선택하세요.', true);
         return;
     }
 
@@ -1952,7 +2216,7 @@ async function erpUploadItemAttachments(itemIndex, files) {
     const row = erpGetItemRows()[itemIndex];
     const galleryWrap = row ? row.querySelector('.erp-item-attachments-gallery') : null;
     if (galleryWrap) {
-        // "연결된 실측 이미지가 없습니다." 텍스트 제거
+        // 빈 상태 텍스트 제거
         const emptyText = galleryWrap.querySelector('.text-muted');
         if (emptyText && emptyText.textContent.includes('없습니다')) emptyText.remove();
 
@@ -1963,7 +2227,18 @@ async function erpUploadItemAttachments(itemIndex, files) {
             let previewUrl = '';
             try { previewUrl = URL.createObjectURL(f); } catch (e) { }
 
-            const placeholderHtml = `
+            const isMobilePlaceholder = erpIsMobileAttachmentLayout();
+            const isVideo = String(f.type || '').startsWith('video/');
+            const placeholderHtml = isMobilePlaceholder ? `
+<div id="${uniqueId}" class="erp-attachment-tile erp-attachment-tile--pending opacity-75">
+    <div class="erp-attachment-tile__media ${isVideo ? 'erp-attachment-tile__media--video' : ''}">
+        ${isVideo
+                    ? `<i class="fas fa-video"></i><span class="erp-attachment-tile__type"><i class="fas fa-spinner fa-spin"></i></span>`
+                    : `<img src="${previewUrl}" alt="${name}" style="filter:grayscale(100%);">`}
+    </div>
+    <span class="erp-attachment-tile__name">${name}</span>
+    <span class="erp-attachment-tile__badge opt-pct">0%</span>
+</div>` : `
 <div id="${uniqueId}" class="border rounded bg-light p-1 d-flex align-items-center gap-1 opacity-75" style="max-width: 200px;">
 <div class="position-relative">
     <img src="${previewUrl}" class="rounded" style="width:40px;height:40px;object-fit:cover;filter:grayscale(100%);">
@@ -1977,7 +2252,7 @@ async function erpUploadItemAttachments(itemIndex, files) {
     }
     // --- Optimistic UI End ---
 
-    erpAttachmentsSetStatus(`제품 항목 ${itemIndex + 1} 이미지 등록 중... (${files.length}개)`);
+    erpAttachmentsSetStatus(`제품 항목 ${itemIndex + 1} 첨부 등록 중... (${files.length}개)`);
     const progressWrap = document.getElementById('erp-attachments-progress');
     const progressBar = document.getElementById('erp-attachments-progress-bar');
     if (progressWrap) progressWrap.classList.remove('d-none');
@@ -2055,7 +2330,7 @@ async function erpUploadItemAttachments(itemIndex, files) {
     }
     if (progressWrap) progressWrap.classList.add('d-none');
     if (progressBar) { progressBar.style.width = '0%'; progressBar.textContent = '0%'; }
-    erpAttachmentsSetStatus(`제품 항목 ${itemIndex + 1} 신속 등록 완료: ${ok}/${files.length}`);
+    erpAttachmentsSetStatus(`제품 항목 ${itemIndex + 1} 첨부 등록 완료: ${ok}/${files.length}`);
     await erpLoadAttachments();
 }
 
@@ -2072,24 +2347,74 @@ async function erpUploadItemAttachmentsPromptless(inputElement) {
     inputElement.value = ''; // Reset input to allow triggering change event again with same files
 }
 
+function erpExpandMobileAttachmentSections() {
+    if (!erpIsMobileFormContext()) return;
+    const items = Array.isArray(__erpAttachments) ? __erpAttachments : [];
+    if (!items.length) return;
+
+    const collapseIds = [
+        'erp-mobile-collapse-attachments-body',
+    ];
+    collapseIds.forEach((bodyId) => {
+        const body = document.getElementById(bodyId);
+        if (!body || body.classList.contains('show')) return;
+        if (typeof window.bootstrap !== 'undefined' && window.bootstrap.Collapse) {
+            window.bootstrap.Collapse.getOrCreateInstance(body, { toggle: false }).show();
+            return;
+        }
+        body.classList.add('show');
+        const toggle = document.querySelector(`[data-bs-target="#${bodyId}"]`);
+        if (toggle) {
+            toggle.setAttribute('aria-expanded', 'true');
+            const icon = toggle.querySelector('i');
+            if (icon) {
+                icon.classList.remove('fa-chevron-right');
+                icon.classList.add('fa-chevron-down');
+            }
+        }
+    });
+}
+
+function erpItemAttachmentLinksForRow(measurementItems, idx, rowCount) {
+    const linked = measurementItems.filter((a) => erpParseAttachmentItemIndex(a.item_index) === idx);
+    if (linked.length || rowCount !== 1 || idx !== 0) {
+        return linked;
+    }
+    // 단일 제품 행: item_index 미지정(공통) 실측 첨부도 항목 갤러리에 노출
+    return measurementItems.filter((a) => erpParseAttachmentItemIndex(a.item_index) === null);
+}
+
 function erpRenderItemAttachmentPanels() {
     const rows = erpGetItemRows();
     const measurementItems = (__erpAttachments || []).filter((a) => erpNormalizeAttachmentCategory(a.category) === 'measurement');
+    const isMobileLayout = erpIsMobileAttachmentLayout();
     rows.forEach((row, idx) => {
         const wrap = row.querySelector('.erp-item-attachments-gallery');
         if (!wrap) return;
-        const linked = measurementItems.filter((a) => erpParseAttachmentItemIndex(a.item_index) === idx);
+        wrap.classList.toggle('erp-attachment-tile-grid', isMobileLayout);
+        const linked = erpItemAttachmentLinksForRow(measurementItems, idx, rows.length);
         if (!linked.length) {
-            wrap.innerHTML = '<div class="small text-muted">연결된 실측 이미지가 없습니다.</div>';
+            wrap.innerHTML = `<div class="small text-muted${isMobileLayout ? ' erp-attachment-empty' : ''}">${erpItemAttachmentEmptyText()}</div>`;
             return;
         }
         wrap.innerHTML = linked.map((a) => {
+            if (isMobileLayout) {
+                return erpBuildAttachmentTile(a, { showItemBadge: false });
+            }
             const thumb = a.thumbnail_view_url || a.view_url || '';
             const name = escapeHtml(a.filename || '');
+            const type = a.file_type || 'file';
+            const mediaHtml = type === 'video'
+                ? `<button type="button" class="btn btn-light border p-0" style="width:40px;height:40px;"
+    title="${name}" onclick="erpOpenAttachmentPreview('${a.id}')"><i class="fas fa-video"></i></button>`
+                : type === 'image'
+                    ? `<img src="${thumb}" alt="${name}" style="width:40px;height:40px;object-fit:cover;border-radius:4px;cursor:zoom-in;"
+    onclick="erpOpenAttachmentPreview('${a.id}')">`
+                    : `<button type="button" class="btn btn-light border p-0" style="width:40px;height:40px;"
+    title="${name}" onclick="erpOpenAttachmentPreview('${a.id}')"><i class="fas fa-file-alt"></i></button>`;
             return `
 <div class="border rounded bg-white p-1 d-flex align-items-center gap-1" style="max-width: 200px;">
-<img src="${thumb}" alt="${name}" style="width:40px;height:40px;object-fit:cover;border-radius:4px;cursor:zoom-in;"
-    onclick="erpOpenAttachmentPreview('${a.id}')">
+${mediaHtml}
 <div class="small text-truncate flex-grow-1" style="max-width: 80px;" title="${name}">${name}</div>
 <div class="d-flex gap-1">
     <button type="button" class="btn btn-sm btn-outline-secondary" title="공통으로 이동"
@@ -2110,8 +2435,10 @@ function erpRenderAttachments() {
     const wrap = document.getElementById('erp-attachments-gallery');
     if (!wrap) return;
     const items = Array.isArray(__erpAttachments) ? __erpAttachments : [];
+    const isMobileLayout = erpIsMobileAttachmentLayout();
+    wrap.classList.toggle('erp-attachment-tile-grid', isMobileLayout);
     if (!items.length) {
-        wrap.innerHTML = `<div class="col-12">
+        wrap.innerHTML = `<div class="col-12 erp-attachment-empty">
 <div class="small text-muted">첨부된 파일이 없습니다.</div>
 </div>`;
         erpRenderItemAttachmentPanels();
@@ -2123,6 +2450,31 @@ function erpRenderAttachments() {
         const key = erpNormalizeAttachmentCategory(a.category);
         grouped[key].push(Object.assign({}, a, { category: key }));
     });
+
+    const order = ['measurement', 'drawing', 'construction', 'as'];
+
+    if (isMobileLayout) {
+        const sections = order
+            .map((key) => ({ key, list: grouped[key] || [] }))
+            .filter((section) => section.list.length > 0);
+        if (!sections.length) {
+            wrap.innerHTML = `<div class="erp-attachment-empty small text-muted">첨부된 파일이 없습니다.</div>`;
+            erpRenderItemAttachmentPanels();
+            return;
+        }
+        wrap.innerHTML = sections.map(({ key, list }) => {
+            const label = ERP_ATTACHMENT_CATEGORY_LABELS[key] || key;
+            return `
+<div class="erp-attachment-group-header">
+    <div class="fw-semibold">${label}</div>
+    <span class="badge bg-primary">${list.length}</span>
+</div>
+${list.map((a) => erpBuildAttachmentTile(a, { showItemBadge: erpNormalizeAttachmentCategory(a.category) === 'measurement' })).join('')}
+`;
+        }).join('');
+        erpRenderItemAttachmentPanels();
+        return;
+    }
 
     const renderCard = (a) => {
         const name = escapeHtml(a.filename || '');
@@ -2182,7 +2534,6 @@ style="height: 220px;">
 `;
     };
 
-    const order = ['measurement', 'drawing', 'construction', 'as'];
     wrap.innerHTML = order.map((key) => {
         const list = grouped[key] || [];
         const label = ERP_ATTACHMENT_CATEGORY_LABELS[key] || key;
@@ -2225,10 +2576,69 @@ async function erpLoadAttachments() {
         if (!data.success) throw new Error(data.message || '첨부 목록 조회 실패');
         __erpAttachments = data.attachments || [];
         erpRenderAttachments();
+        erpExpandMobileAttachmentSections();
     } catch (e) {
         console.error(e);
         erpAttachmentsSetStatus(String(e?.message || e), true);
     }
+}
+
+function erpReleaseAttachmentPreviewModalFocus(modalEl) {
+    if (!modalEl) return;
+    var active = document.activeElement;
+    if (active && (modalEl === active || modalEl.contains(active))) {
+        if (typeof active.blur === 'function') active.blur();
+    }
+    if (modalEl === document.activeElement && typeof modalEl.blur === 'function') {
+        modalEl.blur();
+    }
+}
+
+function erpRestoreAttachmentPreviewModalFocus(modalEl) {
+    if (!modalEl) return;
+    var target = modalEl._fomsPreviewReturnFocus || modalEl._erpPreviewReturnFocus;
+    modalEl._fomsPreviewReturnFocus = null;
+    modalEl._erpPreviewReturnFocus = null;
+    if (!target || typeof target.focus !== 'function' || !document.contains(target)) return;
+    if (target === modalEl || modalEl.contains(target)) return;
+    try {
+        target.focus({ preventScroll: true });
+    } catch (err) {
+        try { target.focus(); } catch (ignored) { /* noop */ }
+    }
+}
+
+function erpEnsureAttachmentPreviewModalZoomReset() {
+    var modalEl = document.getElementById('erpAttachmentPreviewModal');
+    if (!modalEl || typeof window.fomsBindAttachmentPreviewModalZoomReset !== 'function') return;
+    window.fomsBindAttachmentPreviewModalZoomReset(modalEl, 'erp-attachment-preview-body', {
+        saveFocusOnShow: true,
+        releaseFocusOnHide: function () {
+            erpReleaseAttachmentPreviewModalFocus(modalEl);
+        },
+        restoreFocusOnHidden: function () {
+            erpRestoreAttachmentPreviewModalFocus(modalEl);
+        }
+    });
+}
+
+function erpResetAttachmentPreviewZoom(img) {
+    if (typeof window.fomsResetAttachmentPreviewZoom === 'function') {
+        window.fomsResetAttachmentPreviewZoom(img);
+    }
+}
+
+function erpApplyAttachmentPreviewZoom(img) {
+    if (typeof window.fomsApplyAttachmentPreviewZoom === 'function') {
+        window.fomsApplyAttachmentPreviewZoom(img);
+    }
+}
+
+function erpBindAttachmentPreviewImageZoom(bodyEl) {
+    if (typeof window.fomsBindAttachmentPreviewImageZoom !== 'function') return;
+    window.fomsBindAttachmentPreviewImageZoom(bodyEl, {
+        ensureModalReset: erpEnsureAttachmentPreviewModalZoomReset
+    });
 }
 
 function erpOpenAttachmentPreview(attachmentId) {
@@ -2243,6 +2653,7 @@ function erpOpenAttachmentPreview(attachmentId) {
     const viewUrl = a.view_url || '#';
     const downloadUrl = a.download_url || '#';
     dl.href = downloadUrl;
+    erpSyncAttachmentPreviewActions(a);
 
     if (a.file_type === 'video') {
         body.innerHTML = `
@@ -2264,11 +2675,13 @@ function erpOpenAttachmentPreview(attachmentId) {
 `;
     } else {
         body.innerHTML = `
-<img src="${viewUrl}" alt="${escapeHtml(a.filename || '')}" class="img-fluid rounded"
-style="background:#fff; padding:4px;">
+<img src="${viewUrl}" alt="${escapeHtml(a.filename || '')}" class="img-fluid rounded erp-attachment-preview-img">
 <div class="small text-muted mt-2">${escapeHtml(a.filename || '')}</div>
 `;
+        erpBindAttachmentPreviewImageZoom(body);
     }
+
+    erpEnsureAttachmentPreviewModalZoomReset();
 
     const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
     modal.show();
@@ -2287,7 +2700,10 @@ style="background:#fff; padding:4px;">
                 }
                 if (data.view_url) {
                     var img = body.querySelector('img');
-                    if (img) img.src = data.view_url;
+                    if (img) {
+                        img.src = data.view_url;
+                        erpBindAttachmentPreviewImageZoom(body);
+                    }
                     var video = body.querySelector('video');
                     if (video) video.src = data.view_url;
                 }
@@ -2394,7 +2810,18 @@ async function erpUploadCommonAttachmentFiles(files, options = {}) {
             let previewUrl = '';
             try { previewUrl = URL.createObjectURL(f); } catch (e) { }
 
-            const placeholderHtml = `
+            const isMobilePlaceholder = erpIsMobileAttachmentLayout();
+            const isVideo = String(f.type || '').startsWith('video/');
+            const placeholderHtml = isMobilePlaceholder ? `
+<div id="${uniqueId}" class="erp-attachment-tile erp-attachment-tile--pending opacity-75">
+    <div class="erp-attachment-tile__media ${isVideo ? 'erp-attachment-tile__media--video' : ''}">
+        ${isVideo
+                    ? `<i class="fas fa-video"></i><span class="erp-attachment-tile__type"><i class="fas fa-spinner fa-spin"></i></span>`
+                    : `<img src="${previewUrl}" alt="${name}" style="filter:grayscale(80%);">`}
+    </div>
+    <span class="erp-attachment-tile__name">${name}</span>
+    <span class="erp-attachment-tile__badge opt-pct">0%</span>
+</div>` : `
 <div id="${uniqueId}" class="col-md-4 col-sm-6 col-12 opacity-75">
 <div class="card h-100 bg-light border-dashed">
     <div class="card-body p-2 d-flex flex-column align-items-center justify-content-center position-relative">
@@ -2614,6 +3041,8 @@ function erpSetFileInputFiles(input, files) {
     input.files = dt.files;
     return true;
 }
+
+window.erpAppendAsReceiveFiles = erpAppendAsReceiveFiles;
 
 function erpAppendAsReceiveFiles(files) {
     const filesEl = document.getElementById('as-receive-files');
@@ -3157,6 +3586,11 @@ function fomsMountErpOrderSurface() {
         return;
     }
     mountRoot.dataset.erpOrderMounted = "1";
+    erpBindReceivedTimeControl();
+    erpBindScheduleTimeControl('erp-measurement-time-select', 'erp-measurement-time');
+    erpBindScheduleTimeControl('erp-construction-time-select', 'erp-construction-time');
+    erpBindUrgentReasonControl();
+    erpBindAutosizeTextareas(mountRoot);
 
     // 실패/예외 경로에서도 surface가 영구 hidden으로 남지 않도록 최후 failsafe.
     var _erpReadyFailsafeId = window.setTimeout(_erpMarkSurfaceReady, 3000);
@@ -3317,12 +3751,15 @@ function fomsMountErpOrderSurface() {
                 String(now.getMonth() + 1).padStart(2, '0'),
                 String(now.getDate()).padStart(2, '0')
             ].join('-');
-            const localTimeStr = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+            const localTimeStr = erpFormatHalfHourTime(now);
 
             const rd = document.getElementById('erp-received-date');
             const rt = document.getElementById('erp-received-time');
             if (rd) rd.value = localDateStr;
-            if (rt) rt.value = localTimeStr;
+            if (rt) {
+                rt.value = localTimeStr;
+                erpSetReceivedTimeControlValue(localTimeStr);
+            }
             const stageEl = document.getElementById('erp-workflow-stage');
             if (stageEl && !stageEl.value) stageEl.value = 'RECEIVED';
             syncWorkflowStageByOrderer();
@@ -3512,6 +3949,10 @@ async function erpApproveQuestTeam(team) {
         if (!data.success) {
             erpSetQuestStatus(data.message || '승인 실패', true);
             return;
+        }
+
+        if (window.FOMS_ERP_SHELL && typeof window.FOMS_ERP_SHELL.invalidatePrimaryNavFragmentCache === 'function') {
+            window.FOMS_ERP_SHELL.invalidatePrimaryNavFragmentCache();
         }
 
         __erpQuest = data.quest;

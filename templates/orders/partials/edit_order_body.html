@@ -14,7 +14,8 @@
             <div id="erp-order-config" class="d-none" data-order-id="{{ order.id }}"
                 data-erp-order-enabled="{{ 'true' if is_erp_order else 'false' }}"
                 data-use-direct-upload="{{ 'true' if use_direct_upload else 'false' }}"
-                data-erp-order-draft-mode="false"></div>
+                data-erp-order-draft-mode="false"
+                data-foms-inline-enabled="{{ 'true' if flag_inline else 'false' }}"></div>
             {% if is_erp_order and erp_bootstrap %}
             {# 서버 렌더 시점 ERP 상세 부트스트랩 — 최초 페인트의 fetch 왕복을 제거한다. #}
             <script type="application/json" id="erp-order-bootstrap">{{ erp_bootstrap | tojson }}</script>
@@ -71,7 +72,7 @@
                     <div class="tab-pane fade show active" id="order-info" role="tabpanel">
                         <form method="post"
                             action="{{ url_for('order_edit.edit_order', order_id=order.id, **preserved_args) }}"
-                            id="editOrderForm">
+                            class="foms-page-form" id="editOrderForm">
                             <input type="hidden" name="referrer"
                                 value="{{ request.referrer or url_for('order_pages.index') }}">
                             <div class="row mb-3">
@@ -429,11 +430,11 @@
                             {% endfor %}
                             {% endif %}
 
-                            <div class="d-flex justify-content-between">
+                            <footer class="foms-sticky-action-bar" role="group" aria-label="주문 저장">
                                 <a href="{{ request.referrer or (url_for('order_pages.index', **preserved_args) if preserved_args else url_for('order_pages.index')) }}"
                                     class="btn btn-secondary">취소</a>
                                 <button type="submit" class="btn btn-primary">주문 수정</button>
-                            </div>
+                            </footer>
                         </form>
                     </div>
                     {% endif %}
@@ -482,7 +483,7 @@
                                     <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-2"></i>
                                     <p class="text-muted mb-0">도면 이미지를 드래그하거나 클릭하여 업로드</p>
                                     <small class="text-muted">(PNG, JPG, JPEG, GIF, WEBP - 최대 50MB)</small>
-                                    <input type="file" id="blueprint-file-input" accept="image/*" style="display: none;"
+                                    <input type="file" id="blueprint-file-input" accept="image/*" capture="environment" style="display: none;"
                                         onchange="handleBlueprintSelect(event)">
                                 </div>
                             </div>
@@ -532,7 +533,26 @@
                     <!-- ERP Order 탭 (shared partial) -->
                     {% if erp_order_feature_enabled and is_erp_order_flag %}
                     {% set erp_order_active = is_erp_order %}
+                    {% if erp_mobile_v2_enabled %}
+                    {# Cohort: ship both variants; inline script keeps one surface by viewport (no duplicate ids for ERP JS). #}
+                    <div id="erp-order-form-legacy">
                     {% include "orders/partials/erp_order_tab.html" %}
+                    </div>
+                    <div id="erp-order-form-mobile">
+                    {% include "orders/partials/erp_order_tab_mobile.html" %}
+                    </div>
+                    <script>
+                    (function () {
+                        var legacy = document.getElementById('erp-order-form-legacy');
+                        var mobile = document.getElementById('erp-order-form-mobile');
+                        if (!legacy || !mobile) return;
+                        var useMobile = window.matchMedia('(max-width: 991.98px)').matches;
+                        (useMobile ? legacy : mobile).remove();
+                    })();
+                    </script>
+                    {% else %}
+                    {% include "orders/partials/erp_order_tab.html" %}
+                    {% endif %}
                     {% endif %}
                 </div>
             </div>

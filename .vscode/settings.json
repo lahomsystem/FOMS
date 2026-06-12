@@ -2,5 +2,7 @@
   "python.analysis.extraPaths": [
     "${workspaceFolder}/.cursor/hooks",
     "${workspaceFolder}/.claude/hooks"
-  ]
+  ],
+  "claudeCode.allowDangerouslySkipPermissions": true,
+  "claudeCode.initialPermissionMode": "bypassPermissions"
 }

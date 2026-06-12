@@ -1,0 +1,235 @@
+{% from 'partials/shared/erp_mobile_queue_card_v2.html' import render_queue_card_v2 %}
+
+<section class="erp-shipment-mobile-queue foms-mobile-queue-section" aria-label="출고 모바일 작업 큐">
+  <div class="erp-shipment-mobile-queue__summary foms-section-header section-header">
+    <div>
+      <span class="erp-shipment-mobile-queue__eyebrow">출고 작업 큐</span>
+      <h2 class="erp-shipment-mobile-queue__title foms-section-header__title">출고 일정</h2>
+    </div>
+    <span class="erp-shipment-mobile-queue__count foms-section-header__count">{{ mobile_queue_rows|length }}건</span>
+  </div>
+
+  {% if mobile_queue_rows %}
+    <div class="erp-shipment-mobile-cards foms-mobile-queue-list">
+      {% for o in mobile_queue_rows %}
+        {% set meta = o.shipment_meta or {} %}
+        {% set has_detail = meta.construction_time or meta.drawing_managers or meta.construction_workers or meta.site_extra or meta.spec_units or (meta.is_as and meta.as_content_text) %}
+        <div class="erp-shipment-mobile-card{% if has_detail %} erp-shipment-mobile-card--with-detail{% endif %}">
+          {{ render_queue_card_v2(o, can_edit_shipment|default(false), None, '--shipment', '출고', edit_return_to='erp_shipment_dashboard', detail_return_to='erp_shipment_dashboard') }}
+          {% if has_detail or can_edit_shipment|default(false) %}
+          <dl class="erp-shipment-mobile-card__detail" data-shipment-mobile-detail {% if not has_detail %}hidden{% endif %}>
+            <div data-shipment-mobile-detail-row="construction_time" {% if not meta.construction_time %}hidden{% endif %}>
+              <dt>시공시간</dt>
+              <dd data-shipment-mobile-detail-field="construction_time">{{ meta.construction_time }}</dd>
+            </div>
+            <div data-shipment-mobile-detail-row="drawing_managers" {% if not meta.drawing_managers %}hidden{% endif %}>
+              <dt>도면</dt>
+              <dd data-shipment-mobile-detail-field="drawing_managers">{{ meta.drawing_managers|join(', ') }}</dd>
+            </div>
+            <div data-shipment-mobile-detail-row="construction_workers" {% if not meta.construction_workers %}hidden{% endif %}>
+              <dt>시공자</dt>
+              <dd data-shipment-mobile-detail-field="construction_workers">{{ meta.construction_workers|join(', ') }}</dd>
+            </div>
+            <div data-shipment-mobile-detail-row="site_extra" {% if not meta.site_extra %}hidden{% endif %}>
+              <dt>현장추가</dt>
+              <dd data-shipment-mobile-detail-field="site_extra">{{ (meta.site_extra or [])|join(', ') }}</dd>
+            </div>
+            {% if meta.spec_units %}
+            <div>
+              <dt>W/300</dt>
+              <dd>{{ '%.1f'|format(meta.spec_units) }}</dd>
+            </div>
+            {% endif %}
+            {% if meta.is_as and meta.as_content_text %}
+            <div class="erp-shipment-mobile-card__full">
+              <dt>AS</dt>
+              <dd>{{ meta.as_content_text }}</dd>
+            </div>
+            {% endif %}
+          </dl>
+          {% endif %}
+          {% if can_edit_shipment|default(false) %}
+          <div class="erp-shipment-mobile-card__actions">
+            <button
+              type="button"
+              class="foms-btn foms-btn--secondary foms-btn--sm"
+              data-shipment-mobile-edit-trigger
+              data-order-id="{{ o.id }}"
+              data-construction-time="{{ meta.construction_time or '' }}"
+              data-drawing-managers="{{ (meta.drawing_managers or [])|join(', ') }}"
+              data-construction-workers="{{ (meta.construction_workers or [])|join(', ') }}"
+              data-site-extra="{{ (meta.site_extra or [])|join('\n') }}">
+              출고 정보 수정
+            </button>
+            {% if meta.recommendation_link %}
+            <button
+              type="button"
+              class="foms-btn foms-btn--ghost foms-btn--sm js-shipment-as-rec-cancel"
+              data-shipment-order-id="{{ meta.recommendation_link.shipment_order_id }}"
+              data-as-order-id="{{ meta.recommendation_link.as_order_id }}"
+              data-as-info-id="{{ meta.recommendation_link.as_info_id or '' }}">
+              추천 취소
+            </button>
+            {% endif %}
+            <span class="erp-shipment-mobile-card__status" data-shipment-mobile-edit-status aria-live="polite"></span>
+          </div>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="foms-mobile-empty">
+      <i class="fas fa-inbox" aria-hidden="true"></i>
+      <p class="mb-1">조건에 맞는 출고 일정이 없습니다.</p>
+      <small>칩 필터를 바꾸거나 검색어를 지워 보세요.</small>
+    </div>
+  {% endif %}
+</section>
+
+{% if can_edit_shipment|default(false) %}
+<div class="offcanvas offcanvas-bottom" tabindex="-1" id="erp-shipment-mobile-edit-sheet" aria-labelledby="erp-shipment-mobile-edit-title">
+  <div class="offcanvas-header">
+    <div>
+      <h5 class="offcanvas-title" id="erp-shipment-mobile-edit-title">출고 정보 수정</h5>
+      <p class="mb-0 small text-muted">PC 출고표와 같은 저장 계약으로 반영됩니다.</p>
+    </div>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="닫기"></button>
+  </div>
+  <div class="offcanvas-body">
+    <form data-shipment-mobile-edit-form>
+      <input type="hidden" name="order_id">
+      <div class="mb-3">
+        <label class="form-label">시공시간</label>
+        <input class="form-control" name="construction_time" autocomplete="off">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">도면담당자</label>
+        <input class="form-control" name="drawing_managers" autocomplete="off" placeholder="쉼표로 구분">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">시공자</label>
+        <input class="form-control" name="construction_workers" autocomplete="off" placeholder="쉼표로 구분">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">현장주소 추가 정보</label>
+        <textarea class="form-control" name="site_extra" rows="3" placeholder="한 줄에 하나씩 입력"></textarea>
+      </div>
+      <div class="alert alert-danger d-none" data-shipment-mobile-edit-error></div>
+      <button type="submit" class="foms-btn foms-btn--primary foms-btn--full" data-shipment-mobile-edit-submit>저장</button>
+    </form>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    var sheetEl = document.getElementById('erp-shipment-mobile-edit-sheet');
+    if (!sheetEl || typeof bootstrap === 'undefined') return;
+    var form = sheetEl.querySelector('[data-shipment-mobile-edit-form]');
+    var errorEl = sheetEl.querySelector('[data-shipment-mobile-edit-error]');
+    var submitBtn = sheetEl.querySelector('[data-shipment-mobile-edit-submit]');
+    var sheet = bootstrap.Offcanvas.getOrCreateInstance(sheetEl);
+    var activeTrigger = null;
+
+    function splitList(value) {
+      return String(value || '')
+        .split(/[\n,]/)
+        .map(function (item) { return item.trim(); })
+        .filter(Boolean);
+    }
+
+    function listText(values) {
+      return Array.isArray(values) ? values.join(', ') : String(values || '').trim();
+    }
+
+    function setError(message) {
+      errorEl.textContent = message || '';
+      errorEl.classList.toggle('d-none', !message);
+    }
+
+    function setLoading(isLoading) {
+      submitBtn.disabled = isLoading;
+      submitBtn.textContent = isLoading ? '저장 중...' : '저장';
+    }
+
+    function syncDetailField(card, field, value) {
+      if (!card) return;
+      var row = card.querySelector('[data-shipment-mobile-detail-row="' + field + '"]');
+      var output = card.querySelector('[data-shipment-mobile-detail-field="' + field + '"]');
+      var text = listText(value);
+      if (output) output.textContent = text;
+      if (row) row.hidden = !text;
+    }
+
+    function syncShipmentMobileDetail(card, payload) {
+      if (!card) return;
+      var detail = card.querySelector('[data-shipment-mobile-detail]');
+      syncDetailField(card, 'construction_time', payload.construction_time);
+      syncDetailField(card, 'drawing_managers', payload.drawing_managers);
+      syncDetailField(card, 'construction_workers', payload.construction_workers);
+      syncDetailField(card, 'site_extra', payload.site_extra);
+      var hasVisibleEditableDetail = Boolean(
+        payload.construction_time ||
+        payload.drawing_managers.length ||
+        payload.construction_workers.length ||
+        payload.site_extra.length
+      );
+      if (detail) detail.hidden = !hasVisibleEditableDetail && !detail.querySelector('div:not([hidden])');
+      card.classList.toggle('erp-shipment-mobile-card--with-detail', !!detail && !detail.hidden);
+    }
+
+    document.querySelectorAll('[data-shipment-mobile-edit-trigger]').forEach(function (trigger) {
+      trigger.addEventListener('click', function () {
+        activeTrigger = trigger;
+        form.elements.order_id.value = trigger.dataset.orderId || '';
+        form.elements.construction_time.value = trigger.dataset.constructionTime || '';
+        form.elements.drawing_managers.value = trigger.dataset.drawingManagers || '';
+        form.elements.construction_workers.value = trigger.dataset.constructionWorkers || '';
+        form.elements.site_extra.value = trigger.dataset.siteExtra || '';
+        setError('');
+        sheet.show();
+      });
+    });
+
+    form.addEventListener('submit', async function (event) {
+      event.preventDefault();
+      var orderId = form.elements.order_id.value;
+      if (!orderId) return;
+      var payload = {
+        construction_time: form.elements.construction_time.value.trim(),
+        drawing_managers: splitList(form.elements.drawing_managers.value),
+        construction_workers: splitList(form.elements.construction_workers.value),
+        site_extra: splitList(form.elements.site_extra.value)
+      };
+      setLoading(true);
+      setError('');
+      try {
+        var res = await fetch('/api/erp/shipment/update/' + orderId, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+          credentials: 'same-origin',
+          body: JSON.stringify(payload)
+        });
+        var data = await res.json().catch(function () { return {}; });
+        if (!res.ok || !data.success) {
+          throw new Error(data.message || data.error || '저장에 실패했습니다.');
+        }
+        if (activeTrigger) {
+          activeTrigger.dataset.constructionTime = payload.construction_time;
+          activeTrigger.dataset.drawingManagers = payload.drawing_managers.join(', ');
+          activeTrigger.dataset.constructionWorkers = payload.construction_workers.join(', ');
+          activeTrigger.dataset.siteExtra = payload.site_extra.join('\n');
+          var card = activeTrigger.closest('.erp-shipment-mobile-card');
+          syncShipmentMobileDetail(card, payload);
+          var status = card ? card.querySelector('[data-shipment-mobile-edit-status]') : null;
+          if (status) status.textContent = '저장되었습니다.';
+        }
+        sheet.hide();
+      } catch (error) {
+        setError(String((error && error.message) || error || '저장 중 오류가 발생했습니다.'));
+      } finally {
+        setLoading(false);
+      }
+    });
+  });
+</script>
+{% endif %}

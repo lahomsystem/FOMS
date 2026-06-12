@@ -30,11 +30,13 @@ from foms.services.common.erp_shell_http import (
     wants_erp_shell_tab_body,
 )
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
+from foms.services.feature_flags import is_enabled_for_user
 from foms.services.request_utils import get_search_query_arg
 from foms.services.erp_dashboard_search import (
     SHIPMENT_SEARCH_FOCUS_SCHEDULE_HALF_RANGE_DAYS,
     erp_order_dashboard_search_predicate,
 )
+from foms.services.erp_mobile_order_display import build_mobile_queue_order_row
 from foms.api.shipment.recommendations import SHREC_SOURCE
 
 # 실행 계획 §3.1.1 shipment — read-model slices:
@@ -640,6 +642,57 @@ def erp_shipment_dashboard():
         o.id
     ))
 
+    mobile_queue_rows = []
+    mobile_v2_active = is_enabled_for_user(
+        "ERP_MOBILE_V2_ENABLED",
+        current_user.id if current_user else None,
+        cohort_key="FOMS_V3_SHELL_COHORT",
+    )
+    if mobile_v2_active:
+        for order in rows:
+            row = build_mobile_queue_order_row(db, order, current_user)
+            sd = order.structured_data if isinstance(order.structured_data, dict) else {}
+            shipment = sd.get("shipment") or {}
+            drawing_managers = [
+                str(value).strip()
+                for value in (shipment.get("drawing_managers") or [])
+                if str(value or "").strip()
+            ]
+            if not drawing_managers and shipment.get("drawing_manager"):
+                drawing_managers = [str(shipment.get("drawing_manager")).strip()]
+            construction_workers = [
+                str(value).strip()
+                for value in (shipment.get("construction_workers") or [])
+                if str(value or "").strip()
+            ]
+            site_extra = []
+            for value in (shipment.get("site_extra") or []):
+                if isinstance(value, dict):
+                    text_value = str(value.get("text") or "").strip()
+                else:
+                    text_value = str(value or "").strip()
+                if text_value:
+                    site_extra.append(text_value)
+            row["customer_name"] = row.get("customer_name") or order.customer_name or "-"
+            if row["customer_name"] == "-":
+                row["customer_name"] = order.customer_name or "-"
+            row["phone"] = row.get("phone") if row.get("phone") not in (None, "", "-") else (order.phone or "-")
+            row["address"] = row.get("address") if row.get("address") not in (None, "", "-") else (order.address or "-")
+            row["manager_name"] = row.get("manager_name") if row.get("manager_name") not in (None, "", "-") else (order.manager_name or "-")
+            row["orderer_name"] = row.get("orderer_name") or getattr(order, "orderer_name", None)
+            row["product_subtitle"] = row.get("product_subtitle") or (getattr(order, "product", None) or "")
+            row["shipment_meta"] = {
+                "construction_time": shipment.get("construction_time") or "",
+                "drawing_managers": drawing_managers,
+                "construction_workers": construction_workers,
+                "site_extra": site_extra,
+                "spec_units": _get_order_spec_units(order),
+                "is_as": is_as_order(order),
+                "as_content_text": getattr(order, "as_content_text", "") or "",
+                "recommendation_link": getattr(order, "shipment_as_recommendation_link", None),
+            }
+            mobile_queue_rows.append(row)
+
     template_name = (
         'shipment/partials/dashboard_fragment.html'
         if wants_erp_shell_tab_body(request)
@@ -654,6 +707,7 @@ def erp_shipment_dashboard():
         date_to=date_to,
         use_date_range=use_range,
         rows=rows,
+        mobile_queue_rows=mobile_queue_rows,
         construction_panel_dates=construction_panel_dates,
         remaining_panel_dates=remaining_panel_dates,
         today_date=today_date,

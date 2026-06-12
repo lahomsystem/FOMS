@@ -9,6 +9,11 @@
   {% if erp_mobile_v2_enabled %}
     {% include 'partials/shared/erp_mobile_shell.html' %}
   {% endif %}
+  {% if foms_split_enabled %}
+    {% include 'partials/shared/foms_split_shell.html' %}
+  {% endif %}
+
+  <div class="foms-shell-desktop-only">
   <!-- Modern Header -->
   <header class="erp-pro-header">
     <h1 class="erp-pro-header__title">
@@ -114,20 +119,17 @@
     {% include 'orders/partials/dashboard_filters.html' %}
   </div>
 
-  {% if erp_mobile_v2_enabled %}
-    {% include 'orders/partials/dashboard_mobile_filters.html' %}
-  {% endif %}
-
   <!-- 3-Panel Layout -->
   {% include 'orders/partials/dashboard_styles.html' %}
-
-  {% if erp_mobile_v2_enabled %}
-    {% include 'orders/partials/dashboard_mobile_queue.html' %}
-  {% endif %}
 
   <div class="erp-dashboard-layout">
     {% include 'orders/partials/dashboard_grid.html' %}
   </div>
+  </div>{# /.foms-shell-desktop-only #}
+
+  {% if erp_mobile_v2_enabled %}
+    {% include 'orders/partials/dashboard_mobile_v2_body.html' %}
+  {% endif %}
 
   {% include 'orders/partials/dashboard_modals.html' %}
 

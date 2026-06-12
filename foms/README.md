@@ -24,7 +24,7 @@ Flask 앱의 **canonical runtime tree** (`foms/web`, `foms/api`, `foms/services`
 
 ## 금지 / 주의 의존성
 
-- `foms/*`에서 `backups/`, `Add In Program/`, `SCheduler/` 등 **quarantine** 트리로의 runtime import 금지 (spec §2.5).
+- `foms/*`에서 `Add In Program/`, `SCheduler/` 등 **quarantine** 트리로의 runtime import 금지 (spec §2.5).
 - `apps/`는 **overlay** — 새 장기 비즈니스 로직의 기본 위치로 삼지 않는다 (spec §1.2 FR5).
 - 구조 작업 시 blueprint **이름·`url_prefix`·등록 순서**는 별도 승인 없이 바꾸지 않는다 (Wave 2 freeze).
 

@@ -2,20 +2,86 @@
         if (typeof window.FOMS_DEBUG === 'undefined') {
             window.FOMS_DEBUG = false;
         }
+        if (typeof window.FOMS_OFFLINE_SW_ENABLED === 'undefined') {
+            window.FOMS_OFFLINE_SW_ENABLED = {{ 'true' if flag_offline_sw else 'false' }};
+        }
     </script>
 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light dark">
+    <script>
+    (function () {
+      var key = 'foms-theme';
+      var pref = 'system';
+      try {
+        var stored = localStorage.getItem(key);
+        if (stored === 'light' || stored === 'dark' || stored === 'system') {
+          pref = stored;
+        }
+      } catch (e) { /* ignore */ }
+      var effective = pref === 'system'
+        ? (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+        : pref;
+      document.documentElement.setAttribute('data-theme', effective);
+      document.documentElement.setAttribute('data-theme-preference', pref);
+      var metaCs = document.querySelector('meta[name="color-scheme"]');
+      if (metaCs) {
+        metaCs.setAttribute('content', effective);
+      }
+    })();
+    </script>
     <title>하우드 ERP</title>
-    <link rel="icon" type="image/png" href="{{ url_for('favicon', v='20260407a') }}">
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg', v='20260611d') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('favicon', v='20260611d') }}">
+    <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='icons/foms-icon-192.png', v='20260611d') }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='icons/foms-icon-180.png', v='20260611d') }}">
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json', v='20260611d') }}">
+    <meta name="theme-color" content="#0070f2">
+    <meta name="application-name" content="FOMS">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="FOMS">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="mobile-web-app-capable" content="yes">
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/style-pro-max.css') }}">
+    <!-- P0-07: FOMS tokens (before legacy erp-pro) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-tokens.css') }}?v=20260529c">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-theme-toggle.css') }}?v=20260529c">
     <!-- ERP Pro Dashboard Styles (Modern SaaS Design System) -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/erp-pro.css') }}?v=20260325a">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/erp-pro.css') }}?v=20260602a">
+    {# Order edit (/edit/<id>) joins the erp-mobile-v2 shell cohort (see orders/layout.html),
+       so it must load the same mobile shell CSS bundle that styles the foms header + surfaces. #}
+    {% if erp_mobile_v2_enabled and (request.path.startswith('/erp') or request.endpoint == 'order_edit.edit_order') %}
+    <style id="foms-mobile-v2-critical-css">
+      @media (max-width: 991.98px) {
+        body.erp-mobile-v2-layout {
+          background: #eef0f3;
+        }
+
+        body.erp-mobile-v2-layout .layout-header,
+        body.erp-mobile-v2-layout .layout-global-nav--erp-v2-suppressed,
+        body.erp-mobile-v2-layout .erp-mobile-shell[data-erp-mobile-v2='true'] .foms-shell-desktop-only,
+        body.erp-mobile-v2-layout .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-pro-header,
+        body.erp-mobile-v2-layout .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-pro-nav,
+        body.erp-mobile-v2-layout .erp-mobile-shell[data-erp-mobile-v2='true'] [class~="erp-dashboard\00002d layout"],
+        body.erp-mobile-v2-layout .erp-mobile-shell[data-erp-mobile-v2='true'] .dw-process-map,
+        body.erp-mobile-v2-layout .erp-mobile-shell[data-erp-mobile-v2='true'] .erp-drawing-dashboard-desktop-card,
+        body.erp-mobile-v2-layout .erp-mobile-shell[data-erp-mobile-v2='true'] .table-responsive.d-none.d-lg-block {
+          display: none !important;
+        }
+      }
+    </style>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" crossorigin="anonymous">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-mobile-surfaces.css') }}?v=20260611c">
+    {% endif %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foms/photo-capture.css') }}?v=20260529a">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-sticky-action-bar.css') }}?v=20260529b">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-mobile-select.css') }}?v=20260607a">
     <!-- Flatpickr (다중 실측일/시공일 선택) -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <style>
@@ -154,10 +220,6 @@
 
             body.is-nav-loading .layout-global-nav .nav-link.is-nav-loading-target::after {
                 margin-left: auto;
-            }
-
-            body.erp-mobile-v2-layout .layout-global-nav {
-                display: none !important;
             }
         }
 

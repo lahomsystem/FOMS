@@ -12,8 +12,11 @@ def test_dockerfile_pip_install_is_resilient_to_slow_package_downloads() -> None
     assert "PIP_DISABLE_PIP_VERSION_CHECK=1" in dockerfile
     assert "PIP_DEFAULT_TIMEOUT=120" in dockerfile
     assert "PIP_RETRIES=10" in dockerfile
-    assert "python -m pip install --upgrade pip setuptools wheel" in dockerfile
-    assert "--timeout 120 --retries 10 -r requirements.txt" in dockerfile
+    assert "PIP_NO_CACHE_DIR=1" in dockerfile
+    # pip self-upgrade omitted — Railway builds hit BrokenPipe on pip 25→26 fetch
+    assert "for attempt in 1 2 3 4 5" in dockerfile
+    assert "python -m pip install --timeout 120 --retries 10 setuptools wheel" in dockerfile
+    assert "python -m pip install --timeout 120 --retries 10 -r requirements.txt" in dockerfile
 
 
 def test_dockerfile_preserves_railway_runtime_entrypoint_contract() -> None:

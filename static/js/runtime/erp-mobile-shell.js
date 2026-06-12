@@ -22,9 +22,35 @@
     });
   }
 
+  function initMobileShellBackButtons() {
+    document.querySelectorAll('[data-foms-shell-back]').forEach(function (btn) {
+      if (btn.dataset.fomsShellBackBound === '1') {
+        return;
+      }
+      btn.dataset.fomsShellBackBound = '1';
+      btn.addEventListener('click', function () {
+        var fallbackHref = (btn.getAttribute('data-foms-shell-back-href') || '').trim();
+        if (window.history && window.history.length > 1) {
+          window.history.back();
+          return;
+        }
+        if (fallbackHref) {
+          window.location.href = fallbackHref;
+          return;
+        }
+        if (document.referrer) {
+          window.location.href = document.referrer;
+          return;
+        }
+        window.location.href = '/erp/dashboard';
+      });
+    });
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
     syncMobileShellNavHeight();
     initMobileDrawerLinks();
+    initMobileShellBackButtons();
   });
 
   window.addEventListener('resize', syncMobileShellNavHeight);

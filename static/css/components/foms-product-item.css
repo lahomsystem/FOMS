@@ -1,0 +1,80 @@
+/* C14 foms-product-item-accordion (P1-04, COMPONENT_LIBRARY_MOBILE.md) */
+
+.foms-product-item,
+.erp-item-row.foms-product-item {
+  border: 1px solid var(--foms-border-subtle, #e5e7eb);
+  border-radius: var(--foms-radius-lg, 12px);
+  margin-bottom: 0.75rem;
+  background: var(--foms-surface-base, #fff);
+}
+
+.foms-product-item__head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 0.75rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.foms-product-item__index {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--foms-color-brand-700, #1d4ed8);
+  background: var(--foms-color-brand-50, #eff6ff);
+  border-radius: 999px;
+  padding: 0.15rem 0.5rem;
+}
+
+.foms-product-item__title {
+  flex: 1;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.foms-product-item__expand {
+  border: 0;
+  background: transparent;
+  color: var(--foms-text-tertiary, #6b7280);
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.foms-product-item--collapsed .foms-product-item__body {
+  display: none;
+}
+
+.foms-product-item__body {
+  padding: 0 0.75rem 0.75rem;
+}
+
+.foms-product-item__summary {
+  display: none;
+  padding: 0.5rem 0.75rem 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--foms-text-secondary, #4b5563);
+}
+
+.foms-product-item--collapsed .foms-product-item__summary {
+  display: block;
+}
+
+.foms-product-item__autosave {
+  display: none;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--foms-color-success-600, #059669);
+  padding: 0 0.75rem 0.5rem;
+}
+
+.foms-product-item__autosave.is-visible {
+  display: flex;
+}
+
+.foms-product-item__autosave-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}

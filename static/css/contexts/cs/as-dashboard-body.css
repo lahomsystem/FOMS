@@ -174,10 +174,30 @@
   }
 
   .erp-as-summary-pill {
+    display: block;
     border: 1px solid #e2e8f0;
     border-radius: 12px;
     background: #f8fafc;
     padding: 12px 14px;
+    text-decoration: none;
+    cursor: pointer;
+    transition: border-color 0.12s ease, background-color 0.12s ease, box-shadow 0.12s ease;
+  }
+
+  .erp-as-summary-pill:hover {
+    border-color: #c7d2fe;
+    background: #f5f7ff;
+  }
+
+  /* 활성 버킷(현재 필터) 강조 */
+  .erp-as-summary-pill.is-active {
+    border-color: #6366f1;
+    background: #eef2ff;
+    box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.25);
+  }
+
+  .erp-as-summary-pill.is-active .erp-as-summary-pill__label {
+    color: #4f46e5;
   }
 
   .erp-as-summary-pill__label {
@@ -383,3 +403,4 @@
   .as-construction-worker-menu__item:focus {
     background: #f1f5f9;
   }
+

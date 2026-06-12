@@ -1,0 +1,170 @@
+{% set _filters = filters or {} %}
+{% set _base_url = url_for('erp_dashboard.erp_dashboard') %}
+{% set _sort = _filters.get('sort') or 'latest' %}
+{% set _active_count = namespace(value=0) %}
+{% for _key in ['q', 'team', 'mine', 'stage', 'urgent', 'has_alert', 'alert_type', 'today'] %}
+  {% if _filters.get(_key) %}{% set _active_count.value = _active_count.value + 1 %}{% endif %}
+{% endfor %}
+{% if _sort != 'latest' %}{% set _active_count.value = _active_count.value + 1 %}{% endif %}
+
+{% set _dq_keep = ['view=queue'] %}
+{% if _filters.get('q') %}{% set _ = _dq_keep.append('q=' ~ (_filters.q|urlencode)) %}{% endif %}
+{% if _filters.get('team') %}{% set _ = _dq_keep.append('team=' ~ (_filters.team|urlencode)) %}{% endif %}
+{% if _filters.get('mine') == '1' %}{% set _ = _dq_keep.append('mine=1') %}{% endif %}
+{% if _filters.get('urgent') == '1' %}{% set _ = _dq_keep.append('urgent=1') %}{% endif %}
+{% if _filters.get('has_alert') == '1' %}{% set _ = _dq_keep.append('has_alert=1') %}{% endif %}
+{% if _filters.get('alert_type') %}{% set _ = _dq_keep.append('alert_type=' ~ (_filters.alert_type|urlencode)) %}{% endif %}
+{% if _filters.get('today') == '1' %}{% set _ = _dq_keep.append('today=1') %}{% endif %}
+{% if _sort and _sort != 'latest' %}{% set _ = _dq_keep.append('sort=' ~ (_sort|urlencode)) %}{% endif %}
+{% set _dq_keep_qs = _dq_keep|join('&') %}
+{% set _dq_stage = _filters.get('stage') or '' %}
+{% set _dq_steps = process_steps or [] %}
+{% set _stage_chip_icons = {
+  '주문접수': 'fa-inbox',
+  '실측': 'fa-ruler-combined',
+  '도면': 'fa-drafting-compass',
+  '고객컨펌': 'fa-user-check',
+  '생산': 'fa-industry',
+  '시공': 'fa-hammer',
+  '완료': 'fa-flag-checkered',
+  'CS': 'fa-headset',
+  'AS처리': 'fa-wrench',
+} %}
+
+<section class="foms-mobile-filter-bar foms-mobile-filter-bar--dashboard-queue" aria-label="작업 큐 필터">
+<div class="foms-mobile-filter-bar__toolbar foms-mobile-queue-toolbar" aria-label="작업 큐 보기 설정">
+  <div class="foms-mobile-queue-toolbar__summary">
+    <strong>작업 큐</strong>
+    {% if page and total_pages and total_pages > 1 %}
+      <span>{{ page }}/{{ total_pages }} 페이지</span>
+    {% endif %}
+  </div>
+  <button
+    class="foms-mobile-filter-trigger"
+    type="button"
+    data-bs-toggle="offcanvas"
+    data-bs-target="#erp-dashboard-mobile-filter-drawer"
+    data-foms-mobile-filter-open
+    aria-controls="erp-dashboard-mobile-filter-drawer">
+    <i class="fas fa-sliders-h" aria-hidden="true"></i>
+    <span>필터</span>
+    {% if _active_count.value %}
+      <span class="foms-mobile-filter-trigger__count">{{ _active_count.value }}</span>
+    {% endif %}
+  </button>
+</div>
+
+<nav class="chip-strip foms-chip-strip" aria-label="작업 큐 단계 필터">
+  <a
+    class="chip foms-chip foms-chip--filter{% if not _dq_stage %} is-active{% endif %}"
+    href="{{ _base_url }}?{{ _dq_keep_qs }}">
+    <i class="fas fa-layer-group foms-chip__icon" aria-hidden="true"></i>
+    <span class="foms-chip__label">전체</span>
+    <span class="foms-chip__count">{{ total_orders }}</span>
+  </a>
+  {% for step in _dq_steps %}
+    {% if step.count > 0 %}
+      <a
+        class="chip foms-chip foms-chip--filter{% if _dq_stage == step.label %} is-active{% endif %}"
+        href="{{ _base_url }}?stage={{ step.label|urlencode }}&{{ _dq_keep_qs }}">
+        <i class="fas {{ _stage_chip_icons.get(step.label, 'fa-circle') }} foms-chip__icon" aria-hidden="true"></i>
+        <span class="foms-chip__label">{{ step.label }}</span>
+        <span class="foms-chip__count">{{ step.count }}</span>
+      </a>
+    {% endif %}
+  {% endfor %}
+</nav>
+</section>
+
+<div
+  class="offcanvas offcanvas-bottom foms-mobile-filter-sheet"
+  tabindex="-1"
+  id="erp-dashboard-mobile-filter-drawer"
+  aria-labelledby="erp-dashboard-mobile-filter-drawer-label">
+  <div class="offcanvas-header">
+    <h2 class="offcanvas-title" id="erp-dashboard-mobile-filter-drawer-label">작업 큐 필터</h2>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="닫기"></button>
+  </div>
+  <div class="offcanvas-body">
+    <form method="get" action="{{ _base_url }}" class="foms-mobile-filter-sheet__form">
+      <input type="hidden" name="view" value="queue">
+      <div class="foms-mobile-filter-sheet__field foms-mobile-filter-sheet__field--full">
+        <label for="erp-dashboard-mobile-filter-q">검색어</label>
+        <input
+          id="erp-dashboard-mobile-filter-q"
+          class="form-control"
+          type="search"
+          name="q"
+          value="{{ _filters.get('q') or '' }}"
+          placeholder="고객명, 전화번호, 주소">
+      </div>
+
+      <div class="foms-mobile-filter-sheet__field">
+        <label for="erp-dashboard-mobile-filter-stage">단계</label>
+        <select id="erp-dashboard-mobile-filter-stage" class="form-select" name="stage">
+          <option value="">전체</option>
+          {% for _stage in ['주문접수', '실측', '도면', '고객컨펌', '생산', '시공', 'AS처리'] %}
+            <option value="{{ _stage }}" {% if _filters.get('stage') == _stage %}selected{% endif %}>{{ _stage }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="foms-mobile-filter-sheet__field">
+        <label for="erp-dashboard-mobile-filter-team">담당 팀</label>
+        <select id="erp-dashboard-mobile-filter-team" class="form-select" name="team">
+          <option value="">전체</option>
+          <option value="CS" {% if _filters.get('team') == 'CS' %}selected{% endif %}>라홈팀</option>
+          <option value="SALES" {% if _filters.get('team') == 'SALES' %}selected{% endif %}>영업팀</option>
+          <option value="MEASURE" {% if _filters.get('team') == 'MEASURE' %}selected{% endif %}>실측팀</option>
+          <option value="DRAWING" {% if _filters.get('team') == 'DRAWING' %}selected{% endif %}>도면팀</option>
+          <option value="PRODUCTION" {% if _filters.get('team') == 'PRODUCTION' %}selected{% endif %}>생산팀</option>
+          <option value="CONSTRUCTION" {% if _filters.get('team') == 'CONSTRUCTION' %}selected{% endif %}>시공팀</option>
+        </select>
+      </div>
+
+      <div class="foms-mobile-filter-sheet__field">
+        <label for="erp-dashboard-mobile-filter-alert">경보</label>
+        <select id="erp-dashboard-mobile-filter-alert" class="form-select" name="alert_type">
+          <option value="">전체</option>
+          <option value="urgent" {% if _filters.get('alert_type') == 'urgent' %}selected{% endif %}>긴급</option>
+          <option value="measurement_d4" {% if _filters.get('alert_type') == 'measurement_d4' %}selected{% endif %}>실측 임박</option>
+          <option value="construction_d3" {% if _filters.get('alert_type') == 'construction_d3' %}selected{% endif %}>시공 임박</option>
+          <option value="production_d2" {% if _filters.get('alert_type') == 'production_d2' %}selected{% endif %}>생산 임박</option>
+        </select>
+      </div>
+
+      <div class="foms-mobile-filter-sheet__field">
+        <label for="erp-dashboard-mobile-filter-sort">정렬</label>
+        <select id="erp-dashboard-mobile-filter-sort" class="form-select" name="sort">
+          <option value="latest" {% if _sort == 'latest' %}selected{% endif %}>최신순</option>
+          <option value="schedule" {% if _sort == 'schedule' %}selected{% endif %}>일정순</option>
+          <option value="amount" {% if _sort == 'amount' %}selected{% endif %}>금액순</option>
+        </select>
+      </div>
+
+      <div class="foms-mobile-filter-sheet__toggles">
+        <label class="foms-mobile-filter-sheet__check">
+          <input type="checkbox" name="mine" value="1" {% if _filters.get('mine') == '1' %}checked{% endif %}>
+          <span>내 담당</span>
+        </label>
+        <label class="foms-mobile-filter-sheet__check">
+          <input type="checkbox" name="today" value="1" {% if _filters.get('today') == '1' %}checked{% endif %}>
+          <span>오늘</span>
+        </label>
+        <label class="foms-mobile-filter-sheet__check">
+          <input type="checkbox" name="urgent" value="1" {% if _filters.get('urgent') == '1' %}checked{% endif %}>
+          <span>긴급</span>
+        </label>
+        <label class="foms-mobile-filter-sheet__check">
+          <input type="checkbox" name="has_alert" value="1" {% if _filters.get('has_alert') == '1' %}checked{% endif %}>
+          <span>미처리</span>
+        </label>
+      </div>
+
+      <div class="foms-mobile-filter-sheet__actions">
+        <a class="foms-btn foms-btn--secondary" href="{{ _base_url }}?view=queue">초기화</a>
+        <button class="foms-btn foms-btn--primary" type="submit">적용</button>
+      </div>
+    </form>
+  </div>
+</div>

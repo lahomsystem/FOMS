@@ -128,7 +128,8 @@ def test_edit_order_page_uses_canonical_open_erp_order_deep_link_only(erp_editor
     response = erp_editor_client.get(f"/edit/{order.id}?open=erp-order")
     assert response.status_code == 200
     body = response.get_data(as_text=True)
-    assert "openTarget === 'erp-order'" in body
+    assert "openTarget !== 'erp-order'" in body
+    assert "bootstrap.Tab.getOrCreateInstance(btn).show()" in body
     assert "erp-beta" not in body
 
 
@@ -195,7 +196,8 @@ def test_shared_erp_order_js_does_not_auto_save_before_user_save() -> None:
     item_upload_end = text.index("function erpRenderItemAttachmentPanels", item_upload_start)
     item_upload_block = text[item_upload_start:item_upload_end]
     assert "erpSaveStructured(" not in item_upload_block
-    assert "const targetId = await erpRequireOrderIdOrWarn('제품 이미지 업로드:');" in item_upload_block
+    assert "const targetId = await erpRequireOrderIdOrWarn('제품 첨부 업로드:');" in item_upload_block
+    assert "erpCanUsePersistedOrderAction('제품 첨부 업로드는')" not in item_upload_block
     assert "erpCanUsePersistedOrderAction('제품 이미지 업로드는')" not in item_upload_block
 
     common_upload_start = text.index("async function erpUploadSelectedAttachments")
@@ -224,11 +226,14 @@ def test_shared_erp_order_supports_scoped_clipboard_image_upload() -> None:
     assert 'data-erp-attachment-paste-zone="as-receive"' in template_text
     assert "이미지를 붙여넣으면 바로 업로드됩니다." in template_text
     assert "Ctrl+V로 바로 업로드" in template_text
-    assert "AS 첨부에 바로 추가됩니다." in template_text
+    assert "카메라로 촬영" in template_text
+    assert 'data-foms-photo-capture' in template_text
 
     assert 'data-erp-attachment-paste-zone="item"' in js_text
     assert "이 항목에 바로 업로드됩니다." in js_text
     assert "캡처 이미지를 항목에 바로 업로드" in js_text
+    assert "const itemAttachmentPasteHint = isMobileForm" in js_text
+    assert "itemAttachmentPasteHint" in js_text
     assert "function erpAppendAsReceiveFiles(files)" in js_text
     assert "function erpSetFileInputFiles(input, files)" in js_text
     assert "function erpRenderAsReceiveFilePreview(files)" in js_text
@@ -274,6 +279,13 @@ def test_shared_erp_order_js_guards_duplicate_save_clicks_and_tokens_draft_creat
     assert "function erpNavigateAfterStructuredSave(targetUrl)" in text
     assert "window.history.back();" in text
     assert "erpNavigateAfterStructuredSave(targetUrl);" in text
+    assert "fomsMountErpOrderSurface" in text
+    dom_ready_start = text.index("document.addEventListener('DOMContentLoaded', function () {")
+    dom_ready_end = text.index("// ============================================\n// ERP Order: Attachments", dom_ready_start)
+    dom_ready_block = text[dom_ready_start:dom_ready_end]
+    assert "erpLoadStructured();" not in dom_ready_block
+    assert "function erpExpandMobileAttachmentSections()" in text
+    assert "function erpItemAttachmentLinksForRow(" in text
     assert "foms:reload-order-list-after-erp-save" in text
     assert "sessionStorage.setItem('foms:reload-order-list-after-erp-save', target.href);" in text
 
@@ -337,16 +349,16 @@ def test_erp_amount_surfaces_read_modern_payment_deposit_and_stored_final() -> N
     measurement_desktop = (
         root / "templates/measurement/partials/dashboard_main.html"
     ).read_text(encoding="utf-8")
-    measurement_mobile = (
-        root / "templates/measurement/partials/mobile_list.html"
-    ).read_text(encoding="utf-8")
 
     for source in (dashboard_js, dashboard_template):
         assert "coerceAmount((sd.payment || {}).deposit)" in source
         assert "coerceAmount((sd.payments || {}).deposit)" in source
         assert "totals.final_amount == null ? totals.balance_amount : totals.final_amount" in source
 
-    for source in (measurement_desktop, measurement_mobile):
+    # 실측 데스크톱 상세는 ERP payment.deposit + final totals 우선 사용.
+    # (모바일 v2 큐는 홈과 동일한 깔끔한 queue-card-v2로, 금액 표시는 상세 페이지의
+    #  mobile_amount_summary로 이동했다 — 큐 카드에 인라인 금액을 두지 않는다.)
+    for source in (measurement_desktop,):
         assert "rsd_payment.get('deposit') or rsd_payments.get('deposit', 0)" in source
         assert "rsd_totals.get('final_amount')" in source
         assert "rsd_totals.get('balance_amount')" in source
@@ -363,6 +375,78 @@ def test_edit_order_matched_estimate_card_uses_order_payment_payload() -> None:
     assert "label = '예약금(선금)';" in text
     assert "${escapeHtml(paymentLabel)}" in text
     assert "(최종 금액 - ${escapeHtml(paymentLabel)})" in text
+
+
+def test_attachment_preview_zoom_scoped_to_modal_not_mobile_form() -> None:
+    """Preview zoom CSS must target the modal; the dialog sits outside .erp-order-mobile-form."""
+    root = Path(__file__).resolve().parents[2]
+    css_text = (root / "static/css/components/foms-form-field.css").read_text(encoding="utf-8")
+    mobile_partial = (
+        root / "templates" / "orders" / "partials" / "erp_order_tab_mobile.html"
+    ).read_text(encoding="utf-8")
+    detail_partial = (
+        root / "templates" / "partials" / "shared" / "foms_attachment_preview_modal.html"
+    ).read_text(encoding="utf-8")
+
+    modal_idx = mobile_partial.index('id="erpAttachmentPreviewModal"')
+    form_idx = mobile_partial.index("erp-order-mobile-form")
+    assert form_idx < modal_idx
+
+    assert "#erpAttachmentPreviewModal #erp-attachment-preview-body" in css_text
+    assert "#fomsAttachmentPreviewModal #foms-attachment-preview-body" in css_text
+    assert "#erpAttachmentPreviewModal .erp-attachment-preview-zoom-stage" in css_text
+    assert "#fomsAttachmentPreviewModal .erp-attachment-preview-zoom-stage" in css_text
+    assert ".erp-order-mobile-form #erp-attachment-preview-body .erp-attachment-preview-img" not in css_text
+    assert 'id="fomsAttachmentPreviewModal"' in detail_partial
+    assert 'id="foms-attachment-preview-body"' in detail_partial
+
+
+def test_attachment_preview_image_zoom_supports_in_modal_gestures() -> None:
+    """Attachment preview binds transform zoom (tap, wheel, pinch) inside the compact modal."""
+    root = Path(__file__).resolve().parents[2]
+    shared_js = (root / "static/js/foms/attachment-preview-zoom.js").read_text(encoding="utf-8")
+    erp_js = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+    mobile_js = (root / "static/js/foms/mobile-detail-attachments.js").read_text(encoding="utf-8")
+
+    assert "function bindImageZoom(bodyEl, options)" in shared_js or "bindImageZoom" in shared_js
+    assert "fomsResetAttachmentPreviewZoom" in shared_js
+    assert "fomsBindAttachmentPreviewImageZoom" in shared_js
+    assert "erp-attachment-preview-zoom-stage" in shared_js
+    assert "translate3d(" in shared_js
+    assert '"wheel"' in shared_js
+    assert "ev.touches.length === 2" in shared_js
+
+    assert "function erpBindAttachmentPreviewImageZoom(bodyEl)" in erp_js
+    assert "function erpApplyAttachmentPreviewZoom(img)" in erp_js
+    assert "function erpResetAttachmentPreviewZoom(img)" in erp_js
+    assert "fomsBindAttachmentPreviewImageZoom" in erp_js
+    assert "fomsOpenLightboxUrl" not in erp_js
+    assert "function erpReleaseAttachmentPreviewModalFocus(modalEl)" in erp_js
+    assert "fomsBindAttachmentPreviewModalZoomReset" in erp_js
+    assert "erpOpenAttachmentPreview(attachmentId)" in erp_js
+
+    assert "data-foms-attachment-preview-gallery" in mobile_js
+    assert "fomsAttachmentPreviewModal" in mobile_js
+    assert "fomsBindAttachmentPreviewImageZoom" in mobile_js
+
+
+def test_mobile_detail_attach_grid_uses_modal_preview_not_lightbox() -> None:
+    """Mobile order detail attach section opens compact modal preview instead of fullscreen lightbox."""
+    root = Path(__file__).resolve().parents[2]
+    partial = (
+        root / "templates" / "orders" / "partials" / "order_detail_mobile_v2.html"
+    ).read_text(encoding="utf-8")
+    page = (root / "templates/orders/mobile_order_detail.html").read_text(encoding="utf-8")
+
+    assert "data-foms-attachment-preview-gallery" in partial
+    assert "data-foms-attachment-preview" in partial
+    assert "data-foms-attachment-view-url" in partial
+    assert 'src="{{ att.view_url or att.thumb_url }}"' in partial
+    assert "data-foms-lightbox-gallery" not in partial
+    assert "foms_attachment_preview_modal.html" in partial
+    assert "attachment-preview-zoom.js" in page
+    assert "mobile-detail-attachments.js" in page
+    assert "lightbox.js" not in page
 
 
 def test_edit_order_initial_mount_releases_surface_before_deferred_panels() -> None:

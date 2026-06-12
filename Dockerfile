@@ -6,17 +6,25 @@ WORKDIR /app
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_DEFAULT_TIMEOUT=120 \
-    PIP_RETRIES=10
+    PIP_RETRIES=10 \
+    PIP_NO_CACHE_DIR=1
 
 # 시스템 의존성 (PostgreSQL 클라이언트, gevent 등)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
     && rm -rf /var/lib/apt/lists/*
 
-# 의존성 설치
+# 의존성 설치 — base image pip(25.x) 유지, 별도 pip self-upgrade 생략(Railway BrokenPipe 회피)
 COPY requirements.txt .
-RUN python -m pip install --upgrade pip setuptools wheel
-RUN python -m pip install --no-cache-dir --timeout 120 --retries 10 -r requirements.txt
+RUN set -eux; \
+    for attempt in 1 2 3 4 5; do \
+      python -m pip install --timeout 120 --retries 10 setuptools wheel && \
+      python -m pip install --timeout 120 --retries 10 -r requirements.txt && \
+      exit 0; \
+      echo "pip install attempt ${attempt} failed, retrying..."; \
+      sleep $((attempt * 5)); \
+    done; \
+    exit 1
 
 # 앱 코드 복사
 COPY . .

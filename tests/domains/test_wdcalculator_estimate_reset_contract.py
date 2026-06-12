@@ -32,3 +32,28 @@ def test_wdcalculator_page_includes_unit_price_slots_and_full_reset_wiring(
     assert "resetInputFormToNewEstimate" in body
     assert "initWdCalculatorUnitPriceMetaToggle" in body
     assert "WdCalculatorUnitPriceMeta" in body
+
+
+def test_wdcalculator_mobile_builder_opens_editor_below_tapped_card():
+    """Mobile builder owns cart-card edit placement instead of jumping to the top form."""
+    mobile_js = (_REPO_ROOT / "static/js/wdcalculator/mobile-enhance.js").read_text(encoding="utf-8")
+    builder_css = (_REPO_ROOT / "static/css/wdcalculator/builder.css").read_text(encoding="utf-8")
+    lifecycle_js = (_REPO_ROOT / "static/js/wdcalculator/estimate-lifecycle.js").read_text(encoding="utf-8")
+
+    assert "moveEditorAfterCard(card)" in mobile_js
+    assert "e.stopPropagation();" in mobile_js
+    assert "setTimeout(mobilizeEstimatesList, 30)" in mobile_js
+    assert "initOptionalSectionDisclosure()" in mobile_js
+    assert 'section.classList.add("wd-esec--collapsible", "wd-esec--collapsed")' in mobile_js
+    assert "WdCalculatorLoadEstimateToInputForm.loadEstimateToInputForm" in mobile_js
+    assert "scrollIntoView({ behavior: \"smooth\", block: \"nearest\" })" in mobile_js
+    assert "documentRef.body.classList.contains(\"wd-builder\")" in lifecycle_js
+    assert "body.wd-builder #estimatesListContainer .wd-editor-wrap" in builder_css
+    assert "display: grid !important; grid-template-columns: minmax(0, 1fr) auto" in builder_css
+    assert "white-space: normal !important; overflow: hidden !important; text-overflow: clip !important" in builder_css
+    assert "body.wd-builder #estimatesListContainer .estimate-detail-options:empty::before" in builder_css
+    assert "grid-template-columns: repeat(12, minmax(0, 1fr))" in builder_css
+    assert "base-manual-30cm-col { grid-column: 1 / span 5; }" in builder_css
+    assert "grid-template-columns: minmax(0, 1fr) minmax(72px, .42fr) 44px" in builder_css
+    assert ".wd-esec--collapsible.wd-esec--collapsed > :not(.wd-esec__head)" in builder_css
+    assert "base-additional-fees-list:empty { display: none; }" in builder_css

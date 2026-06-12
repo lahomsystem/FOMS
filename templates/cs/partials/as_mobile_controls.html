@@ -1,18 +1,29 @@
-{% set as_active_title = 'AS 미완료' %}
-{% if as_tab == 'sales_delivery' %}
-  {% set as_active_title = '영업/배송 AS' %}
-{% elif as_tab == 'completed' %}
-  {% set as_active_title = 'AS 완료' %}
-{% endif %}
-
-<section class="erp-as-mobile-controls" aria-label="AS 모바일 컨트롤">
-  <div class="erp-as-mobile-controls__summary">
-    <div>
-      <span class="erp-as-mobile-controls__eyebrow">After Service</span>
-      <h2 class="erp-as-mobile-controls__title">{{ as_active_title }}</h2>
-    </div>
-    <span class="erp-as-mobile-controls__count">{{ total_orders }}건</span>
-  </div>
+{# 슬림 sticky 요약 바(제목·건수·내담당만)는 as_mobile_summary.html로 분리되어
+   상단 고정 전용이다. 여기는 스크롤로 흘려보내는 보조 컨트롤: stats·탭·검색·빠른칩. #}
+<section class="erp-as-mobile-controls foms-mobile-filter-bar" aria-label="AS 모바일 컨트롤">
+  {# stats 칩 = 버킷 필터 링크. 'total'은 bucket 없는 전체 미완료, 나머지는 해당 버킷만.
+     활성 칩은 is-active로 강조하고 aria-current로 현재 필터를 알린다. #}
+  {% if as_tab == 'incomplete' and as_incomplete_summary is defined %}
+  <nav class="erp-as-mobile-controls__stats chip-strip foms-chip-strip" aria-label="AS 미완료 버킷 필터">
+    {% for b in [
+      {'key': 'total', 'label': '총'},
+      {'key': 'visit_confirmed', 'label': '방문확정'},
+      {'key': 'pending', 'label': '미결'},
+      {'key': 'unassigned', 'label': '미정'}
+    ] %}
+    {% set _bucket_active = (as_bucket == b.key) or (b.key == 'total' and not as_bucket) %}
+    <a
+      class="chip foms-chip erp-as-mobile-controls__stat{% if _bucket_active %} is-active{% endif %}"
+      data-as-incomplete-summary="{{ b.key }}"
+      data-count="{{ as_incomplete_summary[b.key] }}"
+      {% if _bucket_active %}aria-current="true"{% endif %}
+      href="{{ url_for('erp_as_page.erp_as_dashboard', tab='incomplete', bucket=(none if b.key == 'total' else b.key), status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}">
+      <span class="erp-as-mobile-controls__stat-label">{{ b.label }}</span>
+      <strong>{{ as_incomplete_summary[b.key] }}</strong>
+    </a>
+    {% endfor %}
+  </nav>
+  {% endif %}
 
   <nav class="erp-as-mobile-tabs" aria-label="AS 분류">
     <a
@@ -44,7 +55,7 @@
     </a>
   </nav>
 
-  <form method="get" action="{{ url_for('erp_as_page.erp_as_dashboard') }}" class="erp-as-mobile-controls__search">
+  <form method="get" action="{{ url_for('erp_as_page.erp_as_dashboard') }}" class="foms-mobile-filter-bar__toolbar erp-as-mobile-controls__search">
     <input type="hidden" name="tab" value="{{ as_tab or 'incomplete' }}">
     <input type="hidden" name="sort_dir" value="{{ sort_dir or 'desc' }}">
     {% if erp_mine_only %}
@@ -52,6 +63,9 @@
     {% endif %}
     {% if status_filter %}
       <input type="hidden" name="status" value="{{ status_filter }}">
+    {% endif %}
+    {% if as_bucket %}
+      <input type="hidden" name="bucket" value="{{ as_bucket }}">
     {% endif %}
     <label class="visually-hidden" for="erp-as-mobile-search">검색</label>
     <input
@@ -75,26 +89,26 @@
     </button>
   </form>
 
-  <div class="erp-as-mobile-controls__quick-actions">
+  {# 내담당만 토글은 상단 요약 row로 이동. 여기는 지도·상태 필터 등 맥락 칩만,
+     있을 때만 렌더해서 빈 줄이 공간을 먹지 않게 한다. #}
+  {% if selected_date or status_filter %}
+  <nav class="erp-as-mobile-controls__quick-actions chip-strip foms-chip-strip" aria-label="AS 빠른 필터">
     {% if selected_date %}
       <a
-        class="erp-as-mobile-controls__quick-link"
+        class="erp-as-mobile-controls__quick-link chip foms-chip"
         href="{{ url_for('erp_as_page.erp_as_dashboard', date=selected_date, tab=as_tab, status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '', open_map='1') }}">
         <i class="fas fa-map-marked-alt"></i>
         <span>지도</span>
       </a>
     {% endif %}
-    <span class="erp-as-mobile-controls__quick-pill{% if erp_mine_only %} is-active{% endif %}">
-      <i class="fas fa-user-check"></i>
-      <span>{% if erp_mine_only %}내 담당만{% else %}전체 보기{% endif %}</span>
-    </span>
     {% if status_filter %}
-      <span class="erp-as-mobile-controls__quick-pill is-active">
+      <span class="erp-as-mobile-controls__quick-pill chip foms-chip is-active">
         <i class="fas fa-filter"></i>
         <span>{{ status_filter }}</span>
       </span>
     {% endif %}
-  </div>
+  </nav>
+  {% endif %}
 
   <div
     class="offcanvas offcanvas-bottom erp-as-mobile-controls__drawer"

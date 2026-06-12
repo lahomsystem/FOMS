@@ -1,131 +1,18 @@
-{% macro render_as_rich_toolbar(order_id, is_sales_delivery) -%}
-<div class="as-rich-toolbar" style="background: #f8f9fa; border-bottom: 1px solid #ced4da; padding: 2px 4px; display: flex; gap: 4px;">
-  <button type="button"
-    class="btn btn-sm p-1 as-sales-delivery-btn {{ 'btn-warning' if is_sales_delivery else 'btn-outline-warning' }}"
-    data-order-id="{{ order_id }}"
-    data-sales-delivery-active="{{ '1' if is_sales_delivery else '0' }}"
-    title="영업/전달 분류 토글 후 탭 이동"
-    style="font-size: 0.75rem; font-weight: 600;">{{ '☑' if is_sales_delivery else '☐' }} 영업/전달</button>
-  <button type="button" class="btn btn-sm btn-light p-1 as-rich-command-btn" data-rich-command="bold" title="굵게" style="min-width: 28px; font-weight: bold;">B</button>
-  <button type="button" class="btn btn-sm btn-light p-1 as-rich-command-btn" data-rich-command="foreColor" data-rich-value="red" title="빨간색" style="min-width: 28px; color: red; font-weight: bold;">A</button>
-  <button type="button" class="btn btn-sm btn-light p-1 as-rich-command-btn" data-rich-command="foreColor" data-rich-value="blue" title="파란색" style="min-width: 28px; color: blue; font-weight: bold;">A</button>
-  <button type="button" class="btn btn-sm btn-light p-1 as-rich-command-btn" data-rich-command="clear-format" title="서식 초기화" style="min-width: 28px; color: black;">
-    <i class="fas fa-eraser"></i>
-  </button>
-</div>
-{%- endmacro %}
-
-{% macro render_as_content_tabs(order_id, is_sales_delivery, as_content_html, as_content_2_html, min_height='60px') -%}
-{% set initial_tab = '2' if (not as_content_html and as_content_2_html) else '1' %}
-<div class="as-tabbed-editor" data-order-id="{{ order_id }}" data-active-tab="{{ initial_tab }}">
-  <div class="as-content-tab-buttons" role="tablist" aria-label="주문 #{{ order_id }} AS 내용 탭">
-    <button type="button"
-      class="as-content-tab-btn{% if initial_tab == '1' %} is-active{% endif %}"
-      data-order-id="{{ order_id }}"
-      data-as-tab-target="1"
-      role="tab"
-      aria-selected="{{ 'true' if initial_tab == '1' else 'false' }}">
-      1
-    </button>
-    <button type="button"
-      class="as-content-tab-btn{% if initial_tab == '2' %} is-active{% endif %}"
-      data-order-id="{{ order_id }}"
-      data-as-tab-target="2"
-      role="tab"
-      aria-selected="{{ 'true' if initial_tab == '2' else 'false' }}">
-      2
-    </button>
-  </div>
-  <div class="as-content-tab-panel{% if initial_tab == '1' %} is-active{% endif %}"
-    data-order-id="{{ order_id }}"
-    data-as-tab-panel="1"
-    {% if initial_tab != '1' %}hidden{% endif %}>
-    <div class="as-rich-editor" style="border: 1px solid #ced4da; border-radius: 4px; overflow: hidden; background: #fff;">
-      {{ render_as_rich_toolbar(order_id, is_sales_delivery) }}
-      <div class="erp-pro-input as-content-input" contenteditable="true" data-order-id="{{ order_id }}"
-        data-field-name="as_content"
-        style="width: 100%; min-height: {{ min_height }}; max-height: 250px; overflow-y: auto; padding: 8px; border: none; outline: none; white-space: pre-wrap; font-size: 14px;"
-        data-placeholder="내용 입력...">{{ as_content_html | safe }}</div>
-    </div>
-  </div>
-  <div class="as-content-tab-panel{% if initial_tab == '2' %} is-active{% endif %}"
-    data-order-id="{{ order_id }}"
-    data-as-tab-panel="2"
-    {% if initial_tab != '2' %}hidden{% endif %}>
-    <div class="as-rich-editor" style="border: 1px solid #ced4da; border-radius: 4px; overflow: hidden; background: #fff;">
-      {{ render_as_rich_toolbar(order_id, is_sales_delivery) }}
-      <div class="erp-pro-input as-content-input" contenteditable="true" data-order-id="{{ order_id }}"
-        data-field-name="as_content_2"
-        style="width: 100%; min-height: {{ min_height }}; max-height: 250px; overflow-y: auto; padding: 8px; border: none; outline: none; white-space: pre-wrap; font-size: 14px;"
-        data-placeholder="내용 입력...">{{ as_content_2_html | safe }}</div>
-    </div>
-  </div>
-</div>
-{%- endmacro %}
-
-{# 발주사: 라홈/하우드 로고, 그 외 파란색 이름, 없음 '-' #}
-{% macro render_as_orderer_line(orderer_name) -%}
-{% set raw = (orderer_name or '') | trim %}
-{% if not raw %}
-<span class="d-block small erp-as-orderer-line text-muted">-</span>
-{% elif '라홈' in raw %}
-<span class="d-block erp-as-orderer-line">
-  <img src="{{ url_for('static', filename='images/lahom-logo.png') }}" alt="라홈" class="erp-as-orderer-logo erp-as-orderer-logo--lahom" loading="lazy">
-</span>
-{% elif '하우드' in raw %}
-<span class="d-block erp-as-orderer-line">
-  <img src="{{ url_for('static', filename='images/haud-logo.png') }}" alt="하우드" class="erp-as-orderer-logo erp-as-orderer-logo--haud" loading="lazy">
-</span>
-{% else %}
-<span class="d-block small erp-as-orderer-line erp-as-orderer-name text-primary">{{ raw }}</span>
-{% endif %}
-{%- endmacro %}
-
-{% macro render_as_construction_workers(order_id, workers, can_edit) -%}
-{% set values = workers or [] %}
-{% set display_text = values | join(', ') %}
-{% if can_edit %}
-<ul class="as-construction-worker-list mb-0"
-  data-order-id="{{ order_id }}"
-  data-field="construction_workers"
-  data-saved-value="{{ display_text }}"
-  data-placeholder="시공자"
-  data-datalist-id="datalist-construction-workers">
-  {% for worker in values %}
-  <li class="as-construction-worker-row has-value">
-    <span class="as-construction-worker-view">{{ worker }}</span>
-    <div class="as-construction-worker-edit">
-      <input type="text"
-        class="form-control form-control-sm as-construction-worker-input"
-        data-order-id="{{ order_id }}"
-        data-field="construction_workers"
-        value="{{ worker }}"
-        placeholder="시공자"
-        list="datalist-construction-workers"
-        lang="ko">
-      <div class="as-construction-worker-action-stack">
-        <button type="button" class="btn btn-sm btn-outline-secondary as-btn-load-saved-worker" title="저장된 값 불러오기">
-          <i class="fas fa-list"></i>
-        </button>
-        <button type="button" class="btn btn-sm btn-outline-danger as-btn-remove-construction-worker" title="삭제">&times;</button>
-      </div>
-    </div>
-  </li>
-  {% endfor %}
-  <li class="as-construction-worker-actions-row">
-    <button type="button" class="btn btn-sm btn-outline-success as-btn-add-construction-worker"
-      data-order-id="{{ order_id }}" title="시공자 추가">+</button>
-  </li>
-</ul>
-{% else %}
-<span class="erp-as-construction-worker-text">{{ display_text or '-' }}</span>
-{% endif %}
-{%- endmacro %}
+{# foms-kv-rollout: erp_mobile_shell → kv-copy.js + queue card foms_order_contact_kv #}
+{% from 'cs/partials/as_card_macros.html' import render_as_rich_toolbar, render_as_content_tabs, render_as_orderer_line, render_as_construction_workers %}
 
 <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/cs/as-dashboard-body.css') }}">
+{# 카드 CSS는 body 파셜에 둔다 → fast-tab 프래그먼트 스왑(as_dashboard_fragment.html)에도
+   함께 실려, 탭 이동 첫 진입에서 카드가 원시(미스타일)로 뜨는 FOUC를 막는다.
+   (head_extra 전용이면 전체 새로고침 전까지 카드 CSS가 누락된다) #}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-mobile-card.css') }}">
 <div class="erp-pro erp-mobile-shell erp-as-dashboard" data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
   {% if erp_mobile_v2_enabled %}
     {% include 'partials/shared/erp_mobile_shell.html' %}
+    {% include 'cs/partials/as_mobile_v2_camera_bar.html' %}
+    <a class="foms-shell-fab d-md-none" href="{{ url_for('order_pages.add_order', open='erp-order') }}" aria-label="주문 생성">
+      <i class="fas fa-plus" aria-hidden="true"></i>
+    </a>
   {% endif %}
   <!-- Modern Header -->
   <header class="erp-pro-header">
@@ -152,10 +39,7 @@
   </div>
   {% else %}
   <div class="erp-pro-card">
-    {% if erp_mobile_v2_enabled %}
-      {% include 'cs/partials/as_mobile_controls.html' %}
-    {% endif %}
-    <div class="erp-as-top-tabs erp-as-desktop-nav border-bottom mb-3">
+    <div class="erp-as-top-tabs erp-as-desktop-nav border-bottom mb-3{% if erp_mobile_v2_enabled %} d-none d-md-block{% endif %}">
       <ul class="nav nav-tabs nav-fill border-bottom-0">
         <li class="nav-item">
           <a class="nav-link {{ 'active' if as_tab == 'sales_delivery' else '' }}"
@@ -192,7 +76,7 @@
         </li>
       </ul>
     </div>
-    <div class="erp-pro-card__header erp-pro-card__header--filter pt-0 erp-as-desktop-filters">
+    <div class="erp-pro-card__header erp-pro-card__header--filter pt-0 erp-as-desktop-filters{% if erp_mobile_v2_enabled %} d-none d-md-block{% endif %}">
       <form class="erp-pro-filter-form erp-pro-filter-form--inline-mobile" method="get">
         <input type="hidden" name="tab" value="{{ as_tab or 'incomplete' }}">
         <input type="hidden" name="sort_dir" value="{{ sort_dir or 'desc' }}">
@@ -228,23 +112,24 @@
     </div>
     <div class="erp-pro-card__body">
       {% if as_tab == 'incomplete' %}
-      <div class="erp-as-summary-strip" aria-label="AS 미완료 요약">
-        <div class="erp-as-summary-pill" data-as-incomplete-summary="total" data-count="{{ as_incomplete_summary.total }}">
-          <span class="erp-as-summary-pill__label">총 건수</span>
-          <span class="erp-as-summary-pill__value">{{ as_incomplete_summary.total }}건</span>
-        </div>
-        <div class="erp-as-summary-pill" data-as-incomplete-summary="visit_confirmed" data-count="{{ as_incomplete_summary.visit_confirmed }}">
-          <span class="erp-as-summary-pill__label">방문 확정</span>
-          <span class="erp-as-summary-pill__value">{{ as_incomplete_summary.visit_confirmed }}건</span>
-        </div>
-        <div class="erp-as-summary-pill" data-as-incomplete-summary="pending" data-count="{{ as_incomplete_summary.pending }}">
-          <span class="erp-as-summary-pill__label">미결</span>
-          <span class="erp-as-summary-pill__value">{{ as_incomplete_summary.pending }}건</span>
-        </div>
-        <div class="erp-as-summary-pill" data-as-incomplete-summary="unassigned" data-count="{{ as_incomplete_summary.unassigned }}">
-          <span class="erp-as-summary-pill__label">아직 미정</span>
-          <span class="erp-as-summary-pill__value">{{ as_incomplete_summary.unassigned }}건</span>
-        </div>
+      {# 요약 pill = 버킷 필터 링크(데스크톱). 모바일 stats 칩과 동일 백엔드(bucket) 사용. #}
+      <div class="erp-as-summary-strip{% if erp_mobile_v2_enabled %} d-none d-md-grid{% endif %}" role="group" aria-label="AS 미완료 버킷 필터">
+        {% for b in [
+          {'key': 'total', 'label': '총 건수'},
+          {'key': 'visit_confirmed', 'label': '방문 확정'},
+          {'key': 'pending', 'label': '미결'},
+          {'key': 'unassigned', 'label': '아직 미정'}
+        ] %}
+        {% set _bucket_active = (as_bucket == b.key) or (b.key == 'total' and not as_bucket) %}
+        <a class="erp-as-summary-pill{% if _bucket_active %} is-active{% endif %}"
+          data-as-incomplete-summary="{{ b.key }}"
+          data-count="{{ as_incomplete_summary[b.key] }}"
+          {% if _bucket_active %}aria-current="true"{% endif %}
+          href="{{ url_for('erp_as_page.erp_as_dashboard', tab='incomplete', bucket=(none if b.key == 'total' else b.key), status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}">
+          <span class="erp-as-summary-pill__label">{{ b.label }}</span>
+          <span class="erp-as-summary-pill__value">{{ as_incomplete_summary[b.key] }}건</span>
+        </a>
+        {% endfor %}
       </div>
       {% endif %}
       <!-- PC Table View -->
@@ -361,105 +246,36 @@
       </div>
 
       <!-- Mobile Card View -->
+      {% if erp_mobile_v2_enabled %}
+      {% from 'partials/shared/mobile_queue_pager.html' import render_mobile_pager %}
+      {% set _as_ctx = [] %}
+      {% if as_tab %}{% set _ = _as_ctx.append('tab=' ~ as_tab|urlencode) %}{% endif %}
+      {% if status_filter %}{% set _ = _as_ctx.append('status=' ~ status_filter|urlencode) %}{% endif %}
+      {% if as_bucket %}{% set _ = _as_ctx.append('bucket=' ~ as_bucket|urlencode) %}{% endif %}
+      {% if search_q %}{% set _ = _as_ctx.append('q=' ~ search_q|urlencode) %}{% endif %}
+      {% if sort_dir %}{% set _ = _as_ctx.append('sort_dir=' ~ sort_dir|urlencode) %}{% endif %}
+      {% if erp_mine_only %}{% set _ = _as_ctx.append('mine=1') %}{% endif %}
+      <section class="erp-as-mobile-list foms-shell-body d-md-none">
+        <div class="erp-as-mobile-list__sticky">
+          {% include 'cs/partials/as_mobile_summary.html' %}
+        </div>
+        {% include 'cs/partials/as_mobile_controls.html' %}
+        {% if rows %}
+          <div class="erp-pro-order-cards foms-mobile-queue-list">
+            {% for r in rows %}{% include 'cs/partials/as_mobile_order_card.html' %}{% endfor %}
+          </div>
+          {{ render_mobile_pager(url_for('erp_as_page.erp_as_dashboard'), _as_ctx|join('&'), page, total_pages) }}
+        {% else %}
+          <div class="erp-pro-empty">
+            <i class="fas fa-inbox"></i>
+            <p>데이터가 없습니다.</p>
+          </div>
+        {% endif %}
+      </section>
+      {% else %}
       <div class="erp-pro-order-cards d-md-none">
         {% if rows %}
-        {% for r in rows %}
-        <div class="erp-pro-order-card" data-order-id="{{ r.id }}">
-          <div class="erp-pro-order-card__header">
-            {% if can_edit_erp|default(false) %}
-            <a href="{{ url_for('order_edit.edit_order', order_id=r.id) }}?open=erp-order"
-              class="erp-pro-order-card__id">#{{ r.id }}</a>
-            {% else %}
-            <span class="erp-pro-order-card__id">#{{ r.id }} <span class="text-muted small">(권한없음)</span></span>
-            {% endif %}
-            <span
-              class="erp-pro-badge erp-as-status-badge {% if r.as_pending %}erp-pro-badge--pending{% elif r.status == 'AS_COMPLETED' %}erp-pro-badge--success{% else %}erp-pro-badge--info{% endif %}"
-              data-order-id="{{ r.id }}">
-              {% if r.as_pending %}미결{% else %}{{ STATUS.get(r.status, r.status) }}{% endif %}
-            </span>
-          </div>
-          <div class="erp-pro-order-card__body">
-            <div class="erp-pro-order-card__row {% if r.as_pending %}erp-as-customer-row--pending{% endif %}">
-              <span class="erp-pro-order-card__label">고객</span>
-              <div class="erp-pro-order-card__value">
-                <span class="d-block">{{ (r.customer_name or '-') }}{% if r.is_self_measurement|default(false) %}
-                  <span class="badge bg-info text-white ms-1" title="자가실측"><i class="fas fa-ruler-combined"></i> 자가실측</span>{% endif %}</span>
-                <span class="d-block small text-muted">{{ r.phone|format_phone }}</span>
-                {{ render_as_orderer_line(r.orderer_name) }}
-              </div>
-            </div>
-            <div class="erp-pro-order-card__row">
-              <span class="erp-pro-order-card__label">담당자</span>
-              <span class="erp-pro-order-card__value">{{ r.manager_name or '-' }}</span>
-            </div>
-            <div class="erp-pro-order-card__row">
-              <span class="erp-pro-order-card__label">시공자</span>
-              <div class="erp-pro-order-card__value w-100">
-                {{ render_as_construction_workers(r.id, r.construction_workers, can_edit_erp|default(false)) }}
-              </div>
-            </div>
-            <div class="erp-pro-order-card__row">
-              <span class="erp-pro-order-card__label">AS 접수</span>
-              <span class="erp-pro-order-card__value">{{ r.as_received_date or '-' }}</span>
-            </div>
-            <div
-              class="erp-pro-order-card__row erp-as-visit-cell {% if r.as_visit_date %}erp-as-visit-row--set{% endif %}">
-              <span class="erp-pro-order-card__label">AS 방문일</span>
-              <div class="erp-as-visit-cell-wrap">
-                <input type="date" class="erp-pro-input editable-date-as" value="{{ r.as_visit_date or '' }}"
-                  data-order-id="{{ r.id }}" data-field="as_visit_date">
-              </div>
-              {% if r.as_visit_date %}
-              <button type="button" class="erp-as-pending-btn as-pending-btn{% if r.as_pending %} erp-as-pending-btn--active{% endif %}" data-order-id="{{ r.id }}"
-                data-as-pending="{% if r.as_pending %}1{% else %}0{% endif %}"
-                title="{% if r.as_pending %}미결 표시 해제{% else %}미결 표시{% endif %}">{% if r.as_pending %}미결 해제{% else %}미결{% endif %}</button>
-              {% endif %}
-            </div>
-            <div class="erp-pro-order-card__row {% if r.as_completed_date %}erp-as-complete-row--set{% endif %}">
-              <span class="erp-pro-order-card__label">AS 완료</span>
-              <input type="date" class="erp-pro-input editable-date-as" value="{{ r.as_completed_date or '' }}"
-                data-order-id="{{ r.id }}" data-field="as_completed_date">
-            </div>
-            <div class="erp-pro-order-card__row erp-pro-order-card__row--full">
-              <span class="erp-pro-order-card__label">주소</span>
-              <div class="d-flex justify-content-between align-items-start w-100">
-                <span class="erp-pro-order-card__value mb-1">{{ r.address or '-' }}</span>
-                {% if r.address %}
-                <button type="button" class="btn btn-sm btn-outline-secondary find-schedule-btn ms-2 p-0 px-2"
-                  data-address="{{ r.address }}"
-                  data-order-id="{{ r.id }}"
-                  data-lat="{{ r.lat or '' }}"
-                  data-lng="{{ r.lng or '' }}"
-                  title="주변 일정 찾기" style="font-size: 0.75rem; white-space: nowrap;">
-                  <i class="fas fa-map-marker-alt"></i> 일정
-                </button>
-                {% endif %}
-              </div>
-            </div>
-            {% if can_view_as_photos %}
-            <div class="erp-pro-order-card__row">
-              <span class="erp-pro-order-card__label">AS 사진</span>
-              <button type="button"
-                class="btn btn-sm as-photos-btn {{ 'btn-outline-primary' if r.has_as_photos else 'as-photos-btn--no-photos' }}"
-                data-order-id="{{ r.id }}" title="AS 사진 보기">
-                <i class="fas fa-paperclip"></i> 보기
-              </button>
-            </div>
-            {% endif %}
-            <div class="erp-pro-order-card__row">
-              <span class="erp-pro-order-card__label">AS도면</span>
-              <input type="checkbox" class="form-check-input as-blueprint-checkbox" data-order-id="{{ r.id }}"
-                {% if r.has_as_blueprint %}checked{% endif %} aria-label="주문 #{{ r.id }} AS도면 여부">
-            </div>
-            <div class="erp-pro-order-card__row erp-pro-order-card__row--full">
-              <span class="erp-pro-order-card__label">AS 내용</span>
-              <div class="mt-1 w-100">
-                {{ render_as_content_tabs(r.id, r.is_sales_delivery, r.as_content_html, r.as_content_2_html, '80px') }}
-              </div>
-            </div>
-          </div>
-        </div>
-        {% endfor %}
+        {% for r in rows %}{% include 'cs/partials/as_mobile_order_card.html' %}{% endfor %}
         {% else %}
         <div class="erp-pro-empty">
           <i class="fas fa-inbox"></i>
@@ -467,10 +283,11 @@
         </div>
         {% endif %}
       </div>
+      {% endif %}
       
-      <!-- Pagination -->
+      <!-- Pagination (모바일 v2는 무한스크롤이 대체 → 데스크톱 전용) -->
       {% if total_pages > 1 %}
-      <div class="mt-4 mb-2 d-flex flex-column align-items-center">
+      <div class="mt-4 mb-2 d-flex flex-column align-items-center{% if erp_mobile_v2_enabled %} d-none d-md-block{% endif %}">
         <nav aria-label="Page navigation">
           <ul class="pagination pagination-sm mb-1">
             <li class="page-item {% if page <= 1 %}disabled{% endif %}">
@@ -1354,17 +1171,6 @@
       return requestPromise;
     }
 
-    function scheduleAsContentSave(el) {
-      const state = getAsContentSaveState(el);
-      if (state.saveTimeout) {
-        clearTimeout(state.saveTimeout);
-      }
-      if (!hasPendingAsContentChange(el)) return;
-      state.saveTimeout = setTimeout(() => {
-        saveAsContent(el).catch(() => {});
-      }, 1800);
-    }
-
     async function flushAsContentIfNeeded(el, options = {}) {
       if (!el) return null;
       const state = getAsContentSaveState(el);
@@ -1491,13 +1297,23 @@
 
       const rowBadge = row ? row.querySelector('.erp-as-status-cell .erp-pro-badge') : null;
       const cardBadge = card ? card.querySelector('.erp-as-status-badge') : null;
+      const cardStageBadge = card ? card.querySelector('.foms-stage-badge[data-order-id]') : null;
       if (rowBadge) {
         rowBadge.textContent = badgeText;
         rowBadge.className = badgeClass;
       }
       if (cardBadge) {
-        cardBadge.textContent = badgeText;
-        cardBadge.className = `erp-pro-badge erp-as-status-badge ${badgeClass.replace('erp-pro-badge ', '')}`;
+        if (cardBadge.classList.contains('foms-stage-badge')) {
+          cardBadge.textContent = badgeText;
+          cardBadge.classList.toggle('foms-stage-badge--cs', asPending);
+          cardBadge.classList.toggle('foms-stage-badge--completed', !asPending && status === 'AS_COMPLETED');
+        } else {
+          cardBadge.textContent = badgeText;
+          cardBadge.className = `erp-pro-badge erp-as-status-badge ${badgeClass.replace('erp-pro-badge ', '')}`;
+        }
+      }
+      if (cardStageBadge && cardStageBadge !== cardBadge) {
+        cardStageBadge.textContent = badgeText;
       }
 
       if (row) {
@@ -1505,7 +1321,9 @@
         if (customerTd) customerTd.classList.toggle('erp-as-customer-cell--pending', asPending);
       }
       if (card) {
-        const customerRow = card.querySelector('.erp-pro-order-card__body .erp-pro-order-card__row');
+        card.classList.toggle('is-pending', asPending);
+        const customerRow = card.querySelector('.erp-pro-order-card__body .erp-pro-order-card__row')
+          || card.querySelector('.erp-as-mobile-card__head');
         if (customerRow) customerRow.classList.toggle('erp-as-customer-row--pending', asPending);
       }
 
@@ -1639,17 +1457,7 @@
       });
     }
 
-    document.querySelectorAll('.as-content-input[contenteditable="true"]').forEach((input) => {
-      setAsContentRawHtml(input, input.innerHTML || '');
-      getAsContentSaveState(input);
-      input.dataset.highlightApplied = '0';
-      addAsDashboardListener(input, 'mousedown', function () {
-        prepareAsContentEditing(this);
-      });
-      addAsDashboardListener(input, 'beforeinput', function () {
-        prepareAsContentEditing(this);
-      });
-    });
+    bindAsContentEditableInputs(document);
     syncAsContentSearchTabs();
     syncVisibleAsContentHighlights();
     let asHighlightResizeTimer = null;
@@ -1703,7 +1511,7 @@
         document.execCommand(command, false, btn.dataset.richValue || null);
       }
       updateAsContentDraft(input, input.innerHTML || '');
-      scheduleAsContentSave(input);
+      // 서식 적용도 즉시 저장하지 않고 blur(입력박스 밖 클릭) 시 저장 — 타이핑 흐름 방해 방지.
     });
 
     addAsDashboardListener(document, 'click', async function (e) {
@@ -2544,17 +2352,8 @@
       }
     })();
 
-    // AS 방문일/완료일 자동 저장
-    document.querySelectorAll('.editable-date-as').forEach(input => {
-      getDateFieldSaveState(input);
-      addAsDashboardListener(input, 'change', function () {
-        saveDateField(this, { redirectAfterComplete: true }).catch(() => {});
-      });
-    });
-
-    document.querySelectorAll('.as-construction-worker-list').forEach(list => {
-      list.dataset.savedValue = formatAsConstructionWorkers(list.dataset.savedValue || '');
-    });
+    // AS 방문일/완료일 자동 저장 + 시공자 리스트 초기화
+    bindAsDateAndWorkerInputs(document);
     loadConstructionWorkerOptions().catch(() => {});
 
     addAsDashboardListener(document, 'mousedown', function (e) {
@@ -2722,34 +2521,65 @@
         });
     });
 
-    // AS 내용 자동 저장 (Blur 시 + 디바운스 자동 저장으로 새로고침 시에도 유지)
-    document.querySelectorAll('.as-content-input').forEach(input => {
-      getAsContentSaveState(input);
-      addAsDashboardListener(input, 'blur', function () {
-        flushAsContentIfNeeded(this).catch(() => {});
-      });
+    // AS 내용 자동 저장 (입력 중엔 로컬 draft만, blur=입력박스 밖 클릭 시 저장)
+    bindAsContentAutosaveInputs(document);
 
-      addAsDashboardListener(input, 'input', function () {
-        updateAsContentDraft(this, this.innerHTML || '');
-        scheduleAsContentSave(this);
+    // --- per-card 바인딩 함수 (페이지별 렌더마다 init에서 호출, dataset 가드로 멱등) ---
+    function bindAsContentEditableInputs(scope) {
+      (scope || document).querySelectorAll('.as-content-input[contenteditable="true"]').forEach((input) => {
+        if (input.dataset.asEditableBound === '1') return;
+        input.dataset.asEditableBound = '1';
+        setAsContentRawHtml(input, input.innerHTML || '');
+        getAsContentSaveState(input);
+        input.dataset.highlightApplied = '0';
+        addAsDashboardListener(input, 'mousedown', function () { prepareAsContentEditing(this); });
+        addAsDashboardListener(input, 'beforeinput', function () { prepareAsContentEditing(this); });
       });
+    }
 
-      addAsDashboardListener(input, 'keypress', function (e) {
-        if (e.key === 'Enter' && !e.shiftKey && this.tagName !== 'TEXTAREA' && !this.hasAttribute('contenteditable')) this.blur();
-      });
-
-      // Textarea 자동 높이 조절 (선택 사항)
-      if (input.tagName === 'TEXTAREA') {
-        input.style.overflow = 'hidden';
-        addAsDashboardListener(input, 'input', function () {
-          this.style.height = 'auto';
-          this.style.height = (this.scrollHeight) + 'px';
+    function bindAsDateAndWorkerInputs(scope) {
+      const root = scope || document;
+      root.querySelectorAll('.editable-date-as').forEach(input => {
+        if (input.dataset.asDateBound === '1') return;
+        input.dataset.asDateBound = '1';
+        getDateFieldSaveState(input);
+        addAsDashboardListener(input, 'change', function () {
+          saveDateField(this, { redirectAfterComplete: true }).catch(() => {});
         });
-        // 초기 높이 설정
-        input.style.height = 'auto';
-        input.style.height = (input.scrollHeight) + 'px';
-      }
-    });
+      });
+      root.querySelectorAll('.as-construction-worker-list').forEach(list => {
+        if (list.dataset.asWorkerInit === '1') return;
+        list.dataset.asWorkerInit = '1';
+        list.dataset.savedValue = formatAsConstructionWorkers(list.dataset.savedValue || '');
+      });
+    }
+
+    function bindAsContentAutosaveInputs(scope) {
+      (scope || document).querySelectorAll('.as-content-input').forEach(input => {
+        if (input.dataset.asAutosaveBound === '1') return;
+        input.dataset.asAutosaveBound = '1';
+        getAsContentSaveState(input);
+        addAsDashboardListener(input, 'blur', function () {
+          flushAsContentIfNeeded(this).catch(() => {});
+        });
+        addAsDashboardListener(input, 'input', function () {
+          // 입력 중에는 로컬 draft만 갱신(서버 저장 X). 저장은 blur(입력박스 밖 클릭) 시 flush.
+          updateAsContentDraft(this, this.innerHTML || '');
+        });
+        addAsDashboardListener(input, 'keypress', function (e) {
+          if (e.key === 'Enter' && !e.shiftKey && this.tagName !== 'TEXTAREA' && !this.hasAttribute('contenteditable')) this.blur();
+        });
+        if (input.tagName === 'TEXTAREA') {
+          input.style.overflow = 'hidden';
+          addAsDashboardListener(input, 'input', function () {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+          });
+          input.style.height = 'auto';
+          input.style.height = (input.scrollHeight) + 'px';
+        }
+      });
+    }
     }
 
     if (document.readyState === 'loading') {

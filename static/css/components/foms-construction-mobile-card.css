@@ -1,0 +1,65 @@
+/**
+ * P0-04 — ERP construction dashboard mobile (v1.1 stage badge + drawing/measurement thumb grid)
+ */
+
+.foms-stage-badge--construction {
+  background: #f59e0b;
+}
+
+.foms-stage-badge--completed {
+  background: #22c55e;
+}
+
+.erp-construction-mobile-card__thumb {
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  margin: 0 0 0.75rem;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background: var(--erp-pro-surface-muted, #f1f5f9);
+}
+
+.erp-construction-mobile-card__thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.erp-construction-mobile-card__thumb.is-placeholder,
+.erp-construction-mobile-card__thumb-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-height: 6rem;
+  color: var(--erp-pro-text-muted, #64748b);
+  font-size: 0.85rem;
+}
+
+.erp-construction-mobile-card__thumb-placeholder i {
+  font-size: 1.25rem;
+  opacity: 0.65;
+}
+
+.erp-construction-mobile-card__thumb-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 0 0 0.75rem;
+}
+
+.erp-construction-mobile-card__thumb-cell {
+  aspect-ratio: 16 / 9;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background: var(--erp-pro-surface-muted, #f1f5f9);
+}
+
+.erp-construction-mobile-card__thumb-cell img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}

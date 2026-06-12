@@ -1,0 +1,449 @@
+/**
+ * Shipment dashboard mobile/tablet v2.
+ * Aligns /erp/shipment with the measurement queue surface.
+ */
+
+.erp-shipment-mobile-controls,
+.erp-shipment-mobile-dates,
+.erp-shipment-mobile-queue {
+  display: none;
+}
+
+.erp-shipment-mobile-v2,
+.erp-shipment-mobile-v2 > *,
+.erp-shipment-mobile-controls,
+.erp-shipment-mobile-dates,
+.erp-shipment-mobile-queue {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* controls는 제외: 칩스트립 full-bleed 흰배경(좌우 -space-4)이 여기서 클립되면
+   실측과 달리 흰박스가 화면 폭을 꽉 채우지 못한다. 가로 넘침은 칩스트립 자체의
+   overflow-x:auto가 처리하므로 controls 클립은 불필요. */
+.erp-shipment-mobile-dates,
+.erp-shipment-mobile-queue {
+  overflow-x: hidden;
+}
+
+.erp-shipment-mobile-controls__search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.5rem;
+  align-items: center;
+  min-width: 0;
+}
+
+.erp-shipment-mobile-controls__input,
+.erp-shipment-mobile-controls__submit,
+.erp-shipment-mobile-controls__open {
+  min-height: 44px;
+  border-radius: 12px;
+}
+
+.erp-shipment-mobile-controls__input {
+  width: 100%;
+  padding: 0 0.875rem;
+  border: 1px solid #c9d6e4;
+  background: #fff;
+  color: #131e29;
+  font-size: 14px;
+}
+
+.erp-shipment-mobile-controls__submit,
+.erp-shipment-mobile-controls__open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  padding: 0 0.875rem;
+  border: 1px solid #c9d6e4;
+  background: #fff;
+  color: #131e29;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.erp-shipment-mobile-controls__submit {
+  color: #0a6ed1;
+}
+
+.erp-shipment-mobile-controls__open span {
+  font-size: 13px;
+}
+
+.erp-shipment-mobile-controls .foms-chip-strip {
+  margin-top: 0.75rem;
+  /* min-width:0/max-width:100%는 칩스트립의 full-bleed 음수마진(좌우 -space-4)
+     중 우측 bleed를 막아 스트립이 비대칭(좌측 쏠림)이 되게 했다. 가로 넘침은
+     이제 flex-wrap으로 처리하므로 폭 제약을 제거해 좌우 대칭 bleed + 정중앙 유지. */
+}
+
+.erp-shipment-mobile-controls__drawer {
+  height: auto;
+  border-radius: 1.25rem 1.25rem 0 0;
+}
+
+.erp-shipment-mobile-controls__form {
+  display: grid;
+  gap: 1rem;
+}
+
+.erp-shipment-mobile-controls__field {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.erp-shipment-mobile-controls__field label {
+  color: #4a637d;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.erp-shipment-mobile-controls__check {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  color: #131e29;
+  font-size: 14px;
+}
+
+.erp-shipment-mobile-controls__check input {
+  width: 18px;
+  height: 18px;
+}
+
+.erp-shipment-mobile-controls__actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.erp-shipment-mobile-dates__header,
+.erp-shipment-mobile-queue__summary {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.erp-shipment-mobile-dates__eyebrow,
+.erp-shipment-mobile-queue__eyebrow {
+  display: block;
+  margin-bottom: 0.125rem;
+  color: #556b82;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.erp-shipment-mobile-dates__title,
+.erp-shipment-mobile-queue__title {
+  margin: 0;
+  color: #131e29;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.erp-shipment-mobile-dates__count,
+.erp-shipment-mobile-queue__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  background: #ebf8ff;
+  color: #0a6ed1;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.erp-shipment-mobile-dates__track {
+  display: flex;
+  gap: 0.625rem;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 0.25rem;
+  scroll-snap-type: x proximity;
+}
+
+.erp-shipment-mobile-date-chip {
+  display: grid;
+  flex: 0 0 88px;
+  min-width: 88px;
+  min-height: 78px;
+  gap: 0.25rem;
+  padding: 0.75rem;
+  border: 1px solid #d5e2f0;
+  border-radius: 16px;
+  background: #fff;
+  color: #131e29;
+  text-decoration: none;
+  scroll-snap-align: start;
+  box-shadow: 0 6px 18px rgba(17, 24, 39, 0.06);
+}
+
+.erp-shipment-mobile-date-chip.is-selected {
+  border-color: rgba(10, 110, 209, 0.3);
+  background: linear-gradient(180deg, #f6fbff 0%, #eaf5ff 100%);
+}
+
+.erp-shipment-mobile-date-chip.is-today {
+  box-shadow: 0 0 0 1px rgba(20, 134, 79, 0.2), 0 8px 20px rgba(17, 24, 39, 0.08);
+}
+
+.erp-shipment-mobile-date-chip.is-weekend {
+  background: #fff8eb;
+}
+
+.erp-shipment-mobile-date-chip.is-holiday {
+  background: #fff1f1;
+}
+
+.erp-shipment-mobile-date-chip__date {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.erp-shipment-mobile-date-chip__day {
+  color: #556b82;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.erp-shipment-mobile-date-chip__count {
+  justify-self: start;
+  min-width: 28px;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  background: #ebf8ff;
+  color: #0a6ed1;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.erp-shipment-mobile-cards {
+  display: grid;
+  gap: 0.875rem;
+  min-width: 0;
+}
+
+.erp-shipment-mobile-v2 .foms-mobile-queue-list {
+  display: grid;
+  gap: var(--foms-space-4, 16px);
+  min-width: 0;
+}
+
+.erp-shipment-mobile-card {
+  display: grid;
+}
+
+.erp-shipment-mobile-v2 .queue-card,
+.erp-shipment-mobile-v2 .foms-queue-card-v2 {
+  display: grid;
+  gap: var(--foms-space-1, 4px);
+  padding: var(--foms-space-3, 12px);
+  border: 1px solid var(--foms-border-subtle, #e5e7eb);
+  border-radius: var(--foms-radius-lg, 16px);
+  background: var(--foms-surface-base, #fff);
+  box-shadow: var(--foms-shadow-sm, 0 6px 18px rgba(17, 24, 39, 0.06));
+  min-width: 0;
+}
+
+.erp-shipment-mobile-card--with-detail .foms-queue-card-v2 {
+  border-bottom-right-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.erp-shipment-mobile-v2 .queue-card__head,
+.erp-shipment-mobile-v2 .foms-queue-card-v2__head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--foms-space-2, 8px);
+  min-width: 0;
+}
+
+.erp-shipment-mobile-v2 .queue-card__time,
+.erp-shipment-mobile-v2 .foms-queue-card-v2__time {
+  margin-left: auto;
+  color: var(--foms-text-tertiary, #64748b);
+  font-size: var(--foms-font-size-xs, 12px);
+}
+
+.erp-shipment-mobile-v2 .queue-card__title,
+.erp-shipment-mobile-v2 .foms-queue-card-v2__title {
+  margin: 0;
+  color: var(--foms-text-primary, #131e29);
+  font-size: var(--foms-font-size-base, 16px);
+  font-weight: var(--foms-font-weight-semibold, 700);
+  line-height: var(--foms-line-height-snug, 1.35);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.erp-shipment-mobile-v2 .queue-card__subtitle,
+.erp-shipment-mobile-v2 .foms-queue-card-v2__subtitle {
+  display: block;
+  margin-top: 2px;
+  color: var(--foms-text-secondary, #556b82);
+  font-size: var(--foms-font-size-sm, 14px);
+  font-weight: var(--foms-font-weight-normal, 400);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.erp-shipment-mobile-v2 .queue-card__meta,
+.erp-shipment-mobile-v2 .foms-queue-card-v2__meta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--foms-space-1, 4px) var(--foms-space-3, 12px);
+  margin: 0;
+  font-size: var(--foms-font-size-sm, 14px);
+}
+
+.erp-shipment-mobile-v2 .queue-card__meta > div,
+.erp-shipment-mobile-v2 .foms-queue-card-v2__meta > div {
+  min-width: 0;
+}
+
+.erp-shipment-mobile-v2 .queue-card__meta dt,
+.erp-shipment-mobile-v2 .foms-queue-card-v2__meta dt {
+  margin: 0;
+  color: var(--foms-text-tertiary, #64748b);
+  font-size: var(--foms-font-size-xs, 12px);
+}
+
+.erp-shipment-mobile-v2 .queue-card__meta dd,
+.erp-shipment-mobile-v2 .foms-queue-card-v2__meta dd {
+  margin: 0;
+  color: var(--foms-text-primary, #131e29);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.erp-shipment-mobile-v2 .queue-card__action,
+.erp-shipment-mobile-v2 .foms-queue-card-v2__action {
+  display: flex;
+  gap: var(--foms-space-2, 8px);
+  padding-top: var(--foms-space-2, 8px);
+  border-top: 1px solid var(--foms-border-subtle, #e5e7eb);
+}
+
+.erp-shipment-mobile-v2 .queue-card__action .foms-btn,
+.erp-shipment-mobile-v2 .foms-queue-card-v2__action .foms-btn {
+  flex: 1;
+}
+
+.erp-shipment-mobile-v2 .queue-card__attachments,
+.erp-shipment-mobile-v2 .foms-queue-card-v2__attachments {
+  display: flex;
+  align-items: center;
+  gap: var(--foms-space-2, 8px);
+}
+
+.erp-shipment-mobile-v2 .queue-card__attach-thumb,
+.erp-shipment-mobile-v2 .foms-queue-card-v2__attach-thumb {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--foms-radius-md, 12px);
+  background: linear-gradient(135deg, #cbd5e1, #64748b);
+  flex-shrink: 0;
+}
+
+.erp-shipment-mobile-v2 .queue-card__attach-more,
+.erp-shipment-mobile-v2 .foms-queue-card-v2__attach-more {
+  color: var(--foms-text-tertiary, #64748b);
+  font-size: var(--foms-font-size-xs, 12px);
+  font-variant-numeric: tabular-nums;
+}
+
+.erp-shipment-mobile-card__detail {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem 0.75rem;
+  margin: 0;
+  padding: 0.75rem 1rem 0.9rem;
+  border: 1px solid var(--foms-border-subtle, #e5e7eb);
+  border-top: 0;
+  border-radius: 0 0 var(--foms-radius-lg, 16px) var(--foms-radius-lg, 16px);
+  background: #fff;
+  box-shadow: 0 8px 18px rgba(17, 24, 39, 0.06);
+}
+
+.erp-shipment-mobile-card__detail div {
+  min-width: 0;
+}
+
+.erp-shipment-mobile-card__detail dt {
+  margin-bottom: 0.125rem;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.erp-shipment-mobile-card__detail dd {
+  margin: 0;
+  color: #131e29;
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.erp-shipment-mobile-card__full {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 1365.98px) {
+  body.erp-mobile-v2-layout .erp-mobile-shell[data-erp-mobile-v2='true'] {
+    background: var(--foms-surface-overlay, #f3f4f6);
+  }
+
+  body.erp-mobile-v2-layout
+    .erp-mobile-shell[data-erp-mobile-v2='true']
+    .erp-shipment-desktop-shell {
+    display: none !important;
+  }
+
+  body.erp-mobile-v2-layout .erp-shipment-mobile-v2.foms-mobile-v2-dashboard {
+    display: grid !important;
+  }
+
+  body.erp-mobile-v2-layout .erp-shipment-mobile-v2 .foms-shell-fab {
+    display: flex !important;
+  }
+
+  body.erp-mobile-v2-layout .erp-shipment-mobile-v2.foms-shell-body {
+    padding: var(--foms-space-3, 12px) var(--foms-space-4, 16px)
+      calc(var(--foms-shell-bottom-nav-h, 72px) + var(--foms-space-4, 16px));
+    gap: var(--foms-space-3, 12px);
+  }
+
+  body.erp-mobile-v2-layout .erp-shipment-mobile-controls,
+  body.erp-mobile-v2-layout .erp-shipment-mobile-dates,
+  body.erp-mobile-v2-layout .erp-shipment-mobile-queue {
+    display: block;
+  }
+}
+
+@media (min-width: 992px) and (max-width: 1365.98px) {
+  body.erp-mobile-v2-layout .erp-shipment-mobile-v2.foms-shell-body {
+    max-width: 720px;
+    margin: 0 auto;
+    padding-top: 1.25rem;
+    padding-bottom: 2rem;
+  }
+
+  body.erp-mobile-v2-layout .erp-shipment-mobile-card__detail {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

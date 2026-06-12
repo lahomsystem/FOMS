@@ -17,9 +17,19 @@ from db import get_db
 from models import OrderScheduleDate
 
 
+def _runtime_dumps_root() -> str:
+    """PTC §3.4 / §4.3: dumps live under FOMS_RUNTIME_OUTPUT_ROOT, not repo backups/."""
+    raw = os.environ.get("FOMS_RUNTIME_OUTPUT_ROOT")
+    if raw:
+        root = os.path.abspath(os.path.expanduser(os.path.expandvars(raw)))
+    else:
+        root = os.path.join(os.path.expanduser("~"), "FOMS-runtime")
+    return os.path.join(root, "dumps")
+
+
 def _default_output_path():
     ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    return os.path.join("backups", f"order_schedule_dates-{ts}.json")
+    return os.path.join(_runtime_dumps_root(), f"order_schedule_dates-{ts}.json")
 
 
 def _parse_args():
@@ -29,7 +39,11 @@ def _parse_args():
     parser.add_argument(
         "--output",
         default=_default_output_path(),
-        help="Output JSON path. Default: backups/order_schedule_dates-YYYYMMDD-HHMMSS.json",
+        help=(
+            "Output JSON path. Default: "
+            "${FOMS_RUNTIME_OUTPUT_ROOT}/dumps/order_schedule_dates-YYYYMMDD-HHMMSS.json "
+            "(falls back to %USERPROFILE%/FOMS-runtime/dumps/...)"
+        ),
     )
     return parser.parse_args()
 

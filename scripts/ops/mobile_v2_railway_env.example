@@ -1,0 +1,29 @@
+# Mobile v2 cohort + feature flag rollout env templates (Railway Variables)
+# Copy values into Railway Web service per day. See docs/runbooks/mobile-v2-railway-ops.md
+
+# --- Day 1 (single pilot user) ---
+# ERP_MOBILE_V2_ENABLED=true
+# FOMS_V3_SHELL_COHORT=<pilot_user_id>
+# FOMS_RUM_BASELINE_ENABLED=true
+
+# --- Day 2~3 (expand cohort, optional P1 flags after stable Day 1) ---
+# FOMS_V3_SHELL_COHORT=<id1>,<id2>,<id3>
+# FOMS_WIZARD_NEW_ORDER_ENABLED=true
+# FOMS_INLINE_EDIT_ENABLED=true
+
+# --- Day 4 (offline SW — after device QA) ---
+# FOMS_OFFLINE_SW_ENABLED=true
+
+# --- Day 5 (bottom nav HTMX — after device QA) ---
+# FOMS_BOTTOM_NAV_HTMX_ENABLED=true
+
+# --- Day 6+ (tablet split) ---
+# FOMS_TABLET_SPLIT_VIEW_ENABLED=true
+
+# --- Day 7 (full rollout — any authenticated user when global flag is on) ---
+# FOMS_V3_SHELL_COHORT=all
+# (also accepts * or ALL; empty/unset still blocks everyone — safe default)
+
+# --- Pilot / partial (numeric ids only) ---
+# FOMS_V3_SHELL_COHORT=<user_id>
+# FOMS_V3_SHELL_COHORT=<id1>,<id2>,<id3>

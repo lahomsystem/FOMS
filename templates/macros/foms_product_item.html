@@ -1,0 +1,30 @@
+{# C14 foms-product-item-accordion — static/server-rendered item shell (P1-04) #}
+{% macro foms_product_item(item, idx, order_id, can_edit=true, collapsed=false) %}
+<article class="foms-product-item erp-item-row{% if collapsed %} foms-product-item--collapsed{% endif %}"
+         data-item-idx="{{ idx }}"
+         data-item-index="{{ idx }}"
+         data-order-id="{{ order_id }}"
+         data-foms-product-item="1">
+  <header class="foms-product-item__head d-flex justify-content-between align-items-center"
+          role="button"
+          aria-expanded="{{ 'false' if collapsed else 'true' }}"
+          tabindex="0">
+    <span class="foms-product-item__index">항목 {{ idx + 1 }}</span>
+    <span class="foms-product-item__title">{{ item.product_name or '제품명 미입력' }}</span>
+    <button type="button" class="foms-product-item__expand" aria-label="{{ '펼치기' if collapsed else '접기' }}">{{ '⌄' if collapsed else '⌃' }}</button>
+  </header>
+  <div class="foms-product-item__body">
+    {% if can_edit %}
+    <div class="col-12">
+      <label class="form-label mb-1 small text-primary">제품명</label>
+      <input class="form-control form-control-sm" data-erp="product_name" value="{{ item.product_name or '' }}" lang="ko">
+    </div>
+    {% endif %}
+  </div>
+  <div class="foms-product-item__summary">{{ item.product_name or '제품명 미입력' }}</div>
+  <div class="foms-product-item__autosave" aria-live="polite">
+    <span class="foms-product-item__autosave-dot"></span>
+    <span class="foms-product-item__autosave-text">실측 변경 즉시 저장됨</span>
+  </div>
+</article>
+{% endmacro %}

@@ -1,7 +1,25 @@
 {% extends "orders/layout.html" %}
 
+{% block styles %}
+{% if flag_inline %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-product-item.css') }}?v=20260531a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-inline-edit.css') }}?v=20260531a">
+{% endif %}
+{% endblock %}
+
 {% block content %}
+{% if erp_mobile_v2_enabled %}
+{# Mobile v2 cohort: wrap the edit form in the foms mobile shell so this page gets
+   the mockup chrome (foms shell header + bottom nav) instead of the legacy
+   desktop header. Desktop (>=992px) hides the chrome via CSS, so editing there is
+   unchanged. Mirrors orders/mobile_order_detail.html. #}
+<div class="container-fluid erp-pro erp-mobile-shell foms-detail-page-wrap" data-erp-mobile-v2="true">
+  {% include 'partials/shared/erp_mobile_shell.html' %}
+  {% include "orders/partials/edit_order_body.html" %}
+</div>
+{% else %}
 {% include "orders/partials/edit_order_body.html" %}
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -821,12 +839,12 @@
         }
 
         // 계산기 탭 클릭 시 매칭된 견적 로드
-        document.getElementById('calculator-tab').addEventListener('shown.bs.tab', function () {
+        document.getElementById('calculator-tab')?.addEventListener('shown.bs.tab', function () {
             loadMatchedEstimates();
         });
 
         // 견적 검색 및 매칭
-        document.getElementById('searchEstimatesForMatchBtn').addEventListener('click', function () {
+        document.getElementById('searchEstimatesForMatchBtn')?.addEventListener('click', function () {
             const customerName = document.getElementById('matchCustomerName').value.trim();
             if (!customerName) {
                 alert('고객명을 입력해주세요.');
@@ -936,48 +954,52 @@
 </script>
 
 <script>
-    // ERP 대시보드/알림에서 바로 ERP Order 탭으로 오픈 (?open=erp-order)
+    // ERP 대시보드/알림/통합검색에서 바로 ERP Order 탭으로 오픈 (?open=erp-order)
     // 첨부로 포커스: ?focus=attachments&category=drawing
     document.addEventListener('DOMContentLoaded', function () {
         try {
             const qs = new URLSearchParams(window.location.search || '');
             const openTarget = qs.get('open');
-            if (openTarget === 'erp-order') {
-                const btn = document.getElementById('erp-order-tab');
-                if (btn && typeof bootstrap !== 'undefined' && bootstrap.Tab) {
-                    const focusTarget = (qs.get('focus') || '').trim();
-                    const category = (qs.get('category') || '').trim().toLowerCase();
-                    if (focusTarget === 'attachments') {
-                        btn.addEventListener('shown.bs.tab', function () {
-                            setTimeout(() => {
-                                if (category) {
-                                    const categorySelect = document.getElementById('erp-attachments-category');
-                                    if (categorySelect && ['measurement', 'drawing', 'construction', 'as'].includes(category)) {
-                                        categorySelect.value = category;
-                                    }
-                                }
-                                const target =
-                                    document.getElementById('erp-attachments-gallery')
-                                    || document.getElementById('erp-attachments-category')
-                                    || document.getElementById('erp-attachments-input')
-                                    || document.getElementById('erp-attachments-status');
-                                if (target) {
-                                    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                    const prevOutline = target.style.outline;
-                                    const prevOffset = target.style.outlineOffset;
-                                    target.style.outline = '3px solid rgba(13,110,253,0.5)';
-                                    target.style.outlineOffset = '4px';
-                                    setTimeout(() => {
-                                        target.style.outline = prevOutline;
-                                        target.style.outlineOffset = prevOffset;
-                                    }, 1400);
-                                }
-                            }, 350);
-                        }, { once: true });
-                    }
-                    bootstrap.Tab.getOrCreateInstance(btn).show();
-                }
+            if (openTarget !== 'erp-order') {
+                return;
             }
+            const btn = document.getElementById('erp-order-tab');
+            if (!btn || typeof bootstrap === 'undefined' || !bootstrap.Tab) {
+                return;
+            }
+
+            const focusTarget = (qs.get('focus') || '').trim();
+            const category = (qs.get('category') || '').trim().toLowerCase();
+            if (focusTarget === 'attachments') {
+                btn.addEventListener('shown.bs.tab', function () {
+                    setTimeout(() => {
+                        if (category) {
+                            const categorySelect = document.getElementById('erp-attachments-category');
+                            if (categorySelect && ['measurement', 'drawing', 'construction', 'as'].includes(category)) {
+                                categorySelect.value = category;
+                            }
+                        }
+                        const target =
+                            document.getElementById('erp-attachments-gallery')
+                            || document.getElementById('erp-attachments-category')
+                            || document.getElementById('erp-attachments-input')
+                            || document.getElementById('erp-attachments-status');
+                        if (target) {
+                            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            const prevOutline = target.style.outline;
+                            const prevOffset = target.style.outlineOffset;
+                            target.style.outline = '3px solid rgba(13,110,253,0.5)';
+                            target.style.outlineOffset = '4px';
+                            setTimeout(() => {
+                                target.style.outline = prevOutline;
+                                target.style.outlineOffset = prevOffset;
+                            }, 1400);
+                        }
+                    }, 350);
+                }, { once: true });
+            }
+
+            bootstrap.Tab.getOrCreateInstance(btn).show();
         } catch (e) { }
     });
 

@@ -1,0 +1,48 @@
+{# P1-02 C11: fullscreen search overlay (ERP mobile v2 cohort) #}
+<dialog class="foms-search-overlay" id="foms-search-overlay" aria-labelledby="foms-search-overlay-title">
+  <header class="foms-search-overlay__head">
+    <button class="foms-search-overlay__icon-btn" type="button" data-foms-search-close aria-label="닫기">
+      <i class="fas fa-arrow-left" aria-hidden="true"></i>
+    </button>
+    <div class="foms-search-overlay__input-wrap">
+      <span id="foms-search-overlay-title" class="visually-hidden">통합 검색</span>
+      <input
+        type="search"
+        class="foms-search-overlay__input"
+        id="foms-search-input"
+        name="q"
+        placeholder="고객명, 전화번호, 주소, 주문번호..."
+        autocomplete="off"
+        enterkeyhint="search"
+        hx-get="{{ url_for('foms_search.api_foms_search_fragment') }}"
+        hx-trigger="input changed delay:200ms, search"
+        hx-target="#foms-search-results"
+        hx-include="#foms-search-group"
+        hx-indicator="#foms-search-spinner" />
+      <input type="hidden" id="foms-search-group" name="group" value="all" />
+    </div>
+    <button class="foms-search-overlay__icon-btn" type="button" data-foms-search-clear aria-label="지우기">
+      <i class="fas fa-times" aria-hidden="true"></i>
+    </button>
+  </header>
+
+  <nav class="foms-search-overlay__tabs" role="tablist" aria-label="검색 범주">
+    <button type="button" class="foms-search-overlay__tab is-active" data-group="all" role="tab" aria-selected="true">전체</button>
+    <button type="button" class="foms-search-overlay__tab" data-group="customer" role="tab" aria-selected="false">고객</button>
+    <button type="button" class="foms-search-overlay__tab" data-group="order" role="tab" aria-selected="false">주문</button>
+    <button type="button" class="foms-search-overlay__tab" data-group="drawing" role="tab" aria-selected="false">도면</button>
+  </nav>
+
+  <div class="foms-search-overlay__body">
+    <div id="foms-search-spinner" class="foms-search-overlay__spinner htmx-indicator" aria-hidden="true">
+      <span class="spinner-border spinner-border-sm" role="status"></span>
+    </div>
+    <section class="foms-search-overlay__recent" id="foms-search-recent">
+      <h3 class="foms-search-overlay__section-title">최근 검색</h3>
+      <ul class="foms-search-overlay__recent-list" id="foms-search-recent-list"></ul>
+    </section>
+    <section class="foms-search-overlay__results" id="foms-search-results-wrap" hidden>
+      <div id="foms-search-results" class="foms-search-overlay__results-inner"></div>
+    </section>
+  </div>
+</dialog>

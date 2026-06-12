@@ -22,6 +22,8 @@ from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers
 from foms.services.erp_permissions import build_mine_sql_filter, can_edit_erp
 from foms.services.erp_policy import STAGE_LABELS
 from foms.services.request_utils import get_search_query_arg
+from foms.services.construction_dashboard_display import enrich_construction_mobile_rows
+from foms.services.feature_flags import is_enabled_for_user
 from models import Order
 
 erp_construction_page_bp = Blueprint("erp_construction_page", __name__, url_prefix="/erp")
@@ -52,7 +54,7 @@ def erp_construction_dashboard():
     query = db.query(Order).filter(Order.dashboard_active_filter(days=60), Order.is_erp_order.is_(True))
 
     if mine_only and user:
-        mine_conds = build_mine_sql_filter(user)
+        mine_conds = build_mine_sql_filter(user, scope="construction")
         if mine_conds:
             query = query.filter(or_(*mine_conds))
 
@@ -193,6 +195,17 @@ def erp_construction_dashboard():
     total_orders = len(enriched)
     total_pages = (total_orders + per_page - 1) // per_page
     paginated_orders = enriched[(page - 1) * per_page : page * per_page]
+    current_user = getattr(g, "current_user", None)
+    mobile_v2_active = is_enabled_for_user(
+        "ERP_MOBILE_V2_ENABLED",
+        current_user.id if current_user else None,
+        cohort_key="FOMS_V3_SHELL_COHORT",
+    )
+    enrich_construction_mobile_rows(
+        paginated_orders,
+        db,
+        mobile_v2_active=mobile_v2_active,
+    )
     attach_order_detail_payloads(db, paginated_orders)
 
     template_name = (
@@ -213,6 +226,7 @@ def erp_construction_dashboard():
             can_edit_erp=can_edit_erp(user),
             erp_mine_only=mine_only,
             page=page,
+            per_page=per_page,
             total_pages=total_pages,
             total_orders=total_orders,
         )

@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover" />
+<title>FOMS · 제품 설정 (모바일)</title>
+<link rel="stylesheet" href="_tokens.css" />
+<!--
+  ============================================================================
+  WDCalculator 제품 설정 모바일 목업 — 2026-06-04
+  ----------------------------------------------------------------------------
+  [현행] /wdcalculator/product-settings (1,936줄) = 3개 CRUD 도메인을 데스크톱
+   폼+테이블로 세로 나열:
+   ① 제품: 제품명·가격산정옵션(1m|30cm)·가격(1m / 30cm+1cm auto)·쿠폰(할인율%|고정원) + 목록 테이블
+   ② 추가 옵션: 카테고리명>옵션명+가격 + 목록 테이블
+   ③ 비고 카테고리: 카테고리명>옵션명 + 목록 테이블
+   모바일에선 폼+테이블 3쌍이 끝없이 스크롤 + 테이블 가로 깨짐.
+
+  [모바일 재설계] (계산기 모바일 목업과 동일 시스템)
+   - 상단 SEGMENTED 탭 [제품 / 추가옵션 / 비고] (카운트 배지) → 도메인 전환.
+     3쌍 동시 노출 대신 한 번에 한 도메인만 → 스크롤·인지부하 ↓.
+   - 각 탭: 테이블 대신 카드 리스트(이름+핵심정보 칩+수정/삭제). 추가옵션·비고는
+     카테고리별 그룹핑.
+   - 추가/수정은 하단 sticky '추가' 버튼 → BOTTOM SHEET 폼(계산기 저장견적 sheet와 동일 패턴).
+   - 터치 ≥44px, 입력 16px, tabular-nums, FOMS 토큰/컴포넌트 재사용.
+  ============================================================================
+-->
+<style>
+  body { margin: 0; background: var(--foms-color-neutral-100); font-family: var(--foms-font-sans, "Pretendard","Segoe UI",sans-serif); -webkit-font-smoothing: antialiased; }
+  .preview-row { display: flex; gap: 32px; flex-wrap: wrap; justify-content: center; padding: 28px 12px; }
+  .preview-col { display: flex; flex-direction: column; align-items: center; }
+  .preview-label { text-align: center; font-size: 13px; color: var(--foms-text-tertiary); margin: 10px 0 0; font-weight: var(--foms-font-weight-medium); max-width: 390px; }
+  .preview-frame { width: 390px; height: 844px; background: var(--foms-surface-base); border-radius: 32px; box-shadow: var(--foms-shadow-xl); overflow: hidden; position: relative; border: 8px solid #0f1115; }
+  .shell { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--foms-surface-overlay); }
+
+  /* Header */
+  .ps-head { flex-shrink: 0; height: 56px; display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; padding: 0 var(--foms-space-2);
+    background: var(--foms-surface-base); border-bottom: 1px solid var(--foms-border-subtle); }
+  .ps-head__title { font-size: var(--foms-font-size-lg); font-weight: var(--foms-font-weight-semibold); text-align: center; }
+  .icon-btn { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; background: transparent; border: none; cursor: pointer; border-radius: var(--foms-radius-md); color: var(--foms-text-primary); font-size: 18px; }
+  .icon-btn:active { background: var(--foms-interactive-secondary); }
+
+  /* Tabs (도메인 전환) */
+  .ps-tabs { flex-shrink: 0; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 2px; padding: 8px; background: var(--foms-surface-base); border-bottom: 1px solid var(--foms-border-subtle); }
+  .ps-tab { display: flex; align-items: center; justify-content: center; gap: 5px; min-height: 40px; border: none; background: var(--foms-color-neutral-100); border-radius: var(--foms-radius-md);
+    font-size: var(--foms-font-size-sm); font-weight: var(--foms-font-weight-medium); color: var(--foms-text-secondary); cursor: pointer; }
+  .ps-tab.is-active { background: var(--foms-interactive-primary); color: #fff; font-weight: var(--foms-font-weight-semibold); }
+  .ps-tab__n { font-size: var(--foms-font-size-xs); opacity: .85; }
+
+  /* Body */
+  .ps-body { flex: 1; overflow-y: auto; padding: var(--foms-space-3) var(--foms-space-3) 84px; display: grid; gap: var(--foms-space-2); align-content: start; }
+
+  /* Field atoms */
+  .field { display: grid; gap: 6px; margin-bottom: var(--foms-space-3); }
+  .field:last-child { margin-bottom: 0; }
+  .field__label { font-size: var(--foms-font-size-sm); font-weight: var(--foms-font-weight-medium); color: var(--foms-text-secondary); }
+  .field__label--req::after { content: " *"; color: var(--foms-color-danger-500); }
+  .field-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--foms-space-2); }
+  .foms-input, .foms-select { width: 100%; min-height: 44px; padding: 10px 12px; font-family: inherit; font-size: max(16px, var(--foms-font-size-base)); color: var(--foms-text-primary);
+    background: var(--foms-surface-base); border: 1px solid var(--foms-border-default); border-radius: var(--foms-radius-md); appearance: none; box-sizing: border-box; }
+  .foms-input:focus, .foms-select:focus { outline: none; border-color: var(--foms-border-focus); box-shadow: var(--foms-shadow-focus); }
+  .foms-tabular { font-variant-numeric: tabular-nums; }
+  .foms-select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23556' d='M1 1l5 5 5-5'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
+  .hint { font-size: var(--foms-font-size-xs); color: var(--foms-text-tertiary); margin-top: -2px; }
+
+  /* Buttons */
+  .foms-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 0 16px; border-radius: var(--foms-radius-md); border: 1px solid transparent; font-family: inherit; font-size: var(--foms-font-size-base); font-weight: var(--foms-font-weight-semibold); cursor: pointer; }
+  .foms-btn--primary { background: var(--foms-interactive-primary); color: #fff; }
+  .foms-btn--secondary { background: var(--foms-surface-base); color: var(--foms-text-primary); border-color: var(--foms-border-default); }
+  .foms-btn--full { width: 100%; }
+
+  /* Segmented */
+  .seg { display: grid; grid-auto-flow: column; gap: 2px; padding: 3px; background: var(--foms-color-neutral-100); border-radius: var(--foms-radius-md); }
+  .seg__btn { border: none; background: transparent; padding: 9px 12px; border-radius: calc(var(--foms-radius-md) - 3px); font-size: var(--foms-font-size-sm); font-weight: var(--foms-font-weight-medium); color: var(--foms-text-secondary); cursor: pointer; }
+  .seg__btn.is-active { background: var(--foms-surface-base); color: var(--foms-color-brand-700); box-shadow: var(--foms-shadow-sm); font-weight: var(--foms-font-weight-semibold); }
+
+  /* Item card (제품/옵션) */
+  .icard { background: var(--foms-surface-base); border: 1px solid var(--foms-border-subtle); border-radius: var(--foms-radius-md); padding: var(--foms-space-3); display: grid; gap: 8px; }
+  .icard__top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+  .icard__name { font-weight: var(--foms-font-weight-semibold); font-size: var(--foms-font-size-base); }
+  .icard__acts { display: flex; gap: 2px; flex-shrink: 0; }
+  .icard__act { width: 32px; height: 32px; border: none; background: transparent; color: var(--foms-text-tertiary); border-radius: var(--foms-radius-sm); cursor: pointer; }
+  .icard__act--del { color: var(--foms-color-danger-500); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { font-size: var(--foms-font-size-xs); padding: 4px 9px; border-radius: var(--foms-radius-full); background: var(--foms-color-neutral-100); color: var(--foms-text-secondary); font-variant-numeric: tabular-nums; }
+  .chip--price { background: var(--foms-color-brand-50); color: var(--foms-color-brand-700); }
+  .chip--price b { color: var(--foms-color-brand-800); }
+  .chip--coupon { background: var(--foms-color-warning-50); color: var(--foms-color-warning-600); }
+
+  /* Category group (추가옵션/비고) */
+  .cgroup { background: var(--foms-surface-base); border: 1px solid var(--foms-border-subtle); border-radius: var(--foms-radius-md); overflow: hidden; }
+  .cgroup__head { display: flex; align-items: center; justify-content: space-between; padding: 10px var(--foms-space-3); background: var(--foms-color-neutral-50); border-bottom: 1px solid var(--foms-border-subtle); }
+  .cgroup__name { font-weight: var(--foms-font-weight-semibold); font-size: var(--foms-font-size-sm); display: flex; align-items: center; gap: 6px; }
+  .cgroup__n { font-size: var(--foms-font-size-xs); color: var(--foms-text-tertiary); }
+  .orow { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 8px; padding: 10px var(--foms-space-3); border-bottom: 1px solid var(--foms-border-subtle); }
+  .orow:last-child { border-bottom: none; }
+  .orow__name { font-size: var(--foms-font-size-sm); }
+  .orow__price { font-size: var(--foms-font-size-sm); font-weight: var(--foms-font-weight-semibold); font-variant-numeric: tabular-nums; color: var(--foms-color-brand-700); }
+  .orow__acts { display: flex; gap: 0; }
+
+  /* Sticky add bar */
+  .addbar { position: absolute; inset: auto 0 0 0; background: var(--foms-surface-base); border-top: 1px solid var(--foms-border-subtle); box-shadow: 0 -4px 16px rgba(15,17,21,0.08);
+    padding: 10px var(--foms-space-3); padding-bottom: calc(10px + env(safe-area-inset-bottom,0)); z-index: var(--foms-z-action-bar); }
+
+  /* Bottom sheet (add/edit form) */
+  .backdrop { position: absolute; inset: 0; background: rgba(15,17,21,0.45); z-index: var(--foms-z-modal); }
+  .sheet { position: absolute; inset: auto 0 0 0; max-height: 90%; background: var(--foms-surface-base); border-radius: 20px 20px 0 0; z-index: var(--foms-z-modal); display: flex; flex-direction: column; box-shadow: var(--foms-shadow-xl); }
+  .sheet__grip { width: 40px; height: 4px; background: var(--foms-border-default); border-radius: var(--foms-radius-full); margin: 10px auto 6px; }
+  .sheet__head { display: flex; align-items: center; justify-content: space-between; padding: 4px var(--foms-space-4) var(--foms-space-2); }
+  .sheet__title { font-size: var(--foms-font-size-lg); font-weight: var(--foms-font-weight-bold); }
+  .sheet__body { flex: 1; overflow-y: auto; padding: var(--foms-space-2) var(--foms-space-4); }
+  .sheet__foot { flex-shrink: 0; display: flex; gap: var(--foms-space-2); padding: var(--foms-space-3) var(--foms-space-4); padding-bottom: calc(var(--foms-space-3) + env(safe-area-inset-bottom,0)); border-top: 1px solid var(--foms-border-subtle); }
+  .sheet__foot .foms-btn { flex: 1; }
+  .sheet__foot .foms-btn--primary { flex: 2; }
+</style>
+</head>
+<body>
+
+<div class="preview-row">
+
+  <!-- ============================ FRAME 1 — 제품 탭 (리스트) ============================ -->
+  <div class="preview-col">
+  <div class="preview-frame">
+    <div class="shell">
+      <header class="ps-head">
+        <button class="icon-btn" aria-label="뒤로">‹</button>
+        <div class="ps-head__title">제품 설정</div>
+        <span></span>
+      </header>
+      <div class="ps-tabs">
+        <button class="ps-tab is-active">제품 <span class="ps-tab__n">8</span></button>
+        <button class="ps-tab">추가옵션 <span class="ps-tab__n">5</span></button>
+        <button class="ps-tab">비고 <span class="ps-tab__n">4</span></button>
+      </div>
+      <div class="ps-body">
+        <div class="icard">
+          <div class="icard__top">
+            <div class="icard__name">본다 ㄱ자 커스텀 붙박이장</div>
+            <div class="icard__acts"><button class="icard__act">✏</button><button class="icard__act icard__act--del">🗑</button></div>
+          </div>
+          <div class="chips">
+            <span class="chip">30cm</span>
+            <span class="chip chip--price">30cm <b>108,900원</b> · 1cm <b>3,630원</b></span>
+            <span class="chip chip--coupon">쿠폰 할인율 5%</span>
+          </div>
+        </div>
+        <div class="icard">
+          <div class="icard__top">
+            <div class="icard__name">냉장고장 (신규제작)</div>
+            <div class="icard__acts"><button class="icard__act">✏</button><button class="icard__act icard__act--del">🗑</button></div>
+          </div>
+          <div class="chips">
+            <span class="chip">30cm</span>
+            <span class="chip chip--price">30cm <b>150,000원</b> · 1cm <b>5,000원</b></span>
+            <span class="chip chip--coupon">쿠폰 없음</span>
+          </div>
+        </div>
+        <div class="icard">
+          <div class="icard__top">
+            <div class="icard__name">슬라이딩 도어장</div>
+            <div class="icard__acts"><button class="icard__act">✏</button><button class="icard__act icard__act--del">🗑</button></div>
+          </div>
+          <div class="chips">
+            <span class="chip">1m</span>
+            <span class="chip chip--price">1m <b>330,000원</b></span>
+            <span class="chip chip--coupon">쿠폰 고정 11,000원</span>
+          </div>
+        </div>
+        <div class="icard">
+          <div class="icard__top">
+            <div class="icard__name">기본 붙박이장</div>
+            <div class="icard__acts"><button class="icard__act">✏</button><button class="icard__act icard__act--del">🗑</button></div>
+          </div>
+          <div class="chips">
+            <span class="chip">30cm</span>
+            <span class="chip chip--price">30cm <b>96,000원</b> · 1cm <b>3,200원</b></span>
+            <span class="chip chip--coupon">쿠폰 할인율 3%</span>
+          </div>
+        </div>
+      </div>
+      <div class="addbar"><button class="foms-btn foms-btn--primary foms-btn--full">＋ 제품 추가</button></div>
+    </div>
+  </div>
+  <p class="preview-label">제품 탭 — 도메인 세그먼트 탭 + 카드 리스트(가격·쿠폰 칩) + 하단 sticky 추가</p>
+  </div>
+
+  <!-- ============================ FRAME 2 — 제품 추가/수정 Sheet ============================ -->
+  <div class="preview-col">
+  <div class="preview-frame">
+    <div class="shell">
+      <header class="ps-head"><button class="icon-btn">‹</button><div class="ps-head__title">제품 설정</div><span></span></header>
+      <div class="ps-tabs">
+        <button class="ps-tab is-active">제품 <span class="ps-tab__n">8</span></button>
+        <button class="ps-tab">추가옵션 <span class="ps-tab__n">5</span></button>
+        <button class="ps-tab">비고 <span class="ps-tab__n">4</span></button>
+      </div>
+      <div class="ps-body" style="filter:blur(1px)"><div class="icard" style="height:90px"></div><div class="icard" style="height:90px"></div></div>
+
+      <div class="backdrop"></div>
+      <div class="sheet">
+        <div class="sheet__grip"></div>
+        <div class="sheet__head"><span class="sheet__title">제품 추가</span><button class="icon-btn" aria-label="닫기">✕</button></div>
+        <div class="sheet__body">
+          <div class="field"><label class="field__label field__label--req">제품명</label>
+            <input class="foms-input" placeholder="예: 본다 ㄱ자 커스텀 붙박이장" /></div>
+
+          <div class="field"><label class="field__label field__label--req">가격 산정 옵션</label>
+            <div class="seg"><button class="seg__btn">1m</button><button class="seg__btn is-active">30cm</button></div></div>
+
+          <!-- 30cm 선택 시 -->
+          <div class="field-2">
+            <div class="field" style="margin:0"><label class="field__label field__label--req">30cm 비용 (원)</label>
+              <input class="foms-input foms-tabular" inputmode="numeric" placeholder="예: 108,900" value="108,900" /></div>
+            <div class="field" style="margin:0"><label class="field__label">1cm (자동)</label>
+              <input class="foms-input foms-tabular" value="3,630" readonly style="background:var(--foms-color-neutral-50)" /></div>
+          </div>
+
+          <div class="field" style="margin-top:var(--foms-space-3)"><label class="field__label">쿠폰가 타입</label>
+            <div class="seg"><button class="seg__btn is-active">할인율 (%)</button><button class="seg__btn">고정 금액 (원)</button></div></div>
+          <div class="field"><label class="field__label">쿠폰가 값</label>
+            <input class="foms-input foms-tabular" inputmode="numeric" value="5" />
+            <span class="hint">ℹ 최종 견적에 적용되는 제품별 기본 쿠폰가</span></div>
+        </div>
+        <div class="sheet__foot">
+          <button class="foms-btn foms-btn--secondary">취소</button>
+          <button class="foms-btn foms-btn--primary">저장</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="preview-label">제품 추가/수정 — bottom sheet 폼(가격옵션·쿠폰 세그먼트, 1cm 자동)</p>
+  </div>
+
+  <!-- ============================ FRAME 3 — 추가옵션 탭 (카테고리 그룹) ============================ -->
+  <div class="preview-col">
+  <div class="preview-frame">
+    <div class="shell">
+      <header class="ps-head"><button class="icon-btn">‹</button><div class="ps-head__title">제품 설정</div><span></span></header>
+      <div class="ps-tabs">
+        <button class="ps-tab">제품 <span class="ps-tab__n">8</span></button>
+        <button class="ps-tab is-active">추가옵션 <span class="ps-tab__n">5</span></button>
+        <button class="ps-tab">비고 <span class="ps-tab__n">4</span></button>
+      </div>
+      <div class="ps-body">
+        <div class="cgroup">
+          <div class="cgroup__head"><span class="cgroup__name">📂 화장대 <span class="cgroup__n">2</span></span><button class="icard__act">✏</button></div>
+          <div class="orow"><span class="orow__name">화장대A</span><span class="orow__price">50,000원</span>
+            <span class="orow__acts"><button class="icard__act">✏</button><button class="icard__act icard__act--del">🗑</button></span></div>
+          <div class="orow"><span class="orow__name">화장대B (대형)</span><span class="orow__price">80,000원</span>
+            <span class="orow__acts"><button class="icard__act">✏</button><button class="icard__act icard__act--del">🗑</button></span></div>
+        </div>
+        <div class="cgroup">
+          <div class="cgroup__head"><span class="cgroup__name">📂 EP마감 <span class="cgroup__n">2</span></span><button class="icard__act">✏</button></div>
+          <div class="orow"><span class="orow__name">EP마감-흰색</span><span class="orow__price">30,000원</span>
+            <span class="orow__acts"><button class="icard__act">✏</button><button class="icard__act icard__act--del">🗑</button></span></div>
+          <div class="orow"><span class="orow__name">EP마감-우드</span><span class="orow__price">35,000원</span>
+            <span class="orow__acts"><button class="icard__act">✏</button><button class="icard__act icard__act--del">🗑</button></span></div>
+        </div>
+        <div class="cgroup">
+          <div class="cgroup__head"><span class="cgroup__name">📂 서랍 <span class="cgroup__n">1</span></span><button class="icard__act">✏</button></div>
+          <div class="orow"><span class="orow__name">3단 서랍</span><span class="orow__price">30,000원</span>
+            <span class="orow__acts"><button class="icard__act">✏</button><button class="icard__act icard__act--del">🗑</button></span></div>
+        </div>
+      </div>
+      <div class="addbar"><button class="foms-btn foms-btn--primary foms-btn--full">＋ 옵션 추가</button></div>
+    </div>
+  </div>
+  <p class="preview-label">추가옵션 탭 — 카테고리 그룹 리스트(추가 sheet: 카테고리명·옵션명·가격). 비고 탭도 동일(가격 없음)</p>
+  </div>
+
+</div>
+</body>
+</html>

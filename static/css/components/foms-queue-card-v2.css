@@ -1,0 +1,332 @@
+/* P1 mockup — queue card list (mobile-home-dashboard.html) */
+
+@media (max-width: 991.98px) {
+  body.erp-mobile-v2-layout .foms-mobile-queue-list {
+    display: grid;
+    gap: var(--foms-space-4);
+    /* 그리드 아이템이 콘텐츠 min-content 아래로 줄어들 수 있게 해
+       긴 제품명/주소 한 건이 리스트 폭(=뷰포트)을 넘기지 않도록 한다. */
+    min-width: 0;
+  }
+
+  body.erp-mobile-v2-layout .foms-mobile-queue-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--foms-space-3);
+    padding: var(--foms-space-1) 0 var(--foms-space-2);
+  }
+
+  body.erp-mobile-v2-layout .foms-mobile-queue-toolbar__summary {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  body.erp-mobile-v2-layout .foms-mobile-queue-toolbar__summary strong {
+    font-size: var(--foms-font-size-base);
+    line-height: var(--foms-line-height-tight);
+  }
+
+  body.erp-mobile-v2-layout .foms-mobile-queue-toolbar__summary span {
+    font-size: var(--foms-font-size-xs);
+    color: var(--foms-text-tertiary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  body.erp-mobile-v2-layout .foms-mobile-filter-trigger {
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 0 var(--foms-space-3);
+    border-radius: var(--foms-radius-md);
+    border: 1px solid var(--foms-border-subtle);
+    background: var(--foms-surface-base);
+    color: var(--foms-text-primary);
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-semibold);
+  }
+
+  body.erp-mobile-v2-layout .foms-mobile-filter-trigger__count {
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: var(--foms-radius-full);
+    background: var(--foms-interactive-primary);
+    color: #fff;
+    font-size: 11px;
+    line-height: 18px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+
+  body.erp-mobile-v2-layout .foms-mobile-filter-sheet {
+    --bs-offcanvas-height: min(76dvh, 640px);
+    border-radius: var(--foms-radius-xl) var(--foms-radius-xl) 0 0;
+  }
+
+  body.erp-mobile-v2-layout .foms-mobile-filter-sheet__form {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--foms-space-3);
+  }
+
+  body.erp-mobile-v2-layout .foms-mobile-filter-sheet__field {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  body.erp-mobile-v2-layout .foms-mobile-filter-sheet__field--full,
+  body.erp-mobile-v2-layout .foms-mobile-filter-sheet__toggles,
+  body.erp-mobile-v2-layout .foms-mobile-filter-sheet__actions {
+    grid-column: 1 / -1;
+  }
+
+  body.erp-mobile-v2-layout .foms-mobile-filter-sheet label {
+    margin: 0;
+    font-size: var(--foms-font-size-xs);
+    font-weight: var(--foms-font-weight-semibold);
+    color: var(--foms-text-secondary);
+  }
+
+  body.erp-mobile-v2-layout .foms-mobile-filter-sheet__toggles {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--foms-space-2);
+  }
+
+  body.erp-mobile-v2-layout .foms-mobile-filter-sheet__check {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    gap: var(--foms-space-2);
+    padding: 0 var(--foms-space-3);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-md);
+    background: var(--foms-surface-base);
+  }
+
+  body.erp-mobile-v2-layout .foms-mobile-filter-sheet__check input {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+  }
+
+  body.erp-mobile-v2-layout .foms-mobile-filter-sheet__check span {
+    color: var(--foms-text-primary);
+  }
+
+  body.erp-mobile-v2-layout .foms-mobile-filter-sheet__actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--foms-space-2);
+    padding-top: var(--foms-space-2);
+  }
+
+  body.erp-mobile-v2-layout [data-foms-mobile-queue-chunk] {
+    display: grid;
+    gap: var(--foms-space-4);
+    min-width: 0;
+  }
+
+  body.erp-mobile-v2-layout .queue-card,
+  body.erp-mobile-v2-layout .foms-queue-card-v2 {
+    display: grid;
+    gap: var(--foms-space-1);
+    padding: var(--foms-space-3);
+    background: var(--foms-surface-base);
+    border-radius: var(--foms-radius-lg);
+    box-shadow: var(--foms-shadow-sm);
+    border: 1px solid var(--foms-border-subtle);
+    min-width: 0;
+  }
+
+  body.erp-mobile-v2-layout .queue-card__head,
+  body.erp-mobile-v2-layout .foms-queue-card-v2__head {
+    display: flex;
+    align-items: center;
+    gap: var(--foms-space-2);
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
+  body.erp-mobile-v2-layout .queue-card__time,
+  body.erp-mobile-v2-layout .foms-queue-card-v2__time {
+    margin-left: auto;
+    font-size: var(--foms-font-size-xs);
+    color: var(--foms-text-tertiary);
+  }
+
+  body.erp-mobile-v2-layout .queue-card__title,
+  body.erp-mobile-v2-layout .foms-queue-card-v2__title {
+    margin: 0;
+    font-size: var(--foms-font-size-base);
+    font-weight: var(--foms-font-weight-semibold);
+    line-height: var(--foms-line-height-snug);
+    /* 공백 없는 긴 고객명/회사명도 카드 안에서 줄바꿈되도록 한다. */
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  body.erp-mobile-v2-layout .queue-card__subtitle,
+  body.erp-mobile-v2-layout .foms-queue-card-v2__subtitle {
+    display: block;
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-normal);
+    color: var(--foms-text-secondary);
+    margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body.erp-mobile-v2-layout .queue-card__meta,
+  body.erp-mobile-v2-layout .foms-queue-card-v2__meta {
+    display: grid;
+    /* minmax(0, 1fr): 1fr 트랙의 기본 최소값(auto=콘텐츠 폭) 대신 0을 써
+       긴 값이 들어와도 컬럼이 카드 폭을 넘기지 않게 한다. */
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--foms-space-1) var(--foms-space-3);
+    margin: 0;
+    font-size: var(--foms-font-size-sm);
+  }
+
+  body.erp-mobile-v2-layout .queue-card__meta > div,
+  body.erp-mobile-v2-layout .foms-queue-card-v2__meta > div {
+    min-width: 0;
+  }
+
+  body.erp-mobile-v2-layout .queue-card__meta dt,
+  body.erp-mobile-v2-layout .foms-queue-card-v2__meta dt {
+    font-size: var(--foms-font-size-xs);
+    color: var(--foms-text-tertiary);
+    margin: 0;
+  }
+
+  body.erp-mobile-v2-layout .queue-card__meta dd,
+  body.erp-mobile-v2-layout .foms-queue-card-v2__meta dd {
+    margin: 0;
+    color: var(--foms-text-primary);
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+
+  body.erp-mobile-v2-layout .queue-card__meta > div:first-child dd,
+  body.erp-mobile-v2-layout .foms-queue-card-v2__meta > div:first-child dd {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  body.erp-mobile-v2-layout .queue-card__meta a,
+  body.erp-mobile-v2-layout .foms-queue-card-v2__meta a {
+    color: var(--foms-text-link);
+  }
+
+  body.erp-mobile-v2-layout .queue-card__action,
+  body.erp-mobile-v2-layout .foms-queue-card-v2__action {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--foms-space-2);
+    padding-top: var(--foms-space-2);
+    border-top: 1px solid var(--foms-border-subtle);
+  }
+
+  body.erp-mobile-v2-layout .queue-card__action .foms-btn,
+  body.erp-mobile-v2-layout .foms-queue-card-v2__action .foms-btn {
+    flex: 1 1 calc(50% - var(--foms-space-2));
+    min-height: var(--foms-touch-target-min);
+    min-width: 0;
+    white-space: nowrap;
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-mobile-card__edit,
+  body.erp-mobile-v2-layout .erp-shipment-mobile-card__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--foms-space-2);
+    margin-top: var(--foms-space-2);
+    min-width: 0;
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-mobile-card__edit .foms-btn,
+  body.erp-mobile-v2-layout .erp-shipment-mobile-card__actions .foms-btn {
+    flex: 1 1 calc(33.333% - var(--foms-space-2));
+    min-height: var(--foms-touch-target-min);
+    min-width: 0;
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-mobile-card__status,
+  body.erp-mobile-v2-layout .erp-shipment-mobile-card__status {
+    flex: 1 0 100%;
+    min-height: 1rem;
+    color: var(--foms-text-secondary);
+    font-size: var(--foms-font-size-xs);
+  }
+
+  body.erp-mobile-v2-layout .queue-card__attachments,
+  body.erp-mobile-v2-layout .foms-queue-card-v2__attachments {
+    display: flex;
+    gap: var(--foms-space-2);
+    align-items: center;
+  }
+
+  body.erp-mobile-v2-layout .queue-card__attach-thumb,
+  body.erp-mobile-v2-layout .foms-queue-card-v2__attach-thumb {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--foms-radius-md);
+    background: linear-gradient(135deg, var(--foms-color-neutral-300), var(--foms-color-neutral-500));
+    flex-shrink: 0;
+  }
+
+  body.erp-mobile-v2-layout .queue-card__attach-more,
+  body.erp-mobile-v2-layout .foms-queue-card-v2__attach-more {
+    font-size: var(--foms-font-size-xs);
+    color: var(--foms-text-tertiary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  body.erp-mobile-v2-layout .section-header,
+  body.erp-mobile-v2-layout .foms-section-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: var(--foms-space-2) 0;
+  }
+
+  body.erp-mobile-v2-layout .section-header__title,
+  body.erp-mobile-v2-layout .foms-section-header__title {
+    font-size: var(--foms-font-size-xs);
+    font-weight: var(--foms-font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--foms-text-tertiary);
+    margin: 0;
+  }
+
+  body.erp-mobile-v2-layout .section-header__count,
+  body.erp-mobile-v2-layout .foms-section-header__count {
+    font-size: var(--foms-font-size-xs);
+    color: var(--foms-text-tertiary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  body.erp-mobile-v2-layout .foms-mobile-empty {
+    text-align: center;
+    padding: var(--foms-space-8) var(--foms-space-4);
+    color: var(--foms-text-secondary);
+    background: var(--foms-surface-base);
+    border-radius: var(--foms-radius-lg);
+  }
+
+  body.erp-mobile-v2-layout .foms-mobile-empty i {
+    font-size: 2rem;
+    color: var(--foms-text-tertiary);
+    margin-bottom: var(--foms-space-3);
+  }
+}

@@ -180,7 +180,7 @@ def erp_measurement_dashboard():
 
     # mine 필터를 SQL WHERE로 적용 (Python 루프 대신)
     if mine_filter_active:
-        mine_conds = build_mine_sql_filter(current_user)
+        mine_conds = build_mine_sql_filter(current_user, scope="sales")
         if mine_conds:
             query = query.filter(or_(*mine_conds))
 
@@ -214,7 +214,7 @@ def erp_measurement_dashboard():
             OrderScheduleDate.date <= range_end_str,
         ).distinct()
         if mine_filter_active:
-            p_mine_conds = build_mine_sql_filter(current_user)
+            p_mine_conds = build_mine_sql_filter(current_user, scope="sales")
             if p_mine_conds:
                 panel_query = panel_query.filter(or_(*p_mine_conds))
         panel_orders = panel_query.options(
@@ -242,7 +242,7 @@ def erp_measurement_dashboard():
         if panel_fallback_filter is not None:
             panel_fallback_query = base_query.filter(panel_fallback_filter)
             if mine_filter_active:
-                p_mine_conds = build_mine_sql_filter(current_user)
+                p_mine_conds = build_mine_sql_filter(current_user, scope="sales")
                 if p_mine_conds:
                     panel_fallback_query = panel_fallback_query.filter(or_(*p_mine_conds))
             panel_fallback_orders = panel_fallback_query.options(
@@ -347,7 +347,7 @@ def erp_measurement_dashboard():
     if row_fallback_filter is not None:
         row_fallback_query = base_query.filter(row_fallback_filter)
         if mine_filter_active:
-            r_mine_conds = build_mine_sql_filter(current_user)
+            r_mine_conds = build_mine_sql_filter(current_user, scope="sales")
             if r_mine_conds:
                 row_fallback_query = row_fallback_query.filter(or_(*r_mine_conds))
         fallback_rows = row_fallback_query.options(selectinload(Order.schedule_dates)).order_by(Order.id.desc()).limit(1500).all()
@@ -471,6 +471,27 @@ def erp_measurement_dashboard():
         # 실측 대시보드 지도는 항상 실측 주문만 표시한다.
         return redirect(url_for('erp_map.map_view', date=selected_date, status='ALL', dashboard='measurement', q=search_q))
 
+    # 모바일 v2 큐: 홈과 동일한 깔끔한 queue-card-v2용 view-model (cohort에서만 계산)
+    from foms.services.feature_flags import is_enabled_for_user
+    from foms.services.erp_mobile_order_display import build_mobile_queue_order_row
+    mobile_v2_active = is_enabled_for_user(
+        "ERP_MOBILE_V2_ENABLED",
+        current_user.id if current_user else None,
+        cohort_key="FOMS_V3_SHELL_COHORT",
+    )
+    mobile_queue_rows = []
+    if mobile_v2_active:
+        for _o in rows:
+            _row = build_mobile_queue_order_row(db, _o, current_user)
+            # 실측은 담당이 user id로 저장되는 케이스가 있어 표시명으로 정규화
+            _mgr = normalize_manager_name(
+                ((_o.structured_data or {}).get('parties') or {}).get('manager'),
+                getattr(_o, 'manager_name', None),
+            )
+            if _mgr:
+                _row['manager_name'] = _mgr
+            mobile_queue_rows.append(_row)
+
     template_name = (
         'measurement/partials/dashboard_fragment.html'
         if wants_erp_shell_tab_body(request)
@@ -485,6 +506,7 @@ def erp_measurement_dashboard():
             date_to=date_to,
             use_date_range=use_range,
             rows=rows,
+            mobile_queue_rows=mobile_queue_rows,
             measurement_panel_dates=measurement_panel_dates,
             measurement_manager_options=measurement_manager_options,
             measurement_manager_color_map=measurement_manager_color_map,

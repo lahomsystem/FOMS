@@ -1,0 +1,62 @@
+{# P0-02: 도면 작업실 모바일 필터 offcanvas (AS 패턴) #}
+<div
+  class="offcanvas offcanvas-end erp-drawing-mobile-filter-drawer"
+  tabindex="-1"
+  id="erp-drawing-mobile-filter-drawer"
+  aria-labelledby="erp-drawing-mobile-filter-drawer-label"
+>
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title" id="erp-drawing-mobile-filter-drawer-label">필터</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="닫기"></button>
+  </div>
+  <div class="offcanvas-body">
+    <form method="get" class="erp-drawing-mobile-filter-form">
+      <div class="mb-3">
+        <label class="form-label" for="erp-drawing-filter-status">상태</label>
+        <select class="form-select" id="erp-drawing-filter-status" name="status">
+          <option value="">전체</option>
+          <option value="WAITING" {% if filters.get('status') == 'WAITING' %}selected{% endif %}>대기중</option>
+          <option value="IN_PROGRESS" {% if filters.get('status') == 'IN_PROGRESS' %}selected{% endif %}>작업중</option>
+          <option value="RETURNED" {% if filters.get('status') == 'RETURNED' %}selected{% endif %}>수정 요청됨</option>
+          <option value="TRANSFERRED" {% if filters.get('status') == 'TRANSFERRED' %}selected{% endif %}>확정 대기</option>
+          <option value="CONFIRMED" {% if filters.get('status') == 'CONFIRMED' %}selected{% endif %}>완료</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label" for="erp-drawing-filter-assignee">도면 담당자</label>
+        <input
+          type="text"
+          class="form-control"
+          id="erp-drawing-filter-assignee"
+          name="assignee"
+          value="{{ filters.get('assignee') or '' }}"
+          placeholder="담당자 이름 포함"
+        >
+      </div>
+      <div class="mb-3 d-flex flex-column gap-2">
+        <label class="form-check form-switch mb-0">
+          <input class="form-check-input" type="checkbox" name="mine" value="1" {% if filters.get('mine') == '1' %}checked{% endif %}>
+          <span class="form-check-label">내 할 일</span>
+        </label>
+        <label class="form-check form-switch mb-0">
+          <input class="form-check-input" type="checkbox" name="unread" value="1" {% if filters.get('unread') == '1' %}checked{% endif %}>
+          <span class="form-check-label">미확인만</span>
+        </label>
+        <label class="form-check form-switch mb-0">
+          <input class="form-check-input" type="checkbox" name="due_today" value="1" {% if filters.get('due_today') == '1' %}checked{% endif %}>
+          <span class="form-check-label">오늘 마감</span>
+        </label>
+      </div>
+      {% if filters.get('q') %}
+      <input type="hidden" name="q" value="{{ filters.get('q') }}">
+      {% endif %}
+      <div class="d-grid gap-2">
+        <button type="submit" class="btn btn-primary">적용</button>
+        <a
+          class="btn btn-outline-secondary"
+          href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_dashboard') }}"
+        >초기화</a>
+      </div>
+    </form>
+  </div>
+</div>

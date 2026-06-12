@@ -1,0 +1,25 @@
+{# AS 모바일 슬림 sticky 바: 제목 + 건수 + 내담당만 토글.
+   스크롤 내내 상단 고정되는 유일한 chrome(나머지 stats/탭/검색은 흘려보냄)이라
+   화면 점유를 최소화하고 케이스 스캔 영역을 최대화한다. #}
+{% set as_active_title = 'AS 미완료' %}
+{% if as_tab == 'sales_delivery' %}
+  {% set as_active_title = '영업/배송 AS' %}
+{% elif as_tab == 'completed' %}
+  {% set as_active_title = 'AS 완료' %}
+{% endif %}
+<div class="erp-as-mobile-controls__summary foms-section-header section-header">
+  <div>
+    <span class="erp-as-mobile-controls__eyebrow">After Service</span>
+    <h2 class="erp-as-mobile-controls__title foms-section-header__title">{{ as_active_title }}</h2>
+  </div>
+  <div class="erp-as-mobile-controls__summary-right">
+    <a
+      class="erp-as-mobile-controls__mine-toggle chip foms-chip{% if erp_mine_only %} is-active{% endif %}"
+      href="{{ url_for('erp_as_page.erp_as_dashboard', tab=as_tab, bucket=(as_bucket or none), status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='' if erp_mine_only else '1') }}"
+      aria-pressed="{{ 'true' if erp_mine_only else 'false' }}">
+      <i class="fas fa-user-check"></i>
+      <span>{% if erp_mine_only %}내 담당{% else %}전체{% endif %}</span>
+    </a>
+    <span class="erp-as-mobile-controls__count foms-section-header__count">{{ total_orders }}건</span>
+  </div>
+</div>

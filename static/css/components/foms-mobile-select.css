@@ -1,0 +1,38 @@
+/**
+ * FOMS 모바일 셀렉트 바텀시트 피커 (<=991.98px).
+ * static/js/components/foms-mobile-select.js 동반 스타일. foms 토큰 + fallback.
+ * z-index: 폼 시트(1050~1055) · 부트스트랩 모달(1055) 위, 토스트(1100) 아래.
+ */
+@media (max-width: 991.98px) {
+  body.foms-msel-open { overflow: hidden; }
+
+  .foms-msel-backdrop { position: fixed; inset: 0; background: rgba(15, 17, 21, .45); z-index: 1086; }
+  .foms-msel-sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; max-height: 70%; z-index: 1090;
+    background: var(--foms-surface-base, #fff); border-radius: 20px 20px 0 0;
+    display: flex; flex-direction: column; box-shadow: var(--foms-shadow-xl, 0 -8px 40px rgba(0, 0, 0, .2));
+  }
+  .foms-msel-sheet__grip { width: 40px; height: 4px; background: var(--foms-border-default, #ced4da); border-radius: var(--foms-radius-full, 999px); margin: 10px auto 6px; }
+  .foms-msel-sheet__head {
+    display: flex; align-items: center; justify-content: space-between; padding: 2px 16px 8px;
+    border-bottom: 1px solid var(--foms-border-subtle, #e9ecef);
+  }
+  .foms-msel-sheet__title { font-size: var(--foms-font-size-lg, 18px); font-weight: var(--foms-font-weight-bold, 700); }
+  .foms-msel-sheet__close {
+    width: 36px; height: 36px; border: none; background: transparent; font-size: 18px;
+    color: var(--foms-text-primary, #212529); border-radius: var(--foms-radius-md, 8px); cursor: pointer;
+  }
+  .foms-msel-sheet__close:active { background: var(--foms-color-neutral-100, #f1f3f5); }
+  .foms-msel-sheet__body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 6px 8px 16px; }
+
+  .foms-msel-opt {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; text-align: left;
+    min-height: 48px; padding: 12px 14px; border: none; background: transparent; font-family: inherit;
+    font-size: max(16px, var(--foms-font-size-base, 15px)); color: var(--foms-text-primary, #212529);
+    border-radius: var(--foms-radius-md, 10px); cursor: pointer;
+  }
+  .foms-msel-opt:active { background: var(--foms-color-neutral-100, #f1f3f5); }
+  .foms-msel-opt.is-active { background: var(--foms-color-brand-50, #e7f1ff); color: var(--foms-color-brand-700, #0a58ca); font-weight: var(--foms-font-weight-semibold, 600); }
+  .foms-msel-opt.is-active::after { content: "✓"; font-weight: 700; }
+  .foms-msel-opt.is-disabled { color: var(--foms-text-tertiary, #adb5bd); cursor: not-allowed; }
+}

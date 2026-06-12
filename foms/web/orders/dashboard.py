@@ -13,11 +13,7 @@ from foms.services.erp_policy import (
     STAGE_LABELS,
     STAGE_SQL_FILTER_MAP,
     STAGES_REQUIRING_TEAM,
-    get_quest_template_for_stage,
-    create_quest_from_template,
-    get_required_approval_teams_for_stage,
     recommend_owner_team,
-    can_modify_domain,
 )
 from foms.services.erp_display import (
     _ensure_dict,
@@ -25,12 +21,22 @@ from foms.services.erp_display import (
     _erp_alerts,
     _erp_has_media,
 )
+from foms.services.erp_quest_display import build_current_quest_payload
+from foms.services.erp_mobile_order_display import (
+    product_subtitle_from_sd,
+    stage_badge_label,
+    stage_badge_modifier,
+    batch_resolve_queue_attachment_urls,
+)
 from foms.services.common.business_calendar import business_days_until
 from foms.services.erp_order_detail import build_order_detail_payload_map
 from foms.services.erp_shipment_settings import is_order_mine_for_user
 from foms.services.orders.status_constants import BULK_ACTION_STATUS
 from foms.services.request_utils import get_search_query_arg
 from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
+from foms.services.feature_flags import env_bool, env_bool_or_mobile_v2, is_enabled_for_user
+from foms.services.foms_split_view import build_split_master_cards, default_split_side_items
+from foms.services.orders.dashboard_control_tower import build_mobile_control_tower
 from foms.services.common.dashboard_cache import (
     TTL_ATTACHMENT_COUNT_MAP,
     TTL_PAYLOAD_ASSEMBLY,
@@ -119,6 +125,10 @@ def erp_dashboard():
     f_q = get_search_query_arg('q', 'search')
     effective_stage = '' if f_q else f_stage
     f_team = (request.args.get('team') or '').strip()
+    f_sort = (request.args.get('sort') or 'latest').strip()
+    if f_sort not in ('latest', 'schedule', 'amount'):
+        f_sort = 'latest'
+    f_today = (request.args.get('today') or '').strip()
 
     # Phase H: 대시보드 운영 화면은 최근 활성 데이터만 조회 (과거 완료건 제외)
     _q = db.query(Order).filter(Order.dashboard_active_filter(days=60), Order.is_erp_order.is_(True))
@@ -138,6 +148,16 @@ def erp_dashboard():
         mine_conds = build_mine_sql_filter(current_user)
         if mine_conds:
             _q = _q.filter(or_(*mine_conds))
+
+    today_date = datetime.date.today()
+    today_iso = today_date.isoformat()
+    if f_today == '1':
+        _q = _q.filter(
+            or_(
+                Order.erp_measurement_date == today_iso,
+                Order.erp_construction_date == today_iso,
+            )
+        )
 
     # C. f_team SQL 필터
     if f_team and not is_admin:
@@ -166,10 +186,17 @@ def erp_dashboard():
         _q = _q.filter(Order.erp_urgent == True)
 
     # B-4. D-day SQL 후보군 필터 (1차)
-    if f_alert_type in ('measurement_d4', 'construction_d3', 'production_d2'):
+    if f_alert_type in ('measurement_d4', 'construction_d3', 'production_d2', 'drawing_overdue'):
         today_date = datetime.date.today()
-        
-        if f_alert_type == 'measurement_d4':
+
+        if f_alert_type == 'drawing_overdue':
+            drawing_cutoff = datetime.datetime.now() - datetime.timedelta(hours=48)
+            _q = _q.filter(
+                Order.erp_stage_code.in_(['DRAWING', 'CONFIRM']),
+                Order.erp_stage_updated_at.isnot(None),
+                Order.erp_stage_updated_at <= drawing_cutoff,
+            )
+        elif f_alert_type == 'measurement_d4':
             cutoff = (today_date + datetime.timedelta(days=12)).isoformat()
             _q = _q.filter(
                 Order.erp_measurement_date.isnot(None),
@@ -191,6 +218,16 @@ def erp_dashboard():
                 Order.erp_construction_date <= cutoff,
                 Order.erp_stage_code != 'CONSTRUCTION'
             )
+
+    if f_today == '1':
+        today_iso = datetime.date.today().isoformat()
+        _q = _q.filter(
+            or_(
+                Order.erp_measurement_date == today_iso,
+                Order.erp_construction_date == today_iso,
+                Order.received_date == today_iso,
+            )
+        )
 
     # 순수 DB 정렬: 실측/시공 단계 진입 시 해당 날짜 내림차순 정렬 우선
     if effective_stage:
@@ -258,6 +295,8 @@ def erp_dashboard():
                 continue
             elif f_alert_type == 'production_d2' and not alerts.get('production_d2'):
                 continue
+            elif f_alert_type == 'drawing_overdue' and not alerts.get('drawing_overdue'):
+                continue
         
         # --- C: f_team 인메모리 2차 확인 (CS 오버라이드 보완) ---
         if f_team and not is_admin:
@@ -279,20 +318,47 @@ def erp_dashboard():
             'alerts': alerts,
         })
 
+    if f_sort == 'schedule':
+        def _schedule_sort_key(item: dict) -> str:
+            schedule = (item.get('_sd') or {}).get('schedule') or {}
+            md = (schedule.get('measurement') or {}).get('date') or '9999-99-99'
+            cd = (schedule.get('construction') or {}).get('date') or '9999-99-99'
+            return min(str(md), str(cd))
+
+        filtered.sort(key=_schedule_sort_key)
+    elif f_sort == 'amount':
+        def _amount_sort_key(item: dict) -> int:
+            sd = item.get('_sd') or {}
+            total = 0
+            for it in sd.get('items') or []:
+                if not isinstance(it, dict):
+                    continue
+                raw = it.get('price') or it.get('amount') or 0
+                try:
+                    total += int(str(raw).replace(',', '').strip() or 0)
+                except (TypeError, ValueError):
+                    continue
+            return total
+
+        filtered.sort(key=_amount_sort_key, reverse=True)
+    else:
+        filtered.sort(key=lambda item: item['_order'].id, reverse=True)
+
     # --- A-0. kpis / step_stats 집계 (limit 무관하게 _q_stats에서 산출) ---
     _summary_fp = {
-        "v": 3,
+        "v": 4,
         "user": _orders_user_visibility_fingerprint(current_user, is_admin),
         "filters": {
             "mine": (request.args.get('mine') or '').strip(),
             "q": f_q,
             "team": f_team,
+            "today": f_today,
         },
     }
     _summary_key = build_dashboard_cache_key("orders", "summary_counts", _summary_fp)
 
     def _compute_orders_summary_slice():
-        kpis = {'urgent_count': 0, 'measurement_d4_count': 0, 'construction_d3_count': 0, 'production_d2_count': 0}
+        kpis = {'urgent_count': 0, 'measurement_d4_count': 0, 'construction_d3_count': 0, 'production_d2_count': 0, 'today_count': 0}
         step_stats = {k: {'count': 0, 'overdue': 0, 'imminent': 0} for k in [
             '주문접수', '실측', '도면', '고객컨펌', '생산', '시공', 'CS', '완료', 'AS처리'
         ]}
@@ -315,6 +381,7 @@ def erp_dashboard():
         )
 
         today_date = datetime.date.today()
+        today_iso = today_date.isoformat()
         measurement_d4_dates = _business_alert_date_values(
             today_date,
             max_business_days=4,
@@ -361,6 +428,14 @@ def erp_dashboard():
             )
             .group_by(stage_bucket_expr)
             .all()
+        )
+        kpis['today_count'] = (
+            _q_stats.filter(
+                or_(
+                    Order.erp_measurement_date == today_iso,
+                    Order.erp_construction_date == today_iso,
+                )
+            ).count()
         )
         for row in summary_rows:
             kpis['urgent_count'] += int(row.urgent_cnt or 0)
@@ -490,148 +565,22 @@ def erp_dashboard():
         stage = _erp_get_stage(o, sd)
         alerts = _erp_alerts(o, sd, cnt)
         has_media = _erp_has_media(o, cnt)
-        current_quest = None
-        quests = sd.get('quests') or []
-        if stage:
-            stage_code = STAGE_NAME_TO_CODE.get(stage, stage)
-            stage_label_from_code = STAGE_LABELS.get(stage_code, stage)
-            if stage_code == 'CONSTRUCTION':
-                pass  # 시공 단계 퀘스트는 시공 대시보드에서만 처리
-            elif stage_code != 'DRAWING':
-                possible_stages = {stage, stage_code, stage_label_from_code}
-                if stage in STAGE_NAME_TO_CODE:
-                    possible_stages.add(STAGE_NAME_TO_CODE[stage])
-                if stage_code in STAGE_LABELS:
-                    possible_stages.add(STAGE_LABELS[stage_code])
-                matching_quests = [q for q in quests if isinstance(q, dict) and q.get('stage') in possible_stages]
-                if matching_quests:
-                    open_quests = [q for q in matching_quests if str(q.get('status', 'OPEN')).upper() == 'OPEN']
-                    sort_key = lambda x: (x.get('created_at') or x.get('updated_at') or '1970-01-01T00:00:00',)
-                    (open_quests if open_quests else matching_quests).sort(key=sort_key, reverse=True)
-                    current_quest = (open_quests if open_quests else matching_quests)[0]
-                else:
-                    quest_tpl = get_quest_template_for_stage(stage)
-                    if quest_tpl:
-                        temp_quest = create_quest_from_template(stage, None, sd)
-                        if temp_quest:
-                            current_quest = temp_quest
-                        else:
-                            team_approvals_template = {
-                                str(team): {'approved': False, 'approved_by': None, 'approved_at': None}
-                                for team in quest_tpl.get('required_approvals', []) if team
-                            }
-                            current_quest = {
-                                'stage': stage,
-                                'title': quest_tpl.get('title', ''),
-                                'description': quest_tpl.get('description', ''),
-                                'owner_team': quest_tpl.get('owner_team', ''),
-                                'status': 'OPEN',
-                                'team_approvals': team_approvals_template
-                            }
-
-        all_approved = False
-        missing_teams = []
-        team_approvals = {}
-        required_teams = []
-        if current_quest:
-            quest_status = str(current_quest.get('status', 'OPEN')).upper()
-            team_approvals_raw = current_quest.get('team_approvals', {})
-            required_teams = get_required_approval_teams_for_stage(stage)
-            if stage in ("실측", "MEASURE", "고객컨펌", "CONFIRM"):
-                orderer_name = (((sd.get("parties") or {}).get("orderer") or {}).get("name") or "").strip()
-                if orderer_name and "라홈" in orderer_name:
-                    current_quest['owner_team'] = 'CS'
-                    required_teams = ['CS']
-                    existing_cs = current_quest.get('team_approvals', {}).get('CS', {})
-                    approved = existing_cs.get('approved', False) if isinstance(existing_cs, dict) else bool(existing_cs)
-                    current_quest['team_approvals'] = {
-                        'CS': {
-                            'approved': approved,
-                            'approved_by': existing_cs.get('approved_by') if isinstance(existing_cs, dict) else None,
-                            'approved_at': existing_cs.get('approved_at') if isinstance(existing_cs, dict) else None,
-                        }
-                    }
-                    team_approvals_raw = current_quest.get('team_approvals', {})
-            if quest_status == 'OPEN':
-                missing_teams = required_teams.copy() if required_teams else []
-                team_approvals = {team: False for team in required_teams}
-            elif quest_status == 'COMPLETED':
-                team_approvals = {team: True for team in required_teams}
-            else:
-                if not required_teams:
-                    all_approved = (quest_status == 'COMPLETED')
-                else:
-                    team_approvals = {}
-                    for team in required_teams:
-                        ad = team_approvals_raw.get(str(team)) or team_approvals_raw.get(team)
-                        team_approvals[team] = ad.get('approved', False) if isinstance(ad, dict) else bool(ad) if ad is not None else False
-                    missing_teams = [t for t in required_teams if not team_approvals.get(t, False)]
-                    all_approved = (len(missing_teams) == 0)
-
         stage_key = stage if isinstance(stage, str) else ''
         stage_code = STAGE_NAME_TO_CODE.get(stage_key, stage_key)
+        quest_payload = build_current_quest_payload(
+            sd=sd,
+            stage=stage,
+            stage_code=stage_code,
+            order=o,
+            current_user=current_user,
+            user_map=user_map,
+        )
         responsible_team = DEFAULT_OWNER_TEAM_BY_STAGE.get(stage_code, None)
         if stage_code in ("MEASURE", "CONFIRM"):
             orderer_check = (((sd.get("parties") or {}).get("orderer") or {}).get("name") or "").strip()
             if orderer_check and "라홈" in orderer_check:
                 responsible_team = 'CS'
 
-        assignee_display_names = []
-        can_assignee_approve = False
-        if current_quest:
-            approval_mode = current_quest.get('approval_mode') or ('assignee' if stage_code in ('MEASURE', 'DRAWING', 'CONFIRM') else 'team')
-            if approval_mode == 'assignee':
-                assignments = sd.get('assignments') or {}
-                user_ids = []
-                if stage_code in ('MEASURE', 'CONFIRM'):
-                    user_ids = assignments.get('sales_assignee_user_ids') or []
-                elif stage_code == 'DRAWING':
-                    user_ids = assignments.get('drawing_assignee_user_ids') or []
-                    if not user_ids:
-                        for a in ((assignments.get('drawing_assignees') or []) + (sd.get('drawing_assignees') or [])):
-                            if isinstance(a, dict) and a.get('id'):
-                                user_ids.append(a['id'])
-                user_ids = [int(uid) for uid in user_ids if isinstance(uid, (int, str)) and str(uid).isdigit()]
-                if user_ids:
-                    assignee_display_names = []
-                    for uid in user_ids:
-                        mapped_name = user_map.get(uid)
-                        if isinstance(mapped_name, str) and mapped_name:
-                            assignee_display_names.append(mapped_name)
-                elif stage_code in ('MEASURE', 'CONFIRM'):
-                    mgr = (((sd.get('parties') or {}).get('manager') or {}).get('name')) or o.manager_name or current_quest.get('owner_person') or ''
-                    if str(mgr).strip():
-                        assignee_display_names = [str(mgr).strip()]
-                if current_user:
-                    domain = 'DRAWING_DOMAIN' if stage_code == 'DRAWING' else ('SALES_DOMAIN' if stage_code in ('MEASURE', 'CONFIRM') else None)
-                    if domain:
-                        can_assignee_approve = can_modify_domain(current_user, o, domain, False, None)
-                        if (not can_assignee_approve) and domain == 'SALES_DOMAIN' and not user_ids:
-                            manager_names = set()
-                            for src in [((sd.get('parties') or {}).get('manager') or {}).get('name'), o.manager_name, current_quest.get('owner_person')]:
-                                if str(src or '').strip():
-                                    manager_names.add(str(src).strip().lower())
-                            un = (current_user.name or '').strip().lower()
-                            uu = (current_user.username or '').strip().lower()
-                            if un in manager_names or uu in manager_names:
-                                can_assignee_approve = True
-
-        quest_payload = None
-        if current_quest:
-            quest_payload = {
-                'title': current_quest.get('title', ''),
-                'description': current_quest.get('description', ''),
-                'owner_team': current_quest.get('owner_team', ''),
-                'status': current_quest.get('status', 'OPEN'),
-                'all_approved': all_approved,
-                'missing_teams': missing_teams,
-                'required_approvals': required_teams,
-                'team_approvals': team_approvals,
-                'approval_mode': current_quest.get('approval_mode') or ('assignee' if stage_code in ('MEASURE', 'DRAWING', 'CONFIRM') else 'team'),
-                'assignee_approval': current_quest.get('assignee_approval'),
-                'assignee_display_names': assignee_display_names,
-                'can_assignee_approve': can_assignee_approve,
-            }
         parties = sd.get('parties') or {}
         site = sd.get('site') or {}
         schedule = sd.get('schedule') or {}
@@ -649,14 +598,24 @@ def erp_dashboard():
             'orderer_name': (parties.get('orderer') or {}).get('name') or None,
             'owner_team': responsible_team,
             'stage': stage,
+            'stage_code': stage_code,
             'alerts': alerts,
             'has_media': has_media,
             'attachments_count': cnt,
             'recommended_owner_team': recommend_owner_team(sd) or None,
             'current_quest': quest_payload,
+            'stage_badge_modifier': stage_badge_modifier(stage),
+            'stage_badge_label': stage_badge_label(stage),
+            'product_subtitle': product_subtitle_from_sd(sd),
         })
 
     paginated_orders = enriched
+
+    _preview_urls = batch_resolve_queue_attachment_urls(
+        db, [int(r["id"]) for r in paginated_orders if r.get("id")]
+    )
+    for row in paginated_orders:
+        row["attachment_preview_urls"] = _preview_urls.get(int(row["id"]), [])
 
     # §3.1.1 order detail payload assembly — JSON DTO slice (slim structured_data preload)
     _detail_fp = {
@@ -711,12 +670,83 @@ def erp_dashboard():
         else 'orders/dashboard.html'
     )
     _t0 = time.perf_counter()
+    uid = current_user.id if current_user else None
+    mobile_v2 = is_enabled_for_user(
+        "ERP_MOBILE_V2_ENABLED",
+        uid,
+        cohort_key="FOMS_V3_SHELL_COHORT",
+    )
+    split_enabled = mobile_v2 and env_bool_or_mobile_v2(
+        "FOMS_TABLET_SPLIT_VIEW_ENABLED",
+        mobile_v2_active=mobile_v2,
+    )
+
+    # 모바일 홈 = 오퍼레이션 컨트롤 타워. 드릴(검색/필터/단계/내것/뷰=큐)이 없을 때만 타워,
+    # 드릴이 걸리면 기존 작업 큐로 전환한다. (단계 타일·위험 카드가 큐로 연결됨)
+    _has_drill = any((
+        f_q, effective_stage, f_urgent == '1', f_has_alert == '1', f_alert_type,
+        f_team, request.args.get('mine') == '1', f_today == '1',
+        request.args.get('view') == 'queue',
+        request.args.get('focus_order'),
+    ))
+    # mobile_chunk(무한스크롤 조각 요청)은 큐 전용 → 타워 페이로드 계산을 건너뛴다.
+    _is_chunk = request.args.get('mobile_chunk') == '1'
+    tower_mode = bool(mobile_v2 and not _has_drill and not _is_chunk)
+    control_tower = None
+    if tower_mode:
+        _tower_fp = {
+            "v": 1,
+            "user": _orders_user_visibility_fingerprint(current_user, is_admin),
+            "date": today_iso,
+        }
+        _tower_key = build_dashboard_cache_key("orders", "mobile_control_tower", _tower_fp)
+        control_tower = get_or_compute_dashboard_slice(
+            _tower_key,
+            TTL_SUMMARY_COUNTS,
+            lambda: build_mobile_control_tower(db, current_user, today=datetime.date.today()),
+            page="orders",
+            slice_name="mobile_control_tower",
+        )
+
+    _mobile_ctx = {
+        "orders": paginated_orders,
+        "filters": {
+            'stage': effective_stage,
+            'urgent': f_urgent,
+            'has_alert': f_has_alert,
+            'alert_type': f_alert_type,
+            'q': f_q,
+            'team': f_team,
+            'mine': request.args.get('mine') or '',
+            'sort': f_sort,
+            'today': f_today,
+        },
+        "kpis": kpis,
+        "process_steps": process_steps,
+        "page": page,
+        "total_pages": total_pages,
+        "total_orders": total_orders,
+        "can_edit_erp": can_edit_erp_flag,
+        "current_user": current_user,
+    }
+
+    if mobile_v2 and request.args.get('mobile_chunk') == '1':
+        _chunk = render_template(
+            'orders/partials/dashboard_mobile_v2_chunk.html',
+            **_mobile_ctx,
+        )
+        response = make_response(_chunk)
+        apply_erp_shell_fragment_headers(response, request)
+        return response
+
     _body = render_template(
         template_name,
         erp_dashboard_fragment=wants_erp_shell_tab_body(request),
         orders=paginated_orders,
         kpis=kpis,
         process_steps=process_steps,
+        tower_mode=tower_mode,
+        control_tower=control_tower,
         filters={
             'stage': effective_stage,
             'urgent': f_urgent,
@@ -725,6 +755,8 @@ def erp_dashboard():
             'q': f_q,
             'team': f_team,
             'mine': request.args.get('mine') or '',
+            'sort': f_sort,
+            'today': f_today,
         },
         team_labels=TEAM_LABELS,
         stage_labels=STAGE_LABELS,
@@ -734,9 +766,61 @@ def erp_dashboard():
         page=page,
         total_pages=total_pages,
         total_orders=total_orders,
+        foms_split_enabled=split_enabled,
+        master_cards=build_split_master_cards(
+            paginated_orders,
+            active_order_id=int(request.args.get('order') or 0) or None,
+        ) if split_enabled else [],
+        side_items=default_split_side_items() if split_enabled else [],
     )
     _render_ms = (time.perf_counter() - _t0) * 1000.0
     response = make_response(_body)
     apply_erp_shell_fragment_headers(response, request)
     apply_ept_b7_render_headers(response, route_id="erp_dashboard", render_ms=_render_ms)
     return response
+
+
+@erp_dashboard_bp.route('/dashboard/')
+@login_required
+def erp_dashboard_trailing_slash():
+    """Normalize mobile/browser-saved trailing-slash dashboard URLs."""
+    return redirect(url_for('erp_dashboard.erp_dashboard', **request.args))
+
+
+@erp_dashboard_bp.route('/orders/<int:order_id>/mobile')
+@login_required
+def erp_order_mobile_detail(order_id: int):
+    """P1 mockup: 모바일 주문 상세 (/erp/orders/<id>/mobile)."""
+    db = get_db()
+    order = (
+        db.query(Order)
+        .filter(Order.id == order_id, Order.is_erp_order.is_(True), Order.not_deleted_filter())
+        .first()
+    )
+    if not order:
+        flash('주문을 찾을 수 없습니다.', 'warning')
+        return redirect(url_for('erp_dashboard.erp_dashboard'))
+
+    from foms.services.erp_mobile_order_display import build_mobile_queue_order_row
+
+    current_user = getattr(g, 'current_user', None)
+    order_row = build_mobile_queue_order_row(db, order, current_user)
+    can_edit_erp_flag = can_edit_erp(current_user)
+    return_to = (request.args.get('return_to') or '').strip()
+    back_endpoint_by_return_to = {
+        'erp_measurement_dashboard': 'erp_measurement_dashboard.erp_measurement_dashboard',
+        'erp_shipment_dashboard': 'erp_shipment_page.erp_shipment_dashboard',
+        'erp_production_dashboard': 'erp_production_page.erp_production_dashboard',
+        'erp_construction_dashboard': 'erp_construction_page.erp_construction_dashboard',
+    }
+    back_endpoint = back_endpoint_by_return_to.get(return_to, 'erp_dashboard.erp_dashboard')
+
+    return render_template(
+        'orders/mobile_order_detail.html',
+        order=order_row,
+        can_edit_erp=can_edit_erp_flag,
+        erp_sub_nav_active='dashboard',
+        mobile_shell_title='주문 상세',
+        mobile_shell_show_back=True,
+        mobile_shell_back_href=url_for(back_endpoint),
+    )

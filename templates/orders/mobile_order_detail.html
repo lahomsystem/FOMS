@@ -1,0 +1,18 @@
+{% extends "orders/layout.html" %}
+
+{% block content %}
+<div class="container-fluid erp-pro erp-mobile-shell foms-detail-page-wrap"
+  data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
+  {% if erp_mobile_v2_enabled %}
+    {% include 'partials/shared/erp_mobile_shell.html' %}
+  {% endif %}
+  {% include 'orders/partials/order_detail_mobile_v2.html' %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/foms/attachment-preview-zoom.js') }}?v=20260602a"></script>
+<script src="{{ url_for('static', filename='js/foms/mobile-detail-attachments.js') }}?v=20260602a" defer></script>
+<script src="{{ url_for('static', filename='js/foms/mobile-detail-products.js') }}?v=20260531c" defer></script>
+<script src="{{ url_for('static', filename='js/foms/mobile-detail-quest.js') }}?v=20260611a" defer></script>
+{% endblock %}

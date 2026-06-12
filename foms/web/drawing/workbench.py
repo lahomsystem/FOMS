@@ -1,4 +1,6 @@
 """ERP 도면 작업실 (ERP-SLIM-5; canonical, SFC-B11B). /erp/drawing-workbench."""
+from typing import Any, Mapping
+
 from flask import Blueprint, make_response, render_template, request, url_for, redirect, flash, g
 from db import get_db
 from models import Order, User, OrderAttachment
@@ -22,8 +24,135 @@ from foms.services.erp_shipment_settings import is_order_mine_for_user
 from foms.services.erp_product_items import build_product_items_for_order
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
 from foms.services.request_utils import get_search_query_arg
+from foms.services.drawing_workbench_display import (
+    drawing_thumb_enabled,
+    resolve_row_thumbnail_url,
+)
+from foms.services.feature_flags import is_enabled_for_user
 
 erp_drawing_workbench_bp = Blueprint('erp_drawing_workbench', __name__, url_prefix='/erp')
+
+_DRAWING_IMAGE_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.heic', '.heif')
+
+
+def _is_drawing_image(filename: str) -> bool:
+    """Return True when a drawing filename can be previewed as an image."""
+    return (filename or '').lower().endswith(_DRAWING_IMAGE_EXTENSIONS)
+
+
+def _drawing_file_key(file_obj: Any, index: int) -> str:
+    """Resolve a stable drawing file key for URL/query selection."""
+    if isinstance(file_obj, Mapping):
+        return str(file_obj.get('key') or f'drawing-{index + 1}')
+    return f'drawing-{index + 1}'
+
+
+def _event_target_numbers(event: Mapping[str, Any]) -> list[int]:
+    """Normalize drawing target numbers from transfer/revision history events."""
+    raw = event.get('target_drawing_numbers') or event.get('replace_target_numbers') or []
+    if not isinstance(raw, list):
+        raw = [raw]
+    if not raw:
+        raw = [event.get('target_drawing_number') or event.get('replace_target_number')]
+    numbers = []
+    for value in raw:
+        try:
+            number = int(value)
+        except (TypeError, ValueError):
+            continue
+        if number > 0:
+            numbers.append(number)
+    return numbers
+
+
+def _build_drawing_turn(
+    drawing_status: str,
+    has_assignee: bool,
+    can_transfer: bool,
+    can_confirm_receipt: bool,
+    file_count: int,
+    transfer_round: int,
+) -> dict[str, str]:
+    """Build order-level turn ribbon copy for the mobile handoff UI."""
+    status = (drawing_status or 'PENDING').upper()
+    if status == 'TRANSFERRED':
+        label = '영업 확인 차례'
+    elif status == 'RETURNED':
+        label = '도면팀 수정 차례'
+    elif status == 'CONFIRMED':
+        label = '완료'
+    else:
+        label = '도면팀 작업 차례' if has_assignee else '도면 담당 지정 필요'
+    is_mine = (status == 'TRANSFERRED' and can_confirm_receipt) or (status in ('PENDING', 'IN_PROGRESS', 'RETURNED') and can_transfer)
+    tone = 'done' if status == 'CONFIRMED' else ('mine' if is_mine else 'other')
+    round_text = f'도면팀 {transfer_round}차 전달' if transfer_round else '도면 전달 대기'
+    return {
+        'label': label,
+        'sub': f'{round_text} · 도면 {file_count}장 · 주문 단위 상태 1개',
+        'tone': tone,
+    }
+
+
+def _build_handoff_files(order_id: int, drawing_files: list[Any], history: list[Mapping[str, Any]], selected_key: str) -> list[dict[str, Any]]:
+    """Build drawing file rows for the mobile handoff list/detail surfaces."""
+    latest_transfer_round = 0
+    latest_transfer_note = ''
+    revision_targets: set[int] = set()
+    revision_applied: set[int] = set()
+    target_notes: dict[int, str] = {}
+    for event in history:
+        action = (event.get('action') or '').upper()
+        targets = _event_target_numbers(event)
+        if action == 'TRANSFER':
+            latest_transfer_round += 1
+            latest_transfer_note = event.get('note') or latest_transfer_note
+            for number in targets:
+                revision_applied.add(number)
+                target_notes[number] = event.get('note') or target_notes.get(number, '')
+        elif action == 'REQUEST_REVISION':
+            for number in targets:
+                revision_targets.add(number)
+                target_notes[number] = event.get('note') or target_notes.get(number, '')
+    rows = []
+    for idx, file_obj in enumerate(drawing_files):
+        file_map = file_obj if isinstance(file_obj, Mapping) else {}
+        key = _drawing_file_key(file_obj, idx)
+        filename = str(file_map.get('filename') or key.rsplit('/', 1)[-1] or f'{idx + 1}번 도면')
+        view_url = str(file_map.get('view_url') or (f'/api/files/view/{key}' if key else ''))
+        download_url = str(file_map.get('download_url') or (f'/api/files/download/{key}' if key else ''))
+        number = idx + 1
+        chip = '수정 반영' if number in revision_applied else ('수정요청 대상' if number in revision_targets else '')
+        rows.append({
+            'no': number,
+            'key': key,
+            'filename': filename,
+            'view_url': view_url,
+            'download_url': download_url,
+            'is_image': _is_drawing_image(filename),
+            'is_selected': bool(selected_key and key == selected_key),
+            'detail_url': url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=order_id, drawing_key=key),
+            'chip': chip,
+            'meta': f'최신 {latest_transfer_round}차 전달본' if latest_transfer_round else '전달 대기',
+            'note': target_notes.get(number) or latest_transfer_note or '',
+        })
+    return rows
+
+
+def _build_handoff_thread(history: list[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """Build chat-like mobile timeline entries from order-level drawing history."""
+    thread = []
+    for event in history:
+        action = (event.get('action') or '').upper()
+        targets = _event_target_numbers(event)
+        target_text = ', '.join(str(n) for n in targets)
+        thread.append({
+            **event,
+            'side': 'left' if action in ('TRANSFER', 'CANCEL_TRANSFER') else 'right',
+            'tag': event.get('action_label') or action or '-',
+            'target_text': f'{target_text}번 대상' if target_text else '',
+            'files': list(event.get('files') or []) if isinstance(event.get('files'), list) else [],
+        })
+    return thread
 
 
 @erp_drawing_workbench_bp.route('/drawing-workbench')
@@ -44,6 +173,11 @@ def erp_drawing_workbench_dashboard():
     sort_by = (request.args.get('sort') or '').strip().lower()
     page = max(1, int(request.args.get('page') or '1'))
     per_page = 25
+    mobile_v2_active = is_enabled_for_user(
+        "ERP_MOBILE_V2_ENABLED",
+        current_user.id if current_user else None,
+        cohort_key="FOMS_V3_SHELL_COHORT",
+    )
 
     orders = (
         db.query(Order)
@@ -84,6 +218,28 @@ def erp_drawing_workbench_dashboard():
         user_id = current_user.id if current_user else None
         is_drawing_assignee = bool(user_id and user_id in draw_assignee_ids)
         can_sales = _can_modify_sales_domain(current_user, o, sd, False, None)
+        can_transfer_row = bool(
+            has_assignee
+            and current_user
+            and is_drawing_workbench_participant(current_user, o)
+        )
+        can_confirm_row = bool(can_sales and drawing_status == 'TRANSFERRED')
+        turn = _build_drawing_turn(
+            drawing_status,
+            has_assignee,
+            can_transfer_row,
+            can_confirm_row,
+            len(drawing_files),
+            sum(1 for h in history if isinstance(h, dict) and h.get('action') == 'TRANSFER'),
+        )
+        if can_confirm_row:
+            primary_action = {'label': '수령 확인', 'icon': 'fa-check-double'}
+        elif can_transfer_row:
+            primary_action = {'label': '도면 전달', 'icon': 'fa-paper-plane'}
+        elif drawing_status == 'TRANSFERRED' and can_sales:
+            primary_action = {'label': '수정 요청', 'icon': 'fa-undo'}
+        else:
+            primary_action = {'label': '작업 열기', 'icon': 'fa-external-link-alt'}
         my_todo = (
             (drawing_status in ('PENDING', 'RETURNED') and is_drawing_assignee)
             or (drawing_status == 'TRANSFERRED' and can_sales)
@@ -141,7 +297,15 @@ def erp_drawing_workbench_dashboard():
             'drawing_status': drawing_status,
             'drawing_status_label': _drawing_status_label(drawing_status),
             'file_count': len(drawing_files),
+            'thumbnail_url': resolve_row_thumbnail_url(
+                o.id, drawing_files, db, mobile_v2_active=mobile_v2_active
+            ),
             'target_no': latest_request_no,
+            'turn_label': turn['label'],
+            'turn_sub': turn['sub'],
+            'turn_tone': turn['tone'],
+            'primary_action_label': primary_action['label'],
+            'primary_action_icon': primary_action['icon'],
             'next_action': _drawing_next_action_text(drawing_status, has_assignee),
             'latest_event_at': (last_event or {}).get('transferred_at') or (last_event or {}).get('at') or '-',
             'latest_event_label': h_action_label,
@@ -188,6 +352,9 @@ def erp_drawing_workbench_dashboard():
         elif sort_by == 'id':
             rows.sort(key=lambda r: int(r.get('id') or 0), reverse=reverse)
 
+    # 모바일 단일 리스트 무한스크롤: 정렬 무관 '내 차례'를 항상 앞으로(안정 정렬로 그룹 보존).
+    rows.sort(key=lambda r: 0 if r.get('my_todo') else 1)
+
     total_count = len(rows)
     total_pages = max(1, (total_count + per_page - 1) // per_page) if per_page > 0 else 1
     page = min(page, total_pages)
@@ -210,6 +377,7 @@ def erp_drawing_workbench_dashboard():
             can_edit_erp=can_edit_erp(current_user),
             erp_order_enabled=True,
             erp_mine_only=mine_only,
+            drawing_thumb_enabled=drawing_thumb_enabled(mobile_v2_active=mobile_v2_active),
         )
     )
     apply_erp_shell_fragment_headers(response, request)
@@ -222,6 +390,11 @@ def erp_drawing_workbench_detail(order_id):
     """도면 작업실 상세: 도면팀↔주문담당 협업 실행판."""
     db = get_db()
     current_user = getattr(g, 'current_user', None)
+    mobile_v2_active = is_enabled_for_user(
+        "ERP_MOBILE_V2_ENABLED",
+        current_user.id if current_user else None,
+        cohort_key="FOMS_V3_SHELL_COHORT",
+    )
     order = db.query(Order).filter(Order.id == order_id, Order.active_filter(), Order.is_erp_order.is_(True)).first()
     if not order:
         flash('주문을 찾을 수 없습니다.', 'warning')
@@ -232,6 +405,7 @@ def erp_drawing_workbench_detail(order_id):
     drawing_status = ((s_data.get('drawing') or {}).get('status') or s_data.get('drawing_status') or 'PENDING').upper()
     drawing_files = list(s_data.get('drawing_current_files', []) or [])
     history_raw = list(s_data.get('drawing_transfer_history', []) or [])
+    requested_drawing_key = (request.args.get('drawing_key') or '').strip()
 
     history = []
     for idx, h in enumerate(history_raw):
@@ -333,6 +507,37 @@ def erp_drawing_workbench_detail(order_id):
         {'label': '최신 전달본 확인', 'ok': bool(drawing_files)},
         {'label': '요청사항 확인', 'ok': unread_count == 0},
     ]
+    transfer_round = sum(1 for h in history if h.get('action') == 'TRANSFER')
+    file_keys = [_drawing_file_key(f, idx) for idx, f in enumerate(drawing_files)]
+    handoff_invalid_drawing_key = ''
+    selected_key = requested_drawing_key if requested_drawing_key in file_keys else ''
+    deep_link_requested = bool(highlight_event_id or highlight_target_no)
+    if requested_drawing_key and requested_drawing_key not in file_keys:
+        handoff_invalid_drawing_key = '선택한 도면을 찾을 수 없습니다.'
+    if not selected_key and highlight_target_no and 1 <= highlight_target_no <= len(file_keys):
+        selected_key = file_keys[highlight_target_no - 1]
+    if not selected_key and (len(file_keys) == 1 or deep_link_requested):
+        selected_key = file_keys[0] if file_keys else ''
+    handoff_view = 'detail' if (len(file_keys) <= 1 or selected_key or deep_link_requested) else 'list'
+    if handoff_invalid_drawing_key and len(file_keys) > 1 and not deep_link_requested:
+        handoff_view = 'list'
+    handoff_files = _build_handoff_files(order.id, drawing_files, history, selected_key)
+    selected_file = next((f for f in handoff_files if f.get('is_selected')), None)
+    if not selected_file and handoff_files and handoff_view == 'detail':
+        selected_file = handoff_files[0]
+        selected_file['is_selected'] = True
+    selected_index = handoff_files.index(selected_file) if selected_file in handoff_files else -1
+    handoff_prev_url = handoff_files[selected_index - 1]['detail_url'] if selected_index > 0 else ''
+    handoff_next_url = handoff_files[selected_index + 1]['detail_url'] if 0 <= selected_index < len(handoff_files) - 1 else ''
+    handoff_turn = _build_drawing_turn(
+        drawing_status,
+        has_assignee,
+        can_transfer,
+        can_confirm_receipt,
+        len(handoff_files),
+        transfer_round,
+    )
+    handoff_thread = _build_handoff_thread(history)
 
     product_items = build_product_items_for_order(db, order)
     # 도면 상세 전용: 공통 실측 이미지(항목에 매핑되지 않은 첨부) 수집
@@ -377,6 +582,17 @@ def erp_drawing_workbench_detail(order_id):
         highlight_target_no=highlight_target_no,
         unread_count=unread_count,
         checklist=checklist,
+        mobile_handoff_view=handoff_view,
+        mobile_handoff_files=handoff_files,
+        mobile_handoff_selected_file=selected_file,
+        mobile_handoff_selected_index=selected_index,
+        mobile_handoff_prev_url=handoff_prev_url,
+        mobile_handoff_next_url=handoff_next_url,
+        mobile_handoff_list_url=url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=order.id),
+        mobile_handoff_turn=handoff_turn,
+        mobile_handoff_thread=handoff_thread,
+        mobile_handoff_invalid_drawing_key=handoff_invalid_drawing_key,
+        mobile_handoff_active=mobile_v2_active,
         can_transfer=can_transfer,
         can_open_transfer=can_open_transfer,
         transfer_gated_by_revision_checklist=transfer_gated_by_revision_checklist,

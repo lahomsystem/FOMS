@@ -3,11 +3,27 @@
     <a
       class="erp-mobile-bottom-nav__item {% if _active == item.id %}is-active{% endif %}"
       href="{{ item.href }}"
+      data-foms-nav-id="{{ item.id }}"
       aria-current="{% if _active == item.id %}page{% else %}false{% endif %}">
       <i class="{{ item.icon }}" aria-hidden="true"></i>
       <span>{{ item.label }}</span>
+      {% set _nav_badge = (foms_nav_badges or {}).get(item.id, 0) %}
+      {% if _nav_badge > 0 %}
+        <span class="erp-mobile-bottom-nav__badge" aria-label="미처리 {{ _nav_badge }}건">
+          {{ _nav_badge if _nav_badge < 100 else '99+' }}
+        </span>
+      {% endif %}
     </a>
   {% endfor %}
+  {# 계산기: ERP shell 탭이 아닌 별도 도구 페이지 → data-foms-nav-id 없이 항상 풀 내비게이션
+     (HTMX bottom-nav가 fragment로 가로채지 않도록). #}
+  <a
+    class="erp-mobile-bottom-nav__item"
+    href="{{ url_for('wdcalculator.wdcalculator') }}"
+    aria-label="가구 견적 계산기">
+    <i class="fas fa-calculator" aria-hidden="true"></i>
+    <span>계산기</span>
+  </a>
   <button
     class="erp-mobile-bottom-nav__item {% if _active not in _primary_ids %}is-active{% endif %}"
     type="button"

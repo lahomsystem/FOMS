@@ -76,8 +76,9 @@
   }
 }
 
-/* ===== Dark Mode Support (future) ===== */
-/* @media (prefers-color-scheme: dark) 룰셋은 구현 시점에 추가 예정 (tech-debt Sprint 6) */
+/* ===== Theme (P0-07) ===== */
+/* Light/dark: static/css/foundation/foms-tokens.css + static/js/foms/theme.js ([data-theme] on html).
+   Legacy --erp-* → --foms-* alias bridge: P1-06 (01-intro-tokens.css). */
 
 /* ===== Utility Classes ===== */
 .erp-pro-text-primary { color: var(--erp-text-primary) !important; }

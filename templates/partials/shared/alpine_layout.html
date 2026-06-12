@@ -1,0 +1,4 @@
+{# P2-02: Alpine.js vendor for new surfaces only (D06). Legacy erp-shell.js untouched. #}
+{# alpine-store MUST load before alpine.min (defer order) so alpine:init registers fomsToast. #}
+<script defer src="{{ url_for('static', filename='js/foms/alpine-store.js') }}?v=20260531a"></script>
+<script defer src="{{ url_for('static', filename='js/vendor/alpine.min.js') }}?v=3.14.9"></script>

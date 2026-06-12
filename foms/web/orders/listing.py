@@ -9,7 +9,7 @@ from sqlalchemy import or_, String
 
 from foms.web.auth import login_required, role_required, log_access, get_user_by_id
 from db import get_db
-from models import Order
+from models import Order, User
 from foms.services.orders.estimate_defaults import (
     ERP_DRAFT_PLACEHOLDER_CUSTOMER,
     ERP_DRAFT_PLACEHOLDER_PHONE,
@@ -25,6 +25,7 @@ from foms.services.request_utils import (
     get_search_query_arg,
     redirect_if_legacy_open_erp_beta,
 )
+from foms.services.feature_flags import env_bool, wizard_new_order_enabled
 from foms.services.gnav_contract import gnav_orders_layout_parent, wants_gnav_fragment
 from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
 
@@ -70,6 +71,14 @@ def order_link_filter(s):
         link = url_for('order_edit.edit_order', order_id=oid)
         return Markup(f'<a href="{link}">주문 #{oid}</a>')
     return Markup(re.sub(r'주문 #(\d+)', repl, s))
+
+
+@order_pages_bp.route('/orders/')
+@order_pages_bp.route('/orders')
+@login_required
+def orders_index_alias():
+    """Legacy /orders/ path → canonical 주문 목록 at /."""
+    return redirect(url_for('order_pages.index', **request.args))
 
 
 @order_pages_bp.route('/')
@@ -413,6 +422,52 @@ def add_order():
 
     today = datetime.datetime.now().strftime('%Y-%m-%d')
     current_time = datetime.datetime.now().strftime('%H:%M')
+    _uid_raw = session.get('user_id')
+    _uid = int(_uid_raw) if _uid_raw is not None else None
+    # 전역 wizard 플래그 OR ERP 모바일 v2 코호트 → 모바일 셸 '주문 생성' FAB가 wizard로 진입.
+    if wizard_new_order_enabled(_uid):
+        import uuid
+
+        draft_key = (request.args.get('key') or '').strip() or f"new.{uuid.uuid4().hex[:16]}"
+        try:
+            initial_step = max(1, min(4, int(request.args.get('step') or 1)))
+        except (TypeError, ValueError):
+            initial_step = 1
+        # 담당 드롭다운: 영업담당 = 영업팀(SALES) + 관리자(ADMIN), 시공담당 = 시공팀(CONSTRUCTION).
+        wizard_sales_staff = []
+        wizard_construction_staff = []
+        try:
+            _rows = (
+                get_db()
+                .query(User.name, User.team, User.role)
+                .filter(User.is_active.is_(True))
+                .order_by(User.name)
+                .all()
+            )
+            _seen_sales = set()
+            _seen_cons = set()
+            for _name, _team, _role in _rows:
+                _nm = (_name or '').strip()
+                if not _nm:
+                    continue
+                if (_team == 'SALES' or _role == 'ADMIN') and _nm not in _seen_sales:
+                    _seen_sales.add(_nm)
+                    wizard_sales_staff.append(_nm)
+                if _team == 'CONSTRUCTION' and _nm not in _seen_cons:
+                    _seen_cons.add(_nm)
+                    wizard_construction_staff.append(_nm)
+        except Exception:
+            wizard_sales_staff = []
+            wizard_construction_staff = []
+        return render_template(
+            'orders/wizard/wizard_shell.html',
+            today=today,
+            current_time=current_time,
+            draft_key=draft_key,
+            initial_step=initial_step,
+            wizard_sales_staff=wizard_sales_staff,
+            wizard_construction_staff=wizard_construction_staff,
+        )
     return render_template('orders/add_order.html', today=today, current_time=current_time)
 
 

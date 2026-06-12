@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover" />
+<title>FOMS · 모바일 주문 상세</title>
+<link rel="stylesheet" href="_tokens.css" />
+<style>
+.preview-frame { width: 390px; height: 844px; margin: 24px auto; background: var(--foms-surface-overlay);
+  border-radius: 32px; box-shadow: var(--foms-shadow-xl); overflow: hidden; position: relative; border: 8px solid #0f1115; }
+.preview-label { text-align: center; font-size: 14px; color: var(--foms-text-tertiary); margin: 8px 0; }
+
+.shell { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--foms-surface-overlay); }
+.shell-header { height: var(--foms-shell-header-h); flex-shrink: 0; display: grid; grid-template-columns: 44px 1fr 44px 44px;
+  align-items: center; padding: 0 var(--foms-space-2); background: var(--foms-surface-base);
+  border-bottom: 1px solid var(--foms-border-subtle); }
+.icon-btn { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
+  background: transparent; border: none; cursor: pointer; border-radius: var(--foms-radius-md); color: var(--foms-text-primary); }
+.shell-title { font-size: var(--foms-font-size-lg); font-weight: var(--foms-font-weight-semibold); text-align: center; }
+
+.shell-body { flex: 1; overflow-y: auto; padding: 0 0 88px; }
+
+/* Hero */
+.detail-hero {
+  background: var(--foms-surface-base);
+  padding: var(--foms-space-4) var(--foms-space-4) var(--foms-space-3);
+  display: grid;
+  gap: var(--foms-space-2);
+  border-bottom: 1px solid var(--foms-border-subtle);
+}
+.detail-hero__badges {
+  display: flex; gap: var(--foms-space-2); flex-wrap: wrap;
+}
+.detail-hero__customer {
+  font-size: var(--foms-font-size-2xl);
+  font-weight: var(--foms-font-weight-bold);
+  margin: 0;
+  line-height: var(--foms-line-height-tight);
+}
+.detail-hero__product {
+  font-size: var(--foms-font-size-base);
+  color: var(--foms-text-secondary);
+  margin: 0;
+}
+
+/* Quick-action strip */
+.quick-actions {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--foms-space-2);
+  padding: var(--foms-space-3) var(--foms-space-4);
+  background: var(--foms-surface-base);
+  border-bottom: 1px solid var(--foms-border-subtle);
+}
+.quick-action {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 8px 4px;
+  background: var(--foms-surface-overlay);
+  border: none;
+  border-radius: var(--foms-radius-md);
+  font-size: 11px;
+  color: var(--foms-text-secondary);
+  cursor: pointer;
+  min-height: 56px;
+}
+.quick-action__icon { font-size: 20px; }
+
+/* Section */
+.section {
+  background: var(--foms-surface-base);
+  margin-top: var(--foms-space-2);
+  padding: var(--foms-space-4);
+}
+.section__head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: var(--foms-space-3);
+}
+.section__title {
+  font-size: var(--foms-font-size-xs);
+  font-weight: var(--foms-font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--foms-text-tertiary);
+  margin: 0;
+}
+.section__edit {
+  font-size: var(--foms-font-size-sm);
+  color: var(--foms-text-link);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+/* KV row */
+.kv-row {
+  display: grid;
+  grid-template-columns: 88px 1fr;
+  gap: var(--foms-space-3);
+  padding: var(--foms-space-3) 0;
+  border-bottom: 1px solid var(--foms-border-subtle);
+  align-items: center;
+}
+.kv-row:last-child { border-bottom: none; }
+.kv-row dt {
+  font-size: var(--foms-font-size-sm);
+  color: var(--foms-text-tertiary);
+  margin: 0;
+}
+.kv-row dd {
+  font-size: var(--foms-font-size-base);
+  color: var(--foms-text-primary);
+  margin: 0;
+  display: flex; align-items: center; gap: var(--foms-space-2);
+}
+.kv-row__copy {
+  width: 32px; height: 32px;
+  background: transparent;
+  border: none;
+  border-radius: var(--foms-radius-sm);
+  color: var(--foms-text-tertiary);
+  cursor: pointer;
+}
+.kv-row__copy:active { background: var(--foms-interactive-secondary); }
+
+/* Attachment grid */
+.attach-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--foms-space-2);
+}
+.attach-item {
+  aspect-ratio: 1;
+  background: linear-gradient(135deg, #c1c7d0 0%, #6b7380 100%);
+  border-radius: var(--foms-radius-md);
+  border: none;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  color: white;
+  display: flex; align-items: flex-end; justify-content: flex-end;
+  padding: 8px;
+}
+.attach-item__label {
+  font-size: 11px;
+  background: rgba(0,0,0,0.6);
+  padding: 2px 6px;
+  border-radius: var(--foms-radius-sm);
+}
+.attach-add {
+  aspect-ratio: 1;
+  background: var(--foms-surface-overlay);
+  border: 2px dashed var(--foms-border-default);
+  border-radius: var(--foms-radius-md);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px;
+  font-size: var(--foms-font-size-xs);
+  color: var(--foms-text-tertiary);
+  cursor: pointer;
+}
+
+/* Product item (실측 시 인라인 편집) */
+.product-item {
+  background: var(--foms-surface-raised);
+  border: 1px solid var(--foms-border-subtle);
+  border-radius: var(--foms-radius-lg);
+  margin-bottom: var(--foms-space-3);
+  overflow: hidden;
+}
+.product-item__head {
+  display: flex; align-items: center; gap: var(--foms-space-2);
+  padding: var(--foms-space-3);
+  background: var(--foms-surface-base);
+  border-bottom: 1px solid var(--foms-border-subtle);
+}
+.product-item__index {
+  font-size: 11px;
+  font-weight: var(--foms-font-weight-bold);
+  background: var(--foms-color-brand-100);
+  color: var(--foms-color-brand-700);
+  padding: 2px 8px;
+  border-radius: var(--foms-radius-full);
+}
+.product-item__title {
+  flex: 1;
+  font-size: var(--foms-font-size-base);
+  font-weight: var(--foms-font-weight-semibold);
+}
+.product-item__expand {
+  width: 32px; height: 32px;
+  border: none;
+  background: transparent;
+  font-size: 18px;
+  cursor: pointer;
+  color: var(--foms-text-secondary);
+}
+.product-item__body {
+  padding: var(--foms-space-3);
+  display: grid;
+  gap: var(--foms-space-3);
+}
+.product-item--collapsed .product-item__body { display: none; }
+.product-item__summary {
+  padding: var(--foms-space-3);
+  font-size: var(--foms-font-size-sm);
+  color: var(--foms-text-secondary);
+}
+
+.product-spec-block { display: grid; gap: var(--foms-space-2); }
+.product-spec-block__lbl {
+  font-size: var(--foms-font-size-xs);
+  font-weight: var(--foms-font-weight-semibold);
+  color: var(--foms-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.product-spec-rows { display: grid; gap: var(--foms-space-2); }
+.product-spec-row {
+  display: grid;
+  grid-template-columns: 20px 1fr 1fr 1fr;
+  gap: var(--foms-space-2);
+  align-items: center;
+}
+.product-spec-row__num {
+  font-size: 11px;
+  font-weight: var(--foms-font-weight-bold);
+  color: var(--foms-text-tertiary);
+  text-align: center;
+}
+.product-spec-row__field {
+  position: relative;
+}
+.product-spec-row__sublbl {
+  position: absolute;
+  top: -8px; left: 8px;
+  font-size: 9px;
+  font-weight: var(--foms-font-weight-bold);
+  background: var(--foms-surface-raised);
+  color: var(--foms-color-brand-600);
+  padding: 0 4px;
+  border-radius: var(--foms-radius-sm);
+  z-index: 1;
+}
+.product-spec-row__input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--foms-space-2);
+  font-size: max(16px, var(--foms-font-size-base));
+  text-align: center;
+  font-weight: var(--foms-font-weight-medium);
+  border: 1px solid var(--foms-border-default);
+  border-radius: var(--foms-radius-md);
+  background: var(--foms-surface-base);
+}
+.product-spec-row__input:focus {
+  outline: none;
+  border-color: var(--foms-border-focus);
+  box-shadow: var(--foms-shadow-focus-ring);
+}
+.product-spec-add {
+  background: transparent;
+  border: 1px dashed var(--foms-border-default);
+  border-radius: var(--foms-radius-md);
+  min-height: 40px;
+  font-size: var(--foms-font-size-sm);
+  color: var(--foms-color-brand-600);
+  cursor: pointer;
+}
+
+.product-kv { display: grid; gap: 0; margin: 0; }
+.product-kv__row {
+  display: grid;
+  grid-template-columns: 72px 1fr auto;
+  gap: var(--foms-space-2);
+  align-items: center;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--foms-border-subtle);
+}
+.product-kv__row:last-child { border-bottom: none; }
+.product-kv__row dt {
+  margin: 0;
+  font-size: var(--foms-font-size-sm);
+  color: var(--foms-text-tertiary);
+}
+.product-kv__row dd {
+  margin: 0;
+  display: flex; align-items: center; gap: 4px;
+}
+.product-kv__input {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 var(--foms-space-2);
+  font-size: max(16px, var(--foms-font-size-sm));
+  border: 1px solid transparent;
+  border-radius: var(--foms-radius-sm);
+  background: transparent;
+  color: var(--foms-text-primary);
+}
+.product-kv__input:hover {
+  background: var(--foms-surface-base);
+  border-color: var(--foms-border-subtle);
+}
+.product-kv__input:focus {
+  outline: none;
+  background: var(--foms-surface-base);
+  border-color: var(--foms-border-focus);
+  box-shadow: var(--foms-shadow-focus-ring);
+}
+.product-kv__suffix {
+  font-size: var(--foms-font-size-sm);
+  color: var(--foms-text-tertiary);
+}
+
+.product-item__photos { display: grid; gap: var(--foms-space-2); }
+.product-item__photos-lbl {
+  font-size: var(--foms-font-size-xs);
+  font-weight: var(--foms-font-weight-semibold);
+  color: var(--foms-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.product-item__photos-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--foms-space-2);
+}
+.product-photo {
+  aspect-ratio: 1;
+  border: none;
+  border-radius: var(--foms-radius-sm);
+  cursor: pointer;
+}
+.product-photo--add {
+  background: var(--foms-surface-base);
+  border: 1px dashed var(--foms-border-default);
+  color: var(--foms-text-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.product-item__autosave {
+  display: flex; align-items: center; gap: var(--foms-space-2);
+  font-size: 11px;
+  color: var(--foms-color-success-600);
+}
+.product-item__autosave-dot {
+  width: 6px; height: 6px;
+  background: var(--foms-color-success-500);
+  border-radius: var(--foms-radius-full);
+  animation: pulse-dot 2s infinite;
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* Timeline */
+.timeline {
+  display: grid;
+  gap: var(--foms-space-3);
+}
+.timeline-item {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  gap: var(--foms-space-3);
+  position: relative;
+}
+.timeline-item::before {
+  content: '';
+  position: absolute;
+  left: 11px; top: 24px; bottom: -12px;
+  width: 2px;
+  background: var(--foms-border-subtle);
+}
+.timeline-item:last-child::before { display: none; }
+.timeline-item__dot {
+  width: 24px; height: 24px;
+  border-radius: var(--foms-radius-full);
+  background: var(--foms-color-brand-100);
+  color: var(--foms-color-brand-700);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+}
+.timeline-item--done .timeline-item__dot {
+  background: var(--foms-color-success-500);
+  color: white;
+}
+.timeline-item__body {
+  display: grid;
+  gap: 2px;
+  padding-bottom: var(--foms-space-3);
+}
+.timeline-item__title {
+  font-size: var(--foms-font-size-base);
+  font-weight: var(--foms-font-weight-medium);
+  margin: 0;
+}
+.timeline-item__meta {
+  font-size: var(--foms-font-size-sm);
+  color: var(--foms-text-tertiary);
+}
+
+/* Sticky action bar */
+.action-bar {
+  position: absolute;
+  inset: auto 0 0 0;
+  display: flex; gap: var(--foms-space-3);
+  padding: var(--foms-space-3) var(--foms-space-4);
+  background: var(--foms-surface-base);
+  border-top: 1px solid var(--foms-border-subtle);
+  box-shadow: 0 -4px 12px rgba(15,17,21,0.06);
+  z-index: var(--foms-z-action-bar);
+}
+.action-bar > .foms-btn { flex: 1; }
+.action-bar > .foms-btn--primary { flex: 2; }
+</style>
+</head>
+<body>
+
+<p class="preview-label">▼ 모바일 주문 상세 · 390×844 · [<a href="?theme=light">라이트</a>] [<a href="?theme=dark">다크</a>]</p>
+
+<div class="preview-frame">
+  <div class="shell">
+    <header class="shell-header">
+      <button class="icon-btn" aria-label="뒤로">‹</button>
+      <h1 class="shell-title">주문 #L-2026-0522</h1>
+      <button class="icon-btn" aria-label="검색">🔍</button>
+      <button class="icon-btn" aria-label="더보기">⋮</button>
+    </header>
+
+    <div class="shell-body">
+      <!-- Hero -->
+      <div class="detail-hero">
+        <div class="detail-hero__badges">
+          <span class="foms-stage-badge foms-stage-badge--construction">시공 완료</span>
+          <span class="foms-badge foms-badge--alert">AS 진행 중</span>
+        </div>
+        <h2 class="detail-hero__customer">고명옥</h2>
+        <p class="detail-hero__product">거실 몰딩라운드장 · 3500 × 540 × 2305 · 한솔 크림화이트 · 로얄오크</p>
+      </div>
+
+      <!-- Quick actions -->
+      <div class="quick-actions">
+        <button class="quick-action">
+          <span class="quick-action__icon">📞</span>
+          전화
+        </button>
+        <button class="quick-action">
+          <span class="quick-action__icon">🗺</span>
+          지도
+        </button>
+        <button class="quick-action">
+          <span class="quick-action__icon">💬</span>
+          채팅
+        </button>
+        <button class="quick-action">
+          <span class="quick-action__icon">📋</span>
+          복사
+        </button>
+      </div>
+
+      <!-- 고객 정보 -->
+      <section class="section">
+        <header class="section__head">
+          <h3 class="section__title">고객 정보</h3>
+          <button class="section__edit">편집</button>
+        </header>
+        <dl style="margin:0;">
+          <div class="kv-row">
+            <dt>이름</dt>
+            <dd>고명옥</dd>
+          </div>
+          <div class="kv-row">
+            <dt>연락처</dt>
+            <dd>
+              <a href="tel:010-2690-2242">010-2690-2242</a>
+              <button class="kv-row__copy" aria-label="복사">📋</button>
+            </dd>
+          </div>
+          <div class="kv-row">
+            <dt>주소</dt>
+            <dd>
+              <a href="https://map.kakao.com/?q=안양시%20충훈로14">안양시 충훈로14, 안양한양수자인에듀파크 102동 1304호</a>
+            </dd>
+          </div>
+          <div class="kv-row">
+            <dt>발주사</dt>
+            <dd>라홈 (계약서)</dd>
+          </div>
+        </dl>
+      </section>
+
+      <!-- 일정 -->
+      <section class="section">
+        <header class="section__head">
+          <h3 class="section__title">일정</h3>
+          <button class="section__edit">편집</button>
+        </header>
+        <dl style="margin:0;">
+          <div class="kv-row">
+            <dt>접수</dt>
+            <dd class="foms-tabular">5월 19일 (월) 11:20</dd>
+          </div>
+          <div class="kv-row">
+            <dt>실측</dt>
+            <dd class="foms-tabular">5월 20일 (화) 14:00</dd>
+          </div>
+          <div class="kv-row">
+            <dt>시공</dt>
+            <dd class="foms-tabular">5월 22일 (목) 09:00 — 완료</dd>
+          </div>
+          <div class="kv-row">
+            <dt>AS 접수</dt>
+            <dd class="foms-tabular">5월 27일 (화) 14:39</dd>
+          </div>
+        </dl>
+      </section>
+
+      <!-- 제품 항목 (실측 시 인라인 편집) -->
+      <section class="section">
+        <header class="section__head">
+          <h3 class="section__title">제품 항목 (2)</h3>
+          <button class="section__edit">＋ 추가</button>
+        </header>
+
+        <!-- 항목 1 -->
+        <div class="product-item">
+          <header class="product-item__head">
+            <span class="product-item__index">항목 1</span>
+            <span class="product-item__title">거실 몰딩라운드장</span>
+            <button class="product-item__expand" aria-label="펼치기·접기">⌃</button>
+          </header>
+
+          <div class="product-item__body">
+            <!-- 규격 (W·D·H) — 다중 행 가능 -->
+            <div class="product-spec-block">
+              <div class="product-spec-block__lbl">규격 (폭·깊이·높이)</div>
+              <div class="product-spec-rows">
+                <div class="product-spec-row">
+                  <span class="product-spec-row__num">1</span>
+                  <div class="product-spec-row__field">
+                    <span class="product-spec-row__sublbl">W</span>
+                    <input class="product-spec-row__input foms-tabular" inputmode="numeric" value="3500" data-field="spec_width" />
+                  </div>
+                  <div class="product-spec-row__field">
+                    <span class="product-spec-row__sublbl">D</span>
+                    <input class="product-spec-row__input foms-tabular" inputmode="numeric" value="540" data-field="spec_depth" />
+                  </div>
+                  <div class="product-spec-row__field">
+                    <span class="product-spec-row__sublbl">H</span>
+                    <input class="product-spec-row__input foms-tabular" inputmode="numeric" value="2305" data-field="spec_height" />
+                  </div>
+                </div>
+              </div>
+              <button class="product-spec-add">＋ 규격 1행 추가</button>
+            </div>
+
+            <!-- 인라인 편집 KV -->
+            <dl class="product-kv">
+              <div class="product-kv__row">
+                <dt>내부</dt>
+                <dd><input class="product-kv__input" value="상담" data-field="internal" /></dd>
+              </div>
+              <div class="product-kv__row">
+                <dt>색상</dt>
+                <dd><input class="product-kv__input" value="한솔 크림화이트" data-field="color" /></dd>
+              </div>
+              <div class="product-kv__row">
+                <dt>옵션</dt>
+                <dd><input class="product-kv__input" value="상담" data-field="option_detail" /></dd>
+              </div>
+              <div class="product-kv__row">
+                <dt>손잡이</dt>
+                <dd><input class="product-kv__input" value="푸쉬" data-field="handle" /></dd>
+              </div>
+              <div class="product-kv__row">
+                <dt>기타·설치</dt>
+                <dd><input class="product-kv__input" value="거실" data-field="misc" /></dd>
+              </div>
+              <div class="product-kv__row">
+                <dt>금액</dt>
+                <dd><input class="product-kv__input foms-tabular" value="655,000" data-field="price" /><span class="product-kv__suffix">원</span></dd>
+              </div>
+              <div class="product-kv__row">
+                <dt>실측일</dt>
+                <dd><input class="product-kv__input foms-tabular" type="date" value="2026-05-20" data-field="measurement_date" /></dd>
+              </div>
+              <div class="product-kv__row">
+                <dt>시공일</dt>
+                <dd><input class="product-kv__input foms-tabular" type="date" value="2026-05-22" data-field="construction_date" /></dd>
+              </div>
+            </dl>
+
+            <!-- 항목 실측 이미지 -->
+            <div class="product-item__photos">
+              <span class="product-item__photos-lbl">실측 이미지 (3)</span>
+              <div class="product-item__photos-grid">
+                <button class="product-photo" style="background:linear-gradient(135deg,#c1c7d0,#6b7380)"></button>
+                <button class="product-photo" style="background:linear-gradient(135deg,#9ea4ff,#5a67d8)"></button>
+                <button class="product-photo" style="background:linear-gradient(135deg,#a78bfa,#7c3aed)"></button>
+                <button class="product-photo product-photo--add">
+                  <span style="font-size:18px">📷</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="product-item__autosave">
+              <span class="product-item__autosave-dot"></span>
+              실측 변경 즉시 저장됨
+            </div>
+          </div>
+        </div>
+
+        <!-- 항목 2 (접힌 상태) -->
+        <div class="product-item product-item--collapsed">
+          <header class="product-item__head">
+            <span class="product-item__index">항목 2</span>
+            <span class="product-item__title">현관 슈즈장</span>
+            <button class="product-item__expand" aria-label="펼치기">⌄</button>
+          </header>
+          <div class="product-item__summary">
+            900×400×2200 · 포그그레이 · J 손잡이 · 285,000원
+          </div>
+        </div>
+      </section>
+
+      <!-- 금액 -->
+      <section class="section">
+        <header class="section__head">
+          <h3 class="section__title">금액</h3>
+          <button class="section__edit">편집</button>
+        </header>
+        <dl style="margin:0;">
+          <div class="kv-row">
+            <dt>출고가</dt>
+            <dd class="foms-tabular">655,000원</dd>
+          </div>
+          <div class="kv-row">
+            <dt>예약금</dt>
+            <dd class="foms-tabular">100,000원</dd>
+          </div>
+          <div class="kv-row">
+            <dt>잔금</dt>
+            <dd class="foms-tabular">555,000원 <span class="foms-stage-badge foms-stage-badge--construction" style="font-size:10px">완납</span></dd>
+          </div>
+        </dl>
+      </section>
+
+      <!-- 첨부 -->
+      <section class="section">
+        <header class="section__head">
+          <h3 class="section__title">도면 · 사진 (6)</h3>
+          <button class="section__edit">전체 보기</button>
+        </header>
+        <div class="attach-grid">
+          <button class="attach-item">
+            <span class="attach-item__label">도면 v3</span>
+          </button>
+          <button class="attach-item" style="background:linear-gradient(135deg,#9ea4ff,#5a67d8)">
+            <span class="attach-item__label">실측 사진</span>
+          </button>
+          <button class="attach-item" style="background:linear-gradient(135deg,#a78bfa,#7c3aed)">
+            <span class="attach-item__label">완성 1</span>
+          </button>
+          <button class="attach-item" style="background:linear-gradient(135deg,#fbbf24,#d97706)">
+            <span class="attach-item__label">AS 1</span>
+          </button>
+          <button class="attach-item" style="background:linear-gradient(135deg,#f472b6,#db2777)">
+            <span class="attach-item__label">AS 2</span>
+          </button>
+          <button class="attach-add">
+            <span style="font-size:24px">＋</span>
+            <span>추가</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- 타임라인 -->
+      <section class="section">
+        <header class="section__head">
+          <h3 class="section__title">이력</h3>
+        </header>
+        <div class="timeline">
+          <div class="timeline-item timeline-item--done">
+            <div class="timeline-item__dot">✓</div>
+            <div class="timeline-item__body">
+              <h4 class="timeline-item__title">AS 접수</h4>
+              <span class="timeline-item__meta">안중훈 · 오늘 14:39 · 2번장 옷봉 10mm 조정 요청</span>
+            </div>
+          </div>
+          <div class="timeline-item timeline-item--done">
+            <div class="timeline-item__dot">✓</div>
+            <div class="timeline-item__body">
+              <h4 class="timeline-item__title">시공 완료</h4>
+              <span class="timeline-item__meta">5월 22일 14:30</span>
+            </div>
+          </div>
+          <div class="timeline-item timeline-item--done">
+            <div class="timeline-item__dot">✓</div>
+            <div class="timeline-item__body">
+              <h4 class="timeline-item__title">출고</h4>
+              <span class="timeline-item__meta">5월 21일 16:00</span>
+            </div>
+          </div>
+          <div class="timeline-item timeline-item--done">
+            <div class="timeline-item__dot">✓</div>
+            <div class="timeline-item__body">
+              <h4 class="timeline-item__title">생산 완료</h4>
+              <span class="timeline-item__meta">5월 21일 11:00</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Sticky action bar -->
+    <footer class="action-bar">
+      <button class="foms-btn foms-btn--secondary">전화</button>
+      <button class="foms-btn foms-btn--primary">방문 일정 잡기</button>
+    </footer>
+
+  </div>
+</div>
+
+<script>
+const p = new URLSearchParams(location.search);
+document.documentElement.setAttribute('data-theme', p.get('theme') || 'light');
+</script>
+
+</body>
+</html>

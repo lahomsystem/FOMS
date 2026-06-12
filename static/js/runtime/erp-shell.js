@@ -36,6 +36,15 @@
 
   var CACHE_MAX_ENTRIES = 28;
   var CACHE_TTL_MS = 5 * 60 * 1000;
+  /**
+   * Mutation-sensitive surfaces (other users/devices change them between visits):
+   * shorter warm-cache freshness + revalidate-on-focus so a tab-switch back never
+   * serves a stale post-approve home. Full page reload already bypasses this cache.
+   */
+  var FRESH_TTL_MS = 30 * 1000;
+  var FRESH_TTL_PATHS = [
+    '/erp/dashboard',
+  ];
   var IDLE_PREFETCH_MAX = 3;
   var HOVER_DEBOUNCE_MS = 180;
   var IDLE_DELAY_MS = 1600;
@@ -192,12 +201,18 @@
     }
   }
 
+  /** Per-path warm-cache freshness: mutation-sensitive surfaces expire fast. */
+  function cacheTtlForKey(key) {
+    var path = key.split('?')[0];
+    return FRESH_TTL_PATHS.indexOf(path) >= 0 ? FRESH_TTL_MS : CACHE_TTL_MS;
+  }
+
   function cacheGet(key) {
     var row = fragmentHtmlCache[key];
     if (!row) {
       return null;
     }
-    if (Date.now() - row.ts > CACHE_TTL_MS) {
+    if (Date.now() - row.ts > cacheTtlForKey(key)) {
       delete fragmentHtmlCache[key];
       var ix = fragmentCacheOrder.indexOf(key);
       if (ix >= 0) {
@@ -206,6 +221,37 @@
       return null;
     }
     return row.html;
+  }
+
+  /**
+   * Drop warm fragment HTML after server-side mutations (quest approve, stage change).
+   * @param {string|boolean|undefined} urlOrAll — omit or true to clear all; URL string to drop one entry.
+   */
+  function invalidateFragmentCache(urlOrAll) {
+    if (!urlOrAll || urlOrAll === true) {
+      fragmentHtmlCache = Object.create(null);
+      fragmentCacheOrder.length = 0;
+      return;
+    }
+    try {
+      var canonical = new URL(String(urlOrAll), window.location.origin);
+      var key = getCacheKey(canonical.href);
+      delete fragmentHtmlCache[key];
+      var ix = fragmentCacheOrder.indexOf(key);
+      if (ix >= 0) {
+        fragmentCacheOrder.splice(ix, 1);
+      }
+    } catch (e) {
+      fragmentHtmlCache = Object.create(null);
+      fragmentCacheOrder.length = 0;
+    }
+  }
+
+  /** Clear cached HTML for all 9 primary ERP nav surfaces. */
+  function invalidatePrimaryNavFragmentCache() {
+    PRIMARY_NAV_PATHS.forEach(function (p) {
+      invalidateFragmentCache(window.location.origin + p);
+    });
   }
 
   function activateScripts(container) {
@@ -257,11 +303,57 @@
     }
   }
 
+  /**
+   * Tear down any Bootstrap offcanvas/modal that is open inside the region about
+   * to be replaced. Bootstrap keeps its overlay state (the backdrop element plus
+   * the `<body>` scroll-lock) on `<body>`, which lives *outside* #main-content.
+   * Replacing #main-content innerHTML removes the overlay element without running
+   * Bootstrap's hide transition, so that body-level state is orphaned and the
+   * page can no longer scroll. Disposing the instance and completing the cleanup
+   * here keeps the fragment-swap navigation (e.g. the mobile filter sheet's GET
+   * "적용") from freezing the page.
+   * @param {HTMLElement} container
+   */
+  function teardownOpenOverlays(container) {
+    if (!container || !window.bootstrap) {
+      return;
+    }
+    [
+      ['offcanvas', window.bootstrap.Offcanvas],
+      ['modal', window.bootstrap.Modal],
+    ].forEach(function (pair) {
+      var kind = pair[0];
+      var Ctor = pair[1];
+      if (!Ctor) {
+        return;
+      }
+      container.querySelectorAll('.' + kind + '.show').forEach(function (el) {
+        var instance = Ctor.getInstance(el);
+        if (instance) {
+          try {
+            instance.dispose();
+          } catch (e) {
+            /* ignore */
+          }
+        }
+      });
+    });
+    document
+      .querySelectorAll('.offcanvas-backdrop, .modal-backdrop')
+      .forEach(function (backdrop) {
+        backdrop.remove();
+      });
+    document.body.classList.remove('modal-open');
+    document.body.style.removeProperty('overflow');
+    document.body.style.removeProperty('padding-right');
+  }
+
   function applyFragmentToMain(html, swapUrl) {
     var main = document.getElementById('main-content');
     if (!main) {
       return false;
     }
+    teardownOpenOverlays(main);
     main.innerHTML = html;
     activateScripts(main);
     if (typeof swapUrl === 'string' && swapUrl) {
@@ -544,6 +636,30 @@
     navigateByShell(url, { fromPopState: true });
   });
 
+  /**
+   * Revalidate-on-focus: while this tab was hidden, another user/device may have
+   * mutated a mutation-sensitive surface (quest approve → stage change). Drop its
+   * warm cache so the next tab-switch back refetches instead of serving stale HTML.
+   */
+  function invalidateFreshTtlSurfaces() {
+    FRESH_TTL_PATHS.forEach(function (p) {
+      invalidateFragmentCache(window.location.origin + p);
+    });
+  }
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') {
+      invalidateFreshTtlSurfaces();
+    }
+  });
+
+  /* bfcache restore brings back the in-memory cache wholesale → drop fresh surfaces too. */
+  window.addEventListener('pageshow', function (e) {
+    if (e && e.persisted) {
+      invalidateFreshTtlSurfaces();
+    }
+  });
+
   if (typeof window.requestIdleCallback === 'function') {
     window.requestIdleCallback(
       function () {
@@ -564,5 +680,7 @@
     window.FOMS_ERP_SHELL.prefetchShellFragment = prefetchShellFragment;
     window.FOMS_ERP_SHELL.getCacheKey = getCacheKey;
     window.FOMS_ERP_SHELL.navigateByShell = navigateByShell;
+    window.FOMS_ERP_SHELL.invalidateFragmentCache = invalidateFragmentCache;
+    window.FOMS_ERP_SHELL.invalidatePrimaryNavFragmentCache = invalidatePrimaryNavFragmentCache;
   }
 })();

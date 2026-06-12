@@ -39,6 +39,9 @@ from foms.services.geocode_helpers import extract_address_from_structured_data
 from foms.services.jobs.queue import enqueue_geocode_order_address, enqueue_channeltalk_push
 from foms.services.order_geocode import reset_order_geocode_on_address_change
 from foms.services.channel_event_payloads import build_structured_update_payload
+from foms.services.feature_flags import env_bool
+from foms.services.erp_inline_patch import apply_field_patch, is_critical_field
+from foms.services.order_draft_service import format_updated_at, parse_updated_at
 
 TEAM_LABELS = {
     'CS': '라홈팀', 'SALES': '영업팀', 'MEASURE': '실측팀',
@@ -366,6 +369,82 @@ def api_get_order_structured(order_id):
         })
     except Exception as e:
         logger.exception("[ERP_ORDER] structured GET 오류: %s", e)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@erp_orders_structured_bp.route('/orders/<int:order_id>/structured/fields', methods=['PATCH'])
+@login_required
+@role_required(['ADMIN', 'MANAGER', 'STAFF'])
+def api_patch_order_structured_fields(order_id: int):
+    """Inline-edit partial patch with X-If-Match on structured_updated_at (P1-04)."""
+    if not env_bool('FOMS_INLINE_EDIT_ENABLED'):
+        return jsonify({'success': False, 'error': 'INLINE_DISABLED'}), 403
+
+    db = get_db()
+    try:
+        order = db.query(Order).filter(Order.id == order_id, Order.not_deleted_filter()).first()
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+
+        payload = request.get_json(silent=True) or {}
+        field = str(payload.get('field') or '').strip()
+        value = payload.get('value')
+        if not field:
+            return jsonify({'success': False, 'error': 'MISSING_FIELD'}), 400
+
+        if_match = request.headers.get('X-If-Match')
+        current_updated = getattr(order, 'structured_updated_at', None)
+        if if_match and current_updated is not None:
+            expected = parse_updated_at(if_match)
+            if expected is not None:
+                stored = current_updated.replace(microsecond=0)
+                if stored != expected.replace(microsecond=0):
+                    return jsonify({
+                        'success': False,
+                        'error': 'CONFLICT',
+                        'current': {
+                            'structured_updated_at': format_updated_at(current_updated),
+                        },
+                    }), 409
+
+        old_sd = order.structured_data if isinstance(order.structured_data, dict) else {}
+        structured_data = apply_field_patch(old_sd, field, value)
+
+        if field == 'site.address_full':
+            flat_addr = str(value or '').strip()
+            if flat_addr:
+                setattr(order, 'address', flat_addr)
+        if field == 'parties.customer.phone':
+            setattr(order, 'phone', str(value or '').strip())
+        if field == 'parties.customer.name':
+            setattr(order, 'customer_name', str(value or '').strip())
+        if field.endswith('.product_name'):
+            prod = _first_product_name_from_structured_data(structured_data)
+            if prod:
+                setattr(order, 'product', prod)
+
+        now = datetime.datetime.now()
+        _record_structured_events(db, order, old_sd, structured_data)
+        order.structured_data = copy.deepcopy(structured_data)
+        flag_modified(order, 'structured_data')
+        sync_erp_flat_columns(order, structured_data)
+        setattr(order, 'structured_updated_at', now)
+        db.commit()
+
+        from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+        invalidate_all_dashboard_slice_caches()
+
+        return jsonify({
+            'success': True,
+            'structured_updated_at': format_updated_at(now),
+            'critical': is_critical_field(field),
+        }), 200
+    except ValueError as exc:
+        db.rollback()
+        return jsonify({'success': False, 'error': str(exc)}), 400
+    except Exception as e:
+        db.rollback()
+        logger.exception("[ERP_ORDER] structured PATCH 오류: %s", e)
         return jsonify({'success': False, 'message': str(e)}), 500
 
 

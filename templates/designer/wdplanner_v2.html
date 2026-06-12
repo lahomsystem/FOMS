@@ -328,9 +328,9 @@
             <div class="row g-4">
                 <!-- 왼쪽: 업로드 + 추출 결과 -->
                 <div class="col-lg-7">
-                    <h5 class="fw-bold mb-1">도면 업로드 &amp; Gemini 추출</h5>
+                    <h5 class="fw-bold mb-1">도면/SketchUp 업로드 &amp; 학습</h5>
                     <p class="text-muted small mb-3">
-                        도면 이미지(JPG/PNG) 또는 PDF를 업로드하면 Gemini가 자동으로 가구 정보를 추출합니다.<br>
+                        도면 이미지/PDF는 Gemini 추출로, SKP/SKB는 SketchUp 분석 job으로 처리합니다.<br>
                         <span class="text-muted">도면은 무제한으로 학습할 수 있습니다. 초기 17장은 정밀 검수용 기준 세트입니다.</span>
                     </p>
 
@@ -354,14 +354,14 @@
                         <span class="text-muted">키 없이도 업로드는 되지만 AI 추출이 비활성화됩니다.</span>
                     </div>
 
-                    <!-- Drop zone — 다중 파일 지원 -->
+                    <!-- Drop zone — 도면 이미지/PDF + SketchUp 모델 -->
                     <div class="drop-zone" id="drop-zone"
                          onclick="document.getElementById('file-input').click()">
                         <div class="drop-icon">📄</div>
-                        <div class="drop-label">도면 파일을 드래그하거나 클릭하여 선택</div>
-                        <div class="drop-hint">여러 장 동시 선택 가능 · JPG · PNG · PDF · WEBP · 장당 최대 20MB</div>
+                        <div class="drop-label">도면 파일 또는 SketchUp 모델을 드래그하거나 클릭하여 선택</div>
+                        <div class="drop-hint">JPG · PNG · PDF · WEBP (장당 ≤ 20MB) · SKP · SKB (≤ 200MB)</div>
                         <input type="file" id="file-input" style="display:none"
-                               accept=".jpg,.jpeg,.png,.pdf,.webp" multiple>
+                               accept=".jpg,.jpeg,.png,.pdf,.webp,.skp,.skb" multiple>
                     </div>
 
                     <!-- 배치 진행 상태 -->
@@ -901,20 +901,26 @@ async function handleFiles(fileList) {
 
 // 단일 파일 처리 (상세 결과 표시)
 async function handleSingleFile(file) {
+    const isSketchUp = _isSketchUpFile(file);
     currentFilename = file.name;
     document.getElementById('batch-progress').style.display = 'none';
     document.getElementById('batch-results').innerHTML = '';
     document.getElementById('extraction-result').style.display = 'none';
-    document.getElementById('batch-title').textContent = `"${file.name}" Gemini 추출 중...`;
+    document.getElementById('batch-title').textContent =
+        isSketchUp ? `"${file.name}" SketchUp 분석 job 생성 중...` : `"${file.name}" Gemini 추출 중...`;
     document.getElementById('batch-progress').style.display = 'block';
-    document.getElementById('batch-bar').style.width = '50%';
+    document.getElementById('batch-bar').style.width = isSketchUp ? '35%' : '50%';
     document.getElementById('batch-counter').textContent = '1/1';
 
-    const result = await uploadAndExtract(file, currentFixtureId);
+    const result = isSketchUp
+        ? await uploadSketchUpModel(file)
+        : await uploadAndExtract(file, currentFixtureId);
 
     document.getElementById('batch-progress').style.display = 'none';
 
-    if (result.success) {
+    if (result.success && isSketchUp) {
+        renderSketchUpJobResult(file, result.data || {});
+    } else if (result.success) {
         currentExtraction = result.data.extraction;
         currentMetrics = result.data.metrics;
         // B4: store graph-first candidate data from intake pipeline
@@ -923,6 +929,81 @@ async function handleSingleFile(file) {
         renderExtractionResult(result.data);
     } else {
         handleUploadError(result);
+    }
+}
+
+function renderSketchUpJobResult(file, data) {
+    const reused = data.reused_existing ? '기존 job 재사용' : '새 분석 job 생성';
+    const status = data.status || 'queued';
+    const pollUrl = data.poll_url || (data.job_id ? `/api/designer/sketchup/jobs/${data.job_id}` : null);
+    const safeFilename = escapeHtml(file.name || '');
+    const safeJobId = escapeHtml(data.job_id || '--');
+    const safeStatus = escapeHtml(status);
+    const safePollUrl = pollUrl ? escapeHtml(pollUrl) : null;
+
+    document.getElementById('batch-results').innerHTML = `
+        <div class="alert alert-info mt-3 mb-0 small">
+            <div class="fw-semibold mb-1">SketchUp 모델 업로드 완료</div>
+            <div>파일: <strong>${safeFilename}</strong></div>
+            <div>상태: ${reused} · job #${safeJobId} · ${safeStatus}</div>
+            <div class="text-muted mt-1">
+                SKB/SKP는 Gemini 직접 분석이 아니라 SketchUp parser worker가 구조를 추출한 뒤
+                검수/승인 학습으로 이어집니다.
+                ${safePollUrl ? `상태 조회: <code>${safePollUrl}</code>` : ''}
+            </div>
+        </div>`;
+    showAlert(`SketchUp 분석 job #${data.job_id || '--'} 생성됨`, 'info');
+    fileInput.value = '';
+}
+
+// SketchUp 모델은 별도 분석 파이프라인을 쓴다 (B2 endpoint).
+// 도면 이미지/PDF 배치 처리에 섞이면 candidate/3D preview 단계가 다르므로
+// 업로드 시점에 확장자 기준으로 분리한다.
+const SKETCHUP_EXTENSIONS = new Set(['.skp', '.skb']);
+function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, (ch) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;',
+    }[ch]));
+}
+
+function _isSketchUpFile(file) {
+    const name = (file && file.name || '').toLowerCase();
+    const dot = name.lastIndexOf('.');
+    if (dot < 0) return false;
+    return SKETCHUP_EXTENSIONS.has(name.slice(dot));
+}
+
+async function uploadSketchUpModel(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+        const resp = await fetch('/api/designer/sketchup/upload-and-analyze', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'X-FOMS-Designer-Write': '1' },
+            body: formData,
+        });
+        const text = await resp.text();
+        let json = null;
+        try { json = text ? JSON.parse(text) : null; } catch (e) {
+            return { success: false, error: `서버 응답 파싱 실패 (HTTP ${resp.status}): ${text.slice(0, 160)}` };
+        }
+        if (!resp.ok || !json || !json.success) {
+            const err = json && json.error;
+            const code = err && err.code;
+            return {
+                success: false,
+                code: code,
+                error: (err && err.message) || `SketchUp 업로드 실패 (HTTP ${resp.status})`,
+            };
+        }
+        return { success: true, data: json.data };
+    } catch (e) {
+        return { success: false, error: e.message };
     }
 }
 
@@ -956,10 +1037,28 @@ async function handleBatchFiles(files) {
                 <span class="text-muted">처리 중...</span>
             </div>`);
 
-        const result = await uploadAndExtract(file, currentFixtureId);
+        let result;
+        if (_isSketchUpFile(file)) {
+            // SketchUp 모델은 job 기반 비동기 분석. 여기서는 job 생성까지만
+            // 처리하고, 결과 조회/3D preview는 B7 review workspace에서 한다.
+            result = await uploadSketchUpModel(file);
+        } else {
+            result = await uploadAndExtract(file, currentFixtureId);
+        }
         const row = document.getElementById(rowId);
 
-        if (result.success) {
+        if (result.success && _isSketchUpFile(file)) {
+            successCount++;
+            const d = result.data || {};
+            // Render an initial "queued" row, then start polling in the
+            // background. Polling owns row replacement from this point —
+            // a final succeeded/failed/cancelled state will swap in the
+            // 3D preview button (or an error message) when it arrives.
+            _renderSketchupRow(row, file, d.status || 'queued', null, null);
+            pollSketchupJob(d.job_id, row, file).catch(err => {
+                console.warn('[sketchup] polling error:', err);
+            });
+        } else if (result.success) {
             successCount++;
             const ext = result.data.extraction;
             const ss = ext.site_size || {};
@@ -1141,24 +1240,200 @@ function openReview() {
     }
 }
 
-// ── B4: ack listener — show success toast only when iframe confirms component load ──
+// ── B4/B7: ack listener — toast on iframe load + record SketchUp preview ack ──
+//
+// SketchUp candidates additionally POST /preview-ack so the approval gate
+// can later assert the ack hash still matches the on-screen DesignGraph.
+// We track the pending candidate id in `__sketchupPreviewPendingCandidateId`
+// because the iframe doesn't echo back ids — it only reports success +
+// component_count. Clearing the pending id after the POST prevents an
+// unrelated load from re-acking the wrong candidate.
+let __sketchupPreviewPendingCandidateId = null;
+
+async function _postSketchupPreviewAck(candidateId, ackPayload) {
+    if (!candidateId) return;
+    try {
+        await fetch(`/api/designer/sketchup/candidates/${candidateId}/preview-ack`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-FOMS-Designer-Write': '1',
+            },
+            body: JSON.stringify(ackPayload),
+        });
+    } catch (err) {
+        // Best-effort — failing to record the ack leaves the approve
+        // gate closed by design (preview_ack_missing blocker stays).
+        console.warn('[sketchup] preview-ack POST failed:', err);
+    }
+}
+
 (function() {
     window.addEventListener('message', function(e) {
         if (e.origin !== window.location.origin) return;
         if (!e.data || e.data.type !== 'FOMS_CANDIDATE_LOADED_ACK') return;
+
+        const pendingId = __sketchupPreviewPendingCandidateId;
+        __sketchupPreviewPendingCandidateId = null;
+
         if (e.data.success && e.data.component_count > 0) {
             showAlert(
                 `3D 편집기에 로드 완료 — 컴포넌트 ${e.data.component_count}개`,
                 'success'
             );
+            if (pendingId) {
+                _postSketchupPreviewAck(pendingId, {
+                    success: true,
+                    component_count: e.data.component_count,
+                    error: null,
+                });
+            }
         } else if (!e.data.success || e.data.component_count === 0) {
             showAlert(
                 '3D 로드 실패: ' + (e.data.error || 'component가 없습니다.'),
                 'danger'
             );
+            if (pendingId) {
+                _postSketchupPreviewAck(pendingId, {
+                    success: false,
+                    component_count: e.data.component_count || 0,
+                    error: e.data.error || 'iframe_ack_reported_failure',
+                });
+            }
         }
     });
 })();
+
+// ── B7: SketchUp job polling + 3D preview routing ────────────────────
+//
+// After upload-and-analyze succeeds the job is queued, so we poll the
+// status endpoint until it reaches a terminal state. On success we
+// upgrade the batch-result row with a "3D 미리보기" button that loads
+// the candidate's DesignGraph into the iframe via the existing
+// FOMS_LOAD_CANDIDATE protocol.
+
+const SKETCHUP_POLL_INTERVAL_MS = 2000;
+const SKETCHUP_POLL_TIMEOUT_MS = 5 * 60 * 1000; // 5 min — same as planned p95.
+
+async function _fetchSketchupJob(jobId) {
+    const resp = await fetch(`/api/designer/sketchup/jobs/${jobId}`, {
+        credentials: 'same-origin',
+    });
+    const text = await resp.text();
+    let json = null;
+    try { json = text ? JSON.parse(text) : null; } catch (e) { /* noop */ }
+    return { httpOk: resp.ok, json };
+}
+
+async function _fetchSketchupCandidate(candidateId) {
+    const resp = await fetch(`/api/designer/sketchup/candidates/${candidateId}`, {
+        credentials: 'same-origin',
+    });
+    const text = await resp.text();
+    let json = null;
+    try { json = text ? JSON.parse(text) : null; } catch (e) { /* noop */ }
+    return { httpOk: resp.ok, json };
+}
+
+function _renderSketchupRow(row, file, status, payload, candidateId) {
+    const safeFilename = escapeHtml(file.name || '');
+    const safeStatus = escapeHtml(status || '');
+    if (status === 'succeeded') {
+        const previewBtn = candidateId
+            ? `<button type="button" class="btn btn-sm btn-primary py-0 px-2"
+                       data-sketchup-candidate-id="${candidateId}"
+                       onclick="previewSketchupCandidate(${candidateId})">🧊 3D 미리보기</button>`
+            : '';
+        row.innerHTML = `
+            <span style="color:#0d6efd;flex-shrink:0;">🧱</span>
+            <span class="flex-grow-1 text-truncate" title="${safeFilename}">${safeFilename}</span>
+            <span class="text-success small">SketchUp 분석 완료</span>
+            ${previewBtn}`;
+        return;
+    }
+    if (status === 'failed' || status === 'cancelled') {
+        const errMsg = (payload && payload.error && payload.error.message) || status;
+        const safeErr = escapeHtml(errMsg);
+        row.innerHTML = `
+            <span style="color:#dc3545;flex-shrink:0;">❌</span>
+            <span class="flex-grow-1 text-truncate" title="${safeFilename}">${safeFilename}</span>
+            <span class="text-danger small">${safeErr}</span>`;
+        return;
+    }
+    // queued / running / retryable
+    row.innerHTML = `
+        <div class="spinner-border spinner-border-sm text-primary" style="flex-shrink:0;"></div>
+        <span class="text-muted flex-grow-1 text-truncate" title="${safeFilename}">${safeFilename}</span>
+        <span class="text-muted small">SketchUp ${safeStatus}...</span>`;
+}
+
+async function pollSketchupJob(jobId, row, file) {
+    const start = Date.now();
+    let last = null;
+    while (Date.now() - start < SKETCHUP_POLL_TIMEOUT_MS) {
+        const { httpOk, json } = await _fetchSketchupJob(jobId);
+        if (!httpOk || !json || !json.success) {
+            _renderSketchupRow(row, file, 'failed', { error: { message: '폴링 응답 실패' } }, null);
+            return;
+        }
+        last = json.data;
+        const status = last.status;
+        if (status === 'succeeded' || status === 'failed' || status === 'cancelled') {
+            _renderSketchupRow(row, file, status, last, last.candidate_id);
+            return;
+        }
+        _renderSketchupRow(row, file, status, last, null);
+        await new Promise(r => setTimeout(r, SKETCHUP_POLL_INTERVAL_MS));
+    }
+    _renderSketchupRow(
+        row, file, 'failed',
+        { error: { message: '폴링 시간 초과 — 워커가 응답하지 않습니다.' } },
+        null,
+    );
+}
+
+async function previewSketchupCandidate(candidateId) {
+    const { httpOk, json } = await _fetchSketchupCandidate(candidateId);
+    if (!httpOk || !json || !json.success) {
+        const msg = (json && json.error && json.error.message) || '후보 로드 실패';
+        showAlert('SketchUp 후보 로드 실패: ' + msg, 'danger');
+        return;
+    }
+    const data = json.data;
+    if (!data.preview_allowed || !data.design_graph_candidate_json) {
+        const reasons = (data.blocking_reasons || []).join(', ') || '이유 미상';
+        showAlert(`3D 미리보기 불가: ${reasons}`, 'warning');
+        return;
+    }
+
+    const iframe = document.getElementById('designer-iframe');
+    if (!iframe || !iframe.contentWindow) {
+        showAlert('3D 편집기를 찾을 수 없습니다.', 'danger');
+        return;
+    }
+
+    // Track which candidate's ack we're waiting for so the ack listener
+    // can POST the preview-ack back to the right row.
+    __sketchupPreviewPendingCandidateId = candidateId;
+    switchMode('designer');
+
+    iframe.contentWindow.postMessage({
+        type: 'FOMS_LOAD_CANDIDATE',
+        candidate: {
+            furniture_type: data.furniture_type || 'custom_storage',
+            factory_params: (data.extracted_params || {}).bbox_mm
+                ? {
+                    width: data.extracted_params.bbox_mm.width_mm || null,
+                    height: data.extracted_params.bbox_mm.height_mm || null,
+                    depth: data.extracted_params.bbox_mm.depth_mm || null,
+                }
+                : {},
+            design_graph: data.design_graph_candidate_json,
+        },
+    }, window.location.origin);
+    // Toast / preview-ack POST happens inside the message listener.
+}
 
 // ── 3D 워크벤치로 로드 (B4: graph-first) ─────────────────────
 async function loadTo3D() {

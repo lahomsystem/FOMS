@@ -1,0 +1,26 @@
+/* P2-02 Alpine toast (new surfaces) */
+.foms-alpine-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--erp-mobile-shell-nav-height, 72px) + 16px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 1400;
+  max-width: min(92vw, 360px);
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: rgba(17, 24, 39, 0.92);
+  color: #fff;
+  font-size: 0.875rem;
+  box-shadow: 0 8px 24px rgba(15, 17, 21, 0.18);
+  pointer-events: none;
+}
+
+[x-cloak] {
+  display: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .foms-alpine-toast {
+    transition: none !important;
+  }
+}

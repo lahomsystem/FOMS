@@ -16,7 +16,7 @@
     }
 
     function buildMapHref(address) {
-        return 'https://map.kakao.com/link/search/' + encodeURIComponent(normalizeText(address));
+        return 'https://map.kakao.com/?q=' + encodeURIComponent(normalizeText(address));
     }
 
     function initMeasurementMobile() {
@@ -58,12 +58,16 @@
         function syncManagerBadge(card, value) {
             var badge = card ? card.querySelector('[data-measurement-mobile-manager]') : null;
             var detailValue = card ? card.querySelector('[data-measurement-mobile-detail-manager]') : null;
+            var visibleValue = card ? card.querySelector('[data-queue-card-field="manager"]') : null;
             if (badge) {
                 badge.textContent = value || '담당 미지정';
                 badge.classList.toggle('is-unassigned', !value);
             }
             if (detailValue) {
                 detailValue.textContent = value || '-';
+            }
+            if (visibleValue) {
+                visibleValue.textContent = value || '-';
             }
         }
 
@@ -101,6 +105,17 @@
                 phoneNodes.forEach(function (node) {
                     node.textContent = formatPhone(value);
                 });
+                card.querySelectorAll('[data-queue-card-field="phone"]').forEach(function (node) {
+                    var callLink = node.querySelector('[data-queue-card-call-link]');
+                    if (callLink) {
+                        callLink.textContent = formatPhone(value);
+                        if (value) {
+                            callLink.setAttribute('href', 'tel:' + normalizeText(value).replace(/\D/g, ''));
+                        }
+                    } else {
+                        node.textContent = formatPhone(value);
+                    }
+                });
                 card.querySelectorAll('[data-measurement-mobile-call-link]').forEach(function (callLink) {
                     if (value) {
                         callLink.setAttribute('href', 'tel:' + normalizeText(value).replace(/\D/g, ''));
@@ -112,6 +127,15 @@
                 var addressNodes = card.querySelectorAll('[data-measurement-mobile-field="address"]');
                 addressNodes.forEach(function (node) {
                     node.textContent = value || '-';
+                });
+                card.querySelectorAll('[data-queue-card-field="address"]').forEach(function (node) {
+                    var mapLink = node.querySelector('[data-queue-card-map-link]');
+                    if (mapLink) {
+                        mapLink.textContent = value || '-';
+                        if (value) mapLink.setAttribute('href', buildMapHref(value));
+                    } else {
+                        node.textContent = value || '-';
+                    }
                 });
                 card.querySelectorAll('[data-measurement-mobile-map-link]').forEach(function (link) {
                     if (value) link.setAttribute('href', buildMapHref(value));

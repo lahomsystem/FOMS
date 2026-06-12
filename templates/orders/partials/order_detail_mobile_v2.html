@@ -1,0 +1,302 @@
+{% from 'macros/foms_kv.html' import foms_kv_row, foms_kv_list %}
+
+<div class="foms-detail-page">
+  <div class="foms-shell-body">
+    <header class="detail-hero foms-detail-hero">
+      <div class="detail-hero__badges foms-detail-hero__badges">
+        <span class="foms-stage-badge foms-stage-badge{{ order.stage_badge_modifier|default('--received') }}">
+          {{ order.stage_badge_label|default(order.stage or '-') }}
+        </span>
+        {% if order.alerts.urgent %}
+          <span class="foms-badge foms-badge--alert">긴급</span>
+        {% endif %}
+      </div>
+      <h1 class="detail-hero__customer foms-detail-hero__customer">{{ order.customer_name or '-' }}</h1>
+      {% if order.product_subtitle %}
+        <p class="detail-hero__product foms-detail-hero__product">{{ order.product_subtitle }}</p>
+      {% endif %}
+    </header>
+
+    {% set safe_phone = (order.phone or '')|replace('-', '')|replace(' ', '') %}
+    {% set has_phone = safe_phone and safe_phone != '-' %}
+    {% set has_address = order.address and order.address != '-' %}
+    {% set copy_summary = (order.customer_name or '') ~ ' / ' ~ (order.phone or '') ~ ' / ' ~ (order.address or '') %}
+    {% set amount = order.amount_summary or {} %}
+
+    <div class="quick-actions foms-quick-actions" role="toolbar" aria-label="빠른 작업">
+      {% if has_phone %}
+        <a class="quick-action foms-quick-action" href="tel:{{ safe_phone }}">
+          <span class="quick-action__icon foms-quick-action__icon"><i class="fas fa-phone"></i></span>
+          전화
+        </a>
+      {% else %}
+        <span class="quick-action foms-quick-action foms-quick-action--disabled" aria-disabled="true">
+          <span class="quick-action__icon foms-quick-action__icon"><i class="fas fa-phone"></i></span>
+          전화
+        </span>
+      {% endif %}
+      {% if has_address %}
+        <a class="quick-action foms-quick-action" href="https://map.kakao.com/?q={{ order.address|urlencode }}" target="_blank" rel="noopener">
+          <span class="quick-action__icon foms-quick-action__icon"><i class="fas fa-map-marker-alt"></i></span>
+          지도
+        </a>
+      {% else %}
+        <span class="quick-action foms-quick-action foms-quick-action--disabled" aria-disabled="true">
+          <span class="quick-action__icon foms-quick-action__icon"><i class="fas fa-map-marker-alt"></i></span>
+          지도
+        </span>
+      {% endif %}
+      {% if has_phone %}
+        <a class="quick-action foms-quick-action" href="sms:{{ safe_phone }}">
+          <span class="quick-action__icon foms-quick-action__icon"><i class="fas fa-comment-dots"></i></span>
+          채팅
+        </a>
+      {% else %}
+        <span class="quick-action foms-quick-action foms-quick-action--disabled" aria-disabled="true">
+          <span class="quick-action__icon foms-quick-action__icon"><i class="fas fa-comment-dots"></i></span>
+          채팅
+        </span>
+      {% endif %}
+      <button
+        type="button"
+        class="quick-action foms-quick-action foms-quick-action--button"
+        data-copy-value="{{ copy_summary|e }}"
+        data-copy-label="주문 요약">
+        <span class="quick-action__icon foms-quick-action__icon"><i class="fas fa-copy"></i></span>
+        복사
+      </button>
+    </div>
+
+    <section class="foms-detail-section" aria-labelledby="foms-detail-customer-title">
+      <div class="foms-detail-section__head">
+        <h2 class="foms-detail-section__title" id="foms-detail-customer-title">고객 정보</h2>
+      </div>
+      {{ foms_kv_list([
+        {'label': '이름', 'value': order.customer_name or '-'},
+        {'label': '연락처', 'value': order.phone or '-', 'tel_value': order.phone, 'copy_value': order.phone},
+        {'label': '주소', 'value': order.address or '-', 'map_query': order.address, 'copy_value': order.address},
+        {'label': '발주사', 'value': order.orderer_name or '-'},
+        {'label': '담당', 'value': order.manager_name or '-'},
+      ]) }}
+    </section>
+
+    <section class="foms-detail-section" aria-labelledby="foms-detail-schedule-title">
+      <div class="foms-detail-section__head">
+        <h2 class="foms-detail-section__title" id="foms-detail-schedule-title">일정</h2>
+      </div>
+      {{ foms_kv_list([
+        {'label': '접수', 'value': order.received_date or '-'},
+        {'label': '실측', 'value': order.measurement_date or '-'},
+        {'label': '시공', 'value': order.construction_date or '-'},
+      ]) }}
+    </section>
+
+    {% if order.product_items %}
+      <section class="foms-detail-section" aria-labelledby="foms-detail-products-title">
+        <div class="foms-detail-section__head">
+          <h2 class="foms-detail-section__title" id="foms-detail-products-title">제품</h2>
+          <span class="foms-detail-section__count">{{ order.product_items|length }}건</span>
+        </div>
+        {% for item in order.product_items %}
+          <div class="product-item foms-product-item{% if item.collapsed_default %} foms-product-item--collapsed{% endif %}" data-foms-product-item>
+            <header class="product-item__head foms-product-item__head" data-foms-product-toggle role="button" tabindex="0" aria-expanded="{{ 'false' if item.collapsed_default else 'true' }}">
+              <span class="product-item__index foms-product-item__index">항목 {{ item.index }}</span>
+              <span class="product-item__title foms-product-item__title">{{ item.title }}</span>
+              <button type="button" class="product-item__expand foms-product-item__expand" aria-label="펼치기·접기">{{ '⌄' if item.collapsed_default else '⌃' }}</button>
+            </header>
+            {% if item.collapsed_default %}
+              <p class="product-item__summary foms-product-item__summary">{{ item.summary }}</p>
+            {% endif %}
+            <div class="product-item__body foms-product-item__body">
+              {{ foms_kv_list([
+                {'label': '내부', 'value': item.internal or '-'},
+                {'label': '색상', 'value': item.color or '-'},
+                {'label': '옵션', 'value': item.option_detail or '-'},
+                {'label': '손잡이', 'value': item.handle or '-'},
+                {'label': '기타·설치', 'value': item.misc or '-'},
+                {'label': '금액', 'value': item.price_label or '-'},
+              ]) }}
+            </div>
+          </div>
+        {% endfor %}
+      </section>
+    {% endif %}
+
+    <section class="foms-detail-section" aria-labelledby="foms-detail-amount-title">
+      <div class="foms-detail-section__head">
+        <h2 class="foms-detail-section__title" id="foms-detail-amount-title">금액</h2>
+      </div>
+      {{ foms_kv_list([
+        {'label': '품목 합계', 'value': amount.items_total_label or '-'},
+        {'label': '계약금', 'value': amount.deposit_label or '-'},
+        {'label': '잔금', 'value': amount.balance_label or '-'},
+      ]) }}
+    </section>
+
+    {% if order.current_quest and order.current_quest.title %}
+      <section class="foms-detail-section" id="foms-detail-quest" aria-labelledby="foms-detail-quest-title" tabindex="-1">
+        <div class="foms-detail-section__head">
+          <h2 class="foms-detail-section__title" id="foms-detail-quest-title">현재 작업</h2>
+        </div>
+        <p class="mb-0">{{ order.current_quest.title }}</p>
+        {% set can_approve_quest = can_edit_erp or (order.current_quest and order.current_quest.can_assignee_approve) %}
+        {% if can_approve_quest %}
+          <div class="foms-detail-action-stack mt-3" id="mobile-quest-approvals-{{ order.id }}">
+            {% if order.current_quest.approval_mode == 'assignee' %}
+              {% set assignee_approval = order.current_quest.assignee_approval or {} %}
+              {% if assignee_approval.get('approved') %}
+                <span class="foms-badge foms-badge--count">승인완료</span>
+              {% else %}
+                <button
+                  type="button"
+                  class="foms-btn foms-btn--primary foms-btn--full erp-mobile-quest-approve-assignee"
+                  data-order-id="{{ order.id }}">
+                  담당자 승인
+                </button>
+              {% endif %}
+            {% else %}
+              {% for team in order.current_quest.required_approvals or [] %}
+                {% set approved = (order.current_quest.team_approvals or {}).get(team) %}
+                {% if approved is mapping %}
+                  {% set is_approved = approved.get('approved') %}
+                {% else %}
+                  {% set is_approved = approved %}
+                {% endif %}
+                {% if is_approved %}
+                  <span class="foms-badge foms-badge--count">{{ team }} 승인완료</span>
+                {% else %}
+                  <button
+                    type="button"
+                    class="foms-btn foms-btn--primary foms-btn--full erp-mobile-quest-approve-team"
+                    data-order-id="{{ order.id }}"
+                    data-team="{{ team }}">
+                    {{ team }} 승인
+                  </button>
+                {% endif %}
+              {% endfor %}
+            {% endif %}
+          </div>
+        {% endif %}
+      </section>
+    {% endif %}
+
+    {% if order.stage_code == 'DRAWING' or order.stage in ['DRAWING', '도면'] %}
+      <section class="foms-detail-section" aria-labelledby="foms-detail-drawing-title">
+        <div class="foms-detail-section__head">
+          <h2 class="foms-detail-section__title" id="foms-detail-drawing-title">도면 작업</h2>
+        </div>
+        <a class="foms-btn foms-btn--secondary foms-btn--full" href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=order.id) }}">
+          도면 창구 열기
+        </a>
+      </section>
+    {% endif %}
+
+    {% if order.attachments %}
+      <section class="foms-detail-section" aria-labelledby="foms-detail-attach-title">
+        <div class="foms-detail-section__head">
+          <h2 class="foms-detail-section__title" id="foms-detail-attach-title">첨부</h2>
+          <span class="foms-detail-section__count">{{ order.attachments_count }}건</span>
+        </div>
+        <div class="attach-grid foms-attach-grid" data-foms-attachment-preview-gallery>
+          {% for att in order.attachments %}
+            {% if att.view_url or att.thumb_url %}
+              <button
+                type="button"
+                class="attach-item foms-attach-item foms-attach-item--{{ att.category }}"
+                data-foms-attachment-preview
+                data-foms-attachment-view-url="{{ att.view_url or att.thumb_url }}"
+                data-foms-attachment-label="{{ att.label }}"
+                {% if att.download_url %}data-foms-attachment-download-url="{{ att.download_url }}"{% endif %}
+                title="{{ att.label }}">
+                <img src="{{ att.view_url or att.thumb_url }}" alt="" loading="lazy" decoding="async">
+                <span class="attach-item__label foms-attach-item__label">{{ att.label }}</span>
+              </button>
+            {% else %}
+              <a
+                class="attach-item foms-attach-item foms-attach-item--{{ att.category }}"
+                href="{{ url_for('order_edit.edit_order', order_id=order.id, open='erp-order') }}#attachments"
+                title="{{ att.label }}">
+                <span class="attach-item__label foms-attach-item__label">{{ att.label }}</span>
+              </a>
+            {% endif %}
+          {% endfor %}
+          <a
+            class="attach-add foms-attach-add"
+            href="{{ url_for('order_edit.edit_order', order_id=order.id, open='erp-order') }}#attachments"
+            aria-label="첨부 추가">
+            <i class="fas fa-plus" aria-hidden="true"></i>
+          </a>
+        </div>
+      </section>
+    {% elif order.attachments_count is defined and order.attachments_count > 0 %}
+      <section class="foms-detail-section" aria-labelledby="foms-detail-attach-title">
+        <div class="foms-detail-section__head">
+          <h2 class="foms-detail-section__title" id="foms-detail-attach-title">첨부</h2>
+        </div>
+        <p class="mb-0 foms-tabular">{{ order.attachments_count }}건</p>
+      </section>
+    {% endif %}
+
+    {% if order.timeline_events %}
+      <section class="foms-detail-section" aria-labelledby="foms-detail-timeline-title">
+        <div class="foms-detail-section__head">
+          <h2 class="foms-detail-section__title" id="foms-detail-timeline-title">타임라인</h2>
+        </div>
+        <div class="timeline foms-timeline">
+          {% for ev in order.timeline_events %}
+            <div class="timeline-item foms-timeline-item{% if ev.done %} timeline-item--done foms-timeline-item--done{% endif %}">
+              <div class="timeline-item__dot foms-timeline-item__dot" aria-hidden="true">✓</div>
+              <div class="timeline-item__body foms-timeline-item__body">
+                <h3 class="timeline-item__title foms-timeline-item__title">{{ ev.title }}</h3>
+                {% if ev.meta %}
+                  <span class="timeline-item__meta foms-timeline-item__meta">{{ ev.meta }}</span>
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </section>
+    {% endif %}
+  </div>
+
+  <div class="foms-detail-sticky-cta">
+    <a class="foms-btn foms-btn--primary foms-btn--full" href="{{ url_for('order_edit.edit_order', order_id=order.id, open='erp-order') }}">
+      ERP 주문 편집
+    </a>
+  </div>
+</div>
+
+{% include 'partials/shared/foms_attachment_preview_modal.html' %}
+
+<script>
+  document.addEventListener('click', async function (event) {
+    const teamBtn = event.target.closest('.erp-mobile-quest-approve-team');
+    const assigneeBtn = event.target.closest('.erp-mobile-quest-approve-assignee');
+    const btn = teamBtn || assigneeBtn;
+    if (!btn) return;
+    const orderId = btn.getAttribute('data-order-id');
+    const team = btn.getAttribute('data-team');
+    if (!orderId) return;
+    btn.disabled = true;
+    try {
+      const res = await fetch(`/api/orders/${orderId}/quest/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(team ? { team: team } : {})
+      });
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.message || data.error || '승인 실패');
+      }
+      if (window.FOMS_ERP_SHELL && typeof window.FOMS_ERP_SHELL.invalidatePrimaryNavFragmentCache === 'function') {
+        window.FOMS_ERP_SHELL.invalidatePrimaryNavFragmentCache();
+      } else if (window.FOMS_ERP_SHELL && typeof window.FOMS_ERP_SHELL.invalidateFragmentCache === 'function') {
+        window.FOMS_ERP_SHELL.invalidateFragmentCache(true);
+      }
+      location.href = location.pathname + location.search + '#foms-detail-quest';
+    } catch (error) {
+      btn.disabled = false;
+      alert(String((error && error.message) || error || '승인 중 오류가 발생했습니다.'));
+    }
+  });
+</script>

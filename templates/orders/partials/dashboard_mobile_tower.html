@@ -1,0 +1,130 @@
+{# 모바일 홈 — 오퍼레이션 컨트롤 타워 (tower_mode 전용).
+   데이터: control_tower (foms.services.orders.dashboard_control_tower), process_steps.
+   레이아웃: 이번주 → 오늘의 현장(준비도) → 위험 레이더 → 내것/신규 → (접힘)파이프라인
+   CSS: dashboard-control-tower.css — foms-mobile-surfaces.css 번들( fragment swap 시 <link> FOUC 방지). #}
+
+{% set ct = control_tower %}
+{% set week = ct.week %}
+{% set _stage_mod = {'주문접수':'received','실측':'measure','도면':'drawing','고객컨펌':'confirm','생산':'production','시공':'construction','완료':'completed','CS':'cs','AS처리':'cs'} %}
+
+<section class="foms-shell-body foms-mobile-v2-dashboard foms-tower" aria-label="모바일 홈 컨트롤 타워" data-foms-tower>
+
+  {# (A) 이번주 현장 #}
+  <section class="foms-tower__week">
+    <div class="foms-tower__week-top">
+      <span class="foms-tower__week-title">이번주 현장</span>
+      <a class="foms-tower__week-link" href="{{ url_for('erp_dashboard.erp_dashboard', sort='schedule', view='queue') }}">
+        실측 {{ week.measure_total }} · 시공 {{ week.construction_total }}{% if week.risk_total %} · 위험 {{ week.risk_total }}{% endif %} →
+      </a>
+    </div>
+    <div class="foms-tower__week-strip">
+      {% for d in week.days %}
+      <div class="foms-tower__day {% if d.is_today %}is-today{% endif %}">
+        {% if d.has_risk %}<span class="foms-tower__day-risk" aria-label="위험"></span>{% endif %}
+        <span class="foms-tower__day-dow">{{ d.dow }}</span>
+        <span class="foms-tower__day-date">{{ d.date }}</span>
+        <span class="foms-tower__day-counts">
+          {% if d.measure or d.construction %}📐{{ d.measure }}·🔨{{ d.construction }}{% else %}·{% endif %}
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  {# (B) 오늘의 현장 — 준비도 #}
+  <section>
+    <div class="foms-tower__head">
+      <h2 class="foms-tower__head-title">📍 오늘의 현장</h2>
+      <a class="foms-tower__head-action" href="{{ url_for('erp_dashboard.erp_dashboard', today='1', view='queue') }}">{{ ct.today_count }}건 →</a>
+    </div>
+    {% if ct.today_field_ops %}
+      <div class="foms-tower__field-list">
+        {% for row in ct.today_field_ops %}
+        <a class="foms-tower__field foms-tower__field--{{ row.readiness_state }}"
+           href="{{ url_for('erp_dashboard.erp_order_mobile_detail', order_id=row.id) }}">
+          <span class="foms-tower__field-time">
+            <span class="foms-tower__field-hh">{{ row.time or '시간미정' }}</span>
+            <span class="foms-tower__field-type">{{ row.type }}</span>
+          </span>
+          <span class="foms-tower__field-body">
+            <span class="foms-tower__field-name">
+              {{ row.name }}
+              <span class="foms-stage-badge foms-stage-badge--{{ 'construction' if row.type_code == 'construction' else 'measure' }}">{{ row.type }}</span>
+            </span>
+            <span class="foms-tower__field-addr">{{ row.addr }}</span>
+            <span class="foms-tower__field-foot">
+              <span class="foms-tower__chip foms-tower__chip--{{ row.readiness_state }}">{{ row.readiness_label }}</span>
+              <span class="foms-tower__field-who">담당 {{ row.manager }}</span>
+            </span>
+          </span>
+        </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="foms-tower__empty">오늘 잡힌 실측·시공 일정이 없습니다.</div>
+    {% endif %}
+  </section>
+
+  {# (C) 위험 레이더 #}
+  <section>
+    <div class="foms-tower__head">
+      <h2 class="foms-tower__head-title">{% if ct.risk_total %}<span class="foms-tower__dot-risk"></span> {% endif %}위험 레이더</h2>
+      {% if ct.risk_total %}<span class="foms-tower__head-action foms-tower__head-action--muted">{{ ct.risk_total }}건</span>{% endif %}
+    </div>
+    {% if ct.risk_groups %}
+      <div class="foms-tower__risk-list">
+        {% for g in ct.risk_groups %}
+        <a class="foms-tower__risk" href="{{ url_for('erp_dashboard.erp_dashboard', view='queue', **g.filter) }}">
+          <span class="foms-tower__risk-icon foms-tower__risk-icon--{{ g.tone }}">{{ g.icon }}</span>
+          <span class="foms-tower__risk-body">
+            <span class="foms-tower__risk-title">{{ g.title }}</span>
+            <span class="foms-tower__risk-why">{{ g.why }}</span>
+          </span>
+          <span class="foms-tower__risk-count">{{ g.count }}<span>건</span></span>
+        </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="foms-tower__empty foms-tower__empty--ok">✓ 임박·지연 위험 없음. 일정이 모두 정상입니다.</div>
+    {% endif %}
+  </section>
+
+  {# (D) 내 담당 · 신규 유입 #}
+  <section>
+    <div class="foms-tower__head"><h2 class="foms-tower__head-title">✅ 처리 대기</h2></div>
+    <div class="foms-tower__quick">
+      <a class="foms-tower__quick-card" href="{{ url_for('erp_dashboard.erp_dashboard', mine='1', view='queue') }}">
+        <span class="foms-tower__quick-num">{{ ct.mine_open_count }}</span>
+        <span class="foms-tower__quick-label">내 담당 진행중</span>
+      </a>
+      <a class="foms-tower__quick-card" href="{{ url_for('erp_dashboard.erp_dashboard', stage='주문접수', view='queue') }}">
+        <span class="foms-tower__quick-num">{{ ct.inbound_count }}</span>
+        <span class="foms-tower__quick-label">신규 접수 대기</span>
+      </a>
+    </div>
+  </section>
+
+  {# (F) 전체 파이프라인 — 접힘 (관리자 drill-down) #}
+  <details class="foms-tower__pipeline">
+    <summary>📊 전체 파이프라인 ({{ total_orders }}건) <span class="foms-tower__pipeline-toggle">펼치기</span></summary>
+    <div class="foms-tower__stage-grid">
+      {% for step in process_steps %}
+      <a class="foms-tower__stage" href="{{ url_for('erp_dashboard.erp_dashboard', stage=step.label, view='queue') }}">
+        <span class="foms-tower__stage-badges">
+          {% if step.overdue %}<span class="foms-tower__mini foms-tower__mini--overdue">{{ step.overdue }}</span>{% endif %}
+          {% if step.imminent %}<span class="foms-tower__mini foms-tower__mini--imminent">{{ step.imminent }}</span>{% endif %}
+        </span>
+        <span class="foms-tower__stage-dot foms-tower__stage-dot--{{ _stage_mod.get(step.label, 'received') }}"></span>
+        <span class="foms-tower__stage-count">{{ step.count }}</span>
+        <span class="foms-tower__stage-label">{{ step.label }}</span>
+      </a>
+      {% endfor %}
+    </div>
+    <a class="foms-tower__all-queue" href="{{ url_for('erp_dashboard.erp_dashboard', view='queue') }}">전체 작업 큐 열기 →</a>
+  </details>
+
+</section>
+
+<a class="foms-shell-fab" href="{{ url_for('order_pages.add_order', open='erp-order') }}" aria-label="주문 생성">
+  <i class="fas fa-plus" aria-hidden="true"></i>
+</a>

@@ -1,0 +1,226 @@
+/**
+ * WDCalculator 카테고리 2단 피커 스타일 — PC 드롭다운 + 모바일 바텀시트.
+ * static/js/wdcalculator/category-picker.js 와 1:1 대응.
+ */
+
+/* 원본 native <select>는 접근성 위해 DOM 유지하되 화면에서만 숨김(display 미사용 → 토글 표시상태 읽기 가능) */
+select.wd-cat-src {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    border: 0 !important;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    overflow: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    white-space: nowrap !important;
+}
+
+/* 트리거(닫힘 상태 = 폼 셀렉트처럼 보임) */
+.wd-cat-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    /* 옵션/비고 행은 flex 컨테이너(셀렉트가 flex-grow-1였음) → 트리거도 늘어나도록 */
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 38px;
+    padding: 6px 12px;
+    background: #fff;
+    color: #212529;
+    text-align: left;
+    border: 1px solid #ced4da;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    line-height: 1.4;
+}
+.wd-cat-trigger:hover {
+    border-color: #86b7fe;
+}
+.wd-cat-trigger:focus {
+    outline: none;
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+.wd-cat-trigger__label {
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.wd-cat-trigger--placeholder .wd-cat-trigger__label {
+    color: #6c757d;
+}
+.wd-cat-trigger__caret {
+    flex: 0 0 auto;
+    color: #6c757d;
+    font-size: 12px;
+}
+
+/* 오버레이 */
+.wd-cat-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 17, 21, 0.001);
+    z-index: 1080;
+    display: none;
+}
+.wd-cat-backdrop.is-open {
+    display: block;
+}
+
+.wd-cat-panel {
+    position: fixed;
+    z-index: 1085;
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 12px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+}
+.wd-cat-panel.is-open {
+    display: flex;
+}
+.wd-cat-panel__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid #eee;
+    flex: 0 0 auto;
+}
+.wd-cat-panel__title {
+    font-weight: 600;
+    font-size: 15px;
+    color: #212529;
+}
+.wd-cat-panel__close {
+    border: none;
+    background: transparent;
+    font-size: 16px;
+    cursor: pointer;
+    color: #6c757d;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+}
+.wd-cat-panel__close:hover {
+    background: #f1f3f5;
+}
+.wd-cat-panel__body {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 6px;
+    flex: 1 1 auto;
+}
+
+/* 옵션 행 */
+.wd-cat-opt {
+    display: block;
+    width: 100%;
+    text-align: left;
+    border: none;
+    background: transparent;
+    padding: 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    color: #212529;
+    min-height: 44px;
+}
+.wd-cat-opt:hover {
+    background: #f1f3f5;
+}
+.wd-cat-opt.is-selected {
+    background: #e7f1ff;
+    color: #0d6efd;
+    font-weight: 600;
+}
+.wd-cat-opt--placeholder {
+    color: #6c757d;
+}
+
+/* 카테고리 아코디언 */
+.wd-cat-group {
+    border-radius: 8px;
+}
+.wd-cat-group__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    border: none;
+    background: transparent;
+    padding: 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    color: #212529;
+    min-height: 44px;
+}
+.wd-cat-group__head:hover {
+    background: #f8f9fa;
+}
+.wd-cat-group__name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.wd-cat-group__meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+    color: #6c757d;
+    font-weight: 400;
+    font-size: 12px;
+}
+.wd-cat-group__chev {
+    display: inline-block;
+    transition: transform 0.2s ease;
+}
+.wd-cat-group.is-open .wd-cat-group__chev {
+    transform: rotate(180deg);
+}
+.wd-cat-group__list {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.25s ease;
+}
+.wd-cat-group__list .wd-cat-opt {
+    padding-left: 24px;
+    font-weight: 400;
+}
+
+/* PC: 트리거 아래 드롭다운 */
+.wd-cat-panel--dropdown {
+    max-height: 60vh;
+}
+
+/* 모바일: 바텀시트 */
+@media (max-width: 991.98px) {
+    .wd-cat-backdrop.is-open {
+        background: rgba(15, 17, 21, 0.45);
+    }
+    .wd-cat-panel--sheet {
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0;
+        top: auto !important;
+        width: auto !important;
+        max-height: 80vh;
+        border-radius: 16px 16px 0 0;
+    }
+    body.wd-cat-open {
+        overflow: hidden;
+    }
+}

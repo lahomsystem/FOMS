@@ -1,0 +1,89 @@
+/**
+ * P0-01: Global nav (768px expand-md) vs ERP mobile shell (992px) bridge.
+ * Roadmap slot 12 is occupied by 12-runtime-shell-loading.css — this file uses 13.
+ */
+
+.layout-global-nav {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background-color: #fff !important;
+}
+
+.global-notification-panel {
+  position: absolute;
+  top: 140%;
+  right: 0;
+  width: 420px;
+  max-width: min(420px, calc(100vw - 24px));
+  max-height: 480px;
+  overflow-y: auto;
+  z-index: 9999;
+  border-radius: 12px;
+}
+
+/* 768–991px: hide legacy global nav when ERP v2 shell is active */
+@media (max-width: 991.98px) {
+  body.erp-mobile-v2-layout .layout-global-nav,
+  .layout-global-nav.layout-global-nav--erp-v2-suppressed {
+    display: none !important;
+  }
+
+  body.erp-mobile-v2-layout .layout-global-nav .navbar-collapse.show {
+    display: none !important;
+  }
+
+  /* P1 mockup parity: the legacy global brand/account header (layout-header)
+     is replaced by the foms shell header (☰ + title + search) on mobile v2.
+     Account actions (profile/admin/logout) live in the bottom menu drawer.
+     Hidden only below 992px and only for the erp-mobile-v2 cohort layout so
+     desktop ≥992px is untouched. */
+  body.erp-mobile-v2-layout .layout-header {
+    display: none !important;
+  }
+
+  /* The global rule `body > .container-fluid { overflow-x: auto }` (style.css,
+     for wide desktop tables) turns this wrapper into a scroll container. Any
+     non-visible overflow on an ancestor makes IT the scroll context for
+     descendant position:sticky — but this wrapper grows with content (min-height
+     :100vh) and never scrolls (the page/body does), so the shell header sticks
+     to a box that never moves and scrolls away. Desktop tables are hidden on
+     mobile v2, so restore visible overflow to give the header a working sticky
+     context. */
+  body.erp-mobile-v2-layout > .container-fluid,
+  /* orders/layout nests a second .container-fluid around #main-content; without
+     visible overflow, shell header sticky/fixed and bottom nav pin to the wrong
+     scroll ancestor on /edit/<id> and other non-/erp mobile-v2 surfaces. */
+  body.erp-mobile-v2-layout .container-fluid,
+  body.erp-mobile-v2-layout #main-content {
+    overflow: visible;
+  }
+
+  /* New-order wizard (/add when FOMS_WIZARD_NEW_ORDER_ENABLED) is a mobile-first
+     focused flow with its own stepper header; the legacy global brand header and
+     nav are redundant chrome on mobile. Suppress both below 992px. The wizard is
+     gated by its own flag, so this is independent of the erp-mobile-v2 cohort. */
+  body.foms-wizard-active .layout-header,
+  body.foms-wizard-active .layout-global-nav {
+    display: none !important;
+  }
+}
+
+/* ≥992px: cohort ERP users may keep desktop global nav */
+@media (min-width: 992px) {
+  .layout-global-nav.layout-global-nav--erp-v2-suppressed {
+    display: flex !important;
+  }
+}
+
+/* Tablet split band (992–1365.98px), mobile-v2 cohort: the master-detail
+   split-view (D03) owns the surface, so the legacy global brand header + nav are
+   hidden like on mobile. Placed after the ≥992 show rule so source order wins.
+   ≥1366px keeps the desktop dashboard + its header/nav. */
+@media (min-width: 992px) and (max-width: 1365.98px) {
+  body.erp-mobile-v2-layout .layout-header,
+  body.erp-mobile-v2-layout .layout-global-nav,
+  body.erp-mobile-v2-layout .layout-global-nav.layout-global-nav--erp-v2-suppressed {
+    display: none !important;
+  }
+}

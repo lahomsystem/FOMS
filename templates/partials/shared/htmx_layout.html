@@ -1,0 +1,15 @@
+{# P2-01: HTMX 2.x vendor + config for P1 new surfaces only (search, split, wizard). #}
+{# Legacy erp-shell.js tab swap is unchanged — do not include on full ERP shell pages. #}
+<script src="{{ url_for('static', filename='js/vendor/htmx.min.js') }}?v=2.0.4" defer></script>
+<script defer>
+  document.addEventListener('DOMContentLoaded', function () {
+    if (!window.htmx) {
+      return;
+    }
+    window.htmx.config.defaultSwapStyle = 'innerHTML';
+    window.htmx.config.historyEnabled = false;
+    document.body.addEventListener('htmx:configRequest', function (event) {
+      event.detail.headers['X-Requested-With'] = 'foms-htmx';
+    });
+  });
+</script>

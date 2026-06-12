@@ -1,0 +1,23 @@
+{# Tablet split detail pane — mockup-aligned compact hero (P1 G3) #}
+{% set hero = mobile_order_row if mobile_order_row is defined else order %}
+<div class="foms-split-detail-panel" data-foms-split-detail-panel>
+  <header class="detail-hero foms-detail-hero foms-split-detail-panel__hero">
+    <span class="foms-stage-badge foms-stage-badge{{ hero.stage_badge_modifier|default('--received') }}">
+      {{ hero.stage_badge_label|default(hero.stage or '-') }}
+    </span>
+    <h2 class="detail-hero__customer foms-detail-hero__customer">{{ hero.customer_name or '-' }}</h2>
+    {% if hero.product_subtitle %}
+      <p class="detail-hero__product foms-detail-hero__product">{{ hero.product_subtitle }}</p>
+    {% endif %}
+  </header>
+  <div class="foms-split-detail-panel__body">
+    {% include 'orders/partials/edit_order_body.html' %}
+  </div>
+</div>
+{% include 'orders/partials/erp_order_js.html' %}
+<script>
+  document.dispatchEvent(new CustomEvent('foms:main-content-swapped', { detail: { source: 'split-fragment' } }));
+  if (window.fomsMountLightboxes) {
+    window.fomsMountLightboxes();
+  }
+</script>

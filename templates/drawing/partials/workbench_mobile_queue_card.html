@@ -1,0 +1,54 @@
+<div class="card mobile-order-card erp-drawing-mobile-card foms-drawing-queue-card foms-drawing-queue-card--{{ r.turn_tone }}"
+  data-order-id="{{ r.id }}"
+  data-href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=r.id) }}"
+  tabindex="0" role="link" aria-label="주문 {{ r.id }} {{ r.customer_name }} 도면 협업 열기">
+  <div class="card-body foms-drawing-queue-card__grid">
+    {% if drawing_thumb_enabled %}
+    <div class="foms-drawing-queue-card__thumb{% if not r.thumbnail_url %} is-placeholder{% endif %}" aria-hidden="true">
+      {% if r.thumbnail_url %}
+      <img src="{{ r.thumbnail_url }}" alt="" loading="lazy" decoding="async">
+      {% else %}
+      <i class="fas fa-drafting-compass"></i>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="foms-drawing-queue-card__main">
+      <div class="foms-drawing-queue-card__line">
+        <span class="foms-drawing-queue-card__name">{{ r.customer_name }}{% if r.is_self_measurement|default(false) %}
+          <span class="badge bg-info text-white ms-1" title="자가실측"><i class="fas fa-ruler-combined"></i></span>{% endif %}</span>
+        <span class="foms-drawing-queue-card__id">#{{ r.id }}</span>
+      </div>
+      <div class="foms-drawing-queue-card__sub">도면 담당 {{ r.assignee_text }}</div>
+
+      <span class="foms-drawing-queue-card__turn">
+        {% if r.turn_tone == 'mine' %}<i class="fas fa-hand-point-up" aria-hidden="true"></i>
+        {% elif r.turn_tone == 'done' %}<i class="fas fa-circle-check" aria-hidden="true"></i>
+        {% else %}<i class="fas fa-hourglass-half" aria-hidden="true"></i>{% endif %}
+        <span>{{ r.turn_label }}</span>
+      </span>
+
+      <div class="foms-drawing-queue-card__chips">
+        {% if r.target_no %}<span class="foms-drawing-queue-card__chip">대상 {{ r.target_no }}번</span>{% endif %}
+        <span class="foms-drawing-queue-card__chip">도면 {{ r.file_count }}장</span>
+        {% if r.unread_count > 0 %}<span class="foms-drawing-queue-card__chip is-alert">미확인 {{ r.unread_count }}</span>{% endif %}
+        {% if r.sla_level == '지연' %}<span class="foms-drawing-queue-card__chip is-alert">지연</span>
+        {% elif r.sla_level == '오늘 마감' %}<span class="foms-drawing-queue-card__chip is-warn">오늘 마감</span>{% endif %}
+        {% if r.my_todo %}<span class="foms-drawing-queue-card__chip is-mine">내 할 일</span>{% endif %}
+      </div>
+
+      <div class="foms-drawing-queue-card__actions">
+        <a href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=r.id) }}"
+          class="foms-drawing-queue-card__action is-primary">
+          <i class="fas {{ r.primary_action_icon }}" aria-hidden="true"></i>
+          <span>{{ r.primary_action_label }}</span>
+        </a>
+        <button type="button" class="foms-drawing-queue-card__action"
+          onclick="event.preventDefault(); event.stopPropagation(); openSingleAssignModal({{ r.id }})" title="담당자 변경">
+          <i class="fas fa-user-edit" aria-hidden="true"></i>
+          <span>담당자</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

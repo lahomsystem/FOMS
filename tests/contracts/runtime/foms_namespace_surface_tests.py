@@ -728,7 +728,6 @@ def test_b11b_canonical_api_cluster_importable() -> None:
     from foms.api.channel.channel_webhooks import channel_webhooks_bp
     from foms.api.channel.channel_functions import channel_functions_bp
     from foms.api.channel.channel_wam import channel_wam_bp
-    from foms.api.backup import backup_bp
     from foms.api.tasks import tasks_bp
     from foms.api.events import events_bp
     from foms.api.debug import debug_bp
@@ -743,7 +742,6 @@ def test_b11b_canonical_api_cluster_importable() -> None:
     assert channel_webhooks_bp is not None
     assert channel_functions_bp is not None
     assert channel_wam_bp is not None
-    assert backup_bp is not None
     assert tasks_bp is not None
     assert events_bp is not None
     assert debug_bp is not None
@@ -1169,6 +1167,8 @@ def test_namespaced_context_processors_shim_preserves_canonical_contract() -> No
         "inject_status_list",
         "utility_processor",
         "inject_menu",
+        "inject_foms_flags",
+        "inject_foms_nav_badges",
         "register_context_processors",
     ]
 
@@ -1545,6 +1545,7 @@ def test_namespaced_erp_display_shim_preserves_canonical_contract() -> None:
     expected_public_names = [
         "_normalize_for_search",
         "get_today_kst",
+        "format_datetime_kst",
         "self_measurement_four_checks_done",
         "_extract_name_candidate",
         "_manager_candidates",
@@ -2125,19 +2126,30 @@ def test_strict_canonical_scripts_taxonomy() -> None:
 
 
 def test_strict_canonical_tools_taxonomy() -> None:
-    """§2.2.1: tools/ contains harness/, ops/, smoke/, research_center/, designer/ (+ README).
+    """§2.2.1: tools/ contains harness/, ops/, smoke/, research_center/, designer/, cron/, design/ (+ README).
 
     designer/ added (PG-B2/PG-B5+): fixture management CLI tools for FOMS Brain.
+    cron/ added: Railway scheduled job entrypoints (e.g. cleanup_order_drafts).
+    design/ added: design SSOT lint helpers (ssot_lint.py).
     """
     tools_dir = _REPO_ROOT / "tools"
     assert tools_dir.is_dir()
     assert (tools_dir / "README.md").is_file()
+    allowed = {
+        "harness",
+        "ops",
+        "smoke",
+        "research_center",
+        "designer",
+        "cron",
+        "design",
+        "sketchup_analyzer",
+    }
     for p in tools_dir.iterdir():
         if p.name.startswith(".") or p.name == "README.md" or p.name == "__pycache__":
             continue
         assert p.is_dir(), f"tools/ must not contain loose non-README files: {p.name}"
-        assert p.name in {"harness", "ops", "smoke", "research_center", "designer"}, \
-            f"unexpected tools child: {p.name}"
+        assert p.name in allowed, f"unexpected tools child: {p.name}"
 
 
 def test_strict_canonical_docs_taxonomy() -> None:
@@ -2147,7 +2159,18 @@ def test_strict_canonical_docs_taxonomy() -> None:
     """
     docs = _REPO_ROOT / "docs"
     allowed_dirs = frozenset(
-        {"specs", "plans", "evolution", "guides", "incidents", "harness", "context", "design"}
+        {
+            "specs",
+            "plans",
+            "evolution",
+            "guides",
+            "incidents",
+            "harness",
+            "context",
+            "design",
+            "research",
+            "runbooks",
+        }
     )
     allowed_root_files = frozenset({"AI_STATUS.md", "AI_CHANGELOG.md", "ARCHIVE_INDEX.md"})
     for p in docs.iterdir():
@@ -2206,6 +2229,7 @@ _SLG_TEMPLATES_TOP_LEVEL_ALLOWED = frozenset(
         "cs",
         "designer",
         "drawing",
+        "macros",
         "measurement",
         "orders",
         "partials",
@@ -2411,16 +2435,33 @@ def test_slg_literal_gap_no_orders_erp_policy_internal_dir() -> None:
 
 _PAC_PARTIALS_SHARED_HTML_ALLOWLIST = frozenset(
     {
-        "layout_head.html",
-        "layout_nav.html",
-        "layout_flash.html",
-        "layout_scripts.html",
-        "erp_mobile_shell.html",
-        "erp_mobile_shell_header.html",
+        "alpine_layout.html",
         "erp_mobile_bottom_nav.html",
         "erp_mobile_menu_drawer.html",
         "erp_mobile_queue_card.html",
+        "erp_mobile_queue_card_v2.html",
+        "erp_mobile_shell.html",
+        "erp_mobile_shell_header.html",
+        "erp_mobile_v2_tab_notice.html",
         "erp_sub_nav.html",
+        "foms_alpine_toast.html",
+        "foms_app_shell.html",
+        "foms_attachment_preview_modal.html",
+        "foms_master_list.html",
+        "foms_order_contact_kv.html",
+        "foms_order_detail_fragment.html",
+        "foms_p2_surface_bundle.html",
+        "foms_search_overlay.html",
+        "foms_search_results_partial.html",
+        "foms_side_tab.html",
+        "foms_split_shell.html",
+        "foms_theme_toggle.html",
+        "htmx_layout.html",
+        "layout_flash.html",
+        "layout_head.html",
+        "layout_nav.html",
+        "layout_scripts.html",
+        "mobile_queue_pager.html",
     }
 )
 

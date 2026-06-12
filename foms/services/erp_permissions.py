@@ -58,41 +58,62 @@ def _json_like_condition(expr: Any, value: str, *, dialect_name: str) -> Any:
     return or_(*conditions) if len(conditions) > 1 else conditions[0]
 
 
-def build_mine_sql_filter(user: Any) -> list[Any]:
-    """Return SQLAlchemy OR conditions for the current user's ERP ownership filter."""
+def build_mine_sql_filter(user: Any, scope: str = "all") -> list[Any]:
+    """Return SQLAlchemy OR conditions for the user's ERP ownership filter.
+
+    Args:
+        user: 현재 사용자.
+        scope: "내 항목"을 좁힐 이해관계자 역할.
+            ``"all"`` (기본·기존 동작) — 모든 역할 union.
+            ``"sales"`` — 영업 담당(소유자=manager/parties.manager/quest.owner_person
+                + assignments.sales_assignee_user_ids).
+            ``"construction"`` — 시공 담당(소유자=manager + shipment.construction_workers).
+            ``"drawing"`` — 도면 담당(assignments.drawing_assignees + drawing_assignee_user_ids).
+                도면담당은 보통 영업(manager)과 다른 사람이라 manager는 제외한다.
+
+    영업·시공은 담당자가 주문 manager로 기록되므로 소유자(manager) 신호를 포함한다.
+    construction_workers는 외주 기사일 수 있어 단독으로는 본인 건을 누락(undercount)한다.
+    새 역할 scope 추가 시 그 역할의 배정 필드가 manager인지 assignee인지 먼저 확인할 것.
+
+    scope="all"은 기존 계약 보존: conds[0]은 manager_name ilike, 그룹 합산 개수 동일.
+    """
     from sqlalchemy import String, cast
 
     from foms.persistence.main.models import Order
 
-    conds: list[Any] = []
     dialect_name = _current_dialect_name()
-
     u_name = (user.name or "").strip()
     u_username = (user.username or "").strip()
     u_id_str = str(user.id) if getattr(user, "id", None) else ""
 
+    manager_conds: list[Any] = []  # 영업/소유자 (manager_name, parties.manager, quest.owner_person)
+    sales_conds: list[Any] = []  # sales_assignee_user_ids (id)
+    drawing_conds: list[Any] = []  # drawing_assignees(name) + drawing_assignee_user_ids(id)
+    construction_conds: list[Any] = []  # shipment.construction_workers (name)
+
+    def _add_name_group(value: str) -> None:
+        safe = _escape_like(value)
+        manager_conds.append(Order.manager_name.ilike(f"%{safe}%", escape="\\"))
+        manager_conds.append(_json_like_condition(Order.structured_data["parties"]["manager"]["name"], value, dialect_name=dialect_name))
+        manager_conds.append(_json_like_condition(Order.structured_data["workflow"]["current_quest"]["owner_person"], value, dialect_name=dialect_name))
+        construction_conds.append(_json_like_condition(Order.structured_data["shipment"]["construction_workers"], value, dialect_name=dialect_name))
+        drawing_conds.append(_json_like_condition(Order.structured_data["assignments"]["drawing_assignees"], value, dialect_name=dialect_name))
+
     if u_name:
-        safe_name = _escape_like(u_name)
-        conds.append(Order.manager_name.ilike(f"%{safe_name}%", escape="\\"))
-        conds.append(_json_like_condition(Order.structured_data["parties"]["manager"]["name"], u_name, dialect_name=dialect_name))
-        conds.append(_json_like_condition(Order.structured_data["workflow"]["current_quest"]["owner_person"], u_name, dialect_name=dialect_name))
-        conds.append(_json_like_condition(Order.structured_data["shipment"]["construction_workers"], u_name, dialect_name=dialect_name))
-        conds.append(_json_like_condition(Order.structured_data["assignments"]["drawing_assignees"], u_name, dialect_name=dialect_name))
-
-    if u_username:
-        safe_uname = _escape_like(u_username)
-        if safe_uname != _escape_like(u_name):
-            conds.append(Order.manager_name.ilike(f"%{safe_uname}%", escape="\\"))
-            conds.append(_json_like_condition(Order.structured_data["parties"]["manager"]["name"], u_username, dialect_name=dialect_name))
-            conds.append(_json_like_condition(Order.structured_data["workflow"]["current_quest"]["owner_person"], u_username, dialect_name=dialect_name))
-            conds.append(_json_like_condition(Order.structured_data["shipment"]["construction_workers"], u_username, dialect_name=dialect_name))
-            conds.append(_json_like_condition(Order.structured_data["assignments"]["drawing_assignees"], u_username, dialect_name=dialect_name))
-
+        _add_name_group(u_name)
+    if u_username and _escape_like(u_username) != _escape_like(u_name):
+        _add_name_group(u_username)
     if u_id_str:
-        conds.append(cast(Order.structured_data["assignments"]["sales_assignee_user_ids"], String).ilike(f"%{u_id_str}%", escape="\\"))
-        conds.append(cast(Order.structured_data["assignments"]["drawing_assignee_user_ids"], String).ilike(f"%{u_id_str}%", escape="\\"))
+        sales_conds.append(cast(Order.structured_data["assignments"]["sales_assignee_user_ids"], String).ilike(f"%{u_id_str}%", escape="\\"))
+        drawing_conds.append(cast(Order.structured_data["assignments"]["drawing_assignee_user_ids"], String).ilike(f"%{u_id_str}%", escape="\\"))
 
-    return conds
+    groups: dict[str, list[Any]] = {
+        "sales": manager_conds + sales_conds,
+        "construction": manager_conds + construction_conds,
+        "drawing": drawing_conds,
+        "all": manager_conds + sales_conds + drawing_conds + construction_conds,
+    }
+    return groups.get(scope, groups["all"])
 
 
 def can_edit_erp(user: Any) -> bool:

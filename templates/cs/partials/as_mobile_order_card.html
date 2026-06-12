@@ -1,0 +1,244 @@
+{# AS 모바일 주문 카드 1건 — 초기 렌더 루프와 무한스크롤 청크가 공유(SSOT). 루프 변수 r 필요. #}
+{% from 'cs/partials/as_card_macros.html' import render_as_orderer_line, render_as_construction_workers, render_as_content_tabs %}
+
+{% if erp_mobile_v2_enabled %}
+{# v2 compact: 현장 담당자가 스크롤 최소로 건 스캔·방문일·사진·미결 처리 #}
+{% set safe_phone = (r.phone or '')|replace('-', '')|replace(' ', '') %}
+{% set has_phone = safe_phone and safe_phone != '-' %}
+<article
+  class="erp-pro-order-card erp-as-mobile-card erp-as-mobile-card--v2{% if r.as_pending %} is-pending{% endif %}"
+  data-order-id="{{ r.id }}">
+  <header class="erp-as-mobile-card__head{% if r.as_pending %} erp-as-customer-row--pending{% endif %}">
+    <div class="erp-as-mobile-card__identity">
+      {% if r.as_thumb_enabled %}
+      <div class="erp-as-mobile-card__thumb{% if not r.thumbnail_url %} is-placeholder{% endif %}" aria-hidden="true">
+        {% if r.thumbnail_url %}
+        <img src="{{ r.thumbnail_url }}" alt="" loading="lazy" decoding="async">
+        {% else %}
+        <i class="fas fa-image"></i>
+        {% endif %}
+      </div>
+      {% endif %}
+      <div class="erp-as-mobile-card__who">
+        <div class="erp-as-mobile-card__topline">
+          {% if can_edit_erp|default(false) %}
+          <a href="{{ url_for('order_edit.edit_order', order_id=r.id) }}?open=erp-order"
+            class="erp-as-mobile-card__id erp-pro-order-card__id">#{{ r.id }}</a>
+          {% else %}
+          <span class="erp-as-mobile-card__id erp-pro-order-card__id">#{{ r.id }}</span>
+          {% endif %}
+        </div>
+        <h3 class="erp-as-mobile-card__customer">
+          {{ (r.customer_name or '-') }}{% if r.is_self_measurement|default(false) %}
+          <span class="erp-as-mobile-card__self-badge" title="자가실측"><i class="fas fa-ruler-combined"></i></span>{% endif %}
+        </h3>
+        <div class="erp-as-mobile-card__contact-row">
+          {% if has_phone %}
+          <a class="erp-as-mobile-card__phone" href="tel:{{ safe_phone }}">{{ r.phone|format_phone }}</a>
+          {% else %}
+          <span class="erp-as-mobile-card__phone text-muted">-</span>
+          {% endif %}
+          <span class="erp-as-mobile-card__manager">
+            <span class="erp-as-mobile-card__manager-label">담당</span>
+            <span class="erp-as-mobile-card__manager-value">{{ r.manager_name or '-' }}</span>
+          </span>
+        </div>
+        {% if r.orderer_name %}
+        <div class="erp-as-mobile-card__orderer" aria-label="발주처">{{ render_as_orderer_line(r.orderer_name) }}</div>
+        {% endif %}
+      </div>
+    </div>
+    <span
+      class="foms-stage-badge foms-stage-badge{{ r.stage_badge_modifier }} erp-as-status-badge"
+      data-order-id="{{ r.id }}"
+      role="status">
+      {% if r.as_pending %}미결{% else %}{{ STATUS.get(r.status, r.status) }}{% endif %}
+    </span>
+  </header>
+
+  <div class="erp-as-mobile-card__schedule">
+    <div class="erp-as-mobile-card__date erp-as-mobile-card__date--received erp-pro-order-card__row">
+      <span class="erp-as-mobile-card__date-label">접수</span>
+      <span class="erp-as-mobile-card__date-value foms-tabular">{{ r.as_received_date or '-' }}</span>
+    </div>
+    <div
+      class="erp-as-mobile-card__date erp-as-mobile-card__date--visit erp-pro-order-card__row erp-as-visit-cell {% if r.as_visit_date %}erp-as-visit-row--set{% endif %}">
+      <span class="erp-as-mobile-card__date-label">방문</span>
+      <div class="erp-as-visit-cell-wrap">
+        <input type="date" class="erp-pro-input editable-date-as" value="{{ r.as_visit_date or '' }}"
+          data-order-id="{{ r.id }}" data-field="as_visit_date" aria-label="AS 방문일">
+      </div>
+    </div>
+    <div
+      class="erp-as-mobile-card__date erp-as-mobile-card__date--complete erp-pro-order-card__row {% if r.as_completed_date %}erp-as-complete-row--set{% endif %}">
+      <span class="erp-as-mobile-card__date-label">완료</span>
+      <input type="date" class="erp-pro-input editable-date-as" value="{{ r.as_completed_date or '' }}"
+        data-order-id="{{ r.id }}" data-field="as_completed_date" aria-label="AS 완료일">
+    </div>
+  </div>
+
+  <div class="erp-as-mobile-card__address erp-pro-order-card__row erp-pro-order-card__row--full">
+    <p class="erp-as-mobile-card__address-text">{{ r.address or '-' }}</p>
+    {% if r.address %}
+    <button type="button" class="erp-as-mobile-card__schedule-btn find-schedule-btn"
+      data-address="{{ r.address }}"
+      data-order-id="{{ r.id }}"
+      data-lat="{{ r.lat or '' }}"
+      data-lng="{{ r.lng or '' }}"
+      title="주변 일정 찾기">
+      <i class="fas fa-map-marker-alt" aria-hidden="true"></i>
+      <span>일정</span>
+    </button>
+    {% endif %}
+  </div>
+
+  <footer class="erp-as-mobile-card__actions" aria-label="AS 빠른 작업">
+    {% if can_view_as_photos %}
+    <button type="button"
+      class="erp-as-mobile-card__action as-photos-btn{% if not r.has_as_photos %} as-photos-btn--no-photos{% endif %}"
+      data-order-id="{{ r.id }}" title="AS 사진 보기">
+      <i class="fas fa-paperclip" aria-hidden="true"></i>
+      <span>사진</span>
+    </button>
+    {% endif %}
+    {% if r.as_visit_date %}
+    <button type="button" class="erp-as-mobile-card__action erp-as-mobile-card__action--pending erp-as-pending-btn as-pending-btn{% if r.as_pending %} erp-as-pending-btn--active{% endif %}" data-order-id="{{ r.id }}"
+      data-as-pending="{% if r.as_pending %}1{% else %}0{% endif %}"
+      title="{% if r.as_pending %}미결 표시 해제{% else %}미결 표시{% endif %}">
+      <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
+      <span>{% if r.as_pending %}해제{% else %}미결{% endif %}</span>
+    </button>
+    {% endif %}
+    {# 모바일 v2: 'AS도면' 체크는 현장 빠른작업 흐름에 불필요 → 데스크톱/레거시 카드에만 유지 #}
+    {% if has_phone %}
+    <a class="erp-as-mobile-card__action" href="tel:{{ safe_phone }}">
+      <i class="fas fa-phone" aria-hidden="true"></i>
+      <span>전화</span>
+    </a>
+    {% endif %}
+    {% if can_edit_erp|default(false) %}
+    <a class="erp-as-mobile-card__action erp-as-mobile-card__action--primary"
+      href="{{ url_for('order_edit.edit_order', order_id=r.id) }}?open=erp-order">
+      <i class="fas fa-pen" aria-hidden="true"></i>
+      <span>편집</span>
+    </a>
+    {% endif %}
+  </footer>
+
+  <details class="erp-as-mobile-card__detail">
+    <summary class="erp-as-mobile-card__detail-toggle">시공·AS 내용</summary>
+    <div class="erp-as-mobile-card__detail-body">
+      <div class="erp-as-mobile-card__detail-row erp-pro-order-card__row">
+        <span class="erp-as-mobile-card__detail-label">시공자</span>
+        <div class="erp-as-mobile-card__detail-value">
+          {{ render_as_construction_workers(r.id, r.construction_workers, can_edit_erp|default(false)) }}
+        </div>
+      </div>
+      <div class="erp-as-mobile-card__detail-row erp-pro-order-card__row erp-pro-order-card__row--full">
+        <span class="erp-as-mobile-card__detail-label">AS 내용</span>
+        <div class="erp-as-mobile-card__content">
+          {{ render_as_content_tabs(r.id, r.is_sales_delivery, r.as_content_html, r.as_content_2_html, '48px') }}
+        </div>
+      </div>
+    </div>
+  </details>
+</article>
+
+{% else %}
+{# Legacy mobile card (non-v2 cohort) #}
+<div class="erp-pro-order-card erp-as-mobile-card" data-order-id="{{ r.id }}">
+  <div class="erp-pro-order-card__header">
+    {% if can_edit_erp|default(false) %}
+    <a href="{{ url_for('order_edit.edit_order', order_id=r.id) }}?open=erp-order"
+      class="erp-pro-order-card__id">#{{ r.id }}</a>
+    {% else %}
+    <span class="erp-pro-order-card__id">#{{ r.id }} <span class="text-muted small">(권한없음)</span></span>
+    {% endif %}
+    <span
+      class="erp-pro-badge erp-as-status-badge {% if r.as_pending %}erp-pro-badge--pending{% elif r.status == 'AS_COMPLETED' %}erp-pro-badge--success{% else %}erp-pro-badge--info{% endif %}"
+      data-order-id="{{ r.id }}">
+      {% if r.as_pending %}미결{% else %}{{ STATUS.get(r.status, r.status) }}{% endif %}
+    </span>
+  </div>
+  <div class="erp-pro-order-card__body">
+    <div class="erp-pro-order-card__row {% if r.as_pending %}erp-as-customer-row--pending{% endif %}">
+      <span class="erp-pro-order-card__label">고객</span>
+      <div class="erp-pro-order-card__value">
+        <span class="d-block">{{ (r.customer_name or '-') }}{% if r.is_self_measurement|default(false) %}
+          <span class="badge bg-info text-white ms-1" title="자가실측"><i class="fas fa-ruler-combined"></i> 자가실측</span>{% endif %}</span>
+        <span class="d-block small text-muted">{{ r.phone|format_phone }}</span>
+        {{ render_as_orderer_line(r.orderer_name) }}
+      </div>
+    </div>
+    <div class="erp-pro-order-card__row">
+      <span class="erp-pro-order-card__label">담당자</span>
+      <span class="erp-pro-order-card__value">{{ r.manager_name or '-' }}</span>
+    </div>
+    <div class="erp-pro-order-card__row">
+      <span class="erp-pro-order-card__label">시공자</span>
+      <div class="erp-pro-order-card__value w-100">
+        {{ render_as_construction_workers(r.id, r.construction_workers, can_edit_erp|default(false)) }}
+      </div>
+    </div>
+    <div class="erp-pro-order-card__row">
+      <span class="erp-pro-order-card__label">AS 접수</span>
+      <span class="erp-pro-order-card__value">{{ r.as_received_date or '-' }}</span>
+    </div>
+    <div
+      class="erp-pro-order-card__row erp-as-visit-cell {% if r.as_visit_date %}erp-as-visit-row--set{% endif %}">
+      <span class="erp-pro-order-card__label">AS 방문일</span>
+      <div class="erp-as-visit-cell-wrap">
+        <input type="date" class="erp-pro-input editable-date-as" value="{{ r.as_visit_date or '' }}"
+          data-order-id="{{ r.id }}" data-field="as_visit_date">
+      </div>
+      {% if r.as_visit_date %}
+      <button type="button" class="erp-as-pending-btn as-pending-btn{% if r.as_pending %} erp-as-pending-btn--active{% endif %}" data-order-id="{{ r.id }}"
+        data-as-pending="{% if r.as_pending %}1{% else %}0{% endif %}"
+        title="{% if r.as_pending %}미결 표시 해제{% else %}미결 표시{% endif %}">{% if r.as_pending %}미결 해제{% else %}미결{% endif %}</button>
+      {% endif %}
+    </div>
+    <div class="erp-pro-order-card__row {% if r.as_completed_date %}erp-as-complete-row--set{% endif %}">
+      <span class="erp-pro-order-card__label">AS 완료</span>
+      <input type="date" class="erp-pro-input editable-date-as" value="{{ r.as_completed_date or '' }}"
+        data-order-id="{{ r.id }}" data-field="as_completed_date">
+    </div>
+    <div class="erp-pro-order-card__row erp-pro-order-card__row--full">
+      <span class="erp-pro-order-card__label">주소</span>
+      <div class="d-flex justify-content-between align-items-start w-100">
+        <span class="erp-pro-order-card__value mb-1">{{ r.address or '-' }}</span>
+        {% if r.address %}
+        <button type="button" class="btn btn-sm btn-outline-secondary find-schedule-btn ms-2 p-0 px-2"
+          data-address="{{ r.address }}"
+          data-order-id="{{ r.id }}"
+          data-lat="{{ r.lat or '' }}"
+          data-lng="{{ r.lng or '' }}"
+          title="주변 일정 찾기" style="font-size: 0.75rem; white-space: nowrap;">
+          <i class="fas fa-map-marker-alt"></i> 일정
+        </button>
+        {% endif %}
+      </div>
+    </div>
+    {% if can_view_as_photos %}
+    <div class="erp-pro-order-card__row">
+      <span class="erp-pro-order-card__label">AS 사진</span>
+      <button type="button"
+        class="btn btn-sm as-photos-btn {{ 'btn-outline-primary' if r.has_as_photos else 'as-photos-btn--no-photos' }}"
+        data-order-id="{{ r.id }}" title="AS 사진 보기">
+        <i class="fas fa-paperclip"></i> 보기
+      </button>
+    </div>
+    {% endif %}
+    <div class="erp-pro-order-card__row">
+      <span class="erp-pro-order-card__label">AS도면</span>
+      <input type="checkbox" class="form-check-input as-blueprint-checkbox" data-order-id="{{ r.id }}"
+        {% if r.has_as_blueprint %}checked{% endif %} aria-label="주문 #{{ r.id }} AS도면 여부">
+    </div>
+    <div class="erp-pro-order-card__row erp-pro-order-card__row--full">
+      <span class="erp-pro-order-card__label">AS 내용</span>
+      <div class="mt-1 w-100">
+        {{ render_as_content_tabs(r.id, r.is_sales_delivery, r.as_content_html, r.as_content_2_html, '80px') }}
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}

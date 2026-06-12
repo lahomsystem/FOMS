@@ -1,0 +1,127 @@
+/* P1 mockup — attach grid (C07) + timeline (mobile-order-detail.html) */
+
+@media (max-width: 991.98px) {
+  body.erp-mobile-v2-layout .foms-detail-section__count {
+    font-size: var(--foms-font-size-sm);
+    color: var(--foms-text-tertiary);
+  }
+
+  body.erp-mobile-v2-layout .attach-grid,
+  body.erp-mobile-v2-layout .foms-attach-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--foms-space-2);
+  }
+
+  body.erp-mobile-v2-layout .attach-item,
+  body.erp-mobile-v2-layout .foms-attach-item {
+    aspect-ratio: 1;
+    border-radius: var(--foms-radius-md);
+    border: none;
+    display: flex;
+    align-items: flex-end;
+    padding: var(--foms-space-2);
+    text-decoration: none;
+    color: #fff;
+    font-size: 11px;
+    font-weight: var(--foms-font-weight-semibold);
+    background: linear-gradient(135deg, #6366f1, #4338ca);
+  }
+
+  body.erp-mobile-v2-layout .foms-attach-item--measurement {
+    background: linear-gradient(135deg, #9ea4ff, #5a67d8);
+  }
+
+  body.erp-mobile-v2-layout .foms-attach-item--drawing {
+    background: linear-gradient(135deg, #60a5fa, #2563eb);
+  }
+
+  body.erp-mobile-v2-layout .foms-attach-item--construction {
+    background: linear-gradient(135deg, #a78bfa, #7c3aed);
+  }
+
+  body.erp-mobile-v2-layout .foms-attach-item--as {
+    background: linear-gradient(135deg, #f472b6, #db2777);
+  }
+
+  body.erp-mobile-v2-layout .attach-add,
+  body.erp-mobile-v2-layout .foms-attach-add {
+    aspect-ratio: 1;
+    border-radius: var(--foms-radius-md);
+    border: 2px dashed var(--foms-border-subtle);
+    background: var(--foms-surface-overlay);
+    color: var(--foms-text-tertiary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    text-decoration: none;
+  }
+
+  body.erp-mobile-v2-layout .timeline,
+  body.erp-mobile-v2-layout .foms-timeline {
+    display: grid;
+    gap: var(--foms-space-3);
+    position: relative;
+  }
+
+  body.erp-mobile-v2-layout .timeline-item,
+  body.erp-mobile-v2-layout .foms-timeline-item {
+    display: grid;
+    grid-template-columns: 24px 1fr;
+    gap: var(--foms-space-3);
+    position: relative;
+  }
+
+  body.erp-mobile-v2-layout .timeline-item::before,
+  body.erp-mobile-v2-layout .foms-timeline-item::before {
+    content: "";
+    position: absolute;
+    left: 11px;
+    top: 24px;
+    bottom: -12px;
+    width: 2px;
+    background: var(--foms-border-subtle);
+  }
+
+  body.erp-mobile-v2-layout .timeline-item:last-child::before,
+  body.erp-mobile-v2-layout .foms-timeline-item:last-child::before {
+    display: none;
+  }
+
+  body.erp-mobile-v2-layout .timeline-item__dot,
+  body.erp-mobile-v2-layout .foms-timeline-item__dot {
+    width: 24px;
+    height: 24px;
+    border-radius: var(--foms-radius-full);
+    background: var(--foms-interactive-primary);
+    color: #fff;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  body.erp-mobile-v2-layout .timeline-item__title,
+  body.erp-mobile-v2-layout .foms-timeline-item__title {
+    font-size: var(--foms-font-size-base);
+    font-weight: var(--foms-font-weight-semibold);
+    margin: 0 0 2px;
+  }
+
+  body.erp-mobile-v2-layout .timeline-item__meta,
+  body.erp-mobile-v2-layout .foms-timeline-item__meta {
+    font-size: var(--foms-font-size-sm);
+    color: var(--foms-text-tertiary);
+  }
+
+  body.erp-mobile-v2-layout .foms-quick-action--disabled {
+    opacity: 0.45;
+    pointer-events: none;
+  }
+
+  body.erp-mobile-v2-layout .foms-quick-action--button {
+    border: none;
+    background: var(--foms-surface-overlay);
+  }
+}

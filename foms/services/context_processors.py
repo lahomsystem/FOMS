@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import json
-import os
 from typing import Any
 
 from flask import g, session, url_for
 
+from foms.services.feature_flags import env_bool, env_bool_or_mobile_v2, is_enabled_for_user
+from foms.services.dashboard_counts import get_nav_badge_counts
 from foms.web.auth import ROLES
 from foms.services.orders.status_constants import BULK_ACTION_STATUS, STATUS
 from foms.persistence.main.db import get_db
@@ -21,6 +22,8 @@ __all__ = [
     "inject_status_list",
     "utility_processor",
     "inject_menu",
+    "inject_foms_flags",
+    "inject_foms_nav_badges",
     "register_context_processors",
 ]
 
@@ -75,26 +78,14 @@ def inject_status_list() -> dict[str, Any]:
             .all()
         )
 
-    erp_order_enabled = str(os.getenv("ERP_ORDER_ENABLED", "true")).lower() in [
-        "1",
-        "true",
-        "yes",
-        "y",
-        "on",
-    ]
-    erp_mobile_v2_enabled = str(os.getenv("ERP_MOBILE_V2_ENABLED", "false")).lower() in [
-        "1",
-        "true",
-        "yes",
-        "y",
-        "on",
-    ]
-    use_direct_upload_env = str(os.getenv("USE_DIRECT_UPLOAD", "1")).lower() in [
-        "1",
-        "true",
-        "yes",
-        "on",
-    ]
+    erp_order_enabled = env_bool("ERP_ORDER_ENABLED", default=True)
+    uid = current_user.id if current_user else None
+    erp_mobile_v2_enabled = is_enabled_for_user(
+        "ERP_MOBILE_V2_ENABLED",
+        uid,
+        cohort_key="FOMS_V3_SHELL_COHORT",
+    )
+    use_direct_upload_env = env_bool("USE_DIRECT_UPLOAD", default=True)
     try:
         from foms.services.storage import get_storage
 
@@ -144,6 +135,47 @@ def inject_menu() -> dict[str, Any]:
     return {"menu": menu}
 
 
+def inject_foms_flags() -> dict[str, Any]:
+    """Inject v1.1 design feature flags for template cohort rollout."""
+    current_user = getattr(g, "current_user", None)
+    uid = current_user.id if current_user else None
+    mobile_v2 = is_enabled_for_user(
+        "ERP_MOBILE_V2_ENABLED",
+        uid,
+        cohort_key="FOMS_V3_SHELL_COHORT",
+    )
+    split_flag = env_bool_or_mobile_v2(
+        "FOMS_TABLET_SPLIT_VIEW_ENABLED",
+        mobile_v2_active=mobile_v2,
+    )
+    return {
+        "flag_mobile_v2": mobile_v2,
+        "flag_tokens_v2": env_bool("FOMS_DESIGN_TOKENS_V2_ENABLED", True),
+        # wizard 활성 = 전역 플래그 OR 모바일 v2 코호트(렌더·draft API와 동일 기준).
+        # add_order에서 .foms-wizard-active body class(레거시 chrome 숨김)를 켜 wizard 풀스크린 유지.
+        "flag_wizard": env_bool("FOMS_WIZARD_NEW_ORDER_ENABLED") or mobile_v2,
+        "flag_inline": env_bool("FOMS_INLINE_EDIT_ENABLED"),
+        "flag_split_view": split_flag,
+        "foms_split_enabled": mobile_v2 and split_flag,
+        "flag_rum_baseline": env_bool("FOMS_RUM_BASELINE_ENABLED", True),
+        "flag_offline_sw": env_bool("FOMS_OFFLINE_SW_ENABLED"),
+        "flag_bottom_nav_htmx": env_bool("FOMS_BOTTOM_NAV_HTMX_ENABLED"),
+    }
+
+
+def inject_foms_nav_badges() -> dict[str, Any]:
+    """Inject bottom-nav stage badge counts (P1-01, ERP mobile v2 cohort only)."""
+    current_user = getattr(g, "current_user", None)
+    uid = current_user.id if current_user else None
+    if not is_enabled_for_user(
+        "ERP_MOBILE_V2_ENABLED",
+        uid,
+        cohort_key="FOMS_V3_SHELL_COHORT",
+    ):
+        return {"foms_nav_badges": {}}
+    return {"foms_nav_badges": get_nav_badge_counts(current_user)}
+
+
 def register_context_processors(app) -> None:
     """Register all template filters and context processors on the Flask app."""
     app.add_template_filter(parse_json_string_filter, "parse_json_string")
@@ -151,3 +183,5 @@ def register_context_processors(app) -> None:
     app.context_processor(inject_status_list)
     app.context_processor(utility_processor)
     app.context_processor(inject_menu)
+    app.context_processor(inject_foms_flags)
+    app.context_processor(inject_foms_nav_badges)

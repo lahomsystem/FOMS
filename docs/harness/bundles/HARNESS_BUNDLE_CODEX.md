@@ -34,6 +34,7 @@ Codex has no first-class browser tool in this harness; use generated repo-local 
 ### Additional runner notes
 
 - **codex_cli**: In Cursor, the Codex extension and Codex CLI share the same baseline through HARNESS_BUNDLE_CODEX.md; AGENTS.md remains the portable policy root. For harness-internal architecture or policy work, switch to HARNESS_BUNDLE_CODEX_HARNESS.md or let `run_codex.ps1` auto-route when reviewing harness files/plans.
+- **pre_push_smoke**: `deploy`/`main` push 직전: `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` (exit 0). UI/CSS/템플릿 변경 시 win32 `--update-snapshots` → PNG 커밋 → `-Visual` 필수(스크립트가 visual 경로·win32 stale 감지). CI가 linux SSOT refresh. 머지·대형 변경 전 `-Full`. 실패 시 push 금지. 상세: `docs/guides/PRE_PUSH_SMOKE.md`.
 - **runner_entry**: Prepare Codex-side generated skills with .agents/skills/gstack/setup --host codex --no-prefix. FOMS wrapper-driven runs use codex exec -s workspace-write.
 - **verification**: Follow verify-result workflow expectations when claiming build, import, or runner setup verification complete. Read the harness master plan separately only for harness-internal work.
 
@@ -101,6 +102,10 @@ Codex has no first-class browser tool in this harness; use generated repo-local 
 - **스택**: Flask 2.3 + SQLAlchemy 2.0 + PostgreSQL + Jinja2 + Bootstrap 5 + Vanilla JS
 - **운영 환경**: Windows 11 — **저장소 문서·예시 명령의 기본 셸은 PowerShell 5.x**(`.cursor/rules/50-win11-shell.mdc` 참고). bash/`&&` 등은 **Claude Code 전용**으로 문서에 명시된 때만 적용한다.
 - **Git 커밋**: 한글, 무엇을 왜 수정했는지 명확히 기록
+
+## 푸시 전 로컬 검증 (deploy/main)
+
+`deploy` / `main` push **직전** 수동 실행: `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` (APP_OK, harness verify, SSOT lint, CI 자주 실패 pytest subset, ~2–5분). **UI/CSS/템플릿 변경 시** 기본 게이트는 PNG visual regression이 아니라 **`test_p1_mockup_*` 구조 테스트**(subset 포함). win32 PNG `--update-snapshots`·`-Visual`은 UI 안정기에만 선택. 머지 직전 전체 pytest: `-Full` (느림). **git push 시 자동 실행 아님** — GitHub Actions `test` job이 담당(PNG visual job 비활성). 상세: [`docs/guides/PRE_PUSH_SMOKE.md`](docs/guides/PRE_PUSH_SMOKE.md).
 
 ---
 

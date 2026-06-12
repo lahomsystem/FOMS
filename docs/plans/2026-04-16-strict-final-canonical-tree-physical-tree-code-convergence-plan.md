@@ -35,7 +35,7 @@
 대표 차이:
 
 - `2026-04-07` §2.6은 root 허용 폴더를 `foms/`, `templates/`, `static/`, `migrations/`, `scripts/`, `docs/`, `.cursor/`, `.agents/`, `tools/` 중심으로 좁게 적는다.
-- `2026-04-13` §2.2.1/§2.5는 여기에 `tests/`, `data/`, `.claude/`, `.github/`, `.vscode/`, `backups/`, `Add In Program/`, `SCheduler/`까지 final taxonomy로 포함한다.
+- `2026-04-13` §2.2.1/§2.5는 여기에 `tests/`, `data/`, `.claude/`, `.github/`, `.vscode/`, `Add In Program/`, `SCheduler/`까지 final taxonomy로 포함한다.
 
 결론:
 
@@ -62,7 +62,7 @@
 
 ### 2.3 `PTC-D1` — `data/` physical tree and runtime-output policy drift
 
-현재 스펙은 `data/`를 versioned non-secret config/seed/reference로 제한하고, dump/backup/generated export는 `backups/` 또는 다른 runtime output으로 보내라고 말한다.
+현재 스펙은 `data/`를 versioned non-secret config/seed/reference로 제한하고, dump/backup/generated export는 `${FOMS_RUNTIME_OUTPUT_ROOT}/dumps/...` 등 runtime output으로 보내라고 말한다 (`docs/specs/2026-06-05-backup-feature-retirement_SPEC.md`로 정리됨).
 
 그런데 live repo/workspace 및 proof/documentation에는 아래 drift가 남아 있다.
 
@@ -169,7 +169,6 @@ current proof gap:
   - `.github`
   - `.vscode`
   - `Add In Program`
-  - `backups`
   - `data`
   - `docs`
   - `foms`
@@ -197,6 +196,7 @@ current proof gap:
   - `README.md`
   - `railway.toml`
   - `railway-worker.toml`
+  - `railway-cron.toml`
   - `requirements.txt`
   - `run.py`
   - `start.sh`
@@ -333,7 +333,6 @@ final workspace exactness에서 금지:
   - `.github`
   - `.vscode`
   - `Add In Program`
-  - `backups`
   - `data`
   - `docs`
   - `foms`
@@ -361,6 +360,7 @@ final workspace exactness에서 금지:
   - `README.md`
   - `railway.toml`
   - `railway-worker.toml`
+  - `railway-cron.toml`
   - `requirements.txt`
   - `run.py`
   - `start.sh`

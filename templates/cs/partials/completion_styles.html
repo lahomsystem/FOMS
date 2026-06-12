@@ -256,5 +256,11 @@
       height: 88px;
       border-radius: 12px;
     }
+
+    /* Home IA parity: the foms-mobile-queue-list grid gap owns card spacing,
+       so the bespoke mobile cards drop their own +margin-top to avoid doubling. */
+    .erp-completion[data-erp-mobile-v2='true'] .foms-mobile-queue-list .erp-completion-mobile-card + .erp-completion-mobile-card {
+      margin-top: 0;
+    }
   }
 </style>

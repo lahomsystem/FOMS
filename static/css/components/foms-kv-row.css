@@ -1,0 +1,65 @@
+/* P1-07 foms_kv_row macro styles */
+
+.foms-kv-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+}
+
+.foms-kv-row {
+  display: grid;
+  grid-template-columns: 88px 1fr;
+  gap: 8px 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--foms-border-subtle, #e5e7eb);
+}
+
+.foms-kv-row__label {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--foms-text-tertiary, #6b7280);
+}
+
+.foms-kv-row__value {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9375rem;
+}
+
+.foms-kv-row__value.is-muted .foms-kv-row__text {
+  color: var(--foms-text-tertiary, #6b7280);
+}
+
+.foms-kv-row__actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.foms-kv-row__action {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--foms-border-default, #d1d5db);
+  background: var(--foms-surface-raised, #f9fafb);
+  color: var(--foms-text-link, #2563eb);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.foms-kv-row__action[data-copy-value] {
+  appearance: none;
+}
+
+.foms-kv-row__action:hover {
+  background: var(--foms-color-brand-50, #eff6ff);
+}
+
+/* WAM legacy class alias */
+.wam-kv-list .wam-kv-row {
+  display: grid;
+  grid-template-columns: 88px 1fr;
+}

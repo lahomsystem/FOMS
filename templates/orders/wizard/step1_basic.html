@@ -1,0 +1,45 @@
+<section class="foms-wizard__step is-active" data-wizard-step="1" aria-labelledby="wizard-step1-title">
+  <h2 class="foms-wizard__title" id="wizard-step1-title">기본 정보</h2>
+  <p class="foms-wizard__subtitle">고객님의 기본 정보를 입력해주세요</p>
+
+  <div class="foms-wizard__field">
+    <label class="field__label foms-wizard__label--required" for="wiz-customer-name">고객명</label>
+    <input class="foms-input" id="wiz-customer-name" name="customer_name" data-wizard-field autocomplete="name" placeholder="예: 고명옥" @input="clear('customer_name')" />
+    <p class="foms-wizard__error" x-show="has('customer_name')" x-text="errors.customer_name" role="alert"></p>
+  </div>
+
+  <div class="foms-wizard__field">
+    <label class="field__label foms-wizard__label--required" for="wiz-phone">연락처</label>
+    <div class="foms-wizard__addon">
+      <input class="foms-input foms-tabular" id="wiz-phone" name="phone" data-wizard-field type="tel" autocomplete="tel" placeholder="010-0000-0000" @input="clear('phone')" />
+      <button type="button" class="foms-btn foms-btn--secondary foms-btn--sm" id="wiz-contacts-btn" data-wizard-contacts hidden aria-label="연락처에서 가져오기">📇</button>
+    </div>
+    <span class="foms-wizard__hint" id="wiz-contacts-hint" hidden>전화부 권한 허용 시 자동 채우기</span>
+    <p class="foms-wizard__error" x-show="has('phone')" x-text="errors.phone" role="alert"></p>
+  </div>
+
+  <div class="foms-wizard__field">
+    <label class="field__label" for="wiz-orderer-mode">발주사</label>
+    <select class="foms-select" id="wiz-orderer-mode" data-combo="text" data-combo-for="wiz-orderer">
+      <option value="라홈">라홈</option>
+      <option value="하우드">하우드</option>
+      <option value="__custom__">직접 입력</option>
+    </select>
+    <input class="foms-input foms-wizard__combo-custom" id="wiz-orderer-custom" placeholder="발주사 직접 입력" hidden />
+    <input type="hidden" id="wiz-orderer" name="orderer" data-wizard-field value="라홈" />
+  </div>
+
+  <div class="foms-wizard__field">
+    <label class="field__label foms-wizard__label--required" for="wiz-address">주소</label>
+    <div class="foms-wizard__addon">
+      <input class="foms-input" id="wiz-address" name="address" data-wizard-field autocomplete="street-address" placeholder="주소 검색" @input="clear('address')" />
+      <button type="button" class="foms-btn foms-btn--secondary foms-btn--sm" id="wiz-address-search" data-wizard-postcode aria-label="주소 검색">🔍</button>
+    </div>
+    <p class="foms-wizard__error" x-show="has('address')" x-text="errors.address" role="alert"></p>
+  </div>
+
+  <div class="foms-wizard__field">
+    <label class="field__label" for="wiz-received-date">접수일</label>
+    <input class="foms-input foms-tabular" id="wiz-received-date" name="received_date" data-wizard-field type="date" value="{{ today }}" />
+  </div>
+</section>

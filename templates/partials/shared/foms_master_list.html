@@ -1,0 +1,38 @@
+{# P1-05 master order list pane #}
+<div class="foms-split-master" data-foms-master-list>
+  <header class="foms-split-master__head">
+    <h2 class="foms-split-master__title">작업 큐</h2>
+    <span class="foms-split-master__count">{{ master_cards|default([])|length }}건</span>
+  </header>
+  {% for card in master_cards | default([]) %}
+  <a
+    class="foms-master-card{% if card.active %} is-active{% endif %}"
+    data-foms-master-card
+    data-order-id="{{ card.order_id }}"
+    data-href="{{ card.detail_href }}"
+    data-customer="{{ card.title|e }}"
+    data-stage="{{ card.stage|default(card.meta, true)|e }}"
+    data-phone="{{ card.phone|default('-', true)|e }}"
+    data-address="{{ card.address|default('-', true)|e }}"
+    data-manager="{{ card.manager|default('-', true)|e }}"
+    href="{{ card.detail_href }}"
+  >
+    <div class="foms-master-card__topline">
+      <span class="foms-master-card__stage">{{ card.stage|default(card.meta, true) }}</span>
+      <span class="foms-master-card__id">#{{ card.order_id }}</span>
+    </div>
+    <div class="foms-master-card__title">{{ card.title }}</div>
+    {% if card.subtitle %}
+      <div class="foms-master-card__subtitle">{{ card.subtitle }}</div>
+    {% endif %}
+    <div class="foms-master-card__meta">
+      {% if card.schedule_value %}
+        <span>{{ card.schedule_label }} {{ card.schedule_value }}</span>
+      {% endif %}
+      <span>{{ card.manager }}</span>
+    </div>
+  </a>
+  {% else %}
+  <div class="p-3 text-muted small">표시할 주문이 없습니다.</div>
+  {% endfor %}
+</div>

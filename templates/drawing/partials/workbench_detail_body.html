@@ -1,4 +1,8 @@
-<div class="erp-pro">
+{% if erp_mobile_v2_enabled %}
+  {% include 'drawing/partials/workbench_mobile_handoff.html' %}
+{% endif %}
+
+<div class="erp-pro dw-legacy-detail{% if erp_mobile_v2_enabled %} d-none d-lg-block{% endif %}">
   <header class="erp-pro-header">
     <h1 class="erp-pro-header__title">
       <i class="fas fa-drafting-compass"></i>
@@ -933,7 +937,7 @@
 </div>
 
 <!-- Phase 3: 모바일 하단 고정 액션 바 -->
-<div class="dw-mobile-action-bar">
+<div class="dw-mobile-action-bar{% if erp_mobile_v2_enabled %} d-none{% endif %}">
   {% if can_transfer %}
   {% if can_open_transfer %}
   <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#dwTransferModal">
@@ -1931,3 +1935,6 @@
     });
   })();
 </script>
+{% if erp_mobile_v2_enabled %}
+<script src="{{ url_for('static', filename='js/foms/drawing-handoff.js') }}?v=20260609a"></script>
+{% endif %}

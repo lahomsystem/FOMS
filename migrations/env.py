@@ -4,7 +4,6 @@ from logging.config import fileConfig
 
 from dotenv import load_dotenv
 load_dotenv()
-
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 from sqlalchemy import text
@@ -26,7 +25,7 @@ if config.config_file_name is not None:
 # target_metadata = mymodel.Base.metadata
 sys.path.insert(0, os.path.realpath(os.path.join(os.path.dirname(__file__), '..')))
 from db import Base
-from models import Order, User, AccessLog, SecurityLog
+from models import Order, User, AccessLog, SecurityLog, OrderDraft
 # Designer AX models must be imported so Alembic sees their tables
 import foms.persistence.designer.models  # noqa: F401
 target_metadata = Base.metadata

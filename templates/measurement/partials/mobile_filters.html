@@ -6,8 +6,8 @@
   {% set measurement_map_url = measurement_map_url ~ '&mine=1' %}
 {% endif %}
 
-<section class="erp-measurement-mobile-filters" aria-label="실측 모바일 필터">
-  <form method="get" action="{{ measurement_base_url }}" class="erp-measurement-mobile-filters__search">
+<section class="erp-measurement-mobile-filters foms-mobile-filter-bar" aria-label="실측 모바일 필터">
+  <form method="get" action="{{ measurement_base_url }}" class="foms-mobile-filter-bar__toolbar erp-measurement-mobile-filters__search">
     {% if erp_mine_only %}
       <input type="hidden" name="mine" value="1">
     {% endif %}
@@ -33,20 +33,21 @@
     </button>
   </form>
 
-  <div class="erp-measurement-mobile-filters__quick-actions">
-    <a class="erp-measurement-mobile-filters__quick-link" href="{{ measurement_today_url }}">
-      <i class="fas fa-calendar-day"></i>
-      <span>오늘</span>
+  {% set measurement_mine_toggle_url = measurement_base_url ~ '?date=' ~ (selected_date or today_date) ~ '&q=' ~ (search_q or '')|urlencode %}
+  <nav class="chip-strip foms-chip-strip" aria-label="실측 빠른 필터">
+    <a class="chip foms-chip{% if selected_date == today_date %} is-active{% endif %}" href="{{ measurement_today_url }}">
+      <i class="fas fa-calendar-day" aria-hidden="true"></i>오늘
     </a>
-    <a class="erp-measurement-mobile-filters__quick-link" href="{{ measurement_map_url }}">
-      <i class="fas fa-map-marked-alt"></i>
-      <span>지도</span>
+    <a class="chip foms-chip{% if erp_mine_only %} is-active{% endif %}" href="{{ measurement_mine_toggle_url }}{% if not erp_mine_only %}&mine=1{% endif %}">
+      <i class="fas fa-user-check" aria-hidden="true"></i>내 담당
     </a>
-    <button type="button" class="erp-measurement-mobile-filters__quick-link" data-route-plan-trigger="measurement">
-      <i class="fas fa-route"></i>
-      <span>동선</span>
+    <a class="chip foms-chip" href="{{ measurement_map_url }}">
+      <i class="fas fa-map-marked-alt" aria-hidden="true"></i>지도
+    </a>
+    <button type="button" class="chip foms-chip" data-route-plan-trigger="measurement">
+      <i class="fas fa-route" aria-hidden="true"></i>동선
     </button>
-  </div>
+  </nav>
 
   <div
     class="offcanvas offcanvas-bottom erp-measurement-mobile-filters__drawer"
