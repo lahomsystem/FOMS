@@ -47,7 +47,7 @@
       {% include 'shipment/partials/shipment_mobile_controls.html' %}
       {% include 'shipment/partials/shipment_mobile_dates.html' %}
       {% include 'shipment/partials/shipment_mobile_queue.html' %}
-      <a class="foms-shell-fab" href="{{ url_for('order_pages.add_order', open='erp-order') }}" aria-label="주문 생성">
+      <a class="foms-shell-fab" href="{{ url_for('order_pages.add_order', open='erp-order', wizard=1) }}" aria-label="주문 생성">
         <i class="fas fa-plus" aria-hidden="true"></i>
       </a>
     </section>

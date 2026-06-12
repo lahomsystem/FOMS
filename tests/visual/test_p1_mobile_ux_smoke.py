@@ -145,7 +145,7 @@ def test_p1_mobile_tablet_ux_smoke(page, visual_live_server_erp_v2, width, heigh
 def test_p1_wizard_shell_smoke(page, visual_live_server_erp_v2) -> None:
     page.set_viewport_size({"width": 390, "height": 844})
     _login(page, visual_live_server_erp_v2)
-    page.goto(f"{visual_live_server_erp_v2}/add", wait_until="networkidle")
+    page.goto(f"{visual_live_server_erp_v2}/add?wizard=1", wait_until="networkidle")
     if "/login" in page.url:
         pytest.fail(f"Wizard smoke login failed; still on {page.url}")
     assert page.locator("#foms-wizard-root").count() == 1

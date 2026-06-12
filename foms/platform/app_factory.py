@@ -6,6 +6,8 @@ import os
 from dataclasses import dataclass
 from typing import Any
 
+from datetime import timedelta
+
 from flask import Flask
 from flask_compress import Compress
 from whitenoise import WhiteNoise
@@ -103,6 +105,10 @@ def build_app(*, socketio_available: bool) -> AppFactoryResult:
     if is_production or is_railway:
         app.config["SESSION_COOKIE_SECURE"] = True
         app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+
+    session_days = int(os.environ.get("FOMS_SESSION_DAYS", "30") or "30")
+    app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=max(1, session_days))
+    app.config["SESSION_REFRESH_EACH_REQUEST"] = True
 
     trust_proxy = os.environ.get("TRUST_PROXY", "").lower() in ("1", "true", "yes")
     if trust_proxy or is_production:

@@ -50,6 +50,8 @@ def test_wizard_template_contract() -> None:
     assert "js/foms/wizard-attachments.js" in shell
     assert "js/foms/photo-capture.js" in shell
     assert 'data-conflict="merge"' in shell
+    assert 'data-exit-href=' in shell
+    assert "erp_dashboard.erp_dashboard" in shell
     css = (ROOT / "static/css/components/foms-wizard.css").read_text(encoding="utf-8")
     assert ".foms-wizard" in css
     assert "foms-wizard.css" in shell
@@ -60,6 +62,8 @@ def test_wizard_template_contract() -> None:
     assert "mergeDraftPayload" in js
     assert 'action === "merge"' in js
     assert "FomsWizardMergeDraftPayload" in js
+    assert "readWizardExitHref" in js
+    assert '"/orders/"' not in js
 
 
 def test_order_draft_get_empty(client, app, wizard_enabled) -> None:
@@ -195,11 +199,43 @@ def test_order_draft_submit_creates_order(client, app, wizard_enabled) -> None:
 
 def test_add_order_renders_wizard_when_flag_on(client, app, wizard_enabled) -> None:
     _login(client, app, "wizard_page_user")
-    response = client.get("/add")
+    response = client.get("/add?wizard=1")
     assert response.status_code == 200
     body = response.get_data(as_text=True)
     assert "foms-wizard-root" in body
+    assert 'data-exit-href="/erp/dashboard"' in body
     assert "wizard_shell" not in body  # rendered, not raw path leak required — ok if template name absent
+
+
+def test_orders_index_alias_redirects_mobile_wizard_to_erp_dashboard(
+    client, app, wizard_enabled
+) -> None:
+    _login(client, app, "wizard_orders_alias_user")
+    response = client.get("/orders/", headers={"User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)"})
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/erp/dashboard")
+
+
+def test_orders_index_alias_keeps_desktop_on_legacy_home(client, app, wizard_enabled) -> None:
+    _login(client, app, "wizard_orders_desktop_user")
+    response = client.get(
+        "/orders/",
+        headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
+    )
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/")
+
+
+def test_add_order_renders_desktop_form_on_pc_when_cohort_on(client, app, monkeypatch) -> None:
+    """Mobile v2 cohort must not force wizard on desktop browsers."""
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", "all")
+    _login(client, app, "wizard_desktop_user")
+    response = client.get("/add?open=erp-order")
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert "foms-wizard-root" not in body
+    assert 'id="erp-order"' in body
 
 
 def test_order_draft_attachment_upload(client, app, wizard_enabled, monkeypatch) -> None:

@@ -185,6 +185,7 @@ def register_http_bootstrap(
         g.current_user = None
         user_id = session.get("user_id")
         if user_id:
+            session.permanent = True
             g.current_user = get_user_by_id(user_id)
 
     @app.before_request

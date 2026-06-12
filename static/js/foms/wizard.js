@@ -5,6 +5,13 @@
   "use strict";
 
   var MAX_STEP = 4;
+  var DEFAULT_EXIT_HREF = "/erp/dashboard";
+
+  function readWizardExitHref(root) {
+    var href = root && root.getAttribute("data-exit-href");
+    href = (href || "").trim();
+    return href || DEFAULT_EXIT_HREF;
+  }
 
   function readValue(el) {
     return (el && el.value ? el.value : "").trim();
@@ -744,7 +751,7 @@
       if (currentStep >= MAX_STEP) {
         draftClient.submitOrder().then(function (result) {
           if (result.data && result.data.success) {
-            window.location.href = "/orders/";
+            window.location.href = readWizardExitHref(root);
             return;
           }
           var msg =
@@ -774,8 +781,9 @@
     var closeBtn = root.querySelector("#foms-wizard-close");
     if (closeBtn) {
       closeBtn.addEventListener("click", function () {
+        var exitHref = readWizardExitHref(root);
         draftClient.flush().finally(function () {
-          window.location.href = "/orders/";
+          window.location.href = exitHref;
         });
       });
     }

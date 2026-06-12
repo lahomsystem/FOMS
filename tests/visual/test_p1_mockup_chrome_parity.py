@@ -106,4 +106,6 @@ def test_wizard_suppresses_legacy_header_on_mobile() -> None:
     assert "body.foms-wizard-active .layout-global-nav" in body
     layout = (ROOT / "templates/orders/layout.html").read_text(encoding="utf-8")
     assert "foms-wizard-active" in layout
-    assert "order_pages.add_order" in layout
+    assert "show_new_order_wizard" in layout
+    processors = (ROOT / "foms/services/context_processors.py").read_text(encoding="utf-8")
+    assert 'request.endpoint == "order_pages.add_order"' in processors

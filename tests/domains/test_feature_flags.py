@@ -129,3 +129,32 @@ def test_is_enabled_for_user_false_when_cohort_all_but_user_id_missing(
         None,
         cohort_key="FOMS_V3_SHELL_COHORT",
     ) is False
+
+
+def test_prefers_mobile_wizard_client_query_param(app) -> None:
+    with app.test_request_context("/add?wizard=1"):
+        from flask import request
+
+        assert feature_flags.prefers_mobile_wizard_client(request) is True
+
+
+def test_prefers_mobile_wizard_client_desktop_ua(app) -> None:
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0"}
+    with app.test_request_context("/add", headers=headers):
+        from flask import request
+
+        assert feature_flags.prefers_mobile_wizard_client(request) is False
+
+
+def test_should_render_new_order_wizard_requires_mobile_client(app, monkeypatch) -> None:
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", "all")
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0"}
+    with app.test_request_context("/add?open=erp-order", headers=headers):
+        from flask import request
+
+        assert feature_flags.should_render_new_order_wizard(1, request) is False
+    with app.test_request_context("/add?wizard=1", headers=headers):
+        from flask import request
+
+        assert feature_flags.should_render_new_order_wizard(1, request) is True

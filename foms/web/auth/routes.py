@@ -9,6 +9,11 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from db import get_db
 from models import User, SecurityLog
 from foms.services.user_deletion import detach_user_references_for_delete
+from foms.services.post_auth_navigation import (
+    authenticated_home_url,
+    normalize_internal_next_url,
+    resolve_post_login_redirect,
+)
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -80,16 +85,7 @@ def _build_next_param():
 def _normalize_next_url(raw_next):
     """next 파라미터를 안전한 내부 경로로 정규화."""
     fallback = url_for('order_pages.index')
-    if not raw_next:
-        return fallback
-    next_url = str(raw_next).strip()
-    if not next_url:
-        return fallback
-    if next_url.startswith('//'):
-        return fallback
-    if next_url.startswith('/'):
-        return next_url
-    return fallback
+    return normalize_internal_next_url(raw_next, fallback=fallback)
 
 def login_required(f):
     """Decorator to require login for routes.
@@ -131,7 +127,7 @@ def role_required(roles):
             if user.role not in roles:
                 flash('이 페이지에 접근할 권한이 없습니다.', 'error')
                 log_access(f"권한 없는 접근 시도: {request.path}", user.id)
-                return redirect(url_for('order_pages.index'))
+                return redirect(authenticated_home_url(user_id=user.id, request=request))
                 
             return f(*args, **kwargs)
         return decorated_function
@@ -147,7 +143,7 @@ def login():
             existing_user = None
 
         if existing_user and existing_user.is_active:
-            return redirect(url_for('order_pages.index'))
+            return redirect(authenticated_home_url(user_id=session_user_id, request=request))
 
         session.clear()
         flash('기존 로그인 세션이 만료되어 다시 로그인해주세요.', 'warning')
@@ -182,11 +178,13 @@ def login():
         session['user_id'] = user.id
         session['username'] = user.username
         session['role'] = user.role
+        session.permanent = True
         
         update_last_login(user.id)
         log_access(f"로그인 성공: 사용자 {user.username} (ID: {user.id})", user.id)
         
         flash(f'{user.name}님, 환영합니다!', 'success')
+        next_url = resolve_post_login_redirect(request.values.get('next'), user_id=user.id, request=request)
         return redirect(next_url)
     
     return render_template('auth/login.html', next_url=next_url)
@@ -231,7 +229,7 @@ def switch_user(target_user_id):
     # 시공팀 전환 시 출고 대시보드로 직접 이동 (이중 리다이렉트 방지)
     if target.team == 'CONSTRUCTION':
         return redirect(url_for('erp_shipment_page.erp_shipment_dashboard'))
-    return redirect(request.referrer or url_for('order_pages.index'))
+    return redirect(request.referrer or authenticated_home_url(user_id=target.id, request=request))
 
 
 @auth_bp.route('/switch-back')
@@ -258,7 +256,7 @@ def switch_back():
 @auth_bp.route('/register', methods=['GET', 'POST'])
 def register():
     if 'user_id' in session:
-        return redirect(url_for('order_pages.index'))
+        return redirect(authenticated_home_url(user_id=session.get('user_id'), request=request))
     
     db = get_db()
     user_count = db.query(User).count()
