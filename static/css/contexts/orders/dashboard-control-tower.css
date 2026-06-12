@@ -5,6 +5,33 @@
 
 .foms-tower { align-content: start; }
 
+/* 모바일 폭 계약 — shipment/measurement mobile-v2 와 동일 (grid min-width:auto 수축) */
+@media (max-width: 991.98px) {
+  body.erp-mobile-v2-layout .foms-shell-body.foms-tower {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    overflow-x: clip;
+  }
+
+  body.erp-mobile-v2-layout .foms-mobile-v2-dashboard.foms-tower,
+  body.erp-mobile-v2-layout .foms-mobile-v2-dashboard.foms-tower > section {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  body.erp-mobile-v2-layout .foms-tower__week,
+  body.erp-mobile-v2-layout .foms-tower__field-list,
+  body.erp-mobile-v2-layout .foms-tower__risk-list,
+  body.erp-mobile-v2-layout .foms-tower__quick {
+    min-width: 0;
+    max-width: 100%;
+  }
+}
+
 /* 섹션 헤더 */
 .foms-tower__head {
   display: flex; align-items: center; justify-content: space-between;
@@ -24,9 +51,9 @@
   border-radius: var(--foms-radius-xl); padding: var(--foms-space-3) var(--foms-space-2);
   color: #fff; box-shadow: var(--foms-shadow-md);
 }
-.foms-tower__week-top { display: flex; align-items: baseline; justify-content: space-between; padding: 0 var(--foms-space-2) var(--foms-space-2); gap: var(--foms-space-2); }
-.foms-tower__week-title { font-size: var(--foms-font-size-base); font-weight: var(--foms-font-weight-bold); }
-.foms-tower__week-link { font-size: var(--foms-font-size-xs); color: #fff; opacity: .9; white-space: nowrap; }
+.foms-tower__week-top { display: flex; align-items: baseline; justify-content: space-between; padding: 0 var(--foms-space-2) var(--foms-space-2); gap: var(--foms-space-2); min-width: 0; }
+.foms-tower__week-title { font-size: var(--foms-font-size-base); font-weight: var(--foms-font-weight-bold); flex-shrink: 0; }
+.foms-tower__week-link { font-size: var(--foms-font-size-xs); color: #fff; opacity: .9; min-width: 0; flex: 1 1 auto; text-align: right; overflow-wrap: anywhere; }
 .foms-tower__week-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
 .foms-tower__day { border-radius: var(--foms-radius-md); padding: var(--foms-space-2) 2px; text-align: center; background: rgba(255,255,255,.10); position: relative; display: grid; gap: 2px; }
 .foms-tower__day.is-today { background: #fff; color: var(--foms-color-brand-700); box-shadow: var(--foms-shadow-sm); }
@@ -49,7 +76,8 @@
 .foms-tower__field-time { text-align: center; }
 .foms-tower__field-hh { display: block; font-size: var(--foms-font-size-sm); font-weight: var(--foms-font-weight-bold); font-variant-numeric: tabular-nums; line-height: 1.05; }
 .foms-tower__field-type { font-size: 9px; color: var(--foms-text-tertiary); }
-.foms-tower__field-name { display: flex; align-items: center; gap: 6px; font-size: var(--foms-font-size-sm); font-weight: var(--foms-font-weight-semibold); }
+.foms-tower__field-body { min-width: 0; }
+.foms-tower__field-name { display: flex; align-items: center; gap: 6px; font-size: var(--foms-font-size-sm); font-weight: var(--foms-font-weight-semibold); min-width: 0; flex-wrap: wrap; }
 .foms-tower__field-addr { display: block; font-size: var(--foms-font-size-xs); color: var(--foms-text-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 1px; }
 .foms-tower__field-foot { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
 .foms-tower__field-who { font-size: 10px; color: var(--foms-text-tertiary); margin-left: auto; }

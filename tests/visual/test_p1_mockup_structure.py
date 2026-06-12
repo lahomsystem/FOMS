@@ -64,6 +64,24 @@ def test_p1_dashboard_tower_has_no_fragment_stylesheet_link() -> None:
     assert "<link " not in tower
 
 
+def test_p1_dashboard_tower_mobile_width_contract() -> None:
+    """Tower home must shrink inside foms-shell-body like other mobile-v2 tabs."""
+    tower_css = (
+        ROOT / "static/css/contexts/orders/dashboard-control-tower.css"
+    ).read_text(encoding="utf-8")
+    tower_tpl = (
+        ROOT / "templates/orders/partials/dashboard_mobile_tower.html"
+    ).read_text(encoding="utf-8")
+    for token in (
+        "foms-shell-body.foms-tower",
+        "min-width: 0",
+        "max-width: 100%",
+        "foms-tower__field-body",
+        "erp-dashboard-mobile-v2",
+    ):
+        assert token in tower_css or token in tower_tpl
+
+
 def test_p1_dashboard_mobile_v2_body_mockup_selectors() -> None:
     """Dashboard mobile v2 partial keeps app-like queue chrome without filter chip rows."""
     body = (ROOT / "templates/orders/partials/dashboard_mobile_v2_body.html").read_text(
