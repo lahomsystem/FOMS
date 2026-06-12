@@ -1,11 +1,12 @@
 # FOMS 현재 상태
-> 자동 업데이트: 2026-06-11 | **모바일 ERP Order 편집 폼** — mobile-v2 cohort 전용 mockup field 컴포넌트 템플릿 구현, 데스크톱 레거시 분기 유지. gstack 412px file 렌더 스모크 PASS.
+> 자동 업데이트: 2026-06-12 | **WDCalculator 모바일 재설계 (현장영업 persona v3)** — additive 셸 리파인: 방식 진짜 세그먼트·삭제 toolbar 이동·견적요약 declutter(중복 총액 제거)·빈구성 안내·섹션 배지·numeric 키패드. 계산엔진/DOM/계약 무변경. gstack 390px e2e(28제품 바텀시트→가격→견적추가) PASS, 계약 36 passed.
 
 ## 스택
 Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
 브랜치: deploy (스테이징) → production (운영)
 
 ## 최근 완료 (최대 5개)
+- [2026-06-12] **WDCalculator 모바일 재설계 (현장 실측·영업 persona):** `static/js/wdcalculator/mobile-enhance.js`+`static/css/wdcalculator/mobile.css` additive 리파인 — [A]방식(선택/직접) `btn-info`/`btn-warning` 솔리드 → 진짜 세그먼트(CSS 중화), [B]방식 세그+`.base-remove-btn`을 편집기 상단 `.wd-bc-toolbar`로 **노드 이동**(빈 col은 `.wd-bc-orphan-col` 숨김, click 위임 유지), [C]큰 라벤더 '총견적' 박스 제거 → 슬림 '최종 견적' 행(#finalPrice 노드 유지=sticky 미러 안전), [D]빈 구성 '탭하여 제품·치수 입력'+첫행 1회 auto-expand(observer 경로 보강), [E]섹션 배지(구성 N개/옵션 N개), [F]numeric inputmode+최종견적 변동 펄스. 데스크톱(≥992px)·host 계산엔진·계약 무변경. 검증: gstack 390px BEFORE/AFTER + e2e(제품 바텀시트 28개→가로 3,645→기본 1,321,320→쿠폰 −11,000→최종 1,310,320 sticky 미러→견적추가→진행카드), `APP_OK`, `pytest tests/domains/test_wdcalculator_*` **36 passed**. 캐시 `?v=20260612a`.
 - [2026-06-02] **모바일 ERP Order 편집 폼 mockup 컴포넌트 구현:** `erp_order_tab_mobile.html` 신규 분기, `foms-form-field.css` shipped 포팅, 라인아이템 JS mobile/desktop 클래스 분기, id 보존 계약 테스트 추가. 검증: `APP_OK`, visual 계약 8 passed, ERP structured PUT 15 passed, gstack browse 412x915 렌더 PASS.
 - [2026-05-31] **모바일 리디자인 plan 실행:** 출고 dashboard v2 sticky search/filter (`shipment_mobile_controls.html`, `foms-shipment-mobile.css`), rollout preflight `scripts/ops/verify_mobile_v2_rollout.ps1`, device QA contract tests `test_mobile_device_qa_contract.py`, Railway env template `scripts/ops/mobile_v2_railway_env.example`. P0-03 AS sticky controls는 기존 `erp-as-mobile-list__sticky`로 이미 충족. wizard attachment API/테스트 PASS.
 - [2026-05-15] **스킬 트리 정리:** `.agents/skills/`에 `gstack`만 두고 형제 디렉터리(gstack-* 중복 패키지) 삭제·루트 `.cursor/skills/` 벌크 카탈로그 제거. Cursor 호스트 로컬 루트는 `.agents/skills/gstack`로 정렬, `.cursor/agents/*` 및 하네스 번들 문서의 구 `.cursor/skills` 참조 수정. 검증 `APP_OK`, 편집 JSON 파싱.

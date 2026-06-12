@@ -117,10 +117,19 @@
       }
     }
 
+    var lastFinalText = null;
     function syncFinal() {
       var fp = document.getElementById("finalPrice");
       var out = document.querySelector("[data-wd-final]");
-      if (fp && out) out.textContent = (fp.textContent || "0원").trim();
+      if (!fp || !out) return;
+      var v = (fp.textContent || "0원").trim();
+      out.textContent = v;
+      if (lastFinalText !== null && v !== lastFinalText) {
+        out.classList.remove("wd-pulse");
+        void out.offsetWidth; // reflow → 애니메이션 재시작
+        out.classList.add("wd-pulse");
+      }
+      lastFinalText = v;
     }
 
     /* ---- 기본 구성 카드: collapsed accordion 요약 + 라이브 단가칩 + 구성 소계 ----
@@ -201,6 +210,75 @@
       return { name: name, spec: specParts.join(" · "), chipHtml: chipHtml };
     }
 
+    /* ---- [v3] 현장 영업 리파인 헬퍼 ---- */
+    function sectionLabelFor(containerId) {
+      var c = document.getElementById(containerId);
+      var host = c && c.closest(".mb-3");
+      return host ? host.querySelector(".form-label") : null;
+    }
+    function ensureBadge(label) {
+      if (!label) return null;
+      var b = label.querySelector(".wd-sec-badge");
+      if (!b) {
+        b = document.createElement("span");
+        b.className = "wd-sec-badge";
+        label.appendChild(b);
+      }
+      return b;
+    }
+    function updateBaseBadge() {
+      var c = document.getElementById("baseComponentsContainer");
+      if (!c) return;
+      var n = c.querySelectorAll(".base-component-row").length;
+      var b = ensureBadge(sectionLabelFor("baseComponentsContainer"));
+      if (b) b.textContent = n + "개 구성";
+    }
+    function updateOptionBadge() {
+      var c = document.getElementById("additionalOptionsContainer");
+      if (!c) return;
+      var n = c.querySelectorAll(".additional-option-item").length;
+      var b = ensureBadge(sectionLabelFor("additionalOptionsContainer"));
+      if (!b) return;
+      if (!n) {
+        b.textContent = "";
+        return;
+      }
+      // host가 라이브 계산하는 추가 옵션 합계(#totalAdditionalPrice)를 미러 → 금액 배지
+      var sumEl = document.getElementById("totalAdditionalPrice");
+      var sum = sumEl ? (sumEl.textContent || "").trim() : "";
+      b.textContent = sum && sum !== "0원" ? "합계 " + sum : n + "개";
+    }
+    function applyNumericInputmode(scope) {
+      var root = scope || document;
+      forEachNode(root.querySelectorAll('input[type="number"]'), function (inp) {
+        if (!inp.getAttribute("inputmode")) inp.setAttribute("inputmode", "numeric");
+      });
+    }
+    function relabelFinalTitle() {
+      var t = document.querySelector(".final-summary-card .card-title");
+      if (t) t.textContent = "최종 견적";
+    }
+    function buildBaseToolbar(rowEl) {
+      var body = rowEl.querySelector(".card-body");
+      if (!body || body.querySelector(".wd-bc-toolbar")) return;
+      var seg = rowEl.querySelector(".btn-group");
+      var del = rowEl.querySelector(".base-remove-btn");
+      if (!seg && !del) return;
+      var toolbar = document.createElement("div");
+      toolbar.className = "wd-bc-toolbar";
+      if (seg) {
+        var segCol = seg.closest('[class*="col-"]');
+        toolbar.appendChild(seg);
+        if (segCol) segCol.classList.add("wd-bc-orphan-col");
+      }
+      if (del) {
+        var delCol = del.closest('[class*="col-"]');
+        toolbar.appendChild(del);
+        if (delCol) delCol.classList.add("wd-bc-orphan-col");
+      }
+      body.insertBefore(toolbar, body.firstChild);
+    }
+
     function enhanceBaseRow(rowEl, expand) {
       if (!rowEl || rowEl.classList.contains("wd-bc-enh")) return;
       rowEl.classList.add("wd-bc-enh");
@@ -228,6 +306,7 @@
         sub.innerHTML = '<span>구성 소계</span><span class="wd-bc-subval">0원</span>';
         body.appendChild(sub);
       }
+      buildBaseToolbar(rowEl);
       if (expand) rowEl.classList.add("wd-open");
     }
 
@@ -242,8 +321,12 @@
         var price = computeRowSubtotal(row);
         var idxEl = rowEl.querySelector(".wd-bc-idx");
         if (idxEl) idxEl.textContent = String(i + 1);
+        var hasProduct = row.mode === "manual" || !!row.productId;
+        var isEmpty = !hasProduct && !(Number(row.widthMm) > 0);
+        var summaryBtn = rowEl.querySelector(".wd-bc-summary");
+        if (summaryBtn) summaryBtn.classList.toggle("wd-bc-empty", isEmpty);
         var nameEl = rowEl.querySelector(".wd-bc-name");
-        if (nameEl) nameEl.textContent = info.name;
+        if (nameEl) nameEl.textContent = isEmpty ? "탭하여 제품·치수 입력" : info.name;
         var specEl = rowEl.querySelector(".wd-bc-spec");
         if (specEl) specEl.textContent = info.spec;
         var priceEl = rowEl.querySelector(".wd-bc-price");
@@ -256,6 +339,8 @@
         var subValEl = rowEl.querySelector(".wd-bc-subval");
         if (subValEl) subValEl.textContent = fmtNum(price) + "원";
       });
+      updateBaseBadge();
+      applyNumericInputmode(container);
     }
 
     var refreshScheduled = false;
@@ -268,6 +353,20 @@
       }, 0);
     }
 
+    var autoExpandedOnce = false;
+    function maybeAutoExpandFirst() {
+      if (autoExpandedOnce) return;
+      var container = document.getElementById("baseComponentsContainer");
+      if (!container) return;
+      var rows = container.querySelectorAll(".base-component-row");
+      // 첫 진입 단일 구성은 한 번만 펼쳐 제품 선택을 바로 노출(현장 입력 유도).
+      // host가 행을 늦게 렌더해도 observer 경로에서 잡히도록 init+observer 양쪽 호출.
+      if (rows.length === 1) {
+        autoExpandedOnce = true;
+        rows[0].classList.add("wd-open");
+      }
+    }
+
     function initBaseEnhancements() {
       var container = document.getElementById("baseComponentsContainer");
       if (!container) return;
@@ -275,14 +374,17 @@
         enhanceBaseRow(rowEl, false);
       });
       refreshBaseSummaries();
+      applyNumericInputmode(container);
+      maybeAutoExpandFirst();
       if (window.MutationObserver) {
-        // 재렌더/행추가 시 새 행을 향상. 신규 행도 항상 collapsed(사용자 요청):
+        // 재렌더/행추가 시 새 행을 향상. 신규 행도 항상 collapsed:
         // 추가 후 요약만 보이고, 편집은 탭해서 펼침.
         new MutationObserver(function () {
           forEachNode(container.querySelectorAll(".base-component-row:not(.wd-bc-enh)"), function (rowEl) {
             enhanceBaseRow(rowEl, false);
           });
           scheduleBaseRefresh();
+          maybeAutoExpandFirst();
         }).observe(container, { childList: true });
       }
       container.addEventListener("input", scheduleBaseRefresh);
@@ -381,6 +483,8 @@
         forEachNode(optContainer.querySelectorAll(".additional-option-item"), function (it) {
           enhanceToggleItem(it, optCfg);
         });
+        updateOptionBadge();
+        applyNumericInputmode(optContainer);
       }
       function enhanceNotes() {
         if (!noteContainer) return;
@@ -392,6 +496,12 @@
       enhanceNotes();
       observeChildList(optContainer, enhanceOpts);
       observeChildList(noteContainer, enhanceNotes);
+      if (optContainer) {
+        // 옵션 금액/수량 변경 → 합계 배지 갱신(host 계산 후 읽도록 1tick 지연)
+        var deferOptBadge = function () { setTimeout(updateOptionBadge, 0); };
+        optContainer.addEventListener("input", deferOptBadge);
+        optContainer.addEventListener("change", deferOptBadge);
+      }
     }
 
     /* ---- 모바일 select 피커: PC 드롭다운 → bottom sheet (목업 톤) ----
@@ -542,6 +652,8 @@
       initEstimatesListMobile();
       buildNotesAccordion();
       buildAdvancedAccordion();
+      relabelFinalTitle();
+      applyNumericInputmode(document);
     }
 
     if (mq.matches) enable();

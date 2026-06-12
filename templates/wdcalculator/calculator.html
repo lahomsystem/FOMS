@@ -5,7 +5,7 @@
 {% block styles %}
 {{ super() }}
 {% include 'wdcalculator/partials/wdcalculator_styles.html' %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/wdcalculator/mobile.css') }}?v=20260609a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/wdcalculator/mobile.css') }}?v=20260612b">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/wdcalculator/category-picker.css') }}?v=20260606a">
 {% endblock %}
 
@@ -13,5 +13,5 @@
 {% include 'wdcalculator/partials/wdcalculator_body.html' %}
 {% include 'wdcalculator/partials/wdcalculator_scripts_config.html' %}
 {% include 'wdcalculator/partials/wdcalculator_scripts.html' %}
-<script src="{{ url_for('static', filename='js/wdcalculator/mobile-enhance.js') }}?v=20260605f" defer></script>
+<script src="{{ url_for('static', filename='js/wdcalculator/mobile-enhance.js') }}?v=20260612b" defer></script>
 {% endblock %}

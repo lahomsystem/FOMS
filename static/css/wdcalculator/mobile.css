@@ -407,12 +407,99 @@
     min-width: 0 !important;
     margin-bottom: 8px !important;
   }
+
+  /* ============================================================
+     [v3] 현장 실측·영업 persona 모바일 리파인 (2026-06-12)
+     근거: thumb-zone 하단액션 / 진짜 세그먼트 / progressive disclosure /
+           numeric 키패드 / 중복 총액 제거 / at-a-glance 배지 / 변동 피드백
+     ============================================================ */
+
+  /* [A] 방식(선택/직접) btn-group → 진짜 세그먼트: 솔리드 active 색 제거 */
+  body.wd-calc-mobile .base-component-row .base-mode-btn {
+    background: transparent !important; color: var(--foms-text-secondary) !important;
+    box-shadow: none !important; border: none !important; font-weight: var(--foms-font-weight-medium) !important;
+  }
+  body.wd-calc-mobile .base-component-row .base-mode-btn.btn-info,
+  body.wd-calc-mobile .base-component-row .base-mode-btn.btn-warning {
+    background: var(--foms-surface-base) !important; box-shadow: var(--foms-shadow-sm) !important;
+    font-weight: var(--foms-font-weight-semibold) !important;
+  }
+  body.wd-calc-mobile .base-component-row .base-mode-btn.btn-info { color: var(--foms-color-brand-700) !important; }
+  body.wd-calc-mobile .base-component-row .base-mode-btn.btn-warning { color: var(--foms-color-warning-600) !important; }
+
+  /* [B] 방식 세그 + 삭제 = 편집기 상단 toolbar 한 줄 (JS가 노드 이동) */
+  body.wd-calc-mobile .wd-bc-orphan-col { display: none !important; }
+  .wd-bc-toolbar {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    margin-bottom: var(--foms-space-3);
+  }
+  body.wd-calc-mobile .wd-bc-toolbar .btn-group { width: auto !important; flex: 0 0 auto; margin: 0; }
+  .wd-bc-toolbar .base-remove-btn {
+    border: none !important; background: transparent !important; color: var(--foms-color-danger-500) !important;
+    min-height: 36px; width: 40px; padding: 0; border-radius: var(--foms-radius-md); flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .wd-bc-toolbar .base-remove-btn:active { background: rgba(220, 53, 69, 0.1) !important; }
+
+  /* [C] 견적 요약 declutter: 큰 라벤더 '총견적' 박스 → 슬림 '최종 견적' 행 */
+  body.wd-calc-mobile .final-summary-card {
+    background: transparent !important; border: none !important; box-shadow: none !important; margin: 0 !important;
+  }
+  body.wd-calc-mobile .final-summary-card > .card-body {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 4px 8px; flex-wrap: wrap;
+    padding: var(--foms-space-2) 0 0 !important; margin-top: var(--foms-space-2);
+    border-top: 2px solid var(--foms-border-default);
+  }
+  body.wd-calc-mobile .final-summary-card .card-title {
+    margin: 0 !important; order: 1; align-self: center;
+    font-size: var(--foms-font-size-base) !important; font-weight: var(--foms-font-weight-bold);
+    color: var(--foms-text-primary);
+  }
+  body.wd-calc-mobile .final-summary-card .final-price-display {
+    margin: 0 !important; order: 2; line-height: 1.1;
+    font-size: var(--foms-font-size-xl) !important; color: var(--foms-color-brand-700);
+  }
+  body.wd-calc-mobile .final-summary-card #couponInfo {
+    order: 3; flex-basis: 100%; text-align: right; margin: 2px 0 0 !important;
+  }
+
+  /* [D] 빈(미입력) 기본 구성: 탭 유도 문구 + 0원 숨김 */
+  .wd-bc-summary.wd-bc-empty .wd-bc-name { color: var(--foms-text-tertiary); font-weight: var(--foms-font-weight-medium); }
+  .wd-bc-summary.wd-bc-empty .wd-bc-spec { display: none; }
+  .wd-bc-summary.wd-bc-empty .wd-bc-price { display: none; }
+  .wd-bc-summary.wd-bc-empty .wd-bc-idx { background: var(--foms-text-tertiary); }
+
+  /* [E] 섹션 헤더 배지 (구성 N개 / 옵션 N개) — at-a-glance */
+  .wd-sec-badge {
+    margin-left: 8px; font-size: var(--foms-font-size-xs); font-weight: var(--foms-font-weight-medium);
+    color: var(--foms-text-secondary); background: var(--foms-color-neutral-100);
+    border-radius: var(--foms-radius-full); padding: 1px 9px; vertical-align: middle; white-space: nowrap;
+  }
+  .wd-sec-badge:empty { display: none; }
+
+  /* [C2] 총견적(중복) 행 + 구분선 숨김 → 최종 견적만 단일 bottom-line */
+  body.wd-calc-mobile .border-left-success .card-body > .mb-3 > hr,
+  body.wd-calc-mobile .border-left-success .card-body > .mb-3 > .d-flex:has(#totalPrice) {
+    display: none !important;
+  }
+
+  /* [F] 최종 견적 변동 피드백 펄스 (functional animation, 강조) */
+  @keyframes wdFinalPulse {
+    0% { background: var(--foms-color-brand-300, #aebfff); transform: scale(1.09); }
+    45% { background: var(--foms-color-brand-100, #e6ebff); transform: scale(1.03); }
+    100% { background: transparent; transform: scale(1); }
+  }
+  .wd-mtotal__val.wd-pulse {
+    animation: wdFinalPulse 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+    border-radius: var(--foms-radius-sm); transform-origin: left center;
+    padding: 2px 6px; margin: -2px -6px;
+  }
 }
 
 /* 데스크톱: JS가 만든 모바일 chrome 잔존 시에도 노출 안 되게 */
 @media (min-width: 992px) {
   .wd-mhead, .wd-mtotal, .wd-msheet, .wd-msheet-backdrop,
-  .wd-selsheet, .wd-selsheet-backdrop { display: none !important; }
+  .wd-selsheet, .wd-selsheet-backdrop, .wd-sec-badge { display: none !important; }
   /* 모바일→데스크톱 리사이즈 시 잔존 향상 노드 비노출 */
   .wd-bc-summary, .wd-bc-chip, .wd-bc-sub, .wd-seg { display: none !important; }
   /* 데스크톱에선 원래 아이콘 토글 복원 */
