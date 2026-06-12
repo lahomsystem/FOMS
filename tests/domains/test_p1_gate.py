@@ -159,5 +159,5 @@ def test_wizard_route_gated(client, app, monkeypatch: pytest.MonkeyPatch) -> Non
     assert "foms-wizard-root" not in legacy.get_data(as_text=True)
 
     monkeypatch.setenv("FOMS_WIZARD_NEW_ORDER_ENABLED", "true")
-    wizard = client.get("/add")
+    wizard = client.get("/add?wizard=1")
     assert "foms-wizard-root" in wizard.get_data(as_text=True)

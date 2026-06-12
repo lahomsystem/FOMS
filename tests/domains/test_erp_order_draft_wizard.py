@@ -195,11 +195,23 @@ def test_order_draft_submit_creates_order(client, app, wizard_enabled) -> None:
 
 def test_add_order_renders_wizard_when_flag_on(client, app, wizard_enabled) -> None:
     _login(client, app, "wizard_page_user")
-    response = client.get("/add")
+    response = client.get("/add?wizard=1")
     assert response.status_code == 200
     body = response.get_data(as_text=True)
     assert "foms-wizard-root" in body
     assert "wizard_shell" not in body  # rendered, not raw path leak required — ok if template name absent
+
+
+def test_add_order_renders_desktop_form_on_pc_when_cohort_on(client, app, monkeypatch) -> None:
+    """Mobile v2 cohort must not force wizard on desktop browsers."""
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", "all")
+    _login(client, app, "wizard_desktop_user")
+    response = client.get("/add?open=erp-order")
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert "foms-wizard-root" not in body
+    assert 'id="erp-order"' in body
 
 
 def test_order_draft_attachment_upload(client, app, wizard_enabled, monkeypatch) -> None:

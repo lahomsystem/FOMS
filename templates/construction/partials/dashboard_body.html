@@ -122,7 +122,7 @@
     <section class="foms-shell-body foms-mobile-v2-dashboard erp-construction-mobile-v2" aria-label="시공 모바일 대시보드">
       {% include 'construction/partials/mobile_filters.html' %}
       {% include 'construction/partials/mobile_queue.html' %}
-      <a class="foms-shell-fab" href="{{ url_for('order_pages.add_order', open='erp-order') }}" aria-label="주문 생성">
+      <a class="foms-shell-fab" href="{{ url_for('order_pages.add_order', open='erp-order', wizard=1) }}" aria-label="주문 생성">
         <i class="fas fa-plus" aria-hidden="true"></i>
       </a>
     </section>

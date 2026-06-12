@@ -3,6 +3,11 @@
 from __future__ import annotations
 
 import os
+import re
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from werkzeug.wrappers import Request
 
 __all__ = [
     "env_bool",
@@ -10,8 +15,15 @@ __all__ = [
     "env_id_list",
     "is_cohort_all",
     "is_enabled_for_user",
+    "prefers_mobile_wizard_client",
+    "should_render_new_order_wizard",
     "wizard_new_order_enabled",
 ]
+
+_MOBILE_UA_RE = re.compile(
+    r"(android|webos|iphone|ipod|blackberry|iemobile|opera mini|mobile)",
+    re.IGNORECASE,
+)
 
 _TRUTHY = frozenset({"true", "1", "yes", "y", "on"})
 _COHORT_ALL_TOKENS = frozenset({"all", "*"})
@@ -119,21 +131,61 @@ def is_enabled_for_user(
 
 
 def wizard_new_order_enabled(user_id: int | None = None) -> bool:
-    """주문 생성 wizard(모바일 4단계) 활성 여부.
+    """주문 생성 wizard(모바일 4단계) 기능 활성 여부.
 
     전역 ``FOMS_WIZARD_NEW_ORDER_ENABLED`` 플래그가 켜져 있거나, 사용자가 ERP
-    모바일 v2 코호트에 속하면 활성으로 본다. 모바일 v2 셸의 '주문 생성' FAB가
-    레거시 ``add_order`` 폼이 아니라 모바일 wizard로 진입하도록 단일 기준을
-    제공한다(렌더·draft API·chrome 숨김 body class가 동일 판정을 공유).
+    모바일 v2 코호트에 속하면 wizard API·draft 경로를 활성화한다.
+    실제 ``/add`` 렌더는 :func:`should_render_new_order_wizard`가 모바일
+    클라이언트 여부까지 함께 판정한다.
 
     Args:
         user_id: 현재 사용자 id(미인증 시 None).
 
     Returns:
-        wizard를 노출/활성화해야 하면 True.
+        wizard 기능을 켜야 하면 True.
     """
     if env_bool("FOMS_WIZARD_NEW_ORDER_ENABLED"):
         return True
     return is_enabled_for_user(
         "ERP_MOBILE_V2_ENABLED", user_id, cohort_key="FOMS_V3_SHELL_COHORT"
     )
+
+
+def prefers_mobile_wizard_client(request: Request) -> bool:
+    """모바일 new-order wizard 셸을 노출해야 하는 클라이언트인지 판정.
+
+    모바일 v2 FAB·휴대폰 브라우저는 wizard로, PC 브라우저는 데스크톱
+    ``add_order`` 탭 UI로 분기하기 위한 단일 기준이다.
+
+    Args:
+        request: 현재 Flask/Werkzeug request.
+
+    Returns:
+        wizard 셸을 렌더해야 하면 True.
+    """
+    wizard_arg = (request.args.get("wizard") or "").strip().lower()
+    if wizard_arg in {"1", "true", "yes"}:
+        return True
+    sec_mobile = (request.headers.get("Sec-CH-UA-Mobile") or "").strip()
+    if sec_mobile == "?1":
+        return True
+    ua = request.headers.get("User-Agent") or ""
+    return _MOBILE_UA_RE.search(ua) is not None
+
+
+def should_render_new_order_wizard(
+    user_id: int | None,
+    request: Request,
+) -> bool:
+    """``/add`` GET에서 wizard 셸을 렌더할지 여부.
+
+    Args:
+        user_id: 현재 사용자 id(미인증 시 None).
+        request: 현재 Flask/Werkzeug request.
+
+    Returns:
+        wizard 셸을 렌더해야 하면 True.
+    """
+    if not wizard_new_order_enabled(user_id):
+        return False
+    return prefers_mobile_wizard_client(request)

@@ -41,7 +41,7 @@
     </div>
   </div>
   {% if erp_mobile_v2_enabled %}
-  <a class="foms-shell-fab d-lg-none" href="{{ url_for('order_pages.add_order', open='erp-order') }}" aria-label="주문 생성">
+  <a class="foms-shell-fab d-lg-none" href="{{ url_for('order_pages.add_order', open='erp-order', wizard=1) }}" aria-label="주문 생성">
     <i class="fas fa-plus" aria-hidden="true"></i>
   </a>
   {% endif %}
