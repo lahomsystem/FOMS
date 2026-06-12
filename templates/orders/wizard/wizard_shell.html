@@ -20,6 +20,7 @@
   data-initial-step="{{ initial_step }}"
   data-received-date="{{ today }}"
   data-received-time="{{ current_time }}"
+  data-exit-href="{{ url_for('erp_dashboard.erp_dashboard') }}"
 >
   <header class="foms-wizard__head">
     <div class="foms-wizard__head-top">
@@ -112,5 +113,5 @@
 <script src="{{ url_for('static', filename='js/foms/wizard-attachments.js') }}?v=20260609a" defer></script>
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js" defer></script>
 <script src="{{ url_for('static', filename='js/foms/wizard-enrich.js') }}?v=20260608c" defer></script>
-<script src="{{ url_for('static', filename='js/foms/wizard.js') }}?v=20260609a" defer></script>
+<script src="{{ url_for('static', filename='js/foms/wizard.js') }}?v=20260612a" defer></script>
 {% endblock %}
