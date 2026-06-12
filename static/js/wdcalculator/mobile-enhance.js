@@ -873,11 +873,39 @@
         });
       }
     }
+    function mobilizeEstimatesListAfterRender() {
+      mobilizeEstimatesList();
+      // renderEstimatesList() reapplies forced inline styles after 10ms; clear them after that pass.
+      setTimeout(mobilizeEstimatesList, 30);
+    }
     function initEstimatesListMobile() {
       var container = document.getElementById("estimatesListContainer");
       if (!container) return;
-      mobilizeEstimatesList();
-      observeChildList(container, mobilizeEstimatesList);
+      mobilizeEstimatesListAfterRender();
+      observeChildList(container, mobilizeEstimatesListAfterRender);
+    }
+
+    function initOptionalSectionDisclosure() {
+      var section = document.querySelector('.wd-esec[data-esec="note"]');
+      if (!section || section.getAttribute("data-wd-disclosure-ready") === "1") return;
+      var head = section.querySelector(".wd-esec__head");
+      if (!head) return;
+      section.setAttribute("data-wd-disclosure-ready", "1");
+      section.classList.add("wd-esec--collapsible", "wd-esec--collapsed");
+      head.setAttribute("role", "button");
+      head.setAttribute("tabindex", "0");
+      head.setAttribute("aria-expanded", "false");
+      function toggleSection() {
+        var collapsed = section.classList.toggle("wd-esec--collapsed");
+        head.setAttribute("aria-expanded", collapsed ? "false" : "true");
+      }
+      head.addEventListener("click", toggleSection);
+      head.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+          e.preventDefault();
+          toggleSection();
+        }
+      });
     }
 
     /* ---- 비고 섹션 → 기본 접힌 아코디언 (사용자 요청) ----
@@ -913,6 +941,7 @@
       buildBuilderMaster(); // 고객칩 + 총액 HERO + 인라인 에디터 슬롯 + 카트
       buildFabBar(); // 하단 액션 바(카트:저장/새견적 ↔ 편집:이견적/완료)
       buildEditorPanel(); // 인라인 에디터: 구성·옵션·비고 전 섹션 + 할인배송
+      initOptionalSectionDisclosure(); // 선택 입력(비고)은 기본 접힘
       initBaseEnhancements();
       initToggleEnhancements();
       initMobileSelects();
