@@ -118,6 +118,13 @@ function buildSandbox(spec = {}) {
     };
 
     const document = {
+        body: {
+            classList: {
+                contains(className) {
+                    return (spec.bodyClasses || []).includes(className);
+                },
+            },
+        },
         getElementById(id) {
             return ids[id] || null;
         },
@@ -323,6 +330,25 @@ function scenarioHappyPathRestoresBaseComponentsAndUi() {
     assertEq(env.confirms.length, 0, "happy path does not prompt when not already editing");
 }
 
+function scenarioMobileBuilderSkipsHostScroll() {
+    const env = buildSandbox({
+        bodyClasses: ["wd-builder"],
+        estimates: [
+            {
+                id: "est-mobile",
+                baseComponents: [{ mode: "select", widthMm: 1800, productId: 11 }],
+                options: [],
+            },
+        ],
+    });
+
+    env.run("est-mobile");
+
+    assertDeepEqual(env.events[6], ["setEditingEstimateId", "est-mobile"], "mobile builder still enters edit mode");
+    assertEq(env.baseComponentsContainer.scrollCalls.length, 0, "mobile builder lets the enhancement layer own editor scroll");
+    assertEq(env.events[7][0], "calculateEstimate", "mobile builder still recalculates after restore");
+}
+
 function scenarioEditingConfirmCancelPreservesCurrentState() {
     const env = buildSandbox({
         initialEditingEstimateId: "est-1",
@@ -439,6 +465,7 @@ function scenarioCaughtErrorAlertsAndStillClearsLoadingState() {
 
 function main() {
     scenarioHappyPathRestoresBaseComponentsAndUi();
+    scenarioMobileBuilderSkipsHostScroll();
     scenarioEditingConfirmCancelPreservesCurrentState();
     scenarioInvalidIdAlertsAndLogs();
     scenarioMissingEstimateAlertsWithAvailableIds();

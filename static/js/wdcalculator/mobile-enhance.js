@@ -94,6 +94,7 @@
        ============================================================ */
     var lastHero = null;
     var lastEditorFinal = null;
+    var builderEditorWrap = null;
 
     function buildBuilderMaster() {
       if (document.querySelector(".wd-master")) return;
@@ -122,6 +123,7 @@
         '<div class="wd-editor__sub" data-wd-esub></div></div>' +
         '<button type="button" class="wd-editor__close" data-wd-eclose aria-label="닫기">✕</button>' +
         '</div></div></div>';
+      builderEditorWrap = ewrap;
       master.appendChild(ewrap); // hero ↔ cart-head 사이 인라인 에디터 슬롯
       var ch = document.createElement("div");
       ch.className = "wd-cart-head";
@@ -195,6 +197,41 @@
       syncEditorFinal();
     }
 
+    function getEditorWrap() {
+      if (builderEditorWrap) return builderEditorWrap;
+      builderEditorWrap = document.querySelector(".wd-editor-wrap");
+      return builderEditorWrap;
+    }
+
+    function moveEditorHome() {
+      var wrap = getEditorWrap();
+      var master = document.querySelector(".wd-master");
+      if (!wrap || !master) return;
+      var cartHead = master.querySelector(".wd-cart-head");
+      master.insertBefore(wrap, cartHead || null);
+    }
+
+    function cardAnchor(card) {
+      if (!card) return null;
+      return card.closest("#estimatesListContainer > .row > [class*='col-']") || card;
+    }
+
+    function moveEditorAfterCard(card) {
+      var wrap = getEditorWrap();
+      var anchor = cardAnchor(card);
+      if (!wrap || !anchor || !anchor.parentNode) return;
+      anchor.parentNode.insertBefore(wrap, anchor.nextSibling);
+    }
+
+    function scrollEditorIntoView(target) {
+      var wrap = getEditorWrap();
+      var scrollTarget = target || wrap;
+      if (!scrollTarget || typeof scrollTarget.scrollIntoView !== "function") return;
+      setTimeout(function () {
+        scrollTarget.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }, 60);
+    }
+
     function buildFabBar() {
       if (document.querySelector(".wd-fab")) return;
       var fab = document.createElement("div");
@@ -213,7 +250,8 @@
       });
       fab.querySelector("[data-wd-new]").addEventListener("click", function () {
         resetToNewEstimate();
-        openEditor("새 견적");
+        moveEditorHome();
+        openEditor("새 견적", { scrollTarget: getEditorWrap() });
       });
       fab.querySelector("[data-wd-edone]").addEventListener("click", function () {
         var b = document.getElementById("addEstimateBtn");
@@ -231,16 +269,13 @@
       }
     }
 
-    function openEditor(subText) {
+    function openEditor(subText, options) {
       var sub = document.querySelector("[data-wd-esub]");
       if (sub) sub.textContent = subText || "";
       var titleEl = document.querySelector(".wd-editor__title");
       if (titleEl) titleEl.textContent = subText && subText !== "새 견적" ? "견적 편집" : "새 견적";
       document.body.classList.add("wd-editing");
-      // 인라인 에디터가 상단(헤더 아래)에 슬라이드다운 → 보이도록 맨 위로
-      setTimeout(function () {
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      }, 40);
+      scrollEditorIntoView(options && options.scrollTarget);
       updateEsecBadges();
       syncEditorFinal();
     }
@@ -249,6 +284,7 @@
       document.body.classList.remove("wd-editing");
       var ec = document.querySelector(".wd-card-editing");
       if (ec) ec.classList.remove("wd-card-editing");
+      setTimeout(moveEditorHome, 280);
     }
 
     function syncEditorFinal() {
@@ -291,22 +327,55 @@
       if (list) {
         list.addEventListener("click", function (e) {
           // 삭제·이름수정은 host가 처리(시트 안 엶)
-          if (e.target.closest(".delete-estimate-btn") || e.target.closest(".edit-estimate-name-btn")) return;
+          if (
+            e.target.closest(".delete-estimate-btn") ||
+            e.target.closest(".edit-estimate-name-btn") ||
+            e.target.closest(".estimate-display-name-input") ||
+            e.target.closest(".estimate-display-name-save-btn") ||
+            e.target.closest(".estimate-display-name-cancel-btn")
+          ) return;
           var card = e.target.closest(".card[data-estimate-id]");
           if (!card) return;
-          // 카드 본문 탭 시 host 수정 로드 트리거(수정 버튼이 아니면 위임 클릭)
-          if (!e.target.closest(".edit-estimate-btn")) {
+
+          e.preventDefault();
+          e.stopPropagation();
+
+          var estimateId = card.getAttribute("data-estimate-id");
+          var loader =
+            window.WdCalculatorLoadEstimateToInputForm &&
+            typeof window.WdCalculatorLoadEstimateToInputForm.loadEstimateToInputForm === "function"
+              ? window.WdCalculatorLoadEstimateToInputForm.loadEstimateToInputForm
+              : null;
+          if (loader) {
+            loader(estimateId);
+          } else {
             var editBtn = card.querySelector(".edit-estimate-btn");
             if (editBtn) editBtn.click();
           }
+
+          var activeId =
+            window.WdCalculatorEditingEstimateId &&
+            typeof window.WdCalculatorEditingEstimateId.getEditingEstimateId === "function"
+              ? window.WdCalculatorEditingEstimateId.getEditingEstimateId()
+              : estimateId;
+          if (String(activeId) !== String(estimateId)) {
+            return;
+          }
+
           var prev = document.querySelector(".wd-card-editing");
           if (prev) prev.classList.remove("wd-card-editing");
           card.classList.add("wd-card-editing");
           var name = (card.querySelector(".estimate-display-name") || {}).textContent || "견적 편집";
-          openEditor(name.trim());
+          moveEditorAfterCard(card);
+          openEditor(name.trim(), { scrollTarget: getEditorWrap() });
         });
         if (window.MutationObserver) {
-          new MutationObserver(syncHero).observe(list, { childList: true, subtree: true });
+          new MutationObserver(function () {
+            syncHero();
+            if (document.body.classList.contains("wd-editing") && !document.body.contains(getEditorWrap())) {
+              closeEditor();
+            }
+          }).observe(list, { childList: true, subtree: true });
         }
       }
       syncHero();

@@ -1446,12 +1446,18 @@
                 addEstimateBtn.innerHTML = '<i class="fas fa-save"></i> 견적 수정 적용';
                 addEstimateBtn.style.display = "block";
 
-                var scrollTarget =
-                    documentRef.getElementById("baseComponentsContainer") ||
-                    documentRef.getElementById("customerName") ||
-                    documentRef.querySelector(".header-primary");
-                if (scrollTarget && typeof scrollTarget.scrollIntoView === "function") {
-                    scrollTarget.scrollIntoView({ behavior: "smooth", block: "center" });
+                var isBuilderMobile =
+                    documentRef.body &&
+                    documentRef.body.classList &&
+                    documentRef.body.classList.contains("wd-builder");
+                if (!isBuilderMobile) {
+                    var scrollTarget =
+                        documentRef.getElementById("baseComponentsContainer") ||
+                        documentRef.getElementById("customerName") ||
+                        documentRef.querySelector(".header-primary");
+                    if (scrollTarget && typeof scrollTarget.scrollIntoView === "function") {
+                        scrollTarget.scrollIntoView({ behavior: "smooth", block: "center" });
+                    }
                 }
 
                 calculateEstimate();

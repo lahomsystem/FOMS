@@ -32,3 +32,17 @@ def test_wdcalculator_page_includes_unit_price_slots_and_full_reset_wiring(
     assert "resetInputFormToNewEstimate" in body
     assert "initWdCalculatorUnitPriceMetaToggle" in body
     assert "WdCalculatorUnitPriceMeta" in body
+
+
+def test_wdcalculator_mobile_builder_opens_editor_below_tapped_card():
+    """Mobile builder owns cart-card edit placement instead of jumping to the top form."""
+    mobile_js = (_REPO_ROOT / "static/js/wdcalculator/mobile-enhance.js").read_text(encoding="utf-8")
+    builder_css = (_REPO_ROOT / "static/css/wdcalculator/builder.css").read_text(encoding="utf-8")
+    lifecycle_js = (_REPO_ROOT / "static/js/wdcalculator/estimate-lifecycle.js").read_text(encoding="utf-8")
+
+    assert "moveEditorAfterCard(card)" in mobile_js
+    assert "e.stopPropagation();" in mobile_js
+    assert "WdCalculatorLoadEstimateToInputForm.loadEstimateToInputForm" in mobile_js
+    assert "scrollIntoView({ behavior: \"smooth\", block: \"nearest\" })" in mobile_js
+    assert "documentRef.body.classList.contains(\"wd-builder\")" in lifecycle_js
+    assert "body.wd-builder #estimatesListContainer .wd-editor-wrap" in builder_css
