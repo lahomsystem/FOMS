@@ -114,6 +114,15 @@
         '<span class="wd-hero__pill" data-wd-hero-count>견적 0건</span>' +
         '<span class="wd-hero__pill" data-wd-hero-coupon>쿠폰가 미적용</span></div>';
       master.appendChild(hero);
+      var ewrap = document.createElement("div");
+      ewrap.className = "wd-editor-wrap";
+      ewrap.innerHTML =
+        '<div class="wd-editor"><div class="wd-editor__inner">' +
+        '<div class="wd-editor__head"><div><div class="wd-editor__title">새 견적</div>' +
+        '<div class="wd-editor__sub" data-wd-esub></div></div>' +
+        '<button type="button" class="wd-editor__close" data-wd-eclose aria-label="닫기">✕</button>' +
+        '</div></div></div>';
+      master.appendChild(ewrap); // hero ↔ cart-head 사이 인라인 에디터 슬롯
       var ch = document.createElement("div");
       ch.className = "wd-cart-head";
       ch.innerHTML = '<span class="wd-cart-head__t">담은 견적</span>';
@@ -130,65 +139,53 @@
       return c ? c.closest(".mb-3") : null;
     }
 
-    function buildEditorSheet() {
-      if (document.querySelector(".wd-esheet")) return;
-      var backdrop = document.createElement("div");
-      backdrop.className = "wd-esheet-backdrop";
-      backdrop.hidden = true;
-      var sheet = document.createElement("div");
-      sheet.className = "wd-esheet";
-      sheet.hidden = true;
-      sheet.innerHTML =
-        '<div class="wd-esheet__grip"></div>' +
-        '<div class="wd-esheet__head"><div><div class="wd-esheet__title">견적 편집</div>' +
-        '<div class="wd-esheet__sub" data-wd-esub></div></div>' +
-        '<button type="button" class="wd-mhead__btn" data-wd-eclose aria-label="닫기">✕</button></div>' +
-        '<div class="wd-esheet__tabs">' +
-        '<button type="button" class="wd-etab is-active" data-tab="base">구성</button>' +
-        '<button type="button" class="wd-etab" data-tab="opt">옵션</button>' +
-        '<button type="button" class="wd-etab" data-tab="note">비고</button></div>' +
-        '<div class="wd-esheet__body">' +
-        '<div class="wd-panel is-active" data-panel="base"></div>' +
-        '<div class="wd-panel" data-panel="opt"></div>' +
-        '<div class="wd-panel" data-panel="note"></div>' +
-        '<details class="wd-esheet-settings"><summary>⚙ 할인 · 배송 설정' +
-        '<span class="wd-esheet-settings__chev">▾</span></summary>' +
-        '<div class="wd-esheet-settings__body"></div></details></div>' +
-        '<div class="wd-esheet__foot"><div class="wd-esheet__sum">' +
-        '<span class="wd-esheet__sum-l">이 견적</span>' +
-        '<span class="wd-esheet__sum-v" data-wd-efinal>0원</span></div>' +
-        '<button type="button" class="wd-esheet__done" data-wd-edone>완료</button></div>';
-      document.body.appendChild(backdrop);
-      document.body.appendChild(sheet);
-      var baseSec = moveSectionByContainer("baseComponentsContainer");
-      var optSec = moveSectionByContainer("additionalOptionsContainer");
-      var noteSec = moveSectionByContainer("notesContainer");
-      if (baseSec) sheet.querySelector('[data-panel="base"]').appendChild(baseSec);
-      if (optSec) sheet.querySelector('[data-panel="opt"]').appendChild(optSec);
-      if (noteSec) sheet.querySelector('[data-panel="note"]').appendChild(noteSec);
-      var settingsBody = sheet.querySelector(".wd-esheet-settings__body");
+    function buildEsec(iconTitle, section, key) {
+      var sec = document.createElement("div");
+      sec.className = "wd-esec";
+      sec.setAttribute("data-esec", key);
+      sec.innerHTML =
+        '<div class="wd-esec__head">' + iconTitle +
+        '<span class="wd-esec__badge" data-esec-badge="' + key + '"></span></div>';
+      if (section) sec.appendChild(section);
+      return sec;
+    }
+
+    function updateEsecBadges() {
+      var b = document.querySelector('[data-esec-badge="base"]');
+      if (b) b.textContent = document.querySelectorAll("#baseComponentsContainer .base-component-row").length + "개";
+      var o = document.querySelector('[data-esec-badge="opt"]');
+      if (o) {
+        var on = document.querySelectorAll("#additionalOptionsContainer .additional-option-item").length;
+        var sum = (document.getElementById("totalAdditionalPrice") || {}).textContent;
+        o.textContent = on ? (sum && sum.trim() !== "0원" ? sum.trim() : on + "개") : "";
+      }
+      var nb = document.querySelector('[data-esec-badge="note"]');
+      if (nb) {
+        var nn = document.querySelectorAll("#notesContainer .note-item").length;
+        nb.textContent = nn ? nn + "개" : "";
+      }
+    }
+
+    /* 인라인 에디터: 구성·옵션·비고 전 섹션을 한눈에(탭 없음). host 컨테이너를 섹션으로 이동. */
+    function buildEditorPanel() {
+      var inner = document.querySelector(".wd-editor__inner");
+      if (!inner || inner.querySelector(".wd-esec")) return;
+      inner.appendChild(buildEsec("🧱 구성", moveSectionByContainer("baseComponentsContainer"), "base"));
+      inner.appendChild(buildEsec("➕ 옵션", moveSectionByContainer("additionalOptionsContainer"), "opt"));
+      inner.appendChild(buildEsec("📝 비고", moveSectionByContainer("notesContainer"), "note"));
+      var settings = document.createElement("details");
+      settings.className = "wd-esheet-settings";
+      settings.innerHTML =
+        '<summary>⚙ 할인 · 배송 설정<span class="wd-esheet-settings__chev">▾</span></summary>' +
+        '<div class="wd-esheet-settings__body"></div>';
+      inner.appendChild(settings);
+      var sbody = settings.querySelector(".wd-esheet-settings__body");
       var coupon = document.querySelector(".border-left-info");
       var shipping = document.querySelector(".border-left-warning");
-      if (coupon) settingsBody.appendChild(coupon.closest(".col-12") || coupon);
-      if (shipping) settingsBody.appendChild(shipping.closest(".col-12") || shipping);
-      sheet.querySelector(".wd-esheet__tabs").addEventListener("click", function (e) {
-        var btn = e.target.closest(".wd-etab");
-        if (!btn) return;
-        var tab = btn.getAttribute("data-tab");
-        forEachNode(sheet.querySelectorAll(".wd-etab"), function (b) {
-          b.classList.toggle("is-active", b === btn);
-        });
-        forEachNode(sheet.querySelectorAll(".wd-panel"), function (p) {
-          p.classList.toggle("is-active", p.getAttribute("data-panel") === tab);
-        });
-      });
-      backdrop.addEventListener("click", closeEditor);
-      sheet.querySelector("[data-wd-eclose]").addEventListener("click", closeEditor);
-      sheet.querySelector("[data-wd-edone]").addEventListener("click", function () {
-        var b = document.getElementById("addEstimateBtn");
-        if (b) b.click(); // host: 견적 추가 / 수정 적용
-        setTimeout(closeEditor, 60);
-      });
+      if (coupon) sbody.appendChild(coupon.closest(".col-12") || coupon);
+      if (shipping) sbody.appendChild(shipping.closest(".col-12") || shipping);
+      var closeBtn = document.querySelector("[data-wd-eclose]");
+      if (closeBtn) closeBtn.addEventListener("click", closeEditor);
       var fp = document.getElementById("finalPrice");
       if (fp && window.MutationObserver) {
         new MutationObserver(syncEditorFinal).observe(fp, {
@@ -203,8 +200,12 @@
       var fab = document.createElement("div");
       fab.className = "wd-fab";
       fab.innerHTML =
-        '<button type="button" class="wd-fab__save" data-wd-save aria-label="견적 저장">💾</button>' +
-        '<button type="button" class="wd-fab__new" data-wd-new>＋ 새 견적 만들기</button>';
+        '<button type="button" class="wd-fab__save wd-fab__cart" data-wd-save aria-label="견적 저장">💾</button>' +
+        '<button type="button" class="wd-fab__new wd-fab__cart" data-wd-new>＋ 새 견적 만들기</button>' +
+        '<div class="wd-fab__edit"><div class="wd-fab__sum">' +
+        '<span class="wd-fab__sum-l">이 견적</span>' +
+        '<span class="wd-fab__sum-v" data-wd-efinal>0원</span></div>' +
+        '<button type="button" class="wd-fab__done" data-wd-edone>완료</button></div>';
       document.body.appendChild(fab);
       fab.querySelector("[data-wd-save]").addEventListener("click", function () {
         var b = document.getElementById("saveEstimateBtn");
@@ -212,7 +213,12 @@
       });
       fab.querySelector("[data-wd-new]").addEventListener("click", function () {
         resetToNewEstimate();
-        openEditor("새 견적", "base");
+        openEditor("새 견적");
+      });
+      fab.querySelector("[data-wd-edone]").addEventListener("click", function () {
+        var b = document.getElementById("addEstimateBtn");
+        if (b) b.click(); // host: 견적 추가 / 수정 적용
+        closeEditor();
       });
     }
 
@@ -225,37 +231,24 @@
       }
     }
 
-    function openEditor(subText, defaultTab) {
-      var sheet = document.querySelector(".wd-esheet");
-      var backdrop = document.querySelector(".wd-esheet-backdrop");
-      if (!sheet || !backdrop) return;
-      var tab = defaultTab || "base";
-      var sub = sheet.querySelector("[data-wd-esub]");
+    function openEditor(subText) {
+      var sub = document.querySelector("[data-wd-esub]");
       if (sub) sub.textContent = subText || "";
-      forEachNode(sheet.querySelectorAll(".wd-etab"), function (b) {
-        b.classList.toggle("is-active", b.getAttribute("data-tab") === tab);
-      });
-      forEachNode(sheet.querySelectorAll(".wd-panel"), function (p) {
-        p.classList.toggle("is-active", p.getAttribute("data-panel") === tab);
-      });
-      sheet.hidden = false;
-      backdrop.hidden = false;
-      var body = sheet.querySelector(".wd-esheet__body");
-      if (body) body.scrollTop = 0;
-      requestAnimationFrame(function () {
-        document.body.classList.add("wd-esheet-open");
-      });
+      var titleEl = document.querySelector(".wd-editor__title");
+      if (titleEl) titleEl.textContent = subText && subText !== "새 견적" ? "견적 편집" : "새 견적";
+      document.body.classList.add("wd-editing");
+      // 인라인 에디터가 상단(헤더 아래)에 슬라이드다운 → 보이도록 맨 위로
+      setTimeout(function () {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }, 40);
+      updateEsecBadges();
       syncEditorFinal();
     }
 
     function closeEditor() {
-      var sheet = document.querySelector(".wd-esheet");
-      var backdrop = document.querySelector(".wd-esheet-backdrop");
-      document.body.classList.remove("wd-esheet-open");
-      setTimeout(function () {
-        if (sheet) sheet.hidden = true;
-        if (backdrop) backdrop.hidden = true;
-      }, 260);
+      document.body.classList.remove("wd-editing");
+      var ec = document.querySelector(".wd-card-editing");
+      if (ec) ec.classList.remove("wd-card-editing");
     }
 
     function syncEditorFinal() {
@@ -270,6 +263,7 @@
       }
       out.textContent = v;
       lastEditorFinal = v;
+      updateEsecBadges();
     }
 
     function syncHero() {
@@ -305,8 +299,11 @@
             var editBtn = card.querySelector(".edit-estimate-btn");
             if (editBtn) editBtn.click();
           }
+          var prev = document.querySelector(".wd-card-editing");
+          if (prev) prev.classList.remove("wd-card-editing");
+          card.classList.add("wd-card-editing");
           var name = (card.querySelector(".estimate-display-name") || {}).textContent || "견적 편집";
-          openEditor(name.trim(), "base");
+          openEditor(name.trim());
         });
         if (window.MutationObserver) {
           new MutationObserver(syncHero).observe(list, { childList: true, subtree: true });
@@ -844,9 +841,9 @@
       document.body.classList.add("wd-builder"); // 빌더 셸 IA
       buildHeader();
       buildSheet(); // 저장된 견적 🗂 sheet (재사용)
-      buildBuilderMaster(); // 고객칩 + 총액 HERO + 카트(estimatesList 이동)
-      buildEditorSheet(); // 편집 bottom sheet + 탭 + 컨테이너 이동 + foot
-      buildFabBar(); // master sticky: 저장 + 새 견적
+      buildBuilderMaster(); // 고객칩 + 총액 HERO + 인라인 에디터 슬롯 + 카트
+      buildFabBar(); // 하단 액션 바(카트:저장/새견적 ↔ 편집:이견적/완료)
+      buildEditorPanel(); // 인라인 에디터: 구성·옵션·비고 전 섹션 + 할인배송
       initBaseEnhancements();
       initToggleEnhancements();
       initMobileSelects();
