@@ -28,6 +28,8 @@ ENV/
 *.db
 *.sqlite3
 foms.dump
+# 로컬/런타임 DB·코드 백업 (repo 미추적; PTC §2.6.1 루트 allowlist 제외, backup_service 출력 경로)
+backups/
 # Playwright visual tests (regenerated each session; never commit)
 tests/visual/visual_local.sqlite
 tests/visual/visual_local.sqlite-*
