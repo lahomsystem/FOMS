@@ -23,6 +23,16 @@
     <div class="erp-mobile-shell-header__context">
       <strong class="erp-mobile-shell-header__title foms-shell-title">{{ mobile_shell_title or (_current.item.label if _current.item else '홈') }}</strong>
     </div>
+    {% if mobile_shell_show_mytasks %}
+    <a
+      class="erp-mobile-shell-header__mytasks foms-icon-btn{% if mobile_shell_mytasks_active %} is-active{% endif %}"
+      href="{{ mobile_shell_mytasks_href }}"
+      data-foms-mytasks-toggle
+      aria-label="내 작업만 보기"
+      aria-pressed="{{ 'true' if mobile_shell_mytasks_active else 'false' }}">
+      <i class="fas fa-user-check" aria-hidden="true"></i>
+    </a>
+    {% endif %}
     <button
       class="erp-mobile-shell-header__search foms-icon-btn"
       type="button"

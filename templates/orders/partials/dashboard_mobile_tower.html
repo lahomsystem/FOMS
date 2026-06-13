@@ -19,50 +19,46 @@
     </div>
     <div class="foms-tower__week-strip">
       {% for d in week.days %}
-      <div class="foms-tower__day {% if d.is_today %}is-today{% endif %}">
+      <button type="button"
+              class="foms-tower__day {% if d.is_today %}is-today is-active{% endif %}"
+              data-foms-day-tile data-iso="{{ d.iso }}"
+              aria-label="{{ d.dow }} {{ d.date }}일 일정 보기">
         {% if d.has_risk %}<span class="foms-tower__day-risk" aria-label="위험"></span>{% endif %}
         <span class="foms-tower__day-dow">{{ d.dow }}</span>
         <span class="foms-tower__day-date">{{ d.date }}</span>
         <span class="foms-tower__day-counts">
           {% if d.measure or d.construction %}📐{{ d.measure }}·🔨{{ d.construction }}{% else %}·{% endif %}
         </span>
-      </div>
+      </button>
       {% endfor %}
     </div>
   </section>
 
-  {# (B) 오늘의 현장 — 준비도 #}
-  <section>
+  {# (B) 현장 일정 — 주간 타일 클릭=날짜 변경, 실측/시공 탭=타입 필터. 인라인 ajax swap. #}
+  <section data-foms-day-ops
+           data-day-iso="{{ ct.today_iso }}"
+           data-tower-mine="{{ '1' if tower_mine_active else '0' }}"
+           data-foms-day-endpoint="{{ url_for('erp_dashboard.erp_dashboard_field_ops') }}">
     <div class="foms-tower__head">
-      <h2 class="foms-tower__head-title">📍 오늘의 현장</h2>
-      <a class="foms-tower__head-action" href="{{ url_for('erp_dashboard.erp_dashboard', today='1', view='queue') }}">{{ ct.today_count }}건 →</a>
+      <h2 class="foms-tower__head-title" data-foms-day-title>📍 오늘의 현장</h2>
+      <a class="foms-tower__head-action" data-foms-day-queue
+         href="{{ url_for('erp_dashboard.erp_dashboard', today='1', view='queue') }}">{{ ct.today_count }}건 →</a>
     </div>
-    {% if ct.today_field_ops %}
-      <div class="foms-tower__field-list">
-        {% for row in ct.today_field_ops %}
-        <a class="foms-tower__field foms-tower__field--{{ row.readiness_state }}"
-           href="{{ url_for('erp_dashboard.erp_order_mobile_detail', order_id=row.id) }}">
-          <span class="foms-tower__field-time">
-            <span class="foms-tower__field-hh">{{ row.time or '시간미정' }}</span>
-            <span class="foms-tower__field-type">{{ row.type }}</span>
-          </span>
-          <span class="foms-tower__field-body">
-            <span class="foms-tower__field-name">
-              {{ row.name }}
-              <span class="foms-stage-badge foms-stage-badge--{{ 'construction' if row.type_code == 'construction' else 'measure' }}">{{ row.type }}</span>
-            </span>
-            <span class="foms-tower__field-addr">{{ row.addr }}</span>
-            <span class="foms-tower__field-foot">
-              <span class="foms-tower__chip foms-tower__chip--{{ row.readiness_state }}">{{ row.readiness_label }}</span>
-              <span class="foms-tower__field-who">담당 {{ row.manager }}</span>
-            </span>
-          </span>
-        </a>
-        {% endfor %}
-      </div>
-    {% else %}
-      <div class="foms-tower__empty">오늘 잡힌 실측·시공 일정이 없습니다.</div>
-    {% endif %}
+    <div class="foms-tower__daytabs" role="tablist" aria-label="현장 유형">
+      <button type="button" class="foms-tower__daytab is-active" role="tab" aria-selected="true" data-foms-day-tab="all">
+        전체 <span class="foms-tower__daytab-n" data-foms-tabcount="all">{{ ct.today_count }}</span>
+      </button>
+      <button type="button" class="foms-tower__daytab" role="tab" aria-selected="false" data-foms-day-tab="measure">
+        📐 실측 <span class="foms-tower__daytab-n" data-foms-tabcount="measure">{{ ct.today_measure_count }}</span>
+      </button>
+      <button type="button" class="foms-tower__daytab" role="tab" aria-selected="false" data-foms-day-tab="construction">
+        🔨 시공 <span class="foms-tower__daytab-n" data-foms-tabcount="construction">{{ ct.today_construction_count }}</span>
+      </button>
+    </div>
+    <div data-foms-day-ops-list>
+      {% set rows = ct.today_field_ops %}
+      {% include 'orders/partials/dashboard_mobile_tower_field_list.html' %}
+    </div>
   </section>
 
   {# (C) 위험 레이더 #}

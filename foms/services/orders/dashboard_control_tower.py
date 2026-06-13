@@ -30,7 +30,7 @@ from foms.services.erp_display import (
 from foms.services.common.business_calendar import business_days_until
 from foms.services.erp_permissions import build_mine_sql_filter
 
-__all__ = ["build_mobile_control_tower"]
+__all__ = ["build_mobile_control_tower", "build_field_ops_for_day"]
 
 DOW_KR = ["월", "화", "수", "목", "금", "토", "일"]
 # 시공 단계 이후(=출고/설치 완료로 간주)면 '시공 준비'가 끝난 것으로 본다.
@@ -177,10 +177,20 @@ def _week_strip(base: Any, today: datetime.date) -> dict[str, Any]:
     }
 
 
-def _today_field_ops(base: Any, today_iso: str, *, limit: int = 12) -> list[dict[str, Any]]:
-    """오늘 실측/시공 약속 + 준비도 신호등 (시공 우선, 시간순)."""
+def _field_ops_for_date(base: Any, date_iso: str, *, field_type: str = "all", limit: int = 100) -> list[dict[str, Any]]:
+    """특정 날짜의 실측/시공 약속 + 준비도 신호등 (시공 우선, 시간순).
+
+    field_type: 'measure'(실측만) | 'construction'(시공만) | 'all'(둘 다).
+    limit는 한 날짜에 실무상 도달 불가능한 상한(=그날 전체 로딩 보장).
+    """
+    if field_type == "measure":
+        date_filter = Order.erp_measurement_date == date_iso
+    elif field_type == "construction":
+        date_filter = Order.erp_construction_date == date_iso
+    else:
+        date_filter = or_(Order.erp_measurement_date == date_iso, Order.erp_construction_date == date_iso)
     rows = (
-        base.filter(or_(Order.erp_measurement_date == today_iso, Order.erp_construction_date == today_iso))
+        base.filter(date_filter)
         .order_by(Order.erp_construction_date.desc().nullslast(), Order.created_at.desc())
         .limit(limit)
         .all()
@@ -188,7 +198,12 @@ def _today_field_ops(base: Any, today_iso: str, *, limit: int = 12) -> list[dict
     out: list[dict[str, Any]] = []
     for order in rows:
         sd = _ensure_dict(getattr(order, "structured_data", None))
-        is_cons = getattr(order, "erp_construction_date", None) == today_iso
+        if field_type == "measure":
+            is_cons = False
+        elif field_type == "construction":
+            is_cons = True
+        else:
+            is_cons = getattr(order, "erp_construction_date", None) == date_iso
         sched = (sd.get("schedule") or {}).get("construction" if is_cons else "measurement") or {}
         state, label = (_construction_readiness if is_cons else _measure_readiness)(order, sd)
         parties = sd.get("parties") or {}
@@ -206,6 +221,24 @@ def _today_field_ops(base: Any, today_iso: str, *, limit: int = 12) -> list[dict
         })
     out.sort(key=lambda r: (0 if r["type_code"] == "construction" else 1, r["time"] or "99:99"))
     return out
+
+
+def _type_counts_for_date(base: Any, date_iso: str) -> tuple[int, int]:
+    """(실측 건수, 시공 건수) — 표시 limit과 무관한 정확 카운트."""
+    measure = int(base.filter(Order.erp_measurement_date == date_iso).count() or 0)
+    construction = int(base.filter(Order.erp_construction_date == date_iso).count() or 0)
+    return measure, construction
+
+
+def _day_label(date_iso: str, today: datetime.date) -> str:
+    """섹션 제목용 날짜 라벨. 오늘이면 '오늘의 현장', 그 외 'M/D(요일) 현장'."""
+    try:
+        d = datetime.date.fromisoformat(date_iso)
+    except (TypeError, ValueError):
+        return "현장 일정"
+    if d == today:
+        return "오늘의 현장"
+    return f"{d.month}/{d.day}({DOW_KR[d.weekday()]}) 현장"
 
 
 def _risk_group(key: str, icon: str, tone: str, title: str, why: str, count: int, filter_args: dict) -> dict[str, Any]:
@@ -332,17 +365,68 @@ def _mine_open_count(base: Any, current_user: Any) -> int:
     )
 
 
-def build_mobile_control_tower(db: Any, current_user: Any, *, today: datetime.date | None = None) -> dict[str, Any]:
-    """모바일 홈 컨트롤 타워 전체 페이로드 (JSON 직렬화 가능)."""
+def _apply_mine_only(base: Any, current_user: Any) -> Any:
+    """내작업 토글 ON: 타워 base를 현재 사용자 담당분으로 축소."""
+    if not current_user:
+        return base
+    conds = build_mine_sql_filter(current_user)
+    return base.filter(or_(*conds)) if conds else base
+
+
+def build_field_ops_for_day(
+    db: Any,
+    current_user: Any,
+    date_iso: str,
+    *,
+    field_type: str = "all",
+    mine_only: bool = False,
+    today: datetime.date | None = None,
+) -> dict[str, Any]:
+    """특정 날짜 현장 일정 페이로드 (인라인 탭/주간 타일 클릭 ajax용)."""
+    today = today or datetime.date.today()
+    base = _tower_base_query(db, current_user)
+    if mine_only:
+        base = _apply_mine_only(base, current_user)
+    rows = _field_ops_for_date(base, date_iso, field_type=field_type)
+    measure_count, construction_count = _type_counts_for_date(base, date_iso)
+    if field_type == "measure":
+        count = measure_count
+    elif field_type == "construction":
+        count = construction_count
+    else:
+        count = _today_total(base, date_iso)
+    return {
+        "rows": rows,
+        "count": count,
+        "measure_count": measure_count,
+        "construction_count": construction_count,
+        "label": _day_label(date_iso, today),
+        "iso": date_iso,
+    }
+
+
+def build_mobile_control_tower(
+    db: Any, current_user: Any, *, today: datetime.date | None = None, mine_only: bool = False
+) -> dict[str, Any]:
+    """모바일 홈 컨트롤 타워 전체 페이로드 (JSON 직렬화 가능).
+
+    mine_only=True면 '내작업' 토글 — 타워 전체를 현재 사용자 담당분으로 필터.
+    """
     today = today or datetime.date.today()
     today_iso = today.isoformat()
     base = _tower_base_query(db, current_user)
+    if mine_only:
+        base = _apply_mine_only(base, current_user)
     risk = _risk_radar(base, today)
-    field_ops = _today_field_ops(base, today_iso)
+    field_ops = _field_ops_for_date(base, today_iso)
+    measure_count, construction_count = _type_counts_for_date(base, today_iso)
     return {
         "week": _week_strip(base, today),
+        "today_iso": today_iso,
         "today_field_ops": field_ops,
         "today_count": _today_total(base, today_iso),
+        "today_measure_count": measure_count,
+        "today_construction_count": construction_count,
         "risk_groups": risk,
         "risk_total": sum(g["count"] for g in risk),
         "inbound_count": _inbound_count(base),

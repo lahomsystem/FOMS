@@ -14,6 +14,8 @@
 {% if _filters.get('has_alert') %}{% set _ = _chip_params.append('has_alert=' ~ (_filters.has_alert|urlencode)) %}{% endif %}
 {% if _filters.get('alert_type') %}{% set _ = _chip_params.append('alert_type=' ~ (_filters.alert_type|urlencode)) %}{% endif %}
 {% if _filters.get('today') == '1' %}{% set _ = _chip_params.append('today=1') %}{% endif %}
+{% if _filters.get('date') %}{% set _ = _chip_params.append('date=' ~ (_filters.date|urlencode)) %}{% endif %}
+{% if _filters.get('field') %}{% set _ = _chip_params.append('field=' ~ (_filters.field|urlencode)) %}{% endif %}
 {% if _sort and _sort != 'latest' %}{% set _ = _chip_params.append('sort=' ~ (_sort|urlencode)) %}{% endif %}
 
 <section

@@ -36,7 +36,10 @@ from foms.services.request_utils import get_search_query_arg
 from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
 from foms.services.feature_flags import env_bool, env_bool_or_mobile_v2, is_enabled_for_user
 from foms.services.foms_split_view import build_split_master_cards, default_split_side_items
-from foms.services.orders.dashboard_control_tower import build_mobile_control_tower
+from foms.services.orders.dashboard_control_tower import (
+    build_mobile_control_tower,
+    build_field_ops_for_day,
+)
 from foms.services.common.dashboard_cache import (
     TTL_ATTACHMENT_COUNT_MAP,
     TTL_PAYLOAD_ASSEMBLY,
@@ -129,6 +132,16 @@ def erp_dashboard():
     if f_sort not in ('latest', 'schedule', 'amount'):
         f_sort = 'latest'
     f_today = (request.args.get('today') or '').strip()
+    # 내작업 토글(타워 전용): drill을 발동시키지 않고 타워 페이로드만 내 담당분으로 축소.
+    f_tower_mine = request.args.get('tower_mine') == '1'
+    # 주간 타일/현장 탭 deep-link: 특정 날짜(+선택 타입) 큐. 유효한 ISO일 때만.
+    f_date = (request.args.get('date') or '').strip()
+    f_field = (request.args.get('field') or '').strip()
+    if f_date:
+        try:
+            datetime.date.fromisoformat(f_date)
+        except ValueError:
+            f_date = ''
 
     # Phase H: 대시보드 운영 화면은 최근 활성 데이터만 조회 (과거 완료건 제외)
     _q = db.query(Order).filter(Order.dashboard_active_filter(days=60), Order.is_erp_order.is_(True))
@@ -158,6 +171,20 @@ def erp_dashboard():
                 Order.erp_construction_date == today_iso,
             )
         )
+
+    # 특정 날짜 현장 큐 (주간 타일/현장 탭 '그날 전체'). field로 실측/시공 한정.
+    if f_date:
+        if f_field == 'measure':
+            _q = _q.filter(Order.erp_measurement_date == f_date)
+        elif f_field == 'construction':
+            _q = _q.filter(Order.erp_construction_date == f_date)
+        else:
+            _q = _q.filter(
+                or_(
+                    Order.erp_measurement_date == f_date,
+                    Order.erp_construction_date == f_date,
+                )
+            )
 
     # C. f_team SQL 필터
     if f_team and not is_admin:
@@ -685,7 +712,7 @@ def erp_dashboard():
     # 드릴이 걸리면 기존 작업 큐로 전환한다. (단계 타일·위험 카드가 큐로 연결됨)
     _has_drill = any((
         f_q, effective_stage, f_urgent == '1', f_has_alert == '1', f_alert_type,
-        f_team, request.args.get('mine') == '1', f_today == '1',
+        f_team, request.args.get('mine') == '1', f_today == '1', bool(f_date),
         request.args.get('view') == 'queue',
         request.args.get('focus_order'),
     ))
@@ -695,15 +722,18 @@ def erp_dashboard():
     control_tower = None
     if tower_mode:
         _tower_fp = {
-            "v": 1,
+            "v": 2,
             "user": _orders_user_visibility_fingerprint(current_user, is_admin),
             "date": today_iso,
+            "mine": f_tower_mine,
         }
         _tower_key = build_dashboard_cache_key("orders", "mobile_control_tower", _tower_fp)
         control_tower = get_or_compute_dashboard_slice(
             _tower_key,
             TTL_SUMMARY_COUNTS,
-            lambda: build_mobile_control_tower(db, current_user, today=datetime.date.today()),
+            lambda: build_mobile_control_tower(
+                db, current_user, today=datetime.date.today(), mine_only=f_tower_mine
+            ),
             page="orders",
             slice_name="mobile_control_tower",
         )
@@ -720,6 +750,8 @@ def erp_dashboard():
             'mine': request.args.get('mine') or '',
             'sort': f_sort,
             'today': f_today,
+            'date': f_date,
+            'field': f_field,
         },
         "kpis": kpis,
         "process_steps": process_steps,
@@ -739,6 +771,11 @@ def erp_dashboard():
         apply_erp_shell_fragment_headers(response, request)
         return response
 
+    _mytasks_href = (
+        url_for('erp_dashboard.erp_dashboard')
+        if f_tower_mine
+        else url_for('erp_dashboard.erp_dashboard', tower_mine='1')
+    )
     _body = render_template(
         template_name,
         erp_dashboard_fragment=wants_erp_shell_tab_body(request),
@@ -747,6 +784,10 @@ def erp_dashboard():
         process_steps=process_steps,
         tower_mode=tower_mode,
         control_tower=control_tower,
+        tower_mine_active=f_tower_mine,
+        mobile_shell_show_mytasks=tower_mode,
+        mobile_shell_mytasks_active=f_tower_mine,
+        mobile_shell_mytasks_href=_mytasks_href,
         filters={
             'stage': effective_stage,
             'urgent': f_urgent,
@@ -757,6 +798,8 @@ def erp_dashboard():
             'mine': request.args.get('mine') or '',
             'sort': f_sort,
             'today': f_today,
+            'date': f_date,
+            'field': f_field,
         },
         team_labels=TEAM_LABELS,
         stage_labels=STAGE_LABELS,
@@ -785,6 +828,50 @@ def erp_dashboard():
 def erp_dashboard_trailing_slash():
     """Normalize mobile/browser-saved trailing-slash dashboard URLs."""
     return redirect(url_for('erp_dashboard.erp_dashboard', **request.args))
+
+
+@erp_dashboard_bp.route('/dashboard/field-ops')
+@login_required
+def erp_dashboard_field_ops():
+    """모바일 홈 '현장 일정' 인라인 swap — 특정 날짜·타입 현장 목록(JSON+HTML).
+
+    주간 타일 클릭(날짜 변경)과 실측/시공 탭(타입 필터)이 공유하는 단일 소스.
+    """
+    db = get_db()
+    current_user = getattr(g, 'current_user', None)
+    field_type = (request.args.get('field') or 'all').strip()
+    if field_type not in ('all', 'measure', 'construction'):
+        field_type = 'all'
+    mine_only = request.args.get('tower_mine') == '1'
+
+    date_iso = (request.args.get('date') or '').strip()
+    try:
+        datetime.date.fromisoformat(date_iso)
+    except ValueError:
+        date_iso = datetime.date.today().isoformat()
+
+    payload = build_field_ops_for_day(
+        db, current_user, date_iso, field_type=field_type, mine_only=mine_only
+    )
+    list_html = render_template(
+        'orders/partials/dashboard_mobile_tower_field_list.html',
+        rows=payload['rows'],
+    )
+    queue_args = {'date': date_iso, 'view': 'queue'}
+    if field_type in ('measure', 'construction'):
+        queue_args['field'] = field_type
+    return {
+        'success': True,
+        'data': {
+            'html': list_html,
+            'count': payload['count'],
+            'measure_count': payload['measure_count'],
+            'construction_count': payload['construction_count'],
+            'label': payload['label'],
+            'iso': date_iso,
+            'queue_href': url_for('erp_dashboard.erp_dashboard', **queue_args),
+        },
+    }
 
 
 @erp_dashboard_bp.route('/orders/<int:order_id>/mobile')
