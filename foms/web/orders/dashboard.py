@@ -39,6 +39,9 @@ from foms.services.foms_split_view import build_split_master_cards, default_spli
 from foms.services.orders.dashboard_control_tower import (
     build_mobile_control_tower,
     build_field_ops_for_day,
+    build_risk_order_ids,
+    build_risk_frame,
+    RISK_KEYS,
 )
 from foms.services.common.dashboard_cache import (
     TTL_ATTACHMENT_COUNT_MAP,
@@ -142,6 +145,10 @@ def erp_dashboard():
             datetime.date.fromisoformat(f_date)
         except ValueError:
             f_date = ''
+    # 위험 레이더 드릴다운: 카드와 동일 술어의 정확 order-id 집합으로 착지(SSOT).
+    f_risk = (request.args.get('risk') or '').strip()
+    if f_risk not in RISK_KEYS:
+        f_risk = ''
 
     # Phase H: 대시보드 운영 화면은 최근 활성 데이터만 조회 (과거 완료건 제외)
     _q = db.query(Order).filter(Order.dashboard_active_filter(days=60), Order.is_erp_order.is_(True))
@@ -185,6 +192,12 @@ def erp_dashboard():
                     Order.erp_construction_date == f_date,
                 )
             )
+
+    # 위험 레이더 드릴다운: 카드와 동일 술어의 정확 id 집합으로 스코프.
+    # _q_stats 복제 이전에 적용 → 칩·리스트·total이 모두 같은 집합(SSOT). 빈 집합이면 정상 0건.
+    if f_risk:
+        _risk_ids = build_risk_order_ids(db, current_user, f_risk)
+        _q = _q.filter(Order.id.in_(_risk_ids))
 
     # C. f_team SQL 필터
     if f_team and not is_admin:
@@ -277,6 +290,11 @@ def erp_dashboard():
     # count는 SQL count를 그대로 사용 (약간의 오차 허용)
     total_orders = _q.count()
     total_pages = (total_orders + per_page - 1) // per_page
+
+    # 위험 착지 프레임(카테고리·결함·CTA·뒤로=레이더). total_orders=len(risk_ids)=카드=칩 (SSOT).
+    risk_frame = build_risk_frame(
+        f_risk, total_orders, back_href=url_for('erp_dashboard.erp_dashboard')
+    ) if f_risk else None
 
     if (
         f_q
@@ -712,7 +730,7 @@ def erp_dashboard():
     # 드릴이 걸리면 기존 작업 큐로 전환한다. (단계 타일·위험 카드가 큐로 연결됨)
     _has_drill = any((
         f_q, effective_stage, f_urgent == '1', f_has_alert == '1', f_alert_type,
-        f_team, request.args.get('mine') == '1', f_today == '1', bool(f_date),
+        f_team, request.args.get('mine') == '1', f_today == '1', bool(f_date), bool(f_risk),
         request.args.get('view') == 'queue',
         request.args.get('focus_order'),
     ))
@@ -752,6 +770,7 @@ def erp_dashboard():
             'today': f_today,
             'date': f_date,
             'field': f_field,
+            'risk': f_risk,
         },
         "kpis": kpis,
         "process_steps": process_steps,
@@ -788,6 +807,7 @@ def erp_dashboard():
         mobile_shell_show_mytasks=tower_mode,
         mobile_shell_mytasks_active=f_tower_mine,
         mobile_shell_mytasks_href=_mytasks_href,
+        risk_frame=risk_frame,
         filters={
             'stage': effective_stage,
             'urgent': f_urgent,
@@ -800,6 +820,7 @@ def erp_dashboard():
             'today': f_today,
             'date': f_date,
             'field': f_field,
+            'risk': f_risk,
         },
         team_labels=TEAM_LABELS,
         stage_labels=STAGE_LABELS,

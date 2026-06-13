@@ -169,3 +169,26 @@
 .foms-tower__mini--overdue { background: var(--foms-color-danger-500); }
 .foms-tower__mini--imminent { background: var(--foms-color-warning-500); }
 .foms-tower__all-queue { display: block; text-align: center; margin-top: var(--foms-space-3); font-size: var(--foms-font-size-sm); font-weight: var(--foms-font-weight-semibold); color: var(--foms-text-link); }
+
+/* 위험 레이더 드릴다운 착지 헤더 (risk_frame) — 위험 프레임 보존. */
+.foms-risk-frame {
+  background: var(--foms-surface-base); border: 1px solid var(--foms-border-subtle);
+  border-left: 4px solid var(--foms-border-default); border-radius: var(--foms-radius-lg);
+  padding: var(--foms-space-3); display: grid; gap: 6px;
+}
+.foms-risk-frame--red { border-left-color: var(--foms-color-danger-500); }
+.foms-risk-frame--amber { border-left-color: var(--foms-color-warning-500); }
+.foms-risk-frame__back { font-size: var(--foms-font-size-xs); color: var(--foms-text-link); font-weight: var(--foms-font-weight-semibold); text-decoration: none; }
+.foms-risk-frame__head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.foms-risk-frame__icon { font-size: 20px; flex-shrink: 0; }
+.foms-risk-frame__title { margin: 0; font-size: var(--foms-font-size-base); font-weight: var(--foms-font-weight-bold); flex: 1; min-width: 0; }
+.foms-risk-frame__count { font-size: var(--foms-font-size-lg); font-weight: var(--foms-font-weight-bold); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.foms-risk-frame--red .foms-risk-frame__count { color: var(--foms-color-danger-600); }
+.foms-risk-frame--amber .foms-risk-frame__count { color: var(--foms-color-warning-600); }
+.foms-risk-frame__count span { font-size: 11px; color: var(--foms-text-tertiary); font-weight: 400; margin-left: 1px; }
+.foms-risk-frame__defect { margin: 0; font-size: var(--foms-font-size-sm); color: var(--foms-text-secondary); }
+.foms-risk-frame__cta { margin: 0; font-size: var(--foms-font-size-xs); color: var(--foms-text-tertiary); }
+
+/* 위험 없음 안심 빈상태 */
+.foms-mobile-empty--ok { color: var(--foms-color-success-600); }
+.foms-mobile-empty--ok i { color: var(--foms-color-success-500) !important; }

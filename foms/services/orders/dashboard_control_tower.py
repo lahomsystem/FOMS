@@ -30,7 +30,13 @@ from foms.services.erp_display import (
 from foms.services.common.business_calendar import business_days_until
 from foms.services.erp_permissions import build_mine_sql_filter
 
-__all__ = ["build_mobile_control_tower", "build_field_ops_for_day"]
+__all__ = [
+    "build_mobile_control_tower",
+    "build_field_ops_for_day",
+    "build_risk_order_ids",
+    "build_risk_frame",
+    "RISK_KEYS",
+]
 
 DOW_KR = ["월", "화", "수", "목", "금", "토", "일"]
 # 시공 단계 이후(=출고/설치 완료로 간주)면 '시공 준비'가 끝난 것으로 본다.
@@ -275,52 +281,80 @@ def _samples_balance(orders: list) -> str:
 _RISK_CAND_LIMIT = 200
 
 
-def _risk_construction_unready(base: Any, today: datetime.date, cons_dates: list[str]) -> dict[str, Any] | None:
-    """시공 임박(D-3)인데 설치단계 미도달. 탭→construction_d3(임박 전체, 미준비 포함 상위집합)."""
-    q = base.filter(
+# ── 위험 모집단 id 집합 (SSOT) ──
+# 카드 카운트·착지 칩·착지 리스트가 공유하는 단일 술어. build_risk_order_ids가 동일 함수를 재사용해
+# '카드=칩=리스트' 3숫자 일치를 구조적으로 보장한다(연구 §8.1).
+
+def _ids_construction_unready(base: Any, cons_dates: list[str]) -> list[int]:
+    """시공 임박(D-3)인데 설치단계 미도달인 order id (순수 SQL)."""
+    rows = base.filter(
         Order.erp_construction_date.in_(cons_dates),
         or_(Order.erp_stage_code.is_(None), Order.erp_stage_code.notin_(_INSTALL_READY_CODES)),
-    )
-    count = int(q.count() or 0)
-    if not count:
-        return None
-    why = _samples_construction(q.order_by(Order.erp_construction_date.asc()).limit(2).all(), today)
-    return _risk_group("construction_unready", "🔨", "red", "시공 임박인데 미준비", why, count, {"alert_type": "construction_d3"})
+    ).with_entities(Order.id).all()
+    return [int(r[0]) for r in rows]
 
 
-def _risk_drawing_stalled(base: Any) -> dict[str, Any] | None:
-    """도면/컨펌 48h+ 정체. 탭→drawing_overdue(DRAWING+CONFIRM 정체 정확 일치)."""
+def _ids_drawing_stalled(base: Any) -> list[int]:
+    """도면/컨펌 48h+ 정체 order id (순수 SQL)."""
     cutoff = datetime.datetime.now() - datetime.timedelta(hours=48)
-    q = base.filter(
+    rows = base.filter(
         Order.erp_stage_code.in_(["DRAWING", "CONFIRM"]),
         Order.erp_stage_updated_at.isnot(None),
         Order.erp_stage_updated_at <= cutoff,
-    )
-    count = int(q.count() or 0)
-    if not count:
+    ).with_entities(Order.id).all()
+    return [int(r[0]) for r in rows]
+
+
+def _ids_measure_unassigned(base: Any, meas_dates: list[str]) -> list[int]:
+    """실측 임박(D-4)인데 담당 미배정 order id (JSONB는 후보 200캡 메모리 필터)."""
+    cand = base.filter(Order.erp_measurement_date.in_(meas_dates)).limit(_RISK_CAND_LIMIT).all()
+    return [o.id for o in cand if not _measure_assigned(o, _ensure_dict(getattr(o, "structured_data", None)))]
+
+
+def _ids_balance_due(base: Any, cons_dates: list[str]) -> list[int]:
+    """잔금 미수 + 시공 임박 order id (JSONB는 후보 200캡 메모리 필터)."""
+    cand = base.filter(Order.erp_construction_date.in_(cons_dates)).limit(_RISK_CAND_LIMIT).all()
+    return [o.id for o in cand if (_balance_remaining(_ensure_dict(getattr(o, "structured_data", None))) or 0) > 0]
+
+
+def _risk_construction_unready(base: Any, today: datetime.date, cons_dates: list[str]) -> dict[str, Any] | None:
+    """시공 임박(D-3)인데 설치단계 미도달. 착지→risk=construction_unready(정확 동일 집합)."""
+    ids = _ids_construction_unready(base, cons_dates)
+    if not ids:
         return None
-    why = _samples_names(q.order_by(Order.erp_stage_updated_at.asc()).limit(2).all(), fallback="컨펌 지연")
-    return _risk_group("drawing_stalled", "⏳", "amber", "도면 컨펌 48h+ 정체", why, count, {"alert_type": "drawing_overdue"})
+    samples = base.filter(Order.id.in_(ids)).order_by(Order.erp_construction_date.asc()).limit(2).all()
+    why = _samples_construction(samples, today)
+    return _risk_group("construction_unready", "🔨", "red", "시공 임박인데 미준비", why, len(ids), {"risk": "construction_unready"})
+
+
+def _risk_drawing_stalled(base: Any) -> dict[str, Any] | None:
+    """도면/컨펌 48h+ 정체. 착지→risk=drawing_stalled."""
+    ids = _ids_drawing_stalled(base)
+    if not ids:
+        return None
+    samples = base.filter(Order.id.in_(ids)).order_by(Order.erp_stage_updated_at.asc()).limit(2).all()
+    why = _samples_names(samples, fallback="컨펌 지연")
+    return _risk_group("drawing_stalled", "⏳", "amber", "도면 컨펌 48h+ 정체", why, len(ids), {"risk": "drawing_stalled"})
 
 
 def _risk_measure_unassigned(base: Any, meas_dates: list[str]) -> dict[str, Any] | None:
-    """실측 임박(D-4)인데 담당 미배정. 탭→measurement_d4(임박 전체 상위집합)."""
-    cand = base.filter(Order.erp_measurement_date.in_(meas_dates)).limit(_RISK_CAND_LIMIT).all()
-    unassigned = [o for o in cand if not _measure_assigned(o, _ensure_dict(getattr(o, "structured_data", None)))]
-    if not unassigned:
+    """실측 임박(D-4)인데 담당 미배정. 착지→risk=measure_unassigned(미배정만)."""
+    ids = _ids_measure_unassigned(base, meas_dates)
+    if not ids:
         return None
+    samples = base.filter(Order.id.in_(ids[:2])).all()
     return _risk_group("measure_unassigned", "📐", "amber", "실측 예정 · 담당 미배정",
-                       _samples_names(unassigned[:2], fallback="담당 미배정"), len(unassigned), {"alert_type": "measurement_d4"})
+                       _samples_names(samples, fallback="담당 미배정"), len(ids), {"risk": "measure_unassigned"})
 
 
 def _risk_balance_due(base: Any, cons_dates: list[str]) -> dict[str, Any] | None:
-    """잔금 미수인데 시공 임박. 탭→construction_d3(임박 전체, 잔금건 포함 상위집합)."""
-    cand = base.filter(Order.erp_construction_date.in_(cons_dates)).limit(_RISK_CAND_LIMIT).all()
-    due = [o for o in cand if (_balance_remaining(_ensure_dict(getattr(o, "structured_data", None))) or 0) > 0]
-    if not due:
+    """잔금 미수인데 시공 임박. 착지→risk=balance_due(잔금건만)."""
+    ids = _ids_balance_due(base, cons_dates)
+    if not ids:
         return None
+    samples = base.filter(Order.id.in_(ids[:2])).all()
     return _risk_group("balance_due", "💰", "red", "잔금 미수 · 시공 임박",
-                       _samples_balance(due[:2]), len(due), {"alert_type": "construction_d3"})
+                       _samples_balance(samples), len(ids), {"risk": "balance_due"})
 
 
 def _risk_radar(base: Any, today: datetime.date) -> list[dict[str, Any]]:
@@ -334,6 +368,61 @@ def _risk_radar(base: Any, today: datetime.date) -> list[dict[str, Any]]:
         _risk_balance_due(base, cons_dates),
     ]
     return [g for g in candidates if g]
+
+
+# ── 위험 착지(드릴다운) SSOT/프레임 ──
+RISK_KEYS = ("construction_unready", "drawing_stalled", "measure_unassigned", "balance_due")
+
+# 착지 상단 risk_frame 표시 메타(SSOT). 카드 제목/아이콘과 일치.
+RISK_META: dict[str, dict[str, str]] = {
+    "construction_unready": {"icon": "🔨", "tone": "red", "title": "시공 임박인데 미준비",
+                             "defect": "시공 단계 미도달 — 출고 확인 필요", "cta": "생산/출고 독촉"},
+    "balance_due": {"icon": "💰", "tone": "red", "title": "잔금 미수 · 시공 임박",
+                    "defect": "시공 전 잔금 미수", "cta": "고객 연락 · 입금 확인"},
+    "measure_unassigned": {"icon": "📐", "tone": "amber", "title": "실측 예정 · 담당 미배정",
+                           "defect": "실측 담당자 미배정", "cta": "담당 배정"},
+    "drawing_stalled": {"icon": "⏳", "tone": "amber", "title": "도면 컨펌 48h+ 정체",
+                        "defect": "도면/컨펌 48시간+ 정체", "cta": "컨펌 독촉"},
+}
+
+
+def build_risk_order_ids(db: Any, current_user: Any, key: str, *, today: datetime.date | None = None) -> list[int]:
+    """위험 key의 정확 order-id 집합 (착지 큐 SSOT). 카드 카운트와 동일 술어를 재사용한다.
+
+    라우트가 이 집합으로 `_q`(칩/리스트/total)를 스코프하면 카드=칩=리스트 3숫자가 일치한다.
+    """
+    if key not in RISK_KEYS:
+        return []
+    today = today or datetime.date.today()
+    base = _tower_base_query(db, current_user)
+    cons_dates = _business_window_dates(today, max_business_days=3, window_days=10)
+    meas_dates = _business_window_dates(today, max_business_days=4, window_days=12)
+    if key == "construction_unready":
+        return _ids_construction_unready(base, cons_dates)
+    if key == "drawing_stalled":
+        return _ids_drawing_stalled(base)
+    if key == "measure_unassigned":
+        return _ids_measure_unassigned(base, meas_dates)
+    if key == "balance_due":
+        return _ids_balance_due(base, cons_dates)
+    return []
+
+
+def build_risk_frame(key: str, count: int, *, back_href: str = "/erp/dashboard") -> dict[str, Any] | None:
+    """착지 상단 risk_frame 페이로드(카테고리·결함·CTA·뒤로=레이더)."""
+    meta = RISK_META.get(key)
+    if not meta:
+        return None
+    return {
+        "key": key,
+        "icon": meta["icon"],
+        "tone": meta["tone"],
+        "title": meta["title"],
+        "defect": meta["defect"],
+        "cta": meta["cta"],
+        "count": int(count or 0),
+        "back_href": back_href,
+    }
 
 
 def _today_total(base: Any, today_iso: str) -> int:

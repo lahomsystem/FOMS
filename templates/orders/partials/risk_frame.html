@@ -1,0 +1,12 @@
+{# 위험 레이더 드릴다운 착지 헤더 — 위험 프레임 보존(카테고리·결함·마감 카운트·권장 행동·뒤로=레이더).
+   입력: risk_frame (foms.services.orders.dashboard_control_tower.build_risk_frame). #}
+<section class="foms-risk-frame foms-risk-frame--{{ risk_frame.tone }}" data-risk-frame data-risk-key="{{ risk_frame.key }}">
+  <a class="foms-risk-frame__back" href="{{ risk_frame.back_href }}">← 위험 레이더</a>
+  <div class="foms-risk-frame__head">
+    <span class="foms-risk-frame__icon" aria-hidden="true">{{ risk_frame.icon }}</span>
+    <h1 class="foms-risk-frame__title">{{ risk_frame.title }}</h1>
+    <span class="foms-risk-frame__count">{{ risk_frame.count }}<span>건</span></span>
+  </div>
+  <p class="foms-risk-frame__defect">{{ risk_frame.defect }}</p>
+  <p class="foms-risk-frame__cta">권장 행동 · {{ risk_frame.cta }}</p>
+</section>

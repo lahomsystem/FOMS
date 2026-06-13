@@ -71,10 +71,14 @@ def test_risk_group_shape():
 
 
 class _FakeQuery:
-    """filter/order_by/limit/count/all 만 지원하는 최소 쿼리 스텁."""
+    """filter/order_by/limit/count/with_entities/all 만 지원하는 최소 쿼리 스텁.
 
-    def __init__(self, rows):
+    with_entities(Order.id) 이후 all()은 실제 ORM처럼 (id,) 튜플을 돌려준다.
+    """
+
+    def __init__(self, rows, as_id_tuples=False):
         self._rows = list(rows)
+        self._as_id_tuples = as_id_tuples
 
     def filter(self, *a, **k):
         return self
@@ -83,12 +87,17 @@ class _FakeQuery:
         return self
 
     def limit(self, n):
-        return _FakeQuery(self._rows[:n])
+        return _FakeQuery(self._rows[:n], self._as_id_tuples)
+
+    def with_entities(self, *a, **k):
+        return _FakeQuery(self._rows, as_id_tuples=True)
 
     def count(self):
         return len(self._rows)
 
     def all(self):
+        if self._as_id_tuples:
+            return [(o.id,) for o in self._rows]
         return list(self._rows)
 
 
@@ -108,20 +117,30 @@ def test_business_window_dates_includes_today_excludes_far():
     assert (today + datetime.timedelta(days=10)).isoformat() not in dates  # 영업일 D-3 초과 제외
 
 
-def test_risk_balance_due_targets_construction_d3_superset_queue():
-    """잔금 미수 카드는 시공 임박(construction_d3) 큐로 연결돼야 한다(카운트 집합 포함)."""
+def test_risk_balance_due_targets_own_risk_key():
+    """잔금 미수 카드는 자기 위험 key로 착지(SSOT). construction_d3 상위집합 붕괴 금지."""
     base = _FakeQuery([_order_with_balance(1, 100000), _order_with_balance(2, 0), _order_with_balance(3, 50000)])
     g = ct._risk_balance_due(base, ["2026-06-10"])
     assert g is not None
     assert g["count"] == 2  # 잔금>0 인 건만
-    assert g["filter"] == {"alert_type": "construction_d3"}  # stage=시공(불일치) 아님
+    assert g["filter"] == {"risk": "balance_due"}  # construction_unready와 분리
 
 
-def test_risk_drawing_stalled_targets_drawing_overdue_queue():
+def test_risk_construction_unready_distinct_from_balance_due():
+    """미준비와 잔금은 동일 URL로 붕괴되면 안 된다(연구 핵심 결함 회귀 가드)."""
+    base = _FakeQuery([_Order(id=1, erp_stage_code="PRODUCTION",
+                              structured_data={"parties": {"customer": {"name": "가"}}})])
+    g = ct._risk_construction_unready(base, __import__("datetime").date(2026, 6, 9), ["2026-06-10"])
+    assert g is not None
+    assert g["filter"] == {"risk": "construction_unready"}
+    assert g["filter"] != {"risk": "balance_due"}
+
+
+def test_risk_drawing_stalled_targets_own_risk_key():
     base = _FakeQuery([_Order(id=1, structured_data={"parties": {"customer": {"name": "가"}}})])
     g = ct._risk_drawing_stalled(base)
     assert g is not None
-    assert g["filter"] == {"alert_type": "drawing_overdue"}  # stage=도면(CONFIRM 누락) 아님
+    assert g["filter"] == {"risk": "drawing_stalled"}
 
 
 def test_risk_groups_none_when_empty():
@@ -129,3 +148,18 @@ def test_risk_groups_none_when_empty():
     assert ct._risk_drawing_stalled(base) is None
     assert ct._risk_balance_due(base, ["2026-06-10"]) is None
     assert ct._risk_measure_unassigned(base, ["2026-06-10"]) is None
+
+
+def test_build_risk_frame_meta_per_key():
+    """risk_frame 착지 헤더는 모든 위험 key에 대해 제목·결함·CTA를 제공한다."""
+    for key in ct.RISK_KEYS:
+        f = ct.build_risk_frame(key, 3, back_href="/erp/dashboard")
+        assert f["key"] == key and f["count"] == 3
+        assert f["title"] and f["defect"] and f["cta"]
+        assert f["tone"] in ("red", "amber")
+        assert f["back_href"] == "/erp/dashboard"
+    assert ct.build_risk_frame("bogus", 1) is None
+
+
+def test_build_risk_order_ids_rejects_unknown_key():
+    assert ct.build_risk_order_ids(None, None, "bogus") == []

@@ -16,6 +16,7 @@
 {% if _filters.get('today') == '1' %}{% set _ = _chip_params.append('today=1') %}{% endif %}
 {% if _filters.get('date') %}{% set _ = _chip_params.append('date=' ~ (_filters.date|urlencode)) %}{% endif %}
 {% if _filters.get('field') %}{% set _ = _chip_params.append('field=' ~ (_filters.field|urlencode)) %}{% endif %}
+{% if _filters.get('risk') %}{% set _ = _chip_params.append('risk=' ~ (_filters.risk|urlencode)) %}{% endif %}
 {% if _sort and _sort != 'latest' %}{% set _ = _chip_params.append('sort=' ~ (_sort|urlencode)) %}{% endif %}
 
 <section
@@ -26,6 +27,8 @@
   data-total-pages="{{ total_pages }}"
   data-page-label="{{ page }} / {{ total_pages }}">
   {% include 'orders/partials/dashboard_mobile_filter_sheet.html' %}
+
+  {% if risk_frame %}{% include 'orders/partials/risk_frame.html' %}{% endif %}
 
   {% if orders %}
     <div class="foms-mobile-queue-list" data-foms-mobile-queue-list>
@@ -43,6 +46,13 @@
         </a>
       </div>
     {% endif %}
+  {% elif risk_frame %}
+    <div class="foms-mobile-empty foms-mobile-empty--ok">
+      <i class="fas fa-circle-check" aria-hidden="true"></i>
+      <p class="mb-1">이 위험은 지금 없습니다.</p>
+      <small>{{ risk_frame.title }} 해당 건이 없습니다.</small>
+      <a class="foms-btn foms-btn--secondary foms-btn--sm mt-3" href="{{ risk_frame.back_href }}">← 위험 레이더</a>
+    </div>
   {% else %}
     <div class="foms-mobile-empty">
       <i class="fas fa-inbox" aria-hidden="true"></i>
