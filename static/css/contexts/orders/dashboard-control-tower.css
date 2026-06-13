@@ -192,3 +192,9 @@
 /* 위험 없음 안심 빈상태 */
 .foms-mobile-empty--ok { color: var(--foms-color-success-600); }
 .foms-mobile-empty--ok i { color: var(--foms-color-success-500) !important; }
+
+/* P1 위험 착지 행별 단일 지배 CTA (tone별 강조) */
+.foms-queue-card-v2__risk-cta { color: #fff; }
+.foms-queue-card-v2__risk-cta--danger { background: var(--foms-color-danger-500); border-color: var(--foms-color-danger-500); }
+.foms-queue-card-v2__risk-cta--warning { background: var(--foms-color-warning-500); border-color: var(--foms-color-warning-500); }
+.foms-queue-card-v2__risk-cta:active { filter: brightness(0.92); }

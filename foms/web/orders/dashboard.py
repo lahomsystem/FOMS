@@ -41,6 +41,7 @@ from foms.services.orders.dashboard_control_tower import (
     build_field_ops_for_day,
     build_risk_order_ids,
     build_risk_frame,
+    risk_row_cta_meta,
     RISK_KEYS,
 )
 from foms.services.common.dashboard_cache import (
@@ -270,7 +271,17 @@ def erp_dashboard():
         )
 
     # 순수 DB 정렬: 실측/시공 단계 진입 시 해당 날짜 내림차순 정렬 우선
-    if effective_stage:
+    if f_risk:
+        # P1 트리아지: 위험 착지는 마감/정체 오름차순(가장 급한 게 위). 페이지 경계도 동일 순서.
+        if f_risk in ('construction_unready', 'balance_due'):
+            _q = _q.order_by(Order.erp_construction_date.asc().nullslast(), Order.created_at.desc())
+        elif f_risk == 'measure_unassigned':
+            _q = _q.order_by(Order.erp_measurement_date.asc().nullslast(), Order.created_at.desc())
+        elif f_risk == 'drawing_stalled':
+            _q = _q.order_by(Order.erp_stage_updated_at.asc().nullslast(), Order.created_at.desc())
+        else:
+            _q = _q.order_by(Order.created_at.desc())
+    elif effective_stage:
         _req_code = STAGE_NAME_TO_CODE.get(effective_stage, effective_stage)
         if _req_code == 'MEASURE':
             _q = _q.order_by(Order.erp_measurement_date.desc().nullslast(), Order.created_at.desc())
@@ -363,7 +374,20 @@ def erp_dashboard():
             'alerts': alerts,
         })
 
-    if f_sort == 'schedule':
+    if f_risk:
+        # P1 트리아지: 페이지 내 표시도 마감/정체 오름차순으로 고정(SQL 정렬과 일치).
+        def _risk_triage_key(item: dict):
+            o = item['_order']
+            if f_risk in ('construction_unready', 'balance_due'):
+                return (str(o.erp_construction_date or '9999-99-99'), -o.id)
+            if f_risk == 'measure_unassigned':
+                return (str(o.erp_measurement_date or '9999-99-99'), -o.id)
+            if f_risk == 'drawing_stalled':
+                return ((o.erp_stage_updated_at or datetime.datetime.max).isoformat(), -o.id)
+            return (str(o.id),)
+
+        filtered.sort(key=_risk_triage_key)
+    elif f_sort == 'schedule':
         def _schedule_sort_key(item: dict) -> str:
             schedule = (item.get('_sd') or {}).get('schedule') or {}
             md = (schedule.get('measurement') or {}).get('date') or '9999-99-99'
@@ -655,6 +679,24 @@ def erp_dashboard():
         })
 
     paginated_orders = enriched
+
+    # P1: 위험 착지 행별 단일 지배 CTA(내비게이션 링크). tel→전화, edit→담당배정, detail→출고/입금 확인.
+    if f_risk:
+        _cta_meta = risk_row_cta_meta(f_risk)
+        if _cta_meta:
+            for row in paginated_orders:
+                _kind = _cta_meta['kind']
+                if _kind == 'tel':
+                    _digits = ''.join(ch for ch in str(row.get('phone') or '') if ch.isdigit())
+                    _href = ('tel:' + _digits) if _digits else url_for('erp_dashboard.erp_order_mobile_detail', order_id=row['id'])
+                elif _kind == 'edit':
+                    _href = url_for('order_edit.edit_order', order_id=row['id'], open='erp-order')
+                else:
+                    _href = url_for('erp_dashboard.erp_order_mobile_detail', order_id=row['id'])
+                row['risk_cta'] = {
+                    'label': _cta_meta['label'], 'icon': _cta_meta['icon'],
+                    'tone': _cta_meta['tone'], 'href': _href,
+                }
 
     _preview_urls = batch_resolve_queue_attachment_urls(
         db, [int(r["id"]) for r in paginated_orders if r.get("id")]

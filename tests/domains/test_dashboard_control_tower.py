@@ -163,3 +163,17 @@ def test_build_risk_frame_meta_per_key():
 
 def test_build_risk_order_ids_rejects_unknown_key():
     assert ct.build_risk_order_ids(None, None, "bogus") == []
+
+
+def test_risk_row_cta_meta_per_key():
+    """P1: 위험 key마다 행별 단일 CTA(label/icon/kind/tone) 존재. kind는 라우트 해석 토큰."""
+    expected_kind = {
+        "construction_unready": "detail", "balance_due": "tel",
+        "measure_unassigned": "edit", "drawing_stalled": "tel",
+    }
+    for key in ct.RISK_KEYS:
+        m = ct.risk_row_cta_meta(key)
+        assert m and m["label"] and m["icon"]
+        assert m["kind"] == expected_kind[key]
+        assert m["tone"] in ("danger", "warning")
+    assert ct.risk_row_cta_meta("bogus") is None

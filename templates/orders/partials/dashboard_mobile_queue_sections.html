@@ -3,6 +3,13 @@
 {% from 'partials/shared/erp_mobile_queue_card_v2.html' import render_queue_card_v2 %}
 
 {% set _filters = filters or {} %}
+{% set _is_risk = _filters.get('risk') %}
+{% if _is_risk %}
+  {# P1 위험 착지: 평탄 워크리스트 — 단계 그룹·긴급 분리 없이 라우트 트리아지(마감/정체 오름차순) 순서 유지. #}
+  {% for o in orders %}
+    {{ render_queue_card_v2(o, can_edit_erp|default(false)) }}
+  {% endfor %}
+{% else %}
 {% set _group_by_stage = not (_filters.get('stage') or '') %}
 {% set _stage_order = process_steps or [] %}
 {% set _urgent_orders = [] %}
@@ -72,4 +79,5 @@
       {{ render_queue_card_v2(o, can_edit_erp|default(false)) }}
     {% endfor %}
   {% endif %}
+{% endif %}
 {% endif %}

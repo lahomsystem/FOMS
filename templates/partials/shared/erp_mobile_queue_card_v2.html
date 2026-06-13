@@ -124,6 +124,14 @@
     {% set detail_href = url_for('erp_dashboard.erp_order_mobile_detail', order_id=order.id, return_to=detail_return_to) if detail_return_to else url_for('erp_dashboard.erp_order_mobile_detail', order_id=order.id) %}
 
     <footer class="queue-card__action foms-queue-card-v2__action">
+      {% if order.risk_cta %}
+        <a
+          class="foms-btn foms-btn--sm foms-queue-card-v2__risk-cta foms-queue-card-v2__risk-cta--{{ order.risk_cta.tone }}"
+          href="{{ order.risk_cta.href }}"
+          aria-label="{{ order.risk_cta.label }}">
+          {% if order.risk_cta.icon %}<i class="{{ order.risk_cta.icon }}" aria-hidden="true"></i> {% endif %}{{ order.risk_cta.label }}
+        </a>
+      {% endif %}
       <a
         class="foms-btn foms-btn--ghost foms-btn--sm"
         href="{{ detail_href }}">
