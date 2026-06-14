@@ -25,13 +25,15 @@
 
 @media (max-width: 992px) {
   form.foms-page-form {
-    padding-bottom: calc(5.5rem + var(--foms-keyboard-h, 0px) + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
   }
 
+  /* 액션바는 원래 위치(하단)에 고정 — 모바일 키보드가 떠도 위로 밀려 올라가지 않는다.
+     (--foms-keyboard-h 기반 lift 제거: 키보드는 바를 덮고, 입력 종료 시 다시 노출.) */
   .foms-sticky-action-bar {
     position: sticky;
     z-index: 1020;
-    bottom: calc(var(--foms-keyboard-h, 0px) + env(safe-area-inset-bottom, 0px));
+    bottom: env(safe-area-inset-bottom, 0px);
     margin-top: 1.25rem;
     margin-left: calc(-1 * var(--bs-card-spacer-x, 1rem));
     margin-right: calc(-1 * var(--bs-card-spacer-x, 1rem));

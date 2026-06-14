@@ -115,16 +115,10 @@ def _business_alert_date_values(
 def _channel_desk_url() -> str:
     """채널톡 데스크 딥링크. 모바일에서 앱 설치 시 universal link로 채널톡 앱이 열린다.
 
-    운영은 CHANNEL_DESK_URL로 정밀 지정 가능(특정 채널/대화). 미설정 시 CHANNEL_ID로
-    채널 데스크, 그것도 없으면 데스크 루트.
+    기본은 하우드(haud) 채널 데스크. 운영은 CHANNEL_DESK_URL로 특정 채널/대화로
+    정밀 지정 가능.
     """
-    desk = (os.environ.get('CHANNEL_DESK_URL') or '').strip()
-    if desk:
-        return desk
-    channel_id = (os.environ.get('CHANNEL_ID') or '').strip()
-    if channel_id:
-        return f'https://desk.channel.io/#/channels/{channel_id}'
-    return 'https://desk.channel.io'
+    return (os.environ.get('CHANNEL_DESK_URL') or '').strip() or 'https://desk.channel.io/haud'
 
 
 @erp_dashboard_bp.route('/dashboard')

@@ -284,9 +284,10 @@
     position: fixed;
     left: 0;
     right: 0;
+    /* 원위치(하단 네비 위) 고정 — 모바일 키보드가 떠도 위로 밀려 올라가지 않는다.
+       (keyboard-h lift 제거: 키보드가 바를 덮고, 입력 종료 시 다시 노출.) */
     bottom: calc(
-      var(--foms-shell-bottom-nav-h, 72px) + var(--foms-keyboard-h, 0px) +
-        env(safe-area-inset-bottom, 0px)
+      var(--foms-shell-bottom-nav-h, 72px) + env(safe-area-inset-bottom, 0px)
     );
     z-index: 110;
     margin-bottom: 0;
