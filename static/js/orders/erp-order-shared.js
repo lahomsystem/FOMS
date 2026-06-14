@@ -700,32 +700,25 @@ function erpNewItemRow(item = {}) {
         }
         specRows = [{ spec_width: specWidth, spec_depth: specDepth, spec_height: specHeight }];
     }
-    const formatSpecRow = (sr) => {
-        const w = String((sr && (sr.spec_width ?? sr.w)) || '').trim();
-        const d = String((sr && (sr.spec_depth ?? sr.d)) || '').trim();
-        const h = String((sr && (sr.spec_height ?? sr.h)) || '').trim();
-        return [w, d, h].filter(Boolean).join('*');
-    };
-    const explicitSpecRaw = String(item.spec ?? '').trim();
-    const specRawValue = explicitSpecRaw || specRows.map(formatSpecRow).filter(Boolean).join(', ');
-    const specRawDerivedAttr = !explicitSpecRaw && specRawValue ? ' data-erp-spec-derived="1"' : '';
+    // 규격 입력은 구조화 W/D/H 행이 SSOT. W(가로)는 복합 표기(총합·괄호·가산)를 그대로 받고
+    // 저장 시 spec(원문)으로 파생 보존된다(출고 W/300은 백엔드 eval_spec_width_mm 기준).
     const buildSpecRowHtml = (sr, showDel) => {
         const w = escapeHtml(String((sr.spec_width ?? sr.w ?? '')).trim());
         const d = escapeHtml(String((sr.spec_depth ?? sr.d ?? '')).trim());
         const h = escapeHtml(String((sr.spec_height ?? sr.h ?? '')).trim());
         const delStyle = showDel ? '' : ' style="display:none;"';
+        const wPlaceholder = '예: 5700(2402+1864+1638) 또는 2352+2100+2860';
         return `<div class="erp-spec-row d-flex flex-wrap gap-2 align-items-end mb-1">
-<div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">W(폭)</label><input class="${tabularInputClass}" data-erp="spec_width" data-spec-row placeholder="폭" value="${w}" lang="ko"></div>
-<div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">D(깊이)</label><input class="${tabularInputClass}" data-erp="spec_depth" data-spec-row placeholder="깊이" value="${d}" lang="ko"></div>
-<div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">H(높이)</label><input class="${tabularInputClass}" data-erp="spec_height" data-spec-row placeholder="높이" value="${h}" lang="ko"></div>
+<div class="col-12 erp-spec-w-col"><label class="form-label mb-0 small text-muted">W(가로·총폭)</label><input class="${tabularInputClass}" data-erp="spec_width" data-spec-row placeholder="${wPlaceholder}" value="${w}" lang="ko"></div>
+<div class="col erp-spec-d-col"><label class="form-label mb-0 small text-muted">D(깊이)</label><input class="${tabularInputClass}" data-erp="spec_depth" data-spec-row placeholder="깊이" value="${d}" lang="ko"></div>
+<div class="col erp-spec-h-col"><label class="form-label mb-0 small text-muted">H(높이)</label><input class="${tabularInputClass}" data-erp="spec_height" data-spec-row placeholder="높이" value="${h}" lang="ko"></div>
 <button type="button" class="btn btn-sm btn-outline-secondary erp-remove-spec-row-btn"${delStyle}><i class="fas fa-minus"></i></button>
 </div>`;
     };
     const specRowsHtml = specRows.map((sr) => buildSpecRowHtml(sr, specRows.length > 1)).join('');
-    const mobileSpecRawHtml = isMobileForm ? `
-    <textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea erp-flex-textarea--spec" data-erp="spec"${specRawDerivedAttr} rows="2" data-erp-min-height="64"
-        placeholder="5700(2402+1864+1638)*400*2300&#10;2352+2100+2860*1000(700,750)" lang="ko">${escapeHtml(specRawValue)}</textarea>
-    <div class="field__hint">현장 원문 규격</div>` : '';
+    // 복합 규격 예시 안내 — W칸에 W*D*H 형태를 붙여넣으면 자동 분해된다.
+    const specExamplesHintHtml = isMobileForm ? `
+    <div class="field__hint erp-mobile-spec-hint">복합 규격 예) 5700(2402+1864+1638)*400*2300 · 2352+2100+2860*1000(700,750) — W칸에 붙여넣으면 *(곱) 기준으로 W·D·H 자동 분해</div>` : '';
     const internal = defaultConsult(item.internal);
     // 색상: 신규(빈 값)은 '상담' 기본. 저장된 값이 있으면 그대로 로드.
     // 이전 버그로 ' (SK)' suffix가 중복 저장된 레거시 데이터 자동 정리
@@ -769,9 +762,8 @@ function erpNewItemRow(item = {}) {
     <input class="${inputClass}" data-erp="product_name" value="${escapeHtml(productName)}" lang="ko">
 </div>
 <div class="col-12">
-    <label class="form-label mb-1 small text-primary">규격</label>
-    ${mobileSpecRawHtml}
-    ${isMobileForm ? '<div class="erp-mobile-spec-quick-label">빠른 치수</div>' : ''}
+    <label class="form-label mb-1 small text-primary">규격 (W × D × H)</label>
+    ${specExamplesHintHtml}
     <div class="erp-spec-rows">${specRowsHtml}</div>
     <button type="button" class="btn btn-sm btn-outline-primary mt-1 erp-add-spec-row-btn"><i class="fas fa-plus"></i> 규격 1행 추가</button>
 </div>
@@ -823,6 +815,31 @@ ${attributeFieldsHtml}
 `;
     erpBindAutosizeTextareas(row);
 
+    // W(가로) 칸에 'W*D*H' 복합 규격을 붙여넣으면 곱(*,×) 기준으로 W/D/H에 자동 분해한다.
+    function bindSpecWidthPasteSplit(scope) {
+        if (!scope) return;
+        scope.querySelectorAll('[data-erp="spec_width"]').forEach((wInput) => {
+            if (wInput.dataset.erpSpecPasteBound === '1') return;
+            wInput.dataset.erpSpecPasteBound = '1';
+            wInput.addEventListener('paste', function (e) {
+                const raw = (e.clipboardData?.getData('text/plain') || '').trim();
+                if (!/[*×]/.test(raw)) return;
+                const parts = raw.split(/[*×]/).map((s) => s.trim());
+                if (parts.length < 2 || !parts[0]) return;
+                e.preventDefault();
+                const specRow = this.closest('.erp-spec-row');
+                const setVal = (sel, v) => {
+                    const el = specRow?.querySelector(sel);
+                    if (el && v != null && v !== '') el.value = v;
+                };
+                setVal('[data-erp="spec_width"]', parts[0]);
+                setVal('[data-erp="spec_depth"]', parts[1]);
+                if (parts.length >= 3) setVal('[data-erp="spec_height"]', parts[2]);
+                this.dispatchEvent(new Event('input', { bubbles: true }));
+            });
+        });
+    }
+
     function updateSpecRowRemoveVisibility() {
         const container = row.querySelector('.erp-spec-rows');
         if (!container) return;
@@ -842,6 +859,7 @@ ${attributeFieldsHtml}
             div.remove();
             updateSpecRowRemoveVisibility();
         });
+        bindSpecWidthPasteSplit(div);
         container.appendChild(div);
         updateSpecRowRemoveVisibility();
     });
@@ -851,9 +869,7 @@ ${attributeFieldsHtml}
             updateSpecRowRemoveVisibility();
         });
     });
-    row.querySelector('[data-erp="spec"]')?.addEventListener('input', function () {
-        delete this.dataset.erpSpecDerived;
-    });
+    bindSpecWidthPasteSplit(row);
 
     row.querySelector('[data-erp="extra_input"]')?.addEventListener('paste', (e) => {
         const raw = e.clipboardData?.getData('text/plain') || '';

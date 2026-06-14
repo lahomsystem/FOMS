@@ -49,19 +49,49 @@ def strip_product_w_filter(value):
     return result if result else s
 
 
-def spec_w300_filter(value):
-    """실제 길이(W)/300 숫자로 표시 (예: 3600 -> 12). 복합규격(3600x600)이면 첫 숫자 사용"""
+def eval_spec_width_mm(value) -> float:
+    """복합 규격 W(가로)를 총 폭(mm) 숫자로 평가한다.
+
+    출고탭·향후 시공비 계산의 W 기준값 SSOT. 현장 복합 규격 표기를 폭넓게 흡수:
+      - '5700(2402+1864+1638)'  -> 5700   (괄호 앞 명시 총합 우선, 괄호 안 세부치수 무시)
+      - '2352+2100+2860'        -> 7312   (명시 총합이 없으면 최상위 가산항 합산)
+      - '9000' / '9,000'        -> 9000   (단일 값)
+      - '1000(700,750)'         -> 1000   (괄호 안 무시)
+      - '3600x600' / '3600*600' -> 3600   (W 외 차원 무시, 첫 토큰)
+      - '' / '상담' / None       -> 0.0
+
+    Args:
+        value: spec_width 원문 문자열(또는 None).
+
+    Returns:
+        총 폭(mm) float. 파싱 불가 시 0.0.
+    """
     if value is None or value == '':
-        return ''
+        return 0.0
     s = str(value).strip().replace(',', '')
-    try:
-        m = re.search(r'[\d.]+', s)
+    if not s:
+        return 0.0
+    # 괄호 안 세부치수(모듈 분할/깊이 보조값)는 총합 계산에서 제외한다.
+    s = re.sub(r'\([^)]*\)', '', s)
+    total = 0.0
+    matched = False
+    # 최상위 '+' 가산항만 합산. 각 항은 첫 숫자 토큰(W)을 사용해 'x'/'*' 차원 표기를 흡수.
+    for term in s.split('+'):
+        m = re.search(r'[\d.]+', term)
         if not m:
-            return ''
-        n = float(m.group())
-        return round(n / 300, 1) if n else ''
-    except (ValueError, TypeError):
-        return ''
+            continue
+        try:
+            total += float(m.group())
+            matched = True
+        except ValueError:
+            continue
+    return total if matched else 0.0
+
+
+def spec_w300_filter(value):
+    """실제 길이(W)/300 숫자로 표시 (예: 3600 -> 12). 복합규격은 eval_spec_width_mm 기준."""
+    n = eval_spec_width_mm(value)
+    return round(n / 300, 1) if n else ''
 
 
 def format_phone_filter(value):
@@ -77,30 +107,9 @@ def format_phone_filter(value):
 
 
 def spec_w300_value(value):
-    """규격(W)/300 수치 계산 (숫자 반환). 복합규격이면 첫 숫자 사용"""
-    if value is None or value == '':
-        return 0.0
-    s = str(value).strip().replace(',', '')
-    try:
-        m = re.search(r'[\d.]+', s)
-        if not m:
-            return 0.0
-        n = float(m.group())
-        return round(n / 300, 1) if n else 0.0
-    except (ValueError, TypeError):
-        return 0.0
-
-
-def _extract_first_number(value):
-    """문자열에서 첫 숫자 추출 (float). 없으면 0."""
-    if value is None or value == '':
-        return 0.0
-    s = str(value).strip().replace(',', '')
-    try:
-        m = re.search(r'[\d.]+', s)
-        return float(m.group()) if m else 0.0
-    except (ValueError, TypeError):
-        return 0.0
+    """규격(W)/300 수치 계산 (숫자 반환). 복합규격은 eval_spec_width_mm 기준."""
+    n = eval_spec_width_mm(value)
+    return round(n / 300, 1) if n else 0.0
 
 
 def item_spec_w300_display(item):
@@ -115,7 +124,7 @@ def item_spec_w300_display(item):
                 w = row.get('spec_width') or row.get('w') or ''
             else:
                 w = ''
-            total_w += _extract_first_number(w)
+            total_w += eval_spec_width_mm(w)
         if not total_w:
             return ''
         return round(total_w / 300, 1)
@@ -135,7 +144,7 @@ def item_spec_w300_value(item):
                 w = row.get('spec_width') or row.get('w') or ''
             else:
                 w = ''
-            total_w += _extract_first_number(w)
+            total_w += eval_spec_width_mm(w)
         return round(total_w / 300, 1) if total_w else 0.0
     w_raw = item.get('spec_width') or item.get('spec') or ''
     return spec_w300_value(w_raw)

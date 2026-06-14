@@ -728,35 +728,34 @@ body.erp-mobile-v2-layout #fomsAttachmentPreviewModal .foms-attachment-preview-a
   min-height: 72px;
 }
 
-.erp-order-mobile-form #erp-items .erp-flex-textarea--spec {
-  min-height: 64px;
-  font-variant-numeric: tabular-nums;
-}
-
-.erp-order-mobile-form #erp-items .erp-mobile-spec-quick-label {
-  margin: var(--foms-space-2) 0 var(--foms-space-1);
-  color: var(--foms-text-secondary);
-  font-size: var(--foms-font-size-xs);
-  font-weight: var(--foms-font-weight-medium);
+.erp-order-mobile-form #erp-items .erp-mobile-spec-hint {
+  margin: 0 0 var(--foms-space-2);
+  line-height: 1.4;
 }
 
 .erp-order-mobile-form #erp-items .erp-spec-rows {
   display: grid;
-  gap: var(--foms-space-2);
+  gap: var(--foms-space-3);
 }
 
+/* W(가로·총폭)는 복합 규격을 담도록 한 줄 전체, D·H·삭제는 아랫줄에 둔다 */
 .erp-order-mobile-form #erp-items .erp-spec-row {
   display: grid !important;
-  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
   gap: var(--foms-space-2) !important;
   align-items: end;
   margin-bottom: var(--foms-space-1) !important;
 }
 
-.erp-order-mobile-form #erp-items .erp-spec-row > [class*="col-"] {
+.erp-order-mobile-form #erp-items .erp-spec-row > [class*="col"] {
   width: auto;
   max-width: none;
+  min-width: 0;
   padding: 0;
+}
+
+.erp-order-mobile-form #erp-items .erp-spec-row > .erp-spec-w-col {
+  grid-column: 1 / -1;
 }
 
 .erp-order-mobile-form #erp-items .erp-remove-spec-row-btn {
@@ -772,6 +771,6 @@ body.erp-mobile-v2-layout #fomsAttachmentPreviewModal .foms-attachment-preview-a
   }
 
   .erp-order-mobile-form #erp-items .erp-spec-row {
-    grid-template-columns: repeat(3, minmax(0, 1fr)) var(--foms-touch-target-min);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) var(--foms-touch-target-min);
   }
 }
