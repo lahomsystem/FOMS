@@ -310,13 +310,14 @@
               }
 
               .erp-scheduler-panel-col {
+                --erp-scheduler-panel-width: 268px;
                 flex: 0 0 auto;
-                width: auto;
+                width: min(var(--erp-scheduler-panel-width), 100%);
                 max-width: 100%;
               }
 
               .erp-scheduler-card {
-                width: max-content;
+                width: 100%;
                 min-width: 0;
                 max-width: 100%;
               }
@@ -339,7 +340,7 @@
               .measurement-panel-item-oneline {
                 display: flex;
                 align-items: center;
-                width: max-content;
+                width: 100%;
                 min-width: 0;
                 max-width: 100%;
                 padding: 5px 6px;
@@ -348,9 +349,10 @@
               }
 
               .erp-scheduler-panel-row {
-                display: inline-flex;
+                display: flex;
                 align-items: center;
                 gap: 2px;
+                width: 100%;
                 max-width: 100%;
                 min-width: 0;
                 flex-wrap: nowrap;
@@ -374,7 +376,7 @@
                 font-size: 0.85rem;
                 min-width: 24px;
                 padding: 2px 5px;
-                margin-left: 0 !important;
+                margin-left: auto !important;
               }
 
               .measurement-panel-item.is-selected {
@@ -589,13 +591,13 @@
                   max-width: 100%;
                 }
 
-                .erp-pro .erp-measurement-layout>.erp-scheduler-panel-col {
+                .erp-pro .row.g-3.erp-measurement-layout>.erp-scheduler-panel-col {
                   flex: 0 0 auto;
-                  width: auto;
+                  width: min(var(--erp-scheduler-panel-width), 100%);
                   max-width: 100%;
                 }
 
-                .erp-pro .erp-measurement-layout>.erp-measurement-table-col {
+                .erp-pro .row.g-3.erp-measurement-layout>.erp-measurement-table-col {
                   flex: 0 0 100%;
                   max-width: 100%;
                 }

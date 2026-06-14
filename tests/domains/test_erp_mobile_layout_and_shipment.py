@@ -411,7 +411,7 @@ def test_shipment_construction_panel_count_excludes_as_orders(client, monkeypatc
 
 
 def test_measurement_scheduler_panel_uses_compact_count_row(client, monkeypatch):
-    """날짜별 실측 패널은 숫자 배지를 오른쪽 끝으로 밀지 않는 compact 행을 쓴다."""
+    """날짜별 실측 패널은 compact 폭 안에서 숫자 배지를 오른쪽 끝에 둔다."""
     from foms.web.measurement import dashboard as measurement_dashboard
 
     fake_today = date(2026, 6, 14)

@@ -112,13 +112,14 @@
               }
 
               .erp-scheduler-panel-col {
+                --erp-scheduler-panel-width: 268px;
                 flex: 0 0 auto;
-                width: auto;
+                width: min(var(--erp-scheduler-panel-width), 100%);
                 max-width: 100%;
               }
 
               .erp-scheduler-card {
-                width: max-content;
+                width: 100%;
                 min-width: 0;
                 max-width: 100%;
               }
@@ -141,7 +142,7 @@
               .measurement-panel-item-oneline {
                 display: flex;
                 align-items: center;
-                width: max-content;
+                width: 100%;
                 min-width: 0;
                 max-width: 100%;
                 padding: 5px 6px;
@@ -150,9 +151,10 @@
               }
 
               .erp-scheduler-panel-row {
-                display: inline-flex;
+                display: flex;
                 align-items: center;
                 gap: 2px;
+                width: 100%;
                 max-width: 100%;
                 min-width: 0;
                 flex-wrap: nowrap;
@@ -176,7 +178,7 @@
                 font-size: 0.85rem;
                 min-width: 24px;
                 padding: 2px 5px;
-                margin-left: 0 !important;
+                margin-left: auto !important;
                 background: #0d6efd;
                 color: #fff;
               }
@@ -213,13 +215,14 @@
               }
 
               .remaining-panel-table .table {
-                width: max-content;
+                width: 100%;
                 min-width: 0;
                 max-width: 100%;
               }
 
               .remaining-panel-table .text-end {
-                text-align: left !important;
+                text-align: right !important;
+                white-space: nowrap;
               }
 
               .remaining-panel-table .table> :not(caption)>*>* {
@@ -768,7 +771,7 @@
 
                 .erp-pro .row.g-3>.erp-scheduler-panel-col {
                   flex: 0 0 auto;
-                  width: auto;
+                  width: min(var(--erp-scheduler-panel-width), 100%);
                   max-width: 100%;
                 }
 

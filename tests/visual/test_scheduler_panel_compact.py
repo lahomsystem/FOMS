@@ -31,6 +31,7 @@ def _scheduler_metrics(page, selector: str) -> dict[str, float]:
             rowWidth: rowRect.width,
             badgeGap: badgeRect.left - prevRect.right,
             badgeRight: badgeRect.right,
+            itemRight: itemRect.right,
             listRight: listRect.right
           };
         }"""
@@ -38,9 +39,10 @@ def _scheduler_metrics(page, selector: str) -> dict[str, float]:
 
 
 def _assert_compact(metrics: dict[str, float]) -> None:
-    assert metrics["itemWidth"] <= 185
+    assert metrics["itemWidth"] <= 250
     assert metrics["rowWidth"] <= metrics["itemWidth"] - 8
-    assert metrics["badgeGap"] <= 4
+    assert metrics["badgeGap"] >= 16
+    assert abs(metrics["itemRight"] - metrics["badgeRight"]) <= 8
     assert metrics["badgeRight"] <= metrics["listRight"] - 4
 
 
@@ -67,6 +69,10 @@ def test_legacy_shipment_scheduler_panel_stays_compact(
 
     remaining = page.locator(".remaining-panel-table").first.evaluate(
         """(panel) => {
+          const schedulerCard = document.querySelector('.erp-shipment-scheduler-col .erp-scheduler-card');
+          const remainingCard = panel.closest('.erp-scheduler-card');
+          const schedulerRect = schedulerCard.getBoundingClientRect();
+          const remainingRect = remainingCard.getBoundingClientRect();
           const panelRect = panel.getBoundingClientRect();
           const firstRow = panel.querySelector('tbody tr:first-child');
           const dateCell = firstRow.querySelector('td:first-child');
@@ -76,11 +82,14 @@ def test_legacy_shipment_scheduler_panel_stays_compact(
           const firstBadgeRect = firstBadge.getBoundingClientRect();
           const badgeRect = lastBadge.getBoundingClientRect();
           return {
+            schedulerCardWidth: schedulerRect.width,
+            remainingCardWidth: remainingRect.width,
             badgeGap: firstBadgeRect.left - dateRect.right,
             badgeRight: badgeRect.right,
             panelRight: panelRect.right
           };
         }"""
     )
-    assert remaining["badgeGap"] <= 16
+    assert abs(remaining["schedulerCardWidth"] - remaining["remainingCardWidth"]) <= 1
+    assert remaining["badgeGap"] <= 80
     assert remaining["badgeRight"] <= remaining["panelRight"] - 4
