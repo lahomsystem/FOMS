@@ -152,8 +152,8 @@
       </div>
       {% endif %}
       <div class="row g-3">
-        <div class="col-12 col-xl-3 col-lg-3">
-          <div class="card border-0 shadow-sm">
+        <div class="col-12 col-lg-auto erp-scheduler-panel-col erp-shipment-scheduler-col">
+          <div class="card border-0 shadow-sm erp-scheduler-card">
             <div class="card-header bg-white py-1 px-2 d-flex justify-content-between align-items-center flex-wrap gap-1">
               <div class="fw-bold small text-nowrap"><i class="fas fa-calendar-check"></i> 날짜별 시공</div>
               <div class="d-flex align-items-center gap-1 flex-shrink-0">
@@ -172,12 +172,12 @@
                 <a id="date-{{ item.date }}"
                   class="measurement-panel-item measurement-panel-item-oneline {% if item.is_selected %}is-selected{% endif %} {% if item.is_weekend %}is-weekend{% endif %} {% if item.is_holiday %}is-holiday{% endif %} {% if item.date == today_date %}is-today{% endif %}"
                   href="{{ url_for('erp_shipment_page.erp_shipment_dashboard', date=item.date, q=search_q or '') }}#date-{{ item.date }}">
-                  <div class="d-flex align-items-center justify-content-between gap-1 w-100 flex-nowrap">
+                  <div class="erp-scheduler-panel-row">
                     <span class="measurement-panel-date">{{ item.date }}</span>
                     <span class="measurement-panel-day">({{ day_label }})</span>
                     {% if item.is_holiday %}<span class="badge bg-danger">휴일</span>{% elif item.is_weekend %}<span
                       class="badge bg-warning text-dark">주말</span>{% endif %}
-                    <span class="badge badge-count ms-auto">{{ item.count }}</span>
+                    <span class="badge badge-count erp-scheduler-count">{{ item.count }}</span>
                   </div>
                 </a>
                 {% endfor %}
@@ -186,7 +186,7 @@
             </div>
           </div>
           {% if not is_construction_team %}
-          <div class="card border-0 shadow-sm mt-2">
+          <div class="card border-0 shadow-sm mt-2 erp-scheduler-card">
             <div class="card-header bg-white py-1 px-2 d-flex justify-content-between align-items-center">
               <div class="fw-bold small"><i class="fas fa-chart-line"></i> 날짜별 잔여 시공</div>
             </div>
@@ -223,7 +223,7 @@
           </div>
           {% endif %}
         </div>
-        <div class="col-12 col-xl-9 col-lg-9">
+        <div class="col-12 col-lg erp-shipment-table-col">
           <div class="table-responsive shipment-table-wrapper">
             <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/dashboard-table-extras.css') }}">
             <table class="table table-sm table-hover align-middle shipment-table erp-mobile-card-table" id="shipment-dashboard-table">

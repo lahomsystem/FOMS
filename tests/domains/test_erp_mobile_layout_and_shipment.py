@@ -404,8 +404,37 @@ def test_shipment_construction_panel_count_excludes_as_orders(client, monkeypatc
     close_idx = body.find("</a>", anchor_idx)
     assert close_idx != -1, f"construction panel row for {today} not closed"
     snippet = body[anchor_idx: close_idx + len("</a>")]
-    assert 'class="badge badge-count ms-auto">1</span>' in snippet
-    assert 'class="badge badge-count ms-auto">2</span>' not in snippet
+    assert 'class="badge badge-count erp-scheduler-count">1</span>' in snippet
+    assert 'class="badge badge-count erp-scheduler-count">2</span>' not in snippet
+    assert "justify-content-between" not in snippet
+    assert "ms-auto" not in snippet
+
+
+def test_measurement_scheduler_panel_uses_compact_count_row(client, monkeypatch):
+    """날짜별 실측 패널은 숫자 배지를 오른쪽 끝으로 밀지 않는 compact 행을 쓴다."""
+    from foms.web.measurement import dashboard as measurement_dashboard
+
+    fake_today = date(2026, 6, 14)
+    monkeypatch.setattr(measurement_dashboard, "get_today_kst", lambda: fake_today)
+    _login_erp_admin(client)
+    today = fake_today.strftime("%Y-%m-%d")
+
+    response = client.get(f"/erp/measurement?date={today}")
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+
+    assert "erp-scheduler-panel-col" in body
+    assert "erp-scheduler-card" in body
+    anchor = f'id="date-{today}"'
+    anchor_idx = body.find(anchor)
+    assert anchor_idx != -1, f"measurement panel row for {today} missing"
+    close_idx = body.find("</a>", anchor_idx)
+    assert close_idx != -1, f"measurement panel row for {today} not closed"
+    snippet = body[anchor_idx: close_idx + len("</a>")]
+    assert 'class="erp-scheduler-panel-row"' in snippet
+    assert 'class="badge badge-count erp-scheduler-count">' in snippet
+    assert "justify-content-between" not in snippet
+    assert "ms-auto" not in snippet
 
 
 def test_shipment_search_focus_date_does_not_500_on_scheduled_match(client, monkeypatch):

@@ -76,8 +76,8 @@
     </div>
     <div class="card-body">
       <div class="row g-3 erp-measurement-layout">
-        <div class="col-12 col-xl-2 col-lg-2">
-          <div class="card border-0 shadow-sm h-100">
+        <div class="col-12 col-lg-auto erp-scheduler-panel-col">
+          <div class="card border-0 shadow-sm h-100 erp-scheduler-card">
             <div class="card-header bg-white py-1 px-2 d-flex justify-content-between align-items-center flex-wrap">
               <div class="fw-bold small"><i class="fas fa-calendar-day"></i> 날짜별 실측</div>
               <div class="d-flex align-items-center gap-1">
@@ -95,12 +95,12 @@
                 <a id="date-{{ item.date }}"
                   class="measurement-panel-item measurement-panel-item-oneline {% if item.is_selected %}is-selected{% endif %} {% if item.is_weekend %}is-weekend{% endif %} {% if item.is_holiday %}is-holiday{% endif %} {% if item.date == today_date %}is-today{% endif %}"
                   href="{{ url_for('erp_measurement_dashboard.erp_measurement_dashboard', date=item.date, q=search_q or '') }}#date-{{ item.date }}">
-                  <div class="d-flex align-items-center justify-content-between gap-1 w-100 flex-nowrap">
+                  <div class="erp-scheduler-panel-row">
                     <span class="measurement-panel-date">{{ item.date }}</span>
                     <span class="measurement-panel-day">({{ day_label }})</span>
                     {% if item.is_holiday %}<span class="badge bg-danger">휴일</span>{% elif item.is_weekend %}<span
                       class="badge bg-warning text-dark">주말</span>{% endif %}
-                    <span class="badge badge-count ms-auto">{{ item.count }}</span>
+                    <span class="badge badge-count erp-scheduler-count">{{ item.count }}</span>
                   </div>
                 </a>
                 {% endfor %}
@@ -109,7 +109,7 @@
             </div>
           </div>
         </div>
-        <div class="col-12 col-xl-10 col-lg-10">
+        <div class="col-12 col-lg erp-measurement-table-col">
           <div class="table-responsive">
             <style>
               .measurement-row {
@@ -304,7 +304,25 @@
               .measurement-panel-list {
                 max-height: 520px;
                 overflow-y: auto;
-                padding: 4px;
+                overflow-x: hidden;
+                padding: 4px 14px 4px 4px;
+                scrollbar-gutter: stable;
+              }
+
+              .erp-scheduler-panel-col {
+                flex: 0 0 auto;
+                width: auto;
+                max-width: 100%;
+              }
+
+              .erp-scheduler-card {
+                width: max-content;
+                min-width: 0;
+                max-width: 100%;
+              }
+
+              .erp-measurement-table-col {
+                min-width: 0;
               }
 
               .measurement-panel-item {
@@ -319,9 +337,27 @@
               }
 
               .measurement-panel-item-oneline {
-                padding: 5px 8px;
+                display: flex;
+                align-items: center;
+                width: max-content;
+                min-width: 0;
+                max-width: 100%;
+                padding: 5px 6px;
                 margin-bottom: 4px;
                 border-radius: 6px;
+              }
+
+              .erp-scheduler-panel-row {
+                display: inline-flex;
+                align-items: center;
+                gap: 2px;
+                max-width: 100%;
+                min-width: 0;
+                flex-wrap: nowrap;
+              }
+
+              .erp-scheduler-panel-row .badge {
+                flex: 0 0 auto;
               }
 
               .measurement-panel-item-oneline .measurement-panel-date {
@@ -336,8 +372,9 @@
 
               .measurement-panel-item-oneline .badge-count {
                 font-size: 0.85rem;
-                min-width: 28px;
-                padding: 2px 6px;
+                min-width: 24px;
+                padding: 2px 5px;
+                margin-left: 0 !important;
               }
 
               .measurement-panel-item.is-selected {
@@ -548,6 +585,17 @@
                 }
 
                 .erp-pro .row.g-3>[class*="col-"] {
+                  flex: 0 0 100%;
+                  max-width: 100%;
+                }
+
+                .erp-pro .erp-measurement-layout>.erp-scheduler-panel-col {
+                  flex: 0 0 auto;
+                  width: auto;
+                  max-width: 100%;
+                }
+
+                .erp-pro .erp-measurement-layout>.erp-measurement-table-col {
                   flex: 0 0 100%;
                   max-width: 100%;
                 }

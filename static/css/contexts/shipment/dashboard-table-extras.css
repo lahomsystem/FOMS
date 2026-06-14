@@ -106,7 +106,25 @@
               .measurement-panel-list {
                 max-height: 260px;
                 overflow-y: auto;
-                padding: 4px;
+                overflow-x: hidden;
+                padding: 4px 14px 4px 4px;
+                scrollbar-gutter: stable;
+              }
+
+              .erp-scheduler-panel-col {
+                flex: 0 0 auto;
+                width: auto;
+                max-width: 100%;
+              }
+
+              .erp-scheduler-card {
+                width: max-content;
+                min-width: 0;
+                max-width: 100%;
+              }
+
+              .erp-shipment-table-col {
+                min-width: 0;
               }
 
               .measurement-panel-item {
@@ -121,9 +139,27 @@
               }
 
               .measurement-panel-item-oneline {
-                padding: 5px 8px;
+                display: flex;
+                align-items: center;
+                width: max-content;
+                min-width: 0;
+                max-width: 100%;
+                padding: 5px 6px;
                 margin-bottom: 4px;
                 border-radius: 6px;
+              }
+
+              .erp-scheduler-panel-row {
+                display: inline-flex;
+                align-items: center;
+                gap: 2px;
+                max-width: 100%;
+                min-width: 0;
+                flex-wrap: nowrap;
+              }
+
+              .erp-scheduler-panel-row .badge {
+                flex: 0 0 auto;
               }
 
               .measurement-panel-item-oneline .measurement-panel-date {
@@ -138,8 +174,9 @@
 
               .measurement-panel-item-oneline .badge-count {
                 font-size: 0.85rem;
-                min-width: 28px;
-                padding: 2px 6px;
+                min-width: 24px;
+                padding: 2px 5px;
+                margin-left: 0 !important;
                 background: #0d6efd;
                 color: #fff;
               }
@@ -170,6 +207,19 @@
               .remaining-panel-table {
                 max-height: 260px;
                 overflow-y: auto;
+                overflow-x: hidden;
+                padding-right: 14px;
+                scrollbar-gutter: stable;
+              }
+
+              .remaining-panel-table .table {
+                width: max-content;
+                min-width: 0;
+                max-width: 100%;
+              }
+
+              .remaining-panel-table .text-end {
+                text-align: left !important;
               }
 
               .remaining-panel-table .table> :not(caption)>*>* {
@@ -712,6 +762,17 @@
                 }
 
                 .erp-pro .row.g-3>[class*="col-"] {
+                  flex: 0 0 100%;
+                  max-width: 100%;
+                }
+
+                .erp-pro .row.g-3>.erp-scheduler-panel-col {
+                  flex: 0 0 auto;
+                  width: auto;
+                  max-width: 100%;
+                }
+
+                .erp-pro .row.g-3>.erp-shipment-table-col {
                   flex: 0 0 100%;
                   max-width: 100%;
                 }
