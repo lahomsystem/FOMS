@@ -38,8 +38,8 @@ def _scheduler_metrics(page, selector: str) -> dict[str, float]:
     )
 
 
-def _assert_compact(metrics: dict[str, float]) -> None:
-    assert metrics["itemWidth"] <= 250
+def _assert_compact(metrics: dict[str, float], *, max_item_width: float = 250) -> None:
+    assert metrics["itemWidth"] <= max_item_width
     assert metrics["rowWidth"] <= metrics["itemWidth"] - 8
     assert metrics["badgeGap"] >= 16
     assert abs(metrics["itemRight"] - metrics["badgeRight"]) <= 8
@@ -65,7 +65,10 @@ def test_legacy_shipment_scheduler_panel_stays_compact(
     _login(page, visual_live_server_legacy)
 
     page.goto(f"{visual_live_server_legacy}/erp/shipment", wait_until="networkidle")
-    _assert_compact(_scheduler_metrics(page, ".measurement-panel-item-oneline"))
+    _assert_compact(
+        _scheduler_metrics(page, ".measurement-panel-item-oneline"),
+        max_item_width=285,
+    )
 
     remaining = page.locator(".remaining-panel-table").first.evaluate(
         """(panel) => {
@@ -76,14 +79,19 @@ def test_legacy_shipment_scheduler_panel_stays_compact(
           const panelRect = panel.getBoundingClientRect();
           const firstRow = panel.querySelector('tbody tr:first-child');
           const dateCell = firstRow.querySelector('td:first-child');
+          const dateText = firstRow.querySelector('.remaining-panel-date');
           const firstBadge = firstRow.querySelector('td:last-child .badge:first-child');
           const lastBadge = firstRow.querySelector('td:last-child .badge:last-child');
           const dateRect = dateCell.getBoundingClientRect();
+          const dateTextRect = dateText.getBoundingClientRect();
           const firstBadgeRect = firstBadge.getBoundingClientRect();
           const badgeRect = lastBadge.getBoundingClientRect();
           return {
             schedulerCardWidth: schedulerRect.width,
             remainingCardWidth: remainingRect.width,
+            dateCellWhiteSpace: window.getComputedStyle(dateCell).whiteSpace,
+            dateTextWidth: dateTextRect.width,
+            dateCellWidth: dateRect.width,
             badgeGap: firstBadgeRect.left - dateRect.right,
             badgeRight: badgeRect.right,
             panelRight: panelRect.right
@@ -91,5 +99,7 @@ def test_legacy_shipment_scheduler_panel_stays_compact(
         }"""
     )
     assert abs(remaining["schedulerCardWidth"] - remaining["remainingCardWidth"]) <= 1
+    assert remaining["dateCellWhiteSpace"] == "nowrap"
+    assert remaining["dateTextWidth"] < remaining["dateCellWidth"]
     assert remaining["badgeGap"] <= 80
     assert remaining["badgeRight"] <= remaining["panelRight"] - 4

@@ -204,12 +204,12 @@
                     {% set cap_class = 'bg-danger' if item.alert_capacity else 'bg-secondary' %}
                     {% set worker_class = 'bg-danger' if item.alert_workers else 'bg-secondary' %}
                     <tr class="{% if item.alert_capacity or item.alert_workers %}table-danger{% endif %}">
-                      <td class="small">
-                        {{ item.date }}
+                      <td class="small remaining-panel-date-cell">
+                        <span class="remaining-panel-date">{{ item.date }}</span>
                         {% if item.is_holiday %}<span class="badge bg-danger ms-1">휴일</span>{% elif item.is_weekend
                         %}<span class="badge bg-warning text-dark ms-1">주말</span>{% endif %}
                       </td>
-                      <td class="text-end">
+                      <td class="text-end remaining-panel-values-cell">
                         <span class="badge {{ cap_class }}">자수 {{ item.remaining_capacity }}</span>
                         <span class="badge {{ worker_class }}">인원 {{ item.remaining_workers }}</span>
                       </td>

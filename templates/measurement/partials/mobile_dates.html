@@ -27,8 +27,10 @@
         href="{{ item_url }}"
         data-measurement-date-chip="{{ item.date }}">
         <span class="erp-measurement-mobile-date-chip__date">{{ item.date[5:] }}</span>
-        <span class="erp-measurement-mobile-date-chip__day">{{ day_label }}</span>
-        <span class="erp-measurement-mobile-date-chip__count">{{ item.count }}</span>
+        <span class="erp-measurement-mobile-date-chip__meta">
+          <span class="erp-measurement-mobile-date-chip__day">{{ day_label }}</span>
+          <span class="erp-measurement-mobile-date-chip__count">{{ item.count }}</span>
+        </span>
       </a>
     {% endfor %}
   </div>

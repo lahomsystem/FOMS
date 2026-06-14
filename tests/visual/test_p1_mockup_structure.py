@@ -305,6 +305,9 @@ def test_p1_measurement_mobile_v2_home_ia_parity() -> None:
     filters = (ROOT / "templates/measurement/partials/mobile_filters.html").read_text(
         encoding="utf-8"
     )
+    dates = (ROOT / "templates/measurement/partials/mobile_dates.html").read_text(
+        encoding="utf-8"
+    )
     listing = (ROOT / "templates/measurement/partials/mobile_list.html").read_text(
         encoding="utf-8"
     )
@@ -314,6 +317,11 @@ def test_p1_measurement_mobile_v2_home_ia_parity() -> None:
     # 표준 필터 바 + 칩 스트립 (bespoke quick-actions 대체)
     for selector in ("foms-mobile-filter-bar", "chip-strip", "foms-chip-strip"):
         assert selector in filters, selector
+    for selector in (
+        "erp-measurement-mobile-date-chip",
+        "erp-measurement-mobile-date-chip__meta",
+    ):
+        assert selector in dates, selector
     # 큐 리스트 컨테이너 + 섹션 헤더
     for selector in ("foms-mobile-queue-list", "foms-section-header"):
         assert selector in listing, selector
@@ -550,7 +558,11 @@ def test_p1_shipment_mobile_v2_home_ia_parity() -> None:
         assert selector in body, selector
     for selector in ("foms-mobile-filter-bar", "chip-strip", "foms-chip-strip"):
         assert selector in controls, selector
-    assert "erp-shipment-mobile-date-chip" in dates
+    for selector in (
+        "erp-shipment-mobile-date-chip",
+        "erp-shipment-mobile-date-chip__meta",
+    ):
+        assert selector in dates, selector
     for selector in ("foms-mobile-queue-list", "foms-section-header", "render_queue_card_v2"):
         assert selector in queue, selector
 

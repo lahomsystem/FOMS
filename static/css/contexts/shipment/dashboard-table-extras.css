@@ -112,7 +112,7 @@
               }
 
               .erp-scheduler-panel-col {
-                --erp-scheduler-panel-width: 268px;
+                --erp-scheduler-panel-width: 300px;
                 flex: 0 0 auto;
                 width: min(var(--erp-scheduler-panel-width), 100%);
                 max-width: 100%;
@@ -218,10 +218,28 @@
                 width: 100%;
                 min-width: 0;
                 max-width: 100%;
+                table-layout: fixed;
               }
 
               .remaining-panel-table .text-end {
                 text-align: right !important;
+                white-space: nowrap;
+              }
+
+              .remaining-panel-table th:first-child,
+              .remaining-panel-table td:first-child {
+                width: 118px;
+                min-width: 118px;
+                white-space: nowrap;
+              }
+
+              .remaining-panel-table th:last-child,
+              .remaining-panel-table td:last-child {
+                white-space: nowrap;
+              }
+
+              .remaining-panel-date {
+                display: inline-block;
                 white-space: nowrap;
               }
 
@@ -234,6 +252,7 @@
               }
 
               .remaining-panel-table .badge {
+                display: inline-block;
                 font-size: 0.75rem;
               }
 
