@@ -700,18 +700,32 @@ function erpNewItemRow(item = {}) {
         }
         specRows = [{ spec_width: specWidth, spec_depth: specDepth, spec_height: specHeight }];
     }
-    const specRowsHtml = specRows.map((sr, idx) => {
+    const formatSpecRow = (sr) => {
+        const w = String((sr && (sr.spec_width ?? sr.w)) || '').trim();
+        const d = String((sr && (sr.spec_depth ?? sr.d)) || '').trim();
+        const h = String((sr && (sr.spec_height ?? sr.h)) || '').trim();
+        return [w, d, h].filter(Boolean).join('*');
+    };
+    const explicitSpecRaw = String(item.spec ?? '').trim();
+    const specRawValue = explicitSpecRaw || specRows.map(formatSpecRow).filter(Boolean).join(', ');
+    const specRawDerivedAttr = !explicitSpecRaw && specRawValue ? ' data-erp-spec-derived="1"' : '';
+    const buildSpecRowHtml = (sr, showDel) => {
         const w = escapeHtml(String((sr.spec_width ?? sr.w ?? '')).trim());
         const d = escapeHtml(String((sr.spec_depth ?? sr.d ?? '')).trim());
         const h = escapeHtml(String((sr.spec_height ?? sr.h ?? '')).trim());
-        const showDel = specRows.length > 1 ? '' : ' style="display:none;"';
+        const delStyle = showDel ? '' : ' style="display:none;"';
         return `<div class="erp-spec-row d-flex flex-wrap gap-2 align-items-end mb-1">
 <div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">W(폭)</label><input class="${tabularInputClass}" data-erp="spec_width" data-spec-row placeholder="폭" value="${w}" lang="ko"></div>
 <div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">D(깊이)</label><input class="${tabularInputClass}" data-erp="spec_depth" data-spec-row placeholder="깊이" value="${d}" lang="ko"></div>
 <div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">H(높이)</label><input class="${tabularInputClass}" data-erp="spec_height" data-spec-row placeholder="높이" value="${h}" lang="ko"></div>
-<button type="button" class="btn btn-sm btn-outline-secondary erp-remove-spec-row-btn"${showDel}><i class="fas fa-minus"></i></button>
+<button type="button" class="btn btn-sm btn-outline-secondary erp-remove-spec-row-btn"${delStyle}><i class="fas fa-minus"></i></button>
 </div>`;
-    }).join('');
+    };
+    const specRowsHtml = specRows.map((sr) => buildSpecRowHtml(sr, specRows.length > 1)).join('');
+    const mobileSpecRawHtml = isMobileForm ? `
+    <textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea erp-flex-textarea--spec" data-erp="spec"${specRawDerivedAttr} rows="2" data-erp-min-height="64"
+        placeholder="5700(2402+1864+1638)*400*2300&#10;2352+2100+2860*1000(700,750)" lang="ko">${escapeHtml(specRawValue)}</textarea>
+    <div class="field__hint">현장 원문 규격</div>` : '';
     const internal = defaultConsult(item.internal);
     // 색상: 신규(빈 값)은 '상담' 기본. 저장된 값이 있으면 그대로 로드.
     // 이전 버그로 ' (SK)' suffix가 중복 저장된 레거시 데이터 자동 정리
@@ -755,7 +769,9 @@ function erpNewItemRow(item = {}) {
     <input class="${inputClass}" data-erp="product_name" value="${escapeHtml(productName)}" lang="ko">
 </div>
 <div class="col-12">
-    <label class="form-label mb-1 small text-primary">규격 (폭·깊이·높이)</label>
+    <label class="form-label mb-1 small text-primary">규격</label>
+    ${mobileSpecRawHtml}
+    ${isMobileForm ? '<div class="erp-mobile-spec-quick-label">빠른 치수</div>' : ''}
     <div class="erp-spec-rows">${specRowsHtml}</div>
     <button type="button" class="btn btn-sm btn-outline-primary mt-1 erp-add-spec-row-btn"><i class="fas fa-plus"></i> 규격 1행 추가</button>
 </div>
@@ -818,12 +834,10 @@ ${attributeFieldsHtml}
     row.querySelector('.erp-add-spec-row-btn')?.addEventListener('click', () => {
         const container = row.querySelector('.erp-spec-rows');
         if (!container) return;
-        const div = document.createElement('div');
-        div.className = 'erp-spec-row d-flex flex-wrap gap-2 align-items-end mb-1';
-        div.innerHTML = `<div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">W(폭)</label><input class="${tabularInputClass}" data-erp="spec_width" data-spec-row placeholder="폭" value="" lang="ko"></div>
-<div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">D(깊이)</label><input class="${tabularInputClass}" data-erp="spec_depth" data-spec-row placeholder="깊이" value="" lang="ko"></div>
-<div class="col-md-3 col-4"><label class="form-label mb-0 small text-muted">H(높이)</label><input class="${tabularInputClass}" data-erp="spec_height" data-spec-row placeholder="높이" value="" lang="ko"></div>
-<button type="button" class="btn btn-sm btn-outline-secondary erp-remove-spec-row-btn"><i class="fas fa-minus"></i></button>`;
+        const template = document.createElement('div');
+        template.innerHTML = buildSpecRowHtml({}, true);
+        const div = template.firstElementChild;
+        if (!div) return;
         div.querySelector('.erp-remove-spec-row-btn').addEventListener('click', () => {
             div.remove();
             updateSpecRowRemoveVisibility();
@@ -836,6 +850,9 @@ ${attributeFieldsHtml}
             this.closest('.erp-spec-row')?.remove();
             updateSpecRowRemoveVisibility();
         });
+    });
+    row.querySelector('[data-erp="spec"]')?.addEventListener('input', function () {
+        delete this.dataset.erpSpecDerived;
     });
 
     row.querySelector('[data-erp="extra_input"]')?.addEventListener('paste', (e) => {
@@ -1214,22 +1231,29 @@ function erpCollectStructured() {
             const w = String(sr.querySelector('[data-erp="spec_width"]')?.value ?? '').trim();
             const d = String(sr.querySelector('[data-erp="spec_depth"]')?.value ?? '').trim();
             const h = String(sr.querySelector('[data-erp="spec_height"]')?.value ?? '').trim();
-            specRows.push({ spec_width: w, spec_depth: d, spec_height: h });
+            if (w || d || h) {
+                specRows.push({ spec_width: w, spec_depth: d, spec_height: h });
+            }
         });
+        const rawSpecEl = row.querySelector('[data-erp="spec"]');
+        const rawSpec = String(obj.spec || '').trim();
+        const rawSpecWasDerived = rawSpecEl?.dataset?.erpSpecDerived === '1';
         if (specRows.length > 0) {
             obj.spec_rows = specRows;
             const first = specRows[0];
             obj.spec_width = first.spec_width;
             obj.spec_depth = first.spec_depth;
             obj.spec_height = first.spec_height;
-            const specParts = [first.spec_width, first.spec_depth, first.spec_height].filter(Boolean);
-            obj.spec = specParts.join('x');
+            const specLines = specRows.map(function (sr) {
+                return [sr.spec_width, sr.spec_depth, sr.spec_height].filter(Boolean).join('x');
+            }).filter(Boolean);
+            obj.spec = rawSpec && !rawSpecWasDerived ? rawSpec : (specLines.join(', ') || rawSpec);
         } else {
             obj.spec_rows = [];
             obj.spec_width = '';
             obj.spec_depth = '';
             obj.spec_height = '';
-            obj.spec = '';
+            obj.spec = rawSpec;
         }
         if (obj.price) {
             const digits = String(obj.price).replace(/[^0-9]/g, '');
@@ -2778,6 +2802,10 @@ async function erpUploadSelectedAttachments() {
     if (!ERP_ORDER_ENABLED) return;
     const input = document.getElementById('erp-attachments-input');
     if (!input || !input.files || input.files.length === 0) {
+        if (input && typeof input.click === 'function') {
+            input.click();
+            return;
+        }
         erpAttachmentsSetStatus('업로드할 파일을 선택하세요.', true);
         return;
     }
@@ -3284,6 +3312,7 @@ function erpGenerateConversionText() {
 
         const pName = getRowVal('product_name');
         // Spec: 다중 행 수집 (W합/표시용은 출고 대시보드에서 처리)
+        const rawSpec = getRowVal('spec');
         const specParts = [];
         row.querySelectorAll('.erp-spec-row').forEach(sr => {
             const w = (sr.querySelector('[data-erp="spec_width"]')?.value ?? '').trim();
@@ -3292,7 +3321,7 @@ function erpGenerateConversionText() {
             const one = [w, d, h].filter(Boolean).join('*');
             if (one) specParts.push(one);
         });
-        const spec = specParts.length ? specParts.join(', ') : '';
+        const spec = rawSpec || (specParts.length ? specParts.join(', ') : '');
 
         let internal = getRowVal('internal');
         if (!internal) internal = '상담';
@@ -3636,6 +3665,11 @@ function fomsMountErpOrderSurface() {
     };
 
     document.getElementById('erp-attachments-upload-btn')?.addEventListener('click', erpUploadSelectedAttachments);
+    document.getElementById('erp-attachments-input')?.addEventListener('change', function () {
+        if (this.files && this.files.length > 0) {
+            erpUploadSelectedAttachments();
+        }
+    });
     erpBindAttachmentPasteUpload();
     document.getElementById('erp-gen-text-btn')?.addEventListener('click', erpGenerateConversionText);
     document.getElementById('erp-copy-text-btn')?.addEventListener('click', erpCopyToClipboard);

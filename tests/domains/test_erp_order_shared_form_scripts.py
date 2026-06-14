@@ -339,6 +339,48 @@ def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
     assert "text += `잔금 :" not in conversion_block
 
 
+def test_mobile_erp_item_form_preserves_complex_spec_text() -> None:
+    """모바일 현장 입력은 복합 규격 원문을 spec으로 보존하고 보조 W/D/H는 유지한다."""
+    root = Path(__file__).resolve().parents[2]
+    shared_js = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+    product_item_js = (root / "static/js/foms/product-item.js").read_text(encoding="utf-8")
+
+    assert 'data-erp="spec"' in shared_js
+    assert "5700(2402+1864+1638)*400*2300" in shared_js
+    assert "2352+2100+2860*1000(700,750)" in shared_js
+
+    collect_start = shared_js.index("function erpCollectStructured()")
+    collect_end = shared_js.index("async function erpSaveStructured", collect_start)
+    collect_block = shared_js[collect_start:collect_end]
+    assert "const rawSpec = String(obj.spec || '').trim();" in collect_block
+    assert "const rawSpecWasDerived = rawSpecEl?.dataset?.erpSpecDerived === '1';" in collect_block
+    assert "obj.spec = rawSpec && !rawSpecWasDerived ? rawSpec : (specLines.join(', ') || rawSpec);" in collect_block
+    assert "obj.spec = rawSpec;" in collect_block
+
+    conversion_start = shared_js.index("function erpGenerateConversionText()")
+    conversion_end = shared_js.index("function erpCopyToClipboard()", conversion_start)
+    conversion_block = shared_js[conversion_start:conversion_end]
+    assert "const rawSpec = getRowVal('spec');" in conversion_block
+    assert "const spec = rawSpec || (specParts.length ? specParts.join(', ') : '');" in conversion_block
+
+    assert "var rawSpecEl = row.querySelector('[data-erp=\"spec\"]');" in product_item_js
+    assert 'target.dataset.erp === "spec"' in product_item_js
+
+
+def test_common_mobile_attachments_select_upload_immediately() -> None:
+    """공통 사진/동영상은 모바일에서 선택 즉시 업로드되도록 input change에 바인딩한다."""
+    root = Path(__file__).resolve().parents[2]
+    shared_js = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+    mobile_partial = (
+        root / "templates" / "orders" / "partials" / "erp_order_tab_mobile.html"
+    ).read_text(encoding="utf-8")
+
+    assert 'class="visually-hidden"' in mobile_partial
+    assert "사진/동영상 추가" in mobile_partial
+    assert "input.click();" in shared_js
+    assert "document.getElementById('erp-attachments-input')?.addEventListener('change'" in shared_js
+
+
 def test_erp_amount_surfaces_read_modern_payment_deposit_and_stored_final() -> None:
     """대시보드/실측 상세 금액 표시도 ERP Order payment.deposit와 final totals를 우선 사용한다."""
     root = Path(__file__).resolve().parents[2]

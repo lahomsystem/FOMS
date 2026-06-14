@@ -12,17 +12,23 @@
 
   function buildSummary(row) {
     var specs = [];
-    row.querySelectorAll(".erp-spec-row").forEach(function (specRow) {
-      var w = specRow.querySelector('[data-erp="spec_width"]');
-      var d = specRow.querySelector('[data-erp="spec_depth"]');
-      var h = specRow.querySelector('[data-erp="spec_height"]');
-      var parts = [w, d, h]
-        .map(function (el) {
-          return el && el.value ? String(el.value).trim() : "";
-        })
-        .filter(Boolean);
-      if (parts.length) specs.push(parts.join("×"));
-    });
+    var rawSpecEl = row.querySelector('[data-erp="spec"]');
+    var rawSpec = rawSpecEl && rawSpecEl.value ? String(rawSpecEl.value).trim() : "";
+    if (rawSpec) {
+      specs.push(rawSpec.replace(/\s+/g, " "));
+    } else {
+      row.querySelectorAll(".erp-spec-row").forEach(function (specRow) {
+        var w = specRow.querySelector('[data-erp="spec_width"]');
+        var d = specRow.querySelector('[data-erp="spec_depth"]');
+        var h = specRow.querySelector('[data-erp="spec_height"]');
+        var parts = [w, d, h]
+          .map(function (el) {
+            return el && el.value ? String(el.value).trim() : "";
+          })
+          .filter(Boolean);
+        if (parts.length) specs.push(parts.join("×"));
+      });
+    }
     var priceEl = row.querySelector('[data-erp="price"]');
     var price = priceEl && priceEl.value ? String(priceEl.value).trim() : "";
     var chunks = [];
@@ -234,6 +240,7 @@
       }
       if (
         target.dataset.erp === "product_name" ||
+        target.dataset.erp === "spec" ||
         target.dataset.erp === "spec_width" ||
         target.dataset.erp === "spec_depth" ||
         target.dataset.erp === "spec_height" ||
