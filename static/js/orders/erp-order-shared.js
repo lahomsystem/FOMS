@@ -716,9 +716,9 @@ function erpNewItemRow(item = {}) {
 </div>`;
     };
     const specRowsHtml = specRows.map((sr) => buildSpecRowHtml(sr, specRows.length > 1)).join('');
-    // 복합 규격 예시 안내 — W칸에 W*D*H 형태를 붙여넣으면 자동 분해된다.
+    // 복합 규격 안내(간단) — W*D*H 붙여넣기 자동 분해 + W 복합 폭은 콤마 합산.
     const specExamplesHintHtml = isMobileForm ? `
-    <div class="field__hint erp-mobile-spec-hint">복합 규격 예) 5700(2402+1864+1638)*400*2300 · 2352+2100+2860*1000(700,750) — W칸에 붙여넣으면 *(곱) 기준으로 W·D·H 자동 분해</div>` : '';
+    <div class="field__hint erp-mobile-spec-hint">W*D*H 붙여넣으면 자동 분해 · 복합 폭은 콤마로 (예: 5700,4512,2300)</div>` : '';
     const internal = defaultConsult(item.internal);
     // 색상: 신규(빈 값)은 '상담' 기본. 저장된 값이 있으면 그대로 로드.
     // 이전 버그로 ' (SK)' suffix가 중복 저장된 레거시 데이터 자동 정리
@@ -3640,11 +3640,42 @@ function fomsMountErpOrderSurface() {
     // 실패/예외 경로에서도 surface가 영구 hidden으로 남지 않도록 최후 failsafe.
     var _erpReadyFailsafeId = window.setTimeout(_erpMarkSurfaceReady, 3000);
 
+    // 여러 날짜 선택(multiple) 달력은 자동으로 닫히지 않으므로, 빈 곳 클릭 없이
+    // 한 번에 닫을 수 있도록 달력 하단에 '확인' 버튼을 주입한다.
+    function erpAddFlatpickrDoneButton(instance) {
+        if (!instance || !instance.calendarContainer) return;
+        if (instance.calendarContainer.querySelector('.erp-fp-done-bar')) return;
+        if (!document.getElementById('erp-fp-done-style')) {
+            const st = document.createElement('style');
+            st.id = 'erp-fp-done-style';
+            st.textContent =
+                '.flatpickr-calendar .erp-fp-done-bar{display:flex;justify-content:flex-end;' +
+                'padding:6px;border-top:1px solid #e5e7eb;background:#fff;border-bottom-left-radius:5px;border-bottom-right-radius:5px;}' +
+                '.flatpickr-calendar .erp-fp-done-btn{min-height:40px;padding:6px 18px;border:0;' +
+                'border-radius:8px;background:#2563eb;color:#fff;font-weight:600;font-size:14px;cursor:pointer;}';
+            document.head.appendChild(st);
+        }
+        const bar = document.createElement('div');
+        bar.className = 'erp-fp-done-bar';
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'erp-fp-done-btn';
+        btn.innerHTML = '<i class="fas fa-check"></i> 확인';
+        btn.addEventListener('click', function () { instance.close(); });
+        bar.appendChild(btn);
+        instance.calendarContainer.appendChild(bar);
+    }
+
     function initErpMainDatePickers() {
         const mEl = document.getElementById('erp-measurement-date');
         const cEl = document.getElementById('erp-construction-date');
         if (typeof flatpickr !== 'function') return;
-        const opts = { mode: 'multiple', dateFormat: 'Y-m-d', locale: 'ko', allowInput: true };
+        const opts = {
+            mode: 'multiple', dateFormat: 'Y-m-d', locale: 'ko', allowInput: true,
+            onReady: function (selectedDates, dateStr, instance) {
+                erpAddFlatpickrDoneButton(instance);
+            }
+        };
         if (mEl && !mEl._flatpickr) {
             window._erpMeasurementDatePicker = flatpickr(mEl, {
                 ...opts,
@@ -3676,7 +3707,12 @@ function fomsMountErpOrderSurface() {
         if (typeof flatpickr !== 'function') return;
         (row.querySelectorAll('.erp-item-date-multiple') || []).forEach(function (el) {
             if (el._flatpickr) return;
-            flatpickr(el, { mode: 'multiple', dateFormat: 'Y-m-d', locale: 'ko', allowInput: true });
+            flatpickr(el, {
+                mode: 'multiple', dateFormat: 'Y-m-d', locale: 'ko', allowInput: true,
+                onReady: function (selectedDates, dateStr, instance) {
+                    erpAddFlatpickrDoneButton(instance);
+                }
+            });
         });
     };
 

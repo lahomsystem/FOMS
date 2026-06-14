@@ -210,7 +210,8 @@ def _pick_shipment_search_focus_date(scoped_orders_query, today_kst):
     dates = sorted({str(r[0]) for r in rows if r and r[0]})
     if not dates:
         return None
-    today_d = today_kst.date()
+    # get_today_kst()는 datetime.date를 반환하므로 .date() 호출 없이 그대로 비교한다.
+    today_d = today_kst
     future_or_today = [
         d for d in dates
         if datetime.datetime.strptime(d, '%Y-%m-%d').date() >= today_d
@@ -411,14 +412,14 @@ def erp_shipment_dashboard():
     ):
         dates_with_counts = [d for d, c in construction_counts.items() if c > 0]
         if dates_with_counts:
-            today_d = today_kst
+            today_d = today_kst  # datetime.date (get_today_kst)
             future_or_today = [
                 d for d in dates_with_counts
-                if datetime.datetime.strptime(d, '%Y-%m-%d').date() >= today_d.date()
+                if datetime.datetime.strptime(d, '%Y-%m-%d').date() >= today_d
             ]
             past = [
                 d for d in dates_with_counts
-                if datetime.datetime.strptime(d, '%Y-%m-%d').date() < today_d.date()
+                if datetime.datetime.strptime(d, '%Y-%m-%d').date() < today_d
             ]
             if future_or_today:
                 selected_date = min(future_or_today)

@@ -54,11 +54,12 @@ def test_eval_spec_width_mm_handles_composite_specs() -> None:
     """복합 규격 W를 출고/시공비 기준 총 폭(mm)으로 정확히 평가한다."""
     # 명시 총합(괄호 앞) 우선, 괄호 안 세부치수 무시
     assert eval_spec_width_mm("5700(2402+1864+1638)") == 5700.0
-    # 명시 총합이 없으면 최상위 가산항 합산
+    # 명시 총합이 없으면 최상위 가산항 합산('+' 및 ',' 모두 인식)
     assert eval_spec_width_mm("2352+2100+2860") == 7312.0
-    # 단일 값 / 천단위 콤마
+    assert eval_spec_width_mm("5700,4512,2300") == 12512.0
+    assert eval_spec_width_mm("2352+2100,2860") == 7312.0
+    # 단일 값
     assert eval_spec_width_mm("9000") == 9000.0
-    assert eval_spec_width_mm("9,000") == 9000.0
     # 깊이류 괄호 무시 + 차원 표기 흡수
     assert eval_spec_width_mm("1000(700,750)") == 1000.0
     assert eval_spec_width_mm("3600x600") == 3600.0

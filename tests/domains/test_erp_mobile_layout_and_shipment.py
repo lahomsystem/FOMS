@@ -406,3 +406,35 @@ def test_shipment_construction_panel_count_excludes_as_orders(client, monkeypatc
     snippet = body[anchor_idx: close_idx + len("</a>")]
     assert 'class="badge badge-count ms-auto">1</span>' in snippet
     assert 'class="badge badge-count ms-auto">2</span>' not in snippet
+
+
+def test_shipment_search_focus_date_does_not_500_on_scheduled_match(client, monkeypatch):
+    """검색 결과에 시공 일정이 잡히면 포커스 날짜 계산이 500 없이 동작한다.
+
+    Regression: _pick_shipment_search_focus_date가 datetime.date인 today_kst에
+    .date()를 호출해 'datetime.date' object has no attribute 'date'로 500을 냈다.
+    """
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    _login_erp_admin(client)
+
+    cdate = (date.today() + timedelta(days=2)).isoformat()
+    order = Order(
+        received_date=date.today().isoformat(),
+        customer_name="포커스검색고객",
+        phone="010-1111-2222",
+        address="서울",
+        product="시공품",
+        is_erp_order=True,
+        status="CONFIRM",
+        scheduled_date=cdate,
+        structured_data={"workflow": {"stage": "PRODUCTION"}, "items": []},
+    )
+    db_session.add(order)
+    db_session.commit()
+    db_session.add(
+        OrderScheduleDate(order_id=order.id, kind="construction", date=cdate, source="beta_item")
+    )
+    db_session.commit()
+
+    resp = client.get("/erp/shipment?q=포커스검색고객")
+    assert resp.status_code == 200

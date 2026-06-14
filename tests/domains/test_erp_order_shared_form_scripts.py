@@ -345,9 +345,12 @@ def test_mobile_erp_item_form_preserves_complex_spec_text() -> None:
     shared_js = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
     product_item_js = (root / "static/js/foms/product-item.js").read_text(encoding="utf-8")
 
+    # spec(원문)은 저장 시 W/D/H 행에서 파생 보존 — collect/conversion이 참조한다.
     assert 'data-erp="spec"' in shared_js
-    assert "5700(2402+1864+1638)*400*2300" in shared_js
-    assert "2352+2100+2860*1000(700,750)" in shared_js
+    # 구조화 W 입력 + 복합 폭 콤마 안내 + W*D*H 붙여넣기 자동 분해.
+    assert 'data-erp="spec_width"' in shared_js
+    assert "5700,4512,2300" in shared_js
+    assert "bindSpecWidthPasteSplit" in shared_js
 
     collect_start = shared_js.index("function erpCollectStructured()")
     collect_end = shared_js.index("async function erpSaveStructured", collect_start)
