@@ -35,6 +35,12 @@
                             <i class="fas fa-calculator"></i> 계산기
                         </button>
                     </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="erp-estimate-tab" data-bs-toggle="tab"
+                            data-bs-target="#erp-estimate" type="button" role="tab">
+                            <i class="fas fa-file-contract"></i> 견적서
+                        </button>
+                    </li>
                     {% else %}
                     <li class="nav-item" role="presentation">
                         <button class="nav-link active" id="order-info-tab" data-bs-toggle="tab"
@@ -466,6 +472,11 @@
                         </div>
                     </div>
 
+                    <!-- 견적서 탭 (ERP Order 전용, 계산기 우측 outer 탭) -->
+                    {% if erp_order_feature_enabled and is_erp_order_flag %}
+                    {% include 'orders/partials/estimate_pane.html' %}
+                    {% endif %}
+
                     {% if not is_erp_order %}
                     <!-- 도면 탭 -->
                     <div class="tab-pane fade" id="blueprint" role="tabpanel">
@@ -533,6 +544,8 @@
                     <!-- ERP Order 탭 (shared partial) -->
                     {% if erp_order_feature_enabled and is_erp_order_flag %}
                     {% set erp_order_active = is_erp_order %}
+                    {# 견적서는 위 outer 탭에서 렌더 → 공유 파티얼은 inner pill·estimate를 생략한다. #}
+                    {% set erp_estimate_in_outer_tab = true %}
                     {% if erp_mobile_v2_enabled %}
                     {# Cohort: ship both variants; inline script keeps one surface by viewport (no duplicate ids for ERP JS). #}
                     <div id="erp-order-form-legacy">

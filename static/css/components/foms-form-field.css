@@ -138,47 +138,6 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
   min-width: 0;
 }
 
-/* Beat erp-pro horizontal tab scroll; mobile ERP has exactly two pills (mockup .main-tabs) */
-@media (max-width: 991.98px) {
-  body.erp-mobile-v2-layout .erp-order-mobile-form .erp-order-tabs-nav {
-    display: grid !important;
-    grid-template-columns: 1fr 1fr;
-    overflow-x: visible;
-    flex-wrap: unset;
-    gap: var(--foms-space-2);
-    padding-bottom: 0;
-  }
-
-  body.erp-mobile-v2-layout .erp-order-mobile-form .erp-order-tabs-nav .nav-item {
-    flex-shrink: 1;
-    width: 100%;
-  }
-}
-
-.erp-order-mobile-form .erp-order-tabs-nav {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--foms-space-2);
-  margin: 0 0 var(--foms-space-4);
-  padding: 0;
-}
-
-.erp-order-mobile-form .erp-order-tabs-nav .nav-link {
-  width: 100%;
-  min-height: var(--foms-touch-target-min);
-  border: 1px solid var(--foms-border-default);
-  border-radius: var(--foms-radius-md);
-  background: var(--foms-surface-base);
-  color: var(--foms-text-secondary);
-  font-weight: var(--foms-font-weight-medium);
-}
-
-.erp-order-mobile-form .erp-order-tabs-nav .nav-link.active {
-  border-color: var(--foms-border-focus);
-  background: var(--foms-interactive-secondary);
-  color: var(--foms-text-primary);
-}
-
 .erp-form-section {
   padding: var(--foms-space-3) 0;
   border-top: 1px solid var(--foms-border-subtle, #e5e7eb);
@@ -207,8 +166,13 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
   align-items: center;
 }
 
+/* 직접 입력 모드: 시간 필드를 한 줄 전체로 펼쳐 셀렉트·입력 텍스트가 잘리지 않게 한다 */
+.erp-order-mobile-form .field-grid-2 .field:has(.erp-mobile-time-inline.is-direct) {
+  grid-column: 1 / -1;
+}
+
 .erp-mobile-time-inline.is-direct {
-  grid-template-columns: minmax(5.75rem, 0.85fr) minmax(0, 1fr);
+  grid-template-columns: minmax(6rem, 9rem) minmax(0, 1fr);
 }
 
 .erp-mobile-time-inline .foms-input,

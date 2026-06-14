@@ -27,20 +27,6 @@ ERP Order mobile-v2 tab pane.
                 </div>
             </div>
 
-            <ul class="nav nav-pills erp-order-tabs-nav" id="erpOrderTabs" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="erp-form-tab" data-bs-toggle="pill" data-bs-target="#erp-form"
-                        type="button" role="tab">
-                        <i class="fas fa-pen"></i> 구조화 입력
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="erp-estimate-tab" data-bs-toggle="pill" data-bs-target="#erp-estimate"
-                        type="button" role="tab">
-                        <i class="fas fa-file-contract"></i> 계약서
-                    </button>
-                </li>
-            </ul>
             <div class="tab-content">
                 <div class="tab-pane fade show active" id="erp-form" role="tabpanel">
                     <section class="erp-form-section" aria-label="접수 정보">
@@ -295,28 +281,26 @@ ERP Order mobile-v2 tab pane.
                                 </div>
                             </div>
                         </div>
-                        <div class="field-grid-2">
-                            <div class="field">
-                                <label class="field__label" for="erp-measurement-date">실측일</label>
-                                <div class="erp-mobile-date-field">
-                                    <input type="text" class="foms-input foms-tabular" id="erp-measurement-date"
-                                        placeholder="2026-03-13, 2026-03-14" autocomplete="off"
-                                        title="클릭하거나 달력 아이콘을 누르면 날짜 선택">
-                                    <button type="button" class="foms-btn foms-btn--secondary" id="erp-measurement-date-open" title="달력에서 선택" aria-label="달력 열기">
-                                        <i class="fas fa-calendar-alt"></i>
-                                    </button>
-                                </div>
+                        <div class="field">
+                            <label class="field__label" for="erp-measurement-date">실측일</label>
+                            <div class="erp-mobile-date-field">
+                                <input type="text" class="foms-input foms-tabular" id="erp-measurement-date"
+                                    placeholder="2026-03-13, 2026-03-14" autocomplete="off"
+                                    title="클릭하거나 달력 아이콘을 누르면 날짜 선택">
+                                <button type="button" class="foms-btn foms-btn--secondary" id="erp-measurement-date-open" title="달력에서 선택" aria-label="달력 열기">
+                                    <i class="fas fa-calendar-alt"></i>
+                                </button>
                             </div>
-                            <div class="field">
-                                <label class="field__label" for="erp-construction-date">시공일</label>
-                                <div class="erp-mobile-date-field">
-                                    <input type="text" class="foms-input foms-tabular" id="erp-construction-date"
-                                        placeholder="2026-03-13, 2026-03-14" autocomplete="off"
-                                        title="클릭하거나 달력 아이콘을 누르면 날짜 선택">
-                                    <button type="button" class="foms-btn foms-btn--secondary" id="erp-construction-date-open" title="달력에서 선택" aria-label="달력 열기">
-                                        <i class="fas fa-calendar-alt"></i>
-                                    </button>
-                                </div>
+                        </div>
+                        <div class="field">
+                            <label class="field__label" for="erp-construction-date">시공일</label>
+                            <div class="erp-mobile-date-field">
+                                <input type="text" class="foms-input foms-tabular" id="erp-construction-date"
+                                    placeholder="2026-03-13, 2026-03-14" autocomplete="off"
+                                    title="클릭하거나 달력 아이콘을 누르면 날짜 선택">
+                                <button type="button" class="foms-btn foms-btn--secondary" id="erp-construction-date-open" title="달력에서 선택" aria-label="달력 열기">
+                                    <i class="fas fa-calendar-alt"></i>
+                                </button>
                             </div>
                         </div>
                         <button class="foms-btn foms-btn--ghost foms-btn--sm" type="button"
@@ -364,8 +348,6 @@ ERP Order mobile-v2 tab pane.
                     </section>
 
                 </div>
-
-                {% include 'orders/partials/estimate_pane.html' %}
 
             </div>
             <footer class="foms-sticky-action-bar erp-mobile-sticky-action-bar" role="group" aria-label="ERP 주문 저장">
