@@ -165,10 +165,22 @@ def test_build_risk_order_ids_rejects_unknown_key():
     assert ct.build_risk_order_ids(None, None, "bogus") == []
 
 
+def test_channel_desk_url_resolution(monkeypatch):
+    """출고 확인 CTA가 여는 채널톡 데스크 URL: env 우선순위(CHANNEL_DESK_URL > CHANNEL_ID > 기본)."""
+    from foms.web.orders.dashboard import _channel_desk_url
+    monkeypatch.delenv("CHANNEL_DESK_URL", raising=False)
+    monkeypatch.delenv("CHANNEL_ID", raising=False)
+    assert _channel_desk_url() == "https://desk.channel.io"
+    monkeypatch.setenv("CHANNEL_ID", "abc123")
+    assert _channel_desk_url() == "https://desk.channel.io/#/channels/abc123"
+    monkeypatch.setenv("CHANNEL_DESK_URL", "https://desk.channel.io/#/channels/x/user_chats/y")
+    assert _channel_desk_url() == "https://desk.channel.io/#/channels/x/user_chats/y"
+
+
 def test_risk_row_cta_meta_per_key():
     """P1: 위험 key마다 행별 단일 CTA(label/icon/kind/tone) 존재. kind는 라우트 해석 토큰."""
     expected_kind = {
-        "construction_unready": "detail", "balance_due": "tel",
+        "construction_unready": "channel", "balance_due": "tel",
         "measure_unassigned": "edit", "drawing_stalled": "tel",
     }
     for key in ct.RISK_KEYS:

@@ -1,5 +1,6 @@
 """ERP 메인 대시보드 (ERP-SLIM-4; canonical, SFC-B11B). /erp/dashboard."""
 import datetime
+import os
 import time
 from flask import Blueprint, flash, make_response, redirect, render_template, request, g, url_for
 from db import get_db
@@ -109,6 +110,21 @@ def _business_alert_date_values(
         if days_until is not None and 0 <= days_until <= max_business_days:
             values.append(value.isoformat())
     return values
+
+
+def _channel_desk_url() -> str:
+    """채널톡 데스크 딥링크. 모바일에서 앱 설치 시 universal link로 채널톡 앱이 열린다.
+
+    운영은 CHANNEL_DESK_URL로 정밀 지정 가능(특정 채널/대화). 미설정 시 CHANNEL_ID로
+    채널 데스크, 그것도 없으면 데스크 루트.
+    """
+    desk = (os.environ.get('CHANNEL_DESK_URL') or '').strip()
+    if desk:
+        return desk
+    channel_id = (os.environ.get('CHANNEL_ID') or '').strip()
+    if channel_id:
+        return f'https://desk.channel.io/#/channels/{channel_id}'
+    return 'https://desk.channel.io'
 
 
 @erp_dashboard_bp.route('/dashboard')
@@ -680,22 +696,28 @@ def erp_dashboard():
 
     paginated_orders = enriched
 
-    # P1: 위험 착지 행별 단일 지배 CTA(내비게이션 링크). tel→전화, edit→담당배정, detail→출고/입금 확인.
+    # P1: 위험 착지 행별 단일 지배 CTA. tel→고객 전화, edit→담당배정 필드 포커스,
+    # channel→채널톡 데스크 앱(담당자 연락), detail→상세 폴백.
     if f_risk:
         _cta_meta = risk_row_cta_meta(f_risk)
         if _cta_meta:
+            _kind = _cta_meta['kind']
+            _desk_url = _channel_desk_url() if _kind == 'channel' else None
             for row in paginated_orders:
-                _kind = _cta_meta['kind']
+                _external = False
                 if _kind == 'tel':
                     _digits = ''.join(ch for ch in str(row.get('phone') or '') if ch.isdigit())
                     _href = ('tel:' + _digits) if _digits else url_for('erp_dashboard.erp_order_mobile_detail', order_id=row['id'])
                 elif _kind == 'edit':
-                    _href = url_for('order_edit.edit_order', order_id=row['id'], open='erp-order')
+                    _href = url_for('order_edit.edit_order', order_id=row['id'], open='erp-order', focus='assignee')
+                elif _kind == 'channel':
+                    _href = _desk_url
+                    _external = True
                 else:
                     _href = url_for('erp_dashboard.erp_order_mobile_detail', order_id=row['id'])
                 row['risk_cta'] = {
                     'label': _cta_meta['label'], 'icon': _cta_meta['icon'],
-                    'tone': _cta_meta['tone'], 'href': _href,
+                    'tone': _cta_meta['tone'], 'href': _href, 'external': _external,
                 }
 
     _preview_urls = batch_resolve_queue_attachment_urls(

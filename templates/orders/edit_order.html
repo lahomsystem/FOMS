@@ -970,7 +970,40 @@
 
             const focusTarget = (qs.get('focus') || '').trim();
             const category = (qs.get('category') || '').trim().toLowerCase();
-            if (focusTarget === 'attachments') {
+            if (focusTarget === 'assignee') {
+                // 위험 레이더 '담당 배정' CTA: 담당자 입력 칸으로 이동 + 펄스 강조 애니메이션.
+                // 모바일은 담당자가 접힌 섹션(발주 body) 안이라 먼저 펼친 뒤 포커스한다.
+                let assigneeFocusDone = false;
+                const focusAssignee = function () {
+                    if (assigneeFocusDone) { return; }
+                    assigneeFocusDone = true;
+                    const target = document.getElementById('erp-manager');
+                    if (!target) { return; }
+                    const collapsed = target.closest('.collapse:not(.show)');
+                    if (collapsed && typeof bootstrap !== 'undefined' && bootstrap.Collapse) {
+                        try { bootstrap.Collapse.getOrCreateInstance(collapsed).show(); } catch (ignored) { }
+                    }
+                    setTimeout(() => {
+                        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        try { target.focus({ preventScroll: true }); } catch (ignored) { try { target.focus(); } catch (e2) { } }
+                        if (typeof target.animate === 'function') {
+                            target.animate([
+                                { boxShadow: '0 0 0 0 rgba(13,110,253,0.0)' },
+                                { boxShadow: '0 0 0 6px rgba(13,110,253,0.40)' },
+                                { boxShadow: '0 0 0 0 rgba(13,110,253,0.0)' }
+                            ], { duration: 900, iterations: 2, easing: 'ease-out' });
+                        }
+                    }, 280);
+                };
+                btn.addEventListener('shown.bs.tab', function () { setTimeout(focusAssignee, 200); }, { once: true });
+                // 폴백: 탭이 이미 활성(전환 이벤트 미발생)이면 직접 실행.
+                setTimeout(function () {
+                    const pane = document.getElementById('erp-order');
+                    if (pane && (pane.classList.contains('active') || pane.classList.contains('show'))) {
+                        focusAssignee();
+                    }
+                }, 650);
+            } else if (focusTarget === 'attachments') {
                 btn.addEventListener('shown.bs.tab', function () {
                     setTimeout(() => {
                         if (category) {

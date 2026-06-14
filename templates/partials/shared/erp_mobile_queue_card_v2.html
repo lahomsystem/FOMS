@@ -128,6 +128,7 @@
         <a
           class="foms-btn foms-btn--sm foms-queue-card-v2__risk-cta foms-queue-card-v2__risk-cta--{{ order.risk_cta.tone }}"
           href="{{ order.risk_cta.href }}"
+          {% if order.risk_cta.external %}target="_blank" rel="noopener"{% endif %}
           aria-label="{{ order.risk_cta.label }}">
           {% if order.risk_cta.icon %}<i class="{{ order.risk_cta.icon }}" aria-hidden="true"></i> {% endif %}{{ order.risk_cta.label }}
         </a>

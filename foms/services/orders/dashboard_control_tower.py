@@ -409,9 +409,10 @@ def build_risk_order_ids(db: Any, current_user: Any, key: str, *, today: datetim
     return []
 
 
-# 행별 단일 지배 CTA 메타(P1). kind는 라우트가 href로 해석: tel|detail|edit.
+# 행별 단일 지배 CTA 메타(P1). kind는 라우트가 href로 해석:
+#   tel→고객 전화, edit→담당자 배정 필드 포커스, channel→채널톡 데스크 앱(담당자 연락).
 RISK_ROW_CTA: dict[str, dict[str, str]] = {
-    "construction_unready": {"label": "출고 확인", "icon": "fas fa-truck", "kind": "detail", "tone": "danger"},
+    "construction_unready": {"label": "출고 확인", "icon": "fas fa-comments", "kind": "channel", "tone": "danger"},
     "balance_due": {"label": "전화", "icon": "fas fa-phone", "kind": "tel", "tone": "danger"},
     "measure_unassigned": {"label": "담당 배정", "icon": "fas fa-user-plus", "kind": "edit", "tone": "warning"},
     "drawing_stalled": {"label": "전화", "icon": "fas fa-phone", "kind": "tel", "tone": "warning"},
