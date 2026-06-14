@@ -158,10 +158,14 @@ def mobile_product_items(sd: dict, *, limit: int = 8) -> list[dict[str, Any]]:
             except (TypeError, ValueError):
                 price_label = str(price_raw)
         summary_bits = [p for p in (spec, price_label if price_label != "-" else None) if p]
+        size_label = spec or str(
+            raw.get("standard") or raw.get("spec") or raw.get("규격") or ""
+        ).strip()
         rows.append(
             {
                 "index": idx + 1,
                 "title": str(name),
+                "size": size_label or "-",
                 "internal": raw.get("internal") or raw.get("interior") or "-",
                 "color": raw.get("color") or "-",
                 "option_detail": raw.get("option_detail") or raw.get("option") or "-",

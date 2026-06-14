@@ -109,6 +109,7 @@
             {% endif %}
             <div class="product-item__body foms-product-item__body">
               {{ foms_kv_list([
+                {'label': '사이즈', 'value': item.size or '-'},
                 {'label': '내부', 'value': item.internal or '-'},
                 {'label': '색상', 'value': item.color or '-'},
                 {'label': '옵션', 'value': item.option_detail or '-'},
