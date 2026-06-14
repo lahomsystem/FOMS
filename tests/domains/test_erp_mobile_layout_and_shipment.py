@@ -116,7 +116,7 @@ def test_shipment_mobile_markup_includes_colgroup_reset_override(client, monkeyp
     assert 'id="shipment-dashboard-table"' in body
     assert "shipment-dashboard-columns.css" in body
     assert "erp-shipment-mobile-summary__eyebrow" in body
-    assert "Shipment Queue" in body
+    assert "출고 큐" in body
     assert "input-group input-group-sm flex-nowrap" in body
     assert body.count('value=""\n                            placeholder="도면담당자"') == 0
     assert body.count('value=""\n                            placeholder="시공자"') == 0
