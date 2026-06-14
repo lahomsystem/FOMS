@@ -112,7 +112,7 @@
               }
 
               .erp-scheduler-panel-col {
-                --erp-scheduler-panel-width: 300px;
+                --erp-scheduler-panel-width: 380px;
                 flex: 0 0 auto;
                 width: min(var(--erp-scheduler-panel-width), 100%);
                 max-width: 100%;
@@ -228,8 +228,8 @@
 
               .remaining-panel-table th:first-child,
               .remaining-panel-table td:first-child {
-                width: 118px;
-                min-width: 118px;
+                width: 112px;
+                min-width: 112px;
                 white-space: nowrap;
               }
 

@@ -131,8 +131,11 @@ def test_shipment_text_edit_contract_adds_new_blank_rows_and_has_readable_widths
     assert "input-group input-group-sm flex-nowrap" in template
     assert "var reusable = Array.from(list.querySelectorAll('.shipment-text-row')).find" not in template
     assert "list.insertBefore(row, actionsRow || null);" in template
+    assert "window.__shipmentDashboardDocListenersBound" in template
+    assert "mountShipmentDashboardSurface" in template
     assert "throw new Error((data && data.message) || ('HTTP ' + r.status));" in template
     assert "min-width: 8rem !important;" in css
+    assert "--erp-scheduler-panel-width: 380px;" in css
     assert 'construction_time:    { defaultWidth: 150, minWidth: 140' in columns
     assert 'drawing_managers:     { defaultWidth: 170, minWidth: 150' in columns
     assert 'construction_workers: { defaultWidth: 170, minWidth: 150' in columns
