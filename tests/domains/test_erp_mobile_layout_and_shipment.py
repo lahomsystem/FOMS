@@ -427,6 +427,7 @@ def test_measurement_scheduler_panel_uses_compact_count_row(client, monkeypatch)
     body = response.get_data(as_text=True)
 
     assert "erp-scheduler-panel-col" in body
+    assert "--erp-scheduler-panel-width: 380px;" in body
     assert "erp-scheduler-card" in body
     anchor = f'id="date-{today}"'
     anchor_idx = body.find(anchor)

@@ -78,9 +78,9 @@
       <div class="row g-3 erp-measurement-layout">
         <div class="col-12 col-lg-auto erp-scheduler-panel-col">
           <div class="card border-0 shadow-sm h-100 erp-scheduler-card">
-            <div class="card-header bg-white py-1 px-2 d-flex justify-content-between align-items-center flex-wrap">
-              <div class="fw-bold small"><i class="fas fa-calendar-day"></i> 날짜별 실측</div>
-              <div class="d-flex align-items-center gap-1">
+            <div class="card-header bg-white py-1 px-2 d-flex justify-content-between align-items-center flex-wrap gap-1">
+              <div class="fw-bold small text-nowrap"><i class="fas fa-calendar-day"></i> 날짜별 실측</div>
+              <div class="d-flex align-items-center gap-1 flex-shrink-0">
                 <a href="{{ url_for('erp_measurement_dashboard.erp_measurement_dashboard') }}"
                   class="btn btn-sm btn-outline-secondary py-0 px-1" title="기본값으로 초기화">초기화</a>
                 <a href="{{ url_for('erp_measurement_dashboard.erp_measurement_dashboard', date=today_date, q=search_q or '') }}"
@@ -310,7 +310,7 @@
               }
 
               .erp-scheduler-panel-col {
-                --erp-scheduler-panel-width: 268px;
+                --erp-scheduler-panel-width: 380px;
                 flex: 0 0 auto;
                 width: min(var(--erp-scheduler-panel-width), 100%);
                 max-width: 100%;

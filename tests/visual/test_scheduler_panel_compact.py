@@ -54,7 +54,7 @@ def test_legacy_measurement_scheduler_panel_stays_compact(
     _login(page, visual_live_server_legacy)
 
     page.goto(f"{visual_live_server_legacy}/erp/measurement", wait_until="networkidle")
-    _assert_compact(_scheduler_metrics(page, ".measurement-panel-item-oneline"))
+    _assert_compact(_scheduler_metrics(page, ".measurement-panel-item-oneline"), max_item_width=285)
 
 
 def test_legacy_shipment_scheduler_panel_stays_compact(
