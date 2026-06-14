@@ -19,15 +19,16 @@
     </div>
     <div class="foms-tower__week-strip">
       {% for d in week.days %}
+      {% set day_total = (d.measure or 0) + (d.construction or 0) %}
       <button type="button"
               class="foms-tower__day {% if d.is_today %}is-today is-active{% endif %}"
               data-foms-day-tile data-iso="{{ d.iso }}"
-              aria-label="{{ d.dow }} {{ d.date }}일 일정 보기">
+              aria-label="{{ d.dow }} {{ d.date }}일 일정 {{ day_total }}건 보기">
         {% if d.has_risk %}<span class="foms-tower__day-risk" aria-label="위험"></span>{% endif %}
-        <span class="foms-tower__day-dow">{{ d.dow }}</span>
         <span class="foms-tower__day-date">{{ d.date }}</span>
-        <span class="foms-tower__day-counts">
-          {% if d.measure or d.construction %}📐{{ d.measure }}·🔨{{ d.construction }}{% else %}·{% endif %}
+        <span class="foms-tower__day-meta">
+          <span class="foms-tower__day-dow">{{ d.dow }}</span>
+          <span class="foms-tower__day-counts" aria-label="실측 {{ d.measure or 0 }}건, 시공 {{ d.construction or 0 }}건">{{ day_total }}</span>
         </span>
       </button>
       {% endfor %}
