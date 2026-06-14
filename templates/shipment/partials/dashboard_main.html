@@ -885,11 +885,6 @@
         });
       }
 
-      initAddButtonToggle();
-      document.addEventListener('click', function (e) {
-        closeShipmentInlineEditors(e.target);
-      });
-
       function collectSiteExtra(ul) {
         var lines = [];
         ul.querySelectorAll('li.shipment-site-extra-row').forEach(function (li) {
@@ -1176,88 +1171,107 @@
         return li;
       }
 
-      document.addEventListener('mousedown', function (e) {
-        if (!e.target.closest('.btn-remove-shipment-text-row, .shipment-btn-load-saved-text-row')) return;
-        var row = e.target.closest('.shipment-text-row');
-        if (row) row.dataset.skipBlurSave = '1';
-      }, true);
+      if (!window.__shipmentDashboardDocListenersBound) {
+        window.__shipmentDashboardDocListenersBound = true;
 
-      document.addEventListener('click', function (e) {
-        var view = e.target.closest('.shipment-text-row .shipment-text-view');
-        if (view) {
-          var row = view.closest('.shipment-text-row');
-          var input = row && row.querySelector('.shipment-text-input');
-          if (row && input) {
+        document.addEventListener('click', function (e) {
+          closeShipmentInlineEditors(e.target);
+        });
+
+        document.addEventListener('mousedown', function (e) {
+          if (!e.target.closest('.btn-remove-shipment-text-row, .shipment-btn-load-saved-text-row')) return;
+          var row = e.target.closest('.shipment-text-row');
+          if (row) row.dataset.skipBlurSave = '1';
+        }, true);
+
+        document.addEventListener('click', function (e) {
+          var view = e.target.closest('.shipment-text-row .shipment-text-view');
+          if (view) {
+            var row = view.closest('.shipment-text-row');
+            var input = row && row.querySelector('.shipment-text-input');
+            if (row && input) {
+              e.preventDefault();
+              e.stopPropagation();
+              row.classList.remove('has-value');
+              row.classList.remove('is-empty');
+              row.classList.add('editing');
+              input.focus();
+            }
+            return;
+          }
+
+          var addBtn = e.target.closest('.btn-add-shipment-text-row');
+          if (addBtn) {
+            var list = getShipmentEditList(addBtn);
+            if (!list) return;
             e.preventDefault();
             e.stopPropagation();
-            row.classList.remove('has-value');
-            row.classList.remove('is-empty');
-            row.classList.add('editing');
-            input.focus();
-          }
-          return;
-        }
-
-        var addBtn = e.target.closest('.btn-add-shipment-text-row');
-        if (addBtn) {
-          var list = getShipmentEditList(addBtn);
-          if (!list) return;
-          e.preventDefault();
-          e.stopPropagation();
-          var row = buildShipmentTextRow(list, '');
-          var actionsRow = addBtn.closest('.actions-on-hover');
-          list.insertBefore(row, actionsRow || null);
-          var input = row.querySelector('.shipment-text-input');
-          if (input) input.focus();
-          return;
-        }
-
-        var removeBtn = e.target.closest('.btn-remove-shipment-text-row');
-        if (removeBtn) {
-          var list = getShipmentEditList(removeBtn);
-          var row = removeBtn.closest('.shipment-text-row');
-          if (!list || !row) return;
-          e.preventDefault();
-          e.stopPropagation();
-          if (isShipmentSingleValueList(list)) {
+            var row = buildShipmentTextRow(list, '');
+            var actionsRow = addBtn.closest('.actions-on-hover');
+            list.insertBefore(row, actionsRow || null);
             var input = row.querySelector('.shipment-text-input');
-            if (input) input.value = '';
-            syncShipmentTextRowState(row);
-          } else {
-            row.remove();
+            if (input) input.focus();
+            return;
           }
-          saveShipmentEditList(list);
-          return;
-        }
 
-        var loadBtn = e.target.closest('.shipment-btn-load-saved-text-row');
-        if (loadBtn) {
-          var list = getShipmentEditList(loadBtn);
-          var row = loadBtn.closest('.shipment-text-row');
-          var input = row && row.querySelector('.shipment-text-input');
-          if (!list || !row || !input) return;
-          e.preventDefault();
-          e.stopPropagation();
-          showSavedDropdown(loadBtn, getShipmentEditListKey(list), function (value) {
-            input.value = value;
-            saveShipmentEditRowValue(list, row);
-            input.focus();
-          });
-        }
-      });
+          var removeBtn = e.target.closest('.btn-remove-shipment-text-row');
+          if (removeBtn) {
+            var list = getShipmentEditList(removeBtn);
+            var row = removeBtn.closest('.shipment-text-row');
+            if (!list || !row) return;
+            e.preventDefault();
+            e.stopPropagation();
+            if (isShipmentSingleValueList(list)) {
+              var input = row.querySelector('.shipment-text-input');
+              if (input) input.value = '';
+              syncShipmentTextRowState(row);
+            } else {
+              row.remove();
+            }
+            saveShipmentEditList(list);
+            return;
+          }
 
-      document.addEventListener('blur', function (e) {
-        if (!e.target.matches || !e.target.matches('.shipment-text-input')) return;
-        var input = e.target;
-        var row = input.closest('.shipment-text-row');
-        var list = getShipmentEditList(input);
-        if (!row || !list) return;
-        if (row.dataset.skipBlurSave === '1') {
-          row.dataset.skipBlurSave = '';
-          return;
-        }
-        saveShipmentEditRowValue(list, row);
-      }, true);
+          var loadBtn = e.target.closest('.shipment-btn-load-saved-text-row');
+          if (loadBtn) {
+            var list = getShipmentEditList(loadBtn);
+            var row = loadBtn.closest('.shipment-text-row');
+            var input = row && row.querySelector('.shipment-text-input');
+            if (!list || !row || !input) return;
+            e.preventDefault();
+            e.stopPropagation();
+            showSavedDropdown(loadBtn, getShipmentEditListKey(list), function (value) {
+              input.value = value;
+              saveShipmentEditRowValue(list, row);
+              input.focus();
+            });
+          }
+        });
+
+        document.addEventListener('blur', function (e) {
+          if (!e.target.matches || !e.target.matches('.shipment-text-input')) return;
+          var input = e.target;
+          var row = input.closest('.shipment-text-row');
+          var list = getShipmentEditList(input);
+          if (!row || !list) return;
+          if (row.dataset.skipBlurSave === '1') {
+            row.dataset.skipBlurSave = '';
+            return;
+          }
+          saveShipmentEditRowValue(list, row);
+        }, true);
+      }
+
+      function mountShipmentDashboardSurface() {
+        if (!document.querySelector('.shipment-table')) return;
+        initAddButtonToggle();
+      }
+
+      if (!window.__shipmentDashboardSwapListenerBound) {
+        window.__shipmentDashboardSwapListenerBound = true;
+        document.addEventListener('foms:main-content-swapped', mountShipmentDashboardSurface);
+      }
+      mountShipmentDashboardSurface();
 
       document.querySelectorAll('.shipment-btn-load-saved-site-extra').forEach(function (btn) {
         btn.addEventListener('click', function (e) {
@@ -1563,12 +1577,6 @@
         });
       }
 
-      document.addEventListener('hidden.bs.modal', function (ev) {
-        if (ev.target && ev.target.id === 'scheduleMapModal') {
-          resetShipmentAsRecMap();
-        }
-      });
-
       function getModal() {
         return window.__shipmentAsRecModalEl || document.getElementById('shipmentAsRecommendModal');
       }
@@ -1847,7 +1855,16 @@
         });
       }
 
-      document.addEventListener('click', function (ev) {
+      if (!window.__shipmentAsRecDocListenersBound) {
+        window.__shipmentAsRecDocListenersBound = true;
+
+        document.addEventListener('hidden.bs.modal', function (ev) {
+          if (ev.target && ev.target.id === 'scheduleMapModal') {
+            resetShipmentAsRecMap();
+          }
+        });
+
+        document.addEventListener('click', function (ev) {
         var openBtn = ev.target.closest && ev.target.closest('#shipment-as-recommend-btn, [data-shipment-as-recommend-open]');
         if (openBtn) {
           ev.preventDefault();
@@ -1946,6 +1963,18 @@
         }
       }, true);
 
+        document.addEventListener('foms:main-content-swapped', function () {
+          if (!document.querySelector('#shipment-dashboard-table')) return;
+          adoptModalFromMain();
+          scheduleShipmentAsRecPrewarm();
+          var el = window.__shipmentAsRecModalEl;
+          if (el && el.classList.contains('show') && window.__shipmentAsRecNeedsReload) {
+            window.__shipmentAsRecNeedsReload = false;
+            loadRecommendations();
+          }
+        });
+      }
+
       function scheduleShipmentAsRecPrewarm() {
         var ids = collectTargetOrderIds();
         if (!ids.length) return;
@@ -1994,16 +2023,6 @@
       }
 
       scheduleShipmentAsRecPrewarm();
-
-      document.addEventListener('foms:main-content-swapped', function () {
-        adoptModalFromMain();
-        scheduleShipmentAsRecPrewarm();
-        var el = window.__shipmentAsRecModalEl;
-        if (el && el.classList.contains('show') && window.__shipmentAsRecNeedsReload) {
-          window.__shipmentAsRecNeedsReload = false;
-          loadRecommendations();
-        }
-      });
     })();
     {% endif %}
 
