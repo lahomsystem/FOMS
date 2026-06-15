@@ -257,6 +257,10 @@
             if (toolbar) toolbar.classList.remove('erp-est-hidden');
             if (exportBtn) exportBtn.disabled = false;
 
+            if (typeof window.scheduleEstimateColumnRefresh === 'function') {
+                window.scheduleEstimateColumnRefresh();
+            }
+
         } catch (err) {
             _hideSection('est-loading');
             _showSection('est-empty');
@@ -341,7 +345,12 @@
 
         // 계약서 탭 활성화 시: 변경 없고 캐시 유효하면 즉시 반환 (불필요한 네트워크 요청 차단)
         tab.addEventListener('shown.bs.tab', async function () {
-            if (!_dirty && _estimateCacheLoaded) return;
+            if (!_dirty && _estimateCacheLoaded) {
+                if (typeof window.scheduleEstimateColumnRefresh === 'function') {
+                    window.scheduleEstimateColumnRefresh();
+                }
+                return;
+            }
 
             _estimateCacheLoaded = false;
             const orderId = _getOrderId();

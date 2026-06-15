@@ -175,7 +175,10 @@ def test_estimate_table_columns_contract() -> None:
     assert "ColumnResizer" in js
     assert "localStorage.setItem" in js
     assert "initEstimateTableColumns" in js
+    assert "refreshEstimateTableColumns" in js
+    assert "scheduleEstimateColumnRefresh" in js
     assert "setEstimateTableExportMode" in js
+    assert 'erp-est-tbl-wrap' in pane
 
 
 def test_estimate_preview_js_is_canonical_only() -> None:

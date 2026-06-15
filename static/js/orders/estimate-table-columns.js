@@ -33,6 +33,11 @@
     return document.getElementById(TABLE_ID);
   }
 
+  function isEstimateDocumentVisible() {
+    var doc = document.getElementById('est-document');
+    return !!(doc && !doc.classList.contains('erp-est-hidden'));
+  }
+
   function canUseDesktopResize() {
     if (window.innerWidth <= DESKTOP_BREAKPOINT) return false;
     if (typeof window.matchMedia !== 'function') return true;
@@ -146,6 +151,22 @@
     return prev && prev.classList && prev.classList.contains('grip-container') ? prev : null;
   }
 
+  function destroyDesktopResizer(table) {
+    if (desktopResizer && typeof desktopResizer.destroy === 'function') {
+      desktopResizer.destroy();
+    }
+    desktopResizer = null;
+    desktopResizeListener = null;
+    isDesktopResizeListenerAttached = false;
+
+    if (table) {
+      var gripContainer = getGripContainer(table);
+      if (gripContainer && gripContainer.parentNode) {
+        gripContainer.parentNode.removeChild(gripContainer);
+      }
+    }
+  }
+
   function syncDesktopGripPositions() {
     if (!desktopResizer || typeof desktopResizer.onResize !== 'function') return;
     desktopResizer.onResize();
@@ -171,6 +192,8 @@
       console.warn('[estimate-table-columns] ColumnResizer unavailable — fallback static widths only');
       return;
     }
+
+    if (table.clientWidth <= 0) return;
 
     clearLibrarySessionStore();
     desktopResizer = new ResizerCtor(table, {
@@ -205,6 +228,7 @@
   }
 
   function applyStaticTableState(table) {
+    destroyDesktopResizer(table);
     detachDesktopResizeListener();
     normalizeTableInlineWidths(table);
     applyWidthsToCols(table, loadSavedWidths());
@@ -229,10 +253,13 @@
 
   function syncViewportState(force) {
     var table = getTable();
-    if (!table) return false;
+    if (!table || !isEstimateDocumentVisible()) return false;
 
     var nextMode = canUseDesktopResize() ? 'desktop' : 'static';
-    if (!force && nextMode === lastViewportMode) return true;
+    if (!force && nextMode === lastViewportMode) {
+      syncDesktopGripPositions();
+      return true;
+    }
 
     lastViewportMode = nextMode;
     if (nextMode === 'desktop') {
@@ -249,7 +276,25 @@
     if (!table) return false;
 
     bindResetButton(table);
+    if (!isEstimateDocumentVisible()) return false;
     return syncViewportState(!!force);
+  }
+
+  function refreshEstimateTableColumns() {
+    var table = getTable();
+    if (!table || !isEstimateDocumentVisible()) return false;
+
+    destroyDesktopResizer(table);
+    lastViewportMode = null;
+    return syncViewportState(true);
+  }
+
+  function scheduleEstimateColumnRefresh() {
+    window.requestAnimationFrame(function () {
+      window.requestAnimationFrame(function () {
+        refreshEstimateTableColumns();
+      });
+    });
   }
 
   function setExportMode(isExporting) {
@@ -264,6 +309,8 @@
   }
 
   window.initEstimateTableColumns = initEstimateTableColumns;
+  window.refreshEstimateTableColumns = refreshEstimateTableColumns;
+  window.scheduleEstimateColumnRefresh = scheduleEstimateColumnRefresh;
   window.setEstimateTableExportMode = setExportMode;
 
   if (document.readyState === 'loading') {
@@ -277,7 +324,8 @@
   window.addEventListener('resize', function () {
     clearTimeout(viewportTimer);
     viewportTimer = window.setTimeout(function () {
-      initEstimateTableColumns(false);
+      if (!isEstimateDocumentVisible()) return;
+      refreshEstimateTableColumns();
     }, 150);
   });
 })();

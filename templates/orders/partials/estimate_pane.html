@@ -148,7 +148,7 @@
     margin: 0 28px;
     min-height: 180px;
     max-width: 100%;
-    overflow: hidden;
+    overflow: visible;
 }
 .erp-est-contract-title {
     text-align: center;
@@ -196,6 +196,21 @@
 .erp-est-tbl td:nth-child(4) {
     white-space: nowrap;
 }
+.erp-est-tbl-wrap {
+    position: relative;
+}
+.erp-est-tbl-wrap > .grip-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 0;
+    overflow: visible;
+    z-index: 4;
+    pointer-events: none;
+}
+.erp-est-tbl-wrap > .grip-container .grip-handle {
+    pointer-events: auto;
+}
 .erp-est-contract .grip-container {
     z-index: 4;
 }
@@ -211,7 +226,7 @@
     transform: translateX(-50%);
     border-radius: 999px;
     background: rgba(13, 110, 253, 0.18);
-    opacity: 0;
+    opacity: 0.42;
     transition: opacity 0.15s ease, background-color 0.15s ease;
     pointer-events: none;
 }
@@ -502,6 +517,7 @@
         <!-- 계약 내용 -->
         <div class="erp-est-contract">
             <div class="erp-est-contract-title">계약 내용</div>
+            <div class="erp-est-tbl-wrap">
             <table class="erp-est-tbl" id="erp-estimate-items-table">
                 <colgroup>
                     <col data-col-key="name">
@@ -525,6 +541,7 @@
                     </tr>
                 </tbody>
             </table>
+            </div>
         </div>
 
         <!-- 결제정보 + 합계 -->
