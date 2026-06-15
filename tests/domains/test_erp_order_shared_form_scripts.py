@@ -182,7 +182,11 @@ def test_estimate_table_columns_contract() -> None:
     assert 'id="est-viewport"' in pane
     assert 'erp-est-viewport' in pane
     assert 'erp-est-export-clone' in pane
-    assert 'min-height: 180px' not in pane
+    assert 'id="est-viewport-inner"' in pane
+    assert 'est-viewport-stage' in pane
+    assert 'touch-action: none' in pane
+    contract_css = pane.split('.erp-est-contract {', 1)[1].split('.erp-est-contract-title', 1)[0]
+    assert 'min-height' not in contract_css
 
 
 def test_estimate_preview_js_is_canonical_only() -> None:
@@ -196,6 +200,8 @@ def test_estimate_preview_js_is_canonical_only() -> None:
     assert "ERP_BETA_ENABLED" not in block
     assert "_EST_EXPORT_WIDTH = 700" in text
     assert "_buildExportClone" in text
+    assert "_bindEstimateMobileZoom" in text
+    assert "_resetEstimateFitView" in text
 
 
 def test_shared_erp_order_js_has_no_beta_runtime_mirror() -> None:

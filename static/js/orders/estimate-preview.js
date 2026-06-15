@@ -8,6 +8,25 @@
     let _estimateCacheLoaded = false;
     let _dirty = true; // 첫 진입 시 항상 새로 로드
     var _EST_EXPORT_WIDTH = 700;
+    var _EST_DOC_WIDTH = 700;
+    var _MOBILE_ESTIMATE_MQ = '(max-width: 991.98px)';
+
+    var _mobileZoomBound = false;
+    var _mobileZoomResizeTimer = null;
+    var _zoomState = {
+        scale: 1,
+        fitScale: 1,
+        tx: 0,
+        ty: 0,
+        pinching: false,
+        pinchStartDist: 0,
+        pinchStartScale: 1,
+        panning: false,
+        panStartX: 0,
+        panStartY: 0,
+        panBaseTx: 0,
+        panBaseTy: 0
+    };
 
     function _getOrderId() {
         if (typeof ORDER_ID !== 'undefined') return ORDER_ID;
@@ -287,6 +306,7 @@
             if (typeof window.scheduleEstimateColumnRefresh === 'function') {
                 window.scheduleEstimateColumnRefresh();
             }
+            _scheduleEstimateMobileFitRefresh();
 
         } catch (err) {
             _hideSection('est-loading');
@@ -299,6 +319,234 @@
         _estimateCacheLoaded = false;
         _dirty = true;
     };
+
+    function _isMobileEstimateView() {
+        return typeof window.matchMedia === 'function'
+            && window.matchMedia(_MOBILE_ESTIMATE_MQ).matches;
+    }
+
+    function _getEstimateZoomEls() {
+        return {
+            viewport: document.getElementById('est-viewport'),
+            stage: document.getElementById('est-viewport-stage'),
+            inner: document.getElementById('est-viewport-inner'),
+            doc: document.getElementById('est-document'),
+            hint: document.getElementById('est-mobile-zoom-hint')
+        };
+    }
+
+    function _touchDistance(a, b) {
+        return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    }
+
+    function _setEstimateGestureTransition(active) {
+        var els = _getEstimateZoomEls();
+        if (els.inner) {
+            els.inner.classList.toggle('is-gesturing', !!active);
+        }
+    }
+
+    function _applyEstimateTransform() {
+        var els = _getEstimateZoomEls();
+        if (!els.inner) return;
+        if (!_isMobileEstimateView()) {
+            els.inner.style.transform = '';
+            return;
+        }
+        els.inner.style.transform = 'translate(' + _zoomState.tx + 'px,' + _zoomState.ty + 'px) scale(' + _zoomState.scale + ')';
+    }
+
+    function _computeEstimateFitScale(viewportEl) {
+        var pad = 16;
+        var available = Math.max(120, (viewportEl ? viewportEl.clientWidth : window.innerWidth) - pad);
+        return Math.max(0.2, Math.min(1, available / _EST_DOC_WIDTH));
+    }
+
+    function _updateEstimateStageHeight() {
+        var els = _getEstimateZoomEls();
+        if (!els.stage || !els.doc || !_isMobileEstimateView()) {
+            if (els.stage) els.stage.style.height = '';
+            return;
+        }
+        var docH = els.doc.offsetHeight || 0;
+        var scaledH = docH * _zoomState.scale;
+        var maxH = Math.max(240, Math.floor(window.innerHeight * 0.72));
+        els.stage.style.height = Math.min(Math.ceil(scaledH), maxH) + 'px';
+    }
+
+    function _clampEstimatePan() {
+        var els = _getEstimateZoomEls();
+        if (!els.stage || !els.doc) return;
+
+        var stageW = els.stage.clientWidth;
+        var stageH = els.stage.clientHeight;
+        var docH = els.doc.offsetHeight || 0;
+        var visualW = _EST_DOC_WIDTH * _zoomState.scale;
+        var visualH = docH * _zoomState.scale;
+
+        var minTx;
+        var maxTx;
+        if (visualW <= stageW) {
+            var centeredX = (stageW - visualW) / 2;
+            minTx = maxTx = centeredX;
+        } else {
+            minTx = stageW - visualW;
+            maxTx = 0;
+        }
+
+        var minTy;
+        var maxTy;
+        if (visualH <= stageH) {
+            var centeredY = (stageH - visualH) / 2;
+            minTy = maxTy = centeredY;
+        } else {
+            minTy = stageH - visualH;
+            maxTy = 0;
+        }
+
+        _zoomState.tx = Math.max(minTx, Math.min(maxTx, _zoomState.tx));
+        _zoomState.ty = Math.max(minTy, Math.min(maxTy, _zoomState.ty));
+    }
+
+    function _resetEstimateFitView() {
+        var els = _getEstimateZoomEls();
+        if (!els.viewport || !els.inner || !els.doc) return;
+
+        if (!_isMobileEstimateView()) {
+            _zoomState.scale = 1;
+            _zoomState.fitScale = 1;
+            _zoomState.tx = 0;
+            _zoomState.ty = 0;
+            _setEstimateGestureTransition(false);
+            _applyEstimateTransform();
+            _updateEstimateStageHeight();
+            if (els.hint) els.hint.setAttribute('aria-hidden', 'true');
+            return;
+        }
+
+        _zoomState.fitScale = _computeEstimateFitScale(els.viewport);
+        _zoomState.scale = _zoomState.fitScale;
+        _zoomState.tx = 0;
+        _zoomState.ty = 0;
+        _clampEstimatePan();
+        _setEstimateGestureTransition(false);
+        _applyEstimateTransform();
+        _updateEstimateStageHeight();
+        if (els.hint) els.hint.setAttribute('aria-hidden', 'false');
+    }
+
+    function _scheduleEstimateMobileFitRefresh() {
+        window.requestAnimationFrame(function () {
+            window.requestAnimationFrame(function () {
+                _resetEstimateFitView();
+            });
+        });
+    }
+
+    function _handleEstimateTouchStart(e) {
+        if (!_isMobileEstimateView() || !e.touches) return;
+
+        if (e.touches.length === 2) {
+            _zoomState.pinching = true;
+            _zoomState.panning = false;
+            _zoomState.pinchStartDist = _touchDistance(e.touches[0], e.touches[1]);
+            _zoomState.pinchStartScale = _zoomState.scale;
+            _setEstimateGestureTransition(true);
+            return;
+        }
+
+        if (e.touches.length === 1 && _zoomState.scale > _zoomState.fitScale + 0.02) {
+            var t = e.touches[0];
+            _zoomState.panning = true;
+            _zoomState.panStartX = t.clientX;
+            _zoomState.panStartY = t.clientY;
+            _zoomState.panBaseTx = _zoomState.tx;
+            _zoomState.panBaseTy = _zoomState.ty;
+            _setEstimateGestureTransition(true);
+        }
+    }
+
+    function _handleEstimateTouchMove(e) {
+        if (!_isMobileEstimateView() || !e.touches) return;
+
+        if (_zoomState.pinching && e.touches.length === 2) {
+            e.preventDefault();
+            var dist = _touchDistance(e.touches[0], e.touches[1]);
+            if (_zoomState.pinchStartDist > 0) {
+                var next = _zoomState.pinchStartScale * (dist / _zoomState.pinchStartDist);
+                var maxScale = Math.max(3, _zoomState.fitScale * 3);
+                _zoomState.scale = Math.max(_zoomState.fitScale, Math.min(maxScale, next));
+                if (_zoomState.scale <= _zoomState.fitScale + 0.01) {
+                    _zoomState.scale = _zoomState.fitScale;
+                    _zoomState.tx = 0;
+                    _zoomState.ty = 0;
+                }
+                _clampEstimatePan();
+                _applyEstimateTransform();
+                _updateEstimateStageHeight();
+            }
+            return;
+        }
+
+        if (_zoomState.panning && e.touches.length === 1) {
+            e.preventDefault();
+            var touch = e.touches[0];
+            _zoomState.tx = _zoomState.panBaseTx + (touch.clientX - _zoomState.panStartX);
+            _zoomState.ty = _zoomState.panBaseTy + (touch.clientY - _zoomState.panStartY);
+            _clampEstimatePan();
+            _applyEstimateTransform();
+        }
+    }
+
+    function _handleEstimateTouchEnd(e) {
+        if (!_isMobileEstimateView()) return;
+
+        var remaining = e && e.touches ? e.touches.length : 0;
+
+        if (_zoomState.pinching && remaining < 2) {
+            _zoomState.pinching = false;
+            if (_zoomState.scale <= _zoomState.fitScale + 0.03) {
+                _resetEstimateFitView();
+            } else if (remaining === 1 && e.touches && e.touches[0]) {
+                var t = e.touches[0];
+                _zoomState.panning = true;
+                _zoomState.panStartX = t.clientX;
+                _zoomState.panStartY = t.clientY;
+                _zoomState.panBaseTx = _zoomState.tx;
+                _zoomState.panBaseTy = _zoomState.ty;
+            } else {
+                _setEstimateGestureTransition(false);
+            }
+            return;
+        }
+
+        if (_zoomState.panning && remaining === 0) {
+            _zoomState.panning = false;
+            _setEstimateGestureTransition(false);
+        }
+    }
+
+    function _bindEstimateMobileZoom() {
+        if (_mobileZoomBound) return;
+        var els = _getEstimateZoomEls();
+        if (!els.viewport || !els.stage) return;
+
+        els.viewport.addEventListener('touchstart', _handleEstimateTouchStart, { passive: true });
+        els.viewport.addEventListener('touchmove', _handleEstimateTouchMove, { passive: false });
+        els.viewport.addEventListener('touchend', _handleEstimateTouchEnd, { passive: true });
+        els.viewport.addEventListener('touchcancel', _handleEstimateTouchEnd, { passive: true });
+
+        window.addEventListener('resize', function () {
+            clearTimeout(_mobileZoomResizeTimer);
+            _mobileZoomResizeTimer = window.setTimeout(function () {
+                var vp = document.getElementById('est-viewport');
+                if (!vp || vp.classList.contains('erp-est-hidden')) return;
+                _resetEstimateFitView();
+            }, 150);
+        });
+
+        _mobileZoomBound = true;
+    }
 
     // ── 이미지 저장 (실측 대시보드와 동일 방식) ──────────────────────
     function _bindExportBtn() {
@@ -369,6 +617,7 @@
         if (!tab) return;
 
         _bindExportBtn();
+        _bindEstimateMobileZoom();
 
         // ERP Order 폼 입력 시 dirty 플래그 설정 (캡처 페이즈로 모든 [data-erp] 입력 감지)
         document.addEventListener('input', function (e) {
@@ -383,6 +632,7 @@
                 if (typeof window.scheduleEstimateColumnRefresh === 'function') {
                     window.scheduleEstimateColumnRefresh();
                 }
+                _scheduleEstimateMobileFitRefresh();
                 return;
             }
 
