@@ -62,6 +62,7 @@ CRITICAL_ERP_IDS = {
     "erp-conversion-text",
     "erp-copy-text-btn",
     "erp-save-btn",
+    "erp-load-btn",
     "erp-draft-banner",
     "erp-draft-order-id",
     "erp-draft-edit-link",
@@ -91,6 +92,10 @@ MOBILE_OMITTED_ERP_IDS = {
     "erp-gen-text-btn",
     "erp-conversion-text",
     "erp-copy-text-btn",
+}
+
+DESKTOP_OMITTED_ERP_IDS = {
+    "erp-load-btn",
 }
 
 MOBILE_ONLY_ERP_IDS = {
@@ -176,7 +181,7 @@ def test_mobile_template_preserves_critical_erp_ids() -> None:
     parent_ids = _template_ids("templates/orders/partials/edit_order_body.html")
 
     assert PARENT_ERP_IDS <= parent_ids
-    assert CRITICAL_ERP_IDS - PARENT_ERP_IDS <= legacy_ids
+    assert (CRITICAL_ERP_IDS - PARENT_ERP_IDS - DESKTOP_OMITTED_ERP_IDS) <= legacy_ids
     assert sorted(
         ((CRITICAL_ERP_IDS - PARENT_ERP_IDS) - MOBILE_OMITTED_ERP_IDS) - mobile_ids
     ) == []

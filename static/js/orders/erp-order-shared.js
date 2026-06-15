@@ -1880,6 +1880,9 @@ ${escapeHtml(sub)}</div>` : ''}`;
         }
     });
     document.getElementById('erp-save-btn')?.addEventListener('click', erpSaveStructured);
+    document.getElementById('erp-load-btn')?.addEventListener('click', function () {
+        void erpLoadStructured();
+    });
 
     // AS 접수 모달: 파일 미리보기, 10MB 경고, 제출, 취소 시 롤백
     (function initAsReceiveModal() {

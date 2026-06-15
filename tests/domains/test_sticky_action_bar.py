@@ -108,26 +108,22 @@ def test_edit_order_non_erp_renders_sticky_bar(erp_editor_client) -> None:
     assert 'id="editOrderForm"' in body
 
 
-def test_erp_order_tab_mobile_template_save_in_amount_row() -> None:
+def test_erp_order_tab_mobile_template_sticky_footer_unchanged() -> None:
     text = (ROOT / "templates/orders/partials/erp_order_tab_mobile.html").read_text(
         encoding="utf-8"
     )
-    assert "erp-mobile-amount-toolbar" in text
+    assert "erp-mobile-sticky-action-bar" in text
     assert 'id="erp-save-btn"' in text
-    assert 'id="erp-items-total"' in text
-    save_idx = text.index('id="erp-save-btn"')
-    total_idx = text.index('id="erp-items-total"')
-    assert save_idx < total_idx
-    assert 'id="erp-load-btn"' not in text
-    assert '<footer class="foms-sticky-action-bar"' not in text
+    assert 'id="erp-load-btn"' in text
+    assert "erp-mobile-amount-toolbar" not in text
 
 
-def test_erp_order_tab_template_save_in_amount_row() -> None:
+def test_erp_order_tab_template_save_on_shipment_row() -> None:
     text = (ROOT / "templates/orders/partials/erp_order_tab.html").read_text(
         encoding="utf-8"
     )
     assert 'class="card-body foms-page-form"' in text
-    assert "erp-amount-toolbar" in text
+    assert "erp-amount-save-row" in text
     assert 'id="erp-save-btn"' in text
     assert 'id="erp-items-total"' in text
     save_idx = text.index('id="erp-save-btn"')
