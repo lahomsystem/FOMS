@@ -793,6 +793,81 @@
             });
         }
 
+        /**
+         * 견적 카드의 card-body 내부 HTML을 생성한다.
+         * renderEstimatesList(전체 렌더)와 refreshEstimateCard(단일 카드 in-place 갱신)가 공유.
+         */
+        function buildEstimateCardBodyHtml(estimate, displayNameEscaped) {
+            var optionsDetailHtml = buildOptionsDetailHtml(estimate);
+            return `
+                            <div class="mb-3 estimate-card-item">
+                                <span class="estimate-header-base" style="color: #0d6efd !important; font-weight: 800 !important; font-size: 1.08rem !important; display: block !important; margin-bottom: 0.25rem !important;">기본 견적:</span>
+                                <div class="estimate-price mb-1" style="font-size: 1.32rem !important; font-weight: 700 !important; color: #212529 !important;">${formatNumber(estimate.basePrice)}원</div>
+                                <div class="estimate-detail-base" style="color: #0d7a3d !important; font-weight: 700 !important; font-size: 1.02rem !important; line-height: 1.5 !important; margin-top: 0.25rem !important;">${displayNameEscaped}</div>
+                                ${buildEstimateUnitPriceMetaHtml(estimate)}
+                            </div>
+                            <div class="mb-3 estimate-card-item">
+                                <span class="estimate-header-options" style="color: #0d6efd !important; font-weight: 800 !important; font-size: 1.08rem !important; display: block !important; margin-bottom: 0.25rem !important;">추가 옵션 합계:</span>
+                                <div class="estimate-price mb-1" style="font-size: 1.32rem !important; font-weight: 700 !important; color: #212529 !important;">${formatNumber(estimate.additionalPrice)}원</div>
+                                <div class="estimate-detail-options" style="margin-top: 0.25rem !important;">${optionsDetailHtml}</div>
+                            </div>
+                            ${buildNotesHtml(estimate)}
+                            <hr class="my-3">
+                            <div class="mt-3">
+                                <small class="text-muted d-block mb-1" style="font-size: 1.05rem !important;">총견적:</small>
+                                <div class="estimate-total-price" style="font-size: 1.56rem !important; font-weight: 800 !important; color: #0d6efd !important; margin-top: 0.5rem !important;">${formatNumber(estimate.totalPrice)}원</div>
+                            </div>
+            `;
+        }
+
+        function estimateDisplayNameEscaped(estimate) {
+            return escapeHtml(
+                estimate.displayName ||
+                    (estimate.productName || "") + " " + formatNumber(estimate.widthMm) + "mm"
+            );
+        }
+
+        /**
+         * 편집 중인 단일 견적 카드의 card-body만 in-place로 다시 그린다.
+         * estimatesListContainer 전체 innerHTML을 건드리지 않으므로 모바일 인라인 에디터(도킹된 폼)를
+         * 파괴하지 않는다 → 완료 전에도 옵션/비고 추가가 카드에 실시간 반영.
+         * @param {string|number} estimateId
+         * @returns {boolean} 갱신 성공 여부
+         */
+        function refreshEstimateCard(estimateId) {
+            var estimates = getEstimates() || [];
+            var estimate = null;
+            for (var i = 0; i < estimates.length; i++) {
+                if (String(estimates[i].id) === String(estimateId)) {
+                    estimate = estimates[i];
+                    break;
+                }
+            }
+            if (!estimate) return false;
+
+            var container = documentRef.getElementById("estimatesListContainer");
+            if (!container) return false;
+
+            var cards = container.querySelectorAll(".card[data-estimate-id]");
+            var card = null;
+            for (var j = 0; j < cards.length; j++) {
+                if (String(cards[j].getAttribute("data-estimate-id")) === String(estimateId)) {
+                    card = cards[j];
+                    break;
+                }
+            }
+            if (!card) return false;
+
+            var body = card.querySelector(".card-body");
+            if (!body) return false;
+
+            body.innerHTML = buildEstimateCardBodyHtml(estimate, estimateDisplayNameEscaped(estimate));
+            applyForcedStyles(card);
+            // 전체 합계(저장 견적 기준)도 함께 갱신 (현재 요약/리스트 DOM은 건드리지 않음)
+            onRenderComplete();
+            return true;
+        }
+
         function renderEstimatesList() {
             var estimates = getEstimates() || [];
             var container = documentRef.getElementById("estimatesListContainer");
@@ -804,12 +879,8 @@
 
             var html = '<div class="row g-3">';
             estimates.forEach(function (estimate, index) {
-                var optionsDetailHtml = buildOptionsDetailHtml(estimate);
                 var estimateIdStr = escapeHtml(String(estimate.id));
-                var displayNameEscaped = escapeHtml(
-                    estimate.displayName ||
-                        (estimate.productName || "") + " " + formatNumber(estimate.widthMm) + "mm"
-                );
+                var displayNameEscaped = estimateDisplayNameEscaped(estimate);
 
                 html += `
                 <div class="col-md-6 col-lg-3">
@@ -832,25 +903,7 @@
                                 </button>
                             </div>
                         </div>
-                        <div class="card-body">
-                            <div class="mb-3 estimate-card-item">
-                                <span class="estimate-header-base" style="color: #0d6efd !important; font-weight: 800 !important; font-size: 1.08rem !important; display: block !important; margin-bottom: 0.25rem !important;">기본 견적:</span>
-                                <div class="estimate-price mb-1" style="font-size: 1.32rem !important; font-weight: 700 !important; color: #212529 !important;">${formatNumber(estimate.basePrice)}원</div>
-                                <div class="estimate-detail-base" style="color: #0d7a3d !important; font-weight: 700 !important; font-size: 1.02rem !important; line-height: 1.5 !important; margin-top: 0.25rem !important;">${displayNameEscaped}</div>
-                                ${buildEstimateUnitPriceMetaHtml(estimate)}
-                            </div>
-                            <div class="mb-3 estimate-card-item">
-                                <span class="estimate-header-options" style="color: #0d6efd !important; font-weight: 800 !important; font-size: 1.08rem !important; display: block !important; margin-bottom: 0.25rem !important;">추가 옵션 합계:</span>
-                                <div class="estimate-price mb-1" style="font-size: 1.32rem !important; font-weight: 700 !important; color: #212529 !important;">${formatNumber(estimate.additionalPrice)}원</div>
-                                <div class="estimate-detail-options" style="margin-top: 0.25rem !important;">${optionsDetailHtml}</div>
-                            </div>
-                            ${buildNotesHtml(estimate)}
-                            <hr class="my-3">
-                            <div class="mt-3">
-                                <small class="text-muted d-block mb-1" style="font-size: 1.05rem !important;">총견적:</small>
-                                <div class="estimate-total-price" style="font-size: 1.56rem !important; font-weight: 800 !important; color: #0d6efd !important; margin-top: 0.5rem !important;">${formatNumber(estimate.totalPrice)}원</div>
-                            </div>
-                        </div>
+                        <div class="card-body">${buildEstimateCardBodyHtml(estimate, displayNameEscaped)}</div>
                     </div>
                 </div>
             `;
@@ -959,6 +1012,7 @@
 
         ns.configure = configure;
         ns.renderEstimatesList = renderEstimatesList;
+        ns.refreshEstimateCard = refreshEstimateCard;
     })(WdCalculatorRenderEstimatesList);
 
     window.WdCalculatorRenderEstimatesList = WdCalculatorRenderEstimatesList;

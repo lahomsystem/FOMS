@@ -132,6 +132,45 @@
     }
 
     /**
+     * 견적을 편집 중이면(editingEstimateId 존재) 완료 버튼을 누르기 전에도
+     * 일괄 추가한 옵션/비고가 진행중 견적 카드에 즉시 반영되도록 한다.
+     * - 현재 폼 → estimates 배열의 편집 대상 항목 갱신(updateExistingEstimate)
+     * - 해당 카드만 in-place 재렌더(refreshEstimateCard) → 모바일 인라인 에디터 무손상
+     * 편집 중이 아니면(신규 작성) 카드가 아직 없으므로 아무 동작 안 함.
+     */
+    function syncEditingEstimateCard() {
+        var editIdState = window.WdCalculatorEditingEstimateId;
+        var estState = window.WdCalculatorEstimatesState;
+        var addEst = window.WdCalculatorAddEstimate;
+        var orch = window.WdCalculatorCurrentEstimateOrchestration;
+        var renderer = window.WdCalculatorRenderEstimatesList;
+        if (!editIdState || typeof editIdState.getEditingEstimateId !== "function") return;
+        var editingId = editIdState.getEditingEstimateId();
+        if (!editingId) return;
+        if (!orch || typeof orch.collectCurrentEstimate !== "function") return;
+        if (!estState || typeof estState.getEstimates !== "function") return;
+        if (!addEst || typeof addEst.updateExistingEstimate !== "function") return;
+        if (!renderer || typeof renderer.refreshEstimateCard !== "function") return;
+
+        var estimate = orch.collectCurrentEstimate();
+        if (!estimate) return;
+        var estimates = estState.getEstimates();
+        if (!Array.isArray(estimates)) return;
+
+        var index = -1;
+        for (var i = 0; i < estimates.length; i++) {
+            if (String(estimates[i].id) === String(editingId)) {
+                index = i;
+                break;
+            }
+        }
+        if (index === -1) return;
+
+        addEst.updateExistingEstimate(estimates, index, estimate);
+        renderer.refreshEstimateCard(editingId);
+    }
+
+    /**
      * 비고는 가격에 영향이 없어 calculateEstimate로는 갱신되지 않으므로,
      * 결과 카드의 비고 표시(#notesDisplay)를 현재 입력값으로 즉시 동기화한다.
      */
@@ -422,6 +461,7 @@
             refreshNotesDisplay();
         }
         triggerRecalc();
+        syncEditingEstimateCard();
         close();
     }
 
