@@ -257,14 +257,10 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
   margin-top: var(--foms-space-3);
 }
 
-/* Last section before sticky 저장/불러오기 bar: keep collapse toggle visible when body is folded. */
+/* Last collapsible section before form end: keep toggle visible when body is folded. */
 @media (max-width: 991.98px) {
-  .erp-order-mobile-form .erp-mobile-pre-sticky-footer {
-    margin-bottom: 4.75rem;
-  }
-
   .erp-order-mobile-form .erp-mobile-pre-sticky-footer > .erp-mobile-collapse-toggle {
-    scroll-margin-bottom: 5rem;
+    scroll-margin-bottom: 1rem;
   }
 }
 
@@ -373,6 +369,10 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
   gap: var(--foms-space-2);
   align-items: center;
   min-height: var(--foms-touch-target-min);
+}
+
+.erp-mobile-amount-row--save {
+  grid-template-columns: auto minmax(0, 1fr) minmax(9.25rem, 9.25rem);
 }
 
 .erp-mobile-amount-label {

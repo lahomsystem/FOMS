@@ -108,17 +108,35 @@ def test_edit_order_non_erp_renders_sticky_bar(erp_editor_client) -> None:
     assert 'id="editOrderForm"' in body
 
 
-def test_erp_order_tab_template_sticky_footer() -> None:
+def test_erp_order_tab_mobile_template_save_in_amount_row() -> None:
+    text = (ROOT / "templates/orders/partials/erp_order_tab_mobile.html").read_text(
+        encoding="utf-8"
+    )
+    assert "erp-mobile-amount-row--save" in text
+    assert 'id="erp-save-btn"' in text
+    assert 'id="erp-items-total"' in text
+    save_idx = text.index('id="erp-save-btn"')
+    total_idx = text.index('id="erp-items-total"')
+    assert save_idx < total_idx
+    assert 'id="erp-load-btn"' not in text
+    assert '<footer class="foms-sticky-action-bar"' not in text
+
+
+def test_erp_order_tab_template_save_in_amount_row() -> None:
     text = (ROOT / "templates/orders/partials/erp_order_tab.html").read_text(
         encoding="utf-8"
     )
     assert 'class="card-body foms-page-form"' in text
-    assert '<footer class="foms-sticky-action-bar"' in text
     assert 'id="erp-save-btn"' in text
-    assert 'id="erp-load-btn"' in text
+    assert 'id="erp-items-total"' in text
+    save_idx = text.index('id="erp-save-btn"')
+    total_idx = text.index('id="erp-items-total"')
+    assert save_idx < total_idx
+    assert 'id="erp-load-btn"' not in text
+    assert '<footer class="foms-sticky-action-bar"' not in text
 
 
-def test_edit_order_erp_renders_sticky_bar(erp_editor_client) -> None:
+def test_edit_order_erp_save_in_amount_row_not_sticky_footer(erp_editor_client) -> None:
     order = Order(
         received_date="2026-05-29",
         customer_name="Sticky ERP",
@@ -135,5 +153,10 @@ def test_edit_order_erp_renders_sticky_bar(erp_editor_client) -> None:
     response = erp_editor_client.get(f"/edit/{order.id}?open=erp-order")
     assert response.status_code == 200
     body = response.get_data(as_text=True)
-    assert "foms-sticky-action-bar" in body
     assert 'id="erp-save-btn"' in body
+    assert 'id="erp-load-btn"' not in body
+    save_idx = body.index('id="erp-save-btn"')
+    total_idx = body.index('id="erp-items-total"', save_idx)
+    assert save_idx < total_idx
+    erp_save_snippet = body[save_idx:total_idx + 80]
+    assert '<footer class="foms-sticky-action-bar"' not in erp_save_snippet

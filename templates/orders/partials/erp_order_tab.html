@@ -284,9 +284,14 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                     </div>
 
                     <div class="d-flex flex-column align-items-end gap-2 mt-2 erp-amount-block">
-                        <div class="d-flex justify-content-end align-items-center gap-2 w-100" style="max-width: 16rem;">
-                            <span class="fw-bold text-nowrap">출고가</span>
-                            <div class="badge bg-primary text-end erp-amount-value" id="erp-items-total">0원</div>
+                        <div class="d-flex justify-content-between align-items-center gap-2 w-100" style="max-width: 16rem;">
+                            <button class="btn btn-sm btn-primary" type="button" id="erp-save-btn">
+                                <i class="fas fa-save"></i> 저장
+                            </button>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="fw-bold text-nowrap">출고가</span>
+                                <div class="badge bg-primary text-end erp-amount-value" id="erp-items-total">0원</div>
+                            </div>
                         </div>
                         <div id="erp-deposit-section" class="d-flex justify-content-end align-items-center gap-2 w-100" style="max-width: 16rem;">
                             <div class="d-flex align-items-center gap-1">
@@ -369,14 +374,6 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                 {% endif %}
 
             </div>
-            <footer class="foms-sticky-action-bar" role="group" aria-label="ERP 주문 저장">
-                <button class="btn btn-outline-secondary" type="button" id="erp-load-btn">
-                    <i class="fas fa-sync"></i> 불러오기
-                </button>
-                <button class="btn btn-primary" type="button" id="erp-save-btn">
-                    <i class="fas fa-save"></i> 저장
-                </button>
-            </footer>
             {% endif %}
         </div>
     </div>

@@ -134,7 +134,10 @@ ERP Order mobile-v2 tab pane.
                         </div>
                         <div id="erp-items" class="erp-items-mobile-stack"></div>
                         <div class="erp-mobile-amounts erp-mobile-amounts--field">
-                            <div class="erp-mobile-amount-row">
+                            <div class="erp-mobile-amount-row erp-mobile-amount-row--save">
+                                <button class="foms-btn foms-btn--primary foms-btn--sm" type="button" id="erp-save-btn">
+                                    <i class="fas fa-save"></i> 저장
+                                </button>
                                 <span class="erp-mobile-amount-label">출고가</span>
                                 <div class="erp-mobile-amount-chip erp-amount-value" id="erp-items-total">0원</div>
                             </div>
@@ -350,14 +353,6 @@ ERP Order mobile-v2 tab pane.
                 </div>
 
             </div>
-            <footer class="foms-sticky-action-bar erp-mobile-sticky-action-bar" role="group" aria-label="ERP 주문 저장">
-                <button class="foms-btn foms-btn--secondary" type="button" id="erp-load-btn">
-                    <i class="fas fa-sync"></i> 불러오기
-                </button>
-                <button class="foms-btn foms-btn--primary" type="button" id="erp-save-btn">
-                    <i class="fas fa-save"></i> 저장
-                </button>
-            </footer>
             {% endif %}
         </div>
     </div>
