@@ -1,7 +1,7 @@
 {#
 견적서/계약서 프리뷰 탭 pane
 - Bootstrap pill tab-pane: id="erp-estimate"
-- JS: static/js/orders/estimate-preview.js
+- JS: static/js/orders/estimate-preview.js, static/js/orders/estimate-table-columns.js
 #}
 <style>
 .erp-est-hidden { display: none !important; }
@@ -160,36 +160,71 @@
 }
 .erp-est-tbl {
     width: 100%;
+    table-layout: fixed;
     border-collapse: collapse;
     border: none;
 }
 .erp-est-tbl th {
+    position: relative;
     background: #faf8f4;
     border: none;
     border-bottom: 1px solid #c5b9a6;
-    padding: 7px 10px;
+    padding: 7px 6px;
     text-align: center;
     font-weight: 600;
     font-size: 11px;
     color: #333;
     white-space: nowrap;
+    overflow: hidden;
 }
 .erp-est-tbl td {
     border: none;
     border-bottom: 1px solid #d4cbbe;
-    padding: 7px 10px;
+    padding: 7px 6px;
     font-size: 11px;
     text-align: center;
     color: #333;
+    overflow: hidden;
+    word-break: break-word;
 }
 .erp-est-tbl td.text-end {
     text-align: right;
+    white-space: nowrap;
 }
-.erp-est-th-name  { width: 18%; }
-.erp-est-th-spec  { width: 28%; }
-.erp-est-th-color { width: 17%; }
-.erp-est-th-qty   { width: 8%; }
-.erp-est-th-amount { width: 29%; }
+.erp-est-tbl td:nth-child(4) {
+    white-space: nowrap;
+}
+.erp-est-col-resize-handle {
+    position: absolute;
+    top: 0;
+    right: -3px;
+    width: 7px;
+    height: 100%;
+    border: 0;
+    padding: 0;
+    margin: 0;
+    background: transparent;
+    cursor: col-resize;
+    z-index: 2;
+}
+.erp-est-tbl th:hover .erp-est-col-resize-handle {
+    background: rgba(13, 110, 253, 0.12);
+    border-radius: 2px;
+}
+.erp-est-tbl.erp-est-col-resizing,
+.erp-est-tbl.erp-est-col-resizing * {
+    user-select: none;
+    -webkit-user-select: none;
+}
+body.erp-est-col-resizing-active {
+    cursor: col-resize;
+}
+@media (max-width: 991.98px) {
+    .erp-est-col-resize-handle { display: none; }
+}
+.erp-est-tbl.erp-est-exporting .erp-est-col-resize-handle {
+    display: none;
+}
 .erp-est-empty-msg {
     color: #999;
     padding: 24px 0;
@@ -373,8 +408,14 @@
 
 <div class="tab-pane fade" id="erp-estimate" role="tabpanel" aria-labelledby="erp-estimate-tab">
 
-    <!-- 툴바: 이미지 저장 버튼 -->
-    <div class="d-flex justify-content-end align-items-center px-2 pt-2 pb-1 erp-est-hidden" id="est-toolbar">
+    <!-- 툴바: 컬럼 초기화 + 이미지 저장 -->
+    <div class="d-flex justify-content-end align-items-center gap-2 px-2 pt-2 pb-1 erp-est-hidden" id="est-toolbar">
+        <button id="btn-est-reset-column-widths" type="button"
+                class="erp-pro-btn erp-pro-btn--secondary d-none d-lg-inline-flex"
+                title="계약 내용 테이블 컬럼 폭을 기본값으로 초기화">
+            <i class="fas fa-arrows-alt-h"></i>
+            <span class="ms-1">컬럼 초기화</span>
+        </button>
         <button id="btn-est-export" type="button" class="erp-pro-btn erp-pro-btn--primary" disabled>
             <i class="fas fa-file-image"></i>
             <span class="d-none d-md-inline ms-1">이미지 저장</span>
@@ -463,14 +504,21 @@
         <!-- 계약 내용 -->
         <div class="erp-est-contract">
             <div class="erp-est-contract-title">계약 내용</div>
-            <table class="erp-est-tbl">
+            <table class="erp-est-tbl" id="erp-estimate-items-table">
+                <colgroup>
+                    <col data-col-key="name">
+                    <col data-col-key="spec">
+                    <col data-col-key="color">
+                    <col data-col-key="qty">
+                    <col data-col-key="amount">
+                </colgroup>
                 <thead>
                     <tr>
-                        <th class="erp-est-th-name">품명</th>
-                        <th class="erp-est-th-spec">규격</th>
-                        <th class="erp-est-th-color">색상</th>
-                        <th class="erp-est-th-qty">수량</th>
-                        <th class="erp-est-th-amount">금액 <span class="small">(VAT 포함)</span></th>
+                        <th class="erp-est-th-name" data-col-key="name">품명<button type="button" class="erp-est-col-resize-handle" aria-label="품명 컬럼 크기 조절"></button></th>
+                        <th class="erp-est-th-spec" data-col-key="spec">규격<button type="button" class="erp-est-col-resize-handle" aria-label="규격 컬럼 크기 조절"></button></th>
+                        <th class="erp-est-th-color" data-col-key="color">색상<button type="button" class="erp-est-col-resize-handle" aria-label="색상 컬럼 크기 조절"></button></th>
+                        <th class="erp-est-th-qty" data-col-key="qty">수량<button type="button" class="erp-est-col-resize-handle" aria-label="수량 컬럼 크기 조절"></button></th>
+                        <th class="erp-est-th-amount" data-col-key="amount">금액 <span class="small">(VAT 포함)</span><button type="button" class="erp-est-col-resize-handle" aria-label="금액 컬럼 크기 조절"></button></th>
                     </tr>
                 </thead>
                 <tbody id="est-items-tbody">
