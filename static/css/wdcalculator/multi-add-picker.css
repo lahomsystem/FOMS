@@ -1,0 +1,305 @@
+/**
+ * WDCalculator 복수선택 일괄 추가 피커 스타일.
+ * static/js/wdcalculator/multi-add-picker.js 와 1:1 대응.
+ * PC = 중앙 모달, 모바일(≤991.98px) = 바텀시트. wd-cat-* (단일 피커)와 독립.
+ */
+
+/* 컴포넌트 내부는 항상 border-box (호스트의 box-sizing reset에 비의존) */
+.wd-madd-panel,
+.wd-madd-panel * {
+    box-sizing: border-box;
+}
+
+/* 오버레이 */
+.wd-madd-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 17, 21, 0.45);
+    z-index: 1090;
+    display: none;
+}
+.wd-madd-backdrop.is-open {
+    display: block;
+}
+
+.wd-madd-panel {
+    position: fixed;
+    z-index: 1095;
+    background: #fff;
+    border: 1px solid #dee2e6;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.22);
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+}
+.wd-madd-panel.is-open {
+    display: flex;
+}
+
+/* PC: 중앙 모달 */
+.wd-madd-panel--modal {
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(560px, calc(100vw - 32px));
+    max-height: min(80vh, 720px);
+    border-radius: 14px;
+}
+
+/* 모바일: 바텀시트 */
+.wd-madd-panel--sheet {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    top: auto;
+    width: auto;
+    max-height: 85vh;
+    border-radius: 16px 16px 0 0;
+}
+
+/* 헤더 */
+.wd-madd-panel__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid #eee;
+    flex: 0 0 auto;
+}
+.wd-madd-panel__title {
+    font-weight: 700;
+    font-size: 16px;
+    color: #212529;
+}
+.wd-madd-panel__close {
+    border: none;
+    background: transparent;
+    font-size: 16px;
+    cursor: pointer;
+    color: #6c757d;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+}
+.wd-madd-panel__close:hover {
+    background: #f1f3f5;
+}
+
+/* 검색 */
+.wd-madd-panel__search {
+    padding: 10px 16px;
+    border-bottom: 1px solid #f1f3f5;
+    flex: 0 0 auto;
+}
+.wd-madd-search-input {
+    width: 100%;
+    min-height: 40px;
+    padding: 8px 12px;
+    border: 1px solid #ced4da;
+    border-radius: 8px;
+    font-size: 14px;
+    color: #212529;
+}
+.wd-madd-search-input:focus {
+    outline: none;
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.2);
+}
+
+/* 본문 */
+.wd-madd-panel__body {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 6px;
+    flex: 1 1 auto;
+}
+.wd-madd-empty {
+    padding: 32px 16px;
+    text-align: center;
+    color: #6c757d;
+    font-size: 14px;
+}
+
+/* 카테고리 아코디언 */
+.wd-madd-group {
+    border-radius: 8px;
+}
+.wd-madd-group__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    border: none;
+    background: transparent;
+    padding: 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 700;
+    color: #212529;
+    min-height: 44px;
+}
+.wd-madd-group__head:hover {
+    background: #f8f9fa;
+}
+.wd-madd-group__name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.wd-madd-group__meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+    color: #6c757d;
+    font-weight: 400;
+    font-size: 12px;
+}
+.wd-madd-group__chev {
+    display: inline-block;
+    transition: transform 0.2s ease;
+}
+.wd-madd-group.is-open .wd-madd-group__chev {
+    transform: rotate(180deg);
+}
+.wd-madd-group__list {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.25s ease;
+}
+
+/* 체크박스 옵션 행 */
+.wd-madd-opt {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    margin: 0;
+    padding: 12px 12px 12px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    min-height: 46px;
+    font-size: 14px;
+    color: #212529;
+}
+.wd-madd-opt:hover {
+    background: #f1f3f5;
+}
+.wd-madd-opt.is-checked {
+    background: #e7f1ff;
+}
+.wd-madd-opt__cb {
+    flex: 0 0 auto;
+    width: 20px;
+    height: 20px;
+    accent-color: #0d6efd;
+    cursor: pointer;
+}
+.wd-madd-opt__label {
+    flex: 1 1 auto;
+    min-width: 0; /* flex 자식 축소 허용 → 우측 meta(가격) 잘림 방지 */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.wd-madd-opt.is-checked .wd-madd-opt__label {
+    font-weight: 600;
+    color: #0d6efd;
+}
+.wd-madd-opt__meta {
+    flex: 0 0 auto;
+    color: #6c757d;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+/* 푸터 */
+.wd-madd-panel__foot {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    border-top: 1px solid #eee;
+    flex: 0 0 auto;
+    /* iOS 홈 인디케이터 안전영역 */
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+}
+.wd-madd-btn {
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    min-height: 44px;
+}
+.wd-madd-btn--ghost {
+    background: #fff;
+    border-color: #ced4da;
+    color: #495057;
+    flex: 0 0 auto;
+}
+.wd-madd-btn--ghost:hover {
+    background: #f1f3f5;
+}
+.wd-madd-btn--primary {
+    background: #0d6efd;
+    color: #fff;
+    flex: 1 1 auto;
+}
+.wd-madd-btn--primary:hover {
+    background: #0b5ed7;
+}
+.wd-madd-btn--primary:disabled {
+    background: #adb5bd;
+    cursor: not-allowed;
+}
+
+/* 피커(모달/시트) 열림 동안 배경 스크롤 잠금 — PC/모바일 공통 */
+body.wd-madd-open {
+    overflow: hidden;
+}
+
+/* 모바일 바텀시트 보정 */
+@media (max-width: 991.98px) {
+    .wd-madd-panel__title {
+        font-size: 17px;
+    }
+}
+
+/* 다크 모드 대응 (ERP v2 다크 토큰과 동일 계열) */
+@media (prefers-color-scheme: dark) {
+    .wd-madd-panel {
+        background: #1f2430;
+        border-color: #33405a;
+    }
+    .wd-madd-panel__head,
+    .wd-madd-panel__search,
+    .wd-madd-panel__foot {
+        border-color: #2b3447;
+    }
+    .wd-madd-panel__title,
+    .wd-madd-group__head,
+    .wd-madd-opt,
+    .wd-madd-opt__label {
+        color: #e6e9ef;
+    }
+    .wd-madd-search-input {
+        background: #161b26;
+        border-color: #33405a;
+        color: #e6e9ef;
+    }
+    .wd-madd-group__head:hover,
+    .wd-madd-opt:hover {
+        background: #2a3140;
+    }
+    .wd-madd-opt.is-checked {
+        background: #14365f;
+    }
+    .wd-madd-btn--ghost {
+        background: #1f2430;
+        border-color: #3a4560;
+        color: #cfd6e4;
+    }
+}

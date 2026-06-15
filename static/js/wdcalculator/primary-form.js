@@ -319,12 +319,40 @@ function resetNotesToEmpty() {
     renderAllNotes();
 }
 
+/**
+ * 비고 복수 일괄 추가 (multi-add-picker.js 연동).
+ * 빈 placeholder 비고 한 줄만 있으면 제거하고 선택값을 이어붙인다.
+ * @param {string[]} values - "카테고리 > 옵션명" 형태의 비고 값 배열
+ */
+function addNotesBulk(values) {
+    if (!Array.isArray(values) || !values.length) return;
+    var onlyEmptyPlaceholder =
+        notesList.length === 1 && (!notesList[0].value || !notesList[0].value.trim());
+    if (onlyEmptyPlaceholder) {
+        notesList = [];
+    }
+    values.forEach(function (value) {
+        if (value && value.trim()) {
+            notesList.push({ type: "select", value: value });
+        }
+    });
+    if (notesList.length === 0) {
+        notesList = [{ type: "select", value: "" }];
+    }
+    renderAllNotes();
+}
+
 function initNotesUi() {
     loadNotesCategories();
 
     var btnAddNote = document.getElementById("btnAddNote");
     if (btnAddNote) {
         btnAddNote.addEventListener("click", function () {
+            // 복수선택 일괄 추가 피커가 있으면 우선 사용. 실패 시 단일 행 추가로 폴백.
+            var picker = window.WdCalculatorMultiAddPicker;
+            if (picker && typeof picker.openNotes === "function" && picker.openNotes()) {
+                return;
+            }
             addNoteItem("select");
         });
     }
@@ -342,6 +370,7 @@ window.WdCalculatorNotesUI = {
     formatNotesText: formatNotesText,
     formatNumbersInText: formatNumbersInText,
     renderAllNotes: renderAllNotes,
+    addNotesBulk: addNotesBulk,
 };
 
 /* --- included: base-components-ui.js --- */
@@ -1143,6 +1172,11 @@ window.WdCalculatorAdditionalOptionsUI = WdCalculatorAdditionalOptionsUI;
         }
 
         function handleAddOptionButtonClick() {
+            // 복수선택 일괄 추가 피커가 있으면 우선 사용. 실패 시 단일 행 추가로 폴백.
+            var picker = window.WdCalculatorMultiAddPicker;
+            if (picker && typeof picker.openOptions === "function" && picker.openOptions()) {
+                return;
+            }
             var container = documentRef.getElementById("additionalOptionsContainer");
             appendAdditionalOptionRow(container, {
                 forceMode: "select",
