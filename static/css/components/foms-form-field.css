@@ -564,7 +564,8 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
 
 /* Modal is a sibling of .erp-order-mobile-form — scope by modal id, not form wrapper */
 #erpAttachmentPreviewModal #erp-attachment-preview-body,
-#fomsAttachmentPreviewModal #foms-attachment-preview-body {
+#fomsAttachmentPreviewModal #foms-attachment-preview-body,
+#erpEstimatePreviewModal #erp-estimate-preview-body {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -573,7 +574,8 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
 }
 
 #erpAttachmentPreviewModal .erp-attachment-preview-zoom-stage,
-#fomsAttachmentPreviewModal .erp-attachment-preview-zoom-stage {
+#fomsAttachmentPreviewModal .erp-attachment-preview-zoom-stage,
+#erpEstimatePreviewModal .erp-attachment-preview-zoom-stage {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -585,7 +587,8 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
 }
 
 #erpAttachmentPreviewModal .erp-attachment-preview-zoom-stage .erp-attachment-preview-img,
-#fomsAttachmentPreviewModal .erp-attachment-preview-zoom-stage .erp-attachment-preview-img {
+#fomsAttachmentPreviewModal .erp-attachment-preview-zoom-stage .erp-attachment-preview-img,
+#erpEstimatePreviewModal .erp-attachment-preview-zoom-stage .erp-attachment-preview-img {
   cursor: zoom-in;
   max-height: min(60vh, 520px);
   width: auto;
@@ -598,19 +601,22 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
 }
 
 #erpAttachmentPreviewModal .erp-attachment-preview-zoom-stage .erp-attachment-preview-img:focus-visible,
-#fomsAttachmentPreviewModal .erp-attachment-preview-zoom-stage .erp-attachment-preview-img:focus-visible {
+#fomsAttachmentPreviewModal .erp-attachment-preview-zoom-stage .erp-attachment-preview-img:focus-visible,
+#erpEstimatePreviewModal .erp-attachment-preview-zoom-stage .erp-attachment-preview-img:focus-visible {
   outline: 2px solid var(--foms-border-focus);
   outline-offset: 2px;
 }
 
 #erpAttachmentPreviewModal .erp-attachment-preview-zoom-stage .erp-attachment-preview-img--expanded,
-#fomsAttachmentPreviewModal .erp-attachment-preview-zoom-stage .erp-attachment-preview-img--expanded {
+#fomsAttachmentPreviewModal .erp-attachment-preview-zoom-stage .erp-attachment-preview-img--expanded,
+#erpEstimatePreviewModal .erp-attachment-preview-zoom-stage .erp-attachment-preview-img--expanded {
   cursor: zoom-out;
 }
 
 @media (prefers-reduced-motion: reduce) {
   #erpAttachmentPreviewModal .erp-attachment-preview-zoom-stage .erp-attachment-preview-img,
-  #fomsAttachmentPreviewModal .erp-attachment-preview-zoom-stage .erp-attachment-preview-img {
+  #fomsAttachmentPreviewModal .erp-attachment-preview-zoom-stage .erp-attachment-preview-img,
+  #erpEstimatePreviewModal .erp-attachment-preview-zoom-stage .erp-attachment-preview-img {
     transition: none;
   }
 }
@@ -618,21 +624,24 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
 /* Mobile edit: keep attachment preview as a centered dialog, not .erp-pro fullscreen modals */
 @media (max-width: 992px) {
   #erpAttachmentPreviewModal .modal-dialog,
-  #fomsAttachmentPreviewModal .modal-dialog {
+  #fomsAttachmentPreviewModal .modal-dialog,
+  #erpEstimatePreviewModal .modal-dialog {
     max-width: min(92vw, 36rem);
     margin: 0.5rem auto;
     min-height: 0;
   }
 
   #erpAttachmentPreviewModal .modal-content,
-  #fomsAttachmentPreviewModal .modal-content {
+  #fomsAttachmentPreviewModal .modal-content,
+  #erpEstimatePreviewModal .modal-content {
     min-height: 0;
     max-height: calc(100dvh - 1rem);
     border-radius: var(--bs-modal-border-radius, 0.5rem);
   }
 
   #erpAttachmentPreviewModal .modal-body,
-  #fomsAttachmentPreviewModal .modal-body {
+  #fomsAttachmentPreviewModal .modal-body,
+  #erpEstimatePreviewModal .modal-body {
     overflow: auto;
   }
 }

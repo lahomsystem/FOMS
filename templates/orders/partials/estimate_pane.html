@@ -22,32 +22,38 @@
 }
 
 @media (max-width: 991.98px) {
-    .erp-est-viewport {
-        overflow: hidden;
-        touch-action: none;
-        padding: 0 8px 8px;
-        background: #f4f4f4;
-        border-radius: 6px;
+    .erp-est-viewport.erp-est-hidden {
+        display: none !important;
     }
-    .erp-est-viewport-stage {
-        position: relative;
-        overflow: hidden;
-        width: 100%;
-        min-height: 180px;
-        max-height: 72vh;
-    }
-    .erp-est-viewport-inner {
-        position: absolute;
-        left: 0;
-        top: 0;
-        transform-origin: 0 0;
-        will-change: transform;
-    }
-    .erp-est-viewport-inner.is-gesturing {
-        transition: none !important;
-    }
-    .erp-est-mobile-zoom-hint {
+    .erp-est-mobile-preview-card {
         display: block;
+        margin: 0 8px 8px;
+        padding: 8px;
+        background: #f4f4f4;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        cursor: pointer;
+        touch-action: manipulation;
+    }
+    .erp-est-mobile-preview-card:focus-visible {
+        outline: 2px solid var(--foms-border-focus, #0d6efd);
+        outline-offset: 2px;
+    }
+    .erp-est-mobile-preview-img {
+        display: block;
+        width: 100%;
+        height: auto;
+        max-height: 42vh;
+        object-fit: contain;
+        background: #fff;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+    }
+    .erp-est-mobile-preview-hint {
+        margin-top: 6px;
+        font-size: 11px;
+        color: #888;
+        text-align: center;
     }
 }
 
@@ -64,14 +70,9 @@
         transform: none !important;
         margin: 0 auto;
     }
-}
-
-.erp-est-mobile-zoom-hint {
-    display: none;
-    font-size: 11px;
-    color: #888;
-    text-align: center;
-    padding: 0 8px 6px;
+    .erp-est-mobile-preview-card {
+        display: none !important;
+    }
 }
 
 .erp-est-doc {
@@ -217,7 +218,6 @@
 /* ── 계약 내용 테이블 ── */
 .erp-est-contract {
     margin: 0 28px;
-    min-height: 180px;
     max-width: 100%;
     overflow: visible;
 }
@@ -340,7 +340,6 @@
     display: grid;
     grid-template-columns: 55fr 45fr;
     gap: 10px;
-    min-height: 100px;
 }
 .erp-est-pay-left {
     position: relative;
@@ -507,8 +506,10 @@
         <span id="est-empty-msg">주문을 먼저 저장한 후 견적서를 확인할 수 있습니다.</span>
     </div>
 
-    <div class="erp-est-mobile-zoom-hint" id="est-mobile-zoom-hint" aria-hidden="true">
-        화면에 맞춰 표시됩니다. 두 손가락으로 확대/축소 · 드래그로 이동
+    <div class="erp-est-mobile-preview-card erp-est-hidden" id="est-mobile-preview" role="button" tabindex="0"
+         aria-label="견적서 크게 보기">
+        <img id="est-mobile-preview-img" class="erp-est-mobile-preview-img" alt="견적서 미리보기">
+        <div class="erp-est-mobile-preview-hint">탭하여 확대 · 두 손가락으로 확대/축소</div>
     </div>
 
     <div class="erp-est-viewport erp-est-hidden" id="est-viewport">
@@ -666,4 +667,24 @@
     </div>
     </div>
     </div>
+
+<!-- 모바일 견적서 확대 모달 (첨부 미리보기와 동일 줌 UX) -->
+<div class="modal fade" id="erpEstimatePreviewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-file-contract"></i> 견적서</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+            </div>
+            <div class="modal-body">
+                <div id="erp-estimate-preview-body"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times"></i> 닫기
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 </div>

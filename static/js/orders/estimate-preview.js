@@ -11,22 +11,9 @@
     var _EST_DOC_WIDTH = 700;
     var _MOBILE_ESTIMATE_MQ = '(max-width: 991.98px)';
 
-    var _mobileZoomBound = false;
-    var _mobileZoomResizeTimer = null;
-    var _zoomState = {
-        scale: 1,
-        fitScale: 1,
-        tx: 0,
-        ty: 0,
-        pinching: false,
-        pinchStartDist: 0,
-        pinchStartScale: 1,
-        panning: false,
-        panStartX: 0,
-        panStartY: 0,
-        panBaseTx: 0,
-        panBaseTy: 0
-    };
+    var _mobilePreviewBound = false;
+    var _mobilePreviewDataUrl = '';
+    var _mobilePreviewCapturePromise = null;
 
     function _getOrderId() {
         if (typeof ORDER_ID !== 'undefined') return ORDER_ID;
@@ -81,15 +68,21 @@
         if (el) el.classList.add('erp-est-hidden');
     }
 
-    function _showEstimateDocument() {
-        _showSection('est-viewport');
+    function _isMobileEstimateView() {
+        return typeof window.matchMedia === 'function'
+            && window.matchMedia(_MOBILE_ESTIMATE_MQ).matches;
     }
 
-    function _hideEstimateDocument() {
-        _hideSection('est-viewport');
+    function _applyEstimateViewMode() {
+        if (_isMobileEstimateView()) {
+            _hideSection('est-viewport');
+        } else {
+            _hideSection('est-mobile-preview');
+            _showSection('est-viewport');
+        }
     }
 
-    /** PC 견적서(700px) 오프스크린 클론 — 모바일 export/html2canvas용 */
+    /** PC 견적서(700px) 오프스크린 클론 — export/html2canvas용 */
     function _buildExportClone(sourceEl) {
         var clone = sourceEl.cloneNode(true);
         clone.removeAttribute('id');
@@ -104,6 +97,144 @@
     function _removeExportClone(cloneEl) {
         if (cloneEl && cloneEl.parentNode) {
             cloneEl.parentNode.removeChild(cloneEl);
+        }
+    }
+
+    function _withEstimateExportMode(run) {
+        var itemsTable = document.getElementById('erp-estimate-items-table');
+        if (typeof window.setEstimateTableExportMode === 'function') {
+            window.setEstimateTableExportMode(true);
+        } else if (itemsTable) {
+            itemsTable.classList.add('erp-est-exporting');
+        }
+
+        return Promise.resolve()
+            .then(run)
+            .finally(function () {
+                if (typeof window.setEstimateTableExportMode === 'function') {
+                    window.setEstimateTableExportMode(false);
+                } else if (itemsTable) {
+                    itemsTable.classList.remove('erp-est-exporting');
+                }
+            });
+    }
+
+    function _captureEstimateDataUrl() {
+        var docEl = document.getElementById('est-document');
+        if (!docEl) return Promise.resolve('');
+
+        return _withEstimateExportMode(function () {
+            var exportEl = _buildExportClone(docEl);
+            return html2canvas(exportEl, {
+                scale: 2,
+                useCORS: true,
+                logging: false,
+                backgroundColor: '#ffffff',
+                width: _EST_EXPORT_WIDTH,
+                windowWidth: _EST_EXPORT_WIDTH
+            }).then(function (canvas) {
+                return canvas.toDataURL('image/png');
+            }).finally(function () {
+                _removeExportClone(exportEl);
+            });
+        }).catch(function (err) {
+            console.error('[estimate-preview] capture error:', err);
+            return '';
+        });
+    }
+
+    function _refreshMobilePreview() {
+        if (!_isMobileEstimateView()) return Promise.resolve();
+
+        var card = document.getElementById('est-mobile-preview');
+        var img = document.getElementById('est-mobile-preview-img');
+        if (!card || !img) return Promise.resolve();
+
+        _hideSection('est-mobile-preview');
+        _mobilePreviewDataUrl = '';
+
+        if (_mobilePreviewCapturePromise) return _mobilePreviewCapturePromise;
+
+        _mobilePreviewCapturePromise = _captureEstimateDataUrl().then(function (dataUrl) {
+            _mobilePreviewCapturePromise = null;
+            if (!dataUrl) return;
+            _mobilePreviewDataUrl = dataUrl;
+            img.src = dataUrl;
+            img.alt = '견적서 미리보기';
+            _showSection('est-mobile-preview');
+        });
+
+        return _mobilePreviewCapturePromise;
+    }
+
+    function _ensureEstimatePreviewModalZoomReset() {
+        var modalEl = document.getElementById('erpEstimatePreviewModal');
+        if (!modalEl || typeof window.fomsBindAttachmentPreviewModalZoomReset !== 'function') return;
+        window.fomsBindAttachmentPreviewModalZoomReset(modalEl, 'erp-estimate-preview-body', {});
+    }
+
+    function _bindEstimatePreviewImageZoom(bodyEl) {
+        if (typeof window.fomsBindAttachmentPreviewImageZoom !== 'function') return;
+        window.fomsBindAttachmentPreviewImageZoom(bodyEl, {
+            ensureModalReset: _ensureEstimatePreviewModalZoomReset
+        });
+    }
+
+    function _openEstimatePreviewModal() {
+        var modalEl = document.getElementById('erpEstimatePreviewModal');
+        var body = document.getElementById('erp-estimate-preview-body');
+        if (!modalEl || !body) return;
+
+        function showModal(dataUrl) {
+            if (!dataUrl) return;
+            body.innerHTML = '<img src="' + dataUrl + '" alt="견적서" class="img-fluid rounded erp-attachment-preview-img">';
+            _bindEstimatePreviewImageZoom(body);
+            _ensureEstimatePreviewModalZoomReset();
+            bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        }
+
+        if (_mobilePreviewDataUrl) {
+            showModal(_mobilePreviewDataUrl);
+            return;
+        }
+
+        _refreshMobilePreview().then(function () {
+            showModal(_mobilePreviewDataUrl);
+        });
+    }
+
+    function _bindEstimateMobilePreview() {
+        if (_mobilePreviewBound) return;
+        var card = document.getElementById('est-mobile-preview');
+        if (!card) return;
+
+        card.addEventListener('click', function () {
+            _openEstimatePreviewModal();
+        });
+        card.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                _openEstimatePreviewModal();
+            }
+        });
+
+        _mobilePreviewBound = true;
+    }
+
+    function _bindEstimateViewModeListener() {
+        if (typeof window.matchMedia !== 'function') return;
+        var mq = window.matchMedia(_MOBILE_ESTIMATE_MQ);
+        if (typeof mq.addEventListener === 'function') {
+            mq.addEventListener('change', _handleEstimateViewModeChange);
+        } else if (typeof mq.addListener === 'function') {
+            mq.addListener(_handleEstimateViewModeChange);
+        }
+    }
+
+    function _handleEstimateViewModeChange() {
+        _applyEstimateViewMode();
+        if (_estimateCacheLoaded && _isMobileEstimateView()) {
+            _refreshMobilePreview();
         }
     }
 
@@ -158,7 +289,6 @@
         _setText('est-company-phone', ci.phone);
         _setText('est-company-center', ci.customer_center);
 
-        // 발주사별 로고: CSS 클래스로 크기 제어 (인라인 스타일 금지 원칙)
         const logoEl = document.getElementById('est-logo-img');
         if (logoEl) {
             const lahomSrc = logoEl.dataset.lahomSrc;
@@ -174,7 +304,6 @@
             }
         }
 
-        // 인감 도장 표시
         const stampEl = document.getElementById('est-stamp-img');
         if (stampEl) stampEl.classList.remove('erp-est-hidden');
     }
@@ -233,7 +362,6 @@
     function _applyPaymentInfo(d, pi) {
         _setText('est-total-amount', _fmtMoney(d.total_amount));
 
-        // 예약금이 있을 때만 행 노출, 없으면 숨김
         const depositRow = document.getElementById('est-deposit-row');
         if (d.deposit_amount && d.deposit_amount > 0) {
             _setText('est-deposit-amount', _fmtMoney(d.deposit_amount));
@@ -253,12 +381,25 @@
         _setText('est-legal-notice', d.legal_notice);
     }
 
+    async function _afterEstimateRendered() {
+        _applyEstimateViewMode();
+
+        if (typeof window.scheduleEstimateColumnRefresh === 'function') {
+            window.scheduleEstimateColumnRefresh();
+        }
+
+        if (_isMobileEstimateView()) {
+            await _refreshMobilePreview();
+        }
+    }
+
     async function erpLoadEstimatePreview() {
         if (!_isErpEnabled()) return;
         const orderId = _getOrderId();
         if (!orderId || orderId === 0) {
             _hideSection('est-loading');
-            _hideEstimateDocument();
+            _hideSection('est-viewport');
+            _hideSection('est-mobile-preview');
             _showSection('est-empty');
             return;
         }
@@ -266,7 +407,8 @@
         if (_estimateCacheLoaded) return;
 
         _hideSection('est-empty');
-        _hideEstimateDocument();
+        _hideSection('est-viewport');
+        _hideSection('est-mobile-preview');
         _showSection('est-loading');
 
         try {
@@ -293,20 +435,16 @@
             _renderItems(d.items);
             _applyPaymentInfo(d, d.payment_info || {});
 
-            _showEstimateDocument();
             _estimateCacheLoaded = true;
             _dirty = false;
+            _mobilePreviewDataUrl = '';
 
-            // 저장 버튼 활성화 및 툴바 노출
             const toolbar = document.getElementById('est-toolbar');
             const exportBtn = document.getElementById('btn-est-export');
             if (toolbar) toolbar.classList.remove('erp-est-hidden');
             if (exportBtn) exportBtn.disabled = false;
 
-            if (typeof window.scheduleEstimateColumnRefresh === 'function') {
-                window.scheduleEstimateColumnRefresh();
-            }
-            _scheduleEstimateMobileFitRefresh();
+            await _afterEstimateRendered();
 
         } catch (err) {
             _hideSection('est-loading');
@@ -318,245 +456,16 @@
     window.erpInvalidateEstimateCache = function () {
         _estimateCacheLoaded = false;
         _dirty = true;
+        _mobilePreviewDataUrl = '';
     };
 
-    function _isMobileEstimateView() {
-        return typeof window.matchMedia === 'function'
-            && window.matchMedia(_MOBILE_ESTIMATE_MQ).matches;
-    }
-
-    function _getEstimateZoomEls() {
-        return {
-            viewport: document.getElementById('est-viewport'),
-            stage: document.getElementById('est-viewport-stage'),
-            inner: document.getElementById('est-viewport-inner'),
-            doc: document.getElementById('est-document'),
-            hint: document.getElementById('est-mobile-zoom-hint')
-        };
-    }
-
-    function _touchDistance(a, b) {
-        return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
-    }
-
-    function _setEstimateGestureTransition(active) {
-        var els = _getEstimateZoomEls();
-        if (els.inner) {
-            els.inner.classList.toggle('is-gesturing', !!active);
-        }
-    }
-
-    function _applyEstimateTransform() {
-        var els = _getEstimateZoomEls();
-        if (!els.inner) return;
-        if (!_isMobileEstimateView()) {
-            els.inner.style.transform = '';
-            return;
-        }
-        els.inner.style.transform = 'translate(' + _zoomState.tx + 'px,' + _zoomState.ty + 'px) scale(' + _zoomState.scale + ')';
-    }
-
-    function _computeEstimateFitScale(viewportEl) {
-        var pad = 16;
-        var available = Math.max(120, (viewportEl ? viewportEl.clientWidth : window.innerWidth) - pad);
-        return Math.max(0.2, Math.min(1, available / _EST_DOC_WIDTH));
-    }
-
-    function _updateEstimateStageHeight() {
-        var els = _getEstimateZoomEls();
-        if (!els.stage || !els.doc || !_isMobileEstimateView()) {
-            if (els.stage) els.stage.style.height = '';
-            return;
-        }
-        var docH = els.doc.offsetHeight || 0;
-        var scaledH = docH * _zoomState.scale;
-        var maxH = Math.max(240, Math.floor(window.innerHeight * 0.72));
-        els.stage.style.height = Math.min(Math.ceil(scaledH), maxH) + 'px';
-    }
-
-    function _clampEstimatePan() {
-        var els = _getEstimateZoomEls();
-        if (!els.stage || !els.doc) return;
-
-        var stageW = els.stage.clientWidth;
-        var stageH = els.stage.clientHeight;
-        var docH = els.doc.offsetHeight || 0;
-        var visualW = _EST_DOC_WIDTH * _zoomState.scale;
-        var visualH = docH * _zoomState.scale;
-
-        var minTx;
-        var maxTx;
-        if (visualW <= stageW) {
-            var centeredX = (stageW - visualW) / 2;
-            minTx = maxTx = centeredX;
-        } else {
-            minTx = stageW - visualW;
-            maxTx = 0;
-        }
-
-        var minTy;
-        var maxTy;
-        if (visualH <= stageH) {
-            var centeredY = (stageH - visualH) / 2;
-            minTy = maxTy = centeredY;
-        } else {
-            minTy = stageH - visualH;
-            maxTy = 0;
-        }
-
-        _zoomState.tx = Math.max(minTx, Math.min(maxTx, _zoomState.tx));
-        _zoomState.ty = Math.max(minTy, Math.min(maxTy, _zoomState.ty));
-    }
-
-    function _resetEstimateFitView() {
-        var els = _getEstimateZoomEls();
-        if (!els.viewport || !els.inner || !els.doc) return;
-
-        if (!_isMobileEstimateView()) {
-            _zoomState.scale = 1;
-            _zoomState.fitScale = 1;
-            _zoomState.tx = 0;
-            _zoomState.ty = 0;
-            _setEstimateGestureTransition(false);
-            _applyEstimateTransform();
-            _updateEstimateStageHeight();
-            if (els.hint) els.hint.setAttribute('aria-hidden', 'true');
-            return;
-        }
-
-        _zoomState.fitScale = _computeEstimateFitScale(els.viewport);
-        _zoomState.scale = _zoomState.fitScale;
-        _zoomState.tx = 0;
-        _zoomState.ty = 0;
-        _clampEstimatePan();
-        _setEstimateGestureTransition(false);
-        _applyEstimateTransform();
-        _updateEstimateStageHeight();
-        if (els.hint) els.hint.setAttribute('aria-hidden', 'false');
-    }
-
-    function _scheduleEstimateMobileFitRefresh() {
-        window.requestAnimationFrame(function () {
-            window.requestAnimationFrame(function () {
-                _resetEstimateFitView();
-            });
-        });
-    }
-
-    function _handleEstimateTouchStart(e) {
-        if (!_isMobileEstimateView() || !e.touches) return;
-
-        if (e.touches.length === 2) {
-            _zoomState.pinching = true;
-            _zoomState.panning = false;
-            _zoomState.pinchStartDist = _touchDistance(e.touches[0], e.touches[1]);
-            _zoomState.pinchStartScale = _zoomState.scale;
-            _setEstimateGestureTransition(true);
-            return;
-        }
-
-        if (e.touches.length === 1 && _zoomState.scale > _zoomState.fitScale + 0.02) {
-            var t = e.touches[0];
-            _zoomState.panning = true;
-            _zoomState.panStartX = t.clientX;
-            _zoomState.panStartY = t.clientY;
-            _zoomState.panBaseTx = _zoomState.tx;
-            _zoomState.panBaseTy = _zoomState.ty;
-            _setEstimateGestureTransition(true);
-        }
-    }
-
-    function _handleEstimateTouchMove(e) {
-        if (!_isMobileEstimateView() || !e.touches) return;
-
-        if (_zoomState.pinching && e.touches.length === 2) {
-            e.preventDefault();
-            var dist = _touchDistance(e.touches[0], e.touches[1]);
-            if (_zoomState.pinchStartDist > 0) {
-                var next = _zoomState.pinchStartScale * (dist / _zoomState.pinchStartDist);
-                var maxScale = Math.max(3, _zoomState.fitScale * 3);
-                _zoomState.scale = Math.max(_zoomState.fitScale, Math.min(maxScale, next));
-                if (_zoomState.scale <= _zoomState.fitScale + 0.01) {
-                    _zoomState.scale = _zoomState.fitScale;
-                    _zoomState.tx = 0;
-                    _zoomState.ty = 0;
-                }
-                _clampEstimatePan();
-                _applyEstimateTransform();
-                _updateEstimateStageHeight();
-            }
-            return;
-        }
-
-        if (_zoomState.panning && e.touches.length === 1) {
-            e.preventDefault();
-            var touch = e.touches[0];
-            _zoomState.tx = _zoomState.panBaseTx + (touch.clientX - _zoomState.panStartX);
-            _zoomState.ty = _zoomState.panBaseTy + (touch.clientY - _zoomState.panStartY);
-            _clampEstimatePan();
-            _applyEstimateTransform();
-        }
-    }
-
-    function _handleEstimateTouchEnd(e) {
-        if (!_isMobileEstimateView()) return;
-
-        var remaining = e && e.touches ? e.touches.length : 0;
-
-        if (_zoomState.pinching && remaining < 2) {
-            _zoomState.pinching = false;
-            if (_zoomState.scale <= _zoomState.fitScale + 0.03) {
-                _resetEstimateFitView();
-            } else if (remaining === 1 && e.touches && e.touches[0]) {
-                var t = e.touches[0];
-                _zoomState.panning = true;
-                _zoomState.panStartX = t.clientX;
-                _zoomState.panStartY = t.clientY;
-                _zoomState.panBaseTx = _zoomState.tx;
-                _zoomState.panBaseTy = _zoomState.ty;
-            } else {
-                _setEstimateGestureTransition(false);
-            }
-            return;
-        }
-
-        if (_zoomState.panning && remaining === 0) {
-            _zoomState.panning = false;
-            _setEstimateGestureTransition(false);
-        }
-    }
-
-    function _bindEstimateMobileZoom() {
-        if (_mobileZoomBound) return;
-        var els = _getEstimateZoomEls();
-        if (!els.viewport || !els.stage) return;
-
-        els.viewport.addEventListener('touchstart', _handleEstimateTouchStart, { passive: true });
-        els.viewport.addEventListener('touchmove', _handleEstimateTouchMove, { passive: false });
-        els.viewport.addEventListener('touchend', _handleEstimateTouchEnd, { passive: true });
-        els.viewport.addEventListener('touchcancel', _handleEstimateTouchEnd, { passive: true });
-
-        window.addEventListener('resize', function () {
-            clearTimeout(_mobileZoomResizeTimer);
-            _mobileZoomResizeTimer = window.setTimeout(function () {
-                var vp = document.getElementById('est-viewport');
-                if (!vp || vp.classList.contains('erp-est-hidden')) return;
-                _resetEstimateFitView();
-            }, 150);
-        });
-
-        _mobileZoomBound = true;
-    }
-
-    // ── 이미지 저장 (실측 대시보드와 동일 방식) ──────────────────────
     function _bindExportBtn() {
         const btn = document.getElementById('btn-est-export');
         if (!btn) return;
 
         btn.addEventListener('click', async function () {
             const docEl = document.getElementById('est-document');
-            const viewportEl = document.getElementById('est-viewport');
-            if (!docEl || !viewportEl || viewportEl.classList.contains('erp-est-hidden')) {
+            if (!docEl) {
                 alert('견적서가 로드되지 않았습니다.');
                 return;
             }
@@ -565,33 +474,19 @@
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 저장 중...';
             btn.disabled = true;
 
-            var itemsTable = document.getElementById('erp-estimate-items-table');
-            if (typeof window.setEstimateTableExportMode === 'function') {
-                window.setEstimateTableExportMode(true);
-            } else if (itemsTable) {
-                itemsTable.classList.add('erp-est-exporting');
-            }
-
-            var exportEl = null;
             try {
                 const numEl = document.getElementById('est-estimate-number');
                 const numText = (numEl && numEl.textContent.trim()) || '견적서';
                 const filename = numText + '.png';
 
-                exportEl = _buildExportClone(docEl);
-
-                const canvas = await html2canvas(exportEl, {
-                    scale: 2,
-                    useCORS: true,
-                    logging: false,
-                    backgroundColor: '#ffffff',
-                    width: _EST_EXPORT_WIDTH,
-                    windowWidth: _EST_EXPORT_WIDTH
-                });
+                const dataUrl = await _captureEstimateDataUrl();
+                if (!dataUrl) {
+                    throw new Error('이미지 생성 실패');
+                }
 
                 const link = document.createElement('a');
                 link.download = filename;
-                link.href = canvas.toDataURL('image/png');
+                link.href = dataUrl;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
@@ -600,12 +495,6 @@
                 console.error('[estimate-preview] 이미지 저장 실패:', err);
                 alert('이미지 저장 중 오류가 발생했습니다.\n' + (err && err.message ? err.message : String(err)));
             } finally {
-                _removeExportClone(exportEl);
-                if (typeof window.setEstimateTableExportMode === 'function') {
-                    window.setEstimateTableExportMode(false);
-                } else if (itemsTable) {
-                    itemsTable.classList.remove('erp-est-exporting');
-                }
                 btn.innerHTML = originalHTML;
                 btn.disabled = false;
             }
@@ -617,30 +506,26 @@
         if (!tab) return;
 
         _bindExportBtn();
-        _bindEstimateMobileZoom();
+        _bindEstimateMobilePreview();
+        _bindEstimateViewModeListener();
 
-        // ERP Order 폼 입력 시 dirty 플래그 설정 (캡처 페이즈로 모든 [data-erp] 입력 감지)
         document.addEventListener('input', function (e) {
             if (e.target && e.target.dataset && 'erp' in e.target.dataset) {
                 _dirty = true;
+                _mobilePreviewDataUrl = '';
             }
         }, true);
 
-        // 계약서 탭 활성화 시: 변경 없고 캐시 유효하면 즉시 반환 (불필요한 네트워크 요청 차단)
         tab.addEventListener('shown.bs.tab', async function () {
             if (!_dirty && _estimateCacheLoaded) {
-                if (typeof window.scheduleEstimateColumnRefresh === 'function') {
-                    window.scheduleEstimateColumnRefresh();
-                }
-                _scheduleEstimateMobileFitRefresh();
+                await _afterEstimateRendered();
                 return;
             }
 
             _estimateCacheLoaded = false;
+            _mobilePreviewDataUrl = '';
             const orderId = _getOrderId();
 
-            // 변경된 경우에만 자동 저장 (실시간 반영) — 자동 저장이므로 필수값 검증 생략
-            // 단, 고객명이 비어있으면 저장을 스킵 (빈 주문 서버 저장 방지)
             if (_dirty && orderId && orderId > 0 && typeof window.erpSaveStructured === 'function') {
                 if (typeof window.erpIsDraftBackedOrder === 'function' && window.erpIsDraftBackedOrder()) {
                     erpLoadEstimatePreview();
