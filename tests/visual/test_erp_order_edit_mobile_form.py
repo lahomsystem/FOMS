@@ -94,6 +94,10 @@ MOBILE_OMITTED_ERP_IDS = {
     "erp-copy-text-btn",
 }
 
+DESKTOP_OMITTED_ERP_IDS = {
+    "erp-load-btn",
+}
+
 MOBILE_ONLY_ERP_IDS = {
     "erp-urgent-reason-field",
     "erp-received-time-select",
@@ -154,10 +158,12 @@ def _make_erp_order() -> Order:
     return order
 
 
+_ERP_FORM_END_MARKER = "<!-- ERP 첨부 미리보기 모달 -->"
+
+
 def _erp_form_html(html: str) -> str:
-    # 견적서 pane은 outer 탭으로 분리됨 → 폼 끝 경계는 저장 버튼(footer)으로 잡는다.
     start = html.index('id="erp-form"')
-    end = html.index('id="erp-save-btn"', start)
+    end = html.index(_ERP_FORM_END_MARKER, start)
     return html[start:end]
 
 
@@ -165,7 +171,7 @@ def _erp_form_html_in_mount(html: str, mount_id: str) -> str:
     mount_start = html.index(f'id="{mount_id}"')
     mount_chunk = html[mount_start:]
     form_start = mount_chunk.index('id="erp-form"')
-    form_end = mount_chunk.index('id="erp-save-btn"', form_start)
+    form_end = mount_chunk.index(_ERP_FORM_END_MARKER, form_start)
     return mount_chunk[form_start:form_end]
 
 
@@ -175,7 +181,7 @@ def test_mobile_template_preserves_critical_erp_ids() -> None:
     parent_ids = _template_ids("templates/orders/partials/edit_order_body.html")
 
     assert PARENT_ERP_IDS <= parent_ids
-    assert CRITICAL_ERP_IDS - PARENT_ERP_IDS <= legacy_ids
+    assert (CRITICAL_ERP_IDS - PARENT_ERP_IDS - DESKTOP_OMITTED_ERP_IDS) <= legacy_ids
     assert sorted(
         ((CRITICAL_ERP_IDS - PARENT_ERP_IDS) - MOBILE_OMITTED_ERP_IDS) - mobile_ids
     ) == []
@@ -196,9 +202,7 @@ def test_mobile_erp_form_uses_foms_select_not_legacy_bootstrap_select() -> None:
     mobile = (
         ROOT / "templates" / "orders" / "partials" / "erp_order_tab_mobile.html"
     ).read_text(encoding="utf-8")
-    form_start = mobile.index('id="erp-form"')
-    form_end = mobile.index('id="erp-save-btn"', form_start)
-    erp_form = mobile[form_start:form_end]
+    erp_form = _erp_form_html(mobile)
 
     assert "foms-select" in erp_form
     assert "form-select" not in erp_form

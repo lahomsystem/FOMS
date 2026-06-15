@@ -51,10 +51,24 @@ cd "C:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"
 powershell -NoProfile -File scripts/ops/verify_mobile_v2_rollout.ps1
 ```
 
-1. Railway 프로젝트 → **New Service** → 같은 repo, **deploy** 브랜치
+1. Railway 프로젝트 **FOMS-PRODUCTION** → 서비스 **FOMS-cron** → 같은 repo, **production** 브랜치 (운영 cron)
 2. Settings → **Config Path**: `railway-cron.toml`
 3. Variables: Web과 동일 `DATABASE_URL`, `SECRET_KEY` 등
 4. `railway-cron.toml:7-8` — UTC 17:00 = KST 02:00, `cleanup_order_drafts.py --execute`
+
+설정 재적용 (GraphQL):
+
+```powershell
+python tools/ops/railway_configure_cron_service.py --target production
+```
+
+검증 (변경 없음, dry-run + 로그):
+
+```powershell
+powershell -NoProfile -File scripts/ops/verify_foms_cron_prod.ps1
+```
+
+Production service/env ID (검증 2026-06-15): `3bcaabb9-3b45-4382-8681-cc961865ae80` / `57587e48-dc52-42f7-9991-e70895a0ee50`
 
 로컬 dry-run:
 

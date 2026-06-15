@@ -198,6 +198,14 @@
   color: rgba(0, 0, 0, 0.5);
 }
 
+.erp-items-action-row {
+  width: 100%;
+}
+
+.erp-items-action-row > .btn {
+  flex-shrink: 0;
+}
+
 .erp-pro-badge--solid-success {
   background: var(--erp-success);
   color: var(--erp-text-white);
