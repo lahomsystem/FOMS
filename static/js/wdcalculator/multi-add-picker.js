@@ -170,6 +170,53 @@
         renderer.refreshEstimateCard(editingId);
     }
 
+    var editingCardSyncTimer = null;
+    function scheduleEditingCardSync() {
+        if (editingCardSyncTimer) {
+            clearTimeout(editingCardSyncTimer);
+        }
+        editingCardSyncTimer = setTimeout(function () {
+            editingCardSyncTimer = null;
+            syncEditingEstimateCard();
+        }, 150);
+    }
+
+    /**
+     * 편집 중 진행중 견적 카드를 "완료" 전에도 항상 최신화.
+     * 피커 추가뿐 아니라 옵션/비고 행 직접입력·직접입력 행·행 삭제 등 모든 변경 경로를 포괄하도록
+     * 옵션/비고 컨테이너의 input·change·childList 변화를 debounce로 syncEditingEstimateCard에 연결.
+     * (편집 중이 아니면 syncEditingEstimateCard가 즉시 반환 → 유휴 비용 거의 없음)
+     */
+    var liveCardSyncInitialized = false;
+    function initLiveCardSync() {
+        if (liveCardSyncInitialized) return; // 중복 등록 방지
+        liveCardSyncInitialized = true;
+
+        // capturing 단계: scheduleEditingCardSync만 호출하고 stopPropagation 안 함 → 기존 핸들러 무영향
+        var onFormMutate = function (e) {
+            var t = e && e.target;
+            if (!t || typeof t.closest !== "function") return;
+            if (t.closest("#additionalOptionsContainer") || t.closest("#notesContainer")) {
+                scheduleEditingCardSync();
+            }
+        };
+        document.addEventListener("input", onFormMutate, true);
+        document.addEventListener("change", onFormMutate, true);
+
+        // 행 추가/삭제는 컨테이너 직접 자식 변화이므로 subtree 불필요.
+        // (subtree:true면 mobile-enhance가 .note-item 내부에 세그먼트 삽입 시 불필요 재발화)
+        if (window.MutationObserver) {
+            ["additionalOptionsContainer", "notesContainer"].forEach(function (id) {
+                var el = document.getElementById(id);
+                if (el) {
+                    new MutationObserver(scheduleEditingCardSync).observe(el, {
+                        childList: true,
+                    });
+                }
+            });
+        }
+    }
+
     /**
      * 비고는 가격에 영향이 없어 calculateEstimate로는 갱신되지 않으므로,
      * 결과 카드의 비고 표시(#notesDisplay)를 현재 입력값으로 즉시 동기화한다.
@@ -404,12 +451,9 @@
                 ui.appendAdditionalOptionRow(container, { forceMode: "input", formatPriceOnInput: false });
             }
         } else if (state.mode === "notes") {
-            var notesUi = window.WdCalculatorNotesUI;
-            if (notesUi && typeof notesUi.addNotesBulk === "function") {
-                // 빈 직접입력 비고 한 행 추가
-                if (typeof window.addNoteItem === "function") {
-                    window.addNoteItem("input");
-                }
+            // 빈 직접입력 비고 한 행 추가 (전역 addNoteItem 사용)
+            if (typeof window.addNoteItem === "function") {
+                window.addNoteItem("input");
             }
         }
     }
@@ -483,4 +527,10 @@
         },
         close: close,
     };
+
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initLiveCardSync);
+    } else {
+        initLiveCardSync();
+    }
 })();
