@@ -70,16 +70,13 @@
   display: flex; align-items: center; justify-content: space-between; gap: 4px; min-width: 0;
 }
 .foms-tower__day-dow { font-size: 11px; font-weight: var(--foms-font-weight-bold); line-height: 1; opacity: .88; }
+/* 실측·시공 카운트 — 한 줄 가로 텍스트(합계 pill 금지: 큰 숫자 튀어나옴 방지). */
 .foms-tower__day-counts {
-  display: inline-flex; align-items: center; justify-content: center;
-  min-width: 22px; height: 18px; padding: 0 5px; border-radius: var(--foms-radius-full);
-  background: #fff; color: var(--foms-color-brand-700);
-  font-size: 11px; font-weight: var(--foms-font-weight-bold); line-height: 1;
-  white-space: nowrap; letter-spacing: 0; font-variant-numeric: tabular-nums;
+  font-size: 8px; line-height: 1.25; opacity: .92;
+  white-space: nowrap; letter-spacing: -0.2px; font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
 }
-.foms-tower__day.is-today .foms-tower__day-counts {
-  background: var(--foms-color-brand-600); color: #fff;
-}
+.foms-tower__day.is-today .foms-tower__day-counts { opacity: .85; }
 .foms-tower__day-risk { position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--foms-color-danger-500); }
 
 /* (B) 현장 일정 — 실측/시공 탭 */

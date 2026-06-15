@@ -83,7 +83,8 @@ def test_p1_dashboard_tower_mobile_width_contract() -> None:
     for token in (
         "foms-tower__day-meta",
         "grid-template-rows: auto auto",
-        "letter-spacing: 0",
+        "letter-spacing: -0.2px",
+        "📐",
     ):
         assert token in tower_css or token in tower_tpl
 

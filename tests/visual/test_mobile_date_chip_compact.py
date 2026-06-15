@@ -124,4 +124,5 @@ def test_dashboard_tower_day_tile_uses_compact_two_row_layout(
 
     metrics = _tower_day_metrics(page)
     _assert_compact_two_row_chip(metrics)
-    assert str(metrics["countText"]).isdigit()
+    count_text = str(metrics["countText"])
+    assert count_text == "·" or ("📐" in count_text and "🔨" in count_text)
