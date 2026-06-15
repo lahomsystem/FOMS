@@ -1,7 +1,8 @@
 /* =============================================================
    견적서(계약서) 계약 내용 테이블 — 컬럼 폭 조절
-   원칙: colgroup col[data-col-key] = 폭의 단일 진실 원천
-   저장: localStorage (출고/실측 대시보드와 동일 패턴)
+   엔진: static/js/runtime/column-resizer.js (colResizable vanilla fork)
+   모드: fit — 인접 컬럼 경계 이동, 테이블 폭 합 유지
+   저장: localStorage (출고/실측과 동일 키 패턴)
    ============================================================= */
 
 (function () {
@@ -9,21 +10,94 @@
 
   var TABLE_ID = 'erp-estimate-items-table';
   var STORAGE_KEY = 'foms.estimatePane.columnWidths.v1';
+  var RESIZER_SESSION_KEY = TABLE_ID;
   var DESKTOP_BREAKPOINT = 992;
+  var DESKTOP_POINTER_QUERY = '(hover: hover) and (pointer: fine)';
 
-  /** @type {Record<string, {defaultWidth: number, minWidth: number, resizable?: boolean}>} */
   var ESTIMATE_COLUMN_SCHEMA = {
-    name:   { defaultWidth: 110, minWidth: 72,  resizable: true },
-    spec:   { defaultWidth: 168, minWidth: 80,  resizable: true },
-    color:  { defaultWidth: 210, minWidth: 96,  resizable: true },
-    qty:    { defaultWidth: 32,  minWidth: 28,  resizable: true },
-    amount: { defaultWidth: 96,  minWidth: 80,  resizable: true }
+    name:   { defaultWidth: 110, minWidth: 72 },
+    spec:   { defaultWidth: 168, minWidth: 80 },
+    color:  { defaultWidth: 210, minWidth: 96 },
+    qty:    { defaultWidth: 32,  minWidth: 28 },
+    amount: { defaultWidth: 96,  minWidth: 80 }
   };
 
-  /**
-   * localStorage에서 저장된 컬럼 폭 객체를 반환한다.
-   * @returns {Record<string, number>}
-   */
+  var viewportTimer = null;
+  var lastViewportMode = null;
+  var desktopResizer = null;
+  var desktopResizeListener = null;
+  var isDesktopResizeListenerAttached = false;
+  var resetBound = false;
+
+  function getTable() {
+    return document.getElementById(TABLE_ID);
+  }
+
+  function canUseDesktopResize() {
+    if (window.innerWidth <= DESKTOP_BREAKPOINT) return false;
+    if (typeof window.matchMedia !== 'function') return true;
+    return window.matchMedia(DESKTOP_POINTER_QUERY).matches;
+  }
+
+  function getColumnElements(table, colKey) {
+    return {
+      col: table.querySelector('colgroup col[data-col-key="' + colKey + '"]'),
+      th: table.querySelector('thead th[data-col-key="' + colKey + '"]')
+    };
+  }
+
+  function getColumnWidth(colEl, thEl) {
+    var styleWidth = colEl ? parseFloat(colEl.style.width) : NaN;
+    if (!isNaN(styleWidth)) return styleWidth;
+
+    var target = thEl || colEl;
+    return target ? target.getBoundingClientRect().width : NaN;
+  }
+
+  function setColumnWidth(table, colKey, widthPx) {
+    var schema = ESTIMATE_COLUMN_SCHEMA[colKey];
+    if (!schema) return;
+
+    var nextWidth = Math.max(schema.minWidth, Math.round(widthPx));
+    var columnEls = getColumnElements(table, colKey);
+    if (!columnEls.col || !columnEls.th) return;
+
+    var widthText = nextWidth + 'px';
+    columnEls.col.style.width = widthText;
+    columnEls.th.style.width = widthText;
+    columnEls.th.style.minWidth = widthText;
+    columnEls.th.style.maxWidth = widthText;
+  }
+
+  function applyWidthsToCols(table, widths) {
+    Object.keys(ESTIMATE_COLUMN_SCHEMA).forEach(function (key) {
+      var schema = ESTIMATE_COLUMN_SCHEMA[key];
+      var nextWidth = widths && widths[key] !== undefined ? widths[key] : schema.defaultWidth;
+      setColumnWidth(table, key, nextWidth);
+    });
+  }
+
+  function collectCurrentWidths(table) {
+    var result = {};
+    Object.keys(ESTIMATE_COLUMN_SCHEMA).forEach(function (key) {
+      var columnEls = getColumnElements(table, key);
+      var width = getColumnWidth(columnEls.col, columnEls.th);
+      if (!isNaN(width)) result[key] = Math.round(width);
+    });
+    return result;
+  }
+
+  function applySchemaMinimums(table) {
+    Object.keys(ESTIMATE_COLUMN_SCHEMA).forEach(function (key) {
+      var schema = ESTIMATE_COLUMN_SCHEMA[key];
+      var columnEls = getColumnElements(table, key);
+      var currentWidth = getColumnWidth(columnEls.col, columnEls.th);
+      if (!isNaN(currentWidth) && currentWidth < schema.minWidth) {
+        setColumnWidth(table, key, schema.minWidth);
+      }
+    });
+  }
+
   function loadSavedWidths() {
     try {
       var raw = localStorage.getItem(STORAGE_KEY);
@@ -35,10 +109,6 @@
     }
   }
 
-  /**
-   * 컬럼 폭 객체를 localStorage에 저장한다.
-   * @param {Record<string, number>} widths
-   */
   function saveWidths(widths) {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(widths));
@@ -55,170 +125,159 @@
     }
   }
 
-  var _viewportTimer = null;
-  var _handlesBound = false;
-  var _resetBound = false;
-
-  function canUseDesktopResize() {
-    return window.innerWidth > DESKTOP_BREAKPOINT;
+  function clearLibrarySessionStore() {
+    try {
+      sessionStorage.removeItem(RESIZER_SESSION_KEY);
+    } catch (e) {}
   }
 
-  function scheduleViewportSync() {
-    if (_viewportTimer) window.clearTimeout(_viewportTimer);
-    _viewportTimer = window.setTimeout(function () {
-      initEstimateTableColumns(true);
-    }, 150);
+  function normalizeTableInlineWidths(table) {
+    table.style.width = '';
+    table.style.minWidth = '';
   }
 
-  /**
-   * 단일 컬럼 폭을 스키마 minWidth 이상으로 적용한다.
-   * @param {HTMLTableElement} table
-   * @param {string} colKey
-   * @param {number} widthPx
-   */
-  function setColumnWidth(table, colKey, widthPx) {
-    var schema = ESTIMATE_COLUMN_SCHEMA[colKey];
-    if (!schema) return;
-
-    var nextWidth = Math.max(schema.minWidth, Math.round(Number(widthPx) || schema.defaultWidth));
-    var col = table.querySelector('colgroup col[data-col-key="' + colKey + '"]');
-    if (!col) return;
-    col.style.width = nextWidth + 'px';
+  function getResizerConstructor() {
+    if (!window.ColumnResizer) return null;
+    return window.ColumnResizer.default || window.ColumnResizer;
   }
 
-  /**
-   * colgroup에 스키마/저장값 기준 폭을 적용한다.
-   * @param {HTMLTableElement} table
-   * @param {Record<string, number>} savedWidths
-   */
-  function applyWidthsToCols(table, savedWidths) {
-    Object.keys(ESTIMATE_COLUMN_SCHEMA).forEach(function (key) {
-      var schema = ESTIMATE_COLUMN_SCHEMA[key];
-      var nextWidth = savedWidths && savedWidths[key] !== undefined
-        ? savedWidths[key]
-        : schema.defaultWidth;
-      setColumnWidth(table, key, nextWidth);
-    });
+  function getGripContainer(table) {
+    var prev = table.previousElementSibling;
+    return prev && prev.classList && prev.classList.contains('grip-container') ? prev : null;
   }
 
-  /**
-   * 현재 colgroup col 요소의 px 폭을 수집한다.
-   * @param {HTMLTableElement} table
-   * @returns {Record<string, number>}
-   */
-  function collectCurrentWidths(table) {
-    var widths = {};
-    table.querySelectorAll('colgroup col[data-col-key]').forEach(function (col) {
-      var key = col.dataset.colKey;
-      var w = parseInt(col.style.width, 10);
-      if (!isNaN(w)) widths[key] = w;
-    });
-    return widths;
+  function syncDesktopGripPositions() {
+    if (!desktopResizer || typeof desktopResizer.onResize !== 'function') return;
+    desktopResizer.onResize();
   }
 
-  /**
-   * thead th 리사이즈 핸들에 mousedown 바인딩.
-   * @param {HTMLTableElement} table
-   */
-  function bindResizeHandles(table) {
-    if (_handlesBound) return;
-    table.querySelectorAll('thead th[data-col-key] .erp-est-col-resize-handle').forEach(function (handle) {
-      handle.addEventListener('mousedown', function (e) {
-        onHandleMouseDown(e, table);
-      });
-    });
-    _handlesBound = true;
+  function attachDesktopResizeListener() {
+    if (!desktopResizeListener || isDesktopResizeListenerAttached) return;
+    window.addEventListener('resize', desktopResizeListener);
+    isDesktopResizeListenerAttached = true;
   }
 
-  /**
-   * @param {MouseEvent} e
-   * @param {HTMLTableElement} table
-   */
-  function onHandleMouseDown(e, table) {
-    if (window.innerWidth <= DESKTOP_BREAKPOINT) return;
+  function detachDesktopResizeListener() {
+    if (!desktopResizeListener || !isDesktopResizeListenerAttached) return;
+    window.removeEventListener('resize', desktopResizeListener);
+    isDesktopResizeListenerAttached = false;
+  }
 
-    e.preventDefault();
-    e.stopPropagation();
+  function initDesktopResizer(table) {
+    if (desktopResizer) return;
 
-    var th = e.currentTarget.closest('th');
-    if (!th) return;
-
-    var colKey = th.dataset.colKey;
-    var schema = ESTIMATE_COLUMN_SCHEMA[colKey];
-    if (!schema || schema.resizable === false) return;
-
-    var col = table.querySelector('colgroup col[data-col-key="' + colKey + '"]');
-    if (!col) return;
-
-    var startX = e.clientX;
-    var startWidth = col.offsetWidth || schema.defaultWidth;
-
-    table.classList.add('erp-est-col-resizing');
-    document.body.classList.add('erp-est-col-resizing-active');
-
-    function onMouseMove(ev) {
-      var dx = ev.clientX - startX;
-      setColumnWidth(table, colKey, startWidth + dx);
+    var ResizerCtor = getResizerConstructor();
+    if (!ResizerCtor) {
+      console.warn('[estimate-table-columns] ColumnResizer unavailable — fallback static widths only');
+      return;
     }
 
-    function onMouseUp() {
-      table.classList.remove('erp-est-col-resizing');
-      document.body.classList.remove('erp-est-col-resizing-active');
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-      saveWidths(collectCurrentWidths(table));
-    }
+    clearLibrarySessionStore();
+    desktopResizer = new ResizerCtor(table, {
+      resizeMode: 'fit',
+      liveDrag: true,
+      minWidth: 28,
+      headerOnly: true,
+      removePadding: false,
+      serialize: false,
+      draggingClass: 'erp-est-col-resizer-active',
+      gripInnerHtml: '<div class="erp-est-col-resizer-grip"></div>',
+      onResize: function () {
+        applySchemaMinimums(table);
+        saveWidths(collectCurrentWidths(table));
+      }
+    });
 
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
+    desktopResizeListener = typeof desktopResizer.onResize === 'function' ? desktopResizer.onResize : null;
+    isDesktopResizeListenerAttached = !!desktopResizeListener;
+
+    applySchemaMinimums(table);
+    saveWidths(collectCurrentWidths(table));
   }
 
-  /**
-   * 컬럼 폭 초기화 버튼 바인딩.
-   * @param {HTMLTableElement} table
-   */
+  function applyDesktopState(table) {
+    normalizeTableInlineWidths(table);
+    applyWidthsToCols(table, loadSavedWidths());
+    applySchemaMinimums(table);
+    initDesktopResizer(table);
+    attachDesktopResizeListener();
+    syncDesktopGripPositions();
+  }
+
+  function applyStaticTableState(table) {
+    detachDesktopResizeListener();
+    normalizeTableInlineWidths(table);
+    applyWidthsToCols(table, loadSavedWidths());
+    applySchemaMinimums(table);
+  }
+
   function bindResetButton(table) {
-    if (_resetBound) return;
+    if (resetBound) return;
     var btn = document.getElementById('btn-est-reset-column-widths');
     if (!btn) return;
+
     btn.addEventListener('click', function () {
       clearSavedWidths();
+      normalizeTableInlineWidths(table);
       applyWidthsToCols(table, {});
+      applySchemaMinimums(table);
+      saveWidths(collectCurrentWidths(table));
+      syncDesktopGripPositions();
     });
-    _resetBound = true;
+    resetBound = true;
   }
 
-  /**
-   * 견적서 계약 내용 테이블 컬럼 리사이저 초기화.
-   * @param {boolean} [fromViewport]
-   * @returns {boolean}
-   */
-  function initEstimateTableColumns(fromViewport) {
-    var table = document.getElementById(TABLE_ID);
+  function syncViewportState(force) {
+    var table = getTable();
     if (!table) return false;
 
-    var isDesktop = canUseDesktopResize();
-    var savedWidths = isDesktop ? loadSavedWidths() : {};
+    var nextMode = canUseDesktopResize() ? 'desktop' : 'static';
+    if (!force && nextMode === lastViewportMode) return true;
 
-    applyWidthsToCols(table, savedWidths);
-
-    if (isDesktop) {
-      bindResizeHandles(table);
+    lastViewportMode = nextMode;
+    if (nextMode === 'desktop') {
+      applyDesktopState(table);
+      return true;
     }
 
-    if (!fromViewport) {
-      bindResetButton(table);
-      window.addEventListener('resize', scheduleViewportSync);
-    }
-
+    applyStaticTableState(table);
     return true;
   }
 
+  function initEstimateTableColumns(force) {
+    var table = getTable();
+    if (!table) return false;
+
+    bindResetButton(table);
+    return syncViewportState(!!force);
+  }
+
+  function setExportMode(isExporting) {
+    var table = getTable();
+    if (!table) return;
+
+    table.classList.toggle('erp-est-exporting', !!isExporting);
+    var gripContainer = getGripContainer(table);
+    if (gripContainer) {
+      gripContainer.classList.toggle('erp-est-exporting', !!isExporting);
+    }
+  }
+
   window.initEstimateTableColumns = initEstimateTableColumns;
+  window.setEstimateTableExportMode = setExportMode;
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initEstimateTableColumns);
+    document.addEventListener('DOMContentLoaded', function () {
+      initEstimateTableColumns(true);
+    });
   } else {
-    initEstimateTableColumns();
+    initEstimateTableColumns(true);
   }
+
+  window.addEventListener('resize', function () {
+    clearTimeout(viewportTimer);
+    viewportTimer = window.setTimeout(function () {
+      initEstimateTableColumns(false);
+    }, 150);
+  });
 })();

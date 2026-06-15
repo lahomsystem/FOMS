@@ -286,7 +286,11 @@
             btn.disabled = true;
 
             var itemsTable = document.getElementById('erp-estimate-items-table');
-            if (itemsTable) itemsTable.classList.add('erp-est-exporting');
+            if (typeof window.setEstimateTableExportMode === 'function') {
+                window.setEstimateTableExportMode(true);
+            } else if (itemsTable) {
+                itemsTable.classList.add('erp-est-exporting');
+            }
 
             try {
                 const numEl = document.getElementById('est-estimate-number');
@@ -311,7 +315,11 @@
                 console.error('[estimate-preview] 이미지 저장 실패:', err);
                 alert('이미지 저장 중 오류가 발생했습니다.\n' + (err && err.message ? err.message : String(err)));
             } finally {
-                if (itemsTable) itemsTable.classList.remove('erp-est-exporting');
+                if (typeof window.setEstimateTableExportMode === 'function') {
+                    window.setEstimateTableExportMode(false);
+                } else if (itemsTable) {
+                    itemsTable.classList.remove('erp-est-exporting');
+                }
                 btn.innerHTML = originalHTML;
                 btn.disabled = false;
             }

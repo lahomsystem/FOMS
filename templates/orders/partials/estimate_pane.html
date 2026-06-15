@@ -147,6 +147,8 @@
 .erp-est-contract {
     margin: 0 28px;
     min-height: 180px;
+    max-width: 100%;
+    overflow: hidden;
 }
 .erp-est-contract-title {
     text-align: center;
@@ -194,35 +196,31 @@
 .erp-est-tbl td:nth-child(4) {
     white-space: nowrap;
 }
-.erp-est-col-resize-handle {
+.erp-est-contract .grip-container {
+    z-index: 4;
+}
+.erp-est-contract .grip-handle {
+    z-index: 5 !important;
+}
+.erp-est-contract .grip-handle .erp-est-col-resizer-grip {
     position: absolute;
-    top: 0;
-    right: -3px;
-    width: 7px;
-    height: 100%;
-    border: 0;
-    padding: 0;
-    margin: 0;
-    background: transparent;
-    cursor: col-resize;
-    z-index: 2;
+    top: 6px;
+    bottom: 6px;
+    left: 50%;
+    width: 2px;
+    transform: translateX(-50%);
+    border-radius: 999px;
+    background: rgba(13, 110, 253, 0.18);
+    opacity: 0;
+    transition: opacity 0.15s ease, background-color 0.15s ease;
+    pointer-events: none;
 }
-.erp-est-tbl th:hover .erp-est-col-resize-handle {
-    background: rgba(13, 110, 253, 0.12);
-    border-radius: 2px;
+.erp-est-contract .grip-handle:hover .erp-est-col-resizer-grip,
+.erp-est-contract .grip-handle.erp-est-col-resizer-active .erp-est-col-resizer-grip {
+    opacity: 1;
+    background: rgba(13, 110, 253, 0.56);
 }
-.erp-est-tbl.erp-est-col-resizing,
-.erp-est-tbl.erp-est-col-resizing * {
-    user-select: none;
-    -webkit-user-select: none;
-}
-body.erp-est-col-resizing-active {
-    cursor: col-resize;
-}
-@media (max-width: 991.98px) {
-    .erp-est-col-resize-handle { display: none; }
-}
-.erp-est-tbl.erp-est-exporting .erp-est-col-resize-handle {
+.erp-est-contract .grip-container.erp-est-exporting {
     display: none;
 }
 .erp-est-empty-msg {
@@ -514,11 +512,11 @@ body.erp-est-col-resizing-active {
                 </colgroup>
                 <thead>
                     <tr>
-                        <th class="erp-est-th-name" data-col-key="name">품명<button type="button" class="erp-est-col-resize-handle" aria-label="품명 컬럼 크기 조절"></button></th>
-                        <th class="erp-est-th-spec" data-col-key="spec">규격<button type="button" class="erp-est-col-resize-handle" aria-label="규격 컬럼 크기 조절"></button></th>
-                        <th class="erp-est-th-color" data-col-key="color">색상<button type="button" class="erp-est-col-resize-handle" aria-label="색상 컬럼 크기 조절"></button></th>
-                        <th class="erp-est-th-qty" data-col-key="qty">수량<button type="button" class="erp-est-col-resize-handle" aria-label="수량 컬럼 크기 조절"></button></th>
-                        <th class="erp-est-th-amount" data-col-key="amount">금액 <span class="small">(VAT 포함)</span><button type="button" class="erp-est-col-resize-handle" aria-label="금액 컬럼 크기 조절"></button></th>
+                        <th class="erp-est-th-name" data-col-key="name">품명</th>
+                        <th class="erp-est-th-spec" data-col-key="spec">규격</th>
+                        <th class="erp-est-th-color" data-col-key="color">색상</th>
+                        <th class="erp-est-th-qty" data-col-key="qty">수량</th>
+                        <th class="erp-est-th-amount" data-col-key="amount">금액 <span class="small">(VAT 포함)</span></th>
                     </tr>
                 </thead>
                 <tbody id="est-items-tbody">

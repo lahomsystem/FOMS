@@ -53,8 +53,9 @@ def _assert_shared_form_script_contract(body: str) -> None:
     html2canvas_idx = body.index("html2canvas.min.js")
     estimate_preview_idx = body.index("js/orders/estimate-preview.js")
     estimate_columns_idx = body.index("js/orders/estimate-table-columns.js")
+    column_resizer_idx = body.index("js/runtime/column-resizer.js")
 
-    assert payment_urls_idx < erp_order_shared_idx < html2canvas_idx < estimate_preview_idx < estimate_columns_idx
+    assert payment_urls_idx < erp_order_shared_idx < html2canvas_idx < column_resizer_idx < estimate_preview_idx < estimate_columns_idx
 
     # W5-B8: giant inline shared-form code was moved out of the partial.
     assert "function erpRecalcItemsTotal()" not in body
@@ -164,15 +165,17 @@ def test_estimate_table_columns_contract() -> None:
     assert 'id="erp-estimate-items-table"' in pane
     assert 'data-col-key="qty"' in pane
     assert 'data-col-key="amount"' in pane
-    assert 'erp-est-col-resize-handle' in pane
     assert 'table-layout: fixed' in pane
     assert 'btn-est-reset-column-widths' in pane
+    assert 'erp-est-col-resizer-grip' in pane
 
     assert "TABLE_ID = 'erp-estimate-items-table'" in js
     assert "STORAGE_KEY = 'foms.estimatePane.columnWidths.v1'" in js
-    assert "qty:" in js and "amount:" in js
+    assert "resizeMode: 'fit'" in js
+    assert "ColumnResizer" in js
     assert "localStorage.setItem" in js
     assert "initEstimateTableColumns" in js
+    assert "setEstimateTableExportMode" in js
 
 
 def test_estimate_preview_js_is_canonical_only() -> None:
