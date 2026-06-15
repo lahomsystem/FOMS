@@ -99,11 +99,10 @@
         var ui = window.WdCalculatorAdditionalOptionsUI;
         var container = document.getElementById("additionalOptionsContainer");
         if (!ui || typeof ui.appendAdditionalOptionRow !== "function" || !container) return;
-        var lastItem = null;
         var base = Date.now();
         var idx = 0;
         state.selected.forEach(function (payload) {
-            lastItem = ui.appendAdditionalOptionRow(container, {
+            ui.appendAdditionalOptionRow(container, {
                 optionId: "opt_" + base + "_" + idx++,
                 option: { name: payload.name, price: payload.price, quantity: 1 },
                 matchedValue: payload.matchedValue,
@@ -111,16 +110,42 @@
                 formatPriceOnInput: false,
             });
         });
-        // 행 추가만으로는 재계산이 트리거되지 않으므로 마지막 행의 가격 input에 input 이벤트 디스패치.
-        if (lastItem) {
-            var priceInput = lastItem.querySelector("[data-option-price]");
-            if (priceInput) {
-                try {
-                    priceInput.dispatchEvent(new Event("input", { bubbles: true }));
-                } catch (e) {
-                    /* older engines: ignore */
+    }
+
+    /**
+     * 일괄 추가 후 현재 견적을 즉시 재계산해 라이브 표시(견적 결과 카드 가격/모바일 FAB #finalPrice)를 갱신.
+     * 행 입력 시 동작하는 표준 경로(calculateEstimate)와 동일하게 맞춘다.
+     * (calculateTotalEstimates는 저장 견적이 없을 때 현재 요약을 0원으로 리셋하므로 호출하지 않음)
+     */
+    function triggerRecalc() {
+        var orch = window.WdCalculatorCurrentEstimateOrchestration;
+        if (orch && typeof orch.calculateEstimate === "function") {
+            try {
+                orch.calculateEstimate();
+            } catch (e) {
+                // calculateEstimate 내부에서 처리되지 못한 예외는 무음 억제하지 않고 로깅
+                if (window.console && console.error) {
+                    console.error("[multi-add-picker] 재계산 실패", e);
                 }
             }
+        }
+    }
+
+    /**
+     * 비고는 가격에 영향이 없어 calculateEstimate로는 갱신되지 않으므로,
+     * 결과 카드의 비고 표시(#notesDisplay)를 현재 입력값으로 즉시 동기화한다.
+     */
+    function refreshNotesDisplay() {
+        var notesUi = window.WdCalculatorNotesUI;
+        var section = document.getElementById("notesDisplaySection");
+        var display = document.getElementById("notesDisplay");
+        if (!notesUi || typeof notesUi.collectNotes !== "function" || !section || !display) return;
+        var notes = notesUi.collectNotes();
+        if (notes && notes.trim()) {
+            display.textContent = notes;
+            section.style.display = "block";
+        } else {
+            section.style.display = "none";
         }
     }
 
@@ -267,7 +292,7 @@
             body.appendChild(empty);
             return;
         }
-        groups.forEach(function (g, gi) {
+        groups.forEach(function (g) {
             var groupEl = document.createElement("div");
             groupEl.className = "wd-madd-group";
 
@@ -295,8 +320,8 @@
             groupEl.appendChild(header);
             groupEl.appendChild(list);
             body.appendChild(groupEl);
-            // 첫 그룹은 펼쳐서 보여줌(빈 화면 방지)
-            expandGroup(groupEl, list, gi === 0);
+            // 초기 로딩 시 모든 카테고리는 접힌 상태(사용자가 탭해서 펼침)
+            expandGroup(groupEl, list, false);
         });
     }
 
@@ -318,6 +343,9 @@
             if (q) {
                 // 검색 중엔 매칭 그룹을 모두 펼침
                 expandGroup(group, list, visibleCount > 0);
+            } else {
+                // 검색어를 비우면 초기 상태(모두 접힘)로 복원
+                expandGroup(group, list, false);
             }
         }
     }
@@ -381,12 +409,6 @@
         ov.panel.classList.toggle("wd-madd-panel--sheet", isMobile());
         ov.panel.classList.toggle("wd-madd-panel--modal", !isMobile());
         document.body.classList.add("wd-madd-open");
-
-        // 레이아웃 확정 후 열린 그룹 높이 보정
-        var openLists = ov.panel.querySelectorAll(".wd-madd-group.is-open .wd-madd-group__list");
-        for (var k = 0; k < openLists.length; k++) {
-            openLists[k].style.maxHeight = openLists[k].scrollHeight + "px";
-        }
         return true;
     }
 
@@ -397,7 +419,9 @@
             commitOptions();
         } else if (mode === "notes") {
             commitNotes();
+            refreshNotesDisplay();
         }
+        triggerRecalc();
         close();
     }
 
