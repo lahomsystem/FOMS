@@ -30,9 +30,12 @@
         <span class="foms-tower__day-dow">{{ d.dow }}</span>
         <span class="foms-tower__day-date">{{ d.date }}</span>
         <span class="foms-tower__day-counts" aria-hidden="true">
-          {% if day_measure %}<span class="foms-tower__day-count">📐{{ day_measure }}</span>{% endif %}
-          {% if day_construction %}<span class="foms-tower__day-count">🔨{{ day_construction }}</span>{% endif %}
-          {% if not day_total %}<span class="foms-tower__day-count foms-tower__day-count--empty">·</span>{% endif %}
+          <span class="foms-tower__day-count foms-tower__day-count--measure{% if not day_measure %} is-empty{% endif %}">
+            {%- if day_measure -%}📐{{ day_measure }}{%- elif not day_total -%}·{%- endif -%}
+          </span>
+          <span class="foms-tower__day-count foms-tower__day-count--construction{% if not day_construction %} is-empty{% endif %}">
+            {%- if day_construction -%}🔨{{ day_construction }}{%- endif -%}
+          </span>
         </span>
       </button>
       {% endfor %}

@@ -60,7 +60,7 @@
   appearance: none; -webkit-appearance: none; border: 0; font: inherit; color: #fff; cursor: pointer;
   width: 100%; border-radius: 12px; padding: 6px 2px;
   text-align: center; background: rgba(255,255,255,.10); position: relative;
-  display: grid; grid-template-rows: auto auto auto; align-content: center; gap: 2px;
+  display: grid; grid-template-rows: auto auto auto; align-content: start; gap: 2px;
   min-width: 0; min-height: 62px; overflow: clip;
   box-sizing: border-box;
 }
@@ -71,16 +71,17 @@
 .foms-tower__day.is-today .foms-tower__day-dow { opacity: .65; }
 .foms-tower__day-date { font-size: 14px; font-weight: var(--foms-font-weight-bold); line-height: 1.05; }
 .foms-tower__day-counts {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 0; min-width: 0; width: 100%; max-width: 100%;
+  display: grid; grid-template-rows: repeat(2, minmax(9px, auto));
+  align-items: center; justify-items: center;
+  gap: 0; min-width: 0; width: 100%; max-width: 100%; min-height: 19px;
 }
 .foms-tower__day-count {
-  display: block; max-width: 100%;
+  display: block; max-width: 100%; min-height: 9px;
   font-size: 8px; line-height: 1.2; opacity: .92;
   white-space: nowrap; letter-spacing: -0.2px; font-variant-numeric: tabular-nums;
 }
-.foms-tower__day.is-today .foms-tower__day-count { opacity: .85; }
-.foms-tower__day-count--empty { opacity: .55; }
+.foms-tower__day-count.is-empty { visibility: hidden; }
+.foms-tower__day.is-today .foms-tower__day-count:not(.is-empty) { opacity: .85; }
 .foms-tower__day-risk { position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--foms-color-danger-500); }
 
 /* (B) 현장 일정 — 실측/시공 탭 */
