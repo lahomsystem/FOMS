@@ -112,9 +112,16 @@
     color: #0057d2;
   }
 
-  .erp-mobile-queue-filters__drawer {
-    height: auto;
+  /* Bootstrap offcanvas-bottom default (--bs-offcanvas-height: 30vh) beats single-class
+     height:auto. Match WDCalculator saved-estimate sheet (.wd-msheet max-height: 82%). */
+  .erp-mobile-queue-filters__drawer.offcanvas-bottom {
+    --bs-offcanvas-height: 82dvh;
+    max-height: 82%;
     border-radius: 1.25rem 1.25rem 0 0;
+  }
+
+  .erp-mobile-queue-filters__drawer.offcanvas-bottom .offcanvas-body {
+    overflow-y: auto;
   }
 
   .erp-mobile-queue-filters__form {
