@@ -112,7 +112,7 @@ def test_erp_order_tab_mobile_template_save_in_amount_row() -> None:
     text = (ROOT / "templates/orders/partials/erp_order_tab_mobile.html").read_text(
         encoding="utf-8"
     )
-    assert "erp-mobile-amount-row--save" in text
+    assert "erp-mobile-amount-toolbar" in text
     assert 'id="erp-save-btn"' in text
     assert 'id="erp-items-total"' in text
     save_idx = text.index('id="erp-save-btn"')
@@ -127,6 +127,7 @@ def test_erp_order_tab_template_save_in_amount_row() -> None:
         encoding="utf-8"
     )
     assert 'class="card-body foms-page-form"' in text
+    assert "erp-amount-toolbar" in text
     assert 'id="erp-save-btn"' in text
     assert 'id="erp-items-total"' in text
     save_idx = text.index('id="erp-save-btn"')

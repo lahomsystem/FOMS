@@ -198,6 +198,15 @@
   color: rgba(0, 0, 0, 0.5);
 }
 
+.erp-amount-toolbar {
+  width: 100%;
+}
+
+.erp-amount-toolbar > .btn {
+  flex-shrink: 0;
+  min-height: 2rem;
+}
+
 .erp-pro-badge--solid-success {
   background: var(--erp-success);
   color: var(--erp-text-white);

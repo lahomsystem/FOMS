@@ -371,8 +371,22 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
   min-height: var(--foms-touch-target-min);
 }
 
-.erp-mobile-amount-row--save {
-  grid-template-columns: auto minmax(0, 1fr) minmax(9.25rem, 9.25rem);
+.erp-mobile-amount-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--foms-space-3);
+  margin-top: var(--foms-space-4);
+  padding-top: var(--foms-space-2);
+  border-top: 1px solid var(--foms-border-subtle, #e5e7eb);
+}
+
+.erp-mobile-amount-toolbar > .erp-mobile-amounts {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
 }
 
 .erp-mobile-amount-label {
