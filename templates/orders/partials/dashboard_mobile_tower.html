@@ -27,12 +27,12 @@
               data-foms-day-tile data-iso="{{ d.iso }}"
               aria-label="{{ d.dow }} {{ d.date }}일 실측 {{ day_measure }}건, 시공 {{ day_construction }}건 보기">
         {% if d.has_risk %}<span class="foms-tower__day-risk" aria-label="위험"></span>{% endif %}
+        <span class="foms-tower__day-dow">{{ d.dow }}</span>
         <span class="foms-tower__day-date">{{ d.date }}</span>
-        <span class="foms-tower__day-meta">
-          <span class="foms-tower__day-dow">{{ d.dow }}</span>
-          <span class="foms-tower__day-counts" aria-hidden="true">
-            {% if day_total %}📐{{ day_measure }}·🔨{{ day_construction }}{% else %}·{% endif %}
-          </span>
+        <span class="foms-tower__day-counts" aria-hidden="true">
+          {% if day_measure %}<span class="foms-tower__day-count">📐{{ day_measure }}</span>{% endif %}
+          {% if day_construction %}<span class="foms-tower__day-count">🔨{{ day_construction }}</span>{% endif %}
+          {% if not day_total %}<span class="foms-tower__day-count foms-tower__day-count--empty">·</span>{% endif %}
         </span>
       </button>
       {% endfor %}

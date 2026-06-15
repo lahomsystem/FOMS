@@ -53,29 +53,45 @@ def _tower_day_metrics(page) -> dict[str, float | str]:
     page.locator(".foms-tower__day").first.wait_for()
     return page.locator(".foms-tower__day").first.evaluate(
         """(chip) => {
+          const dow = chip.querySelector(".foms-tower__day-dow");
           const date = chip.querySelector(".foms-tower__day-date");
-          const meta = chip.querySelector(".foms-tower__day-meta");
-          const day = chip.querySelector(".foms-tower__day-dow");
-          const count = chip.querySelector(".foms-tower__day-counts");
+          const counts = chip.querySelector(".foms-tower__day-counts");
+          const countLines = Array.from(chip.querySelectorAll(".foms-tower__day-count"));
           const chipRect = chip.getBoundingClientRect();
+          const dowRect = dow.getBoundingClientRect();
           const dateRect = date.getBoundingClientRect();
-          const metaRect = meta.getBoundingClientRect();
-          const dayRect = day.getBoundingClientRect();
-          const countRect = count.getBoundingClientRect();
+          const countsRect = counts.getBoundingClientRect();
+          let contentRight = chipRect.left;
+          let contentBottom = chipRect.top;
+          [dowRect, dateRect, countsRect, ...countLines.map((el) => el.getBoundingClientRect())].forEach((rect) => {
+            contentRight = Math.max(contentRight, rect.right);
+            contentBottom = Math.max(contentBottom, rect.bottom);
+          });
           return {
             chipWidth: chipRect.width,
             chipHeight: chipRect.height,
+            chipLeft: chipRect.left,
+            chipRight: chipRect.right,
             chipBottom: chipRect.bottom,
+            contentRight,
+            contentBottom,
+            dowTop: dowRect.top,
             dateTop: dateRect.top,
-            metaTop: metaRect.top,
-            dayBottom: dayRect.bottom,
-            countBottom: countRect.bottom,
-            metaDisplay: window.getComputedStyle(meta).display,
-            countText: count.textContent.trim(),
+            countsTop: countsRect.top,
+            countsText: counts.textContent.trim(),
             chipGridRows: window.getComputedStyle(chip).gridTemplateRows
           };
         }"""
     )
+
+
+def _assert_tower_day_tile_contained(metrics: dict[str, float | str]) -> None:
+    assert 58 <= metrics["chipHeight"] <= 82
+    assert metrics["chipWidth"] <= 84
+    assert metrics["dowTop"] < metrics["dateTop"] < metrics["countsTop"]
+    assert metrics["contentRight"] <= metrics["chipRight"] + 0.5
+    assert metrics["contentBottom"] <= metrics["chipBottom"] + 0.5
+    assert "px" in metrics["chipGridRows"]
 
 
 def _assert_compact_two_row_chip(metrics: dict[str, float | str]) -> None:
@@ -123,6 +139,6 @@ def test_dashboard_tower_day_tile_uses_compact_two_row_layout(
     page.goto(f"{visual_live_server_erp_v2}/erp/dashboard", wait_until="networkidle")
 
     metrics = _tower_day_metrics(page)
-    _assert_compact_two_row_chip(metrics)
-    count_text = str(metrics["countText"])
-    assert count_text == "·" or ("📐" in count_text and "🔨" in count_text)
+    _assert_tower_day_tile_contained(metrics)
+    counts_text = str(metrics["countsText"])
+    assert counts_text == "·" or "📐" in counts_text or "🔨" in counts_text

@@ -54,29 +54,33 @@
 .foms-tower__week-top { display: flex; align-items: baseline; justify-content: space-between; padding: 0 var(--foms-space-2) var(--foms-space-2); gap: var(--foms-space-2); min-width: 0; }
 .foms-tower__week-title { font-size: var(--foms-font-size-base); font-weight: var(--foms-font-weight-bold); flex-shrink: 0; }
 .foms-tower__week-link { font-size: var(--foms-font-size-xs); color: #fff; opacity: .9; min-width: 0; flex: 1 1 auto; text-align: right; overflow-wrap: anywhere; }
-.foms-tower__week-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
-/* 주간 타일 = 클릭 버튼. button 기본 스타일 리셋 후 카드형 유지. */
+.foms-tower__week-strip { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; min-width: 0; }
+/* 주간 타일 = 클릭 버튼. mockup v3 3행(요일·날짜·실측/시공) + 셀 clip으로 가로 튐 방지. */
 .foms-tower__day {
   appearance: none; -webkit-appearance: none; border: 0; font: inherit; color: #fff; cursor: pointer;
-  width: 100%; border-radius: 12px; padding: 7px 6px;
+  width: 100%; border-radius: 12px; padding: 6px 2px;
   text-align: center; background: rgba(255,255,255,.10); position: relative;
-  display: grid; grid-template-rows: auto auto; align-content: center; gap: 5px; min-width: 0; min-height: 58px;
+  display: grid; grid-template-rows: auto auto auto; align-content: center; gap: 2px;
+  min-width: 0; min-height: 62px; overflow: clip;
+  box-sizing: border-box;
 }
 .foms-tower__day.is-today { background: #fff; color: var(--foms-color-brand-700); box-shadow: var(--foms-shadow-sm); }
 /* 현재 선택된 날짜(인라인 현장 일정 대상) 강조 — 오늘이 아닌 날 클릭 시 외곽선. */
 .foms-tower__day.is-active:not(.is-today) { box-shadow: inset 0 0 0 2px #fff; }
+.foms-tower__day-dow { font-size: 9px; line-height: 1; opacity: .82; }
+.foms-tower__day.is-today .foms-tower__day-dow { opacity: .65; }
 .foms-tower__day-date { font-size: 14px; font-weight: var(--foms-font-weight-bold); line-height: 1.05; }
-.foms-tower__day-meta {
-  display: flex; align-items: center; justify-content: space-between; gap: 4px; min-width: 0;
-}
-.foms-tower__day-dow { font-size: 11px; font-weight: var(--foms-font-weight-bold); line-height: 1; opacity: .88; }
-/* 실측·시공 카운트 — 한 줄 가로 텍스트(합계 pill 금지: 큰 숫자 튀어나옴 방지). */
 .foms-tower__day-counts {
-  font-size: 8px; line-height: 1.25; opacity: .92;
-  white-space: nowrap; letter-spacing: -0.2px; font-variant-numeric: tabular-nums;
-  flex-shrink: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 0; min-width: 0; width: 100%; max-width: 100%;
 }
-.foms-tower__day.is-today .foms-tower__day-counts { opacity: .85; }
+.foms-tower__day-count {
+  display: block; max-width: 100%;
+  font-size: 8px; line-height: 1.2; opacity: .92;
+  white-space: nowrap; letter-spacing: -0.2px; font-variant-numeric: tabular-nums;
+}
+.foms-tower__day.is-today .foms-tower__day-count { opacity: .85; }
+.foms-tower__day-count--empty { opacity: .55; }
 .foms-tower__day-risk { position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--foms-color-danger-500); }
 
 /* (B) 현장 일정 — 실측/시공 탭 */
