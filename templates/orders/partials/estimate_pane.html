@@ -28,20 +28,24 @@
         padding: 0 8px 8px;
         background: #f4f4f4;
         border-radius: 6px;
+        /* JS가 stage 높이를 맞추기 전 레이아웃 팽창 방지 */
+        max-height: 72vh;
     }
     .erp-est-viewport-stage {
         position: relative;
         overflow: hidden;
         width: 100%;
-        min-height: 180px;
+        min-height: 0;
         max-height: 72vh;
+        /* 높이는 JS가 scaled 문서 높이로만 설정 */
     }
     .erp-est-viewport-inner {
-        position: absolute;
+        position: absolute !important;
         left: 0;
         top: 0;
         transform-origin: 0 0;
         will-change: transform;
+        /* transform scale 시에도 부모 높이에 원본 문서 높이가 반영되지 않게 분리 */
     }
     .erp-est-viewport-inner.is-gesturing {
         transition: none !important;
@@ -56,13 +60,10 @@
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
     }
-    .erp-est-viewport-stage {
-        height: auto !important;
-    }
+    /* 래퍼가 문서 높이를 이중으로 잡지 않도록 PC에서는 box tree에서 제거 */
+    .erp-est-viewport-stage,
     .erp-est-viewport-inner {
-        position: static;
-        transform: none !important;
-        margin: 0 auto;
+        display: contents;
     }
 }
 
@@ -217,7 +218,6 @@
 /* ── 계약 내용 테이블 ── */
 .erp-est-contract {
     margin: 0 28px;
-    min-height: 180px;
     max-width: 100%;
     overflow: visible;
 }
@@ -340,7 +340,6 @@
     display: grid;
     grid-template-columns: 55fr 45fr;
     gap: 10px;
-    min-height: 100px;
 }
 .erp-est-pay-left {
     position: relative;
