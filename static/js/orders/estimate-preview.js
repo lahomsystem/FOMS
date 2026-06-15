@@ -366,33 +366,12 @@
         var els = _getEstimateZoomEls();
         if (!els.stage || !els.doc || !_isMobileEstimateView()) {
             if (els.stage) els.stage.style.height = '';
-            if (els.viewport) els.viewport.style.height = '';
             return;
         }
         var docH = els.doc.offsetHeight || 0;
-        if (docH <= 0) {
-            return;
-        }
         var scaledH = docH * _zoomState.scale;
         var maxH = Math.max(240, Math.floor(window.innerHeight * 0.72));
-        var stageH = Math.max(120, Math.min(Math.ceil(scaledH), maxH));
-        els.stage.style.height = stageH + 'px';
-        if (els.viewport) {
-            els.viewport.style.height = '';
-        }
-    }
-
-    function _bindEstimateDocResizeObserver() {
-        var els = _getEstimateZoomEls();
-        if (!els.doc || typeof ResizeObserver !== 'function') return;
-        if (els.doc._estResizeObserved) return;
-        var observer = new ResizeObserver(function () {
-            var vp = document.getElementById('est-viewport');
-            if (!vp || vp.classList.contains('erp-est-hidden')) return;
-            _scheduleEstimateMobileFitRefresh();
-        });
-        observer.observe(els.doc);
-        els.doc._estResizeObserved = true;
+        els.stage.style.height = Math.min(Math.ceil(scaledH), maxH) + 'px';
     }
 
     function _clampEstimatePan() {
@@ -454,12 +433,6 @@
         _applyEstimateTransform();
         _updateEstimateStageHeight();
         if (els.hint) els.hint.setAttribute('aria-hidden', 'false');
-    }
-
-    function _refreshEstimateIfActiveTab() {
-        var pane = document.getElementById('erp-estimate');
-        if (!pane || !pane.classList.contains('active')) return;
-        _scheduleEstimateMobileFitRefresh();
     }
 
     function _scheduleEstimateMobileFitRefresh() {
@@ -645,7 +618,6 @@
 
         _bindExportBtn();
         _bindEstimateMobileZoom();
-        _bindEstimateDocResizeObserver();
 
         // ERP Order 폼 입력 시 dirty 플래그 설정 (캡처 페이즈로 모든 [data-erp] 입력 감지)
         document.addEventListener('input', function (e) {
@@ -687,8 +659,6 @@
             }
             erpLoadEstimatePreview();
         });
-
-        _refreshEstimateIfActiveTab();
     }
 
     if (document.readyState === 'loading') {

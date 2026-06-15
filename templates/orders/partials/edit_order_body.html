@@ -2,11 +2,6 @@
     .hidden {
         display: none;
     }
-    /* mobile ERP partial wrapper: tab-pane만 orderTabContent 직계 자식처럼 레이아웃에 참여 */
-    #erp-order-form-mobile,
-    #erp-order-form-legacy {
-        display: contents;
-    }
 </style>
 {# erp order surface flags are derived once so fragment/full-page bootstrap read the same contract. #}
 {% set erp_order_feature_enabled = erp_order_enabled %}
