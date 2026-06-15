@@ -98,6 +98,56 @@ def test_as_register_uses_kst_received_date(client, monkeypatch):
     assert saved_order.as_received_date == "2026-04-08"
 
 
+def test_as_register_clears_erp_draft_so_as_dashboard_lists_order(client, monkeypatch):
+    """Draft ERP order finalized on AS register must pass active_filter (AS tab visibility)."""
+    _login_as_admin(client)
+    order = Order(
+        received_date="2026-04-07",
+        customer_name="Draft AS Customer",
+        phone="010-9999-8888",
+        address="Seoul Draft",
+        product="Wardrobe",
+        status="DRAFT",
+        manager_name="Alice",
+        is_erp_order=True,
+        structured_data={
+            "meta": {"draft": True, "created_via": "ADD_ORDER"},
+            "workflow": {"stage": "RECEIVED"},
+            "shipment": {},
+        },
+    )
+    db_session.add(order)
+    db_session.commit()
+    order_id = order.id
+
+    as_orders = importlib.import_module("foms.api.cs.as_orders")
+    monkeypatch.setattr(as_orders, "get_today_kst", lambda: date(2026, 4, 8))
+
+    response = client.post(
+        f"/api/orders/{order_id}/as/register",
+        json={"as_content": "Door hinge broken"},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["success"] is True
+    assert payload.get("draft_cleared") is True
+
+    db_session.expire_all()
+    saved_order = db_session.get(Order, order_id)
+    assert saved_order is not None
+    assert saved_order.status == "AS_RECEIVED"
+    assert saved_order.structured_data["meta"]["draft"] is False
+    assert saved_order.structured_data["workflow"]["stage"] == "AS_RECEIVED"
+
+    visible = (
+        db_session.query(Order)
+        .filter(Order.id == order_id, Order.active_filter())
+        .count()
+    )
+    assert visible == 1
+
+
 def test_as_register_matches_confirmed_construction_worker(client, monkeypatch):
     _login_as_construction(client)
     order = _create_order(

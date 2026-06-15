@@ -2,6 +2,7 @@
 ERP 주문 AS(설치) API. (Phase 4-5h)
 erp.py에서 분리: as/start, as/complete, as/schedule.
 """
+import copy
 import datetime
 import logging
 
@@ -257,6 +258,7 @@ def api_as_register(order_id):
         user_id = session.get("user_id")
         user = get_user_by_id(user_id)
         sd = _load_order_structured_data_for_update(order)
+        old_sd = copy.deepcopy(sd)
         shipment = ensure_path(sd, "shipment")
         shipment["as_content"] = as_content
         construction_worker_name = _confirmed_construction_worker_name(user)
@@ -267,11 +269,18 @@ def api_as_register(order_id):
         wf["stage_updated_at"] = datetime.datetime.now().isoformat()
         wf["stage_updated_by"] = user.name if user else "Unknown"
         sd["workflow"] = wf
-        order.structured_data = sd
-        flag_modified(order, "structured_data")
 
         order.as_received_date = today
         order.status = "AS_RECEIVED"
+
+        # /add draft 주문은 structured PUT 없이 AS 모달만 완료하는 경우가 많다.
+        # draft meta가 남으면 Order.active_filter()에서 제외되어 AS 탭에 보이지 않는다.
+        from foms.api.erp_orders_structured import _finalize_draft_state
+
+        now = datetime.datetime.now()
+        draft_cleared = _finalize_draft_state(order, sd, now, old_sd)
+        order.structured_data = sd
+        flag_modified(order, "structured_data")
         sync_erp_flat_columns(order, sd)
 
         db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} AS 접수 등록 (접수일: {today})"))
@@ -284,6 +293,7 @@ def api_as_register(order_id):
             "as_received_date": today,
             "new_status": "AS_RECEIVED",
             "construction_workers": shipment.get("construction_workers") or [],
+            "draft_cleared": draft_cleared,
         })
     except ValueError as e:
         db.rollback()

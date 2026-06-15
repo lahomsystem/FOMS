@@ -1502,6 +1502,7 @@ function erpNavigateAfterStructuredSave(targetUrl) {
 
 async function erpSaveStructuredOnce(opts = {}) {
     const doRedirect = opts.redirect !== false;
+    const redirectUrlOverride = typeof opts.redirectUrl === 'string' ? opts.redirectUrl.trim() : '';
 
     // 필수 입력값 검증 (사용자 직접 저장 시에만 적용, 자동 저장 예외)
     if (opts._skipValidation !== true) {
@@ -1650,7 +1651,9 @@ async function erpSaveStructuredOnce(opts = {}) {
         }
 
         if (doRedirect) {
-            if (isErpOrderDraftMode()) {
+            if (redirectUrlOverride) {
+                window.location.href = redirectUrlOverride;
+            } else if (isErpOrderDraftMode()) {
                 window.location.href = '/erp/dashboard';
             } else {
                 const referrerInput = document.querySelector('input[name="referrer"]');
@@ -1978,9 +1981,28 @@ ${escapeHtml(sub)}</div>` : ''}`;
                     }
 
                     window.__erpAsReceiveSubmitted = true;
+                    if (!window.__erpLastStructuredData || typeof window.__erpLastStructuredData !== 'object') {
+                        window.__erpLastStructuredData = {};
+                    }
+                    if (!window.__erpLastStructuredData.workflow || typeof window.__erpLastStructuredData.workflow !== 'object') {
+                        window.__erpLastStructuredData.workflow = {};
+                    }
+                    window.__erpLastStructuredData.workflow.stage = 'AS_RECEIVED';
+                    if (!window.__erpLastStructuredData.shipment || typeof window.__erpLastStructuredData.shipment !== 'object') {
+                        window.__erpLastStructuredData.shipment = {};
+                    }
+                    window.__erpLastStructuredData.shipment.as_content = content;
+
                     bootstrap.Modal.getInstance(modalEl)?.hide();
-                    erpSetStatus('AS 접수 완료. 대시보드로 이동합니다...');
-                    window.location.href = '/erp/dashboard?stage=AS%EC%B2%98%EB%A6%AC';
+                    erpSetStatus('AS 접수 저장 중...');
+
+                    const saveResult = await erpSaveStructured({
+                        redirect: true,
+                        redirectUrl: '/erp/as',
+                    });
+                    if (!saveResult || saveResult.success !== true) {
+                        window.location.href = '/erp/as';
+                    }
                 } catch (e) {
                     console.error(e);
                     alert(e?.message || 'AS 접수 처리 중 오류가 발생했습니다.');
