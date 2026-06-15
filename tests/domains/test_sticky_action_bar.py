@@ -118,19 +118,23 @@ def test_erp_order_tab_mobile_template_sticky_footer_unchanged() -> None:
     assert "erp-mobile-amount-toolbar" not in text
 
 
-def test_erp_order_tab_template_save_on_shipment_row() -> None:
+def test_erp_order_tab_template_save_on_items_action_row() -> None:
     text = (ROOT / "templates/orders/partials/erp_order_tab.html").read_text(
         encoding="utf-8"
     )
     assert 'class="card-body foms-page-form"' in text
-    assert "erp-amount-save-row" in text
+    assert "erp-items-action-row" in text
     assert 'id="erp-save-btn"' in text
+    assert 'id="erp-add-item-btn"' in text
     assert 'id="erp-items-total"' in text
-    save_idx = text.index('id="erp-save-btn"')
+    action_idx = text.index("erp-items-action-row")
+    save_idx = text.index('id="erp-save-btn"', action_idx)
+    add_idx = text.index('id="erp-add-item-btn"', action_idx)
     total_idx = text.index('id="erp-items-total"')
-    assert save_idx < total_idx
+    assert save_idx < add_idx
+    assert add_idx < total_idx
     assert 'id="erp-load-btn"' not in text
-    assert '<footer class="foms-sticky-action-bar"' not in text
+    assert "erp-amount-save-row" not in text
 
 
 def test_edit_order_erp_save_in_amount_row_not_sticky_footer(erp_editor_client) -> None:
@@ -152,8 +156,8 @@ def test_edit_order_erp_save_in_amount_row_not_sticky_footer(erp_editor_client) 
     body = response.get_data(as_text=True)
     assert 'id="erp-save-btn"' in body
     assert 'id="erp-load-btn"' not in body
-    save_idx = body.index('id="erp-save-btn"')
-    total_idx = body.index('id="erp-items-total"', save_idx)
-    assert save_idx < total_idx
-    erp_save_snippet = body[save_idx:total_idx + 80]
-    assert '<footer class="foms-sticky-action-bar"' not in erp_save_snippet
+    action_idx = body.index("erp-items-action-row")
+    save_idx = body.index('id="erp-save-btn"', action_idx)
+    add_idx = body.index('id="erp-add-item-btn"', action_idx)
+    total_idx = body.index('id="erp-items-total"')
+    assert save_idx < add_idx < total_idx
