@@ -7,6 +7,7 @@
 
     let _estimateCacheLoaded = false;
     let _dirty = true; // 첫 진입 시 항상 새로 로드
+    var _EST_EXPORT_WIDTH = 700;
 
     function _getOrderId() {
         if (typeof ORDER_ID !== 'undefined') return ORDER_ID;
@@ -59,6 +60,32 @@
     function _hideSection(id) {
         const el = document.getElementById(id);
         if (el) el.classList.add('erp-est-hidden');
+    }
+
+    function _showEstimateDocument() {
+        _showSection('est-viewport');
+    }
+
+    function _hideEstimateDocument() {
+        _hideSection('est-viewport');
+    }
+
+    /** PC 견적서(700px) 오프스크린 클론 — 모바일 export/html2canvas용 */
+    function _buildExportClone(sourceEl) {
+        var clone = sourceEl.cloneNode(true);
+        clone.removeAttribute('id');
+        clone.querySelectorAll('[id]').forEach(function (node) {
+            node.removeAttribute('id');
+        });
+        clone.classList.add('erp-est-export-clone');
+        document.body.appendChild(clone);
+        return clone;
+    }
+
+    function _removeExportClone(cloneEl) {
+        if (cloneEl && cloneEl.parentNode) {
+            cloneEl.parentNode.removeChild(cloneEl);
+        }
     }
 
     function _renderItems(items) {
@@ -212,7 +239,7 @@
         const orderId = _getOrderId();
         if (!orderId || orderId === 0) {
             _hideSection('est-loading');
-            _hideSection('est-document');
+            _hideEstimateDocument();
             _showSection('est-empty');
             return;
         }
@@ -220,7 +247,7 @@
         if (_estimateCacheLoaded) return;
 
         _hideSection('est-empty');
-        _hideSection('est-document');
+        _hideEstimateDocument();
         _showSection('est-loading');
 
         try {
@@ -247,7 +274,7 @@
             _renderItems(d.items);
             _applyPaymentInfo(d, d.payment_info || {});
 
-            _showSection('est-document');
+            _showEstimateDocument();
             _estimateCacheLoaded = true;
             _dirty = false;
 
@@ -280,7 +307,8 @@
 
         btn.addEventListener('click', async function () {
             const docEl = document.getElementById('est-document');
-            if (!docEl || docEl.classList.contains('erp-est-hidden')) {
+            const viewportEl = document.getElementById('est-viewport');
+            if (!docEl || !viewportEl || viewportEl.classList.contains('erp-est-hidden')) {
                 alert('견적서가 로드되지 않았습니다.');
                 return;
             }
@@ -296,16 +324,21 @@
                 itemsTable.classList.add('erp-est-exporting');
             }
 
+            var exportEl = null;
             try {
                 const numEl = document.getElementById('est-estimate-number');
                 const numText = (numEl && numEl.textContent.trim()) || '견적서';
                 const filename = numText + '.png';
 
-                const canvas = await html2canvas(docEl, {
+                exportEl = _buildExportClone(docEl);
+
+                const canvas = await html2canvas(exportEl, {
                     scale: 2,
                     useCORS: true,
                     logging: false,
-                    backgroundColor: '#ffffff'
+                    backgroundColor: '#ffffff',
+                    width: _EST_EXPORT_WIDTH,
+                    windowWidth: _EST_EXPORT_WIDTH
                 });
 
                 const link = document.createElement('a');
@@ -319,6 +352,7 @@
                 console.error('[estimate-preview] 이미지 저장 실패:', err);
                 alert('이미지 저장 중 오류가 발생했습니다.\n' + (err && err.message ? err.message : String(err)));
             } finally {
+                _removeExportClone(exportEl);
                 if (typeof window.setEstimateTableExportMode === 'function') {
                     window.setEstimateTableExportMode(false);
                 } else if (itemsTable) {

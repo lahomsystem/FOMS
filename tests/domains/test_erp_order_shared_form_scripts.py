@@ -179,6 +179,10 @@ def test_estimate_table_columns_contract() -> None:
     assert "scheduleEstimateColumnRefresh" in js
     assert "setEstimateTableExportMode" in js
     assert 'erp-est-tbl-wrap' in pane
+    assert 'id="est-viewport"' in pane
+    assert 'erp-est-viewport' in pane
+    assert 'erp-est-export-clone' in pane
+    assert 'min-height: 180px' not in pane
 
 
 def test_estimate_preview_js_is_canonical_only() -> None:
@@ -190,6 +194,8 @@ def test_estimate_preview_js_is_canonical_only() -> None:
     block = text[start:end]
     assert "ERP_ORDER_ENABLED" in block
     assert "ERP_BETA_ENABLED" not in block
+    assert "_EST_EXPORT_WIDTH = 700" in text
+    assert "_buildExportClone" in text
 
 
 def test_shared_erp_order_js_has_no_beta_runtime_mirror() -> None:

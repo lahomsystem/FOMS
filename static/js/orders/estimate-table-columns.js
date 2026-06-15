@@ -34,8 +34,8 @@
   }
 
   function isEstimateDocumentVisible() {
-    var doc = document.getElementById('est-document');
-    return !!(doc && !doc.classList.contains('erp-est-hidden'));
+    var viewport = document.getElementById('est-viewport');
+    return !!(viewport && !viewport.classList.contains('erp-est-hidden'));
   }
 
   function canUseDesktopResize() {
