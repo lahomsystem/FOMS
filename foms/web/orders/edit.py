@@ -392,4 +392,5 @@ def _build_erp_order_bootstrap(order):
         'received_time': order.received_time or '',
         'notes': order.notes or '',
         'is_self_measurement': getattr(order, 'is_self_measurement', False),
+        'is_regional': getattr(order, 'is_regional', False),
     }

@@ -366,6 +366,7 @@ def api_get_order_structured(order_id):
             'received_time': order.received_time or '',
             'notes': order.notes or '',
             'is_self_measurement': getattr(order, 'is_self_measurement', False),
+            'is_regional': getattr(order, 'is_regional', False),
         })
     except Exception as e:
         logger.exception("[ERP_ORDER] structured GET 오류: %s", e)
@@ -472,6 +473,7 @@ def api_put_order_structured(order_id):
         received_time = payload.get('received_time')
         notes = payload.get('notes')
         is_self_measurement = payload.get('is_self_measurement')
+        is_regional = payload.get('is_regional')
         now = datetime.datetime.now()
         draft_cleared = False
 
@@ -495,6 +497,8 @@ def api_put_order_structured(order_id):
             setattr(order, 'raw_order_text', raw_order_text)
         if is_self_measurement is not None:
             setattr(order, 'is_self_measurement', bool(is_self_measurement))
+        if is_regional is not None:
+            setattr(order, 'is_regional', bool(is_regional))
         if received_date is not None and isinstance(received_date, str) and received_date.strip():
             setattr(order, 'received_date', received_date.strip())
         if received_time is not None and isinstance(received_time, str):

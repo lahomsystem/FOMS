@@ -1172,6 +1172,8 @@ async function erpLoadStructured(bootstrapData, options) {
     erpSyncUrgentReasonVisibility({ clear: !sd?.flags?.urgent });
     const selfMeasEl = document.getElementById('erp-self-measurement');
     if (selfMeasEl) selfMeasEl.checked = !!data.is_self_measurement;
+    const regionalEl = document.getElementById('erp-regional-order');
+    if (regionalEl) regionalEl.checked = !!data.is_regional;
     // 주소 로드: 주소+상세주소는 한 필드(erp-address)에 함께 표기
     const site = sd?.site || {};
     const addressFull = site.address_full || site.address_main || '';
@@ -1623,7 +1625,8 @@ async function erpSaveStructuredOnce(opts = {}) {
                 received_date: received_date || undefined,
                 received_time: received_time || undefined,
                 notes: notesVal,
-                is_self_measurement: document.getElementById('erp-self-measurement')?.checked === true
+                is_self_measurement: document.getElementById('erp-self-measurement')?.checked === true,
+                is_regional: document.getElementById('erp-regional-order')?.checked === true
             })
         });
         const data = await res.json();

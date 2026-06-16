@@ -158,6 +158,68 @@ def test_structured_put_clears_order_notes_when_notes_empty_string(client, monke
     assert saved_order.notes is None
 
 
+def test_structured_get_put_round_trips_regional_and_self_measurement_flags(client, monkeypatch):
+    """ERP Order 저장은 지방주문/자가실측 플래그를 대시보드 필터 컬럼에 반영해야 한다."""
+    _login_as_admin(client, username="erp-regional-flags")
+    order = _create_order()
+    order_id = order.id
+
+    monkeypatch.setattr(erp_orders_structured, "_handle_stage_transition", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "_record_structured_events", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "_apply_structured_side_effects", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "_finalize_draft_state", lambda *a, **k: False)
+    monkeypatch.setattr(erp_orders_structured, "sync_erp_flat_columns", lambda *a, **k: None)
+    monkeypatch.setattr(
+        erp_orders_structured,
+        "build_structured_update_payload",
+        lambda *a, **k: {"event_type": "order_updated", "change_lines": []},
+    )
+    monkeypatch.setattr(erp_orders_structured, "enqueue_geocode_order_address", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "enqueue_channeltalk_push", lambda *a, **k: None)
+
+    sd = copy.deepcopy(order.structured_data)
+    response = client.put(
+        f"/api/orders/{order_id}/structured",
+        json={
+            "structured_data": sd,
+            "structured_schema_version": 1,
+            "is_regional": True,
+            "is_self_measurement": True,
+        },
+    )
+
+    assert response.status_code == 200
+    db_session.expire_all()
+    saved_order = db_session.get(Order, order_id)
+    assert saved_order is not None
+    assert saved_order.is_regional is True
+    assert saved_order.is_self_measurement is True
+
+    get_response = client.get(f"/api/orders/{order_id}/structured")
+    assert get_response.status_code == 200
+    payload = get_response.get_json()
+    assert payload["is_regional"] is True
+    assert payload["is_self_measurement"] is True
+
+    from foms.web.orders.edit import _build_erp_order_bootstrap
+
+    bootstrap = _build_erp_order_bootstrap(saved_order)
+    assert bootstrap["is_regional"] is True
+    assert bootstrap["is_self_measurement"] is True
+
+    regional_dashboard = client.get(
+        "/regional_dashboard", query_string={"search_query": str(order_id)}
+    )
+    assert regional_dashboard.status_code == 200
+    assert "홍길동" in regional_dashboard.get_data(as_text=True)
+
+    self_dashboard = client.get(
+        "/self_measurement_dashboard", query_string={"search_query": str(order_id)}
+    )
+    assert self_dashboard.status_code == 200
+    assert "홍길동" in self_dashboard.get_data(as_text=True)
+
+
 def test_structured_put_preserves_shipment_construction_workers_when_missing(client, monkeypatch):
     _login_as_admin(client, username="erp-workers-preserve")
     original_sd = _structured_payload("서울 테헤란로 123")

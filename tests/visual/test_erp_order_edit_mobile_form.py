@@ -26,6 +26,7 @@ CRITICAL_ERP_IDS = {
     "erp-urgent-flag",
     "erp-urgent-reason",
     "erp-self-measurement",
+    "erp-regional-order",
     "erp-customer-name",
     "erp-customer-phone",
     "erp-manual-phone-input",
