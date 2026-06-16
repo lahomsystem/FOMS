@@ -2,7 +2,7 @@
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app, g
 from functools import wraps
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.exc import IntegrityError
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -63,12 +63,12 @@ def get_user_by_id(user_id):
     return db.query(User).filter(User.id == user_id).first()
 
 def update_last_login(user_id):
-    """Update the last login timestamp for a user"""
+    """Update the last login timestamp for a user as UTC-naive DB time."""
     try:
         db = get_db()
         user = db.query(User).filter(User.id == user_id).first()
         if user:
-            user.last_login = datetime.now()
+            user.last_login = datetime.now(timezone.utc).replace(tzinfo=None)
             db.commit()
     except Exception as e:
         db.rollback()

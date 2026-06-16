@@ -14,6 +14,7 @@ from foms.services.feature_flags import (
     should_render_new_order_wizard,
     wizard_new_order_enabled,
 )
+from foms.services.datetime_kst import format_datetime_kst
 from foms.services.dashboard_counts import get_nav_badge_counts
 from foms.web.auth import ROLES
 from foms.services.orders.status_constants import BULK_ACTION_STATUS, STATUS
@@ -189,6 +190,7 @@ def inject_foms_nav_badges() -> dict[str, Any]:
 def register_context_processors(app) -> None:
     """Register all template filters and context processors on the Flask app."""
     app.add_template_filter(parse_json_string_filter, "parse_json_string")
+    app.add_template_filter(format_datetime_kst, "format_datetime_kst")
     app.context_processor(inject_statuses)
     app.context_processor(inject_status_list)
     app.context_processor(utility_processor)
