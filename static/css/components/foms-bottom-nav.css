@@ -1,7 +1,63 @@
 /* P1-01: ERP mobile bottom nav — stage badge (COMPONENT_LIBRARY_MOBILE C02) */
+/* P1-01b: Tap feedback — compositor-only (transform/opacity), no layout thrash */
 
 .erp-mobile-bottom-nav__item {
   position: relative;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.erp-mobile-bottom-nav__item:active:not(.is-nav-pending) i,
+.erp-mobile-bottom-nav__item:active:not(.is-nav-pending) > span:not(.erp-mobile-bottom-nav__badge) {
+  transform: scale(0.88);
+  opacity: 0.82;
+}
+
+.erp-mobile-bottom-nav__item.is-tap-ack i,
+.erp-mobile-bottom-nav__item.is-tap-ack > span:not(.erp-mobile-bottom-nav__badge) {
+  animation: erp-nav-tap-ack 280ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.erp-mobile-bottom-nav__item.is-nav-pending i {
+  animation: erp-nav-pending-pulse 900ms ease-in-out infinite;
+}
+
+@keyframes erp-nav-tap-ack {
+  0% {
+    transform: scale(0.88);
+  }
+  55% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes erp-nav-pending-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.9);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .erp-mobile-bottom-nav__item.is-tap-ack i,
+  .erp-mobile-bottom-nav__item.is-tap-ack > span:not(.erp-mobile-bottom-nav__badge),
+  .erp-mobile-bottom-nav__item.is-nav-pending i {
+    animation: none !important;
+  }
+
+  .erp-mobile-bottom-nav__item:active i,
+  .erp-mobile-bottom-nav__item:active > span:not(.erp-mobile-bottom-nav__badge) {
+    transform: none;
+    opacity: 0.6;
+  }
 }
 
 .erp-mobile-bottom-nav__badge {
