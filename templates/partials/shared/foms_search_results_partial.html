@@ -25,7 +25,17 @@
     {% endif %}
   {% endfor %}
   {% if not results.get('customer') and not results.get('order') and not results.get('drawing') %}
-    <p class="foms-search-overlay__empty">검색 결과가 없습니다.</p>
+    <p class="foms-search-overlay__empty">운영 큐에서 결과가 없습니다.</p>
+    {% if query %}
+      <a
+        class="foms-search-overlay__link foms-search-overlay__history-fallback"
+        href="{{ url_for('erp_history.history_dashboard', q=query, from_search=1) }}"
+        data-foms-erp-no-shell="1"
+        data-search-history-fallback>
+        <span class="foms-search-overlay__link-title">과거 이력에서 검색</span>
+        <span class="foms-search-overlay__link-sub">{{ query }}</span>
+      </a>
+    {% endif %}
   {% endif %}
 {% else %}
   <ul class="foms-search-overlay__items">{{ _items(results.get(active_group, [])) }}</ul>

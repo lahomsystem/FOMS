@@ -183,6 +183,20 @@
     });
     input.addEventListener('keydown', function (event) {
       var links = resultLinks();
+      if (event.key === 'Enter' && !links.length && input.value.trim()) {
+        var historyFallback = resultsRoot
+          ? resultsRoot.querySelector('[data-search-history-fallback]')
+          : null;
+        if (historyFallback) {
+          event.preventDefault();
+          if (input) {
+            pushRecent(input.value);
+          }
+          closeDialog();
+          window.location.assign(historyFallback.getAttribute('href') || '/erp/history/');
+          return;
+        }
+      }
       if (!links.length) {
         return;
       }

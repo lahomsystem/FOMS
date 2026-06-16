@@ -106,9 +106,23 @@
 
     var rootEl = listEl.closest('.erp-completion');
     var isMobileV2 = !!(rootEl && rootEl.dataset.erpMobileV2 === 'true');
+    var pageParams = new URLSearchParams(window.location.search);
+    var apiParams = new URLSearchParams();
+    var searchQ = (pageParams.get('q') || pageParams.get('search') || '').trim();
+    var focusOrderParam = (pageParams.get('focus_order') || '').trim();
+    if (searchQ) apiParams.set('q', searchQ);
+    if (focusOrderParam) apiParams.set('focus_order', focusOrderParam);
+    var completionApiUrl = '/api/orders/completion';
+    var apiQuery = apiParams.toString();
+    if (apiQuery) completionApiUrl += '?' + apiQuery;
 
-    fetch('/api/orders/completion', { credentials: 'same-origin' })
-      .then(function (response) { return response.json(); })
+    fetch(completionApiUrl, { credentials: 'same-origin' })
+      .then(function (response) {
+        if (!response.ok) {
+          throw new Error('completion list HTTP ' + response.status);
+        }
+        return response.json();
+      })
       .then(function (data) {
         if (!data.success || !Array.isArray(data.orders)) {
           listEl.innerHTML = '<div class="alert alert-warning">목록을 불러올 수 없습니다.</div>';

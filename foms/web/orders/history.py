@@ -27,6 +27,7 @@ def history_dashboard():
     f_date_from = (request.args.get('date_from') or '').strip()
     f_date_to = (request.args.get('date_to') or '').strip()
     from_dashboard = (request.args.get('from_dashboard') or '') == '1'
+    from_search = (request.args.get('from_search') or '') == '1'
     
     has_filter = bool(f_q or f_stage or f_date_from or f_date_to)
 
@@ -122,6 +123,7 @@ def history_dashboard():
             total_orders=total_orders,
             has_filter=has_filter,
             from_dashboard=from_dashboard,
+            from_search=from_search,
         )
     )
     apply_erp_shell_fragment_headers(response, request)
