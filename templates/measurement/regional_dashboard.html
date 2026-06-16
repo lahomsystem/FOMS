@@ -1784,6 +1784,13 @@ function updateOrderFieldInline(input) {
             
             // 성공 메시지 표시
             showToast(`주문 #${orderId}의 ${getFieldDisplayName(field)}이 성공적으로 업데이트되었습니다.`, 'success');
+
+            if (field === 'construction_type') {
+                setTimeout(() => {
+                    location.reload();
+                }, 500);
+                return;
+            }
             
             setTimeout(() => {
                 input.style.backgroundColor = '';

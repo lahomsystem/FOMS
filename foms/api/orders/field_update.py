@@ -19,6 +19,7 @@ from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.erp_permissions import can_edit_erp
 from foms.services.erp_display import _normalize_date_to_yyyymmdd
 from foms.services.erp_sync_columns import sync_erp_flat_columns
+from foms.services.orders.construction_type import normalize_regional_construction_type
 from models import Order
 
 ORDER_UPDATE_ALLOWED_FIELDS = [
@@ -43,6 +44,7 @@ ORDER_UPDATE_ALLOWED_FIELDS = [
     "sales_delivery",
     "measurement_date",
     "regional_memo",
+    "construction_type",
     "is_cabinet",
     "cabinet_status",
     "shipping_fee",
@@ -228,6 +230,15 @@ def update_order_field_response(
     try:
         if field in ("as_content", "as_content_2"):
             value = sanitize_as_content_html(value)
+        if field == "construction_type":
+            normalized_construction_type = normalize_regional_construction_type(value)
+            if str(value or "").strip() and not normalized_construction_type:
+                raise ValueError("시공 구분은 하우드 시공 또는 협력사 시공만 가능합니다.")
+            if not getattr(order, "is_regional", False) and normalized_construction_type:
+                raise ValueError("비지방 주문에는 지방주문 구분을 저장할 수 없습니다.")
+            if getattr(order, "is_regional", False) and not normalized_construction_type:
+                raise ValueError("지방주문 구분(하우드/협력사)을 선택해주세요.")
+            value = normalized_construction_type or None
 
         is_erp_order = is_erp_order_record(order)
         structured_data: dict[str, Any] = {}
@@ -359,6 +370,7 @@ def update_order_field_response(
             "as_content_2",
             "sales_delivery",
             "construction_workers",
+            "construction_type",
         }
         if field in inv_fields or status_snapshot in ("AS", "AS_RECEIVED", "AS_COMPLETED"):
             try:

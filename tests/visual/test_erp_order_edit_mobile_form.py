@@ -27,6 +27,8 @@ CRITICAL_ERP_IDS = {
     "erp-urgent-reason",
     "erp-self-measurement",
     "erp-regional-order",
+    "erp-regional-construction-type-field",
+    "erp-regional-construction-type",
     "erp-customer-name",
     "erp-customer-phone",
     "erp-manual-phone-input",

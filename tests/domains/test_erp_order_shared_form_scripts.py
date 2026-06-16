@@ -50,12 +50,22 @@ def _create_erp_order() -> Order:
 def _assert_shared_form_script_contract(body: str) -> None:
     payment_urls_idx = body.index("window.__ERP_PAYMENT_ICON_URLS")
     erp_order_shared_idx = body.index("js/orders/erp-order-shared.js")
-    html2canvas_idx = body.index("html2canvas.min.js")
     estimate_preview_idx = body.index("js/orders/estimate-preview.js")
     estimate_columns_idx = body.index("js/orders/estimate-table-columns.js")
     column_resizer_idx = body.index("js/runtime/column-resizer.js")
 
-    assert payment_urls_idx < erp_order_shared_idx < html2canvas_idx < column_resizer_idx < estimate_preview_idx < estimate_columns_idx
+    assert payment_urls_idx < erp_order_shared_idx < column_resizer_idx < estimate_preview_idx < estimate_columns_idx
+    assert "html2canvas.min.js" not in body
+
+    estimate_preview_js = (
+        Path(__file__).resolve().parents[2]
+        / "static"
+        / "js"
+        / "orders"
+        / "estimate-preview.js"
+    ).read_text(encoding="utf-8")
+    assert "html2canvas.min.js" in estimate_preview_js
+    assert "document.createElement('script')" in estimate_preview_js
 
     # W5-B8: giant inline shared-form code was moved out of the partial.
     assert "function erpRecalcItemsTotal()" not in body

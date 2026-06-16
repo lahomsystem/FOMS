@@ -281,6 +281,30 @@ var toggleOrdererUI =
     };
 window.toggleOrdererUI = toggleOrdererUI;
 
+function erpGetRegionalConstructionType() {
+    const selectEl = document.getElementById('erp-regional-construction-type');
+    return (selectEl?.value || '').trim();
+}
+
+function erpSyncRegionalConstructionTypeVisibility(options = {}) {
+    const regionalEl = document.getElementById('erp-regional-order');
+    const fieldEl = document.getElementById('erp-regional-construction-type-field');
+    const selectEl = document.getElementById('erp-regional-construction-type');
+    if (!regionalEl || !fieldEl || !selectEl) return;
+
+    if (regionalEl.checked) {
+        fieldEl.classList.remove('d-none');
+        selectEl.disabled = false;
+        return;
+    }
+
+    fieldEl.classList.add('d-none');
+    selectEl.disabled = true;
+    if (options.clear !== false) {
+        selectEl.value = '';
+    }
+}
+
 var syncWorkflowStageByOrderer =
     window.syncWorkflowStageByOrderer ||
     function syncWorkflowStageByOrderer() {
@@ -1174,6 +1198,11 @@ async function erpLoadStructured(bootstrapData, options) {
     if (selfMeasEl) selfMeasEl.checked = !!data.is_self_measurement;
     const regionalEl = document.getElementById('erp-regional-order');
     if (regionalEl) regionalEl.checked = !!data.is_regional;
+    const regionalConstructionTypeEl = document.getElementById('erp-regional-construction-type');
+    if (regionalConstructionTypeEl) {
+        regionalConstructionTypeEl.value = data.construction_type || '';
+    }
+    erpSyncRegionalConstructionTypeVisibility({ clear: !data.is_regional });
     // 주소 로드: 주소+상세주소는 한 필드(erp-address)에 함께 표기
     const site = sd?.site || {};
     const addressFull = site.address_full || site.address_main || '';
@@ -1574,6 +1603,13 @@ async function erpSaveStructuredOnce(opts = {}) {
 
     try {
         const structured_data = erpCollectStructured();
+        const isRegionalOrder = document.getElementById('erp-regional-order')?.checked === true;
+        const regionalConstructionType = isRegionalOrder ? erpGetRegionalConstructionType() : '';
+        if (isRegionalOrder && !regionalConstructionType) {
+            erpSetStatus('지방주문 구분(하우드/협력사)을 선택해주세요.', true);
+            document.getElementById('erp-regional-construction-type')?.focus();
+            return { success: false, message: '지방주문 구분을 선택해주세요.' };
+        }
 
         // AS접수: 다른 단계 → AS접수로 "전환"한 직후에만 모달·저장 중단. 이미 서버에 AS접수면 일반 PUT 허용.
         const nextStage = (structured_data?.workflow?.stage || '').trim();
@@ -1626,7 +1662,8 @@ async function erpSaveStructuredOnce(opts = {}) {
                 received_time: received_time || undefined,
                 notes: notesVal,
                 is_self_measurement: document.getElementById('erp-self-measurement')?.checked === true,
-                is_regional: document.getElementById('erp-regional-order')?.checked === true
+                is_regional: isRegionalOrder,
+                construction_type: regionalConstructionType
             })
         });
         const data = await res.json();
@@ -1759,6 +1796,12 @@ window.erpTogglePayment = async function(btn, pType) {
     document.getElementById('erp-orderer')?.addEventListener('input', syncWorkflowStageByOrderer);
     document.getElementById('erp-orderer')?.addEventListener('change', syncWorkflowStageByOrderer);
     syncWorkflowStageByOrderer();
+
+    // ERP Order: 지방주문이면 대시보드 필터용 하우드/협력사 구분을 반드시 받는다.
+    document.getElementById('erp-regional-order')?.addEventListener('change', function () {
+        erpSyncRegionalConstructionTypeVisibility({ clear: !this.checked });
+    });
+    erpSyncRegionalConstructionTypeVisibility({ clear: false });
 
     // ERP Order: 주소 입력 (통합 - 찾기 버튼으로 주소 검색 또는 직접 입력 가능)
     const addrInput = document.getElementById('erp-address');

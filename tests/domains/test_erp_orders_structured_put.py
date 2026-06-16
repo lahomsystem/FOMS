@@ -185,6 +185,7 @@ def test_structured_get_put_round_trips_regional_and_self_measurement_flags(clie
             "structured_schema_version": 1,
             "is_regional": True,
             "is_self_measurement": True,
+            "construction_type": "협력사 시공",
         },
     )
 
@@ -194,30 +195,152 @@ def test_structured_get_put_round_trips_regional_and_self_measurement_flags(clie
     assert saved_order is not None
     assert saved_order.is_regional is True
     assert saved_order.is_self_measurement is True
+    assert saved_order.construction_type == "협력사 시공"
 
     get_response = client.get(f"/api/orders/{order_id}/structured")
     assert get_response.status_code == 200
     payload = get_response.get_json()
     assert payload["is_regional"] is True
     assert payload["is_self_measurement"] is True
+    assert payload["construction_type"] == "협력사 시공"
 
     from foms.web.orders.edit import _build_erp_order_bootstrap
 
     bootstrap = _build_erp_order_bootstrap(saved_order)
     assert bootstrap["is_regional"] is True
     assert bootstrap["is_self_measurement"] is True
+    assert bootstrap["construction_type"] == "협력사 시공"
 
     regional_dashboard = client.get(
         "/regional_dashboard", query_string={"search_query": str(order_id)}
     )
     assert regional_dashboard.status_code == 200
-    assert "홍길동" in regional_dashboard.get_data(as_text=True)
+    regional_body = regional_dashboard.get_data(as_text=True)
+    assert "홍길동" in regional_body
+    assert 'data-construction-type="협력사 시공"' in regional_body
 
     self_dashboard = client.get(
         "/self_measurement_dashboard", query_string={"search_query": str(order_id)}
     )
     assert self_dashboard.status_code == 200
     assert "홍길동" in self_dashboard.get_data(as_text=True)
+
+
+def test_structured_put_requires_construction_type_for_regional_order(client, monkeypatch):
+    """지방주문 저장은 하우드/협력사 구분 없이는 대시보드 매칭을 만들 수 없다."""
+    _login_as_admin(client, username="erp-regional-type-required")
+    order = _create_order()
+
+    monkeypatch.setattr(erp_orders_structured, "_handle_stage_transition", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "_record_structured_events", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "_apply_structured_side_effects", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "_finalize_draft_state", lambda *a, **k: False)
+    monkeypatch.setattr(erp_orders_structured, "sync_erp_flat_columns", lambda *a, **k: None)
+
+    response = client.put(
+        f"/api/orders/{order.id}/structured",
+        json={
+            "structured_data": copy.deepcopy(order.structured_data),
+            "structured_schema_version": 1,
+            "is_regional": True,
+        },
+    )
+
+    assert response.status_code == 400
+    payload = response.get_json()
+    assert payload["success"] is False
+    assert "지방주문 구분" in payload["message"]
+
+    db_session.expire_all()
+    saved_order = db_session.get(Order, order.id)
+    assert saved_order is not None
+    assert saved_order.is_regional is False
+    assert saved_order.construction_type is None
+
+
+def test_structured_put_rejects_partial_clear_for_existing_regional_order(client):
+    """기존 지방주문은 partial PUT으로 시공 구분을 빈 값으로 지울 수 없다."""
+    _login_as_admin(client, username="erp-regional-type-partial-clear")
+    order = _create_order()
+    order.is_regional = True
+    order.construction_type = "하우드 시공"
+    db_session.commit()
+    order_id = order.id
+
+    response = client.put(
+        f"/api/orders/{order_id}/structured",
+        json={"construction_type": ""},
+    )
+
+    assert response.status_code == 400
+    payload = response.get_json()
+    assert payload["success"] is False
+    assert "지방주문 구분" in payload["message"]
+
+    db_session.expire_all()
+    saved_order = db_session.get(Order, order_id)
+    assert saved_order is not None
+    assert saved_order.is_regional is True
+    assert saved_order.construction_type == "하우드 시공"
+
+
+def test_structured_put_rejects_unknown_regional_construction_type(client):
+    """ERP PUT도 대시보드 필터가 모르는 시공 구분 값을 거부한다."""
+    _login_as_admin(client, username="erp-regional-type-invalid")
+    order = _create_order()
+
+    response = client.put(
+        f"/api/orders/{order.id}/structured",
+        json={
+            "structured_data": copy.deepcopy(order.structured_data),
+            "structured_schema_version": 1,
+            "is_regional": True,
+            "construction_type": "기타",
+        },
+    )
+
+    assert response.status_code == 400
+    payload = response.get_json()
+    assert payload["success"] is False
+    assert "하우드 또는 협력사" in payload["message"]
+
+
+def test_structured_put_allows_construction_type_clear_for_non_regional_order(client):
+    """비지방 주문은 stale 시공 구분 값을 partial PUT으로 정리할 수 있다."""
+    _login_as_admin(client, username="erp-non-regional-type-clear")
+    order = _create_order()
+    order.is_regional = False
+    order.construction_type = "하우드 시공"
+    db_session.commit()
+    order_id = order.id
+
+    response = client.put(
+        f"/api/orders/{order_id}/structured",
+        json={"construction_type": ""},
+    )
+
+    assert response.status_code == 200
+    db_session.expire_all()
+    saved_order = db_session.get(Order, order_id)
+    assert saved_order is not None
+    assert saved_order.is_regional is False
+    assert saved_order.construction_type is None
+
+
+def test_structured_put_rejects_construction_type_for_non_regional_order(client):
+    """비지방 주문은 지방 대시보드용 시공 구분 값을 새로 저장할 수 없다."""
+    _login_as_admin(client, username="erp-non-regional-type-set")
+    order = _create_order()
+
+    response = client.put(
+        f"/api/orders/{order.id}/structured",
+        json={"construction_type": "하우드 시공"},
+    )
+
+    assert response.status_code == 400
+    payload = response.get_json()
+    assert payload["success"] is False
+    assert "비지방 주문" in payload["message"]
 
 
 def test_structured_put_preserves_shipment_construction_workers_when_missing(client, monkeypatch):

@@ -25,6 +25,7 @@ from foms.services.orders.status_constants import STATUS
 from foms.services.request_utils import get_preserved_filter_args, redirect_if_legacy_open_erp_beta
 from foms.services.order_edit_view_context import build_order_edit_get_context
 from foms.services.jobs.queue import enqueue_geocode_order_address
+from foms.services.orders.construction_type import normalize_regional_construction_type
 from foms.services.order_geocode import (
     apply_erp_order_site_address_to_sd,
     clear_order_geocode_coords,
@@ -177,7 +178,18 @@ def edit_order(order_id):
             if bool(_od('is_self_measurement', False)) != is_self_measurement_new: changes['is_self_measurement'] = {'old': _od('is_self_measurement'), 'new': is_self_measurement_new}
             measurement_completed_new = 'measurement_completed' in request.form
             if bool(_od('measurement_completed', False)) != measurement_completed_new: changes['measurement_completed'] = {'old': _od('measurement_completed'), 'new': measurement_completed_new}
-            construction_type_new = request.form.get('construction_type', _od('construction_type'))
+            construction_type_raw = request.form.get('construction_type', _od('construction_type'))
+            construction_type_new = (
+                normalize_regional_construction_type(construction_type_raw)
+                if is_regional_new
+                else None
+            )
+            if is_regional_new and str(construction_type_raw or '').strip() and not construction_type_new:
+                flash('시공 구분은 하우드 시공 또는 협력사 시공만 가능합니다.', 'error')
+                raise ValueError("Invalid construction_type")
+            if is_regional_new and not construction_type_new:
+                flash('지방주문 구분(하우드/협력사)을 선택해주세요.', 'error')
+                raise ValueError("Missing construction_type")
             if _od('construction_type') != construction_type_new: changes['construction_type'] = {'old': _od('construction_type'), 'new': construction_type_new}
             new_payment_amount = getattr(order, 'payment_amount', 0) or 0
             if 'payment_amount' in request.form:
@@ -393,4 +405,5 @@ def _build_erp_order_bootstrap(order):
         'notes': order.notes or '',
         'is_self_measurement': getattr(order, 'is_self_measurement', False),
         'is_regional': getattr(order, 'is_regional', False),
+        'construction_type': getattr(order, 'construction_type', None) or '',
     }

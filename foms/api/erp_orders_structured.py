@@ -23,6 +23,7 @@ from foms.services.orders.estimate_defaults import (
     ERP_DRAFT_PLACEHOLDER_PHONE,
     ERP_DRAFT_PLACEHOLDER_PRODUCT,
 )
+from foms.services.orders.construction_type import normalize_regional_construction_type
 from foms.services.orders.status_constants import STATUS
 from foms.web.auth import login_required, role_required
 from foms.services.erp_policy import (
@@ -367,6 +368,7 @@ def api_get_order_structured(order_id):
             'notes': order.notes or '',
             'is_self_measurement': getattr(order, 'is_self_measurement', False),
             'is_regional': getattr(order, 'is_regional', False),
+            'construction_type': getattr(order, 'construction_type', None) or '',
         })
     except Exception as e:
         logger.exception("[ERP_ORDER] structured GET 오류: %s", e)
@@ -474,6 +476,7 @@ def api_put_order_structured(order_id):
         notes = payload.get('notes')
         is_self_measurement = payload.get('is_self_measurement')
         is_regional = payload.get('is_regional')
+        construction_type = payload.get('construction_type')
         now = datetime.datetime.now()
         draft_cleared = False
 
@@ -498,7 +501,38 @@ def api_put_order_structured(order_id):
         if is_self_measurement is not None:
             setattr(order, 'is_self_measurement', bool(is_self_measurement))
         if is_regional is not None:
-            setattr(order, 'is_regional', bool(is_regional))
+            is_regional_flag = bool(is_regional)
+            normalized_construction_type = normalize_regional_construction_type(construction_type)
+            if str(construction_type or '').strip() and not normalized_construction_type:
+                return jsonify({
+                    'success': False,
+                    'message': '지방주문 구분은 하우드 또는 협력사만 가능합니다.',
+                }), 400
+            if is_regional_flag and not normalized_construction_type:
+                return jsonify({
+                    'success': False,
+                    'message': '지방주문 구분(하우드/협력사)을 선택해주세요.',
+                }), 400
+            setattr(order, 'is_regional', is_regional_flag)
+            setattr(order, 'construction_type', normalized_construction_type if is_regional_flag else None)
+        elif construction_type is not None:
+            normalized_construction_type = normalize_regional_construction_type(construction_type)
+            if str(construction_type or '').strip() and not normalized_construction_type:
+                return jsonify({
+                    'success': False,
+                    'message': '지방주문 구분은 하우드 또는 협력사만 가능합니다.',
+                }), 400
+            if not getattr(order, 'is_regional', False) and normalized_construction_type:
+                return jsonify({
+                    'success': False,
+                    'message': '비지방 주문에는 지방주문 구분을 저장할 수 없습니다.',
+                }), 400
+            if getattr(order, 'is_regional', False) and not normalized_construction_type:
+                return jsonify({
+                    'success': False,
+                    'message': '지방주문 구분(하우드/협력사)을 선택해주세요.',
+                }), 400
+            setattr(order, 'construction_type', normalized_construction_type or None)
         if received_date is not None and isinstance(received_date, str) and received_date.strip():
             setattr(order, 'received_date', received_date.strip())
         if received_time is not None and isinstance(received_time, str):

@@ -92,6 +92,14 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                             </div>
                             <input type="text" class="form-control form-control-sm" id="erp-urgent-reason"
                                 placeholder="긴급 사유 (예: 시공일 임박/현장 변경/자재 이슈 등)" autocomplete="off" lang="ko">
+                            <div class="mt-2 d-none" id="erp-regional-construction-type-field">
+                                <label class="form-label mb-1" for="erp-regional-construction-type">지방주문 구분</label>
+                                <select class="form-select form-select-sm" id="erp-regional-construction-type" autocomplete="off" disabled>
+                                    <option value="">하우드/협력사 선택</option>
+                                    <option value="하우드 시공">하우드</option>
+                                    <option value="협력사 시공">협력사</option>
+                                </select>
+                            </div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label mb-1">고객명</label>
