@@ -204,6 +204,10 @@ select.wd-cat-src {
 /* PC: 트리거 아래 드롭다운 */
 .wd-cat-panel--dropdown {
     max-height: 60vh;
+    min-height: 0;
+}
+.wd-cat-panel--dropdown .wd-cat-panel__body {
+    min-height: 0;
 }
 
 /* 모바일: 바텀시트 */
