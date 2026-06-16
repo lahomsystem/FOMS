@@ -553,6 +553,35 @@
     }, HOVER_DEBOUNCE_MS);
   }
 
+  /**
+   * pointerdown(누름) 즉시 prefetch — hover 디바운스(180ms)를 못 채운 빠른 클릭도
+   * 누르는 순간 fragment fetch를 시작한다. 뒤이은 click→swap은 inflight/cache
+   * 재사용(prefetchShellFragment의 dedup)으로 이미 시작된 요청을 그대로 쓴다 →
+   * 탭 전환 체감 지연 감소. 캐시 불가 경로(measurement)는 prefetch가 자체 스킵.
+   */
+  function onAnchorPressPrefetch(ev) {
+    var a = ev.target && ev.target.closest ? ev.target.closest('a[href]') : null;
+    if (!a || a.hasAttribute('data-foms-erp-no-shell')) {
+      return;
+    }
+    var href = a.getAttribute('href');
+    if (!href || href.charAt(0) === '#') {
+      return;
+    }
+    try {
+      var u = new URL(a.href);
+      if (u.origin !== window.location.origin) {
+        return;
+      }
+      if (!isShellFragmentSwapUrl(u.href)) {
+        return;
+      }
+      prefetchShellFragment(u.pathname + u.search + u.hash);
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
   function shellNavigateFromAnchor(a) {
     var href = a.getAttribute('href');
     if (!href || href.charAt(0) === '#' || href.indexOf('javascript:') === 0) {
@@ -597,6 +626,8 @@
   /* mouseover bubbles — mouseenter does not; needed for document-level delegation */
   document.addEventListener('mouseover', onAnchorHoverFocus, true);
   document.addEventListener('focusin', onAnchorHoverFocus, true);
+  /* 누름 즉시 prefetch(빠른 클릭·터치 탭 대응) — 마우스/터치/펜 공통 pointerdown */
+  document.addEventListener('pointerdown', onAnchorPressPrefetch, true);
 
   document.addEventListener(
     'submit',
