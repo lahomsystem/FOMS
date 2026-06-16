@@ -21,6 +21,8 @@ from foms.services.erp_order_detail import attach_order_detail_payloads
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
 from foms.services.erp_permissions import build_mine_sql_filter, can_edit_erp
 from foms.services.erp_policy import STAGE_LABELS
+from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
+from foms.services.foms_unified_search import _compact
 from foms.services.request_utils import get_search_query_arg
 from foms.services.construction_dashboard_display import enrich_construction_mobile_rows
 from foms.services.feature_flags import is_enabled_for_user
@@ -37,6 +39,9 @@ TEAM_LABELS = {
     "CONSTRUCTION": "시공팀",
 }
 
+_CONSTRUCTION_BROWSE_LIMIT = 300
+_CONSTRUCTION_SEARCH_LIMIT = 500
+
 
 @erp_construction_page_bp.route("/construction/dashboard")
 @login_required
@@ -48,6 +53,7 @@ def erp_construction_dashboard():
 
     f_stage = (request.args.get("stage") or "").strip()
     f_q = get_search_query_arg("q", "search")
+    focus_order_id = request.args.get("focus_order", type=int)
     is_construction = user and getattr(user, "team", None) == "CONSTRUCTION"
     mine_only = is_construction or (request.args.get("mine") == "1")
 
@@ -110,7 +116,29 @@ def erp_construction_dashboard():
         elif f_stage == "시공완료":
             query = query.filter(stage_col.in_(['"COMPLETED"', '"완료"', '"AS_WAIT"', '"CS"']))
 
-    orders = query.order_by(Order.created_at.desc()).limit(300).all()
+    list_query = query
+    if f_q:
+        term = f"%{_compact(f_q)}%"
+        if term.strip("%"):
+            list_query = list_query.filter(erp_order_dashboard_search_predicate(term))
+        list_limit = _CONSTRUCTION_SEARCH_LIMIT
+    else:
+        list_limit = _CONSTRUCTION_BROWSE_LIMIT
+
+    orders = list_query.order_by(Order.created_at.desc()).limit(list_limit).all()
+
+    if focus_order_id:
+        focus = (
+            db.query(Order)
+            .filter(
+                Order.id == focus_order_id,
+                Order.active_filter(),
+                Order.is_erp_order.is_(True),
+            )
+            .first()
+        )
+        if focus and all(order.id != focus.id for order in orders):
+            orders = [focus, *orders]
 
     att_counts = {}
     if orders:
@@ -138,20 +166,6 @@ def erp_construction_dashboard():
             continue
         if f_stage and display_stage != f_stage:
             continue
-        if f_q:
-            haystack = " ".join(
-                [
-                    str((((structured_data.get("parties") or {}).get("customer") or {}).get("name")) or ""),
-                    str((((structured_data.get("parties") or {}).get("customer") or {}).get("phone")) or ""),
-                    str(
-                        (((structured_data.get("site") or {}).get("address_full"))
-                        or ((structured_data.get("site") or {}).get("address_main")))
-                        or ""
-                    ),
-                ]
-            ).lower()
-            if f_q.lower() not in haystack:
-                continue
 
         alerts = _erp_alerts(order, structured_data, att_counts.get(order.id, 0))
         enriched.append(
@@ -181,6 +195,20 @@ def erp_construction_dashboard():
                 "as_received_done": bool((getattr(order, "as_received_date", None) or "").strip()),
             }
         )
+
+    if f_q or focus_order_id:
+        step_stats = {
+            "시공대기": {"count": 0, "overdue": 0, "imminent": 0},
+            "시공중": {"count": 0, "overdue": 0, "imminent": 0},
+            "시공완료": {"count": 0, "overdue": 0, "imminent": 0},
+        }
+        for item in enriched:
+            stage_name = item.get("stage")
+            if stage_name in step_stats:
+                step_stats[stage_name]["count"] += 1
+                alerts = item.get("alerts") or {}
+                if alerts.get("construction_d3"):
+                    step_stats[stage_name]["imminent"] += 1
 
     process_steps = [
         {"label": "시공대기", "display": "시공대기", **step_stats["시공대기"]},

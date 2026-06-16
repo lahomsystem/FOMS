@@ -279,3 +279,60 @@ def test_construction_mobile_completed_renders_reupload_as_and_edit(client, monk
     assert 'data-action="reuploadConstructionPhotos"' in body
     assert 'data-action="openAsAcceptModal"' in body
     assert "?open=erp-order" in body
+
+
+def test_construction_dashboard_search_q_and_focus_outside_browse_window(client, monkeypatch):
+    """Search deep-link: q SQL filter + focus_order PK must not depend on browse limit(300)."""
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    user = _login_plain_admin(client)
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+
+    from datetime import date
+
+    today = date.today().strftime("%Y-%m-%d")
+    target = Order(
+        received_date="2024-01-01",
+        customer_name="ERP Order",
+        phone="010-5555-6666",
+        address="Gapyeong",
+        product="인테리어",
+        status="CONSTRUCTION",
+        manager_name="Bob",
+        is_erp_order=True,
+        structured_data={
+            "workflow": {"stage": "CONSTRUCTION"},
+            "parties": {"customer": {"name": "소마디자인(가평)", "phone": "010-5555-6666"}},
+            "site": {"address_full": "경기 가평"},
+        },
+    )
+    db_session.add(target)
+    db_session.commit()
+    target_id = target.id
+
+    for i in range(320):
+        db_session.add(
+            Order(
+                received_date=today,
+                customer_name=f"최근 시공 {i}",
+                phone="010-0000-0000",
+                address="Seoul",
+                product="붙박이장",
+                status="CONSTRUCTION",
+                manager_name="Bob",
+                is_erp_order=True,
+                structured_data={"workflow": {"stage": "CONSTRUCTION"}},
+            )
+        )
+    db_session.commit()
+
+    browse = client.get("/erp/construction/dashboard")
+    assert browse.status_code == 200
+    browse_body = browse.get_data(as_text=True)
+    assert "소마디자인(가평)" not in browse_body
+
+    searched = client.get(f"/erp/construction/dashboard?q=소마&focus_order={target_id}")
+    assert searched.status_code == 200
+    body = searched.get_data(as_text=True)
+    assert "소마디자인(가평)" in body
+    assert f'data-order-id="{target_id}"' in body or f"#{target_id}" in body
+    assert "0 / 전체 0건" not in body
