@@ -72,7 +72,9 @@ def test_runtime_shell_dashboard_fresh_ttl_and_focus_revalidate(runtime_shell_sr
 def test_runtime_shell_fragment_loading_overlay(runtime_shell_src: str) -> None:
     """UX: network fragment fetch shows loading overlay (not for cache-only swap)."""
     assert "setShellFragmentLoading" in runtime_shell_src
+    assert "beginShellNavigationPending" in runtime_shell_src
     assert "foms-erp-shell-loading-overlay" in runtime_shell_src
+    assert "window.FOMS_ERP_SHELL.beginShellNavigationPending" in runtime_shell_src
 
 
 def test_runtime_shell_uses_final_fetch_url_for_redirected_fragments(runtime_shell_src: str) -> None:

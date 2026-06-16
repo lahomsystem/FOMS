@@ -125,6 +125,14 @@
     );
   }
 
+  function clearSearchResults() {
+    if (resultsRoot) {
+      resultsRoot.innerHTML = '';
+    }
+    setResultsVisible(false);
+    activeIndex = -1;
+  }
+
   function navigateToResult(link) {
     if (!link) {
       return;
@@ -136,6 +144,32 @@
     if (input) {
       pushRecent(input.value);
     }
+    clearSearchResults();
+
+    var shell = window.FOMS_ERP_SHELL;
+    try {
+      var targetUrl = new URL(href, window.location.origin);
+      if (
+        targetUrl.origin === window.location.origin
+        && shell
+        && typeof shell.isShellFragmentSwapUrl === 'function'
+        && shell.isShellFragmentSwapUrl(targetUrl.href)
+        && typeof shell.navigateByShell === 'function'
+      ) {
+        if (typeof shell.beginShellNavigationPending === 'function') {
+          shell.beginShellNavigationPending();
+        }
+        closeDialog();
+        shell.navigateByShell(
+          targetUrl.pathname + targetUrl.search + targetUrl.hash,
+          { bypassCache: true }
+        );
+        return;
+      }
+    } catch (e) {
+      /* fall through to full navigation */
+    }
+
     closeDialog();
     window.location.assign(href);
   }

@@ -4,6 +4,9 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-06-16 | 세션 자동 기록 | test_foms_search_overlay.py, foms_app_shell.html, test_erp_runtime_shell_js_contract.py 외 2개 | a30e2ed3 |
+| 2026-06-16 | 세션 자동 기록 | commit_msg.txt, test_as_dashboard_mobile.py, test_construction_dashboard_mobile.py 외 2개 | c50d268b |
+| 2026-06-16 | 세션 자동 기록 | commit_msg.txt, test_foms_search_overlay.py, foms-search-overlay.css 외 2개 | 434390c4 |
 | 2026-06-16 | 세션 자동 기록 | history_dashboard_body.html, completion_scripts.html, foms_unified_search.py 외 2개 | 78ff098c |
 | 2026-06-16 | 세션 자동 기록 | test_completion_search_api.py, dashboard.py, completion_scripts.html | eb9a5e05 |
 | 2026-06-16 | 세션 자동 기록 | completion_scripts.html, dashboard.py | eb9a5e05 |
@@ -21,6 +24,3 @@
 | 2026-06-10 | 세션 자동 기록 | _commit_msg_pwa_icon.txt, generate_foms_icons.py, app_factory.py 외 2개 | 885f2351 |
 | 2026-06-10 | 세션 자동 기록 | _commit_msg_spade.txt, layout_head.html, generate_foms_icons.py 외 2개 | 62999f6a |
 | 2026-06-10 | 세션 자동 기록 | layout_head.html, generate_foms_icons.py, import_user_spade_icon.py 외 2개 | ca1dfeae |
-| 2026-06-10 | 세션 자동 기록 | layout_head.html, generate_foms_icons.py, build_foms_spade_icon.py 외 2개 | ca1dfeae |
-| 2026-06-10 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_Ace_of_spades-6e93ed51-32e9-4f4c-8571-33999885edf8.png, layout_head.html, generate_foms_icons.py 외 2개 | ca1dfeae |
-| 2026-06-10 | 세션 자동 기록 | layout_head.html, generate_foms_icons.py, extract_icon2_heart.py 외 2개 | ca1dfeae |
