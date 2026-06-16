@@ -3,6 +3,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app, g
 from functools import wraps
 from datetime import datetime, timezone
+from sqlalchemy import case
 from sqlalchemy.exc import IntegrityError
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -313,8 +314,16 @@ def register():
 def user_list():
     db = get_db()
     
-    # Get all users
-    users = db.query(User).order_by(User.username).all()
+    team_order = case(
+        {team: index for index, team in enumerate(TEAMS)},
+        value=User.team,
+        else_=len(TEAMS),
+    )
+    users = (
+        db.query(User)
+        .order_by(team_order, User.name, User.username)
+        .all()
+    )
     
     # Count admin users for template
     count_admin = db.query(User).filter(User.role == 'ADMIN').count()

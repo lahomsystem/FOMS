@@ -89,6 +89,37 @@ def test_admin_user_list_renders_recent_login_in_kst(client) -> None:
     assert "2026-06-16 07:30" not in html
 
 
+def test_admin_user_list_sorts_users_by_team_order(client) -> None:
+    admin = User(
+        username="sort_admin",
+        password="unused",
+        role="ADMIN",
+        team="SHIPMENT",
+        name="정렬관리자",
+        is_active=True,
+    )
+    users = [
+        User(username="sort_z_con", password="unused", role="STAFF", team="CONSTRUCTION", name="시공나중", is_active=True),
+        User(username="sort_a_sales", password="unused", role="STAFF", team="SALES", name="영업먼저", is_active=True),
+        User(username="sort_b_drawing", password="unused", role="STAFF", team="DRAWING", name="도면중간", is_active=True),
+        User(username="sort_c_none", password="unused", role="STAFF", team=None, name="팀없음", is_active=True),
+    ]
+    db_session.add_all([admin, *users])
+    db_session.commit()
+
+    with client.session_transaction() as sess:
+        sess["user_id"] = admin.id
+
+    response = client.get("/admin/users")
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert html.index(">sort_a_sales<") < html.index(">sort_b_drawing<")
+    assert html.index(">sort_b_drawing<") < html.index(">sort_z_con<")
+    assert html.index(">sort_z_con<") < html.index(">sort_admin<")
+    assert html.index(">sort_admin<") < html.index(">sort_c_none<")
+
+
 def test_wdcalculator_estimate_to_dict_uses_kst_created_at() -> None:
     """WDCalculator Estimate API 직렬화가 KST 생성일을 반환한다."""
     estimate = Estimate(
