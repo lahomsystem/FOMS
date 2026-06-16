@@ -48,6 +48,76 @@ def test_mobile_attachment_items_splits_thumb_and_full_view() -> None:
     assert items[0]["thumb_url"] == "/view/orders/1/thumb_photo.jpg"
     assert items[0]["view_url"] == "/view/orders/1/photo.jpg"
     assert items[0]["thumb_url"] != items[0]["view_url"]
+    assert items[0]["item_index"] is None
+
+
+def test_mobile_product_items_collapse_all_when_multiple() -> None:
+    sd = {
+        "items": [
+            {"product_name": "A", "price": 1000},
+            {"product_name": "B", "price": 2000},
+        ]
+    }
+    rows = display.mobile_product_items(sd)
+    assert len(rows) == 2
+    assert all(row["collapsed_default"] is True for row in rows)
+
+
+def test_mobile_product_items_single_item_expanded_by_default() -> None:
+    sd = {"items": [{"product_name": "A", "price": 1000}]}
+    rows = display.mobile_product_items(sd)
+    assert len(rows) == 1
+    assert rows[0]["collapsed_default"] is False
+
+
+def test_mobile_product_items_groups_attachments_by_item_index() -> None:
+    sd = {
+        "items": [
+            {"product_name": "A"},
+            {"product_name": "B"},
+        ]
+    }
+    attachments = [
+        {"id": 1, "item_index": 0, "label": "a0"},
+        {"id": 2, "item_index": 1, "label": "b1"},
+        {"id": 3, "item_index": None, "label": "common"},
+    ]
+    rows = display.mobile_product_items(sd, attachments)
+    assert [a["label"] for a in rows[0]["attachments"]] == ["a0"]
+    assert [a["label"] for a in rows[1]["attachments"]] == ["b1"]
+    _, common = display._group_attachments_by_item_index(attachments, item_count=2)
+    assert [a["label"] for a in common] == ["common"]
+
+
+def test_mobile_product_items_merges_common_attachments_for_single_item() -> None:
+    sd = {"items": [{"product_name": "Only"}]}
+    attachments = [
+        {"id": 1, "item_index": None, "label": "common"},
+        {"id": 2, "item_index": 0, "label": "linked"},
+    ]
+    rows = display.mobile_product_items(sd, attachments)
+    assert sorted(a["label"] for a in rows[0]["attachments"]) == ["common", "linked"]
+    _, common = display._group_attachments_by_item_index(attachments, item_count=1)
+    assert common == []
+
+
+def test_mobile_detail_partial_per_item_attachments_and_common_section() -> None:
+    partial = (
+        ROOT / "templates" / "orders" / "partials" / "order_detail_mobile_v2.html"
+    ).read_text(encoding="utf-8")
+    assert "item.attachments" in partial
+    assert "foms-product-item__photos" in partial
+    assert "order.common_attachments" in partial
+    assert "공통 첨부" in partial
+    assert "data-foms-product-item" in partial
+    assert "data-foms-product-toggle" in partial
+
+
+def test_mobile_detail_products_js_binds_v2_selectors() -> None:
+    js = (ROOT / "static/js/foms/mobile-detail-products.js").read_text(encoding="utf-8")
+    assert "data-foms-product-item" in js
+    assert "data-foms-product-toggle" in js
+    assert "data-foms-mobile-product" in js
 
 
 def test_mobile_detail_partial_prefers_view_url_for_grid_img() -> None:

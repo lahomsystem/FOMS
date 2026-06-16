@@ -188,7 +188,8 @@ def test_p1_order_detail_mobile_v2_mockup_selectors() -> None:
         "foms-detail-amount-title",
         "data-foms-attachment-preview-gallery",
         "data-foms-attachment-preview",
-        "data-foms-mobile-product",
+        "data-foms-product-item",
+        "data-foms-product-toggle",
     ):
         assert selector in combined
 

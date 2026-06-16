@@ -135,15 +135,53 @@ def batch_resolve_queue_attachment_urls(
     return out
 
 
-def mobile_product_items(sd: dict, *, limit: int = 8) -> list[dict[str, Any]]:
+def _group_attachments_by_item_index(
+    attachments: list[dict[str, Any]],
+    *,
+    item_count: int,
+) -> tuple[dict[int, list[dict[str, Any]]], list[dict[str, Any]]]:
+    """Split attachment rows into per-item buckets and common (unlinked) rows."""
+    by_index: dict[int, list[dict[str, Any]]] = {}
+    common: list[dict[str, Any]] = []
+    for att in attachments:
+        raw_idx = att.get("item_index")
+        if raw_idx is None:
+            common.append(att)
+            continue
+        try:
+            idx = int(raw_idx)
+        except (TypeError, ValueError):
+            common.append(att)
+            continue
+        if idx < 0 or idx >= item_count:
+            common.append(att)
+            continue
+        by_index.setdefault(idx, []).append(att)
+    if item_count == 1:
+        by_index.setdefault(0, []).extend(common)
+        common = []
+    return by_index, common
+
+
+def mobile_product_items(
+    sd: dict,
+    attachments: list[dict[str, Any]] | None = None,
+    *,
+    limit: int = 8,
+) -> list[dict[str, Any]]:
     """Product accordion rows for mobile order detail (C14 markup)."""
     items = sd.get("items") or []
     if not isinstance(items, list):
         return []
+    raw_items = [raw for raw in items[:limit] if isinstance(raw, dict)]
+    item_count = len(raw_items)
+    collapse_all = item_count > 1
+    att_by_index, _common = _group_attachments_by_item_index(
+        attachments or [],
+        item_count=item_count,
+    )
     rows: list[dict[str, Any]] = []
-    for idx, raw in enumerate(items[:limit]):
-        if not isinstance(raw, dict):
-            continue
+    for idx, raw in enumerate(raw_items):
         name = raw.get("product_name") or raw.get("name") or f"항목 {idx + 1}"
         spec = " × ".join(
             str(raw.get(k) or "").strip()
@@ -173,7 +211,8 @@ def mobile_product_items(sd: dict, *, limit: int = 8) -> list[dict[str, Any]]:
                 "misc": raw.get("misc") or raw.get("install_notes") or "-",
                 "price_label": price_label,
                 "summary": " · ".join(summary_bits) if summary_bits else str(name),
-                "collapsed_default": idx > 0,
+                "collapsed_default": collapse_all,
+                "attachments": att_by_index.get(idx, []),
             }
         )
     return rows
@@ -246,6 +285,7 @@ def mobile_attachment_items(db, order_id: int, *, limit: int = 8) -> list[dict[s
                 "label": label,
                 "category": cat,
                 "id": att.id,
+                "item_index": getattr(att, "item_index", None),
                 "thumb_url": thumb_url,
                 "view_url": view_url,
                 "download_url": download_url,
@@ -346,6 +386,12 @@ def build_mobile_queue_order_row(db, order, current_user=None) -> dict[str, Any]
     )
     previews = batch_resolve_queue_attachment_urls(db, [order.id]).get(order.id, [])
     received = schedule.get("received") or {}
+    attachments = mobile_attachment_items(db, order.id, limit=50)
+    product_items = mobile_product_items(sd, attachments)
+    _, common_attachments = _group_attachments_by_item_index(
+        attachments,
+        item_count=len([i for i in (sd.get("items") or []) if isinstance(i, dict)]),
+    )
 
     return {
         "id": order.id,
@@ -366,9 +412,10 @@ def build_mobile_queue_order_row(db, order, current_user=None) -> dict[str, Any]
         "has_media": _erp_has_media(order, cnt),
         "attachments_count": cnt,
         "attachment_previews": previews,
-        "attachments": mobile_attachment_items(db, order.id),
+        "attachments": attachments,
+        "common_attachments": common_attachments,
         "timeline_events": mobile_timeline_events(db, order.id),
-        "product_items": mobile_product_items(sd),
+        "product_items": product_items,
         "amount_summary": mobile_amount_summary(sd),
         "structured_data": sd,
         "current_quest": current_quest_payload,
