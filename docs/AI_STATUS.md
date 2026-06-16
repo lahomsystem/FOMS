@@ -1,5 +1,5 @@
 # FOMS 현재 상태
-> 자동 업데이트: 2026-06-12 | **WDCalculator 모바일 IA 재설계 — "견적 빌더"(master-detail · 인라인 에디터)** — 카트(고객칩+총액 HERO+견적 카드) + 인라인 슬라이드다운 에디터(구성·옵션·비고 한 화면, 탭/별도창 없음, 내부 base 카드 재설계). host 계산/CRUD/계약/DOM 무변경, 데스크톱 무영향. gstack 390px 풀 e2e PASS, 계약 36 passed.
+> 자동 업데이트: 2026-06-16 | **WDCalculator 모바일 IA 재설계 — "견적 빌더"(master-detail · 인라인 에디터)** — 카트(고객칩+총액 HERO+견적 카드) + 인라인 슬라이드다운 에디터(구성·옵션·비고 한 화면, 탭/별도창 없음, 내부 base 카드 재설계). host 계산/CRUD/계약/DOM 무변경, 데스크톱 무영향. gstack 390px 풀 e2e PASS, 계약 36 passed.
 
 ## 스택
 Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
