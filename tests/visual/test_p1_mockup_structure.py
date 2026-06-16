@@ -165,6 +165,23 @@ def test_p1_foms_app_shell_includes_queue_scroll_script() -> None:
     alias = (ROOT / "templates/partials/shared/erp_mobile_shell.html").read_text(encoding="utf-8")
     assert "foms_app_shell.html" in alias
 
+
+def test_p1_mobile_shell_reserves_right_edge_controls() -> None:
+    """Mobile bottom nav and FAB avoid browser/webview right-edge scroll controls."""
+    shell_css = (ROOT / "static/css/foundation/foms-shell.css").read_text(encoding="utf-8")
+    bundle_css = (ROOT / "static/css/foundation/foms-mobile-surfaces.css").read_text(
+        encoding="utf-8"
+    )
+    head = (ROOT / "templates/partials/shared/layout_head.html").read_text(encoding="utf-8")
+
+    assert "--foms-mobile-edge-control-gutter" in shell_css
+    assert "clamp(0px, calc(100vw - 288px), 64px)" in shell_css
+    assert "padding-right: var(--foms-mobile-edge-control-gutter)" in shell_css
+    assert "right: calc(var(--foms-space-4) + var(--foms-mobile-edge-control-gutter))" in shell_css
+    assert "foms-shell.css?v=20260616b" in bundle_css
+    assert "foms-mobile-surfaces.css') }}?v=20260616b" in head
+
+
 def test_p1_order_detail_mobile_v2_mockup_selectors() -> None:
     """Mobile order detail partial matches mockup hero/quick-action structure."""
     body = (ROOT / "templates/orders/partials/order_detail_mobile_v2.html").read_text(
@@ -206,7 +223,7 @@ def test_p1_shell_hides_desktop_chrome_on_mobile_v2() -> None:
     assert ".layout-header" in head
     assert ".layout-global-nav--erp-v2-suppressed" in head
     assert 'erp-dashboard\\00002d layout' in head
-    assert "foms-mobile-surfaces.css') }}?v=20260616a" in head
+    assert "foms-mobile-surfaces.css') }}?v=20260616b" in head
     assert head.index("foms-mobile-v2-critical-css") < head.index("foms-mobile-surfaces.css")
 
 

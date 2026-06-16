@@ -7,6 +7,14 @@
   body.erp-mobile-v2-layout {
     font-family: var(--foms-font-sans);
     background: var(--foms-surface-overlay);
+    --foms-mobile-edge-control-gutter: 0px;
+  }
+
+  @media (max-width: 575.98px) {
+    body.erp-mobile-v2-layout {
+      /* Keep 6 bottom-nav items at >=48px while avoiding browser/webview edge controls. */
+      --foms-mobile-edge-control-gutter: clamp(0px, calc(100vw - 288px), 64px);
+    }
   }
 
   body.erp-mobile-v2-layout .erp-mobile-shell[data-erp-mobile-v2='true'] {
@@ -186,6 +194,7 @@
   body.erp-mobile-v2-layout .erp-mobile-bottom-nav {
     height: calc(var(--foms-shell-bottom-nav-h) + var(--foms-safe-area-bottom));
     padding-bottom: var(--foms-safe-area-bottom);
+    padding-right: var(--foms-mobile-edge-control-gutter);
     background: var(--foms-surface-base);
     border-top: 1px solid var(--foms-border-subtle);
     box-shadow: 0 -2px 12px rgba(15, 17, 21, 0.06);
@@ -205,7 +214,7 @@
   body.erp-mobile-v2-layout .foms-shell-fab {
     position: fixed;
     bottom: calc(var(--foms-shell-bottom-nav-h) + var(--foms-space-4) + var(--foms-safe-area-bottom));
-    right: var(--foms-space-4);
+    right: calc(var(--foms-space-4) + var(--foms-mobile-edge-control-gutter));
     width: var(--foms-shell-fab-size);
     height: var(--foms-shell-fab-size);
     border-radius: var(--foms-radius-full);
