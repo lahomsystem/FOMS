@@ -1,0 +1,28 @@
+---
+description: 성능 회귀 원천 차단. 코드/기능 추가가 서버·페이지를 느리게 만드는 것을 머지 전에 차단.
+alwaysApply: true
+---
+
+# 성능 회귀 원천 차단 (절대 규칙)
+
+**모든 코드·기능 추가에 적용.** 상세·사유: `docs/guides/PERFORMANCE_GUARDRAILS.md`
+자동 강제: `tests/performance/test_perf_regression_guard.py` (CI `ci.yml` 전체 pytest +
+로컬 `pre_push_smoke.ps1`. exit 0 아니면 push 금지 — 도구 무관 차단).
+
+## 프론트엔드
+- **`<script>`는 기본 `defer`**(또는 `type="module"`). 렌더 차단 동기 스크립트 신규 추가 금지(가드 G1).
+- **외부 CDN 동기 `<script>` 신규 금지**(가드 G2). 무거운 라이브러리(html2canvas 등)는 **사용 시점 lazy 로드**(전역 로드 금지). 예: `estimate-preview.js`의 `_ensureHtml2canvas()`.
+- 공용 partial에 페이지 전용 무거운 JS 추가 금지. 인라인 스타일·대형 인라인 script 금지.
+
+## 서비스워커 (`static/sw.js`)
+- network-first/네트워크 fetch는 **timeout + 캐시 폴백 필수**(가드 G3). 무한 대기 → 탭 스피너 금지.
+
+## 백엔드 / DB
+- **JSONB/text `cast(...).ilike('%..%')` 인덱스 없이 hot path 금지**: 부분일치=trigram(`gin_trgm_ops`), id 멤버십=`@>`. 새 인덱스는 생성 SQL과 byte-match + `EXPLAIN`로 인덱스 사용 확인.
+- **N+1 금지**(리스트는 `in_(ids)` 배치). **매 요청 무거운 계산은 캐시**(Redis micro-cache).
+- 마이그레이션 CONCURRENTLY + 다중 replica는 세션 레벨 `pg_advisory_lock`(xact 락은 내부 COMMIT에 풀려 레이스 → INVALID 인덱스).
+
+## 검증
+- 대시보드/리스트/검색/액션 변경은 머지 전 **서버 TTFB 측정 + `EXPLAIN`로 Seq Scan 없음** 확인.
+- "느리다" 신고는 **서버 TTFB부터** 측정해 서버/프론트/SW/네트워크 분리. 약한 dev 인스턴스 절대 시간 신뢰 금지.
+- 서비스워커 동작은 **실제 Chrome**에서 확인(헤드리스는 SW 미등록).
