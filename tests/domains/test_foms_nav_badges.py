@@ -54,6 +54,22 @@ def test_foms_bottom_nav_css_imported():
     assert ".erp-mobile-bottom-nav__badge" in badge_css
 
 
+def test_bottom_nav_tap_feedback_assets():
+    """Tap ack + HTMX pending — compositor-only CSS, passive pointerdown JS."""
+    css = _read("static/css/components/foms-bottom-nav.css")
+    assert "-webkit-tap-highlight-color: transparent" in css
+    assert "erp-nav-tap-ack" in css
+    assert "prefers-reduced-motion" in css
+    assert "transform: scale" in css
+    js = _read("static/js/foms/bottom-nav-shell.js")
+    assert "initBottomNavTapFeedback" in js
+    assert "is-tap-ack" in js
+    assert "is-nav-pending" in js
+    assert "passive: true" in js
+    assert "aria-busy" in js
+    assert "12000" in js
+
+
 def test_nav_badge_cache_ttl_constant():
     from foms.services.dashboard_counts import NAV_BADGE_CACHE_TTL_SEC
 
