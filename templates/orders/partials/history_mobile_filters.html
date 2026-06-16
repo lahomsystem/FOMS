@@ -1,0 +1,123 @@
+{% set _h_base = url_for('erp_history.history_dashboard') %}
+{% set _h_q = request.args.get('q') or request.args.get('search') or '' %}
+{% set _h_stage = request.args.get('stage') or '' %}
+{% set _h_date_from = request.args.get('date_from') or '' %}
+{% set _h_date_to = request.args.get('date_to') or '' %}
+{% set _h_stages = [
+  ('주문접수', 'RECEIVED'),
+  ('실측', 'MEASURE'),
+  ('도면', 'DRAWING'),
+  ('고객컨펌', 'CONFIRM'),
+  ('생산', 'PRODUCTION'),
+  ('시공', 'CONSTRUCTION'),
+  ('완료', 'COMPLETED'),
+  ('AS접수', 'AS_RECEIVED'),
+  ('AS처리', 'AS'),
+  ('AS완료', 'AS_COMPLETED')
+] %}
+{% set _h_keep = [] %}
+{% if _h_q %}{% set _ = _h_keep.append('q=' ~ _h_q|urlencode) %}{% endif %}
+{% if _h_date_from %}{% set _ = _h_keep.append('date_from=' ~ _h_date_from|urlencode) %}{% endif %}
+{% if _h_date_to %}{% set _ = _h_keep.append('date_to=' ~ _h_date_to|urlencode) %}{% endif %}
+{% set _h_keep_qs = _h_keep|join('&') %}
+
+<section class="erp-history-mobile-filters erp-mobile-queue-filters foms-mobile-filter-bar" aria-label="이력 모바일 필터">
+  <form method="get" action="{{ _h_base }}" class="foms-mobile-filter-bar__toolbar erp-mobile-queue-filters__search">
+    {% if _h_stage %}
+      <input type="hidden" name="stage" value="{{ _h_stage }}">
+    {% endif %}
+    {% if _h_date_from %}
+      <input type="hidden" name="date_from" value="{{ _h_date_from }}">
+    {% endif %}
+    {% if _h_date_to %}
+      <input type="hidden" name="date_to" value="{{ _h_date_to }}">
+    {% endif %}
+    <label class="visually-hidden" for="erp-history-search-q">검색</label>
+    <input
+      id="erp-history-search-q"
+      type="text"
+      name="q"
+      class="erp-mobile-queue-filters__input"
+      value="{{ _h_q }}"
+      placeholder="고객명, 전화, 주소..."
+      enterkeyhint="search">
+    <button class="erp-mobile-queue-filters__submit" type="submit" aria-label="검색">
+      <i class="fas fa-search" aria-hidden="true"></i>
+    </button>
+    <button
+      class="erp-mobile-queue-filters__open"
+      type="button"
+      data-bs-toggle="offcanvas"
+      data-bs-target="#erp-history-mobile-filter-drawer"
+      aria-controls="erp-history-mobile-filter-drawer">
+      <i class="fas fa-sliders-h" aria-hidden="true"></i>
+      <span>필터</span>
+    </button>
+  </form>
+
+  <nav class="chip-strip foms-chip-strip erp-history-stage-chips" aria-label="단계 빠른 필터">
+    <a class="chip foms-chip{% if not _h_stage %} is-active{% endif %}" href="{{ _h_base }}{% if _h_keep_qs %}?{{ _h_keep_qs }}{% endif %}">전체</a>
+    {% for label, code in _h_stages %}
+    <a class="chip foms-chip{% if _h_stage == code %} is-active{% endif %}" href="{{ _h_base }}?stage={{ code }}{% if _h_keep_qs %}&{{ _h_keep_qs }}{% endif %}">{{ label }}</a>
+    {% endfor %}
+  </nav>
+
+  <div
+    class="offcanvas offcanvas-bottom erp-mobile-queue-filters__drawer"
+    tabindex="-1"
+    id="erp-history-mobile-filter-drawer"
+    aria-labelledby="erp-history-mobile-filter-drawer-label">
+    <div class="offcanvas-header">
+      <div>
+        <h2 class="offcanvas-title" id="erp-history-mobile-filter-drawer-label">이력 필터</h2>
+        <p class="mb-0 small text-muted">단계·기간으로 과거 주문을 좁혀 조회합니다.</p>
+      </div>
+      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="닫기"></button>
+    </div>
+    <div class="offcanvas-body">
+      <form method="get" action="{{ _h_base }}" class="erp-mobile-queue-filters__form">
+        <div class="erp-mobile-queue-filters__field">
+          <label for="erp-history-mobile-search-drawer">검색어</label>
+          <input
+            id="erp-history-mobile-search-drawer"
+            type="text"
+            name="q"
+            class="form-control"
+            value="{{ _h_q }}"
+            placeholder="고객명, 전화, 주소...">
+        </div>
+        <div class="erp-mobile-queue-filters__field">
+          <label for="erp-history-mobile-stage">단계</label>
+          <select id="erp-history-mobile-stage" class="form-select" name="stage">
+            <option value="">전체 단계</option>
+            {% for label, code in _h_stages %}
+            <option value="{{ code }}" {% if _h_stage == code %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="erp-mobile-queue-filters__field">
+          <label for="erp-history-mobile-date-from">기간 (생성일)</label>
+          <div class="input-group">
+            <input
+              id="erp-history-mobile-date-from"
+              type="date"
+              name="date_from"
+              class="form-control"
+              value="{{ _h_date_from }}">
+            <span class="input-group-text">~</span>
+            <input
+              id="erp-history-mobile-date-to"
+              type="date"
+              name="date_to"
+              class="form-control"
+              value="{{ _h_date_to }}">
+          </div>
+        </div>
+        <div class="erp-mobile-queue-filters__actions">
+          <a class="btn btn-outline-secondary" href="{{ _h_base }}">초기화</a>
+          <button class="btn btn-primary" type="submit">적용</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</section>

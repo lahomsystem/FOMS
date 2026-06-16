@@ -1,69 +1,70 @@
-/* 모바일 ERP 필터 바 SSOT — 검색/툴바(패딩 유지) + 칩 밴드(뷰포트 full-bleed 흰색).
-   모든 workflow 탭(대시보드·실측·생산·시공·출고·도면·AS)이 동일 규칙을 따른다.
-   RCA(2026-06-11): shell-body 음수마진(-space-4)만으로는 container-fluid 거터·부모
-   overflow-x:hidden(출고 2d39530e)에서 흰 밴드가 [16,398]처럼 클립됨 → 100vw breakout. */
-
-@media (max-width: 991.98px) {
-  body.erp-mobile-v2-layout .foms-shell-body .foms-mobile-filter-bar {
-    display: grid;
-    gap: var(--foms-space-2);
-    min-width: 0;
-    max-width: 100%;
-    overflow: visible;
-  }
-
-  body.erp-mobile-v2-layout .foms-shell-body .foms-mobile-filter-bar__toolbar {
-    min-width: 0;
-  }
-
-  /* 칩 밴드: 셸·container-fluid 패딩을 뷰포트 폭까지 돌파 (헤더와 동일 edge-to-edge) */
-  body.erp-mobile-v2-layout .foms-shell-body .foms-chip-strip {
-    position: sticky;
-    top: calc(var(--foms-shell-header-h) + var(--foms-safe-area-top));
-    z-index: calc(var(--foms-z-sticky) - 1);
-    display: flex;
-    gap: var(--foms-space-2);
-    justify-content: safe center;
-    overflow-x: auto;
-    overflow-y: visible;
-    scrollbar-width: none;
-    box-sizing: border-box;
-    width: 100vw;
-    max-width: 100vw;
-    margin-left: calc(50% - 50vw);
-    margin-right: calc(50% - 50vw);
-    padding: var(--foms-space-3) var(--foms-space-4);
-    background: var(--foms-surface-base);
-    border-bottom: 1px solid var(--foms-border-subtle);
-    min-width: 0;
-  }
-
-  body.erp-mobile-v2-layout .foms-shell-body .foms-chip-strip::-webkit-scrollbar {
-    display: none;
-  }
-
-  /* 셸 안 컨트롤 래퍼: 이중 좌우 패딩 제거 + 칩 bleed 클립 방지 */
-  body.erp-mobile-v2-layout .foms-shell-body .erp-measurement-mobile-filters,
-  body.erp-mobile-v2-layout .foms-shell-body .erp-shipment-mobile-controls,
-  body.erp-mobile-v2-layout .foms-shell-body .erp-mobile-queue-filters,
-  body.erp-mobile-v2-layout .foms-shell-body .erp-as-mobile-controls,
-  body.erp-mobile-v2-layout .foms-shell-body .foms-mobile-filter-bar--dashboard-queue,
-  body.erp-mobile-v2-layout .foms-shell-body .foms-mobile-filter-bar--drawing {
-    padding-left: 0;
-    padding-right: 0;
-    min-width: 0;
-    max-width: 100%;
-    overflow: visible;
-  }
-
-  /* AS/도면: 레거시 quick-actions flex-wrap이 칩 스트립 스크롤을 깨뜨리지 않게 */
-  body.erp-mobile-v2-layout .foms-shell-body .foms-chip-strip.erp-as-mobile-controls__quick-actions {
-    flex-wrap: nowrap;
-    margin-top: 0;
-  }
-
-  body.erp-mobile-v2-layout .foms-shell-body .erp-shipment-mobile-controls .foms-chip-strip {
-    margin-top: 0;
-  }
-}
+/* 모바일 ERP 필터 바 SSOT — 검색/툴바(패딩 유지) + 칩 밴드(뷰포트 full-bleed 흰색).
+   모든 workflow 탭(대시보드·실측·생산·시공·출고·도면·AS)이 동일 규칙을 따른다.
+   RCA(2026-06-11): shell-body 음수마진(-space-4)만으로는 container-fluid 거터·부모
+   overflow-x:hidden(출고 2d39530e)에서 흰 밴드가 [16,398]처럼 클립됨 → 100vw breakout. */
+
+@media (max-width: 991.98px) {
+  body.erp-mobile-v2-layout .foms-shell-body .foms-mobile-filter-bar {
+    display: grid;
+    gap: var(--foms-space-2);
+    min-width: 0;
+    max-width: 100%;
+    overflow: visible;
+  }
+
+  body.erp-mobile-v2-layout .foms-shell-body .foms-mobile-filter-bar__toolbar {
+    min-width: 0;
+  }
+
+  /* 칩 밴드: 셸·container-fluid 패딩을 뷰포트 폭까지 돌파 (헤더와 동일 edge-to-edge) */
+  body.erp-mobile-v2-layout .foms-shell-body .foms-chip-strip {
+    position: sticky;
+    top: calc(var(--foms-shell-header-h) + var(--foms-safe-area-top));
+    z-index: calc(var(--foms-z-sticky) - 1);
+    display: flex;
+    gap: var(--foms-space-2);
+    justify-content: safe center;
+    overflow-x: auto;
+    overflow-y: visible;
+    scrollbar-width: none;
+    box-sizing: border-box;
+    width: 100vw;
+    max-width: 100vw;
+    margin-left: calc(50% - 50vw);
+    margin-right: calc(50% - 50vw);
+    padding: var(--foms-space-3) var(--foms-space-4);
+    background: var(--foms-surface-base);
+    border-bottom: 1px solid var(--foms-border-subtle);
+    min-width: 0;
+  }
+
+  body.erp-mobile-v2-layout .foms-shell-body .foms-chip-strip::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* 셸 안 컨트롤 래퍼: 이중 좌우 패딩 제거 + 칩 bleed 클립 방지 */
+  body.erp-mobile-v2-layout .foms-shell-body .erp-measurement-mobile-filters,
+  body.erp-mobile-v2-layout .foms-shell-body .erp-shipment-mobile-controls,
+  body.erp-mobile-v2-layout .foms-shell-body .erp-mobile-queue-filters,
+  body.erp-mobile-v2-layout .foms-shell-body .erp-history-mobile-filters,
+  body.erp-mobile-v2-layout .foms-shell-body .erp-as-mobile-controls,
+  body.erp-mobile-v2-layout .foms-shell-body .foms-mobile-filter-bar--dashboard-queue,
+  body.erp-mobile-v2-layout .foms-shell-body .foms-mobile-filter-bar--drawing {
+    padding-left: 0;
+    padding-right: 0;
+    min-width: 0;
+    max-width: 100%;
+    overflow: visible;
+  }
+
+  /* AS/도면: 레거시 quick-actions flex-wrap이 칩 스트립 스크롤을 깨뜨리지 않게 */
+  body.erp-mobile-v2-layout .foms-shell-body .foms-chip-strip.erp-as-mobile-controls__quick-actions {
+    flex-wrap: nowrap;
+    margin-top: 0;
+  }
+
+  body.erp-mobile-v2-layout .foms-shell-body .erp-shipment-mobile-controls .foms-chip-strip {
+    margin-top: 0;
+  }
+}
 

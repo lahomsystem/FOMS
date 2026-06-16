@@ -9,7 +9,7 @@
     if (!shell) return;
     var input = document.getElementById("erp-history-search-q");
     if (!input) return;
-    var empty = shell.querySelector(".erp-pro-empty");
+    var empty = shell.querySelector(".erp-history-mobile-empty");
     if (!empty) return;
     if (window.matchMedia("(max-width: 991.98px)").matches) {
       input.focus({ preventScroll: true });
