@@ -20,6 +20,10 @@
         "select.base-product-select, select.category-option-select, select.note-select";
 
     var overlay = null;
+    var PANEL_MARGIN = 8;
+    var PANEL_GAP = 4;
+    var PANEL_MIN_HEIGHT = 120;
+    var PANEL_PREFERRED_MAX = 420;
 
     function isMobile() {
         return !!(window.matchMedia && window.matchMedia("(max-width: 991.98px)").matches);
@@ -161,7 +165,10 @@
         };
 
         window.addEventListener("resize", function () {
-            if (overlay && overlay.currentSelect) positionPanel();
+            if (!overlay || !overlay.currentSelect) return;
+            overlay.panel.classList.toggle("wd-cat-panel--sheet", isMobile());
+            overlay.panel.classList.toggle("wd-cat-panel--dropdown", !isMobile());
+            positionPanel();
         });
         document.addEventListener("keydown", function (e) {
             if (e.key === "Escape") closePanel();
@@ -169,9 +176,59 @@
         return overlay;
     }
 
+    function getScrollParents(el) {
+        var parents = [];
+        var node = el && el.parentElement;
+        while (node && node !== document.documentElement) {
+            var style = window.getComputedStyle(node);
+            var overflowY = style.overflowY;
+            var overflowX = style.overflowX;
+            if (
+                /(auto|scroll|overlay)/.test(overflowY) ||
+                /(auto|scroll|overlay)/.test(overflowX)
+            ) {
+                parents.push(node);
+            }
+            node = node.parentElement;
+        }
+        parents.push(window);
+        return parents;
+    }
+
+    function bindScrollListeners(trigger) {
+        unbindScrollListeners();
+        if (!overlay || !trigger) return;
+        overlay._scrollParents = getScrollParents(trigger);
+        overlay._onScrollReposition = function () {
+            positionPanel();
+        };
+        for (var i = 0; i < overlay._scrollParents.length; i++) {
+            overlay._scrollParents[i].addEventListener(
+                "scroll",
+                overlay._onScrollReposition,
+                { passive: true }
+            );
+        }
+    }
+
+    function unbindScrollListeners() {
+        if (!overlay || !overlay._scrollParents || !overlay._onScrollReposition) return;
+        for (var i = 0; i < overlay._scrollParents.length; i++) {
+            overlay._scrollParents[i].removeEventListener(
+                "scroll",
+                overlay._onScrollReposition
+            );
+        }
+        overlay._scrollParents = null;
+        overlay._onScrollReposition = null;
+    }
+
     function expandGroup(group, list, open) {
         group.classList.toggle("is-open", open);
         list.style.maxHeight = open ? list.scrollHeight + "px" : "0px";
+        if (overlay && overlay.currentSelect) {
+            window.requestAnimationFrame(positionPanel);
+        }
     }
 
     function openPanel(select, trigger) {
@@ -238,6 +295,7 @@
         ov.panel.classList.toggle("wd-cat-panel--sheet", isMobile());
         ov.panel.classList.toggle("wd-cat-panel--dropdown", !isMobile());
         document.body.classList.add("wd-cat-open");
+        bindScrollListeners(trigger);
         positionPanel();
 
         // 레이아웃 확정 후 열린 그룹 높이 재계산(초기 scrollHeight 보정)
@@ -245,6 +303,7 @@
         for (var k = 0; k < openLists.length; k++) {
             openLists[k].style.maxHeight = openLists[k].scrollHeight + "px";
         }
+        window.requestAnimationFrame(positionPanel);
     }
 
     function positionPanel() {
@@ -255,22 +314,56 @@
             panel.style.top = "";
             panel.style.width = "";
             panel.style.maxHeight = "";
+            panel.classList.remove("wd-cat-panel--above");
             return;
         }
         var r = overlay.currentTrigger.getBoundingClientRect();
         var width = Math.max(r.width, 260);
-        var left = Math.min(r.left, window.innerWidth - width - 8);
-        var top = r.bottom + 4;
+        var left = Math.min(r.left, window.innerWidth - width - PANEL_MARGIN);
+        left = Math.max(PANEL_MARGIN, left);
+
+        var viewportH = window.innerHeight;
+        var preferredMax = Math.min(viewportH * 0.6, PANEL_PREFERRED_MAX);
+        var spaceBelow = viewportH - r.bottom - PANEL_GAP - PANEL_MARGIN;
+        var spaceAbove = r.top - PANEL_GAP - PANEL_MARGIN;
+        var placeAbove =
+            spaceBelow < PANEL_MIN_HEIGHT && spaceAbove > spaceBelow ||
+            (spaceAbove > spaceBelow && spaceBelow < preferredMax * 0.45);
+        var available = placeAbove ? spaceAbove : spaceBelow;
+        var maxHeight = Math.min(preferredMax, Math.max(0, available));
+        var top;
+
+        if (placeAbove) {
+            top = r.top - PANEL_GAP - maxHeight;
+            if (top < PANEL_MARGIN) {
+                maxHeight = Math.min(preferredMax, r.top - PANEL_GAP - PANEL_MARGIN);
+                top = PANEL_MARGIN;
+            }
+        } else {
+            top = r.bottom + PANEL_GAP;
+            if (top + maxHeight > viewportH - PANEL_MARGIN) {
+                maxHeight = viewportH - PANEL_MARGIN - top;
+            }
+            if (maxHeight < PANEL_MIN_HEIGHT && spaceAbove > spaceBelow) {
+                placeAbove = true;
+                maxHeight = Math.min(preferredMax, spaceAbove);
+                top = Math.max(PANEL_MARGIN, r.top - PANEL_GAP - maxHeight);
+            }
+        }
+
         panel.style.width = width + "px";
-        panel.style.left = Math.max(8, left) + "px";
+        panel.style.left = left + "px";
         panel.style.top = top + "px";
-        panel.style.maxHeight = Math.max(180, window.innerHeight - top - 12) + "px";
+        panel.style.maxHeight = Math.max(0, maxHeight) + "px";
+        panel.classList.toggle("wd-cat-panel--above", placeAbove);
     }
 
     function closePanel() {
         if (!overlay) return;
+        unbindScrollListeners();
         overlay.backdrop.classList.remove("is-open");
         overlay.panel.classList.remove("is-open");
+        overlay.panel.classList.remove("wd-cat-panel--above");
         document.body.classList.remove("wd-cat-open");
         overlay.currentSelect = null;
         overlay.currentTrigger = null;
