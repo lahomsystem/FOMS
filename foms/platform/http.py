@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import os
 import time
-from datetime import date
 from typing import Any, Callable
+
+from foms.services.datetime_kst import get_today_kst
 
 from flask import Flask, current_app, g, jsonify, redirect, request, session, url_for
 
@@ -212,7 +213,7 @@ def register_http_bootstrap(
             return redirect(
                 url_for(
                     "erp_shipment_page.erp_shipment_dashboard",
-                    date=date.today().strftime("%Y-%m-%d"),
+                    date=get_today_kst().strftime("%Y-%m-%d"),
                 )
             )
         if (
@@ -229,7 +230,7 @@ def register_http_bootstrap(
             return redirect(
                 url_for(
                     "erp_shipment_page.erp_shipment_dashboard",
-                    date=date.today().strftime("%Y-%m-%d"),
+                    date=get_today_kst().strftime("%Y-%m-%d"),
                 )
             )
         return None

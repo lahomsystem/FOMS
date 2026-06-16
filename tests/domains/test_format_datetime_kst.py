@@ -1,5 +1,5 @@
 """KST datetime 표시 SSOT(format_datetime_kst) 계약 테스트."""
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 from flask import Flask
@@ -7,7 +7,7 @@ import pytz
 
 from db import db_session
 from foms.services.context_processors import register_context_processors
-from foms.services.datetime_kst import format_datetime_kst
+from foms.services.datetime_kst import format_datetime_kst, get_today_kst
 from models import OrderEstimate, User
 from wdcalculator_models import Estimate
 
@@ -34,6 +34,22 @@ def test_format_datetime_kst_converts_aware_utc_to_kst() -> None:
 
 def test_format_datetime_kst_none_returns_none() -> None:
     assert format_datetime_kst(None) is None
+
+
+def test_get_today_kst_uses_kst_not_utc_server_date(monkeypatch) -> None:
+    """KST 06-17 07:56 고정 시 get_today_kst()는 17일을 반환 (UTC 서버 date.today()와 분리)."""
+    kst = pytz.timezone("Asia/Seoul")
+    fixed = kst.localize(datetime(2026, 6, 17, 7, 56, 0))
+
+    class _FixedDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            if tz is not None:
+                return fixed.astimezone(tz)
+            return fixed.replace(tzinfo=None)
+
+    monkeypatch.setattr("foms.services.datetime_kst.datetime.datetime", _FixedDatetime)
+    assert get_today_kst() == date(2026, 6, 17)
 
 
 def test_format_datetime_kst_registered_as_global_jinja_filter() -> None:

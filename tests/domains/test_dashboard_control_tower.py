@@ -83,6 +83,9 @@ class _FakeQuery:
     def filter(self, *a, **k):
         return self
 
+    def group_by(self, *a, **k):
+        return self
+
     def order_by(self, *a, **k):
         return self
 
@@ -107,6 +110,19 @@ def _order_with_balance(oid, bal):
         erp_stage_code="PRODUCTION",
         structured_data={"parties": {"customer": {"name": f"고객{oid}"}}, "pricing": {"balance": bal}},
     )
+
+
+def test_week_strip_marks_first_day_as_today():
+    """주간 타일 첫 칸만 is_today/dow=오늘 (KST today 인자 SSOT)."""
+    import datetime
+
+    today = datetime.date(2026, 6, 17)
+    week = ct._week_strip(_FakeQuery([]), today)
+    assert week["days"][0]["iso"] == "2026-06-17"
+    assert week["days"][0]["is_today"] is True
+    assert week["days"][0]["dow"] == "오늘"
+    assert week["days"][1]["iso"] == "2026-06-18"
+    assert week["days"][1]["is_today"] is False
 
 
 def test_business_window_dates_includes_today_excludes_far():

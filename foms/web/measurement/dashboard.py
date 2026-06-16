@@ -561,7 +561,7 @@ def regional_dashboard():
 
     all_regional_orders = base_query.order_by(Order.id.desc()).all()
     apply_erp_display_fields_to_orders(all_regional_orders)
-    today = date.today()
+    today = get_today_kst()
 
     completed_orders = [o for o in all_regional_orders if o.status == "COMPLETED"]
     scheduled_orders = [o for o in all_regional_orders if o.status == "SCHEDULED"]
@@ -672,7 +672,7 @@ def metropolitan_dashboard():
         )
 
     base_query = db.query(Order).filter(Order.is_regional == False)
-    today_str = date.today().strftime("%Y-%m-%d")
+    today_str = get_today_kst().strftime("%Y-%m-%d")
 
     def _measurement_dates_include_today(order):
         if not getattr(order, "measurement_date", None):
@@ -692,7 +692,7 @@ def metropolitan_dashboard():
             try:
                 if d.strip() and datetime.datetime.strptime(
                     d.strip(), "%Y-%m-%d"
-                ).date() < date.today():
+                ).date() < get_today_kst():
                     return True
             except Exception:
                 pass
@@ -705,7 +705,7 @@ def metropolitan_dashboard():
             try:
                 if d.strip() and datetime.datetime.strptime(
                     d.strip(), "%Y-%m-%d"
-                ).date() > date.today():
+                ).date() > get_today_kst():
                     return True
             except Exception:
                 pass
@@ -718,7 +718,7 @@ def metropolitan_dashboard():
             try:
                 if d.strip() and datetime.datetime.strptime(
                     d.strip(), "%Y-%m-%d"
-                ).date() < date.today():
+                ).date() < get_today_kst():
                     return True
             except Exception:
                 pass

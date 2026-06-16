@@ -31,7 +31,7 @@ from foms.services.erp_policy import (
     check_quest_approvals_complete,
     create_quest_from_template,
 )
-from foms.services.erp_display import get_today_kst
+from foms.services.datetime_kst import get_today_kst, now_kst
 from foms.services.erp_order_flags import is_erp_draft_structured_data, is_erp_order_draft
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.orders.erp_automation import apply_auto_tasks
@@ -730,7 +730,7 @@ def api_erp_create_draft():
             session['erp_draft_order_id'] = token_order.id
             return jsonify({'success': True, 'order_id': token_order.id, 'reused': True})
 
-        now = datetime.datetime.now()
+        now = now_kst()
         today = now.strftime('%Y-%m-%d')
         time_str = now.strftime('%H:%M')
         structured = {

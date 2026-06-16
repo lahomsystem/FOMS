@@ -26,6 +26,7 @@ from foms.services.order_draft_service import (
     validate_draft_payload,
 )
 from foms.services.storage import get_storage
+from foms.services.datetime_kst import get_today_kst, now_kst
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.jobs.queue import enqueue_geocode_order_address
 from foms.services.orders.estimate_defaults import (
@@ -384,8 +385,8 @@ def api_submit_order_draft() -> tuple[Any, int]:
     if missing:
         return jsonify({"success": False, "error": "VALIDATION", "fields": missing}), 400
 
-    received_date = str(data.get("received_date") or datetime.datetime.now().strftime("%Y-%m-%d"))
-    received_time = datetime.datetime.now().strftime("%H:%M")
+    received_date = str(data.get("received_date") or get_today_kst().strftime("%Y-%m-%d"))
+    received_time = now_kst().strftime("%H:%M")
 
     new_order = Order(
         received_date=received_date,

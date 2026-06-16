@@ -10,6 +10,7 @@ import pandas as pd
 from foms.web.auth import login_required, role_required, log_access
 from db import get_db
 from models import Order
+from foms.services.datetime_kst import get_today_kst
 from foms.services.files.storage_paths import UPLOAD_FOLDER
 from foms.services.orders.status_constants import STATUS
 from foms.services.files.file_utils import allowed_file
@@ -92,7 +93,7 @@ def upload_excel():
             added_order_ids = []
             for index, row in df.iterrows():
                 received_date_dt = pd.to_datetime(row['접수일'], errors='coerce')
-                received_date = received_date_dt.strftime('%Y-%m-%d') if pd.notna(received_date_dt) else datetime.datetime.now().strftime('%Y-%m-%d')
+                received_date = received_date_dt.strftime('%Y-%m-%d') if pd.notna(received_date_dt) else get_today_kst().strftime('%Y-%m-%d')
 
                 measurement_date_dt = pd.to_datetime(row.get('실측일'), errors='coerce')
                 measurement_date = measurement_date_dt.strftime('%Y-%m-%d') if pd.notna(measurement_date_dt) else None

@@ -17,6 +17,7 @@ from typing import Any, Dict, Optional, Tuple
 
 from foms.persistence.main.db import db_session, get_db
 from foms.persistence.main.models import ChannelInboundEventLog, Order
+from foms.services.datetime_kst import get_today_kst
 from foms.services.jobs.queue import enqueue_channeltalk_inbound
 
 __all__ = [
@@ -256,7 +257,7 @@ def process_inbound_job(log_id: int):
 
         # 3. Order 생성
         new_order = Order(
-            received_date=datetime.now().strftime("%Y-%m-%d"),
+            received_date=get_today_kst().strftime("%Y-%m-%d"),
             customer_name=parsed_data.get("customer_name"),
             phone=parsed_data.get("phone"),
             address=parsed_data.get("address"),

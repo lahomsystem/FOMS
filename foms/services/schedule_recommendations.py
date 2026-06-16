@@ -18,6 +18,7 @@ from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session, load_only, selectinload
 
 from foms.services.common.address_converter import FOMSAddressConverter
+from foms.services.datetime_kst import get_today_kst
 from foms.services.geocode_helpers import get_order_display_address
 from foms.services.erp_order_flags import is_erp_order_record
 from models import Order, OrderScheduleDate
@@ -296,7 +297,7 @@ def compute_construction_nearby_success_payload(
     try:
         ref_obj = datetime.date.fromisoformat(ref_date)
     except Exception:
-        ref_obj = datetime.date.today()
+        ref_obj = get_today_kst()
 
     if pool:
         max_dist = max(item["_dist_km"] for item in pool) or 1.0

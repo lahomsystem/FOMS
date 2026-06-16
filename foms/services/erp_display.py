@@ -3,10 +3,8 @@ import datetime
 import json
 import unicodedata
 
-import pytz
-
 from foms.services.common.business_calendar import business_days_until
-from foms.services.datetime_kst import format_datetime_kst
+from foms.services.datetime_kst import format_datetime_kst, get_today_kst
 from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.erp_policy import (
     STAGE_LABELS,
@@ -48,17 +46,6 @@ def _normalize_for_search(s):
     if not s:
         return ""
     return unicodedata.normalize("NFC", s)
-
-
-# ERP 대시보드 "오늘" 기준: 서버가 UTC 등이면 자정이 한국 09:00가 되어 날짜가 하루 밀림. KST 기준으로 통일.
-def get_today_kst() -> datetime.date:
-    """한국 시간(KST, Asia/Seoul) 기준 오늘 날짜. 실측/출고 등 대시보드 날짜 기준 통일용."""
-    try:
-        return datetime.datetime.now(pytz.timezone('Asia/Seoul')).date()
-    except Exception:
-        return datetime.datetime.now(
-            datetime.timezone(datetime.timedelta(hours=9))
-        ).date()
 
 
 def self_measurement_four_checks_done(order):

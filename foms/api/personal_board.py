@@ -9,6 +9,7 @@ import datetime
 from flask import Blueprint, jsonify, session
 from sqlalchemy import and_, func, or_
 
+from foms.services.datetime_kst import get_today_kst
 from foms.web.auth import login_required
 from db import get_db
 from models import (
@@ -317,8 +318,8 @@ def _urgent_notifications(db, user, user_id, limit=10):
 
 def _schedule_today_tomorrow(db, user_id, user_team):
     """오늘/내일 실측·시공 일정 카드 (고객명+단계+딥링크 포함)."""
-    today_s = datetime.date.today().strftime("%Y-%m-%d")
-    tomorrow_s = (datetime.date.today() + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+    today_s = get_today_kst().strftime("%Y-%m-%d")
+    tomorrow_s = (get_today_kst() + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
     out_today = []
     out_tomorrow = []
     type_label = {"measurement": "실측", "construction": "시공"}
