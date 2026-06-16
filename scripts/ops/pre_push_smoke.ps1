@@ -226,6 +226,7 @@ if ($Full) {
 } else {
     $pytestTargets = @(
         "tests/performance/test_perf_regression_guard.py",
+        "tests/performance/test_static_cache_headers.py",
         "tests/contracts/runtime/test_dockerfile_deploy_contract.py",
         "tests/domains/test_foms_namespace_imports.py",
         "tests/domains/test_foms_search_overlay.py::test_search_overlay_template_contract",

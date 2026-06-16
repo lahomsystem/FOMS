@@ -72,6 +72,45 @@ def _add_static_response_headers(headers: Any, path: str, url: str) -> None:
         headers["Cache-Control"] = "no-cache"
 
 
+def _versioned_static_cache_middleware(wsgi_app: Any) -> Any:
+    """버전 쿼리(``?v=``)가 있는 css/js 응답에 한해 단기 max-age 캐시를 부여한다.
+
+    WhiteNoise는 파일 단위로 헤더를 미리 계산하므로 요청 쿼리(``?v=``)를 보지 못한다.
+    그래서 모든 css/js를 ``no-cache``로 둘 수밖에 없었고(``@import`` 미버전 sub-file
+    보호), 그 결과 브라우저가 **매 네비게이션마다** css/js를 재검증(304)한다 →
+    적은 web 워커에서 정적 요청 폭주 → 탭전환 지연.
+
+    이 미들웨어는 요청 단계에서 ``?v=``가 붙은 css/js에 한해 응답의 ``Cache-Control``을
+    ``max-age``로 바꾼다. 버전 URL은 배포 시 ``?v=``가 바뀌어 새 URL이 되므로
+    (캐시 미스→즉시 최신) 캐시해도 안전하고, 짧은 max-age(1시간)로 "버전 누락" 시의
+    staleness도 길게 가지 않게 bound한다. 미버전(@import 등)은 그대로 ``no-cache``.
+
+    Args:
+        wsgi_app: 감쌀 WSGI 앱(여기서는 WhiteNoise).
+    """
+    _CACHE_VALUE = "public, max-age=3600"
+
+    def _app(environ: Any, start_response: Any) -> Any:
+        path = (environ.get("PATH_INFO") or "")
+        qs = (environ.get("QUERY_STRING") or "")
+        is_versioned_css_js = (
+            path.startswith("/static/")
+            and (path.endswith(".css") or path.endswith(".js"))
+            and ("v=" in qs)
+        )
+        if not is_versioned_css_js:
+            return wsgi_app(environ, start_response)
+
+        def _start_response(status: Any, headers: Any, exc_info: Any = None) -> Any:
+            new_headers = [(k, v) for (k, v) in headers if k.lower() != "cache-control"]
+            new_headers.append(("Cache-Control", _CACHE_VALUE))
+            return start_response(status, new_headers, exc_info)
+
+        return wsgi_app(environ, _start_response)
+
+    return _app
+
+
 def build_app(*, socketio_available: bool) -> AppFactoryResult:
     """Build the root Flask app while preserving the existing runtime order."""
     app = Flask("app")
@@ -90,6 +129,8 @@ def build_app(*, socketio_available: bool) -> AppFactoryResult:
         max_age=31536000 if is_production else 0,
         add_headers_function=_add_static_response_headers,
     )
+    # 버전된(?v=) css/js는 매 네비게이션 재검증(304) 대신 단기 캐시 → 정적 요청 폭주 완화.
+    app.wsgi_app = _versioned_static_cache_middleware(app.wsgi_app)
 
     app.secret_key = os.environ.get("SECRET_KEY")
     if not app.secret_key:

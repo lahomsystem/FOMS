@@ -53,6 +53,13 @@ def test_search_assets_imported() -> None:
     assert "foms.search.recent.v1" in js
     assert "ArrowDown" in js
     assert "navigateToResult" in js
+    assert "beginShellNavigationPending" in js
+    assert "bypassCache" in js
+    assert "clearSearchResults" in js
+    shell_branch = js.split("function navigateToResult(link)")[1].split("function highlightIndex")[0]
+    assert shell_branch.index("beginShellNavigationPending") < shell_branch.index("closeDialog()")
+    assert "bypassCache: true" in shell_branch
+    assert shell_branch.index("navigateByShell") < shell_branch.index("window.location.assign(href)")
     assert "mobile-queue-focus.js" in app_shell
 
 

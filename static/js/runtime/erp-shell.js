@@ -90,6 +90,15 @@
     return main;
   }
 
+  /**
+   * Cover #main-content before async shell navigation (e.g. mobile search result click)
+   * so stale queue HTML is not visible under the overlay.
+   */
+  function beginShellNavigationPending() {
+    ensureShellMainWrap();
+    setShellFragmentLoading(true);
+  }
+
   /** Show or hide full-fetch loading state (not used for instant cache hits). */
   function setShellFragmentLoading(on) {
     var main = ensureShellMainWrap();
@@ -680,6 +689,7 @@
     window.FOMS_ERP_SHELL.prefetchShellFragment = prefetchShellFragment;
     window.FOMS_ERP_SHELL.getCacheKey = getCacheKey;
     window.FOMS_ERP_SHELL.navigateByShell = navigateByShell;
+    window.FOMS_ERP_SHELL.beginShellNavigationPending = beginShellNavigationPending;
     window.FOMS_ERP_SHELL.invalidateFragmentCache = invalidateFragmentCache;
     window.FOMS_ERP_SHELL.invalidatePrimaryNavFragmentCache = invalidatePrimaryNavFragmentCache;
   }
