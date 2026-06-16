@@ -26,6 +26,7 @@ from foms.services.erp_display import (
     _ensure_dict,
     _erp_get_stage,
     erp_payment_amount_from_structured,
+    get_today_kst,
 )
 from foms.services.common.business_calendar import business_days_until
 from foms.services.erp_permissions import build_mine_sql_filter
@@ -394,7 +395,7 @@ def build_risk_order_ids(db: Any, current_user: Any, key: str, *, today: datetim
     """
     if key not in RISK_KEYS:
         return []
-    today = today or datetime.date.today()
+    today = today or get_today_kst()
     base = _tower_base_query(db, current_user)
     cons_dates = _business_window_dates(today, max_business_days=3, window_days=10)
     meas_dates = _business_window_dates(today, max_business_days=4, window_days=12)
@@ -488,7 +489,7 @@ def build_field_ops_for_day(
     today: datetime.date | None = None,
 ) -> dict[str, Any]:
     """특정 날짜 현장 일정 페이로드 (인라인 탭/주간 타일 클릭 ajax용)."""
-    today = today or datetime.date.today()
+    today = today or get_today_kst()
     base = _tower_base_query(db, current_user)
     if mine_only:
         base = _apply_mine_only(base, current_user)
@@ -517,7 +518,7 @@ def build_mobile_control_tower(
 
     mine_only=True면 '내작업' 토글 — 타워 전체를 현재 사용자 담당분으로 필터.
     """
-    today = today or datetime.date.today()
+    today = today or get_today_kst()
     today_iso = today.isoformat()
     base = _tower_base_query(db, current_user)
     if mine_only:

@@ -21,6 +21,7 @@ from foms.services.erp_display import (
     _erp_get_stage,
     _erp_alerts,
     _erp_has_media,
+    get_today_kst,
 )
 from foms.services.erp_quest_display import build_current_quest_payload
 from foms.services.erp_mobile_order_display import (
@@ -180,7 +181,7 @@ def erp_dashboard():
         if mine_conds:
             _q = _q.filter(or_(*mine_conds))
 
-    today_date = datetime.date.today()
+    today_date = get_today_kst()
     today_iso = today_date.isoformat()
     if f_today == '1':
         _q = _q.filter(
@@ -238,7 +239,7 @@ def erp_dashboard():
 
     # B-4. D-day SQL 후보군 필터 (1차)
     if f_alert_type in ('measurement_d4', 'construction_d3', 'production_d2', 'drawing_overdue'):
-        today_date = datetime.date.today()
+        today_date = get_today_kst()
 
         if f_alert_type == 'drawing_overdue':
             drawing_cutoff = datetime.datetime.now() - datetime.timedelta(hours=48)
@@ -271,7 +272,7 @@ def erp_dashboard():
             )
 
     if f_today == '1':
-        today_iso = datetime.date.today().isoformat()
+        today_iso = get_today_kst().isoformat()
         _q = _q.filter(
             or_(
                 Order.erp_measurement_date == today_iso,
@@ -459,7 +460,7 @@ def erp_dashboard():
             else_='기타'
         )
 
-        today_date = datetime.date.today()
+        today_date = get_today_kst()
         today_iso = today_date.isoformat()
         measurement_d4_dates = _business_alert_date_values(
             today_date,
@@ -808,7 +809,7 @@ def erp_dashboard():
             _tower_key,
             TTL_SUMMARY_COUNTS,
             lambda: build_mobile_control_tower(
-                db, current_user, today=datetime.date.today(), mine_only=f_tower_mine
+                db, current_user, today=get_today_kst(), mine_only=f_tower_mine
             ),
             page="orders",
             slice_name="mobile_control_tower",
@@ -927,7 +928,7 @@ def erp_dashboard_field_ops():
     try:
         datetime.date.fromisoformat(date_iso)
     except ValueError:
-        date_iso = datetime.date.today().isoformat()
+        date_iso = get_today_kst().isoformat()
 
     payload = build_field_ops_for_day(
         db, current_user, date_iso, field_type=field_type, mine_only=mine_only

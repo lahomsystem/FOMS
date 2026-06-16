@@ -7,7 +7,29 @@ import pytz
 
 _KST_TZ = pytz.timezone('Asia/Seoul')
 
-__all__ = ['format_datetime_kst']
+__all__ = ['format_datetime_kst', 'get_today_kst', 'now_kst']
+
+
+def get_today_kst() -> datetime.date:
+    """한국 시간(KST, Asia/Seoul) 기준 오늘 날짜.
+
+    Railway 등 UTC 서버에서 ``date.today()``는 한국 09:00 이전에 하루 밀린다.
+    ERP 대시보드·일정·영업일 계산의 '오늘' SSOT.
+    """
+    try:
+        return datetime.datetime.now(_KST_TZ).date()
+    except Exception:
+        return datetime.datetime.now(
+            datetime.timezone(datetime.timedelta(hours=9))
+        ).date()
+
+
+def now_kst() -> datetime.datetime:
+    """현재 시각(KST, timezone-aware). 접수일·접수시간 기본값 SSOT."""
+    try:
+        return datetime.datetime.now(_KST_TZ)
+    except Exception:
+        return datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9)))
 
 
 def format_datetime_kst(

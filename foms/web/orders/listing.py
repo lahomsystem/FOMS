@@ -19,6 +19,7 @@ from foms.services.orders.status_constants import STATUS
 from foms.services.order_display_utils import format_options_for_display, _ensure_dict
 from foms.services.jobs.queue import enqueue_geocode_order_address
 from foms.services.erp_display import erp_payment_amount_from_structured
+from foms.services.datetime_kst import get_today_kst, now_kst
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.request_utils import (
     get_preserved_filter_args,
@@ -332,8 +333,8 @@ def add_order():
                     return redirect(url_for('order_pages.add_order'))
 
                 new_order = Order(
-                    received_date=request.form.get('received_date') or datetime.datetime.now().strftime('%Y-%m-%d'),
-                    received_time=request.form.get('received_time') or datetime.datetime.now().strftime('%H:%M'),
+                    received_date=request.form.get('received_date') or get_today_kst().strftime('%Y-%m-%d'),
+                    received_time=request.form.get('received_time') or now_kst().strftime('%H:%M'),
                     customer_name=cust_name, phone=cust_phone, address=addr, product=prod,
                     options=None, notes=request.form.get('notes') or None, status='RECEIVED',
                     is_erp_order=True, raw_order_text=raw_text, structured_data=structured_data,
@@ -373,7 +374,7 @@ def add_order():
                 payment_amount = int(payment_amount_str) if payment_amount_str else 0
             except ValueError:
                 flash('결제금액은 숫자만 입력해주세요.', 'error')
-                return render_template('orders/add_order.html', today=datetime.datetime.now().strftime('%Y-%m-%d'), current_time=datetime.datetime.now().strftime('%H:%M'))
+                return render_template('orders/add_order.html', today=get_today_kst().strftime('%Y-%m-%d'), current_time=now_kst().strftime('%H:%M'))
 
             is_regional_val = 'is_regional' in request.form
             is_self_measurement_val = 'is_self_measurement' in request.form
@@ -434,8 +435,8 @@ def add_order():
             flash(f'오류가 발생했습니다: {str(e)}', 'error')
             return redirect(url_for('order_pages.add_order'))
 
-    today = datetime.datetime.now().strftime('%Y-%m-%d')
-    current_time = datetime.datetime.now().strftime('%H:%M')
+    today = get_today_kst().strftime('%Y-%m-%d')
+    current_time = now_kst().strftime('%H:%M')
     _uid_raw = session.get('user_id')
     _uid = int(_uid_raw) if _uid_raw is not None else None
     # 모바일 v2 코호트·FAB·휴대폰 UA만 wizard; PC 브라우저는 데스크톱 add_order 탭.

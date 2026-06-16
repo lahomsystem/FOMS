@@ -8,6 +8,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Optional, Set
 
+from foms.services.datetime_kst import get_today_kst
+
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 DATA_DIR = _REPO_ROOT / "data"
 
@@ -112,7 +114,7 @@ def business_days_until(
     except Exception:
         return None
 
-    base = today or datetime.date.today()
+    base = today or get_today_kst()
     return business_days_between(base, target)
 
 

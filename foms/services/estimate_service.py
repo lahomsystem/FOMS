@@ -11,6 +11,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
+from foms.services.datetime_kst import get_today_kst
 from foms.services.measurement_manager_colors import normalize_measurement_manager_key
 from foms.services.orders.estimate_defaults import ESTIMATE_PAYMENT_INFO
 from models import Order, OrderEstimate
@@ -190,7 +191,7 @@ def create_estimate(
     created_by_user_id: Optional[int] = None,
 ) -> OrderEstimate:
     """Create a new estimate from an order plus optional override data."""
-    today = datetime.date.today().strftime("%Y-%m-%d")
+    today = get_today_kst().strftime("%Y-%m-%d")
     data = extract_estimate_data_from_order(order)
 
     if override_data:
