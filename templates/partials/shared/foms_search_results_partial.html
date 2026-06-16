@@ -4,8 +4,13 @@
     <li>
       <a class="foms-search-overlay__link" href="{{ item.href }}" data-search-result data-foms-erp-no-shell="1">
         <span class="foms-search-overlay__link-title">{{ item.title }}</span>
-        {% if item.subtitle %}
+        {% if item.phone %}
+          <span class="foms-search-overlay__link-sub">{{ item.phone }}</span>
+        {% elif item.subtitle and not item.address %}
           <span class="foms-search-overlay__link-sub">{{ item.subtitle }}</span>
+        {% endif %}
+        {% if item.address %}
+          <span class="foms-search-overlay__link-meta">{{ item.address }}</span>
         {% endif %}
       </a>
     </li>

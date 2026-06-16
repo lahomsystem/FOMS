@@ -4,6 +4,9 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-06-16 | 세션 자동 기록 | history_dashboard_body.html, completion_scripts.html, foms_unified_search.py 외 2개 | 78ff098c |
+| 2026-06-16 | 세션 자동 기록 | test_completion_search_api.py, dashboard.py, completion_scripts.html | eb9a5e05 |
+| 2026-06-16 | 세션 자동 기록 | completion_scripts.html, dashboard.py | eb9a5e05 |
 | 2026-06-11 | 세션 자동 기록 | 10-erp-mobile-v2-shell.css, fragment.py, dashboard.py 외 2개 | d730f64d |
 | 2026-06-11 | 세션 자동 기록 | commit_msg.txt, AGENTS.md, ci.yml 외 2개 | d730f64d |
 | 2026-06-10 | 세션 자동 기록 | commit_msg.txt, AGENTS.md, ci.yml 외 2개 | d730f64d |
@@ -21,6 +24,3 @@
 | 2026-06-10 | 세션 자동 기록 | layout_head.html, generate_foms_icons.py, build_foms_spade_icon.py 외 2개 | ca1dfeae |
 | 2026-06-10 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_Ace_of_spades-6e93ed51-32e9-4f4c-8571-33999885edf8.png, layout_head.html, generate_foms_icons.py 외 2개 | ca1dfeae |
 | 2026-06-10 | 세션 자동 기록 | layout_head.html, generate_foms_icons.py, extract_icon2_heart.py 외 2개 | ca1dfeae |
-| 2026-06-10 | 세션 자동 기록 | layout_head.html, favicon.svg, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-f24ef38f-47c7-48d0-b773-8947d9866589.png 외 2개 | ca1dfeae |
-| 2026-06-10 | 세션 자동 기록 | layout_head.html, generate_foms_icons.py, favicon.svg 외 2개 | 8428075a |
-| 2026-06-10 | 세션 자동 기록 | generate_foms_icons.py, favicon.svg, layout_head.html 외 2개 | 8428075a |

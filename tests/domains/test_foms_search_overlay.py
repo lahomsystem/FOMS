@@ -186,6 +186,41 @@ def test_search_fragment_route(client, app) -> None:
         encoding="utf-8"
     )
     assert "data-foms-erp-no-shell" in partial
+    assert "foms-search-overlay__link-meta" in partial
+
+
+def test_unified_search_customer_hit_includes_phone_and_address(app) -> None:
+    from db import db_session
+    from foms.services.foms_unified_search import search_unified
+    from models import Order
+
+    with app.app_context():
+        order = Order(
+            received_date="2026-05-30",
+            customer_name="소마디자인(가평)",
+            phone="010-3377-5193",
+            address="Legacy column",
+            product="인테리어",
+            status="CONSTRUCTION",
+            is_erp_order=True,
+            structured_data={
+                "parties": {
+                    "customer": {"name": "소마디자인(가평)", "phone": "010-3377-5193"},
+                },
+                "site": {"address_full": "경기 가평군 청평면"},
+            },
+        )
+        db_session.add(order)
+        db_session.commit()
+
+        hits = search_unified(db_session, "소마")
+        assert hits["customer"]
+        hit = hits["customer"][0]
+        assert hit["title"] == "소마디자인(가평)"
+        assert hit["phone"] == "010-3377-5193"
+        assert hit["address"] == "경기 가평군 청평면"
+        assert "010-3377-5193" in hit["subtitle"]
+        assert "경기 가평군 청평면" in hit["subtitle"]
 
 
 def test_unified_search_history_fallback_finds_non_erp_order(app) -> None:

@@ -116,6 +116,14 @@
   color: var(--foms-text-secondary, #6b7280);
 }
 
+.foms-search-overlay__link-meta {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--foms-text-secondary, #6b7280);
+  margin-top: 0.125rem;
+  line-height: 1.35;
+}
+
 .foms-search-overlay__group-title {
   font-size: 0.8125rem;
   font-weight: 600;

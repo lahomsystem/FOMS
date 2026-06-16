@@ -79,6 +79,27 @@ def _order_phone(order: Order) -> str:
     return _normalize_for_search(customer.get("phone") or order.phone)
 
 
+def _order_address(order: Order) -> str:
+    """Display address from structured_data site paths, then Order column."""
+    sd = _ensure_dict(order.structured_data)
+    site = sd.get("site") if isinstance(sd.get("site"), dict) else {}
+    for candidate in (
+        site.get("address_full"),
+        site.get("address_main"),
+        order.address,
+    ):
+        text = _normalize_for_search(candidate)
+        if text and text not in {"-", "ERP Order"}:
+            return text[:120]
+    return ""
+
+
+def _format_contact_subtitle(phone: str, address: str) -> str:
+    """Single-line fallback subtitle: phone · address."""
+    parts = [part for part in (phone, address) if part]
+    return " · ".join(parts)
+
+
 def _matches_phone(phone: str | None, erp_phone_digits: str | None, query: str) -> bool:
     """Match formatted phone text or indexed digit column."""
     if matches_query(phone, query):
@@ -220,11 +241,15 @@ def _append_order_hits(
     """Fill customer/order/drawing buckets for one classified hit."""
     customer = _order_customer_name(order)
     phone = _order_phone(order)
+    address = _order_address(order)
+    contact_subtitle = _format_contact_subtitle(phone, address)
     href = _order_search_href(order, trimmed)
     base = {
         "order_id": order.id,
         "title": customer or f"주문 #{order.id}",
-        "subtitle": phone or (order.product or ""),
+        "phone": phone,
+        "address": address,
+        "subtitle": contact_subtitle or (order.product or ""),
     }
     if "customer" in matched and len(buckets["customer"]) < limit_per_group:
         buckets["customer"].append(
@@ -235,22 +260,24 @@ def _append_order_hits(
             }
         )
     if "order" in matched and len(buckets["order"]) < limit_per_group:
+        order_subtitle_parts = [part for part in (order.product, phone, address) if part]
         buckets["order"].append(
             {
                 **base,
                 "group": "order",
                 "title": f"#{order.id} · {customer or '주문'}",
-                "subtitle": order.product or phone,
+                "subtitle": " · ".join(order_subtitle_parts) or contact_subtitle,
                 "href": href,
             }
         )
     if "drawing" in matched and len(buckets["drawing"]) < limit_per_group:
+        drawing_subtitle_parts = [part for part in (phone, address) if part]
         buckets["drawing"].append(
             {
                 **base,
                 "group": "drawing",
                 "title": f"도면 · #{order.id}",
-                "subtitle": customer,
+                "subtitle": " · ".join(drawing_subtitle_parts) or customer,
                 "href": href,
             }
         )
