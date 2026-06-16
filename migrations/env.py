@@ -95,19 +95,38 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata
-        )
+        is_postgres = connection.dialect.name == "postgresql"
 
-        with context.begin_transaction():
-            if connection.dialect.name == "postgresql":
-                print("[ALEMBIC] Waiting for PostgreSQL migration advisory lock...")
+        # 세션 레벨 advisory lock으로 다중 replica의 동시 `alembic upgrade head`를 직렬화.
+        # 주의: 과거 pg_advisory_xact_lock(트랜잭션 레벨)은 CONCURRENTLY 마이그레이션이
+        # 내부에서 COMMIT(_run_concurrently)을 실행하는 순간 즉시 해제되어, 이후 인덱스
+        # 빌드가 락 없이 replica 간 레이스를 일으켜 INVALID 인덱스를 남겼다.
+        # 세션 레벨(pg_advisory_lock)은 내부 COMMIT을 넘어 유지되므로 upgrade 전체를
+        # 한 replica로 직렬화한다. 명시적 unlock(+연결 종료)으로 해제한다.
+        if is_postgres:
+            print("[ALEMBIC] Waiting for PostgreSQL migration advisory lock (session-level)...")
+            connection.execute(
+                text("SELECT pg_advisory_lock(:lock_id)"),
+                {"lock_id": _POSTGRES_ALEMBIC_LOCK_ID},
+            )
+            connection.commit()  # 락 획득 구문의 암묵 트랜잭션 종료(세션 락은 유지됨)
+            print("[ALEMBIC] PostgreSQL migration advisory lock acquired.")
+
+        try:
+            context.configure(
+                connection=connection, target_metadata=target_metadata
+            )
+
+            with context.begin_transaction():
+                context.run_migrations()
+        finally:
+            if is_postgres:
                 connection.execute(
-                    text("SELECT pg_advisory_xact_lock(:lock_id)"),
+                    text("SELECT pg_advisory_unlock(:lock_id)"),
                     {"lock_id": _POSTGRES_ALEMBIC_LOCK_ID},
                 )
-                print("[ALEMBIC] PostgreSQL migration advisory lock acquired.")
-            context.run_migrations()
+                connection.commit()
+                print("[ALEMBIC] PostgreSQL migration advisory lock released.")
 
 
 if context.is_offline_mode():
