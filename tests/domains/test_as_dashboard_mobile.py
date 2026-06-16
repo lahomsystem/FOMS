@@ -61,6 +61,65 @@ def _create_as_order(**kwargs):
     return order
 
 
+def test_as_dashboard_focus_order_with_q_shows_single_card(client, app):
+    """Search deep-link: focus_order must not list all q= matches for same customer name."""
+    with app.app_context():
+        user = _login_as_admin(client)
+        from datetime import date
+
+        today = date.today().strftime("%Y-%m-%d")
+        focus = Order(
+            received_date=today,
+            customer_name="소마디자인",
+            phone="010-3377-5193",
+            address="Seoul Gangnam",
+            product="주방",
+            status="AS_COMPLETED",
+            manager_name="Alice",
+            as_received_date=today,
+            as_completed_date=today,
+            is_erp_order=True,
+            structured_data={
+                "parties": {"customer": {"name": "소마디자인", "phone": "010-3377-5193"}},
+                "site": {"address_full": "Seoul Gangnam"},
+                "shipment": {"as_content": "<div>강남</div>"},
+            },
+        )
+        sibling = Order(
+            received_date=today,
+            customer_name="소마디자인",
+            phone="010-3377-5193",
+            address="Gyeonggi Anyang",
+            product="주방",
+            status="AS_COMPLETED",
+            manager_name="Alice",
+            as_received_date=today,
+            as_completed_date=today,
+            is_erp_order=True,
+            structured_data={
+                "parties": {"customer": {"name": "소마디자인", "phone": "010-3377-5193"}},
+                "site": {"address_full": "Gyeonggi Anyang"},
+                "shipment": {"as_content": "<div>안양</div>"},
+            },
+        )
+        db_session.add(focus)
+        db_session.add(sibling)
+        db_session.commit()
+        focus_id = focus.id
+        sibling_id = sibling.id
+
+        broad = client.get("/erp/as?tab=completed&q=소마")
+        assert broad.status_code == 200
+        broad_body = broad.get_data(as_text=True)
+        assert broad_body.count("소마디자인") >= 2
+
+        focused = client.get(f"/erp/as?tab=completed&q=소마&focus_order={focus_id}")
+        assert focused.status_code == 200
+        body = focused.get_data(as_text=True)
+        assert f'data-order-id="{focus_id}"' in body
+        assert f'data-order-id="{sibling_id}"' not in body
+
+
 def test_as_stage_badge_modifier_completed():
     assert as_stage_badge_modifier(status="AS_COMPLETED", as_pending=False) == "--completed"
 

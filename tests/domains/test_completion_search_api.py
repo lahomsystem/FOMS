@@ -78,6 +78,55 @@ def test_completion_api_search_q_not_limited_by_browse_window(client, app) -> No
         assert hits[0]["customer_name"] == "장성민"
 
 
+def test_completion_api_focus_order_with_q_shows_only_focused_row(client, app) -> None:
+    """q= broad match + focus_order= must not list sibling orders (same customer name)."""
+    with app.app_context():
+        _login(client, "completion_focus_q_user")
+        shared_sd = {
+            "parties": {"customer": {"name": "소마디자인", "phone": "010-3377-5193"}},
+            "site": {"address_full": "Seoul Gangnam"},
+        }
+        first = Order(
+            received_date="2024-01-01",
+            customer_name="소마디자인",
+            phone="010-3377-5193",
+            address="Seoul Gangnam",
+            product="주방",
+            status="AS_COMPLETED",
+            is_erp_order=True,
+            structured_data=shared_sd,
+        )
+        second = Order(
+            received_date="2024-02-01",
+            customer_name="소마디자인",
+            phone="010-3377-5193",
+            address="Gyeonggi Anyang",
+            product="주방",
+            status="AS_COMPLETED",
+            is_erp_order=True,
+            structured_data={
+                **shared_sd,
+                "site": {"address_full": "Gyeonggi Anyang"},
+            },
+        )
+        db_session.add(first)
+        db_session.add(second)
+        db_session.commit()
+        focus_id = first.id
+        sibling_id = second.id
+
+        broad = client.get("/api/orders/completion?q=소마")
+        assert broad.status_code == 200
+        assert len(broad.get_json()["orders"]) == 2
+
+        focused = client.get(f"/api/orders/completion?q=소마&focus_order={focus_id}")
+        assert focused.status_code == 200
+        hits = focused.get_json()["orders"]
+        assert len(hits) == 1
+        assert hits[0]["id"] == focus_id
+        assert sibling_id not in {row["id"] for row in hits}
+
+
 def test_completion_api_focus_order_outside_browse_window(client, app) -> None:
     """focus_order= PK fetch — works even when order id is below browse cutoff."""
     with app.app_context():

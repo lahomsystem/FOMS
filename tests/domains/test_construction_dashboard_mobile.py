@@ -336,3 +336,71 @@ def test_construction_dashboard_search_q_and_focus_outside_browse_window(client,
     assert "소마디자인(가평)" in body
     assert f'data-order-id="{target_id}"' in body or f"#{target_id}" in body
     assert "0 / 전체 0건" not in body
+
+
+def test_construction_dashboard_focus_order_with_q_excludes_sibling_matches(client, monkeypatch):
+    """focus_order deep link must not also show other orders matching q=."""
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    user = _login_plain_admin(client)
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+
+    from datetime import date
+
+    today = date.today().strftime("%Y-%m-%d")
+    focus = Order(
+        received_date="2024-01-01",
+        customer_name="ERP Order",
+        phone="010-3377-5193",
+        address="Gapyeong",
+        product="인테리어",
+        status="CONSTRUCTION",
+        manager_name="Bob",
+        is_erp_order=True,
+        structured_data={
+            "workflow": {"stage": "CONSTRUCTION"},
+            "parties": {"customer": {"name": "소마디자인(가평)", "phone": "010-3377-5193"}},
+            "site": {"address_full": "경기 가평"},
+        },
+    )
+    sibling = Order(
+        received_date="2024-02-01",
+        customer_name="ERP Order",
+        phone="010-3377-5193",
+        address="Anyang",
+        product="인테리어",
+        status="CONSTRUCTION",
+        manager_name="Bob",
+        is_erp_order=True,
+        structured_data={
+            "workflow": {"stage": "CONSTRUCTION"},
+            "parties": {"customer": {"name": "소마디자인", "phone": "010-3377-5193"}},
+            "site": {"address_full": "경기 안양"},
+        },
+    )
+    db_session.add(focus)
+    db_session.add(sibling)
+    db_session.commit()
+    focus_id = focus.id
+    sibling_id = sibling.id
+
+    db_session.add(
+        Order(
+            received_date=today,
+            customer_name="최근 시공",
+            phone="010-0000-0000",
+            address="Seoul",
+            product="붙박이장",
+            status="CONSTRUCTION",
+            manager_name="Bob",
+            is_erp_order=True,
+            structured_data={"workflow": {"stage": "CONSTRUCTION"}},
+        )
+    )
+    db_session.commit()
+
+    resp = client.get(f"/erp/construction/dashboard?q=소마&focus_order={focus_id}")
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
+    assert "소마디자인(가평)" in body
+    assert f'data-order-id="{focus_id}"' in body or f"#{focus_id}" in body
+    assert f'data-order-id="{sibling_id}"' not in body

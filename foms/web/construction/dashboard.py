@@ -117,16 +117,6 @@ def erp_construction_dashboard():
             query = query.filter(stage_col.in_(['"COMPLETED"', '"완료"', '"AS_WAIT"', '"CS"']))
 
     list_query = query
-    if f_q:
-        term = f"%{_compact(f_q)}%"
-        if term.strip("%"):
-            list_query = list_query.filter(erp_order_dashboard_search_predicate(term))
-        list_limit = _CONSTRUCTION_SEARCH_LIMIT
-    else:
-        list_limit = _CONSTRUCTION_BROWSE_LIMIT
-
-    orders = list_query.order_by(Order.created_at.desc()).limit(list_limit).all()
-
     if focus_order_id:
         focus = (
             db.query(Order)
@@ -137,8 +127,16 @@ def erp_construction_dashboard():
             )
             .first()
         )
-        if focus and all(order.id != focus.id for order in orders):
-            orders = [focus, *orders]
+        orders = [focus] if focus else []
+    elif f_q:
+        term = f"%{_compact(f_q)}%"
+        if term.strip("%"):
+            list_query = list_query.filter(erp_order_dashboard_search_predicate(term))
+        list_limit = _CONSTRUCTION_SEARCH_LIMIT
+        orders = list_query.order_by(Order.created_at.desc()).limit(list_limit).all()
+    else:
+        list_limit = _CONSTRUCTION_BROWSE_LIMIT
+        orders = list_query.order_by(Order.created_at.desc()).limit(list_limit).all()
 
     att_counts = {}
     if orders:
