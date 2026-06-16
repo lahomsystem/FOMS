@@ -621,28 +621,68 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
   }
 }
 
-/* Mobile edit: keep attachment preview as a centered dialog, not .erp-pro fullscreen modals */
+/* Mobile attachment preview: use the phone viewport, so zoomed files are not trapped in a small dialog. */
 @media (max-width: 992px) {
   #erpAttachmentPreviewModal .modal-dialog,
-  #fomsAttachmentPreviewModal .modal-dialog,
-  #erpEstimatePreviewModal .modal-dialog {
-    max-width: min(92vw, 36rem);
-    margin: 0.5rem auto;
-    min-height: 0;
+  #fomsAttachmentPreviewModal .modal-dialog {
+    width: 100vw;
+    max-width: 100vw;
+    height: 100dvh;
+    min-height: 100dvh;
+    margin: 0;
   }
 
   #erpAttachmentPreviewModal .modal-content,
-  #fomsAttachmentPreviewModal .modal-content,
-  #erpEstimatePreviewModal .modal-content {
-    min-height: 0;
-    max-height: calc(100dvh - 1rem);
-    border-radius: var(--bs-modal-border-radius, 0.5rem);
+  #fomsAttachmentPreviewModal .modal-content {
+    height: 100dvh;
+    min-height: 100dvh;
+    max-height: 100dvh;
+    border: 0;
+    border-radius: 0;
   }
 
   #erpAttachmentPreviewModal .modal-body,
-  #fomsAttachmentPreviewModal .modal-body,
-  #erpEstimatePreviewModal .modal-body {
-    overflow: auto;
+  #fomsAttachmentPreviewModal .modal-body {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    padding: var(--foms-space-2, 8px);
+    background: #0f172a;
+  }
+
+  #erpAttachmentPreviewModal #erp-attachment-preview-body,
+  #fomsAttachmentPreviewModal #foms-attachment-preview-body {
+    flex: 1 1 auto;
+    align-self: stretch;
+    min-height: 0;
+    color: #e5e7eb;
+  }
+
+  #erpAttachmentPreviewModal .erp-attachment-preview-zoom-stage,
+  #fomsAttachmentPreviewModal .erp-attachment-preview-zoom-stage {
+    flex: 1 1 auto;
+    align-self: stretch;
+    min-height: 0;
+    height: 100%;
+    max-height: calc(100dvh - 8.75rem);
+    border-radius: var(--foms-radius-lg, 12px);
+    background: #111827;
+  }
+
+  #erpAttachmentPreviewModal .erp-attachment-preview-zoom-stage .erp-attachment-preview-img,
+  #fomsAttachmentPreviewModal .erp-attachment-preview-zoom-stage .erp-attachment-preview-img {
+    max-height: calc(100dvh - 8.75rem);
+    max-width: 100%;
+    padding: 0;
+    background: transparent;
+  }
+
+  #erpAttachmentPreviewModal .modal-header,
+  #fomsAttachmentPreviewModal .modal-header,
+  #erpAttachmentPreviewModal .modal-footer,
+  #fomsAttachmentPreviewModal .modal-footer {
+    flex: 0 0 auto;
   }
 }
 
@@ -665,7 +705,8 @@ body.erp-mobile-v2-layout #fomsAttachmentPreviewModal .foms-attachment-preview-a
   min-height: var(--foms-touch-target-min);
 }
 
-.erp-order-mobile-form .erp-attachment-preview-actions .btn {
+body.erp-mobile-v2-layout #erpAttachmentPreviewModal .erp-attachment-preview-actions .btn,
+body.erp-mobile-v2-layout #fomsAttachmentPreviewModal .foms-attachment-preview-actions .btn {
   display: inline-flex;
   flex: 0 0 44px;
   align-items: center;

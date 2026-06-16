@@ -496,8 +496,36 @@ def test_attachment_preview_zoom_scoped_to_modal_not_mobile_form() -> None:
     assert 'id="foms-attachment-preview-body"' in detail_partial
 
 
+def test_mobile_attachment_preview_uses_viewport_sized_modal() -> None:
+    """Mobile attachment previews need the full phone viewport, not a compact frame."""
+    root = Path(__file__).resolve().parents[2]
+    css_text = (root / "static/css/components/foms-form-field.css").read_text(encoding="utf-8")
+    mobile_bundle = (root / "static/css/foundation/foms-mobile-surfaces.css").read_text(
+        encoding="utf-8"
+    )
+    layout_head = (root / "templates/partials/shared/layout_head.html").read_text(
+        encoding="utf-8"
+    )
+
+    assert "Mobile attachment preview: use the phone viewport" in css_text
+    assert "#erpAttachmentPreviewModal .modal-dialog" in css_text
+    assert "#fomsAttachmentPreviewModal .modal-dialog" in css_text
+    assert "width: 100vw;" in css_text
+    assert "height: 100dvh;" in css_text
+    assert "overflow: hidden;" in css_text
+    assert "max-height: calc(100dvh - 8.75rem);" in css_text
+    assert (
+        "body.erp-mobile-v2-layout #fomsAttachmentPreviewModal "
+        ".foms-attachment-preview-actions .btn"
+    ) in css_text
+    assert ".erp-order-mobile-form .erp-attachment-preview-actions .btn" not in css_text
+    assert "max-width: min(92vw, 36rem)" not in css_text
+    assert "../components/foms-form-field.css?v=20260616a" in mobile_bundle
+    assert "foms-mobile-surfaces.css') }}?v=20260616a" in layout_head
+
+
 def test_attachment_preview_image_zoom_supports_in_modal_gestures() -> None:
-    """Attachment preview binds transform zoom (tap, wheel, pinch) inside the compact modal."""
+    """Attachment preview binds transform zoom (tap, wheel, pinch) inside the modal."""
     root = Path(__file__).resolve().parents[2]
     shared_js = (root / "static/js/foms/attachment-preview-zoom.js").read_text(encoding="utf-8")
     erp_js = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
@@ -526,7 +554,7 @@ def test_attachment_preview_image_zoom_supports_in_modal_gestures() -> None:
 
 
 def test_mobile_detail_attach_grid_uses_modal_preview_not_lightbox() -> None:
-    """Mobile order detail attach section opens compact modal preview instead of fullscreen lightbox."""
+    """Mobile order detail attach section opens the shared modal preview, not legacy lightbox."""
     root = Path(__file__).resolve().parents[2]
     partial = (
         root / "templates" / "orders" / "partials" / "order_detail_mobile_v2.html"
