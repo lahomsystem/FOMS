@@ -70,6 +70,13 @@ Web exploration and manual QA still use Cursor browser MCP. Repeatable smoke/QA 
 - **Implement**: 승인 후 구현하고, 완료 전 `.agents/workflows/verify-result.md` 기준으로 검증한다.
 - **원칙**: 세부 절차는 도구별 문서(`CLAUDE.md`, `.cursor/rules/*.mdc`)가 보강할 수 있지만, 이 공통 프로토콜과 모순되면 안 된다.
 
+## 절대 규칙: 성능 회귀 원천 차단
+코드/기능 추가가 서버·페이지를 느리게 만드는 것을 **머지 전에 차단**한다(모든 도구·모델 공통). 상세·사유: `docs/guides/PERFORMANCE_GUARDRAILS.md`. 자동 강제: `tests/performance/test_perf_regression_guard.py`(`scripts/ops/pre_push_smoke.ps1`에 포함, exit 0 아니면 push 금지).
+- **프론트 `<script>`는 기본 `defer`/`type=module`**. 렌더 차단 동기 스크립트·외부 CDN 동기 스크립트 신규 추가 금지(가드 G1/G2). 무거운 라이브러리는 사용 시점 lazy 로드, 공용 partial에 페이지 전용 무거운 JS 금지.
+- **서비스워커 network-first fetch는 timeout+캐시 폴백 필수**(가드 G3). 무한 대기→탭 스피너 금지.
+- **JSONB/text `cast(...).ilike` 인덱스 없이 hot path 금지**(부분일치=trigram, id=`@>`). **N+1 금지**(`in_(ids)` 배치), **매 요청 무거운 계산은 캐시**. 마이그레이션 CONCURRENTLY+다중 replica는 세션 레벨 advisory lock.
+- **검증**: 대시보드/리스트/검색/액션 변경은 서버 TTFB 측정 + `EXPLAIN`로 Seq Scan 없음 확인. "느리다"는 서버 TTFB부터 분리 측정. SW는 실제 Chrome에서 검증.
+
 ## 절대 규칙: 문제 수정 정책
 
 ### 1. 근본 원인 파악 → 근본 수정 (Root Cause Fix Only)
@@ -189,6 +196,16 @@ Web exploration and manual QA still use Cursor browser MCP. Repeatable smoke/QA 
 - **PostgreSQL 15+**, SQLAlchemy 2.0 ORM, Alembic 마이그레이션
 - **마이그레이션**: autogenerate 후 수동 검토 필수, `downgrade()` 포함
 - **JSONB 수정**: 반드시 `copy.deepcopy` + `flag_modified`
+
+## 성능 회귀 원천 차단 (필수, 자동 강제)
+코드/기능 추가가 서버·페이지를 느리게 만드는 것을 **머지 전에 차단**한다. 상세·사유: `docs/guides/PERFORMANCE_GUARDRAILS.md`. 자동 가드: `tests/performance/test_perf_regression_guard.py`(pre_push_smoke 포함, exit 0 아니면 push 금지).
+- **프론트 `<script>`는 기본 `defer`**(또는 `type="module"`). 렌더 차단 동기 스크립트 신규 추가 금지(가드 G1). 코어 라이브러리만 예외(가드 allowlist + 사유).
+- **외부 CDN 동기 `<script>` 신규 금지**(가드 G2). 무거운 라이브러리(html2canvas 등)는 **사용 시점 lazy 로드**(전역 로드 금지). 공용 partial에 페이지 전용 무거운 JS 추가 금지.
+- **서비스워커 network-first fetch는 timeout+캐시 폴백 필수**(가드 G3). 무한 대기→탭 스피너 금지.
+- **JSONB/text `cast(...).ilike('%..%')`는 인덱스 없이 hot path 금지**: 부분일치=trigram(`gin_trgm_ops`), id 멤버십=`@>`. 새 인덱스는 생성 SQL과 byte-match + `EXPLAIN`로 인덱스 사용 확인.
+- **N+1 금지**(리스트는 `in_(ids)` 배치), **매 요청 무거운 계산은 캐시**(Redis micro-cache).
+- **마이그레이션 CONCURRENTLY + 다중 replica**: `env.py`는 세션 레벨 `pg_advisory_lock`(xact 락은 내부 COMMIT에 풀려 레이스→INVALID 인덱스).
+- **검증**: 대시보드/리스트/검색/액션 변경은 머지 전 **서버 TTFB 측정 + `EXPLAIN`로 Seq Scan 없음** 확인. "느리다" 신고는 **서버 TTFB부터** 측정해 서버/프론트/SW 분리. SW 동작은 실제 Chrome에서 확인(헤드리스 미등록).
 
 ## 문제 수정 정책 (절대 규칙)
 
