@@ -31,11 +31,15 @@ def test_p3_01_bottom_nav_htmx_flag_default_off(monkeypatch: pytest.MonkeyPatch)
 
 def test_p3_02_history_search_first_mobile() -> None:
     body = (ROOT / "templates/orders/partials/history_dashboard_body.html").read_text(encoding="utf-8")
-    assert 'id="erp-history-search-q"' in body
-    assert "position: sticky" in body
+    filters = (ROOT / "templates/orders/partials/history_mobile_filters.html").read_text(encoding="utf-8")
+    filter_bar_css = (ROOT / "static/css/components/foms-mobile-filter-bar.css").read_text(encoding="utf-8")
+    assert 'id="erp-history-search-q"' in filters
+    assert "history_mobile_filters.html" in body
+    assert "position: sticky" in filter_bar_css
     assert "js/foms/history-mobile.js" in body
     js = (ROOT / "static/js/foms/history-mobile.js").read_text(encoding="utf-8")
     assert "erp-history-search-q" in js
+    assert "erp-history-mobile-empty" in js
 
 
 def test_p3_03_queue_swipe_action_api(client, app) -> None:
@@ -91,6 +95,6 @@ def test_p3_04_swipe_js_calls_api() -> None:
 
 
 def test_p3_05_history_lightbox_gallery() -> None:
-    body = (ROOT / "templates/orders/partials/history_dashboard_body.html").read_text(encoding="utf-8")
-    assert "data-foms-lightbox-gallery" in body
-    assert "data-foms-lightbox-src" in body
+    detail = (ROOT / "templates/orders/partials/history_detail_content.html").read_text(encoding="utf-8")
+    assert "data-foms-lightbox-gallery" in detail
+    assert "data-foms-lightbox-src" in detail

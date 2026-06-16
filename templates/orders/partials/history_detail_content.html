@@ -39,11 +39,11 @@
           <div class="small fw-semibold text-muted mb-2"><i class="fas fa-image"></i> 첨부 파일 (실측/사진)</div>
           {% set measure_imgs = prod_item.get('measurement_images') or [] %}
           {% if measure_imgs %}
-            <div class="dw-attach-grid">
+            <div class="dw-attach-grid" data-foms-lightbox-gallery>
               {% for photo in measure_imgs %}
               <div>
-                <div class="dw-attach-thumb" data-group-key="history_{{ o.id }}_item_{{ loop.index0 }}" data-index="{{ loop.index0 }}" onclick="if(window.openDrawingGatewayImageViewer) { window.openDrawingGatewayImageViewer(this.dataset.groupKey, Number(this.dataset.index)); } else { window.open('{{ photo.view_url }}', '_blank'); }">
-                  <img data-src="{{ photo.view_url }}" alt="{{ photo.filename }}" class="lazy-detail-img">
+                <div class="dw-attach-thumb" data-group-key="history_{{ o.id }}_item_{{ loop.index0 }}" data-index="{{ loop.index0 }}">
+                  <img data-src="{{ photo.view_url }}" data-foms-lightbox-src="{{ photo.view_url }}" alt="{{ photo.filename }}" class="lazy-detail-img">
                 </div>
               </div>
               {% endfor %}

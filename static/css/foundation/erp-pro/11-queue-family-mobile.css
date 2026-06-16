@@ -34,7 +34,9 @@
   body.erp-mobile-v2-layout .erp-production-mobile-v2 .erp-mobile-queue-filters,
   body.erp-mobile-v2-layout .erp-production-mobile-v2 .erp-mobile-queue-section,
   body.erp-mobile-v2-layout .erp-construction-mobile-v2 .erp-mobile-queue-filters,
-  body.erp-mobile-v2-layout .erp-construction-mobile-v2 .erp-mobile-queue-section {
+  body.erp-mobile-v2-layout .erp-construction-mobile-v2 .erp-mobile-queue-section,
+  body.erp-mobile-v2-layout .erp-history-mobile-v2 .erp-history-mobile-filters,
+  body.erp-mobile-v2-layout .erp-history-mobile-v2 .erp-history-mobile-list {
     padding-left: 0;
     padding-right: 0;
     margin-top: 0;
@@ -1325,8 +1327,205 @@
 
   .foms-queue-card-v2.is-focused,
   .foms-drawing-queue-card.is-focused,
-  .erp-drawing-mobile-card.is-focused {
+  .erp-drawing-mobile-card.is-focused,
+  .erp-history-mobile-card.is-focused {
     transform: translateY(-2px);
     box-shadow: 0 0 0 2px rgba(10, 110, 209, 0.14), 0 14px 30px rgba(10, 110, 209, 0.16);
+  }
+
+  /* History mobile queue cards (P3 / home IA parity) */
+  .erp-history-mobile-v2 .erp-history-mobile-list {
+    display: grid;
+    gap: 0.875rem;
+    min-width: 0;
+  }
+
+  .erp-history-mobile-list__summary {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .erp-history-mobile-list__eyebrow {
+    display: block;
+    margin-bottom: 0.125rem;
+    color: #556b82;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .erp-history-mobile-list__title {
+    margin: 0;
+    color: #131e29;
+    font-size: 1rem;
+    font-weight: 700;
+  }
+
+  .erp-history-mobile-list__count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 32px;
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    background: #ebf8ff;
+    color: #0057d2;
+    font-size: 0.75rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .erp-history-mobile-card {
+    border: 1px solid #dfe7f3;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 2px 12px rgba(17, 24, 39, 0.08);
+    overflow: hidden;
+  }
+
+  .erp-history-mobile-card__toggle {
+    width: 100%;
+    padding: 1rem 1rem 0.75rem;
+    display: grid;
+    gap: 0.875rem;
+    border: 0;
+    background: transparent;
+    text-align: left;
+  }
+
+  .erp-history-mobile-card__topline {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .erp-history-mobile-card__badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 0.125rem 0.625rem;
+    border-radius: 999px;
+    background: #ebf8ff;
+    color: #0057d2;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+
+  .erp-history-mobile-card__chevron {
+    color: #556b82;
+    transition: transform 0.2s ease;
+  }
+
+  .erp-history-mobile-card__toggle[aria-expanded='true'] .erp-history-mobile-card__chevron {
+    transform: rotate(180deg);
+  }
+
+  .erp-history-mobile-card__title-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .erp-history-mobile-card__customer {
+    margin: 0;
+    font-size: 1rem;
+    line-height: 1.35;
+    color: #131e29;
+    font-weight: 700;
+  }
+
+  .erp-history-mobile-card__order-id {
+    color: #556b82;
+    font-size: 0.75rem;
+    white-space: nowrap;
+  }
+
+  .erp-history-mobile-card__meta {
+    display: grid;
+    gap: 0.625rem;
+    margin: 0;
+    padding: 0 1rem 1rem;
+  }
+
+  .erp-history-mobile-card__meta-row {
+    display: grid;
+    grid-template-columns: 52px minmax(0, 1fr);
+    gap: 0.625rem;
+    align-items: start;
+  }
+
+  .erp-history-mobile-card__meta-row dt {
+    margin: 0;
+    color: #556b82;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+
+  .erp-history-mobile-card__meta-row dd {
+    margin: 0;
+    color: #131e29;
+    font-size: 0.875rem;
+    word-break: break-word;
+  }
+
+  .erp-history-mobile-card__actions {
+    padding: 0 1rem 1rem;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.625rem;
+  }
+
+  .erp-history-mobile-card__action {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    padding: 0.625rem 0.875rem;
+    border-radius: 12px;
+    border: 1px solid #d9d9d9;
+    background: #fff;
+    color: #131e29;
+    text-decoration: none;
+    font-size: 0.875rem;
+    font-weight: 700;
+  }
+
+  .erp-history-mobile-card__action.is-primary {
+    border-color: rgba(0, 112, 242, 0.22);
+    background: #f7fbff;
+    color: #0057d2;
+  }
+
+  .erp-history-mobile-card__detail {
+    padding: 0 1rem 1rem;
+  }
+
+  .erp-history-mobile-card__detail-body {
+    padding-top: 0.875rem;
+    border-top: 1px solid #e5e7eb;
+  }
+
+  .erp-history-mobile-card__detail .dw-product-main-card {
+    margin-bottom: 0.875rem;
+  }
+
+  .erp-history-mobile-card__detail .dw-product-split {
+    grid-template-columns: 1fr;
+    gap: 0.875rem;
+  }
+
+  .erp-history-mobile-card__detail .dw-attach-grid {
+    grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  }
+
+  .erp-history-mobile-empty .erp-pro-empty__icon {
+    font-size: 2rem;
+    opacity: 0.35;
   }
 }

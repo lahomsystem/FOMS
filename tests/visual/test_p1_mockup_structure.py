@@ -736,13 +736,14 @@ def test_p1_history_mobile_v2_home_ia_parity() -> None:
     )
     for selector in (
         "foms-shell-body",
-        "chip-strip",
-        "foms-chip-strip",
+        "history_mobile_filters.html",
         "foms-mobile-queue-list",
-        "foms-section-header",
         "foms-shell-fab",
     ):
         assert selector in body, selector
+    filters = (ROOT / "templates/orders/partials/history_mobile_filters.html").read_text(encoding="utf-8")
+    for selector in ("chip-strip", "foms-chip-strip"):
+        assert selector in filters, selector
 
 
 def test_p1_history_dashboard_renders_home_ia(
@@ -778,10 +779,10 @@ def test_p1_history_dashboard_renders_home_ia(
     assert 'class="erp-mobile-v2-layout"' in html
     for selector in (
         "foms-shell-body",
+        "erp-history-mobile-filters",
         "chip-strip",
         "foms-chip-strip",
         "foms-mobile-queue-list",
-        "foms-section-header",
         "foms-shell-fab",
     ):
         assert selector in html, selector
@@ -815,6 +816,7 @@ def test_p1_mobile_v2_only_surfaces_hidden_on_desktop() -> None:
         "templates/measurement/partials/dashboard_main.html",
         "templates/production/partials/dashboard_body.html",
         "templates/construction/partials/dashboard_body.html",
+        "templates/orders/partials/history_dashboard_body.html",
     ):
         body = (ROOT / rel).read_text(encoding="utf-8")
         assert "erp_mobile_v2_tab_notice.html" not in body, rel
