@@ -317,7 +317,8 @@ def erp_as_dashboard():
             base_query = base_query.filter(or_(*conds))
 
     compact_q = _compact_search_text(search_q)
-    if compact_q and request.args.get('focus_order') is None and _is_sales_delivery_search(compact_q):
+    focus_order_id = request.args.get('focus_order', type=int)
+    if compact_q and focus_order_id is None and _is_sales_delivery_search(compact_q):
         return redirect(url_for(
             'erp_as_page.erp_as_dashboard',
             tab='sales_delivery',
@@ -326,7 +327,7 @@ def erp_as_dashboard():
             sort_dir=(request.args.get('sort_dir') or 'desc').strip().lower(),
             mine='1' if request.args.get('mine') == '1' else '',
         ))
-    if compact_q and request.args.get('focus_order') is None:
+    if compact_q and focus_order_id is None:
         # 이름 검색 단건은 "정확한 고객명 일치 1건"이면서 "전체 검색 결과도 1건"일 때만 자동 이동
         filtered_preview_rows = _erp_order_search_filter(
             base_query,
@@ -354,12 +355,30 @@ def erp_as_dashboard():
                 focus_order=only_order.id,
             ))
 
-    filtered_base_query = _erp_order_search_filter(
-        base_query,
-        search_q,
-        dialect_name=dialect_name,
-        use_postgres_regex=use_postgres,
-    )
+    if focus_order_id:
+        focus_row = base_query.filter(Order.id == focus_order_id).first()
+        if focus_row:
+            target_tab = _erp_as_tab_for_order(focus_row)
+            if tab != target_tab:
+                return redirect(url_for(
+                    'erp_as_page.erp_as_dashboard',
+                    tab=target_tab,
+                    status=status_filter,
+                    q=search_q,
+                    sort_dir=(request.args.get('sort_dir') or 'desc').strip().lower(),
+                    mine='1' if request.args.get('mine') == '1' else '',
+                    focus_order=focus_order_id,
+                ))
+        filtered_base_query = base_query.filter(Order.id == focus_order_id)
+    elif compact_q:
+        filtered_base_query = _erp_order_search_filter(
+            base_query,
+            search_q,
+            dialect_name=dialect_name,
+            use_postgres_regex=use_postgres,
+        )
+    else:
+        filtered_base_query = base_query
 
     incomplete_non_sales_condition = and_(
         _erp_as_incomplete_condition(),
@@ -412,7 +431,6 @@ def erp_as_dashboard():
     if sort_dir != 'asc':
         sort_dir = 'desc'
     order_col = Order.as_received_date
-    focus_order_id = request.args.get('focus_order', type=int)
     total_orders = int(as_tab_counts.get(tab, 0))
     if as_bucket:
         # 버킷 필터 시 헤더 건수·페이지 수도 좁혀진 결과 기준으로

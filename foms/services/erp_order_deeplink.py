@@ -42,6 +42,19 @@ def resolve_order_stage_code(order: Order) -> str:
     return STAGE_NAME_TO_CODE.get(stage_raw, stage_raw) or "RECEIVED"
 
 
+def load_focus_order_only(base_query, focus_order_id: int | None) -> list[Order]:
+    """
+    Search deep-link SSOT: ``focus_order`` → exactly one queue row (or empty).
+
+    When both ``q`` and ``focus_order`` appear on a landing URL, ``q`` is for the
+    search bar only; it must not widen the list to all name/phone matches.
+    """
+    if not focus_order_id:
+        return []
+    row = base_query.filter(Order.id == focus_order_id).first()
+    return [row] if row else []
+
+
 def build_order_queue_focus_href(
     order: Order,
     *,
@@ -81,5 +94,6 @@ def build_order_queue_focus_href(
 __all__ = [
     "STAGE_DASHBOARD_URL",
     "resolve_order_stage_code",
+    "load_focus_order_only",
     "build_order_queue_focus_href",
 ]

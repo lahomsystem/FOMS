@@ -14,6 +14,7 @@ from foms.web.auth import get_user_by_id, login_required
 from db import get_db
 from foms.api.files import build_file_download_url, build_file_view_url
 from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
+from foms.services.erp_order_deeplink import load_focus_order_only
 from foms.services.erp_display import _ensure_dict
 from foms.services.erp_policy import ORDER_SETTLEMENT_ALERT_TARGET_STATUSES
 from foms.services.foms_unified_search import (
@@ -89,9 +90,12 @@ def _load_completion_orders(db, *, search_q: str = "", focus_order_id: int | Non
 
     Browse (no ``q``): latest ``_COMPLETION_BROWSE_LIMIT`` — 성능·리뷰 큐용.
     Search (``q``): SQL/Python 필터로 **전체 completion 풀**에서 매칭 (최신 N 창 아님).
-    ``focus_order``: PK 단건 조회 후 리스트 선두에 강제 포함 (창·limit 밖 주문도 표시).
+    ``focus_order``: 검색 카드 클릭 — PK 단건만 반환 (``q``는 검색창 표시용, 목록 확장 금지).
     """
     base = _completion_base_query(db)
+    if focus_order_id:
+        return load_focus_order_only(base, focus_order_id)
+
     trimmed_q = (search_q or "").strip()
     orders: list[Order]
 
@@ -123,11 +127,6 @@ def _load_completion_orders(db, *, search_q: str = "", focus_order_id: int | Non
             .limit(_COMPLETION_BROWSE_LIMIT)
             .all()
         )
-
-    if focus_order_id:
-        focus = base.filter(Order.id == focus_order_id).first()
-        if focus:
-            orders = [focus, *[order for order in orders if order.id != focus.id]]
 
     return orders
 
