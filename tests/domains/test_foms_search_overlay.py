@@ -186,3 +186,81 @@ def test_search_fragment_route(client, app) -> None:
         encoding="utf-8"
     )
     assert "data-foms-erp-no-shell" in partial
+
+
+def test_unified_search_history_fallback_finds_non_erp_order(app) -> None:
+    """ERP pass skips non-ERP rows; history pass finds them (PC history parity)."""
+    from db import db_session
+    from foms.services.foms_unified_search import search_unified
+    from models import Order
+
+    with app.app_context():
+        order = Order(
+            received_date="2024-01-01",
+            customer_name="장성민",
+            phone="010-4781-6447",
+            address="Seoul",
+            product="주방",
+            status="COMPLETED",
+            is_erp_order=False,
+        )
+        db_session.add(order)
+        db_session.commit()
+
+        hits = search_unified(db_session, "장성민")
+        assert hits["customer"]
+        assert hits["customer"][0]["order_id"] == order.id
+        assert hits["customer"][0]["href"].startswith(f"/edit/{order.id}")
+
+
+def test_search_fragment_shows_history_fallback_link(client, app) -> None:
+    from db import db_session
+    from models import User
+    from werkzeug.security import generate_password_hash
+
+    with app.app_context():
+        user = User(
+            username="search_hist_user",
+            password=generate_password_hash("admin"),
+            role="ADMIN",
+            team="CS",
+            name="Hist User",
+        )
+        db_session.add(user)
+        db_session.commit()
+
+    client.post(
+        "/login",
+        data={"username": "search_hist_user", "password": "admin"},
+        follow_redirects=True,
+    )
+    response = client.get("/api/foms/search/fragment?q=missing-customer-xyz&group=all")
+    body = response.get_data(as_text=True)
+    assert "과거 이력에서 검색" in body
+    assert "from_search=1" in body
+
+
+def test_history_from_search_banner(client, app) -> None:
+    from db import db_session
+    from models import User
+    from werkzeug.security import generate_password_hash
+
+    with app.app_context():
+        user = User(
+            username="history_from_search_user",
+            password=generate_password_hash("admin"),
+            role="ADMIN",
+            team="CS",
+            name="Banner User",
+        )
+        db_session.add(user)
+        db_session.commit()
+
+    client.post(
+        "/login",
+        data={"username": "history_from_search_user", "password": "admin"},
+        follow_redirects=True,
+    )
+    response = client.get("/erp/history/?q=test&from_search=1")
+    body = response.get_data(as_text=True)
+    assert "통합 검색에서 운영 큐 결과가 없어" in body

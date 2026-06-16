@@ -13,13 +13,29 @@ from sqlalchemy.orm.attributes import flag_modified
 from foms.web.auth import get_user_by_id, login_required
 from db import get_db
 from foms.api.files import build_file_download_url, build_file_view_url
+from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
 from foms.services.erp_display import _ensure_dict
 from foms.services.erp_policy import ORDER_SETTLEMENT_ALERT_TARGET_STATUSES
+from foms.services.foms_unified_search import (
+    _compact,
+    _matches_phone,
+    _order_customer_name,
+    _order_phone,
+    is_chosung_query,
+    matches_query,
+)
+from foms.services.request_utils import get_search_query_arg
 from models import Order, OrderAttachment, OrderEvent, SecurityLog, User
 
 # 완료 대시보드 대상: 시공 완료·AS 접수 등 (정책 상수는 `foms.services.erp_policy` SSOT)
 TARGET_STATUSES = ORDER_SETTLEMENT_ALERT_TARGET_STATUSES
 CONSTRUCTION_CATEGORY = "construction"
+# 무검색 브라우즈: 최근 N건만 (성능·리뷰 큐 UX)
+_COMPLETION_BROWSE_LIMIT = 200
+# 검색(q) 결과 상한 — SQL 필터 후 cap (창 밖 누락 없음, 동명 다수만 제한)
+_COMPLETION_SEARCH_LIMIT = 500
+# 초성 검색: Python 스캔 상한 (completion 전체가 이보다 크면 별도 인덱스 필요)
+_COMPLETION_CHOSUNG_SCAN_LIMIT = 2000
 
 # 비용 청구 귀속 대상 (계획서 3.1)
 SETTLEMENT_DEPARTMENTS = ("SALES", "DRAWING", "PRODUCTION", "CONSTRUCTION", "CUSTOMER")
@@ -43,88 +59,159 @@ def _att_download_url(storage_key):
     return build_file_download_url(storage_key)
 
 
+def _completion_base_query(db):
+    """Active ERP completion-queue orders (COMPLETED / AS_*)."""
+    return (
+        db.query(Order)
+        .filter(
+            Order.active_filter(),
+            Order.is_erp_order.is_(True),
+            Order.status.in_(TARGET_STATUSES),
+        )
+    )
+
+
+def _completion_order_matches_query(order: Order, query: str) -> bool:
+    """Python-side match for chosung and post-filter parity with unified search."""
+    if matches_query(_order_customer_name(order), query):
+        return True
+    if _matches_phone(_order_phone(order), order.erp_phone_digits, query):
+        return True
+    for field in (str(order.id), order.product, order.address, order.manager_name):
+        if matches_query(field, query):
+            return True
+    return False
+
+
+def _load_completion_orders(db, *, search_q: str = "", focus_order_id: int | None = None) -> list[Order]:
+    """
+    Load completion dashboard rows.
+
+    Browse (no ``q``): latest ``_COMPLETION_BROWSE_LIMIT`` — 성능·리뷰 큐용.
+    Search (``q``): SQL/Python 필터로 **전체 completion 풀**에서 매칭 (최신 N 창 아님).
+    ``focus_order``: PK 단건 조회 후 리스트 선두에 강제 포함 (창·limit 밖 주문도 표시).
+    """
+    base = _completion_base_query(db)
+    trimmed_q = (search_q or "").strip()
+    orders: list[Order]
+
+    if trimmed_q:
+        if is_chosung_query(trimmed_q):
+            candidates = (
+                base.order_by(Order.id.desc())
+                .limit(_COMPLETION_CHOSUNG_SCAN_LIMIT)
+                .all()
+            )
+            orders = [
+                order for order in candidates
+                if _completion_order_matches_query(order, trimmed_q)
+            ][: _COMPLETION_SEARCH_LIMIT]
+        else:
+            term = f"%{_compact(trimmed_q)}%"
+            if term.strip("%"):
+                orders = (
+                    base.filter(erp_order_dashboard_search_predicate(term))
+                    .order_by(Order.id.desc())
+                    .limit(_COMPLETION_SEARCH_LIMIT)
+                    .all()
+                )
+            else:
+                orders = []
+    else:
+        orders = (
+            base.order_by(Order.id.desc())
+            .limit(_COMPLETION_BROWSE_LIMIT)
+            .all()
+        )
+
+    if focus_order_id:
+        focus = base.filter(Order.id == focus_order_id).first()
+        if focus:
+            orders = [focus, *[order for order in orders if order.id != focus.id]]
+
+    return orders
+
+
+def _serialize_completion_orders(db, orders: list[Order]) -> list[dict]:
+    """Build JSON payload rows for completion dashboard cards."""
+    order_ids = [o.id for o in orders]
+    if not order_ids:
+        return []
+
+    atts = (
+        db.query(OrderAttachment)
+        .filter(
+            OrderAttachment.order_id.in_(order_ids),
+            OrderAttachment.category == CONSTRUCTION_CATEGORY,
+        )
+        .order_by(OrderAttachment.order_id, OrderAttachment.created_at.asc())
+        .all()
+    )
+    atts_by_order: dict[int, list] = {}
+    for attachment in atts:
+        atts_by_order.setdefault(attachment.order_id, []).append(attachment)
+
+    result = []
+    for order in orders:
+        sd = _ensure_dict(order.structured_data)
+        schedule = sd.get("schedule") or {}
+        construction_date = (schedule.get("construction") or {}).get("date")
+        parties = sd.get("parties") or {}
+        customer_name = (parties.get("customer") or {}).get("name") or getattr(order, "customer_name", None) or "-"
+        manager_name = (parties.get("manager") or {}).get("name") or getattr(order, "manager_name", None) or "-"
+        items = sd.get("items") or []
+        product_summary = ", ".join(
+            str((item.get("product_name") or "").strip() or "")
+            for item in items if isinstance(item, dict) and (item.get("product_name") or "").strip()
+        )[:80] or "-"
+
+        shipment = sd.get("shipment") or {}
+        as_content = shipment.get("as_content") or ""
+        fail_history = sd.get("construction_fail_history") or []
+        completion_note = (sd.get("workflow") or {}).get("completion_note") or ""
+
+        construction_photos = []
+        for attachment in atts_by_order.get(order.id, []):
+            construction_photos.append({
+                "id": attachment.id,
+                "filename": attachment.filename,
+                "file_type": attachment.file_type or "image",
+                "storage_key": attachment.storage_key,
+                "view_url": _att_view_url(attachment.storage_key),
+                "download_url": _att_download_url(attachment.storage_key),
+                "created_at": attachment.created_at.strftime("%Y-%m-%d %H:%M") if attachment.created_at else None,
+            })
+
+        result.append({
+            "id": order.id,
+            "status": order.status,
+            "is_self_measurement": getattr(order, "is_self_measurement", False),
+            "construction_date": construction_date,
+            "customer_name": customer_name,
+            "manager_name": manager_name,
+            "product_summary": product_summary,
+            "as_content": as_content,
+            "construction_fail_history": fail_history,
+            "completion_note": completion_note,
+            "construction_photos": construction_photos,
+        })
+    return result
+
+
 @erp_orders_completion_bp.route("/completion", methods=["GET"])
 @login_required
 def api_orders_completion():
     """완료·AS 건 목록 + 시공 사진 썸네일·URL + 시공자 코멘트(as_content, construction_fail_history 등)."""
     try:
         db = get_db()
-        orders = (
-            db.query(Order)
-            .filter(
-                Order.active_filter(),
-                Order.is_erp_order.is_(True),
-                Order.status.in_(TARGET_STATUSES),
-            )
-            .order_by(Order.id.desc())
-            .limit(200)
-            .all()
+        search_q = get_search_query_arg("q", "search")
+        focus_order_id = request.args.get("focus_order", type=int)
+        orders = _load_completion_orders(
+            db,
+            search_q=search_q,
+            focus_order_id=focus_order_id,
         )
-
-        order_ids = [o.id for o in orders]
-        if not order_ids:
-            return jsonify({"success": True, "orders": []})
-
-        # N+1 방지: order_id별 construction 첨부 한 번에 조회
-        atts = (
-            db.query(OrderAttachment)
-            .filter(
-                OrderAttachment.order_id.in_(order_ids),
-                OrderAttachment.category == CONSTRUCTION_CATEGORY,
-            )
-            .order_by(OrderAttachment.order_id, OrderAttachment.created_at.asc())
-            .all()
-        )
-        atts_by_order = {}
-        for a in atts:
-            atts_by_order.setdefault(a.order_id, []).append(a)
-
-        result = []
-        for o in orders:
-            sd = _ensure_dict(o.structured_data)
-            schedule = sd.get("schedule") or {}
-            construction_date = (schedule.get("construction") or {}).get("date")
-            parties = sd.get("parties") or {}
-            customer_name = (parties.get("customer") or {}).get("name") or getattr(o, "customer_name", None) or "-"
-            manager_name = (parties.get("manager") or {}).get("name") or getattr(o, "manager_name", None) or "-"
-            items = sd.get("items") or []
-            product_summary = ", ".join(
-                str((it.get("product_name") or "").strip() or "")
-                for it in items if isinstance(it, dict) and (it.get("product_name") or "").strip()
-            )[:80] or "-"
-
-            # 시공자 코멘트: AS 접수 사유, 시공 불가 이력, 완료 메모 등
-            shipment = sd.get("shipment") or {}
-            as_content = shipment.get("as_content") or ""
-            fail_history = sd.get("construction_fail_history") or []
-            completion_note = (sd.get("workflow") or {}).get("completion_note") or ""
-
-            construction_photos = []
-            for a in atts_by_order.get(o.id, []):
-                construction_photos.append({
-                    "id": a.id,
-                    "filename": a.filename,
-                    "file_type": a.file_type or "image",
-                    "storage_key": a.storage_key,
-                    "view_url": _att_view_url(a.storage_key),
-                    "download_url": _att_download_url(a.storage_key),
-                    "created_at": a.created_at.strftime("%Y-%m-%d %H:%M") if a.created_at else None,
-                })
-
-            result.append({
-                "id": o.id,
-                "status": o.status,
-                "is_self_measurement": getattr(o, "is_self_measurement", False),
-                "construction_date": construction_date,
-                "customer_name": customer_name,
-                "manager_name": manager_name,
-                "product_summary": product_summary,
-                "as_content": as_content,
-                "construction_fail_history": fail_history,
-                "completion_note": completion_note,
-                "construction_photos": construction_photos,
-            })
-
+        result = _serialize_completion_orders(db, orders)
         return jsonify({"success": True, "orders": result})
     except Exception as e:
         import traceback
