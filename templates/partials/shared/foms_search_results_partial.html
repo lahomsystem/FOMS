@@ -5,11 +5,11 @@
       <a class="foms-search-overlay__link" href="{{ item.href }}" data-search-result data-foms-erp-no-shell="1">
         <span class="foms-search-overlay__link-title">{{ item.title }}</span>
         {% if item.order_id and item.stage_label %}
-          <span class="foms-search-overlay__link-sub">#{{ item.order_id }} · {{ item.stage_label }}{% if item.phone %} · {{ item.phone }}{% endif %}</span>
+          <span class="foms-search-overlay__link-sub">#{{ item.order_id }} · {{ item.stage_label }}{% if item.schedule_summary %} · {{ item.schedule_summary }}{% endif %}{% if item.phone %} · {{ item.phone }}{% endif %}</span>
         {% elif item.phone %}
           <span class="foms-search-overlay__link-sub">{{ item.phone }}</span>
         {% elif item.subtitle and not item.address %}
-          <span class="foms-search-overlay__link-sub">{{ item.subtitle }}</span>
+          <span class="foms-search-overlay__link-sub">{{ item.subtitle }}{% if item.schedule_summary %} · {{ item.schedule_summary }}{% endif %}</span>
         {% endif %}
         {% if item.address %}
           <span class="foms-search-overlay__link-meta">{{ item.address }}</span>

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from foms.services.erp_mobile_order_display import resolve_queue_card_schedule
+
 
 def build_split_master_cards(orders: list[dict[str, Any]], *, active_order_id: int | None = None) -> list[dict[str, Any]]:
     """Build master pane card descriptors from dashboard order rows."""
@@ -13,14 +15,14 @@ def build_split_master_cards(orders: list[dict[str, Any]], *, active_order_id: i
         if not oid:
             continue
         stage = str(row.get("stage_badge_label") or row.get("stage") or "")
-        schedule_label = ""
-        schedule_value = ""
-        if row.get("measurement_date"):
-            schedule_label = "실측"
-            schedule_value = str(row.get("measurement_date") or "")
-        elif row.get("construction_date"):
-            schedule_label = "시공"
-            schedule_value = str(row.get("construction_date") or "")
+        schedule = resolve_queue_card_schedule(
+            stage=row.get("stage"),
+            stage_code=row.get("stage_code"),
+            measurement_date=row.get("measurement_date"),
+            construction_date=row.get("construction_date"),
+        )
+        schedule_label = str(schedule.get("label") or "")
+        schedule_value = str(schedule.get("value") or "")
         cards.append(
             {
                 "order_id": oid,

@@ -9,8 +9,12 @@ from sqlalchemy import String, cast, or_
 from sqlalchemy.orm import Session
 
 from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
-from foms.services.erp_display import _ensure_dict, _normalize_for_search
+from foms.services.erp_display import _ensure_dict, _erp_get_stage, _normalize_for_search
 from foms.services.erp_order_deeplink import build_order_queue_focus_href, resolve_order_stage_code
+from foms.services.erp_mobile_order_display import (
+    format_queue_card_schedule_summary,
+    resolve_queue_card_schedule,
+)
 from foms.services.erp_policy import STAGE_LABELS
 from foms.services.phone_search import extract_phone_digit_query, normalize_phone_digits
 from models import Order
@@ -230,6 +234,28 @@ def _order_stage_label(order: Order) -> str:
     return STAGE_LABELS.get(code, code) or "-"
 
 
+def _order_schedule_dates(order: Order) -> tuple[str | None, str | None]:
+    """Measurement/construction dates from structured_data schedule."""
+    sd = _ensure_dict(order.structured_data)
+    schedule = sd.get("schedule") if isinstance(sd.get("schedule"), dict) else {}
+    measurement = schedule.get("measurement") if isinstance(schedule.get("measurement"), dict) else {}
+    construction = schedule.get("construction") if isinstance(schedule.get("construction"), dict) else {}
+    return measurement.get("date"), construction.get("date")
+
+
+def _order_schedule_summary(order: Order) -> str:
+    """Compact schedule line for search overlay disambiguation."""
+    sd = _ensure_dict(order.structured_data)
+    meas, cons = _order_schedule_dates(order)
+    schedule = resolve_queue_card_schedule(
+        stage=_erp_get_stage(order, sd),
+        stage_code=resolve_order_stage_code(order),
+        measurement_date=meas,
+        construction_date=cons,
+    )
+    return format_queue_card_schedule_summary(schedule)
+
+
 def _order_search_href(order: Order, search_query: str) -> str:
     """Deep link: ERP queue focus when possible, otherwise order edit."""
     if getattr(order, "is_erp_order", False):
@@ -251,6 +277,7 @@ def _append_order_hits(
     address = _order_address(order)
     stage_label = _order_stage_label(order)
     contact_subtitle = _format_contact_subtitle(phone, address)
+    schedule_summary = _order_schedule_summary(order)
     href = _order_search_href(order, trimmed)
     base = {
         "order_id": order.id,
@@ -258,6 +285,7 @@ def _append_order_hits(
         "phone": phone,
         "address": address,
         "stage_label": stage_label,
+        "schedule_summary": schedule_summary,
         "subtitle": contact_subtitle or (order.product or ""),
     }
     if "customer" in matched and len(buckets["customer"]) < limit_per_group:

@@ -16,15 +16,9 @@
     {% set _ = primary_alerts.append({'label': '생산 임박', 'class': 'foms-badge--alert'}) %}
   {% endif %}
 
-  {% set schedule_label = None %}
-  {% set schedule_value = None %}
-  {% if order.measurement_date %}
-    {% set schedule_label = '실측' %}
-    {% set schedule_value = order.measurement_date %}
-  {% elif order.construction_date %}
-    {% set schedule_label = '시공' %}
-    {% set schedule_value = order.construction_date %}
-  {% endif %}
+  {% set schedule = order | queue_card_schedule %}
+  {% set schedule_label = schedule.label %}
+  {% set schedule_value = schedule.value %}
 
   {% set safe_phone = (order.phone or '')|replace('-', '')|replace(' ', '') %}
   {% set has_phone = safe_phone and safe_phone != '-' %}

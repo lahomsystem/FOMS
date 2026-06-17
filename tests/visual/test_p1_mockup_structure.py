@@ -508,6 +508,7 @@ def test_queue_card_v2_supports_pc_workflow_action_parity() -> None:
     )
 
     assert "task_actions=None" in card
+    assert "queue_card_schedule" in card
     assert "action_list" in card
     assert "for action in action_list" in card
     assert "open='erp-order'" in card

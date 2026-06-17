@@ -2,6 +2,8 @@
 
 import re
 
+from foms.services.erp_mobile_order_display import resolve_queue_card_schedule
+
 __all__ = [
     "split_count_filter",
     "split_list_filter",
@@ -13,6 +15,7 @@ __all__ = [
     "item_spec_w300_value",
     "schedule_datetime_display",
     "payment_confirmed_bool",
+    "queue_card_schedule_filter",
     "register_erp_template_filters",
 ]
 
@@ -178,6 +181,23 @@ def payment_confirmed_bool(val) -> bool:
     return False
 
 
+def queue_card_schedule_filter(order) -> dict[str, str | None]:
+    """Jinja filter: mobile v2 queue card schedule label/value (SSOT)."""
+    if isinstance(order, dict):
+        return resolve_queue_card_schedule(
+            stage=order.get("stage"),
+            stage_code=order.get("stage_code"),
+            measurement_date=order.get("measurement_date"),
+            construction_date=order.get("construction_date"),
+        )
+    return resolve_queue_card_schedule(
+        stage=getattr(order, "stage", None),
+        stage_code=getattr(order, "stage_code", None),
+        measurement_date=getattr(order, "measurement_date", None),
+        construction_date=getattr(order, "construction_date", None),
+    )
+
+
 def register_erp_template_filters(bp):
     """Blueprint에 ERP 템플릿 필터 등록 (Blueprint.add_app_template_filter 사용)"""
     bp.add_app_template_filter(payment_confirmed_bool, 'payment_confirmed_bool')
@@ -188,3 +208,4 @@ def register_erp_template_filters(bp):
     bp.add_app_template_filter(format_phone_filter, 'format_phone')
     bp.add_app_template_filter(item_spec_w300_display, 'item_spec_w300')
     bp.add_app_template_filter(schedule_datetime_display, 'schedule_datetime_display')
+    bp.add_app_template_filter(queue_card_schedule_filter, 'queue_card_schedule')

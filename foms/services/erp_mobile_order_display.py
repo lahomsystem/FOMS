@@ -28,6 +28,8 @@ from foms.services.order_event_display import (
 __all__ = [
     "stage_badge_modifier",
     "stage_badge_label",
+    "resolve_queue_card_schedule",
+    "format_queue_card_schedule_summary",
     "product_subtitle_from_sd",
     "build_mobile_queue_order_row",
     "resolve_manager_phone_for_queue",
@@ -38,6 +40,13 @@ __all__ = [
     "mobile_product_items",
     "mobile_amount_summary",
 ]
+
+_MEASUREMENT_PRIORITY_STAGE_CODES = frozenset(
+    {"RECEIVED", "HAPPYCALL", "MEASURE", "DRAWING", "CONFIRM"}
+)
+_CONSTRUCTION_PRIORITY_STAGE_CODES = frozenset(
+    {"PRODUCTION", "CONSTRUCTION", "CONSTRUCTING", "SHIPMENT"}
+)
 
 _MOBILE_ATTACHMENT_CATEGORY_ORDER: tuple[tuple[str, str], ...] = (
     ("measurement", "실측"),
@@ -368,6 +377,93 @@ def stage_badge_label(stage: str | None) -> str:
         "COMPLETED": "완료",
     }
     return short.get(code, STAGE_LABELS.get(code, stage))
+
+
+def _normalize_queue_stage_code(stage: str | None, stage_code: str | None) -> str:
+    """
+    Resolve canonical workflow code for queue-card schedule priority.
+
+    Supports ERP codes, Korean stage labels, and sub-stages (시공대기, 제작중).
+    Display sub-stage prefixes win over canonical ``stage_code`` so production/
+    construction queue cards and search summaries stay aligned.
+    """
+    raw_stage = str(stage or "").strip()
+    if raw_stage.startswith("시공"):
+        return "CONSTRUCTION"
+    if raw_stage.startswith("제작"):
+        return "PRODUCTION"
+    if raw_stage.startswith("출고"):
+        return "SHIPMENT"
+
+    raw_code = str(stage_code or "").strip()
+    if raw_code and raw_code.upper() not in {"", "ERPORDER", "ERPBETA"}:
+        return raw_code.upper()
+
+    if not raw_stage:
+        return ""
+
+    mapped = STAGE_NAME_TO_CODE.get(raw_stage)
+    if mapped:
+        return mapped
+
+    upper_stage = raw_stage.upper()
+    if upper_stage in STAGE_LABELS:
+        return upper_stage
+
+    return upper_stage
+
+
+def _normalize_schedule_date(value: str | None) -> str | None:
+    """Return trimmed schedule text or None when empty/placeholder."""
+    text = str(value or "").strip()
+    if not text or text in {"-", "상담"}:
+        return None
+    return text
+
+
+def resolve_queue_card_schedule(
+    *,
+    stage: str | None = None,
+    stage_code: str | None = None,
+    measurement_date: str | None = None,
+    construction_date: str | None = None,
+) -> dict[str, str | None]:
+    """
+    Pick one schedule row for mobile v2 queue cards (SSOT).
+
+    Production/construction stages prefer 시공일; measure/confirm prefer 실측일.
+    Falls back to whichever date exists. Matches legacy v1 card intent with
+    Korean sub-stage labels (시공대기, 제작대기).
+    """
+    code = _normalize_queue_stage_code(stage, stage_code)
+    meas = _normalize_schedule_date(measurement_date)
+    cons = _normalize_schedule_date(construction_date)
+
+    if code in _CONSTRUCTION_PRIORITY_STAGE_CODES:
+        if cons:
+            return {"label": "시공", "value": cons}
+        if meas:
+            return {"label": "실측", "value": meas}
+    if code in _MEASUREMENT_PRIORITY_STAGE_CODES:
+        if meas:
+            return {"label": "실측", "value": meas}
+        if cons:
+            return {"label": "시공", "value": cons}
+
+    if meas:
+        return {"label": "실측", "value": meas}
+    if cons:
+        return {"label": "시공", "value": cons}
+    return {"label": None, "value": None}
+
+
+def format_queue_card_schedule_summary(schedule: dict[str, str | None]) -> str:
+    """Compact ``실측 2026-06-16`` string for search overlay subtitles."""
+    label = schedule.get("label")
+    value = schedule.get("value")
+    if label and value:
+        return f"{label} {value}"
+    return ""
 
 
 def product_subtitle_from_sd(sd: dict) -> str | None:

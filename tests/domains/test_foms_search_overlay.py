@@ -196,6 +196,7 @@ def test_search_fragment_route(client, app) -> None:
     assert "foms-search-overlay__link-meta" in partial
     assert "item.stage_label" in partial
     assert "item.order_id" in partial
+    assert "item.schedule_summary" in partial
 
 
 def test_unified_search_customer_hit_includes_phone_and_address(app) -> None:
@@ -232,6 +233,40 @@ def test_unified_search_customer_hit_includes_phone_and_address(app) -> None:
         assert hit["order_id"] == order.id
         assert "010-3377-5193" in hit["subtitle"]
         assert "경기 가평군 청평면" in hit["subtitle"]
+
+
+def test_unified_search_includes_construction_schedule_summary(app) -> None:
+    """CONSTRUCTION stage hit exposes 시공일 in schedule_summary for overlay."""
+    from db import db_session
+    from foms.services.foms_unified_search import search_unified
+    from models import Order
+
+    with app.app_context():
+        order = Order(
+            received_date="2026-06-01",
+            customer_name="신현순",
+            phone="010-2566-2973",
+            address="Incheon",
+            product="붙박이",
+            status="CONSTRUCTION",
+            erp_stage_code="CONSTRUCTION",
+            is_erp_order=True,
+            structured_data={
+                "parties": {"customer": {"name": "신현순", "phone": "010-2566-2973"}},
+                "workflow": {"stage": "CONSTRUCTION"},
+                "schedule": {
+                    "measurement": {"date": "2026-06-16"},
+                    "construction": {"date": "2026-06-20"},
+                },
+            },
+        )
+        db_session.add(order)
+        db_session.commit()
+
+        hits = search_unified(db_session, "신현")
+        assert hits["customer"]
+        hit = hits["customer"][0]
+        assert hit["schedule_summary"] == "시공 2026-06-20"
 
 
 def test_unified_search_duplicate_customer_hits_show_stage_and_order_id(app) -> None:

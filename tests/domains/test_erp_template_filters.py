@@ -8,6 +8,7 @@ from foms.services.erp_template_filters import (
     item_spec_w300_display,
     item_spec_w300_value,
     payment_confirmed_bool,
+    queue_card_schedule_filter,
     register_erp_template_filters,
     schedule_datetime_display,
     spec_w300_filter,
@@ -102,9 +103,17 @@ def test_register_erp_template_filters_registers_expected_jinja_filters() -> Non
         "item_spec_w300",
         "schedule_datetime_display",
         "payment_confirmed_bool",
+        "queue_card_schedule",
     ]:
         assert filter_name in app.jinja_env.filters
 
     assert app.jinja_env.filters["payment_confirmed_bool"]("true") is True
     assert app.jinja_env.filters["spec_w300"]("3600") == 12.0
     assert app.jinja_env.filters["item_spec_w300"]({"spec_width": "900"}) == 3.0
+    assert app.jinja_env.filters["queue_card_schedule"](
+        {
+            "stage": "시공대기",
+            "measurement_date": "2026-06-16",
+            "construction_date": "2026-06-20",
+        }
+    ) == {"label": "시공", "value": "2026-06-20"}
