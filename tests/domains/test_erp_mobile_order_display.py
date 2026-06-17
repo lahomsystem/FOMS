@@ -166,6 +166,44 @@ def test_erp_mobile_tile_prefers_view_url_for_grid_src() -> None:
     assert "(a.view_url || a.thumbnail_view_url || '')" in shared_js
 
 
+def test_resolve_manager_phone_for_queue_prefers_measurement_settings(monkeypatch) -> None:
+    monkeypatch.setattr(
+        display,
+        "resolve_manager_phone_from_measurement_settings",
+        lambda name: "010-9999-8888" if name == "안중훈" else "",
+    )
+    parties = {"manager": {"name": "안중훈", "phone": "01011112222"}}
+    assert display.resolve_manager_phone_for_queue(parties) == "010-9999-8888"
+
+
+def test_resolve_manager_phone_for_queue_falls_back_to_structured_phone(monkeypatch) -> None:
+    monkeypatch.setattr(
+        display,
+        "resolve_manager_phone_from_measurement_settings",
+        lambda _name: "",
+    )
+    parties = {"manager": {"name": "Bob", "phone": "01033334444"}}
+    assert display.resolve_manager_phone_for_queue(parties) == "01033334444"
+
+
+def test_build_mobile_queue_order_row_includes_manager_phone(monkeypatch) -> None:
+    order = SimpleNamespace(
+        id=3994,
+        structured_data={
+            "parties": {"manager": {"name": "안중훈"}, "customer": {"name": "정성민", "phone": "01032267222"}},
+            "site": {"address_full": "광명 광오로 14-1"},
+            "schedule": {"measurement": {"date": "2026-06-12"}},
+        },
+        received_date=None,
+    )
+    monkeypatch.setattr(display, "_attachment_count", lambda _db, _oid: 0)
+    monkeypatch.setattr(display, "batch_resolve_queue_attachment_urls", lambda _db, _ids: {})
+    monkeypatch.setattr(display, "resolve_manager_phone_for_queue", lambda _p, **kw: "01055556666")
+    row = display.build_mobile_queue_order_row(MagicMock(), order)
+    assert row["manager_name"] == "안중훈"
+    assert row["manager_phone"] == "01055556666"
+
+
 def test_mobile_detail_quest_section_has_deep_link_anchor() -> None:
     """카드의 '퀘스트 승인' deep-link 대상 앵커가 상세 퀘스트 섹션에 존재한다."""
     partial = (

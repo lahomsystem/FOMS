@@ -67,7 +67,12 @@
                 detailValue.textContent = value || '-';
             }
             if (visibleValue) {
-                visibleValue.textContent = value || '-';
+                var callLink = visibleValue.querySelector('[data-queue-card-call-link]');
+                if (callLink) {
+                    callLink.textContent = value || '-';
+                } else {
+                    visibleValue.textContent = value || '-';
+                }
             }
         }
 

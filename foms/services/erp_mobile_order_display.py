@@ -14,6 +14,7 @@ from foms.services.erp_display import (
 )
 from foms.services.erp_policy import STAGE_LABELS, STAGE_NAME_TO_CODE
 from foms.services.erp_quest_display import build_current_quest_payload, load_assignee_user_map
+from foms.services.estimate_service import resolve_manager_phone_from_measurement_settings
 from foms.services.order_event_display import (
     format_timeline_meta,
     translate_event_type_to_korean,
@@ -24,6 +25,7 @@ __all__ = [
     "stage_badge_label",
     "product_subtitle_from_sd",
     "build_mobile_queue_order_row",
+    "resolve_manager_phone_for_queue",
     "mobile_timeline_events",
     "mobile_attachment_items",
     "mobile_attachment_categories",
@@ -388,6 +390,26 @@ def _attachment_count(db, order_id: int) -> int:
         return 0
 
 
+def resolve_manager_phone_for_queue(
+    parties: dict[str, Any] | None,
+    *,
+    manager_name: str = "",
+    order=None,
+) -> str:
+    """Resolve manager tel: target — structured_data phone, then 출고 설정 실측담당자 목록."""
+    parties = parties or {}
+    manager = parties.get("manager") or {}
+    name = (
+        (manager_name if manager_name and manager_name != "-" else "")
+        or manager.get("name")
+        or getattr(order, "manager_name", None)
+        or ""
+    )
+    phone = str(manager.get("phone") or "").strip()
+    resolved = resolve_manager_phone_from_measurement_settings(str(name).strip())
+    return resolved or phone
+
+
 def build_mobile_queue_order_row(db, order, current_user=None) -> dict[str, Any]:
     """Build a dashboard-compatible dict for mobile v2 queue/detail templates."""
     sd = _ensure_dict(getattr(order, "structured_data", None))
@@ -426,7 +448,8 @@ def build_mobile_queue_order_row(db, order, current_user=None) -> dict[str, Any]
         "measurement_date": (schedule.get("measurement") or {}).get("date"),
         "construction_date": (schedule.get("construction") or {}).get("date"),
         "received_date": received.get("date") or getattr(order, "received_date", None),
-        "manager_name": (parties.get("manager") or {}).get("name") or "-",
+        "manager_name": (parties.get("manager") or {}).get("name") or getattr(order, "manager_name", None) or "-",
+        "manager_phone": resolve_manager_phone_for_queue(parties, order=order),
         "orderer_name": (parties.get("orderer") or {}).get("name") or None,
         "stage": stage,
         "stage_code": stage_code,

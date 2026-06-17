@@ -60,6 +60,8 @@ def test_measurement_mobile_edit_contract_is_wired_to_v2_cards():
     assert 'data-queue-card-field="address"' in shared_card
     assert 'data-queue-card-field="phone"' in shared_card
     assert 'data-queue-card-field="manager"' in shared_card
+    assert 'has_manager_phone' in shared_card
+    assert 'tel:{{ safe_manager_phone }}' in shared_card
     assert "data-queue-card-call-link" in mobile_js
     assert "data-queue-card-map-link" in mobile_js
     for field in ('data-field="address"', 'data-field="phone"', 'data-field="manager"'):

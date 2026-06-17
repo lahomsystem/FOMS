@@ -18,6 +18,7 @@ from foms.services.erp_display import (
     self_measurement_four_checks_done,
 )
 from foms.services.erp_order_detail import attach_order_detail_payloads
+from foms.services.erp_mobile_order_display import resolve_manager_phone_for_queue
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
 from foms.services.erp_permissions import build_mine_sql_filter, can_edit_erp
 from foms.services.erp_policy import STAGE_LABELS
@@ -188,6 +189,10 @@ def erp_construction_dashboard():
                 "measurement_date": (((structured_data.get("schedule") or {}).get("measurement") or {}).get("date")),
                 "construction_date": (((structured_data.get("schedule") or {}).get("construction") or {}).get("date")),
                 "manager_name": (((structured_data.get("parties") or {}).get("manager") or {}).get("name")) or "-",
+                "manager_phone": resolve_manager_phone_for_queue(
+                    structured_data.get("parties") or {},
+                    order=order,
+                ),
                 "phone": (((structured_data.get("parties") or {}).get("customer") or {}).get("phone")) or "-",
                 "as_received_date": getattr(order, "as_received_date", None) or "",
                 "as_received_done": bool((getattr(order, "as_received_date", None) or "").strip()),

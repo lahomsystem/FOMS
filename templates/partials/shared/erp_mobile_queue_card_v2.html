@@ -28,6 +28,8 @@
 
   {% set safe_phone = (order.phone or '')|replace('-', '')|replace(' ', '') %}
   {% set has_phone = safe_phone and safe_phone != '-' %}
+  {% set safe_manager_phone = (order.manager_phone or '')|replace('-', '')|replace(' ', '') %}
+  {% set has_manager_phone = safe_manager_phone and safe_manager_phone != '-' %}
   {% set has_address = order.address and order.address != '-' %}
   {% set badge_mod = badge_modifier or order.stage_badge_modifier|default('--received') %}
   {% set badge_label = badge_text or order.stage_badge_label|default(order.stage or '-') %}
@@ -105,7 +107,13 @@
       {% endif %}
       <div>
         <dt>담당</dt>
-        <dd data-queue-card-field="manager">{{ order.manager_name or '-' }}</dd>
+        <dd data-queue-card-field="manager">
+          {% if has_manager_phone %}
+            <a data-queue-card-call-link href="tel:{{ safe_manager_phone }}">{{ order.manager_name or '-' }}</a>
+          {% else %}
+            {{ order.manager_name or '-' }}
+          {% endif %}
+        </dd>
       </div>
     </dl>
 

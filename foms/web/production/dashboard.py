@@ -17,6 +17,7 @@ from models import Order
 from foms.web.auth import login_required
 
 from foms.services.erp_permissions import can_edit_erp
+from foms.services.erp_mobile_order_display import resolve_manager_phone_for_queue
 from foms.services.erp_policy import STAGE_LABELS
 from foms.services.erp_display import (
     _ensure_dict,
@@ -258,6 +259,7 @@ def _enrich_one_production_order(
         'measurement_date': (((sd.get('schedule') or {}).get('measurement') or {}).get('date')),
         'construction_date': (((sd.get('schedule') or {}).get('construction') or {}).get('date')),
         'manager_name': (((sd.get('parties') or {}).get('manager') or {}).get('name')) or '-',
+        'manager_phone': resolve_manager_phone_for_queue(sd.get('parties') or {}, order=o),
         'phone': (((sd.get('parties') or {}).get('customer') or {}).get('phone')) or '-',
     }
 

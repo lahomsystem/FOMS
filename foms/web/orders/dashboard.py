@@ -26,6 +26,7 @@ from foms.services.erp_display import (
 from foms.services.erp_quest_display import build_current_quest_payload
 from foms.services.erp_mobile_order_display import (
     product_subtitle_from_sd,
+    resolve_manager_phone_for_queue,
     stage_badge_label,
     stage_badge_modifier,
     batch_resolve_queue_attachment_urls,
@@ -675,6 +676,7 @@ def erp_dashboard():
             'measurement_date': (schedule.get('measurement') or {}).get('date'),
             'construction_date': (schedule.get('construction') or {}).get('date'),
             'manager_name': (parties.get('manager') or {}).get('name') or '-',
+            'manager_phone': resolve_manager_phone_for_queue(parties, order=o),
             'orderer_name': (parties.get('orderer') or {}).get('name') or None,
             'owner_team': responsible_team,
             'stage': stage,
