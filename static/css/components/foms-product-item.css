@@ -78,3 +78,19 @@
   border-radius: 50%;
   background: currentColor;
 }
+
+.foms-product-item__photos {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.foms-product-item__photos-lbl {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--foms-text-secondary, #4b5563);
+}
+
+.foms-product-item__photos .foms-attach-grid {
+  margin-top: 0.25rem;
+}

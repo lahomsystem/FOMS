@@ -81,5 +81,6 @@
     mountAll();
   }
   document.body.addEventListener("htmx:afterSwap", mountAll);
+  document.addEventListener("foms:main-content-swapped", mountAll);
   window.fomsMountMobileDetailAttachmentPreview = mountAll;
 })();

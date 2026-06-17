@@ -1,5 +1,42 @@
 {% from 'macros/foms_kv.html' import foms_kv_row, foms_kv_list %}
 
+{% macro mobile_attach_grid(attachments, order_id, show_add=false) -%}
+  {% if attachments %}
+    <div class="attach-grid foms-attach-grid" data-foms-attachment-preview-gallery>
+      {% for att in attachments %}
+        {% if att.view_url or att.thumb_url %}
+          <button
+            type="button"
+            class="attach-item foms-attach-item foms-attach-item--{{ att.category }}"
+            data-foms-attachment-preview
+            data-foms-attachment-view-url="{{ att.view_url or att.thumb_url }}"
+            data-foms-attachment-label="{{ att.label }}"
+            {% if att.download_url %}data-foms-attachment-download-url="{{ att.download_url }}"{% endif %}
+            title="{{ att.label }}">
+            <img src="{{ att.view_url or att.thumb_url }}" alt="" loading="lazy" decoding="async">
+            <span class="attach-item__label foms-attach-item__label">{{ att.label }}</span>
+          </button>
+        {% else %}
+          <a
+            class="attach-item foms-attach-item foms-attach-item--{{ att.category }}"
+            href="{{ url_for('order_edit.edit_order', order_id=order_id, open='erp-order') }}#attachments"
+            title="{{ att.label }}">
+            <span class="attach-item__label foms-attach-item__label">{{ att.label }}</span>
+          </a>
+        {% endif %}
+      {% endfor %}
+      {% if show_add %}
+        <a
+          class="attach-add foms-attach-add"
+          href="{{ url_for('order_edit.edit_order', order_id=order_id, open='erp-order') }}#attachments"
+          aria-label="첨부 추가">
+          <i class="fas fa-plus" aria-hidden="true"></i>
+        </a>
+      {% endif %}
+    </div>
+  {% endif %}
+{%- endmacro %}
+
 <div class="foms-detail-page">
   <div class="foms-shell-body">
     <header class="detail-hero foms-detail-hero">
@@ -102,11 +139,9 @@
             <header class="product-item__head foms-product-item__head" data-foms-product-toggle role="button" tabindex="0" aria-expanded="{{ 'false' if item.collapsed_default else 'true' }}">
               <span class="product-item__index foms-product-item__index">항목 {{ item.index }}</span>
               <span class="product-item__title foms-product-item__title">{{ item.title }}</span>
-              <button type="button" class="product-item__expand foms-product-item__expand" aria-label="펼치기·접기">{{ '⌄' if item.collapsed_default else '⌃' }}</button>
+              <button type="button" class="product-item__expand foms-product-item__expand" aria-label="{{ '펼치기' if item.collapsed_default else '접기' }}">{{ '⌄' if item.collapsed_default else '⌃' }}</button>
             </header>
-            {% if item.collapsed_default %}
-              <p class="product-item__summary foms-product-item__summary">{{ item.summary }}</p>
-            {% endif %}
+            <p class="product-item__summary foms-product-item__summary">{{ item.summary }}</p>
             <div class="product-item__body foms-product-item__body">
               {{ foms_kv_list([
                 {'label': '사이즈', 'value': item.size or '-'},
@@ -117,6 +152,12 @@
                 {'label': '기타·설치', 'value': item.misc or '-'},
                 {'label': '금액', 'value': item.price_label or '-'},
               ]) }}
+              {% if item.attachments %}
+                <div class="product-item__photos foms-product-item__photos">
+                  <span class="product-item__photos-lbl foms-product-item__photos-lbl">첨부 ({{ item.attachments|length }})</span>
+                  {{ mobile_attach_grid(item.attachments, order.id) }}
+                </div>
+              {% endif %}
             </div>
           </div>
         {% endfor %}
@@ -192,44 +233,15 @@
       </section>
     {% endif %}
 
-    {% if order.attachments %}
+    {% if order.common_attachments %}
       <section class="foms-detail-section" aria-labelledby="foms-detail-attach-title">
         <div class="foms-detail-section__head">
-          <h2 class="foms-detail-section__title" id="foms-detail-attach-title">첨부</h2>
-          <span class="foms-detail-section__count">{{ order.attachments_count }}건</span>
+          <h2 class="foms-detail-section__title" id="foms-detail-attach-title">공통 첨부</h2>
+          <span class="foms-detail-section__count">{{ order.common_attachments|length }}건</span>
         </div>
-        <div class="attach-grid foms-attach-grid" data-foms-attachment-preview-gallery>
-          {% for att in order.attachments %}
-            {% if att.view_url or att.thumb_url %}
-              <button
-                type="button"
-                class="attach-item foms-attach-item foms-attach-item--{{ att.category }}"
-                data-foms-attachment-preview
-                data-foms-attachment-view-url="{{ att.view_url or att.thumb_url }}"
-                data-foms-attachment-label="{{ att.label }}"
-                {% if att.download_url %}data-foms-attachment-download-url="{{ att.download_url }}"{% endif %}
-                title="{{ att.label }}">
-                <img src="{{ att.view_url or att.thumb_url }}" alt="" loading="lazy" decoding="async">
-                <span class="attach-item__label foms-attach-item__label">{{ att.label }}</span>
-              </button>
-            {% else %}
-              <a
-                class="attach-item foms-attach-item foms-attach-item--{{ att.category }}"
-                href="{{ url_for('order_edit.edit_order', order_id=order.id, open='erp-order') }}#attachments"
-                title="{{ att.label }}">
-                <span class="attach-item__label foms-attach-item__label">{{ att.label }}</span>
-              </a>
-            {% endif %}
-          {% endfor %}
-          <a
-            class="attach-add foms-attach-add"
-            href="{{ url_for('order_edit.edit_order', order_id=order.id, open='erp-order') }}#attachments"
-            aria-label="첨부 추가">
-            <i class="fas fa-plus" aria-hidden="true"></i>
-          </a>
-        </div>
+        {{ mobile_attach_grid(order.common_attachments, order.id, show_add=true) }}
       </section>
-    {% elif order.attachments_count is defined and order.attachments_count > 0 %}
+    {% elif order.attachments_count is defined and order.attachments_count > 0 and not order.product_items %}
       <section class="foms-detail-section" aria-labelledby="foms-detail-attach-title">
         <div class="foms-detail-section__head">
           <h2 class="foms-detail-section__title" id="foms-detail-attach-title">첨부</h2>
