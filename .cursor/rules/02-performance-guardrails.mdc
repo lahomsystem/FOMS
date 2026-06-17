@@ -26,3 +26,8 @@ alwaysApply: true
 - 대시보드/리스트/검색/액션 변경은 머지 전 **서버 TTFB 측정 + `EXPLAIN`로 Seq Scan 없음** 확인.
 - "느리다" 신고는 **서버 TTFB부터** 측정해 서버/프론트/SW/네트워크 분리. 약한 dev 인스턴스 절대 시간 신뢰 금지.
 - 서비스워커 동작은 **실제 Chrome**에서 확인(헤드리스는 SW 미등록).
+
+## 점검 실행
+- **코드 수정 후(커밋/푸시 전)**: `python tools/perf/perf_scan.py --guard` (변경분만, high면 exit 1=차단). 스크립트가 못 잡는 건 `docs/guides/PERFORMANCE_GUARDRAILS.md` §"점검 스킬 실행 절차 A" 수동 체크리스트로.
+- **정기 점검(개선)**: `python tools/perf/perf_scan.py --audit` + 운영급 측정(절차 B).
+- 같은 점검이 `scripts/ops/pre_push_smoke.ps1` + CI(`ci.yml`)에서도 자동 차단된다.

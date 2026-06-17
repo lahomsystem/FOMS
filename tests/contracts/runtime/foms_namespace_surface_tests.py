@@ -2131,6 +2131,7 @@ def test_strict_canonical_tools_taxonomy() -> None:
     designer/ added (PG-B2/PG-B5+): fixture management CLI tools for FOMS Brain.
     cron/ added: Railway scheduled job entrypoints (e.g. cleanup_order_drafts).
     design/ added: design SSOT lint helpers (ssot_lint.py).
+    perf/ added: performance regression scanner (perf_scan.py — perf-guard/perf-audit skills).
     """
     tools_dir = _REPO_ROOT / "tools"
     assert tools_dir.is_dir()
@@ -2144,6 +2145,7 @@ def test_strict_canonical_tools_taxonomy() -> None:
         "cron",
         "design",
         "sketchup_analyzer",
+        "perf",
     }
     for p in tools_dir.iterdir():
         if p.name.startswith(".") or p.name == "README.md" or p.name == "__pycache__":

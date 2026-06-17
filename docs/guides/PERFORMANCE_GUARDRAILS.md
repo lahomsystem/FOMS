@@ -62,3 +62,30 @@
 - SW: `static/sw.js` / 견적 lazy 로드: `static/js/orders/estimate-preview.js`
 - 인덱스 마이그레이션: `migrations/versions/phase_d_trgm_indexes.py`, `phase_e_trgm_perm_indexes.py`
 - 마이그레이션 락: `migrations/env.py`
+- 점검 엔진(도구 무관): `tools/perf/perf_scan.py`
+- 점검 커맨드: `.claude/commands/perf-guard.md` · `perf-audit.md`, `.cursor/commands/perf-guard.md` · `perf-audit.md`
+
+## 점검 스킬 실행 절차 (Cursor·Claude·Codex 공통)
+
+### A. perf-guard — 코드 수정 후 회귀 방지(매 변경)
+1. `python tools/perf/perf_scan.py --guard` 실행(변경분만 검사, high면 exit 1).
+2. 스크립트가 못 잡는 부분을 **diff에서 직접** 점검(아래 수동 체크리스트).
+3. 발견 시 위 "필수 규칙"대로 수정. 그래도 동기 스크립트가 불가피하면 사유와 함께
+   `tests/performance/test_perf_regression_guard.py`의 allowlist에 추가.
+4. 결과: `[차단|주의|통과]` + 파일:라인 + 수정안.
+
+**수동 체크리스트(정적 스캔이 못 잡는 것):**
+- 플래그된 `structured_data ... ilike` → 매칭 trigram 인덱스가 실제 있는지 `EXPLAIN`으로 확인.
+  있으면 OK, 없으면 회귀(인덱스 추가).
+- N+1: 리스트/루프 안에서 주문별 쿼리 → `in_(ids)` 배치로.
+- 매 요청 무거운 계산(집계/렌더) 추가 → Redis micro-cache 적용 여부.
+- 공용 partial(`erp_order_js.html`/layout)에 페이지 전용 무거운 JS·CSS 추가 금지.
+- 서비스워커 fetch 전략 변경 시 timeout+캐시 폴백 유지.
+
+### B. perf-audit — 정기 점검으로 성능 개선(주 1회 등)
+1. `python tools/perf/perf_scan.py --audit` 실행(전체 코드베이스 후보 목록).
+2. **운영급 측정**(staging/prod, 실제 Chrome): 대시보드/검색/탭전환 **서버 TTFB** +
+   주요 쿼리 `EXPLAIN (ANALYZE)`로 **Seq Scan 없음** + 정적 자원 캐시 적중 확인.
+   (약한 dev 인스턴스 절대 시간은 신뢰 금지. SW 동작은 실제 Chrome에서만.)
+3. high/빈도순 우선순위화 → 안전 수정(인덱스·캐시·lazy·페이지네이션) 설계.
+4. 결과: 상위 개선 후보 + 예상 효과 + 안전한 적용안.

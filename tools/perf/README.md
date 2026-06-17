@@ -1,0 +1,12 @@
+# tools/perf — FOMS 성능 점검
+
+코드 수정이 FOMS를 느리게 만드는지 잡고, 정기 점검으로 성능을 개선하는 도구.
+
+- `perf_scan.py` — 도구 무관 스캐너.
+  - `python tools/perf/perf_scan.py --guard` : 변경분 회귀 점검(high면 exit 1, 머지 차단).
+  - `python tools/perf/perf_scan.py --audit` : 전체 코드베이스 개선 후보(advisory).
+  - `--json` 기계 판독, `--base <ref>` guard 비교 기준.
+
+스킬(에이전트 진입점): Claude `/perf-guard`·`/perf-audit`, Cursor `.cursor/commands/perf-*`.
+정책·체크리스트·사유: `docs/guides/PERFORMANCE_GUARDRAILS.md`.
+자동 강제(CI/smoke): `tests/performance/test_perf_regression_guard.py`, `test_static_cache_headers.py`.
