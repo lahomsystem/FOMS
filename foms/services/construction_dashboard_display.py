@@ -114,7 +114,12 @@ def _preview_item_from_file_entry(entry: dict[str, Any]) -> dict[str, str] | Non
     view_url = _url_from_file_entry(entry)
     if not view_url:
         return None
-    return {"thumb": view_url, "view": view_url}
+    label = (
+        (entry.get("filename") or entry.get("name") or entry.get("key") or "도면")
+        .strip()
+        or "도면"
+    )
+    return {"thumb": view_url, "view": view_url, "label": label}
 
 
 def _preview_item_from_attachment(attachment: OrderAttachment) -> dict[str, str] | None:
@@ -122,7 +127,8 @@ def _preview_item_from_attachment(attachment: OrderAttachment) -> dict[str, str]
     if not view_url:
         return None
     thumb_url = _thumb_url_from_attachment(attachment) or view_url
-    return {"thumb": thumb_url, "view": view_url}
+    label = (attachment.filename or "도면").strip() or "도면"
+    return {"thumb": thumb_url, "view": view_url, "label": label}
 
 
 def _collect_preview_items(
@@ -143,7 +149,13 @@ def _collect_preview_items(
         if not view or view in seen_views:
             return
         seen_views.add(view)
-        items.append({"thumb": item.get("thumb") or view, "view": view})
+        items.append(
+            {
+                "thumb": item.get("thumb") or view,
+                "view": view,
+                "label": (item.get("label") or "도면").strip() or "도면",
+            }
+        )
 
     sd = row.get("structured_data") if isinstance(row.get("structured_data"), dict) else {}
     order_id = row.get("id")

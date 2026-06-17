@@ -129,6 +129,10 @@
   {% endif %}
   {% include 'construction/partials/filters_grid.html' %}
   {% include 'construction/partials/modals.html' %}
+  {% if erp_mobile_v2_enabled %}
+  <script src="{{ url_for('static', filename='js/foms/attachment-preview-zoom.js') }}?v=20260602a" defer></script>
+  <script src="{{ url_for('static', filename='js/foms/erp-attachment-preview-open.js') }}?v=20260617a" defer></script>
+  {% endif %}
   <script src="{{ url_for('static', filename='js/orders/order-detail-fragment.js') }}"></script>
   {% include 'construction/partials/scripts.html' %}
 </div>

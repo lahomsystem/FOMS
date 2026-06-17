@@ -171,6 +171,7 @@ def test_enrich_construction_mobile_rows_drawing_only_excludes_measurement(mock_
     assert len(rows[0]["attachment_preview_items"]) == 1
     assert rows[0]["attachment_preview_items"][0]["view"] == "/files/const/draw.png"
     assert rows[0]["attachment_preview_items"][0]["thumb"] == "/files/const/draw-thumb.png"
+    assert rows[0]["attachment_preview_items"][0]["label"] == "draw.png"
 
 
 def test_construction_dashboard_mobile_wiring_contract():
@@ -193,6 +194,7 @@ def test_construction_dashboard_mobile_wiring_contract():
     assert "data-foms-mobile-queue-sentinel" not in queue_src
     # v2 카드는 badge override(modifier)를 stage 배지에 반영한다.
     assert "foms-stage-badge{{ badge_mod }}" in macro_src
+    assert "data-foms-erp-attachment-preview-gallery" in macro_src
     assert "data-foms-lightbox-gallery" in macro_src
     assert "attachment_preview_items" in macro_src
     # PC workflow baseline: 시공완료는 사진 재업로드와 AS 액션이 병존한다.
@@ -482,7 +484,10 @@ def test_construction_team_mobile_card_renders_drawing_lightbox(mock_url, client
 
     assert response.status_code == 200
     body = response.get_data(as_text=True)
-    assert 'data-foms-lightbox-gallery' in body
-    assert 'data-foms-lightbox-src="/files/drawings/plan.png"' in body
+    assert 'id="erpAttachmentPreviewModal"' in body
+    assert 'data-foms-erp-attachment-preview-gallery' in body
+    assert 'data-foms-erp-attachment-view-url="/files/drawings/plan.png"' in body
+    assert 'erp-attachment-preview-open.js' in body
+    assert 'attachment-preview-zoom.js' in body
     assert "/files/const/site.jpg" not in body
     assert 'aria-label="도면' in body
