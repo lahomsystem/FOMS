@@ -159,6 +159,12 @@ ERP Order mobile-v2 tab pane.
                                 </div>
                                 <input type="text" id="erp-deposit-amount" inputmode="numeric" placeholder="0원" maxlength="24" class="foms-input foms-tabular erp-amount-value erp-amount-value--deposit" title="숫자 입력 시 1,000단위 쉼표가 적용됩니다.">
                             </div>
+                            <div id="erp-discount-section" class="erp-mobile-amount-row" style="display: none;">
+                                <div class="erp-mobile-amount-label">
+                                    <label for="erp-discount-amount">할인</label>
+                                </div>
+                                <input type="text" id="erp-discount-amount" inputmode="numeric" placeholder="0원" maxlength="24" class="foms-input foms-tabular erp-amount-value erp-amount-value--discount" title="숫자 입력 시 1,000단위 쉼표가 적용됩니다.">
+                            </div>
                             <div id="erp-remaining-section" class="erp-mobile-amount-row" style="display: none;">
                                 <div class="erp-mobile-amount-label">
                                     <button type="button" class="erp-payment-confirm-btn" onclick="window.erpTogglePayment(this, 'balance')" data-payment-type="balance" data-confirmed="0" title="미확인 - 클릭하여 확인 완료 처리" style="background: none; border: 0; padding: 0.1rem; cursor: pointer;">
@@ -166,7 +172,7 @@ ERP Order mobile-v2 tab pane.
                                     </button>
                                     <span>잔금</span>
                                 </div>
-                                <div class="erp-mobile-amount-chip erp-amount-value" id="erp-remaining-amount">0원</div>
+                                <div class="erp-mobile-amount-chip erp-amount-value erp-amount-value--balance" id="erp-remaining-amount">0원</div>
                             </div>
                         </div>
                         <div class="field__hint" id="erp-status-text"></div>

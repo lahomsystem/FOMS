@@ -372,15 +372,17 @@ def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
     root = Path(__file__).resolve().parents[2]
     text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
 
-    assert "function erpBuildTotals(itemsTotal, depositAmount)" in text
+    assert "function erpBuildTotals(itemsTotal, depositAmount, discountAmount)" in text
+    assert "discount_amount: discount" in text
     assert "final_amount: balance" in text
 
     collect_start = text.index("function erpCollectStructured()")
     collect_end = text.index("async function erpSaveStructured", collect_start)
     collect_block = text[collect_start:collect_end]
-    assert "const totals = erpBuildTotals(itemsTotal, depositAmount);" in collect_block
+    assert "const totals = erpBuildTotals(itemsTotal, depositAmount, discountAmount);" in collect_block
     assert "totals," in collect_block
     assert "deposit: totals.deposit_amount" in collect_block
+    assert "discount: totals.discount_amount" in collect_block
 
     conversion_start = text.index("function erpGenerateConversionText()")
     conversion_end = text.index("function erpCopyToClipboard()", conversion_start)
@@ -448,15 +450,17 @@ def test_erp_amount_surfaces_read_modern_payment_deposit_and_stored_final() -> N
     for source in (dashboard_js, dashboard_template):
         assert "coerceAmount((sd.payment || {}).deposit)" in source
         assert "coerceAmount((sd.payments || {}).deposit)" in source
-        assert "totals.final_amount == null ? totals.balance_amount : totals.final_amount" in source
+        assert "coerceAmount((sd.payment || {}).discount)" in source
+        assert "coerceAmount((sd.totals || {}).discount_amount)" in source
+        assert "Math.max(0, itemsTotal - depositAmt - discountAmt)" in source
 
     # 실측 데스크톱 상세는 ERP payment.deposit + final totals 우선 사용.
     # (모바일 v2 큐는 홈과 동일한 깔끔한 queue-card-v2로, 금액 표시는 상세 페이지의
     #  mobile_amount_summary로 이동했다 — 큐 카드에 인라인 금액을 두지 않는다.)
     for source in (measurement_desktop,):
         assert "rsd_payment.get('deposit') or rsd_payments.get('deposit', 0)" in source
-        assert "rsd_totals.get('final_amount')" in source
-        assert "rsd_totals.get('balance_amount')" in source
+        assert "rsd_payment.get('discount')" in source
+        assert "rsd_items_total - rsd_deposit - rsd_discount" in source
 
 
 def test_edit_order_matched_estimate_card_uses_order_payment_payload() -> None:

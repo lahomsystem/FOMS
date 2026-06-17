@@ -14,7 +14,12 @@ from foms.services.erp_display import (
 )
 from foms.services.erp_policy import STAGE_LABELS, STAGE_NAME_TO_CODE
 from foms.services.erp_quest_display import build_current_quest_payload, load_assignee_user_map
-from foms.services.estimate_service import resolve_manager_phone_from_measurement_settings
+from foms.services.estimate_service import (
+    _balance_after_payments,
+    _extract_deposit_amount,
+    _extract_discount_amount,
+    resolve_manager_phone_from_measurement_settings,
+)
 from foms.services.order_event_display import (
     format_timeline_meta,
     translate_event_type_to_korean,
@@ -245,13 +250,18 @@ def mobile_product_items(
 
 
 def mobile_amount_summary(sd: dict) -> dict[str, Any]:
-    """Amount KV block for mobile detail (items total + deposit when present)."""
+    """Amount KV block for mobile detail (items total, deposit, discount, balance)."""
     totals = sd.get("totals") if isinstance(sd.get("totals"), dict) else {}
     pricing = sd.get("pricing") if isinstance(sd.get("pricing"), dict) else {}
     items_total = erp_payment_amount_from_structured(sd)
     contract = pricing.get("contract_total") or pricing.get("total") or sd.get("contract_amount")
-    deposit = totals.get("deposit_amount") or totals.get("deposit") or pricing.get("deposit")
-    balance = pricing.get("balance") or totals.get("balance") or sd.get("balance")
+    deposit_val = _extract_deposit_amount(sd)
+    discount_val = _extract_discount_amount(sd)
+    final_raw = totals.get("final_amount")
+    if final_raw is None:
+        final_raw = totals.get("balance_amount")
+    legacy_deposit = totals.get("deposit_amount") or totals.get("deposit") or pricing.get("deposit")
+    legacy_balance = pricing.get("balance") or totals.get("balance") or sd.get("balance")
 
     def _fmt(value) -> str | None:
         if value in (None, ""):
@@ -262,17 +272,17 @@ def mobile_amount_summary(sd: dict) -> dict[str, Any]:
             return str(value)
 
     items_label = f"{items_total:,}원" if items_total is not None else _fmt(contract) or "-"
-    deposit_label = _fmt(deposit)
-    balance_label = _fmt(balance)
-    if balance_label is None and items_total is not None and deposit_label:
-        try:
-            dep_val = int(float(deposit))
-            balance_label = f"{max(0, items_total - dep_val):,}원"
-        except (TypeError, ValueError):
-            balance_label = None
+    deposit_label = _fmt(deposit_val) if deposit_val else _fmt(legacy_deposit)
+    discount_label = _fmt(discount_val) if discount_val else None
+    balance_label = _fmt(final_raw)
+    if balance_label is None and items_total is not None:
+        balance_label = f"{_balance_after_payments(items_total, deposit_val, discount_val):,}원"
+    elif balance_label is None:
+        balance_label = _fmt(legacy_balance)
     return {
         "items_total_label": items_label,
         "deposit_label": deposit_label,
+        "discount_label": discount_label,
         "balance_label": balance_label,
     }
 

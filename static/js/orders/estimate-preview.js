@@ -400,6 +400,14 @@
             if (depositRow) depositRow.classList.add('erp-est-hidden');
         }
 
+        const discountRow = document.getElementById('est-discount-row');
+        if (d.discount_amount && d.discount_amount > 0) {
+            _setText('est-discount-amount', _fmtMoney(d.discount_amount));
+            if (discountRow) discountRow.classList.remove('erp-est-hidden');
+        } else {
+            if (discountRow) discountRow.classList.add('erp-est-hidden');
+        }
+
         _setText('est-balance-amount', _fmtMoney(d.balance_amount));
 
         var accountsWrap = document.getElementById('est-pay-accounts');

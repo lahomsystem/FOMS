@@ -117,8 +117,29 @@ def _extract_deposit_amount(structured_data: dict) -> int:
     return 0
 
 
+def _extract_discount_amount(structured_data: dict) -> int:
+    payment = structured_data.get("payment") or {}
+    if isinstance(payment, dict):
+        amount = _parse_money_amount(payment.get("discount"))
+        if amount > 0:
+            return amount
+    totals = structured_data.get("totals") or {}
+    if isinstance(totals, dict):
+        amount = _parse_money_amount(totals.get("discount_amount"))
+        if amount > 0:
+            return amount
+    return 0
+
+
+def _balance_after_payments(total_amount: int, deposit_amount: int, discount_amount: int = 0) -> int:
+    return max(
+        0,
+        int(total_amount or 0) - int(deposit_amount or 0) - int(discount_amount or 0),
+    )
+
+
 def _balance_after_deposit(total_amount: int, deposit_amount: int) -> int:
-    return max(0, int(total_amount or 0) - int(deposit_amount or 0))
+    return _balance_after_payments(total_amount, deposit_amount, 0)
 
 
 def extract_estimate_data_from_order(order: Order) -> dict:
@@ -165,7 +186,8 @@ def extract_estimate_data_from_order(order: Order) -> dict:
 
     total_amount = sum(item["amount"] for item in estimate_items)
     deposit_amount = _extract_deposit_amount(sd)
-    balance_amount = _balance_after_deposit(total_amount, deposit_amount)
+    discount_amount = _extract_discount_amount(sd)
+    balance_amount = _balance_after_payments(total_amount, deposit_amount, discount_amount)
 
     return {
         "customer_name": customer_name,
@@ -178,6 +200,7 @@ def extract_estimate_data_from_order(order: Order) -> dict:
         "items": estimate_items,
         "total_amount": total_amount,
         "deposit_amount": int(deposit_amount or 0),
+        "discount_amount": int(discount_amount or 0),
         "balance_amount": balance_amount,
         "final_amount": balance_amount,
     }
@@ -205,6 +228,7 @@ def create_estimate(
             "items",
             "total_amount",
             "deposit_amount",
+            "discount_amount",
             "balance_amount",
             "notes",
         ):
@@ -213,10 +237,11 @@ def create_estimate(
 
         if "items" in override_data and "total_amount" not in override_data:
             data["total_amount"] = sum(int(item.get("amount") or 0) for item in data["items"])
-        if "total_amount" in override_data or "deposit_amount" in override_data:
-            data["balance_amount"] = _balance_after_deposit(
+        if "total_amount" in override_data or "deposit_amount" in override_data or "discount_amount" in override_data:
+            data["balance_amount"] = _balance_after_payments(
                 data.get("total_amount", 0),
                 data.get("deposit_amount", 0),
+                data.get("discount_amount", 0),
             )
         data["final_amount"] = data.get("balance_amount", data.get("total_amount", 0))
 

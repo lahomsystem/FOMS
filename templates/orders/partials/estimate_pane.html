@@ -420,6 +420,15 @@
     font-size: 13px;
     color: #888;
 }
+.erp-est-sum-discount {
+    color: #888;
+    font-size: 13px;
+}
+.erp-est-sum-discount-val {
+    font-size: 13px;
+    color: #c0392b;
+    font-weight: 700;
+}
 .erp-est-sum-balance {
     border-top: 1px solid #ccc;
     margin-top: 8px;
@@ -428,6 +437,9 @@
 .erp-est-sum-balance .erp-est-sum-value {
     font-size: 15px;
     font-weight: 800;
+}
+.erp-est-sum-balance-val {
+    color: #b8860b;
 }
 
 /* ── 하단 푸터 ── */
@@ -645,9 +657,13 @@
                     <span class="erp-est-sum-label">예약금</span>
                     <span class="erp-est-sum-value erp-est-sum-deposit-val" id="est-deposit-amount">₩0</span>
                 </div>
+                <div class="erp-est-sum-row erp-est-sum-discount erp-est-hidden" id="est-discount-row">
+                    <span class="erp-est-sum-label">할인</span>
+                    <span class="erp-est-sum-value erp-est-sum-discount-val" id="est-discount-amount">₩0</span>
+                </div>
                 <div class="erp-est-sum-row erp-est-sum-balance">
                     <span class="erp-est-sum-label">잔금</span>
-                    <span class="erp-est-sum-value" id="est-balance-amount">₩0</span>
+                    <span class="erp-est-sum-value erp-est-sum-balance-val" id="est-balance-amount">₩0</span>
                 </div>
             </div>
         </div>

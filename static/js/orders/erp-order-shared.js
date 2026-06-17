@@ -12,8 +12,13 @@ var _erpBoolConfirmed =
 window._erpBoolConfirmed = _erpBoolConfirmed;
 
 /** edit_order / add_order runtime state; fragment/full-page both sync from DOM config. */
-var ORDER_ID = 0;
-var ERP_ORDER_ENABLED = false;
+var ORDER_ID = parseInt(String(window.ORDER_ID || "0"), 10) || 0;
+window.ORDER_ID = ORDER_ID;
+var ERP_ORDER_ENABLED =
+    typeof window.ERP_ORDER_ENABLED !== "undefined"
+        ? _erpBoolConfirmed(window.ERP_ORDER_ENABLED)
+        : false;
+window.ERP_ORDER_ENABLED = ERP_ORDER_ENABLED;
 
 var _erpPaymentIconSrc =
     window._erpPaymentIconSrc ||
@@ -66,15 +71,29 @@ var erpResolveDepositAmount =
     };
 window.erpResolveDepositAmount = erpResolveDepositAmount;
 
+var erpResolveDiscountAmount =
+    window.erpResolveDiscountAmount ||
+    function erpResolveDiscountAmount(sd) {
+        sd = sd || {};
+        var modernPayment = sd.payment || {};
+        var totals = sd.totals || {};
+        var modernDiscount = erpCoerceAmount(modernPayment.discount);
+        if (modernDiscount > 0) return modernDiscount;
+        return erpCoerceAmount(totals.discount_amount);
+    };
+window.erpResolveDiscountAmount = erpResolveDiscountAmount;
+
 var erpBuildTotals =
     window.erpBuildTotals ||
-    function erpBuildTotals(itemsTotal, depositAmount) {
+    function erpBuildTotals(itemsTotal, depositAmount, discountAmount) {
         var total = erpCoerceAmount(itemsTotal);
         var deposit = erpCoerceAmount(depositAmount);
-        var balance = Math.max(0, total - deposit);
+        var discount = erpCoerceAmount(discountAmount);
+        var balance = Math.max(0, total - deposit - discount);
         return {
             items_total: total,
             deposit_amount: deposit,
+            discount_amount: discount,
             balance_amount: balance,
             final_amount: balance,
         };
@@ -87,9 +106,11 @@ var _erpNormalizePaymentData =
         if (!sd) sd = {};
         var pay = sd.payment || {};
         var depositAmount = erpResolveDepositAmount(sd);
+        var discountAmount = erpResolveDiscountAmount(sd);
 
         return {
             deposit: Math.max(0, depositAmount),
+            discount: Math.max(0, discountAmount),
             deposit_confirmed: _erpBoolConfirmed(pay.deposit_confirmed),
             deposit_confirmed_at: pay.deposit_confirmed_at || null,
             deposit_confirmed_by: pay.deposit_confirmed_by || null,
@@ -546,6 +567,15 @@ var erpParseDepositValue =
     };
 window.erpParseDepositValue = erpParseDepositValue;
 
+var erpParseDiscountValue =
+    window.erpParseDiscountValue ||
+    function erpParseDiscountValue() {
+        var el = document.getElementById("erp-discount-amount");
+        if (!el) return 0;
+        return erpCoerceAmount(el.value);
+    };
+window.erpParseDiscountValue = erpParseDiscountValue;
+
 var erpFormatDepositDisplay =
     window.erpFormatDepositDisplay ||
     function erpFormatDepositDisplay(num) {
@@ -573,6 +603,7 @@ let _paymentTogglePending = false;
 function erpRecalcItemsTotal() {
     const itemsWrap = document.getElementById('erp-items');
     const totalEl = document.getElementById('erp-items-total');
+    const discountSection = document.getElementById('erp-discount-section');
     const remainingSection = document.getElementById('erp-remaining-section');
     if (!itemsWrap || !totalEl) return;
     let sum = 0;
@@ -581,8 +612,12 @@ function erpRecalcItemsTotal() {
         if (digits) sum += parseInt(digits, 10);
     });
     totalEl.textContent = erpFormatMoneyKRW(sum);
+    const showAmountRows = sum > 0 && Number.isFinite(sum);
+    if (discountSection) {
+        discountSection.style.display = showAmountRows ? '' : 'none';
+    }
     if (remainingSection) {
-        remainingSection.style.display = (sum === 0 || !Number.isFinite(sum)) ? 'none' : 'grid';
+        remainingSection.style.display = showAmountRows ? '' : 'none';
     }
     erpCalculateRemaining();
 }
@@ -592,7 +627,11 @@ function erpCalculateRemaining() {
     const remainingEl = document.getElementById('erp-remaining-amount');
     if (!totalEl || !remainingEl) return;
     const totalAmount = erpCoerceAmount(totalEl.textContent);
-    const totals = erpBuildTotals(totalAmount, erpParseDepositValue());
+    const totals = erpBuildTotals(
+        totalAmount,
+        erpParseDepositValue(),
+        erpParseDiscountValue()
+    );
     remainingEl.textContent = totals.final_amount > 0 ? erpFormatMoneyKRW(totals.final_amount) : '0원';
 }
 
@@ -1247,6 +1286,10 @@ async function erpLoadStructured(bootstrapData, options) {
     if (depositEl) {
         depositEl.value = erpFormatDepositDisplay(paymentData.deposit);
     }
+    const discountEl = document.getElementById('erp-discount-amount');
+    if (discountEl) {
+        discountEl.value = erpFormatDepositDisplay(paymentData.discount);
+    }
     erpCalculateRemaining();
     _erpUpdatePaymentConfirmUI('deposit', paymentData);
     _erpUpdatePaymentConfirmUI('balance', paymentData);
@@ -1323,7 +1366,8 @@ function erpCollectStructured() {
         return el ? !!el.checked : false;
     };
     const depositAmount = erpCoerceAmount(getVal('erp-deposit-amount'));
-    const totals = erpBuildTotals(itemsTotal, depositAmount);
+    const discountAmount = erpCoerceAmount(getVal('erp-discount-amount'));
+    const totals = erpBuildTotals(itemsTotal, depositAmount, discountAmount);
 
     // PUT /structured 는 본문 전체로 JSONB를 교체함. 폼에 없는 최상위 키는 서버 스냅샷에서 유지 (AS as_content 등)
     const prevSd = (window.__erpLastStructuredData && typeof window.__erpLastStructuredData === 'object')
@@ -1390,6 +1434,7 @@ function erpCollectStructured() {
             const prev = window.__erpLastStructuredData ? _erpNormalizePaymentData(window.__erpLastStructuredData) : _erpNormalizePaymentData({});
             return {
                 deposit: totals.deposit_amount,
+                discount: totals.discount_amount,
                 deposit_confirmed: _erpBoolConfirmed(prev.deposit_confirmed),
                 deposit_confirmed_at: prev.deposit_confirmed_at || null,
                 deposit_confirmed_by: prev.deposit_confirmed_by || null,
@@ -2059,21 +2104,24 @@ ${escapeHtml(sub)}</div>` : ''}`;
             });
         }
     })();
-    const erpDepositInput = document.getElementById('erp-deposit-amount');
-    if (erpDepositInput) {
-        erpDepositInput.addEventListener('input', function () {
+    function bindErpAmountInput(inputEl, parseFn) {
+        if (!inputEl) return;
+        inputEl.addEventListener('input', function () {
             const raw = (this.value || '').replace(/[^0-9]/g, '');
             const num = raw ? parseInt(raw, 10) : 0;
             const formatted = erpFormatDepositDisplay(num);
             if (this.value !== formatted) this.value = formatted;
             erpCalculateRemaining();
         });
-        erpDepositInput.addEventListener('change', function () {
-            const num = erpParseDepositValue();
+        inputEl.addEventListener('change', function () {
+            const num = parseFn();
             this.value = erpFormatDepositDisplay(num);
             erpCalculateRemaining();
         });
     }
+
+    bindErpAmountInput(document.getElementById('erp-deposit-amount'), erpParseDepositValue);
+    bindErpAmountInput(document.getElementById('erp-discount-amount'), erpParseDiscountValue);
 
 
     // 초기 structured/첨부 로드는 fomsMountErpOrderSurface가 담당한다.
@@ -3447,8 +3495,12 @@ function erpGenerateConversionText() {
     const depositVal = depositEl ? (depositEl.value || '').trim() : '';
     const totalText = document.getElementById('erp-items-total')?.textContent || '0원';
     const depositAmount = erpCoerceAmount(depositVal);
+    const discountAmount = erpParseDiscountValue();
     if (depositAmount > 0) {
         text += `예약금 : ${erpFormatMoneyKRW(depositAmount)}`;
+        if (discountAmount > 0) {
+            text += `\n할인 : ${erpFormatMoneyKRW(discountAmount)}`;
+        }
     } else {
         text += `선결제금액 : ${totalText}`;
     }

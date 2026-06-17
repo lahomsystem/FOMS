@@ -250,9 +250,13 @@
                       <label for="erp-deposit-amount-${orderId}-${idx}" class="form-label mb-0 fw-bold text-nowrap">예약금(선금)</label>
                       <input type="text" id="erp-deposit-amount-${orderId}-${idx}" inputmode="numeric" placeholder="0원" maxlength="24" readonly class="erp-amount-value erp-amount-value--deposit" title="숫자 입력 시 1,000단위 쉼표가 적용됩니다.">
                     </div>
+                    <div id="erp-discount-section-${orderId}-${idx}" class="d-flex justify-content-between justify-content-md-end align-items-center gap-2 w-100" style="max-width: 16rem; display: none;">
+                      <label for="erp-discount-amount-${orderId}-${idx}" class="form-label mb-0 fw-bold text-nowrap">할인</label>
+                      <input type="text" id="erp-discount-amount-${orderId}-${idx}" inputmode="numeric" placeholder="0원" maxlength="24" readonly class="erp-amount-value erp-amount-value--discount" title="숫자 입력 시 1,000단위 쉼표가 적용됩니다.">
+                    </div>
                     <div id="erp-remaining-section-${orderId}-${idx}" class="d-flex justify-content-between justify-content-md-end align-items-center gap-2 w-100" style="max-width: 16rem; display: none;">
                       <label class="form-label mb-0 fw-bold text-nowrap">잔금</label>
-                      <div class="badge bg-primary text-end erp-amount-value" id="erp-remaining-amount-${orderId}-${idx}">0원</div>
+                      <div class="erp-amount-value erp-amount-value--balance text-end" id="erp-remaining-amount-${orderId}-${idx}">0원</div>
                     </div>
                   </div>
                 </div>
@@ -566,17 +570,21 @@
               const totals = sd.totals || {};
               const itemsTotal = Number(totals.items_total) || items.reduce((s, it) => s + (Number(it.price) || 0), 0);
               const depositAmt = coerceAmount((sd.payment || {}).deposit) || coerceAmount((sd.payments || {}).deposit);
-              const storedFinal = totals.final_amount == null ? totals.balance_amount : totals.final_amount;
-              const remainAmt = storedFinal == null ? Math.max(0, itemsTotal - depositAmt) : Math.max(0, coerceAmount(storedFinal));
+              const discountAmt = coerceAmount((sd.payment || {}).discount) || coerceAmount((sd.totals || {}).discount_amount);
+              const remainAmt = Math.max(0, itemsTotal - depositAmt - discountAmt);
               const fmtKRW = (n) => n > 0 ? n.toLocaleString('ko-KR') + '원' : '0원';
               items.forEach((_, i) => {
                 const totalEl = document.getElementById(`erp-items-total-${orderId}-${i}`);
                 const depositEl = document.getElementById(`erp-deposit-amount-${orderId}-${i}`);
+                const discountEl = document.getElementById(`erp-discount-amount-${orderId}-${i}`);
                 const remainEl = document.getElementById(`erp-remaining-amount-${orderId}-${i}`);
+                const discountSection = document.getElementById(`erp-discount-section-${orderId}-${i}`);
                 const remainSection = document.getElementById(`erp-remaining-section-${orderId}-${i}`);
                 if (totalEl) totalEl.textContent = fmtKRW(itemsTotal);
                 if (depositEl) depositEl.value = depositAmt > 0 ? fmtKRW(depositAmt) : '';
+                if (discountEl) discountEl.value = discountAmt > 0 ? fmtKRW(discountAmt) : '';
                 if (remainEl) remainEl.textContent = fmtKRW(remainAmt);
+                if (discountSection) discountSection.style.display = discountAmt > 0 ? 'flex' : 'none';
                 if (remainSection) remainSection.style.display = itemsTotal > 0 ? 'flex' : 'none';
               });
             })();

@@ -204,6 +204,18 @@ def test_build_mobile_queue_order_row_includes_manager_phone(monkeypatch) -> Non
     assert row["manager_phone"] == "01055556666"
 
 
+def test_mobile_amount_summary_applies_discount_to_balance() -> None:
+    sd = {
+        "items": [{"price": 500000}],
+        "payment": {"deposit": 100000, "discount": 50000},
+        "totals": {"items_total": 500000, "deposit_amount": 100000, "discount_amount": 50000, "final_amount": 350000},
+    }
+    summary = display.mobile_amount_summary(sd)
+    assert summary["deposit_label"] == "100,000원"
+    assert summary["discount_label"] == "50,000원"
+    assert summary["balance_label"] == "350,000원"
+
+
 def test_mobile_detail_quest_section_has_deep_link_anchor() -> None:
     """카드의 '퀘스트 승인' deep-link 대상 앵커가 상세 퀘스트 섹션에 존재한다."""
     partial = (

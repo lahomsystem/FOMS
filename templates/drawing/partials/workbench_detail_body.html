@@ -677,23 +677,38 @@
         {%- else %}
           {%- set _deposit_amount = (_raw_deposit or 0)|int %}
         {%- endif %}
-        {%- set _balance_amount = [_total_amount.v - _deposit_amount, 0]|max %}
+        {%- set _raw_discount = sd_payment.get('discount') or sd.get('totals', {}).get('discount_amount', 0) or 0 %}
+        {%- if _raw_discount is mapping %}
+          {%- set _discount_amount = (_raw_discount.get('amount') or 0)|int %}
+        {%- else %}
+          {%- set _discount_amount = (_raw_discount or 0)|int %}
+        {%- endif %}
+        {%- set _balance_amount = [_total_amount.v - _deposit_amount - _discount_amount, 0]|max %}
         <div class="d-flex flex-column align-items-end gap-2 mt-3 mb-2 erp-amount-block">
           <div class="d-flex justify-content-between justify-content-md-end align-items-center gap-2 w-100"
             style="max-width: 18rem;">
             <span class="fw-bold text-nowrap">출고가</span>
             <div class="badge bg-primary text-end erp-amount-value">{% if _total_amount.v %}{{ '{:,}'.format(_total_amount.v) }}원{% else %}0원{% endif %}</div>
           </div>
+          {% if _total_amount.v > 0 %}
           {% if _deposit_amount > 0 %}
           <div class="d-flex justify-content-between justify-content-md-end align-items-center gap-2 w-100"
             style="max-width: 18rem;">
             <span class="fw-bold text-nowrap">예약금(선금)</span>
             <div class="erp-amount-value erp-amount-value--deposit">{{ '{:,}'.format(_deposit_amount) }}원</div>
           </div>
+          {% endif %}
+          {% if _discount_amount > 0 %}
+          <div class="d-flex justify-content-between justify-content-md-end align-items-center gap-2 w-100"
+            style="max-width: 18rem;">
+            <span class="fw-bold text-nowrap">할인</span>
+            <div class="erp-amount-value erp-amount-value--discount">{{ '{:,}'.format(_discount_amount) }}원</div>
+          </div>
+          {% endif %}
           <div class="d-flex justify-content-between justify-content-md-end align-items-center gap-2 w-100"
             style="max-width: 18rem;">
             <span class="fw-bold text-nowrap">잔금</span>
-            <div class="badge bg-primary text-end erp-amount-value">{{ '{:,}'.format(_balance_amount) }}원</div>
+            <div class="erp-amount-value erp-amount-value--balance text-end">{{ '{:,}'.format(_balance_amount) }}원</div>
           </div>
           {% endif %}
         </div>
@@ -1936,5 +1951,5 @@
   })();
 </script>
 {% if erp_mobile_v2_enabled %}
-<script src="{{ url_for('static', filename='js/foms/drawing-handoff.js') }}?v=20260609a"></script>
+<script src="{{ url_for('static', filename='js/foms/drawing-handoff.js') }}?v=20260609a" defer></script>
 {% endif %}

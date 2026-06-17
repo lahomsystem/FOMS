@@ -197,6 +197,20 @@
 .erp-amount-value--deposit::placeholder {
   color: rgba(0, 0, 0, 0.5);
 }
+.erp-amount-value--discount {
+  background: #FF9999;
+  color: #000 !important;
+  border: 0 !important;
+  margin: 0 !important;
+}
+.erp-amount-value--discount::placeholder {
+  color: rgba(0, 0, 0, 0.5);
+}
+.erp-amount-value--balance {
+  background: #FFE066;
+  color: #000 !important;
+  border: 0 !important;
+}
 
 .erp-items-action-row {
   width: 100%;

@@ -142,6 +142,28 @@ def test_extract_estimate_data_from_order_formats_spec_rows_and_payments():
     assert data["final_amount"] == 900000
 
 
+def test_extract_estimate_data_applies_discount_to_balance():
+    order = SimpleNamespace(
+        customer_name="c",
+        phone="p",
+        address="a",
+        manager_name="m",
+        structured_data={
+            "parties": {"customer": {"name": "홍길동"}, "orderer": {"name": "라홈"}},
+            "payment": {"deposit": 100000, "discount": 50000},
+            "items": [{"product_name": "붙박이장", "price": 500000}],
+        },
+    )
+
+    data = estimate_service.extract_estimate_data_from_order(order)
+
+    assert data["total_amount"] == 500000
+    assert data["deposit_amount"] == 100000
+    assert data["discount_amount"] == 50000
+    assert data["balance_amount"] == 350000
+    assert data["final_amount"] == 350000
+
+
 def test_extract_estimate_data_accepts_modern_payment_and_legacy_payments_deposit():
     base_order = {
         "customer_name": "fallback customer",
