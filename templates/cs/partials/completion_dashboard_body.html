@@ -1,6 +1,7 @@
 {% include 'cs/partials/completion_styles.html' %}
 <div class="container-fluid erp-dashboard erp-pro erp-completion erp-mobile-shell"
-  data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
+  data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}"
+  data-is-construction-team="{{ 'true' if is_construction_team|default(false) else 'false' }}">
   {% if erp_mobile_v2_enabled %}
     {% include 'partials/shared/erp_mobile_shell.html' %}
   {% endif %}
@@ -40,14 +41,15 @@
       </div>
     </div>
   </div>
-  {% if erp_mobile_v2_enabled %}
+  {% if erp_mobile_v2_enabled and not is_construction_team|default(false) %}
   <a class="foms-shell-fab d-lg-none" href="{{ url_for('order_pages.add_order', open='erp-order', wizard=1) }}" aria-label="주문 생성">
     <i class="fas fa-plus" aria-hidden="true"></i>
   </a>
   {% endif %}
 </div>
 
-<!-- 비용 청구 모달 (Phase 3) -->
+<!-- 비용 청구 모달 (Phase 3) — 시공팀 비노출 -->
+{% if not is_construction_team|default(false) %}
 <div class="modal fade" id="erp-settlement-modal" tabindex="-1" aria-labelledby="erp-settlement-modal-label" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
@@ -91,5 +93,6 @@
     </div>
   </div>
 </div>
+{% endif %}
 
 {% include 'cs/partials/completion_scripts.html' %}

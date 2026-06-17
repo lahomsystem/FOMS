@@ -90,6 +90,8 @@ def test_inject_menu_limits_construction_team_navigation(monkeypatch) -> None:
         lambda endpoint: {
             "erp_shipment_page.erp_shipment_dashboard": "/erp/shipment",
             "erp_construction_page.erp_construction_dashboard": "/erp/construction",
+            "erp_completion_page.erp_completion_dashboard": "/erp/completion",
+            "erp_history.history_dashboard": "/erp/history",
         }[endpoint],
     )
 
@@ -100,6 +102,8 @@ def test_inject_menu_limits_construction_team_navigation(monkeypatch) -> None:
     assert injected["menu"]["main_menu"] == [
         {"id": "shipment", "name": "출고", "url": "/erp/shipment"},
         {"id": "construction", "name": "시공", "url": "/erp/construction"},
+        {"id": "completion", "name": "완료", "url": "/erp/completion"},
+        {"id": "history", "name": "이력", "url": "/erp/history"},
     ]
 
 

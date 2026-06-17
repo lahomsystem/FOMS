@@ -207,6 +207,7 @@ def register_http_bootstrap(
             path.startswith("/erp/shipment")
             or path.startswith("/erp/construction")
             or path.startswith("/erp/completion")
+            or path.startswith("/erp/history")
         ):
             return None
         if path.startswith("/erp/"):

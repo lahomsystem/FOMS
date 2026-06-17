@@ -138,6 +138,16 @@ def inject_menu() -> dict[str, Any]:
                     "name": "시공",
                     "url": url_for("erp_construction_page.erp_construction_dashboard"),
                 },
+                {
+                    "id": "completion",
+                    "name": "완료",
+                    "url": url_for("erp_completion_page.erp_completion_dashboard"),
+                },
+                {
+                    "id": "history",
+                    "name": "이력",
+                    "url": url_for("erp_history.history_dashboard"),
+                },
             ]
     return {"menu": menu}
 

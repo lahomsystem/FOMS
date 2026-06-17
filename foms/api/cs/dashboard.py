@@ -8,6 +8,7 @@ import copy
 import datetime
 
 from flask import Blueprint, jsonify, request, session
+from sqlalchemy import or_
 from sqlalchemy.orm.attributes import flag_modified
 
 from foms.web.auth import get_user_by_id, login_required
@@ -16,6 +17,7 @@ from foms.api.files import build_file_download_url, build_file_view_url
 from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
 from foms.services.erp_order_deeplink import load_focus_order_only
 from foms.services.erp_display import _ensure_dict
+from foms.services.erp_permissions import build_mine_sql_filter
 from foms.services.erp_policy import ORDER_SETTLEMENT_ALERT_TARGET_STATUSES
 from foms.services.foms_unified_search import (
     _compact,
@@ -37,6 +39,16 @@ _COMPLETION_BROWSE_LIMIT = 200
 _COMPLETION_SEARCH_LIMIT = 500
 # 초성 검색: Python 스캔 상한 (completion 전체가 이보다 크면 별도 인덱스 필요)
 _COMPLETION_CHOSUNG_SCAN_LIMIT = 2000
+
+
+def _apply_construction_mine_filter(query, user):
+    """시공팀은 본인 담당(시공자/소유자) 주문만 조회."""
+    if not user or getattr(user, "team", None) != "CONSTRUCTION":
+        return query
+    mine_conds = build_mine_sql_filter(user, scope="construction")
+    if not mine_conds:
+        return query.filter(Order.id == -1)
+    return query.filter(or_(*mine_conds))
 
 # 비용 청구 귀속 대상 (계획서 3.1)
 SETTLEMENT_DEPARTMENTS = ("SALES", "DRAWING", "PRODUCTION", "CONSTRUCTION", "CUSTOMER")
@@ -84,7 +96,7 @@ def _completion_order_matches_query(order: Order, query: str) -> bool:
     return False
 
 
-def _load_completion_orders(db, *, search_q: str = "", focus_order_id: int | None = None) -> list[Order]:
+def _load_completion_orders(db, *, search_q: str = "", focus_order_id: int | None = None, current_user=None) -> list[Order]:
     """
     Load completion dashboard rows.
 
@@ -93,6 +105,7 @@ def _load_completion_orders(db, *, search_q: str = "", focus_order_id: int | Non
     ``focus_order``: 검색 카드 클릭 — PK 단건만 반환 (``q``는 검색창 표시용, 목록 확장 금지).
     """
     base = _completion_base_query(db)
+    base = _apply_construction_mine_filter(base, current_user)
     if focus_order_id:
         return load_focus_order_only(base, focus_order_id)
 
@@ -203,12 +216,14 @@ def api_orders_completion():
     """완료·AS 건 목록 + 시공 사진 썸네일·URL + 시공자 코멘트(as_content, construction_fail_history 등)."""
     try:
         db = get_db()
+        user = get_user_by_id(session.get("user_id"))
         search_q = get_search_query_arg("q", "search")
         focus_order_id = request.args.get("focus_order", type=int)
         orders = _load_completion_orders(
             db,
             search_q=search_q,
             focus_order_id=focus_order_id,
+            current_user=user,
         )
         result = _serialize_completion_orders(db, orders)
         return jsonify({"success": True, "orders": result})
@@ -224,6 +239,10 @@ def api_settlement_issue(order_id):
     """비용 청구/차감 이벤트 기록. structured_data.settlement에 deductions 추가, status=ISSUE_RAISED."""
     db = None
     try:
+        user = get_user_by_id(session.get("user_id"))
+        if user and getattr(user, "team", None) == "CONSTRUCTION":
+            return jsonify({"success": False, "message": "시공팀은 비용 청구를 등록할 수 없습니다."}), 403
+
         db = get_db()
         order = db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
         if not order:

@@ -211,9 +211,13 @@
                   <td class="text-truncate" style="max-width: 150px;" title="{{ d.product }}">{{ d.product }}</td>
                   <td>{{ o.created_at.strftime('%Y-%m-%d') if o.created_at else '-' }}</td>
                   <td>
+                    {% if not is_construction_team|default(false) %}
                     <a href="{{ url_for('order_edit.edit_order', order_id=o.id) }}{% if o.is_erp_order %}?open=erp-order{% endif %}" class="btn btn-sm btn-outline-secondary" target="_blank">
                       상세보기
                     </a>
+                    {% else %}
+                    <span class="text-muted small">—</span>
+                    {% endif %}
                   </td>
                 </tr>
                 <tr class="history-detail-row" id="detail-{{ o.id }}" data-order-id="{{ o.id }}" style="display:none;" aria-hidden="true">
@@ -263,6 +267,10 @@
     {% elif from_search %}
       <div class="alert alert-info py-2 mb-0" role="status">
         통합 검색에서 운영 큐 결과가 없어 과거 이력 검색으로 이동했습니다.
+      </div>
+    {% elif auto_browse_mine|default(false) %}
+      <div class="alert alert-light border py-2 mb-0" role="status">
+        본인 시공 이력 최근 {{ total_orders }}건을 표시합니다.
       </div>
     {% endif %}
 
@@ -326,10 +334,12 @@
               <span>전화 없음</span>
             </span>
             {% endif %}
+            {% if not is_construction_team|default(false) %}
             <a class="erp-history-mobile-card__action is-primary" href="{{ url_for('order_edit.edit_order', order_id=o.id) }}{% if o.is_erp_order %}?open=erp-order{% endif %}" target="_blank">
               <i class="fas fa-up-right-from-square"></i>
               <span>주문 상세</span>
             </a>
+            {% endif %}
           </div>
           <div class="erp-history-mobile-card__detail" id="{{ detail_id }}" hidden aria-hidden="true">
             <div class="erp-history-mobile-card__detail-body">
