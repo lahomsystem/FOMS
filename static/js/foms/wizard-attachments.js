@@ -5,6 +5,8 @@
   "use strict";
 
   var UPLOAD_URL = "/api/erp/order-draft/attachments";
+  var VIDEO_RE = /\.(mp4|mov|webm|avi|mkv|m4v)$/i;
+  var activePreview = null;
 
   function readAttachments(card) {
     if (!card || !Array.isArray(card._wizardAttachments)) {
@@ -28,7 +30,6 @@
     }
     preview.removeAttribute("data-empty");
     entries.forEach(function (entry, idx) {
-      // 클릭 시 ERP order 방식 미리보기 모달을 연다(삭제는 모달 내부 버튼으로).
       var thumb = document.createElement("button");
       thumb.type = "button";
       thumb.className = "foms-wizard__attachment-thumb";
@@ -50,34 +51,11 @@
     });
   }
 
-  var VIDEO_RE = /\.(mp4|mov|webm|avi|mkv|m4v)$/i;
-  var activePreview = null;
-
-  function fillPreviewBody(entry) {
-    var body = document.getElementById("wizard-attachment-preview-body");
-    if (!body) {
-      return;
+  function resolveFileType(entry) {
+    if (entry.view_url && VIDEO_RE.test(entry.filename || entry.view_url)) {
+      return "video";
     }
-    body.innerHTML = "";
-    var url = entry.view_url || "";
-    if (url && VIDEO_RE.test(entry.filename || url)) {
-      var video = document.createElement("video");
-      video.src = url;
-      video.controls = true;
-      video.className = "foms-wizard__preview-media";
-      body.appendChild(video);
-    } else if (url) {
-      var img = document.createElement("img");
-      img.src = url;
-      img.alt = entry.filename || "";
-      img.className = "foms-wizard__preview-media";
-      body.appendChild(img);
-    } else {
-      var p = document.createElement("p");
-      p.className = "text-muted";
-      p.textContent = entry.filename || "미리보기를 사용할 수 없습니다.";
-      body.appendChild(p);
-    }
+    return "image";
   }
 
   function openPreviewModal(card, idx, scheduleSave) {
@@ -85,30 +63,36 @@
     if (!entry) {
       return;
     }
-    var modalEl = document.getElementById("wizardAttachmentPreviewModal");
+    var modalEl = document.getElementById("erpAttachmentPreviewModal");
     if (!modalEl || !window.bootstrap || !window.bootstrap.Modal) {
-      // Bootstrap 미가용 시 새 탭 폴백.
       if (entry.view_url) {
         window.open(entry.view_url, "_blank", "noopener");
       }
       return;
     }
     activePreview = { card: card, idx: idx, scheduleSave: scheduleSave };
-    fillPreviewBody(entry);
-    var dl = document.getElementById("wizard-attachment-preview-download");
-    if (dl) {
-      dl.href = entry.view_url || "#";
+    if (typeof window.fomsOpenErpAttachmentPreviewModal === "function") {
+      window.fomsOpenErpAttachmentPreviewModal({
+        viewUrl: entry.view_url || "",
+        downloadUrl: entry.view_url || "#",
+        filename: entry.filename || "",
+        fileType: resolveFileType(entry),
+        readOnly: false,
+      });
+      return;
     }
-    window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    if (entry.view_url) {
+      window.open(entry.view_url, "_blank", "noopener");
+    }
   }
 
   function bindPreviewModal() {
-    var modalEl = document.getElementById("wizardAttachmentPreviewModal");
+    var modalEl = document.getElementById("erpAttachmentPreviewModal");
     if (!modalEl || modalEl.dataset.wizardPreviewBound) {
       return;
     }
     modalEl.dataset.wizardPreviewBound = "1";
-    var del = document.getElementById("wizard-attachment-preview-delete");
+    var del = document.getElementById("erp-attachment-preview-delete");
     if (del) {
       del.addEventListener("click", function () {
         if (!activePreview || !activePreview.card) {
@@ -198,7 +182,6 @@
     var preview = card.querySelector("[data-wizard-attachment-preview]");
     if (preview) {
       preview.addEventListener("click", function (ev) {
-        // 썸네일 클릭 → ERP order 방식 미리보기 모달(삭제는 모달 내부 버튼).
         var thumb = ev.target.closest("[data-attachment-index]");
         if (!thumb) {
           return;

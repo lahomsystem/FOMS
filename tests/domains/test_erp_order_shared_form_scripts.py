@@ -479,14 +479,18 @@ def test_attachment_preview_zoom_scoped_to_modal_not_mobile_form() -> None:
     mobile_partial = (
         root / "templates" / "orders" / "partials" / "erp_order_tab_mobile.html"
     ).read_text(encoding="utf-8")
+    edit_body = (
+        root / "templates" / "orders" / "partials" / "edit_order_body.html"
+    ).read_text(encoding="utf-8")
     detail_partial = (
         root / "templates" / "partials" / "shared" / "foms_attachment_preview_modal.html"
     ).read_text(encoding="utf-8")
 
-    assert "foms_attachment_preview_modal.html" in mobile_partial
     form_idx = mobile_partial.index("erp-order-mobile-form")
-    include_idx = mobile_partial.index("foms_attachment_preview_modal.html")
-    assert form_idx < include_idx
+    include_idx = edit_body.index("foms_attachment_preview_modal.html")
+    assert form_idx < len(mobile_partial)
+    assert "foms_attachment_preview_modal.html" not in mobile_partial
+    assert "foms_attachment_preview_modal.html" in edit_body
 
     assert "#erpAttachmentPreviewModal #erp-attachment-preview-body" in css_text
     assert "#erpAttachmentPreviewModal .erp-attachment-preview-zoom-stage" in css_text
@@ -575,12 +579,17 @@ def test_attachment_preview_modal_global_shared_partial_dedup() -> None:
     root = Path(__file__).resolve().parents[2]
     shared = root / "templates/partials/shared/foms_attachment_preview_modal.html"
     consumers = [
-        root / "templates/orders/partials/erp_order_tab.html",
-        root / "templates/orders/partials/erp_order_tab_mobile.html",
+        root / "templates/orders/add_order.html",
+        root / "templates/orders/partials/edit_order_body.html",
         root / "templates/orders/partials/order_detail_mobile_v2.html",
         root / "templates/production/partials/modals.html",
         root / "templates/orders/object.html",
         root / "templates/construction/partials/modals.html",
+        root / "templates/orders/wizard/wizard_shell.html",
+    ]
+    non_consumers = [
+        root / "templates/orders/partials/erp_order_tab.html",
+        root / "templates/orders/partials/erp_order_tab_mobile.html",
     ]
     shared_text = shared.read_text(encoding="utf-8")
     assert shared_text.count('id="erpAttachmentPreviewModal"') == 1
@@ -588,6 +597,42 @@ def test_attachment_preview_modal_global_shared_partial_dedup() -> None:
         text = path.read_text(encoding="utf-8")
         assert "foms_attachment_preview_modal.html" in text
         assert 'id="erpAttachmentPreviewModal"' not in text
+    for path in non_consumers:
+        text = path.read_text(encoding="utf-8")
+        assert "foms_attachment_preview_modal.html" not in text
+        assert 'id="erpAttachmentPreviewModal"' not in text
+
+
+def test_dashboard_attachment_preview_bridge_ssot() -> None:
+    """Production/construction dashboards delegate legacy openAttachmentPreviewModal to shared SSOT."""
+    root = Path(__file__).resolve().parents[2]
+    bridge = (root / "static/js/foms/attachment-preview-modal-bridge.js").read_text(encoding="utf-8")
+    open_js = (root / "static/js/foms/erp-attachment-preview-open.js").read_text(encoding="utf-8")
+    prod_body = (root / "templates/production/partials/dashboard_body.html").read_text(encoding="utf-8")
+    cons_body = (root / "templates/construction/partials/dashboard_body.html").read_text(encoding="utf-8")
+
+    assert "window.fomsOpenErpAttachmentPreviewModal" in open_js
+    assert "window.openAttachmentPreviewModal = openAttachmentPreviewModal" in bridge
+    assert "fomsOpenAttachmentPreviewFromRecord" in bridge
+    assert "attachment-preview-modal-bridge.js" in prod_body
+    assert "attachment-preview-modal-bridge.js" in cons_body
+    assert "function openAttachmentPreviewModal(" not in (
+        root / "templates/production/partials/scripts.html"
+    ).read_text(encoding="utf-8")
+    assert "function openAttachmentPreviewModal(" not in (
+        root / "templates/construction/partials/scripts.html"
+    ).read_text(encoding="utf-8")
+
+
+def test_wizard_uses_shared_attachment_preview_modal() -> None:
+    root = Path(__file__).resolve().parents[2]
+    shell = (root / "templates/orders/wizard/wizard_shell.html").read_text(encoding="utf-8")
+    wizard_js = (root / "static/js/foms/wizard-attachments.js").read_text(encoding="utf-8")
+
+    assert "foms_attachment_preview_modal.html" in shell
+    assert "wizardAttachmentPreviewModal" not in shell
+    assert "fomsOpenErpAttachmentPreviewModal" in wizard_js
+    assert "erp-attachment-preview-delete" in wizard_js
 
 
 def test_edit_order_initial_mount_releases_surface_before_deferred_panels() -> None:

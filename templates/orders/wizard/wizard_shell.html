@@ -68,31 +68,7 @@
     </div>
   </div>
 
-  <!-- 첨부 미리보기 모달 (ERP order 방식) -->
-  <div class="modal fade" id="wizardAttachmentPreviewModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title"><i class="fas fa-paperclip" aria-hidden="true"></i> 첨부 미리보기</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
-        </div>
-        <div class="modal-body">
-          <div id="wizard-attachment-preview-body"></div>
-        </div>
-        <div class="modal-footer foms-attachment-preview-actions">
-          <a class="btn btn-primary" id="wizard-attachment-preview-download" href="#" target="_blank" rel="noopener" title="다운로드" aria-label="다운로드">
-            <i class="fas fa-download" aria-hidden="true"></i>
-          </a>
-          <button type="button" class="btn btn-outline-danger" id="wizard-attachment-preview-delete" title="삭제" aria-label="삭제">
-            <i class="fas fa-trash" aria-hidden="true"></i>
-          </button>
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-            <i class="fas fa-times" aria-hidden="true"></i>
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
+  {% include 'partials/shared/foms_attachment_preview_modal.html' %}
 </div>
 {% endblock %}
 
@@ -110,7 +86,9 @@
 <script src="{{ url_for('static', filename='js/foms/draft.js') }}?v=20260530a" defer></script>
 <script src="{{ url_for('static', filename='js/foms/photo-capture.js') }}?v=20260531b" defer></script>
 <script src="{{ url_for('static', filename='js/foms/product-item.js') }}?v=20260531c" defer></script>
-<script src="{{ url_for('static', filename='js/foms/wizard-attachments.js') }}?v=20260609a" defer></script>
+<script src="{{ url_for('static', filename='js/foms/attachment-preview-zoom.js') }}?v=20260602a" defer></script>
+<script src="{{ url_for('static', filename='js/foms/erp-attachment-preview-open.js') }}?v=20260617b" defer></script>
+<script src="{{ url_for('static', filename='js/foms/wizard-attachments.js') }}?v=20260617a" defer></script>
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js" defer></script>
 <script src="{{ url_for('static', filename='js/foms/wizard-enrich.js') }}?v=20260608c" defer></script>
 <script src="{{ url_for('static', filename='js/foms/wizard.js') }}?v=20260612a" defer></script>

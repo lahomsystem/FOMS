@@ -1,5 +1,5 @@
 /**
- * ERP 첨부 미리보기 모달 (#erpAttachmentPreviewModal) — 큐 카드·경량 표면용.
+ * ERP 첨부 미리보기 모달 (#erpAttachmentPreviewModal) — 큐·대시보드·wizard·legacy 표면 공통.
  * zoom/pinch: attachment-preview-zoom.js (fomsBindAttachmentPreviewImageZoom).
  */
 (function () {
@@ -26,41 +26,90 @@
     if (selectEl) selectEl.classList.add("d-none");
   }
 
-  function openErpAttachmentPreview(opts) {
-    opts = opts || {};
-    var modalEl = document.getElementById("erpAttachmentPreviewModal");
-    var body = document.getElementById("erp-attachment-preview-body");
-    var dl = document.getElementById("erp-attachment-preview-download");
-    if (!modalEl || !body || !dl) return;
-
-    var viewUrl = (opts.viewUrl || "").trim();
-    if (!viewUrl) return;
-
-    var downloadUrl = (opts.downloadUrl || viewUrl).trim();
-    var label = opts.label || "";
-    var readOnly = opts.readOnly !== false;
-
-    dl.href = downloadUrl;
-    syncFooterActions(readOnly);
-
-    body.innerHTML =
-      '<img src="' +
-      escapeHtml(viewUrl) +
-      '" alt="' +
-      escapeHtml(label) +
-      '" class="img-fluid rounded erp-attachment-preview-img">' +
-      '<div class="small text-muted mt-2">' +
-      escapeHtml(label) +
-      "</div>";
-
+  function bindBodyZoom(body, modalEl) {
     ensureModalLifecycle(modalEl);
     if (typeof window.fomsBindAttachmentPreviewImageZoom === "function") {
       window.fomsBindAttachmentPreviewImageZoom(body, { ensureModalReset: ensureModalLifecycle });
     }
+  }
 
+  function showModal(modalEl) {
     if (window.bootstrap && window.bootstrap.Modal) {
       window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
     }
+  }
+
+  /**
+   * Full attachment preview (image zoom / video / non-preview file).
+   * @param {Object} opts - viewUrl, downloadUrl, filename, fileType, readOnly
+   */
+  function openErpAttachmentPreviewModal(opts) {
+    opts = opts || {};
+    var modalEl = document.getElementById("erpAttachmentPreviewModal");
+    var body = document.getElementById("erp-attachment-preview-body");
+    var dl = document.getElementById("erp-attachment-preview-download");
+    if (!modalEl || !body || !dl) return false;
+
+    var viewUrl = (opts.viewUrl || "").trim();
+    if (!viewUrl) return false;
+
+    var downloadUrl = (opts.downloadUrl || viewUrl).trim();
+    var filename = opts.filename || "";
+    var fileType = String(opts.fileType || "image").toLowerCase();
+    var readOnly = opts.readOnly !== false;
+
+    dl.href = downloadUrl;
+    dl.classList.toggle("d-none", !downloadUrl || downloadUrl === "#");
+    syncFooterActions(readOnly);
+
+    if (fileType === "video") {
+      body.innerHTML =
+        '<div class="ratio ratio-16x9 bg-dark rounded" style="overflow:hidden;">' +
+        '<video src="' +
+        escapeHtml(viewUrl) +
+        '" controls autoplay style="width:100%;height:100%;"></video>' +
+        "</div>" +
+        '<div class="small text-muted mt-2">' +
+        escapeHtml(filename) +
+        "</div>";
+    } else if (fileType === "file") {
+      body.innerHTML =
+        '<div class="d-flex flex-column align-items-center justify-content-center text-center p-4" style="min-height:280px;">' +
+        '<i class="fas fa-file-alt text-secondary mb-3" style="font-size:3rem;"></i>' +
+        '<div class="fw-semibold mb-2">' +
+        escapeHtml(filename || "파일") +
+        "</div>" +
+        '<div class="small text-muted mb-3">문서 파일은 미리보기를 지원하지 않습니다.</div>' +
+        '<a class="btn btn-primary" href="' +
+        escapeHtml(downloadUrl) +
+        '" target="_blank" rel="noopener">' +
+        '<i class="fas fa-download"></i> 다운로드</a></div>';
+    } else {
+      body.innerHTML =
+        '<img src="' +
+        escapeHtml(viewUrl) +
+        '" alt="' +
+        escapeHtml(filename) +
+        '" class="img-fluid rounded erp-attachment-preview-img">' +
+        '<div class="small text-muted mt-2">' +
+        escapeHtml(filename) +
+        "</div>";
+      bindBodyZoom(body, modalEl);
+    }
+
+    showModal(modalEl);
+    return true;
+  }
+
+  /** Lightweight image-only preview (queue card gallery). */
+  function openErpAttachmentPreview(opts) {
+    return openErpAttachmentPreviewModal({
+      viewUrl: opts && opts.viewUrl,
+      downloadUrl: opts && opts.downloadUrl,
+      filename: opts && opts.label,
+      fileType: "image",
+      readOnly: opts && opts.readOnly !== false,
+    });
   }
 
   function bindGallery(galleryEl) {
@@ -114,5 +163,6 @@
   });
 
   window.fomsOpenErpAttachmentPreview = openErpAttachmentPreview;
+  window.fomsOpenErpAttachmentPreviewModal = openErpAttachmentPreviewModal;
   window.fomsMountErpAttachmentPreviewGalleries = mountAll;
 })();

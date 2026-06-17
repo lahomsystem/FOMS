@@ -175,7 +175,7 @@ def _make_erp_order() -> Order:
     return order
 
 
-_ERP_FORM_END_MARKER = "<!-- ERP 첨부 미리보기 모달 -->"
+_ERP_FORM_END_MARKER = "<!-- ERP 주소 검색 모달 -->"
 
 
 def _erp_form_html(html: str) -> str:
@@ -195,16 +195,20 @@ def _erp_form_html_in_mount(html: str, mount_id: str) -> str:
 def test_mobile_template_preserves_critical_erp_ids() -> None:
     legacy_ids = _template_ids("templates/orders/partials/erp_order_tab.html")
     mobile_ids = _template_ids("templates/orders/partials/erp_order_tab_mobile.html")
+    edit_body_ids = _template_ids("templates/orders/partials/edit_order_body.html")
     parent_ids = _template_ids("templates/orders/partials/edit_order_body.html")
 
+    legacy_surface_ids = legacy_ids | edit_body_ids
+    mobile_surface_ids = mobile_ids | edit_body_ids
+
     assert PARENT_ERP_IDS <= parent_ids
-    assert (CRITICAL_ERP_IDS - PARENT_ERP_IDS - DESKTOP_OMITTED_ERP_IDS) <= legacy_ids
+    assert (CRITICAL_ERP_IDS - PARENT_ERP_IDS - DESKTOP_OMITTED_ERP_IDS) <= legacy_surface_ids
     assert sorted(
-        ((CRITICAL_ERP_IDS - PARENT_ERP_IDS) - MOBILE_OMITTED_ERP_IDS) - mobile_ids
+        ((CRITICAL_ERP_IDS - PARENT_ERP_IDS) - MOBILE_OMITTED_ERP_IDS) - mobile_surface_ids
     ) == []
-    assert MOBILE_OMITTED_ERP_IDS <= legacy_ids
+    assert MOBILE_OMITTED_ERP_IDS <= legacy_surface_ids
     assert sorted(MOBILE_OMITTED_ERP_IDS & mobile_ids) == []
-    assert MOBILE_ONLY_ERP_IDS <= mobile_ids
+    assert MOBILE_ONLY_ERP_IDS <= mobile_surface_ids
 
 
 def test_mobile_surfaces_import_form_field_css() -> None:

@@ -147,6 +147,8 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='js/foms/attachment-preview-zoom.js') }}?v=20260602a" defer></script>
+<script src="{{ url_for('static', filename='js/foms/erp-attachment-preview-open.js') }}?v=20260617b" defer></script>
 <script>
   const ORDER_ID = {{ order_id }};
   const TEAM_LABELS = { CS:'라홈팀', SALES:'영업팀', MEASURE:'실측팀', DRAWING:'도면팀', PRODUCTION:'생산팀', CONSTRUCTION:'시공팀' };
@@ -161,20 +163,15 @@
   function openAttachmentPreview(attachmentId) {
     const a = (__attachments || []).find(x => x.id === attachmentId);
     if (!a) return;
-    const modalEl = document.getElementById('erpAttachmentPreviewModal');
-    const body = document.getElementById('erp-attachment-preview-body');
-    const dl = document.getElementById('erp-attachment-preview-download');
-    if (!modalEl || !body || !dl) return;
-    const viewUrl = a.view_url || '#';
-    const downloadUrl = a.download_url || '#';
-    dl.href = downloadUrl;
-    if (a.file_type === 'video') {
-      body.innerHTML = `<div class="ratio ratio-16x9 bg-dark rounded" style="overflow:hidden;"><video src="${viewUrl}" controls autoplay style="width:100%;height:100%;"></video></div><div class="small text-muted mt-2">${escapeHtml(a.filename || '')}</div>`;
-    } else {
-      body.innerHTML = `<img src="${viewUrl}" alt="${escapeHtml(a.filename || '')}" class="img-fluid rounded" style="background:#fff; padding:4px;"><div class="small text-muted mt-2">${escapeHtml(a.filename || '')}</div>`;
+    if (typeof window.fomsOpenErpAttachmentPreviewModal === 'function') {
+      window.fomsOpenErpAttachmentPreviewModal({
+        viewUrl: a.view_url || '',
+        downloadUrl: a.download_url || a.view_url || '',
+        filename: a.filename || '',
+        fileType: a.file_type || 'image',
+        readOnly: true,
+      });
     }
-    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-    modal.show();
   }
 
   function copySummary() {

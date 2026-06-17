@@ -254,61 +254,6 @@
     showAttachmentAtIndex(index);
   }
 
-  function openAttachmentPreviewModal(attachmentId, viewUrl, downloadUrl, filename, fileType) {
-    if (window.GlobalImageViewer) {
-      const singleFile = {
-        view_url: viewUrl,
-        download_url: downloadUrl,
-        filename: filename,
-        file_type: fileType
-      };
-
-      const orderMatch = String(viewUrl || '').match(/\/orders\/(\d+)\//);
-      const orderId = orderMatch ? Number(orderMatch[1]) : 0;
-      const cached = orderId ? (__attachmentsCache[orderId] || []) : [];
-
-      const isImage = (a) => {
-        if (!a) return false;
-        const ft = String(a.file_type || '').toLowerCase();
-        if (ft === 'image') return true;
-        const probe = String(a.view_url || a.filename || '').toLowerCase();
-        return /\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif)(\?|$)/.test(probe);
-      };
-
-      if (String(fileType || '').toLowerCase() === 'image' && Array.isArray(cached) && cached.length > 1) {
-        const imageFiles = cached
-          .filter(isImage)
-          .map((a) => ({
-            view_url: a.view_url || '',
-            download_url: a.download_url || (a.view_url || ''),
-            filename: a.filename || '이미지',
-            file_type: 'image',
-            key: a.storage_key || ''
-          }))
-          .filter((a) => !!a.view_url);
-
-        if (imageFiles.length > 1) {
-          let startIndex = 0;
-          if (attachmentId) {
-            const idxById = cached.filter(isImage).findIndex((a) => Number(a.id || 0) === Number(attachmentId));
-            if (idxById >= 0) startIndex = idxById;
-          }
-          if (startIndex === 0) {
-            const idxByUrl = imageFiles.findIndex((a) => String(a.view_url) === String(viewUrl));
-            if (idxByUrl >= 0) startIndex = idxByUrl;
-          }
-          window.GlobalImageViewer.open(imageFiles, startIndex);
-          return;
-        }
-      }
-
-      window.GlobalImageViewer.open([singleFile], 0);
-    } else {
-      console.error('GlobalImageViewer not found');
-      alert('이미지 뷰어를 불러올 수 없습니다.');
-    }
-  }
-
   async function openAttachmentsPreview(orderId, initialCategory = 'measurement') {
     try {
       let aList = null;
@@ -361,6 +306,11 @@
       return;
     }
     __currentAttachmentIndex = index;
+    const a = __currentAttachmentList[index];
+    if (typeof window.fomsOpenAttachmentPreviewFromRecord === 'function') {
+      window.fomsOpenAttachmentPreviewFromRecord(a);
+      return;
+    }
     if (window.GlobalImageViewer) {
       window.GlobalImageViewer.open(__currentAttachmentList, index);
     } else {
