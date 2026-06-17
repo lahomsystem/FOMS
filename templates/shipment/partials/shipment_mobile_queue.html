@@ -13,9 +13,10 @@
     <div class="erp-shipment-mobile-cards foms-mobile-queue-list">
       {% for o in mobile_queue_rows %}
         {% set meta = o.shipment_meta or {} %}
+        {% set is_as = meta.is_as %}
         {% set has_detail = meta.construction_time or meta.drawing_managers or meta.construction_workers or meta.site_extra or meta.spec_units or (meta.is_as and meta.as_content_text) %}
-        <div class="erp-shipment-mobile-card{% if has_detail %} erp-shipment-mobile-card--with-detail{% endif %}">
-          {{ render_queue_card_v2(o, can_edit_shipment|default(false), None, '--shipment', '출고', edit_return_to='erp_shipment_dashboard', detail_return_to='erp_shipment_dashboard') }}
+        <div class="erp-shipment-mobile-card{% if has_detail %} erp-shipment-mobile-card--with-detail{% endif %}{% if is_as %} erp-shipment-mobile-card--as{% endif %}">
+          {{ render_queue_card_v2(o, can_edit_shipment|default(false), None, '--drawing' if is_as else '--shipment', 'AS' if is_as else '출고', edit_return_to='erp_shipment_dashboard', detail_return_to='erp_shipment_dashboard') }}
           {% if has_detail or can_edit_shipment|default(false) %}
           <dl class="erp-shipment-mobile-card__detail" data-shipment-mobile-detail {% if not has_detail %}hidden{% endif %}>
             <div data-shipment-mobile-detail-row="construction_time" {% if not meta.construction_time %}hidden{% endif %}>

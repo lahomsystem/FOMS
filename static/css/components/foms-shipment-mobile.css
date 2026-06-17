@@ -421,6 +421,36 @@
   grid-column: 1 / -1;
 }
 
+/* AS(애프터서비스) 출고 카드: 일반 출고(분홍 #ec4899)와 한눈에 구분되도록
+   보라 타입으로 표시한다. 신호는 단일 색(보라 --foms-stage-drawing)으로 통일해
+   배지(AS) + 좌측 액센트 스트라이프 + AS 내용 틴트 블록으로 중복 강조한다.
+   배지 자체는 매크로에서 foms-stage-badge--drawing(보라)로 렌더된다. */
+.erp-shipment-mobile-card--as .foms-queue-card-v2 {
+  border-left: 4px solid var(--foms-stage-drawing, #8b5cf6);
+}
+
+.erp-shipment-mobile-card--as .erp-shipment-mobile-card__detail {
+  border-left: 4px solid var(--foms-stage-drawing, #8b5cf6);
+  background: color-mix(in srgb, var(--foms-stage-drawing, #8b5cf6) 5%, #fff);
+}
+
+.erp-shipment-mobile-card--as .erp-shipment-mobile-card__full {
+  padding: 0.5rem 0.625rem;
+  border: 1px solid color-mix(in srgb, var(--foms-stage-drawing, #8b5cf6) 22%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--foms-stage-drawing, #8b5cf6) 9%, #fff);
+}
+
+.erp-shipment-mobile-card--as .erp-shipment-mobile-card__full dt {
+  color: var(--foms-stage-drawing, #8b5cf6);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.erp-shipment-mobile-card--as .erp-shipment-mobile-card__full dd {
+  color: #5b21b6;
+}
+
 @media (max-width: 1365.98px) {
   body.erp-mobile-v2-layout .erp-mobile-shell[data-erp-mobile-v2='true'] {
     background: var(--foms-surface-overlay, #f3f4f6);
