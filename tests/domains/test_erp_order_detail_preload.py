@@ -100,14 +100,15 @@ def test_erp_dashboard_includes_preloaded_order_detail_payload(login):
     )
     db_session.add(attachment)
     db_session.commit()
+    order_id = order.id
 
     response = login.get("/erp/dashboard")
     body = response.get_data(as_text=True)
 
     assert response.status_code == 200
-    assert f'order-detail-preload-{order.id}' in body
+    assert f'order-detail-preload-{order_id}' in body
 
-    marker = f'<script type="application/json" id="order-detail-preload-{order.id}">'
+    marker = f'<script type="application/json" id="order-detail-preload-{order_id}">'
     start = body.index(marker) + len(marker)
     end = body.index("</script>", start)
     payload = json.loads(body[start:end])
