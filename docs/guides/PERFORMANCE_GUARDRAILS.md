@@ -63,7 +63,7 @@
 - 인덱스 마이그레이션: `migrations/versions/phase_d_trgm_indexes.py`, `phase_e_trgm_perm_indexes.py`
 - 마이그레이션 락: `migrations/env.py`
 - 점검 엔진(도구 무관): `tools/perf/perf_scan.py`
-- 점검 커맨드: `.claude/commands/perf-guard.md` · `perf-audit.md`, `.cursor/commands/perf-guard.md` · `perf-audit.md`
+- 점검 진입점: Claude `.claude/commands/perf-guard.md` · `perf-audit.md`(슬래시 `/perf-guard`), Cursor 네이티브 `.cursor/rules/02-performance-guardrails.mdc` §점검 실행, Codex `AGENTS.md`+스크립트 직접 실행
 
 ## 점검 스킬 실행 절차 (Cursor·Claude·Codex 공통)
 

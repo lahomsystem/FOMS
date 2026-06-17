@@ -7,6 +7,6 @@
   - `python tools/perf/perf_scan.py --audit` : 전체 코드베이스 개선 후보(advisory).
   - `--json` 기계 판독, `--base <ref>` guard 비교 기준.
 
-스킬(에이전트 진입점): Claude `/perf-guard`·`/perf-audit`, Cursor `.cursor/commands/perf-*`.
+스킬(에이전트 진입점): Claude `/perf-guard`·`/perf-audit`(`.claude/commands`), Cursor 네이티브 `.cursor/rules/02-performance-guardrails.mdc`, Codex `AGENTS.md`+스크립트 직접 실행.
 정책·체크리스트·사유: `docs/guides/PERFORMANCE_GUARDRAILS.md`.
 자동 강제(CI/smoke): `tests/performance/test_perf_regression_guard.py`, `test_static_cache_headers.py`.
