@@ -1,5 +1,5 @@
 /**
- * Mobile order detail attach grid — compact modal preview with shared zoom gestures.
+ * Mobile order detail attach grid — category tabs, collapsed panel, modal preview.
  */
 (function () {
   "use strict";
@@ -52,6 +52,8 @@
 
   function bindGallery(galleryEl) {
     galleryEl.querySelectorAll("[data-foms-attachment-preview]").forEach(function (btn) {
+      if (btn.dataset.fomsAttachmentPreviewBound === "1") return;
+      btn.dataset.fomsAttachmentPreviewBound = "1";
       btn.addEventListener("click", function (ev) {
         ev.preventDefault();
         openAttachmentPreview({
@@ -67,8 +69,44 @@
     });
   }
 
-  function mountAll() {
-    document.querySelectorAll("[data-foms-attachment-preview-gallery]").forEach(function (gallery) {
+  function activateAttachTab(panel, tabKey) {
+    panel.querySelectorAll("[data-foms-mobile-attach-tab]").forEach(function (tabBtn) {
+      var active = tabBtn.getAttribute("data-foms-mobile-attach-tab") === tabKey;
+      tabBtn.classList.toggle("is-active", active);
+      tabBtn.setAttribute("aria-selected", active ? "true" : "false");
+    });
+    panel.querySelectorAll("[data-foms-mobile-attach-tabpanel]").forEach(function (tabPanel) {
+      var active = tabPanel.getAttribute("data-foms-mobile-attach-tabpanel") === tabKey;
+      tabPanel.classList.toggle("is-hidden", !active);
+    });
+  }
+
+  function bindAttachPanel(panel) {
+    if (panel.dataset.fomsMobileAttachPanelBound === "1") return;
+    panel.dataset.fomsMobileAttachPanelBound = "1";
+
+    var toggle = panel.querySelector("[data-foms-mobile-attach-panel-toggle]");
+    if (toggle) {
+      toggle.addEventListener("click", function () {
+        var collapsed = panel.classList.toggle("foms-mobile-attach-panel--collapsed");
+        toggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
+        if (!collapsed) {
+          panel.querySelectorAll("[data-foms-attachment-preview-gallery]").forEach(bindGallery);
+        }
+      });
+    }
+
+    panel.querySelectorAll("[data-foms-mobile-attach-tab]").forEach(function (tabBtn) {
+      tabBtn.addEventListener("click", function (ev) {
+        ev.preventDefault();
+        activateAttachTab(panel, tabBtn.getAttribute("data-foms-mobile-attach-tab") || "");
+      });
+    });
+  }
+
+  function mountAll(root) {
+    (root || document).querySelectorAll("[data-foms-mobile-attach-panel]").forEach(bindAttachPanel);
+    (root || document).querySelectorAll("[data-foms-attachment-preview-gallery]").forEach(function (gallery) {
       if (gallery._fomsAttachmentPreviewBound) return;
       gallery._fomsAttachmentPreviewBound = true;
       bindGallery(gallery);
@@ -76,11 +114,17 @@
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", mountAll);
+    document.addEventListener("DOMContentLoaded", function () {
+      mountAll(document);
+    });
   } else {
-    mountAll();
+    mountAll(document);
   }
-  document.body.addEventListener("htmx:afterSwap", mountAll);
-  document.addEventListener("foms:main-content-swapped", mountAll);
+  document.body.addEventListener("htmx:afterSwap", function () {
+    mountAll(document);
+  });
+  document.addEventListener("foms:main-content-swapped", function () {
+    mountAll(document);
+  });
   window.fomsMountMobileDetailAttachmentPreview = mountAll;
 })();

@@ -92,8 +92,8 @@ def test_mobile_product_items_groups_attachments_by_item_index() -> None:
 def test_mobile_product_items_merges_common_attachments_for_single_item() -> None:
     sd = {"items": [{"product_name": "Only"}]}
     attachments = [
-        {"id": 1, "item_index": None, "label": "common"},
-        {"id": 2, "item_index": 0, "label": "linked"},
+        {"id": 1, "item_index": None, "label": "common", "category": "measurement"},
+        {"id": 2, "item_index": 0, "label": "linked", "category": "drawing"},
     ]
     rows = display.mobile_product_items(sd, attachments)
     assert sorted(a["label"] for a in rows[0]["attachments"]) == ["common", "linked"]
@@ -101,16 +101,47 @@ def test_mobile_product_items_merges_common_attachments_for_single_item() -> Non
     assert common == []
 
 
+def test_mobile_attachment_categories_omit_empty_tabs() -> None:
+    attachments = [
+        {"id": 1, "category": "measurement", "label": "m1"},
+        {"id": 2, "category": "measurement", "label": "m2"},
+        {"id": 3, "category": "drawing", "label": "d1"},
+    ]
+    categories = display.mobile_attachment_categories(attachments)
+    assert [c["key"] for c in categories] == ["measurement", "drawing"]
+    assert len(categories[0]["items"]) == 2
+    assert "construction" not in [c["key"] for c in categories]
+    assert "as" not in [c["key"] for c in categories]
+
+
+def test_mobile_product_items_exposes_attachment_categories() -> None:
+    sd = {"items": [{"product_name": "A"}]}
+    attachments = [
+        {"id": 1, "item_index": 0, "category": "measurement", "label": "m"},
+        {"id": 2, "item_index": 0, "category": "as", "label": "a"},
+    ]
+    rows = display.mobile_product_items(sd, attachments)
+    assert [c["key"] for c in rows[0]["attachment_categories"]] == ["measurement", "as"]
+
+
 def test_mobile_detail_partial_per_item_attachments_and_common_section() -> None:
     partial = (
         ROOT / "templates" / "orders" / "partials" / "order_detail_mobile_v2.html"
     ).read_text(encoding="utf-8")
-    assert "item.attachments" in partial
-    assert "foms-product-item__photos" in partial
-    assert "order.common_attachments" in partial
+    assert "item.attachment_categories" in partial
+    assert "foms-mobile-attach-panel--collapsed" in partial
+    assert "data-foms-mobile-attach-tab" in partial
+    assert "order.common_attachment_categories" in partial
     assert "공통 첨부" in partial
     assert "data-foms-product-item" in partial
     assert "data-foms-product-toggle" in partial
+
+
+def test_mobile_detail_attach_js_binds_category_tabs() -> None:
+    js = (ROOT / "static/js/foms/mobile-detail-attachments.js").read_text(encoding="utf-8")
+    assert "data-foms-mobile-attach-panel" in js
+    assert "data-foms-mobile-attach-tab" in js
+    assert "foms-mobile-attach-panel--collapsed" in js
 
 
 def test_mobile_detail_products_js_binds_v2_selectors() -> None:

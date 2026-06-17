@@ -1,0 +1,90 @@
+/* Mobile order detail — attachment category tabs + collapsed panel */
+
+.foms-mobile-attach-panel {
+  border: 1px solid var(--foms-border-subtle, #e5e7eb);
+  border-radius: var(--foms-radius-md, 10px);
+  background: var(--foms-surface-overlay, #f9fafb);
+  overflow: hidden;
+}
+
+.foms-mobile-attach-panel__toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.55rem 0.65rem;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: var(--foms-text-secondary, #4b5563);
+  font-size: 0.8125rem;
+}
+
+.foms-mobile-attach-panel__summary {
+  flex: 1;
+  min-width: 0;
+}
+
+.foms-mobile-attach-panel__chev {
+  color: var(--foms-text-tertiary, #6b7280);
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.foms-mobile-attach-panel--collapsed .foms-mobile-attach-panel__body {
+  display: none;
+}
+
+.foms-mobile-attach-panel--collapsed .foms-mobile-attach-panel__chev {
+  transform: rotate(0deg);
+}
+
+.foms-mobile-attach-panel:not(.foms-mobile-attach-panel--collapsed) .foms-mobile-attach-panel__chev {
+  transform: rotate(180deg);
+}
+
+.foms-mobile-attach-panel__body {
+  padding: 0 0.65rem 0.65rem;
+}
+
+.foms-mobile-attach-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+}
+
+.foms-mobile-attach-tab {
+  border: 1px solid var(--foms-border-subtle, #e5e7eb);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--foms-text-secondary, #4b5563);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.55rem;
+  cursor: pointer;
+}
+
+.foms-mobile-attach-tab.is-active {
+  border-color: var(--foms-interactive-primary, #6366f1);
+  background: var(--foms-color-brand-50, #eef2ff);
+  color: var(--foms-color-brand-700, #4338ca);
+}
+
+.foms-mobile-attach-tab__count {
+  margin-left: 0.15rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.foms-mobile-attach-tabpanel.is-hidden {
+  display: none;
+}
+
+.foms-mobile-attach-tabpanel__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--foms-text-secondary, #4b5563);
+  margin-bottom: 0.35rem;
+}

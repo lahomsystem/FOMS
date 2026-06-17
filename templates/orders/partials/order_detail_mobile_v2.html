@@ -37,6 +37,58 @@
   {% endif %}
 {%- endmacro %}
 
+{% macro mobile_attach_category_panel(categories, order_id, show_add=false) -%}
+  {% if categories %}
+    {% set attach_total = categories|map(attribute='items')|map('length')|sum %}
+    {% set attach_summary_parts = [] %}
+    {% for cat in categories %}
+      {% set _ = attach_summary_parts.append(cat.label ~ ' ' ~ (cat.items|length)) %}
+    {% endfor %}
+    <div class="foms-mobile-attach-panel foms-mobile-attach-panel--collapsed" data-foms-mobile-attach-panel>
+      <button
+        type="button"
+        class="foms-mobile-attach-panel__toggle"
+        data-foms-mobile-attach-panel-toggle
+        aria-expanded="false">
+        <span class="foms-mobile-attach-panel__summary">
+          첨부 {{ attach_total }}건{% if attach_summary_parts %} · {{ attach_summary_parts|join(' · ') }}{% endif %}
+        </span>
+        <span class="foms-mobile-attach-panel__chev" aria-hidden="true">⌄</span>
+      </button>
+      <div class="foms-mobile-attach-panel__body">
+        {% if categories|length > 1 %}
+          <div class="foms-mobile-attach-tabs" role="tablist" aria-label="첨부 카테고리">
+            {% for cat in categories %}
+              <button
+                type="button"
+                class="foms-mobile-attach-tab{% if loop.first %} is-active{% endif %}"
+                role="tab"
+                data-foms-mobile-attach-tab="{{ cat.key }}"
+                aria-selected="{{ 'true' if loop.first else 'false' }}"
+                aria-controls="foms-mobile-attach-panel-{{ order_id }}-{{ cat.key }}">
+                {{ cat.label }}
+                <span class="foms-mobile-attach-tab__count">{{ cat.items|length }}</span>
+              </button>
+            {% endfor %}
+          </div>
+        {% endif %}
+        {% for cat in categories %}
+          <div
+            id="foms-mobile-attach-panel-{{ order_id }}-{{ cat.key }}"
+            class="foms-mobile-attach-tabpanel{% if not loop.first %} is-hidden{% endif %}"
+            role="tabpanel"
+            data-foms-mobile-attach-tabpanel="{{ cat.key }}">
+            {% if categories|length == 1 %}
+              <div class="foms-mobile-attach-tabpanel__label">{{ cat.label }}</div>
+            {% endif %}
+            {{ mobile_attach_grid(cat.items, order_id, show_add=show_add and loop.last) }}
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  {% endif %}
+{%- endmacro %}
+
 <div class="foms-detail-page">
   <div class="foms-shell-body">
     <header class="detail-hero foms-detail-hero">
@@ -152,10 +204,9 @@
                 {'label': '기타·설치', 'value': item.misc or '-'},
                 {'label': '금액', 'value': item.price_label or '-'},
               ]) }}
-              {% if item.attachments %}
+              {% if item.attachment_categories %}
                 <div class="product-item__photos foms-product-item__photos">
-                  <span class="product-item__photos-lbl foms-product-item__photos-lbl">첨부 ({{ item.attachments|length }})</span>
-                  {{ mobile_attach_grid(item.attachments, order.id) }}
+                  {{ mobile_attach_category_panel(item.attachment_categories, order.id) }}
                 </div>
               {% endif %}
             </div>
@@ -233,13 +284,12 @@
       </section>
     {% endif %}
 
-    {% if order.common_attachments %}
+    {% if order.common_attachment_categories %}
       <section class="foms-detail-section" aria-labelledby="foms-detail-attach-title">
         <div class="foms-detail-section__head">
           <h2 class="foms-detail-section__title" id="foms-detail-attach-title">공통 첨부</h2>
-          <span class="foms-detail-section__count">{{ order.common_attachments|length }}건</span>
         </div>
-        {{ mobile_attach_grid(order.common_attachments, order.id, show_add=true) }}
+        {{ mobile_attach_category_panel(order.common_attachment_categories, order.id, show_add=true) }}
       </section>
     {% elif order.attachments_count is defined and order.attachments_count > 0 and not order.product_items %}
       <section class="foms-detail-section" aria-labelledby="foms-detail-attach-title">

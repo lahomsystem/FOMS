@@ -26,10 +26,18 @@ __all__ = [
     "build_mobile_queue_order_row",
     "mobile_timeline_events",
     "mobile_attachment_items",
+    "mobile_attachment_categories",
     "batch_resolve_queue_attachment_urls",
     "mobile_product_items",
     "mobile_amount_summary",
 ]
+
+_MOBILE_ATTACHMENT_CATEGORY_ORDER: tuple[tuple[str, str], ...] = (
+    ("measurement", "실측"),
+    ("drawing", "도면"),
+    ("construction", "시공"),
+    ("as", "AS"),
+)
 
 _IMAGE_SUFFIXES = (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp")
 _MAX_QUEUE_PREVIEW_COUNT = 3
@@ -163,6 +171,21 @@ def _group_attachments_by_item_index(
     return by_index, common
 
 
+def mobile_attachment_categories(attachments: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Non-empty attachment buckets by ERP category (mobile detail tabs)."""
+    buckets: dict[str, list[dict[str, Any]]] = {key: [] for key, _ in _MOBILE_ATTACHMENT_CATEGORY_ORDER}
+    for att in attachments:
+        cat = str(att.get("category") or "measurement").strip().lower()
+        if cat not in buckets:
+            cat = "measurement"
+        buckets[cat].append(att)
+    return [
+        {"key": key, "label": label, "items": buckets[key]}
+        for key, label in _MOBILE_ATTACHMENT_CATEGORY_ORDER
+        if buckets[key]
+    ]
+
+
 def mobile_product_items(
     sd: dict,
     attachments: list[dict[str, Any]] | None = None,
@@ -213,6 +236,7 @@ def mobile_product_items(
                 "summary": " · ".join(summary_bits) if summary_bits else str(name),
                 "collapsed_default": collapse_all,
                 "attachments": att_by_index.get(idx, []),
+                "attachment_categories": mobile_attachment_categories(att_by_index.get(idx, [])),
             }
         )
     return rows
@@ -392,6 +416,7 @@ def build_mobile_queue_order_row(db, order, current_user=None) -> dict[str, Any]
         attachments,
         item_count=len([i for i in (sd.get("items") or []) if isinstance(i, dict)]),
     )
+    common_attachment_categories = mobile_attachment_categories(common_attachments)
 
     return {
         "id": order.id,
@@ -414,6 +439,7 @@ def build_mobile_queue_order_row(db, order, current_user=None) -> dict[str, Any]
         "attachment_previews": previews,
         "attachments": attachments,
         "common_attachments": common_attachments,
+        "common_attachment_categories": common_attachment_categories,
         "timeline_events": mobile_timeline_events(db, order.id),
         "product_items": product_items,
         "amount_summary": mobile_amount_summary(sd),

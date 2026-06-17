@@ -12,6 +12,7 @@
 @import url("../foundation/foms-split-view.css");
 @import url("../components/foms-kv-row.css");
 @import url("../components/foms-product-item.css");
+@import url("../components/foms-mobile-attach-tabs.css?v=20260617b");
 @import url("../components/foms-alpine-toast.css");
 @import url("../components/foms-lightbox.css");
 @import url("../components/foms-swipe-actions.css");
