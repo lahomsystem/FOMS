@@ -564,23 +564,34 @@
     <!-- 전역 Socket.IO 초기화 (서버가 Socket.IO 제공 시 로드. 로컬 socketio.run / 원격 gunicorn gevent) -->
     {% if current_user and (not request.endpoint or (request.endpoint != 'admin' and not
     request.endpoint.startswith('admin_'))) and config.get('SOCKETIO_AVAILABLE') %}
-    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script id="global-socketio-loader" src="https://cdn.socket.io/4.5.4/socket.io.min.js" defer></script>
     <script id="socket-config"
         type="application/json">{"forcePolling":{{ "true" if config.DEBUG else "false" }},"allowPollingFallback":{{ "true" if config.get("SOCKETIO_ALLOW_POLLING_FALLBACK") else "false" }}}</script>
     <script>
         // 전역 Socket.IO 초기화 (모든 페이지에서 알림 받을 수 있게)
-        (function () {
+        (function initGlobalSocketIO() {
             'use strict';
+
+            if (typeof io === 'undefined') {
+                const loader = document.getElementById('global-socketio-loader');
+                if (loader && loader.dataset.fomsSocketLoadBound !== '1') {
+                    loader.dataset.fomsSocketLoadBound = '1';
+                    loader.addEventListener('load', initGlobalSocketIO, { once: true });
+                    loader.addEventListener('error', function () {
+                        console.error('[Global Socket.IO] ❌ Socket.IO 스크립트 로드 실패');
+                    }, { once: true });
+                    if (window.FOMS_DEBUG) console.log('[Global Socket.IO] defer 로드 대기 중');
+                } else if (!loader) {
+                    console.error('[Global Socket.IO] ❌ Socket.IO loader를 찾을 수 없습니다.');
+                }
+                return;
+            }
+
+            if (window.__globalSocketInitialized) return;
 
             if (window.FOMS_DEBUG) console.log('[Global Socket.IO] 초기화 시작');
             if (window.FOMS_DEBUG) console.log('[Global Socket.IO] current_user 존재:', true);
             if (window.FOMS_DEBUG) console.log('[Global Socket.IO] io 객체 존재:', typeof io !== 'undefined');
-
-            // Socket.IO 스크립트 로드 확인
-            if (typeof io === 'undefined') {
-                console.error('[Global Socket.IO] ❌ Socket.IO 스크립트가 로드되지 않았습니다.');
-                return;
-            }
 
             // 전역 Socket.IO 싱글톤 생성/재사용 (설정은 JSON 블록에서 로드하여 JS 파서/Jinja 충돌 방지)
             var _socketConfigEl = document.getElementById('socket-config');
@@ -618,6 +629,7 @@
                 console.error('[Global Socket.IO] ❌ Socket.IO 인스턴스 생성 실패');
                 return;
             }
+            window.__globalSocketInitialized = true;
 
             // 연결 끊김/오류 시 stale sid 방지를 위해 싱글톤을 정리하고 새 핸드셰이크로 재연결 (RCA: ERR_CONNECTION_RESET / 400)
             function clearSocketAndScheduleReconnect(socketRef, delayMs) {

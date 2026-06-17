@@ -72,51 +72,10 @@ def _collect_sync_scripts() -> dict[str, list[str]]:
 # --- 승인된 동기 스크립트 baseline (2026-06-16 기준) ---------------------------
 # 신규 항목 추가는 "defer/async/lazy로 불가능함"을 확인한 경우에만, 사유를 남길 것.
 # 코어 라이브러리/레이아웃 부트스트랩 등 파싱 시점 전역 의존이 있는 것만 동기 허용.
-SYNC_SCRIPT_ALLOWLIST: frozenset[str] = frozenset({
-    # 외부 코어 라이브러리(레이아웃/지도/실시간) — 인라인 코드가 파싱시점 의존
-    "cdn:bootstrap.bundle.min.js",
-    "cdn:flatpickr",
-    "cdn:ko.js",
-    "cdn:leaflet.js",
-    "cdn:socket.io.min.js",
-    # 라우트로 서빙되는 채팅 스크립트
-    "endpoint:channel_chat_pages.chat_scripts_js",
-    # 로컬 공용/코어 (전역 함수 정의·파싱시점 의존)
-    "attachment-preview-zoom.js",
-    "column-resizer.js",
-    "common_utils.js",
-    "composition.js",
-    "dashboard-columns.js",
-    "dashboard.js",
-    "drawing-handoff.js",
-    "erp-order-shared.js",
-    "estimate-lifecycle.js",
-    "image-export.js",
-    "layout-sync-wiring.js",
-    "manual-rows.js",
-    "mobile.js",
-    "order-detail-fragment.js",
-    "photo-capture.js",
-    "pricing-core.js",
-    "primary-form.js",
-    "rum-baseline.js",
-    "script.js",
-    "shared.js",
-    "spec-width-eval.js",
-    "theme.js",
-    "unsaved-exit-guard.js",
-    "upload-progress.js",
-    "visual-viewport.js",
-})
+SYNC_SCRIPT_ALLOWLIST: frozenset[str] = frozenset()
 
 # 외부 CDN 동기 허용(네트워크 stall 위험을 알고도 코어라 유지). 신규 CDN 동기 금지.
-CDN_SYNC_ALLOWLIST: frozenset[str] = frozenset({
-    "cdn:bootstrap.bundle.min.js",
-    "cdn:flatpickr",
-    "cdn:ko.js",
-    "cdn:leaflet.js",
-    "cdn:socket.io.min.js",
-})
+CDN_SYNC_ALLOWLIST: frozenset[str] = frozenset()
 
 
 def test_no_new_render_blocking_scripts() -> None:
@@ -158,3 +117,10 @@ def test_service_worker_networkfirst_has_timeout() -> None:
         "해결: network fetch를 timeout과 경주시켜 느리면 캐시본으로 폴백. "
         "정책: docs/guides/PERFORMANCE_GUARDRAILS.md"
     )
+
+
+def test_service_worker_does_not_force_static_no_cache_fetches() -> None:
+    """Static assets must not be force-revalidated by SW fetch options."""
+    sw = SW_FILE.read_text(encoding="utf-8", errors="ignore")
+    assert "fetch(request, { cache:" not in sw
+    assert "staticCacheFirst(req, STATIC_CACHE)" in sw

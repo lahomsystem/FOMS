@@ -214,7 +214,7 @@ def _history_style_orders_query(db: Session, query: str) -> list[Order]:
                 Order.phone.ilike(term),
                 Order.address.ilike(term),
                 Order.manager_name.ilike(term),
-                cast(Order.structured_data, String).ilike(term),
+                cast(Order.structured_data, String).ilike(term),  # perf-ok: ix_orders_structured_data_text_trgm
             )
         )
         .order_by(Order.created_at.desc(), Order.id.desc())

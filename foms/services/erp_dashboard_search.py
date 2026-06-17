@@ -56,7 +56,7 @@ def erp_order_dashboard_search_predicate(
         clauses.append(
             and_(
                 Order.is_erp_order == True,
-                cast(Order.structured_data, String).ilike(search_term),
+                cast(Order.structured_data, String).ilike(search_term),  # perf-ok: ix_orders_structured_data_text_trgm
             )
         )
     return or_(*clauses)

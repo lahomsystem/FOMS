@@ -67,10 +67,10 @@ def _apply_mine_filter(query: Any, user: Any) -> Any:
     conds = []
     if u_name:
         conds.append(Order.manager_name.ilike(f"%{u_name}%"))
-        conds.append(cast(Order.structured_data, String).ilike(f'%"{u_name}"%'))
+        conds.append(cast(Order.structured_data, String).ilike(f'%"{u_name}"%'))  # perf-ok: ix_orders_structured_data_text_trgm
     if u_username:
         conds.append(Order.manager_name.ilike(f"%{u_username}%"))
-        conds.append(cast(Order.structured_data, String).ilike(f'%"{u_username}"%'))
+        conds.append(cast(Order.structured_data, String).ilike(f'%"{u_username}"%'))  # perf-ok: ix_orders_structured_data_text_trgm
     if not conds:
         return query.filter(Order.id == -1)
     return query.filter(or_(*conds))

@@ -104,8 +104,8 @@ def build_mine_sql_filter(user: Any, scope: str = "all") -> list[Any]:
     if u_username and _escape_like(u_username) != _escape_like(u_name):
         _add_name_group(u_username)
     if u_id_str:
-        sales_conds.append(cast(Order.structured_data["assignments"]["sales_assignee_user_ids"], String).ilike(f"%{u_id_str}%", escape="\\"))
-        drawing_conds.append(cast(Order.structured_data["assignments"]["drawing_assignee_user_ids"], String).ilike(f"%{u_id_str}%", escape="\\"))
+        sales_conds.append(cast(Order.structured_data["assignments"]["sales_assignee_user_ids"], String).ilike(f"%{u_id_str}%", escape="\\"))  # perf-ok: ix_orders_sd_sales_ids_trgm
+        drawing_conds.append(cast(Order.structured_data["assignments"]["drawing_assignee_user_ids"], String).ilike(f"%{u_id_str}%", escape="\\"))  # perf-ok: ix_orders_sd_drawing_ids_trgm
 
     groups: dict[str, list[Any]] = {
         "sales": manager_conds + sales_conds,

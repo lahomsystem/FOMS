@@ -54,7 +54,7 @@ def _measurement_search_filter(query, q):
             Order.address.ilike(term),
             and_(
                 Order.is_erp_order == True,
-                cast(Order.structured_data, String).ilike(term)
+                cast(Order.structured_data, String).ilike(term)  # perf-ok: ix_orders_structured_data_text_trgm
             )
         )
     )
@@ -130,7 +130,7 @@ def build_measurement_map_query(db, date, q, manager, dashboard, limit=500):
                 Order.manager_name.ilike(manager_term),
                 and_(
                     Order.is_erp_order == True,
-                    cast(Order.structured_data, String).ilike(manager_term)
+                    cast(Order.structured_data, String).ilike(manager_term)  # perf-ok: ix_orders_structured_data_text_trgm
                 )
             )
         )

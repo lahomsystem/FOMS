@@ -58,7 +58,7 @@ def history_dashboard():
                 Order.phone.ilike(search_term),
                 Order.address.ilike(search_term),
                 Order.manager_name.ilike(search_term),
-                cast(Order.structured_data, String).ilike(search_term)
+                cast(Order.structured_data, String).ilike(search_term)  # perf-ok: ix_orders_structured_data_text_trgm
             )
         )
         

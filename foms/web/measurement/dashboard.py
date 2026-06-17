@@ -55,7 +55,7 @@ def _erp_order_search_filter(query, q):
             Order.address.ilike(term),
             and_(
                 Order.is_erp_order == True,
-                cast(Order.structured_data, String).ilike(term)
+                cast(Order.structured_data, String).ilike(term)  # perf-ok: ix_orders_structured_data_text_trgm
             )
         )
     )
@@ -73,7 +73,7 @@ def _build_measurement_raw_match_filter(date_values):
         conditions.append(
             and_(
                 Order.is_erp_order == True,
-                cast(Order.structured_data, String).ilike(f'%{value}%')
+                cast(Order.structured_data, String).ilike(f'%{value}%')  # perf-ok: ix_orders_structured_data_text_trgm
             )
         )
     return or_(*conditions) if conditions else None

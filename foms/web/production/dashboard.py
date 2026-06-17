@@ -73,7 +73,7 @@ def _build_production_orders_query(
                 Order.customer_name.ilike(search_term),
                 Order.phone.ilike(search_term),
                 Order.address.ilike(search_term),
-                cast(Order.structured_data, String).ilike(search_term),
+                cast(Order.structured_data, String).ilike(search_term),  # perf-ok: ix_orders_structured_data_text_trgm
             )
         )
 
@@ -83,10 +83,10 @@ def _build_production_orders_query(
         conds = []
         if u_name:
             conds.append(Order.manager_name.ilike(f"%{u_name}%"))
-            conds.append(cast(Order.structured_data, String).ilike(f'%"{u_name}"%'))
+            conds.append(cast(Order.structured_data, String).ilike(f'%"{u_name}"%'))  # perf-ok: ix_orders_structured_data_text_trgm
         if u_username:
             conds.append(Order.manager_name.ilike(f"%{u_username}%"))
-            conds.append(cast(Order.structured_data, String).ilike(f'%"{u_username}"%'))
+            conds.append(cast(Order.structured_data, String).ilike(f'%"{u_username}"%'))  # perf-ok: ix_orders_structured_data_text_trgm
         if conds:
             _q = _q.filter(or_(*conds))
 
