@@ -663,10 +663,15 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $codexPath = Get-ToolPath -Name "codex"
 $qaSkillCandidates = @(
     ".agents/skills/gstack/qa/SKILL.md",
+    ".agents/skills/gstack/qa/SKILL.md.tmpl",
     ".agents/skills/gstack-qa/SKILL.md",
+    ".agents/skills/gstack-qa/SKILL.md.tmpl",
     ".agents/skills/qa/SKILL.md",
+    ".agents/skills/qa/SKILL.md.tmpl",
     ".agents/skills/gstack/.agents/skills/gstack-qa/SKILL.md",
-    ".agents/skills/gstack/.agents/skills/qa/SKILL.md"
+    ".agents/skills/gstack/.agents/skills/gstack-qa/SKILL.md.tmpl",
+    ".agents/skills/gstack/.agents/skills/qa/SKILL.md",
+    ".agents/skills/gstack/.agents/skills/qa/SKILL.md.tmpl"
 )
 $qaSkillResolved = @()
 foreach ($candidate in $qaSkillCandidates) {

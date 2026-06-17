@@ -85,6 +85,7 @@ $snapshotManifest = Join-Path $resolvedVendorRoot "upstream\SNAPSHOT.md"
 $setupScript = Join-Path $PSScriptRoot "setup_gstack.ps1"
 $codexWrapper = Join-Path $PSScriptRoot "run_codex.ps1"
 $vendorQaSourcePath = Join-Path $resolvedVendorRoot "qa\SKILL.md"
+$vendorQaTemplatePath = Join-Path $resolvedVendorRoot "qa\SKILL.md.tmpl"
 $effectiveBundlePath = if ([string]::IsNullOrWhiteSpace($BundlePath)) {
     "docs/harness/bundles/HARNESS_BUNDLE_CODEX.md"
 } else {
@@ -102,10 +103,15 @@ $bundleResolved = (Resolve-Path $bundleCandidate).Path
 $gitPath = Get-ToolPath -Name "git"
 $qaSkillCandidates = @(
     ".agents/skills/gstack/qa/SKILL.md",
+    ".agents/skills/gstack/qa/SKILL.md.tmpl",
     ".agents/skills/gstack-qa/SKILL.md",
+    ".agents/skills/gstack-qa/SKILL.md.tmpl",
     ".agents/skills/qa/SKILL.md",
+    ".agents/skills/qa/SKILL.md.tmpl",
     ".agents/skills/gstack/.agents/skills/gstack-qa/SKILL.md",
-    ".agents/skills/gstack/.agents/skills/qa/SKILL.md"
+    ".agents/skills/gstack/.agents/skills/gstack-qa/SKILL.md.tmpl",
+    ".agents/skills/gstack/.agents/skills/qa/SKILL.md",
+    ".agents/skills/gstack/.agents/skills/qa/SKILL.md.tmpl"
 )
 $qaSkillReady = $false
 foreach ($candidate in $qaSkillCandidates) {
@@ -114,7 +120,7 @@ foreach ($candidate in $qaSkillCandidates) {
         break
     }
 }
-$vendorQaSourceReady = Test-Path $vendorQaSourcePath
+$vendorQaSourceReady = (Test-Path $vendorQaSourcePath) -or (Test-Path $vendorQaTemplatePath)
 
 if (-not (Test-HttpUrl -Value $Url)) {
     Write-Error "Url must be an absolute http/https URL."
