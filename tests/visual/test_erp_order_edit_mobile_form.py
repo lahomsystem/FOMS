@@ -123,9 +123,23 @@ MOBILE_ONLY_ERP_IDS = {
 PARENT_ERP_IDS = {"erp-order-config", "erp-order-bootstrap", "erp-order-tab"}
 
 
-def _template_ids(rel: str) -> set[str]:
+_INCLUDE_RE = re.compile(r"""{%\s*include\s+['"]([^'"]+)['"]""")
+
+
+def _template_ids(rel: str, _seen: frozenset[str] | None = None) -> set[str]:
+    """Collect element ids from a template and one level of {% include %} (recursive)."""
+    if _seen is None:
+        _seen = frozenset()
+    if rel in _seen:
+        return set()
     html = (ROOT / rel).read_text(encoding="utf-8")
-    return set(re.findall(r"""id=["']([^"']+)["']""", html))
+    ids = set(re.findall(r"""id=["']([^"']+)["']""", html))
+    for include_ref in _INCLUDE_RE.findall(html):
+        inc_rel = include_ref if include_ref.startswith("templates/") else f"templates/{include_ref}"
+        inc_path = ROOT / inc_rel
+        if inc_path.is_file():
+            ids |= _template_ids(inc_rel.replace("\\", "/"), _seen | {rel})
+    return ids
 
 
 def _login_admin(client, username: str) -> User:

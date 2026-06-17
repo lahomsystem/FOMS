@@ -12,14 +12,14 @@
   }
 
   function ensureModalLifecycle(modalEl) {
-    if (!modalEl || !window.fomsBindAttachmentPreviewModalZoomReset) return;
-    window.fomsBindAttachmentPreviewModalZoomReset(modalEl, "foms-attachment-preview-body", {});
+    if (!modalEl || typeof window.fomsBindAttachmentPreviewModalZoomReset !== "function") return;
+    window.fomsBindAttachmentPreviewModalZoomReset(modalEl, "erp-attachment-preview-body", {});
   }
 
   function openAttachmentPreview(opts) {
-    var modalEl = document.getElementById("fomsAttachmentPreviewModal");
-    var body = document.getElementById("foms-attachment-preview-body");
-    var dl = document.getElementById("foms-attachment-preview-download");
+    var modalEl = document.getElementById("erpAttachmentPreviewModal");
+    var body = document.getElementById("erp-attachment-preview-body");
+    var dl = document.getElementById("erp-attachment-preview-download");
     if (!modalEl || !body || !dl) return;
 
     var viewUrl = opts.viewUrl || "";

@@ -142,27 +142,7 @@
     </div>
   </div>
 
-  <div class="modal fade" id="erpAttachmentPreviewModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title"><i class="fas fa-paperclip"></i> 첨부 미리보기</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-          <div id="erp-attachment-preview-body"></div>
-        </div>
-        <div class="modal-footer">
-          <a class="btn btn-primary" id="erp-attachment-preview-download" href="#" target="_blank" rel="noopener">
-            <i class="fas fa-download"></i> 다운로드
-          </a>
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-            <i class="fas fa-times"></i> 닫기
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
+  {% include 'partials/shared/foms_attachment_preview_modal.html' %}
 </div>
 {% endblock %}
 

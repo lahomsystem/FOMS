@@ -483,17 +483,16 @@ def test_attachment_preview_zoom_scoped_to_modal_not_mobile_form() -> None:
         root / "templates" / "partials" / "shared" / "foms_attachment_preview_modal.html"
     ).read_text(encoding="utf-8")
 
-    modal_idx = mobile_partial.index('id="erpAttachmentPreviewModal"')
+    assert "foms_attachment_preview_modal.html" in mobile_partial
     form_idx = mobile_partial.index("erp-order-mobile-form")
-    assert form_idx < modal_idx
+    include_idx = mobile_partial.index("foms_attachment_preview_modal.html")
+    assert form_idx < include_idx
 
     assert "#erpAttachmentPreviewModal #erp-attachment-preview-body" in css_text
-    assert "#fomsAttachmentPreviewModal #foms-attachment-preview-body" in css_text
     assert "#erpAttachmentPreviewModal .erp-attachment-preview-zoom-stage" in css_text
-    assert "#fomsAttachmentPreviewModal .erp-attachment-preview-zoom-stage" in css_text
     assert ".erp-order-mobile-form #erp-attachment-preview-body .erp-attachment-preview-img" not in css_text
-    assert 'id="fomsAttachmentPreviewModal"' in detail_partial
-    assert 'id="foms-attachment-preview-body"' in detail_partial
+    assert 'id="erpAttachmentPreviewModal"' in detail_partial
+    assert 'id="erp-attachment-preview-body"' in detail_partial
 
 
 def test_mobile_attachment_preview_uses_viewport_sized_modal() -> None:
@@ -509,14 +508,13 @@ def test_mobile_attachment_preview_uses_viewport_sized_modal() -> None:
 
     assert "Mobile attachment preview: use the phone viewport" in css_text
     assert "#erpAttachmentPreviewModal .modal-dialog" in css_text
-    assert "#fomsAttachmentPreviewModal .modal-dialog" in css_text
     assert "width: 100vw;" in css_text
     assert "height: 100dvh;" in css_text
     assert "overflow: hidden;" in css_text
     assert "max-height: calc(100dvh - 8.75rem);" in css_text
     assert (
-        "body.erp-mobile-v2-layout #fomsAttachmentPreviewModal "
-        ".foms-attachment-preview-actions .btn"
+        "body.erp-mobile-v2-layout #erpAttachmentPreviewModal "
+        ".erp-attachment-preview-actions .btn"
     ) in css_text
     assert ".erp-order-mobile-form .erp-attachment-preview-actions .btn" not in css_text
     assert "max-width: min(92vw, 36rem)" not in css_text
@@ -549,7 +547,7 @@ def test_attachment_preview_image_zoom_supports_in_modal_gestures() -> None:
     assert "erpOpenAttachmentPreview(attachmentId)" in erp_js
 
     assert "data-foms-attachment-preview-gallery" in mobile_js
-    assert "fomsAttachmentPreviewModal" in mobile_js
+    assert "erpAttachmentPreviewModal" in mobile_js
     assert "fomsBindAttachmentPreviewImageZoom" in mobile_js
 
 
@@ -570,6 +568,26 @@ def test_mobile_detail_attach_grid_uses_modal_preview_not_lightbox() -> None:
     assert "attachment-preview-zoom.js" in page
     assert "mobile-detail-attachments.js" in page
     assert "lightbox.js" not in page
+
+
+def test_attachment_preview_modal_global_shared_partial_dedup() -> None:
+    """Attachment preview modal markup lives only in foms_attachment_preview_modal.html."""
+    root = Path(__file__).resolve().parents[2]
+    shared = root / "templates/partials/shared/foms_attachment_preview_modal.html"
+    consumers = [
+        root / "templates/orders/partials/erp_order_tab.html",
+        root / "templates/orders/partials/erp_order_tab_mobile.html",
+        root / "templates/orders/partials/order_detail_mobile_v2.html",
+        root / "templates/production/partials/modals.html",
+        root / "templates/orders/object.html",
+        root / "templates/construction/partials/modals.html",
+    ]
+    shared_text = shared.read_text(encoding="utf-8")
+    assert shared_text.count('id="erpAttachmentPreviewModal"') == 1
+    for path in consumers:
+        text = path.read_text(encoding="utf-8")
+        assert "foms_attachment_preview_modal.html" in text
+        assert 'id="erpAttachmentPreviewModal"' not in text
 
 
 def test_edit_order_initial_mount_releases_surface_before_deferred_panels() -> None:
