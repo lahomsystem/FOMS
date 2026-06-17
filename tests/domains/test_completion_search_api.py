@@ -78,6 +78,35 @@ def test_completion_api_search_q_not_limited_by_browse_window(client, app) -> No
         assert hits[0]["customer_name"] == "장성민"
 
 
+def test_completion_fragment_includes_search_dataset_attrs(client, app) -> None:
+    """Shell fragment must embed q/focus_order for API bootstrap (history timing safe)."""
+    with app.app_context():
+        _login(client, "completion_fragment_user")
+        order = Order(
+            received_date="2024-01-01",
+            customer_name="에잇포인트",
+            phone="010-9102-8202",
+            address="Seoul",
+            product="책장",
+            status="COMPLETED",
+            is_erp_order=True,
+            structured_data={
+                "parties": {"customer": {"name": "에잇포인트", "phone": "010-9102-8202"}},
+            },
+        )
+        db_session.add(order)
+        db_session.commit()
+        order_id = order.id
+        resp = client.get(
+            f"/erp/completion?q=에잇포인트&focus_order={order_id}&view=fragment",
+            headers={"X-FOMS-ERP-SHELL": "1", "X-Requested-With": "XMLHttpRequest"},
+        )
+        assert resp.status_code == 200
+        body = resp.get_data(as_text=True)
+        assert 'data-search-q="에잇포인트"' in body
+        assert f'data-focus-order="{order_id}"' in body
+
+
 def test_completion_api_focus_order_with_q_shows_only_focused_row(client, app) -> None:
     """q= broad match + focus_order= must not list sibling orders (same customer name)."""
     with app.app_context():

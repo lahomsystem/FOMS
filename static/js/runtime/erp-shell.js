@@ -450,14 +450,25 @@
       }
     }
 
+    function commitShellHistory(finalUrl) {
+      if (opts.fromPopState || !window.history || !window.history.pushState) {
+        return;
+      }
+      window.history.pushState(
+        { fomsErpShell: true },
+        '',
+        finalUrl.pathname + finalUrl.search + finalUrl.hash
+      );
+    }
+
     if (!opts.bypassCache && isFragmentCacheable(canonical.href)) {
       var cached = cacheGet(destKey);
-      if (cached && applyFragmentToMain(cached, canonical.href)) {
-        if (!opts.fromPopState && window.history && window.history.pushState) {
-          window.history.pushState({ fomsErpShell: true }, '', canonical.pathname + canonical.search + canonical.hash);
+      if (cached) {
+        commitShellHistory(canonical);
+        if (applyFragmentToMain(cached, canonical.href)) {
+          afterSwap();
+          return Promise.resolve();
         }
-        afterSwap();
-        return Promise.resolve();
       }
     }
 
@@ -465,13 +476,11 @@
     return fetchFragment(canonical)
       .then(function (payload) {
         var finalUrl = payload.finalUrl || canonical;
+        commitShellHistory(finalUrl);
         if (!applyFragmentToMain(payload.html, finalUrl.href)) {
           setShellFragmentLoading(false);
           window.location.href = canonical.pathname + canonical.search + canonical.hash;
           return;
-        }
-        if (!opts.fromPopState && window.history && window.history.pushState) {
-          window.history.pushState({ fomsErpShell: true }, '', finalUrl.pathname + finalUrl.search + finalUrl.hash);
         }
         afterSwap();
       })

@@ -123,8 +123,10 @@
     var hideOrderActions = isConstructionTeam;
     var pageParams = new URLSearchParams(window.location.search);
     var apiParams = new URLSearchParams();
-    var searchQ = (pageParams.get('q') || pageParams.get('search') || '').trim();
-    var focusOrderParam = (pageParams.get('focus_order') || '').trim();
+    var datasetSearchQ = rootEl ? String(rootEl.dataset.searchQ || '').trim() : '';
+    var datasetFocusOrder = rootEl ? String(rootEl.dataset.focusOrder || '').trim() : '';
+    var searchQ = datasetSearchQ || (pageParams.get('q') || pageParams.get('search') || '').trim();
+    var focusOrderParam = datasetFocusOrder || (pageParams.get('focus_order') || '').trim();
     if (searchQ) apiParams.set('q', searchQ);
     if (focusOrderParam) apiParams.set('focus_order', focusOrderParam);
     var completionApiUrl = '/api/orders/completion';

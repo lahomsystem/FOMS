@@ -194,6 +194,8 @@ def test_search_fragment_route(client, app) -> None:
     )
     assert "data-foms-erp-no-shell" in partial
     assert "foms-search-overlay__link-meta" in partial
+    assert "item.stage_label" in partial
+    assert "item.order_id" in partial
 
 
 def test_unified_search_customer_hit_includes_phone_and_address(app) -> None:
@@ -226,8 +228,62 @@ def test_unified_search_customer_hit_includes_phone_and_address(app) -> None:
         assert hit["title"] == "소마디자인(가평)"
         assert hit["phone"] == "010-3377-5193"
         assert hit["address"] == "경기 가평군 청평면"
+        assert hit["stage_label"] == "시공"
+        assert hit["order_id"] == order.id
         assert "010-3377-5193" in hit["subtitle"]
         assert "경기 가평군 청평면" in hit["subtitle"]
+
+
+def test_unified_search_duplicate_customer_hits_show_stage_and_order_id(app) -> None:
+    """동명·동주소 다건 — stage_label + order_id로 구분."""
+    from db import db_session
+    from foms.services.foms_unified_search import search_unified
+    from models import Order
+
+    with app.app_context():
+        completed = Order(
+            received_date="2024-01-01",
+            customer_name="에잇포인트",
+            phone="010-9102-8202",
+            address="Seoul",
+            product="책장",
+            status="COMPLETED",
+            is_erp_order=True,
+            structured_data={
+                "parties": {"customer": {"name": "에잇포인트", "phone": "010-9102-8202"}},
+                "site": {"address_full": "서울 강남구"},
+            },
+        )
+        construction = Order(
+            received_date="2024-06-01",
+            customer_name="에잇포인트",
+            phone="010-9102-8202",
+            address="Seoul",
+            product="책장",
+            status="CONSTRUCTION",
+            is_erp_order=True,
+            structured_data={
+                "parties": {"customer": {"name": "에잇포인트", "phone": "010-9102-8202"}},
+                "site": {"address_full": "서울 강남구"},
+                "workflow": {"stage": "CONSTRUCTION"},
+            },
+        )
+        db_session.add(completed)
+        db_session.add(construction)
+        db_session.commit()
+        completed_id = completed.id
+        construction_id = construction.id
+
+        hits = search_unified(db_session, "에잇")
+        assert len(hits["customer"]) == 2
+        stage_by_id = {hit["order_id"]: hit["stage_label"] for hit in hits["customer"]}
+        assert stage_by_id[completed_id] == "완료"
+        assert stage_by_id[construction_id] == "시공"
+        hrefs = {hit["order_id"]: hit["href"] for hit in hits["customer"]}
+        assert f"focus_order={completed_id}" in hrefs[completed_id]
+        assert "/erp/completion" in hrefs[completed_id]
+        assert f"focus_order={construction_id}" in hrefs[construction_id]
+        assert "/erp/construction/dashboard" in hrefs[construction_id]
 
 
 def test_unified_search_history_fallback_finds_non_erp_order(app) -> None:

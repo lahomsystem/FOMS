@@ -1,7 +1,9 @@
 {% include 'cs/partials/completion_styles.html' %}
 <div class="container-fluid erp-dashboard erp-pro erp-completion erp-mobile-shell"
   data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}"
-  data-is-construction-team="{{ 'true' if is_construction_team|default(false) else 'false' }}">
+  data-is-construction-team="{{ 'true' if is_construction_team|default(false) else 'false' }}"
+  data-search-q="{{ search_q|default('', true) }}"
+  data-focus-order="{{ focus_order_id|default('', true) }}">
   {% if erp_mobile_v2_enabled %}
     {% include 'partials/shared/erp_mobile_shell.html' %}
   {% endif %}

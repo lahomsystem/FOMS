@@ -105,9 +105,9 @@ def _load_completion_orders(db, *, search_q: str = "", focus_order_id: int | Non
     ``focus_order``: 검색 카드 클릭 — PK 단건만 반환 (``q``는 검색창 표시용, 목록 확장 금지).
     """
     base = _completion_base_query(db)
-    base = _apply_construction_mine_filter(base, current_user)
     if focus_order_id:
         return load_focus_order_only(base, focus_order_id)
+    base = _apply_construction_mine_filter(base, current_user)
 
     trimmed_q = (search_q or "").strip()
     orders: list[Order]

@@ -77,6 +77,17 @@ def test_runtime_shell_fragment_loading_overlay(runtime_shell_src: str) -> None:
     assert "window.FOMS_ERP_SHELL.beginShellNavigationPending" in runtime_shell_src
 
 
+def test_runtime_shell_push_state_before_fragment_scripts(runtime_shell_src: str) -> None:
+    """Inline page scripts read window.location.search; history must update before activateScripts."""
+    navigate_fn = runtime_shell_src.split("function navigateByShell(url, opts)")[1]
+    fetch_branch = navigate_fn.split("return fetchFragment(canonical)")[1].split(".catch(function ()")[0]
+    assert "commitShellHistory(finalUrl)" in fetch_branch
+    assert fetch_branch.index("commitShellHistory(finalUrl)") < fetch_branch.index("applyFragmentToMain")
+    cache_branch = navigate_fn.split("if (!opts.bypassCache && isFragmentCacheable")[1].split("setShellFragmentLoading(true)")[0]
+    assert "commitShellHistory(canonical)" in cache_branch
+    assert cache_branch.index("commitShellHistory(canonical)") < cache_branch.index("applyFragmentToMain")
+
+
 def test_runtime_shell_uses_final_fetch_url_for_redirected_fragments(runtime_shell_src: str) -> None:
     """Dashboard search can 302 to history; shell state must follow the final canonical URL."""
     assert "canonicalFromFetchResponse" in runtime_shell_src

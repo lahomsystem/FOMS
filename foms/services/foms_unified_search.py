@@ -10,7 +10,8 @@ from sqlalchemy.orm import Session
 
 from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
 from foms.services.erp_display import _ensure_dict, _normalize_for_search
-from foms.services.erp_order_deeplink import build_order_queue_focus_href
+from foms.services.erp_order_deeplink import build_order_queue_focus_href, resolve_order_stage_code
+from foms.services.erp_policy import STAGE_LABELS
 from foms.services.phone_search import extract_phone_digit_query, normalize_phone_digits
 from models import Order
 
@@ -223,6 +224,12 @@ def _history_style_orders_query(db: Session, query: str) -> list[Order]:
     )
 
 
+def _order_stage_label(order: Order) -> str:
+    """Human-readable workflow stage for search disambiguation."""
+    code = resolve_order_stage_code(order)
+    return STAGE_LABELS.get(code, code) or "-"
+
+
 def _order_search_href(order: Order, search_query: str) -> str:
     """Deep link: ERP queue focus when possible, otherwise order edit."""
     if getattr(order, "is_erp_order", False):
@@ -242,6 +249,7 @@ def _append_order_hits(
     customer = _order_customer_name(order)
     phone = _order_phone(order)
     address = _order_address(order)
+    stage_label = _order_stage_label(order)
     contact_subtitle = _format_contact_subtitle(phone, address)
     href = _order_search_href(order, trimmed)
     base = {
@@ -249,6 +257,7 @@ def _append_order_hits(
         "title": customer or f"주문 #{order.id}",
         "phone": phone,
         "address": address,
+        "stage_label": stage_label,
         "subtitle": contact_subtitle or (order.product or ""),
     }
     if "customer" in matched and len(buckets["customer"]) < limit_per_group:
