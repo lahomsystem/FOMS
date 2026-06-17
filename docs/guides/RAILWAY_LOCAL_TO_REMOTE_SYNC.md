@@ -1,6 +1,6 @@
 # 원격(Railway) DB 초기화 후 로컬 Postgres 완전 복사
 
-**GDM 지휘 하에 실수 없이 진행하기 위한 단일 절차서.**  
+**운영자가 실수 없이 진행하기 위한 단일 절차서.**  
 원격 DB 데이터를 **완전히 비운 뒤**, 로컬 FOMS Postgres를 **그대로** 복사하여 주문·상태·기타 데이터가 로컬과 100% 일치하도록 합니다.
 
 ---
@@ -97,7 +97,7 @@ railway run python scripts/ops/railway_bootstrap.py
 
 ---
 
-## 2. 저장·복원 범위 (GDM 더블체크)
+## 2. 저장·복원 범위 (운영자 더블체크)
 
 | 대상 | 내용 |
 |------|------|
@@ -242,6 +242,5 @@ railway run python scripts/ops/railway_bootstrap.py
 
 ## 7. 참조
 
-- Grand Develop Master: `.cursor/agents/grand-develop-master.md` (백업/복원 검증, 원격 FOMS 동작 확인)
 - 백업/복원 검증: `docs/evolution/BACKUP_RESTORE_VERIFICATION.md`
 - Railway 마이그레이션: `docs/guides/MIGRATION_RAILWAY_R2.md`, `docs/guides/MIGRATION_GUIDE_RAILWAY.md`

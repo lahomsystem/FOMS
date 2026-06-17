@@ -7,7 +7,7 @@ const cursor: HostConfig = {
   cliAliases: [],
 
   globalRoot: '.cursor/skills/gstack',
-  localSkillRoot: '.agents/skills/gstack',
+  localSkillRoot: '.cursor/skills/gstack',
   hostSubdir: '.cursor',
   usesEnvVars: true,
 
@@ -24,8 +24,11 @@ const cursor: HostConfig = {
 
   pathRewrites: [
     { from: '~/.claude/skills/gstack', to: '~/.cursor/skills/gstack' },
-    { from: '.claude/skills/gstack', to: '.agents/skills/gstack' },
+    { from: '.claude/skills/gstack', to: '.cursor/skills/gstack' },
+    { from: '.claude/skills', to: '.cursor/skills' },
   ],
+
+  suppressedResolvers: ['GBRAIN_CONTEXT_LOAD', 'GBRAIN_SAVE_RESULTS'],
 
   runtimeRoot: {
     globalSymlinks: ['bin', 'browse/dist', 'browse/bin', 'gstack-upgrade', 'ETHOS.md'],

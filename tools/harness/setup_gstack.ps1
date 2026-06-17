@@ -103,7 +103,7 @@ $snapshotManifest = Join-Path $resolvedVendorRoot "upstream\SNAPSHOT.md"
 $setupEntrypoint = Join-Path $resolvedVendorRoot "setup"
 $ethosPath = Join-Path $resolvedVendorRoot "ETHOS.md"
 $reviewChecklistPath = Join-Path $resolvedVendorRoot "review\checklist.md"
-$qaSourceSkillPath = Join-Path $resolvedVendorRoot "qa\SKILL.md"
+$qaSourceSkillPath = Join-Path $resolvedVendorRoot "qa\SKILL.md.tmpl"
 $upgradeMigrationPath = Join-Path $resolvedVendorRoot "gstack-upgrade\migrations\v0.15.2.0.sh"
 $buildSourceMarkerPath = Join-Path $resolvedVendorRoot "scripts\gen-skill-docs.ts"
 $browseSourceMarkerPath = Join-Path $resolvedVendorRoot "browse\src\cli.ts"
@@ -154,7 +154,7 @@ $vendorDetail = if ($vendorReady) { $vendorManifest } else { "VENDOR.md not foun
 $snapshotDetail = if ($snapshotReady) { $snapshotManifest } else { "Pinned upstream snapshot not found yet" }
 $setupDetail = if ($setupReady) { $setupEntrypoint } else { "Repo-local upstream setup entrypoint not imported yet" }
 $runtimeStaticDetail = if ($runtimeStaticReady) {
-    "ETHOS.md, review/checklist.md, qa/SKILL.md, and gstack-upgrade migration are present"
+    "ETHOS.md, review/checklist.md, qa/SKILL.md.tmpl, and gstack-upgrade migration are present"
 } else {
     "Static runtime subset is incomplete (ETHOS/review/qa/gstack-upgrade)"
 }

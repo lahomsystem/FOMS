@@ -731,28 +731,9 @@ def write_macro_micro_plan(output_dir: Path, plan: Dict[str, Any]) -> Tuple[Path
 
 def default_self_manifest() -> Dict[str, Any]:
     return {
-        "agents": [
-            {
-                "name": "grand-develop-master",
-                "path": ".cursor/agents/grand-develop-master.md",
-                "auto_create_stub": False,
-            },
-            {
-                "name": "coding-research-center",
-                "path": ".cursor/agents/coding-research-center.md",
-                "auto_create_stub": False,
-            },
-            {
-                "name": "evolution-architect",
-                "path": ".cursor/agents/evolution-architect.md",
-                "auto_create_stub": False,
-            },
-            {
-                "name": "migration-executor",
-                "path": ".cursor/agents/migration-executor.md",
-                "auto_create_stub": True,
-            },
-        ],
+        # Repo-local bespoke Cursor agent files were retired on 2026-06-17.
+        # Keep this empty so self-upgrade never recreates retired agent files.
+        "agents": [],
         "rules": [
             {
                 "name": "12-macro-micro-migration-execution",

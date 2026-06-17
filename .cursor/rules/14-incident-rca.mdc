@@ -1,14 +1,16 @@
 ---
-description: 장애 RCA·복구 시 incident-rca 절차 및 INCIDENT_TEMPLATE 준수 (GDM 연동).
+description: 장애 RCA·복구 시 gstack debug/investigate 및 INCIDENT_TEMPLATE 준수.
 alwaysApply: false
 ---
 
 # 장애 RCA / 복구 (FOMS)
 
-GDM 트리거 **「GDM 에러/장애」** 또는 `incident-rca` 에이전트 호출 시 다음을 따른다.
+장애·복구·RCA 요청, gstack `/debug`·`/investigate`, 또는 incident 분석 작업 시 다음을 따른다.
 
-1. **에이전트(상세 절차)**: `.cursor/agents/incident-rca.md` — 타임라인, 가설 보드, Containment vs Permanent Fix 분리.
+1. **진단 절차**: Detect → Contain → Triage → Diagnose → Fix → Verify → Prevent 순서로 진행한다.
 2. **작성 템플릿**: `docs/harness/policy/INCIDENT_TEMPLATE.md`
-3. **금지 사항과의 관계**: `grand-develop-master`의 「승인 없이 작동 코드 변경」은 **일상 변경**에 해당. 장애 대응의 **일시적 Containment**는 incident-rca 절차에 따라 수행하고, **영구 수정(Permanent Fix)**은 근거·검증·필요 시 Spec/RPI 후속을 명시한다.
+3. **가설 보드**: 최소 3개 가설을 세우고, 각 가설의 지지·반박 증거를 기록한 뒤 판정한다.
+4. **Containment vs Permanent Fix**: 일시적 격리와 영구 수정을 분리한다. 영구 수정은 근거·검증·필요 시 Spec/RPI 후속을 명시한다.
+5. **금지 사항**: 로그/증거 없는 추측성 변경, 조용한 실패 삼킴, 승인 없는 파괴적 복구를 금지한다.
 
-참고 수행표: `.cursor/agents/GDM_EXECUTION_PLAN.md` §1.6 (장애 RCA/복구).
+참고: `AGENTS.md`, `CLAUDE.md`, `docs/harness/policy/INCIDENT_TEMPLATE.md`

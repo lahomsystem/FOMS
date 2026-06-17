@@ -1,8 +1,8 @@
 # gstack Upstream Snapshot
 
 - Upstream repo: `https://github.com/garrytan/gstack`
-- Pinned commit: `04b709d91a3f10efa1c816c6ddb4c8cafa735da8`
-- Captured on: `2026-04-05`
+- Pinned commit: `c7ae63201ab193a7dc7fb7e0d81238645111ffac` (VERSION `1.58.1.0`)
+- Captured on: `2026-06-17`
 - Scope: Phase 2 pinned documentation snapshot plus setup/host-config source slice, static runtime assets, and build/generated-skill source layer for FOMS harness integration; local Windows setup has now been verified against this pinned slice
 
 ## Included Files

@@ -6,6 +6,12 @@
 
 ---
 
+### [2026-06-17] GDM + bespoke specialist agent retirement
+- **키워드**: gdm, retirement, gstack, caveman, cursor, claude, codex, agents
+- **결정**: repo-local GDM(`grand-develop-master`, `GDM_EXECUTION_PLAN`)과 bespoke Cursor/Claude specialist agent 계층을 활성 운영 모델에서 퇴역한다. 앞으로 Cursor IDE, Cursor 내 Claude, Cursor 내 Codex는 `AGENTS.md`/`CLAUDE.md`/`.cursor/rules` 공통 정책, RPI·verify-result 워크플로, gstack skills, caveman response style을 기준으로 운영한다. 역사적 GDM audit/evolution/plan 문서는 archive evidence로 보존하되 현재 진입점으로 안내하지 않는다.
+- **이유**: 현재 실제 운영은 caveman과 gstack skills 중심이며, GDM 및 bespoke agent 계층은 중복된 역할·명령·컨텍스트 표면을 만들어 일상 작업에서 discoverability와 토큰 비용을 악화시킨다. gstack/caveman 경계를 유지하면서 FOMS hard safety/RPI 정책을 상위 기준으로 두는 편이 더 단순하고 현재 사용 방식과 일치한다.
+- **영향**: `.cursor/agents/*`, `.claude/agents/*`, `.claude/commands/{gdm,audit,backend,frontend,db,deploy,migrate,explore,evolve,rca,research,review}.md`, `.cursor/rules/14-incident-rca.mdc`, `docs/plans/2026-04-05-cursor-claude-codex-harness-engineering-master-plan.md`, `docs/harness/bundles/*_HARNESS.md`, `tools/research_center/self_upgrade_manifest.json`, `tools/research_center/coding_research_center.py`, `tools/research_center/README.md`, `docs/guides/RAILWAY_LOCAL_TO_REMOTE_SYNC.md`, `scripts/ops/sync_local_to_railway.ps1`, `docs/specs/2026-06-17-gdm-retirement_SPEC.md`, `docs/ARCHIVE_INDEX.md`, `docs/AI_STATUS.md`
+
 ### [2026-06-05] backup feature retirement + backups/ 거버넌스 제거
 - **키워드**: backup, retirement, governance, dual-spec, PTC, allowlist, FOMS_RUNTIME_OUTPUT_ROOT, railway-postgresql
 - **결정**: `SimpleBackupSystem` / `/api/simple_backup` / `/api/backup_status` / `backups/` 트리를 전부 폐기한다. production 백업 정본은 Railway PostgreSQL 자체 백업/스냅샷이며, 로컬 운영자 백업은 `scripts/ops/sync_local_to_railway.ps1` (`${FOMS_RUNTIME_OUTPUT_ROOT}/dumps/foms.dump`)로 단일화한다. PTC root allowlist + dual-spec(2026-04-07 §2.6.1, 2026-04-13 §2.2.1/§2.5) + clean-room 스크립트 + `.gitignore` + git 트리를 단일 PR에서 동시 갱신했다. backup 재도입 차단을 위한 별도 negative gate는 두지 않으며, allowlist exactness + RPI 절차가 게이트 역할을 한다.

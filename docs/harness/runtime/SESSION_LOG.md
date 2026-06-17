@@ -4,11 +4,65 @@
 
 ## 최근 세션
 
-### Session: 583643c2
+### Session: e787c82a
+- **시작**: 2026-06-17 15:08:34
+- **상태**: 진행중
+- **편집 파일**: (기록 중)
+- **종료**: -
+
+### Session: d8d2e0b3
+- **시작**: 2026-06-17 14:56:54
+- **상태**: unknown
+- **편집 파일**: `docs/harness/SKILL_DUPLICATE_AUDIT.md`, `tools/harness/cleanup_skill_duplicates.ps1`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e1527d76-bb12-4ce0-ad11-8e0151c15169.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-050318a1-daf3-456c-8318-239c24222f6a.png`, `tools/harness/import_gstack_source_slice.py`, `tools/harness/setup_gstack.ps1`, `.gitignore`, `.agents/skills/gstack/upstream/SNAPSHOT.md`, `.agents/skills/gstack/VENDOR.md`, `tools/harness/audit_skills.py`
+- **종료**: 2026-06-17 15:08:33
+
+ 1e95c746
+- **시작**: 2026-06-17 14:50:18
+- **상태**: completed
+- **편집 파일**: `docs/harness/SKILL_DUPLICATE_AUDIT.md`, `tools/harness/cleanup_skill_duplicates.ps1`, `tools/harness/import_gstack_source_slice.py`, `tools/harness/setup_gstack.ps1`, `.gitignore`, `.agents/skills/gstack/upstream/SNAPSHOT.md`, `.agents/skills/gstack/VENDOR.md`, `tools/harness/audit_skills.py`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-0edcb8b8-2e46-48b3-a644-d271d6977e79.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-9888c0df-d1ab-4c46-ba88-bfc2efb6498d.png`
+- **종료**: 2026-06-17 14:52:48
+
+ 2e9ead3c
+- **시작**: 2026-06-17 14:26:29
+- **상태**: completed
+- **편집 파일**: `docs/specs/2026-06-17-gdm-retirement_SPEC.md`, `tools/research_center/coding_research_center.py`, `scripts/ops/sync_local_to_railway.ps1`, `docs/guides/RAILWAY_LOCAL_TO_REMOTE_SYNC.md`, `tools/research_center/README.md`, `tools/research_center/self_upgrade_manifest.json`, `docs/plans/2026-04-05-cursor-claude-codex-harness-engineering-master-plan.md`, `.cursor/rules/14-incident-rca.mdc`, `docs/AI_STATUS.md`, `docs/ARCHIVE_INDEX.md`
+- **종료**: 2026-06-17 14:38:58
+
+ 061c9526
+- **시작**: 2026-06-17 13:33:25
+- **상태**: aborted
+- **편집 파일**: `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-f40a0fbf-eaa4-4368-97c3-8158d9550676.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-6cb88e7b-1955-4219-af0e-43f808cbd674.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-af23c1a7-786a-4286-8652-b4916f87b2bc.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-12f1f571-0e46-49bb-a843-6732c52db578.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-9112c1bb-d3c1-4f2f-9d0d-75527153b165.png`, `commit_msg.txt`, `templates/orders/partials/estimate_pane.html`, `tests/domains/test_erp_order_shared_form_scripts.py`, `tests/domains/test_erp_mobile_order_display.py`, `static/js/orders/erp-order-shared.js`
+- **종료**: 2026-06-17 14:15:42
+
+ 4cf38fe9
+- **시작**: 2026-06-17 11:14:24
+- **상태**: completed
+- **편집 파일**: `commit_msg.txt`, `tests/domains/test_erp_order_shared_form_scripts.py`, `tests/visual/test_erp_order_edit_mobile_form.py`, `templates/production/partials/scripts.html`, `templates/orders/object.html`, `templates/production/partials/modals.html`, `templates/orders/partials/erp_order_tab_mobile.html`, `templates/orders/partials/erp_order_tab.html`, `static/css/components/foms-form-field.css`, `templates/construction/partials/scripts.html`
+- **종료**: 2026-06-17 11:34:47
+
+ bbe91e6f
+- **시작**: 2026-06-17 10:34:40
+- **상태**: completed
+- **편집 파일**: `commit_msg.txt`, `tests/domains/test_erp_order_detail_preload.py`
+- **종료**: 2026-06-17 11:10:09
+
+ 8169f4d8
+- **시작**: 2026-06-17 09:31:58
+- **상태**: unknown
+- **편집 파일**: `commit_msg.txt`, `static/js/wdcalculator/pricing-core.js`, `tests/domains/test_wdcalculator_product_settings.py`, `tests/support/wdcalculator_spec_width_eval_contract_node_checks.js`, `tests/performance/test_perf_regression_guard.py`, `static/js/wdcalculator/spec-width-eval.js`, `static/js/wdcalculator/primary-form.js`, `tests/support/wdcalculator_base_components_contract_node_checks.js`, `tests/contracts/wdcalculator/test_primary_form_contracts.py`, `static/css/wdcalculator/builder.css`
+- **종료**: 2026-06-17 10:28:19
+
+ bbd98adc
+- **시작**: 2026-06-17 08:42:07
+- **상태**: unknown
+- **편집 파일**: `commit_msg_tmp.txt`, `tests/domains/test_erp_mobile_order_display.py`, `templates/orders/mobile_order_detail.html`, `static/css/foundation/foms-mobile-surfaces.css`, `static/js/foms/mobile-detail-attachments.js`, `static/css/components/foms-mobile-attach-tabs.css`, `templates/orders/partials/order_detail_mobile_v2.html`, `foms/services/erp_mobile_order_display.py`, `.git/COMMIT_EDITMSG_MOBILE_PAGER.txt`, `tests/visual/test_p1_mockup_structure.py`
+- **종료**: 2026-06-17 09:31:52
+
+ 583643c2
 - **시작**: 2026-05-15 11:29:20
 - **상태**: unknown
 - **편집 파일**: (없음)
-- **종료**: 2026-05-15 23:12:03
+- **종료**: 2026-06-17 08:18:57
 
  ca84090b
 - **시작**: 2026-05-15 08:44:19
@@ -649,3 +703,89 @@
 | 2026-05-15 23:13:22 | END (Claude Code) | 수정: start.sh, migrations/versions/designer_ax_initial.py, tools/ensure_schema.py, migrations/versions/designer_wdplanner_v2_remediation.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/MEMORY.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/feedback_response_language.md, ../../../../../../../../tmp/apply_migration.py |
 
 | 2026-05-16 00:14:08 | END (Claude Code) | 수정: foms/services/designer/evolution.py, tests/performance/test_designer_product_performance.py, tests/domains/test_designer_design_retrieval.py, tests/domains/test_designer_product_archetype_learning.py, foms/services/designer/product_archetype_learning.py, foms/services/designer/drawing_intake_pipeline.py, templates/designer/wdplanner_v2.html, Add In Program/FOMSBrainDesigner/src/ui/DrawingReviewWorkspace.tsx, Add In Program/FOMSBrainDesigner/src/App.tsx, Add In Program/FOMSBrainDesigner/src/stores/designerStore.ts |
+
+| 2026-06-17 07:55:53 | END (Claude Code) | 수정: foms/services/designer/evolution.py, tests/performance/test_designer_product_performance.py, tests/domains/test_designer_design_retrieval.py, tests/domains/test_designer_product_archetype_learning.py, foms/services/designer/product_archetype_learning.py, foms/services/designer/drawing_intake_pipeline.py, templates/designer/wdplanner_v2.html, Add In Program/FOMSBrainDesigner/src/ui/DrawingReviewWorkspace.tsx, Add In Program/FOMSBrainDesigner/src/App.tsx, Add In Program/FOMSBrainDesigner/src/stores/designerStore.ts |
+
+| 2026-06-17 08:00:58 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-17 08:06:01 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-17 08:20:11 | END (Claude Code) | 수정: ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_multiuser_perf_bottleneck.md, static/js/runtime/erp-shell.js |
+
+| 2026-06-17 08:25:30 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-17 08:28:09 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-17 08:30:16 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-17 08:48:46 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-17 09:05:42 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-17 09:08:13 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-17 09:11:33 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-17 09:14:37 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-17 09:41:37 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-17 09:49:12 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-17 10:34:42 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-17 10:38:59 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-17 10:43:39 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-17 10:57:09 | END (Claude Code) | 수정: tools/perf/perf_scan.py |
+
+| 2026-06-17 11:01:39 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-17 11:04:56 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-17 11:10:09 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-17 11:11:15 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-17 11:27:35 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-17 11:34:47 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-17 11:36:47 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-17 11:38:12 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-17 11:44:59 | END (Claude Code) | 수정: tools/perf/README.md, AGENTS.md |
+
+| 2026-06-17 11:50:27 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-17 13:40:55 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-17 13:59:59 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-17 14:11:56 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-17 14:13:42 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-17 14:15:42 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-17 14:19:45 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-17 14:21:35 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-17 14:24:14 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-17 14:30:50 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-17 14:33:46 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-17 14:38:58 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-17 14:44:14 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-17 14:52:16 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-17 14:52:48 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-17 14:59:18 | END (Claude Code) | 수정: (없음) |

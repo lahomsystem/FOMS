@@ -1,36 +1,57 @@
 # Edit Log
 
-> Claude Code Hook(`PostToolUse:Edit|Write`)가 자동 기록합니다.
+> 이 파일은 Cursor Hooks에 의해 자동 관리됩니다.
+> 최근 50개 편집 기록만 유지합니다.
 
-| Time | File | Tool |
-|------|------|------|
-| 2026-05-15 11:52:41 | `../../../../../../../../tmp/apply_migration.py` | Write |
-| 2026-05-15 11:56:49 | `start.sh` | Edit |
-| 2026-05-15 13:12:01 | `../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/feedback_response_language.md` | Write |
-| 2026-05-15 13:12:08 | `../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/MEMORY.md` | Edit |
-| 2026-05-15 13:24:45 | `start.sh` | Edit |
-| 2026-05-15 13:24:56 | `migrations/versions/designer_wdplanner_v2_remediation.py` | Edit |
-| 2026-05-15 13:25:58 | `tools/ensure_schema.py` | Write |
-| 2026-05-15 13:32:15 | `migrations/versions/designer_ax_initial.py` | Edit |
-| 2026-05-15 13:32:32 | `start.sh` | Edit |
-| 2026-05-15 23:22:16 | `foms/services/designer/layout_graph_mapper.py` | Write |
-| 2026-05-15 23:23:03 | `tests/domains/test_designer_layout_graph_mapper.py` | Write |
-| 2026-05-15 23:24:39 | `foms/persistence/designer/models.py` | Edit |
-| 2026-05-15 23:24:51 | `migrations/versions/designer_b2_candidate_graph_contract.py` | Write |
-| 2026-05-15 23:25:19 | `foms/services/designer/drawing_intake_pipeline.py` | Edit |
-| 2026-05-15 23:26:04 | `foms/api/designer/drawings.py` | Edit |
-| 2026-05-15 23:26:58 | `tests/domains/test_designer_drawing_review_contract.py` | Edit |
-| 2026-05-15 23:27:54 | `foms/services/designer/langgraph_workflows.py` | Edit |
-| 2026-05-15 23:28:54 | `foms/api/designer/ai_runs.py` | Edit |
-| 2026-05-15 23:30:46 | `tests/domains/test_designer_ai_runs.py` | Edit |
-| 2026-05-15 23:42:50 | `tests/domains/test_designer_ai_runs.py` | Edit |
-| 2026-05-15 23:47:44 | `Add In Program/FOMSBrainDesigner/src/stores/designerStore.ts` | Edit |
-| 2026-05-15 23:48:15 | `Add In Program/FOMSBrainDesigner/src/App.tsx` | Edit |
-| 2026-05-15 23:48:53 | `Add In Program/FOMSBrainDesigner/src/ui/DrawingReviewWorkspace.tsx` | Edit |
-| 2026-05-15 23:49:31 | `templates/designer/wdplanner_v2.html` | Edit |
-| 2026-05-15 23:50:41 | `foms/services/designer/drawing_intake_pipeline.py` | Edit |
-| 2026-05-15 23:53:59 | `foms/services/designer/product_archetype_learning.py` | Edit |
-| 2026-05-15 23:54:21 | `tests/domains/test_designer_product_archetype_learning.py` | Edit |
-| 2026-05-15 23:56:25 | `tests/domains/test_designer_design_retrieval.py` | Edit |
-| 2026-05-15 23:59:30 | `tests/performance/test_designer_product_performance.py` | Edit |
-| 2026-05-16 00:10:43 | `foms/services/designer/evolution.py` | Edit |
+## 최근 파일 편집
+
+- `.git/COMMIT_EDITMSG_TEMP.txt` <- 1 edit(s), ~326 chars (2026-06-17 15:12:04)
+- `docs/harness/SKILL_DUPLICATE_AUDIT.md` <- 1 edit(s), ~722 chars (2026-06-17 14:59:09)
+- `tools/harness/cleanup_skill_duplicates.ps1` <- 1 edit(s), ~648 chars (2026-06-17 14:59:07)
+- `tools/harness/cleanup_skill_duplicates.ps1` <- 1 edit(s), ~448 chars (2026-06-17 14:57:50)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e1527d76-bb12-4ce0-ad11-8e0151c15169.png` <- 1 edit(s), ~0 chars (2026-06-17 14:56:06)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-050318a1-daf3-456c-8318-239c24222f6a.png` <- 1 edit(s), ~0 chars (2026-06-17 14:56:06)
+- `docs/harness/SKILL_DUPLICATE_AUDIT.md` <- 3 edit(s), ~520 chars (2026-06-17 14:52:23)
+- `tools/harness/cleanup_skill_duplicates.ps1` <- 1 edit(s), ~516 chars (2026-06-17 14:52:05)
+- `tools/harness/import_gstack_source_slice.py` <- 2 edit(s), ~45 chars (2026-06-17 14:51:09)
+- `tools/harness/cleanup_skill_duplicates.ps1` <- 1 edit(s), ~526 chars (2026-06-17 14:51:09)
+- `tools/harness/setup_gstack.ps1` <- 1 edit(s), ~95 chars (2026-06-17 14:51:03)
+- `.gitignore` <- 2 edit(s), ~233 chars (2026-06-17 14:51:03)
+- `tools/harness/setup_gstack.ps1` <- 1 edit(s), ~69 chars (2026-06-17 14:51:01)
+- `.agents/skills/gstack/upstream/SNAPSHOT.md` <- 1 edit(s), ~108 chars (2026-06-17 14:51:01)
+- `.agents/skills/gstack/VENDOR.md` <- 1 edit(s), ~89 chars (2026-06-17 14:51:00)
+- `tools/harness/import_gstack_source_slice.py` <- 1 edit(s), ~58 chars (2026-06-17 14:50:53)
+- `tools/harness/cleanup_skill_duplicates.ps1` <- 1 edit(s), ~1814 chars (2026-06-17 14:50:53)
+- `docs/harness/SKILL_DUPLICATE_AUDIT.md` <- 1 edit(s), ~2159 chars (2026-06-17 14:50:42)
+- `tools/harness/audit_skills.py` <- 1 edit(s), ~3362 chars (2026-06-17 14:49:15)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-0edcb8b8-2e46-48b3-a644-d271d6977e79.png` <- 1 edit(s), ~0 chars (2026-06-17 14:48:14)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-9888c0df-d1ab-4c46-ba88-bfc2efb6498d.png` <- 1 edit(s), ~0 chars (2026-06-17 14:48:14)
+- `docs/specs/2026-06-17-gdm-retirement_SPEC.md` <- 3 edit(s), ~640 chars (2026-06-17 14:38:24)
+- `tools/research_center/coding_research_center.py` <- 1 edit(s), ~154 chars (2026-06-17 14:37:12)
+- `scripts/ops/sync_local_to_railway.ps1` <- 1 edit(s), ~53 chars (2026-06-17 14:36:53)
+- `docs/guides/RAILWAY_LOCAL_TO_REMOTE_SYNC.md` <- 3 edit(s), ~57 chars (2026-06-17 14:36:48)
+- `tools/research_center/README.md` <- 3 edit(s), ~126 chars (2026-06-17 14:36:34)
+- `tools/research_center/coding_research_center.py` <- 1 edit(s), ~170 chars (2026-06-17 14:36:22)
+- `tools/research_center/self_upgrade_manifest.json` <- 1 edit(s), ~15 chars (2026-06-17 14:36:16)
+- `docs/plans/2026-04-05-cursor-claude-codex-harness-engineering-master-plan.md` <- 12 edit(s), ~736 chars (2026-06-17 14:36:05)
+- `.cursor/rules/14-incident-rca.mdc` <- 5 edit(s), ~517 chars (2026-06-17 14:35:42)
+- `docs/AI_STATUS.md` <- 2 edit(s), ~664 chars (2026-06-17 14:35:07)
+- `docs/ARCHIVE_INDEX.md` <- 1 edit(s), ~160 chars (2026-06-17 14:34:56)
+- `docs/harness/policy/DECISIONS.md` <- 1 edit(s), ~1361 chars (2026-06-17 14:34:49)
+- `docs/specs/2026-06-17-gdm-retirement_SPEC.md` <- 3 edit(s), ~641 chars (2026-06-17 14:34:35)
+- `docs/specs/2026-06-17-gdm-retirement_SPEC.md` <- 1 edit(s), ~3588 chars (2026-06-17 14:34:22)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/agent-tools/a38a9df9-be72-4bbe-9938-f181d7b66485.txt` <- 1 edit(s), ~23029 chars (2026-06-17 14:31:59)
+- `commit_msg.txt` <- 1 edit(s), ~138 chars (2026-06-17 14:30:34)
+- `tests/contracts/runtime/foms_namespace_surface_tests.py` <- 1 edit(s), ~37 chars (2026-06-17 14:30:00)
+- `templates/partials/shared/foms_search_results_partial.html` <- 1 edit(s), ~151 chars (2026-06-17 14:29:14)
+- `tests/domains/test_queue_card_schedule.py` <- 1 edit(s), ~397 chars (2026-06-17 14:29:14)
+- `foms/services/foms_unified_search.py` <- 1 edit(s), ~89 chars (2026-06-17 14:29:13)
+- `foms/services/foms_unified_search.py` <- 2 edit(s), ~84 chars (2026-06-17 14:29:10)
+- `foms/services/erp_mobile_order_display.py` <- 4 edit(s), ~373 chars (2026-06-17 14:29:10)
+- `tests/visual/test_p1_mockup_structure.py` <- 1 edit(s), ~40 chars (2026-06-17 14:27:14)
+- `tests/domains/test_erp_template_filters.py` <- 1 edit(s), ~31 chars (2026-06-17 14:27:07)
+- `tests/domains/test_erp_template_filters.py` <- 2 edit(s), ~276 chars (2026-06-17 14:27:05)
+- `tests/domains/test_foms_search_overlay.py` <- 1 edit(s), ~1200 chars (2026-06-17 14:27:03)
+- `tests/domains/test_foms_search_overlay.py` <- 1 edit(s), ~45 chars (2026-06-17 14:27:02)
+- `tests/domains/test_queue_card_schedule.py` <- 1 edit(s), ~2136 chars (2026-06-17 14:26:58)
+- `foms/services/foms_unified_search.py` <- 2 edit(s), ~98 chars (2026-06-17 14:26:53)

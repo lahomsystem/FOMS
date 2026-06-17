@@ -5,7 +5,7 @@
 - Upstream: `https://github.com/garrytan/gstack`
 - Local path: `.agents/skills/gstack/`
 - Import strategy: copy-vendor snapshot first, targeted source slice second, subtree later if repeated upstream sync becomes necessary
-- Pinned upstream commit: `04b709d91a3f10efa1c816c6ddb4c8cafa735da8`
+- Pinned upstream commit: `c7ae63201ab193a7dc7fb7e0d81238645111ffac` (VERSION `1.58.1.0`)
 
 ## Imported Upstream State
 - `upstream/SNAPSHOT.md`: FOMS-side pinned snapshot notes and integration rules

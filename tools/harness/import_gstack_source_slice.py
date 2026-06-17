@@ -14,7 +14,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
 
 
-PINNED_COMMIT = "04b709d91a3f10efa1c816c6ddb4c8cafa735da8"
+PINNED_COMMIT = "c7ae63201ab193a7dc7fb7e0d81238645111ffac"
 UPSTREAM_RAW_BASE = (
     "https://raw.githubusercontent.com/garrytan/gstack/{commit}/{path}"
 )
@@ -48,9 +48,9 @@ RUNTIME_STATIC_FILES = (
     "qa/SKILL.md.tmpl",
     "qa/references/issue-taxonomy.md",
     "qa/templates/qa-report-template.md",
-    "gstack-upgrade/SKILL.md",
     "gstack-upgrade/SKILL.md.tmpl",
     "gstack-upgrade/migrations/v0.15.2.0.sh",
+    "gstack-upgrade/migrations/v1.58.0.0.sh",
 )
 
 BUILD_SOURCE_PATTERNS = (

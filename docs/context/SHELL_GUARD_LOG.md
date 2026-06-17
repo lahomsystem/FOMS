@@ -78,3 +78,34 @@
 | 2026-05-13 16:35:23 | allow | `-` | `wc -l docs/plans/2026-05-13-foms-brain-ax-designer-blueprint.md docs/plans/2026-05-13-foms-brain-ax-designer-blueprint-v2-implementation-map.md 2>&1` |
 | 2026-05-13 17:02:56 | allow | `-` | `test -d tests/harness && echo "TESTS_HARNESS_EXISTS" || echo "TESTS_HARNESS_MISSING"; test -d tools/harness && ls tools/harness/ | head -10` |
 | 2026-05-13 17:03:06 | allow | `-` | `test -f tools/harness/audit_designer_stack.py && echo "AUDIT_EXISTS" || echo "AUDIT_NOT_CREATED_YET"` |
+| 2026-06-17 08:03:39 | allow | `-` | `B="/c/Users/USER/.claude/skills/gstack/browse/dist/browse"; "$B" goto "https://lahom-production.up.railway.app/erp/dashboard" 2>&1 >/dev/null; "$B" wait --netwo` |
+| 2026-06-17 08:04:04 | allow | `-` | `B="/c/Users/USER/.claude/skills/gstack/browse/dist/browse"; cat > /tmp/navmeasure.js <<'EOF' (()=>{ const res=performance.getEntriesByType('resource'); const fr` |
+| 2026-06-17 08:06:03 | allow | `-` | `B="/c/Users/USER/.claude/skills/gstack/browse/dist/browse"; "$B" goto "https://lahom-production.up.railway.app/erp/dashboard" 2>&1 >/dev/null; "$B" wait --netwo` |
+| 2026-06-17 08:06:24 | allow | `-` | `B="/c/Users/USER/.claude/skills/gstack/browse/dist/browse"; "$B" viewport 1440x900 2>&1 | tail -1; "$B" goto "https://lahom-production.up.railway.app/erp/dashbo` |
+| 2026-06-17 08:07:09 | allow | `-` | `B="/c/Users/USER/.claude/skills/gstack/browse/dist/browse"; echo "url: $("$B" url 2>&1 | tail -1)"; echo "title: $("$B" js "document.title" 2>&1 | tail -1)"; ec` |
+| 2026-06-17 08:07:27 | allow | `-` | `B="/c/Users/USER/.claude/skills/gstack/browse/dist/browse"; "$B" viewport 1440x900 >/dev/null 2>&1; "$B" goto "https://lahom-production.up.railway.app/login" 2>` |
+| 2026-06-17 08:08:08 | allow | `-` | `B="/c/Users/USER/.claude/skills/gstack/browse/dist/browse"; cat > /tmp/nm.js <<'EOF' (()=>{ var res=performance.getEntriesByType('resource'); var frags=res.filt` |
+| 2026-06-17 08:08:59 | allow | `-` | `B="/c/Users/USER/.claude/skills/gstack/browse/dist/browse"; cat > /tmp/nm2.js <<'EOF' (()=>{var res=performance.getEntriesByType('resource');var f=res.filter(fu` |
+| 2026-06-17 08:10:03 | allow | `-` | `B="/c/Users/USER/.claude/skills/gstack/browse/dist/browse"; cat > /tmp/sz.js <<'EOF' (()=>{var res=performance.getEntriesByType('resource');var f=res.filter(fun` |
+| 2026-06-17 08:13:25 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && node --check static/js/runtime/erp-shell.js && echo "SYNTAX_OK" && git diff --stat static/js` |
+| 2026-06-17 08:14:23 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git add static/js/runtime/erp-shell.js && git diff --cached --name-only && printf 'perf(nav)` |
+| 2026-06-17 08:16:00 | allow | `-` | `B="/c/Users/USER/.claude/skills/gstack/browse/dist/browse"; "$B" viewport 1440x900 >/dev/null 2>&1; "$B" goto "https://lahom-dev.up.railway.app/erp/dashboard" 2` |
+| 2026-06-17 08:16:34 | allow | `-` | `B="/c/Users/USER/.claude/skills/gstack/browse/dist/browse"; echo "url: $("$B" url 2>&1 | tail -1)"; echo "body head: $("$B" js "document.body.innerText.slice(0,` |
+| 2026-06-17 08:16:53 | allow | `-` | `B="/c/Users/USER/.claude/skills/gstack/browse/dist/browse"; "$B" viewport 1440x900 >/dev/null 2>&1; "$B" goto "https://lahom-dev.up.railway.app/login" 2>&1 >/de` |
+| 2026-06-17 08:17:46 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git fetch origin -q && W=/c/tmp/foms-prod-merge2; git worktree remove --force $W 2>/dev/null` |
+| 2026-06-17 08:25:53 | allow | `-` | `B="/c/Users/USER/.claude/skills/gstack/browse/dist/browse"; "$B" viewport 390x844 >/dev/null 2>&1; "$B" goto "https://lahom-production.up.railway.app/login" 2>&` |
+| 2026-06-17 08:26:59 | allow | `-` | `B="/c/Users/USER/.claude/skills/gstack/browse/dist/browse"; "$B" goto "https://lahom-production.up.railway.app/erp/dashboard" 2>&1 >/dev/null; sleep 1; echo "==` |
+| 2026-06-17 10:58:07 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && mkdir -p templates/_perftmp && printf '<script src="https://cdn.evil/heavy.js"></script>\n<s` |
+| 2026-06-17 10:58:44 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && mkdir -p templates/_perftmp && printf '<script src="https://cdn.evil/heavy.js"></script>\n' ` |
+| 2026-06-17 10:59:14 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python tools/perf/perf_scan.py --guard 2>&1 | head -25` |
+| 2026-06-17 11:00:12 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -X utf8 tools/perf/perf_scan.py --guard 2>&1 | tail -3; echo "exit=$?"; echo "--- 湲곕낯` |
+| 2026-06-17 11:05:08 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -m pytest tests/performance/test_perf_regression_guard.py tests/performance/test_stat` |
+| 2026-06-17 11:05:30 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -m pytest tests/contracts/runtime/test_dockerfile_deploy_contract.py tests/domains/te` |
+| 2026-06-17 11:05:53 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && sed -n '2120,2160p' tests/contracts/runtime/foms_namespace_surface_tests.py` |
+| 2026-06-17 11:06:55 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -m pytest tests/domains/test_foms_namespace_imports.py::test_strict_canonical_tools_t` |
+| 2026-06-17 11:07:43 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git add tools/perf/perf_scan.py tools/perf/README.md .claude/commands/perf-guard.md .claude/` |
+| 2026-06-17 11:08:47 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && rm -rf .cursor/commands && git add .cursor/rules/02-performance-guardrails.mdc && echo "=== ` |
+| 2026-06-17 11:09:16 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python tools/harness/build_context_bundle.py --all >/dev/null 2>&1; git add docs/harness/bun` |
+| 2026-06-17 11:10:07 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git fetch origin -q && echo "HEAD=$(git rev-parse --short HEAD) origin/deploy=$(git rev-pars` |
+| 2026-06-17 11:43:22 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && echo "=== .cursor/commands 李몄“(stale) ===" && grep -rn "\.cursor/commands" AGENTS.md CLAUDE.` |
+| 2026-06-17 11:44:20 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python tools/harness/build_context_bundle.py --all >/dev/null 2>&1; git add AGENTS.md docs/g` |

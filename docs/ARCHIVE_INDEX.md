@@ -1,6 +1,7 @@
 # 프로젝트 아카이브 인덱스
 > AI가 Research 단계에서 관련 과거 기록을 빠르게 찾기 위한 목차.
 > 새 파일 추가 시 반드시 이 인덱스도 갱신할 것.
+> 2026-06-17: GDM 및 bespoke specialist agent 계층은 활성 운영 모델에서 퇴역했다. 아래 `GDM_*` evolution 문서와 gdm-tagged plan/run record는 역사 기록이며, 현재 Cursor/Claude/Codex 진입점이 아니다.
 
 ## 장애 기록 (docs/incidents/)
 | 파일 | 날짜 | 키워드 | 요약 |

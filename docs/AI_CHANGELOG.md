@@ -4,23 +4,23 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
-| 2026-06-16 | 세션 자동 기록 | test_foms_search_overlay.py, foms_app_shell.html, test_erp_runtime_shell_js_contract.py 외 2개 | a30e2ed3 |
-| 2026-06-16 | 세션 자동 기록 | commit_msg.txt, test_as_dashboard_mobile.py, test_construction_dashboard_mobile.py 외 2개 | c50d268b |
-| 2026-06-16 | 세션 자동 기록 | commit_msg.txt, test_foms_search_overlay.py, foms-search-overlay.css 외 2개 | 434390c4 |
-| 2026-06-16 | 세션 자동 기록 | history_dashboard_body.html, completion_scripts.html, foms_unified_search.py 외 2개 | 78ff098c |
-| 2026-06-16 | 세션 자동 기록 | test_completion_search_api.py, dashboard.py, completion_scripts.html | eb9a5e05 |
-| 2026-06-16 | 세션 자동 기록 | completion_scripts.html, dashboard.py | eb9a5e05 |
-| 2026-06-11 | 세션 자동 기록 | 10-erp-mobile-v2-shell.css, fragment.py, dashboard.py 외 2개 | d730f64d |
-| 2026-06-11 | 세션 자동 기록 | commit_msg.txt, AGENTS.md, ci.yml 외 2개 | d730f64d |
-| 2026-06-10 | 세션 자동 기록 | commit_msg.txt, AGENTS.md, ci.yml 외 2개 | d730f64d |
-| 2026-06-10 | 세션 자동 기록 | commit_msg.txt, CLAUDE.md, AGENTS.md 외 2개 | e80c1d24 |
-| 2026-06-10 | 세션 자동 기록 | commit_msg.txt, test_p1_mockup_structure.py, erp_mobile_queue_card_v2.html 외 2개 | 9997292f |
-| 2026-06-10 | 세션 자동 기록 | test_p1_mockup_structure.py, erp_mobile_queue_card_v2.html, test_erp_mobile_order_display.py 외 2개 | 9997292f |
-| 2026-06-10 | 세션 자동 기록 | test_p1_mockup_structure.py, test_production_dashboard_mobile.py, erp_mobile_queue_card_v2.html 외 2개 | 9997292f |
-| 2026-06-10 | 세션 자동 기록 | test_production_dashboard_mobile.py, erp_mobile_queue_card_v2.html, mobile_queue.html 외 2개 | 42bc5907 |
-| 2026-06-10 | 세션 자동 기록 | test_shipment_dashboard_mobile.py, test_measurement_js_contract.py, shipment_mobile_queue.html 외 2개 | 42bc5907 |
-| 2026-06-10 | 세션 자동 기록 | test_p1_mobile_ux_smoke.py, test_construction_dashboard_mobile.py, test_erp_as_dashboard_tabs.py 외 2개 | f3b5221a |
-| 2026-06-10 | 세션 자동 기록 | _commit_msg_icon_pad.txt, sw.js, layout_head.html 외 2개 | b69087d3 |
-| 2026-06-10 | 세션 자동 기록 | _commit_msg_pwa_icon.txt, generate_foms_icons.py, app_factory.py 외 2개 | 885f2351 |
-| 2026-06-10 | 세션 자동 기록 | _commit_msg_spade.txt, layout_head.html, generate_foms_icons.py 외 2개 | 62999f6a |
-| 2026-06-10 | 세션 자동 기록 | layout_head.html, generate_foms_icons.py, import_user_spade_icon.py 외 2개 | ca1dfeae |
+| 2026-06-17 | 세션 자동 기록 | cleanup_skill_duplicates.ps1, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e1527d76-bb12-4ce0-ad11-8e0151c15169.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-050318a1-daf3-456c-8318-239c24222f6a.png 외 2개 | 68da1958 |
+| 2026-06-17 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e1527d76-bb12-4ce0-ad11-8e0151c15169.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-050318a1-daf3-456c-8318-239c24222f6a.png, cleanup_skill_duplicates.ps1 외 2개 | 68da1958 |
+| 2026-06-17 | 세션 자동 기록 | cleanup_skill_duplicates.ps1, import_gstack_source_slice.py, setup_gstack.ps1 외 2개 | 68da1958 |
+| 2026-06-17 | 세션 자동 기록 | import_gstack_source_slice.py, cleanup_skill_duplicates.ps1, setup_gstack.ps1 외 2개 | 68da1958 |
+| 2026-06-17 | 세션 자동 기록 | coding_research_center.py, sync_local_to_railway.ps1, README.md 외 2개 | 68da1958 |
+| 2026-06-17 | 세션 자동 기록 | a38a9df9-be72-4bbe-9938-f181d7b66485.txt, commit_msg.txt, foms_namespace_surface_tests.py 외 2개 | 68da1958 |
+| 2026-06-17 | 세션 자동 기록 | commit_msg.txt, foms_namespace_surface_tests.py, foms_search_results_partial.html 외 2개 | 68da1958 |
+| 2026-06-17 | 세션 자동 기록 | test_p1_mockup_structure.py, test_erp_template_filters.py, test_foms_search_overlay.py 외 2개 | 5293f715 |
+| 2026-06-17 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e69d8adc-94a6-40c5-b91a-48ddc4cab0f5.png, commit_msg.txt, foms_unified_search.py 외 2개 | 5293f715 |
+| 2026-06-17 | 세션 자동 기록 | commit_msg.txt, foms_unified_search.py, test_completion_search_api.py 외 2개 | 5293f715 |
+| 2026-06-17 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-f40a0fbf-eaa4-4368-97c3-8158d9550676.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-6cb88e7b-1955-4219-af0e-43f808cbd674.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-af23c1a7-786a-4286-8652-b4916f87b2bc.png 외 2개 | 182252a0 |
+| 2026-06-17 | 세션 자동 기록 | commit_msg.txt, estimate_pane.html, test_erp_order_shared_form_scripts.py 외 2개 | 182252a0 |
+| 2026-06-17 | 세션 자동 기록 | estimate_pane.html, commit_msg.txt, test_erp_order_shared_form_scripts.py 외 2개 | f1fb1ab8 |
+| 2026-06-17 | 세션 자동 기록 | commit_msg.txt, test_erp_order_shared_form_scripts.py, test_erp_mobile_order_display.py 외 2개 | f1fb1ab8 |
+| 2026-06-17 | 세션 자동 기록 | commit_msg.txt, add_order.html, test_erp_order_shared_form_scripts.py 외 2개 | 3051e0fc |
+| 2026-06-17 | 세션 자동 기록 | commit_msg.txt, test_erp_order_shared_form_scripts.py, test_erp_order_edit_mobile_form.py 외 2개 | a5627f4c |
+| 2026-06-17 | 세션 자동 기록 | foms-form-field.css, test_erp_order_shared_form_scripts.py, scripts.html 외 2개 | 51268fcd |
+| 2026-06-17 | 세션 자동 기록 | commit_msg.txt, construction_dashboard_display.py, test_construction_dashboard_mobile.py 외 2개 | 51268fcd |
+| 2026-06-17 | 세션 자동 기록 | commit_msg.txt, test_erp_order_detail_preload.py | de950d30 |
+| 2026-06-17 | 세션 자동 기록 | commit_msg.txt, test_construction_dashboard_mobile.py, construction_dashboard_display.py 외 2개 | 00a5e310 |

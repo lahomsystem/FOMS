@@ -8,10 +8,10 @@
 - 기술 스택/라이브러리/보안/테스트/관측/인프라까지 광범위 커버
 - 즉시 적용 가능한 액션 큐 생성
 - 매크로/마이크로 마이그레이션 설계 자동 생성
-- agents/rules/skills/mcp 자가 업그레이드 감사 자동 생성
+- rules/skills/mcp 자가 업그레이드 감사 자동 생성
 - 현재 FOMS 스택 적합도(program focus) 기반 우선순위 보정
 - 진화 문서(`docs/evolution/*`)와 연결
-- 상위 마스터 에이전트(`.cursor/agents/grand-develop-master.md`) 기준으로 실행/보고
+- gstack/caveman과 FOMS RPI 정책 기준으로 실행/보고
 
 ## 실행
 ```bash
@@ -45,7 +45,7 @@ powershell -ExecutionPolicy Bypass -File tools/research_center/register_weekly_t
 - `--sync-radar`: `docs/evolution/RADAR.md` 자동 반영
 - `--sync-backlog`: `docs/evolution/HYPOTHESIS_BACKLOG.md` 자동 반영
 - `--self-manifest`: 자가 업그레이드 매니페스트 경로
-- `--self-upgrade-create-stubs`: 누락된 agent/rule 스텁 자동 생성
+- `--self-upgrade-create-stubs`: 누락된 rule 스텁 자동 생성
 - `--self-upgrade-install-skills`: 누락된 skill 자동 설치 시도
 - `--self-upgrade-sync-mcp`: 누락된 mcp 동기화 시도
 - `--mcp-config`: mcp.json 경로 지정

@@ -1,22 +1,22 @@
 # Context Compact Checkpoint
 
 > **경고**: 컨텍스트 압축이 발생했습니다. 이 파일을 읽어 이전 작업을 복원하세요.
-> 생성 시각: 2026-05-15 08:53:12
-> 세션: ca84090b
+> 생성 시각: 2026-06-17 11:26:11
+> 세션: bbe91e6f
 
 ## 압축 직전 상태
 
 ### 최근 편집된 파일
-- `Add In Program/FOMSBrainDesigner/src/canvas/CabinetScene.tsx` <- 1 edit(s), ~611 chars (2026-05-15 08:53:11)
-- `Add In Program/FOMSBrainDesigner/src/canvas/CabinetScene.tsx` <- 1 edit(s), ~186 chars (2026-05-15 08:53:10)
-- `Add In Program/FOMSBrainDesigner/src/canvas/CabinetScene.tsx` <- 1 edit(s), ~141 chars (2026-05-15 08:53:09)
-- `Add In Program/FOMSBrainDesigner/src/canvas/SelectionGizmo.tsx` <- 1 edit(s), ~12 chars (2026-05-15 08:52:54)
-- `Add In Program/FOMSBrainDesigner/src/canvas/DimensionLines.tsx` <- 3 edit(s), ~235 chars (2026-05-15 08:52:54)
-- `Add In Program/FOMSBrainDesigner/src/canvas/SelectionGizmo.tsx` <- 1 edit(s), ~77 chars (2026-05-15 08:52:53)
-- `Add In Program/FOMSBrainDesigner/src/canvas/SelectionGizmo.tsx` <- 1 edit(s), ~75 chars (2026-05-15 08:52:52)
-- `Add In Program/FOMSBrainDesigner/src/ui/LegoBlockPalette.tsx` <- 11 edit(s), ~402 chars (2026-05-15 08:52:40)
-- `Add In Program/FOMSBrainDesigner/src/ui/LeftToolPalette.tsx` <- 2 edit(s), ~74 chars (2026-05-15 08:52:33)
-- `Add In Program/FOMSBrainDesigner/src/domain/blockPlacement.ts` <- 1 edit(s), ~4285 chars (2026-05-15 08:52:32)
+- `static/js/foms/mobile-detail-attachments.js` <- 2 edit(s), ~408 chars (2026-06-17 11:26:09)
+- `templates/construction/partials/modals.html` <- 1 edit(s), ~68 chars (2026-06-17 11:26:07)
+- `templates/partials/shared/foms_attachment_preview_modal.html` <- 4 edit(s), ~1006 chars (2026-06-17 11:26:07)
+- `commit_msg.txt` <- 1 edit(s), ~167 chars (2026-06-17 11:18:04)
+- `foms/services/construction_dashboard_display.py` <- 1 edit(s), ~211 chars (2026-06-17 11:17:51)
+- `tests/domains/test_construction_dashboard_mobile.py` <- 1 edit(s), ~72 chars (2026-06-17 11:17:36)
+- `tests/domains/test_construction_dashboard_mobile.py` <- 1 edit(s), ~295 chars (2026-06-17 11:17:34)
+- `tests/domains/test_construction_dashboard_mobile.py` <- 1 edit(s), ~66 chars (2026-06-17 11:17:32)
+- `templates/construction/partials/dashboard_body.html` <- 1 edit(s), ~280 chars (2026-06-17 11:17:27)
+- `foms/services/construction_dashboard_display.py` <- 2 edit(s), ~321 chars (2026-06-17 11:17:26)
 
 ### 진행 중이던 작업
 - [2026-04-17] **ERP fast-page `EPT-B8`:** run record `docs/plans/2026-04-17-ept-b8-verification-railway-evidence-run-record.md` — 로컬 게이트 완료; staging HTTP 하네스로 **§4 표·§5** 부분 채움; **closeout** 은 deploy ID·§6 모드·hard stop 조건 충족 후.

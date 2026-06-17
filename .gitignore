@@ -121,9 +121,15 @@ tools/request_log.txt
 .agents/skills/gstack/node_modules/
 .agents/skills/gstack/bun.lock
 .agents/skills/gstack/SKILL.md
+.agents/skills/gstack/*/SKILL.md
+.agents/skills/gstack/**/SKILL.md
 .agents/skills/gstack/bin/*.exe
 .agents/skills/gstack/browse/dist/
 .agents/skills/gstack/design/dist/
+# caveman: use global ~/.codex|~/.cursor|~/.claude skills; avoid repo duplicates in Codex UI
+.agents/skills/caveman/
+.agents/skills/caveman-*/
+.agents/skills/cavecrew/
 .cursor/hooks/__pycache__/
 .gstack/
 

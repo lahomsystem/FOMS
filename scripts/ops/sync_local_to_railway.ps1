@@ -1,5 +1,5 @@
 # 원격(Railway) DB 초기화 후 로컬 Postgres 완전 복사
-# GDM 절차서: docs/guides/RAILWAY_LOCAL_TO_REMOTE_SYNC.md
+# 운영 절차서: docs/guides/RAILWAY_LOCAL_TO_REMOTE_SYNC.md
 # 사용: 프로젝트 루트에서 .\scripts\ops\sync_local_to_railway.ps1
 # 덤프 경로: FOMS_RUNTIME_OUTPUT_ROOT\dumps\foms.dump (미설정 시 %USERPROFILE%\FOMS-runtime)
 #

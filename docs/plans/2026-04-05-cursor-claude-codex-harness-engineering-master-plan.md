@@ -1,9 +1,9 @@
 # FOMS Cursor·Claude·Codex Harness Engineering 마스터 플랜
 
 > **작성일**: 2026-04-05  
-> **작성자**: FOMS GDM / AI Development System  
+> **작성자**: FOMS AI Development System  
 > **Goal**: Cursor IDE 안에서 Cursor Agent, Claude, Codex CLI가 동일한 정책·컨텍스트·검증 루프를 공유하는 하네스 엔지니어링 체계를 구축한다.  
-> **Architecture**: gstack의 강점(브라우저 QA/릴리즈/문서 동기화/운영 하네스)과 FOMS의 강점(Root Cause Fix, RPI, Hooks, Context Docs, GDM 오케스트레이션)을 혼합한 Hybrid 구조를 채택한다.  
+> **Architecture**: gstack의 강점(브라우저 QA/릴리즈/문서 동기화/운영 하네스)과 FOMS의 강점(Root Cause Fix, RPI, Hooks, Context Docs, shared policy workflows)을 혼합한 Hybrid 구조를 채택한다.  
 > **Tech Stack**: Cursor IDE, Claude, Codex CLI, Python 3.12, PowerShell 5+/7, Git Bash(선택), Bun/Node(선택적 gstack 런타임), GitHub Actions  
 > **상태**: Phase 5 완료 (runner UX, CI/drift, hook smoke, scripted verification baseline, operator handoff docs complete)
 > **권장안**: Option C - Hybrid gstack + FOMS harness
@@ -16,7 +16,7 @@
 ### 0.1 왜 이 작업이 필요한가
 
 - 현재 사용 환경은 **Cursor IDE + Claude + Codex CLI**의 혼합 운용이다.
-- FOMS는 이미 `.cursor/rules`, `.cursor/hooks`, `.cursor/agents`, `.agents/workflows`, `docs/context/*` 기반의 강한 운영정책을 가지고 있다.
+- FOMS는 이미 `.cursor/rules`, `.cursor/hooks`, `.agents/workflows`, `docs/context/*` 기반의 강한 운영정책을 가지고 있다.
 - 그러나 현재 구조는 **Cursor 중심**으로 설계되어 있어, Claude나 Codex CLI가 같은 수준의 정책·기억·검증 시스템을 자동 재사용하기 어렵다.
 - gstack은 하네스 엔지니어링 측면에서 매우 강력하지만, FOMS의 Windows 11 / PowerShell / Cursor 브라우저 MCP / 도메인 정책과 그대로 맞물리지는 않는다.
 
@@ -51,7 +51,7 @@
 | 카테고리 | 현재 자산 | 핵심 파일 |
 |------|------|------|
 | 공통 정책 | Root Cause Fix, 금지 패턴, Git/Win11 규칙 | `AGENTS.md`, `CLAUDE.md`, `.cursor/rules/*.mdc` |
-| 에이전트 역할 | GDM + 역할별 서브에이전트 분리 | `.cursor/agents/*.md` |
+| 실행 역할 | gstack skills + FOMS shared policy workflows | `.agents/skills/gstack/`, `AGENTS.md`, `CLAUDE.md` |
 | 훅 자동화 | 세션 시작/종료, 쉘 가드, 편집 로그, 품질 리마인더 | `.cursor/hooks.json`, `.cursor/hooks/*.py` |
 | 컨텍스트 기억 | 상태/변경/세션/압축 로그 | `docs/AI_STATUS.md`, `docs/AI_CHANGELOG.md`, `docs/context/*` |
 | 워크플로 | RPI, verify-result, auto-status-update | `.agents/workflows/*.md` |
@@ -88,7 +88,7 @@
 | 분류 | 내용 |
 |------|------|
 | 채택 | repo-local skill/vendor 개념, QA/benchmark/canary/release flow, 문서 drift 방지 철학 |
-| FOMS 유지 | Root Cause Fix, RPI, Hooks, Context Docs, GDM 오케스트레이션, Win11/PowerShell 규칙 |
+| FOMS 유지 | Root Cause Fix, RPI, Hooks, Context Docs, Win11/PowerShell 규칙 |
 | 수정 채택 | gstack 브라우저는 **반복 가능한 QA용**으로 한정하고, ad-hoc 탐색은 Cursor 브라우저 MCP 유지 |
 | 제외 | "모든 브라우징을 gstack로 통일" 같은 전면 교체 정책 |
 
@@ -134,7 +134,6 @@
    - AGENTS.md
    - CLAUDE.md
    - .cursor/rules
-   - .cursor/agents
    - .agents/workflows
    - docs/context
            │
@@ -156,8 +155,8 @@
 - `AGENTS.md`: 전 도구 공통 최상위 원칙
 - `CLAUDE.md`: Claude 중심 세션 프로토콜
 - `.cursor/rules/*.mdc`: Cursor 강제 규칙
-- `.cursor/agents/*.md`: 역할별 지능 분리
 - `.agents/workflows/*.md`: 실행 절차
+- `.agents/skills/gstack/`: QA, review, debug, ship 등 선택형 skill flow
 - `docs/context/*`: 운영 메모리와 결정 로그
 
 ### 4.2 Runner Profile 계층 (신규)
@@ -226,7 +225,6 @@ repo-local로 gstack를 도입하되, FOMS 하네스 바깥이 아닌 **관리 �
 - `.cursor/hooks/auto_memory.py`
 - `.cursor/hooks/post_task_quality_check.py`
 - `.cursor/hooks/hook_payload_debug.py`
-- `.cursor/agents/grand-develop-master.md`
 - `.agents/workflows/verify-result.md`
 - `docs/harness/policy/DECISIONS.md` (승인 후 결정 기록)
 - `docs/ARCHIVE_INDEX.md`
@@ -349,7 +347,7 @@ repo-local로 gstack를 도입하되, FOMS 하네스 바깥이 아닌 **관리 �
 - [x] Cursor profile 적용 규칙 작성
 - [x] Claude in Cursor 전용 운영 섹션 정리
 - [x] Codex CLI wrapper와 generated context 연결
-- [x] GDM에서 runner별 실행 트랙 설명 가능하도록 보강
+- [x] shared policy와 gstack/caveman 기준으로 runner별 실행 트랙 설명 가능하도록 보강
 - [x] refreshed bundle 기준 runner dry-run 재검증
 - [x] Cursor/Claude extension presence 기준 동등 운영자 확인
 
@@ -357,7 +355,6 @@ repo-local로 gstack를 도입하되, FOMS 하네스 바깥이 아닌 **관리 �
 
 - `CLAUDE.md`
 - `.cursor/rules/*.mdc`
-- `.cursor/agents/grand-develop-master.md`
 - `tools/harness/run_codex.ps1`
 - `tools/harness/profiles/*.yaml`
 - `docs/harness/bundles/HARNESS_BUNDLE_*.md`
@@ -440,8 +437,8 @@ repo-local로 gstack를 도입하되, FOMS 하네스 바깥이 아닌 **관리 �
 2. 다음처럼 요청한다.
 
 ```text
-GDM 방향 제시: @docs/plans/2026-04-05-cursor-claude-codex-harness-engineering-master-plan.md
-Phase 1부터 subagent-driven으로 실행해 줘
+@docs/plans/2026-04-05-cursor-claude-codex-harness-engineering-master-plan.md
+Phase 1부터 RPI와 gstack/caveman 기준으로 실행해 줘
 ```
 
 ### 8.2 Claude in Cursor
