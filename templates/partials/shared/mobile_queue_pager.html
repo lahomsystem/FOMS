@@ -1,14 +1,29 @@
 {# 모바일 작업 큐 공용 번호 페이저 (PC식 1,2,3,4 하단 페이지네이션).
-   base_url: 라우트 URL, query_prefix: page 제외 필터 쿼리스트링(예: 'stage=시공&q=abc'), page/total_pages: 정수. #}
+   render_mobile_pager: base_url + query_prefix (시공/생산/AS/히스토리)
+   render_mobile_pager_relative: 현재 request.args 보존 (도면 workbench) #}
+
+{% macro _relative_page_query(target_page) -%}
+{%- set params = {} -%}
+{%- for key, value in request.args.items() -%}
+  {%- if key != 'page' -%}
+    {%- set _ = params.update({key: value}) -%}
+  {%- endif -%}
+{%- endfor -%}
+{%- if target_page > 1 -%}
+  {%- set _ = params.update({'page': target_page|string}) -%}
+{%- endif -%}
+{{- params|urlencode -}}
+{%- endmacro %}
+
 {% macro render_mobile_pager(base_url, query_prefix, page, total_pages) %}
 {% if total_pages and total_pages > 1 %}
 {% set _qp = (query_prefix ~ '&') if query_prefix else '' %}
+{% set _start = [1, page - 2] | max %}
+{% set _end = [total_pages, page + 2] | min %}
 <nav class="foms-mobile-pager" aria-label="페이지 이동" data-foms-mobile-pager>
   <a class="foms-mobile-pager__nav{% if page <= 1 %} is-disabled{% endif %}"
      href="{{ base_url }}?{{ _qp }}page={{ page - 1 if page > 1 else 1 }}"
      {% if page <= 1 %}aria-disabled="true" tabindex="-1"{% endif %} aria-label="이전 페이지">‹</a>
-  {% set _start = [1, page - 2] | max %}
-  {% set _end = [total_pages, page + 2] | min %}
   {% if _start > 1 %}
   <a class="foms-mobile-pager__num" href="{{ base_url }}?{{ _qp }}page=1">1</a>
   {% if _start > 2 %}<span class="foms-mobile-pager__gap">…</span>{% endif %}
@@ -23,6 +38,33 @@
   {% endif %}
   <a class="foms-mobile-pager__nav{% if page >= total_pages %} is-disabled{% endif %}"
      href="{{ base_url }}?{{ _qp }}page={{ page + 1 if page < total_pages else total_pages }}"
+     {% if page >= total_pages %}aria-disabled="true" tabindex="-1"{% endif %} aria-label="다음 페이지">›</a>
+</nav>
+{% endif %}
+{% endmacro %}
+
+{% macro render_mobile_pager_relative(page, total_pages) %}
+{% if total_pages and total_pages > 1 %}
+{% set _start = [1, page - 2] | max %}
+{% set _end = [total_pages, page + 2] | min %}
+<nav class="foms-mobile-pager" aria-label="페이지 이동" data-foms-mobile-pager>
+  <a class="foms-mobile-pager__nav{% if page <= 1 %} is-disabled{% endif %}"
+     href="?{{ _relative_page_query(page - 1 if page > 1 else 1) }}"
+     {% if page <= 1 %}aria-disabled="true" tabindex="-1"{% endif %} aria-label="이전 페이지">‹</a>
+  {% if _start > 1 %}
+  <a class="foms-mobile-pager__num" href="?{{ _relative_page_query(1) }}">1</a>
+  {% if _start > 2 %}<span class="foms-mobile-pager__gap">…</span>{% endif %}
+  {% endif %}
+  {% for p in range(_start, _end + 1) %}
+  <a class="foms-mobile-pager__num{% if p == page %} is-current{% endif %}"
+     href="?{{ _relative_page_query(p) }}"{% if p == page %} aria-current="page"{% endif %}>{{ p }}</a>
+  {% endfor %}
+  {% if _end < total_pages %}
+  {% if _end < total_pages - 1 %}<span class="foms-mobile-pager__gap">…</span>{% endif %}
+  <a class="foms-mobile-pager__num" href="?{{ _relative_page_query(total_pages) }}">{{ total_pages }}</a>
+  {% endif %}
+  <a class="foms-mobile-pager__nav{% if page >= total_pages %} is-disabled{% endif %}"
+     href="?{{ _relative_page_query(page + 1 if page < total_pages else total_pages) }}"
      {% if page >= total_pages %}aria-disabled="true" tabindex="-1"{% endif %} aria-label="다음 페이지">›</a>
 </nav>
 {% endif %}

@@ -671,6 +671,39 @@ def test_p1_construction_mobile_v2_home_ia_parity() -> None:
         assert selector in queue, selector
 
 
+def test_mobile_pager_single_line_css_contract() -> None:
+    """모바일 번호 페이저는 nowrap + 가로 스크롤 폴백으로 1줄 유지 (화살표 줄바꿈 방지)."""
+    css = (
+        ROOT / "static/css/foundation/erp-pro/11-queue-family-mobile.css"
+    ).read_text(encoding="utf-8")
+    pager_block = css.split(".foms-mobile-pager {", 1)[1].split(".foms-mobile-pager__num", 1)[0]
+    assert "flex-wrap: nowrap" in pager_block
+    assert "overflow-x: auto" in pager_block
+    assert "flex-wrap: wrap" not in pager_block
+
+
+def test_mobile_pager_shared_partial_unification() -> None:
+    """모바일 큐 페이저는 shared macro 단일 SSOT (도면 relative 포함)."""
+    pager = (ROOT / "templates/partials/shared/mobile_queue_pager.html").read_text(
+        encoding="utf-8"
+    )
+    for macro in (
+        "render_mobile_pager",
+        "render_mobile_pager_relative",
+        "foms-mobile-pager",
+    ):
+        assert macro in pager
+    construction = (
+        ROOT / "templates/construction/partials/mobile_queue.html"
+    ).read_text(encoding="utf-8")
+    drawing = (
+        ROOT / "templates/drawing/partials/workbench_mobile_queue.html"
+    ).read_text(encoding="utf-8")
+    assert "render_mobile_pager(" in construction
+    assert "render_mobile_pager_relative(" in drawing
+    assert '<nav class="foms-mobile-pager"' not in drawing
+
+
 def test_p1_construction_dashboard_renders_home_ia(
     client,
     monkeypatch: pytest.MonkeyPatch,
