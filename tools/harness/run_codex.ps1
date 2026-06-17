@@ -659,27 +659,12 @@ function Resolve-CodexBundlePath {
     return "docs/harness/bundles/HARNESS_BUNDLE_CODEX.md"
 }
 
+. (Join-Path $PSScriptRoot "gstack_qa_skill.ps1")
+
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $codexPath = Get-ToolPath -Name "codex"
-$qaSkillCandidates = @(
-    ".agents/skills/gstack/qa/SKILL.md",
-    ".agents/skills/gstack/qa/SKILL.md.tmpl",
-    ".agents/skills/gstack-qa/SKILL.md",
-    ".agents/skills/gstack-qa/SKILL.md.tmpl",
-    ".agents/skills/qa/SKILL.md",
-    ".agents/skills/qa/SKILL.md.tmpl",
-    ".agents/skills/gstack/.agents/skills/gstack-qa/SKILL.md",
-    ".agents/skills/gstack/.agents/skills/gstack-qa/SKILL.md.tmpl",
-    ".agents/skills/gstack/.agents/skills/qa/SKILL.md",
-    ".agents/skills/gstack/.agents/skills/qa/SKILL.md.tmpl"
-)
-$qaSkillResolved = @()
-foreach ($candidate in $qaSkillCandidates) {
-    $candidateAbs = Join-Path $repoRoot $candidate
-    if (Test-Path $candidateAbs) {
-        $qaSkillResolved += $candidate
-    }
-}
+$qaSkillCandidates = Get-GstackQaSkillCandidates
+$qaSkillResolved = @(Get-GstackQaSkillResolvedCandidates -RepoRoot $repoRoot)
 
 $basePromptLines = @(
     "You are running inside FOMS through the Codex CLI wrapper.",

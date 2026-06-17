@@ -78,14 +78,14 @@ function Test-WslReady {
     return ($LASTEXITCODE -eq 0)
 }
 
+. (Join-Path $PSScriptRoot "gstack_qa_skill.ps1")
+
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $resolvedVendorRoot = Join-Path $repoRoot $VendorRoot
 $vendorManifest = Join-Path $resolvedVendorRoot "VENDOR.md"
-$snapshotManifest = Join-Path $resolvedVendorRoot "upstream\SNAPSHOT.md"
+$snapshotManifest = Join-RepoChildPath -Root $resolvedVendorRoot -RelativePath "upstream/SNAPSHOT.md"
 $setupScript = Join-Path $PSScriptRoot "setup_gstack.ps1"
 $codexWrapper = Join-Path $PSScriptRoot "run_codex.ps1"
-$vendorQaSourcePath = Join-Path $resolvedVendorRoot "qa\SKILL.md"
-$vendorQaTemplatePath = Join-Path $resolvedVendorRoot "qa\SKILL.md.tmpl"
 $effectiveBundlePath = if ([string]::IsNullOrWhiteSpace($BundlePath)) {
     "docs/harness/bundles/HARNESS_BUNDLE_CODEX.md"
 } else {
@@ -101,26 +101,9 @@ if (-not (Test-Path $bundleCandidate)) {
 }
 $bundleResolved = (Resolve-Path $bundleCandidate).Path
 $gitPath = Get-ToolPath -Name "git"
-$qaSkillCandidates = @(
-    ".agents/skills/gstack/qa/SKILL.md",
-    ".agents/skills/gstack/qa/SKILL.md.tmpl",
-    ".agents/skills/gstack-qa/SKILL.md",
-    ".agents/skills/gstack-qa/SKILL.md.tmpl",
-    ".agents/skills/qa/SKILL.md",
-    ".agents/skills/qa/SKILL.md.tmpl",
-    ".agents/skills/gstack/.agents/skills/gstack-qa/SKILL.md",
-    ".agents/skills/gstack/.agents/skills/gstack-qa/SKILL.md.tmpl",
-    ".agents/skills/gstack/.agents/skills/qa/SKILL.md",
-    ".agents/skills/gstack/.agents/skills/qa/SKILL.md.tmpl"
-)
-$qaSkillReady = $false
-foreach ($candidate in $qaSkillCandidates) {
-    if (Test-Path (Join-Path $repoRoot $candidate)) {
-        $qaSkillReady = $true
-        break
-    }
-}
-$vendorQaSourceReady = (Test-Path $vendorQaSourcePath) -or (Test-Path $vendorQaTemplatePath)
+$qaSkillCandidates = Get-GstackQaSkillCandidates
+$qaSkillReady = Test-GstackQaSkillReady -RepoRoot $repoRoot
+$vendorQaSourceReady = Test-GstackVendorQaSourceReady -VendorRoot $resolvedVendorRoot
 
 if (-not (Test-HttpUrl -Value $Url)) {
     Write-Error "Url must be an absolute http/https URL."

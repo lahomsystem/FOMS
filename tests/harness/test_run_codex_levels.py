@@ -229,6 +229,12 @@ def test_run_codex_wrapper_propagates_native_exit_code(tmp_path: Path) -> None:
     assert completed.returncode == 7
 
 
+def test_gstack_qa_skill_template_exists_in_repo() -> None:
+    """CI must checkout vendor QA template; wrappers accept SKILL.md.tmpl only."""
+    tmpl = REPO_ROOT / ".agents" / "skills" / "gstack" / "qa" / "SKILL.md.tmpl"
+    assert tmpl.is_file(), f"Missing gstack QA template at {tmpl}"
+
+
 def test_run_gstack_qa_wrapper_propagates_child_exit_code(tmp_path: Path) -> None:
     _make_fake_codex(tmp_path, exit_code=9)
     env = os.environ.copy()
