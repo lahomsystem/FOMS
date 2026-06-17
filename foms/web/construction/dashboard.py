@@ -236,6 +236,7 @@ def erp_construction_dashboard():
         paginated_orders,
         db,
         mobile_v2_active=mobile_v2_active,
+        drawing_only=bool(is_construction),
     )
     attach_order_detail_payloads(db, paginated_orders)
 

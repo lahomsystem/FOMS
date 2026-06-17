@@ -23,6 +23,13 @@ _ATTACHMENT_CATEGORIES = _DRAWING_CATEGORIES | _MEASUREMENT_CATEGORIES | frozens
 _MAX_PREVIEW_COUNT = 4
 
 
+def _preview_categories(*, drawing_only: bool) -> frozenset[str]:
+    """Return attachment categories allowed on construction mobile card previews."""
+    if drawing_only:
+        return _DRAWING_CATEGORIES
+    return _ATTACHMENT_CATEGORIES
+
+
 def construction_thumb_enabled(*, mobile_v2_active: bool = False) -> bool:
     """Return whether construction mobile card thumbnails are enabled.
 
@@ -83,10 +90,16 @@ def _url_from_file_entry(entry: dict[str, Any]) -> str | None:
     return build_file_view_url(key)
 
 
-def _url_from_attachment(attachment: OrderAttachment) -> str | None:
+def _thumb_url_from_attachment(attachment: OrderAttachment) -> str | None:
+    """Card thumbnail URL (prefers generated thumbnail_key)."""
     thumb_key = (attachment.thumbnail_key or "").strip()
     if thumb_key:
         return build_file_view_url(thumb_key)
+    return _view_url_from_attachment(attachment)
+
+
+def _view_url_from_attachment(attachment: OrderAttachment) -> str | None:
+    """Full attachment view URL for lightbox zoom (original storage_key)."""
     storage_key = (attachment.storage_key or "").strip()
     if not storage_key:
         return None
@@ -97,32 +110,57 @@ def _url_from_attachment(attachment: OrderAttachment) -> str | None:
     return None
 
 
-def _collect_preview_urls(row: dict[str, Any], db: Any) -> list[str]:
-    """Resolve drawing + measurement preview URLs for one construction queue row."""
-    seen: set[str] = set()
-    urls: list[str] = []
+def _preview_item_from_file_entry(entry: dict[str, Any]) -> dict[str, str] | None:
+    view_url = _url_from_file_entry(entry)
+    if not view_url:
+        return None
+    return {"thumb": view_url, "view": view_url}
 
-    def _add(url: str | None) -> None:
-        if not url or url in seen:
+
+def _preview_item_from_attachment(attachment: OrderAttachment) -> dict[str, str] | None:
+    view_url = _view_url_from_attachment(attachment)
+    if not view_url:
+        return None
+    thumb_url = _thumb_url_from_attachment(attachment) or view_url
+    return {"thumb": thumb_url, "view": view_url}
+
+
+def _collect_preview_items(
+    row: dict[str, Any],
+    db: Any,
+    *,
+    drawing_only: bool = False,
+) -> list[dict[str, str]]:
+    """Resolve preview items (thumb + full view) for one construction queue row."""
+    categories = _preview_categories(drawing_only=drawing_only)
+    seen_views: set[str] = set()
+    items: list[dict[str, str]] = []
+
+    def _add(item: dict[str, str] | None) -> None:
+        if not item:
             return
-        seen.add(url)
-        urls.append(url)
+        view = (item.get("view") or "").strip()
+        if not view or view in seen_views:
+            return
+        seen_views.add(view)
+        items.append({"thumb": item.get("thumb") or view, "view": view})
 
     sd = row.get("structured_data") if isinstance(row.get("structured_data"), dict) else {}
     order_id = row.get("id")
-    for entry in sd.get("drawing_current_files") or []:
-        _add(_url_from_file_entry(entry))
-        if len(urls) >= _MAX_PREVIEW_COUNT:
-            return urls[:_MAX_PREVIEW_COUNT]
+    if not drawing_only or _DRAWING_CATEGORIES.intersection(categories):
+        for entry in sd.get("drawing_current_files") or []:
+            _add(_preview_item_from_file_entry(entry))
+            if len(items) >= _MAX_PREVIEW_COUNT:
+                return items[:_MAX_PREVIEW_COUNT]
 
     if not order_id:
-        return urls[:_MAX_PREVIEW_COUNT]
+        return items[:_MAX_PREVIEW_COUNT]
 
     attachments = (
         db.query(OrderAttachment)
         .filter(
             OrderAttachment.order_id == int(order_id),
-            OrderAttachment.category.in_(sorted(_ATTACHMENT_CATEGORIES)),
+            OrderAttachment.category.in_(sorted(categories)),
         )
         .order_by(OrderAttachment.created_at.asc())
         .all()
@@ -139,11 +177,37 @@ def _collect_preview_urls(row: dict[str, Any], db: Any) -> list[str]:
         return (bucket, att.created_at or "")
 
     for attachment in sorted(attachments, key=_sort_key):
-        _add(_url_from_attachment(attachment))
-        if len(urls) >= _MAX_PREVIEW_COUNT:
+        _add(_preview_item_from_attachment(attachment))
+        if len(items) >= _MAX_PREVIEW_COUNT:
             break
 
-    return urls[:_MAX_PREVIEW_COUNT]
+    return items[:_MAX_PREVIEW_COUNT]
+
+
+def count_preview_attachments(row: dict[str, Any], db: Any, *, drawing_only: bool = False) -> int:
+    """Count preview-eligible attachments for card +N badge (may exceed grid cap)."""
+    categories = _preview_categories(drawing_only=drawing_only)
+    sd = row.get("structured_data") if isinstance(row.get("structured_data"), dict) else {}
+    order_id = row.get("id")
+    structured_count = len(
+        [
+            entry
+            for entry in (sd.get("drawing_current_files") or [])
+            if _url_from_file_entry(entry)
+        ]
+    )
+    if not order_id:
+        return structured_count
+
+    db_count = (
+        db.query(OrderAttachment)
+        .filter(
+            OrderAttachment.order_id == int(order_id),
+            OrderAttachment.category.in_(sorted(categories)),
+        )
+        .count()
+    )
+    return max(structured_count, db_count)
 
 
 def enrich_construction_mobile_rows(
@@ -151,12 +215,14 @@ def enrich_construction_mobile_rows(
     db: Any,
     *,
     mobile_v2_active: bool = False,
+    drawing_only: bool = False,
 ) -> None:
     """Attach v1.1 badge + thumbnail fields to construction ``paginated_orders`` dicts.
 
     Args:
         rows: Mutable list of row dicts built in ``construction.dashboard``.
         db: SQLAlchemy session for attachment lookup.
+        drawing_only: When True (시공팀), show drawing-category previews only.
     """
     thumb_on = construction_thumb_enabled(mobile_v2_active=mobile_v2_active)
     for row in rows:
@@ -165,10 +231,18 @@ def enrich_construction_mobile_rows(
             str(stage) if stage is not None else None
         )
         row["construction_thumb_active"] = thumb_on
+        row["drawing_preview_only"] = drawing_only
         if not thumb_on:
             row["thumbnail_url"] = None
             row["attachment_previews"] = []
+            row["attachment_preview_items"] = []
             continue
-        previews = _collect_preview_urls(row, db)
-        row["attachment_previews"] = previews
-        row["thumbnail_url"] = previews[0] if previews else None
+        preview_items = _collect_preview_items(row, db, drawing_only=drawing_only)
+        preview_urls = [item["view"] for item in preview_items]
+        row["attachment_preview_items"] = preview_items
+        row["attachment_previews"] = preview_urls
+        row["thumbnail_url"] = preview_items[0]["thumb"] if preview_items else None
+        if drawing_only:
+            row["attachments_count"] = count_preview_attachments(
+                row, db, drawing_only=True
+            )

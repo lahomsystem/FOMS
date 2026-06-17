@@ -132,7 +132,45 @@ def test_enrich_construction_mobile_rows_attachment_fallback(mock_url, monkeypat
     enrich_construction_mobile_rows(rows, db_session)
 
     assert rows[0]["thumbnail_url"] == "/files/att-thumb"
-    mock_url.assert_called_once_with("const/measure.jpg")
+    assert rows[0]["attachment_preview_items"][0]["view"] == "/files/att-thumb"
+    assert mock_url.call_count >= 1
+
+
+@patch("foms.services.construction_dashboard_display.build_file_view_url", side_effect=lambda key: f"/files/{key}")
+def test_enrich_construction_mobile_rows_drawing_only_excludes_measurement(mock_url, monkeypatch, app):
+    monkeypatch.setenv("FOMS_V3_CONSTRUCTION_THUMB_ENABLED", "true")
+    order = _create_construction_order()
+    db_session.add(
+        OrderAttachment(
+            order_id=order.id,
+            filename="measure.jpg",
+            file_type="image",
+            category="measurement",
+            file_size=10,
+            storage_key="const/measure.jpg",
+        )
+    )
+    db_session.add(
+        OrderAttachment(
+            order_id=order.id,
+            filename="draw.png",
+            file_type="image",
+            category="drawing",
+            file_size=10,
+            storage_key="const/draw.png",
+            thumbnail_key="const/draw-thumb.png",
+        )
+    )
+    db_session.commit()
+
+    rows = [{"id": order.id, "stage": "시공대기", "structured_data": {}, "attachments_count": 99}]
+    enrich_construction_mobile_rows(rows, db_session, drawing_only=True)
+
+    assert rows[0]["drawing_preview_only"] is True
+    assert rows[0]["attachments_count"] == 1
+    assert len(rows[0]["attachment_preview_items"]) == 1
+    assert rows[0]["attachment_preview_items"][0]["view"] == "/files/const/draw.png"
+    assert rows[0]["attachment_preview_items"][0]["thumb"] == "/files/const/draw-thumb.png"
 
 
 def test_construction_dashboard_mobile_wiring_contract():
@@ -155,6 +193,8 @@ def test_construction_dashboard_mobile_wiring_contract():
     assert "data-foms-mobile-queue-sentinel" not in queue_src
     # v2 카드는 badge override(modifier)를 stage 배지에 반영한다.
     assert "foms-stage-badge{{ badge_mod }}" in macro_src
+    assert "data-foms-lightbox-gallery" in macro_src
+    assert "attachment_preview_items" in macro_src
     # PC workflow baseline: 시공완료는 사진 재업로드와 AS 액션이 병존한다.
     assert 'data-action="reuploadConstructionPhotos"' in pc_grid
     assert 'data-action="openAsAcceptModal"' in pc_grid
@@ -404,3 +444,45 @@ def test_construction_dashboard_focus_order_with_q_excludes_sibling_matches(clie
     assert "소마디자인(가평)" in body
     assert f'data-order-id="{focus_id}"' in body or f"#{focus_id}" in body
     assert f'data-order-id="{sibling_id}"' not in body
+
+
+@patch("foms.services.construction_dashboard_display.build_file_view_url", side_effect=lambda key: f"/files/{key}")
+def test_construction_team_mobile_card_renders_drawing_lightbox(mock_url, client, monkeypatch):
+    """시공팀 모바일 카드: 도면만 썸네일 + lightbox gallery 바인딩."""
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    monkeypatch.setenv("FOMS_V3_CONSTRUCTION_THUMB_ENABLED", "true")
+    user = _login_as_admin(client)
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+
+    order = _create_construction_order(
+        customer_name="도면 라이트박스",
+        manager_name=user.name,
+        structured_data={
+            "workflow": {"stage": "COMPLETED"},
+            "parties": {"manager": {"name": user.name}},
+            "shipment": {"construction_workers": [user.name]},
+            "drawing_current_files": [
+                {"key": "drawings/plan.png", "filename": "plan.png"},
+            ],
+        },
+    )
+    db_session.add(
+        OrderAttachment(
+            order_id=order.id,
+            filename="site.jpg",
+            file_type="image",
+            category="construction",
+            file_size=10,
+            storage_key="const/site.jpg",
+        )
+    )
+    db_session.commit()
+
+    response = client.get("/erp/construction/dashboard?stage=시공완료")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert 'data-foms-lightbox-gallery' in body
+    assert 'data-foms-lightbox-src="/files/drawings/plan.png"' in body
+    assert "/files/const/site.jpg" not in body
+    assert 'aria-label="도면' in body

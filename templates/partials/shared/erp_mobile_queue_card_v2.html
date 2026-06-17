@@ -59,9 +59,26 @@
     </h3>
 
     {% if order.attachments_count is defined and order.attachments_count > 0 %}
-      <div class="queue-card__attachments foms-queue-card-v2__attachments" aria-label="첨부 {{ order.attachments_count }}건">
-        {% set preview_urls = order.attachment_preview_urls or order.attachment_previews or [] %}
-        {% if preview_urls %}
+      {% set preview_items = order.attachment_preview_items or [] %}
+      {% set preview_urls = order.attachment_preview_urls or order.attachment_previews or [] %}
+      <div
+        class="queue-card__attachments foms-queue-card-v2__attachments"
+        aria-label="{% if order.drawing_preview_only|default(false) %}도면 {{ order.attachments_count }}건{% else %}첨부 {{ order.attachments_count }}건{% endif %}"
+        data-foms-lightbox-gallery>
+        {% if preview_items %}
+          {% for item in preview_items[:3] %}
+            <img
+              class="queue-card__attach-thumb foms-queue-card-v2__attach-thumb"
+              src="{{ item.thumb }}"
+              alt=""
+              loading="lazy"
+              decoding="async"
+              data-foms-lightbox-src="{{ item.view }}">
+          {% endfor %}
+          {% if order.attachments_count > preview_items|length %}
+            <span class="queue-card__attach-more foms-queue-card-v2__attach-more">+{{ order.attachments_count - preview_items|length }}</span>
+          {% endif %}
+        {% elif preview_urls %}
           {% for url in preview_urls[:3] %}
             <img
               class="queue-card__attach-thumb foms-queue-card-v2__attach-thumb"
