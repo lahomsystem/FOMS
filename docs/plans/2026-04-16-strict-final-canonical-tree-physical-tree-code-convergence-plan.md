@@ -199,6 +199,7 @@ current proof gap:
   - `railway-cron.toml`
   - `requirements.txt`
   - `run.py`
+  - `skills-lock.json`
   - `start.sh`
   - `wdcalculator_db.py`
   - `wdcalculator_models.py`
@@ -363,6 +364,7 @@ final workspace exactness에서 금지:
   - `railway-cron.toml`
   - `requirements.txt`
   - `run.py`
+  - `skills-lock.json`
   - `start.sh`
   - `wdcalculator_db.py`
   - `wdcalculator_models.py`

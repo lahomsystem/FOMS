@@ -54,6 +54,7 @@ _PTC_ROOT_ALLOWLIST: frozenset[str] = frozenset(
         "railway-cron.toml",
         "requirements.txt",
         "run.py",
+        "skills-lock.json",
         "start.sh",
         "wdcalculator_db.py",
         "wdcalculator_models.py",
