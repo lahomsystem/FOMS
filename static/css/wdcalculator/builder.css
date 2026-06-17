@@ -185,6 +185,9 @@
   body.wd-builder .wd-esec .base-component-row[data-mode="manual"] .base-width-input {
     min-width: 0; font-variant-numeric: tabular-nums;
   }
+  body.wd-builder .wd-esec .base-width-preview {
+    min-height: 0; line-height: 1.2; margin-top: 2px;
+  }
   body.wd-builder .wd-esec .base-component-row .card-body > .mt-2 {
     margin-top: 8px !important; display: grid; grid-template-columns: 1fr auto; gap: 6px 8px; align-items: center;
   }

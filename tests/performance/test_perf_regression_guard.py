@@ -102,6 +102,7 @@ SYNC_SCRIPT_ALLOWLIST: frozenset[str] = frozenset({
     "rum-baseline.js",
     "script.js",
     "shared.js",
+    "spec-width-eval.js",
     "theme.js",
     "unsaved-exit-guard.js",
     "upload-progress.js",

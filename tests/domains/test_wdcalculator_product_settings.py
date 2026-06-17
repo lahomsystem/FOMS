@@ -52,6 +52,7 @@ def test_wdcalculator_page_renders_inline_config_contract(wdcalculator_settings_
     layout_sync_wiring_idx = body.index("js/wdcalculator/layout-sync-wiring.js")
     composition_idx = body.index("js/wdcalculator/composition.js")
     estimate_lifecycle_idx = body.index("js/wdcalculator/estimate-lifecycle.js")
+    spec_width_eval_idx = body.index("js/wdcalculator/spec-width-eval.js")
     primary_form_idx = body.index("js/wdcalculator/primary-form.js")
     pricing_core_idx = body.index("js/wdcalculator/pricing-core.js")
     dom_ready_idx = body.index("document.addEventListener('DOMContentLoaded'")
@@ -73,6 +74,7 @@ def test_wdcalculator_page_renders_inline_config_contract(wdcalculator_settings_
         < layout_sync_wiring_idx
         < composition_idx
         < estimate_lifecycle_idx
+        < spec_width_eval_idx
         < primary_form_idx
         < pricing_core_idx
         < dom_ready_idx

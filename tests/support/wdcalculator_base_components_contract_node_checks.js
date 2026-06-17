@@ -13,9 +13,11 @@ const vm = require("vm");
 const repoRoot = path.join(__dirname, "..", "..");
 const primaryFormPath = path.join(repoRoot, "static", "js", "wdcalculator", "primary-form.js");
 const sharedPath = path.join(repoRoot, "static", "js", "wdcalculator", "shared.js");
+const specWidthEvalPath = path.join(repoRoot, "static", "js", "wdcalculator", "spec-width-eval.js");
 
 const baseComponentsUiSrc = fs.readFileSync(primaryFormPath, "utf8");
 const sharedSrc = fs.readFileSync(sharedPath, "utf8");
+const specWidthEvalSrc = fs.readFileSync(specWidthEvalPath, "utf8");
 
 function assertEq(actual, expected, label) {
     if (actual !== expected) {
@@ -316,6 +318,8 @@ function assertMarkupContract(html, scenario) {
     const checks = [
         ["base-component-row", html.includes("base-component-row")],
         ["base-width-input", html.includes("base-width-input")],
+        ["base-width-preview", html.includes("base-width-preview")],
+        ["base-width text input", html.includes('type="text" class="form-control form-control-sm base-width-input"')],
         ["base-additional-fees-list", html.includes("base-additional-fees-list")],
         ["base-mode-btn", html.includes("base-mode-btn")],
     ];
@@ -382,6 +386,7 @@ function runAll() {
 
     vm.createContext(sandbox);
     vm.runInContext(sharedSrc, sandbox);
+    vm.runInContext(specWidthEvalSrc, sandbox);
 
     /** Mirror escapeHtml's need for createElement + textContent + innerHTML */
     vm.runInContext(
@@ -515,6 +520,7 @@ function runAll() {
         snapSelect[0],
         {
             mode: "select",
+            widthInput: "3000",
             widthMm: 3000,
             additionalFees: [],
             productId: 2,
@@ -556,6 +562,7 @@ function runAll() {
         snap1m[0],
         {
             mode: "manual",
+            widthInput: "2000",
             widthMm: 2000,
             additionalFees: [],
             manualPricing: { pricing_type: "1m", price_1m: 400000 },
@@ -620,6 +627,14 @@ function runAll() {
     wInput.value = "2000";
     bubbleEvent(wInput, "input");
     assertEq(calculateCalls, 1, "delegated input on width triggers calculateEstimate once");
+
+    calculateCalls = 0;
+    wInput.value = "4120+4121+2354";
+    bubbleEvent(wInput, "input");
+    assertEq(calculateCalls, 1, "composite width input triggers calculateEstimate once");
+    const snapComposite = read();
+    assertEq(snapComposite[0].widthInput, "4120+4121+2354", "read composite widthInput");
+    assertEq(snapComposite[0].widthMm, 10595, "read composite widthMm sum");
 
     const p30 = baseContainer.querySelector(".base-manual-price30");
     if (p30) {

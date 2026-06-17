@@ -450,6 +450,12 @@
       var products = getProductList();
       var mode = (row && row.mode) || "select";
       var width = Number(row && row.widthMm) || 0;
+      var widthText =
+        width > 0 && typeof window.formatBaseWidthDisplay === "function"
+          ? window.formatBaseWidthDisplay(row, fmtNum)
+          : width > 0
+            ? fmtNum(width) + "mm"
+            : "";
       var name = "";
       var unitText = "";
       var chipHtml = "";
@@ -488,7 +494,7 @@
         }
       }
       var specParts = [mode === "manual" ? "직접" : "선택"];
-      if (width > 0) specParts.push(fmtNum(width) + "mm");
+      if (widthText) specParts.push(widthText);
       if (unitText) specParts.push(unitText);
       return { name: name, spec: specParts.join(" · "), chipHtml: chipHtml };
     }

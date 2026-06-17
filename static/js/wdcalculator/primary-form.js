@@ -464,7 +464,12 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
     function renderBaseComponentRow(component = {}) {
         var mode = component.mode || "select";
         var manualPricingType = (component.manualPricing && component.manualPricing.pricing_type) || "30cm";
-        var widthMm = component.widthMm != null ? component.widthMm : "";
+        var widthDisplay =
+            component.widthInput != null && String(component.widthInput).trim() !== ""
+                ? component.widthInput
+                : component.widthMm != null && component.widthMm !== ""
+                  ? component.widthMm
+                  : "";
         var productId = component.productId != null ? component.productId : "";
         var price30 = (component.manualPricing && component.manualPricing.price_30cm) != null
             ? component.manualPricing.price_30cm
@@ -511,9 +516,9 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
             (manualPricingType === "1m" ? "" : "display:none;") +
             '">\n                                        <label class="form-label small mb-1">1m(원)</label>\n                                        <input type="number" class="form-control form-control-sm base-manual-price1m" min="0" step="1" placeholder="예: 330000" value="' +
             escapeHtml(String(price1m)) +
-            '">\n                                    </div>\n                                </div>\n                                \n                            </div>\n                        </div>\n\n                        <!-- 가로 (직접: 마지막 / 선택: 제품 다음) -->\n                        <div class="col-6 col-md-3 base-width-col">\n                            <label class="form-label small mb-1">가로(mm)</label>\n                            <input type="number" class="form-control form-control-sm base-width-input" min="0" step="1" placeholder="예: 4470" value="' +
-            escapeHtml(String(widthMm)) +
-            '">\n                        </div>\n\n                        <!-- 삭제 -->\n                        <div class="col-6 col-md-1 text-end">\n                            <button type="button" class="btn btn-sm btn-outline-danger base-remove-btn" title="삭제">\n                                <i class="fas fa-times"></i>\n                            </button>\n                        </div>\n                    </div>\n                    \n                    <!-- 두 번째 행: 추가금 입력 (리스트 형태) -->\n                    <div class="mt-2">\n                        <label class="form-label small mb-2">추가금</label>\n                        <div class="base-additional-fees-list">\n                            ' +
+            '">\n                                    </div>\n                                </div>\n                                \n                            </div>\n                        </div>\n\n                        <!-- 가로 (직접: 마지막 / 선택: 제품 다음) -->\n                        <div class="col-6 col-md-3 base-width-col">\n                            <label class="form-label small mb-1">가로(mm)</label>\n                            <input type="text" class="form-control form-control-sm base-width-input" inputmode="numeric" placeholder="예: 4470 또는 4120+4121+2354" value="' +
+            escapeHtml(String(widthDisplay)) +
+            '">\n                            <div class="form-text small base-width-preview text-muted py-0" aria-live="polite"></div>\n                        </div>\n\n                        <!-- 삭제 -->\n                        <div class="col-6 col-md-1 text-end">\n                            <button type="button" class="btn btn-sm btn-outline-danger base-remove-btn" title="삭제">\n                                <i class="fas fa-times"></i>\n                            </button>\n                        </div>\n                    </div>\n                    \n                    <!-- 두 번째 행: 추가금 입력 (리스트 형태) -->\n                    <div class="mt-2">\n                        <label class="form-label small mb-2">추가금</label>\n                        <div class="base-additional-fees-list">\n                            ' +
             additionalFees
                 .map(function (fee, idx) {
                     return (
@@ -548,6 +553,9 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
             if (sel && comp.productId) {
                 sel.value = String(comp.productId);
             }
+            if (typeof updateBaseWidthPreview === "function") {
+                updateBaseWidthPreview(rowEl);
+            }
         });
         bindAdditionalFeeEvents();
     }
@@ -558,7 +566,14 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
         var rows = Array.from(container.querySelectorAll(".base-component-row"));
         return rows.map(function (rowEl) {
             var mode = rowEl.dataset.mode || "select";
-            var widthMm = Number(rowEl.querySelector(".base-width-input") && rowEl.querySelector(".base-width-input").value) || 0;
+            var widthRaw =
+                rowEl.querySelector(".base-width-input") && rowEl.querySelector(".base-width-input").value;
+            var widthResolved =
+                typeof resolveBaseWidthFromInput === "function"
+                    ? resolveBaseWidthFromInput(widthRaw)
+                    : { widthInput: String(widthRaw || "").trim(), widthMm: Number(widthRaw) || 0 };
+            var widthMm = widthResolved.widthMm || 0;
+            var widthInput = widthResolved.widthInput || "";
             var additionalFees = [];
             rowEl.querySelectorAll(".base-additional-fee-item").forEach(function (itemEl) {
                 var name =
@@ -586,6 +601,7 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
                         0;
                     return {
                         mode: mode,
+                        widthInput: widthInput,
                         widthMm: widthMm,
                         additionalFees: additionalFees,
                         manualPricing: { pricing_type: "1m", price_1m: price1m },
@@ -599,6 +615,7 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
                 if (price1El) price1El.value = String(auto1);
                 return {
                     mode: mode,
+                    widthInput: widthInput,
                     widthMm: widthMm,
                     additionalFees: additionalFees,
                     manualPricing: {
@@ -611,7 +628,13 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
             var productId =
                 Number(rowEl.querySelector(".base-product-select") && rowEl.querySelector(".base-product-select").value) ||
                 null;
-            return { mode: mode, widthMm: widthMm, additionalFees: additionalFees, productId: productId };
+            return {
+                mode: mode,
+                widthInput: widthInput,
+                widthMm: widthMm,
+                additionalFees: additionalFees,
+                productId: productId,
+            };
         });
     }
 
@@ -632,6 +655,11 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
         var container = documentRef.getElementById("baseComponentsContainer");
         if (!container) return;
         container.insertAdjacentHTML("beforeend", renderBaseComponentRow({ mode: "select" }));
+        var rows = container.querySelectorAll(".base-component-row");
+        var newRow = rows.length ? rows[rows.length - 1] : null;
+        if (newRow && typeof updateBaseWidthPreview === "function") {
+            updateBaseWidthPreview(newRow);
+        }
         triggerCalculateEstimate();
     }
 
@@ -716,6 +744,9 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
             var auto1 = computeAutoPrice1cmFrom30cm(price30);
             var price1El = rowEl.querySelector(".base-manual-price1");
             if (price1El) price1El.value = String(auto1);
+        }
+        if (e.target.classList.contains("base-width-input") && typeof updateBaseWidthPreview === "function") {
+            updateBaseWidthPreview(rowEl);
         }
         triggerCalculateEstimate();
     }

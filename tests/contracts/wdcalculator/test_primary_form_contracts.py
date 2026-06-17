@@ -14,6 +14,7 @@ import pytest
 from tests.contracts.wdcalculator._node_runner import run_wdcalculator_node_check
 
 _PRIMARY_FORM_SCRIPTS: tuple[str, ...] = (
+    "tests/support/wdcalculator_spec_width_eval_contract_node_checks.js",
     "tests/support/wdcalculator_base_components_contract_node_checks.js",
     "tests/support/wdcalculator_notes_contract_node_checks.js",
     "tests/support/wdcalculator_notes_ui_bootstrap_contract_node_checks.js",

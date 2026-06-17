@@ -2039,7 +2039,9 @@
 
                 var oldWidthMm = Number(oldComp && oldComp.widthMm) || 0;
                 var newWidthMm = Number(newComp && newComp.widthMm) || 0;
-                if (oldWidthMm !== newWidthMm) {
+                var oldWidthInput = String((oldComp && oldComp.widthInput) || "").trim();
+                var newWidthInput = String((newComp && newComp.widthInput) || "").trim();
+                if (oldWidthMm !== newWidthMm || oldWidthInput !== newWidthInput) {
                     widthChanged = true;
                 }
             }

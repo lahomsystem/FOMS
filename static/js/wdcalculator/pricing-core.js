@@ -66,6 +66,22 @@
      * @param {Array<object>} products
      * @param {(n: number) => string} formatNumber
      */
+    function attachWidthFields(compData, comp) {
+        var widthInput = String((comp && comp.widthInput) || "").trim();
+        if (widthInput) {
+            compData.widthInput = widthInput;
+        }
+        return compData;
+    }
+
+    function widthLabel(comp, formatNumber) {
+        if (typeof formatBaseWidthDisplay === "function") {
+            return formatBaseWidthDisplay(comp, formatNumber);
+        }
+        var w = Number(comp && comp.widthMm) || 0;
+        return w > 0 ? formatNumber(w) + "mm" : "";
+    }
+
     function computeBaseLayer(baseComponents, products, formatNumber) {
         var basePriceCalculate = 0;
         var basePriceCollect = 0;
@@ -88,14 +104,17 @@
                         if (price1m > 0) {
                             var meters = widthMm / 1000;
                             compPrice = meters * price1m;
-                            compData = {
+                            compData = attachWidthFields(
+                                {
                                 mode: "manual",
                                 widthMm: widthMm,
                                 additionalFees: additionalFees,
                                 manualPricing: { pricing_type: "1m", price_1m: price1m },
-                            };
-                            detailLines.push("직접입력(1m) " + formatNumber(widthMm) + "mm");
-                            displayParts.push("직접입력(1m) " + formatNumber(widthMm) + "mm");
+                                },
+                                comp
+                            );
+                            detailLines.push("직접입력(1m) " + widthLabel(compData, formatNumber));
+                            displayParts.push("직접입력(1m) " + widthLabel(compData, formatNumber));
                         }
                     } else {
                         var price30 = Number(comp.manualPricing && comp.manualPricing.price_30cm) || 0;
@@ -105,7 +124,8 @@
                             var remainderMm = widthMm % 300;
                             var units1cm = Math.floor(remainderMm / 10);
                             compPrice = units30cm * price30 + units1cm * price1;
-                            compData = {
+                            compData = attachWidthFields(
+                                {
                                 mode: "manual",
                                 widthMm: widthMm,
                                 additionalFees: additionalFees,
@@ -114,9 +134,11 @@
                                     price_30cm: price30,
                                     price_1cm: price1,
                                 },
-                            };
-                            detailLines.push("직접입력(30cm) " + formatNumber(widthMm) + "mm");
-                            displayParts.push("직접입력(30cm) " + formatNumber(widthMm) + "mm");
+                                },
+                                comp
+                            );
+                            detailLines.push("직접입력(30cm) " + widthLabel(compData, formatNumber));
+                            displayParts.push("직접입력(30cm) " + widthLabel(compData, formatNumber));
                         }
                     }
                 } else {
@@ -133,14 +155,17 @@
                                 compPrice =
                                     u30 * (product.price_30cm || 0) + u1 * (product.price_1cm || 0);
                             }
-                            compData = {
+                            compData = attachWidthFields(
+                                {
                                 mode: "select",
                                 productId: productId,
                                 widthMm: widthMm,
                                 additionalFees: additionalFees,
-                            };
-                            detailLines.push(product.name + " " + formatNumber(widthMm) + "mm");
-                            displayParts.push(product.name + " " + formatNumber(widthMm) + "mm");
+                                },
+                                comp
+                            );
+                            detailLines.push(product.name + " " + widthLabel(compData, formatNumber));
+                            displayParts.push(product.name + " " + widthLabel(compData, formatNumber));
                         }
                     }
                 }
@@ -151,11 +176,14 @@
                 totalAdditionalFee += Number(additionalFees[f].amount) || 0;
             }
             if (Object.keys(compData).length === 0 && totalAdditionalFee > 0) {
-                compData = {
+                compData = attachWidthFields(
+                    {
                     mode: comp.mode || "select",
                     widthMm: widthMm,
                     additionalFees: additionalFees,
-                };
+                    },
+                    comp
+                );
                 if (comp.mode === "manual" && comp.manualPricing) {
                     compData.manualPricing = comp.manualPricing;
                 } else {
@@ -256,8 +284,28 @@
         };
     }
 
+    function validateBaseWidthComponents(baseComponents) {
+        var list = baseComponents || [];
+        for (var i = 0; i < list.length; i++) {
+            var comp = list[i];
+            var raw = String((comp && comp.widthInput) || "").trim();
+            if (!raw) {
+                continue;
+            }
+            var widthMm = Number(comp && comp.widthMm) || 0;
+            if (widthMm > 0) {
+                continue;
+            }
+            if (/^0+(\.0+)?$/.test(raw.replace(/\s/g, ""))) {
+                continue;
+            }
+            throw new Error("가로(mm) 형식을 확인하세요: " + raw);
+        }
+    }
+
     function wdcComputeCurrentEstimateMath(baseComponents, products, optionRows, formatNumber) {
         var fmt = resolveFormatNumber(formatNumber);
+        validateBaseWidthComponents(baseComponents);
         var baseLayer = computeBaseLayer(baseComponents, products, fmt);
         var optLayer = computeOptionsLayer(optionRows, fmt);
         var totalPriceCalculate = baseLayer.basePriceCalculate + optLayer.additionalPrice;
