@@ -3522,11 +3522,11 @@ async function loadMeasurementPanel() {
             if (item.is_holiday) badges.push('<span class="badge bg-danger">휴일</span>');
             else if (item.is_weekend) badges.push('<span class="badge bg-warning text-dark">주말</span>');
             html += '<div class="' + klasses.join(' ') + '" data-date="' + escapeHtml(item.date) + '">';
-            html += '<div class="measurement-item-header d-flex align-items-center justify-content-between gap-1 w-100 flex-nowrap" role="button">';
+            html += '<div class="erp-scheduler-panel-row" role="button" tabindex="0">';
             html += '<span class="measurement-panel-date">' + escapeHtml(item.date) + '</span>';
             html += '<span class="measurement-panel-day">(' + escapeHtml(item.day_label) + ')</span>';
             html += badges.join('');
-            html += '<span class="badge badge-count ms-auto">' + item.count + '</span>';
+            html += '<span class="badge badge-count erp-scheduler-count">' + item.count + '</span>';
             html += '</div>';
             
             if (item.cases && item.cases.length > 0) {
@@ -3546,7 +3546,7 @@ async function loadMeasurementPanel() {
         panel.innerHTML = html;
         panel.classList.add('measurement-panel-list');
         panel.querySelectorAll('.measurement-panel-item').forEach(function (el) {
-            const header = el.querySelector('.measurement-item-header');
+            const header = el.querySelector('.erp-scheduler-panel-row');
             if (header) {
                 header.addEventListener('click', function (e) {
                     const dateStr = el.dataset.date;

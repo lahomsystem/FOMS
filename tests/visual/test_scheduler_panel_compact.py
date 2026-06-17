@@ -2,6 +2,13 @@
 
 from __future__ import annotations
 
+import datetime
+import os
+
+import pytest
+
+from db import db_session
+from models import Order
 from tests.visual.conftest import VISUAL_ADMIN_PASSWORD, VISUAL_ADMIN_USERNAME
 
 
@@ -29,6 +36,7 @@ def _scheduler_metrics(page, selector: str) -> dict[str, float]:
           return {
             itemWidth: itemRect.width,
             rowWidth: rowRect.width,
+            rowRight: rowRect.right,
             badgeGap: badgeRect.left - prevRect.right,
             badgeRight: badgeRect.right,
             itemRight: itemRect.right,
@@ -36,6 +44,12 @@ def _scheduler_metrics(page, selector: str) -> dict[str, float]:
           };
         }"""
     )
+
+
+def _assert_badge_not_clipped(metrics: dict[str, float]) -> None:
+    """건수 뱃지가 스크롤 영역 안에 완전히 들어오는지 확인."""
+    assert metrics["badgeRight"] <= metrics["listRight"] - 4
+    assert abs(metrics["rowRight"] - metrics["badgeRight"]) <= 4
 
 
 def _assert_compact(metrics: dict[str, float], *, max_item_width: float = 250) -> None:
@@ -103,3 +117,48 @@ def test_legacy_shipment_scheduler_panel_stays_compact(
     assert remaining["dateTextWidth"] < remaining["dateCellWidth"]
     assert remaining["badgeGap"] <= 80
     assert remaining["badgeRight"] <= remaining["panelRight"] - 4
+
+
+@pytest.mark.skipif(
+    "sqlite:///tests/visual/" not in os.environ.get("DATABASE_URL", "").replace("\\", "/"),
+    reason="Playwright scheduler smoke requires DATABASE_URL=sqlite:///tests/visual/visual_local.sqlite",
+)
+def test_erp_order_measurement_panel_count_badge_not_clipped(
+    page,
+    visual_live_server_legacy,
+    monkeypatch,
+) -> None:
+    """PC ERP Order 실측 일정 패널 건수 뱃지가 스크롤바에 가려지지 않는다."""
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "false")
+    measurement_date = datetime.date.today().isoformat()
+    order = Order(
+        received_date=measurement_date,
+        customer_name="실측패널 검증",
+        phone="010-1111-2222",
+        address="서울시 패널테스트",
+        product="테스트",
+        is_erp_order=True,
+        measurement_date=measurement_date,
+        structured_data={
+            "parties": {"customer": {"name": "실측패널 검증"}},
+            "site": {"address_full": "서울시 패널테스트"},
+            "schedule": {"measurement": {"date": measurement_date}},
+        },
+    )
+    db_session.add(order)
+    db_session.commit()
+
+    page.set_viewport_size({"width": 1280, "height": 900})
+    _login(page, visual_live_server_legacy)
+    page.goto(
+        f"{visual_live_server_legacy}/edit/{order.id}?open=erp-order",
+        wait_until="networkidle",
+    )
+    page.wait_for_selector(
+        "#erp-order-measurement-panel .measurement-panel-item-oneline .erp-scheduler-count"
+    )
+    metrics = _scheduler_metrics(
+        page, "#erp-order-measurement-panel .measurement-panel-item-oneline"
+    )
+    _assert_badge_not_clipped(metrics)
+    assert metrics["itemWidth"] <= 320
