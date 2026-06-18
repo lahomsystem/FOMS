@@ -18,6 +18,7 @@
 
 ## 핵심 안티패턴 (자동 탐지)
 - `<script>` defer 없는 동기 로드 / 외부 CDN 동기 / 무거운 lib 전역 로드
+- ERP shell fragment 재실행 JS의 `window`/`document`/`body` 전역 listener 중복 바인딩
 - 서비스워커 `cache:"no-cache"` 강제 재검증
 - `structured_data ... ilike` (JSONB→text 풀스캔 — 인덱스 확인 필요)
 - `.limit()` 없는 `.query(...).all()` (무한 fetch)

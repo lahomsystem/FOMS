@@ -10,3 +10,4 @@
 스킬(에이전트 진입점): Claude `/perf-guard`·`/perf-audit`(`.claude/commands`), Cursor 네이티브 `.cursor/rules/02-performance-guardrails.mdc`, Codex `AGENTS.md`+스크립트 직접 실행.
 정책·체크리스트·사유: `docs/guides/PERFORMANCE_GUARDRAILS.md`.
 자동 강제(CI/smoke): `tests/performance/test_perf_regression_guard.py`, `test_static_cache_headers.py`.
+G4: ERP shell fragment에서 재실행되는 JS의 전역 listener는 singleton guard(`window.__*_BOUND`) 없으면 차단.

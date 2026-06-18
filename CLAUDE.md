@@ -81,6 +81,7 @@
 코드/기능 추가가 서버·페이지를 느리게 만드는 것을 **머지 전에 차단**한다. 상세·사유: `docs/guides/PERFORMANCE_GUARDRAILS.md`. 자동 가드: `tests/performance/test_perf_regression_guard.py`(pre_push_smoke 포함, exit 0 아니면 push 금지).
 - **프론트 `<script>`는 기본 `defer`**(또는 `type="module"`). 렌더 차단 동기 스크립트 신규 추가 금지(가드 G1). 코어 라이브러리만 예외(가드 allowlist + 사유).
 - **외부 CDN 동기 `<script>` 신규 금지**(가드 G2). 무거운 라이브러리(html2canvas 등)는 **사용 시점 lazy 로드**(전역 로드 금지). 공용 partial에 페이지 전용 무거운 JS 추가 금지.
+- **ERP shell fragment 재실행 JS는 idempotent 필수**(가드 G4). 모바일 shell/P2 bundle JS가 `window`/`document`/`body` 전역 listener를 추가하면 `window.__*_BOUND` 같은 singleton guard로 중복 바인딩을 차단.
 - **서비스워커 network-first fetch는 timeout+캐시 폴백 필수**(가드 G3). 무한 대기→탭 스피너 금지.
 - **JSONB/text `cast(...).ilike('%..%')`는 인덱스 없이 hot path 금지**: 부분일치=trigram(`gin_trgm_ops`), id 멤버십=`@>`. 새 인덱스는 생성 SQL과 byte-match + `EXPLAIN`로 인덱스 사용 확인.
 - **N+1 금지**(리스트는 `in_(ids)` 배치), **매 요청 무거운 계산은 캐시**(Redis micro-cache).

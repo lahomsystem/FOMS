@@ -77,6 +77,121 @@ _RULES = [
     ),
 ]
 
+_GLOBAL_REPLAYED_EVENT_RE = re.compile(
+    r"^(?: {0,2}|\t?)(?:document(?:\.body)?|window)\.addEventListener\s*\(",
+    re.M,
+)
+_SHELL_REPLAYED_SCRIPT_RULE = "fragment-replayed-global-listener"
+_STATIC_FILENAME_RE = re.compile(r"filename\s*=\s*['\"]([^'\"]+\.js)['\"]")
+_INCLUDE_RE = re.compile(r"{%\s*include\s+['\"]([^'\"]+)['\"]")
+_FRAGMENT_REPLAY_ENTRY_TEMPLATES = (
+    "templates/partials/shared/erp_mobile_shell.html",
+    "templates/partials/shared/foms_app_shell.html",
+    "templates/partials/shared/foms_p2_surface_bundle.html",
+    "templates/partials/shared/foms_mobile_queue_attachment_preview_bundle.html",
+)
+
+
+def _has_global_init_guard(text: str) -> bool:
+    """True when a replayed script has a top-level singleton guard."""
+    return bool(
+        re.search(
+            r"window\.__[A-Za-z0-9_$]*(?:BOUND|INIT|INITIALIZED|LOADED|MOUNTED)",
+            text,
+        )
+    )
+
+
+def _read_repo_text(rel: str) -> str:
+    try:
+        return (ROOT / rel).read_text(encoding="utf-8", errors="ignore")
+    except Exception:
+        return ""
+
+
+def _collect_replayed_template_paths() -> set[str]:
+    seen: set[str] = set()
+
+    def visit(rel: str) -> None:
+        if rel in seen:
+            return
+        seen.add(rel)
+        text = _read_repo_text(rel)
+        for inc in _INCLUDE_RE.findall(text):
+            visit("templates/" + inc)
+
+    for entry in _FRAGMENT_REPLAY_ENTRY_TEMPLATES:
+        visit(entry)
+    return seen
+
+
+def _collect_fragment_replayed_js_paths() -> set[str]:
+    scripts: set[str] = set()
+    for rel in _collect_replayed_template_paths():
+        text = _read_repo_text(rel)
+        for js in _STATIC_FILENAME_RE.findall(text):
+            scripts.add(js.replace("\\", "/"))
+    return scripts
+
+
+def _js_from_template_line(text: str) -> str | None:
+    match = _STATIC_FILENAME_RE.search(text)
+    if not match:
+        return None
+    return match.group(1).replace("\\", "/")
+
+
+def _unsafe_replayed_js(js_rel: str) -> bool:
+    """A shell-fragment-replayed JS file must not add global listeners without a guard."""
+    if js_rel.startswith("js/vendor/"):
+        return False
+    text = _read_repo_text("static/" + js_rel)
+    if not text or _has_global_init_guard(text):
+        return False
+    return bool(_GLOBAL_REPLAYED_EVENT_RE.search(text))
+
+
+def _scan_fragment_replayed_listener_guard(
+    path: str,
+    lineno: int,
+    text: str,
+    replayed_js: set[str],
+    findings: list[Finding],
+) -> None:
+    if path.startswith("static/"):
+        js_rel = path[len("static/") :].replace("\\", "/")
+        if js_rel in replayed_js and _GLOBAL_REPLAYED_EVENT_RE.search(text):
+            full = _read_repo_text(path)
+            if not _has_global_init_guard(full):
+                findings.append(
+                    Finding(
+                        "high",
+                        _SHELL_REPLAYED_SCRIPT_RULE,
+                        path,
+                        lineno,
+                        text.strip()[:120],
+                        "ERP fragment 재실행 JS의 window/document/body listener는 singleton guard(window.__*_BOUND 등)로 중복 바인딩을 차단.",
+                    )
+                )
+        return
+
+    if not path.startswith("templates/"):
+        return
+    if path not in _collect_replayed_template_paths():
+        return
+    js_rel = _js_from_template_line(text)
+    if js_rel and js_rel in replayed_js and _unsafe_replayed_js(js_rel):
+        findings.append(
+            Finding(
+                "high",
+                _SHELL_REPLAYED_SCRIPT_RULE,
+                path,
+                lineno,
+                text.strip()[:120],
+                f"`static/{js_rel}`는 fragment swap 때 재실행되는 경로다. 전역 listener가 있으면 singleton guard를 먼저 추가.",
+            )
+        )
+
 
 def _run(cmd: list[str]) -> str:
     # Windows 로케일(cp949)이 git diff의 한글(UTF-8)을 못 풀어 stdout=None이 되는 것을 방지.
@@ -102,6 +217,7 @@ def guard(base: str) -> list[Finding]:
     """변경분(추가 라인)만 검사."""
     diff = _run(["git", "diff", "--unified=0", base])
     findings: list[Finding] = []
+    replayed_js = _collect_fragment_replayed_js_paths()
     cur_file = ""
     new_lineno = 0
     for raw in diff.splitlines():
@@ -112,6 +228,13 @@ def guard(base: str) -> list[Finding]:
             new_lineno = int(m.group(1)) if m else 0
         elif raw.startswith("+") and not raw.startswith("+++"):
             _scan_text(cur_file, [(new_lineno, raw[1:])], findings)
+            _scan_fragment_replayed_listener_guard(
+                cur_file,
+                new_lineno,
+                raw[1:],
+                replayed_js,
+                findings,
+            )
             new_lineno += 1
         elif not raw.startswith("-"):
             new_lineno += 1

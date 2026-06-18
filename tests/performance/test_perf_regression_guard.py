@@ -9,18 +9,22 @@ networkFirst 무timeout으로 탭 무한 스피너)에서 도출됐다.
   G1) 템플릿에 렌더 차단(동기) `<script src>` 신규 추가 금지 → defer/async/module 사용.
   G2) 외부 CDN 동기 `<script>` 신규 추가 금지(네트워크 stall = 렌더 차단).
   G3) 서비스워커의 network-first 류 fetch는 timeout + 캐시 폴백 필수.
+  G4) ERP shell fragment 안에서 재실행되는 JS의 전역 listener 중복 바인딩 금지.
 
 신규 동기 스크립트가 정말 불가피하면 (1) 가능한 한 defer/async/lazy로 바꾸고,
 (2) 그래도 동기여야 하면 아래 ALLOWLIST에 사유와 함께 추가한다.
 """
 from __future__ import annotations
 
+import importlib.util
 import re
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 TEMPLATES = ROOT / "templates"
 SW_FILE = ROOT / "static" / "sw.js"
+PERF_SCAN = ROOT / "tools" / "perf" / "perf_scan.py"
 
 # 동기 `<script src>` 태그 매칭(다중 라인 허용).
 _SCRIPT_TAG = re.compile(r"<script\b[^>]*?\bsrc\s*=\s*(['\"])(.*?)\1[^>]*?>", re.I | re.S)
@@ -77,6 +81,33 @@ SYNC_SCRIPT_ALLOWLIST: frozenset[str] = frozenset()
 # 외부 CDN 동기 허용(네트워크 stall 위험을 알고도 코어라 유지). 신규 CDN 동기 금지.
 CDN_SYNC_ALLOWLIST: frozenset[str] = frozenset()
 
+# Existing replayed shell scripts that predate the singleton-listener guard.
+# Keep the expected count fixed: a new global listener in one of these files must
+# either refactor to a singleton guard or intentionally update this baseline.
+FRAGMENT_REPLAYED_GLOBAL_LISTENER_BASELINE: dict[str, int] = {
+    "js/foms/a2hs-prompt.js": 1,
+    "js/foms/alpine-store.js": 2,
+    "js/foms/bottom-nav-shell.js": 4,
+    "js/foms/haptic.js": 1,
+    "js/foms/kv-copy.js": 1,
+    "js/foms/lightbox.js": 1,
+    "js/foms/mobile-queue-focus.js": 1,
+    "js/foms/mobile-queue-scroll.js": 1,
+    "js/foms/search.js": 2,
+    "js/foms/swipe-actions.js": 1,
+    "js/foms/sync.js": 2,
+    "js/runtime/erp-mobile-shell.js": 2,
+}
+
+
+def _load_perf_scan_module():
+    spec = importlib.util.spec_from_file_location("foms_perf_scan", PERF_SCAN)
+    assert spec and spec.loader, f"cannot import {PERF_SCAN}"
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
 
 def test_no_new_render_blocking_scripts() -> None:
     """G1: 템플릿에 baseline 밖 렌더 차단 스크립트가 추가되면 실패."""
@@ -124,3 +155,32 @@ def test_service_worker_does_not_force_static_no_cache_fetches() -> None:
     sw = SW_FILE.read_text(encoding="utf-8", errors="ignore")
     assert "fetch(request, { cache:" not in sw
     assert "staticCacheFirst(req, STATIC_CACHE)" in sw
+
+
+def test_fragment_replayed_global_listeners_are_guarded_or_frozen() -> None:
+    """G4: fragment-replayed JS must not accumulate global listeners on tab swaps."""
+    perf_scan = _load_perf_scan_module()
+    replayed = perf_scan._collect_fragment_replayed_js_paths()
+    assert "js/foms/erp-attachment-preview-open.js" in replayed
+
+    violations: list[str] = []
+    for js_rel in sorted(replayed):
+        if js_rel.startswith("js/vendor/"):
+            continue
+        path = ROOT / "static" / js_rel
+        if not path.exists():
+            continue
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        listener_count = len(perf_scan._GLOBAL_REPLAYED_EVENT_RE.findall(text))
+        if listener_count == 0 or perf_scan._has_global_init_guard(text):
+            continue
+        expected = FRAGMENT_REPLAYED_GLOBAL_LISTENER_BASELINE.get(js_rel)
+        if expected != listener_count:
+            violations.append(f"{js_rel}: expected={expected} actual={listener_count}")
+
+    assert not violations, (
+        "fragment swap에서 재실행되는 JS에 singleton guard 없는 전역 listener가 추가됐다.\n"
+        "해결: window.__*_BOUND 같은 단일 초기화 가드를 추가하거나, 기존 debt면 "
+        "FRAGMENT_REPLAYED_GLOBAL_LISTENER_BASELINE에 사유와 함께 고정.\n"
+        + "\n".join(f"  - {v}" for v in violations)
+    )

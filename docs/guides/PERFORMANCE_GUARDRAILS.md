@@ -24,6 +24,8 @@
 - **G1 렌더 차단 스크립트 금지**: 템플릿에 `defer`/`async`/`type=module` 없는 신규 `<script src>` 금지.
 - **G2 외부 CDN 동기 스크립트 금지**: 신규 CDN `<script>`는 반드시 `defer`/동적 로드/self-host.
 - **G3 서비스워커 timeout 필수**: SW의 network-first 류 fetch는 timeout + 캐시 폴백 필수.
+- **G4 fragment 재실행 JS 중복 listener 금지**: ERP shell fragment 안에서 다시 평가되는 JS가
+  `window`/`document`/`body` 전역 listener를 추가하면 singleton guard(`window.__*_BOUND`) 필수.
 
 새 동기 스크립트가 **정말** 불가피하면: ① 먼저 defer/async/lazy로 전환 시도 → ② 그래도
 동기여야 하면 가드 파일의 `SYNC_SCRIPT_ALLOWLIST`에 **사유 주석과 함께** 추가(리뷰 필수).
@@ -35,6 +37,9 @@
 - **무거운 라이브러리는 사용 시점 lazy 로드**. 예: `html2canvas`는 견적 내보내기 시
   `estimate-preview.js`의 `_ensureHtml2canvas()`로 1회 동적 로드(전역 로드 금지).
 - **공용 partial에 페이지 전용 무거운 JS 추가 금지**. 특정 기능 JS는 그 기능 페이지/탭에서만 로드.
+- **ERP shell fragment에서 재실행되는 JS는 idempotent 필수.** `foms_app_shell.html`/P2 bundle/모바일
+  shell에 추가되는 JS가 `window.addEventListener`, `document.addEventListener`,
+  `document.body.addEventListener`를 쓰면 `window.__*_BOUND` 같은 단일 초기화 가드로 중복 바인딩을 막는다.
 - 인라인 스타일·대형 인라인 script 금지(`CLAUDE.md` 프론트 규칙 준수).
 
 ### 서비스워커 (`static/sw.js`)
@@ -81,6 +86,7 @@
 - 매 요청 무거운 계산(집계/렌더) 추가 → Redis micro-cache 적용 여부.
 - 공용 partial(`erp_order_js.html`/layout)에 페이지 전용 무거운 JS·CSS 추가 금지.
 - 서비스워커 fetch 전략 변경 시 timeout+캐시 폴백 유지.
+- ERP shell fragment 재실행 경로에 추가한 JS의 전역 listener가 singleton guard로 보호되는지 확인.
 
 ### B. perf-audit — 정기 점검으로 성능 개선(주 1회 등)
 1. `python tools/perf/perf_scan.py --audit` 실행(전체 코드베이스 후보 목록).

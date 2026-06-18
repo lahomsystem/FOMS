@@ -23,6 +23,7 @@
 - JSONB ILIKE → trigram 인덱스 / `@>` / denormalized 컬럼
 - 정적 자원: SW staticCacheFirst + 버전 max-age (매 네비 서버 폭주 제거)
 - 무거운 lib lazy 로드 / 공용 partial 경량화 / 대시보드 fragment HTML 축소
+- ERP shell fragment 재실행 JS의 singleton guard(`window.__*_BOUND`) / 중복 listener 제거
 - N+1 → `in_(ids)` 배치, 매요청 무거운 계산 → Redis micro-cache
 
 ## 결과 보고
