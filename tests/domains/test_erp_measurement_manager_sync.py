@@ -87,6 +87,27 @@ def test_measurement_manager_delete_clears_erp_order_fields(client):
     assert ((order.structured_data or {}).get("parties") or {}).get("manager", {}).get("name") == ""
 
 
+def test_measurement_summary_returns_panel_dates(client):
+    """Regression: summary must not 500 when accessing g.current_user (mine filter path)."""
+    _login_erp_editor(client)
+    _create_erp_order(manager_name="Alice")
+
+    response = client.get("/api/erp/measurement/summary")
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["success"] is True
+    panel_dates = payload["panel_dates"]
+    assert isinstance(panel_dates, list)
+    assert len(panel_dates) == 15
+    assert all("date" in row and "count" in row and "cases" in row for row in panel_dates)
+
+    mine_response = client.get("/api/erp/measurement/summary?mine=1")
+    assert mine_response.status_code == 200
+    mine_payload = mine_response.get_json()
+    assert mine_payload["success"] is True
+    assert isinstance(mine_payload["panel_dates"], list)
+
+
 def test_measurement_manager_update_resolves_numeric_user_id_to_name(client):
     _login_erp_editor(client)
     manager_user = User(

@@ -9,7 +9,7 @@ import math
 
 logger = logging.getLogger(__name__)
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, g, request, jsonify
 from sqlalchemy import or_, and_, cast, String
 from sqlalchemy.orm.attributes import flag_modified
 
