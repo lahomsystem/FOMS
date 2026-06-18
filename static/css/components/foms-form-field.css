@@ -543,7 +543,14 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
 
 #erpAttachmentPreviewModal .erp-attachment-preview-zoom-stage .erp-attachment-preview-img--expanded,
 #erpEstimatePreviewModal .erp-attachment-preview-zoom-stage .erp-attachment-preview-img--expanded {
-  cursor: zoom-out;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#erpAttachmentPreviewModal .erp-attachment-preview-zoom-stage .erp-attachment-preview-img--dragging,
+#erpEstimatePreviewModal .erp-attachment-preview-zoom-stage .erp-attachment-preview-img--dragging {
+  cursor: grabbing;
 }
 
 @media (prefers-reduced-motion: reduce) {

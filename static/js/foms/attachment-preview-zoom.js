@@ -1,25 +1,64 @@
 /**
- * Shared attachment preview zoom (tap, double-tap, wheel, pinch) for compact Bootstrap modals.
+ * Shared attachment preview zoom + pan (tap, double-tap, wheel, pinch, drag) for Bootstrap modals.
  */
 (function () {
   "use strict";
 
   var MODAL_BOUND_FLAG = "_fomsPreviewModalZoomResetBound";
+  var MIN_SCALE = 1;
+  var MAX_SCALE = 4;
+  var TAP_SCALE = 2;
+  var DRAG_CLICK_THRESHOLD = 4;
 
   function resetZoom(img) {
     if (!img) return;
-    img._erpPreviewZoomState = { scale: 1, tx: 0, ty: 0 };
-    img.classList.remove("erp-attachment-preview-img--expanded");
+    img._erpPreviewZoomState = { scale: MIN_SCALE, tx: 0, ty: 0 };
+    img.classList.remove(
+      "erp-attachment-preview-img--expanded",
+      "erp-attachment-preview-img--dragging"
+    );
+    img.style.transition = "";
     applyZoom(img);
   }
 
-  function applyZoom(img) {
-    var st = img._erpPreviewZoomState || { scale: 1, tx: 0, ty: 0 };
+  function measureBaseDisplaySize(img) {
+    var prevTransform = img.style.transform;
+    img.style.transform = "none";
+    var size = { w: img.offsetWidth, h: img.offsetHeight };
+    img.style.transform = prevTransform;
+    return size;
+  }
+
+  function clampPan(img, stage) {
+    var st = img._erpPreviewZoomState;
+    if (!st || st.scale <= MIN_SCALE + 0.05) {
+      st.tx = 0;
+      st.ty = 0;
+      return;
+    }
+    if (!stage) return;
+    var stageW = stage.clientWidth;
+    var stageH = stage.clientHeight;
+    if (!stageW || !stageH) return;
+
+    var base = measureBaseDisplaySize(img);
+    var maxTx = Math.max(0, (base.w * st.scale - stageW) / 2);
+    var maxTy = Math.max(0, (base.h * st.scale - stageH) / 2);
+    st.tx = Math.min(maxTx, Math.max(-maxTx, st.tx));
+    st.ty = Math.min(maxTy, Math.max(-maxTy, st.ty));
+  }
+
+  function applyZoom(img, stage) {
+    var st = img._erpPreviewZoomState || { scale: MIN_SCALE, tx: 0, ty: 0 };
+    if (stage) clampPan(img, stage);
     img.style.transform =
       "translate3d(" + st.tx + "px," + st.ty + "px,0) scale(" + st.scale + ")";
-    var zoomed = st.scale > 1.05;
+    var zoomed = st.scale > MIN_SCALE + 0.05;
     img.classList.toggle("erp-attachment-preview-img--expanded", zoomed);
-    img.setAttribute("aria-label", zoomed ? "이미지 축소" : "이미지 확대");
+    img.setAttribute(
+      "aria-label",
+      zoomed ? "이미지 이동·축소 (드래그 또는 탭)" : "이미지 확대"
+    );
   }
 
   function bindImageZoom(bodyEl, options) {
@@ -50,10 +89,6 @@
     if (img._erpPreviewZoomBound) return;
     img._erpPreviewZoomBound = true;
 
-    var MIN_SCALE = 1;
-    var MAX_SCALE = 4;
-    var TAP_SCALE = 2;
-
     function setScale(next) {
       var st = img._erpPreviewZoomState;
       st.scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, next));
@@ -62,7 +97,7 @@
         st.tx = 0;
         st.ty = 0;
       }
-      applyZoom(img);
+      applyZoom(img, stage);
     }
 
     function toggleTapZoom() {
@@ -71,13 +106,18 @@
         resetZoom(img);
       } else {
         st.scale = TAP_SCALE;
-        applyZoom(img);
+        applyZoom(img, stage);
       }
     }
 
     var clickTimer = null;
+    var suppressTapToggle = false;
     img.addEventListener("click", function (ev) {
       ev.preventDefault();
+      if (suppressTapToggle) {
+        suppressTapToggle = false;
+        return;
+      }
       if (clickTimer) clearTimeout(clickTimer);
       clickTimer = setTimeout(function () {
         clickTimer = null;
@@ -112,7 +152,6 @@
     );
 
     var pinchStartDist = 0;
-    var panStart = null;
     stage.addEventListener(
       "touchstart",
       function (ev) {
@@ -121,13 +160,6 @@
             ev.touches[0].clientX - ev.touches[1].clientX,
             ev.touches[0].clientY - ev.touches[1].clientY
           );
-        } else if (ev.touches.length === 1 && img._erpPreviewZoomState.scale > MIN_SCALE) {
-          panStart = {
-            x: ev.touches[0].clientX,
-            y: ev.touches[0].clientY,
-            tx: img._erpPreviewZoomState.tx,
-            ty: img._erpPreviewZoomState.ty,
-          };
         }
       },
       { passive: true }
@@ -145,11 +177,6 @@
           );
           setScale(st.scale + (dist - pinchStartDist) * 0.01);
           pinchStartDist = dist;
-        } else if (ev.touches.length === 1 && panStart && st.scale > MIN_SCALE) {
-          ev.preventDefault();
-          st.tx = panStart.tx + (ev.touches[0].clientX - panStart.x);
-          st.ty = panStart.ty + (ev.touches[0].clientY - panStart.y);
-          applyZoom(img);
         }
       },
       { passive: false }
@@ -157,8 +184,89 @@
 
     stage.addEventListener("touchend", function () {
       pinchStartDist = 0;
-      panStart = null;
     });
+
+    var panPointer = null;
+    var activePanPointers = 0;
+
+    function cancelPanPointer() {
+      if (!panPointer) return;
+      if (stage.releasePointerCapture) {
+        try {
+          stage.releasePointerCapture(panPointer.id);
+        } catch (_err) {
+          /* ignore stale capture */
+        }
+      }
+      img.classList.remove("erp-attachment-preview-img--dragging");
+      img.style.transition = "";
+      panPointer = null;
+    }
+
+    function finishPanPointer(ev) {
+      if (!panPointer || ev.pointerId !== panPointer.id) return;
+      if (stage.releasePointerCapture) {
+        try {
+          stage.releasePointerCapture(ev.pointerId);
+        } catch (_err) {
+          /* ignore stale capture */
+        }
+      }
+      if (panPointer.moved) suppressTapToggle = true;
+      img.classList.remove("erp-attachment-preview-img--dragging");
+      img.style.transition = "";
+      panPointer = null;
+    }
+
+    stage.addEventListener("pointerdown", function (ev) {
+      activePanPointers += 1;
+      if (activePanPointers > 1) {
+        cancelPanPointer();
+        return;
+      }
+      if (ev.pointerType === "mouse" && ev.button !== 0) return;
+      var st = img._erpPreviewZoomState;
+      if (st.scale <= MIN_SCALE + 0.05) return;
+      panPointer = {
+        id: ev.pointerId,
+        x: ev.clientX,
+        y: ev.clientY,
+        tx: st.tx,
+        ty: st.ty,
+        moved: false,
+      };
+      img.classList.add("erp-attachment-preview-img--dragging");
+      img.style.transition = "none";
+      if (stage.setPointerCapture) stage.setPointerCapture(ev.pointerId);
+      ev.preventDefault();
+    });
+
+    stage.addEventListener("pointermove", function (ev) {
+      if (!panPointer || ev.pointerId !== panPointer.id) return;
+      if (activePanPointers > 1) return;
+      var st = img._erpPreviewZoomState;
+      var dx = ev.clientX - panPointer.x;
+      var dy = ev.clientY - panPointer.y;
+      if (
+        !panPointer.moved &&
+        (Math.abs(dx) > DRAG_CLICK_THRESHOLD || Math.abs(dy) > DRAG_CLICK_THRESHOLD)
+      ) {
+        panPointer.moved = true;
+      }
+      if (!panPointer.moved) return;
+      st.tx = panPointer.tx + dx;
+      st.ty = panPointer.ty + dy;
+      applyZoom(img, stage);
+      ev.preventDefault();
+    });
+
+    function onPanPointerEnd(ev) {
+      activePanPointers = Math.max(0, activePanPointers - 1);
+      finishPanPointer(ev);
+    }
+
+    stage.addEventListener("pointerup", onPanPointerEnd);
+    stage.addEventListener("pointercancel", onPanPointerEnd);
   }
 
   function bindModalZoomReset(modalEl, bodyId, hooks) {

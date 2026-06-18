@@ -536,11 +536,12 @@ def test_mobile_attachment_preview_uses_viewport_sized_modal() -> None:
 
 
 def test_attachment_preview_image_zoom_supports_in_modal_gestures() -> None:
-    """Attachment preview binds transform zoom (tap, wheel, pinch) inside the modal."""
+    """Attachment preview binds transform zoom + pan (tap, wheel, pinch, drag) inside the modal."""
     root = Path(__file__).resolve().parents[2]
     shared_js = (root / "static/js/foms/attachment-preview-zoom.js").read_text(encoding="utf-8")
     erp_js = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
     mobile_js = (root / "static/js/foms/mobile-detail-attachments.js").read_text(encoding="utf-8")
+    css_text = (root / "static/css/components/foms-form-field.css").read_text(encoding="utf-8")
 
     assert "function bindImageZoom(bodyEl, options)" in shared_js or "bindImageZoom" in shared_js
     assert "fomsResetAttachmentPreviewZoom" in shared_js
@@ -549,6 +550,10 @@ def test_attachment_preview_image_zoom_supports_in_modal_gestures() -> None:
     assert "translate3d(" in shared_js
     assert '"wheel"' in shared_js
     assert "ev.touches.length === 2" in shared_js
+    assert '"pointerdown"' in shared_js
+    assert "clampPan" in shared_js
+    assert "cursor: grab" in css_text
+    assert "erp-attachment-preview-img--dragging" in css_text
 
     assert "function erpBindAttachmentPreviewImageZoom(bodyEl)" in erp_js
     assert "function erpApplyAttachmentPreviewZoom(img)" in erp_js
