@@ -42,7 +42,7 @@
     {% set attach_total = categories|map(attribute='items')|map('length')|sum %}
     {% set attach_summary_parts = [] %}
     {% for cat in categories %}
-      {% set _ = attach_summary_parts.append(cat.label ~ ' ' ~ (cat.items|length)) %}
+      {% set _ = attach_summary_parts.append(cat.label ~ ' ' ~ (cat['items']|length)) %}
     {% endfor %}
     <div class="foms-mobile-attach-panel foms-mobile-attach-panel--collapsed" data-foms-mobile-attach-panel>
       <button
@@ -67,7 +67,7 @@
                 aria-selected="{{ 'true' if loop.first else 'false' }}"
                 aria-controls="foms-mobile-attach-panel-{{ order_id }}-{{ cat.key }}">
                 {{ cat.label }}
-                <span class="foms-mobile-attach-tab__count">{{ cat.items|length }}</span>
+                <span class="foms-mobile-attach-tab__count">{{ cat['items']|length }}</span>
               </button>
             {% endfor %}
           </div>
@@ -81,7 +81,7 @@
             {% if categories|length == 1 %}
               <div class="foms-mobile-attach-tabpanel__label">{{ cat.label }}</div>
             {% endif %}
-            {{ mobile_attach_grid(cat.items, order_id, show_add=show_add and loop.last) }}
+            {{ mobile_attach_grid(cat['items'], order_id, show_add=show_add and loop.last) }}
           </div>
         {% endfor %}
       </div>
