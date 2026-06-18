@@ -3431,7 +3431,6 @@ function erpGenerateConversionText() {
     // Items
     const rows = erpGetItemRows();
     const itemCount = rows.length;
-    const allExtraInputs = [];
 
     rows.forEach((row, index) => {
         const getRowVal = (key) => {
@@ -3440,7 +3439,6 @@ function erpGenerateConversionText() {
         };
 
         const extraInput = getRowVal('extra_input');
-        if (extraInput) allExtraInputs.push(extraInput);
 
         const pName = getRowVal('product_name');
         // Spec: 다중 행 수집 (W합/표시용은 출고 대시보드에서 처리)
@@ -3455,19 +3453,11 @@ function erpGenerateConversionText() {
         });
         const spec = rawSpec || (specParts.length ? specParts.join(', ') : '');
 
-        let internal = getRowVal('internal');
-        if (!internal) internal = '상담';
-
-        let color = getRowVal('color');
-        // if (!color) color = '(SK)'; // (SK) 표시 안 되게 임시 주석 처리
-
-        let option = getRowVal('option_detail');
-        if (!option) option = '상담';
-
-        let handle = getRowVal('handle');
-
-        let misc = getRowVal('misc');
-        if (!misc) misc = '상담';
+        const internal = getRowVal('internal');
+        const color = getRowVal('color');
+        const option = getRowVal('option_detail');
+        const handle = getRowVal('handle');
+        const misc = getRowVal('misc');
 
         if (itemCount >= 2) {
             text += `${index + 1}.\n`;
@@ -3480,30 +3470,27 @@ function erpGenerateConversionText() {
         text += `옵 션 : ${option}\n`;
         text += `손잡이 : ${handle}\n`;
         text += `기 타 : ${misc}\n`;
+        if (extraInput) {
+            text += `추가 입력 : ${extraInput}\n`;
+        }
         text += `\n`;
     });
 
-    // 추가 입력 (기타 <-> 선결제금액 사이)
-    if (allExtraInputs.length > 0) {
-        const extraBlock = allExtraInputs.join('\n');
-        text += `추가 입력 : ${extraBlock}\n`;
-        text += `\n`;
-    }
-
-    // Footer: 예약금(선금) 값이 있으면 예약금만 표시, 없으면 기존 선결제금액 표시
-    const depositEl = document.getElementById('erp-deposit-amount');
-    const depositVal = depositEl ? (depositEl.value || '').trim() : '';
-    const totalText = document.getElementById('erp-items-total')?.textContent || '0원';
-    const depositAmount = erpCoerceAmount(depositVal);
+    // Footer: 채널톡/발주방 공유용 고정 포맷 (담당자 + 출고가 + 예약금 + 잔금)
+    const manager = getVal('erp-manager');
+    const itemsTotal = erpCoerceAmount(document.getElementById('erp-items-total')?.textContent);
+    const depositAmount = erpParseDepositValue();
     const discountAmount = erpParseDiscountValue();
-    if (depositAmount > 0) {
-        text += `예약금 : ${erpFormatMoneyKRW(depositAmount)}`;
-        if (discountAmount > 0) {
-            text += `\n할인 : ${erpFormatMoneyKRW(discountAmount)}`;
-        }
-    } else {
-        text += `선결제금액 : ${totalText}`;
+    const totals = erpBuildTotals(itemsTotal, depositAmount, discountAmount);
+
+    text += `담당자 : ${manager}\n`;
+    text += `\n`;
+    text += `출고가 : ${erpFormatMoneyKRW(totals.items_total)}\n`;
+    text += `예약금(선금) : ${erpFormatMoneyKRW(totals.deposit_amount)}\n`;
+    if (discountAmount > 0) {
+        text += `할인 : ${erpFormatMoneyKRW(totals.discount_amount)}\n`;
     }
+    text += `잔금 : ${erpFormatMoneyKRW(totals.final_amount)}`;
 
     const textarea = document.getElementById('erp-conversion-text');
     if (textarea) {

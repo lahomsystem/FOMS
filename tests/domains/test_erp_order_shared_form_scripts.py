@@ -368,7 +368,7 @@ def test_shared_erp_order_js_syncs_stage_from_measurement_date() -> None:
 
 
 def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
-    """ERP Order 저장은 잔금을 canonical final amount로 유지하되 변환 텍스트에는 잔금 라인을 내보내지 않는다."""
+    """ERP Order 저장은 잔금을 canonical final amount로 유지하고 변환 텍스트는 발주방 공유 포맷을 내보낸다."""
     root = Path(__file__).resolve().parents[2]
     text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
 
@@ -387,8 +387,13 @@ def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
     conversion_start = text.index("function erpGenerateConversionText()")
     conversion_end = text.index("function erpCopyToClipboard()", conversion_start)
     conversion_block = text[conversion_start:conversion_end]
-    assert "text += `예약금 : ${erpFormatMoneyKRW(depositAmount)}`;" in conversion_block
-    assert "text += `잔금 :" not in conversion_block
+    assert "text += `추가 입력 : ${extraInput}\\n`;" in conversion_block
+    assert "allExtraInputs" not in conversion_block
+    assert "getVal('erp-manager')" in conversion_block
+    assert "text += `출고가 : ${erpFormatMoneyKRW(totals.items_total)}\\n`;" in conversion_block
+    assert "text += `예약금(선금) : ${erpFormatMoneyKRW(totals.deposit_amount)}\\n`;" in conversion_block
+    assert "text += `잔금 : ${erpFormatMoneyKRW(totals.final_amount)}`;" in conversion_block
+    assert "선결제금액" not in conversion_block
 
 
 def test_mobile_erp_item_form_preserves_complex_spec_text() -> None:
