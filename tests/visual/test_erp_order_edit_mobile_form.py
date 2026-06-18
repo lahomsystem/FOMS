@@ -61,6 +61,7 @@ CRITICAL_ERP_IDS = {
     "erp-remaining-section",
     "erp-status-text",
     "erp-channeltalk-push-btn",
+    "erp-channeltalk-push-drawing-btn",
     "erp-gen-text-btn",
     "erp-conversion-text",
     "erp-copy-text-btn",
@@ -90,10 +91,10 @@ CRITICAL_ERP_IDS = {
     "erp-collapse-measure-note",
 }
 
+# 영발/발주 PUSH 버튼과 (숨김) 변환 textarea는 모바일에도 제공된다.
+# 변환/복사 버튼은 모바일에서 계속 생략한다(푸쉬가 내부에서 변환 텍스트를 생성).
 MOBILE_OMITTED_ERP_IDS = {
-    "erp-channeltalk-push-btn",
     "erp-gen-text-btn",
-    "erp-conversion-text",
     "erp-copy-text-btn",
 }
 

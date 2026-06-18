@@ -377,6 +377,18 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
   min-height: 52px;
 }
 
+.erp-mobile-push-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--foms-space-2);
+  margin-top: var(--foms-space-3);
+}
+
+.erp-mobile-push-btn {
+  width: 100%;
+  min-height: 48px;
+}
+
 .erp-mobile-dropzone {
   padding: var(--foms-space-3);
   border: 1px dashed var(--foms-border-default);

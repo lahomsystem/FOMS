@@ -81,9 +81,26 @@ def build_message_blocks(event_type: str, data: Dict[str, Any]) -> list[dict[str
 
 
 def get_routing_group_id(event_type: str, order_info: Dict[str, Any] = None) -> str:
-    """Return the ChannelTalk group id for manual ERP push."""
-    _ = (event_type, order_info)
-    return os.environ.get("CHANNEL_GROUP_MEASUREMENT", "")
+    """Return the ChannelTalk group id for a manual ERP push.
+
+    Routing branches on ``push_kind``:
+        - ``drawing`` (발주 PUSH): 도면 그룹(``CHANNEL_GROUP_DRAWING``,
+          미설정 시 운영 그룹 229625로 폴백).
+        - 그 외(영발 PUSH, 기본): 실측 그룹(``CHANNEL_GROUP_MEASUREMENT``,
+          미설정 시 운영 그룹 209990으로 폴백).
+
+    Args:
+        event_type: 항상 ``manual``.
+        order_info: ``push_kind`` 키를 포함할 수 있는 dispatch payload.
+
+    Returns:
+        ChannelTalk 그룹 id 문자열.
+    """
+    _ = event_type
+    push_kind = (order_info or {}).get("push_kind", "measurement")
+    if push_kind == "drawing":
+        return os.environ.get("CHANNEL_GROUP_DRAWING", "229625")
+    return os.environ.get("CHANNEL_GROUP_MEASUREMENT", "209990")
 
 
 def build_message_template(event_type: str, data: Dict[str, Any]) -> str:

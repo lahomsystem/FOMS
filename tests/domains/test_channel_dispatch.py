@@ -3,6 +3,26 @@ from __future__ import annotations
 import foms.services.channel_dispatch as channel_dispatch
 
 
+import foms.services.channel_policy as channel_policy
+
+
+def test_get_routing_group_id_branches_on_push_kind(monkeypatch) -> None:
+    monkeypatch.setenv("CHANNEL_GROUP_MEASUREMENT", "measure-grp")
+    monkeypatch.setenv("CHANNEL_GROUP_DRAWING", "draw-grp")
+
+    assert channel_policy.get_routing_group_id("manual", {"push_kind": "measurement"}) == "measure-grp"
+    assert channel_policy.get_routing_group_id("manual", {"push_kind": "drawing"}) == "draw-grp"
+    # 기본값(미지정) = 실측 그룹
+    assert channel_policy.get_routing_group_id("manual", {}) == "measure-grp"
+
+
+def test_get_routing_group_id_falls_back_to_production_groups(monkeypatch) -> None:
+    monkeypatch.delenv("CHANNEL_GROUP_DRAWING", raising=False)
+    monkeypatch.delenv("CHANNEL_GROUP_MEASUREMENT", raising=False)
+    assert channel_policy.get_routing_group_id("manual", {"push_kind": "drawing"}) == "229625"
+    assert channel_policy.get_routing_group_id("manual", {"push_kind": "measurement"}) == "209990"
+
+
 def test_dispatch_order_event_returns_failure_when_group_missing(monkeypatch) -> None:
     monkeypatch.setattr(channel_dispatch, "get_routing_group_id", lambda event_type, data: "")
 

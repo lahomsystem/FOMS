@@ -202,6 +202,95 @@ def test_push_manual_builds_image_and_video_files_and_dispatches(client, monkeyp
     assert saved.structured_data["channeltalk_push"]["message_id"] == "msg-manual-1"
 
 
+def test_push_manual_drawing_kind_filters_drawing_attachments_and_routes_drawing_group(client, monkeypatch):
+    """발주 PUSH(push_kind=drawing)는 도면 첨부만 골라 도면 그룹으로 dispatch한다."""
+    _login_admin(client)
+    monkeypatch.setenv("CHANNEL_GROUP_MEASUREMENT", "group-measure")
+    monkeypatch.setenv("CHANNEL_GROUP_DRAWING", "group-draw")
+    monkeypatch.setattr(channel_integration, "is_configured", lambda: True)
+    monkeypatch.setattr(channel_integration, "get_storage", lambda: _FakeStorage())
+
+    captured = {}
+
+    def _fake_dispatch(event_type, data, raise_on_error=False):
+        captured["data"] = data
+        return {"success": True, "message_id": "msg-draw-1"}
+
+    monkeypatch.setattr(channel_integration, "dispatch_order_event", _fake_dispatch)
+
+    order = Order(
+        received_date="2026-03-27",
+        customer_name="Drawing Push",
+        phone="010-0000-0000",
+        address="Seoul",
+        product="Wardrobe",
+    )
+    db_session.add(order)
+    db_session.flush()
+    db_session.add_all(
+        [
+            OrderAttachment(
+                order_id=order.id,
+                filename="measure.jpg",
+                file_type="image",
+                category="measurement",
+                storage_key="orders/1/measure.jpg",
+            ),
+            OrderAttachment(
+                order_id=order.id,
+                filename="plan.png",
+                file_type="image",
+                category="drawing",
+                storage_key="orders/1/plan.png",
+            ),
+        ]
+    )
+    db_session.commit()
+    order_id = order.id
+
+    response = client.post(
+        "/api/channel/push-manual",
+        json={"order_id": order_id, "text": "도면 발주 텍스트", "push_kind": "drawing"},
+    )
+
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body["success"] is True
+    # 도면 첨부 1건만 포함 (실측 제외)
+    assert body["files_count"] == 1
+    assert captured["data"]["push_kind"] == "drawing"
+    assert len(captured["data"]["files"]) == 1
+    assert captured["data"]["files"][0]["url"].endswith("orders/1/plan.png?e=3600")
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    # 도면 이력은 별도 키에 저장, 실측 이력 키는 생성되지 않는다.
+    assert saved.structured_data["channeltalk_push_drawing"]["pushed"] is True
+    assert "channeltalk_push" not in saved.structured_data
+
+
+def test_push_manual_rejects_unknown_push_kind(client, monkeypatch):
+    _login_admin(client)
+    monkeypatch.setattr(channel_integration, "is_configured", lambda: True)
+
+    order = Order(
+        received_date="2026-03-27",
+        customer_name="Bad Kind",
+        phone="010-0000-0000",
+        address="Seoul",
+        product="Wardrobe",
+    )
+    db_session.add(order)
+    db_session.commit()
+
+    response = client.post(
+        "/api/channel/push-manual",
+        json={"order_id": order.id, "text": "x", "push_kind": "bogus"},
+    )
+
+    assert response.status_code == 400
+
+
 def test_payment_confirm_does_not_create_channel_delivery_log(client):
     """예약금/잔금 토글 API는 ChannelTalk outbox를 생성하지 않는다."""
     user = User(

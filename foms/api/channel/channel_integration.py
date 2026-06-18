@@ -17,6 +17,7 @@ from models import Order, OrderAttachment
 from foms.web.auth import login_required, role_required
 from foms.services.channel_client import is_configured
 from foms.services.channel_dispatch import dispatch_order_event
+from foms.services.channel_policy import get_routing_group_id
 from foms.services.storage import get_storage
 from foms.services.channel_delivery import (
     check_legacy_only_success_after_cutover,
@@ -28,6 +29,12 @@ from foms.services.jobs.queue import get_rq_runtime_status
 logger = logging.getLogger(__name__)
 
 _MAX_TEXT_LENGTH = 4000
+
+# push_kind → (첨부 category, structured_data 이력 키)
+_PUSH_KIND_CONFIG = {
+    'measurement': {'category': 'measurement', 'history_key': 'channeltalk_push'},
+    'drawing': {'category': 'drawing', 'history_key': 'channeltalk_push_drawing'},
+}
 
 channel_integration_bp = Blueprint('channel_integration', __name__, url_prefix='/api/channel')
 
@@ -64,12 +71,14 @@ def api_channel_push_manual():
     """
     ERP Beta 수동 채널톡 푸쉬.
 
-    사용자가 변환된 텍스트 + 현재 주문의 전체 첨부파일(이미지+동영상)을
-    채널톡 그룹으로 즉시 전송합니다.
+    push_kind에 따라 변환 텍스트 + 해당 분류 첨부파일만 채널톡 그룹으로 전송합니다.
+        - measurement(영발 PUSH): 실측 첨부 → 실측 그룹
+        - drawing(발주 PUSH): 도면 첨부 → 도면 그룹(229625)
 
     Request JSON:
         order_id (int): 주문 ID
         text (str): 전송할 텍스트 (변환된 내용)
+        push_kind (str): 'measurement'(기본) 또는 'drawing'
 
     Returns:
         {success: bool, files_count: int, error: str}
@@ -79,6 +88,11 @@ def api_channel_push_manual():
         payload = request.get_json(silent=True) or {}
         order_id = payload.get('order_id')
         text = (payload.get('text') or '').strip()
+        push_kind = payload.get('push_kind') or 'measurement'
+
+        if push_kind not in _PUSH_KIND_CONFIG:
+            return jsonify({'success': False, 'message': f'지원하지 않는 push_kind: {push_kind}'}), 400
+        kind_config = _PUSH_KIND_CONFIG[push_kind]
 
         if not order_id:
             return jsonify({'success': False, 'message': 'order_id가 없습니다.'}), 400
@@ -91,23 +105,27 @@ def api_channel_push_manual():
             msg = '채널톡 환경변수(CHANNEL_APP_SECRET, CHANNEL_ID)가 서버에 설정되지 않았습니다.'
             return jsonify({'success': False, 'message': msg, 'error': msg}), 503
 
-        group_id = os.environ.get('CHANNEL_GROUP_MEASUREMENT', '')
+        group_id = get_routing_group_id('manual', {'push_kind': push_kind})
         if not group_id:
-            msg = 'CHANNEL_GROUP_MEASUREMENT 환경변수가 설정되지 않았습니다.'
+            env_name = 'CHANNEL_GROUP_DRAWING' if push_kind == 'drawing' else 'CHANNEL_GROUP_MEASUREMENT'
+            msg = f'{env_name} 환경변수가 설정되지 않았습니다.'
             return jsonify({'success': False, 'message': msg, 'error': msg}), 503
 
         order = db.query(Order).filter(Order.id == int(order_id), Order.active_filter()).first()
         if not order:
             return jsonify({'success': False, 'message': f'주문 #{order_id}을 찾을 수 없습니다.'}), 404
 
-        # 이전 푸쉬 이력 확인
+        # 이전 푸쉬 이력 확인 (push_kind별 분리)
         sd = copy.deepcopy(order.structured_data or {})
-        prev_push = sd.get('channeltalk_push') or {}
+        prev_push = sd.get(kind_config['history_key']) or {}
 
-        # 현재 주문의 전체 첨부파일 (이미지 + 동영상, 업로드 순서대로)
+        # 해당 분류 첨부파일만 (이미지 + 동영상, 업로드 순서대로)
         attachments = (
             db.query(OrderAttachment)
-            .filter(OrderAttachment.order_id == order.id)
+            .filter(
+                OrderAttachment.order_id == order.id,
+                OrderAttachment.category == kind_config['category'],
+            )
             .order_by(OrderAttachment.id.asc())
             .all()
         )
@@ -131,20 +149,21 @@ def api_channel_push_manual():
             'customer_name': order.customer_name,
             'text': text,
             'is_retry': bool(prev_push.get('pushed')),
-            'files': files
+            'files': files,
+            'push_kind': push_kind,
         }
-        
+
         result = dispatch_order_event(
             event_type='manual',
             data=dispatch_data,
             raise_on_error=True
         )
 
-        # 전송 성공 후 push 이력을 structured_data에 저장
+        # 전송 성공 후 push 이력을 structured_data에 저장 (push_kind별 분리)
         msg_id = result.get('message_id')
         if not msg_id:
-            logger.warning("[채널톡 수동푸쉬] 전송 성공이나 message_id 미수신 (order_id=%s)", order_id)
-        sd['channeltalk_push'] = {
+            logger.warning("[채널톡 수동푸쉬] 전송 성공이나 message_id 미수신 (order_id=%s, push_kind=%s)", order_id, push_kind)
+        sd[kind_config['history_key']] = {
             'pushed': True,
             'message_id': msg_id,
             'group_id': group_id,

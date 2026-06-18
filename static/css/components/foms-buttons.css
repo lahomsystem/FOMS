@@ -41,6 +41,24 @@
   color: var(--foms-text-primary);
 }
 
+.foms-btn--warning {
+  background: var(--foms-color-warning-500);
+  color: #1f2937;
+}
+
+.foms-btn--warning:hover {
+  background: var(--foms-color-warning-600);
+}
+
+.foms-btn--success {
+  background: var(--foms-color-success-500);
+  color: #fff;
+}
+
+.foms-btn--success:hover {
+  background: var(--foms-color-success-600);
+}
+
 .foms-btn--sm {
   min-height: 36px;
   font-size: var(--foms-font-size-sm);

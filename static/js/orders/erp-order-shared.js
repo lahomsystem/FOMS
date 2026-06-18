@@ -3833,9 +3833,16 @@ function fomsMountErpOrderSurface() {
     document.getElementById('erp-gen-text-btn')?.addEventListener('click', erpGenerateConversionText);
     document.getElementById('erp-copy-text-btn')?.addEventListener('click', erpCopyToClipboard);
 
-    document.getElementById('erp-channeltalk-push-btn')?.addEventListener('click', async function() {
-        const btn = this;
+    document.getElementById('erp-channeltalk-push-btn')?.addEventListener('click', function() {
+        return erpRunChannelPush(this, 'measurement');
+    });
+    document.getElementById('erp-channeltalk-push-drawing-btn')?.addEventListener('click', function() {
+        return erpRunChannelPush(this, 'drawing');
+    });
 
+    // 영발(measurement)/발주(drawing) PUSH 공용 핸들러.
+    // pushKind에 따라 백엔드가 해당 분류 첨부만 골라 별도 채널톡 그룹으로 전송한다.
+    async function erpRunChannelPush(btn, pushKind) {
         if (typeof erpGenerateConversionText === 'function') {
             erpGenerateConversionText();
         }
@@ -3855,6 +3862,14 @@ function fomsMountErpOrderSurface() {
             return;
         }
 
+        // 활성 색상 클래스(데스크톱 btn-* / 모바일 foms-btn--*)를 보존해 성공 표시 후 원복한다.
+        const activeClass = btn.classList.contains('btn-warning') ? 'btn-warning'
+            : btn.classList.contains('btn-primary') ? 'btn-primary'
+            : btn.classList.contains('foms-btn--warning') ? 'foms-btn--warning'
+            : btn.classList.contains('foms-btn--primary') ? 'foms-btn--primary'
+            : null;
+        const successClass = btn.classList.contains('foms-btn') ? 'foms-btn--success' : 'btn-success';
+
         btn.disabled = true;
         const originalHtml = btn.innerHTML;
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 전송중...';
@@ -3863,20 +3878,20 @@ function fomsMountErpOrderSurface() {
             const resp = await fetch('/api/channel/push-manual', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ order_id: orderId, text }),
+                body: JSON.stringify({ order_id: orderId, text, push_kind: pushKind }),
             });
             const data = await resp.json();
 
             if (data.success) {
                 btn.innerHTML = '<i class="fas fa-check"></i> 전송완료';
-                btn.classList.replace('btn-primary', 'btn-success');
+                if (activeClass) btn.classList.replace(activeClass, successClass);
                 setTimeout(() => {
                     btn.innerHTML = originalHtml;
-                    btn.classList.replace('btn-success', 'btn-primary');
+                    if (activeClass) btn.classList.replace(successClass, activeClass);
                     btn.disabled = false;
                 }, 3000);
             } else {
-                const errMsg = data.error || '알 수 없는 오류';
+                const errMsg = data.error || data.message || '알 수 없는 오류';
                 alert(`채널톡 전송 실패:\n${errMsg}`);
                 btn.innerHTML = originalHtml;
                 btn.disabled = false;
@@ -3886,7 +3901,7 @@ function fomsMountErpOrderSurface() {
             btn.innerHTML = originalHtml;
             btn.disabled = false;
         }
-    });
+    }
 
     initErpMainDatePickers();
 
