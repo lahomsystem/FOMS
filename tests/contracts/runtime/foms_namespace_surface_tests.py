@@ -2451,6 +2451,7 @@ _PAC_PARTIALS_SHARED_HTML_ALLOWLIST = frozenset(
         "foms_app_shell.html",
         "foms_attachment_preview_modal.html",
         "foms_master_list.html",
+        "foms_mobile_queue_attachment_preview_bundle.html",
         "foms_order_contact_kv.html",
         "foms_order_detail_fragment.html",
         "foms_p2_surface_bundle.html",

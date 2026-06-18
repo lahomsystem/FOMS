@@ -84,10 +84,11 @@ def test_measurement_mobile_page_renders_queue_card_attachments(client, monkeypa
 
     assert response.status_code == 200
     body = response.get_data(as_text=True)
-    # 모바일 v2 큐는 홈과 동일한 queue-card-v2 — 첨부는 카드 썸네일 그리드로 노출
-    # (제품 항목별 인라인 편집/첨부 그룹은 상세 페이지로 이동).
     assert "모바일 실측" in body
     assert "foms-queue-card-v2__attachments" in body
+    assert "data-foms-erp-attachment-preview-gallery" in body
+    assert "data-foms-erp-attachment-view-url" in body
+    assert "erp-attachment-preview-open.js" in body
 
 
 def test_measurement_mobile_page_uses_normalized_manager_name(client, monkeypatch):

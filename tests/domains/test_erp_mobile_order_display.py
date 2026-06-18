@@ -11,6 +11,37 @@ from foms.services import erp_mobile_order_display as display
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def test_batch_resolve_queue_attachment_preview_items_splits_thumb_and_view() -> None:
+    att = SimpleNamespace(
+        order_id=42,
+        filename="photo.jpg",
+        file_type="image",
+        category="measurement",
+        storage_key="orders/1/photo.jpg",
+        thumbnail_key="orders/1/thumb_photo.jpg",
+        created_at=None,
+    )
+    mock_db = MagicMock()
+    mock_db.query.return_value.filter.return_value.order_by.return_value.all.return_value = [
+        att
+    ]
+
+    with patch.object(display, "build_file_view_url", side_effect=lambda k: f"/view/{k}"):
+        with patch.object(display, "build_file_download_url", return_value="/dl/photo.jpg"):
+            items_by_order = display.batch_resolve_queue_attachment_preview_items(mock_db, [42])
+
+    items = items_by_order[42]
+    assert len(items) == 1
+    assert items[0]["thumb"] == "/view/orders/1/thumb_photo.jpg"
+    assert items[0]["view"] == "/view/orders/1/photo.jpg"
+    assert items[0]["download"] == "/dl/photo.jpg"
+    assert items[0]["label"] == "photo.jpg"
+
+    with patch.object(display, "build_file_view_url", side_effect=lambda k: f"/view/{k}"):
+        urls = display.batch_resolve_queue_attachment_urls(mock_db, [42])
+    assert urls[42] == ["/view/orders/1/photo.jpg"]
+
+
 def test_attachment_urls_split_thumb_and_full_view() -> None:
     att = SimpleNamespace(
         storage_key="orders/1/photo.jpg",

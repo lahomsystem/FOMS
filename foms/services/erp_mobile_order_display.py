@@ -37,6 +37,7 @@ __all__ = [
     "mobile_attachment_items",
     "mobile_attachment_categories",
     "batch_resolve_queue_attachment_urls",
+    "batch_resolve_queue_attachment_preview_items",
     "mobile_product_items",
     "mobile_amount_summary",
 ]
@@ -126,13 +127,38 @@ def _attachment_image_url(attachment) -> str | None:
     return _attachment_thumbnail_url(attachment) or _attachment_full_view_url(attachment)
 
 
-def batch_resolve_queue_attachment_urls(
+def _queue_preview_item_from_attachment(att) -> dict[str, str] | None:
+    """Thumb + full view + download for one queue-card attachment."""
+    view_url = _attachment_full_view_url(att)
+    if not view_url:
+        return None
+    thumb_url = _attachment_thumbnail_url(att) or view_url
+    filename = (getattr(att, "filename", None) or "").strip()
+    cat = (getattr(att, "category", None) or "measurement").strip().lower()
+    category_labels = {
+        "measurement": "실측",
+        "drawing": "도면",
+        "construction": "시공",
+        "as": "AS",
+    }
+    label = filename or category_labels.get(cat, "첨부")
+    storage_key = (getattr(att, "storage_key", None) or "").strip()
+    download_url = build_file_download_url(storage_key) if storage_key else view_url
+    return {
+        "thumb": thumb_url,
+        "view": view_url,
+        "download": download_url,
+        "label": label,
+    }
+
+
+def batch_resolve_queue_attachment_preview_items(
     db,
     order_ids: list[int],
     *,
     limit_per_order: int = _MAX_QUEUE_PREVIEW_COUNT,
-) -> dict[int, list[str]]:
-    """Batch-resolve image preview URLs for mobile v2 queue cards."""
+) -> dict[int, list[dict[str, str]]]:
+    """Batch-resolve thumb + full-view preview items for mobile v2 queue cards."""
     if not order_ids:
         return {}
     try:
@@ -147,16 +173,32 @@ def batch_resolve_queue_attachment_urls(
     except Exception:
         return {}
 
-    out: dict[int, list[str]] = {oid: [] for oid in order_ids}
+    out: dict[int, list[dict[str, str]]] = {oid: [] for oid in order_ids}
     for att in rows:
         oid = int(att.order_id)
         bucket = out.get(oid)
         if bucket is None or len(bucket) >= limit_per_order:
             continue
-        url = _attachment_image_url(att)
-        if url:
-            bucket.append(url)
+        item = _queue_preview_item_from_attachment(att)
+        if item:
+            bucket.append(item)
     return out
+
+
+def batch_resolve_queue_attachment_urls(
+    db,
+    order_ids: list[int],
+    *,
+    limit_per_order: int = _MAX_QUEUE_PREVIEW_COUNT,
+) -> dict[int, list[str]]:
+    """Batch-resolve full-view image URLs for mobile v2 queue cards (legacy list API)."""
+    items_by_order = batch_resolve_queue_attachment_preview_items(
+        db, order_ids, limit_per_order=limit_per_order
+    )
+    return {
+        oid: [item["view"] for item in items if item.get("view")]
+        for oid, items in items_by_order.items()
+    }
 
 
 def _group_attachments_by_item_index(
@@ -536,7 +578,10 @@ def build_mobile_queue_order_row(db, order, current_user=None) -> dict[str, Any]
         current_user=current_user,
         user_map=user_map,
     )
-    previews = batch_resolve_queue_attachment_urls(db, [order.id]).get(order.id, [])
+    preview_items = batch_resolve_queue_attachment_preview_items(db, [order.id]).get(
+        order.id, []
+    )
+    previews = [item["view"] for item in preview_items if item.get("view")]
     received = schedule.get("received") or {}
     attachments = mobile_attachment_items(db, order.id, limit=50)
     product_items = mobile_product_items(sd, attachments)
@@ -565,6 +610,7 @@ def build_mobile_queue_order_row(db, order, current_user=None) -> dict[str, Any]
         "alerts": alerts,
         "has_media": _erp_has_media(order, cnt),
         "attachments_count": cnt,
+        "attachment_preview_items": preview_items,
         "attachment_previews": previews,
         "attachments": attachments,
         "common_attachments": common_attachments,

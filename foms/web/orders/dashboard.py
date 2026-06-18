@@ -29,7 +29,7 @@ from foms.services.erp_mobile_order_display import (
     resolve_manager_phone_for_queue,
     stage_badge_label,
     stage_badge_modifier,
-    batch_resolve_queue_attachment_urls,
+    batch_resolve_queue_attachment_preview_items,
 )
 from foms.services.common.business_calendar import business_days_until
 from foms.services.erp_order_detail import build_order_detail_payload_map
@@ -717,11 +717,14 @@ def erp_dashboard():
                     'tone': _cta_meta['tone'], 'href': _href, 'external': _external,
                 }
 
-    _preview_urls = batch_resolve_queue_attachment_urls(
+    _preview_items = batch_resolve_queue_attachment_preview_items(
         db, [int(r["id"]) for r in paginated_orders if r.get("id")]
     )
     for row in paginated_orders:
-        row["attachment_preview_urls"] = _preview_urls.get(int(row["id"]), [])
+        oid = int(row["id"])
+        items = _preview_items.get(oid, [])
+        row["attachment_preview_items"] = items
+        row["attachment_preview_urls"] = [item["view"] for item in items if item.get("view")]
 
     # §3.1.1 order detail payload assembly — JSON DTO slice (slim structured_data preload)
     _detail_fp = {

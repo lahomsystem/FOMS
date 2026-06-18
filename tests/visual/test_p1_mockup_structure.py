@@ -149,7 +149,7 @@ def test_p1_dashboard_mobile_v2_body_mockup_selectors() -> None:
         "queue-card",
         "foms-queue-card-v2",
         "foms-queue-card-v2__attachments",
-        "data-foms-lightbox-src",
+        "data-foms-erp-attachment-view-url",
         "data-workflow-stage",
         "has_manager_phone",
         "tel:{{ safe_manager_phone }}",

@@ -195,7 +195,8 @@ def test_construction_dashboard_mobile_wiring_contract():
     # v2 카드는 badge override(modifier)를 stage 배지에 반영한다.
     assert "foms-stage-badge{{ badge_mod }}" in macro_src
     assert "data-foms-erp-attachment-preview-gallery" in macro_src
-    assert "data-foms-lightbox-gallery" in macro_src
+    assert "data-foms-erp-attachment-view-url" in macro_src
+    assert "data-foms-lightbox-gallery" not in macro_src
     assert "attachment_preview_items" in macro_src
     # PC workflow baseline: 시공완료는 사진 재업로드와 AS 액션이 병존한다.
     assert 'data-action="reuploadConstructionPhotos"' in pc_grid

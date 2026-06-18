@@ -966,6 +966,10 @@
   {% endif %}
 </div><!-- end erp-pro -->
 
+{% if erp_mobile_v2_enabled %}
+  {% include 'partials/shared/foms_attachment_preview_modal.html' %}
+{% endif %}
+
 <!-- 동선 추천 모달 -->
 <div class="modal fade" id="routePlanModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-md-down">

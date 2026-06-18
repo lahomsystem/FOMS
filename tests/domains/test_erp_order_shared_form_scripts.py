@@ -586,6 +586,7 @@ def test_attachment_preview_modal_global_shared_partial_dedup() -> None:
         root / "templates/orders/add_order.html",
         root / "templates/orders/partials/edit_order_body.html",
         root / "templates/orders/partials/order_detail_mobile_v2.html",
+        root / "templates/orders/partials/dashboard_modals.html",
         root / "templates/production/partials/modals.html",
         root / "templates/orders/object.html",
         root / "templates/construction/partials/modals.html",

@@ -2037,3 +2037,7 @@
   </script>
   {% endif %}
 </div><!-- end erp-pro -->
+
+{% if erp_mobile_v2_enabled %}
+  {% include 'partials/shared/foms_attachment_preview_modal.html' %}
+{% endif %}

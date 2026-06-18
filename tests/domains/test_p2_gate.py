@@ -42,6 +42,23 @@ def test_p2_03_offline_sw_and_api() -> None:
     assert "/queue" in offline
 
 
+def test_p2_mobile_queue_attachment_preview_bundle() -> None:
+    bundle = (
+        ROOT / "templates/partials/shared/foms_mobile_queue_attachment_preview_bundle.html"
+    ).read_text(encoding="utf-8")
+    p2 = (ROOT / "templates/partials/shared/foms_p2_surface_bundle.html").read_text(
+        encoding="utf-8"
+    )
+    card = (
+        ROOT / "templates/partials/shared/erp_mobile_queue_card_v2.html"
+    ).read_text(encoding="utf-8")
+    assert "erp-attachment-preview-open.js" in bundle
+    assert "attachment-preview-zoom.js" in bundle
+    assert "foms_mobile_queue_attachment_preview_bundle.html" in p2
+    assert "data-foms-erp-attachment-preview-gallery" in card
+    assert "data-foms-lightbox-gallery" not in card
+
+
 def test_p2_04_lightbox_assets() -> None:
     js = (ROOT / "static/js/foms/lightbox.js").read_text(encoding="utf-8")
     assert "data-foms-lightbox-gallery" in js
