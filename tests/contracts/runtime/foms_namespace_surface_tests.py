@@ -542,17 +542,17 @@ def test_channel_dispatch_canonical_module_uses_canonical_channel_client_and_pol
 
 
 def test_channel_dispatch_canonical_module_uses_canonical_channel_delivery_lazy_imports() -> None:
-    """Canonical dispatch module should lazy import delivery helpers from the canonical namespace."""
+    """Retired auto-push worker still lazy-imports delivery status from the canonical namespace."""
     dispatch_source = inspect.getsource(namespaced_channel_dispatch.dispatch_channel_push)
-    expected_import = "from foms.services.channel_delivery import ("
-    assert expected_import in dispatch_source
+    assert "from foms.services.channel_delivery import mark_delivery_status" in dispatch_source
 
 
-def test_channel_dispatch_canonical_module_uses_canonical_storage_lazy_import() -> None:
-    """Canonical dispatch module should lazy import storage helpers from the canonical namespace."""
+def test_channel_dispatch_retired_auto_push_does_not_lazy_import_storage() -> None:
+    """Auto outbox drain no longer resolves attachments; storage lazy import removed."""
     dispatch_source = inspect.getsource(namespaced_channel_dispatch.dispatch_channel_push)
 
-    assert "from foms.services.storage import get_storage" in dispatch_source
+    assert "from foms.services.storage import get_storage" not in dispatch_source
+    assert "Automatic ChannelTalk push disabled" in dispatch_source
 
 
 def test_channel_delivery_canonical_module_uses_canonical_channel_policy_lazy_import() -> None:
