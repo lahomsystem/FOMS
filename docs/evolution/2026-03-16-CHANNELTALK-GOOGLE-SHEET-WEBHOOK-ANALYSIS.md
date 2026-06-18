@@ -63,7 +63,7 @@ if (isBotMessageEcho_(payload)) { logDbg_('WHY','bot-echo'); return; }  // 여�
    - `isSeenPayload_()`: 10분 내 동일 메시지 중복 방지
 
 ### FOMS 전송 대상
-- FOMS `CHANNEL_GROUP_MEASUREMENT` = 실측스케줄 그룹 (chatId 229923 추정)
+- FOMS `CHANNEL_GROUP_MEASUREMENT`는 **Desk group ID**여야 함 (webhook `chatId`와 동일하지 않을 수 있음). 2026-06 운영 기준 푸시 대상: 채널 `109717`, 그룹 `209990` (영업팀_발주정보). 실측스케줄 webhook `chatId`는 `229923`.
 - FOMS 메시지 형식: `[신규 접수/상태 변경] 고객명\n상태: 실측\n주소: ...\n실측일: ...\n{FOMS_URL}/orders/{id}/erp`
 - `isOrderFormMessage_` 검사: `고객명:`, `연락처:`, `시공일:` 등 라벨 기반 → **FOMS 형식은 매칭 안 될 수 있음**
 

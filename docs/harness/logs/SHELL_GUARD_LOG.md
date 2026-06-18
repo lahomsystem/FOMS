@@ -4,97 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-05-15 08:57:38 | ask | `remove-item\s+.+-recurse.+-force` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Remove-Item -LiteralPath ".cursor\skills\skills" -Recurse -Force -ErrorAction Stop; Test-Path ` |
-| 2026-05-15 08:57:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
-| 2026-05-15 08:57:47 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
-| 2026-05-15 08:57:54 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Co-authored-by: Cursor <cursoragent@cursor.com>" -F "_commit_msg_deploy.` |
-| 2026-05-15 08:57:59 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
-| 2026-05-15 08:58:21 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Test-Path ".cursor\skills\gstack"; dir ".cursor\skills" | Select-Object Name` |
-| 2026-05-15 08:58:26 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Get-ChildItem ".cursor\skills" -Name` |
-| 2026-05-15 09:13:21 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK'); from foms.services.designer.gemini_provider import GEM` |
-| 2026-05-15 09:13:29 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_designer_model_router.py tests/domains/test_designer_gemin` |
-| 2026-05-15 09:23:11 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Invoke-WebRequest -Uri "https://lahom-dev.up.railway.app/wdplanner-v2" -MaximumRedirection 0 -` |
-| 2026-05-15 09:23:18 | allow | `-` | `curl.exe -sS -o NUL -w "%{http_code}" -L "https://lahom-dev.up.railway.app/wdplanner-v2" 2>&1 | Out-String` |
-| 2026-05-15 09:23:27 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $cj = Join-Path $env:TEMP "foms_audit_cookies.txt"; if (Test-Path $cj) { Remove-Item $cj }; cu` |
-| 2026-05-15 09:23:35 | allow | `-` | `$cj = Join-Path $env:TEMP "foms_audit_cookies.txt"; curl.exe -sS -b $cj -o NUL -w "%{http_code}" "https://lahom-dev.up.railway.app/wdplanner-v2"` |
-| 2026-05-15 09:23:35 | allow | `-` | `$cj = Join-Path $env:TEMP "foms_audit_cookies.txt"; curl.exe -sS -b $cj "https://lahom-dev.up.railway.app/api/designer/drawings/fixtures" | Select-Object -First` |
-| 2026-05-15 09:23:48 | allow | `-` | `$png = Join-Path $env:TEMP "tiny_audit.png"; [IO.File]::WriteAllBytes($png, [Convert]::FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR` |
-| 2026-05-15 09:23:48 | allow | `-` | `$cj = Join-Path $env:TEMP "foms_audit_cookies.txt"; curl.exe -sS -b $cj -o NUL -w "%{http_code}" "https://lahom-dev.up.railway.app/wdplanner-v2/app"` |
-| 2026-05-15 09:23:48 | allow | `-` | `$cj = Join-Path $env:TEMP "foms_audit_cookies.txt"; curl.exe -sS -b $cj "https://lahom-dev.up.railway.app/api/designer/evolution/candidates" | Select-Object -Fi` |
-| 2026-05-15 09:23:55 | allow | `-` | `$cj = Join-Path $env:TEMP "foms_audit_cookies.txt"; curl.exe -sS -b $cj "https://lahom-dev.up.railway.app/api/designer/archetypes/summary" | Select-Object -Firs` |
-| 2026-05-15 09:23:57 | allow | `-` | `$cj = Join-Path $env:TEMP "foms_audit_cookies.txt"; $body = '{"extraction":{"furniture_type":"wardrobe","site_size":{"width_mm":2400,"height_mm":2400,"depth_mm"` |
-| 2026-05-15 09:23:57 | allow | `-` | `$cj = Join-Path $env:TEMP "foms_audit_cookies.txt"; curl.exe -sS -b $cj "https://lahom-dev.up.railway.app/api/designer/projects" | Select-Object -First 1` |
-| 2026-05-15 09:42:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $png = [Convert]::FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42m` |
-| 2026-05-15 09:44:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; try { $r = Invoke-WebRequest -Uri "https://lahom-dev.up.railway.app/wdplanner-v2" -MaximumRedi` |
-| 2026-05-15 09:53:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Get-ChildItem -Path ".agents\skills" -ErrorAction SilentlyContinue | Select-Object Name; Get-C` |
-| 2026-05-15 09:53:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; dir .agents\skills; dir .cursor 2>$null; dir .cursor\skills 2>$null` |
-| 2026-05-15 09:53:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\.agents\skills"; Get-ChildItem | ForEach-Object { $_.Name + " -> " + (Get-Item $_.FullName | Sel` |
-| 2026-05-15 09:54:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\.agents\skills"; cmd /c "dir /al"` |
-| 2026-05-15 09:54:16 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\.agents\skills"; (Get-Item "gstack-autoplan").LinkType; (Get-Item "gstack-autoplan").Target; cmd` |
-| 2026-05-15 09:54:28 | ask | `remove-item\s+.+-recurse.+-force` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Get-ChildItem -Path ".agents\skills" -Directory | Where-Object { $_.Name -ne "gstack" } | ForE` |
-| 2026-05-15 09:55:50 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python -c "import json; json.load(open('.vscode/setti` |
-| 2026-05-15 09:56:16 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb; git remote -v` |
-| 2026-05-15 09:56:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat -- .agents/skills/; git check-ignore -v .agents/skills/gstack-autoplan 2>$null` |
-| 2026-05-15 09:56:48 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --name-only HEAD -- docs/plans/2026-05-14-foms-brain-production-grade-run-record.md` |
-| 2026-05-15 09:56:54 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add .agents/skills/gstack/hosts/cursor.ts; git add .cursor/agents/code-reviewer.md .cursor` |
-| 2026-05-15 09:57:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git reset HEAD _commit_msg_skills_cleanup.txt 2>$null; git commit --trailer "Co-authored-by: C` |
-| 2026-05-15 09:57:20 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git rev-parse HEAD; git status -sb` |
-| 2026-05-15 09:57:29 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/AI_CHANGELOG.md; git commit --trailer "Co-authored-by: Cursor <cursoragent@cursor` |
-| 2026-05-15 09:57:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git rev-parse HEAD; git rev-parse --short HEAD` |
-| 2026-05-15 09:58:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git rev-parse HEAD; git status docs/AI_CHANGELOG.md -sb` |
-| 2026-05-15 09:58:16 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/AI_CHANGELOG.md; git commit --trailer "Co-authored-by: Cursor <cursoragent@cursor` |
-| 2026-05-15 09:58:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
-| 2026-06-17 07:54:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
-| 2026-06-17 07:55:14 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production; git log -1 --oneline` |
-| 2026-06-17 07:55:21 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin; git log --oneline production..origin/production; git log --oneline origin/pr` |
-| 2026-06-17 07:55:27 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git rev-parse production origin/production; git log --oneline -3 origin/production; git log --` |
-| 2026-06-17 07:55:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git pull origin production --no-edit` |
-| 2026-06-17 07:55:39 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production; git log -1 --oneline` |
-| 2026-06-17 07:55:45 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy; git stash pop` |
-| 2026-06-17 07:58:25 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_format_datetime_kst.py::test_get_today_kst_uses_kst_not_ut` |
-| 2026-06-17 07:58:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_format_datetime_kst.py::test_get_today_kst_uses_kst_not_ut` |
-| 2026-06-17 07:58:49 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json` |
-| 2026-06-17 08:00:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
-| 2026-06-17 08:00:34 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch --show-current; git log -3 --oneline` |
-| 2026-06-17 08:00:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add foms/api/erp_order_draft.py foms/api/erp_orders_structured.py foms/api/personal_board.` |
-| 2026-06-17 08:00:46 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
-| 2026-06-17 08:05:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch -a; git log deploy -1 --oneline; git log production -1 --oneline 2>$nul` |
-| 2026-06-17 08:05:46 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin; git log origin/production..deploy --oneline` |
-| 2026-06-17 08:05:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production; git merge deploy -m "Merge branch 'deploy' into production"; git push` |
-| 2026-06-17 08:23:16 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
-| 2026-06-17 08:23:16 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_foms_nav_badges.py tests/domains/test_p3_gate.py tests/per` |
-| 2026-06-17 08:24:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_foms_nav_badges.py tests/domains/test_p3_gate.py tests/dom` |
-| 2026-06-17 08:24:45 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_foms_nav_badges.py tests/domains/test_p3_gate.py tests/dom` |
-| 2026-06-17 08:25:03 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git diff; git log -3 --oneline; git branch --show-current` |
-| 2026-06-17 08:25:09 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add static/css/components/foms-bottom-nav.css static/js/foms/bottom-nav-shell.js templates` |
-| 2026-06-17 08:25:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
-| 2026-06-17 08:29:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin; git branch -a; git log origin/deploy -1 --oneline; git log origin/production` |
-| 2026-06-17 08:29:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log origin/production..origin/deploy --oneline` |
-| 2026-06-17 08:29:33 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production; git pull origin production; git merge origin/deploy -m "merge: deploy` |
-| 2026-06-17 08:29:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log origin/production -3 --oneline; git log origin/production..origin/deploy --oneline; gi` |
-| 2026-06-17 08:29:45 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin; git log origin/production -1 --oneline; git merge-base origin/production ori` |
-| 2026-06-17 08:29:51 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git rev-parse production; git log production -3 --oneline; git branch -vv` |
-| 2026-06-17 08:29:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git ls-remote origin refs/heads/production; git push origin production 2>&1` |
-| 2026-06-17 08:30:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin; git log origin/production -1 --oneline; git log origin/production..origin/de` |
-| 2026-06-17 08:30:07 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; Get-Content .git\refs\remotes\origin\production; git show-ref production` |
-| 2026-06-17 08:30:11 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin production:refs/remotes/origin/production; git rev-parse refs/remotes/origin/` |
-| 2026-06-17 08:46:14 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git branch --show-current; git status -sb` |
-| 2026-06-17 08:47:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python -m pytest tests/domains/test_erp_mobile_order_` |
-| 2026-06-17 08:47:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat -- foms/services/erp_mobile_order_display.py static/js/foms/mobile-detail-prod` |
-| 2026-06-17 08:47:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git branch -a | Select-String "deploy"` |
-| 2026-06-17 08:47:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
-| 2026-06-17 08:48:11 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy` |
-| 2026-06-17 08:48:27 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add foms/services/erp_mobile_order_display.py static/css/components/foms-product-item.css ` |
-| 2026-06-17 08:48:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy; Remove-Item ".git/COMMIT_MSG_TMP.txt" -ErrorAction SilentlyContinue` |
-| 2026-06-17 09:07:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin; git branch --show-current; git status -sb; git log --oneline -3 origin/deplo` |
-| 2026-06-17 09:08:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production; git pull origin production; git merge origin/deploy -m "merge: deploy` |
-| 2026-06-17 09:08:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production; git log --oneline -2 production` |
-| 2026-06-17 09:10:17 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git branch --show-current; git status -sb` |
-| 2026-06-17 09:10:17 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python -m pytest tests/visual/test_p1_mockup_structur` |
-| 2026-06-17 09:10:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
-| 2026-06-17 09:11:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log --oneline -3 deploy; git log --oneline -3 production; git log --oneline -3 origin/depl` |
-| 2026-06-17 09:11:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add "static/css/foundation/erp-pro/11-queue-family-mobile.css" "templates/partials/shared/` |
-| 2026-06-17 09:11:10 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy; git stash pop; git status -sb` |
 | 2026-06-17 09:11:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add "static/css/foundation/erp-pro/11-queue-family-mobile.css" "templates/partials/shared/` |
 | 2026-06-17 09:11:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production; git merge deploy -m "merge: deploy → production (모바일 작업 큐 페이저 1줄 표시)"` |
 | 2026-06-17 09:13:33 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python -m pytest tests/domains/test_erp_mobile_order_` |
@@ -304,3 +213,94 @@
 | 2026-06-17 15:11:51 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/harness/build_context_bundle.py --all` |
 | 2026-06-17 15:11:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat docs/harness/bundles/` |
 | 2026-06-17 15:12:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A` |
+| 2026-06-17 15:16:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/harness/test_run_codex_levels.py::test_run_gstack_qa_wrapper_propagates` |
+| 2026-06-17 15:17:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/harness/test_run_codex_levels.py -q` |
+| 2026-06-17 15:17:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add tools/harness/run_gstack_qa.ps1 tools/harness/run_codex.ps1; git commit --trailer "Co-` |
+| 2026-06-17 15:17:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
+| 2026-06-17 15:17:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production; git merge deploy; git push origin production; git checkout deploy` |
+| 2026-06-17 15:17:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log --oneline -3; git show origin/deploy:tools/harness/run_gstack_qa.ps1 | Select-String "` |
+| 2026-06-17 15:18:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git ls-files ".agents/skills/gstack/qa/"; git check-ignore -v ".agents/skills/gstack/qa/SKILL.` |
+| 2026-06-17 15:18:09 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git rev-parse HEAD; git rev-parse origin/deploy; git rev-parse origin/main; git log origin/mai` |
+| 2026-06-17 15:18:39 | allow | `-` | `pwsh -NoProfile -Command "$r='c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS'; $c='.agents/skills/gstack/qa/SKILL.md.tmpl'; $p=Join-Path $r $c; Wri` |
+| 2026-06-17 15:18:44 | allow | `-` | `powershell -NoProfile -Command "& { $r='c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS'; $c='.agents/skills/gstack/qa/SKILL.md.tmpl'; $p=Join-Path ` |
+| 2026-06-17 15:19:50 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/harness/test_run_codex_levels.py -q` |
+| 2026-06-17 15:20:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/harness/test_run_codex_levels.py::test_run_gstack_qa_wrapper_propagates` |
+| 2026-06-17 15:20:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/harness/test_run_codex_levels.py -q` |
+| 2026-06-17 15:20:38 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File tools/harness/run_gstack_qa.ps1 -Url "https://example.com" -Scenar` |
+| 2026-06-17 15:20:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/harness/test_run_codex_levels.py -q` |
+| 2026-06-17 15:21:01 | allow | `-` | `powershell -NoProfile -Command ". 'c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\tools\harness\gstack_qa_skill.ps1'; $r='c:\Users\USER\OneDrive\De` |
+| 2026-06-17 15:21:13 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/harness/test_run_codex_levels.py -q` |
+| 2026-06-17 15:21:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/harness/test_run_codex_levels.py -q` |
+| 2026-06-17 15:21:59 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add tools/harness/gstack_qa_skill.ps1 tools/harness/run_gstack_qa.ps1 tools/harness/run_co` |
+| 2026-06-17 15:26:18 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/contracts/runtime/test_ptc_physical_exactness.py::test_ptc_committed_ro` |
+| 2026-06-17 15:26:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add tests/contracts/runtime/test_ptc_physical_exactness.py docs/specs/2026-04-07-repo-stru` |
+| 2026-06-17 15:38:40 | allow | `-` | `railway --version 2>&1; railway status 2>&1` |
+| 2026-06-17 15:38:47 | allow | `-` | `railway service list 2>&1; railway variables 2>&1 | Select-Object -First 40` |
+| 2026-06-17 15:39:04 | allow | `-` | `railway logs --help 2>&1 | Select-Object -First 30` |
+| 2026-06-17 15:39:09 | allow | `-` | `railway logs -n 80 --filter "@level:info" 2>&1` |
+| 2026-06-17 15:39:26 | allow | `-` | `railway logs -n 200 --filter "DashCache" 2>&1 | Select-Object -Last 40` |
+| 2026-06-17 15:39:36 | allow | `-` | `railway logs -s WORKER -n 30 2>&1; railway logs -s Postgres -n 20 2>&1` |
+| 2026-06-17 15:55:16 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-06-17 16:04:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git diff; git log -3 --oneline; git branch --show-current` |
+| 2026-06-17 16:05:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add "static/css/components/foms-shipment-mobile.css" "templates/shipment/partials/shipment` |
+| 2026-06-17 16:05:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
+| 2026-06-17 16:06:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
+| 2026-06-17 16:18:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git branch --show-current; git status -sb; git log -1 --oneline deploy; git log -1 --oneline o` |
+| 2026-06-17 16:18:50 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin; git log --oneline origin/production..deploy -5; git log --oneline deploy..or` |
+| 2026-06-17 16:18:58 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production; git pull origin production; git merge deploy -m "merge: deploy → prod` |
+| 2026-06-17 16:19:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log --oneline -3 production; git log --oneline -3 origin/production; git log --oneline ori` |
+| 2026-06-17 16:19:21 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git merge-base production origin/production; git log --oneline --graph production origin/produ` |
+| 2026-06-17 16:19:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git rev-parse production; git rev-parse origin/production; git merge-base --is-ancestor origin` |
+| 2026-06-17 16:19:38 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
+| 2026-06-17 16:20:13 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production` |
+| 2026-06-18 10:49:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_mobile_order_display.py tests/domains/test_erp_measure` |
+| 2026-06-18 10:49:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/perf/perf_scan.py --guard 2>&1` |
+| 2026-06-18 10:49:34 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_mobile_order_display.py tests/domains/test_erp_measure` |
+| 2026-06-18 10:53:10 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_mobile_order_display.py::test_batch_resolve_queue_atta` |
+| 2026-06-18 10:53:26 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git branch --show-current; git status --short` |
+| 2026-06-18 10:53:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1 2>&1` |
+| 2026-06-18 10:54:16 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1 2>&1` |
+| 2026-06-18 10:54:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add foms/services/erp_mobile_order_display.py foms/web/orders/dashboard.py foms/web/produc` |
+| 2026-06-18 10:59:18 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git branch --show-current; git status --short; git log -1 --oneline; git status -sb` |
+| 2026-06-18 10:59:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin deploy 2>&1; git rev-parse HEAD; git rev-parse origin/deploy` |
+| 2026-06-18 11:04:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin deploy production 2>&1; git log -1 --oneline deploy; git log -1 --oneline ori` |
+| 2026-06-18 11:04:13 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production; git pull origin production; git merge deploy -m "merge: deploy -> pro` |
+| 2026-06-18 11:04:20 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1 2>&1` |
+| 2026-06-18 11:04:50 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production; git log -1 --oneline; git rev-parse origin/production` |
+| 2026-06-18 11:26:34 | allow | `-` | `railway --version 2>&1; railway whoami 2>&1; railway status 2>&1` |
+| 2026-06-18 11:26:40 | allow | `-` | `railway variables --json 2>&1 | python -c "import sys,json; d=json.load(sys.stdin); keys=[k for k in d if k.startswith('CHANNEL_') or k=='FOMS_BASE_URL']; print` |
+| 2026-06-18 11:26:40 | allow | `-` | `railway environment list 2>&1` |
+| 2026-06-18 11:26:40 | allow | `-` | `railway service list 2>&1` |
+| 2026-06-18 11:26:46 | allow | `-` | `railway --help 2>&1 | Select-Object -First 40` |
+| 2026-06-18 11:26:50 | allow | `-` | `railway service --help 2>&1; railway environment --help 2>&1` |
+| 2026-06-18 11:26:51 | allow | `-` | `railway logs -n 100 --filter "채널톡" 2>&1 | Select-Object -Last 30` |
+| 2026-06-18 11:26:58 | allow | `-` | `railway environment config --json 2>&1` |
+| 2026-06-18 11:26:58 | allow | `-` | `railway service status 2>&1` |
+| 2026-06-18 11:27:03 | allow | `-` | `railway list --json 2>&1` |
+| 2026-06-18 11:27:08 | allow | `-` | `railway link 65ffbdc5-9bdf-4c17-a8d7-b1bc3615143a --environment production 2>&1; railway service link FOMS 2>&1; railway status 2>&1` |
+| 2026-06-18 11:27:23 | allow | `-` | `railway link --help 2>&1` |
+| 2026-06-18 11:27:27 | allow | `-` | `railway link -p 65ffbdc5-9bdf-4c17-a8d7-b1bc3615143a -e production -s FOMS 2>&1; railway status 2>&1; railway variables --json 2>&1 | python -c "import sys,json` |
+| 2026-06-18 11:27:36 | allow | `-` | `railway link -p 65ffbdc5-9bdf-4c17-a8d7-b1bc3615143a -e production -s worker 2>&1; railway variables --json 2>&1 | python -c "import sys,json; d=json.load(sys.s` |
+| 2026-06-18 11:27:36 | allow | `-` | `railway logs -n 50 --filter "554075" 2>&1 | Select-Object -Last 15` |
+| 2026-06-18 11:29:12 | allow | `-` | `railway link -p cbe0af66-875b-460c-88f6-780dd705f45c -e production -s web 2>&1; railway variable set "CHANNEL_GROUP_MEASUREMENT=209990" 2>&1; railway variables ` |
+| 2026-06-18 11:29:12 | allow | `-` | `railway link -p cbe0af66-875b-460c-88f6-780dd705f45c -e production -s WORKER 2>&1; railway variable set "CHANNEL_GROUP_MEASUREMENT=209990" 2>&1; railway variabl` |
+| 2026-06-18 11:29:13 | allow | `-` | `railway link -p 65ffbdc5-9bdf-4c17-a8d7-b1bc3615143a -e production -s FOMS 2>&1; railway variable set "CHANNEL_GROUP_MEASUREMENT=209990" 2>&1; railway variables` |
+| 2026-06-18 11:29:14 | allow | `-` | `railway link -p 65ffbdc5-9bdf-4c17-a8d7-b1bc3615143a -e production -s worker 2>&1; railway variable set "CHANNEL_GROUP_MEASUREMENT=209990" 2>&1; railway variabl` |
+| 2026-06-18 11:29:44 | allow | `-` | `railway variable --help 2>&1` |
+| 2026-06-18 11:29:44 | allow | `-` | `railway link -p cbe0af66-875b-460c-88f6-780dd705f45c -e production -s web 2>&1; railway variables --json 2>&1 | python -c "import sys,json; d=json.load(sys.stdi` |
+| 2026-06-18 11:29:51 | allow | `-` | `railway variable set --help 2>&1` |
+| 2026-06-18 11:29:51 | allow | `-` | `railway link -p 65ffbdc5-9bdf-4c17-a8d7-b1bc3615143a -e production -s FOMS 2>&1; railway variables --json 2>&1 | python -c "import sys,json; d=json.load(sys.std` |
+| 2026-06-18 11:29:58 | allow | `-` | `railway link -p cbe0af66-875b-460c-88f6-780dd705f45c -e production -s web 2>&1; railway restart 2>&1; railway link -p cbe0af66-875b-460c-88f6-780dd705f45c -e pr` |
+| 2026-06-18 11:29:59 | allow | `-` | `railway link -p 65ffbdc5-9bdf-4c17-a8d7-b1bc3615143a -e production -s FOMS 2>&1; railway restart 2>&1; railway link -p 65ffbdc5-9bdf-4c17-a8d7-b1bc3615143a -e p` |
+| 2026-06-18 11:30:05 | allow | `-` | `railway link -p cbe0af66-875b-460c-88f6-780dd705f45c -e production -s web 2>&1; railway restart --yes 2>&1; railway link -p cbe0af66-875b-460c-88f6-780dd705f45c` |
+| 2026-06-18 11:34:13 | allow | `-` | `railway link -p cbe0af66-875b-460c-88f6-780dd705f45c -e production -s web 2>&1; railway environment config --json 2>&1 | python -c "import sys,json; c=json.load` |
+| 2026-06-18 11:34:14 | allow | `-` | `railway link -p 65ffbdc5-9bdf-4c17-a8d7-b1bc3615143a -e production -s FOMS 2>&1; railway environment config --json 2>&1 | python -c "import sys,json; c=json.loa` |
+| 2026-06-18 11:34:15 | allow | `-` | `python -c "import urllib.request, json; r=urllib.request.urlopen('https://lahom-production.up.railway.app/api/channel/health', timeout=20); d=json.loads(r.read(` |
+| 2026-06-18 11:34:20 | allow | `-` | `railway link -p cbe0af66-875b-460c-88f6-780dd705f45c -e production -s web 2>&1; railway variables --json 2>&1 | python -c "import sys,json; d=json.load(sys.stdi` |
+| 2026-06-18 11:34:21 | allow | `-` | `railway link -p cbe0af66-875b-460c-88f6-780dd705f45c -e production -s WORKER 2>&1; railway variables --json 2>&1 | python -c "import sys,json; d=json.load(sys.s` |
+| 2026-06-18 11:34:22 | allow | `-` | `railway link -p 65ffbdc5-9bdf-4c17-a8d7-b1bc3615143a -e production -s FOMS 2>&1; railway variables --json 2>&1 | python -c "import sys,json; d=json.load(sys.std` |
+| 2026-06-18 11:34:22 | allow | `-` | `railway link -p 65ffbdc5-9bdf-4c17-a8d7-b1bc3615143a -e production -s worker 2>&1; railway variables --json 2>&1 | python -c "import sys,json; d=json.load(sys.s` |
+| 2026-06-18 11:34:29 | allow | `-` | `railway whoami 2>&1` |
+| 2026-06-18 11:34:42 | allow | `-` | `python -c "import urllib.request, json; r=urllib.request.urlopen('https://lahom-dev.up.railway.app/api/channel/health', timeout=20); d=json.loads(r.read()); pri` |
+| 2026-06-18 11:34:54 | allow | `-` | `if ($env:RAILWAY_TOKEN) { 'RAILWAY_TOKEN set' } else { 'RAILWAY_TOKEN not set' }; railway whoami 2>&1` |
+| 2026-06-18 11:38:52 | allow | `-` | `git rev-parse production deploy origin/production origin/deploy 2>&1` |

@@ -109,3 +109,24 @@
 | 2026-06-17 11:10:07 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git fetch origin -q && echo "HEAD=$(git rev-parse --short HEAD) origin/deploy=$(git rev-pars` |
 | 2026-06-17 11:43:22 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && echo "=== .cursor/commands 李몄“(stale) ===" && grep -rn "\.cursor/commands" AGENTS.md CLAUDE.` |
 | 2026-06-17 11:44:20 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python tools/harness/build_context_bundle.py --all >/dev/null 2>&1; git add AGENTS.md docs/g` |
+| 2026-06-18 08:55:28 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git show --stat 68da1958 | head -40` |
+| 2026-06-18 08:55:38 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git show 68da1958 -- foms/services/erp_mobile_order_display.py` |
+| 2026-06-18 08:55:50 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git show 68da1958 -- foms/services/foms_split_view.py foms/services/foms_unified_search.py f` |
+| 2026-06-18 08:56:36 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && which railway 2>/dev/null; railway --version 2>/dev/null; echo "---env---"; ls -la .railway ` |
+| 2026-06-18 08:56:43 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && timeout 25 railway status 2>&1 | head -30` |
+| 2026-06-18 08:56:53 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && timeout 30 railway logs 2>&1 | tail -120` |
+| 2026-06-18 08:57:56 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && echo "=== blame line 40-90 of template ===" && git log -1 --format="%h %ci %s" -L 40,90:temp` |
+| 2026-06-18 08:58:57 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -c " from jinja2 import Environment env = Environment() cat = {'key':'measurement','l` |
+| 2026-06-18 08:58:58 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -c "import app; print('APP_OK')" 2>&1 | tail -5` |
+| 2026-06-18 09:00:46 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && echo "=== branch ===" && git branch --show-current && echo "=== my file status ===" && git s` |
+| 2026-06-18 09:01:45 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && echo "=== full status ===" && git status --short && echo "=== deploy vs production ===" && g` |
+| 2026-06-18 09:02:16 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git checkout deploy && git add templates/orders/partials/order_detail_mobile_v2.html && echo` |
+| 2026-06-18 09:03:17 | allow | `-` | `tail -50 "C:\Users\USER\.claude\projects\c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS\db7d335e-0c95-43b7-b399-760db1dbf7cd\tool-results\bb9tmmg9j` |
+| 2026-06-18 09:03:29 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git commit -F c:/tmp/foms_fix_500_msg.txt && echo "=== push ===" && git push origin deploy 2` |
+| 2026-06-18 09:03:40 | allow | `-` | `rm -f c:/tmp/foms_fix_500_msg.txt c:/tmp/foms_commit_msg.txt 2>/dev/null; echo done` |
+| 2026-06-18 09:10:10 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git checkout production && echo "=== ff-safe check ===" && git merge-base --is-ancestor prod` |
+| 2026-06-18 09:10:19 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git push origin production 2>&1 | tail -15` |
+| 2026-06-18 09:10:53 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git checkout deploy 2>&1 | tail -2 && echo "=== sync check (origin) ===" && git fetch origin` |
+| 2026-06-18 09:11:32 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && for r in deploy production origin/deploy origin/production; do printf "%-22s %s\n" "$r" "$(g` |
+| 2026-06-18 09:12:05 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && echo "=== ls-remote (live GitHub truth) ===" && git ls-remote origin refs/heads/deploy refs/` |
+| 2026-06-18 09:12:25 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git fetch origin production:refs/remotes/origin/production 2>&1 | tail -3 && echo "=== reche` |

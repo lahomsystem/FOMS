@@ -302,7 +302,9 @@
 ### 7.1 수동 푸시가 안 될 때
 
 - `CHANNEL_APP_SECRET`, `CHANNEL_ID`, `CHANNEL_GROUP_MEASUREMENT`, `FOMS_BASE_URL` 확인
-- web 서비스에 값이 있는지 확인
+- **`CHANNEL_ID` = Desk URL의 채널 ID**, **`CHANNEL_GROUP_MEASUREMENT` = Desk URL의 group ID** (webhook `chatId`와 다를 수 있음)
+  - 예: `https://desk.channel.io/#/channels/109717/team_chats/groups/209990` → `CHANNEL_ID=109717`, `CHANNEL_GROUP_MEASUREMENT=209990`
+- web·worker **양쪽** 서비스에 동일 값이 있는지 확인
 - 첨부 presigned URL이 생성되는지 확인
 
 ### 7.2 자동 푸시가 안 될 때
