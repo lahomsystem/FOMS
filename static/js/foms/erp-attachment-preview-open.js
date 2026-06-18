@@ -5,6 +5,11 @@
 (function () {
   "use strict";
 
+  if (window.__FOMS_ERP_ATTACHMENT_PREVIEW_OPEN_BOUND === "1") {
+    return;
+  }
+  window.__FOMS_ERP_ATTACHMENT_PREVIEW_OPEN_BOUND = "1";
+
   function escapeHtml(text) {
     if (text == null || text === "") return "";
     var div = document.createElement("div");

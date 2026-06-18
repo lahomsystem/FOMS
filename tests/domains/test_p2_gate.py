@@ -59,6 +59,18 @@ def test_p2_mobile_queue_attachment_preview_bundle() -> None:
     assert "data-foms-lightbox-gallery" not in card
 
 
+def test_mobile_queue_attachment_preview_open_is_shell_swap_idempotent() -> None:
+    """The app shell is included in ERP fragments, so this script can be re-evaluated."""
+    js = (ROOT / "static/js/foms/erp-attachment-preview-open.js").read_text(
+        encoding="utf-8"
+    )
+    guard = "window.__FOMS_ERP_ATTACHMENT_PREVIEW_OPEN_BOUND"
+
+    assert guard in js
+    assert js.index(guard) < js.index('document.body.addEventListener("htmx:afterSwap"')
+    assert js.index(guard) < js.index('document.addEventListener("foms:main-content-swapped"')
+
+
 def test_p2_04_lightbox_assets() -> None:
     js = (ROOT / "static/js/foms/lightbox.js").read_text(encoding="utf-8")
     assert "data-foms-lightbox-gallery" in js
