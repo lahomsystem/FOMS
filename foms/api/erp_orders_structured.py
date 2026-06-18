@@ -37,9 +37,8 @@ from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.orders.erp_automation import apply_auto_tasks
 from foms.services.orders.order_text_parser import parse_order_text
 from foms.services.geocode_helpers import extract_address_from_structured_data
-from foms.services.jobs.queue import enqueue_geocode_order_address, enqueue_channeltalk_push
+from foms.services.jobs.queue import enqueue_geocode_order_address
 from foms.services.order_geocode import reset_order_geocode_on_address_change
-from foms.services.channel_event_payloads import build_structured_update_payload
 from foms.services.feature_flags import env_bool
 from foms.services.erp_inline_patch import apply_field_patch, is_critical_field
 from foms.services.order_draft_service import format_updated_at, parse_updated_at
@@ -570,22 +569,8 @@ def api_put_order_structured(order_id):
         setattr(order, 'structured_confidence', confidence or (structured_data.get('confidence') if structured_data else None))
         setattr(order, 'structured_updated_at', now)
 
-        delivery_id = None
-        if structured_data is not None:
-            from foms.services.channel_delivery import mark_order_updated_for_channel
-
-            delivery_payload = build_structured_update_payload(
-                old_sd,
-                structured_data,
-                _get_actor_name(db),
-            )
-            # 구조화 데이터에 채널 메시지용 diff가 없으면 Outbox/푸시 생략 (무의미 저장 알림 방지)
-            if delivery_payload.get("change_lines"):
-                delivery_id = mark_order_updated_for_channel(
-                    order,
-                    delivery_payload.get('event_type', 'order_updated'),
-                    payload=delivery_payload,
-                )
+        # ERP structured 저장은 자동 ChannelTalk 푸시하지 않는다.
+        # 발주방 알림은 ERP Beta 「푸쉬」 수동 전송(/api/channel/push-manual)만 사용.
 
         address_changed = False
         if structured_data is not None:
@@ -604,8 +589,6 @@ def api_put_order_structured(order_id):
 
         if address_changed:
             enqueue_geocode_order_address(order_id)
-        if structured_data is not None and delivery_id:
-            enqueue_channeltalk_push(delivery_id)
 
         total_time = (time.perf_counter() - start_time) * 1000
         logger.info(f"save latency - TOTAL: {total_time:.1f}ms")

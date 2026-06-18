@@ -564,13 +564,11 @@ def test_channel_delivery_canonical_module_uses_canonical_channel_policy_lazy_im
 def test_channel_delivery_lazy_callers_use_canonical_import_paths() -> None:
     """ERP API lazy imports should reference the canonical channel delivery path."""
     from foms.api import measurement as erp_measurement
-    from foms.api import erp_orders_structured
     from foms.api.shipment import settings as erp_shipment_settings
 
     expected_import = "from foms.services.channel_delivery import mark_order_updated_for_channel"
 
     assert expected_import in inspect.getsource(erp_measurement.api_erp_measurement_update)
-    assert expected_import in inspect.getsource(erp_orders_structured.api_put_order_structured)
     assert expected_import in inspect.getsource(erp_shipment_settings.api_erp_shipment_update)
 
 
@@ -855,7 +853,6 @@ def test_erp_orders_structured_uses_canonical_jobs_queue_imports() -> None:
         erp_orders_structured.enqueue_geocode_order_address
         is namespaced_jobs_queue.enqueue_geocode_order_address
     )
-    assert erp_orders_structured.enqueue_channeltalk_push is namespaced_jobs_queue.enqueue_channeltalk_push
 
 
 def test_erp_shipment_settings_uses_canonical_jobs_queue_import() -> None:

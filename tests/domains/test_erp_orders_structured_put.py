@@ -74,16 +74,9 @@ def test_structured_put_skips_channel_side_effects_when_structured_data_missing(
     order_id = order.id
     original_structured = order.structured_data
 
-    payload_calls = []
     mark_calls = []
     geocode_calls = []
-    push_calls = []
 
-    monkeypatch.setattr(
-        erp_orders_structured,
-        "build_structured_update_payload",
-        lambda *args, **kwargs: payload_calls.append((args, kwargs)) or {"event_type": "order_updated"},
-    )
     monkeypatch.setattr(
         channel_delivery_service,
         "mark_order_updated_for_channel",
@@ -94,11 +87,6 @@ def test_structured_put_skips_channel_side_effects_when_structured_data_missing(
         "enqueue_geocode_order_address",
         lambda order_id: geocode_calls.append(order_id),
     )
-    monkeypatch.setattr(
-        erp_orders_structured,
-        "enqueue_channeltalk_push",
-        lambda delivery_id: push_calls.append(delivery_id),
-    )
 
     response = client.put(
         f"/api/orders/{order_id}/structured",
@@ -108,10 +96,8 @@ def test_structured_put_skips_channel_side_effects_when_structured_data_missing(
     assert response.status_code == 200
     data = response.get_json()
     assert data["success"] is True
-    assert payload_calls == []
     assert mark_calls == []
     assert geocode_calls == []
-    assert push_calls == []
 
     db_session.expire_all()
     saved_order = db_session.get(Order, order_id)
@@ -139,7 +125,6 @@ def test_structured_put_clears_order_notes_when_notes_empty_string(client, monke
         lambda *args, **kwargs: None,
     )
     monkeypatch.setattr(erp_orders_structured, "enqueue_geocode_order_address", lambda *a, **k: None)
-    monkeypatch.setattr(erp_orders_structured, "enqueue_channeltalk_push", lambda *a, **k: None)
 
     sd = copy.deepcopy(order.structured_data)
     response = client.put(
@@ -169,13 +154,7 @@ def test_structured_get_put_round_trips_regional_and_self_measurement_flags(clie
     monkeypatch.setattr(erp_orders_structured, "_apply_structured_side_effects", lambda *a, **k: None)
     monkeypatch.setattr(erp_orders_structured, "_finalize_draft_state", lambda *a, **k: False)
     monkeypatch.setattr(erp_orders_structured, "sync_erp_flat_columns", lambda *a, **k: None)
-    monkeypatch.setattr(
-        erp_orders_structured,
-        "build_structured_update_payload",
-        lambda *a, **k: {"event_type": "order_updated", "change_lines": []},
-    )
     monkeypatch.setattr(erp_orders_structured, "enqueue_geocode_order_address", lambda *a, **k: None)
-    monkeypatch.setattr(erp_orders_structured, "enqueue_channeltalk_push", lambda *a, **k: None)
 
     sd = copy.deepcopy(order.structured_data)
     response = client.put(
@@ -358,11 +337,6 @@ def test_structured_put_preserves_shipment_construction_workers_when_missing(cli
     monkeypatch.setattr(erp_orders_structured, "_apply_structured_side_effects", lambda *a, **k: None)
     monkeypatch.setattr(erp_orders_structured, "_finalize_draft_state", lambda *a, **k: False)
     monkeypatch.setattr(erp_orders_structured, "sync_erp_flat_columns", lambda *a, **k: None)
-    monkeypatch.setattr(
-        erp_orders_structured,
-        "build_structured_update_payload",
-        lambda *a, **k: {"event_type": "order_updated", "change_lines": []},
-    )
 
     next_sd = _structured_payload("서울 테헤란로 123")
     next_sd.pop("shipment")
@@ -422,11 +396,6 @@ def test_structured_put_rejects_address_clear_before_geocode_reset(client, monke
     monkeypatch.setattr(erp_orders_structured, "_apply_structured_side_effects", lambda *args, **kwargs: None)
     monkeypatch.setattr(erp_orders_structured, "_finalize_draft_state", lambda *args, **kwargs: False)
     monkeypatch.setattr(erp_orders_structured, "sync_erp_flat_columns", lambda *args, **kwargs: None)
-    monkeypatch.setattr(
-        erp_orders_structured,
-        "build_structured_update_payload",
-        lambda *args, **kwargs: {"event_type": "order_updated"},
-    )
     monkeypatch.setattr(channel_delivery_service, "mark_order_updated_for_channel", lambda *args, **kwargs: None)
 
     original_reset = erp_orders_structured.reset_order_geocode_on_address_change
@@ -440,11 +409,6 @@ def test_structured_put_rejects_address_clear_before_geocode_reset(client, monke
         erp_orders_structured,
         "enqueue_geocode_order_address",
         lambda order_id: geocode_calls.append(order_id),
-    )
-    monkeypatch.setattr(
-        erp_orders_structured,
-        "enqueue_channeltalk_push",
-        lambda delivery_id: push_calls.append(delivery_id),
     )
 
     response = client.put(
@@ -473,8 +437,8 @@ def test_structured_put_rejects_address_clear_before_geocode_reset(client, monke
     assert (saved_order.structured_data or {}).get("site", {}).get("address_full") == "서울 테헤란로 123"
 
 
-def test_structured_put_skips_channel_when_payload_has_no_change_lines(client, monkeypatch):
-    """채널 diff가 없으면 mark/enqueue 하지 않음 (무변경 저장 알림 방지)."""
+def test_structured_put_never_enqueues_channel_auto_push(client, monkeypatch):
+    """ERP structured 저장은 자동 ChannelTalk 푸시 없음 (수동 푸쉬만)."""
     _login_as_admin(client, username="erp-structured-no-channel")
     order = _create_order()
     order_id = order.id
@@ -488,22 +452,14 @@ def test_structured_put_skips_channel_when_payload_has_no_change_lines(client, m
     monkeypatch.setattr(erp_orders_structured, "_finalize_draft_state", lambda *a, **k: False)
     monkeypatch.setattr(erp_orders_structured, "sync_erp_flat_columns", lambda *a, **k: None)
     monkeypatch.setattr(
-        erp_orders_structured,
-        "build_structured_update_payload",
-        lambda *args, **kwargs: {"event_type": "order_updated", "change_lines": []},
-    )
-    monkeypatch.setattr(
         channel_delivery_service,
         "mark_order_updated_for_channel",
         lambda *args, **kwargs: mark_calls.append(1) or 99,
     )
-    monkeypatch.setattr(
-        erp_orders_structured,
-        "enqueue_channeltalk_push",
-        lambda delivery_id: push_calls.append(delivery_id),
-    )
 
     sd = copy.deepcopy(order.structured_data)
+    sd.setdefault("workflow", {})["stage"] = "MEASURE"
+    sd.setdefault("site", {})["address_full"] = "부산 해운대구 테스트로 99"
     response = client.put(
         f"/api/orders/{order_id}/structured",
         json={"structured_data": sd, "structured_schema_version": 1},
@@ -627,12 +583,6 @@ def test_structured_put_finalizes_draft_without_incoming_meta(client, monkeypatc
     monkeypatch.setattr(erp_orders_structured, "_record_structured_events", lambda *a, **k: None)
     monkeypatch.setattr(erp_orders_structured, "_apply_structured_side_effects", lambda *a, **k: None)
     monkeypatch.setattr(erp_orders_structured, "enqueue_geocode_order_address", lambda *a, **k: None)
-    monkeypatch.setattr(erp_orders_structured, "enqueue_channeltalk_push", lambda *a, **k: None)
-    monkeypatch.setattr(
-        erp_orders_structured,
-        "build_structured_update_payload",
-        lambda *a, **k: {"event_type": "order_updated", "change_lines": []},
-    )
 
     response = client.put(
         f"/api/orders/{order_id}/structured",
