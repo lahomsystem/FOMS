@@ -4,6 +4,7 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-06-18 | 세션 자동 기록 | test_channel_integration_smoke.py, foms_namespace_surface_tests.py, test_erp_orders_structured_put.py 외 2개 | 0f5f2812 |
 | 2026-06-18 | 세션 자동 기록 | commit_msg.txt, foms_namespace_surface_tests.py, routes.py 외 2개 | bad7a3d4 |
 | 2026-06-18 | 세션 자동 기록 | commit_msg.txt, routes.py, test_channel_push_messages.py 외 2개 | 5f27ca15 |
 | 2026-06-18 | 세션 자동 기록 | routes.py, test_channel_push_messages.py, foms_namespace_surface_tests.py 외 2개 | d3c8d39f |
@@ -23,4 +24,3 @@
 | 2026-06-17 | 세션 자동 기록 | cleanup_skill_duplicates.ps1, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e1527d76-bb12-4ce0-ad11-8e0151c15169.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-050318a1-daf3-456c-8318-239c24222f6a.png 외 2개 | 68da1958 |
 | 2026-06-17 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-e1527d76-bb12-4ce0-ad11-8e0151c15169.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-050318a1-daf3-456c-8318-239c24222f6a.png, cleanup_skill_duplicates.ps1 외 2개 | 68da1958 |
 | 2026-06-17 | 세션 자동 기록 | cleanup_skill_duplicates.ps1, import_gstack_source_slice.py, setup_gstack.ps1 외 2개 | 68da1958 |
-| 2026-06-17 | 세션 자동 기록 | import_gstack_source_slice.py, cleanup_skill_duplicates.ps1, setup_gstack.ps1 외 2개 | 68da1958 |

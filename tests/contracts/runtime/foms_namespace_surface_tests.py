@@ -38,7 +38,6 @@ import foms.services.channel_delivery as namespaced_channel_delivery
 import foms.services.channel_inbound as namespaced_channel_inbound
 import foms.services.channel_client as namespaced_channel_client
 import foms.services.channel_quick_actions as namespaced_channel_quick_actions
-import foms.services.channel_event_payloads as namespaced_channel_event_payloads
 import foms.services.channel_identity as namespaced_channel_identity
 import foms.services.channel_policy as namespaced_channel_policy
 import foms.services.channel_security as namespaced_channel_security
@@ -404,19 +403,6 @@ def test_erp_as_page_uses_canonical_as_content_safety_import() -> None:
     assert erp_as_page.sanitize_as_content_html is namespaced_as_content_safety.sanitize_as_content_html
 
 
-def test_namespaced_channel_event_payloads_shim_preserves_canonical_contract() -> None:
-    """The legacy services path should re-export the canonical channel payload helpers."""
-    expected_public_names = [
-        "build_structured_update_payload",
-        "build_field_change_payload",
-        "build_shipment_update_payload",
-        "build_payment_confirmation_payload",
-    ]
-
-    assert namespaced_channel_event_payloads.__all__ == expected_public_names
-    assert namespaced_channel_event_payloads.__all__ == expected_public_names
-
-
 def test_namespaced_channel_identity_shim_preserves_canonical_contract() -> None:
     """The legacy services path should re-export the canonical channel identity helpers."""
     expected_public_names = [
@@ -487,7 +473,6 @@ def test_namespaced_channel_policy_shim_preserves_canonical_contract() -> None:
 def test_namespaced_channel_dispatch_shim_preserves_canonical_contract() -> None:
     """The legacy services path should re-export the canonical channel dispatch helpers."""
     expected_public_names = [
-        "dispatch_channel_push",
         "dispatch_order_event",
     ]
 
@@ -498,16 +483,10 @@ def test_namespaced_channel_dispatch_shim_preserves_canonical_contract() -> None
 def test_namespaced_channel_delivery_shim_preserves_canonical_contract() -> None:
     """The legacy services path should re-export the canonical channel delivery helpers."""
     expected_public_names = [
-        "create_pending_delivery",
         "mark_delivery_status",
-        "mark_api_failed",
-        "mark_api_rejected",
-        "mark_token_rate_limited",
         "get_delivery_metrics",
         "get_queue_backlog",
         "check_legacy_only_success_after_cutover",
-        "mark_order_updated_for_channel",
-        "mask_payload",
     ]
 
     assert namespaced_channel_delivery.__all__ == expected_public_names
@@ -530,10 +509,6 @@ def test_namespaced_channel_inbound_shim_preserves_canonical_contract() -> None:
 
 def test_channel_dispatch_canonical_module_uses_canonical_channel_client_and_policy_imports() -> None:
     """Canonical dispatch module should bind ChannelTalk client and policy helpers from canonical modules."""
-    assert (
-        namespaced_channel_dispatch.get_attachment_category_for_status
-        is namespaced_channel_client.get_attachment_category_for_status
-    )
     assert namespaced_channel_dispatch.send_group_message is namespaced_channel_client.send_group_message
     assert namespaced_channel_dispatch.apply_attachment_policy is namespaced_channel_policy.apply_attachment_policy
     assert namespaced_channel_dispatch.build_message_blocks is namespaced_channel_policy.build_message_blocks
@@ -541,24 +516,13 @@ def test_channel_dispatch_canonical_module_uses_canonical_channel_client_and_pol
     assert namespaced_channel_dispatch.get_routing_group_id is namespaced_channel_policy.get_routing_group_id
 
 
-def test_channel_dispatch_canonical_module_uses_canonical_channel_delivery_lazy_imports() -> None:
-    """Retired auto-push worker still lazy-imports delivery status from the canonical namespace."""
-    dispatch_source = inspect.getsource(namespaced_channel_dispatch.dispatch_channel_push)
-    assert "from foms.services.channel_delivery import mark_delivery_status" in dispatch_source
+def test_channel_dispatch_manual_only_exports_dispatch_order_event() -> None:
+    """Auto outbox worker removed; only manual ERP push dispatch remains."""
+    dispatch_source = inspect.getsource(namespaced_channel_dispatch.dispatch_order_event)
 
-
-def test_channel_dispatch_retired_auto_push_does_not_lazy_import_storage() -> None:
-    """Auto outbox drain no longer resolves attachments; storage lazy import removed."""
-    dispatch_source = inspect.getsource(namespaced_channel_dispatch.dispatch_channel_push)
-
+    assert "dispatch_channel_push" not in dispatch_source
+    assert 'event_type != "manual"' in dispatch_source
     assert "from foms.services.storage import get_storage" not in dispatch_source
-    assert "Automatic ChannelTalk push disabled" in dispatch_source
-
-
-def test_channel_delivery_canonical_module_uses_canonical_channel_policy_lazy_import() -> None:
-    """Canonical delivery module should lazy import ChannelTalk policy from the canonical namespace."""
-    expected_import = "from foms.services.channel_policy import get_routing_group_id"
-    assert expected_import in inspect.getsource(namespaced_channel_delivery.create_pending_delivery)
 
 
 def test_channel_delivery_lazy_callers_removed_after_auto_push_retired() -> None:
@@ -574,6 +538,11 @@ def test_channel_delivery_lazy_callers_removed_after_auto_push_retired() -> None
         erp_shipment_settings.api_erp_shipment_update,
     ):
         assert expected_import not in inspect.getsource(source)
+
+
+def test_channel_event_payloads_module_removed_after_auto_push_retired() -> None:
+    """Structured auto-push payload builder module was deleted with the outbox pipeline."""
+    assert find_spec_or_none("foms.services.channel_event_payloads") is None
 
 
 def test_channel_inbound_canonical_module_uses_canonical_persistence_imports() -> None:
@@ -608,31 +577,15 @@ def test_channel_integration_uses_canonical_channel_client_import() -> None:
     assert channel_integration.is_configured is namespaced_channel_client.is_configured
 
 
-def test_tasks_use_canonical_channel_client_lazy_import() -> None:
-    """Worker task lazy import should point at the canonical ChannelTalk client path."""
+def test_tasks_legacy_push_order_to_channeltalk_drains_without_dispatch() -> None:
+    """Stale auto-push RQ jobs drain safely without reintroducing dispatch_channel_push."""
     from foms.services.jobs import tasks
 
     push_source = inspect.getsource(tasks.push_order_to_channeltalk)
-    expected_import = "from foms.services.channel_client import is_configured"
-    assert expected_import in push_source
-
-
-def test_tasks_use_canonical_channel_dispatch_lazy_import() -> None:
-    """Worker task lazy import should point at the canonical ChannelTalk dispatch path."""
-    from foms.services.jobs import tasks
-
-    push_source = inspect.getsource(tasks.push_order_to_channeltalk)
-    expected_import = "from foms.services.channel_dispatch import dispatch_channel_push"
-    assert expected_import in push_source
-
-
-def test_queue_uses_canonical_channel_delivery_lazy_imports() -> None:
-    """Queue helpers should lazy import delivery helpers from the canonical namespace."""
-    from foms.services.jobs import queue
-
-    enqueue_source = inspect.getsource(queue.enqueue_channeltalk_push)
-    expected_import = "from foms.services.channel_delivery import mark_delivery_status"
-    assert expected_import in enqueue_source
+    assert "dispatch_channel_push" not in push_source
+    assert "dispatch_order_event" not in push_source
+    assert "ignored_stale" in push_source
+    assert "from foms.services.channel_delivery import mark_delivery_status" in push_source
 
 
 def test_channel_webhooks_uses_canonical_channel_inbound_lazy_import() -> None:
@@ -661,7 +614,6 @@ def test_namespaced_jobs_queue_shim_preserves_canonical_contract() -> None:
         "get_rq_runtime_status",
         "enqueue_thumbnail_generation",
         "enqueue_geocode_order_address",
-        "enqueue_channeltalk_push",
         "enqueue_channeltalk_inbound",
     ]
 
@@ -837,7 +789,6 @@ def test_erp_measurement_uses_canonical_jobs_queue_imports() -> None:
     from foms.api import measurement as erp_measurement
 
     assert erp_measurement.enqueue_geocode_order_address is namespaced_jobs_queue.enqueue_geocode_order_address
-    assert erp_measurement.enqueue_channeltalk_push is namespaced_jobs_queue.enqueue_channeltalk_push
 
 
 def test_erp_measurement_uses_canonical_jobs_task_fallback_import() -> None:
@@ -1819,13 +1770,6 @@ def test_erp_display_canonical_module_uses_canonical_erp_policy_import() -> None
     module_source = inspect.getsource(namespaced_erp_display)
 
     assert "from foms.services.erp_policy import (" in module_source
-
-
-def test_channel_event_payloads_canonical_module_uses_canonical_erp_policy_import() -> None:
-    """Canonical channel_event_payloads should import STAGE_LABELS from canonical erp_policy."""
-    module_source = inspect.getsource(namespaced_channel_event_payloads)
-
-    assert "from foms.services.erp_policy import STAGE_LABELS" in module_source
 
 
 def test_personal_board_uses_canonical_erp_policy_imports() -> None:

@@ -1,12 +1,33 @@
 """Smoke tests for ChannelTalk Integration (Phase 0)."""
 
 import foms.api.channel.channel_integration as channel_integration
-import foms.services.channel_delivery as channel_delivery_service
 from db import db_session
-from models import ChannelDeliveryLog, Order, User
-from foms.services.channel_delivery import mark_order_updated_for_channel
+from models import Order, OrderAttachment, User
 from foms.services.jobs import queue as queue_module
 from werkzeug.security import generate_password_hash
+
+
+class _FakeStorage:
+    def get_download_url(self, storage_key, expires_in=3600):
+        return f"https://cdn.example.com/{storage_key}?e={expires_in}"
+
+
+def _login_admin(client, username="channel-admin", password="admin"):
+    user = User(
+        username=username,
+        password=generate_password_hash(password),
+        role="ADMIN",
+        name="Channel Admin",
+    )
+    db_session.add(user)
+    db_session.commit()
+    response = client.post(
+        "/login",
+        data={"username": username, "password": password},
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    return user
 
 
 def test_channel_health_endpoint_exists(client):
@@ -18,10 +39,10 @@ def test_channel_health_endpoint_exists(client):
     assert "environment" in data
     assert "flags" in data
 
+
 def test_channel_admin_delivery_status_requires_auth(client):
     """GET /api/channel/admin/delivery-status requires authentication."""
     r = client.get("/api/channel/admin/delivery-status")
-    # Should redirect to login or return 401
     assert r.status_code in (302, 401)
 
 
@@ -113,79 +134,76 @@ def test_rq_runtime_status_falls_back_to_worker_all(monkeypatch):
     assert status == {"state": "reachable", "worker_count": 2}
 
 
-def test_mark_order_updated_for_channel_returns_none_when_auto_push_disabled(app):
+def test_push_manual_builds_image_and_video_files_and_dispatches(client, monkeypatch):
+    """수동 푸쉬 API는 첨부 URL/MIME을 모아 dispatch_order_event('manual')로 전달한다."""
+    _login_admin(client)
+    monkeypatch.setenv("CHANNEL_GROUP_MEASUREMENT", "group-1")
+    monkeypatch.setattr(channel_integration, "is_configured", lambda: True)
+    monkeypatch.setattr(channel_integration, "get_storage", lambda: _FakeStorage())
+
+    captured = {}
+
+    def _fake_dispatch(event_type, data, raise_on_error=False):
+        captured["event_type"] = event_type
+        captured["data"] = data
+        captured["raise_on_error"] = raise_on_error
+        return {"success": True, "message_id": "msg-manual-1"}
+
+    monkeypatch.setattr(channel_integration, "dispatch_order_event", _fake_dispatch)
+
     order = Order(
         received_date="2026-03-27",
-        customer_name="Tester",
+        customer_name="Manual Push",
         phone="010-0000-0000",
         address="Seoul",
         product="Wardrobe",
     )
     db_session.add(order)
-    db_session.commit()
-
-    delivery_id = mark_order_updated_for_channel(order, "update")
-    db_session.commit()
-
-    assert delivery_id is None
-
-
-def test_mark_order_updated_for_channel_reuses_duplicate_outbox_without_enqueue_id(app, monkeypatch):
-    monkeypatch.setenv("CHANNEL_GROUP_MEASUREMENT", "554075")
-    order = Order(
-        received_date="2026-03-27",
-        customer_name="Duplicate Tester",
-        phone="010-0000-0000",
-        address="Seoul",
-        product="Wardrobe",
-        channel_source_seq=12,
+    db_session.flush()
+    db_session.add_all(
+        [
+            OrderAttachment(
+                order_id=order.id,
+                filename="photo.jpg",
+                file_type="image",
+                storage_key="orders/1/photo.jpg",
+            ),
+            OrderAttachment(
+                order_id=order.id,
+                filename="clip.mp4",
+                file_type="video",
+                storage_key="orders/1/clip.mp4",
+            ),
+        ]
     )
-    db_session.add(order)
     db_session.commit()
+    order_id = order.id
 
-    existing = ChannelDeliveryLog(
-        event_key=f"order_{order.id}_shipment_updated_13",
-        source_type="order_event",
-        source_id=order.id,
-        target_type="group",
-        target_id="554075",
-        status="pending",
-        order_id=order.id,
-        source_version=13,
-        template_key="shipment_updated",
-    )
-    db_session.add(existing)
-    db_session.commit()
-
-    delivery_id = mark_order_updated_for_channel(order, "shipment_updated")
-    db_session.commit()
-
-    assert delivery_id is None
-    assert (
-        db_session.query(ChannelDeliveryLog)
-        .filter(ChannelDeliveryLog.event_key == existing.event_key)
-        .count()
-        == 1
-    )
-    assert order.channel_source_seq == 12
-
-
-def test_payment_confirm_does_not_enqueue_channel_delivery(client, monkeypatch):
-    """예약금/잔금 토글 API는 ChannelTalk outbox/enqueue를 호출하지 않는다."""
-    enqueued = []
-    mark_calls = []
-
-    def _capture_enqueue(delivery_id):
-        enqueued.append(delivery_id)
-        return True
-
-    monkeypatch.setattr(queue_module, "enqueue_channeltalk_push", _capture_enqueue)
-    monkeypatch.setattr(
-        channel_delivery_service,
-        "mark_order_updated_for_channel",
-        lambda *args, **kwargs: mark_calls.append(1) or 99,
+    response = client.post(
+        "/api/channel/push-manual",
+        json={"order_id": order_id, "text": "발주방 변환 텍스트"},
     )
 
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body["success"] is True
+    assert body["files_count"] == 2
+    assert captured["event_type"] == "manual"
+    assert captured["raise_on_error"] is True
+    assert captured["data"]["text"] == "발주방 변환 텍스트"
+    assert len(captured["data"]["files"]) == 2
+    assert captured["data"]["files"][0]["mime"] == "image/jpeg"
+    assert captured["data"]["files"][1]["mime"] == "video/mp4"
+    assert captured["data"]["files"][0]["url"].endswith("orders/1/photo.jpg?e=3600")
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert saved.structured_data["channeltalk_push"]["pushed"] is True
+    assert saved.structured_data["channeltalk_push"]["message_id"] == "msg-manual-1"
+
+
+def test_payment_confirm_does_not_create_channel_delivery_log(client):
+    """예약금/잔금 토글 API는 ChannelTalk outbox를 생성하지 않는다."""
     user = User(
         username="channel-admin",
         password=generate_password_hash("admin"),
@@ -211,14 +229,21 @@ def test_payment_confirm_does_not_enqueue_channel_delivery(client, monkeypatch):
     )
     db_session.add(order)
     db_session.commit()
+    order_id = order.id
 
     r = client.post(
-        f"/api/orders/{order.id}/payment-confirm",
+        f"/api/orders/{order_id}/payment-confirm",
         json={"type": "deposit", "confirmed": True},
     )
 
     assert r.status_code == 200
-    assert len(enqueued) == 0
-    assert mark_calls == []
     body = r.get_json()
     assert body["payment"]["deposit_confirmed"] is True
+    from models import ChannelDeliveryLog
+
+    assert (
+        db_session.query(ChannelDeliveryLog)
+        .filter(ChannelDeliveryLog.order_id == order_id)
+        .count()
+        == 0
+    )

@@ -9,16 +9,15 @@ def test_apply_attachment_policy_caps_to_ten_items() -> None:
     assert channel_policy.apply_attachment_policy(files) == files[:10]
 
 
-def test_resolve_push_policy_uses_as_urgent_group_and_zero_dedupe(monkeypatch) -> None:
+def test_resolve_push_policy_uses_measurement_group_for_manual_push(monkeypatch) -> None:
     monkeypatch.setenv("CHANNEL_GROUP_MEASUREMENT", "group-main")
-    monkeypatch.setenv("CHANNEL_GROUP_AS", "group-as")
 
-    policy = channel_policy.resolve_push_policy("as_urgent", {"order_id": 101})
+    policy = channel_policy.resolve_push_policy("manual", {"order_id": 101})
 
     assert policy == {
-        "group_id": "group-as",
+        "group_id": "group-main",
         "dedupe_window": 0,
-        "template_key": "as_urgent",
+        "template_key": "manual",
         "max_attachments": 10,
     }
 

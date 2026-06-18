@@ -1,27 +1,8 @@
 from __future__ import annotations
 
-from types import SimpleNamespace
-
 from models import ChannelDeliveryLog
 
 import foms.services.channel_delivery as channel_delivery
-import foms.services.channel_policy as channel_policy
-
-
-class _FakeAddOnlyDB:
-    def __init__(self, existing=None) -> None:
-        self.added = []
-        self.flushed = False
-        self._existing = existing
-
-    def add(self, obj) -> None:
-        self.added.append(obj)
-
-    def flush(self) -> None:
-        self.flushed = True
-
-    def query(self, _model):
-        return _FakeQuery(self._existing)
 
 
 class _FakeQuery:
@@ -47,55 +28,6 @@ class _FakeStatusDB:
         self.added.append(obj)
 
 
-def test_create_pending_delivery_uses_policy_group_and_flushes(monkeypatch) -> None:
-    monkeypatch.setattr(channel_policy, "get_routing_group_id", lambda event_type, data: "group-1")
-
-    db = _FakeAddOnlyDB()
-    order = SimpleNamespace(channel_source_seq=7)
-
-    log = channel_delivery.create_pending_delivery(
-        db,
-        order_id=123,
-        event_type="update",
-        payload={"files": [{"url": "https://example.com/file.jpg"}]},
-        order=order,
-    )
-
-    assert db.flushed is True
-    assert db.added == [log]
-    assert log.event_key == "order_123_update_7"
-    assert log.target_id == "group-1"
-    assert log.target_group_snapshot == "group-1"
-    assert log.template_key == "update"
-    assert log.masked_request_payload["files"][0]["url"] == "[MASKED]"
-
-
-def test_create_pending_delivery_reuses_existing_event_target(monkeypatch) -> None:
-    monkeypatch.setattr(channel_policy, "get_routing_group_id", lambda event_type, data: "group-1")
-
-    existing = ChannelDeliveryLog(
-        event_key="order_123_update_7",
-        target_type="group",
-        target_id="group-1",
-        status="pending",
-    )
-    db = _FakeAddOnlyDB(existing=existing)
-    order = SimpleNamespace(channel_source_seq=7)
-
-    log = channel_delivery.create_pending_delivery(
-        db,
-        order_id=123,
-        event_type="update",
-        payload={"change_lines": []},
-        order=order,
-    )
-
-    assert log is existing
-    assert getattr(log, "_foms_reused_existing_delivery") is True
-    assert db.added == []
-    assert db.flushed is False
-
-
 def test_mark_delivery_status_updates_message_and_sent_timestamp() -> None:
     log = ChannelDeliveryLog(status="pending")
     db = _FakeStatusDB(log)
@@ -114,18 +46,3 @@ def test_mark_delivery_status_updates_message_and_sent_timestamp() -> None:
     assert log.updated_at is not None
     assert log.sent_at == log.updated_at
     assert db.added == [log]
-
-
-def test_mask_payload_redacts_urls_without_mutating_input() -> None:
-    payload = {
-        "files": [
-            {"fileName": "a.jpg", "url": "https://example.com/a.jpg"},
-            {"fileName": "b.jpg"},
-        ]
-    }
-
-    masked = channel_delivery.mask_payload(payload)
-
-    assert masked["files"][0]["url"] == "[MASKED]"
-    assert masked["files"][1]["fileName"] == "b.jpg"
-    assert payload["files"][0]["url"] == "https://example.com/a.jpg"

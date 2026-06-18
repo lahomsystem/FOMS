@@ -121,24 +121,39 @@ def geocode_order_address(order_id):
 
 def push_order_to_channeltalk(delivery_id: int):
     """
-    채널톡 그룹 메시지 푸시 (worker 전용). Phase A: Outbox 패턴 지원
+    Legacy RQ job drain only.
+
+    Auto-push outbox was removed; stale Redis jobs must no-op without crashing workers.
     """
     if not delivery_id:
         return
+    logger.info("[RQ] push_order_to_channeltalk retired (delivery_id=%s)", delivery_id)
     try:
-        from foms.services.channel_client import is_configured
+        from db import db_session
+        from foms.services.channel_delivery import mark_delivery_status
+        from models import ChannelDeliveryLog
 
-        if not is_configured():
-            logger.info("[채널톡] 환경변수 미설정 - 푸시 건너뜀")
-            return
-
-        from foms.services.channel_dispatch import dispatch_channel_push
-
-        dispatch_channel_push(delivery_id)
-
-    except Exception as e:
-        logger.error(f"[RQ] push_order_to_channeltalk error for log {delivery_id}: {e}", exc_info=True)
-        raise
+        session = db_session()
+        try:
+            log = session.query(ChannelDeliveryLog).filter(ChannelDeliveryLog.id == int(delivery_id)).first()
+            if not log or log.status not in ("pending", "queue_enqueue_failed", "queue_unavailable"):
+                return
+            mark_delivery_status(
+                session,
+                int(delivery_id),
+                "ignored_stale",
+                "Automatic ChannelTalk push removed",
+            )
+            session.commit()
+        finally:
+            session.close()
+            db_session.remove()
+    except Exception as exc:
+        logger.warning(
+            "[RQ] legacy push_order_to_channeltalk drain failed for %s: %s",
+            delivery_id,
+            exc,
+        )
 
 
 def process_channeltalk_inbound(event_log_id: int):

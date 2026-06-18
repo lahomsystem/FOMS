@@ -6,8 +6,7 @@ from werkzeug.security import generate_password_hash
 
 from foms.api import erp_orders_structured
 from db import db_session
-from models import Order, OrderAttachment, User
-import foms.services.channel_delivery as channel_delivery_service
+from models import ChannelDeliveryLog, Order, OrderAttachment, User
 
 
 def _login_as_admin(client, username="erp-structured-admin"):
@@ -78,11 +77,6 @@ def test_structured_put_skips_channel_side_effects_when_structured_data_missing(
     geocode_calls = []
 
     monkeypatch.setattr(
-        channel_delivery_service,
-        "mark_order_updated_for_channel",
-        lambda *args, **kwargs: mark_calls.append((args, kwargs)) or 99,
-    )
-    monkeypatch.setattr(
         erp_orders_structured,
         "enqueue_geocode_order_address",
         lambda order_id: geocode_calls.append(order_id),
@@ -119,11 +113,6 @@ def test_structured_put_clears_order_notes_when_notes_empty_string(client, monke
     monkeypatch.setattr(erp_orders_structured, "_apply_structured_side_effects", lambda *a, **k: None)
     monkeypatch.setattr(erp_orders_structured, "_finalize_draft_state", lambda *a, **k: False)
     monkeypatch.setattr(erp_orders_structured, "sync_erp_flat_columns", lambda *a, **k: None)
-    monkeypatch.setattr(
-        channel_delivery_service,
-        "mark_order_updated_for_channel",
-        lambda *args, **kwargs: None,
-    )
     monkeypatch.setattr(erp_orders_structured, "enqueue_geocode_order_address", lambda *a, **k: None)
 
     sd = copy.deepcopy(order.structured_data)
@@ -396,7 +385,6 @@ def test_structured_put_rejects_address_clear_before_geocode_reset(client, monke
     monkeypatch.setattr(erp_orders_structured, "_apply_structured_side_effects", lambda *args, **kwargs: None)
     monkeypatch.setattr(erp_orders_structured, "_finalize_draft_state", lambda *args, **kwargs: False)
     monkeypatch.setattr(erp_orders_structured, "sync_erp_flat_columns", lambda *args, **kwargs: None)
-    monkeypatch.setattr(channel_delivery_service, "mark_order_updated_for_channel", lambda *args, **kwargs: None)
 
     original_reset = erp_orders_structured.reset_order_geocode_on_address_change
 
@@ -443,19 +431,11 @@ def test_structured_put_never_enqueues_channel_auto_push(client, monkeypatch):
     order = _create_order()
     order_id = order.id
 
-    mark_calls = []
-    push_calls = []
-
     monkeypatch.setattr(erp_orders_structured, "_handle_stage_transition", lambda *a, **k: None)
     monkeypatch.setattr(erp_orders_structured, "_record_structured_events", lambda *a, **k: None)
     monkeypatch.setattr(erp_orders_structured, "_apply_structured_side_effects", lambda *a, **k: None)
     monkeypatch.setattr(erp_orders_structured, "_finalize_draft_state", lambda *a, **k: False)
     monkeypatch.setattr(erp_orders_structured, "sync_erp_flat_columns", lambda *a, **k: None)
-    monkeypatch.setattr(
-        channel_delivery_service,
-        "mark_order_updated_for_channel",
-        lambda *args, **kwargs: mark_calls.append(1) or 99,
-    )
 
     sd = copy.deepcopy(order.structured_data)
     sd.setdefault("workflow", {})["stage"] = "MEASURE"
@@ -466,8 +446,12 @@ def test_structured_put_never_enqueues_channel_auto_push(client, monkeypatch):
     )
 
     assert response.status_code == 200
-    assert mark_calls == []
-    assert push_calls == []
+    assert (
+        db_session.query(ChannelDeliveryLog)
+        .filter(ChannelDeliveryLog.order_id == order_id)
+        .count()
+        == 0
+    )
 
 
 def test_erp_draft_create_is_hidden_from_active_orders_and_reused(client):
