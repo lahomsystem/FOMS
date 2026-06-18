@@ -61,7 +61,7 @@
   width: 100%; border-radius: 12px; padding: 6px 2px;
   text-align: center; background: rgba(255,255,255,.10); position: relative;
   display: grid; grid-template-rows: auto auto auto; align-content: start; gap: 2px;
-  min-width: 0; min-height: 62px; overflow: clip;
+  min-width: 0; min-height: 72px; overflow: clip;
   box-sizing: border-box;
 }
 .foms-tower__day.is-today { background: #fff; color: var(--foms-color-brand-700); box-shadow: var(--foms-shadow-sm); }
@@ -71,9 +71,9 @@
 .foms-tower__day.is-today .foms-tower__day-dow { opacity: .65; }
 .foms-tower__day-date { font-size: 14px; font-weight: var(--foms-font-weight-bold); line-height: 1.05; }
 .foms-tower__day-counts {
-  display: grid; grid-template-rows: repeat(2, minmax(9px, auto));
+  display: grid; grid-template-rows: repeat(3, minmax(9px, auto));
   align-items: center; justify-items: center;
-  gap: 0; min-width: 0; width: 100%; max-width: 100%; min-height: 19px;
+  gap: 0; min-width: 0; width: 100%; max-width: 100%; min-height: 28px;
 }
 .foms-tower__day-count {
   display: block; max-width: 100%; min-height: 9px;

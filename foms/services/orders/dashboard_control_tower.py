@@ -18,9 +18,9 @@ from __future__ import annotations
 import datetime
 from typing import Any
 
-from sqlalchemy import func, or_
+from sqlalchemy import distinct, func, or_
 
-from models import Order
+from models import Order, OrderScheduleDate
 from foms.services.orders.erp_policy_constants import STAGE_LABELS, STAGE_NAME_TO_CODE
 from foms.services.erp_display import (
     _ensure_dict,
@@ -44,6 +44,9 @@ DOW_KR = ["월", "화", "수", "목", "금", "토", "일"]
 # 시공 단계 이후(=출고/설치 완료로 간주)면 '시공 준비'가 끝난 것으로 본다.
 _INSTALL_READY_CODES = ("CONSTRUCTION", "COMPLETED", "AS", "AS_RECEIVED", "AS_COMPLETED")
 _DONE_CODES = ("COMPLETED", "AS_COMPLETED")
+# 'AS 출고' = AS 상태 주문의 as_visit 일정. 출고 대시보드(foms.web.shipment.dashboard)와
+# 동일 술어(status ∈ AS_* + OrderScheduleDate.kind=='as_visit')를 써서 두 화면 카운트를 정합시킨다.
+_AS_SHIPMENT_STATUSES = ("AS", "AS_RECEIVED", "AS_COMPLETED")
 
 
 # ───────── 작은 순수 헬퍼 ─────────
@@ -165,6 +168,17 @@ def _week_strip(base: Any, today: datetime.date) -> dict[str, Any]:
         .group_by(Order.erp_construction_date)
         .all()
     )
+    as_by = dict(
+        base.join(OrderScheduleDate, OrderScheduleDate.order_id == Order.id)
+        .filter(
+            Order.status.in_(_AS_SHIPMENT_STATUSES),
+            OrderScheduleDate.kind == "as_visit",
+            OrderScheduleDate.date.in_(date_strs),
+        )
+        .with_entities(OrderScheduleDate.date, func.count(distinct(Order.id)))
+        .group_by(OrderScheduleDate.date)
+        .all()
+    )
     days = []
     for i, day in enumerate(dates):
         ds = day.isoformat()
@@ -175,12 +189,14 @@ def _week_strip(base: Any, today: datetime.date) -> dict[str, Any]:
             "is_today": i == 0,
             "measure": int(meas_by.get(ds, 0) or 0),
             "construction": int(cons_by.get(ds, 0) or 0),
+            "as_count": int(as_by.get(ds, 0) or 0),
             "has_risk": int(risk_by.get(ds, 0) or 0) > 0,
         })
     return {
         "days": days,
         "measure_total": sum(d["measure"] for d in days),
         "construction_total": sum(d["construction"] for d in days),
+        "as_total": sum(d["as_count"] for d in days),
         "risk_total": sum(int(risk_by.get(d["iso"], 0) or 0) for d in days),
     }
 

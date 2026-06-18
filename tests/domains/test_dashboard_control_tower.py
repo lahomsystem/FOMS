@@ -83,6 +83,9 @@ class _FakeQuery:
     def filter(self, *a, **k):
         return self
 
+    def join(self, *a, **k):
+        return self
+
     def group_by(self, *a, **k):
         return self
 
@@ -123,6 +126,9 @@ def test_week_strip_marks_first_day_as_today():
     assert week["days"][0]["dow"] == "오늘"
     assert week["days"][1]["iso"] == "2026-06-18"
     assert week["days"][1]["is_today"] is False
+    # AS 출고 집계 계약: 일자별 as_count + 주간 as_total 키 존재(빈 base=0).
+    assert week["days"][0]["as_count"] == 0
+    assert week["as_total"] == 0
 
 
 def test_business_window_dates_includes_today_excludes_far():

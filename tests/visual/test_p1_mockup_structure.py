@@ -82,10 +82,12 @@ def test_p1_dashboard_tower_mobile_width_contract() -> None:
         assert token in tower_css or token in tower_tpl
     for token in (
         "foms-tower__day-count--measure",
+        "foms-tower__day-count--as",
         "grid-template-rows: auto auto auto",
         "align-content: start",
         "is-empty",
         "📐",
+        "🔧",
     ):
         assert token in tower_css or token in tower_tpl
 
