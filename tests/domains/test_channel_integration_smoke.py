@@ -1,7 +1,7 @@
 """Smoke tests for ChannelTalk Integration (Phase 0)."""
 
 import foms.api.channel.channel_integration as channel_integration
-from foms.api import erp_orders_structured
+import foms.services.channel_delivery as channel_delivery_service
 from db import db_session
 from models import ChannelDeliveryLog, Order, User
 from foms.services.channel_delivery import mark_order_updated_for_channel
@@ -174,14 +174,20 @@ def test_mark_order_updated_for_channel_reuses_duplicate_outbox_without_enqueue_
 
 
 def test_payment_confirm_does_not_enqueue_channel_delivery(client, monkeypatch):
-    """예약금/잔금 토글은 저장 시 일괄 푸시만 사용; 즉시 채널 큐잉 없음."""
+    """예약금/잔금 토글 API는 ChannelTalk outbox/enqueue를 호출하지 않는다."""
     enqueued = []
+    mark_calls = []
 
     def _capture_enqueue(delivery_id):
         enqueued.append(delivery_id)
         return True
 
-    monkeypatch.setattr(erp_orders_structured, "enqueue_channeltalk_push", _capture_enqueue)
+    monkeypatch.setattr(queue_module, "enqueue_channeltalk_push", _capture_enqueue)
+    monkeypatch.setattr(
+        channel_delivery_service,
+        "mark_order_updated_for_channel",
+        lambda *args, **kwargs: mark_calls.append(1) or 99,
+    )
 
     user = User(
         username="channel-admin",
@@ -216,5 +222,6 @@ def test_payment_confirm_does_not_enqueue_channel_delivery(client, monkeypatch):
 
     assert r.status_code == 200
     assert len(enqueued) == 0
+    assert mark_calls == []
     body = r.get_json()
     assert body["payment"]["deposit_confirmed"] is True
