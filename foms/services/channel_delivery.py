@@ -264,25 +264,15 @@ def mark_order_updated_for_channel(
     payload: Optional[Dict[str, Any]] = None,
 ) -> Optional[int]:
     """
-    주문이 변경되어 ChannelTalk 동기화가 필요함을 마킹합니다.
-    CT-00-04: channel_source_seq를 증가시켜 동시성 제어 및 메시지 순서 보장의 기반을 마련합니다.
+    주문 변경 자동 ChannelTalk 알림(outbox) — 비활성.
+
+    ERP 발주방 알림은 /api/channel/push-manual(푸쉬 버튼)만 사용한다.
     """
-    if order.channel_source_seq is None:
-        order.channel_source_seq = 0
-    order.channel_source_seq += 1
-
-    # CT-A-02: DB 세션(트랜잭션) 획득 및 Outbox (ChannelDeliveryLog) row 추가
-    from db import db_session
-
-    try:
-        db = db_session.object_session(order)
-        if db:
-            log = create_pending_delivery(db, order.id, event_type, payload=payload, order=order)
-            if getattr(log, "_foms_reused_existing_delivery", False):
-                return None
-            return log.id
-    except Exception as e:
-        logger.error("[ChannelDelivery] Failed to create pending delivery: %s", e)
+    logger.debug(
+        "[ChannelDelivery] auto push disabled; skip event_type=%s order_id=%s",
+        event_type,
+        getattr(order, "id", None),
+    )
     return None
 
 

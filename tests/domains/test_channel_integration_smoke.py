@@ -113,7 +113,7 @@ def test_rq_runtime_status_falls_back_to_worker_all(monkeypatch):
     assert status == {"state": "reachable", "worker_count": 2}
 
 
-def test_mark_order_updated_for_channel_returns_delivery_id(app):
+def test_mark_order_updated_for_channel_returns_none_when_auto_push_disabled(app):
     order = Order(
         received_date="2026-03-27",
         customer_name="Tester",
@@ -127,10 +127,7 @@ def test_mark_order_updated_for_channel_returns_delivery_id(app):
     delivery_id = mark_order_updated_for_channel(order, "update")
     db_session.commit()
 
-    assert delivery_id is not None
-    log = db_session.get(ChannelDeliveryLog, delivery_id)
-    assert log is not None
-    assert log.status == "pending"
+    assert delivery_id is None
 
 
 def test_mark_order_updated_for_channel_reuses_duplicate_outbox_without_enqueue_id(app, monkeypatch):
@@ -170,7 +167,7 @@ def test_mark_order_updated_for_channel_reuses_duplicate_outbox_without_enqueue_
         .count()
         == 1
     )
-    assert order.channel_source_seq == 13
+    assert order.channel_source_seq == 12
 
 
 def test_payment_confirm_does_not_enqueue_channel_delivery(client, monkeypatch):

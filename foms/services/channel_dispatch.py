@@ -73,18 +73,14 @@ def _build_dispatch_data(order, log_payload: Dict[str, Any]) -> Dict[str, Any]:
 
 def dispatch_channel_push(delivery_id: int):
     """
-    Build and send a message from ChannelDeliveryLog.
+    Auto outbox worker entry — retired.
+
+    Pending ChannelDeliveryLog rows are marked ignored so backlog does not send
+    `[알림]` messages. Intentional ERP pushes use dispatch_order_event (manual).
     """
     from db import db_session
-    from models import ChannelDeliveryLog, Order, OrderAttachment
-    from foms.services.channel_delivery import (
-        mark_api_failed,
-        mark_api_rejected,
-        mark_delivery_status,
-        mark_token_rate_limited,
-        mask_payload,
-    )
-    from foms.services.storage import get_storage
+    from models import ChannelDeliveryLog
+    from foms.services.channel_delivery import mark_delivery_status
 
     session = db_session()
     try:
@@ -97,105 +93,9 @@ def dispatch_channel_push(delivery_id: int):
             logger.info("[ChannelDispatch] Delivery log %s skipped because status=%s", delivery_id, log.status)
             return
 
-        order = session.query(Order).filter(Order.id == log.order_id).first()
-        if not order:
-            mark_delivery_status(session, log.id, "ignored_stale", "Order deleted")
-            session.commit()
-            return
-
-        if log.source_version and order.channel_source_seq and log.source_version < order.channel_source_seq:
-            mark_delivery_status(
-                session,
-                log.id,
-                "ignored_stale",
-                f"Stale event (log_v={log.source_version} < order_v={order.channel_source_seq})",
-            )
-            session.commit()
-            return
-
-        event_type = _extract_event_type(log)
-        log_payload = copy.deepcopy(log.masked_request_payload or {})
-        data = _build_dispatch_data(order, log_payload)
-
-        img_category = get_attachment_category_for_status(order.status)
-        files = []
-        if img_category:
-            storage = get_storage()
-            attachments = (
-                session.query(OrderAttachment)
-                .filter(
-                    OrderAttachment.order_id == order.id,
-                    OrderAttachment.category == img_category,
-                    OrderAttachment.file_type == "image",
-                )
-                .order_by(OrderAttachment.id.desc())
-                .limit(5)
-                .all()
-            )
-            for att in attachments:
-                if not att.storage_key:
-                    continue
-                url = storage.get_download_url(att.storage_key, expires_in=3600)
-                if url:
-                    files.append(
-                        {
-                            "fileName": att.filename or "image.jpg",
-                            "url": url,
-                            "mime": "image/jpeg",
-                        }
-                    )
-
-        data["files"] = files
-        group_id = get_routing_group_id(event_type, data)
-        if not group_id:
-            logger.warning("[ChannelDispatch] No routing group for event_type=%s", event_type)
-            log.template_key = event_type
-            log.last_error = "No routing group"
-            mark_api_failed(session, log.id, "No routing group")
-            session.commit()
-            return
-
-        plain_text = build_message_template(event_type, data)
-        blocks = build_message_blocks(event_type, data)
-        files = apply_attachment_policy(files)
-
-        log.template_key = event_type
-        log.target_group_snapshot = group_id
-        log.rendered_text_snapshot = plain_text
-        log.masked_request_payload = mask_payload(data)
-
-        try:
-            result = send_group_message(
-                group_id=group_id,
-                plain_text=plain_text,
-                blocks=blocks,
-                files=files,
-                bot_name="FOMS",
-                raise_on_error=True,
-            )
-            log.masked_response_payload = {"success": True, "message_id": result.get("message_id")}
-            mark_delivery_status(session, log.id, "sent", message_id=result.get("message_id"))
-            session.commit()
-        except requests.exceptions.HTTPError as exc:
-            response = exc.response
-            if response is not None:
-                log.masked_response_payload = {"success": False, "status_code": response.status_code}
-                if response.status_code == 429:
-                    mark_token_rate_limited(session, log.id, str(exc))
-                elif 400 <= response.status_code < 500:
-                    mark_api_rejected(session, log.id, str(exc))
-                else:
-                    mark_api_failed(session, log.id, str(exc))
-            else:
-                log.masked_response_payload = {"success": False}
-                mark_api_failed(session, log.id, str(exc))
-            session.commit()
-            raise
-        except Exception as exc:
-            log.masked_response_payload = {"success": False}
-            mark_api_failed(session, log.id, str(exc))
-            session.commit()
-            raise
+        mark_delivery_status(session, log.id, "ignored_stale", "Automatic ChannelTalk push disabled")
+        session.commit()
+        logger.info("[ChannelDispatch] Delivery log %s ignored (auto push disabled)", delivery_id)
     except Exception as exc:
         logger.error("[ChannelDispatch] Error in dispatch_channel_push for log %s: %s", delivery_id, exc, exc_info=True)
         raise

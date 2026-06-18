@@ -11,7 +11,6 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from foms.web.auth import login_required, role_required
 from db import get_db
-from foms.services.channel_event_payloads import build_shipment_update_payload
 from foms.services.erp_permissions import can_edit_erp, erp_edit_required
 from foms.services.erp_shipment_settings import (
     load_erp_shipment_settings,
@@ -19,7 +18,6 @@ from foms.services.erp_shipment_settings import (
     normalize_measurement_managers,
     save_erp_shipment_settings,
 )
-from foms.services.jobs.queue import enqueue_channeltalk_push
 from models import Order
 
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
@@ -126,9 +124,6 @@ def api_erp_shipment_update(order_id):
 
         payload = request.get_json(silent=True) or {}
         structured_data = dict(getattr(order, "structured_data", None) or {})
-        before_shipment = dict(structured_data.get("shipment") or {})
-        actor = getattr(g, "current_user", None)
-        actor_name = getattr(actor, "name", None) or getattr(actor, "username", None)
 
         if "shipment" not in structured_data:
             structured_data["shipment"] = {}
@@ -175,20 +170,7 @@ def api_erp_shipment_update(order_id):
         setattr(order, "structured_updated_at", datetime.datetime.now())
         flag_modified(order, "structured_data")
 
-        from foms.services.channel_delivery import mark_order_updated_for_channel
-
-        delivery_payload = build_shipment_update_payload(before_shipment, shipment, actor_name=actor_name)
-        delivery_id = None
-        if delivery_payload.get("change_lines"):
-            delivery_id = mark_order_updated_for_channel(
-                order,
-                delivery_payload.get("event_type", "shipment_updated"),
-                payload=delivery_payload,
-            )
-
         db.commit()
-        if delivery_id:
-            enqueue_channeltalk_push(delivery_id)
         return jsonify({"success": True})
     except Exception as exc:
         db.rollback()

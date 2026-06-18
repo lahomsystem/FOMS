@@ -75,7 +75,7 @@ def test_build_message_blocks_renders_labeled_link(monkeypatch):
     assert '<link type="url" value="https://example.com/w/short-123">주문 보기</link>' in link_blocks[0]["value"]
 
 
-def test_mark_order_updated_for_channel_stores_template_key_and_payload(app):
+def test_mark_order_updated_for_channel_is_disabled(app):
     order = Order(
         received_date="2026-03-27",
         customer_name="테스터",
@@ -94,24 +94,17 @@ def test_mark_order_updated_for_channel_stores_template_key_and_payload(app):
     delivery_id = mark_order_updated_for_channel(order, "stage_changed", payload=payload)
     db_session.commit()
 
-    log = db_session.get(ChannelDeliveryLog, delivery_id)
-    assert log is not None
-    assert log.template_key == "stage_changed"
-    assert log.masked_request_payload["change_lines"] == ["상태: 실측 -> 도면"]
+    assert delivery_id is None
+    assert (
+        db_session.query(ChannelDeliveryLog)
+        .filter(ChannelDeliveryLog.order_id == order.id)
+        .count()
+        == 0
+    )
 
 
-def test_dispatch_channel_push_uses_stored_payload_for_multiword_event(app, monkeypatch):
+def test_dispatch_channel_push_ignores_auto_outbox_backlog(app, monkeypatch):
     monkeypatch.setenv("CHANNEL_GROUP_MEASUREMENT", "group-1")
-    monkeypatch.setenv("FOMS_BASE_URL", "https://example.com")
-    monkeypatch.setattr(channel_security, "generate_wam_short_link_token", lambda order_id=None: "short-123")
-
-    captured = {}
-
-    def _fake_send_group_message(**kwargs):
-        captured.update(kwargs)
-        return {"success": True, "message_id": "msg-1"}
-
-    monkeypatch.setattr(channel_dispatch, "send_group_message", _fake_send_group_message)
 
     order = Order(
         received_date="2026-03-27",
@@ -150,12 +143,8 @@ def test_dispatch_channel_push_uses_stored_payload_for_multiword_event(app, monk
     db_session.expire_all()
 
     saved = db_session.get(ChannelDeliveryLog, log_id)
-    assert captured["group_id"] == "group-1"
-    assert "- 상태: 실측 -> 도면" in captured["plain_text"]
-    assert "변경자: 관리자A" in captured["plain_text"]
-    assert any(block.get("type") == "text" and "주문 보기" in block.get("value", "") for block in captured["blocks"])
-    assert saved.status == "sent"
-    assert "상태: 실측 -> 도면" in (saved.rendered_text_snapshot or "")
+    assert saved.status == "ignored_stale"
+    assert saved.last_error == "Automatic ChannelTalk push disabled"
 
 
 def test_legacy_erp_order_route_redirects_to_edit(client):
@@ -176,7 +165,7 @@ def test_legacy_erp_order_route_redirects_to_edit(client):
     assert response.headers["Location"].endswith(f"/edit/{order.id}?open=erp-order")
 
 
-def test_measurement_manager_update_records_change_payload(client, monkeypatch):
+def test_measurement_manager_update_does_not_enqueue_channel(client, monkeypatch):
     _login_admin(client)
 
     enqueued = []
@@ -199,18 +188,19 @@ def test_measurement_manager_update_records_change_payload(client, monkeypatch):
     )
     db_session.add(order)
     db_session.commit()
+    order_id = order.id
 
     response = client.post(
-        f"/api/erp/measurement/update/{order.id}",
+        f"/api/erp/measurement/update/{order_id}",
         json={"field": "manager", "value": "망고"},
     )
 
     assert response.status_code == 200
-    assert len(enqueued) == 1
-    log = db_session.get(ChannelDeliveryLog, enqueued[0])
-    assert log.template_key == "manager_changed"
-    assert "이시영" in log.masked_request_payload["change_lines"][0]
-    assert "망고" in log.masked_request_payload["change_lines"][0]
+    assert enqueued == []
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert saved.manager_name == "망고"
+    assert saved.structured_data["parties"]["manager"]["name"] == "망고"
 
 
 def test_build_structured_update_payload_empty_when_no_diff():

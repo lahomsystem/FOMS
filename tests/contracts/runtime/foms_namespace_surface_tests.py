@@ -561,15 +561,19 @@ def test_channel_delivery_canonical_module_uses_canonical_channel_policy_lazy_im
     assert expected_import in inspect.getsource(namespaced_channel_delivery.create_pending_delivery)
 
 
-def test_channel_delivery_lazy_callers_use_canonical_import_paths() -> None:
-    """ERP API lazy imports should reference the canonical channel delivery path."""
+def test_channel_delivery_lazy_callers_removed_after_auto_push_retired() -> None:
+    """ERP save paths no longer lazy-import mark_order_updated_for_channel."""
+    from foms.api import erp_orders_structured
     from foms.api import measurement as erp_measurement
     from foms.api.shipment import settings as erp_shipment_settings
 
     expected_import = "from foms.services.channel_delivery import mark_order_updated_for_channel"
-
-    assert expected_import in inspect.getsource(erp_measurement.api_erp_measurement_update)
-    assert expected_import in inspect.getsource(erp_shipment_settings.api_erp_shipment_update)
+    for source in (
+        erp_orders_structured.api_put_order_structured,
+        erp_measurement.api_erp_measurement_update,
+        erp_shipment_settings.api_erp_shipment_update,
+    ):
+        assert expected_import not in inspect.getsource(source)
 
 
 def test_channel_inbound_canonical_module_uses_canonical_persistence_imports() -> None:
@@ -853,13 +857,6 @@ def test_erp_orders_structured_uses_canonical_jobs_queue_imports() -> None:
         erp_orders_structured.enqueue_geocode_order_address
         is namespaced_jobs_queue.enqueue_geocode_order_address
     )
-
-
-def test_erp_shipment_settings_uses_canonical_jobs_queue_import() -> None:
-    """ERP shipment settings should bind ChannelTalk enqueue from canonical jobs queue."""
-    from foms.api.shipment import settings as erp_shipment_settings
-
-    assert erp_shipment_settings.enqueue_channeltalk_push is namespaced_jobs_queue.enqueue_channeltalk_push
 
 
 def test_orders_api_uses_canonical_jobs_queue_import() -> None:
