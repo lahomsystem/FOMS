@@ -668,6 +668,59 @@ function erpRefreshItemRowIndices() {
             const name = String(row.querySelector('[data-erp="product_name"]')?.value || '').trim();
             hintEl.textContent = erpItemAttachmentHintText(name, idx);
         }
+        erpUpdateItemSummary(row);
+    });
+}
+
+// 모바일 항목 카드 접힘 시 한 줄 요약(제품명 · W×D×H · 금액)을 헤더에 반영.
+// 데스크톱 행에는 요약 span이 없으므로 no-op.
+function erpUpdateItemSummary(row) {
+    if (!row) return;
+    const specEl = row.querySelector('.erp-item-summary-spec');
+    const amtEl = row.querySelector('.erp-item-summary-amount');
+    if (!specEl && !amtEl) return;
+    const name = String(row.querySelector('[data-erp="product_name"]')?.value || '').trim();
+    const firstSpec = row.querySelector('.erp-spec-row');
+    let specText = '';
+    if (firstSpec) {
+        const w = String(firstSpec.querySelector('[data-erp="spec_width"]')?.value || '').trim();
+        const d = String(firstSpec.querySelector('[data-erp="spec_depth"]')?.value || '').trim();
+        const h = String(firstSpec.querySelector('[data-erp="spec_height"]')?.value || '').trim();
+        specText = [w, d, h].filter(Boolean).join('×');
+    }
+    if (specEl) {
+        specEl.textContent = [name, specText].filter(Boolean).join(' · ') || '내용 없음';
+    }
+    if (amtEl) {
+        const digits = String(row.querySelector('[data-erp="price"]')?.value || '').replace(/[^0-9]/g, '');
+        amtEl.textContent = digits ? erpFormatMoneyKRW(parseInt(digits, 10)) : '';
+    }
+}
+
+// 모바일 항목 아코디언: 한 번에 한 항목만 펼친다.
+function erpToggleItemRow(row, forceOpen) {
+    if (!row) return;
+    const wrap = document.getElementById('erp-items');
+    const open = typeof forceOpen === 'boolean' ? forceOpen : !row.classList.contains('is-open');
+    if (open && wrap) {
+        wrap.querySelectorAll('.erp-item-row.is-open').forEach((other) => {
+            if (other !== row) {
+                other.classList.remove('is-open');
+                other.querySelector('.erp-item-head-toggle')?.setAttribute('aria-expanded', 'false');
+            }
+        });
+    }
+    row.classList.toggle('is-open', open);
+    row.querySelector('.erp-item-head-toggle')?.setAttribute('aria-expanded', String(open));
+    if (open) erpUpdateItemSummary(row);
+}
+
+// 렌더 직후 첫 항목만 펼친다(모바일). 데스크톱은 토글이 없어 no-op.
+function erpOpenFirstItemRow() {
+    const rows = erpGetItemRows();
+    if (!rows.length) return;
+    rows.forEach((r, i) => {
+        if (r.querySelector('.erp-item-head-toggle')) erpToggleItemRow(r, i === 0);
     });
 }
 
@@ -794,9 +847,9 @@ function erpNewItemRow(item = {}) {
     const price = String(item.price ?? '').trim();
     const extraInput = String(item.extra_input ?? '').trim();
     const colorFieldHtml = `
-<div class="col-md-6">
+<div class="col-md-6 erp-mobile-full-row">
     <label class="form-label mb-1 small text-primary">색상</label>
-    <input class="${inputClass}" data-erp="color" value="${escapeHtml(color)}" lang="ko">
+    ${erpMobileFlexibleControl('color', '색상', color, { isMobileForm, inputClass, placeholder: '상담' })}
 </div>`;
     const optionFieldHtml = `
 <div class="col-md-6 erp-mobile-full-row">
@@ -804,21 +857,34 @@ function erpNewItemRow(item = {}) {
     ${erpMobileFlexibleControl('option_detail', '옵션', optionDetail, { isMobileForm, inputClass, placeholder: '상담' })}
 </div>`;
     const handleFieldHtml = `
-<div class="col-md-6">
+<div class="col-md-6 erp-mobile-full-row">
     <label class="form-label mb-1 small text-primary">손잡이</label>
-    <input class="${inputClass}" data-erp="handle" value="${escapeHtml(handle)}" lang="ko">
+    ${erpMobileFlexibleControl('handle', '손잡이', handle, { isMobileForm, inputClass, placeholder: '상담' })}
 </div>`;
     const attributeFieldsHtml = isMobileForm
         ? `${colorFieldHtml}${handleFieldHtml}${optionFieldHtml}`
         : `${colorFieldHtml}${optionFieldHtml}${handleFieldHtml}`;
 
-    row.innerHTML = `
-<div class="d-flex justify-content-between align-items-center mb-2">
+    // 모바일: 항목 카드 = 한 줄 요약 헤더(번호·제품명·규격·금액) + 접이식 본문(아코디언).
+    // 데스크톱: 기존 항상-펼침 헤더 유지.
+    const itemHeadHtml = isMobileForm
+        ? `<div class="erp-item-head">
+<button type="button" class="erp-item-head-toggle" aria-expanded="false">
+    <span class="erp-item-head-chevron" aria-hidden="true"><i class="fas fa-chevron-right"></i></span>
+    <span class="fw-bold small erp-item-title">항목</span>
+    <span class="erp-item-summary" aria-hidden="true"><span class="erp-item-summary-spec"></span><span class="erp-item-summary-amount"></span></span>
+</button>
+<button type="button" class="btn btn-sm btn-outline-danger erp-remove-item-btn">
+    <i class="fas fa-times"></i>
+</button>
+</div>`
+        : `<div class="d-flex justify-content-between align-items-center mb-2">
 <div class="fw-bold small erp-item-title">항목</div>
 <button type="button" class="btn btn-sm btn-outline-danger erp-remove-item-btn">
     <i class="fas fa-times"></i>
 </button>
-</div>
+</div>`;
+    const itemFieldsHtml = `
 <div class="row g-2">
 <div class="col-12">
     <label class="form-label mb-1 small text-primary">제품명</label>
@@ -876,6 +942,9 @@ ${attributeFieldsHtml}
 </div>
 </div>
 `;
+    row.innerHTML = isMobileForm
+        ? `${itemHeadHtml}<div class="erp-item-collapse">${itemFieldsHtml}</div>`
+        : `${itemHeadHtml}${itemFieldsHtml}`;
     erpBindAutosizeTextareas(row);
 
     // W(가로) 칸에 'W*D*H' 복합 규격을 붙여넣으면 곱(*,×) 기준으로 W/D/H에 자동 분해한다.
@@ -971,8 +1040,13 @@ ${attributeFieldsHtml}
             erpRenderAttachments();
         }
     });
+    // 모바일 아코디언 헤더 토글
+    row.querySelector('.erp-item-head-toggle')?.addEventListener('click', () => {
+        erpToggleItemRow(row);
+    });
     row.addEventListener('input', (e) => {
         erpRecalcItemsTotal();
+        erpUpdateItemSummary(row);
         if (e.target && e.target.dataset && e.target.dataset.erp === 'product_name') {
             erpRefreshItemRowIndices();
             if (typeof erpRenderAttachments === 'function') {
@@ -1275,6 +1349,7 @@ async function erpLoadStructured(bootstrapData, options) {
         items.forEach(it => itemsWrap.appendChild(erpNewItemRow(it)));
     }
     erpRefreshItemRowIndices();
+    erpOpenFirstItemRow();
 
     erpSetStatus(`불러오기 완료 (confidence: ${data.structured_confidence || sd.confidence || '-'})`);
     const paymentData = _erpNormalizePaymentData(sd);
@@ -1962,19 +2037,43 @@ ${escapeHtml(sub)}</div>` : ''}`;
     if (itemsWrap && itemsWrap.children.length === 0) {
         itemsWrap.appendChild(erpNewItemRow({}));
         erpRefreshItemRowIndices();
+        erpOpenFirstItemRow();
         erpRecalcItemsTotal();
     }
 
     document.getElementById('erp-add-item-btn')?.addEventListener('click', function () {
-        document.getElementById('erp-items')?.appendChild(erpNewItemRow({}));
+        const wrap = document.getElementById('erp-items');
+        if (!wrap) return;
+        const newRow = erpNewItemRow({});
+        wrap.appendChild(newRow);            // 새 항목은 리스트 끝 → 추가 버튼은 항상 그 아래
         erpRefreshItemRowIndices();
+        erpToggleItemRow(newRow, true);      // 새 항목만 펼치고 나머지는 접는다(아코디언)
         erpRecalcItemsTotal();
         if (typeof erpRenderAttachments === 'function') {
             erpRenderAttachments();
         }
+        newRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     });
     document.getElementById('erp-save-btn')?.addEventListener('click', erpSaveStructured);
     document.getElementById('erp-load-btn')?.addEventListener('click', () => erpLoadStructured());
+
+    // 모바일 섹션 이동 칩: 탭하면 해당 섹션으로 스크롤 + 접힌 섹션 펼침.
+    // fragment 재실행 대비 singleton guard(중복 바인딩 차단).
+    (function initErpMobileSecNav() {
+        const nav = document.getElementById('erp-mobile-secnav');
+        if (!nav || nav.dataset.erpSecnavBound === '1') return;
+        nav.dataset.erpSecnavBound = '1';
+        nav.addEventListener('click', (e) => {
+            const chip = e.target.closest('.erp-mobile-secnav-chip');
+            if (!chip) return;
+            const target = chip.dataset.erpSecnavTarget && document.getElementById(chip.dataset.erpSecnavTarget);
+            if (!target) return;
+            nav.querySelectorAll('.erp-mobile-secnav-chip').forEach((c) => c.classList.toggle('is-active', c === chip));
+            const collapsedToggle = target.querySelector('[data-bs-toggle="collapse"][aria-expanded="false"]');
+            if (collapsedToggle) collapsedToggle.click();
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    })();
 
     // AS 접수 모달: 파일 미리보기, 10MB 경고, 제출, 취소 시 롤백
     (function initAsReceiveModal() {

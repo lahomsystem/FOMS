@@ -29,7 +29,14 @@ ERP Order mobile-v2 tab pane.
 
             <div class="tab-content">
                 <div class="tab-pane fade show active" id="erp-form" role="tabpanel">
-                    <section class="erp-form-section" aria-label="접수 정보">
+                    <nav class="erp-mobile-secnav" id="erp-mobile-secnav" aria-label="섹션 이동">
+                        <button type="button" class="erp-mobile-secnav-chip is-active" data-erp-secnav-target="erp-mobile-sec-spec">현장 스펙</button>
+                        <button type="button" class="erp-mobile-secnav-chip" data-erp-secnav-target="erp-mobile-sec-received">접수</button>
+                        <button type="button" class="erp-mobile-secnav-chip" data-erp-secnav-target="erp-mobile-sec-photo">사진</button>
+                        <button type="button" class="erp-mobile-secnav-chip" data-erp-secnav-target="erp-mobile-sec-order">발주</button>
+                        <button type="button" class="erp-mobile-secnav-chip" data-erp-secnav-target="erp-mobile-sec-schedule">일정</button>
+                    </nav>
+                    <section class="erp-form-section" id="erp-mobile-sec-received" aria-label="접수 정보">
                         <button class="erp-mobile-collapse-toggle" type="button" id="erp-mobile-collapse-received-toggle"
                             data-bs-toggle="collapse" data-bs-target="#erp-mobile-collapse-received-body"
                             aria-expanded="false" aria-controls="erp-mobile-collapse-received-body">
@@ -137,14 +144,14 @@ ERP Order mobile-v2 tab pane.
                         </div>
                     </section>
 
-                    <section class="erp-form-section erp-form-section--primary" aria-label="현장 제품 스펙">
-                        <div class="erp-mobile-section-head erp-mobile-section-head--sticky">
+                    <section class="erp-form-section erp-form-section--primary" id="erp-mobile-sec-spec" aria-label="현장 제품 스펙">
+                        <div class="erp-mobile-section-head">
                             <h3 class="erp-form-section__title">현장 스펙</h3>
-                            <button class="foms-btn foms-btn--secondary foms-btn--sm" type="button" id="erp-add-item-btn">
-                                <i class="fas fa-plus"></i> 항목 추가
-                            </button>
                         </div>
                         <div id="erp-items" class="erp-items-mobile-stack"></div>
+                        <button class="foms-btn foms-btn--secondary erp-mobile-add-item-btn" type="button" id="erp-add-item-btn">
+                            <i class="fas fa-plus"></i> 항목 추가
+                        </button>
                         <div class="erp-mobile-amounts erp-mobile-amounts--field">
                             <div class="erp-mobile-amount-row">
                                 <span class="erp-mobile-amount-label">출고가</span>
@@ -178,15 +185,15 @@ ERP Order mobile-v2 tab pane.
                         <div class="field__hint" id="erp-status-text"></div>
                     </section>
 
-                    <section class="erp-form-section" aria-label="사진과 동영상">
-                        <button class="erp-mobile-collapse-toggle" type="button" id="erp-mobile-collapse-attachments-toggle"
+                    <section class="erp-form-section" id="erp-mobile-sec-photo" aria-label="사진과 동영상">
+                        <button class="erp-mobile-collapse-toggle collapsed" type="button" id="erp-mobile-collapse-attachments-toggle"
                             data-bs-toggle="collapse" data-bs-target="#erp-mobile-collapse-attachments-body"
-                            aria-expanded="true" aria-controls="erp-mobile-collapse-attachments-body">
+                            aria-expanded="false" aria-controls="erp-mobile-collapse-attachments-body">
                             <span aria-hidden="true"><i class="fas fa-chevron-right"></i></span>
                             <strong>사진/동영상</strong>
                             <span>실측·도면·시공</span>
                         </button>
-                        <div class="collapse show" id="erp-mobile-collapse-attachments-body">
+                        <div class="collapse" id="erp-mobile-collapse-attachments-body">
                         <div class="erp-mobile-dropzone erp-mobile-dropzone--camera" data-erp-attachment-paste-zone="common" tabindex="0"
                             aria-label="공통 첨부 파일 업로드 영역. 이미지를 붙여넣으면 바로 업로드됩니다.">
                             <div class="erp-mobile-attachment-controls erp-mobile-attachment-controls--field">
@@ -215,19 +222,11 @@ ERP Order mobile-v2 tab pane.
                             </div>
                         </div>
                         <div class="row g-2 mt-2" id="erp-attachments-gallery"></div>
-                        <div class="erp-mobile-push-actions" role="group" aria-label="채널톡 전송">
-                            <button class="foms-btn foms-btn--warning erp-mobile-push-btn" type="button" id="erp-channeltalk-push-drawing-btn">
-                                <i class="fas fa-paper-plane"></i> 발주 PUSH
-                            </button>
-                            <button class="foms-btn foms-btn--primary erp-mobile-push-btn" type="button" id="erp-channeltalk-push-btn">
-                                <i class="fas fa-paper-plane"></i> 영발 PUSH
-                            </button>
-                        </div>
                         <textarea class="visually-hidden" id="erp-conversion-text" rows="8" readonly aria-hidden="true" tabindex="-1"></textarea>
                         </div>
                     </section>
 
-                    <section class="erp-form-section" aria-label="발주와 담당">
+                    <section class="erp-form-section" id="erp-mobile-sec-order" aria-label="발주와 담당">
                         <button class="erp-mobile-collapse-toggle" type="button" id="erp-mobile-collapse-order-toggle"
                             data-bs-toggle="collapse" data-bs-target="#erp-mobile-collapse-order-body"
                             aria-expanded="false" aria-controls="erp-mobile-collapse-order-body">
@@ -286,28 +285,15 @@ ERP Order mobile-v2 tab pane.
                         </div>
                     </section>
 
-                    <section class="erp-form-section erp-mobile-pre-sticky-footer" aria-label="일정">
-                        <div class="erp-mobile-section-head">
-                            <h3 class="erp-form-section__title">일정</h3>
-                        </div>
-                        <div class="field">
-                            <button class="erp-mobile-collapse-toggle" type="button" id="erp-order-measurement-panel-toggle"
-                                data-bs-toggle="collapse" data-bs-target="#erp-order-measurement-panel-collapse"
-                                aria-expanded="false" aria-controls="erp-order-measurement-panel-collapse">
-                                <span aria-hidden="true"><i class="fas fa-chevron-right"></i></span>
-                                <strong>실측 일정 현황</strong>
-                                <span>기본 접힘</span>
-                            </button>
-                            <div class="collapse" id="erp-order-measurement-panel-collapse">
-                                <div class="erp-mobile-measurement-panel">
-                                    <div id="erp-order-measurement-panel" class="measurement-panel-list">
-                                        <div class="text-center py-3 text-muted small">
-                                            <i class="fas fa-spinner fa-spin"></i> 로딩 중...
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                    <section class="erp-form-section erp-mobile-pre-sticky-footer" id="erp-mobile-sec-schedule" aria-label="일정">
+                        <button class="erp-mobile-collapse-toggle collapsed" type="button" id="erp-mobile-collapse-schedule-toggle"
+                            data-bs-toggle="collapse" data-bs-target="#erp-mobile-collapse-schedule-body"
+                            aria-expanded="false" aria-controls="erp-mobile-collapse-schedule-body">
+                            <span aria-hidden="true"><i class="fas fa-chevron-right"></i></span>
+                            <strong>일정</strong>
+                            <span>기본 접힘</span>
+                        </button>
+                        <div class="collapse" id="erp-mobile-collapse-schedule-body">
                         <div class="field">
                             <label class="field__label" for="erp-measurement-date">실측일</label>
                             <div class="erp-mobile-date-field">
@@ -372,17 +358,21 @@ ERP Order mobile-v2 tab pane.
                                 </div>
                             </div>
                         </div>
+                        </div>
                     </section>
 
                 </div>
 
             </div>
-            <footer class="foms-sticky-action-bar erp-mobile-sticky-action-bar" role="group" aria-label="ERP 주문 저장">
-                <button class="foms-btn foms-btn--secondary" type="button" id="erp-load-btn">
-                    <i class="fas fa-sync"></i> 불러오기
-                </button>
+            <footer class="foms-sticky-action-bar erp-mobile-sticky-action-bar" role="group" aria-label="ERP 주문 저장 및 전송">
                 <button class="foms-btn foms-btn--primary" type="button" id="erp-save-btn">
                     <i class="fas fa-save"></i> 저장
+                </button>
+                <button class="foms-btn foms-btn--secondary erp-mobile-push-btn" type="button" id="erp-channeltalk-push-btn">
+                    <i class="fas fa-paper-plane"></i> 영발 PUSH
+                </button>
+                <button class="foms-btn foms-btn--warning erp-mobile-push-btn" type="button" id="erp-channeltalk-push-drawing-btn">
+                    <i class="fas fa-paper-plane"></i> 발주 PUSH
                 </button>
             </footer>
             {% endif %}

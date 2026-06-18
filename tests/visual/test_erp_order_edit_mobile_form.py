@@ -66,7 +66,6 @@ CRITICAL_ERP_IDS = {
     "erp-conversion-text",
     "erp-copy-text-btn",
     "erp-save-btn",
-    "erp-load-btn",
     "erp-draft-banner",
     "erp-draft-order-id",
     "erp-draft-edit-link",
@@ -93,9 +92,11 @@ CRITICAL_ERP_IDS = {
 
 # 영발/발주 PUSH 버튼과 (숨김) 변환 textarea는 모바일에도 제공된다.
 # 변환/복사 버튼은 모바일에서 계속 생략한다(푸쉬가 내부에서 변환 텍스트를 생성).
+# 실측 일정 현황 패널·불러오기 버튼은 모바일 신 디자인에서 제거(데스크톱 레거시에는 유지).
 MOBILE_OMITTED_ERP_IDS = {
     "erp-gen-text-btn",
     "erp-copy-text-btn",
+    "erp-order-measurement-panel",
 }
 
 DESKTOP_OMITTED_ERP_IDS = {
@@ -108,14 +109,14 @@ MOBILE_ONLY_ERP_IDS = {
     "erp-received-time-control",
     "erp-measurement-time-control",
     "erp-construction-time-control",
-    "erp-order-measurement-panel-toggle",
-    "erp-order-measurement-panel-collapse",
     "erp-mobile-collapse-received-toggle",
     "erp-mobile-collapse-received-body",
     "erp-mobile-collapse-order-toggle",
     "erp-mobile-collapse-order-body",
     "erp-mobile-collapse-attachments-toggle",
     "erp-mobile-collapse-attachments-body",
+    "erp-mobile-collapse-schedule-toggle",
+    "erp-mobile-collapse-schedule-body",
     "erp-attachment-preview-item-select",
     "erp-attachment-preview-unlink",
     "erp-attachment-preview-delete",
@@ -258,7 +259,9 @@ def test_edit_erp_order_ships_responsive_form_mounts_for_cohort(
     assert "erp-mobile-time-inline" in mobile_form
     assert 'id="erp-urgent-reason-field"' in mobile_form
     assert "erp-received-time-select" in mobile_form
-    assert "erp-order-measurement-panel-collapse" in mobile_form
+    # 실측 일정 현황 패널은 모바일 신 디자인에서 제거됨
+    assert "erp-order-measurement-panel-collapse" not in mobile_form
+    assert 'id="erp-mobile-collapse-schedule-toggle"' in mobile_form
     assert "계약 텍스트" not in mobile_form
     assert 'id="erp-mobile-collapse-received-toggle"' in mobile_form
     assert 'aria-expanded="false"' in mobile_form
@@ -266,15 +269,21 @@ def test_edit_erp_order_ships_responsive_form_mounts_for_cohort(
     assert 'class="collapse"' in mobile_form
     assert 'id="erp-mobile-collapse-order-toggle"' in mobile_form
     assert 'id="erp-mobile-collapse-attachments-toggle"' in mobile_form
-    assert 'aria-expanded="true"' in mobile_form
     assert "현장 스펙" in mobile_form
     assert "사진/동영상 추가" in mobile_form
-    assert 'class="collapse show"' in mobile_form
+    # 사진/동영상 섹션도 기본 접힘(show 없음)
+    assert 'class="collapse show"' not in mobile_form
+    # 섹션 이동 칩 네비 + 항목 추가 버튼(리스트 끝)
+    assert 'id="erp-mobile-secnav"' in mobile_form
+    assert 'id="erp-add-item-btn"' in mobile_form
+    # 영발/발주 PUSH는 하단 액션바로 이동
+    assert 'id="erp-channeltalk-push-btn"' in mobile_form
+    assert 'id="erp-channeltalk-push-drawing-btn"' in mobile_form
     assert "erp-mobile-pre-sticky-footer" in mobile_form
 
 
 def test_mobile_erp_form_sections_use_field_priority_collapse_defaults() -> None:
-    """접수·발주는 접고, 현장 사진/동영상은 바로 보이게 둔다."""
+    """접수·발주·사진/동영상·일정은 모두 기본 접힘. 핵심(현장 스펙)만 펼침."""
     mobile = (
         ROOT / "templates" / "orders" / "partials" / "erp_order_tab_mobile.html"
     ).read_text(encoding="utf-8")
@@ -282,6 +291,8 @@ def test_mobile_erp_form_sections_use_field_priority_collapse_defaults() -> None
     for toggle_id, body_id in (
         ("erp-mobile-collapse-received-toggle", "erp-mobile-collapse-received-body"),
         ("erp-mobile-collapse-order-toggle", "erp-mobile-collapse-order-body"),
+        ("erp-mobile-collapse-attachments-toggle", "erp-mobile-collapse-attachments-body"),
+        ("erp-mobile-collapse-schedule-toggle", "erp-mobile-collapse-schedule-body"),
     ):
         toggle_idx = mobile.index(f'id="{toggle_id}"')
         body_marker = f'id="{body_id}"'
@@ -294,12 +305,8 @@ def test_mobile_erp_form_sections_use_field_priority_collapse_defaults() -> None
         assert 'class="collapse"' in body_open
         assert " show" not in body_open.split(">", 1)[0]
 
-    attachments_toggle_idx = mobile.index('id="erp-mobile-collapse-attachments-toggle"')
-    attachments_body_idx = mobile.index('id="erp-mobile-collapse-attachments-body"')
-    attachments_toggle = mobile[attachments_toggle_idx:attachments_body_idx]
-    attachments_body_open = mobile[attachments_body_idx - 40:attachments_body_idx + 80]
-    assert 'aria-expanded="true"' in attachments_toggle
-    assert 'class="collapse show"' in attachments_body_open
+    # 신 디자인: 어느 섹션도 기본 펼침(collapse show) 상태가 아니다.
+    assert 'class="collapse show"' not in mobile
 
 
 def test_edit_erp_order_keeps_legacy_form_when_cohort_off(

@@ -108,13 +108,16 @@ def test_edit_order_non_erp_renders_sticky_bar(erp_editor_client) -> None:
     assert 'id="editOrderForm"' in body
 
 
-def test_erp_order_tab_mobile_template_sticky_footer_unchanged() -> None:
+def test_erp_order_tab_mobile_template_sticky_footer_actions() -> None:
+    """하단 액션바: 저장 + 영발/발주 PUSH. 불러오기 버튼은 신 디자인에서 제거."""
     text = (ROOT / "templates/orders/partials/erp_order_tab_mobile.html").read_text(
         encoding="utf-8"
     )
     assert "erp-mobile-sticky-action-bar" in text
     assert 'id="erp-save-btn"' in text
-    assert 'id="erp-load-btn"' in text
+    assert 'id="erp-load-btn"' not in text
+    assert 'id="erp-channeltalk-push-btn"' in text
+    assert 'id="erp-channeltalk-push-drawing-btn"' in text
     assert "erp-mobile-amount-toolbar" not in text
 
 

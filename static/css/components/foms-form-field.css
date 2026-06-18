@@ -1,3 +1,52 @@
+/* ── 모바일 최상위 세그먼트: 주문 / 계산기 / 견적서 ──
+   데스크톱 카드헤더 nav-tabs를 모바일(erp-mobile-v2 + <992px)에서만 pill 세그먼트로 restyle.
+   전환 동작은 기존 Bootstrap tab 그대로(저위험). 데스크톱은 'ERP Order' 라벨·기본 탭 유지. */
+.erp-mobile-seg-label { display: none; }
+.erp-desktop-seg-label { display: inline; }
+
+@media (max-width: 991.98px) {
+  body.erp-mobile-v2-layout .erp-mobile-seg-label { display: inline; }
+  body.erp-mobile-v2-layout .erp-desktop-seg-label { display: none; }
+
+  body.erp-mobile-v2-layout .erp-mobile-segment-header {
+    padding: var(--foms-space-2) var(--foms-space-3);
+    border-bottom: 1px solid var(--foms-border-default);
+    background: var(--foms-surface-base);
+  }
+  body.erp-mobile-v2-layout .erp-mobile-segment.nav-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--foms-space-1);
+    border-bottom: 0;
+    margin: 0;
+  }
+  body.erp-mobile-v2-layout .erp-mobile-segment .nav-item { margin: 0; }
+  body.erp-mobile-v2-layout .erp-mobile-segment .nav-link {
+    width: 100%;
+    min-height: 40px;
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border: 1px solid var(--foms-border-default);
+    border-radius: var(--foms-radius-md);
+    background: var(--foms-surface-subtle, #f8fafc);
+    color: var(--foms-text-secondary);
+    font-weight: var(--foms-font-weight-bold, 700);
+    font-size: var(--foms-font-size-sm);
+  }
+  body.erp-mobile-v2-layout .erp-mobile-segment .nav-link.active {
+    background: var(--foms-interactive-primary, #2563eb);
+    border-color: var(--foms-interactive-primary, #2563eb);
+    color: #fff;
+  }
+  /* 계산기 pane: 모바일 가독성(매칭 견적 테이블 가로 스크롤·폰트 축소) */
+  body.erp-mobile-v2-layout #calculatorTabContent { padding: 0 2px; }
+  body.erp-mobile-v2-layout #calculatorTabContent .table { font-size: 12px; }
+  body.erp-mobile-v2-layout #calculatorTabContent .table-responsive { -webkit-overflow-scrolling: touch; }
+}
+
 /* Shipped form atoms ported from mobile wizard mockups. */
 .field {
   display: grid;
@@ -685,24 +734,24 @@ body.erp-mobile-v2-layout #erpAttachmentPreviewModal .erp-attachment-preview-act
   background: var(--foms-surface-base);
 }
 
-.erp-order-mobile-form #erp-items .erp-item-row > .row {
+.erp-order-mobile-form #erp-items .erp-item-row .row {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--foms-space-2);
   margin: 0;
 }
 
-.erp-order-mobile-form #erp-items .erp-item-row > .row > [class*="col-"] {
+.erp-order-mobile-form #erp-items .erp-item-row .row > [class*="col-"] {
   width: auto;
   max-width: none;
   padding: 0;
 }
 
-.erp-order-mobile-form #erp-items .erp-item-row > .row > .col-12 {
+.erp-order-mobile-form #erp-items .erp-item-row .row > .col-12 {
   grid-column: 1 / -1;
 }
 
-.erp-order-mobile-form #erp-items .erp-item-row > .row > .erp-mobile-full-row {
+.erp-order-mobile-form #erp-items .erp-item-row .row > .erp-mobile-full-row {
   grid-column: 1 / -1;
 }
 
@@ -764,3 +813,98 @@ body.erp-mobile-v2-layout #erpAttachmentPreviewModal .erp-attachment-preview-act
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) var(--foms-touch-target-min);
   }
 }
+
+/* ── 모바일 섹션 이동 칩 네비 (스크롤 길이 완화: 공간 지도 + 점프) ── */
+.erp-order-mobile-form .erp-mobile-secnav {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  gap: var(--foms-space-2);
+  padding: var(--foms-space-2) 0;
+  margin-bottom: var(--foms-space-2);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  background: var(--foms-surface-base);
+}
+.erp-order-mobile-form .erp-mobile-secnav::-webkit-scrollbar { display: none; }
+.erp-order-mobile-form .erp-mobile-secnav-chip {
+  flex: 0 0 auto;
+  min-height: 2.25rem;
+  padding: 0 var(--foms-space-3);
+  border: 1px solid var(--foms-border-default);
+  border-radius: 999px;
+  background: var(--foms-surface-subtle, #f8fafc);
+  color: var(--foms-text-secondary);
+  font-size: var(--foms-font-size-sm);
+  font-weight: var(--foms-font-weight-medium);
+  white-space: nowrap;
+}
+.erp-order-mobile-form .erp-mobile-secnav-chip.is-active {
+  background: var(--foms-interactive-primary, #2563eb);
+  border-color: var(--foms-interactive-primary, #2563eb);
+  color: #fff;
+}
+
+/* ── 항목 추가 버튼: 항목 리스트 끝, 풀폭 ── */
+.erp-order-mobile-form .erp-mobile-add-item-btn {
+  width: 100%;
+  min-height: var(--foms-touch-target-min);
+  margin-top: var(--foms-space-3);
+  border-style: dashed;
+}
+
+/* ── 항목 카드 아코디언: 접힘 시 한 줄 요약, 펼침 시 전체 폼 ── */
+.erp-order-mobile-form #erp-items .erp-item-head {
+  display: flex;
+  align-items: center;
+  gap: var(--foms-space-2);
+}
+.erp-order-mobile-form #erp-items .erp-item-head-toggle {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--foms-touch-target-min);
+  display: grid;
+  grid-template-columns: 1.1rem auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--foms-space-2);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--foms-text-primary);
+  text-align: left;
+  font: inherit;
+}
+.erp-order-mobile-form #erp-items .erp-item-head-chevron {
+  color: var(--foms-text-tertiary);
+  transition: transform 0.18s ease;
+}
+.erp-order-mobile-form #erp-items .erp-item-row.is-open .erp-item-head-chevron {
+  transform: rotate(90deg);
+}
+.erp-order-mobile-form #erp-items .erp-item-title { white-space: nowrap; }
+.erp-order-mobile-form #erp-items .erp-item-summary {
+  display: flex;
+  align-items: baseline;
+  gap: var(--foms-space-2);
+  min-width: 0;
+  color: var(--foms-text-secondary);
+  font-size: var(--foms-font-size-sm);
+}
+.erp-order-mobile-form #erp-items .erp-item-summary-spec {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.erp-order-mobile-form #erp-items .erp-item-summary-amount {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-weight: var(--foms-font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--foms-text-primary);
+}
+/* 접힘 기본: 본문 숨김. is-open 일 때만 노출 */
+.erp-order-mobile-form #erp-items .erp-item-collapse { display: none; margin-top: var(--foms-space-2); }
+.erp-order-mobile-form #erp-items .erp-item-row.is-open .erp-item-collapse { display: block; }

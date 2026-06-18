@@ -355,7 +355,10 @@ def edit_order(order_id):
                     option_type=option_type,
                     online_options=online_options,
                     direct_options=direct_options,
-                    mobile_shell_title='주문 수정',
+                    mobile_shell_title=(
+                        f'{order.customer_name} 고객님'
+                        if order.customer_name else '주문 수정'
+                    ),
                     mobile_shell_show_back=True,
                     mobile_shell_back_href=url_for(
                         'erp_dashboard.erp_order_mobile_detail', order_id=order.id

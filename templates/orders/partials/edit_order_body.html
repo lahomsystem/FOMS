@@ -20,13 +20,13 @@
             {# 서버 렌더 시점 ERP 상세 부트스트랩 — 최초 페인트의 fetch 왕복을 제거한다. #}
             <script type="application/json" id="erp-order-bootstrap">{{ erp_bootstrap | tojson }}</script>
             {% endif %}
-            <div class="card-header">
-                <ul class="nav nav-tabs card-header-tabs" id="orderTabs" role="tablist">
+            <div class="card-header erp-mobile-segment-header">
+                <ul class="nav nav-tabs card-header-tabs erp-mobile-segment" id="orderTabs" role="tablist">
                     {% if is_erp_order %}
                     <li class="nav-item" role="presentation">
                         <button class="nav-link active" id="erp-order-tab" data-bs-toggle="tab"
                             data-bs-target="#erp-order" type="button" role="tab">
-                            <i class="fas fa-layer-group"></i> ERP Order
+                            <i class="fas fa-layer-group"></i> <span class="erp-mobile-seg-label">주문</span><span class="erp-desktop-seg-label">ERP Order</span>
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
