@@ -814,11 +814,13 @@ body.erp-mobile-v2-layout #erpAttachmentPreviewModal .erp-attachment-preview-act
   }
 }
 
-/* ── 모바일 섹션 이동 칩 네비 (스크롤 길이 완화: 공간 지도 + 점프) ── */
+/* ── 모바일 섹션 이동 칩 네비 (스크롤 길이 완화: 공간 지도 + 점프) ──
+   셸 헤더(높이 --foms-shell-header-h) 바로 아래 sticky 고정 → 스크롤 내려도
+   탭 이동 항상 가능. z는 헤더(1020) 바로 아래(1019). */
 .erp-order-mobile-form .erp-mobile-secnav {
   position: sticky;
-  top: 0;
-  z-index: 5;
+  top: calc(var(--foms-shell-header-h, 48px) + var(--foms-safe-area-top, 0px));
+  z-index: 1019;
   display: flex;
   gap: var(--foms-space-2);
   padding: var(--foms-space-2) 0;
@@ -827,6 +829,13 @@ body.erp-mobile-v2-layout #erpAttachmentPreviewModal .erp-attachment-preview-act
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   background: var(--foms-surface-base);
+  border-bottom: 1px solid var(--foms-border-subtle, #e5e7eb);
+}
+/* sticky가 동작하려면 조상 카드의 overflow:hidden을 풀어야 한다(안 그러면 sticky
+   컨테이닝블록이 카드가 되어 문서 스크롤 시 함께 올라가 버림). 모바일에만 적용. */
+@media (max-width: 991.98px) {
+  body.erp-mobile-v2-layout .card[data-order-id],
+  body.erp-mobile-v2-layout .erp-order-mobile-card { overflow: visible; }
 }
 .erp-order-mobile-form .erp-mobile-secnav::-webkit-scrollbar { display: none; }
 .erp-order-mobile-form .erp-mobile-secnav-chip {
@@ -908,3 +917,19 @@ body.erp-mobile-v2-layout #erpAttachmentPreviewModal .erp-attachment-preview-act
 /* 접힘 기본: 본문 숨김. is-open 일 때만 노출 */
 .erp-order-mobile-form #erp-items .erp-item-collapse { display: none; margin-top: var(--foms-space-2); }
 .erp-order-mobile-form #erp-items .erp-item-row.is-open .erp-item-collapse { display: block; }
+
+/* ── 밀도(density) 압축: 실 사용자 스크롤 최소화. 입력 터치영역(44px)·가독성은 유지하고
+   필드/섹션/제목 사이 세로 여백만 줄인다. 모바일(<992px) ERP 폼에만 적용. ── */
+@media (max-width: 991.98px) {
+  body.erp-mobile-v2-layout .erp-order-mobile-form .field { margin-bottom: var(--foms-space-2); }
+  body.erp-mobile-v2-layout .erp-order-mobile-form .erp-form-section { padding: var(--foms-space-2) 0; }
+  body.erp-mobile-v2-layout .erp-order-mobile-form .erp-form-section--primary { padding-top: var(--foms-space-3); }
+  body.erp-mobile-v2-layout .erp-order-mobile-form .erp-form-section__title { margin-bottom: var(--foms-space-2); }
+  body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-section-head { margin-bottom: var(--foms-space-2); }
+  body.erp-mobile-v2-layout .erp-order-mobile-form .erp-items-mobile-stack { gap: var(--foms-space-2); }
+  body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-amounts { margin-top: var(--foms-space-2); }
+  body.erp-mobile-v2-layout .erp-order-mobile-form .erp-form-section > .collapse.show,
+  body.erp-mobile-v2-layout .erp-order-mobile-form .erp-form-section > .collapse.collapsing { margin-top: var(--foms-space-2); }
+  /* 항목 카드 본문 필드 간격 압축 */
+  body.erp-mobile-v2-layout .erp-order-mobile-form #erp-items .erp-item-row .row { gap: var(--foms-space-2); }
+}
