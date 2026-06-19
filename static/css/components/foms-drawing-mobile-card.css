@@ -260,6 +260,39 @@
   color: #fff;
 }
 
+.foms-drawing-queue-card__action--erp-edit {
+  flex: 1 1 0;
+  min-width: 0;
+  border-color: var(--foms-color-brand-200, #c3d0ff);
+  color: var(--foms-color-brand-700, #434190);
+  background: var(--foms-color-brand-50, #f0f2ff);
+}
+
+.foms-drawing-queue-card__action--erp-edit:active {
+  background: var(--foms-color-brand-100, #e0e7ff);
+}
+
+.foms-drawing-queue-card__action.is-assignee {
+  flex: 0 0 auto;
+  min-width: 2.85rem;
+  padding-inline: 0.45rem;
+}
+
+.foms-drawing-queue-card__actions:has(.foms-drawing-queue-card__action--erp-edit) .foms-drawing-queue-card__action.is-primary {
+  flex: 2.2 1 0;
+}
+
+.foms-drawing-queue-card__actions:has(.foms-drawing-queue-card__action--erp-edit) .foms-drawing-queue-card__action {
+  font-size: 0.76rem;
+  gap: 0.25rem;
+  padding-inline: 0.4rem;
+}
+
+.foms-drawing-queue-card__actions:has(.foms-drawing-queue-card__action--erp-edit) .foms-drawing-queue-card__action.is-assignee {
+  flex: 0.85 1 0;
+  min-width: 0;
+}
+
 @media (max-width: 991.98px) {
   body.erp-mobile-v2-layout .foms-drawing-mobile-dashboard {
     padding: var(--foms-space-3, 12px) var(--foms-space-4, 16px)

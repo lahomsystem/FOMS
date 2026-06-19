@@ -25,6 +25,29 @@ STAGE_DASHBOARD_URL: dict[str, str] = {
 }
 
 
+RETURN_TO_BACK_ENDPOINT: dict[str, str] = {
+    "erp_measurement_dashboard": "erp_measurement_dashboard.erp_measurement_dashboard",
+    "erp_shipment_dashboard": "erp_shipment_page.erp_shipment_dashboard",
+    "erp_production_dashboard": "erp_production_page.erp_production_dashboard",
+    "erp_construction_dashboard": "erp_construction_page.erp_construction_dashboard",
+    "erp_drawing_workbench_dashboard": "erp_drawing_workbench.erp_drawing_workbench_dashboard",
+}
+
+
+def resolve_edit_return_back_endpoint(return_to: str) -> str:
+    """
+    Map ``return_to`` query tokens from queue/edit deep links to Flask endpoints.
+
+    Args:
+        return_to: Raw ``return_to`` query value from edit or mobile detail URLs.
+
+    Returns:
+        Blueprint endpoint name for ``url_for``.
+    """
+    token = (return_to or "").strip()
+    return RETURN_TO_BACK_ENDPOINT.get(token, "erp_dashboard.erp_dashboard")
+
+
 def resolve_order_stage_code(order: Order) -> str:
     """
     Resolve canonical workflow stage code for an ERP order.
@@ -93,7 +116,9 @@ def build_order_queue_focus_href(
 
 __all__ = [
     "STAGE_DASHBOARD_URL",
+    "RETURN_TO_BACK_ENDPOINT",
     "resolve_order_stage_code",
     "load_focus_order_only",
     "build_order_queue_focus_href",
+    "resolve_edit_return_back_endpoint",
 ]

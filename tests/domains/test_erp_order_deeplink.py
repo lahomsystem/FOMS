@@ -1,7 +1,11 @@
 """Tests for stage-aware queue focus deep links."""
 
 from db import db_session
-from foms.services.erp_order_deeplink import build_order_queue_focus_href, resolve_order_stage_code
+from foms.services.erp_order_deeplink import (
+    build_order_queue_focus_href,
+    resolve_edit_return_back_endpoint,
+    resolve_order_stage_code,
+)
 from models import Order
 
 
@@ -26,6 +30,14 @@ def test_queue_focus_href_received_stage_uses_home_queue(app) -> None:
         assert f"focus_order={order.id}" in href
         assert "q=" in href
         assert resolve_order_stage_code(order) == "RECEIVED"
+
+
+def test_resolve_edit_return_back_endpoint_drawing_workbench() -> None:
+    assert (
+        resolve_edit_return_back_endpoint("erp_drawing_workbench_dashboard")
+        == "erp_drawing_workbench.erp_drawing_workbench_dashboard"
+    )
+    assert resolve_edit_return_back_endpoint("") == "erp_dashboard.erp_dashboard"
 
 
 def test_queue_focus_href_drawing_stage_uses_workbench(app) -> None:

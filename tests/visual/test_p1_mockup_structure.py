@@ -417,7 +417,7 @@ def test_p1_drawing_handoff_mobile_v2_mockup_selectors() -> None:
     ):
         assert selector in body, selector
         assert selector in css, selector
-    for selector in ("foms-drawing-queue-card__turn", "primary_action_label"):
+    for selector in ("foms-drawing-queue-card__turn", "primary_action_label", "foms-drawing-queue-card__action--erp-edit", "open='erp-order'"):
         assert selector in queue, selector
     for selector in ("data-drawing-handoff-open", "data-drawing-handoff-action"):
         assert selector in body, selector

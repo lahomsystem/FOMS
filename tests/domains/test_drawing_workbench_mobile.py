@@ -132,6 +132,40 @@ def test_resolve_row_thumbnail_uses_attachment_thumb_key(monkeypatch):
     assert url == "/api/files/view/thumbs/k1.png"
 
 
+def test_edit_order_drawing_return_to_sets_mobile_back_href(client, monkeypatch):
+    """도면 큐 ERP수정 딥링크 return_to는 edit 모바일 셸 back을 drawing-workbench로 연결한다."""
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    user = _login_drawing_admin(client)
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+    order = _drawing_order()
+
+    response = client.get(
+        f"/edit/{order.id}?open=erp-order&return_to=erp_drawing_workbench_dashboard"
+    )
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert 'data-foms-shell-back-href="/erp/drawing-workbench"' in body
+
+
+def test_drawing_workbench_mobile_queue_card_renders_erp_edit_cta(client, monkeypatch):
+    """모바일 도면 큐 카드는 ERP Order 편집(erp-order) 딥링크를 작업 열기 왼쪽에 노출한다."""
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    user = _login_drawing_admin(client)
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+    _drawing_order()
+
+    response = client.get("/erp/drawing-workbench")
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert "foms-drawing-queue-card__action--erp-edit" in body
+    assert "ERP수정" in body
+    assert "open=erp-order" in body
+    assert "return_to=erp_drawing_workbench_dashboard" in body
+    card_actions = body[body.index("foms-drawing-queue-card__actions") : body.index("foms-drawing-queue-card__actions") + 1200]
+    assert "foms-drawing-queue-card__action--erp-edit" in card_actions
+    assert card_actions.index("foms-drawing-queue-card__action--erp-edit") < card_actions.index("is-primary")
+
+
 def test_drawing_workbench_mobile_markup_with_v2_and_thumb(client, monkeypatch):
     monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
     monkeypatch.setenv("FOMS_V3_DRAWING_THUMB_ENABLED", "true")

@@ -38,12 +38,20 @@
       </div>
 
       <div class="foms-drawing-queue-card__actions">
+        {% if can_edit_erp|default(false) %}
+        <a href="{{ url_for('order_edit.edit_order', order_id=r.id, open='erp-order', return_to='erp_drawing_workbench_dashboard') }}"
+          class="foms-drawing-queue-card__action foms-drawing-queue-card__action--erp-edit"
+          aria-label="ERP 주문 수정">
+          <i class="fas fa-pen-to-square" aria-hidden="true"></i>
+          <span>ERP수정</span>
+        </a>
+        {% endif %}
         <a href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=r.id) }}"
           class="foms-drawing-queue-card__action is-primary">
           <i class="fas {{ r.primary_action_icon }}" aria-hidden="true"></i>
           <span>{{ r.primary_action_label }}</span>
         </a>
-        <button type="button" class="foms-drawing-queue-card__action"
+        <button type="button" class="foms-drawing-queue-card__action{% if can_edit_erp|default(false) %} is-assignee{% endif %}"
           onclick="event.preventDefault(); event.stopPropagation(); openSingleAssignModal({{ r.id }})" title="담당자 변경">
           <i class="fas fa-user-edit" aria-hidden="true"></i>
           <span>담당자</span>

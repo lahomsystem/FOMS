@@ -33,6 +33,7 @@ from foms.services.erp_mobile_order_display import (
 )
 from foms.services.common.business_calendar import business_days_until
 from foms.services.erp_order_detail import build_order_detail_payload_map
+from foms.services.erp_order_deeplink import resolve_edit_return_back_endpoint
 from foms.services.erp_shipment_settings import is_order_mine_for_user
 from foms.services.orders.status_constants import BULK_ACTION_STATUS
 from foms.services.request_utils import get_search_query_arg
@@ -979,13 +980,7 @@ def erp_order_mobile_detail(order_id: int):
     order_row = build_mobile_queue_order_row(db, order, current_user)
     can_edit_erp_flag = can_edit_erp(current_user)
     return_to = (request.args.get('return_to') or '').strip()
-    back_endpoint_by_return_to = {
-        'erp_measurement_dashboard': 'erp_measurement_dashboard.erp_measurement_dashboard',
-        'erp_shipment_dashboard': 'erp_shipment_page.erp_shipment_dashboard',
-        'erp_production_dashboard': 'erp_production_page.erp_production_dashboard',
-        'erp_construction_dashboard': 'erp_construction_page.erp_construction_dashboard',
-    }
-    back_endpoint = back_endpoint_by_return_to.get(return_to, 'erp_dashboard.erp_dashboard')
+    back_endpoint = resolve_edit_return_back_endpoint(return_to)
 
     return render_template(
         'orders/mobile_order_detail.html',

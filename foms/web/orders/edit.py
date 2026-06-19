@@ -22,6 +22,7 @@ from foms.services.erp_order_flags import is_erp_order_record
 from db import get_db
 from models import Order
 from foms.services.orders.status_constants import STATUS
+from foms.services.erp_order_deeplink import resolve_edit_return_back_endpoint
 from foms.services.request_utils import get_preserved_filter_args, redirect_if_legacy_open_erp_beta
 from foms.services.order_edit_view_context import build_order_edit_get_context
 from foms.services.jobs.queue import enqueue_geocode_order_address
@@ -370,6 +371,13 @@ def edit_order(order_id):
 
     preserved_args = get_preserved_filter_args(request.args)
     ctx = build_order_edit_get_context(order)
+    return_to = (request.args.get('return_to') or '').strip()
+    if return_to:
+        mobile_shell_back_href = url_for(resolve_edit_return_back_endpoint(return_to))
+    else:
+        mobile_shell_back_href = url_for(
+            'erp_dashboard.erp_order_mobile_detail', order_id=order.id
+        )
     tpl = 'orders/edit_order.html'
     response = make_response(
         render_template(
@@ -377,9 +385,7 @@ def edit_order(order_id):
             preserved_args=preserved_args,
             mobile_shell_title='주문 수정',
             mobile_shell_show_back=True,
-            mobile_shell_back_href=url_for(
-                'erp_dashboard.erp_order_mobile_detail', order_id=order.id
-            ),
+            mobile_shell_back_href=mobile_shell_back_href,
             erp_sub_nav_active='dashboard',
             **ctx,
         )
