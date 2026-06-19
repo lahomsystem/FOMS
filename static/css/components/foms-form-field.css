@@ -990,4 +990,9 @@ body.erp-mobile-v2-layout #erpAttachmentPreviewModal .erp-attachment-preview-act
   body.erp-mobile-v2-layout .erp-order-mobile-form .field-grid-2 {
     grid-template-columns: minmax(0, 1fr);
   }
+  /* 일정: 실측(날짜+시간)·시공(날짜+시간)을 의도적으로 2칼럼 한 행으로 묶는다.
+     라벨은 위(인라인 미적용)라 반폭에서도 안 좁다. */
+  body.erp-mobile-v2-layout .erp-order-mobile-form .field-grid-2.erp-mobile-keep-2col {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
 }

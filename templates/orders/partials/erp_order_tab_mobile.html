@@ -294,8 +294,9 @@ ERP Order mobile-v2 tab pane.
                             <span>기본 접힘</span>
                         </button>
                         <div class="collapse" id="erp-mobile-collapse-schedule-body">
-                        <div class="field-grid-2">
-                            <div class="field erp-mobile-inline">
+                        <!-- 실측: 날짜 + 시간 한 행 -->
+                        <div class="field-grid-2 erp-mobile-keep-2col">
+                            <div class="field">
                                 <label class="field__label" for="erp-measurement-date">실측일</label>
                                 <div class="erp-mobile-date-field">
                                     <input type="text" class="foms-input foms-tabular" id="erp-measurement-date"
@@ -306,32 +307,7 @@ ERP Order mobile-v2 tab pane.
                                     </button>
                                 </div>
                             </div>
-                            <div class="field erp-mobile-inline">
-                                <label class="field__label" for="erp-construction-date">시공일</label>
-                                <div class="erp-mobile-date-field">
-                                    <input type="text" class="foms-input foms-tabular" id="erp-construction-date"
-                                        placeholder="2026-03-13" autocomplete="off"
-                                        title="클릭하거나 달력 아이콘을 누르면 날짜 선택">
-                                    <button type="button" class="foms-btn foms-btn--secondary" id="erp-construction-date-open" title="달력에서 선택" aria-label="달력 열기">
-                                        <i class="fas fa-calendar-alt"></i>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                        <button class="foms-btn foms-btn--ghost foms-btn--sm" type="button"
-                            data-bs-toggle="collapse" data-bs-target="#erp-collapse-measure-note"
-                            aria-expanded="false" aria-controls="erp-collapse-measure-note">
-                            <i class="fas fa-chevron-down"></i> 실측 특이사항
-                        </button>
-                        <div class="collapse" id="erp-collapse-measure-note">
                             <div class="field">
-                                <label class="field__label" for="erp-measurement-note">실측 특이사항</label>
-                                <input type="text" class="foms-input" id="erp-measurement-note"
-                                    placeholder="시간 변경 가능/현장 특이사항/준비물" autocomplete="off" lang="ko">
-                            </div>
-                        </div>
-                        <div class="field-grid-2">
-                            <div class="field erp-mobile-inline">
                                 <label class="field__label" for="erp-measurement-time-select">실측시간</label>
                                 <div class="erp-mobile-time-inline" id="erp-measurement-time-control">
                                     <select class="foms-select" id="erp-measurement-time-select" autocomplete="off">
@@ -345,7 +321,21 @@ ERP Order mobile-v2 tab pane.
                                         placeholder="직접 입력" autocomplete="off" lang="ko">
                                 </div>
                             </div>
-                            <div class="field erp-mobile-inline">
+                        </div>
+                        <!-- 시공: 날짜 + 시간 한 행 -->
+                        <div class="field-grid-2 erp-mobile-keep-2col">
+                            <div class="field">
+                                <label class="field__label" for="erp-construction-date">시공일</label>
+                                <div class="erp-mobile-date-field">
+                                    <input type="text" class="foms-input foms-tabular" id="erp-construction-date"
+                                        placeholder="2026-03-13" autocomplete="off"
+                                        title="클릭하거나 달력 아이콘을 누르면 날짜 선택">
+                                    <button type="button" class="foms-btn foms-btn--secondary" id="erp-construction-date-open" title="달력에서 선택" aria-label="달력 열기">
+                                        <i class="fas fa-calendar-alt"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="field">
                                 <label class="field__label" for="erp-construction-time-select">시공시간</label>
                                 <div class="erp-mobile-time-inline" id="erp-construction-time-control">
                                     <select class="foms-select" id="erp-construction-time-select" autocomplete="off">
@@ -358,6 +348,18 @@ ERP Order mobile-v2 tab pane.
                                     <input type="text" class="foms-input foms-tabular d-none" id="erp-construction-time"
                                         placeholder="직접 입력" autocomplete="off" lang="ko">
                                 </div>
+                            </div>
+                        </div>
+                        <button class="foms-btn foms-btn--ghost foms-btn--sm" type="button"
+                            data-bs-toggle="collapse" data-bs-target="#erp-collapse-measure-note"
+                            aria-expanded="false" aria-controls="erp-collapse-measure-note">
+                            <i class="fas fa-chevron-down"></i> 실측 특이사항
+                        </button>
+                        <div class="collapse" id="erp-collapse-measure-note">
+                            <div class="field">
+                                <label class="field__label" for="erp-measurement-note">실측 특이사항</label>
+                                <input type="text" class="foms-input" id="erp-measurement-note"
+                                    placeholder="시간 변경 가능/현장 특이사항/준비물" autocomplete="off" lang="ko">
                             </div>
                         </div>
                         </div>
