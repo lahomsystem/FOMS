@@ -985,4 +985,9 @@ body.erp-mobile-v2-layout #erpAttachmentPreviewModal .erp-attachment-preview-act
   body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-inline > .erp-mobile-date-field {
     margin: 0;
   }
+  /* 정적 섹션 2분할(field-grid-2)을 모바일에선 1열로 쌓아 각 필드가 인라인 행이 되게 한다.
+     (2분할 유지 시 72px 라벨+반폭 입력으로 좁아짐) */
+  body.erp-mobile-v2-layout .erp-order-mobile-form .field-grid-2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

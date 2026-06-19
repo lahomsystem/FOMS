@@ -46,11 +46,11 @@ ERP Order mobile-v2 tab pane.
                         </button>
                         <div class="collapse" id="erp-mobile-collapse-received-body">
                         <div class="field-grid-2">
-                            <div class="field">
+                            <div class="field erp-mobile-inline">
                                 <label class="field__label" for="erp-received-date">접수일</label>
                                 <input type="date" class="foms-input foms-tabular" id="erp-received-date" autocomplete="off">
                             </div>
-                            <div class="field">
+                            <div class="field erp-mobile-inline">
                                 <label class="field__label" for="erp-received-time-select">접수시간</label>
                                 <div class="erp-mobile-time-inline" id="erp-received-time-control">
                                     <select class="foms-select foms-tabular" id="erp-received-time-select" autocomplete="off">
@@ -78,12 +78,12 @@ ERP Order mobile-v2 tab pane.
                                 <span>지방주문</span>
                             </label>
                         </div>
-                        <div class="field d-none" id="erp-urgent-reason-field">
+                        <div class="field erp-mobile-inline d-none" id="erp-urgent-reason-field">
                             <label class="field__label" for="erp-urgent-reason">긴급 사유</label>
                             <input type="text" class="foms-input" id="erp-urgent-reason"
                                 placeholder="시공일 임박/현장 변경/자재 이슈" autocomplete="off" lang="ko">
                         </div>
-                        <div class="field d-none" id="erp-regional-construction-type-field">
+                        <div class="field erp-mobile-inline d-none" id="erp-regional-construction-type-field">
                             <label class="field__label" for="erp-regional-construction-type">지방주문 구분</label>
                             <select class="foms-input" id="erp-regional-construction-type" autocomplete="off" disabled>
                                 <option value="">하우드/협력사 선택</option>
@@ -97,11 +97,11 @@ ERP Order mobile-v2 tab pane.
                     <section class="erp-form-section" aria-label="고객 정보">
                         <h3 class="erp-form-section__title">고객</h3>
                         <div class="field-grid-2">
-                            <div class="field">
+                            <div class="field erp-mobile-inline">
                                 <label class="field__label" for="erp-customer-name">고객명</label>
                                 <input type="text" class="foms-input" id="erp-customer-name" autocomplete="off" lang="ko">
                             </div>
-                            <div class="field">
+                            <div class="field erp-mobile-inline">
                                 <label class="field__label" for="erp-customer-phone">연락처</label>
                                 <input type="tel" class="foms-input foms-tabular" id="erp-customer-phone" autocomplete="tel" lang="ko">
                             </div>
@@ -250,17 +250,17 @@ ERP Order mobile-v2 tab pane.
                             <input type="text" class="foms-input d-none" id="erp-orderer" autocomplete="off" lang="ko" placeholder="발주사 직접 입력">
                         </div>
                         <div class="field-grid-2">
-                            <div class="field">
+                            <div class="field erp-mobile-inline">
                                 <label class="field__label" for="erp-manager">담당자</label>
                                 <input type="text" class="foms-input" id="erp-manager" autocomplete="off" lang="ko">
                             </div>
-                            <div class="field">
+                            <div class="field erp-mobile-inline">
                                 <label class="field__label" for="erp-construction-workers">시공 담당자</label>
                                 <input type="text" class="foms-input" id="erp-construction-workers" autocomplete="off" lang="ko" placeholder="시공자1, 시공자2">
                             </div>
                         </div>
                         <div class="field-grid-2">
-                            <div class="field">
+                            <div class="field erp-mobile-inline">
                                 <label class="field__label" for="erp-workflow-stage">단계</label>
                                 <select class="foms-select" id="erp-workflow-stage">
                                     <option value="">-</option>
@@ -277,7 +277,7 @@ ERP Order mobile-v2 tab pane.
                                     <option value="AS">AS처리</option>
                                 </select>
                             </div>
-                            <div class="field">
+                            <div class="field erp-mobile-inline">
                                 <label class="field__label" for="erp-notes">비고</label>
                                 <input type="text" class="foms-input" id="erp-notes" placeholder="주문 비고" autocomplete="off" lang="ko">
                             </div>
@@ -295,7 +295,7 @@ ERP Order mobile-v2 tab pane.
                         </button>
                         <div class="collapse" id="erp-mobile-collapse-schedule-body">
                         <div class="field-grid-2">
-                            <div class="field">
+                            <div class="field erp-mobile-inline">
                                 <label class="field__label" for="erp-measurement-date">실측일</label>
                                 <div class="erp-mobile-date-field">
                                     <input type="text" class="foms-input foms-tabular" id="erp-measurement-date"
@@ -306,7 +306,7 @@ ERP Order mobile-v2 tab pane.
                                     </button>
                                 </div>
                             </div>
-                            <div class="field">
+                            <div class="field erp-mobile-inline">
                                 <label class="field__label" for="erp-construction-date">시공일</label>
                                 <div class="erp-mobile-date-field">
                                     <input type="text" class="foms-input foms-tabular" id="erp-construction-date"
@@ -331,7 +331,7 @@ ERP Order mobile-v2 tab pane.
                             </div>
                         </div>
                         <div class="field-grid-2">
-                            <div class="field">
+                            <div class="field erp-mobile-inline">
                                 <label class="field__label" for="erp-measurement-time-select">실측시간</label>
                                 <div class="erp-mobile-time-inline" id="erp-measurement-time-control">
                                     <select class="foms-select" id="erp-measurement-time-select" autocomplete="off">
@@ -345,7 +345,7 @@ ERP Order mobile-v2 tab pane.
                                         placeholder="직접 입력" autocomplete="off" lang="ko">
                                 </div>
                             </div>
-                            <div class="field">
+                            <div class="field erp-mobile-inline">
                                 <label class="field__label" for="erp-construction-time-select">시공시간</label>
                                 <div class="erp-mobile-time-inline" id="erp-construction-time-control">
                                     <select class="foms-select" id="erp-construction-time-select" autocomplete="off">
