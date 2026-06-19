@@ -122,6 +122,10 @@
   padding: 0.75rem;
 }
 
+.foms-drawing-queue-card__grid--no-thumb {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .foms-drawing-queue-card__thumb {
   display: flex;
   align-items: center;
@@ -231,64 +235,39 @@
 }
 
 .foms-drawing-queue-card__actions {
+  grid-column: 1 / -1;
   display: flex;
   flex-wrap: nowrap;
   align-items: stretch;
-  gap: 0.4rem;
-  margin-top: 0.15rem;
+  gap: var(--foms-space-2, 8px);
+  margin: 0;
+  padding-top: var(--foms-space-2, 8px);
+  border-top: 1px solid var(--foms-border-subtle, #dde1e6);
   min-width: 0;
 }
 
-.foms-drawing-queue-card__action {
-  display: inline-flex;
+.foms-drawing-queue-card__actions .foms-btn {
   flex: 1 1 0;
-  flex-direction: row;
-  align-items: center;
-  justify-content: center;
-  gap: 0.35rem;
+  min-width: 0;
   min-height: var(--foms-touch-target-min, 2.5rem);
-  min-width: 0;
-  padding: 0 0.5rem;
-  border: 1px solid var(--foms-border-default, #c1c7d0);
-  border-radius: 8px;
-  background: var(--foms-surface-base, #fff);
-  color: var(--foms-text-primary, #14171c);
-  font-size: 0.82rem;
-  font-weight: 800;
-  line-height: 1.2;
-  white-space: nowrap;
-  text-decoration: none;
-}
-
-.foms-drawing-queue-card__action > i {
-  flex-shrink: 0;
-}
-
-.foms-drawing-queue-card__action > span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.foms-drawing-queue-card__action.is-primary {
+.foms-drawing-queue-card__actions .foms-drawing-queue-card__open-work {
   flex: 2 1 0;
-  border-color: var(--foms-color-brand-500, #5a67d8);
-  background: var(--foms-color-brand-500, #5a67d8);
-  color: #fff;
 }
 
-.foms-drawing-queue-card__action--erp-edit {
+.foms-drawing-queue-card__actions .foms-drawing-queue-card__erp-edit {
   border-color: var(--foms-color-brand-200, #c3d0ff);
   color: var(--foms-color-brand-700, #434190);
   background: var(--foms-color-brand-50, #f0f2ff);
 }
 
-.foms-drawing-queue-card__action--erp-edit:active {
+.foms-drawing-queue-card__actions .foms-drawing-queue-card__erp-edit:active {
   background: var(--foms-color-brand-100, #e0e7ff);
 }
 
-.foms-drawing-queue-card__actions:has(.foms-drawing-queue-card__action--erp-edit) .foms-drawing-queue-card__action {
+.foms-drawing-queue-card__actions:has(.foms-drawing-queue-card__erp-edit) .foms-btn {
   font-size: 0.78rem;
   padding-inline: 0.45rem;
 }
@@ -354,7 +333,7 @@
     padding: 0.75rem;
   }
 
-  body.erp-mobile-v2-layout .foms-drawing-mobile-dashboard .foms-drawing-queue-card__action {
+  body.erp-mobile-v2-layout .foms-drawing-mobile-dashboard .foms-drawing-queue-card__actions .foms-btn {
     min-height: var(--foms-touch-target-min, 40px);
   }
 }

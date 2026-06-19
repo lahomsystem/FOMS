@@ -157,13 +157,13 @@ def test_drawing_workbench_mobile_queue_card_renders_erp_edit_cta(client, monkey
     response = client.get("/erp/drawing-workbench")
     assert response.status_code == 200
     body = response.get_data(as_text=True)
-    assert "foms-drawing-queue-card__action--erp-edit" in body
+    assert "foms-drawing-queue-card__erp-edit" in body
     assert "ERP수정" in body
     assert "open=erp-order" in body
     assert "return_to=erp_drawing_workbench_dashboard" in body
     card_actions = body[body.index("foms-drawing-queue-card__actions") : body.index("foms-drawing-queue-card__actions") + 1200]
-    assert "foms-drawing-queue-card__action--erp-edit" in card_actions
-    assert card_actions.index("foms-drawing-queue-card__action--erp-edit") < card_actions.index("is-primary")
+    assert "foms-drawing-queue-card__erp-edit" in card_actions
+    assert card_actions.index("foms-drawing-queue-card__erp-edit") < card_actions.index("foms-drawing-queue-card__open-work")
 
 
 def test_drawing_workbench_mobile_markup_with_v2_and_thumb(client, monkeypatch):

@@ -584,7 +584,7 @@
   document.addEventListener('click', function (e) {
     const mobileCard = e.target.closest('.erp-drawing-mobile-card');
     if (mobileCard) {
-      if (e.target.closest('a, button, input, select, label')) return;
+      if (e.target.closest('a, button, input, select, label, .foms-drawing-queue-card__actions')) return;
       const mobileHref = mobileCard.getAttribute('data-href');
       if (mobileHref) window.location.href = mobileHref;
       return;
@@ -616,13 +616,13 @@
     };
 
     card.addEventListener('click', function (e) {
-      if (e.target.closest('a, button, input, select, label')) return;
+      if (e.target.closest('a, button, input, select, label, .foms-drawing-queue-card__actions')) return;
       navigateToCard();
     });
 
     card.addEventListener('keydown', function (e) {
       if (e.key !== 'Enter' && e.key !== ' ') return;
-      if (e.target.closest('a, button, input, select, label')) return;
+      if (e.target.closest('a, button, input, select, label, .foms-drawing-queue-card__actions')) return;
       e.preventDefault();
       navigateToCard();
     });

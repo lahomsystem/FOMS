@@ -2,7 +2,7 @@
   data-order-id="{{ r.id }}"
   data-href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=r.id) }}"
   tabindex="0" role="link" aria-label="주문 {{ r.id }} {{ r.customer_name }} 도면 협업 열기">
-  <div class="card-body foms-drawing-queue-card__grid">
+  <div class="card-body foms-drawing-queue-card__grid{% if not drawing_thumb_enabled|default(false) %} foms-drawing-queue-card__grid--no-thumb{% endif %}">
     {% if drawing_thumb_enabled %}
     <div class="foms-drawing-queue-card__thumb{% if not r.thumbnail_url %} is-placeholder{% endif %}" aria-hidden="true">
       {% if r.thumbnail_url %}
@@ -36,27 +36,27 @@
         {% elif r.sla_level == '오늘 마감' %}<span class="foms-drawing-queue-card__chip is-warn">오늘 마감</span>{% endif %}
         {% if r.my_todo %}<span class="foms-drawing-queue-card__chip is-mine">내 할 일</span>{% endif %}
       </div>
-
-      <div class="foms-drawing-queue-card__actions">
-        {% if can_edit_erp|default(false) %}
-        <a href="{{ url_for('order_edit.edit_order', order_id=r.id, open='erp-order', return_to='erp_drawing_workbench_dashboard') }}"
-          class="foms-drawing-queue-card__action foms-drawing-queue-card__action--erp-edit"
-          aria-label="ERP 주문 수정">
-          <i class="fas fa-pen-to-square" aria-hidden="true"></i>
-          <span>ERP수정</span>
-        </a>
-        {% endif %}
-        <a href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=r.id) }}"
-          class="foms-drawing-queue-card__action is-primary">
-          <i class="fas {{ r.primary_action_icon }}" aria-hidden="true"></i>
-          <span>{{ r.primary_action_label }}</span>
-        </a>
-        <button type="button" class="foms-drawing-queue-card__action"
-          onclick="event.preventDefault(); event.stopPropagation(); openSingleAssignModal({{ r.id }})" title="담당자 변경">
-          <i class="fas fa-user-edit" aria-hidden="true"></i>
-          <span>담당자</span>
-        </button>
-      </div>
     </div>
+
+    <footer class="foms-drawing-queue-card__actions" aria-label="도면 작업 액션">
+      {% if can_edit_erp|default(false) %}
+      <a href="{{ url_for('order_edit.edit_order', order_id=r.id, open='erp-order', return_to='erp_drawing_workbench_dashboard') }}"
+        class="foms-btn foms-btn--secondary foms-btn--sm foms-drawing-queue-card__erp-edit"
+        aria-label="ERP 주문 수정">
+        <i class="fas fa-pen-to-square" aria-hidden="true"></i>
+        ERP수정
+      </a>
+      {% endif %}
+      <a href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=r.id) }}"
+        class="foms-btn foms-btn--primary foms-btn--sm foms-drawing-queue-card__open-work">
+        <i class="fas {{ r.primary_action_icon }}" aria-hidden="true"></i>
+        {{ r.primary_action_label }}
+      </a>
+      <button type="button" class="foms-btn foms-btn--ghost foms-btn--sm foms-drawing-queue-card__assignee"
+        onclick="event.preventDefault(); event.stopPropagation(); openSingleAssignModal({{ r.id }})" title="담당자 변경">
+        <i class="fas fa-user-edit" aria-hidden="true"></i>
+        담당자
+      </button>
+    </footer>
   </div>
 </div>

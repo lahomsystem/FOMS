@@ -394,15 +394,18 @@ def test_p1_drawing_mobile_v2_home_ia_parity() -> None:
 
 
 def test_p1_drawing_queue_card_action_bar_css_contract() -> None:
-    """도면 큐 카드 액션바는 queue-card-v2와 동일하게 nowrap·동일 높이·1:2:1 flex를 유지한다."""
+    """도면 큐 카드 액션 footer는 queue-card-v2처럼 grid full-span·border-top·foms-btn flex."""
     css = (ROOT / "static/css/components/foms-drawing-mobile-card.css").read_text(encoding="utf-8")
+    queue = (ROOT / "templates/drawing/partials/workbench_mobile_queue_card.html").read_text(encoding="utf-8")
+    assert "grid-column: 1 / -1;" in css
+    assert "border-top: 1px solid var(--foms-border-subtle" in css
     assert "flex-wrap: nowrap;" in css
-    assert "align-items: stretch;" in css
-    assert "white-space: nowrap;" in css
-    assert "min-width: 0;" in css
     assert "foms-touch-target-min" in css
-    assert "flex: 0.85 1 0" not in css
-    assert "is-assignee" not in css
+    assert "foms-drawing-queue-card__grid--no-thumb" in css
+    assert "<footer class=\"foms-drawing-queue-card__actions\"" in queue
+    assert "foms-btn foms-btn--primary" in queue
+    assert queue.index("foms-drawing-queue-card__main") < queue.index("foms-drawing-queue-card__actions")
+    assert "foms-drawing-queue-card__action--erp-edit" not in queue
 
 
 def test_p1_drawing_handoff_mobile_v2_mockup_selectors() -> None:
@@ -429,7 +432,7 @@ def test_p1_drawing_handoff_mobile_v2_mockup_selectors() -> None:
     ):
         assert selector in body, selector
         assert selector in css, selector
-    for selector in ("foms-drawing-queue-card__turn", "primary_action_label", "foms-drawing-queue-card__action--erp-edit", "open='erp-order'"):
+    for selector in ("foms-drawing-queue-card__turn", "primary_action_label", "foms-drawing-queue-card__erp-edit", "open='erp-order'"):
         assert selector in queue, selector
     for selector in ("data-drawing-handoff-open", "data-drawing-handoff-action"):
         assert selector in body, selector
