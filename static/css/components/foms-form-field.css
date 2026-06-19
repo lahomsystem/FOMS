@@ -963,4 +963,26 @@ body.erp-mobile-v2-layout #erpAttachmentPreviewModal .erp-attachment-preview-act
     padding-top: 6px;
     padding-bottom: 6px;
   }
+
+  /* ── 인라인 라벨 행: 라벨 좌(72px 고정) / 입력 우 (주문 상세 밀도) ──
+     짧은 단일 입력 필드에만 적용. 긴/멀티라인(주소·제품명·규격·추가입력)은 풀폭 유지.
+     레이아웃만 변경 — data-erp·기능 불변. */
+  body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-inline,
+  body.erp-mobile-v2-layout .erp-order-mobile-form #erp-items .erp-mobile-full-row {
+    display: grid;
+    grid-template-columns: 72px minmax(0, 1fr);
+    align-items: center;
+    column-gap: 10px;
+    row-gap: 0;
+  }
+  body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-inline > .field__label,
+  body.erp-mobile-v2-layout .erp-order-mobile-form #erp-items .erp-mobile-full-row > .form-label {
+    margin: 0;
+    align-self: center;
+  }
+  /* 인라인 행 내부의 부가 컨트롤(시간 select+직접입력, 날짜+달력버튼)도 우측 칸에 정렬 */
+  body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-inline > .erp-mobile-time-inline,
+  body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-inline > .erp-mobile-date-field {
+    margin: 0;
+  }
 }

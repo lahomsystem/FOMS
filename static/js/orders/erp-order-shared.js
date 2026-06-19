@@ -905,7 +905,7 @@ ${attributeFieldsHtml}
     <label class="form-label mb-1 small text-primary">기타 / 설치위치</label>
     ${erpMobileFlexibleControl('misc', '기타 / 설치위치', misc, { isMobileForm, inputClass, placeholder: '상담' })}
 </div>
-<div class="col-md-6">
+<div class="col-md-6 erp-mobile-full-row">
     <label class="form-label mb-1 small text-primary">항목 금액(원)</label>
     <input class="${tabularInputClass}" data-erp="price" inputmode="numeric" value="${escapeHtml(price)}" lang="ko">
 </div>
