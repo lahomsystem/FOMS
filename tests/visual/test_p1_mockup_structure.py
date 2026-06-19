@@ -393,6 +393,18 @@ def test_p1_drawing_mobile_v2_home_ia_parity() -> None:
     assert "foms-shell-body" in gallery
 
 
+def test_p1_drawing_queue_card_action_bar_css_contract() -> None:
+    """도면 큐 카드 액션바는 queue-card-v2와 동일하게 nowrap·동일 높이·1:2:1 flex를 유지한다."""
+    css = (ROOT / "static/css/components/foms-drawing-mobile-card.css").read_text(encoding="utf-8")
+    assert "flex-wrap: nowrap;" in css
+    assert "align-items: stretch;" in css
+    assert "white-space: nowrap;" in css
+    assert "min-width: 0;" in css
+    assert "foms-touch-target-min" in css
+    assert "flex: 0.85 1 0" not in css
+    assert "is-assignee" not in css
+
+
 def test_p1_drawing_handoff_mobile_v2_mockup_selectors() -> None:
     """도면 핸드오프 목업 A/B/C가 모바일 v2 partial/CSS/JS hook으로 연결된다."""
     body = (ROOT / "templates/drawing/partials/workbench_mobile_handoff.html").read_text(
