@@ -945,4 +945,22 @@ body.erp-mobile-v2-layout #erpAttachmentPreviewModal .erp-attachment-preview-act
   body.erp-mobile-v2-layout .erp-order-mobile-form #erp-items .form-label { margin-bottom: 2px; }
   /* 일반 필드(고객·접수·발주 등) 간격 추가 압축 */
   body.erp-mobile-v2-layout .erp-order-mobile-form .field { margin-bottom: 6px; }
+
+  /* 타이포·입력 높이를 주문 상세(.foms-kv-row: 라벨13/값15, 행 40px)에 맞춰 압축.
+     라벨 13px, 입력/셀렉트 min-height 48→44(터치 유지), 세로 패딩 6px.
+     입력 글자는 16px 유지(iOS 포커스 자동 줌 방지). */
+  body.erp-mobile-v2-layout .erp-order-mobile-form .field__label,
+  body.erp-mobile-v2-layout .erp-order-mobile-form #erp-items .form-label {
+    font-size: 13px;
+    line-height: 1.3;
+  }
+  body.erp-mobile-v2-layout .erp-order-mobile-form .foms-input,
+  body.erp-mobile-v2-layout .erp-order-mobile-form .foms-select,
+  body.erp-mobile-v2-layout .erp-order-mobile-form select.foms-select,
+  body.erp-mobile-v2-layout .erp-order-mobile-form #erp-items .foms-input,
+  body.erp-mobile-v2-layout .erp-order-mobile-form #erp-items .erp-flex-textarea {
+    min-height: 44px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
 }
