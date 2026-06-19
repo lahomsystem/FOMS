@@ -398,7 +398,8 @@ def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
     assert "erpAppendConversionMoneyLine(text, '예약금(선금)', totals.deposit_amount)" in conversion_block
     assert "erpAppendConversionMoneyLine(text, '잔금', totals.final_amount)" in conversion_block
     assert "visibleItemIndex += 1" in conversion_block
-    assert "function erpSliceConversionTextForChannelPush(text)" in text
+    assert "function erpReadScheduleTimeValue(selectId, inputId)" in text
+    assert "erpReadScheduleTimeValue('erp-construction-time-select', 'erp-construction-time')" in conversion_block
     assert "실측일\\s*:" in text
     assert "text += `예약금(선금) : ${erpFormatMoneyKRW(totals.deposit_amount)}\\n`;" not in conversion_block
     assert "선결제금액" not in conversion_block

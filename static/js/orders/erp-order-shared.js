@@ -1218,6 +1218,16 @@ function erpBindScheduleTimeControl(selectId, inputId) {
     });
 }
 
+function erpReadScheduleTimeValue(selectId, inputId) {
+    const select = document.getElementById(selectId);
+    const input = document.getElementById(inputId);
+    if (!select) return '';
+    if (select.value === ERP_RECEIVED_TIME_DIRECT_VALUE) {
+        return input ? String(input.value || '').trim() : '';
+    }
+    return String(select.value || '').trim();
+}
+
 function erpSyncUrgentReasonVisibility(options = {}) {
     const urgent = document.getElementById('erp-urgent-flag');
     const field = document.getElementById('erp-urgent-reason-field');
@@ -3512,15 +3522,7 @@ function erpGenerateConversionText() {
     measurementDate = formatDateToKorean(measurementDate);
 
     // 시간: select가 직접입력이면 input 값 사용
-    let measurementTime = '';
-    const timeSelect = document.getElementById('erp-measurement-time-select');
-    if (timeSelect) {
-        if (timeSelect.value === '__direct__') {
-            measurementTime = getVal('erp-measurement-time');
-        } else {
-            measurementTime = timeSelect.value;
-        }
-    }
+    const measurementTime = erpReadScheduleTimeValue('erp-measurement-time-select', 'erp-measurement-time');
 
     const customerName = getVal('erp-customer-name');
     let orderer = typeof getOrdererValue === 'function' ? getOrdererValue() : getVal('erp-orderer');
@@ -3530,15 +3532,7 @@ function erpGenerateConversionText() {
     if (!constructionDate) constructionDate = '상담'; // Default
     else constructionDate = formatDateToKorean(constructionDate);
 
-    let constructionTime = '';
-    const constructionTimeSelect = document.getElementById('erp-construction-time-select');
-    if (constructionTimeSelect) {
-        if (constructionTimeSelect.value === '__direct__') {
-            constructionTime = getVal('erp-construction-time');
-        } else {
-            constructionTime = constructionTimeSelect.value;
-        }
-    }
+    const constructionTime = erpReadScheduleTimeValue('erp-construction-time-select', 'erp-construction-time');
 
     const address = getVal('erp-address');
     const phone = getVal('erp-customer-phone');
