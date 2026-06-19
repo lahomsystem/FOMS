@@ -3473,6 +3473,19 @@ function erpAppendConversionMoneyLine(text, label, amount) {
     return text + `${label} : ${erpFormatMoneyKRW(n)}\n`;
 }
 
+function erpSliceConversionTextForChannelPush(text) {
+    const raw = String(text ?? '').trim();
+    if (!raw) return '';
+    const idx = raw.search(/^고객명\s*:/m);
+    if (idx >= 0) return raw.slice(idx).trim();
+    return raw
+        .split('\n')
+        .filter((line) => !/^\s*실측일\s*:/.test(line) && !/^\s*시\s*간\s*:/.test(line))
+        .join('\n')
+        .replace(/^\n+/, '')
+        .trim();
+}
+
 function erpGenerateConversionText() {
     const getVal = (id) => {
         const el = document.getElementById(id);
@@ -3964,7 +3977,9 @@ function fomsMountErpOrderSurface() {
         if (typeof erpGenerateConversionText === 'function') {
             erpGenerateConversionText();
         }
-        const text = (document.getElementById('erp-conversion-text')?.value || '').trim();
+        const text = erpSliceConversionTextForChannelPush(
+            document.getElementById('erp-conversion-text')?.value || ''
+        );
         if (!text) {
             alert('변환할 내용이 없습니다. 주문 정보를 입력해주세요.');
             return;

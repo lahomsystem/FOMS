@@ -262,6 +262,7 @@ def test_shared_erp_order_js_does_not_auto_save_before_user_save() -> None:
     push_block = text[push_start:push_end]
     assert "erpSaveStructured(" not in push_block
     assert "erpCanUsePersistedOrderAction('푸쉬는')" in push_block
+    assert "erpSliceConversionTextForChannelPush(" in push_block
 
 
 def test_shared_erp_order_supports_scoped_clipboard_image_upload() -> None:
@@ -397,6 +398,8 @@ def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
     assert "erpAppendConversionMoneyLine(text, '예약금(선금)', totals.deposit_amount)" in conversion_block
     assert "erpAppendConversionMoneyLine(text, '잔금', totals.final_amount)" in conversion_block
     assert "visibleItemIndex += 1" in conversion_block
+    assert "function erpSliceConversionTextForChannelPush(text)" in text
+    assert "실측일\\s*:" in text
     assert "text += `예약금(선금) : ${erpFormatMoneyKRW(totals.deposit_amount)}\\n`;" not in conversion_block
     assert "선결제금액" not in conversion_block
 
