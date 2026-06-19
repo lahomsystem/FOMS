@@ -387,12 +387,17 @@ def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
     conversion_start = text.index("function erpGenerateConversionText()")
     conversion_end = text.index("function erpCopyToClipboard()", conversion_start)
     conversion_block = text[conversion_start:conversion_end]
-    assert "text += `추가 입력 : ${extraInput}\\n`;" in conversion_block
+    assert "function erpHasConversionTextValue(value)" in text
+    assert "function erpAppendConversionTextLine(text, label, value)" in text
+    assert "function erpAppendConversionMoneyLine(text, label, amount)" in text
+    assert "erpAppendConversionTextLine(itemText, '추가 입력', extraInput)" in conversion_block
     assert "allExtraInputs" not in conversion_block
     assert "getVal('erp-manager')" in conversion_block
-    assert "text += `출고가 : ${erpFormatMoneyKRW(totals.items_total)}\\n`;" in conversion_block
-    assert "text += `예약금(선금) : ${erpFormatMoneyKRW(totals.deposit_amount)}\\n`;" in conversion_block
-    assert "text += `잔금 : ${erpFormatMoneyKRW(totals.final_amount)}`;" in conversion_block
+    assert "erpAppendConversionMoneyLine(text, '출고가', totals.items_total)" in conversion_block
+    assert "erpAppendConversionMoneyLine(text, '예약금(선금)', totals.deposit_amount)" in conversion_block
+    assert "erpAppendConversionMoneyLine(text, '잔금', totals.final_amount)" in conversion_block
+    assert "visibleItemIndex += 1" in conversion_block
+    assert "text += `예약금(선금) : ${erpFormatMoneyKRW(totals.deposit_amount)}\\n`;" not in conversion_block
     assert "선결제금액" not in conversion_block
 
 

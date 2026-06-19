@@ -3458,6 +3458,21 @@ async function erpDeleteAttachment(attachmentId) {
 // ============================================
 // ERP Order: Text Conversion (기존주문 변환)
 // ============================================
+function erpHasConversionTextValue(value) {
+    return String(value ?? '').trim().length > 0;
+}
+
+function erpAppendConversionTextLine(text, label, value) {
+    if (!erpHasConversionTextValue(value)) return text;
+    return text + `${label} : ${String(value).trim()}\n`;
+}
+
+function erpAppendConversionMoneyLine(text, label, amount) {
+    const n = erpCoerceAmount(amount);
+    if (n <= 0) return text;
+    return text + `${label} : ${erpFormatMoneyKRW(n)}\n`;
+}
+
 function erpGenerateConversionText() {
     const getVal = (id) => {
         const el = document.getElementById(id);
@@ -3515,23 +3530,25 @@ function erpGenerateConversionText() {
     const address = getVal('erp-address');
     const phone = getVal('erp-customer-phone');
 
-    // Header
-    let text = `실측일 : ${measurementDate}\n`;
-    text += `시   간 : ${measurementTime}\n`;
-    text += `\n`;
-    text += `고객명 : ${customerName}\n`;
-    text += `발주사 : ${orderer}\n`;
-    text += `시공일 : ${constructionDate}\n`;
-    text += `시공시간 : ${constructionTime}\n`;
-    text += `주  소 : ${address}\n`;
-    text += `연락처 : ${phone}\n`;
-    text += `\n`;
+    // Header + customer (값 없는 라인은 제외)
+    let text = '';
+    text = erpAppendConversionTextLine(text, '실측일', measurementDate);
+    text = erpAppendConversionTextLine(text, '시   간', measurementTime);
+    if (text) text += '\n';
+    text = erpAppendConversionTextLine(text, '고객명', customerName);
+    text = erpAppendConversionTextLine(text, '발주사', orderer);
+    text = erpAppendConversionTextLine(text, '시공일', constructionDate);
+    text = erpAppendConversionTextLine(text, '시공시간', constructionTime);
+    text = erpAppendConversionTextLine(text, '주  소', address);
+    text = erpAppendConversionTextLine(text, '연락처', phone);
+    if (text && !text.endsWith('\n\n')) text += '\n';
 
     // Items
     const rows = erpGetItemRows();
     const itemCount = rows.length;
+    let visibleItemIndex = 0;
 
-    rows.forEach((row, index) => {
+    rows.forEach((row) => {
         const getRowVal = (key) => {
             const el = row.querySelector(`[data-erp="${key}"]`);
             return el ? (el.value || '').trim() : '';
@@ -3558,21 +3575,23 @@ function erpGenerateConversionText() {
         const handle = getRowVal('handle');
         const misc = getRowVal('misc');
 
-        if (itemCount >= 2) {
-            text += `${index + 1}.\n`;
-        }
+        let itemText = '';
+        itemText = erpAppendConversionTextLine(itemText, '제품명', pName);
+        itemText = erpAppendConversionTextLine(itemText, '규 격', spec);
+        itemText = erpAppendConversionTextLine(itemText, '내 부', internal);
+        itemText = erpAppendConversionTextLine(itemText, '색 상', color);
+        itemText = erpAppendConversionTextLine(itemText, '옵 션', option);
+        itemText = erpAppendConversionTextLine(itemText, '손잡이', handle);
+        itemText = erpAppendConversionTextLine(itemText, '기 타', misc);
+        itemText = erpAppendConversionTextLine(itemText, '추가 입력', extraInput);
+        if (!itemText) return;
 
-        text += `제품명 : ${pName}\n`;
-        text += `규 격 : ${spec}\n`;
-        text += `내 부 : ${internal}\n`;
-        text += `색 상 : ${color}\n`;
-        text += `옵 션 : ${option}\n`;
-        text += `손잡이 : ${handle}\n`;
-        text += `기 타 : ${misc}\n`;
-        if (extraInput) {
-            text += `추가 입력 : ${extraInput}\n`;
+        visibleItemIndex += 1;
+        if (itemCount >= 2) {
+            text += `${visibleItemIndex}.\n`;
         }
-        text += `\n`;
+        text += itemText;
+        text += '\n';
     });
 
     // Footer: 채널톡/발주방 공유용 고정 포맷 (담당자 + 출고가 + 예약금 + 잔금)
@@ -3582,14 +3601,14 @@ function erpGenerateConversionText() {
     const discountAmount = erpParseDiscountValue();
     const totals = erpBuildTotals(itemsTotal, depositAmount, discountAmount);
 
-    text += `담당자 : ${manager}\n`;
-    text += `\n`;
-    text += `출고가 : ${erpFormatMoneyKRW(totals.items_total)}\n`;
-    text += `예약금(선금) : ${erpFormatMoneyKRW(totals.deposit_amount)}\n`;
-    if (discountAmount > 0) {
-        text += `할인 : ${erpFormatMoneyKRW(totals.discount_amount)}\n`;
-    }
-    text += `잔금 : ${erpFormatMoneyKRW(totals.final_amount)}`;
+    const footerStart = text.length;
+    text = erpAppendConversionTextLine(text, '담당자', manager);
+    if (text.length > footerStart) text += '\n';
+    text = erpAppendConversionMoneyLine(text, '출고가', totals.items_total);
+    text = erpAppendConversionMoneyLine(text, '예약금(선금)', totals.deposit_amount);
+    text = erpAppendConversionMoneyLine(text, '할인', totals.discount_amount);
+    text = erpAppendConversionMoneyLine(text, '잔금', totals.final_amount);
+    text = text.replace(/\n+$/, '');
 
     const textarea = document.getElementById('erp-conversion-text');
     if (textarea) {
