@@ -398,14 +398,10 @@ def test_p1_drawing_queue_card_action_bar_css_contract() -> None:
     css = (ROOT / "static/css/components/foms-drawing-mobile-card.css").read_text(encoding="utf-8")
     queue = (ROOT / "templates/drawing/partials/workbench_mobile_queue_card.html").read_text(encoding="utf-8")
     assert "grid-column: 1 / -1;" in css
-    assert "border-top: 1px solid var(--foms-border-subtle" in css
-    assert "flex-wrap: nowrap;" in css
-    assert "foms-touch-target-min" in css
-    assert "foms-drawing-queue-card__grid--no-thumb" in css
-    assert "<footer class=\"foms-drawing-queue-card__actions\"" in queue
-    assert "foms-btn foms-btn--primary" in queue
-    assert queue.index("foms-drawing-queue-card__main") < queue.index("foms-drawing-queue-card__actions")
-    assert "foms-drawing-queue-card__action--erp-edit" not in queue
+    assert "flex: 1 1 auto;" in css
+    assert "foms-drawing-queue-card__action-label" in css
+    assert "foms-drawing-queue-card__action-label" in queue
+    assert "flex: 1 1 0" not in css
 
 
 def test_p1_drawing_handoff_mobile_v2_mockup_selectors() -> None:

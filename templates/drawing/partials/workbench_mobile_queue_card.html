@@ -44,18 +44,18 @@
         class="foms-btn foms-btn--secondary foms-btn--sm foms-drawing-queue-card__erp-edit"
         aria-label="ERP 주문 수정">
         <i class="fas fa-pen-to-square" aria-hidden="true"></i>
-        ERP수정
+        <span class="foms-drawing-queue-card__action-label">ERP수정</span>
       </a>
       {% endif %}
       <a href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=r.id) }}"
         class="foms-btn foms-btn--primary foms-btn--sm foms-drawing-queue-card__open-work">
         <i class="fas {{ r.primary_action_icon }}" aria-hidden="true"></i>
-        {{ r.primary_action_label }}
+        <span class="foms-drawing-queue-card__action-label">{{ r.primary_action_label }}</span>
       </a>
       <button type="button" class="foms-btn foms-btn--ghost foms-btn--sm foms-drawing-queue-card__assignee"
         onclick="event.preventDefault(); event.stopPropagation(); openSingleAssignModal({{ r.id }})" title="담당자 변경">
         <i class="fas fa-user-edit" aria-hidden="true"></i>
-        담당자
+        <span class="foms-drawing-queue-card__action-label">담당자</span>
       </button>
     </footer>
   </div>

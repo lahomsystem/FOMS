@@ -237,24 +237,40 @@
 .foms-drawing-queue-card__actions {
   grid-column: 1 / -1;
   display: flex;
+  flex-direction: row;
   flex-wrap: nowrap;
   align-items: stretch;
+  justify-content: stretch;
   gap: var(--foms-space-2, 8px);
+  width: 100%;
   margin: 0;
   padding-top: var(--foms-space-2, 8px);
   border-top: 1px solid var(--foms-border-subtle, #dde1e6);
-  min-width: 0;
 }
 
 .foms-drawing-queue-card__actions .foms-btn {
-  flex: 1 1 0;
-  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: row;
+  flex-wrap: nowrap;
   min-height: var(--foms-touch-target-min, 2.5rem);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.foms-drawing-queue-card__actions .foms-btn > i {
+  flex-shrink: 0;
+}
+
+.foms-drawing-queue-card__action-label {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .foms-drawing-queue-card__actions .foms-drawing-queue-card__open-work {
-  flex: 2 1 0;
+  flex: 2 1 auto;
 }
 
 .foms-drawing-queue-card__actions .foms-drawing-queue-card__erp-edit {
