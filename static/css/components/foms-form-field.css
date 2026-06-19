@@ -930,6 +930,19 @@ body.erp-mobile-v2-layout #erpAttachmentPreviewModal .erp-attachment-preview-act
   body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-amounts { margin-top: var(--foms-space-2); }
   body.erp-mobile-v2-layout .erp-order-mobile-form .erp-form-section > .collapse.show,
   body.erp-mobile-v2-layout .erp-order-mobile-form .erp-form-section > .collapse.collapsing { margin-top: var(--foms-space-2); }
-  /* 항목 카드 본문 필드 간격 압축 */
-  body.erp-mobile-v2-layout .erp-order-mobile-form #erp-items .erp-item-row .row { gap: var(--foms-space-2); }
+  /* 항목 카드 본문 필드 간격 압축: Bootstrap .g-2 거터(margin-top)와 grid gap이
+     이중으로 쌓여 16px가 되던 것을 거터 제거로 단일화(6px). */
+  body.erp-mobile-v2-layout .erp-order-mobile-form #erp-items .erp-item-row .row {
+    --bs-gutter-y: 0;
+    --bs-gutter-x: 0;
+    gap: 6px;
+  }
+  body.erp-mobile-v2-layout .erp-order-mobile-form #erp-items .erp-item-row .row > * {
+    margin-top: 0;
+  }
+  /* 항목 단일행 입력(색상·손잡이 등) 최소높이 살짝 축소(터치 44px 유지) */
+  body.erp-mobile-v2-layout .erp-order-mobile-form #erp-items .erp-flex-textarea { min-height: 44px; }
+  body.erp-mobile-v2-layout .erp-order-mobile-form #erp-items .form-label { margin-bottom: 2px; }
+  /* 일반 필드(고객·접수·발주 등) 간격 추가 압축 */
+  body.erp-mobile-v2-layout .erp-order-mobile-form .field { margin-bottom: 6px; }
 }
