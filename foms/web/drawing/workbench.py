@@ -244,8 +244,6 @@ def erp_drawing_workbench_dashboard():
             (drawing_status in ('PENDING', 'RETURNED') and is_drawing_assignee)
             or (drawing_status == 'TRANSFERRED' and can_sales)
         )
-        if mine_only and not my_todo and not is_order_mine_for_user(o, current_user):
-            continue
 
         unchecked_requests = 0
         for h in history:
@@ -255,22 +253,9 @@ def erp_drawing_workbench_dashboard():
             review = review_raw if isinstance(review_raw, dict) else {}
             if not bool(review.get('checked')):
                 unchecked_requests += 1
-        if unread_only and unchecked_requests <= 0:
-            continue
 
         alerts = _erp_alerts(o, sd, 0)
         due_today = (alerts.get('measurement_days') == 0 or alerts.get('construction_days') == 0)
-        if due_today_only and not due_today:
-            continue
-        if assignee_filter and assignee_filter not in (assignee_text or '').lower():
-            continue
-        if q:
-            hay = ' '.join([
-                str(o.id), str(customer_name), str(manager_name), str(assignee_text),
-                str((last_event or {}).get('note') or ''),
-            ]).lower()
-            if q not in hay:
-                continue
 
         latest_request_no = None
         for h in reversed(history):
@@ -287,6 +272,10 @@ def erp_drawing_workbench_dashboard():
             'CANCEL_TRANSFER': '전달 취소', 'CONFIRM_RECEIPT': '수령 확정',
         }.get(h_action, h_action or '-')
         sla_level = '지연' if alerts.get('drawing_overdue') else ('오늘 마감' if due_today else '정상')
+        search_hay = ' '.join([
+            str(o.id), str(customer_name), str(manager_name), str(assignee_text),
+            str((last_event or {}).get('note') or ''),
+        ]).lower()
 
         rows.append({
             'id': o.id,
@@ -315,8 +304,11 @@ def erp_drawing_workbench_dashboard():
             'due_today': due_today,
             'unread_count': unchecked_requests,
             'my_todo': my_todo,
+            'include_for_mine': my_todo or is_order_mine_for_user(o, current_user),
+            'search_hay': search_hay,
         })
 
+    # 프로세스 맵 카운트는 목록 필터와 무관하게 전체 큐 기준(파이프라인 bar SSOT).
     stats = {'total': len(rows), 'WAITING': 0, 'IN_PROGRESS': 0, 'RETURNED': 0, 'TRANSFERRED': 0, 'CONFIRMED': 0, 'overdue': 0, 'unread': 0}
     for r in rows:
         status = (r.get('drawing_status') or 'WAITING').upper()
@@ -328,6 +320,17 @@ def erp_drawing_workbench_dashboard():
             stats['overdue'] += 1
         if r.get('unread_count', 0) > 0:
             stats['unread'] += 1
+
+    if mine_only:
+        rows = [r for r in rows if r.get('include_for_mine')]
+    if unread_only:
+        rows = [r for r in rows if r.get('unread_count', 0) > 0]
+    if due_today_only:
+        rows = [r for r in rows if r.get('due_today')]
+    if assignee_filter:
+        rows = [r for r in rows if assignee_filter in (r.get('assignee_text') or '').lower()]
+    if q:
+        rows = [r for r in rows if q in (r.get('search_hay') or '')]
 
     if status_filter:
         def _match_status(row_status):

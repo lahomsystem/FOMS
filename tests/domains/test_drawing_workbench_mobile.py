@@ -1,5 +1,6 @@
 """P0-02 — drawing workbench mobile card thumb + filter offcanvas."""
 
+import re
 from datetime import date
 from unittest.mock import MagicMock
 
@@ -324,3 +325,32 @@ def test_drawing_workbench_non_cohort_keeps_legacy_detail(client, monkeypatch):
     body = response.get_data(as_text=True)
     assert "foms-drawing-handoff" not in body
     assert "도면 작업실 실행판" in body
+
+
+def _pipeline_total_count(html: str) -> int | None:
+    match = re.search(
+        r'erp-pro-pipeline__count[^>]*>(\d+)</div>\s*<div class="erp-pro-pipeline__label">전체</div>',
+        html,
+    )
+    return int(match.group(1)) if match else None
+
+
+def test_drawing_workbench_pipeline_stats_stable_under_list_filters(client, monkeypatch):
+    """프로세스 맵 total은 due_today/unread/status 목록 필터와 무관하게 전체 큐 기준."""
+    _login_drawing_admin(client)
+    for status in ("RETURNED", "TRANSFERRED", "IN_PROGRESS"):
+        _drawing_order({"drawing": {"status": status}, "drawing_status": status})
+
+    base_body = client.get("/erp/drawing-workbench").get_data(as_text=True)
+    assert _pipeline_total_count(base_body) == 3
+    assert "js/drawing/workbench-dashboard.js" in base_body
+    assert "let drawingUsersCache" not in base_body
+
+    due_today_body = client.get("/erp/drawing-workbench?due_today=1").get_data(as_text=True)
+    assert _pipeline_total_count(due_today_body) == 3
+
+    unread_body = client.get("/erp/drawing-workbench?unread=1").get_data(as_text=True)
+    assert _pipeline_total_count(unread_body) == 3
+
+    status_body = client.get("/erp/drawing-workbench?status=RETURNED").get_data(as_text=True)
+    assert _pipeline_total_count(status_body) == 3
