@@ -38,7 +38,7 @@
       <i class="fas fa-calendar-day" aria-hidden="true"></i>오늘
     </a>
     {% if not is_construction_team %}
-    <a class="chip foms-chip{% if erp_mine_only %} is-active{% endif %}" href="{{ shipment_mine_toggle_url }}{% if not erp_mine_only %}&mine=1{% endif %}">
+    <a class="chip foms-chip{% if erp_mine_only %} is-active{% endif %}" href="{{ shipment_mine_toggle_url }}{% if '?' in shipment_mine_toggle_url %}&{% else %}?{% endif %}mine={% if erp_mine_only %}{% else %}1{% endif %}">
       <i class="fas fa-user-check" aria-hidden="true"></i>내 담당
     </a>
     {% endif %}

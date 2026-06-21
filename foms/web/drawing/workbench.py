@@ -5,6 +5,7 @@ from flask import Blueprint, make_response, render_template, request, url_for, r
 from db import get_db
 from models import Order, User, OrderAttachment
 from foms.web.auth import login_required
+from foms.services.common.erp_mine_filter import erp_mine_only_from_request
 from foms.services.erp_permissions import can_edit_erp
 from foms.services.erp_policy import (
     STAGE_NAME_TO_CODE,
@@ -164,8 +165,8 @@ def erp_drawing_workbench_dashboard():
     q_raw = get_search_query_arg('q', 'search')
     q = q_raw.lower()
     status_filter = (request.args.get('status') or '').strip().upper()
-    # ERP 공통: mine은 URL 쿼리만 사용 (layout에서 쿠키→URL 동기화)
-    mine_only = (request.args.get('mine') or '').strip() == '1'
+    # ERP 공통: mine은 URL 쿼리 + erp_mine_only 쿠키 SSOT (foms.services.common.erp_mine_filter)
+    mine_only = erp_mine_only_from_request(request)
     unread_only = (request.args.get('unread') or '').strip() == '1'
     due_today_only = (request.args.get('due_today') or '').strip() == '1'
     assignee_filter_raw = (request.args.get('assignee') or '').strip()

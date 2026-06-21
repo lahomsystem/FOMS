@@ -42,7 +42,7 @@
     {% for step in process_steps %}
     <a class="chip foms-chip{% if _pr_stage == step.label %} is-active{% endif %}" href="{{ _pr_base }}?stage={{ step.label|urlencode }}{% if _pr_keep_qs %}&{{ _pr_keep_qs }}{% endif %}">{{ step.display|default(step.label) }} {{ step.count }}</a>
     {% endfor %}
-    <a class="chip foms-chip{% if erp_mine_only %} is-active{% endif %}" href="{{ _pr_base }}?{{ _pr_ctx|join('&') }}{% if not erp_mine_only %}{% if _pr_ctx %}&{% endif %}mine=1{% endif %}">내 담당</a>
+    <a class="chip foms-chip{% if erp_mine_only %} is-active{% endif %}" href="{{ _pr_base }}?{{ _pr_ctx|join('&') }}{% if _pr_ctx %}&{% endif %}mine={% if erp_mine_only %}{% else %}1{% endif %}">내 담당</a>
   </nav>
 
   <div

@@ -12,6 +12,7 @@ from sqlalchemy import or_, and_, cast, String, func
 from sqlalchemy.orm import load_only, selectinload
 
 from foms.services.common.business_calendar import get_holidays_kr
+from foms.services.common.erp_mine_filter import erp_mine_only_from_request
 from foms.services.erp_permissions import can_edit_erp, build_mine_sql_filter
 from foms.services.erp_display import (
     _ensure_dict,
@@ -176,7 +177,7 @@ def erp_measurement_dashboard():
         query = query.distinct()
 
     current_user = getattr(g, 'current_user', None)
-    mine_filter_active = request.args.get('mine') == '1' and current_user
+    mine_filter_active = erp_mine_only_from_request(request) and current_user
 
     # mine 필터를 SQL WHERE로 적용 (Python 루프 대신)
     if mine_filter_active:

@@ -10,6 +10,7 @@ import json
 from sqlalchemy import or_, and_
 from sqlalchemy.orm import load_only
 from foms.services.common.business_calendar import get_holidays_kr
+from foms.services.common.erp_mine_filter import erp_mine_only_for_construction
 from foms.services.erp_permissions import can_edit_erp
 from foms.services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders, get_today_kst
 from foms.services.erp_order_flags import is_erp_order_record
@@ -241,7 +242,7 @@ def erp_shipment_dashboard():
     req_date = date_arg_raw
 
     is_construction = current_user and getattr(current_user, 'team', None) == 'CONSTRUCTION'
-    mine_only = is_construction or (request.args.get('mine') == '1')
+    mine_only = erp_mine_only_for_construction(request, current_user)
 
     use_range = bool(date_from and date_to)
     if use_range:

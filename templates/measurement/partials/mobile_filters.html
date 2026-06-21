@@ -38,7 +38,7 @@
     <a class="chip foms-chip{% if selected_date == today_date %} is-active{% endif %}" href="{{ measurement_today_url }}">
       <i class="fas fa-calendar-day" aria-hidden="true"></i>오늘
     </a>
-    <a class="chip foms-chip{% if erp_mine_only %} is-active{% endif %}" href="{{ measurement_mine_toggle_url }}{% if not erp_mine_only %}&mine=1{% endif %}">
+    <a class="chip foms-chip{% if erp_mine_only %} is-active{% endif %}" href="{{ measurement_mine_toggle_url }}{% if '?' in measurement_mine_toggle_url %}&{% else %}?{% endif %}mine={% if erp_mine_only %}{% else %}1{% endif %}">
       <i class="fas fa-user-check" aria-hidden="true"></i>내 담당
     </a>
     <a class="chip foms-chip" href="{{ measurement_map_url }}">

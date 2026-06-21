@@ -1256,50 +1256,27 @@
         }
 
         function getErpMineOnlyCookie() {
-            const match = document.cookie.match(/\berp_mine_only=([^;]*)/);
-            return match ? (match[1] || '').trim() : '';
+            return window.FOMS_ERP_MINE_ONLY ? window.FOMS_ERP_MINE_ONLY.getCookie() : '';
         }
         function setErpMineOnlyCookie(on) {
-            const value = on ? '1' : '';
-            const maxAge = on ? 60 * 60 * 24 * 30 : 0;
-            document.cookie = 'erp_mine_only=' + value + '; path=/; max-age=' + maxAge + '; SameSite=Lax';
-        }
-        (function syncMineFromCookieToUrl() {
-            var path = window.location.pathname || '';
-            if (path.indexOf('/erp/') === -1) return;
-            if (getErpMineOnlyCookie() !== '1') return;
-            var params = new URLSearchParams(window.location.search);
-            if (params.has('mine')) return;
-            params.set('mine', '1');
-            var newUrl = path + '?' + params.toString();
-            history.replaceState(null, '', newUrl);
-            window.location.reload();
-        })();
-        function toggleGlobalMineOnly() {
-            const on = getErpMineOnlyCookie() !== '1';
-            setErpMineOnlyCookie(on);
-            updateGlobalMineOnlyButton(on);
-            var path = window.location.pathname || '';
-            var params = new URLSearchParams(window.location.search);
-            if (path.indexOf('/erp/') !== -1) {
-                if (on && !params.has('mine')) params.set('mine', '1');
-                if (!on && params.has('mine')) params.delete('mine');
-                var newUrl = path + (params.toString() ? '?' + params.toString() : '');
-                history.replaceState(null, '', newUrl);
+            if (window.FOMS_ERP_MINE_ONLY) {
+                window.FOMS_ERP_MINE_ONLY.setCookie(on);
             }
-            window.location.reload();
+        }
+        function toggleGlobalMineOnly() {
+            if (window.FOMS_ERP_MINE_ONLY) {
+                window.FOMS_ERP_MINE_ONLY.toggle();
+            }
         }
         function updateGlobalMineOnlyButton(on) {
-            const btn = document.getElementById('global-mine-only-btn');
-            const icon = document.getElementById('global-mine-only-icon');
-            if (btn) btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-            if (icon) {
-                icon.style.color = on ? '#0d6efd' : '#6c757d';
+            if (window.FOMS_ERP_MINE_ONLY) {
+                window.FOMS_ERP_MINE_ONLY.syncChrome(!!on);
             }
         }
         (function initGlobalMineOnly() {
-            var on = getErpMineOnlyCookie() === '1';
-            updateGlobalMineOnlyButton(on);
+            if (window.FOMS_ERP_MINE_ONLY) {
+                window.FOMS_ERP_MINE_ONLY.syncChrome(window.FOMS_ERP_MINE_ONLY.isActive());
+            }
         })();
 
         async function toggleGlobalNotificationPanel() {
@@ -1597,6 +1574,7 @@
     <script src="{{ url_for('static', filename='js/global-nav-runtime.js') }}" defer></script>
     {% endif %}
     {% if request.path.startswith('/erp/') %}
+    <script src="{{ url_for('static', filename='js/foms/erp-mine-only.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/runtime/erp-shell.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/orders/erp-dashboard-entry.js') }}" defer></script>
     {% endif %}

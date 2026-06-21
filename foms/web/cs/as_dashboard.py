@@ -8,6 +8,7 @@ from sqlalchemy import or_, and_, cast, String, func, case
 import datetime
 
 from foms.services.erp_display import _normalize_for_search
+from foms.services.common.erp_mine_filter import erp_mine_only_from_request
 from foms.services.erp_permissions import can_edit_erp
 from foms.services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders, get_today_kst
 from foms.services.as_content_safety import sanitize_as_content_html
@@ -298,7 +299,7 @@ def erp_as_dashboard():
         base_query = base_query.filter(Order.status == status_filter)
 
     current_user = getattr(g, 'current_user', None)
-    erp_mine_only = request.args.get('mine') == '1'
+    erp_mine_only = erp_mine_only_from_request(request)
     if erp_mine_only and current_user:
         u_name = (current_user.name or '').strip()
         u_username = (current_user.username or '').strip()
@@ -325,7 +326,7 @@ def erp_as_dashboard():
             status='',
             q='',
             sort_dir=(request.args.get('sort_dir') or 'desc').strip().lower(),
-            mine='1' if request.args.get('mine') == '1' else '',
+            mine='1' if erp_mine_only else '',
         ))
     if compact_q and focus_order_id is None:
         # 이름 검색 단건은 "정확한 고객명 일치 1건"이면서 "전체 검색 결과도 1건"일 때만 자동 이동
@@ -351,7 +352,7 @@ def erp_as_dashboard():
                 status=only_order.status or '',
                 q=search_q,
                 sort_dir=(request.args.get('sort_dir') or 'desc').strip().lower(),
-                mine='1' if request.args.get('mine') == '1' else '',
+                mine='1' if erp_mine_only else '',
                 focus_order=only_order.id,
             ))
 
@@ -366,7 +367,7 @@ def erp_as_dashboard():
                     status=status_filter,
                     q=search_q,
                     sort_dir=(request.args.get('sort_dir') or 'desc').strip().lower(),
-                    mine='1' if request.args.get('mine') == '1' else '',
+                    mine='1' if erp_mine_only else '',
                     focus_order=focus_order_id,
                 ))
         filtered_base_query = base_query.filter(Order.id == focus_order_id)

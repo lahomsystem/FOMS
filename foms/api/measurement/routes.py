@@ -18,6 +18,7 @@ from models import Order
 from foms.web.auth import login_required, role_required
 import foms.api.measurement as measurement_api
 from foms.services.erp_order_flags import is_erp_order_record
+from foms.services.common.erp_mine_filter import erp_mine_only_from_request
 from foms.services.erp_shipment_settings import is_order_mine_for_user
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.common.address_converter import FOMSAddressConverter
@@ -84,7 +85,7 @@ def api_erp_measurement_summary():
     )
 
     current_user = getattr(g, 'current_user', None)
-    mine_filter_active = request.args.get('mine') == '1' and current_user
+    mine_filter_active = erp_mine_only_from_request(request) and current_user
 
     from sqlalchemy.orm import selectinload
     panel_orders = base_query.options(selectinload(Order.schedule_dates)).order_by(Order.id.desc()).limit(1500).all()

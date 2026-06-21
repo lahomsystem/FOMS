@@ -209,7 +209,11 @@
     ev.preventDefault();
     ev.stopImmediatePropagation();
     setNavPending(link);
-    navigateBottomNavHtmx(link.getAttribute("href"), link.getAttribute("data-foms-nav-id"));
+    var href = link.getAttribute("href");
+    if (window.FOMS_ERP_MINE_ONLY && typeof window.FOMS_ERP_MINE_ONLY.decorateShellUrl === "function") {
+      href = window.FOMS_ERP_MINE_ONLY.decorateShellUrl(href);
+    }
+    navigateBottomNavHtmx(href, link.getAttribute("data-foms-nav-id"));
   }
 
   function onFragmentSwapped(ev) {

@@ -60,6 +60,10 @@ from foms.services.common.erp_shell_http import (
     wants_erp_shell_tab_body,
 )
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
+from foms.services.common.erp_mine_filter import (
+    erp_mine_only_from_request,
+    erp_tower_mine_from_request,
+)
 
 
 erp_dashboard_bp = Blueprint('erp_dashboard', __name__, url_prefix='/erp')
@@ -150,7 +154,8 @@ def erp_dashboard():
         f_sort = 'latest'
     f_today = (request.args.get('today') or '').strip()
     # 내작업 토글(타워 전용): drill을 발동시키지 않고 타워 페이로드만 내 담당분으로 축소.
-    f_tower_mine = request.args.get('tower_mine') == '1'
+    f_tower_mine = erp_tower_mine_from_request(request)
+    f_mine = erp_mine_only_from_request(request)
     # 주간 타일/현장 탭 deep-link: 특정 날짜(+선택 타입) 큐. 유효한 ISO일 때만.
     f_date = (request.args.get('date') or '').strip()
     f_field = (request.args.get('field') or '').strip()
@@ -177,7 +182,7 @@ def erp_dashboard():
             )
         )
 
-    if request.args.get('mine') == '1' and current_user:
+    if f_mine and current_user:
         from foms.services.erp_permissions import build_mine_sql_filter
         mine_conds = build_mine_sql_filter(current_user)
         if mine_conds:
@@ -431,7 +436,7 @@ def erp_dashboard():
         "v": 4,
         "user": _orders_user_visibility_fingerprint(current_user, is_admin),
         "filters": {
-            "mine": (request.args.get('mine') or '').strip(),
+            "mine": '1' if f_mine else '',
             "q": f_q,
             "team": f_team,
             "today": f_today,
@@ -568,7 +573,7 @@ def erp_dashboard():
             "alert_type": f_alert_type,
             "q": f_q,
             "team": f_team,
-            "mine": (request.args.get('mine') or '').strip(),
+            "mine": '1' if f_mine else '',
         },
         "page": page,
         "order_ids": [o.id for o in page_orders],
@@ -738,7 +743,7 @@ def erp_dashboard():
             "alert_type": f_alert_type,
             "q": f_q,
             "team": f_team,
-            "mine": (request.args.get("mine") or "").strip(),
+            "mine": "1" if f_mine else "",
         },
         "page": page,
         "order_ids": sorted(r["id"] for r in paginated_orders),
@@ -830,7 +835,7 @@ def erp_dashboard():
             'alert_type': f_alert_type,
             'q': f_q,
             'team': f_team,
-            'mine': request.args.get('mine') or '',
+            'mine': '1' if f_mine else '',
             'sort': f_sort,
             'today': f_today,
             'date': f_date,
@@ -880,7 +885,7 @@ def erp_dashboard():
             'alert_type': f_alert_type,
             'q': f_q,
             'team': f_team,
-            'mine': request.args.get('mine') or '',
+            'mine': '1' if f_mine else '',
             'sort': f_sort,
             'today': f_today,
             'date': f_date,
@@ -928,7 +933,7 @@ def erp_dashboard_field_ops():
     field_type = (request.args.get('field') or 'all').strip()
     if field_type not in ('all', 'measure', 'construction'):
         field_type = 'all'
-    mine_only = request.args.get('tower_mine') == '1'
+    mine_only = erp_tower_mine_from_request(request)
 
     date_iso = (request.args.get('date') or '').strip()
     try:

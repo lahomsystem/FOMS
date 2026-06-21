@@ -23,7 +23,8 @@
   var state = {
     iso: root.getAttribute('data-day-iso') || '',
     field: 'all',
-    mine: root.getAttribute('data-tower-mine') === '1',
+    mine: (window.FOMS_ERP_MINE_ONLY && window.FOMS_ERP_MINE_ONLY.isActive())
+      || root.getAttribute('data-tower-mine') === '1',
   };
 
   function setTabActive(field) {
@@ -114,4 +115,24 @@
       }
     });
   });
+
+  window.__FOMS_MOBILE_TOWER_ON_MINE_CHANGED = function (active) {
+    state.mine = active;
+    root.setAttribute('data-tower-mine', active ? '1' : '0');
+    load();
+  };
+
+  if (!window.__FOMS_MOBILE_TOWER_MINE_BOUND) {
+    window.__FOMS_MOBILE_TOWER_MINE_BOUND = true;
+    document.addEventListener('foms:erp-mine-only-changed', function (ev) {
+      var handler = window.__FOMS_MOBILE_TOWER_ON_MINE_CHANGED;
+      if (typeof handler !== 'function') {
+        return;
+      }
+      var active = ev && ev.detail
+        ? !!ev.detail.active
+        : !!(window.FOMS_ERP_MINE_ONLY && window.FOMS_ERP_MINE_ONLY.isActive());
+      handler(active);
+    });
+  }
 })();

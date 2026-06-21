@@ -16,6 +16,7 @@ from db import get_db
 from models import Order
 from foms.web.auth import login_required
 
+from foms.services.common.erp_mine_filter import erp_mine_only_from_request
 from foms.services.erp_permissions import can_edit_erp
 from foms.services.erp_mobile_order_display import resolve_manager_phone_for_queue
 from foms.services.erp_policy import STAGE_LABELS
@@ -318,7 +319,7 @@ def erp_production_dashboard():
 
     f_stage = (request.args.get('stage') or '').strip()
     f_q = get_search_query_arg('q', 'search')
-    erp_mine_only = request.args.get('mine') == '1'
+    erp_mine_only = erp_mine_only_from_request(request)
 
     stage_col = cast(Order.structured_data['workflow']['stage'], String)
     _q = _build_production_orders_query(db, user, f_stage, f_q, erp_mine_only, stage_col)
