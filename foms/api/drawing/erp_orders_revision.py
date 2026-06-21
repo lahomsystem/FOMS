@@ -19,7 +19,7 @@ from foms.api.notifications import (
 )
 from foms.services.notifications.realtime_notifications import emit_erp_notification_to_users
 from foms.services.erp_permissions import erp_edit_required
-from foms.services.erp_display import _ensure_dict
+from foms.services.erp_display import _can_modify_sales_domain, _ensure_dict
 from foms.services.erp_policy import is_drawing_workbench_participant
 
 logger = logging.getLogger(__name__)
