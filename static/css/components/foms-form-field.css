@@ -1022,6 +1022,10 @@ body.erp-mobile-v2-layout #erpAttachmentPreviewModal .erp-attachment-preview-act
   body.erp-mobile-v2-layout .erp-order-mobile-form {
     background: var(--foms-surface-overlay, #eef2f7);
     padding: var(--foms-space-2);
+    /* sticky 저장/PUSH 바 클리어런스: 기기 하단 safe-area(제스처바) 포함.
+       (회색 카드화로 padding 단축 시 form.foms-page-form의 하단 여백을 덮어
+        실기기에서 마지막 섹션이 잘리던 회귀 방지) */
+    padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px));
   }
   /* sticky 칩 네비는 폼 패딩을 넘어 가로 전체로 + 회색 배경 위에 */
   body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-secnav {
@@ -1043,10 +1047,10 @@ body.erp-mobile-v2-layout #erpAttachmentPreviewModal .erp-attachment-preview-act
     padding-top: var(--foms-space-3);
     border-top: 1px solid var(--foms-border-default);
   }
-  /* 마지막 섹션(일정)은 고정 하단바(저장/PUSH ≈ 75px) 위로 스크롤되도록 충분한 하단 여백.
-     (섹션 카드 margin-bottom:8px가 기존 pre-sticky 4.75rem 클리어런스를 덮어써 잘리던 문제) */
+  /* 마지막 섹션(일정) 하단 여백: 폼 padding-bottom(아래)이 sticky 바 클리어런스를
+     담당하므로 일반 섹션과 동일하게 둔다(이중 여백 방지). */
   body.erp-mobile-v2-layout .erp-order-mobile-form .erp-form-section.erp-mobile-pre-sticky-footer {
-    margin-bottom: 6rem;
+    margin-bottom: var(--foms-space-2);
   }
   body.erp-mobile-v2-layout .erp-order-mobile-form .erp-form-section--primary {
     padding-top: var(--foms-space-3);
