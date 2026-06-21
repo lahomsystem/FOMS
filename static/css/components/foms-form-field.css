@@ -1043,6 +1043,11 @@ body.erp-mobile-v2-layout #erpAttachmentPreviewModal .erp-attachment-preview-act
     padding-top: var(--foms-space-3);
     border-top: 1px solid var(--foms-border-default);
   }
+  /* 마지막 섹션(일정)은 고정 하단바(저장/PUSH ≈ 75px) 위로 스크롤되도록 충분한 하단 여백.
+     (섹션 카드 margin-bottom:8px가 기존 pre-sticky 4.75rem 클리어런스를 덮어써 잘리던 문제) */
+  body.erp-mobile-v2-layout .erp-order-mobile-form .erp-form-section.erp-mobile-pre-sticky-footer {
+    margin-bottom: 6rem;
+  }
   body.erp-mobile-v2-layout .erp-order-mobile-form .erp-form-section--primary {
     padding-top: var(--foms-space-3);
     border-color: var(--foms-interactive-primary, #4f46e5);
