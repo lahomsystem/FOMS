@@ -178,8 +178,8 @@
             <div class="card shadow-sm">
                 <div class="card-body">
                     <form method="get" action="{{ url_for('dashboards.regional_dashboard') }}" class="d-flex">
-                        <input type="text" name="search_query" class="form-control me-2" placeholder="주문번호, 고객명, 연락처, 주소, 제품, 메모 등 통합 검색" value="{{ search_query or '' }}">
-                        <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> 검색</button>
+                        <input type="text" name="search_query" class="form-control me-2 flex-grow-1" placeholder="주문번호, 고객명, 연락처, 주소, 제품, 메모 등 통합 검색" value="{{ search_query or '' }}">
+                        <button type="submit" class="btn btn-primary flex-shrink-0 text-nowrap"><i class="fas fa-search"></i> 검색</button>
                     </form>
                 </div>
             </div>

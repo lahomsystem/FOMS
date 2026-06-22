@@ -6,9 +6,9 @@
 
 ### Session: 0bbe6dcb
 - **시작**: 2026-06-22 11:19:05
-- **상태**: aborted
-- **편집 파일**: `static/js/measurement/regional-shipping-export.js`, `templates/measurement/regional_dashboard.html`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/agent-tools/8c64210d-441f-464f-9436-a44a6211c7f7.txt`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/agent-tools/2ba57c7f-0cea-44c9-af47-4f8644d86e10.txt`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/agent-tools/c1957b15-de60-4832-893a-b68322bf5d89.txt`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/agent-tools/21980b7f-ea9d-4d6f-9043-f27abed52b63.txt`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/agent-tools/49fe20c7-ccda-4e61-86e3-46e20a25e04a.txt`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-80cc9725-3635-48b2-a993-f0d4b6690484.png`, `.git/COMMIT_EDITMSG_DEPLOY.txt`, `tests/domains/test_channel_push_messages.py`
-- **종료**: 2026-06-22 12:31:29
+- **상태**: completed
+- **편집 파일**: `commit_msg.txt`, `templates/measurement/regional_dashboard.html`, `static/js/measurement/regional-shipping-export.js`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/agent-tools/8c64210d-441f-464f-9436-a44a6211c7f7.txt`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/agent-tools/2ba57c7f-0cea-44c9-af47-4f8644d86e10.txt`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/agent-tools/c1957b15-de60-4832-893a-b68322bf5d89.txt`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/agent-tools/21980b7f-ea9d-4d6f-9043-f27abed52b63.txt`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/agent-tools/49fe20c7-ccda-4e61-86e3-46e20a25e04a.txt`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-80cc9725-3635-48b2-a993-f0d4b6690484.png`, `.git/COMMIT_EDITMSG_DEPLOY.txt`
+- **종료**: 2026-06-22 12:40:11
 
 ### Session: eb794731
 - **시작**: 2026-06-22 09:04:43
@@ -871,3 +871,5 @@
 | 2026-06-22 12:14:56 | END (Claude Code) | 수정: (없음) |
 
 | 2026-06-22 12:31:29 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-22 12:40:11 | END (Claude Code) | 수정: (없음) |

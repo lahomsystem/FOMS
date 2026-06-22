@@ -4,7 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-06-17 11:00:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
 | 2026-06-17 11:01:14 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch --show-current; git diff --stat` |
 | 2026-06-17 11:01:21 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add foms/services/erp_mobile_order_display.py foms/web/construction/dashboard.py foms/web/` |
 | 2026-06-17 11:01:29 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
@@ -304,3 +303,4 @@
 | 2026-06-22 12:13:57 | allow | `-` | `python tools/perf/perf_scan.py --guard` |
 | 2026-06-22 12:36:00 | allow | `-` | `python tools/perf/perf_scan.py --guard` |
 | 2026-06-22 12:38:28 | allow | `-` | `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
+| 2026-06-22 12:45:03 | allow | `-` | `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
