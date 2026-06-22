@@ -2,6 +2,7 @@
 
 import re
 from datetime import date
+from pathlib import Path
 from unittest.mock import MagicMock
 
 from werkzeug.security import generate_password_hash
@@ -354,3 +355,15 @@ def test_drawing_workbench_pipeline_stats_stable_under_list_filters(client, monk
 
     status_body = client.get("/erp/drawing-workbench?status=RETURNED").get_data(as_text=True)
     assert _pipeline_total_count(status_body) == 3
+
+
+def test_drawing_workbench_status_pipeline_clears_quick_filters_in_js() -> None:
+    """Status stage click must drop unread/due_today so filter switches do not stack."""
+    js_path = Path(__file__).resolve().parents[2] / "static" / "js" / "drawing" / "workbench-dashboard.js"
+    source = js_path.read_text(encoding="utf-8")
+    status_fn = source.split("function navigatePipelineStatus(status)")[1].split("function navigatePipelineQuickFilter")[0]
+    assert "params.delete('unread')" in status_fn
+    assert "params.delete('due_today')" in status_fn
+    quick_fn = source.split("function navigatePipelineQuickFilter(filterType)")[1].split("function bindPipelineDelegationOnce")[0]
+    assert "params.set('unread', '1')" in quick_fn
+    assert "params.set('due_today', '1')" in quick_fn

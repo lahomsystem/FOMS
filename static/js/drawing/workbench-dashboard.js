@@ -191,6 +191,9 @@
     } else {
       params.delete('status');
     }
+    // Status stage click replaces quick filters (미확인/오늘 마감); do not stack.
+    params.delete('unread');
+    params.delete('due_today');
     params.delete('page');
     window.location.href = window.location.pathname + '?' + params.toString();
   }
