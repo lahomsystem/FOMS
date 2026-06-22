@@ -4,52 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-06-17 09:11:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add "static/css/foundation/erp-pro/11-queue-family-mobile.css" "templates/partials/shared/` |
-| 2026-06-17 09:11:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production; git merge deploy -m "merge: deploy → production (모바일 작업 큐 페이저 1줄 표시)"` |
-| 2026-06-17 09:13:33 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python -m pytest tests/domains/test_erp_mobile_order_` |
-| 2026-06-17 09:13:51 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
-| 2026-06-17 09:14:20 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git branch --show-current; git add foms/services/erp_mobile_order_display.py static/css/compon` |
-| 2026-06-17 09:14:25 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production; git checkout deploy; git merge production -m "merge: production → ` |
-| 2026-06-17 09:45:18 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; node tests/support/wdcalculator_spec_width_eval_contract_node_checks.js; node tests/support/wd` |
-| 2026-06-17 09:45:25 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; node tests/support/wdcalculator_base_components_contract_node_checks.js` |
-| 2026-06-17 09:45:33 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; node tests/support/wdcalculator_base_components_contract_node_checks.js` |
-| 2026-06-17 09:45:38 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python -m pytest tests/contracts/wdcalculator/test_pr` |
-| 2026-06-17 09:45:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat; git diff` |
-| 2026-06-17 09:46:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status --short static/js/wdcalculator/spec-width-eval.js tests/support/wdcalculator_spec_w` |
-| 2026-06-17 09:46:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; node tests/support/wdcalculator_spec_width_eval_contract_node_checks.js; node tests/support/wd` |
-| 2026-06-17 09:46:47 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/contracts/wdcalculator/test_current_estimate_contracts.py -q 2>&1` |
-| 2026-06-17 09:47:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/contracts/wdcalculator/test_pricing_core_contracts.py -q 2>&1` |
-| 2026-06-17 09:47:47 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/performance/test_perf_regression_guard.py tests/contracts/wdcalculator/` |
-| 2026-06-17 09:48:02 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; node tests/support/wdcalculator_current_estimate_contract_node_checks.js 2>&1` |
-| 2026-06-17 09:48:13 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; node tests/support/wdcalculator_current_estimate_contract_node_checks.js 2>&1` |
-| 2026-06-17 09:48:18 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1 2>&1` |
-| 2026-06-17 09:48:47 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch --show-current; git diff --stat` |
-| 2026-06-17 09:48:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add static/js/wdcalculator/spec-width-eval.js static/js/wdcalculator/primary-form.js stati` |
-| 2026-06-17 10:30:54 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/visual/test_scheduler_panel_compact.py::test_erp_order_measurement_pane` |
-| 2026-06-17 10:30:54 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
-| 2026-06-17 10:31:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $env:DATABASE_URL="sqlite:///tests/visual/visual_local.sqlite"; python -m pytest tests/visual/` |
-| 2026-06-17 10:31:38 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $env:DATABASE_URL="sqlite:///tests/visual/visual_local.sqlite"; python -m pytest tests/visual/` |
-| 2026-06-17 10:32:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $env:DATABASE_URL="sqlite:///tests/visual/visual_local.sqlite"; python -m pytest tests/visual/` |
-| 2026-06-17 10:32:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $env:DATABASE_URL="sqlite:///tests/visual/visual_local.sqlite"; python -m pytest tests/visual/` |
-| 2026-06-17 10:32:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $env:DATABASE_URL="sqlite:///tests/visual/visual_local.sqlite"; python -m pytest tests/visual/` |
-| 2026-06-17 10:33:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git diff --stat` |
-| 2026-06-17 10:33:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/harness/verify_result.py --json 2>&1 | Select-Object -Last 5` |
-| 2026-06-17 10:33:13 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1 2>&1` |
-| 2026-06-17 10:33:50 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1 2>&1 | Select-Object -Last 15` |
-| 2026-06-17 10:34:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add static/css/contexts/orders/erp-order-measurement-panel.css static/css/foundation/erp-p` |
-| 2026-06-17 10:34:29 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy 2>&1` |
-| 2026-06-17 10:38:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_order_shared_form_scripts.py::test_mobile_attachment_p` |
-| 2026-06-17 10:38:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add tests/domains/test_erp_order_shared_form_scripts.py; git commit --trailer "Co-authored` |
-| 2026-06-17 10:42:12 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python -m pytest tests/domains/test_erp_permissions.p` |
-| 2026-06-17 10:42:38 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_permissions.py tests/domains/test_menu_config.py -q --` |
-| 2026-06-17 10:42:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/harness/verify_result.py --json; python -m pytest tests/domains/test_erp_mobile_l` |
-| 2026-06-17 10:42:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git diff --stat; git log -3 --oneline` |
-| 2026-06-17 10:43:25 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add foms/api/cs/dashboard.py foms/platform/http.py foms/services/context_processors.py fom` |
-| 2026-06-17 10:59:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python -m pytest tests/domains/test_erp_mobile_order_` |
-| 2026-06-17 10:59:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_mobile_order_display.py tests/domains/test_measurement` |
-| 2026-06-17 11:00:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/visual/test_p1_mockup_structure.py -k "queue_card" -q --tb=short` |
-| 2026-06-17 11:00:12 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_construction_dashboard_mobile.py tests/domains/test_produc` |
-| 2026-06-17 11:00:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_construction_dashboard_mobile.py tests/domains/test_produc` |
 | 2026-06-17 11:00:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
 | 2026-06-17 11:01:14 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch --show-current; git diff --stat` |
 | 2026-06-17 11:01:21 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add foms/services/erp_mobile_order_display.py foms/web/construction/dashboard.py foms/web/` |
@@ -304,3 +258,49 @@
 | 2026-06-18 11:34:42 | allow | `-` | `python -c "import urllib.request, json; r=urllib.request.urlopen('https://lahom-dev.up.railway.app/api/channel/health', timeout=20); d=json.loads(r.read()); pri` |
 | 2026-06-18 11:34:54 | allow | `-` | `if ($env:RAILWAY_TOKEN) { 'RAILWAY_TOKEN set' } else { 'RAILWAY_TOKEN not set' }; railway whoami 2>&1` |
 | 2026-06-18 11:38:52 | allow | `-` | `git rev-parse production deploy origin/production origin/deploy 2>&1` |
+| 2026-06-22 08:16:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
+| 2026-06-22 08:16:34 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production; git rev-parse production; git rev-parse origin/production; git log` |
+| 2026-06-22 08:16:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin production; git rev-parse origin/production; git log --oneline origin/product` |
+| 2026-06-22 08:16:45 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git ls-remote origin refs/heads/production; git branch -vv` |
+| 2026-06-22 08:16:50 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git update-ref refs/remotes/origin/production 1cd00528db21a1cc747095044d7c371545c2dd02` |
+| 2026-06-22 08:25:07 | allow | `-` | `if (-not (Test-Path "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\static\js\drawing")) { New-Item -ItemType Directory -Path "c:\Users\USER\OneDri` |
+| 2026-06-22 08:26:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python -m pytest tests/domains/test_drawing_workbench` |
+| 2026-06-22 08:26:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/perf/perf_scan.py --guard` |
+| 2026-06-22 08:31:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch -vv; git log --oneline -3 deploy; git log --oneline -3 origin/deploy 2>` |
+| 2026-06-22 08:31:38 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff foms/web/drawing/workbench.py templates/drawing/partials/workbench_dashboard_body.htm` |
+| 2026-06-22 08:31:46 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout deploy; git add foms/web/drawing/workbench.py templates/drawing/partials/workbenc` |
+| 2026-06-22 08:32:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Co-authored-by: Cursor <cursoragent@cursor.com>" -F ".git\COMMIT_EDITMSG` |
+| 2026-06-22 08:32:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
+| 2026-06-22 08:32:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy; git log --oneline -2 deploy; git status -sb` |
+| 2026-06-22 08:39:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python -m pytest tests/domains/test_erp_mine_filter.p` |
+| 2026-06-22 08:40:08 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_mine_filter.py tests/domains/test_erp_mine_only_js_con` |
+| 2026-06-22 08:40:18 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/perf/perf_scan.py --guard` |
+| 2026-06-22 08:40:38 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/perf/perf_scan.py --guard` |
+| 2026-06-22 08:40:46 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_runtime_shell_js_contract.py tests/domains/test_erp_sh` |
+| 2026-06-22 08:41:13 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_construction_dashboard_mobile.py::test_construction_mobile` |
+| 2026-06-22 08:41:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_construction_dashboard_mobile.py tests/domains/test_erp_sh` |
+| 2026-06-22 08:41:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest "tests/domains/test_erp_shell_fragment_contract.py::test_canonical_erp_paths_` |
+| 2026-06-22 08:42:03 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_shell_fragment_contract.py tests/domains/test_construc` |
+| 2026-06-22 08:43:11 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch -vv; git log --oneline -3 deploy; git log --oneline -3 origin/deploy` |
+| 2026-06-22 08:43:17 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat -- foms/ static/ templates/ tests/` |
+| 2026-06-22 08:43:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff foms/web/orders/dashboard.py templates/partials/shared/layout_scripts.html | Select-O` |
+| 2026-06-22 08:43:27 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add foms/services/common/erp_mine_filter.py foms/api/measurement/routes.py foms/web/constr` |
+| 2026-06-22 08:43:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Co-authored-by: Cursor <cursoragent@cursor.com>" -F ".git\COMMIT_EDITMSG` |
+| 2026-06-22 08:43:45 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
+| 2026-06-22 08:44:14 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy; git log --oneline -3 deploy; git status -sb` |
+| 2026-06-22 08:48:51 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/contracts/runtime/test_ptc_physical_exactness.py::test_ptc_foms_service` |
+| 2026-06-22 09:07:26 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_channel_push_messages.py -q; python -c "import app; print(` |
+| 2026-06-22 09:08:12 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git log --oneline -5 deploy; git log --oneline -3 origin/deploy; git rev-list --co` |
+| 2026-06-22 09:08:17 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat -- foms/ tests/ docs/plans/channeltalk_policy/; git diff foms/services/channel` |
+| 2026-06-22 09:08:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add foms/services/channel_policy.py tests/domains/test_channel_push_messages.py tests/cont` |
+| 2026-06-22 09:08:33 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Co-authored-by: Cursor <cursoragent@cursor.com>" -F ".git\COMMIT_EDITMSG` |
+| 2026-06-22 09:08:38 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
+| 2026-06-22 09:09:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy; git log --oneline -2 deploy` |
+| 2026-06-22 09:14:45 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin; git status -sb; git log --oneline -3 deploy; git log --oneline -3 production` |
+| 2026-06-22 09:14:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production; git merge deploy --ff-only` |
+| 2026-06-22 09:14:58 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
+| 2026-06-22 09:15:27 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production; git ls-remote origin refs/heads/production; git rev-parse producti` |
+| 2026-06-22 12:13:57 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-06-22 12:13:57 | allow | `-` | `python tools/perf/perf_scan.py --guard` |
+| 2026-06-22 12:36:00 | allow | `-` | `python tools/perf/perf_scan.py --guard` |
+| 2026-06-22 12:38:28 | allow | `-` | `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |

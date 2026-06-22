@@ -4,13 +4,25 @@
 
 ## 최근 세션
 
-### Session: 8a8eb02e
-- **시작**: 2026-06-18 11:11:19
-- **상태**: completed
-- **편집 파일**: `docs/evolution/2026-03-16-CHANNELTALK-GOOGLE-SHEET-WEBHOOK-ANALYSIS.md`, `docs/guides/2026-03-27-foms-channeltalk-current-implementation-guide.md`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/agent-tools/c587c881-86a3-498f-b091-d36d08420ede.txt`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-8867ffe3-819c-4e8d-9e52-936b0eb87ca5.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/agent-tools/047ee6a0-818d-416e-8813-c7e216dade86.txt`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/agent-tools/bd972042-976a-4cbf-97f0-141e512abbdf.txt`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-8874bcc9-278f-49f2-9e16-3621f1271bcc.png`, `.git/COMMIT_MSG_TMP.txt`, `tests/contracts/runtime/foms_namespace_surface_tests.py`, `tests/domains/test_erp_mobile_order_display.py`
-- **종료**: 2026-06-18 11:35:09
+### Session: 0bbe6dcb
+- **시작**: 2026-06-22 11:19:05
+- **상태**: aborted
+- **편집 파일**: `static/js/measurement/regional-shipping-export.js`, `templates/measurement/regional_dashboard.html`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/agent-tools/8c64210d-441f-464f-9436-a44a6211c7f7.txt`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/agent-tools/2ba57c7f-0cea-44c9-af47-4f8644d86e10.txt`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/agent-tools/c1957b15-de60-4832-893a-b68322bf5d89.txt`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/agent-tools/21980b7f-ea9d-4d6f-9043-f27abed52b63.txt`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/agent-tools/49fe20c7-ccda-4e61-86e3-46e20a25e04a.txt`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-80cc9725-3635-48b2-a993-f0d4b6690484.png`, `.git/COMMIT_EDITMSG_DEPLOY.txt`, `tests/domains/test_channel_push_messages.py`
+- **종료**: 2026-06-22 12:31:29
 
-### Session: 43e34e26
+### Session: eb794731
+- **시작**: 2026-06-22 09:04:43
+- **상태**: unknown
+- **편집 파일**: `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/agent-tools/8c64210d-441f-464f-9436-a44a6211c7f7.txt`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/agent-tools/2ba57c7f-0cea-44c9-af47-4f8644d86e10.txt`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/agent-tools/c1957b15-de60-4832-893a-b68322bf5d89.txt`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/agent-tools/21980b7f-ea9d-4d6f-9043-f27abed52b63.txt`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/agent-tools/49fe20c7-ccda-4e61-86e3-46e20a25e04a.txt`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-80cc9725-3635-48b2-a993-f0d4b6690484.png`, `.git/COMMIT_EDITMSG_DEPLOY.txt`, `tests/domains/test_channel_push_messages.py`, `docs/plans/channeltalk_policy/message-template-catalog.md`, `foms/services/channel_policy.py`
+- **종료**: 2026-06-22 09:22:09
+
+ 7182bf8b
+- **시작**: 2026-06-22 08:22:34
+- **상태**: unknown
+- **편집 파일**: `tests/domains/test_drawing_workbench_mobile.py`, `templates/drawing/partials/workbench_dashboard_body.html`, `static/js/drawing/workbench-dashboard.js`, `foms/web/drawing/workbench.py`, `.git/COMMIT_EDITMSG_CHANNEL.txt`, `docs/evolution/2026-03-16-CHANNELTALK-GOOGLE-SHEET-WEBHOOK-ANALYSIS.md`, `docs/guides/2026-03-27-foms-channeltalk-current-implementation-guide.md`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/agent-tools/c587c881-86a3-498f-b091-d36d08420ede.txt`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-8867ffe3-819c-4e8d-9e52-936b0eb87ca5.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/agent-tools/047ee6a0-818d-416e-8813-c7e216dade86.txt`
+- **종료**: 2026-06-22 08:30:30
+
+ 43e34e26
 - **시작**: 2026-06-18 10:45:39
 - **상태**: unknown
 - **편집 파일**: `.git/COMMIT_MSG_TMP.txt`, `tests/contracts/runtime/foms_namespace_surface_tests.py`, `tests/domains/test_erp_mobile_order_display.py`, `tests/domains/test_p2_gate.py`, `tests/domains/test_erp_measurement_mobile_render.py`, `tests/domains/test_erp_order_shared_form_scripts.py`, `tests/visual/test_p1_mockup_structure.py`, `tests/domains/test_construction_dashboard_mobile.py`, `templates/shipment/partials/dashboard_main.html`, `templates/measurement/partials/dashboard_main.html`
@@ -837,3 +849,25 @@
 | 2026-06-18 11:27:59 | END (Claude Code) | 수정: (없음) |
 
 | 2026-06-18 11:35:09 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-22 08:16:56 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-22 08:26:33 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-22 08:32:44 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-22 08:42:32 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-22 08:44:24 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-22 08:49:01 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-22 09:07:43 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-22 09:09:14 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-22 09:15:35 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-22 12:14:56 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-22 12:31:29 | END (Claude Code) | 수정: (없음) |
