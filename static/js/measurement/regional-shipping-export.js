@@ -24,13 +24,15 @@
     var HEADER_BG = '#f3f4f6';
 
     // 컬럼 정의: key(고정폭 px) — 주소는 잔여폭을 차지하는 가변 컬럼.
+    // 상차일/설치일은 한눈에 구분되도록 파스텔 배경(시스템 팔레트와 동일):
+    //  · 상차일 = 파스텔 블루(상차 알림 카드 테마색)  · 설치일 = 파스텔 앰버(웜 대비)
     var COLUMNS = [
         { key: 'no', label: '번호', width: 70, align: 'center' },
         { key: 'customer', label: '고객', width: 200, align: 'center' },
         { key: 'address', label: '주소', width: 0, align: 'left', flex: true },
         { key: 'product', label: '제품', width: 340, align: 'left' },
-        { key: 'shipping_date', label: '상차일', width: 150, align: 'center' },
-        { key: 'scheduled_date', label: '설치일', width: 150, align: 'center' },
+        { key: 'shipping_date', label: '상차일', width: 150, align: 'center', bg: '#d1ecf1', headBg: '#bee5eb', textColor: '#0c5460' },
+        { key: 'scheduled_date', label: '설치일', width: 150, align: 'center', bg: '#fff3cd', headBg: '#ffeaa7', textColor: '#856404' },
         { key: 'memo', label: '비고', width: 220, align: 'left' }
     ];
 
@@ -211,22 +213,24 @@
 
     /**
      * 본문 td 공통 스타일(엑셀형: bottom + right, 첫 셀만 left).
+     * 컬럼에 bg/textColor 가 있으면 파스텔 강조(상차일·설치일).
      * @param {HTMLTableCellElement} td
      * @param {number} idx
-     * @param {string} align
+     * @param {Object} col
      */
-    function styleBodyCell(td, idx, align) {
+    function styleBodyCell(td, idx, col) {
         td.style.border = 'none';
         td.style.borderBottom = '1px solid ' + LINE_COLOR;
         td.style.borderRight = '1px solid ' + LINE_COLOR;
         if (idx === 0) td.style.borderLeft = '1px solid ' + LINE_COLOR;
         td.style.padding = '10px 8px';
         td.style.fontSize = EXPORT_BODY_FONT_SIZE;
-        td.style.fontWeight = '600';
-        td.style.color = LINE_COLOR;
+        td.style.fontWeight = col.bg ? '700' : '600';
+        td.style.color = col.textColor || LINE_COLOR;
+        if (col.bg) td.style.backgroundColor = col.bg;
         td.style.verticalAlign = 'middle';
-        td.style.textAlign = align;
-        if (align === 'left') {
+        td.style.textAlign = col.align;
+        if (col.align === 'left') {
             td.style.whiteSpace = 'normal';
             td.style.wordBreak = 'break-word';
             td.style.lineHeight = '1.35';
@@ -328,9 +332,9 @@
         COLUMNS.forEach(function (c) {
             var th = doc.createElement('th');
             th.textContent = c.label;
-            th.style.backgroundColor = HEADER_BG;
+            th.style.backgroundColor = c.headBg || HEADER_BG;
             th.style.border = '1px solid ' + LINE_COLOR;
-            th.style.color = LINE_COLOR;
+            th.style.color = c.textColor || LINE_COLOR;
             th.style.fontSize = EXPORT_HEADER_FONT_SIZE;
             th.style.fontWeight = '800';
             th.style.padding = '10px 8px';
@@ -356,7 +360,7 @@
             var tr = doc.createElement('tr');
             COLUMNS.forEach(function (c, idx) {
                 var td = doc.createElement('td');
-                styleBodyCell(td, idx, c.align);
+                styleBodyCell(td, idx, c);
                 if (c.key === 'no') {
                     td.textContent = String(dataNo);
                     td.style.fontWeight = '700';

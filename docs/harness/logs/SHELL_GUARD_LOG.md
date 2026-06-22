@@ -4,9 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-06-17 11:01:14 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch --show-current; git diff --stat` |
-| 2026-06-17 11:01:21 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add foms/services/erp_mobile_order_display.py foms/web/construction/dashboard.py foms/web/` |
-| 2026-06-17 11:01:29 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
 | 2026-06-17 11:04:08 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_construction_dashboard_mobile.py -q --tb=short; python -c ` |
 | 2026-06-17 11:04:27 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_construction_dashboard_mobile.py -q --tb=short` |
 | 2026-06-17 11:04:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add foms/services/construction_dashboard_display.py foms/web/construction/dashboard.py tem` |
@@ -304,3 +301,6 @@
 | 2026-06-22 12:36:00 | allow | `-` | `python tools/perf/perf_scan.py --guard` |
 | 2026-06-22 12:38:28 | allow | `-` | `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
 | 2026-06-22 12:45:03 | allow | `-` | `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
+| 2026-06-22 12:48:45 | allow | `-` | `python tools/perf/perf_scan.py --guard` |
+| 2026-06-22 12:51:52 | allow | `-` | `echo "=== origin/production ==="; git log --oneline -5 origin/production; echo "=== origin/deploy ==="; git log --oneline -5 origin/deploy; echo "=== local prod` |
+| 2026-06-22 12:52:36 | allow | `-` | `git --no-pager diff -- static/js/measurement/regional-shipping-export.js templates/measurement/regional_dashboard.html` |

@@ -5,6 +5,12 @@
 
 ## 최근 파일 편집
 
+- `commit_msg.txt` <- 1 edit(s), ~270 chars (2026-06-22 12:53:01)
+- `templates/measurement/regional_dashboard.html` <- 1 edit(s), ~120 chars (2026-06-22 12:48:26)
+- `static/js/measurement/regional-shipping-export.js` <- 1 edit(s), ~42 chars (2026-06-22 12:48:14)
+- `static/js/measurement/regional-shipping-export.js` <- 2 edit(s), ~116 chars (2026-06-22 12:48:06)
+- `static/js/measurement/regional-shipping-export.js` <- 5 edit(s), ~351 chars (2026-06-22 12:47:56)
+- `static/js/measurement/regional-shipping-export.js` <- 2 edit(s), ~371 chars (2026-06-22 12:47:41)
 - `commit_msg.txt` <- 1 edit(s), ~232 chars (2026-06-22 12:45:46)
 - `templates/measurement/regional_dashboard.html` <- 1 edit(s), ~321 chars (2026-06-22 12:44:37)
 - `commit_msg.txt` <- 1 edit(s), ~473 chars (2026-06-22 12:39:21)
@@ -49,9 +55,3 @@
 - `static/js/foms/erp-mine-only.js` <- 1 edit(s), ~7690 chars (2026-06-22 08:39:10)
 - `static/js/foms/mobile-tower.js` <- 1 edit(s), ~306 chars (2026-06-22 08:39:01)
 - `static/js/foms/bottom-nav-shell.js` <- 1 edit(s), ~287 chars (2026-06-22 08:39:01)
-- `templates/partials/shared/layout_scripts.html` <- 1 edit(s), ~94 chars (2026-06-22 08:39:00)
-- `static/js/foms/mobile-tower.js` <- 1 edit(s), ~132 chars (2026-06-22 08:38:59)
-- `templates/partials/shared/layout_scripts.html` <- 7 edit(s), ~555 chars (2026-06-22 08:38:58)
-- `foms/web/orders/dashboard.py` <- 2 edit(s), ~84 chars (2026-06-22 08:38:47)
-- `foms/web/orders/dashboard.py` <- 1 edit(s), ~42 chars (2026-06-22 08:38:45)
-- `foms/web/orders/dashboard.py` <- 2 edit(s), ~84 chars (2026-06-22 08:38:43)
