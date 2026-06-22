@@ -67,10 +67,9 @@
 
 ### 2.6 수동 푸시 (`manual`)
 ```text
-[ERP 푸시] 주문 #{order_id} - {customer_name}
 {user_message}
 
 🔗 주문 상세 보기: {erp_url}/channel/wam/?launch_token={launch_token}
 ```
 
-재전송은 `[수정]` prefix를 사용한다.
+`user_message`는 ERP 변환 텍스트(``고객명 : …``부터)만 보낸다. 재전송은 본문 앞에 ``[수정]`` 한 줄만 붙인다.

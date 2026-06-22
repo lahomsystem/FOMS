@@ -38,10 +38,29 @@ def test_build_message_template_renders_manual_push_and_wam_link(monkeypatch):
         },
     )
 
-    assert "[ERP 푸시]" in message
-    assert "주문 #2762 - 윤인선" in message
-    assert "발주방 변환 텍스트" in message
+    assert "[ERP 푸시]" not in message
+    assert "주문 #2762" not in message
+    assert message.startswith("발주방 변환 텍스트")
     assert "https://example.com/w/short-123" in message
+
+
+def test_build_message_template_retry_uses_modify_prefix_only(monkeypatch):
+    monkeypatch.setenv("FOMS_BASE_URL", "https://example.com")
+    monkeypatch.setattr(channel_security, "generate_wam_short_link_token", lambda order_id=None: "short-123")
+
+    message = channel_policy.build_message_template(
+        "manual",
+        {
+            "order_id": 2762,
+            "customer_name": "윤인선",
+            "text": "고객명 : 윤인선",
+            "is_retry": True,
+        },
+    )
+
+    assert "[ERP 푸시]" not in message
+    assert "주문 #2762" not in message
+    assert message.startswith("[수정]\n\n고객명 : 윤인선")
 
 
 def test_build_message_blocks_renders_manual_push_link(monkeypatch):
@@ -57,8 +76,9 @@ def test_build_message_blocks_renders_manual_push_link(monkeypatch):
         },
     )
 
-    assert blocks and "윤인선" in blocks[0].get("value", "")
-    assert any("[ERP 푸시]" in block.get("value", "") for block in blocks)
+    assert blocks and blocks[0].get("value") == "발주방 변환 텍스트"
+    assert not any("[ERP 푸시]" in block.get("value", "") for block in blocks)
+    assert not any("주문 #2762" in block.get("value", "") for block in blocks)
     link_blocks = [block for block in blocks if block.get("type") == "text" and "주문 보기" in block.get("value", "")]
     assert len(link_blocks) == 1
     assert '<link type="url" value="https://example.com/w/short-123">주문 보기</link>' in link_blocks[0]["value"]

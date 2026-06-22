@@ -60,16 +60,17 @@ def build_message_blocks(event_type: str, data: Dict[str, Any]) -> list[dict[str
         raise ValueError(f"Unsupported ChannelTalk event_type for blocks: {event_type}")
 
     order_id = data.get("order_id", "?")
-    customer_name = data.get("customer_name", "고객")
     detail_url = data.get("detail_url") or _build_order_detail_link(order_id)
     user_message = str(data.get("text", "")).strip()
     is_retry = data.get("is_retry", False)
-    lines = [
-        "[수정]" if is_retry else "[ERP 푸시]",
-        f"주문 #{order_id} - {customer_name}",
-    ]
+    lines: list[str] = []
+    if is_retry:
+        lines.append("[수정]")
     if user_message:
-        lines.extend(["", user_message])
+        if lines:
+            lines.extend(["", user_message])
+        else:
+            lines.append(user_message)
     blocks = _paragraph_blocks(lines)
     blocks.append(
         {
@@ -109,13 +110,17 @@ def build_message_template(event_type: str, data: Dict[str, Any]) -> str:
         raise ValueError(f"Unsupported ChannelTalk event_type for template: {event_type}")
 
     order_id = data.get("order_id", "?")
-    customer_name = data.get("customer_name", "고객")
     detail_url = data.get("detail_url") or _build_order_detail_link(order_id)
     link_str = f"🔗 주문 상세 보기: {detail_url}"
-    user_message = data.get("text", "")
+    user_message = str(data.get("text", "")).strip()
     is_retry = data.get("is_retry", False)
-    prefix = "[수정]\n" if is_retry else "[ERP 푸시]\n"
-    return f"{prefix}주문 #{order_id} - {customer_name}\n\n{user_message}\n\n{link_str}"
+    body_parts: list[str] = []
+    if is_retry:
+        body_parts.append("[수정]")
+    if user_message:
+        body_parts.append(user_message)
+    body = "\n\n".join(body_parts)
+    return f"{body}\n\n{link_str}" if body else link_str
 
 
 def apply_attachment_policy(files: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

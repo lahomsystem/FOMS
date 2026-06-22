@@ -82,6 +82,7 @@ _PTC_FOMS_SERVICES_COMMON_ALLOWLIST: frozenset[str] = frozenset(
         "business_calendar.py",
         "dashboard_cache.py",
         "ept_b7_profile.py",
+        "erp_mine_filter.py",
         "erp_navigation_contract.py",
         "erp_shell_http.py",
         "geocode_config.py",
