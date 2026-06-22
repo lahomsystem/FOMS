@@ -185,6 +185,59 @@ def _preserve_or_normalize_construction_workers(old_sd: dict, structured_data: d
     )
 
 
+_OPERATIONAL_TOP_LEVEL_KEYS = (
+    # Drawing lifecycle is managed by dedicated drawing APIs, not by the ERP order form.
+    'drawing',
+    'blueprint',
+    'drawing_status',
+    'drawing_transferred',
+    'drawing_confirmed_at',
+    'drawing_confirmed_by',
+    'drawing_current_files',
+    'drawing_transfer_history',
+    'last_drawing_transfer',
+    'drawing_assignees',
+)
+
+
+def _merge_preserving_missing(old_value: Any, incoming_value: Any) -> Any:
+    """Deep-merge dicts so form PUTs cannot drop subtrees they do not render."""
+    if not isinstance(old_value, dict):
+        return copy.deepcopy(incoming_value)
+    if not isinstance(incoming_value, dict):
+        return copy.deepcopy(old_value)
+
+    merged = copy.deepcopy(old_value)
+    for key, value in incoming_value.items():
+        if isinstance(merged.get(key), dict) and isinstance(value, dict):
+            merged[key] = _merge_preserving_missing(merged[key], value)
+        else:
+            merged[key] = copy.deepcopy(value)
+    return merged
+
+
+def _preserve_operational_structured_state(old_sd: dict, structured_data: dict) -> None:
+    """Preserve non-form operational state during ERP order full-form saves."""
+    if not isinstance(old_sd, dict) or not isinstance(structured_data, dict):
+        return
+
+    for key in _OPERATIONAL_TOP_LEVEL_KEYS:
+        if key not in structured_data and key in old_sd:
+            structured_data[key] = copy.deepcopy(old_sd.get(key))
+
+    for key in ('workflow', 'assignments', 'shipment', 'meta'):
+        old_value = old_sd.get(key)
+        incoming_value = structured_data.get(key)
+        if isinstance(old_value, dict):
+            if isinstance(incoming_value, dict):
+                structured_data[key] = _merge_preserving_missing(old_value, incoming_value)
+            elif key not in structured_data or incoming_value in (None, ''):
+                structured_data[key] = copy.deepcopy(old_value)
+
+    if 'quests' not in structured_data and old_sd.get('quests') is not None:
+        structured_data['quests'] = copy.deepcopy(old_sd.get('quests'))
+
+
 def _handle_stage_transition(
     db: Session,
     order: Order,
@@ -545,6 +598,7 @@ def api_put_order_structured(order_id):
                 structured_data['flags'] = {}
             if not structured_data.get('assignments'):
                 structured_data['assignments'] = {}
+            _preserve_operational_structured_state(old_sd, structured_data)
             _preserve_or_normalize_construction_workers(old_sd, structured_data)
 
             try:

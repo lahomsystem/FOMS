@@ -225,6 +225,34 @@ def test_shared_erp_order_js_has_no_beta_runtime_mirror() -> None:
     assert "data-erp-beta-draft-mode" not in text
 
 
+def test_shared_erp_order_js_preserves_drawing_operational_state() -> None:
+    """ERP Order full-form save must not drop drawing timeline/files/assignees from the last snapshot."""
+    root = Path(__file__).resolve().parents[2]
+    text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+
+    collect_start = text.index("function erpCollectStructured()")
+    collect_end = text.index("async function erpSaveStructured", collect_start)
+    collect_block = text[collect_start:collect_end]
+
+    for key in (
+        "drawing_status",
+        "drawing_transferred",
+        "drawing_current_files",
+        "drawing_transfer_history",
+        "last_drawing_transfer",
+        "drawing_assignees",
+        "blueprint",
+    ):
+        assert f"'{key}'" in collect_block
+
+    workflow_start = collect_block.index("workflow: (function ()")
+    workflow_end = collect_block.index("flags:", workflow_start)
+    workflow_block = collect_block[workflow_start:workflow_end]
+    assert "prevSd.workflow" in workflow_block
+    assert "JSON.parse(JSON.stringify(prevWorkflow))" in workflow_block
+    assert "workflow.stage = getVal('erp-workflow-stage');" in workflow_block
+
+
 def test_shared_erp_order_js_does_not_auto_save_before_user_save() -> None:
     """Add-order actions must not persist anything until the user presses the save button."""
     root = Path(__file__).resolve().parents[2]

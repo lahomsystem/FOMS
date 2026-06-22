@@ -1458,7 +1458,22 @@ function erpCollectStructured() {
     const prevSd = (window.__erpLastStructuredData && typeof window.__erpLastStructuredData === 'object')
         ? window.__erpLastStructuredData
         : {};
-    const preservedTopLevelKeys = ['shipment', 'assignments', 'quests', 'meta'];
+    const preservedTopLevelKeys = [
+        'shipment',
+        'assignments',
+        'quests',
+        'meta',
+        'drawing',
+        'blueprint',
+        'drawing_status',
+        'drawing_transferred',
+        'drawing_confirmed_at',
+        'drawing_confirmed_by',
+        'drawing_current_files',
+        'drawing_transfer_history',
+        'last_drawing_transfer',
+        'drawing_assignees'
+    ];
 
     const structured = {
         entity_type: 'order_structured',
@@ -1510,7 +1525,19 @@ function erpCollectStructured() {
             address_note: getVal('erp-address-note'),
             measurement_note: getVal('erp-measurement-note')
         },
-        workflow: { stage: getVal('erp-workflow-stage') },
+        workflow: (function () {
+            const prevWorkflow = (prevSd.workflow && typeof prevSd.workflow === 'object' && !Array.isArray(prevSd.workflow))
+                ? prevSd.workflow
+                : {};
+            let workflow = {};
+            try {
+                workflow = JSON.parse(JSON.stringify(prevWorkflow));
+            } catch (e) {
+                workflow = Object.assign({}, prevWorkflow);
+            }
+            workflow.stage = getVal('erp-workflow-stage');
+            return workflow;
+        })(),
         flags: {
             urgent: getCheck('erp-urgent-flag'),
             urgent_reason: getVal('erp-urgent-reason')

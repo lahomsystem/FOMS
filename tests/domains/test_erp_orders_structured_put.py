@@ -342,6 +342,96 @@ def test_structured_put_preserves_shipment_construction_workers_when_missing(cli
     assert saved_order.structured_data["shipment"]["construction_workers"] == ["김시공", "박시공"]
 
 
+def test_structured_put_preserves_drawing_operational_state_from_form_payload(client, monkeypatch):
+    """ERP 주문 폼 저장은 전용 도면 API가 관리하는 이력/담당자/파일 상태를 지우면 안 된다."""
+    _login_as_admin(client, username="erp-drawing-state-preserve")
+    original_sd = _structured_payload("서울 테헤란로 123")
+    original_sd.update(
+        {
+            "workflow": {
+                "stage": "DRAWING",
+                "history": [
+                    {
+                        "stage": "DRAWING",
+                        "updated_at": "2026-06-22T09:00:00",
+                        "updated_by": "도면팀",
+                        "note": "도면 담당자 지정",
+                    }
+                ],
+                "stage_updated_at": "2026-06-22T09:00:00",
+                "stage_updated_by": "도면팀",
+            },
+            "assignments": {
+                "drawing_assignee_user_ids": [41],
+                "owner_team": "DRAWING",
+            },
+            "drawing_assignees": [{"id": 41, "name": "도면담당", "team": "DRAWING"}],
+            "shipment": {
+                "drawing_managers": ["도면담당"],
+                "construction_workers": ["시공담당"],
+                "as_content": "보존할 AS 내용",
+            },
+            "drawing_status": "RETURNED",
+            "drawing_transferred": True,
+            "drawing_current_files": [
+                {
+                    "key": "orders/1/drawing/revised.png",
+                    "filename": "revised.png",
+                    "view_url": "/api/files/view/orders/1/drawing/revised.png",
+                }
+            ],
+            "drawing_transfer_history": [
+                {
+                    "action": "REQUEST_REVISION",
+                    "at": "2026-06-22 09:10:00",
+                    "by_user_name": "영업담당",
+                    "note": "손잡이 위치 수정",
+                }
+            ],
+            "last_drawing_transfer": {
+                "action": "TRANSFER",
+                "transferred_at": "2026-06-22 09:20:00",
+                "by_user_name": "도면담당",
+            },
+        }
+    )
+    order = _create_order(structured_data=original_sd)
+    order_id = order.id
+
+    monkeypatch.setattr(erp_orders_structured, "_record_structured_events", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "_apply_structured_side_effects", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "_finalize_draft_state", lambda *a, **k: False)
+    monkeypatch.setattr(erp_orders_structured, "sync_erp_flat_columns", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "enqueue_geocode_order_address", lambda *a, **k: None)
+
+    form_sd = _structured_payload("서울 테헤란로 123")
+    form_sd["workflow"] = {"stage": "DRAWING"}
+    form_sd["shipment"] = {}
+    form_sd.pop("assignments", None)
+
+    response = client.put(
+        f"/api/orders/{order_id}/structured",
+        json={"structured_data": form_sd, "structured_schema_version": 1},
+    )
+
+    assert response.status_code == 200
+
+    db_session.expire_all()
+    saved_order = db_session.get(Order, order_id)
+    assert saved_order is not None
+    saved_sd = saved_order.structured_data
+    assert saved_sd["workflow"]["history"] == original_sd["workflow"]["history"]
+    assert saved_sd["workflow"]["stage_updated_at"] == "2026-06-22T09:00:00"
+    assert saved_sd["assignments"]["drawing_assignee_user_ids"] == [41]
+    assert saved_sd["drawing_assignees"] == original_sd["drawing_assignees"]
+    assert saved_sd["shipment"]["drawing_managers"] == ["도면담당"]
+    assert saved_sd["shipment"]["as_content"] == "보존할 AS 내용"
+    assert saved_sd["drawing_status"] == "RETURNED"
+    assert saved_sd["drawing_current_files"] == original_sd["drawing_current_files"]
+    assert saved_sd["drawing_transfer_history"] == original_sd["drawing_transfer_history"]
+    assert saved_sd["last_drawing_transfer"] == original_sd["last_drawing_transfer"]
+
+
 def test_erp_order_construction_worker_input_contract_is_wired():
     root = Path(__file__).resolve().parents[2]
     tpl = (root / "templates/orders/partials/erp_order_tab.html").read_text(encoding="utf-8")
