@@ -4,32 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-06-17 11:47:38 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_order_shared_form_scripts.py tests/domains/test_constr` |
-| 2026-06-17 11:47:58 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/visual/test_erp_order_edit_mobile_form.py tests/domains/test_erp_order_` |
-| 2026-06-17 11:48:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python -m pytest tests/performance/test_perf_regressi` |
-| 2026-06-17 11:48:22 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat; git diff` |
-| 2026-06-17 11:49:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status --short static/js/foms/attachment-preview-modal-bridge.js; git ls-files static/js/f` |
-| 2026-06-17 11:49:47 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_order_shared_form_scripts.py::test_attachment_preview_` |
-| 2026-06-17 11:49:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_order_shared_form_scripts.py tests/domains/test_constr` |
-| 2026-06-17 11:50:13 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add static/js/foms/erp-attachment-preview-open.js static/js/foms/attachment-preview-modal-` |
-| 2026-06-17 13:55:27 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/perf/perf_scan.py --guard` |
-| 2026-06-17 13:55:27 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python -m pytest tests/domains/test_erp_order_shared_` |
-| 2026-06-17 13:55:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch --show-current` |
-| 2026-06-17 13:55:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
-| 2026-06-17 13:56:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat; git diff` |
-| 2026-06-17 13:56:45 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff -- foms/services/estimate_service.py static/js/orders/erp-order-shared.js static/css/` |
-| 2026-06-17 13:59:14 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_mobile_order_display.py tests/domains/test_estimate_se` |
-| 2026-06-17 13:59:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_order_shared_form_scripts.py::test_erp_amount_surfaces` |
-| 2026-06-17 13:59:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add "static/css/foundation/erp-pro/04-filter-table-badges-buttons.css" "static/js/orders/d` |
-| 2026-06-17 13:59:46 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git commit --trailer "Co-authored-by: Cursor <cursoragent@cursor.com>" -F commit_msg.txt; Remo` |
-| 2026-06-17 14:13:26 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git diff; git log -3 --oneline` |
-| 2026-06-17 14:13:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add "templates/orders/partials/estimate_pane.html"; git commit --trailer "Co-authored-by: ` |
-| 2026-06-17 14:16:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $session = New-Object Microsoft.PowerShell.Commands.WebRequestSession; $loginPage = Invoke-Web` |
-| 2026-06-17 14:16:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $session = New-Object Microsoft.PowerShell.Commands.WebRequestSession; Invoke-WebRequest -Uri ` |
-| 2026-06-17 14:17:17 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; $session = New-Object Microsoft.PowerShell.Commands.WebRequestSession; Invoke-WebRequest -Uri ` |
-| 2026-06-17 14:18:38 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_foms_search_overlay.py tests/domains/test_completion_searc` |
-| 2026-06-17 14:19:20 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add static/js/runtime/erp-shell.js foms/api/cs/dashboard.py foms/web/cs/completion_dashboa` |
-| 2026-06-17 14:21:21 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch -vv; git log -1 --oneline deploy; git log -1 --oneline origin/deploy 2>` |
 | 2026-06-17 14:21:27 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
 | 2026-06-17 14:27:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_queue_card_schedule.py tests/domains/test_foms_search_over` |
 | 2026-06-17 14:27:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/perf/perf_scan.py --guard; python -c "import app; print('APP_OK')"` |
@@ -304,3 +278,29 @@
 | 2026-06-23 10:53:45 | allow | `-` | `python -m pytest tests/domains/test_erp_wdc_estimate_sync.py tests/domains/test_wdc_spec_presets_settings_ui.py tests/performance/test_perf_regression_guard.py ` |
 | 2026-06-23 10:56:13 | allow | `-` | `python -m pytest tests/domains/test_wdc_spec_presets_settings_ui.py tests/domains/test_erp_spec_calc_followup.py tests/domains/test_erp_spec_calc_phase3.py -q 2` |
 | 2026-06-23 11:04:38 | allow | `-` | `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1 2>&1 | Select-Object -Last 45` |
+| 2026-06-23 14:59:59 | allow | `-` | `python -m pytest tests/domains/test_erp_spec_calc_followup.py tests/domains/test_erp_spec_calc_phase3.py tests/domains/test_wdc_spec_presets_settings_ui.py -q 2` |
+| 2026-06-23 15:00:08 | allow | `-` | `python -m pytest tests/domains/test_erp_spec_calc_followup.py tests/domains/test_erp_spec_calc_phase3.py tests/domains/test_wdc_spec_presets_settings_ui.py -q` |
+| 2026-06-23 15:00:38 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-06-23 15:00:39 | allow | `-` | `python tools/perf/perf_scan.py --guard` |
+| 2026-06-23 15:00:58 | allow | `-` | `python -m pytest tests/domains/test_erp_order_shared_form_scripts.py tests/domains/test_erp_mobile_layout_and_shipment.py tests/domains/test_p0_01_erp_mobile_v2` |
+| 2026-06-23 15:03:22 | allow | `-` | `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
+| 2026-06-23 15:19:50 | allow | `-` | `git ls-remote origin refs/heads/deploy refs/heads/production; echo "==== my commit ===="; git rev-parse bafb47d3; echo "==== parent of my commit ===="; git rev-` |
+| 2026-06-23 15:20:35 | allow | `-` | `git ls-remote origin refs/heads/deploy refs/heads/production` |
+| 2026-06-23 15:28:31 | allow | `-` | `echo "==== bafb47d3 ancestry (top 12) ===="; git log --oneline -12 bafb47d3; echo "==== is 1cd00528 (production hotfix line) ancestor of bafb47d3? (0=yes) ===="` |
+| 2026-06-23 15:29:48 | allow | `-` | `echo "==== 5393d94a parents (merge?) ===="; git rev-list --parents -n 1 5393d94a; echo "==== 1cd00528 subject (last prod hotfix) ===="; git log -1 --oneline 1cd` |
+| 2026-06-23 15:33:31 | allow | `-` | `echo "==== origin/production reflog (transitions) ===="; git reflog show origin/production 2>&1 | Select-Object -First 12; echo "==== what sits ON TOP of 1cd005` |
+| 2026-06-23 15:35:17 | allow | `-` | `echo "==== 78ab25e4 (ERP 즉시견적) parent ===="; git log -1 --oneline 78ab25e4^; echo "==== ERP feature commits to remove (3) ===="; git log --oneline 5393d94a..baf` |
+| 2026-06-23 15:39:26 | allow | `-` | `echo "==== remote tips now ===="; git ls-remote origin refs/heads/production refs/heads/deploy; echo "==== ERP 3 commits preserved on deploy? ===="; git merge-b` |
+| 2026-06-23 15:41:37 | allow | `-` | `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1 2>&1` |
+| 2026-06-23 15:42:34 | allow | `-` | `python tools/harness/build_context_bundle.py --all 2>&1 | Select-Object -Last 3; echo "==== changed bundles ===="; git status -sb -- docs/harness/bundles/` |
+| 2026-06-23 15:42:57 | allow | `-` | `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1 2>&1 | Select-Object -Last 25` |
+| 2026-06-23 15:45:59 | allow | `-` | `railway status 2>&1; echo "==== LIST ===="; railway list --json 2>&1 | Select-Object -First 60` |
+| 2026-06-23 15:47:31 | allow | `-` | `$urls = @('https://lahom-dev.up.railway.app/static/js/orders/erp-spec-calc.js','https://lahom-dev.up.railway.app/static/js/orders/erp-spec-picker.js','https://l` |
+| 2026-06-23 15:51:17 | allow | `-` | `$base='https://lahom-dev.up.railway.app/static/js/orders'; $r=Get-Random; $calc=(Invoke-WebRequest "$base/erp-spec-calc.js?nc=$r" -UseBasicParsing -TimeoutSec 3` |
+| 2026-06-23 15:54:25 | allow | `-` | `echo "==== erp_order_js.html version string across ERP commits ===="; foreach ($c in @('78ab25e4','a9c277af','bafb47d3','f85fed2d')) { $line = (git show "${c}:t` |
+| 2026-06-23 15:58:35 | allow | `-` | `$base='https://lahom-dev.up.railway.app/static/js/orders'; $r=Get-Random; $resp=Invoke-WebRequest "$base/erp-order-shared.js?nc=$r" -UseBasicParsing -TimeoutSec` |
+| 2026-06-23 16:03:22 | allow | `-` | `echo "==== files changed in bafb47d3 (phase3 redesign) ===="; git show --stat --oneline bafb47d3 | Select-String '\.(css|js|html)'; echo "==== was foms-form-fie` |
+| 2026-06-23 16:09:04 | allow | `-` | `python -c "import app; print('APP_OK')"; echo "==== targeted tests ===="; python -m pytest tests/domains/test_erp_spec_calc_followup.py tests/domains/test_erp_s` |
+| 2026-06-23 16:09:46 | allow | `-` | `python tools/perf/perf_scan.py --guard 2>&1 | Select-Object -Last 25` |
+| 2026-06-23 16:09:59 | allow | `-` | `git --no-pager diff --stat; echo "==== full diff ===="; git --no-pager diff` |
+| 2026-06-23 16:10:32 | allow | `-` | `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1 2>&1 | Select-Object -Last 45` |

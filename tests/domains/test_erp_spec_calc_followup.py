@@ -152,3 +152,26 @@ def test_typography_benchmarks_order_detail_density() -> None:
     # 라벨 13px (주문상세 .foms-kv-row 기준), 입력 16px(iOS 포커스 줌 방지)
     assert "font-size: 13px" in css
     assert "max(16px" in css
+
+
+# ----- 캐시버스팅 회귀 가드(근본원인): 통합 진입점은 버전 쿼리 필수 -----
+def test_shared_integration_script_is_cache_busted() -> None:
+    """erp-order-shared.js가 enhanceItemRow를 호출하는 통합 진입점인데, <script>에
+    ?v= 버전이 없으면 과거 immutable 캐시본이 영구히 stale로 남아 spec-calc가 통째로
+    dormant가 된다(라이브 콘솔에서 'flag ON·스크립트 로드됨'인데 트리거 전무로 입증).
+    버전 쿼리 부재 재발을 구조적으로 차단한다."""
+    tpl = _read(ORDER_JS_TPL)
+    assert "js/orders/erp-order-shared.js') }}?v=" in tpl
+    # spec-calc 자산도 동일하게 버전으로 신선화(휴면 호출자 갱신과 한 묶음)
+    assert "js/orders/erp-spec-calc.js') }}?v=" in tpl
+    assert "js/orders/erp-spec-picker.js') }}?v=" in tpl
+
+
+def test_form_field_css_chain_cache_busted_for_redesign() -> None:
+    """R5/R7(폰트·폭)은 foms-form-field.css에 있고, 편집 페이지는 mobile-surfaces
+    번들의 @import로 이를 받는다. 내용만 바꾸고 버전을 안 올리면 stale 캐시로 미반영되므로,
+    @import 버전(번들 내부)과 외곽 <link> 버전이 함께 신선해야 한다."""
+    surfaces = _read(ROOT / "static/css/foundation/foms-mobile-surfaces.css")
+    layout_head = _read(ROOT / "templates/partials/shared/layout_head.html")
+    assert "../components/foms-form-field.css?v=20260623c" in surfaces
+    assert "foms-mobile-surfaces.css') }}?v=20260623c" in layout_head

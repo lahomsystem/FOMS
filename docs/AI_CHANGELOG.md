@@ -4,6 +4,9 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-06-23 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-05fdabc7-1894-42a3-864c-2f5c8c4efb37.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-b3978904-cdea-483b-83ab-c3ed41cfbb08.png, commit_msg.txt 외 2개 | f85fed2d |
+| 2026-06-23 | 세션 자동 기록 | commit_msg.txt, test_erp_spec_calc_phase3.py, test_erp_spec_calc_followup.py 외 2개 | bafb47d3 |
+| 2026-06-23 | 세션 자동 기록 | commit_msg.txt, test_wdc_spec_presets_settings_ui.py, product_settings.html 외 2개 | a9c277af |
 | 2026-06-23 | 세션 자동 기록 | test_wdc_spec_presets_settings_ui.py, product_settings.html, test_erp_spec_calc_followup.py 외 2개 | 78ab25e4 |
 | 2026-06-23 | 세션 자동 기록 | commit_msg.txt, test_erp_spec_calc_phase3.py, context_processors.py 외 2개 | 78ab25e4 |
 | 2026-06-23 | 세션 자동 기록 | test_erp_spec_calc_phase3.py, erp_order_js.html, erp-spec-calc.css 외 2개 | 5393d94a |
@@ -21,6 +24,3 @@
 | 2026-06-18 | 세션 자동 기록 | commit_msg.txt, routes.py, test_channel_push_messages.py 외 2개 | 5f27ca15 |
 | 2026-06-18 | 세션 자동 기록 | routes.py, test_channel_push_messages.py, foms_namespace_surface_tests.py 외 2개 | d3c8d39f |
 | 2026-06-18 | 세션 자동 기록 | attachment-preview-zoom.js, mobile_order_detail.html, object.html 외 2개 | d3c8d39f |
-| 2026-06-18 | 세션 자동 기록 | commit_msg.txt, test_channel_integration_smoke.py, foms_namespace_surface_tests.py 외 2개 | 1618de4a |
-| 2026-06-18 | 세션 자동 기록 | commit_msg.txt, foms_namespace_surface_tests.py, test_erp_orders_structured_put.py 외 2개 | 9ddcc7b4 |
-| 2026-06-18 | 세션 자동 기록 | foms_namespace_surface_tests.py, test_erp_orders_structured_put.py, erp_orders_structured.py 외 2개 | cfc752d2 |

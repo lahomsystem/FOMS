@@ -6,9 +6,9 @@
 
 ### Session: a1e98f3a
 - **시작**: 2026-06-23 09:03:35
-- **상태**: completed
-- **편집 파일**: `tests/domains/test_wdc_spec_presets_settings_ui.py`, `templates/wdcalculator/product_settings.html`, `tests/domains/test_erp_spec_calc_followup.py`, `static/js/orders/erp-spec-calc.js`, `static/css/orders/erp-spec-calc.css`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-d4cefc28-5203-4001-9638-342ca913df82.png`
-- **종료**: 2026-06-23 10:57:10
+- **상태**: aborted
+- **편집 파일**: `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-05fdabc7-1894-42a3-864c-2f5c8c4efb37.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-b3978904-cdea-483b-83ab-c3ed41cfbb08.png`, `commit_msg.txt`, `.cursor/rules/00-project-context.mdc`, `AGENTS.md`, `CLAUDE.md`, `tests/domains/test_erp_spec_calc_phase3.py`, `tests/domains/test_erp_spec_calc_followup.py`, `static/css/components/foms-form-field.css`, `static/css/orders/erp-spec-calc.css`
+- **종료**: 2026-06-23 15:49:23
 
  eb794731
 - **시작**: 2026-06-22 09:04:43
@@ -881,3 +881,13 @@
 | 2026-06-23 10:07:01 | END (Claude Code) | 수정: (없음) |
 
 | 2026-06-23 10:57:10 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-23 11:06:13 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-23 14:31:20 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-23 15:05:25 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-23 15:20:51 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-23 15:49:23 | END (Claude Code) | 수정: (없음) |

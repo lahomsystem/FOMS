@@ -8,13 +8,13 @@
     window.ERP_SPEC_CALC_ENABLED = {{ 'true' if flag_spec_calc else 'false' }};
 </script>
 <script src="{{ url_for('static', filename='js/foms/attachment-preview-zoom.js') }}?v=20260618c" defer></script>
-<script src="{{ url_for('static', filename='js/orders/erp-order-shared.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/orders/erp-order-shared.js') }}?v=20260623c" defer></script>
 {% if flag_spec_calc %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/wdcalculator/category-picker.css') }}?v=20260623b">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/wdcalculator/multi-add-picker.css') }}?v=20260623b">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/orders/erp-spec-calc.css') }}?v=20260623b">
-<script src="{{ url_for('static', filename='js/orders/erp-spec-picker.js') }}?v=20260623b" defer></script>
-<script src="{{ url_for('static', filename='js/orders/erp-spec-calc.js') }}?v=20260623b" defer></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/wdcalculator/category-picker.css') }}?v=20260623c">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/wdcalculator/multi-add-picker.css') }}?v=20260623c">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/orders/erp-spec-calc.css') }}?v=20260623c">
+<script src="{{ url_for('static', filename='js/orders/erp-spec-picker.js') }}?v=20260623c" defer></script>
+<script src="{{ url_for('static', filename='js/orders/erp-spec-calc.js') }}?v=20260623c" defer></script>
 {% endif %}
 {% if flag_inline %}
 {% if flag_offline_sw %}
