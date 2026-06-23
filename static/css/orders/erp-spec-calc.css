@@ -3,28 +3,57 @@
  *
  * 이 클래스들은 플래그 on + erp-spec-calc.js가 DOM을 강화할 때만 존재한다.
  * 기존 폼 요소의 선택자를 건드리지 않으므로 데스크톱/레거시 회귀가 구조적으로 불가능하다.
- * 실측/영업 담당자 persona: 현장에서 한 손 조작 → 48px 터치 타깃, 큰 글씨, 즉시 피드백.
+ * 실측/영업 담당자 persona: 현장에서 한 손 조작 → 큰 터치 타깃, 큰 글씨, 즉시 피드백.
  *
- * UX 핵심: "기본 1칸". 각 스펙 칸은 datalist 콤보박스(.erp-calc-combo)로 강화되어
- * 별도 드롭다운을 쌓지 않는다(모바일 칸 정리). 옵션만 다중선택 adder를 추가로 둔다.
+ * UX 핵심: "기본 1칸 + ▾ 트리거". 각 스펙 칸은 기존 입력 컨트롤(직접입력·autosize 유지)을
+ * 그대로 두고 우상단에 ▾ 트리거를 붙인다. 트리거 → 검증된 피커(ErpSpecPicker, wd-cat-*/wd-madd-*)
+ * 가 열린다. native <datalist>(모바일 미동작)는 폐기.
  */
 
-.erp-calc-select {
+/* ── ▾ 트리거: 입력칸을 감싸는 래퍼 + 우상단 버튼 ── */
+.erp-calc-field {
+  position: relative;
+  display: block;
   width: 100%;
+  min-width: 0; /* 인라인 라벨 그리드(72px + 1fr)의 셀로 들어갈 때 오버플로 방지 */
 }
 
-/* datalist 콤보박스: 타이핑 + 목록 선택을 한 칸에서. 드롭다운 가능 힌트로 우측 화살표를 살짝 표시 */
-.erp-calc-combo {
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='%239b8cc4' d='M1 1l5 5 5-5'/></svg>");
-  background-repeat: no-repeat;
-  background-position: right 0.6rem center;
-  background-size: 11px 8px;
-  padding-right: 1.8rem;
+/* 트리거에 텍스트가 가려지지 않도록 입력칸 우측 여백 확보 */
+.erp-calc-field .erp-calc-has-trigger {
+  padding-right: 2.4rem;
 }
 
-/* 옵션 다중선택 adder: 보조 컨트롤임을 연보라 테두리로 암시 */
-.erp-calc-option-adder {
-  border-color: #d6c8f5;
+.erp-calc-trigger {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0; /* 데스크톱(단일행 input): 칸 높이에 맞춤 */
+  width: 2.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-left: 1px solid rgba(155, 140, 196, 0.35);
+  background: transparent;
+  color: #6f42c1;
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 0 6px 6px 0;
+}
+
+.erp-calc-trigger:hover {
+  background: rgba(111, 66, 193, 0.08);
+}
+
+.erp-calc-trigger:active {
+  background: rgba(111, 66, 193, 0.16);
+}
+
+.erp-calc-trigger:focus-visible {
+  outline: 2px solid #6f42c1;
+  outline-offset: -2px;
 }
 
 /* 라이브 계산 readout: 계산폭 · 자동계산 금액 · 수동전환 */
@@ -57,16 +86,16 @@
 }
 
 /* ── 모바일 persona 마감: 한 손 조작 + 가독성 ── */
-.erp-order-mobile-form .erp-calc-select,
-.erp-order-mobile-form .erp-calc-combo {
-  min-height: 48px;
+/* 모바일 칸은 autosize textarea라 위에서부터 늘어남 → 트리거는 상단 고정 + 큰 터치 타깃 */
+.erp-order-mobile-form .erp-calc-trigger {
+  bottom: auto;
+  height: 44px;
+  width: 2.75rem;
   font-size: 1rem;
-  padding: 0.5rem 0.75rem;
-  border-radius: 10px;
 }
 
-.erp-order-mobile-form .erp-calc-combo {
-  padding-right: 2rem; /* 화살표 힌트 공간 확보 */
+.erp-order-mobile-form .erp-calc-field .erp-calc-has-trigger {
+  padding-right: 2.9rem;
 }
 
 .erp-order-mobile-form .erp-calc-price-meta {

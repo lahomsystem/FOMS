@@ -8,7 +8,7 @@
 {% set is_erp_order_flag = order.is_erp_order %}
 {% set is_erp_order = erp_order_feature_enabled and is_erp_order_flag %}
 <div class="row">
-    <div class="col-md-8 mx-auto">
+    <div class="col-md-8 mx-auto erp-edit-col">
         <div class="card" data-order-id="{{ order.id }}" data-payment-amount="{{ order.payment_amount or 0 }}"
             data-erp-order-enabled="{{ 'true' if is_erp_order else 'false' }}">
             <div id="erp-order-config" class="d-none" data-order-id="{{ order.id }}"

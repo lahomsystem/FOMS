@@ -119,8 +119,9 @@ def test_spec_calc_css_exists_and_flag_gated_in_template() -> None:
 
 def test_spec_calc_css_has_mobile_persona_rules() -> None:
     css = _read(SPEC_CALC_CSS)
-    # 48px 터치 타깃(한 손 조작)
-    assert "min-height: 48px" in css
+    # 모바일 ▾ 트리거 터치 타깃(한 손 조작, 44px)
+    assert ".erp-order-mobile-form .erp-calc-trigger" in css
+    assert "height: 44px" in css
     # 모바일 컨텍스트로 스코프(데스크톱 회귀 방지)
     assert ".erp-order-mobile-form" in css
     # 자동계산 잠금 금액 즉시 피드백(읽기전용 시각 구분)

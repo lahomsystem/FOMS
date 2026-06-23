@@ -4,17 +4,18 @@
  * 동작은 전적으로 window.ERP_SPEC_CALC_ENABLED 플래그에 게이트된다.
  * 플래그 off → enhanceItemRow/collectPricing이 호출돼도 즉시 반환(무영향).
  *
- * UX 원칙(실측/영업 persona): "기본 1칸". 각 스펙 칸은 별도 드롭다운을 쌓지 않고
- * 기존 입력 칸 자체를 datalist 콤보박스로 강화한다 → 타이핑(직접입력)과 목록 선택이
- * 한 칸에서 모두 가능. 모바일에서 textarea로 렌더된 칸은 강화 시점에만 단일행 input으로
- * 치환한다(플래그 off면 원본 그대로 → 회귀 불가).
+ * UX 원칙(실측/영업 persona): "기본 1칸 + ▾ 트리거". 각 스펙 칸은 기존 입력 컨트롤
+ * (모바일=자동 늘어나는 textarea, 제품명=input)을 그대로 유지해 직접입력·autosize를 보존하고,
+ * 우측에 작은 ▾ 트리거 버튼을 붙인다. 트리거 → 검증된 피커(ErpSpecPicker: 단일=드롭다운/바텀시트,
+ * 옵션=검색+체크박스 시트)가 열리고, 선택 값을 칸에 써넣은 뒤 input 이벤트를 디스패치 →
+ * 기존 계산/해석 로직이 그대로 동작. (native <datalist>는 모바일에서 열리지 않아 폐기)
  *
  * 책임:
- *  - 제품명 칸: 카탈로그 datalist + 이름→product_id 해석 → 즉시 가격계산
+ *  - 제품명 칸: 카탈로그 피커 + 이름→product_id 해석 → 즉시 가격계산
  *    · 제품명에 슬라이딩/피닉스바/푸쉬 포함 시 손잡이 칸 자동 입력(신규 선택 시 1회)
- *  - 색상/손잡이/기타 칸: 스펙 프리셋 datalist(+직접입력)
- *  - 내부 칸: 추가옵션 '내부구성' 카테고리 값 datalist(+직접입력)
- *  - 옵션 칸: '＋ 옵션 추가' adder(다중선택) → 콤마로 누적 표기 + 가격 합산
+ *  - 색상/손잡이/기타 칸: 스펙 프리셋 단일 피커(+직접입력)
+ *  - 내부 칸: 추가옵션 '내부구성' 카테고리 값 단일 피커(+직접입력)
+ *  - 옵션 칸: 다중 피커(검색+체크박스) → 콤마로 누적 표기 + 가격 합산
  *  - 제품+계산폭(복합 W 자동합산)으로 WDC 가격엔진(pricing-core.js) 즉시 계산
  *  - 계산 활성 항목의 금액은 기본 읽기전용(수동전환 토글 제공)
  *  - 저장 시 항목별 pricing 스냅샷을 structured_data.items[].pricing으로 수집
@@ -27,12 +28,12 @@
   if (window.__erpSpecCalcBound) return;
   window.__erpSpecCalcBound = true;
 
-  // datalist 콤보박스로 강화할 텍스트 칸(제품명은 별도 처리, 옵션은 adder 처리).
+  // 단일 피커로 강화할 텍스트 칸(제품명은 별도 처리, 옵션은 다중 피커 처리).
   var PRESET_FIELDS = ['color', 'handle', 'internal', 'misc'];
+  var FIELD_LABELS = { color: '색상', handle: '손잡이', internal: '내부', misc: '기타 / 설치위치' };
   var INTERNAL_CATEGORY = '내부구성';            // 내부 칸 데이터 출처(추가옵션 카테고리명)
   var PRICING_ENGINE_SRC = '/static/js/wdcalculator/pricing-core.js';
 
-  var _uid = 0;               // datalist id 유일성 카운터
   var _enginePromise = null;
   var _catalogPromise = null;
   var _products = null;       // 제품 카탈로그(엔진 입력 원본 유지)
@@ -168,61 +169,48 @@
     return div.innerHTML;
   }
 
-  // ----- DOM 강화(콤보박스) -----
-  /** data-erp 칸을 input으로 보장. 모바일 textarea면 값/속성을 보존해 단일행 input으로 치환. */
-  function _ensureInputControl(row, field) {
-    var el = row.querySelector('[data-erp="' + field + '"]');
-    if (!el) return null;
-    if (el.tagName === 'INPUT') return el;
-    var input = document.createElement('input');
-    input.type = 'text';
-    input.setAttribute('data-erp', field);
-    input.value = el.value || '';
-    if (el.getAttribute('placeholder')) input.setAttribute('placeholder', el.getAttribute('placeholder'));
-    input.setAttribute('lang', el.getAttribute('lang') || 'ko');
-    // 모바일 단일행 입력 클래스(제품명/금액 칸과 동일 룩) + 강화 식별자
-    input.className = 'foms-input erp-calc-converted';
-    el.parentNode.replaceChild(input, el);
-    return input;
-  }
-
-  /** input에 datalist 콤보박스를 부착(빈 datalist 생성). 값은 카탈로그 로드 후 채운다. */
-  function _attachDatalist(input, key) {
-    if (!input || input.dataset.erpCalcCombo === '1') return;
-    input.dataset.erpCalcCombo = '1';
-    input.classList.add('erp-calc-combo');
-    var id = 'erp-dl-' + key + '-' + (_uid++);
-    var dl = document.createElement('datalist');
-    dl.id = id;
-    input.setAttribute('list', id);
-    input.parentNode.appendChild(dl);
-    input.__erpDatalist = dl; // 마운트 타이밍 무관하게 채우기 위한 직접 참조
+  // ----- DOM 강화(▾ 트리거 + 피커) -----
+  /**
+   * 기존 입력 컨트롤(textarea/input)을 보존한 채 우측에 ▾ 트리거 버튼을 붙인다.
+   * 컨트롤을 .erp-calc-field 래퍼로 감싸 트리거를 우상단에 절대배치 → textarea가
+   * 늘어나도 트리거 위치는 고정. onOpen(anchorEl)에서 ErpSpecPicker를 연다.
+   */
+  function _attachTrigger(control, label, onOpen) {
+    if (!control || control.dataset.erpCalcTrigger === '1') return;
+    control.dataset.erpCalcTrigger = '1';
+    control.classList.add('erp-calc-has-trigger');
+    var wrap = document.createElement('div');
+    wrap.className = 'erp-calc-field';
+    control.parentNode.insertBefore(wrap, control);
+    wrap.appendChild(control);
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'erp-calc-trigger';
+    btn.tabIndex = -1;
+    btn.setAttribute('aria-label', label + ' 목록 열기');
+    btn.innerHTML = '<span aria-hidden="true">\u25be</span>';
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      onOpen(wrap);
+    });
+    wrap.appendChild(btn);
   }
 
   function _enhanceProductField(row) {
     var input = row.querySelector('[data-erp="product_name"]'); // 제품명은 항상 input
-    if (input) _attachDatalist(input, 'product');
+    if (input) _attachTrigger(input, '제품명', function (anchor) { _openProductPicker(row, anchor); });
   }
 
   function _enhancePresetFields(row) {
     PRESET_FIELDS.forEach(function (field) {
-      var input = _ensureInputControl(row, field);
-      if (input) _attachDatalist(input, field);
+      var ctrl = row.querySelector('[data-erp="' + field + '"]');
+      if (ctrl) _attachTrigger(ctrl, FIELD_LABELS[field] || field, function (anchor) { _openPresetPicker(row, field, anchor); });
     });
   }
 
-  /** 옵션 칸: 다중선택 adder(category optgroup) + 기존 콤마 텍스트 칸 유지. */
   function _enhanceOptionField(row) {
     var ctrl = row.querySelector('[data-erp="option_detail"]');
-    if (!ctrl || row.querySelector('.erp-calc-option-adder')) return;
-    var mobile = ctrl.className && ctrl.className.indexOf('foms-') >= 0;
-    var sel = document.createElement('select');
-    sel.className = (mobile ? 'foms-input' : 'form-select form-select-sm') + ' erp-calc-select erp-calc-option-adder mb-1';
-    var ph = document.createElement('option');
-    ph.value = '';
-    ph.textContent = '＋ 옵션 추가… (여러 개 선택 가능)';
-    sel.appendChild(ph);
-    ctrl.parentNode.insertBefore(sel, ctrl);
+    if (ctrl) _attachTrigger(ctrl, '옵션', function (anchor) { _openOptionPicker(row, anchor); });
   }
 
   function _injectPriceMeta(row) {
@@ -237,64 +225,49 @@
     priceInput.parentNode.appendChild(meta);
   }
 
-  // ----- 채우기(catalog 로드 후) -----
-  function _populateDatalist(row, field, values) {
-    var input = row.querySelector('[data-erp="' + field + '"]');
-    if (!input) return;
-    var dl = input.__erpDatalist; // 직접 참조(detached 상태에서도 안전)
-    if (!dl || dl.dataset.populated === '1') return;
-    dl.textContent = '';
-    (values || []).forEach(function (v) {
-      if (v == null || v === '') return;
-      var o = document.createElement('option');
-      o.value = String(v);     // .value 설정 → 인용/특수문자 이스케이프 불필요(DOM 안전)
-      dl.appendChild(o);
-    });
-    dl.dataset.populated = '1';
-  }
-
+  // ----- 카탈로그 로드 후 행 동기화 -----
   function _presetNames(field) {
     var list = (_presets && Array.isArray(_presets[field])) ? _presets[field] : [];
     return list.map(function (p) { return p && p.name; }).filter(Boolean);
   }
 
-  function _populateOptionAdder(row) {
-    var sel = row.querySelector('.erp-calc-option-adder');
-    if (!sel || sel.dataset.populated === '1' || !_optionList) return;
+  /** 단일 피커용 항목 변환: 값/표시 동일한 평면 목록. */
+  function _singleItems(values) {
+    return (values || []).filter(function (v) { return v != null && v !== ''; })
+      .map(function (v) { return { value: String(v), text: String(v) }; });
+  }
+
+  /** 옵션 다중 피커용 그룹: _optionList를 카테고리별로 묶고 토큰을 key로 사용. */
+  function _buildOptionGroups() {
     var byCat = {};
     var order = [];
-    _optionList.forEach(function (e, idx) {
+    (_optionList || []).forEach(function (e) {
       var c = e.category || '기타';
       if (!byCat[c]) { byCat[c] = []; order.push(c); }
-      byCat[c].push({ idx: idx, e: e });
-    });
-    sel.textContent = '';
-    var ph = document.createElement('option');
-    ph.value = '';
-    ph.textContent = '＋ 옵션 추가… (여러 개 선택 가능)';
-    sel.appendChild(ph);
-    order.forEach(function (c) {
-      var og = document.createElement('optgroup');
-      og.label = c;
-      byCat[c].forEach(function (item) {
-        var o = document.createElement('option');
-        o.value = String(item.idx);
-        var price = item.e.price > 0 ? (' (' + item.e.price.toLocaleString() + '원)') : '';
-        o.textContent = item.e.name + price;
-        og.appendChild(o);
+      byCat[c].push({
+        key: e.token,
+        label: e.name,
+        meta: e.price > 0 ? (e.price.toLocaleString() + '원') : '',
+        payload: e
       });
-      sel.appendChild(og);
     });
-    sel.dataset.populated = '1';
+    return order.map(function (c) { return { label: c, items: byCat[c] }; });
+  }
+
+  /** 현재 옵션 칸 텍스트에서 카탈로그와 매칭되는 토큰(피커 사전선택 key)을 추출. */
+  function _currentOptionKeys(ctrl) {
+    var keys = [];
+    if (!ctrl || !_optionLookup) return keys;
+    String(ctrl.value || '').split(',').forEach(function (tok) {
+      var t = tok.trim();
+      if (!t) return;
+      var e = _optionLookup.get(_norm(t));
+      if (e && keys.indexOf(e.token) === -1) keys.push(e.token);
+    });
+    return keys;
   }
 
   function _populateRow(row) {
-    _populateDatalist(row, 'product_name', _productNames || []);
-    _populateDatalist(row, 'color', _presetNames('color'));
-    _populateDatalist(row, 'handle', _presetNames('handle'));
-    _populateDatalist(row, 'internal', (_optionsByCategory && _optionsByCategory[INTERNAL_CATEGORY]) || []);
-    _populateDatalist(row, 'misc', _presetNames('misc'));
-    _populateOptionAdder(row);
     _resolveProduct(row, false);   // 로드 시: 저장된 제품명 → product_id 확정(손잡이 자동입력 금지)
     _onOptionTextChange(row);      // 로드 시: 콤마 텍스트 → option_rows 재구성
     _recalc(row);
@@ -361,21 +334,71 @@
     _recalc(row);
   }
 
-  function _onOptionAdderPick(row, sel) {
-    var idx = sel.value;
-    sel.value = ''; // adder는 항상 placeholder로 복귀(다음 추가 대기)
-    if (idx === '' || !_optionList) return;
-    var e = _optionList[Number(idx)];
-    if (!e) return;
-    var ctrl = row.querySelector('[data-erp="option_detail"]');
+  /**
+   * 다중 피커 확인 → 옵션 칸 재구성. 카탈로그 옵션은 피커가 SSOT로 관리(체크/해제),
+   * 카탈로그에 없는 자유 입력 토큰은 보존. 기본 placeholder '상담'은 제거.
+   */
+  function _applyOptionSelection(row, ctrl, payloads) {
     if (!ctrl) return;
-    var cur = String(ctrl.value || '').trim();
-    if (cur === '' || cur === '상담') cur = ''; // 기본값 '상담'은 첫 추가 시 치환
-    var tokens = cur ? cur.split(',').map(function (s) { return s.trim(); }).filter(Boolean) : [];
-    if (tokens.indexOf(e.token) === -1) tokens.push(e.token); // 중복 추가 방지
-    ctrl.value = tokens.join(', ');
+    var current = String(ctrl.value || '').trim();
+    var tokens = current ? current.split(',').map(function (s) { return s.trim(); }).filter(Boolean) : [];
+    var freeTokens = tokens.filter(function (t) {
+      if (t === '상담') return false;
+      return !_optionLookup || !_optionLookup.has(_norm(t));
+    });
+    var combined = [];
+    freeTokens.concat((payloads || []).map(function (p) { return p.token; })).forEach(function (t) {
+      if (t && combined.indexOf(t) === -1) combined.push(t);
+    });
+    ctrl.value = combined.join(', ');
     ctrl.dispatchEvent(new Event('input', { bubbles: true }));
     _onOptionTextChange(row);
+  }
+
+  // ----- 피커 오픈 핸들러(카탈로그 준비 보장 후 ErpSpecPicker 호출) -----
+  function _openProductPicker(row, anchor) {
+    if (!window.ErpSpecPicker) return;
+    _ensureCatalog().then(function () {
+      var input = row.querySelector('[data-erp="product_name"]');
+      window.ErpSpecPicker.openSingle({
+        title: '제품 선택',
+        anchor: anchor,
+        current: input ? input.value : '',
+        topItems: _singleItems(_productNames || []),
+        onPick: function (value) { _setTextControl(input, value); } // input 리스너가 제품 해석/손잡이 자동
+      });
+    });
+  }
+
+  function _openPresetPicker(row, field, anchor) {
+    if (!window.ErpSpecPicker) return;
+    _ensureCatalog().then(function () {
+      var ctrl = row.querySelector('[data-erp="' + field + '"]');
+      var values = (field === 'internal')
+        ? ((_optionsByCategory && _optionsByCategory[INTERNAL_CATEGORY]) || [])
+        : _presetNames(field);
+      window.ErpSpecPicker.openSingle({
+        title: (FIELD_LABELS[field] || field) + ' 선택',
+        anchor: anchor,
+        current: ctrl ? ctrl.value : '',
+        topItems: _singleItems(values),
+        onPick: function (value) { _setTextControl(ctrl, value); }
+      });
+    });
+  }
+
+  function _openOptionPicker(row, anchor) {
+    if (!window.ErpSpecPicker) return;
+    _ensureCatalog().then(function () {
+      var ctrl = row.querySelector('[data-erp="option_detail"]');
+      window.ErpSpecPicker.openMulti({
+        title: '옵션 선택',
+        anchor: anchor,
+        groups: _buildOptionGroups(),
+        selectedKeys: _currentOptionKeys(ctrl),
+        onConfirm: function (payloads) { _applyOptionSelection(row, ctrl, payloads); }
+      });
+    });
   }
 
   /** 단일 권위: enabled+제품+폭>0+자동모드일 때만 금액 읽기전용 잠금 + 토글 노출. */
@@ -465,12 +488,10 @@
     });
     var pInput = row.querySelector('[data-erp="product_name"]');
     if (pInput) {
-      // datalist 선택은 input 이벤트로 들어옴 → 즉시 해석(사용자 조작이므로 손잡이 자동입력 허용)
+      // 직접 타이핑 또는 피커 선택 모두 input 이벤트로 들어옴 → 즉시 해석(손잡이 자동입력 허용)
       pInput.addEventListener('input', function () { _resolveProduct(row, true); });
       pInput.addEventListener('change', function () { _resolveProduct(row, true); });
     }
-    var adder = row.querySelector('.erp-calc-option-adder');
-    if (adder) adder.addEventListener('change', function () { _onOptionAdderPick(row, adder); });
     var unlock = row.querySelector('.erp-calc-unlock-link');
     if (unlock) unlock.addEventListener('click', function (e) { e.preventDefault(); _toggleManual(row); });
   }

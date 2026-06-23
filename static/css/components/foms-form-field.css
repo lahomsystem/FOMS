@@ -948,7 +948,9 @@ body.erp-mobile-v2-layout #erpAttachmentPreviewModal .erp-attachment-preview-act
 
   /* 타이포·입력 높이를 주문 상세(.foms-kv-row: 라벨13/값15, 행 40px)에 맞춰 압축.
      라벨 13px, 입력/셀렉트 min-height 48→44(터치 유지), 세로 패딩 6px.
-     입력 글자는 16px 유지(iOS 포커스 자동 줌 방지). */
+     입력 글자는 16px 유지(iOS 포커스 자동 줌 방지).
+     ※ 스펙 칸은 .erp-flex-textarea(textarea)를 반드시 보존해야 이 타이포·autosize가 적용된다.
+       (datalist 위해 input으로 치환하면 이 규칙·자동높이가 깨짐 — erp-spec-picker ▾ 트리거 방식 사용) */
   body.erp-mobile-v2-layout .erp-order-mobile-form .field__label,
   body.erp-mobile-v2-layout .erp-order-mobile-form #erp-items .form-label {
     font-size: 13px;
@@ -1129,5 +1131,30 @@ body.erp-mobile-v2-layout #erpAttachmentPreviewModal .erp-attachment-preview-act
   body.erp-mobile-v2-layout .erp-order-mobile-form #erp-items .erp-item-collapse {
     padding: var(--foms-space-3);
     margin-top: 0;
+  }
+
+  /* ════════════════════════════════════════════════════════════════
+     R5: 좁은 코호트에서 스펙 입력 줄 폭 최대화(여러 줄 wrap 최소화).
+     - 편집 카드 col을 좌우 풀폭화(태블릿 768–991px의 col-md-8 66% 제한 회수).
+     - 누적되던 좌우 패딩을 직접 입력 영역에서만 축소(세로 패딩·카드 룩·collapse-toggle
+       full-bleed 의존 섹션은 불변 → 회귀 방지). 데스크톱(≥992px)은 영향 없음.
+     ════════════════════════════════════════════════════════════════ */
+  body.erp-mobile-v2-layout .erp-edit-col {
+    flex: 0 0 100%;
+    max-width: 100%;
+    width: 100%;
+  }
+  body.erp-mobile-v2-layout .erp-edit-col > .card > .card-body {
+    padding-left: var(--foms-space-2);
+    padding-right: var(--foms-space-2);
+  }
+  /* 현장 스펙 섹션(--primary)은 collapse-toggle이 없어 좌우 패딩 축소 안전 */
+  body.erp-mobile-v2-layout .erp-order-mobile-form .erp-form-section--primary {
+    padding-left: var(--foms-space-2);
+    padding-right: var(--foms-space-2);
+  }
+  body.erp-mobile-v2-layout .erp-order-mobile-form #erp-items .erp-item-collapse {
+    padding-left: var(--foms-space-2);
+    padding-right: var(--foms-space-2);
   }
 }
