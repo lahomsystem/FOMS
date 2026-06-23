@@ -4,11 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-06-17 14:33:18 | deny | `git\s+reset\s+--hard\s+origin` | `$bash = "C:\Program Files\Git\bin\bash.exe"; $gstackDir = "$env:USERPROFILE\.claude\skills\gstack"; & $bash -lc "cd '$($gstackDir -replace '\\','/')' && git sta` |
-| 2026-06-17 14:33:21 | allow | `-` | `$bash = "C:\Program Files\Git\bin\bash.exe"; $gstackDir = "$env:USERPROFILE\.claude\skills\gstack"; & $bash -lc "cd '/c/Users/USER/.claude/skills/gstack' && git` |
-| 2026-06-17 14:33:29 | allow | `-` | `$bash = "C:\Program Files\Git\bin\bash.exe"; $oldVer = Get-Content "$env:USERPROFILE\.claude\skills\gstack\VERSION" -ErrorAction SilentlyContinue; Write-Host "O` |
-| 2026-06-17 14:33:50 | allow | `-` | `Get-Content "$env:USERPROFILE\.claude\skills\gstack\VERSION"; Test-Path "$env:USERPROFILE\.claude\skills\gstack.bak"; cmd /c "dir /b %USERPROFILE%\.claude\skill` |
-| 2026-06-17 14:33:55 | allow | `-` | `Test-Path "$env:USERPROFILE\.claude\skills\gstack\browse\dist\browse.exe"; Test-Path "$env:USERPROFILE\.claude\skills\gstack.bak\browse\dist\browse.exe"; Get-Ch` |
 | 2026-06-17 14:33:59 | allow | `-` | `$bash = "C:\Program Files\Git\bin\bash.exe"; Copy-Item -Recurse -Force "$env:USERPROFILE\.claude\skills\gstack.bak\browse\dist" "$env:USERPROFILE\.claude\skills` |
 | 2026-06-17 14:34:12 | allow | `-` | `$bash = "C:\Program Files\Git\bin\bash.exe"; & $bash -lc "BROWSE_BIN='/c/Users/USER/.claude/skills/gstack/browse/dist/browse.exe'; ls -la \$BROWSE_BIN; if [ -x ` |
 | 2026-06-17 14:34:16 | allow | `-` | `Test-Path "$env:USERPROFILE\.claude\skills\gstack\browse\dist\browse.exe"; (Get-Item "$env:USERPROFILE\.claude\skills\gstack\browse\dist\browse.exe" -ErrorActio` |
@@ -304,3 +299,8 @@
 | 2026-06-23 16:54:15 | allow | `-` | `python tools/perf/perf_scan.py --guard 2>&1 | Select-Object -Last 8; echo "==== APP_OK ===="; python -c "import app; print('APP_OK')" 2>&1 | Select-Object -Last` |
 | 2026-06-23 16:55:27 | allow | `-` | `git --no-pager diff --stat; git --no-pager diff -- static/js/orders/erp-spec-calc.js static/css/components/foms-form-field.css templates/orders/partials/erp_ord` |
 | 2026-06-23 16:55:28 | allow | `-` | `git --no-pager log -5 --oneline` |
+| 2026-06-23 16:56:08 | allow | `-` | `$calc='https://lahom-dev.up.railway.app/static/js/orders/erp-spec-calc.js'; $surf='https://lahom-dev.up.railway.app/static/css/foundation/foms-mobile-surfaces.c` |
+| 2026-06-23 17:05:43 | allow | `-` | `node --check static/js/orders/erp-spec-calc.js; node --check static/js/orders/erp-spec-picker.js; python -m pytest tests/domains/test_erp_spec_calc_followup.py ` |
+| 2026-06-23 17:06:33 | allow | `-` | `python tools/perf/perf_scan.py --guard 2>&1 | Select-Object -Last 8; echo "==== APP_OK ===="; python -c "import app; print('APP_OK')" 2>&1 | Select-Object -Last` |
+| 2026-06-23 20:20:25 | allow | `-` | `git --no-pager diff --stat; git --no-pager diff -- static/css/orders/erp-spec-calc.css templates/orders/partials/erp_order_js.html tests/domains/test_erp_spec_c` |
+| 2026-06-23 20:20:25 | allow | `-` | `git --no-pager log -5 --oneline` |

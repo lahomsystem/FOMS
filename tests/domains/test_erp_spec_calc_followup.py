@@ -47,11 +47,12 @@ def test_spec_fields_use_trigger_and_picker_not_datalist() -> None:
     assert "erp-calc-combo" not in js
 
 
-def test_picker_module_parses_no_premature_comment_close() -> None:
+def test_picker_assets_parse_no_premature_comment_close() -> None:
     """근본원인 회귀 가드: 블록 주석(/* … */) 안에 '*/' 시퀀스가 있으면 주석이 조기
     종료되어 SyntaxError(Unexpected token)로 모듈 전체가 죽는다(라이브 콘솔에서
-    erp-spec-picker.js:10 'Unexpected token *'로 입증). 주석 본문에 '*/'가 없어야 한다."""
-    for path in (SPEC_PICKER_JS, SPEC_CALC_JS):
+    erp-spec-picker.js:10 'Unexpected token *'로 입증). CSS도 같은 원리로 .erp-calc-field
+    position:relative가 무효화되어 5030px 세로 트리거를 만든다."""
+    for path in (SPEC_PICKER_JS, SPEC_CALC_JS, SPEC_CALC_CSS):
         js = _read(path)
         # 정상적인 주석 종료는 한 줄에서 ' */'(닫기) 또는 '*/' 단독. 본문 중간 '*/'(앞에
         # 공백 없이 토큰이 붙은 형태, 예: 'wd-cat-*/')는 주석 조기 종료 위험 → 금지.

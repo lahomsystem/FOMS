@@ -5,6 +5,12 @@
 
 ## 최근 파일 편집
 
+- `commit_msg.txt` <- 1 edit(s), ~782 chars (2026-06-23 20:20:41)
+- `tests/domains/test_erp_spec_calc_followup.py` <- 2 edit(s), ~261 chars (2026-06-23 17:05:29)
+- `templates/orders/partials/erp_order_js.html` <- 1 edit(s), ~107 chars (2026-06-23 17:05:03)
+- `static/css/orders/erp-spec-calc.css` <- 1 edit(s), ~76 chars (2026-06-23 17:04:54)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-3bab37b0-b2a5-44a4-9159-6eff07f8d4da.png` <- 1 edit(s), ~0 chars (2026-06-23 17:02:46)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-3bab37b0-b2a5-44a4-9159-6eff07f8d4da.png` <- 1 edit(s), ~0 chars (2026-06-23 17:01:39)
 - `commit_msg.txt` <- 1 edit(s), ~938 chars (2026-06-23 16:55:45)
 - `tests/domains/test_erp_spec_calc_followup.py` <- 1 edit(s), ~212 chars (2026-06-23 16:53:40)
 - `tests/domains/test_erp_spec_calc_followup.py` <- 1 edit(s), ~70 chars (2026-06-23 16:52:56)
@@ -49,9 +55,3 @@
 - `static/css/components/foms-form-field.css` <- 1 edit(s), ~192 chars (2026-06-23 14:56:12)
 - `static/css/orders/erp-spec-calc.css` <- 1 edit(s), ~62 chars (2026-06-23 14:54:05)
 - `static/css/components/foms-form-field.css` <- 1 edit(s), ~1016 chars (2026-06-23 14:53:52)
-- `templates/orders/partials/edit_order_body.html` <- 1 edit(s), ~47 chars (2026-06-23 14:53:36)
-- `static/css/orders/erp-spec-calc.css` <- 9 edit(s), ~1317 chars (2026-06-23 14:48:57)
-- `templates/orders/partials/erp_order_js.html` <- 1 edit(s), ~552 chars (2026-06-23 14:47:48)
-- `static/js/orders/erp-spec-calc.js` <- 2 edit(s), ~63 chars (2026-06-23 14:46:56)
-- `static/js/orders/erp-spec-calc.js` <- 3 edit(s), ~2379 chars (2026-06-23 14:46:46)
-- `static/js/orders/erp-spec-calc.js` <- 8 edit(s), ~1042 chars (2026-06-23 14:45:40)
