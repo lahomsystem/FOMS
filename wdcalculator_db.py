@@ -117,6 +117,44 @@ def ensure_wdcalculator_schema():
         conn.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{schema}"'))
 
 
+def ensure_settings_schema_upgrades():
+    """기존 wdcalculator_product_settings 테이블에 신규 컬럼을 멱등 추가한다.
+
+    ``create_all``은 신규 테이블만 생성하고 기존 테이블에 컬럼을 추가하지 않으므로,
+    ``spec_field_presets`` 같은 후행 컬럼은 부팅 시 멱등 ALTER로 보강한다.
+    PostgreSQL은 ``ADD COLUMN IF NOT EXISTS``로, SQLite(로컬 QA)는 컬럼 존재 확인 후
+    추가한다(2회 부팅·기존 DB 모두 안전).
+    """
+    table = "wdcalculator_product_settings"
+    dialect = wd_calculator_engine.dialect.name
+    if dialect == "postgresql":
+        schema = None if WD_CALCULATOR_IS_SEPARATE_DB else WD_CALCULATOR_SCHEMA
+        qualified = f'"{schema}".{table}' if schema else table
+        with wd_calculator_engine.begin() as conn:
+            conn.execute(
+                text(
+                    f"ALTER TABLE {qualified} "
+                    "ADD COLUMN IF NOT EXISTS spec_field_presets JSONB NOT NULL DEFAULT '{}'::jsonb"
+                )
+            )
+        return
+    # SQLite 등: ADD COLUMN IF NOT EXISTS 미지원 → 컬럼 존재 확인 후 추가
+    from sqlalchemy import inspect as sa_inspect
+
+    insp = sa_inspect(wd_calculator_engine)
+    if table not in insp.get_table_names():
+        return
+    existing = {col["name"] for col in insp.get_columns(table)}
+    if "spec_field_presets" not in existing:
+        with wd_calculator_engine.begin() as conn:
+            conn.execute(
+                text(
+                    f"ALTER TABLE {table} "
+                    "ADD COLUMN spec_field_presets JSON NOT NULL DEFAULT '{}'"
+                )
+            )
+
+
 def init_wdcalculator_db():
     """Initialize WDCalculator database and create tables"""
     try:
@@ -130,6 +168,8 @@ def init_wdcalculator_db():
             WDCalculatorProductSettings,
         )
         WDCalculatorBase.metadata.create_all(bind=wd_calculator_engine)
+        # 2. 기존 테이블에 신규 컬럼 멱등 보강 (create_all이 못 하는 부분)
+        ensure_settings_schema_upgrades()
         print("WDCalculator tables initialization completed")
     except Exception as e:
         print(f"Error during WDCalculator initialization: {str(e)}")

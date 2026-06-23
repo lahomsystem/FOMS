@@ -176,6 +176,9 @@ def inject_foms_flags() -> dict[str, Any]:
         "flag_wizard": wizard_new_order_enabled(uid),
         "show_new_order_wizard": show_new_order_wizard,
         "flag_inline": env_bool("FOMS_INLINE_EDIT_ENABLED"),
+        # 현장 스펙 즉시견적(ERP order 안에서 WDC 가격엔진 재사용). 기본 on,
+        # 비활성화하려면 FOMS_ERP_SPEC_CALC_ENABLED=false.
+        "flag_spec_calc": env_bool("FOMS_ERP_SPEC_CALC_ENABLED", True),
         "flag_split_view": split_flag,
         "foms_split_enabled": mobile_v2 and split_flag,
         "flag_rum_baseline": env_bool("FOMS_RUM_BASELINE_ENABLED", True),

@@ -19,6 +19,7 @@ def wdcalculator_settings_env(app, tmp_path, monkeypatch):
     products_path = tmp_path / "products.json"
     additional_path = tmp_path / "additional_options.json"
     notes_path = tmp_path / "notes_categories.json"
+    spec_presets_path = tmp_path / "spec_field_presets.json"
 
     _write_json(
         products_path,
@@ -74,9 +75,22 @@ def wdcalculator_settings_env(app, tmp_path, monkeypatch):
         },
     )
 
+    _write_json(
+        spec_presets_path,
+        {
+            "spec_field_presets": {
+                "color": [{"id": 1, "name": "화이트"}],
+                "handle": [{"id": 1, "name": "히든손잡이"}],
+                "internal": [{"id": 1, "name": "기본"}],
+                "misc": [{"id": 1, "name": "주방"}],
+            }
+        },
+    )
+
     monkeypatch.setattr(wd_module, "WD_CALCULATOR_DATA_PATH", str(products_path))
     monkeypatch.setattr(wd_module, "WD_ADDITIONAL_OPTIONS_PATH", str(additional_path))
     monkeypatch.setattr(wd_module, "WD_NOTES_CATEGORIES_PATH", str(notes_path))
+    monkeypatch.setattr(wd_module, "WD_SPEC_FIELD_PRESETS_PATH", str(spec_presets_path))
 
     init_wdcalculator_db()
     wd_calculator_session.query(EstimateOrderMatch).delete()
@@ -89,6 +103,7 @@ def wdcalculator_settings_env(app, tmp_path, monkeypatch):
         "products_path": products_path,
         "additional_path": additional_path,
         "notes_path": notes_path,
+        "spec_presets_path": spec_presets_path,
     }
 
     wd_calculator_session.rollback()

@@ -1,0 +1,66 @@
+/*
+ * ERP 현장 스펙 즉시견적 — 주입 컨트롤 스타일.
+ *
+ * 이 클래스들은 플래그 on + erp-spec-calc.js가 DOM에 주입할 때만 존재한다.
+ * 기존 폼 요소의 선택자를 건드리지 않으므로 데스크톱/레거시 회귀가 구조적으로 불가능하다.
+ * 실측/영업 담당자 persona: 현장에서 한 손 조작 → 48px 터치 타깃, 큰 글씨, 즉시 피드백.
+ */
+
+.erp-calc-select {
+  width: 100%;
+}
+
+/* 제품/프리셋/옵션 드롭다운: 직접입력 칸 바로 위에 붙는 보조 컨트롤임을 시각적으로 암시 */
+.erp-calc-product-select,
+.erp-calc-preset-select,
+.erp-calc-option-select {
+  border-color: #d6c8f5;
+}
+
+/* 라이브 계산 readout: 계산폭 · 자동계산 금액 · 수동전환 */
+.erp-calc-price-meta {
+  line-height: 1.4;
+}
+
+.erp-calc-width-label:empty,
+.erp-calc-price-label:empty {
+  display: none;
+}
+
+.erp-calc-price-label {
+  white-space: nowrap;
+}
+
+.erp-calc-unlock-link {
+  font-size: 0.8rem;
+  color: #6f42c1;
+}
+
+.erp-calc-unlock-link:hover {
+  color: #59359a;
+}
+
+/* 즉시 피드백: 자동계산으로 잠긴 금액 칸을 연보라로 구분(읽기전용 상태) */
+.erp-item-row [data-erp="price"][readonly] {
+  background-color: #f3f0ff;
+  font-weight: 600;
+}
+
+/* ── 모바일 persona 마감: 한 손 조작 + 가독성 ── */
+.erp-order-mobile-form .erp-calc-select {
+  min-height: 48px;
+  font-size: 1rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 10px;
+}
+
+.erp-order-mobile-form .erp-calc-price-meta {
+  font-size: 0.95rem;
+  gap: 0.75rem !important;
+}
+
+.erp-order-mobile-form .erp-calc-unlock-link {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}

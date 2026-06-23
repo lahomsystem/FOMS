@@ -1,5 +1,5 @@
 # FOMS 현재 상태
-> 자동 업데이트: 2026-06-22 | **GDM 퇴역 — gstack/caveman 중심 운영 모델 정렬** — repo-local GDM 및 bespoke Cursor/Claude specialist agent 계층을 활성 진입점에서 제거하고, Cursor/Claude/Codex 하네스는 `AGENTS.md`/`CLAUDE.md`/Cursor rules + RPI/verify-result + gstack/caveman 기준으로 정렬. 역사적 `GDM_*` evolution/plans는 archive evidence로 보존.
+> 자동 업데이트: 2026-06-23 | **GDM 퇴역 — gstack/caveman 중심 운영 모델 정렬** — repo-local GDM 및 bespoke Cursor/Claude specialist agent 계층을 활성 진입점에서 제거하고, Cursor/Claude/Codex 하네스는 `AGENTS.md`/`CLAUDE.md`/Cursor rules + RPI/verify-result + gstack/caveman 기준으로 정렬. 역사적 `GDM_*` evolution/plans는 archive evidence로 보존.
 
 ## 스택
 Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)

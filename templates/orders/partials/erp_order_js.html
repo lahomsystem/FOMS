@@ -5,9 +5,14 @@
         balanceConfirmed: "{{ url_for('static', filename='images/pay-bill.png') }}",
         balanceUnconfirmed: "{{ url_for('static', filename='images/pay-bill-gray.png') }}"
     };
+    window.ERP_SPEC_CALC_ENABLED = {{ 'true' if flag_spec_calc else 'false' }};
 </script>
 <script src="{{ url_for('static', filename='js/foms/attachment-preview-zoom.js') }}?v=20260618c" defer></script>
 <script src="{{ url_for('static', filename='js/orders/erp-order-shared.js') }}" defer></script>
+{% if flag_spec_calc %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/orders/erp-spec-calc.css') }}?v=20260623a">
+<script src="{{ url_for('static', filename='js/orders/erp-spec-calc.js') }}?v=20260623a" defer></script>
+{% endif %}
 {% if flag_inline %}
 {% if flag_offline_sw %}
 <script src="{{ url_for('static', filename='js/foms/sync.js') }}?v=20260531a" defer></script>

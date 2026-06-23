@@ -28,6 +28,10 @@ _PROJECT_ROOT = os.path.dirname(
 WD_CALCULATOR_DATA_PATH = os.path.join(_PROJECT_ROOT, 'data', 'products.json')
 WD_ADDITIONAL_OPTIONS_PATH = os.path.join(_PROJECT_ROOT, 'data', 'additional_options.json')
 WD_NOTES_CATEGORIES_PATH = os.path.join(_PROJECT_ROOT, 'data', 'notes_categories.json')
+WD_SPEC_FIELD_PRESETS_PATH = os.path.join(_PROJECT_ROOT, 'data', 'spec_field_presets.json')
+
+# ERP 현장 스펙 프리셋을 관리하는 필드 화이트리스트 (제품명=products, 옵션=additional_options 재사용)
+SPEC_PRESET_FIELDS = ('color', 'handle', 'internal', 'misc')
 
 wdcalculator_bp = Blueprint('wdcalculator', __name__, url_prefix='')
 
@@ -205,12 +209,59 @@ def _seed_notes_categories_from_file():
     return clean_categories_data(_load_json_file(WD_NOTES_CATEGORIES_PATH, 'categories'))
 
 
+def _normalize_spec_field_presets(value):
+    """ERP 스펙 필드 프리셋을 {field: [{id, name}]} 형태로 정규화한다.
+
+    화이트리스트(:data:`SPEC_PRESET_FIELDS`) 키만 유지하고, 각 항목은 빈 이름을
+    제거하며 누락된 id를 자동 채번한다. dict가 아니거나 손상된 입력은 빈 프리셋으로
+    안전하게 환원한다.
+    """
+    result = {field: [] for field in SPEC_PRESET_FIELDS}
+    if not isinstance(value, dict):
+        return result
+    for field in SPEC_PRESET_FIELDS:
+        items = value.get(field)
+        if not isinstance(items, list):
+            continue
+        existing_ids = [
+            i.get('id') for i in items
+            if isinstance(i, dict) and i.get('id') is not None
+        ]
+        next_id = (max(existing_ids) + 1) if existing_ids else 1
+        cleaned = []
+        seen_names = set()
+        for item in items:
+            if isinstance(item, dict):
+                name = str(item.get('name') or '').strip()
+                pid = item.get('id')
+            else:
+                name = str(item or '').strip()
+                pid = None
+            if not name or name in seen_names:
+                continue
+            seen_names.add(name)
+            if pid is None:
+                pid = next_id
+                next_id += 1
+            cleaned.append({'id': int(pid), 'name': name})
+        result[field] = cleaned
+    return result
+
+
+def _seed_spec_field_presets_from_file():
+    """초기 시드용 ERP 스펙 필드 프리셋 로드"""
+    return _normalize_spec_field_presets(
+        _load_json_file(WD_SPEC_FIELD_PRESETS_PATH, 'spec_field_presets')
+    )
+
+
 def _build_settings_seed():
     """WDCalculator 설정 초기값 생성"""
     return {
         'products': _seed_products_from_file(),
         'additional_options': _seed_additional_option_categories_from_file(),
         'notes_categories': _seed_notes_categories_from_file(),
+        'spec_field_presets': _seed_spec_field_presets_from_file(),
     }
 
 
@@ -228,6 +279,7 @@ def _build_settings_record():
         products=seed['products'],
         additional_options=seed['additional_options'],
         notes_categories=seed['notes_categories'],
+        spec_field_presets=seed['spec_field_presets'],
     )
 
 
@@ -240,6 +292,8 @@ def _populate_missing_settings_fields(settings):
         settings.additional_options = seed['additional_options']
     if settings.notes_categories is None:
         settings.notes_categories = seed['notes_categories']
+    if getattr(settings, 'spec_field_presets', None) is None:
+        settings.spec_field_presets = seed['spec_field_presets']
 
 
 def load_additional_option_categories():
@@ -362,6 +416,46 @@ def save_products(products):
         return False
 
 
+def load_spec_field_presets():
+    """ERP 스펙 필드 프리셋을 DB에서 로드 (없으면 시드 반환)"""
+    try:
+        settings = _get_product_settings()
+        if not settings or getattr(settings, 'spec_field_presets', None) is None:
+            return _seed_spec_field_presets_from_file()
+        return _normalize_spec_field_presets(_deepcopy_json(settings.spec_field_presets, {}))
+    except Exception as e:
+        print(f"Error loading spec field presets: {e}")
+        return _normalize_spec_field_presets({})
+
+
+def save_spec_field_presets(presets):
+    """ERP 스펙 필드 프리셋을 DB에 저장"""
+    try:
+        session = get_wdcalculator_db()
+        settings = _get_product_settings(session)
+        if not settings:
+            settings = _build_settings_record()
+            session.add(settings)
+        _populate_missing_settings_fields(settings)
+        settings.spec_field_presets = _normalize_spec_field_presets(presets or {})
+        try:
+            session.commit()
+        except IntegrityError:
+            session.rollback()
+            settings = _get_product_settings(session)
+            if not settings:
+                raise
+            _populate_missing_settings_fields(settings)
+            settings.spec_field_presets = _normalize_spec_field_presets(presets or {})
+            session.commit()
+        return True
+    except Exception as e:
+        session = get_wdcalculator_db()
+        session.rollback()
+        print(f"Error saving spec field presets: {e}")
+        return False
+
+
 def calculate_estimate(product, width_mm, additional_options=None):
     """견적 계산 함수"""
     if not product:
@@ -434,7 +528,17 @@ def wdcalculator_product_settings():
         notes_categories = clean_categories_data(notes_categories or [])
     except Exception:
         notes_categories = []
-    return render_template('wdcalculator/product_settings.html', products=products, categories=categories, notes_categories=notes_categories)
+    try:
+        spec_field_presets = load_spec_field_presets()
+    except Exception:
+        spec_field_presets = _normalize_spec_field_presets({})
+    return render_template(
+        'wdcalculator/product_settings.html',
+        products=products,
+        categories=categories,
+        notes_categories=notes_categories,
+        spec_field_presets=spec_field_presets,
+    )
 
 
 # ==================== API 라우트 ====================
@@ -759,6 +863,80 @@ def api_wdcalculator_delete_notes_option(category_id, option_id):
         return jsonify({'success': False, 'message': str(e)})
 
 
+@wdcalculator_bp.route('/api/wdcalculator/spec-field-presets', methods=['GET'])
+@login_required
+def api_wdcalculator_get_spec_field_presets():
+    """ERP 스펙 필드(색상/손잡이/내부/기타) 드롭다운 프리셋 전체 조회"""
+    return jsonify({'success': True, 'spec_field_presets': load_spec_field_presets()})
+
+
+@wdcalculator_bp.route('/api/wdcalculator/spec-field-presets', methods=['POST'])
+@login_required
+def api_wdcalculator_save_spec_field_preset():
+    """ERP 스펙 필드 프리셋 저장.
+
+    - ``{field, values:[...]}``: 해당 필드 프리셋 전체 교체
+    - ``{field, name, id?}``: 단건 추가(또는 id 지정 시 수정)
+    """
+    try:
+        data = request.get_json() or {}
+        field = (data.get('field') or '').strip()
+        if field not in SPEC_PRESET_FIELDS:
+            return jsonify({'success': False, 'message': '지원하지 않는 스펙 필드입니다.'})
+        presets = load_spec_field_presets()
+        # 전체 교체 모드
+        if isinstance(data.get('values'), list):
+            presets[field] = [{'name': str(v or '').strip()} for v in data['values']]
+            if save_spec_field_presets(presets):
+                return jsonify({
+                    'success': True, 'message': '프리셋이 저장되었습니다.',
+                    'spec_field_presets': load_spec_field_presets(),
+                })
+            return jsonify({'success': False, 'message': '프리셋 저장에 실패했습니다.'})
+        # 단건 추가/수정 모드
+        name = (data.get('name') or '').strip()
+        if not name:
+            return jsonify({'success': False, 'message': '값을 입력해주세요.'})
+        field_items = presets.get(field, [])
+        preset_id = data.get('id')
+        if preset_id:
+            target = next((p for p in field_items if p.get('id') == preset_id), None)
+            if not target:
+                return jsonify({'success': False, 'message': '프리셋을 찾을 수 없습니다.'})
+            target['name'] = name
+        else:
+            existing_ids = [p.get('id') for p in field_items if p.get('id') is not None]
+            field_items.append({'id': max(existing_ids + [0]) + 1, 'name': name})
+            presets[field] = field_items
+        if save_spec_field_presets(presets):
+            saved_field = load_spec_field_presets().get(field, [])
+            saved = next((p for p in saved_field if p.get('name') == name), None)
+            return jsonify({
+                'success': True, 'message': '프리셋이 저장되었습니다.',
+                'preset': saved, 'spec_field_presets': {field: saved_field},
+            })
+        return jsonify({'success': False, 'message': '프리셋 저장에 실패했습니다.'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@wdcalculator_bp.route('/api/wdcalculator/spec-field-presets/<field>/<int:preset_id>', methods=['DELETE'])
+@login_required
+def api_wdcalculator_delete_spec_field_preset(field, preset_id):
+    """ERP 스펙 필드 프리셋 단건 삭제"""
+    try:
+        field = (field or '').strip()
+        if field not in SPEC_PRESET_FIELDS:
+            return jsonify({'success': False, 'message': '지원하지 않는 스펙 필드입니다.'})
+        presets = load_spec_field_presets()
+        presets[field] = [p for p in presets.get(field, []) if p.get('id') != preset_id]
+        if save_spec_field_presets(presets):
+            return jsonify({'success': True, 'message': '프리셋이 삭제되었습니다.'})
+        return jsonify({'success': False, 'message': '프리셋 삭제에 실패했습니다.'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
 @wdcalculator_bp.route('/api/wdcalculator/save-estimate', methods=['POST'])
 @login_required
 def api_wdcalculator_save_estimate():
@@ -860,6 +1038,87 @@ def api_wdcalculator_match_order():
     except Exception as e:
         wd_db = get_wdcalculator_db()
         wd_db.rollback()
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@wdcalculator_bp.route('/api/orders/<int:order_id>/wdc-estimate-sync', methods=['POST'])
+@login_required
+def api_orders_wdc_estimate_sync(order_id):
+    """ERP 주문 저장(SSOT) 직후 호출되는 보조 동기화 엔드포인트.
+
+    계산기 견적(:class:`Estimate`)을 upsert하고 주문과 멱등 매칭한다. ERP 주문
+    저장은 이미 완료된 전제이며, 본 엔드포인트 실패는 주문 저장을 되돌리지 않는다
+    (클라이언트가 경고만 표시; fail-open + 로그). 단일 ``wd_db`` 트랜잭션으로
+    upsert+매칭을 원자 처리한다.
+
+    Args:
+        order_id: 매칭 대상 FOMS 주문 id (URL).
+
+    Returns:
+        ``{'success', 'estimate_id', 'matched'}`` JSON. 실패 시 ``message`` 포함.
+    """
+    try:
+        data = request.get_json() or {}
+        customer_name = (data.get('customer_name') or '').strip()
+        estimate_data = data.get('estimate_data') or {}
+        estimate_id = data.get('estimate_id')
+        if not estimate_data:
+            return jsonify({'success': False, 'message': '견적 데이터가 없습니다.'})
+        # 주문 존재/active 검증 (FOMS DB) — 권한 경계는 match-order와 동일
+        foms_db = get_db()
+        order = foms_db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'})
+        if not customer_name:
+            customer_name = (getattr(order, 'customer_name', None) or '고객').strip() or '고객'
+        wd_db = get_wdcalculator_db()
+        # 1) Estimate upsert
+        estimate = None
+        if estimate_id:
+            estimate = wd_db.query(Estimate).filter(Estimate.id == estimate_id).first()
+        if estimate:
+            try:
+                wd_db.add(EstimateHistory(estimate_id=estimate.id, estimate_data=estimate.estimate_data))
+            except Exception as hist_err:
+                print(f"[wdc-estimate-sync] history snapshot 실패(계속 진행): {hist_err}")
+            estimate.customer_name = customer_name
+            estimate.estimate_data = estimate_data
+        else:
+            estimate = Estimate(customer_name=customer_name, estimate_data=estimate_data)
+            wd_db.add(estimate)
+        wd_db.flush()  # estimate.id 확보
+        # 2) 멱등 매칭 (중복은 오류 아님)
+        existing = wd_db.query(EstimateOrderMatch).filter(
+            EstimateOrderMatch.estimate_id == estimate.id,
+            EstimateOrderMatch.order_id == order_id,
+        ).first()
+        if not existing:
+            wd_db.add(EstimateOrderMatch(estimate_id=estimate.id, order_id=order_id))
+        wd_db.commit()
+        # 3) FOMS 주문 structured_data.meta에 estimate_id 영속화(멱등 링크 = SSOT).
+        #    이미 동일 id면 쓰지 않는다. 링크 실패는 견적 저장을 되돌리지 않는다(fail-open + 로그).
+        try:
+            from datetime import datetime, timezone
+            from sqlalchemy.orm.attributes import flag_modified
+            sd = copy.deepcopy(order.structured_data or {})
+            meta = sd.get('meta')
+            if not isinstance(meta, dict):
+                meta = {}
+            if meta.get('wdc_estimate_id') != estimate.id:
+                meta['wdc_estimate_id'] = estimate.id
+                meta['wdc_synced_at'] = datetime.now(timezone.utc).isoformat()
+                sd['meta'] = meta
+                order.structured_data = sd
+                flag_modified(order, 'structured_data')
+                foms_db.commit()
+        except Exception as link_err:
+            foms_db.rollback()
+            print(f"[wdc-estimate-sync] meta.wdc_estimate_id 영속화 실패(계속 진행): {link_err}")
+        return jsonify({'success': True, 'estimate_id': estimate.id, 'matched': True})
+    except Exception as e:
+        wd_db = get_wdcalculator_db()
+        wd_db.rollback()
+        print(f"[wdc-estimate-sync] order_id={order_id} 동기화 실패: {e}")
         return jsonify({'success': False, 'message': str(e)})
 
 

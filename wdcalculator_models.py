@@ -16,6 +16,8 @@ class WDCalculatorProductSettings(WDCalculatorBase):
     products = Column(SETTINGS_JSON_TYPE, nullable=False, default=list)
     additional_options = Column(SETTINGS_JSON_TYPE, nullable=False, default=list)
     notes_categories = Column(SETTINGS_JSON_TYPE, nullable=False, default=list)
+    # ERP 현장 스펙 필드(색상/손잡이/내부/기타) 드롭다운 프리셋. {field: [{id, name}]} 형태.
+    spec_field_presets = Column(SETTINGS_JSON_TYPE, nullable=False, default=dict)
     created_at = Column(DateTime(timezone=False), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=False), server_default=func.now(), onupdate=func.now(), nullable=False)
 

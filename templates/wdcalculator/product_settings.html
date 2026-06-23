@@ -527,6 +527,61 @@
             </div>
         </div>
     </div>
+
+    <!-- 구분선 -->
+    <hr class="my-5" style="border-top: 3px solid #6f42c1;">
+
+    <!-- 현장 스펙 프리셋 관리 (ERP 주문 즉시견적 드롭다운 소스) -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow" style="border-left: 4px solid #6f42c1;">
+                <div class="card-header py-3" style="background: linear-gradient(135deg, #6f42c1 0%, #59359a 100%); color: white;">
+                    <h5 class="m-0 font-weight-bold">
+                        <i class="fas fa-sliders-h me-2"></i>현장 스펙 프리셋 관리
+                    </h5>
+                    <small class="d-block mt-1 opacity-75">
+                        <i class="fas fa-info-circle"></i> ERP 주문의 현장 스펙 입력 시 색상·손잡이·내부·기타 칸에서 빠르게 고르는 드롭다운 값입니다. (담당자는 직접입력도 항상 가능)
+                    </small>
+                </div>
+                <div class="card-body">
+                    <div class="row g-4" id="specPresetGroups">
+                        <div class="col-md-6 col-lg-3 spec-preset-group" data-spec-field="color">
+                            <label class="form-label fw-bold mb-2">색상</label>
+                            <div class="input-group mb-2">
+                                <input type="text" class="form-control spec-preset-input" placeholder="예: 화이트" maxlength="40" aria-label="색상 프리셋 추가">
+                                <button type="button" class="btn btn-outline-primary spec-preset-add-btn"><i class="fas fa-plus"></i> 추가</button>
+                            </div>
+                            <div class="d-flex flex-wrap gap-2 spec-preset-chips"></div>
+                        </div>
+                        <div class="col-md-6 col-lg-3 spec-preset-group" data-spec-field="handle">
+                            <label class="form-label fw-bold mb-2">손잡이</label>
+                            <div class="input-group mb-2">
+                                <input type="text" class="form-control spec-preset-input" placeholder="예: 히든손잡이" maxlength="40" aria-label="손잡이 프리셋 추가">
+                                <button type="button" class="btn btn-outline-primary spec-preset-add-btn"><i class="fas fa-plus"></i> 추가</button>
+                            </div>
+                            <div class="d-flex flex-wrap gap-2 spec-preset-chips"></div>
+                        </div>
+                        <div class="col-md-6 col-lg-3 spec-preset-group" data-spec-field="internal">
+                            <label class="form-label fw-bold mb-2">내부</label>
+                            <div class="input-group mb-2">
+                                <input type="text" class="form-control spec-preset-input" placeholder="예: 서랍형" maxlength="40" aria-label="내부 프리셋 추가">
+                                <button type="button" class="btn btn-outline-primary spec-preset-add-btn"><i class="fas fa-plus"></i> 추가</button>
+                            </div>
+                            <div class="d-flex flex-wrap gap-2 spec-preset-chips"></div>
+                        </div>
+                        <div class="col-md-6 col-lg-3 spec-preset-group" data-spec-field="misc">
+                            <label class="form-label fw-bold mb-2">기타/설치위치</label>
+                            <div class="input-group mb-2">
+                                <input type="text" class="form-control spec-preset-input" placeholder="예: 주방" maxlength="40" aria-label="기타 프리셋 추가">
+                                <button type="button" class="btn btn-outline-primary spec-preset-add-btn"><i class="fas fa-plus"></i> 추가</button>
+                            </div>
+                            <div class="d-flex flex-wrap gap-2 spec-preset-chips"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Toast 컨테이너 -->
@@ -549,6 +604,9 @@
 </script>
 <script type="application/json" id="initial-notes-categories">
 {{ (notes_categories|default([]))|tojson }}
+</script>
+<script type="application/json" id="initial-spec-presets">
+{{ (spec_field_presets|default({}))|tojson }}
 </script>
 
 <script>
@@ -1956,5 +2014,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/wdcalculator/product-settings-mobile.js') }}?v=20260607a" defer></script>
+<script src="{{ url_for('static', filename='js/wdcalculator/spec-presets-settings.js') }}?v=20260623a" defer></script>
 {% endblock %}
 
