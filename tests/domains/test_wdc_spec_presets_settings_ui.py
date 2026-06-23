@@ -7,7 +7,10 @@ import re
 
 
 def test_product_settings_renders_spec_preset_section(wdcalculator_settings_env, login):
-    """4개 스펙 필드 그룹과 입력/칩 컨테이너가 렌더된다."""
+    """스펙 필드 프리셋 그룹과 입력/칩 컨테이너가 렌더된다.
+
+    '내부'는 추가옵션 '내부구성'에서 자동으로 불러오므로 별도 프리셋 그룹이 없다(req4).
+    """
     client = login
 
     response = client.get("/wdcalculator/product-settings")
@@ -15,11 +18,13 @@ def test_product_settings_renders_spec_preset_section(wdcalculator_settings_env,
     assert response.status_code == 200
     body = response.get_data(as_text=True)
     assert 'id="specPresetGroups"' in body
-    for field in ("color", "handle", "internal", "misc"):
+    for field in ("color", "handle", "misc"):
         assert f'data-spec-field="{field}"' in body
+    # 내부는 '내부구성' 카테고리에서 자동 소싱 → 프리셋 관리 그룹 없음
+    assert 'data-spec-field="internal"' not in body
     assert "현장 스펙 프리셋 관리" in body
-    assert body.count("spec-preset-input") >= 4
-    assert body.count("spec-preset-chips") >= 4
+    assert body.count("spec-preset-input") >= 3
+    assert body.count("spec-preset-chips") >= 3
 
 
 def test_product_settings_injects_initial_spec_presets(wdcalculator_settings_env, login):

@@ -1,22 +1,13 @@
 # Context Compact Checkpoint
 
 > **경고**: 컨텍스트 압축이 발생했습니다. 이 파일을 읽어 이전 작업을 복원하세요.
-> 생성 시각: 2026-06-22 12:51:55
-> 세션: 0bbe6dcb
+> 생성 시각: 2026-06-23 10:47:29
+> 세션: a1e98f3a
 
 ## 압축 직전 상태
 
 ### 최근 편집된 파일
-- `templates/measurement/regional_dashboard.html` <- 1 edit(s), ~120 chars (2026-06-22 12:48:26)
-- `static/js/measurement/regional-shipping-export.js` <- 1 edit(s), ~42 chars (2026-06-22 12:48:14)
-- `static/js/measurement/regional-shipping-export.js` <- 2 edit(s), ~116 chars (2026-06-22 12:48:06)
-- `static/js/measurement/regional-shipping-export.js` <- 5 edit(s), ~351 chars (2026-06-22 12:47:56)
-- `static/js/measurement/regional-shipping-export.js` <- 2 edit(s), ~371 chars (2026-06-22 12:47:41)
-- `commit_msg.txt` <- 1 edit(s), ~232 chars (2026-06-22 12:45:46)
-- `templates/measurement/regional_dashboard.html` <- 1 edit(s), ~321 chars (2026-06-22 12:44:37)
-- `commit_msg.txt` <- 1 edit(s), ~473 chars (2026-06-22 12:39:21)
-- `templates/measurement/regional_dashboard.html` <- 1 edit(s), ~120 chars (2026-06-22 12:35:51)
-- `static/js/measurement/regional-shipping-export.js` <- 2 edit(s), ~398 chars (2026-06-22 12:35:43)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-d4cefc28-5203-4001-9638-342ca913df82.png` <- 1 edit(s), ~0 chars (2026-06-23 10:38:53)
 
 ### 진행 중이던 작업
 - [2026-04-17] **ERP fast-page `EPT-B8`:** run record `docs/plans/2026-04-17-ept-b8-verification-railway-evidence-run-record.md` — 로컬 게이트 완료; staging HTTP 하네스로 **§4 표·§5** 부분 채움; **closeout** 은 deploy ID·§6 모드·hard stop 조건 충족 후.

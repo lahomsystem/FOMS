@@ -1,19 +1,29 @@
 /*
- * ERP 현장 스펙 즉시견적 — 주입 컨트롤 스타일.
+ * ERP 현장 스펙 즉시견적 — 강화 컨트롤 스타일.
  *
- * 이 클래스들은 플래그 on + erp-spec-calc.js가 DOM에 주입할 때만 존재한다.
+ * 이 클래스들은 플래그 on + erp-spec-calc.js가 DOM을 강화할 때만 존재한다.
  * 기존 폼 요소의 선택자를 건드리지 않으므로 데스크톱/레거시 회귀가 구조적으로 불가능하다.
  * 실측/영업 담당자 persona: 현장에서 한 손 조작 → 48px 터치 타깃, 큰 글씨, 즉시 피드백.
+ *
+ * UX 핵심: "기본 1칸". 각 스펙 칸은 datalist 콤보박스(.erp-calc-combo)로 강화되어
+ * 별도 드롭다운을 쌓지 않는다(모바일 칸 정리). 옵션만 다중선택 adder를 추가로 둔다.
  */
 
 .erp-calc-select {
   width: 100%;
 }
 
-/* 제품/프리셋/옵션 드롭다운: 직접입력 칸 바로 위에 붙는 보조 컨트롤임을 시각적으로 암시 */
-.erp-calc-product-select,
-.erp-calc-preset-select,
-.erp-calc-option-select {
+/* datalist 콤보박스: 타이핑 + 목록 선택을 한 칸에서. 드롭다운 가능 힌트로 우측 화살표를 살짝 표시 */
+.erp-calc-combo {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='%239b8cc4' d='M1 1l5 5 5-5'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 0.6rem center;
+  background-size: 11px 8px;
+  padding-right: 1.8rem;
+}
+
+/* 옵션 다중선택 adder: 보조 컨트롤임을 연보라 테두리로 암시 */
+.erp-calc-option-adder {
   border-color: #d6c8f5;
 }
 
@@ -47,11 +57,16 @@
 }
 
 /* ── 모바일 persona 마감: 한 손 조작 + 가독성 ── */
-.erp-order-mobile-form .erp-calc-select {
+.erp-order-mobile-form .erp-calc-select,
+.erp-order-mobile-form .erp-calc-combo {
   min-height: 48px;
   font-size: 1rem;
   padding: 0.5rem 0.75rem;
   border-radius: 10px;
+}
+
+.erp-order-mobile-form .erp-calc-combo {
+  padding-right: 2rem; /* 화살표 힌트 공간 확보 */
 }
 
 .erp-order-mobile-form .erp-calc-price-meta {

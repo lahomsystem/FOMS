@@ -4,34 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-06-17 11:04:08 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_construction_dashboard_mobile.py -q --tb=short; python -c ` |
-| 2026-06-17 11:04:27 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_construction_dashboard_mobile.py -q --tb=short` |
-| 2026-06-17 11:04:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add foms/services/construction_dashboard_display.py foms/web/construction/dashboard.py tem` |
-| 2026-06-17 11:09:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_order_detail_preload.py::test_erp_dashboard_includes_p` |
-| 2026-06-17 11:09:45 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_order_detail_preload.py -q --tb=short` |
-| 2026-06-17 11:09:58 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add tests/domains/test_erp_order_detail_preload.py; git commit --trailer "Co-authored-by: ` |
-| 2026-06-17 11:17:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_construction_dashboard_mobile.py tests/domains/test_erp_or` |
-| 2026-06-17 11:17:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_construction_dashboard_mobile.py -q --tb=short` |
-| 2026-06-17 11:18:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add templates/partials/shared/erp_attachment_preview_modal.html static/js/foms/erp-attachm` |
-| 2026-06-17 11:27:13 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_foms_namespace_imports.py::test_pac_b1_partials_shared_htm` |
-| 2026-06-17 11:30:14 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from pathlib import Path p = Path('templates/production/partials/scripts.html') li` |
-| 2026-06-17 11:30:20 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from pathlib import Path p = Path('templates/production/partials/scripts.html') li` |
-| 2026-06-17 11:30:29 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_foms_namespace_imports.py::test_pac_b1_partials_shared_htm` |
-| 2026-06-17 11:30:38 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_foms_namespace_imports.py::test_pac_b1_partials_shared_htm` |
-| 2026-06-17 11:30:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/harness/verify_result.py --json 2>&1 | S` |
-| 2026-06-17 11:30:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch --show-current` |
-| 2026-06-17 11:31:02 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --no-color` |
-| 2026-06-17 11:34:20 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_order_shared_form_scripts.py::test_attachment_preview_` |
-| 2026-06-17 11:34:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add static/css/components/foms-form-field.css static/js/foms/mobile-detail-attachments.js ` |
-| 2026-06-17 11:37:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --name-only HEAD; git status -s` |
-| 2026-06-17 11:37:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/perf/perf_scan.py --guard` |
-| 2026-06-17 11:37:10 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/perf/perf_scan.py --audit` |
-| 2026-06-17 11:37:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/perf/perf_scan.py --audit --json 2>$null | python -c "import sys,json; d=json.loa` |
-| 2026-06-17 11:37:30 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/perf/perf_scan.py --audit --json > .perf_audit.json; python -c "import json; d=js` |
-| 2026-06-17 11:37:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/performance/test_perf_regression_guard.py -q` |
-| 2026-06-17 11:37:46 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " import json from collections import Counter fs=json.load(open('.perf_audit.json',e` |
-| 2026-06-17 11:37:51 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/perf/perf_scan.py --audit --json | Out-File -Encoding utf8 .perf_audit.json; pyth` |
-| 2026-06-17 11:46:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " from pathlib import Path def strip_open_attachment_preview_modal(path: str) -> Non` |
 | 2026-06-17 11:47:38 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_order_shared_form_scripts.py tests/domains/test_constr` |
 | 2026-06-17 11:47:58 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/visual/test_erp_order_edit_mobile_form.py tests/domains/test_erp_order_` |
 | 2026-06-17 11:48:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python -m pytest tests/performance/test_perf_regressi` |
@@ -304,3 +276,31 @@
 | 2026-06-22 12:48:45 | allow | `-` | `python tools/perf/perf_scan.py --guard` |
 | 2026-06-22 12:51:52 | allow | `-` | `echo "=== origin/production ==="; git log --oneline -5 origin/production; echo "=== origin/deploy ==="; git log --oneline -5 origin/deploy; echo "=== local prod` |
 | 2026-06-22 12:52:36 | allow | `-` | `git --no-pager diff -- static/js/measurement/regional-shipping-export.js templates/measurement/regional_dashboard.html` |
+| 2026-06-22 14:58:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log -1 --oneline HEAD; git log -1 --oneline origin/production; git merge-base HEAD origin/` |
+| 2026-06-22 14:58:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git merge origin/deploy -m "chore: production을 deploy 최신(7a3dd279)과 동기화"` |
+| 2026-06-22 14:58:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
+| 2026-06-22 14:59:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production; git log -2 --oneline` |
+| 2026-06-23 09:38:30 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-06-23 09:38:45 | allow | `-` | `python -m pytest tests/domains/test_wdc_spec_field_presets.py tests/domains/test_erp_wdc_estimate_sync.py -q 2>&1 | Select-Object -Last 40` |
+| 2026-06-23 09:39:06 | allow | `-` | `python -m pytest tests/domains/test_wdcalculator_product_settings.py -q 2>&1 | Select-Object -Last 25` |
+| 2026-06-23 09:39:52 | allow | `-` | `python tools/perf/perf_scan.py --guard 2>&1 | Select-Object -Last 30` |
+| 2026-06-23 09:43:13 | allow | `-` | `python -m pytest tests/domains/test_wdc_spec_presets_settings_ui.py -q 2>&1 | Select-Object -Last 30` |
+| 2026-06-23 09:43:28 | allow | `-` | `python -m pytest tests/domains/test_wdcalculator_product_settings.py -q 2>&1 | Select-Object -Last 8; python tools/perf/perf_scan.py --guard 2>&1 | Select-Objec` |
+| 2026-06-23 09:51:34 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-06-23 09:51:48 | allow | `-` | `python tools/perf/perf_scan.py --guard` |
+| 2026-06-23 09:51:55 | allow | `-` | `python -m pytest tests/performance/test_page_local_defer_contract.py tests/domains/test_erp_order_shared_form_scripts.py -q 2>&1 | Select-Object -Last 30` |
+| 2026-06-23 09:53:37 | allow | `-` | `python -m pytest tests/domains/test_erp_spec_calc_phase3.py -q 2>&1 | Select-Object -Last 40` |
+| 2026-06-23 09:53:50 | allow | `-` | `python -m pytest tests/domains/test_wdc_spec_field_presets.py tests/domains/test_erp_wdc_estimate_sync.py tests/domains/test_wdc_spec_presets_settings_ui.py tes` |
+| 2026-06-23 09:56:08 | allow | `-` | `python -m pytest tests/domains/test_erp_spec_calc_phase3.py tests/domains/test_erp_order_shared_form_scripts.py -q 2>&1 | Select-Object -Last 20; python tools/p` |
+| 2026-06-23 10:01:03 | allow | `-` | `python -m pytest tests/domains/test_erp_wdc_estimate_sync.py tests/domains/test_erp_spec_calc_phase3.py tests/domains/test_erp_order_shared_form_scripts.py -q 2` |
+| 2026-06-23 10:01:37 | allow | `-` | `python -c "import app; print('APP_OK')" 2>&1 | Select-Object -Last 1; python -m pytest tests/domains/test_erp_orders_structured_put.py -q 2>&1 | Select-Object -` |
+| 2026-06-23 10:04:03 | allow | `-` | `python -m pytest tests/domains/test_erp_spec_calc_phase3.py tests/performance/test_page_local_defer_contract.py -q 2>&1 | Select-Object -Last 20; python tools/p` |
+| 2026-06-23 10:04:25 | allow | `-` | `python -m pytest tests/domains/test_wdc_spec_field_presets.py tests/domains/test_erp_wdc_estimate_sync.py tests/domains/test_wdc_spec_presets_settings_ui.py tes` |
+| 2026-06-23 10:11:37 | allow | `-` | `python -m pytest tests/domains/test_erp_spec_calc_phase3.py tests/domains/test_p0_01_erp_mobile_v2_cohort.py -q 2>&1 | Select-Object -Last 15` |
+| 2026-06-23 10:11:58 | allow | `-` | `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
+| 2026-06-23 10:53:11 | allow | `-` | `python -m pytest tests/domains/test_erp_spec_calc_phase3.py tests/domains/test_erp_spec_calc_followup.py tests/domains/test_wdc_spec_field_presets.py -q 2>&1 | ` |
+| 2026-06-23 10:53:12 | allow | `-` | `python -c "import app; print('APP_OK')" 2>&1 | Select-Object -Last 15` |
+| 2026-06-23 10:53:31 | allow | `-` | `python tools/perf/perf_scan.py --guard 2>&1 | Select-Object -Last 30` |
+| 2026-06-23 10:53:45 | allow | `-` | `python -m pytest tests/domains/test_erp_wdc_estimate_sync.py tests/domains/test_wdc_spec_presets_settings_ui.py tests/performance/test_perf_regression_guard.py ` |
+| 2026-06-23 10:56:13 | allow | `-` | `python -m pytest tests/domains/test_wdc_spec_presets_settings_ui.py tests/domains/test_erp_spec_calc_followup.py tests/domains/test_erp_spec_calc_phase3.py -q 2` |
+| 2026-06-23 11:04:38 | allow | `-` | `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1 2>&1 | Select-Object -Last 45` |

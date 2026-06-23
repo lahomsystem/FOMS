@@ -4,6 +4,8 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-06-23 | 세션 자동 기록 | test_wdc_spec_presets_settings_ui.py, product_settings.html, test_erp_spec_calc_followup.py 외 2개 | 78ab25e4 |
+| 2026-06-23 | 세션 자동 기록 | commit_msg.txt, test_erp_spec_calc_phase3.py, context_processors.py 외 2개 | 78ab25e4 |
 | 2026-06-23 | 세션 자동 기록 | test_erp_spec_calc_phase3.py, erp_order_js.html, erp-spec-calc.css 외 2개 | 5393d94a |
 | 2026-06-22 | 세션 자동 기록 | regional_dashboard.html, regional-shipping-export.js, commit_msg.txt 외 2개 | ff0e06d0 |
 | 2026-06-22 | 세션 자동 기록 | commit_msg.txt, regional_dashboard.html, regional-shipping-export.js 외 2개 | 6865db05 |
@@ -22,5 +24,3 @@
 | 2026-06-18 | 세션 자동 기록 | commit_msg.txt, test_channel_integration_smoke.py, foms_namespace_surface_tests.py 외 2개 | 1618de4a |
 | 2026-06-18 | 세션 자동 기록 | commit_msg.txt, foms_namespace_surface_tests.py, test_erp_orders_structured_put.py 외 2개 | 9ddcc7b4 |
 | 2026-06-18 | 세션 자동 기록 | foms_namespace_surface_tests.py, test_erp_orders_structured_put.py, erp_orders_structured.py 외 2개 | cfc752d2 |
-| 2026-06-18 | 세션 자동 기록 | test_erp_order_shared_form_scripts.py, erp-order-shared.js, c587c881-86a3-498f-b091-d36d08420ede.txt 외 2개 | b1c64d32 |
-| 2026-06-18 | 세션 자동 기록 | c587c881-86a3-498f-b091-d36d08420ede.txt, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-8867ffe3-819c-4e8d-9e52-936b0eb87ca5.png, 047ee6a0-818d-416e-8813-c7e216dade86.txt 외 2개 | f67eaa1d |
