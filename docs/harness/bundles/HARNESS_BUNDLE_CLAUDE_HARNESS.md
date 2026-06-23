@@ -117,6 +117,13 @@ Web exploration and manual QA still use Cursor browser MCP. Repeatable smoke/QA 
 
 `deploy` / `main` push **직전** 수동 실행: `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` (APP_OK, harness verify, SSOT lint, CI 자주 실패 pytest subset, ~2–5분). **UI/CSS/템플릿 변경 시** 기본 게이트는 PNG visual regression이 아니라 **`test_p1_mockup_*` 구조 테스트**(subset 포함). win32 PNG `--update-snapshots`·`-Visual`은 UI 안정기에만 선택. 머지 직전 전체 pytest: `-Full` (느림). **git push 시 자동 실행 아님** — GitHub Actions `test` job이 담당(PNG visual job 비활성). 상세: [`docs/guides/PRE_PUSH_SMOKE.md`](docs/guides/PRE_PUSH_SMOKE.md).
 
+## 브랜치·푸시 권한 (절대 규칙)
+
+- **기본 푸시 대상은 `deploy`(스테이징, lahom-dev)** 다. 흐름은 `deploy`(스테이징) → 사용자 검증·승인 → `production`(운영) 승격이다.
+- **운영(`production`) 브랜치로의 push·force-push·reset은 사용자가 명시적으로 "production 푸시/배포"를 요청했을 때만** 수행한다. 어떤 도구·모델도 임의로 `production`에 푸시하지 않는다.
+- **"deploy 푸쉬"는 절대 `production`을 포함하지 않는다.** 모호하면 푸시 전 사용자에게 대상 브랜치를 확인한다.
+- `production` 강제푸시·히스토리 리라이트(reset)는 고위험이므로, 명시 승인과 함께 정확한 타깃 커밋·영향 범위를 먼저 보고하고 `--force-with-lease`로만 수행한다.
+
 ---
 
 ## `CLAUDE.md`
@@ -246,6 +253,7 @@ Web exploration and manual QA still use Cursor browser MCP. Repeatable smoke/QA 
 - **선택적 접두어**: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`
 - **대형 변경**: feature 브랜치에서 작업
 - **브랜치 전략**: `deploy` (스테이징) → `production` (운영)
+- **운영(production) 푸시는 사용자 명시 요청 시에만 (절대 규칙)**: 기본 푸시 대상은 항상 `deploy`(스테이징, lahom-dev)다. `production`(운영) 브랜치로의 push·force-push·reset은 **사용자가 명시적으로 "production 푸시/배포"를 요청했을 때만** 수행한다. **"deploy 푸쉬"는 절대 `production`을 포함하지 않는다.** 스테이징 검증 → 사용자 승인 → 운영 승격 순서를 지키며, 임의 운영 푸시는 금지한다.
 - **푸시 전 스모크**: `deploy`/`main` push **직전** `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` (APP_OK·harness verify·SSOT lint·CI subset·`test_p1_mockup_*` 구조 테스트). **UI/CSS/템플릿 변경** 시 PNG `-Visual`/win32 baseline은 필수 아님(선택). exit 0 확인 후 push. `-Full`은 머지 직전 전체 pytest. 상세: `docs/guides/PRE_PUSH_SMOKE.md`
 
 ## 셸 환경 (Claude Code 전용)
@@ -264,7 +272,8 @@ Web exploration and manual QA still use Cursor browser MCP. Repeatable smoke/QA 
 다음 명령은 절대 실행 금지:
 - `rm -rf /`, `rm -rf ..`
 - `drop database`, `drop table`, `truncate table`
-- `git push --force main|master|deploy`
+- `git push --force main|master|deploy|production` (특히 `production` 강제푸시·리셋은 사용자 명시 승인 필수)
+- 사용자 명시 요청 없는 `production` 브랜치 push (일반 push 포함)
 - `git reset --hard origin`
 - `git clean -fdx`
 
@@ -348,7 +357,8 @@ alwaysApply: true
 
 ## Git 커밋 규칙
 - **항상 한글 사용**, 무엇을 왜 수정했는지 명확하게 기록
-- 변경 후 항상 Origin에 Push
+- 변경 후 항상 Origin에 Push (**기본 대상은 `deploy` 스테이징**)
+- **운영(production) 푸시는 사용자 명시 요청 시에만 (절대 규칙)**: `production` 브랜치 push·force-push·reset은 사용자가 명시적으로 "production 푸시/배포"를 요청한 경우에만 수행한다. **"deploy 푸쉬"는 `production`을 포함하지 않는다.** force-push·history reset은 `deploy`/`production` 모두 고위험 — 정확한 타깃·영향 보고 후 명시 승인·`--force-with-lease`로만 진행.
 
 ---
 

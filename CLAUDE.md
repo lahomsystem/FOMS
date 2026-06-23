@@ -123,6 +123,7 @@
 - **선택적 접두어**: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`
 - **대형 변경**: feature 브랜치에서 작업
 - **브랜치 전략**: `deploy` (스테이징) → `production` (운영)
+- **운영(production) 푸시는 사용자 명시 요청 시에만 (절대 규칙)**: 기본 푸시 대상은 항상 `deploy`(스테이징, lahom-dev)다. `production`(운영) 브랜치로의 push·force-push·reset은 **사용자가 명시적으로 "production 푸시/배포"를 요청했을 때만** 수행한다. **"deploy 푸쉬"는 절대 `production`을 포함하지 않는다.** 스테이징 검증 → 사용자 승인 → 운영 승격 순서를 지키며, 임의 운영 푸시는 금지한다.
 - **푸시 전 스모크**: `deploy`/`main` push **직전** `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` (APP_OK·harness verify·SSOT lint·CI subset·`test_p1_mockup_*` 구조 테스트). **UI/CSS/템플릿 변경** 시 PNG `-Visual`/win32 baseline은 필수 아님(선택). exit 0 확인 후 push. `-Full`은 머지 직전 전체 pytest. 상세: `docs/guides/PRE_PUSH_SMOKE.md`
 
 ## 셸 환경 (Claude Code 전용)
@@ -141,7 +142,8 @@
 다음 명령은 절대 실행 금지:
 - `rm -rf /`, `rm -rf ..`
 - `drop database`, `drop table`, `truncate table`
-- `git push --force main|master|deploy`
+- `git push --force main|master|deploy|production` (특히 `production` 강제푸시·리셋은 사용자 명시 승인 필수)
+- 사용자 명시 요청 없는 `production` 브랜치 push (일반 push 포함)
 - `git reset --hard origin`
 - `git clean -fdx`
 

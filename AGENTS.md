@@ -70,3 +70,10 @@
 ## 푸시 전 로컬 검증 (deploy/main)
 
 `deploy` / `main` push **직전** 수동 실행: `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` (APP_OK, harness verify, SSOT lint, CI 자주 실패 pytest subset, ~2–5분). **UI/CSS/템플릿 변경 시** 기본 게이트는 PNG visual regression이 아니라 **`test_p1_mockup_*` 구조 테스트**(subset 포함). win32 PNG `--update-snapshots`·`-Visual`은 UI 안정기에만 선택. 머지 직전 전체 pytest: `-Full` (느림). **git push 시 자동 실행 아님** — GitHub Actions `test` job이 담당(PNG visual job 비활성). 상세: [`docs/guides/PRE_PUSH_SMOKE.md`](docs/guides/PRE_PUSH_SMOKE.md).
+
+## 브랜치·푸시 권한 (절대 규칙)
+
+- **기본 푸시 대상은 `deploy`(스테이징, lahom-dev)** 다. 흐름은 `deploy`(스테이징) → 사용자 검증·승인 → `production`(운영) 승격이다.
+- **운영(`production`) 브랜치로의 push·force-push·reset은 사용자가 명시적으로 "production 푸시/배포"를 요청했을 때만** 수행한다. 어떤 도구·모델도 임의로 `production`에 푸시하지 않는다.
+- **"deploy 푸쉬"는 절대 `production`을 포함하지 않는다.** 모호하면 푸시 전 사용자에게 대상 브랜치를 확인한다.
+- `production` 강제푸시·히스토리 리라이트(reset)는 고위험이므로, 명시 승인과 함께 정확한 타깃 커밋·영향 범위를 먼저 보고하고 `--force-with-lease`로만 수행한다.
