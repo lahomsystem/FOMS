@@ -14,6 +14,11 @@
     var _mobilePreviewBound = false;
     var _mobilePreviewDataUrl = '';
     var _mobilePreviewCapturePromise = null;
+    var _estimateItems = [];
+    var _estimateManualRows = [];
+    var _manualRowsBound = false;
+    var _manualRowsSaveTimer = null;
+    var _MANUAL_ROWS_SAVE_DELAY_MS = 600;
 
     function _getOrderId() {
         if (typeof ORDER_ID !== 'undefined') return ORDER_ID;
@@ -34,6 +39,29 @@
         const n = Number(num);
         if (!Number.isFinite(n) || n === 0) return '₩0';
         return '₩' + Math.round(n).toLocaleString('ko-KR');
+    }
+
+    function _asText(value) {
+        return value === null || value === undefined ? '' : String(value);
+    }
+
+    function _cloneManualRows(rows) {
+        return (rows || []).map(function (row) {
+            return {
+                id: _asText(row.id),
+                after_index: Number.isInteger(Number(row.after_index)) ? Number(row.after_index) : -1,
+                product_name: _asText(row.product_name),
+                spec: _asText(row.spec),
+                color: _asText(row.color),
+                quantity: _asText(row.quantity),
+                amount: _asText(row.amount),
+                affects_total: row.affects_total === true
+            };
+        });
+    }
+
+    function _makeManualRowId() {
+        return 'mr_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
     }
 
     function _fmtDate(dateStr) {
@@ -268,46 +296,279 @@
         }
     }
 
-    function _renderItems(items) {
+    function _getEstimatePreviewState() {
+        if (!window.__erpLastStructuredData || typeof window.__erpLastStructuredData !== 'object') {
+            window.__erpLastStructuredData = {};
+        }
+        if (
+            !window.__erpLastStructuredData.estimate_preview
+            || typeof window.__erpLastStructuredData.estimate_preview !== 'object'
+            || Array.isArray(window.__erpLastStructuredData.estimate_preview)
+        ) {
+            window.__erpLastStructuredData.estimate_preview = {};
+        }
+        return window.__erpLastStructuredData.estimate_preview;
+    }
+
+    function _syncManualRowsToStructured() {
+        var preview = _getEstimatePreviewState();
+        preview.manual_rows = _cloneManualRows(_estimateManualRows);
+    }
+
+    function _setManualRowsDirty() {
+        _dirty = true;
+        _mobilePreviewDataUrl = '';
+        _syncManualRowsToStructured();
+    }
+
+    function _scheduleManualRowsSave() {
+        _setManualRowsDirty();
+        window.clearTimeout(_manualRowsSaveTimer);
+        _manualRowsSaveTimer = window.setTimeout(function () {
+            if (typeof window.erpSaveStructured !== 'function') return;
+            window.erpSaveStructured({ redirect: false, _skipValidation: true })
+                .catch(function (err) {
+                    console.error('[estimate-preview] 수동 행 저장 실패:', err);
+                });
+        }, _MANUAL_ROWS_SAVE_DELAY_MS);
+    }
+
+    function _manualRowsFromResponse(items, estimatePreview) {
+        if (
+            estimatePreview
+            && Array.isArray(estimatePreview.manual_rows)
+            && estimatePreview.manual_rows.length > 0
+        ) {
+            return _cloneManualRows(estimatePreview.manual_rows);
+        }
+
+        return (items || [])
+            .filter(function (item) { return item && item.source === 'manual'; })
+            .map(function (item) {
+                return {
+                    id: _asText(item.manual_row_id || item.id || _makeManualRowId()),
+                    after_index: Number.isInteger(Number(item.after_index)) ? Number(item.after_index) : -1,
+                    product_name: _asText(item.product_name),
+                    spec: _asText(item.spec),
+                    color: _asText(item.color),
+                    quantity: _asText(item.quantity),
+                    amount: _asText(item.amount_raw || item.amount),
+                    affects_total: item.affects_total === true
+                };
+            });
+    }
+
+    function _getOriginalEstimateItems(items) {
+        return (items || []).filter(function (item) {
+            return !item || item.source !== 'manual';
+        });
+    }
+
+    function _getManualRowsForIndex(afterIndex) {
+        return _estimateManualRows.filter(function (row) {
+            return Number(row.after_index) === Number(afterIndex);
+        });
+    }
+
+    function _makeCellInput(row, field, multiline) {
+        var el = document.createElement(multiline ? 'textarea' : 'input');
+        if (!multiline) {
+            el.type = 'text';
+        } else {
+            el.rows = 1;
+        }
+        el.className = 'erp-est-manual-input';
+        el.value = row[field] || '';
+        el.setAttribute('data-est-manual-field', field);
+        el.setAttribute('data-est-manual-id', row.id);
+        return el;
+    }
+
+    function _appendManualCell(tr, row, field, className, multiline) {
+        var td = document.createElement('td');
+        if (className) td.className = className;
+        td.appendChild(_makeCellInput(row, field, multiline));
+        tr.appendChild(td);
+        return td;
+    }
+
+    function _appendManualRow(tbody, row) {
+        var tr = document.createElement('tr');
+        tr.className = 'erp-est-manual-row';
+        tr.setAttribute('data-est-manual-id', row.id);
+
+        var tdName = document.createElement('td');
+        var nameWrap = document.createElement('div');
+        nameWrap.className = 'erp-est-manual-name-wrap';
+        nameWrap.appendChild(_makeCellInput(row, 'product_name', false));
+
+        var deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'erp-est-manual-delete erp-est-edit-control';
+        deleteBtn.setAttribute('data-est-delete-manual-id', row.id);
+        deleteBtn.setAttribute('title', '행 삭제');
+        deleteBtn.setAttribute('aria-label', '수동 행 삭제');
+        deleteBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
+        nameWrap.appendChild(deleteBtn);
+
+        tdName.appendChild(nameWrap);
+        tr.appendChild(tdName);
+        _appendManualCell(tr, row, 'spec', 'erp-est-td-spec', true);
+        _appendManualCell(tr, row, 'color', '', false);
+        _appendManualCell(tr, row, 'quantity', '', false);
+        _appendManualCell(tr, row, 'amount', 'text-end', false);
+        tbody.appendChild(tr);
+    }
+
+    function _appendAddControlRow(tbody, afterIndex) {
+        var tr = document.createElement('tr');
+        tr.className = 'erp-est-add-row erp-est-edit-control';
+        var td = document.createElement('td');
+        td.colSpan = 5;
+
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'erp-est-add-row-btn';
+        btn.setAttribute('data-est-add-after-index', String(afterIndex));
+        btn.setAttribute('title', '행 추가');
+        btn.setAttribute('aria-label', '수동 행 추가');
+        btn.innerHTML = '<i class="fas fa-plus"></i>';
+
+        td.appendChild(btn);
+        tr.appendChild(td);
+        tbody.appendChild(tr);
+    }
+
+    function _renderReadOnlyItemRow(tbody, item) {
+        const tr = document.createElement('tr');
+
+        const tdName = document.createElement('td');
+        tdName.textContent = item.product_name || '-';
+        tr.appendChild(tdName);
+
+        const tdSpec = document.createElement('td');
+        tdSpec.textContent = item.spec || '-';
+        tdSpec.className = 'erp-est-td-spec';
+        tr.appendChild(tdSpec);
+
+        const tdColor = document.createElement('td');
+        tdColor.textContent = item.color || '-';
+        tr.appendChild(tdColor);
+
+        const tdQty = document.createElement('td');
+        tdQty.textContent = item.quantity || 1;
+        tr.appendChild(tdQty);
+
+        const tdAmount = document.createElement('td');
+        tdAmount.textContent = _fmtMoney(item.amount || item.unit_price || 0);
+        tdAmount.className = 'text-end';
+        tr.appendChild(tdAmount);
+
+        tbody.appendChild(tr);
+    }
+
+    function _renderManualRowsForIndex(tbody, afterIndex) {
+        _getManualRowsForIndex(afterIndex).forEach(function (row) {
+            _appendManualRow(tbody, row);
+        });
+    }
+
+    function _renderItems(items, estimatePreview) {
         const tbody = document.getElementById('est-items-tbody');
         const emptyRow = document.getElementById('est-items-empty');
         if (!tbody) return;
 
-        if (!items || items.length === 0) {
+        tbody.querySelectorAll('tr:not(#est-items-empty)').forEach(function (r) { r.remove(); });
+        _estimateItems = _getOriginalEstimateItems(items);
+        _estimateManualRows = _manualRowsFromResponse(items, estimatePreview);
+        _syncManualRowsToStructured();
+
+        if (_estimateItems.length === 0 && _estimateManualRows.length === 0) {
             if (emptyRow) emptyRow.classList.remove('erp-est-hidden');
+            _appendAddControlRow(tbody, -1);
             return;
         }
         if (emptyRow) emptyRow.classList.add('erp-est-hidden');
 
-        tbody.querySelectorAll('tr:not(#est-items-empty)').forEach(function (r) { r.remove(); });
-
-        items.forEach(function (item) {
-            const tr = document.createElement('tr');
-
-            const tdName = document.createElement('td');
-            tdName.textContent = item.product_name || '-';
-            tr.appendChild(tdName);
-
-            const tdSpec = document.createElement('td');
-            tdSpec.textContent = item.spec || '-';
-            tdSpec.className = 'erp-est-td-spec';
-            tr.appendChild(tdSpec);
-
-            const tdColor = document.createElement('td');
-            tdColor.textContent = item.color || '-';
-            tr.appendChild(tdColor);
-
-            const tdQty = document.createElement('td');
-            tdQty.textContent = item.quantity || 1;
-            tr.appendChild(tdQty);
-
-            const tdAmount = document.createElement('td');
-            tdAmount.textContent = _fmtMoney(item.amount || item.unit_price || 0);
-            tdAmount.className = 'text-end';
-            tr.appendChild(tdAmount);
-
-            tbody.appendChild(tr);
+        _renderManualRowsForIndex(tbody, -1);
+        if (_estimateItems.length === 0) {
+            _appendAddControlRow(tbody, -1);
+            return;
+        }
+        _estimateItems.forEach(function (item, idx) {
+            _renderReadOnlyItemRow(tbody, item);
+            _renderManualRowsForIndex(tbody, idx);
+            _appendAddControlRow(tbody, idx);
         });
+    }
+
+    function _addManualRow(afterIndex) {
+        _estimateManualRows.push({
+            id: _makeManualRowId(),
+            after_index: Number.isInteger(Number(afterIndex)) ? Number(afterIndex) : -1,
+            product_name: '',
+            spec: '',
+            color: '',
+            quantity: '',
+            amount: '',
+            affects_total: false
+        });
+        _renderItems(_estimateItems, { manual_rows: _estimateManualRows });
+        _scheduleManualRowsSave();
+        if (typeof window.scheduleEstimateColumnRefresh === 'function') {
+            window.scheduleEstimateColumnRefresh();
+        }
+    }
+
+    function _deleteManualRow(rowId) {
+        _estimateManualRows = _estimateManualRows.filter(function (row) {
+            return row.id !== rowId;
+        });
+        _renderItems(_estimateItems, { manual_rows: _estimateManualRows });
+        _scheduleManualRowsSave();
+        if (typeof window.scheduleEstimateColumnRefresh === 'function') {
+            window.scheduleEstimateColumnRefresh();
+        }
+    }
+
+    function _updateManualRow(rowId, field, value) {
+        _estimateManualRows.forEach(function (row) {
+            if (row.id === rowId) {
+                row[field] = value;
+            }
+        });
+        _scheduleManualRowsSave();
+    }
+
+    function _bindManualRows() {
+        if (_manualRowsBound) return;
+        var tbody = document.getElementById('est-items-tbody');
+        if (!tbody) return;
+
+        tbody.addEventListener('click', function (e) {
+            var addBtn = e.target && e.target.closest('[data-est-add-after-index]');
+            if (addBtn) {
+                _addManualRow(addBtn.getAttribute('data-est-add-after-index'));
+                return;
+            }
+
+            var deleteBtn = e.target && e.target.closest('[data-est-delete-manual-id]');
+            if (deleteBtn) {
+                _deleteManualRow(deleteBtn.getAttribute('data-est-delete-manual-id'));
+            }
+        });
+
+        tbody.addEventListener('input', function (e) {
+            var target = e.target;
+            if (!target || !target.matches('[data-est-manual-field][data-est-manual-id]')) return;
+            _updateManualRow(
+                target.getAttribute('data-est-manual-id'),
+                target.getAttribute('data-est-manual-field'),
+                target.value || ''
+            );
+        });
+
+        _manualRowsBound = true;
     }
 
     function _applyCompanyInfo(ci, isLahom) {
@@ -470,7 +731,7 @@
             const d = data.data || {};
             _applyCompanyInfo(d.company_info || {}, !!d.is_lahom);
             _applyCustomerInfo(d);
-            _renderItems(d.items);
+            _renderItems(d.items, d.estimate_preview || {});
             _applyPaymentInfo(d, d.payment_info || {});
 
             _estimateCacheLoaded = true;
@@ -544,6 +805,7 @@
         if (!tab) return;
 
         _bindExportBtn();
+        _bindManualRows();
         _bindEstimateMobilePreview();
         _bindEstimateViewModeListener();
 

@@ -195,6 +195,9 @@ def test_estimate_table_columns_contract() -> None:
     assert 'id="est-mobile-preview"' in pane
     assert 'id="erpEstimatePreviewModal"' in pane
     assert 'id="erp-estimate-preview-body"' in pane
+    assert 'erp-est-manual-row' in pane
+    assert 'erp-est-add-row-btn' in pane
+    assert '.erp-est-exporting .erp-est-edit-control' in pane
     contract_css = pane.split('.erp-est-contract {', 1)[1].split('.erp-est-contract-title', 1)[0]
     assert 'min-height' not in contract_css
 
@@ -213,6 +216,12 @@ def test_estimate_preview_js_is_canonical_only() -> None:
     assert "_bindEstimateMobilePreview" in text
     assert "_openEstimatePreviewModal" in text
     assert "fomsBindAttachmentPreviewImageZoom" in text
+    assert "_bindManualRows" in text
+    assert "window.__erpLastStructuredData.estimate_preview" in text
+    assert "preview.manual_rows" in text
+    assert "data-est-add-after-index" in text
+    assert "data-est-delete-manual-id" in text
+    assert "scheduleEstimateColumnRefresh" in text
 
 
 def test_shared_erp_order_js_has_no_beta_runtime_mirror() -> None:
@@ -242,6 +251,7 @@ def test_shared_erp_order_js_preserves_drawing_operational_state() -> None:
         "last_drawing_transfer",
         "drawing_assignees",
         "blueprint",
+        "estimate_preview",
     ):
         assert f"'{key}'" in collect_block
 
@@ -251,6 +261,16 @@ def test_shared_erp_order_js_preserves_drawing_operational_state() -> None:
     assert "prevSd.workflow" in workflow_block
     assert "JSON.parse(JSON.stringify(prevWorkflow))" in workflow_block
     assert "workflow.stage = getVal('erp-workflow-stage');" in workflow_block
+
+
+def test_structured_put_preserves_estimate_preview_state() -> None:
+    root = Path(__file__).resolve().parents[2]
+    text = (root / "foms/api/erp_orders_structured.py").read_text(encoding="utf-8")
+
+    keys_start = text.index("_OPERATIONAL_TOP_LEVEL_KEYS = (")
+    keys_end = text.index("def _merge_preserving_missing", keys_start)
+    keys_block = text[keys_start:keys_end]
+    assert "'estimate_preview'" in keys_block
 
 
 def test_shared_erp_order_js_does_not_auto_save_before_user_save() -> None:

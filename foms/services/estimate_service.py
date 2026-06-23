@@ -104,6 +104,92 @@ def _parse_money_amount(value) -> int:
     return int(digits) if digits else 0
 
 
+def _coerce_manual_row_after_index(value, item_count: int) -> int:
+    try:
+        after_index = int(value)
+    except (TypeError, ValueError):
+        after_index = item_count - 1
+    return max(-1, min(after_index, item_count - 1))
+
+
+def _coerce_bool(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+    return False
+
+
+def _extract_estimate_manual_rows(structured_data: dict, item_count: int) -> list[dict]:
+    preview = structured_data.get("estimate_preview") or {}
+    if not isinstance(preview, dict):
+        return []
+    raw_rows = preview.get("manual_rows") or []
+    if not isinstance(raw_rows, list):
+        return []
+
+    rows = []
+    for idx, raw_row in enumerate(raw_rows):
+        if not isinstance(raw_row, dict):
+            continue
+        row_id = str(raw_row.get("id") or f"manual_{idx + 1}").strip() or f"manual_{idx + 1}"
+        amount_raw = str(raw_row.get("amount") or "").strip()
+        rows.append(
+            {
+                "id": row_id,
+                "after_index": _coerce_manual_row_after_index(
+                    raw_row.get("after_index"),
+                    item_count,
+                ),
+                "product_name": str(raw_row.get("product_name") or "").strip(),
+                "spec": str(raw_row.get("spec") or "").strip(),
+                "color": str(raw_row.get("color") or "").strip(),
+                "quantity": str(raw_row.get("quantity") or "").strip(),
+                "amount": amount_raw,
+                "amount_value": _parse_money_amount(amount_raw),
+                "affects_total": _coerce_bool(raw_row.get("affects_total")),
+            }
+        )
+    return rows
+
+
+def _manual_row_to_estimate_item(row: dict) -> dict:
+    return {
+        "product_name": row.get("product_name") or "",
+        "spec": row.get("spec") or "",
+        "color": row.get("color") or "",
+        "option_detail": "",
+        "quantity": row.get("quantity") or "",
+        "unit_price": int(row.get("amount_value") or 0),
+        "amount": int(row.get("amount_value") or 0),
+        "source": "manual",
+        "manual_row_id": row.get("id") or "",
+        "after_index": int(row.get("after_index", -1)),
+        "affects_total": bool(row.get("affects_total")),
+        "amount_raw": row.get("amount") or "",
+    }
+
+
+def _merge_estimate_manual_rows(estimate_items: list[dict], manual_rows: list[dict]) -> list[dict]:
+    if not manual_rows:
+        return estimate_items
+
+    grouped: dict[int, list[dict]] = {}
+    for row in manual_rows:
+        grouped.setdefault(int(row.get("after_index", -1)), []).append(
+            _manual_row_to_estimate_item(row)
+        )
+
+    merged = []
+    merged.extend(grouped.get(-1, []))
+    for idx, item in enumerate(estimate_items):
+        merged.append(item)
+        merged.extend(grouped.get(idx, []))
+    return merged
+
+
 def _extract_deposit_amount(structured_data: dict) -> int:
     for payments in (
         structured_data.get("payment") or {},
@@ -184,7 +270,15 @@ def extract_estimate_data_from_order(order: Order) -> dict:
             }
         )
 
-    total_amount = sum(item["amount"] for item in estimate_items)
+    manual_rows = _extract_estimate_manual_rows(sd, len(estimate_items))
+    manual_total = sum(
+        int(row.get("amount_value") or 0)
+        for row in manual_rows
+        if row.get("affects_total")
+    )
+    merged_items = _merge_estimate_manual_rows(estimate_items, manual_rows)
+
+    total_amount = sum(item["amount"] for item in estimate_items) + manual_total
     deposit_amount = _extract_deposit_amount(sd)
     discount_amount = _extract_discount_amount(sd)
     balance_amount = _balance_after_payments(total_amount, deposit_amount, discount_amount)
@@ -197,7 +291,8 @@ def extract_estimate_data_from_order(order: Order) -> dict:
         "manager_name": manager_name,
         "manager_phone": manager_phone,
         "is_lahom": is_lahom,
-        "items": estimate_items,
+        "items": merged_items,
+        "estimate_preview": {"manual_rows": manual_rows},
         "total_amount": total_amount,
         "deposit_amount": int(deposit_amount or 0),
         "discount_amount": int(discount_amount or 0),

@@ -197,6 +197,8 @@ _OPERATIONAL_TOP_LEVEL_KEYS = (
     'drawing_transfer_history',
     'last_drawing_transfer',
     'drawing_assignees',
+    # Estimate preview manual rows are edited from the contract tab, not the main form.
+    'estimate_preview',
 )
 
 

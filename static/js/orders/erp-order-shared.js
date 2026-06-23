@@ -1480,7 +1480,8 @@ function erpCollectStructured() {
         'drawing_current_files',
         'drawing_transfer_history',
         'last_drawing_transfer',
-        'drawing_assignees'
+        'drawing_assignees',
+        'estimate_preview'
     ];
 
     const structured = {

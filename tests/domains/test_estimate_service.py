@@ -164,6 +164,81 @@ def test_extract_estimate_data_applies_discount_to_balance():
     assert data["final_amount"] == 350000
 
 
+def test_extract_estimate_data_merges_manual_rows_without_total_by_default():
+    order = SimpleNamespace(
+        customer_name="c",
+        phone="p",
+        address="a",
+        manager_name="m",
+        structured_data={
+            "parties": {"customer": {"name": "홍길동"}, "orderer": {"name": "라홈"}},
+            "items": [
+                {"product_name": "책장", "price": 100000},
+                {"product_name": "수납장", "price": 200000},
+            ],
+            "estimate_preview": {
+                "manual_rows": [
+                    {
+                        "id": "mr_1",
+                        "after_index": 0,
+                        "product_name": "현장 메모",
+                        "spec": "추가 확인",
+                        "color": "상담",
+                        "quantity": "1",
+                        "amount": "50,000",
+                    }
+                ]
+            },
+        },
+    )
+
+    data = estimate_service.extract_estimate_data_from_order(order)
+
+    assert [item["product_name"] for item in data["items"]] == ["책장", "현장 메모", "수납장"]
+    manual_item = data["items"][1]
+    assert manual_item["source"] == "manual"
+    assert manual_item["manual_row_id"] == "mr_1"
+    assert manual_item["amount"] == 50000
+    assert manual_item["affects_total"] is False
+    assert data["estimate_preview"]["manual_rows"][0]["amount_value"] == 50000
+    assert data["total_amount"] == 300000
+    assert data["balance_amount"] == 300000
+
+
+def test_extract_estimate_data_can_apply_manual_rows_to_total():
+    order = SimpleNamespace(
+        customer_name="c",
+        phone="p",
+        address="a",
+        manager_name="m",
+        structured_data={
+            "parties": {"customer": {"name": "홍길동"}, "orderer": {"name": "라홈"}},
+            "payment": {"deposit": 100000},
+            "items": [{"product_name": "책장", "price": 300000}],
+            "estimate_preview": {
+                "manual_rows": [
+                    {
+                        "id": "mr_2",
+                        "after_index": 0,
+                        "product_name": "추가 선반",
+                        "quantity": "1",
+                        "amount": "80,000원",
+                        "affects_total": True,
+                    }
+                ]
+            },
+        },
+    )
+
+    data = estimate_service.extract_estimate_data_from_order(order)
+
+    assert data["items"][1]["source"] == "manual"
+    assert data["items"][1]["amount_raw"] == "80,000원"
+    assert data["total_amount"] == 380000
+    assert data["balance_amount"] == 280000
+    assert data["final_amount"] == 280000
+
+
 def test_extract_estimate_data_accepts_modern_payment_and_legacy_payments_deposit():
     base_order = {
         "customer_name": "fallback customer",

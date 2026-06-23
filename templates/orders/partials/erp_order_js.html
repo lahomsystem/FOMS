@@ -8,7 +8,7 @@
     window.ERP_SPEC_CALC_ENABLED = {{ 'true' if flag_spec_calc else 'false' }};
 </script>
 <script src="{{ url_for('static', filename='js/foms/attachment-preview-zoom.js') }}?v=20260618c" defer></script>
-<script src="{{ url_for('static', filename='js/orders/erp-order-shared.js') }}?v=20260623c" defer></script>
+<script src="{{ url_for('static', filename='js/orders/erp-order-shared.js') }}?v=20260623d" defer></script>
 {% if flag_spec_calc %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/wdcalculator/category-picker.css') }}?v=20260623c">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/wdcalculator/multi-add-picker.css') }}?v=20260623c">
@@ -25,5 +25,5 @@
 {% endif %}
 {# html2canvas는 견적서 내보내기 시에만 estimate-preview.js가 동적 로드(렌더 차단 + 매 페이지 CDN 다운로드 제거) #}
 <script src="{{ url_for('static', filename='js/runtime/column-resizer.js') }}?v=20260615a" defer></script>
-<script src="{{ url_for('static', filename='js/orders/estimate-preview.js') }}?v=20260616a" defer></script>
+<script src="{{ url_for('static', filename='js/orders/estimate-preview.js') }}?v=20260623a" defer></script>
 <script src="{{ url_for('static', filename='js/orders/estimate-table-columns.js') }}?v=20260615b" defer></script>
