@@ -7,7 +7,7 @@
  *        - 다중 선택(openMulti): multi-add-picker(wd-madd-*) — 데스크톱 모달 / 모바일 바텀시트(검색+체크박스)
  *
  * 설계: 운영 중인 WDCalc JS 모듈은 그 페이지 DOM에 강결합되어 직접 재사용 불가하므로
- *       콜백 기반의 얇은 ERP 전용 피커를 두되, CSS 클래스(wd-cat-*/wd-madd-*)는 그대로 재사용해
+ *       콜백 기반의 얇은 ERP 전용 피커를 두되, CSS 클래스(wd-cat-, wd-madd- 계열)는 그대로 재사용해
  *       룩앤필을 통일한다. 값은 호출측(erp-spec-calc.js)이 입력칸에 써넣어 직접입력/autosize를 보존.
  */
 (function () {

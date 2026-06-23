@@ -6,9 +6,9 @@
 
 ### Session: a1e98f3a
 - **시작**: 2026-06-23 09:03:35
-- **상태**: aborted
-- **편집 파일**: `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-05fdabc7-1894-42a3-864c-2f5c8c4efb37.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-b3978904-cdea-483b-83ab-c3ed41cfbb08.png`, `commit_msg.txt`, `.cursor/rules/00-project-context.mdc`, `AGENTS.md`, `CLAUDE.md`, `tests/domains/test_erp_spec_calc_phase3.py`, `tests/domains/test_erp_spec_calc_followup.py`, `static/css/components/foms-form-field.css`, `static/css/orders/erp-spec-calc.css`
-- **종료**: 2026-06-23 15:49:23
+- **상태**: completed
+- **편집 파일**: `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-090990c5-786f-497b-a936-2a4019da266d.png`, `commit_msg.txt`, `tests/domains/test_erp_spec_calc_followup.py`, `tests/visual/test_p1_mockup_structure.py`, `tests/domains/test_erp_order_shared_form_scripts.py`, `templates/partials/shared/layout_head.html`, `templates/orders/wizard/wizard_shell.html`, `static/css/foundation/foms-mobile-surfaces.css`, `templates/orders/partials/erp_order_js.html`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-05fdabc7-1894-42a3-864c-2f5c8c4efb37.png`
+- **종료**: 2026-06-23 16:24:34
 
  eb794731
 - **시작**: 2026-06-22 09:04:43
@@ -891,3 +891,7 @@
 | 2026-06-23 15:20:51 | END (Claude Code) | 수정: (없음) |
 
 | 2026-06-23 15:49:23 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-23 16:23:19 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-23 16:24:34 | END (Claude Code) | 수정: (없음) |

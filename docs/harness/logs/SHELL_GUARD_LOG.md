@@ -4,12 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-06-17 14:21:27 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
-| 2026-06-17 14:27:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_queue_card_schedule.py tests/domains/test_foms_search_over` |
-| 2026-06-17 14:27:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/perf/perf_scan.py --guard; python -c "import app; print('APP_OK')"` |
-| 2026-06-17 14:29:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_queue_card_schedule.py tests/domains/test_foms_search_over` |
-| 2026-06-17 14:29:20 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
-| 2026-06-17 14:30:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
 | 2026-06-17 14:30:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat` |
 | 2026-06-17 14:30:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch --show-current; git log -3 --oneline` |
 | 2026-06-17 14:30:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add foms/services/erp_mobile_order_display.py foms/services/erp_template_filters.py foms/s` |
@@ -304,3 +298,9 @@
 | 2026-06-23 16:09:46 | allow | `-` | `python tools/perf/perf_scan.py --guard 2>&1 | Select-Object -Last 25` |
 | 2026-06-23 16:09:59 | allow | `-` | `git --no-pager diff --stat; echo "==== full diff ===="; git --no-pager diff` |
 | 2026-06-23 16:10:32 | allow | `-` | `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1 2>&1 | Select-Object -Last 45` |
+| 2026-06-23 16:12:40 | allow | `-` | `$u='https://lahom-dev.up.railway.app/static/css/foundation/foms-mobile-surfaces.css'; $ok=$false; for($i=1;$i -le 18;$i++){ try{ $c=(Invoke-WebRequest "$u?nc=$(` |
+| 2026-06-23 16:19:15 | allow | `-` | `$u='https://lahom-dev.up.railway.app/static/css/foundation/foms-mobile-surfaces.css'; $ok=$false; for($i=1;$i -le 12;$i++){ try{ $c=(Invoke-WebRequest "$u?nc=$(` |
+| 2026-06-23 16:23:46 | allow | `-` | `$r=Get-Random; $surf=(Invoke-WebRequest "https://lahom-dev.up.railway.app/static/css/foundation/foms-mobile-surfaces.css?nc=$r" -UseBasicParsing -TimeoutSec 25)` |
+| 2026-06-23 16:33:11 | allow | `-` | `node --check static/js/orders/erp-spec-picker.js; if($?){"picker.js: SYNTAX OK"}; node --check static/js/orders/erp-spec-calc.js; if($?){"calc.js: SYNTAX OK"}; ` |
+| 2026-06-23 16:37:50 | allow | `-` | `python -m pytest tests/domains/test_erp_spec_calc_followup.py tests/domains/test_erp_spec_calc_phase3.py -q 2>&1 | Select-Object -Last 20` |
+| 2026-06-23 16:38:26 | allow | `-` | `python tools/perf/perf_scan.py --guard 2>&1 | Select-Object -Last 6; echo "==== smoke ===="; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1 2>&1 | S` |

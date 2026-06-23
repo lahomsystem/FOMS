@@ -5,6 +5,15 @@
 
 ## 최근 파일 편집
 
+- `commit_msg.txt` <- 1 edit(s), ~521 chars (2026-06-23 16:40:59)
+- `templates/orders/partials/erp_order_js.html` <- 1 edit(s), ~106 chars (2026-06-23 16:39:42)
+- `tests/domains/test_erp_spec_calc_followup.py` <- 1 edit(s), ~823 chars (2026-06-23 16:37:16)
+- `static/js/orders/erp-spec-picker.js` <- 1 edit(s), ~73 chars (2026-06-23 16:32:58)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-c878dbd9-5a27-4932-a34b-54b6925f9a06.png` <- 1 edit(s), ~0 chars (2026-06-23 16:31:25)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-b859b541-fecc-425b-9eee-fa96174466bc.png` <- 1 edit(s), ~0 chars (2026-06-23 16:31:24)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-13080862-cafb-406e-b260-810be24be211.png` <- 1 edit(s), ~0 chars (2026-06-23 16:31:24)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-6aebb902-ebf4-4e55-8acc-0861519a3bfb.png` <- 1 edit(s), ~0 chars (2026-06-23 16:31:24)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-090990c5-786f-497b-a936-2a4019da266d.png` <- 1 edit(s), ~0 chars (2026-06-23 16:23:36)
 - `commit_msg.txt` <- 1 edit(s), ~657 chars (2026-06-23 16:11:46)
 - `tests/domains/test_erp_spec_calc_followup.py` <- 1 edit(s), ~1134 chars (2026-06-23 16:08:40)
 - `tests/visual/test_p1_mockup_structure.py` <- 1 edit(s), ~62 chars (2026-06-23 16:08:18)
@@ -46,4 +55,3 @@
 - `static/css/orders/erp-spec-calc.css` <- 6 edit(s), ~837 chars (2026-06-23 10:50:32)
 - `static/js/orders/erp-spec-calc.js` <- 42 edit(s), ~10564 chars (2026-06-23 10:50:10)
 - `templates/wdcalculator/product_settings.html` <- 1 edit(s), ~170 chars (2026-06-23 10:47:45)
-- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-d4cefc28-5203-4001-9638-342ca913df82.png` <- 1 edit(s), ~0 chars (2026-06-23 10:38:53)
