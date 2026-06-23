@@ -588,8 +588,8 @@ def test_mobile_attachment_preview_uses_viewport_sized_modal() -> None:
     ) in css_text
     assert ".erp-order-mobile-form .erp-attachment-preview-actions .btn" not in css_text
     assert "max-width: min(92vw, 36rem)" not in css_text
-    assert "../components/foms-form-field.css?v=20260623c" in mobile_bundle
-    assert "foms-mobile-surfaces.css') }}?v=20260623c" in layout_head
+    assert "../components/foms-form-field.css?v=20260623d" in mobile_bundle
+    assert "foms-mobile-surfaces.css') }}?v=20260623d" in layout_head
 
 
 def test_attachment_preview_image_zoom_supports_in_modal_gestures() -> None:
@@ -795,3 +795,4 @@ def test_edit_order_page_renders_thin_erp_order_partial_contract(erp_editor_clie
     assert f'data-order-id="{order.id}"' in body
     assert 'data-erp-order-enabled="true"' in body
     assert 'data-erp-surface="1" data-erp-ready="1"' in body
+

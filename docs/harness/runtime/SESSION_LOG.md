@@ -6,9 +6,9 @@
 
 ### Session: a1e98f3a
 - **시작**: 2026-06-23 09:03:35
-- **상태**: completed
-- **편집 파일**: `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-090990c5-786f-497b-a936-2a4019da266d.png`, `commit_msg.txt`, `tests/domains/test_erp_spec_calc_followup.py`, `tests/visual/test_p1_mockup_structure.py`, `tests/domains/test_erp_order_shared_form_scripts.py`, `templates/partials/shared/layout_head.html`, `templates/orders/wizard/wizard_shell.html`, `static/css/foundation/foms-mobile-surfaces.css`, `templates/orders/partials/erp_order_js.html`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-05fdabc7-1894-42a3-864c-2f5c8c4efb37.png`
-- **종료**: 2026-06-23 16:24:34
+- **상태**: aborted
+- **편집 파일**: `commit_msg.txt`, `templates/orders/partials/erp_order_js.html`, `tests/domains/test_erp_spec_calc_followup.py`, `static/js/orders/erp-spec-picker.js`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-c878dbd9-5a27-4932-a34b-54b6925f9a06.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-b859b541-fecc-425b-9eee-fa96174466bc.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-13080862-cafb-406e-b260-810be24be211.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-6aebb902-ebf4-4e55-8acc-0861519a3bfb.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-090990c5-786f-497b-a936-2a4019da266d.png`, `tests/visual/test_p1_mockup_structure.py`
+- **종료**: 2026-06-23 16:44:08
 
  eb794731
 - **시작**: 2026-06-22 09:04:43
@@ -895,3 +895,5 @@
 | 2026-06-23 16:23:19 | END (Claude Code) | 수정: (없음) |
 
 | 2026-06-23 16:24:34 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-23 16:44:08 | END (Claude Code) | 수정: (없음) |

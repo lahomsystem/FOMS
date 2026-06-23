@@ -191,5 +191,31 @@ def test_form_field_css_chain_cache_busted_for_redesign() -> None:
     @import 버전(번들 내부)과 외곽 <link> 버전이 함께 신선해야 한다."""
     surfaces = _read(ROOT / "static/css/foundation/foms-mobile-surfaces.css")
     layout_head = _read(ROOT / "templates/partials/shared/layout_head.html")
-    assert "../components/foms-form-field.css?v=20260623c" in surfaces
-    assert "foms-mobile-surfaces.css') }}?v=20260623c" in layout_head
+    assert "../components/foms-form-field.css?v=20260623d" in surfaces
+    assert "foms-mobile-surfaces.css') }}?v=20260623d" in layout_head
+
+
+def test_spec_calc_self_heals_rows_created_before_module_load() -> None:
+    """fragment/full-page 로드 순서 차이로 erp-order-shared.js가 먼저 row를 만들면
+    enhanceItemRow 호출이 skip될 수 있다. spec-calc 모듈 로드 후 기존 row를 재스캔해
+    ▾ 트리거가 반드시 붙도록 한다."""
+    js = _read(SPEC_CALC_JS)
+    assert "function _enhanceExistingRows(root)" in js
+    assert "querySelectorAll('#erp-items .erp-item-row')" in js
+    assert "ErpSpecCalc.enhanceItemRow(row, {})" in js
+    assert "foms:main-content-swapped" in js
+
+
+def test_open_item_card_has_no_purple_vertical_border() -> None:
+    """열린 항목 강조가 보라색 border/shadow를 만들면 모바일·PC에서 세로 라인으로 보인다."""
+    css = _read(FORM_FIELD_CSS)
+    assert "border-color: var(--foms-border-strong, #cbd5e1);" in css
+    assert "box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);" in css
+    assert "box-shadow: 0 0 0 1px var(--foms-interactive-primary" not in css
+
+    selector = "body.erp-mobile-v2-layout .erp-order-mobile-form #erp-items .erp-item-row.is-open"
+    open_rule = css.split(selector, 1)[1].split("}", 1)[0]
+    assert "var(--foms-border-strong" in open_rule
+    assert "var(--foms-interactive-primary" not in open_rule
+    assert "rgba(79, 70, 229" not in open_rule
+

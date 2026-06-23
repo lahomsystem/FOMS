@@ -4,6 +4,7 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-06-23 | 세션 자동 기록 | commit_msg.txt, erp_order_js.html, test_erp_spec_calc_followup.py 외 2개 | 0b4eb2ad |
 | 2026-06-23 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-090990c5-786f-497b-a936-2a4019da266d.png, commit_msg.txt, test_erp_spec_calc_followup.py 외 2개 | db23b6c6 |
 | 2026-06-23 | 세션 자동 기록 | commit_msg.txt, test_erp_spec_calc_followup.py, test_p1_mockup_structure.py 외 2개 | db23b6c6 |
 | 2026-06-23 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-05fdabc7-1894-42a3-864c-2f5c8c4efb37.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-b3978904-cdea-483b-83ab-c3ed41cfbb08.png, commit_msg.txt 외 2개 | f85fed2d |
@@ -23,4 +24,3 @@
 | 2026-06-22 | 세션 자동 기록 | c587c881-86a3-498f-b091-d36d08420ede.txt, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-8867ffe3-819c-4e8d-9e52-936b0eb87ca5.png, 047ee6a0-818d-416e-8813-c7e216dade86.txt 외 2개 | 1cd00528 |
 | 2026-06-18 | 세션 자동 기록 | test_channel_integration_smoke.py, foms_namespace_surface_tests.py, test_erp_orders_structured_put.py 외 2개 | 0f5f2812 |
 | 2026-06-18 | 세션 자동 기록 | commit_msg.txt, foms_namespace_surface_tests.py, routes.py 외 2개 | bad7a3d4 |
-| 2026-06-18 | 세션 자동 기록 | commit_msg.txt, routes.py, test_channel_push_messages.py 외 2개 | 5f27ca15 |

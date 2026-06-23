@@ -77,7 +77,7 @@
       }
     </style>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" crossorigin="anonymous">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-mobile-surfaces.css') }}?v=20260623c">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-mobile-surfaces.css') }}?v=20260623d">
     {% endif %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/foms/photo-capture.css') }}?v=20260529a">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-sticky-action-bar.css') }}?v=20260614a">
@@ -1060,3 +1060,4 @@
     {# USE_DIRECT_UPLOAD는 context_processor(inject_status_list)가 모든 템플릿에 #}
     {# use_direct_upload Jinja 변수를 자동 주입하므로, 각 하위 JS에서 const로 직접 선언합니다. #}
     {# layout.html에서 window.USE_DIRECT_UPLOAD로 전역 주입 시 하위 const와 충돌(SyntaxError) 발생. #}
+

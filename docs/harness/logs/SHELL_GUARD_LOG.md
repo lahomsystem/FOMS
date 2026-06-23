@@ -4,20 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-06-17 14:30:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat` |
-| 2026-06-17 14:30:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch --show-current; git log -3 --oneline` |
-| 2026-06-17 14:30:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add foms/services/erp_mobile_order_display.py foms/services/erp_template_filters.py foms/s` |
-| 2026-06-17 14:30:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
-| 2026-06-17 14:31:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; if (Test-Path "$env:USERPROFILE\.claude\skills\gstack\bin\gstack-update-check") { & "$env:USER` |
-| 2026-06-17 14:31:49 | allow | `-` | `Write-Host "=== .cursor/skills ==="; Get-ChildItem "$env:USERPROFILE\.cursor\skills" -ErrorAction SilentlyContinue | Select-Object Name, Mode; Write-Host "=== .` |
-| 2026-06-17 14:31:56 | allow | `-` | `Get-ChildItem "$env:USERPROFILE\.cursor\skills" -Force -Recurse -Depth 2 -ErrorAction SilentlyContinue | Select-Object FullName; Get-ChildItem "$env:USERPROFILE` |
-| 2026-06-17 14:32:13 | allow | `-` | `$bash = "C:\Program Files\Git\bin\bash.exe"; if (-not (Test-Path $bash)) { $bash = (Get-Command bash -ErrorAction SilentlyContinue).Source }; Write-Host "bash: ` |
-| 2026-06-17 14:32:19 | allow | `-` | `node --version 2>&1; bun --version 2>&1; npx --version 2>&1; codex --version 2>&1` |
-| 2026-06-17 14:32:19 | allow | `-` | `$bash = "C:\Program Files\Git\bin\bash.exe"; & $bash -lc "curl -fsSL https://raw.githubusercontent.com/garrytan/gstack/main/setup | grep -n 'cursor\|INSTALL_CUR` |
-| 2026-06-17 14:32:36 | allow | `-` | `$bash = "C:\Program Files\Git\bin\bash.exe"; & $bash -lc "curl -fsSL https://raw.githubusercontent.com/garrytan/gstack/main/setup | grep -n 'INSTALL_' | head -3` |
-| 2026-06-17 14:32:42 | allow | `-` | `$bash = "C:\Program Files\Git\bin\bash.exe"; & $bash -lc "curl -fsSL https://raw.githubusercontent.com/garrytan/gstack/main/setup | grep -in 'cursor' | head -30` |
-| 2026-06-17 14:33:01 | allow | `-` | `claude --version 2>&1; Write-Host "---"; Get-ChildItem "$env:USERPROFILE\.claude\skills" -Directory | Select-Object -First 30 Name; Write-Host "--- codex gstack` |
-| 2026-06-17 14:33:13 | allow | `-` | `cmd /c "dir /b /ad %USERPROFILE%\.claude\skills 2>nul"; cmd /c "dir /b /ad %USERPROFILE%\.codex\skills 2>nul"; cmd /c "dir /b /ad %USERPROFILE%\.cursor\skills 2` |
 | 2026-06-17 14:33:18 | deny | `git\s+reset\s+--hard\s+origin` | `$bash = "C:\Program Files\Git\bin\bash.exe"; $gstackDir = "$env:USERPROFILE\.claude\skills\gstack"; & $bash -lc "cd '$($gstackDir -replace '\\','/')' && git sta` |
 | 2026-06-17 14:33:21 | allow | `-` | `$bash = "C:\Program Files\Git\bin\bash.exe"; $gstackDir = "$env:USERPROFILE\.claude\skills\gstack"; & $bash -lc "cd '/c/Users/USER/.claude/skills/gstack' && git` |
 | 2026-06-17 14:33:29 | allow | `-` | `$bash = "C:\Program Files\Git\bin\bash.exe"; $oldVer = Get-Content "$env:USERPROFILE\.claude\skills\gstack\VERSION" -ErrorAction SilentlyContinue; Write-Host "O` |
@@ -304,3 +290,17 @@
 | 2026-06-23 16:33:11 | allow | `-` | `node --check static/js/orders/erp-spec-picker.js; if($?){"picker.js: SYNTAX OK"}; node --check static/js/orders/erp-spec-calc.js; if($?){"calc.js: SYNTAX OK"}; ` |
 | 2026-06-23 16:37:50 | allow | `-` | `python -m pytest tests/domains/test_erp_spec_calc_followup.py tests/domains/test_erp_spec_calc_phase3.py -q 2>&1 | Select-Object -Last 20` |
 | 2026-06-23 16:38:26 | allow | `-` | `python tools/perf/perf_scan.py --guard 2>&1 | Select-Object -Last 6; echo "==== smoke ===="; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1 2>&1 | S` |
+| 2026-06-23 16:41:51 | allow | `-` | `$u='https://lahom-dev.up.railway.app/static/js/orders/erp-spec-picker.js'; $ok=$false; for($i=1;$i -le 14;$i++){ try{ $c=(Invoke-WebRequest "$u?nc=$(Get-Random)` |
+| 2026-06-23 16:46:33 | allow | `-` | `$u='https://lahom-dev.up.railway.app/static/js/orders/erp-spec-picker.js'; $c=(Invoke-WebRequest "$u?nc=$(Get-Random)" -UseBasicParsing -TimeoutSec 25).Content;` |
+| 2026-06-23 16:46:44 | allow | `-` | `$u='https://lahom-dev.up.railway.app/static/js/orders/erp-spec-picker.js'; $c=(Invoke-WebRequest "${u}?nc=$(Get-Random)" -UseBasicParsing -TimeoutSec 25).Conten` |
+| 2026-06-23 16:49:04 | allow | `-` | `(Get-Content -Raw 'templates/orders/partials/erp_order_js.html') -replace "erp-spec-calc\.js'\) }}\?v=20260623c", "erp-spec-calc.js') }}?v=20260623d" | Set-Cont` |
+| 2026-06-23 16:49:34 | allow | `-` | `$files=@('static/css/foundation/foms-mobile-surfaces.css','templates/partials/shared/layout_head.html','templates/orders/wizard/wizard_shell.html','tests/domain` |
+| 2026-06-23 16:50:05 | allow | `-` | `node --check static/js/orders/erp-spec-calc.js; node --check static/js/orders/erp-spec-picker.js; python -m pytest tests/domains/test_erp_spec_calc_followup.py ` |
+| 2026-06-23 16:50:44 | allow | `-` | `node --check static/js/orders/erp-spec-calc.js; node --check static/js/orders/erp-spec-picker.js; python -m pytest tests/domains/test_erp_spec_calc_followup.py ` |
+| 2026-06-23 16:51:14 | allow | `-` | `python tools/perf/perf_scan.py --guard 2>&1 | Select-Object -Last 8; echo "==== APP_OK ===="; python -c "import app; print('APP_OK')" 2>&1 | Select-Object -Last` |
+| 2026-06-23 16:52:25 | allow | `-` | `node --check static/js/orders/erp-spec-calc.js; node --check static/js/orders/erp-spec-picker.js; python -m pytest tests/domains/test_erp_spec_calc_followup.py ` |
+| 2026-06-23 16:53:05 | allow | `-` | `node --check static/js/orders/erp-spec-calc.js; node --check static/js/orders/erp-spec-picker.js; python -m pytest tests/domains/test_erp_spec_calc_followup.py ` |
+| 2026-06-23 16:53:49 | allow | `-` | `node --check static/js/orders/erp-spec-calc.js; node --check static/js/orders/erp-spec-picker.js; python -m pytest tests/domains/test_erp_spec_calc_followup.py ` |
+| 2026-06-23 16:54:15 | allow | `-` | `python tools/perf/perf_scan.py --guard 2>&1 | Select-Object -Last 8; echo "==== APP_OK ===="; python -c "import app; print('APP_OK')" 2>&1 | Select-Object -Last` |
+| 2026-06-23 16:55:27 | allow | `-` | `git --no-pager diff --stat; git --no-pager diff -- static/js/orders/erp-spec-calc.js static/css/components/foms-form-field.css templates/orders/partials/erp_ord` |
+| 2026-06-23 16:55:28 | allow | `-` | `git --no-pager log -5 --oneline` |

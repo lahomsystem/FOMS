@@ -623,4 +623,22 @@
   ErpSpecCalc._escape = _escape;
 
   window.ErpSpecCalc = ErpSpecCalc;
+
+  function _enhanceExistingRows(root) {
+    if (!window.ERP_SPEC_CALC_ENABLED) return;
+    var scope = (root && typeof root.querySelectorAll === 'function') ? root : document;
+    var rows = scope.querySelectorAll('#erp-items .erp-item-row');
+    rows.forEach(function (row) {
+      ErpSpecCalc.enhanceItemRow(row, {});
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { _enhanceExistingRows(document); });
+  } else {
+    setTimeout(function () { _enhanceExistingRows(document); }, 0);
+  }
+  document.addEventListener('foms:main-content-swapped', function () {
+    setTimeout(function () { _enhanceExistingRows(document); }, 0);
+  });
 })();
