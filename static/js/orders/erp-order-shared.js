@@ -2257,6 +2257,34 @@ ${escapeHtml(sub)}</div>` : ''}`;
     })();
     function bindErpAmountInput(inputEl, parseFn) {
         if (!inputEl) return;
+        function setAmountCaretBeforeSuffix(el) {
+            if (!el || typeof el.setSelectionRange !== 'function' || !String(el.value || '').endsWith('원')) return;
+            const caretPos = Math.max(0, String(el.value || '').length - 1);
+            el.setSelectionRange(caretPos, caretPos);
+        }
+        function deleteErpAmountDigitBeforeSuffix(el) {
+            const value = String(el.value || '');
+            const start = el.selectionStart;
+            const end = el.selectionEnd;
+            if (!value.endsWith('원') || start == null || end == null || start !== end || start !== value.length) {
+                return false;
+            }
+            const raw = value.replace(/[^0-9]/g, '');
+            if (!raw) return false;
+            const nextRaw = raw.slice(0, -1);
+            el.value = nextRaw ? erpFormatDepositDisplay(parseInt(nextRaw, 10)) : '';
+            setAmountCaretBeforeSuffix(el);
+            erpCalculateRemaining();
+            return true;
+        }
+        inputEl.addEventListener('keydown', function (event) {
+            if (event.key !== 'Backspace') return;
+            if (deleteErpAmountDigitBeforeSuffix(this)) event.preventDefault();
+        });
+        inputEl.addEventListener('beforeinput', function (event) {
+            if (event.inputType !== 'deleteContentBackward') return;
+            if (deleteErpAmountDigitBeforeSuffix(this)) event.preventDefault();
+        });
         inputEl.addEventListener('input', function () {
             const raw = (this.value || '').replace(/[^0-9]/g, '');
             if (!raw) {
@@ -2267,6 +2295,7 @@ ${escapeHtml(sub)}</div>` : ''}`;
             const num = parseInt(raw, 10);
             const formatted = erpFormatDepositDisplay(num);
             if (this.value !== formatted) this.value = formatted;
+            setAmountCaretBeforeSuffix(this);
             erpCalculateRemaining();
         });
         inputEl.addEventListener('change', function () {

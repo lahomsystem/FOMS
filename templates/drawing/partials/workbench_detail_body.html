@@ -1043,9 +1043,10 @@
         <div class="mb-3">
           <label class="form-label fw-bold">도면 파일 (다중 선택 가능)</label>
           <div id="dw-transfer-dropzone" class="border border-dashed rounded p-4 text-center mb-2"
-            style="border-color: #adb5bd; cursor: pointer; transition: all 0.2s;">
+            style="border-color: #adb5bd; cursor: pointer; transition: all 0.2s;" tabindex="0"
+            aria-label="도면 전달 파일 업로드 영역. 파일을 클릭, 드래그 또는 붙여넣기로 추가할 수 있습니다.">
             <i class="fas fa-cloud-upload-alt fa-2x text-muted mb-2"></i>
-            <div class="text-muted">파일을 드래그하거나 클릭하여 선택하세요</div>
+            <div class="text-muted">파일을 드래그하거나 클릭하여 선택하세요 · Ctrl+V 붙여넣기 가능</div>
             <input id="dw-transfer-files" type="file" class="d-none" multiple
               onchange="handleTransferFilesChange(this)">
           </div>
@@ -1119,9 +1120,10 @@
         <div class="mb-3">
           <label class="form-label fw-bold">참고 이미지/파일 (선택)</label>
           <div id="dw-revision-dropzone" class="border border-dashed rounded p-4 text-center mb-2"
-            style="border-color: #adb5bd; cursor: pointer; transition: all 0.2s;">
+            style="border-color: #adb5bd; cursor: pointer; transition: all 0.2s;" tabindex="0"
+            aria-label="수정 요청 참고 파일 업로드 영역. 파일을 클릭, 드래그 또는 붙여넣기로 추가할 수 있습니다.">
             <i class="fas fa-cloud-upload-alt fa-2x text-muted mb-2"></i>
-            <div class="text-muted">파일을 드래그하거나 클릭하여 선택하세요</div>
+            <div class="text-muted">파일을 드래그하거나 클릭하여 선택하세요 · Ctrl+V 붙여넣기 가능</div>
             <input id="dw-revision-files" type="file" class="d-none" multiple
               onchange="handleRevisionFilesChange(this)">
           </div>
@@ -1268,15 +1270,25 @@
     // 파일 업로드 UX 개선 함수들
     window.handleTransferFilesChange = function (input) {
       const files = input.files;
-      renderFilePreview(files, 'dw-transfer-preview');
+      renderFilePreview(files, 'dw-transfer-preview', 'dw-transfer-files');
     };
 
     window.handleRevisionFilesChange = function (input) {
       const files = input.files;
-      renderFilePreview(files, 'dw-revision-preview');
+      renderFilePreview(files, 'dw-revision-preview', 'dw-revision-files');
     };
 
-    function renderFilePreview(files, previewId) {
+    function escapePreviewHtml(value) {
+      const div = document.createElement('div');
+      div.textContent = String(value ?? '');
+      return div.innerHTML;
+    }
+
+    function escapePreviewAttribute(value) {
+      return escapePreviewHtml(value).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function renderFilePreview(files, previewId, inputId) {
       const previewEl = document.getElementById(previewId);
       if (!previewEl) return;
 
@@ -1289,10 +1301,12 @@
       previewEl.classList.remove('d-none');
       const items = Array.from(files).map((file, idx) => {
         const isImage = file.type.startsWith('image/');
+        const escapedName = escapePreviewHtml(file.name);
+        const escapedAttrName = escapePreviewAttribute(file.name);
         let preview = '';
         if (isImage) {
           const url = URL.createObjectURL(file);
-          preview = `<img src="${url}" alt="${file.name}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px;">`;
+          preview = `<img src="${url}" alt="${escapedAttrName}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px;">`;
         } else {
           preview = `<div class="d-flex align-items-center justify-content-center" style="width: 60px; height: 60px; background: #f8f9fa; border-radius: 4px;"><i class="fas fa-file fa-2x text-muted"></i></div>`;
         }
@@ -1300,10 +1314,10 @@
           <div class="d-flex align-items-center gap-2 border rounded p-2 mb-1 bg-light">
             ${preview}
             <div class="flex-grow-1 text-truncate">
-              <div class="small fw-bold text-truncate">${file.name}</div>
+              <div class="small fw-bold text-truncate" title="${escapedAttrName}">${escapedName}</div>
               <div class="small text-muted">${(file.size / 1024).toFixed(1)} KB</div>
             </div>
-            <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeFileFromPreview(this, '${previewId}')">
+            <button type="button" class="btn btn-sm btn-outline-danger" data-file-index="${idx}" onclick="removeFileFromPreview(this, '${previewId}', '${inputId || ''}')">
               <i class="fas fa-times"></i>
             </button>
           </div>
@@ -1312,9 +1326,20 @@
       previewEl.innerHTML = items;
     }
 
-    window.removeFileFromPreview = function (btn, previewId) {
-      // 파일 input에서 직접 제거는 불가능하므로, 미리보기만 제거하고
-      // 실제 업로드 시 files 배열을 재구성하는 방식으로 처리
+    window.removeFileFromPreview = function (btn, previewId, inputId) {
+      const input = inputId ? document.getElementById(inputId) : null;
+      const idx = Number(btn?.dataset?.fileIndex);
+      if (input && Number.isInteger(idx) && idx >= 0) {
+        const files = Array.from(input.files || []);
+        files.splice(idx, 1);
+        if (!setDropzoneInputFiles(input, files)) {
+          showWorkbenchToast('선택한 파일을 제거하지 못했습니다.', 'error');
+          return;
+        }
+        renderFilePreview(input.files, previewId, inputId);
+        return;
+      }
+
       const card = btn.closest('.d-flex');
       if (card) card.remove();
 
@@ -1324,37 +1349,142 @@
       }
     };
 
+    function buildClipboardFileName(file, index) {
+      if (file && file.name) return file.name;
+      const now = new Date();
+      const stamp = [
+        now.getFullYear(),
+        String(now.getMonth() + 1).padStart(2, '0'),
+        String(now.getDate()).padStart(2, '0'),
+        String(now.getHours()).padStart(2, '0'),
+        String(now.getMinutes()).padStart(2, '0'),
+        String(now.getSeconds()).padStart(2, '0')
+      ].join('');
+      const mime = String(file?.type || '').toLowerCase();
+      const ext = mime === 'image/jpeg' ? 'jpg'
+        : mime === 'image/webp' ? 'webp'
+          : mime === 'image/gif' ? 'gif'
+            : mime === 'application/pdf' ? 'pdf'
+              : 'png';
+      const suffix = index > 0 ? '-' + (index + 1) : '';
+      return `clipboard-${stamp}${suffix}.${ext}`;
+    }
+
+    function getDropzoneClipboardFiles(event) {
+      const items = event && event.clipboardData && event.clipboardData.items;
+      if (!items || !items.length) return [];
+      const files = [];
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (!item || item.kind !== 'file') continue;
+        const rawFile = item.getAsFile();
+        if (!rawFile) continue;
+        const name = buildClipboardFileName(rawFile, files.length);
+        if (rawFile.name === name) {
+          files.push(rawFile);
+          continue;
+        }
+        try {
+          files.push(new File([rawFile], name, {
+            type: rawFile.type || item.type || 'application/octet-stream',
+            lastModified: Date.now()
+          }));
+        } catch (_) {
+          files.push(rawFile);
+        }
+      }
+      return files;
+    }
+
+    function setDropzoneInputFiles(input, files) {
+      if (!input || typeof DataTransfer !== 'function') return false;
+      try {
+        const dt = new DataTransfer();
+        Array.from(files || []).forEach((file) => {
+          if (file) dt.items.add(file);
+        });
+        input.files = dt.files;
+        return true;
+      } catch (_) {
+        return false;
+      }
+    }
+
+    function appendFilesToDropzoneInput(input, files) {
+      const incoming = Array.from(files || []).filter(Boolean);
+      if (!incoming.length) return false;
+      const merged = Array.from(input.files || []).concat(incoming);
+      if (!setDropzoneInputFiles(input, merged)) return false;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    }
+
+    function setDropzoneActive(dropzone, isActive) {
+      if (!dropzone) return;
+      dropzone.classList.toggle('border-primary', !!isActive);
+      dropzone.classList.toggle('shadow-sm', !!isActive);
+      dropzone.style.borderColor = isActive ? '#0d6efd' : '#adb5bd';
+      dropzone.style.backgroundColor = isActive ? '#e7f1ff' : '';
+    }
+
     // 드래그앤드롭 설정
     function setupDropzone(dropzoneId, inputId) {
       const dropzone = document.getElementById(dropzoneId);
       const input = document.getElementById(inputId);
       if (!dropzone || !input) return;
+      if (dropzone.dataset.dwDropzoneBound === '1') return;
+      dropzone.dataset.dwDropzoneBound = '1';
 
-      dropzone.addEventListener('click', () => input.click());
+      const focusDropzone = () => {
+        try { dropzone.focus({ preventScroll: true }); } catch (_) { dropzone.focus(); }
+      };
+
+      dropzone.addEventListener('click', (event) => {
+        if (event.target && event.target.closest('button,a,input,select,textarea')) return;
+        focusDropzone();
+        input.click();
+        setTimeout(focusDropzone, 250);
+      });
 
       dropzone.addEventListener('dragover', (e) => {
         e.preventDefault();
-        dropzone.style.borderColor = '#0d6efd';
-        dropzone.style.backgroundColor = '#e7f1ff';
+        setDropzoneActive(dropzone, true);
       });
 
       dropzone.addEventListener('dragleave', (e) => {
         e.preventDefault();
-        dropzone.style.borderColor = '#adb5bd';
-        dropzone.style.backgroundColor = '';
+        setDropzoneActive(dropzone, false);
       });
 
       dropzone.addEventListener('drop', (e) => {
         e.preventDefault();
-        dropzone.style.borderColor = '#adb5bd';
-        dropzone.style.backgroundColor = '';
+        setDropzoneActive(dropzone, false);
 
         const files = e.dataTransfer.files;
         if (files.length > 0) {
-          input.files = files;
-          input.dispatchEvent(new Event('change'));
+          if (!setDropzoneInputFiles(input, files)) {
+            showWorkbenchToast('드롭한 파일을 첨부 입력에 추가하지 못했습니다.', 'error');
+            return;
+          }
+          input.dispatchEvent(new Event('change', { bubbles: true }));
         }
       });
+
+      dropzone.addEventListener('paste', (e) => {
+        const files = getDropzoneClipboardFiles(e);
+        if (!files.length) return;
+        e.preventDefault();
+        if (!appendFilesToDropzoneInput(input, files)) {
+          showWorkbenchToast('붙여넣은 파일을 첨부 입력에 추가하지 못했습니다.', 'error');
+          return;
+        }
+        setDropzoneActive(dropzone, true);
+        showWorkbenchToast(`붙여넣은 파일 ${files.length}개가 추가되었습니다.`, 'success');
+        setTimeout(() => setDropzoneActive(dropzone, false), 800);
+      });
+
+      dropzone.addEventListener('focus', () => setDropzoneActive(dropzone, true));
+      dropzone.addEventListener('blur', () => setDropzoneActive(dropzone, false));
     }
 
     setupDropzone('dw-transfer-dropzone', 'dw-transfer-files');

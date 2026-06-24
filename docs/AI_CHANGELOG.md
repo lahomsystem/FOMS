@@ -4,6 +4,14 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-06-24 | 세션 자동 기록 | commit_msg.txt, erp_order_js.html, test_erp_order_shared_form_scripts.py 외 2개 | 989d9cc1 |
+| 2026-06-24 | 세션 자동 기록 | test_drawing_workbench_mobile.py, workbench_detail_body.html, test_erp_order_shared_form_scripts.py 외 2개 | bf041617 |
+| 2026-06-24 | 세션 자동 기록 | test_erp_order_shared_form_scripts.py, erp-order-shared.js, commit_msg.txt 외 2개 | bf041617 |
+| 2026-06-24 | 세션 자동 기록 | commit_msg.txt, erp-order-shared.js, test_erp_order_shared_form_scripts.py 외 2개 | bf041617 |
+| 2026-06-24 | 세션 자동 기록 | erp-order-shared.js, test_erp_order_shared_form_scripts.py, erp_order_js.html 외 2개 | ee9d4588 |
+| 2026-06-24 | 세션 자동 기록 | test_erp_order_shared_form_scripts.py, erp_order_js.html, erp-wdc-split.js 외 2개 | d6a1b4b1 |
+| 2026-06-24 | 세션 자동 기록 | test_erp_order_shared_form_scripts.py, wdcalculator_url_bootstrap_contract_node_checks.js, wdcalculator_save_estimate_contract_node_checks.js 외 2개 | 7f186ae9 |
+| 2026-06-24 | 세션 자동 기록 | commit_msg.txt, wdcalculator_scripts_config.html, wdcalculator_sidebar_delete_contract_node_checks.js 외 2개 | 7f186ae9 |
 | 2026-06-24 | 세션 자동 기록 | wdcalculator_scripts_config.html, wdcalculator_sidebar_delete_contract_node_checks.js, test_estimate_lifecycle_contracts.py 외 2개 | afa5ae24 |
 | 2026-06-24 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-23f579d5-8763-42c1-a877-2f0b443cff71.png, test_erp_spec_calc_followup.py, erp_order_js.html 외 2개 | afa5ae24 |
 | 2026-06-24 | 세션 자동 기록 | test_erp_spec_calc_followup.py, erp_order_js.html, erp-spec-calc.js 외 2개 | 81ba90cf |
@@ -16,11 +24,3 @@
 | 2026-06-23 | 세션 자동 기록 | commit_msg.txt, test_erp_spec_calc_followup.py, test_p1_mockup_structure.py 외 2개 | db23b6c6 |
 | 2026-06-23 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-05fdabc7-1894-42a3-864c-2f5c8c4efb37.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-b3978904-cdea-483b-83ab-c3ed41cfbb08.png, commit_msg.txt 외 2개 | f85fed2d |
 | 2026-06-23 | 세션 자동 기록 | commit_msg.txt, test_erp_spec_calc_phase3.py, test_erp_spec_calc_followup.py 외 2개 | bafb47d3 |
-| 2026-06-23 | 세션 자동 기록 | commit_msg.txt, test_wdc_spec_presets_settings_ui.py, product_settings.html 외 2개 | a9c277af |
-| 2026-06-23 | 세션 자동 기록 | test_wdc_spec_presets_settings_ui.py, product_settings.html, test_erp_spec_calc_followup.py 외 2개 | 78ab25e4 |
-| 2026-06-23 | 세션 자동 기록 | commit_msg.txt, test_erp_spec_calc_phase3.py, context_processors.py 외 2개 | 78ab25e4 |
-| 2026-06-23 | 세션 자동 기록 | test_erp_spec_calc_phase3.py, erp_order_js.html, erp-spec-calc.css 외 2개 | 5393d94a |
-| 2026-06-22 | 세션 자동 기록 | regional_dashboard.html, regional-shipping-export.js, commit_msg.txt 외 2개 | ff0e06d0 |
-| 2026-06-22 | 세션 자동 기록 | commit_msg.txt, regional_dashboard.html, regional-shipping-export.js 외 2개 | 6865db05 |
-| 2026-06-22 | 세션 자동 기록 | regional-shipping-export.js, regional_dashboard.html, 8c64210d-441f-464f-9436-a44a6211c7f7.txt 외 2개 | e73e5ad6 |
-| 2026-06-22 | 세션 자동 기록 | 8c64210d-441f-464f-9436-a44a6211c7f7.txt, 2ba57c7f-0cea-44c9-af47-4f8644d86e10.txt, c1957b15-de60-4832-893a-b68322bf5d89.txt 외 2개 | 4e93c243 |

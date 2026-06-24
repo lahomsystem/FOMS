@@ -10,13 +10,13 @@ from flask import Blueprint, request, jsonify, session
 from sqlalchemy.orm.attributes import flag_modified
 
 from db import get_db
-from models import Order, User, OrderAttachment, OrderEvent, SecurityLog
+from models import Order, User, OrderEvent, SecurityLog
 from foms.web.auth import login_required, get_user_by_id
 from foms.services.erp_permissions import erp_edit_required
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.erp_display import _ensure_dict
 from foms.services.erp_policy import can_modify_domain, get_assignee_ids
-from foms.services.storage import get_storage
+from foms.services.drawing_confirm_cleanup import finalize_drawing_files_on_confirm
 
 erp_orders_draftsman_bp = Blueprint(
     'erp_orders_draftsman',
@@ -349,6 +349,23 @@ def api_order_confirm_drawing_receipt(order_id):
         wf['history'] = hist
         s_data['workflow'] = wf
 
+        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        draw_history = list(s_data.get('drawing_transfer_history') or [])
+        draw_history.append({
+            'action': 'CONFIRM_RECEIPT',
+            'at': now_str,
+            'by_user_id': current_user.id,
+            'by_user_name': current_user.name,
+            'note': '도면 수령 확인',
+            'files': list(s_data.get('drawing_current_files') or []),
+            'files_count': len(s_data.get('drawing_current_files') or []),
+        })
+
+        final_files, _deleted_count = finalize_drawing_files_on_confirm(db, order_id, s_data)
+        draw_history[-1]['files'] = final_files
+        draw_history[-1]['files_count'] = len(final_files)
+        s_data['drawing_transfer_history'] = draw_history
+
         order.structured_data = copy.deepcopy(s_data)
         flag_modified(order, "structured_data")
         order.status = next_stage
@@ -380,64 +397,6 @@ def api_order_confirm_drawing_receipt(order_id):
         from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
 
         invalidate_all_dashboard_slice_caches()
-
-        # ── 구 버전 도면 파일 R2 정리 ────────────────────────────────────────────
-        # drawing_current_files 에 있는 키만 최종본으로 인정하고,
-        # 이전 TRANSFER/REPLACE 히스토리에서 현재 최종본에 없는 파일들을 삭제한다.
-        try:
-            current_file_keys = set()
-            for f in (s_data.get('drawing_current_files') or []):
-                if isinstance(f, dict):
-                    k = (f.get('key') or '').strip()
-                    if k:
-                        current_file_keys.add(k)
-
-            # 모든 TRANSFER 히스토리 항목에서 파일 키 수집
-            old_keys_to_delete = set()
-            for h in (s_data.get('drawing_transfer_history') or []):
-                if not isinstance(h, dict):
-                    continue
-                # TRANSFER 이력의 files 와 previous_current_files 모두 검사
-                for field in ('files', 'previous_current_files'):
-                    for f in (h.get(field) or []):
-                        if isinstance(f, dict):
-                            k = (f.get('key') or '').strip()
-                            if k and k not in current_file_keys:
-                                old_keys_to_delete.add(k)
-
-            if old_keys_to_delete:
-                storage = get_storage()
-                rows = db.query(OrderAttachment).filter(
-                    OrderAttachment.order_id == order_id,
-                    OrderAttachment.storage_key.in_(list(old_keys_to_delete))
-                ).all()
-                deleted_row_keys = set()
-                for row in rows:
-                    try:
-                        if row.storage_key:
-                            storage.delete_file(row.storage_key)
-                            deleted_row_keys.add(row.storage_key)
-                        if row.thumbnail_key:
-                            storage.delete_file(row.thumbnail_key)
-                    except Exception:
-                        pass
-                    db.delete(row)
-                for key in old_keys_to_delete:
-                    if key not in deleted_row_keys:
-                        try:
-                            storage.delete_file(key)
-                        except Exception:
-                            pass
-                # ← DB 레코드 삭제 반드시 커밋 (없으면 빈 카드가 목록에 남음)
-                db.commit()
-                from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
-
-                invalidate_all_dashboard_slice_caches()
-        except Exception as cleanup_err:
-            import traceback
-            print(f"[WARN] 수령 확정 구 버전 파일 정리 중 오류 (주문 #{order_id}): {cleanup_err}")
-            print(traceback.format_exc())
-            # 파일 정리 실패는 치명적 오류가 아니므로 계속 진행
 
         return jsonify({'success': True, 'message': '도면이 확정되었습니다. 다음 단계로 이동합니다.', 'new_stage': next_stage})
 

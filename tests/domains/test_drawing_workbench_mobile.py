@@ -115,6 +115,41 @@ def test_drawing_thumb_enabled_respects_env(monkeypatch):
     assert drawing_thumb_enabled(mobile_v2_active=True) is False
 
 
+def test_drawing_workbench_revision_dropzone_supports_scoped_clipboard_file_paste():
+    """Revision attachments should accept pasted files without a document-level paste listener."""
+    root = Path(__file__).resolve().parents[2]
+    text = (root / "templates/drawing/partials/workbench_detail_body.html").read_text(encoding="utf-8")
+    revision_block = text[
+        text.index('id="dw-revision-dropzone"') : text.index('id="dw-revision-preview"')
+    ]
+
+    assert 'id="dw-revision-dropzone"' in revision_block
+    assert 'tabindex="0"' in revision_block
+    assert "Ctrl+V 붙여넣기 가능" in revision_block
+    assert "수정 요청 참고 파일 업로드 영역" in revision_block
+    assert "function getDropzoneClipboardFiles(event)" in text
+    assert "item.kind !== 'file'" in text
+    assert "item.getAsFile()" in text
+    assert "new File([rawFile], name" in text
+    assert "function escapePreviewAttribute(value)" in text
+    assert ".replace(/\"/g, '&quot;').replace(/'/g, '&#39;')" in text
+    assert 'alt="${escapedAttrName}"' in text
+    assert 'title="${escapedAttrName}"' in text
+    assert "function setDropzoneInputFiles(input, files)" in text
+    assert "new DataTransfer()" in text
+    assert "return false;" in text[text.index("function setDropzoneInputFiles") : text.index("function appendFilesToDropzoneInput")]
+    assert "catch (_)" in text[text.index("function setDropzoneInputFiles") : text.index("function appendFilesToDropzoneInput")]
+    assert "function appendFilesToDropzoneInput(input, files)" in text
+    assert "input.dispatchEvent(new Event('change', { bubbles: true }));" in text
+    assert "dropzone.addEventListener('paste'" in text
+    assert "appendFilesToDropzoneInput(input, files)" in text
+    assert "dropzone.dataset.dwDropzoneBound" in text
+    assert "setupDropzone('dw-revision-dropzone', 'dw-revision-files');" in text
+    assert "renderFilePreview(input.files, previewId, inputId);" in text
+    assert "showWorkbenchToast('선택한 파일을 제거하지 못했습니다.', 'error');" in text
+    assert "document.addEventListener('paste'" not in text
+
+
 def test_resolve_row_thumbnail_prefers_view_url(monkeypatch):
     monkeypatch.setenv("FOMS_V3_DRAWING_THUMB_ENABLED", "true")
     db = MagicMock()

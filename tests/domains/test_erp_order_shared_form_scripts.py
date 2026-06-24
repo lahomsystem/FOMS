@@ -521,7 +521,7 @@ def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
 
 
 def test_shared_erp_amount_input_allows_empty_value_while_deleting() -> None:
-    """금액 input은 backspace 삭제 중 빈 값을 허용하고, change에서만 0원으로 정규화한다."""
+    """금액 input은 원 suffix 뒤 backspace를 숫자 삭제로 처리하고, 삭제 중 빈 값을 허용한다."""
     root = Path(__file__).resolve().parents[2]
     text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
 
@@ -529,10 +529,18 @@ def test_shared_erp_amount_input_allows_empty_value_while_deleting() -> None:
     bind_end = text.index("bindErpAmountInput(document.getElementById('erp-deposit-amount')", bind_start)
     bind_block = text[bind_start:bind_end]
 
+    assert "function deleteErpAmountDigitBeforeSuffix(el)" in bind_block
+    assert "start !== end || start !== value.length" in bind_block
+    assert "const nextRaw = raw.slice(0, -1);" in bind_block
+    assert "el.value = nextRaw ? erpFormatDepositDisplay(parseInt(nextRaw, 10)) : '';" in bind_block
+    assert "event.key !== 'Backspace'" in bind_block
+    assert "event.inputType !== 'deleteContentBackward'" in bind_block
+    assert "if (deleteErpAmountDigitBeforeSuffix(this)) event.preventDefault();" in bind_block
     assert "const raw = (this.value || '').replace(/[^0-9]/g, '');" in bind_block
     assert "if (!raw) {" in bind_block
     assert "if (this.value !== '') this.value = '';" in bind_block
     assert "return;" in bind_block
+    assert "setAmountCaretBeforeSuffix(this);" in bind_block
     assert "this.value = erpFormatDepositDisplay(num);" in bind_block
 
 

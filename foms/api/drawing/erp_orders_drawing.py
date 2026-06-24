@@ -93,6 +93,8 @@ def api_order_transfer_drawing(order_id):
             return jsonify({'success': False, 'message': msg}), 403
 
         drawing_status = ((s_data.get('drawing') or {}).get('status') or s_data.get('drawing_status') or 'PENDING').upper()
+        if not is_retransfer:
+            is_retransfer = drawing_status == 'RETURNED'
         if (
             drawing_status == 'RETURNED'
             and has_pending_unchecked_drawing_revision_requests(s_data)
@@ -158,7 +160,11 @@ def api_order_transfer_drawing(order_id):
             else:
                 if is_retransfer and len(old_files) > 1:
                     return jsonify({'success': False, 'message': '수정본 재전송 시 교체할 도면 번호를 선택해주세요.'}), 400
-                updated_files = list(old_files) + list(new_files)
+                if is_retransfer:
+                    # 수정 재전달 APPEND는 단일 도면일 때 교체로 처리 (이전본 누적 방지)
+                    updated_files = list(new_files)
+                else:
+                    updated_files = list(old_files) + list(new_files)
 
             s_data['drawing_current_files'] = updated_files
             new_keys = [((f or {}).get('key') or '').strip() for f in new_files]
@@ -181,7 +187,11 @@ def api_order_transfer_drawing(order_id):
             'files_count': len(new_files),
             'files': new_files,
             'previous_current_files': old_files,  # 취소 시 복원용
-            'mode': mode if mode else ('REPLACE' if replace_target_keys else 'APPEND'),
+            'mode': (
+                'REPLACE'
+                if is_retransfer and not replace_target_keys and (mode or 'APPEND').upper() == 'APPEND' and len(old_files) <= 1
+                else (mode if mode else ('REPLACE' if replace_target_keys else 'APPEND'))
+            ),
             'replace_target_keys': replace_target_keys if replace_target_keys else None,
             'replace_target_numbers': replaced_target_numbers if replaced_target_numbers else None,
             'replace_target_key': replace_target_keys[0] if len(replace_target_keys) == 1 else None,
