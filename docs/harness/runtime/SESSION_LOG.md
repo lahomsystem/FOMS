@@ -4,11 +4,17 @@
 
 ## 최근 세션
 
+### Session: 491a46fa
+- **시작**: 2026-06-24 09:13:12
+- **상태**: completed
+- **편집 파일**: `templates/wdcalculator/partials/wdcalculator_scripts_config.html`, `tests/support/wdcalculator_sidebar_delete_contract_node_checks.js`, `tests/contracts/wdcalculator/test_estimate_lifecycle_contracts.py`, `static/js/wdcalculator/estimate-lifecycle.js`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-23f579d5-8763-42c1-a877-2f0b443cff71.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-6ba79885-1e05-41b4-aa08-fcec4a31637a.png`, `tests/domains/test_erp_spec_calc_followup.py`, `templates/orders/partials/erp_order_js.html`, `static/js/orders/erp-spec-calc.js`, `tests/visual/test_p1_mockup_structure.py`
+- **종료**: 2026-06-24 10:26:07
+
 ### Session: a1e98f3a
 - **시작**: 2026-06-23 09:03:35
 - **상태**: completed
-- **편집 파일**: `tests/domains/test_erp_spec_calc_followup.py`, `templates/orders/partials/erp_order_js.html`, `static/css/orders/erp-spec-calc.css`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-3bab37b0-b2a5-44a4-9159-6eff07f8d4da.png`, `commit_msg.txt`, `static/css/components/foms-form-field.css`, `static/js/orders/erp-spec-calc.js`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-ac5f5f44-ecd4-4bf0-97d0-dc904b592f16.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-b236be70-e75d-491e-a793-504f6e5d61ae.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-4f404d8c-043e-4d68-8fbe-fefa338ac4cf.png`
-- **종료**: 2026-06-23 17:19:19
+- **편집 파일**: `tests/domains/test_erp_spec_calc_followup.py`, `templates/orders/partials/erp_order_js.html`, `static/js/orders/erp-spec-calc.js`, `tests/visual/test_p1_mockup_structure.py`, `tests/domains/test_erp_order_shared_form_scripts.py`, `templates/partials/shared/layout_head.html`, `templates/orders/wizard/wizard_shell.html`, `static/css/foundation/foms-mobile-surfaces.css`, `static/css/components/foms-form-field.css`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-9133754e-f167-4724-a30c-0bb2ebf87a5f.png`
+- **종료**: 2026-06-24 09:57:36
 
  eb794731
 - **시작**: 2026-06-22 09:04:43
@@ -903,3 +909,15 @@
 | 2026-06-23 17:01:51 | END (Claude Code) | 수정: (없음) |
 
 | 2026-06-23 17:19:19 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-23 20:22:54 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-24 09:28:17 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-24 09:30:49 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-24 09:47:52 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-24 09:57:36 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-24 10:22:25 | END (Claude Code) | 수정: (없음) |

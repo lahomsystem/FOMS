@@ -4,27 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-06-17 14:33:59 | allow | `-` | `$bash = "C:\Program Files\Git\bin\bash.exe"; Copy-Item -Recurse -Force "$env:USERPROFILE\.claude\skills\gstack.bak\browse\dist" "$env:USERPROFILE\.claude\skills` |
-| 2026-06-17 14:34:12 | allow | `-` | `$bash = "C:\Program Files\Git\bin\bash.exe"; & $bash -lc "BROWSE_BIN='/c/Users/USER/.claude/skills/gstack/browse/dist/browse.exe'; ls -la \$BROWSE_BIN; if [ -x ` |
-| 2026-06-17 14:34:16 | allow | `-` | `Test-Path "$env:USERPROFILE\.claude\skills\gstack\browse\dist\browse.exe"; (Get-Item "$env:USERPROFILE\.claude\skills\gstack\browse\dist\browse.exe" -ErrorActio` |
-| 2026-06-17 14:34:22 | allow | `-` | `$dist = "$env:USERPROFILE\.claude\skills\gstack\browse\dist"; Get-ChildItem $dist | Select-Object Name, Length; Copy-Item "$dist\browse.exe" "$dist\browse" -For` |
-| 2026-06-17 14:34:27 | allow | `-` | `$bash = "C:\Program Files\Git\bin\bash.exe"; & $bash -lc 'cd /c/Users/USER/.claude/skills/gstack && ./setup --host auto' 2>&1 | Select-Object -Last 60` |
-| 2026-06-17 14:34:34 | allow | `-` | `$bash = "C:\Program Files\Git\bin\bash.exe"; & $bash -lc 'BROWSE_BIN="/c/Users/USER/.claude/skills/gstack/browse/dist/browse"; chmod +x "$BROWSE_BIN" "$BROWSE_B` |
-| 2026-06-17 14:34:38 | allow | `-` | `$bash = "C:\Program Files\Git\bin\bash.exe"; & $bash -lc 'BROWSE="/c/Users/USER/.claude/skills/gstack/browse/dist/browse"; touch "$BROWSE" "$BROWSE.exe"; cd /c/` |
-| 2026-06-17 14:34:45 | allow | `-` | `$bash = "C:\Program Files\Git\bin\bash.exe"; & $bash -lc 'cd /c/Users/USER/.claude/skills/gstack && bun install && ./setup --host auto' 2>&1 | Select-Object -La` |
-| 2026-06-17 14:35:02 | allow | `-` | `$bash = "C:\Program Files\Git\bin\bash.exe"; & $bash -lc 'cd /c/Users/USER/.claude/skills/gstack && rm -rf node_modules && bun install && ls node_modules/diff/p` |
-| 2026-06-17 14:35:22 | allow | `-` | `$bash = "C:\Program Files\Git\bin\bash.exe"; & $bash -lc 'cd /c/Users/USER/.claude/skills/gstack && touch browse/dist/browse browse/dist/browse.exe && ./setup -` |
-| 2026-06-17 14:35:28 | allow | `-` | `Test-Path "$env:USERPROFILE\.claude\skills\gstack.bak\.agents\skills"; if (Test-Path "$env:USERPROFILE\.claude\skills\gstack.bak\.agents\skills") { (Get-ChildIt` |
-| 2026-06-17 14:35:33 | allow | `-` | `Test-Path "$env:USERPROFILE\.claude\skills\gstack\qa\SKILL.md"; Test-Path "$env:USERPROFILE\.claude\skills\gstack\qa\SKILL.md.tmpl"; cmd /c "dir /b %USERPROFILE` |
-| 2026-06-17 14:35:38 | allow | `-` | `$bash = "C:\Program Files\Git\bin\bash.exe"; & $bash -lc 'cd /c/Users/USER/.claude/skills/gstack && bun -e "import diff from \"diff\"; console.log(typeof diff)"` |
-| 2026-06-17 14:35:43 | allow | `-` | `Test-Path "$env:USERPROFILE\.claude\skills\gstack.bak\node_modules\diff"; Get-ChildItem "$env:USERPROFILE\.claude\skills\gstack\node_modules\diff" -ErrorAction ` |
-| 2026-06-17 14:35:51 | allow | `-` | `cmd /c "dir /b %USERPROFILE%\.claude\skills\gstack\node_modules\diff 2>nul"; cmd /c "dir /b %USERPROFILE%\.claude\skills\gstack\node_modules 2>nul | find /i dif` |
-| 2026-06-17 14:35:58 | ask | `remove-item\s+.+-recurse.+-force` | `$bash = "C:\Program Files\Git\bin\bash.exe"; Remove-Item -Recurse -Force "$env:USERPROFILE\.claude\skills\gstack\node_modules" -ErrorAction SilentlyContinue; Co` |
-| 2026-06-17 14:37:30 | allow | `-` | `python tools/harness/build_context_bundle.py --all` |
-| 2026-06-17 14:38:00 | allow | `-` | `python tools/perf/perf_scan.py --guard` |
-| 2026-06-17 14:38:00 | allow | `-` | `python -c "import app; print('APP_OK')"` |
-| 2026-06-17 14:38:00 | allow | `-` | `pytest tests/harness/test_context_bundle.py -q` |
-| 2026-06-17 14:38:14 | allow | `-` | `$bash = "C:\Program Files\Git\bin\bash.exe"; & $bash -lc 'cd /c/Users/USER/.claude/skills/gstack && touch browse/dist/browse browse/dist/browse.exe && ./setup -` |
 | 2026-06-17 14:39:30 | allow | `-` | `Select-String -Path "$env:USERPROFILE\.claude\skills\gstack\setup" -Pattern "cursor|CURSOR" | Select-Object -First 15 LineNumber, Line` |
 | 2026-06-17 14:39:30 | allow | `-` | `irm https://raw.githubusercontent.com/JuliusBrussee/caveman/main/install.ps1 | iex; npx -y github:JuliusBrussee/caveman -- --only cursor --only codex --only cla` |
 | 2026-06-17 14:40:17 | allow | `-` | `Write-Host "=== VERSIONS ==="; Get-Content "$env:USERPROFILE\.claude\skills\gstack\VERSION"; Write-Host "=== GLOBAL SKILLS ==="; cmd /c "dir /b /ad %USERPROFILE` |
@@ -304,3 +283,24 @@
 | 2026-06-23 17:06:33 | allow | `-` | `python tools/perf/perf_scan.py --guard 2>&1 | Select-Object -Last 8; echo "==== APP_OK ===="; python -c "import app; print('APP_OK')" 2>&1 | Select-Object -Last` |
 | 2026-06-23 20:20:25 | allow | `-` | `git --no-pager diff --stat; git --no-pager diff -- static/css/orders/erp-spec-calc.css templates/orders/partials/erp_order_js.html tests/domains/test_erp_spec_c` |
 | 2026-06-23 20:20:25 | allow | `-` | `git --no-pager log -5 --oneline` |
+| 2026-06-23 20:21:13 | allow | `-` | `$css='https://lahom-dev.up.railway.app/static/css/orders/erp-spec-calc.css'; $ok=$false; for($i=1;$i -le 18;$i++){ $body=''; try{ $body=(Invoke-WebRequest "${cs` |
+| 2026-06-24 09:22:39 | allow | `-` | `$files=@('static/css/foundation/foms-mobile-surfaces.css','templates/partials/shared/layout_head.html','templates/orders/wizard/wizard_shell.html','tests/domain` |
+| 2026-06-24 09:23:18 | allow | `-` | `node --check static/js/orders/erp-spec-calc.js; python -m pytest tests/domains/test_erp_spec_calc_followup.py tests/domains/test_erp_spec_calc_phase3.py tests/d` |
+| 2026-06-24 09:23:45 | allow | `-` | `python tools/perf/perf_scan.py --guard` |
+| 2026-06-24 09:23:53 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-06-24 09:25:27 | allow | `-` | `python -m pytest tests/domains/test_erp_spec_calc_followup.py tests/domains/test_erp_order_shared_form_scripts.py tests/visual/test_p1_mockup_structure.py -q` |
+| 2026-06-24 09:27:32 | allow | `-` | `node --check static/js/orders/erp-spec-calc.js; python -m pytest tests/domains/test_erp_spec_calc_followup.py tests/domains/test_erp_spec_calc_phase3.py -q` |
+| 2026-06-24 09:27:45 | allow | `-` | `python tools/perf/perf_scan.py --guard` |
+| 2026-06-24 09:29:46 | allow | `-` | `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
+| 2026-06-24 09:47:14 | allow | `-` | `node --check static/js/orders/erp-spec-calc.js; python -m pytest tests/domains/test_erp_spec_calc_followup.py tests/domains/test_erp_spec_calc_phase3.py -q` |
+| 2026-06-24 09:47:27 | allow | `-` | `python tools/perf/perf_scan.py --guard` |
+| 2026-06-24 09:47:35 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-06-24 09:56:43 | allow | `-` | `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
+| 2026-06-24 10:23:48 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; node "tests\support\wdcalculator_sidebar_delete_contract_node_checks.js"` |
+| 2026-06-24 10:23:49 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest "tests\contracts\wdcalculator\test_estimate_lifecycle_contracts.py::test_esti` |
+| 2026-06-24 10:23:59 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-06-24 10:24:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/perf/perf_scan.py --guard` |
+| 2026-06-24 10:27:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
+| 2026-06-24 10:27:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff; git diff --cached` |
+| 2026-06-24 10:27:42 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log -5 --oneline; git branch --show-current` |
+| 2026-06-24 10:27:51 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add "static/js/wdcalculator/estimate-lifecycle.js" "templates/wdcalculator/partials/wdcalc` |

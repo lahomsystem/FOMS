@@ -339,7 +339,7 @@
         }
 
         function deleteEstimate(estimateId) {
-            return fetchImpl("/api/wdcalculator/delete-estimate/" + estimateId, {
+            return fetchImpl("/api/wdcalculator/estimate/" + estimateId, {
                 method: "DELETE",
             })
                 .then(parseApiResponse)

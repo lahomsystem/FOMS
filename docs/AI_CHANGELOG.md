@@ -4,6 +4,10 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-06-24 | 세션 자동 기록 | wdcalculator_scripts_config.html, wdcalculator_sidebar_delete_contract_node_checks.js, test_estimate_lifecycle_contracts.py 외 2개 | afa5ae24 |
+| 2026-06-24 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-23f579d5-8763-42c1-a877-2f0b443cff71.png, test_erp_spec_calc_followup.py, erp_order_js.html 외 2개 | afa5ae24 |
+| 2026-06-24 | 세션 자동 기록 | test_erp_spec_calc_followup.py, erp_order_js.html, erp-spec-calc.js 외 2개 | 81ba90cf |
+| 2026-06-23 | 세션 자동 기록 | commit_msg.txt, test_erp_spec_calc_followup.py, erp_order_js.html 외 2개 | 81ba90cf |
 | 2026-06-23 | 세션 자동 기록 | test_erp_spec_calc_followup.py, erp_order_js.html, erp-spec-calc.css 외 2개 | 61d4cd64 |
 | 2026-06-23 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-3bab37b0-b2a5-44a4-9159-6eff07f8d4da.png, commit_msg.txt, test_erp_spec_calc_followup.py 외 2개 | 61d4cd64 |
 | 2026-06-23 | 세션 자동 기록 | commit_msg.txt, test_erp_spec_calc_followup.py, foms-form-field.css 외 2개 | 61d4cd64 |
@@ -20,7 +24,3 @@
 | 2026-06-22 | 세션 자동 기록 | commit_msg.txt, regional_dashboard.html, regional-shipping-export.js 외 2개 | 6865db05 |
 | 2026-06-22 | 세션 자동 기록 | regional-shipping-export.js, regional_dashboard.html, 8c64210d-441f-464f-9436-a44a6211c7f7.txt 외 2개 | e73e5ad6 |
 | 2026-06-22 | 세션 자동 기록 | 8c64210d-441f-464f-9436-a44a6211c7f7.txt, 2ba57c7f-0cea-44c9-af47-4f8644d86e10.txt, c1957b15-de60-4832-893a-b68322bf5d89.txt 외 2개 | 4e93c243 |
-| 2026-06-22 | 세션 자동 기록 | test_channel_push_messages.py, channel_policy.py, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-f3b1a576-fbfe-4a4b-b98c-b2a67fe93aa7.png 외 2개 | dae7e541 |
-| 2026-06-22 | 세션 자동 기록 | test_ptc_physical_exactness.py, dashboard.py, dashboard.py 외 2개 | dae7e541 |
-| 2026-06-22 | 세션 자동 기록 | dashboard.py, dashboard.py, mobile-tower.js 외 2개 | 4f18dd70 |
-| 2026-06-22 | 세션 자동 기록 | test_drawing_workbench_mobile.py, workbench_dashboard_body.html, workbench-dashboard.js 외 2개 | 1cd00528 |

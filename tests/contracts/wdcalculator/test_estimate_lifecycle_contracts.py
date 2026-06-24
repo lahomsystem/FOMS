@@ -28,6 +28,7 @@ _ESTIMATE_LIFECYCLE_SCRIPTS: tuple[str, ...] = (
     "tests/support/wdcalculator_estimate_mutation_bridge_contract_node_checks.js",
     "tests/support/wdcalculator_render_list_contract_node_checks.js",
     "tests/support/wdcalculator_search_load_contract_node_checks.js",
+    "tests/support/wdcalculator_sidebar_delete_contract_node_checks.js",
     "tests/support/wdcalculator_url_bootstrap_contract_node_checks.js",
     "tests/support/wdcalculator_order_match_contract_node_checks.js",
 )
