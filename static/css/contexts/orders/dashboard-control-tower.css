@@ -26,6 +26,7 @@
   body.erp-mobile-v2-layout .foms-tower__week,
   body.erp-mobile-v2-layout .foms-tower__field-list,
   body.erp-mobile-v2-layout .foms-tower__risk-list,
+  body.erp-mobile-v2-layout .foms-tower__risk,
   body.erp-mobile-v2-layout .foms-tower__quick {
     min-width: 0;
     max-width: 100%;
@@ -135,14 +136,22 @@
   background: var(--foms-surface-base); border: 1px solid var(--foms-border-subtle);
   border-radius: var(--foms-radius-md); padding: var(--foms-space-2) var(--foms-space-3);
   text-decoration: none; color: var(--foms-text-primary);
+  width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; overflow: clip;
 }
 .foms-tower__risk-icon { width: 30px; height: 30px; flex-shrink: 0; border-radius: var(--foms-radius-md); display: flex; align-items: center; justify-content: center; font-size: 14px; color: #fff; }
 .foms-tower__risk-icon--red { background: var(--foms-color-danger-500); }
 .foms-tower__risk-icon--amber { background: var(--foms-color-warning-500); }
 .foms-tower__risk-body { flex: 1; min-width: 0; }
-.foms-tower__risk-title { display: block; font-size: var(--foms-font-size-sm); font-weight: var(--foms-font-weight-semibold); }
+.foms-tower__risk-title {
+  display: block; font-size: var(--foms-font-size-sm); font-weight: var(--foms-font-weight-semibold);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .foms-tower__risk-why { display: block; font-size: var(--foms-font-size-xs); color: var(--foms-text-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.foms-tower__risk-count { font-size: var(--foms-font-size-lg); font-weight: var(--foms-font-weight-bold); color: var(--foms-color-danger-600); font-variant-numeric: tabular-nums; }
+.foms-tower__risk-count {
+  flex-shrink: 0; white-space: nowrap;
+  font-size: var(--foms-font-size-lg); font-weight: var(--foms-font-weight-bold);
+  color: var(--foms-color-danger-600); font-variant-numeric: tabular-nums;
+}
 .foms-tower__risk-count span { font-size: 10px; color: var(--foms-text-tertiary); font-weight: 400; }
 
 /* 빈 상태 */

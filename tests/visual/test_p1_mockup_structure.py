@@ -77,6 +77,10 @@ def test_p1_dashboard_tower_mobile_width_contract() -> None:
         "min-width: 0",
         "max-width: 100%",
         "foms-tower__field-body",
+        "foms-tower__risk",
+        "foms-tower__risk-count",
+        "flex-shrink: 0",
+        "overflow: clip",
         "erp-dashboard-mobile-v2",
     ):
         assert token in tower_css or token in tower_tpl
