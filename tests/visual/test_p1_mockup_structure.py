@@ -212,7 +212,7 @@ def test_p1_shell_hides_desktop_chrome_on_mobile_v2() -> None:
     assert ".layout-header" in head
     assert ".layout-global-nav--erp-v2-suppressed" in head
     assert 'erp-dashboard\\00002d layout' in head
-    assert "foms-mobile-surfaces.css') }}?v=20260623d" in head
+    assert "foms-mobile-surfaces.css') }}?v=20260623e" in head
     assert head.index("foms-mobile-v2-critical-css") < head.index("foms-mobile-surfaces.css")
 
 
@@ -871,4 +871,3 @@ def test_p1_mobile_v2_only_surfaces_hidden_on_desktop() -> None:
     ):
         body = (ROOT / rel).read_text(encoding="utf-8")
         assert "erp_mobile_v2_tab_notice.html" not in body, rel
-

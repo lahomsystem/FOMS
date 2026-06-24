@@ -132,6 +132,14 @@ def test_internal_field_sourced_from_internal_composition_category() -> None:
     assert "INTERNAL_CATEGORY" in js
     assert "내부구성" in js
     assert "_optionsByCategory" in js
+    assert "_buildCategoryOptionGroups(INTERNAL_CATEGORY)" in js
+    assert "_currentCategoryOptionKeys(ctrl, INTERNAL_CATEGORY)" in js
+    assert "_applyCategoryOptionSelection(row, ctrl, INTERNAL_CATEGORY, payloads)" in js
+    assert "_parseCategoryOptionRows(row, 'internal', INTERNAL_CATEGORY)" in js
+    assert 't.matches(\'[data-erp="internal"]\')' in js
+    assert "_dedupeOptionRows" in js
+    assert "title: '내부 선택'" in js
+    assert "combined.join(', ')" in js
 
 
 # ----- req5: 제품 → 손잡이 자동입력 -----
@@ -148,6 +156,7 @@ def test_option_multi_select_comma_and_sum() -> None:
     assert "_buildOptionGroups" in js
     assert "_parseOptionRows" in js
     assert "_applyOptionSelection" in js
+    assert "e.price >= 0" in js
     assert "selectedKeys" in js
     assert "combined.join(', ')" in js
     # 검색 + 체크박스(다중) 피커 = wdcalculator 방식
@@ -163,6 +172,16 @@ def test_edit_card_full_width_in_mobile_cohort() -> None:
     css = _read(FORM_FIELD_CSS)
     assert ".erp-edit-col" in css
     assert "max-width: 100%" in css  # 코호트(≤991.98px) 풀폭화
+
+
+def test_mobile_spec_aux_fields_stack_label_above_input() -> None:
+    """모바일 스펙 보조 필드(내부/색상/손잡이/옵션/기타)는 라벨+입력 2줄로 폭을 확보한다."""
+    css = _read(FORM_FIELD_CSS)
+    inline_rule = css.split("body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-inline", 1)[1].split("}", 1)[0]
+    assert "#erp-items .erp-mobile-full-row" not in inline_rule
+    assert "#erp-items .erp-mobile-full-row {\n    display: block;" in css
+    assert "#erp-items .erp-mobile-full-row > .form-label" in css
+    assert "display: block;\n    margin: 0 0 2px;" in css
 
 
 # ----- R7: 주문상세 타이포 밀도 벤치마크 -----
@@ -192,8 +211,8 @@ def test_form_field_css_chain_cache_busted_for_redesign() -> None:
     @import 버전(번들 내부)과 외곽 <link> 버전이 함께 신선해야 한다."""
     surfaces = _read(ROOT / "static/css/foundation/foms-mobile-surfaces.css")
     layout_head = _read(ROOT / "templates/partials/shared/layout_head.html")
-    assert "../components/foms-form-field.css?v=20260623d" in surfaces
-    assert "foms-mobile-surfaces.css') }}?v=20260623d" in layout_head
+    assert "../components/foms-form-field.css?v=20260623e" in surfaces
+    assert "foms-mobile-surfaces.css') }}?v=20260623e" in layout_head
 
 
 def test_spec_calc_self_heals_rows_created_before_module_load() -> None:
@@ -207,16 +226,12 @@ def test_spec_calc_self_heals_rows_created_before_module_load() -> None:
     assert "foms:main-content-swapped" in js
 
 
-def test_open_item_card_has_no_purple_vertical_border() -> None:
-    """열린 항목 강조가 보라색 border/shadow를 만들면 모바일·PC에서 세로 라인으로 보인다."""
+def test_primary_section_and_open_item_purple_highlight_restored() -> None:
+    """사용자 요청: 61d4cd64에서 neutral로 바꾼 primary/open item 강조는 원상 복귀한다."""
     css = _read(FORM_FIELD_CSS)
-    assert "border-color: var(--foms-border-strong, #cbd5e1);" in css
-    assert "box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);" in css
-    assert "box-shadow: 0 0 0 1px var(--foms-interactive-primary" not in css
+    assert "box-shadow: 0 0 0 1px var(--foms-interactive-primary, #4f46e5), 0 1px 3px rgba(79, 70, 229, 0.1);" in css
 
     selector = "body.erp-mobile-v2-layout .erp-order-mobile-form #erp-items .erp-item-row.is-open"
     open_rule = css.split(selector, 1)[1].split("}", 1)[0]
-    assert "var(--foms-border-strong" in open_rule
-    assert "var(--foms-interactive-primary" not in open_rule
-    assert "rgba(79, 70, 229" not in open_rule
-
+    assert "var(--foms-interactive-primary, #4f46e5)" in open_rule
+    assert "rgba(79, 70, 229, 0.12)" in open_rule

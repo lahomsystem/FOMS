@@ -14,7 +14,7 @@
  *  - 제품명 칸: 카탈로그 피커 + 이름→product_id 해석 → 즉시 가격계산
  *    · 제품명에 슬라이딩/피닉스바/푸쉬 포함 시 손잡이 칸 자동 입력(신규 선택 시 1회)
  *  - 색상/손잡이/기타 칸: 스펙 프리셋 단일 피커(+직접입력)
- *  - 내부 칸: 추가옵션 '내부구성' 카테고리 값 단일 피커(+직접입력)
+ *  - 내부 칸: 추가옵션 '내부구성' 카테고리 다중 피커(+직접입력, 콤마 표기)
  *  - 옵션 칸: 다중 피커(검색+체크박스) → 콤마로 누적 표기 + 가격 합산
  *  - 제품+계산폭(복합 W 자동합산)으로 WDC 가격엔진(pricing-core.js) 즉시 계산
  *  - 계산 활성 항목의 금액은 기본 읽기전용(수동전환 토글 제공)
@@ -254,6 +254,21 @@
     return order.map(function (c) { return { label: c, items: byCat[c] }; });
   }
 
+  /** 특정 추가옵션 카테고리를 다중 피커 그룹으로 변환한다(내부구성 전용). */
+  function _buildCategoryOptionGroups(categoryName) {
+    var items = [];
+    (_optionList || []).forEach(function (e) {
+      if (!e || e.category !== categoryName) return;
+      items.push({
+        key: e.token,
+        label: e.name,
+        meta: e.price > 0 ? (e.price.toLocaleString() + '원') : '',
+        payload: e
+      });
+    });
+    return [{ label: categoryName, items: items }];
+  }
+
   /** 현재 옵션 칸 텍스트에서 카탈로그와 매칭되는 토큰(피커 사전선택 key)을 추출. */
   function _currentOptionKeys(ctrl) {
     var keys = [];
@@ -262,6 +277,19 @@
       var t = tok.trim();
       if (!t) return;
       var e = _optionLookup.get(_norm(t));
+      if (e && keys.indexOf(e.token) === -1) keys.push(e.token);
+    });
+    return keys;
+  }
+
+  /** 현재 카테고리 필드 텍스트에서 카탈로그와 매칭되는 토큰(피커 사전선택 key)을 추출. */
+  function _currentCategoryOptionKeys(ctrl, categoryName) {
+    var keys = [];
+    if (!ctrl) return keys;
+    String(ctrl.value || '').split(',').forEach(function (tok) {
+      var t = tok.trim();
+      if (!t) return;
+      var e = _findOptionInCategory(t, categoryName);
       if (e && keys.indexOf(e.token) === -1) keys.push(e.token);
     });
     return keys;
@@ -321,17 +349,58 @@
       var t = tok.trim();
       if (!t) return;
       var e = _optionLookup.get(_norm(t));
-      if (e && e.price > 0) rows.push({ name: e.token, price: e.price, quantity: 1 });
+      if (e && e.price >= 0) rows.push({ name: e.token, price: e.price, quantity: 1 });
     });
     return rows;
   }
 
-  function _onOptionTextChange(row) {
+  function _findOptionInCategory(value, categoryName) {
+    var needle = _norm(value);
+    if (!needle || !_optionList) return null;
+    for (var i = 0; i < _optionList.length; i += 1) {
+      var e = _optionList[i];
+      if (!e || e.category !== categoryName) continue;
+      if (_norm(e.name) === needle || _norm(e.token) === needle) return e;
+    }
+    return null;
+  }
+
+  function _parseCategoryOptionRows(row, field, categoryName) {
+    var ctrl = row.querySelector('[data-erp="' + field + '"]');
+    var rows = [];
+    if (!ctrl) return rows;
+    String(ctrl.value || '').split(',').forEach(function (tok) {
+      var t = tok.trim();
+      if (!t || t === '상담') return;
+      var e = _findOptionInCategory(t, categoryName);
+      if (e && e.price >= 0) rows.push({ name: e.token, price: e.price, quantity: 1 });
+    });
+    return rows;
+  }
+
+  function _dedupeOptionRows(rows) {
+    var seen = {};
+    return (rows || []).filter(function (row) {
+      var key = row && row.name;
+      if (!key || seen[key]) return false;
+      seen[key] = true;
+      return true;
+    });
+  }
+
+  function _syncOptionRows(row) {
     var st = row.__erpPricing;
     if (!st) return;
     var ctrl = row.querySelector('[data-erp="option_detail"]');
-    st.option_rows = _parseOptionRows(ctrl ? ctrl.value : '');
+    st.option_rows = _dedupeOptionRows(
+      _parseCategoryOptionRows(row, 'internal', INTERNAL_CATEGORY)
+        .concat(_parseOptionRows(ctrl ? ctrl.value : ''))
+    );
     _recalc(row);
+  }
+
+  function _onOptionTextChange(row) {
+    _syncOptionRows(row);
   }
 
   /**
@@ -355,6 +424,27 @@
     _onOptionTextChange(row);
   }
 
+  /**
+   * 내부 다중 피커 확인 → 내부 칸 재구성. 화면에는 카테고리 없는 이름만 남기고,
+   * 계산 시에는 _syncOptionRows가 내부구성 토큰으로 변환해 가격엔진에 전달한다.
+   */
+  function _applyCategoryOptionSelection(row, ctrl, categoryName, payloads) {
+    if (!ctrl) return;
+    var current = String(ctrl.value || '').trim();
+    var tokens = current ? current.split(',').map(function (s) { return s.trim(); }).filter(Boolean) : [];
+    var freeTokens = tokens.filter(function (t) {
+      if (t === '상담') return false;
+      return !_findOptionInCategory(t, categoryName);
+    });
+    var combined = [];
+    freeTokens.concat((payloads || []).map(function (p) { return p.name; })).forEach(function (t) {
+      if (t && combined.indexOf(t) === -1) combined.push(t);
+    });
+    ctrl.value = combined.join(', ');
+    ctrl.dispatchEvent(new Event('input', { bubbles: true }));
+    _syncOptionRows(row);
+  }
+
   // ----- 피커 오픈 핸들러(카탈로그 준비 보장 후 ErpSpecPicker 호출) -----
   function _openProductPicker(row, anchor) {
     if (!window.ErpSpecPicker) return;
@@ -374,9 +464,16 @@
     if (!window.ErpSpecPicker) return;
     _ensureCatalog().then(function () {
       var ctrl = row.querySelector('[data-erp="' + field + '"]');
-      var values = (field === 'internal')
-        ? ((_optionsByCategory && _optionsByCategory[INTERNAL_CATEGORY]) || [])
-        : _presetNames(field);
+      if (field === 'internal') {
+        window.ErpSpecPicker.openMulti({
+          title: '내부 선택',
+          groups: _buildCategoryOptionGroups(INTERNAL_CATEGORY),
+          selectedKeys: _currentCategoryOptionKeys(ctrl, INTERNAL_CATEGORY),
+          onConfirm: function (payloads) { _applyCategoryOptionSelection(row, ctrl, INTERNAL_CATEGORY, payloads); }
+        });
+        return;
+      }
+      var values = _presetNames(field);
       window.ErpSpecPicker.openSingle({
         title: (FIELD_LABELS[field] || field) + ' 선택',
         anchor: anchor,
@@ -484,6 +581,7 @@
       var t = e.target;
       if (!t || !t.matches) return;
       if (t.matches('[data-erp="spec_width"]')) _recalc(row);
+      else if (t.matches('[data-erp="internal"]')) _syncOptionRows(row);
       else if (t.matches('[data-erp="option_detail"]')) _onOptionTextChange(row);
     });
     var pInput = row.querySelector('[data-erp="product_name"]');
