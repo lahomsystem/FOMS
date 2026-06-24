@@ -137,7 +137,7 @@ def test_internal_field_sourced_from_internal_composition_category() -> None:
     assert "_applyCategoryOptionSelection(row, ctrl, INTERNAL_CATEGORY, payloads)" in js
     assert "_parseCategoryOptionRows(row, 'internal', INTERNAL_CATEGORY)" in js
     assert 't.matches(\'[data-erp="internal"]\')' in js
-    assert "_dedupeOptionRows" in js
+    assert "_aggregateOptionRows" in js
     assert "title: '내부 선택'" in js
     assert "combined.join(', ')" in js
 
@@ -163,6 +163,17 @@ def test_option_multi_select_comma_and_sum() -> None:
     picker = _read(SPEC_PICKER_JS)
     assert "wd-madd-search-input" in picker
     assert "wd-madd-opt__cb" in picker
+
+
+def test_option_duplicate_tokens_are_aggregated_as_quantity() -> None:
+    """B, B처럼 같은 옵션을 반복 입력하면 가격엔진 quantity=2로 전달하고 삭제 시 재집계한다."""
+    js = _read(SPEC_CALC_JS)
+    assert "function _optionTokenCounts" in js
+    assert "counts.set(e.token, (counts.get(e.token) || 0) + 1)" in js
+    assert "function _aggregateOptionRows" in js
+    assert "byName.get(row.name).quantity += qty" in js
+    assert "var n = counts.get(p.token) || 1" in js
+    assert "_aggregateOptionRows(\n      _parseCategoryOptionRows(row, 'internal', INTERNAL_CATEGORY)" in js
 
 
 # ----- R5: 좁은 코호트에서 편집 카드 폭 최대화 -----

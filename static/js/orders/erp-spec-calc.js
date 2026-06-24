@@ -354,6 +354,18 @@
     return rows;
   }
 
+  function _optionTokenCounts(text, finder) {
+    var counts = new Map();
+    String(text || '').split(',').forEach(function (tok) {
+      var t = tok.trim();
+      if (!t || t === '상담') return;
+      var e = finder(t);
+      if (!e) return;
+      counts.set(e.token, (counts.get(e.token) || 0) + 1);
+    });
+    return counts;
+  }
+
   function _findOptionInCategory(value, categoryName) {
     var needle = _norm(value);
     if (!needle || !_optionList) return null;
@@ -378,21 +390,25 @@
     return rows;
   }
 
-  function _dedupeOptionRows(rows) {
-    var seen = {};
-    return (rows || []).filter(function (row) {
-      var key = row && row.name;
-      if (!key || seen[key]) return false;
-      seen[key] = true;
-      return true;
+  function _aggregateOptionRows(rows) {
+    var byName = new Map();
+    (rows || []).forEach(function (row) {
+      if (!row || !row.name) return;
+      var qty = Number(row.quantity) || 1;
+      if (byName.has(row.name)) {
+        byName.get(row.name).quantity += qty;
+        return;
+      }
+      byName.set(row.name, { name: row.name, price: row.price, quantity: qty });
     });
+    return Array.from(byName.values());
   }
 
   function _syncOptionRows(row) {
     var st = row.__erpPricing;
     if (!st) return;
     var ctrl = row.querySelector('[data-erp="option_detail"]');
-    st.option_rows = _dedupeOptionRows(
+    st.option_rows = _aggregateOptionRows(
       _parseCategoryOptionRows(row, 'internal', INTERNAL_CATEGORY)
         .concat(_parseOptionRows(ctrl ? ctrl.value : ''))
     );
@@ -411,13 +427,20 @@
     if (!ctrl) return;
     var current = String(ctrl.value || '').trim();
     var tokens = current ? current.split(',').map(function (s) { return s.trim(); }).filter(Boolean) : [];
+    var counts = _optionTokenCounts(current, function (t) {
+      return _optionLookup ? _optionLookup.get(_norm(t)) : null;
+    });
     var freeTokens = tokens.filter(function (t) {
       if (t === '상담') return false;
       return !_optionLookup || !_optionLookup.has(_norm(t));
     });
     var combined = [];
-    freeTokens.concat((payloads || []).map(function (p) { return p.token; })).forEach(function (t) {
-      if (t && combined.indexOf(t) === -1) combined.push(t);
+    freeTokens.forEach(function (t) {
+      if (t) combined.push(t);
+    });
+    (payloads || []).forEach(function (p) {
+      var n = counts.get(p.token) || 1;
+      for (var i = 0; i < n; i += 1) combined.push(p.token);
     });
     ctrl.value = combined.join(', ');
     ctrl.dispatchEvent(new Event('input', { bubbles: true }));
@@ -432,13 +455,20 @@
     if (!ctrl) return;
     var current = String(ctrl.value || '').trim();
     var tokens = current ? current.split(',').map(function (s) { return s.trim(); }).filter(Boolean) : [];
+    var counts = _optionTokenCounts(current, function (t) {
+      return _findOptionInCategory(t, categoryName);
+    });
     var freeTokens = tokens.filter(function (t) {
       if (t === '상담') return false;
       return !_findOptionInCategory(t, categoryName);
     });
     var combined = [];
-    freeTokens.concat((payloads || []).map(function (p) { return p.name; })).forEach(function (t) {
-      if (t && combined.indexOf(t) === -1) combined.push(t);
+    freeTokens.forEach(function (t) {
+      if (t) combined.push(t);
+    });
+    (payloads || []).forEach(function (p) {
+      var n = counts.get(p.token) || 1;
+      for (var i = 0; i < n; i += 1) combined.push(p.name);
     });
     ctrl.value = combined.join(', ');
     ctrl.dispatchEvent(new Event('input', { bubbles: true }));
