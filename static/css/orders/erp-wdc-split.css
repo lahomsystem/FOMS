@@ -88,50 +88,116 @@
   }
 }
 
-/* Embedded WDCalculator: hide saved-estimate sidebar so ERP + calculator fit side by side. */
+/* Embedded WDCalculator: PC calculator is fixed even when iframe width is below Bootstrap lg. */
 .wdcalculator-container--embedded {
+  --wdcalculator-shell-height: calc(100vh - 1.5rem);
   padding: 0.75rem !important;
 }
 
-@media (min-width: 992px) {
-  .wdcalculator-container--embedded {
-    --wdcalculator-shell-height: calc(100vh - 1.5rem);
-  }
+.wdcalculator-embedded-layout > .container-fluid {
+  min-height: 100vh;
+  overflow: hidden !important;
+}
 
-  .wdcalculator-container--embedded .saved-estimates-sidebar {
-    display: none !important;
-  }
+.wdcalculator-container--embedded .wdcalculator-shell {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  height: var(--wdcalculator-shell-height);
+  min-height: var(--wdcalculator-shell-height);
+  max-height: var(--wdcalculator-shell-height);
+  overflow: hidden;
+}
 
-  .wdcalculator-container--embedded .wdcalculator-main-column {
-    flex: 0 0 100%;
-    max-width: 100%;
-    width: 100%;
-  }
+.wdcalculator-container--embedded .wdcalculator-main-column {
+  display: flex;
+  flex: 0 0 100%;
+  flex-direction: column;
+  max-width: 100%;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+}
 
-  .wdcalculator-container--embedded .wdcalculator-main-scroll {
-    padding-right: 0;
-  }
+.wdcalculator-container--embedded .wdcalculator-main-scroll {
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 0;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+}
 
-  .wdcalculator-container--embedded .wdcalculator-main-scroll > .d-flex:first-child {
-    margin-bottom: 0.75rem !important;
-  }
+.wdcalculator-container--embedded .wdcalculator-main-scroll > .d-flex:first-child {
+  margin-bottom: 0.75rem !important;
+}
 
-  .wdcalculator-container--embedded .wdcalculator-main-scroll > .d-flex:first-child h1 {
-    font-size: 1.15rem;
-  }
+.wdcalculator-container--embedded .wdcalculator-main-scroll > .d-flex:first-child h1 {
+  font-size: 1.15rem;
+}
 
-  .wdcalculator-container--embedded .wdcalculator-main-scroll > .d-flex:first-child a[href*="product-settings"] {
-    display: none;
-  }
+.wdcalculator-container--embedded .wdcalculator-main-scroll > .d-flex:first-child a[href*="product-settings"] {
+  display: none;
+}
 
-  .wdcalculator-container--embedded .wdcalculator-main-scroll > .row > .col-lg-7,
-  .wdcalculator-container--embedded .wdcalculator-main-scroll > .row > .col-lg-5,
-  .wdcalculator-container--embedded .wdcalculator-main-scroll > .row > .col-lg-12 {
-    flex: 0 0 100%;
-    max-width: 100%;
-  }
+.wdcalculator-container--embedded .wdcalculator-main-scroll > .row {
+  display: flex;
+  flex-wrap: wrap;
+}
 
-  .wdcalculator-container--embedded .card {
-    box-shadow: none !important;
-  }
+.wdcalculator-container--embedded .wdcalculator-main-scroll > .row > .col-lg-7 {
+  flex: 0 0 58.333333%;
+  max-width: 58.333333%;
+}
+
+.wdcalculator-container--embedded .wdcalculator-main-scroll > .row > .col-lg-5 {
+  flex: 0 0 41.666667%;
+  max-width: 41.666667%;
+}
+
+.wdcalculator-container--embedded .wdcalculator-main-scroll > .row > .col-lg-12,
+.wdcalculator-container--embedded .wdcalculator-main-scroll > .row.mt-4 > .col-12 {
+  flex: 0 0 100%;
+  max-width: 100%;
+}
+
+.wdcalculator-container--embedded .card {
+  box-shadow: none !important;
+}
+
+.wdcalculator-container--embedded .saved-estimates-sidebar {
+  display: none !important;
+}
+
+.wdcalculator-container--embedded.is-saved-estimates-open .saved-estimates-sidebar {
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  z-index: 1060;
+  display: flex !important;
+  width: min(360px, calc(100vw - 2rem));
+  height: calc(100vh - 2rem);
+  max-width: calc(100vw - 2rem);
+  margin: 0 !important;
+}
+
+.wdcalculator-container--embedded.is-saved-estimates-open .saved-estimates-card {
+  width: 100%;
+  max-height: none !important;
+  border: 0;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.28) !important;
+}
+
+.wd-embedded-saved-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1050;
+  background: rgba(15, 23, 42, 0.36);
+}
+
+.wdcalculator-container--embedded:not(.is-saved-estimates-open) .wd-embedded-saved-backdrop,
+.wd-embedded-saved-backdrop[hidden] {
+  display: none !important;
 }

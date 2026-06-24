@@ -3150,6 +3150,8 @@
 
         function ensureBackToOrderButton(orderIdFromUrl) {
             if (!orderIdFromUrl) return;
+            var params = new URLSearchParams(windowRef.location.search || "");
+            if (params.get("embedded") === "1") return;
             var saveBtnContainer = documentRef.getElementById("saveEstimateBtn")
                 ? documentRef.getElementById("saveEstimateBtn").parentElement
                 : null;

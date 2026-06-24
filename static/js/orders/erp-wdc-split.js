@@ -99,5 +99,9 @@
         }
       });
     }
+
+    if (window.matchMedia && window.matchMedia("(min-width: 992px)").matches) {
+      setOpen(true);
+    }
   });
 })();

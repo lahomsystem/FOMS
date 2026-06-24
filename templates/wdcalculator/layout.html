@@ -8,9 +8,11 @@
 </head>
 
 <body
-    class="{% if erp_mobile_v2_enabled and request.path.startswith('/erp') %}erp-mobile-v2-layout{% endif %}"
+    class="{% if erp_mobile_v2_enabled and request.path.startswith('/erp') %}erp-mobile-v2-layout{% endif %}{% if request.args.get('embedded') == '1' %} wdcalculator-embedded-layout{% endif %}"
     style="width: 100% !important; max-width: 100% !important; margin: 0 !important; padding: 0 !important; box-sizing: border-box;">
+{% if request.args.get('embedded') != '1' %}
 {% include 'partials/shared/layout_nav.html' %}
+{% endif %}
 
         <div class="container-fluid py-0 px-0"
             style="width: 100% !important; max-width: 100% !important; margin: 0 !important; padding-left: 0 !important; padding-right: 0 !important; box-sizing: border-box;">

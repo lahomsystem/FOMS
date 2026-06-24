@@ -157,21 +157,27 @@ def test_erp_order_edit_renders_pc_wdc_split_contract(erp_editor_client) -> None
     assert 'id="erpWdcSplitFrame"' in body
     assert "embedded=1" in body
     assert f"order_id={order.id}" in body
-    assert "js/orders/erp-wdc-split.js" in body
+    assert "js/orders/erp-wdc-split.js?v=20260624b" in body
     assert "css/orders/erp-wdc-split.css" in body
     assert "js/wdcalculator/pricing-core.js" not in body
 
 
-def test_wdcalculator_embedded_mode_hides_saved_estimates_sidebar(erp_editor_client) -> None:
-    """Embedded calculator keeps normal WDC route but renders compact class for split iframe."""
+def test_wdcalculator_embedded_mode_renders_pc_split_contract(erp_editor_client) -> None:
+    """Embedded calculator fixes the PC shell and folds saved estimates into an overlay."""
     response = erp_editor_client.get("/wdcalculator?embedded=1&order_id=4001&customer_name=Split%20Customer")
     assert response.status_code == 200
     body = response.get_data(as_text=True)
 
+    assert "ERP 대시보드" not in body
     assert "wdcalculator-container--embedded" in body
-    assert "저장된 견적" in body  # DOM remains available; CSS hides it only in embedded desktop.
+    assert 'id="wdEmbeddedSavedToggle"' in body
+    assert 'id="wdEmbeddedSavedBackdrop"' in body
+    assert 'id="wdEmbeddedSavedClose"' in body
     assert "css/orders/erp-wdc-split.css" in body
-    assert "js/wdcalculator/estimate-lifecycle.js?v=20260624b" in body
+    assert "js/wdcalculator/embedded-shell.js" in body
+    assert "js/wdcalculator/mobile-enhance.js" not in body
+    assert "js/wdcalculator/estimate-lifecycle.js?v=20260624c" in body
+    assert "주문으로 돌아가기" not in body
 
 
 def test_erp_wdc_split_bridge_js_contract() -> None:
@@ -186,6 +192,24 @@ def test_erp_wdc_split_bridge_js_contract() -> None:
     assert 'window.location.origin' in js
     assert 'document.getElementById("erp-customer-name")' in js
     assert 'customerInput.addEventListener("input"' in js
+    assert 'window.matchMedia("(min-width: 992px)").matches' in js
+    assert "setOpen(true)" in js
+
+
+def test_wdcalculator_embedded_pc_shell_assets_contract() -> None:
+    """Embedded WDC assets prevent mobile takeover and expose saved-estimate overlay controls."""
+    root = Path(__file__).resolve().parents[2]
+    css = (root / "static/css/orders/erp-wdc-split.css").read_text(encoding="utf-8")
+    js = (root / "static/js/wdcalculator/embedded-shell.js").read_text(encoding="utf-8")
+
+    assert ".wdcalculator-embedded-layout > .container-fluid" in css
+    assert ".wdcalculator-container--embedded .wdcalculator-shell" in css
+    assert ".wdcalculator-container--embedded .saved-estimates-sidebar" in css
+    assert ".wdcalculator-container--embedded.is-saved-estimates-open .saved-estimates-sidebar" in css
+    assert "window.__wdCalculatorEmbeddedShellBound" in js
+    assert 'document.getElementById("wdEmbeddedSavedToggle")' in js
+    assert 'root.classList.toggle("is-saved-estimates-open", open)' in js
+    assert "window.loadSidebarEstimates" in js
 
 
 def test_get_add_open_erp_beta_redirects_to_canonical_erp_order(erp_editor_client) -> None:

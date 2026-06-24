@@ -250,6 +250,15 @@ async function scenarioOrderIdAddsBackButton() {
     assertEq(env.loadSidebarCalls.length, 1, "order_id without estimate_id still triggers initial sidebar load");
 }
 
+async function scenarioEmbeddedOrderIdDoesNotAddBackButton() {
+    const env = buildSandbox({
+        search: "?embedded=1&order_id=321",
+    });
+
+    assertEq(Boolean(env.getById("backToOrderBtn")), false, "embedded order_id does not add back-to-order button");
+    assertEq(env.loadSidebarCalls.length, 1, "embedded order_id still triggers initial sidebar load");
+}
+
 async function scenarioCustomerNameUrlPrefillsInput() {
     const env = buildSandbox({
         search: "?embedded=1&order_id=321&customer_name=ERP%20Customer",
@@ -404,6 +413,7 @@ async function scenarioProductWaitTimeoutFallsBackToFetch() {
 
 (async function run() {
     await scenarioOrderIdAddsBackButton();
+    await scenarioEmbeddedOrderIdDoesNotAddBackButton();
     await scenarioCustomerNameUrlPrefillsInput();
     await scenarioExternalCustomerNameCanClearInput();
     await scenarioPlainEntryLoadsSidebarOnce();
