@@ -157,7 +157,7 @@ def test_erp_order_edit_renders_pc_wdc_split_contract(erp_editor_client) -> None
     assert 'id="erpWdcSplitFrame"' in body
     assert "embedded=1" in body
     assert f"order_id={order.id}" in body
-    assert "js/orders/erp-wdc-split.js?v=20260624b" in body
+    assert "js/orders/erp-wdc-split.js?v=20260624c" in body
     assert "css/orders/erp-wdc-split.css" in body
     assert "js/wdcalculator/pricing-core.js" not in body
 
@@ -192,8 +192,8 @@ def test_erp_wdc_split_bridge_js_contract() -> None:
     assert 'window.location.origin' in js
     assert 'document.getElementById("erp-customer-name")' in js
     assert 'customerInput.addEventListener("input"' in js
-    assert 'window.matchMedia("(min-width: 992px)").matches' in js
-    assert "setOpen(true)" in js
+    assert "setOpen(!shell.classList.contains(\"is-wdc-split-open\"))" in js
+    assert "setOpen(true)" not in js
 
 
 def test_wdcalculator_embedded_pc_shell_assets_contract() -> None:
