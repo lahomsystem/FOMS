@@ -17,6 +17,7 @@ from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.erp_display import _ensure_dict
 from foms.services.erp_policy import can_modify_domain, get_assignee_ids
 from foms.services.drawing_confirm_cleanup import finalize_drawing_files_on_confirm
+from foms.services.storage import get_storage
 
 erp_orders_draftsman_bp = Blueprint(
     'erp_orders_draftsman',
