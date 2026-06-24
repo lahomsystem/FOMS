@@ -2259,7 +2259,12 @@ ${escapeHtml(sub)}</div>` : ''}`;
         if (!inputEl) return;
         inputEl.addEventListener('input', function () {
             const raw = (this.value || '').replace(/[^0-9]/g, '');
-            const num = raw ? parseInt(raw, 10) : 0;
+            if (!raw) {
+                if (this.value !== '') this.value = '';
+                erpCalculateRemaining();
+                return;
+            }
+            const num = parseInt(raw, 10);
             const formatted = erpFormatDepositDisplay(num);
             if (this.value !== formatted) this.value = formatted;
             erpCalculateRemaining();

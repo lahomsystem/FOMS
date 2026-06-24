@@ -520,6 +520,22 @@ def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
     assert "선결제금액" not in conversion_block
 
 
+def test_shared_erp_amount_input_allows_empty_value_while_deleting() -> None:
+    """금액 input은 backspace 삭제 중 빈 값을 허용하고, change에서만 0원으로 정규화한다."""
+    root = Path(__file__).resolve().parents[2]
+    text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+
+    bind_start = text.index("function bindErpAmountInput(inputEl, parseFn)")
+    bind_end = text.index("bindErpAmountInput(document.getElementById('erp-deposit-amount')", bind_start)
+    bind_block = text[bind_start:bind_end]
+
+    assert "const raw = (this.value || '').replace(/[^0-9]/g, '');" in bind_block
+    assert "if (!raw) {" in bind_block
+    assert "if (this.value !== '') this.value = '';" in bind_block
+    assert "return;" in bind_block
+    assert "this.value = erpFormatDepositDisplay(num);" in bind_block
+
+
 def test_mobile_erp_item_form_preserves_complex_spec_text() -> None:
     """모바일 현장 입력은 복합 규격 원문을 spec으로 보존하고 보조 W/D/H는 유지한다."""
     root = Path(__file__).resolve().parents[2]
