@@ -6,6 +6,7 @@
 """
 from flask import Blueprint, g, make_response, render_template, request
 from foms.web.auth import login_required
+from foms.services.common.erp_mine_filter import erp_mine_only_for_construction
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
 from foms.services.request_utils import get_search_query_arg
 
@@ -22,6 +23,7 @@ def erp_completion_dashboard():
     """시공 완료 대시보드: 완료·AS 건 목록 + 시공 사진 갤러리."""
     user = getattr(g, "current_user", None)
     is_construction_team = bool(user and getattr(user, "team", None) == "CONSTRUCTION")
+    erp_mine_only = erp_mine_only_for_construction(request, user)
     search_q = get_search_query_arg("q", "search")
     focus_order_id = request.args.get("focus_order", type=int)
     template_name = (
@@ -34,6 +36,7 @@ def erp_completion_dashboard():
             template_name,
             erp_sub_nav_active='completion',
             is_construction_team=is_construction_team,
+            erp_mine_only=erp_mine_only,
             search_q=search_q,
             focus_order_id=focus_order_id,
         )

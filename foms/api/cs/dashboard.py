@@ -17,7 +17,8 @@ from foms.api.files import build_file_download_url, build_file_view_url
 from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
 from foms.services.erp_order_deeplink import load_focus_order_only
 from foms.services.erp_display import _ensure_dict
-from foms.services.erp_permissions import build_mine_sql_filter
+from foms.services.common.erp_mine_filter import erp_mine_only_for_construction
+from foms.services.erp_permissions import build_mine_sql_filter, is_order_related_to_user
 from foms.services.erp_policy import ORDER_SETTLEMENT_ALERT_TARGET_STATUSES
 from foms.services.foms_unified_search import (
     _compact,
@@ -41,11 +42,11 @@ _COMPLETION_SEARCH_LIMIT = 500
 _COMPLETION_CHOSUNG_SCAN_LIMIT = 2000
 
 
-def _apply_construction_mine_filter(query, user):
-    """시공팀은 본인 담당(시공자/소유자) 주문만 조회."""
-    if not user or getattr(user, "team", None) != "CONSTRUCTION":
+def _apply_mine_filter(query, user, *, mine_only: bool):
+    """전역 mine 또는 시공팀 강제 mine을 로그인 사용자의 역할 관계로 제한."""
+    if not mine_only or not user:
         return query
-    mine_conds = build_mine_sql_filter(user, scope="construction")
+    mine_conds = build_mine_sql_filter(user)
     if not mine_conds:
         return query.filter(Order.id == -1)
     return query.filter(or_(*mine_conds))
@@ -96,7 +97,14 @@ def _completion_order_matches_query(order: Order, query: str) -> bool:
     return False
 
 
-def _load_completion_orders(db, *, search_q: str = "", focus_order_id: int | None = None, current_user=None) -> list[Order]:
+def _load_completion_orders(
+    db,
+    *,
+    search_q: str = "",
+    focus_order_id: int | None = None,
+    current_user=None,
+    mine_only: bool = False,
+) -> list[Order]:
     """
     Load completion dashboard rows.
 
@@ -105,9 +113,13 @@ def _load_completion_orders(db, *, search_q: str = "", focus_order_id: int | Non
     ``focus_order``: 검색 카드 클릭 — PK 단건만 반환 (``q``는 검색창 표시용, 목록 확장 금지).
     """
     base = _completion_base_query(db)
+    base = _apply_mine_filter(base, current_user, mine_only=mine_only)
     if focus_order_id:
-        return load_focus_order_only(base, focus_order_id)
-    base = _apply_construction_mine_filter(base, current_user)
+        orders = load_focus_order_only(base, focus_order_id)
+        return [
+            order for order in orders
+            if not mine_only or is_order_related_to_user(order, current_user)
+        ]
 
     trimmed_q = (search_q or "").strip()
     orders: list[Order]
@@ -141,6 +153,11 @@ def _load_completion_orders(db, *, search_q: str = "", focus_order_id: int | Non
             .all()
         )
 
+    if mine_only:
+        orders = [
+            order for order in orders
+            if is_order_related_to_user(order, current_user)
+        ]
     return orders
 
 
@@ -219,11 +236,13 @@ def api_orders_completion():
         user = get_user_by_id(session.get("user_id"))
         search_q = get_search_query_arg("q", "search")
         focus_order_id = request.args.get("focus_order", type=int)
+        mine_only = erp_mine_only_for_construction(request, user)
         orders = _load_completion_orders(
             db,
             search_q=search_q,
             focus_order_id=focus_order_id,
             current_user=user,
+            mine_only=mine_only,
         )
         result = _serialize_completion_orders(db, orders)
         return jsonify({"success": True, "orders": result})

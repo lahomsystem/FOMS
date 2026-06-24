@@ -16,6 +16,7 @@ from foms.services.feature_flags import (
 )
 from foms.services.datetime_kst import format_datetime_kst
 from foms.services.dashboard_counts import get_nav_badge_counts
+from foms.services.common.erp_mine_filter import erp_mine_only_from_request
 from foms.web.auth import ROLES
 from foms.services.orders.status_constants import BULK_ACTION_STATUS, STATUS
 from foms.persistence.main.db import get_db
@@ -197,7 +198,13 @@ def inject_foms_nav_badges() -> dict[str, Any]:
         cohort_key="FOMS_V3_SHELL_COHORT",
     ):
         return {"foms_nav_badges": {}}
-    return {"foms_nav_badges": get_nav_badge_counts(current_user)}
+    request_mine = erp_mine_only_from_request(request)
+    return {
+        "foms_nav_badges": get_nav_badge_counts(
+            current_user,
+            mine_only=True if request_mine else None,
+        )
+    }
 
 
 def register_context_processors(app) -> None:

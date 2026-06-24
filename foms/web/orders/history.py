@@ -10,8 +10,9 @@ from foms.services.orders.status_constants import STATUS
 from foms.services.erp_order_flags import is_erp_order_record
 from sqlalchemy import or_, cast, String
 
+from foms.services.common.erp_mine_filter import erp_mine_only_for_construction
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
-from foms.services.erp_permissions import build_mine_sql_filter
+from foms.services.erp_permissions import build_mine_sql_filter, is_order_related_to_user
 from foms.services.request_utils import get_search_query_arg
 
 erp_history_bp = Blueprint('erp_history', __name__, url_prefix='/erp/history')
@@ -33,17 +34,18 @@ def history_dashboard():
     f_date_to = (request.args.get('date_to') or '').strip()
     from_dashboard = (request.args.get('from_dashboard') or '') == '1'
     from_search = (request.args.get('from_search') or '') == '1'
+    mine_only = erp_mine_only_for_construction(request, user)
     
     has_filter = bool(f_q or f_stage or f_date_from or f_date_to)
-    auto_browse_mine = is_construction_team and not has_filter
+    auto_browse_mine = mine_only and not has_filter
 
     # soft-delete 제외한 활성 주문 전체 (레거시 + ERP Order).
     # ERP Order는 DB 컬럼이 초안 플레이스홀더('ERP Order', 000-…)인 채로 두고 실제 값이 structured_data에만
     # 있는 경우가 많음 → 목록 표시 시 apply_erp_display_fields로 동기화(메인 주문 목록과 동일).
     _q = db.query(Order).filter(Order.active_filter())
 
-    if is_construction_team and user:
-        mine_conds = build_mine_sql_filter(user, scope="construction")
+    if mine_only and user:
+        mine_conds = build_mine_sql_filter(user)
         if mine_conds:
             _q = _q.filter(or_(*mine_conds))
         else:
@@ -101,6 +103,11 @@ def history_dashboard():
             total_pages = (total_orders + per_page - 1) // per_page
     else:
         total_pages = 0
+
+    if mine_only and user:
+        orders = [o for o in orders if is_order_related_to_user(o, user)]
+        if auto_browse_mine:
+            total_orders = len(orders)
     
     from foms.services.erp_display import _ensure_dict, _erp_get_stage, apply_erp_display_fields
     from foms.services.erp_product_items import build_product_items_for_orders
@@ -150,6 +157,7 @@ def history_dashboard():
             from_search=from_search,
             is_construction_team=is_construction_team,
             auto_browse_mine=auto_browse_mine,
+            erp_mine_only=mine_only,
         )
     )
     apply_erp_shell_fragment_headers(response, request)

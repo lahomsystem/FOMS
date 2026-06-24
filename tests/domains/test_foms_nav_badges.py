@@ -142,6 +142,60 @@ def test_sales_user_badge_counts_are_mine_only(app):
         assert counts["measurement"] == 1
 
 
+def test_drawing_user_badges_follow_global_mine_selection(app):
+    """도면 사용자가 전역 mine을 켜면 배지도 도면 배정 관계만 집계한다."""
+    from werkzeug.security import generate_password_hash
+
+    from db import db_session
+    from foms.services.dashboard_counts import compute_nav_badge_counts
+    from models import Order, User
+
+    with app.app_context():
+        drawing = User(
+            username="drawing_badge_mine",
+            password=generate_password_hash("x"),
+            role="USER",
+            team="DRAWING",
+            name="도면배지담당",
+        )
+        db_session.add(drawing)
+        db_session.commit()
+        mine = Order(
+            received_date="2026-05-30",
+            customer_name="DrawingMine",
+            phone="010-0000-0011",
+            address="A",
+            product="P",
+            status="DRAWING",
+            is_erp_order=True,
+            manager_name="다른 영업",
+            structured_data={
+                "assignments": {"drawing_assignee_user_ids": [drawing.id]},
+                "drawing_assignees": [{"id": drawing.id, "name": drawing.name}],
+            },
+        )
+        manager_only = Order(
+            received_date="2026-05-30",
+            customer_name="ManagerOnly",
+            phone="010-0000-0012",
+            address="B",
+            product="P",
+            status="DRAWING",
+            is_erp_order=True,
+            manager_name=drawing.name,
+            structured_data={
+                "parties": {"manager": {"name": drawing.name}},
+                "drawing_assignees": [{"name": "다른 도면"}],
+            },
+        )
+        db_session.add_all([mine, manager_only])
+        db_session.commit()
+
+        counts = compute_nav_badge_counts(drawing, mine_only=True)
+
+        assert counts["drawing_workbench"] == 1
+
+
 def test_compute_nav_badge_counts_aggregates_erp_orders(app, monkeypatch):
     """Stage bucket sums appear on dashboard tab after ERP order insert."""
     from werkzeug.security import generate_password_hash

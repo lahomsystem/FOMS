@@ -209,7 +209,10 @@ def erp_drawing_workbench_dashboard():
             .filter(Order.id == focus_order_id, Order.active_filter(), Order.is_erp_order.is_(True))
             .first()
         )
-        if focus_order is not None:
+        if focus_order is not None and (
+            not mine_only
+            or is_order_related_to_user(focus_order, current_user, scope=mine_scope)
+        ):
             orders = [focus_order] + orders
 
     rows = []
@@ -351,6 +354,8 @@ def erp_drawing_workbench_dashboard():
     if focus_order_id:
         # 검색 카드 딥링크: 단건만 착지시키고 목록 필터·페이지는 적용하지 않는다.
         rows = [r for r in rows if r.get('id') == focus_order_id]
+        if mine_only:
+            rows = [r for r in rows if r.get('include_for_mine')]
     else:
         if mine_only:
             rows = [r for r in rows if r.get('include_for_mine')]

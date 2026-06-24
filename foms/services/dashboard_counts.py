@@ -7,9 +7,10 @@ from dataclasses import dataclass
 from threading import Lock
 from typing import Any
 
-from sqlalchemy import cast, func, or_, String
+from sqlalchemy import func
 
 from db import get_db
+from foms.services.erp_permissions import build_mine_sql_filter
 from models import Order
 
 __all__ = [
@@ -61,16 +62,10 @@ def _mine_only_for_user(user: Any) -> bool:
 
 
 def _apply_mine_filter(query: Any, user: Any) -> Any:
-    """생산 대시보드와 동일한 담당자 매칭( manager_name / structured_data )."""
-    u_name = (getattr(user, "name", None) or "").strip()
-    u_username = (getattr(user, "username", None) or "").strip()
-    conds = []
-    if u_name:
-        conds.append(Order.manager_name.ilike(f"%{u_name}%"))
-        conds.append(cast(Order.structured_data, String).ilike(f'%"{u_name}"%'))  # perf-ok: ix_orders_structured_data_text_trgm
-    if u_username:
-        conds.append(Order.manager_name.ilike(f"%{u_username}%"))
-        conds.append(cast(Order.structured_data, String).ilike(f'%"{u_username}"%'))  # perf-ok: ix_orders_structured_data_text_trgm
+    """로그인 사용자의 역할 관계로 nav badge 집계를 제한."""
+    from sqlalchemy import or_
+
+    conds = build_mine_sql_filter(user)
     if not conds:
         return query.filter(Order.id == -1)
     return query.filter(or_(*conds))
@@ -109,12 +104,13 @@ def compute_nav_badge_counts(user: Any, *, mine_only: bool | None = None) -> dic
     return counts
 
 
-def get_nav_badge_counts(user: Any) -> dict[str, int]:
+def get_nav_badge_counts(user: Any, *, mine_only: bool | None = None) -> dict[str, int]:
     """30초 TTL 인메모리 캐시로 nav badge dict 반환."""
     if user is None:
         return {nav_id: 0 for nav_id in NAV_STATUS_BUCKETS}
 
-    mine_only = _mine_only_for_user(user)
+    if mine_only is None:
+        mine_only = _mine_only_for_user(user)
     cache_key = (int(user.id), mine_only)
     now = time.monotonic()
 

@@ -17,7 +17,11 @@ from models import Order
 from foms.web.auth import login_required
 
 from foms.services.common.erp_mine_filter import erp_mine_only_from_request
-from foms.services.erp_permissions import can_edit_erp
+from foms.services.erp_permissions import (
+    build_mine_sql_filter,
+    can_edit_erp,
+    is_order_related_to_user,
+)
 from foms.services.erp_mobile_order_display import resolve_manager_phone_for_queue
 from foms.services.erp_policy import STAGE_LABELS
 from foms.services.erp_display import (
@@ -79,17 +83,11 @@ def _build_production_orders_query(
         )
 
     if erp_mine_only and user:
-        u_name = (user.name or '').strip()
-        u_username = (user.username or '').strip()
-        conds = []
-        if u_name:
-            conds.append(Order.manager_name.ilike(f"%{u_name}%"))
-            conds.append(cast(Order.structured_data, String).ilike(f'%"{u_name}"%'))  # perf-ok: ix_orders_structured_data_text_trgm
-        if u_username:
-            conds.append(Order.manager_name.ilike(f"%{u_username}%"))
-            conds.append(cast(Order.structured_data, String).ilike(f'%"{u_username}"%'))  # perf-ok: ix_orders_structured_data_text_trgm
+        conds = build_mine_sql_filter(user)
         if conds:
             _q = _q.filter(or_(*conds))
+        else:
+            _q = _q.filter(Order.id == -1)
 
     return _q
 
@@ -346,7 +344,10 @@ def erp_production_dashboard():
             .filter(Order.id == focus_order_id, Order.active_filter(), Order.is_erp_order.is_(True))
             .first()
         )
-        if focus_order is not None:
+        if focus_order is not None and (
+            not erp_mine_only
+            or is_order_related_to_user(focus_order, user)
+        ):
             page_rows = [focus_order] + page_rows
 
     att_counts = _fetch_attachment_counts(db, page_rows)

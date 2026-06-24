@@ -19,7 +19,7 @@ from foms.web.auth import login_required, role_required
 import foms.api.measurement as measurement_api
 from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.common.erp_mine_filter import erp_mine_only_from_request
-from foms.services.erp_shipment_settings import is_order_mine_for_user
+from foms.services.erp_permissions import is_order_related_to_user
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.common.address_converter import FOMSAddressConverter
 from foms.services.order_geocode import reset_order_geocode_on_address_change
@@ -90,7 +90,10 @@ def api_erp_measurement_summary():
     from sqlalchemy.orm import selectinload
     panel_orders = base_query.options(selectinload(Order.schedule_dates)).order_by(Order.id.desc()).limit(1500).all()
     if mine_filter_active:
-        panel_orders = [o for o in panel_orders if is_order_mine_for_user(o, current_user)]
+        panel_orders = [
+            o for o in panel_orders
+            if is_order_related_to_user(o, current_user)
+        ]
 
     years = {range_start.year, range_end.year}
     holiday_dates = set()

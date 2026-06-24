@@ -65,6 +65,42 @@ def _json_like_condition(expr: Any, value: str, *, dialect_name: str) -> Any:
     return or_(*conditions) if len(conditions) > 1 else conditions[0]
 
 
+def _json_string_token_condition(expr: Any, value: str, *, dialect_name: str) -> Any:
+    """Match one complete JSON string value, including SQLite unicode escapes."""
+    from sqlalchemy import String, cast, or_
+
+    candidates = [f'"{value}"']
+    if dialect_name == "sqlite":
+        escaped_value = json.dumps(value, ensure_ascii=True)[1:-1]
+        escaped_token = f'"{escaped_value}"'
+        if escaped_token not in candidates:
+            candidates.append(escaped_token)
+    conditions = [
+        cast(expr, String).ilike(
+            f"%{_escape_like(candidate)}%",
+            escape="\\",
+        )
+        for candidate in candidates
+    ]
+    return or_(*conditions) if len(conditions) > 1 else conditions[0]
+
+
+def _json_int_array_condition(expr: Any, value: int) -> Any:
+    """Match an integer JSON-array member without substring collisions (1 vs 10)."""
+    from sqlalchemy import String, cast, or_
+
+    text_expr = cast(expr, String)
+    patterns = (
+        f"%[{value}]%",
+        f"%[{value},%",
+        f"%, {value},%",
+        f"%, {value}]%",
+        f"%,{value},%",
+        f"%,{value}]%",
+    )
+    return or_(*(text_expr.ilike(pattern, escape="\\") for pattern in patterns))
+
+
 def resolve_mine_scope_for_user(user: Any) -> str:
     """Map the user's operational team to the matching ERP assignment domain."""
     if (getattr(user, "role", None) or "").strip().upper() == "ADMIN":
@@ -182,13 +218,14 @@ def is_order_related_to_user(order: Any, user: Any, *, scope: str | None = None)
     return matches.get(selected_scope, matches["all"])
 
 
-def build_mine_sql_filter(user: Any, scope: str = "all") -> list[Any]:
+def build_mine_sql_filter(user: Any, scope: str | None = None) -> list[Any]:
     """Return SQLAlchemy OR conditions for the user's ERP ownership filter.
 
     Args:
         user: 현재 사용자.
-        scope: "내 항목"을 좁힐 이해관계자 역할.
-            ``"all"`` (기본·기존 동작) — 모든 역할 union.
+        scope: "내 항목"을 좁힐 이해관계자 역할. 생략하면 로그인 사용자의
+            운영 팀에 맞는 역할을 사용한다.
+            ``"all"`` — 모든 역할 union.
             ``"sales"`` — 영업 담당(소유자=manager/parties.manager/quest.owner_person
                 + assignments.sales_assignee_user_ids).
             ``"construction"`` — 시공 담당(소유자=manager + shipment.construction_workers).
@@ -200,9 +237,9 @@ def build_mine_sql_filter(user: Any, scope: str = "all") -> list[Any]:
     construction_workers는 외주 기사일 수 있어 단독으로는 본인 건을 누락(undercount)한다.
     새 역할 scope 추가 시 그 역할의 배정 필드가 manager인지 assignee인지 먼저 확인할 것.
 
-    scope="all"은 기존 계약 보존: conds[0]은 manager_name ilike, 그룹 합산 개수 동일.
+    scope="all"은 기존 union 계약 보존: conds[0]은 manager_name ilike, 그룹 합산 개수 동일.
     """
-    from sqlalchemy import String, cast
+    from sqlalchemy import and_
 
     from foms.persistence.main.models import Order
 
@@ -218,20 +255,26 @@ def build_mine_sql_filter(user: Any, scope: str = "all") -> list[Any]:
 
     def _add_name_group(value: str) -> None:
         safe = _escape_like(value)
-        manager_conds.append(Order.manager_name.ilike(f"%{safe}%", escape="\\"))
-        manager_conds.append(_json_like_condition(Order.structured_data["parties"]["manager"]["name"], value, dialect_name=dialect_name))
-        manager_conds.append(_json_like_condition(Order.structured_data["workflow"]["current_quest"]["owner_person"], value, dialect_name=dialect_name))
-        construction_conds.append(_json_like_condition(Order.structured_data["shipment"]["construction_workers"], value, dialect_name=dialect_name))
-        drawing_conds.append(_json_like_condition(Order.structured_data["assignments"]["drawing_assignees"], value, dialect_name=dialect_name))
-        drawing_conds.append(cast(Order.structured_data, String).ilike(f"%{_escape_like(value)}%", escape="\\"))  # perf-ok: ix_orders_structured_data_text_trgm
+        manager_conds.append(Order.manager_name.ilike(safe, escape="\\"))
+        manager_conds.append(_json_string_token_condition(Order.structured_data["parties"]["manager"]["name"], value, dialect_name=dialect_name))
+        manager_conds.append(_json_string_token_condition(Order.structured_data["workflow"]["current_quest"]["owner_person"], value, dialect_name=dialect_name))
+        construction_conds.append(_json_string_token_condition(Order.structured_data["shipment"]["construction_workers"], value, dialect_name=dialect_name))
+        drawing_conds.append(_json_string_token_condition(Order.structured_data["assignments"]["drawing_assignees"], value, dialect_name=dialect_name))
+        drawing_conds.append(
+            and_(
+                _json_like_condition(Order.structured_data, value, dialect_name=dialect_name),  # perf-ok: ix_orders_structured_data_text_trgm
+                _json_string_token_condition(Order.structured_data["drawing_assignees"], value, dialect_name=dialect_name),
+            )
+        )
 
     if u_name:
         _add_name_group(u_name)
     if u_username and _escape_like(u_username) != _escape_like(u_name):
         _add_name_group(u_username)
     if u_id_str:
-        sales_conds.append(cast(Order.structured_data["assignments"]["sales_assignee_user_ids"], String).ilike(f"%{u_id_str}%", escape="\\"))  # perf-ok: ix_orders_sd_sales_ids_trgm
-        drawing_conds.append(cast(Order.structured_data["assignments"]["drawing_assignee_user_ids"], String).ilike(f"%{u_id_str}%", escape="\\"))  # perf-ok: ix_orders_sd_drawing_ids_trgm
+        user_id = int(u_id_str)
+        sales_conds.append(_json_int_array_condition(Order.structured_data["assignments"]["sales_assignee_user_ids"], user_id))  # perf-ok: ix_orders_sd_sales_ids_trgm
+        drawing_conds.append(_json_int_array_condition(Order.structured_data["assignments"]["drawing_assignee_user_ids"], user_id))  # perf-ok: ix_orders_sd_drawing_ids_trgm
 
     groups: dict[str, list[Any]] = {
         "sales": manager_conds + sales_conds,
@@ -239,7 +282,8 @@ def build_mine_sql_filter(user: Any, scope: str = "all") -> list[Any]:
         "drawing": drawing_conds,
         "all": manager_conds + sales_conds + drawing_conds + construction_conds,
     }
-    return groups.get(scope, groups["all"])
+    selected_scope = (scope or resolve_mine_scope_for_user(user)).strip().lower()
+    return groups.get(selected_scope, groups["all"])
 
 
 def can_edit_erp(user: Any) -> bool:

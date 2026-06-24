@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from pathlib import Path
 from types import SimpleNamespace
 
 from flask import Flask, session, template_rendered
@@ -313,6 +314,260 @@ def test_build_mine_sql_filter_scope_sales_excludes_worker_only(app) -> None:
     }
     assert manager_order.id in ids
     assert worker_only_order.id not in ids  # 시공 작업자로만 잡힌 건은 영업 scope에서 제외
+
+
+def test_build_mine_sql_filter_defaults_to_logged_in_user_role(app) -> None:
+    """전역 mine 기본값은 탭이 아니라 로그인 사용자의 실제 담당 역할을 따른다."""
+    user = User(
+        username="drawing_global_mine",
+        password=generate_password_hash("pw"),
+        name="도면전역담당",
+        role="USER",
+        team="DRAWING",
+    )
+    drawing_order = Order(
+        received_date="2026-04-12",
+        customer_name="내 도면 관계 주문",
+        phone="010-1111-0001",
+        address="서울",
+        product="주방장",
+        status="PRODUCTION",
+        is_erp_order=True,
+        manager_name="다른 영업",
+        structured_data={
+            "assignments": {"drawing_assignee_user_ids": []},
+            "drawing_assignees": [{"name": "도면전역담당"}],
+        },
+    )
+    manager_only_order = Order(
+        received_date="2026-04-12",
+        customer_name="영업 관계만 있는 주문",
+        phone="010-1111-0002",
+        address="부산",
+        product="주방장",
+        status="PRODUCTION",
+        is_erp_order=True,
+        manager_name="도면전역담당",
+        structured_data={
+            "parties": {"manager": {"name": "도면전역담당"}},
+            "drawing_assignees": [{"name": "다른 도면"}],
+        },
+    )
+    db_session.add_all([user, drawing_order, manager_only_order])
+    db_session.commit()
+
+    conds = erp_permissions.build_mine_sql_filter(user)
+    ids = {
+        row.id
+        for row in db_session.query(Order.id)
+        .filter(Order.id.in_([drawing_order.id, manager_only_order.id]))
+        .filter(or_(*conds))
+        .all()
+    }
+
+    assert drawing_order.id in ids
+    assert manager_only_order.id not in ids
+
+
+def test_build_mine_sql_filter_does_not_substring_match_assignee_id(app) -> None:
+    user = User(
+        username="drawing_id_boundary",
+        password=generate_password_hash("pw"),
+        name="이름불일치",
+        role="USER",
+        team="DRAWING",
+    )
+    db_session.add(user)
+    db_session.commit()
+    mine_order = Order(
+        received_date="2026-04-12",
+        customer_name="정확 ID",
+        phone="010-1111-0011",
+        address="서울",
+        product="장",
+        status="DRAWING",
+        is_erp_order=True,
+        structured_data={
+            "assignments": {"drawing_assignee_user_ids": [user.id]},
+        },
+    )
+    other_order = Order(
+        received_date="2026-04-12",
+        customer_name="부분 ID",
+        phone="010-1111-0012",
+        address="부산",
+        product="장",
+        status="DRAWING",
+        is_erp_order=True,
+        structured_data={
+            "assignments": {"drawing_assignee_user_ids": [int(f"{user.id}0")]},
+        },
+    )
+    db_session.add_all([mine_order, other_order])
+    db_session.commit()
+
+    conds = erp_permissions.build_mine_sql_filter(user)
+    ids = {
+        row.id
+        for row in db_session.query(Order.id)
+        .filter(Order.id.in_([mine_order.id, other_order.id]))
+        .filter(or_(*conds))
+        .all()
+    }
+
+    assert mine_order.id in ids
+    assert other_order.id not in ids
+
+
+def _login_role_user(client, *, username: str, name: str, team: str) -> User:
+    user = User(
+        username=username,
+        password=generate_password_hash("pw"),
+        name=name,
+        role="USER",
+        team=team,
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    response = client.post(
+        "/login",
+        data={"username": username, "password": "pw"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    return user
+
+
+def test_history_mine_filter_uses_drawing_relationship_for_drawing_user(app, client) -> None:
+    user = _login_role_user(
+        client,
+        username="history_drawing_user",
+        name="도면이력담당",
+        team="DRAWING",
+    )
+    mine_order = Order(
+        received_date="2026-04-11",
+        customer_name="내 도면 이력",
+        phone="010-1111-1001",
+        address="서울",
+        product="주방장",
+        status="COMPLETED",
+        is_erp_order=True,
+        manager_name="다른 영업",
+        structured_data={
+            "assignments": {"drawing_assignee_user_ids": [user.id]},
+            "drawing_assignees": [{"id": user.id, "name": user.name}],
+        },
+    )
+    other_order = Order(
+        received_date="2026-04-11",
+        customer_name="타인 도면 이력",
+        phone="010-1111-1002",
+        address="부산",
+        product="주방장",
+        status="COMPLETED",
+        is_erp_order=True,
+        manager_name="도면이력담당",
+        structured_data={
+            "assignments": {"drawing_assignee_user_ids": [user.id + 100]},
+            "drawing_assignees": [{"id": user.id + 100, "name": "다른 도면"}],
+        },
+    )
+    db_session.add_all([mine_order, other_order])
+    db_session.commit()
+    mine_order_id = mine_order.id
+    other_order_id = other_order.id
+
+    with _captured_templates(app) as templates:
+        response = client.get("/erp/history/?mine=1", follow_redirects=False)
+
+    assert response.status_code == 200
+    _, context = templates[0]
+    assert context["auto_browse_mine"] is True
+    ids = {item["_order"].id for item in context["orders"]}
+    assert mine_order_id in ids
+    assert other_order_id not in ids
+
+
+def test_completion_api_mine_filter_uses_drawing_relationship(client) -> None:
+    user = _login_role_user(
+        client,
+        username="completion_drawing_user",
+        name="도면완료담당",
+        team="DRAWING",
+    )
+    mine_order = Order(
+        received_date="2026-04-11",
+        customer_name="내 도면 완료",
+        phone="010-1111-2001",
+        address="서울",
+        product="주방장",
+        status="COMPLETED",
+        is_erp_order=True,
+        manager_name="다른 영업",
+        structured_data={
+            "assignments": {"drawing_assignee_user_ids": [user.id]},
+            "drawing_assignees": [{"id": user.id, "name": user.name}],
+        },
+    )
+    other_order = Order(
+        received_date="2026-04-11",
+        customer_name="타인 도면 완료",
+        phone="010-1111-2002",
+        address="부산",
+        product="주방장",
+        status="COMPLETED",
+        is_erp_order=True,
+        manager_name="도면완료담당",
+        structured_data={
+            "assignments": {"drawing_assignee_user_ids": [user.id + 100]},
+            "drawing_assignees": [{"id": user.id + 100, "name": "다른 도면"}],
+        },
+    )
+    db_session.add_all([mine_order, other_order])
+    db_session.commit()
+    mine_order_id = mine_order.id
+    other_order_id = other_order.id
+
+    response = client.get("/api/orders/completion?mine=1")
+
+    assert response.status_code == 200
+    ids = {row["id"] for row in response.get_json()["orders"]}
+    assert mine_order_id in ids
+    assert other_order_id not in ids
+
+
+def test_all_erp_dashboard_mine_paths_use_shared_role_scope_contract() -> None:
+    root = Path(__file__).resolve().parents[2]
+    route_sources = {
+        "orders": root / "foms/web/orders/dashboard.py",
+        "control_tower": root / "foms/services/orders/dashboard_control_tower.py",
+        "measurement": root / "foms/web/measurement/dashboard.py",
+        "drawing": root / "foms/web/drawing/workbench.py",
+        "production": root / "foms/web/production/dashboard.py",
+        "shipment": root / "foms/web/shipment/dashboard.py",
+        "as": root / "foms/web/cs/as_dashboard.py",
+        "construction": root / "foms/web/construction/dashboard.py",
+        "history": root / "foms/web/orders/history.py",
+        "completion": root / "foms/api/cs/dashboard.py",
+        "measurement_api": root / "foms/api/measurement/routes.py",
+        "nav_badges": root / "foms/services/dashboard_counts.py",
+    }
+    sources = {name: path.read_text(encoding="utf-8") for name, path in route_sources.items()}
+
+    assert "build_mine_sql_filter(current_user)" in sources["orders"]
+    assert "build_mine_sql_filter(current_user)" in sources["control_tower"]
+    assert 'scope="sales"' not in sources["measurement"]
+    assert "resolve_mine_scope_for_user(current_user)" in sources["drawing"]
+    assert 'scope="construction"' not in sources["construction"]
+    assert 'scope="construction"' not in sources["history"]
+    assert "is_order_mine_for_user" not in sources["shipment"]
+    assert "is_order_mine_for_user" not in sources["measurement_api"]
+    assert "build_mine_sql_filter(user)" in sources["production"]
+    assert "build_mine_sql_filter(current_user)" in sources["as"]
+    assert "erp_mine_only_for_construction(request, user)" in sources["completion"]
+    assert "build_mine_sql_filter(user)" in sources["nav_badges"]
 
 
 def test_construction_dashboard_applies_mine_filter_for_construction_team(app, client) -> None:

@@ -127,8 +127,10 @@
     var datasetFocusOrder = rootEl ? String(rootEl.dataset.focusOrder || '').trim() : '';
     var searchQ = datasetSearchQ || (pageParams.get('q') || pageParams.get('search') || '').trim();
     var focusOrderParam = datasetFocusOrder || (pageParams.get('focus_order') || '').trim();
+    var mineParam = (pageParams.get('mine') || '').trim();
     if (searchQ) apiParams.set('q', searchQ);
     if (focusOrderParam) apiParams.set('focus_order', focusOrderParam);
+    if (mineParam) apiParams.set('mine', mineParam);
     var completionApiUrl = '/api/orders/completion';
     var apiQuery = apiParams.toString();
     if (apiQuery) completionApiUrl += '?' + apiQuery;

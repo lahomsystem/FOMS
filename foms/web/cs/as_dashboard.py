@@ -9,7 +9,7 @@ import datetime
 
 from foms.services.erp_display import _normalize_for_search
 from foms.services.common.erp_mine_filter import erp_mine_only_from_request
-from foms.services.erp_permissions import can_edit_erp
+from foms.services.erp_permissions import build_mine_sql_filter, can_edit_erp
 from foms.services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders, get_today_kst
 from foms.services.as_content_safety import sanitize_as_content_html
 from foms.services.as_dashboard_display import (
@@ -301,21 +301,11 @@ def erp_as_dashboard():
     current_user = getattr(g, 'current_user', None)
     erp_mine_only = erp_mine_only_from_request(request)
     if erp_mine_only and current_user:
-        u_name = (current_user.name or '').strip()
-        u_username = (current_user.username or '').strip()
-        manager_name_expr = func.coalesce(
-            cast(_json_text_expr('parties', 'manager', 'name', dialect_name=dialect_name), String),
-            ''
-        )
-        conds = []
-        if u_name:
-            conds.append(Order.manager_name.ilike(f"%{u_name}%"))
-            conds.append(and_(Order.is_erp_order == True, manager_name_expr.ilike(f"%{u_name}%")))
-        if u_username:
-            conds.append(Order.manager_name.ilike(f"%{u_username}%"))
-            conds.append(and_(Order.is_erp_order == True, manager_name_expr.ilike(f"%{u_username}%")))
+        conds = build_mine_sql_filter(current_user)
         if conds:
             base_query = base_query.filter(or_(*conds))
+        else:
+            base_query = base_query.filter(Order.id == -1)
 
     compact_q = _compact_search_text(search_q)
     focus_order_id = request.args.get('focus_order', type=int)

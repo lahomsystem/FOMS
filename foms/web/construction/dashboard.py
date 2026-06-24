@@ -21,7 +21,11 @@ from foms.services.erp_order_detail import attach_order_detail_payloads
 from foms.services.erp_mobile_order_display import resolve_manager_phone_for_queue
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
 from foms.services.common.erp_mine_filter import erp_mine_only_for_construction
-from foms.services.erp_permissions import build_mine_sql_filter, can_edit_erp
+from foms.services.erp_permissions import (
+    build_mine_sql_filter,
+    can_edit_erp,
+    is_order_related_to_user,
+)
 from foms.services.erp_policy import STAGE_LABELS
 from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
 from foms.services.foms_unified_search import _compact
@@ -62,9 +66,11 @@ def erp_construction_dashboard():
     query = db.query(Order).filter(Order.dashboard_active_filter(days=60), Order.is_erp_order.is_(True))
 
     if mine_only and user:
-        mine_conds = build_mine_sql_filter(user, scope="construction")
+        mine_conds = build_mine_sql_filter(user)
         if mine_conds:
             query = query.filter(or_(*mine_conds))
+        else:
+            query = query.filter(Order.id == -1)
 
     kpi_rows = query.order_by(None).with_entities(Order.id, Order.structured_data, Order.is_self_measurement).all()
     step_stats = {
@@ -129,7 +135,12 @@ def erp_construction_dashboard():
             )
             .first()
         )
-        orders = [focus] if focus else []
+        orders = [
+            focus
+        ] if focus and (
+            not mine_only
+            or is_order_related_to_user(focus, user)
+        ) else []
     elif f_q:
         term = f"%{_compact(f_q)}%"
         if term.strip("%"):

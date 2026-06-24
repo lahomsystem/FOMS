@@ -11,14 +11,13 @@ from sqlalchemy import or_, and_
 from sqlalchemy.orm import load_only
 from foms.services.common.business_calendar import get_holidays_kr
 from foms.services.common.erp_mine_filter import erp_mine_only_for_construction
-from foms.services.erp_permissions import can_edit_erp
+from foms.services.erp_permissions import can_edit_erp, is_order_related_to_user
 from foms.services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders, get_today_kst
 from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.erp_template_filters import item_spec_w300_value
 from foms.services.erp_shipment_settings import (
     load_erp_shipment_settings,
     normalize_erp_shipment_workers,
-    is_order_mine_for_user,
 )
 from foms.services.as_content_safety import as_content_html_to_text
 from foms.services.common.dashboard_cache import (
@@ -313,7 +312,10 @@ def erp_shipment_dashboard():
 
     # 시공팀 또는 mine=1일 때만 목록/패널을 담당 주문으로 제한 (의도적 이중 필터: panel_orders + 아래 rows)
     if mine_only and current_user:
-        panel_orders = [o for o in panel_orders if is_order_mine_for_user(o, current_user)]
+        panel_orders = [
+            o for o in panel_orders
+            if is_order_related_to_user(o, current_user)
+        ]
     
     for o in panel_orders:
         o.structured_data = _ensure_dict(o.structured_data)  # type: ignore[assignment]
@@ -565,7 +567,10 @@ def erp_shipment_dashboard():
         ).order_by(Order.id.desc()).limit(500)
         rows = rows_query.all()
         if mine_only and current_user:
-            rows = [r for r in rows if is_order_mine_for_user(r, current_user)]
+            rows = [
+                r for r in rows
+                if is_order_related_to_user(r, current_user)
+            ]
     rows = rows[:300]
 
     for r in rows:

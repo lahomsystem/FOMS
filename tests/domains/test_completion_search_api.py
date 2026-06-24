@@ -1,5 +1,7 @@
 """Completion dashboard API: search q + focus_order must not depend on browse window."""
 
+from pathlib import Path
+
 from werkzeug.security import generate_password_hash
 
 from db import db_session
@@ -105,6 +107,16 @@ def test_completion_fragment_includes_search_dataset_attrs(client, app) -> None:
         body = resp.get_data(as_text=True)
         assert 'data-search-q="에잇포인트"' in body
         assert f'data-focus-order="{order_id}"' in body
+
+
+def test_completion_api_bootstrap_forwards_global_mine_query() -> None:
+    root = Path(__file__).resolve().parents[2]
+    script = (root / "templates/cs/partials/completion_scripts.html").read_text(
+        encoding="utf-8"
+    )
+
+    assert "var mineParam = (pageParams.get('mine') || '').trim();" in script
+    assert "if (mineParam) apiParams.set('mine', mineParam);" in script
 
 
 def test_completion_api_focus_order_with_q_shows_only_focused_row(client, app) -> None:

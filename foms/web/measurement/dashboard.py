@@ -13,7 +13,11 @@ from sqlalchemy.orm import load_only, selectinload
 
 from foms.services.common.business_calendar import get_holidays_kr
 from foms.services.common.erp_mine_filter import erp_mine_only_from_request
-from foms.services.erp_permissions import can_edit_erp, build_mine_sql_filter
+from foms.services.erp_permissions import (
+    build_mine_sql_filter,
+    can_edit_erp,
+    is_order_related_to_user,
+)
 from foms.services.erp_display import (
     _ensure_dict,
     _normalize_date_to_yyyymmdd,
@@ -181,7 +185,7 @@ def erp_measurement_dashboard():
 
     # mine 필터를 SQL WHERE로 적용 (Python 루프 대신)
     if mine_filter_active:
-        mine_conds = build_mine_sql_filter(current_user, scope="sales")
+        mine_conds = build_mine_sql_filter(current_user)
         if mine_conds:
             query = query.filter(or_(*mine_conds))
 
@@ -215,7 +219,7 @@ def erp_measurement_dashboard():
             OrderScheduleDate.date <= range_end_str,
         ).distinct()
         if mine_filter_active:
-            p_mine_conds = build_mine_sql_filter(current_user, scope="sales")
+            p_mine_conds = build_mine_sql_filter(current_user)
             if p_mine_conds:
                 panel_query = panel_query.filter(or_(*p_mine_conds))
         panel_orders = panel_query.options(
@@ -243,7 +247,7 @@ def erp_measurement_dashboard():
         if panel_fallback_filter is not None:
             panel_fallback_query = base_query.filter(panel_fallback_filter)
             if mine_filter_active:
-                p_mine_conds = build_mine_sql_filter(current_user, scope="sales")
+                p_mine_conds = build_mine_sql_filter(current_user)
                 if p_mine_conds:
                     panel_fallback_query = panel_fallback_query.filter(or_(*p_mine_conds))
             panel_fallback_orders = panel_fallback_query.options(
@@ -348,7 +352,7 @@ def erp_measurement_dashboard():
     if row_fallback_filter is not None:
         row_fallback_query = base_query.filter(row_fallback_filter)
         if mine_filter_active:
-            r_mine_conds = build_mine_sql_filter(current_user, scope="sales")
+            r_mine_conds = build_mine_sql_filter(current_user)
             if r_mine_conds:
                 row_fallback_query = row_fallback_query.filter(or_(*r_mine_conds))
         fallback_rows = row_fallback_query.options(selectinload(Order.schedule_dates)).order_by(Order.id.desc()).limit(1500).all()
@@ -367,7 +371,8 @@ def erp_measurement_dashboard():
 
     # 검색 카드 딥링크(?focus_order=)는 실측 날짜창과 무관하게 해당 주문이 항상 큐에 착지해야 한다.
     # orders/construction/cs/as 대시보드와 동일한 deep-link SSOT:
-    # q는 검색창 표시용이고, focus_order는 PK 단건을 날짜·mine 필터와 무관하게 강제 포함한다.
+    # q는 검색창 표시용이고, focus_order는 날짜 필터만 우회한다.
+    # 전역 mine이 켜져 있으면 타인 주문을 강제 포함하지 않는다.
     focus_order_id = request.args.get('focus_order', type=int)
     if focus_order_id and focus_order_id not in {o.id for o in rows}:
         focus_row = (
@@ -376,7 +381,10 @@ def erp_measurement_dashboard():
             .options(selectinload(Order.schedule_dates))
             .first()
         )
-        if focus_row is not None:
+        if focus_row is not None and (
+            not mine_filter_active
+            or is_order_related_to_user(focus_row, current_user)
+        ):
             focus_row.structured_data = _ensure_dict(focus_row.structured_data)  # type: ignore[assignment]
             # [:300] 절단보다 앞에 두어 큐가 가득 차도 검색 카드가 누락되지 않게 한다.
             rows.insert(0, focus_row)
