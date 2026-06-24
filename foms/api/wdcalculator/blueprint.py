@@ -945,6 +945,7 @@ def api_wdcalculator_save_estimate():
         if not data:
             return jsonify({'success': False, 'message': '요청 데이터가 없습니다.'})
         estimate_id = data.get('estimate_id')
+        order_id = data.get('order_id')
         customer_name = (data.get('customer_name') or '').strip()
         estimate_data = data.get('estimate_data', {})
         if not customer_name:
@@ -952,14 +953,25 @@ def api_wdcalculator_save_estimate():
         if not estimate_data:
             return jsonify({'success': False, 'message': '견적 데이터가 없습니다.'})
         db = get_wdcalculator_db()
+        foms_db = None
+        order = None
+        if order_id:
+            try:
+                order_id = int(order_id)
+            except (TypeError, ValueError):
+                return jsonify({'success': False, 'message': '주문 ID가 올바르지 않습니다.'})
+            foms_db = get_db()
+            order = foms_db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
+            if not order:
+                return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'})
         if estimate_id:
             estimate = db.query(Estimate).filter(Estimate.id == estimate_id).first()
             if not estimate:
                 return jsonify({'success': False, 'message': '수정할 견적을 찾을 수 없습니다.'})
             try:
                 db.add(EstimateHistory(estimate_id=estimate.id, estimate_data=estimate.estimate_data))
-            except Exception:
-                pass
+            except Exception as history_error:
+                print(f"[wdcalculator-save] history snapshot 실패(계속 진행): {history_error}")
             estimate.customer_name = customer_name
             estimate.estimate_data = estimate_data
             message = '견적이 수정되었습니다.'
@@ -967,8 +979,42 @@ def api_wdcalculator_save_estimate():
             estimate = Estimate(customer_name=customer_name, estimate_data=estimate_data)
             db.add(estimate)
             message = '견적이 저장되었습니다.'
+        matched = False
+        if order_id:
+            db.flush()
+            existing = db.query(EstimateOrderMatch).filter(
+                EstimateOrderMatch.estimate_id == estimate.id,
+                EstimateOrderMatch.order_id == order_id,
+            ).first()
+            if not existing:
+                db.add(EstimateOrderMatch(estimate_id=estimate.id, order_id=order_id))
+            matched = True
         db.commit()
-        return jsonify({'success': True, 'message': message, 'estimate_id': estimate.id})
+        if order_id and foms_db and order:
+            try:
+                from datetime import datetime, timezone
+                from sqlalchemy.orm.attributes import flag_modified
+                sd = copy.deepcopy(order.structured_data or {})
+                meta = sd.get('meta')
+                if not isinstance(meta, dict):
+                    meta = {}
+                if meta.get('wdc_estimate_id') != estimate.id:
+                    meta['wdc_estimate_id'] = estimate.id
+                    meta['wdc_synced_at'] = datetime.now(timezone.utc).isoformat()
+                    sd['meta'] = meta
+                    order.structured_data = sd
+                    flag_modified(order, 'structured_data')
+                    foms_db.commit()
+            except Exception as link_error:
+                foms_db.rollback()
+                print(f"[wdcalculator-save] order_id={order_id} meta 링크 실패(계속 진행): {link_error}")
+        return jsonify({
+            'success': True,
+            'message': message,
+            'estimate_id': estimate.id,
+            'matched': matched,
+            'order_id': order_id,
+        })
     except Exception as e:
         db = get_wdcalculator_db()
         db.rollback()

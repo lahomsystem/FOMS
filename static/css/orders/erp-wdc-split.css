@@ -1,0 +1,137 @@
+/* PC ERP Order + WDCalculator split view. Mobile keeps the existing tab flow. */
+@media (min-width: 992px) {
+  .erp-edit-shell--erp-order.is-wdc-split-open {
+    --erp-wdc-split-height: calc(100vh - 126px);
+    align-items: stretch;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  .erp-edit-shell--erp-order.is-wdc-split-open .erp-edit-col--split-ready {
+    flex: 0 0 50%;
+    max-width: 50%;
+    width: 50%;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  .erp-edit-shell--erp-order.is-wdc-split-open .erp-edit-col--split-ready > .card,
+  .erp-edit-shell--erp-order.is-wdc-split-open .erp-wdc-split-card {
+    height: var(--erp-wdc-split-height);
+    min-height: 640px;
+    overflow: hidden;
+  }
+
+  .erp-edit-shell--erp-order.is-wdc-split-open .erp-edit-col--split-ready > .card > .card-body,
+  .erp-wdc-split-frame-wrap {
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .erp-edit-shell--erp-order.is-wdc-split-open .erp-edit-col--split-ready > .card > .card-body {
+    height: calc(var(--erp-wdc-split-height) - 55px);
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  .erp-wdc-split-pane {
+    flex: 0 0 50%;
+    max-width: 50%;
+    width: 50%;
+  }
+
+  .erp-wdc-split-card {
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.10);
+  }
+
+  .erp-wdc-split-frame-wrap {
+    position: relative;
+    height: calc(var(--erp-wdc-split-height) - 65px);
+    background: #f8fafc;
+  }
+
+  .erp-wdc-split-frame-wrap iframe {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    background: #f8fafc;
+  }
+
+  .erp-wdc-split-loading {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    color: #64748b;
+    background: #f8fafc;
+  }
+
+  .erp-wdc-split-frame-wrap.is-loaded .erp-wdc-split-loading {
+    display: none;
+  }
+
+  .erp-wdc-split-toggle[aria-expanded="true"] {
+    color: #fff;
+    background: #0dcaf0;
+    border-color: #0dcaf0;
+  }
+}
+
+@media (max-width: 991.98px) {
+  .erp-wdc-split-pane,
+  .erp-wdc-split-toggle {
+    display: none !important;
+  }
+}
+
+/* Embedded WDCalculator: hide saved-estimate sidebar so ERP + calculator fit side by side. */
+.wdcalculator-container--embedded {
+  padding: 0.75rem !important;
+}
+
+@media (min-width: 992px) {
+  .wdcalculator-container--embedded {
+    --wdcalculator-shell-height: calc(100vh - 1.5rem);
+  }
+
+  .wdcalculator-container--embedded .saved-estimates-sidebar {
+    display: none !important;
+  }
+
+  .wdcalculator-container--embedded .wdcalculator-main-column {
+    flex: 0 0 100%;
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .wdcalculator-container--embedded .wdcalculator-main-scroll {
+    padding-right: 0;
+  }
+
+  .wdcalculator-container--embedded .wdcalculator-main-scroll > .d-flex:first-child {
+    margin-bottom: 0.75rem !important;
+  }
+
+  .wdcalculator-container--embedded .wdcalculator-main-scroll > .d-flex:first-child h1 {
+    font-size: 1.15rem;
+  }
+
+  .wdcalculator-container--embedded .wdcalculator-main-scroll > .d-flex:first-child a[href*="product-settings"] {
+    display: none;
+  }
+
+  .wdcalculator-container--embedded .wdcalculator-main-scroll > .row > .col-lg-7,
+  .wdcalculator-container--embedded .wdcalculator-main-scroll > .row > .col-lg-5,
+  .wdcalculator-container--embedded .wdcalculator-main-scroll > .row > .col-lg-12 {
+    flex: 0 0 100%;
+    max-width: 100%;
+  }
+
+  .wdcalculator-container--embedded .card {
+    box-shadow: none !important;
+  }
+}

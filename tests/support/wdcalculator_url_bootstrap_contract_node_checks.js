@@ -49,6 +49,7 @@ class El {
         this.className = opts.className || "";
         this.href = opts.href || "";
         this.innerHTML = opts.innerHTML || "";
+        this.value = opts.value || "";
         this.children = [];
         this.parentElement = null;
         this._ids = opts.ids || {};
@@ -65,12 +66,17 @@ class El {
         }
         return child;
     }
+
+    dispatchEvent() {
+        return true;
+    }
 }
 
 function buildSandbox(spec = {}) {
     const ids = {};
     const saveBtnContainer = new El("div", { id: "saveEstimateBtnContainer", ids });
     const saveEstimateBtn = saveBtnContainer.appendChild(new El("button", { id: "saveEstimateBtn", ids }));
+    const customerName = new El("input", { id: "customerName", ids });
 
     const alerts = [];
     const fetchCalls = [];
@@ -187,6 +193,7 @@ function buildSandbox(spec = {}) {
     return {
         sandbox,
         saveBtnContainer,
+        customerName,
         alerts,
         fetchCalls,
         loadEstimateCalls,
@@ -194,6 +201,14 @@ function buildSandbox(spec = {}) {
         warns,
         intervals,
         timeouts,
+        setExternalCustomerName(value) {
+            sandbox.__externalName = value;
+            vm.runInContext(
+                "window.WdCalculatorUrlBootstrap.setCustomerNameFromExternal(__externalName);",
+                sandbox,
+                { filename: templatePath }
+            );
+        },
         getById(id) {
             return ids[id] || null;
         },
@@ -233,6 +248,26 @@ async function scenarioOrderIdAddsBackButton() {
     assertEq(backBtn.href, "/edit/321", "order_id preserves legacy edit link");
     assertIncludes(backBtn.innerHTML, "주문으로 돌아가기", "order_id keeps button text");
     assertEq(env.loadSidebarCalls.length, 1, "order_id without estimate_id still triggers initial sidebar load");
+}
+
+async function scenarioCustomerNameUrlPrefillsInput() {
+    const env = buildSandbox({
+        search: "?embedded=1&order_id=321&customer_name=ERP%20Customer",
+    });
+
+    assertEq(env.customerName.value, "ERP Customer", "customer_name URL param pre-fills calculator customer input");
+    assertEq(env.loadSidebarCalls.length, 1, "customer prefill path still triggers initial sidebar load");
+}
+
+async function scenarioExternalCustomerNameCanClearInput() {
+    const env = buildSandbox({
+        search: "?embedded=1&customer_name=Initial",
+    });
+
+    assertEq(env.customerName.value, "Initial", "precondition has initial customer name");
+    env.setExternalCustomerName("");
+
+    assertEq(env.customerName.value, "", "empty external customer name clears stale calculator input");
 }
 
 async function scenarioPlainEntryLoadsSidebarOnce() {
@@ -369,6 +404,8 @@ async function scenarioProductWaitTimeoutFallsBackToFetch() {
 
 (async function run() {
     await scenarioOrderIdAddsBackButton();
+    await scenarioCustomerNameUrlPrefillsInput();
+    await scenarioExternalCustomerNameCanClearInput();
     await scenarioPlainEntryLoadsSidebarOnce();
     await scenarioEstimateIdLoadsImmediatelyWhenProductsReady();
     await scenarioEstimateIdWaitsForProductsThenLoads();

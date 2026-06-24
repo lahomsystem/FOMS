@@ -1833,6 +1833,15 @@
             buttonEl.innerHTML = originalText;
         }
 
+        function readOrderIdFromUrl() {
+            try {
+                var search = window.location && window.location.search ? window.location.search : "";
+                return new URLSearchParams(search).get("order_id") || "";
+            } catch (error) {
+                return "";
+            }
+        }
+
         function handleSaveEstimate(buttonEl) {
             var customerNameEl = documentRef.getElementById("customerName");
             var customerName = customerNameEl ? customerNameEl.value.trim() : "";
@@ -1868,16 +1877,23 @@
             buttonEl.disabled = true;
             buttonEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 저장 중...';
 
+            var orderIdFromUrl = readOrderIdFromUrl();
+            var payload = {
+                estimate_id: getCurrentDatabaseEstimateId(),
+                customer_name: customerName,
+                estimate_data: estimateData,
+            };
+            if (orderIdFromUrl) {
+                payload.order_id = orderIdFromUrl;
+                payload.estimate_data.order_id = orderIdFromUrl;
+            }
+
             return fetchImpl("/api/wdcalculator/save-estimate", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                 },
-                body: JSON.stringify({
-                    estimate_id: getCurrentDatabaseEstimateId(),
-                    customer_name: customerName,
-                    estimate_data: estimateData,
-                }),
+                body: JSON.stringify(payload),
             })
                 .then(function (response) {
                     return response.json();
@@ -1888,6 +1904,10 @@
                     if (data.success) {
                         alertImpl(data.message);
 
+                        if (orderIdFromUrl && data.estimate_id) {
+                            setCurrentDatabaseEstimateId(data.estimate_id);
+                            return data;
+                        }
                         refreshAfterSave(data.estimate_id || null);
                         return data;
                     }
@@ -3191,11 +3211,44 @@
                 });
         }
 
+        function setCustomerNameFromExternal(customerName) {
+            var name = String(customerName || "").trim();
+            var customerNameInput = documentRef.getElementById("customerName");
+            if (customerNameInput && customerNameInput.value !== name) {
+                customerNameInput.value = name;
+                if (typeof customerNameInput.dispatchEvent === "function") {
+                    var inputEvent = typeof Event === "function" ? new Event("input", { bubbles: true }) : { type: "input" };
+                    var changeEvent = typeof Event === "function" ? new Event("change", { bubbles: true }) : { type: "change" };
+                    customerNameInput.dispatchEvent(inputEvent);
+                    customerNameInput.dispatchEvent(changeEvent);
+                }
+            }
+        }
+
+        function initEmbeddedBridge() {
+            if (!windowRef || windowRef.__wdcEmbeddedBridgeBound || typeof windowRef.addEventListener !== "function") {
+                return;
+            }
+            windowRef.__wdcEmbeddedBridgeBound = true;
+            windowRef.addEventListener("message", function (event) {
+                if (event.origin !== windowRef.location.origin) {
+                    return;
+                }
+                var data = event.data || {};
+                if (data.type === "foms:wdc:set-customer-name") {
+                    setCustomerNameFromExternal(data.customerName);
+                }
+            });
+        }
+
         function initUrlBootstrap() {
             var urlParams = new URLSearchParams(windowRef.location.search);
             var estimateIdFromUrl = urlParams.get("estimate_id");
             var orderIdFromUrl = urlParams.get("order_id");
+            var customerNameFromUrl = urlParams.get("customer_name");
 
+            setCustomerNameFromExternal(customerNameFromUrl);
+            initEmbeddedBridge();
             ensureBackToOrderButton(orderIdFromUrl);
 
             if (!estimateIdFromUrl) {
@@ -3228,6 +3281,8 @@
         ns.configure = configure;
         ns.ensureBackToOrderButton = ensureBackToOrderButton;
         ns.loadEstimateFromUrl = loadEstimateFromUrl;
+        ns.setCustomerNameFromExternal = setCustomerNameFromExternal;
+        ns.initEmbeddedBridge = initEmbeddedBridge;
         ns.initUrlBootstrap = initUrlBootstrap;
     })(WdCalculatorUrlBootstrap);
 

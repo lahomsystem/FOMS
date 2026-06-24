@@ -259,7 +259,11 @@ function buildSandbox(spec = {}) {
     };
 
     const sandbox = {
-        window: {},
+        window: {
+            location: {
+                search: spec.search || "",
+            },
+        },
         globalThis: null,
         document,
         getCurrentDatabaseEstimateId,
@@ -274,6 +278,7 @@ function buildSandbox(spec = {}) {
         fetchImpl,
         alertImpl,
         consoleRef,
+        URLSearchParams,
     };
     sandbox.globalThis = sandbox;
 
@@ -458,6 +463,30 @@ async function scenarioFailedResponseRestoresButtonAndSkipsRefresh() {
     assertEq(env.events.some((entry) => entry[0] === "refreshAfterSave"), false, "failed-response path does not refresh saved list");
 }
 
+async function scenarioOrderIdUrlAddsAutoMatchPayload() {
+    const env = buildSandbox({
+        search: "?embedded=1&order_id=4001&customer_name=ERP%20Customer",
+        estimates: [{ id: "draft-1", totalPrice: 1000 }],
+    });
+    const button = env.init();
+
+    await env.handle(button);
+
+    const fetchPayload = JSON.parse(env.fetchCalls[0].options.body);
+    assertEq(fetchPayload.order_id, "4001", "order_id URL param is sent for auto matching");
+    assertEq(fetchPayload.estimate_data.order_id, "4001", "estimate_data keeps originating order id");
+    assertDeepEqual(
+        env.events.find((entry) => entry[0] === "setCurrentDatabaseEstimateId"),
+        ["setCurrentDatabaseEstimateId", 77],
+        "order_id save keeps saved DB estimate id for the next save"
+    );
+    assertEq(
+        env.events.some((entry) => entry[0] === "refreshAfterSave"),
+        false,
+        "order_id save does not reset the embedded calculator form"
+    );
+}
+
 async function scenarioFetchErrorRestoresButtonAndShowsGenericAlert() {
     const env = buildSandbox({
         estimates: [{ id: "draft-1", totalPrice: 1000 }],
@@ -479,6 +508,7 @@ async function main() {
     await scenarioEmptyEstimatesUsesCurrentEstimateFallback();
     await scenarioAggregateErrorAlertsWithoutFetch();
     await scenarioFailedResponseRestoresButtonAndSkipsRefresh();
+    await scenarioOrderIdUrlAddsAutoMatchPayload();
     await scenarioFetchErrorRestoresButtonAndShowsGenericAlert();
     console.log("wdcalculator save-estimate contract checks passed");
 }

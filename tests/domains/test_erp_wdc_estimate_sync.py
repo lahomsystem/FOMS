@@ -204,3 +204,76 @@ def test_sync_meta_persist_preserves_existing_meta_keys(wdcalculator_settings_en
     assert meta.get("wdc_estimate_id") == payload["estimate_id"]
     assert meta.get("custom") == "keep"
     assert meta.get("draft") is False
+
+
+def test_full_calculator_save_with_order_id_auto_matches_and_links_meta(wdcalculator_settings_env, login):
+    """PC split: full WDCalculator save can persist and match to the source ERP order in one call."""
+    client = login
+    order = _create_order(customer_name="Split 고객", structured_data={"meta": {"custom": "keep"}})
+    order_id = order.id
+
+    response = client.post(
+        "/api/wdcalculator/save-estimate",
+        json={
+            "order_id": order_id,
+            "customer_name": "Split 고객",
+            "estimate_data": _estimate_data(),
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["success"] is True
+    assert payload["matched"] is True
+    assert payload["order_id"] == order_id
+
+    matches = wd_calculator_session.query(EstimateOrderMatch).filter(
+        EstimateOrderMatch.order_id == order_id
+    ).all()
+    assert len(matches) == 1
+    assert matches[0].estimate_id == payload["estimate_id"]
+
+    db_session.expire_all()
+    refreshed = db_session.query(Order).filter(Order.id == order_id).first()
+    meta = (refreshed.structured_data or {}).get("meta") or {}
+    assert meta.get("wdc_estimate_id") == payload["estimate_id"]
+    assert meta.get("custom") == "keep"
+
+
+def test_full_calculator_save_with_order_id_is_idempotent_on_resave(wdcalculator_settings_env, login):
+    """Re-saving the same split estimate updates the estimate without duplicate matches."""
+    client = login
+    order = _create_order(customer_name="Split 재저장")
+    order_id = order.id
+
+    first = client.post(
+        "/api/wdcalculator/save-estimate",
+        json={
+            "order_id": order_id,
+            "customer_name": "Split 재저장",
+            "estimate_data": _estimate_data(),
+        },
+    ).get_json()
+
+    updated = _estimate_data()
+    updated["totalPrice"] = 3000
+    second = client.post(
+        "/api/wdcalculator/save-estimate",
+        json={
+            "order_id": order_id,
+            "estimate_id": first["estimate_id"],
+            "customer_name": "Split 재저장",
+            "estimate_data": updated,
+        },
+    ).get_json()
+
+    assert second["success"] is True
+    assert second["estimate_id"] == first["estimate_id"]
+    matches = wd_calculator_session.query(EstimateOrderMatch).filter(
+        EstimateOrderMatch.order_id == order_id
+    ).all()
+    assert len(matches) == 1
+    estimate = wd_calculator_session.query(Estimate).filter(
+        Estimate.id == first["estimate_id"]
+    ).first()
+    assert estimate.estimate_data["totalPrice"] == 3000

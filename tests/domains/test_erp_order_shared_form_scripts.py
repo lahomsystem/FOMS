@@ -145,6 +145,49 @@ def test_edit_order_page_uses_canonical_open_erp_order_deep_link_only(erp_editor
     assert "erp-beta" not in body
 
 
+def test_erp_order_edit_renders_pc_wdc_split_contract(erp_editor_client) -> None:
+    """PC ERP Order edit page exposes lazy WDCalculator split pane without loading WDC bundle inline."""
+    order = _create_erp_order()
+    response = erp_editor_client.get(f"/edit/{order.id}?open=erp-order")
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+
+    assert 'id="erpWdcSplitToggle"' in body
+    assert 'id="erpWdcSplitPane"' in body
+    assert 'id="erpWdcSplitFrame"' in body
+    assert "embedded=1" in body
+    assert f"order_id={order.id}" in body
+    assert "js/orders/erp-wdc-split.js" in body
+    assert "css/orders/erp-wdc-split.css" in body
+    assert "js/wdcalculator/pricing-core.js" not in body
+
+
+def test_wdcalculator_embedded_mode_hides_saved_estimates_sidebar(erp_editor_client) -> None:
+    """Embedded calculator keeps normal WDC route but renders compact class for split iframe."""
+    response = erp_editor_client.get("/wdcalculator?embedded=1&order_id=4001&customer_name=Split%20Customer")
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+
+    assert "wdcalculator-container--embedded" in body
+    assert "저장된 견적" in body  # DOM remains available; CSS hides it only in embedded desktop.
+    assert "css/orders/erp-wdc-split.css" in body
+    assert "js/wdcalculator/estimate-lifecycle.js?v=20260624b" in body
+
+
+def test_erp_wdc_split_bridge_js_contract() -> None:
+    """Split bridge stays lazy, idempotent, and customer-name synced via same-origin postMessage."""
+    root = Path(__file__).resolve().parents[2]
+    js = (root / "static/js/orders/erp-wdc-split.js").read_text(encoding="utf-8")
+
+    assert "window.__erpWdcSplitBound" in js
+    assert 'document.getElementById("erpWdcSplitToggle")' in js
+    assert 'frame.setAttribute("src", buildFrameSrc(frame))' in js
+    assert 'type: "foms:wdc:set-customer-name"' in js
+    assert 'window.location.origin' in js
+    assert 'document.getElementById("erp-customer-name")' in js
+    assert 'customerInput.addEventListener("input"' in js
+
+
 def test_get_add_open_erp_beta_redirects_to_canonical_erp_order(erp_editor_client) -> None:
     """Legacy ?open=erp-beta must 302 to the same path with open=erp-order (other query preserved)."""
     r = erp_editor_client.get("/add?open=erp-beta&x=1", follow_redirects=False)

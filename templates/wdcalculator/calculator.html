@@ -9,6 +9,9 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/wdcalculator/builder.css') }}?v=20260612j">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/wdcalculator/category-picker.css') }}?v=20260606a">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/wdcalculator/multi-add-picker.css') }}?v=20260615a">
+{% if request.args.get('embedded') == '1' %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/orders/erp-wdc-split.css') }}?v=20260624a">
+{% endif %}
 {% endblock %}
 
 {% block content %}
