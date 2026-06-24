@@ -346,6 +346,67 @@ def test_unified_search_history_fallback_finds_non_erp_order(app) -> None:
         assert hits["customer"][0]["href"].startswith(f"/edit/{order.id}")
 
 
+def test_relevance_rank_orders_exact_before_partial() -> None:
+    """관련도 정렬(A4): 고객명 정확 > 접두 > 부분 > 기타."""
+    from foms.services.foms_unified_search import _relevance_rank
+    from models import Order
+
+    def mk(name: str) -> Order:
+        order = Order(
+            customer_name=name,
+            structured_data={"parties": {"customer": {"name": name}}},
+        )
+        order.id = 1
+        return order
+
+    assert _relevance_rank(mk("김수"), "김수")[0] == 0      # exact
+    assert _relevance_rank(mk("김수민"), "김수")[0] == 1    # prefix
+    assert _relevance_rank(mk("강김수"), "김수")[0] == 2    # substring
+    assert _relevance_rank(mk("박영희"), "김수")[0] == 3    # other field only
+
+
+def test_unified_search_exact_match_survives_partial_flood(app) -> None:
+    """부분일치 신규 주문이 많아도 정확일치 과거 주문이 8칸에서 밀려나지 않는다(A4)."""
+    from db import db_session
+    from foms.services.foms_unified_search import search_unified
+    from models import Order
+
+    with app.app_context():
+        exact = Order(
+            received_date="2020-01-01",
+            customer_name="라온",
+            phone="010-0000-0001",
+            address="Seoul",
+            product="장",
+            status="RECEIVED",
+            is_erp_order=True,
+            structured_data={"parties": {"customer": {"name": "라온"}}},
+        )
+        db_session.add(exact)
+        db_session.commit()
+        exact_id = exact.id
+
+        # 정확일치 이후 더 새로운 부분일치 주문 12건(라온 접두) — newest 캡/슬롯을 점유.
+        for i in range(12):
+            db_session.add(
+                Order(
+                    received_date="2026-06-01",
+                    customer_name=f"라온하우스{i}",
+                    phone="010-0000-0000",
+                    address="Seoul",
+                    product="장",
+                    status="RECEIVED",
+                    is_erp_order=True,
+                    structured_data={"parties": {"customer": {"name": f"라온하우스{i}"}}},
+                )
+            )
+        db_session.commit()
+
+        hits = search_unified(db_session, "라온")
+        ids = {h["order_id"] for h in hits["customer"]}
+        assert exact_id in ids
+
+
 def test_order_id_prefilter_finds_id_even_when_phone_like(app) -> None:
     """순수 숫자 쿼리는 폰 경로에 가로채이기 전에 Order.id 단건을 직접 조회한다(A1)."""
     from db import db_session

@@ -48,6 +48,38 @@ def _production_order(customer_name: str) -> Order:
     return order
 
 
+def _orders_order(customer_name: str) -> Order:
+    order = Order(
+        received_date="2026-05-30",
+        customer_name=customer_name,
+        phone="010-7777-8888",
+        address="Seoul",
+        product="붙박이",
+        status="RECEIVED",
+        is_erp_order=True,
+        structured_data={
+            "parties": {"customer": {"name": customer_name}},
+            "workflow": {"stage": "RECEIVED"},
+        },
+    )
+    db_session.add(order)
+    db_session.commit()
+    return order
+
+
+def test_orders_dashboard_focus_order_lands_despite_nonmatching_q(login) -> None:
+    order_id = _orders_order("주문큐포커스고객").id
+
+    # 컨트롤: 비매칭 q는 결과 0 → 목록에 없다(또는 history로 리다이렉트).
+    control = login.get("/erp/dashboard?view=queue&q=zzz없는검색어")
+    assert "주문큐포커스고객" not in control.get_data(as_text=True)
+
+    # 검색 카드 딥링크: focus_order로 q·60일창·페이지와 무관하게 단건 착지(+history 리다이렉트 차단).
+    focused = login.get(f"/erp/dashboard?view=queue&q=zzz없는검색어&focus_order={order_id}")
+    assert focused.status_code == 200
+    assert "주문큐포커스고객" in focused.get_data(as_text=True)
+
+
 def test_drawing_workbench_focus_order_lands_despite_nonmatching_q(login) -> None:
     order_id = _drawing_order("도면포커스고객").id
 

@@ -22,9 +22,12 @@ from models import Order
 SearchGroup = Literal["all", "customer", "order", "drawing"]
 
 _CHOSUNG = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ"
-_MAX_SQL_ROWS = 80
-_MAX_CHOSUNG_SCAN = 200
-_MAX_HISTORY_FALLBACK_ROWS = 80
+# 흔한 성씨(김·이·박 등) 검색에서 오래된 주문이 newest-N 캡에 잘려 누락되던 문제(A4)를
+# 줄이기 위해 후보 폭을 넓힌다. 후보는 Python 분류기를 거치므로 trgm 인덱스 + 200ms 디바운스
+# 하에서 안전한 범위로만 상향한다.
+_MAX_SQL_ROWS = 300
+_MAX_CHOSUNG_SCAN = 400
+_MAX_HISTORY_FALLBACK_ROWS = 200
 
 
 def _compact(text: str | None) -> str:
@@ -411,6 +414,30 @@ def _append_order_hits(
         )
 
 
+def _relevance_rank(order: Order, trimmed: str) -> tuple[int, int]:
+    """
+    후보 정렬 키(A4): 고객명 정확 > 접두 > 부분 > 기타 필드, 동순위는 최신 주문 우선.
+
+    newest-N 캡 안에서 부분일치 신규 주문이 정확일치 과거 주문의 8칸을 빼앗던 문제를 막아,
+    검색어에 가장 가까운 주문이 그룹 상위에 노출되게 한다.
+    """
+    cq = _compact(trimmed)
+    name = _compact(_order_customer_name(order))
+    try:
+        recency = -int(order.id)
+    except (TypeError, ValueError):
+        recency = 0
+    if not cq or not name:
+        return (3, recency)
+    if name == cq:
+        return (0, recency)
+    if name.startswith(cq):
+        return (1, recency)
+    if cq in name:
+        return (2, recency)
+    return (3, recency)
+
+
 def _collect_search_hits(
     db: Session,
     query: str,
@@ -428,11 +455,16 @@ def _collect_search_hits(
         return buckets
 
     seen_ids: set[int] = set()
+    primary: list[tuple[Order, set[str]]] = []
     for order in _base_orders_query(db, trimmed):
         matched = _classify_order_hit(order, trimmed)
         if not matched:
             continue
         seen_ids.add(int(order.id))
+        primary.append((order, matched))
+    # 관련도 정렬 후 슬롯 채움 — 정확/접두 일치가 부분일치보다 먼저 8칸을 차지한다.
+    primary.sort(key=lambda pair: _relevance_rank(pair[0], trimmed))
+    for order, matched in primary:
         _append_order_hits(buckets, order, matched, trimmed, limit_per_group=limit_per_group)
 
     # 레거시·비-ERP 주문은 1차(ERP) 스캔에 없으므로, 버킷이 가득 차지 않은 한 항상
@@ -443,6 +475,7 @@ def _collect_search_hits(
         for group in ("customer", "order", "drawing")
     )
     if not buckets_full:
+        fallback: list[tuple[Order, set[str]]] = []
         for order in _history_style_orders_query(db, trimmed):
             if int(order.id) in seen_ids:
                 continue
@@ -450,6 +483,9 @@ def _collect_search_hits(
             if not matched:
                 continue
             seen_ids.add(int(order.id))
+            fallback.append((order, matched))
+        fallback.sort(key=lambda pair: _relevance_rank(pair[0], trimmed))
+        for order, matched in fallback:
             _append_order_hits(buckets, order, matched, trimmed, limit_per_group=limit_per_group)
 
     return buckets

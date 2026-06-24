@@ -34,7 +34,6 @@ from foms.services.erp_mobile_order_display import (
 from foms.services.common.business_calendar import business_days_until
 from foms.services.erp_order_detail import build_order_detail_payload_map
 from foms.services.erp_order_deeplink import resolve_edit_return_back_endpoint
-from foms.services.erp_shipment_settings import is_order_mine_for_user
 from foms.services.orders.status_constants import BULK_ACTION_STATUS
 from foms.services.request_utils import get_search_query_arg
 from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
@@ -168,6 +167,9 @@ def erp_dashboard():
     f_risk = (request.args.get('risk') or '').strip()
     if f_risk not in RISK_KEYS:
         f_risk = ''
+    # 검색 카드 딥링크(?focus_order=)는 q는 검색창 표시용일 뿐, 단건 PK를 60일 창·페이지·
+    # 술어 미스와 무관하게 강제 착지시킨다. construction/measurement 대시보드와 동일 SSOT.
+    focus_order_id = request.args.get('focus_order', type=int)
 
     # Phase H: 대시보드 운영 화면은 최근 활성 데이터만 조회 (과거 완료건 제외)
     _q = db.query(Order).filter(Order.dashboard_active_filter(days=60), Order.is_erp_order.is_(True))
@@ -329,6 +331,7 @@ def erp_dashboard():
         f_q
         and page == 1
         and total_orders == 0
+        and not focus_order_id
         and request.args.get('from_history') != '1'
         and request.args.get('from_dashboard') != '1'
         and not _dashboard_search_history_redirect_blocked(f_team, f_urgent, f_has_alert, f_alert_type)
@@ -336,6 +339,16 @@ def erp_dashboard():
         return _redirect_to_history_for_dashboard_search(f_q)
 
     orders = _q.offset((page - 1) * per_page).limit(per_page).all()
+
+    # 검색 카드 딥링크: 단건이 60일 창/페이지/술어와 무관하게 항상 페이지에 포함되도록 강제 주입.
+    if focus_order_id and focus_order_id not in {o.id for o in orders}:
+        focus_o = (
+            db.query(Order)
+            .filter(Order.id == focus_order_id, Order.active_filter(), Order.is_erp_order.is_(True))
+            .first()
+        )
+        if focus_o is not None:
+            orders = [focus_o] + orders
 
     TEAM_LABELS = {
         'CS': '라홈팀',
@@ -356,11 +369,14 @@ def erp_dashboard():
         sd = _ensure_dict(o.structured_data)
         stage = _erp_get_stage(o, sd)
         alerts = _erp_alerts(o, sd, 0)
-        
-        if f_has_alert == '1':
+
+        # 검색 카드 딥링크 단건은 alert/team 필터와 무관하게 항상 통과시킨다.
+        is_focus_row = bool(focus_order_id and o.id == focus_order_id)
+
+        if f_has_alert == '1' and not is_focus_row:
             if not (alerts.get('urgent') or alerts.get('drawing_overdue') or alerts.get('measurement_d4') or alerts.get('construction_d3') or alerts.get('production_d2')):
                 continue
-        if f_alert_type:
+        if f_alert_type and not is_focus_row:
             if f_alert_type == 'urgent' and not alerts.get('urgent'):
                 continue
             elif f_alert_type == 'measurement_d4' and not alerts.get('measurement_d4'):
@@ -371,9 +387,9 @@ def erp_dashboard():
                 continue
             elif f_alert_type == 'drawing_overdue' and not alerts.get('drawing_overdue'):
                 continue
-        
+
         # --- C: f_team 인메모리 2차 확인 (CS 오버라이드 보완) ---
-        if f_team and not is_admin:
+        if f_team and not is_admin and not is_focus_row:
             stage_code = STAGE_NAME_TO_CODE.get(stage, stage)
             if stage_code in ('MEASURE', 'CONFIRM'):
                 orderer_name = (((sd or {}).get("parties") or {}).get("orderer") or {}).get("name") or ""
