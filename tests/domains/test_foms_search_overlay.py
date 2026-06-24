@@ -407,6 +407,63 @@ def test_unified_search_exact_match_survives_partial_flood(app) -> None:
         assert exact_id in ids
 
 
+def test_unified_search_multitoken_word_order_independent(app) -> None:
+    """다중 토큰은 어순·공백과 무관하게 매칭된다(A5)."""
+    from db import db_session
+    from foms.services.foms_unified_search import search_unified
+    from models import Order
+
+    with app.app_context():
+        order = Order(
+            received_date="2026-05-30",
+            customer_name="어순독립고객",
+            phone="010-0000-0000",
+            address="인천 부평구 수변로 333",
+            product="장",
+            status="MEASURE",
+            is_erp_order=True,
+            structured_data={
+                "parties": {"customer": {"name": "어순독립고객"}},
+                "site": {"address_full": "인천 부평구 수변로 333"},
+            },
+        )
+        db_session.add(order)
+        db_session.commit()
+
+        # DB값은 "인천 부평구"인데 역순으로 검색.
+        hits = search_unified(db_session, "부평구 인천")
+        found = {h["order_id"] for bucket in hits.values() for h in bucket}
+        assert order.id in found
+
+
+def test_unified_search_multitoken_cross_field(app) -> None:
+    """토큰이 고객명+주소처럼 서로 다른 필드에 걸쳐도 매칭된다(A5 cross-field)."""
+    from db import db_session
+    from foms.services.foms_unified_search import search_unified
+    from models import Order
+
+    with app.app_context():
+        order = Order(
+            received_date="2026-05-30",
+            customer_name="남궁크로스",
+            phone="010-0000-0000",
+            address="인천 어딘가로 1",
+            product="장",
+            status="MEASURE",
+            is_erp_order=True,
+            structured_data={
+                "parties": {"customer": {"name": "남궁크로스"}},
+                "site": {"address_full": "인천 어딘가로 1"},
+            },
+        )
+        db_session.add(order)
+        db_session.commit()
+
+        hits = search_unified(db_session, "남궁크로스 인천")
+        found = {h["order_id"] for bucket in hits.values() for h in bucket}
+        assert order.id in found
+
+
 def test_order_id_prefilter_finds_id_even_when_phone_like(app) -> None:
     """순수 숫자 쿼리는 폰 경로에 가로채이기 전에 Order.id 단건을 직접 조회한다(A1)."""
     from db import db_session

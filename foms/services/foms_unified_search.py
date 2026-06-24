@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any, Literal
 
-from sqlalchemy import String, cast, or_
+from sqlalchemy import String, and_, cast, or_
 from sqlalchemy.orm import Session
 
 from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
@@ -34,6 +34,18 @@ def _compact(text: str | None) -> str:
     """Remove whitespace for comparison."""
     normalized = _normalize_for_search(text)
     return "".join(normalized.split()).lower()
+
+
+def _search_tokens(query: str | None) -> list[str]:
+    """
+    공백 기준 토큰 분리(A5). 다중 토큰은 AND·어순 무관으로 매칭한다.
+
+    "부평구 인천"처럼 단어 순서가 DB값("인천 부평구")과 달라도, 각 토큰을 trgm
+    인덱스 ilike로 따로 매칭해 교집합을 취하면 누락 없이 잡힌다. 공백 strip으로
+    DB 공백값과 ilike가 어긋나던 문제도 함께 해소한다. 단일 토큰은 기존 동작과 동일.
+    """
+    normalized = _normalize_for_search(query)
+    return [tok for tok in normalized.split() if tok]
 
 
 def _to_chosung(text: str) -> str:
@@ -152,12 +164,28 @@ def _order_extra_text_fields(order: Order) -> list[str]:
 
 
 def _classify_order_hit(order: Order, query: str) -> set[str]:
-    """Return search groups matched by this order."""
+    """
+    Return search groups matched by this order.
+
+    다중 토큰(A5)은 그룹별 필드 집합 안에서 '모든 토큰이 각각 어떤 필드엔가 매칭'될 때
+    히트로 본다(어순 무관). 단일 토큰은 ``all([x]) == x``라 기존 OR 동작과 동일.
+    """
+    tokens = _search_tokens(query) or [query]
     groups: set[str] = set()
     customer = _order_customer_name(order)
     phone = _order_phone(order)
     extra_fields = _order_extra_text_fields(order)
-    if matches_query(customer, query) or _matches_phone(phone, order.erp_phone_digits, query):
+
+    def _all_tokens_in(fields: list[str], *, with_phone: bool = False) -> bool:
+        for tok in tokens:
+            if any(matches_query(field, tok) for field in fields):
+                continue
+            if with_phone and _matches_phone(phone, order.erp_phone_digits, tok):
+                continue
+            return False
+        return True
+
+    if _all_tokens_in([customer], with_phone=True):
         groups.add("customer")
     order_fields = [
         str(order.id),
@@ -166,19 +194,24 @@ def _classify_order_hit(order: Order, query: str) -> set[str]:
         order.manager_name,
         *extra_fields,
     ]
-    if any(matches_query(field, query) for field in order_fields):
+    if _all_tokens_in(order_fields):
         groups.add("order")
     stage = (order.erp_stage_code or order.status or "").upper()
     sd = _ensure_dict(order.structured_data)
     drawing_stage = stage in {"DRAWING", "D. 도면"} or "DRAWING" in stage
     has_blueprint = bool(order.blueprint_image_url or sd.get("drawing"))
     if drawing_stage or has_blueprint:
-        if matches_query(customer, query) or matches_query(str(order.id), query):
+        if _all_tokens_in([customer, str(order.id)]):
             groups.add("drawing")
-        elif matches_query(order.product, query) or any(
-            matches_query(field, query) for field in extra_fields
-        ):
+        elif _all_tokens_in([order.product, *extra_fields]):
             groups.add("drawing")
+    # 다중 토큰이 그룹 경계를 가로지르면(예: "남궁 인천" = 고객명+주소) 정밀 그룹엔
+    # 안 잡히지만 SQL 후보(predicate AND)엔 들어온다. 전체 가시 필드로 모든 토큰이
+    # 매칭되면 고객 그룹에 노출해 누락을 막는다(단일 토큰은 위에서 이미 처리).
+    if not groups and len(tokens) > 1:
+        global_fields = [customer, *order_fields]
+        if _all_tokens_in(global_fields, with_phone=True):
+            groups.add("customer")
     return groups
 
 
@@ -194,7 +227,8 @@ def _history_classify_order_hit(order: Order, query: str) -> set[str]:
         blob_text = json.dumps(sd, ensure_ascii=False)
     except (TypeError, ValueError):
         blob_text = str(sd)
-    if matches_query(blob_text, query):
+    tokens = _search_tokens(query) or [query]
+    if all(matches_query(blob_text, tok) for tok in tokens):
         return {"customer"}
     return set()
 
@@ -240,13 +274,19 @@ def _phone_digit_prefilter(db: Session, query: str):
 
 
 def _term_prefilter(db: Session, query: str):
-    """가시 컬럼 + structured_data 가시 경로 ILIKE 후보."""
-    term = f"%{_compact(query)}%"
-    if not term.strip("%"):
+    """
+    가시 컬럼 + structured_data 가시 경로 ILIKE 후보.
+
+    다중 토큰은 각 토큰 술어를 AND로 묶어 어순 무관·공백 보존 매칭한다(A5).
+    각 토큰은 OR-over-fields 술어라 토큰별로 다른 필드에 걸려도 된다.
+    """
+    tokens = _search_tokens(query)
+    if not tokens:
         return []
     q = db.query(Order).filter(Order.active_filter(), Order.is_erp_order.is_(True))
+    clauses = [erp_order_dashboard_search_predicate(f"%{tok}%") for tok in tokens]
     return (
-        q.filter(erp_order_dashboard_search_predicate(term))
+        q.filter(and_(*clauses))
         .order_by(Order.id.desc())
         .limit(_MAX_SQL_ROWS)
         .all()
@@ -302,20 +342,25 @@ def _history_style_orders_query(db: Session, query: str) -> list[Order]:
     trimmed = _normalize_for_search(query)
     if not trimmed or is_chosung_query(trimmed):
         return []
-    term = f"%{_compact(trimmed)}%"
+    tokens = _search_tokens(trimmed)
+    if not tokens:
+        return []
+
+    def _token_clause(tok: str):
+        term = f"%{tok}%"
+        return or_(
+            Order.id.cast(String).ilike(term),
+            Order.customer_name.ilike(term),
+            Order.phone.ilike(term),
+            Order.address.ilike(term),
+            Order.manager_name.ilike(term),
+            cast(Order.structured_data, String).ilike(term),  # perf-ok: ix_orders_structured_data_text_trgm
+        )
+
     return (
         db.query(Order)
         .filter(Order.active_filter())
-        .filter(
-            or_(
-                Order.id.cast(String).ilike(term),
-                Order.customer_name.ilike(term),
-                Order.phone.ilike(term),
-                Order.address.ilike(term),
-                Order.manager_name.ilike(term),
-                cast(Order.structured_data, String).ilike(term),  # perf-ok: ix_orders_structured_data_text_trgm
-            )
-        )
+        .filter(and_(*[_token_clause(tok) for tok in tokens]))
         .order_by(Order.created_at.desc(), Order.id.desc())
         .limit(_MAX_HISTORY_FALLBACK_ROWS)
         .all()
