@@ -365,6 +365,22 @@ def erp_measurement_dashboard():
             existing_row_ids.add(order.id)
             row_fallback_added_ids.append(order.id)
 
+    # 검색 카드 딥링크(?focus_order=)는 실측 날짜창과 무관하게 해당 주문이 항상 큐에 착지해야 한다.
+    # orders/construction/cs/as 대시보드와 동일한 deep-link SSOT:
+    # q는 검색창 표시용이고, focus_order는 PK 단건을 날짜·mine 필터와 무관하게 강제 포함한다.
+    focus_order_id = request.args.get('focus_order', type=int)
+    if focus_order_id and focus_order_id not in {o.id for o in rows}:
+        focus_row = (
+            db.query(Order)
+            .filter(Order.id == focus_order_id, Order.active_filter())
+            .options(selectinload(Order.schedule_dates))
+            .first()
+        )
+        if focus_row is not None:
+            focus_row.structured_data = _ensure_dict(focus_row.structured_data)  # type: ignore[assignment]
+            # [:300] 절단보다 앞에 두어 큐가 가득 차도 검색 카드가 누락되지 않게 한다.
+            rows.insert(0, focus_row)
+
     rows = rows[:300]
     for row in rows:
         row.measurement_dates_display = _build_measurement_dates_for_display(

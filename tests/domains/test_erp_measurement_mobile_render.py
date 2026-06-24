@@ -155,6 +155,52 @@ def test_measurement_mobile_page_uses_normalized_manager_name(client, monkeypatc
     assert f"담당 {manager_user_id}" not in body
 
 
+def test_measurement_focus_order_lands_outside_date_window(client, monkeypatch):
+    """검색 카드 딥링크(?q=&focus_order=)는 실측 날짜가 오늘이 아니어도 큐에 착지해야 한다."""
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    fake_today = date(2026, 6, 24)
+    monkeypatch.setattr(erp_measurement_dashboard, "get_today_kst", lambda: fake_today)
+    user = _login_erp_admin(client)
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+
+    # 실측 예정일이 '어제'인 주문 — 기본(오늘) 날짜창에는 잡히지 않는다.
+    yesterday = "2026-06-23"
+    order = Order(
+        received_date=yesterday,
+        customer_name="남궁명주",
+        phone="010-2282-3114",
+        address="인천 부평구 수변로 333",
+        product="붙박이장",
+        status="MEASURE",
+        is_erp_order=True,
+        structured_data={"items": [{"product_name": "상부장"}]},
+    )
+    db_session.add(order)
+    db_session.flush()
+    order_id = order.id
+    db_session.add(
+        OrderScheduleDate(
+            order_id=order_id,
+            kind="measurement",
+            date=yesterday,
+            source="beta_schedule",
+        )
+    )
+    db_session.commit()
+
+    # 컨트롤: focus_order 없이 검색만 하면 오늘 날짜창 밖이라 목록에 없다.
+    search_only = client.get("/erp/measurement?q=%EB%82%A8%EA%B6%81")
+    assert search_only.status_code == 200
+    assert "남궁명주" not in search_only.get_data(as_text=True)
+
+    # 검색 카드 딥링크: focus_order로 단건 강제 착지.
+    focused = client.get(f"/erp/measurement?q=%EB%82%A8%EA%B6%81&focus_order={order_id}")
+    assert focused.status_code == 200
+    body = focused.get_data(as_text=True)
+    assert "남궁명주" in body
+    assert f'data-measurement-mobile-order-id="{order_id}"' in body
+
+
 def test_measurement_dashboard_excludes_stale_legacy_schedule_date(client, monkeypatch):
     monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
     fake_today = date(2026, 5, 4)
