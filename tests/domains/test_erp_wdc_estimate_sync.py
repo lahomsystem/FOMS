@@ -277,3 +277,43 @@ def test_full_calculator_save_with_order_id_is_idempotent_on_resave(wdcalculator
         Estimate.id == first["estimate_id"]
     ).first()
     assert estimate.estimate_data["totalPrice"] == 3000
+
+
+def test_unmatch_order_removes_match_and_clears_meta(wdcalculator_settings_env, login):
+    """POST unmatch-order는 매칭 행을 제거하고 meta.wdc_estimate_id를 지운다(견적은 유지)."""
+    client = login
+    order = _create_order(
+        customer_name="매칭 해제",
+        structured_data={"meta": {"custom": "keep"}},
+    )
+    order_id = order.id
+
+    sync = client.post(
+        f"/api/orders/{order_id}/wdc-estimate-sync",
+        json={"customer_name": "매칭 해제", "estimate_data": _estimate_data()},
+    ).get_json()
+    assert sync["success"] is True
+    estimate_id = sync["estimate_id"]
+
+    response = client.post(
+        "/api/wdcalculator/unmatch-order",
+        json={"estimate_id": estimate_id, "order_id": order_id},
+    )
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["success"] is True
+    assert payload["removed"] == 1
+
+    matches = wd_calculator_session.query(EstimateOrderMatch).filter(
+        EstimateOrderMatch.order_id == order_id
+    ).all()
+    assert matches == []
+
+    estimate = wd_calculator_session.query(Estimate).filter(Estimate.id == estimate_id).first()
+    assert estimate is not None
+
+    db_session.expire_all()
+    refreshed = db_session.query(Order).filter(Order.id == order_id).first()
+    meta = (refreshed.structured_data or {}).get("meta") or {}
+    assert "wdc_estimate_id" not in meta
+    assert meta.get("custom") == "keep"

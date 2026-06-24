@@ -627,6 +627,8 @@ def test_edit_order_matched_estimate_card_uses_order_payment_payload() -> None:
     assert "label = '예약금(선금)';" in text
     assert "${escapeHtml(paymentLabel)}" in text
     assert "(최종 금액 - ${escapeHtml(paymentLabel)})" in text
+    assert "unmatch-estimate-from-order-btn" in text
+    assert "/api/wdcalculator/unmatch-order" in text
 
 
 def test_attachment_preview_zoom_scoped_to_modal_not_mobile_form() -> None:

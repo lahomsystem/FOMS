@@ -1087,6 +1087,92 @@ def api_wdcalculator_match_order():
         return jsonify({'success': False, 'message': str(e)})
 
 
+def _clear_wdc_estimate_meta_link(foms_db, order, estimate_id=None):
+    """주문 structured_data.meta.wdc_estimate_id 링크를 제거한다.
+
+    Args:
+        foms_db: FOMS DB 세션.
+        order: 대상 Order ORM.
+        estimate_id: 지정 시 동일 id일 때만 제거. None이면 링크가 있으면 제거.
+
+    Returns:
+        meta에서 링크를 제거했으면 True.
+    """
+    from sqlalchemy.orm.attributes import flag_modified
+
+    sd = copy.deepcopy(order.structured_data or {})
+    meta = sd.get('meta')
+    if not isinstance(meta, dict):
+        return False
+    linked = meta.get('wdc_estimate_id')
+    if linked is None:
+        return False
+    if estimate_id is not None and linked != estimate_id:
+        return False
+    meta.pop('wdc_estimate_id', None)
+    sd['meta'] = meta
+    order.structured_data = sd
+    flag_modified(order, 'structured_data')
+    foms_db.commit()
+    return True
+
+
+@wdcalculator_bp.route('/api/wdcalculator/unmatch-order', methods=['POST'])
+@login_required
+def api_wdcalculator_unmatch_order():
+    """주문-견적 매칭(EstimateOrderMatch)을 해제하고 meta.wdc_estimate_id 링크를 제거한다.
+
+    견적(Estimate) 레코드 자체는 삭제하지 않는다.
+    """
+    wd_db = get_wdcalculator_db()
+    foms_db = get_db()
+    try:
+        data = request.get_json() or {}
+        estimate_id = data.get('estimate_id')
+        order_id = data.get('order_id')
+        if not order_id:
+            return jsonify({'success': False, 'message': '주문 ID가 필요합니다.'})
+        order = foms_db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'})
+        removed = 0
+        if estimate_id:
+            match = wd_db.query(EstimateOrderMatch).filter(
+                EstimateOrderMatch.estimate_id == estimate_id,
+                EstimateOrderMatch.order_id == order_id,
+            ).first()
+            if not match:
+                return jsonify({'success': False, 'message': '매칭된 견적을 찾을 수 없습니다.'})
+            wd_db.delete(match)
+            wd_db.commit()
+            removed = 1
+            try:
+                _clear_wdc_estimate_meta_link(foms_db, order, estimate_id)
+            except Exception as link_err:
+                print(f"[unmatch-order] meta.wdc_estimate_id 제거 실패(계속 진행): {link_err}")
+        else:
+            matches = wd_db.query(EstimateOrderMatch).filter(
+                EstimateOrderMatch.order_id == order_id
+            ).all()
+            for match in matches:
+                wd_db.delete(match)
+                removed += 1
+            wd_db.commit()
+            try:
+                _clear_wdc_estimate_meta_link(foms_db, order, None)
+            except Exception as link_err:
+                print(f"[unmatch-order] meta.wdc_estimate_id 제거 실패(계속 진행): {link_err}")
+        return jsonify({
+            'success': True,
+            'message': '견적 매칭이 해제되었습니다.',
+            'removed': removed,
+        })
+    except Exception as e:
+        wd_db.rollback()
+        foms_db.rollback()
+        return jsonify({'success': False, 'message': str(e)})
+
+
 @wdcalculator_bp.route('/api/orders/<int:order_id>/wdc-estimate-sync', methods=['POST'])
 @login_required
 def api_orders_wdc_estimate_sync(order_id):

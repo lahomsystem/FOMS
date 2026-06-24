@@ -329,12 +329,16 @@
     var prod = name ? _findProductByName(name) : null;
     var prevId = st.product_id;
     if (prod) {
-      st.product_id = Number(prod.id);
-      st.enabled = true;
-      if (prevId !== st.product_id) {
-        st.manual_override = false; // 새 제품 선택 → 자동계산 복귀
+      var newId = Number(prod.id);
+      // 다른 제품으로 바뀐 경우에만 자동계산 복귀(null→동일 제품 재해석은 수동 금액 유지)
+      if (prevId != null && prevId !== newId) {
+        st.manual_override = false;
         if (allowHandleFill) _autoFillHandle(row, prod);
+      } else if (prevId !== newId && allowHandleFill) {
+        _autoFillHandle(row, prod);
       }
+      st.product_id = newId;
+      st.enabled = true;
     } else {
       st.product_id = null;
       st.enabled = false;
@@ -528,6 +532,47 @@
     });
   }
 
+  /** 저장된 항목 price vs pricing.computed 불일치 → 수동 금액으로 복원. */
+  function _resolveInitialManualOverride(item, pricing) {
+    if (pricing && pricing.manual_override === true) return true;
+    var savedDigits = String((item && item.price) != null ? item.price : '').replace(/[^0-9]/g, '');
+    var savedPrice = savedDigits ? parseInt(savedDigits, 10) : 0;
+    if (!savedPrice) return false;
+    var computed = pricing && pricing.computed;
+    var computedTotal = computed && computed.final_price != null
+      ? Math.round(Number(computed.final_price) || 0)
+      : (computed && computed.total_price != null ? Math.round(Number(computed.total_price) || 0) : null);
+    return computedTotal != null && savedPrice !== computedTotal;
+  }
+
+  /** 최초 로드 시 저장 price와 자동계산 결과 1회 대조 → 수동 금액 복원. */
+  function _reconcileSavedPrice(row, finalPrice) {
+    var st = row.__erpPricing;
+    if (!st || st.manual_override || st._priceReconciled) return false;
+    st._priceReconciled = true;
+    var saved = Number(st.saved_item_price) || 0;
+    if (saved > 0 && saved !== finalPrice) {
+      st.manual_override = true;
+      return true;
+    }
+    return false;
+  }
+
+  function _setPriceInputValue(row, priceInput, value) {
+    if (!priceInput) return;
+    row.__erpPricingSkipPriceInput = true;
+    priceInput.value = String(value);
+    priceInput.dispatchEvent(new Event('input', { bubbles: true }));
+    row.__erpPricingSkipPriceInput = false;
+  }
+
+  function _manualPriceFromRow(row) {
+    var priceInput = row.querySelector('[data-erp="price"]');
+    if (!priceInput) return 0;
+    var digits = String(priceInput.value || '').replace(/[^0-9]/g, '');
+    return digits ? parseInt(digits, 10) : 0;
+  }
+
   /** 단일 권위: enabled+제품+폭>0+자동모드일 때만 금액 읽기전용 잠금 + 토글 노출. */
   function _applyPriceLockState(row) {
     var st = row.__erpPricing;
@@ -543,6 +588,8 @@
     var st = row.__erpPricing;
     st.manual_override = true;
     _applyPriceLockState(row);
+    var priceLabel = row.querySelector('.erp-calc-price-label');
+    if (priceLabel) priceLabel.textContent = '수동 입력';
     var priceInput = row.querySelector('[data-erp="price"]');
     if (priceInput) priceInput.focus();
   }
@@ -591,14 +638,19 @@
         total_price: finalPrice,
         final_price: finalPrice
       };
-      if (priceLabel) priceLabel.textContent = '자동계산 ' + finalPrice.toLocaleString() + '원';
+      if (_reconcileSavedPrice(row, finalPrice)) {
+        if (priceLabel) priceLabel.textContent = '수동 입력';
+        _applyPriceLockState(row);
+        return;
+      }
+      if (priceLabel) {
+        priceLabel.textContent = st.manual_override
+          ? '수동 입력'
+          : ('자동계산 ' + finalPrice.toLocaleString() + '원');
+      }
       var lock = _applyPriceLockState(row);
       if (lock) {
-        var priceInput = row.querySelector('[data-erp="price"]');
-        if (priceInput) {
-          priceInput.value = String(finalPrice);
-          priceInput.dispatchEvent(new Event('input', { bubbles: true }));
-        }
+        _setPriceInputValue(row, row.querySelector('[data-erp="price"]'), finalPrice);
       }
     } catch (e) {
       console.warn('[erp-spec-calc] 계산 실패', e);
@@ -622,6 +674,20 @@
     }
     var unlock = row.querySelector('.erp-calc-unlock-link');
     if (unlock) unlock.addEventListener('click', function (e) { e.preventDefault(); _toggleManual(row); });
+    var priceInput = row.querySelector('[data-erp="price"]');
+    if (priceInput) {
+      priceInput.addEventListener('input', function () {
+        if (row.__erpPricingSkipPriceInput) return;
+        var st = row.__erpPricing;
+        if (!st) return;
+        if (!st.manual_override) {
+          st.manual_override = true;
+          var priceLabel = row.querySelector('.erp-calc-price-label');
+          if (priceLabel) priceLabel.textContent = '수동 입력';
+          _applyPriceLockState(row);
+        }
+      });
+    }
   }
 
   // ----- 공개 API -----
@@ -631,12 +697,14 @@
       if (!row || row.dataset.erpCalcEnhanced === '1') return;
       row.dataset.erpCalcEnhanced = '1';
       var pricing = (item && item.pricing && typeof item.pricing === 'object') ? item.pricing : null;
+      var savedDigits = String((item && item.price) != null ? item.price : '').replace(/[^0-9]/g, '');
       row.__erpPricing = {
         enabled: pricing ? pricing.enabled !== false && !!pricing.product_id : false,
         product_id: pricing ? (pricing.product_id || null) : null,
         width_mm: pricing ? (Number(pricing.width_mm) || 0) : 0,
         option_rows: (pricing && Array.isArray(pricing.option_rows)) ? pricing.option_rows : [],
-        manual_override: false,
+        manual_override: _resolveInitialManualOverride(item, pricing),
+        saved_item_price: savedDigits ? parseInt(savedDigits, 10) : 0,
         computed: (pricing && pricing.computed) ? pricing.computed : null
       };
       _enhanceProductField(row);
@@ -655,6 +723,17 @@
       if (!window.ERP_SPEC_CALC_ENABLED) return;
       var st = row && row.__erpPricing;
       if (!st || !st.enabled || !st.product_id) return; // 레거시/직접입력 항목은 pricing 미첨부
+      var computed = st.computed ? Object.assign({}, st.computed) : null;
+      if (st.manual_override) {
+        var manualPrice = _manualPriceFromRow(row);
+        computed = computed || {};
+        computed.total_price = manualPrice;
+        computed.final_price = manualPrice;
+        if (manualPrice > 0) {
+          computed.base_price = manualPrice;
+          computed.additional_price = 0;
+        }
+      }
       obj.pricing = {
         enabled: true,
         product_id: st.product_id,
@@ -665,7 +744,8 @@
         }],
         option_rows: st.option_rows || [],
         coupon_value: 0,
-        computed: st.computed || null,
+        manual_override: !!st.manual_override,
+        computed: computed,
         source: 'erp_spec_calc',
         computed_at: new Date().toISOString()
       };
@@ -683,6 +763,15 @@
         var base = Number(c.base_price) || 0;
         var add = Number(c.additional_price) || 0;
         var total = Number(c.total_price != null ? c.total_price : (base + add)) || 0;
+        if (p.manual_override) {
+          var manualDigits = String(it.price != null ? it.price : '').replace(/[^0-9]/g, '');
+          var manualTotal = manualDigits ? parseInt(manualDigits, 10) : 0;
+          if (manualTotal > 0) {
+            total = manualTotal;
+            base = manualTotal;
+            add = 0;
+          }
+        }
         totalBase += base; totalAdd += add; totalPrice += total;
         estimates.push({
           productId: p.product_id,

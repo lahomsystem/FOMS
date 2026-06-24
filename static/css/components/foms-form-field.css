@@ -1165,4 +1165,10 @@ body.erp-mobile-v2-layout #erpAttachmentPreviewModal .erp-attachment-preview-act
     padding-left: var(--foms-space-2);
     padding-right: var(--foms-space-2);
   }
+  /* 계산기 탭: 매칭 해제/수정 버튼 터치 타깃(모바일·PC 공통 탭) */
+  #calculator .unmatch-estimate-from-order-btn,
+  #calculator .edit-estimate-from-order-btn {
+    min-height: 44px;
+    padding-inline: 12px;
+  }
 }

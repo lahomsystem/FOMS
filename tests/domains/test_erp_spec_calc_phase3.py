@@ -77,6 +77,16 @@ def test_spec_calc_price_lock_with_manual_override() -> None:
     assert "manual_override" in js
     assert "readOnly" in js
     assert "수동 금액으로 전환" in js
+    # 저장/복원: manual_override 플래그 + price≠computed 불일치 감지
+    assert "_resolveInitialManualOverride" in js
+    assert "_reconcileSavedPrice" in js
+    assert "saved_item_price" in js
+
+
+def test_spec_calc_manual_price_persisted_on_collect() -> None:
+    js = _read(SPEC_CALC_JS)
+    assert "_manualPriceFromRow" in js
+    assert "manual_override: !!st.manual_override" in js
 
 
 # ----- 코어 폼(erp-order-shared.js) 훅: 플래그 게이트, off=no-op -----
