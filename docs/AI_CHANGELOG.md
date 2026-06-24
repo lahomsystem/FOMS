@@ -4,6 +4,10 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-06-25 | 세션 자동 기록 | test_erp_order_shared_form_scripts.py, erp-order-shared.js, commit_msg.txt 외 2개 | f5c935be |
+| 2026-06-25 | 세션 자동 기록 | erp-order-shared.js, test_erp_order_shared_form_scripts.py, commit_msg.txt 외 2개 | f5c935be |
+| 2026-06-25 | 세션 자동 기록 | test_p1_mockup_structure.py, dashboard-control-tower.css, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-f5419b4b-4271-4794-9083-b3803b2145b6.png 외 2개 | 7c9f9b97 |
+| 2026-06-25 | 세션 자동 기록 | test_erp_spec_calc_phase3.py, erp-spec-calc.js, test_erp_wdc_estimate_sync.py 외 2개 | 7c9f9b97 |
 | 2026-06-24 | 세션 자동 기록 | test_erp_spec_calc_phase3.py, erp-spec-calc.js, test_erp_wdc_estimate_sync.py 외 2개 | ceb5d5b4 |
 | 2026-06-24 | 세션 자동 기록 | test_erp_spec_calc_phase3.py, erp_order_js.html, erp-order-shared.js 외 2개 | ceb5d5b4 |
 | 2026-06-24 | 세션 자동 기록 | commit_msg.txt, foms-form-field.css, test_erp_order_shared_form_scripts.py 외 2개 | ceb5d5b4 |
@@ -20,7 +24,3 @@
 | 2026-06-24 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-23f579d5-8763-42c1-a877-2f0b443cff71.png, test_erp_spec_calc_followup.py, erp_order_js.html 외 2개 | afa5ae24 |
 | 2026-06-24 | 세션 자동 기록 | test_erp_spec_calc_followup.py, erp_order_js.html, erp-spec-calc.js 외 2개 | 81ba90cf |
 | 2026-06-23 | 세션 자동 기록 | commit_msg.txt, test_erp_spec_calc_followup.py, erp_order_js.html 외 2개 | 81ba90cf |
-| 2026-06-23 | 세션 자동 기록 | test_erp_spec_calc_followup.py, erp_order_js.html, erp-spec-calc.css 외 2개 | 61d4cd64 |
-| 2026-06-23 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-3bab37b0-b2a5-44a4-9159-6eff07f8d4da.png, commit_msg.txt, test_erp_spec_calc_followup.py 외 2개 | 61d4cd64 |
-| 2026-06-23 | 세션 자동 기록 | commit_msg.txt, test_erp_spec_calc_followup.py, foms-form-field.css 외 2개 | 61d4cd64 |
-| 2026-06-23 | 세션 자동 기록 | commit_msg.txt, erp_order_js.html, test_erp_spec_calc_followup.py 외 2개 | 0b4eb2ad |

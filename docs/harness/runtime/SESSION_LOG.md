@@ -4,11 +4,17 @@
 
 ## 최근 세션
 
-### Session: 383ec3e5
+### Session: 43867baf
+- **시작**: 2026-06-25 08:10:46
+- **상태**: aborted
+- **편집 파일**: `tests/domains/test_erp_order_shared_form_scripts.py`, `static/js/orders/erp-order-shared.js`, `commit_msg.txt`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-f1c34b57-34f5-4243-878a-a6bac7eebd6f.png`, `tests/visual/test_p1_mockup_structure.py`, `static/css/contexts/orders/dashboard-control-tower.css`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-f5419b4b-4271-4794-9083-b3803b2145b6.png`, `tests/domains/test_erp_spec_calc_phase3.py`, `static/js/orders/erp-spec-calc.js`, `tests/domains/test_erp_wdc_estimate_sync.py`
+- **종료**: 2026-06-25 08:19:54
+
+ 383ec3e5
 - **시작**: 2026-06-24 18:56:38
-- **상태**: completed
+- **상태**: unknown
 - **편집 파일**: `tests/domains/test_erp_spec_calc_phase3.py`, `static/js/orders/erp-spec-calc.js`, `tests/domains/test_erp_wdc_estimate_sync.py`, `foms/api/wdcalculator/blueprint.py`, `templates/orders/partials/erp_order_js.html`, `static/js/orders/erp-order-shared.js`, `commit_msg.txt`, `static/css/components/foms-form-field.css`, `tests/domains/test_erp_order_shared_form_scripts.py`, `templates/orders/edit_order.html`
-- **종료**: 2026-06-24 19:17:16
+- **종료**: 2026-06-25 08:03:41
 
  ea1a860e
 - **시작**: 2026-06-24 16:12:56
@@ -951,3 +957,13 @@
 | 2026-06-24 19:14:42 | END (Claude Code) | 수정: (없음) |
 
 | 2026-06-24 19:17:16 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-24 19:27:24 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-25 08:09:55 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-25 08:15:01 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-25 08:16:47 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-25 08:19:54 | END (Claude Code) | 수정: (없음) |

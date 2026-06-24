@@ -3563,11 +3563,28 @@ function erpAppendConversionTextLine(text, label, value) {
     return text + `${label} : ${String(value).trim()}\n`;
 }
 
-function erpAppendConversionMoneyLine(text, label, amount) {
+function erpAppendConversionMoneyLine(text, label, amount, suffix) {
     const n = erpCoerceAmount(amount);
     if (n <= 0) return text;
-    return text + `${label} : ${erpFormatMoneyKRW(n)}\n`;
+    const tail = suffix ? String(suffix) : '';
+    return text + `${label} : ${erpFormatMoneyKRW(n)}${tail}\n`;
 }
+
+var _erpIsBalancePaymentConfirmed =
+    window._erpIsBalancePaymentConfirmed ||
+    function _erpIsBalancePaymentConfirmed() {
+        var btn = document.querySelector(
+            '.erp-payment-confirm-btn[data-payment-type="balance"]'
+        );
+        if (btn) {
+            if (btn.dataset.confirmed === '1') return true;
+            var icon = btn.querySelector('img.erp-custom-payment-icon');
+            if (icon && icon.classList.contains('erp-custom-payment-confirmed')) return true;
+        }
+        var pay = window.__erpLastStructuredData && window.__erpLastStructuredData.payment;
+        return _erpBoolConfirmed(pay && pay.balance_confirmed);
+    };
+window._erpIsBalancePaymentConfirmed = _erpIsBalancePaymentConfirmed;
 
 function erpSliceConversionTextForChannelPush(text) {
     const raw = String(text ?? '').trim();
@@ -3700,7 +3717,8 @@ function erpGenerateConversionText() {
     text = erpAppendConversionMoneyLine(text, '출고가', totals.items_total);
     text = erpAppendConversionMoneyLine(text, '예약금(선금)', totals.deposit_amount);
     text = erpAppendConversionMoneyLine(text, '할인', totals.discount_amount);
-    text = erpAppendConversionMoneyLine(text, '잔금', totals.final_amount);
+    const balanceSuffix = _erpIsBalancePaymentConfirmed() ? '(결제 완)' : '';
+    text = erpAppendConversionMoneyLine(text, '잔금', totals.final_amount, balanceSuffix);
     text = text.replace(/\n+$/, '');
 
     const textarea = document.getElementById('erp-conversion-text');

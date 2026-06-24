@@ -5,6 +5,20 @@
 
 ## 최근 파일 편집
 
+- `tests/domains/test_erp_order_shared_form_scripts.py` <- 1 edit(s), ~0 chars (2026-06-25 08:16:31)
+- `tests/domains/test_erp_order_shared_form_scripts.py` <- 1 edit(s), ~98 chars (2026-06-25 08:16:25)
+- `tests/domains/test_erp_order_shared_form_scripts.py` <- 1 edit(s), ~87 chars (2026-06-25 08:16:24)
+- `static/js/orders/erp-order-shared.js` <- 1 edit(s), ~163 chars (2026-06-25 08:14:39)
+- `tests/domains/test_erp_order_shared_form_scripts.py` <- 1 edit(s), ~428 chars (2026-06-25 08:14:37)
+- `static/js/orders/erp-order-shared.js` <- 3 edit(s), ~916 chars (2026-06-25 08:14:36)
+- `commit_msg.txt` <- 1 edit(s), ~143 chars (2026-06-25 08:14:09)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-f1c34b57-34f5-4243-878a-a6bac7eebd6f.png` <- 1 edit(s), ~0 chars (2026-06-25 08:13:07)
+- `tests/visual/test_p1_mockup_structure.py` <- 1 edit(s), ~113 chars (2026-06-25 08:08:10)
+- `static/css/contexts/orders/dashboard-control-tower.css` <- 1 edit(s), ~223 chars (2026-06-25 08:08:06)
+- `static/css/contexts/orders/dashboard-control-tower.css` <- 1 edit(s), ~195 chars (2026-06-25 08:08:04)
+- `static/css/contexts/orders/dashboard-control-tower.css` <- 1 edit(s), ~85 chars (2026-06-25 08:08:02)
+- `static/css/contexts/orders/dashboard-control-tower.css` <- 1 edit(s), ~46 chars (2026-06-25 08:08:01)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-f5419b4b-4271-4794-9083-b3803b2145b6.png` <- 1 edit(s), ~0 chars (2026-06-25 08:05:02)
 - `tests/domains/test_erp_spec_calc_phase3.py` <- 2 edit(s), ~2237 chars (2026-06-24 19:14:07)
 - `tests/domains/test_erp_spec_calc_phase3.py` <- 1 edit(s), ~174 chars (2026-06-24 19:11:49)
 - `static/js/orders/erp-spec-calc.js` <- 2 edit(s), ~225 chars (2026-06-24 19:11:42)
@@ -41,5 +55,3 @@
 - `static/js/orders/erp-spec-calc.js` <- 1 edit(s), ~70 chars (2026-06-24 18:41:28)
 - `static/js/orders/erp-spec-calc.js` <- 1 edit(s), ~518 chars (2026-06-24 18:41:27)
 - `static/js/orders/erp-spec-calc.js` <- 2 edit(s), ~248 chars (2026-06-24 18:41:25)
-- `static/js/orders/erp-spec-calc.js` <- 1 edit(s), ~1269 chars (2026-06-24 18:41:23)
-- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-56f14944-f597-454a-89c8-6a912a862a38.png` <- 1 edit(s), ~0 chars (2026-06-24 18:40:15)

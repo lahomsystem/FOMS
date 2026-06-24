@@ -505,13 +505,18 @@ def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
     conversion_block = text[conversion_start:conversion_end]
     assert "function erpHasConversionTextValue(value)" in text
     assert "function erpAppendConversionTextLine(text, label, value)" in text
-    assert "function erpAppendConversionMoneyLine(text, label, amount)" in text
+    assert "function erpAppendConversionMoneyLine(text, label, amount, suffix)" in text
     assert "erpAppendConversionTextLine(itemText, '추가 입력', extraInput)" in conversion_block
     assert "allExtraInputs" not in conversion_block
     assert "getVal('erp-manager')" in conversion_block
     assert "erpAppendConversionMoneyLine(text, '출고가', totals.items_total)" in conversion_block
     assert "erpAppendConversionMoneyLine(text, '예약금(선금)', totals.deposit_amount)" in conversion_block
-    assert "erpAppendConversionMoneyLine(text, '잔금', totals.final_amount)" in conversion_block
+    assert "_erpIsBalancePaymentConfirmed()" in conversion_block
+    assert "const balanceSuffix = _erpIsBalancePaymentConfirmed() ? '(결제 완)' : '';" in conversion_block
+    assert "erpAppendConversionMoneyLine(text, '잔금', totals.final_amount, balanceSuffix)" in conversion_block
+    assert "function _erpIsBalancePaymentConfirmed()" in text
+    assert 'data-payment-type="balance"' in text
+    assert "erp-custom-payment-confirmed" in text
     assert "visibleItemIndex += 1" in conversion_block
     assert "function erpReadScheduleTimeValue(selectId, inputId)" in text
     assert "erpReadScheduleTimeValue('erp-construction-time-select', 'erp-construction-time')" in conversion_block

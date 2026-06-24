@@ -4,21 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-06-17 14:56:32 | allow | `-` | `$paths = @( "$env:USERPROFILE\.cursor\skills", "$env:USERPROFILE\.cursor\skills-cursor", "$env:USERPROFILE\.claude\skills", "$env:USERPROFILE\.codex\skills", "$` |
-| 2026-06-17 14:56:58 | allow | `-` | `Get-ChildItem "$env:USERPROFILE\.cursor\skills\gstack-autoplan" | Select-Object Name, Length; Get-ChildItem "$env:USERPROFILE\.claude\skills\gstack-autoplan" | ` |
-| 2026-06-17 14:57:09 | allow | `-` | `$bash = "C:\Program Files\Git\bin\bash.exe"; & $bash -lc "grep -n 'cursor\|INSTALL_' /c/Users/USER/.claude/skills/gstack/setup | head -40"` |
-| 2026-06-17 14:57:38 | ask | `remove-item\s+.+-recurse.+-force` | `$cursorSkills = "$env:USERPROFILE\.cursor\skills" $removed = 0 Get-ChildItem $cursorSkills -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -li` |
-| 2026-06-17 14:57:52 | allow | `-` | `$bash = "C:\Program Files\Git\bin\bash.exe"; & $bash -lc 'cd /c/Users/USER/.claude/skills/gstack && touch browse/dist/browse browse/dist/browse.exe && ./setup -` |
-| 2026-06-17 14:58:16 | allow | `-` | `$paths = @("$env:USERPROFILE\.cursor\skills", "$env:USERPROFILE\.cursor\skills-cursor", "$env:USERPROFILE\.claude\skills", "$env:USERPROFILE\.codex\skills") $to` |
-| 2026-06-17 14:58:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " import re, os from pathlib import Path from collections import defaultdict roots =` |
-| 2026-06-17 14:58:27 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File tools/harness/cleanup_skill_duplicates.ps1 2>&1 | Select-Object -L` |
-| 2026-06-17 14:58:37 | ask | `remove-item\s+.+-recurse.+-force` | `$codexSkills = "$env:USERPROFILE\.codex\skills"; $removed = 0; Get-ChildItem $codexSkills -Directory | Where-Object { $_.Name -like 'gstack*' } | ForEach-Object` |
-| 2026-06-17 14:58:37 | allow | `-` | `python -c " import re, os from pathlib import Path from collections import defaultdict roots = [ Path(os.environ['USERPROFILE']) / '.cursor/skills', Path(os.env` |
-| 2026-06-17 14:58:45 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/harness/audit_skills.py 2>&1 | Select-String "Total duplicate|claude:|codex:|curs` |
-| 2026-06-17 14:58:45 | allow | `-` | `python -c " import re, os from pathlib import Path from collections import defaultdict roots = [ ('cursor-skills', Path(os.environ['USERPROFILE']) / '.cursor/sk` |
-| 2026-06-17 14:58:51 | allow | `-` | `Get-ChildItem "$env:USERPROFILE\.claude\skills" -Recurse -Filter "SKILL.md" | ForEach-Object { $t = Get-Content $_.FullName -TotalCount 5 -ErrorAction SilentlyC` |
-| 2026-06-17 14:58:58 | ask | `remove-item\s+.+-recurse.+-force` | `Remove-Item -Recurse -Force "$env:USERPROFILE\.claude\skills\_gstack-command" -ErrorAction SilentlyContinue; Remove-Item -Recurse -Force "$env:USERPROFILE\.code` |
-| 2026-06-17 14:58:59 | allow | `-` | `python -c " import re, os from pathlib import Path roots = [ Path(os.environ['USERPROFILE']) / '.cursor/skills', Path(os.environ['USERPROFILE']) / '.cursor/skil` |
 | 2026-06-17 15:10:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch -vv; git log --oneline -8` |
 | 2026-06-17 15:11:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin; git log --oneline origin/deploy -3; git log --oneline origin/production -3; ` |
 | 2026-06-17 15:11:12 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/perf/perf_scan.py --guard` |
@@ -304,3 +289,18 @@
 | 2026-06-24 19:20:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_spec_calc_phase3.py tests/domains/test_erp_wdc_estimat` |
 | 2026-06-24 19:20:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff static/js/orders/erp-spec-calc.js | Select-String "^\+|^\-" | Select-Object -First 60` |
 | 2026-06-24 19:21:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; git status -sb` |
+| 2026-06-24 19:26:33 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
+| 2026-06-24 19:27:03 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production; git ls-remote origin refs/heads/production refs/heads/deploy; git ` |
+| 2026-06-25 08:08:11 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/visual/test_p1_mockup_structure.py::test_p1_dashboard_tower_mobile_widt` |
+| 2026-06-25 08:14:02 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff; git diff --staged` |
+| 2026-06-25 08:14:02 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status` |
+| 2026-06-25 08:14:02 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log -5 --oneline; git branch --show-current` |
+| 2026-06-25 08:14:13 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add static/css/contexts/orders/dashboard-control-tower.css tests/visual/test_p1_mockup_str` |
+| 2026-06-25 08:14:18 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
+| 2026-06-25 08:14:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_order_shared_form_scripts.py::test_shared_erp_order_js` |
+| 2026-06-25 08:14:48 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff -- static/js/orders/erp-order-shared.js tests/domains/test_erp_order_shared_form_scri` |
+| 2026-06-25 08:14:51 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy; git status -sb` |
+| 2026-06-25 08:16:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_order_shared_form_scripts.py::test_shared_erp_order_js` |
+| 2026-06-25 08:20:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb; git log --oneline -3 deploy; git log --oneline -3 origin/deploy; git diff --st` |
+| 2026-06-25 08:20:26 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff static/js/orders/erp-order-shared.js tests/domains/test_erp_order_shared_form_scripts` |
+| 2026-06-25 08:20:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add -A; python -m pytest tests/domains/test_erp_order_shared_form_scripts.py -q -k "conver` |
