@@ -191,6 +191,7 @@ def test_push_manual_builds_image_and_video_files_and_dispatches(client, monkeyp
     assert captured["event_type"] == "manual"
     assert captured["raise_on_error"] is True
     assert captured["data"]["text"] == "발주방 변환 텍스트"
+    assert captured["data"]["pushed_by_name"] == "Channel Admin"
     assert len(captured["data"]["files"]) == 2
     assert captured["data"]["files"][0]["mime"] == "image/jpeg"
     assert captured["data"]["files"][1]["mime"] == "video/mp4"

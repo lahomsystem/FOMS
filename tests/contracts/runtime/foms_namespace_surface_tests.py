@@ -445,6 +445,7 @@ def test_namespaced_channel_client_shim_preserves_canonical_contract() -> None:
         "get_target_group_id",
         "get_attachment_category_for_status",
         "format_order_message",
+        "build_channel_bot_name",
         "send_group_message",
     ]
 

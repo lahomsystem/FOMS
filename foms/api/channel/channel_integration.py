@@ -9,7 +9,7 @@ import logging
 import os
 import traceback
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, g, jsonify, request
 from sqlalchemy.orm.attributes import flag_modified
 
 from db import get_db
@@ -143,6 +143,9 @@ def api_channel_push_manual():
                     'mime': _infer_mime(att.filename or '', att.file_type or 'image'),
                 })
 
+        current_user = getattr(g, "current_user", None)
+        pushed_by_name = current_user.name if current_user else None
+
         # DispatchService를 통해 전송 (CT-A-04)
         dispatch_data = {
             'order_id': order.id,
@@ -151,6 +154,7 @@ def api_channel_push_manual():
             'is_retry': bool(prev_push.get('pushed')),
             'files': files,
             'push_kind': push_kind,
+            'pushed_by_name': pushed_by_name,
         }
 
         result = dispatch_order_event(

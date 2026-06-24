@@ -50,3 +50,27 @@ def test_dispatch_order_event_applies_attachment_policy_before_send(monkeypatch)
     assert result == {"success": True, "message_id": "msg-1"}
     assert captured["group_id"] == "group-1"
     assert captured["files"] == files[:10]
+    assert captured["bot_name"] == "FOMS"
+
+
+def test_dispatch_order_event_uses_pushed_by_name_for_bot_name(monkeypatch) -> None:
+    captured = {}
+
+    monkeypatch.setattr(channel_dispatch, "get_routing_group_id", lambda event_type, data: "group-1")
+    monkeypatch.setattr(channel_dispatch, "build_message_template", lambda event_type, data: "body")
+    monkeypatch.setattr(channel_dispatch, "build_message_blocks", lambda event_type, data: [])
+
+    def _fake_send_group_message(**kwargs):
+        captured.update(kwargs)
+        return {"success": True, "message_id": "msg-1"}
+
+    monkeypatch.setattr(channel_dispatch, "send_group_message", _fake_send_group_message)
+
+    result = channel_dispatch.dispatch_order_event(
+        "manual",
+        {"text": "hello", "pushed_by_name": "강민경"},
+        raise_on_error=True,
+    )
+
+    assert result == {"success": True, "message_id": "msg-1"}
+    assert captured["bot_name"] == "FOMS강민경"

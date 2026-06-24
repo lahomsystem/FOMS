@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict
 
-from foms.services.channel_client import send_group_message
+from foms.services.channel_client import build_channel_bot_name, send_group_message
 from foms.services.channel_policy import (
     apply_attachment_policy,
     build_message_blocks,
@@ -24,7 +24,8 @@ def dispatch_order_event(event_type: str, data: Dict[str, Any], raise_on_error: 
 
     Args:
         event_type: Must be ``manual`` (ERP 푸쉬 버튼).
-        data: Order id, customer name, conversion text, optional attachment files.
+        data: Order id, customer name, conversion text, optional attachment files,
+            optional ``pushed_by_name`` (FOMS login display name for botName).
         raise_on_error: Propagate ChannelTalk API failures when True.
 
     Returns:
@@ -49,7 +50,7 @@ def dispatch_order_event(event_type: str, data: Dict[str, Any], raise_on_error: 
             plain_text=plain_text,
             blocks=blocks,
             files=files,
-            bot_name="FOMS",
+            bot_name=build_channel_bot_name(data.get("pushed_by_name")),
             raise_on_error=raise_on_error,
         )
     except Exception as exc:

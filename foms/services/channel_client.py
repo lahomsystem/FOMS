@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import time
 from threading import Lock
 from typing import Any
@@ -33,8 +34,12 @@ __all__ = [
     "get_target_group_id",
     "get_attachment_category_for_status",
     "format_order_message",
+    "build_channel_bot_name",
     "send_group_message",
 ]
+
+_BOT_NAME_PREFIX = "FOMS"
+_BOT_NAME_MAX_LEN = 40
 
 # Token cache: {channel_id: (access_token, expires_at_unix_ts)}
 _token_lock = Lock()
@@ -128,6 +133,23 @@ def format_order_message(
         parts.append(f"{FOMS_BASE_URL}/erp/orders/{order_id}")
 
     return "\n".join(parts)
+
+
+def build_channel_bot_name(pushed_by_name: str | None = None) -> str:
+    """
+    Build the ChannelTalk bot display name for manual ERP push.
+
+    Args:
+        pushed_by_name: FOMS login user display name (``User.name``).
+
+    Returns:
+        ``FOMS{name}`` when name is present, otherwise ``FOMS``.
+    """
+    name = re.sub(r"[\x00-\x1f\x7f]", "", (pushed_by_name or "").strip())
+    if not name:
+        return _BOT_NAME_PREFIX
+    bot_name = f"{_BOT_NAME_PREFIX}{name}"
+    return bot_name[:_BOT_NAME_MAX_LEN]
 
 
 def _issue_token() -> tuple[str, float]:

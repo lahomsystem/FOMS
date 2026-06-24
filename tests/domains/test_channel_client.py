@@ -30,6 +30,19 @@ def test_format_order_message_uses_canonical_short_link_import(monkeypatch):
     assert "https://example.com/w/short-123" in message
 
 
+def test_build_channel_bot_name_uses_login_display_name() -> None:
+    assert channel_client.build_channel_bot_name("강민경") == "FOMS강민경"
+
+
+def test_build_channel_bot_name_falls_back_to_foms_when_name_missing() -> None:
+    assert channel_client.build_channel_bot_name(None) == "FOMS"
+    assert channel_client.build_channel_bot_name("   ") == "FOMS"
+
+
+def test_build_channel_bot_name_strips_control_characters() -> None:
+    assert channel_client.build_channel_bot_name("강\x00민경") == "FOMS강민경"
+
+
 def test_get_access_token_reuses_cached_token(monkeypatch):
     issued = []
 
