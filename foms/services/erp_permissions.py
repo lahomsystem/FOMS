@@ -12,6 +12,13 @@ from flask import jsonify, session
 from foms.web.auth import get_user_by_id
 
 ERP_EDIT_ALLOWED_TEAMS = ("CS", "SALES")
+_MINE_SCOPE_BY_TEAM = {
+    "DRAWING": "drawing",
+    "SALES": "sales",
+    "MEASURE": "sales",
+    "CS": "sales",
+    "CONSTRUCTION": "construction",
+}
 
 # LIKE 와일드카드 이스케이프 패턴 (PostgreSQL escape char = '\')
 _LIKE_ESCAPE_RE = re.compile(r"([%_\\])")
@@ -58,6 +65,123 @@ def _json_like_condition(expr: Any, value: str, *, dialect_name: str) -> Any:
     return or_(*conditions) if len(conditions) > 1 else conditions[0]
 
 
+def resolve_mine_scope_for_user(user: Any) -> str:
+    """Map the user's operational team to the matching ERP assignment domain."""
+    if (getattr(user, "role", None) or "").strip().upper() == "ADMIN":
+        return "all"
+    team = (getattr(user, "team", None) or "").strip().upper()
+    return _MINE_SCOPE_BY_TEAM.get(team, "all")
+
+
+def _normalized_identity_values(user: Any) -> set[str]:
+    values = set()
+    for raw in (getattr(user, "name", None), getattr(user, "username", None)):
+        value = str(raw or "").strip().lower()
+        if value:
+            values.add(value)
+    return values
+
+
+def _normalized_int_values(values: Any) -> set[int]:
+    result = set()
+    raw_values = values if isinstance(values, (list, tuple, set)) else [values]
+    for raw in raw_values:
+        if raw is None:
+            continue
+        try:
+            result.add(int(raw))
+        except (TypeError, ValueError):
+            continue
+    return result
+
+
+def _assignment_names(values: Any) -> set[str]:
+    names = set()
+    raw_values = values if isinstance(values, (list, tuple, set)) else [values]
+    for raw in raw_values:
+        if raw is None:
+            continue
+        if isinstance(raw, dict):
+            candidates = (raw.get("name"), raw.get("username"))
+        else:
+            candidates = (raw,)
+        for candidate in candidates:
+            value = str(candidate or "").strip().lower()
+            if value:
+                names.add(value)
+    return names
+
+
+def _assignment_ids(values: Any) -> set[int]:
+    ids = set()
+    raw_values = values if isinstance(values, (list, tuple, set)) else [values]
+    for raw in raw_values:
+        if not isinstance(raw, dict):
+            continue
+        ids.update(_normalized_int_values(raw.get("user_id", raw.get("id"))))
+    return ids
+
+
+def is_order_related_to_user(order: Any, user: Any, *, scope: str | None = None) -> bool:
+    """Return whether an order is explicitly assigned to the user in the requested domain."""
+    if not order or not user:
+        return False
+
+    identities = _normalized_identity_values(user)
+    try:
+        user_id = int(getattr(user, "id", None))
+    except (TypeError, ValueError):
+        user_id = None
+    if not identities and user_id is None:
+        return False
+
+    structured_data = getattr(order, "structured_data", None)
+    sd = structured_data if isinstance(structured_data, dict) else {}
+    assignments = sd.get("assignments") if isinstance(sd.get("assignments"), dict) else {}
+    parties = sd.get("parties") if isinstance(sd.get("parties"), dict) else {}
+    workflow = sd.get("workflow") if isinstance(sd.get("workflow"), dict) else {}
+    shipment = sd.get("shipment") if isinstance(sd.get("shipment"), dict) else {}
+    manager = parties.get("manager") if isinstance(parties.get("manager"), dict) else {}
+    current_quest = (
+        workflow.get("current_quest")
+        if isinstance(workflow.get("current_quest"), dict)
+        else {}
+    )
+
+    manager_names = {
+        str(getattr(order, "manager_name", None) or "").strip().lower(),
+        str(manager.get("name") or "").strip().lower(),
+        str(current_quest.get("owner_person") or "").strip().lower(),
+    }
+    manager_names.discard("")
+
+    sales_ids = _normalized_int_values(assignments.get("sales_assignee_user_ids"))
+    nested_drawing_assignees = assignments.get("drawing_assignees")
+    top_level_drawing_assignees = sd.get("drawing_assignees")
+    drawing_ids = _normalized_int_values(assignments.get("drawing_assignee_user_ids"))
+    drawing_ids.update(_assignment_ids(nested_drawing_assignees))
+    drawing_ids.update(_assignment_ids(top_level_drawing_assignees))
+    drawing_names = _assignment_names(nested_drawing_assignees)
+    drawing_names.update(_assignment_names(top_level_drawing_assignees))
+    construction_names = _assignment_names(shipment.get("construction_workers"))
+
+    manager_match = bool(identities & manager_names)
+    sales_match = manager_match or (user_id is not None and user_id in sales_ids)
+    drawing_match = bool(identities & drawing_names) or (
+        user_id is not None and user_id in drawing_ids
+    )
+    construction_match = manager_match or bool(identities & construction_names)
+
+    selected_scope = (scope or resolve_mine_scope_for_user(user)).strip().lower()
+    matches = {
+        "sales": sales_match,
+        "drawing": drawing_match,
+        "construction": construction_match,
+        "all": sales_match or drawing_match or construction_match,
+    }
+    return matches.get(selected_scope, matches["all"])
+
+
 def build_mine_sql_filter(user: Any, scope: str = "all") -> list[Any]:
     """Return SQLAlchemy OR conditions for the user's ERP ownership filter.
 
@@ -68,7 +192,8 @@ def build_mine_sql_filter(user: Any, scope: str = "all") -> list[Any]:
             ``"sales"`` — 영업 담당(소유자=manager/parties.manager/quest.owner_person
                 + assignments.sales_assignee_user_ids).
             ``"construction"`` — 시공 담당(소유자=manager + shipment.construction_workers).
-            ``"drawing"`` — 도면 담당(assignments.drawing_assignees + drawing_assignee_user_ids).
+            ``"drawing"`` — 도면 담당(assignments/top-level drawing_assignees
+                + drawing_assignee_user_ids).
                 도면담당은 보통 영업(manager)과 다른 사람이라 manager는 제외한다.
 
     영업·시공은 담당자가 주문 manager로 기록되므로 소유자(manager) 신호를 포함한다.
@@ -98,6 +223,7 @@ def build_mine_sql_filter(user: Any, scope: str = "all") -> list[Any]:
         manager_conds.append(_json_like_condition(Order.structured_data["workflow"]["current_quest"]["owner_person"], value, dialect_name=dialect_name))
         construction_conds.append(_json_like_condition(Order.structured_data["shipment"]["construction_workers"], value, dialect_name=dialect_name))
         drawing_conds.append(_json_like_condition(Order.structured_data["assignments"]["drawing_assignees"], value, dialect_name=dialect_name))
+        drawing_conds.append(cast(Order.structured_data, String).ilike(f"%{_escape_like(value)}%", escape="\\"))  # perf-ok: ix_orders_structured_data_text_trgm
 
     if u_name:
         _add_name_group(u_name)

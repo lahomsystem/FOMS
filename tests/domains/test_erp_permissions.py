@@ -25,7 +25,7 @@ def test_build_mine_sql_filter_escapes_like_pattern_and_adds_all_condition_group
 
     conds = erp_permissions.build_mine_sql_filter(user)
 
-    assert len(conds) == 12
+    assert len(conds) == 14
     compiled = str(
         conds[0].compile(
             dialect=postgresql.dialect(),
@@ -41,7 +41,74 @@ def test_build_mine_sql_filter_skips_duplicate_username_match_group() -> None:
 
     conds = erp_permissions.build_mine_sql_filter(user)
 
-    assert len(conds) == 5
+    assert len(conds) == 6
+
+
+def test_resolve_mine_scope_for_user_uses_team_role() -> None:
+    assert (
+        erp_permissions.resolve_mine_scope_for_user(
+            SimpleNamespace(role="ADMIN", team="DRAWING")
+        )
+        == "all"
+    )
+    assert erp_permissions.resolve_mine_scope_for_user(SimpleNamespace(team="DRAWING")) == "drawing"
+    assert erp_permissions.resolve_mine_scope_for_user(SimpleNamespace(team="SALES")) == "sales"
+    assert erp_permissions.resolve_mine_scope_for_user(SimpleNamespace(team="MEASURE")) == "sales"
+    assert erp_permissions.resolve_mine_scope_for_user(SimpleNamespace(team="CONSTRUCTION")) == "construction"
+    assert erp_permissions.resolve_mine_scope_for_user(SimpleNamespace(team=None)) == "all"
+
+
+def test_is_order_related_to_user_uses_exact_role_assignments() -> None:
+    user = SimpleNamespace(id=41, name="이시영", username="leeshiyoung", team="DRAWING")
+    order = SimpleNamespace(
+        manager_name="다른 영업",
+        structured_data={
+            "parties": {"manager": {"name": "다른 영업"}},
+            "workflow": {"current_quest": {"owner_person": "다른 담당"}},
+            "assignments": {
+                "sales_assignee_user_ids": [77],
+                "drawing_assignee_user_ids": [41],
+            },
+            "drawing_assignees": [{"user_id": 41, "name": "이시영"}],
+            "shipment": {"construction_workers": ["다른 시공"]},
+        },
+    )
+
+    assert erp_permissions.is_order_related_to_user(order, user, scope="drawing")
+    assert not erp_permissions.is_order_related_to_user(order, user, scope="sales")
+    assert not erp_permissions.is_order_related_to_user(order, user, scope="construction")
+
+
+def test_is_order_related_to_user_supports_legacy_drawing_assignee_id() -> None:
+    user = SimpleNamespace(id=41, name="변경된 이름", username="leeshiyoung", team="DRAWING")
+    order = SimpleNamespace(
+        manager_name="다른 영업",
+        structured_data={
+            "assignments": {},
+            "drawing_assignees": [{"id": 41, "name": "이전 이름"}],
+        },
+    )
+
+    assert erp_permissions.is_order_related_to_user(order, user, scope="drawing")
+
+
+def test_is_order_related_to_user_does_not_use_admin_permission_as_ownership() -> None:
+    admin = SimpleNamespace(id=5, name="이시영", username="admin", role="ADMIN", team=None)
+    unrelated = SimpleNamespace(
+        manager_name="안종훈",
+        structured_data={
+            "parties": {"manager": {"name": "안종훈"}},
+            "workflow": {"current_quest": {"owner_person": "최상용"}},
+            "assignments": {
+                "sales_assignee_user_ids": [7],
+                "drawing_assignee_user_ids": [8],
+            },
+            "drawing_assignees": [{"user_id": 8, "name": "최상용"}],
+            "shipment": {"construction_workers": ["김시공"]},
+        },
+    )
+
+    assert not erp_permissions.is_order_related_to_user(unrelated, admin)
 
 
 def test_erp_edit_required_returns_401_when_user_lookup_fails(monkeypatch) -> None:

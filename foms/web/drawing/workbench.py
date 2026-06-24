@@ -2,11 +2,18 @@
 from typing import Any, Mapping
 
 from flask import Blueprint, make_response, render_template, request, url_for, redirect, flash, g
+from sqlalchemy import or_
+
 from db import get_db
 from models import Order, User, OrderAttachment
 from foms.web.auth import login_required
 from foms.services.common.erp_mine_filter import erp_mine_only_from_request
-from foms.services.erp_permissions import can_edit_erp
+from foms.services.erp_permissions import (
+    build_mine_sql_filter,
+    can_edit_erp,
+    is_order_related_to_user,
+    resolve_mine_scope_for_user,
+)
 from foms.services.erp_policy import (
     STAGE_NAME_TO_CODE,
     get_assignee_ids,
@@ -21,7 +28,6 @@ from foms.services.erp_display import (
     _drawing_status_label,
     _drawing_next_action_text,
 )
-from foms.services.erp_shipment_settings import is_order_mine_for_user
 from foms.services.erp_product_items import build_product_items_for_order
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
 from foms.services.request_utils import get_search_query_arg
@@ -174,19 +180,25 @@ def erp_drawing_workbench_dashboard():
     sort_by = (request.args.get('sort') or '').strip().lower()
     page = max(1, int(request.args.get('page') or '1'))
     per_page = 25
+    mine_scope = resolve_mine_scope_for_user(current_user)
     mobile_v2_active = is_enabled_for_user(
         "ERP_MOBILE_V2_ENABLED",
         current_user.id if current_user else None,
         cohort_key="FOMS_V3_SHELL_COHORT",
     )
 
-    orders = (
+    orders_query = (
         db.query(Order)
         .filter(Order.active_filter(), Order.is_erp_order.is_(True))
-        .order_by(Order.created_at.desc())
-        .limit(500)
-        .all()
     )
+    if mine_only:
+        mine_conditions = build_mine_sql_filter(current_user, scope=mine_scope)
+        orders_query = (
+            orders_query.filter(or_(*mine_conditions))
+            if mine_conditions
+            else orders_query.filter(Order.id == -1)
+        )
+    orders = orders_query.order_by(Order.created_at.desc()).limit(500).all()
 
     rows = []
     for o in orders:
@@ -218,6 +230,8 @@ def erp_drawing_workbench_dashboard():
         has_assignee = bool(draw_assignee_ids)
         user_id = current_user.id if current_user else None
         is_drawing_assignee = bool(user_id and user_id in draw_assignee_ids)
+        is_sales_owner = is_order_related_to_user(o, current_user, scope='sales')
+        include_for_mine = is_order_related_to_user(o, current_user, scope=mine_scope)
         can_sales = _can_modify_sales_domain(current_user, o, sd, False, None)
         can_transfer_row = bool(
             has_assignee
@@ -243,7 +257,7 @@ def erp_drawing_workbench_dashboard():
             primary_action = {'label': '작업 열기', 'icon': 'fa-external-link-alt'}
         my_todo = (
             (drawing_status in ('PENDING', 'RETURNED') and is_drawing_assignee)
-            or (drawing_status == 'TRANSFERRED' and can_sales)
+            or (drawing_status == 'TRANSFERRED' and is_sales_owner)
         )
 
         unchecked_requests = 0
@@ -305,7 +319,7 @@ def erp_drawing_workbench_dashboard():
             'due_today': due_today,
             'unread_count': unchecked_requests,
             'my_todo': my_todo,
-            'include_for_mine': my_todo or is_order_mine_for_user(o, current_user),
+            'include_for_mine': include_for_mine,
             'search_hay': search_hay,
         })
 

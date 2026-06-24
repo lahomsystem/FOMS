@@ -5,6 +5,7 @@ from datetime import date
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
 from werkzeug.security import generate_password_hash
 
 from db import db_session
@@ -253,6 +254,65 @@ def test_drawing_workbench_mobile_single_list_my_first(client, monkeypatch):
     # 목업 프레임 A: my_todo 우선정렬 단일 리스트에 '내 차례/상대 차례' 그룹 헤더를 얹는다.
     assert "foms-drawing-queue__group" in body
     assert ("내 차례" in body) or ("상대 차례" in body)
+
+
+@pytest.mark.parametrize("mobile_v2_active", [False, True])
+def test_drawing_workbench_mine_filter_excludes_unrelated_orders_for_admin(
+    client,
+    monkeypatch,
+    mobile_v2_active,
+):
+    """PC/모바일 모두 ADMIN 작업 권한을 mine 소유권으로 오판하지 않는다."""
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true" if mobile_v2_active else "false")
+    user = _login_drawing_admin(client)
+    if mobile_v2_active:
+        monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+    _drawing_order(
+        {
+            "parties": {
+                "customer": {"name": "내 도면 주문"},
+                "manager": {"name": "다른 영업"},
+            },
+            "drawing": {"status": "TRANSFERRED"},
+            "drawing_status": "TRANSFERRED",
+            "assignments": {"drawing_assignee_user_ids": [user.id]},
+            "drawing_assignees": [{"id": user.id, "name": user.name}],
+        }
+    )
+    _drawing_order(
+        {
+            "parties": {
+                "customer": {"name": "내 영업 주문"},
+                "manager": {"name": user.name},
+            },
+            "drawing": {"status": "TRANSFERRED"},
+            "drawing_status": "TRANSFERRED",
+            "assignments": {"drawing_assignee_user_ids": [user.id + 100]},
+            "drawing_assignees": [{"id": user.id + 100, "name": "다른 도면"}],
+        }
+    )
+    _drawing_order(
+        {
+            "parties": {
+                "customer": {"name": "타인 도면 주문"},
+                "manager": {"name": "안종훈"},
+            },
+            "drawing": {"status": "TRANSFERRED"},
+            "drawing_status": "TRANSFERRED",
+            "assignments": {"drawing_assignee_user_ids": [user.id + 999]},
+            "drawing_assignees": [{"id": user.id + 999, "name": "최상용"}],
+        }
+    )
+
+    response = client.get("/erp/drawing-workbench?mine=1")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    expected_mode = "true" if mobile_v2_active else "false"
+    assert f'data-erp-mobile-v2="{expected_mode}"' in body
+    assert "내 도면 주문" in body
+    assert "내 영업 주문" in body
+    assert "타인 도면 주문" not in body
 
 
 def test_drawing_workbench_mobile_numbered_pagination(client, monkeypatch):
