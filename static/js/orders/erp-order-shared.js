@@ -302,6 +302,15 @@ var toggleOrdererUI =
     };
 window.toggleOrdererUI = toggleOrdererUI;
 
+var erpRefreshSpecCalcForOrderer =
+    window.erpRefreshSpecCalcForOrderer ||
+    function erpRefreshSpecCalcForOrderer() {
+        if (window.ErpSpecCalc && typeof window.ErpSpecCalc.refreshForOrderer === "function") {
+            window.ErpSpecCalc.refreshForOrderer(document);
+        }
+    };
+window.erpRefreshSpecCalcForOrderer = erpRefreshSpecCalcForOrderer;
+
 function erpGetRegionalConstructionType() {
     const selectEl = document.getElementById('erp-regional-construction-type');
     return (selectEl?.value || '').trim();
@@ -329,6 +338,7 @@ function erpSyncRegionalConstructionTypeVisibility(options = {}) {
 var syncWorkflowStageByOrderer =
     window.syncWorkflowStageByOrderer ||
     function syncWorkflowStageByOrderer() {
+        erpRefreshSpecCalcForOrderer();
         var orderer = (typeof getOrdererValue === "function" ? getOrdererValue() : "").trim();
         if (orderer === "라홈") return;
         var stageEl = document.getElementById("erp-workflow-stage");

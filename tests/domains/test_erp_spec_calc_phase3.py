@@ -8,6 +8,9 @@ DB 비의존 정적 계약 + context-processor 플래그(기본 on) 동작을 �
 
 from __future__ import annotations
 
+import json
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -41,7 +44,7 @@ def test_spec_calc_module_is_flag_gated_and_idempotent() -> None:
     # 단일 바인딩 가드(G4)
     assert "window.__erpSpecCalcBound" in js
     # 공개 메서드는 플래그 off면 즉시 반환(무영향)
-    assert js.count("if (!window.ERP_SPEC_CALC_ENABLED) return;") >= 2
+    assert js.count("!window.ERP_SPEC_CALC_ENABLED") >= 3
     # 항목 행 재강화 방지 가드
     assert "erpCalcEnhanced" in js
 
@@ -86,7 +89,82 @@ def test_spec_calc_price_lock_with_manual_override() -> None:
 def test_spec_calc_manual_price_persisted_on_collect() -> None:
     js = _read(SPEC_CALC_JS)
     assert "_manualPriceFromRow" in js
+    assert "_rowPriceDiffersFromComputed" in js
     assert "manual_override: !!st.manual_override" in js
+
+
+@pytest.mark.skipif(not shutil.which("node"), reason="node not on PATH")
+def test_spec_calc_collect_converts_price_mismatch_to_manual_override(tmp_path: Path) -> None:
+    """771000 수동 금액이 736000 자동계산 스냅샷을 덮어써야 한다."""
+    runner = tmp_path / "erp_spec_calc_manual_collect.js"
+    runner.write_text(
+        f"""
+const assert = require("assert");
+const fs = require("fs");
+const vm = require("vm");
+
+global.window = {{ ERP_SPEC_CALC_ENABLED: true }};
+global.Event = function Event(name, opts) {{ this.name = name; this.opts = opts || {{}}; }};
+global.document = {{
+  readyState: "loading",
+  addEventListener: function () {{}},
+  querySelector: function () {{ return null; }},
+  querySelectorAll: function () {{ return []; }},
+  createElement: function () {{
+    return {{
+      setAttribute: function () {{}},
+      addEventListener: function () {{}}
+    }};
+  }},
+  getElementById: function (id) {{
+    if (id === "erp-orderer-select") return {{ value: "라홈" }};
+    return null;
+  }},
+  head: {{ appendChild: function () {{}} }}
+}};
+
+vm.runInThisContext(fs.readFileSync({json.dumps(str(SPEC_CALC_JS))}, "utf8"));
+
+const priceInput = {{ value: "771000" }};
+const row = {{
+  __erpPricing: {{
+    enabled: true,
+    product_id: 14,
+    width_mm: 1840,
+    option_rows: [],
+    manual_override: false,
+    computed: {{
+      base_price: 736000,
+      additional_price: 0,
+      total_price: 736000,
+      final_price: 736000
+    }}
+  }},
+  querySelector: function (selector) {{
+    if (selector === '[data-erp="price"]') return priceInput;
+    return null;
+  }}
+}};
+
+const obj = {{ price: 771000 }};
+window.ErpSpecCalc.collectPricing(row, obj);
+
+assert.strictEqual(obj.pricing.manual_override, true);
+assert.strictEqual(obj.pricing.computed.base_price, 771000);
+assert.strictEqual(obj.pricing.computed.additional_price, 0);
+assert.strictEqual(obj.pricing.computed.total_price, 771000);
+assert.strictEqual(obj.pricing.computed.final_price, 771000);
+""",
+        encoding="utf-8",
+    )
+    completed = subprocess.run(
+        ["node", str(runner)],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
 
 
 # ----- 코어 폼(erp-order-shared.js) 훅: 플래그 게이트, off=no-op -----
@@ -97,18 +175,34 @@ def test_shared_form_has_flag_gated_enhance_and_collect_hooks() -> None:
     assert "ErpSpecCalc.collectPricing(row, obj)" in js
 
 
-# ----- Phase 4: 저장 dual-write/자동매칭 -----
-def test_spec_calc_module_builds_estimate_data_and_syncs() -> None:
+def test_spec_calc_runs_only_for_lahom_orderer() -> None:
+    js = _read(SPEC_CALC_JS)
+    shared_js = _read(SHARED_JS)
+
+    assert "_isLahomOrderer" in js
+    assert "document.getElementById('erp-orderer-direct')" in js
+    assert "String(ordererName || '') === '라홈'" in js
+    assert "if (!window.ERP_SPEC_CALC_ENABLED || !_isLahomOrderer()) return;" in js
+    assert "자동 WDC 매칭은 비활성화" in js
+    assert "window.ErpSpecCalc.refreshForOrderer(document)" in shared_js
+    assert "_rememberCalcOwnedPrice" in js
+    assert "_restoreCalcOwnedPrice" in js
+    assert "var savedValue = (item && item.price) != null ? item.price" in js
+    assert "manual_override: pricing ? _resolveInitialManualOverride(item, pricing) : !!savedDigits" in js
+    assert "if (row.__erpPricing) {\n          _recalc(row);" in js
+
+
+# ----- Phase 4: 저장 후 자동매칭 금지 -----
+def test_spec_calc_module_builds_estimate_data_but_does_not_auto_sync() -> None:
     js = _read(SPEC_CALC_JS)
     assert "buildEstimateData" in js
     assert "syncEstimate" in js
     # WDC 표준 estimate_data 키(견적서 렌더 호환)
     assert "totalBasePrice" in js
     assert "estimates" in js
-    # 자동매칭 엔드포인트 호출
-    assert "/wdc-estimate-sync" in js
-    # estimate_id 라운드트립(meta 반영 → 다음 저장은 upsert)
-    assert "wdc_estimate_id" in js
+    # 자동 매칭은 금지: syncEstimate는 서버 동기화/매칭 API를 호출하지 않는다.
+    assert "/wdc-estimate-sync" not in js
+    assert "return Promise.resolve(null);" in js
 
 
 def test_shared_form_calls_sync_after_save_success() -> None:

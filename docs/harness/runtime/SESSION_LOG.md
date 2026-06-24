@@ -4,13 +4,19 @@
 
 ## 최근 세션
 
-### Session: 491a46fa
-- **시작**: 2026-06-24 09:13:12
+### Session: 383ec3e5
+- **시작**: 2026-06-24 18:56:38
 - **상태**: completed
-- **편집 파일**: `templates/wdcalculator/partials/wdcalculator_scripts_config.html`, `tests/support/wdcalculator_sidebar_delete_contract_node_checks.js`, `tests/contracts/wdcalculator/test_estimate_lifecycle_contracts.py`, `static/js/wdcalculator/estimate-lifecycle.js`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-23f579d5-8763-42c1-a877-2f0b443cff71.png`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-6ba79885-1e05-41b4-aa08-fcec4a31637a.png`, `tests/domains/test_erp_spec_calc_followup.py`, `templates/orders/partials/erp_order_js.html`, `static/js/orders/erp-spec-calc.js`, `tests/visual/test_p1_mockup_structure.py`
-- **종료**: 2026-06-24 10:26:07
+- **편집 파일**: `tests/domains/test_erp_spec_calc_phase3.py`, `static/js/orders/erp-spec-calc.js`, `tests/domains/test_erp_wdc_estimate_sync.py`, `foms/api/wdcalculator/blueprint.py`, `templates/orders/partials/erp_order_js.html`, `static/js/orders/erp-order-shared.js`, `commit_msg.txt`, `static/css/components/foms-form-field.css`, `tests/domains/test_erp_order_shared_form_scripts.py`, `templates/orders/edit_order.html`
+- **종료**: 2026-06-24 19:17:16
 
-### Session: a1e98f3a
+ ea1a860e
+- **시작**: 2026-06-24 16:12:56
+- **상태**: unknown
+- **편집 파일**: `docs/harness/INFRASTRUCTURE_CATALOG.md`
+- **종료**: 2026-06-24 16:24:54
+
+ a1e98f3a
 - **시작**: 2026-06-23 09:03:35
 - **상태**: completed
 - **편집 파일**: `tests/domains/test_erp_spec_calc_followup.py`, `templates/orders/partials/erp_order_js.html`, `static/js/orders/erp-spec-calc.js`, `tests/visual/test_p1_mockup_structure.py`, `tests/domains/test_erp_order_shared_form_scripts.py`, `templates/partials/shared/layout_head.html`, `templates/orders/wizard/wizard_shell.html`, `static/css/foundation/foms-mobile-surfaces.css`, `static/css/components/foms-form-field.css`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-9133754e-f167-4724-a30c-0bb2ebf87a5f.png`
@@ -921,3 +927,27 @@
 | 2026-06-24 09:57:36 | END (Claude Code) | 수정: (없음) |
 
 | 2026-06-24 10:22:25 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-24 16:07:06 | END (Claude Code) | 수정: foms/services/foms_unified_search.py |
+
+| 2026-06-24 16:15:32 | END (Claude Code) | 수정: ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/MEMORY.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_mobile_search_droppers.md, tests/domains/test_search_focus_landing.py, tests/domains/test_foms_search_overlay.py, foms/web/production/dashboard.py, foms/web/drawing/workbench.py, foms/services/foms_unified_search.py |
+
+| 2026-06-24 16:16:43 | END (Claude Code) | 수정: ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/MEMORY.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_mobile_search_droppers.md, tests/domains/test_search_focus_landing.py, tests/domains/test_foms_search_overlay.py, foms/web/production/dashboard.py, foms/web/drawing/workbench.py, foms/services/foms_unified_search.py |
+
+| 2026-06-24 16:21:20 | END (Claude Code) | 수정: ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/MEMORY.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_mobile_search_droppers.md, tests/domains/test_search_focus_landing.py, tests/domains/test_foms_search_overlay.py, foms/web/production/dashboard.py, foms/web/drawing/workbench.py, foms/services/foms_unified_search.py |
+
+| 2026-06-24 16:37:12 | END (Claude Code) | 수정: ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_mobile_search_droppers.md, tests/domains/test_foms_search_overlay.py, tests/domains/test_search_focus_landing.py, foms/services/foms_unified_search.py, foms/web/orders/dashboard.py |
+
+| 2026-06-24 16:59:46 | END (Claude Code) | 수정: tests/domains/test_foms_search_overlay.py, foms/services/foms_unified_search.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_mobile_search_droppers.md, tests/domains/test_search_focus_landing.py, foms/web/orders/dashboard.py |
+
+| 2026-06-24 18:45:11 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-24 18:51:37 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-24 18:52:54 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-24 19:04:28 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-24 19:14:42 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-24 19:17:16 | END (Claude Code) | 수정: (없음) |

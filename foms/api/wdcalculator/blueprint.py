@@ -953,8 +953,6 @@ def api_wdcalculator_save_estimate():
         if not estimate_data:
             return jsonify({'success': False, 'message': '견적 데이터가 없습니다.'})
         db = get_wdcalculator_db()
-        foms_db = None
-        order = None
         if order_id:
             try:
                 order_id = int(order_id)
@@ -980,34 +978,7 @@ def api_wdcalculator_save_estimate():
             db.add(estimate)
             message = '견적이 저장되었습니다.'
         matched = False
-        if order_id:
-            db.flush()
-            existing = db.query(EstimateOrderMatch).filter(
-                EstimateOrderMatch.estimate_id == estimate.id,
-                EstimateOrderMatch.order_id == order_id,
-            ).first()
-            if not existing:
-                db.add(EstimateOrderMatch(estimate_id=estimate.id, order_id=order_id))
-            matched = True
         db.commit()
-        if order_id and foms_db and order:
-            try:
-                from datetime import datetime, timezone
-                from sqlalchemy.orm.attributes import flag_modified
-                sd = copy.deepcopy(order.structured_data or {})
-                meta = sd.get('meta')
-                if not isinstance(meta, dict):
-                    meta = {}
-                if meta.get('wdc_estimate_id') != estimate.id:
-                    meta['wdc_estimate_id'] = estimate.id
-                    meta['wdc_synced_at'] = datetime.now(timezone.utc).isoformat()
-                    sd['meta'] = meta
-                    order.structured_data = sd
-                    flag_modified(order, 'structured_data')
-                    foms_db.commit()
-            except Exception as link_error:
-                foms_db.rollback()
-                print(f"[wdcalculator-save] order_id={order_id} meta 링크 실패(계속 진행): {link_error}")
         return jsonify({
             'success': True,
             'message': message,
@@ -1178,16 +1149,15 @@ def api_wdcalculator_unmatch_order():
 def api_orders_wdc_estimate_sync(order_id):
     """ERP 주문 저장(SSOT) 직후 호출되는 보조 동기화 엔드포인트.
 
-    계산기 견적(:class:`Estimate`)을 upsert하고 주문과 멱등 매칭한다. ERP 주문
-    저장은 이미 완료된 전제이며, 본 엔드포인트 실패는 주문 저장을 되돌리지 않는다
-    (클라이언트가 경고만 표시; fail-open + 로그). 단일 ``wd_db`` 트랜잭션으로
-    upsert+매칭을 원자 처리한다.
+    과거 클라이언트/캐시 호환을 위해 견적(:class:`Estimate`) upsert만 수행한다.
+    자동 주문 매칭과 ``structured_data.meta.wdc_estimate_id`` 기록은 하지 않는다.
+    견적 연결은 사용자가 계산기 탭에서 명시적으로 매칭 버튼을 눌렀을 때만 만든다.
 
     Args:
         order_id: 매칭 대상 FOMS 주문 id (URL).
 
     Returns:
-        ``{'success', 'estimate_id', 'matched'}`` JSON. 실패 시 ``message`` 포함.
+        ``{'success', 'estimate_id', 'matched': False}`` JSON. 실패 시 ``message`` 포함.
     """
     try:
         data = request.get_json() or {}
@@ -1219,34 +1189,8 @@ def api_orders_wdc_estimate_sync(order_id):
             estimate = Estimate(customer_name=customer_name, estimate_data=estimate_data)
             wd_db.add(estimate)
         wd_db.flush()  # estimate.id 확보
-        # 2) 멱등 매칭 (중복은 오류 아님)
-        existing = wd_db.query(EstimateOrderMatch).filter(
-            EstimateOrderMatch.estimate_id == estimate.id,
-            EstimateOrderMatch.order_id == order_id,
-        ).first()
-        if not existing:
-            wd_db.add(EstimateOrderMatch(estimate_id=estimate.id, order_id=order_id))
         wd_db.commit()
-        # 3) FOMS 주문 structured_data.meta에 estimate_id 영속화(멱등 링크 = SSOT).
-        #    이미 동일 id면 쓰지 않는다. 링크 실패는 견적 저장을 되돌리지 않는다(fail-open + 로그).
-        try:
-            from datetime import datetime, timezone
-            from sqlalchemy.orm.attributes import flag_modified
-            sd = copy.deepcopy(order.structured_data or {})
-            meta = sd.get('meta')
-            if not isinstance(meta, dict):
-                meta = {}
-            if meta.get('wdc_estimate_id') != estimate.id:
-                meta['wdc_estimate_id'] = estimate.id
-                meta['wdc_synced_at'] = datetime.now(timezone.utc).isoformat()
-                sd['meta'] = meta
-                order.structured_data = sd
-                flag_modified(order, 'structured_data')
-                foms_db.commit()
-        except Exception as link_err:
-            foms_db.rollback()
-            print(f"[wdc-estimate-sync] meta.wdc_estimate_id 영속화 실패(계속 진행): {link_err}")
-        return jsonify({'success': True, 'estimate_id': estimate.id, 'matched': True})
+        return jsonify({'success': True, 'estimate_id': estimate.id, 'matched': False})
     except Exception as e:
         wd_db = get_wdcalculator_db()
         wd_db.rollback()

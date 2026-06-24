@@ -46,8 +46,8 @@ def _estimate_data():
     }
 
 
-def test_sync_creates_estimate_and_matches_order(wdcalculator_settings_env, login):
-    """estimate_id 없이 호출하면 견적 생성 + 주문 매칭이 한 번에 된다."""
+def test_sync_creates_estimate_without_matching_order(wdcalculator_settings_env, login):
+    """estimate_id 없이 호출하면 견적은 만들지만 주문 매칭은 만들지 않는다."""
     client = login
     order = _create_order(customer_name="동기화 고객")
     order_id = order.id
@@ -61,7 +61,7 @@ def test_sync_creates_estimate_and_matches_order(wdcalculator_settings_env, logi
     payload = response.get_json()
     assert payload["success"] is True
     assert isinstance(payload["estimate_id"], int)
-    assert payload["matched"] is True
+    assert payload["matched"] is False
 
     estimate = wd_calculator_session.query(Estimate).filter(
         Estimate.id == payload["estimate_id"]
@@ -72,8 +72,7 @@ def test_sync_creates_estimate_and_matches_order(wdcalculator_settings_env, logi
     matches = wd_calculator_session.query(EstimateOrderMatch).filter(
         EstimateOrderMatch.order_id == order_id
     ).all()
-    assert len(matches) == 1
-    assert matches[0].estimate_id == payload["estimate_id"]
+    assert matches == []
 
 
 def test_sync_is_idempotent_on_resave(wdcalculator_settings_env, login):
@@ -109,7 +108,7 @@ def test_sync_is_idempotent_on_resave(wdcalculator_settings_env, login):
     matches = wd_calculator_session.query(EstimateOrderMatch).filter(
         EstimateOrderMatch.order_id == order_id
     ).all()
-    assert len(matches) == 1  # 멱등 매칭
+    assert matches == []  # 자동 매칭 금지
 
     histories = wd_calculator_session.query(EstimateHistory).filter(
         EstimateHistory.estimate_id == estimate_id
@@ -165,8 +164,8 @@ def test_sync_falls_back_to_order_customer_name(wdcalculator_settings_env, login
     assert estimate.customer_name == "주문측 고객"
 
 
-def test_sync_persists_estimate_id_into_order_meta(wdcalculator_settings_env, login):
-    """Phase 4: 동기화 성공 시 estimate_id가 주문 structured_data.meta에 영속화된다(SSOT 링크)."""
+def test_sync_does_not_persist_estimate_id_into_order_meta(wdcalculator_settings_env, login):
+    """자동 동기화 성공 시에도 meta.wdc_estimate_id를 기록하지 않는다."""
     client = login
     order = _create_order(customer_name="링크 고객", structured_data={"items": []})
     order_id = order.id
@@ -175,17 +174,17 @@ def test_sync_persists_estimate_id_into_order_meta(wdcalculator_settings_env, lo
         f"/api/orders/{order_id}/wdc-estimate-sync",
         json={"customer_name": "링크 고객", "estimate_data": _estimate_data()},
     ).get_json()
-    estimate_id = payload["estimate_id"]
+    assert payload["matched"] is False
 
     db_session.expire_all()
     refreshed = db_session.query(Order).filter(Order.id == order_id).first()
     meta = (refreshed.structured_data or {}).get("meta") or {}
-    assert meta.get("wdc_estimate_id") == estimate_id
-    assert meta.get("wdc_synced_at")  # ISO 타임스탬프 존재
+    assert "wdc_estimate_id" not in meta
+    assert "wdc_synced_at" not in meta
 
 
-def test_sync_meta_persist_preserves_existing_meta_keys(wdcalculator_settings_env, login):
-    """meta 링크 기록은 기존 meta 키(draft 등)를 보존한다(부분 갱신)."""
+def test_sync_without_meta_link_preserves_existing_meta_keys(wdcalculator_settings_env, login):
+    """자동 동기화는 기존 meta 키를 유지하되 wdc 링크를 추가하지 않는다."""
     client = login
     order = _create_order(
         customer_name="보존 고객",
@@ -201,13 +200,14 @@ def test_sync_meta_persist_preserves_existing_meta_keys(wdcalculator_settings_en
     db_session.expire_all()
     refreshed = db_session.query(Order).filter(Order.id == order_id).first()
     meta = (refreshed.structured_data or {}).get("meta") or {}
-    assert meta.get("wdc_estimate_id") == payload["estimate_id"]
+    assert "wdc_estimate_id" not in meta
+    assert "wdc_synced_at" not in meta
     assert meta.get("custom") == "keep"
     assert meta.get("draft") is False
 
 
-def test_full_calculator_save_with_order_id_auto_matches_and_links_meta(wdcalculator_settings_env, login):
-    """PC split: full WDCalculator save can persist and match to the source ERP order in one call."""
+def test_full_calculator_save_with_order_id_does_not_auto_match_or_link_meta(wdcalculator_settings_env, login):
+    """PC split 저장은 견적만 저장하고 주문 매칭/메타 링크는 만들지 않는다."""
     client = login
     order = _create_order(customer_name="Split 고객", structured_data={"meta": {"custom": "keep"}})
     order_id = order.id
@@ -224,24 +224,23 @@ def test_full_calculator_save_with_order_id_auto_matches_and_links_meta(wdcalcul
     assert response.status_code == 200
     payload = response.get_json()
     assert payload["success"] is True
-    assert payload["matched"] is True
+    assert payload["matched"] is False
     assert payload["order_id"] == order_id
 
     matches = wd_calculator_session.query(EstimateOrderMatch).filter(
         EstimateOrderMatch.order_id == order_id
     ).all()
-    assert len(matches) == 1
-    assert matches[0].estimate_id == payload["estimate_id"]
+    assert matches == []
 
     db_session.expire_all()
     refreshed = db_session.query(Order).filter(Order.id == order_id).first()
     meta = (refreshed.structured_data or {}).get("meta") or {}
-    assert meta.get("wdc_estimate_id") == payload["estimate_id"]
+    assert "wdc_estimate_id" not in meta
     assert meta.get("custom") == "keep"
 
 
 def test_full_calculator_save_with_order_id_is_idempotent_on_resave(wdcalculator_settings_env, login):
-    """Re-saving the same split estimate updates the estimate without duplicate matches."""
+    """Re-saving the same split estimate updates the estimate without creating matches."""
     client = login
     order = _create_order(customer_name="Split 재저장")
     order_id = order.id
@@ -272,7 +271,7 @@ def test_full_calculator_save_with_order_id_is_idempotent_on_resave(wdcalculator
     matches = wd_calculator_session.query(EstimateOrderMatch).filter(
         EstimateOrderMatch.order_id == order_id
     ).all()
-    assert len(matches) == 1
+    assert matches == []
     estimate = wd_calculator_session.query(Estimate).filter(
         Estimate.id == first["estimate_id"]
     ).first()
@@ -294,6 +293,11 @@ def test_unmatch_order_removes_match_and_clears_meta(wdcalculator_settings_env, 
     ).get_json()
     assert sync["success"] is True
     estimate_id = sync["estimate_id"]
+    match = client.post(
+        "/api/wdcalculator/match-order",
+        json={"estimate_id": estimate_id, "order_id": order_id},
+    ).get_json()
+    assert match["success"] is True
 
     response = client.post(
         "/api/wdcalculator/unmatch-order",

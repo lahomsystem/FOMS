@@ -130,3 +130,33 @@
 | 2026-06-18 09:11:32 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && for r in deploy production origin/deploy origin/production; do printf "%-22s %s\n" "$r" "$(g` |
 | 2026-06-18 09:12:05 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && echo "=== ls-remote (live GitHub truth) ===" && git ls-remote origin refs/heads/deploy refs/` |
 | 2026-06-18 09:12:25 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git fetch origin production:refs/remotes/origin/production 2>&1 | tail -3 && echo "=== reche` |
+| 2026-06-24 16:07:48 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -c "import foms.services.foms_unified_search as m; print('IMPORT_OK')" 2>&1 | tail -5` |
+| 2026-06-24 16:07:56 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -c "import app; import foms.services.foms_unified_search as m; print('IMPORT_OK', boo` |
+| 2026-06-24 16:10:10 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && grep -rn "def login\|def client\|def app" tests/conftest.py tests/domains/conftest.py 2>/dev` |
+| 2026-06-24 16:11:08 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -m pytest tests/domains/test_foms_search_overlay.py tests/domains/test_search_focus_l` |
+| 2026-06-24 16:11:45 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -m pytest tests/domains/test_search_focus_landing.py -q 2>&1 | tail -15` |
+| 2026-06-24 16:12:09 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -m pytest tests/domains/test_foms_search_overlay.py tests/domains/test_search_focus_l` |
+| 2026-06-24 16:12:42 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -c "import app; print('APP_OK')" 2>&1 | tail -1` |
+| 2026-06-24 16:12:53 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git diff --stat foms/ && echo "=====DIFF=====" && git diff foms/web/drawing/workbench.py fom` |
+| 2026-06-24 16:14:21 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git push origin deploy 2>&1 | tail -4` |
+| 2026-06-24 16:24:38 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && grep -rinE "lahom-dev|lahom-staging|railway\.app|staging.*url" docs/ README.md 2>/dev/null |` |
+| 2026-06-24 16:25:02 | allow | `-` | `B="$HOME/.claude/skills/gstack/browse/dist/browse"; [ -x "$B" ] && echo "READY" || echo "NEEDS_SETUP"; "$B" viewport 390x844 >/dev/null 2>&1; "$B" goto "https:/` |
+| 2026-06-24 16:25:19 | allow | `-` | `B="$HOME/.claude/skills/gstack/browse/dist/browse"; "$B" snapshot -i 2>&1 | tail -20` |
+| 2026-06-24 16:25:25 | allow | `-` | `B="$HOME/.claude/skills/gstack/browse/dist/browse"; "$B" fill @e4 "upperkill" >/dev/null 2>&1; "$B" fill @e5 'anfant8273!' >/dev/null 2>&1; "$B" click @e6 >/dev` |
+| 2026-06-24 16:25:41 | allow | `-` | `B="$HOME/.claude/skills/gstack/browse/dist/browse"; "$B" goto "https://lahom-dev.up.railway.app/erp/measurement?q=%EB%82%A8%EA%B6%81&focus_order=4114" 2>&1 | ta` |
+| 2026-06-24 16:26:24 | allow | `-` | `B="$HOME/.claude/skills/gstack/browse/dist/browse"; echo "=== A1: search by order id 1149 ==="; "$B" goto "https://lahom-dev.up.railway.app/api/foms/search?q=11` |
+| 2026-06-24 16:26:38 | allow | `-` | `B="$HOME/.claude/skills/gstack/browse/dist/browse"; "$B" goto "https://lahom-dev.up.railway.app/erp/measurement" 2>&1 | tail -1; sleep 1; echo "=== measurement ` |
+| 2026-06-24 16:26:48 | allow | `-` | `B="$HOME/.claude/skills/gstack/browse/dist/browse"; echo "=== CONTROL: date=2020-01-01 no focus ==="; "$B" goto "https://lahom-dev.up.railway.app/erp/measuremen` |
+| 2026-06-24 16:27:06 | allow | `-` | `B="$HOME/.claude/skills/gstack/browse/dist/browse"; echo "=== drawing workbench ids ==="; "$B" goto "https://lahom-dev.up.railway.app/erp/drawing-workbench" 2>&` |
+| 2026-06-24 16:27:21 | allow | `-` | `B="$HOME/.claude/skills/gstack/browse/dist/browse"; Q="q=zzz%EC%97%86%EB%8A%94"; echo "=== DRAWING control (q only) ==="; "$B" goto "https://lahom-dev.up.railwa` |
+| 2026-06-24 16:29:38 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -c "import app; print('APP_OK')" 2>&1 | tail -1` |
+| 2026-06-24 16:31:09 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -c "import app; print('APP_OK')" 2>&1 | tail -1 && python -m pytest tests/domains/tes` |
+| 2026-06-24 16:32:34 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -m pytest tests/domains/test_foms_search_overlay.py tests/domains/test_search_focus_l` |
+| 2026-06-24 16:32:55 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git diff foms/web/orders/dashboard.py` |
+| 2026-06-24 16:34:18 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && echo "=== recent log ===" && git log --oneline -6 && echo "=== status ===" && git status --s` |
+| 2026-06-24 16:34:41 | allow | `-` | `B="$HOME/.claude/skills/gstack/browse/dist/browse"; for i in 1 2 3 4 5; do code=$("$B" goto "https://lahom-dev.up.railway.app/erp/dashboard?view=queue&q=zzz%EC%` |
+| 2026-06-24 16:36:18 | allow | `-` | `B="$HOME/.claude/skills/gstack/browse/dist/browse"; echo "=== orders CONTROL (no focus) ==="; "$B" goto "https://lahom-dev.up.railway.app/erp/dashboard?view=que` |
+| 2026-06-24 16:48:23 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && grep -n "def _normalize_for_search" foms/services/erp_display.py` |
+| 2026-06-24 16:54:57 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -c "import app; print('APP_OK')" 2>&1 | tail -1 && python -m pytest tests/domains/tes` |
+| 2026-06-24 16:56:38 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -m pytest tests/domains/test_foms_search_overlay.py tests/domains/test_unified_search` |
+| 2026-06-24 16:58:20 | allow | `-` | `B="$HOME/.claude/skills/gstack/browse/dist/browse"; for i in 1 2 3 4 5; do "$B" goto "https://lahom-dev.up.railway.app/api/foms/search?q=%EB%AA%A8%EC%88%98%EB%A` |

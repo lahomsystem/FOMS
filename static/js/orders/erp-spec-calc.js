@@ -1,8 +1,8 @@
 /**
  * ERP 현장 스펙 즉시견적 (erp-order-shared.js 보조 모듈).
  *
- * 동작은 전적으로 window.ERP_SPEC_CALC_ENABLED 플래그에 게이트된다.
- * 플래그 off → enhanceItemRow/collectPricing이 호출돼도 즉시 반환(무영향).
+ * 동작은 전적으로 window.ERP_SPEC_CALC_ENABLED 플래그와 발주사 "라홈"에 게이트된다.
+ * 플래그 off 또는 발주사≠라홈 → enhanceItemRow/collectPricing이 호출돼도 즉시 반환(무영향).
  *
  * UX 원칙(실측/영업 persona): "기본 1칸 + ▾ 트리거". 각 스펙 칸은 기존 입력 컨트롤
  * (모바일=자동 늘어나는 textarea, 제품명=input)을 그대로 유지해 직접입력·autosize를 보존하고,
@@ -76,6 +76,28 @@
   /** 매칭 정규화: 공백 제거 + '›'→'>' 통일 + 소문자. */
   function _norm(s) {
     return String(s == null ? '' : s).replace(/\s+/g, '').replace(/›/g, '>').toLowerCase();
+  }
+
+  function _structuredOrdererName(structuredData) {
+    var parties = structuredData && structuredData.parties;
+    var orderer = parties && parties.orderer;
+    if (!orderer) return '';
+    if (typeof orderer === 'string') return orderer;
+    return orderer.name || orderer.value || '';
+  }
+
+  function _currentOrdererName() {
+    var direct = document.getElementById('erp-orderer-direct');
+    var selectEl = document.getElementById('erp-orderer-select');
+    var input = document.getElementById('erp-orderer');
+    if (direct && direct.checked && input) return input.value || '';
+    if (selectEl) return selectEl.value || '';
+    return input ? input.value : '';
+  }
+
+  function _isLahomOrderer(structuredData) {
+    var ordererName = structuredData ? _structuredOrdererName(structuredData) : _currentOrdererName();
+    return String(ordererName || '') === '라홈';
   }
 
   function _buildOptionIndex(cats) {
@@ -566,6 +588,31 @@
     row.__erpPricingSkipPriceInput = false;
   }
 
+  function _rememberCalcOwnedPrice(row, value) {
+    var st = row.__erpPricing;
+    if (!st) return;
+    if (!st.auto_price_active) {
+      var priceInput = row.querySelector('[data-erp="price"]');
+      st.price_before_auto = priceInput ? (priceInput.value || '') : '';
+    }
+    st.auto_price_active = true;
+    st.calc_owned_price = Math.round(Number(value) || 0);
+  }
+
+  function _restoreCalcOwnedPrice(row) {
+    var st = row.__erpPricing;
+    var priceInput = row.querySelector('[data-erp="price"]');
+    if (!st || !priceInput || !st.auto_price_active) return;
+    var currentDigits = String(priceInput.value || '').replace(/[^0-9]/g, '');
+    var currentPrice = currentDigits ? parseInt(currentDigits, 10) : 0;
+    if (currentPrice === (Math.round(Number(st.calc_owned_price) || 0))) {
+      _setPriceInputValue(row, priceInput, st.price_before_auto || '');
+    }
+    st.auto_price_active = false;
+    st.calc_owned_price = 0;
+    st.price_before_auto = '';
+  }
+
   function _manualPriceFromRow(row) {
     var priceInput = row.querySelector('[data-erp="price"]');
     if (!priceInput) return 0;
@@ -573,12 +620,25 @@
     return digits ? parseInt(digits, 10) : 0;
   }
 
+  function _computedTotalPrice(computed) {
+    if (!computed) return null;
+    if (computed.final_price != null) return Math.round(Number(computed.final_price) || 0);
+    if (computed.total_price != null) return Math.round(Number(computed.total_price) || 0);
+    return null;
+  }
+
+  function _rowPriceDiffersFromComputed(row, computed) {
+    var manualPrice = _manualPriceFromRow(row);
+    var computedTotal = _computedTotalPrice(computed);
+    return manualPrice > 0 && computedTotal != null && manualPrice !== computedTotal;
+  }
+
   /** 단일 권위: enabled+제품+폭>0+자동모드일 때만 금액 읽기전용 잠금 + 토글 노출. */
   function _applyPriceLockState(row) {
     var st = row.__erpPricing;
     var priceInput = row.querySelector('[data-erp="price"]');
     var unlock = row.querySelector('.erp-calc-unlock-link');
-    var lock = !!(st.enabled && st.product_id && !st.manual_override && st.width_mm > 0);
+    var lock = !!(_isLahomOrderer() && st.enabled && st.product_id && !st.manual_override && st.width_mm > 0);
     if (priceInput) priceInput.readOnly = lock;
     if (unlock) unlock.style.display = lock ? '' : 'none';
     return lock;
@@ -602,6 +662,14 @@
     var widthLabel = row.querySelector('.erp-calc-width-label');
     var priceLabel = row.querySelector('.erp-calc-price-label');
     if (widthLabel) widthLabel.textContent = widthMm > 0 ? ('계산폭 ' + widthMm.toLocaleString() + 'mm') : '';
+
+    if (!_isLahomOrderer()) {
+      _restoreCalcOwnedPrice(row);
+      if (widthLabel) widthLabel.textContent = '';
+      if (priceLabel) priceLabel.textContent = '';
+      _applyPriceLockState(row);
+      return;
+    }
 
     // 계산 비활성/제품 미선택 → 금액은 사용자 수동 입력 유지(잠금 해제)
     if (!st.enabled || !st.product_id) {
@@ -650,6 +718,7 @@
       }
       var lock = _applyPriceLockState(row);
       if (lock) {
+        _rememberCalcOwnedPrice(row, finalPrice);
         _setPriceInputValue(row, row.querySelector('[data-erp="price"]'), finalPrice);
       }
     } catch (e) {
@@ -682,6 +751,9 @@
         if (!st) return;
         if (!st.manual_override) {
           st.manual_override = true;
+          st.auto_price_active = false;
+          st.calc_owned_price = 0;
+          st.price_before_auto = '';
           var priceLabel = row.querySelector('.erp-calc-price-label');
           if (priceLabel) priceLabel.textContent = '수동 입력';
           _applyPriceLockState(row);
@@ -693,17 +765,19 @@
   // ----- 공개 API -----
   var ErpSpecCalc = {
     enhanceItemRow: function (row, item) {
-      if (!window.ERP_SPEC_CALC_ENABLED) return;
+      if (!window.ERP_SPEC_CALC_ENABLED || !_isLahomOrderer()) return;
       if (!row || row.dataset.erpCalcEnhanced === '1') return;
       row.dataset.erpCalcEnhanced = '1';
       var pricing = (item && item.pricing && typeof item.pricing === 'object') ? item.pricing : null;
-      var savedDigits = String((item && item.price) != null ? item.price : '').replace(/[^0-9]/g, '');
+      var existingPriceInput = row.querySelector('[data-erp="price"]');
+      var savedValue = (item && item.price) != null ? item.price : (existingPriceInput ? existingPriceInput.value : '');
+      var savedDigits = String(savedValue).replace(/[^0-9]/g, '');
       row.__erpPricing = {
         enabled: pricing ? pricing.enabled !== false && !!pricing.product_id : false,
         product_id: pricing ? (pricing.product_id || null) : null,
         width_mm: pricing ? (Number(pricing.width_mm) || 0) : 0,
         option_rows: (pricing && Array.isArray(pricing.option_rows)) ? pricing.option_rows : [],
-        manual_override: _resolveInitialManualOverride(item, pricing),
+        manual_override: pricing ? _resolveInitialManualOverride(item, pricing) : !!savedDigits,
         saved_item_price: savedDigits ? parseInt(savedDigits, 10) : 0,
         computed: (pricing && pricing.computed) ? pricing.computed : null
       };
@@ -720,10 +794,13 @@
     },
 
     collectPricing: function (row, obj) {
-      if (!window.ERP_SPEC_CALC_ENABLED) return;
+      if (!window.ERP_SPEC_CALC_ENABLED || !_isLahomOrderer()) return;
       var st = row && row.__erpPricing;
       if (!st || !st.enabled || !st.product_id) return; // 레거시/직접입력 항목은 pricing 미첨부
       var computed = st.computed ? Object.assign({}, st.computed) : null;
+      if (!st.manual_override && _rowPriceDiffersFromComputed(row, computed)) {
+        st.manual_override = true;
+      }
       if (st.manual_override) {
         var manualPrice = _manualPriceFromRow(row);
         computed = computed || {};
@@ -753,6 +830,7 @@
 
     /** ERP 항목 pricing → WDC estimate_data(견적서 렌더 가능한 표준 형태). 계산 항목 없으면 null. */
     buildEstimateData: function (structuredData) {
+      if (!_isLahomOrderer(structuredData)) return null;
       var items = (structuredData && Array.isArray(structuredData.items)) ? structuredData.items : [];
       var estimates = [];
       var totalBase = 0, totalAdd = 0, totalPrice = 0;
@@ -801,38 +879,15 @@
     },
 
     /**
-     * ERP 주문 저장 성공 직후 호출 → WDC 견적 upsert + 자동매칭(서버 원자처리).
-     * 계산 항목이 없으면 동기화 생략. 실패는 저장 결과에 영향 없음(fail-open).
-     * 성공 시 estimate_id를 structured_data.meta에 반영해 다음 저장이 upsert되게 한다.
+     * ERP 주문 저장 성공 직후 자동 WDC 매칭은 비활성화한다.
+     * 견적 연결은 계산기 탭의 명시적 "매칭" 액션만 허용한다.
      */
     syncEstimate: function (orderId, structuredData) {
-      if (!window.ERP_SPEC_CALC_ENABLED || !orderId) return Promise.resolve(null);
-      var estimateData = this.buildEstimateData(structuredData);
-      if (!estimateData) return Promise.resolve(null);
-      var meta = (structuredData && structuredData.meta && typeof structuredData.meta === 'object')
-        ? structuredData.meta : {};
-      var customer = (structuredData && structuredData.parties && structuredData.parties.customer
-        && structuredData.parties.customer.name) || '';
-      var body = { customer_name: customer, estimate_data: estimateData };
-      if (meta.wdc_estimate_id) body.estimate_id = meta.wdc_estimate_id;
-      return fetch('/api/orders/' + orderId + '/wdc-estimate-sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      }).then(function (r) { return r.json(); }).then(function (data) {
-        if (data && data.success && data.estimate_id) {
-          if (structuredData && typeof structuredData === 'object') {
-            if (!structuredData.meta || typeof structuredData.meta !== 'object') structuredData.meta = {};
-            structuredData.meta.wdc_estimate_id = data.estimate_id;
-          }
-          var last = window.__erpLastStructuredData;
-          if (last && typeof last === 'object') {
-            if (!last.meta || typeof last.meta !== 'object') last.meta = {};
-            last.meta.wdc_estimate_id = data.estimate_id;
-          }
-        }
-        return data;
-      });
+      return Promise.resolve(null);
+    },
+
+    refreshForOrderer: function (root) {
+      _enhanceExistingRows(root || document);
     }
   };
 
@@ -846,7 +901,15 @@
     var scope = (root && typeof root.querySelectorAll === 'function') ? root : document;
     var rows = scope.querySelectorAll('#erp-items .erp-item-row');
     rows.forEach(function (row) {
-      ErpSpecCalc.enhanceItemRow(row, {});
+      if (_isLahomOrderer()) {
+        if (row.__erpPricing) {
+          _recalc(row);
+        } else {
+          ErpSpecCalc.enhanceItemRow(row, {});
+        }
+      } else if (row.__erpPricing) {
+        _recalc(row);
+      }
     });
   }
 

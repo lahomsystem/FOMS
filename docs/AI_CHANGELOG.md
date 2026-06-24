@@ -4,6 +4,10 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-06-24 | 세션 자동 기록 | test_erp_spec_calc_phase3.py, erp-spec-calc.js, test_erp_wdc_estimate_sync.py 외 2개 | ceb5d5b4 |
+| 2026-06-24 | 세션 자동 기록 | test_erp_spec_calc_phase3.py, erp_order_js.html, erp-order-shared.js 외 2개 | ceb5d5b4 |
+| 2026-06-24 | 세션 자동 기록 | commit_msg.txt, foms-form-field.css, test_erp_order_shared_form_scripts.py 외 2개 | ceb5d5b4 |
+| 2026-06-24 | 세션 자동 기록 | test_erp_spec_calc_phase3.py, erp-spec-calc.js, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-56f14944-f597-454a-89c8-6a912a862a38.png | 9ab8a670 |
 | 2026-06-24 | 세션 자동 기록 | commit_msg.txt, erp_order_js.html, test_erp_order_shared_form_scripts.py 외 2개 | 989d9cc1 |
 | 2026-06-24 | 세션 자동 기록 | test_drawing_workbench_mobile.py, workbench_detail_body.html, test_erp_order_shared_form_scripts.py 외 2개 | bf041617 |
 | 2026-06-24 | 세션 자동 기록 | test_erp_order_shared_form_scripts.py, erp-order-shared.js, commit_msg.txt 외 2개 | bf041617 |
@@ -20,7 +24,3 @@
 | 2026-06-23 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-3bab37b0-b2a5-44a4-9159-6eff07f8d4da.png, commit_msg.txt, test_erp_spec_calc_followup.py 외 2개 | 61d4cd64 |
 | 2026-06-23 | 세션 자동 기록 | commit_msg.txt, test_erp_spec_calc_followup.py, foms-form-field.css 외 2개 | 61d4cd64 |
 | 2026-06-23 | 세션 자동 기록 | commit_msg.txt, erp_order_js.html, test_erp_spec_calc_followup.py 외 2개 | 0b4eb2ad |
-| 2026-06-23 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-090990c5-786f-497b-a936-2a4019da266d.png, commit_msg.txt, test_erp_spec_calc_followup.py 외 2개 | db23b6c6 |
-| 2026-06-23 | 세션 자동 기록 | commit_msg.txt, test_erp_spec_calc_followup.py, test_p1_mockup_structure.py 외 2개 | db23b6c6 |
-| 2026-06-23 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-05fdabc7-1894-42a3-864c-2f5c8c4efb37.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-b3978904-cdea-483b-83ab-c3ed41cfbb08.png, commit_msg.txt 외 2개 | f85fed2d |
-| 2026-06-23 | 세션 자동 기록 | commit_msg.txt, test_erp_spec_calc_phase3.py, test_erp_spec_calc_followup.py 외 2개 | bafb47d3 |
