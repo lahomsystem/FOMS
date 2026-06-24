@@ -346,6 +346,130 @@ def test_unified_search_history_fallback_finds_non_erp_order(app) -> None:
         assert hits["customer"][0]["href"].startswith(f"/edit/{order.id}")
 
 
+def test_order_id_prefilter_finds_id_even_when_phone_like(app) -> None:
+    """순수 숫자 쿼리는 폰 경로에 가로채이기 전에 Order.id 단건을 직접 조회한다(A1)."""
+    from db import db_session
+    from foms.services.foms_unified_search import _order_id_prefilter
+    from models import Order
+
+    with app.app_context():
+        order = Order(
+            received_date="2026-05-30",
+            customer_name="번호직검색 고객",
+            phone="010-0000-0000",
+            address="Seoul",
+            product="장",
+            status="RECEIVED",
+            is_erp_order=True,
+            structured_data={"parties": {"customer": {"name": "번호직검색 고객"}}},
+        )
+        db_session.add(order)
+        db_session.commit()
+
+        by_id = _order_id_prefilter(db_session, str(order.id))
+        assert by_id and by_id[0].id == order.id
+        with_hash = _order_id_prefilter(db_session, f"#{order.id}")
+        assert with_hash and with_hash[0].id == order.id
+        assert _order_id_prefilter(db_session, "고객") is None
+        assert _order_id_prefilter(db_session, "010-1234") is None
+
+
+def test_unified_search_finds_order_by_id(app) -> None:
+    """주문번호 검색이 통합 검색 결과에 단건으로 잡힌다(A1 end-to-end)."""
+    from db import db_session
+    from foms.services.foms_unified_search import search_unified
+    from models import Order
+
+    with app.app_context():
+        order = Order(
+            received_date="2026-05-30",
+            customer_name="아이디검색 고객",
+            phone="010-9999-8888",
+            address="Seoul",
+            product="장",
+            status="RECEIVED",
+            is_erp_order=True,
+            structured_data={"parties": {"customer": {"name": "아이디검색 고객"}}},
+        )
+        db_session.add(order)
+        db_session.commit()
+
+        hits = search_unified(db_session, str(order.id))
+        found = {h["order_id"] for bucket in hits.values() for h in bucket}
+        assert order.id in found
+
+
+def test_unified_search_matches_structured_data_only_fields(app) -> None:
+    """레거시 컬럼이 비고 structured_data에만 값이 있는 매치도 분류기가 살린다(A2)."""
+    from db import db_session
+    from foms.services.foms_unified_search import search_unified
+    from models import Order
+
+    with app.app_context():
+        order = Order(
+            received_date="2026-05-30",
+            customer_name="무관한 고객명",
+            phone="010-0000-0000",
+            address="Legacy column addr",
+            product="레거시 제품",
+            manager_name=None,
+            status="RECEIVED",
+            is_erp_order=True,
+            structured_data={
+                "parties": {
+                    "customer": {"name": "무관한 고객명"},
+                    "manager": {"name": "홍반장매니저"},
+                    "orderer": {"name": "주문자김씨"},
+                },
+                "site": {"address_full": "경기 구조화주소동"},
+                "items": [{"product_name": "구조화전용상품"}],
+            },
+        )
+        db_session.add(order)
+        db_session.commit()
+
+        for query in ("홍반장매니저", "주문자김씨", "구조화주소동", "구조화전용상품"):
+            hits = search_unified(db_session, query)
+            found = {h["order_id"] for bucket in hits.values() for h in bucket}
+            assert order.id in found, f"structured-only match dropped for {query}"
+
+
+def test_unified_search_merges_legacy_when_erp_hit_exists(app) -> None:
+    """ERP 히트가 있어도 동일 검색어의 레거시(비-ERP) 주문이 병합된다(A3)."""
+    from db import db_session
+    from foms.services.foms_unified_search import search_unified
+    from models import Order
+
+    with app.app_context():
+        erp = Order(
+            received_date="2026-05-30",
+            customer_name="공통검색명 ERP",
+            phone="010-1111-1111",
+            address="Seoul",
+            product="장",
+            status="RECEIVED",
+            is_erp_order=True,
+            structured_data={"parties": {"customer": {"name": "공통검색명 ERP"}}},
+        )
+        legacy = Order(
+            received_date="2024-01-01",
+            customer_name="공통검색명 레거시",
+            phone="010-2222-2222",
+            address="Seoul",
+            product="장",
+            status="COMPLETED",
+            is_erp_order=False,
+        )
+        db_session.add(erp)
+        db_session.add(legacy)
+        db_session.commit()
+
+        hits = search_unified(db_session, "공통검색명")
+        ids = {h["order_id"] for h in hits["customer"]}
+        assert erp.id in ids
+        assert legacy.id in ids
+
+
 def test_search_fragment_shows_history_fallback_link(client, app) -> None:
     from db import db_session
     from models import User

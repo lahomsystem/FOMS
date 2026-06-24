@@ -337,6 +337,18 @@ def erp_production_dashboard():
         _q, request.args.get('page', 1, type=int), total_orders
     )
 
+    # 검색 카드 딥링크(?focus_order=)는 단계 버킷·페이지네이션과 무관하게 착지해야 한다.
+    # orders/construction/measurement 대시보드와 동일한 deep-link SSOT.
+    focus_order_id = request.args.get('focus_order', type=int)
+    if focus_order_id and focus_order_id not in {o.id for o in page_rows}:
+        focus_order = (
+            db.query(Order)
+            .filter(Order.id == focus_order_id, Order.active_filter(), Order.is_erp_order.is_(True))
+            .first()
+        )
+        if focus_order is not None:
+            page_rows = [focus_order] + page_rows
+
     att_counts = _fetch_attachment_counts(db, page_rows)
     enriched = _build_production_enriched_rows(page_rows, att_counts)
     # 모바일 v2 큐 카드 썸네일: 페이지 주문 첨부 미리보기 URL 일괄 해소

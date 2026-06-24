@@ -116,11 +116,44 @@ def _matches_phone(phone: str | None, erp_phone_digits: str | None, query: str) 
     return bool(digits_h and digits_q in digits_h)
 
 
+def _order_extra_text_fields(order: Order) -> list[str]:
+    """
+    structured_data 가시 경로 텍스트 — SQL 후보(erp_order_dashboard_search_predicate)와
+    분류기 필드 폭을 일치시킨다.
+
+    SQL은 SD parties.manager/orderer·site 주소·items 상품명·일정 날짜까지 후보로
+    뽑지만 분류기가 레거시 컬럼만 보면 SD에만 값이 있는 ERP 주문이 조용히 탈락한다.
+    """
+    sd = _ensure_dict(order.structured_data)
+    parties = sd.get("parties") if isinstance(sd.get("parties"), dict) else {}
+    site = sd.get("site") if isinstance(sd.get("site"), dict) else {}
+    schedule = sd.get("schedule") if isinstance(sd.get("schedule"), dict) else {}
+    manager = parties.get("manager") if isinstance(parties.get("manager"), dict) else {}
+    orderer = parties.get("orderer") if isinstance(parties.get("orderer"), dict) else {}
+    measurement = schedule.get("measurement") if isinstance(schedule.get("measurement"), dict) else {}
+    construction = schedule.get("construction") if isinstance(schedule.get("construction"), dict) else {}
+    fields: list[Any] = [
+        manager.get("name"),
+        orderer.get("name"),
+        site.get("address_full"),
+        site.get("address_main"),
+        measurement.get("date"),
+        construction.get("date"),
+    ]
+    items = sd.get("items") if isinstance(sd.get("items"), list) else []
+    for item in items:
+        if isinstance(item, dict):
+            fields.append(item.get("product_name"))
+            fields.append(item.get("name"))
+    return [str(value) for value in fields if value]
+
+
 def _classify_order_hit(order: Order, query: str) -> set[str]:
     """Return search groups matched by this order."""
     groups: set[str] = set()
     customer = _order_customer_name(order)
     phone = _order_phone(order)
+    extra_fields = _order_extra_text_fields(order)
     if matches_query(customer, query) or _matches_phone(phone, order.erp_phone_digits, query):
         groups.add("customer")
     order_fields = [
@@ -128,6 +161,7 @@ def _classify_order_hit(order: Order, query: str) -> set[str]:
         order.product,
         order.address,
         order.manager_name,
+        *extra_fields,
     ]
     if any(matches_query(field, query) for field in order_fields):
         groups.add("order")
@@ -138,7 +172,9 @@ def _classify_order_hit(order: Order, query: str) -> set[str]:
     if drawing_stage or has_blueprint:
         if matches_query(customer, query) or matches_query(str(order.id), query):
             groups.add("drawing")
-        elif matches_query(order.product, query):
+        elif matches_query(order.product, query) or any(
+            matches_query(field, query) for field in extra_fields
+        ):
             groups.add("drawing")
     return groups
 
@@ -160,6 +196,31 @@ def _history_classify_order_hit(order: Order, query: str) -> set[str]:
     return set()
 
 
+def _order_id_prefilter(db: Session, query: str):
+    """
+    주문번호 직검색: 순수 숫자 쿼리(``#`` 접두 허용)는 ``Order.id`` 단건을 직접 조회한다.
+
+    폰 자릿수 경로(``erp_phone_digits``)가 4자리+ 숫자를 가로채기 전에 호출해,
+    "4114" 같은 주문번호가 자기 id로 조회되지 않던 누락을 막는다.
+    """
+    raw = (query or "").strip().lstrip("#").strip()
+    if not raw.isdigit():
+        return None
+    try:
+        order_id = int(raw)
+    except ValueError:
+        return None
+    # 비현실적 큰 값(전화번호 등)은 id로 취급하지 않는다.
+    if order_id <= 0 or order_id > 2_000_000_000:
+        return None
+    return (
+        db.query(Order)
+        .filter(Order.active_filter(), Order.id == order_id)
+        .limit(1)
+        .all()
+    )
+
+
 def _phone_digit_prefilter(db: Session, query: str):
     """Indexed ``erp_phone_digits`` lookup for digit-heavy queries (P1-02)."""
     digits = extract_phone_digit_query(query)
@@ -175,28 +236,58 @@ def _phone_digit_prefilter(db: Session, query: str):
     )
 
 
-def _base_orders_query(db: Session, query: str):
-    """SQL prefilter for non-jamo queries."""
-    phone_hits = _phone_digit_prefilter(db, query)
-    if phone_hits is not None:
-        return phone_hits
-
-    q = db.query(Order).filter(Order.active_filter(), Order.is_erp_order.is_(True))
-    if is_chosung_query(query):
-        return (
-            q.order_by(Order.created_at.desc(), Order.id.desc())
-            .limit(_MAX_CHOSUNG_SCAN)
-            .all()
-        )
+def _term_prefilter(db: Session, query: str):
+    """가시 컬럼 + structured_data 가시 경로 ILIKE 후보."""
     term = f"%{_compact(query)}%"
     if not term.strip("%"):
         return []
+    q = db.query(Order).filter(Order.active_filter(), Order.is_erp_order.is_(True))
     return (
         q.filter(erp_order_dashboard_search_predicate(term))
         .order_by(Order.id.desc())
         .limit(_MAX_SQL_ROWS)
         .all()
     )
+
+
+def _base_orders_query(db: Session, query: str):
+    """
+    SQL prefilter 후보를 여러 경로에서 모아 중복 제거한다.
+
+    숫자 쿼리가 폰 경로로 단락(short-circuit)되며 주문번호·이름 매치를 버리던
+    문제를 막기 위해, id/phone/term 후보를 모두 합집합으로 수집한다.
+    """
+    candidates: list[Order] = []
+    seen: set[int] = set()
+
+    def _extend(rows) -> None:
+        for order in rows or []:
+            oid = int(order.id)
+            if oid in seen:
+                continue
+            seen.add(oid)
+            candidates.append(order)
+
+    # 1) 주문번호 직검색(순수 숫자) — 폰 경로보다 먼저.
+    _extend(_order_id_prefilter(db, query))
+
+    # 초성 쿼리는 ILIKE term이 자모라 의미가 없으므로 별도 스캔만 수행.
+    if is_chosung_query(query):
+        chosung_rows = (
+            db.query(Order)
+            .filter(Order.active_filter(), Order.is_erp_order.is_(True))
+            .order_by(Order.created_at.desc(), Order.id.desc())
+            .limit(_MAX_CHOSUNG_SCAN)
+            .all()
+        )
+        _extend(chosung_rows)
+        return candidates
+
+    # 2) 폰 자릿수 인덱스 경로.
+    _extend(_phone_digit_prefilter(db, query))
+    # 3) 가시 필드 ILIKE 경로.
+    _extend(_term_prefilter(db, query))
+    return candidates
 
 
 def _history_style_orders_query(db: Session, query: str) -> list[Order]:
@@ -320,10 +411,6 @@ def _append_order_hits(
         )
 
 
-def _buckets_have_hits(buckets: dict[str, list[dict[str, Any]]]) -> bool:
-    return any(buckets[group] for group in ("customer", "order", "drawing"))
-
-
 def _collect_search_hits(
     db: Session,
     query: str,
@@ -348,7 +435,14 @@ def _collect_search_hits(
         seen_ids.add(int(order.id))
         _append_order_hits(buckets, order, matched, trimmed, limit_per_group=limit_per_group)
 
-    if not _buckets_have_hits(buckets):
+    # 레거시·비-ERP 주문은 1차(ERP) 스캔에 없으므로, 버킷이 가득 차지 않은 한 항상
+    # history 폭(active 전체 + 깊은 필드)을 병합한다. 기존엔 ERP 히트가 하나라도 있으면
+    # 폴백을 건너뛰어 레거시 주문이 영구히 숨던 누락을 막는다.
+    buckets_full = all(
+        len(buckets[group]) >= limit_per_group
+        for group in ("customer", "order", "drawing")
+    )
+    if not buckets_full:
         for order in _history_style_orders_query(db, trimmed):
             if int(order.id) in seen_ids:
                 continue

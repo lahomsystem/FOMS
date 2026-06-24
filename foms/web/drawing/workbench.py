@@ -200,6 +200,18 @@ def erp_drawing_workbench_dashboard():
         )
     orders = orders_query.order_by(Order.created_at.desc()).limit(500).all()
 
+    # 검색 카드 딥링크(?focus_order=)는 500 newest 캡·필터와 무관하게 해당 주문이 착지해야 한다.
+    # orders/construction/measurement 대시보드와 동일한 deep-link SSOT.
+    focus_order_id = request.args.get('focus_order', type=int)
+    if focus_order_id and focus_order_id not in {o.id for o in orders}:
+        focus_order = (
+            db.query(Order)
+            .filter(Order.id == focus_order_id, Order.active_filter(), Order.is_erp_order.is_(True))
+            .first()
+        )
+        if focus_order is not None:
+            orders = [focus_order] + orders
+
     rows = []
     for o in orders:
         sd = _ensure_dict(o.structured_data)
@@ -336,22 +348,26 @@ def erp_drawing_workbench_dashboard():
         if r.get('unread_count', 0) > 0:
             stats['unread'] += 1
 
-    if mine_only:
-        rows = [r for r in rows if r.get('include_for_mine')]
-    if unread_only:
-        rows = [r for r in rows if r.get('unread_count', 0) > 0]
-    if due_today_only:
-        rows = [r for r in rows if r.get('due_today')]
-    if assignee_filter:
-        rows = [r for r in rows if assignee_filter in (r.get('assignee_text') or '').lower()]
-    if q:
-        rows = [r for r in rows if q in (r.get('search_hay') or '')]
+    if focus_order_id:
+        # 검색 카드 딥링크: 단건만 착지시키고 목록 필터·페이지는 적용하지 않는다.
+        rows = [r for r in rows if r.get('id') == focus_order_id]
+    else:
+        if mine_only:
+            rows = [r for r in rows if r.get('include_for_mine')]
+        if unread_only:
+            rows = [r for r in rows if r.get('unread_count', 0) > 0]
+        if due_today_only:
+            rows = [r for r in rows if r.get('due_today')]
+        if assignee_filter:
+            rows = [r for r in rows if assignee_filter in (r.get('assignee_text') or '').lower()]
+        if q:
+            rows = [r for r in rows if q in (r.get('search_hay') or '')]
 
-    if status_filter:
-        def _match_status(row_status):
-            s = (row_status or '').upper()
-            return s in ('WAITING', 'PENDING') if status_filter == 'WAITING' else s == status_filter
-        rows = [r for r in rows if _match_status(r.get('drawing_status') or '')]
+        if status_filter:
+            def _match_status(row_status):
+                s = (row_status or '').upper()
+                return s in ('WAITING', 'PENDING') if status_filter == 'WAITING' else s == status_filter
+            rows = [r for r in rows if _match_status(r.get('drawing_status') or '')]
 
     rows.sort(key=lambda r: (0 if r.get('my_todo') else 1, 0 if r.get('is_overdue') else 1, -int(r.get('id') or 0)))
 
