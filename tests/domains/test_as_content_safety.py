@@ -4,6 +4,7 @@ import pytest
 
 from foms.services.as_content_safety import (
     as_content_html_to_text,
+    combined_as_content_text,
     load_structured_data_dict_or_raise,
     sanitize_as_content_html,
 )
@@ -37,6 +38,23 @@ def test_as_content_html_to_text_normalizes_line_breaks() -> None:
     text = as_content_html_to_text(html)
 
     assert text == "첫째\n둘째\n셋째"
+
+
+def test_combined_as_content_text_merges_tabs_and_notes_fallback() -> None:
+    sd = {
+        "shipment": {
+            "as_content": "<div>탭1</div>",
+        },
+    }
+    assert combined_as_content_text(sd, notes_fallback="노트 폴백") == "탭1\n\n노트 폴백"
+
+    sd_tab2 = {
+        "shipment": {
+            "as_content": "<div>탭1</div>",
+            "as_content_2": "<div>탭2</div>",
+        },
+    }
+    assert combined_as_content_text(sd_tab2) == "탭1\n\n탭2"
 
 
 def test_load_structured_data_dict_or_raise_returns_deepcopied_dict() -> None:

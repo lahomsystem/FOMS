@@ -168,6 +168,53 @@ def test_completion_api_focus_order_with_q_shows_only_focused_row(client, app) -
         assert sibling_id not in {row["id"] for row in hits}
 
 
+def test_completion_api_returns_as_content_text_without_html_tags(client, app) -> None:
+    """Rich AS HTML must serialize as plain as_content_text (no raw tags in display field)."""
+    with app.app_context():
+        _login(client, "completion_as_text_user")
+        order = Order(
+            received_date="2026-06-15",
+            customer_name="AS고객",
+            phone="010-5555-1234",
+            address="Seoul",
+            product="주방",
+            status="AS_RECEIVED",
+            is_erp_order=True,
+            structured_data={
+                "parties": {"customer": {"name": "AS고객", "phone": "010-5555-1234"}},
+                "shipment": {
+                    "as_content": "<div>6/24 해피콜 완료<script>alert(1)</script></div><br/><div>문짝 교체 필요</div>",
+                },
+            },
+        )
+        db_session.add(order)
+        db_session.commit()
+        order_id = order.id
+
+        resp = client.get(f"/api/orders/completion?focus_order={order_id}")
+        assert resp.status_code == 200
+        payload = resp.get_json()
+        assert payload["success"] is True
+        row = payload["orders"][0]
+        assert row["id"] == order_id
+        assert "<div>" not in row["as_content_text"]
+        assert "<script>" not in row["as_content_text"]
+        assert "6/24 해피콜 완료" in row["as_content_text"]
+        assert "문짝 교체 필요" in row["as_content_text"]
+        assert row["as_content"].startswith("<div>")
+
+
+def test_completion_scripts_renders_as_content_as_plain_text() -> None:
+    root = Path(__file__).resolve().parents[2]
+    script = (root / "templates/cs/partials/completion_scripts.html").read_text(
+        encoding="utf-8"
+    )
+    assert "function asContentPlainText(order)" in script
+    assert "order.as_content_text" in script
+    assert "erp-completion-mobile-card__note-body" in script
+    assert "escapeHtml(asPlain)" in script
+
+
 def test_completion_api_focus_order_outside_browse_window(client, app) -> None:
     """focus_order= PK fetch — works even when order id is below browse cutoff."""
     with app.app_context():

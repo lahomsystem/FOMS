@@ -13,7 +13,7 @@ from typing import Any, Callable
 
 from sqlalchemy.orm import load_only
 
-from foms.services.as_content_safety import as_content_html_to_text, sanitize_as_content_html
+from foms.services.as_content_safety import as_content_html_to_text, combined_as_content_text, sanitize_as_content_html
 from foms.services.common.dashboard_cache import get_dashboard_redis
 from foms.services.geocode_helpers import get_order_display_address
 from foms.services.schedule_recommendations import get_order_display_customer_name
@@ -114,14 +114,7 @@ def _visit_date_str(order: Order, sd: dict[str, Any]) -> str:
 
 
 def _as_content_text(sd: dict[str, Any]) -> str:
-    shipment = sd.get("shipment") or {}
-    if not isinstance(shipment, dict):
-        return ""
-    parts = [
-        as_content_html_to_text(shipment.get("as_content")),
-        as_content_html_to_text(shipment.get("as_content_2")),
-    ]
-    return "\n\n".join(part for part in parts if part)
+    return combined_as_content_text(sd)
 
 
 def _as_content_html(order: Order, sd: dict[str, Any]) -> str:

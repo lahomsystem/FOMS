@@ -11,6 +11,24 @@
       return escapeHtml(s).replace(/'/g, '&#39;');
     }
 
+    function asContentPlainText(order) {
+      if (!order) return '';
+      var text = order.as_content_text;
+      if (text != null && String(text).trim()) {
+        return String(text).trim();
+      }
+      var raw = order.as_content;
+      if (raw == null || !String(raw).trim()) return '';
+      return String(raw)
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/p>/gi, '\n')
+        .replace(/<\/div>/gi, '\n')
+        .replace(/<[^>]+>/g, '')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+    }
+
     function buildStatusLabel(status) {
       if (status === 'COMPLETED') return '완료';
       if (status === 'AS_RECEIVED') return 'AS 접수';
@@ -78,11 +96,12 @@
         ? '<span class="badge bg-info text-white"><i class="fas fa-ruler-combined"></i> 자가 실측</span>'
         : '';
 
-      if (order.as_content && String(order.as_content).trim()) {
-        asContentHtml = '<div class="erp-completion-mobile-card__note"><strong>AS 접수 내용</strong><span>' + escapeHtml(String(order.as_content).trim()) + '</span></div>';
+      var asPlain = asContentPlainText(order);
+      if (asPlain) {
+        asContentHtml = '<div class="erp-completion-mobile-card__note erp-completion-mobile-card__note--as"><strong>AS 접수 내용</strong><span class="erp-completion-mobile-card__note-body">' + escapeHtml(asPlain) + '</span></div>';
       }
       if (order.completion_note && String(order.completion_note).trim()) {
-        noteHtml = '<div class="erp-completion-mobile-card__note"><strong>완료 메모</strong><span>' + escapeHtml(String(order.completion_note).trim()) + '</span></div>';
+        noteHtml = '<div class="erp-completion-mobile-card__note"><strong>완료 메모</strong><span class="erp-completion-mobile-card__note-body">' + escapeHtml(String(order.completion_note).trim()) + '</span></div>';
       }
       if (order.construction_fail_history && order.construction_fail_history.length) {
         failHistoryHtml = '<div class="erp-completion-mobile-card__note"><strong>재시공 이력</strong><span>' + order.construction_fail_history.length + '건</span></div>';
@@ -341,7 +360,8 @@
           if (extra) extra.remove();
 
           var parts = [];
-          if (order.as_content) parts.push('AS: ' + order.as_content);
+          var asPlain = asContentPlainText(order);
+          if (asPlain) parts.push('AS: ' + asPlain);
           if (order.completion_note) parts.push(order.completion_note);
           if (order.construction_fail_history && order.construction_fail_history.length) {
             parts.push('재시공 이력: ' + order.construction_fail_history.length + '건');

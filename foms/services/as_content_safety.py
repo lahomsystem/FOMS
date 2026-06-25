@@ -12,6 +12,7 @@ from bs4 import BeautifulSoup, Comment
 __all__ = [
     "sanitize_as_content_html",
     "as_content_html_to_text",
+    "combined_as_content_text",
     "load_structured_data_dict_or_raise",
 ]
 
@@ -122,6 +123,25 @@ def as_content_html_to_text(value: Any) -> str:
         if normalized:
             lines.append(normalized)
     return '\n'.join(lines)
+
+
+def combined_as_content_text(
+    structured_data: dict[str, Any] | None,
+    *,
+    notes_fallback: str = "",
+) -> str:
+    """AS 탭1·탭2(+ notes 폴백) plain text — 출고·완료 대시보드 공통 SSOT."""
+    sd = structured_data if isinstance(structured_data, dict) else {}
+    shipment = sd.get("shipment") or {}
+    if not isinstance(shipment, dict):
+        return ""
+
+    parts = [as_content_html_to_text(shipment.get("as_content"))]
+    if "as_content_2" in shipment:
+        parts.append(as_content_html_to_text(shipment.get("as_content_2")))
+    elif notes_fallback:
+        parts.append(as_content_html_to_text(notes_fallback))
+    return "\n\n".join(part for part in parts if part)
 
 
 def load_structured_data_dict_or_raise(raw_value: Any) -> dict[str, Any]:

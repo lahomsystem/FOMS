@@ -173,6 +173,12 @@
   font-size: 0.75rem;
 }
 
+.erp-completion-mobile-card__note-body {
+  display: block;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
 .erp-completion-mobile-card__actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
