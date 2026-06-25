@@ -3748,7 +3748,11 @@ function erpGenerateConversionText() {
     text = erpAppendConversionMoneyLine(text, '할인', totals.discount_amount);
     const balanceSuffix = _erpIsBalancePaymentConfirmed() ? '(결제 완)' : '';
     text = erpAppendConversionMoneyLine(text, '잔금', totals.final_amount, balanceSuffix);
-    text = erpAppendConversionTextLine(text, '현금영수증', getVal('erp-cash-receipt'));
+    const cashReceiptVal = getVal('erp-cash-receipt');
+    if (erpHasConversionTextValue(cashReceiptVal) && totals.final_amount > 0) {
+        text += '\n';
+    }
+    text = erpAppendConversionTextLine(text, '현금영수증', cashReceiptVal);
     text = text.replace(/\n+$/, '');
 
     const textarea = document.getElementById('erp-conversion-text');
