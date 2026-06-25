@@ -36,7 +36,8 @@ def _build_order_detail_link(order_id: Any) -> str:
 
 
 def _text_block(value: str) -> dict[str, str]:
-    return {"type": "text", "value": html.escape(value, quote=True)}
+    """ChannelTalk text blocks are plain text; do not HTML-escape body content."""
+    return {"type": "text", "value": value}
 
 
 def _paragraph_blocks(lines: List[str]) -> list[dict[str, str]]:

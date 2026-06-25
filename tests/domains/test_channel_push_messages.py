@@ -63,6 +63,62 @@ def test_build_message_template_retry_uses_modify_prefix_only(monkeypatch):
     assert message.startswith("[수정]\n\n고객명 : 윤인선")
 
 
+def test_build_message_blocks_preserves_special_characters_in_push_text(monkeypatch):
+    """Apostrophes, quotes, and ampersands in ERP conversion text must not be HTML-escaped."""
+    monkeypatch.setenv("FOMS_BASE_URL", "https://example.com")
+    monkeypatch.setattr(channel_security, "generate_wam_short_link_token", lambda order_id=None: "short-123")
+
+    raw_text = (
+        "고객명 : 윤인선\n"
+        "주  소 : 인천 서구 봉오대로 270, 루원시티2차 SK Leaders' VIEW 102-203\n"
+        '옵 션 : 6" 핸들 & "특수"\n'
+    )
+    blocks = channel_policy.build_message_blocks(
+        "manual",
+        {"order_id": 2762, "text": raw_text},
+    )
+
+    body_blocks = [block for block in blocks if "SK Leaders' VIEW" in block.get("value", "")]
+    assert len(body_blocks) == 1
+    body_block = body_blocks[0]["value"]
+    assert "SK Leaders' VIEW" in body_block
+    assert "&#x27;" not in body_block
+    assert "&quot;" not in body_block
+    assert "&amp;" not in body_block
+    assert '6" 핸들 & "특수"' in body_block
+
+
+def test_build_message_blocks_escapes_link_url_attribute(monkeypatch):
+    """Link markup attribute values must stay escaped; body text must not."""
+    monkeypatch.setenv("FOMS_BASE_URL", "https://example.com")
+
+    blocks = channel_policy.build_message_blocks(
+        "manual",
+        {
+            "order_id": 1,
+            "text": "주  소 : SK Leaders' VIEW",
+            "detail_url": 'https://x.example/?a=1&b=2"',
+        },
+    )
+
+    body_blocks = [block for block in blocks if "SK Leaders' VIEW" in block.get("value", "")]
+    assert body_blocks[0]["value"] == "주  소 : SK Leaders' VIEW"
+    link_blocks = [block for block in blocks if "주문 보기" in block.get("value", "")]
+    assert len(link_blocks) == 1
+    assert 'value="https://x.example/?a=1&amp;b=2&quot;"' in link_blocks[0]["value"]
+
+
+def test_build_message_template_preserves_special_characters_in_push_text(monkeypatch):
+    monkeypatch.setenv("FOMS_BASE_URL", "https://example.com")
+    monkeypatch.setattr(channel_security, "generate_wam_short_link_token", lambda order_id=None: "short-123")
+
+    raw_text = "주  소 : SK Leaders' VIEW 102-203"
+    message = channel_policy.build_message_template("manual", {"order_id": 1, "text": raw_text})
+
+    assert "SK Leaders' VIEW" in message
+    assert "&#x27;" not in message
+
+
 def test_build_message_blocks_renders_manual_push_link(monkeypatch):
     monkeypatch.setenv("FOMS_BASE_URL", "https://example.com")
     monkeypatch.setattr(channel_security, "generate_wam_short_link_token", lambda order_id=None: "short-123")
