@@ -727,6 +727,8 @@ def api_payment_confirm(order_id):
 
         ret_payment = {
             'deposit': payment_obj.get('deposit', 0),
+            'discount': payment_obj.get('discount', 0),
+            'cash_receipt': payment_obj.get('cash_receipt') or '',
             'deposit_confirmed': payment_obj.get('deposit_confirmed', False),
             'deposit_confirmed_at': payment_obj.get('deposit_confirmed_at'),
             'deposit_confirmed_by': payment_obj.get('deposit_confirmed_by'),

@@ -59,6 +59,8 @@ CRITICAL_ERP_IDS = {
     "erp-deposit-section",
     "erp-remaining-amount",
     "erp-remaining-section",
+    "erp-cash-receipt",
+    "erp-cash-receipt-section",
     "erp-status-text",
     "erp-channeltalk-push-btn",
     "erp-channeltalk-push-drawing-btn",

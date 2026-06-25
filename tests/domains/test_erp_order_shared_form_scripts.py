@@ -514,7 +514,12 @@ def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
     assert "_erpIsBalancePaymentConfirmed()" in conversion_block
     assert "const balanceSuffix = _erpIsBalancePaymentConfirmed() ? '(결제 완)' : '';" in conversion_block
     assert "erpAppendConversionMoneyLine(text, '잔금', totals.final_amount, balanceSuffix)" in conversion_block
-    assert "function _erpIsBalancePaymentConfirmed()" in text
+    assert "erpAppendConversionTextLine(text, '현금영수증', getVal('erp-cash-receipt'))" in conversion_block
+    assert "function erpResolveCashReceipt" in text
+    assert "Object.prototype.hasOwnProperty.call(modernPayment, 'cash_receipt')" in text
+    assert "cash_receipt: String(getVal('erp-cash-receipt') || '').trim()" in collect_block
+    assert "cash_receipt: erpResolveCashReceipt(sd)" in text
+    assert "erp-cash-receipt-section" in text
     assert 'data-payment-type="balance"' in text
     assert "erp-custom-payment-confirmed" in text
     assert "visibleItemIndex += 1" in conversion_block

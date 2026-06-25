@@ -181,6 +181,12 @@ ERP Order mobile-v2 tab pane.
                                 </div>
                                 <div class="erp-mobile-amount-chip erp-amount-value erp-amount-value--balance" id="erp-remaining-amount">0원</div>
                             </div>
+                            <div id="erp-cash-receipt-section" class="erp-mobile-amount-row" style="display: none;">
+                                <div class="erp-mobile-amount-label">
+                                    <label for="erp-cash-receipt">현금영수증</label>
+                                </div>
+                                <input type="text" id="erp-cash-receipt" inputmode="tel" placeholder="연락처 입력" maxlength="32" class="foms-input foms-tabular erp-amount-value erp-amount-value--cash-receipt text-end" title="현금영수증 발급 연락처(휴대폰 등). 비어 있으면 PUSH·변환 텍스트에 표시되지 않습니다.">
+                            </div>
                         </div>
                         <div class="field__hint" id="erp-status-text"></div>
                     </section>

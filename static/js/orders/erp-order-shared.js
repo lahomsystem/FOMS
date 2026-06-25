@@ -83,6 +83,23 @@ var erpResolveDiscountAmount =
     };
 window.erpResolveDiscountAmount = erpResolveDiscountAmount;
 
+var erpResolveCashReceipt =
+    window.erpResolveCashReceipt ||
+    function erpResolveCashReceipt(sd) {
+        sd = sd || {};
+        var modernPayment = sd.payment || {};
+        if (Object.prototype.hasOwnProperty.call(modernPayment, 'cash_receipt')) {
+            return String(modernPayment.cash_receipt || '').trim();
+        }
+        var legacyPayments = sd.payments || {};
+        var legacyEntry = legacyPayments.cash_receipt;
+        if (legacyEntry && typeof legacyEntry === 'object') {
+            return String(legacyEntry.value || legacyEntry.raw || '').trim();
+        }
+        return String(legacyEntry || '').trim();
+    };
+window.erpResolveCashReceipt = erpResolveCashReceipt;
+
 var erpBuildTotals =
     window.erpBuildTotals ||
     function erpBuildTotals(itemsTotal, depositAmount, discountAmount) {
@@ -111,6 +128,7 @@ var _erpNormalizePaymentData =
         return {
             deposit: Math.max(0, depositAmount),
             discount: Math.max(0, discountAmount),
+            cash_receipt: erpResolveCashReceipt(sd),
             deposit_confirmed: _erpBoolConfirmed(pay.deposit_confirmed),
             deposit_confirmed_at: pay.deposit_confirmed_at || null,
             deposit_confirmed_by: pay.deposit_confirmed_by || null,
@@ -615,6 +633,7 @@ function erpRecalcItemsTotal() {
     const totalEl = document.getElementById('erp-items-total');
     const discountSection = document.getElementById('erp-discount-section');
     const remainingSection = document.getElementById('erp-remaining-section');
+    const cashReceiptSection = document.getElementById('erp-cash-receipt-section');
     if (!itemsWrap || !totalEl) return;
     let sum = 0;
     itemsWrap.querySelectorAll('[data-erp="price"]').forEach(inp => {
@@ -628,6 +647,9 @@ function erpRecalcItemsTotal() {
     }
     if (remainingSection) {
         remainingSection.style.display = showAmountRows ? '' : 'none';
+    }
+    if (cashReceiptSection) {
+        cashReceiptSection.style.display = showAmountRows ? '' : 'none';
     }
     erpCalculateRemaining();
 }
@@ -1389,6 +1411,10 @@ async function erpLoadStructured(bootstrapData, options) {
     if (discountEl) {
         discountEl.value = erpFormatDepositDisplay(paymentData.discount);
     }
+    const cashReceiptEl = document.getElementById('erp-cash-receipt');
+    if (cashReceiptEl) {
+        cashReceiptEl.value = paymentData.cash_receipt || '';
+    }
     erpCalculateRemaining();
     _erpUpdatePaymentConfirmUI('deposit', paymentData);
     _erpUpdatePaymentConfirmUI('balance', paymentData);
@@ -1566,6 +1592,7 @@ function erpCollectStructured() {
             return {
                 deposit: totals.deposit_amount,
                 discount: totals.discount_amount,
+                cash_receipt: String(getVal('erp-cash-receipt') || '').trim(),
                 deposit_confirmed: _erpBoolConfirmed(prev.deposit_confirmed),
                 deposit_confirmed_at: prev.deposit_confirmed_at || null,
                 deposit_confirmed_by: prev.deposit_confirmed_by || null,
@@ -1951,7 +1978,9 @@ window.erpTogglePayment = async function(btn, pType) {
         });
         const data = await res.json();
         if (data.success && data.payment) {
-            const p = _erpNormalizePaymentData({ payment: data.payment });
+            const p = _erpNormalizePaymentData({
+                payment: Object.assign({}, originalPaymentData, data.payment),
+            });
             window.__erpLastStructuredData.payment = p;
             _erpUpdatePaymentConfirmUI(pType, p);
         } else {
@@ -3719,6 +3748,7 @@ function erpGenerateConversionText() {
     text = erpAppendConversionMoneyLine(text, '할인', totals.discount_amount);
     const balanceSuffix = _erpIsBalancePaymentConfirmed() ? '(결제 완)' : '';
     text = erpAppendConversionMoneyLine(text, '잔금', totals.final_amount, balanceSuffix);
+    text = erpAppendConversionTextLine(text, '현금영수증', getVal('erp-cash-receipt'));
     text = text.replace(/\n+$/, '');
 
     const textarea = document.getElementById('erp-conversion-text');
