@@ -89,3 +89,45 @@ def test_mobile_print_utilities_documents_p0_07_theme():
     css = _read("static/css/foundation/erp-pro/06-mobile-print-utilities.css")
     assert "foms-tokens.css" in css
     assert "theme.js" in css
+
+
+def test_mobile_fixed_overlays_outside_shell_chrome():
+    shell = _read("templates/partials/shared/foms_app_shell.html")
+    chrome_close = shell.index("</div>", shell.index("erp-mobile-shell-chrome"))
+    drawer_pos = shell.index("erp_mobile_menu_drawer.html")
+    search_pos = shell.index("foms_search_overlay.html")
+    assert drawer_pos > chrome_close
+    assert search_pos > chrome_close
+    assert "display:contents" in shell
+
+
+def test_foms_z_menu_drawer_token():
+    css = _read("static/css/foundation/foms-tokens.css")
+    assert "--foms-z-menu-drawer:" in css
+    mobile = _read("static/css/foundation/erp-pro/10-erp-mobile-v2-shell.css")
+    assert "--foms-z-menu-drawer" in mobile
+    assert "#erp-mobile-menu-drawer.offcanvas.show" in mobile
+
+
+def test_theme_js_document_delegation_and_htmx_resync():
+    js = _read("static/js/foms/theme.js")
+    assert "__FOMS_THEME_CLICK_BOUND" in js
+    assert "bindThemeClickDelegation" in js
+    assert "document.addEventListener('click'" in js
+    assert "foms:main-content-swapped" in js
+    assert "shown.bs.offcanvas" in js
+    assert "bindToggles" not in js
+
+
+def test_search_overlay_closed_does_not_capture_pointer():
+    css = _read("static/css/components/foms-search-overlay.css")
+    assert ".foms-search-overlay:not([open])" in css
+    assert "pointer-events: none" in css
+
+
+def test_flatpickr_dark_theme_follows_foms_tokens():
+    css = _read("static/css/components/foms-flatpickr-theme.css")
+    assert "[data-theme='dark'] .flatpickr-calendar" in css
+    assert "var(--foms-surface-base)" in css
+    head = _read("templates/partials/shared/layout_head.html")
+    assert "foms-flatpickr-theme.css" in head

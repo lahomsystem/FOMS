@@ -4,52 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-06-17 15:20:44 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/harness/test_run_codex_levels.py -q` |
-| 2026-06-17 15:21:01 | allow | `-` | `powershell -NoProfile -Command ". 'c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS\tools\harness\gstack_qa_skill.ps1'; $r='c:\Users\USER\OneDrive\De` |
-| 2026-06-17 15:21:13 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/harness/test_run_codex_levels.py -q` |
-| 2026-06-17 15:21:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/harness/test_run_codex_levels.py -q` |
-| 2026-06-17 15:21:59 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add tools/harness/gstack_qa_skill.ps1 tools/harness/run_gstack_qa.ps1 tools/harness/run_co` |
-| 2026-06-17 15:26:18 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/contracts/runtime/test_ptc_physical_exactness.py::test_ptc_committed_ro` |
-| 2026-06-17 15:26:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add tests/contracts/runtime/test_ptc_physical_exactness.py docs/specs/2026-04-07-repo-stru` |
-| 2026-06-17 15:38:40 | allow | `-` | `railway --version 2>&1; railway status 2>&1` |
-| 2026-06-17 15:38:47 | allow | `-` | `railway service list 2>&1; railway variables 2>&1 | Select-Object -First 40` |
-| 2026-06-17 15:39:04 | allow | `-` | `railway logs --help 2>&1 | Select-Object -First 30` |
-| 2026-06-17 15:39:09 | allow | `-` | `railway logs -n 80 --filter "@level:info" 2>&1` |
-| 2026-06-17 15:39:26 | allow | `-` | `railway logs -n 200 --filter "DashCache" 2>&1 | Select-Object -Last 40` |
-| 2026-06-17 15:39:36 | allow | `-` | `railway logs -s WORKER -n 30 2>&1; railway logs -s Postgres -n 20 2>&1` |
-| 2026-06-17 15:55:16 | allow | `-` | `python -c "import app; print('APP_OK')"` |
-| 2026-06-17 16:04:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git diff; git log -3 --oneline; git branch --show-current` |
-| 2026-06-17 16:05:24 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add "static/css/components/foms-shipment-mobile.css" "templates/shipment/partials/shipment` |
-| 2026-06-17 16:05:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
-| 2026-06-17 16:06:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy` |
-| 2026-06-17 16:18:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git branch --show-current; git status -sb; git log -1 --oneline deploy; git log -1 --oneline o` |
-| 2026-06-17 16:18:50 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin; git log --oneline origin/production..deploy -5; git log --oneline deploy..or` |
-| 2026-06-17 16:18:58 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production; git pull origin production; git merge deploy -m "merge: deploy → prod` |
-| 2026-06-17 16:19:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log --oneline -3 production; git log --oneline -3 origin/production; git log --oneline ori` |
-| 2026-06-17 16:19:21 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git merge-base production origin/production; git log --oneline --graph production origin/produ` |
-| 2026-06-17 16:19:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git rev-parse production; git rev-parse origin/production; git merge-base --is-ancestor origin` |
-| 2026-06-17 16:19:38 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
-| 2026-06-17 16:20:13 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production` |
-| 2026-06-18 10:49:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_mobile_order_display.py tests/domains/test_erp_measure` |
-| 2026-06-18 10:49:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/perf/perf_scan.py --guard 2>&1` |
-| 2026-06-18 10:49:34 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_mobile_order_display.py tests/domains/test_erp_measure` |
-| 2026-06-18 10:53:10 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_mobile_order_display.py::test_batch_resolve_queue_atta` |
-| 2026-06-18 10:53:26 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git branch --show-current; git status --short` |
-| 2026-06-18 10:53:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1 2>&1` |
-| 2026-06-18 10:54:16 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1 2>&1` |
-| 2026-06-18 10:54:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add foms/services/erp_mobile_order_display.py foms/web/orders/dashboard.py foms/web/produc` |
-| 2026-06-18 10:59:18 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git branch --show-current; git status --short; git log -1 --oneline; git status -sb` |
-| 2026-06-18 10:59:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin deploy 2>&1; git rev-parse HEAD; git rev-parse origin/deploy` |
-| 2026-06-18 11:04:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin deploy production 2>&1; git log -1 --oneline deploy; git log -1 --oneline ori` |
-| 2026-06-18 11:04:13 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git checkout production; git pull origin production; git merge deploy -m "merge: deploy -> pro` |
-| 2026-06-18 11:04:20 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1 2>&1` |
-| 2026-06-18 11:04:50 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin production; git log -1 --oneline; git rev-parse origin/production` |
-| 2026-06-18 11:26:34 | allow | `-` | `railway --version 2>&1; railway whoami 2>&1; railway status 2>&1` |
-| 2026-06-18 11:26:40 | allow | `-` | `railway variables --json 2>&1 | python -c "import sys,json; d=json.load(sys.stdin); keys=[k for k in d if k.startswith('CHANNEL_') or k=='FOMS_BASE_URL']; print` |
-| 2026-06-18 11:26:40 | allow | `-` | `railway environment list 2>&1` |
-| 2026-06-18 11:26:40 | allow | `-` | `railway service list 2>&1` |
-| 2026-06-18 11:26:46 | allow | `-` | `railway --help 2>&1 | Select-Object -First 40` |
-| 2026-06-18 11:26:50 | allow | `-` | `railway service --help 2>&1; railway environment --help 2>&1` |
 | 2026-06-18 11:26:51 | allow | `-` | `railway logs -n 100 --filter "채널톡" 2>&1 | Select-Object -Last 30` |
 | 2026-06-18 11:26:58 | allow | `-` | `railway environment config --json 2>&1` |
 | 2026-06-18 11:26:58 | allow | `-` | `railway service status 2>&1` |
@@ -304,3 +258,49 @@
 | 2026-06-25 10:01:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin; git status -sb; git log --oneline -3 deploy; git log --oneline -3 origin/dep` |
 | 2026-06-25 10:01:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log --oneline production..deploy; git diff docs/AI_CHANGELOG.md` |
 | 2026-06-25 10:01:21 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/AI_CHANGELOG.md docs/harness/logs/SHELL_GUARD_LOG.md docs/harness/runtime/EDIT_LO` |
+| 2026-06-25 16:26:55 | allow | `-` | `echo "=== history (must NOT contain 712332fc dark mode) ==="; git log --oneline -4; echo "=== version bump present? ==="; git grep -n "estimate-preview.js') }}?` |
+| 2026-06-25 16:28:05 | allow | `-` | `echo "=== status ==="; git status -s | Select-Object -First 20; echo "=== stash list ==="; git stash list; echo "=== any conflict markers? ==="; git diff --name` |
+| 2026-06-25 16:30:30 | allow | `-` | `$u="https://lahom-production.up.railway.app/static/js/orders/estimate-preview.js?v=20260625a"; try { $r=Invoke-WebRequest -Uri $u -UseBasicParsing -TimeoutSec 3` |
+| 2026-06-25 16:33:25 | allow | `-` | `echo "=== fallback div in production commit d7f9fec9? ==="; git grep -n "est-mobile-preview-fallback" d7f9fec9 -- templates/orders/partials/estimate_pane.html |` |
+| 2026-06-25 16:41:21 | allow | `-` | `curl -s "https://lahom-dev.up.railway.app/static/css/foundation/erp-pro/10-erp-mobile-v2-shell.css?v=20260625b" | Select-String -Pattern "erp-mobile-menu-drawer` |
+| 2026-06-25 16:42:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " import re from pathlib import Path css = Path('static/css/foundation/erp-pro/10-er` |
+| 2026-06-25 16:42:22 | allow | `-` | `curl -s "https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" | Select-String -Pattern "offcanvas" | Select-Object -First 5` |
+| 2026-06-25 16:43:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log -5 --oneline -- static/css/foundation/erp-pro/10-erp-mobile-v2-shell.css; git log -1 -` |
+| 2026-06-25 16:43:58 | allow | `-` | `curl -s "https://lahom-dev.up.railway.app/static/css/foundation/erp-pro/10-erp-mobile-v2-shell.css" | Select-String -Pattern "z-index" | Select-Object -First 8` |
+| 2026-06-25 16:53:24 | allow | `-` | `node --check static/js/orders/estimate-preview.js 2>&1; echo "node_check_exit=$LASTEXITCODE"` |
+| 2026-06-25 16:53:48 | allow | `-` | `python -m pytest tests/domains/test_erp_order_shared_form_scripts.py -q 2>&1 | Select-Object -Last 30` |
+| 2026-06-25 16:53:48 | allow | `-` | `node --check static/js/orders/estimate-preview.js 2>&1; echo "node_check_exit=$LASTEXITCODE"` |
+| 2026-06-25 16:53:48 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-06-25 16:53:48 | allow | `-` | `python tools/perf/perf_scan.py --guard 2>&1 | Select-Object -Last 30; echo "guard_exit=$LASTEXITCODE"` |
+| 2026-06-25 16:56:38 | allow | `-` | `python -m pytest tests/domains/test_erp_order_shared_form_scripts.py -q 2>&1 | Select-Object -Last 30` |
+| 2026-06-25 16:56:38 | allow | `-` | `node --check static/js/orders/estimate-preview.js 2>&1; echo "node_check_exit=$LASTEXITCODE"` |
+| 2026-06-25 16:56:38 | allow | `-` | `python tools/perf/perf_scan.py --guard 2>&1 | Select-Object -Last 30; echo "guard_exit=$LASTEXITCODE"` |
+| 2026-06-25 16:56:56 | allow | `-` | `python -c "import app; print('APP_OK')"` |
+| 2026-06-25 16:57:39 | allow | `-` | `@' fix: iOS 견적서 캡처 무한대기 차단 html2canvas 1.4.1이 iOS Safari에서 hidden iframe/lazy image clone 대기 중 resolve/reject 없이 멈추면 견적 탭이 빈 화면이 되고 저장 버튼도 "저장 중"에서 복구되지 않았다. - ` |
+| 2026-06-25 16:57:48 | allow | `-` | `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1 2>&1 | Select-Object -Last 80; echo "pre_push_exit=$LASTEXITCODE"` |
+| 2026-06-25 16:58:56 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff static/js/foms/theme.js | Select-Object -First 80` |
+| 2026-06-25 16:59:29 | allow | `-` | `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1 2>&1 | Select-Object -Last 100; echo "pre_push_exit=$LASTEXITCODE"` |
+| 2026-06-25 16:59:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_foms_theme.py -q; python tools/perf/perf_scan.py --guard` |
+| 2026-06-25 17:00:11 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat` |
+| 2026-06-25 17:00:11 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff` |
+| 2026-06-25 17:00:17 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff static/css/components/foms-search-overlay.css static/css/foundation/erp-pro/10-erp-mo` |
+| 2026-06-25 17:00:34 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -s static/css/components/foms-flatpickr-theme.css` |
+| 2026-06-25 17:01:43 | allow | `-` | `$u="https://lahom-dev.up.railway.app/static/js/orders/estimate-preview.js?v=20260625b"; try { $r=Invoke-WebRequest -Uri $u -UseBasicParsing -TimeoutSec 30; Writ` |
+| 2026-06-25 17:01:53 | allow | `-` | `$u='https://lahom-dev.up.railway.app/static/js/orders/estimate-preview.js?v=20260625b'; try { $r=Invoke-WebRequest -Uri $u -UseBasicParsing -TimeoutSec 30; $has` |
+| 2026-06-25 17:02:18 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_foms_theme.py -q` |
+| 2026-06-25 17:03:30 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status --short; git diff --stat` |
+| 2026-06-25 18:56:40 | allow | `-` | `git ls-remote origin refs/heads/deploy refs/heads/production; git log --oneline -5` |
+| 2026-06-25 18:56:58 | allow | `-` | `Get-ChildItem "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject" | Select-Object -First 5; $wt="c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOM` |
+| 2026-06-25 18:57:16 | allow | `-` | `git worktree list; $wt="c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS-prod-ios-push-20260625185658"; git -C $wt cherry-pick --abort 2>$null; git w` |
+| 2026-06-25 18:57:29 | allow | `-` | `$wt="c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS-prod-ios-push-$(Get-Date -Format yyyyMMddHHmmss)"; $br="prod-ios-push-$(Get-Date -Format yyyyMM` |
+| 2026-06-25 18:57:52 | allow | `-` | `git -C "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS-prod-ios-push-20260625185730" grep -n "20260625b" HEAD -- templates/orders/partials/erp_orde` |
+| 2026-06-25 18:57:52 | allow | `-` | `git -C "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS-prod-ios-push-20260625185730" log --oneline -4; git -C "c:\Users\USER\OneDrive\Desktop\SY\pr` |
+| 2026-06-25 18:57:52 | allow | `-` | `node --check "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS-prod-ios-push-20260625185730\static\js\orders\estimate-preview.js" 2>&1; echo "node_ch` |
+| 2026-06-25 18:58:01 | allow | `-` | `git -C "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS-prod-ios-push-20260625185730" push origin HEAD:production 2>&1 | Select-Object -Last 20; git` |
+| 2026-06-25 18:58:13 | allow | `-` | `git worktree remove "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS-prod-ios-push-20260625185730"; git branch -D prod-ios-push-20260625185730; git ` |
+| 2026-06-25 18:59:57 | allow | `-` | `$u='https://lahom-production.up.railway.app/static/js/orders/estimate-preview.js?v=20260625b'; try { $r=Invoke-WebRequest -Uri $u -UseBasicParsing -TimeoutSec 3` |
+| 2026-06-25 19:00:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status --short` |
+| 2026-06-25 19:00:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat; git diff --cached --stat` |
+| 2026-06-25 19:00:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log -5 --oneline` |
+| 2026-06-25 19:00:54 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git branch --show-current; git status -sb` |
+| 2026-06-25 19:01:02 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add static/css/components/foms-flatpickr-theme.css static/css/components/foms-search-overl` |

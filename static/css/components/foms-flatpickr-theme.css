@@ -1,0 +1,51 @@
+/**
+ * Flatpickr calendar surfaces follow FOMS tokens (no third-party dark plugin).
+ */
+[data-theme='dark'] .flatpickr-calendar {
+  background: var(--foms-surface-base);
+  border-color: var(--foms-border-default);
+  box-shadow: var(--foms-shadow-md);
+}
+
+[data-theme='dark'] .flatpickr-calendar .flatpickr-months,
+[data-theme='dark'] .flatpickr-calendar .flatpickr-weekdays {
+  background: var(--foms-surface-raised);
+}
+
+[data-theme='dark'] .flatpickr-calendar .flatpickr-day,
+[data-theme='dark'] .flatpickr-calendar .flatpickr-monthDropdown-months,
+[data-theme='dark'] .flatpickr-calendar .numInputWrapper input,
+[data-theme='dark'] .flatpickr-calendar .flatpickr-current-month .flatpickr-monthDropdown-months,
+[data-theme='dark'] .flatpickr-calendar span.flatpickr-weekday {
+  color: var(--foms-text-primary);
+}
+
+[data-theme='dark'] .flatpickr-calendar .flatpickr-day:hover,
+[data-theme='dark'] .flatpickr-calendar .flatpickr-day:focus {
+  background: var(--foms-surface-muted);
+  border-color: var(--foms-border-subtle);
+}
+
+[data-theme='dark'] .flatpickr-calendar .flatpickr-day.selected,
+[data-theme='dark'] .flatpickr-calendar .flatpickr-day.startRange,
+[data-theme='dark'] .flatpickr-calendar .flatpickr-day.endRange {
+  background: var(--foms-interactive-primary);
+  border-color: var(--foms-interactive-primary);
+  color: var(--foms-text-inverse);
+}
+
+[data-theme='dark'] .flatpickr-calendar .flatpickr-day.today {
+  border-color: var(--foms-interactive-primary);
+}
+
+[data-theme='dark'] .flatpickr-calendar .flatpickr-day.flatpickr-disabled,
+[data-theme='dark'] .flatpickr-calendar .flatpickr-day.prevMonthDay,
+[data-theme='dark'] .flatpickr-calendar .flatpickr-day.nextMonthDay {
+  color: var(--foms-text-disabled);
+}
+
+[data-theme='dark'] .flatpickr-calendar .flatpickr-time input,
+[data-theme='dark'] .flatpickr-calendar .flatpickr-time .flatpickr-am-pm {
+  color: var(--foms-text-primary);
+  background: var(--foms-surface-base);
+}

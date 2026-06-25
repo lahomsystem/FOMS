@@ -12,6 +12,12 @@
   border: none;
   background: var(--foms-surface-base, #fff);
   z-index: var(--foms-z-modal, 1050);
+  color: var(--foms-text-primary);
+}
+
+.foms-search-overlay:not([open]) {
+  display: none !important;
+  pointer-events: none !important;
 }
 
 .foms-search-overlay::backdrop {

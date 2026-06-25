@@ -1,5 +1,6 @@
 /**
  * P0-07: Light/dark theme preference (localStorage + prefers-color-scheme).
+ * Bootstrap 5.3 data-bs-theme stays in sync with html[data-theme].
  */
 (function (global) {
   'use strict';
@@ -70,21 +71,50 @@
     applyTheme(preference);
   }
 
-  function bindToggles() {
-    document.querySelectorAll('[data-foms-theme-option]').forEach(function (btn) {
-      if (btn.dataset.fomsThemeBound === '1') {
+  /** Single document listener — survives HTMX #main-content swap (G4 idempotent). */
+  function bindThemeClickDelegation() {
+    if (global.__FOMS_THEME_CLICK_BOUND) {
+      return;
+    }
+    global.__FOMS_THEME_CLICK_BOUND = true;
+    document.addEventListener('click', function (event) {
+      var btn = event.target.closest('[data-foms-theme-option]');
+      if (!btn) {
         return;
       }
-      btn.dataset.fomsThemeBound = '1';
-      btn.addEventListener('click', function () {
-        setTheme(btn.getAttribute('data-foms-theme-option'));
-      });
+      event.preventDefault();
+      setTheme(btn.getAttribute('data-foms-theme-option'));
+    });
+  }
+
+  function bindOffcanvasResync() {
+    if (global.__FOMS_THEME_OFFCANVAS_BOUND) {
+      return;
+    }
+    global.__FOMS_THEME_OFFCANVAS_BOUND = true;
+    document.addEventListener('shown.bs.offcanvas', function (event) {
+      if (!event.target || event.target.id !== 'erp-mobile-menu-drawer') {
+        return;
+      }
+      applyTheme(readStoredPreference());
+    });
+  }
+
+  function bindMainContentResync() {
+    if (global.__FOMS_THEME_SWAP_BOUND) {
+      return;
+    }
+    global.__FOMS_THEME_SWAP_BOUND = true;
+    document.addEventListener('foms:main-content-swapped', function () {
+      applyTheme(readStoredPreference());
     });
   }
 
   function init() {
     applyTheme(readStoredPreference());
-    bindToggles();
+    bindThemeClickDelegation();
+    bindOffcanvasResync();
+    bindMainContentResync();
     if (global.matchMedia) {
       global.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () {
         if (readStoredPreference() === 'system') {
