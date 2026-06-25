@@ -284,7 +284,13 @@ def _term_prefilter(db: Session, query: str):
     if not tokens:
         return []
     q = db.query(Order).filter(Order.active_filter(), Order.is_erp_order.is_(True))
-    clauses = [erp_order_dashboard_search_predicate(f"%{tok}%") for tok in tokens]
+    clauses = [
+        erp_order_dashboard_search_predicate(
+            f"%{tok}%",
+            customer_contact_only=True,
+        )
+        for tok in tokens
+    ]
     return (
         q.filter(and_(*clauses))
         .order_by(Order.id.desc())

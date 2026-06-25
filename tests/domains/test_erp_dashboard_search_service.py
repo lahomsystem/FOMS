@@ -14,3 +14,12 @@ def test_erp_order_dashboard_search_predicate_appends_blob_clause_when_enabled()
     narrow = erp_order_dashboard_search_predicate('%x%', include_structured_data_blob=False)
     wide = erp_order_dashboard_search_predicate('%x%', include_structured_data_blob=True)
     assert len(wide.clauses) == len(narrow.clauses) + 1
+
+
+def test_erp_order_dashboard_search_predicate_customer_contact_only_omits_manager() -> None:
+    full = erp_order_dashboard_search_predicate('%x%')
+    narrow = erp_order_dashboard_search_predicate('%x%', customer_contact_only=True)
+    assert len(narrow.clauses) < len(full.clauses)
+    narrow_sql = str(narrow.compile(compile_kwargs={"literal_binds": True}))
+    assert "manager_name" not in narrow_sql
+    assert "customer_name" in narrow_sql

@@ -189,6 +189,28 @@ def test_erp_dashboard_search_ignores_hidden_structured_item_memo(login):
     assert "노출되면안됨 고객" not in body
 
 
+def test_erp_dashboard_search_excludes_manager_name_only_match(login):
+    manager_only = _add_erp_order("다른고객")
+    manager_only.manager_name = "강민경"
+    manager_only.structured_data["parties"]["manager"] = {"name": "강민경"}
+    flag_modified(manager_only, "structured_data")
+
+    customer = _add_erp_order("강민경")
+    customer.structured_data["parties"]["customer"] = {
+        "name": "강민경",
+        "phone": "010-8250-2233",
+    }
+    flag_modified(customer, "structured_data")
+    db_session.commit()
+
+    response = login.get("/erp/dashboard?q=강민경")
+    body = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "강민경" in body
+    assert "다른고객" not in body
+
+
 def test_erp_search_placeholders_use_whole_search_label():
     template_paths = [
         "templates/orders/partials/dashboard_filters.html",

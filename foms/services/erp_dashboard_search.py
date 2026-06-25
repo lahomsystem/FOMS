@@ -9,49 +9,69 @@ def erp_order_dashboard_search_predicate(
     search_term: str,
     *,
     include_structured_data_blob: bool = False,
+    customer_contact_only: bool = False,
 ):
     """
     ERP 화면에 노출되는 주요 컬럼 및 structured_data 가시 경로에 대한 ilike OR 조건.
 
-    주문 작업 큐(`/erp/dashboard`)는 ``include_structured_data_blob=False``로 두어
+    주문 작업 큐(`/erp/dashboard`)는 ``customer_contact_only=True``로 고객명·전화·주소만
+    검색한다(담당자·발주자 이름 혼동 방지). ``include_structured_data_blob=False``로
     항목 메모 등 비노출 JSON 깊은 구간이 검색에 걸리지 않게 한다.
 
-    출고 대시보드는 시공자 등 깊은 필드를 찾기 위해 ``True``로 JSON 전체 문자열
-    ilike를 추가한다.
+    출고 대시보드는 시공자 등 깊은 필드를 찾기 위해 ``include_structured_data_blob=True``로
+    JSON 전체 문자열 ilike를 추가한다.
 
     Args:
         search_term: ``%{q}%`` 형태 ILIKE 패턴.
         include_structured_data_blob: True이면 ``cast(structured_data, String).ilike`` 추가.
+        customer_contact_only: True이면 고객명·전화·주소(컬럼+SD parties.customer·site)만.
 
     Returns:
         SQLAlchemy ``or_(...)`` 술어.
     """
-    structured_visible_fields = [
-        Order.structured_data["parties"]["customer"]["name"].as_string(),
-        Order.structured_data["parties"]["customer"]["phone"].as_string(),
-        Order.structured_data["parties"]["manager"]["name"].as_string(),
-        Order.structured_data["parties"]["orderer"]["name"].as_string(),
-        Order.structured_data["site"]["address_full"].as_string(),
-        Order.structured_data["site"]["address_main"].as_string(),
-        Order.structured_data["items"][0]["product_name"].as_string(),
-        Order.structured_data["items"][0]["name"].as_string(),
-        Order.structured_data["schedule"]["measurement"]["date"].as_string(),
-        Order.structured_data["schedule"]["measurement"]["time"].as_string(),
-        Order.structured_data["schedule"]["construction"]["date"].as_string(),
-    ]
+    if customer_contact_only:
+        structured_visible_fields = [
+            Order.structured_data["parties"]["customer"]["name"].as_string(),
+            Order.structured_data["parties"]["customer"]["phone"].as_string(),
+            Order.structured_data["site"]["address_full"].as_string(),
+            Order.structured_data["site"]["address_main"].as_string(),
+        ]
+        clauses = [
+            Order.customer_name.ilike(search_term),
+            Order.phone.ilike(search_term),
+            Order.address.ilike(search_term),
+            *[
+                and_(Order.is_erp_order == True, field.ilike(search_term))
+                for field in structured_visible_fields
+            ],
+        ]
+    else:
+        structured_visible_fields = [
+            Order.structured_data["parties"]["customer"]["name"].as_string(),
+            Order.structured_data["parties"]["customer"]["phone"].as_string(),
+            Order.structured_data["parties"]["manager"]["name"].as_string(),
+            Order.structured_data["parties"]["orderer"]["name"].as_string(),
+            Order.structured_data["site"]["address_full"].as_string(),
+            Order.structured_data["site"]["address_main"].as_string(),
+            Order.structured_data["items"][0]["product_name"].as_string(),
+            Order.structured_data["items"][0]["name"].as_string(),
+            Order.structured_data["schedule"]["measurement"]["date"].as_string(),
+            Order.structured_data["schedule"]["measurement"]["time"].as_string(),
+            Order.structured_data["schedule"]["construction"]["date"].as_string(),
+        ]
 
-    clauses = [
-        Order.id.cast(String).ilike(search_term),
-        Order.customer_name.ilike(search_term),
-        Order.phone.ilike(search_term),
-        Order.address.ilike(search_term),
-        Order.product.ilike(search_term),
-        Order.manager_name.ilike(search_term),
-        *[
-            and_(Order.is_erp_order == True, field.ilike(search_term))
-            for field in structured_visible_fields
-        ],
-    ]
+        clauses = [
+            Order.id.cast(String).ilike(search_term),
+            Order.customer_name.ilike(search_term),
+            Order.phone.ilike(search_term),
+            Order.address.ilike(search_term),
+            Order.product.ilike(search_term),
+            Order.manager_name.ilike(search_term),
+            *[
+                and_(Order.is_erp_order == True, field.ilike(search_term))
+                for field in structured_visible_fields
+            ],
+        ]
     if include_structured_data_blob:
         clauses.append(
             and_(

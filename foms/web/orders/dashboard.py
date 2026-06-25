@@ -181,6 +181,7 @@ def erp_dashboard():
             erp_order_dashboard_search_predicate(
                 search_term,
                 include_structured_data_blob=False,
+                customer_contact_only=True,
             )
         )
 
