@@ -96,7 +96,7 @@
 }
 
 .erp-shipment-mobile-controls__field label {
-  color: #4a637d;
+  color: var(--foms-text-secondary);
   font-size: 13px;
   font-weight: 700;
 }
@@ -133,7 +133,7 @@
 .erp-shipment-mobile-queue__eyebrow {
   display: block;
   margin-bottom: 0.125rem;
-  color: #556b82;
+  color: var(--foms-text-secondary);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -404,7 +404,7 @@
 
 .erp-shipment-mobile-card__detail dt {
   margin-bottom: 0.125rem;
-  color: #64748b;
+  color: var(--foms-text-tertiary);
   font-size: 11px;
   font-weight: 700;
 }
@@ -448,7 +448,7 @@
 }
 
 .erp-shipment-mobile-card--as .erp-shipment-mobile-card__full dd {
-  color: #5b21b6;
+  color: var(--foms-stage-drawing, #8b5cf6);
 }
 
 @media (max-width: 1365.98px) {
@@ -481,6 +481,20 @@
   body.erp-mobile-v2-layout .erp-shipment-mobile-queue {
     display: block;
   }
+}
+
+[data-theme='dark'] .erp-shipment-mobile-date-chip {
+  box-shadow: var(--foms-shadow-xs);
+}
+
+[data-theme='dark'] .erp-shipment-mobile-date-chip.is-today {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--foms-color-success-500) 35%, transparent),
+    var(--foms-shadow-sm);
+}
+
+[data-theme='dark'] .erp-shipment-mobile-v2 .queue-card__attach-thumb,
+[data-theme='dark'] .erp-shipment-mobile-v2 .foms-queue-card-v2__attach-thumb {
+  background: linear-gradient(135deg, var(--foms-surface-muted), var(--foms-text-tertiary));
 }
 
 @media (min-width: 992px) and (max-width: 1365.98px) {

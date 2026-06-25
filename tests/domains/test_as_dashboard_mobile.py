@@ -189,12 +189,13 @@ def test_as_dashboard_mobile_v2_wiring_contract():
     assert "erp-as-mobile-card__thumb" in card_src
     assert "erp-as-mobile-card__contact-row" in card_src
     assert "erp-as-mobile-card__action--pending" in card_src
-    assert "grid-template-columns: 78px minmax(0, 1fr) minmax(0, 1fr)" in css_src  # 접수 날짜 풀표시(2026-06-11 비클립)
+    assert "grid-template-columns: repeat(3, minmax(0, 1fr))" in css_src
     assert "grid-template-columns: minmax(0, 1fr)" in css_src
     assert "min-width: 0;" in css_src
     # PC식 번호 페이저(무한스크롤 아님)
     assert "render_mobile_pager" in body_src
     assert "as_mobile_order_card.html" in body_src
+    assert "erp-as-mobile-card__date--received erp-pro-order-card__row" not in card_src
     assert "data-foms-mobile-queue-scroll" not in body_src
     assert "data-foms-mobile-queue-sentinel" not in body_src
     assert body_src.count("as_mobile_controls.html") == 1

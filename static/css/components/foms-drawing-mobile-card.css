@@ -106,11 +106,13 @@
   margin: 0;
   border-radius: 10px;
   border: 1px solid var(--foms-border-subtle, #dde1e6);
+  background: var(--foms-surface-base);
+  color: var(--foms-text-primary);
   overflow: hidden;
 }
 
 .foms-drawing-queue-card--mine {
-  border-color: #fcd9a3;
+  border-color: color-mix(in srgb, var(--foms-color-warning-500, #f59e0b) 45%, var(--foms-border-subtle, #dde1e6));
   box-shadow: inset 3px 0 0 var(--foms-color-warning-500, #f59e0b);
 }
 
@@ -352,4 +354,35 @@
   body.erp-mobile-v2-layout .foms-drawing-mobile-dashboard .foms-drawing-queue-card__actions .foms-btn {
     min-height: var(--foms-touch-target-min, 40px);
   }
+}
+
+/* Bootstrap .card inherits light --bs-card-bg unless overridden in dark. */
+[data-theme='dark'] body.erp-mobile-v2-layout .foms-drawing-mobile-dashboard .foms-drawing-queue-card.card {
+  --bs-card-bg: var(--foms-surface-base);
+  --bs-card-border-color: var(--foms-border-subtle);
+  --bs-card-color: var(--foms-text-primary);
+  background: var(--foms-surface-base);
+  border-color: var(--foms-border-subtle);
+  color: var(--foms-text-primary);
+}
+
+[data-theme='dark'] .foms-drawing-queue-card__actions .foms-drawing-queue-card__erp-edit {
+  border-color: color-mix(in srgb, var(--foms-interactive-primary) 35%, transparent);
+  background: var(--foms-interactive-primary-soft);
+  color: var(--foms-text-link);
+}
+
+[data-theme='dark'] .foms-drawing-queue-card__chip {
+  background: var(--foms-surface-muted);
+}
+
+[data-theme='dark'] .foms-drawing-queue-card__chip.is-alert {
+  background: rgba(239, 68, 68, 0.18);
+  color: var(--foms-color-danger-400, #f87171);
+}
+
+[data-theme='dark'] .foms-drawing-queue-card__chip.is-warn,
+[data-theme='dark'] .foms-drawing-queue-card__chip.is-mine {
+  background: rgba(245, 158, 11, 0.18);
+  color: var(--foms-color-warning-400, #fbbf24);
 }
