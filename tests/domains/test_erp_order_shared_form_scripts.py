@@ -291,6 +291,10 @@ def test_estimate_preview_js_is_canonical_only() -> None:
     assert "canvas.toBlob" in text
     assert "canvas toBlob timed out" in text
     assert "dataUrl === 'data:,'" in text
+    # iOS Safari는 a[download]를 무시 → 캡처 이미지를 모달로 띄워 길게 눌러 저장 안내.
+    assert "_isIosLike" in text
+    assert "navigator.maxTouchPoints" in text
+    assert "사진에 저장" in text
     assert "_bindEstimateMobilePreview" in text
     assert "_openEstimatePreviewModal" in text
     assert "fomsBindAttachmentPreviewImageZoom" in text

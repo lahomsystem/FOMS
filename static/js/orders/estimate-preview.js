@@ -116,6 +116,21 @@
             && window.matchMedia(_MOBILE_ESTIMATE_MQ).matches;
     }
 
+    /**
+     * iOS(아이폰·아이패드) Safari 계열 여부.
+     * iOS Safari는 a[download] 속성을 무시(동일 탭 인라인 표시)하고, 비동기 캡처
+     * 이후의 link.click()은 transient activation을 잃어 다운로드가 트리거되지 않는다.
+     * → iOS는 캡처 이미지를 모달 <img>로 띄워 "길게 눌러 사진에 저장" 경로로 안내한다.
+     * iPadOS 13+는 UA가 Mac으로 위장하므로 maxTouchPoints로 보강 판별한다.
+     */
+    function _isIosLike() {
+        var ua = navigator.userAgent || '';
+        if (/iPad|iPhone|iPod/.test(ua)) return true;
+        return navigator.platform === 'MacIntel'
+            && typeof navigator.maxTouchPoints === 'number'
+            && navigator.maxTouchPoints > 1;
+    }
+
     function _setMobileCaptureFallback(active, message) {
         var fallbackMsg = document.getElementById('est-mobile-preview-fallback-msg');
         if (fallbackMsg && message) {
@@ -432,17 +447,27 @@
         });
     }
 
-    function _openEstimatePreviewModal() {
+    function _openEstimatePreviewModal(opts) {
+        opts = opts || {};
         var modalEl = document.getElementById('erpEstimatePreviewModal');
         var body = document.getElementById('erp-estimate-preview-body');
         if (!modalEl || !body) return;
 
         function showModal(dataUrl) {
             if (!dataUrl) return;
-            body.innerHTML = '<img src="' + dataUrl + '" alt="견적서" class="img-fluid rounded erp-attachment-preview-img">';
+            var hintHtml = opts.hint
+                ? '<p class="text-muted small text-center mb-2">' + opts.hint + '</p>'
+                : '';
+            body.innerHTML = hintHtml
+                + '<img src="' + dataUrl + '" alt="견적서" class="img-fluid rounded erp-attachment-preview-img">';
             _bindEstimatePreviewImageZoom(body);
             _ensureEstimatePreviewModalZoomReset();
             bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        }
+
+        if (opts.dataUrl) {
+            showModal(opts.dataUrl);
+            return;
         }
 
         if (_mobilePreviewDataUrl) {
@@ -976,6 +1001,20 @@
                 const numEl = document.getElementById('est-estimate-number');
                 const numText = (numEl && numEl.textContent.trim()) || '견적서';
                 const filename = numText + '.png';
+
+                // iOS Safari는 a[download]를 무시하므로(비동기 후 click은 활성화도 소실)
+                // 캡처 이미지를 모달로 띄워 길게 눌러 사진에 저장하도록 안내한다.
+                if (_isIosLike()) {
+                    const imgUrl = await _captureEstimateDataUrl({ preferBlobUrl: false });
+                    if (!imgUrl) {
+                        throw new Error('이미지 생성 실패');
+                    }
+                    _openEstimatePreviewModal({
+                        dataUrl: imgUrl,
+                        hint: '이미지를 길게 눌러 \u0027사진에 저장\u0027을 선택하세요.'
+                    });
+                    return;
+                }
 
                 const dataUrl = await _captureEstimateDataUrl({ preferBlobUrl: true });
                 if (!dataUrl) {
