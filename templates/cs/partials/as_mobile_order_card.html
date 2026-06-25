@@ -57,12 +57,12 @@
   </header>
 
   <div class="erp-as-mobile-card__schedule">
-    <div class="erp-as-mobile-card__date erp-as-mobile-card__date--received erp-pro-order-card__row">
+    <div class="erp-as-mobile-card__date erp-as-mobile-card__date--received">
       <span class="erp-as-mobile-card__date-label">접수</span>
       <span class="erp-as-mobile-card__date-value foms-tabular">{{ r.as_received_date or '-' }}</span>
     </div>
     <div
-      class="erp-as-mobile-card__date erp-as-mobile-card__date--visit erp-pro-order-card__row erp-as-visit-cell {% if r.as_visit_date %}erp-as-visit-row--set{% endif %}">
+      class="erp-as-mobile-card__date erp-as-mobile-card__date--visit erp-as-visit-cell {% if r.as_visit_date %}erp-as-visit-row--set{% endif %}">
       <span class="erp-as-mobile-card__date-label">방문</span>
       <div class="erp-as-visit-cell-wrap">
         <input type="date" class="erp-pro-input editable-date-as" value="{{ r.as_visit_date or '' }}"
@@ -70,7 +70,7 @@
       </div>
     </div>
     <div
-      class="erp-as-mobile-card__date erp-as-mobile-card__date--complete erp-pro-order-card__row {% if r.as_completed_date %}erp-as-complete-row--set{% endif %}">
+      class="erp-as-mobile-card__date erp-as-mobile-card__date--complete {% if r.as_completed_date %}erp-as-complete-row--set{% endif %}">
       <span class="erp-as-mobile-card__date-label">완료</span>
       <input type="date" class="erp-pro-input editable-date-as" value="{{ r.as_completed_date or '' }}"
         data-order-id="{{ r.id }}" data-field="as_completed_date" aria-label="AS 완료일">

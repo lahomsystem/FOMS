@@ -14,6 +14,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from foms.web.auth import get_user_by_id, login_required
 from db import get_db
 from foms.api.files import build_file_download_url, build_file_view_url
+from foms.services.as_content_safety import combined_as_content_text
 from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
 from foms.services.erp_order_deeplink import load_focus_order_only
 from foms.services.erp_display import _ensure_dict
@@ -195,7 +196,11 @@ def _serialize_completion_orders(db, orders: list[Order]) -> list[dict]:
         )[:80] or "-"
 
         shipment = sd.get("shipment") or {}
-        as_content = shipment.get("as_content") or ""
+        as_content_raw = shipment.get("as_content") or ""
+        as_content_text = combined_as_content_text(
+            sd,
+            notes_fallback=getattr(order, "notes", None) or "",
+        )
         fail_history = sd.get("construction_fail_history") or []
         completion_note = (sd.get("workflow") or {}).get("completion_note") or ""
 
@@ -219,7 +224,8 @@ def _serialize_completion_orders(db, orders: list[Order]) -> list[dict]:
             "customer_name": customer_name,
             "manager_name": manager_name,
             "product_summary": product_summary,
-            "as_content": as_content,
+            "as_content": as_content_raw,
+            "as_content_text": as_content_text,
             "construction_fail_history": fail_history,
             "completion_note": completion_note,
             "construction_photos": construction_photos,

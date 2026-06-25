@@ -721,7 +721,7 @@ def test_mobile_attachment_preview_uses_viewport_sized_modal() -> None:
     assert ".erp-order-mobile-form .erp-attachment-preview-actions .btn" not in css_text
     assert "max-width: min(92vw, 36rem)" not in css_text
     assert "../components/foms-form-field.css?v=20260623e" in mobile_bundle
-    assert "foms-mobile-surfaces.css') }}?v=20260623e" in layout_head
+    assert "foms-mobile-surfaces.css') }}?v=20260626b" in layout_head
 
 
 def test_attachment_preview_image_zoom_supports_in_modal_gestures() -> None:

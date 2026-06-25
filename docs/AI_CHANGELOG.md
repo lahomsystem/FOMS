@@ -4,6 +4,10 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-06-25 | 세션 자동 기록 | commit_msg.txt, foms_namespace_surface_tests.py, test_completion_search_api.py 외 2개 | 14c99cc0 |
+| 2026-06-25 | 세션 자동 기록 | test_completion_search_api.py, test_as_content_safety.py, completion_scripts.html 외 2개 | 011090c5 |
+| 2026-06-25 | 세션 자동 기록 | commit_msg.txt, test_p1_mockup_structure.py, test_as_dashboard_mobile.py 외 2개 | 011090c5 |
+| 2026-06-25 | 세션 자동 기록 | commit_msg.txt, test_foms_theme.py, theme.js 외 2개 | ddd50295 |
 | 2026-06-25 | 세션 자동 기록 | test_foms_theme.py, theme.js, layout_head.html 외 2개 | 5b3bd09d |
 | 2026-06-25 | 세션 자동 기록 | test_foms_theme.py, layout_head.html, layout_scripts.html 외 2개 | 5b3bd09d |
 | 2026-06-25 | 세션 자동 기록 | layout_head.html, layout_scripts.html, foms-flatpickr-theme.css 외 2개 | 5b3bd09d |
@@ -20,7 +24,3 @@
 | 2026-06-25 | 세션 자동 기록 | commit_msg.txt, foms_unified_search.py, test_unified_search_params.py 외 2개 | 10c0a43b |
 | 2026-06-25 | 세션 자동 기록 | commit_msg.txt, test_unified_search_params.py, test_erp_dashboard_search_service.py 외 2개 | bf0c1843 |
 | 2026-06-25 | 세션 자동 기록 | test_unified_search_params.py, test_erp_dashboard_search_service.py, foms_unified_search.py 외 2개 | 0d33595c |
-| 2026-06-25 | 세션 자동 기록 | test_erp_order_shared_form_scripts.py, erp-order-shared.js, commit_msg.txt 외 2개 | f5c935be |
-| 2026-06-25 | 세션 자동 기록 | erp-order-shared.js, test_erp_order_shared_form_scripts.py, commit_msg.txt 외 2개 | f5c935be |
-| 2026-06-25 | 세션 자동 기록 | test_p1_mockup_structure.py, dashboard-control-tower.css, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-f5419b4b-4271-4794-9083-b3803b2145b6.png 외 2개 | 7c9f9b97 |
-| 2026-06-25 | 세션 자동 기록 | test_erp_spec_calc_phase3.py, erp-spec-calc.js, test_erp_wdc_estimate_sync.py 외 2개 | 7c9f9b97 |

@@ -131,3 +131,37 @@ def test_flatpickr_dark_theme_follows_foms_tokens():
     assert "var(--foms-surface-base)" in css
     head = _read("templates/partials/shared/layout_head.html")
     assert "foms-flatpickr-theme.css" in head
+
+
+def test_completion_mobile_css_uses_semantic_tokens_not_inline_hex():
+    partial = _read("templates/cs/partials/completion_styles.html")
+    assert "foms-completion-mobile.css" in partial
+    assert "<style>" not in partial
+    css = _read("static/css/components/foms-completion-mobile.css")
+    assert "var(--foms-surface-base)" in css
+    assert "var(--foms-text-primary)" in css
+    assert "background: #fff" not in css
+
+
+def test_drawing_queue_card_has_theme_aware_surface():
+    css = _read("static/css/components/foms-drawing-mobile-card.css")
+    assert ".foms-drawing-queue-card {" in css
+    assert "background: var(--foms-surface-base)" in css
+    assert "[data-theme='dark']" in css
+    assert "--bs-card-bg: var(--foms-surface-base)" in css
+
+
+def test_shipment_mobile_css_uses_tokens_for_labels():
+    css = _read("static/css/components/foms-shipment-mobile.css")
+    assert "color: var(--foms-text-secondary)" in css
+    assert "color: #556b82" not in css
+    assert "[data-theme='dark'] .erp-shipment-mobile-date-chip" in css
+
+
+def test_as_schedule_equal_columns_and_no_row_class_on_dates():
+    css = _read("static/css/components/foms-as-mobile-card.css")
+    assert "grid-template-columns: repeat(3, minmax(0, 1fr))" in css
+    card = _read("templates/cs/partials/as_mobile_order_card.html")
+    assert "erp-as-mobile-card__date--received erp-pro-order-card__row" not in card
+    assert "erp-as-mobile-card__date--visit erp-pro-order-card__row" not in card
+    assert "white-space: nowrap" not in css.split("erp-as-mobile-card__date-value")[1].split("}")[0]

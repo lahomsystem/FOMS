@@ -389,6 +389,7 @@ def test_namespaced_as_content_safety_shim_preserves_canonical_contract() -> Non
     expected_public_names = [
         "sanitize_as_content_html",
         "as_content_html_to_text",
+        "combined_as_content_text",
         "load_structured_data_dict_or_raise",
     ]
 
