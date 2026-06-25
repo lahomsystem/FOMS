@@ -260,6 +260,7 @@ def test_estimate_table_columns_contract() -> None:
     assert 'erp-est-viewport' in pane
     assert 'erp-est-export-clone' in pane
     assert 'id="est-mobile-preview"' in pane
+    assert 'id="est-mobile-preview-fallback"' in pane
     assert 'id="erpEstimatePreviewModal"' in pane
     assert 'id="erp-estimate-preview-body"' in pane
     assert 'erp-est-manual-row' in pane
@@ -280,6 +281,16 @@ def test_estimate_preview_js_is_canonical_only() -> None:
     assert "ERP_BETA_ENABLED" not in block
     assert "_EST_EXPORT_WIDTH = 700" in text
     assert "_buildExportClone" in text
+    assert "_MOBILE_CANVAS_MAX_SIDE = 4096" in text
+    assert "_getEstimateCaptureMetrics" in text
+    assert "_setMobileCaptureFallback" in text
+    assert "_canvasToImageUrl" in text
+    assert "_waitForPreviewImageReady" in text
+    assert "Promise.race" in text
+    assert "preferBlobUrl: true" in text
+    assert "canvas.toBlob" in text
+    assert "canvas toBlob timed out" in text
+    assert "dataUrl === 'data:,'" in text
     assert "_bindEstimateMobilePreview" in text
     assert "_openEstimatePreviewModal" in text
     assert "fomsBindAttachmentPreviewImageZoom" in text

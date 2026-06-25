@@ -55,6 +55,14 @@
         color: #888;
         text-align: center;
     }
+    .erp-est-mobile-preview-fallback {
+        margin: 0 8px 8px;
+        font-size: 12px;
+    }
+    .erp-est-viewport {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
 }
 
 @media (min-width: 992px) {
@@ -596,6 +604,11 @@
          aria-label="견적서 크게 보기">
         <img id="est-mobile-preview-img" class="erp-est-mobile-preview-img" alt="견적서 미리보기">
         <div class="erp-est-mobile-preview-hint">탭하여 확대 · 두 손가락으로 확대/축소</div>
+    </div>
+
+    <div id="est-mobile-preview-fallback" class="alert alert-info py-2 erp-est-mobile-preview-fallback erp-est-hidden">
+        <i class="fas fa-info-circle"></i>
+        <span id="est-mobile-preview-fallback-msg">이미지 미리보기를 만들 수 없어 원본 견적서를 표시합니다.</span>
     </div>
 
     <div class="erp-est-viewport erp-est-hidden" id="est-viewport">

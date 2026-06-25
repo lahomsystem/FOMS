@@ -10,10 +10,13 @@
     var _EST_EXPORT_WIDTH = 700;
     var _EST_DOC_WIDTH = 700;
     var _MOBILE_ESTIMATE_MQ = '(max-width: 991.98px)';
+    var _MOBILE_CANVAS_MAX_SIDE = 4096;
+    var _MOBILE_CANVAS_MAX_PIXELS = 16000000;
 
     var _mobilePreviewBound = false;
     var _mobilePreviewDataUrl = '';
     var _mobilePreviewCapturePromise = null;
+    var _mobilePreviewFallbackActive = false;
     var _estimateItems = [];
     var _estimateManualRows = [];
     var _manualRowsBound = false;
@@ -96,16 +99,57 @@
         if (el) el.classList.add('erp-est-hidden');
     }
 
+    function _setMobilePreviewUrl(url) {
+        if (
+            _mobilePreviewDataUrl
+            && _mobilePreviewDataUrl.indexOf('blob:') === 0
+            && typeof URL !== 'undefined'
+            && typeof URL.revokeObjectURL === 'function'
+        ) {
+            URL.revokeObjectURL(_mobilePreviewDataUrl);
+        }
+        _mobilePreviewDataUrl = url || '';
+    }
+
     function _isMobileEstimateView() {
         return typeof window.matchMedia === 'function'
             && window.matchMedia(_MOBILE_ESTIMATE_MQ).matches;
     }
 
+    function _setMobileCaptureFallback(active, message) {
+        var fallbackMsg = document.getElementById('est-mobile-preview-fallback-msg');
+        if (fallbackMsg && message) {
+            fallbackMsg.textContent = message;
+        }
+
+        _mobilePreviewFallbackActive = !!active;
+        if (!_isMobileEstimateView()) {
+            _hideSection('est-mobile-preview-fallback');
+            return;
+        }
+
+        if (_mobilePreviewFallbackActive) {
+            _hideSection('est-mobile-preview');
+            _showSection('est-mobile-preview-fallback');
+            _showSection('est-viewport');
+        } else {
+            _hideSection('est-mobile-preview-fallback');
+            _hideSection('est-viewport');
+        }
+    }
+
     function _applyEstimateViewMode() {
         if (_isMobileEstimateView()) {
-            _hideSection('est-viewport');
+            if (_mobilePreviewFallbackActive) {
+                _showSection('est-mobile-preview-fallback');
+                _showSection('est-viewport');
+            } else {
+                _hideSection('est-mobile-preview-fallback');
+                _hideSection('est-viewport');
+            }
         } else {
             _hideSection('est-mobile-preview');
+            _hideSection('est-mobile-preview-fallback');
             _showSection('est-viewport');
         }
     }
@@ -175,22 +219,158 @@
         return _html2canvasPromise;
     }
 
-    function _captureEstimateDataUrl() {
+    function _getEstimateCaptureMetrics(exportEl) {
+        var width = _EST_EXPORT_WIDTH;
+        var height = Math.max(
+            1,
+            Math.ceil(exportEl.scrollHeight || exportEl.offsetHeight || exportEl.getBoundingClientRect().height || 1)
+        );
+        var scale = 2;
+
+        if (_isMobileEstimateView()) {
+            var maxBySide = Math.min(_MOBILE_CANVAS_MAX_SIDE / width, _MOBILE_CANVAS_MAX_SIDE / height);
+            var maxByArea = Math.sqrt(_MOBILE_CANVAS_MAX_PIXELS / (width * height));
+            scale = Math.min(scale, maxBySide, maxByArea);
+            if (!Number.isFinite(scale) || scale < 0.5) {
+                throw new Error('estimate document too tall for mobile canvas');
+            }
+            scale = Math.max(0.5, Math.floor(scale * 100) / 100);
+        }
+
+        return {
+            width: width,
+            height: height,
+            scale: scale
+        };
+    }
+
+    function _waitForEstimateImages(exportEl) {
+        var images = Array.from(exportEl.querySelectorAll('img'));
+        if (images.length === 0) return Promise.resolve();
+
+        return Promise.all(images.map(function (img) {
+            if (img.complete) return Promise.resolve();
+            if (typeof img.decode === 'function') {
+                return Promise.race([
+                    img.decode().catch(function () {}),
+                    new Promise(function (resolve) {
+                        window.setTimeout(resolve, 4000);
+                    })
+                ]);
+            }
+            return new Promise(function (resolve) {
+                function done() {
+                    window.clearTimeout(timer);
+                    resolve();
+                }
+                var timer = window.setTimeout(done, 4000);
+                img.onload = done;
+                img.onerror = done;
+            });
+        })).then(function () {});
+    }
+
+    function _waitForPreviewImageReady(img, url) {
+        return new Promise(function (resolve) {
+            if (!img || !url) {
+                resolve(false);
+                return;
+            }
+
+            var settled = false;
+            var timer = null;
+            function finish(ok) {
+                if (settled) return;
+                settled = true;
+                window.clearTimeout(timer);
+                img.removeEventListener('load', onLoad);
+                img.removeEventListener('error', onError);
+                resolve(ok);
+            }
+            function onLoad() {
+                finish(!!img.naturalWidth);
+            }
+            function onError() {
+                finish(false);
+            }
+
+            img.addEventListener('load', onLoad);
+            img.addEventListener('error', onError);
+            timer = window.setTimeout(function () {
+                finish(false);
+            }, 4000);
+            img.src = url;
+
+            if (img.complete) {
+                window.setTimeout(function () {
+                    finish(!!img.naturalWidth);
+                }, 0);
+            }
+        });
+    }
+
+    function _canvasToImageUrl(canvas, preferBlobUrl) {
+        if (!canvas || !canvas.width || !canvas.height) {
+            return Promise.reject(new Error('empty canvas'));
+        }
+
+        if (
+            preferBlobUrl
+            && typeof canvas.toBlob === 'function'
+            && typeof URL !== 'undefined'
+            && typeof URL.createObjectURL === 'function'
+        ) {
+            return new Promise(function (resolve, reject) {
+                var settled = false;
+                var timer = window.setTimeout(function () {
+                    if (settled) return;
+                    settled = true;
+                    reject(new Error('canvas toBlob timed out'));
+                }, 4000);
+
+                canvas.toBlob(function (blob) {
+                    if (settled) return;
+                    settled = true;
+                    window.clearTimeout(timer);
+                    if (!blob) {
+                        reject(new Error('canvas toBlob returned empty image'));
+                        return;
+                    }
+                    resolve(URL.createObjectURL(blob));
+                }, 'image/png');
+            });
+        }
+
+        var dataUrl = canvas.toDataURL('image/png');
+        if (!dataUrl || dataUrl === 'data:,') {
+            return Promise.reject(new Error('canvas toDataURL returned empty image'));
+        }
+        return Promise.resolve(dataUrl);
+    }
+
+    function _captureEstimateDataUrl(options) {
         var docEl = document.getElementById('est-document');
         if (!docEl) return Promise.resolve('');
+        var preferBlobUrl = !!(options && options.preferBlobUrl);
 
         return _withEstimateExportMode(function () {
             var exportEl = _buildExportClone(docEl);
             return _ensureHtml2canvas().then(function () {
+                return _waitForEstimateImages(exportEl);
+            }).then(function () {
+                var metrics = _getEstimateCaptureMetrics(exportEl);
                 return html2canvas(exportEl, {
-                    scale: 2,
+                    scale: metrics.scale,
                     useCORS: true,
+                    imageTimeout: 8000,
                     logging: false,
                     backgroundColor: '#ffffff',
-                    width: _EST_EXPORT_WIDTH,
-                    windowWidth: _EST_EXPORT_WIDTH
+                    width: metrics.width,
+                    height: metrics.height,
+                    windowWidth: metrics.width,
+                    windowHeight: metrics.height
                 }).then(function (canvas) {
-                    return canvas.toDataURL('image/png');
+                    return _canvasToImageUrl(canvas, preferBlobUrl);
                 });
             }).finally(function () {
                 _removeExportClone(exportEl);
@@ -209,17 +389,31 @@
         if (!card || !img) return Promise.resolve();
 
         _hideSection('est-mobile-preview');
-        _mobilePreviewDataUrl = '';
+        _setMobileCaptureFallback(false);
+        _setMobilePreviewUrl('');
 
         if (_mobilePreviewCapturePromise) return _mobilePreviewCapturePromise;
 
-        _mobilePreviewCapturePromise = _captureEstimateDataUrl().then(function (dataUrl) {
-            _mobilePreviewCapturePromise = null;
-            if (!dataUrl) return;
-            _mobilePreviewDataUrl = dataUrl;
-            img.src = dataUrl;
+        _mobilePreviewCapturePromise = _captureEstimateDataUrl({ preferBlobUrl: true }).then(function (dataUrl) {
+            if (!dataUrl) {
+                _setMobileCaptureFallback(true, 'iPhone/Safari에서 이미지 미리보기를 만들 수 없어 원본 견적서를 표시합니다.');
+                return;
+            }
+            _setMobilePreviewUrl(dataUrl);
             img.alt = '견적서 미리보기';
-            _showSection('est-mobile-preview');
+            return _waitForPreviewImageReady(img, dataUrl).then(function (ready) {
+                if (!ready) {
+                    _setMobilePreviewUrl('');
+                    _setMobileCaptureFallback(true, '이미지 미리보기 표시 중 오류가 발생하여 원본 견적서를 표시합니다.');
+                    return;
+                }
+                _showSection('est-mobile-preview');
+            });
+        }).catch(function (err) {
+            console.error('[estimate-preview] mobile capture error:', err);
+            _setMobileCaptureFallback(true, '이미지 미리보기 생성 중 오류가 발생하여 원본 견적서를 표시합니다.');
+        }).finally(function () {
+            _mobilePreviewCapturePromise = null;
         });
 
         return _mobilePreviewCapturePromise;
@@ -317,7 +511,8 @@
 
     function _setManualRowsDirty() {
         _dirty = true;
-        _mobilePreviewDataUrl = '';
+        _setMobilePreviewUrl('');
+        _mobilePreviewFallbackActive = false;
         _syncManualRowsToStructured();
     }
 
@@ -699,6 +894,7 @@
             _hideSection('est-loading');
             _hideSection('est-viewport');
             _hideSection('est-mobile-preview');
+            _hideSection('est-mobile-preview-fallback');
             _showSection('est-empty');
             return;
         }
@@ -708,6 +904,8 @@
         _hideSection('est-empty');
         _hideSection('est-viewport');
         _hideSection('est-mobile-preview');
+        _hideSection('est-mobile-preview-fallback');
+        _mobilePreviewFallbackActive = false;
         _showSection('est-loading');
 
         try {
@@ -736,7 +934,7 @@
 
             _estimateCacheLoaded = true;
             _dirty = false;
-            _mobilePreviewDataUrl = '';
+            _setMobilePreviewUrl('');
 
             const toolbar = document.getElementById('est-toolbar');
             const exportBtn = document.getElementById('btn-est-export');
@@ -755,7 +953,8 @@
     window.erpInvalidateEstimateCache = function () {
         _estimateCacheLoaded = false;
         _dirty = true;
-        _mobilePreviewDataUrl = '';
+        _setMobilePreviewUrl('');
+        _mobilePreviewFallbackActive = false;
     };
 
     function _bindExportBtn() {
@@ -778,7 +977,7 @@
                 const numText = (numEl && numEl.textContent.trim()) || '견적서';
                 const filename = numText + '.png';
 
-                const dataUrl = await _captureEstimateDataUrl();
+                const dataUrl = await _captureEstimateDataUrl({ preferBlobUrl: true });
                 if (!dataUrl) {
                     throw new Error('이미지 생성 실패');
                 }
@@ -789,6 +988,15 @@
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
+                if (
+                    dataUrl.indexOf('blob:') === 0
+                    && typeof URL !== 'undefined'
+                    && typeof URL.revokeObjectURL === 'function'
+                ) {
+                    window.setTimeout(function () {
+                        URL.revokeObjectURL(dataUrl);
+                    }, 1000);
+                }
 
             } catch (err) {
                 console.error('[estimate-preview] 이미지 저장 실패:', err);
@@ -812,7 +1020,8 @@
         document.addEventListener('input', function (e) {
             if (e.target && e.target.dataset && 'erp' in e.target.dataset) {
                 _dirty = true;
-                _mobilePreviewDataUrl = '';
+                _setMobilePreviewUrl('');
+                _mobilePreviewFallbackActive = false;
             }
         }, true);
 
@@ -823,7 +1032,8 @@
             }
 
             _estimateCacheLoaded = false;
-            _mobilePreviewDataUrl = '';
+            _setMobilePreviewUrl('');
+            _mobilePreviewFallbackActive = false;
             const orderId = _getOrderId();
 
             if (_dirty && orderId && orderId > 0 && typeof window.erpSaveStructured === 'function') {
