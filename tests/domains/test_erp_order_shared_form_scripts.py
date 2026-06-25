@@ -56,6 +56,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
 
     assert payment_urls_idx < erp_order_shared_idx < column_resizer_idx < estimate_preview_idx < estimate_columns_idx
     assert "html2canvas.min.js" not in body
+    assert "js/orders/estimate-preview.js?v=20260625b" in body
 
     estimate_preview_js = (
         Path(__file__).resolve().parents[2]
@@ -291,9 +292,21 @@ def test_estimate_preview_js_is_canonical_only() -> None:
     assert "canvas.toBlob" in text
     assert "canvas toBlob timed out" in text
     assert "dataUrl === 'data:,'" in text
+    assert "_HTML2CANVAS_RENDER_TIMEOUT_MS" in text
+    assert "html2canvas render timed out" in text
+    assert "_withEagerLazyMedia" in text
+    assert 'document.querySelectorAll(\'img[loading="lazy"]\')' in text
+    assert "html2canvas(exportEl" in text
     # iOS Safari는 a[download]를 무시 → 캡처 이미지를 모달로 띄워 길게 눌러 저장 안내.
     assert "_isIosLike" in text
     assert "navigator.maxTouchPoints" in text
+    assert "_showSection('est-viewport')" in text
+    export_start = text.index("function _bindExportBtn()")
+    export_block = text[export_start:]
+    assert "html2canvas render timed out" in text
+    assert "_setMobileCaptureFallback(" in export_block
+    assert "btn.innerHTML = originalHTML" in export_block
+    assert "btn.disabled = false" in export_block
     assert "사진에 저장" in text
     assert "_bindEstimateMobilePreview" in text
     assert "_openEstimatePreviewModal" in text

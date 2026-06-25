@@ -12,6 +12,8 @@
     var _MOBILE_ESTIMATE_MQ = '(max-width: 991.98px)';
     var _MOBILE_CANVAS_MAX_SIDE = 4096;
     var _MOBILE_CANVAS_MAX_PIXELS = 16000000;
+    var _HTML2CANVAS_LOAD_TIMEOUT_MS = 10000;
+    var _HTML2CANVAS_RENDER_TIMEOUT_MS = 10000;
 
     var _mobilePreviewBound = false;
     var _mobilePreviewDataUrl = '';
@@ -131,6 +133,55 @@
             && navigator.maxTouchPoints > 1;
     }
 
+    function _withTimeout(promise, timeoutMs, message) {
+        return new Promise(function (resolve, reject) {
+            var settled = false;
+            var timer = window.setTimeout(function () {
+                if (settled) return;
+                settled = true;
+                reject(new Error(message));
+            }, timeoutMs);
+
+            Promise.resolve(promise).then(function (value) {
+                if (settled) return;
+                settled = true;
+                window.clearTimeout(timer);
+                resolve(value);
+            }).catch(function (err) {
+                if (settled) return;
+                settled = true;
+                window.clearTimeout(timer);
+                reject(err);
+            });
+        });
+    }
+
+    function _withEagerLazyMedia(run) {
+        if (!_isIosLike()) {
+            return Promise.resolve().then(run);
+        }
+
+        // html2canvas 1.4.1 can hang forever on iOS Safari when any lazy image
+        // exists in the cloned document. Flip only images, not lazy iframes, to
+        // avoid waking unrelated embedded tools during an estimate save.
+        var changed = Array.from(document.querySelectorAll('img[loading="lazy"]'));
+        changed.forEach(function (el) {
+            el.setAttribute('data-est-prev-loading', 'lazy');
+            el.setAttribute('loading', 'eager');
+        });
+
+        return Promise.resolve()
+            .then(run)
+            .finally(function () {
+                changed.forEach(function (el) {
+                    if (el.getAttribute('data-est-prev-loading') === 'lazy') {
+                        el.setAttribute('loading', 'lazy');
+                    }
+                    el.removeAttribute('data-est-prev-loading');
+                });
+            });
+    }
+
     function _setMobileCaptureFallback(active, message) {
         var fallbackMsg = document.getElementById('est-mobile-preview-fallback-msg');
         if (fallbackMsg && message) {
@@ -149,15 +200,20 @@
             _showSection('est-viewport');
         } else {
             _hideSection('est-mobile-preview-fallback');
-            _hideSection('est-viewport');
+            if (!_isIosLike()) {
+                _hideSection('est-viewport');
+            }
         }
     }
 
     function _applyEstimateViewMode() {
         if (_isMobileEstimateView()) {
-            if (_mobilePreviewFallbackActive) {
+            if (_mobilePreviewFallbackActive || _isIosLike()) {
                 _showSection('est-mobile-preview-fallback');
                 _showSection('est-viewport');
+                if (!_mobilePreviewFallbackActive) {
+                    _hideSection('est-mobile-preview-fallback');
+                }
             } else {
                 _hideSection('est-mobile-preview-fallback');
                 _hideSection('est-viewport');
@@ -214,20 +270,36 @@
         if (typeof window.html2canvas === 'function') return Promise.resolve();
         if (_html2canvasPromise) return _html2canvasPromise;
         _html2canvasPromise = new Promise(function (resolve, reject) {
+            var settled = false;
+            var timer = window.setTimeout(function () {
+                if (settled) return;
+                settled = true;
+                _html2canvasPromise = null;
+                reject(new Error('html2canvas load timed out'));
+            }, _HTML2CANVAS_LOAD_TIMEOUT_MS);
+            function finish(ok, err) {
+                if (settled) return;
+                settled = true;
+                window.clearTimeout(timer);
+                if (ok) {
+                    resolve();
+                    return;
+                }
+                _html2canvasPromise = null;
+                reject(err);
+            }
             var s = document.createElement('script');
             s.src = _HTML2CANVAS_SRC;
             s.async = true;
             s.onload = function () {
                 if (typeof window.html2canvas === 'function') {
-                    resolve();
+                    finish(true);
                 } else {
-                    _html2canvasPromise = null;
-                    reject(new Error('html2canvas loaded but global missing'));
+                    finish(false, new Error('html2canvas loaded but global missing'));
                 }
             };
             s.onerror = function () {
-                _html2canvasPromise = null;
-                reject(new Error('html2canvas load failed'));
+                finish(false, new Error('html2canvas load failed'));
             };
             document.head.appendChild(s);
         });
@@ -374,16 +446,18 @@
                 return _waitForEstimateImages(exportEl);
             }).then(function () {
                 var metrics = _getEstimateCaptureMetrics(exportEl);
-                return html2canvas(exportEl, {
-                    scale: metrics.scale,
-                    useCORS: true,
-                    imageTimeout: 8000,
-                    logging: false,
-                    backgroundColor: '#ffffff',
-                    width: metrics.width,
-                    height: metrics.height,
-                    windowWidth: metrics.width,
-                    windowHeight: metrics.height
+                return _withEagerLazyMedia(function () {
+                    return _withTimeout(html2canvas(exportEl, {
+                        scale: metrics.scale,
+                        useCORS: true,
+                        imageTimeout: 8000,
+                        logging: false,
+                        backgroundColor: '#ffffff',
+                        width: metrics.width,
+                        height: metrics.height,
+                        windowWidth: metrics.width,
+                        windowHeight: metrics.height
+                    }), _HTML2CANVAS_RENDER_TIMEOUT_MS, 'html2canvas render timed out');
                 }).then(function (canvas) {
                     return _canvasToImageUrl(canvas, preferBlobUrl);
                 });
@@ -406,6 +480,11 @@
         _hideSection('est-mobile-preview');
         _setMobileCaptureFallback(false);
         _setMobilePreviewUrl('');
+
+        if (_isIosLike()) {
+            _showSection('est-viewport');
+            return Promise.resolve();
+        }
 
         if (_mobilePreviewCapturePromise) return _mobilePreviewCapturePromise;
 
@@ -1039,6 +1118,13 @@
 
             } catch (err) {
                 console.error('[estimate-preview] 이미지 저장 실패:', err);
+                if (_isIosLike()) {
+                    _setMobileCaptureFallback(
+                        true,
+                        'iPhone/Safari에서 이미지 저장용 캡처가 지연되어 원본 견적서를 표시합니다. 화면 캡처 또는 다시 시도를 이용해 주세요.'
+                    );
+                    return;
+                }
                 alert('이미지 저장 중 오류가 발생했습니다.\n' + (err && err.message ? err.message : String(err)));
             } finally {
                 btn.innerHTML = originalHTML;
