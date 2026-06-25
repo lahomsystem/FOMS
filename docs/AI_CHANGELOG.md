@@ -4,6 +4,9 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-06-25 | 세션 자동 기록 | commit_msg.txt, foms_unified_search.py, test_unified_search_params.py 외 2개 | 10c0a43b |
+| 2026-06-25 | 세션 자동 기록 | commit_msg.txt, test_unified_search_params.py, test_erp_dashboard_search_service.py 외 2개 | bf0c1843 |
+| 2026-06-25 | 세션 자동 기록 | test_unified_search_params.py, test_erp_dashboard_search_service.py, foms_unified_search.py 외 2개 | 0d33595c |
 | 2026-06-25 | 세션 자동 기록 | test_erp_order_shared_form_scripts.py, erp-order-shared.js, commit_msg.txt 외 2개 | f5c935be |
 | 2026-06-25 | 세션 자동 기록 | erp-order-shared.js, test_erp_order_shared_form_scripts.py, commit_msg.txt 외 2개 | f5c935be |
 | 2026-06-25 | 세션 자동 기록 | test_p1_mockup_structure.py, dashboard-control-tower.css, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-f5419b4b-4271-4794-9083-b3803b2145b6.png 외 2개 | 7c9f9b97 |
@@ -21,6 +24,3 @@
 | 2026-06-24 | 세션 자동 기록 | test_erp_order_shared_form_scripts.py, wdcalculator_url_bootstrap_contract_node_checks.js, wdcalculator_save_estimate_contract_node_checks.js 외 2개 | 7f186ae9 |
 | 2026-06-24 | 세션 자동 기록 | commit_msg.txt, wdcalculator_scripts_config.html, wdcalculator_sidebar_delete_contract_node_checks.js 외 2개 | 7f186ae9 |
 | 2026-06-24 | 세션 자동 기록 | wdcalculator_scripts_config.html, wdcalculator_sidebar_delete_contract_node_checks.js, test_estimate_lifecycle_contracts.py 외 2개 | afa5ae24 |
-| 2026-06-24 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-23f579d5-8763-42c1-a877-2f0b443cff71.png, test_erp_spec_calc_followup.py, erp_order_js.html 외 2개 | afa5ae24 |
-| 2026-06-24 | 세션 자동 기록 | test_erp_spec_calc_followup.py, erp_order_js.html, erp-spec-calc.js 외 2개 | 81ba90cf |
-| 2026-06-23 | 세션 자동 기록 | commit_msg.txt, test_erp_spec_calc_followup.py, erp_order_js.html 외 2개 | 81ba90cf |

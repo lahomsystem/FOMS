@@ -5,6 +5,14 @@
 
 ## 최근 파일 편집
 
+- `commit_msg.txt` <- 1 edit(s), ~145 chars (2026-06-25 09:38:50)
+- `foms/services/foms_unified_search.py` <- 1 edit(s), ~82 chars (2026-06-25 09:38:39)
+- `commit_msg.txt` <- 1 edit(s), ~129 chars (2026-06-25 09:33:10)
+- `tests/domains/test_unified_search_params.py` <- 1 edit(s), ~692 chars (2026-06-25 09:29:03)
+- `tests/domains/test_erp_dashboard_search_service.py` <- 1 edit(s), ~447 chars (2026-06-25 09:29:02)
+- `foms/services/foms_unified_search.py` <- 1 edit(s), ~167 chars (2026-06-25 09:28:52)
+- `foms/web/orders/dashboard.py` <- 1 edit(s), ~43 chars (2026-06-25 09:28:52)
+- `foms/services/erp_dashboard_search.py` <- 6 edit(s), ~2448 chars (2026-06-25 09:28:52)
 - `tests/domains/test_erp_order_shared_form_scripts.py` <- 1 edit(s), ~0 chars (2026-06-25 08:16:31)
 - `tests/domains/test_erp_order_shared_form_scripts.py` <- 1 edit(s), ~98 chars (2026-06-25 08:16:25)
 - `tests/domains/test_erp_order_shared_form_scripts.py` <- 1 edit(s), ~87 chars (2026-06-25 08:16:24)
@@ -47,11 +55,3 @@
 - `static/js/orders/erp-spec-calc.js` <- 2 edit(s), ~172 chars (2026-06-24 18:44:36)
 - `static/js/orders/erp-spec-calc.js` <- 1 edit(s), ~167 chars (2026-06-24 18:44:35)
 - `static/js/orders/erp-spec-calc.js` <- 1 edit(s), ~414 chars (2026-06-24 18:44:32)
-- `static/js/orders/erp-spec-calc.js` <- 3 edit(s), ~321 chars (2026-06-24 18:44:31)
-- `tests/domains/test_erp_spec_calc_phase3.py` <- 2 edit(s), ~338 chars (2026-06-24 18:41:39)
-- `static/js/orders/erp-spec-calc.js` <- 1 edit(s), ~118 chars (2026-06-24 18:41:39)
-- `static/js/orders/erp-spec-calc.js` <- 1 edit(s), ~263 chars (2026-06-24 18:41:32)
-- `static/js/orders/erp-spec-calc.js` <- 2 edit(s), ~409 chars (2026-06-24 18:41:30)
-- `static/js/orders/erp-spec-calc.js` <- 1 edit(s), ~70 chars (2026-06-24 18:41:28)
-- `static/js/orders/erp-spec-calc.js` <- 1 edit(s), ~518 chars (2026-06-24 18:41:27)
-- `static/js/orders/erp-spec-calc.js` <- 2 edit(s), ~248 chars (2026-06-24 18:41:25)
