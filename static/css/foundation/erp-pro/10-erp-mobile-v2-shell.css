@@ -83,7 +83,7 @@
     position: sticky;
     top: 0;
     z-index: 120;
-    background: rgba(255, 255, 255, 0.98);
+    background: var(--foms-shell-glass-chrome, rgba(255, 255, 255, 0.98));
     backdrop-filter: blur(10px);
     border-bottom: 1px solid var(--erp-mobile-color-border-soft);
   }
@@ -146,7 +146,7 @@
     grid-auto-flow: column;
     grid-auto-columns: minmax(0, 1fr);
     gap: 0;
-    background: rgba(255, 255, 255, 0.98);
+    background: var(--foms-shell-glass-chrome, rgba(255, 255, 255, 0.98));
     border-top: 1px solid var(--erp-mobile-color-border-soft);
     box-shadow: 0 -0.5rem 1.5rem var(--erp-mobile-color-shadow);
     padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -341,7 +341,7 @@
   margin: var(--foms-space-3, 12px) var(--foms-space-4, 16px);
   padding: var(--foms-space-3, 12px);
   border-radius: var(--foms-radius-md, 8px);
-  background: var(--foms-color-surface-muted, #f8fafc);
+  background: var(--foms-surface-muted);
   border: 1px solid var(--foms-color-border, #e2e8f0);
 }
 

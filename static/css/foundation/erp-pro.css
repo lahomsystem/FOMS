@@ -9,7 +9,7 @@
 @import url("erp-pro/08-order-list-page.css");
 @import url("erp-pro/09-mobile-erp-optimization.css");
 @import url("erp-pro/10-erp-mobile-v2-shell.css");
-@import url("erp-pro/11-queue-family-mobile.css?v=20260615a");
+@import url("erp-pro/11-queue-family-mobile.css?v=20260625b");
 @import url("erp-pro/12-runtime-shell-loading.css");
 @import url("erp-pro/13-foms-shell-bridge.css");
 
@@ -48,7 +48,7 @@
     outline: none;
     white-space: pre-wrap;
     font-size: 14px;
-    background: #fff;
+    background: var(--foms-surface-base);
 }
 
 #shipmentAsRecommendModal .asrec-rich-preview.asrec-rich-preview--plain {
@@ -75,7 +75,7 @@
 }
 
 .erp-attach-thumb-file-bg {
-    background: #f8f9fa;
+    background: var(--foms-surface-muted);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -86,7 +86,7 @@
     width: 80px;
     height: 60px;
     object-fit: cover;
-    background: #fff;
+    background: var(--foms-surface-base);
     display: block;
 }
 

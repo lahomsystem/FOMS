@@ -46,9 +46,14 @@
     var root = document.documentElement;
     root.setAttribute('data-theme', effective);
     root.setAttribute('data-theme-preference', pref);
+    root.setAttribute('data-bs-theme', effective);
     var meta = document.querySelector('meta[name="color-scheme"]');
     if (meta) {
       meta.setAttribute('content', effective === 'dark' ? 'dark' : 'light');
+    }
+    var themeColor = document.querySelector('meta[name="theme-color"]');
+    if (themeColor) {
+      themeColor.setAttribute('content', effective === 'dark' ? '#0a0c10' : '#0070f2');
     }
     syncToggleUi(pref);
   }

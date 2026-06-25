@@ -591,7 +591,7 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
   max-width: 100%;
   object-fit: contain;
   transform-origin: center center;
-  background: #fff;
+  background: var(--foms-surface-base);
   padding: 4px;
   transition: transform 0.15s ease-out;
 }

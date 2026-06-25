@@ -4,16 +4,19 @@
 <title>로그인 - 가구 주문 관리 시스템</title>
 <style>
     body {
-        background-color: #f8f9fa;
+        background-color: var(--foms-surface-overlay, var(--bg-app, #f8f9fa));
+        color: var(--foms-text-primary, #212529);
     }
 
     .login-container {
         max-width: 400px;
         margin: 5rem auto;
         padding: 2rem;
-        background-color: #fff;
+        background-color: var(--foms-surface-base, #fff);
+        border: 1px solid var(--foms-border-subtle, transparent);
         border-radius: 0.5rem;
-        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
+        box-shadow: var(--foms-shadow-md, 0 0.5rem 1rem rgba(0, 0, 0, 0.1));
+        color: var(--foms-text-primary, inherit);
     }
 
     .auth-links {

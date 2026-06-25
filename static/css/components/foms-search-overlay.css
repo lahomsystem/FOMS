@@ -82,6 +82,7 @@
   font-size: 0.875rem;
   font-weight: 600;
   margin: 0 0 0.5rem;
+  color: var(--foms-text-primary);
 }
 
 .foms-search-overlay__recent-list,
