@@ -4,7 +4,7 @@
    고정 chrome 높이를 줄여 케이스 목록이 더 빨리 보이게 한다. */
 .foms-as-camera-bar {
   position: static;
-  background: var(--foms-color-surface, #fff);
+  background: var(--foms-surface-base);
   border-bottom: 1px solid var(--foms-color-border, #e2e8f0);
   padding: var(--foms-space-2, 8px) var(--foms-space-3, 12px);
 }
@@ -46,7 +46,7 @@
 
 .foms-as-camera-modal__panel {
   width: min(100%, 480px);
-  background: var(--foms-color-surface, #fff);
+  background: var(--foms-surface-base);
   border-radius: 16px 16px 0 0;
   padding: var(--foms-space-4, 16px);
 }

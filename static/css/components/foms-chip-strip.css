@@ -27,6 +27,13 @@
     border-color: var(--foms-color-brand-300);
   }
 
+  [data-theme='dark'] body.erp-mobile-v2-layout .chip.is-active,
+  [data-theme='dark'] body.erp-mobile-v2-layout .foms-chip.is-active {
+    background: var(--foms-surface-accent);
+    color: var(--foms-text-link);
+    border-color: var(--foms-color-brand-400);
+  }
+
   /* 단계 필터 칩: 아이콘 + 라벨 + 건수 (대시보드 작업 큐 SSOT) */
   body.erp-mobile-v2-layout .foms-chip--filter .foms-chip__icon {
     font-size: 0.8125rem;

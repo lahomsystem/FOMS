@@ -65,7 +65,8 @@
   min-width: 0; min-height: 72px; overflow: clip;
   box-sizing: border-box;
 }
-.foms-tower__day.is-today { background: #fff; color: var(--foms-color-brand-700); box-shadow: var(--foms-shadow-sm); }
+.foms-tower__day.is-today { background: var(--foms-surface-base); color: var(--foms-color-brand-700); box-shadow: var(--foms-shadow-sm); }
+[data-theme='dark'] .foms-tower__day.is-today { background: var(--foms-color-neutral-50); color: var(--foms-color-brand-800); }
 /* 현재 선택된 날짜(인라인 현장 일정 대상) 강조 — 오늘이 아닌 날 클릭 시 외곽선. */
 .foms-tower__day.is-active:not(.is-today) { box-shadow: inset 0 0 0 2px #fff; }
 .foms-tower__day-dow { font-size: 9px; line-height: 1; opacity: .82; }

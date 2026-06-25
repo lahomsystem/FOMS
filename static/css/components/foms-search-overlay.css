@@ -12,6 +12,12 @@
   border: none;
   background: var(--foms-surface-base, #fff);
   z-index: var(--foms-z-modal, 1050);
+  color: var(--foms-text-primary);
+}
+
+.foms-search-overlay:not([open]) {
+  display: none !important;
+  pointer-events: none !important;
 }
 
 .foms-search-overlay::backdrop {
@@ -82,6 +88,7 @@
   font-size: 0.875rem;
   font-weight: 600;
   margin: 0 0 0.5rem;
+  color: var(--foms-text-primary);
 }
 
 .foms-search-overlay__recent-list,

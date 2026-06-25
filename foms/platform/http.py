@@ -11,17 +11,35 @@ from foms.services.datetime_kst import get_today_kst
 from flask import Flask, current_app, g, jsonify, redirect, request, session, url_for
 
 # Inline HTML for global 404/500 (spec: no templates/errors or templates/partials/http_errors).
-_INLINE_HTML_404 = """<!DOCTYPE html>
-<html lang="ko">
+_INLINE_ERROR_THEME_SCRIPT = """<script>(function(){try{var k='foms-theme',s=localStorage.getItem(k),d=(s==='dark'||(s!=='light'&&window.matchMedia('(prefers-color-scheme:dark)').matches));if(d){document.documentElement.setAttribute('data-theme','dark');document.documentElement.style.colorScheme='dark';}}catch(e){}})();</script>"""
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>페이지를 찾을 수 없습니다 - FOMS</title>
-    <style>
+_INLINE_ERROR_STYLE = """
+        :root {
+            --err-page-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --err-card-bg: #ffffff;
+            --err-code: #667eea;
+            --err-title: #333333;
+            --err-body: #666666;
+            --err-btn: #667eea;
+            --err-btn-hover: #5568d3;
+            --err-btn-text: #ffffff;
+        }
+
+        [data-theme='dark'] {
+            --err-page-bg: #0a0c10;
+            --err-card-bg: #14171c;
+            --err-code: #7882f0;
+            --err-title: #f7f8fa;
+            --err-body: #9aa3af;
+            --err-btn: #5a67d8;
+            --err-btn-hover: #7882f0;
+            --err-btn-text: #ffffff;
+        }
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: var(--err-page-bg);
+            color: var(--err-title);
             display: flex;
             justify-content: center;
             align-items: center;
@@ -31,7 +49,7 @@ _INLINE_HTML_404 = """<!DOCTYPE html>
         }
 
         .error-container {
-            background: white;
+            background: var(--err-card-bg);
             padding: 40px;
             border-radius: 12px;
             box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
@@ -42,18 +60,18 @@ _INLINE_HTML_404 = """<!DOCTYPE html>
         .error-code {
             font-size: 72px;
             font-weight: bold;
-            color: #667eea;
+            color: var(--err-code);
             margin: 0;
         }
 
         .error-message {
             font-size: 24px;
-            color: #333;
+            color: var(--err-title);
             margin: 10px 0 20px;
         }
 
         .error-description {
-            color: #666;
+            color: var(--err-body);
             margin-bottom: 30px;
             line-height: 1.6;
         }
@@ -61,16 +79,27 @@ _INLINE_HTML_404 = """<!DOCTYPE html>
         .btn-home {
             display: inline-block;
             padding: 12px 30px;
-            background: #667eea;
-            color: white;
+            background: var(--err-btn);
+            color: var(--err-btn-text);
             text-decoration: none;
             border-radius: 6px;
             transition: background 0.3s;
         }
 
         .btn-home:hover {
-            background: #5568d3;
+            background: var(--err-btn-hover);
         }
+"""
+
+_INLINE_HTML_404 = f"""<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>페이지를 찾을 수 없습니다 - FOMS</title>
+    {_INLINE_ERROR_THEME_SCRIPT}
+    <style>{_INLINE_ERROR_STYLE}
     </style>
 </head>
 
@@ -88,66 +117,15 @@ _INLINE_HTML_404 = """<!DOCTYPE html>
 
 </html>"""
 
-_INLINE_HTML_500 = """<!DOCTYPE html>
+_INLINE_HTML_500 = f"""<!DOCTYPE html>
 <html lang="ko">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>서버 오류 - FOMS</title>
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            margin: 0;
-            padding: 20px;
-        }
-
-        .error-container {
-            background: white;
-            padding: 40px;
-            border-radius: 12px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-            text-align: center;
-            max-width: 500px;
-        }
-
-        .error-code {
-            font-size: 72px;
-            font-weight: bold;
-            color: #667eea;
-            margin: 0;
-        }
-
-        .error-message {
-            font-size: 24px;
-            color: #333;
-            margin: 10px 0 20px;
-        }
-
-        .error-description {
-            color: #666;
-            margin-bottom: 30px;
-            line-height: 1.6;
-        }
-
-        .btn-home {
-            display: inline-block;
-            padding: 12px 30px;
-            background: #667eea;
-            color: white;
-            text-decoration: none;
-            border-radius: 6px;
-            transition: background 0.3s;
-        }
-
-        .btn-home:hover {
-            background: #5568d3;
-        }
+    {_INLINE_ERROR_THEME_SCRIPT}
+    <style>{_INLINE_ERROR_STYLE}
     </style>
 </head>
 

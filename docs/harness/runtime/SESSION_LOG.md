@@ -6,9 +6,9 @@
 
 ### Session: 195d8c98
 - **시작**: 2026-06-25 09:21:39
-- **상태**: aborted
-- **편집 파일**: `commit_msg.txt`, `foms/services/foms_unified_search.py`, `tests/domains/test_unified_search_params.py`, `tests/domains/test_erp_dashboard_search_service.py`, `foms/web/orders/dashboard.py`, `foms/services/erp_dashboard_search.py`, `tests/domains/test_erp_order_shared_form_scripts.py`, `static/js/orders/erp-order-shared.js`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-f1c34b57-34f5-4243-878a-a6bac7eebd6f.png`, `tests/visual/test_p1_mockup_structure.py`
-- **종료**: 2026-06-25 10:00:20
+- **상태**: completed
+- **편집 파일**: `tests/domains/test_foms_theme.py`, `static/js/foms/theme.js`, `templates/partials/shared/layout_head.html`, `templates/partials/shared/layout_scripts.html`, `static/css/components/foms-flatpickr-theme.css`, `static/css/components/foms-search-overlay.css`, `static/css/foundation/erp-pro.css`, `static/css/foundation/erp-pro/10-erp-mobile-v2-shell.css`, `static/css/foundation/foms-tokens.css`, `tests/domains/test_erp_order_shared_form_scripts.py`
+- **종료**: 2026-06-25 19:00:11
 
 ### Session: 43867baf
 - **시작**: 2026-06-25 08:10:46
@@ -987,3 +987,17 @@
 | 2026-06-25 09:54:43 | END (Claude Code) | 수정: (없음) |
 
 | 2026-06-25 10:00:20 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-25 16:38:28 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-25 16:44:22 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-25 16:46:24 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-25 16:48:23 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-25 16:57:50 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-25 17:03:39 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-25 19:00:11 | END (Claude Code) | 수정: (없음) |

@@ -26,12 +26,14 @@ def test_theme_js_storage_and_api():
     assert "localStorage.setItem" in js
     assert "prefers-color-scheme" in js
     assert "data-foms-theme-option" in js
+    assert "data-bs-theme" in js
 
 
 def test_layout_head_fouc_bootstrap_and_token_stylesheets():
     head = _read("templates/partials/shared/layout_head.html")
     assert "localStorage.getItem(key)" in head or "localStorage.getItem('foms-theme')" in head
     assert "data-theme" in head
+    assert "data-bs-theme" in head
     assert "foms-tokens.css" in head
     assert head.index("foms-tokens.css") < head.index("erp-pro.css")
 
@@ -53,13 +55,79 @@ def test_layout_scripts_loads_theme_js():
     assert "js/foms/theme.js" in scripts
 
 
-def test_sticky_action_bar_uses_foms_surface_tokens():
+def test_erp_tokens_bridge_to_foms_semantics():
+    css = _read("static/css/foundation/erp-pro/01-intro-tokens.css")
+    assert "--erp-bg-card: var(--foms-surface-base)" in css
+    assert "--erp-text-primary: var(--foms-text-primary)" in css
+
+
+def test_foms_tokens_define_surface_subtle_and_muted():
+    css = _read("static/css/foundation/foms-tokens.css")
+    assert "--foms-surface-subtle:" in css
+    assert "--foms-surface-muted:" in css
+    assert "--bg-app: var(--foms-surface-overlay)" in css
     css = _read("static/css/components/foms-sticky-action-bar.css")
     assert "var(--foms-surface-base)" in css
     assert "var(--foms-border-subtle)" in css
+
+
+def test_foms_tokens_define_chip_and_primary_soft():
+    css = _read("static/css/foundation/foms-tokens.css")
+    assert "--foms-interactive-primary-soft:" in css
+    assert "--foms-chip-date-selected-bg:" in css
+    assert "--foms-chip-badge-bg:" in css
+
+
+def test_inline_error_pages_support_dark_theme():
+    http_py = _read("foms/platform/http.py")
+    assert "data-theme='dark'" in http_py or "data-theme','dark'" in http_py
+    assert "foms-theme" in http_py
+    assert "--err-page-bg" in http_py
 
 
 def test_mobile_print_utilities_documents_p0_07_theme():
     css = _read("static/css/foundation/erp-pro/06-mobile-print-utilities.css")
     assert "foms-tokens.css" in css
     assert "theme.js" in css
+
+
+def test_mobile_fixed_overlays_outside_shell_chrome():
+    shell = _read("templates/partials/shared/foms_app_shell.html")
+    chrome_close = shell.index("</div>", shell.index("erp-mobile-shell-chrome"))
+    drawer_pos = shell.index("erp_mobile_menu_drawer.html")
+    search_pos = shell.index("foms_search_overlay.html")
+    assert drawer_pos > chrome_close
+    assert search_pos > chrome_close
+    assert "display:contents" in shell
+
+
+def test_foms_z_menu_drawer_token():
+    css = _read("static/css/foundation/foms-tokens.css")
+    assert "--foms-z-menu-drawer:" in css
+    mobile = _read("static/css/foundation/erp-pro/10-erp-mobile-v2-shell.css")
+    assert "--foms-z-menu-drawer" in mobile
+    assert "#erp-mobile-menu-drawer.offcanvas.show" in mobile
+
+
+def test_theme_js_document_delegation_and_htmx_resync():
+    js = _read("static/js/foms/theme.js")
+    assert "__FOMS_THEME_CLICK_BOUND" in js
+    assert "bindThemeClickDelegation" in js
+    assert "document.addEventListener('click'" in js
+    assert "foms:main-content-swapped" in js
+    assert "shown.bs.offcanvas" in js
+    assert "bindToggles" not in js
+
+
+def test_search_overlay_closed_does_not_capture_pointer():
+    css = _read("static/css/components/foms-search-overlay.css")
+    assert ".foms-search-overlay:not([open])" in css
+    assert "pointer-events: none" in css
+
+
+def test_flatpickr_dark_theme_follows_foms_tokens():
+    css = _read("static/css/components/foms-flatpickr-theme.css")
+    assert "[data-theme='dark'] .flatpickr-calendar" in css
+    assert "var(--foms-surface-base)" in css
+    head = _read("templates/partials/shared/layout_head.html")
+    assert "foms-flatpickr-theme.css" in head

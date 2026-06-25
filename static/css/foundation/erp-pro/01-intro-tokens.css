@@ -12,81 +12,86 @@
   --erp-primary: #2563EB;
   --erp-primary-light: #3B82F6;
   --erp-primary-dark: #1D4ED8;
-  --erp-primary-bg: #EFF6FF;
-  
+  --erp-primary-bg: var(--foms-surface-accent);
+
   /* Secondary Colors */
   --erp-secondary: #64748B;
   --erp-secondary-light: #94A3B8;
   --erp-secondary-dark: #475569;
-  
+
   /* Status Colors */
   --erp-success: #10B981;
   --erp-success-light: #D1FAE5;
   --erp-success-dark: #059669;
-  
+
   --erp-warning: #F59E0B;
   --erp-warning-light: #FEF3C7;
   --erp-warning-dark: #D97706;
-  
+
   --erp-danger: #EF4444;
   --erp-danger-light: #FEE2E2;
   --erp-danger-dark: #DC2626;
-  
+
   --erp-info: #06B6D4;
   --erp-info-light: #CFFAFE;
   --erp-info-dark: #0891B2;
-  
-  /* Background Colors */
-  --erp-bg-main: #F8FAFC;
-  --erp-bg-card: #FFFFFF;
-  --erp-bg-sidebar: #F1F5F9;
-  --erp-bg-hover: #F8FAFC;
-  --erp-bg-active: #EFF6FF;
-  
-  /* Text Colors */
-  --erp-text-primary: #1E293B;
-  --erp-text-secondary: #64748B;
-  --erp-text-muted: #94A3B8;
+
+  /* Background / text / border — theme-aware via foms-tokens swap */
+  --erp-bg-main: var(--foms-surface-overlay);
+  --erp-bg-card: var(--foms-surface-base);
+  --erp-bg-sidebar: var(--foms-surface-raised);
+  --erp-bg-hover: var(--foms-surface-overlay);
+  --erp-bg-active: var(--foms-interactive-secondary);
+
+  --erp-text-primary: var(--foms-text-primary);
+  --erp-text-secondary: var(--foms-text-secondary);
+  --erp-text-muted: var(--foms-text-tertiary);
   --erp-text-white: #FFFFFF;
-  
-  /* Border Colors */
-  --erp-border: #E2E8F0;
-  --erp-border-light: #F1F5F9;
-  --erp-border-dark: #CBD5E1;
-  
-  /* Shadows */
-  --erp-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --erp-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
-  --erp-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
-  --erp-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
-  
+
+  --erp-border: var(--foms-border-default);
+  --erp-border-light: var(--foms-border-subtle);
+  --erp-border-dark: var(--foms-border-strong);
+
+  /* Shadows — follow foms elevation in dark */
+  --erp-shadow-sm: var(--foms-shadow-sm);
+  --erp-shadow: var(--foms-shadow-sm);
+  --erp-shadow-md: var(--foms-shadow-md);
+  --erp-shadow-lg: var(--foms-shadow-lg);
+
   /* Border Radius */
   --erp-radius-sm: 0.375rem;
   --erp-radius: 0.5rem;
   --erp-radius-lg: 0.75rem;
   --erp-radius-xl: 1rem;
   --erp-radius-full: 9999px;
-  
+
   /* Spacing */
   --erp-space-xs: 0.25rem;
   --erp-space-sm: 0.5rem;
   --erp-space-md: 1rem;
   --erp-space-lg: 1.5rem;
   --erp-space-xl: 2rem;
-  
+
   /* Typography */
-  --erp-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+  --erp-font-family: var(--foms-font-sans);
   --erp-font-size-xs: 0.75rem;
   --erp-font-size-sm: 0.875rem;
   --erp-font-size-base: 1rem;
   --erp-font-size-lg: 1.125rem;
   --erp-font-size-xl: 1.25rem;
   --erp-font-size-2xl: 1.5rem;
-  
+
   /* Transitions */
   --erp-transition-fast: 150ms ease;
   --erp-transition: 200ms ease;
   --erp-transition-slow: 300ms ease;
+}
+
+[data-theme='dark'] {
+  --erp-success-light: rgba(16, 185, 129, 0.18);
+  --erp-warning-light: rgba(245, 158, 11, 0.18);
+  --erp-danger-light: rgba(239, 68, 68, 0.18);
+  --erp-info-light: rgba(6, 182, 212, 0.18);
 }
 
 /* P1-06 Phase 2 bridge: legacy ERP literals preserved; new surfaces use --foms-* from foms-tokens.css */

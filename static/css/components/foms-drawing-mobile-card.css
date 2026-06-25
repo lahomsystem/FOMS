@@ -40,7 +40,7 @@
   width: 100%;
   height: 100%;
   object-fit: contain;
-  background: #fff;
+  background: var(--foms-surface-base);
 }
 
 .erp-drawing-mobile-card__thumb.is-placeholder,
@@ -135,7 +135,7 @@
   border-radius: 8px;
   overflow: hidden;
   border: 1px solid var(--foms-border-subtle, #dde1e6);
-  background: #fff;
+  background: var(--foms-surface-base);
   color: var(--foms-text-tertiary, #6b7380);
 }
 
@@ -143,7 +143,7 @@
   width: 100%;
   height: 100%;
   object-fit: contain;
-  background: #fff;
+  background: var(--foms-surface-base);
 }
 
 .foms-drawing-queue-card__thumb.is-placeholder i {

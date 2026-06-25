@@ -1,22 +1,22 @@
 # Context Compact Checkpoint
 
 > **경고**: 컨텍스트 압축이 발생했습니다. 이 파일을 읽어 이전 작업을 복원하세요.
-> 생성 시각: 2026-06-24 09:23:37
-> 세션: a1e98f3a
+> 생성 시각: 2026-06-25 16:57:43
+> 세션: de379fd1
 
 ## 압축 직전 상태
 
 ### 최근 편집된 파일
-- `tests/domains/test_erp_spec_calc_followup.py` <- 6 edit(s), ~1128 chars (2026-06-24 09:23:08)
-- `templates/orders/partials/erp_order_js.html` <- 1 edit(s), ~104 chars (2026-06-24 09:22:29)
-- `static/css/components/foms-form-field.css` <- 3 edit(s), ~515 chars (2026-06-24 09:22:11)
-- `static/css/components/foms-form-field.css` <- 3 edit(s), ~468 chars (2026-06-24 09:21:58)
-- `static/js/orders/erp-spec-calc.js` <- 1 edit(s), ~72 chars (2026-06-24 09:21:43)
-- `static/js/orders/erp-spec-calc.js` <- 4 edit(s), ~1444 chars (2026-06-24 09:21:36)
-- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-9133754e-f167-4724-a30c-0bb2ebf87a5f.png` <- 1 edit(s), ~0 chars (2026-06-24 09:20:10)
-- `commit_msg.txt` <- 1 edit(s), ~782 chars (2026-06-23 20:20:41)
-- `tests/domains/test_erp_spec_calc_followup.py` <- 2 edit(s), ~261 chars (2026-06-23 17:05:29)
-- `templates/orders/partials/erp_order_js.html` <- 1 edit(s), ~107 chars (2026-06-23 17:05:03)
+- `templates/partials/shared/layout_head.html` <- 1 edit(s), ~122 chars (2026-06-25 16:57:41)
+- `templates/partials/shared/layout_scripts.html` <- 1 edit(s), ~94 chars (2026-06-25 16:57:40)
+- `templates/partials/shared/layout_head.html` <- 2 edit(s), ~342 chars (2026-06-25 16:57:39)
+- `static/css/components/foms-flatpickr-theme.css` <- 1 edit(s), ~1941 chars (2026-06-25 16:57:39)
+- `static/css/components/foms-search-overlay.css` <- 2 edit(s), ~134 chars (2026-06-25 16:57:36)
+- `static/js/foms/theme.js` <- 5 edit(s), ~1387 chars (2026-06-25 16:57:36)
+- `static/css/foundation/erp-pro.css` <- 1 edit(s), ~62 chars (2026-06-25 16:57:12)
+- `templates/partials/shared/layout_head.html` <- 1 edit(s), ~195 chars (2026-06-25 16:57:12)
+- `static/css/foundation/erp-pro/10-erp-mobile-v2-shell.css` <- 1 edit(s), ~164 chars (2026-06-25 16:57:11)
+- `static/css/foundation/erp-pro/10-erp-mobile-v2-shell.css` <- 1 edit(s), ~118 chars (2026-06-25 16:57:09)
 
 ### 진행 중이던 작업
 - [2026-04-17] **ERP fast-page `EPT-B8`:** run record `docs/plans/2026-04-17-ept-b8-verification-railway-evidence-run-record.md` — 로컬 게이트 완료; staging HTTP 하네스로 **§4 표·§5** 부분 채움; **closeout** 은 deploy ID·§6 모드·hard stop 조건 충족 후.

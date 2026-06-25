@@ -1,6 +1,7 @@
 /**
- * P0-07: FOMS design tokens (single source of truth for --foms-*).
- * Legacy --erp-* / --wam-* remain in erp-pro until P1-06 alias bridge.
+ * P0-07 / Dark mode closeout: FOMS design tokens (single source of truth for --foms-*).
+ * Theme swap: set html[data-theme="dark"] (+ data-bs-theme via theme.js).
+ * Legacy --erp-* bridges in erp-pro/01-intro-tokens.css; style-pro-max bridge below.
  */
 :root {
   --foms-color-brand-50: #f3f4ff;
@@ -52,20 +53,46 @@
   --foms-stage-cs: #ef4444;
   --foms-stage-completed: #4b525d;
 
+  /* Semantic surfaces (light) */
   --foms-surface-base: var(--foms-color-neutral-0);
   --foms-surface-raised: var(--foms-color-neutral-50);
   --foms-surface-overlay: var(--foms-color-neutral-100);
+  --foms-surface-subtle: var(--foms-color-neutral-50);
+  --foms-surface-muted: var(--foms-color-neutral-100);
+  --foms-surface-inverse: var(--foms-color-neutral-900);
+  --foms-surface-accent: var(--foms-color-brand-50);
+
   --foms-border-subtle: var(--foms-color-neutral-200);
   --foms-border-default: var(--foms-color-neutral-300);
+  --foms-border-strong: var(--foms-color-neutral-500);
   --foms-border-focus: var(--foms-color-brand-500);
+
   --foms-text-primary: var(--foms-color-neutral-900);
   --foms-text-secondary: var(--foms-color-neutral-600);
   --foms-text-tertiary: var(--foms-color-neutral-500);
+  --foms-text-inverse: var(--foms-color-neutral-0);
   --foms-text-link: var(--foms-color-brand-600);
+  --foms-text-link-hover: var(--foms-color-brand-700);
   --foms-text-disabled: var(--foms-color-neutral-400);
+
   --foms-interactive-primary: var(--foms-color-brand-500);
   --foms-interactive-primary-hover: var(--foms-color-brand-600);
+  --foms-interactive-primary-active: var(--foms-color-brand-700);
   --foms-interactive-secondary: var(--foms-color-neutral-100);
+  --foms-interactive-secondary-hover: var(--foms-color-neutral-200);
+  --foms-interactive-danger: var(--foms-color-danger-500);
+  --foms-interactive-danger-hover: var(--foms-color-danger-600);
+  --foms-interactive-primary-soft: var(--foms-color-brand-50);
+
+  --foms-chip-date-border: var(--foms-border-default);
+  --foms-chip-date-selected-bg: linear-gradient(180deg, #f6fbff 0%, #eaf5ff 100%);
+  --foms-chip-date-weekend-bg: var(--foms-color-warning-50);
+  --foms-chip-date-holiday-bg: var(--foms-color-danger-50);
+  --foms-chip-badge-bg: var(--foms-surface-muted);
+  --foms-chip-badge-info-bg: var(--foms-color-info-50);
+  --foms-chip-badge-success-bg: var(--foms-color-success-50);
+
+  --foms-ring: var(--foms-color-brand-500);
 
   --foms-font-sans: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont,
     'Apple SD Gothic Neo', 'Segoe UI', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
@@ -101,6 +128,7 @@
   --foms-radius-xl: 16px;
   --foms-radius-full: 9999px;
 
+  --foms-shadow-xs: 0 1px 1px rgba(15, 17, 21, 0.04);
   --foms-shadow-sm: 0 1px 3px rgba(15, 17, 21, 0.06), 0 1px 2px rgba(15, 17, 21, 0.04);
   --foms-shadow-md: 0 4px 12px rgba(15, 17, 21, 0.08), 0 2px 4px rgba(15, 17, 21, 0.04);
   --foms-shadow-lg: 0 8px 24px rgba(15, 17, 21, 0.1), 0 4px 8px rgba(15, 17, 21, 0.06);
@@ -123,11 +151,21 @@
   --foms-z-bottom-nav: 1030;
   --foms-z-action-bar: 1040;
   --foms-z-fab: 1050;
+  --foms-z-menu-drawer: 1060;
   --foms-z-modal: 1070;
 
   --foms-touch-target-min: 48px;
   --foms-safe-area-top: env(safe-area-inset-top, 0px);
   --foms-safe-area-bottom: env(safe-area-inset-bottom, 0px);
+
+  /* style-pro-max.css loads before this file; vars resolve at use-time */
+  --bg-app: var(--foms-surface-overlay);
+  --bg-surface: var(--foms-surface-base);
+  --bg-glass: rgba(255, 255, 255, 0.72);
+  --foms-shell-glass-chrome: rgba(255, 255, 255, 0.98);
+  --text-primary: var(--foms-text-primary);
+  --text-secondary: var(--foms-text-secondary);
+  --text-tertiary: var(--foms-text-tertiary);
 
   color-scheme: light;
 }
@@ -136,14 +174,54 @@
   --foms-surface-base: var(--foms-color-neutral-1000);
   --foms-surface-raised: var(--foms-color-neutral-900);
   --foms-surface-overlay: var(--foms-color-neutral-800);
+  --foms-surface-subtle: var(--foms-color-neutral-900);
+  --foms-surface-muted: var(--foms-color-neutral-800);
+  --foms-surface-inverse: var(--foms-color-neutral-50);
+  --foms-surface-accent: rgba(90, 103, 216, 0.14);
+
   --foms-border-subtle: var(--foms-color-neutral-800);
   --foms-border-default: var(--foms-color-neutral-700);
+  --foms-border-strong: var(--foms-color-neutral-500);
+
   --foms-text-primary: var(--foms-color-neutral-50);
   --foms-text-secondary: var(--foms-color-neutral-300);
   --foms-text-tertiary: var(--foms-color-neutral-400);
+  --foms-text-inverse: var(--foms-color-neutral-900);
   --foms-text-link: var(--foms-color-brand-300);
+  --foms-text-link-hover: var(--foms-color-brand-200);
   --foms-text-disabled: var(--foms-color-neutral-600);
+
   --foms-interactive-secondary: var(--foms-color-neutral-800);
+  --foms-interactive-secondary-hover: var(--foms-color-neutral-700);
+  --foms-interactive-primary-soft: rgba(90, 103, 216, 0.18);
+
+  --foms-chip-date-selected-bg: var(--foms-surface-accent);
+  --foms-chip-date-weekend-bg: rgba(245, 158, 11, 0.14);
+  --foms-chip-date-holiday-bg: rgba(239, 68, 68, 0.14);
+  --foms-chip-badge-bg: var(--foms-color-neutral-800);
+  --foms-chip-badge-info-bg: rgba(59, 130, 246, 0.18);
+  --foms-chip-badge-success-bg: rgba(16, 185, 129, 0.18);
+
+  --foms-stage-received: #9aa3af;
+  --foms-stage-happycall: #22d3ee;
+  --foms-stage-measure: #60a5fa;
+  --foms-stage-drawing: #a78bfa;
+  --foms-stage-confirm: #7882f0;
+  --foms-stage-production: #fbbf24;
+  --foms-stage-shipment: #f472b6;
+  --foms-stage-construction: #34d399;
+  --foms-stage-cs: #f87171;
+  --foms-stage-completed: #6b7380;
+
+  --foms-shadow-xs: 0 1px 1px rgba(0, 0, 0, 0.5);
+  --foms-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.6), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --foms-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.6), 0 2px 4px rgba(0, 0, 0, 0.3);
+  --foms-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.6), 0 4px 8px rgba(0, 0, 0, 0.3);
+  --foms-shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.7), 0 8px 16px rgba(0, 0, 0, 0.4);
+  --foms-shadow-focus-ring: 0 0 0 3px rgba(120, 130, 240, 0.45);
+
+  --bg-glass: rgba(10, 12, 16, 0.82);
+  --foms-shell-glass-chrome: rgba(10, 12, 16, 0.96);
 
   color-scheme: dark;
 }
