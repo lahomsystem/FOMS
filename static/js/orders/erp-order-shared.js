@@ -3592,6 +3592,26 @@ function erpAppendConversionTextLine(text, label, value) {
     return text + `${label} : ${String(value).trim()}\n`;
 }
 
+function erpAppendConversionExtraInputLine(text, value) {
+    const raw = String(value ?? '').trim();
+    if (!raw) return text;
+    const lines = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+    const first = (lines[0] || '').trim();
+    if (!first) return text;
+    let out = text + `추가 입력 : ${first}\n`;
+    for (let i = 1; i < lines.length; i += 1) {
+        const line = lines[i].trim();
+        if (line) out += `${line}\n`;
+    }
+    return out;
+}
+
+function erpReadItemFieldValue(row, key) {
+    if (!row || !key) return '';
+    const el = row.querySelector(`:scope [data-erp="${key}"]`);
+    return el ? String(el.value || '').trim() : '';
+}
+
 function erpAppendConversionMoneyLine(text, label, amount, suffix) {
     const n = erpCoerceAmount(amount);
     if (n <= 0) return text;
@@ -3688,10 +3708,7 @@ function erpGenerateConversionText() {
     let visibleItemIndex = 0;
 
     rows.forEach((row) => {
-        const getRowVal = (key) => {
-            const el = row.querySelector(`[data-erp="${key}"]`);
-            return el ? (el.value || '').trim() : '';
-        };
+        const getRowVal = (key) => erpReadItemFieldValue(row, key);
 
         const extraInput = getRowVal('extra_input');
 
@@ -3723,8 +3740,8 @@ function erpGenerateConversionText() {
         itemText = erpAppendConversionTextLine(itemText, '옵 션', option);
         itemText = erpAppendConversionTextLine(itemText, '손잡이', handle);
         itemText = erpAppendConversionTextLine(itemText, '기 타', misc);
+        itemText = erpAppendConversionExtraInputLine(itemText, extraInput);
         itemText = erpAppendConversionMoneyLine(itemText, '항목 견적', itemPrice);
-        itemText = erpAppendConversionTextLine(itemText, '추가 입력', extraInput);
         if (!itemText) return;
 
         visibleItemIndex += 1;
