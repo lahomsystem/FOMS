@@ -539,10 +539,10 @@ def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
     assert "function erpReadItemFieldValue(row, key)" in text
     assert "function erpAppendConversionExtraInputLine(text, value)" in text
     assert conversion_block.index("erpAppendConversionTextLine(itemText, '기 타', misc)") < conversion_block.index(
-        "erpAppendConversionExtraInputLine(itemText, extraInput)"
-    )
-    assert conversion_block.index("erpAppendConversionExtraInputLine(itemText, extraInput)") < conversion_block.index(
         "erpAppendConversionMoneyLine(itemText, '항목 견적', itemPrice)"
+    )
+    assert conversion_block.index("erpAppendConversionMoneyLine(itemText, '항목 견적', itemPrice)") < conversion_block.index(
+        "erpAppendConversionExtraInputLine(itemText, extraInput)"
     )
     assert "const itemPrice = getRowVal('price');" in conversion_block
     assert "allExtraInputs" not in conversion_block

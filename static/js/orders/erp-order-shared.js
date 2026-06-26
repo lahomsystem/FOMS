@@ -3740,8 +3740,8 @@ function erpGenerateConversionText() {
         itemText = erpAppendConversionTextLine(itemText, '옵 션', option);
         itemText = erpAppendConversionTextLine(itemText, '손잡이', handle);
         itemText = erpAppendConversionTextLine(itemText, '기 타', misc);
-        itemText = erpAppendConversionExtraInputLine(itemText, extraInput);
         itemText = erpAppendConversionMoneyLine(itemText, '항목 견적', itemPrice);
+        itemText = erpAppendConversionExtraInputLine(itemText, extraInput);
         if (!itemText) return;
 
         visibleItemIndex += 1;
