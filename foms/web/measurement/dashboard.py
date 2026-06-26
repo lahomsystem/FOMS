@@ -591,6 +591,7 @@ def regional_dashboard():
     completed_orders = [o for o in all_regional_orders if o.status == "COMPLETED"]
     scheduled_orders = [o for o in all_regional_orders if o.status == "SCHEDULED"]
     hold_orders = [o for o in all_regional_orders if o.status == "ON_HOLD"]
+    excluded_from_shipping_buckets = ["COMPLETED", "ON_HOLD", "SCHEDULED"]
 
     shipping_alerts = []
     for order in all_regional_orders:
@@ -598,7 +599,7 @@ def regional_dashboard():
             getattr(order, "measurement_completed", False)
             and order.shipping_scheduled_date
             and order.shipping_scheduled_date.strip()
-            and order.status not in ["COMPLETED", "ON_HOLD"]
+            and order.status not in excluded_from_shipping_buckets
         ):
             try:
                 shipping_date = datetime.datetime.strptime(
@@ -614,7 +615,7 @@ def regional_dashboard():
         if (
             order.shipping_scheduled_date
             and order.shipping_scheduled_date.strip()
-            and order.status not in ["COMPLETED", "ON_HOLD"]
+            and order.status not in excluded_from_shipping_buckets
         ):
             try:
                 shipping_date = datetime.datetime.strptime(
@@ -631,7 +632,7 @@ def regional_dashboard():
         o
         for o in all_regional_orders
         if (
-            o.status not in ["COMPLETED", "ON_HOLD", "SCHEDULED"]
+            o.status not in excluded_from_shipping_buckets
             and o.id not in shipping_alert_ids
             and o.id not in shipping_completed_ids
             and (
