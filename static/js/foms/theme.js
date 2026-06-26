@@ -1,11 +1,13 @@
 /**
  * P0-07: Light/dark theme preference (localStorage + prefers-color-scheme).
+ * Dark applies on mobile viewport only (max-width 991.98px); PC stays light.
  * Bootstrap 5.3 data-bs-theme stays in sync with html[data-theme].
  */
 (function (global) {
   'use strict';
 
   var STORAGE_KEY = 'foms-theme';
+  var MOBILE_THEME_MQ = '(max-width: 991.98px)';
   var ALLOWED = { light: true, dark: true, system: true };
 
   function systemTheme() {
@@ -13,6 +15,13 @@
       return 'light';
     }
     return global.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+
+  function isMobileThemeViewport() {
+    if (!global.matchMedia) {
+      return false;
+    }
+    return global.matchMedia(MOBILE_THEME_MQ).matches;
   }
 
   function readStoredPreference() {
@@ -27,8 +36,15 @@
     return 'system';
   }
 
-  function effectiveTheme(preference) {
+  function preferenceToTheme(preference) {
     return preference === 'system' ? systemTheme() : preference;
+  }
+
+  function resolveAppliedTheme(preference) {
+    if (!isMobileThemeViewport()) {
+      return 'light';
+    }
+    return preferenceToTheme(preference);
   }
 
   function syncToggleUi(preference) {
@@ -43,7 +59,7 @@
 
   function applyTheme(preference) {
     var pref = preference || readStoredPreference();
-    var effective = effectiveTheme(pref);
+    var effective = resolveAppliedTheme(pref);
     var root = document.documentElement;
     root.setAttribute('data-theme', effective);
     root.setAttribute('data-theme-preference', pref);
@@ -110,11 +126,22 @@
     });
   }
 
+  function bindViewportThemeListener() {
+    if (global.__FOMS_THEME_VIEWPORT_BOUND || !global.matchMedia) {
+      return;
+    }
+    global.__FOMS_THEME_VIEWPORT_BOUND = true;
+    global.matchMedia(MOBILE_THEME_MQ).addEventListener('change', function () {
+      applyTheme(readStoredPreference());
+    });
+  }
+
   function init() {
     applyTheme(readStoredPreference());
     bindThemeClickDelegation();
     bindOffcanvasResync();
     bindMainContentResync();
+    bindViewportThemeListener();
     if (global.matchMedia) {
       global.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () {
         if (readStoredPreference() === 'system') {
@@ -127,7 +154,9 @@
   global.FomsTheme = {
     apply: applyTheme,
     init: init,
+    isMobileThemeViewport: isMobileThemeViewport,
     readStoredPreference: readStoredPreference,
+    resolveAppliedTheme: resolveAppliedTheme,
     set: setTheme,
   };
 
