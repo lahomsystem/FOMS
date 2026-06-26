@@ -6,6 +6,7 @@ API: /api/wdcalculator/*
 import copy
 import os
 import json
+import logging
 from flask import Blueprint, request, jsonify, render_template
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
@@ -34,6 +35,8 @@ WD_SPEC_FIELD_PRESETS_PATH = os.path.join(_PROJECT_ROOT, 'data', 'spec_field_pre
 SPEC_PRESET_FIELDS = ('color', 'handle', 'internal', 'misc')
 
 wdcalculator_bp = Blueprint('wdcalculator', __name__, url_prefix='')
+
+logger = logging.getLogger(__name__)
 
 
 def clean_categories_data(categories):
@@ -329,10 +332,10 @@ def save_additional_option_categories(categories):
             settings.additional_options = clean_categories_data(categories or [])
             session.commit()
         return True
-    except Exception as e:
+    except Exception:
         session = get_wdcalculator_db()
         session.rollback()
-        print(f"Error saving additional option categories: {e}")
+        logger.exception("추가 옵션 카테고리 저장 실패")
         return False
 
 
@@ -369,10 +372,10 @@ def save_notes_categories(categories):
             settings.notes_categories = clean_categories_data(categories or [])
             session.commit()
         return True
-    except Exception as e:
+    except Exception:
         session = get_wdcalculator_db()
         session.rollback()
-        print(f"Error saving notes categories: {e}")
+        logger.exception("비고 카테고리 저장 실패")
         return False
 
 
@@ -409,10 +412,10 @@ def save_products(products):
             settings.products = _deepcopy_json(products, [])
             session.commit()
         return True
-    except Exception as e:
+    except Exception:
         session = get_wdcalculator_db()
         session.rollback()
-        print(f"Error saving products: {e}")
+        logger.exception("제품 데이터 저장 실패")
         return False
 
 
@@ -1208,11 +1211,13 @@ def api_wdcalculator_get_order_estimates(order_id):
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'})
         wd_db = get_wdcalculator_db()
         matches = wd_db.query(EstimateOrderMatch).filter(EstimateOrderMatch.order_id == order_id).all()
+        # N+1 제거: match별 단건 조회 대신 estimate_id 배치 조회(in_). 매칭 순서·중복·누락 의미 보존.
+        estimate_ids = [m.estimate_id for m in matches]
         estimates = []
-        for match in matches:
-            est = wd_db.query(Estimate).filter(Estimate.id == match.estimate_id).first()
-            if est:
-                estimates.append(est.to_dict())
+        if estimate_ids:
+            est_rows = wd_db.query(Estimate).filter(Estimate.id.in_(estimate_ids)).all()
+            est_by_id = {e.id: e for e in est_rows}
+            estimates = [est_by_id[eid].to_dict() for eid in estimate_ids if eid in est_by_id]
         order_payment = _build_order_payment_payload(order)
         return jsonify({
             'success': True,
@@ -1222,8 +1227,9 @@ def api_wdcalculator_get_order_estimates(order_id):
             'order_payment_amount': order_payment['amount'],
             'order_payment_label': order_payment['label'],
         })
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
+    except Exception:
+        logger.exception("주문 견적 조회 실패 order_id=%s", order_id)
+        return jsonify({'success': False, 'message': '견적을 불러오는 중 오류가 발생했습니다.'})
 
 
 @wdcalculator_bp.route('/api/wdcalculator/search-orders', methods=['GET'])
