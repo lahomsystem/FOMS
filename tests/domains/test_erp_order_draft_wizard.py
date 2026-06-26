@@ -202,7 +202,125 @@ def test_order_draft_submit_creates_order(client, app, wizard_enabled) -> None:
         order = db_session.query(Order).filter_by(id=order_id).one()
         assert order.customer_name == "제출테스트"
         assert order.is_erp_order is True
+        assert (order.structured_data or {}).get("workflow", {}).get("stage") == "RECEIVED"
+        assert order.status == "RECEIVED"
+        assert order.erp_stage_code == "RECEIVED"
     assert client.get(f"/api/erp/order-draft?key={key}").get_json()["draft"] is None
+
+
+def test_order_draft_submit_sets_measure_for_haud_orderer(client, app, wizard_enabled) -> None:
+    """하우드 발주사는 실측일 없어도 주문 단계가 실측(MEASURE)이어야 한다."""
+    from db import db_session
+    from models import Order
+
+    _login(client, app, "wizard_haud_user")
+    key = "new.test-haud-stage"
+    payload = {
+        "schema_version": 1,
+        "step": 4,
+        "data": {
+            "customer_name": "하우드단계",
+            "phone": "010-2222-3333",
+            "address": "서울시",
+            "orderer": "하우드",
+            "items": [{"product_name": "붙박이", "spec_rows": [{}]}],
+            "schedule": {},
+        },
+    }
+    client.put(
+        "/api/erp/order-draft",
+        data=json.dumps({"draft_key": key, "step": 4, "payload": payload}),
+        content_type="application/json",
+    )
+    submit = client.post(
+        "/api/erp/order-draft/submit",
+        data=json.dumps({"draft_key": key}),
+        content_type="application/json",
+    )
+    assert submit.status_code == 200
+    order_id = submit.get_json()["data"]["order_id"]
+    with app.app_context():
+        order = db_session.query(Order).filter_by(id=order_id).one()
+        assert order.structured_data["workflow"]["stage"] == "MEASURE"
+        assert order.status == "MEASURE"
+        assert order.erp_stage_code == "MEASURE"
+
+
+def test_order_draft_submit_sets_measure_for_custom_orderer(client, app, wizard_enabled) -> None:
+    """직접 입력 발주사도 실측 단계로 생성되어야 한다."""
+    from db import db_session
+    from models import Order
+
+    _login(client, app, "wizard_custom_user")
+    key = "new.test-custom-stage"
+    payload = {
+        "schema_version": 1,
+        "step": 4,
+        "data": {
+            "customer_name": "직접입력단계",
+            "phone": "010-4444-5555",
+            "address": "부산시",
+            "orderer": "협력사X",
+            "items": [{"product_name": "주방", "spec_rows": [{}]}],
+            "schedule": {},
+        },
+    }
+    client.put(
+        "/api/erp/order-draft",
+        data=json.dumps({"draft_key": key, "step": 4, "payload": payload}),
+        content_type="application/json",
+    )
+    submit = client.post(
+        "/api/erp/order-draft/submit",
+        data=json.dumps({"draft_key": key}),
+        content_type="application/json",
+    )
+    assert submit.status_code == 200
+    order_id = submit.get_json()["data"]["order_id"]
+    with app.app_context():
+        order = db_session.query(Order).filter_by(id=order_id).one()
+        assert order.structured_data["workflow"]["stage"] == "MEASURE"
+        assert order.status == "MEASURE"
+        assert order.erp_stage_code == "MEASURE"
+
+
+def test_order_draft_submit_sets_measure_for_lahom_with_measurement_date(
+    client, app, wizard_enabled
+) -> None:
+    """라홈도 실측일 입력 시 실측 단계로 생성되어야 한다."""
+    from db import db_session
+    from models import Order
+
+    _login(client, app, "wizard_meas_user")
+    key = "new.test-lahom-meas"
+    payload = {
+        "schema_version": 1,
+        "step": 4,
+        "data": {
+            "customer_name": "라홈실측",
+            "phone": "010-6666-7777",
+            "address": "대전시",
+            "orderer": "라홈",
+            "items": [{"product_name": "드레스룸", "spec_rows": [{}]}],
+            "schedule": {"measurement_date": "2026-06-30"},
+        },
+    }
+    client.put(
+        "/api/erp/order-draft",
+        data=json.dumps({"draft_key": key, "step": 4, "payload": payload}),
+        content_type="application/json",
+    )
+    submit = client.post(
+        "/api/erp/order-draft/submit",
+        data=json.dumps({"draft_key": key}),
+        content_type="application/json",
+    )
+    assert submit.status_code == 200
+    order_id = submit.get_json()["data"]["order_id"]
+    with app.app_context():
+        order = db_session.query(Order).filter_by(id=order_id).one()
+        assert order.structured_data["workflow"]["stage"] == "MEASURE"
+        assert order.erp_stage_code == "MEASURE"
 
 
 def test_order_draft_submit_persists_deposit_and_totals(client, app, wizard_enabled) -> None:

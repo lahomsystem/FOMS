@@ -35,6 +35,8 @@ from foms.services.orders.estimate_defaults import (
     ERP_DRAFT_PLACEHOLDER_PHONE,
     ERP_DRAFT_PLACEHOLDER_PRODUCT,
 )
+from foms.services.orders.initial_workflow_stage import resolve_initial_workflow_stage
+from foms.services.orders.status_constants import STATUS
 from foms.web.auth import login_required, role_required
 from models import Order
 
@@ -115,6 +117,12 @@ def _draft_payload_to_structured(data: dict[str, Any]) -> dict[str, Any]:
         )
 
     schedule_in = data.get("schedule") if isinstance(data.get("schedule"), dict) else {}
+    orderer = str(data.get("orderer") or "").strip()
+    initial_stage = resolve_initial_workflow_stage(
+        orderer=orderer,
+        schedule=schedule_in,
+        items=items_in if isinstance(items_in, list) else [],
+    )
     structured: dict[str, Any] = {
         "parties": {
             "customer": {
@@ -127,15 +135,15 @@ def _draft_payload_to_structured(data: dict[str, Any]) -> dict[str, Any]:
         },
         "items": items,
         "workflow": {
-            "stage": "RECEIVED",
+            "stage": initial_stage,
             "stage_updated_at": datetime.datetime.now().isoformat(),
         },
         "schedule": {},
         "meta": {"wizard_v1": True},
     }
-    if data.get("orderer"):
+    if orderer:
         # canonical: parties.orderer = {"name": ...} (erp_display/listing이 .name으로 읽음).
-        structured.setdefault("parties", {})["orderer"] = {"name": str(data.get("orderer")).strip()}
+        structured.setdefault("parties", {})["orderer"] = {"name": orderer}
     meas = str(schedule_in.get("measurement_date") or "").strip()
     cons = str(schedule_in.get("construction_date") or "").strip()
     if meas:
@@ -422,6 +430,10 @@ def api_submit_order_draft() -> tuple[Any, int]:
 
     received_date = str(data.get("received_date") or get_today_kst().strftime("%Y-%m-%d"))
     received_time = now_kst().strftime("%H:%M")
+    workflow_stage = (
+        ((structured_data.get("workflow") or {}).get("stage") or "RECEIVED").strip()
+    )
+    order_status = workflow_stage if workflow_stage in STATUS else "RECEIVED"
 
     new_order = Order(
         received_date=received_date,
@@ -432,7 +444,7 @@ def api_submit_order_draft() -> tuple[Any, int]:
         product=prod,
         options=None,
         notes=(structured_data.get("notes") or None),
-        status="RECEIVED",
+        status=order_status,
         is_erp_order=True,
         raw_order_text="",
         structured_data=copy.deepcopy(structured_data),
