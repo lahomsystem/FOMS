@@ -1275,9 +1275,13 @@ def test_erp_api_modules_use_canonical_erp_permissions_imports() -> None:
 
 
 def test_erp_permissions_lazy_callers_use_canonical_import_paths() -> None:
-    """Lazy ERP permission imports should reference the canonical namespace path."""
+    """Lazy ERP permission imports should reference the canonical namespace path.
+
+    Batch 2a-2: build_mine_sql_filter의 lazy 호출자가 orders 대시보드 read-model로
+    이전됨(dashboard.py -> dashboard_read_model.py). 캐노니컬 경로는 동일 유지.
+    """
     module_source = (
-        _REPO_ROOT / "foms" / "web" / "orders" / "dashboard.py"
+        _REPO_ROOT / "foms" / "services" / "orders" / "dashboard_read_model.py"
     ).read_text(encoding="utf-8")
 
     assert "from foms.services.erp_permissions import build_mine_sql_filter" in module_source
