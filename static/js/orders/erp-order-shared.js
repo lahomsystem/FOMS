@@ -3713,6 +3713,7 @@ function erpGenerateConversionText() {
         const option = getRowVal('option_detail');
         const handle = getRowVal('handle');
         const misc = getRowVal('misc');
+        const itemPrice = getRowVal('price');
 
         let itemText = '';
         itemText = erpAppendConversionTextLine(itemText, '제품명', pName);
@@ -3722,6 +3723,7 @@ function erpGenerateConversionText() {
         itemText = erpAppendConversionTextLine(itemText, '옵 션', option);
         itemText = erpAppendConversionTextLine(itemText, '손잡이', handle);
         itemText = erpAppendConversionTextLine(itemText, '기 타', misc);
+        itemText = erpAppendConversionMoneyLine(itemText, '항목 견적', itemPrice);
         itemText = erpAppendConversionTextLine(itemText, '추가 입력', extraInput);
         if (!itemText) return;
 

@@ -162,7 +162,10 @@ def parse_order_text(raw_text: str) -> dict:
             option_detail = _extract_first([r"^\s*옵\s*션\s*:\s*(.+)$", r"^\s*옵션\s*:\s*(.+)$"], block)
             handle = _extract_first([r"^\s*손잡이\s*:\s*(.+)$"], block)
             misc = _extract_first([r"^\s*기\s*타\s*:\s*(.+)$", r"^\s*기타\s*:\s*(.+)$"], block)
-            price_raw = _extract_first([r"^\s*견적가\s*:\s*(.+)$"], block)
+            price_raw = _extract_first([
+                r"^\s*항목\s*견적\s*:\s*(.+)$",
+                r"^\s*견적가\s*:\s*(.+)$",
+            ], block)
 
             items.append({
                 "index": idx,
@@ -184,7 +187,10 @@ def parse_order_text(raw_text: str) -> dict:
         option_detail = _extract_first([r"^\s*옵\s*션\s*:\s*(.+)$", r"^\s*옵션\s*:\s*(.+)$"], blob)
         handle = _extract_first([r"^\s*손잡이\s*:\s*(.+)$"], blob)
         misc = _extract_first([r"^\s*기\s*타\s*:\s*(.+)$", r"^\s*기타\s*:\s*(.+)$"], blob)
-        price_raw = _extract_first([r"^\s*견적가\s*:\s*(.+)$"], blob)
+        price_raw = _extract_first([
+            r"^\s*항목\s*견적\s*:\s*(.+)$",
+            r"^\s*견적가\s*:\s*(.+)$",
+        ], blob)
         if any([product_name, spec, internal, color, option_detail, handle, misc, price_raw]):
             items.append({
                 "index": 1,

@@ -535,6 +535,8 @@ def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
     assert "function erpAppendConversionTextLine(text, label, value)" in text
     assert "function erpAppendConversionMoneyLine(text, label, amount, suffix)" in text
     assert "erpAppendConversionTextLine(itemText, '추가 입력', extraInput)" in conversion_block
+    assert "const itemPrice = getRowVal('price');" in conversion_block
+    assert "erpAppendConversionMoneyLine(itemText, '항목 견적', itemPrice)" in conversion_block
     assert "allExtraInputs" not in conversion_block
     assert "getVal('erp-manager')" in conversion_block
     assert "erpAppendConversionMoneyLine(text, '출고가', totals.items_total)" in conversion_block
