@@ -35,7 +35,7 @@ from foms.services.common.business_calendar import business_days_until
 from foms.services.erp_order_detail import build_order_detail_payload_map
 from foms.services.erp_order_deeplink import resolve_edit_return_back_endpoint
 from foms.services.orders.status_constants import BULK_ACTION_STATUS
-from foms.services.request_utils import get_search_query_arg
+from foms.services.orders.dashboard_filters import parse_orders_dashboard_filters
 from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
 from foms.services.feature_flags import env_bool, env_bool_or_mobile_v2, is_enabled_for_user
 from foms.services.foms_split_view import build_split_master_cards, default_split_side_items
@@ -45,7 +45,6 @@ from foms.services.orders.dashboard_control_tower import (
     build_risk_order_ids,
     build_risk_frame,
     risk_row_cta_meta,
-    RISK_KEYS,
 )
 from foms.services.common.dashboard_cache import (
     TTL_ATTACHMENT_COUNT_MAP,
@@ -59,10 +58,7 @@ from foms.services.common.erp_shell_http import (
     wants_erp_shell_tab_body,
 )
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
-from foms.services.common.erp_mine_filter import (
-    erp_mine_only_from_request,
-    erp_tower_mine_from_request,
-)
+from foms.services.common.erp_mine_filter import erp_tower_mine_from_request
 
 
 erp_dashboard_bp = Blueprint('erp_dashboard', __name__, url_prefix='/erp')
@@ -138,38 +134,25 @@ def erp_dashboard():
         is_admin = True
     can_edit_erp_flag = can_edit_erp(current_user)
 
-    f_stage = (request.args.get('stage') or '').strip()
-    # 레거시 호환: MEASURED -> MEASURE
-    if f_stage == 'MEASURED':
-        f_stage = 'MEASURE'
-    f_urgent = (request.args.get('urgent') or '').strip()
-    f_has_alert = (request.args.get('has_alert') or '').strip()
-    f_alert_type = (request.args.get('alert_type') or '').strip()
-    f_q = get_search_query_arg('q', 'search')
-    effective_stage = '' if f_q else f_stage
-    f_team = (request.args.get('team') or '').strip()
-    f_sort = (request.args.get('sort') or 'latest').strip()
-    if f_sort not in ('latest', 'schedule', 'amount'):
-        f_sort = 'latest'
-    f_today = (request.args.get('today') or '').strip()
-    # 내작업 토글(타워 전용): drill을 발동시키지 않고 타워 페이로드만 내 담당분으로 축소.
-    f_tower_mine = erp_tower_mine_from_request(request)
-    f_mine = erp_mine_only_from_request(request)
-    # 주간 타일/현장 탭 deep-link: 특정 날짜(+선택 타입) 큐. 유효한 ISO일 때만.
-    f_date = (request.args.get('date') or '').strip()
-    f_field = (request.args.get('field') or '').strip()
-    if f_date:
-        try:
-            datetime.date.fromisoformat(f_date)
-        except ValueError:
-            f_date = ''
-    # 위험 레이더 드릴다운: 카드와 동일 술어의 정확 order-id 집합으로 착지(SSOT).
-    f_risk = (request.args.get('risk') or '').strip()
-    if f_risk not in RISK_KEYS:
-        f_risk = ''
-    # 검색 카드 딥링크(?focus_order=)는 q는 검색창 표시용일 뿐, 단건 PK를 60일 창·페이지·
-    # 술어 미스와 무관하게 강제 착지시킨다. construction/measurement 대시보드와 동일 SSOT.
-    focus_order_id = request.args.get('focus_order', type=int)
+    # Batch 2a: request.args 파싱/정규화는 parse_orders_dashboard_filters로 분리(동작 보존).
+    # 값·검증 규칙(MEASURED→MEASURE, sort 화이트리스트, date ISO, risk 키, focus_order int)은
+    # dashboard_filters.py에 1:1로 이전. 아래는 다운스트림 호환을 위한 로컬 바인딩.
+    _filters = parse_orders_dashboard_filters(request)
+    f_stage = _filters.stage
+    f_urgent = _filters.urgent
+    f_has_alert = _filters.has_alert
+    f_alert_type = _filters.alert_type
+    f_q = _filters.q
+    effective_stage = _filters.effective_stage
+    f_team = _filters.team
+    f_sort = _filters.sort
+    f_today = _filters.today
+    f_tower_mine = _filters.tower_mine
+    f_mine = _filters.mine
+    f_date = _filters.date
+    f_field = _filters.field
+    f_risk = _filters.risk
+    focus_order_id = _filters.focus_order_id
 
     # Phase H: 대시보드 운영 화면은 최근 활성 데이터만 조회 (과거 완료건 제외)
     _q = db.query(Order).filter(Order.dashboard_active_filter(days=60), Order.is_erp_order.is_(True))
