@@ -4,7 +4,7 @@ import os
 import time
 from flask import Blueprint, flash, make_response, redirect, render_template, request, g, url_for
 from db import get_db
-from models import Order, User
+from models import Order
 from foms.web.auth import login_required
 from sqlalchemy import text
 from foms.services.erp_permissions import can_edit_erp
@@ -36,6 +36,7 @@ from foms.services.orders.dashboard_filters import parse_orders_dashboard_filter
 from foms.services.orders.dashboard_read_model import (
     build_orders_dashboard_queries,
     compute_orders_summary_slice,
+    compute_orders_attachment_assignee_maps,
 )
 from foms.services.feature_flags import env_bool, env_bool_or_mobile_v2, is_enabled_for_user
 from foms.services.foms_split_view import build_split_master_cards, default_split_side_items
@@ -327,64 +328,12 @@ def erp_dashboard():
     }
     _att_key = build_dashboard_cache_key("orders", "attachment_assignee_maps", _att_fp)
 
-    def _compute_orders_attachment_assignee_maps():
-        # att_counts: 50건만 배치 조회 (원래 1000건 → 50건)
-        att_counts: dict[int, int] = {}
-        if page_orders:
-            try:
-                from models import OrderAttachment
-                from sqlalchemy import func
-                order_ids = [o.id for o in page_orders]
-                rows = db.query(OrderAttachment.order_id, func.count(OrderAttachment.id).label('cnt')) \
-                         .filter(OrderAttachment.order_id.in_(order_ids)) \
-                         .group_by(OrderAttachment.order_id).all()
-                for r in rows:
-                    att_counts[int(r.order_id)] = int(r.cnt)
-            except Exception as e:
-                import logging
-                logging.getLogger(__name__).warning("att_counts query failed: %s", e)
-                att_counts = {}
-
-        # user_map: 50건 assignee만 조회 (원래 1000건 전체 → 50건으로 절감)
-        all_assignee_ids: set[int] = set()
-        for o in page_orders:
-            sd = page_sds[o.id]
-            stage = _erp_get_stage(o, sd)
-            stage_key = stage if isinstance(stage, str) else ''
-            stage_code = STAGE_NAME_TO_CODE.get(stage_key, stage_key)
-            if stage_code in ('MEASURE', 'DRAWING', 'CONFIRM'):
-                assignments = sd.get('assignments') or {}
-                if stage_code in ('MEASURE', 'CONFIRM'):
-                    uids = assignments.get('sales_assignee_user_ids') or []
-                else:
-                    uids = assignments.get('drawing_assignee_user_ids') or []
-                    if not uids:
-                        for a in ((assignments.get('drawing_assignees') or []) + (sd.get('drawing_assignees') or [])):
-                            if isinstance(a, dict) and a.get('id'):
-                                uids.append(a['id'])
-                for uid in uids:
-                    try:
-                        all_assignee_ids.add(int(uid))
-                    except (TypeError, ValueError):
-                        pass
-        user_map: dict[int, str] = {}
-        if all_assignee_ids:
-            users = db.query(User).filter(User.id.in_(all_assignee_ids)).all()
-            for u in users:
-                user_id = getattr(u, 'id', None)
-                user_name = getattr(u, 'name', None)
-                if isinstance(user_id, int) and isinstance(user_name, str) and user_name:
-                    user_map[user_id] = user_name
-        # JSON 키는 str — 역직렬화 후 int 복원
-        return {
-            "att_counts": {str(k): v for k, v in att_counts.items()},
-            "user_map": {str(k): v for k, v in user_map.items()},
-        }
-
+    # Batch 2a-4: attachment/assignee maps compute는 compute_orders_attachment_assignee_maps(read-model)로 분리(동작 보존).
+    # cache 키(_att_key)·fingerprint(_att_fp)·get_or_compute는 라우트가 유지 → cache hit/miss 불변.
     _maps_blob = get_or_compute_dashboard_slice(
         _att_key,
         TTL_ATTACHMENT_COUNT_MAP,
-        _compute_orders_attachment_assignee_maps,
+        lambda: compute_orders_attachment_assignee_maps(db, page_orders, page_sds),
         page="orders",
         slice_name="attachment_assignee_maps",
     )

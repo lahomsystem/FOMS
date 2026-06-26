@@ -11,8 +11,8 @@ import datetime
 
 from sqlalchemy import or_, false, and_, func, case as sql_case
 
-from models import Order
-from foms.services.erp_display import get_today_kst
+from models import Order, User
+from foms.services.erp_display import get_today_kst, _erp_get_stage
 from foms.services.common.business_calendar import business_days_until
 from foms.services.erp_policy import (
     STAGE_NAME_TO_CODE,
@@ -311,3 +311,73 @@ def compute_orders_summary_slice(stats_query):
         {'label': 'AS처리', **step_stats['AS처리']},
     ]
     return {"kpis": kpis, "process_steps": process_steps}
+
+
+def compute_orders_attachment_assignee_maps(db, page_orders, page_sds):
+    """주문 대시보드 첨부 수/담당자 맵 (구 _compute_orders_attachment_assignee_maps).
+
+    Batch 2a-4: 라우트 캐시 슬라이스 compute closure를 read-model로 분리(동작 보존).
+    cache 키·fingerprint·get_or_compute는 라우트가 유지하고, 이 함수는 캐시 미스 시
+    현재 페이지(page_orders, 50건)에 대해 att_counts/user_map을 동일하게 산출한다.
+
+    Args:
+        db: 요청 스코프 DB 세션.
+        page_orders: 현재 페이지 Order 객체 리스트(표시용 50건).
+        page_sds: order_id -> structured_data dict 맵.
+
+    Returns:
+        {"att_counts": {str(order_id): cnt}, "user_map": {str(user_id): name}}
+        — JSON 직렬화 호환을 위해 키는 str(원본과 동일).
+    """
+    # att_counts: 50건만 배치 조회 (원래 1000건 → 50건)
+    att_counts: dict[int, int] = {}
+    if page_orders:
+        try:
+            from models import OrderAttachment
+            from sqlalchemy import func
+            order_ids = [o.id for o in page_orders]
+            rows = db.query(OrderAttachment.order_id, func.count(OrderAttachment.id).label('cnt')) \
+                     .filter(OrderAttachment.order_id.in_(order_ids)) \
+                     .group_by(OrderAttachment.order_id).all()
+            for r in rows:
+                att_counts[int(r.order_id)] = int(r.cnt)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("att_counts query failed: %s", e)
+            att_counts = {}
+
+    # user_map: 50건 assignee만 조회 (원래 1000건 전체 → 50건으로 절감)
+    all_assignee_ids: set[int] = set()
+    for o in page_orders:
+        sd = page_sds[o.id]
+        stage = _erp_get_stage(o, sd)
+        stage_key = stage if isinstance(stage, str) else ''
+        stage_code = STAGE_NAME_TO_CODE.get(stage_key, stage_key)
+        if stage_code in ('MEASURE', 'DRAWING', 'CONFIRM'):
+            assignments = sd.get('assignments') or {}
+            if stage_code in ('MEASURE', 'CONFIRM'):
+                uids = assignments.get('sales_assignee_user_ids') or []
+            else:
+                uids = assignments.get('drawing_assignee_user_ids') or []
+                if not uids:
+                    for a in ((assignments.get('drawing_assignees') or []) + (sd.get('drawing_assignees') or [])):
+                        if isinstance(a, dict) and a.get('id'):
+                            uids.append(a['id'])
+            for uid in uids:
+                try:
+                    all_assignee_ids.add(int(uid))
+                except (TypeError, ValueError):
+                    pass
+    user_map: dict[int, str] = {}
+    if all_assignee_ids:
+        users = db.query(User).filter(User.id.in_(all_assignee_ids)).all()
+        for u in users:
+            user_id = getattr(u, 'id', None)
+            user_name = getattr(u, 'name', None)
+            if isinstance(user_id, int) and isinstance(user_name, str) and user_name:
+                user_map[user_id] = user_name
+    # JSON 키는 str — 역직렬화 후 int 복원
+    return {
+        "att_counts": {str(k): v for k, v in att_counts.items()},
+        "user_map": {str(k): v for k, v in user_map.items()},
+    }
