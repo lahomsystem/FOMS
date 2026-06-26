@@ -58,11 +58,19 @@ def test_wizard_template_contract() -> None:
     step2 = (ROOT / "templates/orders/wizard/step2_products.html").read_text(encoding="utf-8")
     assert "data-foms-photo-capture" in step2
     assert "data-wizard-attachment-input" in step2
+    assert 'id="wiz-deposit-amount"' in step2
+    assert "예약금(선금)" in step2
+    step4 = (ROOT / "templates/orders/wizard/step4_confirm.html").read_text(encoding="utf-8")
+    assert 'id="foms-wizard-summary-deposit"' in step4
+    assert 'id="foms-wizard-summary-balance"' in step4
     js = (ROOT / "static/js/foms/wizard.js").read_text(encoding="utf-8")
     assert "mergeDraftPayload" in js
     assert 'action === "merge"' in js
     assert "FomsWizardMergeDraftPayload" in js
     assert "readWizardExitHref" in js
+    assert "collectPayment" in js
+    assert "bindWizardDepositInput" in js
+    assert "buildWizardTotals" in js
     assert '"/orders/"' not in js
 
 
@@ -195,6 +203,55 @@ def test_order_draft_submit_creates_order(client, app, wizard_enabled) -> None:
         assert order.customer_name == "제출테스트"
         assert order.is_erp_order is True
     assert client.get(f"/api/erp/order-draft?key={key}").get_json()["draft"] is None
+
+
+def test_order_draft_submit_persists_deposit_and_totals(client, app, wizard_enabled) -> None:
+    """Wizard submit maps deposit to ERP structured_data payment/totals."""
+    from db import db_session
+    from models import Order
+
+    _login(client, app, "wizard_deposit_user")
+    key = "new.test-deposit"
+    payload = {
+        "schema_version": 1,
+        "step": 4,
+        "data": {
+            "customer_name": "예약금테스트",
+            "phone": "010-1111-2222",
+            "address": "서울시 강남구",
+            "received_date": "2026-06-26",
+            "deposit": "100,000원",
+            "items": [
+                {
+                    "product_name": "붙박이장",
+                    "spec_rows": [{}],
+                    "price": "655,000",
+                }
+            ],
+            "schedule": {},
+        },
+    }
+    client.put(
+        "/api/erp/order-draft",
+        data=json.dumps({"draft_key": key, "step": 4, "payload": payload}),
+        content_type="application/json",
+    )
+    submit = client.post(
+        "/api/erp/order-draft/submit",
+        data=json.dumps({"draft_key": key}),
+        content_type="application/json",
+    )
+    assert submit.status_code == 200
+    order_id = submit.get_json()["data"]["order_id"]
+    with app.app_context():
+        order = db_session.query(Order).filter_by(id=order_id).one()
+        sd = order.structured_data or {}
+        assert sd.get("payment", {}).get("deposit") == 100000
+        totals = sd.get("totals") or {}
+        assert totals.get("items_total") == 655000
+        assert totals.get("deposit_amount") == 100000
+        assert totals.get("balance_amount") == 555000
+        assert totals.get("final_amount") == 555000
 
 
 def test_add_order_renders_wizard_when_flag_on(client, app, wizard_enabled) -> None:

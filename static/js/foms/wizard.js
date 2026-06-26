@@ -39,6 +39,12 @@
     };
   }
 
+  function collectPayment(root) {
+    return {
+      deposit: readValue(root.querySelector("#wiz-deposit-amount")),
+    };
+  }
+
   function collectProducts(root) {
     var cards = root.querySelectorAll("[data-product-index]");
     var items = [];
@@ -146,6 +152,7 @@
       orderer: preferNonEmpty(local.orderer, remote.orderer),
       address: preferNonEmpty(local.address, remote.address),
       received_date: preferNonEmpty(local.received_date, remote.received_date),
+      deposit: preferNonEmpty(local.deposit, remote.deposit),
       items: [],
       schedule: mergeSchedule(local.schedule, remote.schedule),
     };
@@ -167,12 +174,14 @@
     applyBasic(root, data);
     applyProducts(root, data.items, draftKey, scheduleSave);
     applySchedule(root, data.schedule);
+    applyPayment(root, data);
   }
 
   function buildPayload(root, step) {
     var data = collectBasic(root);
     data.items = collectProducts(root);
     data.schedule = collectSchedule(root);
+    data.deposit = collectPayment(root).deposit;
     return {
       schema_version: 1,
       step: step,
@@ -197,6 +206,16 @@
         el.dispatchEvent(new Event("change", { bubbles: true }));
       }
     });
+  }
+
+  function applyPayment(root, data) {
+    if (!data) return;
+    var depositEl = root.querySelector("#wiz-deposit-amount");
+    if (depositEl) {
+      var depositRaw = data.deposit != null ? String(data.deposit).trim() : "";
+      depositEl.value = depositRaw ? formatDepositDisplay(parseAmount(depositRaw)) : "";
+    }
+    recalcWizardAmounts(root);
   }
 
   function applySchedule(root, schedule) {
@@ -476,6 +495,107 @@
     var n = parseInt(String(s || "").replace(/[^\d]/g, ""), 10);
     return isNaN(n) ? 0 : n;
   }
+  function formatMoneyKRW(num) {
+    var n = Number(num);
+    if (!Number.isFinite(n)) return "0원";
+    return Math.round(n).toLocaleString("ko-KR") + "원";
+  }
+  function formatDepositDisplay(num) {
+    if (num == null || !Number.isFinite(num) || num < 0) return "0원";
+    return num === 0 ? "0원" : num.toLocaleString("ko-KR") + "원";
+  }
+  function buildWizardTotals(items, depositRaw) {
+    var itemsTotal = 0;
+    (items || []).forEach(function (item) {
+      itemsTotal += parseAmount(item && item.price);
+    });
+    var deposit = Math.min(parseAmount(depositRaw), itemsTotal);
+    var balance = Math.max(0, itemsTotal - deposit);
+    return {
+      items_total: itemsTotal,
+      deposit_amount: deposit,
+      balance_amount: balance,
+    };
+  }
+  function recalcWizardAmounts(root) {
+    var items = collectProducts(root);
+    var depositRaw = readValue(root.querySelector("#wiz-deposit-amount"));
+    var totals = buildWizardTotals(items, depositRaw);
+    var totalEl = root.querySelector("#foms-wizard-items-total");
+    if (totalEl) {
+      totalEl.textContent = formatMoneyKRW(totals.items_total);
+    }
+    var balanceRow = root.querySelector("#foms-wizard-balance-row");
+    var balanceEl = root.querySelector("#foms-wizard-balance-amount");
+    var showAmountRows = totals.items_total > 0;
+    if (balanceRow) {
+      balanceRow.hidden = !showAmountRows;
+    }
+    if (balanceEl) {
+      balanceEl.textContent = formatMoneyKRW(totals.balance_amount);
+    }
+    return totals;
+  }
+  function bindWizardDepositInput(root, scheduleSave) {
+    var depositEl = root.querySelector("#wiz-deposit-amount");
+    if (!depositEl || depositEl.dataset.fomsWizardDepositBound === "1") {
+      return;
+    }
+    depositEl.dataset.fomsWizardDepositBound = "1";
+    function setAmountCaretBeforeSuffix(el) {
+      if (!el || typeof el.setSelectionRange !== "function" || !String(el.value || "").endsWith("원")) return;
+      var caretPos = Math.max(0, String(el.value || "").length - 1);
+      el.setSelectionRange(caretPos, caretPos);
+    }
+    function deleteDepositDigitBeforeSuffix(el) {
+      var value = String(el.value || "");
+      var start = el.selectionStart;
+      var end = el.selectionEnd;
+      if (!value.endsWith("원") || start == null || end == null || start !== end || start !== value.length) {
+        return false;
+      }
+      var raw = value.replace(/[^0-9]/g, "");
+      if (!raw) return false;
+      var nextRaw = raw.slice(0, -1);
+      el.value = nextRaw ? formatDepositDisplay(parseInt(nextRaw, 10)) : "";
+      setAmountCaretBeforeSuffix(el);
+      recalcWizardAmounts(root);
+      return true;
+    }
+    depositEl.addEventListener("keydown", function (event) {
+      if (event.key !== "Backspace") return;
+      if (deleteDepositDigitBeforeSuffix(this)) event.preventDefault();
+    });
+    depositEl.addEventListener("beforeinput", function (event) {
+      if (event.inputType !== "deleteContentBackward") return;
+      if (deleteDepositDigitBeforeSuffix(this)) event.preventDefault();
+    });
+    depositEl.addEventListener("input", function () {
+      var raw = (this.value || "").replace(/[^0-9]/g, "");
+      if (!raw) {
+        this.value = "";
+        recalcWizardAmounts(root);
+        if (scheduleSave) scheduleSave();
+        return;
+      }
+      var num = parseInt(raw, 10);
+      var formatted = formatDepositDisplay(num);
+      this.value = formatted;
+      setAmountCaretBeforeSuffix(this);
+      recalcWizardAmounts(root);
+      if (scheduleSave) scheduleSave();
+    });
+    depositEl.addEventListener("blur", function () {
+      var items = collectProducts(root);
+      var itemsTotal = 0;
+      items.forEach(function (item) {
+        itemsTotal += parseAmount(item && item.price);
+      });
+      var num = Math.min(parseAmount(this.value), itemsTotal);
+      this.value = formatDepositDisplay(num);
+      recalcWizardAmounts(root);
+    });
+  }
   function sumRow(dt, ddHtml) {
     return '<div class="foms-wizard__summary-row"><dt>' + esc(dt) + "</dt><dd>" + ddHtml + "</dd></div>";
   }
@@ -516,6 +636,36 @@
         .join("");
     }
 
+    var payment = collectPayment(root);
+    var totals = buildWizardTotals(items, payment.deposit);
+
+    var totalEl = root.querySelector("#foms-wizard-summary-total");
+    if (totalEl) {
+      totalEl.textContent = totals.items_total.toLocaleString("ko-KR") + "원";
+    }
+    var depositRow = root.querySelector("#foms-wizard-summary-deposit-row");
+    var depositEl = root.querySelector("#foms-wizard-summary-deposit");
+    if (depositRow && depositEl) {
+      if (totals.deposit_amount > 0) {
+        depositRow.hidden = false;
+        depositEl.textContent = totals.deposit_amount.toLocaleString("ko-KR") + "원";
+      } else {
+        depositRow.hidden = true;
+        depositEl.textContent = "0원";
+      }
+    }
+    var balanceRow = root.querySelector("#foms-wizard-summary-balance-row");
+    var balanceEl = root.querySelector("#foms-wizard-summary-balance");
+    if (balanceRow && balanceEl) {
+      if (totals.items_total > 0) {
+        balanceRow.hidden = false;
+        balanceEl.textContent = totals.balance_amount.toLocaleString("ko-KR") + "원";
+      } else {
+        balanceRow.hidden = true;
+        balanceEl.textContent = "0원";
+      }
+    }
+
     var schedBody = root.querySelector("#foms-wizard-summary-schedule-body");
     if (schedBody) {
       var meas = [schedule.measurement_date, schedule.measurement_time].filter(Boolean).join(" ");
@@ -527,11 +677,6 @@
         (schedule.sales_manager ? sumRow("영업", esc(schedule.sales_manager)) : "") +
         (schedule.construction_manager ? sumRow("시공담당", esc(schedule.construction_manager)) : "") +
         (schedule.notes ? sumRow("비고", esc(schedule.notes)) : "");
-    }
-
-    var totalEl = root.querySelector("#foms-wizard-summary-total");
-    if (totalEl) {
-      totalEl.textContent = total.toLocaleString("ko-KR") + "원";
     }
   }
 
@@ -621,6 +766,10 @@
     if (window.fomsProductItem && typeof window.fomsProductItem.initWizardProducts === "function") {
       window.fomsProductItem.initWizardProducts(root);
     }
+    bindWizardDepositInput(root, function () {
+      draftClient.scheduleSave();
+    });
+    recalcWizardAmounts(root);
 
     var addProductBtn = root.querySelector("#foms-wizard-add-product");
     if (addProductBtn) {
@@ -644,6 +793,9 @@
     if (productsContainer) {
       productsContainer.addEventListener("input", function (e) {
         var target = e.target;
+        if (target && target.matches && target.matches('[data-product-field="price"]')) {
+          recalcWizardAmounts(root);
+        }
         if (!target || !target.matches || !target.matches('[data-product-field="product_name"]')) {
           return;
         }
