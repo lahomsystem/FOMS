@@ -6,13 +6,12 @@ from flask import Blueprint, flash, make_response, redirect, render_template, re
 from db import get_db
 from models import Order, User
 from foms.web.auth import login_required
-from sqlalchemy import text, or_, and_
+from sqlalchemy import text
 from foms.services.erp_permissions import can_edit_erp
 from foms.services.erp_policy import (
     STAGE_NAME_TO_CODE,
     DEFAULT_OWNER_TEAM_BY_STAGE,
     STAGE_LABELS,
-    STAGE_SQL_FILTER_MAP,
     recommend_owner_team,
 )
 from foms.services.erp_display import (
@@ -30,12 +29,14 @@ from foms.services.erp_mobile_order_display import (
     stage_badge_modifier,
     batch_resolve_queue_attachment_preview_items,
 )
-from foms.services.common.business_calendar import business_days_until
 from foms.services.erp_order_detail import build_order_detail_payload_map
 from foms.services.erp_order_deeplink import resolve_edit_return_back_endpoint
 from foms.services.orders.status_constants import BULK_ACTION_STATUS
 from foms.services.orders.dashboard_filters import parse_orders_dashboard_filters
-from foms.services.orders.dashboard_read_model import build_orders_dashboard_queries
+from foms.services.orders.dashboard_read_model import (
+    build_orders_dashboard_queries,
+    compute_orders_summary_slice,
+)
 from foms.services.feature_flags import env_bool, env_bool_or_mobile_v2, is_enabled_for_user
 from foms.services.foms_split_view import build_split_master_cards, default_split_side_items
 from foms.services.orders.dashboard_control_tower import (
@@ -94,22 +95,6 @@ def _orders_user_visibility_fingerprint(current_user, is_admin: bool) -> dict:
         "name": getattr(current_user, "name", None),
         "is_admin": bool(is_admin),
     }
-
-
-def _business_alert_date_values(
-    today_date: datetime.date,
-    *,
-    max_business_days: int,
-    calendar_window_days: int,
-) -> list[str]:
-    """Return date strings matching the existing business-day alert rule."""
-    values: list[str] = []
-    for offset in range(calendar_window_days + 1):
-        value = today_date + datetime.timedelta(days=offset)
-        days_until = business_days_until(value.isoformat(), today=today_date)
-        if days_until is not None and 0 <= days_until <= max_business_days:
-            values.append(value.isoformat())
-    return values
 
 
 def _channel_desk_url() -> str:
@@ -307,113 +292,12 @@ def erp_dashboard():
     }
     _summary_key = build_dashboard_cache_key("orders", "summary_counts", _summary_fp)
 
-    def _compute_orders_summary_slice():
-        kpis = {'urgent_count': 0, 'measurement_d4_count': 0, 'construction_d3_count': 0, 'production_d2_count': 0, 'today_count': 0}
-        step_stats = {k: {'count': 0, 'overdue': 0, 'imminent': 0} for k in [
-            '주문접수', '실측', '도면', '고객컨펌', '생산', '시공', 'CS', '완료', 'AS처리'
-        ]}
-
-        from sqlalchemy import func, case as sql_case
-
-        # Phase D: 플랫 컬럼을 활용한 집계 (NULL은 주문접수로 기본 분류)
-        stage_bucket_expr = sql_case(
-            (Order.erp_stage_code.is_(None), '주문접수'),
-            (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('주문접수', [])]), '주문접수'),
-            (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('실측', [])]), '실측'),
-            (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('도면', [])]), '도면'),
-            (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('고객컨펌', [])]), '고객컨펌'),
-            (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('생산', [])]), '생산'),
-            (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('시공', [])]), '시공'),
-            (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('CS', [])]), 'CS'),
-            (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('완료', [])]), '완료'),
-            (Order.erp_stage_code.in_([s.strip('"\'') for s in STAGE_SQL_FILTER_MAP.get('AS처리', [])]), 'AS처리'),
-            else_='기타'
-        )
-
-        today_date = get_today_kst()
-        today_iso = today_date.isoformat()
-        measurement_d4_dates = _business_alert_date_values(
-            today_date,
-            max_business_days=4,
-            calendar_window_days=12,
-        )
-        construction_d3_dates = _business_alert_date_values(
-            today_date,
-            max_business_days=3,
-            calendar_window_days=10,
-        )
-        production_d2_dates = _business_alert_date_values(
-            today_date,
-            max_business_days=2,
-            calendar_window_days=10,
-        )
-        production_d2_filter = and_(
-            Order.erp_construction_date.in_(production_d2_dates),
-            or_(Order.erp_stage_code.is_(None), Order.erp_stage_code != 'CONSTRUCTION'),
-        )
-        imminent_filter = or_(
-            Order.erp_measurement_date.in_(measurement_d4_dates),
-            Order.erp_construction_date.in_(construction_d3_dates),
-            production_d2_filter,
-        )
-
-        drawing_overdue_cutoff = datetime.datetime.now() - datetime.timedelta(hours=48)
-        drawing_overdue_filter = and_(
-            Order.erp_stage_code.in_(['DRAWING', 'CONFIRM']),
-            Order.erp_stage_updated_at.isnot(None),
-            Order.erp_stage_updated_at <= drawing_overdue_cutoff,
-        )
-
-        summary_rows = (
-            _q_stats
-            .with_entities(
-                stage_bucket_expr.label('bucket'),
-                func.count(Order.id).label('cnt'),
-                func.coalesce(func.sum(sql_case((Order.erp_urgent == True, 1), else_=0)), 0).label('urgent_cnt'),
-                func.coalesce(func.sum(sql_case((Order.erp_measurement_date.in_(measurement_d4_dates), 1), else_=0)), 0).label('measurement_d4_cnt'),
-                func.coalesce(func.sum(sql_case((Order.erp_construction_date.in_(construction_d3_dates), 1), else_=0)), 0).label('construction_d3_cnt'),
-                func.coalesce(func.sum(sql_case((production_d2_filter, 1), else_=0)), 0).label('production_d2_cnt'),
-                func.coalesce(func.sum(sql_case((imminent_filter, 1), else_=0)), 0).label('imminent_cnt'),
-                func.coalesce(func.sum(sql_case((drawing_overdue_filter, 1), else_=0)), 0).label('overdue_cnt'),
-            )
-            .group_by(stage_bucket_expr)
-            .all()
-        )
-        kpis['today_count'] = (
-            _q_stats.filter(
-                or_(
-                    Order.erp_measurement_date == today_iso,
-                    Order.erp_construction_date == today_iso,
-                )
-            ).count()
-        )
-        for row in summary_rows:
-            kpis['urgent_count'] += int(row.urgent_cnt or 0)
-            kpis['measurement_d4_count'] += int(row.measurement_d4_cnt or 0)
-            kpis['construction_d3_count'] += int(row.construction_d3_cnt or 0)
-            kpis['production_d2_count'] += int(row.production_d2_cnt or 0)
-            if row.bucket in step_stats:
-                step_stats[row.bucket]['count'] = int(row.cnt or 0)
-                step_stats[row.bucket]['imminent'] = int(row.imminent_cnt or 0)
-                step_stats[row.bucket]['overdue'] = int(row.overdue_cnt or 0)
-
-        process_steps = [
-            {'label': '주문접수', **step_stats['주문접수']},
-            {'label': '실측', **step_stats['실측']},
-            {'label': '도면', **step_stats['도면']},
-            {'label': '고객컨펌', **step_stats['고객컨펌']},
-            {'label': '생산', **step_stats['생산']},
-            {'label': '시공', **step_stats['시공']},
-            {'label': '완료', **step_stats['완료']},
-            {'label': 'CS', **step_stats['CS']},
-            {'label': 'AS처리', **step_stats['AS처리']},
-        ]
-        return {"kpis": kpis, "process_steps": process_steps}
-
+    # Batch 2a-3: summary 집계 compute는 compute_orders_summary_slice(read-model)로 분리(동작 보존).
+    # cache 키(_summary_key)·fingerprint·get_or_compute는 라우트가 유지 → cache hit/miss 불변.
     _summary_blob = get_or_compute_dashboard_slice(
         _summary_key,
         TTL_SUMMARY_COUNTS,
-        _compute_orders_summary_slice,
+        lambda: compute_orders_summary_slice(_q_stats),
         page="orders",
         slice_name="summary_counts",
     )

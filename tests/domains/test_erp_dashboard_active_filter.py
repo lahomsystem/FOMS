@@ -2,7 +2,7 @@ import datetime
 
 from db import db_session
 from foms.services.common.business_calendar import business_days_until
-from foms.web.orders.dashboard import _business_alert_date_values
+from foms.services.orders.dashboard_read_model import _business_alert_date_values
 from models import Order
 
 
