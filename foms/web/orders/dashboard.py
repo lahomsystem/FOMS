@@ -6,14 +6,13 @@ from flask import Blueprint, flash, make_response, redirect, render_template, re
 from db import get_db
 from models import Order, User
 from foms.web.auth import login_required
-from sqlalchemy import text
+from sqlalchemy import text, or_, and_
 from foms.services.erp_permissions import can_edit_erp
 from foms.services.erp_policy import (
     STAGE_NAME_TO_CODE,
     DEFAULT_OWNER_TEAM_BY_STAGE,
     STAGE_LABELS,
     STAGE_SQL_FILTER_MAP,
-    STAGES_REQUIRING_TEAM,
     recommend_owner_team,
 )
 from foms.services.erp_display import (
@@ -36,13 +35,12 @@ from foms.services.erp_order_detail import build_order_detail_payload_map
 from foms.services.erp_order_deeplink import resolve_edit_return_back_endpoint
 from foms.services.orders.status_constants import BULK_ACTION_STATUS
 from foms.services.orders.dashboard_filters import parse_orders_dashboard_filters
-from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
+from foms.services.orders.dashboard_read_model import build_orders_dashboard_queries
 from foms.services.feature_flags import env_bool, env_bool_or_mobile_v2, is_enabled_for_user
 from foms.services.foms_split_view import build_split_master_cards, default_split_side_items
 from foms.services.orders.dashboard_control_tower import (
     build_mobile_control_tower,
     build_field_ops_for_day,
-    build_risk_order_ids,
     build_risk_frame,
     risk_row_cta_meta,
 )
@@ -154,147 +152,12 @@ def erp_dashboard():
     f_risk = _filters.risk
     focus_order_id = _filters.focus_order_id
 
-    # Phase H: 대시보드 운영 화면은 최근 활성 데이터만 조회 (과거 완료건 제외)
-    _q = db.query(Order).filter(Order.dashboard_active_filter(days=60), Order.is_erp_order.is_(True))
-
-    from sqlalchemy import or_, and_
-    if f_q:
-        search_term = f"%{f_q}%"
-        _q = _q.filter(
-            erp_order_dashboard_search_predicate(
-                search_term,
-                include_structured_data_blob=False,
-                customer_contact_only=True,
-            )
-        )
-
-    if f_mine and current_user:
-        from foms.services.erp_permissions import build_mine_sql_filter
-        mine_conds = build_mine_sql_filter(current_user)
-        if mine_conds:
-            _q = _q.filter(or_(*mine_conds))
-
-    today_date = get_today_kst()
-    today_iso = today_date.isoformat()
-    if f_today == '1':
-        _q = _q.filter(
-            or_(
-                Order.erp_measurement_date == today_iso,
-                Order.erp_construction_date == today_iso,
-            )
-        )
-
-    # 특정 날짜 현장 큐 (주간 타일/현장 탭 '그날 전체'). field로 실측/시공 한정.
-    if f_date:
-        if f_field == 'measure':
-            _q = _q.filter(Order.erp_measurement_date == f_date)
-        elif f_field == 'construction':
-            _q = _q.filter(Order.erp_construction_date == f_date)
-        else:
-            _q = _q.filter(
-                or_(
-                    Order.erp_measurement_date == f_date,
-                    Order.erp_construction_date == f_date,
-                )
-            )
-
-    # 위험 레이더 드릴다운: 카드와 동일 술어의 정확 id 집합으로 스코프.
-    # _q_stats 복제 이전에 적용 → 칩·리스트·total이 모두 같은 집합(SSOT). 빈 집합이면 정상 0건.
-    if f_risk:
-        _risk_ids = build_risk_order_ids(db, current_user, f_risk)
-        _q = _q.filter(Order.id.in_(_risk_ids))
-
-    # C. f_team SQL 필터
-    if f_team and not is_admin:
-        team_stages = STAGES_REQUIRING_TEAM.get(f_team)
-        if team_stages is not None:
-            if not team_stages:
-                from sqlalchemy import false
-                _q = _q.filter(false())
-            else:
-                # Phase D: 플랫 컬럼 사용 (따옴표 제거된 정규화 코드 배열로 변환)
-                flat_target_stages = [s.strip('"\'') for s in team_stages]
-                _q = _q.filter(Order.erp_stage_code.in_(flat_target_stages))
-
-    # --- 분기 시점: 집계용 base query 복제 (f_stage, f_urgent 적용 전) ---
-    _q_stats = _q.order_by(None)
-
-    # A-1. f_stage SQL 필터
-    if effective_stage:
-        target_stages = STAGE_SQL_FILTER_MAP.get(effective_stage, [])
-        if target_stages:
-            flat_target_stages = [s.strip('"\'') for s in target_stages]
-            _q = _q.filter(Order.erp_stage_code.in_(flat_target_stages))
-
-    # A-2. f_urgent SQL 필터
-    if f_urgent == '1':
-        _q = _q.filter(Order.erp_urgent == True)
-
-    # B-4. D-day SQL 후보군 필터 (1차)
-    if f_alert_type in ('measurement_d4', 'construction_d3', 'production_d2', 'drawing_overdue'):
-        today_date = get_today_kst()
-
-        if f_alert_type == 'drawing_overdue':
-            drawing_cutoff = datetime.datetime.now() - datetime.timedelta(hours=48)
-            _q = _q.filter(
-                Order.erp_stage_code.in_(['DRAWING', 'CONFIRM']),
-                Order.erp_stage_updated_at.isnot(None),
-                Order.erp_stage_updated_at <= drawing_cutoff,
-            )
-        elif f_alert_type == 'measurement_d4':
-            cutoff = (today_date + datetime.timedelta(days=12)).isoformat()
-            _q = _q.filter(
-                Order.erp_measurement_date.isnot(None),
-                Order.erp_measurement_date >= today_date.isoformat(),
-                Order.erp_measurement_date <= cutoff
-            )
-        elif f_alert_type == 'construction_d3':
-            cutoff = (today_date + datetime.timedelta(days=10)).isoformat()
-            _q = _q.filter(
-                Order.erp_construction_date.isnot(None),
-                Order.erp_construction_date >= today_date.isoformat(),
-                Order.erp_construction_date <= cutoff
-            )
-        elif f_alert_type == 'production_d2':
-            cutoff = (today_date + datetime.timedelta(days=8)).isoformat()
-            _q = _q.filter(
-                Order.erp_construction_date.isnot(None),
-                Order.erp_construction_date >= today_date.isoformat(),
-                Order.erp_construction_date <= cutoff,
-                Order.erp_stage_code != 'CONSTRUCTION'
-            )
-
-    if f_today == '1':
-        today_iso = get_today_kst().isoformat()
-        _q = _q.filter(
-            or_(
-                Order.erp_measurement_date == today_iso,
-                Order.erp_construction_date == today_iso,
-                Order.received_date == today_iso,
-            )
-        )
-
-    # 순수 DB 정렬: 실측/시공 단계 진입 시 해당 날짜 내림차순 정렬 우선
-    if f_risk:
-        # P1 트리아지: 위험 착지는 마감/정체 오름차순(가장 급한 게 위). 페이지 경계도 동일 순서.
-        if f_risk in ('construction_unready', 'balance_due'):
-            _q = _q.order_by(Order.erp_construction_date.asc().nullslast(), Order.created_at.desc())
-        elif f_risk == 'measure_unassigned':
-            _q = _q.order_by(Order.erp_measurement_date.asc().nullslast(), Order.created_at.desc())
-        elif f_risk == 'drawing_stalled':
-            _q = _q.order_by(Order.erp_stage_updated_at.asc().nullslast(), Order.created_at.desc())
-        else:
-            _q = _q.order_by(Order.created_at.desc())
-    elif effective_stage:
-        _req_code = STAGE_NAME_TO_CODE.get(effective_stage, effective_stage)
-        if _req_code == 'MEASURE':
-            _q = _q.order_by(Order.erp_measurement_date.desc().nullslast(), Order.created_at.desc())
-        elif _req_code == 'CONSTRUCTION':
-            _q = _q.order_by(Order.erp_construction_date.desc().nullslast(), Order.created_at.desc())
-        else:
-            _q = _q.order_by(Order.created_at.desc())
-    else:
-        _q = _q.order_by(Order.created_at.desc())
+    # Batch 2a-2: SQL 필터·정렬·_q_stats 분기 빌드는 build_orders_dashboard_queries로 분리(동작 보존).
+    # count/pagination/cache/DTO는 아래에서 라우트가 계속 담당.
+    # today_iso는 다운스트림(payload date 등) 호환을 위해 반환값으로 받는다.
+    _q, _q_stats, today_date, today_iso = build_orders_dashboard_queries(
+        db, current_user, is_admin, _filters
+    )
 
     # Phase D: DB 레벨 페이지네이션
     page = request.args.get('page', 1, type=int)
