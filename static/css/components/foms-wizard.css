@@ -474,3 +474,29 @@
   font-weight: 700;
   font-size: 1.125rem;
 }
+.foms-wizard__summary-balance {
+  font-weight: 700;
+  color: var(--foms-color-brand-700, #1d4ed8);
+}
+.foms-wizard__amounts {
+  margin-top: var(--foms-space-4, 16px);
+}
+.foms-wizard__amounts .erp-amount-value--deposit {
+  text-align: right;
+  background: #ffb6c1;
+  color: #000 !important;
+  border: 0 !important;
+  margin: 0 !important;
+  font-weight: 700;
+}
+.foms-wizard__amounts .erp-amount-value--deposit::placeholder {
+  color: rgba(0, 0, 0, 0.5);
+}
+.foms-wizard__amounts .erp-amount-value--balance {
+  background: #90ee90;
+  color: #000 !important;
+  border: 0 !important;
+}
+.foms-wizard__amounts .erp-mobile-amount-chip {
+  justify-content: flex-end;
+}

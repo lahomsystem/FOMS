@@ -160,3 +160,75 @@
 | 2026-06-24 16:54:57 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -c "import app; print('APP_OK')" 2>&1 | tail -1 && python -m pytest tests/domains/tes` |
 | 2026-06-24 16:56:38 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -m pytest tests/domains/test_foms_search_overlay.py tests/domains/test_unified_search` |
 | 2026-06-24 16:58:20 | allow | `-` | `B="$HOME/.claude/skills/gstack/browse/dist/browse"; for i in 1 2 3 4 5; do "$B" goto "https://lahom-dev.up.railway.app/api/foms/search?q=%EB%AA%A8%EC%88%98%EB%A` |
+| 2026-06-26 13:20:49 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && ls -d foms apps services 2>/dev/null; echo "---foms/web---"; ls foms/web 2>/dev/null | head;` |
+| 2026-06-26 13:20:51 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && for f in foms/web/orders/dashboard.py foms/web/measurement/dashboard.py foms/web/shipment/da` |
+| 2026-06-26 13:21:02 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && find . -name "wdcalculator_db.py" -not -path "*/node_modules/*" 2>/dev/null; echo "---ddl gr` |
+| 2026-06-26 13:21:20 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && for f in tests/domains/test_dashboard_cache.py tests/domains/test_dashboard_micro_cache_http` |
+| 2026-06-26 13:21:39 | allow | `-` | `find "C:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" -name "wdcalculator_db.py" -type f 2>/dev/null` |
+| 2026-06-26 13:21:51 | allow | `-` | `cd "C:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && grep -r "init_wdcalculator_db" --include="*.py" | head -20` |
+| 2026-06-26 13:22:05 | allow | `-` | `cd "C:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && grep -n "bindOrderMatchButtons" static/js/wdcalculator/estimate-lifecycle.js | head -5` |
+| 2026-06-26 13:22:09 | allow | `-` | `cd "C:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && wc -l templates/wdcalculator/product_settings.html` |
+| 2026-06-26 13:22:14 | allow | `-` | `cd "C:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && tail -100 templates/wdcalculator/product_settings.html | head -50` |
+| 2026-06-26 13:22:16 | allow | `-` | `cd "C:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && grep -n "</script>" templates/wdcalculator/product_settings.html` |
+| 2026-06-26 13:22:18 | allow | `-` | `cd "C:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && grep -n "location.reload()" templates/wdcalculator/product_settings.html` |
+| 2026-06-26 13:22:20 | allow | `-` | `cd "C:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && sed -n '1210,1216p' foms/api/wdcalculator/blueprint.py` |
+| 2026-06-26 13:22:20 | allow | `-` | `cd "C:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && sed -n '311,336p' foms/api/wdcalculator/blueprint.py | head -30` |
+| 2026-06-26 13:22:23 | allow | `-` | `cd "C:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && sed -n '299,320p' foms/api/wdcalculator/blueprint.py` |
+| 2026-06-26 13:22:25 | allow | `-` | `cd "C:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && find . -name "*.py" -type f -exec grep -l "save_additional_option_categories" {} \; 2>/dev/n` |
+| 2026-06-26 13:22:53 | allow | `-` | `cd "C:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && awk '/^def load_additional_option_categories/,/^def [a-z]/ {print NR": "$0}' foms/api/wdcalc` |
+| 2026-06-26 13:22:56 | allow | `-` | `cd "C:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && grep -n "settings\\.additional_options = " foms/api/wdcalculator/blueprint.py` |
+| 2026-06-26 13:22:56 | allow | `-` | `cd "C:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && grep -n "settings\\.products = " foms/api/wdcalculator/blueprint.py` |
+| 2026-06-26 13:23:01 | allow | `-` | `cd "C:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && grep -B5 -A5 "window\.__.*_BOUND" static/js/wdcalculator/estimate-lifecycle.js | head -20` |
+| 2026-06-26 13:23:05 | allow | `-` | `cd "C:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && grep -n "function handleMatchOrderButtonClick" static/js/wdcalculator/estimate-lifecycle.js` |
+| 2026-06-26 13:23:08 | allow | `-` | `cd "C:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && sed -n '1210,1215p' foms/api/wdcalculator/blueprint.py` |
+| 2026-06-26 13:23:11 | allow | `-` | `cd "C:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && sed -n '320,330p' foms/api/wdcalculator/blueprint.py` |
+| 2026-06-26 13:23:14 | allow | `-` | `cd "C:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && sed -n '106,176p' wdcalculator_db.py | grep -E "(create_all|CREATE|ALTER)"` |
+| 2026-06-26 13:23:17 | allow | `-` | `cd "C:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && sed -n '1,50p' templates/wdcalculator/partials/wdcalculator_scripts.html | grep -E "(documen` |
+| 2026-06-26 13:23:19 | allow | `-` | `cd "C:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && sed -n '1,5p' static/js/wdcalculator/composition.js && echo "---" && sed -n '2100,2104p' sta` |
+| 2026-06-26 13:23:21 | allow | `-` | `cd "C:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && sed -n '3428,3429p' static/js/wdcalculator/estimate-lifecycle.js` |
+| 2026-06-26 13:23:24 | allow | `-` | `cd "C:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS" && wc -l templates/wdcalculator/product_settings.html && grep -n "^<script>" templates/wdcalcul` |
+| 2026-06-26 13:27:46 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && echo "=== bindOrderMatchButtons call sites ==="; grep -rn "bindOrderMatchButtons" static/ te` |
+| 2026-06-26 13:28:17 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && echo "=== existing trigram/gin indexes in migrations ==="; grep -rln "gin_trgm_ops\|USING gi` |
+| 2026-06-26 13:33:47 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python - <<'PY' import re,io,sys p="docs/plans/2026-06-26-foms-dashboard-wdcalculator-refact` |
+| 2026-06-26 13:34:00 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git status --short | grep -i "plan\|\.py\|\.js\|\.html\|\.css" ; echo "--- diff stat (plan o` |
+| 2026-06-26 13:49:06 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && echo "=== APP_OK ==="; python -c "import app; print('APP_OK')" 2>&1 | tail -3; echo "=== blu` |
+| 2026-06-26 13:49:09 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && echo "=== order-estimates tests ==="; grep -rln "order-estimates\|order_estimates\|get_order` |
+| 2026-06-26 13:49:09 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && echo "=== logger/current_app usage in blueprint ==="; grep -n "current_app\|logger\|^import\` |
+| 2026-06-26 13:50:01 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && echo "=== save_products callers (context safety) ==="; grep -rn "save_products\|save_notes_c` |
+| 2026-06-26 13:51:49 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && echo "=== APP_OK ==="; python -c "import app; print('APP_OK')" 2>&1 | tail -1; echo "=== exi` |
+| 2026-06-26 13:52:21 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && echo "=== Estimate / EstimateOrderMatch / to_dict ==="; grep -n "class Estimate\|class Estim` |
+| 2026-06-26 13:52:37 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && echo "=== get_wdcalculator_db ==="; grep -n "def get_wdcalculator_db\|wd_calculator_session\` |
+| 2026-06-26 13:53:24 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python -m pytest tests/domains/test_wdc_order_estimates_query_count.py -q 2>&1 | tail -25` |
+| 2026-06-26 13:53:40 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && echo "=== WDC node contracts ==="; python -m pytest tests/contracts/wdcalculator -q 2>&1 | t` |
+| 2026-06-26 13:53:49 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && echo "=== perf guard ==="; python tools/perf/perf_scan.py --guard 2>&1 | tail -15` |
+| 2026-06-26 13:54:11 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && echo "=== suppression / allowlist / noqa / exit ==="; grep -n "allow\|noqa\|ignore\|suppress` |
+| 2026-06-26 13:54:31 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && python tools/perf/perf_scan.py --guard >/dev/null 2>&1; echo "guard exit: $?"; sed -n '290,2` |
+| 2026-06-26 13:54:49 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && git --no-pager diff -- foms/api/wdcalculator/blueprint.py static/js/wdcalculator/estimate-li` |
+| 2026-06-26 13:55:25 | allow | `-` | `git --no-pager diff -- foms/api/wdcalculator/blueprint.py static/js/wdcalculator/estimate-lifecycle.js` |
+| 2026-06-26 13:55:27 | allow | `-` | `git --no-pager show HEAD:foms/api/wdcalculator/blueprint.py | grep -A 30 "def api_wdcalculator_get_order_estimates"` |
+| 2026-06-26 13:55:29 | allow | `-` | `find /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS -path "*/test*" -name "*.py" -type f | head -20` |
+| 2026-06-26 13:55:38 | allow | `-` | `grep -r "api_wdcalculator_get_order_estimates\|get_order_estimates\|/api/wdcalculator.*estimates" /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/te` |
+| 2026-06-26 13:55:42 | allow | `-` | `grep -B 5 -A 15 'response = client.get.*order-estimates' /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/tests/domains/test_wdcalculator_product_set` |
+| 2026-06-26 13:55:45 | allow | `-` | `grep -r "str(e)\|print(" /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/tests --include="*.py" | grep -E "(save_additional_option_categories|save_n` |
+| 2026-06-26 13:55:47 | allow | `-` | `grep -r "save_additional_option_categories\|save_notes_categories\|save_products" /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/tests --include="*` |
+| 2026-06-26 13:55:50 | allow | `-` | `grep -n "removeEventListener\|__wdcOrderMatchClickBound\|bindOrderMatchButtons" /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/static/js/wdcalculat` |
+| 2026-06-26 13:55:52 | allow | `-` | `grep -rn "bindOrderMatchButtons\|WdCalculatorOrderMatchUI" /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/static/js --include="*.js" | grep -v "est` |
+| 2026-06-26 13:55:54 | allow | `-` | `grep -rn "WdCalculatorOrderMatchUI.bindOrderMatchButtons" /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/templates --include="*.html" 2>/dev/null` |
+| 2026-06-26 13:55:56 | allow | `-` | `grep -rn "bindOrderMatchButtons()" /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS --include="*.html" --include="*.js" 2>/dev/null` |
+| 2026-06-26 13:56:09 | allow | `-` | `grep -rn "fragment\|shell\|reinit\|re-init" /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/static/js/wdcalculator/estimate-lifecycle.js 2>/dev/null` |
+| 2026-06-26 13:56:11 | allow | `-` | `grep -A 5 "class Estimate\|def to_dict" /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/wdcalculator_models.py | head -50` |
+| 2026-06-26 13:56:17 | allow | `-` | `grep -B 3 -A 3 "estimate_id = Column" /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/wdcalculator_models.py` |
+| 2026-06-26 13:56:20 | allow | `-` | `grep -rn "message.*str(e)\|message.*Exception" /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/tests --include="*.py" | head -10` |
+| 2026-06-26 13:56:27 | allow | `-` | `grep -rn "window.__wdc\|__wdc.*BOUND\|cleanup\|reset.*window" /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/static/js --include="*.js" | head -20` |
+| 2026-06-26 13:56:30 | allow | `-` | `grep -rn "window\.__.*BOUND\|window\.__.*Initialized" /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/static/js/wdcalculator --include="*.js" 2>/dev` |
+| 2026-06-26 13:56:32 | allow | `-` | `grep -rn "window\.__" /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/static/js/wdcalculator/estimate-lifecycle.js` |
+| 2026-06-26 13:56:40 | allow | `-` | `python3 -c " import sys # Check if estimate_id can be None code = ''' estimate_ids = [m.estimate_id for m in matches] # This will include None if estimate_id is` |
+| 2026-06-26 13:56:43 | allow | `-` | `grep -rn "Turbo\|htmx\|fragment\|Stimulus" /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/static/js/wdcalculator/estimate-lifecycle.js 2>/dev/null` |
+| 2026-06-26 13:56:48 | allow | `-` | `grep -rn "__wdcOrderMatchClickBound\|delete.*window\.__\|window\.__.*= false\|window\.__.*= null" /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS --` |
+| 2026-06-26 13:56:58 | allow | `-` | `grep -n "__wdcOrderMatchClickBound" /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/static/js/wdcalculator/*.js` |
+| 2026-06-26 13:57:00 | allow | `-` | `grep -B 5 -A 5 "handleMatchOrderButtonClick" /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/static/js/wdcalculator/estimate-lifecycle.js | head -30` |
+| 2026-06-26 13:57:03 | allow | `-` | `grep -n "removeEventListener" /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/static/js/wdcalculator/estimate-lifecycle.js` |
+| 2026-06-26 13:57:06 | allow | `-` | `grep -A 50 "def test_order_estimates" /c/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS/tests/domains/test_wdc_order_estimates_query_count.py | head -` |
+| 2026-06-26 13:57:13 | allow | `-` | `git --no-pager diff HEAD -- foms/api/wdcalculator/blueprint.py | grep -A 3 "load_notes_categories"` |
+| 2026-06-26 13:58:19 | allow | `-` | `tail -40 "C:\Users\USER\.claude\projects\c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS\e3b6654f-c5c2-44d5-9033-54c93d50f066\tool-results\bag75lj8v` |
+| 2026-06-26 13:58:59 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && echo "=== branch ==="; git rev-parse --abbrev-ref HEAD; echo "=== status ==="; git status --` |

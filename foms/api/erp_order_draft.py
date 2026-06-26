@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import datetime
+import re
 from typing import Any
 
 from flask import Blueprint, jsonify, request, session
@@ -54,6 +55,27 @@ def _require_wizard() -> tuple[Any, int] | None:
 def _user_id() -> int | None:
     raw = session.get("user_id")
     return int(raw) if raw is not None else None
+
+
+def _parse_money_amount(value: Any) -> int:
+    """Parse wizard/ERP money fields (digits-only, dict amount/raw, numeric)."""
+    if value is None:
+        return 0
+    if isinstance(value, dict):
+        return _parse_money_amount(value.get("amount") or value.get("raw"))
+    if isinstance(value, (int, float)):
+        return max(0, int(value))
+    digits = re.sub(r"[^0-9]", "", str(value))
+    return int(digits) if digits else 0
+
+
+def _items_total_from_draft_items(items: list[dict[str, Any]]) -> int:
+    """Sum item price fields from wizard draft items."""
+    total = 0
+    for raw in items:
+        if isinstance(raw, dict):
+            total += _parse_money_amount(raw.get("price"))
+    return total
 
 
 def _draft_payload_to_structured(data: dict[str, Any]) -> dict[str, Any]:
@@ -137,6 +159,19 @@ def _draft_payload_to_structured(data: dict[str, Any]) -> dict[str, Any]:
     notes = str(schedule_in.get("notes") or "").strip()
     if notes:
         structured["notes"] = notes
+
+    deposit_amount = _parse_money_amount(data.get("deposit"))
+    items_total = _items_total_from_draft_items(items)
+    deposit_amount = min(deposit_amount, items_total)
+    balance_amount = max(0, items_total - deposit_amount)
+    structured["payment"] = {"deposit": deposit_amount}
+    structured["totals"] = {
+        "items_total": items_total,
+        "deposit_amount": deposit_amount,
+        "discount_amount": 0,
+        "balance_amount": balance_amount,
+        "final_amount": balance_amount,
+    }
     return structured
 
 

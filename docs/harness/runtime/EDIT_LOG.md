@@ -1,57 +1,9 @@
 # Edit Log
 
-> 이 파일은 Cursor Hooks에 의해 자동 관리됩니다.
-> 최근 50개 편집 기록만 유지합니다.
+> Claude Code Hook(`PostToolUse:Edit|Write`)가 자동 기록합니다.
 
-## 최근 파일 편집
-
-- `commit_msg.txt` <- 1 edit(s), ~164 chars (2026-06-25 19:42:40)
-- `tests/contracts/runtime/foms_namespace_surface_tests.py` <- 1 edit(s), ~35 chars (2026-06-25 19:41:50)
-- `tests/domains/test_completion_search_api.py` <- 1 edit(s), ~0 chars (2026-06-25 19:40:47)
-- `tests/domains/test_completion_search_api.py` <- 1 edit(s), ~108 chars (2026-06-25 19:40:20)
-- `tests/domains/test_as_content_safety.py` <- 1 edit(s), ~454 chars (2026-06-25 19:40:19)
-- `tests/domains/test_completion_search_api.py` <- 1 edit(s), ~108 chars (2026-06-25 19:40:18)
-- `tests/domains/test_as_content_safety.py` <- 1 edit(s), ~29 chars (2026-06-25 19:40:17)
-- `templates/cs/partials/completion_scripts.html` <- 1 edit(s), ~211 chars (2026-06-25 19:40:13)
-- `foms/services/shipment_as_recommendation_cache.py` <- 1 edit(s), ~39 chars (2026-06-25 19:40:09)
-- `foms/api/cs/dashboard.py` <- 1 edit(s), ~141 chars (2026-06-25 19:40:08)
-- `foms/services/shipment_as_recommendation_cache.py` <- 1 edit(s), ~119 chars (2026-06-25 19:40:07)
-- `foms/services/as_content_safety.py` <- 1 edit(s), ~673 chars (2026-06-25 19:40:07)
-- `foms/api/cs/dashboard.py` <- 1 edit(s), ~68 chars (2026-06-25 19:40:06)
-- `foms/services/as_content_safety.py` <- 1 edit(s), ~31 chars (2026-06-25 19:40:05)
-- `tests/domains/test_erp_spec_calc_followup.py` <- 1 edit(s), ~69 chars (2026-06-25 19:39:58)
-- `tests/domains/test_erp_order_shared_form_scripts.py` <- 1 edit(s), ~69 chars (2026-06-25 19:39:57)
-- `templates/cs/partials/completion_styles.html` <- 1 edit(s), ~120 chars (2026-06-25 19:38:39)
-- `tests/domains/test_completion_search_api.py` <- 1 edit(s), ~1790 chars (2026-06-25 19:38:38)
-- `templates/cs/partials/completion_scripts.html` <- 1 edit(s), ~295 chars (2026-06-25 19:38:29)
-- `templates/cs/partials/completion_scripts.html` <- 1 edit(s), ~253 chars (2026-06-25 19:38:26)
-- `templates/cs/partials/completion_scripts.html` <- 1 edit(s), ~103 chars (2026-06-25 19:38:19)
-- `static/css/components/foms-completion-mobile.css` <- 1 edit(s), ~113 chars (2026-06-25 19:38:17)
-- `templates/cs/partials/completion_scripts.html` <- 1 edit(s), ~311 chars (2026-06-25 19:38:17)
-- `foms/api/cs/dashboard.py` <- 1 edit(s), ~89 chars (2026-06-25 19:38:16)
-- `templates/cs/partials/completion_scripts.html` <- 1 edit(s), ~345 chars (2026-06-25 19:38:15)
-- `foms/api/cs/dashboard.py` <- 1 edit(s), ~123 chars (2026-06-25 19:38:14)
-- `foms/api/cs/dashboard.py` <- 1 edit(s), ~67 chars (2026-06-25 19:38:13)
-- `commit_msg.txt` <- 1 edit(s), ~191 chars (2026-06-25 19:34:53)
-- `tests/visual/test_p1_mockup_structure.py` <- 1 edit(s), ~62 chars (2026-06-25 19:34:22)
-- `tests/domains/test_as_dashboard_mobile.py` <- 1 edit(s), ~50 chars (2026-06-25 19:33:38)
-- `tests/domains/test_as_dashboard_mobile.py` <- 1 edit(s), ~87 chars (2026-06-25 19:33:29)
-- `tests/domains/test_as_dashboard_mobile.py` <- 1 edit(s), ~72 chars (2026-06-25 19:33:28)
-- `templates/partials/shared/layout_head.html` <- 1 edit(s), ~122 chars (2026-06-25 19:33:12)
-- `tests/domains/test_foms_theme.py` <- 1 edit(s), ~1576 chars (2026-06-25 19:32:50)
-- `templates/shipment/dashboard.html` <- 1 edit(s), ~120 chars (2026-06-25 19:32:46)
-- `templates/cs/partials/as_dashboard_body.html` <- 1 edit(s), ~117 chars (2026-06-25 19:32:14)
-- `static/css/foundation/foms-mobile-surfaces.css` <- 2 edit(s), ~136 chars (2026-06-25 19:32:06)
-- `templates/cs/partials/as_mobile_order_card.html` <- 1 edit(s), ~138 chars (2026-06-25 19:31:48)
-- `templates/cs/partials/as_mobile_order_card.html` <- 2 edit(s), ~223 chars (2026-06-25 19:31:46)
-- `static/css/components/foms-as-mobile-card.css` <- 2 edit(s), ~76 chars (2026-06-25 19:31:46)
-- `static/css/components/foms-as-mobile-card.css` <- 1 edit(s), ~53 chars (2026-06-25 19:31:44)
-- `static/css/components/foms-shipment-mobile.css` <- 1 edit(s), ~523 chars (2026-06-25 19:31:38)
-- `static/css/components/foms-shipment-mobile.css` <- 1 edit(s), ~44 chars (2026-06-25 19:31:36)
-- `static/css/components/foms-shipment-mobile.css` <- 1 edit(s), ~35 chars (2026-06-25 19:31:35)
-- `static/css/components/foms-shipment-mobile.css` <- 1 edit(s), ~36 chars (2026-06-25 19:31:33)
-- `static/css/components/foms-shipment-mobile.css` <- 1 edit(s), ~36 chars (2026-06-25 19:31:31)
-- `static/css/components/foms-drawing-mobile-card.css` <- 1 edit(s), ~1172 chars (2026-06-25 19:31:31)
-- `static/css/components/foms-drawing-mobile-card.css` <- 1 edit(s), ~115 chars (2026-06-25 19:31:24)
-- `static/css/components/foms-drawing-mobile-card.css` <- 1 edit(s), ~74 chars (2026-06-25 19:31:22)
-- `templates/cs/partials/completion_styles.html` <- 1 edit(s), ~120 chars (2026-06-25 19:31:22)
+| Time | File | Tool |
+|------|------|------|
+| 2026-06-26 13:51:03 | `foms/api/wdcalculator/blueprint.py` | Edit |
+| 2026-06-26 13:51:34 | `static/js/wdcalculator/estimate-lifecycle.js` | Edit |
+| 2026-06-26 13:53:19 | `tests/domains/test_wdc_order_estimates_query_count.py` | Write |

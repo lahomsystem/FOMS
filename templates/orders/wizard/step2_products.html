@@ -84,5 +84,24 @@
       </div>
     </div>
   </div>
+
+  <div class="foms-wizard__amounts erp-mobile-amounts erp-mobile-amounts--field" id="foms-wizard-amounts" aria-label="주문 금액">
+    <div class="erp-mobile-amount-row">
+      <span class="erp-mobile-amount-label">출고가</span>
+      <div class="erp-mobile-amount-chip erp-amount-value foms-tabular" id="foms-wizard-items-total">0원</div>
+    </div>
+    <div class="erp-mobile-amount-row" id="foms-wizard-deposit-row">
+      <label class="erp-mobile-amount-label" for="wiz-deposit-amount">예약금(선금)</label>
+      <input type="text" id="wiz-deposit-amount" inputmode="numeric" placeholder="0원" maxlength="24"
+        class="foms-input foms-tabular erp-amount-value erp-amount-value--deposit"
+        data-wizard-field data-wizard-payment="deposit"
+        title="숫자 입력 시 1,000단위 쉼표가 적용됩니다." autocomplete="off" lang="ko">
+    </div>
+    <div class="erp-mobile-amount-row" id="foms-wizard-balance-row" hidden>
+      <span class="erp-mobile-amount-label">잔금</span>
+      <div class="erp-mobile-amount-chip erp-amount-value erp-amount-value--balance foms-tabular" id="foms-wizard-balance-amount">0원</div>
+    </div>
+  </div>
+
   <button type="button" class="foms-btn foms-btn--secondary foms-wizard__add-product" id="foms-wizard-add-product">+ 제품 추가</button>
 </section>

@@ -4,13 +4,13 @@
 
 ## 최근 세션
 
-### Session: 195d8c98
-- **시작**: 2026-06-25 09:21:39
+### Session: 4190dda1
+- **시작**: 2026-06-26 13:41:33
 - **상태**: completed
-- **편집 파일**: `commit_msg.txt`, `tests/contracts/runtime/foms_namespace_surface_tests.py`, `tests/domains/test_completion_search_api.py`, `tests/domains/test_as_content_safety.py`, `templates/cs/partials/completion_scripts.html`, `foms/services/shipment_as_recommendation_cache.py`, `foms/api/cs/dashboard.py`, `foms/services/as_content_safety.py`, `tests/domains/test_erp_spec_calc_followup.py`, `tests/domains/test_erp_order_shared_form_scripts.py`
-- **종료**: 2026-06-25 19:42:54
+- **편집 파일**: `.git/COMMIT_MSG_TMP.txt`, `static/js/foms/wizard.js`, `foms/api/erp_order_draft.py`, `static/css/components/foms-wizard.css`, `tests/domains/test_erp_order_draft_wizard.py`, `templates/orders/wizard/wizard_shell.html`, `templates/orders/wizard/step4_confirm.html`, `templates/orders/wizard/step2_products.html`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-ac10d9f9-f48c-437c-85da-1ad6a1e3f7e0.png`, `commit_msg.txt`
+- **종료**: 2026-06-26 13:49:02
 
-### Session: 43867baf
+ 43867baf
 - **시작**: 2026-06-25 08:10:46
 - **상태**: unknown
 - **편집 파일**: `tests/domains/test_erp_order_shared_form_scripts.py`, `static/js/orders/erp-order-shared.js`, `commit_msg.txt`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-f1c34b57-34f5-4243-878a-a6bac7eebd6f.png`, `tests/visual/test_p1_mockup_structure.py`, `static/css/contexts/orders/dashboard-control-tower.css`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-f5419b4b-4271-4794-9083-b3803b2145b6.png`, `tests/domains/test_erp_spec_calc_phase3.py`, `static/js/orders/erp-spec-calc.js`, `tests/domains/test_erp_wdc_estimate_sync.py`
@@ -1011,3 +1011,13 @@
 | 2026-06-25 19:40:41 | END (Claude Code) | 수정: (없음) |
 
 | 2026-06-25 19:42:54 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-26 11:54:11 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-26 13:24:59 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-26 13:29:36 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-26 13:34:19 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-26 13:49:02 | END (Claude Code) | 수정: (없음) |
