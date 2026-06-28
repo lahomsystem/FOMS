@@ -395,7 +395,8 @@ flat service 모듈로 **verbatim 추출** + cache 키·fingerprint·get_or_comp
 | 3 (잔여) | shipment 모바일 큐 N+1 제거(MobileQueueBatchContext 배치 사전조회, 동작보존+N+1가드) | b5ad661f | erp_mobile_order_display/erp_quest_display/estimate_service |
 | 4-6 | construction/production 행 DTO manager_phone N+1 제거(설정 1회 map 재사용, 동작보존+N+1가드) | 83a35061 | construction_dashboard_display/production_dashboard_display |
 | 4-7 | construction 미리보기 첨부 N+1 제거(페이지 1회 in_ 배치 + (created_at,id) tie-break, 동작보존+N+1가드) | 04d76b7a | construction_dashboard_display |
-| 4-8 | construction+production KPI 전체스캔 slim 투영(structured_data→flags/schedule/workflow 3경로 SQL 투영, 전송·파싱 비용↓, 동작 byte 동일+동치 테스트 3건) | (이번) | construction/dashboard.py · production_read_model.py |
+| 4-8 | construction+production KPI 전체스캔 slim 투영(structured_data→flags/schedule/workflow 3경로 SQL 투영, 전송·파싱 비용↓, 동작 byte 동일+동치 테스트 3건) | acbda7cb | construction/dashboard.py · production_read_model.py |
+| 1-F6/F5 | WDC blueprint 잔여 예외 클라 노출 19곳 `str(e)`→`logger.exception`+generic 메시지, F5 누락 save(`save_spec_field_presets`) print→logger 통일(정보 누출/에러 숨기기 절대 규칙 완결, 응답 shape 불변) | 3ab2dd90 | foms/api/wdcalculator/blueprint.py |
 
 **도메인 상태**: orders(파서+read-model+dto 완성, 라우트 1015→640), measurement(파서+read-model 완성),
 shipment(파서+헬퍼+read-model+행보강·정렬·모바일큐 display 완성), AS(파서+SQL expr/count·tab context read-model+행표시 display 완성),
@@ -423,4 +424,4 @@ Batch 0 contract freeze는 기존(active_filter/history/search/cache/slice/mobil
   (production read-model 이전 시 test_erp_permissions mine-path 계약이 production_read_model.py도 합쳐 읽도록 갱신 — orders 선례 동일.)
 - foms.services 패키지 standalone 순환(flat 모듈도 영향, app 컨텍스트선 정상) → unit test는 app 선로딩 의존.
 
-DEPLOYED THROUGH acbda7cb — PRODUCTION UNTOUCHED (origin/production live=1de4e265, 본 세션 무터치; 모든 push는 deploy 한정)
+DEPLOYED THROUGH 3ab2dd90 — PRODUCTION UNTOUCHED (origin/production live=1de4e265, 본 세션 무터치; 모든 push는 deploy 한정)
