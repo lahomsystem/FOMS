@@ -44,6 +44,8 @@ from foms.services.measurement_read_model import (
     _build_measurement_raw_match_filter,
     compute_measurement_panel_assembly,
     compute_measurement_product_items_build,
+    _order_matches_measurement_window,
+    _build_measurement_dates_for_display,
 )
 
 erp_measurement_dashboard_bp = Blueprint(
@@ -67,26 +69,6 @@ def _erp_order_search_filter(query, q):
             )
         )
     )
-
-
-def _order_matches_measurement_window(order, selected_date='', date_from='', date_to=''):
-    all_dates = extract_all_measurement_dates(order)
-    if selected_date:
-        return selected_date in all_dates
-    if date_from and date_to:
-        return any(date_from <= d <= date_to for d in all_dates)
-    return bool(all_dates)
-
-
-def _build_measurement_dates_for_display(order, selected_date='', date_from='', date_to=''):
-    all_dates = extract_all_measurement_dates(order)
-    if selected_date and selected_date in all_dates:
-        return [selected_date] + [d for d in all_dates if d != selected_date]
-    if date_from and date_to:
-        matched = [d for d in all_dates if date_from <= d <= date_to]
-        others = [d for d in all_dates if d not in matched]
-        return matched + others
-    return all_dates
 
 
 def _measurement_user_visibility_fingerprint(current_user) -> dict:
