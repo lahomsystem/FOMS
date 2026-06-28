@@ -24,6 +24,11 @@ from foms.services.common.erp_shell_http import (
 )
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
 from foms.services.as_dashboard_filters import parse_as_dashboard_filters
+from foms.services.as_dashboard_helpers import (
+    _count_cases,
+    _erp_as_completed_condition,
+    _erp_as_incomplete_condition,
+)
 
 
 erp_as_page_bp = Blueprint('erp_as_page', __name__, url_prefix='/erp')
@@ -220,48 +225,6 @@ def _erp_as_tab_for_order(order):
     if _order_is_sales_delivery(order):
         return 'sales_delivery'
     return 'incomplete'
-
-
-def _erp_as_incomplete_filter(query):
-    """AS 미완료 탭 공통 필터."""
-    return query.filter(_erp_as_incomplete_condition())
-
-
-def _erp_as_completed_condition():
-    """AS 완료 탭 공통 조건."""
-    return and_(
-        Order.status == 'AS_COMPLETED',
-        Order.as_completed_date.isnot(None),
-        Order.as_completed_date != ''
-    )
-
-
-def _count_cases(query, *definitions):
-    """여러 조건의 집계를 한 번에 계산한다."""
-    columns = [
-        func.coalesce(func.sum(case((condition, 1), else_=0)), 0).label(name)
-        for name, condition in definitions
-    ]
-    row = query.with_entities(*columns).one()
-    return {
-        name: int(getattr(row, name) or 0)
-        for name, _condition in definitions
-    }
-
-
-def _erp_as_incomplete_condition():
-    """AS 미완료 탭 공통 조건."""
-    return or_(
-        Order.status == 'AS',
-        Order.status == 'AS_RECEIVED',
-        and_(
-            Order.status == 'AS_COMPLETED',
-            or_(
-                Order.as_completed_date.is_(None),
-                Order.as_completed_date == ''
-            )
-        )
-    )
 
 
 @erp_as_page_bp.route('/as')

@@ -69,10 +69,14 @@ def _create_as_order(
 
 
 def test_as_dashboard_base_query_includes_pure_as_status():
-    """후속 계획: ERP AS 대시보드가 status=AS 주문도 목록에 포함한다."""
-    src = (
-        Path(__file__).resolve().parents[2] / "foms/web/cs/as_dashboard.py"
-    ).read_text(encoding="utf-8")
+    """후속 계획: ERP AS 대시보드가 status=AS 주문도 목록에 포함한다.
+
+    Batch 5: AS 미완료/완료 탭 조건이 foms/services/as_dashboard_helpers.py로 이전됨
+    → 라우트 + helpers 두 파일을 합쳐 검사(AS 상태 처리 SSOT 유지).
+    """
+    root = Path(__file__).resolve().parents[2]
+    src = (root / "foms/web/cs/as_dashboard.py").read_text(encoding="utf-8")
+    src += (root / "foms/services/as_dashboard_helpers.py").read_text(encoding="utf-8")
     assert "Order.status.in_(['AS', 'AS_RECEIVED', 'AS_COMPLETED'])" in src
     assert "Order.status == 'AS'" in src
 
