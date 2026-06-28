@@ -18,7 +18,6 @@ from foms.services.erp_display import (
     self_measurement_four_checks_done,
 )
 from foms.services.erp_order_detail import attach_order_detail_payloads
-from foms.services.erp_mobile_order_display import resolve_manager_phone_for_queue
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
 from foms.services.erp_permissions import (
     build_mine_sql_filter,
@@ -29,7 +28,11 @@ from foms.services.erp_policy import STAGE_LABELS
 from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
 from foms.services.foms_unified_search import _compact
 from foms.services.construction_dashboard_filters import parse_construction_dashboard_filters
-from foms.services.construction_dashboard_display import enrich_construction_mobile_rows
+from foms.services.construction_dashboard_display import (
+    enrich_construction_mobile_rows,
+    build_construction_row_dtos,
+    _display_stage_for_order,
+)
 from foms.services.feature_flags import is_enabled_for_user
 from models import Order
 
@@ -86,18 +89,6 @@ def erp_construction_dashboard():
         "measurement_d4_count": 0,
         "production_d2_count": 0,
     }
-
-    def _display_stage_for_order(order, structured_data):
-        stage = _erp_get_stage(order, structured_data)
-        history = (structured_data.get("workflow") or {}).get("history") or []
-        is_started = any(str(entry.get("note")).strip() == "시공 시작" for entry in history)
-        if stage in ("CONSTRUCTION", "시공"):
-            return "시공중" if is_started else "시공대기"
-        if stage in ("COMPLETED", "완료", "AS_WAIT") or stage == "CS":
-            return "시공완료"
-        if stage == "CONSTRUCTING":
-            return "시공중"
-        return None
 
     for row in kpi_rows:
         if row.is_self_measurement and not self_measurement_four_checks_done(row):
@@ -169,49 +160,8 @@ def erp_construction_dashboard():
             logging.getLogger(__name__).warning("att_counts query failed: %s", exc)
             att_counts = {}
 
-    enriched = []
-    for order in orders:
-        if getattr(order, "is_self_measurement", False) and not self_measurement_four_checks_done(order):
-            continue
-        structured_data = _ensure_dict(order.structured_data)
-        display_stage = _display_stage_for_order(order, structured_data)
-        if not display_stage:
-            continue
-        if f_stage and display_stage != f_stage:
-            continue
-
-        alerts = _erp_alerts(order, structured_data, att_counts.get(order.id, 0))
-        enriched.append(
-            {
-                "id": order.id,
-                "is_erp_order": order.is_erp_order,
-                "is_self_measurement": getattr(order, "is_self_measurement", False),
-                "structured_data": structured_data,
-                "customer_name": (((structured_data.get("parties") or {}).get("customer") or {}).get("name")) or "-",
-                "address": (
-                    ((structured_data.get("site") or {}).get("address_full"))
-                    or ((structured_data.get("site") or {}).get("address_main"))
-                )
-                or "-",
-                "stage": display_stage,
-                "alerts": alerts,
-                "has_media": _erp_has_media(order, att_counts.get(order.id, 0)),
-                "attachments_count": att_counts.get(order.id, 0),
-                "orderer_name": (((structured_data.get("parties") or {}).get("orderer") or {}).get("name") or "").strip()
-                or None,
-                "owner_team": "CONSTRUCTION",
-                "measurement_date": (((structured_data.get("schedule") or {}).get("measurement") or {}).get("date")),
-                "construction_date": (((structured_data.get("schedule") or {}).get("construction") or {}).get("date")),
-                "manager_name": (((structured_data.get("parties") or {}).get("manager") or {}).get("name")) or "-",
-                "manager_phone": resolve_manager_phone_for_queue(
-                    structured_data.get("parties") or {},
-                    order=order,
-                ),
-                "phone": (((structured_data.get("parties") or {}).get("customer") or {}).get("phone")) or "-",
-                "as_received_date": getattr(order, "as_received_date", None) or "",
-                "as_received_done": bool((getattr(order, "as_received_date", None) or "").strip()),
-            }
-        )
+    # Batch 4: 표시용 row DTO 조립은 build_construction_row_dtos(display 모듈)로 분리(동작 보존, 캐시 아님).
+    enriched = build_construction_row_dtos(orders, att_counts, f_stage)
 
     if f_q or focus_order_id:
         step_stats = {

@@ -6,12 +6,21 @@ from typing import Any
 
 from foms.api.files import build_file_view_url
 from foms.services.feature_flags import env_bool_or_mobile_v2
+from foms.services.erp_display import (
+    _ensure_dict,
+    _erp_alerts,
+    _erp_get_stage,
+    _erp_has_media,
+    self_measurement_four_checks_done,
+)
+from foms.services.erp_mobile_order_display import resolve_manager_phone_for_queue
 from models import OrderAttachment
 
 __all__ = [
     "construction_stage_badge_modifier",
     "construction_thumb_enabled",
     "enrich_construction_mobile_rows",
+    "build_construction_row_dtos",
 ]
 
 _IMAGE_SUFFIXES = (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp")
@@ -258,3 +267,76 @@ def enrich_construction_mobile_rows(
             row["attachments_count"] = count_preview_attachments(
                 row, db, drawing_only=True
             )
+
+
+def _display_stage_for_order(order, structured_data):
+    stage = _erp_get_stage(order, structured_data)
+    history = (structured_data.get("workflow") or {}).get("history") or []
+    is_started = any(str(entry.get("note")).strip() == "시공 시작" for entry in history)
+    if stage in ("CONSTRUCTION", "시공"):
+        return "시공중" if is_started else "시공대기"
+    if stage in ("COMPLETED", "완료", "AS_WAIT") or stage == "CS":
+        return "시공완료"
+    if stage == "CONSTRUCTING":
+        return "시공중"
+    return None
+
+
+def build_construction_row_dtos(orders, att_counts, f_stage):
+    """시공 대시보드 표시용 row DTO 조립 (구 erp_construction_dashboard enriched 루프). 동작 보존.
+
+    자가실측 미완료 / 표시단계 없음 / f_stage 불일치는 기존대로 건너뛴다(verbatim).
+    필터링·정렬·pagination 결정은 하지 않는다(라우트 유지).
+
+    Args:
+        orders: 표시 후보 Order 객체 리스트.
+        att_counts: order_id -> 첨부 수.
+        f_stage: 단계 필터('' 또는 시공대기/시공중/시공완료).
+
+    Returns:
+        list[dict]: 원본 enriched와 동일 구조.
+    """
+    enriched = []
+    for order in orders:
+        if getattr(order, "is_self_measurement", False) and not self_measurement_four_checks_done(order):
+            continue
+        structured_data = _ensure_dict(order.structured_data)
+        display_stage = _display_stage_for_order(order, structured_data)
+        if not display_stage:
+            continue
+        if f_stage and display_stage != f_stage:
+            continue
+
+        alerts = _erp_alerts(order, structured_data, att_counts.get(order.id, 0))
+        enriched.append(
+            {
+                "id": order.id,
+                "is_erp_order": order.is_erp_order,
+                "is_self_measurement": getattr(order, "is_self_measurement", False),
+                "structured_data": structured_data,
+                "customer_name": (((structured_data.get("parties") or {}).get("customer") or {}).get("name")) or "-",
+                "address": (
+                    ((structured_data.get("site") or {}).get("address_full"))
+                    or ((structured_data.get("site") or {}).get("address_main"))
+                )
+                or "-",
+                "stage": display_stage,
+                "alerts": alerts,
+                "has_media": _erp_has_media(order, att_counts.get(order.id, 0)),
+                "attachments_count": att_counts.get(order.id, 0),
+                "orderer_name": (((structured_data.get("parties") or {}).get("orderer") or {}).get("name") or "").strip()
+                or None,
+                "owner_team": "CONSTRUCTION",
+                "measurement_date": (((structured_data.get("schedule") or {}).get("measurement") or {}).get("date")),
+                "construction_date": (((structured_data.get("schedule") or {}).get("construction") or {}).get("date")),
+                "manager_name": (((structured_data.get("parties") or {}).get("manager") or {}).get("name")) or "-",
+                "manager_phone": resolve_manager_phone_for_queue(
+                    structured_data.get("parties") or {},
+                    order=order,
+                ),
+                "phone": (((structured_data.get("parties") or {}).get("customer") or {}).get("phone")) or "-",
+                "as_received_date": getattr(order, "as_received_date", None) or "",
+                "as_received_done": bool((getattr(order, "as_received_date", None) or "").strip()),
+            }
+        )
+    return enriched
