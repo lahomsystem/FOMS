@@ -133,8 +133,10 @@ def test_as_dashboard_script_runs_after_erp_shell_fragment_swap():
     src = _as_surface_src()
 
     assert "function initAsDashboard()" in src
-    assert "document.readyState === 'loading'" in src
+    # static defer 모듈: 풀페이지 로드는 DOMContentLoaded 대기(다른 defer 전역 준비), swap('complete')은 즉시 init
+    assert "document.readyState === 'complete'" in src
     assert "initAsDashboard();" in src
+    assert "DOMContentLoaded', initAsDashboard" in src
     assert "DOMContentLoaded', function" not in src
     assert "window.__fomsAsDashboardAbortController" in src
     assert "addAsDashboardListener(document.body, 'click', async function (e) {" in src

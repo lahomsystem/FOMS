@@ -2122,9 +2122,13 @@
     }
     }
 
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initAsDashboard, { once: true });
-    } else {
+    // static defer 모듈 부트스트랩:
+    // - 최초 풀페이지 로드: defer 실행 시점 readyState는 'interactive'(아직 다른 defer 스크립트(bootstrap.bundle 등) 미실행)
+    //   → DOMContentLoaded까지 대기해야 bootstrap/leaflet/flatpickr 등 전역이 모두 준비된다.
+    // - erp-shell fragment swap: 페이지가 이미 'complete' → 즉시 init(스왑마다 재실행, AbortController로 idempotent).
+    if (document.readyState === 'complete') {
       initAsDashboard();
+    } else {
+      document.addEventListener('DOMContentLoaded', initAsDashboard, { once: true });
     }
   })();
