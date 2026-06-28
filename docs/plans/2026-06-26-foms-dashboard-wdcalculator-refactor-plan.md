@@ -407,6 +407,7 @@ Batch 0 contract freeze는 기존(active_filter/history/search/cache/slice/mobil
 - **Batch 2b** orders count 정합성 — behavior change. **현 plan 권장=현상 유지**(불일치는 의도된 기존 동작, 교정 시 visual baseline+승인 필요). → 보류.
 - **Batch 4 KPI 전체스캔 비용** → **완료(4-8, 이번)**. `_erp_alerts`/`_display_stage_for_order`/`_erp_get_stage`는 structured_data 중 `flags`/`schedule`/`workflow` 서브트리만 읽으므로, KPI 스캔을 전체 SD 로드 대신 해당 3개 JSON 경로 SQL 투영으로 바꿔 행마다의 대용량 items/parties/quests 전송·파싱을 제거. `_ensure_dict`가 dict(PG)·JSON문자열(SQLite) 모두 처리해 **byte 동일** 동작 보존, slim==full 동치 테스트 3건(시공 KPI 동치/서브패스 round-trip, 생산 KPI 동치). construction은 self_measurement skip 동작(KeyedTuple)도 보존. production `kpi_rows`는 호출부 `len()`만 사용 → 행 수 불변.
   - ~~`_erp_alerts` 전체 SQL aggregate 이식~~ → **불필요**: slim 투영으로 전송·파싱 비용 제거됨. `_erp_alerts`의 날짜/JSONB 분기를 통째로 SQL `CASE`로 옮기는 것은 동치 증명 위험만 크고 잔여 이득은 미미(아래 측정).
+  - **실측(스테이징 lahom-dev, interleaved warm, acbda7cb)**: construction warm TTFB **367→325ms(median) / 334→285ms(min)**, 생산 대비 gap **~103→~63ms**. 생산도 ~262ms로 소폭 개선. 동작 무변경(동치 테스트 3건).
 - **Batch 4 pagination 교정**(construction Python pagination 등) — **behavior change**라 보류. 현 동작(300 cap→50 page) 그대로 유지가 §2.2 freeze·Stop Rule 부합. count/page 교정은 2b와 동일하게 visual baseline+승인 필요.
   - ~~**Batch 4 부수 N+1** construction/production 행 DTO manager_phone 행별 `load_erp_shipment_settings` 재조회~~ → **완료(83a35061)**. 스테이징(lahom-dev) 실측 근거: `/erp/construction/dashboard` warm TTFB가 생산 대비 ~2배(~600ms), zerolist 분해로 행DTO 단계가 +250~360ms. 원인=브라우즈 최대 ~300행 × 설정조회(캐시 없음) N+1. `build_measurement_manager_phone_map()` 1회 map 재사용으로 설정 로드 N→1, 동작 100% 보존(map=기존 per-row와 동일 입력→동일 출력), N+1 회귀가드+동치 테스트 4건.
   - ~~**Batch 4 부수 N+1(2)** construction 미리보기 첨부 행별 OrderAttachment 조회(`_collect_preview_items` ×50, `count_preview_attachments` ×50)~~ → **완료(04d76b7a)**. 페이지 1회 `order_id.in_` 배치(`build_construction_preview_attachments_map`) + `(created_at asc, id asc)` tie-break를 per-row·배치 양쪽 동일 적용(byte-identical+결정적). N+1 회귀가드/동치/동률/카운트 테스트 4건.
@@ -422,4 +423,4 @@ Batch 0 contract freeze는 기존(active_filter/history/search/cache/slice/mobil
   (production read-model 이전 시 test_erp_permissions mine-path 계약이 production_read_model.py도 합쳐 읽도록 갱신 — orders 선례 동일.)
 - foms.services 패키지 standalone 순환(flat 모듈도 영향, app 컨텍스트선 정상) → unit test는 app 선로딩 의존.
 
-DEPLOYED THROUGH 04d76b7a — PRODUCTION UNTOUCHED (origin/production live=1de4e265, 본 세션 무터치; 모든 push는 deploy 한정)
+DEPLOYED THROUGH acbda7cb — PRODUCTION UNTOUCHED (origin/production live=1de4e265, 본 세션 무터치; 모든 push는 deploy 한정)
