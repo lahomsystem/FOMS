@@ -16,7 +16,7 @@ from db import get_db
 from models import Order
 from foms.web.auth import login_required
 
-from foms.services.common.erp_mine_filter import erp_mine_only_from_request
+from foms.services.production_dashboard_filters import parse_production_dashboard_filters
 from foms.services.erp_permissions import (
     build_mine_sql_filter,
     can_edit_erp,
@@ -32,7 +32,6 @@ from foms.services.erp_display import (
 )
 from foms.services.erp_order_detail import attach_order_detail_payloads
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
-from foms.services.request_utils import get_search_query_arg
 
 
 erp_production_page_bp = Blueprint(
@@ -315,9 +314,10 @@ def erp_production_dashboard():
     user = getattr(g, 'current_user', None)
     is_admin = user and user.role == 'ADMIN'
 
-    f_stage = (request.args.get('stage') or '').strip()
-    f_q = get_search_query_arg('q', 'search')
-    erp_mine_only = erp_mine_only_from_request(request)
+    _pf = parse_production_dashboard_filters(request)
+    f_stage = _pf.stage
+    f_q = _pf.q
+    erp_mine_only = _pf.erp_mine_only
 
     stage_col = cast(Order.structured_data['workflow']['stage'], String)
     _q = _build_production_orders_query(db, user, f_stage, f_q, erp_mine_only, stage_col)
@@ -332,12 +332,12 @@ def erp_production_dashboard():
     _q = _q.order_by(Order.created_at.desc())
 
     page, total_pages, page_rows = _paginate_production_rows(
-        _q, request.args.get('page', 1, type=int), total_orders
+        _q, _pf.page, total_orders
     )
 
     # 검색 카드 딥링크(?focus_order=)는 단계 버킷·페이지네이션과 무관하게 착지해야 한다.
     # orders/construction/measurement 대시보드와 동일한 deep-link SSOT.
-    focus_order_id = request.args.get('focus_order', type=int)
+    focus_order_id = _pf.focus_order_id
     if focus_order_id and focus_order_id not in {o.id for o in page_rows}:
         focus_order = (
             db.query(Order)
