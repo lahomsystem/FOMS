@@ -84,3 +84,81 @@ def compute_shipment_panel_aggregates(panel_orders, range_start, range_end, work
         "assigned_workers_by_date": {k: sorted(list(v)) for k, v in aw.items()},
         "spec_units_by_date": su,
     }
+
+
+def compute_shipment_derived_template_payloads(
+    range_start,
+    range_end,
+    holiday_dates,
+    construction_counts,
+    selected_date,
+    worker_settings,
+    assigned_workers_by_date,
+    spec_units_by_date,
+):
+    """출고 패널 파생 stat 카드(시공 건수 패널 + 잔여 용량/작업자 패널) (구 closure).
+
+    Batch 3: 라우트 캐시 슬라이스 compute closure를 read-model로 분리(동작 보존).
+    cache 키·fingerprint·get_or_compute는 라우트가 유지한다. aggregates 결과
+    (construction_counts/assigned_workers_by_date/spec_units_by_date)를 입력으로 받는다.
+
+    Returns:
+        {"construction_panel_dates": [...], "remaining_panel_dates": [...]}
+        — 원본 closure와 동일 형태.
+    """
+    construction_panel_dates = []
+    current = range_start
+    while current <= range_end:
+        date_str = current.strftime('%Y-%m-%d')
+        is_weekend = current.weekday() >= 5
+        is_holiday = date_str in holiday_dates
+        construction_panel_dates.append({
+            'date': date_str,
+            'count': construction_counts.get(date_str, 0),
+            'weekday': current.weekday(),
+            'is_weekend': is_weekend,
+            'is_holiday': is_holiday,
+            'is_selected': date_str == selected_date
+        })
+        current += datetime.timedelta(days=1)
+
+    remaining_panel_dates = []
+    current = range_start
+    while current <= range_end:
+        date_str = current.strftime('%Y-%m-%d')
+        is_weekend = current.weekday() >= 5
+        is_holiday = date_str in holiday_dates
+        available_workers = []
+        for w in worker_settings:
+            if date_str in (w.get('off_dates') or []):
+                continue
+            available_workers.append(w)
+        base_worker_count = len(available_workers)
+        base_capacity = sum((w.get('capacity') or 0) for w in available_workers)
+        assigned_names = assigned_workers_by_date.get(date_str, set())
+        assigned_count = 0
+        for w in available_workers:
+            if _normalize_worker_name(w.get('name')) in assigned_names:
+                assigned_count += 1
+        remaining_workers = max(base_worker_count - assigned_count, 0)
+        used_capacity = spec_units_by_date.get(date_str, 0.0)
+        remaining_capacity = max(base_capacity - used_capacity, 0)
+        remaining_panel_dates.append({
+            'date': date_str,
+            'remaining_capacity': round(remaining_capacity, 1),
+            'remaining_workers': remaining_workers,
+            'total_capacity': round(base_capacity, 1),
+            'total_workers': base_worker_count,
+            'used_capacity': round(used_capacity, 1),
+            'assigned_workers': assigned_count,
+            'is_weekend': is_weekend,
+            'is_holiday': is_holiday,
+            'is_selected': date_str == selected_date,
+            'alert_capacity': remaining_capacity <= 40,
+            'alert_workers': remaining_workers <= 3
+        })
+        current += datetime.timedelta(days=1)
+    return {
+        "construction_panel_dates": construction_panel_dates,
+        "remaining_panel_dates": remaining_panel_dates,
+    }

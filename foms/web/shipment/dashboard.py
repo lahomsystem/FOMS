@@ -36,7 +36,10 @@ from foms.services.common.erp_shell_http import (
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
 from foms.services.feature_flags import is_enabled_for_user
 from foms.services.shipment_dashboard_filters import parse_shipment_dashboard_filters
-from foms.services.shipment_read_model import compute_shipment_panel_aggregates
+from foms.services.shipment_read_model import (
+    compute_shipment_panel_aggregates,
+    compute_shipment_derived_template_payloads,
+)
 from foms.services.erp_dashboard_search import (
     SHIPMENT_SEARCH_FOCUS_SCHEDULE_HALF_RANGE_DAYS,
     erp_order_dashboard_search_predicate,
@@ -304,68 +307,15 @@ def erp_shipment_dashboard():
         "shipment", "shipment_panel_derived_template_payloads", _derived_fp
     )
 
-    def _compute_shipment_derived_template_payloads():
-        construction_panel_dates = []
-        current = range_start
-        while current <= range_end:
-            date_str = current.strftime('%Y-%m-%d')
-            is_weekend = current.weekday() >= 5
-            is_holiday = date_str in holiday_dates
-            construction_panel_dates.append({
-                'date': date_str,
-                'count': construction_counts.get(date_str, 0),
-                'weekday': current.weekday(),
-                'is_weekend': is_weekend,
-                'is_holiday': is_holiday,
-                'is_selected': date_str == selected_date
-            })
-            current += datetime.timedelta(days=1)
-
-        remaining_panel_dates = []
-        current = range_start
-        while current <= range_end:
-            date_str = current.strftime('%Y-%m-%d')
-            is_weekend = current.weekday() >= 5
-            is_holiday = date_str in holiday_dates
-            available_workers = []
-            for w in worker_settings:
-                if date_str in (w.get('off_dates') or []):
-                    continue
-                available_workers.append(w)
-            base_worker_count = len(available_workers)
-            base_capacity = sum((w.get('capacity') or 0) for w in available_workers)
-            assigned_names = assigned_workers_by_date.get(date_str, set())
-            assigned_count = 0
-            for w in available_workers:
-                if _normalize_worker_name(w.get('name')) in assigned_names:
-                    assigned_count += 1
-            remaining_workers = max(base_worker_count - assigned_count, 0)
-            used_capacity = spec_units_by_date.get(date_str, 0.0)
-            remaining_capacity = max(base_capacity - used_capacity, 0)
-            remaining_panel_dates.append({
-                'date': date_str,
-                'remaining_capacity': round(remaining_capacity, 1),
-                'remaining_workers': remaining_workers,
-                'total_capacity': round(base_capacity, 1),
-                'total_workers': base_worker_count,
-                'used_capacity': round(used_capacity, 1),
-                'assigned_workers': assigned_count,
-                'is_weekend': is_weekend,
-                'is_holiday': is_holiday,
-                'is_selected': date_str == selected_date,
-                'alert_capacity': remaining_capacity <= 40,
-                'alert_workers': remaining_workers <= 3
-            })
-            current += datetime.timedelta(days=1)
-        return {
-            "construction_panel_dates": construction_panel_dates,
-            "remaining_panel_dates": remaining_panel_dates,
-        }
-
+    # Batch 3: derived 패널 stat 카드 compute는 compute_shipment_derived_template_payloads(read-model)로 분리(동작 보존).
+    # cache 키(_derived_key)·fingerprint(_derived_fp)·get_or_compute는 라우트가 유지 → cache hit/miss 불변.
     _derived_blob = get_or_compute_dashboard_slice(
         _derived_key,
         TTL_PANEL_ROWS,
-        _compute_shipment_derived_template_payloads,
+        lambda: compute_shipment_derived_template_payloads(
+            range_start, range_end, holiday_dates, construction_counts,
+            selected_date, worker_settings, assigned_workers_by_date, spec_units_by_date,
+        ),
         page="shipment",
         slice_name="shipment_panel_derived_template_payloads",
     )
