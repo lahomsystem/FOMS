@@ -1,7 +1,7 @@
 # FOMS Dashboard + WDCalculator Refactor Plan
 > 작성일: 2026-06-26 | 상태: 구현 진행 중(staging 배포, production 무터치) | 범위: FOMS ERP 대시보드 전체 + WDCalculator
 > 재검증: 2026-06-26 deep review 2-pass. 6개 결함 본문 반영(§3.1/§3.5/§3.6/Batch 1·2·7 + §10).
-> 진행 현황·배포 커밋: **§11 참조**(2026-06-28 기준, a58fb149까지 deploy 배포).
+> 진행 현황·배포 커밋: **§11 참조**(2026-06-28 기준, f967ea36까지 deploy 배포).
 
 ## 1. What
 
@@ -391,17 +391,18 @@ flat service 모듈로 **verbatim 추출** + cache 키·fingerprint·get_or_comp
 | 4-4 | production read-model(query/counts/kpi/attach/paginate) | 8c51d9ef | services/production_read_model.py |
 | 4-5 | production 행 DTO + 단계표시 헬퍼 display화 | adc45fde | services/production_dashboard_display.py |
 | 4-4 후속 | production mine-path 계약 갱신 | a58fb149 | (test) |
+| 3-10 | shipment 행 보강·정렬·모바일큐 빌더 display화 | f967ea36 | services/shipment_dashboard_display.py |
 
 **도메인 상태**: orders(파서+read-model+dto 완성, 라우트 1015→640), measurement(파서+read-model 완성),
-shipment(파서+헬퍼+read-model 완성), AS(파서+SQL expr/count·tab context read-model+행표시 display 완성),
+shipment(파서+헬퍼+read-model+행보강·정렬·모바일큐 display 완성), AS(파서+SQL expr/count·tab context read-model+행표시 display 완성),
 construction(파서+행DTO·단계헬퍼), production(파서+read-model+display 완성, 라우트 337→134).
 Batch 0 contract freeze는 기존(active_filter/history/search/cache/slice/mobile/focus)+신규 파서 단위테스트로 충족.
 
 ### 남은 작업 (미착수 — 전부 고위험/승인)
 - **Batch 2b** orders count 정합성 — behavior change, **사용자 승인 필요**.
-- **Batch 3 잔여** mobile queue row builder batch preload(선택).
+- **Batch 3 잔여** shipment mobile queue row builder의 per-row→batch preload 최적화(behavior change, 선택). ※ display 추출(3-10)로 verbatim 분리는 완료.
 - **Batch 4** production/construction KPI Python-scan→SQL aggregate·pagination 교정 — behavior change(승인 필요).
-  ※ production/construction 구조-추출(파서/read-model/display)은 완료. KPI/pagination 본체만 잔여. **백엔드 구조-only 안전영역 사실상 소진.**
+  ※ production/construction 구조-추출(파서/read-model/display) + shipment display(3-10) 완료. KPI/pagination 본체만 잔여. **백엔드 구조-only 안전영역 소진.**
 - **Batch 5 잔여** AS/shipment inline JS→static module, shell init/teardown contract — frontend(JS 단위테스트 약함, 사용자 방향확인 필요).
 - **Batch 6** WDC app chunk(composition.js host wrapper, product_settings.html JS, location.reload×12) — frontend.
 - **Batch 7** search normalized field + trigram index(CONCURRENTLY+advisory lock).
@@ -413,4 +414,4 @@ Batch 0 contract freeze는 기존(active_filter/history/search/cache/slice/mobil
   (production read-model 이전 시 test_erp_permissions mine-path 계약이 production_read_model.py도 합쳐 읽도록 갱신 — orders 선례 동일.)
 - foms.services 패키지 standalone 순환(flat 모듈도 영향, app 컨텍스트선 정상) → unit test는 app 선로딩 의존.
 
-DEPLOYED THROUGH a58fb149 — PRODUCTION UNTOUCHED (현재 1de4e265; 기존 400be33a에서 운영 승격됨, 본 세션은 production 무터치)
+DEPLOYED THROUGH f967ea36 — PRODUCTION UNTOUCHED (현재 1de4e265; 기존 400be33a에서 운영 승격됨, 본 세션은 production 무터치)
