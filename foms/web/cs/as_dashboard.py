@@ -4,7 +4,7 @@ from flask import Blueprint, make_response, render_template, request, redirect, 
 from db import get_db
 from models import Order, OrderAttachment
 from foms.web.auth import login_required
-from sqlalchemy import or_, and_, cast, String, func, case
+from sqlalchemy import or_, and_, cast, String, case
 import datetime
 
 from foms.services.erp_display import _normalize_for_search
@@ -25,9 +25,20 @@ from foms.services.common.erp_shell_http import (
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
 from foms.services.as_dashboard_filters import parse_as_dashboard_filters
 from foms.services.as_dashboard_helpers import (
+    _as_pending_expr,
+    _as_visit_date_expr,
+    _combined_as_content_expr,
     _count_cases,
+    _display_address_expr,
+    _display_customer_name_expr,
+    _display_manager_name_expr,
+    _display_phone_expr,
     _erp_as_completed_condition,
     _erp_as_incomplete_condition,
+    _has_text_value,
+    _sales_delivery_expr,
+    _sales_delivery_true_filter,
+    _sql_compact,
 )
 
 
@@ -42,126 +53,9 @@ def _compact_search_text(value):
     return ''.join(normalized.split()).lower()
 
 
-def _sql_compact(expr, *, use_postgres_regex=False):
-    """DB 비교용 공백 제거 식."""
-    expr = func.coalesce(cast(expr, String), '')
-    if use_postgres_regex:
-        return func.lower(func.regexp_replace(expr, r'\s+', '', 'g'))
-    return func.lower(
-        func.replace(
-            func.replace(
-                func.replace(
-                    func.replace(expr, ' ', ''),
-                    '\n', ''
-                ),
-                '\r', ''
-            ),
-            '\t', ''
-        )
-    )
-
-
-def _json_text_expr(*path_parts, dialect_name=''):
-    """DB dialect에 맞춰 JSON 경로의 텍스트 값을 추출."""
-    if dialect_name == 'postgresql':
-        return func.jsonb_extract_path_text(Order.structured_data, *path_parts)
-    if dialect_name == 'sqlite':
-        return func.json_extract(Order.structured_data, '$.' + '.'.join(path_parts))
-    return cast(Order.structured_data, String)
-
-
-def _as_content_expr(field_name='as_content', *, dialect_name='', use_postgres_regex=False):
-    """structured_data.shipment AS 내용 필드 추출 (검색/탭 판정용)."""
-    expr = _json_text_expr('shipment', field_name, dialect_name=dialect_name)
-    expr = func.coalesce(cast(expr, String), '')
-    if dialect_name == 'postgresql' and use_postgres_regex:
-        expr = func.regexp_replace(expr, r'<[^>]+>', '', 'g')
-    return expr
-
-
-def _combined_as_content_expr(*, dialect_name='', use_postgres_regex=False):
-    """AS 내용 1/2 탭을 합쳐 검색용 문자열로 반환."""
-    primary = _as_content_expr(
-        'as_content',
-        dialect_name=dialect_name,
-        use_postgres_regex=use_postgres_regex,
-    )
-    secondary = _as_content_expr(
-        'as_content_2',
-        dialect_name=dialect_name,
-        use_postgres_regex=use_postgres_regex,
-    )
-    return func.trim(primary + case((secondary != '', ' '), else_='') + secondary)
-
-
-def _sales_delivery_expr(*, dialect_name=''):
-    """structured_data.shipment.sales_delivery 추출 (탭 분류용)."""
-    return func.coalesce(
-        cast(_json_text_expr('shipment', 'sales_delivery', dialect_name=dialect_name), String),
-        'false'
-    )
-
-
-def _display_customer_name_expr(*, dialect_name=''):
-    return func.coalesce(
-        cast(_json_text_expr('parties', 'customer', 'name', dialect_name=dialect_name), String),
-        Order.customer_name,
-    )
-
-
-def _display_manager_name_expr(*, dialect_name=''):
-    return func.coalesce(
-        cast(_json_text_expr('parties', 'manager', 'name', dialect_name=dialect_name), String),
-        Order.manager_name,
-    )
-
-
-def _display_phone_expr(*, dialect_name=''):
-    return func.coalesce(
-        cast(_json_text_expr('parties', 'customer', 'phone', dialect_name=dialect_name), String),
-        Order.phone,
-    )
-
-
-def _display_address_expr(*, dialect_name=''):
-    address_full = cast(_json_text_expr('site', 'address_full', dialect_name=dialect_name), String)
-    address_main = func.coalesce(cast(_json_text_expr('site', 'address_main', dialect_name=dialect_name), String), '')
-    address_detail = func.coalesce(cast(_json_text_expr('site', 'address_detail', dialect_name=dialect_name), String), '')
-    address_joined = func.trim(
-        address_main + case((address_detail != '', ' '), else_='') + address_detail
-    )
-    return func.coalesce(address_full, func.nullif(address_joined, ''), Order.address)
-
-
 def _is_sales_delivery_search(compact_q):
     """영업/택배 전용 검색어인지 판별."""
     return (compact_q or '').replace('/', '') == '영업택배'
-
-
-def _sales_delivery_true_filter(sales_delivery_expr):
-    """영업/택배 체크된 주문 필터."""
-    return func.lower(cast(sales_delivery_expr, String)).in_(['true', '1', 'yes'])
-
-
-def _as_pending_expr(*, dialect_name=''):
-    """structured_data.shipment.as_pending 추출 (집계용)."""
-    return func.coalesce(
-        cast(_json_text_expr('shipment', 'as_pending', dialect_name=dialect_name), String),
-        'false'
-    )
-
-
-def _as_visit_date_expr(*, dialect_name=''):
-    """structured_data.schedule.as_visit.date 추출 (집계용)."""
-    return func.coalesce(
-        cast(_json_text_expr('schedule', 'as_visit', 'date', dialect_name=dialect_name), String),
-        ''
-    )
-
-
-def _has_text_value(expr):
-    """빈 문자열이 아닌 값 판정용 SQL 식."""
-    return func.trim(func.coalesce(cast(expr, String), '')) != ''
 
 
 def _order_is_sales_delivery(order):
