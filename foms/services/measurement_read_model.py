@@ -157,3 +157,31 @@ def compute_measurement_panel_assembly(
         "panel_row_ids": sorted(panel_order_ids),
         "panel_fallback_supplement_ids": sorted(panel_fallback_supplement_ids),
     }
+
+
+def compute_measurement_product_items_build(db, rows, row_fallback_added_ids):
+    """실측 메인 행 product_items 빌드 (구 _compute_measurement_product_items_build).
+
+    Batch 3: 라우트 캐시 슬라이스 compute closure를 read-model로 분리(동작 보존).
+    cache 키·fingerprint·get_or_compute는 라우트가 유지한다.
+    build_product_items_for_orders는 rows에 product_items 속성을 in-place로 채운다(원본과 동일).
+
+    Args:
+        db: 요청 스코프 DB 세션.
+        rows: 표시 대상 Order 객체 리스트(상위 300건).
+        row_fallback_added_ids: raw-match fallback으로 보충된 order id 리스트.
+
+    Returns:
+        {"product_items_by_id": {str(order_id): items},
+         "main_table_fallback_row_ids": [...]} — 원본 closure와 동일 형태.
+    """
+    # lazy import: foms.services 패키지 standalone 순환 회피(원본은 라우트 top import).
+    from foms.services.erp_product_items import build_product_items_for_orders
+
+    build_product_items_for_orders(db, rows)
+    return {
+        "product_items_by_id": {
+            str(o.id): (getattr(o, "product_items", None) or []) for o in rows
+        },
+        "main_table_fallback_row_ids": sorted(row_fallback_added_ids),
+    }

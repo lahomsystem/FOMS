@@ -25,7 +25,6 @@ from foms.services.erp_display import (
     normalize_manager_name,
     self_measurement_four_checks_done,
 )
-from foms.services.erp_product_items import build_product_items_for_orders
 from foms.services.erp_shipment_settings import load_erp_shipment_settings
 from foms.services.measurement_manager_colors import build_measurement_manager_color_map
 from foms.services.measurement_dates import extract_all_measurement_dates
@@ -44,6 +43,7 @@ from foms.services.measurement_dashboard_filters import parse_measurement_dashbo
 from foms.services.measurement_read_model import (
     _build_measurement_raw_match_filter,
     compute_measurement_panel_assembly,
+    compute_measurement_product_items_build,
 )
 
 erp_measurement_dashboard_bp = Blueprint(
@@ -293,19 +293,12 @@ def erp_measurement_dashboard():
         "measurement", "measurement_product_items_build", _pi_fp
     )
 
-    def _compute_measurement_product_items_build():
-        build_product_items_for_orders(db, rows)
-        return {
-            "product_items_by_id": {
-                str(o.id): (getattr(o, "product_items", None) or []) for o in rows
-            },
-            "main_table_fallback_row_ids": sorted(row_fallback_added_ids),
-        }
-
+    # Batch 3: product_items 빌드 compute는 compute_measurement_product_items_build(read-model)로 분리(동작 보존).
+    # cache 키(_pi_key)·fingerprint(_pi_fp)·get_or_compute는 라우트가 유지 → cache hit/miss 불변.
     _pi_blob = get_or_compute_dashboard_slice(
         _pi_key,
         TTL_PAYLOAD_ASSEMBLY,
-        _compute_measurement_product_items_build,
+        lambda: compute_measurement_product_items_build(db, rows, row_fallback_added_ids),
         page="measurement",
         slice_name="measurement_product_items_build",
     )
