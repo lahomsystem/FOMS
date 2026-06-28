@@ -7,7 +7,6 @@ from foms.web.auth import login_required
 import datetime
 import hashlib
 import json
-import logging
 from sqlalchemy import or_, and_
 from sqlalchemy.orm import load_only
 from foms.services.common.business_calendar import get_holidays_kr
@@ -16,7 +15,6 @@ from foms.services.erp_display import _ensure_dict, apply_erp_display_fields_to_
 from foms.services.shipment_dashboard_helpers import (
     AS_SHIPMENT_STATUSES,
     is_as_order,
-    extract_all_construction_dates,
     extract_dashboard_target_dates,
     _normalize_worker_name,
     _get_order_spec_units,
@@ -38,6 +36,7 @@ from foms.services.common.erp_shell_http import (
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
 from foms.services.feature_flags import is_enabled_for_user
 from foms.services.shipment_dashboard_filters import parse_shipment_dashboard_filters
+from foms.services.shipment_read_model import compute_shipment_panel_aggregates
 from foms.services.erp_dashboard_search import (
     SHIPMENT_SEARCH_FOCUS_SCHEDULE_HALF_RANGE_DAYS,
     erp_order_dashboard_search_predicate,
@@ -53,9 +52,6 @@ from foms.api.shipment.recommendations import SHREC_SOURCE
 erp_shipment_page_bp = Blueprint(
     'erp_shipment_page', __name__, url_prefix='/erp'
 )
-
-
-logger = logging.getLogger(__name__)
 
 
 def _shipment_user_visibility_fingerprint(current_user) -> dict:
@@ -243,60 +239,12 @@ def erp_shipment_dashboard():
     }
     _agg_key = build_dashboard_cache_key("shipment", "panel_aggregates", _agg_fp)
 
-    def _compute_shipment_panel_aggregates():
-        cc = {}
-        aw = {}
-        su = {}
-        for order in panel_orders:
-            if is_as_order(order):
-                continue
-
-            for date_value in extract_all_construction_dates(order):
-                try:
-                    d = datetime.datetime.strptime(date_value, '%Y-%m-%d').date()
-                except Exception:
-                    # 데이터 오염 진단(에러 숨김 금지). 집계/화면은 기존대로 건너뛴다.
-                    logger.debug("shipment panel agg(cc): malformed construction date %r (order_id=%s)", date_value, getattr(order, "id", None))
-                    continue
-                if d < range_start or d > range_end:
-                    continue
-                key = d.strftime('%Y-%m-%d')
-                cc[key] = cc.get(key, 0) + 1
-
-            all_construction_dates = extract_all_construction_dates(order)
-            for date_value in all_construction_dates:
-                try:
-                    d = datetime.datetime.strptime(date_value, '%Y-%m-%d').date()
-                except Exception:
-                    # 데이터 오염 진단(에러 숨김 금지). 작업자/스펙 집계는 기존대로 건너뛴다.
-                    logger.debug("shipment panel agg(workers): malformed construction date %r (order_id=%s)", date_value, getattr(order, "id", None))
-                    continue
-                if d < range_start or d > range_end:
-                    continue
-                key = d.strftime('%Y-%m-%d')
-
-                shipment = {}
-                if order.structured_data and isinstance(order.structured_data, dict):  # type: ignore
-                    shipment = (order.structured_data.get('shipment') or {})
-                workers = shipment.get('construction_workers') or []
-                for w in workers:
-                    name_key = _normalize_worker_name(w)
-                    if not name_key:
-                        continue
-                    if name_key in worker_name_map:
-                        aw.setdefault(key, set()).add(name_key)
-
-                su[key] = su.get(key, 0.0) + _get_order_spec_units(order)
-        return {
-            "construction_counts": cc,
-            "assigned_workers_by_date": {k: sorted(list(v)) for k, v in aw.items()},
-            "spec_units_by_date": su,
-        }
-
+    # Batch 3: panel aggregates compute는 compute_shipment_panel_aggregates(read-model)로 분리(동작 보존).
+    # cache 키(_agg_key)·fingerprint(_agg_fp)·get_or_compute는 라우트가 유지 → cache hit/miss 불변.
     _agg_blob = get_or_compute_dashboard_slice(
         _agg_key,
         TTL_PANEL_ROWS,
-        _compute_shipment_panel_aggregates,
+        lambda: compute_shipment_panel_aggregates(panel_orders, range_start, range_end, worker_name_map),
         page="shipment",
         slice_name="panel_aggregates",
     )
