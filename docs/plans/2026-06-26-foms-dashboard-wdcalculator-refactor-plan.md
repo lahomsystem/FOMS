@@ -1,7 +1,7 @@
 # FOMS Dashboard + WDCalculator Refactor Plan
 > 작성일: 2026-06-26 | 상태: 구현 진행 중(staging 배포, production 무터치) | 범위: FOMS ERP 대시보드 전체 + WDCalculator
 > 재검증: 2026-06-26 deep review 2-pass. 6개 결함 본문 반영(§3.1/§3.5/§3.6/Batch 1·2·7 + §10).
-> 진행 현황·배포 커밋: **§11 참조**(2026-06-28 기준, bf4ddbb3까지 deploy 배포).
+> 진행 현황·배포 커밋: **§11 참조**(2026-06-28 기준, 6978a292까지 deploy 배포).
 
 ## 1. What
 
@@ -379,9 +379,12 @@ flat service 모듈로 **verbatim 추출** + cache 키·fingerprint·get_or_comp
 | 3-7 | shipment panel derived | b12db787 | shipment_read_model.py |
 | 4-1 | construction 파서 | b3dd92b8 | services/construction_dashboard_filters.py |
 | 5-1 | AS 상단 파서 | adf10125 | services/as_dashboard_filters.py |
+| (doc) | §11 진행현황 추가 | cafd538d | (plan) |
+| 5-2 | AS 탭/카운트 조건 헬퍼 service화 | c5ff3f15 | services/as_dashboard_helpers.py |
+| 4-2 | construction 행 DTO + 단계표시 헬퍼 service화 | 6978a292 | services/construction_dashboard_display.py |
 
 **도메인 상태**: orders(파서+read-model+dto 완성, 라우트 1015→640), measurement(파서+read-model 완성),
-shipment(파서+헬퍼+read-model 완성), AS(파서만), construction(파서만), production(기분해).
+shipment(파서+헬퍼+read-model 완성), AS(파서+탭/카운트 조건헬퍼), construction(파서+행DTO·단계헬퍼), production(기분해).
 Batch 0 contract freeze는 기존(active_filter/history/search/cache/slice/mobile/focus)+신규 파서 단위테스트로 충족.
 
 ### 남은 작업 (미착수 — 전부 고위험/승인)
@@ -398,4 +401,4 @@ Batch 0 contract freeze는 기존(active_filter/history/search/cache/slice/mobil
   `extract_all_measurement_dates`·`self_measurement_four_checks_done` 등) → 심볼 이동 시 pin 깨짐 주의.
 - foms.services 패키지 standalone 순환(flat 모듈도 영향, app 컨텍스트선 정상) → unit test는 app 선로딩 의존.
 
-DEPLOYED THROUGH bf4ddbb3 — PRODUCTION UNTOUCHED (400be33a)
+DEPLOYED THROUGH 6978a292 — PRODUCTION UNTOUCHED (400be33a)
