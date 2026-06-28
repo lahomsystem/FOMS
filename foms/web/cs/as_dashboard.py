@@ -28,7 +28,6 @@ from foms.services.as_dashboard_helpers import (
     _as_pending_expr,
     _as_visit_date_expr,
     _combined_as_content_expr,
-    _count_cases,
     _display_address_expr,
     _display_customer_name_expr,
     _display_manager_name_expr,
@@ -40,6 +39,7 @@ from foms.services.as_dashboard_helpers import (
     _sales_delivery_true_filter,
     _sql_compact,
 )
+from foms.services.as_dashboard_read_model import build_as_tab_count_context
 
 
 erp_as_page_bp = Blueprint('erp_as_page', __name__, url_prefix='/erp')
@@ -236,30 +236,19 @@ def erp_as_dashboard():
         sales_delivery_true,
     )
 
-    # 미완료 stats 칩 → 버킷 필터(방문확정/미결/미정). 요약 집계와 필터가 같은 조건을
-    # 단일 출처(SSOT)로 공유해 칩 카운트와 실제 목록 결과가 항상 일치하게 한다.
-    incomplete_buckets = {
-        'visit_confirmed': and_(incomplete_non_sales_condition, ~as_pending_true, as_visit_date_present),
-        'pending': and_(incomplete_non_sales_condition, as_pending_true),
-        'unassigned': and_(incomplete_non_sales_condition, ~as_pending_true, ~as_visit_date_present),
-    }
-    as_bucket = (request.args.get('bucket') or '').strip()
-    if tab != 'incomplete' or as_bucket not in incomplete_buckets:
-        as_bucket = ''  # 'total'·빈값·타 탭 → 버킷 필터 없음(전체 미완료)
-
-    as_tab_counts = _count_cases(
+    as_count_context = build_as_tab_count_context(
         filtered_base_query,
-        ('sales_delivery', sales_delivery_condition),
-        ('incomplete', incomplete_non_sales_condition),
-        ('completed', _erp_as_completed_condition()),
+        tab=tab,
+        bucket=request.args.get('bucket'),
+        incomplete_non_sales_condition=incomplete_non_sales_condition,
+        sales_delivery_condition=sales_delivery_condition,
+        as_pending_true=as_pending_true,
+        as_visit_date_present=as_visit_date_present,
     )
-    as_incomplete_summary = _count_cases(
-        filtered_base_query,
-        ('total', incomplete_non_sales_condition),
-        ('visit_confirmed', incomplete_buckets['visit_confirmed']),
-        ('pending', incomplete_buckets['pending']),
-        ('unassigned', incomplete_buckets['unassigned']),
-    )
+    incomplete_buckets = as_count_context["incomplete_buckets"]
+    as_bucket = as_count_context["as_bucket"]
+    as_tab_counts = as_count_context["as_tab_counts"]
+    as_incomplete_summary = as_count_context["as_incomplete_summary"]
 
     # 하단 탭: 완료 안된 건 vs 완료 된 건 vs 전체
     query = filtered_base_query
