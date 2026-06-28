@@ -41,7 +41,7 @@ from foms.services.common.erp_shell_http import (
     apply_erp_shell_fragment_headers,
     wants_erp_shell_tab_body,
 )
-from foms.services.request_utils import get_search_query_arg
+from foms.services.measurement_dashboard_filters import parse_measurement_dashboard_filters
 
 erp_measurement_dashboard_bp = Blueprint(
     'erp_measurement_dashboard', __name__, url_prefix='/erp'
@@ -123,11 +123,20 @@ def erp_measurement_dashboard():
     db = get_db()
     today_kst = get_today_kst()
     today_date = today_kst.strftime('%Y-%m-%d')
-    search_q = get_search_query_arg('q', 'search', 'manager')
-    date_from = (request.args.get('date_from') or '').strip()
-    date_to = (request.args.get('date_to') or '').strip()
-    req_date = (request.args.get('date') or '').strip()
-    open_map = request.args.get('open_map') == '1'
+    # Batch 3: request.args 파싱·use_range/use_single_day 파생·날짜창은
+    # parse_measurement_dashboard_filters로 분리(동작 보존). 아래는 다운스트림 호환 로컬 바인딩.
+    _mf = parse_measurement_dashboard_filters(request, today_kst)
+    search_q = _mf.search_q
+    date_from = _mf.date_from
+    date_to = _mf.date_to
+    open_map = _mf.open_map
+    use_range = _mf.use_range
+    use_single_day = _mf.use_single_day
+    selected_date = _mf.selected_date
+    range_start = _mf.range_start
+    range_end = _mf.range_end
+    range_start_str = _mf.range_start_str
+    range_end_str = _mf.range_end_str
 
     # Phase H: 대시보드 운영 화면은 최근 활성 데이터만 조회 (과거 완료건 제외)
     base_query = db.query(Order).filter(Order.dashboard_active_filter(days=60))
@@ -143,30 +152,6 @@ def erp_measurement_dashboard():
         )
     )
     query = base_query
-
-    use_range = bool(date_from and date_to)
-    if use_range:
-        try:
-            datetime.datetime.strptime(date_from, '%Y-%m-%d').date()
-            datetime.datetime.strptime(date_to, '%Y-%m-%d').date()
-        except (ValueError, TypeError):
-            use_range = False
-    use_single_day = bool(req_date) and not use_range
-    if use_single_day:
-        try:
-            datetime.datetime.strptime(req_date, '%Y-%m-%d').date()
-        except (ValueError, TypeError):
-            use_single_day = False
-    # 기본 진입은 당일 주문만 로드한다. 전체 목록 로드는 대시보드 기본 동작에서 제외.
-    if not use_range and not use_single_day:
-        req_date = today_date
-        use_single_day = True
-    selected_date = req_date
-
-    range_start = today_kst
-    range_end = today_kst + datetime.timedelta(days=14)
-    range_start_str = range_start.strftime('%Y-%m-%d')
-    range_end_str = range_end.strftime('%Y-%m-%d')
 
     if use_range or use_single_day:
         query = query.join(OrderScheduleDate, Order.id == OrderScheduleDate.order_id)
