@@ -14,6 +14,7 @@ from foms.services.erp_display import (
     self_measurement_four_checks_done,
 )
 from foms.services.erp_mobile_order_display import resolve_manager_phone_for_queue
+from foms.services.estimate_service import build_measurement_manager_phone_map
 from models import OrderAttachment
 
 __all__ = [
@@ -297,6 +298,9 @@ def build_construction_row_dtos(orders, att_counts, f_stage):
         list[dict]: 원본 enriched와 동일 구조.
     """
     enriched = []
+    # N+1 제거: 실측담당자 연락처는 출고 설정 1회 로드로 만든 map을 행마다 재사용.
+    # (이전엔 행마다 load_erp_shipment_settings 재조회 → 브라우즈 최대 300행 N+1)
+    manager_phone_map = build_measurement_manager_phone_map()
     for order in orders:
         if getattr(order, "is_self_measurement", False) and not self_measurement_four_checks_done(order):
             continue
@@ -333,6 +337,7 @@ def build_construction_row_dtos(orders, att_counts, f_stage):
                 "manager_phone": resolve_manager_phone_for_queue(
                     structured_data.get("parties") or {},
                     order=order,
+                    manager_phone_map=manager_phone_map,
                 ),
                 "phone": (((structured_data.get("parties") or {}).get("customer") or {}).get("phone")) or "-",
                 "as_received_date": getattr(order, "as_received_date", None) or "",

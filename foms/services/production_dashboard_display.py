@@ -16,6 +16,7 @@ from foms.services.erp_display import (
     _erp_has_media,
 )
 from foms.services.erp_mobile_order_display import resolve_manager_phone_for_queue
+from foms.services.estimate_service import build_measurement_manager_phone_map
 
 __all__ = [
     "build_production_enriched_rows",
@@ -63,7 +64,11 @@ def _production_quest_sales_state(
 
 
 def _enrich_one_production_order(
-    o: Any, sd: dict[str, Any], stage_label: str, att_n: int
+    o: Any,
+    sd: dict[str, Any],
+    stage_label: str,
+    att_n: int,
+    manager_phone_map: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """단일 Order → 목록 행 dict."""
     is_sales_approved, active_quest = _production_quest_sales_state(sd, stage_label)
@@ -86,7 +91,9 @@ def _enrich_one_production_order(
         'measurement_date': (((sd.get('schedule') or {}).get('measurement') or {}).get('date')),
         'construction_date': (((sd.get('schedule') or {}).get('construction') or {}).get('date')),
         'manager_name': (((sd.get('parties') or {}).get('manager') or {}).get('name')) or '-',
-        'manager_phone': resolve_manager_phone_for_queue(sd.get('parties') or {}, order=o),
+        'manager_phone': resolve_manager_phone_for_queue(
+            sd.get('parties') or {}, order=o, manager_phone_map=manager_phone_map
+        ),
         'phone': (((sd.get('parties') or {}).get('customer') or {}).get('phone')) or '-',
     }
 
@@ -96,6 +103,8 @@ def build_production_enriched_rows(
 ) -> list[dict[str, Any]]:
     """현재 페이지 주문만 목록용 dict로 변환."""
     enriched: list[dict[str, Any]] = []
+    # N+1 제거: 실측담당자 연락처 map을 1회 만들어 행마다 재사용(설정 재조회 제거).
+    manager_phone_map = build_measurement_manager_phone_map()
     for o in page_rows:
         sd = _ensure_dict(o.structured_data)
         raw_stage = _erp_get_stage(o, sd)
@@ -105,7 +114,9 @@ def build_production_enriched_rows(
         if not stage_label:
             continue
         att_n = att_counts.get(o.id, 0)
-        enriched.append(_enrich_one_production_order(o, sd, stage_label, att_n))
+        enriched.append(
+            _enrich_one_production_order(o, sd, stage_label, att_n, manager_phone_map)
+        )
     return enriched
 
 
