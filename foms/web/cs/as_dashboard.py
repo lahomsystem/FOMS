@@ -23,7 +23,7 @@ from foms.services.common.erp_shell_http import (
     wants_erp_shell_tab_body,
 )
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
-from foms.services.request_utils import get_search_query_arg
+from foms.services.as_dashboard_filters import parse_as_dashboard_filters
 
 
 erp_as_page_bp = Blueprint('erp_as_page', __name__, url_prefix='/erp')
@@ -269,14 +269,13 @@ def _erp_as_incomplete_condition():
 def erp_as_dashboard():
     """ERP Order - AS 대시보드 (MVP: AS 상태 주문 리스트)"""
     db = get_db()
-    status_filter = (request.args.get('status') or '').strip()
-    search_q = get_search_query_arg('q', 'search', 'manager')
-    selected_date = request.args.get('date')
-    open_map = request.args.get('open_map') == '1'
-    tab = (request.args.get('tab') or 'incomplete').strip()
-    
-    if tab not in ('incomplete', 'completed', 'sales_delivery'):
-        tab = 'incomplete'
+    # Batch 5: 상단 request.args 파싱·tab 화이트리스트는 parse_as_dashboard_filters로 분리(동작 보존).
+    _af = parse_as_dashboard_filters(request)
+    status_filter = _af.status_filter
+    search_q = _af.search_q
+    selected_date = _af.selected_date
+    open_map = _af.open_map
+    tab = _af.tab
 
     if open_map:
         date_val = selected_date or get_today_kst().strftime('%Y-%m-%d')
