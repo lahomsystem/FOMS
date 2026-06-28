@@ -26,29 +26,49 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 
+def build_measurement_manager_phone_map(settings: Optional[dict] = None) -> dict[str, str]:
+    """정규화된 실측담당자 이름 → 연락처 map (출고 설정 1회 로드, 첫 매치 우선).
+
+    모바일 큐 등 다건 처리에서 행마다 설정을 재조회하는 N+1을 없애기 위한 사전조회용.
+    중복 이름은 첫 행 우선(원본 iterate-first-match와 동일).
+    """
+    if settings is None:
+        try:
+            from foms.services.erp_shipment_settings import load_erp_shipment_settings
+
+            settings = load_erp_shipment_settings()
+        except Exception:
+            logger.exception("실측담당자 연락처 맵 로드 실패 (출고 설정 로드)")
+            return {}
+
+    out: dict[str, str] = {}
+    for m in settings.get("measurement_manager") or []:
+        if not isinstance(m, dict):
+            continue
+        key = normalize_measurement_manager_key(m.get("name"))
+        if not key or key in out:
+            continue
+        out[key] = str(m.get("phone") or "").strip()
+    return out
+
+
+def resolve_manager_phone_from_map(manager_name: str, phone_map: dict[str, str]) -> str:
+    """사전 구축된 이름→연락처 map에서 담당자 연락처 조회(설정 재조회 없음)."""
+    if not (manager_name or "").strip():
+        return ""
+    key = normalize_measurement_manager_key(manager_name)
+    if not key:
+        return ""
+    return phone_map.get(key, "")
+
+
 def resolve_manager_phone_from_measurement_settings(manager_name: str) -> str:
     """ERP 출고 설정의 실측담당자 목록에서 이름이 일치하는 행의 연락처를 반환한다."""
     if not (manager_name or "").strip():
         return ""
-    try:
-        from foms.services.erp_shipment_settings import load_erp_shipment_settings
-
-        settings = load_erp_shipment_settings()
-    except Exception:
-        logger.exception("실측담당자 연락처 조회 실패 (출고 설정 로드)")
-        return ""
-
-    key = normalize_measurement_manager_key(manager_name)
-    if not key:
-        return ""
-
-    for m in settings.get("measurement_manager") or []:
-        if not isinstance(m, dict):
-            continue
-        if normalize_measurement_manager_key(m.get("name")) != key:
-            continue
-        return str(m.get("phone") or "").strip()
-    return ""
+    return resolve_manager_phone_from_map(
+        manager_name, build_measurement_manager_phone_map()
+    )
 
 
 def generate_estimate_number(db: Session, date_str: str) -> str:

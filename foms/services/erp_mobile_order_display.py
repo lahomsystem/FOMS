@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import Any
 
 from foms.api.files.routes import build_file_download_url, build_file_view_url
@@ -13,11 +14,17 @@ from foms.services.erp_display import (
     erp_payment_amount_from_structured,
 )
 from foms.services.erp_policy import STAGE_LABELS, STAGE_NAME_TO_CODE
-from foms.services.erp_quest_display import build_current_quest_payload, load_assignee_user_map
+from foms.services.erp_quest_display import (
+    build_current_quest_payload,
+    load_assignee_user_map,
+    load_assignee_user_map_batch,
+)
 from foms.services.estimate_service import (
     _balance_after_payments,
     _extract_deposit_amount,
     _extract_discount_amount,
+    build_measurement_manager_phone_map,
+    resolve_manager_phone_from_map,
     resolve_manager_phone_from_measurement_settings,
 )
 from foms.services.order_event_display import (
@@ -32,6 +39,8 @@ __all__ = [
     "format_queue_card_schedule_summary",
     "product_subtitle_from_sd",
     "build_mobile_queue_order_row",
+    "MobileQueueBatchContext",
+    "build_mobile_queue_batch_context",
     "resolve_manager_phone_for_queue",
     "mobile_timeline_events",
     "mobile_attachment_items",
@@ -61,6 +70,24 @@ _MAX_QUEUE_PREVIEW_COUNT = 3
 
 
 
+def _mobile_timeline_event_dict(ev) -> dict[str, Any]:
+    """OrderEvent → 모바일 타임라인 항목 dict (per-row·batch 공용)."""
+    payload = ev.payload if isinstance(ev.payload, dict) else {}
+    event_type = ev.event_type or ""
+    created_by = getattr(ev, "created_by", None)
+    actor_name = str(created_by.name) if created_by and getattr(created_by, "name", None) else None
+    return {
+        "title": translate_event_type_to_korean(event_type),
+        "meta": format_timeline_meta(
+            event_type,
+            payload,
+            actor_name=actor_name,
+            created_at=getattr(ev, "created_at", None),
+        ),
+        "done": True,
+    }
+
+
 def mobile_timeline_events(db, order_id: int, *, limit: int = 12) -> list[dict[str, Any]]:
     """Recent OrderEvent rows for mobile detail timeline (newest first)."""
     try:
@@ -76,25 +103,7 @@ def mobile_timeline_events(db, order_id: int, *, limit: int = 12) -> list[dict[s
     except Exception:
         return []
 
-    items: list[dict[str, Any]] = []
-    for ev in rows:
-        payload = ev.payload if isinstance(ev.payload, dict) else {}
-        event_type = ev.event_type or ""
-        created_by = getattr(ev, "created_by", None)
-        actor_name = str(created_by.name) if created_by and getattr(created_by, "name", None) else None
-        items.append(
-            {
-                "title": translate_event_type_to_korean(event_type),
-                "meta": format_timeline_meta(
-                    event_type,
-                    payload,
-                    actor_name=actor_name,
-                    created_at=getattr(ev, "created_at", None),
-                ),
-                "done": True,
-            }
-        )
-    return items
+    return [_mobile_timeline_event_dict(ev) for ev in rows]
 
 
 def _is_image_filename(filename: str | None) -> bool:
@@ -338,6 +347,31 @@ def mobile_amount_summary(sd: dict) -> dict[str, Any]:
     }
 
 
+def _mobile_attachment_item_dict(att) -> dict[str, Any]:
+    """OrderAttachment → 모바일 첨부 그리드 항목 dict (per-row·batch 공용)."""
+    category_labels = {
+        "measurement": "실측",
+        "drawing": "도면",
+        "construction": "시공",
+        "as": "AS",
+    }
+    cat = (att.category or "measurement").lower()
+    label = att.filename or category_labels.get(cat, cat)
+    thumb_url = _attachment_thumbnail_url(att)
+    view_url = _attachment_full_view_url(att)
+    storage_key = (getattr(att, "storage_key", None) or "").strip()
+    download_url = build_file_download_url(storage_key) if storage_key else None
+    return {
+        "label": label,
+        "category": cat,
+        "id": att.id,
+        "item_index": getattr(att, "item_index", None),
+        "thumb_url": thumb_url,
+        "view_url": view_url,
+        "download_url": download_url,
+    }
+
+
 def mobile_attachment_items(db, order_id: int, *, limit: int = 8) -> list[dict[str, Any]]:
     """Attachment summary rows for mobile detail attach grid."""
     try:
@@ -353,32 +387,7 @@ def mobile_attachment_items(db, order_id: int, *, limit: int = 8) -> list[dict[s
     except Exception:
         return []
 
-    category_labels = {
-        "measurement": "실측",
-        "drawing": "도면",
-        "construction": "시공",
-        "as": "AS",
-    }
-    items: list[dict[str, Any]] = []
-    for att in rows:
-        cat = (att.category or "measurement").lower()
-        label = att.filename or category_labels.get(cat, cat)
-        thumb_url = _attachment_thumbnail_url(att)
-        view_url = _attachment_full_view_url(att)
-        storage_key = (getattr(att, "storage_key", None) or "").strip()
-        download_url = build_file_download_url(storage_key) if storage_key else None
-        items.append(
-            {
-                "label": label,
-                "category": cat,
-                "id": att.id,
-                "item_index": getattr(att, "item_index", None),
-                "thumb_url": thumb_url,
-                "view_url": view_url,
-                "download_url": download_url,
-            }
-        )
-    return items
+    return [_mobile_attachment_item_dict(att) for att in rows]
 
 
 def stage_badge_modifier(stage: str | None) -> str:
@@ -543,8 +552,12 @@ def resolve_manager_phone_for_queue(
     *,
     manager_name: str = "",
     order=None,
+    manager_phone_map: dict[str, str] | None = None,
 ) -> str:
-    """Resolve manager tel: target — structured_data phone, then 출고 설정 실측담당자 목록."""
+    """Resolve manager tel: target — structured_data phone, then 출고 설정 실측담당자 목록.
+
+    manager_phone_map(사전 구축된 이름→연락처)이 주어지면 설정 재조회 없이 사용한다(N+1 제거).
+    """
     parties = parties or {}
     manager = parties.get("manager") or {}
     name = (
@@ -554,14 +567,137 @@ def resolve_manager_phone_for_queue(
         or ""
     )
     phone = str(manager.get("phone") or "").strip()
-    resolved = resolve_manager_phone_from_measurement_settings(str(name).strip())
+    if manager_phone_map is not None:
+        resolved = resolve_manager_phone_from_map(str(name).strip(), manager_phone_map)
+    else:
+        resolved = resolve_manager_phone_from_measurement_settings(str(name).strip())
     return resolved or phone
 
 
-def build_mobile_queue_order_row(db, order, current_user=None) -> dict[str, Any]:
-    """Build a dashboard-compatible dict for mobile v2 queue/detail templates."""
+@dataclass
+class MobileQueueBatchContext:
+    """모바일 v2 큐 행을 N+1 없이 만들기 위한 사전 일괄 조회 데이터.
+
+    build_mobile_queue_order_row에 전달하면 주문별 단건 조회 대신 이 사전조회 결과를
+    쓴다. None이면 기존(주문별) 경로를 그대로 사용한다.
+    """
+    attachment_counts: dict[int, int] = field(default_factory=dict)
+    attachments_by_order: dict[int, list[dict[str, Any]]] = field(default_factory=dict)
+    preview_items_by_order: dict[int, list[dict[str, str]]] = field(default_factory=dict)
+    timeline_by_order: dict[int, list[dict[str, Any]]] = field(default_factory=dict)
+    user_map: dict[int, str] = field(default_factory=dict)
+    manager_phone_map: dict[str, str] = field(default_factory=dict)
+
+
+def _batch_attachment_counts(db, order_ids: list[int]) -> dict[int, int]:
+    """주문별 첨부 총 개수(1회 GROUP BY) — _attachment_count의 배치판."""
+    counts: dict[int, int] = {}
+    if not order_ids:
+        return counts
+    try:
+        from models import OrderAttachment
+        from sqlalchemy import func
+
+        rows = (
+            db.query(OrderAttachment.order_id, func.count(OrderAttachment.id))
+            .filter(OrderAttachment.order_id.in_(order_ids))
+            .group_by(OrderAttachment.order_id)
+            .all()
+        )
+    except Exception:
+        return counts
+    for oid, cnt in rows:
+        counts[int(oid)] = int(cnt or 0)
+    return counts
+
+
+def _batch_mobile_attachment_items(
+    db, order_ids: list[int], *, limit_per_order: int = 50
+) -> dict[int, list[dict[str, Any]]]:
+    """주문별 첨부 그리드 항목(1회 in_ 조회) — mobile_attachment_items의 배치판.
+
+    주문 내 정렬(created_at desc)·항목당 limit을 per-row 경로와 동일하게 유지한다.
+    """
+    out: dict[int, list[dict[str, Any]]] = {oid: [] for oid in order_ids}
+    if not order_ids:
+        return out
+    try:
+        from models import OrderAttachment
+
+        rows = (
+            db.query(OrderAttachment)
+            .filter(OrderAttachment.order_id.in_(order_ids))
+            .order_by(OrderAttachment.order_id.asc(), OrderAttachment.created_at.desc())
+            .all()
+        )
+    except Exception:
+        return out
+    for att in rows:
+        bucket = out.get(int(att.order_id))
+        if bucket is None or len(bucket) >= limit_per_order:
+            continue
+        bucket.append(_mobile_attachment_item_dict(att))
+    return out
+
+
+def _batch_mobile_timeline_events(
+    db, order_ids: list[int], *, limit_per_order: int = 12
+) -> dict[int, list[dict[str, Any]]]:
+    """주문별 타임라인(1회 in_ 조회 + created_by selectinload) — mobile_timeline_events 배치판."""
+    out: dict[int, list[dict[str, Any]]] = {oid: [] for oid in order_ids}
+    if not order_ids:
+        return out
+    try:
+        from models import OrderEvent
+        from sqlalchemy.orm import selectinload
+
+        rows = (
+            db.query(OrderEvent)
+            .options(selectinload(OrderEvent.created_by))
+            .filter(OrderEvent.order_id.in_(order_ids))
+            .order_by(OrderEvent.order_id.asc(), OrderEvent.created_at.desc())
+            .all()
+        )
+    except Exception:
+        return out
+    for ev in rows:
+        bucket = out.get(int(ev.order_id))
+        if bucket is None or len(bucket) >= limit_per_order:
+            continue
+        bucket.append(_mobile_timeline_event_dict(ev))
+    return out
+
+
+def build_mobile_queue_batch_context(db, orders: list[Any]) -> MobileQueueBatchContext:
+    """모바일 v2 큐 주문 목록의 첨부/미리보기/타임라인/담당자명을 일괄 사전조회한다.
+
+    주문 수 N과 무관하게 고정 수의 쿼리만 발생시켜 build_mobile_queue_order_row의
+    주문별 N+1을 제거한다(각 주문 결과는 per-row 경로와 동일).
+    """
+    order_ids = [o.id for o in orders]
+    sds = [_ensure_dict(getattr(o, "structured_data", None)) for o in orders]
+    return MobileQueueBatchContext(
+        attachment_counts=_batch_attachment_counts(db, order_ids),
+        attachments_by_order=_batch_mobile_attachment_items(db, order_ids, limit_per_order=50),
+        preview_items_by_order=batch_resolve_queue_attachment_preview_items(db, order_ids),
+        timeline_by_order=_batch_mobile_timeline_events(db, order_ids),
+        user_map=load_assignee_user_map_batch(db, sds),
+        manager_phone_map=build_measurement_manager_phone_map(),
+    )
+
+
+def build_mobile_queue_order_row(db, order, current_user=None, *, batch_ctx=None) -> dict[str, Any]:
+    """Build a dashboard-compatible dict for mobile v2 queue/detail templates.
+
+    batch_ctx(MobileQueueBatchContext)가 주어지면 주문별 단건 조회 대신 사전 일괄조회
+    결과를 사용한다(N+1 제거). None이면 기존 동작과 100% 동일.
+    """
     sd = _ensure_dict(getattr(order, "structured_data", None))
-    cnt = _attachment_count(db, order.id)
+    cnt = (
+        batch_ctx.attachment_counts.get(order.id, 0)
+        if batch_ctx is not None
+        else _attachment_count(db, order.id)
+    )
     stage = _erp_get_stage(order, sd)
     stage_key = stage if isinstance(stage, str) else ""
     stage_code = STAGE_NAME_TO_CODE.get(stage_key, stage_key)
@@ -569,7 +705,7 @@ def build_mobile_queue_order_row(db, order, current_user=None) -> dict[str, Any]
     parties = sd.get("parties") or {}
     site = sd.get("site") or {}
     schedule = sd.get("schedule") or {}
-    user_map = load_assignee_user_map(db, sd)
+    user_map = batch_ctx.user_map if batch_ctx is not None else load_assignee_user_map(db, sd)
     current_quest_payload = build_current_quest_payload(
         sd=sd,
         stage=stage,
@@ -578,18 +714,29 @@ def build_mobile_queue_order_row(db, order, current_user=None) -> dict[str, Any]
         current_user=current_user,
         user_map=user_map,
     )
-    preview_items = batch_resolve_queue_attachment_preview_items(db, [order.id]).get(
-        order.id, []
+    preview_items = (
+        batch_ctx.preview_items_by_order.get(order.id, [])
+        if batch_ctx is not None
+        else batch_resolve_queue_attachment_preview_items(db, [order.id]).get(order.id, [])
     )
     previews = [item["view"] for item in preview_items if item.get("view")]
     received = schedule.get("received") or {}
-    attachments = mobile_attachment_items(db, order.id, limit=50)
+    attachments = (
+        batch_ctx.attachments_by_order.get(order.id, [])
+        if batch_ctx is not None
+        else mobile_attachment_items(db, order.id, limit=50)
+    )
     product_items = mobile_product_items(sd, attachments)
     _, common_attachments = _group_attachments_by_item_index(
         attachments,
         item_count=len([i for i in (sd.get("items") or []) if isinstance(i, dict)]),
     )
     common_attachment_categories = mobile_attachment_categories(common_attachments)
+    timeline_events = (
+        batch_ctx.timeline_by_order.get(order.id, [])
+        if batch_ctx is not None
+        else mobile_timeline_events(db, order.id)
+    )
 
     return {
         "id": order.id,
@@ -600,7 +747,11 @@ def build_mobile_queue_order_row(db, order, current_user=None) -> dict[str, Any]
         "construction_date": (schedule.get("construction") or {}).get("date"),
         "received_date": received.get("date") or getattr(order, "received_date", None),
         "manager_name": (parties.get("manager") or {}).get("name") or getattr(order, "manager_name", None) or "-",
-        "manager_phone": resolve_manager_phone_for_queue(parties, order=order),
+        "manager_phone": resolve_manager_phone_for_queue(
+            parties,
+            order=order,
+            manager_phone_map=(batch_ctx.manager_phone_map if batch_ctx is not None else None),
+        ),
         "orderer_name": (parties.get("orderer") or {}).get("name") or None,
         "stage": stage,
         "stage_code": stage_code,
@@ -615,7 +766,7 @@ def build_mobile_queue_order_row(db, order, current_user=None) -> dict[str, Any]
         "attachments": attachments,
         "common_attachments": common_attachments,
         "common_attachment_categories": common_attachment_categories,
-        "timeline_events": mobile_timeline_events(db, order.id),
+        "timeline_events": timeline_events,
         "product_items": product_items,
         "amount_summary": mobile_amount_summary(sd),
         "structured_data": sd,
