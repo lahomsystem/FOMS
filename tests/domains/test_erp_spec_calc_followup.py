@@ -27,6 +27,8 @@ ORDER_JS_TPL = ROOT / "templates/orders/partials/erp_order_js.html"
 EDIT_BODY_TPL = ROOT / "templates/orders/partials/edit_order_body.html"
 FORM_FIELD_CSS = ROOT / "static/css/components/foms-form-field.css"
 PRODUCT_SETTINGS = ROOT / "templates/wdcalculator/product_settings.html"
+# Batch 6: product_settings inline JS가 static 모듈로 이동 → JS 계약은 모듈에서 검사
+PRODUCT_SETTINGS_JS = ROOT / "static/js/wdcalculator/product-settings.js"
 WDC_BLUEPRINT = ROOT / "foms/api/wdcalculator/blueprint.py"
 
 
@@ -116,7 +118,7 @@ def test_legacy_stacked_controls_removed() -> None:
 
 # ----- req3: 0원 옵션 등록 허용 -----
 def test_product_settings_allows_zero_price_option() -> None:
-    html = _read(PRODUCT_SETTINGS)
+    html = _read(PRODUCT_SETTINGS) + "\n" + _read(PRODUCT_SETTINGS_JS)
     assert "optionPrice < 0" in html       # 음수만 거부
     assert "optionPrice <= 0" not in html  # 0원 거부 로직 제거
 

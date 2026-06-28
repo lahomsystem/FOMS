@@ -222,19 +222,19 @@ foms/web/<domain>/dashboard.py
 - [ ] production/construction shared template 후보는 구조 freeze 후 별도 PR
 - [ ] 테스트: stage/q/mine/focus, count/page, process_steps
 
-### Batch 5 - AS Dashboard + Shipment/AS Inline JS Extraction
-- [ ] AS tab/count/query read-model 분리
-- [ ] AS attachment/upload JS를 static module로 이동
-- [ ] Shipment inline script를 static module로 이동
-- [ ] shell fragment init/teardown contract 도입
-- [ ] 테스트: AS tabs, upload fallback, shipment add-row, fragment swap listener duplicate
+### Batch 5 - AS Dashboard + Shipment/AS Inline JS Extraction  ✅ DONE (2026-06-29)
+- [ ] AS tab/count/query read-model 분리 (백엔드 분리 — 별도 작업, 미착수)
+- [x] AS attachment/upload JS를 static module로 이동 → `static/js/cs/as-dashboard.js` (inline 2127줄 verbatim 이동, Jinja 주입값 2개[compact_search_q/as_tab]는 `#as-dashboard-config` data-*로)
+- [x] Shipment inline script를 static module로 이동 → `static/js/shipment/shipment-dashboard.js` (inline 1465줄, `{% if can_edit_shipment %}` 게이트 → `if(__shipDashCanEdit)` JS 가드, selected_date도 config로)
+- [x] shell fragment init/teardown contract 도입 → **별도 레지스트리 불필요**: `erp-shell.js activateScripts`가 fragment swap마다 `<script src>`도 재실행(266-296, src clone). 기존 inline 재실행 의미 그대로 보존. AS는 기존 `readyState`+AbortController idempotent 부트스트랩 유지.
+- [x] 테스트: 위치-고정 계약 테스트 6+5개를 "AS/출고 표면(template+module)" 합본 검사로 갱신, fragment redeclaration-safe 가드 PASS
 
-### Batch 6 - WDCalculator App Chunk Rebaseline
-- [ ] `WdCalculatorApp` factory 도입
-- [ ] `composition.js` host wrapper 제거 wave
-- [ ] `product_settings.html` JS static module 이동
-- [ ] product-settings CRUD에서 `location.reload()` 제거
-- [ ] 테스트: `tests/contracts/wdcalculator/*`, product-settings no-reload, mobile resize smoke
+### Batch 6 - WDCalculator App Chunk Rebaseline  (부분 DONE 2026-06-29)
+- [ ] `WdCalculatorApp` factory 도입 (대형 아키텍처 — 미착수)
+- [ ] `composition.js` host wrapper 제거 wave (고위험 — 미착수)
+- [x] `product_settings.html` JS static module 이동 → `static/js/wdcalculator/product-settings.js` (inline 1400줄 verbatim, Jinja 0개[데이터는 #initial-* JSON 블록]. 표준 단독 페이지라 swap 무관, defer 1회 실행)
+- [ ] product-settings CRUD에서 `location.reload()` 제거 (**동작 변경** — Stop Rules상 별도 승인/QA 필요, 이번 extraction에서는 reload 유지)
+- [x] 테스트: `test_product_settings_allows_zero_price_option` 표면 합본으로 갱신, WDC contract/domain PASS
 
 ### Batch 7 - Search/Index Tranche
 > ⚠ 결함 F4: 기존 trigram(phase_d/e: `CAST(structured_data AS VARCHAR)`, manager_name)은 AS `_sql_compact` 변형·서브패스를 **커버하지 않음**. 새 인덱스 필요.
