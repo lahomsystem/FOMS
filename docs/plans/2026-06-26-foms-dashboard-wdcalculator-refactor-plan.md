@@ -1,7 +1,7 @@
 # FOMS Dashboard + WDCalculator Refactor Plan
 > 작성일: 2026-06-26 | 상태: 구현 진행 중(staging 배포, production 무터치) | 범위: FOMS ERP 대시보드 전체 + WDCalculator
 > 재검증: 2026-06-26 deep review 2-pass. 6개 결함 본문 반영(§3.1/§3.5/§3.6/Batch 1·2·7 + §10).
-> 진행 현황·배포 커밋: **§11 참조**(2026-06-28 기준, 6978a292까지 deploy 배포).
+> 진행 현황·배포 커밋: **§11 참조**(2026-06-28 기준, a58fb149까지 deploy 배포).
 
 ## 1. What
 
@@ -352,7 +352,7 @@ REVERIFIED — 6 FINDINGS APPLIED
 
 ## 11. Implementation Progress (staging 배포 — 2026-06-28 기준)
 
-전부 `deploy`(staging)에만 푸시, `production`(400be33a) 무터치. 매 슬라이스 공통 절차:
+전부 `deploy`(staging)에만 푸시, `production`(현재 1de4e265) 무터치. 매 슬라이스 공통 절차:
 flat service 모듈로 **verbatim 추출** + cache 키·fingerprint·get_or_compute는 라우트 유지(lambda 위임)
 + 미사용 import 정리 + APP_OK + 도메인테스트 + 계약(permissions/namespace/runtime) + perf guard(high=0)
 + pin grep + 독립 cavecrew-reviewer 1:1 + pre_push_smoke(247) + push deploy + production 불변 확인. **무회귀.**
@@ -382,16 +382,27 @@ flat service 모듈로 **verbatim 추출** + cache 키·fingerprint·get_or_comp
 | (doc) | §11 진행현황 추가 | cafd538d | (plan) |
 | 5-2 | AS 탭/카운트 조건 헬퍼 service화 | c5ff3f15 | services/as_dashboard_helpers.py |
 | 4-2 | construction 행 DTO + 단계표시 헬퍼 service화 | 6978a292 | services/construction_dashboard_display.py |
+| (doc) | §11 진행현황 갱신(5-2·4-2) | a59a5d85 | (plan) |
+| 5 | AS SQL expression 헬퍼 분리 | 4a82bbb6 | as_dashboard_helpers.py |
+| 5 | AS count context read-model 분리 | 0378e4b8 | as_dashboard_read_model.py |
+| 5 | AS 탭 SQL 조건 context read-model 분리 | e97b7d9b | as_dashboard_read_model.py |
+| 5-3 | AS row 표시필드 보강 블록 display화(+시공자명 정규화) | 4bbe8b76 | as_dashboard_display.py |
+| 4-3 | production 요청 파서 분리 | b0d59829 | services/production_dashboard_filters.py |
+| 4-4 | production read-model(query/counts/kpi/attach/paginate) | 8c51d9ef | services/production_read_model.py |
+| 4-5 | production 행 DTO + 단계표시 헬퍼 display화 | adc45fde | services/production_dashboard_display.py |
+| 4-4 후속 | production mine-path 계약 갱신 | a58fb149 | (test) |
 
 **도메인 상태**: orders(파서+read-model+dto 완성, 라우트 1015→640), measurement(파서+read-model 완성),
-shipment(파서+헬퍼+read-model 완성), AS(파서+탭/카운트 조건헬퍼), construction(파서+행DTO·단계헬퍼), production(기분해).
+shipment(파서+헬퍼+read-model 완성), AS(파서+SQL expr/count·tab context read-model+행표시 display 완성),
+construction(파서+행DTO·단계헬퍼), production(파서+read-model+display 완성, 라우트 337→134).
 Batch 0 contract freeze는 기존(active_filter/history/search/cache/slice/mobile/focus)+신규 파서 단위테스트로 충족.
 
 ### 남은 작업 (미착수 — 전부 고위험/승인)
 - **Batch 2b** orders count 정합성 — behavior change, **사용자 승인 필요**.
 - **Batch 3 잔여** mobile queue row builder batch preload(선택).
-- **Batch 4** production/construction KPI·pagination — behavior change.
-- **Batch 5 잔여** AS tab/count read-model(순차 tangle), AS/shipment inline JS→static module, shell init/teardown contract.
+- **Batch 4** production/construction KPI Python-scan→SQL aggregate·pagination 교정 — behavior change(승인 필요).
+  ※ production/construction 구조-추출(파서/read-model/display)은 완료. KPI/pagination 본체만 잔여. **백엔드 구조-only 안전영역 사실상 소진.**
+- **Batch 5 잔여** AS/shipment inline JS→static module, shell init/teardown contract — frontend(JS 단위테스트 약함, 사용자 방향확인 필요).
 - **Batch 6** WDC app chunk(composition.js host wrapper, product_settings.html JS, location.reload×12) — frontend.
 - **Batch 7** search normalized field + trigram index(CONCURRENTLY+advisory lock).
 
@@ -399,6 +410,7 @@ Batch 0 contract freeze는 기존(active_filter/history/search/cache/slice/mobil
 - 동시 Cursor 세션 git 레이스 → commit/push 전 reflog 확인.
 - 위치-고정 계약 테스트(foms_namespace_surface·test_erp_permissions·slice_contract의
   `extract_all_measurement_dates`·`self_measurement_four_checks_done` 등) → 심볼 이동 시 pin 깨짐 주의.
+  (production read-model 이전 시 test_erp_permissions mine-path 계약이 production_read_model.py도 합쳐 읽도록 갱신 — orders 선례 동일.)
 - foms.services 패키지 standalone 순환(flat 모듈도 영향, app 컨텍스트선 정상) → unit test는 app 선로딩 의존.
 
-DEPLOYED THROUGH 6978a292 — PRODUCTION UNTOUCHED (400be33a)
+DEPLOYED THROUGH a58fb149 — PRODUCTION UNTOUCHED (현재 1de4e265; 기존 400be33a에서 운영 승격됨, 본 세션은 production 무터치)
