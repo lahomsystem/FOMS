@@ -2,7 +2,7 @@
 import time
 from flask import Blueprint, make_response, render_template, request, redirect, url_for, g
 from db import get_db
-from models import Order, OrderAttachment
+from models import Order
 from foms.web.auth import login_required
 from sqlalchemy import or_, cast, String, case
 import datetime
@@ -12,11 +12,7 @@ from foms.services.common.erp_mine_filter import erp_mine_only_from_request
 from foms.services.erp_permissions import build_mine_sql_filter, can_edit_erp
 from foms.services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders, get_today_kst
 from foms.services.as_content_safety import sanitize_as_content_html
-from foms.services.as_dashboard_display import (
-    as_stage_badge_modifier,
-    as_thumb_enabled,
-    batch_resolve_as_thumbnail_urls,
-)
+from foms.services.as_dashboard_display import apply_as_dashboard_row_display_fields
 from foms.services.feature_flags import is_enabled_for_user
 from foms.services.common.erp_shell_http import (
     apply_erp_shell_fragment_headers,
@@ -60,25 +56,6 @@ def _order_is_sales_delivery(order):
     sd = _ensure_dict(getattr(order, 'structured_data', None))
     shipment = sd.get('shipment') or {}
     return shipment.get('sales_delivery') is True
-
-
-def _normalize_construction_worker_names(value):
-    """Return display-ready construction worker names from legacy or ERP payloads."""
-    if isinstance(value, list):
-        raw_values = value
-    else:
-        raw_values = str(value or '').replace('\n', ',').split(',')
-
-    workers = []
-    for item in raw_values:
-        if isinstance(item, dict):
-            raw_name = item.get('name') or item.get('text') or item.get('value') or ''
-        else:
-            raw_name = item
-        name = str(raw_name or '').strip()
-        if name and name not in workers:
-            workers.append(name)
-    return workers
 
 
 def _erp_order_search_filter(query, q, *, dialect_name='', use_postgres_regex=False):
@@ -281,47 +258,13 @@ def erp_as_dashboard():
 
     rows = query.offset((page - 1) * per_page).limit(per_page).all()
 
-    for r in rows:
-        r.structured_data = _ensure_dict(r.structured_data)  # type: ignore[assignment]
-    apply_erp_display_fields_to_orders(rows)
-    # AS 카테고리 첨부가 있는 주문 ID 집합 (버튼 색상: 있음=파란색, 없음=분홍 파스텔)
-    order_ids = [r.id for r in rows]
-    as_photo_order_ids = set()
-    if order_ids:
-        as_with_photos = db.query(OrderAttachment.order_id).filter(
-            OrderAttachment.order_id.in_(order_ids),
-            OrderAttachment.category == 'as'
-        ).distinct().all()
-        as_photo_order_ids = {x[0] for x in as_with_photos}
     mobile_v2_active = is_enabled_for_user(
         "ERP_MOBILE_V2_ENABLED",
         current_user.id if current_user else None,
         cohort_key="FOMS_V3_SHELL_COHORT",
     )
-    thumb_flag = as_thumb_enabled(mobile_v2_active=mobile_v2_active)
-    thumb_urls = batch_resolve_as_thumbnail_urls(order_ids, db) if order_ids else {}
-    for r in rows:
-        r.has_as_photos = r.id in as_photo_order_ids
-        shipment = r.structured_data.get('shipment') or {}
-        r.as_pending = shipment.get('as_pending') is True
-        r.has_as_blueprint = shipment.get('as_blueprint') is True
-        r.is_sales_delivery = shipment.get('sales_delivery') is True
-        r.construction_workers = _normalize_construction_worker_names(
-            shipment.get('construction_workers')
-        )
-        r.construction_workers_text = ', '.join(r.construction_workers)
-        r.as_content_html = sanitize_as_content_html(shipment.get('as_content'))
-        has_secondary_as_content = 'as_content_2' in shipment
-        secondary_as_content_html = sanitize_as_content_html(shipment.get('as_content_2'))
-        if not has_secondary_as_content and not secondary_as_content_html:
-            secondary_as_content_html = sanitize_as_content_html(getattr(r, 'notes', '') or '')
-        r.as_content_2_html = secondary_as_content_html
-        r.as_thumb_enabled = thumb_flag
-        r.thumbnail_url = thumb_urls.get(r.id) if thumb_flag else None
-        r.stage_badge_modifier = as_stage_badge_modifier(
-            status=str(r.status or ""),
-            as_pending=bool(r.as_pending),
-        )
+    # Batch 5: rows 표시 필드 보강은 apply_as_dashboard_row_display_fields(display 모듈)로 분리(동작 보존, 캐시 아님).
+    apply_as_dashboard_row_display_fields(rows, db, mobile_v2_active=mobile_v2_active)
     # 시공자가 아닌 사용자만 AS 카테고리 사진 조회 가능 (관리자 등)
     can_view_as_photos = not (current_user and (current_user.team or '').strip() == 'CONSTRUCTION')
 
