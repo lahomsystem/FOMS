@@ -15,7 +15,7 @@ from sqlalchemy import or_, and_, cast, String
 from sqlalchemy.orm import load_only, selectinload
 
 from models import Order, OrderScheduleDate
-from foms.services.erp_display import _ensure_dict, self_measurement_four_checks_done
+from foms.services.erp_display import _ensure_dict, self_measurement_four_checks_done, apply_erp_display_fields_to_orders
 from foms.services.measurement_dates import extract_all_measurement_dates
 from foms.services.common.business_calendar import get_holidays_kr
 
@@ -205,3 +205,108 @@ def _build_measurement_dates_for_display(order, selected_date='', date_from='', 
         others = [d for d in all_dates if d not in matched]
         return matched + others
     return all_dates
+
+
+def build_measurement_main_rows(
+    db,
+    base_query,
+    all_rows,
+    current_user,
+    mine_filter_active,
+    selected_date,
+    use_range,
+    use_single_day,
+    date_from,
+    date_to,
+    focus_order_id,
+):
+    """실측 메인 목록 rows 조립 (구 route main-rows 블록). 동작 보존.
+
+    필터 매칭 + raw-match fallback + focus 딥링크 주입(절단 전) + [:300] 절단 +
+    날짜 표시 가공을 원본과 1:1로 수행한다. focus_order_id는 라우트가 파싱해 전달한다.
+
+    Returns:
+        (rows, row_fallback_added_ids)
+    """
+    # lazy import: erp_permissions canonical path(namespace 계약 + circular 회피)
+    from foms.services.erp_permissions import is_order_related_to_user, build_mine_sql_filter
+
+    rows = []
+    for order in all_rows:
+        if self_measurement_four_checks_done(order):
+            continue
+        if use_single_day and selected_date:
+            if _order_matches_measurement_window(order, selected_date=selected_date):
+                rows.append(order)
+        elif use_range and date_from and date_to:
+            if _order_matches_measurement_window(
+                order,
+                date_from=date_from,
+                date_to=date_to,
+            ):
+                rows.append(order)
+        else:
+            rows.append(order)
+
+    row_match_values = []
+    if use_single_day and selected_date:
+        row_match_values = [selected_date]
+    elif use_range and date_from and date_to:
+        start_dt = datetime.datetime.strptime(date_from, '%Y-%m-%d').date()
+        end_dt = datetime.datetime.strptime(date_to, '%Y-%m-%d').date()
+        current_dt = start_dt
+        while current_dt <= end_dt and len(row_match_values) < 93:
+            row_match_values.append(current_dt.strftime('%Y-%m-%d'))
+            current_dt += datetime.timedelta(days=1)
+
+    row_fallback_added_ids: list[int] = []
+    row_fallback_filter = _build_measurement_raw_match_filter(row_match_values)
+    if row_fallback_filter is not None:
+        row_fallback_query = base_query.filter(row_fallback_filter)
+        if mine_filter_active:
+            r_mine_conds = build_mine_sql_filter(current_user)
+            if r_mine_conds:
+                row_fallback_query = row_fallback_query.filter(or_(*r_mine_conds))
+        fallback_rows = row_fallback_query.options(selectinload(Order.schedule_dates)).order_by(Order.id.desc()).limit(1500).all()
+        existing_row_ids = {o.id for o in rows}
+        for order in fallback_rows:
+            order.structured_data = _ensure_dict(order.structured_data)  # type: ignore[assignment]
+            if order.id in existing_row_ids:
+                continue
+            if self_measurement_four_checks_done(order):
+                continue
+            if not _order_matches_measurement_window(order, selected_date=selected_date, date_from=date_from, date_to=date_to):
+                continue
+            rows.append(order)
+            existing_row_ids.add(order.id)
+            row_fallback_added_ids.append(order.id)
+
+    # 검색 카드 딥링크(?focus_order=)는 실측 날짜창과 무관하게 해당 주문이 항상 큐에 착지해야 한다.
+    # orders/construction/cs/as 대시보드와 동일한 deep-link SSOT:
+    # q는 검색창 표시용이고, focus_order는 날짜 필터만 우회한다.
+    # 전역 mine이 켜져 있으면 타인 주문을 강제 포함하지 않는다.
+    if focus_order_id and focus_order_id not in {o.id for o in rows}:
+        focus_row = (
+            db.query(Order)
+            .filter(Order.id == focus_order_id, Order.active_filter())
+            .options(selectinload(Order.schedule_dates))
+            .first()
+        )
+        if focus_row is not None and (
+            not mine_filter_active
+            or is_order_related_to_user(focus_row, current_user)
+        ):
+            focus_row.structured_data = _ensure_dict(focus_row.structured_data)  # type: ignore[assignment]
+            # [:300] 절단보다 앞에 두어 큐가 가득 차도 검색 카드가 누락되지 않게 한다.
+            rows.insert(0, focus_row)
+
+    rows = rows[:300]
+    for row in rows:
+        row.measurement_dates_display = _build_measurement_dates_for_display(
+            row,
+            selected_date=selected_date if use_single_day else '',
+            date_from=date_from if use_range else '',
+            date_to=date_to if use_range else '',
+        )
+    apply_erp_display_fields_to_orders(rows)
+    return rows, row_fallback_added_ids

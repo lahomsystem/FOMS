@@ -15,7 +15,6 @@ from foms.services.common.erp_mine_filter import erp_mine_only_from_request
 from foms.services.erp_permissions import (
     build_mine_sql_filter,
     can_edit_erp,
-    is_order_related_to_user,
 )
 from foms.services.erp_display import (
     _ensure_dict,
@@ -41,11 +40,9 @@ from foms.services.common.erp_shell_http import (
 )
 from foms.services.measurement_dashboard_filters import parse_measurement_dashboard_filters
 from foms.services.measurement_read_model import (
-    _build_measurement_raw_match_filter,
     compute_measurement_panel_assembly,
     compute_measurement_product_items_build,
-    _order_matches_measurement_window,
-    _build_measurement_dates_for_display,
+    build_measurement_main_rows,
 )
 
 erp_measurement_dashboard_bp = Blueprint(
@@ -177,85 +174,13 @@ def erp_measurement_dashboard():
     )
     measurement_panel_dates = _panel_blob["panel_summary_stat_cards"]
 
-    rows = []
-    for order in all_rows:
-        if self_measurement_four_checks_done(order):
-            continue
-        if use_single_day and selected_date:
-            if _order_matches_measurement_window(order, selected_date=selected_date):
-                rows.append(order)
-        elif use_range and date_from and date_to:
-            if _order_matches_measurement_window(
-                order,
-                date_from=date_from,
-                date_to=date_to,
-            ):
-                rows.append(order)
-        else:
-            rows.append(order)
-
-    row_match_values = []
-    if use_single_day and selected_date:
-        row_match_values = [selected_date]
-    elif use_range and date_from and date_to:
-        start_dt = datetime.datetime.strptime(date_from, '%Y-%m-%d').date()
-        end_dt = datetime.datetime.strptime(date_to, '%Y-%m-%d').date()
-        current_dt = start_dt
-        while current_dt <= end_dt and len(row_match_values) < 93:
-            row_match_values.append(current_dt.strftime('%Y-%m-%d'))
-            current_dt += datetime.timedelta(days=1)
-
-    row_fallback_added_ids: list[int] = []
-    row_fallback_filter = _build_measurement_raw_match_filter(row_match_values)
-    if row_fallback_filter is not None:
-        row_fallback_query = base_query.filter(row_fallback_filter)
-        if mine_filter_active:
-            r_mine_conds = build_mine_sql_filter(current_user)
-            if r_mine_conds:
-                row_fallback_query = row_fallback_query.filter(or_(*r_mine_conds))
-        fallback_rows = row_fallback_query.options(selectinload(Order.schedule_dates)).order_by(Order.id.desc()).limit(1500).all()
-        existing_row_ids = {o.id for o in rows}
-        for order in fallback_rows:
-            order.structured_data = _ensure_dict(order.structured_data)  # type: ignore[assignment]
-            if order.id in existing_row_ids:
-                continue
-            if self_measurement_four_checks_done(order):
-                continue
-            if not _order_matches_measurement_window(order, selected_date=selected_date, date_from=date_from, date_to=date_to):
-                continue
-            rows.append(order)
-            existing_row_ids.add(order.id)
-            row_fallback_added_ids.append(order.id)
-
-    # 검색 카드 딥링크(?focus_order=)는 실측 날짜창과 무관하게 해당 주문이 항상 큐에 착지해야 한다.
-    # orders/construction/cs/as 대시보드와 동일한 deep-link SSOT:
-    # q는 검색창 표시용이고, focus_order는 날짜 필터만 우회한다.
-    # 전역 mine이 켜져 있으면 타인 주문을 강제 포함하지 않는다.
+    # Batch 3: 메인 목록 rows 조립(필터매칭+raw-match fallback+focus 딥링크+[:300] 절단+날짜 표시 가공)은
+    # build_measurement_main_rows(read-model)로 분리(동작 보존). focus_order는 라우트가 파싱해 전달.
     focus_order_id = request.args.get('focus_order', type=int)
-    if focus_order_id and focus_order_id not in {o.id for o in rows}:
-        focus_row = (
-            db.query(Order)
-            .filter(Order.id == focus_order_id, Order.active_filter())
-            .options(selectinload(Order.schedule_dates))
-            .first()
-        )
-        if focus_row is not None and (
-            not mine_filter_active
-            or is_order_related_to_user(focus_row, current_user)
-        ):
-            focus_row.structured_data = _ensure_dict(focus_row.structured_data)  # type: ignore[assignment]
-            # [:300] 절단보다 앞에 두어 큐가 가득 차도 검색 카드가 누락되지 않게 한다.
-            rows.insert(0, focus_row)
-
-    rows = rows[:300]
-    for row in rows:
-        row.measurement_dates_display = _build_measurement_dates_for_display(
-            row,
-            selected_date=selected_date if use_single_day else '',
-            date_from=date_from if use_range else '',
-            date_to=date_to if use_range else '',
-        )
-    apply_erp_display_fields_to_orders(rows)
+    rows, row_fallback_added_ids = build_measurement_main_rows(
+        db, base_query, all_rows, current_user, mine_filter_active,
+        selected_date, use_range, use_single_day, date_from, date_to, focus_order_id,
+    )
 
     _pi_fp = {
         "v": 1,
