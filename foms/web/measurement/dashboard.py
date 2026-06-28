@@ -9,9 +9,8 @@ from foms.web.auth import login_required
 import datetime
 from datetime import date, timedelta
 from sqlalchemy import or_, and_, cast, String, func
-from sqlalchemy.orm import load_only, selectinload
+from sqlalchemy.orm import selectinload
 
-from foms.services.common.business_calendar import get_holidays_kr
 from foms.services.common.erp_mine_filter import erp_mine_only_from_request
 from foms.services.erp_permissions import (
     build_mine_sql_filter,
@@ -42,6 +41,10 @@ from foms.services.common.erp_shell_http import (
     wants_erp_shell_tab_body,
 )
 from foms.services.measurement_dashboard_filters import parse_measurement_dashboard_filters
+from foms.services.measurement_read_model import (
+    _build_measurement_raw_match_filter,
+    compute_measurement_panel_assembly,
+)
 
 erp_measurement_dashboard_bp = Blueprint(
     'erp_measurement_dashboard', __name__, url_prefix='/erp'
@@ -64,24 +67,6 @@ def _erp_order_search_filter(query, q):
             )
         )
     )
-
-
-def _build_measurement_raw_match_filter(date_values):
-    values = [str(v).strip() for v in date_values if str(v or '').strip()]
-    if not values:
-        return None
-
-    conditions = []
-    for value in values:
-        conditions.append(Order.measurement_date.ilike(f'%{value}%'))
-        conditions.append(Order.erp_measurement_date == value)
-        conditions.append(
-            and_(
-                Order.is_erp_order == True,
-                cast(Order.structured_data, String).ilike(f'%{value}%')  # perf-ok: ix_orders_structured_data_text_trgm
-            )
-        )
-    return or_(*conditions) if conditions else None
 
 
 def _order_matches_measurement_window(order, selected_date='', date_from='', date_to=''):
@@ -196,109 +181,15 @@ def erp_measurement_dashboard():
         "measurement", "measurement_panel_assembly", _panel_fp
     )
 
-    def _compute_measurement_panel_assembly():
-        panel_query = base_query.join(OrderScheduleDate, Order.id == OrderScheduleDate.order_id)
-        panel_query = panel_query.filter(
-            OrderScheduleDate.kind == 'measurement',
-            OrderScheduleDate.date >= range_start_str,
-            OrderScheduleDate.date <= range_end_str,
-        ).distinct()
-        if mine_filter_active:
-            p_mine_conds = build_mine_sql_filter(current_user)
-            if p_mine_conds:
-                panel_query = panel_query.filter(or_(*p_mine_conds))
-        panel_orders = panel_query.options(
-            load_only(
-                Order.id, Order.measurement_date, Order.structured_data,
-                Order.is_self_measurement, Order.is_erp_order, Order.status,
-                Order.measurement_completed, Order.regional_sales_order_upload,
-                Order.regional_blueprint_sent, Order.regional_order_upload
-            ),
-            selectinload(Order.schedule_dates)
-        ).order_by(Order.id.desc()).all()
-
-        for o in panel_orders:
-            o.structured_data = _ensure_dict(o.structured_data)  # type: ignore[assignment]
-
-        panel_range_values = []
-        cur = range_start
-        while cur <= range_end:
-            panel_range_values.append(cur.strftime('%Y-%m-%d'))
-            cur += datetime.timedelta(days=1)
-
-        panel_order_ids = {o.id for o in panel_orders}
-        panel_fallback_supplement_ids: list[int] = []
-        panel_fallback_filter = _build_measurement_raw_match_filter(panel_range_values)
-        if panel_fallback_filter is not None:
-            panel_fallback_query = base_query.filter(panel_fallback_filter)
-            if mine_filter_active:
-                p_mine_conds = build_mine_sql_filter(current_user)
-                if p_mine_conds:
-                    panel_fallback_query = panel_fallback_query.filter(or_(*p_mine_conds))
-            panel_fallback_orders = panel_fallback_query.options(
-                load_only(
-                    Order.id, Order.measurement_date, Order.structured_data,
-                    Order.is_self_measurement, Order.is_erp_order, Order.status,
-                    Order.measurement_completed, Order.regional_sales_order_upload,
-                    Order.regional_blueprint_sent, Order.regional_order_upload
-                ),
-                selectinload(Order.schedule_dates)
-            ).order_by(Order.id.desc()).limit(1500).all()
-            for order in panel_fallback_orders:
-                order.structured_data = _ensure_dict(order.structured_data)  # type: ignore[assignment]
-                if order.id in panel_order_ids:
-                    continue
-                if not any(range_start_str <= d <= range_end_str for d in extract_all_measurement_dates(order)):
-                    continue
-                panel_orders.append(order)
-                panel_order_ids.add(order.id)
-                panel_fallback_supplement_ids.append(order.id)
-
-        years = {range_start.year, range_end.year}
-        holiday_dates = set()
-        for y in years:
-            holiday_dates |= get_holidays_kr(y)
-
-        measurement_counts = {}
-        for order in panel_orders:
-            if self_measurement_four_checks_done(order):
-                continue
-            all_dates = extract_all_measurement_dates(order)
-            for date_value in all_dates:
-                try:
-                    d = datetime.datetime.strptime(date_value, '%Y-%m-%d').date()
-                except Exception:
-                    continue
-                if d < range_start or d > range_end:
-                    continue
-                key = d.strftime('%Y-%m-%d')
-                measurement_counts[key] = measurement_counts.get(key, 0) + 1
-
-        out_panel_dates = []
-        cur2 = range_start
-        while cur2 <= range_end:
-            date_str = cur2.strftime('%Y-%m-%d')
-            is_weekend = cur2.weekday() >= 5
-            is_holiday = date_str in holiday_dates
-            out_panel_dates.append({
-                'date': date_str,
-                'count': measurement_counts.get(date_str, 0),
-                'weekday': cur2.weekday(),
-                'is_weekend': is_weekend,
-                'is_holiday': is_holiday,
-                'is_selected': date_str == selected_date
-            })
-            cur2 += datetime.timedelta(days=1)
-        return {
-            "panel_summary_stat_cards": out_panel_dates,
-            "panel_row_ids": sorted(panel_order_ids),
-            "panel_fallback_supplement_ids": sorted(panel_fallback_supplement_ids),
-        }
-
+    # Batch 3: panel assembly compute는 compute_measurement_panel_assembly(read-model)로 분리(동작 보존).
+    # cache 키(_panel_key)·fingerprint(_panel_fp)·get_or_compute는 라우트가 유지 → cache hit/miss 불변.
     _panel_blob = get_or_compute_dashboard_slice(
         _panel_key,
         TTL_PANEL_ROWS,
-        _compute_measurement_panel_assembly,
+        lambda: compute_measurement_panel_assembly(
+            base_query, current_user, mine_filter_active, selected_date,
+            range_start, range_end, range_start_str, range_end_str,
+        ),
         page="measurement",
         slice_name="measurement_panel_assembly",
     )
