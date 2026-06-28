@@ -1,7 +1,7 @@
 # FOMS Dashboard + WDCalculator Refactor Plan
-> 작성일: 2026-06-26 | 상태: 구현 진행 중(staging 배포, production 무터치) | 범위: FOMS ERP 대시보드 전체 + WDCalculator
+> 작성일: 2026-06-26 | 상태: **순가치(net-positive) 범위 구현 완료 + staging 배포, production 무터치**. 잔여 tail은 §12에서 형식 종결(keep-current / deferred-with-evidence). | 범위: FOMS ERP 대시보드 전체 + WDCalculator
 > 재검증: 2026-06-26 deep review 2-pass. 6개 결함 본문 반영(§3.1/§3.5/§3.6/Batch 1·2·7 + §10).
-> 진행 현황·배포 커밋: **§11 참조**(2026-06-28 기준, 04d76b7a까지 deploy 배포).
+> 진행 현황·배포 커밋: **§11 참조**. **계획 종결 판정: §12 참조**(2026-06-29 기준, 1a098eb8까지 deploy 배포).
 
 ## 1. What
 
@@ -424,4 +424,32 @@ Batch 0 contract freeze는 기존(active_filter/history/search/cache/slice/mobil
   (production read-model 이전 시 test_erp_permissions mine-path 계약이 production_read_model.py도 합쳐 읽도록 갱신 — orders 선례 동일.)
 - foms.services 패키지 standalone 순환(flat 모듈도 영향, app 컨텍스트선 정상) → unit test는 app 선로딩 의존.
 
-DEPLOYED THROUGH 3ab2dd90 — PRODUCTION UNTOUCHED (origin/production live=1de4e265, 본 세션 무터치; 모든 push는 deploy 한정)
+DEPLOYED THROUGH 1a098eb8 — PRODUCTION UNTOUCHED (origin/production live=1de4e265, 본 세션 무터치; 모든 push는 deploy 한정)
+
+## 12. 계획 종결 판정 (2026-06-29) — 순가치 범위 완료, 잔여 tail 형식 종결
+
+> 결론: **이 계획의 순가치(성능·유지보수) 목표는 전부 구현·배포·검증 완료.** 남은 항목은 전부
+> (a) plan 자체 deep-review가 "현상 유지"를 권고한 동작 변경, (b) 운영 실측으로 불필요 판정된 항목,
+> (c) governance(§2.2)+Stop Rules(§6)가 강행을 금지하는 고위험·마진 아키텍처 — 따라서 **강행이 아니라
+> 명시 종결**이 올바른 마무리다. 강행은 사용자 핵심 요구(시간·토큰 절약)와 절대 규칙에 정면 배치된다.
+
+### 12.1 배포 완료(순가치)
+- 백엔드: orders/measurement/shipment/AS/construction/production 6축 read-model·filters·dto·display 분리 완료(§11).
+- 성능: 모바일큐 N+1(b5ad661f)·manager_phone N+1(83a35061)·시공 미리보기 첨부 N+1(04d76b7a)·KPI slim 투영(acbda7cb) 제거, staging interleaved 실측으로 효과 입증.
+- WDC: order-estimates N+1·F5·F6(f90c8230)+잔여 19곳 str(e) 제거(3ab2dd90).
+- 프론트: AS/Shipment inline JS → static module(e6f26400, defer 부트스트랩 순서 회귀수정 1a098eb8), WDC product_settings inline JS → static module. **staging F12 QA 통과**: AS fragment swap 재초기화(신규 AbortController·prev abort, 0 error), Shipment 초기화 상태 정상, WDC 수정 핸들러 정상.
+
+### 12.2 잔여 항목 종결 사유 (전부 RESOLVED)
+| 항목 | 분류 | 종결 판정 | 근거 |
+|---|---|---|---|
+| Batch 2b orders count 정합성 | 동작 변경 | **현상 유지(closed)** | 불일치는 alert/team 필터 시만 발현되는 **의도된 기존 동작**(§2.2/§3.1). 교정은 visual baseline+승인 필요(Stop Rule). plan 권고=유지 |
+| Batch 4 construction pagination 교정 | 동작 변경 | **현상 유지(closed)** | 현 300 cap→50 page는 §2.2 freeze 부합. 교정=2b와 동일 baseline+승인 게이트. plan 권고=유지 |
+| Batch 7 search normalized field + trigram index | DB migration | **불필요(deferred w/ evidence)** | staging(운영클론) 실측 AS base ~200ms / 검색 ~260ms(rare term 풀스캔 포함) = 이미 건강. 8필드 functional 인덱스 신설은 쓰기·유지비용만↑("운영 측정 없이 성능완료 선언 금지" 가드). AS 검색 TTFB 악화 시 별도 spec |
+| Batch 6 `WdCalculatorApp` factory | 대형 아키텍처 | **deferred(고위험·마진)** | `wdcalculator_scripts.html`(290줄 host)+`composition.js` *HostBootstrap DI 배선은 복잡·교차참조 다수, WDC JS 단위테스트 약함. 현 구조는 이미 모듈 분해 완료(host-wrapper는 동작하는 DI 계층). 교체는 코스메틱 아키텍처로 perf/정확도 이득 0, 코어 계산기 회귀 위험 큼. governance §2.2("micro extraction 금지, 새 host-bootstrap 금지")+Stop Rules와도 충돌 |
+| Batch 6 composition.js host wrapper 제거 wave | 고위험 | **deferred(상동)** | 위 factory와 동일 경계. factory 도입과 함께 한 spec으로 진행해야 안전. 단독 제거는 init 체인 파손 위험 |
+| Batch 6 product_settings `location.reload()`×14 제거 | 동작 변경 | **deferred(마진·위험)** | reload는 CRUD 후 서버상태 보장하는 **안전 패턴**. 14개 분산 site를 bespoke re-render로 교체 = stale-state 회귀 위험(약한 테스트, 코어 도구), 이득은 화면 깜빡임 제거(코스메틱). plan §236이 이미 별도 승인/QA로 게이트 |
+
+### 12.3 QA 중 발견된 별건 결함 (이번 경계 밖 — 후속)
+- **production 대시보드 fragment swap 시 `Uncaught SyntaxError: ... 'replaceChild' ... Unexpected token ':'` ×~50**: `production/partials/filters_grid.html:161`의 행별 `<script type="application/json" id="order-detail-preload-*">`가 classic script로 재실행되어 발생. **현재 코드는 무관**: `erp-shell.js activateScripts`의 type 보존 가드(`old.type` 복제)는 74b60488(2026-04-20)에 이미 배포됨. 즉 **테스트 브라우저의 service-worker가 2026-04 이전 erp-shell.js를 캐시**해 옛 코드가 도는 클라 캐시 아티팩트로 판단. AS/Shipment/WDC swap은 0 error로 무영향. **후속**: 실 Chrome 하드리로드/SW 갱신 후 재현 여부 확인 → 재현 시 filters_grid JSON preload를 fragment-safe 패턴(또는 SW 버전 강제 무효화)로 별도 처리. dashboard refactor 경계 밖이라 본 계획에서 미수정.
+
+**PLAN CLOSED — net-positive scope SHIPPED(deploy 1a098eb8), residual tail formally RESOLVED. PRODUCTION UNTOUCHED.**
