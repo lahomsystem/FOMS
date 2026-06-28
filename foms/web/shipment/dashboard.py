@@ -10,7 +10,6 @@ import json
 from sqlalchemy import or_, and_
 from sqlalchemy.orm import load_only
 from foms.services.common.business_calendar import get_holidays_kr
-from foms.services.common.erp_mine_filter import erp_mine_only_for_construction
 from foms.services.erp_permissions import can_edit_erp, is_order_related_to_user
 from foms.services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders, get_today_kst
 from foms.services.erp_order_flags import is_erp_order_record
@@ -31,7 +30,7 @@ from foms.services.common.erp_shell_http import (
 )
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
 from foms.services.feature_flags import is_enabled_for_user
-from foms.services.request_utils import get_search_query_arg
+from foms.services.shipment_dashboard_filters import parse_shipment_dashboard_filters
 from foms.services.erp_dashboard_search import (
     SHIPMENT_SEARCH_FOCUS_SCHEDULE_HALF_RANGE_DAYS,
     erp_order_dashboard_search_predicate,
@@ -234,35 +233,19 @@ def erp_shipment_dashboard():
     today_kst = get_today_kst()
     today_date = today_kst.strftime('%Y-%m-%d')
     today_dt = today_kst
-    search_q = get_search_query_arg('q', 'search', 'manager')
-    date_from = (request.args.get('date_from') or '').strip()
-    date_to = (request.args.get('date_to') or '').strip()
-    date_arg_raw = (request.args.get('date') or '').strip()
-    req_date = date_arg_raw
-
-    is_construction = current_user and getattr(current_user, 'team', None) == 'CONSTRUCTION'
-    mine_only = erp_mine_only_for_construction(request, current_user)
-
-    use_range = bool(date_from and date_to)
-    if use_range:
-        try:
-            datetime.datetime.strptime(date_from, '%Y-%m-%d').date()
-            datetime.datetime.strptime(date_to, '%Y-%m-%d').date()
-        except (ValueError, TypeError):
-            use_range = False
-    use_single_day = bool(req_date) and not use_range
-    if use_single_day:
-        try:
-            datetime.datetime.strptime(req_date, '%Y-%m-%d').date()
-        except (ValueError, TypeError):
-            use_single_day = False
-    # 기본 진입은 당일 주문만 로드한다. 전체 목록 로드는 대시보드 기본 동작에서 제외.
-    if not use_range and not use_single_day:
-        req_date = today_date
-        use_single_day = True
-    selected_date = req_date
-
-    user_locked_calendar_date = bool(date_arg_raw)
+    # Batch 3: request.args 파싱·range/single-day 파생·is_construction/mine_only는
+    # parse_shipment_dashboard_filters로 분리(동작 보존). 아래는 다운스트림 호환 로컬 바인딩.
+    _sf = parse_shipment_dashboard_filters(request, current_user, today_kst)
+    search_q = _sf.search_q
+    date_from = _sf.date_from
+    date_to = _sf.date_to
+    req_date = _sf.req_date
+    is_construction = _sf.is_construction
+    mine_only = _sf.mine_only
+    use_range = _sf.use_range
+    use_single_day = _sf.use_single_day
+    selected_date = _sf.selected_date
+    user_locked_calendar_date = _sf.user_locked_calendar_date
 
     base_query = db.query(Order).filter(Order.active_filter())
     base_query = _erp_order_search_filter(base_query, search_q)
