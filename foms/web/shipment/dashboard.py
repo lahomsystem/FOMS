@@ -7,6 +7,7 @@ from foms.web.auth import login_required
 import datetime
 import hashlib
 import json
+import logging
 from sqlalchemy import or_, and_
 from sqlalchemy.orm import load_only
 from foms.services.common.business_calendar import get_holidays_kr
@@ -49,6 +50,9 @@ AS_SHIPMENT_STATUSES = ('AS', 'AS_RECEIVED', 'AS_COMPLETED')
 erp_shipment_page_bp = Blueprint(
     'erp_shipment_page', __name__, url_prefix='/erp'
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_worker_name(name):
@@ -340,6 +344,8 @@ def erp_shipment_dashboard():
                 try:
                     d = datetime.datetime.strptime(date_value, '%Y-%m-%d').date()
                 except Exception:
+                    # 데이터 오염 진단(에러 숨김 금지). 집계/화면은 기존대로 건너뛴다.
+                    logger.debug("shipment panel agg(cc): malformed construction date %r (order_id=%s)", date_value, getattr(order, "id", None))
                     continue
                 if d < range_start or d > range_end:
                     continue
@@ -351,6 +357,8 @@ def erp_shipment_dashboard():
                 try:
                     d = datetime.datetime.strptime(date_value, '%Y-%m-%d').date()
                 except Exception:
+                    # 데이터 오염 진단(에러 숨김 금지). 작업자/스펙 집계는 기존대로 건너뛴다.
+                    logger.debug("shipment panel agg(workers): malformed construction date %r (order_id=%s)", date_value, getattr(order, "id", None))
                     continue
                 if d < range_start or d > range_end:
                     continue
