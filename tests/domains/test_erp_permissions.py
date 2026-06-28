@@ -559,6 +559,10 @@ def test_all_erp_dashboard_mine_paths_use_shared_role_scope_contract() -> None:
     sources["orders"] += (
         root / "foms/services/orders/dashboard_read_model.py"
     ).read_text(encoding="utf-8")
+    # Batch 4-4: production mine SQL filter가 production_read_model로 이전됨 → 두 파일 합쳐 검사
+    sources["production"] += (
+        root / "foms/services/production_read_model.py"
+    ).read_text(encoding="utf-8")
 
     assert "build_mine_sql_filter(current_user)" in sources["orders"]
     assert "build_mine_sql_filter(current_user)" in sources["control_tower"]
