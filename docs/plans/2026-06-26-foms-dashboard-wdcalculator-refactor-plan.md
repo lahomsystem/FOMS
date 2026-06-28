@@ -1,6 +1,7 @@
 # FOMS Dashboard + WDCalculator Refactor Plan
-> 작성일: 2026-06-26 | 상태: 재검증 반영(조건부 승인) | 범위: FOMS ERP 대시보드 전체 + WDCalculator
-> 재검증: 2026-06-26 deep review 2-pass. 6개 결함 본문 반영(§3.1/§3.5/§3.6/Batch 1·2·7 + §10). production 무변경, 무푸시.
+> 작성일: 2026-06-26 | 상태: 구현 진행 중(staging 배포, production 무터치) | 범위: FOMS ERP 대시보드 전체 + WDCalculator
+> 재검증: 2026-06-26 deep review 2-pass. 6개 결함 본문 반영(§3.1/§3.5/§3.6/Batch 1·2·7 + §10).
+> 진행 현황·배포 커밋: **§11 참조**(2026-06-28 기준, bf4ddbb3까지 deploy 배포).
 
 ## 1. What
 
@@ -348,3 +349,53 @@ NO UNRESOLVED DECISIONS
 
 **안전 착수**: Batch 0~1 (N+1·settings design·DDL·F5·F6). **Batch 2 진입 금지** until #2·#3 분리 확정.
 REVERIFIED — 6 FINDINGS APPLIED
+
+## 11. Implementation Progress (staging 배포 — 2026-06-28 기준)
+
+전부 `deploy`(staging)에만 푸시, `production`(400be33a) 무터치. 매 슬라이스 공통 절차:
+flat service 모듈로 **verbatim 추출** + cache 키·fingerprint·get_or_compute는 라우트 유지(lambda 위임)
++ 미사용 import 정리 + APP_OK + 도메인테스트 + 계약(permissions/namespace/runtime) + perf guard(high=0)
++ pin grep + 독립 cavecrew-reviewer 1:1 + pre_push_smoke(247) + push deploy + production 불변 확인. **무회귀.**
+
+### 완료 (deployed)
+| Batch | 슬라이스 | 커밋 | 산출 모듈 |
+|---|---|---|---|
+| 1 | WDC order-estimates N+1 제거·F5(로깅)·F6(str(e) 제거)·G4 가드 + query-count test | f90c8230 | blueprint in-place |
+| 2a-1 | orders request 파서 | b0bdbfa0 | services/orders/dashboard_filters.py |
+| 2a-2 | orders SQL 쿼리빌드 | 256dd931 | services/orders/dashboard_read_model.py |
+| 2a-3 | orders summary 집계 | c19bf7f8 | dashboard_read_model.py |
+| 2a-2 후속 | mine-path 계약 갱신 | 57714528 | (test) |
+| 2a-4 | orders 첨부/담당자 맵 | 2ab6c01b | dashboard_read_model.py |
+| 2a-5 | orders 행 DTO 조립 | 2365ab38 | services/orders/dashboard_dto.py |
+| 3-1 | measurement 파서 | c0ab3464 | services/measurement_dashboard_filters.py |
+| 3-2 | measurement panel 집계 | 883a4a0a | services/measurement_read_model.py |
+| 3-3 | measurement product_items | 71ae3d2b | measurement_read_model.py |
+| 3-8 | measurement 날짜창 매칭/표시 헬퍼 | 7f23f285 | measurement_read_model.py |
+| 3-9 | measurement 메인 rows 조립(+mine fallback 버그수정·회귀test) | bf4ddbb3 | measurement_read_model.py |
+| 3-4 | shipment 파서 | 55a00c0d | services/shipment_dashboard_filters.py |
+| 3 §3.3 | shipment malformed 시공일 진단 로그 | 5b296a9c | in-place |
+| 3-5 | shipment 도메인 헬퍼 service화 | 6047da78 | services/shipment_dashboard_helpers.py |
+| 3-6 | shipment panel aggregates | 114a7e4b | services/shipment_read_model.py |
+| 3-7 | shipment panel derived | b12db787 | shipment_read_model.py |
+| 4-1 | construction 파서 | b3dd92b8 | services/construction_dashboard_filters.py |
+| 5-1 | AS 상단 파서 | adf10125 | services/as_dashboard_filters.py |
+
+**도메인 상태**: orders(파서+read-model+dto 완성, 라우트 1015→640), measurement(파서+read-model 완성),
+shipment(파서+헬퍼+read-model 완성), AS(파서만), construction(파서만), production(기분해).
+Batch 0 contract freeze는 기존(active_filter/history/search/cache/slice/mobile/focus)+신규 파서 단위테스트로 충족.
+
+### 남은 작업 (미착수 — 전부 고위험/승인)
+- **Batch 2b** orders count 정합성 — behavior change, **사용자 승인 필요**.
+- **Batch 3 잔여** mobile queue row builder batch preload(선택).
+- **Batch 4** production/construction KPI·pagination — behavior change.
+- **Batch 5 잔여** AS tab/count read-model(순차 tangle), AS/shipment inline JS→static module, shell init/teardown contract.
+- **Batch 6** WDC app chunk(composition.js host wrapper, product_settings.html JS, location.reload×12) — frontend.
+- **Batch 7** search normalized field + trigram index(CONCURRENTLY+advisory lock).
+
+### 운영 함정 (실행 중 확인됨)
+- 동시 Cursor 세션 git 레이스 → commit/push 전 reflog 확인.
+- 위치-고정 계약 테스트(foms_namespace_surface·test_erp_permissions·slice_contract의
+  `extract_all_measurement_dates`·`self_measurement_four_checks_done` 등) → 심볼 이동 시 pin 깨짐 주의.
+- foms.services 패키지 standalone 순환(flat 모듈도 영향, app 컨텍스트선 정상) → unit test는 app 선로딩 의존.
+
+DEPLOYED THROUGH bf4ddbb3 — PRODUCTION UNTOUCHED (400be33a)
