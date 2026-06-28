@@ -424,7 +424,7 @@ Batch 0 contract freeze는 기존(active_filter/history/search/cache/slice/mobil
   (production read-model 이전 시 test_erp_permissions mine-path 계약이 production_read_model.py도 합쳐 읽도록 갱신 — orders 선례 동일.)
 - foms.services 패키지 standalone 순환(flat 모듈도 영향, app 컨텍스트선 정상) → unit test는 app 선로딩 의존.
 
-DEPLOYED THROUGH 1a098eb8 — PRODUCTION UNTOUCHED (origin/production live=1de4e265, 본 세션 무터치; 모든 push는 deploy 한정)
+DEPLOYED THROUGH c6260d97 — PRODUCTION UNTOUCHED (origin/production live=400be33a[2026-06-25 deploy→production merge], 본 세션 무터치·리팩터 커밋 0개 leak 확인; 모든 push는 deploy 한정)
 
 ## 12. 계획 종결 판정 (2026-06-29) — 순가치 범위 완료, 잔여 tail 형식 종결
 
@@ -451,5 +451,12 @@ DEPLOYED THROUGH 1a098eb8 — PRODUCTION UNTOUCHED (origin/production live=1de4e
 
 ### 12.3 QA 중 발견된 별건 결함 (이번 경계 밖 — 후속)
 - **production 대시보드 fragment swap 시 `Uncaught SyntaxError: ... 'replaceChild' ... Unexpected token ':'` ×~50**: `production/partials/filters_grid.html:161`의 행별 `<script type="application/json" id="order-detail-preload-*">`가 classic script로 재실행되어 발생. **현재 코드는 무관**: `erp-shell.js activateScripts`의 type 보존 가드(`old.type` 복제)는 74b60488(2026-04-20)에 이미 배포됨. 즉 **테스트 브라우저의 service-worker가 2026-04 이전 erp-shell.js를 캐시**해 옛 코드가 도는 클라 캐시 아티팩트로 판단. AS/Shipment/WDC swap은 0 error로 무영향. **후속**: 실 Chrome 하드리로드/SW 갱신 후 재현 여부 확인 → 재현 시 filters_grid JSON preload를 fragment-safe 패턴(또는 SW 버전 강제 무효화)로 별도 처리. dashboard refactor 경계 밖이라 본 계획에서 미수정.
+  - **[2026-06-29 검증 — VERIFIED CLOSED]** staging(`lahom-dev`, deploy `c6260d97`)에서 헤드리스 gstack browse로 재현 시도. 헤드리스=SW 미등록(`navigator.serviceWorker.controller === false` 확인)이라 **항상 최신 erp-shell.js**가 실행되는 깨끗한 코드-전용 환경. `/erp/dashboard`→`/erp/production/dashboard` client fragment swap 후 `order-detail-preload-*` 태그 **50개** 존재, 전부 `.type === 'application/json'` 보존(activateScripts type 가드 동작 입증), `dashboard↔production` 왕복 swap **4회** 반복에도 **console SyntaxError 0 / 총 에러 0**. 결론: **현재 배포 코드는 정상**, 앞서 QA에서 본 `Uncaught SyntaxError ×~50`은 **테스트 브라우저의 옛 erp-shell.js(pre-74b60488) SW 캐시 아티팩트**로 확정. 코드 수정 불필요. **production 무터치.**
 
-**PLAN CLOSED — net-positive scope SHIPPED(deploy 1a098eb8), residual tail formally RESOLVED. PRODUCTION UNTOUCHED.**
+### 12.4 1:1 리뷰 후속 — F5 절대규칙 완결 (2026-06-29)
+- **계기**: plan 대비 구현 1:1 초정밀 재검증(36 커밋 실재·21 모듈 실재·라우트 라인수·N+1 배치·KPI slim·라우트 위임·프론트 defer·production 무터치 전수 확인) 중, **F5("에러 숨기기/print 금지/bare except 금지" 절대규칙)가 save 경로만 닫히고 load 경로에 미적용**임을 발견. 3ab2dd90의 "F5 완결"은 save-side 한정이었음.
+- **수정**: `foms/api/wdcalculator/blueprint.py`의 잔존 `except Exception as e: print(...)` **9곳** → load 경로 5곳(`_load_json_file`·추가옵션/비고/제품/규격프리셋 로드)은 `logger.exception`, non-fatal "계속 진행" 2종 4곳(history snapshot ×2, meta 링크 제거 ×2)은 `logger.warning(exc_info=True)`. **응답 shape·기능 0 변경**(진단 로깅만 stdout→구조화 로거). 잔존 real `print()` **0** 확인.
+- **검증**: `APP_OK`, `pytest tests/contracts/wdcalculator tests/domains/test_wdcalculator_product_settings.py tests/domains/test_erp_wdc_estimate_sync.py` **97 passed**, perf guard high=0.
+- **문서 정정**: §11 말미 "DEPLOYED THROUGH 1a098eb8 / production=1de4e265" → 실측 **deploy=c6260d97 / production=400be33a**로 동기화(production 무변·리팩터 leak 0 재확인).
+
+**PLAN CLOSED — net-positive scope SHIPPED, residual tail formally RESOLVED, F5 절대규칙 load-경로까지 완결. PRODUCTION UNTOUCHED.**

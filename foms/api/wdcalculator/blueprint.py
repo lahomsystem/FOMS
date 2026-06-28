@@ -192,8 +192,8 @@ def _load_json_file(path, wrapper_key):
                 with open(path, 'r', encoding='cp949') as f:
                     return json.load(f).get(wrapper_key, [])
         return []
-    except Exception as e:
-        print(f"Error loading JSON file {path}: {e}")
+    except Exception:
+        logger.exception("시드용 JSON 파일 로드 실패: %s", path)
         return []
 
 
@@ -306,8 +306,8 @@ def load_additional_option_categories():
         if not settings or settings.additional_options is None:
             return _seed_additional_option_categories_from_file()
         return clean_categories_data(_deepcopy_json(settings.additional_options, []))
-    except Exception as e:
-        print(f"Error loading additional option categories: {e}")
+    except Exception:
+        logger.exception("추가 옵션 카테고리 로드 실패")
         return []
 
 
@@ -346,8 +346,8 @@ def load_notes_categories():
         if not settings or settings.notes_categories is None:
             return _seed_notes_categories_from_file()
         return clean_categories_data(_deepcopy_json(settings.notes_categories, []))
-    except Exception as e:
-        print(f"Error loading notes categories: {e}")
+    except Exception:
+        logger.exception("비고 카테고리 로드 실패")
         return []
 
 
@@ -386,8 +386,8 @@ def load_products():
         if not settings or settings.products is None:
             return _seed_products_from_file()
         return _deepcopy_json(settings.products, [])
-    except Exception as e:
-        print(f"Error loading products: {e}")
+    except Exception:
+        logger.exception("제품 데이터 로드 실패")
         return []
 
 
@@ -426,8 +426,8 @@ def load_spec_field_presets():
         if not settings or getattr(settings, 'spec_field_presets', None) is None:
             return _seed_spec_field_presets_from_file()
         return _normalize_spec_field_presets(_deepcopy_json(settings.spec_field_presets, {}))
-    except Exception as e:
-        print(f"Error loading spec field presets: {e}")
+    except Exception:
+        logger.exception("규격 필드 프리셋 로드 실패")
         return _normalize_spec_field_presets({})
 
 
@@ -984,8 +984,8 @@ def api_wdcalculator_save_estimate():
                 return jsonify({'success': False, 'message': '수정할 견적을 찾을 수 없습니다.'})
             try:
                 db.add(EstimateHistory(estimate_id=estimate.id, estimate_data=estimate.estimate_data))
-            except Exception as history_error:
-                print(f"[wdcalculator-save] history snapshot 실패(계속 진행): {history_error}")
+            except Exception:
+                logger.warning("[wdcalculator-save] history snapshot 실패(계속 진행)", exc_info=True)
             estimate.customer_name = customer_name
             estimate.estimate_data = estimate_data
             message = '견적이 수정되었습니다.'
@@ -1139,8 +1139,8 @@ def api_wdcalculator_unmatch_order():
             removed = 1
             try:
                 _clear_wdc_estimate_meta_link(foms_db, order, estimate_id)
-            except Exception as link_err:
-                print(f"[unmatch-order] meta.wdc_estimate_id 제거 실패(계속 진행): {link_err}")
+            except Exception:
+                logger.warning("[unmatch-order] meta.wdc_estimate_id 제거 실패(계속 진행)", exc_info=True)
         else:
             matches = wd_db.query(EstimateOrderMatch).filter(
                 EstimateOrderMatch.order_id == order_id
@@ -1151,8 +1151,8 @@ def api_wdcalculator_unmatch_order():
             wd_db.commit()
             try:
                 _clear_wdc_estimate_meta_link(foms_db, order, None)
-            except Exception as link_err:
-                print(f"[unmatch-order] meta.wdc_estimate_id 제거 실패(계속 진행): {link_err}")
+            except Exception:
+                logger.warning("[unmatch-order] meta.wdc_estimate_id 제거 실패(계속 진행)", exc_info=True)
         return jsonify({
             'success': True,
             'message': '견적 매칭이 해제되었습니다.',
@@ -1202,8 +1202,8 @@ def api_orders_wdc_estimate_sync(order_id):
         if estimate:
             try:
                 wd_db.add(EstimateHistory(estimate_id=estimate.id, estimate_data=estimate.estimate_data))
-            except Exception as hist_err:
-                print(f"[wdc-estimate-sync] history snapshot 실패(계속 진행): {hist_err}")
+            except Exception:
+                logger.warning("[wdc-estimate-sync] history snapshot 실패(계속 진행)", exc_info=True)
             estimate.customer_name = customer_name
             estimate.estimate_data = estimate_data
         else:
