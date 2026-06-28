@@ -20,7 +20,6 @@ from foms.services.erp_display import (
 from foms.services.erp_order_detail import attach_order_detail_payloads
 from foms.services.erp_mobile_order_display import resolve_manager_phone_for_queue
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
-from foms.services.common.erp_mine_filter import erp_mine_only_for_construction
 from foms.services.erp_permissions import (
     build_mine_sql_filter,
     can_edit_erp,
@@ -29,7 +28,7 @@ from foms.services.erp_permissions import (
 from foms.services.erp_policy import STAGE_LABELS
 from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
 from foms.services.foms_unified_search import _compact
-from foms.services.request_utils import get_search_query_arg
+from foms.services.construction_dashboard_filters import parse_construction_dashboard_filters
 from foms.services.construction_dashboard_display import enrich_construction_mobile_rows
 from foms.services.feature_flags import is_enabled_for_user
 from models import Order
@@ -57,11 +56,14 @@ def erp_construction_dashboard():
     user = getattr(g, "current_user", None)
     is_admin = user and user.role == "ADMIN"
 
-    f_stage = (request.args.get("stage") or "").strip()
-    f_q = get_search_query_arg("q", "search")
-    focus_order_id = request.args.get("focus_order", type=int)
-    is_construction = user and getattr(user, "team", None) == "CONSTRUCTION"
-    mine_only = erp_mine_only_for_construction(request, user)
+    # Batch 4: 상단 request.args 파싱·is_construction/mine_only는
+    # parse_construction_dashboard_filters로 분리(동작 보존). 아래는 다운스트림 호환 바인딩.
+    _cf = parse_construction_dashboard_filters(request, user)
+    f_stage = _cf.stage
+    f_q = _cf.q
+    focus_order_id = _cf.focus_order_id
+    is_construction = _cf.is_construction
+    mine_only = _cf.mine_only
 
     query = db.query(Order).filter(Order.dashboard_active_filter(days=60), Order.is_erp_order.is_(True))
 
