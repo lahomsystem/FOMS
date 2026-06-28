@@ -10,7 +10,6 @@ from sqlalchemy import text
 from foms.services.erp_permissions import can_edit_erp
 from foms.services.erp_policy import (
     STAGE_NAME_TO_CODE,
-    DEFAULT_OWNER_TEAM_BY_STAGE,
     STAGE_LABELS,
     recommend_owner_team,
 )
@@ -21,18 +20,14 @@ from foms.services.erp_display import (
     _erp_has_media,
     get_today_kst,
 )
-from foms.services.erp_quest_display import build_current_quest_payload
 from foms.services.erp_mobile_order_display import (
-    product_subtitle_from_sd,
-    resolve_manager_phone_for_queue,
-    stage_badge_label,
-    stage_badge_modifier,
     batch_resolve_queue_attachment_preview_items,
 )
 from foms.services.erp_order_detail import build_order_detail_payload_map
 from foms.services.erp_order_deeplink import resolve_edit_return_back_endpoint
 from foms.services.orders.status_constants import BULK_ACTION_STATUS
 from foms.services.orders.dashboard_filters import parse_orders_dashboard_filters
+from foms.services.orders.dashboard_dto import build_orders_row_dtos
 from foms.services.orders.dashboard_read_model import (
     build_orders_dashboard_queries,
     compute_orders_summary_slice,
@@ -341,57 +336,8 @@ def erp_dashboard():
     user_map = {int(k): str(v) for k, v in (_maps_blob.get("user_map") or {}).items()}
 
     # Full enrichment: 50건만 (quest_payload, assignee_names, can_modify_domain 등 표시 필드)
-    enriched = []
-    for o in page_orders:
-        sd = page_sds[o.id]
-        cnt = att_counts.get(o.id, 0)
-        stage = _erp_get_stage(o, sd)
-        alerts = _erp_alerts(o, sd, cnt)
-        has_media = _erp_has_media(o, cnt)
-        stage_key = stage if isinstance(stage, str) else ''
-        stage_code = STAGE_NAME_TO_CODE.get(stage_key, stage_key)
-        quest_payload = build_current_quest_payload(
-            sd=sd,
-            stage=stage,
-            stage_code=stage_code,
-            order=o,
-            current_user=current_user,
-            user_map=user_map,
-        )
-        responsible_team = DEFAULT_OWNER_TEAM_BY_STAGE.get(stage_code, None)
-        if stage_code in ("MEASURE", "CONFIRM"):
-            orderer_check = (((sd.get("parties") or {}).get("orderer") or {}).get("name") or "").strip()
-            if orderer_check and "라홈" in orderer_check:
-                responsible_team = 'CS'
-
-        parties = sd.get('parties') or {}
-        site = sd.get('site') or {}
-        schedule = sd.get('schedule') or {}
-        enriched.append({
-            'id': o.id,
-            'is_erp_order': o.is_erp_order,
-            'is_self_measurement': getattr(o, 'is_self_measurement', False),
-            'structured_data': sd,
-            'customer_name': (parties.get('customer') or {}).get('name') or '-',
-            'phone': (parties.get('customer') or {}).get('phone') or '-',
-            'address': site.get('address_full') or site.get('address_main') or '-',
-            'measurement_date': (schedule.get('measurement') or {}).get('date'),
-            'construction_date': (schedule.get('construction') or {}).get('date'),
-            'manager_name': (parties.get('manager') or {}).get('name') or '-',
-            'manager_phone': resolve_manager_phone_for_queue(parties, order=o),
-            'orderer_name': (parties.get('orderer') or {}).get('name') or None,
-            'owner_team': responsible_team,
-            'stage': stage,
-            'stage_code': stage_code,
-            'alerts': alerts,
-            'has_media': has_media,
-            'attachments_count': cnt,
-            'recommended_owner_team': recommend_owner_team(sd) or None,
-            'current_quest': quest_payload,
-            'stage_badge_modifier': stage_badge_modifier(stage),
-            'stage_badge_label': stage_badge_label(stage),
-            'product_subtitle': product_subtitle_from_sd(sd),
-        })
+    # Batch 2: 표시용 row DTO 조립은 build_orders_row_dtos(dashboard_dto)로 분리(동작 보존, 캐시 아님).
+    enriched = build_orders_row_dtos(page_orders, page_sds, att_counts, user_map, current_user)
 
     paginated_orders = enriched
 
