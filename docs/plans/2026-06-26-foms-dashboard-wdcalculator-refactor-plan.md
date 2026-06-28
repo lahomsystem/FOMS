@@ -395,6 +395,7 @@ flat service 모듈로 **verbatim 추출** + cache 키·fingerprint·get_or_comp
 | 3 (잔여) | shipment 모바일 큐 N+1 제거(MobileQueueBatchContext 배치 사전조회, 동작보존+N+1가드) | b5ad661f | erp_mobile_order_display/erp_quest_display/estimate_service |
 | 4-6 | construction/production 행 DTO manager_phone N+1 제거(설정 1회 map 재사용, 동작보존+N+1가드) | 83a35061 | construction_dashboard_display/production_dashboard_display |
 | 4-7 | construction 미리보기 첨부 N+1 제거(페이지 1회 in_ 배치 + (created_at,id) tie-break, 동작보존+N+1가드) | 04d76b7a | construction_dashboard_display |
+| 4-8 | construction+production KPI 전체스캔 slim 투영(structured_data→flags/schedule/workflow 3경로 SQL 투영, 전송·파싱 비용↓, 동작 byte 동일+동치 테스트 3건) | (이번) | construction/dashboard.py · production_read_model.py |
 
 **도메인 상태**: orders(파서+read-model+dto 완성, 라우트 1015→640), measurement(파서+read-model 완성),
 shipment(파서+헬퍼+read-model+행보강·정렬·모바일큐 display 완성), AS(파서+SQL expr/count·tab context read-model+행표시 display 완성),
@@ -404,14 +405,15 @@ Batch 0 contract freeze는 기존(active_filter/history/search/cache/slice/mobil
 ### 남은 작업 (미착수 — 전부 고위험/승인)
 - ~~**Batch 3 잔여** shipment mobile queue per-row→batch preload~~ → **완료(b5ad661f)**. MobileQueueBatchContext로 첨부 카운트/그리드/미리보기/타임라인/담당자연락처 설정을 1회 배치 사전조회. 동작 100% 보존(batch_ctx=None=기존), N+1 회귀가드+동치 테스트 추가. measurement 큐도 동일 infra 재사용 가능(후속).
 - **Batch 2b** orders count 정합성 — behavior change. **현 plan 권장=현상 유지**(불일치는 의도된 기존 동작, 교정 시 visual baseline+승인 필요). → 보류.
-- **Batch 4** production/construction KPI Python-scan→SQL aggregate·pagination 교정 — behavior change.
-  ※ 구조-추출 완료, KPI/pagination 본체만 잔여. **차단**: `_erp_alerts` 날짜/JSONB 로직 SQL 이식 + 동치 증명이 **실데이터 필요**(로컬 DB `is_erp_order` 컬럼 결손 → EXPLAIN/before-after 불가). 코드 주석도 "성능 최적화 별도 웨이브". → 운영급 데이터+측정 확보 후 별도 spec.
+- **Batch 4 KPI 전체스캔 비용** → **완료(4-8, 이번)**. `_erp_alerts`/`_display_stage_for_order`/`_erp_get_stage`는 structured_data 중 `flags`/`schedule`/`workflow` 서브트리만 읽으므로, KPI 스캔을 전체 SD 로드 대신 해당 3개 JSON 경로 SQL 투영으로 바꿔 행마다의 대용량 items/parties/quests 전송·파싱을 제거. `_ensure_dict`가 dict(PG)·JSON문자열(SQLite) 모두 처리해 **byte 동일** 동작 보존, slim==full 동치 테스트 3건(시공 KPI 동치/서브패스 round-trip, 생산 KPI 동치). construction은 self_measurement skip 동작(KeyedTuple)도 보존. production `kpi_rows`는 호출부 `len()`만 사용 → 행 수 불변.
+  - ~~`_erp_alerts` 전체 SQL aggregate 이식~~ → **불필요**: slim 투영으로 전송·파싱 비용 제거됨. `_erp_alerts`의 날짜/JSONB 분기를 통째로 SQL `CASE`로 옮기는 것은 동치 증명 위험만 크고 잔여 이득은 미미(아래 측정).
+- **Batch 4 pagination 교정**(construction Python pagination 등) — **behavior change**라 보류. 현 동작(300 cap→50 page) 그대로 유지가 §2.2 freeze·Stop Rule 부합. count/page 교정은 2b와 동일하게 visual baseline+승인 필요.
   - ~~**Batch 4 부수 N+1** construction/production 행 DTO manager_phone 행별 `load_erp_shipment_settings` 재조회~~ → **완료(83a35061)**. 스테이징(lahom-dev) 실측 근거: `/erp/construction/dashboard` warm TTFB가 생산 대비 ~2배(~600ms), zerolist 분해로 행DTO 단계가 +250~360ms. 원인=브라우즈 최대 ~300행 × 설정조회(캐시 없음) N+1. `build_measurement_manager_phone_map()` 1회 map 재사용으로 설정 로드 N→1, 동작 100% 보존(map=기존 per-row와 동일 입력→동일 출력), N+1 회귀가드+동치 테스트 4건.
   - ~~**Batch 4 부수 N+1(2)** construction 미리보기 첨부 행별 OrderAttachment 조회(`_collect_preview_items` ×50, `count_preview_attachments` ×50)~~ → **완료(04d76b7a)**. 페이지 1회 `order_id.in_` 배치(`build_construction_preview_attachments_map`) + `(created_at asc, id asc)` tie-break를 per-row·배치 양쪽 동일 적용(byte-identical+결정적). N+1 회귀가드/동치/동률/카운트 테스트 4건.
   - **실측 종합(스테이징 interleaved, gap-controlled)**: construction warm TTFB **574→334ms(min, -42%) / 600→367ms(median, -39%)**, 생산 대비 gap **~290→~103ms**(일부 음수). 핵심: 수정 후 construction base(367) ≈ zerolist(352) → **행 단위 enrich 비용 사실상 0**. 잔여 ~350ms는 **KPI 전체셋 스캔(line 80)** 단독 비용으로, `_erp_alerts` 날짜/JSONB 로직 SQL 이식 + 동치 증명이 필요한 위 차단 사유로 별도 spec 잔여.
 - **Batch 5 잔여** AS/shipment inline JS→static module, shell init/teardown contract — frontend(JS 단위테스트 약함, **사용자 방향확인 필요**).
 - **Batch 6** WDC app chunk(composition.js host wrapper, product_settings.html JS, location.reload×12) — frontend(**방향확인 필요**).
-- **Batch 7** search normalized field + trigram index(CONCURRENTLY+advisory lock). **차단**: Stop Rule "migration 별도 spec" + prod-scale EXPLAIN 불가. → 별도 migration spec 필수.
+- **Batch 7** search normalized field + trigram index(CONCURRENTLY+advisory lock) — **측정 근거로 보류(불필요)**. 스테이징(lahom-dev) 실측: AS 대시보드 base TTFB **~200ms**, AS 검색(`?q=`) **~260ms**(0-매치 rare term 강제 풀스캔 포함 ~260ms). 즉 `_sql_compact` ilike OR-검색이 현 데이터(운영 클론)에서 이미 건강. 측정 이득 없는 상태에서 8개 필드 functional trigram 인덱스 신설은 쓰기/유지비용만 추가(가드 "운영 측정 없이 성능 완료 선언 금지" 위반). → 향후 AS 검색 TTFB가 유의하게 악화될 때 별도 migration spec으로 재검토.
 
 ### 운영 함정 (실행 중 확인됨)
 - 동시 Cursor 세션 git 레이스 → commit/push 전 reflog 확인.

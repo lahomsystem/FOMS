@@ -118,7 +118,18 @@ def compute_production_kpis_and_badges(
     필터와 동일한 전체 집합을 한 번 스캔한다(의도적; 페이지 50건과 무관).
     성능 최적화는 별도 웨이브에서 다룬다.
     """
-    kpi_rows = _q.order_by(None).with_entities(Order.id, Order.structured_data).all()
+    # Batch 4: KPI 전체스캔은 전체 structured_data(대용량 items/parties/quests 포함)를
+    # 행마다 로드/파싱했다. KPI 산출은 flags/schedule/workflow 서브트리만 읽으므로
+    # (_erp_alerts·_erp_get_stage) 해당 3개 JSON 경로만 투영해 전송·파싱 비용을 줄인다.
+    # kpi_rows는 호출부에서 len()(총건수)으로만 쓰여 행 수는 불변. _ensure_dict가
+    # dict/JSON문자열 양쪽을 처리해 동작은 byte 동일하게 보존된다.
+    sd_json = Order.structured_data
+    kpi_rows = _q.order_by(None).with_entities(
+        Order.id,
+        sd_json['flags'].label('sd_flags'),
+        sd_json['schedule'].label('sd_schedule'),
+        sd_json['workflow'].label('sd_workflow'),
+    ).all()
     kpis = {
         'urgent_count': 0,
         'production_d2_count': 0,
@@ -126,7 +137,11 @@ def compute_production_kpis_and_badges(
         'construction_d3_count': 0,
     }
     for kpi_row in kpi_rows:
-        kpi_sd = _ensure_dict(kpi_row.structured_data)
+        kpi_sd = {
+            'flags': _ensure_dict(kpi_row.sd_flags),
+            'schedule': _ensure_dict(kpi_row.sd_schedule),
+            'workflow': _ensure_dict(kpi_row.sd_workflow),
+        }
         kpi_alerts = _erp_alerts(None, kpi_sd, 0)
         if kpi_alerts.get('urgent'):
             kpis['urgent_count'] += 1

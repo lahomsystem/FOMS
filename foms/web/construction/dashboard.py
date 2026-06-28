@@ -77,7 +77,18 @@ def erp_construction_dashboard():
         else:
             query = query.filter(Order.id == -1)
 
-    kpi_rows = query.order_by(None).with_entities(Order.id, Order.structured_data, Order.is_self_measurement).all()
+    # Batch 4: KPI 전체스캔은 전체 structured_data(items/parties/quests 등 대용량)를 행마다
+    # 로드/파싱했다(시공 대시보드 KPI 잔여 비용의 핵심). KPI 산출은 flags/schedule/workflow
+    # 서브트리만 읽으므로(_erp_alerts·_display_stage_for_order) 해당 3개 경로만 투영해 전송·파싱
+    # 비용을 줄인다. 동작은 _ensure_dict(dict/JSON문자열 양쪽 처리)로 byte 동일하게 보존.
+    sd_json = Order.structured_data
+    kpi_rows = query.order_by(None).with_entities(
+        Order.id,
+        sd_json["flags"].label("sd_flags"),
+        sd_json["schedule"].label("sd_schedule"),
+        sd_json["workflow"].label("sd_workflow"),
+        Order.is_self_measurement,
+    ).all()
     step_stats = {
         "시공대기": {"count": 0, "overdue": 0, "imminent": 0},
         "시공중": {"count": 0, "overdue": 0, "imminent": 0},
@@ -93,7 +104,11 @@ def erp_construction_dashboard():
     for row in kpi_rows:
         if row.is_self_measurement and not self_measurement_four_checks_done(row):
             continue
-        structured_data = _ensure_dict(row.structured_data)
+        structured_data = {
+            "flags": _ensure_dict(row.sd_flags),
+            "schedule": _ensure_dict(row.sd_schedule),
+            "workflow": _ensure_dict(row.sd_workflow),
+        }
         display_stage = _display_stage_for_order(row, structured_data)
         if not display_stage:
             continue
