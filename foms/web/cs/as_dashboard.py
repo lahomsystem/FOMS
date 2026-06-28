@@ -4,7 +4,7 @@ from flask import Blueprint, make_response, render_template, request, redirect, 
 from db import get_db
 from models import Order, OrderAttachment
 from foms.web.auth import login_required
-from sqlalchemy import or_, and_, cast, String, case
+from sqlalchemy import or_, cast, String, case
 import datetime
 
 from foms.services.erp_display import _normalize_for_search
@@ -25,21 +25,18 @@ from foms.services.common.erp_shell_http import (
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
 from foms.services.as_dashboard_filters import parse_as_dashboard_filters
 from foms.services.as_dashboard_helpers import (
-    _as_pending_expr,
-    _as_visit_date_expr,
     _combined_as_content_expr,
     _display_address_expr,
     _display_customer_name_expr,
     _display_manager_name_expr,
     _display_phone_expr,
     _erp_as_completed_condition,
-    _erp_as_incomplete_condition,
-    _has_text_value,
-    _sales_delivery_expr,
-    _sales_delivery_true_filter,
     _sql_compact,
 )
-from foms.services.as_dashboard_read_model import build_as_tab_count_context
+from foms.services.as_dashboard_read_model import (
+    build_as_tab_count_context,
+    build_as_tab_query_conditions,
+)
 
 
 erp_as_page_bp = Blueprint('erp_as_page', __name__, url_prefix='/erp')
@@ -142,10 +139,6 @@ def erp_as_dashboard():
     bind = db.get_bind() if hasattr(db, 'get_bind') else None
     dialect_name = ((bind.dialect.name or '') if bind and bind.dialect else '').lower()
     use_postgres = dialect_name == 'postgresql'
-    sales_delivery = _sales_delivery_expr(dialect_name=dialect_name)
-    sales_delivery_true = _sales_delivery_true_filter(sales_delivery)
-    as_pending_true = _sales_delivery_true_filter(_as_pending_expr(dialect_name=dialect_name))
-    as_visit_date_present = _has_text_value(_as_visit_date_expr(dialect_name=dialect_name))
     customer_name_expr = _display_customer_name_expr(dialect_name=dialect_name)
 
     base_query = db.query(Order).filter(Order.active_filter())
@@ -227,14 +220,11 @@ def erp_as_dashboard():
     else:
         filtered_base_query = base_query
 
-    incomplete_non_sales_condition = and_(
-        _erp_as_incomplete_condition(),
-        ~sales_delivery_true,
-    )
-    sales_delivery_condition = and_(
-        _erp_as_incomplete_condition(),
-        sales_delivery_true,
-    )
+    as_tab_conditions = build_as_tab_query_conditions(dialect_name=dialect_name)
+    as_pending_true = as_tab_conditions["as_pending_true"]
+    as_visit_date_present = as_tab_conditions["as_visit_date_present"]
+    incomplete_non_sales_condition = as_tab_conditions["incomplete_non_sales_condition"]
+    sales_delivery_condition = as_tab_conditions["sales_delivery_condition"]
 
     as_count_context = build_as_tab_count_context(
         filtered_base_query,

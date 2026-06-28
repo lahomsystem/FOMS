@@ -9,9 +9,37 @@ from __future__ import annotations
 from sqlalchemy import and_
 
 from foms.services.as_dashboard_helpers import (
+    _as_pending_expr,
+    _as_visit_date_expr,
     _count_cases,
     _erp_as_completed_condition,
+    _erp_as_incomplete_condition,
+    _has_text_value,
+    _sales_delivery_expr,
+    _sales_delivery_true_filter,
 )
+
+
+def build_as_tab_query_conditions(*, dialect_name=''):
+    """AS 탭 필터와 카운트가 공유하는 SQL 조건 context를 만든다."""
+    sales_delivery = _sales_delivery_expr(dialect_name=dialect_name)
+    sales_delivery_true = _sales_delivery_true_filter(sales_delivery)
+    as_pending_true = _sales_delivery_true_filter(_as_pending_expr(dialect_name=dialect_name))
+    as_visit_date_present = _has_text_value(_as_visit_date_expr(dialect_name=dialect_name))
+    incomplete_non_sales_condition = and_(
+        _erp_as_incomplete_condition(),
+        ~sales_delivery_true,
+    )
+    sales_delivery_condition = and_(
+        _erp_as_incomplete_condition(),
+        sales_delivery_true,
+    )
+    return {
+        "as_pending_true": as_pending_true,
+        "as_visit_date_present": as_visit_date_present,
+        "incomplete_non_sales_condition": incomplete_non_sales_condition,
+        "sales_delivery_condition": sales_delivery_condition,
+    }
 
 
 def build_as_tab_count_context(
