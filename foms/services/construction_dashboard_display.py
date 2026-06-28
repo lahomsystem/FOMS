@@ -21,6 +21,7 @@ __all__ = [
     "construction_stage_badge_modifier",
     "construction_thumb_enabled",
     "enrich_construction_mobile_rows",
+    "build_construction_preview_attachments_map",
     "build_construction_row_dtos",
 ]
 
@@ -146,8 +147,13 @@ def _collect_preview_items(
     db: Any,
     *,
     drawing_only: bool = False,
+    preloaded_attachments: list[OrderAttachment] | None = None,
 ) -> list[dict[str, str]]:
-    """Resolve preview items (thumb + full view) for one construction queue row."""
+    """Resolve preview items (thumb + full view) for one construction queue row.
+
+    ``preloaded_attachments`` 제공 시 주문별 OrderAttachment 단건 조회를 생략한다
+    (배치 사전조회로 N+1 제거). None이면 기존 per-row 조회 경로를 그대로 사용한다.
+    """
     categories = _preview_categories(drawing_only=drawing_only)
     seen_views: set[str] = set()
     items: list[dict[str, str]] = []
@@ -178,15 +184,18 @@ def _collect_preview_items(
     if not order_id:
         return items[:_MAX_PREVIEW_COUNT]
 
-    attachments = (
-        db.query(OrderAttachment)
-        .filter(
-            OrderAttachment.order_id == int(order_id),
-            OrderAttachment.category.in_(sorted(categories)),
+    if preloaded_attachments is not None:
+        attachments = preloaded_attachments
+    else:
+        attachments = (
+            db.query(OrderAttachment)
+            .filter(
+                OrderAttachment.order_id == int(order_id),
+                OrderAttachment.category.in_(sorted(categories)),
+            )
+            .order_by(OrderAttachment.created_at.asc(), OrderAttachment.id.asc())
+            .all()
         )
-        .order_by(OrderAttachment.created_at.asc())
-        .all()
-    )
 
     def _sort_key(att: OrderAttachment) -> tuple[int, Any]:
         cat = (att.category or "").strip().lower()
@@ -206,8 +215,17 @@ def _collect_preview_items(
     return items[:_MAX_PREVIEW_COUNT]
 
 
-def count_preview_attachments(row: dict[str, Any], db: Any, *, drawing_only: bool = False) -> int:
-    """Count preview-eligible attachments for card +N badge (may exceed grid cap)."""
+def count_preview_attachments(
+    row: dict[str, Any],
+    db: Any,
+    *,
+    drawing_only: bool = False,
+    preloaded_count: int | None = None,
+) -> int:
+    """Count preview-eligible attachments for card +N badge (may exceed grid cap).
+
+    ``preloaded_count`` 제공 시 주문별 COUNT 조회를 생략한다(배치 사전조회 길이 재사용).
+    """
     categories = _preview_categories(drawing_only=drawing_only)
     sd = row.get("structured_data") if isinstance(row.get("structured_data"), dict) else {}
     order_id = row.get("id")
@@ -221,15 +239,58 @@ def count_preview_attachments(row: dict[str, Any], db: Any, *, drawing_only: boo
     if not order_id:
         return structured_count
 
-    db_count = (
+    if preloaded_count is not None:
+        db_count = preloaded_count
+    else:
+        db_count = (
+            db.query(OrderAttachment)
+            .filter(
+                OrderAttachment.order_id == int(order_id),
+                OrderAttachment.category.in_(sorted(categories)),
+            )
+            .count()
+        )
+    return max(structured_count, db_count)
+
+
+def build_construction_preview_attachments_map(
+    db: Any, rows: list[dict[str, Any]], *, drawing_only: bool = False
+) -> dict[int, list[OrderAttachment]]:
+    """페이지 행들의 미리보기 첨부를 1회 in_ 조회로 주문별 사전 그룹화(N+1 제거).
+
+    per-row ``_collect_preview_items``/``count_preview_attachments``의 주문별
+    OrderAttachment 조회를 대체한다. 카테고리 필터·created_at asc 정렬을 per-row 경로와
+    동일하게 유지하므로(전역 created_at asc → 주문별 부분수열도 asc) 결과는 byte-identical.
+
+    Args:
+        db: SQLAlchemy 세션.
+        rows: 현재 페이지 행 dict 리스트.
+        drawing_only: 시공팀 도면 전용 미리보기 여부(카테고리 결정).
+
+    Returns:
+        dict[int, list[OrderAttachment]]: order_id -> 첨부 리스트(created_at asc).
+    """
+    categories = _preview_categories(drawing_only=drawing_only)
+    order_ids: list[int] = []
+    for row in rows or []:
+        oid = row.get("id")
+        if oid:
+            order_ids.append(int(oid))
+    out: dict[int, list[OrderAttachment]] = {oid: [] for oid in order_ids}
+    if not order_ids:
+        return out
+    attachments = (
         db.query(OrderAttachment)
         .filter(
-            OrderAttachment.order_id == int(order_id),
+            OrderAttachment.order_id.in_(order_ids),
             OrderAttachment.category.in_(sorted(categories)),
         )
-        .count()
+        .order_by(OrderAttachment.created_at.asc(), OrderAttachment.id.asc())
+        .all()
     )
-    return max(structured_count, db_count)
+    for att in attachments:
+        out.setdefault(int(att.order_id), []).append(att)
+    return out
 
 
 def enrich_construction_mobile_rows(
@@ -247,6 +308,12 @@ def enrich_construction_mobile_rows(
         drawing_only: When True (시공팀), show drawing-category previews only.
     """
     thumb_on = construction_thumb_enabled(mobile_v2_active=mobile_v2_active)
+    # N+1 제거: 미리보기 첨부를 페이지 전체 1회 in_ 조회로 사전 그룹화(행마다 조회 X).
+    preview_map = (
+        build_construction_preview_attachments_map(db, rows, drawing_only=drawing_only)
+        if thumb_on
+        else {}
+    )
     for row in rows:
         stage = row.get("stage")
         row["stage_badge_modifier"] = construction_stage_badge_modifier(
@@ -259,14 +326,21 @@ def enrich_construction_mobile_rows(
             row["attachment_previews"] = []
             row["attachment_preview_items"] = []
             continue
-        preview_items = _collect_preview_items(row, db, drawing_only=drawing_only)
+        oid = row.get("id")
+        preloaded = preview_map.get(int(oid)) if oid else None
+        preview_items = _collect_preview_items(
+            row, db, drawing_only=drawing_only, preloaded_attachments=preloaded
+        )
         preview_urls = [item["view"] for item in preview_items]
         row["attachment_preview_items"] = preview_items
         row["attachment_previews"] = preview_urls
         row["thumbnail_url"] = preview_items[0]["thumb"] if preview_items else None
         if drawing_only:
             row["attachments_count"] = count_preview_attachments(
-                row, db, drawing_only=True
+                row,
+                db,
+                drawing_only=True,
+                preloaded_count=(len(preloaded) if preloaded is not None else None),
             )
 
 
