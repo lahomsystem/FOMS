@@ -960,7 +960,7 @@ ${attributeFieldsHtml}
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
             <div class="small fw-semibold text-muted erp-item-attachment-hint">${itemAttachmentHint}</div>
             <div class="d-flex gap-1">
-                <input type="file" class="d-none erp-item-attachments-input" accept="${itemAttachmentAccept}" capture="environment" multiple onchange="erpUploadItemAttachmentsPromptless(this)">
+                <input type="file" class="d-none erp-item-attachments-input" accept="${itemAttachmentAccept}" multiple data-foms-no-capture onchange="erpUploadItemAttachmentsPromptless(this)">
                 <button type="button" class="btn btn-sm btn-outline-primary" onclick="this.previousElementSibling.click()">
                     <i class="fas fa-image"></i> 즉시 추가
                 </button>

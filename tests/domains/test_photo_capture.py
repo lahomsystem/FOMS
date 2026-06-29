@@ -35,6 +35,8 @@ def erp_editor_client(client):
 def test_photo_capture_js_exports_helpers() -> None:
     text = (ROOT / "static/js/foms/photo-capture.js").read_text(encoding="utf-8")
     assert 'capture="environment"' in text
+    # opt-out 계약: data-foms-no-capture input은 카메라 강제에서 제외(iOS 갤러리 허용).
+    assert "data-foms-no-capture" in text
     assert "data-foms-photo-capture" in text
     assert "global.erpAppendAsReceiveFiles" in text
     assert "initAsReceiveModalFocus" in text
@@ -43,7 +45,9 @@ def test_photo_capture_js_exports_helpers() -> None:
 def test_erp_order_shared_exports_as_receive_append() -> None:
     text = (ROOT / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
     assert "window.erpAppendAsReceiveFiles = erpAppendAsReceiveFiles;" in text
-    assert 'capture="environment"' in text
+    # 항목 첨부 input은 iOS 갤러리 선택을 위해 카메라 강제(capture)를 제거하고 opt-out 표식을 단다.
+    assert "data-foms-no-capture" in text
+    assert 'erp-item-attachments-input" accept="${itemAttachmentAccept}" capture' not in text
 
 
 def test_layout_includes_photo_capture_assets() -> None:
