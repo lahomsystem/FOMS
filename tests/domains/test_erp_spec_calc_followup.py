@@ -27,6 +27,8 @@ ORDER_JS_TPL = ROOT / "templates/orders/partials/erp_order_js.html"
 EDIT_BODY_TPL = ROOT / "templates/orders/partials/edit_order_body.html"
 FORM_FIELD_CSS = ROOT / "static/css/components/foms-form-field.css"
 PRODUCT_SETTINGS = ROOT / "templates/wdcalculator/product_settings.html"
+# Batch 6: product_settings inline JS가 static 모듈로 이동 → JS 계약은 모듈에서 검사
+PRODUCT_SETTINGS_JS = ROOT / "static/js/wdcalculator/product-settings.js"
 WDC_BLUEPRINT = ROOT / "foms/api/wdcalculator/blueprint.py"
 
 
@@ -116,7 +118,7 @@ def test_legacy_stacked_controls_removed() -> None:
 
 # ----- req3: 0원 옵션 등록 허용 -----
 def test_product_settings_allows_zero_price_option() -> None:
-    html = _read(PRODUCT_SETTINGS)
+    html = _read(PRODUCT_SETTINGS) + "\n" + _read(PRODUCT_SETTINGS_JS)
     assert "optionPrice < 0" in html       # 음수만 거부
     assert "optionPrice <= 0" not in html  # 0원 거부 로직 제거
 
@@ -222,8 +224,8 @@ def test_form_field_css_chain_cache_busted_for_redesign() -> None:
     @import 버전(번들 내부)과 외곽 <link> 버전이 함께 신선해야 한다."""
     surfaces = _read(ROOT / "static/css/foundation/foms-mobile-surfaces.css")
     layout_head = _read(ROOT / "templates/partials/shared/layout_head.html")
-    assert "../components/foms-form-field.css?v=20260623e" in surfaces
-    assert "foms-mobile-surfaces.css') }}?v=20260626b" in layout_head
+    assert "../components/foms-form-field.css?v=20260629a" in surfaces
+    assert "foms-mobile-surfaces.css') }}?v=20260629a" in layout_head
 
 
 def test_spec_calc_self_heals_rows_created_before_module_load() -> None:

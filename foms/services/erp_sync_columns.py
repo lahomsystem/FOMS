@@ -5,7 +5,7 @@ from datetime import datetime
 from foms.services.erp_display import (
     _normalize_date_to_yyyymmdd,
     clean_dict_like_name,
-    erp_payment_amount_from_structured,
+    erp_deposit_amount_from_structured,
 )
 from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.phone_search import normalize_phone_digits
@@ -58,6 +58,6 @@ def sync_erp_flat_columns(order, structured_data: dict) -> None:
     phone_raw = customer.get('phone') or getattr(order, 'phone', None)
     order.erp_phone_digits = normalize_phone_digits(phone_raw)
 
-    pa = erp_payment_amount_from_structured(structured_data)
+    pa = erp_deposit_amount_from_structured(structured_data)
     if pa is not None:
         order.payment_amount = pa

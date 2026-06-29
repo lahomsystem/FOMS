@@ -15,6 +15,8 @@
         if (!input || input.type !== 'file') return false;
         if (!acceptsImages(input)) return false;
         if (input.hasAttribute('capture')) return false;
+        // 명시적 opt-out: iOS에서 카메라 강제 대신 갤러리/카메라 선택을 허용해야 하는 input.
+        if (input.hasAttribute('data-foms-no-capture')) return false;
         if (input.classList.contains('foms-photo-capture__gallery-input')) return false;
         const accept = String(input.getAttribute('accept') || '').toLowerCase();
         const nonCameraExtensions = ['.pdf', '.zip', '.dwg', '.doc', '.docx', '.xlsx'];

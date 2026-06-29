@@ -6,6 +6,7 @@ API: /api/wdcalculator/*
 import copy
 import os
 import json
+import logging
 from flask import Blueprint, request, jsonify, render_template
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
@@ -34,6 +35,8 @@ WD_SPEC_FIELD_PRESETS_PATH = os.path.join(_PROJECT_ROOT, 'data', 'spec_field_pre
 SPEC_PRESET_FIELDS = ('color', 'handle', 'internal', 'misc')
 
 wdcalculator_bp = Blueprint('wdcalculator', __name__, url_prefix='')
+
+logger = logging.getLogger(__name__)
 
 
 def clean_categories_data(categories):
@@ -189,8 +192,8 @@ def _load_json_file(path, wrapper_key):
                 with open(path, 'r', encoding='cp949') as f:
                     return json.load(f).get(wrapper_key, [])
         return []
-    except Exception as e:
-        print(f"Error loading JSON file {path}: {e}")
+    except Exception:
+        logger.exception("시드용 JSON 파일 로드 실패: %s", path)
         return []
 
 
@@ -303,8 +306,8 @@ def load_additional_option_categories():
         if not settings or settings.additional_options is None:
             return _seed_additional_option_categories_from_file()
         return clean_categories_data(_deepcopy_json(settings.additional_options, []))
-    except Exception as e:
-        print(f"Error loading additional option categories: {e}")
+    except Exception:
+        logger.exception("추가 옵션 카테고리 로드 실패")
         return []
 
 
@@ -329,10 +332,10 @@ def save_additional_option_categories(categories):
             settings.additional_options = clean_categories_data(categories or [])
             session.commit()
         return True
-    except Exception as e:
+    except Exception:
         session = get_wdcalculator_db()
         session.rollback()
-        print(f"Error saving additional option categories: {e}")
+        logger.exception("추가 옵션 카테고리 저장 실패")
         return False
 
 
@@ -343,8 +346,8 @@ def load_notes_categories():
         if not settings or settings.notes_categories is None:
             return _seed_notes_categories_from_file()
         return clean_categories_data(_deepcopy_json(settings.notes_categories, []))
-    except Exception as e:
-        print(f"Error loading notes categories: {e}")
+    except Exception:
+        logger.exception("비고 카테고리 로드 실패")
         return []
 
 
@@ -369,10 +372,10 @@ def save_notes_categories(categories):
             settings.notes_categories = clean_categories_data(categories or [])
             session.commit()
         return True
-    except Exception as e:
+    except Exception:
         session = get_wdcalculator_db()
         session.rollback()
-        print(f"Error saving notes categories: {e}")
+        logger.exception("비고 카테고리 저장 실패")
         return False
 
 
@@ -383,8 +386,8 @@ def load_products():
         if not settings or settings.products is None:
             return _seed_products_from_file()
         return _deepcopy_json(settings.products, [])
-    except Exception as e:
-        print(f"Error loading products: {e}")
+    except Exception:
+        logger.exception("제품 데이터 로드 실패")
         return []
 
 
@@ -409,10 +412,10 @@ def save_products(products):
             settings.products = _deepcopy_json(products, [])
             session.commit()
         return True
-    except Exception as e:
+    except Exception:
         session = get_wdcalculator_db()
         session.rollback()
-        print(f"Error saving products: {e}")
+        logger.exception("제품 데이터 저장 실패")
         return False
 
 
@@ -423,8 +426,8 @@ def load_spec_field_presets():
         if not settings or getattr(settings, 'spec_field_presets', None) is None:
             return _seed_spec_field_presets_from_file()
         return _normalize_spec_field_presets(_deepcopy_json(settings.spec_field_presets, {}))
-    except Exception as e:
-        print(f"Error loading spec field presets: {e}")
+    except Exception:
+        logger.exception("규격 필드 프리셋 로드 실패")
         return _normalize_spec_field_presets({})
 
 
@@ -449,10 +452,10 @@ def save_spec_field_presets(presets):
             settings.spec_field_presets = _normalize_spec_field_presets(presets or {})
             session.commit()
         return True
-    except Exception as e:
+    except Exception:
         session = get_wdcalculator_db()
         session.rollback()
-        print(f"Error saving spec field presets: {e}")
+        logger.exception("스펙 필드 프리셋 저장 실패")
         return False
 
 
@@ -569,8 +572,9 @@ def api_wdcalculator_save_product():
         if save_products(products):
             return jsonify({'success': True, 'message': '제품이 저장되었습니다.'})
         return jsonify({'success': False, 'message': '제품 저장에 실패했습니다.'})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
+    except Exception:
+        logger.exception("WDC 설정/견적 요청 처리 실패")
+        return jsonify({'success': False, 'message': '요청 처리 중 오류가 발생했습니다.'})
 
 
 @wdcalculator_bp.route('/api/wdcalculator/products/<int:product_id>', methods=['DELETE'])
@@ -581,8 +585,9 @@ def api_wdcalculator_delete_product(product_id):
         if save_products(products):
             return jsonify({'success': True, 'message': '제품이 삭제되었습니다.'})
         return jsonify({'success': False, 'message': '제품 삭제에 실패했습니다.'})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
+    except Exception:
+        logger.exception("WDC 설정/견적 요청 처리 실패")
+        return jsonify({'success': False, 'message': '요청 처리 중 오류가 발생했습니다.'})
 
 
 @wdcalculator_bp.route('/api/wdcalculator/calculate', methods=['POST'])
@@ -602,8 +607,9 @@ def api_wdcalculator_calculate():
         total_price = calculate_estimate(product, width_mm, additional_options)
         final_price = apply_coupon(total_price, coupon_type, coupon_value)
         return jsonify({'success': True, 'base_price': total_price, 'final_price': final_price})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
+    except Exception:
+        logger.exception("WDC 설정/견적 요청 처리 실패")
+        return jsonify({'success': False, 'message': '요청 처리 중 오류가 발생했습니다.'})
 
 
 @wdcalculator_bp.route('/api/wdcalculator/additional-options/categories', methods=['GET'])
@@ -677,8 +683,9 @@ def api_wdcalculator_save_category():
                     })
             return jsonify({'success': True, 'message': '카테고리가 저장되었습니다.'})
         return jsonify({'success': False, 'message': '카테고리 저장에 실패했습니다.'})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
+    except Exception:
+        logger.exception("WDC 설정/견적 요청 처리 실패")
+        return jsonify({'success': False, 'message': '요청 처리 중 오류가 발생했습니다.'})
 
 
 @wdcalculator_bp.route('/api/wdcalculator/additional-options/categories/<int:category_id>', methods=['DELETE'])
@@ -689,8 +696,9 @@ def api_wdcalculator_delete_category(category_id):
         if save_additional_option_categories(categories):
             return jsonify({'success': True, 'message': '카테고리가 삭제되었습니다.'})
         return jsonify({'success': False, 'message': '카테고리 삭제에 실패했습니다.'})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
+    except Exception:
+        logger.exception("WDC 설정/견적 요청 처리 실패")
+        return jsonify({'success': False, 'message': '요청 처리 중 오류가 발생했습니다.'})
 
 
 @wdcalculator_bp.route('/api/wdcalculator/additional-options/categories/<int:category_id>/options', methods=['POST'])
@@ -726,8 +734,9 @@ def api_wdcalculator_save_option(category_id):
         if save_additional_option_categories(cleaned):
             return jsonify({'success': True, 'message': '옵션이 저장되었습니다.'})
         return jsonify({'success': False, 'message': '옵션 저장에 실패했습니다.'})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
+    except Exception:
+        logger.exception("WDC 설정/견적 요청 처리 실패")
+        return jsonify({'success': False, 'message': '요청 처리 중 오류가 발생했습니다.'})
 
 
 @wdcalculator_bp.route('/api/wdcalculator/additional-options/categories/<int:category_id>/options/<int:option_id>', methods=['DELETE'])
@@ -742,8 +751,9 @@ def api_wdcalculator_delete_option(category_id, option_id):
         if save_additional_option_categories(categories):
             return jsonify({'success': True, 'message': '옵션이 삭제되었습니다.'})
         return jsonify({'success': False, 'message': '옵션 삭제에 실패했습니다.'})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
+    except Exception:
+        logger.exception("WDC 설정/견적 요청 처리 실패")
+        return jsonify({'success': False, 'message': '요청 처리 중 오류가 발생했습니다.'})
 
 
 @wdcalculator_bp.route('/api/wdcalculator/notes/categories', methods=['GET'])
@@ -782,8 +792,9 @@ def api_wdcalculator_save_notes_category():
                 })
             return jsonify({'success': True, 'message': '비고 카테고리가 저장되었습니다.'})
         return jsonify({'success': False, 'message': '비고 카테고리 저장에 실패했습니다.'})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
+    except Exception:
+        logger.exception("WDC 설정/견적 요청 처리 실패")
+        return jsonify({'success': False, 'message': '요청 처리 중 오류가 발생했습니다.'})
 
 
 @wdcalculator_bp.route('/api/wdcalculator/notes/categories/<int:category_id>', methods=['DELETE'])
@@ -794,8 +805,9 @@ def api_wdcalculator_delete_notes_category(category_id):
         if save_notes_categories(categories):
             return jsonify({'success': True, 'message': '비고 카테고리가 삭제되었습니다.'})
         return jsonify({'success': False, 'message': '비고 카테고리 삭제에 실패했습니다.'})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
+    except Exception:
+        logger.exception("WDC 설정/견적 요청 처리 실패")
+        return jsonify({'success': False, 'message': '요청 처리 중 오류가 발생했습니다.'})
 
 
 @wdcalculator_bp.route('/api/wdcalculator/notes/categories/<int:category_id>/options', methods=['POST'])
@@ -824,8 +836,9 @@ def api_wdcalculator_save_notes_option(category_id):
         if save_notes_categories(categories):
             return jsonify({'success': True, 'message': '비고 옵션이 저장되었습니다.', 'option': option_data})
         return jsonify({'success': False, 'message': '비고 옵션 저장에 실패했습니다.'})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
+    except Exception:
+        logger.exception("WDC 설정/견적 요청 처리 실패")
+        return jsonify({'success': False, 'message': '요청 처리 중 오류가 발생했습니다.'})
 
 
 @wdcalculator_bp.route('/api/wdcalculator/notes/categories/<int:category_id>/options/<int:option_id>', methods=['DELETE'])
@@ -859,8 +872,9 @@ def api_wdcalculator_delete_notes_option(category_id, option_id):
         if save_notes_categories(categories):
             return jsonify({'success': True, 'message': '비고 옵션이 삭제되었습니다.'})
         return jsonify({'success': False, 'message': '비고 옵션 삭제에 실패했습니다.'})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
+    except Exception:
+        logger.exception("WDC 설정/견적 요청 처리 실패")
+        return jsonify({'success': False, 'message': '요청 처리 중 오류가 발생했습니다.'})
 
 
 @wdcalculator_bp.route('/api/wdcalculator/spec-field-presets', methods=['GET'])
@@ -916,8 +930,9 @@ def api_wdcalculator_save_spec_field_preset():
                 'preset': saved, 'spec_field_presets': {field: saved_field},
             })
         return jsonify({'success': False, 'message': '프리셋 저장에 실패했습니다.'})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
+    except Exception:
+        logger.exception("WDC 설정/견적 요청 처리 실패")
+        return jsonify({'success': False, 'message': '요청 처리 중 오류가 발생했습니다.'})
 
 
 @wdcalculator_bp.route('/api/wdcalculator/spec-field-presets/<field>/<int:preset_id>', methods=['DELETE'])
@@ -933,8 +948,9 @@ def api_wdcalculator_delete_spec_field_preset(field, preset_id):
         if save_spec_field_presets(presets):
             return jsonify({'success': True, 'message': '프리셋이 삭제되었습니다.'})
         return jsonify({'success': False, 'message': '프리셋 삭제에 실패했습니다.'})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
+    except Exception:
+        logger.exception("WDC 설정/견적 요청 처리 실패")
+        return jsonify({'success': False, 'message': '요청 처리 중 오류가 발생했습니다.'})
 
 
 @wdcalculator_bp.route('/api/wdcalculator/save-estimate', methods=['POST'])
@@ -968,8 +984,8 @@ def api_wdcalculator_save_estimate():
                 return jsonify({'success': False, 'message': '수정할 견적을 찾을 수 없습니다.'})
             try:
                 db.add(EstimateHistory(estimate_id=estimate.id, estimate_data=estimate.estimate_data))
-            except Exception as history_error:
-                print(f"[wdcalculator-save] history snapshot 실패(계속 진행): {history_error}")
+            except Exception:
+                logger.warning("[wdcalculator-save] history snapshot 실패(계속 진행)", exc_info=True)
             estimate.customer_name = customer_name
             estimate.estimate_data = estimate_data
             message = '견적이 수정되었습니다.'
@@ -986,10 +1002,11 @@ def api_wdcalculator_save_estimate():
             'matched': matched,
             'order_id': order_id,
         })
-    except Exception as e:
+    except Exception:
         db = get_wdcalculator_db()
         db.rollback()
-        return jsonify({'success': False, 'message': str(e)})
+        logger.exception("WDC 견적 요청 처리 실패")
+        return jsonify({'success': False, 'message': '요청 처리 중 오류가 발생했습니다.'})
 
 
 @wdcalculator_bp.route('/api/wdcalculator/search-estimates', methods=['GET'])
@@ -1003,8 +1020,9 @@ def api_wdcalculator_search_estimates():
             query = query.filter(Estimate.customer_name.ilike(f'%{customer_name}%'))
         estimates = query.order_by(Estimate.created_at.desc()).limit(50).all()
         return jsonify({'success': True, 'estimates': [e.to_dict() for e in estimates], 'count': len(estimates)})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
+    except Exception:
+        logger.exception("WDC 설정/견적 요청 처리 실패")
+        return jsonify({'success': False, 'message': '요청 처리 중 오류가 발생했습니다.'})
 
 
 @wdcalculator_bp.route('/api/wdcalculator/estimate/<int:estimate_id>', methods=['GET', 'DELETE'])
@@ -1020,10 +1038,11 @@ def api_wdcalculator_estimate(estimate_id):
             db.commit()
             return jsonify({'success': True, 'message': '견적이 삭제되었습니다.'})
         return jsonify({'success': True, 'estimate': estimate.to_dict()})
-    except Exception as e:
+    except Exception:
         db = get_wdcalculator_db()
         db.rollback()
-        return jsonify({'success': False, 'message': str(e)})
+        logger.exception("WDC 견적 요청 처리 실패")
+        return jsonify({'success': False, 'message': '요청 처리 중 오류가 발생했습니다.'})
 
 
 @wdcalculator_bp.route('/api/wdcalculator/match-order', methods=['POST'])
@@ -1052,10 +1071,11 @@ def api_wdcalculator_match_order():
         wd_db.add(match)
         wd_db.commit()
         return jsonify({'success': True, 'message': '견적과 주문이 매칭되었습니다.', 'match_id': match.id})
-    except Exception as e:
+    except Exception:
         wd_db = get_wdcalculator_db()
         wd_db.rollback()
-        return jsonify({'success': False, 'message': str(e)})
+        logger.exception("WDC 견적-주문 매칭 처리 실패")
+        return jsonify({'success': False, 'message': '요청 처리 중 오류가 발생했습니다.'})
 
 
 def _clear_wdc_estimate_meta_link(foms_db, order, estimate_id=None):
@@ -1119,8 +1139,8 @@ def api_wdcalculator_unmatch_order():
             removed = 1
             try:
                 _clear_wdc_estimate_meta_link(foms_db, order, estimate_id)
-            except Exception as link_err:
-                print(f"[unmatch-order] meta.wdc_estimate_id 제거 실패(계속 진행): {link_err}")
+            except Exception:
+                logger.warning("[unmatch-order] meta.wdc_estimate_id 제거 실패(계속 진행)", exc_info=True)
         else:
             matches = wd_db.query(EstimateOrderMatch).filter(
                 EstimateOrderMatch.order_id == order_id
@@ -1131,17 +1151,18 @@ def api_wdcalculator_unmatch_order():
             wd_db.commit()
             try:
                 _clear_wdc_estimate_meta_link(foms_db, order, None)
-            except Exception as link_err:
-                print(f"[unmatch-order] meta.wdc_estimate_id 제거 실패(계속 진행): {link_err}")
+            except Exception:
+                logger.warning("[unmatch-order] meta.wdc_estimate_id 제거 실패(계속 진행)", exc_info=True)
         return jsonify({
             'success': True,
             'message': '견적 매칭이 해제되었습니다.',
             'removed': removed,
         })
-    except Exception as e:
+    except Exception:
         wd_db.rollback()
         foms_db.rollback()
-        return jsonify({'success': False, 'message': str(e)})
+        logger.exception("WDC 견적 매칭 해제 처리 실패")
+        return jsonify({'success': False, 'message': '요청 처리 중 오류가 발생했습니다.'})
 
 
 @wdcalculator_bp.route('/api/orders/<int:order_id>/wdc-estimate-sync', methods=['POST'])
@@ -1181,8 +1202,8 @@ def api_orders_wdc_estimate_sync(order_id):
         if estimate:
             try:
                 wd_db.add(EstimateHistory(estimate_id=estimate.id, estimate_data=estimate.estimate_data))
-            except Exception as hist_err:
-                print(f"[wdc-estimate-sync] history snapshot 실패(계속 진행): {hist_err}")
+            except Exception:
+                logger.warning("[wdc-estimate-sync] history snapshot 실패(계속 진행)", exc_info=True)
             estimate.customer_name = customer_name
             estimate.estimate_data = estimate_data
         else:
@@ -1191,11 +1212,11 @@ def api_orders_wdc_estimate_sync(order_id):
         wd_db.flush()  # estimate.id 확보
         wd_db.commit()
         return jsonify({'success': True, 'estimate_id': estimate.id, 'matched': False})
-    except Exception as e:
+    except Exception:
         wd_db = get_wdcalculator_db()
         wd_db.rollback()
-        print(f"[wdc-estimate-sync] order_id={order_id} 동기화 실패: {e}")
-        return jsonify({'success': False, 'message': str(e)})
+        logger.exception("WDC 견적 동기화 실패 order_id=%s", order_id)
+        return jsonify({'success': False, 'message': '요청 처리 중 오류가 발생했습니다.'})
 
 
 @wdcalculator_bp.route('/api/wdcalculator/order-estimates/<int:order_id>', methods=['GET'])
@@ -1208,11 +1229,13 @@ def api_wdcalculator_get_order_estimates(order_id):
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'})
         wd_db = get_wdcalculator_db()
         matches = wd_db.query(EstimateOrderMatch).filter(EstimateOrderMatch.order_id == order_id).all()
+        # N+1 제거: match별 단건 조회 대신 estimate_id 배치 조회(in_). 매칭 순서·중복·누락 의미 보존.
+        estimate_ids = [m.estimate_id for m in matches]
         estimates = []
-        for match in matches:
-            est = wd_db.query(Estimate).filter(Estimate.id == match.estimate_id).first()
-            if est:
-                estimates.append(est.to_dict())
+        if estimate_ids:
+            est_rows = wd_db.query(Estimate).filter(Estimate.id.in_(estimate_ids)).all()
+            est_by_id = {e.id: e for e in est_rows}
+            estimates = [est_by_id[eid].to_dict() for eid in estimate_ids if eid in est_by_id]
         order_payment = _build_order_payment_payload(order)
         return jsonify({
             'success': True,
@@ -1222,8 +1245,9 @@ def api_wdcalculator_get_order_estimates(order_id):
             'order_payment_amount': order_payment['amount'],
             'order_payment_label': order_payment['label'],
         })
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
+    except Exception:
+        logger.exception("주문 견적 조회 실패 order_id=%s", order_id)
+        return jsonify({'success': False, 'message': '견적을 불러오는 중 오류가 발생했습니다.'})
 
 
 @wdcalculator_bp.route('/api/wdcalculator/search-orders', methods=['GET'])
@@ -1252,5 +1276,6 @@ def api_wdcalculator_search_orders():
                 continue
             orders_list.append(payload)
         return jsonify({'success': True, 'orders': orders_list, 'count': len(orders_list)})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
+    except Exception:
+        logger.exception("WDC 설정/견적 요청 처리 실패")
+        return jsonify({'success': False, 'message': '요청 처리 중 오류가 발생했습니다.'})

@@ -20,9 +20,12 @@
           pref = stored;
         }
       } catch (e) { /* ignore */ }
-      var effective = pref === 'system'
-        ? (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-        : pref;
+      var mobileViewport = window.matchMedia && window.matchMedia('(max-width: 991.98px)').matches;
+      var effective = mobileViewport
+        ? (pref === 'system'
+          ? (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+          : pref)
+        : 'light';
       document.documentElement.setAttribute('data-theme', effective);
       document.documentElement.setAttribute('data-theme-preference', pref);
       document.documentElement.setAttribute('data-bs-theme', effective);
@@ -87,7 +90,7 @@
       }
     </style>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" crossorigin="anonymous">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-mobile-surfaces.css') }}?v=20260626b">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-mobile-surfaces.css') }}?v=20260629a">
     {% endif %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/foms/photo-capture.css') }}?v=20260529a">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-sticky-action-bar.css') }}?v=20260614a">
@@ -398,6 +401,7 @@
             color: #dc3545 !important;
         }
 
+        @media (max-width: 991.98px) {
         [data-theme='dark'] .layout-global-nav,
         [data-theme='dark'] .layout-header {
             background: var(--foms-surface-base) !important;
@@ -433,6 +437,7 @@
             background-color: var(--foms-surface-raised);
             color: var(--foms-text-primary);
             border-color: var(--foms-border-default);
+        }
         }
     </style>
     {% block head %}{% endblock %}

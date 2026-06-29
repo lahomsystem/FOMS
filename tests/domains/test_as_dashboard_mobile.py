@@ -203,9 +203,13 @@ def test_as_dashboard_mobile_v2_wiring_contract():
 
 def test_as_content_input_saves_on_blur_not_while_typing():
     """요청: 입력 중 실시간 자동저장 제거, blur(입력박스 밖 클릭) 시에만 저장."""
+    root = Path(__file__).resolve().parents[2]
+    # Batch 5: inline JS가 static/js/cs/as-dashboard.js로 이동 → 표면(템플릿+모듈) 합본 검사
     body_src = (
-        Path(__file__).resolve().parents[2] / "templates/cs/partials/as_dashboard_body.html"
-    ).read_text(encoding="utf-8")
+        (root / "templates/cs/partials/as_dashboard_body.html").read_text(encoding="utf-8")
+        + "\n"
+        + (root / "static/js/cs/as-dashboard.js").read_text(encoding="utf-8")
+    )
     # 디바운스 실시간 저장 스케줄러 완전 제거
     assert "scheduleAsContentSave" not in body_src
     # blur 시 저장(flush) + 멱등 재배선 함수 존재

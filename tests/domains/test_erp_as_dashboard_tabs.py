@@ -8,6 +8,20 @@ from db import db_session
 from models import Order, User
 
 
+def _as_surface_src():
+    """AS 대시보드 표면(프래그먼트 템플릿 + 추출된 static 모듈) 합본.
+
+    Batch 5에서 inline JS가 static/js/cs/as-dashboard.js로 이동했다. 동작 계약 토큰은
+    템플릿과 모듈 어느 쪽에 있든 'AS 표면'에 존재하면 충족이므로 둘을 합쳐 검사한다.
+    """
+    root = Path(__file__).resolve().parents[2]
+    return (
+        (root / "templates/cs/partials/as_dashboard_body.html").read_text(encoding="utf-8")
+        + "\n"
+        + (root / "static/js/cs/as-dashboard.js").read_text(encoding="utf-8")
+    )
+
+
 def _login_as_admin(client):
     user = User(
         username="erp_as_tabs_admin",
@@ -69,10 +83,14 @@ def _create_as_order(
 
 
 def test_as_dashboard_base_query_includes_pure_as_status():
-    """후속 계획: ERP AS 대시보드가 status=AS 주문도 목록에 포함한다."""
-    src = (
-        Path(__file__).resolve().parents[2] / "foms/web/cs/as_dashboard.py"
-    ).read_text(encoding="utf-8")
+    """후속 계획: ERP AS 대시보드가 status=AS 주문도 목록에 포함한다.
+
+    Batch 5: AS 미완료/완료 탭 조건이 foms/services/as_dashboard_helpers.py로 이전됨
+    → 라우트 + helpers 두 파일을 합쳐 검사(AS 상태 처리 SSOT 유지).
+    """
+    root = Path(__file__).resolve().parents[2]
+    src = (root / "foms/web/cs/as_dashboard.py").read_text(encoding="utf-8")
+    src += (root / "foms/services/as_dashboard_helpers.py").read_text(encoding="utf-8")
     assert "Order.status.in_(['AS', 'AS_RECEIVED', 'AS_COMPLETED'])" in src
     assert "Order.status == 'AS'" in src
 
@@ -88,6 +106,8 @@ def test_as_pc_and_mobile_workflow_affordances_are_present():
     card_macros = (root / "templates/cs/partials/as_card_macros.html").read_text(
         encoding="utf-8"
     )
+
+    body = body + "\n" + _as_surface_src()
 
     for token in (
         "editable-date-as",
@@ -105,13 +125,18 @@ def test_as_pc_and_mobile_workflow_affordances_are_present():
 
 def test_as_dashboard_script_runs_after_erp_shell_fragment_swap():
     """AS fragment 재삽입 뒤에도 날짜/일정찾기 이벤트가 다시 붙어야 한다."""
-    src = (
+    template = (
         Path(__file__).resolve().parents[2] / "templates/cs/partials/as_dashboard_body.html"
     ).read_text(encoding="utf-8")
+    # 프래그먼트는 외부 모듈을 src로 참조 → erp-shell activateScripts가 swap마다 재실행한다.
+    assert "js/cs/as-dashboard.js" in template
+    src = _as_surface_src()
 
     assert "function initAsDashboard()" in src
-    assert "document.readyState === 'loading'" in src
+    # static defer 모듈: 풀페이지 로드는 DOMContentLoaded 대기(다른 defer 전역 준비), swap('complete')은 즉시 init
+    assert "document.readyState === 'complete'" in src
     assert "initAsDashboard();" in src
+    assert "DOMContentLoaded', initAsDashboard" in src
     assert "DOMContentLoaded', function" not in src
     assert "window.__fomsAsDashboardAbortController" in src
     assert "addAsDashboardListener(document.body, 'click', async function (e) {" in src
@@ -119,9 +144,7 @@ def test_as_dashboard_script_runs_after_erp_shell_fragment_swap():
 
 
 def test_as_dashboard_construction_worker_contract_is_wired():
-    src = (
-        Path(__file__).resolve().parents[2] / "templates/cs/partials/as_dashboard_body.html"
-    ).read_text(encoding="utf-8")
+    src = _as_surface_src()
 
     assert "<th style=\"width: 140px;\">시공자</th>" in src
     assert "as-construction-worker-list" in src
@@ -140,9 +163,7 @@ def test_as_dashboard_construction_worker_contract_is_wired():
 
 def test_as_dashboard_add_listener_keeps_capture_when_abort_controller_active():
     """blur는 버블링되지 않음 — document 위임 시 capture:true 필수. options가 true일 때 signal만 붙이면 저장 안 됨."""
-    src = (
-        Path(__file__).resolve().parents[2] / "templates/cs/partials/as_dashboard_body.html"
-    ).read_text(encoding="utf-8")
+    src = _as_surface_src()
 
     assert "if (options === true || options === false)" in src
     assert "listenerOptions = { capture: options };" in src
@@ -163,9 +184,7 @@ def test_as_dashboard_construction_worker_css_uses_compact_edit_mode():
 
 def test_as_visit_date_visual_state_updates_optimistically():
     """AS 방문일 입력 즉시 방문일 cell 색상이 바뀌고 실패 시 저장값으로 복구해야 한다."""
-    src = (
-        Path(__file__).resolve().parents[2] / "templates/cs/partials/as_dashboard_body.html"
-    ).read_text(encoding="utf-8")
+    src = _as_surface_src()
 
     assert re.search(
         r"input\.style\.backgroundColor = '#fff3cd';\s+syncDateFieldVisuals\(orderId, fieldName, value\);",

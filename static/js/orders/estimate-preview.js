@@ -538,7 +538,7 @@
                 ? '<p class="text-muted small text-center mb-2">' + opts.hint + '</p>'
                 : '';
             body.innerHTML = hintHtml
-                + '<img src="' + dataUrl + '" alt="견적서" class="img-fluid rounded erp-attachment-preview-img">';
+                + '<img src="' + dataUrl + '" alt="견적서" class="img-fluid rounded erp-attachment-preview-img" draggable="false">';
             _bindEstimatePreviewImageZoom(body);
             _ensureEstimatePreviewModalZoomReset();
             bootstrap.Modal.getOrCreateInstance(modalEl).show();

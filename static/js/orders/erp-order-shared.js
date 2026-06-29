@@ -960,7 +960,7 @@ ${attributeFieldsHtml}
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
             <div class="small fw-semibold text-muted erp-item-attachment-hint">${itemAttachmentHint}</div>
             <div class="d-flex gap-1">
-                <input type="file" class="d-none erp-item-attachments-input" accept="${itemAttachmentAccept}" capture="environment" multiple onchange="erpUploadItemAttachmentsPromptless(this)">
+                <input type="file" class="d-none erp-item-attachments-input" accept="${itemAttachmentAccept}" multiple data-foms-no-capture onchange="erpUploadItemAttachmentsPromptless(this)">
                 <button type="button" class="btn btn-sm btn-outline-primary" onclick="this.previousElementSibling.click()">
                     <i class="fas fa-image"></i> 즉시 추가
                 </button>
@@ -1062,8 +1062,8 @@ ${attributeFieldsHtml}
 
     row.querySelector('.erp-remove-item-btn')?.addEventListener('click', async () => {
         const removedIndex = erpGetItemIndexFromRow(row);
-        if (removedIndex >= 0 && typeof erpReindexMeasurementAttachmentsAfterItemRemoval === 'function') {
-            await erpReindexMeasurementAttachmentsAfterItemRemoval(removedIndex);
+        if (removedIndex >= 0 && typeof erpReindexItemLinkedAttachmentsAfterItemRemoval === 'function') {
+            await erpReindexItemLinkedAttachmentsAfterItemRemoval(removedIndex);
         }
         row.remove();
         erpRefreshItemRowIndices();
@@ -2399,6 +2399,14 @@ function erpNormalizeAttachmentCategory(category) {
     return 'measurement';
 }
 
+function erpAttachmentSupportsItemLink(attachmentOrCategory) {
+    const category = typeof attachmentOrCategory === 'object' && attachmentOrCategory
+        ? attachmentOrCategory.category
+        : attachmentOrCategory;
+    const normalized = erpNormalizeAttachmentCategory(category);
+    return normalized === 'measurement' || normalized === 'drawing';
+}
+
 function erpAttachmentsSetStatus(text, isError = false) {
     const el = document.getElementById('erp-attachments-status');
     if (!el) return;
@@ -2516,13 +2524,13 @@ function erpSyncAttachmentPreviewActions(attachment) {
     const deleteBtn = document.getElementById('erp-attachment-preview-delete');
     if (!select && !unlinkBtn && !deleteBtn) return;
 
-    const isMeasurement = a && erpNormalizeAttachmentCategory(a.category) === 'measurement';
+    const canLinkToItem = !!(a && erpAttachmentSupportsItemLink(a));
     const linkedIndex = a ? erpParseAttachmentItemIndex(a.item_index) : null;
 
     if (select) {
-        select.classList.toggle('d-none', !isMeasurement);
-        select.disabled = !isMeasurement;
-        if (isMeasurement) {
+        select.classList.toggle('d-none', !canLinkToItem);
+        select.disabled = !canLinkToItem;
+        if (canLinkToItem) {
             select.innerHTML = erpBuildAttachmentItemOptions(a.item_index);
             select.onchange = async function () {
                 await erpLinkAttachmentToItem(a.id, this.value);
@@ -2536,8 +2544,8 @@ function erpSyncAttachmentPreviewActions(attachment) {
     }
 
     if (unlinkBtn) {
-        unlinkBtn.classList.toggle('d-none', !isMeasurement || linkedIndex === null);
-        unlinkBtn.onclick = (!isMeasurement || linkedIndex === null) ? null : async function () {
+        unlinkBtn.classList.toggle('d-none', !canLinkToItem || linkedIndex === null);
+        unlinkBtn.onclick = (!canLinkToItem || linkedIndex === null) ? null : async function () {
             await erpLinkAttachmentToItem(a.id, '');
             const fresh = erpGetAttachmentById(a.id) || Object.assign({}, a, { item_index: null });
             erpSyncAttachmentPreviewActions(fresh);
@@ -2558,9 +2566,9 @@ function erpSyncAttachmentPreviewActions(attachment) {
     }
 }
 
-async function erpReindexMeasurementAttachmentsAfterItemRemoval(removedIndex) {
+async function erpReindexItemLinkedAttachmentsAfterItemRemoval(removedIndex) {
     if (!ORDER_ID || removedIndex < 0) return;
-    const list = (__erpAttachments || []).filter((a) => erpNormalizeAttachmentCategory(a.category) === 'measurement');
+    const list = (__erpAttachments || []).filter((a) => erpAttachmentSupportsItemLink(a));
     const updates = [];
     list.forEach((a) => {
         const idx = erpParseAttachmentItemIndex(a.item_index);
@@ -2849,7 +2857,7 @@ function erpRenderAttachments() {
     <div class="fw-semibold">${label}</div>
     <span class="badge bg-primary">${list.length}</span>
 </div>
-${list.map((a) => erpBuildAttachmentTile(a, { showItemBadge: erpNormalizeAttachmentCategory(a.category) === 'measurement' })).join('')}
+${list.map((a) => erpBuildAttachmentTile(a, { showItemBadge: erpAttachmentSupportsItemLink(a) })).join('')}
 `;
         }).join('');
         erpRenderItemAttachmentPanels();
@@ -2862,7 +2870,6 @@ ${list.map((a) => erpBuildAttachmentTile(a, { showItemBadge: erpNormalizeAttachm
         const thumb = a.thumbnail_view_url || a.view_url;
         const viewUrl = a.view_url || '#';
         const downloadUrl = a.download_url || '#';
-        const category = erpNormalizeAttachmentCategory(a.category);
 
         const mediaHtml = (type === 'video')
             ? `<div class="ratio ratio-16x9 bg-dark rounded" style="overflow:hidden;">
@@ -2883,7 +2890,7 @@ style="height: 220px;">
 <div class="card h-100">
     <div class="card-body p-2">
         ${mediaHtml}
-        ${category === 'measurement' ? `
+        ${erpAttachmentSupportsItemLink(a) ? `
         <div class="mt-2">
             <label class="form-label mb-1 small text-muted">제품 연결</label>
             <select class="form-select form-select-sm" onchange="erpLinkAttachmentToItem('${a.id}', this.value)">
@@ -3040,7 +3047,7 @@ function erpOpenAttachmentPreview(attachmentId) {
 <div class="ratio ratio-16x9 bg-dark rounded" style="overflow:hidden;">
 <video src="${viewUrl}" controls autoplay style="width:100%;height:100%;"></video>
 </div>
-<div class="small text-muted mt-2">${escapeHtml(a.filename || '')}</div>
+<div class="small text-muted mt-2 erp-attachment-preview-caption">${escapeHtml(a.filename || '')}</div>
 `;
     } else if (a.file_type === 'file') {
         body.innerHTML = `
@@ -3055,8 +3062,8 @@ function erpOpenAttachmentPreview(attachmentId) {
 `;
     } else {
         body.innerHTML = `
-<img src="${viewUrl}" alt="${escapeHtml(a.filename || '')}" class="img-fluid rounded erp-attachment-preview-img">
-<div class="small text-muted mt-2">${escapeHtml(a.filename || '')}</div>
+<img src="${viewUrl}" alt="${escapeHtml(a.filename || '')}" class="img-fluid rounded erp-attachment-preview-img" draggable="false">
+<div class="small text-muted mt-2 erp-attachment-preview-caption">${escapeHtml(a.filename || '')}</div>
 `;
         erpBindAttachmentPreviewImageZoom(body);
     }
@@ -3592,6 +3599,26 @@ function erpAppendConversionTextLine(text, label, value) {
     return text + `${label} : ${String(value).trim()}\n`;
 }
 
+function erpAppendConversionExtraInputLine(text, value) {
+    const raw = String(value ?? '').trim();
+    if (!raw) return text;
+    const lines = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+    const first = (lines[0] || '').trim();
+    if (!first) return text;
+    let out = text + `추가 입력 : ${first}\n`;
+    for (let i = 1; i < lines.length; i += 1) {
+        const line = lines[i].trim();
+        if (line) out += `${line}\n`;
+    }
+    return out;
+}
+
+function erpReadItemFieldValue(row, key) {
+    if (!row || !key) return '';
+    const el = row.querySelector(`:scope [data-erp="${key}"]`);
+    return el ? String(el.value || '').trim() : '';
+}
+
 function erpAppendConversionMoneyLine(text, label, amount, suffix) {
     const n = erpCoerceAmount(amount);
     if (n <= 0) return text;
@@ -3688,10 +3715,7 @@ function erpGenerateConversionText() {
     let visibleItemIndex = 0;
 
     rows.forEach((row) => {
-        const getRowVal = (key) => {
-            const el = row.querySelector(`[data-erp="${key}"]`);
-            return el ? (el.value || '').trim() : '';
-        };
+        const getRowVal = (key) => erpReadItemFieldValue(row, key);
 
         const extraInput = getRowVal('extra_input');
 
@@ -3713,6 +3737,7 @@ function erpGenerateConversionText() {
         const option = getRowVal('option_detail');
         const handle = getRowVal('handle');
         const misc = getRowVal('misc');
+        const itemPrice = getRowVal('price');
 
         let itemText = '';
         itemText = erpAppendConversionTextLine(itemText, '제품명', pName);
@@ -3722,7 +3747,8 @@ function erpGenerateConversionText() {
         itemText = erpAppendConversionTextLine(itemText, '옵 션', option);
         itemText = erpAppendConversionTextLine(itemText, '손잡이', handle);
         itemText = erpAppendConversionTextLine(itemText, '기 타', misc);
-        itemText = erpAppendConversionTextLine(itemText, '추가 입력', extraInput);
+        itemText = erpAppendConversionMoneyLine(itemText, '항목 견적', itemPrice);
+        itemText = erpAppendConversionExtraInputLine(itemText, extraInput);
         if (!itemText) return;
 
         visibleItemIndex += 1;

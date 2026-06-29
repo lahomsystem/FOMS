@@ -56,7 +56,8 @@ def _assert_shared_form_script_contract(body: str) -> None:
 
     assert payment_urls_idx < erp_order_shared_idx < column_resizer_idx < estimate_preview_idx < estimate_columns_idx
     assert "html2canvas.min.js" not in body
-    assert "js/orders/estimate-preview.js?v=20260625b" in body
+    assert "js/orders/erp-order-shared.js?v=20260629b" in body
+    assert "js/orders/estimate-preview.js?v=20260629a" in body
 
     estimate_preview_js = (
         Path(__file__).resolve().parents[2]
@@ -329,6 +330,38 @@ def test_shared_erp_order_js_has_no_beta_runtime_mirror() -> None:
     assert "data-erp-beta-draft-mode" not in text
 
 
+def test_shared_erp_order_js_links_drawing_attachments_to_items() -> None:
+    """Drawing attachments must expose the same product-item link controls as measurement attachments."""
+    root = Path(__file__).resolve().parents[2]
+    text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+
+    support_start = text.index("function erpAttachmentSupportsItemLink")
+    support_end = text.index("function erpAttachmentsSetStatus", support_start)
+    support_block = text[support_start:support_end]
+    assert "return normalized === 'measurement' || normalized === 'drawing';" in support_block
+
+    preview_start = text.index("function erpSyncAttachmentPreviewActions")
+    preview_end = text.index("async function erpReindexItemLinkedAttachmentsAfterItemRemoval", preview_start)
+    preview_block = text[preview_start:preview_end]
+    assert "const canLinkToItem = !!(a && erpAttachmentSupportsItemLink(a));" in preview_block
+    assert "select.classList.toggle('d-none', !canLinkToItem);" in preview_block
+    assert "select.disabled = !canLinkToItem;" in preview_block
+    assert "select.innerHTML = erpBuildAttachmentItemOptions(a.item_index);" in preview_block
+    assert "unlinkBtn.classList.toggle('d-none', !canLinkToItem || linkedIndex === null);" in preview_block
+
+    reindex_start = text.index("async function erpReindexItemLinkedAttachmentsAfterItemRemoval")
+    reindex_end = text.index("async function erpUploadItemAttachments", reindex_start)
+    reindex_block = text[reindex_start:reindex_end]
+    assert "(__erpAttachments || []).filter((a) => erpAttachmentSupportsItemLink(a))" in reindex_block
+    assert "erpReindexMeasurementAttachmentsAfterItemRemoval" not in text
+
+    render_start = text.index("function erpRenderAttachments()")
+    render_end = text.index("async function erpLoadAttachments", render_start)
+    render_block = text[render_start:render_end]
+    assert "showItemBadge: erpAttachmentSupportsItemLink(a)" in render_block
+    assert "${erpAttachmentSupportsItemLink(a) ? `" in render_block
+
+
 def test_shared_erp_order_js_preserves_drawing_operational_state() -> None:
     """ERP Order full-form save must not drop drawing timeline/files/assignees from the last snapshot."""
     root = Path(__file__).resolve().parents[2]
@@ -534,7 +567,17 @@ def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
     assert "function erpHasConversionTextValue(value)" in text
     assert "function erpAppendConversionTextLine(text, label, value)" in text
     assert "function erpAppendConversionMoneyLine(text, label, amount, suffix)" in text
-    assert "erpAppendConversionTextLine(itemText, '추가 입력', extraInput)" in conversion_block
+    assert "erpAppendConversionTextLine(itemText, '추가 입력', extraInput)" not in conversion_block
+    assert "erpAppendConversionExtraInputLine(itemText, extraInput)" in conversion_block
+    assert "function erpReadItemFieldValue(row, key)" in text
+    assert "function erpAppendConversionExtraInputLine(text, value)" in text
+    assert conversion_block.index("erpAppendConversionTextLine(itemText, '기 타', misc)") < conversion_block.index(
+        "erpAppendConversionMoneyLine(itemText, '항목 견적', itemPrice)"
+    )
+    assert conversion_block.index("erpAppendConversionMoneyLine(itemText, '항목 견적', itemPrice)") < conversion_block.index(
+        "erpAppendConversionExtraInputLine(itemText, extraInput)"
+    )
+    assert "const itemPrice = getRowVal('price');" in conversion_block
     assert "allExtraInputs" not in conversion_block
     assert "getVal('erp-manager')" in conversion_block
     assert "erpAppendConversionMoneyLine(text, '출고가', totals.items_total)" in conversion_block
@@ -698,7 +741,7 @@ def test_attachment_preview_zoom_scoped_to_modal_not_mobile_form() -> None:
 
 
 def test_mobile_attachment_preview_uses_viewport_sized_modal() -> None:
-    """Mobile attachment previews need the full phone viewport, not a compact frame."""
+    """Mobile attachment previews use the global-viewer visual model while keeping actions."""
     root = Path(__file__).resolve().parents[2]
     css_text = (root / "static/css/components/foms-form-field.css").read_text(encoding="utf-8")
     mobile_bundle = (root / "static/css/foundation/foms-mobile-surfaces.css").read_text(
@@ -708,20 +751,29 @@ def test_mobile_attachment_preview_uses_viewport_sized_modal() -> None:
         encoding="utf-8"
     )
 
-    assert "Mobile attachment preview: use the phone viewport" in css_text
+    assert "Mobile attachment preview: global-viewer style stage" in css_text
+    assert "foms-global-preview-modal" in css_text
     assert "#erpAttachmentPreviewModal .modal-dialog" in css_text
+    assert "#erpEstimatePreviewModal .modal-dialog" in css_text
     assert "width: 100vw;" in css_text
     assert "height: 100dvh;" in css_text
+    assert "backdrop-filter: blur(14px) saturate(120%)" in css_text
+    assert "#erpAttachmentPreviewModal .modal-header" in css_text
+    assert "display: none;" in css_text
     assert "overflow: hidden;" in css_text
-    assert "max-height: calc(100dvh - 8.75rem);" in css_text
+    assert "max-height: calc(100dvh - 5rem - env(safe-area-inset-bottom));" in css_text
+    assert "position: absolute;" in css_text
+    assert "background: rgba(15, 23, 42, 0.86);" in css_text
+    assert "flex-wrap: nowrap;" in css_text
+    assert "background-color: #fff;" in css_text
     assert (
-        "body.erp-mobile-v2-layout #erpAttachmentPreviewModal "
+        "#erpAttachmentPreviewModal "
         ".erp-attachment-preview-actions .btn"
     ) in css_text
     assert ".erp-order-mobile-form .erp-attachment-preview-actions .btn" not in css_text
     assert "max-width: min(92vw, 36rem)" not in css_text
-    assert "../components/foms-form-field.css?v=20260623e" in mobile_bundle
-    assert "foms-mobile-surfaces.css') }}?v=20260626b" in layout_head
+    assert "../components/foms-form-field.css?v=20260629a" in mobile_bundle
+    assert "foms-mobile-surfaces.css') }}?v=20260629a" in layout_head
 
 
 def test_attachment_preview_image_zoom_supports_in_modal_gestures() -> None:
@@ -736,7 +788,8 @@ def test_attachment_preview_image_zoom_supports_in_modal_gestures() -> None:
     assert "fomsResetAttachmentPreviewZoom" in shared_js
     assert "fomsBindAttachmentPreviewImageZoom" in shared_js
     assert "erp-attachment-preview-zoom-stage" in shared_js
-    assert "translate3d(" in shared_js
+    assert "translate(" in shared_js
+    assert "translate3d(" not in shared_js
     assert '"wheel"' in shared_js
     assert "ev.touches.length === 2" in shared_js
     assert '"pointerdown"' in shared_js

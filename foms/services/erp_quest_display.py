@@ -21,7 +21,9 @@ __all__ = [
     "ACTIVE_QUEST_STATUSES",
     "resolve_current_quest",
     "build_current_quest_payload",
+    "assignee_user_ids_from_sd",
     "load_assignee_user_map",
+    "load_assignee_user_map_batch",
 ]
 
 ACTIVE_QUEST_STATUSES = frozenset({"OPEN", "IN_PROGRESS"})
@@ -300,8 +302,8 @@ def build_current_quest_payload(
     }
 
 
-def load_assignee_user_map(db, sd: dict[str, Any]) -> dict[int, str]:
-    """Load user id → display name map for assignee ids referenced in structured_data."""
+def assignee_user_ids_from_sd(sd: dict[str, Any]) -> set[int]:
+    """structured_data가 참조하는 담당자 user id 집합(영업/도면 배정)."""
     assignments = sd.get("assignments") or {}
     user_ids: set[int] = set()
     for raw in assignments.get("sales_assignee_user_ids") or []:
@@ -320,6 +322,11 @@ def load_assignee_user_map(db, sd: dict[str, Any]) -> dict[int, str]:
                 user_ids.add(int(a["id"]))
             except (TypeError, ValueError):
                 pass
+    return user_ids
+
+
+def _user_id_name_map(db, user_ids: set[int]) -> dict[int, str]:
+    """user id 집합 → 표시명 map (1회 in_ 조회)."""
     if not user_ids:
         return {}
     try:
@@ -336,3 +343,19 @@ def load_assignee_user_map(db, sd: dict[str, Any]) -> dict[int, str]:
         if isinstance(uid, int) and isinstance(name, str) and name:
             out[uid] = name
     return out
+
+
+def load_assignee_user_map(db, sd: dict[str, Any]) -> dict[int, str]:
+    """Load user id → display name map for assignee ids referenced in structured_data."""
+    return _user_id_name_map(db, assignee_user_ids_from_sd(sd))
+
+
+def load_assignee_user_map_batch(db, sds: list[dict[str, Any]]) -> dict[int, str]:
+    """여러 structured_data의 담당자 id를 합집합으로 1회 조회(모바일 큐 N+1 제거).
+
+    id로 키된 map이므로 각 주문은 자신이 참조하는 id만 조회하던 결과와 동일하게 동작한다.
+    """
+    all_ids: set[int] = set()
+    for sd in sds:
+        all_ids |= assignee_user_ids_from_sd(sd or {})
+    return _user_id_name_map(db, all_ids)

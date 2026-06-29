@@ -555,6 +555,14 @@ def test_all_erp_dashboard_mine_paths_use_shared_role_scope_contract() -> None:
         "nav_badges": root / "foms/services/dashboard_counts.py",
     }
     sources = {name: path.read_text(encoding="utf-8") for name, path in route_sources.items()}
+    # Batch 2a-2: orders mine SQL filter가 dashboard_read_model로 이전됨 → 두 파일 합쳐 검사
+    sources["orders"] += (
+        root / "foms/services/orders/dashboard_read_model.py"
+    ).read_text(encoding="utf-8")
+    # Batch 4-4: production mine SQL filter가 production_read_model로 이전됨 → 두 파일 합쳐 검사
+    sources["production"] += (
+        root / "foms/services/production_read_model.py"
+    ).read_text(encoding="utf-8")
 
     assert "build_mine_sql_filter(current_user)" in sources["orders"]
     assert "build_mine_sql_filter(current_user)" in sources["control_tower"]

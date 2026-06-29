@@ -3426,6 +3426,10 @@ var WdCalculatorOrderMatchUI = window.WdCalculatorOrderMatchUI || {};
     }
 
     function bindOrderMatchButtons() {
+        // G4 싱글톤 가드: fragment 재실행/재init 시 중복 바인딩 차단.
+        // (handleMatchOrderButtonClick은 안정 ref라 DOM이 dedupe하지만 가드 정책 준수)
+        if (window.__wdcOrderMatchClickBound) return;
+        window.__wdcOrderMatchClickBound = true;
         document.addEventListener("click", handleMatchOrderButtonClick);
     }
 

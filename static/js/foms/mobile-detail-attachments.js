@@ -36,8 +36,8 @@
       escapeHtml(viewUrl) +
       '" alt="' +
       escapeHtml(label) +
-      '" class="img-fluid rounded erp-attachment-preview-img">' +
-      '<div class="small text-muted mt-2">' +
+      '" class="img-fluid rounded erp-attachment-preview-img" draggable="false">' +
+      '<div class="small text-muted mt-2 erp-attachment-preview-caption">' +
       escapeHtml(label) +
       "</div>";
 

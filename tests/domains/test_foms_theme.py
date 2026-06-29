@@ -119,6 +119,31 @@ def test_theme_js_document_delegation_and_htmx_resync():
     assert "bindToggles" not in js
 
 
+def test_theme_js_scopes_dark_to_mobile_viewport_only():
+    js = _read("static/js/foms/theme.js")
+    assert "MOBILE_THEME_MQ" in js
+    assert "isMobileThemeViewport" in js
+    assert "resolveAppliedTheme" in js
+    assert "return 'light'" in js
+    assert "__FOMS_THEME_VIEWPORT_BOUND" in js
+    assert "bindViewportThemeListener" in js
+
+
+def test_layout_head_fouc_forces_light_on_desktop_viewport():
+    head = _read("templates/partials/shared/layout_head.html")
+    assert "max-width: 991.98px" in head.split("localStorage.getItem(key)")[1].split("data-theme")[0]
+    assert ": 'light'" in head.split("localStorage.getItem(key)")[1].split("data-theme")[0]
+
+
+def test_layout_head_desktop_chrome_dark_rules_are_mobile_scoped():
+    head = _read("templates/partials/shared/layout_head.html")
+    block = head.split("[data-theme='dark'] .layout-global-nav")[0]
+    assert "@media (max-width: 991.98px)" in block[-400:]
+    assert head.index("@media (max-width: 991.98px)") < head.index(
+        "[data-theme='dark'] .layout-global-nav"
+    )
+
+
 def test_search_overlay_closed_does_not_capture_pointer():
     css = _read("static/css/components/foms-search-overlay.css")
     assert ".foms-search-overlay:not([open])" in css

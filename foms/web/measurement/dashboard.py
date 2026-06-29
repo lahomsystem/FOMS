@@ -9,14 +9,12 @@ from foms.web.auth import login_required
 import datetime
 from datetime import date, timedelta
 from sqlalchemy import or_, and_, cast, String, func
-from sqlalchemy.orm import load_only, selectinload
+from sqlalchemy.orm import selectinload
 
-from foms.services.common.business_calendar import get_holidays_kr
 from foms.services.common.erp_mine_filter import erp_mine_only_from_request
 from foms.services.erp_permissions import (
     build_mine_sql_filter,
     can_edit_erp,
-    is_order_related_to_user,
 )
 from foms.services.erp_display import (
     _ensure_dict,
@@ -26,7 +24,6 @@ from foms.services.erp_display import (
     normalize_manager_name,
     self_measurement_four_checks_done,
 )
-from foms.services.erp_product_items import build_product_items_for_orders
 from foms.services.erp_shipment_settings import load_erp_shipment_settings
 from foms.services.measurement_manager_colors import build_measurement_manager_color_map
 from foms.services.measurement_dates import extract_all_measurement_dates
@@ -41,7 +38,12 @@ from foms.services.common.erp_shell_http import (
     apply_erp_shell_fragment_headers,
     wants_erp_shell_tab_body,
 )
-from foms.services.request_utils import get_search_query_arg
+from foms.services.measurement_dashboard_filters import parse_measurement_dashboard_filters
+from foms.services.measurement_read_model import (
+    compute_measurement_panel_assembly,
+    compute_measurement_product_items_build,
+    build_measurement_main_rows,
+)
 
 erp_measurement_dashboard_bp = Blueprint(
     'erp_measurement_dashboard', __name__, url_prefix='/erp'
@@ -66,44 +68,6 @@ def _erp_order_search_filter(query, q):
     )
 
 
-def _build_measurement_raw_match_filter(date_values):
-    values = [str(v).strip() for v in date_values if str(v or '').strip()]
-    if not values:
-        return None
-
-    conditions = []
-    for value in values:
-        conditions.append(Order.measurement_date.ilike(f'%{value}%'))
-        conditions.append(Order.erp_measurement_date == value)
-        conditions.append(
-            and_(
-                Order.is_erp_order == True,
-                cast(Order.structured_data, String).ilike(f'%{value}%')  # perf-ok: ix_orders_structured_data_text_trgm
-            )
-        )
-    return or_(*conditions) if conditions else None
-
-
-def _order_matches_measurement_window(order, selected_date='', date_from='', date_to=''):
-    all_dates = extract_all_measurement_dates(order)
-    if selected_date:
-        return selected_date in all_dates
-    if date_from and date_to:
-        return any(date_from <= d <= date_to for d in all_dates)
-    return bool(all_dates)
-
-
-def _build_measurement_dates_for_display(order, selected_date='', date_from='', date_to=''):
-    all_dates = extract_all_measurement_dates(order)
-    if selected_date and selected_date in all_dates:
-        return [selected_date] + [d for d in all_dates if d != selected_date]
-    if date_from and date_to:
-        matched = [d for d in all_dates if date_from <= d <= date_to]
-        others = [d for d in all_dates if d not in matched]
-        return matched + others
-    return all_dates
-
-
 def _measurement_user_visibility_fingerprint(current_user) -> dict:
     """실측 대시보드 캐시 키용 사용자·팀 식별."""
     if not current_user:
@@ -123,11 +87,20 @@ def erp_measurement_dashboard():
     db = get_db()
     today_kst = get_today_kst()
     today_date = today_kst.strftime('%Y-%m-%d')
-    search_q = get_search_query_arg('q', 'search', 'manager')
-    date_from = (request.args.get('date_from') or '').strip()
-    date_to = (request.args.get('date_to') or '').strip()
-    req_date = (request.args.get('date') or '').strip()
-    open_map = request.args.get('open_map') == '1'
+    # Batch 3: request.args 파싱·use_range/use_single_day 파생·날짜창은
+    # parse_measurement_dashboard_filters로 분리(동작 보존). 아래는 다운스트림 호환 로컬 바인딩.
+    _mf = parse_measurement_dashboard_filters(request, today_kst)
+    search_q = _mf.search_q
+    date_from = _mf.date_from
+    date_to = _mf.date_to
+    open_map = _mf.open_map
+    use_range = _mf.use_range
+    use_single_day = _mf.use_single_day
+    selected_date = _mf.selected_date
+    range_start = _mf.range_start
+    range_end = _mf.range_end
+    range_start_str = _mf.range_start_str
+    range_end_str = _mf.range_end_str
 
     # Phase H: 대시보드 운영 화면은 최근 활성 데이터만 조회 (과거 완료건 제외)
     base_query = db.query(Order).filter(Order.dashboard_active_filter(days=60))
@@ -143,30 +116,6 @@ def erp_measurement_dashboard():
         )
     )
     query = base_query
-
-    use_range = bool(date_from and date_to)
-    if use_range:
-        try:
-            datetime.datetime.strptime(date_from, '%Y-%m-%d').date()
-            datetime.datetime.strptime(date_to, '%Y-%m-%d').date()
-        except (ValueError, TypeError):
-            use_range = False
-    use_single_day = bool(req_date) and not use_range
-    if use_single_day:
-        try:
-            datetime.datetime.strptime(req_date, '%Y-%m-%d').date()
-        except (ValueError, TypeError):
-            use_single_day = False
-    # 기본 진입은 당일 주문만 로드한다. 전체 목록 로드는 대시보드 기본 동작에서 제외.
-    if not use_range and not use_single_day:
-        req_date = today_date
-        use_single_day = True
-    selected_date = req_date
-
-    range_start = today_kst
-    range_end = today_kst + datetime.timedelta(days=14)
-    range_start_str = range_start.strftime('%Y-%m-%d')
-    range_end_str = range_end.strftime('%Y-%m-%d')
 
     if use_range or use_single_day:
         query = query.join(OrderScheduleDate, Order.id == OrderScheduleDate.order_id)
@@ -211,193 +160,27 @@ def erp_measurement_dashboard():
         "measurement", "measurement_panel_assembly", _panel_fp
     )
 
-    def _compute_measurement_panel_assembly():
-        panel_query = base_query.join(OrderScheduleDate, Order.id == OrderScheduleDate.order_id)
-        panel_query = panel_query.filter(
-            OrderScheduleDate.kind == 'measurement',
-            OrderScheduleDate.date >= range_start_str,
-            OrderScheduleDate.date <= range_end_str,
-        ).distinct()
-        if mine_filter_active:
-            p_mine_conds = build_mine_sql_filter(current_user)
-            if p_mine_conds:
-                panel_query = panel_query.filter(or_(*p_mine_conds))
-        panel_orders = panel_query.options(
-            load_only(
-                Order.id, Order.measurement_date, Order.structured_data,
-                Order.is_self_measurement, Order.is_erp_order, Order.status,
-                Order.measurement_completed, Order.regional_sales_order_upload,
-                Order.regional_blueprint_sent, Order.regional_order_upload
-            ),
-            selectinload(Order.schedule_dates)
-        ).order_by(Order.id.desc()).all()
-
-        for o in panel_orders:
-            o.structured_data = _ensure_dict(o.structured_data)  # type: ignore[assignment]
-
-        panel_range_values = []
-        cur = range_start
-        while cur <= range_end:
-            panel_range_values.append(cur.strftime('%Y-%m-%d'))
-            cur += datetime.timedelta(days=1)
-
-        panel_order_ids = {o.id for o in panel_orders}
-        panel_fallback_supplement_ids: list[int] = []
-        panel_fallback_filter = _build_measurement_raw_match_filter(panel_range_values)
-        if panel_fallback_filter is not None:
-            panel_fallback_query = base_query.filter(panel_fallback_filter)
-            if mine_filter_active:
-                p_mine_conds = build_mine_sql_filter(current_user)
-                if p_mine_conds:
-                    panel_fallback_query = panel_fallback_query.filter(or_(*p_mine_conds))
-            panel_fallback_orders = panel_fallback_query.options(
-                load_only(
-                    Order.id, Order.measurement_date, Order.structured_data,
-                    Order.is_self_measurement, Order.is_erp_order, Order.status,
-                    Order.measurement_completed, Order.regional_sales_order_upload,
-                    Order.regional_blueprint_sent, Order.regional_order_upload
-                ),
-                selectinload(Order.schedule_dates)
-            ).order_by(Order.id.desc()).limit(1500).all()
-            for order in panel_fallback_orders:
-                order.structured_data = _ensure_dict(order.structured_data)  # type: ignore[assignment]
-                if order.id in panel_order_ids:
-                    continue
-                if not any(range_start_str <= d <= range_end_str for d in extract_all_measurement_dates(order)):
-                    continue
-                panel_orders.append(order)
-                panel_order_ids.add(order.id)
-                panel_fallback_supplement_ids.append(order.id)
-
-        years = {range_start.year, range_end.year}
-        holiday_dates = set()
-        for y in years:
-            holiday_dates |= get_holidays_kr(y)
-
-        measurement_counts = {}
-        for order in panel_orders:
-            if self_measurement_four_checks_done(order):
-                continue
-            all_dates = extract_all_measurement_dates(order)
-            for date_value in all_dates:
-                try:
-                    d = datetime.datetime.strptime(date_value, '%Y-%m-%d').date()
-                except Exception:
-                    continue
-                if d < range_start or d > range_end:
-                    continue
-                key = d.strftime('%Y-%m-%d')
-                measurement_counts[key] = measurement_counts.get(key, 0) + 1
-
-        out_panel_dates = []
-        cur2 = range_start
-        while cur2 <= range_end:
-            date_str = cur2.strftime('%Y-%m-%d')
-            is_weekend = cur2.weekday() >= 5
-            is_holiday = date_str in holiday_dates
-            out_panel_dates.append({
-                'date': date_str,
-                'count': measurement_counts.get(date_str, 0),
-                'weekday': cur2.weekday(),
-                'is_weekend': is_weekend,
-                'is_holiday': is_holiday,
-                'is_selected': date_str == selected_date
-            })
-            cur2 += datetime.timedelta(days=1)
-        return {
-            "panel_summary_stat_cards": out_panel_dates,
-            "panel_row_ids": sorted(panel_order_ids),
-            "panel_fallback_supplement_ids": sorted(panel_fallback_supplement_ids),
-        }
-
+    # Batch 3: panel assembly compute는 compute_measurement_panel_assembly(read-model)로 분리(동작 보존).
+    # cache 키(_panel_key)·fingerprint(_panel_fp)·get_or_compute는 라우트가 유지 → cache hit/miss 불변.
     _panel_blob = get_or_compute_dashboard_slice(
         _panel_key,
         TTL_PANEL_ROWS,
-        _compute_measurement_panel_assembly,
+        lambda: compute_measurement_panel_assembly(
+            base_query, current_user, mine_filter_active, selected_date,
+            range_start, range_end, range_start_str, range_end_str,
+        ),
         page="measurement",
         slice_name="measurement_panel_assembly",
     )
     measurement_panel_dates = _panel_blob["panel_summary_stat_cards"]
 
-    rows = []
-    for order in all_rows:
-        if self_measurement_four_checks_done(order):
-            continue
-        if use_single_day and selected_date:
-            if _order_matches_measurement_window(order, selected_date=selected_date):
-                rows.append(order)
-        elif use_range and date_from and date_to:
-            if _order_matches_measurement_window(
-                order,
-                date_from=date_from,
-                date_to=date_to,
-            ):
-                rows.append(order)
-        else:
-            rows.append(order)
-
-    row_match_values = []
-    if use_single_day and selected_date:
-        row_match_values = [selected_date]
-    elif use_range and date_from and date_to:
-        start_dt = datetime.datetime.strptime(date_from, '%Y-%m-%d').date()
-        end_dt = datetime.datetime.strptime(date_to, '%Y-%m-%d').date()
-        current_dt = start_dt
-        while current_dt <= end_dt and len(row_match_values) < 93:
-            row_match_values.append(current_dt.strftime('%Y-%m-%d'))
-            current_dt += datetime.timedelta(days=1)
-
-    row_fallback_added_ids: list[int] = []
-    row_fallback_filter = _build_measurement_raw_match_filter(row_match_values)
-    if row_fallback_filter is not None:
-        row_fallback_query = base_query.filter(row_fallback_filter)
-        if mine_filter_active:
-            r_mine_conds = build_mine_sql_filter(current_user)
-            if r_mine_conds:
-                row_fallback_query = row_fallback_query.filter(or_(*r_mine_conds))
-        fallback_rows = row_fallback_query.options(selectinload(Order.schedule_dates)).order_by(Order.id.desc()).limit(1500).all()
-        existing_row_ids = {o.id for o in rows}
-        for order in fallback_rows:
-            order.structured_data = _ensure_dict(order.structured_data)  # type: ignore[assignment]
-            if order.id in existing_row_ids:
-                continue
-            if self_measurement_four_checks_done(order):
-                continue
-            if not _order_matches_measurement_window(order, selected_date=selected_date, date_from=date_from, date_to=date_to):
-                continue
-            rows.append(order)
-            existing_row_ids.add(order.id)
-            row_fallback_added_ids.append(order.id)
-
-    # 검색 카드 딥링크(?focus_order=)는 실측 날짜창과 무관하게 해당 주문이 항상 큐에 착지해야 한다.
-    # orders/construction/cs/as 대시보드와 동일한 deep-link SSOT:
-    # q는 검색창 표시용이고, focus_order는 날짜 필터만 우회한다.
-    # 전역 mine이 켜져 있으면 타인 주문을 강제 포함하지 않는다.
+    # Batch 3: 메인 목록 rows 조립(필터매칭+raw-match fallback+focus 딥링크+[:300] 절단+날짜 표시 가공)은
+    # build_measurement_main_rows(read-model)로 분리(동작 보존). focus_order는 라우트가 파싱해 전달.
     focus_order_id = request.args.get('focus_order', type=int)
-    if focus_order_id and focus_order_id not in {o.id for o in rows}:
-        focus_row = (
-            db.query(Order)
-            .filter(Order.id == focus_order_id, Order.active_filter())
-            .options(selectinload(Order.schedule_dates))
-            .first()
-        )
-        if focus_row is not None and (
-            not mine_filter_active
-            or is_order_related_to_user(focus_row, current_user)
-        ):
-            focus_row.structured_data = _ensure_dict(focus_row.structured_data)  # type: ignore[assignment]
-            # [:300] 절단보다 앞에 두어 큐가 가득 차도 검색 카드가 누락되지 않게 한다.
-            rows.insert(0, focus_row)
-
-    rows = rows[:300]
-    for row in rows:
-        row.measurement_dates_display = _build_measurement_dates_for_display(
-            row,
-            selected_date=selected_date if use_single_day else '',
-            date_from=date_from if use_range else '',
-            date_to=date_to if use_range else '',
-        )
-    apply_erp_display_fields_to_orders(rows)
+    rows, row_fallback_added_ids = build_measurement_main_rows(
+        db, base_query, all_rows, current_user, mine_filter_active,
+        selected_date, use_range, use_single_day, date_from, date_to, focus_order_id,
+    )
 
     _pi_fp = {
         "v": 1,
@@ -417,19 +200,12 @@ def erp_measurement_dashboard():
         "measurement", "measurement_product_items_build", _pi_fp
     )
 
-    def _compute_measurement_product_items_build():
-        build_product_items_for_orders(db, rows)
-        return {
-            "product_items_by_id": {
-                str(o.id): (getattr(o, "product_items", None) or []) for o in rows
-            },
-            "main_table_fallback_row_ids": sorted(row_fallback_added_ids),
-        }
-
+    # Batch 3: product_items 빌드 compute는 compute_measurement_product_items_build(read-model)로 분리(동작 보존).
+    # cache 키(_pi_key)·fingerprint(_pi_fp)·get_or_compute는 라우트가 유지 → cache hit/miss 불변.
     _pi_blob = get_or_compute_dashboard_slice(
         _pi_key,
         TTL_PAYLOAD_ASSEMBLY,
-        _compute_measurement_product_items_build,
+        lambda: compute_measurement_product_items_build(db, rows, row_fallback_added_ids),
         page="measurement",
         slice_name="measurement_product_items_build",
     )
@@ -591,6 +367,7 @@ def regional_dashboard():
     completed_orders = [o for o in all_regional_orders if o.status == "COMPLETED"]
     scheduled_orders = [o for o in all_regional_orders if o.status == "SCHEDULED"]
     hold_orders = [o for o in all_regional_orders if o.status == "ON_HOLD"]
+    excluded_from_shipping_buckets = ["COMPLETED", "ON_HOLD", "SCHEDULED"]
 
     shipping_alerts = []
     for order in all_regional_orders:
@@ -598,7 +375,7 @@ def regional_dashboard():
             getattr(order, "measurement_completed", False)
             and order.shipping_scheduled_date
             and order.shipping_scheduled_date.strip()
-            and order.status not in ["COMPLETED", "ON_HOLD"]
+            and order.status not in excluded_from_shipping_buckets
         ):
             try:
                 shipping_date = datetime.datetime.strptime(
@@ -614,7 +391,7 @@ def regional_dashboard():
         if (
             order.shipping_scheduled_date
             and order.shipping_scheduled_date.strip()
-            and order.status not in ["COMPLETED", "ON_HOLD"]
+            and order.status not in excluded_from_shipping_buckets
         ):
             try:
                 shipping_date = datetime.datetime.strptime(
@@ -631,7 +408,7 @@ def regional_dashboard():
         o
         for o in all_regional_orders
         if (
-            o.status not in ["COMPLETED", "ON_HOLD", "SCHEDULED"]
+            o.status not in excluded_from_shipping_buckets
             and o.id not in shipping_alert_ids
             and o.id not in shipping_completed_ids
             and (

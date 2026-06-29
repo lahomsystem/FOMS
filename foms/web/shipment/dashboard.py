@@ -10,16 +10,17 @@ import json
 from sqlalchemy import or_, and_
 from sqlalchemy.orm import load_only
 from foms.services.common.business_calendar import get_holidays_kr
-from foms.services.common.erp_mine_filter import erp_mine_only_for_construction
 from foms.services.erp_permissions import can_edit_erp, is_order_related_to_user
 from foms.services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders, get_today_kst
-from foms.services.erp_order_flags import is_erp_order_record
-from foms.services.erp_template_filters import item_spec_w300_value
+from foms.services.shipment_dashboard_helpers import (
+    AS_SHIPMENT_STATUSES,
+    extract_dashboard_target_dates,
+    _normalize_worker_name,
+)
 from foms.services.erp_shipment_settings import (
     load_erp_shipment_settings,
     normalize_erp_shipment_workers,
 )
-from foms.services.as_content_safety import as_content_html_to_text
 from foms.services.common.dashboard_cache import (
     TTL_PANEL_ROWS,
     build_dashboard_cache_key,
@@ -31,29 +32,28 @@ from foms.services.common.erp_shell_http import (
 )
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
 from foms.services.feature_flags import is_enabled_for_user
-from foms.services.request_utils import get_search_query_arg
+from foms.services.shipment_dashboard_filters import parse_shipment_dashboard_filters
+from foms.services.shipment_read_model import (
+    compute_shipment_panel_aggregates,
+    compute_shipment_derived_template_payloads,
+)
+from foms.services.shipment_dashboard_display import (
+    enrich_shipment_rows,
+    sort_shipment_rows,
+    build_shipment_mobile_queue_rows,
+)
 from foms.services.erp_dashboard_search import (
     SHIPMENT_SEARCH_FOCUS_SCHEDULE_HALF_RANGE_DAYS,
     erp_order_dashboard_search_predicate,
 )
-from foms.services.erp_mobile_order_display import build_mobile_queue_order_row
-from foms.api.shipment.recommendations import SHREC_SOURCE
-
 # 실행 계획 §3.1.1 shipment — read-model slices:
 # - ``panel_aggregates``: construction_counts / assigned_workers / spec_units (JSON)
 # - ``shipment_panel_derived_template_payloads``: 상단 패널 stat 카드 리스트 2종 (JSON)
 # - 패널에서 파생되는 테이블 rows는 ORM 객체(§3.1.2) — ``panel_orders`` 집합은 aggregates 키의 panel_order_ids에 반영
 
-AS_SHIPMENT_STATUSES = ('AS', 'AS_RECEIVED', 'AS_COMPLETED')
-
-
 erp_shipment_page_bp = Blueprint(
     'erp_shipment_page', __name__, url_prefix='/erp'
 )
-
-
-def _normalize_worker_name(name):
-    return str(name or '').strip().lower()
 
 
 def _shipment_user_visibility_fingerprint(current_user) -> dict:
@@ -66,94 +66,6 @@ def _shipment_user_visibility_fingerprint(current_user) -> dict:
         "username": getattr(current_user, "username", None),
         "team": getattr(current_user, "team", None),
     }
-
-
-def _get_order_construction_date(order):
-    """출고 대시보드용 시공일 결정 로직."""
-    date_value = None
-    if order.is_erp_order and order.structured_data:
-        sd = order.structured_data
-        cons = (sd.get('schedule') or {}).get('construction') or {}
-        cons_date = cons.get('date')
-        if cons_date:
-            date_value = str(cons_date)
-
-    # Legacy(기존 주문) 또는 Beta Fallback: scheduled_date가 있으면 사용
-    if not date_value and order.scheduled_date:
-        date_value = str(order.scheduled_date)
-    return date_value
-
-
-def is_as_order(order):
-    return getattr(order, 'status', None) in AS_SHIPMENT_STATUSES
-
-
-def extract_as_visit_dates(order):
-    dates = set()
-    if getattr(order, 'schedule_dates', None) is not None:
-        for d in order.schedule_dates:
-            if d.kind == 'as_visit' and d.date:
-                dates.add(str(d.date))
-        if dates:
-            return dates
-
-    structured_data = getattr(order, 'structured_data', None)
-    if isinstance(structured_data, dict):
-        schedule = structured_data.get('schedule') or {}
-        visit = (schedule.get('as_visit') or {}).get('date') or ''
-        for d in str(visit).split(','):
-            if d.strip():
-                dates.add(d.strip())
-    return dates
-
-
-def extract_dashboard_target_dates(order):
-    if is_as_order(order):
-        dates = extract_as_visit_dates(order)
-        dates.update(extract_all_construction_dates(order))
-        return dates
-    return extract_all_construction_dates(order)
-
-
-def extract_all_construction_dates(order):
-    """주문에서 대표 시공일 + 항목별 시공일을 모두 추출 (schedule_dates DB 기반)."""
-    dates = set()
-    if getattr(order, 'schedule_dates', None) is not None:
-        for d in order.schedule_dates:
-            if d.kind == 'construction' and d.date:
-                dates.add(d.date)
-    else:
-        # Fallback to legacy behavior if not loaded
-        base_date = _get_order_construction_date(order)
-        if base_date:
-            for d in str(base_date).split(','):
-                if d.strip():
-                    dates.add(d.strip())
-        if is_erp_order_record(order) and getattr(order, 'structured_data', None):
-            sd = order.structured_data if isinstance(order.structured_data, dict) else {}
-            for it in sd.get('items') or []:
-                if not isinstance(it, dict):
-                    continue
-                date_val = it.get('construction_date')
-                if date_val:
-                    for d in str(date_val).split(','):
-                        if d.strip():
-                            dates.add(d.strip())
-    return dates
-
-
-def _get_order_spec_units(order):
-    """주문의 spec_w300 단위 합산. 항목별 W합/300 (spec_rows 있으면 W 합산 후 /300)."""
-    if not order.is_erp_order or not order.structured_data:
-        return 0.0
-    sd = order.structured_data or {}
-    items = sd.get('items') or []
-    total = 0.0
-    for it in items:
-        if not isinstance(it, dict):
-            continue
-        total += item_spec_w300_value(it)
-    return total
 
 
 def _shipment_dashboard_order_scope():
@@ -234,35 +146,19 @@ def erp_shipment_dashboard():
     today_kst = get_today_kst()
     today_date = today_kst.strftime('%Y-%m-%d')
     today_dt = today_kst
-    search_q = get_search_query_arg('q', 'search', 'manager')
-    date_from = (request.args.get('date_from') or '').strip()
-    date_to = (request.args.get('date_to') or '').strip()
-    date_arg_raw = (request.args.get('date') or '').strip()
-    req_date = date_arg_raw
-
-    is_construction = current_user and getattr(current_user, 'team', None) == 'CONSTRUCTION'
-    mine_only = erp_mine_only_for_construction(request, current_user)
-
-    use_range = bool(date_from and date_to)
-    if use_range:
-        try:
-            datetime.datetime.strptime(date_from, '%Y-%m-%d').date()
-            datetime.datetime.strptime(date_to, '%Y-%m-%d').date()
-        except (ValueError, TypeError):
-            use_range = False
-    use_single_day = bool(req_date) and not use_range
-    if use_single_day:
-        try:
-            datetime.datetime.strptime(req_date, '%Y-%m-%d').date()
-        except (ValueError, TypeError):
-            use_single_day = False
-    # 기본 진입은 당일 주문만 로드한다. 전체 목록 로드는 대시보드 기본 동작에서 제외.
-    if not use_range and not use_single_day:
-        req_date = today_date
-        use_single_day = True
-    selected_date = req_date
-
-    user_locked_calendar_date = bool(date_arg_raw)
+    # Batch 3: request.args 파싱·range/single-day 파생·is_construction/mine_only는
+    # parse_shipment_dashboard_filters로 분리(동작 보존). 아래는 다운스트림 호환 로컬 바인딩.
+    _sf = parse_shipment_dashboard_filters(request, current_user, today_kst)
+    search_q = _sf.search_q
+    date_from = _sf.date_from
+    date_to = _sf.date_to
+    req_date = _sf.req_date
+    is_construction = _sf.is_construction
+    mine_only = _sf.mine_only
+    use_range = _sf.use_range
+    use_single_day = _sf.use_single_day
+    selected_date = _sf.selected_date
+    user_locked_calendar_date = _sf.user_locked_calendar_date
 
     base_query = db.query(Order).filter(Order.active_filter())
     base_query = _erp_order_search_filter(base_query, search_q)
@@ -345,56 +241,12 @@ def erp_shipment_dashboard():
     }
     _agg_key = build_dashboard_cache_key("shipment", "panel_aggregates", _agg_fp)
 
-    def _compute_shipment_panel_aggregates():
-        cc = {}
-        aw = {}
-        su = {}
-        for order in panel_orders:
-            if is_as_order(order):
-                continue
-
-            for date_value in extract_all_construction_dates(order):
-                try:
-                    d = datetime.datetime.strptime(date_value, '%Y-%m-%d').date()
-                except Exception:
-                    continue
-                if d < range_start or d > range_end:
-                    continue
-                key = d.strftime('%Y-%m-%d')
-                cc[key] = cc.get(key, 0) + 1
-
-            all_construction_dates = extract_all_construction_dates(order)
-            for date_value in all_construction_dates:
-                try:
-                    d = datetime.datetime.strptime(date_value, '%Y-%m-%d').date()
-                except Exception:
-                    continue
-                if d < range_start or d > range_end:
-                    continue
-                key = d.strftime('%Y-%m-%d')
-
-                shipment = {}
-                if order.structured_data and isinstance(order.structured_data, dict):  # type: ignore
-                    shipment = (order.structured_data.get('shipment') or {})
-                workers = shipment.get('construction_workers') or []
-                for w in workers:
-                    name_key = _normalize_worker_name(w)
-                    if not name_key:
-                        continue
-                    if name_key in worker_name_map:
-                        aw.setdefault(key, set()).add(name_key)
-
-                su[key] = su.get(key, 0.0) + _get_order_spec_units(order)
-        return {
-            "construction_counts": cc,
-            "assigned_workers_by_date": {k: sorted(list(v)) for k, v in aw.items()},
-            "spec_units_by_date": su,
-        }
-
+    # Batch 3: panel aggregates compute는 compute_shipment_panel_aggregates(read-model)로 분리(동작 보존).
+    # cache 키(_agg_key)·fingerprint(_agg_fp)·get_or_compute는 라우트가 유지 → cache hit/miss 불변.
     _agg_blob = get_or_compute_dashboard_slice(
         _agg_key,
         TTL_PANEL_ROWS,
-        _compute_shipment_panel_aggregates,
+        lambda: compute_shipment_panel_aggregates(panel_orders, range_start, range_end, worker_name_map),
         page="shipment",
         slice_name="panel_aggregates",
     )
@@ -454,68 +306,15 @@ def erp_shipment_dashboard():
         "shipment", "shipment_panel_derived_template_payloads", _derived_fp
     )
 
-    def _compute_shipment_derived_template_payloads():
-        construction_panel_dates = []
-        current = range_start
-        while current <= range_end:
-            date_str = current.strftime('%Y-%m-%d')
-            is_weekend = current.weekday() >= 5
-            is_holiday = date_str in holiday_dates
-            construction_panel_dates.append({
-                'date': date_str,
-                'count': construction_counts.get(date_str, 0),
-                'weekday': current.weekday(),
-                'is_weekend': is_weekend,
-                'is_holiday': is_holiday,
-                'is_selected': date_str == selected_date
-            })
-            current += datetime.timedelta(days=1)
-
-        remaining_panel_dates = []
-        current = range_start
-        while current <= range_end:
-            date_str = current.strftime('%Y-%m-%d')
-            is_weekend = current.weekday() >= 5
-            is_holiday = date_str in holiday_dates
-            available_workers = []
-            for w in worker_settings:
-                if date_str in (w.get('off_dates') or []):
-                    continue
-                available_workers.append(w)
-            base_worker_count = len(available_workers)
-            base_capacity = sum((w.get('capacity') or 0) for w in available_workers)
-            assigned_names = assigned_workers_by_date.get(date_str, set())
-            assigned_count = 0
-            for w in available_workers:
-                if _normalize_worker_name(w.get('name')) in assigned_names:
-                    assigned_count += 1
-            remaining_workers = max(base_worker_count - assigned_count, 0)
-            used_capacity = spec_units_by_date.get(date_str, 0.0)
-            remaining_capacity = max(base_capacity - used_capacity, 0)
-            remaining_panel_dates.append({
-                'date': date_str,
-                'remaining_capacity': round(remaining_capacity, 1),
-                'remaining_workers': remaining_workers,
-                'total_capacity': round(base_capacity, 1),
-                'total_workers': base_worker_count,
-                'used_capacity': round(used_capacity, 1),
-                'assigned_workers': assigned_count,
-                'is_weekend': is_weekend,
-                'is_holiday': is_holiday,
-                'is_selected': date_str == selected_date,
-                'alert_capacity': remaining_capacity <= 40,
-                'alert_workers': remaining_workers <= 3
-            })
-            current += datetime.timedelta(days=1)
-        return {
-            "construction_panel_dates": construction_panel_dates,
-            "remaining_panel_dates": remaining_panel_dates,
-        }
-
+    # Batch 3: derived 패널 stat 카드 compute는 compute_shipment_derived_template_payloads(read-model)로 분리(동작 보존).
+    # cache 키(_derived_key)·fingerprint(_derived_fp)·get_or_compute는 라우트가 유지 → cache hit/miss 불변.
     _derived_blob = get_or_compute_dashboard_slice(
         _derived_key,
         TTL_PANEL_ROWS,
-        _compute_shipment_derived_template_payloads,
+        lambda: compute_shipment_derived_template_payloads(
+            range_start, range_end, holiday_dates, construction_counts,
+            selected_date, worker_settings, assigned_workers_by_date, spec_units_by_date,
+        ),
         page="shipment",
         slice_name="shipment_panel_derived_template_payloads",
     )
@@ -573,132 +372,20 @@ def erp_shipment_dashboard():
             ]
     rows = rows[:300]
 
-    for r in rows:
-        r.shipment_as_recommendation_link = None
-        r.structured_data = _ensure_dict(r.structured_data)  # type: ignore[assignment]
-        sd = r.structured_data
-        shipment = (sd.get('shipment') or {}) if isinstance(sd, dict) else {}
-        r.as_content_text = as_content_html_to_text(shipment.get('as_content') or '')
-
-        if is_as_order(r):
-            sched = (sd.get("schedule") or {}) if isinstance(sd, dict) else {}
-            av = sched.get("as_visit") if isinstance(sched, dict) else {}
-            sr = av.get("shipment_recommendation") if isinstance(av, dict) else None
-            if isinstance(sr, dict) and sr.get("source") == SHREC_SOURCE:
-                sid_raw = sr.get("shipment_order_id")
-                try:
-                    sid_int = int(sid_raw) if sid_raw is not None else None
-                except (TypeError, ValueError):
-                    sid_int = None
-                info_raw = sr.get("as_info_id")
-                try:
-                    info_int = int(info_raw) if info_raw is not None else None
-                except (TypeError, ValueError):
-                    info_int = None
-                r.shipment_as_recommendation_link = {
-                    "shipment_order_id": sid_int,
-                    "as_order_id": r.id,
-                    "as_info_id": info_int,
-                    "applied_date": str(sr.get("applied_date") or av.get("date") or ""),
-                }
-
-        r.is_production_approved = False
-        quests = sd.get('quests') or []
-        production_quest = next((q for q in quests if q.get('stage') in ('PRODUCTION', '생산')), None)
-
-        if production_quest:
-            quest_status = production_quest.get('status', 'OPEN')
-            if quest_status == 'COMPLETED':
-                r.is_production_approved = True
-            else:
-                team_approvals = production_quest.get('team_approvals') or {}
-                required_teams = production_quest.get('required_approvals') or []
-                if required_teams:
-                    all_approved = all(
-                        (team_approvals.get(team, {}).get('approved') if isinstance(team_approvals.get(team), dict) else team_approvals.get(team))
-                        for team in required_teams
-                    )
-                    r.is_production_approved = all_approved
+    enrich_shipment_rows(rows)
 
     apply_erp_display_fields_to_orders(rows)
 
-    def get_manager_name_for_sort(order):
-        if order.is_erp_order and order.structured_data:
-            sd = order.structured_data
-            erp_manager = (((sd.get('parties') or {}).get('manager') or {}).get('name'))
-            if erp_manager:
-                return erp_manager
-        return order.manager_name or ''
+    sort_shipment_rows(rows)
 
-    def get_construction_worker_key_for_sort(order):
-        """시공자별 그룹·정렬용: 첫 번째 유효한 시공자 또는 빈 문자열."""
-        if not order.is_erp_order or not order.structured_data:
-            return ''
-        shipment = (order.structured_data.get('shipment') or {})
-        workers = shipment.get('construction_workers') or []
-        for w in workers:
-            w_str = str(w).strip() if w else ''
-            if w_str:
-                return w_str
-        return ''
-
-    rows.sort(key=lambda o: (
-        1 if is_as_order(o) else 0,
-        get_construction_worker_key_for_sort(o) or 'ZZZ',
-        get_manager_name_for_sort(o) or 'ZZZ',
-        o.id
-    ))
-
-    mobile_queue_rows = []
     mobile_v2_active = is_enabled_for_user(
         "ERP_MOBILE_V2_ENABLED",
         current_user.id if current_user else None,
         cohort_key="FOMS_V3_SHELL_COHORT",
     )
-    if mobile_v2_active:
-        for order in rows:
-            row = build_mobile_queue_order_row(db, order, current_user)
-            sd = order.structured_data if isinstance(order.structured_data, dict) else {}
-            shipment = sd.get("shipment") or {}
-            drawing_managers = [
-                str(value).strip()
-                for value in (shipment.get("drawing_managers") or [])
-                if str(value or "").strip()
-            ]
-            if not drawing_managers and shipment.get("drawing_manager"):
-                drawing_managers = [str(shipment.get("drawing_manager")).strip()]
-            construction_workers = [
-                str(value).strip()
-                for value in (shipment.get("construction_workers") or [])
-                if str(value or "").strip()
-            ]
-            site_extra = []
-            for value in (shipment.get("site_extra") or []):
-                if isinstance(value, dict):
-                    text_value = str(value.get("text") or "").strip()
-                else:
-                    text_value = str(value or "").strip()
-                if text_value:
-                    site_extra.append(text_value)
-            row["customer_name"] = row.get("customer_name") or order.customer_name or "-"
-            if row["customer_name"] == "-":
-                row["customer_name"] = order.customer_name or "-"
-            row["phone"] = row.get("phone") if row.get("phone") not in (None, "", "-") else (order.phone or "-")
-            row["address"] = row.get("address") if row.get("address") not in (None, "", "-") else (order.address or "-")
-            row["manager_name"] = row.get("manager_name") if row.get("manager_name") not in (None, "", "-") else (order.manager_name or "-")
-            row["orderer_name"] = row.get("orderer_name") or getattr(order, "orderer_name", None)
-            row["product_subtitle"] = row.get("product_subtitle") or (getattr(order, "product", None) or "")
-            row["shipment_meta"] = {
-                "construction_time": shipment.get("construction_time") or "",
-                "drawing_managers": drawing_managers,
-                "construction_workers": construction_workers,
-                "site_extra": site_extra,
-                "spec_units": _get_order_spec_units(order),
-                "is_as": is_as_order(order),
-                "as_content_text": getattr(order, "as_content_text", "") or "",
-                "recommendation_link": getattr(order, "shipment_as_recommendation_link", None),
-            }
-            mobile_queue_rows.append(row)
+    mobile_queue_rows = build_shipment_mobile_queue_rows(
+        db, rows, current_user, mobile_v2_active=mobile_v2_active
+    )
 
     template_name = (
         'shipment/partials/dashboard_fragment.html'

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import datetime
+import re
 from typing import Any
 
 from flask import Blueprint, jsonify, request, session
@@ -34,6 +35,8 @@ from foms.services.orders.estimate_defaults import (
     ERP_DRAFT_PLACEHOLDER_PHONE,
     ERP_DRAFT_PLACEHOLDER_PRODUCT,
 )
+from foms.services.orders.initial_workflow_stage import resolve_initial_workflow_stage
+from foms.services.orders.status_constants import STATUS
 from foms.web.auth import login_required, role_required
 from models import Order
 
@@ -54,6 +57,27 @@ def _require_wizard() -> tuple[Any, int] | None:
 def _user_id() -> int | None:
     raw = session.get("user_id")
     return int(raw) if raw is not None else None
+
+
+def _parse_money_amount(value: Any) -> int:
+    """Parse wizard/ERP money fields (digits-only, dict amount/raw, numeric)."""
+    if value is None:
+        return 0
+    if isinstance(value, dict):
+        return _parse_money_amount(value.get("amount") or value.get("raw"))
+    if isinstance(value, (int, float)):
+        return max(0, int(value))
+    digits = re.sub(r"[^0-9]", "", str(value))
+    return int(digits) if digits else 0
+
+
+def _items_total_from_draft_items(items: list[dict[str, Any]]) -> int:
+    """Sum item price fields from wizard draft items."""
+    total = 0
+    for raw in items:
+        if isinstance(raw, dict):
+            total += _parse_money_amount(raw.get("price"))
+    return total
 
 
 def _draft_payload_to_structured(data: dict[str, Any]) -> dict[str, Any]:
@@ -93,6 +117,12 @@ def _draft_payload_to_structured(data: dict[str, Any]) -> dict[str, Any]:
         )
 
     schedule_in = data.get("schedule") if isinstance(data.get("schedule"), dict) else {}
+    orderer = str(data.get("orderer") or "").strip()
+    initial_stage = resolve_initial_workflow_stage(
+        orderer=orderer,
+        schedule=schedule_in,
+        items=items_in if isinstance(items_in, list) else [],
+    )
     structured: dict[str, Any] = {
         "parties": {
             "customer": {
@@ -105,15 +135,15 @@ def _draft_payload_to_structured(data: dict[str, Any]) -> dict[str, Any]:
         },
         "items": items,
         "workflow": {
-            "stage": "RECEIVED",
+            "stage": initial_stage,
             "stage_updated_at": datetime.datetime.now().isoformat(),
         },
         "schedule": {},
         "meta": {"wizard_v1": True},
     }
-    if data.get("orderer"):
+    if orderer:
         # canonical: parties.orderer = {"name": ...} (erp_display/listing이 .name으로 읽음).
-        structured.setdefault("parties", {})["orderer"] = {"name": str(data.get("orderer")).strip()}
+        structured.setdefault("parties", {})["orderer"] = {"name": orderer}
     meas = str(schedule_in.get("measurement_date") or "").strip()
     cons = str(schedule_in.get("construction_date") or "").strip()
     if meas:
@@ -137,6 +167,19 @@ def _draft_payload_to_structured(data: dict[str, Any]) -> dict[str, Any]:
     notes = str(schedule_in.get("notes") or "").strip()
     if notes:
         structured["notes"] = notes
+
+    deposit_amount = _parse_money_amount(data.get("deposit"))
+    items_total = _items_total_from_draft_items(items)
+    deposit_amount = min(deposit_amount, items_total)
+    balance_amount = max(0, items_total - deposit_amount)
+    structured["payment"] = {"deposit": deposit_amount}
+    structured["totals"] = {
+        "items_total": items_total,
+        "deposit_amount": deposit_amount,
+        "discount_amount": 0,
+        "balance_amount": balance_amount,
+        "final_amount": balance_amount,
+    }
     return structured
 
 
@@ -387,6 +430,10 @@ def api_submit_order_draft() -> tuple[Any, int]:
 
     received_date = str(data.get("received_date") or get_today_kst().strftime("%Y-%m-%d"))
     received_time = now_kst().strftime("%H:%M")
+    workflow_stage = (
+        ((structured_data.get("workflow") or {}).get("stage") or "RECEIVED").strip()
+    )
+    order_status = workflow_stage if workflow_stage in STATUS else "RECEIVED"
 
     new_order = Order(
         received_date=received_date,
@@ -397,7 +444,7 @@ def api_submit_order_draft() -> tuple[Any, int]:
         product=prod,
         options=None,
         notes=(structured_data.get("notes") or None),
-        status="RECEIVED",
+        status=order_status,
         is_erp_order=True,
         raw_order_text="",
         structured_data=copy.deepcopy(structured_data),

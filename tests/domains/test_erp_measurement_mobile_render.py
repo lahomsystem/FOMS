@@ -201,6 +201,42 @@ def test_measurement_focus_order_lands_outside_date_window(client, monkeypatch):
     assert f'data-measurement-mobile-order-id="{order_id}"' in body
 
 
+def test_measurement_dashboard_mine_filter_fallback_path(client, monkeypatch):
+    """회귀 가드: mine=1(mine_filter_active) + raw-match fallback 경로가
+    build_measurement_main_rows에서 build_mine_sql_filter를 정상 호출해야 한다.
+    (read-model 추출 시 해당 lazy import 누락 시 NameError→500 발생했던 잠복버그 방지.)"""
+    fake_today = date(2026, 6, 24)
+    monkeypatch.setattr(erp_measurement_dashboard, "get_today_kst", lambda: fake_today)
+    _login_erp_admin(client)
+
+    today_str = "2026-06-24"
+    order = Order(
+        received_date=today_str,
+        customer_name="민필터고객",
+        phone="010-0000-1234",
+        address="서울 강남구",
+        product="붙박이장",
+        status="MEASURE",
+        is_erp_order=True,
+        structured_data={"items": [{"product_name": "상부장"}]},
+    )
+    db_session.add(order)
+    db_session.flush()
+    db_session.add(
+        OrderScheduleDate(
+            order_id=order.id,
+            kind="measurement",
+            date=today_str,
+            source="beta_schedule",
+        )
+    )
+    db_session.commit()
+
+    # mine=1 → mine_filter_active=True → fallback 블록에서 build_mine_sql_filter 호출 경로 실행.
+    resp = client.get("/erp/measurement?mine=1")
+    assert resp.status_code == 200
+
+
 def test_measurement_dashboard_excludes_stale_legacy_schedule_date(client, monkeypatch):
     monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
     fake_today = date(2026, 5, 4)

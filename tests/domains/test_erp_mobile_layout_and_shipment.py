@@ -8,6 +8,20 @@ from db import db_session
 from models import ChannelDeliveryLog, Order, OrderScheduleDate, User
 
 
+def _shipment_dashboard_surface():
+    """출고 대시보드 표면(프래그먼트 템플릿 + 추출된 static 모듈) 합본.
+
+    Batch 5에서 inline JS가 static/js/shipment/shipment-dashboard.js로 이동했다.
+    JS 동작 계약 토큰은 둘을 합쳐 검사한다.
+    """
+    root = Path(__file__).resolve().parents[2]
+    return (
+        (root / "templates/shipment/partials/dashboard_main.html").read_text(encoding="utf-8")
+        + "\n"
+        + (root / "static/js/shipment/shipment-dashboard.js").read_text(encoding="utf-8")
+    )
+
+
 def _login_erp_admin(client):
     user = User(
         username="erp_mobile_layout_admin",
@@ -117,14 +131,15 @@ def test_shipment_mobile_markup_includes_colgroup_reset_override(client, monkeyp
     assert "shipment-dashboard-columns.css" in body
     assert "erp-shipment-mobile-summary__eyebrow" in body
     assert "출고 큐" in body
-    assert "input-group input-group-sm flex-nowrap" in body
+    # 편집 행 마크업은 static 모듈이 클라이언트에서 생성(서버 HTML 미포함)
+    assert "input-group input-group-sm flex-nowrap" in _shipment_dashboard_surface()
     assert body.count('value=""\n                            placeholder="도면담당자"') == 0
     assert body.count('value=""\n                            placeholder="시공자"') == 0
 
 
 def test_shipment_text_edit_contract_adds_new_blank_rows_and_has_readable_widths() -> None:
     root = Path(__file__).resolve().parents[2]
-    template = (root / "templates/shipment/partials/dashboard_main.html").read_text(encoding="utf-8")
+    template = _shipment_dashboard_surface()
     css = (root / "static/css/contexts/shipment/dashboard-table-extras.css").read_text(encoding="utf-8")
     columns = (root / "static/js/shipment/dashboard-columns.js").read_text(encoding="utf-8")
 
@@ -142,8 +157,7 @@ def test_shipment_text_edit_contract_adds_new_blank_rows_and_has_readable_widths
 
 
 def test_shipment_dashboard_template_includes_as_recommendation_prewarm_endpoint() -> None:
-    root = Path(__file__).resolve().parents[2]
-    template = (root / "templates/shipment/partials/dashboard_main.html").read_text(encoding="utf-8")
+    template = _shipment_dashboard_surface()
     assert "/api/erp/shipment/as-recommendations/prewarm" in template
     assert "scheduleShipmentAsRecPrewarm" in template or "shipment-asrec-prewarm:" in template
 
@@ -158,8 +172,7 @@ def test_shipment_dashboard_template_includes_as_recommend_entrypoint() -> None:
 
 
 def test_shipment_dashboard_as_rec_modal_has_rich_preview_hydration() -> None:
-    root = Path(__file__).resolve().parents[2]
-    template = (root / "templates/shipment/partials/dashboard_main.html").read_text(encoding="utf-8")
+    template = _shipment_dashboard_surface()
     assert "hydrateAsRecRichPreviews" in template
     assert "data-asrec-rich" in template
     assert "asrec-rich-preview" in template

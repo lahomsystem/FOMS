@@ -361,10 +361,13 @@ def test_candidate_pool_as_content_html_includes_notes_when_tab2_absent(client) 
 
 
 def test_shipment_as_recommendation_map_reuses_global_leaflet_instance() -> None:
+    # Batch 5: inline JS가 static/js/shipment/shipment-dashboard.js로 이동 → 표면 합본 검사
+    root = Path(__file__).resolve().parents[2]
     src = (
-        Path(__file__).resolve().parents[2]
-        / "templates/shipment/partials/dashboard_main.html"
-    ).read_text(encoding="utf-8")
+        (root / "templates/shipment/partials/dashboard_main.html").read_text(encoding="utf-8")
+        + "\n"
+        + (root / "static/js/shipment/shipment-dashboard.js").read_text(encoding="utf-8")
+    )
 
     assert "window.__shipmentAsRecMapLeaflet" in src
     assert "function getFreshScheduleMapContainer()" in src
