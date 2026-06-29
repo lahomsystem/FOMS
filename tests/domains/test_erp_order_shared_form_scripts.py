@@ -56,6 +56,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
 
     assert payment_urls_idx < erp_order_shared_idx < column_resizer_idx < estimate_preview_idx < estimate_columns_idx
     assert "html2canvas.min.js" not in body
+    assert "js/orders/erp-order-shared.js?v=20260629b" in body
     assert "js/orders/estimate-preview.js?v=20260629a" in body
 
     estimate_preview_js = (
@@ -327,6 +328,38 @@ def test_shared_erp_order_js_has_no_beta_runtime_mirror() -> None:
     assert "__ERP_BETA_DRAFT_MODE" not in text
     assert "data-erp-beta-enabled" not in text
     assert "data-erp-beta-draft-mode" not in text
+
+
+def test_shared_erp_order_js_links_drawing_attachments_to_items() -> None:
+    """Drawing attachments must expose the same product-item link controls as measurement attachments."""
+    root = Path(__file__).resolve().parents[2]
+    text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+
+    support_start = text.index("function erpAttachmentSupportsItemLink")
+    support_end = text.index("function erpAttachmentsSetStatus", support_start)
+    support_block = text[support_start:support_end]
+    assert "return normalized === 'measurement' || normalized === 'drawing';" in support_block
+
+    preview_start = text.index("function erpSyncAttachmentPreviewActions")
+    preview_end = text.index("async function erpReindexItemLinkedAttachmentsAfterItemRemoval", preview_start)
+    preview_block = text[preview_start:preview_end]
+    assert "const canLinkToItem = !!(a && erpAttachmentSupportsItemLink(a));" in preview_block
+    assert "select.classList.toggle('d-none', !canLinkToItem);" in preview_block
+    assert "select.disabled = !canLinkToItem;" in preview_block
+    assert "select.innerHTML = erpBuildAttachmentItemOptions(a.item_index);" in preview_block
+    assert "unlinkBtn.classList.toggle('d-none', !canLinkToItem || linkedIndex === null);" in preview_block
+
+    reindex_start = text.index("async function erpReindexItemLinkedAttachmentsAfterItemRemoval")
+    reindex_end = text.index("async function erpUploadItemAttachments", reindex_start)
+    reindex_block = text[reindex_start:reindex_end]
+    assert "(__erpAttachments || []).filter((a) => erpAttachmentSupportsItemLink(a))" in reindex_block
+    assert "erpReindexMeasurementAttachmentsAfterItemRemoval" not in text
+
+    render_start = text.index("function erpRenderAttachments()")
+    render_end = text.index("async function erpLoadAttachments", render_start)
+    render_block = text[render_start:render_end]
+    assert "showItemBadge: erpAttachmentSupportsItemLink(a)" in render_block
+    assert "${erpAttachmentSupportsItemLink(a) ? `" in render_block
 
 
 def test_shared_erp_order_js_preserves_drawing_operational_state() -> None:

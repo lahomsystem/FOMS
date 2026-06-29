@@ -1062,8 +1062,8 @@ ${attributeFieldsHtml}
 
     row.querySelector('.erp-remove-item-btn')?.addEventListener('click', async () => {
         const removedIndex = erpGetItemIndexFromRow(row);
-        if (removedIndex >= 0 && typeof erpReindexMeasurementAttachmentsAfterItemRemoval === 'function') {
-            await erpReindexMeasurementAttachmentsAfterItemRemoval(removedIndex);
+        if (removedIndex >= 0 && typeof erpReindexItemLinkedAttachmentsAfterItemRemoval === 'function') {
+            await erpReindexItemLinkedAttachmentsAfterItemRemoval(removedIndex);
         }
         row.remove();
         erpRefreshItemRowIndices();
@@ -2399,6 +2399,14 @@ function erpNormalizeAttachmentCategory(category) {
     return 'measurement';
 }
 
+function erpAttachmentSupportsItemLink(attachmentOrCategory) {
+    const category = typeof attachmentOrCategory === 'object' && attachmentOrCategory
+        ? attachmentOrCategory.category
+        : attachmentOrCategory;
+    const normalized = erpNormalizeAttachmentCategory(category);
+    return normalized === 'measurement' || normalized === 'drawing';
+}
+
 function erpAttachmentsSetStatus(text, isError = false) {
     const el = document.getElementById('erp-attachments-status');
     if (!el) return;
@@ -2516,13 +2524,13 @@ function erpSyncAttachmentPreviewActions(attachment) {
     const deleteBtn = document.getElementById('erp-attachment-preview-delete');
     if (!select && !unlinkBtn && !deleteBtn) return;
 
-    const isMeasurement = a && erpNormalizeAttachmentCategory(a.category) === 'measurement';
+    const canLinkToItem = !!(a && erpAttachmentSupportsItemLink(a));
     const linkedIndex = a ? erpParseAttachmentItemIndex(a.item_index) : null;
 
     if (select) {
-        select.classList.toggle('d-none', !isMeasurement);
-        select.disabled = !isMeasurement;
-        if (isMeasurement) {
+        select.classList.toggle('d-none', !canLinkToItem);
+        select.disabled = !canLinkToItem;
+        if (canLinkToItem) {
             select.innerHTML = erpBuildAttachmentItemOptions(a.item_index);
             select.onchange = async function () {
                 await erpLinkAttachmentToItem(a.id, this.value);
@@ -2536,8 +2544,8 @@ function erpSyncAttachmentPreviewActions(attachment) {
     }
 
     if (unlinkBtn) {
-        unlinkBtn.classList.toggle('d-none', !isMeasurement || linkedIndex === null);
-        unlinkBtn.onclick = (!isMeasurement || linkedIndex === null) ? null : async function () {
+        unlinkBtn.classList.toggle('d-none', !canLinkToItem || linkedIndex === null);
+        unlinkBtn.onclick = (!canLinkToItem || linkedIndex === null) ? null : async function () {
             await erpLinkAttachmentToItem(a.id, '');
             const fresh = erpGetAttachmentById(a.id) || Object.assign({}, a, { item_index: null });
             erpSyncAttachmentPreviewActions(fresh);
@@ -2558,9 +2566,9 @@ function erpSyncAttachmentPreviewActions(attachment) {
     }
 }
 
-async function erpReindexMeasurementAttachmentsAfterItemRemoval(removedIndex) {
+async function erpReindexItemLinkedAttachmentsAfterItemRemoval(removedIndex) {
     if (!ORDER_ID || removedIndex < 0) return;
-    const list = (__erpAttachments || []).filter((a) => erpNormalizeAttachmentCategory(a.category) === 'measurement');
+    const list = (__erpAttachments || []).filter((a) => erpAttachmentSupportsItemLink(a));
     const updates = [];
     list.forEach((a) => {
         const idx = erpParseAttachmentItemIndex(a.item_index);
@@ -2849,7 +2857,7 @@ function erpRenderAttachments() {
     <div class="fw-semibold">${label}</div>
     <span class="badge bg-primary">${list.length}</span>
 </div>
-${list.map((a) => erpBuildAttachmentTile(a, { showItemBadge: erpNormalizeAttachmentCategory(a.category) === 'measurement' })).join('')}
+${list.map((a) => erpBuildAttachmentTile(a, { showItemBadge: erpAttachmentSupportsItemLink(a) })).join('')}
 `;
         }).join('');
         erpRenderItemAttachmentPanels();
@@ -2862,7 +2870,6 @@ ${list.map((a) => erpBuildAttachmentTile(a, { showItemBadge: erpNormalizeAttachm
         const thumb = a.thumbnail_view_url || a.view_url;
         const viewUrl = a.view_url || '#';
         const downloadUrl = a.download_url || '#';
-        const category = erpNormalizeAttachmentCategory(a.category);
 
         const mediaHtml = (type === 'video')
             ? `<div class="ratio ratio-16x9 bg-dark rounded" style="overflow:hidden;">
@@ -2883,7 +2890,7 @@ style="height: 220px;">
 <div class="card h-100">
     <div class="card-body p-2">
         ${mediaHtml}
-        ${category === 'measurement' ? `
+        ${erpAttachmentSupportsItemLink(a) ? `
         <div class="mt-2">
             <label class="form-label mb-1 small text-muted">제품 연결</label>
             <select class="form-select form-select-sm" onchange="erpLinkAttachmentToItem('${a.id}', this.value)">
