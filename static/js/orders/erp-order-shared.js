@@ -3040,7 +3040,7 @@ function erpOpenAttachmentPreview(attachmentId) {
 <div class="ratio ratio-16x9 bg-dark rounded" style="overflow:hidden;">
 <video src="${viewUrl}" controls autoplay style="width:100%;height:100%;"></video>
 </div>
-<div class="small text-muted mt-2">${escapeHtml(a.filename || '')}</div>
+<div class="small text-muted mt-2 erp-attachment-preview-caption">${escapeHtml(a.filename || '')}</div>
 `;
     } else if (a.file_type === 'file') {
         body.innerHTML = `
@@ -3055,8 +3055,8 @@ function erpOpenAttachmentPreview(attachmentId) {
 `;
     } else {
         body.innerHTML = `
-<img src="${viewUrl}" alt="${escapeHtml(a.filename || '')}" class="img-fluid rounded erp-attachment-preview-img">
-<div class="small text-muted mt-2">${escapeHtml(a.filename || '')}</div>
+<img src="${viewUrl}" alt="${escapeHtml(a.filename || '')}" class="img-fluid rounded erp-attachment-preview-img" draggable="false">
+<div class="small text-muted mt-2 erp-attachment-preview-caption">${escapeHtml(a.filename || '')}</div>
 `;
         erpBindAttachmentPreviewImageZoom(body);
     }

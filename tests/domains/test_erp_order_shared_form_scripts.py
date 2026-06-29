@@ -56,7 +56,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
 
     assert payment_urls_idx < erp_order_shared_idx < column_resizer_idx < estimate_preview_idx < estimate_columns_idx
     assert "html2canvas.min.js" not in body
-    assert "js/orders/estimate-preview.js?v=20260625b" in body
+    assert "js/orders/estimate-preview.js?v=20260629a" in body
 
     estimate_preview_js = (
         Path(__file__).resolve().parents[2]
@@ -708,7 +708,7 @@ def test_attachment_preview_zoom_scoped_to_modal_not_mobile_form() -> None:
 
 
 def test_mobile_attachment_preview_uses_viewport_sized_modal() -> None:
-    """Mobile attachment previews need the full phone viewport, not a compact frame."""
+    """Mobile attachment previews use the global-viewer visual model while keeping actions."""
     root = Path(__file__).resolve().parents[2]
     css_text = (root / "static/css/components/foms-form-field.css").read_text(encoding="utf-8")
     mobile_bundle = (root / "static/css/foundation/foms-mobile-surfaces.css").read_text(
@@ -718,20 +718,29 @@ def test_mobile_attachment_preview_uses_viewport_sized_modal() -> None:
         encoding="utf-8"
     )
 
-    assert "Mobile attachment preview: use the phone viewport" in css_text
+    assert "Mobile attachment preview: global-viewer style stage" in css_text
+    assert "foms-global-preview-modal" in css_text
     assert "#erpAttachmentPreviewModal .modal-dialog" in css_text
+    assert "#erpEstimatePreviewModal .modal-dialog" in css_text
     assert "width: 100vw;" in css_text
     assert "height: 100dvh;" in css_text
+    assert "backdrop-filter: blur(14px) saturate(120%)" in css_text
+    assert "#erpAttachmentPreviewModal .modal-header" in css_text
+    assert "display: none;" in css_text
     assert "overflow: hidden;" in css_text
-    assert "max-height: calc(100dvh - 8.75rem);" in css_text
+    assert "max-height: calc(100dvh - 5rem - env(safe-area-inset-bottom));" in css_text
+    assert "position: absolute;" in css_text
+    assert "background: rgba(15, 23, 42, 0.86);" in css_text
+    assert "flex-wrap: nowrap;" in css_text
+    assert "background-color: #fff;" in css_text
     assert (
-        "body.erp-mobile-v2-layout #erpAttachmentPreviewModal "
+        "#erpAttachmentPreviewModal "
         ".erp-attachment-preview-actions .btn"
     ) in css_text
     assert ".erp-order-mobile-form .erp-attachment-preview-actions .btn" not in css_text
     assert "max-width: min(92vw, 36rem)" not in css_text
-    assert "../components/foms-form-field.css?v=20260623e" in mobile_bundle
-    assert "foms-mobile-surfaces.css') }}?v=20260626b" in layout_head
+    assert "../components/foms-form-field.css?v=20260629a" in mobile_bundle
+    assert "foms-mobile-surfaces.css') }}?v=20260629a" in layout_head
 
 
 def test_attachment_preview_image_zoom_supports_in_modal_gestures() -> None:
@@ -746,7 +755,8 @@ def test_attachment_preview_image_zoom_supports_in_modal_gestures() -> None:
     assert "fomsResetAttachmentPreviewZoom" in shared_js
     assert "fomsBindAttachmentPreviewImageZoom" in shared_js
     assert "erp-attachment-preview-zoom-stage" in shared_js
-    assert "translate3d(" in shared_js
+    assert "translate(" in shared_js
+    assert "translate3d(" not in shared_js
     assert '"wheel"' in shared_js
     assert "ev.touches.length === 2" in shared_js
     assert '"pointerdown"' in shared_js

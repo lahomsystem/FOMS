@@ -52,7 +52,7 @@
     var st = img._erpPreviewZoomState || { scale: MIN_SCALE, tx: 0, ty: 0 };
     if (stage) clampPan(img, stage);
     img.style.transform =
-      "translate3d(" + st.tx + "px," + st.ty + "px,0) scale(" + st.scale + ")";
+      "translate(" + st.tx + "px, " + st.ty + "px) scale(" + st.scale + ")";
     var zoomed = st.scale > MIN_SCALE + 0.05;
     img.classList.toggle("erp-attachment-preview-img--expanded", zoomed);
     img.setAttribute(
@@ -74,6 +74,7 @@
     img.classList.add("erp-attachment-preview-img");
     img.setAttribute("role", "button");
     img.setAttribute("tabindex", "0");
+    img.style.display = "block";
     img.draggable = false;
 
     var stage = img.parentElement;

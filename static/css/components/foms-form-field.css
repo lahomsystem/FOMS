@@ -621,9 +621,17 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
   }
 }
 
-/* Mobile attachment preview: use the phone viewport, so zoomed files are not trapped in a small dialog. */
+/* Mobile attachment preview: global-viewer style stage, with the ERP action bar preserved. */
 @media (max-width: 992px) {
-  #erpAttachmentPreviewModal .modal-dialog {
+  #erpAttachmentPreviewModal.foms-global-preview-modal,
+  #erpEstimatePreviewModal.foms-global-preview-modal {
+    background: rgba(15, 23, 42, 0.22);
+    backdrop-filter: blur(14px) saturate(120%);
+    -webkit-backdrop-filter: blur(14px) saturate(120%);
+  }
+
+  #erpAttachmentPreviewModal .modal-dialog,
+  #erpEstimatePreviewModal .modal-dialog {
     width: 100vw;
     max-width: 100vw;
     height: 100dvh;
@@ -631,50 +639,105 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
     margin: 0;
   }
 
-  #erpAttachmentPreviewModal .modal-content {
+  #erpAttachmentPreviewModal .modal-content,
+  #erpEstimatePreviewModal .modal-content {
+    position: relative;
     height: 100dvh;
     min-height: 100dvh;
     max-height: 100dvh;
+    background: transparent;
     border: 0;
     border-radius: 0;
+    box-shadow: none;
   }
 
-  #erpAttachmentPreviewModal .modal-body {
+  #erpAttachmentPreviewModal .modal-header,
+  #erpEstimatePreviewModal .modal-header {
+    display: none;
+  }
+
+  #erpAttachmentPreviewModal .modal-body,
+  #erpEstimatePreviewModal .modal-body {
+    position: relative;
     display: flex;
     flex: 1 1 auto;
     min-height: 0;
     overflow: hidden;
-    padding: var(--foms-space-2, 8px);
-    background: #0f172a;
+    padding: 0;
+    background: transparent;
   }
 
-  #erpAttachmentPreviewModal #erp-attachment-preview-body {
+  #erpAttachmentPreviewModal #erp-attachment-preview-body,
+  #erpEstimatePreviewModal #erp-estimate-preview-body {
+    position: absolute;
+    inset: 0;
     flex: 1 1 auto;
     align-self: stretch;
     min-height: 0;
     color: #e5e7eb;
   }
 
-  #erpAttachmentPreviewModal .erp-attachment-preview-zoom-stage {
+  #erpAttachmentPreviewModal .erp-attachment-preview-zoom-stage,
+  #erpEstimatePreviewModal .erp-attachment-preview-zoom-stage {
+    position: absolute;
+    inset: 0;
     flex: 1 1 auto;
     align-self: stretch;
     min-height: 0;
     height: 100%;
-    max-height: calc(100dvh - 8.75rem);
-    border-radius: var(--foms-radius-lg, 12px);
-    background: #111827;
-  }
-
-  #erpAttachmentPreviewModal .erp-attachment-preview-zoom-stage .erp-attachment-preview-img {
-    max-height: calc(100dvh - 8.75rem);
-    max-width: 100%;
-    padding: 0;
+    max-height: none;
+    border-radius: 0;
     background: transparent;
   }
 
-  #erpAttachmentPreviewModal .modal-header,
-  #erpAttachmentPreviewModal .modal-footer {
+  #erpAttachmentPreviewModal .erp-attachment-preview-zoom-stage .erp-attachment-preview-img,
+  #erpEstimatePreviewModal .erp-attachment-preview-zoom-stage .erp-attachment-preview-img {
+    display: block;
+    cursor: grab;
+    max-width: 95vw;
+    max-height: calc(100dvh - 5rem - env(safe-area-inset-bottom));
+    width: auto;
+    height: auto;
+    padding: 0;
+    background: transparent;
+    box-shadow: 0 0 50px rgba(0, 0, 0, 0.5);
+    user-select: none;
+    -webkit-user-select: none;
+    transition: transform 0.1s linear;
+  }
+
+  #erpAttachmentPreviewModal .erp-attachment-preview-caption,
+  #erpAttachmentPreviewModal .erp-attachment-preview-zoom-stage + .small,
+  #erpEstimatePreviewModal .erp-attachment-preview-zoom-stage + .small {
+    display: none !important;
+  }
+
+  #erpAttachmentPreviewModal .modal-footer,
+  #erpEstimatePreviewModal .modal-footer {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 4;
     flex: 0 0 auto;
+    min-height: 64px;
+    padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+    border-top: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(15, 23, 42, 0.86);
+    backdrop-filter: blur(14px) saturate(120%);
+    -webkit-backdrop-filter: blur(14px) saturate(120%);
+  }
+
+  #erpAttachmentPreviewModal .erp-attachment-preview-actions {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: var(--foms-space-2, 8px);
+    align-items: center;
+    justify-content: flex-end;
+  }
+
+  #erpEstimatePreviewModal .modal-footer {
+    justify-content: flex-end;
   }
 }
 
@@ -687,22 +750,39 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
   justify-content: flex-end;
 }
 
-body.erp-mobile-v2-layout #erpAttachmentPreviewModal .erp-attachment-preview-actions .foms-select,
-body.erp-mobile-v2-layout #erpAttachmentPreviewModal .erp-attachment-preview-actions .form-select {
-  flex: 1 1 11rem;
-  min-width: 0;
-  max-width: 14rem;
-  min-height: var(--foms-touch-target-min);
-}
+@media (max-width: 992px) {
+  #erpAttachmentPreviewModal .erp-attachment-preview-actions .foms-select,
+  #erpAttachmentPreviewModal .erp-attachment-preview-actions .form-select {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: none;
+    min-height: var(--foms-touch-target-min);
+    color: #111827;
+    background-color: #fff;
+    border-color: rgba(255, 255, 255, 0.4);
+  }
 
-body.erp-mobile-v2-layout #erpAttachmentPreviewModal .erp-attachment-preview-actions .btn {
-  display: inline-flex;
-  flex: 0 0 44px;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  min-height: 44px;
-  padding: 0;
+  #erpAttachmentPreviewModal .erp-attachment-preview-actions .btn {
+    display: inline-flex;
+    flex: 0 0 44px;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    min-height: 44px;
+    padding: 0;
+  }
+
+  #erpAttachmentPreviewModal .erp-attachment-preview-actions .btn-outline-secondary {
+    color: #e5e7eb;
+    border-color: rgba(229, 231, 235, 0.56);
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  #erpAttachmentPreviewModal .erp-attachment-preview-actions .btn-outline-danger {
+    color: #fecaca;
+    border-color: rgba(248, 113, 113, 0.9);
+    background: rgba(127, 29, 29, 0.22);
+  }
 }
 
 .erp-mobile-sticky-action-bar {
