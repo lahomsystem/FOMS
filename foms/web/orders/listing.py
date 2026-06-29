@@ -18,7 +18,7 @@ from foms.services.orders.estimate_defaults import (
 from foms.services.orders.status_constants import STATUS
 from foms.services.order_display_utils import format_options_for_display, _ensure_dict
 from foms.services.jobs.queue import enqueue_geocode_order_address
-from foms.services.erp_display import erp_payment_amount_from_structured
+from foms.services.erp_display import erp_deposit_amount_from_structured
 from foms.services.datetime_kst import get_today_kst, now_kst
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.request_utils import (
@@ -200,7 +200,7 @@ def index():
                 orderer_name = ((sd.get('parties') or {}).get('orderer') or {}).get('name')
                 if orderer_name:
                     setattr(order_display_data, 'orderer_name', str(orderer_name).strip())
-                pa = erp_payment_amount_from_structured(sd)
+                pa = erp_deposit_amount_from_structured(sd)
                 if pa is not None:
                     setattr(order_display_data, 'payment_amount', pa)
             else:

@@ -6,6 +6,7 @@ from foms.services.erp_display import (
     _normalize_date_to_yyyymmdd,
     apply_erp_display_fields,
     clean_dict_like_name,
+    erp_deposit_amount_from_structured,
     erp_payment_amount_from_structured,
     normalize_manager_name,
     self_measurement_four_checks_done,
@@ -72,11 +73,47 @@ def test_erp_payment_amount_falls_back_when_items_total_unparsable() -> None:
     assert erp_payment_amount_from_structured(sd) == 100
 
 
+def test_erp_deposit_amount_reads_payment_deposit() -> None:
+    sd = {
+        "totals": {"items_total": 1_198_400},
+        "payment": {"deposit": 500_000},
+    }
+    assert erp_deposit_amount_from_structured(sd) == 500_000
+
+
+def test_erp_deposit_amount_falls_back_to_payments_key() -> None:
+    sd = {"payments": {"deposit": {"amount": "250,000"}}}
+    assert erp_deposit_amount_from_structured(sd) == 250_000
+
+
+def test_erp_deposit_amount_returns_zero_for_explicit_zero_deposit() -> None:
+    sd = {"payment": {"deposit": 0}}
+    assert erp_deposit_amount_from_structured(sd) == 0
+
+
+def test_erp_deposit_amount_reads_zero_from_dict_amount() -> None:
+    sd = {"payment": {"deposit": {"amount": 0}}}
+    assert erp_deposit_amount_from_structured(sd) == 0
+
+
+def test_erp_deposit_amount_returns_none_for_null_deposit() -> None:
+    sd = {"payment": {"deposit": None}}
+    assert erp_deposit_amount_from_structured(sd) is None
+
+
+def test_erp_deposit_amount_returns_none_when_deposit_missing() -> None:
+    sd = {"payment": {"discount": 10_000}, "totals": {"items_total": 100}}
+    assert erp_deposit_amount_from_structured(sd) is None
+
+
 def test_apply_erp_display_fields_sets_payment_for_erp_order() -> None:
     order = SimpleNamespace(
         is_erp_order=True,
         payment_amount=0,
-        structured_data={"totals": {"items_total": "1,198,400"}},
+        structured_data={
+            "totals": {"items_total": "1,198,400"},
+            "payment": {"deposit": 500_000},
+        },
     )
     apply_erp_display_fields(order)
-    assert order.payment_amount == 1_198_400
+    assert order.payment_amount == 500_000

@@ -58,6 +58,7 @@ def test_sync_erp_flat_columns_updates_expected_flat_columns() -> None:
         "flags": {"urgent": True},
         "assignments": {"owner_team": "CONSTRUCTION"},
         "totals": {"items_total": 1_198_400},
+        "payment": {"deposit": 500_000},
     }
 
     sync_erp_flat_columns(order, structured_data)
@@ -71,4 +72,4 @@ def test_sync_erp_flat_columns_updates_expected_flat_columns() -> None:
     assert order.erp_stage_updated_at.isoformat() == "2026-04-08T12:34:56+00:00"
     assert order.erp_owner_team_code == "CONSTRUCTION"
     assert order.erp_phone_digits == "01012345678"
-    assert order.payment_amount == 1_198_400
+    assert order.payment_amount == 500_000

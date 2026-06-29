@@ -234,9 +234,50 @@ def _erp_coerce_items_total_krw(raw) -> int | None:
         return None
 
 
+def _erp_coerce_payment_deposit_krw(raw) -> int | None:
+    """structured_data.payment.deposit / payments.deposit 값을 원화 정수로 정규화."""
+    if raw is None or raw is False:
+        return None
+    if isinstance(raw, dict):
+        if 'amount' in raw:
+            return _erp_coerce_payment_deposit_krw(raw.get('amount'))
+        if 'raw' in raw:
+            return _erp_coerce_payment_deposit_krw(raw.get('raw'))
+        return None
+    if isinstance(raw, bool):
+        return None
+    try:
+        if isinstance(raw, (int, float)):
+            if raw < 0:
+                return None
+            return int(raw) if raw == int(raw) else int(float(raw))
+        digits = ''.join(c for c in str(raw) if c.isdigit())
+        return int(digits) if digits else None
+    except (TypeError, ValueError):
+        return None
+
+
+def erp_deposit_amount_from_structured(sd: dict) -> int | None:
+    """
+    ERP 주문 structured_data에서 예약금(선금) 원화 금액을 산출한다.
+    웹 클라이언트 `#erp-deposit-amount`와 동일한 payment.deposit 소스.
+    """
+    if not isinstance(sd, dict):
+        return None
+    for payment_key in ('payment', 'payments'):
+        payment_data = sd.get(payment_key)
+        if not isinstance(payment_data, dict) or 'deposit' not in payment_data:
+            continue
+        coerced = _erp_coerce_payment_deposit_krw(payment_data.get('deposit'))
+        if coerced is None:
+            return None
+        return max(0, coerced)
+    return None
+
+
 def erp_payment_amount_from_structured(sd: dict) -> int | None:
     """
-    ERP 주문 structured_data에서 목록/결제금액 컬럼과 동일한 품목 합계(원)를 산출한다.
+    ERP 주문 structured_data에서 품목 합계(원)를 산출한다.
     웹 클라이언트 `#erp-items-total`은 totals.items_total 또는 품목 price 합과 일치한다.
     """
     if not isinstance(sd, dict):
@@ -337,9 +378,9 @@ def apply_erp_display_fields(order):
         if normalized_legacy:
             order.measurement_date = normalized_legacy
 
-    # 결제금액: ERP는 structured totals/품목 합이 진실값 — 레거시 payment_amount 컬럼이 0으로 남는 경우 보정
+    # 결제금액: ERP는 structured payment.deposit(예약금)이 진실값 — #erp-deposit-amount와 동일
     if is_erp_order:
-        pa = erp_payment_amount_from_structured(sd)
+        pa = erp_deposit_amount_from_structured(sd)
         if pa is not None:
             order.payment_amount = pa
 
