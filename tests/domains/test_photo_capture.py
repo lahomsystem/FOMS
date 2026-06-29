@@ -84,6 +84,12 @@ def test_erp_order_tab_as_modal_camera_first_markup(erp_editor_client) -> None:
     assert 'capture="environment"' in body
     assert 'data-erp-attachment-paste-zone="as-receive"' in body
     assert "카메라로 촬영" in body
+    # 공통 첨부(일반 업로드) input은 iOS 갤러리 선택을 위해 카메라 강제에서 제외.
+    common_input_start = body.index('id="erp-attachments-input"')
+    common_input_end = body.index(">", common_input_start)
+    common_input = body[common_input_start:common_input_end]
+    assert "data-foms-no-capture" in common_input
+    assert "capture=" not in common_input
 
 
 def test_edit_order_blueprint_input_has_capture(erp_editor_client) -> None:
