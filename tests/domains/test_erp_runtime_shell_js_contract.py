@@ -103,9 +103,10 @@ def test_runtime_shell_script_url_is_versioned_for_service_worker_cache() -> Non
     """ERP shell must cache-bust old SW Cache API entries after fragment-script fixes."""
     layout_src = _LAYOUT_SCRIPTS.read_text(encoding="utf-8")
     assert "js/runtime/erp-shell.js') }}?v=" in layout_src
+    assert "js/runtime/upload-progress.js') }}?v=" in layout_src
 
 
 def test_service_worker_cache_version_purges_stale_erp_shell() -> None:
     """SW cache namespace bump removes old unversioned erp-shell.js entries on activate."""
     sw_src = _SERVICE_WORKER.read_text(encoding="utf-8")
-    assert 'CACHE_VERSION = "foms-p2-v5"' in sw_src
+    assert 'CACHE_VERSION = "foms-p2-v6"' in sw_src
