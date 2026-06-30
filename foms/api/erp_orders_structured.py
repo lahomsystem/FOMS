@@ -819,3 +819,264 @@ def api_erp_create_draft():
             logger.warning("draft create: rollback failed: %s", rb_err, exc_info=True)
         logger.warning("[ERP_ORDER] draft create error: %s", e, exc_info=True)
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
+def _resolve_session_draft(db: Session, draft_token: str = '') -> Optional[Order]:
+    """Return the current session/token ERP draft Order, or None. Never creates.
+
+    Args:
+        db: Active SQLAlchemy session.
+        draft_token: Browser-page idempotency token (optional).
+
+    Returns:
+        The open draft Order owned by this session/token, or None.
+    """
+    existing_id = session.get('erp_draft_order_id')
+    if existing_id:
+        order = db.query(Order).filter(Order.id == int(existing_id), Order.not_deleted_filter()).first()
+        if order and is_erp_order_draft(order):
+            return order
+        session.pop('erp_draft_order_id', None)
+    token_order = _find_existing_draft_by_token(db, draft_token)
+    if token_order:
+        session['erp_draft_order_id'] = token_order.id
+        return token_order
+    return None
+
+
+def _create_session_draft(db: Session, draft_token: str = '') -> Order:
+    """Create a new ERP draft Order and bind it to the session.
+
+    Mirrors :func:`api_erp_create_draft` so autosave can establish a draft
+    without a separate round-trip. Keeps ``status='DRAFT'`` / ``meta.draft=True``.
+
+    Args:
+        db: Active SQLAlchemy session.
+        draft_token: Browser-page idempotency token (optional).
+
+    Returns:
+        The newly created draft Order (already flushed/committed).
+    """
+    now = now_kst()
+    structured = {
+        'workflow': {'stage': 'RECEIVED', 'stage_updated_at': now.isoformat()},
+        'flags': {'urgent': False},
+        'assignments': {},
+        'schedule': {},
+        'meta': {'draft': True, 'created_via': 'ADD_ORDER_AUTOSAVE'},
+    }
+    if draft_token:
+        structured['meta']['draft_token'] = draft_token
+    order = Order(
+        received_date=now.strftime('%Y-%m-%d'),
+        received_time=now.strftime('%H:%M'),
+        customer_name=ERP_DRAFT_PLACEHOLDER_CUSTOMER,
+        phone=ERP_DRAFT_PLACEHOLDER_PHONE,
+        address='-',
+        product=ERP_DRAFT_PLACEHOLDER_PRODUCT,
+        options=None,
+        notes=None,
+        status='DRAFT',
+        is_erp_order=True,
+        raw_order_text='',
+        structured_data=structured,
+        structured_schema_version=1,
+        structured_confidence=None,
+        structured_updated_at=now,
+    )
+    db.add(order)
+    db.flush()
+    sync_erp_flat_columns(order, structured)
+    db.commit()
+    db.refresh(order)
+    session['erp_draft_order_id'] = order.id
+    return order
+
+
+def _structured_has_meaningful_content(
+    structured_data: Any, received_notes: str = ''
+) -> bool:
+    """Decide whether a draft has real content worth persisting server-side.
+
+    Guards against spawning DRAFT Order rows for forms abandoned after a single
+    keystroke. localStorage still mirrors those locally; only meaningful drafts
+    reach the DB (and cross-device restore).
+
+    Args:
+        structured_data: Partial structured payload from the form.
+        received_notes: Free-text notes field value.
+
+    Returns:
+        True when a customer/site/product/notes signal is present.
+    """
+    if (received_notes or '').strip():
+        return True
+    if not isinstance(structured_data, dict):
+        return False
+    customer = (((structured_data.get('parties') or {}).get('customer')) or {})
+    name = (customer.get('name') or '').strip()
+    phone = (customer.get('phone') or '').strip()
+    if name and name not in _CUSTOMER_PLACEHOLDERS:
+        return True
+    if phone and phone != ERP_DRAFT_PLACEHOLDER_PHONE:
+        return True
+    site = structured_data.get('site') or {}
+    addr = (site.get('address_full') or site.get('address_main') or '').strip()
+    if addr and addr != '-':
+        return True
+    for item in (structured_data.get('items') or []):
+        if not isinstance(item, dict):
+            continue
+        for key in ('product_name', 'spec', 'price', 'option_detail', 'color', 'handle', 'misc'):
+            if str(item.get(key) or '').strip():
+                return True
+    return False
+
+
+def _apply_autosave_columns(order: Order, payload: dict) -> None:
+    """Leniently mirror flat draft columns from an autosave payload (no validation)."""
+    received_date = payload.get('received_date')
+    received_time = payload.get('received_time')
+    notes = payload.get('notes')
+    if isinstance(received_date, str) and received_date.strip():
+        order.received_date = received_date.strip()
+    if isinstance(received_time, str):
+        order.received_time = received_time.strip() or None
+    if notes is not None:
+        order.notes = (notes if isinstance(notes, str) else str(notes or '')) or None
+    if payload.get('is_self_measurement') is not None:
+        order.is_self_measurement = bool(payload.get('is_self_measurement'))
+    # is_regional/construction_type: 자동저장은 검증/차단하지 않는다. 미선택 협력사 등
+    # 불완전 상태도 그대로 보존하고, 승격(명시 저장) 시점에 PUT /structured가 검증한다.
+    if payload.get('is_regional') is not None:
+        order.is_regional = bool(payload.get('is_regional'))
+    ctype = payload.get('construction_type')
+    if isinstance(ctype, str):
+        normalized = normalize_regional_construction_type(ctype)
+        order.construction_type = normalized or None
+
+
+@erp_orders_structured_bp.route('/orders/erp/draft/autosave', methods=['POST'])
+@login_required
+@role_required(['ADMIN', 'MANAGER', 'STAFF'])
+def api_erp_draft_autosave():
+    """ERP '새 주문' 자동저장. 부분 입력을 draft에 보존하되 승격하지 않는다.
+
+    PUT /orders/<id>/structured(=명시 저장/승격 경로)와 달리 필수값 검증,
+    단계 전환, 이벤트 기록, side-effect, geocode를 일절 수행하지 않는다.
+    meta.draft=True를 강제 유지해 대시보드에 노출되지 않게 한다.
+
+    Body: {draft_token, structured_data, received_date, received_time, notes,
+           is_self_measurement, is_regional, construction_type}
+    Returns: {success, order_id|null, updated_at}
+        order_id=null은 "내용이 미약해 서버 draft 미생성(로컬만 저장)" 신호.
+    """
+    db = get_db()
+    try:
+        payload = request.get_json(silent=True) or {}
+        draft_token = _coerce_draft_token(
+            payload.get('draft_token') or request.headers.get('X-ERP-Draft-Token')
+        )
+        structured_data = payload.get('structured_data')
+        if structured_data is not None and not isinstance(structured_data, dict):
+            return jsonify({'success': False, 'message': 'structured_data는 JSON 객체여야 합니다.'}), 400
+
+        _lock_draft_token_if_supported(db, draft_token)
+        order = _resolve_session_draft(db, draft_token)
+        if order is None:
+            # 기존 draft가 없으면 의미 있는 내용이 있을 때만 생성(빈 draft row 폭증 방지).
+            if not _structured_has_meaningful_content(structured_data, payload.get('notes') or ''):
+                return jsonify({'success': True, 'order_id': None, 'updated_at': None})
+            order = _create_session_draft(db, draft_token)
+
+        now = datetime.datetime.now()
+        if structured_data is not None:
+            sd = copy.deepcopy(structured_data)
+            meta = sd.get('meta') if isinstance(sd.get('meta'), dict) else {}
+            meta['draft'] = True
+            meta.setdefault('created_via', 'ADD_ORDER_AUTOSAVE')
+            if draft_token:
+                meta['draft_token'] = draft_token
+            meta['autosaved_at'] = now.isoformat()
+            sd['meta'] = meta
+            order.structured_data = sd
+            flag_modified(order, 'structured_data')
+            sync_erp_flat_columns(order, sd)
+
+        _apply_autosave_columns(order, payload)
+        order.status = 'DRAFT'
+        order.structured_updated_at = now
+        db.commit()
+        return jsonify({
+            'success': True,
+            'order_id': order.id,
+            'updated_at': format_updated_at(now),
+        })
+    except Exception as e:
+        try:
+            db.rollback()
+        except Exception as rb_err:
+            logger.warning("draft autosave: rollback failed: %s", rb_err, exc_info=True)
+        logger.warning("[ERP_ORDER] draft autosave error: %s", e, exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@erp_orders_structured_bp.route('/orders/erp/draft', methods=['GET'])
+@login_required
+@role_required(['ADMIN', 'MANAGER', 'STAFF'])
+def api_erp_get_draft():
+    """복원 배너용: 현재 세션 draft 존재/내용 여부를 반환(생성하지 않음).
+
+    Returns: {success, draft: null | {order_id, has_content, updated_at}}
+    """
+    db = get_db()
+    try:
+        draft_token = _coerce_draft_token(request.args.get('draft_token'))
+        order = _resolve_session_draft(db, draft_token)
+        if order is None:
+            return jsonify({'success': True, 'draft': None})
+        sd = order.structured_data if isinstance(order.structured_data, dict) else {}
+        has_content = _structured_has_meaningful_content(sd, order.notes or '')
+        updated = order.structured_updated_at
+        return jsonify({
+            'success': True,
+            'draft': {
+                'order_id': order.id,
+                'has_content': has_content,
+                'updated_at': format_updated_at(updated) if updated else None,
+            },
+        })
+    except Exception as e:
+        logger.warning("[ERP_ORDER] draft get error: %s", e, exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@erp_orders_structured_bp.route('/orders/erp/draft/discard', methods=['POST'])
+@login_required
+@role_required(['ADMIN', 'MANAGER', 'STAFF'])
+def api_erp_discard_draft():
+    """복원 배너 '버리기': 현재 세션 draft를 소프트 삭제하고 세션에서 분리한다.
+
+    Body: {draft_token}
+    Returns: {success}
+    """
+    db = get_db()
+    try:
+        payload = request.get_json(silent=True) or {}
+        draft_token = _coerce_draft_token(
+            payload.get('draft_token') or request.headers.get('X-ERP-Draft-Token')
+        )
+        order = _resolve_session_draft(db, draft_token)
+        if order is not None and is_erp_order_draft(order):
+            order.status = 'DELETED'
+            order.deleted_at = datetime.datetime.now().isoformat()
+            db.commit()
+        session.pop('erp_draft_order_id', None)
+        return jsonify({'success': True})
+    except Exception as e:
+        try:
+            db.rollback()
+        except Exception as rb_err:
+            logger.warning("draft discard: rollback failed: %s", rb_err, exc_info=True)
+        logger.warning("[ERP_ORDER] draft discard error: %s", e, exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500

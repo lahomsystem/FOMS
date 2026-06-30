@@ -1875,6 +1875,8 @@ async function erpSaveStructuredOnce(opts = {}) {
             return { success: false, message: data.message || '저장 실패' };
         }
         erpSetStatus(doRedirect ? '저장 완료! 이동합니다...' : '저장 완료');
+        // 명시 저장(승격) 성공 → 자동저장 모듈이 로컬/세션 draft 흔적을 정리하도록 알림.
+        try { document.dispatchEvent(new Event('erp:order-saved')); } catch (_e) {}
         // 저장 성공 후 Draft 모드 해제 → beforeunload 경고 비활성
         const wasDraftMode = isErpOrderDraftMode();
         if (wasDraftMode) {
