@@ -3,6 +3,7 @@
 import re
 from datetime import date
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -13,7 +14,11 @@ from foms.services.drawing_workbench_display import (
     drawing_thumb_enabled,
     resolve_row_thumbnail_url,
 )
-from foms.web.drawing.workbench import _build_handoff_thread, _history_event_at_text
+from foms.web.drawing.workbench import (
+    _build_handoff_thread,
+    _history_event_at_text,
+    _resolve_construction_date_display,
+)
 from models import Order, User
 
 
@@ -115,6 +120,45 @@ def test_drawing_thumb_enabled_respects_env(monkeypatch):
     assert drawing_thumb_enabled() is True
     monkeypatch.setenv("FOMS_V3_DRAWING_THUMB_ENABLED", "false")
     assert drawing_thumb_enabled(mobile_v2_active=True) is False
+
+
+def test_drawing_workbench_displays_construction_date_column(client, monkeypatch):
+    """데스크톱 테이블에 주문/고객 · 시공일 · 다음 액션 순으로 시공일이 표시된다."""
+    _login_drawing_admin(client)
+    _drawing_order(
+        {
+            "schedule": {"construction": {"date": "2026-07-15"}},
+        }
+    )
+
+    response = client.get("/erp/drawing-workbench")
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert ">시공일</th>" in body
+    assert ">다음 액션</th>" in body
+    assert body.index(">시공일</th>") < body.index(">다음 액션</th>")
+    assert "2026-07-15" in body
+
+
+def test_resolve_construction_date_display_normalizes_dict_date():
+    order = SimpleNamespace(erp_construction_date="2026-09-10")
+    sd = {"schedule": {"construction": {"date": {"year": 2026, "month": 8, "day": 1}}}}
+    assert _resolve_construction_date_display(order, sd) == "2026-08-01"
+
+
+def test_drawing_workbench_construction_date_erp_fallback(client):
+    """schedule date 비어 있으면 erp_construction_date fallback."""
+    _login_drawing_admin(client)
+    order = _drawing_order({"schedule": {"construction": {"date": "2026-07-15"}}})
+    order.structured_data = {
+        **order.structured_data,
+        "schedule": {"construction": {"date": ""}},
+    }
+    order.erp_construction_date = "2026-09-10"
+    db_session.commit()
+
+    body = client.get("/erp/drawing-workbench").get_data(as_text=True)
+    assert "2026-09-10" in body
 
 
 def test_drawing_workbench_revision_dropzone_supports_scoped_clipboard_file_paste():
