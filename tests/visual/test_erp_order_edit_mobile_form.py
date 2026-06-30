@@ -308,7 +308,10 @@ def test_mobile_erp_secnav_chip_order_and_targets() -> None:
     customer_idx = mobile.index('id="erp-mobile-sec-customer"')
     schedule_idx = mobile.index('id="erp-mobile-sec-schedule"')
     spec_idx = mobile.index('id="erp-mobile-sec-spec"')
-    assert customer_idx < schedule_idx < spec_idx
+    received_idx = mobile.index('id="erp-mobile-sec-received"')
+    photo_idx = mobile.index('id="erp-mobile-sec-photo"')
+    order_idx = mobile.index('id="erp-mobile-sec-order"')
+    assert customer_idx < schedule_idx < spec_idx < received_idx < photo_idx < order_idx
 
 
 def test_mobile_erp_form_sections_use_field_priority_collapse_defaults() -> None:
