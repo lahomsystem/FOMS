@@ -104,6 +104,46 @@ def test_mobile_detail_template_allows_assignee_gate() -> None:
     assert "invalidatePrimaryNavFragmentCache" in partial
 
 
+def test_resolve_order_role_assignees_from_structured_data() -> None:
+    sd = {
+        "parties": {"manager": {"name": "안중훈"}},
+        "assignments": {
+            "sales_assignee_user_ids": [7],
+            "drawing_assignee_user_ids": [41],
+        },
+        "drawing_assignees": [{"id": 41, "name": "최상용"}],
+        "shipment": {
+            "construction_workers": ["김시공", "박시공"],
+            "drawing_manager": "레거시도면",
+        },
+    }
+    order = SimpleNamespace(manager_name="안중훈")
+    roles = qd.resolve_order_role_assignees(sd, order=order, user_map={7: "한용희", 41: "최상용"})
+    assert roles["measurement_assignee"] == "한용희"
+    assert roles["drawing_assignee"] == "최상용"
+    assert roles["construction_assignee"] == "김시공, 박시공"
+
+
+def test_resolve_order_role_assignees_from_id_only_drawing_assignees() -> None:
+    sd = {
+        "drawing_assignees": [{"id": 41}],
+        "assignments": {"drawing_assignee_user_ids": [41]},
+        "shipment": {},
+    }
+    roles = qd.resolve_order_role_assignees(sd, user_map={41: "최상용"})
+    assert roles["drawing_assignee"] == "최상용"
+
+
+def test_mobile_order_detail_renders_role_assignee_section() -> None:
+    partial = (
+        ROOT / "templates" / "orders" / "partials" / "order_detail_mobile_v2.html"
+    ).read_text(encoding="utf-8")
+    assert "foms-detail-assignee-title" in partial
+    assert "measurement_assignee" in partial
+    assert "drawing_assignee" in partial
+    assert "construction_assignee" in partial
+
+
 def test_build_payload_none_for_drawing_stage() -> None:
     sd = {
         "workflow": {"stage": "DRAWING"},

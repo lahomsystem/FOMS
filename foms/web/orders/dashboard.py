@@ -24,6 +24,7 @@ from foms.services.erp_mobile_order_display import (
     batch_resolve_queue_attachment_preview_items,
 )
 from foms.services.erp_order_detail import build_order_detail_payload_map
+from foms.services.erp_quest_display import resolve_order_role_assignees
 from foms.services.erp_order_deeplink import resolve_edit_return_back_endpoint
 from foms.services.orders.status_constants import BULK_ACTION_STATUS
 from foms.services.orders.dashboard_filters import parse_orders_dashboard_filters
@@ -415,10 +416,17 @@ def erp_dashboard():
         oid = row["id"]
         payload = _detail_by_id.get(oid)
         if payload is None:
-            payload = build_order_detail_payload_map(db, [row]).get(
-                oid,
-                {"success": True, "structured_data": row.get("structured_data") or {}},
-            )
+            payload = build_order_detail_payload_map(db, [row]).get(oid)
+            if payload is None:
+                sd = row.get("structured_data") or {}
+                payload = {
+                    "success": True,
+                    "structured_data": sd,
+                    "role_assignees": resolve_order_role_assignees(
+                        sd,
+                        user_map=user_map,
+                    ),
+                }
         row["detail_payload"] = payload
 
     template_name = (

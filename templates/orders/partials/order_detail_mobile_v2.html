@@ -169,6 +169,18 @@
       ]) }}
     </section>
 
+    {% set role_assignees = order.role_assignees or {} %}
+    <section class="foms-detail-section" aria-labelledby="foms-detail-assignee-title">
+      <div class="foms-detail-section__head">
+        <h2 class="foms-detail-section__title" id="foms-detail-assignee-title">담당</h2>
+      </div>
+      {{ foms_kv_list([
+        {'label': '실측', 'value': role_assignees.get('measurement_assignee') or '-'},
+        {'label': '도면', 'value': role_assignees.get('drawing_assignee') or '-'},
+        {'label': '시공', 'value': role_assignees.get('construction_assignee') or '-'},
+      ]) }}
+    </section>
+
     <section class="foms-detail-section" aria-labelledby="foms-detail-schedule-title">
       <div class="foms-detail-section__head">
         <h2 class="foms-detail-section__title" id="foms-detail-schedule-title">일정</h2>

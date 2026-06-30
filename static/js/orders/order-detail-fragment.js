@@ -142,6 +142,101 @@ function invalidateOrderDetailRuntimeState(orderId, runtime) {
 }
 window.invalidateOrderDetailRuntimeState = invalidateOrderDetailRuntimeState;
 
+function erpNormalizeConstructionWorkerNames(value) {
+    if (!value) return [];
+    const list = Array.isArray(value) ? value : String(value).split(/[,，、]/);
+    const workers = [];
+    list.forEach(function (item) {
+        let name = '';
+        if (typeof item === 'string') {
+            name = item.trim();
+        } else if (item && typeof item === 'object') {
+            name = String(item.name || '').trim();
+        } else if (item != null) {
+            name = String(item).trim();
+        }
+        if (name && workers.indexOf(name) === -1) workers.push(name);
+    });
+    return workers;
+}
+
+function resolveOrderRoleAssignees(structured, preloadedPayload) {
+    if (preloadedPayload && preloadedPayload.role_assignees && typeof preloadedPayload.role_assignees === 'object') {
+        return preloadedPayload.role_assignees;
+    }
+    const sd = (structured && structured.structured_data) || structured || {};
+    const assignments = sd.assignments || {};
+    const shipment = sd.shipment || {};
+    const parties = sd.parties || {};
+    const joinNames = function (names) {
+        const cleaned = (names || []).map(function (n) { return String(n || '').trim(); }).filter(Boolean);
+        return cleaned.length ? cleaned.join(', ') : '-';
+    };
+
+    const salesIds = Array.isArray(assignments.sales_assignee_user_ids)
+        ? assignments.sales_assignee_user_ids.map(function (x) { return Number(x); }).filter(function (x) { return Number.isFinite(x); })
+        : [];
+    let measurementNames = [];
+    if (salesIds.length) {
+        measurementNames = [salesIds.length + '명 지정'];
+    } else {
+        const manager = String(((parties.manager || {}).name) || '').trim();
+        if (manager && manager !== '-') measurementNames = [manager];
+    }
+
+    const drawingAssignees = Array.isArray(sd.drawing_assignees) ? sd.drawing_assignees : [];
+    let drawingNames = drawingAssignees.map(function (u) { return (u && u.name) || ''; }).filter(Boolean);
+    const drawingIds = [];
+    if (!drawingNames.length) {
+        drawingAssignees.forEach(function (u) {
+            const idNum = Number(u && u.id);
+            if (Number.isFinite(idNum)) drawingIds.push(idNum);
+        });
+        (Array.isArray(assignments.drawing_assignee_user_ids) ? assignments.drawing_assignee_user_ids : []).forEach(function (x) {
+            const idNum = Number(x);
+            if (Number.isFinite(idNum)) drawingIds.push(idNum);
+        });
+        if (drawingIds.length) drawingNames = [drawingIds.length + '명 지정'];
+    }
+    if (!drawingNames.length) {
+        const drawingManager = String(shipment.drawing_manager || '').trim();
+        if (drawingManager) {
+            drawingNames = [drawingManager];
+        } else {
+            drawingNames = (Array.isArray(shipment.drawing_managers) ? shipment.drawing_managers : [])
+                .map(function (n) { return String(n || '').trim(); })
+                .filter(Boolean);
+        }
+    }
+
+    const constructionNames = erpNormalizeConstructionWorkerNames(shipment.construction_workers || shipment.construction_worker);
+
+    return {
+        measurement_assignee: joinNames(measurementNames),
+        drawing_assignee: joinNames(drawingNames),
+        construction_assignee: joinNames(constructionNames),
+    };
+}
+window.resolveOrderRoleAssignees = resolveOrderRoleAssignees;
+
+function buildOrderRoleAssigneesHtml(roleAssignees) {
+    const roles = roleAssignees || {};
+    const esc = typeof escapeHtml === 'function' ? escapeHtml : function (v) { return String(v || ''); };
+    return '<div class="col-12">'
+        + '<div class="card">'
+        + '<div class="card-body">'
+        + '<h5 class="card-title fw-bold"><i class="fas fa-user-tag text-primary"></i> 담당</h5>'
+        + '<div class="erp-detail-text">'
+        + '<div class="mb-3"><strong class="erp-detail-label">실측 담당:</strong> <span class="erp-detail-value">' + esc(roles.measurement_assignee || '-') + '</span></div>'
+        + '<div class="mb-3"><strong class="erp-detail-label">도면 담당:</strong> <span class="erp-detail-value">' + esc(roles.drawing_assignee || '-') + '</span></div>'
+        + '<div class="mb-0"><strong class="erp-detail-label">시공 담당:</strong> <span class="erp-detail-value">' + esc(roles.construction_assignee || '-') + '</span></div>'
+        + '</div>'
+        + '</div>'
+        + '</div>'
+        + '</div>';
+}
+window.buildOrderRoleAssigneesHtml = buildOrderRoleAssigneesHtml;
+
 async function patchOrderDetailAttachments(orderId, itemCount, gen) {
     const container = document.getElementById('order-detail-content-' + orderId);
     if (!container || !container.isConnected) return;

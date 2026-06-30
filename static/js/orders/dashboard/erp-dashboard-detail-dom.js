@@ -316,6 +316,10 @@
               </div>
             </div>`;
 
+            const roleAssigneesHtml = buildOrderRoleAssigneesHtml(
+              resolveOrderRoleAssignees(structured, preloaded)
+            );
+
             // 도면 전달 버튼 (DRAWING 단계일 때만)
             let actionHtml = '';
             if (stage === 'DRAWING') {
@@ -518,6 +522,7 @@
           <div class="row g-3 erp-order-detail">
             ${basicInfoHtml}
             ${scheduleHtml}
+            ${roleAssigneesHtml}
             ${actionHtml}
             <div class="col-12">
               <div class="card">

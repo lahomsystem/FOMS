@@ -18,6 +18,7 @@ from foms.services.erp_quest_display import (
     build_current_quest_payload,
     load_assignee_user_map,
     load_assignee_user_map_batch,
+    resolve_order_role_assignees,
 )
 from foms.services.estimate_service import (
     _balance_after_payments,
@@ -770,5 +771,6 @@ def build_mobile_queue_order_row(db, order, current_user=None, *, batch_ctx=None
         "product_items": product_items,
         "amount_summary": mobile_amount_summary(sd),
         "structured_data": sd,
+        "role_assignees": resolve_order_role_assignees(sd, order=order, user_map=user_map),
         "current_quest": current_quest_payload,
     }
