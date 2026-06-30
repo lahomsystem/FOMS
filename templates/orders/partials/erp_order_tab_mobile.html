@@ -30,11 +30,12 @@ ERP Order mobile-v2 tab pane.
             <div class="tab-content">
                 <div class="tab-pane fade show active" id="erp-form" role="tabpanel">
                     <nav class="erp-mobile-secnav" id="erp-mobile-secnav" aria-label="섹션 이동">
+                        <button type="button" class="erp-mobile-secnav-chip" data-erp-secnav-target="erp-mobile-sec-customer">고객</button>
+                        <button type="button" class="erp-mobile-secnav-chip" data-erp-secnav-target="erp-mobile-sec-schedule">일정</button>
                         <button type="button" class="erp-mobile-secnav-chip is-active" data-erp-secnav-target="erp-mobile-sec-spec">현장 스펙</button>
                         <button type="button" class="erp-mobile-secnav-chip" data-erp-secnav-target="erp-mobile-sec-received">접수</button>
                         <button type="button" class="erp-mobile-secnav-chip" data-erp-secnav-target="erp-mobile-sec-photo">사진</button>
                         <button type="button" class="erp-mobile-secnav-chip" data-erp-secnav-target="erp-mobile-sec-order">발주</button>
-                        <button type="button" class="erp-mobile-secnav-chip" data-erp-secnav-target="erp-mobile-sec-schedule">일정</button>
                     </nav>
                     <section class="erp-form-section" id="erp-mobile-sec-received" aria-label="접수 정보">
                         <button class="erp-mobile-collapse-toggle" type="button" id="erp-mobile-collapse-received-toggle"
@@ -94,7 +95,7 @@ ERP Order mobile-v2 tab pane.
                         </div>
                     </section>
 
-                    <section class="erp-form-section" aria-label="고객 정보">
+                    <section class="erp-form-section" id="erp-mobile-sec-customer" aria-label="고객 정보">
                         <h3 class="erp-form-section__title"><i class="fas fa-user erp-sec-ico" aria-hidden="true"></i>고객</h3>
                         <div class="field-grid-2">
                             <div class="field erp-mobile-inline">
@@ -141,6 +142,86 @@ ERP Order mobile-v2 tab pane.
                                 <input type="text" class="foms-input" id="erp-address-note"
                                     placeholder="주차/출입/엘리베이터/경비실" autocomplete="off" lang="ko">
                             </div>
+                        </div>
+                    </section>
+
+                    <section class="erp-form-section" id="erp-mobile-sec-schedule" aria-label="일정">
+                        <button class="erp-mobile-collapse-toggle collapsed" type="button" id="erp-mobile-collapse-schedule-toggle"
+                            data-bs-toggle="collapse" data-bs-target="#erp-mobile-collapse-schedule-body"
+                            aria-expanded="false" aria-controls="erp-mobile-collapse-schedule-body">
+                            <span aria-hidden="true"><i class="fas fa-chevron-right"></i></span>
+                            <strong><i class="fas fa-calendar-alt erp-sec-ico" aria-hidden="true"></i>일정</strong>
+                            <span>기본 접힘</span>
+                        </button>
+                        <div class="collapse" id="erp-mobile-collapse-schedule-body">
+                        <!-- 실측: 날짜 + 시간 한 행 -->
+                        <div class="field-grid-2 erp-mobile-keep-2col">
+                            <div class="field">
+                                <label class="field__label" for="erp-measurement-date">실측일</label>
+                                <div class="erp-mobile-date-field">
+                                    <input type="text" class="foms-input foms-tabular" id="erp-measurement-date"
+                                        placeholder="2026-03-13" autocomplete="off"
+                                        title="클릭하거나 달력 아이콘을 누르면 날짜 선택">
+                                    <button type="button" class="foms-btn foms-btn--secondary" id="erp-measurement-date-open" title="달력에서 선택" aria-label="달력 열기">
+                                        <i class="fas fa-calendar-alt"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="field">
+                                <label class="field__label" for="erp-measurement-time-select">실측시간</label>
+                                <div class="erp-mobile-time-inline" id="erp-measurement-time-control">
+                                    <select class="foms-select" id="erp-measurement-time-select" autocomplete="off">
+                                        <option value="">시간 선택</option>
+                                        <option value="오전">오전</option>
+                                        <option value="오후">오후</option>
+                                        <option value="종일">종일</option>
+                                        <option value="__direct__">직접 입력</option>
+                                    </select>
+                                    <input type="text" class="foms-input foms-tabular d-none" id="erp-measurement-time"
+                                        placeholder="직접 입력" autocomplete="off" lang="ko">
+                                </div>
+                            </div>
+                        </div>
+                        <!-- 시공: 날짜 + 시간 한 행 -->
+                        <div class="field-grid-2 erp-mobile-keep-2col">
+                            <div class="field">
+                                <label class="field__label" for="erp-construction-date">시공일</label>
+                                <div class="erp-mobile-date-field">
+                                    <input type="text" class="foms-input foms-tabular" id="erp-construction-date"
+                                        placeholder="2026-03-13" autocomplete="off"
+                                        title="클릭하거나 달력 아이콘을 누르면 날짜 선택">
+                                    <button type="button" class="foms-btn foms-btn--secondary" id="erp-construction-date-open" title="달력에서 선택" aria-label="달력 열기">
+                                        <i class="fas fa-calendar-alt"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="field">
+                                <label class="field__label" for="erp-construction-time-select">시공시간</label>
+                                <div class="erp-mobile-time-inline" id="erp-construction-time-control">
+                                    <select class="foms-select" id="erp-construction-time-select" autocomplete="off">
+                                        <option value="">시간 선택</option>
+                                        <option value="오전">오전</option>
+                                        <option value="오후">오후</option>
+                                        <option value="종일">종일</option>
+                                        <option value="__direct__">직접 입력</option>
+                                    </select>
+                                    <input type="text" class="foms-input foms-tabular d-none" id="erp-construction-time"
+                                        placeholder="직접 입력" autocomplete="off" lang="ko">
+                                </div>
+                            </div>
+                        </div>
+                        <button class="foms-btn foms-btn--ghost foms-btn--sm" type="button"
+                            data-bs-toggle="collapse" data-bs-target="#erp-collapse-measure-note"
+                            aria-expanded="false" aria-controls="erp-collapse-measure-note">
+                            <i class="fas fa-chevron-down"></i> 실측 특이사항
+                        </button>
+                        <div class="collapse" id="erp-collapse-measure-note">
+                            <div class="field">
+                                <label class="field__label" for="erp-measurement-note">실측 특이사항</label>
+                                <input type="text" class="foms-input" id="erp-measurement-note"
+                                    placeholder="시간 변경 가능/현장 특이사항/준비물" autocomplete="off" lang="ko">
+                            </div>
+                        </div>
                         </div>
                     </section>
 
@@ -232,7 +313,7 @@ ERP Order mobile-v2 tab pane.
                         </div>
                     </section>
 
-                    <section class="erp-form-section" id="erp-mobile-sec-order" aria-label="발주와 담당">
+                    <section class="erp-form-section erp-mobile-pre-sticky-footer" id="erp-mobile-sec-order" aria-label="발주와 담당">
                         <button class="erp-mobile-collapse-toggle" type="button" id="erp-mobile-collapse-order-toggle"
                             data-bs-toggle="collapse" data-bs-target="#erp-mobile-collapse-order-body"
                             aria-expanded="false" aria-controls="erp-mobile-collapse-order-body">
@@ -286,86 +367,6 @@ ERP Order mobile-v2 tab pane.
                             <div class="field erp-mobile-inline">
                                 <label class="field__label" for="erp-notes">비고</label>
                                 <input type="text" class="foms-input" id="erp-notes" placeholder="주문 비고" autocomplete="off" lang="ko">
-                            </div>
-                        </div>
-                        </div>
-                    </section>
-
-                    <section class="erp-form-section erp-mobile-pre-sticky-footer" id="erp-mobile-sec-schedule" aria-label="일정">
-                        <button class="erp-mobile-collapse-toggle collapsed" type="button" id="erp-mobile-collapse-schedule-toggle"
-                            data-bs-toggle="collapse" data-bs-target="#erp-mobile-collapse-schedule-body"
-                            aria-expanded="false" aria-controls="erp-mobile-collapse-schedule-body">
-                            <span aria-hidden="true"><i class="fas fa-chevron-right"></i></span>
-                            <strong><i class="fas fa-calendar-alt erp-sec-ico" aria-hidden="true"></i>일정</strong>
-                            <span>기본 접힘</span>
-                        </button>
-                        <div class="collapse" id="erp-mobile-collapse-schedule-body">
-                        <!-- 실측: 날짜 + 시간 한 행 -->
-                        <div class="field-grid-2 erp-mobile-keep-2col">
-                            <div class="field">
-                                <label class="field__label" for="erp-measurement-date">실측일</label>
-                                <div class="erp-mobile-date-field">
-                                    <input type="text" class="foms-input foms-tabular" id="erp-measurement-date"
-                                        placeholder="2026-03-13" autocomplete="off"
-                                        title="클릭하거나 달력 아이콘을 누르면 날짜 선택">
-                                    <button type="button" class="foms-btn foms-btn--secondary" id="erp-measurement-date-open" title="달력에서 선택" aria-label="달력 열기">
-                                        <i class="fas fa-calendar-alt"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="field">
-                                <label class="field__label" for="erp-measurement-time-select">실측시간</label>
-                                <div class="erp-mobile-time-inline" id="erp-measurement-time-control">
-                                    <select class="foms-select" id="erp-measurement-time-select" autocomplete="off">
-                                        <option value="">시간 선택</option>
-                                        <option value="오전">오전</option>
-                                        <option value="오후">오후</option>
-                                        <option value="종일">종일</option>
-                                        <option value="__direct__">직접 입력</option>
-                                    </select>
-                                    <input type="text" class="foms-input foms-tabular d-none" id="erp-measurement-time"
-                                        placeholder="직접 입력" autocomplete="off" lang="ko">
-                                </div>
-                            </div>
-                        </div>
-                        <!-- 시공: 날짜 + 시간 한 행 -->
-                        <div class="field-grid-2 erp-mobile-keep-2col">
-                            <div class="field">
-                                <label class="field__label" for="erp-construction-date">시공일</label>
-                                <div class="erp-mobile-date-field">
-                                    <input type="text" class="foms-input foms-tabular" id="erp-construction-date"
-                                        placeholder="2026-03-13" autocomplete="off"
-                                        title="클릭하거나 달력 아이콘을 누르면 날짜 선택">
-                                    <button type="button" class="foms-btn foms-btn--secondary" id="erp-construction-date-open" title="달력에서 선택" aria-label="달력 열기">
-                                        <i class="fas fa-calendar-alt"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="field">
-                                <label class="field__label" for="erp-construction-time-select">시공시간</label>
-                                <div class="erp-mobile-time-inline" id="erp-construction-time-control">
-                                    <select class="foms-select" id="erp-construction-time-select" autocomplete="off">
-                                        <option value="">시간 선택</option>
-                                        <option value="오전">오전</option>
-                                        <option value="오후">오후</option>
-                                        <option value="종일">종일</option>
-                                        <option value="__direct__">직접 입력</option>
-                                    </select>
-                                    <input type="text" class="foms-input foms-tabular d-none" id="erp-construction-time"
-                                        placeholder="직접 입력" autocomplete="off" lang="ko">
-                                </div>
-                            </div>
-                        </div>
-                        <button class="foms-btn foms-btn--ghost foms-btn--sm" type="button"
-                            data-bs-toggle="collapse" data-bs-target="#erp-collapse-measure-note"
-                            aria-expanded="false" aria-controls="erp-collapse-measure-note">
-                            <i class="fas fa-chevron-down"></i> 실측 특이사항
-                        </button>
-                        <div class="collapse" id="erp-collapse-measure-note">
-                            <div class="field">
-                                <label class="field__label" for="erp-measurement-note">실측 특이사항</label>
-                                <input type="text" class="foms-input" id="erp-measurement-note"
-                                    placeholder="시간 변경 가능/현장 특이사항/준비물" autocomplete="off" lang="ko">
                             </div>
                         </div>
                         </div>

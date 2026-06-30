@@ -2160,7 +2160,7 @@ ${escapeHtml(sub)}</div>` : ''}`;
             const target = chip.dataset.erpSecnavTarget && document.getElementById(chip.dataset.erpSecnavTarget);
             if (!target) return;
             nav.querySelectorAll('.erp-mobile-secnav-chip').forEach((c) => c.classList.toggle('is-active', c === chip));
-            const collapsedToggle = target.querySelector('[data-bs-toggle="collapse"][aria-expanded="false"]');
+            const collapsedToggle = target.querySelector('.erp-mobile-collapse-toggle[aria-expanded="false"]');
             if (collapsedToggle) collapsedToggle.click();
             target.scrollIntoView({ behavior: 'smooth', block: 'start' });
         });
