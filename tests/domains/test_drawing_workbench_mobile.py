@@ -13,7 +13,7 @@ from foms.services.drawing_workbench_display import (
     drawing_thumb_enabled,
     resolve_row_thumbnail_url,
 )
-from foms.web.drawing.workbench import _build_handoff_thread
+from foms.web.drawing.workbench import _build_handoff_thread, _history_event_at_text
 from models import Order, User
 
 
@@ -416,6 +416,14 @@ def test_drawing_workbench_target_deeplink_prefers_mobile_detail(client, monkeyp
         )
     ]
     assert thread_html.index("2번 높이 수정") < thread_html.index("1차 전달")
+    assert "2026-06-02 20:00:00" in body
+
+
+def test_drawing_history_at_text_converts_utc_naive_to_kst():
+    assert (
+        _history_event_at_text({"action": "TRANSFER", "at": "2026-06-29 07:13:00"})
+        == "2026-06-29 16:13:00"
+    )
 
 
 def test_drawing_handoff_thread_is_newest_first():

@@ -7,8 +7,9 @@ import pytz
 
 from db import db_session
 from foms.services.context_processors import register_context_processors
-from foms.services.datetime_kst import format_datetime_kst, get_today_kst
-from models import OrderEstimate, User
+from foms.services.datetime_kst import format_datetime_kst, get_today_kst, to_utc_naive
+from foms.services import erp_display
+from models import ChatRoom, Notification, OrderAttachment, OrderEstimate, User
 from wdcalculator_models import Estimate
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -30,6 +31,15 @@ def test_format_datetime_kst_accepts_custom_display_format() -> None:
 def test_format_datetime_kst_converts_aware_utc_to_kst() -> None:
     aware = pytz.UTC.localize(datetime(2026, 6, 9, 4, 57, 29))
     assert format_datetime_kst(aware) == "2026-06-09 13:57:29"
+
+
+def test_format_datetime_kst_parses_utc_iso_string_to_kst() -> None:
+    assert format_datetime_kst("2026-06-09T04:57:29Z") == "2026-06-09 13:57:29"
+
+
+def test_to_utc_naive_normalizes_aware_stage_timestamp() -> None:
+    value = to_utc_naive("2026-06-09T04:57:29+09:00")
+    assert value == datetime(2026, 6, 8, 19, 57, 29)
 
 
 def test_format_datetime_kst_none_returns_none() -> None:
@@ -71,7 +81,9 @@ def test_admin_user_list_uses_kst_filter_for_recent_login() -> None:
     template = (ROOT / "templates/auth/user_list.html").read_text(encoding="utf-8")
 
     assert "last_login|format_datetime_kst('%Y-%m-%d %H:%M')" in template
+    assert "user.created_at|format_datetime_kst('%Y-%m-%d')" in template
     assert "user.last_login.strftime" not in template
+    assert "user.created_at.strftime" not in template
 
 
 def test_admin_user_list_renders_recent_login_in_kst(client) -> None:
@@ -169,3 +181,89 @@ def test_order_estimate_to_dict_uses_kst_timestamps() -> None:
 
     assert payload["created_at"] == "2026-06-09 13:57:29"
     assert payload["updated_at"] == "2026-06-09 13:57:29"
+
+
+def test_core_display_serializers_use_kst_timestamps() -> None:
+    attachment = OrderAttachment(
+        order_id=1,
+        filename="site.jpg",
+        file_type="image",
+        category="measurement",
+        file_size=1,
+        storage_key="orders/1/site.jpg",
+    )
+    attachment.created_at = datetime(2026, 6, 9, 4, 57, 29)
+    assert attachment.to_dict()["created_at"] == "2026-06-09 13:57:29"
+
+    notification = Notification(
+        notification_type="ANNOUNCEMENT",
+        title="공지",
+        created_at=datetime(2026, 6, 9, 4, 57, 29),
+    )
+    assert notification.to_dict()["created_at"] == "2026-06-09 13:57:29"
+
+    room = ChatRoom(
+        name="채팅방",
+        created_by=1,
+        created_at=datetime(2026, 6, 9, 4, 57, 29),
+        updated_at=datetime(2026, 6, 9, 5, 0, 0),
+    )
+    payload = room.to_dict()
+    assert payload["created_at"] == "2026-06-09 13:57:29"
+    assert payload["updated_at"] == "2026-06-09 14:00:00"
+
+
+def test_erp_alerts_handles_aware_stage_timestamp_for_drawing_overdue(monkeypatch) -> None:
+    monkeypatch.setattr(
+        erp_display,
+        "now_utc_naive",
+        lambda: datetime(2026, 6, 30, 0, 0, 0),
+    )
+
+    overdue = erp_display._erp_alerts(
+        None,
+        {"workflow": {"stage": "DRAWING", "stage_updated_at": "2026-06-27T23:00:00Z"}},
+        0,
+    )
+    recent = erp_display._erp_alerts(
+        None,
+        {"workflow": {"stage": "DRAWING", "stage_updated_at": "2026-06-29T23:00:00Z"}},
+        0,
+    )
+
+    assert overdue["drawing_overdue"] is True
+    assert recent["drawing_overdue"] is False
+
+
+def test_frontend_business_date_paths_avoid_utc_iso_fallbacks() -> None:
+    paths = [
+        ROOT / "static/js/cs/as-dashboard.js",
+        ROOT / "static/js/shipment/image-export.js",
+        ROOT / "static/js/measurement/image-export.js",
+        ROOT / "templates/measurement/map_view.html",
+    ]
+
+    for path in paths:
+        source = path.read_text(encoding="utf-8")
+        assert ".toISOString().split('T')[0]" not in source
+        assert ".toISOString().slice(0, 10)" not in source
+        assert "localDateIso()" in source
+
+
+def test_order_date_only_display_does_not_construct_utc_date() -> None:
+    for relative in ("templates/orders/add_order.html", "templates/orders/edit_order.html"):
+        source = (ROOT / relative).read_text(encoding="utf-8")
+        assert "new Date(dateString)" not in source
+        assert "String(dateString).split('-').map(Number)" in source
+
+
+def test_chat_datetime_scripts_parse_kst_strings_explicitly() -> None:
+    utils = (ROOT / "templates/partials/chat_scripts_utils.html").read_text(encoding="utf-8")
+    notifications = (ROOT / "templates/partials/chat_scripts_notifications.html").read_text(encoding="utf-8")
+
+    assert "function parseKstDateTime" in utils
+    assert "Date.UTC(year, month, day, hour - 9" in utils
+    assert "timeZone: 'Asia/Seoul'" in utils
+    assert "new Date(dateString)" not in utils
+    assert "parseKstDateTime(dateString)" in notifications
+    assert "timeZone: 'Asia/Seoul'" in notifications

@@ -1,13 +1,13 @@
 """휴지통/삭제 관련 Blueprint: delete_order, trash, restore, permanent_delete."""
 
 import copy
-import datetime
 
 from flask import Blueprint, flash, make_response, redirect, render_template, request, session, url_for
 from sqlalchemy import String, text
 
 from foms.web.auth import get_user_by_id, log_access, login_required, role_required
 from db import get_db
+from foms.services.datetime_kst import now_kst
 from foms.services.erp_display import _ensure_dict, apply_erp_display_fields
 from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.order_display_utils import format_options_for_display
@@ -136,7 +136,7 @@ def delete_order(order_id):
         original_status = order.status
         order.status = "DELETED"
         order.original_status = original_status
-        order.deleted_at = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        order.deleted_at = now_kst().strftime("%Y-%m-%d %H:%M:%S")
         customer_name_for_log = order.customer_name
         db.commit()
 

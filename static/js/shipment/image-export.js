@@ -6,6 +6,15 @@ document.addEventListener('DOMContentLoaded', function () {
     const exportBtn = document.getElementById('btn-export-image');
     if (!exportBtn) return;
 
+    function localDateIso() {
+        const d = new Date();
+        return [
+            d.getFullYear(),
+            String(d.getMonth() + 1).padStart(2, '0'),
+            String(d.getDate()).padStart(2, '0')
+        ].join('-');
+    }
+
     exportBtn.addEventListener('click', async function () {
         const originalText = exportBtn.innerHTML;
 
@@ -23,7 +32,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const captureScale = 2; // 적절한 화질과 속도를 위해 2배수로 고정
 
             const dateInput = document.querySelector('input[name="date"]');
-            const dateStr = dateInput ? dateInput.value : new Date().toISOString().split('T')[0];
+            const dateStr = dateInput ? dateInput.value : localDateIso();
             const titleText = `${dateStr} 시공 일정`;
 
             const canvas = await html2canvas(tableElement, {

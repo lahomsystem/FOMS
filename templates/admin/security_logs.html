@@ -52,7 +52,7 @@
             <tbody>
                 {% for log_entry in logs %}
                 <tr>
-                    <td>{{ log_entry.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                    <td>{{ log_entry.timestamp|format_datetime_kst }}</td>
                     <td>{{ log_entry.message | order_link | safe }}</td>
                     <td>
                         {% if log_entry.user_id %}
@@ -78,4 +78,4 @@
     text-decoration: underline;
 }
 </style>
-{% endblock %} 
+{% endblock %}

@@ -178,7 +178,14 @@ class Order(Base):
         )
 
     def to_dict(self):
-        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        payload = {}
+        for c in self.__table__.columns:
+            value = getattr(self, c.name)
+            if isinstance(value, datetime.datetime):
+                payload[c.name] = format_datetime_kst(value)
+            else:
+                payload[c.name] = value
+        return payload
 
 
 class OrderScheduleDate(Base):
@@ -240,7 +247,7 @@ class OrderAttachment(Base):
             'file_size': self.file_size,
             'storage_key': self.storage_key,
             'thumbnail_key': self.thumbnail_key,
-            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else None,
+            'created_at': format_datetime_kst(self.created_at),
             'user_id': self.user_id,
         }
 
@@ -323,8 +330,8 @@ class User(Base):
             'role': self.role,
             'team': self.team,
             'is_active': self.is_active,
-            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else None,
-            'last_login': self.last_login.strftime('%Y-%m-%d %H:%M:%S') if self.last_login else None
+            'created_at': format_datetime_kst(self.created_at),
+            'last_login': format_datetime_kst(self.last_login)
         }
 
 class AccessLog(Base):
@@ -348,7 +355,7 @@ class AccessLog(Base):
             'ip_address': self.ip_address,
             'user_agent': self.user_agent,
             'additional_data': self.additional_data,
-            'timestamp': self.timestamp.strftime('%Y-%m-%d %H:%M:%S') if self.timestamp else None
+            'timestamp': format_datetime_kst(self.timestamp)
         }
 
 class SecurityLog(Base):
@@ -388,8 +395,8 @@ class ChatRoom(Base):
             'description': self.description,
             'order_id': self.order_id,
             'created_by': self.created_by,
-            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else None,
-            'updated_at': self.updated_at.strftime('%Y-%m-%d %H:%M:%S') if self.updated_at else None
+            'created_at': format_datetime_kst(self.created_at),
+            'updated_at': format_datetime_kst(self.updated_at)
         }
 
 
@@ -411,8 +418,8 @@ class ChatRoomMember(Base):
             'id': self.id,
             'room_id': self.room_id,
             'user_id': self.user_id,
-            'joined_at': self.joined_at.strftime('%Y-%m-%d %H:%M:%S') if self.joined_at else None,
-            'last_read_at': self.last_read_at.strftime('%Y-%m-%d %H:%M:%S') if self.last_read_at else None
+            'joined_at': format_datetime_kst(self.joined_at),
+            'last_read_at': format_datetime_kst(self.last_read_at)
         }
 
 
@@ -441,7 +448,7 @@ class ChatMessage(Base):
             'message_type': self.message_type,
             'content': self.content,
             'file_info': self.file_info,  # JSONB는 자동으로 dict로 변환됨
-            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else None
+            'created_at': format_datetime_kst(self.created_at)
         }
 
 
@@ -470,7 +477,7 @@ class ChatAttachment(Base):
             'storage_url': self.storage_url,
             'url': self.storage_url,  # 호환성을 위해 추가
             'thumbnail_url': self.thumbnail_url,
-            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else None
+            'created_at': format_datetime_kst(self.created_at)
         } 
 
 
@@ -542,8 +549,8 @@ class Notification(Base):
             'message': self.message,
             'created_by_name': self.created_by_name,
             'is_read': self.is_read,
-            'read_at': self.read_at.strftime('%Y-%m-%d %H:%M:%S') if self.read_at else None,
-            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else None
+            'read_at': format_datetime_kst(self.read_at),
+            'created_at': format_datetime_kst(self.created_at)
         }
 
 # ============================================

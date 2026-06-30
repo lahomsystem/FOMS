@@ -23,6 +23,15 @@
     /** PNG 전용: 담당자 그룹 사이만 넣는 여백(같은 담당자 연속 행 사이에는 없음) */
     const EXPORT_ASSIGNEE_GROUP_GAP_HEIGHT = '14px';
 
+    function localDateIso() {
+        const d = new Date();
+        return [
+            d.getFullYear(),
+            String(d.getMonth() + 1).padStart(2, '0'),
+            String(d.getDate()).padStart(2, '0')
+        ].join('-');
+    }
+
     /**
      * 클론된 행에서 담당자 비교용 키 (measurement.js 의 normalizeManagerKey 와 동일 규칙)
      * @param {HTMLTableRowElement} tr
@@ -71,11 +80,7 @@
     function toYyMmDd(isoDateStr) {
         const parts = String(isoDateStr || '').trim().split('-');
         if (parts.length !== 3) {
-            const d = new Date();
-            const y = String(d.getFullYear()).slice(-2);
-            const m = String(d.getMonth() + 1).padStart(2, '0');
-            const day = String(d.getDate()).padStart(2, '0');
-            return y + '-' + m + '-' + day;
+            return toYyMmDd(localDateIso());
         }
         const yy = String(parts[0]).slice(-2);
         return yy + '-' + parts[1] + '-' + parts[2];
@@ -88,8 +93,7 @@
     function toKoreanDateLabel(isoDateStr) {
         const parts = String(isoDateStr || '').trim().split('-');
         if (parts.length !== 3) {
-            const d = new Date();
-            return d.getFullYear() + '년 ' + (d.getMonth() + 1) + '월 ' + d.getDate() + '일';
+            return toKoreanDateLabel(localDateIso());
         }
         return Number(parts[0]) + '년 ' + Number(parts[1]) + '월 ' + Number(parts[2]) + '일';
     }
@@ -347,7 +351,7 @@
             }
 
             const dateInput = document.querySelector('input[name="date"]');
-            const dateStr = dateInput ? dateInput.value : new Date().toISOString().split('T')[0];
+            const dateStr = dateInput ? dateInput.value : localDateIso();
             const labelYyMmDd = toYyMmDd(dateStr);
             const titleText = toKoreanDateLabel(dateStr) + ' 실측 일정';
 

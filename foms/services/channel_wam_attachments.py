@@ -8,6 +8,7 @@ from urllib.parse import quote
 from flask import has_request_context, url_for
 
 from db import get_db
+from foms.services.datetime_kst import format_datetime_kst
 from models import OrderAttachment
 from foms.services.channel_wam_view_models import (
     AttachmentGroupVM,
@@ -103,7 +104,7 @@ def _build_item_vm(att: OrderAttachment, context: WamRequestContext) -> Attachme
         category=category,
         category_label=_category_label(category),
         item_index=att.item_index,
-        created_at_label=att.created_at.strftime("%Y-%m-%d %H:%M") if att.created_at else None,
+        created_at_label=format_datetime_kst(att.created_at, "%Y-%m-%d %H:%M") if att.created_at else None,
         size_label=_size_label(att.file_size),
         open_url=open_url,
         download_url=download_url,

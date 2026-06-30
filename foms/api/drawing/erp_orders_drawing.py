@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 from db import get_db
 from models import Order, OrderAttachment, Notification, SecurityLog
 from foms.web.auth import login_required, get_user_by_id
+from foms.services.datetime_kst import now_utc_naive
 from foms.api.notifications import (
     resolve_notification_recipient_user_ids,
     invalidate_badge_cache_for_user_ids,
@@ -105,7 +106,7 @@ def api_order_transfer_drawing(order_id):
                 'message': '수정 요청이 모두 "반영 완료"로 처리된 뒤에 수정본을 전달할 수 있습니다.',
             }), 400
 
-        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        now_str = now_utc_naive().strftime('%Y-%m-%d %H:%M:%S')
         user_name = current_user.name if current_user else 'Unknown'
 
         raw_new_files = data.get('files', [])

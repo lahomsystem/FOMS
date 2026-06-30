@@ -9,7 +9,7 @@ import datetime
 from flask import Blueprint, jsonify, session
 from sqlalchemy import and_, func, or_
 
-from foms.services.datetime_kst import get_today_kst
+from foms.services.datetime_kst import format_datetime_kst, get_today_kst
 from foms.web.auth import login_required
 from db import get_db
 from models import (
@@ -293,7 +293,7 @@ def _urgent_notifications(db, user, user_id, limit=10):
             key = (
                 n.title or "",
                 n.message or "",
-                n.created_at.strftime("%Y-%m-%d %H:%M:%S") if n.created_at else "",
+                format_datetime_kst(n.created_at) if n.created_at else "",
             )
             if key in seen:
                 continue
@@ -306,7 +306,7 @@ def _urgent_notifications(db, user, user_id, limit=10):
                     "order_id": n.order_id,
                     "notification_type": n.notification_type,
                     "created_by_name": n.created_by_name,
-                    "created_at": n.created_at.strftime("%Y-%m-%d %H:%M:%S") if n.created_at else None,
+                    "created_at": format_datetime_kst(n.created_at) if n.created_at else None,
                 }
             )
             if len(out) >= limit:

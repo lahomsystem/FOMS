@@ -8,6 +8,7 @@ from db import get_db
 from models import Order, User, OrderAttachment
 from foms.web.auth import login_required
 from foms.services.common.erp_mine_filter import erp_mine_only_from_request
+from foms.services.datetime_kst import format_datetime_kst, parse_datetime_utc
 from foms.services.erp_permissions import (
     build_mine_sql_filter,
     can_edit_erp,
@@ -70,6 +71,31 @@ def _event_target_numbers(event: Mapping[str, Any]) -> list[int]:
         if number > 0:
             numbers.append(number)
     return numbers
+
+
+def _history_event_at_raw(event: Mapping[str, Any]) -> str:
+    """Return the raw instant-ish timestamp from drawing history."""
+    return str(event.get('transferred_at') or event.get('at') or event.get('updated_at') or '').strip()
+
+
+def _history_event_at_text(event: Mapping[str, Any]) -> str:
+    raw = _history_event_at_raw(event)
+    return format_datetime_kst(raw) or raw or '-'
+
+
+def _history_event_sort_key(event: Mapping[str, Any], index: int) -> tuple[float, int]:
+    parsed = parse_datetime_utc(_history_event_at_raw(event))
+    if parsed is None:
+        return (0.0, index)
+    return (parsed.timestamp(), index)
+
+
+def _history_event_after(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
+    left_dt = parse_datetime_utc(_history_event_at_raw(left))
+    right_dt = parse_datetime_utc(_history_event_at_raw(right))
+    if left_dt is not None and right_dt is not None:
+        return left_dt > right_dt
+    return _history_event_at_raw(left) > _history_event_at_raw(right)
 
 
 def _build_drawing_turn(
@@ -153,10 +179,7 @@ def _build_handoff_thread(history: list[Mapping[str, Any]]) -> list[dict[str, An
     ]
     newest_first = sorted(
         indexed_history,
-        key=lambda item: (
-            str(item[1].get('transferred_at') or item[1].get('at') or ''),
-            item[0],
-        ),
+        key=lambda item: _history_event_sort_key(item[1], item[0]),
         reverse=True,
     )
     for _, event in newest_first:
@@ -462,12 +485,12 @@ def erp_drawing_workbench_detail(order_id):
         if not isinstance(h, dict):
             continue
         h_action = (h.get('action') or '').strip()
-        event_key = f"{idx}:{h_action}:{h.get('at') or h.get('transferred_at') or ''}:{h.get('by_user_id') or ''}"
+        event_key = f"{idx}:{h_action}:{_history_event_at_raw(h)}:{h.get('by_user_id') or ''}"
         history.append({
             **h,
             'event_key': event_key,
             'action_label': {'TRANSFER': '도면 전달', 'REQUEST_REVISION': '수정 요청', 'CANCEL_TRANSFER': '전달 취소', 'CONFIRM_RECEIPT': '수령 확정'}.get(h_action, h_action or '-'),
-            'at_text': h.get('transferred_at') or h.get('at') or '-',
+            'at_text': _history_event_at_text(h),
             'by_text': h.get('by_user_name') or '-',
             'target_no': h.get('target_drawing_number') or h.get('replace_target_number'),
             'files': list(h.get('files') or []) if isinstance(h.get('files'), list) else [],
@@ -487,9 +510,7 @@ def erp_drawing_workbench_detail(order_id):
 
     if latest_transfer and revision_requests:
         latest_req = revision_requests[0]
-        tf_at = latest_transfer.get('at') or latest_transfer.get('transferred_at') or ''
-        req_at = latest_req.get('at') or latest_req.get('transferred_at') or ''
-        if tf_at > req_at:
+        if _history_event_after(latest_transfer, latest_req):
             latest_keys = {f.get('key') for f in (latest_transfer.get('files') or []) if isinstance(f, dict) and f.get('key')}
             for df in drawing_files:
                 if isinstance(df, dict) and df.get('key') in latest_keys:

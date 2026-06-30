@@ -62,7 +62,7 @@
                                 {% endif %}
                             </td>
                             <td>{{ (user.last_login|format_datetime_kst('%Y-%m-%d %H:%M')) if user.last_login else '-' }}</td>
-                            <td>{{ user.created_at.strftime('%Y-%m-%d') }}</td>
+                            <td>{{ user.created_at|format_datetime_kst('%Y-%m-%d') }}</td>
                             <td>
                                 <a href="{{ url_for('auth.edit_user', user_id=user.id) }}"
                                     class="btn btn-sm btn-outline-primary">

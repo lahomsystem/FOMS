@@ -1042,9 +1042,18 @@
             statusSelect.disabled = false;
         }
 
+        function localDateIso() {
+            const d = new Date();
+            return [
+                d.getFullYear(),
+                String(d.getMonth() + 1).padStart(2, '0'),
+                String(d.getDate()).padStart(2, '0')
+            ].join('-');
+        }
+
         // URL 파라미터에서 초기값 가져오기
         const urlParams = new URLSearchParams(window.location.search);
-        const initialDate = urlParams.get('date') || new Date().toISOString().split('T')[0];
+        const initialDate = urlParams.get('date') || localDateIso();
         const dashboardParam = urlParams.get('dashboard') || '';
         const initialStatus = (dashboardParam === 'measurement') ? 'ALL' : (urlParams.get('status') || 'ALL');
         const initialManager = urlParams.get('manager') || '';

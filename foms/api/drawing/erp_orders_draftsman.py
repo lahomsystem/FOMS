@@ -12,6 +12,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from db import get_db
 from models import Order, User, OrderEvent, SecurityLog
 from foms.web.auth import login_required, get_user_by_id
+from foms.services.datetime_kst import now_utc_naive
 from foms.services.erp_permissions import erp_edit_required
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.erp_display import _ensure_dict
@@ -350,7 +351,7 @@ def api_order_confirm_drawing_receipt(order_id):
         wf['history'] = hist
         s_data['workflow'] = wf
 
-        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        now_str = now_utc_naive().strftime('%Y-%m-%d %H:%M:%S')
         draw_history = list(s_data.get('drawing_transfer_history') or [])
         draw_history.append({
             'action': 'CONFIRM_RECEIPT',

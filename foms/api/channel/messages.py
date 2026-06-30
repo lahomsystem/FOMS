@@ -8,6 +8,7 @@ from sqlalchemy import or_
 from foms.web.auth import login_required
 from foms.api.channel.blueprint import chat_bp
 from foms.api.channel.utils import schedule_chat_thumbnail_generation
+from foms.services.datetime_kst import format_datetime_kst
 from db import get_db
 from models import ChatAttachment, ChatMessage, ChatRoom, ChatRoomMember, Order, User
 
@@ -50,7 +51,7 @@ def api_chat_search():
                     "content": msg.content,
                     "user_name": msg.user.name if msg.user else None,
                     "created_at": (
-                        lambda timestamp: timestamp.strftime("%Y-%m-%d %H:%M:%S") if timestamp else None
+                        lambda timestamp: format_datetime_kst(timestamp) if timestamp else None
                     )(getattr(msg, "created_at", None)),
                 }
             )
@@ -71,7 +72,7 @@ def api_chat_search():
                         "room_name": room.name,
                         "description": room.description,
                         "created_at": (
-                            lambda timestamp: timestamp.strftime("%Y-%m-%d %H:%M:%S") if timestamp else None
+                            lambda timestamp: format_datetime_kst(timestamp) if timestamp else None
                         )(getattr(room, "created_at", None)),
                     }
                 )
