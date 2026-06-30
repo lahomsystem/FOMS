@@ -63,6 +63,22 @@
     var fileType = String(opts.fileType || "image").toLowerCase();
     var readOnly = opts.readOnly !== false;
 
+    // Mobile + read-only image → unified GlobalImageViewer (blur backdrop + smooth focal zoom).
+    // Edit mode (readOnly false, delete/unlink), video, file, and desktop keep the Bootstrap modal.
+    if (
+      fileType !== "video" &&
+      fileType !== "file" &&
+      readOnly &&
+      window.fomsIsMobileImageViewer &&
+      window.fomsIsMobileImageViewer()
+    ) {
+      window.GlobalImageViewer.open(
+        [{ view_url: viewUrl, download_url: downloadUrl, filename: filename }],
+        0
+      );
+      return true;
+    }
+
     dl.href = downloadUrl;
     dl.classList.toggle("d-none", !downloadUrl || downloadUrl === "#");
     syncFooterActions(readOnly);

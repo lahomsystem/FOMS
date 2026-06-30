@@ -360,7 +360,12 @@
                 panStartX: 0,
                 panStartY: 0,
                 panBaseTx: 0,
-                panBaseTy: 0
+                panBaseTy: 0,
+                // Double-tap (tap-to-zoom) tracking
+                touchStartTime: 0,
+                lastTapTime: 0,
+                lastTapX: 0,
+                lastTapY: 0
             };
 
             let els = {};
@@ -543,6 +548,40 @@
                 if (els.image) els.image.style.transform = `translate(${state.tx}px, ${state.ty}px) scale(${state.scale})`;
             }
 
+            function stageCenter() {
+                const r = (els.stage || els.root).getBoundingClientRect();
+                return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+            }
+
+            // Zoom toward a screen focal point (pinch midpoint / tap / cursor) so the
+            // pixel under the fingers stays fixed — the "smooth" native-photos feel.
+            // transform-origin is center center, so focal is measured from the stage center.
+            function zoomToFocal(nextScale, focalClientX, focalClientY, animate) {
+                nextScale = Math.max(1, Math.min(5, nextScale));
+                const c = stageCenter();
+                const fx = focalClientX - c.x;
+                const fy = focalClientY - c.y;
+                const ratio = state.scale > 0 ? nextScale / state.scale : 1;
+                if (animate && els.image) els.image.style.transition = 'transform 0.22s ease';
+                state.tx = fx - ratio * (fx - state.tx);
+                state.ty = fy - ratio * (fy - state.ty);
+                state.scale = nextScale;
+                if (state.scale <= 1.01) {
+                    state.scale = 1;
+                    state.tx = 0;
+                    state.ty = 0;
+                } else {
+                    clampPan();
+                }
+                updateTransform();
+                if (animate && els.image) {
+                    setTimeout(function () {
+                        // Don't clobber the 'none' a live pinch/pan just set.
+                        if (els.image && !state.pinching && !state.panning) els.image.style.transition = '';
+                    }, 240);
+                }
+            }
+
             function prev() {
                 if (state.index > 0) {
                     state.index--;
@@ -559,16 +598,9 @@
 
             function handleWheel(e) {
                 e.preventDefault();
-                const delta = e.deltaY > 0 ? -0.1 : 0.1;
-                state.scale = Math.max(0.1, Math.min(5, state.scale + delta));
-                if (state.scale <= 1.05) {
-                    state.scale = 1;
-                    state.tx = 0;
-                    state.ty = 0;
-                } else {
-                    clampPan();
-                }
-                updateTransform();
+                // Multiplicative step + cursor focal point = smooth zoom toward the pointer.
+                const factor = e.deltaY > 0 ? 0.9 : 1.1;
+                zoomToFocal(state.scale * factor, e.clientX, e.clientY, false);
             }
 
             function startDrag(e) {
@@ -669,6 +701,7 @@
                     state.touchStartY = t.clientY;
                     state.touchLastX = t.clientX;
                     state.touchLastY = t.clientY;
+                    state.touchStartTime = Date.now();
                     if (state.scale > 1.05) {
                         // Zoomed in → one-finger drag pans the image.
                         beginTouchPan(t);
@@ -685,14 +718,10 @@
                     const dist = touchDistance(e.touches[0], e.touches[1]);
                     if (state.pinchStartDist > 0) {
                         const next = state.pinchStartScale * (dist / state.pinchStartDist);
-                        state.scale = Math.max(1, Math.min(5, next));
-                        if (state.scale <= 1.01) {
-                            state.tx = 0;
-                            state.ty = 0;
-                        } else {
-                            clampPan();
-                        }
-                        updateTransform();
+                        // Anchor zoom at the live pinch midpoint so the image tracks the fingers.
+                        const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                        const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                        zoomToFocal(next, midX, midY, false);
                     }
                     return;
                 }
@@ -722,6 +751,30 @@
 
             function handleTouchEnd(e) {
                 const remaining = e && e.touches ? e.touches.length : 0;
+
+                // Double-tap to zoom (toward the tap point) / reset — runs before pan/swipe
+                // handling so a quick tap-tap is not mistaken for a pan or swipe.
+                const ct = e && e.changedTouches && e.changedTouches[0];
+                const wasTap = ct && remaining === 0 && !state.pinching &&
+                    (Date.now() - state.touchStartTime) < 250 &&
+                    Math.abs(ct.clientX - state.touchStartX) < 20 &&
+                    Math.abs(ct.clientY - state.touchStartY) < 20;
+                if (wasTap) {
+                    const now = Date.now();
+                    if (now - state.lastTapTime < 300 &&
+                        Math.abs(ct.clientX - state.lastTapX) < 40 &&
+                        Math.abs(ct.clientY - state.lastTapY) < 40) {
+                        state.lastTapTime = 0;
+                        state.panning = false;
+                        state.touching = false;
+                        if (state.scale > 1.05) zoomToFocal(1, ct.clientX, ct.clientY, true);
+                        else zoomToFocal(2.5, ct.clientX, ct.clientY, true);
+                        return;
+                    }
+                    state.lastTapTime = now;
+                    state.lastTapX = ct.clientX;
+                    state.lastTapY = ct.clientY;
+                }
 
                 if (state.pinching) {
                     if (remaining < 2) {
@@ -770,6 +823,20 @@
                 close
             };
         })();
+
+        /**
+         * Mobile image-viewing SSOT gate. On mobile (<=768px), all read-only image
+         * viewing routes through GlobalImageViewer (blur backdrop + smooth focal zoom).
+         * Desktop keeps its existing per-surface modals untouched.
+         */
+        window.fomsIsMobileImageViewer = function () {
+            try {
+                return !!(window.matchMedia && window.matchMedia('(max-width: 768px)').matches) &&
+                    !!(window.GlobalImageViewer && window.GlobalImageViewer.open);
+            } catch (e) {
+                return false;
+            }
+        };
 
         /** Phase2: 목록/썸네일 presigned — data-storage-key가 있는 img의 src를 R2 직행 URL로 교체 */
         window.erpReplaceThumbnailsWithPresigned = function (container) {

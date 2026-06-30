@@ -28,6 +28,15 @@
     var label = opts.label || "";
     var downloadUrl = opts.downloadUrl || viewUrl;
 
+    // Mobile: route read-only image preview through GlobalImageViewer (blur + smooth zoom).
+    if (window.fomsIsMobileImageViewer && window.fomsIsMobileImageViewer()) {
+      window.GlobalImageViewer.open(
+        [{ view_url: viewUrl, download_url: downloadUrl, filename: label }],
+        0
+      );
+      return;
+    }
+
     dl.href = downloadUrl;
     dl.classList.toggle("d-none", !downloadUrl || downloadUrl === "#");
 

@@ -98,6 +98,28 @@
     if (idx < 0) idx = this.images.length - 1;
     if (idx >= this.images.length) idx = 0;
     this.index = idx;
+    // Mobile: delegate to GlobalImageViewer (blur backdrop + smooth focal zoom),
+    // passing the whole gallery so prev/next nav and swipe still work.
+    if (window.fomsIsMobileImageViewer && window.fomsIsMobileImageViewer()) {
+      var files = this.images
+        .map(function (node) {
+          var src =
+            node.getAttribute("data-foms-lightbox-src") || node.getAttribute("src") || "";
+          return {
+            view_url: src,
+            download_url: node.getAttribute("data-foms-lightbox-download") || src,
+            filename:
+              node.getAttribute("alt") || node.getAttribute("data-foms-lightbox-name") || "이미지",
+          };
+        })
+        .filter(function (f) {
+          return !!f.view_url;
+        });
+      if (files.length) {
+        window.GlobalImageViewer.open(files, idx);
+        return;
+      }
+    }
     this._ensureShell();
     var src =
       this.images[idx].getAttribute("data-foms-lightbox-src") ||
@@ -185,6 +207,20 @@
   function openLightboxUrl(url, opts) {
     if (!url) return;
     opts = opts || {};
+    // Mobile: route single-image preview through GlobalImageViewer too.
+    if (window.fomsIsMobileImageViewer && window.fomsIsMobileImageViewer()) {
+      window.GlobalImageViewer.open(
+        [
+          {
+            view_url: url,
+            download_url: opts.downloadUrl || url,
+            filename: opts.filename || "이미지",
+          },
+        ],
+        0
+      );
+      return;
+    }
     var tmp = document.createElement("div");
     tmp.hidden = true;
     tmp.setAttribute("data-foms-lightbox-gallery", "");
