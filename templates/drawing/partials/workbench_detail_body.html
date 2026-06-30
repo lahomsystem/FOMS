@@ -149,6 +149,36 @@
       color: #0d6efd;
     }
 
+    .dw-revision-note-text {
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .dw-revision-drawing-preview {
+      border: 1px solid #dbe5f5;
+      border-radius: 10px;
+      background: #f8fafc;
+      padding: 10px;
+    }
+
+    .dw-revision-drawing-preview__stage {
+      min-height: 220px;
+      max-height: 42vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      border-radius: 8px;
+      background: #fff;
+      border: 1px solid #e5e7eb;
+    }
+
+    .dw-revision-drawing-preview__stage img {
+      max-width: 100%;
+      max-height: 42vh;
+      object-fit: contain;
+    }
+
     /* 실행판 상단 헤더: 오른쪽(상태·미확인) 잘림 방지 */
     .dw-detail-header-row {
       display: flex;
@@ -807,7 +837,7 @@
                 <span class="badge bg-secondary">미완료</span>
                 {% endif %}
               </div>
-              <div class="small mt-1">{{ r.note or '요청 메모 없음' }}</div>
+              <div class="small mt-1 dw-revision-note-text">{{ r.note or '요청 메모 없음' }}</div>
               {% if checked %}
               <div class="small text-success mt-1">
                 <i class="fas fa-user-check"></i> {{ review.get('checked_by_name') or '-' }} · {{
@@ -1068,7 +1098,7 @@
 </div>
 
 <div class="modal fade" id="dwRevisionModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-centered">
+  <div class="modal-dialog modal-xl modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title"><i class="fas fa-undo"></i> 수정 요청</h5>
@@ -1077,6 +1107,17 @@
       <div class="modal-body">
         <div class="mb-3">
           <label class="form-label fw-bold">대상 도면 선택 (다중 선택 가능)</label>
+          <div id="dw-revision-drawing-preview" class="dw-revision-drawing-preview mb-2">
+            <div id="dw-revision-drawing-preview-stage" class="dw-revision-drawing-preview__stage">
+              <div class="text-muted small py-4 text-center">아래 도면을 선택하면 크게 표시됩니다.</div>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mt-2 gap-2 flex-wrap">
+              <span id="dw-revision-drawing-preview-label" class="small fw-semibold text-primary"></span>
+              <button type="button" class="btn btn-sm btn-outline-primary" id="dw-revision-drawing-preview-expand" disabled>
+                <i class="fas fa-expand"></i> 전체화면
+              </button>
+            </div>
+          </div>
           <div id="dw-revision-target-cards" class="row g-2 mb-2">
             {% for f in drawing_files %}
             {% set fkey = (f.get('key') if f is mapping else '') or '' %}
@@ -1087,6 +1128,7 @@
             lower.endswith('.gif') or lower.endswith('.webp') %}
             <div class="col-6 col-md-4">
               <div class="drawing-target-card border rounded p-2 text-center" data-key="{{ fkey }}"
+                data-view-url="{{ view_url }}" data-filename="{{ fname }}" data-drawing-num="{{ loop.index }}"
                 onclick="toggleRevisionTargetCard(this)">
                 <input type="checkbox" class="revision-target-checkbox d-none" value="{{ fkey }}">
                 <div class="drawing-target-preview mb-2"
@@ -1235,7 +1277,101 @@
       } else {
         card.classList.remove('selected');
       }
+      previewRevisionTargetCard(card);
     };
+
+    function dwIsDrawingImageFilename(name) {
+      return /\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif)(\?|$)/i.test(String(name || ''));
+    }
+
+    function previewRevisionTargetCard(card) {
+      const stage = document.getElementById('dw-revision-drawing-preview-stage');
+      const label = document.getElementById('dw-revision-drawing-preview-label');
+      const expandBtn = document.getElementById('dw-revision-drawing-preview-expand');
+      if (!stage || !card) return;
+
+      const viewUrl = String(card.dataset.viewUrl || '');
+      const filename = String(card.dataset.filename || '도면');
+      const num = String(card.dataset.drawingNum || '');
+      const key = String(card.dataset.key || '');
+      const isImage = dwIsDrawingImageFilename(filename);
+
+      stage.replaceChildren();
+      if (viewUrl && isImage) {
+        const img = document.createElement('img');
+        img.src = viewUrl;
+        img.alt = filename;
+        if (key) img.dataset.storageKey = key;
+        stage.appendChild(img);
+        if (window.erpReplaceThumbnailsWithPresigned) window.erpReplaceThumbnailsWithPresigned(stage);
+      } else if (viewUrl) {
+        const wrap = document.createElement('div');
+        wrap.className = 'text-center py-4';
+        wrap.innerHTML = '<i class="fas fa-file-alt fa-3x text-secondary mb-2"></i>';
+        const nameEl = document.createElement('div');
+        nameEl.className = 'small text-muted';
+        nameEl.textContent = filename;
+        const link = document.createElement('a');
+        link.className = 'btn btn-sm btn-outline-primary mt-2';
+        link.href = viewUrl;
+        link.target = '_blank';
+        link.rel = 'noopener';
+        link.textContent = '파일 열기';
+        wrap.appendChild(nameEl);
+        wrap.appendChild(link);
+        stage.appendChild(wrap);
+      } else {
+        const empty = document.createElement('div');
+        empty.className = 'text-muted small py-4 text-center';
+        empty.textContent = '미리보기를 사용할 수 없습니다.';
+        stage.appendChild(empty);
+      }
+
+      if (label) label.textContent = num ? (num + '번 · ' + filename) : filename;
+      if (expandBtn) {
+        expandBtn.disabled = !(viewUrl && isImage);
+        expandBtn.dataset.focusKey = key;
+      }
+    }
+
+    function previewFirstSelectedRevisionCard() {
+      const selected = document.querySelector('#dw-revision-target-cards .drawing-target-card.selected');
+      const fallback = document.querySelector('#dw-revision-target-cards .drawing-target-card');
+      previewRevisionTargetCard(selected || fallback);
+    }
+
+    function openDwRevisionDrawingViewer(focusKey) {
+      if (!window.GlobalImageViewer) return;
+      const cards = document.querySelectorAll('#dw-revision-target-cards .drawing-target-card');
+      const files = [];
+      let index = 0;
+      cards.forEach((card) => {
+        const viewUrl = String(card.dataset.viewUrl || '');
+        const filename = String(card.dataset.filename || '도면');
+        const key = String(card.dataset.key || '');
+        if (!viewUrl || !dwIsDrawingImageFilename(filename)) return;
+        if (key === String(focusKey || '')) index = files.length;
+        files.push({
+          view_url: viewUrl,
+          download_url: viewUrl,
+          filename: filename,
+          key: key
+        });
+      });
+      if (!files.length) return;
+      window.GlobalImageViewer.open(files, index);
+    }
+
+    if (!window.__DW_REVISION_PREVIEW_EXPAND_BOUND) {
+      window.__DW_REVISION_PREVIEW_EXPAND_BOUND = true;
+      document.getElementById('dw-revision-drawing-preview-expand')?.addEventListener('click', function () {
+        openDwRevisionDrawingViewer(this.dataset.focusKey || '');
+      });
+    }
+
+    (function initDwRevisionPreview() {
+      previewFirstSelectedRevisionCard();
+    })();
 
     window.selectAllRevisionCards = function () {
       const cards = document.querySelectorAll('#dw-revision-target-cards .drawing-target-card');
@@ -1250,6 +1386,7 @@
           cards[idx]?.classList.remove('selected');
         }
       });
+      previewFirstSelectedRevisionCard();
     };
 
     window.toggleTransferTargetCards = function () {

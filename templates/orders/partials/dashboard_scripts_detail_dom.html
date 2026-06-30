@@ -426,7 +426,7 @@
                   const checkMeta = isChecked
                     ? '<div class="small text-success mt-1"><i class="fas fa-user-check"></' + 'i> ' + checkedBy + ' · ' + checkedAt + '</div>'
                     : '';
-                  return '<div class="border rounded p-2 mb-2 bg-white"><div class="small text-muted mb-1">' + when + ' · ' + by + ' ' + pinBadge + ' ' + checkBadge + ' ' + targetBadge + '</div><div class="small">' + note + '</div>' + checkMeta + toggleBtn + '</div>';
+                  return '<div class="border rounded p-2 mb-2 bg-white"><div class="small text-muted mb-1">' + when + ' · ' + by + ' ' + pinBadge + ' ' + checkBadge + ' ' + targetBadge + '</div><div class="small dw-revision-note-text">' + note + '</div>' + checkMeta + toggleBtn + '</div>';
                 }).join('')
                 : '<div class="text-muted small">수정 요청 이력이 없습니다.</div>';
 
