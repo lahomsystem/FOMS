@@ -927,7 +927,10 @@ def _structured_has_meaningful_content(
     for item in (structured_data.get('items') or []):
         if not isinstance(item, dict):
             continue
-        for key in ('product_name', 'spec', 'price', 'option_detail', 'color', 'handle', 'misc'):
+        # 사용자가 실제로 채우는 필드만 신호로 본다. color/handle/misc/option_detail/
+        # internal은 기본값 '상담'이라, 포함하면 빈 폼도 '내용 있음'으로 오판 → 빈 draft가
+        # 기존 draft를 덮어써 데이터 유실. product_name/spec/price만 본다.
+        for key in ('product_name', 'spec', 'price'):
             if str(item.get(key) or '').strip():
                 return True
     return False
@@ -990,6 +993,21 @@ def api_erp_draft_autosave():
             order = _create_session_draft(db, draft_token)
 
         now = datetime.datetime.now()
+
+        # 데이터 유실 방어(defense-in-depth): 무의미한(빈) 자동저장이 이미 내용이 있는
+        # draft를 덮어쓰지 못하게 한다. 클라이언트가 ORDER_ID>0 경로에서 빈 폼을 전송해도
+        # 기존 작성분을 보존. 전체를 비우려면 사용자가 '버리기'를 눌러야 한다.
+        existing_sd = order.structured_data if isinstance(order.structured_data, dict) else {}
+        new_meaningful = _structured_has_meaningful_content(structured_data, payload.get('notes') or '')
+        existing_meaningful = _structured_has_meaningful_content(existing_sd, order.notes or '')
+        if not new_meaningful and existing_meaningful:
+            return jsonify({
+                'success': True,
+                'order_id': order.id,
+                'updated_at': format_updated_at(order.structured_updated_at) if order.structured_updated_at else None,
+                'skipped': 'no_downgrade',
+            })
+
         if structured_data is not None:
             sd = copy.deepcopy(structured_data)
             meta = sd.get('meta') if isinstance(sd.get('meta'), dict) else {}

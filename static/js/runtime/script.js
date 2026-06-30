@@ -4,9 +4,10 @@
 
 // Auto-close flash messages after 5 seconds
 document.addEventListener('DOMContentLoaded', function() {
-    // Auto close alerts
+    // Auto close alerts. data-foms-no-autodismiss 가 붙은 alert는 사용자 액션이
+    // 필요한 영구 배너(예: 자동저장 복원 배너)이므로 5초 자동 닫힘에서 제외한다.
     setTimeout(function() {
-        const alerts = document.querySelectorAll('.alert');
+        const alerts = document.querySelectorAll('.alert:not([data-foms-no-autodismiss])');
         alerts.forEach(function(alert) {
             const bsAlert = new bootstrap.Alert(alert);
             bsAlert.close();
