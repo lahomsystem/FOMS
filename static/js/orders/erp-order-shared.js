@@ -3039,8 +3039,16 @@ function erpOpenAttachmentPreview(attachmentId) {
     const dl = document.getElementById('erp-attachment-preview-download');
     if (!modalEl || !body || !dl) return;
 
-    const viewUrl = a.view_url || '#';
-    const downloadUrl = a.download_url || '#';
+    const storageKey = a.storage_key || (a.download_url && String(a.download_url).replace(/^\/api\/files\/download\//, ''));
+    const storagePath = storageKey ? storageKey.split('/').map(function (s) { return encodeURIComponent(s); }).join('/') : '';
+    function isSignedStorageUrl(url) {
+        return /(?:^|\/\/|[.])r2\.cloudflarestorage\.com/i.test(url || '') ||
+            /(?:[?&](?:X-Amz-Signature|Signature)=)/i.test(url || '');
+    }
+    const stableViewUrl = storagePath ? `/api/files/view/${storagePath}` : '#';
+    const stableDownloadUrl = storagePath ? `/api/files/download/${storagePath}` : '#';
+    const viewUrl = isSignedStorageUrl(a.view_url) ? stableViewUrl : (a.view_url || stableViewUrl);
+    const downloadUrl = isSignedStorageUrl(a.download_url) ? stableDownloadUrl : (a.download_url || stableDownloadUrl);
     dl.href = downloadUrl;
     erpSyncAttachmentPreviewActions(a);
 
@@ -3075,30 +3083,7 @@ function erpOpenAttachmentPreview(attachmentId) {
     const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
     modal.show();
 
-    var storageKey = a.storage_key || (a.download_url && String(a.download_url).replace(/^\/api\/files\/download\//, ''));
-    if (storageKey) {
-        var presignedPath = storageKey.split('/').map(function (s) { return encodeURIComponent(s); }).join('/');
-        fetch('/api/files/presigned-urls/' + presignedPath)
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-                if (!data.success) return;
-                if (data.download_url) {
-                    dl.href = data.download_url;
-                    var downloadLink = body.querySelector('a.btn-primary') || body.querySelector('a[href*="download"]');
-                    if (downloadLink) downloadLink.href = data.download_url;
-                }
-                if (data.view_url) {
-                    var img = body.querySelector('img');
-                    if (img) {
-                        img.src = data.view_url;
-                        erpBindAttachmentPreviewImageZoom(body);
-                    }
-                    var video = body.querySelector('video');
-                    if (video) video.src = data.view_url;
-                }
-            })
-            .catch(function () { });
-    }
+    // Keep preview media on stable app routes; direct R2 signed URLs expire in long-lived modals.
 }
 
 async function erpDoDirectUploadOne(originalFile, category, itemIndex, preFetchedSess) {

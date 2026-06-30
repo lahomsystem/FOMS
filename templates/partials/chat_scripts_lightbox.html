@@ -22,6 +22,12 @@ function openImageLightbox(imageUrl, optionalKey) {
     
     var url = (typeof imageUrl === 'string') ? imageUrl : (imageUrl && (imageUrl.dataset && imageUrl.dataset.url) || imageUrl.src);
     var key = optionalKey || (imageUrl && imageUrl.dataset && imageUrl.dataset.key) || null;
+    function encodeFilePath(k) {
+        return String(k).split('/').map(function(s) { return encodeURIComponent(s); }).join('/');
+    }
+    if (key && /(?:^|\/\/|[.])r2\.cloudflarestorage\.com|(?:[?&](?:X-Amz-Signature|Signature)=)/i.test(url || '')) {
+        url = '/api/files/view/' + encodeFilePath(key);
+    }
     if (!url) return;
     
     // 이미지 로드 후 transform 적용
@@ -41,12 +47,7 @@ function openImageLightbox(imageUrl, optionalKey) {
     img.src = url;
     lightbox.classList.add('active');
     
-    if (key) {
-        var path = String(key).split('/').map(function(s) { return encodeURIComponent(s); }).join('/');
-        fetch('/api/files/presigned-urls/' + path).then(function(r) { return r.json(); }).then(function(data) {
-            if (data.success && data.view_url) img.src = data.view_url;
-        }).catch(function() {});
-    }
+    // Keep lightbox media on stable app routes; direct R2 signed URLs expire.
     
     document.addEventListener('keydown', handleLightboxKeydown);
 }

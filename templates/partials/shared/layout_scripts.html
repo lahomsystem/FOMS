@@ -435,13 +435,33 @@
                 init(); // Ensure init
                 if (!files || !files.length) return;
 
-                // Normalize files structure (key for R2 presigned direct link)
+                // Normalize files structure while keeping durable src values on app file routes.
                 state.files = files.map(f => {
-                    const key = f.key || f.storage_key || (f.download_url && String(f.download_url).replace(/^\/api\/files\/download\//, '')) || (f.view_url && String(f.view_url).replace(/^\/api\/files\/view\//, '')) || (f.url && String(f.url).replace(/^\/api\/files\/view\//, '')) || null;
+                    function encodePath(k) { return String(k).split('/').map(function (s) { return encodeURIComponent(s); }).join('/'); }
+                    function decodePath(k) { return String(k).split('/').map(function (s) { try { return decodeURIComponent(s); } catch (e) { return s; } }).join('/'); }
+                    function appStorageKey(value, prefix) {
+                        var text = String(value || '');
+                        if (!text) return null;
+                        try {
+                            var parsed = new URL(text, window.location.origin);
+                            if (parsed.pathname.indexOf(prefix) === 0) return decodePath(parsed.pathname.slice(prefix.length));
+                        } catch (e) { }
+                        if (text.indexOf(prefix) === 0) return decodePath(text.slice(prefix.length).split(/[?#]/, 1)[0]);
+                        return null;
+                    }
+                    function isSignedStorageUrl(url) {
+                        return /(?:^|\/\/|[.])r2\.cloudflarestorage\.com/i.test(url || '') ||
+                            /(?:[?&](?:X-Amz-Signature|Signature)=)/i.test(url || '');
+                    }
+                    const key = f.key || f.storage_key || appStorageKey(f.download_url, '/api/files/download/') || appStorageKey(f.view_url || f.url, '/api/files/view/') || null;
+                    const stableViewUrl = key ? `/api/files/view/${encodePath(key)}` : '';
+                    const stableDownloadUrl = key ? `/api/files/download/${encodePath(key)}` : '';
+                    const rawViewUrl = f.view_url || f.url || '';
+                    const rawDownloadUrl = f.download_url || '';
                     return {
-                        url: f.view_url || f.url || (key ? `/api/files/view/${key}` : ''),
+                        url: (key && isSignedStorageUrl(rawViewUrl)) ? stableViewUrl : (rawViewUrl || stableViewUrl),
                         filename: f.filename || f.name || '이미지',
-                        download_url: f.download_url || (key ? `/api/files/download/${key}` : ''),
+                        download_url: (key && isSignedStorageUrl(rawDownloadUrl)) ? stableDownloadUrl : (rawDownloadUrl || stableDownloadUrl),
                         key: key || null
                     };
                 }).filter(f => !!f.url);
@@ -524,19 +544,7 @@
                 }
                 requestAnimationFrame(positionNavButtons);
 
-                if (file.key) {
-                    var path = (function (k) { return String(k).split('/').map(function (s) { return encodeURIComponent(s); }).join('/'); })(file.key);
-                    fetch('/api/files/presigned-urls/' + path).then(function (r) { return r.json(); }).then(function (data) {
-                        if (data.success && data.view_url && state.files[state.index] === file) {
-                            var isVideo = (file.url || '').match(/\.(mp4|webm|ogg)$/i) || (file.filename || '').match(/\.(mp4|webm|ogg)$/i);
-                            if (isVideo) {
-                                els.video.src = data.view_url;
-                            } else {
-                                els.image.src = data.view_url;
-                            }
-                        }
-                    }).catch(function () { });
-                }
+                // Direct R2 signed URLs expire; the app route issues a fresh redirect per load.
             }
 
             function updateTransform() {
@@ -833,25 +841,24 @@
             }
         };
 
-        /** Phase2: 목록/썸네일 presigned — data-storage-key가 있는 img의 src를 R2 직행 URL로 교체 */
+        /** Legacy hook: keep thumbnails on stable app file routes instead of expiring R2 signed URLs. */
         window.erpReplaceThumbnailsWithPresigned = function (container) {
             var root = container && container.nodeType === 1 ? container : document;
             var imgs = root.querySelectorAll ? root.querySelectorAll('img[data-storage-key]') : [];
             if (!imgs.length) return;
-            var CONCURRENCY = 5;
             function encodePath(k) { return String(k).split('/').map(function (s) { return encodeURIComponent(s); }).join('/'); }
-            function fetchOne(img) {
+            function isSignedStorageUrl(url) {
+                return /(?:^|\/\/|[.])r2\.cloudflarestorage\.com/i.test(url || '') ||
+                    /(?:[?&](?:X-Amz-Signature|Signature)=)/i.test(url || '');
+            }
+            Array.prototype.forEach.call(imgs, function (img) {
                 var key = img.getAttribute('data-storage-key');
-                if (!key) return Promise.resolve();
-                var path = encodePath(key);
-                return fetch('/api/files/presigned-urls/' + path).then(function (r) { return r.json(); }).then(function (data) {
-                    if (data.success && data.view_url) img.src = data.view_url;
-                }).catch(function () { });
-            }
-            for (var i = 0; i < imgs.length; i += CONCURRENCY) {
-                var chunk = Array.prototype.slice.call(imgs, i, i + CONCURRENCY);
-                Promise.all(chunk.map(fetchOne));
-            }
+                if (!key) return;
+                var stableUrl = img.getAttribute('data-foms-erp-attachment-view-url') || ('/api/files/view/' + encodePath(key));
+                if (!img.getAttribute('src') || isSignedStorageUrl(img.getAttribute('src'))) {
+                    img.src = stableUrl;
+                }
+            });
         };
 
         document.addEventListener('DOMContentLoaded', () => {
