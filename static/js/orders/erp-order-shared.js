@@ -1875,6 +1875,8 @@ async function erpSaveStructuredOnce(opts = {}) {
             return { success: false, message: data.message || '저장 실패' };
         }
         erpSetStatus(doRedirect ? '저장 완료! 이동합니다...' : '저장 완료');
+        // 명시 저장(승격) 성공 → 자동저장 모듈이 로컬/세션 draft 흔적을 정리하도록 알림.
+        try { document.dispatchEvent(new Event('erp:order-saved')); } catch (_e) {}
         // 저장 성공 후 Draft 모드 해제 → beforeunload 경고 비활성
         const wasDraftMode = isErpOrderDraftMode();
         if (wasDraftMode) {
@@ -2227,37 +2229,34 @@ ${escapeHtml(sub)}</div>` : ''}`;
                     const nativeFiles = filesEl?.files ? Array.from(filesEl.files) : [];
                     const files = fallbackFiles.length ? fallbackFiles : nativeFiles;
                     if (files.length > 0) {
-                        const folder = `orders/${targetId}/attachments`;
-                        const category = 'as';
-                        let sessionMap = {};
-                        try {
-                            const bRes = await fetch('/api/upload/session/batch', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    files: files.map(function (f) { return { filename: f.name, size: f.size }; }),
-                                    folder: folder,
-                                    category: category
-                                })
+                        if (typeof window.fomsUploadOrderAttachmentsBatch === 'function') {
+                            await window.fomsUploadOrderAttachmentsBatch({
+                                orderId: targetId,
+                                files: files,
+                                folder: `orders/${targetId}/attachments`,
+                                category: 'as',
+                                useDirectUpload: (typeof USE_DIRECT_UPLOAD !== 'undefined' && USE_DIRECT_UPLOAD),
+                                onPrepareProgress: function (info) {
+                                    erpSetStatus(`이미지 최적화 중... (${info.done}/${info.total})`);
+                                },
+                                onUploadProgress: function (info) {
+                                    erpSetStatus(`AS 첨부 업로드 중... (${Math.round(info.done)}/${info.total})`);
+                                }
                             });
-                            const bData = await bRes.json();
-                            if (bData.success && bData.sessions) {
-                                bData.sessions.forEach(function (s) {
-                                    s.success = true;
-                                    sessionMap[s.filename] = s;
-                                });
+                        } else {
+                            let uploaded = 0;
+                            for (let i = 0; i < files.length; i += 1) {
+                                const fd = new FormData();
+                                fd.append('file', files[i]);
+                                fd.append('category', 'as');
+                                const res = await fetch(`/api/orders/${targetId}/attachments`, { method: 'POST', body: fd });
+                                const data = await res.json();
+                                if (data && data.success) uploaded += 1;
+                                erpSetStatus(`AS 첨부 업로드 중... (${uploaded}/${files.length})`);
                             }
-                        } catch (e) { }
-
-                        const CONCURRENCY = 10;
-                        for (let start = 0; start < files.length; start += CONCURRENCY) {
-                            const chunk = files.slice(start, start + CONCURRENCY);
-                            await Promise.all(chunk.map(function (f) {
-                                const sess = sessionMap[f.name];
-                                return (typeof erpDoDirectUploadOne === 'function')
-                                    ? erpDoDirectUploadOne(f, category, null, sess)
-                                    : Promise.resolve({ success: false });
-                            }));
+                            if (uploaded !== files.length) {
+                                throw new Error('일부 AS 첨부 업로드에 실패했습니다.');
+                            }
                         }
                     }
 
@@ -2646,76 +2645,32 @@ async function erpUploadItemAttachments(itemIndex, files) {
     if (progressWrap) progressWrap.classList.remove('d-none');
     const totalFiles = files.length;
     let ok = 0;
-    if (typeof USE_DIRECT_UPLOAD !== 'undefined' && USE_DIRECT_UPLOAD) {
-        let sessionMap = {};
-        try {
-            const bRes = await fetch('/api/upload/session/batch', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    files: files.map(f => ({ filename: f.name, size: f.size })),
-                    folder: `orders/${ORDER_ID}/measurement`,
-                    category: 'measurement'
-                })
-            });
-            const bData = await bRes.json();
-            if (bData.success && bData.sessions) {
-                for (let s of bData.sessions) s.success = true;
-                for (let s of bData.sessions) sessionMap[s.filename] = s;
-            }
-        } catch (e) { }
-
-        const CONCURRENCY = 10;
-        for (let start = 0; start < files.length; start += CONCURRENCY) {
-            const chunk = files.slice(start, start + CONCURRENCY);
-            const results = await Promise.all(chunk.map(function (f) { return erpDoDirectUploadOne(f, 'measurement', itemIndex, sessionMap[f.name]); }));
-            for (let i = 0; i < results.length; i++) {
-                if (results[i] && results[i].success) ok += 1;
-                else if (results[i]) console.warn('item upload failed', results[i]);
-            }
+    const uploadResult = await window.fomsUploadOrderAttachmentsBatch({
+        orderId: ORDER_ID,
+        files: files,
+        folder: `orders/${ORDER_ID}/measurement`,
+        category: 'measurement',
+        itemIndex: itemIndex,
+        useDirectUpload: (typeof USE_DIRECT_UPLOAD !== 'undefined' && USE_DIRECT_UPLOAD),
+        onPrepareProgress: function (info) {
+            erpAttachmentsSetStatus(`이미지 최적화 중... (${info.done}/${info.total})`);
+        },
+        onUploadProgress: function (info) {
             if (progressBar) {
-                const done = Math.min(start + chunk.length, totalFiles);
-                const p = Math.round((done / totalFiles) * 100);
+                const p = Math.round((info.done / totalFiles) * 100);
                 progressBar.style.width = p + '%';
                 progressBar.textContent = p + '%';
-
-                // Update optimistic cards
-                chunk.forEach(f => {
-                    const el = document.getElementById(f._optId);
-                    if (el) {
-                        const pctSpan = el.querySelector('.opt-pct');
-                        if (pctSpan) pctSpan.textContent = '완료';
-                    }
-                });
+            }
+        },
+        onFileDone: function (info) {
+            const el = document.getElementById(info.entry.originalFile._optId);
+            if (el) {
+                const pctSpan = el.querySelector('.opt-pct');
+                if (pctSpan) pctSpan.textContent = info.result && info.result.success ? '완료' : '실패';
             }
         }
-    } else {
-        for (let i = 0; i < files.length; i++) {
-            const f = files[i];
-            const fd = new FormData();
-            fd.append('file', f);
-            fd.append('category', 'measurement');
-            fd.append('item_index', String(itemIndex));
-            if (typeof uploadWithProgress !== 'undefined') {
-                const data = await uploadWithProgress(`/api/orders/${ORDER_ID}/attachments`, fd, {
-                    onProgress: (p) => {
-                        if (progressBar) {
-                            const totalPercent = Math.round(((i + p / 100) / totalFiles) * 100);
-                            progressBar.style.width = totalPercent + '%';
-                            progressBar.textContent = totalPercent + '%';
-                        }
-                    }
-                });
-                if (data.success) ok += 1;
-                else console.warn('item upload failed', data);
-            } else {
-                const res = await fetch(`/api/orders/${ORDER_ID}/attachments`, { method: 'POST', body: fd });
-                const data = await res.json();
-                if (data.success) ok += 1;
-                else console.warn('item upload failed', data);
-            }
-        }
-    }
+    });
+    ok = uploadResult.ok;
     if (progressWrap) progressWrap.classList.add('d-none');
     if (progressBar) { progressBar.style.width = '0%'; progressBar.textContent = '0%'; }
     erpAttachmentsSetStatus(`제품 항목 ${itemIndex + 1} 첨부 등록 완료: ${ok}/${files.length}`);
@@ -3037,8 +2992,16 @@ function erpOpenAttachmentPreview(attachmentId) {
     const dl = document.getElementById('erp-attachment-preview-download');
     if (!modalEl || !body || !dl) return;
 
-    const viewUrl = a.view_url || '#';
-    const downloadUrl = a.download_url || '#';
+    const storageKey = a.storage_key || (a.download_url && String(a.download_url).replace(/^\/api\/files\/download\//, ''));
+    const storagePath = storageKey ? storageKey.split('/').map(function (s) { return encodeURIComponent(s); }).join('/') : '';
+    function isSignedStorageUrl(url) {
+        return /(?:^|\/\/|[.])r2\.cloudflarestorage\.com/i.test(url || '') ||
+            /(?:[?&](?:X-Amz-Signature|Signature)=)/i.test(url || '');
+    }
+    const stableViewUrl = storagePath ? `/api/files/view/${storagePath}` : '#';
+    const stableDownloadUrl = storagePath ? `/api/files/download/${storagePath}` : '#';
+    const viewUrl = isSignedStorageUrl(a.view_url) ? stableViewUrl : (a.view_url || stableViewUrl);
+    const downloadUrl = isSignedStorageUrl(a.download_url) ? stableDownloadUrl : (a.download_url || stableDownloadUrl);
     dl.href = downloadUrl;
     erpSyncAttachmentPreviewActions(a);
 
@@ -3073,30 +3036,7 @@ function erpOpenAttachmentPreview(attachmentId) {
     const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
     modal.show();
 
-    var storageKey = a.storage_key || (a.download_url && String(a.download_url).replace(/^\/api\/files\/download\//, ''));
-    if (storageKey) {
-        var presignedPath = storageKey.split('/').map(function (s) { return encodeURIComponent(s); }).join('/');
-        fetch('/api/files/presigned-urls/' + presignedPath)
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-                if (!data.success) return;
-                if (data.download_url) {
-                    dl.href = data.download_url;
-                    var downloadLink = body.querySelector('a.btn-primary') || body.querySelector('a[href*="download"]');
-                    if (downloadLink) downloadLink.href = data.download_url;
-                }
-                if (data.view_url) {
-                    var img = body.querySelector('img');
-                    if (img) {
-                        img.src = data.view_url;
-                        erpBindAttachmentPreviewImageZoom(body);
-                    }
-                    var video = body.querySelector('video');
-                    if (video) video.src = data.view_url;
-                }
-            })
-            .catch(function () { });
-    }
+    // Keep preview media on stable app routes; direct R2 signed URLs expire in long-lived modals.
 }
 
 async function erpDoDirectUploadOne(originalFile, category, itemIndex, preFetchedSess) {
@@ -3237,76 +3177,31 @@ async function erpUploadCommonAttachmentFiles(files, options = {}) {
     const totalFiles = files.length;
 
     let ok = 0;
-    if (typeof USE_DIRECT_UPLOAD !== 'undefined' && USE_DIRECT_UPLOAD) {
-        let sessionMap = {};
-        try {
-            const folder = `orders/${ORDER_ID}/${category || 'attachments'}`;
-            const bRes = await fetch('/api/upload/session/batch', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    files: files.map(f => ({ filename: f.name, size: f.size })),
-                    folder: folder,
-                    category: category
-                })
-            });
-            const bData = await bRes.json();
-            if (bData.success && bData.sessions) {
-                for (let s of bData.sessions) s.success = true;
-                for (let s of bData.sessions) sessionMap[s.filename] = s;
-            }
-        } catch (e) { }
-
-        const CONCURRENCY = 10;
-        for (let start = 0; start < files.length; start += CONCURRENCY) {
-            const chunk = files.slice(start, start + CONCURRENCY);
-            const results = await Promise.all(chunk.map(function (f) { return erpDoDirectUploadOne(f, category, null, sessionMap[f.name]); }));
-            for (let i = 0; i < results.length; i++) {
-                if (results[i] && results[i].success) ok += 1;
-                else if (results[i]) console.warn('upload failed', results[i]);
-            }
+    const uploadResult = await window.fomsUploadOrderAttachmentsBatch({
+        orderId: ORDER_ID,
+        files: files,
+        folder: `orders/${ORDER_ID}/${category || 'attachments'}`,
+        category: category,
+        useDirectUpload: (typeof USE_DIRECT_UPLOAD !== 'undefined' && USE_DIRECT_UPLOAD),
+        onPrepareProgress: function (info) {
+            erpAttachmentsSetStatus(`이미지 최적화 중... (${info.done}/${info.total})`);
+        },
+        onUploadProgress: function (info) {
             if (progressBar) {
-                const done = Math.min(start + chunk.length, totalFiles);
-                const p = Math.round((done / totalFiles) * 100);
+                const p = Math.round((info.done / totalFiles) * 100);
                 progressBar.style.width = p + '%';
                 progressBar.textContent = p + '%';
-
-                // Update optimistic cards
-                chunk.forEach(f => {
-                    const el = document.getElementById(f._optId);
-                    if (el) {
-                        const pctSpan = el.querySelector('.opt-pct');
-                        if (pctSpan) pctSpan.textContent = '완료';
-                    }
-                });
+            }
+        },
+        onFileDone: function (info) {
+            const el = document.getElementById(info.entry.originalFile._optId);
+            if (el) {
+                const pctSpan = el.querySelector('.opt-pct');
+                if (pctSpan) pctSpan.textContent = info.result && info.result.success ? '완료' : '실패';
             }
         }
-    } else {
-        for (let i = 0; i < files.length; i++) {
-            const f = files[i];
-            const fd = new FormData();
-            fd.append('file', f);
-            fd.append('category', category);
-            if (typeof uploadWithProgress !== 'undefined') {
-                const data = await uploadWithProgress(`/api/orders/${ORDER_ID}/attachments`, fd, {
-                    onProgress: (p) => {
-                        if (progressBar) {
-                            const totalPercent = Math.round(((i + p / 100) / totalFiles) * 100);
-                            progressBar.style.width = totalPercent + '%';
-                            progressBar.textContent = totalPercent + '%';
-                        }
-                    }
-                });
-                if (data.success) ok += 1;
-                else console.warn('upload failed', data);
-            } else {
-                const res = await fetch(`/api/orders/${ORDER_ID}/attachments`, { method: 'POST', body: fd });
-                const data = await res.json();
-                if (data.success) ok += 1;
-                else console.warn('upload failed', data);
-            }
-        }
-    }
+    });
+    ok = uploadResult.ok;
 
     if (progressWrap) progressWrap.classList.add('d-none');
     if (progressBar) { progressBar.style.width = '0%'; progressBar.textContent = '0%'; }

@@ -13,9 +13,12 @@ import argparse
 import logging
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 logger = logging.getLogger("cleanup_order_drafts")
+
+# 미승격 ERP draft 주문(status='DRAFT')을 소프트 삭제하기까지의 경과 시간(시간).
+ERP_DRAFT_STALE_HOURS = int(os.environ.get("ERP_DRAFT_STALE_HOURS", "48"))
 
 
 def _parse_args() -> argparse.Namespace:
@@ -104,6 +107,67 @@ def run(*, execute: bool = False, session=None) -> tuple[int, int]:
                 engine.dispose()
 
 
+def run_erp_draft_orders(
+    *, execute: bool = False, session=None, stale_hours: int = ERP_DRAFT_STALE_HOURS
+) -> tuple[int, int]:
+    """Count and optionally soft-delete stale, never-promoted ERP draft orders.
+
+    add_order 자동저장/draft 생성은 ``orders`` 테이블에 ``status='DRAFT'`` 행을
+    남긴다. 명시 저장(승격) 시 status가 RECEIVED/MEASURE 등으로 바뀌므로
+    여전히 ``status='DRAFT'`` 인 행은 끝까지 제출되지 않은 버려진 draft다.
+    이를 일정 시간 경과 후 소프트 삭제(``status='DELETED'`` + ``deleted_at``)해
+    ``orders`` 테이블 무한 증식을 막는다(가역적, R2 첨부 고아 없음).
+
+    Args:
+        execute: True면 임계 초과 draft를 소프트 삭제.
+        session: 선택적 SQLAlchemy 세션(pytest는 Flask ``db_session``).
+        stale_hours: 마지막 갱신 후 이 시간(시간)을 넘긴 draft만 대상.
+
+    Returns:
+        (scanned_count, soft_deleted_count) 튜플.
+    """
+    from sqlalchemy import text
+
+    owns_session = session is None
+    engine = None
+    if owns_session:
+        session, engine = _make_session()
+    now = datetime.now()
+    threshold = now - timedelta(hours=stale_hours)
+    # status='DRAFT' = 미승격 ERP draft 유일 식별자(JSON 술어 불필요 → 크로스 DB 안전).
+    where = (
+        "status = 'DRAFT' AND deleted_at IS NULL "
+        "AND COALESCE(structured_updated_at, created_at) < :threshold"
+    )
+    try:
+        scanned_row = session.execute(
+            text(f"SELECT COUNT(*) FROM orders WHERE {where}"),
+            {"threshold": threshold},
+        ).fetchone()
+        scanned = scanned_row[0] if scanned_row else 0
+
+        deleted = 0
+        if execute and scanned > 0:
+            result = session.execute(
+                text(
+                    f"UPDATE orders SET status='DELETED', original_status='DRAFT', "
+                    f"deleted_at=:now_iso WHERE {where}"
+                ),
+                {"threshold": threshold, "now_iso": now.isoformat()},
+            )
+            deleted = result.rowcount
+            session.commit()
+        return scanned, deleted
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        if owns_session:
+            session.close()
+            if engine is not None:
+                engine.dispose()
+
+
 def main() -> int:
     """CLI entrypoint. Exit 0 on success, 1 on error."""
     _setup_logging()
@@ -116,13 +180,23 @@ def main() -> int:
     mode = "execute" if execute else "dry-run"
     started = time.monotonic()
     try:
-        scanned, deleted = run(execute=execute)
+        # 두 청소를 한 세션/엔진으로 수행(Railway cron 단일 명령).
+        session, engine = _make_session()
+        try:
+            scanned, deleted = run(execute=execute, session=session)
+            erp_scanned, erp_deleted = run_erp_draft_orders(execute=execute, session=session)
+        finally:
+            session.close()
+            engine.dispose()
         elapsed = time.monotonic() - started
         logger.info(
-            "[cleanup_order_drafts] mode=%s scanned=%d deleted=%d elapsed=%.1fs",
+            "[cleanup_order_drafts] mode=%s scanned=%d deleted=%d "
+            "erp_draft_scanned=%d erp_draft_deleted=%d elapsed=%.1fs",
             mode,
             scanned,
             deleted,
+            erp_scanned,
+            erp_deleted,
             elapsed,
         )
         return 0

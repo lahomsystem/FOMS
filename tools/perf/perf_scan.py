@@ -1,17 +1,14 @@
 #!/usr/bin/env python3
 """FOMS 성능 회귀 스캐너 (도구 무관 엔진).
 
-Cursor IDE / Cursor 내 Claude / Codex 어디서든 `python tools/perf/perf_scan.py`로
-실행한다. 코드 수정이 FOMS를 느리게 만드는 알려진 안티패턴을 정적 분석으로 잡는다.
-배경·해법: docs/guides/PERFORMANCE_GUARDRAILS.md
+배경: docs/guides/PERFORMANCE_GUARDRAILS.md · docs/guides/ERP_SLOWDOWN_RADAR.md
 
 모드:
-  --guard  (기본) 현재 변경분(git diff HEAD, staged+working)만 검사 → 회귀 방지.
-  --audit         코드베이스 전체 검사 → 정기 개선 후보.
-  --base <ref>    guard 비교 기준(기본: HEAD).
-  --json          기계 판독용 JSON 출력.
-
-종료코드: 0=문제 없음, 1=high 발견(머지 전 차단 권장).
+  --guard  (기본) git diff 변경분 → deploy veto (신규 high면 exit 1)
+  --audit         전체 코드베이스 → ERP slowdown radar (advisory, exit 0)
+  --radar         audit findings 8차원 요약 (--audit 암시)
+  --base <ref>    guard 비교 기준 (기본 HEAD)
+  --json          JSON 출력
 """
 from __future__ import annotations
 
@@ -20,68 +17,115 @@ import json
 import re
 import subprocess
 import sys
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 GUIDE = "docs/guides/PERFORMANCE_GUARDRAILS.md"
+RADAR_GUIDE = "docs/guides/ERP_SLOWDOWN_RADAR.md"
+BASELINE_DEBT = Path(__file__).resolve().parent / "baseline_debt.json"
 
+DIMENSIONS = (
+    "amplifier",
+    "render-block",
+    "interaction-debt",
+    "sw-cache",
+    "query-scale",
+    "payload",
+    "hot-compute",
+    "io-bound",
+)
 
-@dataclass
-class Finding:
-    severity: str  # high | medium | low
-    rule: str
-    file: str
-    line: int
-    snippet: str
-    fix: str
+HOT_PATH_PREFIXES = (
+    "templates/partials/shared/",
+    "templates/partials/erp_order_js",
+    "templates/partials/shared/foms_app_shell",
+    "templates/partials/shared/erp_mobile_shell",
+    "static/sw.js",
+    "services/dashboard/",
+    "services/search/",
+    "foms/api/",
+)
 
-
-# (rule, severity, 적용 경로 glob 접두, 라인 정규식, 제외 정규식 or None, 수정 힌트)
-_RULES = [
+# rule, audit_sev, dimension, path prefixes, line regex, exclude regex, fix
+_LINE_RULES: list[tuple] = [
     (
-        "render-blocking-script", "high", ("templates/",),
+        "render-blocking-script",
+        "high",
+        "render-block",
+        ("templates/",),
         re.compile(r"<script\b[^>]*\bsrc\s*=", re.I),
         re.compile(r"\bdefer\b|\basync\b|type\s*=\s*['\"]module", re.I),
-        "<script>에 defer 추가(또는 사용 시점 lazy 로드). 렌더 차단 = 탭 로딩 지연.",
+        "<script>에 defer 추가(또는 lazy 로드). 렌더 차단 = 탭 로딩 지연.",
     ),
     (
-        "cdn-sync-script", "high", ("templates/",),
+        "cdn-sync-script",
+        "high",
+        "render-block",
+        ("templates/",),
         re.compile(r"<script\b[^>]*\bsrc\s*=\s*['\"]https?://", re.I),
         re.compile(r"\bdefer\b|\basync\b", re.I),
-        "외부 CDN <script>는 defer 또는 동적 로드. CDN 지연 시 페이지 전체 멈춤.",
+        "외부 CDN <script>는 defer 또는 동적 로드.",
     ),
     (
-        "heavy-lib-global", "high", ("templates/",),
+        "heavy-lib-global",
+        "high",
+        "amplifier",
+        ("templates/",),
         re.compile(r"<script\b[^>]*\b(html2canvas|pdfmake|xlsx|chart(?:\.min)?\.js|moment|jspdf)\b", re.I),
-        re.compile(r"\bdefer\b", re.I),
-        "무거운 라이브러리는 사용하는 페이지/시점에만 lazy 로드. 공용 partial 전역 로드 금지.",
+        re.compile(r"\bdefer\b|\basync\b|type\s*=\s*['\"]module", re.I),
+        "무거운 lib는 사용 시점 lazy. 공용 partial 전역 로드 금지.",
     ),
     (
-        "sw-no-cache-fetch", "high", ("static/sw.js",),
+        "sw-no-cache-fetch",
+        "high",
+        "sw-cache",
+        ("static/sw.js",),
         re.compile(r"fetch\([^)]*cache\s*:\s*['\"]no-cache", re.I),
         None,
-        "서비스워커에서 정적 강제 재검증(no-cache) 금지 → 매 네비 서버 폭주. staticCacheFirst(캐시+TTL) 사용.",
+        "SW 정적 no-cache 재검증 금지 → staticCacheFirst.",
     ),
     (
-        "jsonb-text-ilike", "high", ("foms/", "services/", "apps/"),
+        "jsonb-text-ilike",
+        "high",
+        "query-scale",
+        ("foms/", "services/", "apps/"),
         re.compile(r"structured_data.*\.ilike\(", re.I),
         re.compile(r"#\s*perf-ok"),
-        "JSONB→text ILIKE는 인덱스 못 탐(풀스캔). trigram 인덱스 추가 또는 @>/denormalized 컬럼. EXPLAIN로 확인.",
+        "JSONB→text ILIKE 풀스캔. trigram/@> + EXPLAIN.",
     ),
     (
-        "unbounded-query-all", "medium", ("foms/", "services/", "apps/"),
+        "general-ilike",
+        "medium",
+        "query-scale",
+        ("foms/", "services/", "apps/"),
+        re.compile(r"\.ilike\(", re.I),
+        re.compile(r"structured_data.*\.ilike\(|#\s*perf-ok"),
+        "ILIKE hot path — trigram 인덱스 또는 @> 확인.",
+    ),
+    (
+        "unbounded-query-all",
+        "medium",
+        "payload",
+        ("foms/", "services/", "apps/"),
         re.compile(r"\.query\(.*\)\.(?:filter\([^)]*\)\.)*all\(\)"),
         re.compile(r"\.limit\(|#\s*perf-ok"),
-        "리스트 쿼리에 .limit() 없이 .all() → 행 증가 시 폭주. limit/페이지네이션 적용.",
+        "리스트 .all() 무 limit → 페이지네이션.",
     ),
 ]
+
+_B_LAYER_HOT_HIGH = frozenset({"general-ilike", "loop-db-query", "shell-polling", "shared-inline-script"})
 
 _GLOBAL_REPLAYED_EVENT_RE = re.compile(
     r"^(?: {0,2}|\t?)(?:document(?:\.body)?|window)\.addEventListener\s*\(",
     re.M,
 )
+_SET_INTERVAL_RE = re.compile(r"\bsetInterval\s*\(")
 _SHELL_REPLAYED_SCRIPT_RULE = "fragment-replayed-global-listener"
+_LOOP_DB_RULE = "loop-db-query"
+_SHELL_POLLING_RULE = "shell-polling"
+_SHARED_INLINE_RULE = "shared-inline-script"
+_SW_TIMEOUT_RULE = "sw-network-first-no-timeout"
 _STATIC_FILENAME_RE = re.compile(r"filename\s*=\s*['\"]([^'\"]+\.js)['\"]")
 _INCLUDE_RE = re.compile(r"{%\s*include\s+['\"]([^'\"]+)['\"]")
 _FRAGMENT_REPLAY_ENTRY_TEMPLATES = (
@@ -90,10 +134,86 @@ _FRAGMENT_REPLAY_ENTRY_TEMPLATES = (
     "templates/partials/shared/foms_p2_surface_bundle.html",
     "templates/partials/shared/foms_mobile_queue_attachment_preview_bundle.html",
 )
+_SHARED_PARTIAL_PREFIX = "templates/partials/shared/"
+_LOOP_QUERY_RE = re.compile(r"(?:\.query\s*\(|db\.session\.|session\.query\s*\()")
+_REPLAYED_TEMPLATES_CACHE: set[str] | None = None
+_REPLAYED_JS_CACHE: set[str] | None = None
+
+
+@dataclass
+class Finding:
+    severity: str
+    rule: str
+    dimension: str
+    file: str
+    line: int
+    snippet: str
+    fix: str
+
+    @property
+    def fid(self) -> str:
+        return f"{self.rule}|{self.file}|{self.line}"
+
+
+@dataclass
+class RadarReport:
+    dimensions: dict = field(default_factory=dict)
+    hot_paths_unmeasured: list[str] = field(default_factory=list)
+    deploy_risk_summary: str = ""
+    total_high: int = 0
+    total_medium: int = 0
+
+
+def _is_hot_path(path: str) -> bool:
+    return any(path.startswith(p) or p in path for p in HOT_PATH_PREFIXES)
+
+
+def _load_baseline_debt() -> set[str]:
+    if not BASELINE_DEBT.exists():
+        return set()
+    try:
+        data = json.loads(BASELINE_DEBT.read_text(encoding="utf-8"))
+        return set(data.get("finding_ids", []))
+    except Exception:
+        return set()
+
+
+def _guard_severity(rule: str, audit_sev: str, path: str) -> str:
+    """Map audit severity to guard blocking severity."""
+    if audit_sev == "high" and rule not in _B_LAYER_HOT_HIGH:
+        return "high"
+    if rule in _B_LAYER_HOT_HIGH and _is_hot_path(path):
+        return "high"
+    return "medium"
+
+
+def _append_finding(
+    findings: list[Finding],
+    rule: str,
+    audit_sev: str,
+    dimension: str,
+    path: str,
+    lineno: int,
+    text: str,
+    fix: str,
+    *,
+    guard_mode: bool,
+) -> None:
+    sev = _guard_severity(rule, audit_sev, path) if guard_mode else audit_sev
+    findings.append(
+        Finding(
+            sev,
+            rule,
+            dimension,
+            path,
+            lineno,
+            text.strip()[:120],
+            fix,
+        )
+    )
 
 
 def _has_global_init_guard(text: str) -> bool:
-    """True when a replayed script has a top-level singleton guard."""
     return bool(
         re.search(
             r"window\.__[A-Za-z0-9_$]*(?:BOUND|INIT|INITIALIZED|LOADED|MOUNTED)",
@@ -110,39 +230,42 @@ def _read_repo_text(rel: str) -> str:
 
 
 def _collect_replayed_template_paths() -> set[str]:
+    global _REPLAYED_TEMPLATES_CACHE
+    if _REPLAYED_TEMPLATES_CACHE is not None:
+        return _REPLAYED_TEMPLATES_CACHE
     seen: set[str] = set()
 
     def visit(rel: str) -> None:
         if rel in seen:
             return
         seen.add(rel)
-        text = _read_repo_text(rel)
-        for inc in _INCLUDE_RE.findall(text):
+        for inc in _INCLUDE_RE.findall(_read_repo_text(rel)):
             visit("templates/" + inc)
 
     for entry in _FRAGMENT_REPLAY_ENTRY_TEMPLATES:
         visit(entry)
+    _REPLAYED_TEMPLATES_CACHE = seen
     return seen
 
 
 def _collect_fragment_replayed_js_paths() -> set[str]:
+    global _REPLAYED_JS_CACHE
+    if _REPLAYED_JS_CACHE is not None:
+        return _REPLAYED_JS_CACHE
     scripts: set[str] = set()
     for rel in _collect_replayed_template_paths():
-        text = _read_repo_text(rel)
-        for js in _STATIC_FILENAME_RE.findall(text):
+        for js in _STATIC_FILENAME_RE.findall(_read_repo_text(rel)):
             scripts.add(js.replace("\\", "/"))
+    _REPLAYED_JS_CACHE = scripts
     return scripts
 
 
 def _js_from_template_line(text: str) -> str | None:
     match = _STATIC_FILENAME_RE.search(text)
-    if not match:
-        return None
-    return match.group(1).replace("\\", "/")
+    return match.group(1).replace("\\", "/") if match else None
 
 
 def _unsafe_replayed_js(js_rel: str) -> bool:
-    """A shell-fragment-replayed JS file must not add global listeners without a guard."""
     if js_rel.startswith("js/vendor/"):
         return False
     text = _read_repo_text("static/" + js_rel)
@@ -151,100 +274,288 @@ def _unsafe_replayed_js(js_rel: str) -> bool:
     return bool(_GLOBAL_REPLAYED_EVENT_RE.search(text))
 
 
-def _scan_fragment_replayed_listener_guard(
+def _scan_line_rules(
+    path: str,
+    lines: list[tuple[int, str]],
+    findings: list[Finding],
+    *,
+    guard_mode: bool,
+) -> None:
+    for rule, audit_sev, dimension, prefixes, pat, exclude, fix in _LINE_RULES:
+        if not any(path.startswith(p) for p in prefixes):
+            continue
+        dim = "amplifier" if rule == "heavy-lib-global" and _SHARED_PARTIAL_PREFIX in path else dimension
+        for lineno, text in lines:
+            if pat.search(text) and not (exclude and exclude.search(text)):
+                _append_finding(findings, rule, audit_sev, dim, path, lineno, text, fix, guard_mode=guard_mode)
+
+
+def _scan_loop_db_added_lines(
+    path: str,
+    added: list[tuple[int, str]],
+    findings: list[Finding],
+    *,
+    guard_mode: bool,
+) -> None:
+    """Flag loop+query only when both appear in the same diff-added hunk."""
+    if not path.endswith(".py") or not added:
+        return
+    if guard_mode and not _is_hot_path(path):
+        return
+    if not any(path.startswith(p) for p in ("foms/", "services/", "apps/")):
+        return
+    for i, (start_lineno, line) in enumerate(added):
+        if not re.match(r"^\s*for\b", line) or line.strip().endswith("# perf-ok"):
+            continue
+        base_indent = len(line) - len(line.lstrip())
+        for j in range(i + 1, len(added)):
+            inner_lineno, inner = added[j]
+            if not inner.strip() or inner.strip().startswith("#"):
+                continue
+            indent = len(inner) - len(inner.lstrip())
+            if indent <= base_indent:
+                break
+            if _LOOP_QUERY_RE.search(inner) and "# perf-ok" not in inner:
+                _append_finding(
+                    findings,
+                    _LOOP_DB_RULE,
+                    "medium",
+                    "query-scale",
+                    path,
+                    inner_lineno,
+                    inner,
+                    "루프 안 DB 쿼리 → in_(ids) 배치 로드.",
+                    guard_mode=guard_mode,
+                )
+                break
+
+
+def _scan_loop_db_queries(path: str, lines: list[str], findings: list[Finding], *, guard_mode: bool) -> None:
+    """Full-file loop scan for audit mode."""
+    if guard_mode:
+        return
+    added = [(i + 1, ln) for i, ln in enumerate(lines)]
+    _scan_loop_db_added_lines(path, added, findings, guard_mode=False)
+
+
+def _scan_shell_polling(path: str, text: str, findings: list[Finding], replayed_js: set[str], *, guard_mode: bool) -> None:
+    if not path.startswith("static/") or not path.endswith(".js"):
+        return
+    js_rel = path[len("static/") :].replace("\\", "/")
+    if js_rel.startswith("js/vendor/") or js_rel not in replayed_js:
+        return
+    if not _SET_INTERVAL_RE.search(text) or _has_global_init_guard(text):
+        return
+    for m in _SET_INTERVAL_RE.finditer(text):
+        lineno = text.count("\n", 0, m.start()) + 1
+        _append_finding(
+            findings,
+            _SHELL_POLLING_RULE,
+            "medium",
+            "interaction-debt",
+            path,
+            lineno,
+            text.splitlines()[lineno - 1],
+            "shell fragment JS polling → singleton guard + cleanup.",
+            guard_mode=guard_mode,
+        )
+        break
+
+
+def _scan_shared_inline_scripts(path: str, text: str, findings: list[Finding], *, guard_mode: bool) -> None:
+    if not path.startswith(_SHARED_PARTIAL_PREFIX) or not path.endswith(".html"):
+        return
+    for m in re.finditer(r"<script(?![^>]*\bsrc\s*=)([^>]*)>(.*?)</script>", text, re.I | re.S):
+        block = m.group(2)
+        line_count = len([ln for ln in block.splitlines() if ln.strip()])
+        if line_count <= 20:
+            continue
+        lineno = text.count("\n", 0, m.start()) + 1
+        _append_finding(
+            findings,
+            _SHARED_INLINE_RULE,
+            "medium",
+            "amplifier",
+            path,
+            lineno,
+            f"inline script ~{line_count} lines",
+            "공유 partial 대형 inline script → static/js 분리 + defer.",
+            guard_mode=guard_mode,
+        )
+
+
+def _scan_sw_network_first_timeout(findings: list[Finding], *, guard_mode: bool) -> None:
+    sw_path = "static/sw.js"
+    text = _read_repo_text(sw_path)
+    if not text or "networkFirst" not in text:
+        return
+    if "NETWORK_FIRST_TIMEOUT_MS" in text and "setTimeout" in text:
+        return
+    _append_finding(
+        findings,
+        _SW_TIMEOUT_RULE,
+        "high",
+        "sw-cache",
+        sw_path,
+        1,
+        "networkFirst without timeout guard",
+        "NETWORK_FIRST_TIMEOUT_MS + setTimeout 폴백 필수.",
+        guard_mode=guard_mode,
+    )
+
+
+def _scan_fragment_replayed_listener(
     path: str,
     lineno: int,
     text: str,
     replayed_js: set[str],
     findings: list[Finding],
+    *,
+    guard_mode: bool,
 ) -> None:
     if path.startswith("static/"):
         js_rel = path[len("static/") :].replace("\\", "/")
         if js_rel in replayed_js and _GLOBAL_REPLAYED_EVENT_RE.search(text):
             full = _read_repo_text(path)
             if not _has_global_init_guard(full):
-                findings.append(
-                    Finding(
-                        "high",
-                        _SHELL_REPLAYED_SCRIPT_RULE,
-                        path,
-                        lineno,
-                        text.strip()[:120],
-                        "ERP fragment 재실행 JS의 window/document/body listener는 singleton guard(window.__*_BOUND 등)로 중복 바인딩을 차단.",
-                    )
+                _append_finding(
+                    findings,
+                    _SHELL_REPLAYED_SCRIPT_RULE,
+                    "high",
+                    "interaction-debt",
+                    path,
+                    lineno,
+                    text,
+                    "fragment JS listener → window.__*_BOUND singleton guard.",
+                    guard_mode=guard_mode,
                 )
         return
-
     if not path.startswith("templates/"):
         return
     if path not in _collect_replayed_template_paths():
         return
     js_rel = _js_from_template_line(text)
     if js_rel and js_rel in replayed_js and _unsafe_replayed_js(js_rel):
-        findings.append(
-            Finding(
-                "high",
-                _SHELL_REPLAYED_SCRIPT_RULE,
-                path,
-                lineno,
-                text.strip()[:120],
-                f"`static/{js_rel}`는 fragment swap 때 재실행되는 경로다. 전역 listener가 있으면 singleton guard를 먼저 추가.",
-            )
+        _append_finding(
+            findings,
+            _SHELL_REPLAYED_SCRIPT_RULE,
+            "high",
+            "interaction-debt",
+            path,
+            lineno,
+            text,
+            f"static/{js_rel} fragment 재실행 → singleton guard.",
+            guard_mode=guard_mode,
         )
 
 
+def _scan_file_full(path: str, findings: list[Finding], replayed_js: set[str], *, guard_mode: bool) -> None:
+    text = _read_repo_text(path)
+    if not text:
+        return
+    lines = text.splitlines()
+    _scan_line_rules(path, list(enumerate(lines, 1)), findings, guard_mode=guard_mode)
+    _scan_loop_db_queries(path, lines, findings, guard_mode=guard_mode)
+    _scan_shell_polling(path, text, findings, replayed_js, guard_mode=guard_mode)
+    _scan_shared_inline_scripts(path, text, findings, guard_mode=guard_mode)
+    if path.startswith("static/"):
+        js_rel = path[len("static/") :].replace("\\", "/")
+        if js_rel in replayed_js and _unsafe_replayed_js(js_rel):
+            for m in _GLOBAL_REPLAYED_EVENT_RE.finditer(text):
+                lineno = text.count("\n", 0, m.start()) + 1
+                _append_finding(
+                    findings,
+                    _SHELL_REPLAYED_SCRIPT_RULE,
+                    "high",
+                    "interaction-debt",
+                    path,
+                    lineno,
+                    lines[lineno - 1] if lineno <= len(lines) else "",
+                    "fragment JS listener → window.__*_BOUND singleton guard.",
+                    guard_mode=guard_mode,
+                )
+                break
+        return
+    if path.startswith("templates/") and path in _collect_replayed_template_paths():
+        for lineno, line in enumerate(lines, 1):
+            js_rel = _js_from_template_line(line)
+            if js_rel and js_rel in replayed_js and _unsafe_replayed_js(js_rel):
+                _append_finding(
+                    findings,
+                    _SHELL_REPLAYED_SCRIPT_RULE,
+                    "high",
+                    "interaction-debt",
+                    path,
+                    lineno,
+                    line,
+                    f"static/{js_rel} fragment 재실행 → singleton guard.",
+                    guard_mode=guard_mode,
+                )
+
+
+def _filter_baseline(findings: list[Finding], baseline: set[str], *, guard_mode: bool) -> list[Finding]:
+    if not guard_mode or not baseline:
+        return findings
+    return [f for f in findings if f.fid not in baseline]
+
+
 def _run(cmd: list[str]) -> str:
-    # Windows 로케일(cp949)이 git diff의 한글(UTF-8)을 못 풀어 stdout=None이 되는 것을 방지.
     try:
         out = subprocess.run(
-            cmd, cwd=ROOT, capture_output=True, encoding="utf-8", errors="replace", timeout=60
+            cmd, cwd=ROOT, capture_output=True, encoding="utf-8", errors="replace", timeout=120
         ).stdout
         return out or ""
     except Exception:
         return ""
 
 
-def _scan_text(path: str, lines: list[tuple[int, str]], findings: list[Finding]) -> None:
-    for rule, sev, prefixes, pat, exclude, fix in _RULES:
-        if not any(path.startswith(p) for p in prefixes):
-            continue
-        for lineno, text in lines:
-            if pat.search(text) and not (exclude and exclude.search(text)):
-                findings.append(Finding(sev, rule, path, lineno, text.strip()[:120], fix))
-
-
 def guard(base: str) -> list[Finding]:
-    """변경분(추가 라인)만 검사."""
     diff = _run(["git", "diff", "--unified=0", base])
     findings: list[Finding] = []
     replayed_js = _collect_fragment_replayed_js_paths()
+    baseline = _load_baseline_debt()
     cur_file = ""
     new_lineno = 0
+    added_chunk: list[tuple[int, str]] = []
+    touched_files: set[str] = set()
+
+    def flush_chunk() -> None:
+        nonlocal added_chunk
+        if cur_file and added_chunk:
+            _scan_loop_db_added_lines(cur_file, added_chunk, findings, guard_mode=True)
+        added_chunk = []
+
     for raw in diff.splitlines():
         if raw.startswith("+++ b/"):
+            flush_chunk()
             cur_file = raw[6:].strip()
+            touched_files.add(cur_file)
         elif raw.startswith("@@"):
             m = re.search(r"\+(\d+)", raw)
             new_lineno = int(m.group(1)) if m else 0
         elif raw.startswith("+") and not raw.startswith("+++"):
-            _scan_text(cur_file, [(new_lineno, raw[1:])], findings)
-            _scan_fragment_replayed_listener_guard(
-                cur_file,
-                new_lineno,
-                raw[1:],
-                replayed_js,
-                findings,
-            )
+            line = raw[1:]
+            _scan_line_rules(cur_file, [(new_lineno, line)], findings, guard_mode=True)
+            _scan_fragment_replayed_listener(cur_file, new_lineno, line, replayed_js, findings, guard_mode=True)
+            added_chunk.append((new_lineno, line))
             new_lineno += 1
         elif not raw.startswith("-"):
             new_lineno += 1
-    return findings
+    flush_chunk()
+    for path in touched_files:
+        text = _read_repo_text(path)
+        if not text:
+            continue
+        _scan_shell_polling(path, text, findings, replayed_js, guard_mode=True)
+        _scan_shared_inline_scripts(path, text, findings, guard_mode=True)
+    _scan_sw_network_first_timeout(findings, guard_mode=True)
+    return _filter_baseline(findings, baseline, guard_mode=True)
 
 
 def audit() -> list[Finding]:
-    """코드베이스 전체 검사."""
     findings: list[Finding] = []
-    globs = ["templates/**/*.html", "static/**/*.js", "foms/**/*.py", "services/**/*.py"]
+    replayed_js = _collect_fragment_replayed_js_paths()
+    globs = ["templates/**/*.html", "static/**/*.js", "foms/**/*.py", "services/**/*.py", "apps/**/*.py"]
     seen: set[str] = set()
     for g in globs:
         for fp in ROOT.glob(g):
@@ -252,46 +563,129 @@ def audit() -> list[Finding]:
             if rel in seen or "/__pycache__/" in rel or "/backups/" in rel or "/tests/" in rel:
                 continue
             seen.add(rel)
-            try:
-                text = fp.read_text(encoding="utf-8", errors="ignore")
-            except Exception:
-                continue
-            _scan_text(rel, list(enumerate(text.splitlines(), 1)), findings)
+            _scan_file_full(rel, findings, replayed_js, guard_mode=False)
+    _scan_sw_network_first_timeout(findings, guard_mode=False)
     return findings
 
 
+def build_radar(findings: list[Finding]) -> RadarReport:
+    report = RadarReport()
+    for dim in DIMENSIONS:
+        report.dimensions[dim] = {"high": 0, "medium": 0, "low": 0, "top_files": []}
+
+    file_counts: dict[str, dict[str, int]] = {d: {} for d in DIMENSIONS}
+    for f in findings:
+        bucket = report.dimensions.setdefault(
+            f.dimension, {"high": 0, "medium": 0, "low": 0, "top_files": []}
+        )
+        bucket[f.severity] = bucket.get(f.severity, 0) + 1
+        file_counts.setdefault(f.dimension, {})[f.file] = file_counts[f.dimension].get(f.file, 0) + 1
+        if f.severity == "high":
+            report.total_high += 1
+        elif f.severity == "medium":
+            report.total_medium += 1
+
+    for dim in report.dimensions:
+        ranked = sorted(file_counts.get(dim, {}).items(), key=lambda x: -x[1])[:5]
+        report.dimensions[dim]["top_files"] = [f"{p} ({n})" for p, n in ranked]
+
+    shared_kb = 0
+    for fp in ROOT.glob("templates/partials/shared/**/*.html"):
+        try:
+            shared_kb += fp.stat().st_size
+        except OSError:
+            pass
+    report.dimensions.setdefault("amplifier", {})["shared_partial_kb"] = round(shared_kb / 1024, 1)
+
+    report.hot_paths_unmeasured = [
+        "/erp/dashboard",
+        "/erp/measurement",
+        "mobile shell tab swap",
+    ]
+    if report.total_high:
+        report.deploy_risk_summary = (
+            f"high={report.total_high} — production 승격 전 수정·실측 필수. "
+            f"상세: {RADAR_GUIDE}"
+        )
+    else:
+        report.deploy_risk_summary = (
+            f"high=0 medium={report.total_medium} — 잔여 medium은 주간 정리. "
+            f"production 전 staging TTFB/EXPLAIN/SW 필수."
+        )
+    return report
+
+
+def save_baseline(findings: list[Finding]) -> None:
+    payload = {
+        "version": 1,
+        "finding_ids": sorted({f.fid for f in findings}),
+    }
+    BASELINE_DEBT.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 def main() -> int:
-    # Windows cp949 콘솔에서 한글·emoji 출력이 깨지거나 죽지 않도록 UTF-8 강제.
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
     except Exception:
         pass
-    ap = argparse.ArgumentParser(description="FOMS 성능 회귀 스캐너")
-    ap.add_argument("--guard", action="store_true", help="변경분만 점검(기본)")
-    ap.add_argument("--audit", action="store_true", help="전체 코드베이스 점검")
-    ap.add_argument("--base", default="HEAD", help="guard 비교 기준 ref")
+
+    ap = argparse.ArgumentParser(description="FOMS ERP slowdown scanner")
+    ap.add_argument("--guard", action="store_true", help="diff guard (default)")
+    ap.add_argument("--audit", action="store_true", help="full codebase audit")
+    ap.add_argument("--radar", action="store_true", help="8-dimension summary (runs audit)")
+    ap.add_argument("--seed-baseline", action="store_true", help="write baseline_debt.json from audit")
+    ap.add_argument("--base", default="HEAD", help="guard diff base ref")
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
 
-    findings = audit() if args.audit else guard(args.base)
+    if args.radar or args.seed_baseline:
+        args.audit = True
+
+    if args.audit:
+        findings = audit()
+        guard_mode = False
+    else:
+        findings = guard(args.base)
+        guard_mode = True
+
+    if args.seed_baseline:
+        save_baseline(findings)
+        print(f"baseline saved: {len(findings)} findings → {BASELINE_DEBT.relative_to(ROOT)}")
+        return 0
+
     findings.sort(key=lambda f: ({"high": 0, "medium": 1, "low": 2}[f.severity], f.file, f.line))
+
+    if args.radar:
+        radar = build_radar(findings)
+        if args.json:
+            out = asdict(radar)
+            out["findings_count"] = len(findings)
+            print(json.dumps(out, ensure_ascii=False, indent=2))
+        else:
+            print("=== FOMS ERP Slowdown Radar ===")
+            print(radar.deploy_risk_summary)
+            for dim, stats in radar.dimensions.items():
+                h, m = stats.get("high", 0), stats.get("medium", 0)
+                if h or m:
+                    print(f"  [{dim}] high={h} medium={m} top={stats.get('top_files', [])[:2]}")
+            print(f"\n총 findings={len(findings)}  ({RADAR_GUIDE})")
+        return 0
 
     if args.json:
         print(json.dumps([asdict(f) for f in findings], ensure_ascii=False, indent=1))
     else:
-        mode = "AUDIT(전체)" if args.audit else f"GUARD(변경분 vs {args.base})"
+        mode = "AUDIT" if args.audit else f"GUARD vs {args.base}"
         print(f"=== FOMS 성능 스캔 [{mode}] ===")
         if not findings:
             print("문제 없음 ✅")
         for f in findings:
-            print(f"[{f.severity.upper()}] {f.rule}  {f.file}:{f.line}")
+            print(f"[{f.severity.upper()}] {f.rule}/{f.dimension}  {f.file}:{f.line}")
             print(f"    {f.snippet}")
             print(f"    → {f.fix}")
         highs = sum(1 for f in findings if f.severity == "high")
         meds = sum(1 for f in findings if f.severity == "medium")
-        print(f"\n요약: high={highs} medium={meds} 총={len(findings)}  (상세: {GUIDE})")
+        print(f"\n요약: high={highs} medium={meds} 총={len(findings)}  ({GUIDE})")
 
-    # guard(변경분)에서 신규 high면 머지 차단(exit 1). audit는 advisory(항상 0).
     if args.audit:
         return 0
     return 1 if any(f.severity == "high" for f in findings) else 0

@@ -131,3 +131,9 @@
 - **결정**: AS/시공/도면 대시보드 모두 배치 Presigned URL 요청 + 병렬 업로드 (최대 10개 동시)
 - **이유**: 업로드 속도 개선 + 파일명 충돌 방지 (UUID 포함 키)
 - **영향**: `templates/partials/erp_dashboard_scripts_drawing.html`, `templates/erp_drawing_workbench_detail.html`, `services/storage.py`
+
+### [2026-06-30] 모바일 안전 업로드 압축 표준
+- **키워드**: 업로드, 모바일, 압축, Presigned, 병렬, R2
+- **결정**: 이미지 압축 동시성과 R2 PUT 업로드 동시성을 분리한다. 모바일/coarse pointer는 압축 1개·업로드 3개, 데스크톱은 압축 2개·업로드 5개를 기본값으로 사용한다. batch presigned session은 `client_id`를 echo 하여 파일명이 중복돼도 frontend가 올바른 session/key를 매칭한다.
+- **이유**: 2026-02-26의 최대 10개 병렬 표준은 direct upload 속도 개선에는 유효했지만, 클라이언트 이미지 압축이 도입된 뒤 모바일에서 CPU/RAM spike와 탭 종료 위험을 만들 수 있다. 압축 후 size로 session을 발급해야 서버 검증과 저장 metadata도 실제 업로드 파일과 일치한다.
+- **영향**: `static/js/runtime/upload-progress.js`, `foms/api/files/direct_upload.py`, ERP/AS/시공/도면/채팅 업로드 UI

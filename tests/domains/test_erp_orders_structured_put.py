@@ -782,3 +782,50 @@ def test_erp_draft_accepts_direct_attachment_complete_before_final_save(client, 
     )
     assert attachment.filename == "draft-direct.jpg"
     assert attachment.item_index == 0
+
+
+def test_direct_upload_batch_echoes_client_id_and_keeps_duplicate_filenames_distinct(client, monkeypatch):
+    """Batch presigned sessions use client_id for frontend matching, not filename."""
+    _login_as_admin(client, username="erp-direct-batch-client-id")
+
+    class DummyStorage:
+        storage_type = "r2"
+
+        def __init__(self):
+            self.count = 0
+
+        def generate_direct_upload_key(self, filename, folder):
+            self.count += 1
+            return f"{folder}/{self.count}_{filename}"
+
+        def _get_content_type(self, filename):
+            return "image/jpeg"
+
+        def generate_presigned_put_url(self, key, ct, expires_in=900):
+            return f"https://r2.example.test/{key}?ct={ct}&ttl={expires_in}"
+
+    dummy = DummyStorage()
+    monkeypatch.setattr("foms.api.files.direct_upload.get_storage", lambda: dummy)
+
+    response = client.post(
+        "/api/upload/session/batch",
+        json={
+            "folder": "orders/123/attachments",
+            "category": "measurement",
+            "files": [
+                {"client_id": "local-a", "filename": "same.jpg", "size": 1000},
+                {"client_id": "local-b", "filename": "same.jpg", "size": 1000},
+                {"client_id": "x" * 129, "filename": "toolong.jpg", "size": 1000},
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    sessions = data["sessions"]
+    assert len(sessions) == 3
+    assert sessions[0]["client_id"] == "local-a"
+    assert sessions[1]["client_id"] == "local-b"
+    assert "client_id" not in sessions[2]
+    assert sessions[0]["key"] != sessions[1]["key"]

@@ -53,10 +53,8 @@
             <video id="global-viewer-video" src="" controls
                 style="display:none; max-width:100%; max-height:100vh;"></video>
         </div>
-        <div id="global-viewer-footer">
-            <div id="global-viewer-filename"></div>
-            <div id="global-viewer-counter"></div>
-        </div>
+        <!-- 파일명/카운터 제거. 비어 있으면 숨김(:empty). CS 완료 더블체크가 코멘트를 동적 주입. -->
+        <div id="global-viewer-footer"></div>
     </div>
 
     <!-- Bootstrap JS -->
@@ -70,7 +68,7 @@
 {% endif %}
     <!-- Custom JS -->
     <script src="{{ url_for('static', filename='js/runtime/script.js') }}" defer></script>
-    <script src="{{ url_for('static', filename='js/runtime/upload-progress.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/runtime/upload-progress.js') }}?v=20260630c" defer></script>
 
     <!-- 도면 뷰어 전역 JavaScript -->
     <script>
@@ -383,8 +381,6 @@
                     stage: document.getElementById('global-viewer-stage'),
                     image: document.getElementById('global-viewer-image'),
                     video: document.getElementById('global-viewer-video'),
-                    filename: document.getElementById('global-viewer-filename'),
-                    counter: document.getElementById('global-viewer-counter')
                 };
 
                 if (!els.root) return;
@@ -439,13 +435,33 @@
                 init(); // Ensure init
                 if (!files || !files.length) return;
 
-                // Normalize files structure (key for R2 presigned direct link)
+                // Normalize files structure while keeping durable src values on app file routes.
                 state.files = files.map(f => {
-                    const key = f.key || f.storage_key || (f.download_url && String(f.download_url).replace(/^\/api\/files\/download\//, '')) || (f.view_url && String(f.view_url).replace(/^\/api\/files\/view\//, '')) || (f.url && String(f.url).replace(/^\/api\/files\/view\//, '')) || null;
+                    function encodePath(k) { return String(k).split('/').map(function (s) { return encodeURIComponent(s); }).join('/'); }
+                    function decodePath(k) { return String(k).split('/').map(function (s) { try { return decodeURIComponent(s); } catch (e) { return s; } }).join('/'); }
+                    function appStorageKey(value, prefix) {
+                        var text = String(value || '');
+                        if (!text) return null;
+                        try {
+                            var parsed = new URL(text, window.location.origin);
+                            if (parsed.pathname.indexOf(prefix) === 0) return decodePath(parsed.pathname.slice(prefix.length));
+                        } catch (e) { }
+                        if (text.indexOf(prefix) === 0) return decodePath(text.slice(prefix.length).split(/[?#]/, 1)[0]);
+                        return null;
+                    }
+                    function isSignedStorageUrl(url) {
+                        return /(?:^|\/\/|[.])r2\.cloudflarestorage\.com/i.test(url || '') ||
+                            /(?:[?&](?:X-Amz-Signature|Signature)=)/i.test(url || '');
+                    }
+                    const key = f.key || f.storage_key || appStorageKey(f.download_url, '/api/files/download/') || appStorageKey(f.view_url || f.url, '/api/files/view/') || null;
+                    const stableViewUrl = key ? `/api/files/view/${encodePath(key)}` : '';
+                    const stableDownloadUrl = key ? `/api/files/download/${encodePath(key)}` : '';
+                    const rawViewUrl = f.view_url || f.url || '';
+                    const rawDownloadUrl = f.download_url || '';
                     return {
-                        url: f.view_url || f.url || (key ? `/api/files/view/${key}` : ''),
+                        url: (key && isSignedStorageUrl(rawViewUrl)) ? stableViewUrl : (rawViewUrl || stableViewUrl),
                         filename: f.filename || f.name || '이미지',
-                        download_url: f.download_url || (key ? `/api/files/download/${key}` : ''),
+                        download_url: (key && isSignedStorageUrl(rawDownloadUrl)) ? stableDownloadUrl : (rawDownloadUrl || stableDownloadUrl),
                         key: key || null
                     };
                 }).filter(f => !!f.url);
@@ -471,6 +487,9 @@
                 els.root.setAttribute('aria-hidden', 'true');
                 document.body.style.overflow = '';
                 state.files = [];
+                // CS 완료 더블체크가 주입한 코멘트가 다음 이미지에 남지 않도록 정리.
+                var completionExtra = document.getElementById('global-viewer-completion-extra');
+                if (completionExtra) completionExtra.remove();
                 if (els.video) {
                     els.video.pause();
                     els.video.src = '';
@@ -508,8 +527,6 @@
                     els.image.alt = file.filename;
                 }
 
-                els.filename.textContent = file.filename;
-
                 if (els.downloadBtn) {
                     if (file.download_url) {
                         els.downloadBtn.href = file.download_url;
@@ -521,27 +538,13 @@
                 }
 
                 if (state.files.length > 1) {
-                    els.counter.textContent = `${state.index + 1} / ${state.files.length}`;
                     els.root.classList.remove('single-file');
                 } else {
-                    els.counter.textContent = '';
                     els.root.classList.add('single-file');
                 }
                 requestAnimationFrame(positionNavButtons);
 
-                if (file.key) {
-                    var path = (function (k) { return String(k).split('/').map(function (s) { return encodeURIComponent(s); }).join('/'); })(file.key);
-                    fetch('/api/files/presigned-urls/' + path).then(function (r) { return r.json(); }).then(function (data) {
-                        if (data.success && data.view_url && state.files[state.index] === file) {
-                            var isVideo = (file.url || '').match(/\.(mp4|webm|ogg)$/i) || (file.filename || '').match(/\.(mp4|webm|ogg)$/i);
-                            if (isVideo) {
-                                els.video.src = data.view_url;
-                            } else {
-                                els.image.src = data.view_url;
-                            }
-                        }
-                    }).catch(function () { });
-                }
+                // Direct R2 signed URLs expire; the app route issues a fresh redirect per load.
             }
 
             function updateTransform() {
@@ -838,25 +841,24 @@
             }
         };
 
-        /** Phase2: 목록/썸네일 presigned — data-storage-key가 있는 img의 src를 R2 직행 URL로 교체 */
+        /** Legacy hook: keep thumbnails on stable app file routes instead of expiring R2 signed URLs. */
         window.erpReplaceThumbnailsWithPresigned = function (container) {
             var root = container && container.nodeType === 1 ? container : document;
             var imgs = root.querySelectorAll ? root.querySelectorAll('img[data-storage-key]') : [];
             if (!imgs.length) return;
-            var CONCURRENCY = 5;
             function encodePath(k) { return String(k).split('/').map(function (s) { return encodeURIComponent(s); }).join('/'); }
-            function fetchOne(img) {
+            function isSignedStorageUrl(url) {
+                return /(?:^|\/\/|[.])r2\.cloudflarestorage\.com/i.test(url || '') ||
+                    /(?:[?&](?:X-Amz-Signature|Signature)=)/i.test(url || '');
+            }
+            Array.prototype.forEach.call(imgs, function (img) {
                 var key = img.getAttribute('data-storage-key');
-                if (!key) return Promise.resolve();
-                var path = encodePath(key);
-                return fetch('/api/files/presigned-urls/' + path).then(function (r) { return r.json(); }).then(function (data) {
-                    if (data.success && data.view_url) img.src = data.view_url;
-                }).catch(function () { });
-            }
-            for (var i = 0; i < imgs.length; i += CONCURRENCY) {
-                var chunk = Array.prototype.slice.call(imgs, i, i + CONCURRENCY);
-                Promise.all(chunk.map(fetchOne));
-            }
+                if (!key) return;
+                var stableUrl = img.getAttribute('data-foms-erp-attachment-view-url') || ('/api/files/view/' + encodePath(key));
+                if (!img.getAttribute('src') || isSignedStorageUrl(img.getAttribute('src'))) {
+                    img.src = stableUrl;
+                }
+            });
         };
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -1088,19 +1090,9 @@
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
-        #global-viewer-filename {
-            font-weight: 600;
-            max-width: 300px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        #global-viewer-counter {
-            opacity: 0.7;
-            font-size: 0.9em;
-            padding-left: 12px;
-            border-left: 1px solid rgba(255, 255, 255, 0.3);
+        /* 파일명/카운터 제거 후 footer는 CS 코멘트가 주입될 때만 표시 */
+        #global-viewer-footer:empty {
+            display: none;
         }
 
         /* 모바일: 알림 패널 화면 최적화 (전체 표시, 겹침 방지) */
@@ -1642,6 +1634,6 @@
     {% endif %}
     {% if request.path.startswith('/erp/') %}
     <script src="{{ url_for('static', filename='js/foms/erp-mine-only.js') }}" defer></script>
-    <script src="{{ url_for('static', filename='js/runtime/erp-shell.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/runtime/erp-shell.js') }}?v=20260630c" defer></script>
     <script src="{{ url_for('static', filename='js/orders/erp-dashboard-entry.js') }}" defer></script>
     {% endif %}

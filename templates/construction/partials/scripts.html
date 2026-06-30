@@ -326,112 +326,28 @@
   async function executeBatchUpload(orderId, files, category, ui) {
     const { statusEl, progressWrap, progressBar } = ui;
     const totalFiles = files.length;
-    const CONCURRENCY = 10;
-    let ok = 0;
-
-    if (statusEl) statusEl.textContent = `업로드 중... (0/${totalFiles})`;
+    if (statusEl) statusEl.textContent = `이미지 최적화 중... (0/${totalFiles})`;
     if (progressWrap) progressWrap.classList.remove('d-none');
     if (progressBar) { progressBar.style.width = '0%'; progressBar.textContent = '0%'; }
 
-    // [Fallback Flow] Direct Upload가 비활성화된 경우(예: 로컬 개발 환경) - 가장 느린 순차방식
     const isDirectUploadEnabled = ("{{ 'true' if use_direct_upload else 'false' }}" === "true");
-    if (!isDirectUploadEnabled) {
-      for (let i = 0; i < files.length; i++) {
-        let file = files[i];
-        if (typeof window.compressImageFile === 'function') {
-          try { file = await window.compressImageFile(file, { quality: 0.8 }); } catch (e) { }
-        }
-        try {
-          const fd = new FormData();
-          fd.append('file', file);
-          if (category) fd.append('category', category);
-          const res = await fetch(`/api/orders/${orderId}/attachments`, { method: 'POST', body: fd });
-          const d = await res.json();
-          if (d.success) ok++;
-        } catch (err) {
-          console.error('Fallback upload error:', err);
-        }
-        const pct = Math.round(((i + 1) / totalFiles) * 100);
+    const result = await window.fomsUploadOrderAttachmentsBatch({
+      orderId: orderId,
+      files: Array.from(files || []),
+      folder: `orders/${orderId}/attachments`,
+      category: category,
+      useDirectUpload: isDirectUploadEnabled,
+      onPrepareProgress: function (info) {
+        if (statusEl) statusEl.textContent = `이미지 최적화 중... (${info.done}/${info.total})`;
+      },
+      onUploadProgress: function (info) {
+        const pct = Math.round((info.done / totalFiles) * 100);
         if (progressBar) { progressBar.style.width = pct + '%'; progressBar.textContent = pct + '%'; }
-        if (statusEl) statusEl.textContent = `업로드 우회 중... (${i + 1}/${totalFiles})`;
+        if (statusEl) statusEl.textContent = `업로드 중... (${Math.round(info.done)}/${info.total})`;
       }
-      return { ok, total: totalFiles };
-    }
+    });
 
-    // [Fast Flow] Direct Upload (Phase D) - R2 직결 병렬 업로드
-    let sessionMap = {};
-    try {
-      const folder = `orders/${orderId}/attachments`;
-      const bRes = await fetch('/api/upload/session/batch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          files: files.map(f => ({ filename: f.name, size: f.size })),
-          folder: folder,
-          category: category
-        })
-      });
-      const bData = await bRes.json();
-      if (bData.success && bData.sessions) {
-        for (let s of bData.sessions) s.success = true;
-        for (let s of bData.sessions) sessionMap[s.filename] = s;
-      }
-    } catch (e) { }
-
-    async function doUploadOne(originalFile) {
-      let file = originalFile;
-      if (typeof window.compressImageFile === 'function') {
-        try { file = await window.compressImageFile(originalFile, { quality: 0.8 }); } catch (e) { }
-      }
-      try {
-        const folder = `orders/${orderId}/attachments`;
-        let sess = sessionMap[file.name];
-        if (!sess || !sess.success || !sess.upload_url) {
-          const sessRes = await fetch('/api/upload/session', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ filename: file.name, size: file.size, folder: folder, category: category })
-          });
-          sess = await sessRes.json();
-          if (!sess || !sess.success) throw new Error(sess.message || sess.error || '세션 생성 실패');
-        }
-        const putRes = await fetch(sess.upload_url, {
-          method: 'PUT',
-          headers: { 'Content-Type': file.type || 'application/octet-stream' },
-          body: file
-        });
-        if (!putRes.ok) throw new Error('R2 PUT 실패');
-        const completeRes = await fetch(`/api/orders/${orderId}/attachments/complete`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            key: sess.key,
-            filename: file.name,
-            category: category,
-            item_index: null,
-            size: file.size
-          })
-        });
-        const completeData = await completeRes.json();
-        if (!completeData.success) throw new Error(completeData.message || completeData.error || '첨부 등록 실패');
-        return { success: true };
-      } catch (err) {
-        console.error('Upload error:', err);
-        return { success: false, error: err.message };
-      }
-    }
-
-    for (let start = 0; start < files.length; start += CONCURRENCY) {
-      const chunk = files.slice(start, start + CONCURRENCY);
-      const results = await Promise.all(chunk.map(f => doUploadOne(f)));
-      results.forEach(r => { if (r.success) ok++; });
-
-      const pct = Math.round((Math.min(start + CONCURRENCY, totalFiles) / totalFiles) * 100);
-      if (progressBar) { progressBar.style.width = pct + '%'; progressBar.textContent = pct + '%'; }
-      if (statusEl) statusEl.textContent = `업로드 중... (${Math.min(start + CONCURRENCY, totalFiles)}/${totalFiles})`;
-    }
-
-    return { ok, total: totalFiles };
+    return { ok: result.ok, total: result.total };
   }
 
   // ═══════════════════════════════════════════════════════════════

@@ -7,8 +7,8 @@ from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash
 
 from db import db_session
-from models import OrderDraft, User
-from tools.cron.cleanup_order_drafts import run
+from models import Order, OrderDraft, User
+from tools.cron.cleanup_order_drafts import run, run_erp_draft_orders
 
 
 def _make_user(username: str) -> User:
@@ -61,3 +61,53 @@ class TestCleanupOrderDrafts:
         assert deleted == 1
         assert db_session.get(OrderDraft, expired_id) is None
         assert db_session.get(OrderDraft, active_id) is not None
+
+
+def _make_draft_order(*, age_hours: float, status: str = "DRAFT") -> Order:
+    ts = datetime.now() - timedelta(hours=age_hours)
+    order = Order(
+        received_date="2026-06-01",
+        received_time="10:00",
+        customer_name="ERP Order",
+        phone="000-0000-0000",
+        address="-",
+        product="ERP Order",
+        status=status,
+        is_erp_order=True,
+        structured_data={"meta": {"draft": status == "DRAFT"}},
+        structured_updated_at=ts,
+        created_at=ts,
+    )
+    db_session.add(order)
+    db_session.commit()
+    return order
+
+
+class TestCleanupErpDraftOrders:
+    def test_dry_run_counts_stale_without_change(self, app):
+        stale_id = _make_draft_order(age_hours=72).id
+        fresh_id = _make_draft_order(age_hours=1).id
+
+        scanned, deleted = run_erp_draft_orders(execute=False, session=db_session, stale_hours=48)
+
+        assert scanned == 1
+        assert deleted == 0
+        assert db_session.get(Order, stale_id).status == "DRAFT"
+        assert db_session.get(Order, fresh_id).status == "DRAFT"
+
+    def test_execute_soft_deletes_only_stale_drafts(self, app):
+        stale_id = _make_draft_order(age_hours=72).id
+        fresh_id = _make_draft_order(age_hours=1).id
+        # 승격된(미-DRAFT) 오래된 주문은 절대 건드리지 않는다.
+        promoted_id = _make_draft_order(age_hours=200, status="RECEIVED").id
+
+        scanned, deleted = run_erp_draft_orders(execute=True, session=db_session, stale_hours=48)
+
+        assert scanned == 1
+        assert deleted == 1
+        stale = db_session.get(Order, stale_id)
+        assert stale.status == "DELETED"
+        assert stale.deleted_at
+        assert stale.original_status == "DRAFT"
+        assert db_session.get(Order, fresh_id).status == "DRAFT"
+        assert db_session.get(Order, promoted_id).status == "RECEIVED"

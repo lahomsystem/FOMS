@@ -2,7 +2,7 @@
  * CACHE_VERSION bumped to v2: the v1 caches were populated while /static was served
  * 1-year-immutable, so they hold stale CSS/JS. Bumping purges them on activate; going
  * forward the origin serves CSS/JS as no-cache so revalidation keeps them fresh. */
-var CACHE_VERSION = "foms-p2-v4";
+var CACHE_VERSION = "foms-p2-v6";
 var STATIC_CACHE = CACHE_VERSION + "-static";
 var API_CACHE = CACHE_VERSION + "-api";
 
@@ -44,6 +44,10 @@ self.addEventListener("fetch", function (event) {
 
   if (req.method !== "GET") return;
 
+  if (isFileDeliveryRequest(url)) {
+    return;
+  }
+
   if (url.pathname.indexOf("/static/") === 0) {
     // CSS/JS: 캐시 우선(즉시 응답) + TTL 지난 경우에만 백그라운드 재검증.
     // 과거 networkFirst(+cache:no-cache)는 매 네비게이션마다 ~90개 css/js를 서버에
@@ -67,6 +71,12 @@ self.addEventListener("fetch", function (event) {
     event.respondWith(staleWhileRevalidate(req, STATIC_CACHE));
   }
 });
+
+function isFileDeliveryRequest(url) {
+  if (url.pathname.indexOf("/api/files/") === 0) return true;
+  if (/\.(?:r2\.)?cloudflarestorage\.com$/i.test(url.hostname)) return true;
+  return url.searchParams.has("X-Amz-Signature") || url.searchParams.has("Signature");
+}
 
 function staleWhileRevalidate(request, cacheName) {
   return caches.open(cacheName).then(function (cache) {

@@ -77,7 +77,7 @@ Web exploration and manual QA still use Cursor browser MCP. Repeatable smoke/QA 
 - **서비스워커 network-first fetch는 timeout+캐시 폴백 필수**(가드 G3). 무한 대기→탭 스피너 금지.
 - **JSONB/text `cast(...).ilike` 인덱스 없이 hot path 금지**(부분일치=trigram, id=`@>`). **N+1 금지**(`in_(ids)` 배치), **매 요청 무거운 계산은 캐시**. 마이그레이션 CONCURRENTLY+다중 replica는 세션 레벨 advisory lock.
 - **검증**: 대시보드/리스트/검색/액션 변경은 서버 TTFB 측정 + `EXPLAIN`로 Seq Scan 없음 확인. "느리다"는 서버 TTFB부터 분리 측정. SW는 실제 Chrome에서 검증.
-- **점검 스킬(모든 도구 공통)**: 코드 수정 후 `python tools/perf/perf_scan.py --guard`(변경분 회귀 차단), 정기 점검은 `--audit`(전체 후보). 절차·체크리스트는 `docs/guides/PERFORMANCE_GUARDRAILS.md` §"점검 스킬 실행 절차". Claude=`/perf-guard`·`/perf-audit`(`.claude/commands`), Cursor 네이티브=`.cursor/rules/02-performance-guardrails.mdc` §점검 실행, Codex=AGENTS.md 보고 본 스크립트 직접 실행(슬래시커맨드 없음).
+- **점검 스킬(모든 도구 공통)**: SSOT `.cursor/skills/perf-guard/` · `perf-audit/` (중복 global `~/.codex/skills/perf-*` 금지). Claude=`/perf-guard`·`/perf-audit`(`.claude/commands` → SSOT 포인터), Cursor=동일 SKILL, Codex=repo cwd에서 SSOT SKILL 또는 `python tools/perf/perf_scan.py` 직접 실행. 절차·체크리스트 `docs/guides/PERFORMANCE_GUARDRAILS.md` · `ERP_SLOWDOWN_RADAR.md`.
 
 ## 절대 규칙: 문제 수정 정책
 

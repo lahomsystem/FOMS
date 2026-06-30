@@ -79,11 +79,23 @@ if (progressWrap) progressWrap.classList.remove('d-none');
 const fileList = Array.from(files);
 const totalFiles = fileList.length;
 
-const uploadPromises = fileList.map(async (originalFile, index) => {
-let file = originalFile;
-if (typeof window.compressImageFile === 'function') {
-try { file = await window.compressImageFile(originalFile, { quality: 0.8 }); } catch (e) {}
+const preparedFiles = typeof window.fomsPrepareUploadFiles === 'function'
+? await window.fomsPrepareUploadFiles(fileList, {
+onPrepareProgress: (info) => {
+if (progressBar) {
+const p = Math.round((info.done / Math.max(1, info.total)) * 20);
+progressBar.style.width = p + '%';
+progressBar.textContent = `최적화 ${info.done}/${info.total}`;
 }
+}
+})
+: fileList.map((file, index) => ({ clientId: String(index), originalFile: file, file: file }));
+const policy = typeof window.fomsGetUploadQueuePolicy === 'function'
+? window.fomsGetUploadQueuePolicy()
+: { uploadConcurrency: 3 };
+
+const results = await window.fomsRunLimitedQueue(preparedFiles, policy.uploadConcurrency, async (entry, index) => {
+let file = entry.file;
 const formData = new FormData();
 formData.append('file', file);
 formData.append('category', 'drawing');
@@ -122,7 +134,6 @@ return { key: att.storage_key, filename: att.filename || file.name, view_url: at
 return null;
 });
 
-const results = await Promise.all(uploadPromises);
 createdFiles = results.filter(r => r !== null);
 if (progressWrap) progressWrap.classList.add('d-none');
 if (progressBar) { progressBar.style.width = '0%'; progressBar.textContent = '0%'; }
@@ -211,6 +222,9 @@ async function uploadRevisionGatewayFiles(orderId, files) {
     return data.file;
   };
 
+  let preparedFiles = typeof window.fomsPrepareUploadFiles === 'function'
+    ? await window.fomsPrepareUploadFiles(fileArray)
+    : fileArray.map((file, index) => ({ clientId: String(index), originalFile: file, file: file }));
   let sessionMap = {};
   if (USE_DIRECT_UPLOAD) {
       try {
@@ -219,7 +233,7 @@ async function uploadRevisionGatewayFiles(orderId, files) {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                  files: fileArray.map(f => ({ filename: f.name, size: f.size })),
+                  files: preparedFiles.map(entry => ({ client_id: entry.clientId, filename: entry.file.name, size: entry.file.size })),
                   folder: folder,
                   category: 'drawing'
               })
@@ -227,19 +241,18 @@ async function uploadRevisionGatewayFiles(orderId, files) {
           const bData = await bRes.json();
           if (bData.success && bData.sessions) {
               for (let s of bData.sessions) s.success = true;
-              for (let s of bData.sessions) sessionMap[s.filename] = s;
+              for (let s of bData.sessions) {
+                if (s.client_id) sessionMap[s.client_id] = s;
+              }
           }
       } catch (e) { }
   }
 
-  const uploadOne = async (originalFile) => {
-    let file = originalFile;
-    if (typeof window.compressImageFile === 'function') {
-      try { file = await window.compressImageFile(originalFile, { quality: 0.8 }); } catch (e) {}
-    }
+  const uploadOne = async (entry) => {
+    let file = entry.file;
     if (USE_DIRECT_UPLOAD) {
       const folder = `orders/${orderId}/drawing_gateway/revisions`;
-      let sess = sessionMap[file.name];
+      let sess = sessionMap[entry.clientId];
       if (!sess || !sess.success || !sess.upload_url) {
         const sessRes = await fetch('/api/upload/session', {
           method: 'POST',
@@ -274,12 +287,13 @@ async function uploadRevisionGatewayFiles(orderId, files) {
 
   try {
     const uploadedFiles = [];
-    const CONCURRENCY = 10;
-    for (let start = 0; start < fileArray.length; start += CONCURRENCY) {
-        const chunk = fileArray.slice(start, start + CONCURRENCY);
-        const results = await Promise.all(chunk.map(f => uploadOne(f)));
-        uploadedFiles.push(...results);
-    }
+    const policy = typeof window.fomsGetUploadQueuePolicy === 'function'
+      ? window.fomsGetUploadQueuePolicy()
+      : { uploadConcurrency: 3 };
+    const results = typeof window.fomsRunLimitedQueue === 'function'
+      ? await window.fomsRunLimitedQueue(preparedFiles, policy.uploadConcurrency, uploadOne)
+      : [];
+    uploadedFiles.push(...results);
     return uploadedFiles;
   } catch (err) {
     throw err;

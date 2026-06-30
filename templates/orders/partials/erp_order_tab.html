@@ -14,9 +14,12 @@ ERP Order Tab Pane (shared between add_order and edit_order)
             <div class="fw-bold">
                 <i class="fas fa-layer-group"></i> ERP Order
             </div>
-            <span class="badge {% if erp_order_feature_enabled %}bg-success{% else %}bg-secondary{% endif %}">
-                {% if erp_order_feature_enabled %}ON{% else %}OFF{% endif %}
-            </span>
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-success d-none" id="erp-autosave-indicator" aria-live="polite">✓ 자동저장됨</span>
+                <span class="badge {% if erp_order_feature_enabled %}bg-success{% else %}bg-secondary{% endif %}">
+                    {% if erp_order_feature_enabled %}ON{% else %}OFF{% endif %}
+                </span>
+            </div>
         </div>
         <div class="card-body foms-page-form">
             {% if not erp_order_feature_enabled %}
@@ -33,6 +36,24 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                     <a class="btn btn-sm btn-outline-primary" id="erp-draft-edit-link" href="#" style="display:none;">
                         <i class="fas fa-external-link-alt"></i> 편집 화면 열기
                     </a>
+                </div>
+            </div>
+
+            <div class="alert alert-warning py-2" id="erp-restore-banner" style="display:none;">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div>
+                        <i class="fas fa-clock-rotate-left"></i>
+                        저장하지 않고 종료한 작성 내용이 있습니다.
+                        <span class="text-muted" id="erp-restore-time"></span>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-sm btn-warning" id="erp-restore-resume">
+                            <i class="fas fa-rotate-left"></i> 이어쓰기
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="erp-restore-discard">
+                            버리기
+                        </button>
+                    </div>
                 </div>
             </div>
 

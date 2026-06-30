@@ -2,7 +2,7 @@
 var USE_DIRECT_UPLOAD_CHAT = {{ use_direct_upload|tojson }};
 let previewFile = null;
 
-function handleFileSelect(files) {
+async function handleFileSelect(files) {
     if (files.length === 0) return;
     
     // 채팅방이 선택되지 않았으면 경고
@@ -11,7 +11,7 @@ function handleFileSelect(files) {
         return;
     }
     
-    const file = files[0];
+    let file = files[0];
     
     // 요소 가져오기 및 null 체크
     const preview = document.getElementById('file-preview');
@@ -47,6 +47,13 @@ function handleFileSelect(files) {
     function hideProgress() {
       if (progressWrap) progressWrap.classList.add('d-none');
       if (progressBar) { progressBar.style.width = '0%'; progressBar.textContent = '0%'; }
+    }
+
+    if (typeof window.compressImageFile === 'function') {
+        try {
+            finalContent.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 이미지 최적화 중...';
+            file = await window.compressImageFile(file, { quality: 0.82 });
+        } catch (_) { }
     }
     
     if (USE_DIRECT_UPLOAD_CHAT) {

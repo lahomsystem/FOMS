@@ -110,6 +110,8 @@ def api_upload_session_batch():
         for file_data in files:
             filename = file_data.get("filename")
             size = file_data.get("size", 0)
+            raw_client_id = file_data.get("client_id")
+            client_id = raw_client_id if isinstance(raw_client_id, str) and len(raw_client_id) <= 128 else None
 
             if not filename or not isinstance(size, (int, float)) or size <= 0:
                 continue
@@ -126,14 +128,15 @@ def api_upload_session_batch():
             if not upload_url:
                 continue
 
-            sessions.append(
-                {
-                    "filename": filename,
-                    "upload_url": upload_url,
-                    "key": key,
-                    "expires_at": expires_at_str,
-                }
-            )
+            session_payload = {
+                "filename": filename,
+                "upload_url": upload_url,
+                "key": key,
+                "expires_at": expires_at_str,
+            }
+            if client_id:
+                session_payload["client_id"] = client_id
+            sessions.append(session_payload)
 
         return jsonify({"success": True, "sessions": sessions})
     except Exception as e:
