@@ -20,6 +20,11 @@
         <span class="foms-drawing-queue-card__id">#{{ r.id }}</span>
       </div>
       <div class="foms-drawing-queue-card__sub">도면 담당 {{ r.assignee_text }}</div>
+      {% set _c = (r.construction_date or '') %}
+      {% set _cparts = (_c.split(',')|map('trim')|list)|select|list %}
+      {% if _cparts %}
+      <div class="foms-drawing-queue-card__sub">시공일 {% for _d in _cparts %}<span class="foms-drawing-queue-card__chip">{{ _d }}</span>{% endfor %}</div>
+      {% endif %}
 
       <span class="foms-drawing-queue-card__turn">
         {% if r.turn_tone == 'mine' %}<i class="fas fa-hand-point-up" aria-hidden="true"></i>

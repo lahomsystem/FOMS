@@ -166,6 +166,7 @@
                   {% if sort_by == 'id' %}<i class="fas fa-sort-down"></i>{% elif sort_by == '-id' %}<i class="fas fa-sort-up"></i>{% else %}<i class="fas fa-sort text-muted"></i>{% endif %}
                 </a>
               </th>
+              <th>시공일</th>
               <th>다음 액션</th>
               <th>도면 담당</th>
               <th>
@@ -210,6 +211,12 @@
                 {% if r.my_todo %}
                 <span class="badge bg-primary mt-1">내 할 일</span>
                 {% endif %}
+              </td>
+              <td class="fw-semibold" style="font-size: 1rem; color: #495057;">
+                {% set _c = (r.construction_date or '') %}
+                {% set _cparts = (_c.split(',')|map('trim')|list)|select|list %}
+                {% for _d in _cparts %}<span class="badge bg-secondary me-1">{{ _d }}</span>{% endfor %}
+                {% if not _cparts %}<span class="text-muted">-</span>{% endif %}
               </td>
               <td class="small">{{ r.next_action }}</td>
               <td>

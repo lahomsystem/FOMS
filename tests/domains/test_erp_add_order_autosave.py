@@ -137,6 +137,8 @@ def test_get_draft_reports_content_for_restore(client, app) -> None:
     assert data["draft"] is not None
     assert data["draft"]["has_content"] is True
     assert data["draft"]["order_id"]
+    # 상대시간 TZ-안전: epoch ms 제공(서버 UTC·브라우저 KST 시차 오표시 방지).
+    assert isinstance(data["draft"]["updated_at_ms"], int)
 
 
 def test_autosave_local_storage_key_scoped_by_user(app) -> None:
@@ -156,7 +158,44 @@ def test_autosave_local_storage_key_scoped_by_user(app) -> None:
     assert 'LS_KEY_PREFIX + ":u" + uid' in js
     assert "purgeLegacyLocalStorage()" in js
     assert "localStorage.removeItem(LEGACY_LS_KEY)" in js
-    assert "erp-order-autosave.js') }}?v=20260630c" in erp_js
+    assert "erp-order-autosave.js') }}?v=20260630f" in erp_js
+
+
+def test_autosave_suspends_after_explicit_save() -> None:
+    """정상 저장 후 페이지 이탈이 localStorage를 다시 쓰지 않게 _suspended 가드 존재.
+
+    버그: 저장 직후 visibilitychange/beforeunload의 saveLocal이 clearLocal 이후
+    내용을 재기록 → 다음 진입 시 정상 저장건이 미저장 복원 배너로 오인.
+    """
+    root = Path(__file__).resolve().parents[2]
+    js = (root / "static/js/orders/erp-order-autosave.js").read_text(encoding="utf-8")
+    assert "var _suspended = false;" in js
+    assert "_suspended = true;" in js  # erp:order-saved에서 중단
+    # 모든 기록 진입점이 가드.
+    for fn in ("function saveLocal()", "function saveServer()", "function saveEditLocal()", "function beaconFlush()"):
+        idx = js.index(fn)
+        assert "if (_suspended) return;" in js[idx: idx + 200], f"{fn} missing _suspended guard"
+    # 재입력 시 해제.
+    sidx = js.index("function schedule()")
+    assert "_suspended = false;" in js[sidx: sidx + 200]
+
+
+def test_edit_mode_autosave_wiring() -> None:
+    """저장된 주문 편집(edit_order)에도 autosave 작업본+복원이 배선됐는지(JS+템플릿)."""
+    root = Path(__file__).resolve().parents[2]
+    js = (root / "static/js/orders/erp-order-autosave.js").read_text(encoding="utf-8")
+    edit_order = (root / "templates/orders/edit_order.html").read_text(encoding="utf-8")
+    # JS: edit 모드 경로 존재.
+    assert "function isEditMode()" in js
+    assert "function saveEditLocal()" in js
+    assert "function editLocalStorageKey()" in js
+    assert "maybeOfferEditRestore" in js
+    assert '"local-edit"' in js
+    # 편집 작업본은 localStorage만(라이브 주문 PUT 금지) — saveServer를 edit에서 호출하지 않음.
+    assert "라이브 주문" in js
+    # edit_order가 autosave 스크립트를 로드하고 draft 모드를 끈다.
+    assert 'erp_order_js.html' in edit_order
+    assert "window.__ERP_ORDER_DRAFT_MODE = false" in edit_order
 
 
 def _consult_default_item() -> dict:

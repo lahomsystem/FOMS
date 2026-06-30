@@ -428,24 +428,18 @@
       white-space: nowrap;
     }
 
-    /* 경보 컬럼: 최소 폭, 체크박스+배지 한 줄 */
+    /* 경보 컬럼: 체크박스 + 배지 세로 스택 */
     #erp-grid tbody td:nth-child(1) {
       padding: 0.35rem 0.5rem;
-      vertical-align: middle;
-      white-space: nowrap;
+      vertical-align: top;
     }
 
-    #erp-grid tbody td:nth-child(1) .badge:not(.erp-amount-value) {
+    #erp-grid tbody td:nth-child(1) .erp-grid-alert-badges .badge:not(.erp-amount-value) {
       font-size: 0.7rem !important;
       padding: 0.2em 0.35em !important;
-      margin: 0 2px 2px 0;
+      margin: 0;
       white-space: nowrap;
-      display: inline-block;
       line-height: 1.2;
-    }
-
-    #erp-grid tbody td:nth-child(1) .badge:not(.erp-amount-value):last-child {
-      margin-right: 0;
     }
 
     /* 단계 컬럼: 배지 겹침 방지 */
@@ -531,28 +525,21 @@
         border-right: none;
       }
 
-      /* 경보 컬럼 - 최소 폭(체크박스+배지) */
+      /* 경보 컬럼 - 최소 폭(체크박스+세로 배지) */
       #erp-grid thead th:nth-child(1),
       #erp-grid tbody td:nth-child(1) {
         width: 1%;
         min-width: 0;
         max-width: 7rem;
-        white-space: nowrap;
       }
 
       #erp-grid tbody td:nth-child(1) {
-        vertical-align: middle;
+        vertical-align: top;
       }
 
-      #erp-grid tbody td:nth-child(1) .badge:not(.erp-amount-value) {
-        display: inline-block;
-        margin: 0 2px 2px 0;
+      #erp-grid tbody td:nth-child(1) .erp-grid-alert-badges .badge:not(.erp-amount-value) {
         font-size: 0.7rem;
         padding: 0.2rem 0.35rem;
-      }
-
-      #erp-grid tbody td:nth-child(1) .badge:not(.erp-amount-value):last-child {
-        margin-bottom: 0;
       }
 
       /* 단계 컬럼 - 최소화 */
@@ -1073,17 +1060,10 @@
         gap: 8px !important;
       }
 
-      #erp-grid tbody tr.erp-main-row td:nth-child(1) .badge {
-        display: inline-block !important;
-        margin-right: 4px !important;
-        margin-bottom: 0 !important;
+      #erp-grid tbody tr.erp-main-row td:nth-child(1) .erp-grid-alert-badges .badge {
         width: fit-content !important;
         flex-shrink: 0 !important;
         white-space: nowrap !important;
-      }
-
-      #erp-grid tbody tr.erp-main-row td:nth-child(1) .badge:last-child {
-        margin-right: 0 !important;
       }
 
       /* 모바일: 단계 컬럼 - 배지 정렬 */
@@ -1107,7 +1087,7 @@
         gap: 8px !important;
       }
 
-      .erp-dashboard #erp-grid tbody tr.erp-main-row td[data-label="퀘스트"] .d-inline-flex {
+      .erp-dashboard #erp-grid tbody tr.erp-main-row td[data-label="퀘스트"] .erp-grid-quest-stack {
         grid-column: 2 !important;
         justify-self: start;
         margin-left: 0 !important;
@@ -1678,7 +1658,7 @@
       }
 
       /* 모바일: 경보/단계 배지 작게 */
-      #erp-grid tbody td:nth-child(1) .badge:not(.erp-amount-value),
+      #erp-grid tbody td:nth-child(1) .erp-grid-alert-badges .badge:not(.erp-amount-value),
       #erp-grid tbody td:nth-child(2) .badge:not(.erp-amount-value) {
         font-size: 0.7rem !important;
         padding: 0.2em 0.45em !important;

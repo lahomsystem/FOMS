@@ -15,7 +15,7 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                 <i class="fas fa-layer-group"></i> ERP Order
             </div>
             <div class="d-flex align-items-center gap-2">
-                <span class="badge bg-success d-none" id="erp-autosave-indicator" aria-live="polite">✓ 자동저장됨</span>
+                <span class="badge bg-success d-none erp-autosave-toast" id="erp-autosave-indicator" aria-live="polite">✓ 자동저장됨</span>
                 <span class="badge {% if erp_order_feature_enabled %}bg-success{% else %}bg-secondary{% endif %}">
                     {% if erp_order_feature_enabled %}ON{% else %}OFF{% endif %}
                 </span>
@@ -39,18 +39,18 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                 </div>
             </div>
 
-            <div class="alert alert-warning py-2" id="erp-restore-banner" style="display:none;" data-foms-no-autodismiss>
-                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-                    <div>
-                        <i class="fas fa-clock-rotate-left"></i>
-                        저장하지 않고 종료한 작성 내용이 있습니다.
-                        <span class="text-muted" id="erp-restore-time"></span>
+            <div class="alert alert-warning py-2 erp-restore-banner" id="erp-restore-banner" style="display:none;" data-foms-no-autodismiss role="status">
+                <div class="erp-restore-inner">
+                    <div class="erp-restore-msg">
+                        <i class="fas fa-clock-rotate-left" aria-hidden="true"></i>
+                        <span class="erp-restore-text">저장하지 않은 작성 내용이 있습니다.</span>
+                        <span class="text-muted erp-restore-time" id="erp-restore-time"></span>
                     </div>
-                    <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-sm btn-warning" id="erp-restore-resume">
-                            <i class="fas fa-rotate-left"></i> 이어쓰기
+                    <div class="erp-restore-actions">
+                        <button type="button" class="btn btn-sm btn-warning erp-restore-btn" id="erp-restore-resume">
+                            <i class="fas fa-rotate-left" aria-hidden="true"></i> 이어쓰기
                         </button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary" id="erp-restore-discard">
+                        <button type="button" class="btn btn-sm btn-outline-secondary erp-restore-btn" id="erp-restore-discard">
                             버리기
                         </button>
                     </div>

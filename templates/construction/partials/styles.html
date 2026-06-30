@@ -292,18 +292,13 @@
       vertical-align: top;
     }
 
-    #erp-grid tbody td:nth-child(1) .badge {
+    #erp-grid tbody td:nth-child(1) .erp-grid-alert-badges .badge {
       font-size: 0.85rem !important;
       padding: 0.35em 0.6em !important;
-      margin: 0 0 4px 0;
+      margin: 0;
       white-space: nowrap;
-      display: block;
       line-height: 1.2;
       width: fit-content;
-    }
-
-    #erp-grid tbody td:nth-child(1) .badge:last-child {
-      margin-bottom: 0;
     }
 
     /* 단계 컬럼: 배지 겹침 방지 */
@@ -400,15 +395,9 @@
         vertical-align: top;
       }
 
-      #erp-grid tbody td:nth-child(1) .badge {
-        display: block;
-        margin-bottom: 3px;
+      #erp-grid tbody td:nth-child(1) .erp-grid-alert-badges .badge {
         font-size: 0.75rem;
         padding: 0.25rem 0.4rem;
-      }
-
-      #erp-grid tbody td:nth-child(1) .badge:last-child {
-        margin-bottom: 0;
       }
 
       /* 단계 컬럼 - 최소화 */
@@ -930,17 +919,10 @@
         gap: 8px !important;
       }
 
-      #erp-grid tbody tr.erp-main-row td:nth-child(1) .badge {
-        display: inline-block !important;
-        margin-right: 4px !important;
-        margin-bottom: 0 !important;
+      #erp-grid tbody tr.erp-main-row td:nth-child(1) .erp-grid-alert-badges .badge {
         width: fit-content !important;
         flex-shrink: 0 !important;
         white-space: nowrap !important;
-      }
-
-      #erp-grid tbody tr.erp-main-row td:nth-child(1) .badge:last-child {
-        margin-right: 0 !important;
       }
 
       /* 모바일: 단계 컬럼 - 배지 정렬 */
@@ -964,7 +946,7 @@
         gap: 8px !important;
       }
 
-      .erp-dashboard #erp-grid tbody tr.erp-main-row td[data-label="퀘스트"] .d-inline-flex {
+      .erp-dashboard #erp-grid tbody tr.erp-main-row td[data-label="퀘스트"] .erp-grid-quest-stack {
         grid-column: 2 !important;
         justify-self: start;
         margin-left: 0 !important;
@@ -1228,7 +1210,7 @@
       }
 
       /* 모바일: 경보/단계 배지 작게 */
-      #erp-grid tbody td:nth-child(1) .badge,
+      #erp-grid tbody td:nth-child(1) .erp-grid-alert-badges .badge,
       #erp-grid tbody td:nth-child(2) .badge {
         font-size: 0.7rem !important;
         padding: 0.2em 0.45em !important;

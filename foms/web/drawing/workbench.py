@@ -28,6 +28,7 @@ from foms.services.erp_display import (
     _can_modify_sales_domain,
     _drawing_status_label,
     _drawing_next_action_text,
+    _normalize_date_to_yyyymmdd,
 )
 from foms.services.erp_product_items import build_product_items_for_order
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
@@ -53,6 +54,24 @@ def _drawing_file_key(file_obj: Any, index: int) -> str:
     if isinstance(file_obj, Mapping):
         return str(file_obj.get('key') or f'drawing-{index + 1}')
     return f'drawing-{index + 1}'
+
+
+def _resolve_construction_date_display(order: Any, sd: dict[str, Any]) -> str:
+    """Return normalized construction date text for workbench list rows."""
+    raw = (((sd.get('schedule') or {}).get('construction') or {}).get('date'))
+    if raw:
+        if isinstance(raw, str):
+            parts = [part.strip() for part in raw.split(',') if part.strip()]
+            normalized = [_normalize_date_to_yyyymmdd(part) for part in parts]
+            dates = [value for value in normalized if value]
+            if dates:
+                return ', '.join(dates)
+        else:
+            single = _normalize_date_to_yyyymmdd(raw)
+            if single:
+                return single
+    fallback = _normalize_date_to_yyyymmdd(getattr(order, 'erp_construction_date', None))
+    return fallback or ''
 
 
 def _event_target_numbers(event: Mapping[str, Any]) -> list[int]:
@@ -341,10 +360,13 @@ def erp_drawing_workbench_dashboard():
             str((last_event or {}).get('note') or ''),
         ]).lower()
 
+        construction_date = _resolve_construction_date_display(o, sd)
+
         rows.append({
             'id': o.id,
             'is_self_measurement': getattr(o, 'is_self_measurement', False),
             'customer_name': customer_name,
+            'construction_date': construction_date,
             'manager_name': manager_name,
             'assignee_text': assignee_text,
             'drawing_status': drawing_status,

@@ -1056,12 +1056,21 @@ def api_erp_get_draft():
         sd = order.structured_data if isinstance(order.structured_data, dict) else {}
         has_content = _structured_has_meaningful_content(sd, order.notes or '')
         updated = order.structured_updated_at
+        # updated_at_ms: epoch ms(UTC 기준). 클라이언트 상대시간 계산은 문자열 파싱 대신
+        # 이 값을 써야 서버(UTC)·브라우저(KST) 시차로 "9시간 전" 오표시가 안 난다.
+        updated_ms = None
+        if updated is not None:
+            try:
+                updated_ms = int(updated.timestamp() * 1000)
+            except Exception:
+                updated_ms = None
         return jsonify({
             'success': True,
             'draft': {
                 'order_id': order.id,
                 'has_content': has_content,
                 'updated_at': format_updated_at(updated) if updated else None,
+                'updated_at_ms': updated_ms,
             },
         })
     except Exception as e:
