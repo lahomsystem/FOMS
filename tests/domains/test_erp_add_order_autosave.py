@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 from werkzeug.security import generate_password_hash
@@ -136,6 +137,26 @@ def test_get_draft_reports_content_for_restore(client, app) -> None:
     assert data["draft"] is not None
     assert data["draft"]["has_content"] is True
     assert data["draft"]["order_id"]
+
+
+def test_autosave_local_storage_key_scoped_by_user(app) -> None:
+    """공유 PC PII 유출 방지: localStorage 키는 user id suffix + legacy key purge."""
+    js = (Path(__file__).resolve().parents[2] / "static/js/orders/erp-order-autosave.js").read_text(
+        encoding="utf-8"
+    )
+    add_order = (Path(__file__).resolve().parents[2] / "templates/orders/add_order.html").read_text(
+        encoding="utf-8"
+    )
+    erp_js = (
+        Path(__file__).resolve().parents[2] / "templates/orders/partials/erp_order_js.html"
+    ).read_text(encoding="utf-8")
+
+    assert 'data-current-user-id="{{ current_user.id if current_user else \'\' }}"' in add_order
+    assert "function localStorageKey()" in js
+    assert 'LS_KEY_PREFIX + ":u" + uid' in js
+    assert "purgeLegacyLocalStorage()" in js
+    assert "localStorage.removeItem(LEGACY_LS_KEY)" in js
+    assert "erp-order-autosave.js') }}?v=20260630b" in erp_js
 
 
 def test_discard_soft_deletes_draft(client, app) -> None:

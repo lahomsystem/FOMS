@@ -760,6 +760,7 @@ https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
 
 <div id="erp-order-config" class="d-none"
      data-order-id="0"
+     data-current-user-id="{{ current_user.id if current_user else '' }}"
      data-erp-order-enabled="{{ erp_order_enabled|tojson|e }}"
      data-use-direct-upload="{{ use_direct_upload|tojson|e }}"
      data-erp-order-draft-mode="true"></div>
