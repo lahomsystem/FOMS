@@ -123,7 +123,10 @@
     var items = sd.items || [];
     for (var i = 0; i < items.length; i++) {
       var it = items[i] || {};
-      var keys = ["product_name", "spec", "price", "option_detail", "color", "handle", "misc"];
+      // 사용자가 실제로 채우는 필드만 본다. color/handle/misc/option_detail/internal은
+      // 기본값 "상담"이 들어 있어, 포함하면 빈 폼도 "내용 있음"으로 오판 → 빈 draft가
+      // 기존 draft를 덮어써 데이터 유실(production bug). product_name/spec/price만 신호.
+      var keys = ["product_name", "spec", "price"];
       for (var k = 0; k < keys.length; k++) {
         if (String(it[keys[k]] || "").trim()) return true;
       }

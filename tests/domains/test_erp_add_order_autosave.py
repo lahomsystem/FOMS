@@ -156,7 +156,79 @@ def test_autosave_local_storage_key_scoped_by_user(app) -> None:
     assert 'LS_KEY_PREFIX + ":u" + uid' in js
     assert "purgeLegacyLocalStorage()" in js
     assert "localStorage.removeItem(LEGACY_LS_KEY)" in js
-    assert "erp-order-autosave.js') }}?v=20260630b" in erp_js
+    assert "erp-order-autosave.js') }}?v=20260630c" in erp_js
+
+
+def _consult_default_item() -> dict:
+    """ERP 폼 기본 품목 1행: 사용자 미입력, 상담 기본값만 채워진 상태."""
+    return {
+        "product_name": "",
+        "spec": "",
+        "price": "",
+        "internal": "상담",
+        "color": "상담",
+        "handle": "상담",
+        "option_detail": "상담",
+        "misc": "상담",
+    }
+
+
+def test_autosave_consult_defaults_not_meaningful(client, app) -> None:
+    """기본 '상담' 품목만 있는 빈 폼은 서버 draft를 만들지 않아야 한다(데이터 유실 RCA).
+
+    color/handle/misc/option_detail 기본값 '상담'을 내용으로 오판하면, 빈 폼 자동저장이
+    기존 draft를 덮어써 작성분이 사라진다(production 재현 버그).
+    """
+    _login(client, app, "autosave_consult_user")
+    resp = _autosave(
+        client,
+        _structured(items=[_consult_default_item()]),
+        token="tok-consult",
+    )
+    assert resp.status_code == 200
+    assert resp.get_json()["order_id"] is None  # 상담 기본값은 내용 아님 → draft 미생성
+
+
+def test_autosave_empty_does_not_overwrite_existing_content(client, app) -> None:
+    """핵심 회귀 방어: 내용 있는 draft를 빈 자동저장이 덮어쓰지 못한다."""
+    from db import db_session
+    from models import Order
+
+    _login(client, app, "autosave_nodowngrade_user")
+    # 1) 실제 내용으로 draft 생성.
+    created = _autosave(
+        client,
+        _structured(name="홍길동", phone="010-1111-2222", address="서울시 종로구"),
+        token="tok-nodown",
+    )
+    order_id = created.get_json()["order_id"]
+    assert order_id
+
+    # 2) 빈 폼(상담 기본값만) 자동저장 → 덮어쓰기 금지.
+    resp = _autosave(
+        client,
+        _structured(items=[_consult_default_item()]),
+        token="tok-nodown",
+    )
+    body = resp.get_json()
+    assert body["success"] is True
+    assert body.get("skipped") == "no_downgrade"
+
+    with app.app_context():
+        order = db_session.query(Order).filter_by(id=order_id).one()
+        # 작성분 보존.
+        assert order.structured_data["parties"]["customer"]["name"] == "홍길동"
+        assert order.structured_data["site"]["address_full"] == "서울시 종로구"
+
+
+def test_restore_banner_excluded_from_alert_autodismiss(app) -> None:
+    """복원 배너는 script.js 5초 자동닫힘에서 제외돼야 한다(bug #1)."""
+    root = Path(__file__).resolve().parents[2]
+    tab = (root / "templates/orders/partials/erp_order_tab.html").read_text(encoding="utf-8")
+    script = (root / "static/js/runtime/script.js").read_text(encoding="utf-8")
+    assert 'id="erp-restore-banner"' in tab
+    assert "data-foms-no-autodismiss" in tab
+    assert ".alert:not([data-foms-no-autodismiss])" in script
 
 
 def test_discard_soft_deletes_draft(client, app) -> None:
