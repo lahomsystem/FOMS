@@ -44,12 +44,13 @@ def test_dispatch_order_event_applies_attachment_policy_before_send(monkeypatch)
 
     monkeypatch.setattr(channel_dispatch, "send_group_message", _fake_send_group_message)
 
-    files = [{"fileName": f"file-{index}.jpg"} for index in range(12)]
+    files = [{"fileName": f"file-{index}.jpg"} for index in range(25)]
     result = channel_dispatch.dispatch_order_event("manual", {"files": files}, raise_on_error=True)
 
     assert result == {"success": True, "message_id": "msg-1"}
     assert captured["group_id"] == "group-1"
-    assert captured["files"] == files[:10]
+    assert captured["files"] == files[:20]
+    assert len(captured["files"]) == 20
     assert captured["bot_name"] == "FOMS"
 
 
