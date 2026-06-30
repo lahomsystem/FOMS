@@ -22,6 +22,9 @@ DEDUPE_WINDOWS = {
     "manual": 0,
 }
 
+# ChannelTalk 1메시지당 최대 첨부 수. 채널톡이 10→20으로 상향(2026-06).
+MAX_MANUAL_ATTACHMENTS = 20
+
 
 def _build_order_detail_link(order_id: Any) -> str:
     erp_url = os.environ.get("FOMS_BASE_URL", "https://lahom-dev.up.railway.app").rstrip("/")
@@ -126,7 +129,7 @@ def build_message_template(event_type: str, data: Dict[str, Any]) -> str:
 
 def apply_attachment_policy(files: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Apply a simple attachment cap for manual push."""
-    return files[:10]
+    return files[:MAX_MANUAL_ATTACHMENTS]
 
 
 def get_policy_version() -> str:
@@ -142,7 +145,7 @@ def resolve_push_policy(event_type: str, order_snapshot: Dict[str, Any], wave: s
         "group_id": group_id,
         "dedupe_window": DEDUPE_WINDOWS.get("manual", 0),
         "template_key": "manual",
-        "max_attachments": 10,
+        "max_attachments": MAX_MANUAL_ATTACHMENTS,
     }
 
 
