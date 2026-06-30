@@ -28,6 +28,15 @@
     var label = opts.label || "";
     var downloadUrl = opts.downloadUrl || viewUrl;
 
+    // Mobile: route read-only image preview through GlobalImageViewer (blur + smooth zoom).
+    if (window.fomsIsMobileImageViewer && window.fomsIsMobileImageViewer()) {
+      window.GlobalImageViewer.open(
+        [{ view_url: viewUrl, download_url: downloadUrl, filename: label }],
+        0
+      );
+      return;
+    }
+
     dl.href = downloadUrl;
     dl.classList.toggle("d-none", !downloadUrl || downloadUrl === "#");
 
@@ -50,17 +59,49 @@
     modal.show();
   }
 
+  function attachViewUrl(btn) {
+    return (
+      btn.getAttribute("data-foms-attachment-view-url") ||
+      btn.getAttribute("data-foms-lightbox-src") ||
+      ""
+    );
+  }
+
   function bindGallery(galleryEl) {
-    galleryEl.querySelectorAll("[data-foms-attachment-preview]").forEach(function (btn) {
+    // Capture the whole gallery so clicking one image opens a swipeable viewer.
+    var btns = Array.prototype.slice.call(
+      galleryEl.querySelectorAll("[data-foms-attachment-preview]")
+    );
+    btns.forEach(function (btn) {
       if (btn.dataset.fomsAttachmentPreviewBound === "1") return;
       btn.dataset.fomsAttachmentPreviewBound = "1";
       btn.addEventListener("click", function (ev) {
         ev.preventDefault();
+        // Multi-image gallery → GlobalImageViewer (mobile swipe / PC arrows) for sibling nav.
+        if (window.GlobalImageViewer && window.GlobalImageViewer.open) {
+          var files = btns
+            .map(function (n) {
+              return {
+                view_url: attachViewUrl(n),
+                download_url: n.getAttribute("data-foms-attachment-download-url") || "",
+                filename:
+                  n.getAttribute("data-foms-attachment-label") || n.getAttribute("title") || "이미지",
+              };
+            })
+            .filter(function (f) {
+              return !!f.view_url;
+            });
+          if (files.length > 1) {
+            var clickedUrl = attachViewUrl(btn);
+            var startIndex = files.findIndex(function (f) {
+              return f.view_url === clickedUrl;
+            });
+            window.GlobalImageViewer.open(files, startIndex >= 0 ? startIndex : 0);
+            return;
+          }
+        }
         openAttachmentPreview({
-          viewUrl:
-            btn.getAttribute("data-foms-attachment-view-url") ||
-            btn.getAttribute("data-foms-lightbox-src") ||
-            "",
+          viewUrl: attachViewUrl(btn),
           label:
             btn.getAttribute("data-foms-attachment-label") || btn.getAttribute("title") || "",
           downloadUrl: btn.getAttribute("data-foms-attachment-download-url") || "",

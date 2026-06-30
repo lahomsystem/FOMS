@@ -387,9 +387,10 @@ https://mkt.shopping.naver.com/link/695af7f816fb46287c4b161b</textarea>
         function formatDateToKorean(dateString, timeString = '') {
             if (!dateString) return '';
 
-            const date = new Date(dateString);
-            const month = date.getMonth() + 1;
-            const day = date.getDate();
+            const parts = String(dateString).split('-').map(Number);
+            if (parts.length !== 3 || parts.some(Number.isNaN)) return dateString;
+            const month = parts[1];
+            const day = parts[2];
 
             let result = `${month}월 ${day}일`;
 

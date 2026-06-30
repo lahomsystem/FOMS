@@ -8,6 +8,7 @@ from typing import Any
 from urllib.parse import quote_plus
 
 from db import get_db
+from foms.services.datetime_kst import format_datetime_kst
 from foms.services.erp_display import (
     _ensure_dict,
     _erp_alerts,
@@ -231,7 +232,7 @@ def _load_timeline(order_id: int, limit: int = 5) -> list[WamTimelineEntry]:
                 event_type=str(event.event_type or "event"),
                 label=_timeline_label(str(event.event_type or "event"), payload),
                 description=format_timeline_description(str(event.event_type or "event"), payload),
-                created_at_label=event.created_at.strftime("%Y-%m-%d %H:%M")
+                created_at_label=format_datetime_kst(event.created_at, "%Y-%m-%d %H:%M")
                 if event.created_at
                 else None,
                 meta={"payload": payload},
@@ -376,7 +377,7 @@ def load_wam_order_read_model(order_id: int) -> WamOrderReadModel | None:
         received_date=_value_or_dash(getattr(display_order, "received_date", None)),
         shipping_scheduled_date=_value_or_dash(getattr(display_order, "shipping_scheduled_date", None)),
         as_visit_date=_value_or_dash(as_visit_date),
-        created_at_label=display_order.created_at.strftime("%Y-%m-%d %H:%M")
+        created_at_label=format_datetime_kst(display_order.created_at, "%Y-%m-%d %H:%M")
         if display_order.created_at
         else None,
         urgent=urgent,

@@ -30,6 +30,7 @@ from foms.services.foms_unified_search import (
     matches_query,
 )
 from foms.services.request_utils import get_search_query_arg
+from foms.services.datetime_kst import format_datetime_kst
 from models import Order, OrderAttachment, OrderEvent, SecurityLog, User
 
 # 완료 대시보드 대상: 시공 완료·AS 접수 등 (정책 상수는 `foms.services.erp_policy` SSOT)
@@ -213,7 +214,7 @@ def _serialize_completion_orders(db, orders: list[Order]) -> list[dict]:
                 "storage_key": attachment.storage_key,
                 "view_url": _att_view_url(attachment.storage_key),
                 "download_url": _att_download_url(attachment.storage_key),
-                "created_at": attachment.created_at.strftime("%Y-%m-%d %H:%M") if attachment.created_at else None,
+                "created_at": format_datetime_kst(attachment.created_at, "%Y-%m-%d %H:%M") if attachment.created_at else None,
             })
 
         result.append({

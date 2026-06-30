@@ -284,6 +284,36 @@ def test_edit_erp_order_ships_responsive_form_mounts_for_cohort(
     assert "erp-mobile-pre-sticky-footer" in mobile_form
 
 
+def test_mobile_erp_secnav_chip_order_and_targets() -> None:
+    """secnav 칩 순서: 고객→일정→현장스펙→…, 모든 target id가 섹션에 존재."""
+    mobile = (
+        ROOT / "templates" / "orders" / "partials" / "erp_order_tab_mobile.html"
+    ).read_text(encoding="utf-8")
+
+    chip_labels = re.findall(
+        r'erp-mobile-secnav-chip[^>]*data-erp-secnav-target="([^"]+)"[^>]*>([^<]+)',
+        mobile,
+    )
+    assert [label.strip() for _, label in chip_labels] == [
+        "고객",
+        "일정",
+        "현장 스펙",
+        "접수",
+        "사진",
+        "발주",
+    ]
+    for target_id, _ in chip_labels:
+        assert f'id="{target_id}"' in mobile
+
+    customer_idx = mobile.index('id="erp-mobile-sec-customer"')
+    schedule_idx = mobile.index('id="erp-mobile-sec-schedule"')
+    spec_idx = mobile.index('id="erp-mobile-sec-spec"')
+    received_idx = mobile.index('id="erp-mobile-sec-received"')
+    photo_idx = mobile.index('id="erp-mobile-sec-photo"')
+    order_idx = mobile.index('id="erp-mobile-sec-order"')
+    assert customer_idx < schedule_idx < spec_idx < received_idx < photo_idx < order_idx
+
+
 def test_mobile_erp_form_sections_use_field_priority_collapse_defaults() -> None:
     """접수·발주·사진/동영상·일정은 모두 기본 접힘. 핵심(현장 스펙)만 펼침."""
     mobile = (

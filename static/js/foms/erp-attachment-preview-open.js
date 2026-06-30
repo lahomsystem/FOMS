@@ -63,6 +63,22 @@
     var fileType = String(opts.fileType || "image").toLowerCase();
     var readOnly = opts.readOnly !== false;
 
+    // Mobile + read-only image → unified GlobalImageViewer (blur backdrop + smooth focal zoom).
+    // Edit mode (readOnly false, delete/unlink), video, file, and desktop keep the Bootstrap modal.
+    if (
+      fileType !== "video" &&
+      fileType !== "file" &&
+      readOnly &&
+      window.fomsIsMobileImageViewer &&
+      window.fomsIsMobileImageViewer()
+    ) {
+      window.GlobalImageViewer.open(
+        [{ view_url: viewUrl, download_url: downloadUrl, filename: filename }],
+        0
+      );
+      return true;
+    }
+
     dl.href = downloadUrl;
     dl.classList.toggle("d-none", !downloadUrl || downloadUrl === "#");
     syncFooterActions(readOnly);
@@ -119,7 +135,11 @@
 
   function bindGallery(galleryEl) {
     var readOnly = galleryEl.getAttribute("data-foms-erp-attachment-preview-readonly") === "true";
-    galleryEl.querySelectorAll("[data-foms-erp-attachment-view-url]").forEach(function (node) {
+    // Capture the whole gallery so a click can open a navigable (ChannelTalk-style) viewer.
+    var nodes = Array.prototype.slice.call(
+      galleryEl.querySelectorAll("[data-foms-erp-attachment-view-url]")
+    );
+    nodes.forEach(function (node) {
       if (node.dataset.fomsErpAttachmentPreviewBound === "1") return;
       node.dataset.fomsErpAttachmentPreviewBound = "1";
       node.style.cursor = "pointer";
@@ -133,6 +153,29 @@
       node.addEventListener("click", function (ev) {
         ev.preventDefault();
         ev.stopPropagation();
+        // Multi-image read-only gallery → GlobalImageViewer (PC arrows / mobile swipe),
+        // so clicking one image lets you flip to its siblings.
+        if (readOnly && window.GlobalImageViewer && window.GlobalImageViewer.open) {
+          var files = nodes
+            .map(function (n) {
+              return {
+                view_url: n.getAttribute("data-foms-erp-attachment-view-url") || "",
+                download_url: n.getAttribute("data-foms-erp-attachment-download-url") || "",
+                filename: n.getAttribute("data-foms-erp-attachment-label") || "이미지",
+              };
+            })
+            .filter(function (f) {
+              return !!f.view_url;
+            });
+          if (files.length > 1) {
+            var clickedUrl = node.getAttribute("data-foms-erp-attachment-view-url") || "";
+            var startIndex = files.findIndex(function (f) {
+              return f.view_url === clickedUrl;
+            });
+            window.GlobalImageViewer.open(files, startIndex >= 0 ? startIndex : 0);
+            return;
+          }
+        }
         openErpAttachmentPreview({
           viewUrl: node.getAttribute("data-foms-erp-attachment-view-url") || "",
           downloadUrl: node.getAttribute("data-foms-erp-attachment-download-url") || "",

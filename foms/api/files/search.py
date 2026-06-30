@@ -5,6 +5,7 @@ from flask import jsonify, request
 from foms.web.auth import login_required
 from foms.api.files.blueprint import attachments_bp
 from foms.api.files.routes import build_file_download_url, build_file_view_url
+from foms.services.datetime_kst import format_datetime_kst
 from db import get_db
 from models import Order, OrderAttachment
 
@@ -66,7 +67,7 @@ def api_search_attachments():
                     "view_url": build_file_view_url(storage_key) if storage_key else "",
                     "download_url": build_file_download_url(storage_key) if storage_key else "",
                     "thumbnail_view_url": build_file_view_url(thumbnail_key) if thumbnail_key else None,
-                    "created_at": attachment.created_at.strftime("%Y-%m-%d %H:%M:%S")
+                    "created_at": format_datetime_kst(attachment.created_at)
                     if attachment.created_at is not None
                     else None,
                     "user_id": attachment.user_id,

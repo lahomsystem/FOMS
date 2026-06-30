@@ -28,6 +28,7 @@ from foms.services.erp_display import (
     erp_payment_amount_from_structured,
     get_today_kst,
 )
+from foms.services.datetime_kst import now_utc_naive
 from foms.services.common.business_calendar import business_days_until
 from foms.services.erp_permissions import build_mine_sql_filter
 
@@ -314,7 +315,7 @@ def _ids_construction_unready(base: Any, cons_dates: list[str]) -> list[int]:
 
 def _ids_drawing_stalled(base: Any) -> list[int]:
     """도면/컨펌 48h+ 정체 order id (순수 SQL)."""
-    cutoff = datetime.datetime.now() - datetime.timedelta(hours=48)
+    cutoff = now_utc_naive() - datetime.timedelta(hours=48)
     rows = base.filter(
         Order.erp_stage_code.in_(["DRAWING", "CONFIRM"]),
         Order.erp_stage_updated_at.isnot(None),

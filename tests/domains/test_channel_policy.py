@@ -3,10 +3,13 @@ from __future__ import annotations
 import foms.services.channel_policy as channel_policy
 
 
-def test_apply_attachment_policy_caps_to_ten_items() -> None:
-    files = [{"id": index} for index in range(12)]
+def test_apply_attachment_policy_caps_to_twenty_items() -> None:
+    files = [{"id": index} for index in range(25)]
 
-    assert channel_policy.apply_attachment_policy(files) == files[:10]
+    capped = channel_policy.apply_attachment_policy(files)
+
+    assert capped == files[:20]
+    assert len(capped) == channel_policy.MAX_MANUAL_ATTACHMENTS == 20
 
 
 def test_resolve_push_policy_uses_measurement_group_for_manual_push(monkeypatch) -> None:
@@ -18,7 +21,7 @@ def test_resolve_push_policy_uses_measurement_group_for_manual_push(monkeypatch)
         "group_id": "group-main",
         "dedupe_window": 0,
         "template_key": "manual",
-        "max_attachments": 10,
+        "max_attachments": 20,
     }
 
 

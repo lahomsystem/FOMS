@@ -209,7 +209,7 @@
                   <td>{{ d.phone }}</td>
                   <td class="text-truncate" style="max-width: 200px;" title="{{ d.address }}">{{ d.address }}</td>
                   <td class="text-truncate" style="max-width: 150px;" title="{{ d.product }}">{{ d.product }}</td>
-                  <td>{{ o.created_at.strftime('%Y-%m-%d') if o.created_at else '-' }}</td>
+                  <td>{{ (o.created_at|format_datetime_kst('%Y-%m-%d')) if o.created_at else '-' }}</td>
                   <td>
                     {% if not is_construction_team|default(false) %}
                     <a href="{{ url_for('order_edit.edit_order', order_id=o.id) }}{% if o.is_erp_order %}?open=erp-order{% endif %}" class="btn btn-sm btn-outline-secondary" target="_blank">
@@ -319,7 +319,7 @@
             {{ foms_order_contact_kv({'phone': d.phone, 'address': d.address, 'manager_name': d.manager_name}) }}
             <div class="erp-history-mobile-card__meta-row">
               <dt>생성</dt>
-              <dd>{{ o.created_at.strftime('%Y-%m-%d') if o.created_at else '-' }}</dd>
+              <dd>{{ (o.created_at|format_datetime_kst('%Y-%m-%d')) if o.created_at else '-' }}</dd>
             </div>
           </dl>
           <div class="erp-history-mobile-card__actions">

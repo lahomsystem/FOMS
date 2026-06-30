@@ -30,71 +30,14 @@ ERP Order mobile-v2 tab pane.
             <div class="tab-content">
                 <div class="tab-pane fade show active" id="erp-form" role="tabpanel">
                     <nav class="erp-mobile-secnav" id="erp-mobile-secnav" aria-label="섹션 이동">
+                        <button type="button" class="erp-mobile-secnav-chip" data-erp-secnav-target="erp-mobile-sec-customer">고객</button>
+                        <button type="button" class="erp-mobile-secnav-chip" data-erp-secnav-target="erp-mobile-sec-schedule">일정</button>
                         <button type="button" class="erp-mobile-secnav-chip is-active" data-erp-secnav-target="erp-mobile-sec-spec">현장 스펙</button>
                         <button type="button" class="erp-mobile-secnav-chip" data-erp-secnav-target="erp-mobile-sec-received">접수</button>
                         <button type="button" class="erp-mobile-secnav-chip" data-erp-secnav-target="erp-mobile-sec-photo">사진</button>
                         <button type="button" class="erp-mobile-secnav-chip" data-erp-secnav-target="erp-mobile-sec-order">발주</button>
-                        <button type="button" class="erp-mobile-secnav-chip" data-erp-secnav-target="erp-mobile-sec-schedule">일정</button>
                     </nav>
-                    <section class="erp-form-section" id="erp-mobile-sec-received" aria-label="접수 정보">
-                        <button class="erp-mobile-collapse-toggle" type="button" id="erp-mobile-collapse-received-toggle"
-                            data-bs-toggle="collapse" data-bs-target="#erp-mobile-collapse-received-body"
-                            aria-expanded="false" aria-controls="erp-mobile-collapse-received-body">
-                            <span aria-hidden="true"><i class="fas fa-chevron-right"></i></span>
-                            <strong><i class="fas fa-clipboard-list erp-sec-ico" aria-hidden="true"></i>접수</strong>
-                            <span>기본 접힘</span>
-                        </button>
-                        <div class="collapse" id="erp-mobile-collapse-received-body">
-                        <div class="field-grid-2">
-                            <div class="field erp-mobile-inline">
-                                <label class="field__label" for="erp-received-date">접수일</label>
-                                <input type="date" class="foms-input foms-tabular" id="erp-received-date" autocomplete="off">
-                            </div>
-                            <div class="field erp-mobile-inline">
-                                <label class="field__label" for="erp-received-time-select">접수시간</label>
-                                <div class="erp-mobile-time-inline" id="erp-received-time-control">
-                                    <select class="foms-select foms-tabular" id="erp-received-time-select" autocomplete="off">
-                                        <option value="">시간 선택</option>
-                                        <option value="오전">오전</option>
-                                        <option value="오후">오후</option>
-                                        <option value="__direct__">직접 입력</option>
-                                    </select>
-                                    <input type="text" class="foms-input foms-tabular d-none" id="erp-received-time"
-                                        placeholder="직접 입력" autocomplete="off" lang="ko">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="erp-mobile-toggle-row">
-                            <label class="erp-mobile-check" for="erp-urgent-flag">
-                                <input class="form-check-input" type="checkbox" id="erp-urgent-flag" autocomplete="off">
-                                <span>긴급</span>
-                            </label>
-                            <label class="erp-mobile-check" for="erp-self-measurement">
-                                <input class="form-check-input" type="checkbox" id="erp-self-measurement" autocomplete="off">
-                                <span>자가실측</span>
-                            </label>
-                            <label class="erp-mobile-check" for="erp-regional-order">
-                                <input class="form-check-input" type="checkbox" id="erp-regional-order" autocomplete="off">
-                                <span>지방주문</span>
-                            </label>
-                        </div>
-                        <div class="field erp-mobile-inline d-none" id="erp-urgent-reason-field">
-                            <label class="field__label" for="erp-urgent-reason">긴급 사유</label>
-                            <input type="text" class="foms-input" id="erp-urgent-reason"
-                                placeholder="시공일 임박/현장 변경/자재 이슈" autocomplete="off" lang="ko">
-                        </div>
-                        <div class="field erp-mobile-inline d-none" id="erp-regional-construction-type-field">
-                            <label class="field__label" for="erp-regional-construction-type">지방주문 구분</label>
-                            <select class="foms-input" id="erp-regional-construction-type" autocomplete="off" disabled>
-                                <option value="">하우드/협력사 선택</option>
-                                <option value="하우드 시공">하우드</option>
-                                <option value="협력사 시공">협력사</option>
-                            </select>
-                        </div>
-                        </div>
-                    </section>
-
-                    <section class="erp-form-section" aria-label="고객 정보">
+                    <section class="erp-form-section" id="erp-mobile-sec-customer" aria-label="고객 정보">
                         <h3 class="erp-form-section__title"><i class="fas fa-user erp-sec-ico" aria-hidden="true"></i>고객</h3>
                         <div class="field-grid-2">
                             <div class="field erp-mobile-inline">
@@ -144,154 +87,7 @@ ERP Order mobile-v2 tab pane.
                         </div>
                     </section>
 
-                    <section class="erp-form-section erp-form-section--primary" id="erp-mobile-sec-spec" aria-label="현장 제품 스펙">
-                        <div class="erp-mobile-section-head">
-                            <h3 class="erp-form-section__title"><i class="fas fa-ruler-combined erp-sec-ico" aria-hidden="true"></i>현장 스펙</h3>
-                        </div>
-                        <div id="erp-items" class="erp-items-mobile-stack"></div>
-                        <button class="foms-btn foms-btn--secondary erp-mobile-add-item-btn" type="button" id="erp-add-item-btn">
-                            <i class="fas fa-plus"></i> 항목 추가
-                        </button>
-                        <div class="erp-mobile-amounts erp-mobile-amounts--field">
-                            <div class="erp-mobile-amount-row">
-                                <span class="erp-mobile-amount-label">출고가</span>
-                                <div class="erp-mobile-amount-chip erp-amount-value" id="erp-items-total">0원</div>
-                            </div>
-                            <div id="erp-deposit-section" class="erp-mobile-amount-row">
-                                <div class="erp-mobile-amount-label">
-                                    <button type="button" class="erp-payment-confirm-btn" onclick="window.erpTogglePayment(this, 'deposit')" data-payment-type="deposit" data-confirmed="0" title="미확인 - 클릭하여 확인 완료 처리" style="background: none; border: 0; padding: 0.1rem; cursor: pointer;">
-                                        <img src="{{ url_for('static', filename='images/pay-coin-gray.png') }}" class="erp-custom-payment-icon erp-custom-payment-unconfirmed" alt="예약금">
-                                    </button>
-                                    <label for="erp-deposit-amount">예약금(선금)</label>
-                                </div>
-                                <input type="text" id="erp-deposit-amount" inputmode="numeric" placeholder="0원" maxlength="24" class="foms-input foms-tabular erp-amount-value erp-amount-value--deposit" title="숫자 입력 시 1,000단위 쉼표가 적용됩니다.">
-                            </div>
-                            <div id="erp-discount-section" class="erp-mobile-amount-row" style="display: none;">
-                                <div class="erp-mobile-amount-label">
-                                    <label for="erp-discount-amount">할인</label>
-                                </div>
-                                <input type="text" id="erp-discount-amount" inputmode="numeric" placeholder="0원" maxlength="24" class="foms-input foms-tabular erp-amount-value erp-amount-value--discount" title="숫자 입력 시 1,000단위 쉼표가 적용됩니다.">
-                            </div>
-                            <div id="erp-remaining-section" class="erp-mobile-amount-row" style="display: none;">
-                                <div class="erp-mobile-amount-label">
-                                    <button type="button" class="erp-payment-confirm-btn" onclick="window.erpTogglePayment(this, 'balance')" data-payment-type="balance" data-confirmed="0" title="미확인 - 클릭하여 확인 완료 처리" style="background: none; border: 0; padding: 0.1rem; cursor: pointer;">
-                                        <img src="{{ url_for('static', filename='images/pay-bill-gray.png') }}" class="erp-custom-payment-icon erp-custom-payment-unconfirmed" alt="잔금">
-                                    </button>
-                                    <span>잔금</span>
-                                </div>
-                                <div class="erp-mobile-amount-chip erp-amount-value erp-amount-value--balance" id="erp-remaining-amount">0원</div>
-                            </div>
-                            <div id="erp-cash-receipt-section" class="erp-mobile-amount-row" style="display: none;">
-                                <div class="erp-mobile-amount-label">
-                                    <label for="erp-cash-receipt">현금영수증</label>
-                                </div>
-                                <input type="text" id="erp-cash-receipt" inputmode="tel" placeholder="연락처 입력" maxlength="32" class="foms-input foms-tabular erp-amount-value erp-amount-value--cash-receipt text-end" title="현금영수증 발급 연락처(휴대폰 등). 비어 있으면 PUSH·변환 텍스트에 표시되지 않습니다.">
-                            </div>
-                        </div>
-                        <div class="field__hint" id="erp-status-text"></div>
-                    </section>
-
-                    <section class="erp-form-section" id="erp-mobile-sec-photo" aria-label="사진과 동영상">
-                        <button class="erp-mobile-collapse-toggle collapsed" type="button" id="erp-mobile-collapse-attachments-toggle"
-                            data-bs-toggle="collapse" data-bs-target="#erp-mobile-collapse-attachments-body"
-                            aria-expanded="false" aria-controls="erp-mobile-collapse-attachments-body">
-                            <span aria-hidden="true"><i class="fas fa-chevron-right"></i></span>
-                            <strong><i class="fas fa-camera erp-sec-ico" aria-hidden="true"></i>사진/동영상</strong>
-                            <span>실측·도면·시공</span>
-                        </button>
-                        <div class="collapse" id="erp-mobile-collapse-attachments-body">
-                        <div class="erp-mobile-dropzone erp-mobile-dropzone--camera" data-erp-attachment-paste-zone="common" tabindex="0"
-                            aria-label="공통 첨부 파일 업로드 영역. 이미지를 붙여넣으면 바로 업로드됩니다.">
-                            <div class="erp-mobile-attachment-controls erp-mobile-attachment-controls--field">
-                                <div class="field">
-                                    <label class="field__label" for="erp-attachments-category">분류</label>
-                                    <select id="erp-attachments-category" class="foms-select">
-                                        <option value="measurement">실측</option>
-                                        <option value="drawing">도면</option>
-                                        <option value="construction">시공</option>
-                                        <option value="as">AS</option>
-                                    </select>
-                                </div>
-                                <div class="field">
-                                    <label class="field__label" for="erp-attachments-input">파일</label>
-                                    <input type="file" id="erp-attachments-input" accept="image/*,video/*" multiple data-foms-no-capture class="visually-hidden">
-                                    <button class="foms-btn foms-btn--secondary erp-mobile-attachment-trigger" type="button" id="erp-attachments-upload-btn">
-                                        <i class="fas fa-camera"></i> 사진/동영상 추가
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="field__hint" id="erp-attachments-status"></div>
-                            <div id="erp-attachments-progress" class="mt-2 d-none">
-                                <div class="progress" style="height: 18px;">
-                                    <div class="progress-bar progress-bar-striped progress-bar-animated" id="erp-attachments-progress-bar" role="progressbar" style="width: 0%">0%</div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row g-2 mt-2" id="erp-attachments-gallery"></div>
-                        <textarea class="visually-hidden" id="erp-conversion-text" rows="8" readonly aria-hidden="true" tabindex="-1"></textarea>
-                        </div>
-                    </section>
-
-                    <section class="erp-form-section" id="erp-mobile-sec-order" aria-label="발주와 담당">
-                        <button class="erp-mobile-collapse-toggle" type="button" id="erp-mobile-collapse-order-toggle"
-                            data-bs-toggle="collapse" data-bs-target="#erp-mobile-collapse-order-body"
-                            aria-expanded="false" aria-controls="erp-mobile-collapse-order-body">
-                            <span aria-hidden="true"><i class="fas fa-chevron-right"></i></span>
-                            <strong><i class="fas fa-industry erp-sec-ico" aria-hidden="true"></i>발주</strong>
-                            <span>기본 접힘</span>
-                        </button>
-                        <div class="collapse" id="erp-mobile-collapse-order-body">
-                        <div class="field">
-                            <div class="erp-mobile-section-head">
-                                <label class="field__label" for="erp-orderer-select">발주사</label>
-                                <label class="erp-mobile-check" for="erp-orderer-direct">
-                                    <input type="checkbox" class="form-check-input" id="erp-orderer-direct" autocomplete="off">
-                                    <span>직접입력</span>
-                                </label>
-                            </div>
-                            <select class="foms-select" id="erp-orderer-select">
-                                <option value="라홈">라홈</option>
-                                <option value="하우드">하우드</option>
-                            </select>
-                            <input type="text" class="foms-input d-none" id="erp-orderer" autocomplete="off" lang="ko" placeholder="발주사 직접 입력">
-                        </div>
-                        <div class="field-grid-2">
-                            <div class="field erp-mobile-inline">
-                                <label class="field__label" for="erp-manager">담당자</label>
-                                <input type="text" class="foms-input" id="erp-manager" autocomplete="off" lang="ko">
-                            </div>
-                            <div class="field erp-mobile-inline">
-                                <label class="field__label" for="erp-construction-workers">시공 담당자</label>
-                                <input type="text" class="foms-input" id="erp-construction-workers" autocomplete="off" lang="ko" placeholder="시공자1, 시공자2">
-                            </div>
-                        </div>
-                        <div class="field-grid-2">
-                            <div class="field erp-mobile-inline">
-                                <label class="field__label" for="erp-workflow-stage">단계</label>
-                                <select class="foms-select" id="erp-workflow-stage">
-                                    <option value="">-</option>
-                                    <option value="RECEIVED"{% if erp_order_default_stage_received %} selected{% endif %}>A. 주문접수</option>
-                                    <option value="MEASURE">C. 실측</option>
-                                    <option value="DRAWING">D. 도면</option>
-                                    <option value="CONFIRM">E. 고객컨펌</option>
-                                    <option value="PRODUCTION">F. 생산</option>
-                                    <option value="CONSTRUCTION">G. 시공</option>
-                                    <option value="CS">H. CS</option>
-                                    <option value="AS_RECEIVED">AS접수</option>
-                                    <option value="AS_COMPLETED">AS완료</option>
-                                    <option value="COMPLETED">완료</option>
-                                    <option value="AS">AS처리</option>
-                                </select>
-                            </div>
-                            <div class="field erp-mobile-inline">
-                                <label class="field__label" for="erp-notes">비고</label>
-                                <input type="text" class="foms-input" id="erp-notes" placeholder="주문 비고" autocomplete="off" lang="ko">
-                            </div>
-                        </div>
-                        </div>
-                    </section>
-
-                    <section class="erp-form-section erp-mobile-pre-sticky-footer" id="erp-mobile-sec-schedule" aria-label="일정">
+                    <section class="erp-form-section" id="erp-mobile-sec-schedule" aria-label="일정">
                         <button class="erp-mobile-collapse-toggle collapsed" type="button" id="erp-mobile-collapse-schedule-toggle"
                             data-bs-toggle="collapse" data-bs-target="#erp-mobile-collapse-schedule-body"
                             aria-expanded="false" aria-controls="erp-mobile-collapse-schedule-body">
@@ -366,6 +162,211 @@ ERP Order mobile-v2 tab pane.
                                 <label class="field__label" for="erp-measurement-note">실측 특이사항</label>
                                 <input type="text" class="foms-input" id="erp-measurement-note"
                                     placeholder="시간 변경 가능/현장 특이사항/준비물" autocomplete="off" lang="ko">
+                            </div>
+                        </div>
+                        </div>
+                    </section>
+
+                    <section class="erp-form-section erp-form-section--primary" id="erp-mobile-sec-spec" aria-label="현장 제품 스펙">
+                        <div class="erp-mobile-section-head">
+                            <h3 class="erp-form-section__title"><i class="fas fa-ruler-combined erp-sec-ico" aria-hidden="true"></i>현장 스펙</h3>
+                        </div>
+                        <div id="erp-items" class="erp-items-mobile-stack"></div>
+                        <button class="foms-btn foms-btn--secondary erp-mobile-add-item-btn" type="button" id="erp-add-item-btn">
+                            <i class="fas fa-plus"></i> 항목 추가
+                        </button>
+                        <div class="erp-mobile-amounts erp-mobile-amounts--field">
+                            <div class="erp-mobile-amount-row">
+                                <span class="erp-mobile-amount-label">출고가</span>
+                                <div class="erp-mobile-amount-chip erp-amount-value" id="erp-items-total">0원</div>
+                            </div>
+                            <div id="erp-deposit-section" class="erp-mobile-amount-row">
+                                <div class="erp-mobile-amount-label">
+                                    <button type="button" class="erp-payment-confirm-btn" onclick="window.erpTogglePayment(this, 'deposit')" data-payment-type="deposit" data-confirmed="0" title="미확인 - 클릭하여 확인 완료 처리" style="background: none; border: 0; padding: 0.1rem; cursor: pointer;">
+                                        <img src="{{ url_for('static', filename='images/pay-coin-gray.png') }}" class="erp-custom-payment-icon erp-custom-payment-unconfirmed" alt="예약금">
+                                    </button>
+                                    <label for="erp-deposit-amount">예약금(선금)</label>
+                                </div>
+                                <input type="text" id="erp-deposit-amount" inputmode="numeric" placeholder="0원" maxlength="24" class="foms-input foms-tabular erp-amount-value erp-amount-value--deposit" title="숫자 입력 시 1,000단위 쉼표가 적용됩니다.">
+                            </div>
+                            <div id="erp-discount-section" class="erp-mobile-amount-row" style="display: none;">
+                                <div class="erp-mobile-amount-label">
+                                    <label for="erp-discount-amount">할인</label>
+                                </div>
+                                <input type="text" id="erp-discount-amount" inputmode="numeric" placeholder="0원" maxlength="24" class="foms-input foms-tabular erp-amount-value erp-amount-value--discount" title="숫자 입력 시 1,000단위 쉼표가 적용됩니다.">
+                            </div>
+                            <div id="erp-remaining-section" class="erp-mobile-amount-row" style="display: none;">
+                                <div class="erp-mobile-amount-label">
+                                    <button type="button" class="erp-payment-confirm-btn" onclick="window.erpTogglePayment(this, 'balance')" data-payment-type="balance" data-confirmed="0" title="미확인 - 클릭하여 확인 완료 처리" style="background: none; border: 0; padding: 0.1rem; cursor: pointer;">
+                                        <img src="{{ url_for('static', filename='images/pay-bill-gray.png') }}" class="erp-custom-payment-icon erp-custom-payment-unconfirmed" alt="잔금">
+                                    </button>
+                                    <span>잔금</span>
+                                </div>
+                                <div class="erp-mobile-amount-chip erp-amount-value erp-amount-value--balance" id="erp-remaining-amount">0원</div>
+                            </div>
+                            <div id="erp-cash-receipt-section" class="erp-mobile-amount-row" style="display: none;">
+                                <div class="erp-mobile-amount-label">
+                                    <label for="erp-cash-receipt">현금영수증</label>
+                                </div>
+                                <input type="text" id="erp-cash-receipt" inputmode="tel" placeholder="연락처 입력" maxlength="32" class="foms-input foms-tabular erp-amount-value erp-amount-value--cash-receipt text-end" title="현금영수증 발급 연락처(휴대폰 등). 비어 있으면 PUSH·변환 텍스트에 표시되지 않습니다.">
+                            </div>
+                        </div>
+                        <div class="field__hint" id="erp-status-text"></div>
+                    </section>
+
+                    <section class="erp-form-section" id="erp-mobile-sec-received" aria-label="접수 정보">
+                        <button class="erp-mobile-collapse-toggle" type="button" id="erp-mobile-collapse-received-toggle"
+                            data-bs-toggle="collapse" data-bs-target="#erp-mobile-collapse-received-body"
+                            aria-expanded="false" aria-controls="erp-mobile-collapse-received-body">
+                            <span aria-hidden="true"><i class="fas fa-chevron-right"></i></span>
+                            <strong><i class="fas fa-clipboard-list erp-sec-ico" aria-hidden="true"></i>접수</strong>
+                            <span>기본 접힘</span>
+                        </button>
+                        <div class="collapse" id="erp-mobile-collapse-received-body">
+                        <div class="field-grid-2">
+                            <div class="field erp-mobile-inline">
+                                <label class="field__label" for="erp-received-date">접수일</label>
+                                <input type="date" class="foms-input foms-tabular" id="erp-received-date" autocomplete="off">
+                            </div>
+                            <div class="field erp-mobile-inline">
+                                <label class="field__label" for="erp-received-time-select">접수시간</label>
+                                <div class="erp-mobile-time-inline" id="erp-received-time-control">
+                                    <select class="foms-select foms-tabular" id="erp-received-time-select" autocomplete="off">
+                                        <option value="">시간 선택</option>
+                                        <option value="오전">오전</option>
+                                        <option value="오후">오후</option>
+                                        <option value="__direct__">직접 입력</option>
+                                    </select>
+                                    <input type="text" class="foms-input foms-tabular d-none" id="erp-received-time"
+                                        placeholder="직접 입력" autocomplete="off" lang="ko">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="erp-mobile-toggle-row">
+                            <label class="erp-mobile-check" for="erp-urgent-flag">
+                                <input class="form-check-input" type="checkbox" id="erp-urgent-flag" autocomplete="off">
+                                <span>긴급</span>
+                            </label>
+                            <label class="erp-mobile-check" for="erp-self-measurement">
+                                <input class="form-check-input" type="checkbox" id="erp-self-measurement" autocomplete="off">
+                                <span>자가실측</span>
+                            </label>
+                            <label class="erp-mobile-check" for="erp-regional-order">
+                                <input class="form-check-input" type="checkbox" id="erp-regional-order" autocomplete="off">
+                                <span>지방주문</span>
+                            </label>
+                        </div>
+                        <div class="field erp-mobile-inline d-none" id="erp-urgent-reason-field">
+                            <label class="field__label" for="erp-urgent-reason">긴급 사유</label>
+                            <input type="text" class="foms-input" id="erp-urgent-reason"
+                                placeholder="시공일 임박/현장 변경/자재 이슈" autocomplete="off" lang="ko">
+                        </div>
+                        <div class="field erp-mobile-inline d-none" id="erp-regional-construction-type-field">
+                            <label class="field__label" for="erp-regional-construction-type">지방주문 구분</label>
+                            <select class="foms-input" id="erp-regional-construction-type" autocomplete="off" disabled>
+                                <option value="">하우드/협력사 선택</option>
+                                <option value="하우드 시공">하우드</option>
+                                <option value="협력사 시공">협력사</option>
+                            </select>
+                        </div>
+                        </div>
+                    </section>
+
+                    <section class="erp-form-section" id="erp-mobile-sec-photo" aria-label="사진과 동영상">
+                        <button class="erp-mobile-collapse-toggle collapsed" type="button" id="erp-mobile-collapse-attachments-toggle"
+                            data-bs-toggle="collapse" data-bs-target="#erp-mobile-collapse-attachments-body"
+                            aria-expanded="false" aria-controls="erp-mobile-collapse-attachments-body">
+                            <span aria-hidden="true"><i class="fas fa-chevron-right"></i></span>
+                            <strong><i class="fas fa-camera erp-sec-ico" aria-hidden="true"></i>사진/동영상</strong>
+                            <span>실측·도면·시공</span>
+                        </button>
+                        <div class="collapse" id="erp-mobile-collapse-attachments-body">
+                        <div class="erp-mobile-dropzone erp-mobile-dropzone--camera" data-erp-attachment-paste-zone="common" tabindex="0"
+                            aria-label="공통 첨부 파일 업로드 영역. 이미지를 붙여넣으면 바로 업로드됩니다.">
+                            <div class="erp-mobile-attachment-controls erp-mobile-attachment-controls--field">
+                                <div class="field">
+                                    <label class="field__label" for="erp-attachments-category">분류</label>
+                                    <select id="erp-attachments-category" class="foms-select">
+                                        <option value="measurement">실측</option>
+                                        <option value="drawing">도면</option>
+                                        <option value="construction">시공</option>
+                                        <option value="as">AS</option>
+                                    </select>
+                                </div>
+                                <div class="field">
+                                    <label class="field__label" for="erp-attachments-input">파일</label>
+                                    <input type="file" id="erp-attachments-input" accept="image/*,video/*" multiple data-foms-no-capture class="visually-hidden">
+                                    <button class="foms-btn foms-btn--secondary erp-mobile-attachment-trigger" type="button" id="erp-attachments-upload-btn">
+                                        <i class="fas fa-camera"></i> 사진/동영상 추가
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="field__hint" id="erp-attachments-status"></div>
+                            <div id="erp-attachments-progress" class="mt-2 d-none">
+                                <div class="progress" style="height: 18px;">
+                                    <div class="progress-bar progress-bar-striped progress-bar-animated" id="erp-attachments-progress-bar" role="progressbar" style="width: 0%">0%</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row g-2 mt-2" id="erp-attachments-gallery"></div>
+                        <textarea class="visually-hidden" id="erp-conversion-text" rows="8" readonly aria-hidden="true" tabindex="-1"></textarea>
+                        </div>
+                    </section>
+
+                    <section class="erp-form-section erp-mobile-pre-sticky-footer" id="erp-mobile-sec-order" aria-label="발주와 담당">
+                        <button class="erp-mobile-collapse-toggle" type="button" id="erp-mobile-collapse-order-toggle"
+                            data-bs-toggle="collapse" data-bs-target="#erp-mobile-collapse-order-body"
+                            aria-expanded="false" aria-controls="erp-mobile-collapse-order-body">
+                            <span aria-hidden="true"><i class="fas fa-chevron-right"></i></span>
+                            <strong><i class="fas fa-industry erp-sec-ico" aria-hidden="true"></i>발주</strong>
+                            <span>기본 접힘</span>
+                        </button>
+                        <div class="collapse" id="erp-mobile-collapse-order-body">
+                        <div class="field">
+                            <div class="erp-mobile-section-head">
+                                <label class="field__label" for="erp-orderer-select">발주사</label>
+                                <label class="erp-mobile-check" for="erp-orderer-direct">
+                                    <input type="checkbox" class="form-check-input" id="erp-orderer-direct" autocomplete="off">
+                                    <span>직접입력</span>
+                                </label>
+                            </div>
+                            <select class="foms-select" id="erp-orderer-select">
+                                <option value="라홈">라홈</option>
+                                <option value="하우드">하우드</option>
+                            </select>
+                            <input type="text" class="foms-input d-none" id="erp-orderer" autocomplete="off" lang="ko" placeholder="발주사 직접 입력">
+                        </div>
+                        <div class="field-grid-2">
+                            <div class="field erp-mobile-inline">
+                                <label class="field__label" for="erp-manager">담당자</label>
+                                <input type="text" class="foms-input" id="erp-manager" autocomplete="off" lang="ko">
+                            </div>
+                            <div class="field erp-mobile-inline">
+                                <label class="field__label" for="erp-construction-workers">시공 담당자</label>
+                                <input type="text" class="foms-input" id="erp-construction-workers" autocomplete="off" lang="ko" placeholder="시공자1, 시공자2">
+                            </div>
+                        </div>
+                        <div class="field-grid-2">
+                            <div class="field erp-mobile-inline">
+                                <label class="field__label" for="erp-workflow-stage">단계</label>
+                                <select class="foms-select" id="erp-workflow-stage">
+                                    <option value="">-</option>
+                                    <option value="RECEIVED"{% if erp_order_default_stage_received %} selected{% endif %}>A. 주문접수</option>
+                                    <option value="MEASURE">C. 실측</option>
+                                    <option value="DRAWING">D. 도면</option>
+                                    <option value="CONFIRM">E. 고객컨펌</option>
+                                    <option value="PRODUCTION">F. 생산</option>
+                                    <option value="CONSTRUCTION">G. 시공</option>
+                                    <option value="CS">H. CS</option>
+                                    <option value="AS_RECEIVED">AS접수</option>
+                                    <option value="AS_COMPLETED">AS완료</option>
+                                    <option value="COMPLETED">완료</option>
+                                    <option value="AS">AS처리</option>
+                                </select>
+                            </div>
+                            <div class="field erp-mobile-inline">
+                                <label class="field__label" for="erp-notes">비고</label>
+                                <input type="text" class="foms-input" id="erp-notes" placeholder="주문 비고" autocomplete="off" lang="ko">
                             </div>
                         </div>
                         </div>

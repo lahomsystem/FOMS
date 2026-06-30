@@ -37,6 +37,17 @@ def test_stage_auto_transitioned_meta_uses_korean_stage() -> None:
     assert "MEASURE" not in meta
 
 
+def test_timeline_meta_converts_naive_utc_created_at_to_kst() -> None:
+    meta = format_timeline_meta(
+        "DRAWING_ASSIGNEE_SET",
+        {"before": "None", "after": "김담당"},
+        actor_name="김담당",
+        created_at=datetime(2026, 6, 29, 7, 13),
+    )
+    assert "2026-06-29 16:13" in meta
+    assert "2026-06-29 07:13" not in meta
+
+
 def test_drawing_status_changed_meta_translates_uppercase_codes() -> None:
     meta = format_timeline_meta(
         "DRAWING_STATUS_CHANGED",
@@ -115,6 +126,7 @@ def test_mobile_timeline_events_localizes_title_and_meta() -> None:
     assert items[0]["title"] == "단계 자동 전환"
     assert "도면" in items[0]["meta"]
     assert "DRAWING" not in items[0]["meta"]
+    assert "2026-06-02 18:00" in items[0]["meta"]
 
 
 def test_mobile_timeline_drawing_status_korean_meta() -> None:

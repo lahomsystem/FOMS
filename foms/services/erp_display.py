@@ -4,7 +4,7 @@ import json
 import unicodedata
 
 from foms.services.common.business_calendar import business_days_until
-from foms.services.datetime_kst import format_datetime_kst, get_today_kst
+from foms.services.datetime_kst import format_datetime_kst, get_today_kst, now_utc_naive, to_utc_naive
 from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.erp_policy import (
     STAGE_LABELS,
@@ -434,9 +434,10 @@ def _erp_alerts(order, structured_data, attachments_count: int):
         st = wf.get('stage')
         stage_updated_at = wf.get('stage_updated_at')
         if st in ('DRAWING', 'CONFIRM') and stage_updated_at:
-            ts = datetime.datetime.fromisoformat(str(stage_updated_at))
-            delta = datetime.datetime.now() - ts
-            drawing_overdue = delta.total_seconds() >= (48 * 3600)
+            ts = to_utc_naive(stage_updated_at)
+            if ts is not None:
+                delta = now_utc_naive() - ts
+                drawing_overdue = delta.total_seconds() >= (48 * 3600)
     except Exception:
         drawing_overdue = False
     return {

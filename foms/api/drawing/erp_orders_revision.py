@@ -13,6 +13,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from db import get_db
 from models import Order, Notification, SecurityLog
 from foms.web.auth import login_required, get_user_by_id
+from foms.services.datetime_kst import now_utc_naive
 from foms.api.notifications import (
     resolve_notification_recipient_user_ids,
     invalidate_badge_cache_for_user_ids,
@@ -41,7 +42,6 @@ def api_order_request_revision(order_id):
     - target_drawing_key (단일): 호환성 유지
     """
     try:
-        from datetime import datetime
         data = request.get_json() or {}
         note = data.get('note', '')
         files = data.get('files', []) if isinstance(data.get('files', []), list) else []
@@ -101,7 +101,7 @@ def api_order_request_revision(order_id):
             'action': 'REQUEST_REVISION',
             'by_user_id': session.get('user_id'),
             'by_user_name': current_user.name,
-            'at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'at': now_utc_naive().strftime('%Y-%m-%d %H:%M:%S'),
             'note': note,
             'files': files,
             'files_count': len(files),
@@ -223,7 +223,7 @@ def api_order_request_revision_check(order_id):
         if matched_idx < 0:
             return jsonify({'success': False, 'message': '해당 수정 요청을 찾을 수 없습니다.'}), 404
 
-        now_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        now_str = now_utc_naive().strftime('%Y-%m-%d %H:%M:%S')
 
         target = dict(history[matched_idx] or {})
         target['review_check'] = {

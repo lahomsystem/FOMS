@@ -199,7 +199,7 @@ function closeNotification(notificationId) {
 
 function formatNotificationTime(dateString) {
     if (!dateString) return '';
-    const date = new Date(dateString);
+    const date = parseKstDateTime(dateString);
     const now = new Date();
     const diff = now - date;
     const minutes = Math.floor(diff / 60000);
@@ -209,5 +209,5 @@ function formatNotificationTime(dateString) {
     if (minutes < 60) return `${minutes}분 전`;
     if (hours < 24) return `${hours}시간 전`;
     
-    return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Seoul' });
 }

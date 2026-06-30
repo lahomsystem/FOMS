@@ -7,6 +7,7 @@ from sqlalchemy import and_, func, or_
 
 from foms.web.auth import log_access, login_required
 from foms.api.channel.blueprint import chat_bp
+from foms.services.datetime_kst import format_datetime_kst
 from db import get_db
 from models import ChatAttachment, ChatMessage, ChatRoom, ChatRoomMember, Order, User
 from wdcalculator_db import get_wdcalculator_db
@@ -438,7 +439,7 @@ def api_chat_search_orders():
                 "status": order.status,
                 "received_date": order.received_date,
                 "created_at": (
-                    lambda timestamp: timestamp.strftime("%Y-%m-%d %H:%M:%S") if timestamp else None
+                    lambda timestamp: format_datetime_kst(timestamp) if timestamp else None
                 )(getattr(order, "created_at", None)),
             }
             for order in orders

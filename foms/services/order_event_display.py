@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from foms.services.datetime_kst import format_datetime_kst
 from foms.services.erp_policy import STAGE_LABELS, STAGE_NAME_TO_CODE
 
 __all__ = [
@@ -429,7 +430,7 @@ def format_timeline_meta(
     if actor_name:
         parts.append(actor_name)
     if created_at:
-        parts.append(created_at.strftime("%Y-%m-%d %H:%M"))
+        parts.append(format_datetime_kst(created_at, "%Y-%m-%d %H:%M"))
 
     from_label, to_label = _resolve_payload_transition(event_type, payload)
     if from_label and to_label:

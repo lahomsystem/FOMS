@@ -13,6 +13,7 @@ from sqlalchemy import or_, false, and_, func, case as sql_case
 
 from models import Order, User
 from foms.services.erp_display import get_today_kst, _erp_get_stage
+from foms.services.datetime_kst import now_utc_naive
 from foms.services.common.business_calendar import business_days_until
 from foms.services.erp_policy import (
     STAGE_NAME_TO_CODE,
@@ -119,7 +120,7 @@ def build_orders_dashboard_queries(db, current_user, is_admin: bool, filters: Or
         today_date = get_today_kst()
 
         if filters.alert_type == 'drawing_overdue':
-            drawing_cutoff = datetime.datetime.now() - datetime.timedelta(hours=48)
+            drawing_cutoff = now_utc_naive() - datetime.timedelta(hours=48)
             _q = _q.filter(
                 Order.erp_stage_code.in_(['DRAWING', 'CONFIRM']),
                 Order.erp_stage_updated_at.isnot(None),
@@ -259,7 +260,7 @@ def compute_orders_summary_slice(stats_query):
         production_d2_filter,
     )
 
-    drawing_overdue_cutoff = datetime.datetime.now() - datetime.timedelta(hours=48)
+    drawing_overdue_cutoff = now_utc_naive() - datetime.timedelta(hours=48)
     drawing_overdue_filter = and_(
         Order.erp_stage_code.in_(['DRAWING', 'CONFIRM']),
         Order.erp_stage_updated_at.isnot(None),

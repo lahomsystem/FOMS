@@ -1128,11 +1128,26 @@
         return m ? `${parseInt(m[2])}월 ${parseInt(m[3])}일` : esc(d || '');
       }
 
+      function localDateIso() {
+        const d = new Date();
+        return [
+          d.getFullYear(),
+          String(d.getMonth() + 1).padStart(2, '0'),
+          String(d.getDate()).padStart(2, '0')
+        ].join('-');
+      }
+
+      function parseYmdDate(value) {
+        const m = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (!m) return null;
+        return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+      }
+
       // 정렬은 백엔드 담당 — renderResults는 표시만 수행
       function renderResults(items, sortType) {
         const resList = document.getElementById('scheduleSearchResults');
         if (!resList) return;
-        const today = new Date().toISOString().slice(0, 10);
+        const today = localDateIso();
         resList.innerHTML = '';
         if (!items || items.length === 0) {
           resList.innerHTML = `<div class="text-center py-5 text-muted">
@@ -1151,8 +1166,12 @@
           if (sortType === 'distance' && item.dist_km != null) {
             extraBadge = `<span class="badge bg-info text-dark ms-1">직선 ${esc(item.dist_km)}km</span>`;
           } else if (sortType === 'date' && item.date) {
-            const days = Math.round((new Date(item.date) - new Date(today)) / 86400000);
-            if (days >= 0) extraBadge = `<span class="badge bg-info text-dark ms-1">D+${days}</span>`;
+            const itemDate = parseYmdDate(item.date);
+            const todayDate = parseYmdDate(today);
+            if (itemDate && todayDate) {
+              const days = Math.round((itemDate - todayDate) / 86400000);
+              if (days >= 0) extraBadge = `<span class="badge bg-info text-dark ms-1">D+${days}</span>`;
+            }
           } else if (sortType === 'combined') {
             extraBadge = `<span class="badge bg-secondary ms-1">거리+날짜 최적</span>`;
           }

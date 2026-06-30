@@ -7,6 +7,7 @@ from flask import Blueprint, request, jsonify
 
 from db import get_db
 from models import OrderTask
+from foms.services.datetime_kst import format_datetime_kst
 from foms.web.auth import login_required, role_required
 
 tasks_bp = Blueprint('tasks', __name__, url_prefix='/api')
@@ -30,8 +31,8 @@ def api_order_tasks_list(order_id):
                 'owner_user_id': t.owner_user_id,
                 'due_date': t.due_date,
                 'meta': t.meta,
-                'created_at': t.created_at.strftime('%Y-%m-%d %H:%M:%S') if t.created_at else None,
-                'updated_at': t.updated_at.strftime('%Y-%m-%d %H:%M:%S') if t.updated_at else None,
+                'created_at': format_datetime_kst(t.created_at) if t.created_at else None,
+                'updated_at': format_datetime_kst(t.updated_at) if t.updated_at else None,
             })
         return jsonify({'success': True, 'tasks': tasks})
     except Exception as e:

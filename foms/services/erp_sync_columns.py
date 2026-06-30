@@ -1,12 +1,11 @@
 """ERP flat column synchronization helpers."""
 
-from datetime import datetime
-
 from foms.services.erp_display import (
     _normalize_date_to_yyyymmdd,
     clean_dict_like_name,
     erp_deposit_amount_from_structured,
 )
+from foms.services.datetime_kst import to_utc_naive
 from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.phone_search import normalize_phone_digits
 
@@ -14,12 +13,7 @@ __all__ = ["sync_erp_flat_columns"]
 
 
 def _parse_stage_updated_at(value):
-    if not value:
-        return None
-    try:
-        return datetime.fromisoformat(str(value).replace('Z', '+00:00'))
-    except (ValueError, TypeError):
-        return None
+    return to_utc_naive(value)
 
 
 def sync_erp_flat_columns(order, structured_data: dict) -> None:

@@ -8,6 +8,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from db import get_db
 from models import Order, OrderEvent, User, SecurityLog
+from foms.services.datetime_kst import format_datetime_kst
 from foms.services.order_event_display import (
     generate_change_description,
     translate_event_type_to_korean,
@@ -91,7 +92,7 @@ def api_order_events(order_id):
                 'event_type': r.event_type,
                 'payload': r.payload,
                 'created_by_user_id': r.created_by_user_id,
-                'created_at': r.created_at.strftime('%Y-%m-%d %H:%M:%S') if r.created_at else None
+                'created_at': format_datetime_kst(r.created_at) if r.created_at else None
             })
         return jsonify({'success': True, 'events': events})
     except Exception as e:
@@ -148,7 +149,7 @@ def api_order_change_events(order_id):
 
             events.append({
                 'id': r.id,
-                'when': r.created_at.strftime('%Y-%m-%d %H:%M:%S') if r.created_at else '',
+                'when': format_datetime_kst(r.created_at) if r.created_at else '',
                 'who_name': creator['name'],
                 'who_team': creator['team'],
                 'what_label': event_label,
@@ -227,7 +228,7 @@ def api_my_change_events():
                 'id': r.id,
                 'order_id': r.order_id,
                 'customer_name': order_info['customer_name'],
-                'when': r.created_at.strftime('%Y-%m-%d %H:%M:%S') if r.created_at else '',
+                'when': format_datetime_kst(r.created_at) if r.created_at else '',
                 'what_label': event_label,
                 'how_text': how_text,
                 'reason': reason,

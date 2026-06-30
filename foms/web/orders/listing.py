@@ -516,7 +516,7 @@ def bulk_action():
                 order = db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
                 if order:
                     original_status = getattr(order, 'status', None)
-                    deleted_at = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    deleted_at = now_kst().strftime('%Y-%m-%d %H:%M:%S')
                     setattr(order, 'status', 'DELETED')
                     setattr(order, 'original_status', original_status)
                     setattr(order, 'deleted_at', deleted_at)
@@ -526,7 +526,7 @@ def bulk_action():
                     failed_count += 1
 
         elif action == 'copy':
-            now = datetime.datetime.now()
+            now = now_kst()
             today_str = now.strftime('%Y-%m-%d')
             time_str = now.strftime('%H:%M')
 

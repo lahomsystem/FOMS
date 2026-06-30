@@ -23,9 +23,26 @@ function safeAttr(str) {
     return d.innerHTML.replace(/"/g, '&quot;');
 }
 
+function parseKstDateTime(dateString) {
+    if (!dateString) return new Date(NaN);
+    const text = String(dateString).trim();
+    if (/[zZ]$|[+-]\d{2}:\d{2}$/.test(text)) {
+        return new Date(text);
+    }
+    const match = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+    if (!match) return new Date(text);
+    const year = Number(match[1]);
+    const month = Number(match[2]) - 1;
+    const day = Number(match[3]);
+    const hour = Number(match[4] || 0);
+    const minute = Number(match[5] || 0);
+    const second = Number(match[6] || 0);
+    return new Date(Date.UTC(year, month, day, hour - 9, minute, second));
+}
+
 function formatDate(dateString) {
     if (!dateString) return '';
-    const date = new Date(dateString);
+    const date = parseKstDateTime(dateString);
     const now = new Date();
     const diff = now - date;
     const minutes = Math.floor(diff / 60000);
@@ -37,13 +54,13 @@ function formatDate(dateString) {
     if (hours < 24) return `${hours}시간 전`;
     if (days < 7) return `${days}일 전`;
     
-    return date.toLocaleDateString('ko-KR');
+    return date.toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' });
 }
 
 function formatDateTime(dateString) {
     if (!dateString) return '';
-    const date = new Date(dateString);
-    return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+    const date = parseKstDateTime(dateString);
+    return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Seoul' });
 }
 
 function scrollToBottom() {

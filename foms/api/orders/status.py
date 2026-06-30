@@ -12,6 +12,7 @@ from foms.web.auth import log_access
 from foms.services.orders.status_constants import BULK_ACTION_STATUS, STATUS
 from foms.services.erp_order_flags import is_erp_order_record
 from db import get_db
+from foms.services.datetime_kst import now_kst
 from foms.services.erp_display import get_today_kst
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from models import Order, OrderEvent
@@ -88,7 +89,7 @@ def bulk_update_order_status_response(
         db = get_db()
         user_id = session.get("user_id")
         updated = 0
-        deleted_at_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        deleted_at_str = now_kst().strftime("%Y-%m-%d %H:%M:%S")
 
         valid_ids = []
         for order_id in order_ids:

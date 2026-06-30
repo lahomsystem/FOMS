@@ -13,6 +13,7 @@ from foms.services.drawing_workbench_display import (
     drawing_thumb_enabled,
     resolve_row_thumbnail_url,
 )
+from foms.web.drawing.workbench import _build_handoff_thread, _history_event_at_text
 from models import Order, User
 
 
@@ -409,6 +410,71 @@ def test_drawing_workbench_target_deeplink_prefers_mobile_detail(client, monkeyp
     assert 'data-handoff-mode="detail"' in body
     assert "도면 2 / 2" in body
     assert "foms-drawing-thread__msg" in body
+    thread_html = body[
+        body.index('class="foms-drawing-thread"') : body.index(
+            '<div class="foms-drawing-action-bar">'
+        )
+    ]
+    assert thread_html.index("2번 높이 수정") < thread_html.index("1차 전달")
+    assert "2026-06-02 20:00:00" in body
+
+
+def test_drawing_history_at_text_converts_utc_naive_to_kst():
+    assert (
+        _history_event_at_text({"action": "TRANSFER", "at": "2026-06-29 07:13:00"})
+        == "2026-06-29 16:13:00"
+    )
+
+
+def test_drawing_handoff_thread_is_newest_first():
+    """모바일 도면 handoff 타임라인은 최신 이력을 최상단에 렌더링한다."""
+    thread = _build_handoff_thread(
+        [
+            {
+                "action": "TRANSFER",
+                "at": "2026-06-25 07:26:34",
+                "by_user_name": "구현진",
+                "note": "도면 전달 첨부 1건",
+            },
+            {
+                "action": "REQUEST_REVISION",
+                "at": "2026-06-25 07:29:38",
+                "by_user_name": "이시영",
+                "note": "수정요청: 1번 대상 하부 3단 서랍 추가 요청",
+                "target_drawing_numbers": [1],
+            },
+            {
+                "action": "TRANSFER",
+                "at": "2026-06-25 07:32:50",
+                "by_user_name": "구현진",
+                "note": "도면 전달 · 1번 내용 첨부 1건",
+            },
+            {
+                "action": "REQUEST_REVISION",
+                "at": "2026-06-29 04:16:29",
+                "by_user_name": "이시영",
+                "note": "수정요청: 1번 대상 좌측 장 1100 -> 1000으로 수정 요청",
+                "target_drawing_numbers": [1],
+            },
+            {
+                "action": "TRANSFER",
+                "at": "2026-06-29 08:04:18",
+                "by_user_name": "구현진",
+                "note": "도면 전달 · 1번 대상 첨부 1건",
+            },
+        ]
+    )
+
+    assert [item["at"] for item in thread] == [
+        "2026-06-29 08:04:18",
+        "2026-06-29 04:16:29",
+        "2026-06-25 07:32:50",
+        "2026-06-25 07:29:38",
+        "2026-06-25 07:26:34",
+    ]
+    assert thread[0]["side"] == "left"
+    assert thread[1]["side"] == "right"
+    assert thread[1]["target_text"] == "1번 대상"
 
 
 def test_drawing_workbench_non_cohort_keeps_legacy_detail(client, monkeypatch):
