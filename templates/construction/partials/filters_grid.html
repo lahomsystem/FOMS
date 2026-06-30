@@ -65,19 +65,19 @@
                       style="font-size: 1.1rem; padding: 0.5em 0.7em;">{{ o.stage }}</span></td>
                   <td data-label="퀘스트" class="erp-quest-cell erp-wrap">
                     {% if o.stage == '시공대기' %}
-                    <div class="d-inline-flex align-items-center gap-2">
+                    <div class="erp-grid-quest-stack">
                       <button type="button" class="btn btn-outline-primary btn-sm erp-construction-action" data-order-id="{{ o.id }}" data-action="startConstruction">
                         <i class="fas fa-play"></i> 시공 시작
                       </button>
                     </div>
                     {% elif o.stage == '시공중' %}
-                    <div class="d-inline-flex align-items-center gap-2">
+                    <div class="erp-grid-quest-stack">
                       <button type="button" class="btn btn-success btn-sm erp-construction-action" data-order-id="{{ o.id }}" data-action="completeConstruction">
                         <i class="fas fa-check"></i> 시공 완료
                       </button>
                     </div>
                     {% elif o.stage == '시공완료' %}
-                    <div class="d-inline-flex align-items-center gap-2 flex-wrap">
+                    <div class="erp-grid-quest-stack">
                       <button type="button" class="btn btn-outline-secondary btn-sm erp-construction-action" data-order-id="{{ o.id }}" data-action="reuploadConstructionPhotos">
                         <i class="fas fa-redo"></i> 재 업로드
                       </button>
@@ -92,7 +92,7 @@
                       {% endif %}
                     </div>
                     {% elif o.current_quest %}
-                    <div class="d-inline-flex align-items-center gap-2">
+                    <div class="erp-grid-quest-stack">
                       {% if o.current_quest.all_approved %}
                       <span class="badge bg-success" style="font-size: 1rem; padding: 0.4em 0.7em;">완료</span>
                       {% else %}

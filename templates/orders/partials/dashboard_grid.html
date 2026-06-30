@@ -91,7 +91,7 @@
                       style="font-size: 1.1rem; padding: 0.5em 0.7em;">{{ o.stage }}</span></td>
                   <td data-label="퀘스트" class="erp-quest-cell erp-wrap">
                     {% if o.current_quest %}
-                    <div class="d-inline-flex align-items-center gap-2">
+                    <div class="erp-grid-quest-stack">
                       {% if o.current_quest.all_approved %}
                       <span class="badge bg-success" style="font-size: 1rem; padding: 0.4em 0.7em;">완료</span>
                       {% else %}
