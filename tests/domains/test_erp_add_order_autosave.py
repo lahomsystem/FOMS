@@ -137,6 +137,8 @@ def test_get_draft_reports_content_for_restore(client, app) -> None:
     assert data["draft"] is not None
     assert data["draft"]["has_content"] is True
     assert data["draft"]["order_id"]
+    # 상대시간 TZ-안전: epoch ms 제공(서버 UTC·브라우저 KST 시차 오표시 방지).
+    assert isinstance(data["draft"]["updated_at_ms"], int)
 
 
 def test_autosave_local_storage_key_scoped_by_user(app) -> None:
@@ -156,7 +158,7 @@ def test_autosave_local_storage_key_scoped_by_user(app) -> None:
     assert 'LS_KEY_PREFIX + ":u" + uid' in js
     assert "purgeLegacyLocalStorage()" in js
     assert "localStorage.removeItem(LEGACY_LS_KEY)" in js
-    assert "erp-order-autosave.js') }}?v=20260630e" in erp_js
+    assert "erp-order-autosave.js') }}?v=20260630f" in erp_js
 
 
 def test_autosave_suspends_after_explicit_save() -> None:

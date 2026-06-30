@@ -498,7 +498,7 @@
         if (data && data.success && data.draft && data.draft.has_content) {
           showRestoreBanner("server", {
             order_id: data.draft.order_id,
-            timeText: relTime(data.draft.updated_at),
+            timeText: relTime(data.draft.updated_at_ms || data.draft.updated_at),
           });
           return;
         }
