@@ -17,7 +17,8 @@
 
   if (window.__ERP_AUTOSAVE_BOUND) return;
 
-  var LS_KEY = "foms:erp-add-autosave:v1";
+  var LS_KEY_PREFIX = "foms:erp-add-autosave:v1";
+  var LEGACY_LS_KEY = LS_KEY_PREFIX;
   var LOCAL_DEBOUNCE_MS = 700;
   var SERVER_DEBOUNCE_MS = 2500;
   var AUTOSAVE_URL = "/api/orders/erp/draft/autosave";
@@ -28,6 +29,25 @@
   var _serverTimer = null;
   var _lastServerJson = null;
   var _started = false;
+
+  /** 공유 PC에서 logout 후 타 사용자 PII 노출 방지: user id별 localStorage 키. */
+  function resolveCurrentUserId() {
+    var cfg = document.getElementById("erp-order-config");
+    if (!cfg) return "";
+    var raw = (cfg.getAttribute("data-current-user-id") || "").trim();
+    return raw && /^\d+$/.test(raw) ? raw : "";
+  }
+
+  function localStorageKey() {
+    var uid = resolveCurrentUserId();
+    return uid ? LS_KEY_PREFIX + ":u" + uid : LS_KEY_PREFIX + ":anon";
+  }
+
+  function purgeLegacyLocalStorage() {
+    try {
+      localStorage.removeItem(LEGACY_LS_KEY);
+    } catch (e) {}
+  }
 
   function isAddDraftMode() {
     // add_order ERP 탭에서만 동작. edit_order는 false.
@@ -128,7 +148,7 @@
       var payload = collectPayload();
       if (!hasMeaningfulContent(payload)) {
         // 빈 폼이면 기존 스냅샷 제거(이미 비웠으면 복원 배너 안 뜨게).
-        localStorage.removeItem(LS_KEY);
+        localStorage.removeItem(localStorageKey());
         return;
       }
       var snap = {
@@ -136,7 +156,7 @@
         order_id: window.ORDER_ID || 0,
         payload: payload,
       };
-      localStorage.setItem(LS_KEY, JSON.stringify(snap));
+      localStorage.setItem(localStorageKey(), JSON.stringify(snap));
     } catch (e) {
       /* quota/iOS purge 등은 서버 계층이 커버 */
     }
@@ -144,7 +164,7 @@
 
   function readLocal() {
     try {
-      var raw = localStorage.getItem(LS_KEY);
+      var raw = localStorage.getItem(localStorageKey());
       if (!raw) return null;
       var snap = JSON.parse(raw);
       return snap && snap.payload ? snap : null;
@@ -155,7 +175,7 @@
 
   function clearLocal() {
     try {
-      localStorage.removeItem(LS_KEY);
+      localStorage.removeItem(localStorageKey());
     } catch (e) {}
   }
 
@@ -400,6 +420,7 @@
 
   function start() {
     if (_started || !isAddDraftMode()) return;
+    purgeLegacyLocalStorage();
     _started = true;
     bindInputs();
     maybeOfferRestore();
