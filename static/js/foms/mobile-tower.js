@@ -1,7 +1,7 @@
 /**
  * 모바일 홈 컨트롤 타워 — '현장 일정' 인라인 swap.
  *  - 주간 타일 클릭 → 해당 날짜 일정 로드 (Task2)
- *  - 실측/시공/전체 탭 → 타입 필터 + 그날 전체 로드 (Task3)
+ *  - 실측/시공/AS/전체 탭 → 타입 필터 + 그날 전체 로드 (Task3)
  * 단일 소스: GET /erp/dashboard/field-ops (JSON: html/count/label/queue_href).
  * '내작업' 토글 상태(data-tower-mine)는 fetch에 그대로 반영.
  */
@@ -42,7 +42,12 @@
   }
 
   function setCounts(data) {
-    var map = { all: data.count, measure: data.measure_count, construction: data.construction_count };
+    var map = {
+      all: data.count,
+      measure: data.measure_count,
+      construction: data.construction_count,
+      as: data.as_count,
+    };
     root.querySelectorAll('[data-foms-tabcount]').forEach(function (span) {
       var key = span.getAttribute('data-foms-tabcount');
       if (map[key] != null) {

@@ -1,4 +1,4 @@
-{# 슬림 sticky 요약 바(제목·건수·내담당만)는 as_mobile_summary.html로 분리되어
+{# 슬림 sticky 요약 바(제목·건수)는 as_mobile_summary.html로 분리되어
    상단 고정 전용이다. 여기는 스크롤로 흘려보내는 보조 컨트롤: stats·탭·검색·빠른칩. #}
 <section class="erp-as-mobile-controls foms-mobile-filter-bar" aria-label="AS 모바일 컨트롤">
   {# stats 칩 = 버킷 필터 링크. 'total'은 bucket 없는 전체 미완료, 나머지는 해당 버킷만.
@@ -89,7 +89,7 @@
     </button>
   </form>
 
-  {# 내담당만 토글은 상단 요약 row로 이동. 여기는 지도·상태 필터 등 맥락 칩만,
+  {# 내 작업 토글은 공용 모바일 셸 헤더로 통합. 여기는 지도·상태 필터 등 맥락 칩만,
      있을 때만 렌더해서 빈 줄이 공간을 먹지 않게 한다. #}
   {% if selected_date or status_filter %}
   <nav class="erp-as-mobile-controls__quick-actions chip-strip foms-chip-strip" aria-label="AS 빠른 필터">
@@ -143,11 +143,6 @@
             value="{{ search_q or '' }}"
             placeholder="전체 검색...">
         </div>
-
-        <label class="erp-as-mobile-controls__check">
-          <input type="checkbox" name="mine" value="1" {% if erp_mine_only %}checked{% endif %}>
-          <span>내 담당 주문만 보기</span>
-        </label>
 
         <div class="erp-as-mobile-controls__actions">
           <a class="erp-pro-btn erp-pro-btn--secondary" href="{{ url_for('erp_as_page.erp_as_dashboard', tab=as_tab or 'incomplete', sort_dir=sort_dir or 'desc') }}">초기화</a>

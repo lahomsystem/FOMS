@@ -1,6 +1,10 @@
-<header class="erp-mobile-shell-header foms-shell-header{% if mobile_shell_show_mytasks %} has-mytasks{% endif %}" aria-label="ERP 모바일 셸">
+{% set _shell_show_back = mobile_shell_show_back|default(false) %}
+{% set _shell_show_mytasks = (mobile_shell_show_mytasks|default(false)) or (not _shell_show_back) %}
+{% set _shell_mytasks_active = (request.args.get('mine') == '1') or (request.args.get('tower_mine') == '1') or ((request.cookies.get('erp_mine_only') or '').strip() == '1') %}
+{% set _shell_mytasks_href = mobile_shell_mytasks_href|default(request.full_path, true) %}
+<header class="erp-mobile-shell-header foms-shell-header{% if _shell_show_mytasks %} has-mytasks{% endif %}" aria-label="ERP 모바일 셸">
   <div class="erp-mobile-shell-header__inner">
-    {% if mobile_shell_show_back %}
+    {% if _shell_show_back %}
     <button
       class="erp-mobile-shell-header__home foms-icon-btn"
       type="button"
@@ -23,13 +27,13 @@
     <div class="erp-mobile-shell-header__context">
       <strong class="erp-mobile-shell-header__title foms-shell-title">{{ mobile_shell_title or (_current.item.label if _current.item else '홈') }}</strong>
     </div>
-    {% if mobile_shell_show_mytasks %}
+    {% if _shell_show_mytasks %}
     <a
-      class="erp-mobile-shell-header__mytasks foms-icon-btn{% if mobile_shell_mytasks_active %} is-active{% endif %}"
-      href="{{ mobile_shell_mytasks_href }}"
+      class="erp-mobile-shell-header__mytasks foms-icon-btn{% if _shell_mytasks_active %} is-active{% endif %}"
+      href="{{ _shell_mytasks_href }}"
       data-foms-mytasks-toggle
       aria-label="내 작업만 보기"
-      aria-pressed="{{ 'true' if mobile_shell_mytasks_active else 'false' }}">
+      aria-pressed="{{ 'true' if _shell_mytasks_active else 'false' }}">
       <i class="fas fa-user-check" aria-hidden="true"></i>
     </a>
     {% endif %}

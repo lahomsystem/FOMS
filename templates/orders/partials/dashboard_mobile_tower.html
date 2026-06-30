@@ -66,6 +66,9 @@
       <button type="button" class="foms-tower__daytab" role="tab" aria-selected="false" data-foms-day-tab="construction">
         🔨 시공 <span class="foms-tower__daytab-n" data-foms-tabcount="construction">{{ ct.today_construction_count }}</span>
       </button>
+      <button type="button" class="foms-tower__daytab" role="tab" aria-selected="false" data-foms-day-tab="as">
+        🔧 AS <span class="foms-tower__daytab-n" data-foms-tabcount="as">{{ ct.today_as_count }}</span>
+      </button>
     </div>
     <div data-foms-day-ops-list>
       {% set rows = ct.today_field_ops %}
@@ -112,9 +115,9 @@
     </div>
   </section>
 
-  {# (F) 전체 파이프라인 — 접힘 (관리자 drill-down) #}
-  <details class="foms-tower__pipeline">
-    <summary>📊 전체 파이프라인 ({{ total_orders }}건) <span class="foms-tower__pipeline-toggle">펼치기</span></summary>
+  {# (F) 전체 파이프라인 — 기본 펼침 (관리자 drill-down) #}
+  <details class="foms-tower__pipeline" open>
+    <summary>📊 전체 파이프라인 ({{ total_orders }}건) <span class="foms-tower__pipeline-toggle">접기</span></summary>
     <div class="foms-tower__stage-grid">
       {% for step in process_steps %}
       <a class="foms-tower__stage" href="{{ url_for('erp_dashboard.erp_dashboard', stage=step.label, view='queue') }}">

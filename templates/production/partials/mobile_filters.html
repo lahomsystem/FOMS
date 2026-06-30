@@ -34,15 +34,11 @@
   {% if erp_mine_only %}{% set _ = _pr_keep.append('mine=1') %}{% endif %}
   {% set _pr_keep_qs = _pr_keep|join('&') %}
   {% set _pr_stage = filters.get('stage') or '' %}
-  {% set _pr_ctx = [] %}
-  {% if filters.get('q') %}{% set _ = _pr_ctx.append('q=' ~ filters.get('q')|urlencode) %}{% endif %}
-  {% if _pr_stage %}{% set _ = _pr_ctx.append('stage=' ~ _pr_stage|urlencode) %}{% endif %}
   <nav class="chip-strip foms-chip-strip" aria-label="생산 단계 필터">
     <a class="chip foms-chip{% if not _pr_stage %} is-active{% endif %}" href="{{ _pr_base }}{% if _pr_keep_qs %}?{{ _pr_keep_qs }}{% endif %}">전체 {{ total_orders }}</a>
     {% for step in process_steps %}
     <a class="chip foms-chip{% if _pr_stage == step.label %} is-active{% endif %}" href="{{ _pr_base }}?stage={{ step.label|urlencode }}{% if _pr_keep_qs %}&{{ _pr_keep_qs }}{% endif %}">{{ step.display|default(step.label) }} {{ step.count }}</a>
     {% endfor %}
-    <a class="chip foms-chip{% if erp_mine_only %} is-active{% endif %}" href="{{ _pr_base }}?{{ _pr_ctx|join('&') }}{% if _pr_ctx %}&{% endif %}mine={% if erp_mine_only %}{% else %}1{% endif %}">내 담당</a>
   </nav>
 
   <div
@@ -78,10 +74,6 @@
             {% endfor %}
           </select>
         </div>
-        <label class="erp-mobile-queue-filters__check">
-          <input type="checkbox" name="mine" value="1" {% if erp_mine_only %}checked{% endif %}>
-          <span>내 담당만 보기</span>
-        </label>
         <div class="erp-mobile-queue-filters__actions">
           <a class="btn btn-outline-secondary" href="{{ url_for('erp_production_page.erp_production_dashboard') }}">초기화</a>
           <button class="btn btn-primary" type="submit">적용</button>

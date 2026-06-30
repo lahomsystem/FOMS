@@ -208,3 +208,183 @@ def test_risk_row_cta_meta_per_key():
         assert m["kind"] == expected_kind[key]
         assert m["tone"] in ("danger", "warning")
     assert ct.risk_row_cta_meta("bogus") is None
+
+
+def test_field_ops_for_day_supports_as_visit_rows(app):
+    """오늘의 현장 AS 탭은 as_visit 일정의 AS 행과 카운트를 반환한다."""
+    import datetime
+
+    from db import db_session
+    from models import Order, OrderScheduleDate
+
+    today = "2026-06-30"
+    order = Order(
+        received_date=today,
+        customer_name="AS 타워 고객",
+        phone="010-1111-2222",
+        address="서울",
+        product="붙박이장",
+        status="AS_RECEIVED",
+        erp_stage_code="AS_RECEIVED",
+        is_erp_order=True,
+        structured_data={
+            "parties": {
+                "customer": {"name": "AS 타워 고객"},
+                "manager": {"name": "담당자"},
+            },
+            "site": {"address_full": "서울 테스트로 1"},
+            "schedule": {"as_visit": {"date": today, "time": "15:30"}},
+        },
+    )
+    db_session.add(order)
+    db_session.flush()
+    db_session.add(
+        OrderScheduleDate(
+            order_id=order.id,
+            kind="as_visit",
+            date=today,
+            source="beta_schedule",
+        )
+    )
+    db_session.commit()
+
+    payload = ct.build_field_ops_for_day(
+        db_session,
+        None,
+        today,
+        field_type="as",
+        today=datetime.date.fromisoformat(today),
+    )
+
+    assert payload["as_count"] == 1
+    assert payload["count"] == 1
+    assert payload["rows"][0]["type_code"] == "as"
+    assert payload["rows"][0]["type"] == "AS"
+    assert payload["rows"][0]["time"] == "15:30"
+    assert payload["rows"][0]["readiness_label"] == "AS 방문"
+
+
+def test_mobile_control_tower_exposes_today_as_count(app):
+    """초기 렌더 AS 뱃지는 today_as_count를 사용한다."""
+    import datetime
+
+    from db import db_session
+    from models import Order, OrderScheduleDate
+
+    today = datetime.date(2026, 6, 30)
+    order = Order(
+        received_date=today.isoformat(),
+        customer_name="AS 뱃지 고객",
+        phone="010-3333-4444",
+        address="서울",
+        product="붙박이장",
+        status="AS_RECEIVED",
+        erp_stage_code="AS_RECEIVED",
+        is_erp_order=True,
+        structured_data={"schedule": {"as_visit": {"date": today.isoformat()}}},
+    )
+    db_session.add(order)
+    db_session.flush()
+    db_session.add(
+        OrderScheduleDate(
+            order_id=order.id,
+            kind="as_visit",
+            date=today.isoformat(),
+            source="beta_schedule",
+        )
+    )
+    db_session.commit()
+
+    tower = ct.build_mobile_control_tower(db_session, None, today=today)
+
+    assert tower["today_as_count"] == 1
+    assert tower["today_count"] == 1
+
+
+def test_orders_dashboard_date_field_as_filters_as_visit_queue(app):
+    """타워 AS 탭의 큐 링크는 as_visit 일정 주문으로 착지한다."""
+    from db import db_session
+    from foms.services.orders.dashboard_filters import OrdersDashboardFilters
+    from foms.services.orders.dashboard_read_model import build_orders_dashboard_queries
+    from models import Order, OrderScheduleDate
+
+    today = "2026-06-30"
+    as_order = Order(
+        received_date=today,
+        customer_name="AS 큐 고객",
+        phone="010-5555-6666",
+        address="서울",
+        product="붙박이장",
+        status="AS_RECEIVED",
+        erp_stage_code="AS_RECEIVED",
+        is_erp_order=True,
+        structured_data={"schedule": {"as_visit": {"date": today}}},
+    )
+    measure_order = Order(
+        received_date=today,
+        customer_name="실측 큐 고객",
+        phone="010-7777-8888",
+        address="서울",
+        product="붙박이장",
+        status="MEASURE",
+        erp_stage_code="MEASURE",
+        erp_measurement_date=today,
+        is_erp_order=True,
+        structured_data={"schedule": {"measurement": {"date": today}}},
+    )
+    non_as_visit_order = Order(
+        received_date=today,
+        customer_name="비AS 방문 고객",
+        phone="010-9999-0000",
+        address="서울",
+        product="붙박이장",
+        status="MEASURE",
+        erp_stage_code="MEASURE",
+        is_erp_order=True,
+        structured_data={"schedule": {"as_visit": {"date": today}}},
+    )
+    db_session.add_all([as_order, measure_order, non_as_visit_order])
+    db_session.flush()
+    db_session.add_all(
+        [
+            OrderScheduleDate(
+                order_id=as_order.id,
+                kind="as_visit",
+                date=today,
+                source="beta_schedule",
+            ),
+            OrderScheduleDate(
+                order_id=non_as_visit_order.id,
+                kind="as_visit",
+                date=today,
+                source="beta_schedule",
+            ),
+        ]
+    )
+    db_session.commit()
+
+    filters = OrdersDashboardFilters(
+        stage="",
+        urgent="",
+        has_alert="",
+        alert_type="",
+        q="",
+        effective_stage="",
+        team="",
+        sort="latest",
+        today="",
+        tower_mine=False,
+        mine=False,
+        date=today,
+        field="as",
+        risk="",
+        focus_order_id=None,
+    )
+    query, _stats, _today_date, _today_iso = build_orders_dashboard_queries(
+        db_session,
+        None,
+        True,
+        filters,
+    )
+
+    assert [o.id for o in query.all()] == [as_order.id]

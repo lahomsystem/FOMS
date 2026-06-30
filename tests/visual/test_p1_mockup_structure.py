@@ -638,10 +638,11 @@ def test_p1_as_mobile_v2_home_ia_parity() -> None:
     )
     for selector in ("foms-shell-body", "foms-mobile-queue-list", "foms-shell-fab"):
         assert selector in body, selector
-    # 슬림 sticky 요약 바(section-header + 내담당만 토글)는 as_mobile_summary.html로 분리
+    # 슬림 sticky 요약 바(section-header + 건수)는 as_mobile_summary.html로 분리
     assert "as_mobile_summary.html" in body
     assert "foms-section-header" in summary
-    assert "erp-as-mobile-controls__mine-toggle" in summary
+    assert "erp-as-mobile-controls__count" in summary
+    assert "erp-as-mobile-controls__mine-toggle" not in summary
     # 스크롤로 흘려보내는 보조 컨트롤(필터 바·칩 스트립)은 controls에 유지
     for selector in ("foms-mobile-filter-bar", "chip-strip", "foms-chip-strip"):
         assert selector in controls, selector

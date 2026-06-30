@@ -2,7 +2,7 @@
 {% set _base_url = url_for('erp_dashboard.erp_dashboard') %}
 {% set _sort = _filters.get('sort') or 'latest' %}
 {% set _active_count = namespace(value=0) %}
-{% for _key in ['q', 'team', 'mine', 'stage', 'urgent', 'has_alert', 'alert_type', 'today'] %}
+{% for _key in ['q', 'team', 'stage', 'urgent', 'has_alert', 'alert_type', 'today'] %}
   {% if _filters.get(_key) %}{% set _active_count.value = _active_count.value + 1 %}{% endif %}
 {% endfor %}
 {% if _sort != 'latest' %}{% set _active_count.value = _active_count.value + 1 %}{% endif %}
@@ -143,10 +143,6 @@
       </div>
 
       <div class="foms-mobile-filter-sheet__toggles">
-        <label class="foms-mobile-filter-sheet__check">
-          <input type="checkbox" name="mine" value="1" {% if _filters.get('mine') == '1' %}checked{% endif %}>
-          <span>내 담당</span>
-        </label>
         <label class="foms-mobile-filter-sheet__check">
           <input type="checkbox" name="today" value="1" {% if _filters.get('today') == '1' %}checked{% endif %}>
           <span>오늘</span>

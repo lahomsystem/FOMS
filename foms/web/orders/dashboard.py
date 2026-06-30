@@ -581,7 +581,7 @@ def erp_dashboard_field_ops():
     db = get_db()
     current_user = getattr(g, 'current_user', None)
     field_type = (request.args.get('field') or 'all').strip()
-    if field_type not in ('all', 'measure', 'construction'):
+    if field_type not in ('all', 'measure', 'construction', 'as'):
         field_type = 'all'
     mine_only = erp_tower_mine_from_request(request)
 
@@ -599,7 +599,7 @@ def erp_dashboard_field_ops():
         rows=payload['rows'],
     )
     queue_args = {'date': date_iso, 'view': 'queue'}
-    if field_type in ('measure', 'construction'):
+    if field_type in ('measure', 'construction', 'as'):
         queue_args['field'] = field_type
     return {
         'success': True,
@@ -608,6 +608,7 @@ def erp_dashboard_field_ops():
             'count': payload['count'],
             'measure_count': payload['measure_count'],
             'construction_count': payload['construction_count'],
+            'as_count': payload['as_count'],
             'label': payload['label'],
             'iso': date_iso,
             'queue_href': url_for('erp_dashboard.erp_dashboard', **queue_args),
