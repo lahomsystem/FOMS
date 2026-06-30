@@ -329,3 +329,26 @@
   font-size: var(--erp-font-size-xs);
 }
 
+/* 작업 큐 경보 컬럼 — 체크박스 유지 + 경보 배지 세로 스택 */
+.erp-grid-alert-cell {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.375rem;
+}
+
+.erp-grid-alert-badges {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.erp-grid-alert-badges .badge:not(.erp-amount-value) {
+  display: inline-flex;
+  margin: 0;
+  width: fit-content;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+

@@ -59,30 +59,32 @@
                 {% for o in orders %}
                 <tr class="erp-main-row" data-order-id="{{ o.id }}">
                   <td data-label="경보">
-                    <div class="d-flex align-items-center gap-1 flex-nowrap">
-                      {% if can_edit_erp %}<input type="checkbox" class="form-check-input erp-grid-order-check mt-0" data-order-id="{{ o.id }}" aria-label="주문 선택">{% endif %}
-                      {% if o.alerts.urgent %}<span class="badge bg-danger fw-bold"
-                        style="font-size: 1.1rem; padding: 0.5em 0.8em;">긴급</span>{% endif %}
-                      {% if o.alerts.drawing_overdue %}<span class="badge bg-danger fw-bold"
-                        style="font-size: 1.1rem; padding: 0.5em 0.8em;">도면48h</span>{% endif %}
-                      {% if o.alerts.measurement_d4 %}
-                      {% set meas_d = o.alerts['measurement_days'] if 'measurement_days' in o.alerts else none %}
-                      <span class="badge bg-warning text-dark fw-bold"
-                        style="font-size: 1.1rem; padding: 0.5em 0.8em;">실측D-{{ meas_d if meas_d is not none else '4'
-                        }}</span>
-                      {% endif %}
-                      {% if o.alerts.construction_d3 %}
-                      {% set cons_d = o.alerts['construction_days'] if 'construction_days' in o.alerts else none %}
-                      <span class="badge bg-warning text-dark fw-bold"
-                        style="font-size: 1.1rem; padding: 0.5em 0.8em;">시공D-{{ cons_d if cons_d is not none else '3'
-                        }}</span>
-                      {% endif %}
-                      {% if o.alerts.production_d2 %}
-                      {% set prod_d = o.alerts['production_days'] if 'production_days' in o.alerts else none %}
-                      <span class="badge bg-warning text-dark fw-bold"
-                        style="font-size: 1.1rem; padding: 0.5em 0.8em;">생산D-{{ prod_d if prod_d is not none else '2'
-                        }}</span>
-                      {% endif %}
+                    <div class="d-flex align-items-start gap-1 erp-grid-alert-cell">
+                      {% if can_edit_erp %}<input type="checkbox" class="form-check-input erp-grid-order-check mt-0 flex-shrink-0" data-order-id="{{ o.id }}" aria-label="주문 선택">{% endif %}
+                      <div class="erp-grid-alert-badges">
+                        {% if o.alerts.urgent %}<span class="badge bg-danger fw-bold"
+                          style="font-size: 1.1rem; padding: 0.5em 0.8em;">긴급</span>{% endif %}
+                        {% if o.alerts.drawing_overdue %}<span class="badge bg-danger fw-bold"
+                          style="font-size: 1.1rem; padding: 0.5em 0.8em;">도면48h</span>{% endif %}
+                        {% if o.alerts.measurement_d4 %}
+                        {% set meas_d = o.alerts['measurement_days'] if 'measurement_days' in o.alerts else none %}
+                        <span class="badge bg-warning text-dark fw-bold"
+                          style="font-size: 1.1rem; padding: 0.5em 0.8em;">실측D-{{ meas_d if meas_d is not none else '4'
+                          }}</span>
+                        {% endif %}
+                        {% if o.alerts.construction_d3 %}
+                        {% set cons_d = o.alerts['construction_days'] if 'construction_days' in o.alerts else none %}
+                        <span class="badge bg-warning text-dark fw-bold"
+                          style="font-size: 1.1rem; padding: 0.5em 0.8em;">시공D-{{ cons_d if cons_d is not none else '3'
+                          }}</span>
+                        {% endif %}
+                        {% if o.alerts.production_d2 %}
+                        {% set prod_d = o.alerts['production_days'] if 'production_days' in o.alerts else none %}
+                        <span class="badge bg-warning text-dark fw-bold"
+                          style="font-size: 1.1rem; padding: 0.5em 0.8em;">생산D-{{ prod_d if prod_d is not none else '2'
+                          }}</span>
+                        {% endif %}
+                      </div>
                     </div>
                   </td>
                   <td data-label="단계"><span class="badge bg-secondary"
