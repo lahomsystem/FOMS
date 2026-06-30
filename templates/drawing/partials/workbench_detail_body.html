@@ -1574,14 +1574,23 @@
 
       if (progressWrap) progressWrap.classList.remove('d-none');
 
-      const uploadOne = async (originalFile, index) => {
-        let file = originalFile;
-        if (typeof window.compressImageFile === 'function') {
-          try { file = await window.compressImageFile(originalFile, { quality: 0.8 }); } catch (e) { }
-        }
+      const preparedFiles = typeof window.fomsPrepareUploadFiles === 'function'
+        ? await window.fomsPrepareUploadFiles(fileList, {
+            onPrepareProgress: (info) => {
+              if (progressBar) {
+                const p = Math.round((info.done / Math.max(1, info.total)) * 20);
+                progressBar.style.width = p + '%';
+                progressBar.textContent = `최적화 ${info.done}/${info.total}`;
+              }
+            }
+          })
+        : fileList.map((file, index) => ({ clientId: String(index), originalFile: file, file: file }));
+
+      const uploadOne = async (entry, index) => {
+        let file = entry.file;
         const updateProgress = (percent) => {
           if (progressBar) {
-            const totalPercent = Math.round(((index + percent / 100) / fileList.length) * 100);
+            const totalPercent = Math.round(((index + percent / 100) / preparedFiles.length) * 100);
             progressBar.style.width = totalPercent + '%';
             progressBar.textContent = totalPercent + '%';
           }
@@ -1655,7 +1664,12 @@
         return fallbackXHR();
       };
 
-      const results = await Promise.all(fileList.map((file, i) => uploadOne(file, i)));
+      const policy = typeof window.fomsGetUploadQueuePolicy === 'function'
+        ? window.fomsGetUploadQueuePolicy()
+        : { uploadConcurrency: 3 };
+      const results = typeof window.fomsRunLimitedQueue === 'function'
+        ? await window.fomsRunLimitedQueue(preparedFiles, policy.uploadConcurrency, uploadOne)
+        : [];
 
       if (progressWrap) {
         progressWrap.classList.add('d-none');
@@ -1674,6 +1688,12 @@
         if (progressBar) { progressBar.style.width = p + '%'; progressBar.textContent = Math.round(p) + '%'; }
       };
 
+      const preparedFiles = typeof window.fomsPrepareUploadFiles === 'function'
+        ? await window.fomsPrepareUploadFiles(fileList, {
+            onPrepareProgress: (info) => setProgress((info.done / Math.max(1, info.total)) * 20)
+          })
+        : fileList.map((file, index) => ({ clientId: String(index), originalFile: file, file: file }));
+
       // 1단계: 배치로 presigned URL 일괄 발급
       let sessionMap = {};
       if (USE_DIRECT_UPLOAD && totalFiles > 0) {
@@ -1683,23 +1703,22 @@
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              files: fileList.map(f => ({ filename: f.name, size: f.size })),
+              files: preparedFiles.map(entry => ({ client_id: entry.clientId, filename: entry.file.name, size: entry.file.size })),
               folder: folder,
               category: 'drawing'
             })
           });
           const bData = await bRes.json();
           if (bData.success && Array.isArray(bData.sessions)) {
-            for (const s of bData.sessions) sessionMap[s.filename] = s;
+            for (const s of bData.sessions) {
+              if (s.client_id) sessionMap[s.client_id] = s;
+            }
           }
         } catch (e) { /* fallback to individual sessions */ }
       }
 
-      const uploadOne = async (originalFile, index) => {
-        let file = originalFile;
-        if (typeof window.compressImageFile === 'function') {
-          try { file = await window.compressImageFile(originalFile, { quality: 0.8 }); } catch (e) { }
-        }
+      const uploadOne = async (entry, index) => {
+        let file = entry.file;
         const fallbackFormData = async () => {
           const formData = new FormData();
           formData.append('file', file);
@@ -1719,7 +1738,7 @@
         if (USE_DIRECT_UPLOAD) {
           const folder = `orders/${orderId}/drawing_gateway/revisions`;
           // 배치 발급된 세션 재사용, 없으면 단건 발급
-          let sess = sessionMap[file.name];
+          let sess = sessionMap[entry.clientId];
           if (!sess || !sess.upload_url) {
             try {
               const sessRes = await fetch('/api/upload/session', {
@@ -1753,14 +1772,18 @@
       };
 
       // 2단계: 최대 10개 동시 병렬 업로드
-      const CONCURRENCY = 10;
       const results = [];
-      for (let start = 0; start < fileList.length; start += CONCURRENCY) {
-        const chunk = fileList.slice(start, start + CONCURRENCY);
-        const chunkResults = await Promise.all(chunk.map((f, i) => uploadOne(f, start + i).catch(e => { console.warn('uploadRevisionGatewayFiles:', e); return null; })));
-        results.push(...chunkResults.filter(Boolean));
-        setProgress(Math.min(100, ((start + chunk.length) / totalFiles) * 100));
-      }
+      const policy = typeof window.fomsGetUploadQueuePolicy === 'function'
+        ? window.fomsGetUploadQueuePolicy()
+        : { uploadConcurrency: 3 };
+      const queuedResults = typeof window.fomsRunLimitedQueue === 'function'
+        ? await window.fomsRunLimitedQueue(preparedFiles, policy.uploadConcurrency, async (entry, i) => {
+            const result = await uploadOne(entry, i).catch(e => { console.warn('uploadRevisionGatewayFiles:', e); return null; });
+            setProgress(Math.min(100, ((i + 1) / totalFiles) * 100));
+            return result;
+          })
+        : [];
+      results.push(...queuedResults.filter(Boolean));
 
       if (progressWrap) progressWrap.classList.add('d-none');
       if (progressBar) { progressBar.style.width = '0%'; progressBar.textContent = '0%'; }

@@ -1,5 +1,8 @@
 # 성능 회귀 원천 차단 (Performance Guardrails)
 
+> **North Star:** deploy 직후 “전체 ERP 로딩/체감 느려짐” 재발을 deploy 전에 차단한다.
+> TTFB 정상 ≠ deploy 가능. 8차원 broad 탐색: [`ERP_SLOWDOWN_RADAR.md`](ERP_SLOWDOWN_RADAR.md)
+>
 > 코드·기능 추가가 **서버/페이지를 느리게 만드는 일을 머지 전에 차단**한다.
 > 일부는 자동 테스트로 강제(차단), 일부는 리뷰 필수 규칙이다.
 
@@ -72,8 +75,8 @@
 
 ## 점검 스킬 실행 절차 (Cursor·Claude·Codex 공통)
 
-### A. perf-guard — 코드 수정 후 회귀 방지(매 변경)
-1. `python tools/perf/perf_scan.py --guard` 실행(변경분만 검사, high면 exit 1).
+### A. perf-guard — deploy veto (매 코드 수정 후, push/deploy 전 필수)
+1. `python tools/perf/perf_scan.py --guard` 실행(변경분만, 신규 high면 exit 1 → **배포 금지**).
 2. 스크립트가 못 잡는 부분을 **diff에서 직접** 점검(아래 수동 체크리스트).
 3. 발견 시 위 "필수 규칙"대로 수정. 그래도 동기 스크립트가 불가피하면 사유와 함께
    `tests/performance/test_perf_regression_guard.py`의 allowlist에 추가.
@@ -88,8 +91,8 @@
 - 서비스워커 fetch 전략 변경 시 timeout+캐시 폴백 유지.
 - ERP shell fragment 재실행 경로에 추가한 JS의 전역 listener가 singleton guard로 보호되는지 확인.
 
-### B. perf-audit — 정기 점검으로 성능 개선(주 1회 등)
-1. `python tools/perf/perf_scan.py --audit` 실행(전체 코드베이스 후보 목록).
+### B. perf-audit — ERP Slowdown Radar (주 1회 + production 승격 전 필수)
+1. `python tools/perf/perf_scan.py --audit` + `--radar` (전체 후보 + 8차원 요약). 상세: ERP_SLOWDOWN_RADAR.md
 2. **운영급 측정**(staging/prod, 실제 Chrome): 대시보드/검색/탭전환 **서버 TTFB** +
    주요 쿼리 `EXPLAIN (ANALYZE)`로 **Seq Scan 없음** + 정적 자원 캐시 적중 확인.
    (약한 dev 인스턴스 절대 시간은 신뢰 금지. SW 동작은 실제 Chrome에서만.)

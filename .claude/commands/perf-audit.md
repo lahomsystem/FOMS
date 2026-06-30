@@ -1,38 +1,23 @@
-# FOMS 성능 정기 점검·개선 (perf-audit)
+# FOMS ERP Slowdown Radar — perf-audit
 
-정기적으로 FOMS 성능 후보를 찾아 **올립니다**. (perf-guard가 "느려짐 방지"라면,
-이건 "더 빠르게".) 주 1회 등 주기 점검용.
+**North Star:** latent perf mines + staging proof before production. guard=신규 diff, audit=전체 baseline.
 
-## 언제
-정기(주 1회), 또는 "요즘 느리다" 신고 시.
+## Workflow
 
-## 실행
-1. 전체 코드베이스 후보 스캔(advisory):
-   ```bash
-   python tools/perf/perf_scan.py --audit
-   ```
-2. **운영급 측정** — `docs/guides/PERFORMANCE_GUARDRAILS.md` §"점검 스킬 실행 절차 B":
-   - 서버 **TTFB**부터 측정해 서버/프론트/SW/네트워크 분리("느리다=서버" 단정 금지).
-   - 주요 쿼리 `EXPLAIN (ANALYZE)` → **Seq Scan 없음** 확인.
-   - 정적 자원 캐시 적중 + 탭전환 fragment 캐시 확인.
-   - 약한 dev 인스턴스 절대 시간 신뢰 금지. SW 동작은 **실제 Chrome**에서만.
-   - 측정은 gstack browse 활용 가능.
-3. high/빈도순 우선순위화 → 안전 수정 설계(인덱스·캐시·lazy 로드·페이지네이션).
+1. `python tools/perf/perf_scan.py --audit [--json]`
+2. `python tools/perf/perf_scan.py --radar [--json]`
+3. 8차원 checklist — `docs/guides/ERP_SLOWDOWN_RADAR.md`, `.cursor/skills/perf-audit/references/`
+4. Hot path: TTFB → EXPLAIN → Chrome SW → tab swap (field > lab)
 
-## 주요 개선 레버 (과거 효과 확인됨)
-- JSONB ILIKE → trigram 인덱스 / `@>` / denormalized 컬럼
-- 정적 자원: SW staticCacheFirst + 버전 max-age (매 네비 서버 폭주 제거)
-- 무거운 lib lazy 로드 / 공용 partial 경량화 / 대시보드 fragment HTML 축소
-- ERP shell fragment 재실행 JS의 singleton guard(`window.__*_BOUND`) / 중복 listener 제거
-- N+1 → `in_(ids)` 배치, 매요청 무거운 계산 → Redis micro-cache
+high findings = deploy 리스크 (exit 0 advisory).
 
-## 결과 보고
+## Output
+
 ```markdown
-## Perf Audit 결과
-### 상위 개선 후보 (효과순)
-- [높음] 항목 — 현재 측정값 → 기대 효과 — 안전 수정안
-## 측정 근거
-- TTFB / EXPLAIN / 캐시 적중 등 실측 수치
+## Perf Audit
+### 차원별 top (효과×빈도)
+- [dimension] finding — fix — 측정 필요?
+### deploy 리스크 / staging gap
 ```
 
-> 변경은 반드시 perf-guard + smoke 통과 후 deploy→production(검증 후 승격).
+수정 후 perf-guard + smoke. production은 사용자 명시 승인 전 push 금지.

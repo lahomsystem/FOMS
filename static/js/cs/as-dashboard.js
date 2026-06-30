@@ -1763,105 +1763,22 @@
               }
             };
 
-            try {
-                const bRes = await fetch('/api/upload/session/batch', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        files: files.map(f => ({ filename: f.name, size: f.size })),
-                        folder: folder,
-                        category: category
-                    })
-                });
-                if (!bRes.ok) {
-                    throw new Error('HTTP ' + bRes.status);
-                }
-                const bData = await bRes.json();
-                if (bData.success && bData.sessions) {
-                    for (let s of bData.sessions) s.success = true;
-                    for (let s of bData.sessions) sessionMap[s.filename] = s;
-                } else {
-                    console.warn('AS 첨부 batch 세션 응답 비정상', bData);
-                }
-            } catch (e) {
-                console.warn('AS 첨부 batch 세션 생성 실패', e);
-            }
-
-            const CONCURRENCY = 10;
-            for (let start = 0; start < files.length; start += CONCURRENCY) {
-                const chunk = files.slice(start, start + CONCURRENCY);
-                const results = await Promise.all(chunk.map(async function (originalFile) {
-                    let file = originalFile;
-                    try {
-                        if (typeof window.compressImageFile === 'function') {
-                            try {
-                                file = await window.compressImageFile(originalFile, { quality: 0.8 });
-                            } catch (e) {
-                                console.warn('AS 첨부 이미지 압축 실패, 원본으로 진행', e);
-                            }
-                        }
-
-                        let sess = sessionMap[file.name];
-                        if (!sess || !sess.success || !sess.upload_url) {
-                            const sessRes = await fetch('/api/upload/session', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ filename: file.name, size: file.size, folder: folder, category: category })
-                            });
-                            if (!sessRes.ok) {
-                                console.warn('AS 첨부 개별 세션 생성 실패', file.name, sessRes.status);
-                                return await fallbackFormUpload(file);
-                            }
-                            sess = await sessRes.json();
-                        }
-
-                        if (!sess || !sess.upload_url) {
-                            return await fallbackFormUpload(file);
-                        }
-
-                        let putRes;
-                        try {
-                            putRes = await fetch(sess.upload_url, {
-                                method: 'PUT',
-                                headers: { 'Content-Type': file.type || 'application/octet-stream' },
-                                body: file
-                            });
-                        } catch (err) {
-                            console.warn('AS 첨부 presigned 업로드 실패, fallback 사용', file.name, err);
-                            return await fallbackFormUpload(file);
-                        }
-                        
-                        if (!putRes.ok) {
-                            console.warn('AS 첨부 presigned 업로드 응답 비정상, fallback 사용', file.name, putRes.status);
-                            return await fallbackFormUpload(file);
-                        }
-                        
-                        const completeRes = await fetch(`/api/orders/${orderId}/attachments/complete`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ key: sess.key, filename: file.name, category: category, size: file.size })
-                        });
-                        if (!completeRes.ok) {
-                            console.warn('AS 첨부 complete 처리 실패', file.name, completeRes.status);
-                            return { success: false, message: '첨부 등록 완료 처리 실패' };
-                        }
-                        return await completeRes.json();
-                    } catch (err) {
-                        console.warn('AS 첨부 업로드 실패', originalFile.name, err);
-                        return { success: false, message: err && err.message ? err.message : '업로드 실패' };
-                    }
-                }));
-
-                for (let i = 0; i < results.length; i++) {
-                    if (results[i] && results[i].success) ok++;
-                }
-                
-                const done = Math.min(start + chunk.length, files.length);
-                if (asUploadStatus) asUploadStatus.textContent = '업로드 중... (' + done + '/' + files.length + ')';
-                
-                chunk.forEach((f, index) => {
+            const uploadResult = await window.fomsUploadOrderAttachmentsBatch({
+                orderId: orderId,
+                files: files,
+                folder: folder,
+                category: category,
+                useDirectUpload: true,
+                onPrepareProgress: function (info) {
+                    if (asUploadStatus) asUploadStatus.textContent = '이미지 최적화 중... (' + info.done + '/' + info.total + ')';
+                },
+                onUploadProgress: function (info) {
+                    if (asUploadStatus) asUploadStatus.textContent = '업로드 중... (' + Math.round(info.done) + '/' + info.total + ')';
+                },
+                onFileDone: function (info) {
+                    const f = info.entry.originalFile;
+                    const result = info.result || { success: false };
                     const el = document.getElementById(f._optId);
-                    const result = results[index] || { success: false };
                     if (!el) return;
                     el.classList.remove('opacity-75');
                     const spinner = el.querySelector('.spinner-border');
@@ -1879,8 +1796,9 @@
                     if (!result.success && result.message) {
                       el.title = result.message;
                     }
-                  });
-            }
+                }
+            });
+            ok = uploadResult.ok;
 
             if (asUploadStatus) {
               asUploadStatus.textContent = ok === files.length ? '업로드 완료.' : '업로드 완료 (' + ok + '/' + files.length + ').';
