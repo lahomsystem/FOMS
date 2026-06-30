@@ -50,12 +50,60 @@
   }
 
   function isAddDraftMode() {
-    // add_order ERP 탭에서만 동작. edit_order는 false.
+    // add_order ERP 탭(신규 draft)에서만 true.
     return (
       typeof window.isErpOrderDraftMode === "function" &&
       window.isErpOrderDraftMode() &&
       window.ERP_ORDER_ENABLED
     );
+  }
+
+  // ── edit 모드(저장된 주문 편집) ────────────────────────────────────
+  // 저장된 주문을 불러와 편집할 때도 작업분을 잃지 않게 한다. 단 라이브 주문에
+  // 키 입력마다 PUT하면 미완성 데이터가 대시보드에 반영되고 단계전환/이벤트가
+  // 오발생하므로, 편집 자동저장은 localStorage 작업본(working copy)으로만 보존하고
+  // 재진입 시 복원 배너로 되살린다. 실제 주문 반영은 '저장'(명시 PUT)이 담당한다.
+  function resolvedEditOrderId() {
+    var id = parseInt(String(window.ORDER_ID || "0"), 10) || 0;
+    if (id > 0) return id;
+    var card = document.querySelector(".card[data-erp-order-id]");
+    if (card) {
+      var v = parseInt(card.getAttribute("data-erp-order-id") || "0", 10) || 0;
+      if (v > 0) return v;
+    }
+    return 0;
+  }
+
+  function isEditMode() {
+    return (
+      !!window.ERP_ORDER_ENABLED &&
+      typeof window.isErpOrderDraftMode === "function" &&
+      !window.isErpOrderDraftMode() &&
+      resolvedEditOrderId() > 0
+    );
+  }
+
+  function editLocalStorageKey() {
+    var uid = resolveCurrentUserId();
+    return LS_KEY_PREFIX + ":edit:" + (uid ? "u" + uid : "anon") + ":o" + resolvedEditOrderId();
+  }
+
+  function clearEditLocal() {
+    try {
+      localStorage.removeItem(editLocalStorageKey());
+    } catch (e) {}
+  }
+
+  function saveEditLocal() {
+    if (!isEditMode()) return;
+    try {
+      var payload = collectPayload();
+      var snap = { ts: Date.now(), order_id: resolvedEditOrderId(), edit: true, payload: payload };
+      localStorage.setItem(editLocalStorageKey(), JSON.stringify(snap));
+      showIndicator("✓ 자동저장됨");
+    } catch (e) {
+      /* quota/iOS purge: 편집 복구는 best-effort */
+    }
   }
 
   function draftToken() {
@@ -249,11 +297,16 @@
 
   // ── 입력 → 디바운스 스케줄 ─────────────────────────────────────────
   function schedule() {
-    if (!isAddDraftMode()) return;
-    clearTimeout(_localTimer);
-    _localTimer = setTimeout(saveLocal, LOCAL_DEBOUNCE_MS);
-    clearTimeout(_serverTimer);
-    _serverTimer = setTimeout(saveServer, SERVER_DEBOUNCE_MS);
+    if (isAddDraftMode()) {
+      clearTimeout(_localTimer);
+      _localTimer = setTimeout(saveLocal, LOCAL_DEBOUNCE_MS);
+      clearTimeout(_serverTimer);
+      _serverTimer = setTimeout(saveServer, SERVER_DEBOUNCE_MS);
+    } else if (isEditMode()) {
+      // 편집은 localStorage 작업본만(라이브 주문 오염 방지). 서버 반영은 '저장'.
+      clearTimeout(_localTimer);
+      _localTimer = setTimeout(saveEditLocal, LOCAL_DEBOUNCE_MS);
+    }
   }
 
   function bindInputs() {
@@ -262,22 +315,29 @@
     // 이벤트 위임: 동적 추가되는 품목 행까지 포함.
     pane.addEventListener("input", schedule, true);
     pane.addEventListener("change", schedule, true);
-    // 필드 이탈 시 즉시 서버 flush.
+    // 필드 이탈 시 즉시 flush.
     pane.addEventListener(
       "blur",
       function () {
-        if (!isAddDraftMode()) return;
-        clearTimeout(_serverTimer);
-        saveServer();
+        if (isAddDraftMode()) {
+          clearTimeout(_serverTimer);
+          saveServer();
+        } else if (isEditMode()) {
+          clearTimeout(_localTimer);
+          saveEditLocal();
+        }
       },
       true
     );
     window.addEventListener("beforeunload", beaconFlush);
     // 모바일 백그라운드 전환(앱 전환/전화 수신) 시 flush — beforeunload 미발화 대비.
     document.addEventListener("visibilitychange", function () {
-      if (document.visibilityState === "hidden") {
+      if (document.visibilityState !== "hidden") return;
+      if (isAddDraftMode()) {
         saveLocal();
         beaconFlush();
+      } else if (isEditMode()) {
+        saveEditLocal();
       }
     });
   }
@@ -326,7 +386,13 @@
     }
     if (discardBtn) {
       discardBtn.onclick = function () {
-        if (!confirm("저장된 작성 내용을 버리시겠습니까?")) return;
+        if (!confirm("저장하지 않은 수정 내용을 버리시겠습니까?")) return;
+        if (source === "local-edit") {
+          // 편집 작업본만 폐기. 라이브 주문/ORDER_ID는 건드리지 않는다.
+          clearEditLocal();
+          hide();
+          return;
+        }
         clearLocal();
         _lastServerJson = null;
         fetch(DISCARD_URL, {
@@ -421,17 +487,63 @@
       });
   }
 
-  function start() {
-    if (_started || !isAddDraftMode()) return;
-    purgeLegacyLocalStorage();
-    _started = true;
-    bindInputs();
-    maybeOfferRestore();
+  /** 편집 모드: 저장 안 한 수정 작업본이 있으면 복원 배너 제시. */
+  function maybeOfferEditRestore() {
+    if (!isEditMode()) return;
+    var snap = null;
+    try {
+      var raw = localStorage.getItem(editLocalStorageKey());
+      if (raw) {
+        var s = JSON.parse(raw);
+        if (s && s.payload) snap = s;
+      }
+    } catch (e) {
+      snap = null;
+    }
+    if (snap) {
+      showRestoreBanner("local-edit", { snap: snap, timeText: fmtTime(snap.payload, snap.ts) });
+    }
   }
 
-  // 명시 저장(승격) 성공 시 자동저장 흔적 정리 → 다음 진입에서 복원 배너 미표시.
+  function start() {
+    if (_started) return;
+    if (isAddDraftMode()) {
+      _started = true;
+      purgeLegacyLocalStorage();
+      bindInputs();
+      maybeOfferRestore();
+      return;
+    }
+    // edit 모드(저장된 주문 편집): 주문 데이터가 비동기로 로드된 뒤에 바인딩·복원 제시.
+    // 로드 전에 바인딩하면 erpLoadStructured의 폼 채움이 자동저장으로 잡힐 수 있다.
+    if (
+      window.ERP_ORDER_ENABLED &&
+      typeof window.isErpOrderDraftMode === "function" &&
+      !window.isErpOrderDraftMode()
+    ) {
+      _started = true;
+      var tries = 0;
+      (function waitLoaded() {
+        if (!isEditMode()) {
+          // 아직 ORDER_ID 미확정. 잠깐 대기(탭/마운트 지연).
+          if (tries++ > 60) return;
+          setTimeout(waitLoaded, 150);
+          return;
+        }
+        if (window.__erpStructuredLoadSucceeded || tries++ > 40) {
+          bindInputs();
+          maybeOfferEditRestore();
+          return;
+        }
+        setTimeout(waitLoaded, 150);
+      })();
+    }
+  }
+
+  // 명시 저장 성공 시 자동저장 흔적 정리(add draft + edit 작업본) → 재진입 복원 배너 미표시.
   document.addEventListener("erp:order-saved", function () {
     clearLocal();
+    clearEditLocal();
     _lastServerJson = null;
     clearTimeout(_localTimer);
     clearTimeout(_serverTimer);
