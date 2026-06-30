@@ -134,6 +134,15 @@ def test_resolve_order_role_assignees_from_id_only_drawing_assignees() -> None:
     assert roles["drawing_assignee"] == "최상용"
 
 
+def test_resolve_order_role_assignees_normalizes_numeric_manager_id() -> None:
+    sd = {
+        "parties": {"manager": {"name": 99}},
+    }
+    order = SimpleNamespace(manager_name="Alice")
+    roles = qd.resolve_order_role_assignees(sd, order=order, user_map={99: "Resolved Manager"})
+    assert roles["measurement_assignee"] == "Resolved Manager"
+
+
 def test_mobile_order_detail_renders_role_assignee_section() -> None:
     partial = (
         ROOT / "templates" / "orders" / "partials" / "order_detail_mobile_v2.html"

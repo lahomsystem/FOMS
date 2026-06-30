@@ -19,6 +19,7 @@
           <span class="badge bg-info text-white ms-1" title="자가실측"><i class="fas fa-ruler-combined"></i></span>{% endif %}</span>
         <span class="foms-drawing-queue-card__id">#{{ r.id }}</span>
       </div>
+      <div class="foms-drawing-queue-card__sub">실측 담당 {{ r.measurement_assignee_text or '-' }}</div>
       <div class="foms-drawing-queue-card__sub">도면 담당 {{ r.assignee_text }}</div>
       {% set _c = (r.construction_date or '') %}
       {% set _cparts = (_c.split(',')|map('trim')|list)|select|list %}

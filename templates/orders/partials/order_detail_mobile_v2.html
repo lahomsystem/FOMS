@@ -175,9 +175,9 @@
         <h2 class="foms-detail-section__title" id="foms-detail-assignee-title">담당</h2>
       </div>
       {{ foms_kv_list([
-        {'label': '실측', 'value': role_assignees.get('measurement_assignee') or '-'},
-        {'label': '도면', 'value': role_assignees.get('drawing_assignee') or '-'},
-        {'label': '시공', 'value': role_assignees.get('construction_assignee') or '-'},
+        {'label': '실측 담당', 'value': role_assignees.get('measurement_assignee') or '-'},
+        {'label': '도면 담당', 'value': role_assignees.get('drawing_assignee') or '-'},
+        {'label': '시공 담당', 'value': role_assignees.get('construction_assignee') or '-'},
       ]) }}
     </section>
 

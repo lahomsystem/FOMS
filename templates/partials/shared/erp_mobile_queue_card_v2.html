@@ -122,6 +122,17 @@
           <dd class="foms-tabular">{{ schedule_value }}</dd>
         </div>
       {% endif %}
+      {% set role_assignees = order.role_assignees or {} %}
+      {% if order.stage_code == 'DRAWING' or order.stage in ['도면', 'DRAWING'] %}
+        <div>
+          <dt>실측 담당</dt>
+          <dd data-queue-card-field="measurement-assignee">{{ role_assignees.get('measurement_assignee') or order.manager_name or '-' }}</dd>
+        </div>
+        <div>
+          <dt>도면 담당</dt>
+          <dd data-queue-card-field="drawing-assignee">{{ role_assignees.get('drawing_assignee') or '-' }}</dd>
+        </div>
+      {% else %}
       <div>
         <dt>담당</dt>
         <dd data-queue-card-field="manager">
@@ -132,6 +143,7 @@
           {% endif %}
         </dd>
       </div>
+      {% endif %}
     </dl>
 
     {% set action_list = task_actions if task_actions is not none else [] %}
