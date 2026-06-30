@@ -1,0 +1,72 @@
+/* ERP 자동저장 UI — 복원 배너 + 자동저장 인디케이터. 모바일 우선 반응형.
+   원칙: 큰 탭타깃(>=44px), 간결한 메시지, 시각 잡음 최소, 안전영역 대응. */
+
+.erp-restore-banner {
+  border-left: 4px solid #f0ad4e;
+}
+
+.erp-restore-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.625rem;
+}
+
+.erp-restore-msg {
+  min-width: 0;
+  line-height: 1.4;
+}
+
+.erp-restore-time {
+  white-space: nowrap;
+  font-size: 0.85em;
+}
+
+.erp-restore-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+/* 모바일: 메시지 위, 액션 아래 전체폭. 버튼은 동일폭 + 충분한 탭타깃. */
+@media (max-width: 575.98px) {
+  .erp-restore-inner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+  .erp-restore-actions {
+    width: 100%;
+  }
+  .erp-restore-btn {
+    flex: 1 1 0;
+    min-height: 44px;
+    font-size: 0.95rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+  }
+  .erp-restore-time {
+    display: block;
+    margin-top: 0.15rem;
+    white-space: normal;
+  }
+}
+
+/* 자동저장 인디케이터: 데스크톱은 헤더 배지 그대로. 모바일은 하단 토스트로
+   띄워 입력 중에도 잘 보이게(헤더 배지는 스크롤로 가려짐). */
+@media (max-width: 575.98px) {
+  .erp-autosave-toast:not(.d-none) {
+    position: fixed;
+    left: 50%;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+    transform: translateX(-50%);
+    z-index: 1080;
+    padding: 0.5rem 0.95rem;
+    font-size: 0.85rem;
+    border-radius: 999px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+    pointer-events: none;
+  }
+}

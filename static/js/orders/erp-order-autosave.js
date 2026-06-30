@@ -29,6 +29,11 @@
   var _serverTimer = null;
   var _lastServerJson = null;
   var _started = false;
+  // 명시 저장(erp:order-saved) 후 자동저장을 일시 중단한다. 저장 직후 페이지 이탈로
+  // visibilitychange/beforeunload가 발화하면 saveLocal/saveEditLocal이 "방금 저장한"
+  // 내용을 localStorage에 다시 써서, 다음 진입 시 정상 저장건이 미저장 복원 배너로
+  // 오인되는 버그를 막는다. 사용자가 다시 입력(schedule)하면 해제한다.
+  var _suspended = false;
 
   /** 공유 PC에서 logout 후 타 사용자 PII 노출 방지: user id별 localStorage 키. */
   function resolveCurrentUserId() {
@@ -95,6 +100,7 @@
   }
 
   function saveEditLocal() {
+    if (_suspended) return;
     if (!isEditMode()) return;
     try {
       var payload = collectPayload();
@@ -195,6 +201,7 @@
 
   // ── localStorage 계층 ──────────────────────────────────────────────
   function saveLocal() {
+    if (_suspended) return;
     try {
       var payload = collectPayload();
       if (!hasMeaningfulContent(payload)) {
@@ -236,6 +243,7 @@
   }
 
   function saveServer() {
+    if (_suspended) return;
     if (!isAddDraftMode()) return;
     var payload = collectPayload();
     if (!hasMeaningfulContent(payload) && !(window.ORDER_ID > 0)) return;
@@ -274,6 +282,7 @@
   }
 
   function beaconFlush() {
+    if (_suspended) return;
     if (!isAddDraftMode()) return;
     var payload = collectPayload();
     if (!hasMeaningfulContent(payload) && !(window.ORDER_ID > 0)) return;
@@ -297,6 +306,8 @@
 
   // ── 입력 → 디바운스 스케줄 ─────────────────────────────────────────
   function schedule() {
+    // 실제 사용자 입력은 저장 후 중단(_suspended)을 해제한다(편집 재개).
+    _suspended = false;
     if (isAddDraftMode()) {
       clearTimeout(_localTimer);
       _localTimer = setTimeout(saveLocal, LOCAL_DEBOUNCE_MS);
@@ -343,10 +354,28 @@
   }
 
   // ── 복원 배너 ──────────────────────────────────────────────────────
-  function fmtTime(payload, ts) {
+  /** 간결한 상대 시간(모바일 가독성). 숫자 ts(ms) 또는 서버 문자열 모두 허용. */
+  function relTime(value) {
     try {
-      var d = ts ? new Date(ts) : new Date();
-      return d.toLocaleString("ko-KR", { hour12: false });
+      var d;
+      if (typeof value === "number") {
+        d = new Date(value);
+      } else if (typeof value === "string" && value) {
+        // 서버 "YYYY-MM-DD HH:MM:SS"는 로컬(KST 브라우저) 기준으로 파싱.
+        d = new Date(value.replace(" ", "T"));
+        if (isNaN(d.getTime())) d = new Date(value);
+      } else {
+        d = new Date();
+      }
+      if (isNaN(d.getTime())) return "";
+      var diff = Math.max(0, Date.now() - d.getTime());
+      var min = Math.floor(diff / 60000);
+      if (min < 1) return "방금 전";
+      if (min < 60) return min + "분 전";
+      var hr = Math.floor(min / 60);
+      if (hr < 24) return hr + "시간 전";
+      if (hr < 48) return "어제";
+      return d.getMonth() + 1 + "월 " + d.getDate() + "일";
     } catch (e) {
       return "";
     }
@@ -469,20 +498,20 @@
         if (data && data.success && data.draft && data.draft.has_content) {
           showRestoreBanner("server", {
             order_id: data.draft.order_id,
-            timeText: data.draft.updated_at || "",
+            timeText: relTime(data.draft.updated_at),
           });
           return;
         }
         // 서버 draft 없음 → localStorage 폴백.
         var snap = readLocal();
         if (snap && hasMeaningfulContent(snap.payload)) {
-          showRestoreBanner("local", { snap: snap, timeText: fmtTime(snap.payload, snap.ts) });
+          showRestoreBanner("local", { snap: snap, timeText: relTime(snap.ts) });
         }
       })
       .catch(function () {
         var snap = readLocal();
         if (snap && hasMeaningfulContent(snap.payload)) {
-          showRestoreBanner("local", { snap: snap, timeText: fmtTime(snap.payload, snap.ts) });
+          showRestoreBanner("local", { snap: snap, timeText: relTime(snap.ts) });
         }
       });
   }
@@ -501,7 +530,7 @@
       snap = null;
     }
     if (snap) {
-      showRestoreBanner("local-edit", { snap: snap, timeText: fmtTime(snap.payload, snap.ts) });
+      showRestoreBanner("local-edit", { snap: snap, timeText: relTime(snap.ts) });
     }
   }
 
@@ -542,6 +571,9 @@
 
   // 명시 저장 성공 시 자동저장 흔적 정리(add draft + edit 작업본) → 재진입 복원 배너 미표시.
   document.addEventListener("erp:order-saved", function () {
+    // 저장 직후 페이지 이탈(visibilitychange/beforeunload)이 방금 저장한 내용을
+    // 다시 쓰지 못하게 중단. 사용자가 다시 입력하면 schedule()에서 해제된다.
+    _suspended = true;
     clearLocal();
     clearEditLocal();
     _lastServerJson = null;
