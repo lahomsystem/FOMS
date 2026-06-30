@@ -27,6 +27,26 @@ ERP Order mobile-v2 tab pane.
                 </div>
             </div>
 
+            <span class="badge bg-success d-none erp-autosave-toast" id="erp-autosave-indicator" aria-live="polite">✓ 자동저장됨</span>
+
+            <div class="alert alert-warning py-2 erp-restore-banner" id="erp-restore-banner" style="display:none;" data-foms-no-autodismiss role="status">
+                <div class="erp-restore-inner">
+                    <div class="erp-restore-msg">
+                        <i class="fas fa-clock-rotate-left" aria-hidden="true"></i>
+                        <span class="erp-restore-text">저장하지 않은 작성 내용이 있습니다.</span>
+                        <span class="text-muted erp-restore-time" id="erp-restore-time"></span>
+                    </div>
+                    <div class="erp-restore-actions">
+                        <button type="button" class="btn btn-sm btn-warning erp-restore-btn" id="erp-restore-resume">
+                            <i class="fas fa-rotate-left" aria-hidden="true"></i> 이어쓰기
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary erp-restore-btn" id="erp-restore-discard">
+                            버리기
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <div class="tab-content">
                 <div class="tab-pane fade show active" id="erp-form" role="tabpanel">
                     <nav class="erp-mobile-secnav" id="erp-mobile-secnav" aria-label="섹션 이동">
