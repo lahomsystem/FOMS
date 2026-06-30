@@ -10,6 +10,8 @@ from foms.services.common import erp_navigation_contract as enc
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _RUNTIME_SHELL = _REPO_ROOT / "static" / "js" / "runtime" / "erp-shell.js"
+_LAYOUT_SCRIPTS = _REPO_ROOT / "templates" / "partials" / "shared" / "layout_scripts.html"
+_SERVICE_WORKER = _REPO_ROOT / "static" / "sw.js"
 
 
 @pytest.fixture(scope="module")
@@ -95,3 +97,15 @@ def test_runtime_shell_uses_final_fetch_url_for_redirected_fragments(runtime_she
     assert "r.url" in runtime_shell_src
     assert "finalUrl.pathname + finalUrl.search + finalUrl.hash" in runtime_shell_src
     assert "unsafe redirected fragment url" in runtime_shell_src
+
+
+def test_runtime_shell_script_url_is_versioned_for_service_worker_cache() -> None:
+    """ERP shell must cache-bust old SW Cache API entries after fragment-script fixes."""
+    layout_src = _LAYOUT_SCRIPTS.read_text(encoding="utf-8")
+    assert "js/runtime/erp-shell.js') }}?v=" in layout_src
+
+
+def test_service_worker_cache_version_purges_stale_erp_shell() -> None:
+    """SW cache namespace bump removes old unversioned erp-shell.js entries on activate."""
+    sw_src = _SERVICE_WORKER.read_text(encoding="utf-8")
+    assert 'CACHE_VERSION = "foms-p2-v5"' in sw_src
