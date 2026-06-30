@@ -148,7 +148,18 @@ def _build_handoff_files(order_id: int, drawing_files: list[Any], history: list[
 def _build_handoff_thread(history: list[Mapping[str, Any]]) -> list[dict[str, Any]]:
     """Build chat-like mobile timeline entries from order-level drawing history."""
     thread = []
-    for event in history:
+    indexed_history = [
+        (idx, event) for idx, event in enumerate(history) if isinstance(event, Mapping)
+    ]
+    newest_first = sorted(
+        indexed_history,
+        key=lambda item: (
+            str(item[1].get('transferred_at') or item[1].get('at') or ''),
+            item[0],
+        ),
+        reverse=True,
+    )
+    for _, event in newest_first:
         action = (event.get('action') or '').upper()
         targets = _event_target_numbers(event)
         target_text = ', '.join(str(n) for n in targets)
