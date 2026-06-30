@@ -1,6 +1,6 @@
 ---
 name: perf-guard
-description: Block FOMS deploy when code changes can repeat post-deploy ERP slowdown (2026-06 incidents). Use for /perf-guard, pre-push deploy veto, or verifying diff does not add render-blocking scripts, SW regressions, hot-path DB/query risks, or shared-surface amplifiers.
+description: FOMS deploy veto — deploy 직후 ERP 느려짐 재발 차단 (/perf-guard, pre-push gate, perf_scan --guard).
 ---
 
 # Perf Guard — Deploy Veto

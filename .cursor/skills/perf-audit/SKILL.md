@@ -1,6 +1,6 @@
 ---
 name: perf-audit
-description: Run FOMS ERP Slowdown Radar — broad 8-dimension performance risk scan beyond proven incidents. Use for /perf-audit, pre-production deploy safety, weekly baseline mine clearance, or when users report slowness after deploy.
+description: FOMS ERP Slowdown Radar — 8차원 broad 탐색 (/perf-audit, perf_scan --audit · --radar, production 전 필수).
 ---
 
 # Perf Audit — ERP Slowdown Radar

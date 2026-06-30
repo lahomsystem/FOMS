@@ -68,4 +68,12 @@ python tools/perf/perf_scan.py --audit
 python tools/perf/perf_scan.py --radar [--json]
 ```
 
-스킬: perf-guard (veto) · perf-audit (radar). Codex `~/.codex/skills/`, Claude `.claude/commands/`, Cursor `.cursor/skills/`.
+## 스킬 라우팅 (중복 금지 — SSOT 1곳)
+
+| 도구 | 진입 | SSOT |
+|------|------|------|
+| **Cursor** | Agent skill `/perf-guard` · `/perf-audit` | `.cursor/skills/perf-*/SKILL.md` |
+| **Claude Code** | slash `/perf-guard` · `/perf-audit` | 위 SKILL + `references/` JiT (commands는 포인터만) |
+| **Codex** | FOMS repo cwd + `AGENTS.md` 또는 SKILL 경로 읽기 | **동일** `.cursor/skills/` (global `~/.codex/skills/perf-*` 복제본 사용 금지) |
+
+`~/.codex/skills/perf-guard` 등 **global 복제본을 두면 Cursor+Codex 메뉴에 2번 노출**된다. repo SSOT만 유지한다. 상세: [`PERF_SKILLS_ROUTING.md`](PERF_SKILLS_ROUTING.md)
