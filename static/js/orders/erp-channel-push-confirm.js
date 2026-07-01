@@ -14,6 +14,10 @@
         measurement: '영발 PUSH',
         drawing: '발주 PUSH',
     };
+    const PUSH_BUTTON_IDS = [
+        'erp-channeltalk-push-btn',
+        'erp-channeltalk-push-drawing-btn',
+    ];
 
     /** @returns {string} structured_data 이력 키 */
     function erpChannelPushHistoryKey(pushKind) {
@@ -26,6 +30,15 @@
         if (!sd || typeof sd !== 'object') return false;
         const rec = sd[erpChannelPushHistoryKey(pushKind)];
         return !!(rec && rec.pushed);
+    }
+
+    /**
+     * 서버 400: 재전송 change_note 필수 응답인지 판별.
+     * @param {string} message
+     * @returns {boolean}
+     */
+    function erpIsChannelPushResendNoteRequired(message) {
+        return String(message || '').indexOf('재전송 시 변경 내용') >= 0;
     }
 
     /**
@@ -48,6 +61,14 @@
         const resolve = _pendingResolve;
         _pendingResolve = null;
         resolve(value);
+    }
+
+    /** Modal 열림 동안 영발/발주 PUSH 버튼 중복 클릭 차단 (M2). */
+    function _setChannelPushButtonsLocked(locked) {
+        PUSH_BUTTON_IDS.forEach(function (id) {
+            const el = document.getElementById(id);
+            if (el) el.disabled = !!locked;
+        });
     }
 
     /** Modal send/cancel/hidden — singleton bind (G4). */
@@ -75,6 +96,7 @@
         });
 
         modalEl.addEventListener('hidden.bs.modal', function () {
+            _setChannelPushButtonsLocked(false);
             if (typeof _pendingResolve === 'function') {
                 _finishPending(null);
             }
@@ -88,6 +110,10 @@
      */
     function erpPromptChannelPushResendNote(pushKind) {
         erpMountChannelPushResendModal();
+
+        if (typeof _pendingResolve === 'function') {
+            return Promise.resolve(null);
+        }
 
         const modalEl = document.getElementById('erpChannelPushResendModal');
         const textarea = document.getElementById('erp-channel-push-resend-note');
@@ -111,6 +137,7 @@
 
         return new Promise(function (resolve) {
             _pendingResolve = resolve;
+            _setChannelPushButtonsLocked(true);
             bsModal.show();
             window.setTimeout(function () {
                 textarea.focus();
@@ -120,6 +147,7 @@
 
     window.erpChannelPushHistoryKey = erpChannelPushHistoryKey;
     window.erpHasPriorChannelPush = erpHasPriorChannelPush;
+    window.erpIsChannelPushResendNoteRequired = erpIsChannelPushResendNoteRequired;
     window.erpMarkChannelPushSent = erpMarkChannelPushSent;
     window.erpMountChannelPushResendModal = erpMountChannelPushResendModal;
     window.erpPromptChannelPushResendNote = erpPromptChannelPushResendNote;

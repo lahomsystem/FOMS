@@ -4284,7 +4284,10 @@ function fomsMountErpOrderSurface() {
     // 영발(measurement)/발주(drawing) PUSH 공용 핸들러.
     // pushKind에 따라 백엔드가 해당 분류 첨부만 골라 별도 채널톡 그룹으로 전송한다.
     // 재전송(prev push) 시 modal/sheet에서 change_note 입력 후 전송.
-    async function erpRunChannelPush(btn, pushKind) {
+    // 서버 400(재전송 note 필수) 시 클라 상태 동기화 후 modal 1회 재시도(M1).
+    async function erpRunChannelPush(btn, pushKind, resendRetryState) {
+        const retryState = resendRetryState || { resendRecoveryUsed: false };
+
         if (typeof erpGenerateConversionText === 'function') {
             erpGenerateConversionText();
         }
@@ -4306,15 +4309,14 @@ function fomsMountErpOrderSurface() {
             return;
         }
 
-        let changeNote = null;
-        if (typeof erpHasPriorChannelPush === 'function' && erpHasPriorChannelPush(pushKind)) {
+        let changeNote = retryState.changeNote || null;
+        if (!changeNote && typeof erpHasPriorChannelPush === 'function' && erpHasPriorChannelPush(pushKind)) {
             changeNote = await erpPromptChannelPushResendNote(pushKind);
             if (!changeNote) {
                 return;
             }
         }
 
-        // 활성 색상 클래스(데스크톱 btn-* / 모바일 foms-btn--*)를 보존해 성공 표시 후 원복한다.
         const activeClass = btn.classList.contains('btn-warning') ? 'btn-warning'
             : btn.classList.contains('btn-primary') ? 'btn-primary'
             : btn.classList.contains('foms-btn--warning') ? 'foms-btn--warning'
@@ -4350,12 +4352,33 @@ function fomsMountErpOrderSurface() {
                     if (activeClass) btn.classList.replace(successClass, activeClass);
                     btn.disabled = false;
                 }, 3000);
-            } else {
-                const errMsg = data.error || data.message || '알 수 없는 오류';
-                alert(`채널톡 전송 실패:\n${errMsg}`);
+                return;
+            }
+
+            const errMsg = data.error || data.message || '알 수 없는 오류';
+            if (
+                !retryState.resendRecoveryUsed
+                && typeof erpIsChannelPushResendNoteRequired === 'function'
+                && erpIsChannelPushResendNoteRequired(errMsg)
+            ) {
+                if (typeof erpMarkChannelPushSent === 'function') {
+                    erpMarkChannelPushSent(pushKind);
+                }
                 btn.innerHTML = originalHtml;
                 btn.disabled = false;
+                const recoveryNote = await erpPromptChannelPushResendNote(pushKind);
+                if (!recoveryNote) {
+                    return;
+                }
+                return erpRunChannelPush(btn, pushKind, {
+                    resendRecoveryUsed: true,
+                    changeNote: recoveryNote,
+                });
             }
+
+            alert(`채널톡 전송 실패:\n${errMsg}`);
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
         } catch (e) {
             alert(`네트워크 오류: ${e.message}`);
             btn.innerHTML = originalHtml;

@@ -57,8 +57,8 @@ def _assert_shared_form_script_contract(body: str) -> None:
 
     assert payment_urls_idx < channel_push_confirm_idx < erp_order_shared_idx < column_resizer_idx < estimate_preview_idx < estimate_columns_idx
     assert "html2canvas.min.js" not in body
-    assert "js/orders/erp-channel-push-confirm.js?v=20260701a" in body
-    assert "js/orders/erp-order-shared.js?v=20260701b" in body
+    assert "js/orders/erp-channel-push-confirm.js?v=20260701b" in body
+    assert "js/orders/erp-order-shared.js?v=20260701c" in body
     assert "css/orders/erp-channel-push.css?v=20260701a" in body
     assert "css/orders/erp-items-master-detail.css?v=20260630c" in body
     assert "js/orders/erp-items-master-detail.js?v=20260630c" in body
@@ -451,7 +451,21 @@ def test_shared_erp_order_js_does_not_auto_save_before_user_save() -> None:
     assert "erpCanUsePersistedOrderAction('푸쉬는')" in push_block
     assert "erpSliceConversionTextForChannelPush(" in push_block
     assert "erpHasPriorChannelPush" in push_block
+    assert "erpIsChannelPushResendNoteRequired" in push_block
+    assert "resendRecoveryUsed" in push_block
     assert "change_note" in push_block
+
+
+def test_channel_push_confirm_js_resend_recovery_contract() -> None:
+    """재전송 modal: PUSH 잠금, desync 복구 헬퍼, 중복 session 차단."""
+    root = Path(__file__).resolve().parents[2]
+    text = (root / "static/js/orders/erp-channel-push-confirm.js").read_text(encoding="utf-8")
+    assert "function erpIsChannelPushResendNoteRequired(message)" in text
+    assert "function _setChannelPushButtonsLocked(locked)" in text
+    assert "erp-channeltalk-push-btn" in text
+    assert "erp-channeltalk-push-drawing-btn" in text
+    assert "if (typeof _pendingResolve === 'function')" in text
+    assert "재전송 시 변경 내용" in text
 
 
 def test_shared_erp_order_supports_scoped_clipboard_image_upload() -> None:
@@ -822,8 +836,26 @@ def test_mobile_attachment_preview_uses_viewport_sized_modal() -> None:
     ) in css_text
     assert ".erp-order-mobile-form .erp-attachment-preview-actions .btn" not in css_text
     assert "max-width: min(92vw, 36rem)" not in css_text
-    assert "../components/foms-form-field.css?v=20260629a" in mobile_bundle
-    assert "foms-mobile-surfaces.css') }}?v=20260629a" in layout_head
+    assert "../components/foms-form-field.css?v=20260630d" in mobile_bundle
+    assert "foms-mobile-surfaces.css') }}?v=20260630d" in layout_head
+
+
+def test_mobile_erp_autosize_textarea_overrides_80px_floor() -> None:
+    """Main-form autosize textareas must not inherit .foms-textarea { min-height: 80px } on mobile."""
+    root = Path(__file__).resolve().parents[2]
+    css_text = (root / "static/css/components/foms-form-field.css").read_text(encoding="utf-8")
+    assert ".foms-textarea {" in css_text
+    assert "min-height: 80px" in css_text
+    assert (
+        "body.erp-mobile-v2-layout .erp-order-mobile-form .foms-textarea.erp-flex-textarea"
+        in css_text
+    )
+    compact_idx = css_text.index(
+        "body.erp-mobile-v2-layout .erp-order-mobile-form .foms-textarea.erp-flex-textarea"
+    )
+    compact_block = css_text[compact_idx : compact_idx + 400]
+    assert "min-height: 44px" in compact_block
+    assert "resize: none" in css_text[compact_idx : compact_idx + 800]
 
 
 def test_attachment_preview_image_zoom_supports_in_modal_gestures() -> None:
