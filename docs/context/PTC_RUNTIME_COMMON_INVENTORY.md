@@ -8,10 +8,15 @@ Contract: each listed file is either **keep** in place, **move** (not applied in
 
 | File | Decision | Rationale |
 |------|----------|-----------|
+| `blueprint-viewer-global.js` | keep | Cross-page blueprint viewer modal + ERP order-list bfcache reload after save. Extracted from `layout_scripts.html` (2026-07) for deferred load and idempotent binding. |
 | `column-resizer.js` | keep | Shared ERP table column resize behavior used across templates. |
 | `common_utils.js` | keep | Cross-page DOM/helpers shared by ERP shell. |
 | `erp-mobile-shell.js` | keep | Mobile shell wiring for ERP layout. |
 | `erp-shell.js` | keep | Canonical ERP shell fragment navigation/cache/prefetch runtime. Relocated from legacy `static/js/erp/runtime-shell.js` by the 2026-04-17 ERP Order cleanup/rename landing (commit `eaf5a444`). Referenced by `templates/partials/shared/layout_scripts.html` whenever `request.path` starts with `/erp/`. |
+| `foms-theme-boot.js` | keep | Early theme boot (FOUC prevention) loaded from `layout_head.html` before paint. Cross-context runtime primitive. |
+| `layout-head-init.js` | keep | Socket.IO loader init + ERP notification socket refresh hooks from `layout_head.html`. Cross-context runtime primitive. |
+| `layout-scripts-chat.js` | keep | Global notification badge/panel + personal briefing board extracted from `layout_scripts.html` (2026-07). Single badge fetch SSOT. |
+| `layout-scripts-core.js` | keep | Global immersive image viewer + stable `/api/files/view/` routing extracted from `layout_scripts.html` (2026-07). |
 | `script.js` | keep | Legacy shared runtime bootstrap hooks still referenced by templates. |
 | `upload-progress.js` | keep | Shared upload progress UI for file flows. |
 

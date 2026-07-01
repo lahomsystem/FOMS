@@ -64,10 +64,15 @@ _PTC_ROOT_ALLOWLIST: frozenset[str] = frozenset(
 # §4.5.1 static/js/runtime/
 _PTC_RUNTIME_JS_ALLOWLIST: frozenset[str] = frozenset(
     {
+        "blueprint-viewer-global.js",
         "column-resizer.js",
         "common_utils.js",
         "erp-mobile-shell.js",
         "erp-shell.js",
+        "foms-theme-boot.js",
+        "layout-head-init.js",
+        "layout-scripts-chat.js",
+        "layout-scripts-core.js",
         "script.js",
         "upload-progress.js",
     }
