@@ -853,9 +853,9 @@ def test_mobile_erp_autosize_textarea_overrides_80px_floor() -> None:
     compact_idx = css_text.index(
         "body.erp-mobile-v2-layout .erp-order-mobile-form .foms-textarea.erp-flex-textarea"
     )
-    compact_block = css_text[compact_idx : compact_idx + 400]
+    compact_block = css_text[compact_idx : compact_idx + 1200]
     assert "min-height: 44px" in compact_block
-    assert "resize: none" in css_text[compact_idx : compact_idx + 800]
+    assert "resize: none" in compact_block
 
 
 def test_attachment_preview_image_zoom_supports_in_modal_gestures() -> None:

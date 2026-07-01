@@ -395,6 +395,17 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
   text-align: right;
 }
 
+.erp-order-mobile-form .erp-mobile-free-input-fields > .erp-amount-value--free-input-text {
+  text-align: left;
+}
+
+.erp-order-mobile-form .erp-amount-value--free-input-text:focus,
+.erp-order-mobile-form .erp-amount-value--free-input:focus {
+  background-color: #FFE8CC !important;
+  border-color: var(--foms-border-focus, #2563eb) !important;
+  box-shadow: var(--foms-shadow-focus-ring, 0 0 0 3px rgba(37, 99, 235, 0.2));
+}
+
 .erp-mobile-action-panel {
   display: grid;
   gap: var(--foms-space-3);
@@ -1008,6 +1019,17 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
   body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-section-head { margin-bottom: var(--foms-space-2); }
   body.erp-mobile-v2-layout .erp-order-mobile-form .erp-items-mobile-stack { gap: var(--foms-space-2); }
   body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-amounts { margin-top: var(--foms-space-2); }
+
+  /* 자유입력: 항목명+금액 2칸 — 터치 높이·테두리 가시성(연한 배경만으로는 입력란 구분 불가) */
+  body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-free-input-fields > .erp-amount-value {
+    height: auto !important;
+    min-height: 44px;
+    line-height: 1.25 !important;
+    padding: 6px var(--foms-space-2) !important;
+    font-size: max(16px, var(--foms-font-size-base)) !important;
+    font-weight: var(--foms-font-weight-semibold) !important;
+    border-radius: var(--foms-radius-md);
+  }
   body.erp-mobile-v2-layout .erp-order-mobile-form .erp-form-section > .collapse.show,
   body.erp-mobile-v2-layout .erp-order-mobile-form .erp-form-section > .collapse.collapsing { margin-top: var(--foms-space-2); }
   /* 항목 카드 본문 필드 간격 압축: Bootstrap .g-2 거터(margin-top)와 grid gap이
@@ -1037,6 +1059,7 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
     line-height: 1.3;
   }
   body.erp-mobile-v2-layout .erp-order-mobile-form .foms-input,
+  body.erp-mobile-v2-layout .erp-order-mobile-form .foms-textarea.erp-flex-textarea,
   body.erp-mobile-v2-layout .erp-order-mobile-form .foms-select,
   body.erp-mobile-v2-layout .erp-order-mobile-form select.foms-select,
   body.erp-mobile-v2-layout .erp-order-mobile-form #erp-items .foms-input,
@@ -1044,6 +1067,16 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
     min-height: 44px;
     padding-top: 6px;
     padding-bottom: 6px;
+  }
+
+  /* 73a4e48d input→textarea 후 .foms-textarea { min-height:80px }가 메인 폼까지 적용되던 회귀 차단.
+     autosize(.erp-flex-textarea)와 함께 단일행은 44px, rows/data-erp-min-height는 JS가 확장. */
+  body.erp-mobile-v2-layout .erp-order-mobile-form .foms-textarea.erp-flex-textarea,
+  body.erp-mobile-v2-layout .erp-order-mobile-form #erp-items .erp-flex-textarea {
+    overflow: hidden;
+    resize: none;
+    line-height: 1.35;
+    white-space: pre-wrap;
   }
 
   /* ── 인라인 라벨 행: 라벨 좌(72px 고정) / 입력 우 (주문 상세 밀도) ──
