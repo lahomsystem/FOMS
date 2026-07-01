@@ -49,14 +49,17 @@ def _create_erp_order() -> Order:
 
 def _assert_shared_form_script_contract(body: str) -> None:
     payment_urls_idx = body.index("window.__ERP_PAYMENT_ICON_URLS")
+    channel_push_confirm_idx = body.index("js/orders/erp-channel-push-confirm.js")
     erp_order_shared_idx = body.index("js/orders/erp-order-shared.js")
     estimate_preview_idx = body.index("js/orders/estimate-preview.js")
     estimate_columns_idx = body.index("js/orders/estimate-table-columns.js")
     column_resizer_idx = body.index("js/runtime/column-resizer.js")
 
-    assert payment_urls_idx < erp_order_shared_idx < column_resizer_idx < estimate_preview_idx < estimate_columns_idx
+    assert payment_urls_idx < channel_push_confirm_idx < erp_order_shared_idx < column_resizer_idx < estimate_preview_idx < estimate_columns_idx
     assert "html2canvas.min.js" not in body
-    assert "js/orders/erp-order-shared.js?v=20260701a" in body
+    assert "js/orders/erp-channel-push-confirm.js?v=20260701a" in body
+    assert "js/orders/erp-order-shared.js?v=20260701b" in body
+    assert "css/orders/erp-channel-push.css?v=20260701a" in body
     assert "css/orders/erp-items-master-detail.css?v=20260630c" in body
     assert "js/orders/erp-items-master-detail.js?v=20260630c" in body
     assert "erp-items-master-detail-shell" in body
@@ -384,6 +387,8 @@ def test_shared_erp_order_js_preserves_drawing_operational_state() -> None:
         "drawing_assignees",
         "blueprint",
         "estimate_preview",
+        "channeltalk_push",
+        "channeltalk_push_drawing",
     ):
         assert f"'{key}'" in collect_block
 
@@ -403,6 +408,8 @@ def test_structured_put_preserves_estimate_preview_state() -> None:
     keys_end = text.index("def _merge_preserving_missing", keys_start)
     keys_block = text[keys_start:keys_end]
     assert "'estimate_preview'" in keys_block
+    assert "'channeltalk_push'" in keys_block
+    assert "'channeltalk_push_drawing'" in keys_block
 
 
 def test_shared_erp_order_js_does_not_auto_save_before_user_save() -> None:
@@ -443,6 +450,8 @@ def test_shared_erp_order_js_does_not_auto_save_before_user_save() -> None:
     assert "erpSaveStructured(" not in push_block
     assert "erpCanUsePersistedOrderAction('푸쉬는')" in push_block
     assert "erpSliceConversionTextForChannelPush(" in push_block
+    assert "erpHasPriorChannelPush" in push_block
+    assert "change_note" in push_block
 
 
 def test_shared_erp_order_supports_scoped_clipboard_image_upload() -> None:

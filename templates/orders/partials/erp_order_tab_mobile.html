@@ -225,7 +225,7 @@ ERP Order mobile-v2 tab pane.
                                 <div class="erp-mobile-amount-chip erp-amount-value erp-amount-value--balance" id="erp-remaining-amount">0원</div>
                             </div>
                             <div id="erp-free-input-section" class="erp-mobile-amount-row erp-mobile-amount-row--free-input" style="display: none;">
-                                <input type="text" id="erp-free-input-text" maxlength="128" class="foms-input foms-tabular erp-amount-value erp-amount-value--free-input-text text-start" title="항목명 등 자유 텍스트">
+                                <input type="text" id="erp-free-input-text" maxlength="128" class="foms-input foms-tabular erp-amount-value erp-amount-value--free-input-text text-end" title="항목명 등 자유 텍스트">
                                 <input type="text" id="erp-free-input-amount" inputmode="numeric" maxlength="24" class="foms-input foms-tabular erp-amount-value erp-amount-value--free-input text-end" title="금액. 총 견적·잔금에 합산됩니다.">
                             </div>
                             <div id="erp-cash-receipt-section" class="erp-mobile-amount-row" style="display: none;">
@@ -414,6 +414,8 @@ ERP Order mobile-v2 tab pane.
         </div>
     </div>
 </div>
+
+{% include 'orders/partials/erp_channel_push_resend_modal.html' %}
 
 <!-- ERP 주소 검색 모달 -->
 <div class="modal fade" id="erpAddressSearchModal" tabindex="-1" aria-hidden="true">

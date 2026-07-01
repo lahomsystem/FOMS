@@ -371,8 +371,8 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                             </div>
                             <div class="erp-amount-value erp-amount-value--balance text-end" id="erp-remaining-amount">0원</div>
                         </div>
-                        <div id="erp-free-input-section" class="d-flex justify-content-end align-items-center gap-2 w-100" style="max-width: 24rem; display: none;">
-                            <input type="text" id="erp-free-input-text" maxlength="128" class="erp-amount-value erp-amount-value--free-input-text text-start" title="항목명 등 자유 텍스트">
+                        <div id="erp-free-input-section" class="d-flex justify-content-end align-items-center gap-2 w-100" style="max-width: 16rem; display: none;">
+                            <input type="text" id="erp-free-input-text" maxlength="128" class="erp-amount-value erp-amount-value--free-input-text text-end" title="항목명 등 자유 텍스트">
                             <input type="text" id="erp-free-input-amount" inputmode="numeric" maxlength="24" class="erp-amount-value erp-amount-value--free-input text-end" title="금액. 총 견적·잔금에 합산됩니다.">
                         </div>
                         <div id="erp-cash-receipt-section" class="d-flex justify-content-end align-items-center gap-2 w-100" style="max-width: 16rem; display: none;">
@@ -449,6 +449,8 @@ ERP Order Tab Pane (shared between add_order and edit_order)
         </div>
     </div>
 </div>
+
+{% include 'orders/partials/erp_channel_push_resend_modal.html' %}
 
 <!-- ERP 주소 검색 모달 -->
 <div class="modal fade" id="erpAddressSearchModal" tabindex="-1" aria-hidden="true">

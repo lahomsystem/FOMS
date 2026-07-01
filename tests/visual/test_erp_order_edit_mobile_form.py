@@ -284,6 +284,7 @@ def test_edit_erp_order_ships_responsive_form_mounts_for_cohort(
     # 영발/발주 PUSH는 하단 액션바로 이동
     assert 'id="erp-channeltalk-push-btn"' in mobile_form
     assert 'id="erp-channeltalk-push-drawing-btn"' in mobile_form
+    assert 'id="erpChannelPushResendModal"' in mobile_form
     assert "erp-mobile-pre-sticky-footer" in mobile_form
 
 

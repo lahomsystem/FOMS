@@ -1782,7 +1782,9 @@ function erpCollectStructured() {
         'drawing_transfer_history',
         'last_drawing_transfer',
         'drawing_assignees',
-        'estimate_preview'
+        'estimate_preview',
+        'channeltalk_push',
+        'channeltalk_push_drawing',
     ];
 
     const structured = {
@@ -4174,6 +4176,9 @@ function fomsMountErpOrderSurface() {
         return;
     }
     mountRoot.dataset.erpOrderMounted = "1";
+    if (typeof erpMountChannelPushResendModal === 'function') {
+        erpMountChannelPushResendModal();
+    }
     erpBindReceivedTimeControl();
     erpBindScheduleTimeControl('erp-measurement-time-select', 'erp-measurement-time');
     erpBindScheduleTimeControl('erp-construction-time-select', 'erp-construction-time');
@@ -4278,6 +4283,7 @@ function fomsMountErpOrderSurface() {
 
     // 영발(measurement)/발주(drawing) PUSH 공용 핸들러.
     // pushKind에 따라 백엔드가 해당 분류 첨부만 골라 별도 채널톡 그룹으로 전송한다.
+    // 재전송(prev push) 시 modal/sheet에서 change_note 입력 후 전송.
     async function erpRunChannelPush(btn, pushKind) {
         if (typeof erpGenerateConversionText === 'function') {
             erpGenerateConversionText();
@@ -4300,6 +4306,14 @@ function fomsMountErpOrderSurface() {
             return;
         }
 
+        let changeNote = null;
+        if (typeof erpHasPriorChannelPush === 'function' && erpHasPriorChannelPush(pushKind)) {
+            changeNote = await erpPromptChannelPushResendNote(pushKind);
+            if (!changeNote) {
+                return;
+            }
+        }
+
         // 활성 색상 클래스(데스크톱 btn-* / 모바일 foms-btn--*)를 보존해 성공 표시 후 원복한다.
         const activeClass = btn.classList.contains('btn-warning') ? 'btn-warning'
             : btn.classList.contains('btn-primary') ? 'btn-primary'
@@ -4312,15 +4326,23 @@ function fomsMountErpOrderSurface() {
         const originalHtml = btn.innerHTML;
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 전송중...';
 
+        const payload = { order_id: orderId, text, push_kind: pushKind };
+        if (changeNote) {
+            payload.change_note = changeNote;
+        }
+
         try {
             const resp = await fetch('/api/channel/push-manual', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ order_id: orderId, text, push_kind: pushKind }),
+                body: JSON.stringify(payload),
             });
             const data = await resp.json();
 
             if (data.success) {
+                if (typeof erpMarkChannelPushSent === 'function') {
+                    erpMarkChannelPushSent(pushKind);
+                }
                 btn.innerHTML = '<i class="fas fa-check"></i> 전송완료';
                 if (activeClass) btn.classList.replace(activeClass, successClass);
                 setTimeout(() => {

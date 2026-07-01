@@ -292,6 +292,85 @@ def test_push_manual_rejects_unknown_push_kind(client, monkeypatch):
     assert response.status_code == 400
 
 
+def test_push_manual_resend_requires_change_note(client, monkeypatch):
+    """재전송(prev pushed) 시 change_note 없으면 400."""
+    _login_admin(client)
+    monkeypatch.setenv("CHANNEL_GROUP_MEASUREMENT", "group-1")
+    monkeypatch.setattr(channel_integration, "is_configured", lambda: True)
+    monkeypatch.setattr(channel_integration, "get_storage", lambda: _FakeStorage())
+    monkeypatch.setattr(
+        channel_integration,
+        "dispatch_order_event",
+        lambda event_type, data, raise_on_error=False: {"success": True, "message_id": "msg-1"},
+    )
+
+    order = Order(
+        received_date="2026-03-27",
+        customer_name="Resend Gate",
+        phone="010-0000-0000",
+        address="Seoul",
+        product="Wardrobe",
+        structured_data={"channeltalk_push": {"pushed": True, "message_id": "old"}},
+    )
+    db_session.add(order)
+    db_session.commit()
+
+    response = client.post(
+        "/api/channel/push-manual",
+        json={"order_id": order.id, "text": "고객명 : 테스트"},
+    )
+
+    assert response.status_code == 400
+    assert "5자" in response.get_json()["message"]
+
+
+def test_push_manual_resend_stores_change_log_and_dispatches_note(client, monkeypatch):
+    """재전송 시 change_note를 dispatch에 전달하고 change_log에 저장한다."""
+    _login_admin(client)
+    monkeypatch.setenv("CHANNEL_GROUP_MEASUREMENT", "group-1")
+    monkeypatch.setattr(channel_integration, "is_configured", lambda: True)
+    monkeypatch.setattr(channel_integration, "get_storage", lambda: _FakeStorage())
+
+    captured = {}
+
+    def _fake_dispatch(event_type, data, raise_on_error=False):
+        captured["data"] = data
+        return {"success": True, "message_id": "msg-resend-1"}
+
+    monkeypatch.setattr(channel_integration, "dispatch_order_event", _fake_dispatch)
+
+    order = Order(
+        received_date="2026-03-27",
+        customer_name="Resend OK",
+        phone="010-0000-0000",
+        address="Seoul",
+        product="Wardrobe",
+        structured_data={"channeltalk_push": {"pushed": True, "message_id": "old"}},
+    )
+    db_session.add(order)
+    db_session.commit()
+    order_id = order.id
+
+    response = client.post(
+        "/api/channel/push-manual",
+        json={
+            "order_id": order_id,
+            "text": "고객명 : 테스트",
+            "change_note": "손잡이 오기재 정정",
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured["data"]["is_retry"] is True
+    assert captured["data"]["change_note"] == "손잡이 오기재 정정"
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    log = saved.structured_data["channeltalk_push"]["change_log"]
+    assert len(log) == 1
+    assert log[0]["note"] == "손잡이 오기재 정정"
+    assert log[0]["message_id"] == "msg-resend-1"
+
 def test_payment_confirm_does_not_create_channel_delivery_log(client):
     """예약금/잔금 토글 API는 ChannelTalk outbox를 생성하지 않는다."""
     user = User(

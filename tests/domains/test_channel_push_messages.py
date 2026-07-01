@@ -55,12 +55,32 @@ def test_build_message_template_retry_uses_modify_prefix_only(monkeypatch):
             "customer_name": "윤인선",
             "text": "고객명 : 윤인선",
             "is_retry": True,
+            "change_note": "손잡이 오기재 → 푸쉬로 정정",
         },
     )
 
     assert "[ERP 푸시]" not in message
     assert "주문 #2762" not in message
-    assert message.startswith("[수정]\n\n고객명 : 윤인선")
+    assert message.startswith("[수정]\n내부 변경\n손잡이 오기재 → 푸쉬로 정정\n\n고객명 : 윤인선")
+
+
+def test_build_message_blocks_resend_includes_internal_change_header(monkeypatch):
+    monkeypatch.setenv("FOMS_BASE_URL", "https://example.com")
+    monkeypatch.setattr(channel_security, "generate_wam_short_link_token", lambda order_id=None: "short-123")
+
+    blocks = channel_policy.build_message_blocks(
+        "manual",
+        {
+            "order_id": 1,
+            "text": "고객명 : 박은정",
+            "is_retry": True,
+            "change_note": "규격 오타 수정",
+        },
+    )
+
+    header_block = blocks[0]["value"]
+    assert header_block.startswith("[수정]\n내부 변경\n규격 오타 수정")
+    assert "고객명 : 박은정" in blocks[1]["value"]
 
 
 def test_build_message_blocks_preserves_special_characters_in_push_text(monkeypatch):

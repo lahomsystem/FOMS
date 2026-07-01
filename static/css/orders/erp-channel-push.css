@@ -1,0 +1,20 @@
+/* 채널톡 재전송 확인: mobile bottom-sheet */
+@media (max-width: 767.98px) {
+  .erp-channel-push-resend-modal .modal-dialog {
+    align-items: flex-end;
+    margin: 0;
+    min-height: 100%;
+    max-width: 100%;
+  }
+
+  .erp-channel-push-resend-modal .modal-content {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    border-top-left-radius: 1rem;
+    border-top-right-radius: 1rem;
+  }
+
+  .erp-channel-push-resend-modal .modal-footer {
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  }
+}
