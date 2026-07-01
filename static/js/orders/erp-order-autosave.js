@@ -29,6 +29,8 @@
   var _serverTimer = null;
   var _lastServerJson = null;
   var _started = false;
+  /** edit 모드: 서버에서 폼을 채운 직후 baseline. 변경 없으면 작업본 저장/복원 배너 금지. */
+  var _editBaselineJson = null;
   // 명시 저장(erp:order-saved) 후 자동저장을 일시 중단한다. 저장 직후 페이지 이탈로
   // visibilitychange/beforeunload가 발화하면 saveLocal/saveEditLocal이 "방금 저장한"
   // 내용을 localStorage에 다시 써서, 다음 진입 시 정상 저장건이 미저장 복원 배너로
@@ -99,11 +101,49 @@
     } catch (e) {}
   }
 
+  function readEditLocalSnap() {
+    try {
+      var raw = localStorage.getItem(editLocalStorageKey());
+      if (!raw) return null;
+      var snap = JSON.parse(raw);
+      return snap && snap.payload ? snap : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /** edit: 서버 로드 직후 폼 상태를 baseline으로 고정. */
+  function captureEditBaseline() {
+    if (!isEditMode()) {
+      _editBaselineJson = null;
+      return;
+    }
+    try {
+      _editBaselineJson = serverPayloadJson(collectPayload());
+    } catch (e) {
+      _editBaselineJson = null;
+    }
+  }
+
+  /** edit: baseline 대비 실제 필드 변경이 있는지. */
+  function isEditPayloadDirty(payload) {
+    if (!isEditMode() || !_editBaselineJson) return false;
+    try {
+      return serverPayloadJson(payload) !== _editBaselineJson;
+    } catch (e) {
+      return false;
+    }
+  }
+
   function saveEditLocal() {
     if (_suspended) return;
     if (!isEditMode()) return;
+    var payload = collectPayload();
+    if (!isEditPayloadDirty(payload)) {
+      clearEditLocal();
+      return;
+    }
     try {
-      var payload = collectPayload();
       var snap = { ts: Date.now(), order_id: resolvedEditOrderId(), edit: true, payload: payload };
       localStorage.setItem(editLocalStorageKey(), JSON.stringify(snap));
       showIndicator("✓ 자동저장됨");
@@ -516,22 +556,17 @@
       });
   }
 
-  /** 편집 모드: 저장 안 한 수정 작업본이 있으면 복원 배너 제시. */
+  /** 편집 모드: baseline과 다른 미저장 작업본만 복원 배너 제시. */
   function maybeOfferEditRestore() {
     if (!isEditMode()) return;
-    var snap = null;
-    try {
-      var raw = localStorage.getItem(editLocalStorageKey());
-      if (raw) {
-        var s = JSON.parse(raw);
-        if (s && s.payload) snap = s;
-      }
-    } catch (e) {
-      snap = null;
+    if (!_editBaselineJson) captureEditBaseline();
+    var snap = readEditLocalSnap();
+    if (!snap) return;
+    if (!isEditPayloadDirty(snap.payload)) {
+      clearEditLocal();
+      return;
     }
-    if (snap) {
-      showRestoreBanner("local-edit", { snap: snap, timeText: relTime(snap.ts) });
-    }
+    showRestoreBanner("local-edit", { snap: snap, timeText: relTime(snap.ts) });
   }
 
   function start() {
@@ -560,6 +595,7 @@
           return;
         }
         if (window.__erpStructuredLoadSucceeded || tries++ > 40) {
+          captureEditBaseline();
           bindInputs();
           maybeOfferEditRestore();
           return;
@@ -577,8 +613,13 @@
     clearLocal();
     clearEditLocal();
     _lastServerJson = null;
+    _editBaselineJson = null;
     clearTimeout(_localTimer);
     clearTimeout(_serverTimer);
+    // 저장 후 폼 상태가 baseline — 재입력 전 이탈 시 복원 배너 오인 방지.
+    if (isEditMode()) {
+      captureEditBaseline();
+    }
   });
 
   window.__ERP_AUTOSAVE_BOUND = true;
