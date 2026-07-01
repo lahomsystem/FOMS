@@ -9,7 +9,7 @@ from models import Order
 from foms.services.erp_order_flags import is_erp_order_record
 
 
-def build_order_edit_get_context(order: Order) -> dict[str, Any]:
+def build_order_edit_get_context(order: Order, user: Any | None = None) -> dict[str, Any]:
     """
     Build template variables for ``edit_order_body`` on GET.
 
@@ -82,7 +82,7 @@ def build_order_edit_get_context(order: Order) -> dict[str, Any]:
     if is_erp_order_record(order):
         from foms.web.orders.edit import _build_erp_order_bootstrap
 
-        erp_bootstrap = _build_erp_order_bootstrap(order)
+        erp_bootstrap = _build_erp_order_bootstrap(order, user=user)
 
     return {
         "order": order,

@@ -23,8 +23,15 @@ from foms.services.files.upload_policy import ERP_MEDIA_ALLOWED_EXTENSIONS
 from foms.services.order_attachment_thumbnail import (
     schedule_order_attachment_thumbnail_generation,
 )
+from foms.services.order_attachment_permissions import can_delete_order_attachment
 from foms.services.storage import get_storage
 from models import Order, OrderAttachment
+
+
+def _current_user():
+    """Load the logged-in user from session."""
+    current_user_id = session.get("user_id")
+    return get_user_by_id(current_user_id) if current_user_id else None
 
 
 @attachments_bp.route("/orders/<int:order_id>/attachments", methods=["GET"])
@@ -62,7 +69,11 @@ def api_order_attachments_list(order_id):
                 query = query.filter(OrderAttachment.item_index == filter_item_index)
 
         attachments = query.order_by(OrderAttachment.created_at.desc()).all()
-        items = [serialize_attachment(attachment) for attachment in attachments]
+        current_user = _current_user()
+        items = [
+            serialize_attachment(attachment, order=order, user=current_user)
+            for attachment in attachments
+        ]
         return jsonify({"success": True, "attachments": items})
     except Exception as e:
         import traceback
@@ -156,7 +167,13 @@ def api_order_attachments_upload(order_id):
         if ASYNC_ATTACHMENT_THUMBNAIL and file_type == "image" and storage_key and not thumbnail_key:
             schedule_order_attachment_thumbnail_generation(attachment.id, storage_key)
 
-        return jsonify({"success": True, "attachment": serialize_attachment(attachment)})
+        current_user = _current_user()
+        return jsonify(
+            {
+                "success": True,
+                "attachment": serialize_attachment(attachment, order=order, user=current_user),
+            }
+        )
     except Exception as e:
         db = get_db()
         try:
@@ -191,13 +208,20 @@ def api_order_attachments_patch(order_id, attachment_id):
         if not attachment:
             return jsonify({"success": False, "message": "첨부파일을 찾을 수 없습니다."}), 404
 
+        order = db.query(Order).filter(Order.id == order_id).first()
         setattr(attachment, "item_index", item_index)
         db.commit()
         from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
 
         invalidate_all_dashboard_slice_caches()
         db.refresh(attachment)
-        return jsonify({"success": True, "attachment": serialize_attachment(attachment)})
+        current_user = _current_user()
+        return jsonify(
+            {
+                "success": True,
+                "attachment": serialize_attachment(attachment, order=order, user=current_user),
+            }
+        )
     except Exception as e:
         db = get_db()
         try:
@@ -225,14 +249,18 @@ def api_order_attachments_delete(order_id, attachment_id):
         if not attachment:
             return jsonify({"success": False, "message": "첨부파일을 찾을 수 없습니다."}), 404
 
-        attachment_user_id = getattr(attachment, "user_id", None)
-        current_user_id = session.get("user_id")
-        current_user = get_user_by_id(current_user_id) if current_user_id else None
-        is_admin = current_user and getattr(current_user, "role", None) == "ADMIN"
-        if not is_admin and (
-            current_user_id is None or attachment_user_id is None or attachment_user_id != current_user_id
-        ):
-            return jsonify({"success": False, "message": "본인이 업로드한 파일만 삭제할 수 있습니다."}), 403
+        order = db.query(Order).filter(Order.id == order_id).first()
+        current_user = _current_user()
+        if not can_delete_order_attachment(current_user, order, attachment):
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": "첨부파일 삭제 권한이 없습니다. (관리자, 해당 주문 담당자, 또는 업로드한 본인만 가능)",
+                    }
+                ),
+                403,
+            )
 
         storage = get_storage()
         try:

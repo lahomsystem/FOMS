@@ -39,7 +39,7 @@ def _order_edit_fragment_response(order_id: int) -> Any:
         if not can_edit_erp(user):
             abort(403)
 
-    ctx = build_order_edit_get_context(order)
+    ctx = build_order_edit_get_context(order, user=user)
     ctx["preserved_args"] = get_preserved_filter_args(request.args)
     uid = session.get("user_id")
     mobile_v2 = is_enabled_for_user(

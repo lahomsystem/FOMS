@@ -2840,7 +2840,10 @@ function erpBuildAttachmentTile(a, options = {}) {
 
 function erpApplyAttachmentPermissionsFromBootstrap(data) {
     const perms = data && data.attachment_permissions;
-    if (!perms || typeof perms !== 'object') return;
+    if (!perms || typeof perms !== 'object') {
+        window.__erpAttachmentPermissions = null;
+        return;
+    }
     window.__erpAttachmentPermissions = {
         currentUserId: perms.current_user_id != null ? parseInt(String(perms.current_user_id), 10) : null,
         isAdmin: !!perms.is_admin,
