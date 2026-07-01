@@ -6,9 +6,9 @@
 
 ### Session: 28954252
 - **시작**: 2026-07-01 13:09:19
-- **상태**: 진행중
-- **편집 파일**: (기록 중)
-- **종료**: -
+- **상태**: completed
+- **편집 파일**: `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-819b6369-cd0b-464b-8076-78819f0a29c5.png`, `commit_msg.txt`, `foms/services/order_attachment_permissions.py`, `tests/domains/test_order_attachment_permissions.py`, `static/js/cs/as-dashboard.js`, `templates/construction/partials/scripts.html`, `foms/api/files/order_routes.py`, `static/js/orders/erp-order-shared.js`, `tests/domains/test_erp_order_shared_form_scripts.py`, `templates/orders/partials/erp_order_js.html`
+- **종료**: 2026-07-01 14:26:54
 
  b3b8e642
 - **시작**: 2026-07-01 10:33:49
@@ -1173,3 +1173,25 @@
 | 2026-07-01 12:01:36 | END (Claude Code) | 수정: (없음) |
 
 | 2026-07-01 13:08:13 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 13:10:39 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 13:11:49 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 13:24:50 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 13:28:43 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 13:41:52 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 13:48:44 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 14:02:03 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 14:02:48 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 14:06:35 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 14:21:55 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 14:26:54 | END (Claude Code) | 수정: (없음) |

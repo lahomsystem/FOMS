@@ -4,37 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-06-25 17:00:11 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat` |
-| 2026-06-25 17:00:11 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff` |
-| 2026-06-25 17:00:17 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff static/css/components/foms-search-overlay.css static/css/foundation/erp-pro/10-erp-mo` |
-| 2026-06-25 17:00:34 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -s static/css/components/foms-flatpickr-theme.css` |
-| 2026-06-25 17:01:43 | allow | `-` | `$u="https://lahom-dev.up.railway.app/static/js/orders/estimate-preview.js?v=20260625b"; try { $r=Invoke-WebRequest -Uri $u -UseBasicParsing -TimeoutSec 30; Writ` |
-| 2026-06-25 17:01:53 | allow | `-` | `$u='https://lahom-dev.up.railway.app/static/js/orders/estimate-preview.js?v=20260625b'; try { $r=Invoke-WebRequest -Uri $u -UseBasicParsing -TimeoutSec 30; $has` |
-| 2026-06-25 17:02:18 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_foms_theme.py -q` |
-| 2026-06-25 17:03:30 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status --short; git diff --stat` |
-| 2026-06-25 18:56:40 | allow | `-` | `git ls-remote origin refs/heads/deploy refs/heads/production; git log --oneline -5` |
-| 2026-06-25 18:56:58 | allow | `-` | `Get-ChildItem "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject" | Select-Object -First 5; $wt="c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOM` |
-| 2026-06-25 18:57:16 | allow | `-` | `git worktree list; $wt="c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS-prod-ios-push-20260625185658"; git -C $wt cherry-pick --abort 2>$null; git w` |
-| 2026-06-25 18:57:29 | allow | `-` | `$wt="c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS-prod-ios-push-$(Get-Date -Format yyyyMMddHHmmss)"; $br="prod-ios-push-$(Get-Date -Format yyyyMM` |
-| 2026-06-25 18:57:52 | allow | `-` | `git -C "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS-prod-ios-push-20260625185730" grep -n "20260625b" HEAD -- templates/orders/partials/erp_orde` |
-| 2026-06-25 18:57:52 | allow | `-` | `git -C "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS-prod-ios-push-20260625185730" log --oneline -4; git -C "c:\Users\USER\OneDrive\Desktop\SY\pr` |
-| 2026-06-25 18:57:52 | allow | `-` | `node --check "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS-prod-ios-push-20260625185730\static\js\orders\estimate-preview.js" 2>&1; echo "node_ch` |
-| 2026-06-25 18:58:01 | allow | `-` | `git -C "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS-prod-ios-push-20260625185730" push origin HEAD:production 2>&1 | Select-Object -Last 20; git` |
-| 2026-06-25 18:58:13 | allow | `-` | `git worktree remove "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS-prod-ios-push-20260625185730"; git branch -D prod-ios-push-20260625185730; git ` |
-| 2026-06-25 18:59:57 | allow | `-` | `$u='https://lahom-production.up.railway.app/static/js/orders/estimate-preview.js?v=20260625b'; try { $r=Invoke-WebRequest -Uri $u -UseBasicParsing -TimeoutSec 3` |
-| 2026-06-25 19:00:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status --short` |
-| 2026-06-25 19:00:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat; git diff --cached --stat` |
-| 2026-06-25 19:00:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log -5 --oneline` |
-| 2026-06-25 19:00:54 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git branch --show-current; git status -sb` |
-| 2026-06-25 19:01:02 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add static/css/components/foms-flatpickr-theme.css static/css/components/foms-search-overl` |
-| 2026-06-25 19:08:26 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
-| 2026-06-25 19:08:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log --oneline -1; git push origin production; git checkout deploy; git status -sb` |
-| 2026-06-25 19:10:48 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin; git status -sb; git branch --show-current; git log --oneline origin/deploy..` |
-| 2026-06-25 19:10:54 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log --oneline -3 deploy; git log --oneline -3 origin/deploy; git log --oneline production.` |
-| 2026-06-25 19:11:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log --oneline -1 production; git log --oneline -1 origin/production; git log --oneline ori` |
-| 2026-06-25 19:11:10 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log --oneline origin/production..origin/deploy; git diff --name-only` |
-| 2026-06-25 19:11:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin production; git rev-parse origin/production; git log --oneline origin/product` |
-| 2026-06-25 19:11:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git ls-remote origin refs/heads/deploy refs/heads/production; git log --oneline -1 65260a22 2>` |
 | 2026-06-25 19:11:30 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log --oneline 65260a22 -5; git merge-base origin/production origin/deploy; git log --oneli` |
 | 2026-06-25 19:11:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git branch -a --contains ddd50295; git merge-base --is-ancestor ddd50295 origin/production; ec` |
 | 2026-06-25 19:11:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git merge-base --is-ancestor ddd50295 65260a22; echo "ddd50295 in production merge: $LASTEXITC` |
@@ -304,3 +273,34 @@
 | 2026-07-01 13:09:48 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/perf/perf_scan.py --guard` |
 | 2026-07-01 13:09:48 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
 | 2026-07-01 13:10:29 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/AI_CHANGELOG.md docs/harness/logs/SHELL_GUARD_LOG.md docs/harness/runtime/COMPACT` |
+| 2026-07-01 13:21:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_order_attachment_permissions.py -q` |
+| 2026-07-01 13:21:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"` |
+| 2026-07-01 13:21:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/perf/perf_scan.py --guard` |
+| 2026-07-01 13:24:25 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_order_shared_form_scripts.py::test_shared_erp_order_js` |
+| 2026-07-01 13:24:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add static/js/orders/erp-order-shared.js templates/orders/partials/erp_order_js.html tests` |
+| 2026-07-01 13:25:20 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff -- foms/services/order_attachment_permissions.py foms/api/files/common.py foms/api/fi` |
+| 2026-07-01 13:25:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff -- static/js/orders/erp-order-shared.js foms/services/order_attachment_permissions.py` |
+| 2026-07-01 13:25:48 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status --short foms/services/order_attachment_permissions.py static/js/orders/erp-order-sh` |
+| 2026-07-01 13:25:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff HEAD -- static/js/orders/erp-order-shared.js | Select-Object -First 80` |
+| 2026-07-01 13:27:49 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git branch --show-current` |
+| 2026-07-01 13:27:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
+| 2026-07-01 13:28:29 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add foms/services/order_attachment_permissions.py foms/api/files/common.py foms/api/files/` |
+| 2026-07-01 13:39:10 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git show 740b254c --stat; git diff 740b254c^..740b254c` |
+| 2026-07-01 13:39:21 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git show 740b254c --stat; git show 740b254c --no-color` |
+| 2026-07-01 13:40:50 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_order_attachment_permissions.py -q` |
+| 2026-07-01 13:41:04 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff 740b254c^..740b254c -- static/js/orders/erp-order-shared.js` |
+| 2026-07-01 13:41:11 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log -1 --oneline 848efdbc; git log -3 --oneline -- static/js/orders/erp-order-shared.js` |
+| 2026-07-01 13:41:16 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git show 3fa79e2b:static/js/orders/erp-order-shared.js | Select-String -Pattern "erpCanDeleteA` |
+| 2026-07-01 13:41:25 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git show 3fa79e2b --stat | Select-Object -First 20; git diff 3fa79e2b 740b254c -- static/js/or` |
+| 2026-07-01 13:41:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff 2bb423e1 3fa79e2b -- static/js/orders/erp-order-shared.js | Select-String -Pattern "e` |
+| 2026-07-01 14:05:06 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_order_attachment_permissions.py -q` |
+| 2026-07-01 14:05:07 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/perf/perf_scan.py --guard` |
+| 2026-07-01 14:05:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_order_attachment_permissions.py -q` |
+| 2026-07-01 14:05:47 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
+| 2026-07-01 14:06:21 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add foms/services/order_attachment_permissions.py foms/api/files/order_routes.py templates` |
+| 2026-07-01 14:39:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin deploy 2>&1; git status -sb; git log origin/deploy..HEAD --oneline; git log -` |
+| 2026-07-01 14:39:39 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; if (Test-Path "tools/qa") { "BLOCK: tools/qa" } else { "ok" }` |
+| 2026-07-01 14:39:39 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git rev-parse HEAD origin/deploy; git log origin/deploy..HEAD --oneline; git show 3fa79e2b --s` |
+| 2026-07-01 14:39:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/perf/perf_scan.py --guard` |
+| 2026-07-01 14:39:57 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
+| 2026-07-01 14:40:31 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/AI_CHANGELOG.md docs/harness/logs/SHELL_GUARD_LOG.md docs/harness/runtime/COMPACT` |
