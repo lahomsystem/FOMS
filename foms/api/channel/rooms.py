@@ -179,10 +179,20 @@ def api_chat_rooms_detail(room_id):
             .all()
         )
 
+        message_ids = [msg.id for msg in messages]
+        attachments_by_message_id: dict[int, list] = {}
+        if message_ids:
+            for attachment in (
+                db.query(ChatAttachment)
+                .filter(ChatAttachment.message_id.in_(message_ids))
+                .all()
+            ):
+                attachments_by_message_id.setdefault(attachment.message_id, []).append(attachment)
+
         messages_with_read_status = []
         for msg in messages:
             msg_dict = msg.to_dict()
-            attachments = db.query(ChatAttachment).filter(ChatAttachment.message_id == msg.id).all()
+            attachments = attachments_by_message_id.get(msg.id, [])
             if attachments:
                 msg_dict["attachments"] = [a.to_dict() for a in attachments]
             if msg.user_id == user_id:

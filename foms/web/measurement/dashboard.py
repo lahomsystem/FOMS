@@ -58,7 +58,7 @@ def _erp_order_search_filter(query, q):
     return query.filter(
         or_(
             Order.customer_name.ilike(term),
-            Order.manager_name.ilike(term),
+            Order.manager_name.ilike(term),  # perf-ok: ix_orders_manager_name_trgm
             Order.address.ilike(term),
             and_(
                 Order.is_erp_order == True,
@@ -468,7 +468,7 @@ def metropolitan_dashboard():
                 Order.address.ilike(search_term),
                 Order.product.ilike(search_term),
                 Order.notes.ilike(search_term),
-                Order.manager_name.ilike(search_term),
+                Order.manager_name.ilike(search_term),  # perf-ok: ix_orders_manager_name_trgm
                 *id_conditions,
             )
         )

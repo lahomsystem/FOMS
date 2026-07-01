@@ -353,7 +353,7 @@ def _history_style_orders_query(db: Session, query: str) -> list[Order]:
             Order.customer_name.ilike(term),
             Order.phone.ilike(term),
             Order.address.ilike(term),
-            Order.manager_name.ilike(term),
+            Order.manager_name.ilike(term),  # perf-ok: ix_orders_manager_name_trgm
             cast(Order.structured_data, String).ilike(term),  # perf-ok: ix_orders_structured_data_text_trgm
         )
 

@@ -255,7 +255,7 @@ def build_mine_sql_filter(user: Any, scope: str | None = None) -> list[Any]:
 
     def _add_name_group(value: str) -> None:
         safe = _escape_like(value)
-        manager_conds.append(Order.manager_name.ilike(safe, escape="\\"))
+        manager_conds.append(Order.manager_name.ilike(safe, escape="\\"))  # perf-ok: ix_orders_manager_name_trgm
         manager_conds.append(_json_string_token_condition(Order.structured_data["parties"]["manager"]["name"], value, dialect_name=dialect_name))
         manager_conds.append(_json_string_token_condition(Order.structured_data["workflow"]["current_quest"]["owner_person"], value, dialect_name=dialect_name))
         construction_conds.append(_json_string_token_condition(Order.structured_data["shipment"]["construction_workers"], value, dialect_name=dialect_name))

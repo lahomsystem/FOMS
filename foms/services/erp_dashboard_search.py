@@ -66,7 +66,7 @@ def erp_order_dashboard_search_predicate(
             Order.phone.ilike(search_term),
             Order.address.ilike(search_term),
             Order.product.ilike(search_term),
-            Order.manager_name.ilike(search_term),
+            Order.manager_name.ilike(search_term),  # perf-ok: ix_orders_manager_name_trgm
             *[
                 and_(Order.is_erp_order == True, field.ilike(search_term))
                 for field in structured_visible_fields

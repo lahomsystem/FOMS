@@ -59,7 +59,7 @@ def history_dashboard():
                 Order.customer_name.ilike(search_term),
                 Order.phone.ilike(search_term),
                 Order.address.ilike(search_term),
-                Order.manager_name.ilike(search_term),
+                Order.manager_name.ilike(search_term),  # perf-ok: ix_orders_manager_name_trgm
                 cast(Order.structured_data, String).ilike(search_term)  # perf-ok: ix_orders_structured_data_text_trgm
             )
         )

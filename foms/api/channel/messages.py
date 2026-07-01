@@ -40,8 +40,13 @@ def api_chat_search():
             .limit(limit)
             .all()
         )
+        room_ids = {msg.room_id for msg in messages}
+        rooms_by_id = {}
+        if room_ids:
+            for room in db.query(ChatRoom).filter(ChatRoom.id.in_(room_ids)).all():
+                rooms_by_id[room.id] = room
         for msg in messages:
-            room = db.query(ChatRoom).filter(ChatRoom.id == msg.room_id).first()
+            room = rooms_by_id.get(msg.room_id)
             results.append(
                 {
                     "type": "message",
@@ -78,7 +83,7 @@ def api_chat_search():
                 )
 
         orders = (
-            db.query(Order)
+            db.query(Order, ChatRoom)
             .join(ChatRoom, Order.id == ChatRoom.order_id)
             .join(user_rooms, ChatRoom.id == user_rooms.c.id)
             .filter(
@@ -91,8 +96,7 @@ def api_chat_search():
             .limit(limit)
             .all()
         )
-        for order in orders:
-            room = db.query(ChatRoom).filter(ChatRoom.order_id == order.id).first()
+        for order, room in orders:
             if room and not any(result.get("room_id") == room.id and result.get("type") == "order" for result in results):
                 results.append(
                     {

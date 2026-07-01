@@ -277,7 +277,7 @@ def api_erp_measurement_route():
         ).distinct()
 
     if manager_filter:
-        query = query.filter(Order.manager_name.ilike(f'%{manager_filter}%'))
+        query = query.filter(Order.manager_name.ilike(f'%{manager_filter}%'))  # perf-ok: ix_orders_manager_name_trgm
 
     ordered_query = query.order_by(
         Order.measurement_time.asc().nullslast(),
