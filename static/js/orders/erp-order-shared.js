@@ -307,7 +307,7 @@ window.erpNormalizeConstructionWorkers = erpNormalizeConstructionWorkers;
 var erpFormatConstructionWorkers =
     window.erpFormatConstructionWorkers ||
     function erpFormatConstructionWorkers(value) {
-        return erpNormalizeConstructionWorkers(value).join(", ");
+        return erpNormalizeConstructionWorkers(value).join("\n");
     };
 window.erpFormatConstructionWorkers = erpFormatConstructionWorkers;
 
@@ -334,7 +334,7 @@ function erpConfirmConstructionWorkerOverwrite() {
         return true;
     }
 
-    var nextLabel = nextWorkers.length ? nextWorkers.join(", ") : "공란";
+    var nextLabel = nextWorkers.length ? nextWorkers.join("\n") : "공란";
     var confirmed = window.confirm(
         "현재 출고 대시보드 시공자: " +
         previousWorkers.join(", ") +
@@ -868,13 +868,14 @@ function erpItemAttachmentEmptyText() {
 
 function erpMobileFlexibleControl(name, label, value, options = {}) {
     const escapedValue = escapeHtml(value);
-    if (!options.isMobileForm) {
-        return `<input class="${options.inputClass}" data-erp="${name}" value="${escapedValue}" lang="ko">`;
-    }
     const rows = options.rows || 1;
-    const minHeight = options.minHeight || 44;
+    const minHeight = options.minHeight || (options.isMobileForm ? 44 : 28);
     const placeholder = options.placeholder || '';
-    return `<textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea" data-erp="${name}" rows="${rows}" data-erp-min-height="${minHeight}" placeholder="${escapeHtml(placeholder)}" lang="ko">${escapedValue}</textarea>`;
+    const inputClass = options.isMobileForm
+        ? 'foms-textarea erp-autosize-textarea erp-flex-textarea'
+        : `${options.inputClass || 'form-control form-control-sm'} erp-autosize-textarea erp-flex-textarea`;
+    const placeholderAttr = placeholder ? ` placeholder="${escapeHtml(placeholder)}"` : '';
+    return `<textarea class="${inputClass}" data-erp="${name}" rows="${rows}" data-erp-min-height="${minHeight}"${placeholderAttr} lang="ko">${escapedValue}</textarea>`;
 }
 
 /** PC Master-Detail: Fiori compact 제품 속성 property sheet (목업 1:1). */
@@ -917,7 +918,7 @@ function erpNewItemRow(item = {}) {
     const tabularInputClass = isMobileForm ? 'foms-input foms-tabular' : 'form-control form-control-sm';
     const textareaClass = isMobileForm ? 'foms-textarea' : 'form-control form-control-sm';
     const itemScheduleFieldClass = isMobileForm ? 'col-md-6 d-none erp-mobile-rare-field' : 'col-md-6';
-    const productName = String(item.product_name || '').trim();
+    const productName = String(item.product_name ?? '');
     const itemAttachmentAccept = isMobileForm ? 'image/*,video/*' : 'image/*';
     const itemAttachmentAriaLabel = isMobileForm
         ? '제품 항목 사진 및 동영상 업로드 영역. 이미지를 붙여넣으면 이 항목에 바로 업로드됩니다.'
@@ -958,9 +959,9 @@ function erpNewItemRow(item = {}) {
         const delStyle = showDel ? '' : ' style="display:none;"';
         const wPlaceholder = '예: 5700(2402+1864+1638) 또는 2352+2100+2860';
         return `<div class="erp-spec-row d-flex flex-wrap gap-2 align-items-end mb-1">
-<div class="col-12 erp-spec-w-col"><label class="form-label mb-0 small text-muted">W(가로·총폭)</label><input class="${tabularInputClass}" data-erp="spec_width" data-spec-row placeholder="${wPlaceholder}" value="${w}" lang="ko"></div>
-<div class="col erp-spec-d-col"><label class="form-label mb-0 small text-muted">D(깊이)</label><input class="${tabularInputClass}" data-erp="spec_depth" data-spec-row placeholder="깊이" value="${d}" lang="ko"></div>
-<div class="col erp-spec-h-col"><label class="form-label mb-0 small text-muted">H(높이)</label><input class="${tabularInputClass}" data-erp="spec_height" data-spec-row placeholder="높이" value="${h}" lang="ko"></div>
+<div class="col-12 erp-spec-w-col"><label class="form-label mb-0 small text-muted">W(가로·총폭)</label><textarea class="${tabularInputClass} erp-autosize-textarea erp-flex-textarea" data-erp="spec_width" data-spec-row rows="1" data-erp-min-height="28" placeholder="${wPlaceholder}" lang="ko">${w}</textarea></div>
+<div class="col erp-spec-d-col"><label class="form-label mb-0 small text-muted">D(깊이)</label><textarea class="${tabularInputClass} erp-autosize-textarea erp-flex-textarea" data-erp="spec_depth" data-spec-row rows="1" data-erp-min-height="28" placeholder="깊이" lang="ko">${d}</textarea></div>
+<div class="col erp-spec-h-col"><label class="form-label mb-0 small text-muted">H(높이)</label><textarea class="${tabularInputClass} erp-autosize-textarea erp-flex-textarea" data-erp="spec_height" data-spec-row rows="1" data-erp-min-height="28" placeholder="높이" lang="ko">${h}</textarea></div>
 <button type="button" class="btn btn-sm btn-outline-secondary erp-remove-spec-row-btn"${delStyle}><i class="fas fa-minus"></i></button>
 </div>`;
     };
@@ -978,7 +979,7 @@ function erpNewItemRow(item = {}) {
     const handle = defaultConsult(item.handle);
     const misc = defaultConsult(item.misc);
     const price = String(item.price ?? '').trim();
-    const extraInput = String(item.extra_input ?? '').trim();
+    const extraInput = String(item.extra_input ?? '');
     const colorFieldHtml = `
 <div class="col-md-6 erp-mobile-full-row">
     <label class="form-label mb-1 small text-primary">색상</label>
@@ -1032,7 +1033,7 @@ ${attributeFieldsHtml}
 <div class="row g-2">
 <div class="col-12">
     <label class="${fieldLabelClass}">제품명</label>
-    <input class="${inputClass}" data-erp="product_name" value="${escapeHtml(productName)}" lang="ko">
+    <textarea class="${textareaClass} erp-autosize-textarea erp-flex-textarea" data-erp="product_name" rows="1" data-erp-min-height="28" lang="ko">${escapeHtml(productName)}</textarea>
 </div>
 <div class="col-12">
     <label class="${fieldLabelClass}">규격 (W × D × H)</label>
@@ -1430,9 +1431,9 @@ async function erpLoadStructured(bootstrapData, options) {
     document.getElementById('erp-customer-phone').value = sd?.parties?.customer?.phone || '';
     try {
         const erpManualPhone = document.getElementById('erp-manual-phone-input');
-        if (!erpManualPhone || !erpManualPhone.checked) {
-            document.getElementById('erp-customer-phone').value =
-                formatPhoneAuto(document.getElementById('erp-customer-phone').value);
+        const erpPhoneEl = document.getElementById('erp-customer-phone');
+        if ((!erpManualPhone || !erpManualPhone.checked) && erpPhoneEl && !/\n/.test(erpPhoneEl.value || '')) {
+            erpPhoneEl.value = formatPhoneAuto(erpPhoneEl.value);
         }
     } catch (e) { }
     document.getElementById('erp-phone-note').value = sd?.notes?.phone_note || '';
@@ -1542,6 +1543,7 @@ async function erpLoadStructured(bootstrapData, options) {
     if (typeof erpRenderItemAttachmentPanels === 'function') {
         erpRenderItemAttachmentPanels();
     }
+    erpBindAutosizeTextareas(document.getElementById('erp-order') || document);
 }
 
 function erpCollectStructured() {
@@ -1707,8 +1709,8 @@ function erpCollectStructured() {
             return {
                 deposit: totals.deposit_amount,
                 discount: totals.discount_amount,
-                free_input: String(getVal('erp-free-input-amount') || '').trim(),
-                cash_receipt: String(getVal('erp-cash-receipt') || '').trim(),
+                free_input: String(getVal('erp-free-input-amount') || ''),
+                cash_receipt: String(getVal('erp-cash-receipt') || ''),
                 deposit_confirmed: _erpBoolConfirmed(prev.deposit_confirmed),
                 deposit_confirmed_at: prev.deposit_confirmed_at || null,
                 deposit_confirmed_by: prev.deposit_confirmed_by || null,
@@ -2228,7 +2230,9 @@ ${escapeHtml(sub)}</div>` : ''}`;
     function applyErpPhoneFormat() {
         if (!erpPhoneInput) return;
         if (erpManualPhone && erpManualPhone.checked) return;
-        erpPhoneInput.value = formatPhoneAuto(erpPhoneInput.value);
+        const raw = erpPhoneInput.value || '';
+        if (/\n/.test(raw)) return;
+        erpPhoneInput.value = formatPhoneAuto(raw);
     }
     if (erpPhoneInput) {
         erpPhoneInput.addEventListener('input', applyErpPhoneFormat);
@@ -3623,8 +3627,19 @@ function erpHasConversionTextValue(value) {
 }
 
 function erpAppendConversionTextLine(text, label, value) {
-    if (!erpHasConversionTextValue(value)) return text;
-    return text + `${label} : ${String(value).trim()}\n`;
+    const raw = String(value ?? '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const trimmed = raw.trim();
+    if (!trimmed) return text;
+    if (!trimmed.includes('\n')) {
+        return text + `${label} : ${trimmed}\n`;
+    }
+    const lines = trimmed.split('\n');
+    let out = text + `${label} : ${(lines[0] || '').trim()}\n`;
+    for (let i = 1; i < lines.length; i += 1) {
+        const line = lines[i].trim();
+        if (line) out += `${line}\n`;
+    }
+    return out;
 }
 
 function erpAppendConversionExtraInputLine(text, value) {
@@ -3658,7 +3673,7 @@ function erpAppendConversionFreeInputBlock(text, value) {
 function erpReadItemFieldValue(row, key) {
     if (!row || !key) return '';
     const el = row.querySelector(`:scope [data-erp="${key}"]`);
-    return el ? String(el.value || '').trim() : '';
+    return el ? String(el.value || '') : '';
 }
 
 function erpAppendConversionMoneyLine(text, label, amount, suffix) {

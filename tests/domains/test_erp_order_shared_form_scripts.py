@@ -56,9 +56,9 @@ def _assert_shared_form_script_contract(body: str) -> None:
 
     assert payment_urls_idx < erp_order_shared_idx < column_resizer_idx < estimate_preview_idx < estimate_columns_idx
     assert "html2canvas.min.js" not in body
-    assert "js/orders/erp-order-shared.js?v=20260630a" in body
+    assert "js/orders/erp-order-shared.js?v=20260630b" in body
     assert "css/orders/erp-items-master-detail.css?v=20260630a" in body
-    assert "js/orders/erp-items-master-detail.js?v=20260630a" in body
+    assert "js/orders/erp-items-master-detail.js?v=20260630b" in body
     assert "erp-items-master-detail-shell" in body
     assert 'id="erp-md-rail-list"' in body
     assert "js/orders/estimate-preview.js?v=20260629a" in body
@@ -562,7 +562,7 @@ def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
     collect_end = text.index("async function erpSaveStructured", collect_start)
     collect_block = text[collect_start:collect_end]
     assert "const totals = erpBuildTotals(itemsTotal, depositAmount, discountAmount, freeInputAmount);" in collect_block
-    assert "free_input: String(getVal('erp-free-input-amount') || '').trim()" in collect_block
+    assert "free_input: String(getVal('erp-free-input-amount') || '')" in collect_block
     assert "function erpSumFreeInputAmountFromText" in text
     assert "function erpAppendConversionFreeInputBlock" in text
     assert "totals," in collect_block
@@ -600,7 +600,7 @@ def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
     assert "erpHasConversionTextValue(cashReceiptVal) && totals.final_amount > 0" in conversion_block
     assert "function erpResolveCashReceipt" in text
     assert "Object.prototype.hasOwnProperty.call(modernPayment, 'cash_receipt')" in text
-    assert "cash_receipt: String(getVal('erp-cash-receipt') || '').trim()" in collect_block
+    assert "cash_receipt: String(getVal('erp-cash-receipt') || '')" in collect_block
     assert "cash_receipt: erpResolveCashReceipt(sd)" in text
     assert "erp-cash-receipt-section" in text
     assert 'data-payment-type="balance"' in text
