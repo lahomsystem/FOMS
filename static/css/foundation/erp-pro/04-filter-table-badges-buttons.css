@@ -361,11 +361,15 @@
   font-size: var(--erp-font-size-xs);
 }
 
-/* 작업 큐 경보 컬럼 — 체크박스 유지 + 경보 배지 세로 스택 */
+/* 작업 큐 경보 컬럼 — 체크박스 세로 중앙 + 경보 배지 세로 스택 */
 .erp-grid-alert-cell {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 0.375rem;
+}
+
+#erp-grid td[data-label="경보"]:has(.erp-grid-order-check) {
+  cursor: pointer;
 }
 
 .erp-grid-alert-badges {

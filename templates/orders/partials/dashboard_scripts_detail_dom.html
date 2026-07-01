@@ -971,6 +971,17 @@
               if (e.target.classList.contains('erp-grid-order-check')) updateSelectedCount();
             });
 
+            grid.addEventListener('click', function (e) {
+              if (e.target.closest('.erp-grid-order-check')) return;
+              if (e.target.closest('a, button, select, textarea, label')) return;
+              const cell = e.target.closest('td[data-label="경보"]');
+              if (!cell || !grid.contains(cell)) return;
+              const cb = cell.querySelector('.erp-grid-order-check');
+              if (!cb) return;
+              cb.checked = !cb.checked;
+              updateSelectedCount();
+            });
+
             applyBtn.addEventListener('click', function () {
               const status = (selectEl.value || '').trim();
               if (!status) {
