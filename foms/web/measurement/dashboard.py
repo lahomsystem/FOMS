@@ -44,6 +44,11 @@ from foms.services.measurement_read_model import (
     compute_measurement_product_items_build,
     build_measurement_main_rows,
 )
+from foms.services.erp_dashboard_search import (
+    LEGACY_DASHBOARD_ORDER_LIMIT,
+    apply_legacy_dashboard_search_filter,
+    erp_measurement_main_search_predicate,
+)
 
 erp_measurement_dashboard_bp = Blueprint(
     'erp_measurement_dashboard', __name__, url_prefix='/erp'
@@ -51,21 +56,11 @@ erp_measurement_dashboard_bp = Blueprint(
 
 
 def _erp_order_search_filter(query, q):
-    """고객·담당자·시공자·주소 전체 검색 (Order 컬럼 + ERP Beta structured_data 텍스트)."""
+    """고객·담당자·주소 + ERP Beta structured_data blob (전화 제외)."""
     if not q or not q.strip():
         return query
     term = f'%{q.strip()}%'
-    return query.filter(
-        or_(
-            Order.customer_name.ilike(term),
-            Order.manager_name.ilike(term),  # perf-ok: ix_orders_manager_name_trgm
-            Order.address.ilike(term),
-            and_(
-                Order.is_erp_order == True,
-                cast(Order.structured_data, String).ilike(term)  # perf-ok: ix_orders_structured_data_text_trgm
-            )
-        )
-    )
+    return query.filter(erp_measurement_main_search_predicate(term))
 
 
 def _measurement_user_visibility_fingerprint(current_user) -> dict:
@@ -340,27 +335,17 @@ def regional_dashboard():
     )
 
     if search_query:
-        search_term = f"%{search_query}%"
-        id_conditions = []
-        try:
-            search_id = int(search_query)
-            id_conditions.append(Order.id == search_id)
-        except ValueError:
-            id_conditions.append(func.cast(Order.id, String).ilike(search_term))
-
-        base_query = base_query.filter(
-            or_(
-                Order.customer_name.ilike(search_term),
-                Order.phone.ilike(search_term),
-                Order.address.ilike(search_term),
-                Order.product.ilike(search_term),
-                Order.regional_memo.ilike(search_term),
-                Order.notes.ilike(search_term),
-                *id_conditions,
-            )
+        base_query = apply_legacy_dashboard_search_filter(
+            base_query,
+            search_query,
+            extra_columns=(Order.product, Order.regional_memo, Order.notes),
+            include_phone=True,
+            include_manager=False,
         )
 
-    all_regional_orders = base_query.order_by(Order.id.desc()).all()
+    all_regional_orders = (
+        base_query.order_by(Order.id.desc()).limit(LEGACY_DASHBOARD_ORDER_LIMIT).all()
+    )
     apply_erp_display_fields_to_orders(all_regional_orders)
     today = get_today_kst()
 
@@ -455,22 +440,12 @@ def metropolitan_dashboard():
     def get_filtered_orders(q):
         if not search_query:
             return q
-        search_term = f"%{search_query}%"
-        id_conditions = []
-        try:
-            id_conditions.append(Order.id == int(search_query))
-        except ValueError:
-            id_conditions.append(func.cast(Order.id, String).ilike(search_term))
-        return q.filter(
-            or_(
-                Order.customer_name.ilike(search_term),
-                Order.phone.ilike(search_term),
-                Order.address.ilike(search_term),
-                Order.product.ilike(search_term),
-                Order.notes.ilike(search_term),
-                Order.manager_name.ilike(search_term),  # perf-ok: ix_orders_manager_name_trgm
-                *id_conditions,
-            )
+        return apply_legacy_dashboard_search_filter(
+            q,
+            search_query,
+            extra_columns=(Order.product, Order.notes),
+            include_phone=True,
+            include_manager=True,
         )
 
     base_query = db.query(Order).filter(Order.is_regional == False)
@@ -532,7 +507,7 @@ def metropolitan_dashboard():
             Order.measurement_date != None,
             Order.measurement_date != "",
         )
-    ).order_by(Order.measurement_date.asc()).all()
+    ).order_by(Order.measurement_date.asc()).limit(LEGACY_DASHBOARD_ORDER_LIMIT).all()
     urgent_alerts = [o for o in urgent_candidates if _measurement_dates_include_today(o)]
 
     measurement_candidates = get_filtered_orders(
@@ -542,7 +517,7 @@ def metropolitan_dashboard():
             Order.measurement_date != "",
             or_(Order.scheduled_date == None, Order.scheduled_date == ""),
         )
-    ).order_by(Order.measurement_date.asc()).all()
+    ).order_by(Order.measurement_date.asc()).limit(LEGACY_DASHBOARD_ORDER_LIMIT).all()
     measurement_alerts = [o for o in measurement_candidates if _measurement_dates_any_lt_today(o)]
 
     pre_candidates = get_filtered_orders(
@@ -559,7 +534,7 @@ def metropolitan_dashboard():
                 ),
             )
         )
-    ).order_by(Order.measurement_date.asc()).all()
+    ).order_by(Order.measurement_date.asc()).limit(LEGACY_DASHBOARD_ORDER_LIMIT).all()
     pre_measurement_alerts = [
         o
         for o in pre_candidates
@@ -574,7 +549,7 @@ def metropolitan_dashboard():
             Order.scheduled_date != None,
             Order.scheduled_date != "",
         )
-    ).order_by(Order.scheduled_date.asc()).all()
+    ).order_by(Order.scheduled_date.asc()).limit(LEGACY_DASHBOARD_ORDER_LIMIT).all()
     installation_alerts = [
         o for o in installation_candidates if _scheduled_dates_any_lt_today(o)
     ]
@@ -592,14 +567,14 @@ def metropolitan_dashboard():
             Order.status == "AS_RECEIVED",
             Order.is_regional == False,
         )
-    ).order_by(Order.created_at.desc()).all()
+    ).order_by(Order.created_at.desc()).limit(LEGACY_DASHBOARD_ORDER_LIMIT).all()
 
     hold_orders = get_filtered_orders(
         db.query(Order).filter(
             Order.status == "ON_HOLD",
             Order.is_regional == False,
         )
-    ).order_by(Order.created_at.desc()).all()
+    ).order_by(Order.created_at.desc()).limit(LEGACY_DASHBOARD_ORDER_LIMIT).all()
 
     normal_orders = get_filtered_orders(
         db.query(Order).filter(
@@ -658,24 +633,15 @@ def self_measurement_dashboard():
     )
 
     if search_query:
-        search_term = f"%{search_query}%"
-        id_conditions = []
-        try:
-            id_conditions.append(Order.id == int(search_query))
-        except ValueError:
-            id_conditions.append(func.cast(Order.id, String).ilike(search_term))
-        base_query = base_query.filter(
-            or_(
-                Order.customer_name.ilike(search_term),
-                Order.phone.ilike(search_term),
-                Order.address.ilike(search_term),
-                Order.product.ilike(search_term),
-                Order.notes.ilike(search_term),
-                *id_conditions,
-            )
+        base_query = apply_legacy_dashboard_search_filter(
+            base_query,
+            search_query,
+            extra_columns=(Order.product, Order.notes),
+            include_phone=True,
+            include_manager=False,
         )
 
-    all_orders = base_query.order_by(Order.id.desc()).all()
+    all_orders = base_query.order_by(Order.id.desc()).limit(LEGACY_DASHBOARD_ORDER_LIMIT).all()
     apply_erp_display_fields_to_orders(all_orders)
 
     as_orders = [o for o in all_orders if o.status == "AS_RECEIVED"]

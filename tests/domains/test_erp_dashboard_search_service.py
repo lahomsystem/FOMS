@@ -2,6 +2,8 @@
 
 from foms.services.erp_dashboard_search import (
     SHIPMENT_SEARCH_FOCUS_SCHEDULE_HALF_RANGE_DAYS,
+    apply_legacy_dashboard_search_filter,
+    erp_measurement_main_search_predicate,
     erp_order_dashboard_search_predicate,
 )
 
@@ -23,3 +25,46 @@ def test_erp_order_dashboard_search_predicate_customer_contact_only_omits_manage
     narrow_sql = str(narrow.compile(compile_kwargs={"literal_binds": True}))
     assert "manager_name" not in narrow_sql
     assert "customer_name" in narrow_sql
+
+
+def test_erp_order_dashboard_search_predicate_uses_phone_digits_index_for_digit_query() -> None:
+    pred = erp_order_dashboard_search_predicate(
+        '%0101234%',
+        customer_contact_only=True,
+        raw_query='0101234',
+    )
+    sql = str(pred.compile(compile_kwargs={"literal_binds": True}))
+    assert "erp_phone_digits" in sql
+
+
+def test_erp_measurement_main_search_predicate_includes_manager_not_phone() -> None:
+    pred = erp_measurement_main_search_predicate('%test%')
+    sql = str(pred.compile(compile_kwargs={"literal_binds": True}))
+    assert "manager_name" in sql
+    assert "erp_phone_digits" not in sql
+    assert "phone" not in sql.replace("manager_name", "")
+
+
+def test_apply_legacy_dashboard_search_filter_adds_extra_columns() -> None:
+    from models import Order
+
+    class _Q:
+        def __init__(self):
+            self.filters = []
+
+        def filter(self, *args):
+            self.filters.append(args)
+            return self
+
+    q = _Q()
+    apply_legacy_dashboard_search_filter(
+        q,
+        'abc',
+        extra_columns=(Order.product,),
+        include_phone=False,
+        include_manager=True,
+    )
+    assert q.filters
+    sql = str(q.filters[0][0].compile(compile_kwargs={"literal_binds": True}))
+    assert "product" in sql
+    assert "manager_name" in sql

@@ -9,6 +9,7 @@ from foms.web.auth import login_required
 from foms.api.channel.blueprint import chat_bp
 from foms.api.channel.utils import schedule_chat_thumbnail_generation
 from foms.services.datetime_kst import format_datetime_kst
+from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
 from db import get_db
 from models import ChatAttachment, ChatMessage, ChatRoom, ChatRoomMember, Order, User
 
@@ -87,10 +88,10 @@ def api_chat_search():
             .join(ChatRoom, Order.id == ChatRoom.order_id)
             .join(user_rooms, ChatRoom.id == user_rooms.c.id)
             .filter(
-                or_(
-                    Order.customer_name.ilike(f"%{query}%"),
-                    Order.phone.ilike(f"%{query}%"),
-                    Order.address.ilike(f"%{query}%"),
+                erp_order_dashboard_search_predicate(
+                    f"%{query}%",
+                    customer_contact_only=True,
+                    raw_query=query,
                 )
             )
             .limit(limit)
