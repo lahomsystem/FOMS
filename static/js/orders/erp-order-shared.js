@@ -730,6 +730,63 @@ var erpFormatDepositDisplay =
     };
 window.erpFormatDepositDisplay = erpFormatDepositDisplay;
 
+/** 금액 input 공통: 입력 시 천단위 쉼표 + '원' suffix, backspace는 suffix 앞 숫자부터 삭제. */
+var erpBindAmountInput =
+    window.erpBindAmountInput ||
+    function erpBindAmountInput(inputEl, parseFn, onRecalc) {
+        if (!inputEl || inputEl.dataset.erpAmountBound === '1') return;
+        inputEl.dataset.erpAmountBound = '1';
+        const recalc = typeof onRecalc === 'function' ? onRecalc : erpCalculateRemaining;
+
+        function setAmountCaretBeforeSuffix(el) {
+            if (!el || typeof el.setSelectionRange !== 'function' || !String(el.value || '').endsWith('원')) return;
+            const caretPos = Math.max(0, String(el.value || '').length - 1);
+            el.setSelectionRange(caretPos, caretPos);
+        }
+        function deleteErpAmountDigitBeforeSuffix(el) {
+            const value = String(el.value || '');
+            const start = el.selectionStart;
+            const end = el.selectionEnd;
+            if (!value.endsWith('원') || start == null || end == null || start !== end || start !== value.length) {
+                return false;
+            }
+            const raw = value.replace(/[^0-9]/g, '');
+            if (!raw) return false;
+            const nextRaw = raw.slice(0, -1);
+            el.value = nextRaw ? erpFormatDepositDisplay(parseInt(nextRaw, 10)) : '';
+            setAmountCaretBeforeSuffix(el);
+            recalc();
+            return true;
+        }
+        inputEl.addEventListener('keydown', function (event) {
+            if (event.key !== 'Backspace') return;
+            if (deleteErpAmountDigitBeforeSuffix(this)) event.preventDefault();
+        });
+        inputEl.addEventListener('beforeinput', function (event) {
+            if (event.inputType !== 'deleteContentBackward') return;
+            if (deleteErpAmountDigitBeforeSuffix(this)) event.preventDefault();
+        });
+        inputEl.addEventListener('input', function () {
+            const raw = (this.value || '').replace(/[^0-9]/g, '');
+            if (!raw) {
+                if (this.value !== '') this.value = '';
+                recalc();
+                return;
+            }
+            const num = parseInt(raw, 10);
+            const formatted = erpFormatDepositDisplay(num);
+            if (this.value !== formatted) this.value = formatted;
+            setAmountCaretBeforeSuffix(this);
+            recalc();
+        });
+        inputEl.addEventListener('change', function () {
+            const num = typeof parseFn === 'function' ? parseFn() : erpCoerceAmount(this.value);
+            this.value = erpFormatDepositDisplay(num);
+            recalc();
+        });
+    };
+window.erpBindAmountInput = erpBindAmountInput;
+
 
 // --- ERP Order shared-form island (moved from templates/partials/erp_order_js.html, W5-B8) ---
 // ============================================================
@@ -792,6 +849,31 @@ function erpCalculateRemaining() {
     );
     remainingEl.textContent = totals.final_amount > 0 ? erpFormatMoneyKRW(totals.final_amount) : '0원';
 }
+
+/** 항목 금액 `[data-erp="price"]` — PC·모바일 동일 천단위 쉼표 포맷. */
+var erpBindPriceInput =
+    window.erpBindPriceInput ||
+    function erpBindPriceInput(inputEl) {
+        if (!inputEl) return;
+        erpBindAmountInput(
+            inputEl,
+            function () {
+                return erpCoerceAmount(inputEl.value);
+            },
+            erpRecalcItemsTotal
+        );
+    };
+window.erpBindPriceInput = erpBindPriceInput;
+
+var erpBindAllPriceInputs =
+    window.erpBindAllPriceInputs ||
+    function erpBindAllPriceInputs(scope) {
+        const root = scope || document;
+        root.querySelectorAll('[data-erp="price"]').forEach(function (inp) {
+            erpBindPriceInput(inp);
+        });
+    };
+window.erpBindAllPriceInputs = erpBindAllPriceInputs;
 
 function erpGetItemRows() {
     const wrap = document.getElementById('erp-items');
@@ -1036,7 +1118,8 @@ function erpNewItemRow(item = {}) {
     const optionDetail = defaultConsult(item.option_detail);
     const handle = defaultConsult(item.handle);
     const misc = defaultConsult(item.misc);
-    const price = String(item.price ?? '').trim();
+    const priceAmount = erpCoerceAmount(item.price);
+    const price = priceAmount > 0 ? erpFormatDepositDisplay(priceAmount) : '';
     const extraInput = String(item.extra_input ?? '');
     const colorFieldHtml = `
 <div class="col-md-6 erp-mobile-full-row">
@@ -1197,6 +1280,7 @@ ${presetFieldsHtml}
         });
     });
     bindSpecWidthPasteSplit(row);
+    erpBindPriceInput(row.querySelector('[data-erp="price"]'));
 
     row.querySelector('[data-erp="extra_input"]')?.addEventListener('paste', (e) => {
         const raw = e.clipboardData?.getData('text/plain') || '';
@@ -2482,59 +2566,10 @@ ${escapeHtml(sub)}</div>` : ''}`;
             });
         }
     })();
-    function bindErpAmountInput(inputEl, parseFn) {
-        if (!inputEl) return;
-        function setAmountCaretBeforeSuffix(el) {
-            if (!el || typeof el.setSelectionRange !== 'function' || !String(el.value || '').endsWith('원')) return;
-            const caretPos = Math.max(0, String(el.value || '').length - 1);
-            el.setSelectionRange(caretPos, caretPos);
-        }
-        function deleteErpAmountDigitBeforeSuffix(el) {
-            const value = String(el.value || '');
-            const start = el.selectionStart;
-            const end = el.selectionEnd;
-            if (!value.endsWith('원') || start == null || end == null || start !== end || start !== value.length) {
-                return false;
-            }
-            const raw = value.replace(/[^0-9]/g, '');
-            if (!raw) return false;
-            const nextRaw = raw.slice(0, -1);
-            el.value = nextRaw ? erpFormatDepositDisplay(parseInt(nextRaw, 10)) : '';
-            setAmountCaretBeforeSuffix(el);
-            erpCalculateRemaining();
-            return true;
-        }
-        inputEl.addEventListener('keydown', function (event) {
-            if (event.key !== 'Backspace') return;
-            if (deleteErpAmountDigitBeforeSuffix(this)) event.preventDefault();
-        });
-        inputEl.addEventListener('beforeinput', function (event) {
-            if (event.inputType !== 'deleteContentBackward') return;
-            if (deleteErpAmountDigitBeforeSuffix(this)) event.preventDefault();
-        });
-        inputEl.addEventListener('input', function () {
-            const raw = (this.value || '').replace(/[^0-9]/g, '');
-            if (!raw) {
-                if (this.value !== '') this.value = '';
-                erpCalculateRemaining();
-                return;
-            }
-            const num = parseInt(raw, 10);
-            const formatted = erpFormatDepositDisplay(num);
-            if (this.value !== formatted) this.value = formatted;
-            setAmountCaretBeforeSuffix(this);
-            erpCalculateRemaining();
-        });
-        inputEl.addEventListener('change', function () {
-            const num = parseFn();
-            this.value = erpFormatDepositDisplay(num);
-            erpCalculateRemaining();
-        });
-    }
-
-    bindErpAmountInput(document.getElementById('erp-deposit-amount'), erpParseDepositValue);
-    bindErpAmountInput(document.getElementById('erp-discount-amount'), erpParseDiscountValue);
-    bindErpAmountInput(document.getElementById('erp-free-input-amount'), erpParseFreeInputAmountFromField);
+    erpBindAmountInput(document.getElementById('erp-deposit-amount'), erpParseDepositValue);
+    erpBindAmountInput(document.getElementById('erp-discount-amount'), erpParseDiscountValue);
+    erpBindAmountInput(document.getElementById('erp-free-input-amount'), erpParseFreeInputAmountFromField);
+    erpBindAllPriceInputs(document.getElementById('erp-items'));
 
     (function bindErpFreeInputTextField() {
         const freeInputTextEl = document.getElementById('erp-free-input-text');

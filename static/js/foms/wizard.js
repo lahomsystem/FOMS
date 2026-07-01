@@ -265,6 +265,7 @@
     clone.setAttribute("data-product-index", String(nextIndex));
     clone.querySelectorAll("input, textarea").forEach(function (input) {
       input.value = "";
+      input.removeAttribute("data-foms-wizard-amount-bound");
     });
     // 규격은 1행으로 리셋(템플릿이 다중 행 상태였을 수 있음).
     var specRowsWrap = clone.querySelector("[data-spec-rows]");
@@ -305,6 +306,7 @@
     if (window.fomsProductItem && typeof window.fomsProductItem.initWizardProducts === "function") {
       window.fomsProductItem.initWizardProducts(container);
     }
+    bindWizardPriceInputs(container, scheduleSave);
     if (window.FomsVoiceInput && typeof window.FomsVoiceInput.attachWizard === "function") {
       window.FomsVoiceInput.attachWizard(clone);
     }
@@ -375,9 +377,15 @@
     ];
     fields.forEach(function (name) {
       var el = card.querySelector('[data-product-field="' + name + '"]');
-      if (el && item[name]) {
-        el.value = item[name];
+      if (!el || item[name] == null || item[name] === "") {
+        return;
       }
+      if (name === "price") {
+        var amt = parseAmount(item[name]);
+        el.value = amt > 0 ? formatDepositDisplay(amt) : "";
+        return;
+      }
+      el.value = item[name];
     });
     var specRows = item.spec_rows && item.spec_rows.length ? item.spec_rows : [{}];
     setSpecRowCount(card, specRows.length);
@@ -536,18 +544,17 @@
     }
     return totals;
   }
-  function bindWizardDepositInput(root, scheduleSave) {
-    var depositEl = root.querySelector("#wiz-deposit-amount");
-    if (!depositEl || depositEl.dataset.fomsWizardDepositBound === "1") {
+  function bindWizardAmountInput(inputEl, root, scheduleSave, onRecalc) {
+    if (!inputEl || inputEl.dataset.fomsWizardAmountBound === "1") {
       return;
     }
-    depositEl.dataset.fomsWizardDepositBound = "1";
+    inputEl.dataset.fomsWizardAmountBound = "1";
     function setAmountCaretBeforeSuffix(el) {
       if (!el || typeof el.setSelectionRange !== "function" || !String(el.value || "").endsWith("원")) return;
       var caretPos = Math.max(0, String(el.value || "").length - 1);
       el.setSelectionRange(caretPos, caretPos);
     }
-    function deleteDepositDigitBeforeSuffix(el) {
+    function deleteAmountDigitBeforeSuffix(el) {
       var value = String(el.value || "");
       var start = el.selectionStart;
       var end = el.selectionEnd;
@@ -559,22 +566,22 @@
       var nextRaw = raw.slice(0, -1);
       el.value = nextRaw ? formatDepositDisplay(parseInt(nextRaw, 10)) : "";
       setAmountCaretBeforeSuffix(el);
-      recalcWizardAmounts(root);
+      if (onRecalc) onRecalc();
       return true;
     }
-    depositEl.addEventListener("keydown", function (event) {
+    inputEl.addEventListener("keydown", function (event) {
       if (event.key !== "Backspace") return;
-      if (deleteDepositDigitBeforeSuffix(this)) event.preventDefault();
+      if (deleteAmountDigitBeforeSuffix(this)) event.preventDefault();
     });
-    depositEl.addEventListener("beforeinput", function (event) {
+    inputEl.addEventListener("beforeinput", function (event) {
       if (event.inputType !== "deleteContentBackward") return;
-      if (deleteDepositDigitBeforeSuffix(this)) event.preventDefault();
+      if (deleteAmountDigitBeforeSuffix(this)) event.preventDefault();
     });
-    depositEl.addEventListener("input", function () {
+    inputEl.addEventListener("input", function () {
       var raw = (this.value || "").replace(/[^0-9]/g, "");
       if (!raw) {
         this.value = "";
-        recalcWizardAmounts(root);
+        if (onRecalc) onRecalc();
         if (scheduleSave) scheduleSave();
         return;
       }
@@ -582,9 +589,22 @@
       var formatted = formatDepositDisplay(num);
       this.value = formatted;
       setAmountCaretBeforeSuffix(this);
-      recalcWizardAmounts(root);
+      if (onRecalc) onRecalc();
       if (scheduleSave) scheduleSave();
     });
+  }
+  function bindWizardDepositInput(root, scheduleSave) {
+    var depositEl = root.querySelector("#wiz-deposit-amount");
+    if (!depositEl) {
+      return;
+    }
+    bindWizardAmountInput(depositEl, root, scheduleSave, function () {
+      recalcWizardAmounts(root);
+    });
+    if (depositEl.dataset.fomsWizardDepositBlurBound === "1") {
+      return;
+    }
+    depositEl.dataset.fomsWizardDepositBlurBound = "1";
     depositEl.addEventListener("blur", function () {
       var items = collectProducts(root);
       var itemsTotal = 0;
@@ -594,6 +614,13 @@
       var num = Math.min(parseAmount(this.value), itemsTotal);
       this.value = formatDepositDisplay(num);
       recalcWizardAmounts(root);
+    });
+  }
+  function bindWizardPriceInputs(root, scheduleSave) {
+    root.querySelectorAll('[data-product-field="price"]').forEach(function (priceEl) {
+      bindWizardAmountInput(priceEl, root, scheduleSave, function () {
+        recalcWizardAmounts(root);
+      });
     });
   }
   function sumRow(dt, ddHtml) {
@@ -767,6 +794,9 @@
       window.fomsProductItem.initWizardProducts(root);
     }
     bindWizardDepositInput(root, function () {
+      draftClient.scheduleSave();
+    });
+    bindWizardPriceInputs(root, function () {
       draftClient.scheduleSave();
     });
     recalcWizardAmounts(root);

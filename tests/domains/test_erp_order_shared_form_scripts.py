@@ -629,8 +629,8 @@ def test_shared_erp_amount_input_allows_empty_value_while_deleting() -> None:
     root = Path(__file__).resolve().parents[2]
     text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
 
-    bind_start = text.index("function bindErpAmountInput(inputEl, parseFn)")
-    bind_end = text.index("bindErpAmountInput(document.getElementById('erp-deposit-amount')", bind_start)
+    bind_start = text.index("function erpBindAmountInput(inputEl, parseFn, onRecalc)")
+    bind_end = text.index("erpBindAmountInput(document.getElementById('erp-deposit-amount')", bind_start)
     bind_block = text[bind_start:bind_end]
 
     assert "function deleteErpAmountDigitBeforeSuffix(el)" in bind_block
@@ -646,6 +646,23 @@ def test_shared_erp_amount_input_allows_empty_value_while_deleting() -> None:
     assert "return;" in bind_block
     assert "setAmountCaretBeforeSuffix(this);" in bind_block
     assert "this.value = erpFormatDepositDisplay(num);" in bind_block
+
+
+def test_shared_erp_price_input_uses_amount_binder() -> None:
+    """항목 금액 `[data-erp=\"price\"]`도 예약금과 동일한 천단위 쉼표 포맷을 적용한다."""
+    root = Path(__file__).resolve().parents[2]
+    text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+
+    assert "function erpBindPriceInput(inputEl)" in text
+    assert "function erpBindAllPriceInputs(scope)" in text
+    assert "erpBindPriceInput(row.querySelector('[data-erp=\"price\"]'))" in text
+    assert "erpBindAllPriceInputs(document.getElementById('erp-items'))" in text
+    assert "const priceAmount = erpCoerceAmount(item.price)" in text
+    assert "const price = priceAmount > 0 ? erpFormatDepositDisplay(priceAmount) : ''" in text
+
+    product_item_js = (root / "static/js/foms/product-item.js").read_text(encoding="utf-8")
+    assert "formatPriceSummaryDisplay" in product_item_js
+    assert 'endsWith("원")' in product_item_js
 
 
 def test_mobile_erp_item_form_preserves_complex_spec_text() -> None:
