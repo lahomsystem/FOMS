@@ -4,6 +4,8 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-07-01 | 세션 자동 기록 | commit_msg_mobile_input.txt, test_p1_mockup_structure.py, test_erp_spec_calc_followup.py 외 2개 | 78adcbec |
+| 2026-07-01 | 세션 자동 기록 | commit_msg.txt, commit_msg_mobile_textarea.txt, test_erp_order_shared_form_scripts.py 외 2개 | f30564e5 |
 | 2026-07-01 | 세션 자동 기록 | commit_msg_mobile_textarea.txt, test_erp_order_shared_form_scripts.py, erp_order_js.html 외 2개 | 13b7bc99 |
 | 2026-07-01 | 세션 자동 기록 | test_erp_order_shared_form_scripts.py, erp_order_js.html, erp-order-shared.js 외 2개 | 2051ca07 |
 | 2026-07-01 | 세션 자동 기록 | _tmp_channel_resend_virtual.py, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-5cb15afe-8f62-4dcc-bb86-ce9324312887.png, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-1dd72dd6-e806-4c6d-a348-0fd73168c482.png 외 2개 | aeb6f443 |
@@ -22,5 +24,3 @@
 | 2026-07-01 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-d6ce0f31-25bb-4c5f-a9f7-cbc17201d6c2.png, _tmp_add_triggers.py, _tmp_rm_triggers.py 외 2개 | 479a7b68 |
 | 2026-07-01 | 세션 자동 기록 | _tmp_rm_triggers.py, commit_msg.txt, 04-filter-table-badges-buttons.css 외 2개 | 479a7b68 |
 | 2026-07-01 | 세션 자동 기록 | commit_msg.txt, 04-filter-table-badges-buttons.css, test_erp_order_shared_form_scripts.py 외 2개 | 479a7b68 |
-| 2026-07-01 | 세션 자동 기록 | _tmp_fix_label.py, _tmp_patch_preset.py, 2346c28c-0c24-473c-b45c-6d0f0a11fb66.txt 외 2개 | 7382e8f9 |
-| 2026-07-01 | 세션 자동 기록 | 2346c28c-0c24-473c-b45c-6d0f0a11fb66.txt, 9589494a-997c-4aa8-8849-fa2e65142d60.txt, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-8b1f5481-c85e-4f4e-a08b-d18ec8422319.png 외 2개 | 7382e8f9 |

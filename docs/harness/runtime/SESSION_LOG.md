@@ -6,9 +6,9 @@
 
 ### Session: 1b42fec6
 - **시작**: 2026-07-01 11:11:15
-- **상태**: 진행중
-- **편집 파일**: (기록 중)
-- **종료**: -
+- **상태**: completed
+- **편집 파일**: `commit_msg_mobile_input.txt`, `tests/visual/test_p1_mockup_structure.py`, `tests/domains/test_erp_spec_calc_followup.py`, `tests/domains/test_erp_order_shared_form_scripts.py`, `templates/orders/partials/erp_order_js.html`, `templates/partials/shared/layout_head.html`, `static/css/foundation/foms-mobile-surfaces.css`, `static/css/components/foms-form-field.css`, `templates/orders/partials/erp_order_tab_mobile.html`, `static/js/orders/erp-order-shared.js`
+- **종료**: 2026-07-01 11:32:18
 
 ### Session: b3b8e642
 - **시작**: 2026-07-01 10:33:49
@@ -1157,3 +1157,7 @@
 | 2026-07-01 11:09:23 | END (Claude Code) | 수정: (없음) |
 
 | 2026-07-01 11:10:12 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 11:16:03 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 11:32:18 | END (Claude Code) | 수정: (없음) |
