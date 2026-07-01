@@ -69,13 +69,16 @@ def test_r2_file_redirects_are_not_cacheable(auth_client, monkeypatch) -> None:
 
 def test_long_lived_image_viewers_keep_stable_file_routes() -> None:
     layout = (ROOT / "templates/partials/shared/layout_scripts.html").read_text(encoding="utf-8")
+    layout_core = (ROOT / "static/js/runtime/layout-scripts-core.js").read_text(encoding="utf-8")
     order_shared = (ROOT / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
     chat_lightbox = (ROOT / "templates/partials/chat_scripts_lightbox.html").read_text(encoding="utf-8")
 
     assert "fetch('/api/files/presigned-urls/'" not in layout
+    assert "fetch('/api/files/presigned-urls/'" not in layout_core
     assert "/api/files/presigned-urls/" not in order_shared
     assert "/api/files/presigned-urls/" not in chat_lightbox
-    assert "Direct R2 signed URLs expire" in layout
+    assert "js/runtime/layout-scripts-core.js" in layout
+    assert "Direct R2 signed URLs expire" in layout_core
     assert "isSignedStorageUrl(a.view_url)" in order_shared
     assert "stable app routes" in order_shared
     assert "stable app routes" in chat_lightbox

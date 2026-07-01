@@ -57,7 +57,8 @@ def test_baseline_debt_file_exists_and_valid_json():
     data = json.loads(baseline.read_text(encoding="utf-8"))
     assert data.get("version") == 1
     assert isinstance(data.get("finding_ids"), list)
-    assert len(data["finding_ids"]) > 0
+    # Empty list is valid after perf debt paydown; guard only blocks net-new findings.
+    assert all(isinstance(fid, str) and fid for fid in data["finding_ids"])
 
 
 def test_cli_radar_json_exit_zero():

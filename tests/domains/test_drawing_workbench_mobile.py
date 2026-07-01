@@ -207,9 +207,10 @@ def test_resolve_row_thumbnail_prefers_view_url(monkeypatch):
 def test_resolve_row_thumbnail_uses_attachment_thumb_key(monkeypatch):
     monkeypatch.setenv("FOMS_V3_DRAWING_THUMB_ENABLED", "true")
     attachment = MagicMock()
+    attachment.storage_key = "k1.png"
     attachment.thumbnail_key = "thumbs/k1.png"
     db = MagicMock()
-    db.query.return_value.filter.return_value.first.return_value = attachment
+    db.query.return_value.filter.return_value.all.return_value = [attachment]
     files = [{"key": "k1.png", "filename": "k1.png"}]
     url = resolve_row_thumbnail_url(42, files, db)
     assert url == "/api/files/view/thumbs/k1.png"
