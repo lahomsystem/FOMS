@@ -44,38 +44,39 @@ def _text_block(value: str) -> dict[str, str]:
 
 
 def _manual_push_body_lines(user_message: str, change_note: str | None = None) -> list[str]:
-    """Build plain-text lines for manual push (resend header + conversion body).
+    """Build the single-line list for a manual push (resend header + conversion body).
+
+    Each element is one visual line. Multi-line inputs (note/body) are pre-split so the
+    caller can map one line to one ChannelTalk block.
 
     Args:
         user_message: ERP conversion text (고객명 ~).
-        change_note: Re-push note; when set, prepends ``[수정]`` and note.
+        change_note: Re-push note; when set, prepends ``[수정]`` and the note lines.
 
     Returns:
-        Line list consumed by ``_paragraph_blocks``.
+        Flat line list consumed by ``_paragraph_blocks``.
     """
     text = str(user_message or "").strip()
     note = str(change_note or "").strip()
     lines: list[str] = []
     if note:
-        lines.extend(["[수정]", note, ""])
+        lines.append("[수정]")
+        lines.extend(note.splitlines())
+        # Blank line: paragraph break for the plainText fallback; skipped by block builder.
+        lines.append("")
     if text:
         lines.extend(text.splitlines())
     return lines
 
 
 def _paragraph_blocks(lines: List[str]) -> list[dict[str, str]]:
-    blocks: list[dict[str, str]] = []
-    paragraph: list[str] = []
-    for line in lines:
-        if line.strip():
-            paragraph.append(line)
-            continue
-        if paragraph:
-            blocks.append(_text_block("\n".join(paragraph)))
-            paragraph = []
-    if paragraph:
-        blocks.append(_text_block("\n".join(paragraph)))
-    return blocks
+    """Map each non-empty line to its own ChannelTalk text block.
+
+    ChannelTalk renders every block on its own line, but does NOT reliably render a raw
+    ``\\n`` inside a single block's ``value`` as a line break. So line breaks must be
+    expressed structurally (one block per line) rather than by joining lines with ``\\n``.
+    """
+    return [_text_block(line) for line in lines if line.strip()]
 
 
 def build_message_blocks(event_type: str, data: Dict[str, Any]) -> list[dict[str, str]]:

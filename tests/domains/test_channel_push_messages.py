@@ -79,10 +79,14 @@ def test_build_message_blocks_resend_includes_modify_prefix_and_full_note(monkey
         },
     )
 
-    header_block = blocks[0]["value"]
-    assert header_block == "[수정]\n규격 오타 수정"
-    assert "내부 변경" not in header_block
-    assert "고객명 : 박은정" in blocks[1]["value"]
+    values = [block["value"] for block in blocks]
+    # One line == one block: [수정] / note / body / link
+    assert values[0] == "[수정]"
+    assert values[1] == "규격 오타 수정"
+    assert "고객명 : 박은정" in values
+    assert not any("내부 변경" in value for value in values)
+    # No block carries an intra-block newline (line breaks are structural).
+    assert all(value.count("\n") == 0 for value in values if "주문 보기" not in value)
 
 
 def test_build_message_template_resend_preserves_long_multiline_note(monkeypatch):
@@ -104,6 +108,43 @@ def test_build_message_template_resend_preserves_long_multiline_note(monkeypatch
     assert "내부 변경" not in message.split("🔗")[0]
 
 
+def test_build_message_blocks_one_block_per_line_preserves_line_breaks(monkeypatch):
+    """Regression guard: ChannelTalk renders each block on its own line but ignores a raw
+    ``\\n`` inside a single block value. Line breaks must be structural (one block per line),
+    never collapsed into a single joined block, or the group message clumps together."""
+    monkeypatch.setenv("FOMS_BASE_URL", "https://example.com")
+    monkeypatch.setattr(channel_security, "generate_wam_short_link_token", lambda order_id=None: "short-123")
+
+    raw_text = "\n".join([
+        "고객명 : 채효진",
+        "발주사 : 라홈",
+        "시공일 : 7월 10일",
+        "주  소 : 경기도 파주시 청암로 50",
+        "연락처 : 010-5444-0427",
+        "1.",
+        "제품명 : 로라 무몰딩 여닫이",
+        "잔금 : 1,061,830원",
+    ])
+    body_line_count = len(raw_text.split("\n"))
+
+    blocks = channel_policy.build_message_blocks(
+        "manual",
+        {"order_id": 2762, "text": raw_text},
+    )
+
+    values = [block["value"] for block in blocks]
+    link_values = [value for value in values if "주문 보기" in value]
+    body_values = [value for value in values if "주문 보기" not in value]
+
+    assert len(link_values) == 1
+    # One block per conversion line — no line is merged with another.
+    assert len(body_values) == body_line_count
+    assert body_values[0] == "고객명 : 채효진"
+    assert body_values[1] == "발주사 : 라홈"
+    # Absolutely no intra-block newline: relying on it is what broke rendering.
+    assert all(value.count("\n") == 0 for value in body_values)
+
+
 def test_build_message_blocks_preserves_special_characters_in_push_text(monkeypatch):
     """Apostrophes, quotes, and ampersands in ERP conversion text must not be HTML-escaped."""
     monkeypatch.setenv("FOMS_BASE_URL", "https://example.com")
@@ -119,14 +160,16 @@ def test_build_message_blocks_preserves_special_characters_in_push_text(monkeypa
         {"order_id": 2762, "text": raw_text},
     )
 
-    body_blocks = [block for block in blocks if "SK Leaders' VIEW" in block.get("value", "")]
-    assert len(body_blocks) == 1
-    body_block = body_blocks[0]["value"]
-    assert "SK Leaders' VIEW" in body_block
-    assert "&#x27;" not in body_block
-    assert "&quot;" not in body_block
-    assert "&amp;" not in body_block
-    assert '6" 핸들 & "특수"' in body_block
+    # Each source line becomes its own block; special characters stay raw (unescaped).
+    values = [block.get("value", "") for block in blocks]
+    joined = "\n".join(values)
+    assert "SK Leaders' VIEW" in joined
+    assert "&#x27;" not in joined
+    assert "&quot;" not in joined
+    assert "&amp;" not in joined
+    assert '6" 핸들 & "특수"' in joined
+    assert any(value.startswith("주  소 :") for value in values)
+    assert any(value.startswith("옵 션 :") for value in values)
 
 
 def test_build_message_blocks_escapes_link_url_attribute(monkeypatch):
