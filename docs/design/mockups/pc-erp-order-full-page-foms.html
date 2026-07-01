@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>FOMS · PC ERP Order Full Page (구현 전 목업)</title>
+<link rel="stylesheet" href="_tokens.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+<link rel="stylesheet" href="../../../static/css/foundation/style-pro-max.css" />
+<link rel="stylesheet" href="../../../static/css/foundation/foms-tokens.css" />
+<link rel="stylesheet" href="../../../static/css/contexts/orders/erp-order-measurement-panel.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+<link rel="stylesheet" href="../../../static/css/orders/erp-spec-calc.css" />
+<link rel="stylesheet" href="../../../static/css/wdcalculator/category-picker.css" />
+<link rel="stylesheet" href="../../../static/css/wdcalculator/multi-add-picker.css" />
+<link rel="stylesheet" href="_erp-mockup-bridge.css" />
+<!--
+  PC ERP Order — Full Page 목업 (구현 전)
+  - add_order / edit_order ERP Order 탭 전체 구조
+  - #erp-items 만 Master-Detail (제안) · 나머지는 운영 erp_order_tab.html 마크업
+  2026-06-30
+-->
+</head>
+<body class="erp-mockup-fullpage">
+
+<div class="erp-mockup-fullpage-banner" role="status">
+  <div>
+    <strong>구현 전 목업</strong> · PC ERP Order full page
+    · <code>#erp-items</code> Master-Detail + Fiori compact <strong>제품 속성</strong> sheet
+  </div>
+  <div>
+    <a href="pc-erp-items-master-detail-foms.html">제품 항목만 보기</a>
+  </div>
+</div>
+
+<header class="erp-mockup-nav-stub" aria-hidden="true">
+  <div class="erp-mockup-nav-stub__brand">FOMS</div>
+  <nav class="erp-mockup-nav-stub__links">
+    <span>대시보드</span>
+    <span>주문</span>
+    <span>실측</span>
+    <span>설정</span>
+  </nav>
+</header>
+
+<main class="erp-mockup-page-main" id="main-content">
+  <div class="row">
+    <div class="col-12">
+      <div class="card erp-mockup-page-card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5>주문 편집 <span class="text-muted fw-normal">#4021</span></h5>
+          <a href="#" class="btn btn-sm btn-outline-secondary" tabindex="-1" aria-disabled="true">목록</a>
+        </div>
+        <div class="card-body">
+          <!-- Outer tabs: 기존 주문 / ERP Order -->
+          <ul class="nav nav-tabs mb-3" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="tab-legacy" type="button" role="tab" aria-selected="false" tabindex="-1">
+                <i class="fas fa-file-alt"></i> 기존 주문
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="erp-order-tab" type="button" role="tab" aria-selected="true">
+                <i class="fas fa-layer-group"></i> ERP Order
+              </button>
+            </li>
+          </ul>
+
+          <div class="tab-content">
+            <div class="tab-pane fade" id="pane-legacy" role="tabpanel" aria-hidden="true">
+              <p class="text-muted small mb-0">기존 주문 폼 — 목업 생략</p>
+            </div>
+
+            <!-- ERP Order (erp_order_tab.html) -->
+            <div class="tab-pane fade show active" id="erp-order" role="tabpanel" lang="ko" data-erp-surface="1" data-erp-order-mounted="1" data-erp-ready="1">
+              <div class="card border-secondary" data-erp-order-id="4021">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                  <div class="fw-bold">
+                    <i class="fas fa-layer-group"></i> ERP Order
+                  </div>
+                  <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-success erp-autosave-toast" id="erp-autosave-indicator" aria-live="polite">✓ 자동저장됨</span>
+                    <span class="badge bg-success">ON</span>
+                  </div>
+                </div>
+                <div class="card-body foms-page-form">
+
+                  <div class="alert alert-warning py-2 erp-restore-banner" id="erp-restore-banner" style="display: none;" data-foms-no-autodismiss role="status">
+                    <div class="erp-restore-inner d-flex flex-wrap justify-content-between align-items-center gap-2">
+                      <div class="erp-restore-msg">
+                        <i class="fas fa-clock-rotate-left" aria-hidden="true"></i>
+                        <span class="erp-restore-text">저장하지 않은 작성 내용이 있습니다.</span>
+                        <span class="text-muted erp-restore-time" id="erp-restore-time">3시간 전</span>
+                      </div>
+                      <div class="erp-restore-actions d-flex gap-1">
+                        <button type="button" class="btn btn-sm btn-warning erp-restore-btn" id="erp-restore-resume">이어쓰기</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary erp-restore-btn" id="erp-restore-discard">버리기</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <ul class="nav nav-pills mb-3 erp-order-tabs-nav" id="erpOrderTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                      <button class="nav-link active" id="erp-form-tab" data-bs-toggle="pill" data-bs-target="#erp-form" type="button" role="tab" aria-selected="true">
+                        <i class="fas fa-pen"></i> 구조화 입력
+                      </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                      <button class="nav-link" id="erp-estimate-tab" data-bs-toggle="pill" data-bs-target="#erp-estimate" type="button" role="tab" aria-selected="false" tabindex="-1">
+                        <i class="fas fa-file-contract"></i> 계약서
+                      </button>
+                    </li>
+                  </ul>
+
+                  <div class="tab-content">
+                    <!-- ── 구조화 입력 ── -->
+                    <div class="tab-pane fade show active" id="erp-form" role="tabpanel" aria-labelledby="erp-form-tab">
+
+                      <div class="row g-2">
+                        <div class="col-md-4">
+                          <label class="form-label mb-1">접수일</label>
+                          <input type="date" class="form-control form-control-sm" id="erp-received-date" value="2026-06-30" autocomplete="off" />
+                        </div>
+                        <div class="col-md-4">
+                          <label class="form-label mb-1">접수시간</label>
+                          <input type="time" class="form-control form-control-sm" id="erp-received-time" value="22:19" autocomplete="off" />
+                        </div>
+                        <div class="col-md-4">
+                          <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+                            <label class="form-label mb-0">긴급 발주</label>
+                            <div class="form-check mb-0">
+                              <input class="form-check-input" type="checkbox" id="erp-urgent-flag" autocomplete="off" />
+                              <label class="form-check-label" for="erp-urgent-flag">긴급</label>
+                            </div>
+                            <div class="form-check mb-0">
+                              <input class="form-check-input" type="checkbox" id="erp-self-measurement" autocomplete="off" />
+                              <label class="form-check-label" for="erp-self-measurement">자가실측</label>
+                            </div>
+                            <div class="form-check mb-0">
+                              <input class="form-check-input" type="checkbox" id="erp-regional-order" autocomplete="off" />
+                              <label class="form-check-label" for="erp-regional-order">지방주문</label>
+                            </div>
+                          </div>
+                          <input type="text" class="form-control form-control-sm" id="erp-urgent-reason" placeholder="긴급 사유 (예: 시공일 임박/현장 변경/자재 이슈 등)" autocomplete="off" lang="ko" />
+                        </div>
+                        <div class="col-md-6">
+                          <label class="form-label mb-1">고객명</label>
+                          <input type="text" class="form-control form-control-sm" id="erp-customer-name" value="김종래" autocomplete="off" lang="ko" />
+                        </div>
+                        <div class="col-md-6">
+                          <label class="form-label mb-1">연락처</label>
+                          <input type="tel" class="form-control form-control-sm" id="erp-customer-phone" value="010-1234-5678" autocomplete="tel" lang="ko" />
+                          <div class="form-check mt-1">
+                            <input class="form-check-input" type="checkbox" id="erp-manual-phone-input" autocomplete="off" />
+                            <label class="form-check-label" for="erp-manual-phone-input">수동입력</label>
+                          </div>
+                          <button class="btn btn-sm btn-link p-0 mt-1 text-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#erp-collapse-phone-note" aria-expanded="false">
+                            <i class="fas fa-chevron-down small"></i> 연락처 특이사항
+                          </button>
+                          <div class="collapse mt-1" id="erp-collapse-phone-note">
+                            <input type="text" class="form-control form-control-sm" id="erp-phone-note" placeholder="예: 부재중/문자 요청/통화 가능 시간 등" autocomplete="off" lang="ko" />
+                          </div>
+                        </div>
+                        <div class="col-md-4">
+                          <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+                            <label class="form-label mb-0">발주사</label>
+                            <label class="form-check form-check-inline mb-0 small">
+                              <input type="checkbox" class="form-check-input" id="erp-orderer-direct" autocomplete="off" />
+                              <span class="form-check-label">직접입력</span>
+                            </label>
+                          </div>
+                          <select class="form-select form-select-sm" id="erp-orderer-select">
+                            <option value="라홈" selected>라홈</option>
+                            <option value="하우드">하우드</option>
+                          </select>
+                        </div>
+                        <div class="col-md-4">
+                          <label class="form-label mb-1">담당자</label>
+                          <input type="text" class="form-control form-control-sm" id="erp-manager" value="이영희" autocomplete="off" lang="ko" />
+                        </div>
+                        <div class="col-md-4">
+                          <label class="form-label mb-1">시공 담당자</label>
+                          <input type="text" class="form-control form-control-sm" id="erp-construction-workers" placeholder="예: 시공자1, 시공자2" autocomplete="off" lang="ko" />
+                        </div>
+                        <div class="col-md-4">
+                          <label class="form-label mb-1">단계(Workflow)</label>
+                          <select class="form-select form-select-sm" id="erp-workflow-stage">
+                            <option value="RECEIVED" selected>A. 주문접수</option>
+                            <option value="MEASURE">C. 실측</option>
+                            <option value="DRAWING">D. 도면</option>
+                            <option value="CONFIRM">E. 고객컨펌</option>
+                          </select>
+                        </div>
+                        <div class="col-md-8">
+                          <label class="form-label mb-1">비고</label>
+                          <input type="text" class="form-control form-control-sm" id="erp-notes" placeholder="주문 비고 (대시보드·주문편집과 동일)" autocomplete="off" lang="ko" />
+                        </div>
+                        <div class="col-12">
+                          <div class="d-flex align-items-center gap-2 mb-1">
+                            <label class="form-label mb-0">주소</label>
+                            <button class="btn btn-outline-primary btn-sm" type="button" id="erp-address-search-btn">
+                              <i class="fas fa-search"></i> 찾기
+                            </button>
+                          </div>
+                          <input type="text" class="form-control form-control-sm" id="erp-address" value="인천 서구 원당동 1026-1, e편한세상검단웰카운티아파트 2502-2005" placeholder="주소를 입력하거나 찾기 버튼을 클릭하세요" autocomplete="off" lang="ko" />
+                          <button class="btn btn-sm btn-link p-0 mt-1 text-secondary text-decoration-none collapsed" id="erp-collapse-address-note-btn" type="button" data-bs-toggle="collapse" data-bs-target="#erp-collapse-address-note">
+                            <i class="fas fa-chevron-down small"></i> 주소 특이사항
+                          </button>
+                          <div class="collapse mt-1" id="erp-collapse-address-note">
+                            <input type="text" class="form-control form-control-sm" id="erp-address-note" placeholder="예: 주차/출입/엘리베이터/경비실 등" autocomplete="off" lang="ko" />
+                          </div>
+                        </div>
+                      </div>
+
+                      <hr class="my-3" />
+                      <div class="row g-3">
+                        <div class="col-12 col-md-4">
+                          <div class="card border-0 shadow-sm h-100 mb-3">
+                            <div class="card-header bg-white py-1 px-2 fw-bold small">
+                              <i class="fas fa-calendar-day"></i> 실측 일정 현황
+                            </div>
+                            <div class="card-body p-1">
+                              <div id="erp-order-measurement-panel" class="measurement-panel-list">
+                                <div class="measurement-panel-item measurement-panel-item-oneline is-today" data-date="2026-07-01">
+                                  <div class="erp-scheduler-panel-row" role="button" tabindex="0">
+                                    <span class="measurement-panel-date">2026-07-01</span>
+                                    <span class="measurement-panel-day">(수)</span>
+                                    <span class="badge badge-count erp-scheduler-count">4</span>
+                                  </div>
+                                </div>
+                                <div class="measurement-panel-item measurement-panel-item-oneline" data-date="2026-07-02">
+                                  <div class="erp-scheduler-panel-row" role="button" tabindex="0">
+                                    <span class="measurement-panel-date">2026-07-02</span>
+                                    <span class="measurement-panel-day">(목)</span>
+                                    <span class="badge badge-count erp-scheduler-count">1</span>
+                                  </div>
+                                </div>
+                                <div class="measurement-panel-item measurement-panel-item-oneline" data-date="2026-07-03">
+                                  <div class="erp-scheduler-panel-row" role="button" tabindex="0">
+                                    <span class="measurement-panel-date">2026-07-03</span>
+                                    <span class="measurement-panel-day">(금)</span>
+                                    <span class="badge badge-count erp-scheduler-count">0</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="col-12 col-md-8">
+                          <div class="row g-2">
+                            <div class="col-md-6">
+                              <label class="form-label mb-1">실측일</label>
+                              <div class="input-group input-group-sm">
+                                <input type="text" class="form-control form-control-sm" id="erp-measurement-date" value="2026-07-01" placeholder="여러 날짜 선택 가능" autocomplete="off" />
+                                <button type="button" class="btn btn-outline-secondary" id="erp-measurement-date-open" aria-label="달력 열기"><i class="fas fa-calendar-alt"></i></button>
+                              </div>
+                            </div>
+                            <div class="col-md-6">
+                              <label class="form-label mb-1">시공일</label>
+                              <div class="input-group input-group-sm">
+                                <input type="text" class="form-control form-control-sm" id="erp-construction-date" placeholder="여러 날짜 선택 가능" autocomplete="off" />
+                                <button type="button" class="btn btn-outline-secondary" id="erp-construction-date-open" aria-label="달력 열기"><i class="fas fa-calendar-alt"></i></button>
+                              </div>
+                            </div>
+                            <div class="col-md-6">
+                              <label class="form-label mb-1">실측시간</label>
+                              <select class="form-select form-select-sm" id="erp-measurement-time-select" autocomplete="off">
+                                <option value="">시간 선택</option>
+                                <option value="오전">오전</option>
+                                <option value="오후" selected>오후</option>
+                                <option value="종일">종일</option>
+                                <option value="__direct__">직접 입력</option>
+                              </select>
+                            </div>
+                            <div class="col-md-6">
+                              <label class="form-label mb-1">시공시간</label>
+                              <select class="form-select form-select-sm" id="erp-construction-time-select" autocomplete="off">
+                                <option value="">시간 선택</option>
+                                <option value="오전">오전</option>
+                                <option value="오후">오후</option>
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <hr class="my-3" />
+                      <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                        <div class="fw-bold"><i class="fas fa-box"></i> 제품 항목(1..n)</div>
+                        <div class="erp-mockup-items-toggle" role="group" aria-label="제품 항목 UI 비교">
+                          <button type="button" class="erp-mockup-items-toggle__btn is-on" data-items-view="after">Master-Detail</button>
+                          <button type="button" class="erp-mockup-items-toggle__btn" data-items-view="before">10카드 스택</button>
+                        </div>
+                      </div>
+
+                      <!-- #erp-items → Master-Detail (제안) -->
+                      <div class="erp-items-section">
+                        <div class="erp-order-body erp-items-master-detail" id="view-after">
+                          <aside class="item-rail" aria-label="제품 항목 목록">
+                            <div class="item-rail__head">
+                              <div class="item-rail__row">
+                                <h2 class="item-rail__title">제품 항목 <span class="item-rail__count">10</span></h2>
+                                <button type="button" class="erp-pro-btn erp-pro-btn--primary erp-pro-btn--sm" id="rail-add-item-btn">+ 항목</button>
+                              </div>
+                              <input type="search" class="item-rail__search" placeholder="제품명 검색…" aria-label="항목 검색" id="rail-search" />
+                            </div>
+                            <div class="item-rail__list" id="rail-list" role="listbox"></div>
+                            <div class="item-rail__foot">
+                              <div class="item-rail__total">
+                                <span>출고가 합계</span>
+                                <strong id="rail-total">12,840,000원</strong>
+                              </div>
+                            </div>
+                          </aside>
+
+                          <main class="item-detail" aria-label="선택 항목 편집">
+                            <div class="item-detail__scroll">
+                              <div id="erp-items">
+                                <div class="border rounded p-2 mb-2 erp-item-row" data-item-index="1" data-erp-calc-enhanced="1">
+                                  <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <div class="fw-bold small erp-item-title" id="erp-item-title">항목 2</div>
+                                    <button type="button" class="btn btn-sm btn-outline-danger erp-remove-item-btn" title="항목 삭제"><i class="fas fa-times"></i></button>
+                                  </div>
+                                  <div class="row g-2">
+                                    <div class="col-12">
+                                      <label class="form-label mb-1 small erp-field-label">제품명</label>
+                                      <div class="erp-calc-field">
+                                        <input class="form-control form-control-sm erp-calc-has-trigger" data-erp="product_name" id="inp-name" value="신발장" lang="ko" data-erp-calc-trigger="1" />
+                                        <button type="button" class="erp-calc-trigger" tabindex="-1" aria-label="제품명 목록 열기"><span aria-hidden="true">▾</span></button>
+                                      </div>
+                                    </div>
+                                    <div class="col-12">
+                                      <label class="form-label mb-1 small erp-field-label">규격 (W × D × H)</label>
+                                      <div class="erp-spec-rows">
+                                        <div class="erp-spec-row d-flex flex-wrap gap-2 align-items-end mb-1">
+                                          <div class="col-12 erp-spec-w-col">
+                                            <label class="form-label mb-0 small text-muted">W(가로·총폭)</label>
+                                            <input class="form-control form-control-sm" data-erp="spec_width" data-spec-row="" value="1200" lang="ko" data-erp-spec-paste-bound="1" />
+                                          </div>
+                                          <div class="col erp-spec-d-col">
+                                            <label class="form-label mb-0 small text-muted">D(깊이)</label>
+                                            <input class="form-control form-control-sm" data-erp="spec_depth" data-spec-row="" value="400" lang="ko" />
+                                          </div>
+                                          <div class="col erp-spec-h-col">
+                                            <label class="form-label mb-0 small text-muted">H(높이)</label>
+                                            <input class="form-control form-control-sm" data-erp="spec_height" data-spec-row="" value="2400" lang="ko" />
+                                          </div>
+                                          <button type="button" class="btn btn-sm btn-outline-secondary erp-remove-spec-row-btn" style="display:none;"><i class="fas fa-minus"></i></button>
+                                        </div>
+                                      </div>
+                                      <button type="button" class="btn btn-sm btn-outline-primary mt-1 erp-add-spec-row-btn"><i class="fas fa-plus"></i> 규격 1행 추가</button>
+                                    </div>
+                                    <div class="col-12">
+                                      <div class="erp-preset-sheet" aria-label="제품 속성">
+                                        <div class="erp-preset-sheet__head">제품 속성</div>
+                                        <div class="erp-preset-sheet__body">
+                                          <div class="erp-preset-row">
+                                            <span class="erp-preset-row__label">내부</span>
+                                            <div class="erp-preset-row__value">
+                                              <div class="erp-calc-field erp-calc-field--sheet">
+                                                <textarea class="form-control form-control-sm erp-calc-has-trigger erp-autosize-textarea erp-flex-textarea" data-erp="internal" rows="1" data-erp-min-height="28" lang="ko" data-erp-calc-trigger="1">상담</textarea>
+                                                <button type="button" class="erp-calc-trigger" tabindex="-1" aria-label="내부 목록 열기" data-erp-preset-field="internal"><span aria-hidden="true">▾</span></button>
+                                              </div>
+                                            </div>
+                                          </div>
+                                          <div class="erp-preset-row">
+                                            <span class="erp-preset-row__label">색상</span>
+                                            <div class="erp-preset-row__value">
+                                              <div class="erp-calc-field erp-calc-field--sheet">
+                                                <textarea class="form-control form-control-sm erp-calc-has-trigger erp-autosize-textarea erp-flex-textarea" data-erp="color" rows="1" data-erp-min-height="28" lang="ko" data-erp-calc-trigger="1">상담</textarea>
+                                                <button type="button" class="erp-calc-trigger" tabindex="-1" aria-label="색상 목록 열기" data-erp-preset-field="color"><span aria-hidden="true">▾</span></button>
+                                              </div>
+                                            </div>
+                                          </div>
+                                          <div class="erp-preset-row">
+                                            <span class="erp-preset-row__label">옵션</span>
+                                            <div class="erp-preset-row__value">
+                                              <div class="erp-calc-field erp-calc-field--sheet">
+                                                <textarea class="form-control form-control-sm erp-calc-has-trigger erp-autosize-textarea erp-flex-textarea" data-erp="option_detail" id="inp-option" rows="1" data-erp-min-height="28" lang="ko" data-erp-calc-trigger="1">높이조절다리+서랍분리형+양쪽끝 라운딩+속선반 추가</textarea>
+                                                <button type="button" class="erp-calc-trigger" tabindex="-1" aria-label="옵션 목록 열기" data-erp-preset-field="option_detail"><span aria-hidden="true">▾</span></button>
+                                              </div>
+                                            </div>
+                                          </div>
+                                          <div class="erp-preset-row">
+                                            <span class="erp-preset-row__label">손잡이</span>
+                                            <div class="erp-preset-row__value">
+                                              <div class="erp-calc-field erp-calc-field--sheet">
+                                                <textarea class="form-control form-control-sm erp-calc-has-trigger erp-autosize-textarea erp-flex-textarea" data-erp="handle" rows="1" data-erp-min-height="28" lang="ko" data-erp-calc-trigger="1">상담</textarea>
+                                                <button type="button" class="erp-calc-trigger" tabindex="-1" aria-label="손잡i 목록 열기" data-erp-preset-field="handle"><span aria-hidden="true">▾</span></button>
+                                              </div>
+                                            </div>
+                                          </div>
+                                          <div class="erp-preset-row">
+                                            <span class="erp-preset-row__label">기타·설치</span>
+                                            <div class="erp-preset-row__value">
+                                              <div class="erp-calc-field erp-calc-field--sheet">
+                                                <textarea class="form-control form-control-sm erp-calc-has-trigger erp-autosize-textarea erp-flex-textarea" data-erp="misc" id="inp-misc" rows="1" data-erp-min-height="28" lang="ko" data-erp-calc-trigger="1">현관 우측 벽면, 스위치 박스 회피 필요</textarea>
+                                                <button type="button" class="erp-calc-trigger" tabindex="-1" aria-label="기타 / 설치위치 목록 열기" data-erp-preset-field="misc"><span aria-hidden="true">▾</span></button>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div class="col-12 erp-mobile-full-row">
+                                      <label class="form-label mb-1 small text-primary">항목 금액(원)</label>
+                                      <input class="form-control form-control-sm" data-erp="price" inputmode="numeric" value="890,000" lang="ko" />
+                                      <div class="erp-calc-price-meta small mt-1 d-flex flex-wrap gap-2 align-items-center">
+                                        <span class="erp-calc-width-label text-muted"></span>
+                                        <span class="erp-calc-price-label text-success fw-semibold"></span>
+                                        <a href="#" class="erp-calc-unlock-link text-decoration-none" style="display:none;">수동 금액으로 전환</a>
+                                      </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                      <label class="form-label mb-1 small text-primary">항목 실측일</label>
+                                      <input type="text" class="form-control form-control-sm erp-item-date-multiple flatpickr-input" data-erp="measurement_date" placeholder="여러 날짜 가능" lang="ko" />
+                                    </div>
+                                    <div class="col-md-6">
+                                      <label class="form-label mb-1 small text-primary">항목 시공일</label>
+                                      <input type="text" class="form-control form-control-sm erp-item-date-multiple flatpickr-input" data-erp="construction_date" placeholder="여러 날짜 가능" lang="ko" />
+                                    </div>
+                                    <div class="col-12">
+                                      <label class="form-label mb-1 small text-primary">추가 입력</label>
+                                      <textarea class="form-control form-control-sm erp-autosize-textarea erp-flex-textarea erp-flex-textarea--large" data-erp="extra_input" rows="2" data-erp-min-height="72" placeholder="추가 내용을 입력하세요 (여러 줄 가능)" lang="ko" data-erp-autosize-bound="1" style="height: 72px;"></textarea>
+                                    </div>
+                                    <div class="col-12">
+                                      <div class="border rounded p-2 bg-light" data-erp-attachment-paste-zone="item" tabindex="0" aria-label="제품 항목 실측 이미지 업로드 영역. 이미지를 붙여넣으면 이 항목에 바로 업로드됩니다.">
+                                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                                          <div class="small fw-semibold text-muted erp-item-attachment-hint" id="attach-hint">신발장 실측 이미지</div>
+                                          <div class="d-flex gap-1">
+                                            <input type="file" class="d-none erp-item-attachments-input" accept="image/*" multiple data-foms-no-capture />
+                                            <button type="button" class="btn btn-sm btn-outline-primary"><i class="fas fa-image"></i> 즉시 추가</button>
+                                          </div>
+                                        </div>
+                                        <div class="small text-muted mt-1">이 박스를 클릭 후 Ctrl+V로 캡처 이미지를 항목에 바로 업로드할 수 있습니다.</div>
+                                        <div class="d-flex flex-wrap gap-1 mt-2 erp-item-attachments-gallery">
+                                          <div class="small text-muted">연결된 실측 이미지가 없습니다.</div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                            <footer class="item-detail__foot">
+                              <div class="item-detail__kbd">
+                                <kbd>Ctrl</kbd> + <kbd>↑</kbd><kbd>↓</kbd> · <span id="nav-pos">2 / 10</span>
+                              </div>
+                              <div class="item-detail__actions">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-prev">◀ 이전</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-apply-next">다음 ▶</button>
+                              </div>
+                            </footer>
+                          </main>
+                        </div>
+
+                        <div class="view-before" id="view-before">
+                          <div class="before-alert">
+                            ⚠ <strong>현재 PC UI</strong> — 10개 <code>.erp-item-row</code> 풀 카드 스택. 항목 10 편집 시 1~9를 모두 지나야 합니다.
+                          </div>
+                          <div id="stack-cards"></div>
+                          <div class="scroll-meter" id="scroll-meter">스크롤: 0%</div>
+                        </div>
+                      </div>
+
+                      <div class="d-flex justify-content-between align-items-center mt-2 erp-items-action-row">
+                        <button class="btn btn-primary" type="button" id="erp-save-btn">
+                          <i class="fas fa-save"></i> 저장
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" type="button" id="erp-add-item-btn">
+                          <i class="fas fa-plus"></i> 항목 추가
+                        </button>
+                      </div>
+
+                      <div class="d-flex flex-column align-items-end gap-2 mt-2 erp-amount-block">
+                        <div class="d-flex justify-content-end align-items-center gap-2 w-100" style="max-width: 16rem;">
+                          <span class="fw-bold text-nowrap">출고가</span>
+                          <div class="badge bg-primary text-end erp-amount-value" id="erp-items-total">12,840,000원</div>
+                        </div>
+                        <div id="erp-deposit-section" class="d-flex justify-content-end align-items-center gap-2 w-100" style="max-width: 16rem;">
+                          <label for="erp-deposit-amount" class="form-label mb-0 fw-bold text-nowrap">예약금(선금)</label>
+                          <input type="text" id="erp-deposit-amount" inputmode="numeric" value="500,000" maxlength="24" class="erp-amount-value erp-amount-value--deposit form-control form-control-sm" style="max-width: 8rem;" />
+                        </div>
+                        <div id="erp-remaining-section" class="d-flex justify-content-end align-items-center gap-2 w-100" style="max-width: 16rem;">
+                          <label class="form-label mb-0 fw-bold text-nowrap">잔금</label>
+                          <div class="erp-amount-value erp-amount-value--balance text-end" id="erp-remaining-amount">12,340,000원</div>
+                        </div>
+                      </div>
+
+                      <div class="card border-secondary mt-3">
+                        <div class="card-header d-flex justify-content-between align-items-center py-2 flex-wrap gap-2">
+                          <div class="fw-bold small"><i class="fas fa-file-alt"></i> 기존주문 변환 (텍스트 생성)</div>
+                          <div class="d-flex flex-wrap gap-1">
+                            <button class="btn btn-sm btn-warning" type="button" id="erp-channeltalk-push-drawing-btn"><i class="fas fa-paper-plane"></i> 발주 PUSH</button>
+                            <button class="btn btn-sm btn-primary" type="button" id="erp-channeltalk-push-btn"><i class="fas fa-paper-plane"></i> 영발 PUSH</button>
+                            <button class="btn btn-sm btn-secondary" type="button" id="erp-gen-text-btn"><i class="fas fa-sync"></i> 변환</button>
+                            <button class="btn btn-sm btn-success" type="button" id="erp-copy-text-btn"><i class="fas fa-copy"></i> 복사</button>
+                          </div>
+                        </div>
+                        <div class="card-body p-2">
+                          <textarea class="form-control form-control-sm bg-light" id="erp-conversion-text" rows="6" readonly placeholder="변환 버튼을 누르면 텍스트가 생성됩니다.">실측일 : 2026-07-01
+고객명 : 김종래
+발주사 : 라홈
+주 소 : 인천 서구 원당동 …
+제품명 : 신발장
+규 격 : 1200×400×2400</textarea>
+                        </div>
+                      </div>
+
+                      <hr class="my-3" />
+                      <div class="fw-bold mb-2"><i class="fas fa-paperclip"></i> 공통 첨부(사진/동영상)</div>
+                      <div class="border rounded p-3" style="border-style: dashed !important; background-color: #f8f9fa;" data-erp-attachment-paste-zone="common" tabindex="0">
+                        <div class="d-flex flex-wrap gap-2 align-items-center">
+                          <select id="erp-attachments-category" class="form-select form-select-sm" style="max-width: 140px;">
+                            <option value="measurement">실측</option>
+                            <option value="drawing">도면</option>
+                            <option value="construction">시공</option>
+                            <option value="as">AS</option>
+                          </select>
+                          <input type="file" id="erp-attachments-input" accept="image/*,video/*" multiple class="form-control form-control-sm" style="max-width: 420px;" />
+                          <button class="btn btn-sm btn-outline-primary" type="button" id="erp-attachments-upload-btn"><i class="fas fa-upload"></i> 업로드</button>
+                        </div>
+                        <div class="small text-muted mt-2">여러 개 선택 가능 · Ctrl+V 붙여넣기</div>
+                      </div>
+                      <div class="row g-2 mt-2" id="erp-attachments-gallery">
+                        <div class="col-12"><div class="small text-muted">첨부된 파일이 없습니다.</div></div>
+                      </div>
+                    </div><!-- /#erp-form -->
+
+                    <!-- ── 계약서 탭 (estimate_pane.html 축약) ── -->
+                    <div class="tab-pane fade" id="erp-estimate" role="tabpanel" aria-labelledby="erp-estimate-tab">
+                      <p class="erp-mockup-estimate-placeholder mb-3">
+                        운영 <code>estimate_pane.html</code> + <code>estimate-preview.js</code> 와 동일 UI · 목업은 축약 미리보기
+                      </p>
+                      <div class="erp-mockup-estimate-preview">
+                        <div class="erp-mockup-estimate-preview__title">계약서 · LAHOM</div>
+                        <table>
+                          <thead>
+                            <tr><th>품명</th><th>규격</th><th>색상</th><th>수량</th><th>금액</th></tr>
+                          </thead>
+                          <tbody id="est-preview-rows">
+                            <tr><td>붙박이장</td><td>5700×600×2400</td><td>상담</td><td>1</td><td>1,250,000</td></tr>
+                            <tr><td>신발장</td><td>1200×400×2400</td><td>상담</td><td>1</td><td>890,000</td></tr>
+                          </tbody>
+                        </table>
+                        <div class="text-end mt-2 fw-bold">합계 ₩12,840,000</div>
+                      </div>
+                    </div>
+                  </div><!-- /.tab-content inner -->
+                </div><!-- /.card-body erp -->
+              </div><!-- /.card erp -->
+            </div><!-- /#erp-order -->
+          </div><!-- /.tab-content outer -->
+        </div><!-- /.card-body page -->
+      </div><!-- /.card page -->
+    </div>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  var ITEMS = [
+    { name: "붙박이장", spec: "5700×600×2400", price: "1,250,000원", status: "done", option: "상담", misc: "상담" },
+    { name: "신발장", spec: "1200×400×2400", price: "890,000원", status: "done", option: "높이조절다리+서랍분리형+양쪽끝 라운딩+속선반 추가", misc: "현관 우측 벽면, 스위치 박스 회피 필요" },
+    { name: "드레스룸", spec: "3200×580×2400", price: "2,100,000원", status: "partial", option: "거울도어+LED조명+서랍내부 분리", misc: "안방 좌측 벽 전체" },
+    { name: "북케이스", spec: "1800×350×2200", price: "650,000원", status: "done", option: "상담", misc: "상담" },
+    { name: "TV장", spec: "2400×450×500", price: "780,000원", status: "partial", option: "상담", misc: "상담" },
+    { name: "주방 상부", spec: "3600×350×720", price: "920,000원", status: "empty", option: "상담", misc: "상담" },
+    { name: "주방 하부", spec: "3600×580×820", price: "1,480,000원", status: "empty", option: "상담", misc: "상담" },
+    { name: "팬트리", spec: "900×600×2400", price: "540,000원", status: "empty", option: "상담", misc: "상담" },
+    { name: "현관장", spec: "1500×400×2400", price: "720,000원", status: "empty", option: "상담", misc: "상담" },
+    { name: "욕실장", spec: "800×350×2000", price: "510,000원", status: "empty", option: "상담", misc: "상담" }
+  ];
+
+  var selectedIdx = 1;
+  var railList = document.getElementById("rail-list");
+  var viewAfter = document.getElementById("view-after");
+  var viewBefore = document.getElementById("view-before");
+
+  function erpAutosizeTextarea(el) {
+    if (!el || el.tagName !== "TEXTAREA") return;
+    el.style.height = "0";
+    var min = el.dataset.erpMinHeight ? Number(el.dataset.erpMinHeight) : 0;
+    el.style.height = Math.max(el.scrollHeight, min) + "px";
+  }
+  window.erpAutosizeTextarea = erpAutosizeTextarea;
+
+  function bindAutosizeTextareas(root) {
+    var scope = root || document;
+    scope.querySelectorAll("textarea.erp-autosize-textarea").forEach(function (el) {
+      if (el.dataset.erpAutosizeBound === "1") {
+        erpAutosizeTextarea(el);
+        return;
+      }
+      el.dataset.erpAutosizeBound = "1";
+      el.addEventListener("input", function () { erpAutosizeTextarea(el); });
+      el.addEventListener("change", function () { erpAutosizeTextarea(el); });
+      erpAutosizeTextarea(el);
+      requestAnimationFrame(function () { erpAutosizeTextarea(el); });
+    });
+  }
+
+  if (!window.__ERP_MOCKUP_AUTOSIZE_RESIZE) {
+    window.__ERP_MOCKUP_AUTOSIZE_RESIZE = 1;
+    window.addEventListener("resize", function () {
+      document.querySelectorAll("textarea.erp-autosize-textarea").forEach(erpAutosizeTextarea);
+    });
+  }
+
+  function setField(row, key, val) {
+    if (!row) return;
+    var el = row.querySelector('[data-erp="' + key + '"]');
+    if (!el) return;
+    el.value = val != null ? String(val) : "";
+    if (el.classList.contains("erp-autosize-textarea")) erpAutosizeTextarea(el);
+  }
+
+  function pipClass(s) {
+    if (s === "done") return "status-pip--done";
+    if (s === "partial") return "status-pip--partial";
+    return "status-pip--empty";
+  }
+
+  function renderRail(filter) {
+    var q = String(filter || "").trim().toLowerCase();
+    railList.innerHTML = "";
+    ITEMS.forEach(function (item, i) {
+      if (q && item.name.toLowerCase().indexOf(q) === -1) return;
+      var el = document.createElement("div");
+      el.className = "rail-item" + (i === selectedIdx ? " is-selected" : "");
+      el.setAttribute("role", "option");
+      el.setAttribute("aria-selected", i === selectedIdx ? "true" : "false");
+      el.innerHTML =
+        '<span class="rail-item__index">' + (i + 1) + "</span>" +
+        '<span class="rail-item__name">' + item.name + "</span>" +
+        '<span class="rail-item__spec">' + item.spec + "</span>" +
+        '<div class="rail-item__right">' +
+        '<span class="status-pip ' + pipClass(item.status) + '"></span>' +
+        '<span class="rail-item__price">' + item.price + "</span></div>";
+      el.addEventListener("click", function () { selectItem(i); });
+      railList.appendChild(el);
+    });
+  }
+
+  function parseSpec(spec) {
+    var parts = String(spec || "").split(/[×xX*]/).map(function (s) { return s.trim(); });
+    return { w: parts[0] || "", d: parts[1] || "", h: parts[2] || "" };
+  }
+
+  function selectItem(idx) {
+    if (idx < 0 || idx >= ITEMS.length) return;
+    selectedIdx = idx;
+    var item = ITEMS[idx];
+    var spec = parseSpec(item.spec);
+    renderRail(document.getElementById("rail-search").value);
+    document.getElementById("erp-item-title").textContent = "항목 " + (idx + 1);
+    document.getElementById("nav-pos").textContent = (idx + 1) + " / " + ITEMS.length;
+    document.getElementById("inp-name").value = item.name;
+    var row = document.querySelector("#erp-items .erp-item-row");
+    if (row) row.dataset.itemIndex = String(idx);
+    var wInp = row && row.querySelector('[data-erp="spec_width"]');
+    var dInp = row && row.querySelector('[data-erp="spec_depth"]');
+    var hInp = row && row.querySelector('[data-erp="spec_height"]');
+    if (wInp) wInp.value = spec.w;
+    if (dInp) dInp.value = spec.d;
+    if (hInp) hInp.value = spec.h;
+    var priceInp = row && row.querySelector('[data-erp="price"]');
+    if (priceInp) priceInp.value = item.price.replace(/원$/, "");
+    setField(row, "internal", "상담");
+    setField(row, "color", "상담");
+    setField(row, "option_detail", item.option || "상담");
+    setField(row, "handle", "상담");
+    setField(row, "misc", item.misc || "상담");
+    bindAutosizeTextareas(row);
+    document.getElementById("attach-hint").textContent = item.name + " 실측 이미지";
+    var sel = railList.querySelector(".is-selected");
+    if (sel) sel.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
+
+  document.getElementById("btn-prev").addEventListener("click", function () { selectItem(selectedIdx - 1); });
+  document.getElementById("btn-apply-next").addEventListener("click", function () {
+    selectItem(selectedIdx < ITEMS.length - 1 ? selectedIdx + 1 : 0);
+  });
+
+  document.getElementById("rail-search").addEventListener("input", function () {
+    renderRail(this.value);
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (viewAfter && !viewAfter.classList.contains("is-hidden") && e.ctrlKey) {
+      if (e.key === "ArrowUp") { e.preventDefault(); selectItem(selectedIdx - 1); }
+      if (e.key === "ArrowDown") { e.preventDefault(); selectItem(selectedIdx + 1); }
+    }
+  });
+
+  document.querySelectorAll(".erp-mockup-items-toggle__btn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      document.querySelectorAll(".erp-mockup-items-toggle__btn").forEach(function (b) {
+        b.classList.toggle("is-on", b === btn);
+      });
+      var before = btn.dataset.itemsView === "before";
+      viewBefore.classList.toggle("is-visible", before);
+      viewAfter.classList.toggle("is-hidden", before);
+    });
+  });
+
+  var stackWrap = document.getElementById("stack-cards");
+  ITEMS.forEach(function (item, i) {
+    var card = document.createElement("div");
+    card.className = "erp-item-row-stack" + (i === 1 ? " is-focus" : "");
+    card.innerHTML =
+      '<div class="erp-item-row-stack__head">' +
+      '<span class="erp-item-row-stack__title">항목 ' + (i + 1) + " · " + item.name + "</span>" +
+      '<span style="font-size:11px;color:#888">' + item.price + "</span></div>" +
+      '<div class="erp-item-row-stack__skel">' +
+      Array(9).fill('<div class="erp-item-row-stack__bar"></div>').join("") +
+      "</div>";
+    stackWrap.appendChild(card);
+  });
+
+  var scrollMeter = document.getElementById("scroll-meter");
+  if (viewBefore && scrollMeter) {
+    viewBefore.addEventListener("scroll", function () {
+      var max = viewBefore.scrollHeight - viewBefore.clientHeight;
+      var pct = max > 0 ? Math.round((viewBefore.scrollTop / max) * 100) : 0;
+      scrollMeter.textContent = "스크롤: " + pct + "% · ~" + Math.round(max) + "px";
+    });
+  }
+
+  renderRail();
+  selectItem(1);
+  bindAutosizeTextareas(document);
+})();
+</script>
+<script defer src="../../../static/js/orders/erp-spec-picker.js"></script>
+<script defer src="_erp-mockup-preset-picker.js"></script>
+</body>
+</html>

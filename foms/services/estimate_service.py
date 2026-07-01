@@ -237,6 +237,48 @@ def _extract_discount_amount(structured_data: dict) -> int:
     return 0
 
 
+def _extract_free_input_text(structured_data: dict) -> str:
+    """structured_data에서 자유입력 텍스트를 추출한다."""
+    payment = structured_data.get("payment") or {}
+    if isinstance(payment, dict) and "free_input" in payment:
+        return str(payment.get("free_input") or "").strip()
+    legacy_payments = structured_data.get("payments") or {}
+    if isinstance(legacy_payments, dict):
+        legacy_entry = legacy_payments.get("free_input")
+        if isinstance(legacy_entry, dict):
+            return str(legacy_entry.get("value") or legacy_entry.get("raw") or "").strip()
+        if legacy_entry not in (None, ""):
+            return str(legacy_entry).strip()
+    return ""
+
+
+def _sum_free_input_amount_from_text(text: str) -> int:
+    """자유입력 멀티라인 텍스트에서 금액(원)을 합산한다. '라벨 : 30,000' 형식 지원."""
+    raw = str(text or "").strip()
+    if not raw:
+        return 0
+    total = 0
+    for line in raw.replace("\r\n", "\n").split("\n"):
+        trimmed = line.strip()
+        if not trimmed:
+            continue
+        amount_part = trimmed
+        if re.search(r"[:：]", trimmed):
+            amount_part = re.split(r"[:：]", trimmed, maxsplit=1)[-1].strip()
+        total += _parse_money_amount(amount_part)
+    return total
+
+
+def _extract_free_input_amount(structured_data: dict) -> int:
+    """structured_data에서 자유입력 금액 합계(원)를 추출한다."""
+    totals = structured_data.get("totals") or {}
+    if isinstance(totals, dict) and totals.get("free_input_amount") is not None:
+        amount = _parse_money_amount(totals.get("free_input_amount"))
+        if amount > 0:
+            return amount
+    return _sum_free_input_amount_from_text(_extract_free_input_text(structured_data))
+
+
 def _balance_after_payments(total_amount: int, deposit_amount: int, discount_amount: int = 0) -> int:
     return max(
         0,
@@ -299,6 +341,8 @@ def extract_estimate_data_from_order(order: Order) -> dict:
     merged_items = _merge_estimate_manual_rows(estimate_items, manual_rows)
 
     total_amount = sum(item["amount"] for item in estimate_items) + manual_total
+    free_input_amount = _extract_free_input_amount(sd)
+    total_amount += free_input_amount
     deposit_amount = _extract_deposit_amount(sd)
     discount_amount = _extract_discount_amount(sd)
     balance_amount = _balance_after_payments(total_amount, deposit_amount, discount_amount)

@@ -100,15 +100,65 @@ var erpResolveCashReceipt =
     };
 window.erpResolveCashReceipt = erpResolveCashReceipt;
 
+var erpResolveFreeInputText =
+    window.erpResolveFreeInputText ||
+    function erpResolveFreeInputText(sd) {
+        sd = sd || {};
+        var modernPayment = sd.payment || {};
+        if (Object.prototype.hasOwnProperty.call(modernPayment, 'free_input')) {
+            return String(modernPayment.free_input || '').trim();
+        }
+        var legacyPayments = sd.payments || {};
+        var legacyEntry = legacyPayments.free_input;
+        if (legacyEntry && typeof legacyEntry === 'object') {
+            return String(legacyEntry.value || legacyEntry.raw || '').trim();
+        }
+        return String(legacyEntry || '').trim();
+    };
+window.erpResolveFreeInputText = erpResolveFreeInputText;
+
+var erpSumFreeInputAmountFromText =
+    window.erpSumFreeInputAmountFromText ||
+    function erpSumFreeInputAmountFromText(text) {
+        var raw = String(text || "").trim();
+        if (!raw) return 0;
+        var sum = 0;
+        var lines = raw.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+        for (var i = 0; i < lines.length; i += 1) {
+            var trimmed = String(lines[i] || "").trim();
+            if (!trimmed) continue;
+            var amountPart = trimmed;
+            var colonMatch = trimmed.match(/^[^:：]+[:：]\s*(.+)$/);
+            if (colonMatch) {
+                amountPart = colonMatch[1].trim();
+            }
+            var n = erpCoerceAmount(amountPart);
+            if (n > 0) sum += n;
+        }
+        return sum;
+    };
+window.erpSumFreeInputAmountFromText = erpSumFreeInputAmountFromText;
+
+var erpParseFreeInputAmount =
+    window.erpParseFreeInputAmount ||
+    function erpParseFreeInputAmount() {
+        return erpParseFreeInputAmountFromField();
+    };
+window.erpParseFreeInputAmount = erpParseFreeInputAmount;
+
 var erpBuildTotals =
     window.erpBuildTotals ||
-    function erpBuildTotals(itemsTotal, depositAmount, discountAmount) {
-        var total = erpCoerceAmount(itemsTotal);
+    function erpBuildTotals(itemsTotal, depositAmount, discountAmount, freeInputAmount) {
+        var itemsSubtotal = erpCoerceAmount(itemsTotal);
+        var freeInput = erpCoerceAmount(freeInputAmount);
+        var total = itemsSubtotal + freeInput;
         var deposit = erpCoerceAmount(depositAmount);
         var discount = erpCoerceAmount(discountAmount);
         var balance = Math.max(0, total - deposit - discount);
         return {
-            items_total: total,
+            items_total: itemsSubtotal,
+            free_input_amount: freeInput,
+            contract_total: total,
             deposit_amount: deposit,
             discount_amount: discount,
             balance_amount: balance,
@@ -128,6 +178,7 @@ var _erpNormalizePaymentData =
         return {
             deposit: Math.max(0, depositAmount),
             discount: Math.max(0, discountAmount),
+            free_input: erpResolveFreeInputText(sd),
             cash_receipt: erpResolveCashReceipt(sd),
             deposit_confirmed: _erpBoolConfirmed(pay.deposit_confirmed),
             deposit_confirmed_at: pay.deposit_confirmed_at || null,
@@ -256,7 +307,7 @@ window.erpNormalizeConstructionWorkers = erpNormalizeConstructionWorkers;
 var erpFormatConstructionWorkers =
     window.erpFormatConstructionWorkers ||
     function erpFormatConstructionWorkers(value) {
-        return erpNormalizeConstructionWorkers(value).join(", ");
+        return erpNormalizeConstructionWorkers(value).join("\n");
     };
 window.erpFormatConstructionWorkers = erpFormatConstructionWorkers;
 
@@ -283,7 +334,7 @@ function erpConfirmConstructionWorkerOverwrite() {
         return true;
     }
 
-    var nextLabel = nextWorkers.length ? nextWorkers.join(", ") : "공란";
+    var nextLabel = nextWorkers.length ? nextWorkers.join("\n") : "공란";
     var confirmed = window.confirm(
         "현재 출고 대시보드 시공자: " +
         previousWorkers.join(", ") +
@@ -604,6 +655,117 @@ var erpParseDiscountValue =
     };
 window.erpParseDiscountValue = erpParseDiscountValue;
 
+var erpParseFreeInputLabelText =
+    window.erpParseFreeInputLabelText ||
+    function erpParseFreeInputLabelText() {
+        var el = document.getElementById("erp-free-input-text");
+        if (!el) return "";
+        return String(el.value || "").trim();
+    };
+window.erpParseFreeInputLabelText = erpParseFreeInputLabelText;
+
+var erpParseFreeInputAmountFromField =
+    window.erpParseFreeInputAmountFromField ||
+    function erpParseFreeInputAmountFromField() {
+        var el = document.getElementById("erp-free-input-amount");
+        if (!el) return 0;
+        return erpCoerceAmount(el.value);
+    };
+window.erpParseFreeInputAmountFromField = erpParseFreeInputAmountFromField;
+
+var erpSplitFreeInputForForm =
+    window.erpSplitFreeInputForForm ||
+    function erpSplitFreeInputForForm(stored) {
+        var raw = String(stored || "").trim();
+        if (!raw) return { text: "", amount: 0 };
+        var lines = raw.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+        var first = "";
+        for (var i = 0; i < lines.length; i += 1) {
+            var line = String(lines[i] || "").trim();
+            if (line) {
+                first = line;
+                break;
+            }
+        }
+        if (!first) return { text: "", amount: 0 };
+        var colonMatch = first.match(/^(.+?)[:：]\s*(.+)$/);
+        if (colonMatch) {
+            return {
+                text: colonMatch[1].trim(),
+                amount: erpCoerceAmount(colonMatch[2]),
+            };
+        }
+        var asAmount = erpCoerceAmount(first);
+        if (asAmount > 0 && String(first).replace(/[^0-9]/g, "").length >= String(asAmount).length) {
+            return { text: "", amount: asAmount };
+        }
+        return { text: first, amount: 0 };
+    };
+window.erpSplitFreeInputForForm = erpSplitFreeInputForForm;
+
+var erpBuildFreeInputStoredValue =
+    window.erpBuildFreeInputStoredValue ||
+    function erpBuildFreeInputStoredValue() {
+        var label = erpParseFreeInputLabelText();
+        var amount = erpParseFreeInputAmountFromField();
+        if (!label && amount <= 0) return "";
+        if (!label) return erpFormatDepositDisplay(amount);
+        if (amount <= 0) return label;
+        return label + " : " + Math.round(amount).toLocaleString("ko-KR");
+    };
+window.erpBuildFreeInputStoredValue = erpBuildFreeInputStoredValue;
+
+/** 변환/PUSH용: `항목 : 120,000` → `항목 : 120,000원` (저장값은 원 미포함 유지). */
+var erpFormatFreeInputForConversion =
+    window.erpFormatFreeInputForConversion ||
+    function erpFormatFreeInputForConversion(value) {
+        var raw = String(value ?? '').trim();
+        if (!raw) return '';
+        return raw
+            .replace(/\r\n/g, '\n')
+            .replace(/\r/g, '\n')
+            .split('\n')
+            .map(erpFormatFreeInputForConversionLine)
+            .filter(function (line) {
+                return !!line;
+            })
+            .join('\n');
+    };
+window.erpFormatFreeInputForConversion = erpFormatFreeInputForConversion;
+
+function erpFormatFreeInputForConversionLine(line) {
+    var trimmed = String(line || '').trim();
+    if (!trimmed) return '';
+    var colonMatch = trimmed.match(/^(.+?)[:：]\s*(.+)$/);
+    if (colonMatch) {
+        var label = colonMatch[1].trim();
+        var amountPart = colonMatch[2].trim();
+        if (/원$/.test(amountPart)) {
+            return label + ' : ' + amountPart;
+        }
+        var amount = erpCoerceAmount(amountPart);
+        if (amount > 0) {
+            return label + ' : ' + erpFormatMoneyKRW(amount);
+        }
+        return trimmed;
+    }
+    if (/원$/.test(trimmed)) {
+        return trimmed;
+    }
+    var asAmount = erpCoerceAmount(trimmed);
+    if (asAmount > 0) {
+        return erpFormatMoneyKRW(asAmount);
+    }
+    return trimmed;
+}
+
+var erpParseFreeInputText =
+    window.erpParseFreeInputText ||
+    function erpParseFreeInputText() {
+        return erpBuildFreeInputStoredValue();
+    };
+window.erpParseFreeInputText = erpParseFreeInputText;
+
 var erpFormatDepositDisplay =
     window.erpFormatDepositDisplay ||
     function erpFormatDepositDisplay(num) {
@@ -611,6 +773,63 @@ var erpFormatDepositDisplay =
         return num === 0 ? "0원" : num.toLocaleString("ko-KR") + "원";
     };
 window.erpFormatDepositDisplay = erpFormatDepositDisplay;
+
+/** 금액 input 공통: 입력 시 천단위 쉼표 + '원' suffix, backspace는 suffix 앞 숫자부터 삭제. */
+var erpBindAmountInput =
+    window.erpBindAmountInput ||
+    function erpBindAmountInput(inputEl, parseFn, onRecalc) {
+        if (!inputEl || inputEl.dataset.erpAmountBound === '1') return;
+        inputEl.dataset.erpAmountBound = '1';
+        const recalc = typeof onRecalc === 'function' ? onRecalc : erpCalculateRemaining;
+
+        function setAmountCaretBeforeSuffix(el) {
+            if (!el || typeof el.setSelectionRange !== 'function' || !String(el.value || '').endsWith('원')) return;
+            const caretPos = Math.max(0, String(el.value || '').length - 1);
+            el.setSelectionRange(caretPos, caretPos);
+        }
+        function deleteErpAmountDigitBeforeSuffix(el) {
+            const value = String(el.value || '');
+            const start = el.selectionStart;
+            const end = el.selectionEnd;
+            if (!value.endsWith('원') || start == null || end == null || start !== end || start !== value.length) {
+                return false;
+            }
+            const raw = value.replace(/[^0-9]/g, '');
+            if (!raw) return false;
+            const nextRaw = raw.slice(0, -1);
+            el.value = nextRaw ? erpFormatDepositDisplay(parseInt(nextRaw, 10)) : '';
+            setAmountCaretBeforeSuffix(el);
+            recalc();
+            return true;
+        }
+        inputEl.addEventListener('keydown', function (event) {
+            if (event.key !== 'Backspace') return;
+            if (deleteErpAmountDigitBeforeSuffix(this)) event.preventDefault();
+        });
+        inputEl.addEventListener('beforeinput', function (event) {
+            if (event.inputType !== 'deleteContentBackward') return;
+            if (deleteErpAmountDigitBeforeSuffix(this)) event.preventDefault();
+        });
+        inputEl.addEventListener('input', function () {
+            const raw = (this.value || '').replace(/[^0-9]/g, '');
+            if (!raw) {
+                if (this.value !== '') this.value = '';
+                recalc();
+                return;
+            }
+            const num = parseInt(raw, 10);
+            const formatted = erpFormatDepositDisplay(num);
+            if (this.value !== formatted) this.value = formatted;
+            setAmountCaretBeforeSuffix(this);
+            recalc();
+        });
+        inputEl.addEventListener('change', function () {
+            const num = typeof parseFn === 'function' ? parseFn() : erpCoerceAmount(this.value);
+            this.value = erpFormatDepositDisplay(num);
+            recalc();
+        });
+    };
+window.erpBindAmountInput = erpBindAmountInput;
 
 
 // --- ERP Order shared-form island (moved from templates/partials/erp_order_js.html, W5-B8) ---
@@ -633,6 +852,7 @@ function erpRecalcItemsTotal() {
     const totalEl = document.getElementById('erp-items-total');
     const discountSection = document.getElementById('erp-discount-section');
     const remainingSection = document.getElementById('erp-remaining-section');
+    const freeInputSection = document.getElementById('erp-free-input-section');
     const cashReceiptSection = document.getElementById('erp-cash-receipt-section');
     if (!itemsWrap || !totalEl) return;
     let sum = 0;
@@ -641,12 +861,18 @@ function erpRecalcItemsTotal() {
         if (digits) sum += parseInt(digits, 10);
     });
     totalEl.textContent = erpFormatMoneyKRW(sum);
+    if (window.ErpItemsMasterDetail?.syncRailTotal) {
+        window.ErpItemsMasterDetail.syncRailTotal();
+    }
     const showAmountRows = sum > 0 && Number.isFinite(sum);
     if (discountSection) {
         discountSection.style.display = showAmountRows ? '' : 'none';
     }
     if (remainingSection) {
         remainingSection.style.display = showAmountRows ? '' : 'none';
+    }
+    if (freeInputSection) {
+        freeInputSection.style.display = showAmountRows ? '' : 'none';
     }
     if (cashReceiptSection) {
         cashReceiptSection.style.display = showAmountRows ? '' : 'none';
@@ -662,10 +888,36 @@ function erpCalculateRemaining() {
     const totals = erpBuildTotals(
         totalAmount,
         erpParseDepositValue(),
-        erpParseDiscountValue()
+        erpParseDiscountValue(),
+        erpParseFreeInputAmount()
     );
     remainingEl.textContent = totals.final_amount > 0 ? erpFormatMoneyKRW(totals.final_amount) : '0원';
 }
+
+/** 항목 금액 `[data-erp="price"]` — PC·모바일 동일 천단위 쉼표 포맷. */
+var erpBindPriceInput =
+    window.erpBindPriceInput ||
+    function erpBindPriceInput(inputEl) {
+        if (!inputEl) return;
+        erpBindAmountInput(
+            inputEl,
+            function () {
+                return erpCoerceAmount(inputEl.value);
+            },
+            erpRecalcItemsTotal
+        );
+    };
+window.erpBindPriceInput = erpBindPriceInput;
+
+var erpBindAllPriceInputs =
+    window.erpBindAllPriceInputs ||
+    function erpBindAllPriceInputs(scope) {
+        const root = scope || document;
+        root.querySelectorAll('[data-erp="price"]').forEach(function (inp) {
+            erpBindPriceInput(inp);
+        });
+    };
+window.erpBindAllPriceInputs = erpBindAllPriceInputs;
 
 function erpGetItemRows() {
     const wrap = document.getElementById('erp-items');
@@ -702,6 +954,9 @@ function erpRefreshItemRowIndices() {
         }
         erpUpdateItemSummary(row);
     });
+    if (window.ErpItemsMasterDetail?.isActive?.()) {
+        window.ErpItemsMasterDetail.refresh();
+    }
 }
 
 // 모바일 항목 카드 접힘 시 한 줄 요약(제품명 · W×D×H · 금액)을 헤더에 반영.
@@ -751,15 +1006,41 @@ function erpToggleItemRow(row, forceOpen) {
 function erpOpenFirstItemRow() {
     const rows = erpGetItemRows();
     if (!rows.length) return;
+    if (window.ErpItemsMasterDetail?.isActive?.()) {
+        window.ErpItemsMasterDetail.selectItem(0);
+        return;
+    }
     rows.forEach((r, i) => {
         if (r.querySelector('.erp-item-head-toggle')) erpToggleItemRow(r, i === 0);
     });
 }
 
+function erpResolveAutosizeMinHeight(el) {
+    const fromDataset = el.dataset.erpMinHeight ? Number(el.dataset.erpMinHeight) : 0;
+    if (typeof erpIsMobileFormContext === 'function' && erpIsMobileFormContext() && el.classList.contains('erp-flex-textarea')) {
+        return Math.max(fromDataset, 40);
+    }
+    return fromDataset;
+}
+
 function erpAutosizeTextarea(el) {
     if (!el || el.tagName !== 'TEXTAREA') return;
-    el.style.height = 'auto';
-    el.style.height = Math.max(el.scrollHeight, el.dataset.erpMinHeight ? Number(el.dataset.erpMinHeight) : 0) + 'px';
+    const isMobile = typeof erpIsMobileFormContext === 'function' && erpIsMobileFormContext();
+    if (isMobile && el.classList.contains('erp-flex-textarea')) {
+        const minH = erpResolveAutosizeMinHeight(el);
+        const value = String(el.value ?? '');
+        const isBlank = value.length === 0 || (value.trim().length === 0 && !value.includes('\n'));
+        if (isBlank) {
+            el.style.height = minH > 0 ? `${minH}px` : 'auto';
+            return;
+        }
+        el.style.height = '0';
+        el.style.height = `${Math.max(el.scrollHeight, minH || 0)}px`;
+        return;
+    }
+    const minH = el.dataset.erpMinHeight ? Number(el.dataset.erpMinHeight) : 0;
+    el.style.height = '0';
+    el.style.height = `${Math.max(el.scrollHeight, minH)}px`;
 }
 
 function erpBindAutosizeTextareas(root) {
@@ -793,13 +1074,40 @@ function erpItemAttachmentEmptyText() {
 
 function erpMobileFlexibleControl(name, label, value, options = {}) {
     const escapedValue = escapeHtml(value);
-    if (!options.isMobileForm) {
-        return `<input class="${options.inputClass}" data-erp="${name}" value="${escapedValue}" lang="ko">`;
-    }
     const rows = options.rows || 1;
-    const minHeight = options.minHeight || 44;
+    const minHeight = options.minHeight || (options.isMobileForm ? 40 : 28);
     const placeholder = options.placeholder || '';
-    return `<textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea" data-erp="${name}" rows="${rows}" data-erp-min-height="${minHeight}" placeholder="${escapeHtml(placeholder)}" lang="ko">${escapedValue}</textarea>`;
+    const inputClass = options.isMobileForm
+        ? 'foms-textarea erp-autosize-textarea erp-flex-textarea'
+        : `${options.inputClass || 'form-control form-control-sm'} erp-autosize-textarea erp-flex-textarea`;
+    const placeholderAttr = placeholder ? ` placeholder="${escapeHtml(placeholder)}"` : '';
+    return `<textarea class="${inputClass}" data-erp="${name}" rows="${rows}" data-erp-min-height="${minHeight}"${placeholderAttr} lang="ko">${escapedValue}</textarea>`;
+}
+
+/** PC Master-Detail: Fiori compact 제품 속성 property sheet (목업 1:1). */
+function erpDesktopPresetSheetRow(label, field, value, textareaClass) {
+    const v = escapeHtml(value);
+    return `<div class="erp-preset-row">
+<span class="erp-preset-row__label">${label}</span>
+<div class="erp-preset-row__value">
+<textarea class="${textareaClass} erp-autosize-textarea erp-flex-textarea" data-erp="${field}" rows="1" data-erp-min-height="32" lang="ko">${v}</textarea>
+</div>
+</div>`;
+}
+
+function erpBuildDesktopPresetSheet(internal, color, optionDetail, handle, misc, textareaClass) {
+    return `<div class="col-12">
+<div class="erp-preset-sheet" aria-label="제품 속성">
+<div class="erp-preset-sheet__head">제품 속성</div>
+<div class="erp-preset-sheet__body">
+${erpDesktopPresetSheetRow('내부', 'internal', internal, textareaClass)}
+${erpDesktopPresetSheetRow('색상', 'color', color, textareaClass)}
+${erpDesktopPresetSheetRow('옵션', 'option_detail', optionDetail, textareaClass)}
+${erpDesktopPresetSheetRow('손잡이', 'handle', handle, textareaClass)}
+${erpDesktopPresetSheetRow('기타·설치', 'misc', misc, textareaClass)}
+</div>
+</div>
+</div>`;
 }
 
 function erpNewItemRow(item = {}) {
@@ -816,7 +1124,7 @@ function erpNewItemRow(item = {}) {
     const tabularInputClass = isMobileForm ? 'foms-input foms-tabular' : 'form-control form-control-sm';
     const textareaClass = isMobileForm ? 'foms-textarea' : 'form-control form-control-sm';
     const itemScheduleFieldClass = isMobileForm ? 'col-md-6 d-none erp-mobile-rare-field' : 'col-md-6';
-    const productName = String(item.product_name || '').trim();
+    const productName = String(item.product_name ?? '');
     const itemAttachmentAccept = isMobileForm ? 'image/*,video/*' : 'image/*';
     const itemAttachmentAriaLabel = isMobileForm
         ? '제품 항목 사진 및 동영상 업로드 영역. 이미지를 붙여넣으면 이 항목에 바로 업로드됩니다.'
@@ -855,11 +1163,23 @@ function erpNewItemRow(item = {}) {
         const d = escapeHtml(String((sr.spec_depth ?? sr.d ?? '')).trim());
         const h = escapeHtml(String((sr.spec_height ?? sr.h ?? '')).trim());
         const delStyle = showDel ? '' : ' style="display:none;"';
-        const wPlaceholder = '예: 5700(2402+1864+1638) 또는 2352+2100+2860';
+        const wPlaceholder = isMobileForm
+            ? '예: 5700(2402+…) 또는 2352+…'
+            : '예: 5700(2402+1864+1638) 또는 2352+2100+2860';
+        const specMinH = isMobileForm ? 40 : 28;
+        const specWField = isMobileForm
+            ? `<textarea class="${tabularInputClass} erp-autosize-textarea erp-flex-textarea" data-erp="spec_width" data-spec-row rows="1" data-erp-min-height="${specMinH}" placeholder="${wPlaceholder}" lang="ko">${w}</textarea>`
+            : `<input class="${tabularInputClass}" data-erp="spec_width" data-spec-row placeholder="${wPlaceholder}" value="${w}" lang="ko">`;
+        const specDField = isMobileForm
+            ? `<textarea class="${tabularInputClass} erp-autosize-textarea erp-flex-textarea" data-erp="spec_depth" data-spec-row rows="1" data-erp-min-height="${specMinH}" placeholder="깊이" lang="ko">${d}</textarea>`
+            : `<input class="${tabularInputClass}" data-erp="spec_depth" data-spec-row placeholder="깊이" value="${d}" lang="ko">`;
+        const specHField = isMobileForm
+            ? `<textarea class="${tabularInputClass} erp-autosize-textarea erp-flex-textarea" data-erp="spec_height" data-spec-row rows="1" data-erp-min-height="${specMinH}" placeholder="높이" lang="ko">${h}</textarea>`
+            : `<input class="${tabularInputClass}" data-erp="spec_height" data-spec-row placeholder="높이" value="${h}" lang="ko">`;
         return `<div class="erp-spec-row d-flex flex-wrap gap-2 align-items-end mb-1">
-<div class="col-12 erp-spec-w-col"><label class="form-label mb-0 small text-muted">W(가로·총폭)</label><input class="${tabularInputClass}" data-erp="spec_width" data-spec-row placeholder="${wPlaceholder}" value="${w}" lang="ko"></div>
-<div class="col erp-spec-d-col"><label class="form-label mb-0 small text-muted">D(깊이)</label><input class="${tabularInputClass}" data-erp="spec_depth" data-spec-row placeholder="깊이" value="${d}" lang="ko"></div>
-<div class="col erp-spec-h-col"><label class="form-label mb-0 small text-muted">H(높이)</label><input class="${tabularInputClass}" data-erp="spec_height" data-spec-row placeholder="높이" value="${h}" lang="ko"></div>
+<div class="col-12 erp-spec-w-col"><label class="form-label mb-0 small text-muted">W(가로·총폭)</label>${specWField}</div>
+<div class="col erp-spec-d-col"><label class="form-label mb-0 small text-muted">D(깊이)</label>${specDField}</div>
+<div class="col erp-spec-h-col"><label class="form-label mb-0 small text-muted">H(높이)</label>${specHField}</div>
 <button type="button" class="btn btn-sm btn-outline-secondary erp-remove-spec-row-btn"${delStyle}><i class="fas fa-minus"></i></button>
 </div>`;
     };
@@ -876,8 +1196,9 @@ function erpNewItemRow(item = {}) {
     const optionDetail = defaultConsult(item.option_detail);
     const handle = defaultConsult(item.handle);
     const misc = defaultConsult(item.misc);
-    const price = String(item.price ?? '').trim();
-    const extraInput = String(item.extra_input ?? '').trim();
+    const priceAmount = erpCoerceAmount(item.price);
+    const price = priceAmount > 0 ? erpFormatDepositDisplay(priceAmount) : '';
+    const extraInput = String(item.extra_input ?? '');
     const colorFieldHtml = `
 <div class="col-md-6 erp-mobile-full-row">
     <label class="form-label mb-1 small text-primary">색상</label>
@@ -896,8 +1217,19 @@ function erpNewItemRow(item = {}) {
     const attributeFieldsHtml = isMobileForm
         ? `${colorFieldHtml}${handleFieldHtml}${optionFieldHtml}`
         : `${colorFieldHtml}${optionFieldHtml}${handleFieldHtml}`;
-
-    // 모바일: 항목 카드 = 한 줄 요약 헤더(번호·제품명·규격·금액) + 접이식 본문(아코디언).
+    const presetFieldsHtml = isMobileForm
+        ? `<div class="col-md-6 erp-mobile-full-row">
+    <label class="form-label mb-1 small text-primary">내부</label>
+    ${erpMobileFlexibleControl('internal', '내부', internal, { isMobileForm, inputClass, placeholder: '상담' })}
+</div>
+${attributeFieldsHtml}
+<div class="col-md-6 erp-mobile-full-row">
+    <label class="form-label mb-1 small text-primary">기타 / 설치위치</label>
+    ${erpMobileFlexibleControl('misc', '기타 / 설치위치', misc, { isMobileForm, inputClass, placeholder: '상담' })}
+</div>`
+        : erpBuildDesktopPresetSheet(internal, color, optionDetail, handle, misc, textareaClass);
+    const fieldLabelClass = isMobileForm ? 'form-label mb-1 small text-primary' : 'form-label mb-1 small erp-field-label';
+    const priceFieldClass = isMobileForm ? 'col-md-6 erp-mobile-full-row' : 'col-12 erp-mobile-full-row';
     // 데스크톱: 기존 항상-펼침 헤더 유지.
     const itemHeadHtml = isMobileForm
         ? `<div class="erp-item-head">
@@ -916,28 +1248,27 @@ function erpNewItemRow(item = {}) {
     <i class="fas fa-times"></i>
 </button>
 </div>`;
+    const productMinH = isMobileForm ? 40 : 28;
+    const extraInputRows = isMobileForm ? 1 : 2;
+    const extraInputMinH = isMobileForm ? 40 : 72;
+    const extraInputLargeClass = isMobileForm ? '' : ' erp-flex-textarea--large';
+    const productNameFieldHtml = isMobileForm
+        ? `<textarea class="${textareaClass} erp-autosize-textarea erp-flex-textarea" data-erp="product_name" rows="1" data-erp-min-height="${productMinH}" lang="ko">${escapeHtml(productName)}</textarea>`
+        : `<input class="${inputClass}" data-erp="product_name" value="${escapeHtml(productName)}" lang="ko">`;
     const itemFieldsHtml = `
 <div class="row g-2">
 <div class="col-12">
-    <label class="form-label mb-1 small text-primary">제품명</label>
-    <input class="${inputClass}" data-erp="product_name" value="${escapeHtml(productName)}" lang="ko">
+    <label class="${fieldLabelClass}">제품명</label>
+    ${productNameFieldHtml}
 </div>
 <div class="col-12">
-    <label class="form-label mb-1 small text-primary">규격 (W × D × H)</label>
+    <label class="${fieldLabelClass}">규격 (W × D × H)</label>
     ${specExamplesHintHtml}
     <div class="erp-spec-rows">${specRowsHtml}</div>
     <button type="button" class="btn btn-sm btn-outline-primary mt-1 erp-add-spec-row-btn"><i class="fas fa-plus"></i> 규격 1행 추가</button>
 </div>
-<div class="col-md-6 erp-mobile-full-row">
-    <label class="form-label mb-1 small text-primary">내부</label>
-    ${erpMobileFlexibleControl('internal', '내부', internal, { isMobileForm, inputClass, placeholder: '상담' })}
-</div>
-${attributeFieldsHtml}
-<div class="col-md-6 erp-mobile-full-row">
-    <label class="form-label mb-1 small text-primary">기타 / 설치위치</label>
-    ${erpMobileFlexibleControl('misc', '기타 / 설치위치', misc, { isMobileForm, inputClass, placeholder: '상담' })}
-</div>
-<div class="col-md-6 erp-mobile-full-row">
+${presetFieldsHtml}
+<div class="${priceFieldClass}">
     <label class="form-label mb-1 small text-primary">항목 금액(원)</label>
     <input class="${tabularInputClass}" data-erp="price" inputmode="numeric" value="${escapeHtml(price)}" lang="ko">
 </div>
@@ -951,7 +1282,7 @@ ${attributeFieldsHtml}
 </div>
 <div class="col-12">
     <label class="form-label mb-1 small text-primary">추가 입력</label>
-    <textarea class="${textareaClass} erp-autosize-textarea erp-flex-textarea erp-flex-textarea--large" data-erp="extra_input" rows="2" data-erp-min-height="72"
+    <textarea class="${textareaClass} erp-autosize-textarea erp-flex-textarea${extraInputLargeClass}" data-erp="extra_input" rows="${extraInputRows}" data-erp-min-height="${extraInputMinH}"
         placeholder="추가 내용을 입력하세요 (여러 줄 가능)" lang="ko">${escapeHtml(extraInput)}</textarea>
 </div>
 <div class="col-12">
@@ -1034,6 +1365,7 @@ ${attributeFieldsHtml}
         });
     });
     bindSpecWidthPasteSplit(row);
+    erpBindPriceInput(row.querySelector('[data-erp="price"]'));
 
     row.querySelector('[data-erp="extra_input"]')?.addEventListener('paste', (e) => {
         const raw = e.clipboardData?.getData('text/plain') || '';
@@ -1068,6 +1400,9 @@ ${attributeFieldsHtml}
         row.remove();
         erpRefreshItemRowIndices();
         erpRecalcItemsTotal();
+        if (window.ErpItemsMasterDetail?.afterRemove) {
+            window.ErpItemsMasterDetail.afterRemove(removedIndex);
+        }
         if (typeof erpRenderAttachments === 'function') {
             erpRenderAttachments();
         }
@@ -1084,6 +1419,8 @@ ${attributeFieldsHtml}
             if (typeof erpRenderAttachments === 'function') {
                 erpRenderAttachments();
             }
+        } else if (window.ErpItemsMasterDetail?.isActive?.()) {
+            window.ErpItemsMasterDetail.refresh();
         }
     });
     // Event listener removed as it's now handled by inline onchange="erpUploadItemAttachmentsPromptless(this)"
@@ -1311,6 +1648,8 @@ async function erpLoadStructured(bootstrapData, options) {
         return;
     }
 
+    erpApplyAttachmentPermissionsFromBootstrap(data);
+
     const sd = data.structured_data || {};
     const receivedDateEl = document.getElementById('erp-received-date');
     const receivedTimeEl = document.getElementById('erp-received-time');
@@ -1321,9 +1660,9 @@ async function erpLoadStructured(bootstrapData, options) {
     document.getElementById('erp-customer-phone').value = sd?.parties?.customer?.phone || '';
     try {
         const erpManualPhone = document.getElementById('erp-manual-phone-input');
-        if (!erpManualPhone || !erpManualPhone.checked) {
-            document.getElementById('erp-customer-phone').value =
-                formatPhoneAuto(document.getElementById('erp-customer-phone').value);
+        const erpPhoneEl = document.getElementById('erp-customer-phone');
+        if ((!erpManualPhone || !erpManualPhone.checked) && erpPhoneEl && !/\n/.test(erpPhoneEl.value || '')) {
+            erpPhoneEl.value = formatPhoneAuto(erpPhoneEl.value);
         }
     } catch (e) { }
     document.getElementById('erp-phone-note').value = sd?.notes?.phone_note || '';
@@ -1411,6 +1750,17 @@ async function erpLoadStructured(bootstrapData, options) {
     if (discountEl) {
         discountEl.value = erpFormatDepositDisplay(paymentData.discount);
     }
+    const freeInputParts = erpSplitFreeInputForForm(paymentData.free_input);
+    const freeInputTextEl = document.getElementById('erp-free-input-text');
+    if (freeInputTextEl) {
+        freeInputTextEl.value = freeInputParts.text;
+    }
+    const freeInputEl = document.getElementById('erp-free-input-amount');
+    if (freeInputEl) {
+        freeInputEl.value = freeInputParts.amount > 0
+            ? erpFormatDepositDisplay(freeInputParts.amount)
+            : '';
+    }
     const cashReceiptEl = document.getElementById('erp-cash-receipt');
     if (cashReceiptEl) {
         cashReceiptEl.value = paymentData.cash_receipt || '';
@@ -1428,6 +1778,7 @@ async function erpLoadStructured(bootstrapData, options) {
     if (typeof erpRenderItemAttachmentPanels === 'function') {
         erpRenderItemAttachmentPanels();
     }
+    erpBindAutosizeTextareas(document.getElementById('erp-order') || document);
 }
 
 function erpCollectStructured() {
@@ -1496,7 +1847,8 @@ function erpCollectStructured() {
     };
     const depositAmount = erpCoerceAmount(getVal('erp-deposit-amount'));
     const discountAmount = erpCoerceAmount(getVal('erp-discount-amount'));
-    const totals = erpBuildTotals(itemsTotal, depositAmount, discountAmount);
+    const freeInputAmount = erpParseFreeInputAmount();
+    const totals = erpBuildTotals(itemsTotal, depositAmount, discountAmount, freeInputAmount);
 
     // PUT /structured 는 본문 전체로 JSONB를 교체함. 폼에 없는 최상위 키는 서버 스냅샷에서 유지 (AS as_content 등)
     const prevSd = (window.__erpLastStructuredData && typeof window.__erpLastStructuredData === 'object')
@@ -1517,7 +1869,9 @@ function erpCollectStructured() {
         'drawing_transfer_history',
         'last_drawing_transfer',
         'drawing_assignees',
-        'estimate_preview'
+        'estimate_preview',
+        'channeltalk_push',
+        'channeltalk_push_drawing',
     ];
 
     const structured = {
@@ -1592,7 +1946,8 @@ function erpCollectStructured() {
             return {
                 deposit: totals.deposit_amount,
                 discount: totals.discount_amount,
-                cash_receipt: String(getVal('erp-cash-receipt') || '').trim(),
+                free_input: erpBuildFreeInputStoredValue(),
+                cash_receipt: String(getVal('erp-cash-receipt') || ''),
                 deposit_confirmed: _erpBoolConfirmed(prev.deposit_confirmed),
                 deposit_confirmed_at: prev.deposit_confirmed_at || null,
                 deposit_confirmed_by: prev.deposit_confirmed_by || null,
@@ -2112,7 +2467,9 @@ ${escapeHtml(sub)}</div>` : ''}`;
     function applyErpPhoneFormat() {
         if (!erpPhoneInput) return;
         if (erpManualPhone && erpManualPhone.checked) return;
-        erpPhoneInput.value = formatPhoneAuto(erpPhoneInput.value);
+        const raw = erpPhoneInput.value || '';
+        if (/\n/.test(raw)) return;
+        erpPhoneInput.value = formatPhoneAuto(raw);
     }
     if (erpPhoneInput) {
         erpPhoneInput.addEventListener('input', applyErpPhoneFormat);
@@ -2133,19 +2490,24 @@ ${escapeHtml(sub)}</div>` : ''}`;
         erpOpenFirstItemRow();
         erpRecalcItemsTotal();
     }
+    window.ErpItemsMasterDetail?.init?.();
 
     document.getElementById('erp-add-item-btn')?.addEventListener('click', function () {
         const wrap = document.getElementById('erp-items');
         if (!wrap) return;
         const newRow = erpNewItemRow({});
-        wrap.appendChild(newRow);            // 새 항목은 리스트 끝 → 추가 버튼은 항상 그 아래
+        wrap.appendChild(newRow);
         erpRefreshItemRowIndices();
-        erpToggleItemRow(newRow, true);      // 새 항목만 펼치고 나머지는 접는다(아코디언)
+        if (window.ErpItemsMasterDetail?.isActive?.()) {
+            window.ErpItemsMasterDetail.selectItem(erpGetItemRows().length - 1);
+        } else {
+            erpToggleItemRow(newRow, true);
+            newRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
         erpRecalcItemsTotal();
         if (typeof erpRenderAttachments === 'function') {
             erpRenderAttachments();
         }
-        newRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     });
     document.getElementById('erp-save-btn')?.addEventListener('click', erpSaveStructured);
     document.getElementById('erp-load-btn')?.addEventListener('click', () => erpLoadStructured());
@@ -2293,58 +2655,18 @@ ${escapeHtml(sub)}</div>` : ''}`;
             });
         }
     })();
-    function bindErpAmountInput(inputEl, parseFn) {
-        if (!inputEl) return;
-        function setAmountCaretBeforeSuffix(el) {
-            if (!el || typeof el.setSelectionRange !== 'function' || !String(el.value || '').endsWith('원')) return;
-            const caretPos = Math.max(0, String(el.value || '').length - 1);
-            el.setSelectionRange(caretPos, caretPos);
-        }
-        function deleteErpAmountDigitBeforeSuffix(el) {
-            const value = String(el.value || '');
-            const start = el.selectionStart;
-            const end = el.selectionEnd;
-            if (!value.endsWith('원') || start == null || end == null || start !== end || start !== value.length) {
-                return false;
-            }
-            const raw = value.replace(/[^0-9]/g, '');
-            if (!raw) return false;
-            const nextRaw = raw.slice(0, -1);
-            el.value = nextRaw ? erpFormatDepositDisplay(parseInt(nextRaw, 10)) : '';
-            setAmountCaretBeforeSuffix(el);
-            erpCalculateRemaining();
-            return true;
-        }
-        inputEl.addEventListener('keydown', function (event) {
-            if (event.key !== 'Backspace') return;
-            if (deleteErpAmountDigitBeforeSuffix(this)) event.preventDefault();
-        });
-        inputEl.addEventListener('beforeinput', function (event) {
-            if (event.inputType !== 'deleteContentBackward') return;
-            if (deleteErpAmountDigitBeforeSuffix(this)) event.preventDefault();
-        });
-        inputEl.addEventListener('input', function () {
-            const raw = (this.value || '').replace(/[^0-9]/g, '');
-            if (!raw) {
-                if (this.value !== '') this.value = '';
-                erpCalculateRemaining();
-                return;
-            }
-            const num = parseInt(raw, 10);
-            const formatted = erpFormatDepositDisplay(num);
-            if (this.value !== formatted) this.value = formatted;
-            setAmountCaretBeforeSuffix(this);
-            erpCalculateRemaining();
-        });
-        inputEl.addEventListener('change', function () {
-            const num = parseFn();
-            this.value = erpFormatDepositDisplay(num);
-            erpCalculateRemaining();
-        });
-    }
+    erpBindAmountInput(document.getElementById('erp-deposit-amount'), erpParseDepositValue);
+    erpBindAmountInput(document.getElementById('erp-discount-amount'), erpParseDiscountValue);
+    erpBindAmountInput(document.getElementById('erp-free-input-amount'), erpParseFreeInputAmountFromField);
+    erpBindAllPriceInputs(document.getElementById('erp-items'));
 
-    bindErpAmountInput(document.getElementById('erp-deposit-amount'), erpParseDepositValue);
-    bindErpAmountInput(document.getElementById('erp-discount-amount'), erpParseDiscountValue);
+    (function bindErpFreeInputTextField() {
+        const freeInputTextEl = document.getElementById('erp-free-input-text');
+        if (!freeInputTextEl || freeInputTextEl.dataset.erpFreeInputTextBound === '1') return;
+        freeInputTextEl.dataset.erpFreeInputTextBound = '1';
+        freeInputTextEl.addEventListener('input', erpCalculateRemaining);
+        freeInputTextEl.addEventListener('change', erpCalculateRemaining);
+    })();
 
 
     // 초기 structured/첨부 로드는 fomsMountErpOrderSurface가 담당한다.
@@ -2516,6 +2838,30 @@ function erpBuildAttachmentTile(a, options = {}) {
 </button>`;
 }
 
+function erpApplyAttachmentPermissionsFromBootstrap(data) {
+    const perms = data && data.attachment_permissions;
+    if (!perms || typeof perms !== 'object') {
+        window.__erpAttachmentPermissions = null;
+        return;
+    }
+    window.__erpAttachmentPermissions = {
+        currentUserId: perms.current_user_id != null ? parseInt(String(perms.current_user_id), 10) : null,
+        isAdmin: !!perms.is_admin,
+        isOrderManager: !!perms.is_order_manager,
+    };
+}
+
+function erpCanDeleteAttachment(attachment) {
+    if (!attachment) return false;
+    if (typeof attachment.can_delete === 'boolean') return attachment.can_delete;
+    const perms = window.__erpAttachmentPermissions;
+    if (!perms) return false;
+    if (perms.isAdmin || perms.isOrderManager) return true;
+    const uid = perms.currentUserId;
+    const attUid = attachment.user_id != null ? parseInt(String(attachment.user_id), 10) : null;
+    return uid != null && attUid != null && uid === attUid;
+}
+
 function erpSyncAttachmentPreviewActions(attachment) {
     const a = attachment || null;
     const select = document.getElementById('erp-attachment-preview-item-select');
@@ -2552,8 +2898,9 @@ function erpSyncAttachmentPreviewActions(attachment) {
     }
 
     if (deleteBtn) {
-        deleteBtn.classList.toggle('d-none', !a);
-        deleteBtn.onclick = !a ? null : async function () {
+        const canDelete = erpCanDeleteAttachment(a);
+        deleteBtn.classList.toggle('d-none', !a || !canDelete);
+        deleteBtn.onclick = (!a || !canDelete) ? null : async function () {
             await erpDeleteAttachment(a.id);
             if (!erpGetAttachmentById(a.id)) {
                 const modalEl = document.getElementById('erpAttachmentPreviewModal');
@@ -2764,10 +3111,11 @@ ${mediaHtml}
         onclick="erpLinkAttachmentToItem('${a.id}', '')">
         <i class="fas fa-unlink"></i>
     </button>
+    ${erpCanDeleteAttachment(a) ? `
     <button type="button" class="btn btn-sm btn-outline-danger" title="삭제(공통 첨부에서도 제거)"
         onclick="erpDeleteAttachment('${a.id}')">
         <i class="fas fa-trash"></i>
-    </button>
+    </button>` : ''}
 </div>
 </div>`;
         }).join('');
@@ -2864,10 +3212,11 @@ style="height: 220px;">
                     rel="noopener">
                     <i class="fas fa-download"></i>
                 </a>
+                ${erpCanDeleteAttachment(a) ? `
                 <button class="btn btn-outline-danger" type="button" title="삭제"
                     onclick="erpDeleteAttachment('${a.id}')">
                     <i class="fas fa-trash"></i>
-                </button>
+                </button>` : ''}
             </div>
         </div>
     </div>
@@ -3490,8 +3839,19 @@ function erpHasConversionTextValue(value) {
 }
 
 function erpAppendConversionTextLine(text, label, value) {
-    if (!erpHasConversionTextValue(value)) return text;
-    return text + `${label} : ${String(value).trim()}\n`;
+    const raw = String(value ?? '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const trimmed = raw.trim();
+    if (!trimmed) return text;
+    if (!trimmed.includes('\n')) {
+        return text + `${label} : ${trimmed}\n`;
+    }
+    const lines = trimmed.split('\n');
+    let out = text + `${label} : ${(lines[0] || '').trim()}\n`;
+    for (let i = 1; i < lines.length; i += 1) {
+        const line = lines[i].trim();
+        if (line) out += `${line}\n`;
+    }
+    return out;
 }
 
 function erpAppendConversionExtraInputLine(text, value) {
@@ -3508,10 +3868,16 @@ function erpAppendConversionExtraInputLine(text, value) {
     return out;
 }
 
+function erpAppendConversionFreeInputBlock(text, value) {
+    const formatted = erpFormatFreeInputForConversion(value);
+    if (!formatted) return text;
+    return text + `${formatted}\n`;
+}
+
 function erpReadItemFieldValue(row, key) {
     if (!row || !key) return '';
     const el = row.querySelector(`:scope [data-erp="${key}"]`);
-    return el ? String(el.value || '').trim() : '';
+    return el ? String(el.value || '') : '';
 }
 
 function erpAppendConversionMoneyLine(text, label, amount, suffix) {
@@ -3659,7 +4025,8 @@ function erpGenerateConversionText() {
     const itemsTotal = erpCoerceAmount(document.getElementById('erp-items-total')?.textContent);
     const depositAmount = erpParseDepositValue();
     const discountAmount = erpParseDiscountValue();
-    const totals = erpBuildTotals(itemsTotal, depositAmount, discountAmount);
+    const totals = erpBuildTotals(itemsTotal, depositAmount, discountAmount, erpParseFreeInputAmount());
+    const freeInputVal = erpParseFreeInputText();
 
     const footerStart = text.length;
     text = erpAppendConversionTextLine(text, '담당자', manager);
@@ -3669,6 +4036,7 @@ function erpGenerateConversionText() {
     text = erpAppendConversionMoneyLine(text, '할인', totals.discount_amount);
     const balanceSuffix = _erpIsBalancePaymentConfirmed() ? '(결제 완)' : '';
     text = erpAppendConversionMoneyLine(text, '잔금', totals.final_amount, balanceSuffix);
+    text = erpAppendConversionFreeInputBlock(text, freeInputVal);
     const cashReceiptVal = getVal('erp-cash-receipt');
     if (erpHasConversionTextValue(cashReceiptVal) && totals.final_amount > 0) {
         text += '\n';
@@ -3922,6 +4290,9 @@ function fomsMountErpOrderSurface() {
         return;
     }
     mountRoot.dataset.erpOrderMounted = "1";
+    if (typeof erpMountChannelPushResendModal === 'function') {
+        erpMountChannelPushResendModal();
+    }
     erpBindReceivedTimeControl();
     erpBindScheduleTimeControl('erp-measurement-time-select', 'erp-measurement-time');
     erpBindScheduleTimeControl('erp-construction-time-select', 'erp-construction-time');
@@ -4026,7 +4397,11 @@ function fomsMountErpOrderSurface() {
 
     // 영발(measurement)/발주(drawing) PUSH 공용 핸들러.
     // pushKind에 따라 백엔드가 해당 분류 첨부만 골라 별도 채널톡 그룹으로 전송한다.
-    async function erpRunChannelPush(btn, pushKind) {
+    // 재전송(prev push) 시 modal/sheet에서 change_note 입력 후 전송.
+    // 서버 400(재전송 note 필수) 시 클라 상태 동기화 후 modal 1회 재시도(M1).
+    async function erpRunChannelPush(btn, pushKind, resendRetryState) {
+        const retryState = resendRetryState || { resendRecoveryUsed: false };
+
         if (typeof erpGenerateConversionText === 'function') {
             erpGenerateConversionText();
         }
@@ -4048,7 +4423,14 @@ function fomsMountErpOrderSurface() {
             return;
         }
 
-        // 활성 색상 클래스(데스크톱 btn-* / 모바일 foms-btn--*)를 보존해 성공 표시 후 원복한다.
+        let changeNote = retryState.changeNote || null;
+        if (!changeNote && typeof erpHasPriorChannelPush === 'function' && erpHasPriorChannelPush(pushKind)) {
+            changeNote = await erpPromptChannelPushResendNote(pushKind);
+            if (!changeNote) {
+                return;
+            }
+        }
+
         const activeClass = btn.classList.contains('btn-warning') ? 'btn-warning'
             : btn.classList.contains('btn-primary') ? 'btn-primary'
             : btn.classList.contains('foms-btn--warning') ? 'foms-btn--warning'
@@ -4060,15 +4442,23 @@ function fomsMountErpOrderSurface() {
         const originalHtml = btn.innerHTML;
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 전송중...';
 
+        const payload = { order_id: orderId, text, push_kind: pushKind };
+        if (changeNote) {
+            payload.change_note = changeNote;
+        }
+
         try {
             const resp = await fetch('/api/channel/push-manual', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ order_id: orderId, text, push_kind: pushKind }),
+                body: JSON.stringify(payload),
             });
             const data = await resp.json();
 
             if (data.success) {
+                if (typeof erpMarkChannelPushSent === 'function') {
+                    erpMarkChannelPushSent(pushKind);
+                }
                 btn.innerHTML = '<i class="fas fa-check"></i> 전송완료';
                 if (activeClass) btn.classList.replace(activeClass, successClass);
                 setTimeout(() => {
@@ -4076,12 +4466,33 @@ function fomsMountErpOrderSurface() {
                     if (activeClass) btn.classList.replace(successClass, activeClass);
                     btn.disabled = false;
                 }, 3000);
-            } else {
-                const errMsg = data.error || data.message || '알 수 없는 오류';
-                alert(`채널톡 전송 실패:\n${errMsg}`);
+                return;
+            }
+
+            const errMsg = data.error || data.message || '알 수 없는 오류';
+            if (
+                !retryState.resendRecoveryUsed
+                && typeof erpIsChannelPushResendNoteRequired === 'function'
+                && erpIsChannelPushResendNoteRequired(errMsg)
+            ) {
+                if (typeof erpMarkChannelPushSent === 'function') {
+                    erpMarkChannelPushSent(pushKind);
+                }
                 btn.innerHTML = originalHtml;
                 btn.disabled = false;
+                const recoveryNote = await erpPromptChannelPushResendNote(pushKind);
+                if (!recoveryNote) {
+                    return;
+                }
+                return erpRunChannelPush(btn, pushKind, {
+                    resendRecoveryUsed: true,
+                    changeNote: recoveryNote,
+                });
             }
+
+            alert(`채널톡 전송 실패:\n${errMsg}`);
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
         } catch (e) {
             alert(`네트워크 오류: ${e.message}`);
             btn.innerHTML = originalHtml;

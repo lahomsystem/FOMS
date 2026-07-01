@@ -86,20 +86,39 @@
 .foms-tower__day.is-today .foms-tower__day-count:not(.is-empty) { opacity: .85; }
 .foms-tower__day-risk { position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--foms-color-danger-500); }
 
-/* (B) 현장 일정 — 실측/시공 탭 */
-.foms-tower__daytabs { display: flex; gap: 6px; margin-bottom: var(--foms-space-2); }
+/* (B) 현장 일정 — 전체/실측/시공/AS 탭 */
+.foms-tower__daytabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: var(--foms-space-2);
+  width: 100%;
+  min-width: 0;
+}
 .foms-tower__daytab {
   appearance: none; -webkit-appearance: none; cursor: pointer; font: inherit;
-  display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
-  padding: 5px 12px; border-radius: var(--foms-radius-full);
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px; white-space: nowrap;
+  width: 100%; min-width: 0; text-align: center;
+  padding: 5px 6px; border-radius: var(--foms-radius-full);
   border: 1px solid var(--foms-border-default); background: var(--foms-surface-base);
   color: var(--foms-text-secondary); font-size: var(--foms-font-size-xs); font-weight: var(--foms-font-weight-semibold);
 }
 .foms-tower__daytab.is-active {
   background: var(--foms-color-brand-600); border-color: var(--foms-color-brand-600); color: #fff;
 }
-.foms-tower__daytab-n { font-variant-numeric: tabular-nums; opacity: .85; }
+.foms-tower__daytab-n {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 16px; height: 16px; padding: 0 4px;
+  border-radius: var(--foms-radius-full);
+  background: var(--foms-surface-raised);
+  color: var(--foms-text-secondary);
+  font-variant-numeric: tabular-nums; opacity: .85; line-height: 1;
+}
 .foms-tower__daytab.is-active .foms-tower__daytab-n { opacity: 1; }
+.foms-tower__daytab.is-active .foms-tower__daytab-n {
+  background: rgba(255, 255, 255, .22);
+  color: #fff;
+}
 [data-foms-day-ops-list].is-loading { opacity: .5; transition: opacity .12s ease; }
 
 /* 헤더 '내작업' 토글 활성 */
@@ -122,6 +141,14 @@
 .foms-tower__field-type { font-size: 9px; color: var(--foms-text-tertiary); }
 .foms-tower__field-body { min-width: 0; }
 .foms-tower__field-name { display: flex; align-items: center; gap: 6px; font-size: var(--foms-font-size-sm); font-weight: var(--foms-font-weight-semibold); min-width: 0; flex-wrap: wrap; }
+.foms-tower__field-name .foms-stage-badge {
+  justify-content: center;
+  min-width: 34px;
+  padding: 2px 6px;
+  text-align: center;
+  line-height: 1.2;
+  flex: 0 0 auto;
+}
 .foms-tower__field-addr { display: block; font-size: var(--foms-font-size-xs); color: var(--foms-text-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 1px; }
 .foms-tower__field-foot { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
 .foms-tower__field-who { font-size: 10px; color: var(--foms-text-tertiary); margin-left: auto; }
@@ -169,7 +196,8 @@
 .foms-tower__pipeline > summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; font-size: var(--foms-font-size-sm); font-weight: var(--foms-font-weight-bold); color: var(--foms-text-secondary); padding: var(--foms-space-2) 0; }
 .foms-tower__pipeline > summary::-webkit-details-marker { display: none; }
 .foms-tower__pipeline-toggle { font-size: var(--foms-font-size-xs); color: var(--foms-text-link); font-weight: var(--foms-font-weight-semibold); }
-.foms-tower__pipeline[open] .foms-tower__pipeline-toggle::after { content: ' 접기'; }
+.foms-tower__pipeline-toggle::after { content: '펼치기'; }
+.foms-tower__pipeline[open] .foms-tower__pipeline-toggle::after { content: '접기'; }
 .foms-tower__stage-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--foms-space-2); margin-top: var(--foms-space-2); }
 .foms-tower__stage { display: grid; gap: 3px; padding: var(--foms-space-2) 2px; text-align: center; background: var(--foms-surface-base); border: 1px solid var(--foms-border-subtle); border-radius: var(--foms-radius-md); text-decoration: none; color: var(--foms-text-primary); position: relative; }
 .foms-tower__stage-count { font-size: var(--foms-font-size-lg); font-weight: var(--foms-font-weight-bold); font-variant-numeric: tabular-nums; line-height: 1; }

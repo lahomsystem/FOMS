@@ -15,6 +15,7 @@ from foms.services.erp_permissions import (
     is_order_related_to_user,
     resolve_mine_scope_for_user,
 )
+from foms.services.erp_quest_display import load_assignee_user_map_batch, resolve_order_role_assignees
 from foms.services.erp_policy import (
     STAGE_NAME_TO_CODE,
     get_assignee_ids,
@@ -269,6 +270,8 @@ def erp_drawing_workbench_dashboard():
             orders = [focus_order] + orders
 
     rows = []
+    order_sds = [_ensure_dict(o.structured_data) for o in orders]
+    assignee_user_map = load_assignee_user_map_batch(db, order_sds)
     for o in orders:
         sd = _ensure_dict(o.structured_data)
         stage_raw = _erp_get_stage(o, sd)
@@ -293,6 +296,8 @@ def erp_drawing_workbench_dashboard():
             elif isinstance(a, str) and a.strip():
                 assignee_names.append(a.strip())
         assignee_text = ', '.join(assignee_names) if assignee_names else '미지정'
+        role_assignees = resolve_order_role_assignees(sd, order=o, user_map=assignee_user_map)
+        measurement_assignee_text = role_assignees.get('measurement_assignee') or '-'
 
         draw_assignee_ids = get_assignee_ids(o, 'DRAWING_DOMAIN')
         has_assignee = bool(draw_assignee_ids)
@@ -369,6 +374,7 @@ def erp_drawing_workbench_dashboard():
             'construction_date': construction_date,
             'manager_name': manager_name,
             'assignee_text': assignee_text,
+            'measurement_assignee_text': measurement_assignee_text,
             'drawing_status': drawing_status,
             'drawing_status_label': _drawing_status_label(drawing_status),
             'file_count': len(drawing_files),

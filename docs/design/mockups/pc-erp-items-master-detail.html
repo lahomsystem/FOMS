@@ -1,0 +1,1093 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>FOMS · PC ERP 제품 항목 Master-Detail (목업)</title>
+<!--
+  PC ERP Order — 제품 항목 6~10개 대응 Master-Detail 목업
+  스타일: SAP Fiori / Linear / modern SaaS ERP (FOMS _tokens.css 미사용)
+  IA: Overview rail + Detail editor + in-item segment tabs
+  2026-06-30
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  /* ── Modern ERP design system (standalone) ── */
+  :root {
+    --erp-bg: #f4f5f7;
+    --erp-surface: #ffffff;
+    --erp-surface-2: #fafbfc;
+    --erp-surface-3: #f0f1f4;
+    --erp-border: #e1e4ea;
+    --erp-border-strong: #c8cdd6;
+    --erp-text: #1a1d23;
+    --erp-text-2: #5c6370;
+    --erp-text-3: #8b929e;
+    --erp-accent: #0b6bcb;
+    --erp-accent-soft: #e8f2fc;
+    --erp-accent-hover: #0958a8;
+    --erp-success: #0d7d4d;
+    --erp-success-soft: #e6f4ed;
+    --erp-warning: #b45309;
+    --erp-warning-soft: #fef3e2;
+    --erp-danger: #c41e3a;
+    --erp-danger-soft: #fce8ec;
+    --erp-focus-ring: 0 0 0 2px #fff, 0 0 0 4px rgba(11, 107, 203, 0.45);
+    --erp-radius: 6px;
+    --erp-radius-lg: 10px;
+    --erp-shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
+    --erp-shadow-md: 0 4px 12px rgba(16, 24, 40, 0.08);
+    --erp-rail-w: 300px;
+    --erp-font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --erp-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    /* item accent stripes (left border) */
+    --stripe-1: #0b6bcb;
+    --stripe-2: #7c3aed;
+    --stripe-3: #0d7d4d;
+    --stripe-4: #b45309;
+    --stripe-5: #0891b2;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html { font-size: 14px; }
+  body {
+    margin: 0;
+    font-family: var(--erp-font);
+    background: #0f1117;
+    color: var(--erp-text);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Page chrome (mockup viewer) ── */
+  .mockup-page {
+    max-width: 1480px;
+    margin: 0 auto;
+    padding: 28px 20px 48px;
+  }
+  .mockup-page__head {
+    text-align: center;
+    margin-bottom: 20px;
+    color: #9ca3af;
+  }
+  .mockup-page__head h1 {
+    margin: 0 0 6px;
+    font-size: 18px;
+    font-weight: 600;
+    color: #f3f4f6;
+    letter-spacing: -0.02em;
+  }
+  .mockup-page__head p { margin: 0; font-size: 13px; line-height: 1.5; }
+  .mockup-tabs {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .mockup-tab {
+    padding: 8px 16px;
+    border-radius: 999px;
+    border: 1px solid #374151;
+    background: transparent;
+    color: #9ca3af;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+  .mockup-tab:hover { border-color: #6b7280; color: #e5e7eb; }
+  .mockup-tab.is-on {
+    background: #1f2937;
+    border-color: #4b5563;
+    color: #f9fafb;
+  }
+
+  /* ── Desktop frame ── */
+  .desktop-frame {
+    width: 100%;
+    max-width: 1360px;
+    height: 860px;
+    margin: 0 auto;
+    background: var(--erp-bg);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+    border: 1px solid #2d3748;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* App top bar */
+  .app-bar {
+    flex-shrink: 0;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    background: var(--erp-surface);
+    border-bottom: 1px solid var(--erp-border);
+    gap: 12px;
+  }
+  .app-bar__crumb {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--erp-text-2);
+  }
+  .app-bar__crumb strong { color: var(--erp-text); font-weight: 600; }
+  .app-bar__crumb span { color: var(--erp-text-3); }
+  .app-bar__spacer { flex: 1; }
+  .app-bar__badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: var(--erp-success-soft);
+    color: var(--erp-success);
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 12px;
+    border-radius: var(--erp-radius);
+    border: 1px solid var(--erp-border);
+    background: var(--erp-surface);
+    color: var(--erp-text);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+    transition: background 0.12s, border-color 0.12s;
+  }
+  .btn:hover { background: var(--erp-surface-3); border-color: var(--erp-border-strong); }
+  .btn:focus-visible { outline: none; box-shadow: var(--erp-focus-ring); }
+  .btn--primary {
+    background: var(--erp-accent);
+    border-color: var(--erp-accent);
+    color: #fff;
+  }
+  .btn--primary:hover { background: var(--erp-accent-hover); border-color: var(--erp-accent-hover); }
+  .btn--ghost { border-color: transparent; background: transparent; color: var(--erp-text-2); }
+  .btn--ghost:hover { background: var(--erp-surface-3); color: var(--erp-text); }
+  .btn--sm { height: 28px; padding: 0 10px; font-size: 12px; }
+  .btn--icon { width: 32px; padding: 0; }
+
+  /* Main layout */
+  .app-body {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* ── LEFT: Item rail (master) ── */
+  .item-rail {
+    width: var(--erp-rail-w);
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--erp-surface);
+    border-right: 1px solid var(--erp-border);
+  }
+  .item-rail__head {
+    flex-shrink: 0;
+    padding: 14px 14px 10px;
+    border-bottom: 1px solid var(--erp-border);
+  }
+  .item-rail__title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .item-rail__title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--erp-text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .item-rail__count {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--erp-text-2);
+    background: var(--erp-surface-3);
+    padding: 2px 7px;
+    border-radius: 999px;
+  }
+  .item-rail__search {
+    width: 100%;
+    height: 32px;
+    padding: 0 10px 0 32px;
+    border: 1px solid var(--erp-border);
+    border-radius: var(--erp-radius);
+    font-size: 13px;
+    font-family: inherit;
+    background: var(--erp-surface-2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='%238b929e' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85zm-5.242 1.006a5 5 0 1 1 0-10 5 5 0 0 1 0 10z'/%3E%3C/svg%3E") 10px center no-repeat;
+  }
+  .item-rail__search:focus { outline: none; border-color: var(--erp-accent); box-shadow: var(--erp-focus-ring); }
+
+  .item-rail__list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 6px;
+  }
+  .rail-item {
+    display: grid;
+    grid-template-columns: 28px 1fr auto;
+    grid-template-rows: auto auto;
+    gap: 2px 10px;
+    padding: 10px 10px 10px 8px;
+    border-radius: var(--erp-radius);
+    border: 1px solid transparent;
+    border-left: 3px solid transparent;
+    cursor: pointer;
+    margin-bottom: 2px;
+    transition: background 0.1s, border-color 0.1s;
+    position: relative;
+  }
+  .rail-item:hover { background: var(--erp-surface-2); }
+  .rail-item.is-selected {
+    background: var(--erp-accent-soft);
+    border-color: var(--erp-border);
+    border-left-color: var(--item-stripe, var(--erp-accent));
+    box-shadow: var(--erp-shadow-sm);
+  }
+  .rail-item[data-idx="0"] { --item-stripe: var(--stripe-1); }
+  .rail-item[data-idx="1"] { --item-stripe: var(--stripe-2); }
+  .rail-item[data-idx="2"] { --item-stripe: var(--stripe-3); }
+  .rail-item[data-idx="3"] { --item-stripe: var(--stripe-4); }
+  .rail-item[data-idx="4"] { --item-stripe: var(--stripe-5); }
+  .rail-item[data-idx="5"] { --item-stripe: var(--stripe-1); }
+  .rail-item[data-idx="6"] { --item-stripe: var(--stripe-2); }
+  .rail-item[data-idx="7"] { --item-stripe: var(--stripe-3); }
+  .rail-item[data-idx="8"] { --item-stripe: var(--stripe-4); }
+  .rail-item[data-idx="9"] { --item-stripe: var(--stripe-5); }
+
+  .rail-item__num {
+    grid-row: 1 / 3;
+    align-self: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    background: var(--erp-surface-3);
+    color: var(--erp-text-2);
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .rail-item.is-selected .rail-item__num {
+    background: var(--erp-accent);
+    color: #fff;
+  }
+  .rail-item__name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--erp-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .rail-item__spec {
+    grid-column: 2;
+    font-size: 11px;
+    color: var(--erp-text-3);
+    font-family: var(--erp-mono);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .rail-item__meta {
+    grid-column: 3;
+    grid-row: 1 / 3;
+    align-self: center;
+    text-align: right;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+  }
+  .rail-item__price {
+    font-size: 12px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--erp-text);
+  }
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .status-dot--done { background: var(--erp-success); }
+  .status-dot--partial { background: var(--erp-warning); }
+  .status-dot--empty { background: var(--erp-border-strong); }
+
+  .item-rail__foot {
+    flex-shrink: 0;
+    padding: 10px 12px;
+    border-top: 1px solid var(--erp-border);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .rail-total {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 12px;
+    color: var(--erp-text-2);
+  }
+  .rail-total strong {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--erp-text);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── RIGHT: Detail pane ── */
+  .detail-pane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    background: var(--erp-bg);
+  }
+  .detail-head {
+    flex-shrink: 0;
+    background: var(--erp-surface);
+    border-bottom: 1px solid var(--erp-border);
+    padding: 12px 20px 0;
+  }
+  .detail-head__row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 12px;
+  }
+  .detail-head__identity {}
+  .detail-head__eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--erp-text-3);
+    margin-bottom: 4px;
+  }
+  .detail-head__title {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--erp-text);
+    margin: 0;
+  }
+  .detail-head__sub {
+    margin-top: 4px;
+    font-size: 13px;
+    color: var(--erp-text-2);
+    font-family: var(--erp-mono);
+  }
+  .detail-head__actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .nav-cluster {
+    display: flex;
+    border: 1px solid var(--erp-border);
+    border-radius: var(--erp-radius);
+    overflow: hidden;
+  }
+  .nav-cluster .btn {
+    border: none;
+    border-radius: 0;
+    border-right: 1px solid var(--erp-border);
+  }
+  .nav-cluster .btn:last-child { border-right: none; }
+  .nav-cluster__label {
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--erp-text-2);
+    background: var(--erp-surface-2);
+    border-right: 1px solid var(--erp-border);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Segment tabs (in-item) */
+  .seg-tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: none;
+    margin: 0 -20px;
+    padding: 0 20px;
+  }
+  .seg-tab {
+    position: relative;
+    padding: 10px 16px;
+    border: none;
+    background: transparent;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--erp-text-2);
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+  }
+  .seg-tab:hover { color: var(--erp-text); }
+  .seg-tab.is-active {
+    color: var(--erp-accent);
+    font-weight: 600;
+  }
+  .seg-tab.is-active::after {
+    content: "";
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: 0;
+    height: 2px;
+    background: var(--erp-accent);
+    border-radius: 2px 2px 0 0;
+  }
+  .seg-tab__badge {
+    margin-left: 6px;
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 999px;
+    background: var(--erp-warning-soft);
+    color: var(--erp-warning);
+    font-weight: 600;
+  }
+
+  .detail-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+  }
+  .detail-panel { display: none; }
+  .detail-panel.is-active { display: block; }
+
+  /* Form grid */
+  .form-section {
+    background: var(--erp-surface);
+    border: 1px solid var(--erp-border);
+    border-radius: var(--erp-radius-lg);
+    padding: 16px 18px;
+    margin-bottom: 14px;
+    box-shadow: var(--erp-shadow-sm);
+  }
+  .form-section__title {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--erp-text-3);
+    margin: 0 0 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--erp-border);
+  }
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px 16px;
+  }
+  .form-grid--1 { grid-template-columns: 1fr; }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field--full { grid-column: 1 / -1; }
+  .field__label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--erp-text-2);
+  }
+  .field__label--req::after { content: " *"; color: var(--erp-danger); }
+  .field__input {
+    height: 36px;
+    padding: 0 11px;
+    border: 1px solid var(--erp-border);
+    border-radius: var(--erp-radius);
+    font-size: 13px;
+    font-family: inherit;
+    color: var(--erp-text);
+    background: var(--erp-surface);
+    transition: border-color 0.12s, box-shadow 0.12s;
+  }
+  .field__input:hover { border-color: var(--erp-border-strong); }
+  .field__input:focus {
+    outline: none;
+    border-color: var(--erp-accent);
+    box-shadow: var(--erp-focus-ring);
+  }
+  .field__input--mono { font-family: var(--erp-mono); font-variant-numeric: tabular-nums; }
+  .field__input--readonly {
+    background: #f3f0ff;
+    border-color: #ddd6fe;
+    font-weight: 600;
+    color: #5b21b6;
+  }
+  .field__hint { font-size: 11px; color: var(--erp-text-3); margin-top: 2px; }
+  .field__combo {
+    display: flex;
+    position: relative;
+  }
+  .field__combo .field__input { flex: 1; padding-right: 32px; }
+  .field__combo-btn {
+    position: absolute;
+    right: 1px;
+    top: 1px;
+    bottom: 1px;
+    width: 30px;
+    border: none;
+    background: var(--erp-surface-2);
+    border-left: 1px solid var(--erp-border);
+    border-radius: 0 calc(var(--erp-radius) - 1px) calc(var(--erp-radius) - 1px) 0;
+    color: var(--erp-text-2);
+    cursor: pointer;
+    font-size: 10px;
+  }
+  textarea.field__input {
+    height: auto;
+    min-height: 72px;
+    padding: 10px 11px;
+    resize: vertical;
+  }
+
+  /* Spec sub-table */
+  .spec-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .spec-table th {
+    text-align: left;
+    font-weight: 500;
+    color: var(--erp-text-3);
+    padding: 0 8px 8px 0;
+    border-bottom: 1px solid var(--erp-border);
+  }
+  .spec-table td { padding: 6px 8px 6px 0; vertical-align: middle; }
+  .spec-table .field__input { height: 32px; font-size: 12px; }
+  .spec-table__actions { width: 36px; text-align: center; }
+
+  /* Attachment zone */
+  .attach-zone {
+    border: 1px dashed var(--erp-border-strong);
+    border-radius: var(--erp-radius-lg);
+    padding: 16px;
+    background: var(--erp-surface-2);
+    text-align: center;
+  }
+  .attach-zone__title { font-size: 13px; font-weight: 600; color: var(--erp-text-2); margin-bottom: 4px; }
+  .attach-zone__hint { font-size: 12px; color: var(--erp-text-3); margin-bottom: 12px; }
+  .attach-thumbs {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .attach-thumb {
+    width: 64px;
+    height: 64px;
+    border-radius: var(--erp-radius);
+    background: var(--erp-surface-3);
+    border: 1px solid var(--erp-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    color: var(--erp-text-3);
+  }
+  .attach-thumb--filled {
+    background: linear-gradient(135deg, #dbeafe, #e0e7ff);
+    border-color: #93c5fd;
+  }
+
+  /* Detail footer */
+  .detail-foot {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 20px;
+    background: var(--erp-surface);
+    border-top: 1px solid var(--erp-border);
+    gap: 12px;
+  }
+  .detail-foot__hint {
+    font-size: 12px;
+    color: var(--erp-text-3);
+  }
+  .detail-foot__hint kbd {
+    display: inline-block;
+    padding: 1px 5px;
+    border-radius: 3px;
+    border: 1px solid var(--erp-border);
+    background: var(--erp-surface-2);
+    font-size: 11px;
+    font-family: var(--erp-mono);
+  }
+  .detail-foot__actions { display: flex; gap: 8px; }
+
+  /* ── BEFORE panel (stacked cards comparison) ── */
+  .view-before { display: none; flex: 1; overflow-y: auto; padding: 16px 20px; }
+  .view-before.is-visible { display: block; }
+  .view-master-detail.is-hidden { display: none; }
+
+  .before-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: var(--erp-warning-soft);
+    border: 1px solid #fcd34d;
+    border-radius: var(--erp-radius);
+    margin-bottom: 14px;
+    font-size: 13px;
+    color: #92400e;
+  }
+  .stack-card {
+    border: 1px solid var(--erp-border);
+    border-radius: var(--erp-radius-lg);
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    background: var(--erp-surface);
+  }
+  .stack-card__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .stack-card__title { font-size: 13px; font-weight: 600; color: var(--erp-text-3); }
+  .stack-card__fields {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .stack-card__fake {
+    height: 28px;
+    background: var(--erp-surface-3);
+    border-radius: 4px;
+  }
+  .stack-card.is-focus {
+    border-color: var(--erp-accent);
+    box-shadow: 0 0 0 2px rgba(11, 107, 203, 0.15);
+  }
+
+  /* Scroll indicator for before view */
+  .scroll-meter {
+    position: sticky;
+    bottom: 12px;
+    margin: 12px auto 0;
+    width: fit-content;
+    padding: 6px 14px;
+    background: rgba(26, 29, 35, 0.85);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 500;
+    border-radius: 999px;
+    backdrop-filter: blur(8px);
+  }
+
+  @media (max-width: 900px) {
+    .desktop-frame { height: auto; min-height: 700px; }
+    .app-body { flex-direction: column; }
+    .item-rail { width: 100%; max-height: 220px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="mockup-page">
+  <div class="mockup-page__head">
+    <h1>PC ERP · 제품 항목 Master-Detail</h1>
+    <p>10개 항목 주문 — SAP Fiori / modern SaaS ERP 스타일 · FOMS 토큰 미적용 standalone 목업</p>
+  </div>
+
+  <div class="mockup-tabs" role="tablist">
+    <button type="button" class="mockup-tab is-on" data-view="after">✓ Master-Detail (제안)</button>
+    <button type="button" class="mockup-tab" data-view="before">✗ 현재 (10카드 스택)</button>
+  </div>
+
+  <div class="desktop-frame" id="desktop-frame">
+    <!-- App bar -->
+    <header class="app-bar">
+      <div class="app-bar__crumb">
+        <span>주문</span>
+        <span>/</span>
+        <strong>#48291</strong>
+        <span>·</span>
+        <span>김○○ · 강남구</span>
+      </div>
+      <span class="app-bar__badge">자동저장 14:32</span>
+      <div class="app-bar__spacer"></div>
+      <button type="button" class="btn btn--ghost btn--sm">구조화 입력</button>
+      <button type="button" class="btn btn--ghost btn--sm">계약서</button>
+      <button type="button" class="btn btn--primary btn--sm">저장</button>
+    </header>
+
+    <div class="app-body view-master-detail" id="view-after">
+      <!-- MASTER: Item rail -->
+      <aside class="item-rail" aria-label="제품 항목 목록">
+        <div class="item-rail__head">
+          <div class="item-rail__title-row">
+            <div class="item-rail__title">
+              제품 항목
+              <span class="item-rail__count">10</span>
+            </div>
+            <button type="button" class="btn btn--sm btn--primary" id="btn-add-item">+ 추가</button>
+          </div>
+          <input type="search" class="item-rail__search" placeholder="제품명 검색…" aria-label="항목 검색" />
+        </div>
+        <div class="item-rail__list" id="rail-list" role="listbox" aria-label="항목 선택"></div>
+        <div class="item-rail__foot">
+          <div class="rail-total">
+            <span>출고가 합계</span>
+            <strong id="rail-total">₩12,840,000</strong>
+          </div>
+          <button type="button" class="btn btn--sm" style="width:100%">전체 항목 요약 보기</button>
+        </div>
+      </aside>
+
+      <!-- DETAIL: Editor -->
+      <main class="detail-pane" aria-label="선택 항목 편집">
+        <header class="detail-head">
+          <div class="detail-head__row">
+            <div class="detail-head__identity">
+              <div class="detail-head__eyebrow">항목 <span id="detail-num">2</span> / 10</div>
+              <h2 class="detail-head__title" id="detail-title">신발장</h2>
+              <div class="detail-head__sub" id="detail-sub">1200 × 400 × 2400 · ₩890,000</div>
+            </div>
+            <div class="detail-head__actions">
+              <div class="nav-cluster" aria-label="항목 이동">
+                <button type="button" class="btn btn--icon btn--sm" id="btn-prev" title="이전 항목">◀</button>
+                <span class="nav-cluster__label" id="nav-pos">2 / 10</span>
+                <button type="button" class="btn btn--icon btn--sm" id="btn-next" title="다음 항목">▶</button>
+              </div>
+              <button type="button" class="btn btn--sm" style="color:var(--erp-danger);border-color:var(--erp-danger-soft)">삭제</button>
+            </div>
+          </div>
+          <nav class="seg-tabs" role="tablist" aria-label="항목 섹션">
+            <button type="button" class="seg-tab is-active" role="tab" data-seg="basic" aria-selected="true">기본</button>
+            <button type="button" class="seg-tab" role="tab" data-seg="spec">규격 · 금액</button>
+            <button type="button" class="seg-tab" role="tab" data-seg="option">옵션</button>
+            <button type="button" class="seg-tab" role="tab" data-seg="attach">실측 · 첨부 <span class="seg-tab__badge">2</span></button>
+          </nav>
+        </header>
+
+        <div class="detail-body">
+          <!-- BASIC -->
+          <div class="detail-panel is-active" id="panel-basic" role="tabpanel">
+            <section class="form-section">
+              <h3 class="form-section__title">제품 식별</h3>
+              <div class="form-grid form-grid--1">
+                <div class="field field--full">
+                  <label class="field__label field__label--req">제품명</label>
+                  <div class="field__combo">
+                    <input class="field__input" type="text" value="신발장" id="inp-name" />
+                    <button type="button" class="field__combo-btn" aria-label="목록">▾</button>
+                  </div>
+                </div>
+              </div>
+            </section>
+            <section class="form-section">
+              <h3 class="form-section__title">속성 (빠른 입력)</h3>
+              <div class="form-grid">
+                <div class="field">
+                  <label class="field__label">내부</label>
+                  <div class="field__combo">
+                    <input class="field__input" type="text" value="상담" />
+                    <button type="button" class="field__combo-btn">▾</button>
+                  </div>
+                </div>
+                <div class="field">
+                  <label class="field__label">색상</label>
+                  <div class="field__combo">
+                    <input class="field__input" type="text" value="화이트" />
+                    <button type="button" class="field__combo-btn">▾</button>
+                  </div>
+                </div>
+                <div class="field">
+                  <label class="field__label">손잡이</label>
+                  <div class="field__combo">
+                    <input class="field__input" type="text" value="푸시" />
+                    <button type="button" class="field__combo-btn">▾</button>
+                  </div>
+                </div>
+                <div class="field">
+                  <label class="field__label">기타 / 설치위치</label>
+                  <div class="field__combo">
+                    <input class="field__input" type="text" value="현관" />
+                    <button type="button" class="field__combo-btn">▾</button>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <!-- SPEC -->
+          <div class="detail-panel" id="panel-spec" role="tabpanel" hidden>
+            <section class="form-section">
+              <h3 class="form-section__title">규격 (W × D × H)</h3>
+              <table class="spec-table">
+                <thead>
+                  <tr>
+                    <th>W (가로·총폭)</th>
+                    <th>D (깊이)</th>
+                    <th>H (높이)</th>
+                    <th class="spec-table__actions"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><input class="field__input field__input--mono" value="1200" /></td>
+                    <td><input class="field__input field__input--mono" value="400" /></td>
+                    <td><input class="field__input field__input--mono" value="2400" /></td>
+                    <td class="spec-table__actions">—</td>
+                  </tr>
+                </tbody>
+              </table>
+              <button type="button" class="btn btn--sm" style="margin-top:10px">+ 규격 행 추가</button>
+              <p class="field__hint">W*D*H 붙여넣기 시 자동 분해 · 복합 폭: 5700(2402+1864+1638)</p>
+            </section>
+            <section class="form-section">
+              <h3 class="form-section__title">금액</h3>
+              <div class="form-grid">
+                <div class="field">
+                  <label class="field__label">항목 금액 (원)</label>
+                  <input class="field__input field__input--mono field__input--readonly" value="890,000" readonly />
+                  <span class="field__hint">자동계산 · 총폭 1200mm 기준</span>
+                </div>
+                <div class="field">
+                  <label class="field__label">&nbsp;</label>
+                  <button type="button" class="btn btn--sm" style="margin-top:2px">수동 금액으로 전환</button>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <!-- OPTION -->
+          <div class="detail-panel" id="panel-option" role="tabpanel" hidden>
+            <section class="form-section">
+              <h3 class="form-section__title">옵션 상세</h3>
+              <div class="form-grid">
+                <div class="field field--full">
+                  <label class="field__label">옵션</label>
+                  <div class="field__combo">
+                    <input class="field__input" type="text" value="거울도어 + LED" />
+                    <button type="button" class="field__combo-btn">▾</button>
+                  </div>
+                </div>
+                <div class="field field--full">
+                  <label class="field__label">추가 입력</label>
+                  <textarea class="field__input">신발장 상단 오픈선반 2단 요청</textarea>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <!-- ATTACH -->
+          <div class="detail-panel" id="panel-attach" role="tabpanel" hidden>
+            <section class="form-section">
+              <h3 class="form-section__title">일정</h3>
+              <div class="form-grid">
+                <div class="field">
+                  <label class="field__label">항목 실측일</label>
+                  <input class="field__input" type="text" value="2026-06-28" />
+                </div>
+                <div class="field">
+                  <label class="field__label">항목 시공일</label>
+                  <input class="field__input" type="text" placeholder="여러 날짜 가능" />
+                </div>
+              </div>
+            </section>
+            <section class="form-section">
+              <h3 class="form-section__title">실측 이미지</h3>
+              <div class="attach-zone">
+                <div class="attach-zone__title">신발장 실측 이미지</div>
+                <div class="attach-zone__hint">클릭 후 Ctrl+V로 캡처 이미지 붙여넣기 · 또는 파일 선택</div>
+                <div class="attach-thumbs">
+                  <div class="attach-thumb attach-thumb--filled">🖼</div>
+                  <div class="attach-thumb attach-thumb--filled">🖼</div>
+                  <div class="attach-thumb">+</div>
+                </div>
+                <button type="button" class="btn btn--sm" style="margin-top:12px">즉시 추가</button>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <footer class="detail-foot">
+          <div class="detail-foot__hint">
+            <kbd>Ctrl</kbd> + <kbd>↑</kbd><kbd>↓</kbd> 항목 이동 · <kbd>Tab</kbd> 필드 이동
+          </div>
+          <div class="detail-foot__actions">
+            <button type="button" class="btn" id="btn-apply-next">다음 항목으로 →</button>
+            <button type="button" class="btn btn--primary">적용</button>
+          </div>
+        </footer>
+      </main>
+    </div>
+
+    <!-- BEFORE: stacked cards -->
+    <div class="view-before" id="view-before">
+      <div class="before-banner">
+        ⚠ 현재 PC UI — 10개 항목 × ~850px ≈ <strong>8,500px+</strong> 세로 스크롤. 항목 10 편집 시 1~9를 모두 지나야 함.
+      </div>
+      <div id="stack-cards"></div>
+      <div class="scroll-meter" id="scroll-meter">스크롤 위치: 0%</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var ITEMS = [
+    { name: "붙박이장", spec: "5700×600×2400", price: "₩1,250,000", status: "done" },
+    { name: "신발장", spec: "1200×400×2400", price: "₩890,000", status: "done" },
+    { name: "드레스룸", spec: "3200×580×2400", price: "₩2,100,000", status: "partial" },
+    { name: "북케이스", spec: "1800×350×2200", price: "₩650,000", status: "done" },
+    { name: "TV장", spec: "2400×450×500", price: "₩780,000", status: "partial" },
+    { name: "주방 상부", spec: "3600×350×720", price: "₩920,000", status: "empty" },
+    { name: "주방 하부", spec: "3600×580×820", price: "₩1,480,000", status: "empty" },
+    { name: "팬트리", spec: "900×600×2400", price: "₩540,000", status: "empty" },
+    { name: "현관장", spec: "1500×400×2400", price: "₩720,000", status: "empty" },
+    { name: "욕실장", spec: "800×350×2000", price: "₩510,000", status: "empty" }
+  ];
+
+  var selectedIdx = 1;
+  var railList = document.getElementById("rail-list");
+  var detailTitle = document.getElementById("detail-title");
+  var detailSub = document.getElementById("detail-sub");
+  var detailNum = document.getElementById("detail-num");
+  var navPos = document.getElementById("nav-pos");
+  var inpName = document.getElementById("inp-name");
+
+  function statusClass(s) {
+    if (s === "done") return "status-dot--done";
+    if (s === "partial") return "status-dot--partial";
+    return "status-dot--empty";
+  }
+
+  function renderRail() {
+    railList.innerHTML = "";
+    ITEMS.forEach(function (item, i) {
+      var el = document.createElement("div");
+      el.className = "rail-item" + (i === selectedIdx ? " is-selected" : "");
+      el.setAttribute("role", "option");
+      el.setAttribute("aria-selected", i === selectedIdx ? "true" : "false");
+      el.dataset.idx = String(i);
+      el.innerHTML =
+        '<span class="rail-item__num">' + (i + 1) + "</span>" +
+        '<span class="rail-item__name">' + item.name + "</span>" +
+        '<span class="rail-item__spec">' + item.spec + "</span>" +
+        '<div class="rail-item__meta">' +
+        '<span class="status-dot ' + statusClass(item.status) + '" title="' + item.status + '"></span>' +
+        '<span class="rail-item__price">' + item.price + "</span>" +
+        "</div>";
+      el.addEventListener("click", function () { selectItem(i); });
+      railList.appendChild(el);
+    });
+  }
+
+  function selectItem(idx) {
+    if (idx < 0 || idx >= ITEMS.length) return;
+    selectedIdx = idx;
+    var item = ITEMS[idx];
+    renderRail();
+    detailTitle.textContent = item.name;
+    detailSub.textContent = item.spec + " · " + item.price;
+    detailNum.textContent = String(idx + 1);
+    navPos.textContent = (idx + 1) + " / " + ITEMS.length;
+    if (inpName) inpName.value = item.name;
+    var sel = railList.querySelector(".is-selected");
+    if (sel) sel.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
+
+  document.getElementById("btn-prev").addEventListener("click", function () { selectItem(selectedIdx - 1); });
+  document.getElementById("btn-next").addEventListener("click", function () { selectItem(selectedIdx + 1); });
+  document.getElementById("btn-apply-next").addEventListener("click", function () {
+    if (selectedIdx < ITEMS.length - 1) selectItem(selectedIdx + 1);
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (!document.getElementById("view-after").classList.contains("is-hidden") && e.ctrlKey) {
+      if (e.key === "ArrowUp") { e.preventDefault(); selectItem(selectedIdx - 1); }
+      if (e.key === "ArrowDown") { e.preventDefault(); selectItem(selectedIdx + 1); }
+    }
+  });
+
+  /* Segment tabs */
+  document.querySelectorAll(".seg-tab").forEach(function (tab) {
+    tab.addEventListener("click", function () {
+      var seg = tab.dataset.seg;
+      document.querySelectorAll(".seg-tab").forEach(function (t) {
+        t.classList.toggle("is-active", t === tab);
+        t.setAttribute("aria-selected", t === tab ? "true" : "false");
+      });
+      document.querySelectorAll(".detail-panel").forEach(function (p) {
+        var on = p.id === "panel-" + seg;
+        p.classList.toggle("is-active", on);
+        p.hidden = !on;
+      });
+    });
+  });
+
+  /* View toggle */
+  var viewAfter = document.getElementById("view-after");
+  var viewBefore = document.getElementById("view-before");
+  document.querySelectorAll(".mockup-tab").forEach(function (tab) {
+    tab.addEventListener("click", function () {
+      document.querySelectorAll(".mockup-tab").forEach(function (t) { t.classList.toggle("is-on", t === tab); });
+      var before = tab.dataset.view === "before";
+      viewBefore.classList.toggle("is-visible", before);
+      viewAfter.classList.toggle("is-hidden", before);
+    });
+  });
+
+  /* Stack cards (before) */
+  var stackWrap = document.getElementById("stack-cards");
+  ITEMS.forEach(function (item, i) {
+    var card = document.createElement("div");
+    card.className = "stack-card" + (i === 1 ? " is-focus" : "");
+    card.innerHTML =
+      '<div class="stack-card__head"><span class="stack-card__title">항목 ' + (i + 1) + " · " + item.name + '</span><span style="font-size:12px;color:var(--erp-text-3)">' + item.price + "</span></div>" +
+      '<div class="stack-card__fields">' +
+      Array(9).fill('<div class="stack-card__fake"></div>').join("") +
+      "</div>";
+    stackWrap.appendChild(card);
+  });
+
+  var viewBeforeEl = document.getElementById("view-before");
+  var scrollMeter = document.getElementById("scroll-meter");
+  if (viewBeforeEl && scrollMeter) {
+    viewBeforeEl.addEventListener("scroll", function () {
+      var max = viewBeforeEl.scrollHeight - viewBeforeEl.clientHeight;
+      var pct = max > 0 ? Math.round((viewBeforeEl.scrollTop / max) * 100) : 0;
+      scrollMeter.textContent = "스크롤 위치: " + pct + "% · 항목 10까지 " + Math.round(max) + "px";
+    });
+  }
+
+  renderRail();
+  selectItem(1);
+})();
+</script>
+</body>
+</html>

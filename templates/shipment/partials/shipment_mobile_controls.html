@@ -3,8 +3,6 @@
 {% if erp_mine_only %}
   {% set shipment_today_url = shipment_today_url ~ '&mine=1' %}
 {% endif %}
-{% set shipment_mine_toggle_url = shipment_base_url ~ '?date=' ~ (selected_date or today_date) ~ '&q=' ~ (search_q or '')|urlencode %}
-
 <section class="erp-shipment-mobile-controls foms-mobile-filter-bar" aria-label="출고 모바일 필터">
   <form method="get" action="{{ shipment_base_url }}" class="foms-mobile-filter-bar__toolbar erp-shipment-mobile-controls__search">
     {% if erp_mine_only %}
@@ -37,11 +35,6 @@
     <a class="chip foms-chip{% if selected_date == today_date and not use_date_range %} is-active{% endif %}" href="{{ shipment_today_url }}">
       <i class="fas fa-calendar-day" aria-hidden="true"></i>오늘
     </a>
-    {% if not is_construction_team %}
-    <a class="chip foms-chip{% if erp_mine_only %} is-active{% endif %}" href="{{ shipment_mine_toggle_url }}{% if '?' in shipment_mine_toggle_url %}&{% else %}?{% endif %}mine={% if erp_mine_only %}{% else %}1{% endif %}">
-      <i class="fas fa-user-check" aria-hidden="true"></i>내 담당
-    </a>
-    {% endif %}
     {% if can_edit_shipment %}
     <button type="button" class="chip foms-chip" id="shipment-as-recommend-mobile-btn" data-shipment-as-recommend-open>
       <i class="fas fa-magic" aria-hidden="true"></i>AS추천
@@ -93,12 +86,6 @@
           <label for="erp-shipment-mobile-to">기간 종료</label>
           <input id="erp-shipment-mobile-to" type="date" class="form-control" name="date_to" value="{{ date_to or '' }}">
         </div>
-        {% if not is_construction_team %}
-        <label class="erp-shipment-mobile-controls__check">
-          <input type="checkbox" name="mine" value="1" {% if erp_mine_only %}checked{% endif %}>
-          <span>내 담당 주문만 보기</span>
-        </label>
-        {% endif %}
         <div class="erp-shipment-mobile-controls__actions">
           <a class="erp-pro-btn erp-pro-btn--secondary" href="{{ shipment_base_url }}">초기화</a>
           <button class="erp-pro-btn erp-pro-btn--primary" type="submit">적용</button>

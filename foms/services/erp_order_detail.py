@@ -1,6 +1,11 @@
 """ERP 작업 큐 상세 preload payload helpers."""
 
 from foms.services.erp_display import _ensure_dict
+from foms.services.erp_quest_display import (
+    assignee_user_ids_from_sd,
+    load_assignee_user_map_batch,
+    resolve_order_role_assignees,
+)
 
 __all__ = [
     "build_order_detail_payload_map",
@@ -80,10 +85,23 @@ def build_order_detail_payload_map(db, rows):
     if not order_ids:
         return {}
 
+    order_by_id = {}
+    for row in rows or []:
+        order_id, _ = _extract_row_id_and_structured_data(row)
+        if order_id and not isinstance(row, dict):
+            order_by_id[order_id] = row
+
+    user_map = load_assignee_user_map_batch(db, list(structured_map.values())) if db else {}
+
     return {
         order_id: {
             "success": True,
             "structured_data": _slim_structured_data(structured_map.get(order_id, {})),
+            "role_assignees": resolve_order_role_assignees(
+                structured_map.get(order_id, {}),
+                order=order_by_id.get(order_id),
+                user_map=user_map,
+            ),
         }
         for order_id in order_ids
     }
@@ -107,6 +125,11 @@ def attach_order_detail_payloads(db, rows):
             {
                 "success": True,
                 "structured_data": structured_data,
+                "role_assignees": resolve_order_role_assignees(
+                    structured_data,
+                    order=None if isinstance(row, dict) else row,
+                    user_map=load_assignee_user_map_batch(db, [structured_data]) if db else {},
+                ),
             },
         )
         if isinstance(row, dict):

@@ -2,7 +2,7 @@
 
 from flask import jsonify, request, session
 
-from foms.web.auth import login_required
+from foms.web.auth import get_user_by_id, login_required
 from foms.api.files.blueprint import (
     ASYNC_ATTACHMENT_THUMBNAIL,
     attachments_bp,
@@ -225,7 +225,11 @@ def api_order_attachments_complete(order_id):
         if ASYNC_ATTACHMENT_THUMBNAIL and file_type == "image" and storage_key and not thumbnail_key:
             schedule_order_attachment_thumbnail_generation(attachment.id, storage_key)
 
-        payload = serialize_attachment(attachment)
+        payload = serialize_attachment(
+            attachment,
+            order=order,
+            user=get_user_by_id(session.get("user_id")) if session.get("user_id") else None,
+        )
         payload["view_url"] = build_file_view_url(storage_key) if storage_key else ""
         return jsonify({"success": True, "attachment": payload})
     except Exception as e:

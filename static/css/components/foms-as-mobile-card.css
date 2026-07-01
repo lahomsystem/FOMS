@@ -107,35 +107,12 @@
     font-weight: var(--foms-font-weight-bold, 700);
   }
 
-  /* 상단 요약 row 우측: 내담당만 토글 + 건수 (별도 줄 제거, 위 row로 통합) */
+  /* 상단 요약 row 우측: 건수 */
   body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-mobile-controls__summary-right {
     display: flex;
     align-items: center;
     gap: 0.375rem;
     flex: 0 0 auto;
-  }
-
-  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-mobile-controls__mine-toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    min-height: 28px;
-    padding: 0 0.5rem;
-    border: 1px solid var(--foms-border-subtle, #dde1e6);
-    border-radius: var(--foms-radius-full, 9999px);
-    background: var(--foms-surface-raised, #f7f8fa);
-    color: var(--foms-text-secondary, #4b525d);
-    font-size: 0.75rem;
-    font-weight: var(--foms-font-weight-semibold, 600);
-    line-height: 1;
-    white-space: nowrap;
-    text-decoration: none;
-  }
-
-  body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-mobile-controls__mine-toggle.is-active {
-    border-color: color-mix(in srgb, var(--foms-interactive-primary, #5a67d8) 40%, var(--foms-border-subtle, #dde1e6));
-    background: var(--foms-interactive-secondary, #ebf0ff);
-    color: var(--foms-interactive-primary, #5a67d8);
   }
 
   body.erp-mobile-v2-layout .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-mobile-controls__stats,

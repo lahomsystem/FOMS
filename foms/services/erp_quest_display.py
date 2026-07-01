@@ -8,6 +8,7 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+from foms.services.erp_display import normalize_manager_name
 from foms.services.erp_policy import (
     STAGE_LABELS,
     STAGE_NAME_TO_CODE,
@@ -21,6 +22,7 @@ __all__ = [
     "ACTIVE_QUEST_STATUSES",
     "resolve_current_quest",
     "build_current_quest_payload",
+    "resolve_order_role_assignees",
     "assignee_user_ids_from_sd",
     "load_assignee_user_map",
     "load_assignee_user_map_batch",
@@ -204,6 +206,108 @@ def _assignee_display_names(
     return names
 
 
+def _join_display_names(names: list[str]) -> str:
+    """담당자 표시명 목록을 UI용 단일 문자열로 합친다."""
+    cleaned = [str(name).strip() for name in names if str(name or "").strip()]
+    return ", ".join(cleaned) if cleaned else "-"
+
+
+def resolve_order_role_assignees(
+    sd: dict[str, Any],
+    order: Any = None,
+    user_map: dict[int, str] | None = None,
+) -> dict[str, str]:
+    """실측/도면/시공 담당 표시명을 structured_data에서 해석한다.
+
+    Args:
+        sd: Order.structured_data
+        order: Order ORM(실측 담당 manager fallback용, 선택)
+        user_map: user_id → 표시명 (sales/drawing assignee id 해석용)
+
+    Returns:
+        measurement_assignee, drawing_assignee, construction_assignee 키를 가진 dict
+    """
+    user_map = user_map or {}
+    assignments = sd.get("assignments") or {}
+    shipment = sd.get("shipment") or {}
+    parties = sd.get("parties") or {}
+
+    sales_ids: list[int] = []
+    for raw in assignments.get("sales_assignee_user_ids") or []:
+        if isinstance(raw, int):
+            sales_ids.append(raw)
+        elif isinstance(raw, str) and raw.isdigit():
+            sales_ids.append(int(raw))
+    measurement_names = [user_map[uid] for uid in sales_ids if uid in user_map]
+    if not measurement_names:
+        raw_manager = ((parties.get("manager") or {}).get("name"))
+        if raw_manager is None and order is not None:
+            raw_manager = getattr(order, "manager_name", None)
+        try:
+            manager_uid = int(raw_manager)  # type: ignore[arg-type]
+            if manager_uid in user_map:
+                measurement_names = [user_map[manager_uid]]
+        except (TypeError, ValueError):
+            pass
+    if not measurement_names:
+        resolved = normalize_manager_name(
+            ((parties.get("manager") or {}).get("name")),
+            getattr(order, "manager_name", None) if order is not None else "",
+        )
+        if str(resolved or "").strip() and str(resolved).strip() != "-":
+            measurement_names = [str(resolved).strip()]
+
+    drawing_names: list[str] = []
+    drawing_ids: list[int] = []
+    for assignee in sd.get("drawing_assignees") or []:
+        if isinstance(assignee, dict):
+            name = str(assignee.get("name") or "").strip()
+            if name:
+                drawing_names.append(name)
+            elif assignee.get("id") is not None:
+                try:
+                    drawing_ids.append(int(assignee["id"]))
+                except (TypeError, ValueError):
+                    pass
+    for raw in assignments.get("drawing_assignee_user_ids") or []:
+        if isinstance(raw, int):
+            drawing_ids.append(raw)
+        elif isinstance(raw, str) and raw.isdigit():
+            drawing_ids.append(int(raw))
+    if not drawing_names and drawing_ids:
+        drawing_names = [user_map[uid] for uid in dict.fromkeys(drawing_ids) if uid in user_map]
+    if not drawing_names:
+        drawing_manager = str(shipment.get("drawing_manager") or "").strip()
+        if drawing_manager:
+            drawing_names = [drawing_manager]
+        else:
+            for raw in shipment.get("drawing_managers") or []:
+                name = str(raw or "").strip()
+                if name:
+                    drawing_names.append(name)
+
+    construction_names: list[str] = []
+    for raw in shipment.get("construction_workers") or []:
+        if isinstance(raw, str):
+            name = raw.strip()
+        elif isinstance(raw, dict):
+            name = str(raw.get("name") or "").strip()
+        else:
+            name = str(raw or "").strip()
+        if name and name not in construction_names:
+            construction_names.append(name)
+    if not construction_names:
+        legacy_worker = shipment.get("construction_worker")
+        if isinstance(legacy_worker, str) and legacy_worker.strip():
+            construction_names = [legacy_worker.strip()]
+
+    return {
+        "measurement_assignee": _join_display_names(measurement_names),
+        "drawing_assignee": _join_display_names(drawing_names),
+        "construction_assignee": _join_display_names(construction_names),
+    }
+
+
 def _compute_can_assignee_approve(
     current_user: Any,
     order: Any,
@@ -322,6 +426,11 @@ def assignee_user_ids_from_sd(sd: dict[str, Any]) -> set[int]:
                 user_ids.add(int(a["id"]))
             except (TypeError, ValueError):
                 pass
+    manager_raw = ((sd.get("parties") or {}).get("manager") or {}).get("name")
+    if isinstance(manager_raw, int):
+        user_ids.add(manager_raw)
+    elif isinstance(manager_raw, str) and manager_raw.isdigit():
+        user_ids.add(int(manager_raw))
     return user_ids
 
 

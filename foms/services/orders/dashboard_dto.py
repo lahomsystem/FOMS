@@ -12,7 +12,7 @@ from foms.services.erp_policy import (
     DEFAULT_OWNER_TEAM_BY_STAGE,
     recommend_owner_team,
 )
-from foms.services.erp_quest_display import build_current_quest_payload
+from foms.services.erp_quest_display import build_current_quest_payload, resolve_order_role_assignees
 from foms.services.erp_mobile_order_display import (
     product_subtitle_from_sd,
     resolve_manager_phone_for_queue,
@@ -84,5 +84,6 @@ def build_orders_row_dtos(page_orders, page_sds, att_counts, user_map, current_u
             'stage_badge_modifier': stage_badge_modifier(stage),
             'stage_badge_label': stage_badge_label(stage),
             'product_subtitle': product_subtitle_from_sd(sd),
+            'role_assignees': resolve_order_role_assignees(sd, order=o, user_map=user_map),
         })
     return enriched

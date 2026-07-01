@@ -49,14 +49,21 @@ def _create_erp_order() -> Order:
 
 def _assert_shared_form_script_contract(body: str) -> None:
     payment_urls_idx = body.index("window.__ERP_PAYMENT_ICON_URLS")
+    channel_push_confirm_idx = body.index("js/orders/erp-channel-push-confirm.js")
     erp_order_shared_idx = body.index("js/orders/erp-order-shared.js")
     estimate_preview_idx = body.index("js/orders/estimate-preview.js")
     estimate_columns_idx = body.index("js/orders/estimate-table-columns.js")
     column_resizer_idx = body.index("js/runtime/column-resizer.js")
 
-    assert payment_urls_idx < erp_order_shared_idx < column_resizer_idx < estimate_preview_idx < estimate_columns_idx
+    assert payment_urls_idx < channel_push_confirm_idx < erp_order_shared_idx < column_resizer_idx < estimate_preview_idx < estimate_columns_idx
     assert "html2canvas.min.js" not in body
-    assert "js/orders/erp-order-shared.js?v=20260629b" in body
+    assert "js/orders/erp-channel-push-confirm.js?v=20260701b" in body
+    assert "js/orders/erp-order-shared.js?v=20260701g" in body
+    assert "css/orders/erp-channel-push.css?v=20260701a" in body
+    assert "css/orders/erp-items-master-detail.css?v=20260701f" in body
+    assert "js/orders/erp-items-master-detail.js?v=20260630c" in body
+    assert "erp-items-master-detail-shell" in body
+    assert 'id="erp-md-rail-list"' in body
     assert "js/orders/estimate-preview.js?v=20260629a" in body
 
     estimate_preview_js = (
@@ -380,6 +387,8 @@ def test_shared_erp_order_js_preserves_drawing_operational_state() -> None:
         "drawing_assignees",
         "blueprint",
         "estimate_preview",
+        "channeltalk_push",
+        "channeltalk_push_drawing",
     ):
         assert f"'{key}'" in collect_block
 
@@ -399,6 +408,8 @@ def test_structured_put_preserves_estimate_preview_state() -> None:
     keys_end = text.index("def _merge_preserving_missing", keys_start)
     keys_block = text[keys_start:keys_end]
     assert "'estimate_preview'" in keys_block
+    assert "'channeltalk_push'" in keys_block
+    assert "'channeltalk_push_drawing'" in keys_block
 
 
 def test_shared_erp_order_js_does_not_auto_save_before_user_save() -> None:
@@ -439,6 +450,22 @@ def test_shared_erp_order_js_does_not_auto_save_before_user_save() -> None:
     assert "erpSaveStructured(" not in push_block
     assert "erpCanUsePersistedOrderAction('푸쉬는')" in push_block
     assert "erpSliceConversionTextForChannelPush(" in push_block
+    assert "erpHasPriorChannelPush" in push_block
+    assert "erpIsChannelPushResendNoteRequired" in push_block
+    assert "resendRecoveryUsed" in push_block
+    assert "change_note" in push_block
+
+
+def test_channel_push_confirm_js_resend_recovery_contract() -> None:
+    """재전송 modal: PUSH 잠금, desync 복구 헬퍼, 중복 session 차단."""
+    root = Path(__file__).resolve().parents[2]
+    text = (root / "static/js/orders/erp-channel-push-confirm.js").read_text(encoding="utf-8")
+    assert "function erpIsChannelPushResendNoteRequired(message)" in text
+    assert "function _setChannelPushButtonsLocked(locked)" in text
+    assert "erp-channeltalk-push-btn" in text
+    assert "erp-channeltalk-push-drawing-btn" in text
+    assert "if (typeof _pendingResolve === 'function')" in text
+    assert "재전송 시 변경 내용" in text
 
 
 def test_shared_erp_order_supports_scoped_clipboard_image_upload() -> None:
@@ -549,14 +576,27 @@ def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
     root = Path(__file__).resolve().parents[2]
     text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
 
-    assert "function erpBuildTotals(itemsTotal, depositAmount, discountAmount)" in text
-    assert "discount_amount: discount" in text
+    assert "function erpBuildTotals(itemsTotal, depositAmount, discountAmount, freeInputAmount)" in text
+    assert "free_input_amount: freeInput" in text
+    assert "contract_total: total" in text
     assert "final_amount: balance" in text
 
     collect_start = text.index("function erpCollectStructured()")
     collect_end = text.index("async function erpSaveStructured", collect_start)
     collect_block = text[collect_start:collect_end]
-    assert "const totals = erpBuildTotals(itemsTotal, depositAmount, discountAmount);" in collect_block
+    assert "const totals = erpBuildTotals(itemsTotal, depositAmount, discountAmount, freeInputAmount);" in collect_block
+    assert "free_input: erpBuildFreeInputStoredValue()" in collect_block
+    assert "function erpSumFreeInputAmountFromText" in text
+    assert "function erpBuildFreeInputStoredValue" in text
+    assert "erp-free-input-text" in text
+    assert "function erpAppendConversionFreeInputBlock" in text
+    assert "function erpFormatFreeInputForConversion" in text
+    assert "erpFormatMoneyKRW(amount)" in text
+    free_input_fn_start = text.index("function erpAppendConversionFreeInputBlock")
+    free_input_fn_end = text.index("function erpReadItemFieldValue", free_input_fn_start)
+    free_input_fn = text[free_input_fn_start:free_input_fn_end]
+    assert "자유입력" not in free_input_fn
+    assert "erpFormatFreeInputForConversion(value)" in free_input_fn
     assert "totals," in collect_block
     assert "deposit: totals.deposit_amount" in collect_block
     assert "discount: totals.discount_amount" in collect_block
@@ -585,11 +625,14 @@ def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
     assert "_erpIsBalancePaymentConfirmed()" in conversion_block
     assert "const balanceSuffix = _erpIsBalancePaymentConfirmed() ? '(결제 완)' : '';" in conversion_block
     assert "erpAppendConversionMoneyLine(text, '잔금', totals.final_amount, balanceSuffix)" in conversion_block
+    assert "erpAppendConversionFreeInputBlock(text, freeInputVal)" in conversion_block
     assert "erpAppendConversionTextLine(text, '현금영수증', cashReceiptVal)" in conversion_block
+    assert "function erpResolveFreeInputText" in text
+    assert "legacyPayments.free_input" in text
     assert "erpHasConversionTextValue(cashReceiptVal) && totals.final_amount > 0" in conversion_block
     assert "function erpResolveCashReceipt" in text
     assert "Object.prototype.hasOwnProperty.call(modernPayment, 'cash_receipt')" in text
-    assert "cash_receipt: String(getVal('erp-cash-receipt') || '').trim()" in collect_block
+    assert "cash_receipt: String(getVal('erp-cash-receipt') || '')" in collect_block
     assert "cash_receipt: erpResolveCashReceipt(sd)" in text
     assert "erp-cash-receipt-section" in text
     assert 'data-payment-type="balance"' in text
@@ -602,13 +645,22 @@ def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
     assert "선결제금액" not in conversion_block
 
 
+def test_sum_free_input_amount_from_multiline_text() -> None:
+    """자유입력 멀티라인에서 라벨:금액 패턴 금액을 합산한다."""
+    from foms.services.estimate_service import _sum_free_input_amount_from_text
+
+    assert _sum_free_input_amount_from_text("") == 0
+    assert _sum_free_input_amount_from_text("운반비 : 30,000\n세금 : 10,000") == 40000
+    assert _sum_free_input_amount_from_text("메모만") == 0
+
+
 def test_shared_erp_amount_input_allows_empty_value_while_deleting() -> None:
     """금액 input은 원 suffix 뒤 backspace를 숫자 삭제로 처리하고, 삭제 중 빈 값을 허용한다."""
     root = Path(__file__).resolve().parents[2]
     text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
 
-    bind_start = text.index("function bindErpAmountInput(inputEl, parseFn)")
-    bind_end = text.index("bindErpAmountInput(document.getElementById('erp-deposit-amount')", bind_start)
+    bind_start = text.index("function erpBindAmountInput(inputEl, parseFn, onRecalc)")
+    bind_end = text.index("erpBindAmountInput(document.getElementById('erp-deposit-amount')", bind_start)
     bind_block = text[bind_start:bind_end]
 
     assert "function deleteErpAmountDigitBeforeSuffix(el)" in bind_block
@@ -624,6 +676,23 @@ def test_shared_erp_amount_input_allows_empty_value_while_deleting() -> None:
     assert "return;" in bind_block
     assert "setAmountCaretBeforeSuffix(this);" in bind_block
     assert "this.value = erpFormatDepositDisplay(num);" in bind_block
+
+
+def test_shared_erp_price_input_uses_amount_binder() -> None:
+    """항목 금액 `[data-erp=\"price\"]`도 예약금과 동일한 천단위 쉼표 포맷을 적용한다."""
+    root = Path(__file__).resolve().parents[2]
+    text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+
+    assert "function erpBindPriceInput(inputEl)" in text
+    assert "function erpBindAllPriceInputs(scope)" in text
+    assert "erpBindPriceInput(row.querySelector('[data-erp=\"price\"]'))" in text
+    assert "erpBindAllPriceInputs(document.getElementById('erp-items'))" in text
+    assert "const priceAmount = erpCoerceAmount(item.price)" in text
+    assert "const price = priceAmount > 0 ? erpFormatDepositDisplay(priceAmount) : ''" in text
+
+    product_item_js = (root / "static/js/foms/product-item.js").read_text(encoding="utf-8")
+    assert "formatPriceSummaryDisplay" in product_item_js
+    assert 'endsWith("원")' in product_item_js
 
 
 def test_mobile_erp_item_form_preserves_complex_spec_text() -> None:
@@ -687,7 +756,9 @@ def test_erp_amount_surfaces_read_modern_payment_deposit_and_stored_final() -> N
         assert "coerceAmount((sd.payments || {}).deposit)" in source
         assert "coerceAmount((sd.payment || {}).discount)" in source
         assert "coerceAmount((sd.totals || {}).discount_amount)" in source
-        assert "Math.max(0, itemsTotal - depositAmt - discountAmt)" in source
+        assert "sumFreeInputFromText" in source
+        assert "coerceAmount(totals.final_amount)" in source
+        assert "itemsTotal + freeInputAmt - depositAmt - discountAmt" in source
 
     # 실측 데스크톱 상세는 ERP payment.deposit + final totals 우선 사용.
     # (모바일 v2 큐는 홈과 동일한 깔끔한 queue-card-v2로, 금액 표시는 상세 페이지의
@@ -772,8 +843,50 @@ def test_mobile_attachment_preview_uses_viewport_sized_modal() -> None:
     ) in css_text
     assert ".erp-order-mobile-form .erp-attachment-preview-actions .btn" not in css_text
     assert "max-width: min(92vw, 36rem)" not in css_text
-    assert "../components/foms-form-field.css?v=20260629a" in mobile_bundle
-    assert "foms-mobile-surfaces.css') }}?v=20260629a" in layout_head
+    assert "../components/foms-form-field.css?v=20260630e" in mobile_bundle
+    assert "foms-mobile-surfaces.css') }}?v=20260630e" in layout_head
+
+
+def test_mobile_erp_autosize_textarea_overrides_80px_floor() -> None:
+    """Main-form autosize textareas must not inherit .foms-textarea { min-height: 80px } on mobile."""
+    root = Path(__file__).resolve().parents[2]
+    css_text = (root / "static/css/components/foms-form-field.css").read_text(encoding="utf-8")
+    assert ".foms-textarea {" in css_text
+    assert "min-height: 80px" in css_text
+    assert (
+        "body.erp-mobile-v2-layout .erp-order-mobile-form .foms-textarea.erp-flex-textarea"
+        in css_text
+    )
+    compact_idx = css_text.index(
+        "body.erp-mobile-v2-layout .erp-order-mobile-form .foms-textarea.erp-flex-textarea"
+    )
+    compact_block = css_text[compact_idx : compact_idx + 1200]
+    assert "--erp-mobile-input-h: 40px" in css_text
+    assert "min-height: var(--erp-mobile-input-h)" in compact_block
+    assert "resize: none" in compact_block
+
+
+def test_pc_erp_order_tab_uses_input_not_textarea_for_single_line_fields() -> None:
+    """PC erp_order_tab은 production과 동일하게 단일행 필드를 input으로 유지한다."""
+    root = Path(__file__).resolve().parents[2]
+    pc_tab = (root / "templates/orders/partials/erp_order_tab.html").read_text(encoding="utf-8")
+    assert 'input type="text" class="form-control form-control-sm" id="erp-customer-name"' in pc_tab
+    assert 'input type="tel" class="form-control form-control-sm" id="erp-customer-phone"' in pc_tab
+    assert 'data-erp="product_name" value=' in (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+
+
+def test_mobile_autosize_skips_placeholder_scroll_height() -> None:
+    """Empty textarea height must not inflate from long placeholder wrap."""
+    root = Path(__file__).resolve().parents[2]
+    text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+    assert "function erpResolveAutosizeMinHeight" in text
+    assert "erpIsMobileFormContext()" in text
+    assert "5700(2402+…)" in text
+    mobile = (root / "templates/orders/partials/erp_order_tab_mobile.html").read_text(
+        encoding="utf-8"
+    )
+    assert 'id="erp-construction-workers" rows="1"' in mobile
+    assert 'data-erp-min-height="40"' in mobile
 
 
 def test_attachment_preview_image_zoom_supports_in_modal_gestures() -> None:

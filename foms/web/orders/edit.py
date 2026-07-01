@@ -370,7 +370,7 @@ def edit_order(order_id):
             return resp_err
 
     preserved_args = get_preserved_filter_args(request.args)
-    ctx = build_order_edit_get_context(order)
+    ctx = build_order_edit_get_context(order, user=get_user_by_id(session.get("user_id")))
     return_to = (request.args.get('return_to') or '').strip()
     if return_to:
         mobile_shell_back_href = url_for(resolve_edit_return_back_endpoint(return_to))
@@ -393,15 +393,17 @@ def edit_order(order_id):
     return response
 
 
-def _build_erp_order_bootstrap(order):
+def _build_erp_order_bootstrap(order, user=None):
     """서버 렌더 시점에 ERP Order 상세 데이터를 인라인 JSON 부트스트랩으로 제공.
 
     클라이언트 `/api/orders/<id>/structured` 응답과 동일한 shape를 사용해
     첫 페인트 이후 발생하던 2단계 로딩(빈 화면 → fetch → DOM 주입)을 제거한다.
     """
+    from foms.services.order_attachment_permissions import can_manage_order_attachments
+
     updated_at = getattr(order, 'structured_updated_at', None)
     updated_at_str = updated_at.strftime('%Y-%m-%d %H:%M:%S') if updated_at is not None else None
-    return {
+    payload = {
         'success': True,
         'order_id': order.id,
         'raw_order_text': order.raw_order_text or '',
@@ -416,3 +418,14 @@ def _build_erp_order_bootstrap(order):
         'is_regional': getattr(order, 'is_regional', False),
         'construction_type': getattr(order, 'construction_type', None) or '',
     }
+    if user is not None:
+        try:
+            current_user_id = int(getattr(user, 'id', None))
+        except (TypeError, ValueError):
+            current_user_id = None
+        payload['attachment_permissions'] = {
+            'current_user_id': current_user_id,
+            'is_admin': getattr(user, 'role', None) == 'ADMIN',
+            'is_order_manager': can_manage_order_attachments(user, order),
+        }
+    return payload

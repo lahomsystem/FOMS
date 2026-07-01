@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from foms.api.files.routes import build_file_download_url, build_file_view_url
 from foms.services.files.upload_policy import ERP_MEDIA_ALLOWED_EXTENSIONS
+from foms.services.order_attachment_permissions import can_delete_order_attachment
 from models import OrderAttachment
 
 
@@ -81,7 +84,12 @@ def resolve_attachment_category(folder: str, category_param):
     return "measurement"
 
 
-def serialize_attachment(att: OrderAttachment) -> dict:
+def serialize_attachment(
+    att: OrderAttachment,
+    *,
+    order: Any | None = None,
+    user: Any | None = None,
+) -> dict:
     """Convert attachment ORM object to API payload with resolved URLs."""
     data = att.to_dict()
     data["category"] = normalize_attachment_category(data.get("category")) or "measurement"
@@ -90,6 +98,8 @@ def serialize_attachment(att: OrderAttachment) -> dict:
     data["view_url"] = build_file_view_url(storage_key) if storage_key else ""
     data["download_url"] = build_file_download_url(storage_key) if storage_key else ""
     data["thumbnail_view_url"] = build_file_view_url(thumbnail_key) if thumbnail_key else None
+    if order is not None and user is not None:
+        data["can_delete"] = can_delete_order_attachment(user, order, att)
     return data
 
 

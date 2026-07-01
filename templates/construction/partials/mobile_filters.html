@@ -78,10 +78,6 @@
             {% endfor %}
           </select>
         </div>
-        <label class="erp-mobile-queue-filters__check">
-          <input type="checkbox" name="mine" value="1" {% if erp_mine_only %}checked{% endif %}>
-          <span>내 작업만 보기</span>
-        </label>
         <div class="erp-mobile-queue-filters__actions">
           <a class="btn btn-outline-secondary" href="{{ url_for('erp_construction_page.erp_construction_dashboard') }}">초기화</a>
           <button class="btn btn-primary" type="submit">적용</button>

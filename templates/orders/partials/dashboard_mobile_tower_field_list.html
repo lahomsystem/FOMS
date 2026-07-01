@@ -12,7 +12,7 @@
       <span class="foms-tower__field-body">
         <span class="foms-tower__field-name">
           {{ row.name }}
-          <span class="foms-stage-badge foms-stage-badge--{{ 'construction' if row.type_code == 'construction' else 'measure' }}">{{ row.type }}</span>
+          <span class="foms-stage-badge foms-stage-badge--{{ 'construction' if row.type_code == 'construction' else ('cs' if row.type_code == 'as' else 'measure') }}">{{ row.type }}</span>
         </span>
         <span class="foms-tower__field-addr">{{ row.addr }}</span>
         <span class="foms-tower__field-foot">

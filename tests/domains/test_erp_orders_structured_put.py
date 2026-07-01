@@ -432,6 +432,41 @@ def test_structured_put_preserves_drawing_operational_state_from_form_payload(cl
     assert saved_sd["last_drawing_transfer"] == original_sd["last_drawing_transfer"]
 
 
+def test_structured_put_preserves_channeltalk_push_history_from_form_payload(client, monkeypatch):
+    """ERP 주문 폼 저장은 채널톡 수동 푸시 이력을 지우면 안 된다."""
+    _login_as_admin(client, username="erp-channel-push-preserve")
+    push_history = {
+        "pushed": True,
+        "message_id": "msg-keep-1",
+        "change_log": [{"note": "손잡이 정정", "message_id": "msg-keep-1"}],
+    }
+    original_sd = _structured_payload("서울 강남구")
+    original_sd["channeltalk_push"] = push_history
+    original_sd["channeltalk_push_drawing"] = {"pushed": True, "message_id": "draw-1"}
+    order = _create_order(structured_data=original_sd)
+    order_id = order.id
+
+    monkeypatch.setattr(erp_orders_structured, "_record_structured_events", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "_apply_structured_side_effects", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "_finalize_draft_state", lambda *a, **k: False)
+    monkeypatch.setattr(erp_orders_structured, "sync_erp_flat_columns", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "enqueue_geocode_order_address", lambda *a, **k: None)
+
+    form_sd = _structured_payload("서울 강남구")
+
+    response = client.put(
+        f"/api/orders/{order_id}/structured",
+        json={"structured_data": form_sd, "structured_schema_version": 1},
+    )
+
+    assert response.status_code == 200
+
+    db_session.expire_all()
+    saved_sd = db_session.get(Order, order_id).structured_data
+    assert saved_sd["channeltalk_push"] == push_history
+    assert saved_sd["channeltalk_push_drawing"] == {"pushed": True, "message_id": "draw-1"}
+
+
 def test_erp_order_construction_worker_input_contract_is_wired():
     root = Path(__file__).resolve().parents[2]
     tpl = (root / "templates/orders/partials/erp_order_tab.html").read_text(encoding="utf-8")

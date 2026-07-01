@@ -97,10 +97,6 @@
           <input type="checkbox" name="has_alert" value="1" {% if filters.get('has_alert') == '1' %}checked{% endif %}>
           <span>경보 있는 주문만 보기</span>
         </label>
-        <label class="erp-mobile-queue-filters__check">
-          <input type="checkbox" name="mine" value="1" {% if filters.get('mine') == '1' %}checked{% endif %}>
-          <span>내 작업만 보기</span>
-        </label>
         <div class="erp-mobile-queue-filters__actions">
           <a class="btn btn-outline-secondary" href="{{ url_for('erp_dashboard.erp_dashboard') }}">초기화</a>
           <button class="btn btn-primary" type="submit">적용</button>

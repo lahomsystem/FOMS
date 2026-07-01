@@ -290,7 +290,6 @@
                     <div class="mb-3"><strong class="erp-detail-label">발주사:</strong> <span class="erp-detail-value">${escapeHtml(orderer)}</span></div>
                     <div class="mb-3"><strong class="erp-detail-label">연락처:</strong> <span class="erp-detail-value">${escapeHtml(phone)}</span></div>
                     <div class="mb-3"><strong class="erp-detail-label">주소:</strong> <span class="erp-detail-value">${escapeHtml(address)}</span></div>
-                    <div class="mb-3"><strong class="erp-detail-label">담당자:</strong> <span class="erp-detail-value">${escapeHtml(manager)}</span></div>
                   </div>
                 </div>
               </div>
@@ -315,6 +314,10 @@
                 </div>
               </div>
             </div>`;
+
+            const roleAssigneesHtml = buildOrderRoleAssigneesHtml(
+              resolveOrderRoleAssignees(structured, preloaded)
+            );
 
             // 도면 전달 버튼 (DRAWING 단계일 때만)
             let actionHtml = '';
@@ -425,7 +428,7 @@
                   const checkMeta = isChecked
                     ? '<div class="small text-success mt-1"><i class="fas fa-user-check"></' + 'i> ' + checkedBy + ' · ' + checkedAt + '</div>'
                     : '';
-                  return '<div class="border rounded p-2 mb-2 bg-white"><div class="small text-muted mb-1">' + when + ' · ' + by + ' ' + pinBadge + ' ' + checkBadge + ' ' + targetBadge + '</div><div class="small">' + note + '</div>' + checkMeta + toggleBtn + '</div>';
+                  return '<div class="border rounded p-2 mb-2 bg-white"><div class="small text-muted mb-1">' + when + ' · ' + by + ' ' + pinBadge + ' ' + checkBadge + ' ' + targetBadge + '</div><div class="small dw-revision-note-text">' + note + '</div>' + checkMeta + toggleBtn + '</div>';
                 }).join('')
                 : '<div class="text-muted small">수정 요청 이력이 없습니다.</div>';
 
@@ -518,6 +521,7 @@
           <div class="row g-3 erp-order-detail">
             ${basicInfoHtml}
             ${scheduleHtml}
+            ${roleAssigneesHtml}
             ${actionHtml}
             <div class="col-12">
               <div class="card">
@@ -566,11 +570,34 @@
                 const digits = String(value || '').replace(/[^0-9]/g, '');
                 return digits ? parseInt(digits, 10) : 0;
               };
+              const sumFreeInputFromText = (text) => {
+                const raw = String(text || '').trim();
+                if (!raw) return 0;
+                let sum = 0;
+                raw.replace(/\r\n/g, '\n').split('\n').forEach((line) => {
+                  const trimmed = line.trim();
+                  if (!trimmed) return;
+                  let amountPart = trimmed;
+                  const m = trimmed.match(/^[^:：]+[:：]\s*(.+)$/);
+                  if (m) amountPart = m[1].trim();
+                  const n = coerceAmount(amountPart);
+                  if (n > 0) sum += n;
+                });
+                return sum;
+              };
               const totals = sd.totals || {};
               const itemsTotal = Number(totals.items_total) || items.reduce((s, it) => s + (Number(it.price) || 0), 0);
               const depositAmt = coerceAmount((sd.payment || {}).deposit) || coerceAmount((sd.payments || {}).deposit);
               const discountAmt = coerceAmount((sd.payment || {}).discount) || coerceAmount((sd.totals || {}).discount_amount);
-              const remainAmt = Math.max(0, itemsTotal - depositAmt - discountAmt);
+              const freeInputRaw = (sd.payment || {}).free_input
+                || (sd.payments || {}).free_input?.value
+                || (sd.payments || {}).free_input?.raw
+                || '';
+              const freeInputAmt = coerceAmount(totals.free_input_amount) || sumFreeInputFromText(freeInputRaw);
+              let remainAmt = coerceAmount(totals.final_amount) || coerceAmount(totals.balance_amount);
+              if (!remainAmt) {
+                remainAmt = Math.max(0, itemsTotal + freeInputAmt - depositAmt - discountAmt);
+              }
               const fmtKRW = (n) => n > 0 ? n.toLocaleString('ko-KR') + '원' : '0원';
               items.forEach((_, i) => {
                 const totalEl = document.getElementById(`erp-items-total-${orderId}-${i}`);

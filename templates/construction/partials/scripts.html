@@ -162,6 +162,10 @@
     return 'measurement';
   }
 
+  function attachmentCanDelete(a) {
+    return !!(a && a.can_delete === true);
+  }
+
   function getAttachmentCategoryLabel(category) {
     const key = normalizeAttachmentCategory(category);
     return (ATTACHMENT_CATEGORY_META[key] || ATTACHMENT_CATEGORY_META.measurement).label;
@@ -230,6 +234,11 @@
           <a class="btn btn-outline-primary" href="${downloadUrl}" title="다운로드" target="_blank" rel="noopener">
             <i class="fas fa-download"></i>
           </a>
+          ${attachmentCanDelete(a) ? `
+          <button class="btn btn-outline-danger" type="button" title="삭제"
+            onclick="deleteAttachmentFromCategory('${__activeAttachmentCategory}', ` + index + `, '${a.id}')">
+            <i class="fas fa-trash"></i>
+          </button>` : ''}
         </div>
       </div>
     </div>
@@ -254,8 +263,39 @@
     showAttachmentAtIndex(index);
   }
 
+  async function deleteAttachmentFromCategory(category, index, attachmentId) {
+    const orderId = __selectedOrderId;
+    const key = normalizeAttachmentCategory(category);
+    const list = __attachmentsByCategory[key] || [];
+    const attachment = list[index] || {};
+    const id = attachmentId || attachment.id;
+    if (!orderId || !id) return;
+    if (!attachmentCanDelete(attachment)) {
+      alert('첨부파일 삭제 권한이 없습니다.');
+      return;
+    }
+    if (!confirm('첨부 파일을 삭제하시겠습니까?')) return;
+    try {
+      const res = await fetch('/api/orders/' + encodeURIComponent(orderId) + '/attachments/' + encodeURIComponent(id), {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        alert((data && data.message) || '첨부 파일 삭제에 실패했습니다.');
+        return;
+      }
+      invalidateConstructionOrderDetailAttachments(orderId);
+      await openAttachmentsPreview(orderId, key);
+    } catch (err) {
+      console.error('Attachment delete error:', err);
+      alert('첨부 파일 삭제 중 오류가 발생했습니다.');
+    }
+  }
+  window.deleteAttachmentFromCategory = deleteAttachmentFromCategory;
+
   async function openAttachmentsPreview(orderId, initialCategory = 'measurement') {
     try {
+      __selectedOrderId = orderId;
       let aList = null;
       if (__attachmentsCache[orderId]) {
         aList = __attachmentsCache[orderId];
@@ -530,10 +570,16 @@
       const listRes = await fetch(`/api/orders/${orderId}/attachments?category=construction`);
       const listData = await listRes.json();
       if (listData.success && listData.attachments && listData.attachments.length > 0) {
-        const toDelete = listData.attachments.filter(function (a) { return a && a.id; });
-        await Promise.all(toDelete.map(function (att) {
+        const toDelete = listData.attachments.filter(function (a) { return a && a.id && attachmentCanDelete(a); });
+        const deleteResults = await Promise.all(toDelete.map(function (att) {
           return fetch('/api/orders/' + orderId + '/attachments/' + att.id, { method: 'DELETE' });
         }));
+        const failed = deleteResults.filter(function (res) { return !res.ok; });
+        if (failed.length > 0) {
+          if (statusEl) statusEl.innerHTML = '<span class="text-danger">삭제 권한이 없는 파일이 있어 재업로드를 중단했습니다.</span>';
+          if (reuploadBtn) reuploadBtn.disabled = false;
+          return;
+        }
       }
 
       const result = await executeBatchUpload(orderId, files, 'construction', { statusEl, progressWrap, progressBar });
@@ -580,11 +626,17 @@
         const listData = await listRes.json();
         if (listData.success && listData.attachments && listData.attachments.length > 0) {
           const toDelete = listData.attachments.filter(function (a) {
-            return a && a.user_id === CURRENT_USER_ID && a.id;
+            return a && a.id && attachmentCanDelete(a);
           });
-          await Promise.all(toDelete.map(function (att) {
+          const deleteResults = await Promise.all(toDelete.map(function (att) {
             return fetch('/api/orders/' + orderId + '/attachments/' + att.id, { method: 'DELETE' });
           }));
+          const failed = deleteResults.filter(function (res) { return !res.ok; });
+          if (failed.length > 0) {
+            if (statusEl) statusEl.innerHTML = '<span class="text-danger">삭제 권한이 없는 AS 파일이 있어 재업로드를 중단했습니다.</span>';
+            if (asBtn) asBtn.disabled = false;
+            return;
+          }
         }
         if (reuploadInput) reuploadInput.value = '0';
       } catch (e) {

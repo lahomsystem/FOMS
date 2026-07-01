@@ -4,13 +4,13 @@
  */
 (function () {
   var CHAIN = [
-    '/static/js/orders/order-detail-fragment.js',
+    '/static/js/orders/order-detail-fragment.js?v=20260630c',
     '/static/js/orders/dashboard/erp-dashboard-core.js',
     '/static/js/orders/dashboard/erp-dashboard-gateway.js',
     '/static/js/orders/dashboard/erp-dashboard-attachments.js',
     '/static/js/orders/dashboard/erp-dashboard-drawing.js',
     '/static/js/orders/dashboard/erp-dashboard-quest.js',
-    '/static/js/orders/dashboard/erp-dashboard-detail-dom.js',
+    '/static/js/orders/dashboard/erp-dashboard-detail-dom.js?v=20260630d',
     '/static/js/orders/dashboard-notifications.js'
   ];
 

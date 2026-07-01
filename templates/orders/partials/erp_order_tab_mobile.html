@@ -27,26 +27,46 @@ ERP Order mobile-v2 tab pane.
                 </div>
             </div>
 
+            <span class="badge bg-success d-none erp-autosave-toast" id="erp-autosave-indicator" aria-live="polite">✓ 자동저장됨</span>
+
+            <div class="alert alert-warning py-2 erp-restore-banner" id="erp-restore-banner" style="display:none;" data-foms-no-autodismiss role="status">
+                <div class="erp-restore-inner">
+                    <div class="erp-restore-msg">
+                        <i class="fas fa-clock-rotate-left" aria-hidden="true"></i>
+                        <span class="erp-restore-text">저장하지 않은 작성 내용이 있습니다.</span>
+                        <span class="text-muted erp-restore-time" id="erp-restore-time"></span>
+                    </div>
+                    <div class="erp-restore-actions">
+                        <button type="button" class="btn btn-sm btn-warning erp-restore-btn" id="erp-restore-resume">
+                            <i class="fas fa-rotate-left" aria-hidden="true"></i> 이어쓰기
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary erp-restore-btn" id="erp-restore-discard">
+                            버리기
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <div class="tab-content">
                 <div class="tab-pane fade show active" id="erp-form" role="tabpanel">
                     <nav class="erp-mobile-secnav" id="erp-mobile-secnav" aria-label="섹션 이동">
                         <button type="button" class="erp-mobile-secnav-chip" data-erp-secnav-target="erp-mobile-sec-customer">고객</button>
                         <button type="button" class="erp-mobile-secnav-chip" data-erp-secnav-target="erp-mobile-sec-schedule">일정</button>
                         <button type="button" class="erp-mobile-secnav-chip is-active" data-erp-secnav-target="erp-mobile-sec-spec">현장 스펙</button>
-                        <button type="button" class="erp-mobile-secnav-chip" data-erp-secnav-target="erp-mobile-sec-received">접수</button>
                         <button type="button" class="erp-mobile-secnav-chip" data-erp-secnav-target="erp-mobile-sec-photo">사진</button>
                         <button type="button" class="erp-mobile-secnav-chip" data-erp-secnav-target="erp-mobile-sec-order">발주</button>
+                        <button type="button" class="erp-mobile-secnav-chip" data-erp-secnav-target="erp-mobile-sec-received">접수</button>
                     </nav>
                     <section class="erp-form-section" id="erp-mobile-sec-customer" aria-label="고객 정보">
                         <h3 class="erp-form-section__title"><i class="fas fa-user erp-sec-ico" aria-hidden="true"></i>고객</h3>
                         <div class="field-grid-2">
                             <div class="field erp-mobile-inline">
                                 <label class="field__label" for="erp-customer-name">고객명</label>
-                                <input type="text" class="foms-input" id="erp-customer-name" autocomplete="off" lang="ko">
+                                <textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea" id="erp-customer-name" rows="1" data-erp-min-height="40" autocomplete="off" lang="ko"></textarea>
                             </div>
                             <div class="field erp-mobile-inline">
                                 <label class="field__label" for="erp-customer-phone">연락처</label>
-                                <input type="tel" class="foms-input foms-tabular" id="erp-customer-phone" autocomplete="tel" lang="ko">
+                                <textarea class="foms-textarea foms-tabular erp-autosize-textarea erp-flex-textarea" id="erp-customer-phone" rows="1" data-erp-min-height="40" autocomplete="tel" inputmode="tel" lang="ko"></textarea>
                             </div>
                         </div>
                         <div class="erp-mobile-toggle-row">
@@ -61,14 +81,14 @@ ERP Order mobile-v2 tab pane.
                             </button>
                         </div>
                         <div class="collapse" id="erp-collapse-phone-note">
-                            <input type="text" class="foms-input" id="erp-phone-note"
-                                placeholder="부재중/문자 요청/통화 가능 시간" autocomplete="off" lang="ko">
+                            <textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea" id="erp-phone-note" rows="1" data-erp-min-height="40"
+                                placeholder="부재중/문자 요청/통화 가능 시간" autocomplete="off" lang="ko"></textarea>
                         </div>
                         <div class="field">
                             <label class="field__label" for="erp-address">주소</label>
                             <div class="field__addon">
-                                <input type="text" class="foms-input" id="erp-address"
-                                    placeholder="주소를 입력하거나 찾기 버튼을 클릭하세요" autocomplete="off" lang="ko">
+                                <textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea" id="erp-address" rows="1" data-erp-min-height="40"
+                                    placeholder="주소를 입력하거나 찾기 버튼을 클릭하세요" autocomplete="off" lang="ko"></textarea>
                                 <button class="foms-btn foms-btn--secondary erp-mobile-square-action" type="button"
                                     id="erp-address-search-btn" aria-label="주소 찾기">
                                     <i class="fas fa-search"></i>
@@ -81,8 +101,8 @@ ERP Order mobile-v2 tab pane.
                                 <i class="fas fa-chevron-down"></i> 주소 특이사항
                             </button>
                             <div class="collapse" id="erp-collapse-address-note">
-                                <input type="text" class="foms-input" id="erp-address-note"
-                                    placeholder="주차/출입/엘리베이터/경비실" autocomplete="off" lang="ko">
+                                <textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea" id="erp-address-note" rows="1" data-erp-min-height="40"
+                                    placeholder="주차/출입/엘리베이터/경비실" autocomplete="off" lang="ko"></textarea>
                             </div>
                         </div>
                     </section>
@@ -119,8 +139,8 @@ ERP Order mobile-v2 tab pane.
                                         <option value="종일">종일</option>
                                         <option value="__direct__">직접 입력</option>
                                     </select>
-                                    <input type="text" class="foms-input foms-tabular d-none" id="erp-measurement-time"
-                                        placeholder="직접 입력" autocomplete="off" lang="ko">
+                                    <textarea class="foms-textarea foms-tabular erp-autosize-textarea erp-flex-textarea d-none" id="erp-measurement-time" rows="1" data-erp-min-height="40"
+                                        placeholder="직접 입력" autocomplete="off" lang="ko"></textarea>
                                 </div>
                             </div>
                         </div>
@@ -147,8 +167,8 @@ ERP Order mobile-v2 tab pane.
                                         <option value="종일">종일</option>
                                         <option value="__direct__">직접 입력</option>
                                     </select>
-                                    <input type="text" class="foms-input foms-tabular d-none" id="erp-construction-time"
-                                        placeholder="직접 입력" autocomplete="off" lang="ko">
+                                    <textarea class="foms-textarea foms-tabular erp-autosize-textarea erp-flex-textarea d-none" id="erp-construction-time" rows="1" data-erp-min-height="40"
+                                        placeholder="직접 입력" autocomplete="off" lang="ko"></textarea>
                                 </div>
                             </div>
                         </div>
@@ -160,8 +180,8 @@ ERP Order mobile-v2 tab pane.
                         <div class="collapse" id="erp-collapse-measure-note">
                             <div class="field">
                                 <label class="field__label" for="erp-measurement-note">실측 특이사항</label>
-                                <input type="text" class="foms-input" id="erp-measurement-note"
-                                    placeholder="시간 변경 가능/현장 특이사항/준비물" autocomplete="off" lang="ko">
+                                <textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea" id="erp-measurement-note" rows="1" data-erp-min-height="40"
+                                    placeholder="시간 변경 가능/현장 특이사항/준비물" autocomplete="off" lang="ko"></textarea>
                             </div>
                         </div>
                         </div>
@@ -189,6 +209,15 @@ ERP Order mobile-v2 tab pane.
                                 </div>
                                 <input type="text" id="erp-deposit-amount" inputmode="numeric" placeholder="0원" maxlength="24" class="foms-input foms-tabular erp-amount-value erp-amount-value--deposit" title="숫자 입력 시 1,000단위 쉼표가 적용됩니다.">
                             </div>
+                            <div id="erp-free-input-section" class="erp-mobile-amount-row erp-mobile-amount-row--free-input" style="display: none;">
+                                <div class="erp-mobile-amount-label">
+                                    <label for="erp-free-input-text">자유입력</label>
+                                </div>
+                                <div class="erp-mobile-free-input-fields">
+                                    <input type="text" id="erp-free-input-text" maxlength="128" placeholder="항목명" class="foms-input foms-tabular erp-amount-value erp-amount-value--free-input-text text-start" title="항목명 등 자유 텍스트">
+                                    <input type="text" id="erp-free-input-amount" inputmode="numeric" maxlength="24" placeholder="0원" class="foms-input foms-tabular erp-amount-value erp-amount-value--free-input text-end" title="금액. 총 견적·잔금에 합산됩니다.">
+                                </div>
+                            </div>
                             <div id="erp-discount-section" class="erp-mobile-amount-row" style="display: none;">
                                 <div class="erp-mobile-amount-label">
                                     <label for="erp-discount-amount">할인</label>
@@ -208,68 +237,10 @@ ERP Order mobile-v2 tab pane.
                                 <div class="erp-mobile-amount-label">
                                     <label for="erp-cash-receipt">현금영수증</label>
                                 </div>
-                                <input type="text" id="erp-cash-receipt" inputmode="tel" placeholder="연락처 입력" maxlength="32" class="foms-input foms-tabular erp-amount-value erp-amount-value--cash-receipt text-end" title="현금영수증 발급 연락처(휴대폰 등). 비어 있으면 PUSH·변환 텍스트에 표시되지 않습니다.">
+                                <textarea id="erp-cash-receipt" inputmode="tel" placeholder="연락처 입력" maxlength="512" rows="1" data-erp-min-height="40" class="foms-textarea foms-tabular erp-amount-value erp-amount-value--cash-receipt erp-autosize-textarea erp-flex-textarea text-end" title="현금영수증 발급 연락처(휴대폰 등). 비어 있으면 PUSH·변환 텍스트에 표시되지 않습니다."></textarea>
                             </div>
                         </div>
                         <div class="field__hint" id="erp-status-text"></div>
-                    </section>
-
-                    <section class="erp-form-section" id="erp-mobile-sec-received" aria-label="접수 정보">
-                        <button class="erp-mobile-collapse-toggle" type="button" id="erp-mobile-collapse-received-toggle"
-                            data-bs-toggle="collapse" data-bs-target="#erp-mobile-collapse-received-body"
-                            aria-expanded="false" aria-controls="erp-mobile-collapse-received-body">
-                            <span aria-hidden="true"><i class="fas fa-chevron-right"></i></span>
-                            <strong><i class="fas fa-clipboard-list erp-sec-ico" aria-hidden="true"></i>접수</strong>
-                            <span>기본 접힘</span>
-                        </button>
-                        <div class="collapse" id="erp-mobile-collapse-received-body">
-                        <div class="field-grid-2">
-                            <div class="field erp-mobile-inline">
-                                <label class="field__label" for="erp-received-date">접수일</label>
-                                <input type="date" class="foms-input foms-tabular" id="erp-received-date" autocomplete="off">
-                            </div>
-                            <div class="field erp-mobile-inline">
-                                <label class="field__label" for="erp-received-time-select">접수시간</label>
-                                <div class="erp-mobile-time-inline" id="erp-received-time-control">
-                                    <select class="foms-select foms-tabular" id="erp-received-time-select" autocomplete="off">
-                                        <option value="">시간 선택</option>
-                                        <option value="오전">오전</option>
-                                        <option value="오후">오후</option>
-                                        <option value="__direct__">직접 입력</option>
-                                    </select>
-                                    <input type="text" class="foms-input foms-tabular d-none" id="erp-received-time"
-                                        placeholder="직접 입력" autocomplete="off" lang="ko">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="erp-mobile-toggle-row">
-                            <label class="erp-mobile-check" for="erp-urgent-flag">
-                                <input class="form-check-input" type="checkbox" id="erp-urgent-flag" autocomplete="off">
-                                <span>긴급</span>
-                            </label>
-                            <label class="erp-mobile-check" for="erp-self-measurement">
-                                <input class="form-check-input" type="checkbox" id="erp-self-measurement" autocomplete="off">
-                                <span>자가실측</span>
-                            </label>
-                            <label class="erp-mobile-check" for="erp-regional-order">
-                                <input class="form-check-input" type="checkbox" id="erp-regional-order" autocomplete="off">
-                                <span>지방주문</span>
-                            </label>
-                        </div>
-                        <div class="field erp-mobile-inline d-none" id="erp-urgent-reason-field">
-                            <label class="field__label" for="erp-urgent-reason">긴급 사유</label>
-                            <input type="text" class="foms-input" id="erp-urgent-reason"
-                                placeholder="시공일 임박/현장 변경/자재 이슈" autocomplete="off" lang="ko">
-                        </div>
-                        <div class="field erp-mobile-inline d-none" id="erp-regional-construction-type-field">
-                            <label class="field__label" for="erp-regional-construction-type">지방주문 구분</label>
-                            <select class="foms-input" id="erp-regional-construction-type" autocomplete="off" disabled>
-                                <option value="">하우드/협력사 선택</option>
-                                <option value="하우드 시공">하우드</option>
-                                <option value="협력사 시공">협력사</option>
-                            </select>
-                        </div>
-                        </div>
                     </section>
 
                     <section class="erp-form-section" id="erp-mobile-sec-photo" aria-label="사진과 동영상">
@@ -313,7 +284,7 @@ ERP Order mobile-v2 tab pane.
                         </div>
                     </section>
 
-                    <section class="erp-form-section erp-mobile-pre-sticky-footer" id="erp-mobile-sec-order" aria-label="발주와 담당">
+                    <section class="erp-form-section" id="erp-mobile-sec-order" aria-label="발주와 담당">
                         <button class="erp-mobile-collapse-toggle" type="button" id="erp-mobile-collapse-order-toggle"
                             data-bs-toggle="collapse" data-bs-target="#erp-mobile-collapse-order-body"
                             aria-expanded="false" aria-controls="erp-mobile-collapse-order-body">
@@ -334,16 +305,16 @@ ERP Order mobile-v2 tab pane.
                                 <option value="라홈">라홈</option>
                                 <option value="하우드">하우드</option>
                             </select>
-                            <input type="text" class="foms-input d-none" id="erp-orderer" autocomplete="off" lang="ko" placeholder="발주사 직접 입력">
+                            <textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea d-none" id="erp-orderer" rows="1" data-erp-min-height="40" autocomplete="off" lang="ko" placeholder="발주사 직접 입력"></textarea>
                         </div>
                         <div class="field-grid-2">
                             <div class="field erp-mobile-inline">
                                 <label class="field__label" for="erp-manager">담당자</label>
-                                <input type="text" class="foms-input" id="erp-manager" autocomplete="off" lang="ko">
+                                <textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea" id="erp-manager" rows="1" data-erp-min-height="40" autocomplete="off" lang="ko"></textarea>
                             </div>
                             <div class="field erp-mobile-inline">
                                 <label class="field__label" for="erp-construction-workers">시공 담당자</label>
-                                <input type="text" class="foms-input" id="erp-construction-workers" autocomplete="off" lang="ko" placeholder="시공자1, 시공자2">
+                                <textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea" id="erp-construction-workers" rows="1" data-erp-min-height="40" autocomplete="off" lang="ko" placeholder="한 줄에 시공자 한 명"></textarea>
                             </div>
                         </div>
                         <div class="field-grid-2">
@@ -366,8 +337,66 @@ ERP Order mobile-v2 tab pane.
                             </div>
                             <div class="field erp-mobile-inline">
                                 <label class="field__label" for="erp-notes">비고</label>
-                                <input type="text" class="foms-input" id="erp-notes" placeholder="주문 비고" autocomplete="off" lang="ko">
+                                <textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea" id="erp-notes" rows="1" data-erp-min-height="40" placeholder="주문 비고" autocomplete="off" lang="ko"></textarea>
                             </div>
+                        </div>
+                        </div>
+                    </section>
+
+                    <section class="erp-form-section erp-mobile-pre-sticky-footer" id="erp-mobile-sec-received" aria-label="접수 정보">
+                        <button class="erp-mobile-collapse-toggle" type="button" id="erp-mobile-collapse-received-toggle"
+                            data-bs-toggle="collapse" data-bs-target="#erp-mobile-collapse-received-body"
+                            aria-expanded="false" aria-controls="erp-mobile-collapse-received-body">
+                            <span aria-hidden="true"><i class="fas fa-chevron-right"></i></span>
+                            <strong><i class="fas fa-clipboard-list erp-sec-ico" aria-hidden="true"></i>접수</strong>
+                            <span>기본 접힘</span>
+                        </button>
+                        <div class="collapse" id="erp-mobile-collapse-received-body">
+                        <div class="field-grid-2">
+                            <div class="field erp-mobile-inline">
+                                <label class="field__label" for="erp-received-date">접수일</label>
+                                <input type="date" class="foms-input foms-tabular" id="erp-received-date" autocomplete="off">
+                            </div>
+                            <div class="field erp-mobile-inline">
+                                <label class="field__label" for="erp-received-time-select">접수시간</label>
+                                <div class="erp-mobile-time-inline" id="erp-received-time-control">
+                                    <select class="foms-select foms-tabular" id="erp-received-time-select" autocomplete="off">
+                                        <option value="">시간 선택</option>
+                                        <option value="오전">오전</option>
+                                        <option value="오후">오후</option>
+                                        <option value="__direct__">직접 입력</option>
+                                    </select>
+                                    <textarea class="foms-textarea foms-tabular erp-autosize-textarea erp-flex-textarea d-none" id="erp-received-time" rows="1" data-erp-min-height="40"
+                                        placeholder="직접 입력" autocomplete="off" lang="ko"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="erp-mobile-toggle-row">
+                            <label class="erp-mobile-check" for="erp-urgent-flag">
+                                <input class="form-check-input" type="checkbox" id="erp-urgent-flag" autocomplete="off">
+                                <span>긴급</span>
+                            </label>
+                            <label class="erp-mobile-check" for="erp-self-measurement">
+                                <input class="form-check-input" type="checkbox" id="erp-self-measurement" autocomplete="off">
+                                <span>자가실측</span>
+                            </label>
+                            <label class="erp-mobile-check" for="erp-regional-order">
+                                <input class="form-check-input" type="checkbox" id="erp-regional-order" autocomplete="off">
+                                <span>지방주문</span>
+                            </label>
+                        </div>
+                        <div class="field erp-mobile-inline d-none" id="erp-urgent-reason-field">
+                            <label class="field__label" for="erp-urgent-reason">긴급 사유</label>
+                            <textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea" id="erp-urgent-reason" rows="1" data-erp-min-height="40"
+                                placeholder="시공일 임박/현장 변경/자재 이슈" autocomplete="off" lang="ko"></textarea>
+                        </div>
+                        <div class="field erp-mobile-inline d-none" id="erp-regional-construction-type-field">
+                            <label class="field__label" for="erp-regional-construction-type">지방주문 구분</label>
+                            <select class="foms-input" id="erp-regional-construction-type" autocomplete="off" disabled>
+                                <option value="">하우드/협력사 선택</option>
+                                <option value="하우드 시공">하우드</option>
+                                <option value="협력사 시공">협력사</option>
+                            </select>
                         </div>
                         </div>
                     </section>
@@ -390,6 +419,8 @@ ERP Order mobile-v2 tab pane.
         </div>
     </div>
 </div>
+
+{% include 'orders/partials/erp_channel_push_resend_modal.html' %}
 
 <!-- ERP 주소 검색 모달 -->
 <div class="modal fade" id="erpAddressSearchModal" tabindex="-1" aria-hidden="true">

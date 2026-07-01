@@ -395,6 +395,45 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
   text-align: right;
 }
 
+/* 자유입력: 우측 칸에 항목명+금액 2칸 — 기본 amount-row(9.25rem) 폭으로는 겹침 */
+.erp-order-mobile-form .erp-mobile-amount-row--free-input {
+  grid-template-columns: minmax(4.5rem, max-content) minmax(0, 1fr);
+}
+
+.erp-order-mobile-form .erp-mobile-free-input-fields {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(6.25rem, 8.5rem);
+  gap: var(--foms-space-2);
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.erp-order-mobile-form .erp-mobile-free-input-fields > .erp-amount-value {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  height: auto !important;
+  min-height: var(--foms-touch-target-min, 44px);
+  line-height: 1.25 !important;
+  padding: 6px var(--foms-space-2) !important;
+  font-size: max(16px, var(--foms-font-size-base)) !important;
+  font-weight: var(--foms-font-weight-semibold) !important;
+  border-radius: var(--foms-radius-md);
+}
+
+.erp-order-mobile-form .erp-mobile-free-input-fields > .erp-amount-value--free-input-text {
+  text-align: left;
+}
+
+.erp-order-mobile-form .erp-amount-value--free-input-text:focus,
+.erp-order-mobile-form .erp-amount-value--free-input:focus {
+  background-color: #FFE8CC !important;
+  border-color: var(--foms-border-focus, #2563eb) !important;
+  box-shadow: var(--foms-shadow-focus-ring, 0 0 0 3px rgba(37, 99, 235, 0.2));
+}
+
 .erp-mobile-action-panel {
   display: grid;
   gap: var(--foms-space-3);
@@ -1021,7 +1060,7 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
     margin-top: 0;
   }
   /* 항목 단일행 입력(색상·손잡이 등) 최소높이 살짝 축소(터치 44px 유지) */
-  body.erp-mobile-v2-layout .erp-order-mobile-form #erp-items .erp-flex-textarea { min-height: 44px; }
+  body.erp-mobile-v2-layout .erp-order-mobile-form #erp-items .erp-flex-textarea { min-height: var(--erp-mobile-input-h); }
   body.erp-mobile-v2-layout .erp-order-mobile-form #erp-items .form-label { margin-bottom: 2px; }
   /* 일반 필드(고객·접수·발주 등) 간격 추가 압축 */
   body.erp-mobile-v2-layout .erp-order-mobile-form .field { margin-bottom: 6px; }
@@ -1036,14 +1075,43 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
     font-size: 13px;
     line-height: 1.3;
   }
+  body.erp-mobile-v2-layout .erp-order-mobile-form {
+    --erp-mobile-input-h: 40px;
+    --erp-mobile-input-lh: 1.25;
+    --erp-mobile-input-pad-y: calc((var(--erp-mobile-input-h) - 1em * var(--erp-mobile-input-lh)) / 2);
+  }
+
   body.erp-mobile-v2-layout .erp-order-mobile-form .foms-input,
+  body.erp-mobile-v2-layout .erp-order-mobile-form .foms-textarea.erp-flex-textarea,
   body.erp-mobile-v2-layout .erp-order-mobile-form .foms-select,
   body.erp-mobile-v2-layout .erp-order-mobile-form select.foms-select,
   body.erp-mobile-v2-layout .erp-order-mobile-form #erp-items .foms-input,
   body.erp-mobile-v2-layout .erp-order-mobile-form #erp-items .erp-flex-textarea {
-    min-height: 44px;
-    padding-top: 6px;
-    padding-bottom: 6px;
+    min-height: var(--erp-mobile-input-h);
+    padding-top: var(--erp-mobile-input-pad-y);
+    padding-bottom: var(--erp-mobile-input-pad-y);
+    line-height: var(--erp-mobile-input-lh);
+  }
+
+  /* 73a4e48d input→textarea 후 .foms-textarea { min-height:80px }가 메인 폼까지 적용되던 회귀 차단.
+     기본 1줄(40px) → 입력 시 autosize로만 확장. */
+  body.erp-mobile-v2-layout .erp-order-mobile-form .foms-textarea.erp-flex-textarea,
+  body.erp-mobile-v2-layout .erp-order-mobile-form #erp-items .erp-flex-textarea {
+    overflow: hidden;
+    resize: none;
+    white-space: pre-wrap;
+    text-align: start;
+  }
+
+  body.erp-mobile-v2-layout .erp-order-mobile-form textarea.erp-flex-textarea.text-end,
+  body.erp-mobile-v2-layout .erp-order-mobile-form textarea.erp-amount-value--cash-receipt {
+    text-align: end;
+  }
+
+  body.erp-mobile-v2-layout .erp-order-mobile-form #erp-items textarea[data-erp="spec_width"]::placeholder {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   /* ── 인라인 라벨 행: 라벨 좌(72px 고정) / 입력 우 (주문 상세 밀도) ──

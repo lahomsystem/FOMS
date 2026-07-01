@@ -24,20 +24,26 @@
   --foms-stage-shipment:#ec4899;--foms-stage-construction:#10b981;--foms-stage-cs:#ef4444;
   --foms-stage-completed:#4b525d;
 
-  /* Semantic light */
+  /* Semantic light (sync: static/css/foundation/foms-tokens.css) */
   --foms-surface-base:var(--foms-color-neutral-0);
   --foms-surface-raised:var(--foms-color-neutral-50);
   --foms-surface-overlay:var(--foms-color-neutral-100);
+  --foms-surface-subtle:var(--foms-color-neutral-50);
+  --foms-surface-muted:var(--foms-color-neutral-100);
+  --foms-surface-accent:var(--foms-color-brand-50);
   --foms-border-subtle:var(--foms-color-neutral-200);
   --foms-border-default:var(--foms-color-neutral-300);
+  --foms-border-strong:var(--foms-color-neutral-500);
   --foms-border-focus:var(--foms-color-brand-500);
   --foms-text-primary:var(--foms-color-neutral-900);
   --foms-text-secondary:var(--foms-color-neutral-600);
   --foms-text-tertiary:var(--foms-color-neutral-500);
   --foms-text-link:var(--foms-color-brand-600);
+  --foms-text-link-hover:var(--foms-color-brand-700);
   --foms-text-disabled:var(--foms-color-neutral-400);
   --foms-interactive-primary:var(--foms-color-brand-500);
   --foms-interactive-primary-hover:var(--foms-color-brand-600);
+  --foms-interactive-primary-soft:var(--foms-color-brand-50);
   --foms-interactive-secondary:var(--foms-color-neutral-100);
 
   /* Typography */

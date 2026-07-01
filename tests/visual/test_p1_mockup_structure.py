@@ -72,6 +72,9 @@ def test_p1_dashboard_tower_mobile_width_contract() -> None:
     tower_tpl = (
         ROOT / "templates/orders/partials/dashboard_mobile_tower.html"
     ).read_text(encoding="utf-8")
+    tower_field_list = (
+        ROOT / "templates/orders/partials/dashboard_mobile_tower_field_list.html"
+    ).read_text(encoding="utf-8")
     for token in (
         "foms-shell-body.foms-tower",
         "min-width: 0",
@@ -88,12 +91,22 @@ def test_p1_dashboard_tower_mobile_width_contract() -> None:
         "foms-tower__day-count--measure",
         "foms-tower__day-count--as",
         "grid-template-rows: auto auto auto",
+        "grid-template-columns: repeat(4, minmax(0, 1fr))",
+        "justify-content: center",
+        "min-width: 34px",
+        "foms-tower__pipeline-toggle::after",
+        "content: '펼치기'",
+        "content: '접기'",
         "align-content: start",
         "is-empty",
         "📐",
         "🔧",
     ):
         assert token in tower_css or token in tower_tpl
+    assert 'class="foms-tower__pipeline-toggle" aria-hidden="true"></span>' in tower_tpl
+    assert 'class="foms-tower__pipeline-toggle">접기</span>' not in tower_tpl
+    assert "row.type_code == 'as'" in tower_field_list
+    assert "foms-stage-badge--{{ 'construction' if row.type_code == 'construction' else ('cs' if row.type_code == 'as' else 'measure') }}" in tower_field_list
 
 
 def test_p1_dashboard_mobile_v2_body_mockup_selectors() -> None:
@@ -216,7 +229,7 @@ def test_p1_shell_hides_desktop_chrome_on_mobile_v2() -> None:
     assert ".layout-header" in head
     assert ".layout-global-nav--erp-v2-suppressed" in head
     assert 'erp-dashboard\\00002d layout' in head
-    assert "foms-mobile-surfaces.css') }}?v=20260629a" in head
+    assert "foms-mobile-surfaces.css') }}?v=20260630e" in head
     assert head.index("foms-mobile-v2-critical-css") < head.index("foms-mobile-surfaces.css")
 
 
@@ -638,10 +651,11 @@ def test_p1_as_mobile_v2_home_ia_parity() -> None:
     )
     for selector in ("foms-shell-body", "foms-mobile-queue-list", "foms-shell-fab"):
         assert selector in body, selector
-    # 슬림 sticky 요약 바(section-header + 내담당만 토글)는 as_mobile_summary.html로 분리
+    # 슬림 sticky 요약 바(section-header + 건수)는 as_mobile_summary.html로 분리
     assert "as_mobile_summary.html" in body
     assert "foms-section-header" in summary
-    assert "erp-as-mobile-controls__mine-toggle" in summary
+    assert "erp-as-mobile-controls__count" in summary
+    assert "erp-as-mobile-controls__mine-toggle" not in summary
     # 스크롤로 흘려보내는 보조 컨트롤(필터 바·칩 스트립)은 controls에 유지
     for selector in ("foms-mobile-filter-bar", "chip-strip", "foms-chip-strip"):
         assert selector in controls, selector

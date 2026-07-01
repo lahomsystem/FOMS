@@ -10,6 +10,19 @@
     return name || "제품명 미입력";
   }
 
+  function formatPriceSummaryDisplay(priceEl) {
+    if (!priceEl || !priceEl.value) return "";
+    var raw = String(priceEl.value).trim();
+    if (raw.endsWith("원")) return raw;
+    var digits = raw.replace(/[^0-9]/g, "");
+    if (!digits) return "";
+    var n = parseInt(digits, 10);
+    if (typeof window.erpFormatDepositDisplay === "function") {
+      return window.erpFormatDepositDisplay(n);
+    }
+    return n.toLocaleString("ko-KR") + "원";
+  }
+
   function buildSummary(row) {
     var specs = [];
     var rawSpecEl = row.querySelector('[data-erp="spec"]');
@@ -30,10 +43,10 @@
       });
     }
     var priceEl = row.querySelector('[data-erp="price"]');
-    var price = priceEl && priceEl.value ? String(priceEl.value).trim() : "";
+    var priceDisplay = formatPriceSummaryDisplay(priceEl);
     var chunks = [];
     if (specs.length) chunks.push(specs.join(" / "));
-    if (price) chunks.push(price + "원");
+    if (priceDisplay) chunks.push(priceDisplay);
     return chunks.join(" · ") || productTitle(row);
   }
 
@@ -205,8 +218,8 @@
     }).filter(Boolean);
     var chunks = [];
     if (parts.length) chunks.push(parts.join("×"));
-    var price = readValue(row.querySelector('[data-product-field="price"]'));
-    if (price) chunks.push(price + "원");
+    var priceDisplay = formatPriceSummaryDisplay(row.querySelector('[data-product-field="price"]'));
+    if (priceDisplay) chunks.push(priceDisplay);
     return chunks.join(" · ") || readValue(row.querySelector('[data-product-field="product_name"]')) || "제품명 미입력";
   }
 

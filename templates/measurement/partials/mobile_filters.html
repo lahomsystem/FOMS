@@ -33,13 +33,9 @@
     </button>
   </form>
 
-  {% set measurement_mine_toggle_url = measurement_base_url ~ '?date=' ~ (selected_date or today_date) ~ '&q=' ~ (search_q or '')|urlencode %}
   <nav class="chip-strip foms-chip-strip" aria-label="실측 빠른 필터">
     <a class="chip foms-chip{% if selected_date == today_date %} is-active{% endif %}" href="{{ measurement_today_url }}">
       <i class="fas fa-calendar-day" aria-hidden="true"></i>오늘
-    </a>
-    <a class="chip foms-chip{% if erp_mine_only %} is-active{% endif %}" href="{{ measurement_mine_toggle_url }}{% if '?' in measurement_mine_toggle_url %}&{% else %}?{% endif %}mine={% if erp_mine_only %}{% else %}1{% endif %}">
-      <i class="fas fa-user-check" aria-hidden="true"></i>내 담당
     </a>
     <a class="chip foms-chip" href="{{ measurement_map_url }}">
       <i class="fas fa-map-marked-alt" aria-hidden="true"></i>지도
@@ -80,11 +76,6 @@
             class="form-control"
             value="{{ selected_date }}">
         </div>
-
-        <label class="erp-measurement-mobile-filters__check">
-          <input type="checkbox" name="mine" value="1" {% if erp_mine_only %}checked{% endif %}>
-          <span>내 담당 주문만 보기</span>
-        </label>
 
         <div class="erp-measurement-mobile-filters__actions">
           <a class="erp-pro-btn erp-pro-btn--secondary" href="{{ measurement_base_url }}">초기화</a>

@@ -1515,6 +1515,9 @@
         if (c === 'drawing' || c === 'construction' || c === 'as') return c;
         return 'measurement';
       }
+      function attachmentCanDelete(a) {
+        return !!(a && a.can_delete === true);
+      }
       function getAttachmentCategoryLabel(category) {
         var key = normalizeAttachmentCategory(category);
         return (ATTACHMENT_CATEGORY_META[key] || ATTACHMENT_CATEGORY_META.measurement).label;
@@ -1577,8 +1580,9 @@
             '<button type="button" class="btn btn-outline-secondary" title="미리보기" onclick="window.openAttachmentFromCategoryAs && window.openAttachmentFromCategoryAs(\'' + cat + '\', ' + index + ')">' +
             '<i class="fas fa-eye"></i></button>' +
             '<a class="btn btn-outline-primary" href="' + escapeHtml(downloadUrl) + '" title="다운로드" target="_blank" rel="noopener"><i class="fas fa-download"></i></a>' +
+            (attachmentCanDelete(a) ?
             '<button type="button" class="btn btn-outline-danger" title="삭제" onclick="window.deleteAttachmentFromCategoryAs && window.deleteAttachmentFromCategoryAs(\'' + cat + '\', ' + index + ', \'' + escapeHtml(attachmentId) + '\')">' +
-            '<i class="fas fa-trash"></i></button>' +
+            '<i class="fas fa-trash"></i></button>' : '') +
             '</div></div></div></div></div>';
         }).join('');
       }
@@ -1611,6 +1615,10 @@
         var id = attachmentId || attachment.id;
         if (!orderId || !id) {
           showFeedback('삭제할 첨부 파일을 찾을 수 없습니다.', true);
+          return;
+        }
+        if (!attachmentCanDelete(attachment)) {
+          showFeedback('첨부파일 삭제 권한이 없습니다.', true);
           return;
         }
         if (!confirm('첨부 파일을 삭제하시겠습니까?')) return;

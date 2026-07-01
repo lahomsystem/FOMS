@@ -29,6 +29,8 @@ from foms.services.jobs.queue import get_rq_runtime_status
 logger = logging.getLogger(__name__)
 
 _MAX_TEXT_LENGTH = 4000
+_MIN_CHANGE_NOTE_LEN = 5
+_MAX_CHANGE_NOTE_LEN = 500
 
 # push_kind → (첨부 category, structured_data 이력 키)
 _PUSH_KIND_CONFIG = {
@@ -79,6 +81,7 @@ def api_channel_push_manual():
         order_id (int): 주문 ID
         text (str): 전송할 텍스트 (변환된 내용)
         push_kind (str): 'measurement'(기본) 또는 'drawing'
+        change_note (str, optional): 재전송 시 변경 내용 (5~500자, 필수)
 
     Returns:
         {success: bool, files_count: int, error: str}
@@ -89,6 +92,7 @@ def api_channel_push_manual():
         order_id = payload.get('order_id')
         text = (payload.get('text') or '').strip()
         push_kind = payload.get('push_kind') or 'measurement'
+        change_note = (payload.get('change_note') or '').strip()
 
         if push_kind not in _PUSH_KIND_CONFIG:
             return jsonify({'success': False, 'message': f'지원하지 않는 push_kind: {push_kind}'}), 400
@@ -118,6 +122,22 @@ def api_channel_push_manual():
         # 이전 푸쉬 이력 확인 (push_kind별 분리)
         sd = copy.deepcopy(order.structured_data or {})
         prev_push = sd.get(kind_config['history_key']) or {}
+        is_resend = bool(prev_push.get('pushed'))
+
+        if is_resend:
+            if len(change_note) < _MIN_CHANGE_NOTE_LEN:
+                return jsonify({
+                    'success': False,
+                    'message': f'재전송 시 변경 내용을 {_MIN_CHANGE_NOTE_LEN}자 이상 입력해주세요.',
+                }), 400
+        else:
+            change_note = ''
+
+        if change_note and len(change_note) > _MAX_CHANGE_NOTE_LEN:
+            return jsonify({
+                'success': False,
+                'message': f'변경 내용은 최대 {_MAX_CHANGE_NOTE_LEN}자까지 입력할 수 있습니다.',
+            }), 400
 
         # 해당 분류 첨부파일만 (이미지 + 동영상, 업로드 순서대로)
         attachments = (
@@ -151,7 +171,8 @@ def api_channel_push_manual():
             'order_id': order.id,
             'customer_name': order.customer_name,
             'text': text,
-            'is_retry': bool(prev_push.get('pushed')),
+            'is_retry': is_resend,
+            'change_note': change_note,
             'files': files,
             'push_kind': push_kind,
             'pushed_by_name': pushed_by_name,
@@ -167,13 +188,24 @@ def api_channel_push_manual():
         msg_id = result.get('message_id')
         if not msg_id:
             logger.warning("[채널톡 수동푸쉬] 전송 성공이나 message_id 미수신 (order_id=%s, push_kind=%s)", order_id, push_kind)
-        sd[kind_config['history_key']] = {
+        sent_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        next_push = {
             'pushed': True,
             'message_id': msg_id,
             'group_id': group_id,
-            'sent_at': datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            'is_modified': bool(prev_push.get('pushed')),
+            'sent_at': sent_at,
+            'is_modified': is_resend,
         }
+        if is_resend:
+            change_log = list(prev_push.get('change_log') or [])
+            change_log.append({
+                'at': sent_at,
+                'by': pushed_by_name,
+                'note': change_note,
+                'message_id': msg_id,
+            })
+            next_push['change_log'] = change_log[-20:]
+        sd[kind_config['history_key']] = next_push
         order.structured_data = sd
         flag_modified(order, 'structured_data')
         db.commit()

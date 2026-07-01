@@ -59,6 +59,9 @@ CRITICAL_ERP_IDS = {
     "erp-deposit-section",
     "erp-remaining-amount",
     "erp-remaining-section",
+    "erp-free-input-text",
+    "erp-free-input-amount",
+    "erp-free-input-section",
     "erp-cash-receipt",
     "erp-cash-receipt-section",
     "erp-status-text",
@@ -281,6 +284,7 @@ def test_edit_erp_order_ships_responsive_form_mounts_for_cohort(
     # 영발/발주 PUSH는 하단 액션바로 이동
     assert 'id="erp-channeltalk-push-btn"' in mobile_form
     assert 'id="erp-channeltalk-push-drawing-btn"' in mobile_form
+    assert 'id="erpChannelPushResendModal"' in mobile_form
     assert "erp-mobile-pre-sticky-footer" in mobile_form
 
 
@@ -298,9 +302,9 @@ def test_mobile_erp_secnav_chip_order_and_targets() -> None:
         "고객",
         "일정",
         "현장 스펙",
-        "접수",
         "사진",
         "발주",
+        "접수",
     ]
     for target_id, _ in chip_labels:
         assert f'id="{target_id}"' in mobile
@@ -311,7 +315,7 @@ def test_mobile_erp_secnav_chip_order_and_targets() -> None:
     received_idx = mobile.index('id="erp-mobile-sec-received"')
     photo_idx = mobile.index('id="erp-mobile-sec-photo"')
     order_idx = mobile.index('id="erp-mobile-sec-order"')
-    assert customer_idx < schedule_idx < spec_idx < received_idx < photo_idx < order_idx
+    assert customer_idx < schedule_idx < spec_idx < photo_idx < order_idx < received_idx
 
 
 def test_mobile_erp_form_sections_use_field_priority_collapse_defaults() -> None:

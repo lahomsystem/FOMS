@@ -43,6 +43,26 @@ def _text_block(value: str) -> dict[str, str]:
     return {"type": "text", "value": value}
 
 
+def _manual_push_body_lines(user_message: str, change_note: str | None = None) -> list[str]:
+    """Build plain-text lines for manual push (resend header + conversion body).
+
+    Args:
+        user_message: ERP conversion text (고객명 ~).
+        change_note: Re-push note; when set, prepends ``[수정]`` / ``내부 변경`` / note.
+
+    Returns:
+        Line list consumed by ``_paragraph_blocks``.
+    """
+    text = str(user_message or "").strip()
+    note = str(change_note or "").strip()
+    lines: list[str] = []
+    if note:
+        lines.extend(["[수정]", "내부 변경", note, ""])
+    if text:
+        lines.extend(text.splitlines())
+    return lines
+
+
 def _paragraph_blocks(lines: List[str]) -> list[dict[str, str]]:
     blocks: list[dict[str, str]] = []
     paragraph: list[str] = []
@@ -66,15 +86,8 @@ def build_message_blocks(event_type: str, data: Dict[str, Any]) -> list[dict[str
     order_id = data.get("order_id", "?")
     detail_url = data.get("detail_url") or _build_order_detail_link(order_id)
     user_message = str(data.get("text", "")).strip()
-    is_retry = data.get("is_retry", False)
-    lines: list[str] = []
-    if is_retry:
-        lines.append("[수정]")
-    if user_message:
-        if lines:
-            lines.extend(["", user_message])
-        else:
-            lines.append(user_message)
+    change_note = str(data.get("change_note") or "").strip() if data.get("is_retry") else ""
+    lines = _manual_push_body_lines(user_message, change_note or None)
     blocks = _paragraph_blocks(lines)
     blocks.append(
         {
@@ -117,13 +130,20 @@ def build_message_template(event_type: str, data: Dict[str, Any]) -> str:
     detail_url = data.get("detail_url") or _build_order_detail_link(order_id)
     link_str = f"🔗 주문 상세 보기: {detail_url}"
     user_message = str(data.get("text", "")).strip()
-    is_retry = data.get("is_retry", False)
-    body_parts: list[str] = []
-    if is_retry:
-        body_parts.append("[수정]")
-    if user_message:
-        body_parts.append(user_message)
-    body = "\n\n".join(body_parts)
+    change_note = str(data.get("change_note") or "").strip() if data.get("is_retry") else ""
+    body_lines = _manual_push_body_lines(user_message, change_note or None)
+    paragraphs: list[str] = []
+    paragraph: list[str] = []
+    for line in body_lines:
+        if line.strip():
+            paragraph.append(line)
+            continue
+        if paragraph:
+            paragraphs.append("\n".join(paragraph))
+            paragraph = []
+    if paragraph:
+        paragraphs.append("\n".join(paragraph))
+    body = "\n\n".join(paragraphs)
     return f"{body}\n\n{link_str}" if body else link_str
 
 

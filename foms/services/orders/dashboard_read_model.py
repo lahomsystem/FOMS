@@ -10,8 +10,9 @@ from __future__ import annotations
 import datetime
 
 from sqlalchemy import or_, false, and_, func, case as sql_case
+from sqlalchemy.orm import aliased
 
-from models import Order, User
+from models import Order, OrderScheduleDate, User
 from foms.services.erp_display import get_today_kst, _erp_get_stage
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.common.business_calendar import business_days_until
@@ -23,6 +24,20 @@ from foms.services.erp_policy import (
 from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
 from foms.services.orders.dashboard_control_tower import build_risk_order_ids
 from foms.services.orders.dashboard_filters import OrdersDashboardFilters
+from foms.services.shipment_dashboard_helpers import AS_SHIPMENT_STATUSES
+
+
+def _as_visit_order_id_query(db, date_iso: str):
+    as_order = aliased(Order)
+    return (
+        db.query(OrderScheduleDate.order_id)
+        .join(as_order, as_order.id == OrderScheduleDate.order_id)
+        .filter(
+            as_order.status.in_(AS_SHIPMENT_STATUSES),
+            OrderScheduleDate.kind == "as_visit",
+            OrderScheduleDate.date == date_iso,
+        )
+    )
 
 
 def build_orders_dashboard_queries(db, current_user, is_admin: bool, filters: OrdersDashboardFilters):
@@ -63,24 +78,30 @@ def build_orders_dashboard_queries(db, current_user, is_admin: bool, filters: Or
     today_date = get_today_kst()
     today_iso = today_date.isoformat()
     if filters.today == '1':
+        as_visit_ids = _as_visit_order_id_query(db, today_iso)
         _q = _q.filter(
             or_(
                 Order.erp_measurement_date == today_iso,
                 Order.erp_construction_date == today_iso,
+                Order.id.in_(as_visit_ids),
             )
         )
 
-    # 특정 날짜 현장 큐 (주간 타일/현장 탭 '그날 전체'). field로 실측/시공 한정.
+    # 특정 날짜 현장 큐 (주간 타일/현장 탭 '그날 전체'). field로 실측/시공/AS 한정.
     if filters.date:
         if filters.field == 'measure':
             _q = _q.filter(Order.erp_measurement_date == filters.date)
         elif filters.field == 'construction':
             _q = _q.filter(Order.erp_construction_date == filters.date)
+        elif filters.field == 'as':
+            _q = _q.filter(Order.id.in_(_as_visit_order_id_query(db, filters.date)))
         else:
+            as_visit_ids = _as_visit_order_id_query(db, filters.date)
             _q = _q.filter(
                 or_(
                     Order.erp_measurement_date == filters.date,
                     Order.erp_construction_date == filters.date,
+                    Order.id.in_(as_visit_ids),
                 )
             )
 
@@ -151,11 +172,13 @@ def build_orders_dashboard_queries(db, current_user, is_admin: bool, filters: Or
 
     if filters.today == '1':
         today_iso = get_today_kst().isoformat()
+        as_visit_ids = _as_visit_order_id_query(db, today_iso)
         _q = _q.filter(
             or_(
                 Order.erp_measurement_date == today_iso,
                 Order.erp_construction_date == today_iso,
                 Order.received_date == today_iso,
+                Order.id.in_(as_visit_ids),
             )
         )
 

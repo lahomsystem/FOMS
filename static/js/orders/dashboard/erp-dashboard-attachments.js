@@ -139,6 +139,69 @@
           return /\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|heif)(\?|$)/.test(probe);
         }
 
+        function updateDrawingRevisionPreview(orderId, key) {
+          const stage = document.getElementById('drawing-revision-preview-stage');
+          const label = document.getElementById('drawing-revision-preview-label');
+          const expandBtn = document.getElementById('drawing-revision-preview-expand');
+          if (!stage) return;
+
+          const files = getDrawingCurrentFiles(orderId);
+          if (!files.length) {
+            stage.innerHTML = '<div class="text-muted small py-4 text-center">전달된 도면이 없습니다.</div>';
+            if (label) label.textContent = '';
+            if (expandBtn) expandBtn.disabled = true;
+            return;
+          }
+
+          const idx = files.findIndex((f) => String((f && f.key) || '') === String(key || ''));
+          const fileIdx = idx >= 0 ? idx : 0;
+          const f = files[fileIdx];
+          const filename = String((f && f.filename) || `도면 ${fileIdx + 1}`);
+          const viewUrl = String((f && f.view_url) || ((f && f.key) ? `/api/files/view/${f.key}` : ''));
+          const focusKey = String((f && f.key) || '');
+
+          if (viewUrl && isDrawingImageFile(f)) {
+            stage.innerHTML = `<img src="${escapeHtml(viewUrl)}" alt="${escapeHtml(filename)}"${focusKey ? ' data-storage-key="' + escapeHtml(focusKey) + '"' : ''}>`;
+            if (window.erpReplaceThumbnailsWithPresigned) window.erpReplaceThumbnailsWithPresigned(stage);
+          } else if (viewUrl) {
+            stage.innerHTML = `<div class="text-center py-4"><i class="fas fa-file-alt fa-3x text-secondary mb-2"></i><div class="small text-muted">${escapeHtml(filename)}</div><a class="btn btn-sm btn-outline-primary mt-2" href="${escapeHtml(viewUrl)}" target="_blank" rel="noopener">파일 열기</a></div>`;
+          } else {
+            stage.innerHTML = '<div class="text-muted small py-4 text-center">미리보기를 사용할 수 없습니다.</div>';
+          }
+
+          if (label) label.textContent = `${fileIdx + 1}번 · ${filename}`;
+          if (expandBtn) {
+            expandBtn.disabled = !(viewUrl && isDrawingImageFile(f));
+            expandBtn.dataset.focusKey = focusKey;
+          }
+        }
+
+        function openDrawingRevisionViewer(orderId, focusKey) {
+          if (!window.GlobalImageViewer) return;
+          const files = getDrawingCurrentFiles(orderId)
+            .filter((f) => isDrawingImageFile(f))
+            .map((f) => ({
+              view_url: String((f && f.view_url) || ((f && f.key) ? `/api/files/view/${f.key}` : '')),
+              download_url: String((f && f.download_url) || (f && f.view_url) || ((f && f.key) ? `/api/files/view/${f.key}` : '')),
+              filename: String((f && f.filename) || '도면'),
+              key: String((f && f.key) || '')
+            }))
+            .filter((f) => !!f.view_url);
+          if (!files.length) return;
+          let index = files.findIndex((f) => f.key === String(focusKey || ''));
+          if (index < 0) index = 0;
+          window.GlobalImageViewer.open(files, index);
+        }
+
+        if (!window.__DRAWING_REVISION_PREVIEW_EXPAND_BOUND) {
+          window.__DRAWING_REVISION_PREVIEW_EXPAND_BOUND = true;
+          document.getElementById('drawing-revision-preview-expand')?.addEventListener('click', function () {
+            const orderId = typeof __currentRevisionOrderId !== 'undefined' ? __currentRevisionOrderId : null;
+            const key = this.dataset.focusKey || document.getElementById('drawing-revision-target-key')?.value || '';
+            if (orderId) openDrawingRevisionViewer(orderId, key);
+          });
+        }
+
         function buildDrawingTargetCards(orderId, selectedKey, opts = {}) {
           const files = getDrawingCurrentFiles(orderId);
           const includeNone = !!opts.includeNone;
@@ -202,6 +265,8 @@
             const selectEl = document.getElementById('drawing-revision-target-key');
             if (selectEl) selectEl.value = selectedKey;
             syncDrawingTargetCardSelection('revision', selectedKey);
+            const orderId = typeof __currentRevisionOrderId !== 'undefined' ? __currentRevisionOrderId : null;
+            if (orderId) updateDrawingRevisionPreview(orderId, selectedKey);
           } else if (role === 'replace') {
             const selectEl = document.getElementById('drawing-transfer-replace-key');
             if (selectEl) selectEl.value = selectedKey;
@@ -228,7 +293,11 @@
           cardsEl.innerHTML = buildDrawingTargetCards(orderId, selectEl.value, { role: 'revision' });
           syncDrawingTargetCardSelection('revision', selectEl.value);
           if (window.erpReplaceThumbnailsWithPresigned) window.erpReplaceThumbnailsWithPresigned(cardsEl);
-          selectEl.onchange = () => syncDrawingTargetCardSelection('revision', selectEl.value);
+          updateDrawingRevisionPreview(orderId, selectEl.value);
+          selectEl.onchange = () => {
+            syncDrawingTargetCardSelection('revision', selectEl.value);
+            updateDrawingRevisionPreview(orderId, selectEl.value);
+          };
           if (helpEl) {
             helpEl.textContent = files.length > 1
               ? '여러 장입니다. 수정 요청할 도면 번호를 선택해주세요.'

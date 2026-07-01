@@ -583,7 +583,17 @@
   function _setPriceInputValue(row, priceInput, value) {
     if (!priceInput) return;
     row.__erpPricingSkipPriceInput = true;
-    priceInput.value = String(value);
+    var digits = String(value != null ? value : '').replace(/[^0-9]/g, '');
+    if (digits) {
+      var n = parseInt(digits, 10);
+      if (typeof window.erpFormatDepositDisplay === 'function') {
+        priceInput.value = window.erpFormatDepositDisplay(n);
+      } else {
+        priceInput.value = n.toLocaleString('ko-KR') + '원';
+      }
+    } else {
+      priceInput.value = '';
+    }
     priceInput.dispatchEvent(new Event('input', { bubbles: true }));
     row.__erpPricingSkipPriceInput = false;
   }

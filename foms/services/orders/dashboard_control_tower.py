@@ -18,7 +18,7 @@ from __future__ import annotations
 import datetime
 from typing import Any
 
-from sqlalchemy import distinct, func, or_
+from sqlalchemy import distinct, false, func, or_
 
 from models import Order, OrderScheduleDate
 from foms.services.orders.erp_policy_constants import STAGE_LABELS, STAGE_NAME_TO_CODE
@@ -31,6 +31,7 @@ from foms.services.erp_display import (
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.common.business_calendar import business_days_until
 from foms.services.erp_permissions import build_mine_sql_filter
+from foms.services.shipment_dashboard_helpers import AS_SHIPMENT_STATUSES
 
 __all__ = [
     "build_mobile_control_tower",
@@ -47,7 +48,6 @@ _INSTALL_READY_CODES = ("CONSTRUCTION", "COMPLETED", "AS", "AS_RECEIVED", "AS_CO
 _DONE_CODES = ("COMPLETED", "AS_COMPLETED")
 # 'AS 출고' = AS 상태 주문의 as_visit 일정. 출고 대시보드(foms.web.shipment.dashboard)와
 # 동일 술어(status ∈ AS_* + OrderScheduleDate.kind=='as_visit')를 써서 두 화면 카운트를 정합시킨다.
-_AS_SHIPMENT_STATUSES = ("AS", "AS_RECEIVED", "AS_COMPLETED")
 
 
 # ───────── 작은 순수 헬퍼 ─────────
@@ -70,14 +70,18 @@ def _balance_remaining(sd: dict) -> int | None:
     """잔금(원). pricing/totals.balance 우선, 없으면 품목합-계약금."""
     pricing = sd.get("pricing") if isinstance(sd.get("pricing"), dict) else {}
     totals = sd.get("totals") if isinstance(sd.get("totals"), dict) else {}
-    for raw in (pricing.get("balance"), totals.get("balance"), sd.get("balance")):
+    for raw in (totals.get("final_amount"), totals.get("balance_amount"), pricing.get("balance"), totals.get("balance"), sd.get("balance")):
         n = _to_int(raw)
         if n is not None:
             return n
     items_total = erp_payment_amount_from_structured(sd)
     deposit = _to_int(totals.get("deposit_amount") or totals.get("deposit") or pricing.get("deposit"))
     if items_total is not None and deposit is not None:
-        return max(0, items_total - deposit)
+        from foms.services.estimate_service import _extract_discount_amount, _extract_free_input_amount
+
+        free_input = _extract_free_input_amount(sd)
+        discount = _extract_discount_amount(sd)
+        return max(0, items_total + free_input - deposit - discount)
     return None
 
 
@@ -172,7 +176,7 @@ def _week_strip(base: Any, today: datetime.date) -> dict[str, Any]:
     as_by = dict(
         base.join(OrderScheduleDate, OrderScheduleDate.order_id == Order.id)
         .filter(
-            Order.status.in_(_AS_SHIPMENT_STATUSES),
+            Order.status.in_(AS_SHIPMENT_STATUSES),
             OrderScheduleDate.kind == "as_visit",
             OrderScheduleDate.date.in_(date_strs),
         )
@@ -202,42 +206,83 @@ def _week_strip(base: Any, today: datetime.date) -> dict[str, Any]:
     }
 
 
-def _field_ops_for_date(base: Any, date_iso: str, *, field_type: str = "all", limit: int = 100) -> list[dict[str, Any]]:
-    """특정 날짜의 실측/시공 약속 + 준비도 신호등 (시공 우선, 시간순).
+def _as_visit_order_ids_for_date(base: Any, date_iso: str) -> list[int]:
+    rows = (
+        base.join(OrderScheduleDate, OrderScheduleDate.order_id == Order.id)
+        .filter(
+            Order.status.in_(AS_SHIPMENT_STATUSES),
+            OrderScheduleDate.kind == "as_visit",
+            OrderScheduleDate.date == date_iso,
+        )
+        .with_entities(distinct(Order.id))
+        .all()
+    )
+    return [int(r[0]) for r in rows]
 
-    field_type: 'measure'(실측만) | 'construction'(시공만) | 'all'(둘 다).
+
+def _field_ops_for_date(base: Any, date_iso: str, *, field_type: str = "all", limit: int = 100) -> list[dict[str, Any]]:
+    """특정 날짜의 실측/시공/AS 약속 + 준비도 신호등 (시공 우선, 시간순).
+
+    field_type: 'measure'(실측만) | 'construction'(시공만) | 'as'(AS만) | 'all'(전부).
     limit는 한 날짜에 실무상 도달 불가능한 상한(=그날 전체 로딩 보장).
     """
+    as_ids: list[int] = []
     if field_type == "measure":
         date_filter = Order.erp_measurement_date == date_iso
     elif field_type == "construction":
         date_filter = Order.erp_construction_date == date_iso
+    elif field_type == "as":
+        as_ids = _as_visit_order_ids_for_date(base, date_iso)
+        date_filter = Order.id.in_(as_ids)
     else:
-        date_filter = or_(Order.erp_measurement_date == date_iso, Order.erp_construction_date == date_iso)
+        as_ids = _as_visit_order_ids_for_date(base, date_iso)
+        date_filter = or_(
+            Order.erp_measurement_date == date_iso,
+            Order.erp_construction_date == date_iso,
+            Order.id.in_(as_ids) if as_ids else false(),
+        )
     rows = (
         base.filter(date_filter)
         .order_by(Order.erp_construction_date.desc().nullslast(), Order.created_at.desc())
         .limit(limit)
         .all()
     )
+    as_id_set = set(as_ids)
     out: list[dict[str, Any]] = []
     for order in rows:
         sd = _ensure_dict(getattr(order, "structured_data", None))
+        order_id = int(getattr(order, "id", 0) or 0)
+        is_as_visit = order_id in as_id_set
+        is_as_only_visit = (
+            field_type == "as"
+            or (
+                field_type == "all"
+                and is_as_visit
+                and getattr(order, "erp_construction_date", None) != date_iso
+            )
+        )
         if field_type == "measure":
             is_cons = False
         elif field_type == "construction":
             is_cons = True
+        elif field_type == "as":
+            is_cons = True
+        elif is_as_only_visit:
+            is_cons = True
         else:
             is_cons = getattr(order, "erp_construction_date", None) == date_iso
-        sched = (sd.get("schedule") or {}).get("construction" if is_cons else "measurement") or {}
+        schedule_key = "as_visit" if is_as_only_visit else ("construction" if is_cons else "measurement")
+        sched = (sd.get("schedule") or {}).get(schedule_key) or {}
         state, label = (_construction_readiness if is_cons else _measure_readiness)(order, sd)
+        if is_as_only_visit:
+            state, label = ("ok", "AS 방문")
         parties = sd.get("parties") or {}
         site = sd.get("site") or {}
         out.append({
             "id": order.id,
             "name": (parties.get("customer") or {}).get("name") or "-",
-            "type": "시공" if is_cons else "실측",
-            "type_code": "construction" if is_cons else "measure",
+            "type": "AS" if is_as_only_visit else ("시공" if is_cons else "실측"),
+            "type_code": "as" if is_as_only_visit else ("construction" if is_cons else "measure"),
             "time": (str(sched.get("time") or "").strip() or None),
             "addr": site.get("address_full") or site.get("address_main") or "-",
             "manager": (parties.get("manager") or {}).get("name") or getattr(order, "manager_name", None) or "-",
@@ -248,11 +293,12 @@ def _field_ops_for_date(base: Any, date_iso: str, *, field_type: str = "all", li
     return out
 
 
-def _type_counts_for_date(base: Any, date_iso: str) -> tuple[int, int]:
-    """(실측 건수, 시공 건수) — 표시 limit과 무관한 정확 카운트."""
+def _type_counts_for_date(base: Any, date_iso: str) -> tuple[int, int, int]:
+    """(실측 건수, 시공 건수, AS 방문 건수) — 표시 limit과 무관한 정확 카운트."""
     measure = int(base.filter(Order.erp_measurement_date == date_iso).count() or 0)
     construction = int(base.filter(Order.erp_construction_date == date_iso).count() or 0)
-    return measure, construction
+    as_count = len(_as_visit_order_ids_for_date(base, date_iso))
+    return measure, construction, as_count
 
 
 def _day_label(date_iso: str, today: datetime.date) -> str:
@@ -460,10 +506,15 @@ def build_risk_frame(key: str, count: int, *, back_href: str = "/erp/dashboard")
 
 
 def _today_total(base: Any, today_iso: str) -> int:
-    """오늘 실측 또는 시공 약속 전체 건수 (표시 limit과 무관한 정확 카운트)."""
+    """오늘 실측/시공/AS 약속 전체 건수 (표시 limit과 무관한 정확 카운트)."""
+    as_ids = _as_visit_order_ids_for_date(base, today_iso)
     return int(
         base.filter(
-            or_(Order.erp_measurement_date == today_iso, Order.erp_construction_date == today_iso)
+            or_(
+                Order.erp_measurement_date == today_iso,
+                Order.erp_construction_date == today_iso,
+                Order.id.in_(as_ids) if as_ids else false(),
+            )
         ).count()
         or 0
     )
@@ -511,11 +562,13 @@ def build_field_ops_for_day(
     if mine_only:
         base = _apply_mine_only(base, current_user)
     rows = _field_ops_for_date(base, date_iso, field_type=field_type)
-    measure_count, construction_count = _type_counts_for_date(base, date_iso)
+    measure_count, construction_count, as_count = _type_counts_for_date(base, date_iso)
     if field_type == "measure":
         count = measure_count
     elif field_type == "construction":
         count = construction_count
+    elif field_type == "as":
+        count = as_count
     else:
         count = _today_total(base, date_iso)
     return {
@@ -523,6 +576,7 @@ def build_field_ops_for_day(
         "count": count,
         "measure_count": measure_count,
         "construction_count": construction_count,
+        "as_count": as_count,
         "label": _day_label(date_iso, today),
         "iso": date_iso,
     }
@@ -542,7 +596,7 @@ def build_mobile_control_tower(
         base = _apply_mine_only(base, current_user)
     risk = _risk_radar(base, today)
     field_ops = _field_ops_for_date(base, today_iso)
-    measure_count, construction_count = _type_counts_for_date(base, today_iso)
+    measure_count, construction_count, as_count = _type_counts_for_date(base, today_iso)
     return {
         "week": _week_strip(base, today),
         "today_iso": today_iso,
@@ -550,6 +604,7 @@ def build_mobile_control_tower(
         "today_count": _today_total(base, today_iso),
         "today_measure_count": measure_count,
         "today_construction_count": construction_count,
+        "today_as_count": as_count,
         "risk_groups": risk,
         "risk_total": sum(g["count"] for g in risk),
         "inbound_count": _inbound_count(base),

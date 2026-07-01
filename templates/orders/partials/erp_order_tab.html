@@ -166,7 +166,7 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                         </div>
                         <div class="col-md-4">
                             <label class="form-label mb-1">시공 담당자</label>
-                            <input type="text" class="form-control form-control-sm" id="erp-construction-workers" autocomplete="off" lang="ko" placeholder="예: 시공자1, 시공자2">
+                            <input type="text" class="form-control form-control-sm" id="erp-construction-workers" autocomplete="off" lang="ko" placeholder="홍, 시공자">
                         </div>
                         <div class="col-md-4">
                             <label class="form-label mb-1">단계(Workflow)</label>
@@ -297,10 +297,47 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <div class="fw-bold"><i class="fas fa-box"></i> 제품 항목(1..n)</div>
                     </div>
-                    <div class="small text-muted mb-2">
-                        각 제품 항목에서 <strong>실측 이미지</strong>를 개별 첨부할 수 있습니다.
+                    <div class="erp-items-section erp-items-master-detail-shell">
+                        <div class="erp-order-body erp-items-master-detail">
+                            <aside class="item-rail" aria-label="제품 항목 목록">
+                                <div class="item-rail__head">
+                                    <div class="item-rail__row">
+                                        <h2 class="item-rail__title">
+                                            제품 항목
+                                            <span class="item-rail__count" id="erp-md-rail-count">0</span>
+                                        </h2>
+                                        <button type="button" class="erp-pro-btn erp-pro-btn--primary erp-pro-btn--sm" id="erp-md-rail-add-item">+ 항목</button>
+                                    </div>
+                                    <input type="search" class="item-rail__search" id="erp-md-rail-search" placeholder="제품명 검색…" aria-label="항목 검색">
+                                </div>
+                                <div class="item-rail__list" id="erp-md-rail-list" role="listbox"></div>
+                                <div class="item-rail__foot">
+                                    <div class="item-rail__total">
+                                        <span>출고가 합계</span>
+                                        <strong id="erp-md-rail-total">0원</strong>
+                                    </div>
+                                    <button type="button" class="erp-pro-btn erp-pro-btn--secondary erp-pro-btn--sm erp-pro-btn--full" id="erp-md-rail-summary-btn">전체 항목 요약</button>
+                                </div>
+                            </aside>
+                            <main class="item-detail foms-page-form" aria-label="선택 항목 편집">
+                                <div class="item-detail__scroll">
+                                    <div id="erp-items"></div>
+                                </div>
+                                <footer class="item-detail__foot">
+                                    <div class="item-detail__kbd" aria-label="키보드 단축키 안내">
+                                        <span class="item-detail__kbd-hint">
+                                            <kbd>Ctrl</kbd> + <kbd>↑</kbd><kbd>↓</kbd> 항목 이동
+                                        </span>
+                                        <span class="item-detail__kbd-pos" id="erp-md-nav-pos">1 / 1</span>
+                                    </div>
+                                    <div class="item-detail__actions">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" id="erp-md-btn-prev" title="이전 항목">◀ 이전</button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" id="erp-md-btn-next">다음 항목 ▶</button>
+                                    </div>
+                                </footer>
+                            </main>
+                        </div>
                     </div>
-                    <div id="erp-items"></div>
                     <div class="d-flex justify-content-between align-items-center mt-2 erp-items-action-row">
                         <button class="btn btn-primary" type="button" id="erp-save-btn">
                             <i class="fas fa-save"></i> 저장
@@ -324,6 +361,10 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                             </div>
                             <input type="text" id="erp-deposit-amount" inputmode="numeric" placeholder="0원" maxlength="24" class="erp-amount-value erp-amount-value--deposit" title="숫자 입력 시 1,000단위 쉼표가 적용됩니다.">
                         </div>
+                        <div id="erp-free-input-section" class="d-flex justify-content-end align-items-center gap-2 w-100" style="max-width: 16rem; display: none;">
+                            <input type="text" id="erp-free-input-text" maxlength="128" placeholder="항목명" class="erp-amount-value erp-amount-value--free-input-text text-end" title="항목명 등 자유 텍스트">
+                            <input type="text" id="erp-free-input-amount" inputmode="numeric" maxlength="24" placeholder="0원" class="erp-amount-value erp-amount-value--free-input text-end" title="금액. 총 견적·잔금에 합산됩니다.">
+                        </div>
                         <div id="erp-discount-section" class="d-flex justify-content-end align-items-center gap-2 w-100" style="max-width: 16rem; display: none;">
                             <label for="erp-discount-amount" class="form-label mb-0 fw-bold text-nowrap">할인</label>
                             <input type="text" id="erp-discount-amount" inputmode="numeric" placeholder="0원" maxlength="24" class="erp-amount-value erp-amount-value--discount" title="숫자 입력 시 1,000단위 쉼표가 적용됩니다.">
@@ -339,7 +380,7 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                         </div>
                         <div id="erp-cash-receipt-section" class="d-flex justify-content-end align-items-center gap-2 w-100" style="max-width: 16rem; display: none;">
                             <label for="erp-cash-receipt" class="form-label mb-0 fw-bold text-nowrap">현금영수증</label>
-                            <input type="text" id="erp-cash-receipt" inputmode="tel" placeholder="연락처 입력" maxlength="32" class="erp-amount-value erp-amount-value--cash-receipt text-end" title="현금영수증 발급 연락처(휴대폰 등). 비어 있으면 PUSH·변환 텍스트에 표시되지 않습니다.">
+                            <input type="text" id="erp-cash-receipt" inputmode="tel" placeholder="연락처 입력" maxlength="512" class="erp-amount-value erp-amount-value--cash-receipt text-end" title="현금영수증 발급 연락처(휴대폰 등). 비어 있으면 PUSH·변환 텍스트에 표시되지 않습니다.">
                         </div>
                     </div>
 
@@ -411,6 +452,8 @@ ERP Order Tab Pane (shared between add_order and edit_order)
         </div>
     </div>
 </div>
+
+{% include 'orders/partials/erp_channel_push_resend_modal.html' %}
 
 <!-- ERP 주소 검색 모달 -->
 <div class="modal fade" id="erpAddressSearchModal" tabindex="-1" aria-hidden="true">

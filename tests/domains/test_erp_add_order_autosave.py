@@ -198,6 +198,21 @@ def test_edit_mode_autosave_wiring() -> None:
     assert "window.__ERP_ORDER_DRAFT_MODE = false" in edit_order
 
 
+def test_mobile_edit_template_has_restore_banner() -> None:
+    """모바일 ERP 수정(erp_order_tab_mobile)에도 복원 배너/인디케이터 마크업 존재.
+
+    버그: 모바일 edit은 erp_order_tab_mobile.html(별도 셸)을 쓰는데 배너 마크업이
+    없어 showRestoreBanner가 요소를 못 찾아 임시저장 메시지가 안 떴다(PC만 됨).
+    """
+    root = Path(__file__).resolve().parents[2]
+    mobile = (root / "templates/orders/partials/erp_order_tab_mobile.html").read_text(encoding="utf-8")
+    assert 'id="erp-restore-banner"' in mobile
+    assert "data-foms-no-autodismiss" in mobile
+    assert 'id="erp-restore-resume"' in mobile
+    assert 'id="erp-restore-discard"' in mobile
+    assert 'id="erp-autosave-indicator"' in mobile
+
+
 def _consult_default_item() -> dict:
     """ERP 폼 기본 품목 1행: 사용자 미입력, 상담 기본값만 채워진 상태."""
     return {
