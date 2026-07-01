@@ -570,13 +570,33 @@
                 const digits = String(value || '').replace(/[^0-9]/g, '');
                 return digits ? parseInt(digits, 10) : 0;
               };
+              const sumFreeInputFromText = (text) => {
+                const raw = String(text || '').trim();
+                if (!raw) return 0;
+                let sum = 0;
+                raw.replace(/\r\n/g, '\n').split('\n').forEach((line) => {
+                  const trimmed = line.trim();
+                  if (!trimmed) return;
+                  let amountPart = trimmed;
+                  const m = trimmed.match(/^[^:：]+[:：]\s*(.+)$/);
+                  if (m) amountPart = m[1].trim();
+                  const n = coerceAmount(amountPart);
+                  if (n > 0) sum += n;
+                });
+                return sum;
+              };
               const totals = sd.totals || {};
               const itemsTotal = Number(totals.items_total) || items.reduce((s, it) => s + (Number(it.price) || 0), 0);
               const depositAmt = coerceAmount((sd.payment || {}).deposit) || coerceAmount((sd.payments || {}).deposit);
               const discountAmt = coerceAmount((sd.payment || {}).discount) || coerceAmount((sd.totals || {}).discount_amount);
+              const freeInputRaw = (sd.payment || {}).free_input
+                || (sd.payments || {}).free_input?.value
+                || (sd.payments || {}).free_input?.raw
+                || '';
+              const freeInputAmt = coerceAmount(totals.free_input_amount) || sumFreeInputFromText(freeInputRaw);
               let remainAmt = coerceAmount(totals.final_amount) || coerceAmount(totals.balance_amount);
               if (!remainAmt) {
-                remainAmt = Math.max(0, itemsTotal - depositAmt - discountAmt);
+                remainAmt = Math.max(0, itemsTotal + freeInputAmt - depositAmt - discountAmt);
               }
               const fmtKRW = (n) => n > 0 ? n.toLocaleString('ko-KR') + '원' : '0원';
               items.forEach((_, i) => {

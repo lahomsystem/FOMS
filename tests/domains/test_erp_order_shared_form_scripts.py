@@ -549,15 +549,18 @@ def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
     root = Path(__file__).resolve().parents[2]
     text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
 
-    assert "function erpBuildTotals(itemsTotal, depositAmount, discountAmount)" in text
-    assert "discount_amount: discount" in text
+    assert "function erpBuildTotals(itemsTotal, depositAmount, discountAmount, freeInputAmount)" in text
+    assert "free_input_amount: freeInput" in text
+    assert "contract_total: total" in text
     assert "final_amount: balance" in text
 
     collect_start = text.index("function erpCollectStructured()")
     collect_end = text.index("async function erpSaveStructured", collect_start)
     collect_block = text[collect_start:collect_end]
-    assert "const totals = erpBuildTotals(itemsTotal, depositAmount, discountAmount);" in collect_block
+    assert "const totals = erpBuildTotals(itemsTotal, depositAmount, discountAmount, freeInputAmount);" in collect_block
     assert "free_input: String(getVal('erp-free-input-amount') || '').trim()" in collect_block
+    assert "function erpSumFreeInputAmountFromText" in text
+    assert "function erpAppendConversionFreeInputBlock" in text
     assert "totals," in collect_block
     assert "deposit: totals.deposit_amount" in collect_block
     assert "discount: totals.discount_amount" in collect_block
@@ -586,7 +589,7 @@ def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
     assert "_erpIsBalancePaymentConfirmed()" in conversion_block
     assert "const balanceSuffix = _erpIsBalancePaymentConfirmed() ? '(결제 완)' : '';" in conversion_block
     assert "erpAppendConversionMoneyLine(text, '잔금', totals.final_amount, balanceSuffix)" in conversion_block
-    assert "erpAppendConversionTextLine(text, '자유입력', freeInputVal)" in conversion_block
+    assert "erpAppendConversionFreeInputBlock(text, freeInputVal)" in conversion_block
     assert "erpAppendConversionTextLine(text, '현금영수증', cashReceiptVal)" in conversion_block
     assert "function erpResolveFreeInputText" in text
     assert "legacyPayments.free_input" in text
@@ -604,6 +607,15 @@ def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
     assert "실측일\\s*:" in text
     assert "text += `예약금(선금) : ${erpFormatMoneyKRW(totals.deposit_amount)}\\n`;" not in conversion_block
     assert "선결제금액" not in conversion_block
+
+
+def test_sum_free_input_amount_from_multiline_text() -> None:
+    """자유입력 멀티라인에서 라벨:금액 패턴 금액을 합산한다."""
+    from foms.services.estimate_service import _sum_free_input_amount_from_text
+
+    assert _sum_free_input_amount_from_text("") == 0
+    assert _sum_free_input_amount_from_text("운반비 : 30,000\n세금 : 10,000") == 40000
+    assert _sum_free_input_amount_from_text("메모만") == 0
 
 
 def test_shared_erp_amount_input_allows_empty_value_while_deleting() -> None:
@@ -691,8 +703,9 @@ def test_erp_amount_surfaces_read_modern_payment_deposit_and_stored_final() -> N
         assert "coerceAmount((sd.payments || {}).deposit)" in source
         assert "coerceAmount((sd.payment || {}).discount)" in source
         assert "coerceAmount((sd.totals || {}).discount_amount)" in source
+        assert "sumFreeInputFromText" in source
         assert "coerceAmount(totals.final_amount)" in source
-        assert "Math.max(0, itemsTotal - depositAmt - discountAmt)" in source
+        assert "itemsTotal + freeInputAmt - depositAmt - discountAmt" in source
 
     # 실측 데스크톱 상세는 ERP payment.deposit + final totals 우선 사용.
     # (모바일 v2 큐는 홈과 동일한 깔끔한 queue-card-v2로, 금액 표시는 상세 페이지의

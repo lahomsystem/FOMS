@@ -217,6 +217,22 @@
   border: 0 !important;
   margin: 0 !important;
 }
+textarea.erp-amount-value--free-input {
+  height: auto !important;
+  min-height: 4.5rem;
+  line-height: 1.35 !important;
+  padding: 0.35rem 0.5rem !important;
+  white-space: pre-wrap;
+  resize: vertical;
+}
+.erp-mobile-amount-row--free-input {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+}
+.erp-mobile-amount-row--free-input textarea.erp-amount-value--free-input {
+  width: 100% !important;
+}
 .erp-amount-value--free-input::placeholder {
   color: rgba(0, 0, 0, 0.45);
 }

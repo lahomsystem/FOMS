@@ -77,10 +77,11 @@ def _balance_remaining(sd: dict) -> int | None:
     items_total = erp_payment_amount_from_structured(sd)
     deposit = _to_int(totals.get("deposit_amount") or totals.get("deposit") or pricing.get("deposit"))
     if items_total is not None and deposit is not None:
-        from foms.services.estimate_service import _extract_discount_amount
+        from foms.services.estimate_service import _extract_discount_amount, _extract_free_input_amount
 
+        free_input = _extract_free_input_amount(sd)
         discount = _extract_discount_amount(sd)
-        return max(0, items_total - deposit - discount)
+        return max(0, items_total + free_input - deposit - discount)
     return None
 
 

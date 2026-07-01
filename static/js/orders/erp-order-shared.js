@@ -117,15 +117,48 @@ var erpResolveFreeInputText =
     };
 window.erpResolveFreeInputText = erpResolveFreeInputText;
 
+var erpSumFreeInputAmountFromText =
+    window.erpSumFreeInputAmountFromText ||
+    function erpSumFreeInputAmountFromText(text) {
+        var raw = String(text || "").trim();
+        if (!raw) return 0;
+        var sum = 0;
+        var lines = raw.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+        for (var i = 0; i < lines.length; i += 1) {
+            var trimmed = String(lines[i] || "").trim();
+            if (!trimmed) continue;
+            var amountPart = trimmed;
+            var colonMatch = trimmed.match(/^[^:：]+[:：]\s*(.+)$/);
+            if (colonMatch) {
+                amountPart = colonMatch[1].trim();
+            }
+            var n = erpCoerceAmount(amountPart);
+            if (n > 0) sum += n;
+        }
+        return sum;
+    };
+window.erpSumFreeInputAmountFromText = erpSumFreeInputAmountFromText;
+
+var erpParseFreeInputAmount =
+    window.erpParseFreeInputAmount ||
+    function erpParseFreeInputAmount() {
+        return erpSumFreeInputAmountFromText(erpParseFreeInputText());
+    };
+window.erpParseFreeInputAmount = erpParseFreeInputAmount;
+
 var erpBuildTotals =
     window.erpBuildTotals ||
-    function erpBuildTotals(itemsTotal, depositAmount, discountAmount) {
-        var total = erpCoerceAmount(itemsTotal);
+    function erpBuildTotals(itemsTotal, depositAmount, discountAmount, freeInputAmount) {
+        var itemsSubtotal = erpCoerceAmount(itemsTotal);
+        var freeInput = erpCoerceAmount(freeInputAmount);
+        var total = itemsSubtotal + freeInput;
         var deposit = erpCoerceAmount(depositAmount);
         var discount = erpCoerceAmount(discountAmount);
         var balance = Math.max(0, total - deposit - discount);
         return {
-            items_total: total,
+            items_total: itemsSubtotal,
+            free_input_amount: freeInput,
+            contract_total: total,
             deposit_amount: deposit,
             discount_amount: discount,
             balance_amount: balance,
@@ -693,7 +726,8 @@ function erpCalculateRemaining() {
     const totals = erpBuildTotals(
         totalAmount,
         erpParseDepositValue(),
-        erpParseDiscountValue()
+        erpParseDiscountValue(),
+        erpParseFreeInputAmount()
     );
     remainingEl.textContent = totals.final_amount > 0 ? erpFormatMoneyKRW(totals.final_amount) : '0원';
 }
@@ -1445,6 +1479,7 @@ async function erpLoadStructured(bootstrapData, options) {
     const freeInputEl = document.getElementById('erp-free-input-amount');
     if (freeInputEl) {
         freeInputEl.value = paymentData.free_input || '';
+        erpAutosizeTextarea(freeInputEl);
     }
     const cashReceiptEl = document.getElementById('erp-cash-receipt');
     if (cashReceiptEl) {
@@ -1531,7 +1566,8 @@ function erpCollectStructured() {
     };
     const depositAmount = erpCoerceAmount(getVal('erp-deposit-amount'));
     const discountAmount = erpCoerceAmount(getVal('erp-discount-amount'));
-    const totals = erpBuildTotals(itemsTotal, depositAmount, discountAmount);
+    const freeInputAmount = erpParseFreeInputAmount();
+    const totals = erpBuildTotals(itemsTotal, depositAmount, discountAmount, freeInputAmount);
 
     // PUT /structured 는 본문 전체로 JSONB를 교체함. 폼에 없는 최상위 키는 서버 스냅샷에서 유지 (AS as_content 등)
     const prevSd = (window.__erpLastStructuredData && typeof window.__erpLastStructuredData === 'object')
@@ -2381,6 +2417,18 @@ ${escapeHtml(sub)}</div>` : ''}`;
 
     bindErpAmountInput(document.getElementById('erp-deposit-amount'), erpParseDepositValue);
     bindErpAmountInput(document.getElementById('erp-discount-amount'), erpParseDiscountValue);
+
+    (function bindErpFreeInputTextarea() {
+        const freeInputEl = document.getElementById('erp-free-input-amount');
+        if (!freeInputEl || freeInputEl.dataset.erpFreeInputRecalcBound === '1') return;
+        freeInputEl.dataset.erpFreeInputRecalcBound = '1';
+        erpBindAutosizeTextareas(freeInputEl.parentElement || document);
+        freeInputEl.addEventListener('input', function () {
+            erpAutosizeTextarea(freeInputEl);
+            erpCalculateRemaining();
+        });
+        freeInputEl.addEventListener('change', erpCalculateRemaining);
+    })();
 
 
     // 초기 structured/첨부 로드는 fomsMountErpOrderSurface가 담당한다.
@@ -3544,6 +3592,20 @@ function erpAppendConversionExtraInputLine(text, value) {
     return out;
 }
 
+function erpAppendConversionFreeInputBlock(text, value) {
+    const raw = String(value ?? '').trim();
+    if (!raw) return text;
+    const lines = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+    const first = (lines[0] || '').trim();
+    if (!first) return text;
+    let out = text + `자유입력 : ${first}\n`;
+    for (let i = 1; i < lines.length; i += 1) {
+        const line = lines[i].trim();
+        if (line) out += `${line}\n`;
+    }
+    return out;
+}
+
 function erpReadItemFieldValue(row, key) {
     if (!row || !key) return '';
     const el = row.querySelector(`:scope [data-erp="${key}"]`);
@@ -3695,8 +3757,8 @@ function erpGenerateConversionText() {
     const itemsTotal = erpCoerceAmount(document.getElementById('erp-items-total')?.textContent);
     const depositAmount = erpParseDepositValue();
     const discountAmount = erpParseDiscountValue();
-    const totals = erpBuildTotals(itemsTotal, depositAmount, discountAmount);
-    const freeInputVal = getVal('erp-free-input-amount');
+    const totals = erpBuildTotals(itemsTotal, depositAmount, discountAmount, erpParseFreeInputAmount());
+    const freeInputVal = erpParseFreeInputText();
 
     const footerStart = text.length;
     text = erpAppendConversionTextLine(text, '담당자', manager);
@@ -3706,7 +3768,7 @@ function erpGenerateConversionText() {
     text = erpAppendConversionMoneyLine(text, '할인', totals.discount_amount);
     const balanceSuffix = _erpIsBalancePaymentConfirmed() ? '(결제 완)' : '';
     text = erpAppendConversionMoneyLine(text, '잔금', totals.final_amount, balanceSuffix);
-    text = erpAppendConversionTextLine(text, '자유입력', freeInputVal);
+    text = erpAppendConversionFreeInputBlock(text, freeInputVal);
     const cashReceiptVal = getVal('erp-cash-receipt');
     if (erpHasConversionTextValue(cashReceiptVal) && totals.final_amount > 0) {
         text += '\n';

@@ -337,9 +337,9 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                             </div>
                             <div class="erp-amount-value erp-amount-value--balance text-end" id="erp-remaining-amount">0원</div>
                         </div>
-                        <div id="erp-free-input-section" class="d-flex justify-content-end align-items-center gap-2 w-100" style="max-width: 16rem; display: none;">
-                            <label for="erp-free-input-amount" class="form-label mb-0 fw-bold text-nowrap">자유입력</label>
-                            <input type="text" id="erp-free-input-amount" placeholder="내용 입력" maxlength="256" class="erp-amount-value erp-amount-value--free-input text-start" title="자유 텍스트. 입력한 그대로 변환·PUSH에 포함됩니다. 비어 있으면 표시되지 않습니다.">
+                        <div id="erp-free-input-section" class="d-flex justify-content-end align-items-start gap-2 w-100 erp-free-input-section" style="max-width: 24rem; display: none;">
+                            <label for="erp-free-input-amount" class="form-label mb-0 fw-bold text-nowrap pt-1">자유입력</label>
+                            <textarea id="erp-free-input-amount" rows="3" maxlength="512" data-erp-min-height="72" class="erp-amount-value erp-amount-value--free-input erp-autosize-textarea text-start" placeholder="운반비 : 30,000&#10;세금 : 10,000" title="항목별 자유 텍스트·금액 입력. 금액은 총 견적·잔금에 합산되고, 입력 그대로 변환·PUSH에 포함됩니다."></textarea>
                         </div>
                         <div id="erp-cash-receipt-section" class="d-flex justify-content-end align-items-center gap-2 w-100" style="max-width: 16rem; display: none;">
                             <label for="erp-cash-receipt" class="form-label mb-0 fw-bold text-nowrap">현금영수증</label>
