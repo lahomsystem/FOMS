@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Concat layout runtime modules into a single deferred bundle (1 HTTP round-trip).
+"""DEPRECATED: layout delivery restored to production inline (2026-07-03).
 
-Sources (edit these, then re-run this script):
-  layout-head-init.js, blueprint-viewer-global.js,
-  layout-scripts-core.js, layout-scripts-chat.js
-"""
-from __future__ import annotations
+Edit SSOT modules under static/js/runtime/layout-*.js; sync into
+templates/partials/shared/layout_*.html manually or via future inline builder.
+
+Previously concatenated defer bundle — caused DCL regression vs production.
+"""from __future__ import annotations
 
 from pathlib import Path
 

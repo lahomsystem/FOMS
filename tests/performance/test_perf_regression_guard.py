@@ -77,7 +77,7 @@ def _collect_sync_scripts() -> dict[str, list[str]]:
 # 신규 항목 추가는 "defer/async/lazy로 불가능함"을 확인한 경우에만, 사유를 남길 것.
 # 코어 라이브러리/레이아웃 부트스트랩 등 파싱 시점 전역 의존이 있는 것만 동기 허용.
 # FOUC 방지: paint 전 data-theme/data-bs-theme 부트스트랩 — defer 불가.
-SYNC_SCRIPT_ALLOWLIST: frozenset[str] = frozenset({"foms-theme-boot.js"})
+SYNC_SCRIPT_ALLOWLIST: frozenset[str] = frozenset()
 
 # 외부 CDN 동기 허용(네트워크 stall 위험을 알고도 코어라 유지). 신규 CDN 동기 금지.
 CDN_SYNC_ALLOWLIST: frozenset[str] = frozenset()

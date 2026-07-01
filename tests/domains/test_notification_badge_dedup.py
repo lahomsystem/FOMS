@@ -38,14 +38,15 @@ def test_erp_pages_use_single_notification_badge_fetch(client):
     chat_js = (ROOT / "static/js/runtime/layout-scripts-chat.js").read_text(encoding="utf-8")
     head_init_js = (ROOT / "static/js/runtime/layout-head-init.js").read_text(encoding="utf-8")
 
-    # Shared badge fetch lives in deferred layout-shared.bundle.js (not inline HTML).
-    assert "js/runtime/layout-shared.bundle.js" in layout_scripts
+    # Shared badge fetch lives in inline layout_scripts (zero-RTT delivery; SSOT: layout-scripts-chat.js).
+    assert "js/runtime/layout-shared.bundle.js" not in layout_scripts
     assert "js/runtime/layout-scripts-chat.js" not in layout_scripts
+    assert "window.FOMSNotificationBadge" in layout_scripts
     assert chat_js.count("/erp/api/notifications/badge") == 1
     assert "window.FOMSNotificationBadge" in chat_js
     assert "setInterval(loadNotificationBadge, 60000)" not in chat_js
+    assert "function initGlobalSocketIO()" in layout_head
     assert "js/runtime/layout-head-init.js" not in layout_head
-    assert "js/runtime/layout-shared.bundle.js" in layout_scripts
     assert "refreshErpNotificationUI({ reason: 'socket-connect' });" in head_init_js
     assert "refreshErpNotificationUI({ force: true, reason: 'erp-notification' });" in head_init_js
 

@@ -26,7 +26,7 @@ RADAR_GUIDE = "docs/guides/ERP_SLOWDOWN_RADAR.md"
 BASELINE_DEBT = Path(__file__).resolve().parent / "baseline_debt.json"
 
 # SSOT: tests/performance/test_perf_regression_guard.py SYNC_SCRIPT_ALLOWLIST 와 동기
-SYNC_SCRIPT_ALLOWLIST: frozenset[str] = frozenset({"foms-theme-boot.js"})
+SYNC_SCRIPT_ALLOWLIST: frozenset[str] = frozenset()
 
 DIMENSIONS = (
     "amplifier",
@@ -138,6 +138,13 @@ _FRAGMENT_REPLAY_ENTRY_TEMPLATES = (
     "templates/partials/shared/foms_mobile_queue_attachment_preview_bundle.html",
 )
 _SHARED_PARTIAL_PREFIX = "templates/partials/shared/"
+# Production-parity: layout critical path stays inline (zero RTT). Edit SSOT under static/js/runtime/layout-*.js.
+_LAYOUT_INLINE_DELIVERY_FILES: frozenset[str] = frozenset(
+    {
+        "templates/partials/shared/layout_head.html",
+        "templates/partials/shared/layout_scripts.html",
+    }
+)
 _LOOP_QUERY_RE = re.compile(r"(?:\.query\s*\(|db\.session\.|session\.query\s*\()")
 _REPLAYED_TEMPLATES_CACHE: set[str] | None = None
 _REPLAYED_JS_CACHE: set[str] | None = None
@@ -370,6 +377,8 @@ def _scan_shell_polling(path: str, text: str, findings: list[Finding], replayed_
 
 
 def _scan_shared_inline_scripts(path: str, text: str, findings: list[Finding], *, guard_mode: bool) -> None:
+    if path in _LAYOUT_INLINE_DELIVERY_FILES:
+        return
     if not path.startswith(_SHARED_PARTIAL_PREFIX) or not path.endswith(".html"):
         return
     for m in re.finditer(r"<script(?![^>]*\bsrc\s*=)([^>]*)>(.*?)</script>", text, re.I | re.S):

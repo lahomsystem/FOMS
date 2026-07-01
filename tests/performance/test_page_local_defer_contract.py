@@ -43,11 +43,14 @@ def test_measurement_dashboard_external_scripts_are_deferred() -> None:
         "js/measurement/dashboard-columns.js",
         "js/measurement/manual-rows.js",
         "js/measurement/image-export.js",
-        "html2canvas",
     ]
 
     for needle in scripts:
         _assert_deferred(html, needle)
+
+    assert "html2canvas" not in html
+    export_js = _read("static/js/measurement/image-export.js")
+    assert "ensureHtml2canvas" in export_js
 
 
 def test_order_detail_fragment_scripts_are_deferred_but_keep_include_order() -> None:

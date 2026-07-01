@@ -3,6 +3,40 @@
  * 파일명·표 제목: YY-MM-DD 실측 일정
  */
 (function () {
+    if (window.__FOMS_MEASUREMENT_IMAGE_EXPORT_BOUND) return;
+    window.__FOMS_MEASUREMENT_IMAGE_EXPORT_BOUND = true;
+
+    var HTML2CANVAS_SRC = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    var _html2canvasPromise = null;
+
+    /**
+     * html2canvas는 PNG 저장 클릭 시에만 필요 → 첫 사용 1회 동적 로드 (perf guard G2).
+     * @returns {Promise<void>}
+     */
+    function ensureHtml2canvas() {
+        if (typeof window.html2canvas === 'function') return Promise.resolve();
+        if (_html2canvasPromise) return _html2canvasPromise;
+        _html2canvasPromise = new Promise(function (resolve, reject) {
+            var s = document.createElement('script');
+            s.src = HTML2CANVAS_SRC;
+            s.async = true;
+            s.onload = function () {
+                if (typeof window.html2canvas === 'function') {
+                    resolve();
+                } else {
+                    _html2canvasPromise = null;
+                    reject(new Error('html2canvas loaded but global missing'));
+                }
+            };
+            s.onerror = function () {
+                _html2canvasPromise = null;
+                reject(new Error('html2canvas load failed'));
+            };
+            document.head.appendChild(s);
+        });
+        return _html2canvasPromise;
+    }
+
     function initMeasurementImageExport() {
     const exportBtn = document.getElementById('btn-export-image');
     if (!exportBtn) return;
@@ -357,6 +391,7 @@
 
             const captureScale = Math.max(2, Math.min(window.devicePixelRatio || 1, 3));
 
+            await ensureHtml2canvas();
             const canvas = await html2canvas(tableElement, {
                 scale: captureScale,
                 useCORS: true,
