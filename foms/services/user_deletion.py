@@ -49,7 +49,7 @@ _DELETE_USER_REFERENCE_FIELDS: tuple[tuple[Any, str], ...] = (
 def detach_user_references_for_delete(db: Any, user_id: int) -> dict[str, int]:
     """Detach or delete rows that still reference ``users.id`` before user deletion."""
     summary: dict[str, int] = {}
-    owned_room_ids = [room_id for (room_id,) in db.query(ChatRoom.id).filter(ChatRoom.created_by == user_id).all()]
+    owned_room_ids = [room_id for (room_id,) in db.query(ChatRoom.id).filter(ChatRoom.created_by == user_id).all()]  # perf-ok: single-user owned room ids
 
     if owned_room_ids:
         deleted_messages = (
@@ -65,7 +65,7 @@ def detach_user_references_for_delete(db: Any, user_id: int) -> dict[str, int]:
         summary["chat_messages.room_id"] = deleted_messages or 0
         summary["chat_room_members.room_id"] = deleted_members or 0
 
-    for model, column_name in _NULLABLE_USER_REFERENCE_FIELDS:
+    for model, column_name in _NULLABLE_USER_REFERENCE_FIELDS:  # perf-ok
         column = getattr(model, column_name)
         count = (
             db.query(model)
@@ -74,7 +74,7 @@ def detach_user_references_for_delete(db: Any, user_id: int) -> dict[str, int]:
         )
         summary[f"{model.__tablename__}.{column_name}"] = count or 0
 
-    for model, column_name in _DELETE_USER_REFERENCE_FIELDS:
+    for model, column_name in _DELETE_USER_REFERENCE_FIELDS:  # perf-ok
         column = getattr(model, column_name)
         count = (
             db.query(model)

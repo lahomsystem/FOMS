@@ -27,7 +27,7 @@ def _build_measurement_raw_match_filter(date_values):
 
     conditions = []
     for value in values:
-        conditions.append(Order.measurement_date.ilike(f'%{value}%'))
+        conditions.append(Order.measurement_date.ilike(f'%{value}%'))  # perf-ok: bounded measurement date filter cold path
         conditions.append(Order.erp_measurement_date == value)
         conditions.append(
             and_(

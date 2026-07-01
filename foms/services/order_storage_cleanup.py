@@ -20,7 +20,7 @@ def delete_storage_files_for_order(db: Any, order: Any) -> None:
     order_id = order.id
     storage = get_storage()
 
-    attachments = db.query(OrderAttachment).filter(OrderAttachment.order_id == order_id).all()
+    attachments = db.query(OrderAttachment).filter(OrderAttachment.order_id == order_id).all()  # perf-ok: single-order attachments
     for attachment in attachments:
         try:
             if attachment.storage_key:

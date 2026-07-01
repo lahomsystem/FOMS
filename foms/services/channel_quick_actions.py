@@ -192,7 +192,7 @@ def get_order_summary_for_wam(order_id: int) -> dict[str, Any] | None:
 def get_order_attachments_for_wam(order_id: int) -> list[dict[str, Any]]:
     """Return attachment metadata with presigned URLs for the WAM view."""
     db = get_db()
-    attachments = db.query(OrderAttachment).filter(OrderAttachment.order_id == order_id).order_by(OrderAttachment.id.desc()).all()
+    attachments = db.query(OrderAttachment).filter(OrderAttachment.order_id == order_id).order_by(OrderAttachment.id.desc()).all()  # perf-ok: single-order attachments
 
     storage = get_storage()
     files: list[dict[str, Any]] = []

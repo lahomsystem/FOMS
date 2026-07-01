@@ -19,7 +19,7 @@ def api_order_tasks_list(order_id):
     """주문 팔로업(Task) 목록"""
     try:
         db = get_db()
-        rows = db.query(OrderTask).filter(OrderTask.order_id == order_id).order_by(OrderTask.updated_at.desc()).all()
+        rows = db.query(OrderTask).filter(OrderTask.order_id == order_id).order_by(OrderTask.updated_at.desc()).limit(200).all()
         tasks = []
         for t in rows:
             tasks.append({

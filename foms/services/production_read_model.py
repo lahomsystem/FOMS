@@ -45,9 +45,9 @@ def build_production_orders_query(
         search_term = f"%{f_q}%"
         _q = _q.filter(
             or_(
-                Order.customer_name.ilike(search_term),
-                Order.phone.ilike(search_term),
-                Order.address.ilike(search_term),
+                Order.customer_name.ilike(search_term),  # perf-ok: ix_orders_customer_name_trgm
+                Order.phone.ilike(search_term),  # perf-ok: ix_orders_phone_trgm
+                Order.address.ilike(search_term),  # perf-ok: ix_orders_address_trgm
                 cast(Order.structured_data, String).ilike(search_term),  # perf-ok: ix_orders_structured_data_text_trgm
             )
         )

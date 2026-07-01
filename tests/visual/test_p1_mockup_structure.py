@@ -477,13 +477,17 @@ def test_p1_fragment_scripts_are_redeclaration_safe() -> None:
 
 def test_p1_global_image_viewer_touch_pan_after_pinch() -> None:
     """첨부 뷰어는 핀치 줌 후 남은 한 손가락 이동을 pan으로 이어받는다."""
-    src = (ROOT / "templates/partials/shared/layout_scripts.html").read_text(
+    src = (ROOT / "static/js/runtime/layout-scripts-core.js").read_text(
+        encoding="utf-8"
+    )
+    layout = (ROOT / "templates/partials/shared/layout_scripts.html").read_text(
         encoding="utf-8"
     )
     assert "function beginTouchPan" in src
     assert "remaining === 1" in src
     assert "beginTouchPan(e.touches[0])" in src
-    assert "touch-action: none;" in src
+    assert "layout-scripts-core.js" in layout
+    assert "touch-action: none;" in layout
 
 
 def test_p1_drawing_dashboard_renders_home_ia(

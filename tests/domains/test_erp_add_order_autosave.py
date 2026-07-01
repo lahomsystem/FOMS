@@ -158,7 +158,7 @@ def test_autosave_local_storage_key_scoped_by_user(app) -> None:
     assert 'LS_KEY_PREFIX + ":u" + uid' in js
     assert "purgeLegacyLocalStorage()" in js
     assert "localStorage.removeItem(LEGACY_LS_KEY)" in js
-    assert "erp-order-autosave.js') }}?v=20260630f" in erp_js
+    assert "erp-order-autosave.js') }}?v=20260702a" in erp_js
 
 
 def test_autosave_suspends_after_explicit_save() -> None:
@@ -191,6 +191,10 @@ def test_edit_mode_autosave_wiring() -> None:
     assert "function editLocalStorageKey()" in js
     assert "maybeOfferEditRestore" in js
     assert '"local-edit"' in js
+    assert "function captureEditBaseline()" in js
+    assert "function isEditPayloadDirty(payload)" in js
+    assert "if (!isEditPayloadDirty(payload))" in js
+    assert "if (!isEditPayloadDirty(snap.payload))" in js
     # 편집 작업본은 localStorage만(라이브 주문 PUT 금지) — saveServer를 edit에서 호출하지 않음.
     assert "라이브 주문" in js
     # edit_order가 autosave 스크립트를 로드하고 draft 모드를 끈다.

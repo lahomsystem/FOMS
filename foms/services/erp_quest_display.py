@@ -441,7 +441,7 @@ def _user_id_name_map(db, user_ids: set[int]) -> dict[int, str]:
     try:
         from models import User
 
-        rows = db.query(User).filter(User.id.in_(user_ids)).all()
+        rows = db.query(User).filter(User.id.in_(user_ids)).all()  # perf-ok: assignee id.in_ from structured_data
     except Exception as exc:
         logger.warning("load_assignee_user_map failed: %s", exc)
         return {}

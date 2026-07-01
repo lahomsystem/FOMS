@@ -243,7 +243,7 @@ def search_explanations(
         return []
 
     stmt = select(DesignerComponentExplanation).where(
-        DesignerComponentExplanation.explanation_text.ilike(f"%{query}%")
+        DesignerComponentExplanation.explanation_text.ilike(f"%{query}%")  # perf-ok: bounded designer explanation search cold path
     )
 
     # RAG 계약: approved_only=True가 기본 — draft는 RAG 컨텍스트에 진입 불가

@@ -237,12 +237,16 @@
     }
   }
 
+  window.fomsMountLightboxes = mountAll;
+  window.fomsOpenLightboxUrl = openLightboxUrl;
+
+  if (window.__FOMS_LIGHTBOX_BOUND) return;
+  window.__FOMS_LIGHTBOX_BOUND = true;
+
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", mountAll);
   } else {
     mountAll();
   }
   document.body.addEventListener("htmx:afterSwap", mountAll);
-  window.fomsMountLightboxes = mountAll;
-  window.fomsOpenLightboxUrl = openLightboxUrl;
 })();

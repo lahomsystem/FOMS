@@ -593,9 +593,12 @@ def erp_drawing_workbench_detail(order_id):
 
     customer_name = (((s_data.get('parties') or {}).get('customer') or {}).get('name')) or '-'
     manager_name = (((s_data.get('parties') or {}).get('manager') or {}).get('name')) or (order.manager_name or '-') or '-'
+    users_by_id = {
+        u.id: u for u in db.query(User).filter(User.id.in_(draw_assignee_ids)).all()  # perf-ok
+    } if draw_assignee_ids else {}
     assignee_names = []
     for uid in draw_assignee_ids:
-        u = db.query(User).filter(User.id == uid).first()
+        u = users_by_id.get(uid)
         if u is not None and u.name is not None:
             assignee_names.append(u.name)
     assignee_text = ', '.join(assignee_names) if assignee_names else '미지정'

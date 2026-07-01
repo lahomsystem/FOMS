@@ -211,9 +211,7 @@ def _stalled_count(db, user_team, days=3):
             .group_by(OrderEvent.order_id)
             .subquery()
         )
-        stalled_order_ids = [r[0] for r in db.query(subq.c.order_id).filter(subq.c.last_at < cutoff).all()]
-        if not stalled_order_ids:
-            return 0
+        stalled_ids = db.query(subq.c.order_id).filter(subq.c.last_at < cutoff).subquery()
         stages = [
             s
             for s, t in DEFAULT_OWNER_TEAM_BY_STAGE.items()
@@ -222,11 +220,12 @@ def _stalled_count(db, user_team, days=3):
         if not stages:
             return 0
         return (
-            db.query(Order.id)
-            .filter(Order.id.in_(stalled_order_ids))
+            db.query(func.count(Order.id))
+            .filter(Order.id.in_(db.query(stalled_ids.c.order_id)))
             .filter(Order.status.in_(stages))
             .filter(Order.active_filter())
-            .count()
+            .scalar()
+            or 0
         )
     except Exception:
         return 0

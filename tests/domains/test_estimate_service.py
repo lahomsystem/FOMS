@@ -461,3 +461,30 @@ def test_update_estimate_recalculates_totals_and_marks_items_modified(monkeypatc
     assert updated.notes == "수정 메모"
     assert isinstance(updated.updated_at, datetime.datetime)
     assert flagged == [(estimate, "items")]
+
+
+def test_extract_estimate_data_exposes_free_input_lines_between_subtotal_and_deposit():
+    order = SimpleNamespace(
+        customer_name="c",
+        phone="p",
+        address="a",
+        manager_name="m",
+        structured_data={
+            "parties": {"customer": {"name": "홍길동"}, "orderer": {"name": "라홈"}},
+            "payment": {"deposit": 100000, "free_input": "운반비 : 30,000\n세금 : 10,000"},
+            "totals": {"free_input_amount": 40000},
+            "items": [{"product_name": "붙박이장", "price": 500000, "quantity": 1}],
+        },
+    )
+
+    data = estimate_service.extract_estimate_data_from_order(order)
+
+    assert data["items_subtotal"] == 500000
+    assert data["free_input_amount"] == 40000
+    assert data["total_amount"] == 540000
+    assert data["free_input_lines"] == [
+        {"label": "운반비", "amount": 30000},
+        {"label": "세금", "amount": 10000},
+    ]
+    assert data["deposit_amount"] == 100000
+    assert data["balance_amount"] == 440000

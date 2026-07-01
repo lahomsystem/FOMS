@@ -59,7 +59,7 @@
                 {% for o in orders %}
                 <tr class="erp-main-row" data-order-id="{{ o.id }}">
                   <td data-label="경보">
-                    <div class="d-flex align-items-start gap-1 erp-grid-alert-cell">
+                    <div class="d-flex align-items-center gap-1 erp-grid-alert-cell">
                       {% if can_edit_erp %}<input type="checkbox" class="form-check-input erp-grid-order-check mt-0 flex-shrink-0" data-order-id="{{ o.id }}" aria-label="주문 선택">{% endif %}
                       <div class="erp-grid-alert-badges">
                         {% if o.alerts.urgent %}<span class="badge bg-danger fw-bold"

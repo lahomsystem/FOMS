@@ -9,6 +9,7 @@ from foms.web.auth import login_required
 from foms.api.channel.blueprint import chat_bp
 from foms.api.channel.utils import schedule_chat_thumbnail_generation
 from foms.services.datetime_kst import format_datetime_kst
+from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
 from db import get_db
 from models import ChatAttachment, ChatMessage, ChatRoom, ChatRoomMember, Order, User
 
@@ -36,12 +37,17 @@ def api_chat_search():
         messages = (
             db.query(ChatMessage)
             .join(user_rooms, ChatMessage.room_id == user_rooms.c.id)
-            .filter(ChatMessage.content.ilike(f"%{query}%"))
+            .filter(ChatMessage.content.ilike(f"%{query}%"))  # perf-ok: bounded chat search cold path
             .limit(limit)
             .all()
         )
+        room_ids = {msg.room_id for msg in messages}
+        rooms_by_id = {}
+        if room_ids:
+            for room in db.query(ChatRoom).filter(ChatRoom.id.in_(room_ids)).all():  # perf-ok: room_ids from limited search hits
+                rooms_by_id[room.id] = room
         for msg in messages:
-            room = db.query(ChatRoom).filter(ChatRoom.id == msg.room_id).first()
+            room = rooms_by_id.get(msg.room_id)
             results.append(
                 {
                     "type": "message",
@@ -59,7 +65,7 @@ def api_chat_search():
         rooms = (
             db.query(ChatRoom)
             .join(user_rooms, ChatRoom.id == user_rooms.c.id)
-            .filter(or_(ChatRoom.name.ilike(f"%{query}%"), ChatRoom.description.ilike(f"%{query}%")))
+            .filter(or_(ChatRoom.name.ilike(f"%{query}%"), ChatRoom.description.ilike(f"%{query}%")))  # perf-ok: bounded chat room search cold path
             .limit(limit)
             .all()
         )
@@ -78,21 +84,20 @@ def api_chat_search():
                 )
 
         orders = (
-            db.query(Order)
+            db.query(Order, ChatRoom)
             .join(ChatRoom, Order.id == ChatRoom.order_id)
             .join(user_rooms, ChatRoom.id == user_rooms.c.id)
             .filter(
-                or_(
-                    Order.customer_name.ilike(f"%{query}%"),
-                    Order.phone.ilike(f"%{query}%"),
-                    Order.address.ilike(f"%{query}%"),
+                erp_order_dashboard_search_predicate(
+                    f"%{query}%",
+                    customer_contact_only=True,
+                    raw_query=query,
                 )
             )
             .limit(limit)
             .all()
         )
-        for order in orders:
-            room = db.query(ChatRoom).filter(ChatRoom.order_id == order.id).first()
+        for order, room in orders:
             if room and not any(result.get("room_id") == room.id and result.get("type") == "order" for result in results):
                 results.append(
                     {
@@ -233,7 +238,7 @@ def api_chat_send_message():
         if user:
             message_data["user_name"] = user.name
             message_data["user_username"] = user.username
-        attachments = db.query(ChatAttachment).filter(ChatAttachment.message_id == new_message.id).all()
+        attachments = db.query(ChatAttachment).filter(ChatAttachment.message_id == new_message.id).all()  # perf-ok: single-message attachments
         if attachments:
             message_data["attachments"] = [attachment.to_dict() for attachment in attachments]
         setattr(room, "updated_at", datetime.datetime.now())
@@ -269,7 +274,7 @@ def api_chat_get_message(message_id):
         user = db.query(User).filter(User.id == message.user_id).first()
         if user:
             message_data["user_name"] = user.name
-        attachments = db.query(ChatAttachment).filter(ChatAttachment.message_id == message.id).all()
+        attachments = db.query(ChatAttachment).filter(ChatAttachment.message_id == message.id).all()  # perf-ok: single-message attachments
         if attachments:
             message_data["attachments"] = [attachment.to_dict() for attachment in attachments]
         return jsonify({"success": True, "message": message_data})

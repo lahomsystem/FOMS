@@ -17,10 +17,17 @@ from wdcalculator_models import Estimate, EstimateOrderMatch
 def _load_estimates_for_order(order_id: int) -> list[dict]:
     """Return WDCalculator estimates linked to an order."""
     wd_db = get_wdcalculator_db()
-    matches = wd_db.query(EstimateOrderMatch).filter(EstimateOrderMatch.order_id == order_id).all()
+    matches = wd_db.query(EstimateOrderMatch).filter(EstimateOrderMatch.order_id == order_id).all()  # perf-ok: single-order estimate matches
+    if not matches:
+        return []
+    estimate_ids = [match.estimate_id for match in matches]
+    estimates_by_id = {
+        est.id: est
+        for est in wd_db.query(Estimate).filter(Estimate.id.in_(estimate_ids)).all()  # perf-ok: in_(estimate_ids) from single order
+    }
     estimate_list: list[dict] = []
     for match in matches:
-        est = wd_db.query(Estimate).filter(Estimate.id == match.estimate_id).first()
+        est = estimates_by_id.get(match.estimate_id)
         if est:
             estimate_list.append(est.to_dict())
     return estimate_list
@@ -170,7 +177,7 @@ def api_chat_rooms_detail(room_id):
         if not member:
             return jsonify({"success": False, "message": "채팅방에 접근할 권한이 없습니다."}), 403
 
-        members = db.query(ChatRoomMember).filter(ChatRoomMember.room_id == room_id).all()
+        members = db.query(ChatRoomMember).filter(ChatRoomMember.room_id == room_id).all()  # perf-ok: single-room member list
         messages = (
             db.query(ChatMessage)
             .filter(ChatMessage.room_id == room_id)
@@ -179,10 +186,21 @@ def api_chat_rooms_detail(room_id):
             .all()
         )
 
+        message_ids = [msg.id for msg in messages]
+        attachments_by_message_id: dict[int, list] = {}
+        if message_ids:
+            attachments = (
+                db.query(ChatAttachment)
+                .filter(ChatAttachment.message_id.in_(message_ids))
+                .all()  # perf-ok: batched in_(message_ids) max 50 messages
+            )
+            for attachment in attachments:
+                attachments_by_message_id.setdefault(attachment.message_id, []).append(attachment)
+
         messages_with_read_status = []
         for msg in messages:
             msg_dict = msg.to_dict()
-            attachments = db.query(ChatAttachment).filter(ChatAttachment.message_id == msg.id).all()
+            attachments = attachments_by_message_id.get(msg.id, [])
             if attachments:
                 msg_dict["attachments"] = [a.to_dict() for a in attachments]
             if msg.user_id == user_id:
@@ -418,7 +436,7 @@ def api_chat_search_orders():
         limit = int(request.args.get("limit", 20))
         if not query:
             return jsonify({"success": True, "orders": [], "count": 0})
-        conds: list = [Order.customer_name.ilike(f"%{query}%")]
+        conds: list = [Order.customer_name.ilike(f"%{query}%")]  # perf-ok: ix_orders_customer_name_trgm
         if query.isdigit():
             conds.append(Order.id == int(query))
         orders = (

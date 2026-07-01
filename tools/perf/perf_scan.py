@@ -25,6 +25,9 @@ GUIDE = "docs/guides/PERFORMANCE_GUARDRAILS.md"
 RADAR_GUIDE = "docs/guides/ERP_SLOWDOWN_RADAR.md"
 BASELINE_DEBT = Path(__file__).resolve().parent / "baseline_debt.json"
 
+# SSOT: tests/performance/test_perf_regression_guard.py SYNC_SCRIPT_ALLOWLIST 와 동기
+SYNC_SCRIPT_ALLOWLIST: frozenset[str] = frozenset({"foms-theme-boot.js"})
+
 DIMENSIONS = (
     "amplifier",
     "render-block",
@@ -287,6 +290,10 @@ def _scan_line_rules(
         dim = "amplifier" if rule == "heavy-lib-global" and _SHARED_PARTIAL_PREFIX in path else dimension
         for lineno, text in lines:
             if pat.search(text) and not (exclude and exclude.search(text)):
+                if rule == "render-blocking-script" and any(
+                    name in text for name in SYNC_SCRIPT_ALLOWLIST
+                ):
+                    continue
                 _append_finding(findings, rule, audit_sev, dim, path, lineno, text, fix, guard_mode=guard_mode)
 
 

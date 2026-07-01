@@ -38,44 +38,55 @@ def _build_order_detail_link(order_id: Any) -> str:
         return fallback
 
 
+# ChannelTalk가 빈/공백-only block value를 렌더 시 collapse(HTML 공백 접힘)하므로,
+# 섹션 구분용 빈 줄은 non-breaking space로 보내야 실제 빈 줄로 그려진다.
+_BLANK_LINE_VALUE = "\u00a0"
+
+
 def _text_block(value: str) -> dict[str, str]:
     """ChannelTalk text blocks are plain text; do not HTML-escape body content."""
     return {"type": "text", "value": value}
 
 
 def _manual_push_body_lines(user_message: str, change_note: str | None = None) -> list[str]:
-    """Build plain-text lines for manual push (resend header + conversion body).
+    """Build the single-line list for a manual push (resend header + conversion body).
+
+    Each element is one visual line. Multi-line inputs (note/body) are pre-split so the
+    caller can map one line to one ChannelTalk block.
 
     Args:
         user_message: ERP conversion text (고객명 ~).
-        change_note: Re-push note; when set, prepends ``[수정]`` and note.
+        change_note: Re-push note; when set, prepends ``[수정]`` and the note lines.
 
     Returns:
-        Line list consumed by ``_paragraph_blocks``.
+        Flat line list consumed by ``_paragraph_blocks``.
     """
     text = str(user_message or "").strip()
     note = str(change_note or "").strip()
     lines: list[str] = []
     if note:
-        lines.extend(["[수정]", note, ""])
+        lines.append("[수정]")
+        lines.extend(note.splitlines())
+        # Blank line: separates the [수정] header from the body — a paragraph break for the
+        # plainText fallback and a real empty line in the block builder (rendered via nbsp).
+        lines.append("")
     if text:
         lines.extend(text.splitlines())
     return lines
 
 
 def _paragraph_blocks(lines: List[str]) -> list[dict[str, str]]:
-    blocks: list[dict[str, str]] = []
-    paragraph: list[str] = []
-    for line in lines:
-        if line.strip():
-            paragraph.append(line)
-            continue
-        if paragraph:
-            blocks.append(_text_block("\n".join(paragraph)))
-            paragraph = []
-    if paragraph:
-        blocks.append(_text_block("\n".join(paragraph)))
-    return blocks
+    """Map each line to its own ChannelTalk text block, preserving blank lines.
+
+    ChannelTalk renders every block on its own line but interprets the block ``value`` as
+    HTML, so a raw ``\\n`` inside a single block collapses (HTML whitespace folding) instead
+    of breaking. Line breaks must therefore be structural: one block per line.
+
+    Blank lines (섹션 구분용 줄 띄움) would vanish for the same reason — an empty or
+    whitespace-only value renders as zero-height HTML. They are emitted as a non-breaking
+    space so ChannelTalk draws a real empty line, reproducing the ERP conversion text 그대로.
+    """
+    return [_text_block(line if line.strip() else _BLANK_LINE_VALUE) for line in lines]
 
 
 def build_message_blocks(event_type: str, data: Dict[str, Any]) -> list[dict[str, str]]:
