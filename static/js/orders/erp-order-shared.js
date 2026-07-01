@@ -981,16 +981,22 @@ function erpResolveAutosizeMinHeight(el) {
 
 function erpAutosizeTextarea(el) {
     if (!el || el.tagName !== 'TEXTAREA') return;
-    const minH = erpResolveAutosizeMinHeight(el);
-    const value = String(el.value ?? '');
-    const isBlank = value.length === 0 || (value.trim().length === 0 && !value.includes('\n'));
-    /* placeholder 줄바꿈이 scrollHeight를 키우지 않도록 빈 값은 min-height만 적용 */
-    if (isBlank) {
-        el.style.height = minH > 0 ? `${minH}px` : 'auto';
+    const isMobile = typeof erpIsMobileFormContext === 'function' && erpIsMobileFormContext();
+    if (isMobile && el.classList.contains('erp-flex-textarea')) {
+        const minH = erpResolveAutosizeMinHeight(el);
+        const value = String(el.value ?? '');
+        const isBlank = value.length === 0 || (value.trim().length === 0 && !value.includes('\n'));
+        if (isBlank) {
+            el.style.height = minH > 0 ? `${minH}px` : 'auto';
+            return;
+        }
+        el.style.height = '0';
+        el.style.height = `${Math.max(el.scrollHeight, minH || 0)}px`;
         return;
     }
+    const minH = el.dataset.erpMinHeight ? Number(el.dataset.erpMinHeight) : 0;
     el.style.height = '0';
-    el.style.height = `${Math.max(el.scrollHeight, minH || 0)}px`;
+    el.style.height = `${Math.max(el.scrollHeight, minH)}px`;
 }
 
 function erpBindAutosizeTextareas(root) {
@@ -1117,10 +1123,19 @@ function erpNewItemRow(item = {}) {
             ? '예: 5700(2402+…) 또는 2352+…'
             : '예: 5700(2402+1864+1638) 또는 2352+2100+2860';
         const specMinH = isMobileForm ? 40 : 28;
+        const specWField = isMobileForm
+            ? `<textarea class="${tabularInputClass} erp-autosize-textarea erp-flex-textarea" data-erp="spec_width" data-spec-row rows="1" data-erp-min-height="${specMinH}" placeholder="${wPlaceholder}" lang="ko">${w}</textarea>`
+            : `<input class="${tabularInputClass}" data-erp="spec_width" data-spec-row placeholder="${wPlaceholder}" value="${w}" lang="ko">`;
+        const specDField = isMobileForm
+            ? `<textarea class="${tabularInputClass} erp-autosize-textarea erp-flex-textarea" data-erp="spec_depth" data-spec-row rows="1" data-erp-min-height="${specMinH}" placeholder="깊이" lang="ko">${d}</textarea>`
+            : `<input class="${tabularInputClass}" data-erp="spec_depth" data-spec-row placeholder="깊이" value="${d}" lang="ko">`;
+        const specHField = isMobileForm
+            ? `<textarea class="${tabularInputClass} erp-autosize-textarea erp-flex-textarea" data-erp="spec_height" data-spec-row rows="1" data-erp-min-height="${specMinH}" placeholder="높이" lang="ko">${h}</textarea>`
+            : `<input class="${tabularInputClass}" data-erp="spec_height" data-spec-row placeholder="높이" value="${h}" lang="ko">`;
         return `<div class="erp-spec-row d-flex flex-wrap gap-2 align-items-end mb-1">
-<div class="col-12 erp-spec-w-col"><label class="form-label mb-0 small text-muted">W(가로·총폭)</label><textarea class="${tabularInputClass} erp-autosize-textarea erp-flex-textarea" data-erp="spec_width" data-spec-row rows="1" data-erp-min-height="${specMinH}" placeholder="${wPlaceholder}" lang="ko">${w}</textarea></div>
-<div class="col erp-spec-d-col"><label class="form-label mb-0 small text-muted">D(깊이)</label><textarea class="${tabularInputClass} erp-autosize-textarea erp-flex-textarea" data-erp="spec_depth" data-spec-row rows="1" data-erp-min-height="${specMinH}" placeholder="깊이" lang="ko">${d}</textarea></div>
-<div class="col erp-spec-h-col"><label class="form-label mb-0 small text-muted">H(높이)</label><textarea class="${tabularInputClass} erp-autosize-textarea erp-flex-textarea" data-erp="spec_height" data-spec-row rows="1" data-erp-min-height="${specMinH}" placeholder="높이" lang="ko">${h}</textarea></div>
+<div class="col-12 erp-spec-w-col"><label class="form-label mb-0 small text-muted">W(가로·총폭)</label>${specWField}</div>
+<div class="col erp-spec-d-col"><label class="form-label mb-0 small text-muted">D(깊이)</label>${specDField}</div>
+<div class="col erp-spec-h-col"><label class="form-label mb-0 small text-muted">H(높이)</label>${specHField}</div>
 <button type="button" class="btn btn-sm btn-outline-secondary erp-remove-spec-row-btn"${delStyle}><i class="fas fa-minus"></i></button>
 </div>`;
     };
@@ -1193,11 +1208,14 @@ ${attributeFieldsHtml}
     const extraInputRows = isMobileForm ? 1 : 2;
     const extraInputMinH = isMobileForm ? 40 : 72;
     const extraInputLargeClass = isMobileForm ? '' : ' erp-flex-textarea--large';
+    const productNameFieldHtml = isMobileForm
+        ? `<textarea class="${textareaClass} erp-autosize-textarea erp-flex-textarea" data-erp="product_name" rows="1" data-erp-min-height="${productMinH}" lang="ko">${escapeHtml(productName)}</textarea>`
+        : `<input class="${inputClass}" data-erp="product_name" value="${escapeHtml(productName)}" lang="ko">`;
     const itemFieldsHtml = `
 <div class="row g-2">
 <div class="col-12">
     <label class="${fieldLabelClass}">제품명</label>
-    <textarea class="${textareaClass} erp-autosize-textarea erp-flex-textarea" data-erp="product_name" rows="1" data-erp-min-height="${productMinH}" lang="ko">${escapeHtml(productName)}</textarea>
+    ${productNameFieldHtml}
 </div>
 <div class="col-12">
     <label class="${fieldLabelClass}">규격 (W × D × H)</label>

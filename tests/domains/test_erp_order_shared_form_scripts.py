@@ -58,7 +58,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
     assert payment_urls_idx < channel_push_confirm_idx < erp_order_shared_idx < column_resizer_idx < estimate_preview_idx < estimate_columns_idx
     assert "html2canvas.min.js" not in body
     assert "js/orders/erp-channel-push-confirm.js?v=20260701b" in body
-    assert "js/orders/erp-order-shared.js?v=20260701d" in body
+    assert "js/orders/erp-order-shared.js?v=20260701e" in body
     assert "css/orders/erp-channel-push.css?v=20260701a" in body
     assert "css/orders/erp-items-master-detail.css?v=20260630c" in body
     assert "js/orders/erp-items-master-detail.js?v=20260630c" in body
@@ -859,12 +859,21 @@ def test_mobile_erp_autosize_textarea_overrides_80px_floor() -> None:
     assert "resize: none" in compact_block
 
 
+def test_pc_erp_order_tab_uses_input_not_textarea_for_single_line_fields() -> None:
+    """PC erp_order_tab은 production과 동일하게 단일행 필드를 input으로 유지한다."""
+    root = Path(__file__).resolve().parents[2]
+    pc_tab = (root / "templates/orders/partials/erp_order_tab.html").read_text(encoding="utf-8")
+    assert 'input type="text" class="form-control form-control-sm" id="erp-customer-name"' in pc_tab
+    assert 'input type="tel" class="form-control form-control-sm" id="erp-customer-phone"' in pc_tab
+    assert 'data-erp="product_name" value=' in (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+
+
 def test_mobile_autosize_skips_placeholder_scroll_height() -> None:
     """Empty textarea height must not inflate from long placeholder wrap."""
     root = Path(__file__).resolve().parents[2]
     text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
     assert "function erpResolveAutosizeMinHeight" in text
-    assert "placeholder 줄바꿈이 scrollHeight" in text
+    assert "erpIsMobileFormContext()" in text
     assert "5700(2402+…)" in text
     mobile = (root / "templates/orders/partials/erp_order_tab_mobile.html").read_text(
         encoding="utf-8"

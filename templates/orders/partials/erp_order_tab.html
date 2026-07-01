@@ -111,8 +111,8 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                                     <label class="form-check-label" for="erp-regional-order">지방주문</label>
                                 </div>
                             </div>
-                            <textarea class="form-control form-control-sm erp-autosize-textarea erp-flex-textarea" id="erp-urgent-reason" rows="1" data-erp-min-height="32"
-                                placeholder="긴급 사유 (예: 시공일 임박/현장 변경/자재 이슈 등)" autocomplete="off" lang="ko"></textarea>
+                            <input type="text" class="form-control form-control-sm" id="erp-urgent-reason"
+                                placeholder="긴급 사유 (예: 시공일 임박/현장 변경/자재 이슈 등)" autocomplete="off" lang="ko">
                             <div class="mt-2 d-none" id="erp-regional-construction-type-field">
                                 <label class="form-label mb-1" for="erp-regional-construction-type">지방주문 구분</label>
                                 <select class="form-select form-select-sm" id="erp-regional-construction-type" autocomplete="off" disabled>
@@ -124,13 +124,13 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                         </div>
                         <div class="col-md-6">
                             <label class="form-label mb-1">고객명</label>
-                            <textarea class="form-control form-control-sm erp-autosize-textarea erp-flex-textarea" id="erp-customer-name" rows="1" data-erp-min-height="32"
-                                autocomplete="off" lang="ko"></textarea>
+                            <input type="text" class="form-control form-control-sm" id="erp-customer-name"
+                                autocomplete="off" lang="ko">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label mb-1">연락처</label>
-                            <textarea class="form-control form-control-sm erp-autosize-textarea erp-flex-textarea" id="erp-customer-phone" rows="1" data-erp-min-height="32"
-                                autocomplete="tel" inputmode="tel" lang="ko"></textarea>
+                            <input type="tel" class="form-control form-control-sm" id="erp-customer-phone"
+                                autocomplete="tel" lang="ko">
                             <div class="form-check mt-1">
                                 <input class="form-check-input" type="checkbox" id="erp-manual-phone-input"
                                     autocomplete="off">
@@ -142,8 +142,8 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                                 <i class="fas fa-chevron-down small"></i> 연락처 특이사항
                             </button>
                             <div class="collapse mt-1" id="erp-collapse-phone-note">
-                                <textarea class="form-control form-control-sm erp-autosize-textarea erp-flex-textarea" id="erp-phone-note" rows="1" data-erp-min-height="32"
-                                    placeholder="예: 부재중/문자 요청/통화 가능 시간 등" autocomplete="off" lang="ko"></textarea>
+                                <input type="text" class="form-control form-control-sm" id="erp-phone-note"
+                                    placeholder="예: 부재중/문자 요청/통화 가능 시간 등" autocomplete="off" lang="ko">
                             </div>
                         </div>
                         <div class="col-md-4">
@@ -158,15 +158,15 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                                 <option value="라홈">라홈</option>
                                 <option value="하우드">하우드</option>
                             </select>
-                            <textarea class="form-control form-control-sm mt-1 d-none erp-autosize-textarea erp-flex-textarea" id="erp-orderer" rows="1" data-erp-min-height="32" autocomplete="off" lang="ko" placeholder="발주사 직접 입력"></textarea>
+                            <input type="text" class="form-control form-control-sm mt-1 d-none" id="erp-orderer" autocomplete="off" lang="ko" placeholder="발주사 직접 입력">
                         </div>
                         <div class="col-md-4">
                             <label class="form-label mb-1">담당자</label>
-                            <textarea class="form-control form-control-sm erp-autosize-textarea erp-flex-textarea" id="erp-manager" rows="1" data-erp-min-height="32" autocomplete="off" lang="ko"></textarea>
+                            <input type="text" class="form-control form-control-sm" id="erp-manager" autocomplete="off" lang="ko">
                         </div>
                         <div class="col-md-4">
                             <label class="form-label mb-1">시공 담당자</label>
-                            <textarea class="form-control form-control-sm erp-autosize-textarea erp-flex-textarea" id="erp-construction-workers" rows="2" data-erp-min-height="48" autocomplete="off" lang="ko" placeholder="한 줄에 시공자 한 명"></textarea>
+                            <input type="text" class="form-control form-control-sm" id="erp-construction-workers" autocomplete="off" lang="ko" placeholder="홍, 시공자">
                         </div>
                         <div class="col-md-4">
                             <label class="form-label mb-1">단계(Workflow)</label>
@@ -187,7 +187,7 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                         </div>
                         <div class="col-md-8">
                             <label class="form-label mb-1">비고</label>
-                            <textarea class="form-control form-control-sm erp-autosize-textarea erp-flex-textarea" id="erp-notes" rows="2" data-erp-min-height="48" placeholder="주문 비고 (대시보드·주문편집과 동일)" autocomplete="off" lang="ko"></textarea>
+                            <input type="text" class="form-control form-control-sm" id="erp-notes" placeholder="주문 비고 (대시보드·주문편집과 동일)" autocomplete="off" lang="ko">
                         </div>
                         <div class="col-12">
                             <div class="d-flex align-items-center gap-2 mb-1">
@@ -197,8 +197,8 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                                     <i class="fas fa-search"></i> 찾기
                                 </button>
                             </div>
-                            <textarea class="form-control form-control-sm erp-autosize-textarea erp-flex-textarea" id="erp-address" rows="2" data-erp-min-height="48"
-                                placeholder="주소를 입력하거나 찾기 버튼을 클릭하세요" autocomplete="off" lang="ko"></textarea>
+                            <input type="text" class="form-control form-control-sm" id="erp-address"
+                                placeholder="주소를 입력하거나 찾기 버튼을 클릭하세요" autocomplete="off" lang="ko">
                             <button class="btn btn-sm btn-link p-0 mt-1 text-secondary text-decoration-none collapsed"
                                 id="erp-collapse-address-note-btn" type="button"
                                 data-bs-toggle="collapse" data-bs-target="#erp-collapse-address-note"
@@ -206,8 +206,8 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                                 <i class="fas fa-chevron-down small"></i> 주소 특이사항
                             </button>
                             <div class="collapse mt-1" id="erp-collapse-address-note">
-                                <textarea class="form-control form-control-sm erp-autosize-textarea erp-flex-textarea" id="erp-address-note" rows="2" data-erp-min-height="48"
-                                    placeholder="예: 주차/출입/엘리베이터/경비실 등" autocomplete="off" lang="ko"></textarea>
+                                <input type="text" class="form-control form-control-sm" id="erp-address-note"
+                                    placeholder="예: 주차/출입/엘리베이터/경비실 등" autocomplete="off" lang="ko">
                             </div>
                         </div>
                     </div>
@@ -258,8 +258,8 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                                     <div class="collapse mt-2" id="erp-collapse-measure-note">
                                         <div class="mt-1">
                                             <label class="form-label mb-1">실측 특이사항</label>
-                                            <textarea class="form-control form-control-sm erp-autosize-textarea erp-flex-textarea" id="erp-measurement-note" rows="2" data-erp-min-height="48"
-                                                placeholder="예: 시간 변경 가능/현장 특이사항/준비물 등" autocomplete="off" lang="ko"></textarea>
+                                            <input type="text" class="form-control form-control-sm" id="erp-measurement-note"
+                                                placeholder="예: 시간 변경 가능/현장 특이사항/준비물 등" autocomplete="off" lang="ko">
                                         </div>
                                     </div>
                                 </div>
@@ -273,8 +273,8 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                                         <option value="종일">종일</option>
                                         <option value="__direct__">직접 입력</option>
                                     </select>
-                                    <textarea class="form-control form-control-sm mt-2 d-none erp-autosize-textarea erp-flex-textarea" id="erp-measurement-time" rows="1" data-erp-min-height="32"
-                                        placeholder="예: 10:30 / 오전 / 오후 / 종일" autocomplete="off" lang="ko"></textarea>
+                                    <input type="text" class="form-control form-control-sm mt-2 d-none" id="erp-measurement-time"
+                                        placeholder="예: 10:30 / 오전 / 오후 / 종일" autocomplete="off" lang="ko">
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label mb-1">시공시간</label>
@@ -286,8 +286,8 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                                         <option value="종일">종일</option>
                                         <option value="__direct__">직접 입력</option>
                                     </select>
-                                    <textarea class="form-control form-control-sm mt-2 d-none erp-autosize-textarea erp-flex-textarea" id="erp-construction-time" rows="1" data-erp-min-height="32"
-                                        placeholder="예: 10:30 / 오전 / 오후 / 종일" autocomplete="off" lang="ko"></textarea>
+                                    <input type="text" class="form-control form-control-sm mt-2 d-none" id="erp-construction-time"
+                                        placeholder="예: 10:30 / 오전 / 오후 / 종일" autocomplete="off" lang="ko">
                                 </div>
                             </div>
                         </div>
@@ -377,7 +377,7 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                         </div>
                         <div id="erp-cash-receipt-section" class="d-flex justify-content-end align-items-center gap-2 w-100" style="max-width: 16rem; display: none;">
                             <label for="erp-cash-receipt" class="form-label mb-0 fw-bold text-nowrap">현금영수증</label>
-                            <textarea id="erp-cash-receipt" inputmode="tel" placeholder="연락처 입력" maxlength="512" rows="1" data-erp-min-height="32" class="erp-amount-value erp-amount-value--cash-receipt erp-autosize-textarea erp-flex-textarea text-end" title="현금영수증 발급 연락처(휴대폰 등). 비어 있으면 PUSH·변환 텍스트에 표시되지 않습니다."></textarea>
+                            <input type="text" id="erp-cash-receipt" inputmode="tel" placeholder="연락처 입력" maxlength="512" class="erp-amount-value erp-amount-value--cash-receipt text-end" title="현금영수증 발급 연락처(휴대폰 등). 비어 있으면 PUSH·변환 텍스트에 표시되지 않습니다.">
                         </div>
                     </div>
 

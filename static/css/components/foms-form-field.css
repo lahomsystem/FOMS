@@ -395,6 +395,34 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
   text-align: right;
 }
 
+/* 자유입력: 우측 칸에 항목명+금액 2칸 — 기본 amount-row(9.25rem) 폭으로는 겹침 */
+.erp-order-mobile-form .erp-mobile-amount-row--free-input {
+  grid-template-columns: minmax(4.5rem, max-content) minmax(0, 1fr);
+}
+
+.erp-order-mobile-form .erp-mobile-free-input-fields {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(6.25rem, 8.5rem);
+  gap: var(--foms-space-2);
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.erp-order-mobile-form .erp-mobile-free-input-fields > .erp-amount-value {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  height: auto !important;
+  min-height: var(--foms-touch-target-min, 44px);
+  line-height: 1.25 !important;
+  padding: 6px var(--foms-space-2) !important;
+  font-size: max(16px, var(--foms-font-size-base)) !important;
+  font-weight: var(--foms-font-weight-semibold) !important;
+  border-radius: var(--foms-radius-md);
+}
+
 .erp-order-mobile-form .erp-mobile-free-input-fields > .erp-amount-value--free-input-text {
   text-align: left;
 }
@@ -1019,17 +1047,6 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
   body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-section-head { margin-bottom: var(--foms-space-2); }
   body.erp-mobile-v2-layout .erp-order-mobile-form .erp-items-mobile-stack { gap: var(--foms-space-2); }
   body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-amounts { margin-top: var(--foms-space-2); }
-
-  /* 자유입력: 항목명+금액 2칸 — 터치 높이·테두리 가시성(연한 배경만으로는 입력란 구분 불가) */
-  body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-free-input-fields > .erp-amount-value {
-    height: auto !important;
-    min-height: 44px;
-    line-height: 1.25 !important;
-    padding: 6px var(--foms-space-2) !important;
-    font-size: max(16px, var(--foms-font-size-base)) !important;
-    font-weight: var(--foms-font-weight-semibold) !important;
-    border-radius: var(--foms-radius-md);
-  }
   body.erp-mobile-v2-layout .erp-order-mobile-form .erp-form-section > .collapse.show,
   body.erp-mobile-v2-layout .erp-order-mobile-form .erp-form-section > .collapse.collapsing { margin-top: var(--foms-space-2); }
   /* 항목 카드 본문 필드 간격 압축: Bootstrap .g-2 거터(margin-top)와 grid gap이
