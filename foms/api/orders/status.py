@@ -100,7 +100,7 @@ def bulk_update_order_status_response(
         if not valid_ids:
             return jsonify({"success": False, "message": "유효한 주문 ID가 없습니다."}), 400
 
-        orders = db.query(Order).filter(Order.id.in_(valid_ids)).all()
+        orders = db.query(Order).filter(Order.id.in_(valid_ids)).all()  # perf-ok: request bulk order id batch
         for order in orders:
             old_status = getattr(order, "status", None) or ""
             if is_delete:

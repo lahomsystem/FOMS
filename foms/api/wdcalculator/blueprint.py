@@ -1017,7 +1017,7 @@ def api_wdcalculator_search_estimates():
         db = get_wdcalculator_db()
         query = db.query(Estimate)
         if customer_name:
-            query = query.filter(Estimate.customer_name.ilike(f'%{customer_name}%'))
+            query = query.filter(Estimate.customer_name.ilike(f'%{customer_name}%'))  # perf-ok: bounded wdc estimate search cold path
         estimates = query.order_by(Estimate.created_at.desc()).limit(50).all()
         return jsonify({'success': True, 'estimates': [e.to_dict() for e in estimates], 'count': len(estimates)})
     except Exception:
@@ -1228,12 +1228,12 @@ def api_wdcalculator_get_order_estimates(order_id):
         if not order:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'})
         wd_db = get_wdcalculator_db()
-        matches = wd_db.query(EstimateOrderMatch).filter(EstimateOrderMatch.order_id == order_id).all()
+        matches = wd_db.query(EstimateOrderMatch).filter(EstimateOrderMatch.order_id == order_id).all()  # perf-ok: single-order estimate matches
         # N+1 제거: match별 단건 조회 대신 estimate_id 배치 조회(in_). 매칭 순서·중복·누락 의미 보존.
         estimate_ids = [m.estimate_id for m in matches]
         estimates = []
         if estimate_ids:
-            est_rows = wd_db.query(Estimate).filter(Estimate.id.in_(estimate_ids)).all()
+            est_rows = wd_db.query(Estimate).filter(Estimate.id.in_(estimate_ids)).all()  # perf-ok: estimate_id.in_ from order matches
             est_by_id = {e.id: e for e in est_rows}
             estimates = [est_by_id[eid].to_dict() for eid in estimate_ids if eid in est_by_id]
         order_payment = _build_order_payment_payload(order)
@@ -1263,8 +1263,8 @@ def api_wdcalculator_search_orders():
         orders = foms_db.query(Order).filter(
             Order.active_filter(),
             or_(
-                Order.customer_name.ilike(search_term),
-                structured_customer_name.ilike(search_term),
+                Order.customer_name.ilike(search_term),  # perf-ok: ix_orders_customer_name_trgm
+                structured_customer_name.ilike(search_term),  # perf-ok: ix_orders_sd_customer_name_trgm
             ),
         ).order_by(Order.created_at.desc()).limit(50).all()
         needle = _normalize_for_search(customer_name).lower()

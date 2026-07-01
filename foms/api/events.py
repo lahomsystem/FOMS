@@ -124,7 +124,7 @@ def api_order_change_events(order_id):
         user_ids = list(set([r.created_by_user_id for r in rows if r.created_by_user_id]))
         users_map = {}
         if user_ids:
-            users = db.query(User).filter(User.id.in_(user_ids)).all()
+            users = db.query(User).filter(User.id.in_(user_ids)).all()  # perf-ok: user_ids from limited event rows
             users_map = {u.id: {'name': u.name, 'team': u.team} for u in users}
 
         order = db.query(Order).filter(Order.id == order_id).first()
@@ -197,7 +197,7 @@ def api_my_change_events():
         order_ids = list(set([r.order_id for r in rows if r.order_id]))
         orders_map = {}
         if order_ids:
-            orders = db.query(Order).filter(Order.id.in_(order_ids)).all()
+            orders = db.query(Order).filter(Order.id.in_(order_ids)).all()  # perf-ok: order_ids from limited event rows
             orders_map = {
                 o.id: {
                     'customer_name': get_order_display_name(o),
@@ -315,7 +315,7 @@ def api_revert_change_event(order_id, event_id):
                 if isinstance(after_value, str):
                     expected_names = [x.strip() for x in after_value.split(',') if x.strip() and x.strip().lower() != 'none']
                 if expected_names:
-                    users_now = db.query(User).filter(User.id.in_(current_ids)).all() if current_ids else []
+                    users_now = db.query(User).filter(User.id.in_(current_ids)).all() if current_ids else []  # perf-ok: payload drawing assignee id batch
                     current_names = [u.name for u in users_now if u.name]
                     is_expected_state = (sorted(current_names) == sorted(expected_names))
                     current_display = ', '.join(current_names) if current_names else 'None'
@@ -340,7 +340,7 @@ def api_revert_change_event(order_id, event_id):
                 elif isinstance(before_value, str):
                     names = [x.strip() for x in before_value.split(',') if x.strip() and x.strip().lower() != 'none']
                     if names:
-                        users_prev = db.query(User).filter(User.name.in_(names), User.is_active == True).all()
+                        users_prev = db.query(User).filter(User.name.in_(names), User.is_active == True).all()  # perf-ok: revert name lookup batch
                         before_ids = [u.id for u in users_prev]
                     else:
                         before_ids = []
@@ -353,7 +353,7 @@ def api_revert_change_event(order_id, event_id):
 
         if is_drawing_assignee_target:
             ids_for_sync = revert_to_value if isinstance(revert_to_value, list) else []
-            restored_users = db.query(User).filter(User.id.in_(ids_for_sync), User.is_active == True).all() if ids_for_sync else []
+            restored_users = db.query(User).filter(User.id.in_(ids_for_sync), User.is_active == True).all() if ids_for_sync else []  # perf-ok: revert assignee id batch
             sd['drawing_assignees'] = [{'id': u.id, 'name': u.name, 'team': u.team} for u in restored_users]
             shipment = sd.get('shipment') or {}
             shipment['drawing_managers'] = [u.name for u in restored_users if u.name]

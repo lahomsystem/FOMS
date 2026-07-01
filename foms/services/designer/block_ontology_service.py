@@ -116,20 +116,28 @@ def propose_ontology_relations(
             key = (rel["from_block_key"], rel["to_block_key"], rel["relation_type"])
             grouped[key].append(rel)
 
+    candidate_keys = [
+        f"{from_key}__{rel_type}__{to_key}"
+        for (from_key, to_key, rel_type), evidence_list in grouped.items()
+        if len(evidence_list) >= min_evidence
+    ]
+    existing_by_key = {
+        rel.relation_key: rel
+        for rel in db_session.query(DesignerBlockOntologyRelation)
+        .filter(
+            DesignerBlockOntologyRelation.ontology_version_id == ontology_version_id,
+            DesignerBlockOntologyRelation.relation_key.in_(candidate_keys),
+        )
+        .all()
+    }
+
     created_ids: list[int] = []
     for (from_key, to_key, rel_type), evidence_list in grouped.items():
         if len(evidence_list) < min_evidence:
             continue
 
         relation_key = f"{from_key}__{rel_type}__{to_key}"
-        existing = (
-            db_session.query(DesignerBlockOntologyRelation)
-            .filter(
-                DesignerBlockOntologyRelation.ontology_version_id == ontology_version_id,
-                DesignerBlockOntologyRelation.relation_key == relation_key,
-            )
-            .first()
-        )
+        existing = existing_by_key.get(relation_key)
         if existing is not None:
             logger.debug("[ONTOLOGY] relation_key=%s already exists, skip", relation_key)
             continue

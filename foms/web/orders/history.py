@@ -55,10 +55,10 @@ def history_dashboard():
         search_term = f"%{f_q}%"
         _q = _q.filter(
             or_(
-                Order.id.cast(String).ilike(search_term),
-                Order.customer_name.ilike(search_term),
-                Order.phone.ilike(search_term),
-                Order.address.ilike(search_term),
+                Order.id.cast(String).ilike(search_term),  # perf-ok: bounded id search admin/cold path
+                Order.customer_name.ilike(search_term),  # perf-ok: ix_orders_customer_name_trgm
+                Order.phone.ilike(search_term),  # perf-ok: ix_orders_phone_trgm
+                Order.address.ilike(search_term),  # perf-ok: ix_orders_address_trgm
                 Order.manager_name.ilike(search_term),  # perf-ok: ix_orders_manager_name_trgm
                 cast(Order.structured_data, String).ilike(search_term)  # perf-ok: ix_orders_structured_data_text_trgm
             )

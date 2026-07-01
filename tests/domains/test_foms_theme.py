@@ -31,9 +31,11 @@ def test_theme_js_storage_and_api():
 
 def test_layout_head_fouc_bootstrap_and_token_stylesheets():
     head = _read("templates/partials/shared/layout_head.html")
-    assert "localStorage.getItem(key)" in head or "localStorage.getItem('foms-theme')" in head
-    assert "data-theme" in head
-    assert "data-bs-theme" in head
+    theme_boot = _read("static/js/runtime/foms-theme-boot.js")
+    assert "foms-theme-boot.js" in head
+    assert "localStorage.getItem(key)" in theme_boot or "localStorage.getItem('foms-theme')" in theme_boot
+    assert "data-theme" in theme_boot
+    assert "data-bs-theme" in theme_boot
     assert "foms-tokens.css" in head
     assert head.index("foms-tokens.css") < head.index("erp-pro.css")
 
@@ -130,9 +132,9 @@ def test_theme_js_scopes_dark_to_mobile_viewport_only():
 
 
 def test_layout_head_fouc_forces_light_on_desktop_viewport():
-    head = _read("templates/partials/shared/layout_head.html")
-    assert "max-width: 991.98px" in head.split("localStorage.getItem(key)")[1].split("data-theme")[0]
-    assert ": 'light'" in head.split("localStorage.getItem(key)")[1].split("data-theme")[0]
+    theme_boot = _read("static/js/runtime/foms-theme-boot.js")
+    assert "max-width: 991.98px" in theme_boot.split("localStorage.getItem(key)")[1].split("data-theme")[0]
+    assert ": 'light'" in theme_boot.split("localStorage.getItem(key)")[1].split("data-theme")[0]
 
 
 def test_layout_head_desktop_chrome_dark_rules_are_mobile_scoped():

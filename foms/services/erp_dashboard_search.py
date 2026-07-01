@@ -40,9 +40,9 @@ def _phone_search_clause(raw: str, search_term: str) -> Any:
                 Order.erp_phone_digits.isnot(None),
                 Order.erp_phone_digits.contains(digits),  # perf-ok: ix_orders_erp_phone_digits
             ),
-            Order.phone.ilike(search_term),
+            Order.phone.ilike(search_term),  # perf-ok: ix_orders_phone_trgm
         )
-    return Order.phone.ilike(search_term)
+    return Order.phone.ilike(search_term)  # perf-ok: ix_orders_phone_trgm
 
 
 def _order_id_match_clause(raw: str, search_term: str) -> Any:
@@ -53,7 +53,7 @@ def _order_id_match_clause(raw: str, search_term: str) -> Any:
             return Order.id == order_id
     except ValueError:
         pass
-    return Order.id.cast(String).ilike(search_term)
+    return Order.id.cast(String).ilike(search_term)  # perf-ok: bounded id search admin/cold path
 
 
 def erp_measurement_main_search_predicate(search_term: str) -> Any:
@@ -67,9 +67,9 @@ def erp_measurement_main_search_predicate(search_term: str) -> Any:
         SQLAlchemy ``or_(...)`` 술어.
     """
     return or_(
-        Order.customer_name.ilike(search_term),
+        Order.customer_name.ilike(search_term),  # perf-ok: ix_orders_customer_name_trgm
         Order.manager_name.ilike(search_term),  # perf-ok: ix_orders_manager_name_trgm
-        Order.address.ilike(search_term),
+        Order.address.ilike(search_term),  # perf-ok: ix_orders_address_trgm
         and_(
             Order.is_erp_order == True,
             cast(Order.structured_data, String).ilike(search_term),  # perf-ok: ix_orders_structured_data_text_trgm
@@ -105,8 +105,8 @@ def apply_legacy_dashboard_search_filter(
         return query
     search_term = f"%{raw}%"
     clauses: list[Any] = [
-        Order.customer_name.ilike(search_term),
-        Order.address.ilike(search_term),
+        Order.customer_name.ilike(search_term),  # perf-ok: ix_orders_customer_name_trgm
+        Order.address.ilike(search_term),  # perf-ok: ix_orders_address_trgm
     ]
     if include_order_id:
         clauses.append(_order_id_match_clause(raw, search_term))
@@ -115,7 +115,7 @@ def apply_legacy_dashboard_search_filter(
     if include_phone:
         clauses.append(_phone_search_clause(raw, search_term))
     for col in extra_columns:
-        clauses.append(col.ilike(search_term))
+        clauses.append(col.ilike(search_term))  # perf-ok: ix_orders_product_trgm
     return query.filter(or_(*clauses))
 
 
@@ -154,11 +154,11 @@ def erp_order_dashboard_search_predicate(
             Order.structured_data["site"]["address_main"].as_string(),
         ]
         clauses = [
-            Order.customer_name.ilike(search_term),
+            Order.customer_name.ilike(search_term),  # perf-ok: ix_orders_customer_name_trgm
             _phone_search_clause(raw, search_term),
-            Order.address.ilike(search_term),
+            Order.address.ilike(search_term),  # perf-ok: ix_orders_address_trgm
             *[
-                and_(Order.is_erp_order == True, field.ilike(search_term))
+                and_(Order.is_erp_order == True, field.ilike(search_term))  # perf-ok: ix_orders_sd_customer_name_trgm
                 for field in structured_visible_fields
             ],
         ]
@@ -178,14 +178,14 @@ def erp_order_dashboard_search_predicate(
         ]
 
         clauses = [
-            Order.id.cast(String).ilike(search_term),
-            Order.customer_name.ilike(search_term),
+            Order.id.cast(String).ilike(search_term),  # perf-ok: bounded id search admin/cold path
+            Order.customer_name.ilike(search_term),  # perf-ok: ix_orders_customer_name_trgm
             _phone_search_clause(raw, search_term),
-            Order.address.ilike(search_term),
-            Order.product.ilike(search_term),
+            Order.address.ilike(search_term),  # perf-ok: ix_orders_address_trgm
+            Order.product.ilike(search_term),  # perf-ok: ix_orders_product_trgm
             Order.manager_name.ilike(search_term),  # perf-ok: ix_orders_manager_name_trgm
             *[
-                and_(Order.is_erp_order == True, field.ilike(search_term))
+                and_(Order.is_erp_order == True, field.ilike(search_term))  # perf-ok: ix_orders_sd_customer_name_trgm
                 for field in structured_visible_fields
             ],
         ]

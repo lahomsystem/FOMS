@@ -394,7 +394,7 @@ def compute_orders_attachment_assignee_maps(db, page_orders, page_sds):
                     pass
     user_map: dict[int, str] = {}
     if all_assignee_ids:
-        users = db.query(User).filter(User.id.in_(all_assignee_ids)).all()
+        users = db.query(User).filter(User.id.in_(all_assignee_ids)).all()  # perf-ok: assignee id.in_ from dashboard page
         for u in users:
             user_id = getattr(u, 'id', None)
             user_name = getattr(u, 'name', None)

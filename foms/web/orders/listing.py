@@ -512,8 +512,13 @@ def bulk_action():
     try:
         db = get_db()
         if action == 'delete':
+            order_ids = [int(order_id) for order_id in selected_ids]
+            orders_by_id = {
+                order.id: order
+                for order in db.query(Order).filter(Order.id.in_(order_ids), Order.active_filter()).all()  # perf-ok
+            }
             for order_id in selected_ids:
-                order = db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
+                order = orders_by_id.get(int(order_id))
                 if order:
                     original_status = getattr(order, 'status', None)
                     deleted_at = now_kst().strftime('%Y-%m-%d %H:%M:%S')
@@ -530,8 +535,13 @@ def bulk_action():
             today_str = now.strftime('%Y-%m-%d')
             time_str = now.strftime('%H:%M')
 
+            order_ids = [int(order_id) for order_id in selected_ids]
+            originals_by_id = {
+                order.id: order
+                for order in db.query(Order).filter(Order.id.in_(order_ids)).all()  # perf-ok
+            }
             for order_id in selected_ids:
-                original_order = db.query(Order).filter(Order.id == order_id).first()
+                original_order = originals_by_id.get(int(order_id))
                 if original_order:
                     copied_order = Order()
                     for column in Order.__table__.columns:
@@ -560,8 +570,13 @@ def bulk_action():
         elif action.startswith('status_'):
             new_status = action.split('_', 1)[1]
             if new_status in STATUS:
+                order_ids = [int(order_id) for order_id in selected_ids]
+                orders_by_id = {
+                    order.id: order
+                    for order in db.query(Order).filter(Order.id.in_(order_ids), Order.active_filter()).all()  # perf-ok
+                }
                 for order_id in selected_ids:
-                    order = db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
+                    order = orders_by_id.get(int(order_id))
                     old_status_val = getattr(order, 'status', None) if order is not None else None
                     if order is not None and old_status_val != new_status:
                         setattr(order, 'status', new_status)

@@ -172,7 +172,7 @@ def admin_api_users():
     """사용자 목록 API (알림 발송 대상 선택용)."""
     try:
         db = get_db()
-        users = db.query(User.id, User.name, User.team, User.role).order_by(User.name).all()
+        users = db.query(User.id, User.name, User.team, User.role).order_by(User.name).limit(500).all()
         return jsonify(
             {
                 "success": True,

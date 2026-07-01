@@ -57,8 +57,7 @@ def resolve_notification_recipient_user_ids(
     ttype = (target_type or "").strip().upper()
 
     if ttype == "ALL":
-        rows = db.query(User.id).all()
-        return {int(r[0]) for r in rows}
+        return {int(r[0]) for r in db.query(User.id).filter(User.is_active == True).yield_per(500)}
 
     if ttype == "USER" and target_user_ids:
         out = set()
@@ -83,8 +82,7 @@ def resolve_notification_recipient_user_ids(
     if not conditions:
         return set()
 
-    rows = db.query(User.id).filter(or_(*conditions)).all()
-    return {int(r[0]) for r in rows}
+    return {int(r[0]) for r in db.query(User.id).filter(or_(*conditions), User.is_active == True).yield_per(500)}
 
 
 def _build_user_notification_filter(user, user_id):
@@ -246,7 +244,7 @@ def api_notifications_list():
         order_ids = list({int(n.order_id) for n in notifications if n.order_id is not None})
         order_map = {}
         if order_ids:
-            order_rows = db.query(Order.id, Order.structured_data).filter(Order.id.in_(order_ids)).all()
+            order_rows = db.query(Order.id, Order.structured_data).filter(Order.id.in_(order_ids)).all()  # perf-ok: order_ids from paginated notifications
             for oid, sd in order_rows:
                 order_map[int(oid)] = _ensure_dict(sd)
 
@@ -407,7 +405,7 @@ def api_users_list_for_mention():
     """동료 호출 대상 선택용 사용자 목록."""
     try:
         db = get_db()
-        users = db.query(User.id, User.name, User.team, User.role).order_by(User.name).all()
+        users = db.query(User.id, User.name, User.team, User.role).order_by(User.name).limit(500).all()
         return jsonify({
             "success": True,
             "users": [

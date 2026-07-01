@@ -63,6 +63,8 @@ def resolve_row_thumbnail_url(
     if not drawing_thumb_enabled(mobile_v2_active=mobile_v2_active):
         return None
 
+    image_keys_ordered: list[str] = []
+    view_url_by_key: dict[str, str] = {}
     for entry in drawing_files:
         if not isinstance(entry, dict):
             continue
@@ -71,15 +73,26 @@ def resolve_row_thumbnail_url(
             continue
         view_url = (entry.get("view_url") or "").strip()
         if view_url:
-            return view_url
-        attachment = (
-            db.query(OrderAttachment)
+            view_url_by_key[key] = view_url
+        image_keys_ordered.append(key)
+
+    attachments_by_key: dict[str, OrderAttachment] = {}
+    if image_keys_ordered and any(key not in view_url_by_key for key in image_keys_ordered):
+        attachments_by_key = {
+            attachment.storage_key: attachment
+            for attachment in db.query(OrderAttachment)
             .filter(
                 OrderAttachment.order_id == order_id,
-                OrderAttachment.storage_key == key,
+                OrderAttachment.storage_key.in_(image_keys_ordered),
             )
-            .first()
-        )
+            .all()
+        }
+
+    for key in image_keys_ordered:
+        view_url = view_url_by_key.get(key)
+        if view_url:
+            return view_url
+        attachment = attachments_by_key.get(key)
         thumb_key = (
             (attachment.thumbnail_key or "").strip() if attachment is not None else ""
         )

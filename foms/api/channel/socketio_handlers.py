@@ -125,7 +125,7 @@ def register_chat_socketio_handlers(socketio):
             if attachments:
                 message_data['attachments'] = [a.to_dict() for a in attachments]
             socketio.emit('new_message', message_data, room=str(room_id))
-            members = db.query(ChatRoomMember).filter(ChatRoomMember.room_id == room_id).all()
+            members = db.query(ChatRoomMember).filter(ChatRoomMember.room_id == room_id).all()  # perf-ok: single-room member list
             for m in members:
                 if m.user_id != user_id:
                     socketio.emit('new_message', message_data, room=f'user_{m.user_id}')

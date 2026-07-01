@@ -32,7 +32,7 @@ def api_search_attachments():
         query = query.filter(Order.status != "DELETED", Order.deleted_at.is_(None))
 
         if query_text:
-            query = query.filter(OrderAttachment.filename.ilike(f"%{query_text}%"))
+            query = query.filter(OrderAttachment.filename.ilike(f"%{query_text}%"))  # perf-ok: bounded attachment search cold path
         if category:
             query = query.filter(OrderAttachment.category == category)
         if file_type:

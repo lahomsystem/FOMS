@@ -78,16 +78,30 @@ def reset_order_ids(db):
     """주문 ID를 1부터 연속적으로 재정렬합니다."""
     try:
         db.execute(text("CREATE TEMPORARY TABLE temp_order_mapping (old_id INT, new_id INT)"))
-        orders = db.query(Order).filter(Order.active_filter()).order_by(Order.id).all()
+        batch_size = 500
+        offset = 0
         new_id = 0
-        for new_id, order in enumerate(orders, 1):
-            if order.id != new_id:
-                db.execute(
-                    text("INSERT INTO temp_order_mapping (old_id, new_id) VALUES (:old_id, :new_id)"),
-                    {"old_id": order.id, "new_id": new_id},
-                )
+        while True:
+            orders = (
+                db.query(Order)
+                .filter(Order.active_filter())
+                .order_by(Order.id)
+                .offset(offset)
+                .limit(batch_size)
+                .all()
+            )
+            if not orders:
+                break
+            for order in orders:
+                new_id += 1
+                if order.id != new_id:
+                    db.execute(
+                        text("INSERT INTO temp_order_mapping (old_id, new_id) VALUES (:old_id, :new_id)"),
+                        {"old_id": order.id, "new_id": new_id},
+                    )
+            offset += batch_size
         mapping_exists = db.execute(text("SELECT COUNT(*) FROM temp_order_mapping")).scalar() > 0
-        max_id = new_id if orders else 0
+        max_id = new_id
         if mapping_exists:
             db.execute(
                 text(
@@ -200,8 +214,13 @@ def restore_orders():
 
     try:
         db = get_db()
+        order_ids = [int(order_id) for order_id in selected_ids]
+        orders_by_id = {
+            order.id: order
+            for order in db.query(Order).filter(Order.id.in_(order_ids), Order.status == "DELETED").all()  # perf-ok
+        }
         for order_id in selected_ids:
-            order = db.query(Order).filter(Order.id == order_id, Order.status == "DELETED").first()
+            order = orders_by_id.get(int(order_id))
             if order:
                 original_status = order.original_status if order.original_status else "RECEIVED"
                 order.status = original_status
@@ -228,8 +247,13 @@ def permanent_delete_orders():
 
     try:
         db = get_db()
+        order_ids = [int(order_id) for order_id in selected_ids]
+        orders_by_id = {
+            order.id: order
+            for order in db.query(Order).filter(Order.id.in_(order_ids)).all()  # perf-ok
+        }
         for order_id in selected_ids:
-            order = db.query(Order).filter(Order.id == order_id).first()
+            order = orders_by_id.get(int(order_id))
             if order:
                 delete_storage_files_for_order(db, order)
                 db.delete(order)
@@ -249,16 +273,20 @@ def permanent_delete_all_orders():
     """휴지통의 모든 주문 영구 삭제."""
     try:
         db = get_db()
-        deleted_orders = db.query(Order).filter(Order.status == "DELETED").all()
-        if not deleted_orders:
+        deleted_count = 0
+        while True:
+            deleted_orders = db.query(Order).filter(Order.status == "DELETED").limit(100).all()
+            if not deleted_orders:
+                break
+            for order in deleted_orders:
+                delete_storage_files_for_order(db, order)
+                db.delete(order)
+            db.commit()
+            deleted_count += len(deleted_orders)
+        if deleted_count == 0:
             flash("휴지통에 삭제할 주문이 없습니다.", "warning")
             return redirect(url_for("order_trash.trash"))
 
-        deleted_count = len(deleted_orders)
-        for order in deleted_orders:
-            delete_storage_files_for_order(db, order)
-            db.delete(order)
-        db.commit()
         log_access(f"모든 주문 영구 삭제 ({deleted_count}개 항목)", session.get("user_id"), {"count": deleted_count})
         flash(f"모든 주문({deleted_count}개)이 영구적으로 삭제되었습니다.", "success")
     except Exception as exc:

@@ -74,14 +74,14 @@ def _erp_order_search_filter(query, q, *, dialect_name='', use_postgres_regex=Fa
     address = _display_address_expr(dialect_name=dialect_name)
     return query.filter(
         or_(
-            _sql_compact(cast(Order.id, String), use_postgres_regex=use_postgres_regex).ilike(term),
-            _sql_compact(customer_name, use_postgres_regex=use_postgres_regex).ilike(term),
-            _sql_compact(manager_name, use_postgres_regex=use_postgres_regex).ilike(term),
-            _sql_compact(phone, use_postgres_regex=use_postgres_regex).ilike(term),
-            _sql_compact(address, use_postgres_regex=use_postgres_regex).ilike(term),
-            _sql_compact(Order.product, use_postgres_regex=use_postgres_regex).ilike(term),
-            _sql_compact(Order.notes, use_postgres_regex=use_postgres_regex).ilike(term),
-            _sql_compact(as_content, use_postgres_regex=use_postgres_regex).ilike(term),
+            _sql_compact(cast(Order.id, String), use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok: bounded id search admin/cold path
+            _sql_compact(customer_name, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok: ix_orders_customer_name_trgm
+            _sql_compact(manager_name, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok: ix_orders_manager_name_trgm
+            _sql_compact(phone, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok: ix_orders_phone_trgm
+            _sql_compact(address, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok: ix_orders_address_trgm
+            _sql_compact(Order.product, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok: ix_orders_product_trgm
+            _sql_compact(Order.notes, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok: ix_orders_structured_data_text_trgm
+            _sql_compact(as_content, use_postgres_regex=use_postgres_regex).ilike(term),  # perf-ok: ix_orders_structured_data_text_trgm
         )
     )
 

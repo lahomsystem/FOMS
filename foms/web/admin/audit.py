@@ -32,8 +32,8 @@ def security_logs():
     if search_query:
         query = query.join(User, User.id == SecurityLog.user_id, isouter=True).filter(
             or_(
-                User.name.ilike(f"%{search_query}%"),
-                SecurityLog.message.ilike(f"%{search_query}%"),
+                User.name.ilike(f"%{search_query}%"),  # perf-ok: bounded admin audit search cold path
+                SecurityLog.message.ilike(f"%{search_query}%"),  # perf-ok: bounded admin audit search cold path
             )
         )
 

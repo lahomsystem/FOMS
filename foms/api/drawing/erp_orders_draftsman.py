@@ -55,7 +55,7 @@ def api_orders_batch_assign_draftsman():
         if current_user.role != 'ADMIN' and team_code != 'DRAWING':
             return jsonify({'success': False, 'message': '도면 담당자 지정 권한이 없습니다. (관리자/도면팀만 가능)'}), 403
 
-        assigned_users = db.query(User).filter(User.id.in_(user_ids), User.is_active == True).all()
+        assigned_users = db.query(User).filter(User.id.in_(user_ids), User.is_active == True).all()  # perf-ok: request-scoped id.in_ batch
         non_drawing = [u for u in assigned_users if (u.team or '').strip() != 'DRAWING']
         if non_drawing:
             names = ', '.join([u.name for u in non_drawing])
@@ -69,7 +69,7 @@ def api_orders_batch_assign_draftsman():
         assignee_list = [{'id': u.id, 'name': u.name, 'team': u.team} for u in assigned_users]
         assignee_names = ", ".join([u.name for u in assigned_users])
 
-        orders = db.query(Order).filter(Order.id.in_(order_ids)).all()
+        orders = db.query(Order).filter(Order.id.in_(order_ids)).all()  # perf-ok: request-scoped id.in_ batch
         if len(orders) != len(order_ids):
             return jsonify({'success': False, 'message': '일부 주문을 찾을 수 없습니다.'}), 400
 
@@ -190,7 +190,7 @@ def api_order_assign_draftsman(order_id):
                 msg += ' (긴급 오버라이드가 필요합니다.)'
             return jsonify({'success': False, 'message': msg}), 403
 
-        assigned_users = db.query(User).filter(User.id.in_(user_ids), User.is_active == True).all()
+        assigned_users = db.query(User).filter(User.id.in_(user_ids), User.is_active == True).all()  # perf-ok: request-scoped id.in_ batch
         non_drawing = [u for u in assigned_users if (u.team or '').strip() != 'DRAWING']
         if non_drawing:
             names = ', '.join([u.name for u in non_drawing])

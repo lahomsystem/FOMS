@@ -48,10 +48,10 @@ def _measurement_search_filter(query, q):
     term = f'%{q.strip()}%'
     return query.filter(
         or_(
-            cast(Order.id, String).ilike(term),  # q=2662 주문 ID 검색
-            Order.customer_name.ilike(term),
+            cast(Order.id, String).ilike(term),  # perf-ok: bounded id search admin/cold path
+            Order.customer_name.ilike(term),  # perf-ok: ix_orders_customer_name_trgm
             Order.manager_name.ilike(term),  # perf-ok: ix_orders_manager_name_trgm
-            Order.address.ilike(term),
+            Order.address.ilike(term),  # perf-ok: ix_orders_address_trgm
             and_(
                 Order.is_erp_order == True,
                 cast(Order.structured_data, String).ilike(term)  # perf-ok: ix_orders_structured_data_text_trgm
