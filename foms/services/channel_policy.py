@@ -48,7 +48,7 @@ def _manual_push_body_lines(user_message: str, change_note: str | None = None) -
 
     Args:
         user_message: ERP conversion text (고객명 ~).
-        change_note: Re-push note; when set, prepends ``[수정]`` / ``내부 변경`` / note.
+        change_note: Re-push note; when set, prepends ``[수정]`` and note.
 
     Returns:
         Line list consumed by ``_paragraph_blocks``.
@@ -57,7 +57,7 @@ def _manual_push_body_lines(user_message: str, change_note: str | None = None) -
     note = str(change_note or "").strip()
     lines: list[str] = []
     if note:
-        lines.extend(["[수정]", "내부 변경", note, ""])
+        lines.extend(["[수정]", note, ""])
     if text:
         lines.extend(text.splitlines())
     return lines

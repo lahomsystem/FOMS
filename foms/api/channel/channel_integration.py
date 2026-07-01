@@ -29,7 +29,7 @@ from foms.services.jobs.queue import get_rq_runtime_status
 logger = logging.getLogger(__name__)
 
 _MAX_TEXT_LENGTH = 4000
-_MIN_CHANGE_NOTE_LEN = 5
+_MIN_CHANGE_NOTE_LEN = 1
 _MAX_CHANGE_NOTE_LEN = 500
 
 # push_kind → (첨부 category, structured_data 이력 키)
@@ -81,7 +81,7 @@ def api_channel_push_manual():
         order_id (int): 주문 ID
         text (str): 전송할 텍스트 (변환된 내용)
         push_kind (str): 'measurement'(기본) 또는 'drawing'
-        change_note (str, optional): 재전송 시 변경 내용 (5~500자, 필수)
+        change_note (str, optional): 재전송 시 변경 내용 (1~500자, 필수)
 
     Returns:
         {success: bool, files_count: int, error: str}
