@@ -237,6 +237,28 @@ def _extract_discount_amount(structured_data: dict) -> int:
     return 0
 
 
+def _extract_free_input_amount(structured_data: dict) -> int:
+    """structured_data에서 자유입력 금액(원)을 추출한다."""
+    payment = structured_data.get("payment") or {}
+    if isinstance(payment, dict):
+        amount = _parse_money_amount(payment.get("free_input"))
+        if amount > 0:
+            return amount
+    totals = structured_data.get("totals") or {}
+    if isinstance(totals, dict):
+        amount = _parse_money_amount(totals.get("free_input_amount"))
+        if amount > 0:
+            return amount
+    legacy_payments = structured_data.get("payments") or {}
+    if isinstance(legacy_payments, dict):
+        legacy_entry = legacy_payments.get("free_input")
+        if isinstance(legacy_entry, dict):
+            amount = _parse_money_amount(legacy_entry.get("amount"))
+            if amount > 0:
+                return amount
+    return 0
+
+
 def _balance_after_payments(total_amount: int, deposit_amount: int, discount_amount: int = 0) -> int:
     return max(
         0,
@@ -299,6 +321,8 @@ def extract_estimate_data_from_order(order: Order) -> dict:
     merged_items = _merge_estimate_manual_rows(estimate_items, manual_rows)
 
     total_amount = sum(item["amount"] for item in estimate_items) + manual_total
+    free_input_amount = _extract_free_input_amount(sd)
+    total_amount += free_input_amount
     deposit_amount = _extract_deposit_amount(sd)
     discount_amount = _extract_discount_amount(sd)
     balance_amount = _balance_after_payments(total_amount, deposit_amount, discount_amount)

@@ -70,14 +70,18 @@ def _balance_remaining(sd: dict) -> int | None:
     """잔금(원). pricing/totals.balance 우선, 없으면 품목합-계약금."""
     pricing = sd.get("pricing") if isinstance(sd.get("pricing"), dict) else {}
     totals = sd.get("totals") if isinstance(sd.get("totals"), dict) else {}
-    for raw in (pricing.get("balance"), totals.get("balance"), sd.get("balance")):
+    for raw in (totals.get("final_amount"), totals.get("balance_amount"), pricing.get("balance"), totals.get("balance"), sd.get("balance")):
         n = _to_int(raw)
         if n is not None:
             return n
     items_total = erp_payment_amount_from_structured(sd)
     deposit = _to_int(totals.get("deposit_amount") or totals.get("deposit") or pricing.get("deposit"))
     if items_total is not None and deposit is not None:
-        return max(0, items_total - deposit)
+        from foms.services.estimate_service import _extract_discount_amount, _extract_free_input_amount
+
+        free_input = _extract_free_input_amount(sd)
+        discount = _extract_discount_amount(sd)
+        return max(0, items_total + free_input - deposit - discount)
     return None
 
 

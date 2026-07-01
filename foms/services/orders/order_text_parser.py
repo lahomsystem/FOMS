@@ -134,6 +134,7 @@ def parse_order_text(raw_text: str) -> dict:
     deposit_raw = _extract_first([r"^\s*예약금\s*:\s*(.+)$"], blob)
     balance_raw = _extract_first([r"^\s*잔\s*금\s*:\s*(.+)$", r"^\s*잔금\s*:\s*(.+)$"], blob)
     prepay_raw = _extract_first([r"^\s*선결제금액\s*:\s*(.+)$"], blob)
+    free_input_raw = _extract_first([r"^\s*자유입력\s*:\s*(.+)$"], blob)
     cash_receipt = _extract_first([r"^\s*현금영수증\s*:\s*(.+)$"], blob)
 
     additional_payment_status = _extract_first([r"^\s*추가\s*결제\s*필\s*-\s*$", r"^\s*추가\s*결제\s*필\s*:\s*(.+)$"], blob)
@@ -240,6 +241,7 @@ def parse_order_text(raw_text: str) -> dict:
             "deposit": {"raw": deposit_raw, "amount": _parse_amount(deposit_raw)},
             "balance": {"raw": balance_raw, "amount": _parse_amount(balance_raw)},
             "prepayment": {"raw": prepay_raw, "amount": _parse_amount(prepay_raw)},
+            "free_input": {"raw": free_input_raw, "amount": _parse_amount(free_input_raw)},
             "cash_receipt": {"raw": cash_receipt, "value": cash_receipt},
             "additional_payment": {"status": additional_payment_status, "link": additional_payment_link},
         },

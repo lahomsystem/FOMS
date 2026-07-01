@@ -337,6 +337,10 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                             </div>
                             <div class="erp-amount-value erp-amount-value--balance text-end" id="erp-remaining-amount">0원</div>
                         </div>
+                        <div id="erp-free-input-section" class="d-flex justify-content-end align-items-center gap-2 w-100" style="max-width: 16rem; display: none;">
+                            <label for="erp-free-input-amount" class="form-label mb-0 fw-bold text-nowrap">자유입력</label>
+                            <input type="text" id="erp-free-input-amount" inputmode="numeric" placeholder="0원" maxlength="24" class="erp-amount-value erp-amount-value--free-input" title="추가 금액. 총 견적·잔금에 합산됩니다. 비어 있으면 변환 텍스트에 표시되지 않습니다.">
+                        </div>
                         <div id="erp-cash-receipt-section" class="d-flex justify-content-end align-items-center gap-2 w-100" style="max-width: 16rem; display: none;">
                             <label for="erp-cash-receipt" class="form-label mb-0 fw-bold text-nowrap">현금영수증</label>
                             <input type="text" id="erp-cash-receipt" inputmode="tel" placeholder="연락처 입력" maxlength="32" class="erp-amount-value erp-amount-value--cash-receipt text-end" title="현금영수증 발급 연락처(휴대폰 등). 비어 있으면 PUSH·변환 텍스트에 표시되지 않습니다.">

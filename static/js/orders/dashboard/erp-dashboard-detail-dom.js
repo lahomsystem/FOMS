@@ -290,7 +290,6 @@
                     <div class="mb-3"><strong class="erp-detail-label">발주사:</strong> <span class="erp-detail-value">${escapeHtml(orderer)}</span></div>
                     <div class="mb-3"><strong class="erp-detail-label">연락처:</strong> <span class="erp-detail-value">${escapeHtml(phone)}</span></div>
                     <div class="mb-3"><strong class="erp-detail-label">주소:</strong> <span class="erp-detail-value">${escapeHtml(address)}</span></div>
-                    <div class="mb-3"><strong class="erp-detail-label">담당자:</strong> <span class="erp-detail-value">${escapeHtml(manager)}</span></div>
                   </div>
                 </div>
               </div>
@@ -575,7 +574,11 @@
               const itemsTotal = Number(totals.items_total) || items.reduce((s, it) => s + (Number(it.price) || 0), 0);
               const depositAmt = coerceAmount((sd.payment || {}).deposit) || coerceAmount((sd.payments || {}).deposit);
               const discountAmt = coerceAmount((sd.payment || {}).discount) || coerceAmount((sd.totals || {}).discount_amount);
-              const remainAmt = Math.max(0, itemsTotal - depositAmt - discountAmt);
+              const freeInputAmt = coerceAmount((sd.payment || {}).free_input) || coerceAmount(totals.free_input_amount) || coerceAmount((sd.payments || {}).free_input);
+              let remainAmt = coerceAmount(totals.final_amount) || coerceAmount(totals.balance_amount);
+              if (!remainAmt) {
+                remainAmt = Math.max(0, itemsTotal + freeInputAmt - depositAmt - discountAmt);
+              }
               const fmtKRW = (n) => n > 0 ? n.toLocaleString('ko-KR') + '원' : '0원';
               items.forEach((_, i) => {
                 const totalEl = document.getElementById(`erp-items-total-${orderId}-${i}`);
