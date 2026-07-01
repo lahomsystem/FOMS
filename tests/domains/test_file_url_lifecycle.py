@@ -77,7 +77,7 @@ def test_long_lived_image_viewers_keep_stable_file_routes() -> None:
     assert "fetch('/api/files/presigned-urls/'" not in layout_core
     assert "/api/files/presigned-urls/" not in order_shared
     assert "/api/files/presigned-urls/" not in chat_lightbox
-    assert "js/runtime/layout-scripts-core.js" in layout
+    assert "js/runtime/layout-shared.bundle.js" in layout
     assert "Direct R2 signed URLs expire" in layout_core
     assert "isSignedStorageUrl(a.view_url)" in order_shared
     assert "stable app routes" in order_shared

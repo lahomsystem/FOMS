@@ -70,10 +70,8 @@
     <script src="{{ url_for('static', filename='js/runtime/script.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/runtime/upload-progress.js') }}?v=20260630c" defer></script>
 
-    <!-- 도면 뷰어 전역 JavaScript -->
-    <script src="{{ url_for('static', filename='js/runtime/blueprint-viewer-global.js') }}?v=20260701b" defer></script>
-
-    <script src="{{ url_for('static', filename='js/runtime/layout-scripts-core.js') }}?v=20260701b" defer></script>
+    <div id="foms-layout-bootstrap" data-has-current-user="{{ 'true' if current_user else 'false' }}" hidden aria-hidden="true"></div>
+    <script src="{{ url_for('static', filename='js/runtime/layout-shared.bundle.js') }}?v=20260702a" defer></script>
     {% block scripts_placeholder %}{% endblock %}
     <style>
         /* Global Notification Styles */
@@ -375,9 +373,6 @@
         }
     </style>
 
-
-    <div id="foms-layout-bootstrap" data-has-current-user="{{ 'true' if current_user else 'false' }}" hidden aria-hidden="true"></div>
-    <script src="{{ url_for('static', filename='js/runtime/layout-scripts-chat.js') }}?v=20260701b" defer></script>
     <!-- Flatpickr JS + 한국어 locale (다중 실측일/시공일) -->
     <script src="https://cdn.jsdelivr.net/npm/flatpickr" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ko.js" defer></script>

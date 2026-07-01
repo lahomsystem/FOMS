@@ -10,7 +10,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <script src="{{ url_for('static', filename='js/runtime/foms-theme-boot.js') }}?v=20260701b"></script>
+    <script src="{{ url_for('static', filename='js/runtime/foms-theme-boot.js') }}?v=20260702a"></script>
+    <link rel="preload" href="{{ url_for('static', filename='js/runtime/layout-shared.bundle.js') }}?v=20260702a" as="script">
     <title>하우드 ERP</title>
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg', v='20260611d') }}">
     <link rel="icon" type="image/png" href="{{ url_for('favicon', v='20260611d') }}">
@@ -592,7 +593,6 @@
     <script id="global-socketio-loader" src="https://cdn.socket.io/4.5.4/socket.io.min.js" defer></script>
     <script id="socket-config"
         type="application/json">{"forcePolling":{{ "true" if config.DEBUG else "false" }},"allowPollingFallback":{{ "true" if config.get("SOCKETIO_ALLOW_POLLING_FALLBACK") else "false" }}}</script>
-    <script src="{{ url_for('static', filename='js/runtime/layout-head-init.js') }}?v=20260701b" defer></script>
     {% else %}
     <script>
         if (window.FOMS_DEBUG) console.log('[Global Socket.IO] ⚠️ current_user가 없어 Socket.IO를 초기화하지 않습니다.');

@@ -33,12 +33,16 @@ def _assert_deferred(html: str, needle: str) -> None:
 
 def test_socketio_loader_is_deferred_without_breaking_inline_init_order() -> None:
     head = _read(LAYOUT_HEAD)
+    scripts = _read(LAYOUT_SCRIPTS)
     init_js = _read(ROOT / "static/js/runtime/layout-head-init.js")
+    bundle = _read(ROOT / "static/js/runtime/layout-shared.bundle.js")
 
     _assert_deferred(head, "socket.io.min.js")
     assert 'id="global-socketio-loader"' in head
-    assert "js/runtime/layout-head-init.js" in head
+    assert "js/runtime/layout-head-init.js" not in head
+    assert "js/runtime/layout-shared.bundle.js" in scripts
     assert "function initGlobalSocketIO()" in init_js
+    assert "function initGlobalSocketIO()" in bundle
     assert "loader.addEventListener('load', initGlobalSocketIO" in init_js
     assert "window.__globalSocketInitialized" in init_js
 
@@ -53,9 +57,7 @@ def test_safe_shared_layout_scripts_are_deferred() -> None:
         "js/foms/rum-baseline.js",
         "js/runtime/script.js",
         "js/runtime/upload-progress.js",
-        "js/runtime/blueprint-viewer-global.js",
-        "js/runtime/layout-scripts-core.js",
-        "js/runtime/layout-scripts-chat.js",
+        "js/runtime/layout-shared.bundle.js",
         "cdn.jsdelivr.net/npm/flatpickr",
         "cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ko.js",
     ]

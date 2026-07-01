@@ -486,7 +486,7 @@ def test_p1_global_image_viewer_touch_pan_after_pinch() -> None:
     assert "function beginTouchPan" in src
     assert "remaining === 1" in src
     assert "beginTouchPan(e.touches[0])" in src
-    assert "layout-scripts-core.js" in layout
+    assert "layout-shared.bundle.js" in layout
     assert "touch-action: none;" in layout
 
 
