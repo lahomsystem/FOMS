@@ -251,21 +251,47 @@ def _extract_free_input_text(structured_data: dict) -> str:
     return ""
 
 
-def _sum_free_input_amount_from_text(text: str) -> int:
-    """자유입력 멀티라인 텍스트에서 금액(원)을 합산한다. '라벨 : 30,000' 형식 지원."""
+def _parse_free_input_line(trimmed: str) -> tuple[str, int]:
+    """자유입력 한 줄을 (라벨, 금액)으로 파싱한다."""
+    line = str(trimmed or "").strip()
+    if not line:
+        return "", 0
+    colon_match = re.match(r"^([^:：]+)[:：]\s*(.+)$", line)
+    if colon_match:
+        label = str(colon_match.group(1) or "").strip()
+        amount = _parse_money_amount(colon_match.group(2))
+        return label, amount
+    amount = _parse_money_amount(line)
+    if amount > 0:
+        return "", amount
+    return line, 0
+
+
+def _parse_free_input_lines(text: str) -> list[dict[str, object]]:
+    """자유입력 멀티라인 텍스트를 견적서 표시용 행 목록으로 변환한다."""
     raw = str(text or "").strip()
     if not raw:
-        return 0
-    total = 0
+        return []
+    rows: list[dict[str, object]] = []
     for line in raw.replace("\r\n", "\n").split("\n"):
         trimmed = line.strip()
         if not trimmed:
             continue
-        amount_part = trimmed
-        if re.search(r"[:：]", trimmed):
-            amount_part = re.split(r"[:：]", trimmed, maxsplit=1)[-1].strip()
-        total += _parse_money_amount(amount_part)
-    return total
+        label, amount = _parse_free_input_line(trimmed)
+        if amount <= 0:
+            continue
+        rows.append(
+            {
+                "label": label or "추가",
+                "amount": int(amount),
+            }
+        )
+    return rows
+
+
+def _sum_free_input_amount_from_text(text: str) -> int:
+    """자유입력 멀티라인 텍스트에서 금액(원)을 합산한다. '라벨 : 30,000' 형식 지원."""
+    return sum(int(row.get("amount") or 0) for row in _parse_free_input_lines(text))
 
 
 def _extract_free_input_amount(structured_data: dict) -> int:
@@ -343,9 +369,23 @@ def extract_estimate_data_from_order(order: Order) -> dict:
     )
     merged_items = _merge_estimate_manual_rows(estimate_items, manual_rows)
 
-    total_amount = sum(item["amount"] for item in estimate_items) + manual_total
+    items_subtotal = sum(item["amount"] for item in estimate_items) + manual_total
+    free_input_text = _extract_free_input_text(sd)
+    free_input_lines = _parse_free_input_lines(free_input_text)
     free_input_amount = _extract_free_input_amount(sd)
-    total_amount += free_input_amount
+    lines_amount = sum(int(row.get("amount") or 0) for row in free_input_lines)
+    if free_input_amount <= 0 and lines_amount > 0:
+        free_input_amount = lines_amount
+    elif free_input_amount > 0 and not free_input_lines:
+        free_input_lines = [{"label": "추가", "amount": int(free_input_amount)}]
+    elif free_input_amount > lines_amount > 0:
+        free_input_lines.append(
+            {
+                "label": "추가",
+                "amount": int(free_input_amount - lines_amount),
+            }
+        )
+    total_amount = items_subtotal + free_input_amount
     deposit_amount = _extract_deposit_amount(sd)
     discount_amount = _extract_discount_amount(sd)
     balance_amount = _balance_after_payments(total_amount, deposit_amount, discount_amount)
@@ -360,6 +400,9 @@ def extract_estimate_data_from_order(order: Order) -> dict:
         "is_lahom": is_lahom,
         "items": merged_items,
         "estimate_preview": {"manual_rows": manual_rows},
+        "items_subtotal": items_subtotal,
+        "free_input_lines": free_input_lines,
+        "free_input_amount": int(free_input_amount or 0),
         "total_amount": total_amount,
         "deposit_amount": int(deposit_amount or 0),
         "discount_amount": int(discount_amount or 0),

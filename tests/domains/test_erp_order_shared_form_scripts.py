@@ -64,7 +64,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
     assert "js/orders/erp-items-master-detail.js?v=20260630c" in body
     assert "erp-items-master-detail-shell" in body
     assert 'id="erp-md-rail-list"' in body
-    assert "js/orders/estimate-preview.js?v=20260629a" in body
+    assert "js/orders/estimate-preview.js?v=20260701a" in body
 
     estimate_preview_js = (
         Path(__file__).resolve().parents[2]
@@ -266,6 +266,7 @@ def test_estimate_table_columns_contract() -> None:
     assert "setEstimateTableExportMode" in js
     assert 'erp-est-tbl-wrap' in pane
     assert 'id="est-viewport"' in pane
+    assert 'id="est-free-input-rows"' in pane
     assert 'erp-est-viewport' in pane
     assert 'erp-est-export-clone' in pane
     assert 'id="est-mobile-preview"' in pane
@@ -325,6 +326,10 @@ def test_estimate_preview_js_is_canonical_only() -> None:
     assert "data-est-add-after-index" in text
     assert "data-est-delete-manual-id" in text
     assert "scheduleEstimateColumnRefresh" in text
+    assert "function _renderFreeInputRows" in text
+    assert "d.free_input_lines" in text
+    assert "est-free-input-rows" in text
+    assert "isFreeInputField" in text
 
 
 def test_shared_erp_order_js_has_no_beta_runtime_mirror() -> None:
@@ -650,11 +655,13 @@ def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
 
 def test_sum_free_input_amount_from_multiline_text() -> None:
     """자유입력 멀티라인에서 라벨:금액 패턴 금액을 합산한다."""
-    from foms.services.estimate_service import _sum_free_input_amount_from_text
+    from foms.services.estimate_service import _parse_free_input_lines, _sum_free_input_amount_from_text
 
     assert _sum_free_input_amount_from_text("") == 0
     assert _sum_free_input_amount_from_text("운반비 : 30,000\n세금 : 10,000") == 40000
     assert _sum_free_input_amount_from_text("메모만") == 0
+    assert _parse_free_input_lines("운반비 : 30,000") == [{"label": "운반비", "amount": 30000}]
+    assert _parse_free_input_lines("50,000") == [{"label": "추가", "amount": 50000}]
 
 
 def test_shared_erp_amount_input_allows_empty_value_while_deleting() -> None:
