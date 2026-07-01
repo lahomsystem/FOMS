@@ -23,7 +23,10 @@ from foms.services.files.upload_policy import ERP_MEDIA_ALLOWED_EXTENSIONS
 from foms.services.order_attachment_thumbnail import (
     schedule_order_attachment_thumbnail_generation,
 )
-from foms.services.order_attachment_permissions import can_delete_order_attachment
+from foms.services.order_attachment_permissions import (
+    can_delete_order_attachment,
+    can_modify_order_attachment,
+)
 from foms.services.storage import get_storage
 from models import Order, OrderAttachment
 
@@ -209,13 +212,23 @@ def api_order_attachments_patch(order_id, attachment_id):
             return jsonify({"success": False, "message": "첨부파일을 찾을 수 없습니다."}), 404
 
         order = db.query(Order).filter(Order.id == order_id).first()
+        current_user = _current_user()
+        if not can_modify_order_attachment(current_user, order, attachment):
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": "첨부파일 수정 권한이 없습니다. (관리자, 해당 주문 담당자, 또는 업로드한 본인만 가능)",
+                    }
+                ),
+                403,
+            )
         setattr(attachment, "item_index", item_index)
         db.commit()
         from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
 
         invalidate_all_dashboard_slice_caches()
         db.refresh(attachment)
-        current_user = _current_user()
         return jsonify(
             {
                 "success": True,
