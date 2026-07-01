@@ -89,14 +89,6 @@
     });
   }
 
-  window.addEventListener("online", function () {
-    flushQueue().then(function (count) {
-      if (count && window.fomsShowToast) {
-        window.fomsShowToast("오프라인 변경 " + count + "건 동기화");
-      }
-    });
-  });
-
   window.fomsRegisterServiceWorker = function () {
     if (!("serviceWorker" in navigator)) return Promise.resolve(false);
     return navigator.serviceWorker.register("/static/sw.js", { scope: "/" }).then(function () {
@@ -105,6 +97,17 @@
       return false;
     });
   };
+
+  if (window.__FOMS_SYNC_BOUND) return;
+  window.__FOMS_SYNC_BOUND = true;
+
+  window.addEventListener("online", function () {
+    flushQueue().then(function (count) {
+      if (count && window.fomsShowToast) {
+        window.fomsShowToast("오프라인 변경 " + count + "건 동기화");
+      }
+    });
+  });
 
   document.addEventListener("DOMContentLoaded", function () {
     var root = document.querySelector("[data-erp-mobile-shell][data-offline-sw='true']");

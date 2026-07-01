@@ -229,6 +229,11 @@
     syncMobileChrome(pathToNavId(pathname), pathname);
   }
 
+  window.fomsSyncMobileBottomNav = syncMobileChrome;
+
+  if (window.__FOMS_BOTTOM_NAV_SHELL_BOUND) return;
+  window.__FOMS_BOTTOM_NAV_SHELL_BOUND = true;
+
   document.addEventListener("click", onBottomNavClick, true);
   document.addEventListener("foms:erp-shell-fragment-swapped", onFragmentSwapped);
   document.addEventListener("DOMContentLoaded", function () {
@@ -238,6 +243,4 @@
   window.addEventListener("popstate", function () {
     syncMobileChrome(pathToNavId(window.location.pathname), window.location.pathname);
   });
-
-  window.fomsSyncMobileBottomNav = syncMobileChrome;
 })();

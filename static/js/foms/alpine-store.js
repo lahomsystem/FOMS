@@ -1,7 +1,10 @@
 /**
  * P2-02 Alpine store: toast + modal helpers for new FOMS surfaces.
+ * G4: singleton guard — fragment re-run must not duplicate global listeners.
  */
-document.addEventListener("alpine:init", function () {
+if (!window.__FOMS_ALPINE_STORE_BOUND) {
+  window.__FOMS_ALPINE_STORE_BOUND = true;
+  document.addEventListener("alpine:init", function () {
   Alpine.store("fomsToast", {
     message: "",
     visible: false,
@@ -33,7 +36,8 @@ document.addEventListener("alpine:init", function () {
       },
     };
   });
-});
+  });
+}
 
 window.fomsShowToast = function (message) {
   if (window.Alpine && Alpine.store("fomsToast")) {
@@ -91,8 +95,11 @@ function fomsConsumeFlashToast() {
   }, 150);
 }
 
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", fomsConsumeFlashToast);
-} else {
-  fomsConsumeFlashToast();
+if (!window.__FOMS_ALPINE_FLASH_BOUND) {
+  window.__FOMS_ALPINE_FLASH_BOUND = true;
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", fomsConsumeFlashToast);
+  } else {
+    fomsConsumeFlashToast();
+  }
 }

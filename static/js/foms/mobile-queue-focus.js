@@ -4,6 +4,9 @@
 (function () {
   'use strict';
 
+  if (window.__FOMS_MOBILE_QUEUE_FOCUS_BOUND) return;
+  window.__FOMS_MOBILE_QUEUE_FOCUS_BOUND = true;
+
   function focusQueueOrderCard() {
     var params = new URLSearchParams(window.location.search || '');
     var focusOrder = (params.get('focus_order') || '').trim();

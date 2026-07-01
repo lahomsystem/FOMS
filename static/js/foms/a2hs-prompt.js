@@ -4,6 +4,9 @@
 (function () {
   "use strict";
 
+  if (window.__FOMS_A2HS_BOUND) return;
+  window.__FOMS_A2HS_BOUND = true;
+
   var deferredPrompt = null;
 
   function registerPwaServiceWorker() {

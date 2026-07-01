@@ -96,6 +96,9 @@
     observer.observe(sentinel);
   }
 
+  if (window.__FOMS_MOBILE_QUEUE_SCROLL_BOUND) return;
+  window.__FOMS_MOBILE_QUEUE_SCROLL_BOUND = true;
+
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initMobileQueueScroll);
   } else {

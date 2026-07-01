@@ -4,6 +4,9 @@
 (function () {
   "use strict";
 
+  if (window.__FOMS_KV_COPY_BOUND) return;
+  window.__FOMS_KV_COPY_BOUND = true;
+
   function toast(msg) {
     if (window.fomsShowToast) {
       window.fomsShowToast(msg);

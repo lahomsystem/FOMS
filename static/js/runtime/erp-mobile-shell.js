@@ -13,6 +13,10 @@
     if (!drawer || !window.bootstrap || !window.bootstrap.Offcanvas) {
       return;
     }
+    if (drawer.dataset.fomsDrawerLinksBound === '1') {
+      return;
+    }
+    drawer.dataset.fomsDrawerLinksBound = '1';
 
     var offcanvas = window.bootstrap.Offcanvas.getOrCreateInstance(drawer);
     drawer.querySelectorAll('a[href]').forEach(function (link) {
@@ -47,11 +51,16 @@
     });
   }
 
-  document.addEventListener('DOMContentLoaded', function () {
+  function initMobileShell() {
     syncMobileShellNavHeight();
     initMobileDrawerLinks();
     initMobileShellBackButtons();
-  });
+  }
 
+  if (window.__ERP_MOBILE_SHELL_BOUND) return;
+  window.__ERP_MOBILE_SHELL_BOUND = true;
+
+  document.addEventListener('DOMContentLoaded', initMobileShell);
+  document.addEventListener('foms:main-content-swapped', initMobileShell);
   window.addEventListener('resize', syncMobileShellNavHeight);
 })();

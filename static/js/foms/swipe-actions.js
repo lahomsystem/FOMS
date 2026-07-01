@@ -75,6 +75,9 @@
     document.querySelectorAll(".erp-mobile-queue-card[data-foms-swipe-card]").forEach(bindCard);
   }
 
+  if (window.__FOMS_SWIPE_ACTIONS_BOUND) return;
+  window.__FOMS_SWIPE_ACTIONS_BOUND = true;
+
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);
   } else {

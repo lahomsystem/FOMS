@@ -6,8 +6,11 @@ window.fomsHapticTap = function () {
   if (navigator.vibrate) navigator.vibrate(12);
 };
 
-document.addEventListener("click", function (ev) {
-  var btn = ev.target.closest(".foms-btn, .erp-mobile-queue-card__action, [data-foms-haptic]");
-  if (!btn) return;
-  window.fomsHapticTap();
-});
+if (!window.__FOMS_HAPTIC_BOUND) {
+  window.__FOMS_HAPTIC_BOUND = true;
+  document.addEventListener("click", function (ev) {
+    var btn = ev.target.closest(".foms-btn, .erp-mobile-queue-card__action, [data-foms-haptic]");
+    if (!btn) return;
+    window.fomsHapticTap();
+  });
+}
