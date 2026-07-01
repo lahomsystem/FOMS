@@ -950,8 +950,36 @@
         });
     }
 
+    function _renderFreeInputRows(lines) {
+        var wrap = document.getElementById('est-free-input-rows');
+        if (!wrap) return;
+        wrap.innerHTML = '';
+        var list = Array.isArray(lines) ? lines : [];
+        list.forEach(function (row) {
+            if (!row) return;
+            var amount = Number(row.amount) || 0;
+            if (amount <= 0) return;
+            var lineEl = document.createElement('div');
+            lineEl.className = 'erp-est-sum-row erp-est-sum-free-input';
+            var labelEl = document.createElement('span');
+            labelEl.className = 'erp-est-sum-label';
+            labelEl.textContent = String(row.label || '추가');
+            var valueEl = document.createElement('span');
+            valueEl.className = 'erp-est-sum-value erp-est-sum-free-input-val';
+            valueEl.textContent = _fmtMoney(amount);
+            lineEl.appendChild(labelEl);
+            lineEl.appendChild(valueEl);
+            wrap.appendChild(lineEl);
+        });
+    }
+
     function _applyPaymentInfo(d, pi) {
-        _setText('est-total-amount', _fmtMoney(d.total_amount));
+        var itemsSubtotal = d.items_subtotal;
+        if (itemsSubtotal == null || itemsSubtotal === '') {
+            itemsSubtotal = Math.max(0, Number(d.total_amount || 0) - Number(d.free_input_amount || 0));
+        }
+        _setText('est-total-amount', _fmtMoney(itemsSubtotal));
+        _renderFreeInputRows(d.free_input_lines);
 
         const depositRow = document.getElementById('est-deposit-row');
         if (d.deposit_amount && d.deposit_amount > 0) {
@@ -1165,7 +1193,11 @@
         _bindEstimateViewModeListener();
 
         document.addEventListener('input', function (e) {
-            if (e.target && e.target.dataset && 'erp' in e.target.dataset) {
+            var target = e.target;
+            if (!target) return;
+            var isErpField = target.dataset && 'erp' in target.dataset;
+            var isFreeInputField = target.id === 'erp-free-input-text' || target.id === 'erp-free-input-amount';
+            if (isErpField || isFreeInputField) {
                 _dirty = true;
                 _setMobilePreviewUrl('');
                 _mobilePreviewFallbackActive = false;
