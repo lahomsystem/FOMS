@@ -1691,6 +1691,8 @@ async function erpLoadStructured(bootstrapData, options) {
     if (erpNotesEl) erpNotesEl.value = data.notes || '';
     document.getElementById('erp-urgent-flag').checked = !!sd?.flags?.urgent;
     document.getElementById('erp-urgent-reason').value = sd?.flags?.urgent_reason || '';
+    const factory2El = document.getElementById('erp-factory2');
+    if (factory2El) factory2El.checked = !!sd?.flags?.factory2;
     erpSyncUrgentReasonVisibility({ clear: !sd?.flags?.urgent });
     const selfMeasEl = document.getElementById('erp-self-measurement');
     if (selfMeasEl) selfMeasEl.checked = !!data.is_self_measurement;
@@ -1939,7 +1941,8 @@ function erpCollectStructured() {
         })(),
         flags: {
             urgent: getCheck('erp-urgent-flag'),
-            urgent_reason: getVal('erp-urgent-reason')
+            urgent_reason: getVal('erp-urgent-reason'),
+            factory2: getCheck('erp-factory2')
         },
         payment: (function () {
             const prev = window.__erpLastStructuredData ? _erpNormalizePaymentData(window.__erpLastStructuredData) : _erpNormalizePaymentData({});
@@ -2364,6 +2367,15 @@ window.erpTogglePayment = async function(btn, pType) {
     document.getElementById('erp-orderer')?.addEventListener('input', syncWorkflowStageByOrderer);
     document.getElementById('erp-orderer')?.addEventListener('change', syncWorkflowStageByOrderer);
     syncWorkflowStageByOrderer();
+
+    document.getElementById('erp-factory2')?.addEventListener('change', function () {
+        if (typeof window.erpInvalidateEstimateCache === 'function') {
+            window.erpInvalidateEstimateCache();
+        }
+        if (typeof window.erpApplyEstimatePaymentVariant === 'function') {
+            window.erpApplyEstimatePaymentVariant(!!this.checked);
+        }
+    });
 
     // ERP Order: 지방주문이면 대시보드 필터용 하우드/협력사 구분을 반드시 받는다.
     document.getElementById('erp-regional-order')?.addEventListener('change', function () {

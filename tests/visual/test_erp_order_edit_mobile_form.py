@@ -34,6 +34,7 @@ CRITICAL_ERP_IDS = {
     "erp-manual-phone-input",
     "erp-phone-note",
     "erp-orderer-direct",
+    "erp-factory2",
     "erp-orderer-select",
     "erp-orderer",
     "erp-manager",

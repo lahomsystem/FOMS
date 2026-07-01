@@ -7,6 +7,7 @@
 
     let _estimateCacheLoaded = false;
     let _dirty = true; // 첫 진입 시 항상 새로 로드
+    let _paymentInfoVariants = null;
     var _EST_EXPORT_WIDTH = 700;
     var _EST_DOC_WIDTH = 700;
     var _MOBILE_ESTIMATE_MQ = '(max-width: 991.98px)';
@@ -979,6 +980,25 @@
         _setText('est-legal-notice', d.legal_notice);
     }
 
+    function _applyPaymentAccountsOnly(pi) {
+        var accountsWrap = document.getElementById('est-pay-accounts');
+        if (accountsWrap) {
+            _renderPaymentAccounts(accountsWrap, pi);
+        }
+        _setText('est-pay-notice', pi && pi.notice);
+    }
+
+    window.erpApplyEstimatePaymentVariant = function (factory2) {
+        if (!_paymentInfoVariants) {
+            return;
+        }
+        var pi = factory2 ? _paymentInfoVariants.factory2 : _paymentInfoVariants.default;
+        if (!pi) {
+            return;
+        }
+        _applyPaymentAccountsOnly(pi);
+    };
+
     async function _afterEstimateRendered() {
         _applyEstimateViewMode();
 
@@ -1031,6 +1051,7 @@
             }
 
             const d = data.data || {};
+            _paymentInfoVariants = d.payment_info_variants || null;
             _applyCompanyInfo(d.company_info || {}, !!d.is_lahom);
             _applyCustomerInfo(d);
             _renderItems(d.items, d.estimate_preview || {});
@@ -1057,6 +1078,7 @@
     window.erpInvalidateEstimateCache = function () {
         _estimateCacheLoaded = false;
         _dirty = true;
+        _paymentInfoVariants = null;
         _setMobilePreviewUrl('');
         _mobilePreviewFallbackActive = false;
     };
