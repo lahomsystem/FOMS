@@ -58,9 +58,9 @@ def _assert_shared_form_script_contract(body: str) -> None:
     assert payment_urls_idx < channel_push_confirm_idx < erp_order_shared_idx < column_resizer_idx < estimate_preview_idx < estimate_columns_idx
     assert "html2canvas.min.js" not in body
     assert "js/orders/erp-channel-push-confirm.js?v=20260701b" in body
-    assert "js/orders/erp-order-shared.js?v=20260701e" in body
+    assert "js/orders/erp-order-shared.js?v=20260701f" in body
     assert "css/orders/erp-channel-push.css?v=20260701a" in body
-    assert "css/orders/erp-items-master-detail.css?v=20260630c" in body
+    assert "css/orders/erp-items-master-detail.css?v=20260701f" in body
     assert "js/orders/erp-items-master-detail.js?v=20260630c" in body
     assert "erp-items-master-detail-shell" in body
     assert 'id="erp-md-rail-list"' in body
@@ -590,6 +590,11 @@ def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
     assert "function erpBuildFreeInputStoredValue" in text
     assert "erp-free-input-text" in text
     assert "function erpAppendConversionFreeInputBlock" in text
+    free_input_fn_start = text.index("function erpAppendConversionFreeInputBlock")
+    free_input_fn_end = text.index("function erpReadItemFieldValue", free_input_fn_start)
+    free_input_fn = text[free_input_fn_start:free_input_fn_end]
+    assert "자유입력" not in free_input_fn
+    assert "return text + `${raw}\\n`;" in free_input_fn
     assert "totals," in collect_block
     assert "deposit: totals.deposit_amount" in collect_block
     assert "discount: totals.discount_amount" in collect_block

@@ -324,8 +324,11 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                                     <div id="erp-items"></div>
                                 </div>
                                 <footer class="item-detail__foot">
-                                    <div class="item-detail__kbd">
-                                        <kbd>Ctrl</kbd> + <kbd>↑</kbd><kbd>↓</kbd> 항목 이동 · <span id="erp-md-nav-pos">1 / 1</span>
+                                    <div class="item-detail__kbd" aria-label="키보드 단축키 안내">
+                                        <span class="item-detail__kbd-hint">
+                                            <kbd>Ctrl</kbd> + <kbd>↑</kbd><kbd>↓</kbd> 항목 이동
+                                        </span>
+                                        <span class="item-detail__kbd-pos" id="erp-md-nav-pos">1 / 1</span>
                                     </div>
                                     <div class="item-detail__actions">
                                         <button type="button" class="btn btn-sm btn-outline-secondary" id="erp-md-btn-prev" title="이전 항목">◀ 이전</button>

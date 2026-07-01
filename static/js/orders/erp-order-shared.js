@@ -1046,7 +1046,7 @@ function erpDesktopPresetSheetRow(label, field, value, textareaClass) {
     return `<div class="erp-preset-row">
 <span class="erp-preset-row__label">${label}</span>
 <div class="erp-preset-row__value">
-<textarea class="${textareaClass} erp-autosize-textarea erp-flex-textarea" data-erp="${field}" rows="1" data-erp-min-height="28" lang="ko">${v}</textarea>
+<textarea class="${textareaClass} erp-autosize-textarea erp-flex-textarea" data-erp="${field}" rows="1" data-erp-min-height="32" lang="ko">${v}</textarea>
 </div>
 </div>`;
 }
@@ -3798,7 +3798,7 @@ function erpAppendConversionExtraInputLine(text, value) {
 function erpAppendConversionFreeInputBlock(text, value) {
     const raw = String(value ?? '').trim();
     if (!raw) return text;
-    return text + `자유입력 : ${raw}\n`;
+    return text + `${raw}\n`;
 }
 
 function erpReadItemFieldValue(row, key) {
