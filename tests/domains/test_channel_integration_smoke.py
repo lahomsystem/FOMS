@@ -321,7 +321,7 @@ def test_push_manual_resend_requires_change_note(client, monkeypatch):
     )
 
     assert response.status_code == 400
-    assert "5자" in response.get_json()["message"]
+    assert "변경 내용" in response.get_json()["message"]
 
 
 def test_push_manual_resend_stores_change_log_and_dispatches_note(client, monkeypatch):

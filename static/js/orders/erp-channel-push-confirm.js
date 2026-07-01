@@ -5,7 +5,7 @@
 (function () {
     'use strict';
 
-    const MIN_NOTE_LEN = 5;
+    const MIN_NOTE_LEN = 1;
     const HISTORY_KEYS = {
         measurement: 'channeltalk_push',
         drawing: 'channeltalk_push_drawing',
@@ -55,6 +55,7 @@
     }
 
     let _pendingResolve = null;
+    let _resolvedBySend = false;
 
     function _finishPending(value) {
         if (typeof _pendingResolve !== 'function') return;
@@ -84,22 +85,24 @@
         sendBtn.addEventListener('click', function () {
             const trimmed = (textarea.value || '').trim();
             if (trimmed.length < MIN_NOTE_LEN) {
-                alert('변경 내용을 5자 이상 입력해주세요.');
+                alert('변경 내용을 입력해주세요.');
                 textarea.focus();
                 return;
             }
             const bsModal = window.bootstrap && window.bootstrap.Modal
                 ? window.bootstrap.Modal.getInstance(modalEl)
                 : null;
+            _resolvedBySend = true;
             _finishPending(trimmed);
             if (bsModal) bsModal.hide();
         });
 
         modalEl.addEventListener('hidden.bs.modal', function () {
             _setChannelPushButtonsLocked(false);
-            if (typeof _pendingResolve === 'function') {
+            if (!_resolvedBySend && typeof _pendingResolve === 'function') {
                 _finishPending(null);
             }
+            _resolvedBySend = false;
         });
     }
 
@@ -125,12 +128,13 @@
         const label = PUSH_LABELS[pushKind] || 'PUSH';
         if (titleEl) titleEl.textContent = '재전송 확인 · ' + label;
         textarea.value = '';
+        _resolvedBySend = false;
 
         const bsModal = window.bootstrap && window.bootstrap.Modal
             ? window.bootstrap.Modal.getOrCreateInstance(modalEl)
             : null;
         if (!bsModal) {
-            const fallback = window.prompt('변경 내용을 입력해주세요 (5자 이상)');
+            const fallback = window.prompt('변경 내용을 입력해주세요');
             const trimmed = (fallback || '').trim();
             return Promise.resolve(trimmed.length >= MIN_NOTE_LEN ? trimmed : null);
         }

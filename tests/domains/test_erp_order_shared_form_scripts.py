@@ -57,7 +57,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
 
     assert payment_urls_idx < channel_push_confirm_idx < erp_order_shared_idx < column_resizer_idx < estimate_preview_idx < estimate_columns_idx
     assert "html2canvas.min.js" not in body
-    assert "js/orders/erp-channel-push-confirm.js?v=20260701b" in body
+    assert "js/orders/erp-channel-push-confirm.js?v=20260701c" in body
     assert "js/orders/erp-order-shared.js?v=20260701g" in body
     assert "css/orders/erp-channel-push.css?v=20260701a" in body
     assert "css/orders/erp-items-master-detail.css?v=20260701f" in body
@@ -466,6 +466,9 @@ def test_channel_push_confirm_js_resend_recovery_contract() -> None:
     assert "erp-channeltalk-push-drawing-btn" in text
     assert "if (typeof _pendingResolve === 'function')" in text
     assert "재전송 시 변경 내용" in text
+    assert "const MIN_NOTE_LEN = 1" in text
+    assert "_resolvedBySend" in text
+    assert "내부 변경" not in text
 
 
 def test_shared_erp_order_supports_scoped_clipboard_image_upload() -> None:

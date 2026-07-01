@@ -61,10 +61,11 @@ def test_build_message_template_retry_uses_modify_prefix_only(monkeypatch):
 
     assert "[ERP 푸시]" not in message
     assert "주문 #2762" not in message
-    assert message.startswith("[수정]\n내부 변경\n손잡이 오기재 → 푸쉬로 정정\n\n고객명 : 윤인선")
+    assert message.startswith("[수정]\n손잡이 오기재 → 푸쉬로 정정\n\n고객명 : 윤인선")
+    assert "내부 변경" not in message.split("🔗")[0]
 
 
-def test_build_message_blocks_resend_includes_internal_change_header(monkeypatch):
+def test_build_message_blocks_resend_includes_modify_prefix_and_full_note(monkeypatch):
     monkeypatch.setenv("FOMS_BASE_URL", "https://example.com")
     monkeypatch.setattr(channel_security, "generate_wam_short_link_token", lambda order_id=None: "short-123")
 
@@ -79,8 +80,28 @@ def test_build_message_blocks_resend_includes_internal_change_header(monkeypatch
     )
 
     header_block = blocks[0]["value"]
-    assert header_block.startswith("[수정]\n내부 변경\n규격 오타 수정")
+    assert header_block == "[수정]\n규격 오타 수정"
+    assert "내부 변경" not in header_block
     assert "고객명 : 박은정" in blocks[1]["value"]
+
+
+def test_build_message_template_resend_preserves_long_multiline_note(monkeypatch):
+    monkeypatch.setenv("FOMS_BASE_URL", "https://example.com")
+    monkeypatch.setattr(channel_security, "generate_wam_short_link_token", lambda order_id=None: "short-123")
+
+    long_note = "손잡이 오기재 → 푸쉬로 정정, 시공일 7/17 유지"
+    message = channel_policy.build_message_template(
+        "manual",
+        {
+            "order_id": 1,
+            "text": "고객명 : 박은정",
+            "is_retry": True,
+            "change_note": long_note,
+        },
+    )
+
+    assert message.startswith(f"[수정]\n{long_note}\n\n고객명 : 박은정")
+    assert "내부 변경" not in message.split("🔗")[0]
 
 
 def test_build_message_blocks_preserves_special_characters_in_push_text(monkeypatch):
