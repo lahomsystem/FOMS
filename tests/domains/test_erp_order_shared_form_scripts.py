@@ -56,7 +56,11 @@ def _assert_shared_form_script_contract(body: str) -> None:
 
     assert payment_urls_idx < erp_order_shared_idx < column_resizer_idx < estimate_preview_idx < estimate_columns_idx
     assert "html2canvas.min.js" not in body
-    assert "js/orders/erp-order-shared.js?v=20260629b" in body
+    assert "js/orders/erp-order-shared.js?v=20260630a" in body
+    assert "css/orders/erp-items-master-detail.css?v=20260630a" in body
+    assert "js/orders/erp-items-master-detail.js?v=20260630a" in body
+    assert "erp-items-master-detail-shell" in body
+    assert 'id="erp-md-rail-list"' in body
     assert "js/orders/estimate-preview.js?v=20260629a" in body
 
     estimate_preview_js = (

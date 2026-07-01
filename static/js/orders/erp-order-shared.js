@@ -702,6 +702,9 @@ function erpRecalcItemsTotal() {
         if (digits) sum += parseInt(digits, 10);
     });
     totalEl.textContent = erpFormatMoneyKRW(sum);
+    if (window.ErpItemsMasterDetail?.syncRailTotal) {
+        window.ErpItemsMasterDetail.syncRailTotal();
+    }
     const showAmountRows = sum > 0 && Number.isFinite(sum);
     if (discountSection) {
         discountSection.style.display = showAmountRows ? '' : 'none';
@@ -767,6 +770,9 @@ function erpRefreshItemRowIndices() {
         }
         erpUpdateItemSummary(row);
     });
+    if (window.ErpItemsMasterDetail?.isActive?.()) {
+        window.ErpItemsMasterDetail.refresh();
+    }
 }
 
 // 모바일 항목 카드 접힘 시 한 줄 요약(제품명 · W×D×H · 금액)을 헤더에 반영.
@@ -816,6 +822,10 @@ function erpToggleItemRow(row, forceOpen) {
 function erpOpenFirstItemRow() {
     const rows = erpGetItemRows();
     if (!rows.length) return;
+    if (window.ErpItemsMasterDetail?.isActive?.()) {
+        window.ErpItemsMasterDetail.selectItem(0);
+        return;
+    }
     rows.forEach((r, i) => {
         if (r.querySelector('.erp-item-head-toggle')) erpToggleItemRow(r, i === 0);
     });
@@ -823,7 +833,7 @@ function erpOpenFirstItemRow() {
 
 function erpAutosizeTextarea(el) {
     if (!el || el.tagName !== 'TEXTAREA') return;
-    el.style.height = 'auto';
+    el.style.height = '0';
     el.style.height = Math.max(el.scrollHeight, el.dataset.erpMinHeight ? Number(el.dataset.erpMinHeight) : 0) + 'px';
 }
 
@@ -865,6 +875,32 @@ function erpMobileFlexibleControl(name, label, value, options = {}) {
     const minHeight = options.minHeight || 44;
     const placeholder = options.placeholder || '';
     return `<textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea" data-erp="${name}" rows="${rows}" data-erp-min-height="${minHeight}" placeholder="${escapeHtml(placeholder)}" lang="ko">${escapedValue}</textarea>`;
+}
+
+/** PC Master-Detail: Fiori compact 제품 속성 property sheet (목업 1:1). */
+function erpDesktopPresetSheetRow(label, field, value, textareaClass) {
+    const v = escapeHtml(value);
+    return `<div class="erp-preset-row">
+<span class="erp-preset-row__label">${label}</span>
+<div class="erp-preset-row__value">
+<textarea class="${textareaClass} erp-autosize-textarea erp-flex-textarea" data-erp="${field}" rows="1" data-erp-min-height="28" lang="ko">${v}</textarea>
+</div>
+</div>`;
+}
+
+function erpBuildDesktopPresetSheet(internal, color, optionDetail, handle, misc, textareaClass) {
+    return `<div class="col-12">
+<div class="erp-preset-sheet" aria-label="제품 속성">
+<div class="erp-preset-sheet__head">제품 속성</div>
+<div class="erp-preset-sheet__body">
+${erpDesktopPresetSheetRow('내부', 'internal', internal, textareaClass)}
+${erpDesktopPresetSheetRow('색상', 'color', color, textareaClass)}
+${erpDesktopPresetSheetRow('옵션', 'option_detail', optionDetail, textareaClass)}
+${erpDesktopPresetSheetRow('손잡이', 'handle', handle, textareaClass)}
+${erpDesktopPresetSheetRow('기타·설치', 'misc', misc, textareaClass)}
+</div>
+</div>
+</div>`;
 }
 
 function erpNewItemRow(item = {}) {
@@ -961,8 +997,19 @@ function erpNewItemRow(item = {}) {
     const attributeFieldsHtml = isMobileForm
         ? `${colorFieldHtml}${handleFieldHtml}${optionFieldHtml}`
         : `${colorFieldHtml}${optionFieldHtml}${handleFieldHtml}`;
-
-    // 모바일: 항목 카드 = 한 줄 요약 헤더(번호·제품명·규격·금액) + 접이식 본문(아코디언).
+    const presetFieldsHtml = isMobileForm
+        ? `<div class="col-md-6 erp-mobile-full-row">
+    <label class="form-label mb-1 small text-primary">내부</label>
+    ${erpMobileFlexibleControl('internal', '내부', internal, { isMobileForm, inputClass, placeholder: '상담' })}
+</div>
+${attributeFieldsHtml}
+<div class="col-md-6 erp-mobile-full-row">
+    <label class="form-label mb-1 small text-primary">기타 / 설치위치</label>
+    ${erpMobileFlexibleControl('misc', '기타 / 설치위치', misc, { isMobileForm, inputClass, placeholder: '상담' })}
+</div>`
+        : erpBuildDesktopPresetSheet(internal, color, optionDetail, handle, misc, textareaClass);
+    const fieldLabelClass = isMobileForm ? 'form-label mb-1 small text-primary' : 'form-label mb-1 small erp-field-label';
+    const priceFieldClass = isMobileForm ? 'col-md-6 erp-mobile-full-row' : 'col-12 erp-mobile-full-row';
     // 데스크톱: 기존 항상-펼침 헤더 유지.
     const itemHeadHtml = isMobileForm
         ? `<div class="erp-item-head">
@@ -984,25 +1031,17 @@ function erpNewItemRow(item = {}) {
     const itemFieldsHtml = `
 <div class="row g-2">
 <div class="col-12">
-    <label class="form-label mb-1 small text-primary">제품명</label>
+    <label class="${fieldLabelClass}">제품명</label>
     <input class="${inputClass}" data-erp="product_name" value="${escapeHtml(productName)}" lang="ko">
 </div>
 <div class="col-12">
-    <label class="form-label mb-1 small text-primary">규격 (W × D × H)</label>
+    <label class="${fieldLabelClass}">규격 (W × D × H)</label>
     ${specExamplesHintHtml}
     <div class="erp-spec-rows">${specRowsHtml}</div>
     <button type="button" class="btn btn-sm btn-outline-primary mt-1 erp-add-spec-row-btn"><i class="fas fa-plus"></i> 규격 1행 추가</button>
 </div>
-<div class="col-md-6 erp-mobile-full-row">
-    <label class="form-label mb-1 small text-primary">내부</label>
-    ${erpMobileFlexibleControl('internal', '내부', internal, { isMobileForm, inputClass, placeholder: '상담' })}
-</div>
-${attributeFieldsHtml}
-<div class="col-md-6 erp-mobile-full-row">
-    <label class="form-label mb-1 small text-primary">기타 / 설치위치</label>
-    ${erpMobileFlexibleControl('misc', '기타 / 설치위치', misc, { isMobileForm, inputClass, placeholder: '상담' })}
-</div>
-<div class="col-md-6 erp-mobile-full-row">
+${presetFieldsHtml}
+<div class="${priceFieldClass}">
     <label class="form-label mb-1 small text-primary">항목 금액(원)</label>
     <input class="${tabularInputClass}" data-erp="price" inputmode="numeric" value="${escapeHtml(price)}" lang="ko">
 </div>
@@ -1133,6 +1172,9 @@ ${attributeFieldsHtml}
         row.remove();
         erpRefreshItemRowIndices();
         erpRecalcItemsTotal();
+        if (window.ErpItemsMasterDetail?.afterRemove) {
+            window.ErpItemsMasterDetail.afterRemove(removedIndex);
+        }
         if (typeof erpRenderAttachments === 'function') {
             erpRenderAttachments();
         }
@@ -1149,6 +1191,8 @@ ${attributeFieldsHtml}
             if (typeof erpRenderAttachments === 'function') {
                 erpRenderAttachments();
             }
+        } else if (window.ErpItemsMasterDetail?.isActive?.()) {
+            window.ErpItemsMasterDetail.refresh();
         }
     });
     // Event listener removed as it's now handled by inline onchange="erpUploadItemAttachmentsPromptless(this)"
@@ -2205,19 +2249,24 @@ ${escapeHtml(sub)}</div>` : ''}`;
         erpOpenFirstItemRow();
         erpRecalcItemsTotal();
     }
+    window.ErpItemsMasterDetail?.init?.();
 
     document.getElementById('erp-add-item-btn')?.addEventListener('click', function () {
         const wrap = document.getElementById('erp-items');
         if (!wrap) return;
         const newRow = erpNewItemRow({});
-        wrap.appendChild(newRow);            // 새 항목은 리스트 끝 → 추가 버튼은 항상 그 아래
+        wrap.appendChild(newRow);
         erpRefreshItemRowIndices();
-        erpToggleItemRow(newRow, true);      // 새 항목만 펼치고 나머지는 접는다(아코디언)
+        if (window.ErpItemsMasterDetail?.isActive?.()) {
+            window.ErpItemsMasterDetail.selectItem(erpGetItemRows().length - 1);
+        } else {
+            erpToggleItemRow(newRow, true);
+            newRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
         erpRecalcItemsTotal();
         if (typeof erpRenderAttachments === 'function') {
             erpRenderAttachments();
         }
-        newRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     });
     document.getElementById('erp-save-btn')?.addEventListener('click', erpSaveStructured);
     document.getElementById('erp-load-btn')?.addEventListener('click', () => erpLoadStructured());

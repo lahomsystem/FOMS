@@ -1,0 +1,392 @@
+/**
+ * ERP Order — 제품 항목 Master-Detail (PC 데스크톱 erp_order_tab.html 전용).
+ * 목업: docs/design/mockups/pc-erp-items-master-detail-foms.html
+ */
+
+.erp-items-master-detail-shell {
+  position: relative;
+  margin-bottom: var(--erp-space-md);
+}
+
+.erp-items-master-detail-shell .erp-order-body {
+  display: grid;
+  grid-template-columns: var(--foms-shell-master-list-w) minmax(0, 1fr);
+  height: auto;
+  min-height: unset;
+  align-items: stretch;
+  border: 1px solid var(--erp-border-light);
+  border-radius: var(--erp-radius);
+  overflow: visible;
+  background: var(--erp-bg-card);
+}
+
+.erp-items-master-detail-shell #erp-items .erp-item-row.erp-item-row--md-hidden {
+  display: none !important;
+}
+
+/* ── MASTER: item rail ── */
+.erp-items-master-detail-shell .item-rail {
+  width: var(--foms-shell-master-list-w);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--erp-bg-card);
+  border-right: 1px solid var(--erp-border-light);
+}
+
+.erp-items-master-detail-shell .item-rail__head {
+  flex-shrink: 0;
+  padding: var(--erp-space-md);
+  border-bottom: 1px solid var(--erp-border-light);
+  display: grid;
+  gap: var(--erp-space-sm);
+}
+
+.erp-items-master-detail-shell .item-rail__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--erp-space-sm);
+}
+
+.erp-items-master-detail-shell .item-rail__title {
+  font-size: var(--erp-font-size-sm);
+  font-weight: var(--foms-font-weight-bold);
+  color: var(--erp-text-primary);
+  display: flex;
+  align-items: center;
+  gap: var(--erp-space-sm);
+  margin: 0;
+}
+
+.erp-items-master-detail-shell .item-rail__count {
+  font-size: var(--erp-font-size-xs);
+  font-weight: var(--foms-font-weight-bold);
+  color: var(--erp-primary-dark);
+  background: var(--erp-primary-bg);
+  padding: 2px var(--erp-space-sm);
+  border-radius: var(--erp-radius-full);
+}
+
+.erp-items-master-detail-shell .item-rail__search {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 var(--erp-space-md);
+  font-size: var(--erp-font-size-sm);
+  font-family: inherit;
+  color: var(--erp-text-primary);
+  background: var(--erp-bg-hover);
+  border: 1px solid var(--erp-border-light);
+  border-radius: var(--erp-radius);
+}
+
+.erp-items-master-detail-shell .item-rail__search:focus {
+  outline: none;
+  border-color: var(--erp-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+}
+
+.erp-items-master-detail-shell .item-rail__list {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--erp-space-sm);
+  display: grid;
+  gap: var(--erp-space-xs);
+  max-height: min(520px, 55vh);
+}
+
+.erp-items-master-detail-shell .rail-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-rows: auto auto;
+  gap: 2px var(--erp-space-sm);
+  padding: var(--erp-space-sm) var(--erp-space-md);
+  border-radius: var(--erp-radius);
+  border: 1px solid var(--erp-border-light);
+  border-left-width: 3px;
+  border-left-color: transparent;
+  background: var(--foms-surface-subtle);
+  cursor: pointer;
+  transition: background var(--erp-transition-fast), border-color var(--erp-transition-fast), box-shadow var(--erp-transition-fast);
+}
+
+.erp-items-master-detail-shell .rail-item:hover {
+  background: var(--erp-bg-sidebar);
+  border-color: var(--erp-border);
+}
+
+.erp-items-master-detail-shell .rail-item.is-selected {
+  background: var(--erp-bg-card);
+  border-color: var(--erp-primary);
+  border-left-color: var(--erp-primary);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12), var(--erp-shadow-sm);
+}
+
+.erp-items-master-detail-shell .rail-item.is-filtered-out {
+  display: none;
+}
+
+.erp-items-master-detail-shell .rail-item__index {
+  grid-row: 1 / 3;
+  align-self: center;
+  font-size: var(--erp-font-size-xs);
+  font-weight: var(--foms-font-weight-bold);
+  color: var(--erp-primary-dark);
+  background: var(--erp-primary-bg);
+  border-radius: var(--erp-radius-full);
+  padding: 0.15rem 0.5rem;
+  min-width: 2rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.erp-items-master-detail-shell .rail-item.is-selected .rail-item__index {
+  background: var(--erp-primary);
+  color: var(--erp-text-white);
+}
+
+.erp-items-master-detail-shell .rail-item__name {
+  font-size: var(--erp-font-size-sm);
+  font-weight: var(--foms-font-weight-semibold);
+  color: var(--erp-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.erp-items-master-detail-shell .rail-item__spec {
+  grid-column: 2;
+  font-size: var(--erp-font-size-xs);
+  color: var(--erp-text-muted);
+  font-family: var(--foms-font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.erp-items-master-detail-shell .rail-item__right {
+  grid-column: 3;
+  grid-row: 1 / 3;
+  align-self: center;
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.erp-items-master-detail-shell .rail-item__price {
+  font-size: var(--erp-font-size-xs);
+  font-weight: var(--foms-font-weight-semibold);
+  color: var(--erp-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.erp-items-master-detail-shell .status-pip {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--erp-radius-full);
+}
+
+.erp-items-master-detail-shell .status-pip--done {
+  background: var(--erp-success);
+}
+
+.erp-items-master-detail-shell .status-pip--partial {
+  background: var(--erp-warning);
+}
+
+.erp-items-master-detail-shell .status-pip--empty {
+  background: var(--erp-border);
+}
+
+.erp-items-master-detail-shell .item-rail__foot {
+  flex-shrink: 0;
+  padding: var(--erp-space-md);
+  border-top: 1px solid var(--erp-border-light);
+  background: var(--erp-bg-sidebar);
+  display: grid;
+  gap: var(--erp-space-sm);
+}
+
+.erp-items-master-detail-shell .item-rail__total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: var(--erp-font-size-sm);
+  color: var(--erp-text-secondary);
+}
+
+.erp-items-master-detail-shell .item-rail__total strong {
+  font-size: var(--erp-font-size-lg);
+  font-weight: var(--foms-font-weight-bold);
+  color: var(--erp-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.erp-items-master-detail-shell .erp-pro-btn--full {
+  width: 100%;
+}
+
+/* ── DETAIL pane ── */
+.erp-items-master-detail-shell .item-detail {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: visible;
+  background: var(--erp-bg-card);
+}
+
+.erp-items-master-detail-shell .item-detail.foms-page-form {
+  padding: 0;
+}
+
+.erp-items-master-detail-shell .item-detail__scroll {
+  flex: 0 0 auto;
+  overflow: visible;
+  padding: var(--erp-space-md);
+  min-height: unset;
+}
+
+/* ── Fiori compact: 제품 속성 property sheet ── */
+.erp-items-master-detail-shell .item-detail #erp-items .erp-field-label {
+  margin-bottom: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--erp-text-secondary);
+}
+
+.erp-items-master-detail-shell .item-detail #erp-items .erp-preset-sheet {
+  border: 1px solid var(--erp-border-light);
+  border-radius: var(--erp-radius);
+  background: var(--erp-bg-card);
+  overflow: hidden;
+}
+
+.erp-items-master-detail-shell .item-detail #erp-items .erp-preset-sheet__head {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--erp-text-muted);
+  background: var(--foms-surface-subtle, #f8f9fb);
+  border-bottom: 1px solid var(--erp-border-light);
+}
+
+.erp-items-master-detail-shell .item-detail #erp-items .erp-preset-sheet__body {
+  display: flex;
+  flex-direction: column;
+}
+
+.erp-items-master-detail-shell .item-detail #erp-items .erp-preset-row {
+  display: grid;
+  grid-template-columns: 5.25rem minmax(0, 1fr);
+  gap: 0.375rem;
+  align-items: start;
+  padding: 0.25rem 0.5rem 0.25rem 0.625rem;
+  min-height: 2rem;
+  border-bottom: 1px solid var(--erp-border-light);
+  transition: background var(--erp-transition-fast);
+}
+
+.erp-items-master-detail-shell .item-detail #erp-items .erp-preset-row:last-child {
+  border-bottom: none;
+}
+
+.erp-items-master-detail-shell .item-detail #erp-items .erp-preset-row:focus-within {
+  background: rgba(37, 99, 235, 0.04);
+}
+
+.erp-items-master-detail-shell .item-detail #erp-items .erp-preset-row__label {
+  margin: 0;
+  padding-top: 0.3rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--erp-text-secondary);
+  white-space: nowrap;
+  line-height: 1.3;
+}
+
+.erp-items-master-detail-shell .item-detail #erp-items .erp-preset-row__value {
+  min-width: 0;
+}
+
+.erp-items-master-detail-shell .item-detail #erp-items .erp-preset-row__value .erp-calc-field {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+
+.erp-items-master-detail-shell .item-detail #erp-items .erp-preset-row__value .erp-calc-field .form-control {
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  padding: 0.28rem 0.15rem;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  color: var(--erp-text-primary);
+  border-radius: 0;
+}
+
+.erp-items-master-detail-shell .item-detail #erp-items .erp-preset-row__value .erp-calc-has-trigger {
+  padding-right: 2.4rem;
+}
+
+.erp-items-master-detail-shell .item-detail #erp-items .erp-preset-row__value .erp-flex-textarea {
+  min-height: 1.75rem;
+  max-height: none;
+  overflow: hidden;
+  resize: none;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: pre-wrap;
+  field-sizing: content;
+}
+
+.erp-items-master-detail-shell .item-detail #erp-items .erp-preset-row__value .erp-calc-trigger {
+  top: 0;
+  bottom: 0;
+  height: auto;
+  min-height: 2rem;
+}
+
+.erp-items-master-detail-shell .item-detail #erp-items .erp-preset-row__value .form-control:focus {
+  box-shadow: none;
+  background: transparent;
+}
+
+.erp-items-master-detail-shell .item-detail__foot {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--erp-space-md) var(--erp-space-lg);
+  background: var(--erp-bg-card);
+  border-top: 1px solid var(--erp-border-light);
+  gap: var(--erp-space-md);
+}
+
+.erp-items-master-detail-shell .item-detail__kbd {
+  font-size: var(--erp-font-size-xs);
+  color: var(--erp-text-muted);
+}
+
+.erp-items-master-detail-shell .item-detail__kbd kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: var(--erp-radius-sm);
+  border: 1px solid var(--erp-border);
+  background: var(--erp-bg-sidebar);
+  font-size: 11px;
+  font-family: var(--foms-font-mono);
+}
+
+.erp-items-master-detail-shell .item-detail__actions {
+  display: flex;
+  gap: var(--erp-space-sm);
+}
