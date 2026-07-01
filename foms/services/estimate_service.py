@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import copy
 import datetime
 import logging
 import re
@@ -13,7 +12,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from foms.services.datetime_kst import get_today_kst
 from foms.services.measurement_manager_colors import normalize_measurement_manager_key
-from foms.services.orders.estimate_defaults import ESTIMATE_PAYMENT_INFO
+from foms.services.orders.estimate_defaults import resolve_estimate_payment_info
 from models import Order, OrderEstimate
 
 __all__ = [
@@ -286,8 +285,12 @@ def _balance_after_payments(total_amount: int, deposit_amount: int, discount_amo
     )
 
 
-def _balance_after_deposit(total_amount: int, deposit_amount: int) -> int:
-    return _balance_after_payments(total_amount, deposit_amount, 0)
+def is_factory2_order(structured_data: dict) -> bool:
+    """structured_data.flags.factory2 — 2공장 전용 결제계좌 사용 여부."""
+    flags = structured_data.get("flags") or {}
+    if not isinstance(flags, dict):
+        return False
+    return _coerce_bool(flags.get("factory2"))
 
 
 def extract_estimate_data_from_order(order: Order) -> dict:
@@ -362,6 +365,7 @@ def extract_estimate_data_from_order(order: Order) -> dict:
         "discount_amount": int(discount_amount or 0),
         "balance_amount": balance_amount,
         "final_amount": balance_amount,
+        "factory2": is_factory2_order(sd),
     }
 
 
@@ -421,7 +425,7 @@ def create_estimate(
         total_amount=data["total_amount"],
         deposit_amount=data.get("deposit_amount", 0),
         balance_amount=data.get("balance_amount", data["total_amount"]),
-        payment_info=copy.deepcopy(ESTIMATE_PAYMENT_INFO),
+        payment_info=resolve_estimate_payment_info(is_factory2_order(order.structured_data or {})),
         status="DRAFT",
         notes=data.get("notes"),
         created_by_user_id=created_by_user_id,

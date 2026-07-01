@@ -2,7 +2,11 @@ import datetime
 from types import SimpleNamespace
 
 import foms.services.estimate_service as estimate_service
-from foms.services.orders.estimate_defaults import ESTIMATE_PAYMENT_INFO
+from foms.services.orders.estimate_defaults import (
+    ESTIMATE_PAYMENT_INFO,
+    ESTIMATE_PAYMENT_INFO_FACTORY2,
+    resolve_estimate_payment_info,
+)
 
 
 class _FakeColumn:
@@ -67,6 +71,66 @@ def test_estimate_payment_info_has_multi_accounts_and_legacy_single_fields():
     assert ESTIMATE_PAYMENT_INFO.get("account")
     assert ESTIMATE_PAYMENT_INFO.get("holder")
     assert ESTIMATE_PAYMENT_INFO.get("notice")
+
+
+def test_estimate_payment_info_factory2_single_account():
+    """2공장 결제정보는 기업은행 단일 계좌(김은지 라홈시스템)만 포함한다."""
+    assert len(ESTIMATE_PAYMENT_INFO_FACTORY2["accounts"]) == 1
+    acc = ESTIMATE_PAYMENT_INFO_FACTORY2["accounts"][0]
+    assert acc["bank"] == "기업은행"
+    assert acc["account"] == "461-091619-01-010"
+    assert acc["holder"] == "김은지 라홈시스템"
+
+
+def test_resolve_estimate_payment_info_switches_by_factory2_flag():
+    default_pi = resolve_estimate_payment_info(False)
+    factory2_pi = resolve_estimate_payment_info(True)
+    assert default_pi["accounts"][0]["account"] == "461-082990-04-011"
+    assert factory2_pi["accounts"][0]["account"] == "461-091619-01-010"
+    assert factory2_pi is not default_pi
+
+
+def test_is_factory2_order_reads_structured_flags():
+    assert estimate_service.is_factory2_order({}) is False
+    assert estimate_service.is_factory2_order({"flags": {"factory2": True}}) is True
+    assert estimate_service.is_factory2_order({"flags": {"factory2": "on"}}) is True
+
+
+def test_extract_estimate_data_from_order_includes_factory2_flag():
+    order = SimpleNamespace(
+        customer_name="",
+        phone="",
+        address="",
+        manager_name="",
+        structured_data={
+            "parties": {"customer": {}, "manager": {}, "orderer": {"name": "라홈"}},
+            "flags": {"factory2": True},
+            "items": [],
+        },
+    )
+    data = estimate_service.extract_estimate_data_from_order(order)
+    assert data["factory2"] is True
+
+
+def test_create_estimate_uses_factory2_payment_info(monkeypatch):
+    db = _FakeCreateDb()
+    factory2_payment = resolve_estimate_payment_info(True)
+    order = SimpleNamespace(
+        id=88,
+        customer_name="고객",
+        phone="010",
+        address="주소",
+        manager_name="매니저",
+        structured_data={"items": [], "flags": {"factory2": True}},
+    )
+
+    monkeypatch.setattr(estimate_service, "OrderEstimate", _FakeEstimate)
+    monkeypatch.setattr(estimate_service, "generate_estimate_number", lambda db, date: "20260701_1")
+
+    estimate = estimate_service.create_estimate(db, order)
+
+    assert estimate.payment_info["accounts"][0]["account"] == "461-091619-01-010"
+    assert estimate.payment_info is not factory2_payment
 
 
 def test_generate_estimate_number_skips_invalid_suffixes_and_increments_max(monkeypatch):
@@ -319,6 +383,8 @@ def test_extract_estimate_data_overrides_manager_phone_from_measurement_settings
 
 
 def test_create_estimate_applies_overrides_and_uses_deep_copied_payment_info(monkeypatch):
+    import copy
+
     db = _FakeCreateDb()
     payment_info_template = {"bank": "테스트은행", "account": ["111-222"]}
     order = SimpleNamespace(
@@ -332,7 +398,11 @@ def test_create_estimate_applies_overrides_and_uses_deep_copied_payment_info(mon
 
     monkeypatch.setattr(estimate_service, "OrderEstimate", _FakeEstimate)
     monkeypatch.setattr(estimate_service, "generate_estimate_number", lambda db, date: "20260410_7")
-    monkeypatch.setattr(estimate_service, "ESTIMATE_PAYMENT_INFO", payment_info_template)
+    monkeypatch.setattr(
+        estimate_service,
+        "resolve_estimate_payment_info",
+        lambda factory2=False: copy.deepcopy(payment_info_template),
+    )
 
     estimate = estimate_service.create_estimate(
         db,
