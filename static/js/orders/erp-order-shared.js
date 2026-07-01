@@ -715,6 +715,50 @@ var erpBuildFreeInputStoredValue =
     };
 window.erpBuildFreeInputStoredValue = erpBuildFreeInputStoredValue;
 
+/** 변환/PUSH용: `항목 : 120,000` → `항목 : 120,000원` (저장값은 원 미포함 유지). */
+var erpFormatFreeInputForConversion =
+    window.erpFormatFreeInputForConversion ||
+    function erpFormatFreeInputForConversion(value) {
+        var raw = String(value ?? '').trim();
+        if (!raw) return '';
+        return raw
+            .replace(/\r\n/g, '\n')
+            .replace(/\r/g, '\n')
+            .split('\n')
+            .map(erpFormatFreeInputForConversionLine)
+            .filter(function (line) {
+                return !!line;
+            })
+            .join('\n');
+    };
+window.erpFormatFreeInputForConversion = erpFormatFreeInputForConversion;
+
+function erpFormatFreeInputForConversionLine(line) {
+    var trimmed = String(line || '').trim();
+    if (!trimmed) return '';
+    var colonMatch = trimmed.match(/^(.+?)[:：]\s*(.+)$/);
+    if (colonMatch) {
+        var label = colonMatch[1].trim();
+        var amountPart = colonMatch[2].trim();
+        if (/원$/.test(amountPart)) {
+            return label + ' : ' + amountPart;
+        }
+        var amount = erpCoerceAmount(amountPart);
+        if (amount > 0) {
+            return label + ' : ' + erpFormatMoneyKRW(amount);
+        }
+        return trimmed;
+    }
+    if (/원$/.test(trimmed)) {
+        return trimmed;
+    }
+    var asAmount = erpCoerceAmount(trimmed);
+    if (asAmount > 0) {
+        return erpFormatMoneyKRW(asAmount);
+    }
+    return trimmed;
+}
+
 var erpParseFreeInputText =
     window.erpParseFreeInputText ||
     function erpParseFreeInputText() {
@@ -1603,6 +1647,8 @@ async function erpLoadStructured(bootstrapData, options) {
         erpSetStatus((data && data.message) || '불러오기 실패', true);
         return;
     }
+
+    erpApplyAttachmentPermissionsFromBootstrap(data);
 
     const sd = data.structured_data || {};
     const receivedDateEl = document.getElementById('erp-received-date');
@@ -2792,6 +2838,27 @@ function erpBuildAttachmentTile(a, options = {}) {
 </button>`;
 }
 
+function erpApplyAttachmentPermissionsFromBootstrap(data) {
+    const perms = data && data.attachment_permissions;
+    if (!perms || typeof perms !== 'object') return;
+    window.__erpAttachmentPermissions = {
+        currentUserId: perms.current_user_id != null ? parseInt(String(perms.current_user_id), 10) : null,
+        isAdmin: !!perms.is_admin,
+        isOrderManager: !!perms.is_order_manager,
+    };
+}
+
+function erpCanDeleteAttachment(attachment) {
+    if (!attachment) return false;
+    if (typeof attachment.can_delete === 'boolean') return attachment.can_delete;
+    const perms = window.__erpAttachmentPermissions;
+    if (!perms) return false;
+    if (perms.isAdmin || perms.isOrderManager) return true;
+    const uid = perms.currentUserId;
+    const attUid = attachment.user_id != null ? parseInt(String(attachment.user_id), 10) : null;
+    return uid != null && attUid != null && uid === attUid;
+}
+
 function erpSyncAttachmentPreviewActions(attachment) {
     const a = attachment || null;
     const select = document.getElementById('erp-attachment-preview-item-select');
@@ -2828,8 +2895,9 @@ function erpSyncAttachmentPreviewActions(attachment) {
     }
 
     if (deleteBtn) {
-        deleteBtn.classList.toggle('d-none', !a);
-        deleteBtn.onclick = !a ? null : async function () {
+        const canDelete = erpCanDeleteAttachment(a);
+        deleteBtn.classList.toggle('d-none', !a || !canDelete);
+        deleteBtn.onclick = (!a || !canDelete) ? null : async function () {
             await erpDeleteAttachment(a.id);
             if (!erpGetAttachmentById(a.id)) {
                 const modalEl = document.getElementById('erpAttachmentPreviewModal');
@@ -3040,10 +3108,11 @@ ${mediaHtml}
         onclick="erpLinkAttachmentToItem('${a.id}', '')">
         <i class="fas fa-unlink"></i>
     </button>
+    ${erpCanDeleteAttachment(a) ? `
     <button type="button" class="btn btn-sm btn-outline-danger" title="삭제(공통 첨부에서도 제거)"
         onclick="erpDeleteAttachment('${a.id}')">
         <i class="fas fa-trash"></i>
-    </button>
+    </button>` : ''}
 </div>
 </div>`;
         }).join('');
@@ -3140,10 +3209,11 @@ style="height: 220px;">
                     rel="noopener">
                     <i class="fas fa-download"></i>
                 </a>
+                ${erpCanDeleteAttachment(a) ? `
                 <button class="btn btn-outline-danger" type="button" title="삭제"
                     onclick="erpDeleteAttachment('${a.id}')">
                     <i class="fas fa-trash"></i>
-                </button>
+                </button>` : ''}
             </div>
         </div>
     </div>
@@ -3796,9 +3866,9 @@ function erpAppendConversionExtraInputLine(text, value) {
 }
 
 function erpAppendConversionFreeInputBlock(text, value) {
-    const raw = String(value ?? '').trim();
-    if (!raw) return text;
-    return text + `${raw}\n`;
+    const formatted = erpFormatFreeInputForConversion(value);
+    if (!formatted) return text;
+    return text + `${formatted}\n`;
 }
 
 function erpReadItemFieldValue(row, key) {
