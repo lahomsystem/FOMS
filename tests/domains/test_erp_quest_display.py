@@ -151,6 +151,7 @@ def test_mobile_order_detail_renders_role_assignee_section() -> None:
     assert "measurement_assignee" in partial
     assert "drawing_assignee" in partial
     assert "construction_assignee" in partial
+    assert "{'label': '담당', 'value': order.manager_name" not in partial
 
 
 def test_build_payload_none_for_drawing_stage() -> None:

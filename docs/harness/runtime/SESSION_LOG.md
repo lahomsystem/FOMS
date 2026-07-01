@@ -4,11 +4,35 @@
 
 ## 최근 세션
 
-### Session: 4190dda1
+### Session: 1b42fec6
+- **시작**: 2026-07-01 11:11:15
+- **상태**: 진행중
+- **편집 파일**: (기록 중)
+- **종료**: -
+
+### Session: b3b8e642
+- **시작**: 2026-07-01 10:33:49
+- **상태**: completed
+- **편집 파일**: `commit_msg_mobile_textarea.txt`, `tests/domains/test_erp_order_shared_form_scripts.py`, `.git/COMMIT_MSG_CHANNEL_RESEND_M12.txt`, `templates/orders/partials/erp_order_js.html`, `static/js/orders/erp-order-shared.js`, `static/js/orders/erp-channel-push-confirm.js`, `tests/visual/test_p1_mockup_structure.py`, `tests/domains/test_erp_spec_calc_followup.py`, `templates/partials/shared/layout_head.html`, `templates/orders/wizard/wizard_shell.html`
+- **종료**: 2026-07-01 11:10:12
+
+ fb19a775
+- **시작**: 2026-07-01 08:56:19
+- **상태**: completed
+- **편집 파일**: `templates/orders/partials/erp_order_tab.html`, `templates/orders/partials/erp_order_tab_mobile.html`, `static/css/foundation/erp-pro/04-filter-table-badges-buttons.css`, `commit_msg.txt`, `commit_msg_rail.txt`, `tests/domains/test_erp_order_shared_form_scripts.py`, `static/js/orders/erp-items-master-detail.js`, `templates/orders/partials/erp_order_js.html`, `static/css/orders/erp-items-master-detail.css`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-3376d26b-cf51-4fb2-a33b-eeae00beba78.png`
+- **종료**: 2026-07-01 10:27:52
+
+ 5da612d6
+- **시작**: 2026-06-30 19:34:13
+- **상태**: unknown
+- **편집 파일**: `tests/domains/test_erp_quest_display.py`, `static/js/orders/erp-dashboard-entry.js`, `templates/orders/partials/dashboard_scripts_detail_dom.html`, `static/js/orders/dashboard/erp-dashboard-detail-dom.js`, `templates/orders/partials/order_detail_mobile_v2.html`, `commit_msg.txt`, `templates/partials/shared/layout_scripts.html`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/agent-tools/e5f6849c-49d2-4ac8-b757-3c24b9ccca91.txt`, `foms/web/drawing/workbench.py`, `foms/services/erp_quest_display.py`
+- **종료**: 2026-06-30 22:20:23
+
+ 4190dda1
 - **시작**: 2026-06-26 13:41:33
 - **상태**: completed
-- **편집 파일**: `.git/COMMIT_MSG_TMP.txt`, `static/js/foms/wizard.js`, `foms/api/erp_order_draft.py`, `static/css/components/foms-wizard.css`, `tests/domains/test_erp_order_draft_wizard.py`, `templates/orders/wizard/wizard_shell.html`, `templates/orders/wizard/step4_confirm.html`, `templates/orders/wizard/step2_products.html`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-ac10d9f9-f48c-437c-85da-1ad6a1e3f7e0.png`, `commit_msg.txt`
-- **종료**: 2026-06-26 13:49:02
+- **편집 파일**: (없음)
+- **종료**: 2026-06-30 16:51:50
 
  43867baf
 - **시작**: 2026-06-25 08:10:46
@@ -1021,3 +1045,115 @@
 | 2026-06-26 13:34:19 | END (Claude Code) | 수정: (없음) |
 
 | 2026-06-26 13:49:02 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-30 16:51:50 | END (Claude Code) | 수정: tests/domains/test_wdc_order_estimates_query_count.py, static/js/wdcalculator/estimate-lifecycle.js, foms/api/wdcalculator/blueprint.py |
+
+| 2026-06-30 19:17:29 | END (Claude Code) | 수정: ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_add_form_autosave_gap.md, tests/domains/test_erp_add_order_autosave.py, templates/orders/partials/erp_order_tab_mobile.html, tests/domains/test_wdc_order_estimates_query_count.py, static/js/wdcalculator/estimate-lifecycle.js, foms/api/wdcalculator/blueprint.py |
+
+| 2026-06-30 19:28:04 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-30 19:58:46 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-30 22:18:07 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-30 22:24:04 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-30 22:32:39 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-30 22:35:59 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-30 22:37:16 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-30 22:43:57 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-30 22:48:08 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-30 22:55:21 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-30 23:08:48 | END (Claude Code) | 수정: (없음) |
+
+| 2026-06-30 23:11:02 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 07:48:37 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 08:23:18 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 08:25:52 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 08:56:10 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 09:03:41 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 09:04:56 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 09:12:23 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 09:12:49 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 09:18:14 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 09:20:02 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 09:23:50 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 09:27:12 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 09:30:06 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 09:34:00 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 09:34:57 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 09:39:23 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 09:39:51 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 09:40:31 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 09:42:09 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 09:43:13 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 09:58:35 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 10:03:23 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 10:09:17 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 10:24:46 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 10:26:41 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 10:27:52 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 10:35:20 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 10:35:50 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 10:43:44 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 10:44:55 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 10:47:34 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 10:48:44 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 10:49:26 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 10:50:03 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 10:57:39 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 10:59:59 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 11:00:09 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 11:02:15 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 11:03:14 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 11:07:16 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 11:09:23 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 11:10:12 | END (Claude Code) | 수정: (없음) |

@@ -1,9 +1,57 @@
 # Edit Log
 
-> Claude Code Hook(`PostToolUse:Edit|Write`)가 자동 기록합니다.
+> 이 파일은 Cursor Hooks에 의해 자동 관리됩니다.
+> 최근 50개 편집 기록만 유지합니다.
 
-| Time | File | Tool |
-|------|------|------|
-| 2026-06-26 13:51:03 | `foms/api/wdcalculator/blueprint.py` | Edit |
-| 2026-06-26 13:51:34 | `static/js/wdcalculator/estimate-lifecycle.js` | Edit |
-| 2026-06-26 13:53:19 | `tests/domains/test_wdc_order_estimates_query_count.py` | Write |
+## 최근 파일 편집
+
+- `commit_msg.txt` <- 1 edit(s), ~140 chars (2026-07-01 11:15:43)
+- `commit_msg_mobile_textarea.txt` <- 1 edit(s), ~192 chars (2026-07-01 11:09:58)
+- `tests/domains/test_erp_order_shared_form_scripts.py` <- 2 edit(s), ~104 chars (2026-07-01 11:09:46)
+- `.git/COMMIT_MSG_CHANNEL_RESEND_M12.txt` <- 1 edit(s), ~147 chars (2026-07-01 11:09:08)
+- `tests/domains/test_erp_order_shared_form_scripts.py` <- 1 edit(s), ~609 chars (2026-07-01 11:08:51)
+- `tests/domains/test_erp_order_shared_form_scripts.py` <- 1 edit(s), ~107 chars (2026-07-01 11:08:38)
+- `tests/domains/test_erp_order_shared_form_scripts.py` <- 1 edit(s), ~133 chars (2026-07-01 11:08:37)
+- `templates/orders/partials/erp_order_js.html` <- 1 edit(s), ~223 chars (2026-07-01 11:08:36)
+- `static/js/orders/erp-order-shared.js` <- 6 edit(s), ~1298 chars (2026-07-01 11:08:35)
+- `static/js/orders/erp-channel-push-confirm.js` <- 7 edit(s), ~912 chars (2026-07-01 11:08:26)
+- `tests/domains/test_erp_order_shared_form_scripts.py` <- 1 edit(s), ~844 chars (2026-07-01 11:08:24)
+- `tests/visual/test_p1_mockup_structure.py` <- 1 edit(s), ~62 chars (2026-07-01 11:08:10)
+- `tests/domains/test_erp_spec_calc_followup.py` <- 1 edit(s), ~140 chars (2026-07-01 11:08:10)
+- `tests/domains/test_erp_order_shared_form_scripts.py` <- 1 edit(s), ~145 chars (2026-07-01 11:08:10)
+- `templates/partials/shared/layout_head.html` <- 1 edit(s), ~122 chars (2026-07-01 11:08:06)
+- `templates/orders/wizard/wizard_shell.html` <- 1 edit(s), ~113 chars (2026-07-01 11:08:06)
+- `static/css/foundation/foms-mobile-surfaces.css` <- 1 edit(s), ~61 chars (2026-07-01 11:07:55)
+- `static/css/components/foms-form-field.css` <- 2 edit(s), ~518 chars (2026-07-01 11:07:55)
+- `tools/qa/_tmp_channel_resend_virtual.py` <- 1 edit(s), ~923 chars (2026-07-01 11:01:24)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-5cb15afe-8f62-4dcc-bb86-ce9324312887.png` <- 1 edit(s), ~0 chars (2026-07-01 11:00:06)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-1dd72dd6-e806-4c6d-a348-0fd73168c482.png` <- 1 edit(s), ~0 chars (2026-07-01 11:00:06)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-3975b66a-1bd6-4c3c-8c04-b50d359d6dba.png` <- 1 edit(s), ~0 chars (2026-07-01 11:00:06)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-1d53d664-07b6-489e-9ab9-bd795457d1d1.png` <- 1 edit(s), ~0 chars (2026-07-01 11:00:06)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-5cb15afe-8f62-4dcc-bb86-ce9324312887.png` <- 1 edit(s), ~0 chars (2026-07-01 10:59:46)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-3975b66a-1bd6-4c3c-8c04-b50d359d6dba.png` <- 1 edit(s), ~0 chars (2026-07-01 10:59:46)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-1dd72dd6-e806-4c6d-a348-0fd73168c482.png` <- 1 edit(s), ~0 chars (2026-07-01 10:59:46)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-d4035899-3046-47ac-b850-25a3fa520629.png` <- 1 edit(s), ~0 chars (2026-07-01 10:59:46)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-1d53d664-07b6-489e-9ab9-bd795457d1d1.png` <- 1 edit(s), ~0 chars (2026-07-01 10:59:46)
+- `templates/orders/partials/erp_order_tab.html` <- 1 edit(s), ~413 chars (2026-07-01 10:59:32)
+- `static/css/components/foms-form-field.css` <- 1 edit(s), ~471 chars (2026-07-01 10:59:25)
+- `static/css/components/foms-form-field.css` <- 1 edit(s), ~424 chars (2026-07-01 10:59:22)
+- `static/css/foundation/erp-pro/04-filter-table-badges-buttons.css` <- 9 edit(s), ~533 chars (2026-07-01 10:59:22)
+- `templates/orders/partials/erp_order_tab_mobile.html` <- 1 edit(s), ~784 chars (2026-07-01 10:59:21)
+- `.git/COMMIT_MSG_CHANNEL_RESEND.txt` <- 1 edit(s), ~184 chars (2026-07-01 10:57:23)
+- `tests/domains/test_erp_order_shared_form_scripts.py` <- 1 edit(s), ~63 chars (2026-07-01 10:56:41)
+- `tests/domains/test_erp_order_shared_form_scripts.py` <- 1 edit(s), ~99 chars (2026-07-01 10:56:35)
+- `tests/domains/test_erp_orders_structured_put.py` <- 1 edit(s), ~1610 chars (2026-07-01 10:56:18)
+- `static/js/orders/erp-order-shared.js` <- 1 edit(s), ~91 chars (2026-07-01 10:56:02)
+- `foms/api/erp_orders_structured.py` <- 1 edit(s), ~139 chars (2026-07-01 10:56:02)
+- `tests/domains/test_erp_order_shared_form_scripts.py` <- 1 edit(s), ~88 chars (2026-07-01 10:52:29)
+- `tests/visual/test_erp_order_edit_mobile_form.py` <- 1 edit(s), ~58 chars (2026-07-01 10:52:27)
+- `tests/domains/test_erp_order_shared_form_scripts.py` <- 3 edit(s), ~424 chars (2026-07-01 10:52:26)
+- `tests/domains/test_channel_integration_smoke.py` <- 1 edit(s), ~2708 chars (2026-07-01 10:52:18)
+- `static/js/orders/erp-order-shared.js` <- 1 edit(s), ~111 chars (2026-07-01 10:52:06)
+- `tests/domains/test_channel_push_messages.py` <- 1 edit(s), ~75 chars (2026-07-01 10:52:05)
+- `tests/domains/test_channel_push_messages.py` <- 3 edit(s), ~751 chars (2026-07-01 10:51:57)
+- `templates/orders/partials/erp_order_tab_mobile.html` <- 1 edit(s), ~67 chars (2026-07-01 10:51:49)
+- `templates/orders/partials/erp_order_tab.html` <- 1 edit(s), ~67 chars (2026-07-01 10:51:48)
+- `templates/orders/partials/erp_order_js.html` <- 1 edit(s), ~334 chars (2026-07-01 10:51:47)
+- `static/js/orders/erp-channel-push-confirm.js` <- 1 edit(s), ~108 chars (2026-07-01 10:51:46)

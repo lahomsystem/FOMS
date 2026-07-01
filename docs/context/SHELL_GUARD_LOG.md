@@ -232,3 +232,10 @@
 | 2026-06-26 13:57:13 | allow | `-` | `git --no-pager diff HEAD -- foms/api/wdcalculator/blueprint.py | grep -A 3 "load_notes_categories"` |
 | 2026-06-26 13:58:19 | allow | `-` | `tail -40 "C:\Users\USER\.claude\projects\c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS\e3b6654f-c5c2-44d5-9033-54c93d50f066\tool-results\bag75lj8v` |
 | 2026-06-26 13:58:59 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" && echo "=== branch ==="; git rev-parse --abbrev-ref HEAD; echo "=== status ==="; git status --` |
+| 2026-06-30 19:09:19 | allow | `-` | `B="/c/Users/USER/.claude/skills/gstack/browse/dist/browse" "$B" viewport 390x844 >/dev/null 2>&1 "$B" goto "https://lahom-dev.up.railway.app/edit/4016" >/dev/nu` |
+| 2026-06-30 19:12:52 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" python -c "import app; print('APP_OK')" 2>&1 | tail -1 python -m pytest tests/domains/test_erp_` |
+| 2026-06-30 19:13:41 | allow | `-` | `B="/c/Users/USER/.claude/skills/gstack/browse/dist/browse" "$B" viewport 390x844 >/dev/null 2>&1 "$B" goto "https://lahom-dev.up.railway.app/edit/4016" >/dev/nu` |
+| 2026-06-30 19:14:46 | allow | `-` | `cd "c:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS" git fetch origin deploy >/dev/null 2>&1 git add templates/orders/partials/erp_order_tab_mobile.` |
+| 2026-06-30 19:15:06 | allow | `-` | `B="/c/Users/USER/.claude/skills/gstack/browse/dist/browse" "$B" viewport 390x844 >/dev/null 2>&1 for i in $(seq 1 12); do "$B" goto "https://lahom-dev.up.railwa` |
+| 2026-06-30 19:15:53 | allow | `-` | `B="/c/Users/USER/.claude/skills/gstack/browse/dist/browse" SS="/c/Users/USER/AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FO` |
+| 2026-06-30 19:16:21 | allow | `-` | `B="/c/Users/USER/.claude/skills/gstack/browse/dist/browse" echo "name before resume: $("$B" js "document.getElementById('erp-customer-name')?.value" --raw 2>&1 ` |

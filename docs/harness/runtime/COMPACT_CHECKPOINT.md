@@ -1,22 +1,22 @@
 # Context Compact Checkpoint
 
 > **경고**: 컨텍스트 압축이 발생했습니다. 이 파일을 읽어 이전 작업을 복원하세요.
-> 생성 시각: 2026-06-25 19:38:20
-> 세션: de379fd1
+> 생성 시각: 2026-07-01 10:31:57
+> 세션: fb19a775
 
 ## 압축 직전 상태
 
 ### 최근 편집된 파일
-- `templates/cs/partials/completion_scripts.html` <- 1 edit(s), ~103 chars (2026-06-25 19:38:19)
-- `static/css/components/foms-completion-mobile.css` <- 1 edit(s), ~113 chars (2026-06-25 19:38:17)
-- `templates/cs/partials/completion_scripts.html` <- 1 edit(s), ~311 chars (2026-06-25 19:38:17)
-- `foms/api/cs/dashboard.py` <- 1 edit(s), ~89 chars (2026-06-25 19:38:16)
-- `templates/cs/partials/completion_scripts.html` <- 1 edit(s), ~345 chars (2026-06-25 19:38:15)
-- `foms/api/cs/dashboard.py` <- 1 edit(s), ~123 chars (2026-06-25 19:38:14)
-- `foms/api/cs/dashboard.py` <- 1 edit(s), ~67 chars (2026-06-25 19:38:13)
-- `commit_msg.txt` <- 1 edit(s), ~191 chars (2026-06-25 19:34:53)
-- `tests/visual/test_p1_mockup_structure.py` <- 1 edit(s), ~62 chars (2026-06-25 19:34:22)
-- `tests/domains/test_as_dashboard_mobile.py` <- 1 edit(s), ~50 chars (2026-06-25 19:33:38)
+- `templates/orders/partials/erp_order_tab.html` <- 1 edit(s), ~164 chars (2026-07-01 10:27:44)
+- `templates/orders/partials/erp_order_tab_mobile.html` <- 1 edit(s), ~205 chars (2026-07-01 10:27:43)
+- `static/css/foundation/erp-pro/04-filter-table-badges-buttons.css` <- 2 edit(s), ~105 chars (2026-07-01 10:27:43)
+- `templates/orders/partials/erp_order_tab.html` <- 1 edit(s), ~177 chars (2026-07-01 10:27:42)
+- `static/css/foundation/erp-pro/04-filter-table-badges-buttons.css` <- 1 edit(s), ~75 chars (2026-07-01 10:27:41)
+- `commit_msg.txt` <- 1 edit(s), ~130 chars (2026-07-01 10:24:17)
+- `commit_msg_rail.txt` <- 1 edit(s), ~179 chars (2026-07-01 10:09:02)
+- `tests/domains/test_erp_order_shared_form_scripts.py` <- 1 edit(s), ~141 chars (2026-07-01 10:08:13)
+- `static/js/orders/erp-items-master-detail.js` <- 2 edit(s), ~89 chars (2026-07-01 10:07:48)
+- `static/js/orders/erp-items-master-detail.js` <- 1 edit(s), ~365 chars (2026-07-01 10:07:46)
 
 ### 진행 중이던 작업
 - [2026-04-17] **ERP fast-page `EPT-B8`:** run record `docs/plans/2026-04-17-ept-b8-verification-railway-evidence-run-record.md` — 로컬 게이트 완료; staging HTTP 하네스로 **§4 표·§5** 부분 채움; **closeout** 은 deploy ID·§6 모드·hard stop 조건 충족 후.
