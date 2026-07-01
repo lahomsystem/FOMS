@@ -62,10 +62,42 @@
     return 'partial';
   }
 
+  function rowIsEmpty(row) {
+    if (!row) return true;
+    var name = String(row.querySelector('[data-erp="product_name"]')?.value || '').trim();
+    if (name) return false;
+    if (rowSpecText(row)) return false;
+    var price = String(row.querySelector('[data-erp="price"]')?.value || '').replace(/[^0-9]/g, '');
+    return !price;
+  }
+
+  function shouldShowEmptyState(list) {
+    return list.length === 1 && rowIsEmpty(list[0]) && !searchQuery.trim();
+  }
+
+  function emptyStateHtml() {
+    return (
+      '<div class="item-rail__empty" role="presentation">' +
+      '<div class="item-rail__empty-icon" aria-hidden="true"><i class="fas fa-couch"></i></div>' +
+      '<p class="item-rail__empty-title">첫 항목을 입력하세요</p>' +
+      '<p class="item-rail__empty-hint">오른쪽에서 제품명·규격을 입력하거나<br>상단 <strong>+ 항목</strong>으로 추가합니다</p>' +
+      '</div>'
+    );
+  }
+
   function pipClass(status) {
     if (status === 'done') return 'status-pip--done';
     if (status === 'partial') return 'status-pip--partial';
     return 'status-pip--empty';
+  }
+
+  function syncRailHeight() {
+    if (!isActive()) return;
+    var rail = shell()?.querySelector('.item-rail');
+    var detail = shell()?.querySelector('.item-detail');
+    if (!rail || !detail) return;
+    var h = detail.offsetHeight;
+    if (h > 0) rail.style.minHeight = h + 'px';
   }
 
   function syncRailTotal() {
@@ -106,25 +138,48 @@
     listEl.innerHTML = '';
     var q = searchQuery.trim().toLowerCase();
 
+    if (shouldShowEmptyState(list)) {
+      listEl.classList.add('is-empty-state');
+      listEl.innerHTML = emptyStateHtml();
+      syncNavPos();
+      syncRailTotal();
+      syncRailHeight();
+      return;
+    }
+
+    listEl.classList.remove('is-empty-state');
+
     list.forEach(function (row, i) {
-      var name = String(row.querySelector('[data-erp="product_name"]')?.value || '').trim() || '제품명 없음';
-      var spec = rowSpecText(row) || '—';
-      var price = rowPriceText(row) || '—';
+      var nameRaw = String(row.querySelector('[data-erp="product_name"]')?.value || '').trim();
+      var isEmpty = rowIsEmpty(row);
+      var name = nameRaw || '미입력';
+      var spec = rowSpecText(row);
+      var price = rowPriceText(row);
       var status = rowStatus(row);
-      var filtered = q && name.toLowerCase().indexOf(q) === -1;
+      var filtered = q && nameRaw.toLowerCase().indexOf(q) === -1;
 
       var el = document.createElement('div');
-      el.className = 'rail-item' + (i === selectedIdx ? ' is-selected' : '') + (filtered ? ' is-filtered-out' : '');
+      el.className =
+        'rail-item' +
+        (i === selectedIdx ? ' is-selected' : '') +
+        (filtered ? ' is-filtered-out' : '') +
+        (isEmpty ? ' rail-item--ghost' : '');
       el.setAttribute('role', 'option');
       el.setAttribute('aria-selected', i === selectedIdx ? 'true' : 'false');
       el.dataset.itemIndex = String(i);
+
+      var specHtml = spec ? '<span class="rail-item__spec">' + escapeHtml(spec) + '</span>' : '';
+      var pipHtml = isEmpty ? '' : '<span class="status-pip ' + pipClass(status) + '"></span>';
+      var priceHtml = price ? '<span class="rail-item__price">' + escapeHtml(price) + '</span>' : '';
+
       el.innerHTML =
         '<span class="rail-item__index">' + (i + 1) + '</span>' +
+        '<div class="rail-item__main">' +
         '<span class="rail-item__name">' + escapeHtml(name) + '</span>' +
-        '<span class="rail-item__spec">' + escapeHtml(spec) + '</span>' +
-        '<div class="rail-item__right">' +
-        '<span class="status-pip ' + pipClass(status) + '"></span>' +
-        '<span class="rail-item__price">' + escapeHtml(price) + '</span></div>';
+        specHtml +
+        '</div>' +
+        '<div class="rail-item__right">' + pipHtml + priceHtml + '</div>';
+
       el.addEventListener('click', function () {
         selectItem(i);
       });
@@ -133,6 +188,7 @@
 
     syncNavPos();
     syncRailTotal();
+    syncRailHeight();
   }
 
   function escapeHtml(text) {
@@ -172,6 +228,16 @@
       selectedIdx = Math.max(0, selectedIdx - 1);
     }
     refresh();
+  }
+
+  function bindHeightSync() {
+    if (window.__ERP_ITEMS_MD_HEIGHT_OBS) return;
+    var detail = shell()?.querySelector('.item-detail');
+    if (!detail || typeof ResizeObserver === 'undefined') return;
+    window.__ERP_ITEMS_MD_HEIGHT_OBS = new ResizeObserver(function () {
+      syncRailHeight();
+    });
+    window.__ERP_ITEMS_MD_HEIGHT_OBS.observe(detail);
   }
 
   function bindControls() {
@@ -233,6 +299,7 @@
     if (typeof erpIsMobileFormContext === 'function' && erpIsMobileFormContext()) return;
     bindControls();
     bindKeyboard();
+    bindHeightSync();
     selectedIdx = 0;
     refresh();
   }
@@ -243,7 +310,8 @@
     refresh: refresh,
     selectItem: selectItem,
     afterRemove: afterRemove,
-    syncRailTotal: syncRailTotal
+    syncRailTotal: syncRailTotal,
+    syncRailHeight: syncRailHeight
   };
 
   function tryInit() {
