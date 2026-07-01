@@ -302,9 +302,9 @@ def test_mobile_erp_secnav_chip_order_and_targets() -> None:
         "고객",
         "일정",
         "현장 스펙",
-        "접수",
         "사진",
         "발주",
+        "접수",
     ]
     for target_id, _ in chip_labels:
         assert f'id="{target_id}"' in mobile
@@ -315,7 +315,7 @@ def test_mobile_erp_secnav_chip_order_and_targets() -> None:
     received_idx = mobile.index('id="erp-mobile-sec-received"')
     photo_idx = mobile.index('id="erp-mobile-sec-photo"')
     order_idx = mobile.index('id="erp-mobile-sec-order"')
-    assert customer_idx < schedule_idx < spec_idx < received_idx < photo_idx < order_idx
+    assert customer_idx < schedule_idx < spec_idx < photo_idx < order_idx < received_idx
 
 
 def test_mobile_erp_form_sections_use_field_priority_collapse_defaults() -> None:
