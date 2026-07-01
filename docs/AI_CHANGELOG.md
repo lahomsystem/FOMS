@@ -4,6 +4,12 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-07-01 | 세션 자동 기록 | commit_msg.txt, test_erp_order_shared_form_scripts.py, erp-order-shared.js 외 2개 | 2bb423e1 |
+| 2026-07-01 | 세션 자동 기록 | test_erp_order_shared_form_scripts.py, erp-order-shared.js, erp_order_js.html 외 2개 | b747200a |
+| 2026-07-01 | 세션 자동 기록 | erp-order-shared.js, test_erp_order_shared_form_scripts.py, erp_order_js.html 외 2개 | b747200a |
+| 2026-07-01 | 세션 자동 기록 | commit_msg.txt, test_erp_order_shared_form_scripts.py, erp_order_js.html 외 2개 | b747200a |
+| 2026-07-01 | 세션 자동 기록 | foms-form-field.css, 04-filter-table-badges-buttons.css, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-20f224a3-c5da-43a7-8420-bcba14cc72f9.png 외 2개 | 2cc30f62 |
+| 2026-07-01 | 세션 자동 기록 | commit_msg.txt, commit_msg_mobile_input.txt, test_p1_mockup_structure.py 외 2개 | 2cc30f62 |
 | 2026-07-01 | 세션 자동 기록 | commit_msg_mobile_input.txt, test_p1_mockup_structure.py, test_erp_spec_calc_followup.py 외 2개 | 78adcbec |
 | 2026-07-01 | 세션 자동 기록 | commit_msg.txt, commit_msg_mobile_textarea.txt, test_erp_order_shared_form_scripts.py 외 2개 | f30564e5 |
 | 2026-07-01 | 세션 자동 기록 | commit_msg_mobile_textarea.txt, test_erp_order_shared_form_scripts.py, erp_order_js.html 외 2개 | 13b7bc99 |
@@ -18,9 +24,3 @@
 | 2026-07-01 | 세션 자동 기록 | test_erp_order_shared_form_scripts.py, wizard.js, erp-spec-calc.js 외 2개 | 3b6bc988 |
 | 2026-07-01 | 세션 자동 기록 | erp_order_tab.html, erp_order_tab_mobile.html, 04-filter-table-badges-buttons.css 외 2개 | 3b6bc988 |
 | 2026-07-01 | 세션 자동 기록 | commit_msg.txt, commit_msg_rail.txt, test_erp_order_shared_form_scripts.py 외 2개 | 3b6bc988 |
-| 2026-07-01 | 세션 자동 기록 | commit_msg_rail.txt, test_erp_order_shared_form_scripts.py, erp-items-master-detail.js 외 2개 | 273ec601 |
-| 2026-07-01 | 세션 자동 기록 | erp_order_tab.html, test_erp_order_shared_form_scripts.py, test_erp_order_edit_mobile_form.py 외 2개 | 73a4e48d |
-| 2026-07-01 | 세션 자동 기록 | commit_msg.txt, test_erp_order_shared_form_scripts.py, erp-order-shared.js 외 2개 | 73a4e48d |
-| 2026-07-01 | 세션 자동 기록 | c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-d6ce0f31-25bb-4c5f-a9f7-cbc17201d6c2.png, _tmp_add_triggers.py, _tmp_rm_triggers.py 외 2개 | 479a7b68 |
-| 2026-07-01 | 세션 자동 기록 | _tmp_rm_triggers.py, commit_msg.txt, 04-filter-table-badges-buttons.css 외 2개 | 479a7b68 |
-| 2026-07-01 | 세션 자동 기록 | commit_msg.txt, 04-filter-table-badges-buttons.css, test_erp_order_shared_form_scripts.py 외 2개 | 479a7b68 |

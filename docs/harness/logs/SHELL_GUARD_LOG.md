@@ -4,41 +4,6 @@
 
 | Time | Decision | Pattern | Command |
 |------|----------|---------|---------|
-| 2026-06-25 09:33:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy; git status -sb` |
-| 2026-06-25 09:38:40 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_foms_search_overlay.py::test_unified_search_matches_struct` |
-| 2026-06-25 09:38:51 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
-| 2026-06-25 09:39:20 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add foms/services/foms_unified_search.py; git commit --trailer "Co-authored-by: Cursor <cu` |
-| 2026-06-25 09:48:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status -sb; git fetch origin; git log --oneline origin/production..origin/deploy -15; git ` |
-| 2026-06-25 09:54:23 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git rev-parse origin/production origin/deploy; git merge-base origin/production origin/deploy` |
-| 2026-06-25 09:56:18 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin; git rev-parse origin/production origin/deploy; git log --oneline origin/prod` |
-| 2026-06-25 09:57:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
-| 2026-06-25 09:58:55 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy:production; git rev-parse origin/production origin/deploy` |
-| 2026-06-25 10:01:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin; git status -sb; git log --oneline -3 deploy; git log --oneline -3 origin/dep` |
-| 2026-06-25 10:01:15 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log --oneline production..deploy; git diff docs/AI_CHANGELOG.md` |
-| 2026-06-25 10:01:21 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/AI_CHANGELOG.md docs/harness/logs/SHELL_GUARD_LOG.md docs/harness/runtime/EDIT_LO` |
-| 2026-06-25 16:26:55 | allow | `-` | `echo "=== history (must NOT contain 712332fc dark mode) ==="; git log --oneline -4; echo "=== version bump present? ==="; git grep -n "estimate-preview.js') }}?` |
-| 2026-06-25 16:28:05 | allow | `-` | `echo "=== status ==="; git status -s | Select-Object -First 20; echo "=== stash list ==="; git stash list; echo "=== any conflict markers? ==="; git diff --name` |
-| 2026-06-25 16:30:30 | allow | `-` | `$u="https://lahom-production.up.railway.app/static/js/orders/estimate-preview.js?v=20260625a"; try { $r=Invoke-WebRequest -Uri $u -UseBasicParsing -TimeoutSec 3` |
-| 2026-06-25 16:33:25 | allow | `-` | `echo "=== fallback div in production commit d7f9fec9? ==="; git grep -n "est-mobile-preview-fallback" d7f9fec9 -- templates/orders/partials/estimate_pane.html |` |
-| 2026-06-25 16:41:21 | allow | `-` | `curl -s "https://lahom-dev.up.railway.app/static/css/foundation/erp-pro/10-erp-mobile-v2-shell.css?v=20260625b" | Select-String -Pattern "erp-mobile-menu-drawer` |
-| 2026-06-25 16:42:05 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c " import re from pathlib import Path css = Path('static/css/foundation/erp-pro/10-er` |
-| 2026-06-25 16:42:22 | allow | `-` | `curl -s "https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" | Select-String -Pattern "offcanvas" | Select-Object -First 5` |
-| 2026-06-25 16:43:28 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log -5 --oneline -- static/css/foundation/erp-pro/10-erp-mobile-v2-shell.css; git log -1 -` |
-| 2026-06-25 16:43:58 | allow | `-` | `curl -s "https://lahom-dev.up.railway.app/static/css/foundation/erp-pro/10-erp-mobile-v2-shell.css" | Select-String -Pattern "z-index" | Select-Object -First 8` |
-| 2026-06-25 16:53:24 | allow | `-` | `node --check static/js/orders/estimate-preview.js 2>&1; echo "node_check_exit=$LASTEXITCODE"` |
-| 2026-06-25 16:53:48 | allow | `-` | `python -m pytest tests/domains/test_erp_order_shared_form_scripts.py -q 2>&1 | Select-Object -Last 30` |
-| 2026-06-25 16:53:48 | allow | `-` | `node --check static/js/orders/estimate-preview.js 2>&1; echo "node_check_exit=$LASTEXITCODE"` |
-| 2026-06-25 16:53:48 | allow | `-` | `python -c "import app; print('APP_OK')"` |
-| 2026-06-25 16:53:48 | allow | `-` | `python tools/perf/perf_scan.py --guard 2>&1 | Select-Object -Last 30; echo "guard_exit=$LASTEXITCODE"` |
-| 2026-06-25 16:56:38 | allow | `-` | `python -m pytest tests/domains/test_erp_order_shared_form_scripts.py -q 2>&1 | Select-Object -Last 30` |
-| 2026-06-25 16:56:38 | allow | `-` | `node --check static/js/orders/estimate-preview.js 2>&1; echo "node_check_exit=$LASTEXITCODE"` |
-| 2026-06-25 16:56:38 | allow | `-` | `python tools/perf/perf_scan.py --guard 2>&1 | Select-Object -Last 30; echo "guard_exit=$LASTEXITCODE"` |
-| 2026-06-25 16:56:56 | allow | `-` | `python -c "import app; print('APP_OK')"` |
-| 2026-06-25 16:57:39 | allow | `-` | `@' fix: iOS 견적서 캡처 무한대기 차단 html2canvas 1.4.1이 iOS Safari에서 hidden iframe/lazy image clone 대기 중 resolve/reject 없이 멈추면 견적 탭이 빈 화면이 되고 저장 버튼도 "저장 중"에서 복구되지 않았다. - ` |
-| 2026-06-25 16:57:48 | allow | `-` | `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1 2>&1 | Select-Object -Last 80; echo "pre_push_exit=$LASTEXITCODE"` |
-| 2026-06-25 16:58:56 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff static/js/foms/theme.js | Select-Object -First 80` |
-| 2026-06-25 16:59:29 | allow | `-` | `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1 2>&1 | Select-Object -Last 100; echo "pre_push_exit=$LASTEXITCODE"` |
-| 2026-06-25 16:59:53 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_foms_theme.py -q; python tools/perf/perf_scan.py --guard` |
 | 2026-06-25 17:00:11 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff --stat` |
 | 2026-06-25 17:00:11 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff` |
 | 2026-06-25 17:00:17 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff static/css/components/foms-search-overlay.css static/css/foundation/erp-pro/10-erp-mo` |
@@ -304,3 +269,38 @@
 | 2026-07-01 11:36:26 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/perf/perf_scan.py --guard` |
 | 2026-07-01 11:36:26 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
 | 2026-07-01 11:37:08 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/AI_CHANGELOG.md docs/harness/logs/SHELL_GUARD_LOG.md docs/harness/runtime/EDIT_LO` |
+| 2026-07-01 11:37:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log -3 --oneline; git status -sb` |
+| 2026-07-01 11:41:39 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/visual/test_erp_order_edit_mobile_form.py -q --tb=line 2>&1 | Select-Ob` |
+| 2026-07-01 11:46:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin production deploy 2>&1; git log -1 --oneline origin/production; git log -1 --` |
+| 2026-07-01 11:46:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff origin/production..origin/deploy --stat -- templates/orders/partials/erp_order_tab.ht` |
+| 2026-07-01 11:46:52 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git show origin/production:templates/orders/partials/erp_order_tab.html 2>$null | Select-Strin` |
+| 2026-07-01 11:47:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git show origin/production:templates/orders/partials/erp_order_tab.html | Select-String -Patte` |
+| 2026-07-01 11:47:01 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git show origin/production:static/js/orders/erp-order-shared.js | Select-String -Pattern "erpA` |
+| 2026-07-01 11:47:10 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git show origin/production:static/js/orders/erp-order-shared.js | Select-String -Pattern "erpB` |
+| 2026-07-01 11:47:10 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff origin/production..HEAD -- templates/orders/partials/erp_order_tab.html 2>&1 | Select` |
+| 2026-07-01 11:47:29 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git show origin/production:static/js/orders/erp-order-shared.js | Select-String -Pattern "cons` |
+| 2026-07-01 11:47:58 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git show refs/remotes/origin/production:templates/orders/partials/erp_order_tab.html | Out-Fil` |
+| 2026-07-01 11:49:08 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_order_shared_form_scripts.py -q --tb=short 2>&1 | Sele` |
+| 2026-07-01 11:49:41 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_order_shared_form_scripts.py -q --tb=short 2>&1` |
+| 2026-07-01 11:50:00 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git diff --stat` |
+| 2026-07-01 11:50:08 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff static/css/components/foms-form-field.css static/css/foundation/erp-pro/04-filter-tab` |
+| 2026-07-01 11:50:14 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python tools/perf/perf_scan.py --guard 2>&1` |
+| 2026-07-01 11:50:45 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1 2>&1` |
+| 2026-07-01 11:51:32 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add templates/orders/partials/erp_order_tab.html templates/orders/partials/erp_order_js.ht` |
+| 2026-07-01 11:51:37 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git push origin deploy 2>&1` |
+| 2026-07-01 11:51:45 | allow | `-` | `Start-Sleep -Seconds 45` |
+| 2026-07-01 12:00:07 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_order_shared_form_scripts.py -q --tb=short 2>&1; pytho` |
+| 2026-07-01 12:00:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_order_shared_form_scripts.py::test_erp_order_page_incl` |
+| 2026-07-01 12:00:46 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_order_shared_form_scripts.py -q 2>&1` |
+| 2026-07-01 12:01:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -m pytest tests/domains/test_erp_order_shared_form_scripts.py::test_shared_erp_order_js` |
+| 2026-07-01 13:07:19 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git status; git diff --stat; git log -3 --oneline` |
+| 2026-07-01 13:07:25 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git diff static/js/orders/erp-order-shared.js templates/orders/partials/erp_order_tab.html tem` |
+| 2026-07-01 13:07:35 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python -m pytest tests/domains/test_erp_order_shared_` |
+| 2026-07-01 13:08:02 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add static/js/orders/erp-order-shared.js templates/orders/partials/erp_order_js.html templ` |
+| 2026-07-01 13:09:29 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git fetch origin deploy 2>&1; git status -sb; git log origin/deploy..HEAD --oneline; git log -` |
+| 2026-07-01 13:09:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; if (Test-Path "tools/qa") { "tools/qa EXISTS" } else { "ok" }` |
+| 2026-07-01 13:09:36 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git rev-parse HEAD origin/deploy; git log origin/deploy..HEAD --oneline; git show b747200a --s` |
+| 2026-07-01 13:09:43 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git log origin/deploy..HEAD --oneline; git log HEAD..origin/deploy --oneline` |
+| 2026-07-01 13:09:48 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; python -c "import app; print('APP_OK')"; python tools/perf/perf_scan.py --guard` |
+| 2026-07-01 13:09:48 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` |
+| 2026-07-01 13:10:29 | allow | `-` | `cd "c:\Users\USER\OneDrive\Desktop\SY\program\lahomproject\FOMS"; git add docs/AI_CHANGELOG.md docs/harness/logs/SHELL_GUARD_LOG.md docs/harness/runtime/COMPACT` |

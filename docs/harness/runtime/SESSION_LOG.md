@@ -4,13 +4,13 @@
 
 ## 최근 세션
 
-### Session: 1b42fec6
-- **시작**: 2026-07-01 11:11:15
-- **상태**: completed
-- **편집 파일**: `commit_msg_mobile_input.txt`, `tests/visual/test_p1_mockup_structure.py`, `tests/domains/test_erp_spec_calc_followup.py`, `tests/domains/test_erp_order_shared_form_scripts.py`, `templates/orders/partials/erp_order_js.html`, `templates/partials/shared/layout_head.html`, `static/css/foundation/foms-mobile-surfaces.css`, `static/css/components/foms-form-field.css`, `templates/orders/partials/erp_order_tab_mobile.html`, `static/js/orders/erp-order-shared.js`
-- **종료**: 2026-07-01 11:32:18
+### Session: 28954252
+- **시작**: 2026-07-01 13:09:19
+- **상태**: 진행중
+- **편집 파일**: (기록 중)
+- **종료**: -
 
-### Session: b3b8e642
+ b3b8e642
 - **시작**: 2026-07-01 10:33:49
 - **상태**: completed
 - **편집 파일**: `commit_msg_mobile_textarea.txt`, `tests/domains/test_erp_order_shared_form_scripts.py`, `.git/COMMIT_MSG_CHANNEL_RESEND_M12.txt`, `templates/orders/partials/erp_order_js.html`, `static/js/orders/erp-order-shared.js`, `static/js/orders/erp-channel-push-confirm.js`, `tests/visual/test_p1_mockup_structure.py`, `tests/domains/test_erp_spec_calc_followup.py`, `templates/partials/shared/layout_head.html`, `templates/orders/wizard/wizard_shell.html`
@@ -1161,3 +1161,15 @@
 | 2026-07-01 11:16:03 | END (Claude Code) | 수정: (없음) |
 
 | 2026-07-01 11:32:18 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 11:37:30 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 11:42:09 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 11:53:15 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 12:01:04 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 12:01:36 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 13:08:13 | END (Claude Code) | 수정: (없음) |
