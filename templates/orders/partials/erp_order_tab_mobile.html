@@ -62,11 +62,11 @@ ERP Order mobile-v2 tab pane.
                         <div class="field-grid-2">
                             <div class="field erp-mobile-inline">
                                 <label class="field__label" for="erp-customer-name">고객명</label>
-                                <textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea" id="erp-customer-name" rows="1" data-erp-min-height="44" autocomplete="off" lang="ko"></textarea>
+                                <textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea" id="erp-customer-name" rows="1" data-erp-min-height="40" autocomplete="off" lang="ko"></textarea>
                             </div>
                             <div class="field erp-mobile-inline">
                                 <label class="field__label" for="erp-customer-phone">연락처</label>
-                                <textarea class="foms-textarea foms-tabular erp-autosize-textarea erp-flex-textarea" id="erp-customer-phone" rows="1" data-erp-min-height="44" autocomplete="tel" inputmode="tel" lang="ko"></textarea>
+                                <textarea class="foms-textarea foms-tabular erp-autosize-textarea erp-flex-textarea" id="erp-customer-phone" rows="1" data-erp-min-height="40" autocomplete="tel" inputmode="tel" lang="ko"></textarea>
                             </div>
                         </div>
                         <div class="erp-mobile-toggle-row">
@@ -81,13 +81,13 @@ ERP Order mobile-v2 tab pane.
                             </button>
                         </div>
                         <div class="collapse" id="erp-collapse-phone-note">
-                            <textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea" id="erp-phone-note" rows="1" data-erp-min-height="44"
+                            <textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea" id="erp-phone-note" rows="1" data-erp-min-height="40"
                                 placeholder="부재중/문자 요청/통화 가능 시간" autocomplete="off" lang="ko"></textarea>
                         </div>
                         <div class="field">
                             <label class="field__label" for="erp-address">주소</label>
                             <div class="field__addon">
-                                <textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea" id="erp-address" rows="2" data-erp-min-height="56"
+                                <textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea" id="erp-address" rows="1" data-erp-min-height="40"
                                     placeholder="주소를 입력하거나 찾기 버튼을 클릭하세요" autocomplete="off" lang="ko"></textarea>
                                 <button class="foms-btn foms-btn--secondary erp-mobile-square-action" type="button"
                                     id="erp-address-search-btn" aria-label="주소 찾기">
@@ -101,7 +101,7 @@ ERP Order mobile-v2 tab pane.
                                 <i class="fas fa-chevron-down"></i> 주소 특이사항
                             </button>
                             <div class="collapse" id="erp-collapse-address-note">
-                                <textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea" id="erp-address-note" rows="2" data-erp-min-height="56"
+                                <textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea" id="erp-address-note" rows="1" data-erp-min-height="40"
                                     placeholder="주차/출입/엘리베이터/경비실" autocomplete="off" lang="ko"></textarea>
                             </div>
                         </div>
@@ -139,7 +139,7 @@ ERP Order mobile-v2 tab pane.
                                         <option value="종일">종일</option>
                                         <option value="__direct__">직접 입력</option>
                                     </select>
-                                    <textarea class="foms-textarea foms-tabular erp-autosize-textarea erp-flex-textarea d-none" id="erp-measurement-time" rows="1" data-erp-min-height="44"
+                                    <textarea class="foms-textarea foms-tabular erp-autosize-textarea erp-flex-textarea d-none" id="erp-measurement-time" rows="1" data-erp-min-height="40"
                                         placeholder="직접 입력" autocomplete="off" lang="ko"></textarea>
                                 </div>
                             </div>
@@ -167,7 +167,7 @@ ERP Order mobile-v2 tab pane.
                                         <option value="종일">종일</option>
                                         <option value="__direct__">직접 입력</option>
                                     </select>
-                                    <textarea class="foms-textarea foms-tabular erp-autosize-textarea erp-flex-textarea d-none" id="erp-construction-time" rows="1" data-erp-min-height="44"
+                                    <textarea class="foms-textarea foms-tabular erp-autosize-textarea erp-flex-textarea d-none" id="erp-construction-time" rows="1" data-erp-min-height="40"
                                         placeholder="직접 입력" autocomplete="off" lang="ko"></textarea>
                                 </div>
                             </div>
@@ -180,7 +180,7 @@ ERP Order mobile-v2 tab pane.
                         <div class="collapse" id="erp-collapse-measure-note">
                             <div class="field">
                                 <label class="field__label" for="erp-measurement-note">실측 특이사항</label>
-                                <textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea" id="erp-measurement-note" rows="2" data-erp-min-height="56"
+                                <textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea" id="erp-measurement-note" rows="1" data-erp-min-height="40"
                                     placeholder="시간 변경 가능/현장 특이사항/준비물" autocomplete="off" lang="ko"></textarea>
                             </div>
                         </div>
@@ -237,7 +237,7 @@ ERP Order mobile-v2 tab pane.
                                 <div class="erp-mobile-amount-label">
                                     <label for="erp-cash-receipt">현금영수증</label>
                                 </div>
-                                <textarea id="erp-cash-receipt" inputmode="tel" placeholder="연락처 입력" maxlength="512" rows="1" data-erp-min-height="44" class="foms-textarea foms-tabular erp-amount-value erp-amount-value--cash-receipt erp-autosize-textarea erp-flex-textarea text-end" title="현금영수증 발급 연락처(휴대폰 등). 비어 있으면 PUSH·변환 텍스트에 표시되지 않습니다."></textarea>
+                                <textarea id="erp-cash-receipt" inputmode="tel" placeholder="연락처 입력" maxlength="512" rows="1" data-erp-min-height="40" class="foms-textarea foms-tabular erp-amount-value erp-amount-value--cash-receipt erp-autosize-textarea erp-flex-textarea text-end" title="현금영수증 발급 연락처(휴대폰 등). 비어 있으면 PUSH·변환 텍스트에 표시되지 않습니다."></textarea>
                             </div>
                         </div>
                         <div class="field__hint" id="erp-status-text"></div>
@@ -266,7 +266,7 @@ ERP Order mobile-v2 tab pane.
                                         <option value="오후">오후</option>
                                         <option value="__direct__">직접 입력</option>
                                     </select>
-                                    <textarea class="foms-textarea foms-tabular erp-autosize-textarea erp-flex-textarea d-none" id="erp-received-time" rows="1" data-erp-min-height="44"
+                                    <textarea class="foms-textarea foms-tabular erp-autosize-textarea erp-flex-textarea d-none" id="erp-received-time" rows="1" data-erp-min-height="40"
                                         placeholder="직접 입력" autocomplete="off" lang="ko"></textarea>
                                 </div>
                             </div>
@@ -287,7 +287,7 @@ ERP Order mobile-v2 tab pane.
                         </div>
                         <div class="field erp-mobile-inline d-none" id="erp-urgent-reason-field">
                             <label class="field__label" for="erp-urgent-reason">긴급 사유</label>
-                            <textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea" id="erp-urgent-reason" rows="1" data-erp-min-height="44"
+                            <textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea" id="erp-urgent-reason" rows="1" data-erp-min-height="40"
                                 placeholder="시공일 임박/현장 변경/자재 이슈" autocomplete="off" lang="ko"></textarea>
                         </div>
                         <div class="field erp-mobile-inline d-none" id="erp-regional-construction-type-field">
@@ -363,16 +363,16 @@ ERP Order mobile-v2 tab pane.
                                 <option value="라홈">라홈</option>
                                 <option value="하우드">하우드</option>
                             </select>
-                            <textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea d-none" id="erp-orderer" rows="1" data-erp-min-height="44" autocomplete="off" lang="ko" placeholder="발주사 직접 입력"></textarea>
+                            <textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea d-none" id="erp-orderer" rows="1" data-erp-min-height="40" autocomplete="off" lang="ko" placeholder="발주사 직접 입력"></textarea>
                         </div>
                         <div class="field-grid-2">
                             <div class="field erp-mobile-inline">
                                 <label class="field__label" for="erp-manager">담당자</label>
-                                <textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea" id="erp-manager" rows="1" data-erp-min-height="44" autocomplete="off" lang="ko"></textarea>
+                                <textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea" id="erp-manager" rows="1" data-erp-min-height="40" autocomplete="off" lang="ko"></textarea>
                             </div>
                             <div class="field erp-mobile-inline">
                                 <label class="field__label" for="erp-construction-workers">시공 담당자</label>
-                                <textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea" id="erp-construction-workers" rows="2" data-erp-min-height="56" autocomplete="off" lang="ko" placeholder="한 줄에 시공자 한 명"></textarea>
+                                <textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea" id="erp-construction-workers" rows="1" data-erp-min-height="40" autocomplete="off" lang="ko" placeholder="한 줄에 시공자 한 명"></textarea>
                             </div>
                         </div>
                         <div class="field-grid-2">
@@ -395,7 +395,7 @@ ERP Order mobile-v2 tab pane.
                             </div>
                             <div class="field erp-mobile-inline">
                                 <label class="field__label" for="erp-notes">비고</label>
-                                <textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea" id="erp-notes" rows="2" data-erp-min-height="56" placeholder="주문 비고" autocomplete="off" lang="ko"></textarea>
+                                <textarea class="foms-textarea erp-autosize-textarea erp-flex-textarea" id="erp-notes" rows="1" data-erp-min-height="40" placeholder="주문 비고" autocomplete="off" lang="ko"></textarea>
                             </div>
                         </div>
                         </div>

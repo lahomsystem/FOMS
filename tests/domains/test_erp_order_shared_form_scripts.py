@@ -58,7 +58,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
     assert payment_urls_idx < channel_push_confirm_idx < erp_order_shared_idx < column_resizer_idx < estimate_preview_idx < estimate_columns_idx
     assert "html2canvas.min.js" not in body
     assert "js/orders/erp-channel-push-confirm.js?v=20260701b" in body
-    assert "js/orders/erp-order-shared.js?v=20260701c" in body
+    assert "js/orders/erp-order-shared.js?v=20260701d" in body
     assert "css/orders/erp-channel-push.css?v=20260701a" in body
     assert "css/orders/erp-items-master-detail.css?v=20260630c" in body
     assert "js/orders/erp-items-master-detail.js?v=20260630c" in body
@@ -836,8 +836,8 @@ def test_mobile_attachment_preview_uses_viewport_sized_modal() -> None:
     ) in css_text
     assert ".erp-order-mobile-form .erp-attachment-preview-actions .btn" not in css_text
     assert "max-width: min(92vw, 36rem)" not in css_text
-    assert "../components/foms-form-field.css?v=20260630d" in mobile_bundle
-    assert "foms-mobile-surfaces.css') }}?v=20260630d" in layout_head
+    assert "../components/foms-form-field.css?v=20260630e" in mobile_bundle
+    assert "foms-mobile-surfaces.css') }}?v=20260630e" in layout_head
 
 
 def test_mobile_erp_autosize_textarea_overrides_80px_floor() -> None:
@@ -854,8 +854,23 @@ def test_mobile_erp_autosize_textarea_overrides_80px_floor() -> None:
         "body.erp-mobile-v2-layout .erp-order-mobile-form .foms-textarea.erp-flex-textarea"
     )
     compact_block = css_text[compact_idx : compact_idx + 1200]
-    assert "min-height: 44px" in compact_block
+    assert "--erp-mobile-input-h: 40px" in css_text
+    assert "min-height: var(--erp-mobile-input-h)" in compact_block
     assert "resize: none" in compact_block
+
+
+def test_mobile_autosize_skips_placeholder_scroll_height() -> None:
+    """Empty textarea height must not inflate from long placeholder wrap."""
+    root = Path(__file__).resolve().parents[2]
+    text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
+    assert "function erpResolveAutosizeMinHeight" in text
+    assert "placeholder 줄바꿈이 scrollHeight" in text
+    assert "5700(2402+…)" in text
+    mobile = (root / "templates/orders/partials/erp_order_tab_mobile.html").read_text(
+        encoding="utf-8"
+    )
+    assert 'id="erp-construction-workers" rows="1"' in mobile
+    assert 'data-erp-min-height="40"' in mobile
 
 
 def test_attachment_preview_image_zoom_supports_in_modal_gestures() -> None:

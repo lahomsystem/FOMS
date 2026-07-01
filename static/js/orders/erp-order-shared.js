@@ -971,10 +971,26 @@ function erpOpenFirstItemRow() {
     });
 }
 
+function erpResolveAutosizeMinHeight(el) {
+    const fromDataset = el.dataset.erpMinHeight ? Number(el.dataset.erpMinHeight) : 0;
+    if (typeof erpIsMobileFormContext === 'function' && erpIsMobileFormContext() && el.classList.contains('erp-flex-textarea')) {
+        return Math.max(fromDataset, 40);
+    }
+    return fromDataset;
+}
+
 function erpAutosizeTextarea(el) {
     if (!el || el.tagName !== 'TEXTAREA') return;
+    const minH = erpResolveAutosizeMinHeight(el);
+    const value = String(el.value ?? '');
+    const isBlank = value.length === 0 || (value.trim().length === 0 && !value.includes('\n'));
+    /* placeholder 줄바꿈이 scrollHeight를 키우지 않도록 빈 값은 min-height만 적용 */
+    if (isBlank) {
+        el.style.height = minH > 0 ? `${minH}px` : 'auto';
+        return;
+    }
     el.style.height = '0';
-    el.style.height = Math.max(el.scrollHeight, el.dataset.erpMinHeight ? Number(el.dataset.erpMinHeight) : 0) + 'px';
+    el.style.height = `${Math.max(el.scrollHeight, minH || 0)}px`;
 }
 
 function erpBindAutosizeTextareas(root) {
@@ -1009,7 +1025,7 @@ function erpItemAttachmentEmptyText() {
 function erpMobileFlexibleControl(name, label, value, options = {}) {
     const escapedValue = escapeHtml(value);
     const rows = options.rows || 1;
-    const minHeight = options.minHeight || (options.isMobileForm ? 44 : 28);
+    const minHeight = options.minHeight || (options.isMobileForm ? 40 : 28);
     const placeholder = options.placeholder || '';
     const inputClass = options.isMobileForm
         ? 'foms-textarea erp-autosize-textarea erp-flex-textarea'
@@ -1097,11 +1113,14 @@ function erpNewItemRow(item = {}) {
         const d = escapeHtml(String((sr.spec_depth ?? sr.d ?? '')).trim());
         const h = escapeHtml(String((sr.spec_height ?? sr.h ?? '')).trim());
         const delStyle = showDel ? '' : ' style="display:none;"';
-        const wPlaceholder = '예: 5700(2402+1864+1638) 또는 2352+2100+2860';
+        const wPlaceholder = isMobileForm
+            ? '예: 5700(2402+…) 또는 2352+…'
+            : '예: 5700(2402+1864+1638) 또는 2352+2100+2860';
+        const specMinH = isMobileForm ? 40 : 28;
         return `<div class="erp-spec-row d-flex flex-wrap gap-2 align-items-end mb-1">
-<div class="col-12 erp-spec-w-col"><label class="form-label mb-0 small text-muted">W(가로·총폭)</label><textarea class="${tabularInputClass} erp-autosize-textarea erp-flex-textarea" data-erp="spec_width" data-spec-row rows="1" data-erp-min-height="28" placeholder="${wPlaceholder}" lang="ko">${w}</textarea></div>
-<div class="col erp-spec-d-col"><label class="form-label mb-0 small text-muted">D(깊이)</label><textarea class="${tabularInputClass} erp-autosize-textarea erp-flex-textarea" data-erp="spec_depth" data-spec-row rows="1" data-erp-min-height="28" placeholder="깊이" lang="ko">${d}</textarea></div>
-<div class="col erp-spec-h-col"><label class="form-label mb-0 small text-muted">H(높이)</label><textarea class="${tabularInputClass} erp-autosize-textarea erp-flex-textarea" data-erp="spec_height" data-spec-row rows="1" data-erp-min-height="28" placeholder="높이" lang="ko">${h}</textarea></div>
+<div class="col-12 erp-spec-w-col"><label class="form-label mb-0 small text-muted">W(가로·총폭)</label><textarea class="${tabularInputClass} erp-autosize-textarea erp-flex-textarea" data-erp="spec_width" data-spec-row rows="1" data-erp-min-height="${specMinH}" placeholder="${wPlaceholder}" lang="ko">${w}</textarea></div>
+<div class="col erp-spec-d-col"><label class="form-label mb-0 small text-muted">D(깊이)</label><textarea class="${tabularInputClass} erp-autosize-textarea erp-flex-textarea" data-erp="spec_depth" data-spec-row rows="1" data-erp-min-height="${specMinH}" placeholder="깊이" lang="ko">${d}</textarea></div>
+<div class="col erp-spec-h-col"><label class="form-label mb-0 small text-muted">H(높이)</label><textarea class="${tabularInputClass} erp-autosize-textarea erp-flex-textarea" data-erp="spec_height" data-spec-row rows="1" data-erp-min-height="${specMinH}" placeholder="높이" lang="ko">${h}</textarea></div>
 <button type="button" class="btn btn-sm btn-outline-secondary erp-remove-spec-row-btn"${delStyle}><i class="fas fa-minus"></i></button>
 </div>`;
     };
@@ -1170,11 +1189,15 @@ ${attributeFieldsHtml}
     <i class="fas fa-times"></i>
 </button>
 </div>`;
+    const productMinH = isMobileForm ? 40 : 28;
+    const extraInputRows = isMobileForm ? 1 : 2;
+    const extraInputMinH = isMobileForm ? 40 : 72;
+    const extraInputLargeClass = isMobileForm ? '' : ' erp-flex-textarea--large';
     const itemFieldsHtml = `
 <div class="row g-2">
 <div class="col-12">
     <label class="${fieldLabelClass}">제품명</label>
-    <textarea class="${textareaClass} erp-autosize-textarea erp-flex-textarea" data-erp="product_name" rows="1" data-erp-min-height="28" lang="ko">${escapeHtml(productName)}</textarea>
+    <textarea class="${textareaClass} erp-autosize-textarea erp-flex-textarea" data-erp="product_name" rows="1" data-erp-min-height="${productMinH}" lang="ko">${escapeHtml(productName)}</textarea>
 </div>
 <div class="col-12">
     <label class="${fieldLabelClass}">규격 (W × D × H)</label>
@@ -1197,7 +1220,7 @@ ${presetFieldsHtml}
 </div>
 <div class="col-12">
     <label class="form-label mb-1 small text-primary">추가 입력</label>
-    <textarea class="${textareaClass} erp-autosize-textarea erp-flex-textarea erp-flex-textarea--large" data-erp="extra_input" rows="2" data-erp-min-height="72"
+    <textarea class="${textareaClass} erp-autosize-textarea erp-flex-textarea${extraInputLargeClass}" data-erp="extra_input" rows="${extraInputRows}" data-erp-min-height="${extraInputMinH}"
         placeholder="추가 내용을 입력하세요 (여러 줄 가능)" lang="ko">${escapeHtml(extraInput)}</textarea>
 </div>
 <div class="col-12">
