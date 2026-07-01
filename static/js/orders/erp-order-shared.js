@@ -142,7 +142,7 @@ window.erpSumFreeInputAmountFromText = erpSumFreeInputAmountFromText;
 var erpParseFreeInputAmount =
     window.erpParseFreeInputAmount ||
     function erpParseFreeInputAmount() {
-        return erpSumFreeInputAmountFromText(erpParseFreeInputText());
+        return erpParseFreeInputAmountFromField();
     };
 window.erpParseFreeInputAmount = erpParseFreeInputAmount;
 
@@ -655,12 +655,70 @@ var erpParseDiscountValue =
     };
 window.erpParseDiscountValue = erpParseDiscountValue;
 
+var erpParseFreeInputLabelText =
+    window.erpParseFreeInputLabelText ||
+    function erpParseFreeInputLabelText() {
+        var el = document.getElementById("erp-free-input-text");
+        if (!el) return "";
+        return String(el.value || "").trim();
+    };
+window.erpParseFreeInputLabelText = erpParseFreeInputLabelText;
+
+var erpParseFreeInputAmountFromField =
+    window.erpParseFreeInputAmountFromField ||
+    function erpParseFreeInputAmountFromField() {
+        var el = document.getElementById("erp-free-input-amount");
+        if (!el) return 0;
+        return erpCoerceAmount(el.value);
+    };
+window.erpParseFreeInputAmountFromField = erpParseFreeInputAmountFromField;
+
+var erpSplitFreeInputForForm =
+    window.erpSplitFreeInputForForm ||
+    function erpSplitFreeInputForForm(stored) {
+        var raw = String(stored || "").trim();
+        if (!raw) return { text: "", amount: 0 };
+        var lines = raw.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+        var first = "";
+        for (var i = 0; i < lines.length; i += 1) {
+            var line = String(lines[i] || "").trim();
+            if (line) {
+                first = line;
+                break;
+            }
+        }
+        if (!first) return { text: "", amount: 0 };
+        var colonMatch = first.match(/^(.+?)[:：]\s*(.+)$/);
+        if (colonMatch) {
+            return {
+                text: colonMatch[1].trim(),
+                amount: erpCoerceAmount(colonMatch[2]),
+            };
+        }
+        var asAmount = erpCoerceAmount(first);
+        if (asAmount > 0 && String(first).replace(/[^0-9]/g, "").length >= String(asAmount).length) {
+            return { text: "", amount: asAmount };
+        }
+        return { text: first, amount: 0 };
+    };
+window.erpSplitFreeInputForForm = erpSplitFreeInputForForm;
+
+var erpBuildFreeInputStoredValue =
+    window.erpBuildFreeInputStoredValue ||
+    function erpBuildFreeInputStoredValue() {
+        var label = erpParseFreeInputLabelText();
+        var amount = erpParseFreeInputAmountFromField();
+        if (!label && amount <= 0) return "";
+        if (!label) return erpFormatDepositDisplay(amount);
+        if (amount <= 0) return label;
+        return label + " : " + Math.round(amount).toLocaleString("ko-KR");
+    };
+window.erpBuildFreeInputStoredValue = erpBuildFreeInputStoredValue;
+
 var erpParseFreeInputText =
     window.erpParseFreeInputText ||
     function erpParseFreeInputText() {
-        var el = document.getElementById("erp-free-input-amount");
-        if (!el) return "";
-        return String(el.value || "").trim();
+        return erpBuildFreeInputStoredValue();
     };
 window.erpParseFreeInputText = erpParseFreeInputText;
 
@@ -1521,10 +1579,16 @@ async function erpLoadStructured(bootstrapData, options) {
     if (discountEl) {
         discountEl.value = erpFormatDepositDisplay(paymentData.discount);
     }
+    const freeInputParts = erpSplitFreeInputForForm(paymentData.free_input);
+    const freeInputTextEl = document.getElementById('erp-free-input-text');
+    if (freeInputTextEl) {
+        freeInputTextEl.value = freeInputParts.text;
+    }
     const freeInputEl = document.getElementById('erp-free-input-amount');
     if (freeInputEl) {
-        freeInputEl.value = paymentData.free_input || '';
-        erpAutosizeTextarea(freeInputEl);
+        freeInputEl.value = freeInputParts.amount > 0
+            ? erpFormatDepositDisplay(freeInputParts.amount)
+            : '';
     }
     const cashReceiptEl = document.getElementById('erp-cash-receipt');
     if (cashReceiptEl) {
@@ -1709,7 +1773,7 @@ function erpCollectStructured() {
             return {
                 deposit: totals.deposit_amount,
                 discount: totals.discount_amount,
-                free_input: String(getVal('erp-free-input-amount') || ''),
+                free_input: erpBuildFreeInputStoredValue(),
                 cash_receipt: String(getVal('erp-cash-receipt') || ''),
                 deposit_confirmed: _erpBoolConfirmed(prev.deposit_confirmed),
                 deposit_confirmed_at: prev.deposit_confirmed_at || null,
@@ -2470,17 +2534,14 @@ ${escapeHtml(sub)}</div>` : ''}`;
 
     bindErpAmountInput(document.getElementById('erp-deposit-amount'), erpParseDepositValue);
     bindErpAmountInput(document.getElementById('erp-discount-amount'), erpParseDiscountValue);
+    bindErpAmountInput(document.getElementById('erp-free-input-amount'), erpParseFreeInputAmountFromField);
 
-    (function bindErpFreeInputTextarea() {
-        const freeInputEl = document.getElementById('erp-free-input-amount');
-        if (!freeInputEl || freeInputEl.dataset.erpFreeInputRecalcBound === '1') return;
-        freeInputEl.dataset.erpFreeInputRecalcBound = '1';
-        erpBindAutosizeTextareas(freeInputEl.parentElement || document);
-        freeInputEl.addEventListener('input', function () {
-            erpAutosizeTextarea(freeInputEl);
-            erpCalculateRemaining();
-        });
-        freeInputEl.addEventListener('change', erpCalculateRemaining);
+    (function bindErpFreeInputTextField() {
+        const freeInputTextEl = document.getElementById('erp-free-input-text');
+        if (!freeInputTextEl || freeInputTextEl.dataset.erpFreeInputTextBound === '1') return;
+        freeInputTextEl.dataset.erpFreeInputTextBound = '1';
+        freeInputTextEl.addEventListener('input', erpCalculateRemaining);
+        freeInputTextEl.addEventListener('change', erpCalculateRemaining);
     })();
 
 
@@ -3659,15 +3720,7 @@ function erpAppendConversionExtraInputLine(text, value) {
 function erpAppendConversionFreeInputBlock(text, value) {
     const raw = String(value ?? '').trim();
     if (!raw) return text;
-    const lines = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
-    const first = (lines[0] || '').trim();
-    if (!first) return text;
-    let out = text + `자유입력 : ${first}\n`;
-    for (let i = 1; i < lines.length; i += 1) {
-        const line = lines[i].trim();
-        if (line) out += `${line}\n`;
-    }
-    return out;
+    return text + `자유입력 : ${raw}\n`;
 }
 
 function erpReadItemFieldValue(row, key) {

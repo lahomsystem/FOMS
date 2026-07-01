@@ -211,33 +211,29 @@
   color: #000 !important;
   border: 0 !important;
 }
+.erp-amount-value--free-input-text {
+  background: #FFE8CC;
+  color: #000 !important;
+  border: 0 !important;
+  margin: 0 !important;
+  flex: 1 1 auto;
+  min-width: 0;
+}
 .erp-amount-value--free-input {
   background: #FFE8CC;
   color: #000 !important;
   border: 0 !important;
   margin: 0 !important;
-}
-textarea.erp-amount-value--free-input {
-  height: auto !important;
-  min-height: 4.5rem;
-  line-height: 1.35 !important;
-  padding: 0.35rem 0.5rem !important;
-  white-space: pre-wrap;
-  resize: vertical;
+  flex-shrink: 0;
 }
 .erp-mobile-amount-row--free-input {
-  flex-direction: column;
-  align-items: stretch;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 9rem;
+  align-items: center;
   gap: 0.35rem;
 }
-.erp-mobile-amount-row--free-input textarea.erp-amount-value--free-input {
+.erp-mobile-amount-row--free-input .erp-amount-value--free-input {
   width: 100% !important;
-}
-.erp-amount-value--free-input::placeholder {
-  color: rgba(0, 0, 0, 0.45);
-}
-.erp-amount-value--free-input.text-start {
-  text-align: left !important;
 }
 .erp-amount-value--cash-receipt {
   background: #E8F4EA;

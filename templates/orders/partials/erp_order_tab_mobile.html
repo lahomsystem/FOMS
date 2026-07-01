@@ -225,8 +225,8 @@ ERP Order mobile-v2 tab pane.
                                 <div class="erp-mobile-amount-chip erp-amount-value erp-amount-value--balance" id="erp-remaining-amount">0원</div>
                             </div>
                             <div id="erp-free-input-section" class="erp-mobile-amount-row erp-mobile-amount-row--free-input" style="display: none;">
-                                <label for="erp-free-input-amount" class="erp-mobile-amount-label">자유입력</label>
-                                <textarea id="erp-free-input-amount" rows="3" maxlength="512" data-erp-min-height="72" class="foms-textarea foms-tabular erp-amount-value erp-amount-value--free-input erp-autosize-textarea text-start" placeholder="운반비 : 30,000&#10;세금 : 10,000" title="항목별 자유 텍스트·금액 입력. 금액은 총 견적·잔금에 합산되고, 입력 그대로 변환·PUSH에 포함됩니다."></textarea>
+                                <input type="text" id="erp-free-input-text" maxlength="128" class="foms-input foms-tabular erp-amount-value erp-amount-value--free-input-text text-start" title="항목명 등 자유 텍스트">
+                                <input type="text" id="erp-free-input-amount" inputmode="numeric" maxlength="24" class="foms-input foms-tabular erp-amount-value erp-amount-value--free-input text-end" title="금액. 총 견적·잔금에 합산됩니다.">
                             </div>
                             <div id="erp-cash-receipt-section" class="erp-mobile-amount-row" style="display: none;">
                                 <div class="erp-mobile-amount-label">
