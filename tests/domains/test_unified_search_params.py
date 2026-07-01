@@ -132,7 +132,7 @@ def test_order_list_searches_visible_structured_product_and_schedule(login):
 
 def test_order_list_refreshes_bfcache_after_erp_save_back_navigation():
     """ERP 저장 후 history.back 시 목록이 stale하지 않도록 전역 레이아웃 스크립트가 갱신한다."""
-    text = Path("templates/partials/shared/layout_scripts.html").read_text(
+    text = Path("static/js/runtime/blueprint-viewer-global.js").read_text(
         encoding="utf-8"
     )
 
