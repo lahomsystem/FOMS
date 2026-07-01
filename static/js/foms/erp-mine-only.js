@@ -100,10 +100,19 @@
     }
   }
 
+  function updateMobileMytasksHref(el, on) {
+    var path = window.location.pathname || '';
+    if (path !== ORDERS_DASHBOARD && path !== ORDERS_DASHBOARD + '/') {
+      return;
+    }
+    el.setAttribute('href', buildToggleUrl(!on));
+  }
+
   function updateMobileMytasksButton(on) {
     document.querySelectorAll('[data-foms-mytasks-toggle]').forEach(function (el) {
       el.classList.toggle('is-active', on);
       el.setAttribute('aria-pressed', on ? 'true' : 'false');
+      updateMobileMytasksHref(el, on);
     });
   }
 
@@ -226,7 +235,7 @@
 
   function onAnchorMineSync(ev) {
     var a = ev.target && ev.target.closest ? ev.target.closest('a[href]') : null;
-    if (!a || a.hasAttribute('data-foms-erp-no-shell')) {
+    if (!a || a.hasAttribute('data-foms-erp-no-shell') || a.hasAttribute('data-foms-mytasks-toggle')) {
       return;
     }
     var href = a.getAttribute('href');
@@ -270,6 +279,12 @@
   }
 
   function boot() {
+    if (window.__FOMS_ERP_MINE_ONLY_BOOTED) {
+      syncUrlFromCookieWithoutReload();
+      installShellHooks();
+      return;
+    }
+    window.__FOMS_ERP_MINE_ONLY_BOOTED = true;
     syncUrlFromCookieWithoutReload();
     installShellHooks();
     document.addEventListener('click', onAnchorMineSync, true);

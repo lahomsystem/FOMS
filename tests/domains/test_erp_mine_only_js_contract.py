@@ -21,3 +21,11 @@ def test_erp_mine_only_js_hooks_shell_navigation():
     assert "navigateByShell" in src
     assert "prefetchShellFragment" in src
     assert "_mineHookInstalled" in src
+
+
+def test_erp_mine_only_js_mytasks_toggle_not_double_handled():
+    """Mytasks href encodes the *target* state; anchor sync must not race the toggle click."""
+    src = _MINE_JS.read_text(encoding="utf-8")
+    anchor_sync = src.split("function onAnchorMineSync")[1].split("function onMytasksClick")[0]
+    assert "data-foms-mytasks-toggle" in anchor_sync
+    assert "__FOMS_ERP_MINE_ONLY_BOOTED" in src
