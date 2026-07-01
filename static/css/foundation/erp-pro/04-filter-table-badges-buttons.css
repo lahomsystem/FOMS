@@ -218,7 +218,10 @@
   margin: 0 !important;
 }
 .erp-amount-value--free-input::placeholder {
-  color: rgba(0, 0, 0, 0.5);
+  color: rgba(0, 0, 0, 0.45);
+}
+.erp-amount-value--free-input.text-start {
+  text-align: left !important;
 }
 .erp-amount-value--cash-receipt {
   background: #E8F4EA;

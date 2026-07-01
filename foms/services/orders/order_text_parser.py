@@ -241,7 +241,7 @@ def parse_order_text(raw_text: str) -> dict:
             "deposit": {"raw": deposit_raw, "amount": _parse_amount(deposit_raw)},
             "balance": {"raw": balance_raw, "amount": _parse_amount(balance_raw)},
             "prepayment": {"raw": prepay_raw, "amount": _parse_amount(prepay_raw)},
-            "free_input": {"raw": free_input_raw, "amount": _parse_amount(free_input_raw)},
+            "free_input": {"raw": free_input_raw, "value": free_input_raw},
             "cash_receipt": {"raw": cash_receipt, "value": cash_receipt},
             "additional_payment": {"status": additional_payment_status, "link": additional_payment_link},
         },

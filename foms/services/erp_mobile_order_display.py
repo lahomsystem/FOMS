@@ -24,7 +24,6 @@ from foms.services.estimate_service import (
     _balance_after_payments,
     _extract_deposit_amount,
     _extract_discount_amount,
-    _extract_free_input_amount,
     build_measurement_manager_phone_map,
     resolve_manager_phone_from_map,
     resolve_manager_phone_from_measurement_settings,
@@ -319,7 +318,6 @@ def mobile_amount_summary(sd: dict) -> dict[str, Any]:
     contract = pricing.get("contract_total") or pricing.get("total") or sd.get("contract_amount")
     deposit_val = _extract_deposit_amount(sd)
     discount_val = _extract_discount_amount(sd)
-    free_input_val = _extract_free_input_amount(sd)
     final_raw = totals.get("final_amount")
     if final_raw is None:
         final_raw = totals.get("balance_amount")
@@ -339,8 +337,7 @@ def mobile_amount_summary(sd: dict) -> dict[str, Any]:
     discount_label = _fmt(discount_val) if discount_val else None
     balance_label = _fmt(final_raw)
     if balance_label is None and items_total is not None:
-        effective_total = int(items_total or 0) + int(free_input_val or 0)
-        balance_label = f"{_balance_after_payments(effective_total, deposit_val, discount_val):,}원"
+        balance_label = f"{_balance_after_payments(items_total, deposit_val, discount_val):,}원"
     elif balance_label is None:
         balance_label = _fmt(legacy_balance)
     return {
