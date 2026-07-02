@@ -3,6 +3,8 @@ from types import SimpleNamespace
 
 import foms.services.estimate_service as estimate_service
 from foms.services.orders.estimate_defaults import (
+    ESTIMATE_COMPANY_INFO,
+    ESTIMATE_COMPANY_INFO_FACTORY2,
     ESTIMATE_PAYMENT_INFO,
     ESTIMATE_PAYMENT_INFO_FACTORY2,
     resolve_estimate_payment_info,
@@ -71,6 +73,17 @@ def test_estimate_payment_info_has_multi_accounts_and_legacy_single_fields():
     assert ESTIMATE_PAYMENT_INFO.get("account")
     assert ESTIMATE_PAYMENT_INFO.get("holder")
     assert ESTIMATE_PAYMENT_INFO.get("notice")
+
+
+def test_estimate_company_info_factory2_fields():
+    """2공장 공급자 정보는 라홈시스템 상호·대표·등록번호·소재지를 사용한다."""
+    assert ESTIMATE_COMPANY_INFO_FACTORY2["name"] == "라홈시스템"
+    assert ESTIMATE_COMPANY_INFO_FACTORY2["ceo"] == "김은지"
+    assert ESTIMATE_COMPANY_INFO_FACTORY2["business_number"] == "446-08-03252"
+    assert ESTIMATE_COMPANY_INFO_FACTORY2["address"] == "경기도 김포시 대곶면 율마로 194번길 62-24"
+    assert ESTIMATE_COMPANY_INFO_FACTORY2["industry"] == ESTIMATE_COMPANY_INFO["industry"]
+    assert ESTIMATE_COMPANY_INFO_FACTORY2["phone"] == ESTIMATE_COMPANY_INFO["phone"]
+    assert ESTIMATE_COMPANY_INFO_FACTORY2["customer_center"] == ESTIMATE_COMPANY_INFO["customer_center"]
 
 
 def test_estimate_payment_info_factory2_single_account():

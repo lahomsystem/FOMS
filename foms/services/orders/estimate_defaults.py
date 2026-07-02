@@ -21,6 +21,19 @@ ESTIMATE_COMPANY_INFO = {
     'website': 'www.haudsystem.com',
 }
 
+# 2공장(라홈시스템) 견적서/계약서 공급자 정보
+# 업태·전화·고객센터는 하우드시스템 기본값 유지
+ESTIMATE_COMPANY_INFO_FACTORY2 = {
+    'name': '라홈시스템',
+    'ceo': '김은지',
+    'business_number': '446-08-03252',
+    'address': '경기도 김포시 대곶면 율마로 194번길 62-24',
+    'industry': ESTIMATE_COMPANY_INFO['industry'],
+    'phone': ESTIMATE_COMPANY_INFO['phone'],
+    'customer_center': ESTIMATE_COMPANY_INFO['customer_center'],
+    'website': ESTIMATE_COMPANY_INFO['website'],
+}
+
 _ESTIMATE_PAYMENT_NOTICE = '* 입금 시 예약금을 제외한 잔금만 납부 바랍니다.'
 
 _ESTIMATE_PAYMENT_ACCOUNTS_DEFAULT = [
