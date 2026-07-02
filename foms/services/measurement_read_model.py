@@ -38,6 +38,43 @@ def apply_measurement_dashboard_order_scope(query):
     )
 
 
+def _order_is_regional_for_panel(order) -> bool:
+    """패널 건수 분류용 지방주문 여부."""
+    return getattr(order, 'is_regional', False) is True
+
+
+def _accumulate_measurement_panel_date_counts(
+    measurement_counts: dict,
+    regional_counts: dict,
+    metro_counts: dict,
+    order,
+    date_key: str,
+) -> None:
+    """날짜별 전체·지방·수도권 건수를 누적한다."""
+    measurement_counts[date_key] = measurement_counts.get(date_key, 0) + 1
+    if _order_is_regional_for_panel(order):
+        regional_counts[date_key] = regional_counts.get(date_key, 0) + 1
+    else:
+        metro_counts[date_key] = metro_counts.get(date_key, 0) + 1
+
+
+def panel_date_count_fields(
+    measurement_counts: dict,
+    regional_counts: dict,
+    metro_counts: dict,
+    date_str: str,
+) -> dict:
+    """패널 row/API 공통 count 필드."""
+    total = measurement_counts.get(date_str, 0)
+    regional = regional_counts.get(date_str, 0)
+    metro = metro_counts.get(date_str, 0)
+    return {
+        'count': total,
+        'count_regional': regional,
+        'count_metro': metro,
+    }
+
+
 MEASUREMENT_MAIN_SEED_LIMIT = 300
 
 
@@ -188,6 +225,7 @@ def compute_measurement_panel_assembly(
         load_only(
             Order.id, Order.measurement_date, Order.structured_data,
             Order.is_self_measurement, Order.is_erp_order, Order.status,
+            Order.is_regional,
             Order.measurement_completed, Order.regional_sales_order_upload,
             Order.regional_blueprint_sent, Order.regional_order_upload
         ),
@@ -216,6 +254,7 @@ def compute_measurement_panel_assembly(
             load_only(
                 Order.id, Order.measurement_date, Order.structured_data,
                 Order.is_self_measurement, Order.is_erp_order, Order.status,
+                Order.is_regional,
                 Order.measurement_completed, Order.regional_sales_order_upload,
                 Order.regional_blueprint_sent, Order.regional_order_upload
             ),
@@ -237,6 +276,8 @@ def compute_measurement_panel_assembly(
         holiday_dates |= get_holidays_kr(y)
 
     measurement_counts = {}
+    regional_counts = {}
+    metro_counts = {}
     for order in panel_orders:
         if self_measurement_four_checks_done(order):
             continue
@@ -249,7 +290,9 @@ def compute_measurement_panel_assembly(
             if d < range_start or d > range_end:
                 continue
             key = d.strftime('%Y-%m-%d')
-            measurement_counts[key] = measurement_counts.get(key, 0) + 1
+            _accumulate_measurement_panel_date_counts(
+                measurement_counts, regional_counts, metro_counts, order, key
+            )
 
     out_panel_dates = []
     cur2 = range_start
@@ -259,7 +302,9 @@ def compute_measurement_panel_assembly(
         is_holiday = date_str in holiday_dates
         out_panel_dates.append({
             'date': date_str,
-            'count': measurement_counts.get(date_str, 0),
+            **panel_date_count_fields(
+                measurement_counts, regional_counts, metro_counts, date_str
+            ),
             'weekday': cur2.weekday(),
             'is_weekend': is_weekend,
             'is_holiday': is_holiday,

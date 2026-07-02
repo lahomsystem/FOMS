@@ -129,7 +129,7 @@ def erp_measurement_dashboard():
     list_query = query
 
     _panel_fp = {
-        "v": 2,
+        "v": 3,
         "user": _measurement_user_visibility_fingerprint(current_user),
         "filters": {
             "q": search_q,
@@ -161,7 +161,7 @@ def erp_measurement_dashboard():
 
     focus_order_id = request.args.get('focus_order', type=int)
     _main_fp = {
-        "v": 2,
+        "v": 3,
         "user": _measurement_user_visibility_fingerprint(current_user),
         "filters": {
             "q": search_q,
@@ -205,7 +205,7 @@ def erp_measurement_dashboard():
     )
 
     _pi_fp = {
-        "v": 2,
+        "v": 3,
         "user": _measurement_user_visibility_fingerprint(current_user),
         "filters": {
             "q": search_q,

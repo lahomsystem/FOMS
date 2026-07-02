@@ -1,5 +1,7 @@
 from werkzeug.security import generate_password_hash
 
+import datetime
+
 from db import db_session
 from models import Order, User
 
@@ -99,13 +101,55 @@ def test_measurement_summary_returns_panel_dates(client):
     panel_dates = payload["panel_dates"]
     assert isinstance(panel_dates, list)
     assert len(panel_dates) == 15
-    assert all("date" in row and "count" in row and "cases" in row for row in panel_dates)
+    assert all(
+        "date" in row and "count" in row and "count_regional" in row and "count_metro" in row and "cases" in row
+        for row in panel_dates
+    )
 
     mine_response = client.get("/api/erp/measurement/summary?mine=1")
     assert mine_response.status_code == 200
     mine_payload = mine_response.get_json()
     assert mine_payload["success"] is True
     assert isinstance(mine_payload["panel_dates"], list)
+
+
+def test_measurement_summary_segmented_counts(client, monkeypatch):
+    """summary API는 날짜별 count_regional/count_metro를 반환한다."""
+    import foms.api.measurement.routes as measurement_routes
+
+    monkeypatch.setattr(measurement_routes.measurement_api, "get_today_kst", lambda: datetime.date(2026, 7, 2))
+    _login_erp_editor(client)
+    target = "2026-07-06"
+    regional = Order(
+        received_date=target,
+        customer_name="지방 summary",
+        phone="010-7777-8888",
+        address="Busan",
+        product="장",
+        status="MEASURE",
+        is_erp_order=True,
+        is_regional=True,
+        structured_data={"schedule": {"measurement": {"date": target}}},
+    )
+    metro = Order(
+        received_date=target,
+        customer_name="수도권 summary",
+        phone="010-9999-0000",
+        address="Seoul",
+        product="장",
+        status="MEASURE",
+        is_erp_order=True,
+        is_regional=False,
+        structured_data={"schedule": {"measurement": {"date": target}}},
+    )
+    db_session.add_all([regional, metro])
+    db_session.commit()
+
+    payload = client.get("/api/erp/measurement/summary").get_json()
+    row = next(item for item in payload["panel_dates"] if item["date"] == target)
+    assert row["count"] == 2
+    assert row["count_regional"] == 1
+    assert row["count_metro"] == 1
 
 
 def test_measurement_manager_update_resolves_numeric_user_id_to_name(client):

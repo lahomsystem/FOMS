@@ -1,0 +1,7 @@
+{# 실측 scheduler 패널: 전체(파랑) · 지방(주황) · 수도권(녹색) #}
+<span class="erp-scheduler-count-group"
+      aria-label="실측 전체 {{ item.count }}건, 지방 {{ item.count_regional | default(0) }}건, 수도권 {{ item.count_metro | default(0) }}건">
+  <span class="badge badge-count erp-scheduler-count erp-scheduler-count--total" title="전체">{{ item.count }}</span>
+  <span class="badge badge-count erp-scheduler-count erp-scheduler-count--regional" title="지방">{{ item.count_regional | default(0) }}</span>
+  <span class="badge badge-count erp-scheduler-count erp-scheduler-count--metro" title="수도권">{{ item.count_metro | default(0) }}</span>
+</span>
