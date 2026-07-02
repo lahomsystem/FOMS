@@ -59,13 +59,16 @@ T = TypeVar("T")
 KEY_VERSION: Final[str] = "v1"
 CACHE_KEY_PREFIX: Final[str] = f"foms:dashcache:{KEY_VERSION}"
 
-# TTL 기본값(초) — mutation 후 family invalidation으로 신선도를 보장하고,
-# 조회-only 새로고침은 짧은 TTL 만료로 비싼 slice를 반복 계산하지 않게 둔다.
-TTL_SUMMARY_COUNTS: Final[int] = 120
-TTL_PANEL_ROWS: Final[int] = 120
-TTL_ATTACHMENT_COUNT_MAP: Final[int] = 45
-TTL_ASSIGNEE_OPTIONS_LOOKUP: Final[int] = 60
-TTL_PAYLOAD_ASSEMBLY: Final[int] = 30
+# TTL 기본값(초) — mutation 후 family invalidation(invalidate_dashboard_family)이
+# 신선도를 보장하므로, 조회-only 상황에서 TTL은 miss 빈도를 낮추는 쪽으로 넉넉히
+# 둔다. 짧은 TTL은 잦은 만료 → read-model 재계산(2-phase 쿼리+DTO 직렬화) 반복으로
+# 이어지므로, 쓰기 시 무효화가 있는 슬라이스는 상향해 재계산 비용을 줄인다.
+# (2026-07-02 상향: miss 재계산 오버헤드 완화. 네트워크 tail과는 무관.)
+TTL_SUMMARY_COUNTS: Final[int] = 300
+TTL_PANEL_ROWS: Final[int] = 300
+TTL_ATTACHMENT_COUNT_MAP: Final[int] = 120
+TTL_ASSIGNEE_OPTIONS_LOOKUP: Final[int] = 180
+TTL_PAYLOAD_ASSEMBLY: Final[int] = 90
 
 # Singleflight(캐시 stampede 방지): TTL 만료 순간 동시 요청이 전부 재계산해 DB로
 # 몰리는 herd를 막는다. miss 시 짧은 Redis 락을 잡은 요청만 계산하고, 나머지는
