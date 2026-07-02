@@ -48,6 +48,7 @@ _PTC_ROOT_ALLOWLIST: frozenset[str] = frozenset(
         "Dockerfile",
         "models.py",
         "Procfile",
+        "predeploy.sh",
         "README.md",
         "railway.toml",
         "railway-worker.toml",

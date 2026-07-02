@@ -181,6 +181,7 @@ repo root
 - `Dockerfile`
 - `models.py`
 - `Procfile`
+- `predeploy.sh`
 - `README.md`
 - `railway.toml`
 - `railway-worker.toml`
