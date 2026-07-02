@@ -5,6 +5,8 @@ erp.py에서 분리: /erp/production/dashboard
 """
 from __future__ import annotations
 
+import time
+
 from flask import Blueprint, make_response, render_template, request, g
 from sqlalchemy import String, cast
 
@@ -16,13 +18,23 @@ from foms.services.production_dashboard_filters import parse_production_dashboar
 from foms.services.production_read_model import (
     build_production_orders_query,
     production_stage_bucket_expr,
-    empty_production_step_stats,
-    fill_production_step_counts,
-    compute_production_kpis_and_badges,
+    compute_production_summary_blob,
     fetch_production_attachment_counts,
     paginate_production_rows,
     PRODUCTION_DASHBOARD_PAGE_SIZE,
 )
+from foms.services.production_dashboard_display import (
+    build_production_enriched_rows,
+    build_production_process_steps,
+)
+from foms.services.common.dashboard_cache import (
+    KEY_VERSION,
+    TTL_ATTACHMENT_COUNT_MAP,
+    TTL_SUMMARY_COUNTS,
+    build_dashboard_cache_key,
+    get_or_compute_dashboard_slice,
+)
+from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
 from foms.services.production_dashboard_display import (
     build_production_enriched_rows,
     build_production_process_steps,
@@ -73,14 +85,26 @@ def erp_production_dashboard():
 
     stage_col = cast(Order.structured_data['workflow']['stage'], String)
     _q = build_production_orders_query(db, user, f_stage, f_q, erp_mine_only, stage_col)
-    _q = _q.order_by(Order.created_at.desc())
 
-    stage_bucket_expr = production_stage_bucket_expr(stage_col)
-    step_stats = empty_production_step_stats()
-    fill_production_step_counts(_q, stage_bucket_expr, step_stats)
-
-    kpi_rows, kpis = compute_production_kpis_and_badges(_q, step_stats)
-    total_orders = len(kpi_rows)
+    _summary_fp = {
+        "v": KEY_VERSION,
+        "uid": user.id if user else None,
+        "role": getattr(user, "role", None) if user else None,
+        "mine": bool(erp_mine_only),
+        "stage": f_stage or "",
+        "q": f_q or "",
+    }
+    _summary_key = build_dashboard_cache_key("production", "summary_counts", _summary_fp)
+    _summary_blob = get_or_compute_dashboard_slice(
+        _summary_key,
+        TTL_SUMMARY_COUNTS,
+        lambda: compute_production_summary_blob(_q, stage_col),
+        page="production",
+        slice_name="summary_counts",
+    )
+    step_stats = _summary_blob["step_stats"]
+    kpis = _summary_blob["kpis"]
+    total_orders = int(_summary_blob["total_orders"])
     _q = _q.order_by(Order.created_at.desc())
 
     page, total_pages, page_rows = paginate_production_rows(
@@ -102,7 +126,29 @@ def erp_production_dashboard():
         ):
             page_rows = [focus_order] + page_rows
 
-    att_counts = fetch_production_attachment_counts(db, page_rows)
+    _att_fp = {
+        "v": KEY_VERSION,
+        "uid": user.id if user else None,
+        "mine": bool(erp_mine_only),
+        "stage": f_stage or "",
+        "q": f_q or "",
+        "page": page,
+        "ids": sorted(o.id for o in page_rows),
+    }
+    _att_key = build_dashboard_cache_key("production", "attachment_counts", _att_fp)
+
+    def _compute_att() -> dict[str, int]:
+        raw = fetch_production_attachment_counts(db, page_rows)
+        return {str(k): int(v) for k, v in raw.items()}
+
+    _att_blob = get_or_compute_dashboard_slice(
+        _att_key,
+        TTL_ATTACHMENT_COUNT_MAP,
+        _compute_att,
+        page="production",
+        slice_name="attachment_counts",
+    )
+    att_counts = {int(k): int(v) for k, v in (_att_blob or {}).items()}
     enriched = build_production_enriched_rows(page_rows, att_counts)
     # 모바일 v2 큐 카드 썸네일: 페이지 주문 첨부 미리보기 URL 일괄 해소
     from foms.services.erp_mobile_order_display import batch_resolve_queue_attachment_preview_items
@@ -121,6 +167,7 @@ def erp_production_dashboard():
         if wants_erp_shell_tab_body(request)
         else 'production/dashboard.html'
     )
+    _t0 = time.perf_counter()
     response = make_response(
         render_template(
             template_name,
@@ -138,6 +185,11 @@ def erp_production_dashboard():
             total_pages=total_pages,
             total_orders=total_orders,
         )
+    )
+    apply_ept_b7_render_headers(
+        response,
+        route_id="erp_production_dashboard",
+        render_ms=(time.perf_counter() - _t0) * 1000,
     )
     apply_erp_shell_fragment_headers(response, request)
     return response

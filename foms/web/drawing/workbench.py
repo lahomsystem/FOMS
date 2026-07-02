@@ -32,6 +32,16 @@ from foms.services.erp_display import (
     _normalize_date_to_yyyymmdd,
 )
 from foms.services.erp_product_items import build_product_items_for_order
+from foms.services.common.dashboard_cache import (
+    KEY_VERSION,
+    TTL_PANEL_ROWS,
+    build_dashboard_cache_key,
+    get_or_compute_dashboard_slice,
+)
+from foms.services.drawing_workbench_read_model import (
+    fetch_drawing_seed_order_ids,
+    hydrate_drawing_orders_by_ids,
+)
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
 from foms.services.request_utils import get_search_query_arg
 from foms.services.drawing_workbench_display import (
@@ -252,9 +262,26 @@ def erp_drawing_workbench_dashboard():
             if mine_conditions
             else orders_query.filter(Order.id == -1)
         )
-    orders = orders_query.order_by(Order.created_at.desc()).limit(500).all()
 
-    # 검색 카드 딥링크(?focus_order=)는 500 newest 캡·필터와 무관하게 해당 주문이 착지해야 한다.
+    _seed_fp = {
+        "v": KEY_VERSION,
+        "uid": current_user.id if current_user else None,
+        "role": getattr(current_user, "role", None) if current_user else None,
+        "team": getattr(current_user, "team", None) if current_user else None,
+        "mine": bool(mine_only),
+    }
+    _seed_key = build_dashboard_cache_key("drawing", "workbench_seed_ids", _seed_fp)
+    _seed_blob = get_or_compute_dashboard_slice(
+        _seed_key,
+        TTL_PANEL_ROWS,
+        lambda: {"order_ids": fetch_drawing_seed_order_ids(orders_query)},
+        page="drawing",
+        slice_name="workbench_seed_ids",
+    )
+    order_ids = [int(x) for x in (_seed_blob.get("order_ids") or [])]
+    orders = hydrate_drawing_orders_by_ids(orders_query, order_ids)
+
+    # 검색 카드 딥링크(?focus_order=)는 seed 캡·필터와 무관하게 해당 주문이 착지해야 한다.
     # orders/construction/measurement 대시보드와 동일한 deep-link SSOT.
     focus_order_id = request.args.get('focus_order', type=int)
     if focus_order_id and focus_order_id not in {o.id for o in orders}:

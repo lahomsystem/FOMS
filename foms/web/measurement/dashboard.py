@@ -8,8 +8,7 @@ from models import Order, OrderScheduleDate
 from foms.web.auth import login_required
 import datetime
 from datetime import date, timedelta
-from sqlalchemy import or_, and_, cast, String, func
-from sqlalchemy.orm import selectinload
+from sqlalchemy import String, cast, or_, and_, func
 
 from foms.services.common.erp_mine_filter import erp_mine_only_from_request
 from foms.services.erp_permissions import (
@@ -42,7 +41,8 @@ from foms.services.measurement_dashboard_filters import parse_measurement_dashbo
 from foms.services.measurement_read_model import (
     compute_measurement_panel_assembly,
     compute_measurement_product_items_build,
-    build_measurement_main_rows,
+    compute_measurement_main_rows_blob,
+    hydrate_measurement_main_rows,
 )
 from foms.services.erp_dashboard_search import (
     LEGACY_DASHBOARD_ORDER_LIMIT,
@@ -133,10 +133,7 @@ def erp_measurement_dashboard():
         if mine_conds:
             query = query.filter(or_(*mine_conds))
 
-    all_rows = query.options(selectinload(Order.schedule_dates)).order_by(Order.id.desc()).limit(500).all()
-
-    for r in all_rows:
-        r.structured_data = _ensure_dict(r.structured_data)  # type: ignore[assignment]
+    list_query = query
 
     _panel_fp = {
         "v": 1,
@@ -169,12 +166,49 @@ def erp_measurement_dashboard():
     )
     measurement_panel_dates = _panel_blob["panel_summary_stat_cards"]
 
-    # Batch 3: 메인 목록 rows 조립(필터매칭+raw-match fallback+focus 딥링크+[:300] 절단+날짜 표시 가공)은
-    # build_measurement_main_rows(read-model)로 분리(동작 보존). focus_order는 라우트가 파싱해 전달.
     focus_order_id = request.args.get('focus_order', type=int)
-    rows, row_fallback_added_ids = build_measurement_main_rows(
-        db, base_query, all_rows, current_user, mine_filter_active,
-        selected_date, use_range, use_single_day, date_from, date_to, focus_order_id,
+    _main_fp = {
+        "v": 2,
+        "user": _measurement_user_visibility_fingerprint(current_user),
+        "filters": {
+            "q": search_q,
+            "mine": "1" if mine_filter_active else "",
+            "date_from": date_from,
+            "date_to": date_to,
+            "selected_date": selected_date,
+            "use_range": use_range,
+            "use_single_day": use_single_day,
+        },
+        "focus_order": focus_order_id,
+    }
+    _main_key = build_dashboard_cache_key("measurement", "main_rows", _main_fp)
+    _main_blob = get_or_compute_dashboard_slice(
+        _main_key,
+        TTL_PANEL_ROWS,
+        lambda: compute_measurement_main_rows_blob(
+            db,
+            base_query,
+            list_query,
+            current_user,
+            mine_filter_active,
+            selected_date,
+            use_range,
+            use_single_day,
+            date_from,
+            date_to,
+            focus_order_id,
+        ),
+        page="measurement",
+        slice_name="main_rows",
+    )
+    rows, row_fallback_added_ids = hydrate_measurement_main_rows(
+        list_query,
+        _main_blob,
+        selected_date=selected_date,
+        use_range=use_range,
+        use_single_day=use_single_day,
+        date_from=date_from,
+        date_to=date_to,
     )
 
     _pi_fp = {

@@ -140,7 +140,7 @@ def test_get_or_compute_skips_cache_on_non_json_result():
     assert calls["n"] == 1
 
 
-def test_invalidate_all_dashboard_slice_caches_calls_five_families():
+def test_invalidate_all_dashboard_slice_caches_calls_seven_families():
     calls = []
 
     def fake_invalidate(fam: str) -> int:
@@ -149,8 +149,11 @@ def test_invalidate_all_dashboard_slice_caches_calls_five_families():
 
     with patch.object(dc, "invalidate_dashboard_family", side_effect=fake_invalidate):
         n = dc.invalidate_all_dashboard_slice_caches()
-    assert n == 5
-    assert calls == ["orders", "measurement", "shipment", "construction", "history"]
+    assert n == 7
+    assert calls == [
+        "orders", "measurement", "shipment", "construction",
+        "history", "production", "drawing",
+    ]
 
 
 def test_invalidate_dashboard_family_deletes_matching_keys():

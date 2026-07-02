@@ -20,6 +20,98 @@ from foms.services.measurement_dates import extract_all_measurement_dates
 from foms.services.common.business_calendar import get_holidays_kr
 
 
+MEASUREMENT_MAIN_SEED_LIMIT = 300
+
+
+def fetch_measurement_main_seed_rows(list_query) -> list:
+    """Seed rows for main table (cap matches [:300] display cut)."""
+    rows = (
+        list_query.options(selectinload(Order.schedule_dates))
+        .order_by(Order.id.desc())
+        .limit(MEASUREMENT_MAIN_SEED_LIMIT)
+        .all()
+    )
+    for row in rows:
+        row.structured_data = _ensure_dict(row.structured_data)  # type: ignore[assignment]
+    return rows
+
+
+def compute_measurement_main_rows_blob(
+    db,
+    base_query,
+    list_query,
+    current_user,
+    mine_filter_active,
+    selected_date,
+    use_range,
+    use_single_day,
+    date_from,
+    date_to,
+    focus_order_id,
+) -> dict:
+    """JSON DTO for measurement main_rows micro-cache."""
+    seed_rows = fetch_measurement_main_seed_rows(list_query)
+    rows, row_fallback_added_ids = build_measurement_main_rows(
+        db,
+        base_query,
+        seed_rows,
+        current_user,
+        mine_filter_active,
+        selected_date,
+        use_range,
+        use_single_day,
+        date_from,
+        date_to,
+        focus_order_id,
+    )
+    return {
+        "order_ids": [int(o.id) for o in rows],
+        "row_fallback_added_ids": [int(x) for x in row_fallback_added_ids],
+    }
+
+
+def hydrate_measurement_main_rows(
+    list_query,
+    blob: dict,
+    *,
+    selected_date: str,
+    use_range: bool,
+    use_single_day: bool,
+    date_from: str,
+    date_to: str,
+) -> tuple[list, list[int]]:
+    """Rehydrate cached main rows through list_query (cache-hit safe)."""
+    order_ids = [int(x) for x in (blob.get("order_ids") or [])]
+    row_fallback_added_ids = [int(x) for x in (blob.get("row_fallback_added_ids") or [])]
+    if not order_ids:
+        return [], row_fallback_added_ids
+    fetched = (
+        list_query.order_by(None)
+        .filter(Order.id.in_(order_ids))
+        .options(selectinload(Order.schedule_dates))
+        .all()
+    )
+    by_id = {int(o.id): o for o in fetched}
+    rows = []
+    for oid in order_ids:
+        order = by_id.get(oid)
+        if order is None:
+            continue
+        order.structured_data = _ensure_dict(order.structured_data)  # type: ignore[assignment]
+        rows.append(order)
+    hydrated_ids = {int(o.id) for o in rows}
+    row_fallback_added_ids = [x for x in row_fallback_added_ids if x in hydrated_ids]
+    for row in rows:
+        row.measurement_dates_display = _build_measurement_dates_for_display(
+            row,
+            selected_date=selected_date if use_single_day else '',
+            date_from=date_from if use_range else '',
+            date_to=date_to if use_range else '',
+        )
+    apply_erp_display_fields_to_orders(rows)
+    return rows, row_fallback_added_ids
+
+
 def _build_measurement_raw_match_filter(date_values):
     values = [str(v).strip() for v in date_values if str(v or '').strip()]
     if not values:

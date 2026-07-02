@@ -163,6 +163,19 @@ def compute_production_kpis_and_badges(
     return kpi_rows, kpis
 
 
+def compute_production_summary_blob(_q: Query, stage_col: Any) -> dict[str, Any]:
+    """KPI + step_stats + total for micro-cache."""
+    stage_bucket_expr = production_stage_bucket_expr(stage_col)
+    step_stats = empty_production_step_stats()
+    fill_production_step_counts(_q, stage_bucket_expr, step_stats)
+    kpi_rows, kpis = compute_production_kpis_and_badges(_q, step_stats)
+    return {
+        "step_stats": step_stats,
+        "kpis": kpis,
+        "total_orders": len(kpi_rows),
+    }
+
+
 def fetch_production_attachment_counts(db: Any, page_rows: list[Any]) -> dict[int, int]:
     att_counts: dict[int, int] = {}
     if not page_rows:
