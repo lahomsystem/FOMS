@@ -71,7 +71,7 @@ def compute_measurement_main_rows_blob(
 
 
 def hydrate_measurement_main_rows(
-    list_query,
+    base_query,
     blob: dict,
     *,
     selected_date: str,
@@ -80,13 +80,17 @@ def hydrate_measurement_main_rows(
     date_from: str,
     date_to: str,
 ) -> tuple[list, list[int]]:
-    """Rehydrate cached main rows through list_query (cache-hit safe)."""
+    """Rehydrate cached main rows via base_query (not date-joined list_query).
+
+    Blob order_ids are authoritative on cache hit — focus_order deep-links may sit
+    outside the selected date window and must not be dropped by schedule join filters.
+    """
     order_ids = [int(x) for x in (blob.get("order_ids") or [])]
     row_fallback_added_ids = [int(x) for x in (blob.get("row_fallback_added_ids") or [])]
     if not order_ids:
         return [], row_fallback_added_ids
     fetched = (
-        list_query.order_by(None)
+        base_query.order_by(None)
         .filter(Order.id.in_(order_ids))
         .options(selectinload(Order.schedule_dates))
         .all()

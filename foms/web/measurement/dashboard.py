@@ -202,7 +202,7 @@ def erp_measurement_dashboard():
         slice_name="main_rows",
     )
     rows, row_fallback_added_ids = hydrate_measurement_main_rows(
-        list_query,
+        base_query,
         _main_blob,
         selected_date=selected_date,
         use_range=use_range,
