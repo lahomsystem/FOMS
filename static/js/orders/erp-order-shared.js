@@ -2372,8 +2372,8 @@ window.erpTogglePayment = async function(btn, pType) {
         if (typeof window.erpInvalidateEstimateCache === 'function') {
             window.erpInvalidateEstimateCache();
         }
-        if (typeof window.erpApplyEstimatePaymentVariant === 'function') {
-            window.erpApplyEstimatePaymentVariant(!!this.checked);
+        if (typeof window.erpApplyEstimateFactory2Variant === 'function') {
+            window.erpApplyEstimateFactory2Variant(!!this.checked);
         }
     });
 

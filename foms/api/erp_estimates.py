@@ -17,8 +17,8 @@ from db import get_db
 from models import Order, OrderEstimate
 from foms.web.auth import login_required
 from foms.services.orders.estimate_defaults import (
-    ESTIMATE_COMPANY_INFO,
     ESTIMATE_LEGAL_NOTICE,
+    resolve_estimate_company_info,
     resolve_estimate_payment_info,
 )
 from foms.services.estimate_service import (
@@ -33,16 +33,32 @@ logger = logging.getLogger(__name__)
 erp_estimates_bp = Blueprint('erp_estimates', __name__, url_prefix='/api')
 
 
+def _is_factory2(order: Order) -> bool:
+    """주문 structured_data.flags.factory2 여부."""
+    return is_factory2_order(order.structured_data or {})
+
+
+def _company_info_for_order(order: Order) -> dict:
+    """주문 structured_data.flags.factory2에 따라 공급자 정보를 선택한다."""
+    return resolve_estimate_company_info(_is_factory2(order))
+
+
 def _payment_info_for_order(order: Order) -> dict:
     """주문 structured_data.flags.factory2에 따라 결제정보를 선택한다."""
-    return resolve_estimate_payment_info(is_factory2_order(order.structured_data or {}))
+    return resolve_estimate_payment_info(_is_factory2(order))
 
 
-def _payment_info_variants() -> dict:
-    """견적 프리뷰 UI에서 체크박스 토글 시 클라이언트가 즉시 전환할 수 있도록 변형 목록."""
+def _estimate_info_variants() -> dict:
+    """견적 프리뷰 UI에서 2공장 체크 토글 시 클라이언트가 즉시 전환할 수 있도록 변형 목록."""
     return {
-        'default': resolve_estimate_payment_info(False),
-        'factory2': resolve_estimate_payment_info(True),
+        'company_info': {
+            'default': resolve_estimate_company_info(False),
+            'factory2': resolve_estimate_company_info(True),
+        },
+        'payment_info': {
+            'default': resolve_estimate_payment_info(False),
+            'factory2': resolve_estimate_payment_info(True),
+        },
     }
 
 
@@ -61,9 +77,11 @@ def get_estimate_preview(order_id: int):
         logger.exception("견적서 프리뷰 추출 실패: order_id=%d", order_id)
         return jsonify({'success': False, 'error': '견적서 데이터를 불러오는 중 오류가 발생했습니다.'}), 500
 
-    data['company_info'] = ESTIMATE_COMPANY_INFO
+    variants = _estimate_info_variants()
+    data['company_info'] = _company_info_for_order(order)
     data['payment_info'] = _payment_info_for_order(order)
-    data['payment_info_variants'] = _payment_info_variants()
+    data['company_info_variants'] = variants['company_info']
+    data['payment_info_variants'] = variants['payment_info']
     data['legal_notice'] = ESTIMATE_LEGAL_NOTICE
 
     return jsonify({'success': True, 'data': data})
@@ -112,12 +130,14 @@ def list_order_estimates(order_id: int):
         .all()
     )
 
+    variants = _estimate_info_variants()
     return jsonify({
         'success': True,
         'data': [e.to_dict() for e in estimates],
-        'company_info': ESTIMATE_COMPANY_INFO,
+        'company_info': _company_info_for_order(order),
         'payment_info': _payment_info_for_order(order),
-        'payment_info_variants': _payment_info_variants(),
+        'company_info_variants': variants['company_info'],
+        'payment_info_variants': variants['payment_info'],
         'legal_notice': ESTIMATE_LEGAL_NOTICE,
     })
 
@@ -134,13 +154,15 @@ def get_estimate(estimate_id: int):
     order = db.query(Order).filter(Order.id == estimate.order_id).first()
     stored_payment = estimate.payment_info if isinstance(estimate.payment_info, dict) else None
     payment_info = stored_payment or (_payment_info_for_order(order) if order else resolve_estimate_payment_info(False))
+    variants = _estimate_info_variants()
 
     return jsonify({
         'success': True,
         'data': estimate.to_dict(),
-        'company_info': ESTIMATE_COMPANY_INFO,
+        'company_info': _company_info_for_order(order) if order else resolve_estimate_company_info(False),
         'payment_info': payment_info,
-        'payment_info_variants': _payment_info_variants(),
+        'company_info_variants': variants['company_info'],
+        'payment_info_variants': variants['payment_info'],
         'legal_notice': ESTIMATE_LEGAL_NOTICE,
     })
 

@@ -7,6 +7,7 @@ from foms.services.orders.estimate_defaults import (
     ESTIMATE_COMPANY_INFO_FACTORY2,
     ESTIMATE_PAYMENT_INFO,
     ESTIMATE_PAYMENT_INFO_FACTORY2,
+    resolve_estimate_company_info,
     resolve_estimate_payment_info,
 )
 
@@ -84,6 +85,14 @@ def test_estimate_company_info_factory2_fields():
     assert ESTIMATE_COMPANY_INFO_FACTORY2["industry"] == ESTIMATE_COMPANY_INFO["industry"]
     assert ESTIMATE_COMPANY_INFO_FACTORY2["phone"] == ESTIMATE_COMPANY_INFO["phone"]
     assert ESTIMATE_COMPANY_INFO_FACTORY2["customer_center"] == ESTIMATE_COMPANY_INFO["customer_center"]
+
+
+def test_resolve_estimate_company_info_switches_by_factory2_flag():
+    default_ci = resolve_estimate_company_info(False)
+    factory2_ci = resolve_estimate_company_info(True)
+    assert default_ci["name"] == ESTIMATE_COMPANY_INFO["name"]
+    assert factory2_ci["name"] == "라홈시스템"
+    assert factory2_ci is not default_ci
 
 
 def test_estimate_payment_info_factory2_single_account():

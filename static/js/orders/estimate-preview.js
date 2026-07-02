@@ -8,6 +8,8 @@
     let _estimateCacheLoaded = false;
     let _dirty = true; // 첫 진입 시 항상 새로 로드
     let _paymentInfoVariants = null;
+    let _companyInfoVariants = null;
+    let _lastIsLahom = false;
     var _EST_EXPORT_WIDTH = 700;
     var _EST_DOC_WIDTH = 700;
     var _MOBILE_ESTIMATE_MQ = '(max-width: 991.98px)';
@@ -1016,16 +1018,23 @@
         _setText('est-pay-notice', pi && pi.notice);
     }
 
-    window.erpApplyEstimatePaymentVariant = function (factory2) {
-        if (!_paymentInfoVariants) {
-            return;
+    window.erpApplyEstimateFactory2Variant = function (factory2) {
+        if (_companyInfoVariants) {
+            var ci = factory2 ? _companyInfoVariants.factory2 : _companyInfoVariants.default;
+            if (ci) {
+                _applyCompanyInfo(ci, factory2 || _lastIsLahom);
+            }
         }
-        var pi = factory2 ? _paymentInfoVariants.factory2 : _paymentInfoVariants.default;
-        if (!pi) {
-            return;
+        if (_paymentInfoVariants) {
+            var pi = factory2 ? _paymentInfoVariants.factory2 : _paymentInfoVariants.default;
+            if (pi) {
+                _applyPaymentAccountsOnly(pi);
+            }
         }
-        _applyPaymentAccountsOnly(pi);
     };
+
+    // 하위 호환: 결제정보만 전환하던 기존 호출부
+    window.erpApplyEstimatePaymentVariant = window.erpApplyEstimateFactory2Variant;
 
     async function _afterEstimateRendered() {
         _applyEstimateViewMode();
@@ -1079,8 +1088,10 @@
             }
 
             const d = data.data || {};
+            _lastIsLahom = !!d.is_lahom;
+            _companyInfoVariants = d.company_info_variants || null;
             _paymentInfoVariants = d.payment_info_variants || null;
-            _applyCompanyInfo(d.company_info || {}, !!d.is_lahom);
+            _applyCompanyInfo(d.company_info || {}, _lastIsLahom || !!d.factory2);
             _applyCustomerInfo(d);
             _renderItems(d.items, d.estimate_preview || {});
             _applyPaymentInfo(d, d.payment_info || {});
@@ -1107,6 +1118,7 @@
         _estimateCacheLoaded = false;
         _dirty = true;
         _paymentInfoVariants = null;
+        _companyInfoVariants = null;
         _setMobilePreviewUrl('');
         _mobilePreviewFallbackActive = false;
     };

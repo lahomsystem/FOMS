@@ -75,6 +75,12 @@ ESTIMATE_PAYMENT_INFO = _build_estimate_payment_info(_ESTIMATE_PAYMENT_ACCOUNTS_
 ESTIMATE_PAYMENT_INFO_FACTORY2 = _build_estimate_payment_info(_ESTIMATE_PAYMENT_ACCOUNTS_FACTORY2)
 
 
+def resolve_estimate_company_info(factory2: bool = False) -> dict:
+    """견적/계약 공급자(상호·대표 등). factory2=True이면 2공장(라홈시스템) 정보를 반환한다."""
+    template = ESTIMATE_COMPANY_INFO_FACTORY2 if factory2 else ESTIMATE_COMPANY_INFO
+    return copy.deepcopy(template)
+
+
 def resolve_estimate_payment_info(factory2: bool = False) -> dict:
     """견적/계약 결제정보. factory2=True이면 2공장 전용 계좌를 반환한다."""
     template = ESTIMATE_PAYMENT_INFO_FACTORY2 if factory2 else ESTIMATE_PAYMENT_INFO
