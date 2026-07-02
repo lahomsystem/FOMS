@@ -64,7 +64,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
     assert "js/orders/erp-items-master-detail.js?v=20260630c" in body
     assert "erp-items-master-detail-shell" in body
     assert 'id="erp-md-rail-list"' in body
-    assert "js/orders/estimate-preview.js?v=20260701b" in body
+    assert "js/orders/estimate-preview.js?v=20260702a" in body
 
     estimate_preview_js = (
         Path(__file__).resolve().parents[2]
@@ -275,6 +275,8 @@ def test_estimate_table_columns_contract() -> None:
     assert 'id="erp-estimate-preview-body"' in pane
     assert 'data-factory2-src' in pane
     assert 'lahom-logo-en.png' in pane
+    assert 'lahom-company-stamp.png' in pane
+    assert 'erp-est-stamp--factory2' in pane
     assert 'erp-est-manual-row' in pane
     assert 'erp-est-add-row-btn' in pane
     assert '.erp-est-exporting .erp-est-edit-control' in pane
@@ -333,7 +335,9 @@ def test_estimate_preview_js_is_canonical_only() -> None:
     assert "est-free-input-rows" in text
     assert "isFreeInputField" in text
     assert "function _applyEstimateLogo" in text
+    assert "function _applyEstimateStamp" in text
     assert "dataset.factory2Src" in text
+    assert "erp-est-stamp--factory2" in text
     assert "window.erpApplyEstimateFactory2Variant" in text
 
 

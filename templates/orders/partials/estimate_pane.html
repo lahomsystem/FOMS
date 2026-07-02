@@ -415,6 +415,10 @@
     pointer-events: none;
     z-index: 2;
 }
+.erp-est-stamp.erp-est-stamp--factory2 {
+    width: 30px;
+    height: 30px;
+}
 
 /* ── 결제정보 + 합계 하단 ── */
 .erp-est-pay-box {
@@ -667,6 +671,8 @@
                 <!-- 인감 도장: info-left 기준 절대위치 -->
                 <img id="est-stamp-img"
                      src="{{ url_for('static', filename='images/company-stamp.png') }}"
+                     data-default-src="{{ url_for('static', filename='images/company-stamp.png') }}"
+                     data-factory2-src="{{ url_for('static', filename='images/lahom-company-stamp.png') }}"
                      alt="인감"
                      class="erp-est-stamp erp-est-hidden"
                      onerror="this.classList.add('erp-est-hidden')">

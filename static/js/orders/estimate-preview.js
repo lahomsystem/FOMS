@@ -911,6 +911,25 @@
         logoEl.classList.add('erp-est-logo--haud');
     }
 
+    function _applyEstimateStamp(logoOpts) {
+        const opts = _normalizeLogoOpts(logoOpts);
+        const stampEl = document.getElementById('est-stamp-img');
+        if (!stampEl) {
+            return;
+        }
+        const factory2Src = stampEl.dataset.factory2Src;
+        const defaultSrc = stampEl.dataset.defaultSrc || stampEl.src;
+
+        if (opts.factory2 && factory2Src) {
+            stampEl.src = factory2Src;
+            stampEl.classList.add('erp-est-stamp--factory2');
+        } else {
+            stampEl.src = defaultSrc;
+            stampEl.classList.remove('erp-est-stamp--factory2');
+        }
+        stampEl.classList.remove('erp-est-hidden');
+    }
+
     function _applyCompanyInfo(ci, logoOpts) {
         _setText('est-company-name', ci.name);
         _setText('est-company-ceo', ci.ceo);
@@ -921,9 +940,7 @@
         _setText('est-company-center', ci.customer_center);
 
         _applyEstimateLogo(logoOpts);
-
-        const stampEl = document.getElementById('est-stamp-img');
-        if (stampEl) stampEl.classList.remove('erp-est-hidden');
+        _applyEstimateStamp(logoOpts);
     }
 
     function _applyCustomerInfo(d) {
@@ -1052,9 +1069,11 @@
                 _applyCompanyInfo(ci, logoOpts);
             } else {
                 _applyEstimateLogo(logoOpts);
+                _applyEstimateStamp(logoOpts);
             }
         } else {
             _applyEstimateLogo(logoOpts);
+            _applyEstimateStamp(logoOpts);
         }
         if (_paymentInfoVariants) {
             var pi = factory2 ? _paymentInfoVariants.factory2 : _paymentInfoVariants.default;
