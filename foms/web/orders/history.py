@@ -1,5 +1,6 @@
 """ERP history dashboard (canonical; SFC-B11B)."""
 
+import time
 from copy import deepcopy
 
 from flask import Blueprint, make_response, render_template, request, g, url_for
@@ -10,6 +11,7 @@ from foms.services.orders.status_constants import STATUS
 from foms.services.erp_order_flags import is_erp_order_record
 from sqlalchemy import or_, cast, String
 
+from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
 from foms.services.common.erp_mine_filter import erp_mine_only_for_construction
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
 from foms.services.erp_permissions import build_mine_sql_filter, is_order_related_to_user
@@ -17,7 +19,8 @@ from foms.services.request_utils import get_search_query_arg
 
 erp_history_bp = Blueprint('erp_history', __name__, url_prefix='/erp/history')
 
-_CONSTRUCTION_HISTORY_BROWSE_LIMIT = 200
+_HISTORY_DASHBOARD_DAYS = 60
+_HISTORY_PAGE_SIZE = 50
 
 @erp_history_bp.route('/')
 @login_required
@@ -42,7 +45,7 @@ def history_dashboard():
     # soft-delete 제외한 활성 주문 전체 (레거시 + ERP Order).
     # ERP Order는 DB 컬럼이 초안 플레이스홀더('ERP Order', 000-…)인 채로 두고 실제 값이 structured_data에만
     # 있는 경우가 많음 → 목록 표시 시 apply_erp_display_fields로 동기화(메인 주문 목록과 동일).
-    _q = db.query(Order).filter(Order.active_filter())
+    _q = db.query(Order).filter(Order.dashboard_active_filter(days=_HISTORY_DASHBOARD_DAYS))
 
     if mine_only and user:
         mine_conds = build_mine_sql_filter(user)
@@ -81,33 +84,30 @@ def history_dashboard():
         _q = _q.filter(Order.created_at <= f"{f_date_to} 23:59:59")
         
     page = request.args.get('page', 1, type=int)
-    if page < 1: page = 1
-    per_page = 50
-    
+    if page < 1:
+        page = 1
+    per_page = _HISTORY_PAGE_SIZE
+
     total_orders = 0
     orders = []
-    
+    total_pages = 0
+
     if has_filter or auto_browse_mine:
-        if auto_browse_mine:
-            orders = (
-                _q.order_by(Order.created_at.desc())
-                .limit(_CONSTRUCTION_HISTORY_BROWSE_LIMIT)
-                .all()
-            )
-            total_orders = len(orders)
-            total_pages = 1
-            page = 1
-        else:
-            total_orders = _q.count()
-            orders = _q.order_by(Order.created_at.desc()).offset((page - 1) * per_page).limit(per_page).all()
-            total_pages = (total_orders + per_page - 1) // per_page
+        total_orders = _q.count()
+        total_pages = (total_orders + per_page - 1) // per_page if total_orders else 0
+        if total_pages and page > total_pages:
+            page = total_pages
+        orders = (
+            _q.order_by(Order.created_at.desc())
+            .offset((page - 1) * per_page)
+            .limit(per_page)
+            .all()
+        )
     else:
         total_pages = 0
 
     if mine_only and user:
         orders = [o for o in orders if is_order_related_to_user(o, user)]
-        if auto_browse_mine:
-            total_orders = len(orders)
     
     from foms.services.erp_display import _ensure_dict, _erp_get_stage, apply_erp_display_fields
     from foms.services.erp_product_items import build_product_items_for_orders
@@ -144,6 +144,7 @@ def history_dashboard():
         if wants_erp_shell_tab_body(request)
         else 'orders/history_dashboard.html'
     )
+    _t0 = time.perf_counter()
     response = make_response(
         render_template(
             template_name,
@@ -159,6 +160,11 @@ def history_dashboard():
             auto_browse_mine=auto_browse_mine,
             erp_mine_only=mine_only,
         )
+    )
+    apply_ept_b7_render_headers(
+        response,
+        route_id="erp_history_dashboard",
+        render_ms=(time.perf_counter() - _t0) * 1000,
     )
     apply_erp_shell_fragment_headers(response, request)
     if wants_erp_shell_tab_body(request):

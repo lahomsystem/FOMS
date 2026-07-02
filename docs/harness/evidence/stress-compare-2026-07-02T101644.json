@@ -1,0 +1,453 @@
+{
+    "environments":  {
+                         "deploy":  {
+                                        "layers":  {
+                                                       "fragment_ttfb":  {
+                                                                             "base":  "https://lahom-dev.up.railway.app",
+                                                                             "paths":  {
+                                                                                           "/erp/dashboard?view=fragment":  {
+                                                                                                                                "samples":  [
+                                                                                                                                                {
+                                                                                                                                                    "round":  1,
+                                                                                                                                                    "status":  200,
+                                                                                                                                                    "elapsed_s":  7.79,
+                                                                                                                                                    "bytes":  675799,
+                                                                                                                                                    "fragment":  "1",
+                                                                                                                                                    "b7":  {
+                                                                                                                                                               "x-foms-ept-b7-render-ms":  "770.0",
+                                                                                                                                                               "x-foms-ept-b7-route":  "erp_dashboard"
+                                                                                                                                                           }
+                                                                                                                                                },
+                                                                                                                                                {
+                                                                                                                                                    "round":  2,
+                                                                                                                                                    "status":  200,
+                                                                                                                                                    "elapsed_s":  9.145,
+                                                                                                                                                    "bytes":  675799,
+                                                                                                                                                    "fragment":  "1",
+                                                                                                                                                    "b7":  {
+                                                                                                                                                               "x-foms-ept-b7-render-ms":  "39.4",
+                                                                                                                                                               "x-foms-ept-b7-route":  "erp_dashboard"
+                                                                                                                                                           }
+                                                                                                                                                },
+                                                                                                                                                {
+                                                                                                                                                    "round":  3,
+                                                                                                                                                    "status":  200,
+                                                                                                                                                    "elapsed_s":  0.544,
+                                                                                                                                                    "bytes":  675799,
+                                                                                                                                                    "fragment":  "1",
+                                                                                                                                                    "b7":  {
+                                                                                                                                                               "x-foms-ept-b7-render-ms":  "74.8",
+                                                                                                                                                               "x-foms-ept-b7-route":  "erp_dashboard"
+                                                                                                                                                           }
+                                                                                                                                                }
+                                                                                                                                            ],
+                                                                                                                                "warm_median_s":  9.145,
+                                                                                                                                "bytes_median":  675799
+                                                                                                                            },
+                                                                                           "/erp/measurement?view=fragment":  {
+                                                                                                                                  "samples":  [
+                                                                                                                                                  {
+                                                                                                                                                      "round":  1,
+                                                                                                                                                      "status":  200,
+                                                                                                                                                      "elapsed_s":  0.851,
+                                                                                                                                                      "bytes":  85765,
+                                                                                                                                                      "fragment":  "1",
+                                                                                                                                                      "b7":  {
+
+                                                                                                                                                             }
+                                                                                                                                                  },
+                                                                                                                                                  {
+                                                                                                                                                      "round":  2,
+                                                                                                                                                      "status":  200,
+                                                                                                                                                      "elapsed_s":  0.231,
+                                                                                                                                                      "bytes":  85765,
+                                                                                                                                                      "fragment":  "1",
+                                                                                                                                                      "b7":  {
+
+                                                                                                                                                             }
+                                                                                                                                                  },
+                                                                                                                                                  {
+                                                                                                                                                      "round":  3,
+                                                                                                                                                      "status":  200,
+                                                                                                                                                      "elapsed_s":  4.943,
+                                                                                                                                                      "bytes":  85765,
+                                                                                                                                                      "fragment":  "1",
+                                                                                                                                                      "b7":  {
+
+                                                                                                                                                             }
+                                                                                                                                                  }
+                                                                                                                                              ],
+                                                                                                                                  "warm_median_s":  4.943,
+                                                                                                                                  "bytes_median":  85765
+                                                                                                                              },
+                                                                                           "/erp/drawing-workbench?view=fragment":  {
+                                                                                                                                        "samples":  [
+                                                                                                                                                        {
+                                                                                                                                                            "round":  1,
+                                                                                                                                                            "status":  200,
+                                                                                                                                                            "elapsed_s":  6.164,
+                                                                                                                                                            "bytes":  43492,
+                                                                                                                                                            "fragment":  "1",
+                                                                                                                                                            "b7":  {
+
+                                                                                                                                                                   }
+                                                                                                                                                        },
+                                                                                                                                                        {
+                                                                                                                                                            "round":  2,
+                                                                                                                                                            "status":  200,
+                                                                                                                                                            "elapsed_s":  8.468,
+                                                                                                                                                            "bytes":  43492,
+                                                                                                                                                            "fragment":  "1",
+                                                                                                                                                            "b7":  {
+
+                                                                                                                                                                   }
+                                                                                                                                                        },
+                                                                                                                                                        {
+                                                                                                                                                            "round":  3,
+                                                                                                                                                            "status":  200,
+                                                                                                                                                            "elapsed_s":  10.575,
+                                                                                                                                                            "bytes":  43492,
+                                                                                                                                                            "fragment":  "1",
+                                                                                                                                                            "b7":  {
+
+                                                                                                                                                                   }
+                                                                                                                                                        }
+                                                                                                                                                    ],
+                                                                                                                                        "warm_median_s":  10.575,
+                                                                                                                                        "bytes_median":  43492
+                                                                                                                                    },
+                                                                                           "/erp/shipment?view=fragment":  {
+                                                                                                                               "samples":  [
+                                                                                                                                               {
+                                                                                                                                                   "round":  1,
+                                                                                                                                                   "status":  200,
+                                                                                                                                                   "elapsed_s":  0.351,
+                                                                                                                                                   "bytes":  88393,
+                                                                                                                                                   "fragment":  "1",
+                                                                                                                                                   "b7":  {
+                                                                                                                                                              "x-foms-ept-b7-render-ms":  "70.5",
+                                                                                                                                                              "x-foms-ept-b7-route":  "erp_shipment_dashboard"
+                                                                                                                                                          }
+                                                                                                                                               },
+                                                                                                                                               {
+                                                                                                                                                   "round":  2,
+                                                                                                                                                   "status":  200,
+                                                                                                                                                   "elapsed_s":  0.271,
+                                                                                                                                                   "bytes":  88393,
+                                                                                                                                                   "fragment":  "1",
+                                                                                                                                                   "b7":  {
+                                                                                                                                                              "x-foms-ept-b7-render-ms":  "36.1",
+                                                                                                                                                              "x-foms-ept-b7-route":  "erp_shipment_dashboard"
+                                                                                                                                                          }
+                                                                                                                                               },
+                                                                                                                                               {
+                                                                                                                                                   "round":  3,
+                                                                                                                                                   "status":  200,
+                                                                                                                                                   "elapsed_s":  0.195,
+                                                                                                                                                   "bytes":  88393,
+                                                                                                                                                   "fragment":  "1",
+                                                                                                                                                   "b7":  {
+                                                                                                                                                              "x-foms-ept-b7-render-ms":  "30.9",
+                                                                                                                                                              "x-foms-ept-b7-route":  "erp_shipment_dashboard"
+                                                                                                                                                          }
+                                                                                                                                               }
+                                                                                                                                           ],
+                                                                                                                               "warm_median_s":  0.271,
+                                                                                                                               "bytes_median":  88393
+                                                                                                                           }
+                                                                                       }
+                                                                         },
+                                                       "tab_stress":  {
+                                                                          "base":  "https://lahom-dev.up.railway.app",
+                                                                          "dcl_ms":  {
+                                                                                         "dcl":  1039,
+                                                                                         "load":  1950,
+                                                                                         "ttfb":  373
+                                                                                     },
+                                                                          "tab_switch":  [
+                                                                                             {
+                                                                                                 "i":  1,
+                                                                                                 "path":  "/erp/measurement",
+                                                                                                 "ms":  344
+                                                                                             },
+                                                                                             {
+                                                                                                 "i":  2,
+                                                                                                 "path":  "/erp/drawing-workbench",
+                                                                                                 "ms":  232
+                                                                                             },
+                                                                                             {
+                                                                                                 "i":  3,
+                                                                                                 "path":  "/erp/shipment",
+                                                                                                 "ms":  184
+                                                                                             },
+                                                                                             {
+                                                                                                 "i":  4,
+                                                                                                 "path":  "/erp/dashboard",
+                                                                                                 "ms":  380
+                                                                                             },
+                                                                                             {
+                                                                                                 "i":  5,
+                                                                                                 "path":  "/erp/measurement",
+                                                                                                 "ms":  11063
+                                                                                             },
+                                                                                             {
+                                                                                                 "i":  6,
+                                                                                                 "path":  "/erp/shipment",
+                                                                                                 "ms":  20
+                                                                                             },
+                                                                                             {
+                                                                                                 "i":  7,
+                                                                                                 "path":  "/erp/dashboard",
+                                                                                                 "ms":  86
+                                                                                             },
+                                                                                             {
+                                                                                                 "i":  8,
+                                                                                                 "path":  "/erp/measurement",
+                                                                                                 "ms":  267
+                                                                                             }
+                                                                                         ],
+                                                                          "aba":  {
+                                                                                      "dashboard_aba":  108,
+                                                                                      "measurement_aba":  330
+                                                                                  }
+                                                                      }
+                                                   },
+                                        "base_url":  "https://lahom-dev.up.railway.app"
+                                    },
+                         "production":  {
+                                            "layers":  {
+                                                           "fragment_ttfb":  {
+                                                                                 "base":  "https://lahom-production.up.railway.app",
+                                                                                 "paths":  {
+                                                                                               "/erp/dashboard?view=fragment":  {
+                                                                                                                                    "samples":  [
+                                                                                                                                                    {
+                                                                                                                                                        "round":  1,
+                                                                                                                                                        "status":  200,
+                                                                                                                                                        "elapsed_s":  0.614,
+                                                                                                                                                        "bytes":  749407,
+                                                                                                                                                        "fragment":  "1",
+                                                                                                                                                        "b7":  {
+                                                                                                                                                                   "x-foms-ept-b7-render-ms":  "49.3",
+                                                                                                                                                                   "x-foms-ept-b7-route":  "erp_dashboard"
+                                                                                                                                                               }
+                                                                                                                                                    },
+                                                                                                                                                    {
+                                                                                                                                                        "round":  2,
+                                                                                                                                                        "status":  200,
+                                                                                                                                                        "elapsed_s":  22.055,
+                                                                                                                                                        "bytes":  749407,
+                                                                                                                                                        "fragment":  "1",
+                                                                                                                                                        "b7":  {
+                                                                                                                                                                   "x-foms-ept-b7-render-ms":  "59.0",
+                                                                                                                                                                   "x-foms-ept-b7-route":  "erp_dashboard"
+                                                                                                                                                               }
+                                                                                                                                                    },
+                                                                                                                                                    {
+                                                                                                                                                        "round":  3,
+                                                                                                                                                        "status":  200,
+                                                                                                                                                        "elapsed_s":  0.328,
+                                                                                                                                                        "bytes":  749407,
+                                                                                                                                                        "fragment":  "1",
+                                                                                                                                                        "b7":  {
+                                                                                                                                                                   "x-foms-ept-b7-render-ms":  "28.8",
+                                                                                                                                                                   "x-foms-ept-b7-route":  "erp_dashboard"
+                                                                                                                                                               }
+                                                                                                                                                    }
+                                                                                                                                                ],
+                                                                                                                                    "warm_median_s":  22.055,
+                                                                                                                                    "bytes_median":  749407
+                                                                                                                                },
+                                                                                               "/erp/measurement?view=fragment":  {
+                                                                                                                                      "samples":  [
+                                                                                                                                                      {
+                                                                                                                                                          "round":  1,
+                                                                                                                                                          "status":  200,
+                                                                                                                                                          "elapsed_s":  1.537,
+                                                                                                                                                          "bytes":  338985,
+                                                                                                                                                          "fragment":  "1",
+                                                                                                                                                          "b7":  {
+
+                                                                                                                                                                 }
+                                                                                                                                                      },
+                                                                                                                                                      {
+                                                                                                                                                          "round":  2,
+                                                                                                                                                          "status":  200,
+                                                                                                                                                          "elapsed_s":  0.636,
+                                                                                                                                                          "bytes":  338985,
+                                                                                                                                                          "fragment":  "1",
+                                                                                                                                                          "b7":  {
+
+                                                                                                                                                                 }
+                                                                                                                                                      },
+                                                                                                                                                      {
+                                                                                                                                                          "round":  3,
+                                                                                                                                                          "status":  200,
+                                                                                                                                                          "elapsed_s":  0.314,
+                                                                                                                                                          "bytes":  338985,
+                                                                                                                                                          "fragment":  "1",
+                                                                                                                                                          "b7":  {
+
+                                                                                                                                                                 }
+                                                                                                                                                      }
+                                                                                                                                                  ],
+                                                                                                                                      "warm_median_s":  0.636,
+                                                                                                                                      "bytes_median":  338985
+                                                                                                                                  },
+                                                                                               "/erp/drawing-workbench?view=fragment":  {
+                                                                                                                                            "samples":  [
+                                                                                                                                                            {
+                                                                                                                                                                "round":  1,
+                                                                                                                                                                "status":  200,
+                                                                                                                                                                "elapsed_s":  0.246,
+                                                                                                                                                                "bytes":  135689,
+                                                                                                                                                                "fragment":  "1",
+                                                                                                                                                                "b7":  {
+
+                                                                                                                                                                       }
+                                                                                                                                                            },
+                                                                                                                                                            {
+                                                                                                                                                                "round":  2,
+                                                                                                                                                                "status":  200,
+                                                                                                                                                                "elapsed_s":  0.225,
+                                                                                                                                                                "bytes":  135689,
+                                                                                                                                                                "fragment":  "1",
+                                                                                                                                                                "b7":  {
+
+                                                                                                                                                                       }
+                                                                                                                                                            },
+                                                                                                                                                            {
+                                                                                                                                                                "round":  3,
+                                                                                                                                                                "status":  200,
+                                                                                                                                                                "elapsed_s":  0.375,
+                                                                                                                                                                "bytes":  135689,
+                                                                                                                                                                "fragment":  "1",
+                                                                                                                                                                "b7":  {
+
+                                                                                                                                                                       }
+                                                                                                                                                            }
+                                                                                                                                                        ],
+                                                                                                                                            "warm_median_s":  0.375,
+                                                                                                                                            "bytes_median":  135689
+                                                                                                                                        },
+                                                                                               "/erp/shipment?view=fragment":  {
+                                                                                                                                   "samples":  [
+                                                                                                                                                   {
+                                                                                                                                                       "round":  1,
+                                                                                                                                                       "status":  200,
+                                                                                                                                                       "elapsed_s":  0.555,
+                                                                                                                                                       "bytes":  383315,
+                                                                                                                                                       "fragment":  "1",
+                                                                                                                                                       "b7":  {
+                                                                                                                                                                  "x-foms-ept-b7-render-ms":  "139.4",
+                                                                                                                                                                  "x-foms-ept-b7-route":  "erp_shipment_dashboard"
+                                                                                                                                                              }
+                                                                                                                                                   },
+                                                                                                                                                   {
+                                                                                                                                                       "round":  2,
+                                                                                                                                                       "status":  200,
+                                                                                                                                                       "elapsed_s":  0.556,
+                                                                                                                                                       "bytes":  383315,
+                                                                                                                                                       "fragment":  "1",
+                                                                                                                                                       "b7":  {
+                                                                                                                                                                  "x-foms-ept-b7-render-ms":  "139.1",
+                                                                                                                                                                  "x-foms-ept-b7-route":  "erp_shipment_dashboard"
+                                                                                                                                                              }
+                                                                                                                                                   },
+                                                                                                                                                   {
+                                                                                                                                                       "round":  3,
+                                                                                                                                                       "status":  200,
+                                                                                                                                                       "elapsed_s":  0.921,
+                                                                                                                                                       "bytes":  383315,
+                                                                                                                                                       "fragment":  "1",
+                                                                                                                                                       "b7":  {
+                                                                                                                                                                  "x-foms-ept-b7-render-ms":  "139.6",
+                                                                                                                                                                  "x-foms-ept-b7-route":  "erp_shipment_dashboard"
+                                                                                                                                                              }
+                                                                                                                                                   }
+                                                                                                                                               ],
+                                                                                                                                   "warm_median_s":  0.921,
+                                                                                                                                   "bytes_median":  383315
+                                                                                                                               }
+                                                                                           }
+                                                                             },
+                                                           "tab_stress":  {
+                                                                              "base":  "https://lahom-production.up.railway.app",
+                                                                              "dcl_ms":  {
+                                                                                             "dcl":  33369,
+                                                                                             "load":  76212,
+                                                                                             "ttfb":  769
+                                                                                         },
+                                                                              "tab_switch":  [
+                                                                                                 {
+                                                                                                     "i":  1,
+                                                                                                     "path":  "/erp/measurement",
+                                                                                                     "ms":  32630
+                                                                                                 },
+                                                                                                 {
+                                                                                                     "i":  2,
+                                                                                                     "path":  "/erp/drawing-workbench",
+                                                                                                     "ms":  13
+                                                                                                 },
+                                                                                                 {
+                                                                                                     "i":  3,
+                                                                                                     "path":  "/erp/shipment",
+                                                                                                     "ms":  659
+                                                                                                 },
+                                                                                                 {
+                                                                                                     "i":  4,
+                                                                                                     "path":  "/erp/dashboard",
+                                                                                                     "ms":  558
+                                                                                                 },
+                                                                                                 {
+                                                                                                     "i":  5,
+                                                                                                     "path":  "/erp/measurement",
+                                                                                                     "ms":  413
+                                                                                                 },
+                                                                                                 {
+                                                                                                     "i":  6,
+                                                                                                     "path":  "/erp/shipment",
+                                                                                                     "ms":  24
+                                                                                                 },
+                                                                                                 {
+                                                                                                     "i":  7,
+                                                                                                     "path":  "/erp/dashboard",
+                                                                                                     "ms":  40
+                                                                                                 },
+                                                                                                 {
+                                                                                                     "i":  8,
+                                                                                                     "path":  "/erp/measurement",
+                                                                                                     "ms":  461
+                                                                                                 }
+                                                                                             ],
+                                                                              "aba":  {
+                                                                                          "dashboard_aba":  37,
+                                                                                          "measurement_aba":  647
+                                                                                      }
+                                                                          }
+                                                       },
+                                            "base_url":  "https://lahom-production.up.railway.app"
+                                        }
+                     },
+    "verdict":  {
+                    "primary_bottleneck_dimension":  null,
+                    "safe_to_promote":  false,
+                    "overall_faster":  "inconclusive",
+                    "notes":  "Automated L1/L2 only. Complete L3-L5 before promotion decision."
+                },
+    "meta":  {
+                 "skip_browser":  false,
+                 "production":  "https://lahom-production.up.railway.app",
+                 "script":  "scripts/ops/compare_deploy_production_stress.ps1",
+                 "layers":  [
+                                "L1_fragment_ttfb",
+                                "L2_tab_stress"
+                            ],
+                 "l2_error":  null,
+                 "deploy":  "https://lahom-dev.up.railway.app",
+                 "run_id":  "2026-07-02T10:20:55.9086376+09:00"
+             },
+    "comparison":  {
+                       "note":  "Run cursor-ide-browser (L3) + user-postgres (L4) per docs/guides/prompts/deploy-production-stress-test.cursor.md"
+                   }
+}

@@ -1,0 +1,28 @@
+{
+  "meta": {
+    "source": "cursor-ide-browser CDP Real Chrome",
+    "viewport": "1920x1080",
+    "note": "L3 partial — deploy tab round complete; production L3 + deploy refresh/aba pending MCP reconnect"
+  },
+  "deploy": {
+    "tab_switch_ms": [
+      {"path": "/erp/measurement", "ms": 8674},
+      {"path": "/erp/drawing-workbench", "ms": 26},
+      {"path": "/erp/shipment", "ms": 278},
+      {"path": "/erp/dashboard", "ms": 731},
+      {"path": "/erp/measurement", "ms": 6010},
+      {"path": "/erp/shipment", "ms": 25},
+      {"path": "/erp/dashboard", "ms": 149},
+      {"path": "/erp/measurement", "ms": 336}
+    ],
+    "sw_active": true,
+    "full_refresh_dcl_ms": null,
+    "aba": null
+  },
+  "production": {
+    "tab_switch_ms": null,
+    "sw_active": null,
+    "full_refresh_dcl_ms": null,
+    "aba": null
+  }
+}

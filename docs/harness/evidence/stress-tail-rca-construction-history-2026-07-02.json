@@ -1,0 +1,144 @@
+{
+  "meta": {
+    "run_id": "2026-07-02T11:45:00+09:00",
+    "scope": "deploy construction/history HTTP tail RCA + Real Chrome L3 9x10 cross-check",
+    "agents": ["cavecrew-investigator", "explore", "cursor-ide-browser CDP"],
+    "evidence_refs": [
+      "docs/harness/evidence/stress-fragment-9primary-x10-2026-07-02T111555.json",
+      "docs/harness/evidence/fragment-tail-ttfb-2026-07-02T113008.json",
+      "docs/harness/evidence/fragment-tail-ttfb-2026-07-02T114243.json",
+      "docs/harness/evidence/stress-9primary-x10-real-chrome-2026-07-02T114011.json"
+    ]
+  },
+  "verdict": {
+    "bottleneck_layer": "app_db_compute",
+    "network_tail": false,
+    "sw_client_masking": true,
+    "deploy_infra_amplifier": true,
+    "safe_to_promote": false
+  },
+  "construction_dashboard": {
+    "route": "foms/web/construction/dashboard.py:erp_construction_dashboard",
+    "http_fragment_deploy": {
+      "stress_batch_med_s": 12.421,
+      "diagnostic_20r_med_ms": 654,
+      "diagnostic_20r_p95_ms": 8901,
+      "diagnostic_ttfb_dominates": true,
+      "bytes": 616608
+    },
+    "http_fragment_production": {
+      "stress_batch_med_s": 0.425,
+      "diagnostic_20r_med_ms": 467,
+      "diagnostic_20r_p95_ms": 10735,
+      "bytes": 695988
+    },
+    "real_chrome_swap": {
+      "deploy_p50_ms": 279,
+      "deploy_max_ms": 4163,
+      "production_p50_ms": 259,
+      "production_max_ms": 3893,
+      "note": "Warm client fragmentHtmlCache masks server cost; r1 cold still 3-4s"
+    },
+    "root_causes_ranked": [
+      {
+        "rank": 1,
+        "title": "Double query: KPI full 60d scan + 300-row full Order fetch",
+        "sites": [
+          "foms/web/construction/dashboard.py:85-91 kpi_rows .all()",
+          "foms/web/construction/dashboard.py:157-160 list_query .limit(300).all()",
+          "foms/web/construction/dashboard.py:179 build_construction_row_dtos on all 300"
+        ],
+        "contrast": "foms/web/production/dashboard.py SQL paginate ~50 rows; foms/web/orders/dashboard.py Redis KPI micro-cache"
+      },
+      {
+        "rank": 2,
+        "title": "Python-side pagination after loading 300 full ORM rows",
+        "sites": ["foms/web/construction/dashboard.py:201-207"],
+        "impact": "Every fragment request pays 300-row hydration even when page shows 50"
+      },
+      {
+        "rank": 3,
+        "title": "Deploy Railway PG/worker contention amplifies same code path",
+        "evidence": "Same payload bytes prod 0.4s vs deploy 12.4s batch; med≈p95 on worst batch → sustained compute under slow staging tier, not random network"
+      }
+    ],
+    "ruled_out": [
+      "NO_FRAGMENT_CACHE_PATHS — only measurement excluded",
+      "Missing B7 headers — observability gap only",
+      "Transfer/network tail — med_transfer_ms 17-19 on diagnostic"
+    ]
+  },
+  "history_dashboard": {
+    "route": "foms/web/orders/history.py:history_dashboard",
+    "http_fragment_deploy": {
+      "stress_batch_med_s": 6.746,
+      "diagnostic_20r_med_ms": 4153,
+      "diagnostic_20r_med_ttfb_ms": 3264,
+      "diagnostic_med_transfer_ms": 2,
+      "bytes": 27084
+    },
+    "http_fragment_production": {
+      "stress_batch_med_s": 0.254,
+      "diagnostic_20r_med_ms": 1414,
+      "diagnostic_20r_med_ttfb_ms": 1370,
+      "bytes": 27199
+    },
+    "real_chrome_swap": {
+      "deploy_p50_ms": 90,
+      "deploy_max_ms": 151,
+      "production_p50_ms": 105,
+      "production_max_ms": 12435,
+      "note": "Deploy user 강민경(직원) likely triggers auto_browse_mine; prod ADMIN 이시영 empty filter fast"
+    },
+    "root_causes_ranked": [
+      {
+        "rank": 1,
+        "title": "CONSTRUCTION auto_browse_mine loads 200 active_filter rows without 60d cap",
+        "sites": [
+          "foms/services/common/erp_mine_filter.py:37-40 erp_mine_only_for_construction",
+          "foms/web/orders/history.py:90-96 .limit(200).all()",
+          "foms/web/orders/history.py:117-128 deepcopy + apply_erp_display_fields per row"
+        ],
+        "role_asymmetry": "Deploy session CONSTRUCTION-adjacent user vs production ADMIN → different code path"
+      },
+      {
+        "rank": 2,
+        "title": "active_filter() unbounded vs construction dashboard_active_filter(60)",
+        "sites": ["foms/web/orders/history.py:45 Order.active_filter()"],
+        "impact": "History browse scans wider row set than construction KPI window"
+      },
+      {
+        "rank": 3,
+        "title": "Deploy staging DB slower than production for same 27KB payload",
+        "evidence": "TTFB 3264ms vs 1370ms diagnostic; transfer 2ms → server-side"
+      }
+    ]
+  },
+  "real_chrome_l3_9x10_summary": {
+    "deploy": {"sw_active": true, "all_p50_ms": 151, "all_p95_ms": 3161, "all_max_ms": 9167},
+    "production": {"sw_active": true, "all_p50_ms": 215, "all_p95_ms": 8355, "all_max_ms": 12435},
+    "insight": "Both envs SW active. Deploy slightly better p50/p95 on this run; production has dashboard/measurement/history r7 spikes. Headless Playwright p50 deploy 71ms understated vs Real Chrome 151ms."
+  },
+  "recommended_fixes": [
+    {
+      "priority": "P0",
+      "fix": "Construction: SQL paginate list query (50/page) + SQL aggregate KPIs (mirror production dashboard pattern)",
+      "files": ["foms/web/construction/dashboard.py", "foms/services/construction_dashboard_display.py"]
+    },
+    {
+      "priority": "P1",
+      "fix": "History auto_browse: cap with dashboard_active_filter(60) + slim projection; avoid 200 full Order hydrate",
+      "files": ["foms/web/orders/history.py"]
+    },
+    {
+      "priority": "P1",
+      "fix": "Wire apply_ept_b7_render_headers on construction/history for DB vs render split",
+      "files": ["foms/web/construction/dashboard.py", "foms/web/orders/history.py"]
+    },
+    {
+      "priority": "P2",
+      "fix": "Add construction dashboard slice to dashboard_cache micro-cache (like orders/shipment)",
+      "files": ["foms/services/common/dashboard_cache.py"]
+    }
+  ]
+}

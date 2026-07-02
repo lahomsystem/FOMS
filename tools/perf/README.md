@@ -2,6 +2,9 @@
 
 코드 수정이 FOMS를 느리게 만드는지 잡고, 정기 점검으로 성능을 개선하는 도구.
 
+- **deploy vs production 스트레스 비교:** [`docs/guides/DEPLOY_PRODUCTION_STRESS_TEST.md`](../docs/guides/DEPLOY_PRODUCTION_STRESS_TEST.md) · Cursor [`docs/guides/prompts/deploy-production-stress-test.cursor.md`](../docs/guides/prompts/deploy-production-stress-test.cursor.md) · **다른 LLM** [`docs/guides/prompts/deploy-production-stress-test.next-llm-execution-prompt.md`](../docs/guides/prompts/deploy-production-stress-test.next-llm-execution-prompt.md) · `scripts/ops/compare_deploy_production_stress.ps1`
+- `measure_erp_tab_switch.py` — authenticated fragment TTFB (dual-env).
+- `browser_tab_stress_compare.py` — ERP shell tab swap stress (dual-env, Playwright).
 - `perf_scan.py` — 도구 무관 스캐너.
   - `python tools/perf/perf_scan.py --guard` : 변경분 회귀 점검(high면 exit 1, 머지 차단).
   - `python tools/perf/perf_scan.py --audit` : 전체 코드베이스 개선 후보(advisory).

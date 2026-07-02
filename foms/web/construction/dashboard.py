@@ -3,21 +3,22 @@ ERP 시공 대시보드 페이지 (ERP-SLIM-10)
 erp.py에서 분리: /erp/construction/dashboard
 """
 
-import logging
+import time
 
 from flask import Blueprint, g, make_response, render_template, request
-from sqlalchemy import String, bindparam, cast, or_, text
+from sqlalchemy import String, cast, or_
 
 from foms.web.auth import login_required
 from db import get_db
-from foms.services.erp_display import (
-    _ensure_dict,
-    _erp_alerts,
-    _erp_get_stage,
-    _erp_has_media,
-    self_measurement_four_checks_done,
-)
 from foms.services.erp_order_detail import attach_order_detail_payloads
+from foms.services.common.dashboard_cache import (
+    KEY_VERSION,
+    TTL_ATTACHMENT_COUNT_MAP,
+    TTL_SUMMARY_COUNTS,
+    build_dashboard_cache_key,
+    get_or_compute_dashboard_slice,
+)
+from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
 from foms.services.erp_permissions import (
     build_mine_sql_filter,
@@ -25,13 +26,29 @@ from foms.services.erp_permissions import (
     is_order_related_to_user,
 )
 from foms.services.erp_policy import STAGE_LABELS
-from foms.services.erp_dashboard_search import erp_order_dashboard_search_predicate
-from foms.services.foms_unified_search import _compact
+# namespace surface 계약(pin): 라우트 본문 미사용이어도 erp_display 재export 유지
+from foms.services.erp_display import (
+    _ensure_dict,
+    _erp_get_stage,
+    _erp_has_media,
+    _erp_alerts,
+    self_measurement_four_checks_done,
+)
 from foms.services.construction_dashboard_filters import parse_construction_dashboard_filters
 from foms.services.construction_dashboard_display import (
     enrich_construction_mobile_rows,
     build_construction_row_dtos,
-    _display_stage_for_order,
+)
+from foms.services.construction_read_model import (
+    CONSTRUCTION_BROWSE_CAP,
+    CONSTRUCTION_DASHBOARD_PAGE_SIZE,
+    CONSTRUCTION_SEARCH_CAP,
+    apply_construction_search_filter,
+    apply_construction_stage_sql_filter,
+    build_construction_process_steps,
+    compute_construction_summary_blob,
+    fetch_construction_attachment_counts,
+    paginate_construction_orders,
 )
 from foms.services.feature_flags import is_enabled_for_user
 from models import Order
@@ -47,9 +64,6 @@ TEAM_LABELS = {
     "CONSTRUCTION": "시공팀",
 }
 
-_CONSTRUCTION_BROWSE_LIMIT = 300
-_CONSTRUCTION_SEARCH_LIMIT = 500
-
 
 @erp_construction_page_bp.route("/construction/dashboard")
 @login_required
@@ -59,8 +73,6 @@ def erp_construction_dashboard():
     user = getattr(g, "current_user", None)
     is_admin = user and user.role == "ADMIN"
 
-    # Batch 4: 상단 request.args 파싱·is_construction/mine_only는
-    # parse_construction_dashboard_filters로 분리(동작 보존). 아래는 다운스트림 호환 바인딩.
     _cf = parse_construction_dashboard_filters(request, user)
     f_stage = _cf.stage
     f_q = _cf.q
@@ -77,62 +89,32 @@ def erp_construction_dashboard():
         else:
             query = query.filter(Order.id == -1)
 
-    # Batch 4: KPI 전체스캔은 전체 structured_data(items/parties/quests 등 대용량)를 행마다
-    # 로드/파싱했다(시공 대시보드 KPI 잔여 비용의 핵심). KPI 산출은 flags/schedule/workflow
-    # 서브트리만 읽으므로(_erp_alerts·_display_stage_for_order) 해당 3개 경로만 투영해 전송·파싱
-    # 비용을 줄인다. 동작은 _ensure_dict(dict/JSON문자열 양쪽 처리)로 byte 동일하게 보존.
-    sd_json = Order.structured_data
-    kpi_rows = query.order_by(None).with_entities(
-        Order.id,
-        sd_json["flags"].label("sd_flags"),
-        sd_json["schedule"].label("sd_schedule"),
-        sd_json["workflow"].label("sd_workflow"),
-        Order.is_self_measurement,
-    ).all()
-    step_stats = {
-        "시공대기": {"count": 0, "overdue": 0, "imminent": 0},
-        "시공중": {"count": 0, "overdue": 0, "imminent": 0},
-        "시공완료": {"count": 0, "overdue": 0, "imminent": 0},
+    _summary_fp = {
+        "v": KEY_VERSION,
+        "uid": user.id if user else None,
+        "role": getattr(user, "role", None) if user else None,
+        "mine": bool(mine_only),
     }
-    kpis = {
-        "urgent_count": 0,
-        "construction_d3_count": 0,
-        "measurement_d4_count": 0,
-        "production_d2_count": 0,
-    }
+    _summary_key = build_dashboard_cache_key("construction", "summary_counts", _summary_fp)
+    _summary_blob = get_or_compute_dashboard_slice(
+        _summary_key,
+        TTL_SUMMARY_COUNTS,
+        lambda: compute_construction_summary_blob(query),
+        page="construction",
+        slice_name="summary_counts",
+    )
+    step_stats = _summary_blob["step_stats"]
+    kpis = _summary_blob["kpis"]
 
-    for row in kpi_rows:
-        if row.is_self_measurement and not self_measurement_four_checks_done(row):
-            continue
-        structured_data = {
-            "flags": _ensure_dict(row.sd_flags),
-            "schedule": _ensure_dict(row.sd_schedule),
-            "workflow": _ensure_dict(row.sd_workflow),
-        }
-        display_stage = _display_stage_for_order(row, structured_data)
-        if not display_stage:
-            continue
+    stage_col = cast(Order.structured_data["workflow"]["stage"], String)
+    list_query = apply_construction_stage_sql_filter(query, f_stage, stage_col)
 
-        alerts = _erp_alerts(row, structured_data, 0)
+    page = request.args.get("page", 1, type=int)
+    per_page = CONSTRUCTION_DASHBOARD_PAGE_SIZE
+    total_pages = 0
+    total_orders = 0
+    orders: list[Order] = []
 
-        if display_stage in step_stats:
-            step_stats[display_stage]["count"] += 1
-            if alerts.get("construction_d3"):
-                step_stats[display_stage]["imminent"] += 1
-
-        if alerts.get("urgent"):
-            kpis["urgent_count"] += 1
-        if alerts.get("construction_d3"):
-            kpis["construction_d3_count"] += 1
-
-    if f_stage:
-        stage_col = cast(Order.structured_data["workflow"]["stage"], String)
-        if f_stage in ("시공대기", "시공중"):
-            query = query.filter(stage_col.in_(['"CONSTRUCTION"', '"시공"', '"CONSTRUCTING"']))
-        elif f_stage == "시공완료":
-            query = query.filter(stage_col.in_(['"COMPLETED"', '"완료"', '"AS_WAIT"', '"CS"']))
-
-    list_query = query
     if focus_order_id:
         focus = (
             db.query(Order)
@@ -143,39 +125,55 @@ def erp_construction_dashboard():
             )
             .first()
         )
-        orders = [
-            focus
-        ] if focus and (
-            not mine_only
-            or is_order_related_to_user(focus, user)
-        ) else []
+        orders = (
+            [focus]
+            if focus
+            and (not mine_only or is_order_related_to_user(focus, user))
+            else []
+        )
+        total_orders = len(orders)
+        total_pages = 1
+        page = 1
     elif f_q:
-        term = f"%{_compact(f_q)}%"
-        if term.strip("%"):
-            list_query = list_query.filter(erp_order_dashboard_search_predicate(term))
-        list_limit = _CONSTRUCTION_SEARCH_LIMIT
-        orders = list_query.order_by(Order.created_at.desc()).limit(list_limit).all()
+        list_query = apply_construction_search_filter(list_query, f_q)
+        page, total_pages, total_orders, orders = paginate_construction_orders(
+            list_query,
+            page=page,
+            per_page=per_page,
+            total_cap=CONSTRUCTION_SEARCH_CAP,
+        )
     else:
-        list_limit = _CONSTRUCTION_BROWSE_LIMIT
-        orders = list_query.order_by(Order.created_at.desc()).limit(list_limit).all()
+        page, total_pages, total_orders, orders = paginate_construction_orders(
+            list_query,
+            page=page,
+            per_page=per_page,
+            total_cap=CONSTRUCTION_BROWSE_CAP,
+        )
 
-    att_counts = {}
-    if orders:
-        try:
-            order_ids = [order.id for order in orders]
-            stmt = text(
-                "SELECT order_id, COUNT(*) AS cnt FROM order_attachments "
-                "WHERE order_id = ANY(:order_ids) GROUP BY order_id"
-            )
-            stmt = stmt.bindparams(bindparam("order_ids", value=order_ids))
-            rows = db.execute(stmt).fetchall()
-            for row in rows:
-                att_counts[int(row.order_id)] = int(row.cnt)
-        except Exception as exc:
-            logging.getLogger(__name__).warning("att_counts query failed: %s", exc)
-            att_counts = {}
+    _att_fp = {
+        "v": KEY_VERSION,
+        "uid": user.id if user else None,
+        "mine": bool(mine_only),
+        "stage": f_stage or "",
+        "q": f_q or "",
+        "page": page,
+        "ids": sorted(o.id for o in orders),
+    }
+    _att_key = build_dashboard_cache_key("construction", "attachment_counts", _att_fp)
 
-    # Batch 4: 표시용 row DTO 조립은 build_construction_row_dtos(display 모듈)로 분리(동작 보존, 캐시 아님).
+    def _compute_att_counts() -> dict[str, int]:
+        raw = fetch_construction_attachment_counts(db, orders)
+        return {str(k): int(v) for k, v in raw.items()}
+
+    _att_blob = get_or_compute_dashboard_slice(
+        _att_key,
+        TTL_ATTACHMENT_COUNT_MAP,
+        _compute_att_counts,
+        page="construction",
+        slice_name="attachment_counts",
+    )
+    att_counts = {int(k): int(v) for k, v in (_att_blob or {}).items()}
+
     enriched = build_construction_row_dtos(orders, att_counts, f_stage)
 
     if f_q or focus_order_id:
@@ -192,19 +190,8 @@ def erp_construction_dashboard():
                 if alerts.get("construction_d3"):
                     step_stats[stage_name]["imminent"] += 1
 
-    process_steps = [
-        {"label": "시공대기", "display": "시공대기", **step_stats["시공대기"]},
-        {"label": "시공중", "display": "시공중", **step_stats["시공중"]},
-        {"label": "시공완료", "display": "시공완료", **step_stats["시공완료"]},
-    ]
+    process_steps = build_construction_process_steps(step_stats)
 
-    page = request.args.get("page", 1, type=int)
-    if page < 1:
-        page = 1
-    per_page = 50
-    total_orders = len(enriched)
-    total_pages = (total_orders + per_page - 1) // per_page
-    paginated_orders = enriched[(page - 1) * per_page : page * per_page]
     current_user = getattr(g, "current_user", None)
     mobile_v2_active = is_enabled_for_user(
         "ERP_MOBILE_V2_ENABLED",
@@ -212,22 +199,23 @@ def erp_construction_dashboard():
         cohort_key="FOMS_V3_SHELL_COHORT",
     )
     enrich_construction_mobile_rows(
-        paginated_orders,
+        enriched,
         db,
         mobile_v2_active=mobile_v2_active,
         drawing_only=bool(is_construction),
     )
-    attach_order_detail_payloads(db, paginated_orders)
+    attach_order_detail_payloads(db, enriched)
 
     template_name = (
         "construction/partials/dashboard_fragment.html"
         if wants_erp_shell_tab_body(request)
         else "construction/dashboard.html"
     )
+    _t0 = time.perf_counter()
     response = make_response(
         render_template(
             template_name,
-            orders=paginated_orders,
+            orders=enriched,
             kpis=kpis,
             process_steps=process_steps,
             filters={"stage": f_stage, "q": f_q},
@@ -241,6 +229,11 @@ def erp_construction_dashboard():
             total_pages=total_pages,
             total_orders=total_orders,
         )
+    )
+    apply_ept_b7_render_headers(
+        response,
+        route_id="erp_construction_dashboard",
+        render_ms=(time.perf_counter() - _t0) * 1000,
     )
     apply_erp_shell_fragment_headers(response, request)
     return response

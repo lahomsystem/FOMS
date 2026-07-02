@@ -1,0 +1,163 @@
+{
+  "meta": {
+    "run_id": "2026-07-02T10:30:00+09:00",
+    "operator": "cursor-agent",
+    "viewport": "1920x1080",
+    "scenarios": ["A_tab_round", "B_aba", "C_full_refresh", "D_fragment_ttfb"],
+    "sources": {
+      "l1_l2_initial": "docs/harness/evidence/stress-compare-2026-07-02T101644.json",
+      "l1_20round": "inline-run-2026-07-02T102959",
+      "l2_rerun_headless": "browser_tab_stress_compare.py rerun",
+      "l3_real_chrome": "docs/harness/evidence/stress-compare-l3-real-chrome-partial.json"
+    },
+    "notes": [
+      "L2/L3 DCL from headless Playwright is cold-start artifact — not used for SW verdict",
+      "L3 production Real Chrome incomplete (MCP reconnect pending)",
+      "pg_stat_statements unavailable on MCP postgres target"
+    ]
+  },
+  "environments": {
+    "deploy": {
+      "base_url": "https://lahom-dev.up.railway.app",
+      "layers": {
+        "fragment_ttfb_20round": {
+          "/erp/dashboard?view=fragment": { "warm_median_s": 0.513, "p95_s": 7.013, "bytes": 675799, "render_med_ms": 37.4 },
+          "/erp/measurement?view=fragment": { "warm_median_s": 0.282, "p95_s": 7.522, "bytes": 85765, "render_med_ms": null },
+          "/erp/drawing-workbench?view=fragment": { "warm_median_s": 0.345, "p95_s": 5.3, "bytes": 43492, "render_med_ms": null },
+          "/erp/shipment?view=fragment": { "warm_median_s": 0.233, "p95_s": 9.529, "bytes": 88393, "render_med_ms": 16.1 }
+        },
+        "tab_stress_l2_headless": {
+          "p50_ms": 846,
+          "p95_ms": 4827,
+          "samples_ms": [976, 16, 3317, 717, 1681, 14, 79, 4827],
+          "aba": { "dashboard_aba": 82, "measurement_aba": 5827 }
+        },
+        "real_chrome": {
+          "p50_ms": 305,
+          "p95_ms": 8674,
+          "samples_ms": [8674, 26, 278, 731, 6010, 25, 149, 336],
+          "sw_active": true,
+          "full_refresh_5x_dcl_ms": null,
+          "aba": null
+        },
+        "postgres_top_queries": []
+      }
+    },
+    "production": {
+      "base_url": "https://lahom-production.up.railway.app",
+      "layers": {
+        "fragment_ttfb_20round": {
+          "/erp/dashboard?view=fragment": { "warm_median_s": 0.567, "p95_s": 6.486, "bytes": 749407, "render_med_ms": 42.1 },
+          "/erp/measurement?view=fragment": { "warm_median_s": 0.587, "p95_s": 8.347, "bytes": 338985, "render_med_ms": null },
+          "/erp/drawing-workbench?view=fragment": { "warm_median_s": 0.308, "p95_s": 9.04, "bytes": 135689, "render_med_ms": null },
+          "/erp/shipment?view=fragment": { "warm_median_s": 2.94, "p95_s": 10.626, "bytes": 383315, "render_med_ms": 116.8 }
+        },
+        "tab_stress_l2_headless": {
+          "p50_ms": 666,
+          "p95_ms": 13147,
+          "p95_ex_outlier_ms": 1481,
+          "samples_ms": [1481, 14, 13147, 10585, 948, 35, 54, 385],
+          "aba": { "dashboard_aba": 44, "measurement_aba": 363 }
+        },
+        "real_chrome": {
+          "p50_ms": null,
+          "p95_ms": null,
+          "samples_ms": null,
+          "sw_active": null,
+          "full_refresh_5x_dcl_ms": null,
+          "aba": null
+        },
+        "postgres_top_queries": []
+      }
+    }
+  },
+  "comparison": {
+    "fragment_ttfb_warm_median_ms": {
+      "/erp/dashboard?view=fragment": { "deploy": 513, "production": 567, "winner": "deploy" },
+      "/erp/measurement?view=fragment": { "deploy": 282, "production": 587, "winner": "deploy" },
+      "/erp/drawing-workbench?view=fragment": { "deploy": 345, "production": 308, "winner": "production" },
+      "/erp/shipment?view=fragment": { "deploy": 233, "production": 2940, "winner": "deploy" }
+    },
+    "tab_swap_headless_l2": {
+      "deploy_p50_ms": 846,
+      "deploy_p95_ms": 4827,
+      "production_p50_ms": 666,
+      "production_p95_ms": 13147,
+      "production_p95_ex_outlier_ms": 1481,
+      "note": "Headless — swap includes client+network; not SW authoritative"
+    },
+    "tab_swap_real_chrome_l3": {
+      "deploy_p50_ms": 305,
+      "deploy_p95_ms": 8674,
+      "production": "not_measured"
+    },
+    "aba_headless_l2": {
+      "dashboard_aba": { "deploy": 82, "production": 44, "winner": "production" },
+      "measurement_aba": { "deploy": 5827, "production": 363, "winner": "production" }
+    },
+    "bytes_median": {
+      "/erp/dashboard?view=fragment": { "deploy": 675799, "production": 749407 },
+      "/erp/measurement?view=fragment": { "deploy": 85765, "production": 338985 },
+      "/erp/drawing-workbench?view=fragment": { "deploy": 43492, "production": 135689 },
+      "/erp/shipment?view=fragment": { "deploy": 88393, "production": 383315 }
+    },
+    "winner_by_layer": {
+      "fragment_ttfb_median": "deploy",
+      "tab_swap_p50_headless": "production",
+      "tab_swap_p95_headless": "deploy",
+      "tab_swap_p95_real_chrome_deploy_only": "inconclusive",
+      "dashboard_aba_warm": "production"
+    },
+    "regressions": [
+      {
+        "layer": "fragment_ttfb",
+        "path": "/erp/shipment?view=fragment",
+        "deploy_ms": 233,
+        "production_ms": 2940,
+        "delta_ms": 2707,
+        "hypothesis": "query-scale + payload (prod 383KB vs dev 88KB) + render 117ms",
+        "next_step": "EXPLAIN shipment dashboard on production DB; compare limit/slim projection"
+      },
+      {
+        "layer": "tab_swap_real_chrome",
+        "path": "/erp/measurement",
+        "deploy_ms": 8674,
+        "production_ms": null,
+        "delta_ms": null,
+        "hypothesis": "NO_FRAGMENT_CACHE forces server fetch; dev tail latency spike on swap",
+        "next_step": "FRESH_TTL for measurement + B7 render headers; Railway tail monitoring"
+      },
+      {
+        "layer": "fragment_ttfb",
+        "path": "/erp/measurement?view=fragment",
+        "deploy_ms": 282,
+        "production_ms": 587,
+        "delta_ms": -305,
+        "hypothesis": "deploy staging smaller payload 85KB vs prod 339KB",
+        "next_step": "Not a deploy regression — prod has more real data"
+      },
+      {
+        "layer": "infra_tail",
+        "path": "all_fragments_p95",
+        "deploy_ms": 9529,
+        "production_ms": 10626,
+        "delta_ms": null,
+        "hypothesis": "Railway queue/cold worker — B7 render-ms stays 16-117ms",
+        "next_step": "Monitor Railway metrics; not layout JS regression"
+      }
+    ]
+  },
+  "perf_radar": {
+    "total_high": 0,
+    "total_medium": 0,
+    "audit_medium": 0,
+    "hot_paths_unmeasured": ["/erp/dashboard", "/erp/measurement", "mobile shell tab swap"]
+  },
+  "verdict": {
+    "overall_faster": "inconclusive",
+    "primary_bottleneck_dimension": "infra-tail-latency",
+    "secondary_bottleneck": "query-scale-payload (production shipment fragment)",
+    "safe_to_promote": false,
+    "notes": "2-replica dev improved measurement HTTP median to ~282ms (was ~3s pre-scale). Both envs share 5-10s fragment p95 tail. Real Chrome deploy shows 6-8s measurement swap spikes despite fast HTTP median — client swap waits on network tail. Production shipment fragment median 2.9s needs DB/query investigation before promote. Code fixes: measurement FRESH_TTL cache, B7 headers, mobile N+1 batch."
+  }
+}

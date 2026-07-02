@@ -1,0 +1,38 @@
+{
+  "meta": {
+    "run_id": "2026-07-02T12:00:25+09:00",
+    "account": "upperkill (admin — 이시영 on deploy browser)",
+    "tool_http": "fragment_tail_ttfb_diagnostic.py 20 rounds",
+    "tool_browser": "cursor-ide-browser CDP Resource Timing (deploy only; production browser form login blocked, HTTP session OK)"
+  },
+  "http_admin_comparison": {
+    "deploy": {
+      "construction": {"med_total_ms": 1342, "p95_total_ms": 9001, "med_ttfb_ms": 1000, "med_transfer_ms": 423, "bytes": 616608},
+      "history": {"med_total_ms": 299, "p95_total_ms": 4321, "med_ttfb_ms": 297, "med_transfer_ms": 1, "bytes": 27084}
+    },
+    "production": {
+      "construction": {"med_total_ms": 449, "p95_total_ms": 8629, "med_ttfb_ms": 432, "med_transfer_ms": 16, "bytes": 695988},
+      "history": {"med_total_ms": 289, "p95_total_ms": 7748, "med_ttfb_ms": 284, "med_transfer_ms": 1, "bytes": 27199}
+    }
+  },
+  "role_bias_correction": {
+    "history_deploy_before_admin": {"med_ttfb_ms": 3264, "note": "강민경 직원 — auto_browse_mine 200 rows"},
+    "history_deploy_after_admin": {"med_ttfb_ms": 297, "delta": "91% faster — role path was primary cause"},
+    "construction_deploy_before_vs_after_admin": "Still 3x slower than prod (1342 vs 449 med) — NOT role, app+infra"
+  },
+  "devtools_deploy_admin_cdp": {
+    "user": "이시영 (관리자)",
+    "sw_active": true,
+    "fragment_resource_timing": [
+      {"path": "/erp/construction/dashboard", "swap_ms": 562, "ttfb_ms": 450, "transfer_ms": 13, "wire_kb": 51, "bottleneck": "Waiting for server response (TTFB ≈ total)"},
+      {"path": "/erp/history/", "swap_ms": 221, "ttfb_ms": 199, "transfer_ms": 1, "wire_kb": 6, "bottleneck": "Server TTFB moderate; admin empty-filter fast"},
+      {"path": "/erp/dashboard", "swap_ms": 413, "ttfb_ms": 295, "transfer_ms": 5, "wire_kb": 43}
+    ],
+    "f12_interpretation": "Network panel equivalent: construction fragment ~450ms server wait, <20ms download. No disk cache on first hit (fromCache false). SW active intercepts static only; fragment is network-first fetch."
+  },
+  "root_cause_verdict": {
+    "history_gap_deploy_vs_prod": "RESOLVED under admin — was role asymmetry (construction employee auto_browse)",
+    "construction_gap_deploy_vs_prod": "REMAINS — same admin, deploy med 1342ms vs prod 449ms; p95 both spike 8-9s (shared tail pattern)",
+    "layers": ["construction 300-row hydrate + KPI scan (app)", "staging Railway PG/worker contention (infra amplifier)"]
+  }
+}

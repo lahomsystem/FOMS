@@ -3,9 +3,6 @@
  * 파일명·표 제목: YY-MM-DD 실측 일정
  */
 (function () {
-    if (window.__FOMS_MEASUREMENT_IMAGE_EXPORT_BOUND) return;
-    window.__FOMS_MEASUREMENT_IMAGE_EXPORT_BOUND = true;
-
     var HTML2CANVAS_SRC = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
     var _html2canvasPromise = null;
 
@@ -39,7 +36,8 @@
 
     function initMeasurementImageExport() {
     const exportBtn = document.getElementById('btn-export-image');
-    if (!exportBtn) return;
+    if (!exportBtn || exportBtn.dataset.fomsExportBound === '1') return;
+    exportBtn.dataset.fomsExportBound = '1';
     const EXPORT_TABLE_WIDTH = 1520;
     const EXPORT_TITLE_FONT_SIZE = '38px';
     const EXPORT_HEADER_FONT_SIZE = '15px';
@@ -425,4 +423,5 @@
     } else {
         initMeasurementImageExport();
     }
+    document.addEventListener('foms:main-content-swapped', initMeasurementImageExport);
 })();

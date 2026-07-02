@@ -1,0 +1,114 @@
+{
+  "deploy": {
+    "/erp/dashboard?view=fragment": {
+      "med_s": 2.034,
+      "p95_s": 7.44,
+      "bytes": 675799,
+      "render_med_ms": 44.9
+    },
+    "/erp/measurement?view=fragment": {
+      "med_s": 0.242,
+      "p95_s": 0.268,
+      "bytes": 85765,
+      "render_med_ms": null
+    },
+    "/erp/drawing-workbench?view=fragment": {
+      "med_s": 0.218,
+      "p95_s": 0.378,
+      "bytes": 43492,
+      "render_med_ms": null
+    },
+    "/erp/production/dashboard?view=fragment": {
+      "med_s": 0.264,
+      "p95_s": 0.592,
+      "bytes": 577420,
+      "render_med_ms": null
+    },
+    "/erp/shipment?view=fragment": {
+      "med_s": 0.247,
+      "p95_s": 0.374,
+      "bytes": 88393,
+      "render_med_ms": 11.8
+    },
+    "/erp/as?view=fragment": {
+      "med_s": 0.389,
+      "p95_s": 0.434,
+      "bytes": 1173148,
+      "render_med_ms": 63.5
+    },
+    "/erp/construction/dashboard?view=fragment": {
+      "med_s": 0.46,
+      "p95_s": 8.517,
+      "bytes": 616608,
+      "render_med_ms": null
+    },
+    "/erp/completion?view=fragment": {
+      "med_s": 0.142,
+      "p95_s": 0.179,
+      "bytes": 38825,
+      "render_med_ms": null
+    },
+    "/erp/history?view=fragment": {
+      "med_s": 0.314,
+      "p95_s": 6.003,
+      "bytes": 27084,
+      "render_med_ms": null
+    }
+  },
+  "production": {
+    "/erp/dashboard?view=fragment": {
+      "med_s": 0.502,
+      "p95_s": 5.046,
+      "bytes": 748854,
+      "render_med_ms": 45.0
+    },
+    "/erp/measurement?view=fragment": {
+      "med_s": 0.616,
+      "p95_s": 0.79,
+      "bytes": 338987,
+      "render_med_ms": null
+    },
+    "/erp/drawing-workbench?view=fragment": {
+      "med_s": 0.405,
+      "p95_s": 0.654,
+      "bytes": 135689,
+      "render_med_ms": null
+    },
+    "/erp/production/dashboard?view=fragment": {
+      "med_s": 0.362,
+      "p95_s": 3.295,
+      "bytes": 707671,
+      "render_med_ms": null
+    },
+    "/erp/shipment?view=fragment": {
+      "med_s": 0.788,
+      "p95_s": 1.785,
+      "bytes": 383315,
+      "render_med_ms": 147.9
+    },
+    "/erp/as?view=fragment": {
+      "med_s": 0.32,
+      "p95_s": 3.262,
+      "bytes": 1046419,
+      "render_med_ms": 42.0
+    },
+    "/erp/construction/dashboard?view=fragment": {
+      "med_s": 0.492,
+      "p95_s": 3.046,
+      "bytes": 695988,
+      "render_med_ms": null
+    },
+    "/erp/completion?view=fragment": {
+      "med_s": 0.165,
+      "p95_s": 3.967,
+      "bytes": 38940,
+      "render_med_ms": null
+    },
+    "/erp/history?view=fragment": {
+      "med_s": 1.132,
+      "p95_s": 2.43,
+      "bytes": 27199,
+      "render_med_ms": null
+    }
+  }
+}

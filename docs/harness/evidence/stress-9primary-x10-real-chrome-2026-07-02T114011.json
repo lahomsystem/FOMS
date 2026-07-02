@@ -1,0 +1,1234 @@
+{
+  "meta": {
+    "run_id": "2026-07-02T11:40:11.271737+09:00",
+    "rounds": 10,
+    "tool": "cursor-ide-browser CDP Real Chrome",
+    "viewport": "1920x1080",
+    "pause_ms": 300,
+    "note": "L3 valid — SW active both envs; deploy user CONSTRUCTION-adjacent, prod ADMIN"
+  },
+  "results": [
+    {
+      "base": "https://lahom-dev.up.railway.app",
+      "env": "deploy",
+      "sw_active": true,
+      "summary": {
+        "all_p50_ms": 151,
+        "all_p95_ms": 3161,
+        "all_max_ms": 9167
+      },
+      "swaps": [
+        {
+          "i": 1,
+          "round": 1,
+          "path": "/erp/dashboard",
+          "ms": 3767
+        },
+        {
+          "i": 2,
+          "round": 1,
+          "path": "/erp/measurement",
+          "ms": 894
+        },
+        {
+          "i": 3,
+          "round": 1,
+          "path": "/erp/drawing-workbench",
+          "ms": 29
+        },
+        {
+          "i": 4,
+          "round": 1,
+          "path": "/erp/production/dashboard",
+          "ms": 115
+        },
+        {
+          "i": 5,
+          "round": 1,
+          "path": "/erp/shipment",
+          "ms": 4401
+        },
+        {
+          "i": 6,
+          "round": 1,
+          "path": "/erp/as",
+          "ms": 1097
+        },
+        {
+          "i": 7,
+          "round": 1,
+          "path": "/erp/construction/dashboard",
+          "ms": 4163
+        },
+        {
+          "i": 8,
+          "round": 1,
+          "path": "/erp/completion",
+          "ms": 175
+        },
+        {
+          "i": 9,
+          "round": 1,
+          "path": "/erp/history/",
+          "ms": 151
+        },
+        {
+          "i": 10,
+          "round": 2,
+          "path": "/erp/dashboard",
+          "ms": 172
+        },
+        {
+          "i": 11,
+          "round": 2,
+          "path": "/erp/measurement",
+          "ms": 278
+        },
+        {
+          "i": 12,
+          "round": 2,
+          "path": "/erp/drawing-workbench",
+          "ms": 17
+        },
+        {
+          "i": 13,
+          "round": 2,
+          "path": "/erp/production/dashboard",
+          "ms": 117
+        },
+        {
+          "i": 14,
+          "round": 2,
+          "path": "/erp/shipment",
+          "ms": 58
+        },
+        {
+          "i": 15,
+          "round": 2,
+          "path": "/erp/as",
+          "ms": 375
+        },
+        {
+          "i": 16,
+          "round": 2,
+          "path": "/erp/construction/dashboard",
+          "ms": 243
+        },
+        {
+          "i": 17,
+          "round": 2,
+          "path": "/erp/completion",
+          "ms": 38
+        },
+        {
+          "i": 18,
+          "round": 2,
+          "path": "/erp/history/",
+          "ms": 90
+        },
+        {
+          "i": 19,
+          "round": 3,
+          "path": "/erp/dashboard",
+          "ms": 174
+        },
+        {
+          "i": 20,
+          "round": 3,
+          "path": "/erp/measurement",
+          "ms": 8398
+        },
+        {
+          "i": 21,
+          "round": 3,
+          "path": "/erp/drawing-workbench",
+          "ms": 21
+        },
+        {
+          "i": 22,
+          "round": 3,
+          "path": "/erp/production/dashboard",
+          "ms": 151
+        },
+        {
+          "i": 23,
+          "round": 3,
+          "path": "/erp/shipment",
+          "ms": 55
+        },
+        {
+          "i": 24,
+          "round": 3,
+          "path": "/erp/as",
+          "ms": 496
+        },
+        {
+          "i": 25,
+          "round": 3,
+          "path": "/erp/construction/dashboard",
+          "ms": 259
+        },
+        {
+          "i": 26,
+          "round": 3,
+          "path": "/erp/completion",
+          "ms": 37
+        },
+        {
+          "i": 27,
+          "round": 3,
+          "path": "/erp/history/",
+          "ms": 20
+        },
+        {
+          "i": 28,
+          "round": 4,
+          "path": "/erp/dashboard",
+          "ms": 1808
+        },
+        {
+          "i": 29,
+          "round": 4,
+          "path": "/erp/measurement",
+          "ms": 277
+        },
+        {
+          "i": 30,
+          "round": 4,
+          "path": "/erp/drawing-workbench",
+          "ms": 24
+        },
+        {
+          "i": 31,
+          "round": 4,
+          "path": "/erp/production/dashboard",
+          "ms": 177
+        },
+        {
+          "i": 32,
+          "round": 4,
+          "path": "/erp/shipment",
+          "ms": 60
+        },
+        {
+          "i": 33,
+          "round": 4,
+          "path": "/erp/as",
+          "ms": 458
+        },
+        {
+          "i": 34,
+          "round": 4,
+          "path": "/erp/construction/dashboard",
+          "ms": 382
+        },
+        {
+          "i": 35,
+          "round": 4,
+          "path": "/erp/completion",
+          "ms": 38
+        },
+        {
+          "i": 36,
+          "round": 4,
+          "path": "/erp/history/",
+          "ms": 111
+        },
+        {
+          "i": 37,
+          "round": 5,
+          "path": "/erp/dashboard",
+          "ms": 218
+        },
+        {
+          "i": 38,
+          "round": 5,
+          "path": "/erp/measurement",
+          "ms": 364
+        },
+        {
+          "i": 39,
+          "round": 5,
+          "path": "/erp/drawing-workbench",
+          "ms": 25
+        },
+        {
+          "i": 40,
+          "round": 5,
+          "path": "/erp/production/dashboard",
+          "ms": 174
+        },
+        {
+          "i": 41,
+          "round": 5,
+          "path": "/erp/shipment",
+          "ms": 67
+        },
+        {
+          "i": 42,
+          "round": 5,
+          "path": "/erp/as",
+          "ms": 537
+        },
+        {
+          "i": 43,
+          "round": 5,
+          "path": "/erp/construction/dashboard",
+          "ms": 279
+        },
+        {
+          "i": 44,
+          "round": 5,
+          "path": "/erp/completion",
+          "ms": 39
+        },
+        {
+          "i": 45,
+          "round": 5,
+          "path": "/erp/history/",
+          "ms": 148
+        },
+        {
+          "i": 46,
+          "round": 6,
+          "path": "/erp/dashboard",
+          "ms": 239
+        },
+        {
+          "i": 47,
+          "round": 6,
+          "path": "/erp/measurement",
+          "ms": 455
+        },
+        {
+          "i": 48,
+          "round": 6,
+          "path": "/erp/drawing-workbench",
+          "ms": 26
+        },
+        {
+          "i": 49,
+          "round": 6,
+          "path": "/erp/production/dashboard",
+          "ms": 149
+        },
+        {
+          "i": 50,
+          "round": 6,
+          "path": "/erp/shipment",
+          "ms": 60
+        },
+        {
+          "i": 51,
+          "round": 6,
+          "path": "/erp/as",
+          "ms": 494
+        },
+        {
+          "i": 52,
+          "round": 6,
+          "path": "/erp/construction/dashboard",
+          "ms": 268
+        },
+        {
+          "i": 53,
+          "round": 6,
+          "path": "/erp/completion",
+          "ms": 51
+        },
+        {
+          "i": 54,
+          "round": 6,
+          "path": "/erp/history/",
+          "ms": 91
+        },
+        {
+          "i": 55,
+          "round": 7,
+          "path": "/erp/dashboard",
+          "ms": 160
+        },
+        {
+          "i": 56,
+          "round": 7,
+          "path": "/erp/measurement",
+          "ms": 528
+        },
+        {
+          "i": 57,
+          "round": 7,
+          "path": "/erp/drawing-workbench",
+          "ms": 40
+        },
+        {
+          "i": 58,
+          "round": 7,
+          "path": "/erp/production/dashboard",
+          "ms": 128
+        },
+        {
+          "i": 59,
+          "round": 7,
+          "path": "/erp/shipment",
+          "ms": 112
+        },
+        {
+          "i": 60,
+          "round": 7,
+          "path": "/erp/as",
+          "ms": 567
+        },
+        {
+          "i": 61,
+          "round": 7,
+          "path": "/erp/construction/dashboard",
+          "ms": 353
+        },
+        {
+          "i": 62,
+          "round": 7,
+          "path": "/erp/completion",
+          "ms": 61
+        },
+        {
+          "i": 63,
+          "round": 7,
+          "path": "/erp/history/",
+          "ms": 23
+        },
+        {
+          "i": 64,
+          "round": 8,
+          "path": "/erp/dashboard",
+          "ms": 2661
+        },
+        {
+          "i": 65,
+          "round": 8,
+          "path": "/erp/measurement",
+          "ms": 9167
+        },
+        {
+          "i": 66,
+          "round": 8,
+          "path": "/erp/drawing-workbench",
+          "ms": 33
+        },
+        {
+          "i": 67,
+          "round": 8,
+          "path": "/erp/production/dashboard",
+          "ms": 125
+        },
+        {
+          "i": 68,
+          "round": 8,
+          "path": "/erp/shipment",
+          "ms": 70
+        },
+        {
+          "i": 69,
+          "round": 8,
+          "path": "/erp/as",
+          "ms": 512
+        },
+        {
+          "i": 70,
+          "round": 8,
+          "path": "/erp/construction/dashboard",
+          "ms": 282
+        },
+        {
+          "i": 71,
+          "round": 8,
+          "path": "/erp/completion",
+          "ms": 49
+        },
+        {
+          "i": 72,
+          "round": 8,
+          "path": "/erp/history/",
+          "ms": 83
+        },
+        {
+          "i": 73,
+          "round": 9,
+          "path": "/erp/dashboard",
+          "ms": 415
+        },
+        {
+          "i": 74,
+          "round": 9,
+          "path": "/erp/measurement",
+          "ms": 362
+        },
+        {
+          "i": 75,
+          "round": 9,
+          "path": "/erp/drawing-workbench",
+          "ms": 28
+        },
+        {
+          "i": 76,
+          "round": 9,
+          "path": "/erp/production/dashboard",
+          "ms": 105
+        },
+        {
+          "i": 77,
+          "round": 9,
+          "path": "/erp/shipment",
+          "ms": 120
+        },
+        {
+          "i": 78,
+          "round": 9,
+          "path": "/erp/as",
+          "ms": 452
+        },
+        {
+          "i": 79,
+          "round": 9,
+          "path": "/erp/construction/dashboard",
+          "ms": 192
+        },
+        {
+          "i": 80,
+          "round": 9,
+          "path": "/erp/completion",
+          "ms": 29
+        },
+        {
+          "i": 81,
+          "round": 9,
+          "path": "/erp/history/",
+          "ms": 44
+        },
+        {
+          "i": 82,
+          "round": 10,
+          "path": "/erp/dashboard",
+          "ms": 1069
+        },
+        {
+          "i": 83,
+          "round": 10,
+          "path": "/erp/measurement",
+          "ms": 3161
+        },
+        {
+          "i": 84,
+          "round": 10,
+          "path": "/erp/drawing-workbench",
+          "ms": 29
+        },
+        {
+          "i": 85,
+          "round": 10,
+          "path": "/erp/production/dashboard",
+          "ms": 108
+        },
+        {
+          "i": 86,
+          "round": 10,
+          "path": "/erp/shipment",
+          "ms": 54
+        },
+        {
+          "i": 87,
+          "round": 10,
+          "path": "/erp/as",
+          "ms": 366
+        },
+        {
+          "i": 88,
+          "round": 10,
+          "path": "/erp/construction/dashboard",
+          "ms": 196
+        },
+        {
+          "i": 89,
+          "round": 10,
+          "path": "/erp/completion",
+          "ms": 26
+        },
+        {
+          "i": 90,
+          "round": 10,
+          "path": "/erp/history/",
+          "ms": 74
+        }
+      ],
+      "per_path": {
+        "/erp/dashboard": {
+          "p50_ms": 415,
+          "p95_ms": 2661,
+          "max_ms": 3767,
+          "samples": 10
+        },
+        "/erp/measurement": {
+          "p50_ms": 528,
+          "p95_ms": 8398,
+          "max_ms": 9167,
+          "samples": 10
+        },
+        "/erp/drawing-workbench": {
+          "p50_ms": 28,
+          "p95_ms": 33,
+          "max_ms": 40,
+          "samples": 10
+        },
+        "/erp/production/dashboard": {
+          "p50_ms": 128,
+          "p95_ms": 174,
+          "max_ms": 177,
+          "samples": 10
+        },
+        "/erp/shipment": {
+          "p50_ms": 67,
+          "p95_ms": 120,
+          "max_ms": 4401,
+          "samples": 10
+        },
+        "/erp/as": {
+          "p50_ms": 496,
+          "p95_ms": 567,
+          "max_ms": 1097,
+          "samples": 10
+        },
+        "/erp/construction/dashboard": {
+          "p50_ms": 279,
+          "p95_ms": 382,
+          "max_ms": 4163,
+          "samples": 10
+        },
+        "/erp/completion": {
+          "p50_ms": 39,
+          "p95_ms": 61,
+          "max_ms": 175,
+          "samples": 10
+        },
+        "/erp/history/": {
+          "p50_ms": 90,
+          "p95_ms": 148,
+          "max_ms": 151,
+          "samples": 10
+        }
+      },
+      "rounds": 10,
+      "primary_count": 9,
+      "total_swaps": 90
+    },
+    {
+      "base": "https://lahom-production.up.railway.app",
+      "env": "production",
+      "sw_active": true,
+      "summary": {
+        "all_p50_ms": 215,
+        "all_p95_ms": 8355,
+        "all_max_ms": 12435
+      },
+      "swaps": [
+        {
+          "i": 1,
+          "round": 1,
+          "path": "/erp/dashboard",
+          "ms": 639
+        },
+        {
+          "i": 2,
+          "round": 1,
+          "path": "/erp/measurement",
+          "ms": 1551
+        },
+        {
+          "i": 3,
+          "round": 1,
+          "path": "/erp/drawing-workbench",
+          "ms": 37
+        },
+        {
+          "i": 4,
+          "round": 1,
+          "path": "/erp/production/dashboard",
+          "ms": 141
+        },
+        {
+          "i": 5,
+          "round": 1,
+          "path": "/erp/shipment",
+          "ms": 734
+        },
+        {
+          "i": 6,
+          "round": 1,
+          "path": "/erp/as",
+          "ms": 6536
+        },
+        {
+          "i": 7,
+          "round": 1,
+          "path": "/erp/construction/dashboard",
+          "ms": 3893
+        },
+        {
+          "i": 8,
+          "round": 1,
+          "path": "/erp/completion",
+          "ms": 215
+        },
+        {
+          "i": 9,
+          "round": 1,
+          "path": "/erp/history/",
+          "ms": 333
+        },
+        {
+          "i": 10,
+          "round": 2,
+          "path": "/erp/dashboard",
+          "ms": 11099
+        },
+        {
+          "i": 11,
+          "round": 2,
+          "path": "/erp/measurement",
+          "ms": 9766
+        },
+        {
+          "i": 12,
+          "round": 2,
+          "path": "/erp/drawing-workbench",
+          "ms": 59
+        },
+        {
+          "i": 13,
+          "round": 2,
+          "path": "/erp/production/dashboard",
+          "ms": 73
+        },
+        {
+          "i": 14,
+          "round": 2,
+          "path": "/erp/shipment",
+          "ms": 110
+        },
+        {
+          "i": 15,
+          "round": 2,
+          "path": "/erp/as",
+          "ms": 185
+        },
+        {
+          "i": 16,
+          "round": 2,
+          "path": "/erp/construction/dashboard",
+          "ms": 164
+        },
+        {
+          "i": 17,
+          "round": 2,
+          "path": "/erp/completion",
+          "ms": 103
+        },
+        {
+          "i": 18,
+          "round": 2,
+          "path": "/erp/history/",
+          "ms": 105
+        },
+        {
+          "i": 19,
+          "round": 3,
+          "path": "/erp/dashboard",
+          "ms": 78
+        },
+        {
+          "i": 20,
+          "round": 3,
+          "path": "/erp/measurement",
+          "ms": 730
+        },
+        {
+          "i": 21,
+          "round": 3,
+          "path": "/erp/drawing-workbench",
+          "ms": 47
+        },
+        {
+          "i": 22,
+          "round": 3,
+          "path": "/erp/production/dashboard",
+          "ms": 113
+        },
+        {
+          "i": 23,
+          "round": 3,
+          "path": "/erp/shipment",
+          "ms": 132
+        },
+        {
+          "i": 24,
+          "round": 3,
+          "path": "/erp/as",
+          "ms": 244
+        },
+        {
+          "i": 25,
+          "round": 3,
+          "path": "/erp/construction/dashboard",
+          "ms": 175
+        },
+        {
+          "i": 26,
+          "round": 3,
+          "path": "/erp/completion",
+          "ms": 97
+        },
+        {
+          "i": 27,
+          "round": 3,
+          "path": "/erp/history/",
+          "ms": 94
+        },
+        {
+          "i": 28,
+          "round": 4,
+          "path": "/erp/dashboard",
+          "ms": 931
+        },
+        {
+          "i": 29,
+          "round": 4,
+          "path": "/erp/measurement",
+          "ms": 1194
+        },
+        {
+          "i": 30,
+          "round": 4,
+          "path": "/erp/drawing-workbench",
+          "ms": 90
+        },
+        {
+          "i": 31,
+          "round": 4,
+          "path": "/erp/production/dashboard",
+          "ms": 148
+        },
+        {
+          "i": 32,
+          "round": 4,
+          "path": "/erp/shipment",
+          "ms": 163
+        },
+        {
+          "i": 33,
+          "round": 4,
+          "path": "/erp/as",
+          "ms": 275
+        },
+        {
+          "i": 34,
+          "round": 4,
+          "path": "/erp/construction/dashboard",
+          "ms": 223
+        },
+        {
+          "i": 35,
+          "round": 4,
+          "path": "/erp/completion",
+          "ms": 126
+        },
+        {
+          "i": 36,
+          "round": 4,
+          "path": "/erp/history/",
+          "ms": 82
+        },
+        {
+          "i": 37,
+          "round": 5,
+          "path": "/erp/dashboard",
+          "ms": 11238
+        },
+        {
+          "i": 38,
+          "round": 5,
+          "path": "/erp/measurement",
+          "ms": 479
+        },
+        {
+          "i": 39,
+          "round": 5,
+          "path": "/erp/drawing-workbench",
+          "ms": 66
+        },
+        {
+          "i": 40,
+          "round": 5,
+          "path": "/erp/production/dashboard",
+          "ms": 113
+        },
+        {
+          "i": 41,
+          "round": 5,
+          "path": "/erp/shipment",
+          "ms": 81
+        },
+        {
+          "i": 42,
+          "round": 5,
+          "path": "/erp/as",
+          "ms": 194
+        },
+        {
+          "i": 43,
+          "round": 5,
+          "path": "/erp/construction/dashboard",
+          "ms": 106
+        },
+        {
+          "i": 44,
+          "round": 5,
+          "path": "/erp/completion",
+          "ms": 90
+        },
+        {
+          "i": 45,
+          "round": 5,
+          "path": "/erp/history/",
+          "ms": 47
+        },
+        {
+          "i": 46,
+          "round": 6,
+          "path": "/erp/dashboard",
+          "ms": 115
+        },
+        {
+          "i": 47,
+          "round": 6,
+          "path": "/erp/measurement",
+          "ms": 403
+        },
+        {
+          "i": 48,
+          "round": 6,
+          "path": "/erp/drawing-workbench",
+          "ms": 280
+        },
+        {
+          "i": 49,
+          "round": 6,
+          "path": "/erp/production/dashboard",
+          "ms": 159
+        },
+        {
+          "i": 50,
+          "round": 6,
+          "path": "/erp/shipment",
+          "ms": 518
+        },
+        {
+          "i": 51,
+          "round": 6,
+          "path": "/erp/as",
+          "ms": 383
+        },
+        {
+          "i": 52,
+          "round": 6,
+          "path": "/erp/construction/dashboard",
+          "ms": 376
+        },
+        {
+          "i": 53,
+          "round": 6,
+          "path": "/erp/completion",
+          "ms": 115
+        },
+        {
+          "i": 54,
+          "round": 6,
+          "path": "/erp/history/",
+          "ms": 61
+        },
+        {
+          "i": 55,
+          "round": 7,
+          "path": "/erp/dashboard",
+          "ms": 1052
+        },
+        {
+          "i": 56,
+          "round": 7,
+          "path": "/erp/measurement",
+          "ms": 756
+        },
+        {
+          "i": 57,
+          "round": 7,
+          "path": "/erp/drawing-workbench",
+          "ms": 96
+        },
+        {
+          "i": 58,
+          "round": 7,
+          "path": "/erp/production/dashboard",
+          "ms": 230
+        },
+        {
+          "i": 59,
+          "round": 7,
+          "path": "/erp/shipment",
+          "ms": 817
+        },
+        {
+          "i": 60,
+          "round": 7,
+          "path": "/erp/as",
+          "ms": 653
+        },
+        {
+          "i": 61,
+          "round": 7,
+          "path": "/erp/construction/dashboard",
+          "ms": 813
+        },
+        {
+          "i": 62,
+          "round": 7,
+          "path": "/erp/completion",
+          "ms": 8355
+        },
+        {
+          "i": 63,
+          "round": 7,
+          "path": "/erp/history/",
+          "ms": 12435
+        },
+        {
+          "i": 64,
+          "round": 8,
+          "path": "/erp/dashboard",
+          "ms": 806
+        },
+        {
+          "i": 65,
+          "round": 8,
+          "path": "/erp/measurement",
+          "ms": 1507
+        },
+        {
+          "i": 66,
+          "round": 8,
+          "path": "/erp/drawing-workbench",
+          "ms": 358
+        },
+        {
+          "i": 67,
+          "round": 8,
+          "path": "/erp/production/dashboard",
+          "ms": 4439
+        },
+        {
+          "i": 68,
+          "round": 8,
+          "path": "/erp/shipment",
+          "ms": 174
+        },
+        {
+          "i": 69,
+          "round": 8,
+          "path": "/erp/as",
+          "ms": 243
+        },
+        {
+          "i": 70,
+          "round": 8,
+          "path": "/erp/construction/dashboard",
+          "ms": 222
+        },
+        {
+          "i": 71,
+          "round": 8,
+          "path": "/erp/completion",
+          "ms": 124
+        },
+        {
+          "i": 72,
+          "round": 8,
+          "path": "/erp/history/",
+          "ms": 76
+        },
+        {
+          "i": 73,
+          "round": 9,
+          "path": "/erp/dashboard",
+          "ms": 8396
+        },
+        {
+          "i": 74,
+          "round": 9,
+          "path": "/erp/measurement",
+          "ms": 538
+        },
+        {
+          "i": 75,
+          "round": 9,
+          "path": "/erp/drawing-workbench",
+          "ms": 133
+        },
+        {
+          "i": 76,
+          "round": 9,
+          "path": "/erp/production/dashboard",
+          "ms": 215
+        },
+        {
+          "i": 77,
+          "round": 9,
+          "path": "/erp/shipment",
+          "ms": 294
+        },
+        {
+          "i": 78,
+          "round": 9,
+          "path": "/erp/as",
+          "ms": 331
+        },
+        {
+          "i": 79,
+          "round": 9,
+          "path": "/erp/construction/dashboard",
+          "ms": 318
+        },
+        {
+          "i": 80,
+          "round": 9,
+          "path": "/erp/completion",
+          "ms": 95
+        },
+        {
+          "i": 81,
+          "round": 9,
+          "path": "/erp/history/",
+          "ms": 187
+        },
+        {
+          "i": 82,
+          "round": 10,
+          "path": "/erp/dashboard",
+          "ms": 254
+        },
+        {
+          "i": 83,
+          "round": 10,
+          "path": "/erp/measurement",
+          "ms": 6764
+        },
+        {
+          "i": 84,
+          "round": 10,
+          "path": "/erp/drawing-workbench",
+          "ms": 102
+        },
+        {
+          "i": 85,
+          "round": 10,
+          "path": "/erp/production/dashboard",
+          "ms": 152
+        },
+        {
+          "i": 86,
+          "round": 10,
+          "path": "/erp/shipment",
+          "ms": 191
+        },
+        {
+          "i": 87,
+          "round": 10,
+          "path": "/erp/as",
+          "ms": 238
+        },
+        {
+          "i": 88,
+          "round": 10,
+          "path": "/erp/construction/dashboard",
+          "ms": 259
+        },
+        {
+          "i": 89,
+          "round": 10,
+          "path": "/erp/completion",
+          "ms": 88
+        },
+        {
+          "i": 90,
+          "round": 10,
+          "path": "/erp/history/",
+          "ms": 136
+        }
+      ],
+      "per_path": {
+        "/erp/dashboard": {
+          "p50_ms": 931,
+          "p95_ms": 11099,
+          "max_ms": 11238,
+          "samples": 10
+        },
+        "/erp/measurement": {
+          "p50_ms": 1194,
+          "p95_ms": 6764,
+          "max_ms": 9766,
+          "samples": 10
+        },
+        "/erp/drawing-workbench": {
+          "p50_ms": 96,
+          "p95_ms": 280,
+          "max_ms": 358,
+          "samples": 10
+        },
+        "/erp/production/dashboard": {
+          "p50_ms": 152,
+          "p95_ms": 230,
+          "max_ms": 4439,
+          "samples": 10
+        },
+        "/erp/shipment": {
+          "p50_ms": 191,
+          "p95_ms": 734,
+          "max_ms": 817,
+          "samples": 10
+        },
+        "/erp/as": {
+          "p50_ms": 275,
+          "p95_ms": 653,
+          "max_ms": 6536,
+          "samples": 10
+        },
+        "/erp/construction/dashboard": {
+          "p50_ms": 259,
+          "p95_ms": 813,
+          "max_ms": 3893,
+          "samples": 10
+        },
+        "/erp/completion": {
+          "p50_ms": 115,
+          "p95_ms": 215,
+          "max_ms": 8355,
+          "samples": 10
+        },
+        "/erp/history/": {
+          "p50_ms": 105,
+          "p95_ms": 333,
+          "max_ms": 12435,
+          "samples": 10
+        }
+      },
+      "rounds": 10,
+      "primary_count": 9,
+      "total_swaps": 90
+    }
+  ]
+}

@@ -1,0 +1,70 @@
+{
+  "dev": {
+    "/erp/dashboard?view=fragment": {
+      "min": 0.264,
+      "med": 0.513,
+      "p95": 7.013,
+      "max": 10.69,
+      "bytes": 675799,
+      "render_med_ms": 37.4
+    },
+    "/erp/measurement?view=fragment": {
+      "min": 0.232,
+      "med": 0.282,
+      "p95": 7.522,
+      "max": 9.234,
+      "bytes": 85765,
+      "render_med_ms": null
+    },
+    "/erp/drawing-workbench?view=fragment": {
+      "min": 0.194,
+      "med": 0.345,
+      "p95": 5.3,
+      "max": 9.921,
+      "bytes": 43492,
+      "render_med_ms": null
+    },
+    "/erp/shipment?view=fragment": {
+      "min": 0.167,
+      "med": 0.233,
+      "p95": 9.529,
+      "max": 14.481,
+      "bytes": 88393,
+      "render_med_ms": 16.1
+    }
+  },
+  "prod": {
+    "/erp/dashboard?view=fragment": {
+      "min": 0.311,
+      "med": 0.567,
+      "p95": 6.486,
+      "max": 9.905,
+      "bytes": 749407,
+      "render_med_ms": 42.1
+    },
+    "/erp/measurement?view=fragment": {
+      "min": 0.313,
+      "med": 0.587,
+      "p95": 8.347,
+      "max": 9.168,
+      "bytes": 338985,
+      "render_med_ms": null
+    },
+    "/erp/drawing-workbench?view=fragment": {
+      "min": 0.222,
+      "med": 0.308,
+      "p95": 9.04,
+      "max": 9.94,
+      "bytes": 135689,
+      "render_med_ms": null
+    },
+    "/erp/shipment?view=fragment": {
+      "min": 0.337,
+      "med": 2.94,
+      "p95": 10.626,
+      "max": 13.166,
+      "bytes": 383315,
+      "render_med_ms": 116.8
+    }
+  }
+}
