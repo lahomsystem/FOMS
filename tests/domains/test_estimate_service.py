@@ -81,7 +81,10 @@ def test_estimate_company_info_factory2_fields():
     assert ESTIMATE_COMPANY_INFO_FACTORY2["name"] == "라홈시스템"
     assert ESTIMATE_COMPANY_INFO_FACTORY2["ceo"] == "김은지"
     assert ESTIMATE_COMPANY_INFO_FACTORY2["business_number"] == "446-08-03252"
-    assert ESTIMATE_COMPANY_INFO_FACTORY2["address"] == "경기도 김포시 대곶면 마로 194번길 62-24"
+    assert ESTIMATE_COMPANY_INFO_FACTORY2["address"] == "경기도 김포시 대곶면 율마로 194번길 62-24"
+    assert ESTIMATE_COMPANY_INFO_FACTORY2["industry"] == ESTIMATE_COMPANY_INFO["industry"]
+    assert ESTIMATE_COMPANY_INFO_FACTORY2["phone"] == ESTIMATE_COMPANY_INFO["phone"]
+    assert ESTIMATE_COMPANY_INFO_FACTORY2["customer_center"] == ESTIMATE_COMPANY_INFO["customer_center"]
 
 
 def test_resolve_estimate_company_info_switches_by_factory2_flag():
