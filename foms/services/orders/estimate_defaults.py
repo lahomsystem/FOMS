@@ -21,6 +21,18 @@ ESTIMATE_COMPANY_INFO = {
     'website': 'www.haudsystem.com',
 }
 
+# 2공장(라홈시스템) 견적서/계약서 공급자 정보
+ESTIMATE_COMPANY_INFO_FACTORY2 = {
+    'name': '라홈시스템',
+    'ceo': '김은지',
+    'business_number': '446-08-03252',
+    'address': '경기도 김포시 대곶면 마로 194번길 62-24',
+    'industry': '',
+    'phone': '',
+    'customer_center': '',
+    'website': '',
+}
+
 _ESTIMATE_PAYMENT_NOTICE = '* 입금 시 예약금을 제외한 잔금만 납부 바랍니다.'
 
 _ESTIMATE_PAYMENT_ACCOUNTS_DEFAULT = [
@@ -60,6 +72,12 @@ def _build_estimate_payment_info(accounts: list[dict]) -> dict:
 ESTIMATE_PAYMENT_INFO = _build_estimate_payment_info(_ESTIMATE_PAYMENT_ACCOUNTS_DEFAULT)
 
 ESTIMATE_PAYMENT_INFO_FACTORY2 = _build_estimate_payment_info(_ESTIMATE_PAYMENT_ACCOUNTS_FACTORY2)
+
+
+def resolve_estimate_company_info(factory2: bool = False) -> dict:
+    """견적/계약 공급자(상호·대표 등). factory2=True이면 2공장(라홈시스템) 정보를 반환한다."""
+    template = ESTIMATE_COMPANY_INFO_FACTORY2 if factory2 else ESTIMATE_COMPANY_INFO
+    return copy.deepcopy(template)
 
 
 def resolve_estimate_payment_info(factory2: bool = False) -> dict:
