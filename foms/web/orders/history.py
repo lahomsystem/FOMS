@@ -11,16 +11,26 @@ from foms.services.orders.status_constants import STATUS
 from foms.services.erp_order_flags import is_erp_order_record
 from sqlalchemy import or_, cast, String
 
+from foms.services.common.dashboard_cache import (
+    KEY_VERSION,
+    TTL_PANEL_ROWS,
+    build_dashboard_cache_key,
+    get_or_compute_dashboard_slice,
+)
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
 from foms.services.common.erp_mine_filter import erp_mine_only_for_construction
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
 from foms.services.erp_permissions import build_mine_sql_filter, is_order_related_to_user
+from foms.services.history_read_model import (
+    HISTORY_DASHBOARD_PAGE_SIZE,
+    compute_history_page_blob,
+    fetch_history_orders_by_ids,
+)
 from foms.services.request_utils import get_search_query_arg
 
 erp_history_bp = Blueprint('erp_history', __name__, url_prefix='/erp/history')
 
 _HISTORY_DASHBOARD_DAYS = 60
-_HISTORY_PAGE_SIZE = 50
 
 @erp_history_bp.route('/')
 @login_required
@@ -86,23 +96,40 @@ def history_dashboard():
     page = request.args.get('page', 1, type=int)
     if page < 1:
         page = 1
-    per_page = _HISTORY_PAGE_SIZE
+    per_page = HISTORY_DASHBOARD_PAGE_SIZE
 
     total_orders = 0
     orders = []
     total_pages = 0
 
     if has_filter or auto_browse_mine:
-        total_orders = _q.count()
-        total_pages = (total_orders + per_page - 1) // per_page if total_orders else 0
-        if total_pages and page > total_pages:
-            page = total_pages
-        orders = (
-            _q.order_by(Order.created_at.desc())
-            .offset((page - 1) * per_page)
-            .limit(per_page)
-            .all()
+        _page_fp = {
+            "v": KEY_VERSION,
+            "uid": user.id if user else None,
+            "role": getattr(user, "role", None) if user else None,
+            "team": getattr(user, "team", None) if user else None,
+            "mine": bool(mine_only),
+            "days": _HISTORY_DASHBOARD_DAYS,
+            "q": f_q or "",
+            "stage": f_stage or "",
+            "from": f_date_from or "",
+            "to": f_date_to or "",
+            "page": page,
+            "auto_browse": bool(auto_browse_mine),
+        }
+        _page_key = build_dashboard_cache_key("history", "page_rows", _page_fp)
+        _page_blob = get_or_compute_dashboard_slice(
+            _page_key,
+            TTL_PANEL_ROWS,
+            lambda: compute_history_page_blob(_q, page=page, per_page=per_page),
+            page="history",
+            slice_name="page_rows",
         )
+        page = int(_page_blob["page"])
+        total_pages = int(_page_blob["total_pages"])
+        total_orders = int(_page_blob["total_orders"])
+        order_ids = [int(x) for x in (_page_blob.get("order_ids") or [])]
+        orders = fetch_history_orders_by_ids(_q, order_ids)
     else:
         total_pages = 0
 

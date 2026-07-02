@@ -338,11 +338,11 @@ def invalidate_dashboard_family(family: str) -> int:
 
 def invalidate_all_dashboard_slice_caches() -> int:
     """
-    ``orders`` / ``measurement`` / ``shipment`` / ``construction`` 대시보드 read-slice 캐시를 한 번에 무효화.
+    ``orders`` / ``measurement`` / ``shipment`` / ``construction`` / ``history`` 대시보드 read-slice 캐시를 한 번에 무효화.
 
     DB commit이 성공한 뒤에만 호출할 것.
     """
     total = 0
-    for fam in ("orders", "measurement", "shipment", "construction"):
+    for fam in ("orders", "measurement", "shipment", "construction", "history"):
         total += invalidate_dashboard_family(fam)
     return total
