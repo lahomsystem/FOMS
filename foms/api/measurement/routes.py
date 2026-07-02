@@ -141,7 +141,8 @@ def api_erp_measurement_summary():
                 'id': order.id,
                 'customer_name': customer_name or '이름없음',
                 'address': address_to_use or '-',
-                'time': time_to_use
+                'time': time_to_use,
+                'is_regional': order.is_regional is True,
             })
 
     day_labels = ['월', '화', '수', '목', '금', '토', '일']
@@ -155,11 +156,15 @@ def api_erp_measurement_summary():
         cases = measurement_info.get(date_str, [])
         # 가까운 주소 끼리 정렬(시, 군, 구) 후 시간순 정렬
         cases.sort(key=lambda x: (normalize_address_for_sort(x.get('address')), str(x.get('time') or '')))
+        count_regional = sum(1 for c in cases if c.get('is_regional'))
+        count_metro = len(cases) - count_regional
 
         panel_dates.append({
             'date': date_str,
             'day_label': day_labels[current.weekday()],
             'count': len(cases),
+            'count_regional': count_regional,
+            'count_metro': count_metro,
             'cases': cases,
             'is_weekend': is_weekend,
             'is_holiday': is_holiday,

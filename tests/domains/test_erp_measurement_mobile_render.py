@@ -325,3 +325,53 @@ def test_measurement_dashboard_includes_regional_order(client, monkeypatch):
     resp = client.get(f"/erp/measurement?date={today}")
     assert resp.status_code == 200
     assert "지방 실측 고객" in resp.get_data(as_text=True)
+
+
+def test_measurement_dashboard_panel_segmented_count_badges(client, monkeypatch):
+    """날짜별 패널 뱃지는 전체·지방·수도권 건수를 색상별로 표시한다."""
+    fake_today = date(2026, 7, 6)
+    monkeypatch.setattr(erp_measurement_dashboard, "get_today_kst", lambda: fake_today)
+    _login_erp_admin(client)
+    target = fake_today.strftime("%Y-%m-%d")
+
+    regional = Order(
+        received_date=target,
+        customer_name="지방 패널",
+        phone="010-3333-4444",
+        address="Busan",
+        product="장",
+        status="MEASURE",
+        is_erp_order=True,
+        is_regional=True,
+        construction_type="하우드 시공",
+        structured_data={"schedule": {"measurement": {"date": target}}},
+    )
+    metro = Order(
+        received_date=target,
+        customer_name="수도권 패널",
+        phone="010-5555-6666",
+        address="Seoul",
+        product="장",
+        status="MEASURE",
+        is_erp_order=True,
+        is_regional=False,
+        structured_data={"schedule": {"measurement": {"date": target}}},
+    )
+    db_session.add_all([regional, metro])
+    db_session.flush()
+    db_session.add_all(
+        [
+            OrderScheduleDate(order_id=regional.id, kind="measurement", date=target, source="beta_schedule"),
+            OrderScheduleDate(order_id=metro.id, kind="measurement", date=target, source="beta_schedule"),
+        ]
+    )
+    db_session.commit()
+
+    body = client.get(f"/erp/measurement?date={target}").get_data(as_text=True)
+    anchor = f'id="date-{target}"'
+    idx = body.find(anchor)
+    assert idx != -1
+    snippet = body[idx: body.find("</a>", idx)]
+    assert 'erp-scheduler-count--total" title="전체">2</span>' in snippet
+    assert 'erp-scheduler-count--regional" title="지방">1</span>' in snippet
+    assert 'erp-scheduler-count--metro" title="수도권">1</span>' in snippet

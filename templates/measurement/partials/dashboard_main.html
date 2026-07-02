@@ -100,12 +100,12 @@
                     <span class="measurement-panel-day">({{ day_label }})</span>
                     {% if item.is_holiday %}<span class="badge bg-danger">휴일</span>{% elif item.is_weekend %}<span
                       class="badge bg-warning text-dark">주말</span>{% endif %}
-                    <span class="badge badge-count erp-scheduler-count">{{ item.count }}</span>
+                    {% include 'measurement/partials/scheduler_count_badges.html' %}
                   </div>
                 </a>
                 {% endfor %}
               </div>
-              <div class="small text-muted mt-1 px-1">60일 기준</div>
+              <div class="small text-muted mt-1 px-1">60일 기준 · <span class="badge erp-scheduler-count--total px-1">전체</span> <span class="badge erp-scheduler-count--regional px-1">지방</span> <span class="badge erp-scheduler-count--metro px-1">수도권</span></div>
             </div>
           </div>
         </div>
@@ -376,7 +376,29 @@
                 font-size: 0.85rem;
                 min-width: 24px;
                 padding: 2px 5px;
-                margin-left: auto !important;
+              }
+
+              .erp-scheduler-count-group {
+                display: inline-flex;
+                align-items: center;
+                gap: 2px;
+                margin-left: auto;
+                flex: 0 0 auto;
+              }
+
+              .erp-scheduler-count--total {
+                background-color: #0d6efd;
+                color: #fff;
+              }
+
+              .erp-scheduler-count--regional {
+                background-color: #fd7e14;
+                color: #fff;
+              }
+
+              .erp-scheduler-count--metro {
+                background-color: #198754;
+                color: #fff;
               }
 
               .measurement-panel-item.is-selected {

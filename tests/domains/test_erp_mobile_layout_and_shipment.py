@@ -449,7 +449,10 @@ def test_measurement_scheduler_panel_uses_compact_count_row(client, monkeypatch)
     assert close_idx != -1, f"measurement panel row for {today} not closed"
     snippet = body[anchor_idx: close_idx + len("</a>")]
     assert 'class="erp-scheduler-panel-row"' in snippet
-    assert 'class="badge badge-count erp-scheduler-count">' in snippet
+    assert 'class="erp-scheduler-count-group"' in snippet
+    assert 'erp-scheduler-count--total' in snippet
+    assert 'erp-scheduler-count--regional' in snippet
+    assert 'erp-scheduler-count--metro' in snippet
     assert "justify-content-between" not in snippet
     assert "ms-auto" not in snippet
 

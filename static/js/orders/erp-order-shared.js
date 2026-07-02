@@ -4098,6 +4098,20 @@ function erpCopyToClipboard() {
 // ============================================
 // ERP Order: 실측 일정 미러링 패널 (14일, 30초 갱신, 클릭 시 실측일 입력)
 // ============================================
+function renderMeasurementSchedulerCountBadges(item) {
+    const total = Number(item.count) || 0;
+    const regional = Number(item.count_regional) || 0;
+    const metro = Number(item.count_metro) || 0;
+    return (
+        '<span class="erp-scheduler-count-group" aria-label="실측 전체 ' + total + ', 지방 ' + regional + ', 수도권 ' + metro + '">' +
+        '<span class="badge badge-count erp-scheduler-count erp-scheduler-count--total" title="전체">' + total + '</span>' +
+        '<span class="badge badge-count erp-scheduler-count erp-scheduler-count--regional" title="지방">' + regional + '</span>' +
+        '<span class="badge badge-count erp-scheduler-count erp-scheduler-count--metro" title="수도권">' + metro + '</span>' +
+        '</span>'
+    );
+}
+window.renderMeasurementSchedulerCountBadges = renderMeasurementSchedulerCountBadges;
+
 async function loadMeasurementPanel() {
     const panel = document.getElementById('erp-order-measurement-panel');
     if (!panel) return;
@@ -4129,7 +4143,7 @@ async function loadMeasurementPanel() {
             html += '<span class="measurement-panel-date">' + escapeHtml(item.date) + '</span>';
             html += '<span class="measurement-panel-day">(' + escapeHtml(item.day_label) + ')</span>';
             html += badges.join('');
-            html += '<span class="badge badge-count erp-scheduler-count">' + item.count + '</span>';
+            html += renderMeasurementSchedulerCountBadges(item);
             html += '</div>';
             
             if (item.cases && item.cases.length > 0) {

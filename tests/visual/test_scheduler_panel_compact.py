@@ -24,7 +24,7 @@ def _scheduler_metrics(page, selector: str) -> dict[str, float]:
     return page.locator(selector).first.evaluate(
         """(item) => {
           const row = item.querySelector('.erp-scheduler-panel-row');
-          const badge = item.querySelector('.erp-scheduler-count');
+          const badge = item.querySelector('.erp-scheduler-count-group') || item.querySelector('.erp-scheduler-count');
           const list = item.closest('.measurement-panel-list');
           const parts = Array.from(row.children);
           const prev = parts[parts.length - 2];
