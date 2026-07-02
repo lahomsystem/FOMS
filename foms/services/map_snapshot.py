@@ -12,6 +12,7 @@ from foms.services.measurement_manager_colors import (
     build_measurement_manager_color_map,
     resolve_measurement_manager_color,
 )
+from foms.services.measurement_read_model import apply_measurement_dashboard_order_scope
 
 __all__ = ["build_measurement_map_query", "build_measurement_snapshot"]
 
@@ -106,17 +107,9 @@ def build_measurement_map_query(db, date, q, manager, dashboard, limit=500):
     query = db.query(Order).filter(Order.active_filter())
     query = _measurement_search_filter(query, q)
 
-    # 자가실측·지방실측 제외(진짜 실측 필요한 것만)
+    # 자가실측 상태는 플래그 있는 주문만 포함. 지방주문(is_regional)도 실측 대시보드에 표시.
     if dashboard == 'measurement':
-        query = query.filter(
-            or_(
-                and_(
-                    Order.is_regional != True,
-                    ~Order.status.in_(['SELF_MEASUREMENT', 'SELF_MEASURED'])
-                ),
-                Order.is_self_measurement == True
-            )
-        )
+        query = apply_measurement_dashboard_order_scope(query)
     else:
         query = query.filter(
             Order.is_regional != True,

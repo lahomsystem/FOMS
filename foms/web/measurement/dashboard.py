@@ -39,6 +39,7 @@ from foms.services.common.erp_shell_http import (
 )
 from foms.services.measurement_dashboard_filters import parse_measurement_dashboard_filters
 from foms.services.measurement_read_model import (
+    apply_measurement_dashboard_order_scope,
     compute_measurement_panel_assembly,
     compute_measurement_product_items_build,
     compute_measurement_main_rows_blob,
@@ -100,16 +101,8 @@ def erp_measurement_dashboard():
     # Phase H: 대시보드 운영 화면은 최근 활성 데이터만 조회 (과거 완료건 제외)
     base_query = db.query(Order).filter(Order.dashboard_active_filter(days=60))
     base_query = _erp_order_search_filter(base_query, search_q)
-    # 자가실측·지방실측 제외(진짜 실측 필요한 것만 집계), 단 자가실측 주문은 실측 대시보드에 표시 후 4체크 완료 시 시공으로 이관
-    base_query = base_query.filter(
-        or_(
-            and_(
-                Order.is_regional != True,
-                ~Order.status.in_(['SELF_MEASUREMENT', 'SELF_MEASURED'])
-            ),
-            Order.is_self_measurement == True
-        )
-    )
+    # 자가실측 상태는 플래그 있는 주문만 포함. 지방주문(is_regional)도 실측 대시보드에 표시.
+    base_query = apply_measurement_dashboard_order_scope(base_query)
     query = base_query
 
     if use_range or use_single_day:
@@ -136,7 +129,7 @@ def erp_measurement_dashboard():
     list_query = query
 
     _panel_fp = {
-        "v": 1,
+        "v": 2,
         "user": _measurement_user_visibility_fingerprint(current_user),
         "filters": {
             "q": search_q,
@@ -212,7 +205,7 @@ def erp_measurement_dashboard():
     )
 
     _pi_fp = {
-        "v": 1,
+        "v": 2,
         "user": _measurement_user_visibility_fingerprint(current_user),
         "filters": {
             "q": search_q,

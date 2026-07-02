@@ -24,6 +24,7 @@ from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.common.address_converter import FOMSAddressConverter
 from foms.services.order_geocode import reset_order_geocode_on_address_change
 from foms.services.measurement_dates import extract_all_measurement_dates
+from foms.services.measurement_read_model import apply_measurement_dashboard_order_scope
 from foms.services.common.business_calendar import get_holidays_kr
 
 
@@ -74,15 +75,7 @@ def api_erp_measurement_summary():
     range_end = today_kst + datetime.timedelta(days=14)
 
     base_query = db.query(Order).filter(Order.active_filter())
-    base_query = base_query.filter(
-        or_(
-            and_(
-                Order.is_regional != True,
-                ~Order.status.in_(['SELF_MEASUREMENT', 'SELF_MEASURED'])
-            ),
-            Order.is_self_measurement == True
-        )
-    )
+    base_query = apply_measurement_dashboard_order_scope(base_query)
 
     current_user = getattr(g, 'current_user', None)
     mine_filter_active = erp_mine_only_from_request(request) and current_user

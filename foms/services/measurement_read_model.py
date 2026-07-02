@@ -20,6 +20,24 @@ from foms.services.measurement_dates import extract_all_measurement_dates
 from foms.services.common.business_calendar import get_holidays_kr
 
 
+def apply_measurement_dashboard_order_scope(query):
+    """실측 대시보드·지도·summary API 공통 주문 범위 필터.
+
+    자가실측 상태(SELF_MEASUREMENT/SELF_MEASURED)는 is_self_measurement 또는
+    is_regional 플래그가 있는 주문만 포함한다. 지방주문(is_regional)도 실측 대시보드에 표시.
+    """
+    return query.filter(
+        or_(
+            and_(
+                Order.is_regional != True,
+                ~Order.status.in_(['SELF_MEASUREMENT', 'SELF_MEASURED']),
+            ),
+            Order.is_self_measurement == True,
+            Order.is_regional == True,
+        )
+    )
+
+
 MEASUREMENT_MAIN_SEED_LIMIT = 300
 
 

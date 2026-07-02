@@ -20,6 +20,7 @@ from foms.services.common.map_generator import FOMSMapGenerator
 from foms.services.jobs.queue import enqueue_geocode_order_address
 from foms.services.order_geocode import reset_order_geocode_on_address_change
 from foms.services.erp_display import normalize_manager_name
+from foms.services.measurement_read_model import apply_measurement_dashboard_order_scope
 erp_map_bp = Blueprint('erp_map', __name__)
 _converter_instance = None
 _converter_lock = threading.Lock()
@@ -80,17 +81,9 @@ def _format_map_date(date_value):
 def _query_map_orders(db, *, date_filter=None, status_filter=None, dashboard=None, limit=100):
     query = db.query(Order).filter(Order.active_filter())
 
-    # 자가실측·지방실측 제외(진짜 실측 필요한 것만)
+    # 자가실측 상태는 플래그 있는 주문만 포함. 지방주문(is_regional)도 실측 대시보드에 표시.
     if dashboard == 'measurement':
-        query = query.filter(
-            or_(
-                and_(
-                    Order.is_regional != True,
-                    ~Order.status.in_(['SELF_MEASUREMENT', 'SELF_MEASURED'])
-                ),
-                Order.is_self_measurement == True
-            )
-        )
+        query = apply_measurement_dashboard_order_scope(query)
     else:
         query = query.filter(
             Order.is_regional != True,

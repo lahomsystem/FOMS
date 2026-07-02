@@ -286,3 +286,42 @@ def test_measurement_dashboard_excludes_stale_legacy_schedule_date(client, monke
     assert fresh_response.status_code == 200
     assert "Stale Legacy Measurement" not in stale_response.get_data(as_text=True)
     assert "Stale Legacy Measurement" in fresh_response.get_data(as_text=True)
+
+
+def test_measurement_dashboard_includes_regional_order(client, monkeypatch):
+    """지방주문(is_regional)도 실측 대시보드 큐에 표시되어야 한다."""
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    fake_today = date(2026, 7, 2)
+    monkeypatch.setattr(erp_measurement_dashboard, "get_today_kst", lambda: fake_today)
+    _login_erp_admin(client)
+
+    today = fake_today.strftime("%Y-%m-%d")
+    order = Order(
+        received_date=today,
+        customer_name="지방 실측 고객",
+        phone="010-1111-2222",
+        address="Busan",
+        product="붙박이장",
+        status="MEASURE",
+        manager_name="Bob",
+        is_erp_order=True,
+        is_regional=True,
+        is_self_measurement=False,
+        construction_type="하우드 시공",
+        structured_data={"items": [{"product_name": "붙박이장"}]},
+    )
+    db_session.add(order)
+    db_session.flush()
+    db_session.add(
+        OrderScheduleDate(
+            order_id=order.id,
+            kind="measurement",
+            date=today,
+            source="beta_schedule",
+        )
+    )
+    db_session.commit()
+
+    resp = client.get(f"/erp/measurement?date={today}")
+    assert resp.status_code == 200
+    assert "지방 실측 고객" in resp.get_data(as_text=True)
