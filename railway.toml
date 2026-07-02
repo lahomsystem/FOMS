@@ -5,3 +5,14 @@
 # 계획서 6.1: Replica 2개는 Railway 대시보드에서 설정, 워커 2로 확장
 # USE_RQ_WORKER=1(Worker 서비스) → rq worker, 아니면(FOMS) → gunicorn
 startCommand = "sh start.sh"
+
+# 마이그레이션을 배포당 1회 실행(replica 부팅 경로에서 분리) → cold-start 직렬화 제거.
+# predeploy.sh는 USE_RQ_WORKER=1(worker)이면 스스로 스킵하므로 공유 config로 안전.
+# 상세: predeploy.sh, start.sh 주석.
+preDeployCommand = "sh predeploy.sh"
+
+# 주의: healthcheckPath는 이 공유 railway.toml에 넣지 않는다.
+# worker/cron 서비스도 이 파일을 상속받는데 HTTP 서버가 없어 healthcheck가
+# 영구 실패 → 배포가 블록된다. 따라서 healthcheckPath="/healthz"는
+# web 서비스(FOMS-DEV=FOMS, FOMS-PRODUCTION=web)에만 대시보드에서 설정한다.
+# (Service > Settings > Deploy > Health Check Path)

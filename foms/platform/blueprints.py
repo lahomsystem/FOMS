@@ -194,6 +194,11 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     app.register_blueprint(foms_queue_actions_bp)
     app.register_blueprint(debug_bp)
 
+    # --- Lane: Infra liveness (Railway healthcheck / keep-warm 프로브) ---
+    from foms.api.health import health_bp
+
+    app.register_blueprint(health_bp)
+
     return BlueprintBindings(
         get_user_by_id=get_user_by_id,
         register_chat_socketio_handlers=register_chat_socketio_handlers,
