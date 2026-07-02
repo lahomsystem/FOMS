@@ -10,6 +10,7 @@
     let _paymentInfoVariants = null;
     let _companyInfoVariants = null;
     let _lastIsLahom = false;
+    let _lastFactory2 = false;
     var _EST_EXPORT_WIDTH = 700;
     var _EST_DOC_WIDTH = 700;
     var _MOBILE_ESTIMATE_MQ = '(max-width: 991.98px)';
@@ -873,7 +874,44 @@
         _manualRowsBound = true;
     }
 
-    function _applyCompanyInfo(ci, isLahom) {
+    function _normalizeLogoOpts(logoOpts) {
+        if (typeof logoOpts === 'boolean') {
+            return { isLahom: logoOpts, factory2: false };
+        }
+        return {
+            isLahom: !!(logoOpts && logoOpts.isLahom),
+            factory2: !!(logoOpts && logoOpts.factory2),
+        };
+    }
+
+    function _applyEstimateLogo(logoOpts) {
+        const opts = _normalizeLogoOpts(logoOpts);
+        const logoEl = document.getElementById('est-logo-img');
+        if (!logoEl) {
+            return;
+        }
+        const factory2Src = logoEl.dataset.factory2Src;
+        const lahomSrc = logoEl.dataset.lahomSrc;
+        const haudSrc = logoEl.dataset.haudSrc;
+
+        if (opts.factory2 && factory2Src) {
+            logoEl.src = factory2Src;
+            logoEl.classList.remove('erp-est-logo--haud');
+            logoEl.classList.add('erp-est-logo--lahom');
+            return;
+        }
+        if (opts.isLahom) {
+            logoEl.src = lahomSrc;
+            logoEl.classList.remove('erp-est-logo--haud');
+            logoEl.classList.add('erp-est-logo--lahom');
+            return;
+        }
+        logoEl.src = haudSrc || lahomSrc;
+        logoEl.classList.remove('erp-est-logo--lahom');
+        logoEl.classList.add('erp-est-logo--haud');
+    }
+
+    function _applyCompanyInfo(ci, logoOpts) {
         _setText('est-company-name', ci.name);
         _setText('est-company-ceo', ci.ceo);
         _setText('est-company-biznum', ci.business_number);
@@ -882,20 +920,7 @@
         _setText('est-company-phone', ci.phone);
         _setText('est-company-center', ci.customer_center);
 
-        const logoEl = document.getElementById('est-logo-img');
-        if (logoEl) {
-            const lahomSrc = logoEl.dataset.lahomSrc;
-            const haudSrc = logoEl.dataset.haudSrc;
-            if (isLahom) {
-                logoEl.src = lahomSrc;
-                logoEl.classList.remove('erp-est-logo--haud');
-                logoEl.classList.add('erp-est-logo--lahom');
-            } else {
-                logoEl.src = haudSrc || lahomSrc;
-                logoEl.classList.remove('erp-est-logo--lahom');
-                logoEl.classList.add('erp-est-logo--haud');
-            }
-        }
+        _applyEstimateLogo(logoOpts);
 
         const stampEl = document.getElementById('est-stamp-img');
         if (stampEl) stampEl.classList.remove('erp-est-hidden');
@@ -1019,11 +1044,17 @@
     }
 
     window.erpApplyEstimateFactory2Variant = function (factory2) {
+        _lastFactory2 = !!factory2;
+        var logoOpts = { isLahom: _lastIsLahom, factory2: _lastFactory2 };
         if (_companyInfoVariants) {
             var ci = factory2 ? _companyInfoVariants.factory2 : _companyInfoVariants.default;
             if (ci) {
-                _applyCompanyInfo(ci, factory2 || _lastIsLahom);
+                _applyCompanyInfo(ci, logoOpts);
+            } else {
+                _applyEstimateLogo(logoOpts);
             }
+        } else {
+            _applyEstimateLogo(logoOpts);
         }
         if (_paymentInfoVariants) {
             var pi = factory2 ? _paymentInfoVariants.factory2 : _paymentInfoVariants.default;
@@ -1089,9 +1120,10 @@
 
             const d = data.data || {};
             _lastIsLahom = !!d.is_lahom;
+            _lastFactory2 = !!d.factory2;
             _companyInfoVariants = d.company_info_variants || null;
             _paymentInfoVariants = d.payment_info_variants || null;
-            _applyCompanyInfo(d.company_info || {}, _lastIsLahom || !!d.factory2);
+            _applyCompanyInfo(d.company_info || {}, { isLahom: _lastIsLahom, factory2: _lastFactory2 });
             _applyCustomerInfo(d);
             _renderItems(d.items, d.estimate_preview || {});
             _applyPaymentInfo(d, d.payment_info || {});
