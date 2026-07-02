@@ -284,3 +284,101 @@ def test_dmc_b6_differential_same_payload_cache_on_vs_off():
             )
     assert on1 == on2 == expected
     assert calls["n"] == 1
+
+
+def test_singleflight_leader_computes_and_releases_lock():
+    """miss 시 락을 획득한 요청은 계산·저장 후 자신의 락을 해제한다."""
+    store: dict[str, str] = {}
+    deletes: list[str] = []
+
+    class FakeRedis:
+        def get(self, k: str):
+            return store.get(k)
+
+        def set(self, k: str, v: str, nx: bool = False, ex: int | None = None):
+            if nx and k in store:
+                return False
+            store[k] = v
+            return True
+
+        def setex(self, k: str, ttl: int, v: str):
+            store[k] = v
+
+        def delete(self, k: str):
+            deletes.append(k)
+            store.pop(k, None)
+
+        def ping(self):
+            return True
+
+    fake = FakeRedis()
+    key = dc.build_dashboard_cache_key("orders", "summary", {"u": 2})
+    calls = {"n": 0}
+
+    def compute():
+        calls["n"] += 1
+        return {"v": 42}
+
+    with patch.dict(
+        os.environ,
+        {"REDIS_URL": "redis://x", "FOMS_DASHBOARD_MICRO_CACHE_ENABLED": "true"},
+        clear=False,
+    ):
+        with patch.object(dc, "get_dashboard_redis", return_value=fake):
+            out = dc.get_or_compute_dashboard_slice(
+                key, 30, compute, page="orders", slice_name="summary"
+            )
+
+    assert out == {"v": 42}
+    assert calls["n"] == 1
+    assert f"{key}:sf" in deletes  # 락 해제됨
+    assert json.loads(store[key]) == {"v": 42}  # 결과 캐시됨
+
+
+def test_singleflight_follower_waits_and_reads_cache_without_compute():
+    """락을 못 잡은 요청은 잠깐 대기 후 리더가 채운 캐시를 읽고 계산하지 않는다."""
+    key = dc.build_dashboard_cache_key("orders", "summary", {"u": 3})
+
+    class FakeRedis:
+        def __init__(self):
+            self.cache_gets = 0
+
+        def get(self, k: str):
+            if k == key:
+                # 최초 miss, 이후 리더가 채운 값 반환
+                self.cache_gets += 1
+                return None if self.cache_gets <= 1 else json.dumps({"v": 7})
+            return None  # lock_key 조회
+
+        def set(self, k: str, v: str, nx: bool = False, ex: int | None = None):
+            return False  # 다른 요청이 락 보유 중
+
+        def setex(self, k: str, ttl: int, v: str):
+            pass
+
+        def delete(self, k: str):
+            pass
+
+        def ping(self):
+            return True
+
+    fake = FakeRedis()
+    calls = {"n": 0}
+
+    def compute():
+        calls["n"] += 1
+        return {"v": 999}
+
+    with patch.dict(
+        os.environ,
+        {"REDIS_URL": "redis://x", "FOMS_DASHBOARD_MICRO_CACHE_ENABLED": "true"},
+        clear=False,
+    ):
+        with patch.object(dc, "get_dashboard_redis", return_value=fake):
+            with patch.object(dc, "_SINGLEFLIGHT_POLL_S", 0.001):
+                out = dc.get_or_compute_dashboard_slice(
+                    key, 30, compute, page="orders", slice_name="summary"
+                )
+
+    assert out == {"v": 7}  # 리더가 채운 값
+    assert calls["n"] == 0  # 팔로워는 계산 안 함

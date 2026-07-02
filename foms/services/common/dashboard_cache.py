@@ -67,6 +67,14 @@ TTL_ATTACHMENT_COUNT_MAP: Final[int] = 45
 TTL_ASSIGNEE_OPTIONS_LOOKUP: Final[int] = 60
 TTL_PAYLOAD_ASSEMBLY: Final[int] = 30
 
+# Singleflight(캐시 stampede 방지): TTL 만료 순간 동시 요청이 전부 재계산해 DB로
+# 몰리는 herd를 막는다. miss 시 짧은 Redis 락을 잡은 요청만 계산하고, 나머지는
+# 잠깐 대기하며 채워진 캐시를 읽는다. Redis에 락 API가 없거나 오류면 fail-open
+# (락 없이 계산) — 절대 무한 대기하지 않는다(사용자 응답 지연 금지).
+_SINGLEFLIGHT_LOCK_TTL_S: Final[int] = 10
+_SINGLEFLIGHT_WAIT_MAX_S: Final[float] = 3.0
+_SINGLEFLIGHT_POLL_S: Final[float] = 0.05
+
 _ENV_FLAG: Final[str] = "FOMS_DASHBOARD_MICRO_CACHE_ENABLED"
 _REDIS_URL_ENV: Final[str] = "REDIS_URL"
 
@@ -182,6 +190,21 @@ def _json_loads_dto(raw: str) -> Any:
     return json.loads(raw)
 
 
+def _release_singleflight_lock(r: Any, lock_key: str, lock_token: str) -> None:
+    """singleflight 락을 **소유 토큰이 일치할 때만** 해제(best-effort, 실패 무시).
+
+    lock_token이 빈 문자열이면(락 미획득/미지원) 아무 것도 하지 않는다. 토큰 비교로
+    자신이 잡은 락만 지워, 팔로워가 리더의 락을 실수로 지우는 것을 방지한다.
+    """
+    if not lock_token:
+        return
+    try:
+        if r.get(lock_key) == lock_token:
+            r.delete(lock_key)
+    except Exception:
+        pass
+
+
 def get_or_compute_dashboard_slice(
     cache_key: str,
     ttl_seconds: int,
@@ -249,6 +272,41 @@ def get_or_compute_dashboard_slice(
             exc_info=True,
         )
 
+    # --- miss: singleflight로 stampede 방지 (fail-open, 무한 대기 금지) ---
+    lock_key = f"{cache_key}:sf"
+    lock_token = os.urandom(8).hex()
+    try:
+        got_lock = bool(r.set(lock_key, lock_token, nx=True, ex=_SINGLEFLIGHT_LOCK_TTL_S))
+    except Exception:
+        # Redis에 set(nx) 미지원/오류 → 락 없이 진행(fail-open)
+        got_lock = True
+        lock_token = ""
+
+    if not got_lock:
+        # 다른 요청이 계산 중. 잠깐 대기하며 캐시가 채워지길 기다렸다가 읽는다.
+        # (gevent monkey-patch 하에서 time.sleep은 그린렛 양보라 워커를 막지 않는다.)
+        lock_token = ""  # 팔로워는 락을 소유하지 않으므로 해제 대상 아님
+        deadline = time.perf_counter() + _SINGLEFLIGHT_WAIT_MAX_S
+        while time.perf_counter() < deadline:
+            time.sleep(_SINGLEFLIGHT_POLL_S)
+            try:
+                cached = r.get(cache_key)
+            except Exception:
+                break
+            if cached is not None:
+                try:
+                    out = _json_loads_dto(cached)
+                    logger.info(
+                        "[DashCache] page=%s slice=%s result=hit_sf compute_ms=0 key_suffix=%s cache=on",
+                        page,
+                        slice_name,
+                        key_suffix,
+                    )
+                    return out  # type: ignore[return-value]
+                except Exception:
+                    break
+        # 대기 타임아웃/역직렬화 실패 → 직접 계산(fail-open, 사용자 무한대기 금지)
+
     t0 = time.perf_counter()
     computed = compute()
     compute_ms = int((time.perf_counter() - t0) * 1000)
@@ -270,6 +328,7 @@ def get_or_compute_dashboard_slice(
             exc,
             exc_info=True,
         )
+        _release_singleflight_lock(r, lock_key, lock_token)
         return computed
 
     try:
@@ -288,6 +347,7 @@ def get_or_compute_dashboard_slice(
             exc_info=True,
         )
 
+    _release_singleflight_lock(r, lock_key, lock_token)
     return computed
 
 
