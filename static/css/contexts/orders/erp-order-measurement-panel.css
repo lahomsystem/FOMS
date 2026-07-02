@@ -1,4 +1,44 @@
 /* ERP Order 실측 일정 미러링 패널 — 실측 대시보드 scheduler geometry 계승 */
+
+/* Shared: measurement dashboard + ERP order panel count badges */
+.erp-scheduler-count-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+.erp-scheduler-count-group .badge.erp-scheduler-count--total {
+  background-color: #0d6efd;
+  color: #fff;
+}
+
+.erp-scheduler-count-group .badge.erp-scheduler-count--regional {
+  background-color: #fd7e14;
+  color: #fff;
+}
+
+.erp-scheduler-count-group .badge.erp-scheduler-count--metro {
+  background-color: #198754;
+  color: #fff;
+}
+
+.erp-scheduler-count--total:not(.badge) {
+  background-color: #0d6efd;
+  color: #fff;
+}
+
+.erp-scheduler-count--regional:not(.badge) {
+  background-color: #fd7e14;
+  color: #fff;
+}
+
+.erp-scheduler-count--metro:not(.badge) {
+  background-color: #198754;
+  color: #fff;
+}
+
 #erp-order-measurement-panel.measurement-panel-list {
   max-height: 360px;
   overflow-y: auto;

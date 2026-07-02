@@ -1,10 +1,13 @@
 from datetime import date
+from pathlib import Path
 
 from foms.web.measurement import dashboard as erp_measurement_dashboard
 from werkzeug.security import generate_password_hash
 
 from db import db_session
 from models import Order, OrderAttachment, OrderScheduleDate, User
+
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def _login_erp_admin(client):
@@ -375,3 +378,10 @@ def test_measurement_dashboard_panel_segmented_count_badges(client, monkeypatch)
     assert 'erp-scheduler-count--total" title="전체">2</span>' in snippet
     assert 'erp-scheduler-count--regional" title="지방">1</span>' in snippet
     assert 'erp-scheduler-count--metro" title="수도권">1</span>' in snippet
+
+
+def test_measurement_dashboard_scheduler_badge_css_excludes_erp_scheduler_count(client):
+    """실측 대시보드 legacy .badge-count blue rule must not paint scheduler segmented badges."""
+    body = (ROOT / "templates/measurement/partials/dashboard_main.html").read_text(encoding="utf-8")
+    assert ".badge-count:not(.erp-scheduler-count)" in body
+    assert "erp-scheduler-count--regional" in body
