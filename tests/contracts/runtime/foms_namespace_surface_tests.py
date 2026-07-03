@@ -630,6 +630,8 @@ def test_namespaced_jobs_tasks_shim_preserves_canonical_contract() -> None:
         "geocode_order_address",
         "push_order_to_channeltalk",
         "process_channeltalk_inbound",
+        "send_push_for_notification_task",
+        "run_notification_escalation_task",
     ]
 
     assert namespaced_jobs_tasks.__all__ == expected_public_names

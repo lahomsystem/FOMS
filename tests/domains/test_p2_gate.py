@@ -98,7 +98,11 @@ def test_p2_06_manifest_and_head() -> None:
     assert "mobile-web-app-capable" in head
     a2hs = (ROOT / "static/js/foms/a2hs-prompt.js").read_text(encoding="utf-8")
     assert "beforeinstallprompt" in a2hs
-    assert 'register("/static/sw.js"' in a2hs
+    # SW 등록 SSOT(Phase 3B): a2hs 는 직접 register 대신 sync.js 의 helper 를 경유하고,
+    # navigator.serviceWorker.register("/static/sw.js") 호출은 sync.js 한 곳에만 있다.
+    assert "fomsRegisterServiceWorker" in a2hs
+    sync_js = (ROOT / "static/js/foms/sync.js").read_text(encoding="utf-8")
+    assert 'register("/static/sw.js"' in sync_js
 
 
 def test_p2_07_swipe_and_haptic() -> None:

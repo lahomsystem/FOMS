@@ -331,6 +331,60 @@
     cursor: pointer;
   }
 
+  /* 기기(Web Push) 알림 CTA — 시트 하단 고정 영역 (Phase 3B). */
+  body.erp-mobile-v2-layout .erp-mobile-push-cta[hidden] {
+    display: none;
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-push-cta {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-1);
+    padding: var(--foms-space-3) var(--foms-space-4);
+    border-top: 1px solid var(--foms-border-subtle);
+    background: var(--foms-surface-base);
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-push-cta__msg {
+    margin: 0;
+    font-size: var(--foms-font-size-sm);
+    color: var(--foms-text-secondary);
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-push-cta__hint {
+    margin: 0;
+    font-size: var(--foms-font-size-xs);
+    color: var(--foms-text-tertiary);
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-push-cta__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    min-height: var(--foms-touch-target-min, 44px);
+    padding: var(--foms-space-2) var(--foms-space-4);
+    border: 1px solid var(--foms-interactive-primary);
+    border-radius: var(--foms-radius-md);
+    background: var(--foms-interactive-primary);
+    color: #fff;
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-semibold);
+    cursor: pointer;
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-push-cta__btn[data-foms-push-toggle="disable"] {
+    background: transparent;
+    color: var(--foms-text-secondary);
+    border-color: var(--foms-border-subtle);
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-push-cta__btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+
   /* Urgent-call bottom sheet (Phase 2). */
   body.erp-mobile-v2-layout .erp-mobile-urgent-sheet.offcanvas-bottom {
     height: auto;

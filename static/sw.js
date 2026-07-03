@@ -3,7 +3,11 @@
  * 1-year-immutable, so they hold stale CSS/JS. Bumping purges them on activate; going
  * forward the origin serves CSS/JS as no-cache so revalidation keeps them fresh. */
 /* v7: 데스크톱 SW 전역 등록 + erp-shell 하트비트(Wave 4) 배포 — 구 staticCacheFirst 캐시 purge. */
-var CACHE_VERSION = "foms-p2-v7";
+/* v8: Web Push(Phase 3B) push/notificationclick/notificationclose 핸들러 추가 —
+   install/activate/fetch 로직은 무변경. 캐시 버전만 bump 해 구 캐시를 activate 시 purge.
+   rollback: CACHE_VERSION 을 "foms-p2-v7" 로 되돌리면 됨(핸들러는 fetch 계약과 독립이라
+   무해하게 남지만, 완전 롤백은 이 커밋 revert). */
+var CACHE_VERSION = "foms-p2-v8";
 var STATIC_CACHE = CACHE_VERSION + "-static";
 var API_CACHE = CACHE_VERSION + "-api";
 
@@ -173,3 +177,122 @@ function networkFirstQueue(request) {
     });
   });
 }
+
+/* ===========================================================================
+ * Web Push (Phase 3B) — push 수신 → 알림 표시, 클릭/닫힘 처리.
+ * install/activate/fetch 로직과 독립. 서버 이벤트 보고는 best-effort(실패 무시).
+ * =========================================================================== */
+
+// 기존 manifest 아이콘 재사용(별도 자산 추가 없음).
+var PUSH_DEFAULT_ICON = "/static/icons/foms-icon-192.png";
+var PUSH_DEFAULT_BADGE = "/static/icons/foms-icon-192.png";
+// deep link 검증 실패 시 안전 폴백 경로.
+var PUSH_FALLBACK_DEEP_LINK = "/erp/dashboard";
+// 곧 추가될 서버 엔드포인트(다른 워커). 미존재해도 SW 동작이 죽으면 안 되므로
+// best-effort 로만 호출하고 실패는 console.debug 로 흘린다.
+var PUSH_EVENT_URL = "/erp/api/notifications/push/event";
+
+self.addEventListener("push", function (event) {
+  var payload = {};
+  if (event.data) {
+    try {
+      payload = event.data.json() || {};
+    } catch (e) {
+      // JSON 파싱 실패 → text 폴백(그마저 실패하면 generic).
+      try {
+        payload = { body: event.data.text() };
+      } catch (e2) {
+        payload = {};
+      }
+    }
+  }
+
+  var title = payload.title || "FOMS 알림";
+  var options = {
+    body: payload.body || "",
+    icon: payload.icon || PUSH_DEFAULT_ICON,
+    badge: payload.badge || PUSH_DEFAULT_BADGE,
+    tag: payload.tag || undefined,
+    renotify: payload.renotify === true,
+    requireInteraction: payload.requireInteraction === true,
+    // vibrate 는 best-effort(미지원 브라우저는 무시).
+    vibrate: payload.vibrate || [80, 40, 80],
+    data: {
+      notification_id: payload.notification_id != null ? payload.notification_id : null,
+      deep_link: payload.deep_link || payload.deep_link_url || null
+    }
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// deep link allowlist: same-origin 이면서 '/erp/' 로 시작하는 경로만 허용.
+// 그 외(교차 출처, 임의 경로, javascript: 등)는 대시보드로 폴백한다(오픈 리다이렉트 차단).
+function sanitizePushDeepLink(rawLink) {
+  if (!rawLink || typeof rawLink !== "string") return PUSH_FALLBACK_DEEP_LINK;
+  var target;
+  try {
+    target = new URL(rawLink, self.location.origin);
+  } catch (e) {
+    return PUSH_FALLBACK_DEEP_LINK;
+  }
+  if (target.origin !== self.location.origin) return PUSH_FALLBACK_DEEP_LINK;
+  if (target.pathname.indexOf("/erp/") !== 0) return PUSH_FALLBACK_DEEP_LINK;
+  return target.pathname + target.search + target.hash;
+}
+
+// 서버 이벤트 보고(best-effort). 엔드포인트 미존재/네트워크 실패해도 UX 를 막지 않는다.
+function reportPushEvent(notificationId, eventName) {
+  if (notificationId == null) return Promise.resolve();
+  return fetch(PUSH_EVENT_URL, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      "X-FOMS-Notification-Write": "1"
+    },
+    body: JSON.stringify({ notification_id: notificationId, event: eventName })
+  })
+    .then(function () {
+      /* best-effort: 응답 무시 */
+    })
+    .catch(function (err) {
+      console.debug("[foms-sw] push event report skipped", err);
+    });
+}
+
+self.addEventListener("notificationclick", function (event) {
+  var notification = event.notification;
+  notification.close();
+  var data = notification.data || {};
+  var url = sanitizePushDeepLink(data.deep_link);
+
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (clientList) {
+      for (var i = 0; i < clientList.length; i++) {
+        var client = clientList[i];
+        if ("focus" in client) {
+          client.focus();
+          if ("navigate" in client) {
+            try {
+              client.navigate(url);
+            } catch (e) {
+              /* navigate 실패해도 focus 는 유지 */
+            }
+          }
+          return reportPushEvent(data.notification_id, "opened");
+        }
+      }
+      var opened = clients.openWindow ? clients.openWindow(url) : null;
+      return Promise.resolve(opened).then(function () {
+        return reportPushEvent(data.notification_id, "opened");
+      });
+    })
+  );
+});
+
+self.addEventListener("notificationclose", function (event) {
+  var data = (event.notification && event.notification.data) || {};
+  // 닫힘 보고는 best-effort — 실패 무시(console.debug), UX 차단 금지.
+  event.waitUntil(reportPushEvent(data.notification_id, "closed"));
+});
