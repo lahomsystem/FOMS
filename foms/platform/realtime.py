@@ -108,6 +108,28 @@ def init_realtime_bootstrap(
             urgent_mention_limit
         )(urgent_mention_view)
 
+    # Web Push 구독 upsert/soft-delete rate limit.
+    push_subscribe_limit = os.environ.get(
+        "ERP_PUSH_SUBSCRIBE_RATE_LIMIT",
+        "120 per hour",
+    )
+    push_subscribe_view = app.view_functions.get("notifications_push.subscribe")
+    if push_subscribe_view is not None:
+        app.view_functions["notifications_push.subscribe"] = limiter.limit(
+            push_subscribe_limit
+        )(push_subscribe_view)
+
+    # Web Push 테스트 발송(존재/flag 검증) rate limit.
+    push_test_limit = os.environ.get(
+        "ERP_PUSH_TEST_RATE_LIMIT",
+        "10 per hour",
+    )
+    push_test_view = app.view_functions.get("notifications_push.push_test")
+    if push_test_view is not None:
+        app.view_functions["notifications_push.push_test"] = limiter.limit(
+            push_test_limit
+        )(push_test_view)
+
     socketio = None
     if socketio_available:
         try:

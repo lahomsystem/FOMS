@@ -56,6 +56,7 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     from foms.api.address import address_bp
     from foms.api.orders import orders_bp
     from foms.api.notifications import notifications_bp
+    from foms.api.notifications.push import push_bp, push_state_bp
     from foms.api.shipment import erp_shipment_bp
     from foms.api.measurement import erp_measurement_bp
     from foms.api.erp_map import erp_map_bp
@@ -133,6 +134,8 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     app.register_blueprint(address_bp)
     app.register_blueprint(orders_bp)
     app.register_blueprint(notifications_bp)
+    app.register_blueprint(push_bp)
+    app.register_blueprint(push_state_bp)
     app.register_blueprint(erp_shipment_bp)
     app.register_blueprint(erp_measurement_bp)
     app.register_blueprint(erp_map_bp)
