@@ -117,7 +117,60 @@ _LINE_RULES: list[tuple] = [
     ),
 ]
 
-_B_LAYER_HOT_HIGH = frozenset({"general-ilike", "loop-db-query", "shell-polling", "shared-inline-script"})
+_B_LAYER_HOT_HIGH = frozenset(
+    {"general-ilike", "loop-db-query", "shell-polling", "shared-inline-script", "broad-cache-invalidation"}
+)
+
+# --- 2026-07-03 초정밀 감사 이식 규칙 ---------------------------------------
+# ① fragment-multi-script: 셸 스왑마다 재파싱·재실행되는 fragment 다중 <script src>
+_FRAGMENT_MULTI_SCRIPT_RULE = "fragment-multi-script"
+_FRAGMENT_SCRIPTS_GLOB = "templates/**/partials/*scripts*.html"
+_SCRIPT_SRC_RE = re.compile(r"<script\b[^>]*\bsrc\s*=", re.I)
+# layout_*는 페이지당 1회 렌더되는 임계경로(zero-RTT)라 fragment 스왑 재실행 대상 아님 → 제외.
+# (_LAYOUT_INLINE_DELIVERY_FILES는 이 지점 이후에 정의되므로 직접 나열한다.)
+_FRAGMENT_MULTI_SCRIPT_EXCLUDE: frozenset[str] = frozenset(
+    {
+        "templates/partials/shared/layout_head.html",
+        "templates/partials/shared/layout_scripts.html",
+    }
+)
+
+# ② broad-cache-invalidation: invalidate_all_dashboard_slice_caches() 통무효화
+_BROAD_INVALIDATE_RULE = "broad-cache-invalidation"
+_BROAD_INVALIDATE_RE = re.compile(r"invalidate_all_dashboard_slice_caches\s*\(")
+# 정의부 + Tier A(stage 전환 등 전 탭 영향) 의도 파일 allowlist → veto 제외.
+_BROAD_INVALIDATE_ALLOWLIST: frozenset[str] = frozenset(
+    {
+        "foms/services/common/dashboard_cache.py",  # 정의부
+        "foms/api/quest.py",
+        "foms/api/erp_orders_structured.py",
+        "foms/api/cs/as_orders.py",
+        "foms/api/drawing/erp_orders_draftsman.py",
+        "foms/api/orders/field_update.py",
+        "foms/services/orders/mobile_queue_action.py",  # 폴백 경유
+    }
+)
+
+# ③ jsonb-path-filter: structured_data[...] 무인덱스 path 필터
+_JSONB_PATH_FILTER_RULE = "jsonb-path-filter"
+_JSONB_PATH_ACCESS_RE = re.compile(r"structured_data\[")
+_JSONB_PATH_QUERY_RE = re.compile(r"\.filter\(|\.in_\(|cast\(")
+_JSONB_PATH_ILIKE_RE = re.compile(r"\.ilike\(", re.I)  # 기존 jsonb-text-ilike 와 중복 회피
+
+# ④ mobile-queue-row-no-batch: build_mobile_queue_order_row 를 batch_ctx 없이 호출
+_MOBILE_ROW_NO_BATCH_RULE = "mobile-queue-row-no-batch"
+_MOBILE_ROW_CALL_RE = re.compile(r"build_mobile_queue_order_row\s*\(")
+
+
+def _is_fragment_scripts_partial(path: str) -> bool:
+    """`templates/**/partials/*scripts*.html` glob 매칭(guard 터치 파일용)."""
+    p = path.replace("\\", "/")
+    return (
+        p.startswith("templates/")
+        and "/partials/" in p
+        and p.endswith(".html")
+        and "scripts" in p.rsplit("/", 1)[-1]
+    )
 
 _GLOBAL_REPLAYED_EVENT_RE = re.compile(
     r"^(?: {0,2}|\t?)(?:document(?:\.body)?|window)\.addEventListener\s*\(",
@@ -304,6 +357,124 @@ def _scan_line_rules(
                 _append_finding(findings, rule, audit_sev, dim, path, lineno, text, fix, guard_mode=guard_mode)
 
 
+def _scan_broad_cache_invalidation(
+    path: str,
+    lines: list[tuple[int, str]],
+    findings: list[Finding],
+    *,
+    guard_mode: bool,
+) -> None:
+    """통무효화(invalidate_all_dashboard_slice_caches) 호출 flag — 의도 파일 allowlist 제외."""
+    if not path.endswith(".py") or path in _BROAD_INVALIDATE_ALLOWLIST:
+        return
+    if not any(path.startswith(p) for p in ("foms/", "services/", "apps/")):
+        return
+    if path.startswith("tests/") or "/tests/" in path:
+        return
+    for lineno, text in lines:
+        if _BROAD_INVALIDATE_RE.search(text) and "# perf-ok" not in text:
+            _append_finding(
+                findings,
+                _BROAD_INVALIDATE_RULE,
+                "medium",
+                "hot-compute",
+                path,
+                lineno,
+                text,
+                "stage 전환이 아닌 mutation은 티어 무효화(invalidate_order_dashboard_families/"
+                "invalidate_dashboard_families) 사용. 통무효화=전 탭 slice miss 폭풍(2026-07 사건, 22곳).",
+                guard_mode=guard_mode,
+            )
+
+
+def _scan_jsonb_path_filter(
+    path: str,
+    lines: list[tuple[int, str]],
+    findings: list[Finding],
+    *,
+    guard_mode: bool,
+) -> None:
+    """structured_data[...] 무인덱스 path 필터 flag — 기존 jsonb-text-ilike 와 중복 회피."""
+    if not path.endswith(".py"):
+        return
+    if not any(path.startswith(p) for p in ("foms/", "services/", "apps/")):
+        return
+    for lineno, text in lines:
+        if not _JSONB_PATH_ACCESS_RE.search(text):
+            continue
+        if not _JSONB_PATH_QUERY_RE.search(text):
+            continue
+        if _JSONB_PATH_ILIKE_RE.search(text):  # jsonb-text-ilike 규칙 담당
+            continue
+        if "# perf-ok" in text or "`" in text:  # backtick=docstring 코드 참조(실행 코드 아님)
+            continue
+        _append_finding(
+            findings,
+            _JSONB_PATH_FILTER_RULE,
+            "medium",
+            "query-scale",
+            path,
+            lineno,
+            text,
+            "JSONB path 비교는 무인덱스 풀스캔. flat sync 컬럼(erp_stage_code 패턴)+인덱스 검토, "
+            "EXPLAIN 확인(생산탭 1,894행→59행 사건).",
+            guard_mode=guard_mode,
+        )
+
+
+def _scan_mobile_queue_row_no_batch(
+    path: str,
+    lines: list[tuple[int, str]],
+    findings: list[Finding],
+    *,
+    guard_mode: bool,
+) -> None:
+    """build_mobile_queue_order_row(...) 를 batch_ctx 없이 호출하면 flag(행당 N+1)."""
+    if not path.endswith(".py"):
+        return
+    if not any(path.startswith(p) for p in ("foms/", "services/", "apps/")):
+        return
+    for lineno, text in lines:
+        if not _MOBILE_ROW_CALL_RE.search(text):
+            continue
+        if "batch_ctx" in text or "def build_mobile_queue_order_row" in text or "# perf-ok" in text:
+            continue
+        _append_finding(
+            findings,
+            _MOBILE_ROW_NO_BATCH_RULE,
+            "medium",
+            "query-scale",
+            path,
+            lineno,
+            text,
+            "batch_ctx 미전달=행당 ~5쿼리 N+1(실측 1,500쿼리 사건). "
+            "build_mobile_queue_batch_context 후 batch_ctx 전달.",
+            guard_mode=guard_mode,
+        )
+
+
+def _scan_fragment_multi_script(path: str, text: str, findings: list[Finding], *, guard_mode: bool) -> None:
+    """fragment scripts partial 에 <script src> 2개 이상이면 flag(셸 스왑마다 전부 재실행)."""
+    if path in _FRAGMENT_MULTI_SCRIPT_EXCLUDE:
+        return
+    lines = text.splitlines()
+    src_linenos = [i + 1 for i, ln in enumerate(lines) if _SCRIPT_SRC_RE.search(ln)]
+    if len(src_linenos) < 2:
+        return
+    _append_finding(
+        findings,
+        _FRAGMENT_MULTI_SCRIPT_RULE,
+        "high",
+        "interaction-debt",
+        path,
+        src_linenos[0],
+        f"fragment scripts partial <script src> x{len(src_linenos)}",
+        f"fragment 내 다중 <script src>({len(src_linenos)}개) = 셸 스왑마다 전부 재파싱·재실행"
+        "(실측탭 5.8s 사건). entry singleton 1개로 통합(erp-dashboard-entry.js 패턴).",
+        guard_mode=guard_mode,
+    )
+
+
 def _scan_loop_db_added_lines(
     path: str,
     added: list[tuple[int, str]],
@@ -479,7 +650,11 @@ def _scan_file_full(path: str, findings: list[Finding], replayed_js: set[str], *
     if not text:
         return
     lines = text.splitlines()
-    _scan_line_rules(path, list(enumerate(lines, 1)), findings, guard_mode=guard_mode)
+    numbered = list(enumerate(lines, 1))
+    _scan_line_rules(path, numbered, findings, guard_mode=guard_mode)
+    _scan_broad_cache_invalidation(path, numbered, findings, guard_mode=guard_mode)
+    _scan_jsonb_path_filter(path, numbered, findings, guard_mode=guard_mode)
+    _scan_mobile_queue_row_no_batch(path, numbered, findings, guard_mode=guard_mode)
     _scan_loop_db_queries(path, lines, findings, guard_mode=guard_mode)
     _scan_shell_polling(path, text, findings, replayed_js, guard_mode=guard_mode)
     _scan_shared_inline_scripts(path, text, findings, guard_mode=guard_mode)
@@ -560,7 +735,11 @@ def guard(base: str) -> list[Finding]:
             new_lineno = int(m.group(1)) if m else 0
         elif raw.startswith("+") and not raw.startswith("+++"):
             line = raw[1:]
-            _scan_line_rules(cur_file, [(new_lineno, line)], findings, guard_mode=True)
+            added_line = [(new_lineno, line)]
+            _scan_line_rules(cur_file, added_line, findings, guard_mode=True)
+            _scan_broad_cache_invalidation(cur_file, added_line, findings, guard_mode=True)
+            _scan_jsonb_path_filter(cur_file, added_line, findings, guard_mode=True)
+            _scan_mobile_queue_row_no_batch(cur_file, added_line, findings, guard_mode=True)
             _scan_fragment_replayed_listener(cur_file, new_lineno, line, replayed_js, findings, guard_mode=True)
             added_chunk.append((new_lineno, line))
             new_lineno += 1
@@ -573,6 +752,8 @@ def guard(base: str) -> list[Finding]:
             continue
         _scan_shell_polling(path, text, findings, replayed_js, guard_mode=True)
         _scan_shared_inline_scripts(path, text, findings, guard_mode=True)
+        if _is_fragment_scripts_partial(path):
+            _scan_fragment_multi_script(path, text, findings, guard_mode=True)
     _scan_sw_network_first_timeout(findings, guard_mode=True)
     return _filter_baseline(findings, baseline, guard_mode=True)
 
@@ -589,6 +770,11 @@ def audit() -> list[Finding]:
                 continue
             seen.add(rel)
             _scan_file_full(rel, findings, replayed_js, guard_mode=False)
+    for fp in ROOT.glob(_FRAGMENT_SCRIPTS_GLOB):
+        rel = str(fp.relative_to(ROOT)).replace("\\", "/")
+        if "/backups/" in rel:
+            continue
+        _scan_fragment_multi_script(rel, _read_repo_text(rel), findings, guard_mode=False)
     _scan_sw_network_first_timeout(findings, guard_mode=False)
     return findings
 
