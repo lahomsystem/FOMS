@@ -443,6 +443,7 @@ def test_structured_put_preserves_channeltalk_push_history_from_form_payload(cli
     original_sd = _structured_payload("서울 강남구")
     original_sd["channeltalk_push"] = push_history
     original_sd["channeltalk_push_drawing"] = {"pushed": True, "message_id": "draw-1"}
+    original_sd["channeltalk_push_estimate"] = {"pushed": True, "message_id": "est-1"}
     order = _create_order(structured_data=original_sd)
     order_id = order.id
 
@@ -465,6 +466,7 @@ def test_structured_put_preserves_channeltalk_push_history_from_form_payload(cli
     saved_sd = db_session.get(Order, order_id).structured_data
     assert saved_sd["channeltalk_push"] == push_history
     assert saved_sd["channeltalk_push_drawing"] == {"pushed": True, "message_id": "draw-1"}
+    assert saved_sd["channeltalk_push_estimate"] == {"pushed": True, "message_id": "est-1"}
 
 
 def test_erp_order_construction_worker_input_contract_is_wired():

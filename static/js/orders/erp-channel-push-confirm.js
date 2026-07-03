@@ -9,10 +9,12 @@
     const HISTORY_KEYS = {
         measurement: 'channeltalk_push',
         drawing: 'channeltalk_push_drawing',
+        estimate: 'channeltalk_push_estimate',
     };
     const PUSH_LABELS = {
         measurement: '영발 PUSH',
         drawing: '발주 PUSH',
+        estimate: '견적서 PUSH',
     };
     const PUSH_BUTTON_IDS = [
         'erp-channeltalk-push-btn',

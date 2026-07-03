@@ -199,9 +199,11 @@ _OPERATIONAL_TOP_LEVEL_KEYS = (
     'drawing_assignees',
     # Estimate preview manual rows are edited from the contract tab, not the main form.
     'estimate_preview',
-    # ChannelTalk manual push history (server-managed on /api/channel/push-manual).
+    # ChannelTalk manual push history (server-managed on /api/channel/push-manual,
+    # /api/channel/push-estimate). Never rendered by the form, so preserve across PUTs.
     'channeltalk_push',
     'channeltalk_push_drawing',
+    'channeltalk_push_estimate',
 )
 
 

@@ -1153,8 +1153,10 @@
 
             const toolbar = document.getElementById('est-toolbar');
             const exportBtn = document.getElementById('btn-est-export');
+            const channelPushBtn = document.getElementById('btn-est-channel-push');
             if (toolbar) toolbar.classList.remove('erp-est-hidden');
             if (exportBtn) exportBtn.disabled = false;
+            if (channelPushBtn) channelPushBtn.disabled = false;
 
             await _afterEstimateRendered();
 
@@ -1173,6 +1175,147 @@
         _setMobilePreviewUrl('');
         _mobilePreviewFallbackActive = false;
     };
+
+    // 견적서 캡처 결과를 실제 PNG Blob으로 얻는다(blob: URL 경유로 base64 확장 회피).
+    async function _captureEstimateBlob() {
+        var url = await _captureEstimateDataUrl({ preferBlobUrl: true });
+        if (!url) return null;
+        try {
+            var resp = await fetch(url);
+            var blob = await resp.blob();
+            return { blob: blob, url: url };
+        } catch (err) {
+            if (
+                url.indexOf('blob:') === 0
+                && typeof URL !== 'undefined'
+                && typeof URL.revokeObjectURL === 'function'
+            ) {
+                URL.revokeObjectURL(url);
+            }
+            throw err;
+        }
+    }
+
+    // 견적서 이미지를 채널톡 견적서 방으로 전송한다.
+    // 재전송(이전 전송 이력) 시 변경 내용 입력 후 전송하며, 서버 400(재전송 note 필수)
+    // 응답 시 클라 상태 동기화 후 modal 1회 재시도(영발/발주 PUSH와 동일 UX).
+    async function _runEstimateChannelPush(btn, resendState) {
+        const retryState = resendState || { resendRecoveryUsed: false };
+
+        const orderId = _getOrderId();
+        // 영발/발주 PUSH와 동일하게 미저장 draft 주문에서는 전송을 막는다.
+        // (라이브 DOM 캡처가 저장 데이터와 어긋난 채 채널톡에 전송되는 것을 방지)
+        if (
+            !orderId
+            || (typeof window.erpIsDraftBackedOrder === 'function' && window.erpIsDraftBackedOrder())
+        ) {
+            if (typeof window.erpCanUsePersistedOrderAction === 'function') {
+                window.erpCanUsePersistedOrderAction('견적서 전송은');
+            } else {
+                alert('주문을 먼저 저장한 후 견적서를 전송할 수 있습니다.');
+            }
+            return;
+        }
+        if (!document.getElementById('est-document')) {
+            alert('견적서가 로드되지 않았습니다.');
+            return;
+        }
+
+        let changeNote = retryState.changeNote || null;
+        if (
+            !changeNote
+            && typeof window.erpHasPriorChannelPush === 'function'
+            && window.erpHasPriorChannelPush('estimate')
+        ) {
+            if (typeof window.erpPromptChannelPushResendNote !== 'function') return;
+            changeNote = await window.erpPromptChannelPushResendNote('estimate');
+            if (!changeNote) return;
+        }
+
+        const originalHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 전송중...';
+
+        let captured = null;
+        try {
+            captured = await _captureEstimateBlob();
+            if (!captured || !captured.blob || !captured.blob.size) {
+                throw new Error('견적서 이미지 생성 실패');
+            }
+
+            const form = new FormData();
+            form.append('order_id', String(orderId));
+            form.append('image', captured.blob, 'estimate.png');
+            if (changeNote) form.append('change_note', changeNote);
+
+            const resp = await fetch('/api/channel/push-estimate', { method: 'POST', body: form });
+            const data = await resp.json();
+
+            if (data.success) {
+                if (typeof window.erpMarkChannelPushSent === 'function') {
+                    window.erpMarkChannelPushSent('estimate');
+                }
+                btn.innerHTML = '<i class="fas fa-check"></i> 전송완료';
+                btn.classList.replace('erp-pro-btn--primary', 'erp-pro-btn--success');
+                window.setTimeout(function () {
+                    btn.innerHTML = originalHtml;
+                    btn.classList.replace('erp-pro-btn--success', 'erp-pro-btn--primary');
+                    btn.disabled = false;
+                }, 3000);
+                return;
+            }
+
+            const errMsg = data.error || data.message || '알 수 없는 오류';
+            if (
+                !retryState.resendRecoveryUsed
+                && typeof window.erpIsChannelPushResendNoteRequired === 'function'
+                && window.erpIsChannelPushResendNoteRequired(errMsg)
+            ) {
+                if (typeof window.erpMarkChannelPushSent === 'function') {
+                    window.erpMarkChannelPushSent('estimate');
+                }
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+                if (typeof window.erpPromptChannelPushResendNote !== 'function') return;
+                const recoveryNote = await window.erpPromptChannelPushResendNote('estimate');
+                if (!recoveryNote) return;
+                return _runEstimateChannelPush(btn, {
+                    resendRecoveryUsed: true,
+                    changeNote: recoveryNote,
+                });
+            }
+
+            alert('채널톡 전송 실패:\n' + errMsg);
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
+        } catch (err) {
+            console.error('[estimate-preview] 견적서 채널톡 전송 실패:', err);
+            alert('견적서 전송 중 오류가 발생했습니다.\n' + (err && err.message ? err.message : String(err)));
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
+        } finally {
+            if (
+                captured
+                && captured.url
+                && captured.url.indexOf('blob:') === 0
+                && typeof URL !== 'undefined'
+                && typeof URL.revokeObjectURL === 'function'
+            ) {
+                window.setTimeout(function () {
+                    URL.revokeObjectURL(captured.url);
+                }, 1000);
+            }
+        }
+    }
+
+    function _bindChannelPushBtn() {
+        const btn = document.getElementById('btn-est-channel-push');
+        if (!btn || btn.dataset.chPushBound === '1') return;
+        btn.dataset.chPushBound = '1';
+        btn.addEventListener('click', function () {
+            _runEstimateChannelPush(btn);
+        });
+    }
 
     function _bindExportBtn() {
         const btn = document.getElementById('btn-est-export');
@@ -1251,6 +1394,7 @@
         if (!tab) return;
 
         _bindExportBtn();
+        _bindChannelPushBtn();
         _bindManualRows();
         _bindEstimateMobilePreview();
         _bindEstimateViewModeListener();

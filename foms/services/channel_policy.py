@@ -115,6 +115,8 @@ def get_routing_group_id(event_type: str, order_info: Dict[str, Any] = None) -> 
     Routing branches on ``push_kind``:
         - ``drawing`` (발주 PUSH): 도면 그룹(``CHANNEL_GROUP_DRAWING``,
           미설정 시 운영 그룹 229625로 폴백).
+        - ``estimate`` (견적서 PUSH): 견적서 그룹(``CHANNEL_GROUP_ESTIMATE``,
+          미설정 시 운영 그룹 230395로 폴백).
         - 그 외(영발 PUSH, 기본): 실측 그룹(``CHANNEL_GROUP_MEASUREMENT``,
           미설정 시 운영 그룹 209990으로 폴백).
 
@@ -129,6 +131,8 @@ def get_routing_group_id(event_type: str, order_info: Dict[str, Any] = None) -> 
     push_kind = (order_info or {}).get("push_kind", "measurement")
     if push_kind == "drawing":
         return os.environ.get("CHANNEL_GROUP_DRAWING", "229625")
+    if push_kind == "estimate":
+        return os.environ.get("CHANNEL_GROUP_ESTIMATE", "230395")
     return os.environ.get("CHANNEL_GROUP_MEASUREMENT", "209990")
 
 

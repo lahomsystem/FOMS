@@ -223,6 +223,192 @@ def api_channel_push_manual():
         logger.error("[채널톡 수동푸쉬] 예외: %s\n%s", err_msg, traceback.format_exc())
         return jsonify({'success': False, 'message': f'서버 오류: {err_msg}', 'error': err_msg}), 500
 
+_ESTIMATE_PUSH_HISTORY_KEY = 'channeltalk_push_estimate'
+_MAX_ESTIMATE_IMAGE_BYTES = 15 * 1024 * 1024  # 15MB (견적서 PNG는 보통 수 MB 이내)
+# PNG 시그니처(매직 바이트). mimetype 헤더는 위조 가능하므로 실제 바이트로 검증한다.
+_PNG_MAGIC = b'\x89PNG\r\n\x1a\n'
+
+
+def _safe_delete_estimate_upload(storage, key):
+    """
+    견적서 푸쉬 실패 시 방금 업로드한 오브젝트를 정리(고아 방지)한다.
+
+    삭제 자체가 실패하더라도 원 응답(전송 실패)을 가려선 안 되므로 예외를 삼키되,
+    반드시 로그로 남긴다(규칙: 로그 없는 실패 삼킴 금지).
+
+    Args:
+        storage: 스토리지 서비스 인스턴스
+        key (str): 삭제할 오브젝트 키
+    """
+    if not key:
+        return
+    try:
+        storage.delete_file(key)
+    except Exception as exc:  # noqa: BLE001 - 정리 실패는 로그만 남기고 원 오류를 전달
+        logger.warning("[채널톡 견적서푸쉬] 업로드 오브젝트 정리 실패 (key=%s): %s", key, exc)
+
+
+@channel_integration_bp.route('/push-estimate', methods=['POST'])
+@login_required
+@role_required(['ADMIN', 'MANAGER', 'STAFF'])
+def api_channel_push_estimate():
+    """
+    견적서 이미지 채널톡 푸쉬(견적서 방).
+
+    견적서 미리보기는 라이브 폼 데이터(수동행·컬럼폭 포함)로 클라이언트가 html2canvas로
+    렌더하므로 서버 재현이 불가능하다. 따라서 클라이언트가 캡처한 PNG를 multipart로 업로드받아
+    스토리지(R2/S3)에 저장하고, 그 presigned URL을 첨부로 견적서 그룹(push_kind='estimate',
+    CHANNEL_GROUP_ESTIMATE, 미설정 시 230395)으로 전송한다.
+
+    Request (multipart/form-data):
+        order_id (int): 주문 ID
+        image (file): 견적서 PNG 이미지
+        change_note (str, optional): 재전송 시 변경 내용 (1~500자, 필수)
+
+    Returns:
+        {success: bool, error: str}
+    """
+    db = get_db()
+    try:
+        order_id = request.form.get('order_id')
+        change_note = (request.form.get('change_note') or '').strip()
+        image = request.files.get('image')
+
+        if not order_id:
+            return jsonify({'success': False, 'message': 'order_id가 없습니다.'}), 400
+        if image is None or not image.filename:
+            return jsonify({'success': False, 'message': '견적서 이미지가 없습니다.'}), 400
+        if (image.mimetype or '') != 'image/png':
+            return jsonify({'success': False, 'message': '견적서 이미지는 PNG 형식만 지원합니다.'}), 400
+
+        image.stream.seek(0, os.SEEK_END)
+        image_size = image.stream.tell()
+        image.stream.seek(0)
+        if image_size <= 0:
+            return jsonify({'success': False, 'message': '견적서 이미지가 비어 있습니다.'}), 400
+        if image_size > _MAX_ESTIMATE_IMAGE_BYTES:
+            return jsonify({'success': False, 'message': '견적서 이미지가 너무 큽니다 (최대 15MB).'}), 400
+
+        # mimetype 헤더는 위조 가능하므로 실제 PNG 시그니처(매직 바이트)를 검증한다.
+        magic = image.stream.read(len(_PNG_MAGIC))
+        image.stream.seek(0)
+        if magic != _PNG_MAGIC:
+            return jsonify({'success': False, 'message': '견적서 이미지가 올바른 PNG 형식이 아닙니다.'}), 400
+
+        if not is_configured():
+            msg = '채널톡 환경변수(CHANNEL_APP_SECRET, CHANNEL_ID)가 서버에 설정되지 않았습니다.'
+            return jsonify({'success': False, 'message': msg, 'error': msg}), 503
+
+        group_id = get_routing_group_id('manual', {'push_kind': 'estimate'})
+        if not group_id:
+            msg = 'CHANNEL_GROUP_ESTIMATE 환경변수가 설정되지 않았습니다.'
+            return jsonify({'success': False, 'message': msg, 'error': msg}), 503
+
+        order = db.query(Order).filter(Order.id == int(order_id), Order.active_filter()).first()
+        if not order:
+            return jsonify({'success': False, 'message': f'주문 #{order_id}을 찾을 수 없습니다.'}), 404
+
+        sd = copy.deepcopy(order.structured_data or {})
+        prev_push = sd.get(_ESTIMATE_PUSH_HISTORY_KEY) or {}
+        is_resend = bool(prev_push.get('pushed'))
+
+        if is_resend:
+            if len(change_note) < _MIN_CHANGE_NOTE_LEN:
+                return jsonify({
+                    'success': False,
+                    'message': f'재전송 시 변경 내용을 {_MIN_CHANGE_NOTE_LEN}자 이상 입력해주세요.',
+                }), 400
+        else:
+            change_note = ''
+
+        if change_note and len(change_note) > _MAX_CHANGE_NOTE_LEN:
+            return jsonify({
+                'success': False,
+                'message': f'변경 내용은 최대 {_MAX_CHANGE_NOTE_LEN}자까지 입력할 수 있습니다.',
+            }), 400
+
+        storage = get_storage()
+        upload_name = f'estimate_{order.id}.png'
+        upload_result = storage.upload_file(image, upload_name, folder=f'estimate_push/{order.id}')
+        if not upload_result or not upload_result.get('success'):
+            err = (upload_result or {}).get('message') or '견적서 이미지 업로드에 실패했습니다.'
+            return jsonify({'success': False, 'message': err, 'error': err}), 502
+        upload_key = upload_result['key']
+
+        download_url = storage.get_download_url(upload_key, expires_in=3600)
+        if not download_url:
+            _safe_delete_estimate_upload(storage, upload_key)
+            msg = '견적서 이미지 다운로드 URL 생성에 실패했습니다.'
+            return jsonify({'success': False, 'message': msg, 'error': msg}), 502
+
+        current_user = getattr(g, "current_user", None)
+        pushed_by_name = current_user.name if current_user else None
+
+        dispatch_data = {
+            'order_id': order.id,
+            'customer_name': order.customer_name,
+            'text': f'[견적서] {order.customer_name or ""}'.strip(),
+            'is_retry': is_resend,
+            'change_note': change_note,
+            'files': [{
+                'fileName': upload_result.get('filename') or upload_name,
+                'url': download_url,
+                'mime': 'image/png',
+            }],
+            'push_kind': 'estimate',
+            'pushed_by_name': pushed_by_name,
+        }
+
+        # 전송 실패 시 방금 업로드한 오브젝트를 정리해 고아 파일/재시도 중복을 막는다.
+        # (전송 성공 후에는 채널톡이 presigned URL을 참조하므로 삭제하지 않는다.)
+        try:
+            result = dispatch_order_event(
+                event_type='manual',
+                data=dispatch_data,
+                raise_on_error=True,
+            )
+        except Exception:
+            _safe_delete_estimate_upload(storage, upload_key)
+            raise
+
+        msg_id = result.get('message_id')
+        if not msg_id:
+            logger.warning("[채널톡 견적서푸쉬] 전송 성공이나 message_id 미수신 (order_id=%s)", order_id)
+        sent_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        next_push = {
+            'pushed': True,
+            'message_id': msg_id,
+            'group_id': group_id,
+            'sent_at': sent_at,
+            'is_modified': is_resend,
+        }
+        if is_resend:
+            change_log = list(prev_push.get('change_log') or [])
+            change_log.append({
+                'at': sent_at,
+                'by': pushed_by_name,
+                'note': change_note,
+                'message_id': msg_id,
+            })
+            next_push['change_log'] = change_log[-20:]
+        sd[_ESTIMATE_PUSH_HISTORY_KEY] = next_push
+        order.structured_data = sd
+        flag_modified(order, 'structured_data')
+        db.commit()
+
+        return jsonify({'success': True})
+
+    except RuntimeError as e:
+        err_msg = str(e)
+        logger.error("[채널톡 견적서푸쉬] RuntimeError: %s", err_msg)
+        return jsonify({'success': False, 'message': f'채널톡 API 오류: {err_msg}', 'error': err_msg}), 502
+
+    except Exception as e:
+        err_msg = str(e)
+        logger.error("[채널톡 견적서푸쉬] 예외: %s\n%s", err_msg, traceback.format_exc())
+        return jsonify({'success': False, 'message': f'서버 오류: {err_msg}', 'error': err_msg}), 500
+
+
 @channel_integration_bp.route('/health', methods=['GET'])
 def api_channel_health():
     """

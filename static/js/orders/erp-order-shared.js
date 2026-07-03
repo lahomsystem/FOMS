@@ -1874,6 +1874,7 @@ function erpCollectStructured() {
         'estimate_preview',
         'channeltalk_push',
         'channeltalk_push_drawing',
+        'channeltalk_push_estimate',
     ];
 
     const structured = {

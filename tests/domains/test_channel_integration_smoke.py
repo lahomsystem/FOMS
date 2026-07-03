@@ -1,6 +1,9 @@
 """Smoke tests for ChannelTalk Integration (Phase 0)."""
 
+import io
+
 import foms.api.channel.channel_integration as channel_integration
+import foms.services.channel_policy as channel_policy
 from db import db_session
 from models import Order, OrderAttachment, User
 from foms.services.jobs import queue as queue_module
@@ -10,6 +13,31 @@ from werkzeug.security import generate_password_hash
 class _FakeStorage:
     def get_download_url(self, storage_key, expires_in=3600):
         return f"https://cdn.example.com/{storage_key}?e={expires_in}"
+
+
+class _FakeEstimateStorage:
+    """upload_file + get_download_url를 모두 지원하는 견적서 푸쉬용 fake 스토리지."""
+
+    def __init__(self):
+        self.uploaded = []
+        self.deleted = []
+
+    def upload_file(self, file_obj, filename, folder="uploads"):
+        data = file_obj.read()
+        self.uploaded.append({"filename": filename, "folder": folder, "size": len(data)})
+        return {
+            "success": True,
+            "key": f"{folder}/{filename}",
+            "url": f"https://cdn.example.com/{folder}/{filename}",
+            "filename": filename,
+        }
+
+    def get_download_url(self, storage_key, expires_in=3600):
+        return f"https://cdn.example.com/{storage_key}?e={expires_in}"
+
+    def delete_file(self, storage_key):
+        self.deleted.append(storage_key)
+        return True
 
 
 def _login_admin(client, username="channel-admin", password="admin"):
@@ -370,6 +398,266 @@ def test_push_manual_resend_stores_change_log_and_dispatches_note(client, monkey
     assert len(log) == 1
     assert log[0]["note"] == "손잡이 오기재 정정"
     assert log[0]["message_id"] == "msg-resend-1"
+
+def test_routing_group_estimate_kind_uses_estimate_env(monkeypatch):
+    """push_kind='estimate'는 CHANNEL_GROUP_ESTIMATE(미설정 시 230395)로 라우팅된다."""
+    monkeypatch.delenv("CHANNEL_GROUP_ESTIMATE", raising=False)
+    assert channel_policy.get_routing_group_id("manual", {"push_kind": "estimate"}) == "230395"
+
+    monkeypatch.setenv("CHANNEL_GROUP_ESTIMATE", "group-estimate")
+    assert channel_policy.get_routing_group_id("manual", {"push_kind": "estimate"}) == "group-estimate"
+
+
+def _png_upload(content=b"\x89PNG\r\n\x1a\nfake-estimate-bytes"):
+    return (io.BytesIO(content), "estimate.png", "image/png")
+
+
+def test_push_estimate_uploads_image_and_dispatches_estimate_group(client, monkeypatch):
+    """견적서 푸쉬는 업로드 PNG의 presigned URL을 push_kind='estimate'로 dispatch한다."""
+    _login_admin(client)
+    monkeypatch.setenv("CHANNEL_GROUP_ESTIMATE", "group-estimate")
+    monkeypatch.setattr(channel_integration, "is_configured", lambda: True)
+    fake_storage = _FakeEstimateStorage()
+    monkeypatch.setattr(channel_integration, "get_storage", lambda: fake_storage)
+
+    captured = {}
+
+    def _fake_dispatch(event_type, data, raise_on_error=False):
+        captured["event_type"] = event_type
+        captured["data"] = data
+        captured["raise_on_error"] = raise_on_error
+        return {"success": True, "message_id": "msg-est-1"}
+
+    monkeypatch.setattr(channel_integration, "dispatch_order_event", _fake_dispatch)
+
+    order = Order(
+        received_date="2026-07-03",
+        customer_name="견적 고객",
+        phone="010-0000-0000",
+        address="Seoul",
+        product="Wardrobe",
+    )
+    db_session.add(order)
+    db_session.commit()
+    order_id = order.id
+
+    response = client.post(
+        "/api/channel/push-estimate",
+        data={"order_id": str(order_id), "image": _png_upload()},
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body["success"] is True
+
+    assert captured["event_type"] == "manual"
+    assert captured["raise_on_error"] is True
+    assert captured["data"]["push_kind"] == "estimate"
+    assert captured["data"]["pushed_by_name"] == "Channel Admin"
+    assert captured["data"]["text"].startswith("[견적서]")
+    assert len(captured["data"]["files"]) == 1
+    assert captured["data"]["files"][0]["mime"] == "image/png"
+    assert captured["data"]["files"][0]["url"].endswith("?e=3600")
+
+    # 업로드는 주문별 폴더로 저장된다.
+    assert fake_storage.uploaded
+    assert fake_storage.uploaded[0]["folder"] == f"estimate_push/{order_id}"
+    assert fake_storage.uploaded[0]["size"] > 0
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert saved.structured_data["channeltalk_push_estimate"]["pushed"] is True
+    assert saved.structured_data["channeltalk_push_estimate"]["message_id"] == "msg-est-1"
+    assert saved.structured_data["channeltalk_push_estimate"]["group_id"] == "group-estimate"
+    # 견적서 이력은 영발/발주 이력과 분리된 별도 키에 저장된다.
+    assert "channeltalk_push" not in saved.structured_data
+    assert "channeltalk_push_drawing" not in saved.structured_data
+
+
+def test_push_estimate_rejects_non_png(client, monkeypatch):
+    """PNG가 아닌 이미지는 400으로 거부한다."""
+    _login_admin(client)
+    monkeypatch.setattr(channel_integration, "is_configured", lambda: True)
+
+    order = Order(
+        received_date="2026-07-03",
+        customer_name="견적 고객",
+        phone="010-0000-0000",
+        address="Seoul",
+        product="Wardrobe",
+    )
+    db_session.add(order)
+    db_session.commit()
+
+    response = client.post(
+        "/api/channel/push-estimate",
+        data={
+            "order_id": str(order.id),
+            "image": (io.BytesIO(b"jpegbytes"), "estimate.jpg", "image/jpeg"),
+        },
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 400
+    assert "PNG" in response.get_json()["message"]
+
+
+def test_push_estimate_rejects_spoofed_png_magic_bytes(client, monkeypatch):
+    """mimetype이 image/png여도 실제 PNG 시그니처가 아니면 400으로 거부한다."""
+    _login_admin(client)
+    monkeypatch.setattr(channel_integration, "is_configured", lambda: True)
+    fake_storage = _FakeEstimateStorage()
+    monkeypatch.setattr(channel_integration, "get_storage", lambda: fake_storage)
+
+    order = Order(
+        received_date="2026-07-03",
+        customer_name="견적 고객",
+        phone="010-0000-0000",
+        address="Seoul",
+        product="Wardrobe",
+    )
+    db_session.add(order)
+    db_session.commit()
+
+    response = client.post(
+        "/api/channel/push-estimate",
+        data={
+            "order_id": str(order.id),
+            # mimetype은 PNG로 위조했지만 매직 바이트가 없는 임의 바이너리
+            "image": (io.BytesIO(b"NOTPNG-arbitrary-binary-payload"), "estimate.png", "image/png"),
+        },
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 400
+    assert "PNG" in response.get_json()["message"]
+    # 검증 실패 시 스토리지 업로드는 아예 일어나지 않아야 한다.
+    assert fake_storage.uploaded == []
+
+
+def test_push_estimate_cleans_up_upload_when_dispatch_fails(client, monkeypatch):
+    """채널톡 전송 실패 시 방금 업로드한 오브젝트를 정리(고아 방지)하고 502를 반환한다."""
+    _login_admin(client)
+    monkeypatch.setenv("CHANNEL_GROUP_ESTIMATE", "group-estimate")
+    monkeypatch.setattr(channel_integration, "is_configured", lambda: True)
+    fake_storage = _FakeEstimateStorage()
+    monkeypatch.setattr(channel_integration, "get_storage", lambda: fake_storage)
+
+    def _boom(event_type, data, raise_on_error=False):
+        raise RuntimeError("channel 502")
+
+    monkeypatch.setattr(channel_integration, "dispatch_order_event", _boom)
+
+    order = Order(
+        received_date="2026-07-03",
+        customer_name="견적 고객",
+        phone="010-0000-0000",
+        address="Seoul",
+        product="Wardrobe",
+    )
+    db_session.add(order)
+    db_session.commit()
+    order_id = order.id
+
+    response = client.post(
+        "/api/channel/push-estimate",
+        data={"order_id": str(order_id), "image": _png_upload()},
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 502
+    # 업로드된 오브젝트 키가 정리(delete_file) 대상으로 넘어가야 한다.
+    assert fake_storage.uploaded
+    assert fake_storage.deleted == [f"estimate_push/{order_id}/estimate_{order_id}.png"]
+
+    # 전송 실패 시 이력은 기록되지 않는다.
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert "channeltalk_push_estimate" not in (saved.structured_data or {})
+
+
+def test_push_estimate_resend_requires_change_note(client, monkeypatch):
+    """재전송(prev pushed) 시 change_note 없으면 400."""
+    _login_admin(client)
+    monkeypatch.setenv("CHANNEL_GROUP_ESTIMATE", "group-estimate")
+    monkeypatch.setattr(channel_integration, "is_configured", lambda: True)
+    monkeypatch.setattr(channel_integration, "get_storage", lambda: _FakeEstimateStorage())
+    monkeypatch.setattr(
+        channel_integration,
+        "dispatch_order_event",
+        lambda event_type, data, raise_on_error=False: {"success": True, "message_id": "msg-x"},
+    )
+
+    order = Order(
+        received_date="2026-07-03",
+        customer_name="재전송 고객",
+        phone="010-0000-0000",
+        address="Seoul",
+        product="Wardrobe",
+        structured_data={"channeltalk_push_estimate": {"pushed": True, "message_id": "old"}},
+    )
+    db_session.add(order)
+    db_session.commit()
+
+    response = client.post(
+        "/api/channel/push-estimate",
+        data={"order_id": str(order.id), "image": _png_upload()},
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 400
+    assert "변경 내용" in response.get_json()["message"]
+
+
+def test_push_estimate_resend_stores_change_log_and_dispatches_note(client, monkeypatch):
+    """재전송 시 change_note를 dispatch에 전달하고 change_log에 저장한다."""
+    _login_admin(client)
+    monkeypatch.setenv("CHANNEL_GROUP_ESTIMATE", "group-estimate")
+    monkeypatch.setattr(channel_integration, "is_configured", lambda: True)
+    monkeypatch.setattr(channel_integration, "get_storage", lambda: _FakeEstimateStorage())
+
+    captured = {}
+
+    def _fake_dispatch(event_type, data, raise_on_error=False):
+        captured["data"] = data
+        return {"success": True, "message_id": "msg-est-resend"}
+
+    monkeypatch.setattr(channel_integration, "dispatch_order_event", _fake_dispatch)
+
+    order = Order(
+        received_date="2026-07-03",
+        customer_name="재전송 고객",
+        phone="010-0000-0000",
+        address="Seoul",
+        product="Wardrobe",
+        structured_data={"channeltalk_push_estimate": {"pushed": True, "message_id": "old"}},
+    )
+    db_session.add(order)
+    db_session.commit()
+    order_id = order.id
+
+    response = client.post(
+        "/api/channel/push-estimate",
+        data={
+            "order_id": str(order_id),
+            "image": _png_upload(),
+            "change_note": "잔금 금액 정정",
+        },
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 200
+    assert captured["data"]["is_retry"] is True
+    assert captured["data"]["change_note"] == "잔금 금액 정정"
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    log = saved.structured_data["channeltalk_push_estimate"]["change_log"]
+    assert len(log) == 1
+    assert log[0]["note"] == "잔금 금액 정정"
+    assert log[0]["message_id"] == "msg-est-resend"
+
 
 def test_payment_confirm_does_not_create_channel_delivery_log(client):
     """예약금/잔금 토글 API는 ChannelTalk outbox를 생성하지 않는다."""

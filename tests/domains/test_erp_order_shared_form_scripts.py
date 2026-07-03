@@ -57,14 +57,14 @@ def _assert_shared_form_script_contract(body: str) -> None:
 
     assert payment_urls_idx < channel_push_confirm_idx < erp_order_shared_idx < column_resizer_idx < estimate_preview_idx < estimate_columns_idx
     assert "html2canvas.min.js" not in body
-    assert "js/orders/erp-channel-push-confirm.js?v=20260701c" in body
-    assert "js/orders/erp-order-shared.js?v=20260701g" in body
+    assert "js/orders/erp-channel-push-confirm.js?v=20260703a" in body
+    assert "js/orders/erp-order-shared.js?v=20260703a" in body
     assert "css/orders/erp-channel-push.css?v=20260701a" in body
     assert "css/orders/erp-items-master-detail.css?v=20260701f" in body
     assert "js/orders/erp-items-master-detail.js?v=20260630c" in body
     assert "erp-items-master-detail-shell" in body
     assert 'id="erp-md-rail-list"' in body
-    assert "js/orders/estimate-preview.js?v=20260702a" in body
+    assert "js/orders/estimate-preview.js?v=20260703b" in body
 
     estimate_preview_js = (
         Path(__file__).resolve().parents[2]
@@ -280,6 +280,10 @@ def test_estimate_table_columns_contract() -> None:
     assert 'erp-est-manual-row' in pane
     assert 'erp-est-add-row-btn' in pane
     assert '.erp-est-exporting .erp-est-edit-control' in pane
+    # 견적서 PUSH 버튼은 이미지 저장 버튼 왼쪽에 위치한다.
+    assert 'id="btn-est-channel-push"' in pane
+    assert pane.index('id="btn-est-channel-push"') < pane.index('id="btn-est-export"')
+    assert 'fa-paper-plane' in pane
     contract_css = pane.split('.erp-est-contract {', 1)[1].split('.erp-est-contract-title', 1)[0]
     assert 'min-height' not in contract_css
 
@@ -304,6 +308,16 @@ def test_estimate_preview_js_is_canonical_only() -> None:
     assert "preferBlobUrl: true" in text
     assert "canvas.toBlob" in text
     assert "canvas toBlob timed out" in text
+    # 견적서 채널톡 PUSH: 캡처 Blob을 멀티파트로 업로드 전송.
+    assert "_runEstimateChannelPush" in text
+    assert "_bindChannelPushBtn" in text
+    assert "/api/channel/push-estimate" in text
+    assert "erpHasPriorChannelPush('estimate')" in text
+    # 미저장 draft 주문에서는 영발/발주 PUSH와 동일하게 전송을 차단한다(라이브 DOM ↔ 저장 데이터 괴리 방지).
+    push_start = text.index("function _runEstimateChannelPush")
+    push_block = text[push_start:push_start + 1600]
+    assert "erpCanUsePersistedOrderAction('견적서 전송은')" in push_block
+    assert "window.erpIsDraftBackedOrder" in push_block
     assert "dataUrl === 'data:,'" in text
     assert "_HTML2CANVAS_RENDER_TIMEOUT_MS" in text
     assert "html2canvas render timed out" in text
@@ -403,6 +417,7 @@ def test_shared_erp_order_js_preserves_drawing_operational_state() -> None:
         "estimate_preview",
         "channeltalk_push",
         "channeltalk_push_drawing",
+        "channeltalk_push_estimate",
     ):
         assert f"'{key}'" in collect_block
 
@@ -424,6 +439,7 @@ def test_structured_put_preserves_estimate_preview_state() -> None:
     assert "'estimate_preview'" in keys_block
     assert "'channeltalk_push'" in keys_block
     assert "'channeltalk_push_drawing'" in keys_block
+    assert "'channeltalk_push_estimate'" in keys_block
 
 
 def test_shared_erp_order_js_does_not_auto_save_before_user_save() -> None:
