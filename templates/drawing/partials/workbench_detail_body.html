@@ -556,7 +556,9 @@
         </div>
 
         {%- set sd = order.structured_data or {} %}
-        {%- set sd_notes = sd.get('notes', {}) %}
+        {%- set sd_notes_raw = sd.get('notes') %}
+        {%- set sd_notes = sd_notes_raw if sd_notes_raw is mapping else {} %}
+        {%- set sd_memo = sd_notes_raw if sd_notes_raw is string else '' %}
         {%- set sd_schedule = sd.get('schedule', {}) %}
         {%- set sd_parties = sd.get('parties', {}) %}
         {%- set sd_orderer = sd_parties.get('orderer', {}) %}
@@ -584,9 +586,7 @@
                 <div class="erp-detail-text">
                   <div class="mb-3"><strong class="erp-detail-label">실측일:</strong> <span class="erp-detail-value">{{ (sd_schedule.get('measurement', {}).get('date') or '')|schedule_datetime_display(sd_schedule.get('measurement', {}).get('time')) }}</span></div>
                   <div class="mb-3"><strong class="erp-detail-label">시공일:</strong> <span class="erp-detail-value">{{ (sd_schedule.get('construction', {}).get('date') or '')|schedule_datetime_display(sd_schedule.get('construction', {}).get('time')) }}</span></div>
-                  <div class="mb-3"><strong class="erp-detail-label">연락특이:</strong> <span class="erp-detail-value">{{ sd_notes.get('phone_note') or '-' }}</span></div>
-                  <div class="mb-3"><strong class="erp-detail-label">주소특이:</strong> <span class="erp-detail-value">{{ sd_notes.get('address_note') or '-' }}</span></div>
-                  <div class="mb-3"><strong class="erp-detail-label">실측특이:</strong> <span class="erp-detail-value">{{ sd_notes.get('measurement_note') or '-' }}</span></div>
+                  <div class="mb-3"><strong class="erp-detail-label">특이사항:</strong> <span class="erp-detail-value">{{ sd_memo or sd_notes.get('measurement_note') or sd_notes.get('phone_note') or sd_notes.get('address_note') or '-' }}</span></div>
                 </div>
               </div>
             </div>
