@@ -21,15 +21,18 @@ import argparse
 # Repo root (was one level up from scripts/; now scripts/maintenance/)
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
+from app import app  # noqa: F401 — 서비스 모듈 import 순서 보장(단독 실행 시 foms.services 순환 import 회피)
 from db import db_session
 from models import Order
 from foms.services.geocode_helpers import extract_address_from_order
+from foms.services.measurement_read_model import apply_measurement_dashboard_order_scope
 
 
 def get_orders_needing_geocode(limit=None):
     """
     lat 또는 lng가 NULL인 주문 중 주소가 있는 것 반환.
-    DELETED 제외, is_regional/지방 제외(설계상 지도 대상 아님).
+    DELETED 제외. 지도 대상 범위는 실측 대시보드 SSOT(apply_measurement_dashboard_order_scope)와
+    동일 — 지방주문(is_regional) 포함(3471502a에서 지도 범위가 확장됨, 구 제외 필터는 낡은 스코프).
     """
     db = db_session()
     query = (
@@ -38,12 +41,8 @@ def get_orders_needing_geocode(limit=None):
         .filter(
             (Order.lat.is_(None)) | (Order.lng.is_(None))
         )
-        .filter(
-            Order.is_regional != True,
-            ~Order.status.in_(['SELF_MEASUREMENT', 'SELF_MEASURED'])
-        )
-        .order_by(Order.id.desc())
     )
+    query = apply_measurement_dashboard_order_scope(query).order_by(Order.id.desc())
     if limit:
         query = query.limit(limit)
     try:

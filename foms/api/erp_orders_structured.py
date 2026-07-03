@@ -199,9 +199,11 @@ _OPERATIONAL_TOP_LEVEL_KEYS = (
     'drawing_assignees',
     # Estimate preview manual rows are edited from the contract tab, not the main form.
     'estimate_preview',
-    # ChannelTalk manual push history (server-managed on /api/channel/push-manual).
+    # ChannelTalk manual push history (server-managed on /api/channel/push-manual,
+    # /api/channel/push-estimate). Never rendered by the form, so preserve across PUTs.
     'channeltalk_push',
     'channeltalk_push_drawing',
+    'channeltalk_push_estimate',
 )
 
 
@@ -491,6 +493,8 @@ def api_patch_order_structured_fields(order_id: int):
         setattr(order, 'structured_updated_at', now)
         db.commit()
 
+        # Tier A(broad): 주문 구조(structured_data) 수정은 workflow.stage/order.status를
+        # 포함해 탭 간 이동이 실제로 일어나므로 전체 무효화를 유지한다.
         from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
         invalidate_all_dashboard_slice_caches()
 
@@ -640,6 +644,7 @@ def api_put_order_structured(order_id):
                 reset_order_geocode_on_address_change(order, new_addr)
 
         db.commit()
+        # Tier A(broad): 주문 저장(PUT structured)은 stage/status 변경을 포함 → 탭 이동.
         from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
 
         invalidate_all_dashboard_slice_caches()
@@ -724,6 +729,7 @@ def api_payment_confirm(order_id):
         flag_modified(order, 'structured_data')
 
         db.commit()
+        # Tier A(broad): 결제/구조 필드 patch도 structured_data 전반을 갱신 → 탭 이동 가능.
         from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
 
         invalidate_all_dashboard_slice_caches()
@@ -808,6 +814,7 @@ def api_erp_create_draft():
         db.flush()
         sync_erp_flat_columns(order, structured)
         db.commit()
+        # Tier A(broad): 신규 초안 생성은 새 주문이 목록/단계 집계에 진입 → 전체 무효화.
         from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
 
         invalidate_all_dashboard_slice_caches()

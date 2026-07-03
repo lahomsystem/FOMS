@@ -87,12 +87,20 @@ def api_erp_shipment_settings_save():
         if save_erp_shipment_settings(current):
             if "construction_workers" in payload:
                 try:
-                    from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+                    from foms.services.common.dashboard_cache import (
+                        DASHBOARD_FAMILY_ORDERS,
+                        DASHBOARD_FAMILY_SHIPMENT,
+                        invalidate_dashboard_families,
+                    )
                     from foms.services.shipment_as_recommendation_cache import (
                         invalidate_shipment_as_recommendation_cache,
                     )
 
-                    invalidate_all_dashboard_slice_caches()
+                    # 도메인-스코프: 시공자 설정 저장은 workflow.stage 무변경 →
+                    # 출고 대시보드(시공자 표시)와 주문 목록만 무효화.
+                    invalidate_dashboard_families(
+                        DASHBOARD_FAMILY_SHIPMENT, DASHBOARD_FAMILY_ORDERS
+                    )
                     invalidate_shipment_as_recommendation_cache(
                         reason="erp_shipment_settings_construction_workers",
                     )

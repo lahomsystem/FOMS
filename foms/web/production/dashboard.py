@@ -8,7 +8,6 @@ from __future__ import annotations
 import time
 
 from flask import Blueprint, make_response, render_template, request, g
-from sqlalchemy import String, cast
 
 from db import get_db
 from models import Order
@@ -83,8 +82,9 @@ def erp_production_dashboard():
     f_q = _pf.q
     erp_mine_only = _pf.erp_mine_only
 
-    stage_col = cast(Order.structured_data['workflow']['stage'], String)
-    _q = build_production_orders_query(db, user, f_stage, f_q, erp_mine_only, stage_col)
+    # 단계 필터/버킷은 build_production_orders_query·production_stage_bucket_expr가
+    # flat 컬럼 Order.erp_stage_code(index=True)를 직접 참조한다(JSONB path cast 제거).
+    _q = build_production_orders_query(db, user, f_stage, f_q, erp_mine_only)
 
     _summary_fp = {
         "v": KEY_VERSION,
@@ -98,7 +98,7 @@ def erp_production_dashboard():
     _summary_blob = get_or_compute_dashboard_slice(
         _summary_key,
         TTL_SUMMARY_COUNTS,
-        lambda: compute_production_summary_blob(_q, stage_col),
+        lambda: compute_production_summary_blob(_q),
         page="production",
         slice_name="summary_counts",
     )

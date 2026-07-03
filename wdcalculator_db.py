@@ -69,8 +69,10 @@ engine_args: dict[str, Any] = {
 if "sqlite" not in _db_url_str:
     engine_args.update(
         {
-            "pool_size": 10,
-            "max_overflow": 10,
+            # ERP 대비 계산기 트래픽 소량 — 프로세스 4개 총 커넥션 상한 완화(120→72).
+            # 프로세스당 pool_size(3)+max_overflow(3)=6, ×4 프로세스 ×(main+wdc) 계열.
+            "pool_size": 3,
+            "max_overflow": 3,
             "pool_recycle": 1800,
             # main DB(db.py)와 동일하게 10s 빠른 실패. gevent 환경에서 기본 30s
             # 대기는 커넥션 고갈 시 그린렛을 오래 붙잡아 tail을 키운다.

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import time
+from collections import namedtuple
 from typing import Any
 
 from flask import g, request, session, url_for
@@ -34,6 +36,50 @@ __all__ = [
     "inject_foms_nav_badges",
     "register_context_processors",
 ]
+
+
+# ADMIN "다른 사용자로 전환" 드롭다운 유저 목록 마이크로 캐시.
+# inject_status_list는 ADMIN이 여는 모든 전체페이지 렌더마다 활성 유저 전체를 조회했다.
+# 목록은 거의 불변이므로 프로세스별 60s 캐시로 매 렌더 쿼리를 제거한다(멀티프로세스 각자
+# 최대 60s stale 수용 — 관리자 드롭다운 특성상 안전).
+_ADMIN_SWITCH_USERS_TTL_SEC = 60.0
+_ADMIN_SWITCH_USERS_CACHE: dict[str, Any] = {"ts": 0.0, "users": []}
+
+# 세션 밖(detached) lazy-load 회피용 경량 객체. 템플릿(layout_nav.html)이 참조하는
+# u.id / u.name / u.username 3필드만 담는다. ORM User를 그대로 캐시하면 세션 만료 후
+# 템플릿 접근 시 DetachedInstanceError가 나므로 반드시 이 형태로 변환해 캐시한다.
+AdminSwitchUser = namedtuple("AdminSwitchUser", "id name username")
+
+
+def _get_admin_switch_users(db: Any, current_user_id: Any) -> list[AdminSwitchUser]:
+    """ADMIN 전환 드롭다운용 활성 유저 목록(자기 제외)을 캐시 경유로 반환한다.
+
+    캐시는 자기 제외를 적용하지 않은 전체 활성 유저(모든 ADMIN 뷰어 공통)를 담아
+    캐시 1개를 모든 관리자가 공유한다. 자기 제외(id != current_user_id)는 캐시 반환 후
+    파이썬 필터로 적용해 뷰어별 캐시 분기를 없앤다. order_by(name)은 캐시 시점에 적용.
+
+    Args:
+        db: 활성 DB 세션.
+        current_user_id: 결과에서 제외할 현재 사용자 id.
+
+    Returns:
+        detached-safe 경량 객체 리스트(id/name/username 접근 가능).
+    """
+    now = time.time()
+    cache = _ADMIN_SWITCH_USERS_CACHE
+    if now - cache["ts"] < _ADMIN_SWITCH_USERS_TTL_SEC:
+        cached_users = cache["users"]
+    else:
+        rows = (
+            db.query(User.id, User.name, User.username)
+            .filter(User.is_active == True)  # noqa: E712 (SQL boolean, not Python identity)
+            .order_by(User.name)
+            .all()
+        )
+        cached_users = [AdminSwitchUser(r.id, r.name, r.username) for r in rows]
+        cache["users"] = cached_users
+        cache["ts"] = now
+    return [u for u in cached_users if u.id != current_user_id]
 
 
 def parse_json_string_filter(value: Any) -> Any:
@@ -72,19 +118,11 @@ def inject_status_list() -> dict[str, Any]:
     bulk_action_status = {k: v for k, v in STATUS.items() if k != "DELETED"}
     current_user = getattr(g, "current_user", None)
 
-    admin_switch_users: list[User] = []
+    admin_switch_users: list[AdminSwitchUser] = []
     impersonating_from_id = session.get("impersonating_from")
     if current_user and current_user.role == "ADMIN":
         db = get_db()
-        admin_switch_users = (
-            db.query(User)
-            .filter(
-                User.is_active == True,
-                User.id != current_user.id,
-            )
-            .order_by(User.name)
-            .all()
-        )
+        admin_switch_users = _get_admin_switch_users(db, current_user.id)
 
     erp_order_enabled = env_bool("ERP_ORDER_ENABLED", default=True)
     uid = current_user.id if current_user else None

@@ -381,6 +381,14 @@ def _scan_shared_inline_scripts(path: str, text: str, findings: list[Finding], *
         return
     if not path.startswith(_SHARED_PARTIAL_PREFIX) or not path.endswith(".html"):
         return
+    # Root fix (2026-07 사건): 대형 inline은 **fragment-replay 체인**(탭 스왑마다 재실행)에서만
+    # amplifier다. layout 등 페이지당 1회 렌더되는 임계경로 partial의 inline은 zero-RTT라 오히려
+    # 최적 — 단일 리전(Railway SG) 고지연 경로에서 external+defer로 분리하면 RTT 워터폴 →
+    # DCL 회귀(과거 cb0bf873가 이 규칙 처방대로 분리 → DCL 10s 회귀, 797c52da로 인라인 복원).
+    # 따라서 replay 체인 밖 partial의 inline은 flag하지 않는다. 처방도 "분리+defer"가 아니라
+    # 이미 로드된 번들 내 idempotency 가드로 바꾼다.
+    if path not in _collect_replayed_template_paths():
+        return
     for m in re.finditer(r"<script(?![^>]*\bsrc\s*=)([^>]*)>(.*?)</script>", text, re.I | re.S):
         block = m.group(2)
         line_count = len([ln for ln in block.splitlines() if ln.strip()])
@@ -394,8 +402,9 @@ def _scan_shared_inline_scripts(path: str, text: str, findings: list[Finding], *
             "amplifier",
             path,
             lineno,
-            f"inline script ~{line_count} lines",
-            "공유 partial 대형 inline script → static/js 분리 + defer.",
+            f"replayed inline script ~{line_count} lines",
+            "재실행 fragment 대형 inline → window.__*_BOUND idempotency 가드(기존 로드 번들 내). "
+            "external 분리+defer 금지(단일리전 RTT 워터폴 = DCL 회귀). 먼저 TTFB/DCL 실측.",
             guard_mode=guard_mode,
         )
 

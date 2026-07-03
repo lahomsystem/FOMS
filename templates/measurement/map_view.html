@@ -20,24 +20,31 @@
 
     <!-- Custom CSS -->
     <style>
+        html,
+        body {
+            height: 100%;
+        }
+
         body {
             margin: 0;
             padding: 0;
             background-color: #f8f9fa;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
 
+        /* 헤더는 일반 흐름의 flex 아이템이라 실제 높이만큼만 차지한다.
+           (이전엔 position:fixed + 고정 64px 오프셋이라 실제 헤더 높이(약 89px)와
+            어긋나 지도/주문목록 상단이 25px 가려졌다 → flex 레이아웃으로 경계 정렬) */
         .header-bar {
             background: linear-gradient(135deg, #0d6efd, #0056b3);
             color: white;
             padding: 10px 14px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            z-index: 1000;
-            min-height: 64px;
+            flex: 0 0 auto;
         }
 
         .header-content {
@@ -213,8 +220,8 @@
         }
 
         .map-container {
-            margin-top: 64px;
-            height: calc(100vh - 64px);
+            flex: 1 1 auto;
+            min-height: 0;
             width: 100%;
             position: relative;
             display: flex;
@@ -738,17 +745,11 @@
 
         @media (max-width: 615px) {
             .header-bar {
-                position: static;
                 padding: 5px 8px;
             }
 
             .header-title {
                 font-size: 0.9rem;
-            }
-
-            .map-container {
-                margin-top: 0;
-                height: calc(100vh - 140px);
             }
 
             .filters-row .filter-group.filter-group-manager {

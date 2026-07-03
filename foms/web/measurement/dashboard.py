@@ -296,7 +296,10 @@ def erp_measurement_dashboard():
 
     # 모바일 v2 큐: 홈과 동일한 깔끔한 queue-card-v2용 view-model (cohort에서만 계산)
     from foms.services.feature_flags import is_enabled_for_user
-    from foms.services.erp_mobile_order_display import build_mobile_queue_order_row
+    from foms.services.erp_mobile_order_display import (
+        build_mobile_queue_batch_context,
+        build_mobile_queue_order_row,
+    )
     mobile_v2_active = is_enabled_for_user(
         "ERP_MOBILE_V2_ENABLED",
         current_user.id if current_user else None,
@@ -304,8 +307,12 @@ def erp_measurement_dashboard():
     )
     mobile_queue_rows = []
     if mobile_v2_active:
+        # W2-3(N+1 제거): 행당 ~5쿼리(첨부/미리보기/타임라인/담당자) 대신 배치 1회 조회.
+        # 출고 대시보드(build_shipment_mobile_queue_rows)와 동일 패턴. mobile_v2 비활성이면
+        # 이 블록 자체가 실행되지 않아 불필요 쿼리가 없다.
+        _batch_ctx = build_mobile_queue_batch_context(db, rows)
         for _o in rows:
-            _row = build_mobile_queue_order_row(db, _o, current_user)
+            _row = build_mobile_queue_order_row(db, _o, current_user, batch_ctx=_batch_ctx)
             # 실측은 담당이 user id로 저장되는 케이스가 있어 표시명으로 정규화
             _mgr = normalize_manager_name(
                 ((_o.structured_data or {}).get('parties') or {}).get('manager'),

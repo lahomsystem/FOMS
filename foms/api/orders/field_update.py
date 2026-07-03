@@ -371,15 +371,53 @@ def update_order_field_response(
             "sales_delivery",
             "construction_workers",
             "construction_type",
+            # 날짜 필드: 캐시 DTO가 날짜 기준으로 구성되는 대시보드(실측 main_rows
+            # order_ids, 출고/시공 버킷, 히스토리)가 있어 편집 시 무효화 필수.
+            "measurement_date",
+            "scheduled_date",
+            "shipping_scheduled_date",
+            "completion_date",
         }
-        if field in inv_fields or status_snapshot in ("AS", "AS_RECEIVED", "AS_COMPLETED"):
+        # AS 관련 상태에서의 편집은 status_snapshot 기준으로도 무효화가 걸린다.
+        as_context = status_snapshot in ("AS", "AS_RECEIVED", "AS_COMPLETED")
+        if field in inv_fields or as_context:
             try:
-                from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+                from foms.services.common.dashboard_cache import (
+                    DASHBOARD_FAMILY_CONSTRUCTION,
+                    DASHBOARD_FAMILY_HISTORY,
+                    DASHBOARD_FAMILY_MEASUREMENT,
+                    DASHBOARD_FAMILY_SHIPMENT,
+                    invalidate_all_dashboard_slice_caches,
+                    invalidate_order_dashboard_families,
+                )
                 from foms.services.shipment_as_recommendation_cache import (
                     invalidate_shipment_as_recommendation_cache,
                 )
 
-                invalidate_all_dashboard_slice_caches()
+                # Tier C(단일 필드): status 변경/AS 문맥은 탭 이동을 유발할 수 있어 broad.
+                # 그 외 필드는 orders + 주문 현재 단계 family + 필드가 캐시 DTO에
+                # 등장하는 family(extra)만 무효화한다(근거: 각 read-model DTO 정독).
+                if field == "status" or as_context:
+                    invalidate_all_dashboard_slice_caches()
+                else:
+                    extras_by_field = {
+                        # 출고 대시보드 DTO(aggregates·AS 추천 행)가 읽는 필드
+                        "as_visit_date": (DASHBOARD_FAMILY_SHIPMENT,),
+                        "as_content": (DASHBOARD_FAMILY_SHIPMENT,),
+                        "as_content_2": (DASHBOARD_FAMILY_SHIPMENT,),
+                        "sales_delivery": (DASHBOARD_FAMILY_SHIPMENT,),
+                        "construction_workers": (DASHBOARD_FAMILY_SHIPMENT,),
+                        # 날짜 필드 → 날짜 기준 DTO를 가진 family
+                        "measurement_date": (DASHBOARD_FAMILY_MEASUREMENT,),
+                        "scheduled_date": (
+                            DASHBOARD_FAMILY_SHIPMENT,
+                            DASHBOARD_FAMILY_CONSTRUCTION,
+                        ),
+                        "shipping_scheduled_date": (DASHBOARD_FAMILY_SHIPMENT,),
+                        "completion_date": (DASHBOARD_FAMILY_HISTORY,),
+                    }
+                    extra = extras_by_field.get(field, ())
+                    invalidate_order_dashboard_families(order, extra=extra)
                 invalidate_shipment_as_recommendation_cache(reason=f"field_update:{field}")
             except Exception:
                 current_app.logger.warning(

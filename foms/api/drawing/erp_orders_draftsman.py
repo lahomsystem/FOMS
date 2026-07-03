@@ -130,9 +130,15 @@ def api_orders_batch_assign_draftsman():
                 continue
 
         db.commit()
-        from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+        # 도메인-스코프: 도면 담당자 일괄 지정은 workflow.stage 무변경(assignments만)
+        # → 도면 대시보드/워크벤치와 주문 목록만 무효화.
+        from foms.services.common.dashboard_cache import (
+            DASHBOARD_FAMILY_DRAWING,
+            DASHBOARD_FAMILY_ORDERS,
+            invalidate_dashboard_families,
+        )
 
-        invalidate_all_dashboard_slice_caches()
+        invalidate_dashboard_families(DASHBOARD_FAMILY_DRAWING, DASHBOARD_FAMILY_ORDERS)
 
         message = f'{success_count}건의 주문에 담당자가 지정되었습니다: {assignee_names}'
         if failed_orders:
@@ -262,9 +268,14 @@ def api_order_assign_draftsman(order_id):
         )
         db.add(drawing_event)
         db.commit()
-        from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+        # 도메인-스코프: 도면 담당자 단건 지정도 stage 무변경 → 도면·주문 목록만.
+        from foms.services.common.dashboard_cache import (
+            DASHBOARD_FAMILY_DRAWING,
+            DASHBOARD_FAMILY_ORDERS,
+            invalidate_dashboard_families,
+        )
 
-        invalidate_all_dashboard_slice_caches()
+        invalidate_dashboard_families(DASHBOARD_FAMILY_DRAWING, DASHBOARD_FAMILY_ORDERS)
 
         return jsonify({'success': True, 'message': f'도면 담당자가 지정되었습니다: {names}'})
 
@@ -396,6 +407,8 @@ def api_order_confirm_drawing_receipt(order_id):
         db.add(SecurityLog(user_id=current_user.id, message=f"주문 #{order_id} 도면 확정 및 단계 이동 ({old_stage} -> {next_stage})"))
 
         db.commit()
+        # Tier A(broad): 도면 수령 확인은 workflow.stage DRAWING→CONFIRM 전환 +
+        # order.status 변경 → 여러 탭(도면 이탈, 고객컨펌/생산 진입)에 걸쳐 전체 무효화.
         from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
 
         invalidate_all_dashboard_slice_caches()

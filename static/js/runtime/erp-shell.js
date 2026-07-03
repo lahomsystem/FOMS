@@ -44,13 +44,15 @@
   var FRESH_TTL_MS = 30 * 1000;
   var FRESH_TTL_PATHS = [
     '/erp/dashboard',
+    // 실측: 날짜 민감(타 사용자·기기가 행을 바꿈)이라 짧은 warm TTL + focus/bfcache 재검증으로 신선도 유지.
+    // (과거엔 NO_FRAGMENT_CACHE 로 매 스왑 refetch → 5.8s. 이제 fragment 안에 마크업만 남아 warm-cache 가능.)
+    '/erp/measurement',
   ];
   var IDLE_PREFETCH_MAX = 3;
   var HOVER_DEBOUNCE_MS = 180;
   var IDLE_DELAY_MS = 1600;
-  var NO_FRAGMENT_CACHE_PATHS = [
-    '/erp/measurement',
-  ];
+  // 셸 warm-cache 를 강제로 건너뛸 경로. 현재는 없음(실측은 FRESH_TTL_PATHS 로 이동).
+  var NO_FRAGMENT_CACHE_PATHS = [];
 
   /** pathname+search cache key — sorted query keys, stable for warm hit / scroll memory. */
   var fragmentHtmlCache = Object.create(null);

@@ -69,6 +69,9 @@ def test_production_mobile_queue_numbered_pagination(client, monkeypatch):
                 manager_name="Bob",
                 is_erp_order=True,
                 structured_data={"workflow": {"stage": "생산"}},
+                # W3-2: 생산 필터가 flat 컬럼 erp_stage_code(index)를 참조하므로 seed도
+                # 운영 현실(sync_erp_flat_columns가 workflow.stage 원문 복사)대로 채운다.
+                erp_stage_code="생산",
             )
         )
     db_session.commit()
@@ -106,6 +109,8 @@ def test_production_mobile_queue_renders_complete_and_edit_for_in_progress(clien
             manager_name="Bob",
             is_erp_order=True,
             structured_data={"workflow": {"stage": "생산"}},
+            # W3-2: flat 컬럼 erp_stage_code 필터 전환 → seed도 운영 현실대로 채운다.
+            erp_stage_code="생산",
         )
     )
     db_session.commit()
@@ -144,6 +149,8 @@ def test_production_mobile_completed_shows_status_not_stage_edit_cta(client, mon
                 "site": {"address_full": "Seoul"},
                 "workflow": {"stage": "시공"},
             },
+            # W3-2: flat 컬럼 erp_stage_code 필터 전환 → seed도 운영 현실대로 채운다.
+            erp_stage_code="시공",
         )
     )
     db_session.commit()

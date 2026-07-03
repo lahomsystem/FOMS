@@ -242,9 +242,16 @@ def api_order_transfer_drawing(order_id):
         db.add(new_notification)
         db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} 도면 전달 완료: {note}"))
         db.commit()
-        from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+        # 도메인-스코프: 도면 전달 완료는 workflow.stage를 바꾸지 않고 drawing_status만
+        # 변경 → 도면 대시보드/워크벤치와 주문 목록만 무효화(생산 read-model은 도면
+        # 상태를 읽지 않음).
+        from foms.services.common.dashboard_cache import (
+            DASHBOARD_FAMILY_DRAWING,
+            DASHBOARD_FAMILY_ORDERS,
+            invalidate_dashboard_families,
+        )
 
-        invalidate_all_dashboard_slice_caches()
+        invalidate_dashboard_families(DASHBOARD_FAMILY_DRAWING, DASHBOARD_FAMILY_ORDERS)
 
         recipient_user_ids = resolve_notification_recipient_user_ids(
             db,
@@ -434,9 +441,15 @@ def api_order_cancel_transfer(order_id):
             )
         ))
         db.commit()
-        from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+        # 도메인-스코프: 도면 전달 취소도 stage 무변경(drawing_status 복원만)
+        # → 도면·주문 목록만 무효화.
+        from foms.services.common.dashboard_cache import (
+            DASHBOARD_FAMILY_DRAWING,
+            DASHBOARD_FAMILY_ORDERS,
+            invalidate_dashboard_families,
+        )
 
-        invalidate_all_dashboard_slice_caches()
+        invalidate_dashboard_families(DASHBOARD_FAMILY_DRAWING, DASHBOARD_FAMILY_ORDERS)
 
         status_label = '수정 요청 상태' if restore_status == 'RETURNED' else '작업중 상태'
         return jsonify({
