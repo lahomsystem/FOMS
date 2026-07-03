@@ -121,14 +121,10 @@
 }
 [data-foms-day-ops-list].is-loading { opacity: .5; transition: opacity .12s ease; }
 
-/* 헤더 '내작업' 토글 활성 — 눈에 확 띄게 채워진 강조 배지.
+/* 헤더 '내작업' 토글 활성 — 아이콘 색만 검정→주황(배경 채움 없음).
    base(body.erp-mobile-v2-layout .foms-icon-btn)와 특이도 경쟁 → body 접두어 필수. */
-body.erp-mobile-v2-layout .erp-mobile-shell-header__mytasks.is-active {
-  background: #ff6a00;
-  color: #fff;
-  box-shadow: 0 0 0 2px rgba(255, 106, 0, .35);
-}
-body.erp-mobile-v2-layout .erp-mobile-shell-header__mytasks.is-active i { color: #fff; }
+body.erp-mobile-v2-layout .erp-mobile-shell-header__mytasks.is-active,
+body.erp-mobile-v2-layout .erp-mobile-shell-header__mytasks.is-active i { color: #ff6a00; }
 
 /* (B) 오늘의 현장 */
 .foms-tower__field-list { display: grid; gap: var(--foms-space-2); }
