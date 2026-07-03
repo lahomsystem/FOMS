@@ -228,11 +228,43 @@
                     clickBtn.addEventListener('click', function (e) {
                         e.preventDefault();
                         e.stopPropagation();
-                        // 클릭 시 한 번 더 물어보기 기능
+                        // 클릭 시 한 번 더 물어보기 기능 ('닫기'는 ack 가 아님 — 창만 닫는다).
                         if (confirm('알림 내용을 충분히 확인하셨나요?\n\n[확인]을 누르시면 긴급 알람 창이 닫힙니다.')) {
                             overlay.remove();
                         }
                     });
+
+                    // ack 버튼: notification id 가 payload 에 있을 때만 노출(P0 처리 인수).
+                    const ackBtn = document.createElement('button');
+                    ackBtn.id = 'urgent-overlay-ack-btn';
+                    ackBtn.type = 'button';
+                    ackBtn.innerHTML = '<i class="fas fa-check"></i> 확인(ack) 처리';
+                    ackBtn.hidden = true;
+                    ackBtn.style.cssText = 'margin-top: 16px; padding: 12px 32px; border: 2px solid rgba(255,255,255,0.85); border-radius: 50px; font-weight: bold; font-size: 1.1rem; background: rgba(255,255,255,0.18); color: #fff; cursor: pointer;';
+                    ackBtn.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const nid = ackBtn.dataset.notificationId;
+                        if (!nid || !window.FOMSNotificationWrite) return;
+                        ackBtn.disabled = true;
+                        window.FOMSNotificationWrite.fetch('/erp/api/notifications/' + encodeURIComponent(nid) + '/ack', {
+                            method: 'POST', headers: { 'Accept': 'application/json' }
+                        })
+                            .then(function (r) { return r.json(); })
+                            .then(function (d) {
+                                if (d && d.success) {
+                                    if (window.FOMSNotificationBadge && window.FOMSNotificationBadge.refresh) {
+                                        window.FOMSNotificationBadge.refresh({ force: true });
+                                    }
+                                    overlay.remove();
+                                } else {
+                                    ackBtn.disabled = false;
+                                    alert((d && d.message) || '확인 처리에 실패했습니다.');
+                                }
+                            })
+                            .catch(function () { ackBtn.disabled = false; alert('확인 처리 중 오류가 발생했습니다.'); });
+                    });
+                    overlay.appendChild(ackBtn);
 
                     document.body.appendChild(overlay);
                 }
@@ -242,6 +274,20 @@
 
                 overlay.querySelector('h1').innerHTML = safeTitle;
                 overlay.querySelector('h3').innerHTML = safeMsg;
+
+                // 매 이벤트마다 ack 버튼 상태 갱신: id 있으면 노출, 없으면 숨김.
+                const ackBtnRef = overlay.querySelector('#urgent-overlay-ack-btn');
+                if (ackBtnRef) {
+                    const notifId = (data.notification_id != null) ? data.notification_id : data.id;
+                    if (notifId != null && notifId !== '') {
+                        ackBtnRef.dataset.notificationId = String(notifId);
+                        ackBtnRef.disabled = false;
+                        ackBtnRef.hidden = false;
+                    } else {
+                        ackBtnRef.hidden = true;
+                        delete ackBtnRef.dataset.notificationId;
+                    }
+                }
             };
 
             globalSocket.off('connect', globalHandlers.onConnect);

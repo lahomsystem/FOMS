@@ -544,12 +544,17 @@
                 <div class="card-body py-2">
                   <div class="d-flex align-items-center gap-2 flex-wrap">
                     <span class="fw-semibold text-danger" style="font-size:0.85rem"><i class="fas fa-bell"></i> 동료 호출</span>
-                    <select class="form-select form-select-sm" id="mention-target-${orderId}" style="max-width:180px">
-                      <option value="">-- 대상 선택 --</option>
-                    </select>
-                    <input type="text" class="form-control form-control-sm" id="mention-msg-${orderId}" placeholder="메시지 (선택)" style="max-width:220px">
-                    <button class="btn btn-danger btn-sm" type="button" data-order-id="${orderId}">
-                      <i class="fas fa-paper-plane"></i> 긴급 호출
+                    <div class="d-none d-lg-flex align-items-center gap-2 flex-wrap">
+                      <select class="form-select form-select-sm" id="mention-target-${orderId}" style="max-width:180px">
+                        <option value="">-- 대상 선택 --</option>
+                      </select>
+                      <input type="text" class="form-control form-control-sm" id="mention-msg-${orderId}" placeholder="메시지 (선택)" style="max-width:220px">
+                      <button class="btn btn-danger btn-sm" type="button" data-order-id="${orderId}">
+                        <i class="fas fa-paper-plane"></i> 긴급 호출
+                      </button>
+                    </div>
+                    <button class="btn btn-danger btn-sm d-lg-none" type="button" data-foms-urgent-call data-order-id="${orderId}">
+                      <i class="fas fa-bolt"></i> 긴급 호출
                     </button>
                   </div>
                 </div>

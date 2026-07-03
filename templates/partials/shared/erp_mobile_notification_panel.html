@@ -1,5 +1,6 @@
-{# 모바일 알림 센터 시트 (Phase 1A) — 벨 탭 → bottom sheet 알림 목록 + unread badge + deep link.
-   read / read-all / archive 액션은 Phase 1B 범위(백엔드 API 무변경, 기존 GET만 재사용).
+{# 모바일 알림 센터 시트 (Phase 1A + 1B + 2) — 벨 탭 → bottom sheet 알림 목록 + unread badge + deep link.
+   1B: 헤더 모두읽음/모두보관 + 항목 보관, 항목 tap 시 read. 2: 긴급 pinned 항목 ack.
+   모든 write 는 mobile-notification.js 가 window.FOMSNotificationWrite 로 POST (위임 JS 처리 · 인라인 핸들러 금지).
    Fixed overlay 이므로 .erp-mobile-shell-chrome(display:contents) 밖에 렌더한다. #}
 <div
   class="offcanvas offcanvas-bottom erp-mobile-notif-sheet"
@@ -11,7 +12,15 @@
     <h5 class="offcanvas-title erp-mobile-notif-sheet__title" id="erp-mobile-notification-sheet-title">
       <i class="fas fa-bell" aria-hidden="true"></i> 알림
     </h5>
-    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="알림 닫기"></button>
+    <div class="erp-mobile-notif-sheet__actions">
+      <button type="button" class="erp-mobile-notif-sheet__action" data-foms-notif-read-all>
+        <i class="fas fa-check-double" aria-hidden="true"></i> 모두 읽음
+      </button>
+      <button type="button" class="erp-mobile-notif-sheet__action" data-foms-notif-archive-all>
+        <i class="fas fa-box-archive" aria-hidden="true"></i> 모두 보관
+      </button>
+      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="알림 닫기"></button>
+    </div>
   </div>
   <div class="offcanvas-body erp-mobile-notif-sheet__body">
     <section

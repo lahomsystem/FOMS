@@ -192,7 +192,9 @@
   }
 
   body.erp-mobile-v2-layout .erp-mobile-notif-item {
-    display: block;
+    display: flex;
+    align-items: stretch;
+    gap: var(--foms-space-2);
     padding: var(--foms-space-3);
     border: 1px solid var(--foms-border-subtle);
     border-left: 3px solid transparent;
@@ -201,6 +203,45 @@
     color: var(--foms-text-primary);
     text-decoration: none;
     min-height: var(--foms-touch-target-min, 44px);
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-notif-item__body {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: block;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-notif-item__actions {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
+    gap: var(--foms-space-1);
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-notif-item__act {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 4px 8px;
+    min-height: 32px;
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-sm);
+    background: transparent;
+    color: var(--foms-text-tertiary);
+    font-size: var(--foms-font-size-xs);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-notif-item__act--ack {
+    border-color: var(--foms-status-danger, #dc3545);
+    color: var(--foms-status-danger, #dc3545);
+    font-weight: var(--foms-font-weight-bold);
   }
 
   body.erp-mobile-v2-layout .erp-mobile-notif-item.is-unread {
@@ -266,6 +307,148 @@
   body.erp-mobile-v2-layout .erp-mobile-notif-empty i {
     font-size: 2rem;
     opacity: 0.5;
+  }
+
+  /* Sheet header actions (Phase 1B): 모두 읽음 / 모두 보관. */
+  body.erp-mobile-v2-layout .erp-mobile-notif-sheet__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--foms-space-2);
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-notif-sheet__action {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    min-height: 36px;
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-sm);
+    background: transparent;
+    color: var(--foms-text-secondary);
+    font-size: var(--foms-font-size-xs);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  /* Urgent-call bottom sheet (Phase 2). */
+  body.erp-mobile-v2-layout .erp-mobile-urgent-sheet.offcanvas-bottom {
+    height: auto;
+    max-height: 85vh;
+    border-top-left-radius: var(--foms-radius-lg);
+    border-top-right-radius: var(--foms-radius-lg);
+    background: var(--foms-surface-base);
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-urgent-sheet__header {
+    border-bottom: 1px solid var(--foms-border-subtle);
+    padding: var(--foms-space-3) var(--foms-space-4);
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-urgent-sheet__title {
+    font-size: var(--foms-font-size-lg);
+    font-weight: var(--foms-font-weight-semibold);
+    margin: 0;
+    color: var(--foms-status-danger, #dc3545);
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-urgent-sheet__body {
+    padding: var(--foms-space-3) var(--foms-space-4) var(--foms-space-6);
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-2);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-urgent-sheet__hint {
+    margin: 0;
+    font-size: var(--foms-font-size-sm);
+    color: var(--foms-text-secondary);
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-urgent-sheet__targets {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-2);
+    max-height: 40vh;
+    overflow-y: auto;
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-urgent-sheet__target {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    text-align: left;
+    padding: var(--foms-space-3);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-md);
+    background: var(--foms-surface-base);
+    color: var(--foms-text-primary);
+    min-height: var(--foms-touch-target-min, 44px);
+    cursor: pointer;
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-urgent-sheet__target.is-selected {
+    border-color: var(--foms-status-danger, #dc3545);
+    background: var(--foms-status-danger-subtle, #fff5f5);
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-urgent-sheet__target-name {
+    font-weight: var(--foms-font-weight-semibold);
+    font-size: var(--foms-font-size-sm);
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-urgent-sheet__target-meta {
+    font-size: var(--foms-font-size-xs);
+    color: var(--foms-text-tertiary);
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-urgent-sheet__label {
+    font-size: var(--foms-font-size-xs);
+    font-weight: var(--foms-font-weight-semibold);
+    color: var(--foms-text-secondary);
+    margin: var(--foms-space-2) 0 0;
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-urgent-sheet__message {
+    resize: none;
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-urgent-sheet__send {
+    margin-top: var(--foms-space-2);
+    padding: var(--foms-space-3);
+    border: none;
+    border-radius: var(--foms-radius-md);
+    background: var(--foms-status-danger, #dc3545);
+    color: #fff;
+    font-weight: var(--foms-font-weight-bold);
+    font-size: var(--foms-font-size-sm);
+    min-height: var(--foms-touch-target-min, 44px);
+    cursor: pointer;
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-urgent-sheet__send:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-urgent-sheet__empty,
+  body.erp-mobile-v2-layout .erp-mobile-urgent-sheet__placeholder,
+  body.erp-mobile-v2-layout .erp-mobile-urgent-sheet__error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--foms-space-2);
+    padding: var(--foms-space-6) var(--foms-space-4);
+    color: var(--foms-text-tertiary);
+    text-align: center;
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-action-bar__btn--urgent {
+    color: var(--foms-status-danger, #dc3545);
   }
 
   /* '내작업' 토글이 있는 헤더만 5칼럼으로 확장 + 우측 아이콘 재배치.

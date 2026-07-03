@@ -1,0 +1,40 @@
+{# 모바일 긴급 호출 시트 (Phase 2) — 주문/도면 문맥의 [data-foms-urgent-call] 버튼 탭 →
+   bottom sheet: urgent-targets 로드 → 담당자 선택 + 사유(≤500자) → urgent-mention POST.
+   모든 write 는 urgent-call-sheet.js 가 window.FOMSNotificationWrite 로 처리(위임 JS · 인라인 핸들러 금지).
+   Fixed overlay 이므로 .erp-mobile-shell-chrome(display:contents) 밖에 렌더한다. #}
+<div
+  class="offcanvas offcanvas-bottom erp-mobile-urgent-sheet"
+  tabindex="-1"
+  id="erp-mobile-urgent-call-sheet"
+  data-foms-urgent-sheet
+  aria-labelledby="erp-mobile-urgent-call-title">
+  <div class="offcanvas-header erp-mobile-urgent-sheet__header">
+    <h5 class="offcanvas-title erp-mobile-urgent-sheet__title" id="erp-mobile-urgent-call-title">
+      <i class="fas fa-bolt" aria-hidden="true"></i> 긴급 호출
+    </h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="긴급 호출 닫기"></button>
+  </div>
+  <div class="offcanvas-body erp-mobile-urgent-sheet__body">
+    <p class="erp-mobile-urgent-sheet__hint">호출할 담당자를 선택하고 사유를 남겨주세요.</p>
+    <div
+      class="erp-mobile-urgent-sheet__targets"
+      data-foms-urgent-targets
+      aria-live="polite"
+      aria-atomic="false">
+      <div class="erp-mobile-urgent-sheet__placeholder" data-foms-urgent-placeholder>
+        <div class="spinner-border spinner-border-sm text-primary" role="status"></div> 대상 불러오는 중...
+      </div>
+    </div>
+    <label class="erp-mobile-urgent-sheet__label" for="foms-urgent-call-message">사유 (선택 · 최대 500자)</label>
+    <textarea
+      class="form-control erp-mobile-urgent-sheet__message"
+      id="foms-urgent-call-message"
+      data-foms-urgent-message
+      maxlength="500"
+      rows="2"
+      placeholder="예: 도면 확인이 급히 필요합니다"></textarea>
+    <button type="button" class="erp-mobile-urgent-sheet__send" data-foms-urgent-send disabled>
+      <i class="fas fa-paper-plane" aria-hidden="true"></i> 긴급 호출 보내기
+    </button>
+  </div>
+</div>
