@@ -23,7 +23,18 @@ description: FOMS deploy veto — deploy 직후 ERP 느려짐 재발 차단 (/pe
 | G3 | sw-no-cache-fetch / sw-network-first-no-timeout | SW cache/timeout |
 | G4 | fragment-replayed-global-listener | unguarded global listener |
 
-Hot-path B-layer (new diff): `general-ilike`, `loop-db-query`, `shell-polling`, `shared-inline-script`.
+Hot-path B-layer (new diff): `general-ilike`, `loop-db-query`, `shell-polling`, `shared-inline-script`, `broad-cache-invalidation`.
+
+## 2026-07 감사 이식 규칙 (신규 4종)
+
+| rule | 잡는 것 | 근본 처방 |
+|------|--------|----------|
+| `fragment-multi-script` | `*scripts*.html` fragment 에 `<script src>` 2+ (셸 스왑마다 재실행) | entry singleton 1개로 통합(`erp-dashboard-entry.js`) |
+| `broad-cache-invalidation` | `invalidate_all_dashboard_slice_caches()` 통무효화(Tier A allowlist 제외) | 티어 무효화 helper(전 탭 miss 폭풍 차단) |
+| `jsonb-path-filter` | `structured_data[...]` + `.filter/.in_/cast` 무인덱스 path 필터 | flat sync 컬럼(`erp_stage_code`)+인덱스+EXPLAIN |
+| `mobile-queue-row-no-batch` | `build_mobile_queue_order_row(...)` batch_ctx 미전달 N+1 | `build_mobile_queue_batch_context` 후 batch_ctx 전달 |
+
+기존 부채는 `tools/perf/baseline_debt.json`에 격리 — guard는 net-new만 veto.
 
 ## Escapes (review required)
 

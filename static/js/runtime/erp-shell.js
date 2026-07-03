@@ -37,20 +37,30 @@
   var CACHE_MAX_ENTRIES = 28;
   var CACHE_TTL_MS = 5 * 60 * 1000;
   /**
-   * Mutation-sensitive surfaces (other users/devices change them between visits):
-   * shorter warm-cache freshness + revalidate-on-focus so a tab-switch back never
-   * serves a stale post-approve home. Full page reload already bypasses this cache.
+   * Mutation-sensitive surfaces (other users/devices change them between visits).
+   * 하트비트(HEARTBEAT_FRESH_MS=50s < 60s)가 만료 전에 항상 재프리페치하므로 사실상 영구 웜.
+   * 신선도는 A2 복귀-재수혈(refreshFreshTtlSurfaces)+서버 티어 무효화가 담당. 전체 리로드는 이 캐시 우회.
    */
-  var FRESH_TTL_MS = 30 * 1000;
+  var FRESH_TTL_MS = 60 * 1000;
   var FRESH_TTL_PATHS = [
     '/erp/dashboard',
-    // 실측: 날짜 민감(타 사용자·기기가 행을 바꿈)이라 짧은 warm TTL + focus/bfcache 재검증으로 신선도 유지.
+    // 실측: 날짜 민감(타 사용자·기기가 행을 바꿈). 하트비트로 만료 전 갱신 + focus/bfcache 재수혈로 신선도 유지.
     // (과거엔 NO_FRAGMENT_CACHE 로 매 스왑 refetch → 5.8s. 이제 fragment 안에 마크업만 남아 warm-cache 가능.)
     '/erp/measurement',
   ];
   var IDLE_PREFETCH_MAX = 3;
   var HOVER_DEBOUNCE_MS = 180;
   var IDLE_DELAY_MS = 1600;
+  /**
+   * 하트비트 재프리페치: 캐시가 식기 전에 주기 갱신해 "일정 시간 후 첫 클릭 느림(싱가포르 왕복)→
+   * 이후 빠름" 주기를 없앤다. primary 는 CACHE_TTL(5분)보다, fresh 는 FRESH_TTL(60s)보다 앞선다.
+   * visible + 최근 활동(HEARTBEAT_IDLE_CUTOFF_MS 이내)일 때만 도므로 방치 탭은 자동 정지.
+   */
+  var HEARTBEAT_PRIMARY_MS = 240 * 1000;
+  var HEARTBEAT_FRESH_MS = 50 * 1000;
+  var HEARTBEAT_IDLE_CUTOFF_MS = 10 * 60 * 1000;
+  /** 복귀(visibilitychange/pageshow) 재수혈 연타 방지 최소 간격. */
+  var FOCUS_REFRESH_MIN_GAP_MS = 15 * 1000;
   // 셸 warm-cache 를 강제로 건너뛸 경로. 현재는 없음(실측은 FRESH_TTL_PATHS 로 이동).
   var NO_FRAGMENT_CACHE_PATHS = [];
 
@@ -495,8 +505,13 @@
       });
   }
 
-  /** Prefetch only; fills warm cache (no DOM swap). */
-  function prefetchShellFragment(url) {
+  /**
+   * Prefetch only; fills warm cache (no DOM swap).
+   * @param {string} url
+   * @param {{ force?: boolean }} [opts] force=true 면 warm-hit skip 을 건너뛰고 refetch→cachePut 덮어쓰기
+   *   (하트비트/복귀 재수혈용). inflight dedup 은 항상 유지해 중복 요청을 막는다.
+   */
+  function prefetchShellFragment(url, opts) {
     var canonical = new URL(url, window.location.origin);
     if (!isShellFragmentSwapUrl(canonical.href)) {
       return;
@@ -505,7 +520,7 @@
       return;
     }
     var key = getCacheKey(canonical.href);
-    if (cacheGet(key)) {
+    if (!(opts && opts.force) && cacheGet(key)) {
       return;
     }
     if (inflightFetches[key]) {
@@ -516,6 +531,10 @@
     });
   }
 
+  /**
+   * 초기 웜업: 로드 후 1회, 가까운 primary 몇 개(IDLE_PREFETCH_MAX)만 프리페치해 초기 로드 부담을 피한다.
+   * 나머지 primary 와 이후 신선도 유지는 하트비트(runPrimaryHeartbeat/runFreshHeartbeat)가 곧 커버한다.
+   */
   function scheduleIdlePrimaryPrefetch() {
     var cur = pathOnly(window.location.href);
     var candidates = PRIMARY_NAV_PATHS.filter(function (p) {
@@ -688,9 +707,8 @@
   });
 
   /**
-   * Revalidate-on-focus: while this tab was hidden, another user/device may have
-   * mutated a mutation-sensitive surface (quest approve → stage change). Drop its
-   * warm cache so the next tab-switch back refetches instead of serving stale HTML.
+   * (레거시, 외부 API 호환용으로 노출) fresh 경로 warm 캐시를 삭제. 복귀 처리는 이제 삭제 대신
+   * refreshFreshTtlSurfaces(재수혈)를 쓴다 — 삭제하면 복귀 직후 첫 클릭이 싱가포르 왕복을 그대로 맞기 때문.
    */
   function invalidateFreshTtlSurfaces() {
     FRESH_TTL_PATHS.forEach(function (p) {
@@ -698,18 +716,105 @@
     });
   }
 
+  var lastFocusRefreshTs = 0;
+
+  /**
+   * Revalidate-on-focus (stale-while-refresh): 탭이 숨은 사이 타 사용자/기기가 mutation-sensitive
+   * 서페이스를 바꿨을 수 있다. 캐시를 **지우지 않고** fresh 경로를 force prefetch 로 백그라운드
+   * 덮어쓴다 → 복귀 직후 클릭은 즉시(구 캐시), ~1초 내 신선본으로 교체. 실패 시 구 캐시 유지(fail-open).
+   * 연타 방지: 마지막 재수혈로부터 FOCUS_REFRESH_MIN_GAP_MS 이내면 skip.
+   */
+  function refreshFreshTtlSurfaces() {
+    var now = Date.now();
+    if (now - lastFocusRefreshTs < FOCUS_REFRESH_MIN_GAP_MS) {
+      return;
+    }
+    lastFocusRefreshTs = now;
+    FRESH_TTL_PATHS.forEach(function (p) {
+      prefetchShellFragment(window.location.origin + p, { force: true });
+    });
+  }
+
   document.addEventListener('visibilitychange', function () {
     if (document.visibilityState === 'visible') {
-      invalidateFreshTtlSurfaces();
+      refreshFreshTtlSurfaces();
     }
   });
 
-  /* bfcache restore brings back the in-memory cache wholesale → drop fresh surfaces too. */
+  /* bfcache restore brings back the in-memory cache wholesale → 구 캐시를 신선본으로 재수혈. */
   window.addEventListener('pageshow', function (e) {
     if (e && e.persisted) {
-      invalidateFreshTtlSurfaces();
+      refreshFreshTtlSurfaces();
     }
   });
+
+  /**
+   * 하트비트: 캐시가 만료되기 전에 주기적으로 재프리페치해 warm 캐시 "약효"를 유지한다.
+   * visible + 최근 활동일 때만 도므로 방치 탭(HEARTBEAT_IDLE_CUTOFF_MS 무활동)은 자동 정지,
+   * 활동 재개 시 다음 tick 에 재개(+ 재개 순간 캐시가 식었으면 즉시 1회 refresh).
+   */
+  var lastActivityTs = Date.now();
+  var lastPrimaryHeartbeatTs = 0;
+  var lastFreshHeartbeatTs = 0;
+
+  function heartbeatActive() {
+    return (
+      document.visibilityState === 'visible' &&
+      Date.now() - lastActivityTs < HEARTBEAT_IDLE_CUTOFF_MS
+    );
+  }
+
+  /** primary 9 nav(현재 경로 제외)을 force refresh — 만료 전 웜 유지. */
+  function runPrimaryHeartbeat() {
+    lastPrimaryHeartbeatTs = Date.now();
+    var cur = pathOnly(window.location.href);
+    PRIMARY_NAV_PATHS.forEach(function (p) {
+      if (p === cur) {
+        return;
+      }
+      prefetchShellFragment(window.location.origin + p, { force: true });
+    });
+  }
+
+  /** fresh 경로만 force refresh — FRESH_TTL(60s) 앞선 50s 주기로 항상 웜. */
+  function runFreshHeartbeat() {
+    lastFreshHeartbeatTs = Date.now();
+    FRESH_TTL_PATHS.forEach(function (p) {
+      prefetchShellFragment(window.location.origin + p, { force: true });
+    });
+  }
+
+  function onShellActivity() {
+    var now = Date.now();
+    var wasIdle = now - lastActivityTs >= HEARTBEAT_IDLE_CUTOFF_MS;
+    lastActivityTs = now;
+    // 방치 후 활동 재개: 캐시가 식어있으면(마지막 하트비트 경과 > 주기) 다음 tick 을 기다리지 않고 즉시 1회.
+    if (!wasIdle || document.visibilityState !== 'visible') {
+      return;
+    }
+    if (now - lastFreshHeartbeatTs >= HEARTBEAT_FRESH_MS) {
+      runFreshHeartbeat();
+    }
+    if (now - lastPrimaryHeartbeatTs >= HEARTBEAT_PRIMARY_MS) {
+      runPrimaryHeartbeat();
+    }
+  }
+
+  ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(function (evt) {
+    document.addEventListener(evt, onShellActivity, { passive: true, capture: true });
+  });
+
+  window.setInterval(function () {
+    if (heartbeatActive()) {
+      runPrimaryHeartbeat();
+    }
+  }, HEARTBEAT_PRIMARY_MS);
+
+  window.setInterval(function () {
+    if (heartbeatActive()) {
+      runFreshHeartbeat();
+    }
+  }, HEARTBEAT_FRESH_MS);
 
   if (typeof window.requestIdleCallback === 'function') {
     window.requestIdleCallback(
@@ -734,5 +839,7 @@
     window.FOMS_ERP_SHELL.beginShellNavigationPending = beginShellNavigationPending;
     window.FOMS_ERP_SHELL.invalidateFragmentCache = invalidateFragmentCache;
     window.FOMS_ERP_SHELL.invalidatePrimaryNavFragmentCache = invalidatePrimaryNavFragmentCache;
+    window.FOMS_ERP_SHELL.invalidateFreshTtlSurfaces = invalidateFreshTtlSurfaces;
+    window.FOMS_ERP_SHELL.refreshFreshTtlSurfaces = refreshFreshTtlSurfaces;
   }
 })();

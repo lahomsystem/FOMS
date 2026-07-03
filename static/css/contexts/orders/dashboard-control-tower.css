@@ -121,9 +121,13 @@
 }
 [data-foms-day-ops-list].is-loading { opacity: .5; transition: opacity .12s ease; }
 
-/* 헤더 '내작업' 토글 활성 */
-.erp-mobile-shell-header__mytasks.is-active { color: var(--foms-color-brand-600); }
-.erp-mobile-shell-header__mytasks.is-active i { color: var(--foms-color-brand-600); }
+/* 헤더 '내작업' 토글 활성 — 눈에 확 띄게 채워진 강조 배지 */
+.erp-mobile-shell-header__mytasks.is-active {
+  background: #ff6a00;
+  color: #fff;
+  box-shadow: 0 0 0 2px rgba(255, 106, 0, .35);
+}
+.erp-mobile-shell-header__mytasks.is-active i { color: #fff; }
 
 /* (B) 오늘의 현장 */
 .foms-tower__field-list { display: grid; gap: var(--foms-space-2); }

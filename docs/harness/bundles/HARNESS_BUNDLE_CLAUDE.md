@@ -129,6 +129,9 @@ Web exploration and manual QA still use Cursor browser MCP. Repeatable smoke/QA 
 
 # FOMS 프로젝트 - Claude Code 규칙
 
+## 응답 규칙 (절대)
+- **완료 보고는 무조건 한글로 작성한다.** 작업 결과 요약·검증 결과·다음 단계 안내 등 사용자에게 보고하는 모든 문장은 한글. (코드·커밋 메시지·명령어는 예외)
+
 ## 하네스 정책 단일 기준 (Cursor · Claude · Codex)
 
 - **공통 기준선**: 루트 `AGENTS.md`가 모든 도구에 공유되는 정책이다. 본 파일은 Claude Code 세션 보강이며, 충돌 시 `AGENTS.md`가 우선한다.

@@ -60,6 +60,8 @@ L4  production 전: perf-audit + --radar + staging TTFB/EXPLAIN/Chrome SW
 3. **Chrome SW** — 헤드리스 금지
 4. **탭 전환** — fragment swap 10회 (모바일 shell)
 
+**deploy vs production 비교:** [`DEPLOY_PRODUCTION_STRESS_TEST.md`](DEPLOY_PRODUCTION_STRESS_TEST.md) · `scripts/ops/compare_deploy_production_stress.ps1`
+
 ## CLI
 
 ```powershell

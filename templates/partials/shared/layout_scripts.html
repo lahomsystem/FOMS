@@ -62,6 +62,10 @@
     <script src="{{ url_for('static', filename='js/foms/photo-capture.js') }}?v=20260529a" defer></script>
 <script src="{{ url_for('static', filename='js/foms/visual-viewport.js') }}?v=20260529c" defer></script>
 <script src="{{ url_for('static', filename='js/foms/theme.js') }}?v=20260626d" defer></script>
+{# PWA service worker 등록(전 페이지, 데스크톱 포함) — 데스크톱 full page load의 css/js
+   재검증을 SW staticCacheFirst가 흡수하도록 전역 로드. A2HS 설치 배너는 스크립트 내부
+   [data-erp-mobile-shell] 게이트로 모바일 shell 한정 유지(동작 무변경). #}
+<script src="{{ url_for('static', filename='js/foms/a2hs-prompt.js') }}?v=20260703a" defer></script>
 <script src="{{ url_for('static', filename='js/components/foms-mobile-select.js') }}?v=20260607a" defer></script>
 {% if flag_rum_baseline %}
 <script src="{{ url_for('static', filename='js/foms/rum-baseline.js') }}?v=20260530a" defer></script>
@@ -1634,6 +1638,6 @@
     {% endif %}
     {% if request.path.startswith('/erp/') %}
     <script src="{{ url_for('static', filename='js/foms/erp-mine-only.js') }}" defer></script>
-    <script src="{{ url_for('static', filename='js/runtime/erp-shell.js') }}?v=20260630c" defer></script>
+    <script src="{{ url_for('static', filename='js/runtime/erp-shell.js') }}?v=20260703a" defer></script>
     <script src="{{ url_for('static', filename='js/orders/erp-dashboard-entry.js') }}?v=20260630c" defer></script>
     {% endif %}

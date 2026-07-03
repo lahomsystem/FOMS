@@ -4,11 +4,53 @@
 
 ## 최근 세션
 
-### Session: 28954252
-- **시작**: 2026-07-01 13:09:19
+### Session: ae427869
+- **시작**: 2026-07-03 19:32:38
+- **상태**: 진행중
+- **편집 파일**: (기록 중)
+- **종료**: -
+
+ 003f8455
+- **시작**: 2026-07-03 15:54:36
+- **상태**: unknown
+- **편집 파일**: (없음)
+- **종료**: 2026-07-03 16:20:37
+
+ 5dac2650
+- **시작**: 2026-07-03 15:14:50
 - **상태**: completed
-- **편집 파일**: `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-819b6369-cd0b-464b-8076-78819f0a29c5.png`, `commit_msg.txt`, `foms/services/order_attachment_permissions.py`, `tests/domains/test_order_attachment_permissions.py`, `static/js/cs/as-dashboard.js`, `templates/construction/partials/scripts.html`, `foms/api/files/order_routes.py`, `static/js/orders/erp-order-shared.js`, `tests/domains/test_erp_order_shared_form_scripts.py`, `templates/orders/partials/erp_order_js.html`
-- **종료**: 2026-07-01 14:26:54
+- **편집 파일**: `commit_msg.txt`, `templates/measurement/map_view.html`, `_commit_msg_estimate_push.txt`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-5b070b10-e1cf-4aea-88c5-38875d498d53.png`, `tests/domains/test_erp_order_shared_form_scripts.py`, `templates/orders/partials/erp_order_js.html`, `tests/domains/test_channel_integration_smoke.py`, `foms/api/channel/channel_integration.py`, `static/js/orders/estimate-preview.js`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-f7742472-d5d0-4666-a284-f50e1f9104b9.png`
+- **종료**: 2026-07-03 15:28:28
+
+ d8c762dd
+- **시작**: 2026-07-03 14:19:00
+- **상태**: unknown
+- **편집 파일**: (없음)
+- **종료**: 2026-07-03 14:36:12
+
+ f4bfc227
+- **시작**: 2026-07-02 22:24:20
+- **상태**: completed
+- **편집 파일**: `commit_msg_badge_css_fix.txt`, `tests/domains/test_erp_measurement_mobile_render.py`, `static/css/foundation/erp-pro.css`, `static/css/contexts/orders/erp-order-measurement-panel.css`, `templates/measurement/partials/dashboard_main.html`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-d3f373f2-91e7-4e71-89d7-371df8092df9.png`, `commit_msg_segmented_counts.txt`, `tests/domains/test_erp_measurement_manager_sync.py`, `tests/visual/test_scheduler_panel_compact.py`, `tests/domains/test_erp_mobile_layout_and_shipment.py`
+- **종료**: 2026-07-02 22:53:31
+
+ 52f3fa4f
+- **시작**: 2026-07-02 16:09:47
+- **상태**: unknown
+- **편집 파일**: `foms/services/measurement_read_model.py`, `commit_msg_regional_measurement.txt`, `foms/web/measurement/dashboard.py`, `tests/domains/test_erp_measurement_mobile_render.py`, `foms/services/map_snapshot.py`, `foms/api/erp_map.py`, `foms/api/measurement/routes.py`
+- **종료**: 2026-07-02 22:20:07
+
+ 5e241a2a
+- **시작**: 2026-07-02 09:51:05
+- **상태**: unknown
+- **편집 파일**: `commit_msg.txt`, `foms/web/measurement/dashboard.py`, `foms/services/measurement_read_model.py`, `foms/web/drawing/workbench.py`, `foms/services/drawing_workbench_read_model.py`, `tests/domains/test_drawing_workbench_read_model.py`, `tests/domains/test_measurement_main_rows_cache.py`, `tests/domains/test_dashboard_cache.py`, `foms/web/production/dashboard.py`, `foms/services/common/dashboard_cache.py`
+- **종료**: 2026-07-02 13:35:26
+
+ 28954252
+- **시작**: 2026-07-01 13:09:19
+- **상태**: unknown
+- **편집 파일**: `commit_msg.txt`, `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-819b6369-cd0b-464b-8076-78819f0a29c5.png`, `foms/services/order_attachment_permissions.py`, `tests/domains/test_order_attachment_permissions.py`, `static/js/cs/as-dashboard.js`, `templates/construction/partials/scripts.html`, `foms/api/files/order_routes.py`, `static/js/orders/erp-order-shared.js`, `tests/domains/test_erp_order_shared_form_scripts.py`, `templates/orders/partials/erp_order_js.html`
+- **종료**: 2026-07-01 23:25:29
 
  b3b8e642
 - **시작**: 2026-07-01 10:33:49
@@ -1195,3 +1237,293 @@
 | 2026-07-01 14:21:55 | END (Claude Code) | 수정: (없음) |
 
 | 2026-07-01 14:26:54 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 23:28:47 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 23:29:22 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 23:30:25 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 23:31:53 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 23:32:48 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 23:34:40 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 23:39:30 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 23:43:35 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 23:43:55 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-01 23:51:41 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 00:04:35 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 00:06:05 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 00:10:30 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 00:16:16 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 09:17:17 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 09:52:28 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 09:54:19 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 09:54:19 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 10:14:21 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 10:15:07 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 10:16:09 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 10:16:24 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 10:32:39 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 11:01:48 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 11:08:23 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 11:16:19 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 11:43:21 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 11:48:20 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 11:56:58 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 12:02:16 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 12:16:51 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 12:18:53 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 12:29:11 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 12:51:45 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 13:05:36 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 13:14:19 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 13:18:02 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 13:46:06 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 14:04:29 | END (Claude Code) | 수정: railway.toml, start.sh, predeploy.sh, foms/platform/blueprints.py, foms/api/health.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_perception_vs_infra_tail.md |
+
+| 2026-07-02 14:07:57 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 14:09:03 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 14:13:45 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 14:16:05 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 14:20:33 | END (Claude Code) | 수정: ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_perception_vs_infra_tail.md |
+
+| 2026-07-02 14:20:44 | END (Claude Code) | 수정: ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_perception_vs_infra_tail.md |
+
+| 2026-07-02 14:25:18 | END (Claude Code) | 수정: ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_perception_vs_infra_tail.md |
+
+| 2026-07-02 14:27:08 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 14:29:13 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 14:30:41 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 14:35:03 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 14:36:39 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 14:39:37 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 14:45:29 | END (Claude Code) | 수정: ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md |
+
+| 2026-07-02 15:09:28 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/foms-perfdef/tests/domains/test_dashboard_cache.py, ../../../../../../AppData/Local/Temp/foms-perfdef/wdcalculator_db.py, ../../../../../../AppData/Local/Temp/foms-perfdef/foms/services/common/dashboard_cache.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md |
+
+| 2026-07-02 15:10:47 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/foms-perfdef/tests/domains/test_dashboard_cache.py, ../../../../../../AppData/Local/Temp/foms-perfdef/wdcalculator_db.py, ../../../../../../AppData/Local/Temp/foms-perfdef/foms/services/common/dashboard_cache.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md |
+
+| 2026-07-02 15:26:58 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/foms-perfdef/tests/domains/test_dashboard_cache.py, ../../../../../../AppData/Local/Temp/foms-perfdef/wdcalculator_db.py, ../../../../../../AppData/Local/Temp/foms-perfdef/foms/services/common/dashboard_cache.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md |
+
+| 2026-07-02 15:31:09 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/foms-perfdef/tests/domains/test_dashboard_cache.py, ../../../../../../AppData/Local/Temp/foms-perfdef/wdcalculator_db.py, ../../../../../../AppData/Local/Temp/foms-perfdef/foms/services/common/dashboard_cache.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md |
+
+| 2026-07-02 15:38:37 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/foms-perfdef/tests/domains/test_dashboard_cache.py, ../../../../../../AppData/Local/Temp/foms-perfdef/wdcalculator_db.py, ../../../../../../AppData/Local/Temp/foms-perfdef/foms/services/common/dashboard_cache.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md |
+
+| 2026-07-02 15:40:47 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/foms-perfdef/tests/domains/test_dashboard_cache.py, ../../../../../../AppData/Local/Temp/foms-perfdef/wdcalculator_db.py, ../../../../../../AppData/Local/Temp/foms-perfdef/foms/services/common/dashboard_cache.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md |
+
+| 2026-07-02 15:42:31 | END (Claude Code) | 수정: ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_perception_vs_infra_tail.md, ../../../../../../AppData/Local/Temp/foms-perfdef/tests/domains/test_dashboard_cache.py, ../../../../../../AppData/Local/Temp/foms-perfdef/wdcalculator_db.py, ../../../../../../AppData/Local/Temp/foms-perfdef/foms/services/common/dashboard_cache.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md |
+
+| 2026-07-02 15:47:39 | END (Claude Code) | 수정: ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_perception_vs_infra_tail.md, ../../../../../../AppData/Local/Temp/foms-perfdef/tests/domains/test_dashboard_cache.py, ../../../../../../AppData/Local/Temp/foms-perfdef/wdcalculator_db.py, ../../../../../../AppData/Local/Temp/foms-perfdef/foms/services/common/dashboard_cache.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md |
+
+| 2026-07-02 16:01:50 | END (Claude Code) | 수정: ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_perception_vs_infra_tail.md, ../../../../../../AppData/Local/Temp/foms-perfdef/tests/domains/test_dashboard_cache.py, ../../../../../../AppData/Local/Temp/foms-perfdef/wdcalculator_db.py, ../../../../../../AppData/Local/Temp/foms-perfdef/foms/services/common/dashboard_cache.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md |
+
+| 2026-07-02 16:25:05 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 16:32:37 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 22:28:29 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 22:35:45 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 22:36:24 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 22:47:22 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 22:53:31 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 23:17:00 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-02 23:28:02 | END (Claude Code) | 수정: ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-02 23:39:19 | END (Claude Code) | 수정: ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-02 23:47:24 | END (Claude Code) | 수정: ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-02 23:51:36 | END (Claude Code) | 수정: ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-02 23:56:46 | END (Claude Code) | 수정: ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-03 00:00:34 | END (Claude Code) | 수정: ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-03 08:44:25 | END (Claude Code) | 수정: ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-03 08:55:04 | END (Claude Code) | 수정: ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-03 08:58:14 | END (Claude Code) | 수정: ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-03 10:20:00 | END (Claude Code) | 수정: ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/MEMORY.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_skill_false_regression.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-03 10:22:38 | END (Claude Code) | 수정: ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/MEMORY.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_skill_false_regression.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-03 10:26:29 | END (Claude Code) | 수정: tools/perf/perf_scan.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/MEMORY.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_skill_false_regression.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-03 10:33:44 | END (Claude Code) | 수정: tools/perf/perf_scan.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/MEMORY.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_skill_false_regression.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-03 10:39:58 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_msg.txt, tools/perf/perf_scan.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/MEMORY.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_skill_false_regression.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-03 10:41:43 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_msg.txt, tools/perf/perf_scan.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/MEMORY.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_skill_false_regression.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-03 10:44:32 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_msg.txt, tools/perf/perf_scan.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/MEMORY.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_skill_false_regression.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-03 10:59:20 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_msg.txt, tools/perf/perf_scan.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/MEMORY.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_skill_false_regression.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-03 11:01:53 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_msg.txt, tools/perf/perf_scan.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/MEMORY.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_skill_false_regression.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-03 11:03:53 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_msg.txt, tools/perf/perf_scan.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/MEMORY.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_skill_false_regression.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-03 11:09:45 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_msg.txt, tools/perf/perf_scan.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/MEMORY.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_skill_false_regression.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-03 11:13:11 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_msg.txt, tools/perf/perf_scan.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/MEMORY.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_skill_false_regression.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-03 11:20:22 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_msg.txt, tools/perf/perf_scan.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/MEMORY.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_skill_false_regression.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-03 11:35:22 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_msg.txt, tools/perf/perf_scan.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/MEMORY.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_skill_false_regression.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-03 11:37:39 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_msg.txt, tools/perf/perf_scan.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/MEMORY.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_skill_false_regression.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-03 11:52:08 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_msg.txt, tools/perf/perf_scan.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/MEMORY.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_skill_false_regression.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-03 11:59:23 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_msg.txt, tools/perf/perf_scan.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/MEMORY.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_skill_false_regression.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-03 12:07:02 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_msg.txt, tools/perf/perf_scan.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/MEMORY.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_skill_false_regression.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-03 12:17:31 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_msg.txt, tools/perf/perf_scan.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/MEMORY.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_skill_false_regression.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-03 12:26:42 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_msg.txt, tools/perf/perf_scan.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/MEMORY.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_skill_false_regression.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-03 12:44:20 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_msg.txt, tools/perf/perf_scan.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/MEMORY.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_skill_false_regression.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-03 12:48:47 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_msg.txt, tools/perf/perf_scan.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/MEMORY.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_skill_false_regression.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-03 12:50:13 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_msg.txt, tools/perf/perf_scan.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/MEMORY.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_skill_false_regression.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-03 12:54:11 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_msg.txt, tools/perf/perf_scan.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/MEMORY.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_skill_false_regression.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-03 13:02:03 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_msg.txt, tools/perf/perf_scan.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/MEMORY.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_skill_false_regression.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-03 13:03:00 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_msg.txt, tools/perf/perf_scan.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/MEMORY.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_skill_false_regression.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-03 13:03:39 | END (Claude Code) | 수정: ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/MEMORY.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/feedback_advisor_worker_split.md, ../../../../../../.claude/CLAUDE.md, ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_msg.txt, tools/perf/perf_scan.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_skill_false_regression.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-03 13:07:49 | END (Claude Code) | 수정: ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_audit_2026_07_verified.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/MEMORY.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/feedback_advisor_worker_split.md, ../../../../../../.claude/CLAUDE.md, ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_msg.txt, tools/perf/perf_scan.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_skill_false_regression.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-03 13:18:34 | END (Claude Code) | 수정: ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_audit_2026_07_verified.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/MEMORY.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/feedback_advisor_worker_split.md, ../../../../../../.claude/CLAUDE.md, ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_msg.txt, tools/perf/perf_scan.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_skill_false_regression.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-03 13:25:21 | END (Claude Code) | 수정: ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_audit_2026_07_verified.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/MEMORY.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/feedback_advisor_worker_split.md, ../../../../../../.claude/CLAUDE.md, ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_msg.txt, tools/perf/perf_scan.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_skill_false_regression.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-03 13:36:02 | END (Claude Code) | 수정: ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_audit_2026_07_verified.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/MEMORY.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/feedback_advisor_worker_split.md, ../../../../../../.claude/CLAUDE.md, ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_msg.txt, tools/perf/perf_scan.py, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_skill_false_regression.md, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_tail_spike_network_rca.md, ../../../../../../AppData/Local/Temp/foms-ttl/foms/services/common/dashboard_cache.py |
+
+| 2026-07-03 13:48:42 | END (Claude Code) | 수정: tests/domains/test_erp_runtime_shell_js_contract.py, tests/performance/test_page_local_defer_contract.py, static/js/runtime/erp-shell.js, static/js/measurement/dashboard-columns.js, static/js/measurement/image-export.js, static/js/measurement/manual-rows.js, static/js/measurement/mobile.js, static/js/measurement/dashboard.js, templates/measurement/partials/dashboard_scripts.html, static/js/measurement/measurement-entry.js |
+
+| 2026-07-03 13:52:39 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_plan.txt, ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_w1.txt, tests/domains/test_erp_runtime_shell_js_contract.py, tests/performance/test_page_local_defer_contract.py, static/js/runtime/erp-shell.js, static/js/measurement/dashboard-columns.js, static/js/measurement/image-export.js, static/js/measurement/manual-rows.js, static/js/measurement/mobile.js, static/js/measurement/dashboard.js |
+
+| 2026-07-03 13:56:15 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_plan.txt, ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_w1.txt, tests/domains/test_erp_runtime_shell_js_contract.py, tests/performance/test_page_local_defer_contract.py, static/js/runtime/erp-shell.js, static/js/measurement/dashboard-columns.js, static/js/measurement/image-export.js, static/js/measurement/manual-rows.js, static/js/measurement/mobile.js, static/js/measurement/dashboard.js |
+
+| 2026-07-03 13:58:11 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_plan.txt, ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_w1.txt, tests/domains/test_erp_runtime_shell_js_contract.py, tests/performance/test_page_local_defer_contract.py, static/js/runtime/erp-shell.js, static/js/measurement/dashboard-columns.js, static/js/measurement/image-export.js, static/js/measurement/manual-rows.js, static/js/measurement/mobile.js, static/js/measurement/dashboard.js |
+
+| 2026-07-03 14:02:03 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/map_drain.js, ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_plan.txt, ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_w1.txt, tests/domains/test_erp_runtime_shell_js_contract.py, tests/performance/test_page_local_defer_contract.py, static/js/runtime/erp-shell.js, static/js/measurement/dashboard-columns.js, static/js/measurement/image-export.js, static/js/measurement/manual-rows.js, static/js/measurement/mobile.js |
+
+| 2026-07-03 14:06:11 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/map_drain.js, ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_plan.txt, ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_w1.txt, tests/domains/test_erp_runtime_shell_js_contract.py, tests/performance/test_page_local_defer_contract.py, static/js/runtime/erp-shell.js, static/js/measurement/dashboard-columns.js, static/js/measurement/image-export.js, static/js/measurement/manual-rows.js, static/js/measurement/mobile.js |
+
+| 2026-07-03 14:19:03 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_backfill.txt, scripts/maintenance/geocode_backfill.py, ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/map_drain.js, ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_plan.txt, ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_w1.txt, tests/domains/test_erp_runtime_shell_js_contract.py, tests/performance/test_page_local_defer_contract.py, static/js/runtime/erp-shell.js, static/js/measurement/dashboard-columns.js, static/js/measurement/image-export.js |
+
+| 2026-07-03 14:27:14 | END (Claude Code) | 수정: foms/web/measurement/dashboard.py, foms/web/orders/dashboard.py, foms/api/erp_orders_structured.py, foms/api/quest.py, foms/api/cs/as_orders.py, foms/api/shipment/recommendations.py, foms/api/shipment/settings.py, foms/api/drawing/erp_orders_draftsman.py, foms/api/drawing/erp_orders_drawing.py, foms/services/orders/mobile_queue_action.py |
+
+| 2026-07-03 14:28:44 | END (Claude Code) | 수정: tests/domains/test_measurement_mobile_queue_query_count.py, tests/domains/test_dashboard_cache_invalidation_scope.py, foms/web/measurement/dashboard.py, foms/web/orders/dashboard.py, foms/api/erp_orders_structured.py, foms/api/quest.py, foms/api/cs/as_orders.py, foms/api/shipment/recommendations.py, foms/api/shipment/settings.py, foms/api/drawing/erp_orders_draftsman.py |
+
+| 2026-07-03 14:34:05 | END (Claude Code) | 수정: tests/domains/test_measurement_mobile_queue_query_count.py, tests/domains/test_dashboard_cache_invalidation_scope.py, foms/web/measurement/dashboard.py, foms/web/orders/dashboard.py, foms/api/erp_orders_structured.py, foms/api/quest.py, foms/api/cs/as_orders.py, foms/api/shipment/recommendations.py, foms/api/shipment/settings.py, foms/api/drawing/erp_orders_draftsman.py |
+
+| 2026-07-03 14:42:22 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_w2.txt, tests/domains/test_dashboard_cache_invalidation_scope.py, foms/services/common/dashboard_cache.py, foms/api/orders/field_update.py, tests/domains/test_measurement_mobile_queue_query_count.py, foms/web/measurement/dashboard.py, foms/web/orders/dashboard.py, foms/api/erp_orders_structured.py, foms/api/quest.py, foms/api/cs/as_orders.py |
+
+| 2026-07-03 14:49:41 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_w2.txt, tests/domains/test_dashboard_cache_invalidation_scope.py, foms/services/common/dashboard_cache.py, foms/api/orders/field_update.py, tests/domains/test_measurement_mobile_queue_query_count.py, foms/web/measurement/dashboard.py, foms/web/orders/dashboard.py, foms/api/erp_orders_structured.py, foms/api/quest.py, foms/api/cs/as_orders.py |
+
+| 2026-07-03 14:52:57 | END (Claude Code) | 수정: foms/services/production_read_model.py |
+
+| 2026-07-03 15:03:02 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-03 15:06:55 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-03 15:09:30 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-03 15:28:28 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-03 15:54:08 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-03 15:56:46 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-03 15:58:19 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-03 16:02:44 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-03 16:07:49 | END (Claude Code) | 수정: (없음) |
+
+| 2026-07-03 16:17:12 | END (Claude Code) | 수정: static/css/contexts/orders/dashboard-control-tower.css, templates/partials/shared/erp_mobile_shell_header.html, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_audit_2026_07_verified.md, ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_skill.txt, tests/performance/test_perf_scan.py, tools/perf/perf_scan.py |
+
+| 2026-07-03 16:17:35 | END (Claude Code) | 수정: static/css/contexts/orders/dashboard-control-tower.css, templates/partials/shared/erp_mobile_shell_header.html, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_audit_2026_07_verified.md, ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_skill.txt, tests/performance/test_perf_scan.py, tools/perf/perf_scan.py |
+
+| 2026-07-03 16:18:31 | END (Claude Code) | 수정: CLAUDE.md, static/css/contexts/orders/dashboard-control-tower.css, templates/partials/shared/erp_mobile_shell_header.html, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_audit_2026_07_verified.md, ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_skill.txt, tests/performance/test_perf_scan.py, tools/perf/perf_scan.py |
+
+| 2026-07-03 16:20:56 | END (Claude Code) | 수정: CLAUDE.md, static/css/contexts/orders/dashboard-control-tower.css, templates/partials/shared/erp_mobile_shell_header.html, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_audit_2026_07_verified.md, ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_skill.txt, tests/performance/test_perf_scan.py, tools/perf/perf_scan.py |
+
+| 2026-07-03 16:23:16 | END (Claude Code) | 수정: CLAUDE.md, static/css/contexts/orders/dashboard-control-tower.css, templates/partials/shared/erp_mobile_shell_header.html, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_audit_2026_07_verified.md, ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_skill.txt, tests/performance/test_perf_scan.py, tools/perf/perf_scan.py |
+
+| 2026-07-03 16:34:37 | END (Claude Code) | 수정: CLAUDE.md, static/css/contexts/orders/dashboard-control-tower.css, templates/partials/shared/erp_mobile_shell_header.html, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_audit_2026_07_verified.md, ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_skill.txt, tests/performance/test_perf_scan.py, tools/perf/perf_scan.py |
+
+| 2026-07-03 16:47:45 | END (Claude Code) | 수정: CLAUDE.md, static/css/contexts/orders/dashboard-control-tower.css, templates/partials/shared/erp_mobile_shell_header.html, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_audit_2026_07_verified.md, ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_skill.txt, tests/performance/test_perf_scan.py, tools/perf/perf_scan.py |
+
+| 2026-07-03 16:53:53 | END (Claude Code) | 수정: tests/domains/test_erp_runtime_shell_js_contract.py, static/js/runtime/erp-shell.js, CLAUDE.md, static/css/contexts/orders/dashboard-control-tower.css, templates/partials/shared/erp_mobile_shell_header.html, ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_audit_2026_07_verified.md, ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_skill.txt, tests/performance/test_perf_scan.py, tools/perf/perf_scan.py |
+
+| 2026-07-03 17:05:10 | END (Claude Code) | 수정: tests/performance/test_static_cache_headers.py, templates/partials/shared/layout_scripts.html, templates/partials/shared/foms_p2_surface_bundle.html, static/js/foms/a2hs-prompt.js, templates/partials/shared/layout_head.html, static/css/foundation/foms-mobile-surfaces.css, static/css/foundation/erp-pro/01-intro-tokens.css, static/css/foundation/erp-pro.css, tests/domains/test_erp_runtime_shell_js_contract.py, static/js/runtime/erp-shell.js |
+
+| 2026-07-03 17:11:35 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_w4.txt, static/sw.js, templates/partials/shared/layout_scripts.html, tests/performance/test_static_cache_headers.py, templates/partials/shared/foms_p2_surface_bundle.html, static/js/foms/a2hs-prompt.js, templates/partials/shared/layout_head.html, static/css/foundation/foms-mobile-surfaces.css, static/css/foundation/erp-pro/01-intro-tokens.css, static/css/foundation/erp-pro.css |
+
+| 2026-07-03 17:12:41 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_w4.txt, static/sw.js, templates/partials/shared/layout_scripts.html, tests/performance/test_static_cache_headers.py, templates/partials/shared/foms_p2_surface_bundle.html, static/js/foms/a2hs-prompt.js, templates/partials/shared/layout_head.html, static/css/foundation/foms-mobile-surfaces.css, static/css/foundation/erp-pro/01-intro-tokens.css, static/css/foundation/erp-pro.css |
+
+| 2026-07-03 17:16:34 | END (Claude Code) | 수정: ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_w4.txt, static/sw.js, templates/partials/shared/layout_scripts.html, tests/performance/test_static_cache_headers.py, templates/partials/shared/foms_p2_surface_bundle.html, static/js/foms/a2hs-prompt.js, templates/partials/shared/layout_head.html, static/css/foundation/foms-mobile-surfaces.css, static/css/foundation/erp-pro/01-intro-tokens.css, static/css/foundation/erp-pro.css |
+
+| 2026-07-03 17:19:34 | END (Claude Code) | 수정: ../../../../../../.claude/projects/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/memory/project_perf_audit_2026_07_verified.md, ../../../../../../AppData/Local/Temp/claude/c--Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/f6208198-bc36-4a6a-9f58-4c9428db7ae0/scratchpad/commit_w4.txt, static/sw.js, templates/partials/shared/layout_scripts.html, tests/performance/test_static_cache_headers.py, templates/partials/shared/foms_p2_surface_bundle.html, static/js/foms/a2hs-prompt.js, templates/partials/shared/layout_head.html, static/css/foundation/foms-mobile-surfaces.css, static/css/foundation/erp-pro/01-intro-tokens.css |

@@ -1,22 +1,20 @@
 # Context Compact Checkpoint
 
 > **경고**: 컨텍스트 압축이 발생했습니다. 이 파일을 읽어 이전 작업을 복원하세요.
-> 생성 시각: 2026-07-01 14:17:10
-> 세션: 28954252
+> 생성 시각: 2026-07-03 15:11:14
+> 세션: df5a23fa
 
 ## 압축 직전 상태
 
 ### 최근 편집된 파일
-- `commit_msg.txt` <- 1 edit(s), ~136 chars (2026-07-01 14:06:20)
-- `foms/services/order_attachment_permissions.py` <- 1 edit(s), ~156 chars (2026-07-01 14:05:25)
-- `tests/domains/test_order_attachment_permissions.py` <- 1 edit(s), ~7422 chars (2026-07-01 14:05:00)
-- `tests/domains/test_order_attachment_permissions.py` <- 1 edit(s), ~75 chars (2026-07-01 14:04:46)
-- `tests/domains/test_order_attachment_permissions.py` <- 1 edit(s), ~32 chars (2026-07-01 14:04:35)
-- `static/js/cs/as-dashboard.js` <- 1 edit(s), ~126 chars (2026-07-01 14:04:24)
-- `static/js/cs/as-dashboard.js` <- 2 edit(s), ~96 chars (2026-07-01 14:04:22)
-- `static/js/cs/as-dashboard.js` <- 1 edit(s), ~94 chars (2026-07-01 14:04:20)
-- `templates/construction/partials/scripts.html` <- 1 edit(s), ~34 chars (2026-07-01 14:04:15)
-- `templates/construction/partials/scripts.html` <- 3 edit(s), ~447 chars (2026-07-01 14:04:03)
+- `static/js/orders/estimate-preview.js` <- 1 edit(s), ~489 chars (2026-07-03 15:11:12)
+- `C:/Users/USER/.cursor/projects/c-Users-USER-OneDrive-Desktop-SY-program-lahomproject-FOMS/assets/c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-f7742472-d5d0-4666-a284-f50e1f9104b9.png` <- 1 edit(s), ~0 chars (2026-07-03 15:09:31)
+- `tests/domains/test_erp_orders_structured_put.py` <- 1 edit(s), ~91 chars (2026-07-03 15:07:06)
+- `tests/domains/test_erp_orders_structured_put.py` <- 1 edit(s), ~86 chars (2026-07-03 15:06:57)
+- `tests/domains/test_erp_order_shared_form_scripts.py` <- 1 edit(s), ~54 chars (2026-07-03 15:06:48)
+- `tests/domains/test_erp_order_shared_form_scripts.py` <- 1 edit(s), ~36 chars (2026-07-03 15:06:41)
+- `tests/domains/test_erp_order_shared_form_scripts.py` <- 1 edit(s), ~62 chars (2026-07-03 15:06:33)
+- `templates/orders/partials/erp_order_js.html` <- 1 edit(s), ~107 chars (2026-07-03 15:06:26)
 
 ### 진행 중이던 작업
 - [2026-04-17] **ERP fast-page `EPT-B8`:** run record `docs/plans/2026-04-17-ept-b8-verification-railway-evidence-run-record.md` — 로컬 게이트 완료; staging HTTP 하네스로 **§4 표·§5** 부분 채움; **closeout** 은 deploy ID·§6 모드·hard stop 조건 충족 후.
