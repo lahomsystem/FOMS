@@ -1,17 +1,22 @@
-@import url("erp-pro/01-intro-tokens.css");
-@import url("erp-pro/02-base-layout.css");
-@import url("erp-pro/03-card-pipeline.css");
-@import url("erp-pro/04-filter-table-badges-buttons.css");
-@import url("erp-pro/05-date-through-toast.css");
-@import url("erp-pro/06-mobile-print-utilities.css");
-@import url("erp-pro/07-forms-responsive-filters.css");
+/* 첫 로딩 지연 축소(Wave 4-B): 미버전 @import는 운영에서 Cache-Control: no-cache라
+   매 full page load마다 재검증 왕복(한국↔SG)을 만든다. ?v= 를 붙이면 app_factory의
+   _versioned_static_cache_middleware가 max-age=3600으로 재작성해 그 왕복을 없앤다.
+   대가: 미버전 배포 시 최대 1h staleness. 하지만 ?v= 값을 갱신하면 새 URL=캐시 미스로
+   즉시 반영되므로, 이 파일 편집 시 자식 ?v= 도 함께 올리는 게 배포 신선도 계약이다. */
+@import url("erp-pro/01-intro-tokens.css?v=20260703a");
+@import url("erp-pro/02-base-layout.css?v=20260703a");
+@import url("erp-pro/03-card-pipeline.css?v=20260703a");
+@import url("erp-pro/04-filter-table-badges-buttons.css?v=20260703a");
+@import url("erp-pro/05-date-through-toast.css?v=20260703a");
+@import url("erp-pro/06-mobile-print-utilities.css?v=20260703a");
+@import url("erp-pro/07-forms-responsive-filters.css?v=20260703a");
 @import url("../contexts/orders/erp-order-measurement-panel.css?v=20260702b");
-@import url("erp-pro/08-order-list-page.css");
-@import url("erp-pro/09-mobile-erp-optimization.css");
+@import url("erp-pro/08-order-list-page.css?v=20260703a");
+@import url("erp-pro/09-mobile-erp-optimization.css?v=20260703a");
 @import url("erp-pro/10-erp-mobile-v2-shell.css?v=20260626a");
 @import url("erp-pro/11-queue-family-mobile.css?v=20260625b");
-@import url("erp-pro/12-runtime-shell-loading.css");
-@import url("erp-pro/13-foms-shell-bridge.css");
+@import url("erp-pro/12-runtime-shell-loading.css?v=20260703a");
+@import url("erp-pro/13-foms-shell-bridge.css?v=20260703a");
 
 /* 주문 상세 2단 렌더 로딩 영역: 썸네일 행 높이 예약으로 CLS 방지 */
 .order-detail-attach-loading {

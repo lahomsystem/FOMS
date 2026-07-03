@@ -9,9 +9,12 @@
 
   var deferredPrompt = null;
 
+  // SW 등록은 전 페이지(데스크톱 포함) — 데스크톱 full page load에서도 staticCacheFirst의
+  // css/js 재검증 흡수를 받기 위해 mobile-shell 게이트를 제거한다. sw.js fetch 핸들러는
+  // /static css/js만 캐시(TTL 후 백그라운드 재검증), 네비게이션·인증 fragment는 미캐시라
+  // 데스크톱에서도 안전하다(networkFirst는 queue 전용, 3s timeout+캐시 폴백).
   function registerPwaServiceWorker() {
     if (!("serviceWorker" in navigator)) return;
-    if (!document.querySelector("[data-erp-mobile-shell]")) return;
     navigator.serviceWorker.register("/static/sw.js", { scope: "/" }).catch(function (err) {
       console.warn("[foms-a2hs] service worker registration failed", err);
     });
@@ -25,6 +28,9 @@
 
   function maybePrompt() {
     if (!deferredPrompt) return;
+    // A2HS 설치 배너는 모바일 shell에서만 노출(동작 무변경). SW 등록만 전역화됐고,
+    // 이 스크립트가 이제 데스크톱에도 로드되므로 배너 노출 경로엔 명시 게이트가 필요하다.
+    if (!document.querySelector("[data-erp-mobile-shell]")) return;
     if (window.matchMedia("(display-mode: standalone)").matches) return;
     try {
       if (localStorage.getItem("foms.a2hs.dismissed") === "1") return;

@@ -2,7 +2,8 @@
  * CACHE_VERSION bumped to v2: the v1 caches were populated while /static was served
  * 1-year-immutable, so they hold stale CSS/JS. Bumping purges them on activate; going
  * forward the origin serves CSS/JS as no-cache so revalidation keeps them fresh. */
-var CACHE_VERSION = "foms-p2-v6";
+/* v7: 데스크톱 SW 전역 등록 + erp-shell 하트비트(Wave 4) 배포 — 구 staticCacheFirst 캐시 purge. */
+var CACHE_VERSION = "foms-p2-v7";
 var STATIC_CACHE = CACHE_VERSION + "-static";
 var API_CACHE = CACHE_VERSION + "-api";
 

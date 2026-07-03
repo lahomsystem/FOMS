@@ -1,3 +1,6 @@
+/* foms-tokens.css는 layout_head.html에서 이미 top-level ?v= 링크로 로드되어(=max-age)
+   그 경로의 재검증 비용이 없다. 여기 nested @import는 무버전 유지 — 버전을 붙이면 top-level과
+   다른 캐시 엔트리로 중복 fetch가 되고, 토큰 브리지 계약(test_token_alias_bridge)도 깨진다. */
 @import url("../foms-tokens.css");
 
 /* ============================================
