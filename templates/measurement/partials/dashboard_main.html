@@ -785,7 +785,9 @@
                   style="display:none;" aria-hidden="true">
                   <td colspan="9" class="erp-measurement-detail-cell">
                     {%- set rsd = r.structured_data or {} %}
-                    {%- set rsd_notes = rsd.get('notes', {}) %}
+                    {%- set rsd_notes_raw = rsd.get('notes') %}
+                    {%- set rsd_notes = rsd_notes_raw if rsd_notes_raw is mapping else {} %}
+                    {%- set rsd_memo = rsd_notes_raw if rsd_notes_raw is string else '' %}
                     {%- set rsd_schedule = rsd.get('schedule', {}) %}
                     {%- set rsd_orderer = rsd.get('parties', {}).get('orderer', {}) %}
                     {%- set rsd_totals = rsd.get('totals', {}) %}
@@ -819,9 +821,7 @@
                             <div class="erp-detail-text">
                               <div class="mb-3"><strong class="erp-detail-label">실측일:</strong> <span class="erp-detail-value">{{ (rsd_schedule.get('measurement', {}).get('date') or '')|schedule_datetime_display(rsd_schedule.get('measurement', {}).get('time')) }}</span></div>
                               <div class="mb-3"><strong class="erp-detail-label">시공일:</strong> <span class="erp-detail-value">{{ (rsd_schedule.get('construction', {}).get('date') or '')|schedule_datetime_display(rsd_schedule.get('construction', {}).get('time')) }}</span></div>
-                              <div class="mb-3"><strong class="erp-detail-label">연락특이:</strong> <span class="erp-detail-value">{{ rsd_notes.get('phone_note') or '-' }}</span></div>
-                              <div class="mb-3"><strong class="erp-detail-label">주소특이:</strong> <span class="erp-detail-value">{{ rsd_notes.get('address_note') or '-' }}</span></div>
-                              <div class="mb-3"><strong class="erp-detail-label">실측특이:</strong> <span class="erp-detail-value">{{ rsd_notes.get('measurement_note') or '-' }}</span></div>
+                              <div class="mb-3"><strong class="erp-detail-label">특이사항:</strong> <span class="erp-detail-value">{{ rsd_memo or rsd_notes.get('measurement_note') or rsd_notes.get('phone_note') or rsd_notes.get('address_note') or '-' }}</span></div>
                             </div>
                           </div>
                         </div>
