@@ -130,6 +130,17 @@ def init_realtime_bootstrap(
             push_test_limit
         )(push_test_view)
 
+    # Web Push SW 상호작용 보고(opened/closed) rate limit.
+    push_event_limit = os.environ.get(
+        "ERP_PUSH_EVENT_RATE_LIMIT",
+        "300 per hour",
+    )
+    push_event_view = app.view_functions.get("notifications_push.push_event")
+    if push_event_view is not None:
+        app.view_functions["notifications_push.push_event"] = limiter.limit(
+            push_event_limit
+        )(push_event_view)
+
     socketio = None
     if socketio_available:
         try:

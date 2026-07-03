@@ -216,7 +216,9 @@ def test_delete_missing_endpoint_returns_404(client, db, monkeypatch):
 # test push
 # ---------------------------------------------------------------------------
 
-def test_push_test_self_returns_sender_not_deployed(client, db, monkeypatch):
+def test_push_test_self_reports_send_result(client, db, monkeypatch):
+    # Phase 3C: 테스트 엔드포인트가 실제 발송을 시도한다. 로컬은 pywebpush 미설치이므로
+    # sent=False + reason='pywebpush_unavailable' 을 반환한다(계약 변경).
     monkeypatch.setenv(FLAG_ENV, "1")
     u = _mk_user("po_test_self", "A")
     _login(client, u)
@@ -226,7 +228,8 @@ def test_push_test_self_returns_sender_not_deployed(client, db, monkeypatch):
     assert r.status_code == 200
     data = r.get_json()["data"]
     assert data["queued"] is False
-    assert data["reason"] == "sender_not_deployed"
+    assert data["sent"] is False
+    assert data["reason"] in ("pywebpush_unavailable", "vapid_not_configured")
 
 
 def test_push_test_no_subscription_returns_404(client, db, monkeypatch):
@@ -259,7 +262,9 @@ def test_push_test_admin_targets_other_user(client, db, monkeypatch):
     _login(client, admin)
     r = client.post(TEST_URL, json={"user_id": b}, headers=WRITE_HEADERS)
     assert r.status_code == 200
-    assert r.get_json()["data"]["reason"] == "sender_not_deployed"
+    data = r.get_json()["data"]
+    assert data["sent"] is False
+    assert data["reason"] in ("pywebpush_unavailable", "vapid_not_configured")
 
 
 # ---------------------------------------------------------------------------

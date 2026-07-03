@@ -687,6 +687,7 @@ def api_notifications_send():
         # 전체/팀/개인 발송 시 수신자별 레코드 생성. 각 레코드는 해당 수신자 전용이므로
         # target_type 을 'USER' 로 저장해, 브리핑 보드 등에서 target_user_id 로 1건만 조회되게 함.
         stored_target_type = "USER" if target_type in ("ALL", "TEAM", "USER") else target_type
+        created_notif_ids = []
         for uid in recipient_ids:
             notif = Notification(
                 order_id=int(order_id_val) if order_id_val else None,
@@ -705,8 +706,14 @@ def api_notifications_send():
             db.flush()
             # 같은 트랜잭션에서 수신자 state + 'created' 이벤트 생성(고아 알림 방지).
             fan_out_new_notification(db, notif, actor_user_id=user_id)
+            created_notif_ids.append(notif.id)
 
         db.commit()
+
+        # 커밋 후 Web Push enqueue(worker 가 커밋된 row 를 재조회하도록 commit 이후 실행).
+        from foms.services.notifications.push_sender import enqueue_push_for_notification
+        for nid in created_notif_ids:
+            enqueue_push_for_notification(nid, db=db)
 
         invalidate_badge_cache_for_user_ids(recipient_ids)
 
@@ -827,9 +834,20 @@ def api_order_urgent_mention(order_id):
         )
         db.commit()
 
+        # 커밋 후 Web Push enqueue. queue 미가용이면 os_push 미보장을 응답으로 노출.
+        from foms.services.notifications.push_sender import enqueue_push_for_notification
+        push_result = enqueue_push_for_notification(notif.id, db=db)
+        os_push = "queued" if push_result.get("enqueued") else (
+            "not_guaranteed"
+            if push_result.get("reason") == "queue_unavailable"
+            else push_result.get("reason")
+        )
+
         return jsonify({
             "success": True,
             "message": f"{target_user.name}님에게 긴급 멘션을 보냈습니다.",
+            "os_push": os_push,
+            "push_reason": push_result.get("reason"),
         })
     except Exception as e:
         import traceback

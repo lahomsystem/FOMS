@@ -257,6 +257,10 @@ def api_order_transfer_drawing(order_id):
 
         invalidate_dashboard_families(DASHBOARD_FAMILY_DRAWING, DASHBOARD_FAMILY_ORDERS)
 
+        # 커밋 후 Web Push enqueue(P1 유형: DRAWING_TRANSFERRED).
+        from foms.services.notifications.push_sender import enqueue_push_for_notification
+        enqueue_push_for_notification(new_notification.id, db=db)
+
         recipient_user_ids = resolve_notification_recipient_user_ids(
             db,
             target_team=target_team,

@@ -133,6 +133,9 @@ Flask-Limiter>=3.5.0
 # 비동기 작업 큐 (계획서 단계 B - worker 분리)
 rq>=1.15.0
 
+# Web Push 발송 (알림 Phase 3C). import 는 lazy — 미설치 시 app import 는 죽지 않음.
+pywebpush==2.0.0
+
 # 데이터 최적화 (압축 및 정적 파일)
 Flask-Compress>=1.14
 whitenoise>=6.6.0

@@ -293,9 +293,10 @@ def _resolve_test_target(
 @login_required
 @push_write_guard
 def push_test() -> Any:
-    """활성 구독 대상 테스트 푸시. sender 미배포(3C)라 존재/flag 검증까지만 수행.
+    """활성 구독 대상 즉시 테스트 푸시(Phase 3C sender 배포).
 
     비관리자는 자신에게만 가능(body user_id 로 타인 지정 시 403). ADMIN 은 임의 대상 허용.
+    발송 결과(sent/reason)를 반환한다. VAPID 미설정/라이브러리 미설치 시 reason 으로 노출.
     """
     db = None
     try:
@@ -313,13 +314,133 @@ def push_test() -> Any:
             return jsonify(
                 {"success": False, "data": None, "error": "no_active_subscription"}
             ), 404
+
+        from foms.services.notifications.push_sender import send_test_push
+
+        result = send_test_push(sub.id)
         return jsonify(
-            {"success": True, "data": {"queued": False, "reason": "sender_not_deployed"}}
+            {
+                "success": True,
+                "data": {
+                    "queued": False,
+                    "sent": bool(result.get("sent")),
+                    "reason": result.get("reason"),
+                },
+            }
         )
     except Exception as e:  # noqa: BLE001 - 롤백 후 표준 에러 응답
         if db is not None:
             db.rollback()
         return jsonify({"success": False, "data": None, "error": str(e)}), 500
+
+
+@push_bp.route("/event", methods=["POST"])
+@require_web_push_enabled
+@login_required
+@push_write_guard
+def push_event() -> Any:
+    """서비스워커 push 상호작용 보고(Phase 3B 사용): opened/closed 이벤트 기록.
+
+    body: {notification_id, event: 'opened'|'closed'}. 본인 소유 user_state 가 있어야 하며
+    (없으면 404), opened 시 last_opened_at/last_delivery_status='opened' 로 갱신한다.
+    """
+    from models import (
+        NotificationDeliveryStatus,
+        NotificationEvent,
+        NotificationEventType,
+    )
+
+    db = None
+    try:
+        db = get_db()
+        user_id = _current_user_id()
+        data = request.get_json(silent=True) or {}
+        try:
+            notification_id = int(data.get("notification_id"))
+        except (TypeError, ValueError):
+            return jsonify(
+                {"success": False, "data": None, "error": "invalid_notification_id"}
+            ), 400
+        event = (data.get("event") or "").strip().lower()
+        if event not in ("opened", "closed"):
+            return jsonify(
+                {"success": False, "data": None, "error": "invalid_event"}
+            ), 400
+
+        state = (
+            db.query(NotificationUserState)
+            .filter(
+                NotificationUserState.notification_id == notification_id,
+                NotificationUserState.user_id == user_id,
+            )
+            .first()
+        )
+        if state is None:
+            return jsonify(
+                {"success": False, "data": None, "error": "notification_not_found"}
+            ), 404
+
+        now = dt_mod.datetime.now()
+        if event == "opened":
+            event_type = NotificationEventType.OPENED
+            state.last_opened_at = now
+            _terminal = (
+                NotificationDeliveryStatus.ACK,
+                NotificationDeliveryStatus.RESOLVED,
+            )
+            if state.last_delivery_status not in _terminal:
+                state.last_delivery_status = NotificationDeliveryStatus.OPENED
+        else:
+            event_type = NotificationEventType.CLOSED
+
+        db.add(
+            NotificationEvent(
+                notification_id=notification_id,
+                user_state_id=state.id,
+                recipient_user_id=user_id,
+                event_type=event_type,
+                channel="webpush",
+            )
+        )
+        db.commit()
+        return jsonify({"success": True, "data": {"recorded": event}})
+    except Exception as e:  # noqa: BLE001 - 롤백 후 표준 에러 응답
+        if db is not None:
+            db.rollback()
+        return jsonify({"success": False, "data": None, "error": str(e)}), 500
+
+
+@push_bp.route("/health", methods=["GET"])
+@login_required
+def push_health() -> Any:
+    """ADMIN 전용 push 배포 준비도(flag/vapid/rq state/worker_count). flag 무관 항상 200."""
+    current = getattr(g, "current_user", None)
+    if not _is_admin(current):
+        return jsonify({"success": False, "data": None, "error": "forbidden"}), 403
+
+    from foms.services.jobs.queue import get_rq_runtime_status
+
+    rq_status = get_rq_runtime_status()
+    vapid_private = bool((os.environ.get("VAPID_PRIVATE_KEY", "") or "").strip())
+    return jsonify(
+        {
+            "success": True,
+            "data": {
+                "web_push_enabled": _web_push_enabled(),
+                "vapid_public_configured": bool(_vapid_public_key()),
+                "vapid_private_configured": vapid_private,
+                "rq_state": rq_status.get("state"),
+                "rq_worker_count": int(rq_status.get("worker_count", 0) or 0),
+                "push_ready": bool(
+                    _web_push_enabled()
+                    and _vapid_public_key()
+                    and vapid_private
+                    and rq_status.get("state") == "reachable"
+                    and int(rq_status.get("worker_count", 0) or 0) > 0
+                ),
+            },
+        }
+    )
 
 
 @push_state_bp.route("/mobile-state", methods=["GET"])

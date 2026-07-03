@@ -23,6 +23,8 @@ __all__ = [
     "geocode_order_address",
     "push_order_to_channeltalk",
     "process_channeltalk_inbound",
+    "send_push_for_notification_task",
+    "run_notification_escalation_task",
 ]
 
 
@@ -170,4 +172,49 @@ def process_channeltalk_inbound(event_log_id: int):
         process_inbound_job(event_log_id)
     except Exception as e:
         logger.error(f"[RQ] process_channeltalk_inbound error for log {event_log_id}: {e}", exc_info=True)
+        raise
+
+
+def send_push_for_notification_task(notification_id):
+    """
+    알림 Web Push 발송 (Phase 3C).
+    RQ job으로 enqueue되어 worker에서 실행. payload 는 notification_id 만 받고,
+    구독 비밀은 발송 함수 내부에서 DB 재조회한다.
+    """
+    if not notification_id:
+        return
+    try:
+        from foms.services.notifications.push_sender import send_push_for_notification
+
+        send_push_for_notification(int(notification_id))
+    except Exception as e:
+        logger.error(
+            f"[RQ] send_push_for_notification_task error id={notification_id}: {e}",
+            exc_info=True,
+        )
+        raise
+
+
+def run_notification_escalation_task():
+    """
+    미확인 긴급 알림 에스컬레이션 스윕 (Phase 3C).
+    외부 스케줄러/CLI 가 주기 실행(간격 60초 이상 권장). worker context 에서 직접 세션 관리.
+    """
+    try:
+        from db import db_session
+        from foms.services.notifications.escalation import escalate_overdue_urgent
+
+        db = db_session()
+        try:
+            result = escalate_overdue_urgent(db)
+            db.commit()
+            return result
+        except Exception:
+            db.rollback()
+            raise
+        finally:
+            db.close()
+            db_session.remove()
+    except Exception as e:
+        logger.error(f"[RQ] run_notification_escalation_task error: {e}", exc_info=True)
         raise

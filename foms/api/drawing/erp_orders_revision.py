@@ -141,6 +141,10 @@ def api_order_request_revision(order_id):
         db.add(SecurityLog(user_id=session.get('user_id'), message=f"주문 #{order_id} 도면 수정 요청"))
         db.commit()
 
+        # 커밋 후 Web Push enqueue(P1 유형: DRAWING_REVISION).
+        from foms.services.notifications.push_sender import enqueue_push_for_notification
+        enqueue_push_for_notification(new_notification.id, db=db)
+
         recipient_user_ids = resolve_notification_recipient_user_ids(
             db,
             target_team='DRAWING',
