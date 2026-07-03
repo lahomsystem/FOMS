@@ -120,6 +120,57 @@ def test_runtime_shell_heartbeat_reprefetch(runtime_shell_src: str) -> None:
     assert "{ force: true }" in runtime_shell_src
 
 
+def test_runtime_shell_conditional_etag_304(runtime_shell_src: str) -> None:
+    """Wave 4.1: fetchFragment sends If-None-Match and reuses cache on 304 (TTL extend).
+
+    캐시 엔트리에 etag 를 실어 다음 요청에 If-None-Match 로 첨부하고, 서버가 304 로 답하면
+    640KB 재전송 없이 기존 캐시 html 을 재사용 + ts 만 갱신(TTL 연장)한다. etag 없는 구캐시
+    엔트리는 헤더 미첨부 → 정상 200 경로.
+    """
+    # cachePut 시그니처가 etag 를 받아 캐시 엔트리에 저장.
+    assert "function cachePut(key, html, etag)" in runtime_shell_src
+    assert "etag: etag || null" in runtime_shell_src
+    # 캐시에 etag 가 있으면 If-None-Match 첨부.
+    assert "priorRow.etag" in runtime_shell_src
+    assert "'If-None-Match'" in runtime_shell_src
+    # 200 경로에서 etag 채집.
+    assert "r.headers.get('etag')" in runtime_shell_src
+    # 304 처리: 상태코드 분기 + 기존 캐시 html 재사용, 캐시 없으면 폴백.
+    assert "r.status === 304" in runtime_shell_src
+    assert "304 without cached fragment" in runtime_shell_src
+    # 통합 저장 경로가 200/304 모두 etag 를 실어 cachePut(TTL 연장) 한다.
+    assert "cachePut(finalKey, payload.html, payload.etag)" in runtime_shell_src
+    # 304 분기는 요청 시작 시 클로저에 캡처한 html/etag(priorHtml/priorEtag)를 재사용한다 —
+    # 비행 중 LRU evict/invalidate 경합에도 풀리로드 없이 304 복원(1:1 리뷰 MINOR 반영).
+    fetch_block = runtime_shell_src.split("function fetchFragment(canonical)")[1].split(
+        "function navigateByShell"
+    )[0]
+    assert "var priorHtml = priorRow && typeof priorRow.html === 'string'" in fetch_block
+    assert "return { html: priorHtml, finalUrl: canonical, etag: priorEtag };" in fetch_block
+    # sweeping 플래그는 sync throw 시 leak(하트비트 영구 정지) 방지 복구 경로를 가진다.
+    assert runtime_shell_src.count("HeartbeatSweeping = false") >= 4
+
+
+def test_runtime_shell_heartbeat_stagger(runtime_shell_src: str) -> None:
+    """Wave 4.1: primary/fresh 하트비트는 동시발사 대신 setTimeout 체인 스태거 + 재진입 방지."""
+    assert "HEARTBEAT_PRIMARY_STAGGER_MS = 600" in runtime_shell_src
+    assert "HEARTBEAT_FRESH_STAGGER_MS = 300" in runtime_shell_src
+    assert "primaryHeartbeatSweeping" in runtime_shell_src
+    assert "freshHeartbeatSweeping" in runtime_shell_src
+    # primary 스윕은 setTimeout(step, PRIMARY_STAGGER) 체인.
+    primary_block = runtime_shell_src.split("function runPrimaryHeartbeat()")[1].split(
+        "function runFreshHeartbeat()"
+    )[0]
+    assert "if (primaryHeartbeatSweeping)" in primary_block
+    assert "window.setTimeout(step, HEARTBEAT_PRIMARY_STAGGER_MS)" in primary_block
+    # fresh 스윕(2경로)은 setTimeout(step, FRESH_STAGGER) 체인.
+    fresh_block = runtime_shell_src.split("function runFreshHeartbeat()")[1].split(
+        "function onShellActivity()"
+    )[0]
+    assert "if (freshHeartbeatSweeping)" in fresh_block
+    assert "window.setTimeout(step, HEARTBEAT_FRESH_STAGGER_MS)" in fresh_block
+
+
 def test_runtime_shell_fragment_loading_overlay(runtime_shell_src: str) -> None:
     """UX: network fragment fetch shows loading overlay (not for cache-only swap)."""
     assert "setShellFragmentLoading" in runtime_shell_src
