@@ -26,20 +26,26 @@ def build_production_orders_query(
     f_stage: str,
     f_q: str,
     erp_mine_only: bool,
-    stage_col: Any,
 ) -> Query:
-    """필터를 적용한 생산 대시보드용 ERP Order 쿼리(정렬 전)."""
+    """필터를 적용한 생산 대시보드용 ERP Order 쿼리(정렬 전).
+
+    단계 필터는 flat 컬럼 ``Order.erp_stage_code``(index=True)를 직접 참조한다.
+    JSONB path cast(``structured_data['workflow']['stage']``, 인덱스 없음)를 제거해
+    ``ix_orders_erp_stage_code`` 인덱스 스캔으로 전환한다. erp_stage_code는
+    workflow.stage 원문 그대로(JSON 따옴표 없음)이므로 IN 목록은 따옴표를 붙이지 않는다.
+    한글 값(고객컨펌/생산/시공)은 운영에 없으나 sync가 원문 복사라 미래 방어로 유지(비용 0).
+    """
     _q = db.query(Order).filter(Order.active_filter(), Order.is_erp_order.is_(True))
-    base_stages = ['"고객컨펌"', '"생산"', '"시공"', '"CONFIRM"', '"PRODUCTION"', '"CONSTRUCTION"']
-    _q = _q.filter(stage_col.in_(base_stages))
+    base_stages = ['고객컨펌', '생산', '시공', 'CONFIRM', 'PRODUCTION', 'CONSTRUCTION']
+    _q = _q.filter(Order.erp_stage_code.in_(base_stages))
 
     if f_stage:
         if f_stage == '제작대기':
-            _q = _q.filter(stage_col.in_(['"고객컨펌"', '"CONFIRM"']))
+            _q = _q.filter(Order.erp_stage_code.in_(['고객컨펌', 'CONFIRM']))
         elif f_stage == '제작중':
-            _q = _q.filter(stage_col.in_(['"생산"', '"PRODUCTION"']))
+            _q = _q.filter(Order.erp_stage_code.in_(['생산', 'PRODUCTION']))
         elif f_stage == '제작완료':
-            _q = _q.filter(stage_col.in_(['"시공"', '"CONSTRUCTION"']))
+            _q = _q.filter(Order.erp_stage_code.in_(['시공', 'CONSTRUCTION']))
 
     if f_q:
         search_term = f"%{f_q}%"
@@ -64,12 +70,17 @@ def build_production_orders_query(
     return _q
 
 
-def production_stage_bucket_expr(stage_col: Any) -> Any:
-    """DB 단계 JSON → 제작대기/제작중/제작완료 버킷."""
+def production_stage_bucket_expr() -> Any:
+    """DB 단계 → 제작대기/제작중/제작완료 버킷.
+
+    flat 컬럼 ``Order.erp_stage_code``(index=True)를 직접 참조한다. JSONB path cast를
+    제거해 ``ix_orders_erp_stage_code`` 인덱스 스캔으로 전환. erp_stage_code는 원문값
+    (JSON 따옴표 없음)이므로 IN 목록에도 따옴표를 붙이지 않는다.
+    """
     return sql_case(
-        (stage_col.in_(['"고객컨펌"', '"CONFIRM"']), '제작대기'),
-        (stage_col.in_(['"생산"', '"PRODUCTION"']), '제작중'),
-        (stage_col.in_(['"시공"', '"CONSTRUCTION"']), '제작완료'),
+        (Order.erp_stage_code.in_(['고객컨펌', 'CONFIRM']), '제작대기'),
+        (Order.erp_stage_code.in_(['생산', 'PRODUCTION']), '제작중'),
+        (Order.erp_stage_code.in_(['시공', 'CONSTRUCTION']), '제작완료'),
         else_='기타',
     )
 
@@ -163,15 +174,22 @@ def compute_production_kpis_and_badges(
     return kpi_rows, kpis
 
 
-def compute_production_summary_blob(_q: Query, stage_col: Any) -> dict[str, Any]:
-    """KPI + step_stats + total for micro-cache."""
-    stage_bucket_expr = production_stage_bucket_expr(stage_col)
+def compute_production_summary_blob(_q: Query) -> dict[str, Any]:
+    """KPI + step_stats + total for micro-cache.
+
+    단계 버킷 집계는 flat 컬럼 erp_stage_code(index=True)를 직접 참조한다
+    (production_stage_bucket_expr, JSONB path cast 제거 → ix_orders_erp_stage_code 스캔).
+    """
+    stage_bucket_expr = production_stage_bucket_expr()
     step_stats = empty_production_step_stats()
     fill_production_step_counts(_q, stage_bucket_expr, step_stats)
     kpi_rows, kpis = compute_production_kpis_and_badges(_q, step_stats)
     return {
         "step_stats": step_stats,
         "kpis": kpis,
+        # W3-3 판단(유지): total_orders=len(kpi_rows). compute_production_kpis_and_badges가
+        # 뱃지 집계로 rows 전행을 이미 파이썬 루프 순회하므로 별도 _q.count() 쿼리는
+        # 이중조회 낭비다. W3-2 전환 후 필터셋이 소량이라 hydrate 비용도 작아 len 유지가 최적.
         "total_orders": len(kpi_rows),
     }
 
