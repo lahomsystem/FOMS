@@ -15,8 +15,10 @@
   <script src="{{ url_for('static', filename='js/foms/mobile-queue-focus.js') }}?v=20260701a" defer></script>
   <script src="{{ url_for('static', filename='js/foms/mobile-tower.js') }}?v=20260613a" defer></script>
   <script src="{{ url_for('static', filename='js/runtime/erp-mobile-shell.js') }}?v=20260701a" defer></script>
+  <script src="{{ url_for('static', filename='js/foms/mobile-notification.js') }}?v=20260704a" defer></script>
 </div>
 {# Fixed overlays: must NOT live under .erp-mobile-shell-chrome (display:contents) or
    Bootstrap offcanvas z-index breaks vs backdrop → theme toggle taps blocked. #}
 {% include 'partials/shared/erp_mobile_menu_drawer.html' %}
 {% include 'partials/shared/foms_search_overlay.html' %}
+{% include 'partials/shared/erp_mobile_notification_panel.html' %}

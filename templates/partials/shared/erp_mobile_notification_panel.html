@@ -1,0 +1,32 @@
+{# 모바일 알림 센터 시트 (Phase 1A) — 벨 탭 → bottom sheet 알림 목록 + unread badge + deep link.
+   read / read-all / archive 액션은 Phase 1B 범위(백엔드 API 무변경, 기존 GET만 재사용).
+   Fixed overlay 이므로 .erp-mobile-shell-chrome(display:contents) 밖에 렌더한다. #}
+<div
+  class="offcanvas offcanvas-bottom erp-mobile-notif-sheet"
+  tabindex="-1"
+  id="erp-mobile-notification-sheet"
+  data-foms-notif-sheet
+  aria-labelledby="erp-mobile-notification-sheet-title">
+  <div class="offcanvas-header erp-mobile-notif-sheet__header">
+    <h5 class="offcanvas-title erp-mobile-notif-sheet__title" id="erp-mobile-notification-sheet-title">
+      <i class="fas fa-bell" aria-hidden="true"></i> 알림
+    </h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="알림 닫기"></button>
+  </div>
+  <div class="offcanvas-body erp-mobile-notif-sheet__body">
+    <section
+      class="erp-mobile-notif-sheet__urgent"
+      data-foms-notif-urgent
+      hidden
+      aria-label="긴급 알림"></section>
+    <div
+      class="erp-mobile-notif-sheet__list"
+      data-foms-notif-list
+      aria-live="polite"
+      aria-atomic="false">
+      <div class="erp-mobile-notif-sheet__placeholder" data-foms-notif-placeholder>
+        <div class="spinner-border spinner-border-sm text-primary" role="status"></div> 로딩 중...
+      </div>
+    </div>
+  </div>
+</div>

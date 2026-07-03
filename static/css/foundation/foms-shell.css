@@ -110,6 +110,162 @@
 
   body.erp-mobile-v2-layout .erp-mobile-shell-header__notify {
     grid-column: 4;
+    position: relative;
+  }
+
+  /* Unread badge overlaid on the header bell. */
+  body.erp-mobile-v2-layout .erp-mobile-shell-header__notify-badge {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: var(--foms-radius-full);
+    background: var(--foms-status-danger, #dc3545);
+    color: #fff;
+    font-size: 10px;
+    font-weight: var(--foms-font-weight-bold);
+    line-height: 16px;
+    text-align: center;
+    box-shadow: 0 0 0 2px var(--foms-surface-base);
+    pointer-events: none;
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-shell-header__notify-badge[hidden] {
+    display: none;
+  }
+
+  /* Notification bottom sheet (Phase 1A). */
+  body.erp-mobile-v2-layout .erp-mobile-notif-sheet.offcanvas-bottom {
+    height: 85vh;
+    max-height: 85vh;
+    border-top-left-radius: var(--foms-radius-lg);
+    border-top-right-radius: var(--foms-radius-lg);
+    background: var(--foms-surface-base);
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-notif-sheet__header {
+    border-bottom: 1px solid var(--foms-border-subtle);
+    padding: var(--foms-space-3) var(--foms-space-4);
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-notif-sheet__title {
+    font-size: var(--foms-font-size-lg);
+    font-weight: var(--foms-font-weight-semibold);
+    margin: 0;
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-notif-sheet__body {
+    padding: var(--foms-space-2) var(--foms-space-3) var(--foms-space-6);
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-2);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-notif-sheet__urgent[hidden] {
+    display: none;
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-notif-sheet__urgent {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-2);
+    padding: var(--foms-space-2);
+    border: 1px solid var(--foms-status-danger, #dc3545);
+    border-radius: var(--foms-radius-md);
+    background: var(--foms-status-danger-subtle, #fff5f5);
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-notif-sheet__urgent-label {
+    font-size: var(--foms-font-size-xs);
+    font-weight: var(--foms-font-weight-bold);
+    color: var(--foms-status-danger, #dc3545);
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-notif-sheet__list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-2);
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-notif-item {
+    display: block;
+    padding: var(--foms-space-3);
+    border: 1px solid var(--foms-border-subtle);
+    border-left: 3px solid transparent;
+    border-radius: var(--foms-radius-md);
+    background: var(--foms-surface-base);
+    color: var(--foms-text-primary);
+    text-decoration: none;
+    min-height: var(--foms-touch-target-min, 44px);
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-notif-item.is-unread {
+    border-left-color: var(--foms-interactive-primary);
+    background: var(--foms-interactive-primary-subtle, #f0f7ff);
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-notif-item.is-urgent {
+    border-left-color: var(--foms-status-danger, #dc3545);
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-notif-item__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--foms-space-2);
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-notif-item__title {
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-semibold);
+    line-height: var(--foms-line-height-tight);
+    min-width: 0;
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-notif-item__flag {
+    display: inline-block;
+    padding: 0 6px;
+    border-radius: var(--foms-radius-full);
+    background: var(--foms-status-danger, #dc3545);
+    color: #fff;
+    font-size: 10px;
+    font-weight: var(--foms-font-weight-bold);
+    vertical-align: middle;
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-notif-item__time {
+    flex-shrink: 0;
+    font-size: var(--foms-font-size-xs);
+    color: var(--foms-text-tertiary);
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-notif-item__msg {
+    margin: var(--foms-space-1) 0 0;
+    font-size: var(--foms-font-size-sm);
+    color: var(--foms-text-secondary);
+    word-break: break-word;
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-notif-empty,
+  body.erp-mobile-v2-layout .erp-mobile-notif-sheet__placeholder,
+  body.erp-mobile-v2-layout .erp-mobile-notif-error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--foms-space-2);
+    padding: var(--foms-space-8) var(--foms-space-4);
+    color: var(--foms-text-tertiary);
+    text-align: center;
+  }
+
+  body.erp-mobile-v2-layout .erp-mobile-notif-empty i {
+    font-size: 2rem;
+    opacity: 0.5;
   }
 
   /* '내작업' 토글이 있는 헤더만 5칼럼으로 확장 + 우측 아이콘 재배치.
