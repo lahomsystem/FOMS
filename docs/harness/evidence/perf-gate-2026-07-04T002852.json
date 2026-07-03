@@ -1,0 +1,1091 @@
+{
+  "base": "https://lahom-dev.up.railway.app",
+  "ok": false,
+  "rows": [
+    {
+      "path": "/erp/dashboard?view=fragment",
+      "median_ttfb_ms": 636,
+      "budget_ttfb_ms": 322,
+      "p95_ttfb_ms": 1368,
+      "median_bytes": 674514,
+      "budget_bytes": 876868,
+      "cond_304": true,
+      "passed": false,
+      "reasons": [
+        "TTFB median 636ms > budget 322ms"
+      ],
+      "_summary": {
+        "median_ttfb_ms": 636,
+        "p95_ttfb_ms": 1368,
+        "max_ttfb_ms": 1368,
+        "median_bytes": 674514,
+        "max_render_ms": 18,
+        "etag_present_all": true,
+        "content_encoding": "br",
+        "warm_count": 4
+      }
+    },
+    {
+      "path": "/erp/measurement?view=fragment",
+      "median_ttfb_ms": 211,
+      "budget_ttfb_ms": 178,
+      "p95_ttfb_ms": 2695,
+      "median_bytes": 73558,
+      "budget_bytes": 95625,
+      "cond_304": true,
+      "passed": false,
+      "reasons": [
+        "TTFB median 211ms > budget 178ms"
+      ],
+      "_summary": {
+        "median_ttfb_ms": 211,
+        "p95_ttfb_ms": 2695,
+        "max_ttfb_ms": 2695,
+        "median_bytes": 73558,
+        "max_render_ms": null,
+        "etag_present_all": true,
+        "content_encoding": "br",
+        "warm_count": 4
+      }
+    },
+    {
+      "path": "/erp/drawing-workbench?view=fragment",
+      "median_ttfb_ms": 1121,
+      "budget_ttfb_ms": 381,
+      "p95_ttfb_ms": 4970,
+      "median_bytes": 43449,
+      "budget_bytes": 56484,
+      "cond_304": true,
+      "passed": false,
+      "reasons": [
+        "TTFB median 1121ms > budget 381ms"
+      ],
+      "_summary": {
+        "median_ttfb_ms": 1121,
+        "p95_ttfb_ms": 4970,
+        "max_ttfb_ms": 4970,
+        "median_bytes": 43449,
+        "max_render_ms": null,
+        "etag_present_all": true,
+        "content_encoding": "br",
+        "warm_count": 4
+      }
+    },
+    {
+      "path": "/erp/production/dashboard?view=fragment",
+      "median_ttfb_ms": 2065,
+      "budget_ttfb_ms": 246,
+      "p95_ttfb_ms": 5287,
+      "median_bytes": 577091,
+      "budget_bytes": 750218,
+      "cond_304": true,
+      "passed": false,
+      "reasons": [
+        "TTFB median 2065ms > budget 246ms"
+      ],
+      "_summary": {
+        "median_ttfb_ms": 2065,
+        "p95_ttfb_ms": 5287,
+        "max_ttfb_ms": 5287,
+        "median_bytes": 577091,
+        "max_render_ms": 32,
+        "etag_present_all": true,
+        "content_encoding": "br",
+        "warm_count": 4
+      }
+    },
+    {
+      "path": "/erp/shipment?view=fragment",
+      "median_ttfb_ms": 152,
+      "budget_ttfb_ms": 238,
+      "p95_ttfb_ms": 907,
+      "median_bytes": 78429,
+      "budget_bytes": 101958,
+      "cond_304": true,
+      "passed": true,
+      "reasons": [],
+      "_summary": {
+        "median_ttfb_ms": 152,
+        "p95_ttfb_ms": 907,
+        "max_ttfb_ms": 907,
+        "median_bytes": 78429,
+        "max_render_ms": 4,
+        "etag_present_all": true,
+        "content_encoding": "br",
+        "warm_count": 4
+      }
+    },
+    {
+      "path": "/erp/as?view=fragment",
+      "median_ttfb_ms": 950,
+      "budget_ttfb_ms": 272,
+      "p95_ttfb_ms": 3867,
+      "median_bytes": 1173105,
+      "budget_bytes": 1525036,
+      "cond_304": true,
+      "passed": false,
+      "reasons": [
+        "TTFB median 950ms > budget 272ms"
+      ],
+      "_summary": {
+        "median_ttfb_ms": 950,
+        "p95_ttfb_ms": 3867,
+        "max_ttfb_ms": 3867,
+        "median_bytes": 1173105,
+        "max_render_ms": 27,
+        "etag_present_all": true,
+        "content_encoding": "br",
+        "warm_count": 4
+      }
+    },
+    {
+      "path": "/erp/construction/dashboard?view=fragment",
+      "median_ttfb_ms": 2033,
+      "budget_ttfb_ms": 233,
+      "p95_ttfb_ms": 4127,
+      "median_bytes": 234392,
+      "budget_bytes": 304710,
+      "cond_304": true,
+      "passed": false,
+      "reasons": [
+        "TTFB median 2033ms > budget 233ms"
+      ],
+      "_summary": {
+        "median_ttfb_ms": 2033,
+        "p95_ttfb_ms": 4127,
+        "max_ttfb_ms": 4127,
+        "median_bytes": 234392,
+        "max_render_ms": 18,
+        "etag_present_all": true,
+        "content_encoding": "br",
+        "warm_count": 4
+      }
+    },
+    {
+      "path": "/erp/completion?view=fragment",
+      "median_ttfb_ms": 121,
+      "budget_ttfb_ms": 155,
+      "p95_ttfb_ms": 127,
+      "median_bytes": 38782,
+      "budget_bytes": 50417,
+      "cond_304": true,
+      "passed": true,
+      "reasons": [],
+      "_summary": {
+        "median_ttfb_ms": 121,
+        "p95_ttfb_ms": 127,
+        "max_ttfb_ms": 127,
+        "median_bytes": 38782,
+        "max_render_ms": null,
+        "etag_present_all": true,
+        "content_encoding": "br",
+        "warm_count": 4
+      }
+    },
+    {
+      "path": "/erp/history?view=fragment",
+      "median_ttfb_ms": 265,
+      "budget_ttfb_ms": 295,
+      "p95_ttfb_ms": 423,
+      "median_bytes": 27041,
+      "budget_bytes": 35153,
+      "cond_304": true,
+      "passed": true,
+      "reasons": [],
+      "_summary": {
+        "median_ttfb_ms": 265,
+        "p95_ttfb_ms": 423,
+        "max_ttfb_ms": 423,
+        "median_bytes": 27041,
+        "max_render_ms": 2,
+        "etag_present_all": true,
+        "content_encoding": "br",
+        "warm_count": 4
+      }
+    }
+  ],
+  "raw": [
+    {
+      "path": "/erp/dashboard?view=fragment",
+      "samples": [
+        {
+          "round": 1,
+          "status": 200,
+          "ttfb_ms": 358,
+          "total_ms": 358,
+          "bytes": 674514,
+          "render_ms": 19.9,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 2,
+          "status": 200,
+          "ttfb_ms": 598,
+          "total_ms": 598,
+          "bytes": 674514,
+          "render_ms": 16.3,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 3,
+          "status": 200,
+          "ttfb_ms": 674,
+          "total_ms": 674,
+          "bytes": 674514,
+          "render_ms": 18.1,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 4,
+          "status": 200,
+          "ttfb_ms": 246,
+          "total_ms": 246,
+          "bytes": 674514,
+          "render_ms": 16.9,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 5,
+          "status": 200,
+          "ttfb_ms": 1368,
+          "total_ms": 1368,
+          "bytes": 674514,
+          "render_ms": 16.0,
+          "content_encoding": "br",
+          "etag_present": true
+        }
+      ],
+      "warm": [
+        {
+          "round": 2,
+          "status": 200,
+          "ttfb_ms": 598,
+          "total_ms": 598,
+          "bytes": 674514,
+          "render_ms": 16.3,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 3,
+          "status": 200,
+          "ttfb_ms": 674,
+          "total_ms": 674,
+          "bytes": 674514,
+          "render_ms": 18.1,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 4,
+          "status": 200,
+          "ttfb_ms": 246,
+          "total_ms": 246,
+          "bytes": 674514,
+          "render_ms": 16.9,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 5,
+          "status": 200,
+          "ttfb_ms": 1368,
+          "total_ms": 1368,
+          "bytes": 674514,
+          "render_ms": 16.0,
+          "content_encoding": "br",
+          "etag_present": true
+        }
+      ],
+      "cond_304_ok": true
+    },
+    {
+      "path": "/erp/measurement?view=fragment",
+      "samples": [
+        {
+          "round": 1,
+          "status": 200,
+          "ttfb_ms": 892,
+          "total_ms": 892,
+          "bytes": 73558,
+          "render_ms": null,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 2,
+          "status": 200,
+          "ttfb_ms": 219,
+          "total_ms": 219,
+          "bytes": 73558,
+          "render_ms": null,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 3,
+          "status": 200,
+          "ttfb_ms": 204,
+          "total_ms": 204,
+          "bytes": 73558,
+          "render_ms": null,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 4,
+          "status": 200,
+          "ttfb_ms": 137,
+          "total_ms": 137,
+          "bytes": 73558,
+          "render_ms": null,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 5,
+          "status": 200,
+          "ttfb_ms": 2695,
+          "total_ms": 2695,
+          "bytes": 73558,
+          "render_ms": null,
+          "content_encoding": "br",
+          "etag_present": true
+        }
+      ],
+      "warm": [
+        {
+          "round": 2,
+          "status": 200,
+          "ttfb_ms": 219,
+          "total_ms": 219,
+          "bytes": 73558,
+          "render_ms": null,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 3,
+          "status": 200,
+          "ttfb_ms": 204,
+          "total_ms": 204,
+          "bytes": 73558,
+          "render_ms": null,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 4,
+          "status": 200,
+          "ttfb_ms": 137,
+          "total_ms": 137,
+          "bytes": 73558,
+          "render_ms": null,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 5,
+          "status": 200,
+          "ttfb_ms": 2695,
+          "total_ms": 2695,
+          "bytes": 73558,
+          "render_ms": null,
+          "content_encoding": "br",
+          "etag_present": true
+        }
+      ],
+      "cond_304_ok": true
+    },
+    {
+      "path": "/erp/drawing-workbench?view=fragment",
+      "samples": [
+        {
+          "round": 1,
+          "status": 200,
+          "ttfb_ms": 1677,
+          "total_ms": 1677,
+          "bytes": 43449,
+          "render_ms": null,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 2,
+          "status": 200,
+          "ttfb_ms": 2069,
+          "total_ms": 2069,
+          "bytes": 43449,
+          "render_ms": null,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 3,
+          "status": 200,
+          "ttfb_ms": 4970,
+          "total_ms": 4970,
+          "bytes": 43449,
+          "render_ms": null,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 4,
+          "status": 200,
+          "ttfb_ms": 160,
+          "total_ms": 160,
+          "bytes": 43449,
+          "render_ms": null,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 5,
+          "status": 200,
+          "ttfb_ms": 173,
+          "total_ms": 173,
+          "bytes": 43449,
+          "render_ms": null,
+          "content_encoding": "br",
+          "etag_present": true
+        }
+      ],
+      "warm": [
+        {
+          "round": 2,
+          "status": 200,
+          "ttfb_ms": 2069,
+          "total_ms": 2069,
+          "bytes": 43449,
+          "render_ms": null,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 3,
+          "status": 200,
+          "ttfb_ms": 4970,
+          "total_ms": 4970,
+          "bytes": 43449,
+          "render_ms": null,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 4,
+          "status": 200,
+          "ttfb_ms": 160,
+          "total_ms": 160,
+          "bytes": 43449,
+          "render_ms": null,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 5,
+          "status": 200,
+          "ttfb_ms": 173,
+          "total_ms": 173,
+          "bytes": 43449,
+          "render_ms": null,
+          "content_encoding": "br",
+          "etag_present": true
+        }
+      ],
+      "cond_304_ok": true
+    },
+    {
+      "path": "/erp/production/dashboard?view=fragment",
+      "samples": [
+        {
+          "round": 1,
+          "status": 200,
+          "ttfb_ms": 3622,
+          "total_ms": 3622,
+          "bytes": 577091,
+          "render_ms": 16.5,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 2,
+          "status": 200,
+          "ttfb_ms": 1388,
+          "total_ms": 1388,
+          "bytes": 577091,
+          "render_ms": 18.3,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 3,
+          "status": 200,
+          "ttfb_ms": 5287,
+          "total_ms": 5287,
+          "bytes": 577091,
+          "render_ms": 32.5,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 4,
+          "status": 200,
+          "ttfb_ms": 2742,
+          "total_ms": 2742,
+          "bytes": 577091,
+          "render_ms": 14.8,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 5,
+          "status": 200,
+          "ttfb_ms": 572,
+          "total_ms": 572,
+          "bytes": 577091,
+          "render_ms": 14.8,
+          "content_encoding": "br",
+          "etag_present": true
+        }
+      ],
+      "warm": [
+        {
+          "round": 2,
+          "status": 200,
+          "ttfb_ms": 1388,
+          "total_ms": 1388,
+          "bytes": 577091,
+          "render_ms": 18.3,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 3,
+          "status": 200,
+          "ttfb_ms": 5287,
+          "total_ms": 5287,
+          "bytes": 577091,
+          "render_ms": 32.5,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 4,
+          "status": 200,
+          "ttfb_ms": 2742,
+          "total_ms": 2742,
+          "bytes": 577091,
+          "render_ms": 14.8,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 5,
+          "status": 200,
+          "ttfb_ms": 572,
+          "total_ms": 572,
+          "bytes": 577091,
+          "render_ms": 14.8,
+          "content_encoding": "br",
+          "etag_present": true
+        }
+      ],
+      "cond_304_ok": true
+    },
+    {
+      "path": "/erp/shipment?view=fragment",
+      "samples": [
+        {
+          "round": 1,
+          "status": 200,
+          "ttfb_ms": 195,
+          "total_ms": 195,
+          "bytes": 78429,
+          "render_ms": 4.3,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 2,
+          "status": 200,
+          "ttfb_ms": 907,
+          "total_ms": 907,
+          "bytes": 78429,
+          "render_ms": 4.2,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 3,
+          "status": 200,
+          "ttfb_ms": 154,
+          "total_ms": 154,
+          "bytes": 78429,
+          "render_ms": 4.4,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 4,
+          "status": 200,
+          "ttfb_ms": 150,
+          "total_ms": 150,
+          "bytes": 78429,
+          "render_ms": 4.5,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 5,
+          "status": 200,
+          "ttfb_ms": 149,
+          "total_ms": 149,
+          "bytes": 78429,
+          "render_ms": 4.8,
+          "content_encoding": "br",
+          "etag_present": true
+        }
+      ],
+      "warm": [
+        {
+          "round": 2,
+          "status": 200,
+          "ttfb_ms": 907,
+          "total_ms": 907,
+          "bytes": 78429,
+          "render_ms": 4.2,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 3,
+          "status": 200,
+          "ttfb_ms": 154,
+          "total_ms": 154,
+          "bytes": 78429,
+          "render_ms": 4.4,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 4,
+          "status": 200,
+          "ttfb_ms": 150,
+          "total_ms": 150,
+          "bytes": 78429,
+          "render_ms": 4.5,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 5,
+          "status": 200,
+          "ttfb_ms": 149,
+          "total_ms": 149,
+          "bytes": 78429,
+          "render_ms": 4.8,
+          "content_encoding": "br",
+          "etag_present": true
+        }
+      ],
+      "cond_304_ok": true
+    },
+    {
+      "path": "/erp/as?view=fragment",
+      "samples": [
+        {
+          "round": 1,
+          "status": 200,
+          "ttfb_ms": 399,
+          "total_ms": 399,
+          "bytes": 1173105,
+          "render_ms": 20.2,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 2,
+          "status": 200,
+          "ttfb_ms": 227,
+          "total_ms": 227,
+          "bytes": 1173105,
+          "render_ms": 19.5,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 3,
+          "status": 200,
+          "ttfb_ms": 1668,
+          "total_ms": 1668,
+          "bytes": 1173105,
+          "render_ms": 19.4,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 4,
+          "status": 200,
+          "ttfb_ms": 232,
+          "total_ms": 232,
+          "bytes": 1173105,
+          "render_ms": 18.2,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 5,
+          "status": 200,
+          "ttfb_ms": 3867,
+          "total_ms": 3867,
+          "bytes": 1173105,
+          "render_ms": 27.3,
+          "content_encoding": "br",
+          "etag_present": true
+        }
+      ],
+      "warm": [
+        {
+          "round": 2,
+          "status": 200,
+          "ttfb_ms": 227,
+          "total_ms": 227,
+          "bytes": 1173105,
+          "render_ms": 19.5,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 3,
+          "status": 200,
+          "ttfb_ms": 1668,
+          "total_ms": 1668,
+          "bytes": 1173105,
+          "render_ms": 19.4,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 4,
+          "status": 200,
+          "ttfb_ms": 232,
+          "total_ms": 232,
+          "bytes": 1173105,
+          "render_ms": 18.2,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 5,
+          "status": 200,
+          "ttfb_ms": 3867,
+          "total_ms": 3867,
+          "bytes": 1173105,
+          "render_ms": 27.3,
+          "content_encoding": "br",
+          "etag_present": true
+        }
+      ],
+      "cond_304_ok": true
+    },
+    {
+      "path": "/erp/construction/dashboard?view=fragment",
+      "samples": [
+        {
+          "round": 1,
+          "status": 200,
+          "ttfb_ms": 256,
+          "total_ms": 256,
+          "bytes": 234392,
+          "render_ms": 18.2,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 2,
+          "status": 200,
+          "ttfb_ms": 178,
+          "total_ms": 178,
+          "bytes": 234392,
+          "render_ms": 5.4,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 3,
+          "status": 200,
+          "ttfb_ms": 3880,
+          "total_ms": 3880,
+          "bytes": 234392,
+          "render_ms": 5.2,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 4,
+          "status": 200,
+          "ttfb_ms": 4127,
+          "total_ms": 4127,
+          "bytes": 234392,
+          "render_ms": 18.3,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 5,
+          "status": 200,
+          "ttfb_ms": 186,
+          "total_ms": 186,
+          "bytes": 234392,
+          "render_ms": 5.5,
+          "content_encoding": "br",
+          "etag_present": true
+        }
+      ],
+      "warm": [
+        {
+          "round": 2,
+          "status": 200,
+          "ttfb_ms": 178,
+          "total_ms": 178,
+          "bytes": 234392,
+          "render_ms": 5.4,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 3,
+          "status": 200,
+          "ttfb_ms": 3880,
+          "total_ms": 3880,
+          "bytes": 234392,
+          "render_ms": 5.2,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 4,
+          "status": 200,
+          "ttfb_ms": 4127,
+          "total_ms": 4127,
+          "bytes": 234392,
+          "render_ms": 18.3,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 5,
+          "status": 200,
+          "ttfb_ms": 186,
+          "total_ms": 186,
+          "bytes": 234392,
+          "render_ms": 5.5,
+          "content_encoding": "br",
+          "etag_present": true
+        }
+      ],
+      "cond_304_ok": true
+    },
+    {
+      "path": "/erp/completion?view=fragment",
+      "samples": [
+        {
+          "round": 1,
+          "status": 200,
+          "ttfb_ms": 159,
+          "total_ms": 159,
+          "bytes": 38782,
+          "render_ms": null,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 2,
+          "status": 200,
+          "ttfb_ms": 121,
+          "total_ms": 121,
+          "bytes": 38782,
+          "render_ms": null,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 3,
+          "status": 200,
+          "ttfb_ms": 127,
+          "total_ms": 127,
+          "bytes": 38782,
+          "render_ms": null,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 4,
+          "status": 200,
+          "ttfb_ms": 121,
+          "total_ms": 121,
+          "bytes": 38782,
+          "render_ms": null,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 5,
+          "status": 200,
+          "ttfb_ms": 120,
+          "total_ms": 120,
+          "bytes": 38782,
+          "render_ms": null,
+          "content_encoding": "br",
+          "etag_present": true
+        }
+      ],
+      "warm": [
+        {
+          "round": 2,
+          "status": 200,
+          "ttfb_ms": 121,
+          "total_ms": 121,
+          "bytes": 38782,
+          "render_ms": null,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 3,
+          "status": 200,
+          "ttfb_ms": 127,
+          "total_ms": 127,
+          "bytes": 38782,
+          "render_ms": null,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 4,
+          "status": 200,
+          "ttfb_ms": 121,
+          "total_ms": 121,
+          "bytes": 38782,
+          "render_ms": null,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 5,
+          "status": 200,
+          "ttfb_ms": 120,
+          "total_ms": 120,
+          "bytes": 38782,
+          "render_ms": null,
+          "content_encoding": "br",
+          "etag_present": true
+        }
+      ],
+      "cond_304_ok": true
+    },
+    {
+      "path": "/erp/history?view=fragment",
+      "samples": [
+        {
+          "round": 1,
+          "status": 200,
+          "ttfb_ms": 227,
+          "total_ms": 227,
+          "bytes": 27041,
+          "render_ms": 2.0,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 2,
+          "status": 200,
+          "ttfb_ms": 251,
+          "total_ms": 251,
+          "bytes": 27041,
+          "render_ms": 1.6,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 3,
+          "status": 200,
+          "ttfb_ms": 279,
+          "total_ms": 279,
+          "bytes": 27041,
+          "render_ms": 2.2,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 4,
+          "status": 200,
+          "ttfb_ms": 423,
+          "total_ms": 423,
+          "bytes": 27041,
+          "render_ms": 2.0,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 5,
+          "status": 200,
+          "ttfb_ms": 239,
+          "total_ms": 239,
+          "bytes": 27041,
+          "render_ms": 1.5,
+          "content_encoding": "br",
+          "etag_present": true
+        }
+      ],
+      "warm": [
+        {
+          "round": 2,
+          "status": 200,
+          "ttfb_ms": 251,
+          "total_ms": 251,
+          "bytes": 27041,
+          "render_ms": 1.6,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 3,
+          "status": 200,
+          "ttfb_ms": 279,
+          "total_ms": 279,
+          "bytes": 27041,
+          "render_ms": 2.2,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 4,
+          "status": 200,
+          "ttfb_ms": 423,
+          "total_ms": 423,
+          "bytes": 27041,
+          "render_ms": 2.0,
+          "content_encoding": "br",
+          "etag_present": true
+        },
+        {
+          "round": 5,
+          "status": 200,
+          "ttfb_ms": 239,
+          "total_ms": 239,
+          "bytes": 27041,
+          "render_ms": 1.5,
+          "content_encoding": "br",
+          "etag_present": true
+        }
+      ],
+      "cond_304_ok": true
+    }
+  ]
+}

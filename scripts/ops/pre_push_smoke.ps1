@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   Fast local smoke checks before pushing to deploy/main (mirrors CI test job subset).
 
@@ -27,6 +27,14 @@
 .EXAMPLE
   powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1 -Visual
 
+.PARAMETER PerfGate
+  Staging 성능 게이트(tools/perf/staging_perf_gate.py)를 마지막 스텝으로 실행.
+  배포 후 검증 도구라 기본(무플래그)에는 안 낀다. deploy 배포 완료 후 검증 /
+  production 승격 직전 필수. env FOMS_STAGING_USERNAME/PASSWORD 없으면 SKIP(실패 아님).
+
+.EXAMPLE
+  powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1 -PerfGate
+
 .NOTES
   Win11 / PowerShell 5.x. GitHub Actions still runs the full CI pipeline on push.
   See docs/guides/PRE_PUSH_SMOKE.md
@@ -34,7 +42,8 @@
 
 param(
     [switch]$Full,
-    [switch]$Visual
+    [switch]$Visual,
+    [switch]$PerfGate
 )
 
 $ErrorActionPreference = "Stop"
@@ -95,8 +104,10 @@ function Invoke-PythonCommand {
     $psi.CreateNoWindow = $true
 
     $proc = [System.Diagnostics.Process]::Start($psi)
+    # stderr 를 먼저 비동기 수집 — stdout ReadToEnd 중 stderr 버퍼 포화 데드락(고전 .NET 함정) 방지.
+    $stderrTask = $proc.StandardError.ReadToEndAsync()
     $stdout = $proc.StandardOutput.ReadToEnd()
-    $stderr = $proc.StandardError.ReadToEnd()
+    $stderr = $stderrTask.Result
     $proc.WaitForExit()
 
     if ($stdout) { Write-Host $stdout }
@@ -109,7 +120,7 @@ function Invoke-PythonCommand {
 
 Write-Host "FOMS pre-push smoke" -ForegroundColor Cyan
 Write-Host "Root: $root"
-Write-Host "Mode: $(if ($Full) { 'Full (slow)' } else { 'Fast subset' })$(if ($Visual) { ' + Visual regression' })"
+Write-Host "Mode: $(if ($Full) { 'Full (slow)' } else { 'Fast subset' })$(if ($Visual) { ' + Visual regression' })$(if ($PerfGate) { ' + Staging perf gate' })"
 
 $visualStaleScript = Join-Path $root "scripts\ops\visual_baseline_stale.py"
 $visualGateRequired = $false
@@ -283,6 +294,37 @@ if ($Visual) {
                 Remove-Item -Force -ErrorAction SilentlyContinue
             Invoke-PythonCommand "-m pytest tests/visual -q"
         }
+    }
+}
+
+# Staging perf gate — 배포 후 검증 도구라 pre-push 기본에는 안 낀다(-PerfGate 로만 실행).
+# 사용 시점: deploy 푸쉬·배포 완료 후 검증 / production 승격 직전 필수.
+# env 크리덴셜(FOMS_STAGING_USERNAME/PASSWORD) 없으면 게이트가 exit 2 → SKIP 표기(실패 아님).
+if ($PerfGate) {
+    Write-StepHeader "Staging perf gate (deploy 후 검증 / 승격 전 필수)"
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = "python"
+    $psi.Arguments = "tools/perf/staging_perf_gate.py"
+    $psi.WorkingDirectory = $root
+    $psi.UseShellExecute = $false
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $psi.CreateNoWindow = $true
+    $proc = [System.Diagnostics.Process]::Start($psi)
+    # stderr 를 먼저 비동기 수집 — stdout ReadToEnd 중 stderr 버퍼 포화 데드락(고전 .NET 함정) 방지.
+    $stderrTask = $proc.StandardError.ReadToEndAsync()
+    $stdout = $proc.StandardOutput.ReadToEnd()
+    $stderr = $stderrTask.Result
+    $proc.WaitForExit()
+    if ($stdout) { Write-Host $stdout }
+    if ($stderr) { Write-Host $stderr -ForegroundColor DarkGray }
+    if ($proc.ExitCode -eq 2) {
+        Write-StepSkip "Staging perf gate — 크리덴셜 부재/로그인 실패로 스킵(실패 아님)"
+    } elseif ($proc.ExitCode -ne 0) {
+        Write-StepFail "Staging perf gate — 예산 초과(exit $($proc.ExitCode)) → 승격 차단"
+        $script:FailedSteps.Add("Staging perf gate")
+    } else {
+        Write-StepOk "Staging perf gate"
     }
 }
 

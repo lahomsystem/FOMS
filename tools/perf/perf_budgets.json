@@ -1,0 +1,46 @@
+{
+  "_comment": "스테이징 성능 게이트 예산(SSOT: tools/perf/staging_perf_gate.py). ttfb_warm_median_ms=warm 중앙값 상한(ms), body_bytes_max=응답 바이트 상한(해압 후, wire 아님). --seed 는 의도된 성능 변화 때만 실행하고 diff 를 리뷰한다.",
+  "_global": {
+    "render_ms_max": 500,
+    "etag_required": true,
+    "conditional_304_required": true
+  },
+  "paths": {
+    "/erp/dashboard?view=fragment": {
+      "ttfb_warm_median_ms": 322,
+      "body_bytes_max": 876868
+    },
+    "/erp/measurement?view=fragment": {
+      "ttfb_warm_median_ms": 178,
+      "body_bytes_max": 95625
+    },
+    "/erp/drawing-workbench?view=fragment": {
+      "ttfb_warm_median_ms": 381,
+      "body_bytes_max": 56484
+    },
+    "/erp/production/dashboard?view=fragment": {
+      "ttfb_warm_median_ms": 246,
+      "body_bytes_max": 750218
+    },
+    "/erp/shipment?view=fragment": {
+      "ttfb_warm_median_ms": 238,
+      "body_bytes_max": 101958
+    },
+    "/erp/as?view=fragment": {
+      "ttfb_warm_median_ms": 272,
+      "body_bytes_max": 1525036
+    },
+    "/erp/construction/dashboard?view=fragment": {
+      "ttfb_warm_median_ms": 233,
+      "body_bytes_max": 304710
+    },
+    "/erp/completion?view=fragment": {
+      "ttfb_warm_median_ms": 155,
+      "body_bytes_max": 50417
+    },
+    "/erp/history?view=fragment": {
+      "ttfb_warm_median_ms": 295,
+      "body_bytes_max": 35153
+    }
+  }
+}

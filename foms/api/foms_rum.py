@@ -8,6 +8,8 @@ from typing import Any
 
 from flask import Blueprint, jsonify, request
 
+from foms.services.rum_aggregate import record_metric as record_rum_metric
+
 foms_rum_bp = Blueprint("foms_rum", __name__)
 _logger = logging.getLogger("foms.rum")
 
@@ -34,4 +36,12 @@ def ingest_rum_event() -> tuple[Any, int]:
         "mobile_v2": payload.get("mobile_v2"),
     }
     _logger.info(json.dumps(record, ensure_ascii=False))
+
+    # 부가: 일별 히스토그램 집계(추세 감시). Redis 부재/오류/비화이트리스트 metric 은
+    # 조용히 skip 하며 응답·기존 동작에 영향을 주지 않는다(fail-open).
+    try:
+        record_rum_metric(payload.get("metric"), payload.get("value"))
+    except Exception:  # pragma: no cover - 집계 실패가 수신 응답을 막지 않도록.
+        pass
+
     return jsonify({"success": True}), 200
