@@ -58,6 +58,13 @@
    */
   var HEARTBEAT_PRIMARY_MS = 240 * 1000;
   var HEARTBEAT_FRESH_MS = 50 * 1000;
+  /**
+   * 하트비트 스윕 스태거: primary 9발을 동시에 쏘면 각 fragment(640KB 급) 재검증이 겹쳐
+   * 클라 주기 jank 를 만든다. 요청을 setTimeout 체인으로 순차 발사해 부하를 펼친다.
+   * 대부분은 304(빈 바디)로 값싸게 끝나지만, 스태거는 200 이 섞일 때의 tail 을 흡수한다.
+   */
+  var HEARTBEAT_PRIMARY_STAGGER_MS = 600;
+  var HEARTBEAT_FRESH_STAGGER_MS = 300;
   var HEARTBEAT_IDLE_CUTOFF_MS = 10 * 60 * 1000;
   /** 복귀(visibilitychange/pageshow) 재수혈 연타 방지 최소 간격. */
   var FOCUS_REFRESH_MIN_GAP_MS = 15 * 1000;
@@ -206,7 +213,12 @@
     return finalUrl;
   }
 
-  function cachePut(key, html) {
+  /**
+   * @param {string} key
+   * @param {string} html
+   * @param {string} [etag] 서버 fragment ETag — 다음 요청의 If-None-Match(조건부 304)로 재사용.
+   */
+  function cachePut(key, html, etag) {
     var now = Date.now();
     if (fragmentHtmlCache[key]) {
       var i = fragmentCacheOrder.indexOf(key);
@@ -214,7 +226,7 @@
         fragmentCacheOrder.splice(i, 1);
       }
     }
-    fragmentHtmlCache[key] = { html: html, ts: now };
+    fragmentHtmlCache[key] = { html: html, ts: now, etag: etag || null };
     fragmentCacheOrder.push(key);
     while (fragmentCacheOrder.length > CACHE_MAX_ENTRIES) {
       var evict = fragmentCacheOrder.shift();
@@ -391,14 +403,37 @@
     if (inflightFetches[key]) {
       return inflightFetches[key];
     }
+    var reqHeaders = {
+      'X-FOMS-ERP-SHELL': '1',
+      'X-Requested-With': 'XMLHttpRequest',
+    };
+    // 조건부 재검증: 캐시에 ETag 가 있으면 If-None-Match 를 붙여 서버가 내용 무변경 시
+    // 304(빈 바디)로 응답하게 한다. force(하트비트)든 네비든 동일 — 네비게이션도 304면
+    // 캐시 html 을 그대로 재사용하는 것이 정답(640KB 재전송·재해압 회피). etag 없는 구캐시
+    // 엔트리는 헤더 미첨부 → 정상 200 경로.
+    var priorRow = fragmentHtmlCache[key];
+    // 요청 비행 중 LRU evict/invalidate 경합에도 304 를 복원할 수 있게 html/etag 를
+    // 클로저에 캡처해 둔다(문자열 참조만 유지 — 비행 동안만 생존).
+    var priorHtml = priorRow && typeof priorRow.html === 'string' ? priorRow.html : null;
+    var priorEtag = priorRow && priorRow.etag ? priorRow.etag : null;
+    if (priorEtag && priorHtml !== null) {
+      reqHeaders['If-None-Match'] = priorEtag;
+    }
     var p = fetch(fetchUrl.toString(), {
       credentials: 'same-origin',
-      headers: {
-        'X-FOMS-ERP-SHELL': '1',
-        'X-Requested-With': 'XMLHttpRequest',
-      },
+      headers: reqHeaders,
     })
       .then(function (r) {
+        if (r.status === 304) {
+          // 내용 무변경 → 캡처해 둔 html 재사용(비행 중 evict/invalidate 경합에도 안전 —
+          // If-None-Match 는 priorHtml 이 있을 때만 보냈으므로 여기서 null 불가).
+          // 304 엔 커스텀 헤더/바디가 없을 수 있어 X-FOMS-ERP-FRAGMENT 검사와 본문
+          // 파싱을 건너뛴다. TTL 은 아래 cachePut 이 연장.
+          if (priorHtml === null) {
+            throw new Error('304 without cached fragment');
+          }
+          return { html: priorHtml, finalUrl: canonical, etag: priorEtag };
+        }
         if (!r.ok) {
           throw new Error('fragment fetch failed');
         }
@@ -411,17 +446,20 @@
         if (!finalCanonical) {
           throw new Error('unsafe redirected fragment url');
         }
+        var etag = r.headers.get('etag');
         return r.text().then(function (html) {
           return {
             html: html,
             finalUrl: finalCanonical,
+            etag: etag,
           };
         });
       })
       .then(function (payload) {
         var finalKey = getCacheKey(payload.finalUrl.href);
         if (isFragmentCacheable(payload.finalUrl.href)) {
-          cachePut(finalKey, payload.html);
+          // 200 → html+etag 저장, 304 → 동일 html+etag 로 ts 만 갱신(TTL 연장).
+          cachePut(finalKey, payload.html, payload.etag);
         }
         if (cacheable && finalKey !== key) {
           delete fragmentHtmlCache[key];
@@ -756,6 +794,9 @@
   var lastActivityTs = Date.now();
   var lastPrimaryHeartbeatTs = 0;
   var lastFreshHeartbeatTs = 0;
+  /** 진행 중 스윕 재진입 방지(주기 >> 스윕 소요라 겹칠 일 없지만 안전 플래그). */
+  var primaryHeartbeatSweeping = false;
+  var freshHeartbeatSweeping = false;
 
   function heartbeatActive() {
     return (
@@ -764,24 +805,69 @@
     );
   }
 
-  /** primary 9 nav(현재 경로 제외)을 force refresh — 만료 전 웜 유지. */
+  /**
+   * primary 9 nav(현재 경로 제외)을 순차(600ms 간격) force refresh — 만료 전 웜 유지.
+   * 동시 9발 대신 setTimeout 체인 스태거로 주기 jank 를 없앤다(대부분 304, tail 만 200).
+   */
   function runPrimaryHeartbeat() {
+    if (primaryHeartbeatSweeping) {
+      return;
+    }
     lastPrimaryHeartbeatTs = Date.now();
     var cur = pathOnly(window.location.href);
-    PRIMARY_NAV_PATHS.forEach(function (p) {
-      if (p === cur) {
+    var targets = PRIMARY_NAV_PATHS.filter(function (p) {
+      return p !== cur;
+    });
+    if (!targets.length) {
+      return;
+    }
+    primaryHeartbeatSweeping = true;
+    var i = 0;
+    function step() {
+      if (i >= targets.length) {
+        primaryHeartbeatSweeping = false;
         return;
       }
-      prefetchShellFragment(window.location.origin + p, { force: true });
-    });
+      try {
+        prefetchShellFragment(window.location.origin + targets[i], { force: true });
+      } catch (e) {
+        // sync throw 시 플래그가 영구 true 로 남아 하트비트가 죽는 leak 방지.
+        primaryHeartbeatSweeping = false;
+        return;
+      }
+      i += 1;
+      window.setTimeout(step, HEARTBEAT_PRIMARY_STAGGER_MS);
+    }
+    step();
   }
 
-  /** fresh 경로만 force refresh — FRESH_TTL(60s) 앞선 50s 주기로 항상 웜. */
+  /** fresh 경로(2개)를 순차(300ms 간격) force refresh — FRESH_TTL(60s) 앞선 50s 주기로 항상 웜. */
   function runFreshHeartbeat() {
+    if (freshHeartbeatSweeping) {
+      return;
+    }
     lastFreshHeartbeatTs = Date.now();
-    FRESH_TTL_PATHS.forEach(function (p) {
-      prefetchShellFragment(window.location.origin + p, { force: true });
-    });
+    if (!FRESH_TTL_PATHS.length) {
+      return;
+    }
+    freshHeartbeatSweeping = true;
+    var i = 0;
+    function step() {
+      if (i >= FRESH_TTL_PATHS.length) {
+        freshHeartbeatSweeping = false;
+        return;
+      }
+      try {
+        prefetchShellFragment(window.location.origin + FRESH_TTL_PATHS[i], { force: true });
+      } catch (e) {
+        // sync throw 시 플래그 leak(하트비트 영구 정지) 방지.
+        freshHeartbeatSweeping = false;
+        return;
+      }
+      i += 1;
+      window.setTimeout(step, HEARTBEAT_FRESH_STAGGER_MS);
+    }
+    step();
   }
 
   function onShellActivity() {

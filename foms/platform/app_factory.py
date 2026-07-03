@@ -115,6 +115,11 @@ def build_app(*, socketio_available: bool) -> AppFactoryResult:
     """Build the root Flask app while preserving the existing runtime order."""
     app = Flask("app")
 
+    # ERP 셸 fragment 조건부 304(erp_shell_http.apply_erp_shell_fragment_headers)는
+    # 압축 응답에서 Flask-Compress의 ETag 재작성("abc"→"abc:br")+조건부 재평가에
+    # 의존한다. 이 값이 꺼지면 하트비트 304가 소리 없이 영구 200(641KB 재전송)으로
+    # 퇴화하므로 명시 고정한다.
+    app.config["COMPRESS_EVALUATE_CONDITIONAL_REQUEST"] = True
     Compress(app)
 
     is_production = (
