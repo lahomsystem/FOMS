@@ -163,9 +163,13 @@ def api_order_attachments_upload(order_id):
         )
         db.add(attachment)
         db.commit()
-        from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+        # Tier B(첨부): 첨부를 읽는 도메인 family만 무효화(history 제외).
+        from foms.services.common.dashboard_cache import (
+            ATTACHMENT_DASHBOARD_FAMILIES,
+            invalidate_dashboard_families,
+        )
 
-        invalidate_all_dashboard_slice_caches()
+        invalidate_dashboard_families(*ATTACHMENT_DASHBOARD_FAMILIES)
         db.refresh(attachment)
         if ASYNC_ATTACHMENT_THUMBNAIL and file_type == "image" and storage_key and not thumbnail_key:
             schedule_order_attachment_thumbnail_generation(attachment.id, storage_key)
@@ -225,9 +229,13 @@ def api_order_attachments_patch(order_id, attachment_id):
             )
         setattr(attachment, "item_index", item_index)
         db.commit()
-        from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+        # Tier B(첨부): 첨부를 읽는 도메인 family만 무효화(history 제외).
+        from foms.services.common.dashboard_cache import (
+            ATTACHMENT_DASHBOARD_FAMILIES,
+            invalidate_dashboard_families,
+        )
 
-        invalidate_all_dashboard_slice_caches()
+        invalidate_dashboard_families(*ATTACHMENT_DASHBOARD_FAMILIES)
         db.refresh(attachment)
         return jsonify(
             {
@@ -293,9 +301,13 @@ def api_order_attachments_delete(order_id, attachment_id):
 
         db.delete(attachment)
         db.commit()
-        from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+        # Tier B(첨부): 첨부를 읽는 도메인 family만 무효화(history 제외).
+        from foms.services.common.dashboard_cache import (
+            ATTACHMENT_DASHBOARD_FAMILIES,
+            invalidate_dashboard_families,
+        )
 
-        invalidate_all_dashboard_slice_caches()
+        invalidate_dashboard_families(*ATTACHMENT_DASHBOARD_FAMILIES)
         return jsonify({"success": True})
     except Exception as e:
         db = get_db()

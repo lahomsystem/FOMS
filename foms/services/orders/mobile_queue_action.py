@@ -5,7 +5,7 @@ from __future__ import annotations
 import datetime
 from typing import Any
 
-from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+from foms.services.common.dashboard_cache import invalidate_order_dashboard_families
 from foms.services.erp_policy import get_stage
 from foms.services.orders.status_constants import STATUS
 from models import Order
@@ -44,7 +44,9 @@ def apply_queue_hold(db: Any, order: Order, user_id: int | None) -> tuple[dict[s
     if hasattr(order, "updated_at"):
         order.updated_at = datetime.datetime.now()
     db.commit()
-    invalidate_all_dashboard_slice_caches()
+    # Tier D(hold): 단계는 유지되고 status만 ON_HOLD → orders + 현재 단계 family만.
+    # stage 미상이면 helper가 broad로 안전 폴백.
+    invalidate_order_dashboard_families(order)
     log_access(
         f"모바일 큐 swipe hold — 주문 #{order.id} ({order.customer_name}) → ON_HOLD",
         user_id,

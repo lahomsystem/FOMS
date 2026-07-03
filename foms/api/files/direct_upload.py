@@ -216,9 +216,13 @@ def api_order_attachments_complete(order_id):
         )
         db.add(attachment)
         db.commit()
-        from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+        # Tier B(첨부): 첨부를 읽는 도메인 family만 무효화(history 제외).
+        from foms.services.common.dashboard_cache import (
+            ATTACHMENT_DASHBOARD_FAMILIES,
+            invalidate_dashboard_families,
+        )
 
-        invalidate_all_dashboard_slice_caches()
+        invalidate_dashboard_families(*ATTACHMENT_DASHBOARD_FAMILIES)
         db.refresh(attachment)
         storage_key = getattr(attachment, "storage_key", None)
         thumbnail_key = getattr(attachment, "thumbnail_key", None)

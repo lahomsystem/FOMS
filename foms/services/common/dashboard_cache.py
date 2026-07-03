@@ -81,6 +81,79 @@ _SINGLEFLIGHT_POLL_S: Final[float] = 0.05
 _ENV_FLAG: Final[str] = "FOMS_DASHBOARD_MICRO_CACHE_ENABLED"
 _REDIS_URL_ENV: Final[str] = "REDIS_URL"
 
+# --- 무효화 스코프 상수 (Wave 2) ------------------------------------------------
+# family 문자열 = build_dashboard_cache_key(page=...) 의 page 인자와 1:1. 오타 시
+# 무효화 누락 → stale 버그이므로 항상 이 상수를 통해서만 참조한다.
+DASHBOARD_FAMILY_ORDERS: Final[str] = "orders"
+DASHBOARD_FAMILY_MEASUREMENT: Final[str] = "measurement"
+DASHBOARD_FAMILY_SHIPMENT: Final[str] = "shipment"
+DASHBOARD_FAMILY_CONSTRUCTION: Final[str] = "construction"
+DASHBOARD_FAMILY_HISTORY: Final[str] = "history"
+DASHBOARD_FAMILY_PRODUCTION: Final[str] = "production"
+DASHBOARD_FAMILY_DRAWING: Final[str] = "drawing"
+
+ALL_DASHBOARD_FAMILIES: Final[tuple[str, ...]] = (
+    DASHBOARD_FAMILY_ORDERS,
+    DASHBOARD_FAMILY_MEASUREMENT,
+    DASHBOARD_FAMILY_SHIPMENT,
+    DASHBOARD_FAMILY_CONSTRUCTION,
+    DASHBOARD_FAMILY_HISTORY,
+    DASHBOARD_FAMILY_PRODUCTION,
+    DASHBOARD_FAMILY_DRAWING,
+)
+
+# 첨부(OrderAttachment) mutation 시 무효화할 family 집합.
+#
+# 근거(각 family read-model/대시보드가 첨부를 실제로 읽는지 코드로 확정):
+#   - orders: dashboard_read_model.compute_orders_attachment_assignee_maps 가
+#     OrderAttachment 카운트 집계 + 모바일 큐 미리보기(batch_resolve_queue_attachment_preview_items).
+#   - measurement: erp_product_items.build_product_items_for_orders 가 measurement/
+#     measure_photo/photo 첨부를 조회, 모바일 큐 행이 첨부 카운트·미리보기 사용.
+#   - construction: construction_dashboard_display / construction_read_model 이
+#     OrderAttachment 미리보기·카운트 조회.
+#   - production: production_read_model.fetch_production_attachment_counts +
+#     production_dashboard_display has_media.
+#   - drawing: drawing_workbench_display 가 OrderAttachment.thumbnail_key 조회.
+#   - shipment: shipment_read_model 자체엔 첨부 read 없으나 모바일 v2 큐
+#     (build_shipment_mobile_queue_rows → build_mobile_queue_order_row)가 첨부
+#     카운트·미리보기를 읽으므로 포함.
+#   - history: history_read_model / history 라우트에 첨부 read 없음 → 제외.
+# 애매하면 포함(과무효화 > 과소무효화) 원칙을 따른다.
+ATTACHMENT_DASHBOARD_FAMILIES: Final[frozenset[str]] = frozenset(
+    {
+        DASHBOARD_FAMILY_ORDERS,
+        DASHBOARD_FAMILY_MEASUREMENT,
+        DASHBOARD_FAMILY_SHIPMENT,
+        DASHBOARD_FAMILY_CONSTRUCTION,
+        DASHBOARD_FAMILY_PRODUCTION,
+        DASHBOARD_FAMILY_DRAWING,
+    }
+)
+
+# erp_stage_code(=workflow.stage) → 해당 단계 주문이 나타나는 도메인 대시보드 family.
+# 값 SSOT: foms.services.orders.erp_policy_constants.STAGE_LABELS /
+# STAGE_NAME_TO_CODE(코드=RECEIVED/MEASURE/DRAWING/CONFIRM/PRODUCTION/CONSTRUCTION/
+# CS/COMPLETED/AS/AS_RECEIVED/AS_COMPLETED). 매핑 없는 stage는 폴백(broad)로 처리한다.
+_STAGE_CODE_TO_FAMILY: Final[dict[str, str]] = {
+    "MEASURE": DASHBOARD_FAMILY_MEASUREMENT,
+    "DRAWING": DASHBOARD_FAMILY_DRAWING,
+    "CONFIRM": DASHBOARD_FAMILY_PRODUCTION,
+    "PRODUCTION": DASHBOARD_FAMILY_PRODUCTION,
+    "CONSTRUCTION": DASHBOARD_FAMILY_CONSTRUCTION,
+    "CS": DASHBOARD_FAMILY_CONSTRUCTION,
+    "AS": DASHBOARD_FAMILY_CONSTRUCTION,
+    "AS_RECEIVED": DASHBOARD_FAMILY_CONSTRUCTION,
+    "AS_COMPLETED": DASHBOARD_FAMILY_HISTORY,
+    "COMPLETED": DASHBOARD_FAMILY_HISTORY,
+    # 운영 데이터에 한글 stage 값이 실재한다(근거: production_read_model.py 기본 필터가
+    # '"고객컨펌"/"생산"/"시공"'과 영문 코드를 이중으로 매칭). 미등록 시 해당 주문은 매번
+    # broad 폴백으로 빠져 스코프 무효화 실효가 반감된다. 검증된 값만 등록(그 외 한글
+    # stage는 폴백 유지 — 오매핑보다 broad가 안전).
+    "고객컨펌": DASHBOARD_FAMILY_PRODUCTION,
+    "생산": DASHBOARD_FAMILY_PRODUCTION,
+    "시공": DASHBOARD_FAMILY_CONSTRUCTION,
+}
+
 _redis_lock = threading.Lock()
 # None: 미초기화, False: 연결 실패(프로세스 내 재시도 안 함), 그 외: redis.Redis
 _redis_client: Any | None = None
@@ -98,8 +171,20 @@ __all__ = [
     "get_dashboard_redis",
     "get_or_compute_dashboard_slice",
     "invalidate_dashboard_family",
+    "invalidate_dashboard_families",
+    "invalidate_order_dashboard_families",
+    "stage_code_to_dashboard_family",
     "invalidate_all_dashboard_slice_caches",
     "reset_dashboard_cache_runtime_for_tests",
+    "ALL_DASHBOARD_FAMILIES",
+    "ATTACHMENT_DASHBOARD_FAMILIES",
+    "DASHBOARD_FAMILY_ORDERS",
+    "DASHBOARD_FAMILY_MEASUREMENT",
+    "DASHBOARD_FAMILY_SHIPMENT",
+    "DASHBOARD_FAMILY_CONSTRUCTION",
+    "DASHBOARD_FAMILY_HISTORY",
+    "DASHBOARD_FAMILY_PRODUCTION",
+    "DASHBOARD_FAMILY_DRAWING",
 ]
 
 
@@ -140,7 +225,14 @@ def get_dashboard_redis() -> Any | None:
         try:
             from redis import Redis
 
-            client = Redis.from_url(redis_url, decode_responses=True)
+            # socket_timeout: Redis 응답 지연 시 요청이 무한 대기하지 않도록 상한.
+            # 초과 시 예외 → 기존 fail-open(compute 경로)이 흡수한다.
+            client = Redis.from_url(
+                redis_url,
+                decode_responses=True,
+                socket_timeout=2,
+                socket_connect_timeout=2,
+            )
             # 연결 확인 (lazy 연결 대비 ping)
             client.ping()
             _redis_client = client
@@ -399,6 +491,63 @@ def invalidate_dashboard_family(family: str) -> int:
     return deleted
 
 
+def invalidate_dashboard_families(*families: str) -> int:
+    """여러 family를 한 번에 무효화(중복 제거). commit 성공 후에만 호출할 것.
+
+    Tier B/C/D 및 도메인-스코프 mutation이 broad 대신 필요한 family만 지우도록 하는
+    배치 진입점. 빈 문자열/중복은 무시한다.
+
+    Args:
+        *families: 무효화할 family 문자열들(DASHBOARD_FAMILY_* 상수 사용 권장).
+
+    Returns:
+        삭제한 키 개수 합(대략치).
+    """
+    seen: set[str] = set()
+    total = 0
+    for fam in families:
+        fam_n = str(fam).strip()
+        if not fam_n or fam_n in seen:
+            continue
+        seen.add(fam_n)
+        total += invalidate_dashboard_family(fam_n)
+    return total
+
+
+def stage_code_to_dashboard_family(stage_code: str | None) -> str | None:
+    """erp_stage_code(=workflow.stage) → 도메인 대시보드 family. 미매핑이면 None.
+
+    None 반환은 호출부가 "안전하게 broad" 폴백을 택하라는 신호다(값 미상 = stale 최악).
+    """
+    if not stage_code:
+        return None
+    return _STAGE_CODE_TO_FAMILY.get(str(stage_code).strip().upper())
+
+
+def invalidate_order_dashboard_families(order: Any, extra: tuple[str, ...] = ()) -> int:
+    """단일 주문 mutation 후, ``orders`` + 주문 현재 단계 family(+extra)만 무효화.
+
+    주문의 ``erp_stage_code``(workflow.stage 동기 컬럼)로 도메인 family를 매핑한다.
+    stage가 None/미매핑이면 stale이 최악이므로 안전하게 **전체(broad)** 무효화로
+    폴백한다. 출고일/완료 등 특정 필드가 걸린 경우 호출부가 ``extra``로 shipment/
+    history 등을 추가한다.
+
+    Args:
+        order: erp_stage_code 속성을 갖는 Order 객체.
+        extra: 추가로 무효화할 family(예: 출고일 변경 시 shipment).
+
+    Returns:
+        삭제한 키 개수 합(대략치).
+    """
+    stage_code = getattr(order, "erp_stage_code", None)
+    family = stage_code_to_dashboard_family(stage_code)
+    if family is None:
+        # 단계 미상/미매핑 → 어느 탭에 나타날지 알 수 없으므로 broad.
+        return invalidate_all_dashboard_slice_caches()
+    families = [DASHBOARD_FAMILY_ORDERS, family, *extra]
+    return invalidate_dashboard_families(*families)
+
+
 def invalidate_all_dashboard_slice_caches() -> int:
     """
     ``orders`` / ``measurement`` / ``shipment`` / ``construction`` / ``history`` /
@@ -407,6 +556,6 @@ def invalidate_all_dashboard_slice_caches() -> int:
     DB commit이 성공한 뒤에만 호출할 것.
     """
     total = 0
-    for fam in ("orders", "measurement", "shipment", "construction", "history", "production", "drawing"):
+    for fam in ALL_DASHBOARD_FAMILIES:
         total += invalidate_dashboard_family(fam)
     return total

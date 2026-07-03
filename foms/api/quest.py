@@ -84,6 +84,7 @@ def api_order_quest_get(order_id):
                     order.structured_data = sd
                     order.updated_at = datetime.datetime.now()
                     db.commit()
+                    # Tier A(broad): quest 흐름은 stage 전환을 유발해 탭 간 이동이 일어남.
                     from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
 
                     invalidate_all_dashboard_slice_caches()
@@ -148,6 +149,7 @@ def api_order_quest_create(order_id):
         order.structured_data = sd
         order.updated_at = datetime.datetime.now()
         db.commit()
+        # Tier A(broad): quest 생성/전환은 stage 전환을 유발해 탭 간 이동이 일어남.
         from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
 
         invalidate_all_dashboard_slice_caches()
@@ -425,6 +427,7 @@ def api_order_quest_approve(order_id):
         order.updated_at = now
         sync_erp_flat_columns(order, sd)
         db.commit()
+        # Tier A(broad): quest 승인은 workflow.stage 전환(+order.status)을 유발 → 탭 이동.
         from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
 
         invalidate_all_dashboard_slice_caches()
@@ -504,6 +507,7 @@ def api_order_quest_update_status(order_id):
         order.structured_data = sd
         order.updated_at = now
         db.commit()
+        # Tier A(broad): quest 상태 변경은 stage 전환으로 이어질 수 있어 탭 간 이동 발생.
         from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
 
         invalidate_all_dashboard_slice_caches()

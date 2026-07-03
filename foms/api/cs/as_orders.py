@@ -31,7 +31,12 @@ erp_orders_as_bp = Blueprint(
 
 
 def _invalidate_shipment_asrec_caches(reason: str) -> None:
-    """Dashboard + shipment AS recommendation cache bust (commit-after, best-effort)."""
+    """Dashboard + shipment AS recommendation cache bust (commit-after, best-effort).
+
+    Tier A(broad): AS start/complete/register 는 order.status(AS↔CS↔AS_RECEIVED)와
+    workflow.stage_updated_at 를 바꿔 여러 탭(주문/시공/완료/출고 추천) 사이 이동을
+    유발하므로 전체 무효화를 유지한다.
+    """
     try:
         from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
 

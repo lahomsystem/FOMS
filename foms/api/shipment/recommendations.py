@@ -33,7 +33,11 @@ from foms.services.shipment_as_recommendation_cache import (
     make_route_provider,
     set_cached_target,
 )
-from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
+from foms.services.common.dashboard_cache import (
+    DASHBOARD_FAMILY_ORDERS,
+    DASHBOARD_FAMILY_SHIPMENT,
+    invalidate_dashboard_families,
+)
 from foms.web.auth import login_required, role_required
 from models import Order, OrderEvent, SecurityLog
 
@@ -55,8 +59,11 @@ def _invalidate_asrec_after_commit(reason: str) -> None:
 
 
 def _invalidate_dashboard_after_commit() -> None:
+    # 도메인-스코프: AS 추천 적용/취소는 schedule.as_visit.shipment_recommendation만
+    # 기록하고 workflow.stage는 바꾸지 않는다 → 출고 대시보드(추천 행)와 주문 목록만
+    # 무효화한다.
     try:
-        invalidate_all_dashboard_slice_caches()
+        invalidate_dashboard_families(DASHBOARD_FAMILY_SHIPMENT, DASHBOARD_FAMILY_ORDERS)
     except Exception:
         logger.warning("[AS-REC] dashboard slice cache invalidate failed", exc_info=True)
 

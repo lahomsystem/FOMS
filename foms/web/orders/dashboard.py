@@ -44,7 +44,6 @@ from foms.services.orders.dashboard_control_tower import (
 )
 from foms.services.common.dashboard_cache import (
     TTL_ATTACHMENT_COUNT_MAP,
-    TTL_PAYLOAD_ASSEMBLY,
     TTL_SUMMARY_COUNTS,
     build_dashboard_cache_key,
     get_or_compute_dashboard_slice,
@@ -375,43 +374,12 @@ def erp_dashboard():
         row["attachment_preview_items"] = items
         row["attachment_preview_urls"] = [item["view"] for item in items if item.get("view")]
 
-    # §3.1.1 order detail payload assembly — JSON DTO slice (slim structured_data preload)
-    _detail_fp = {
-        "v": 1,
-        "user": _orders_user_visibility_fingerprint(current_user, is_admin),
-        "filters": {
-            "stage": f_stage,
-            "urgent": f_urgent,
-            "has_alert": f_has_alert,
-            "alert_type": f_alert_type,
-            "q": f_q,
-            "team": f_team,
-            "mine": "1" if f_mine else "",
-        },
-        "page": page,
-        "order_ids": sorted(r["id"] for r in paginated_orders),
-    }
-    _detail_key = build_dashboard_cache_key(
-        "orders", "order_detail_payload_assembly", _detail_fp
-    )
-
-    def _compute_order_detail_payload_assembly():
-        return build_order_detail_payload_map(db, paginated_orders)
-
-    _detail_blob = get_or_compute_dashboard_slice(
-        _detail_key,
-        TTL_PAYLOAD_ASSEMBLY,
-        _compute_order_detail_payload_assembly,
-        page="orders",
-        slice_name="order_detail_payload_assembly",
-    )
-    _detail_by_id: dict[int, dict] = {}
-    if isinstance(_detail_blob, dict):
-        for _k, _v in _detail_blob.items():
-            try:
-                _detail_by_id[int(_k)] = _v  # type: ignore[assignment]
-            except (TypeError, ValueError):
-                continue
+    # §3.1.1 order detail payload assembly — slim structured_data preload.
+    # W2-2(음수캐시 제거): 이 slice는 fingerprint에 페이지 order_ids를 나열해 키가
+    # 페이지마다 달라지고, compute 자체는 0-4ms(structured_data 슬림화)에 불과했다.
+    # Redis get+set 왕복이 계산보다 비싼 음수-가치 캐시였으므로 직접 계산으로 대체한다
+    # (order_detail_payload_assembly slice·TTL_PAYLOAD_ASSEMBLY 참조 제거).
+    _detail_by_id: dict[int, dict] = build_order_detail_payload_map(db, paginated_orders)
     for row in paginated_orders:
         oid = row["id"]
         payload = _detail_by_id.get(oid)
