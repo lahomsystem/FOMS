@@ -12,6 +12,7 @@
   var desktopResizer = null;
   var desktopResizeListener = null;
   var isDesktopResizeListenerAttached = false;
+  var resizerTable = null;
 
   var MEASUREMENT_COLUMN_SCHEMA = {
     detail:           { defaultWidth: 70,  minWidth: 56 },
@@ -154,8 +155,32 @@
     isDesktopResizeListenerAttached = false;
   }
 
+  /**
+   * fragment 스왑으로 테이블 DOM 이 교체되면 옛 ColumnResizer 는 detached 테이블을 참조한다.
+   * 모듈 var(desktopResizer)는 load-once 라 리셋되지 않으므로, 새 테이블 init 전에 명시적으로 정리한다.
+   * vendor(column-resizer.js)는 생성자에서 window resize 에 인스턴스별 onResize 를 등록하고 destroy() 로도
+   * 이를 해제하지 않는다. onResize 는 인스턴스 안정 프로퍼티이므로 removeEventListener 로 직접 해제한다.
+   */
+  function destroyDesktopResizer() {
+    detachDesktopResizeListener();
+    if (desktopResizer) {
+      if (typeof desktopResizer.onResize === 'function') {
+        window.removeEventListener('resize', desktopResizer.onResize);
+      }
+      if (typeof desktopResizer.destroy === 'function') {
+        try { desktopResizer.destroy(); } catch (error) {}
+      }
+    }
+    desktopResizer = null;
+    desktopResizeListener = null;
+    resizerTable = null;
+  }
+
   function initDesktopResizer(table) {
-    if (desktopResizer) return;
+    // 같은 테이블에 이미 붙어 있으면 재생성하지 않음(동일 DOM 재init 멱등).
+    if (desktopResizer && resizerTable === table) return;
+    // 다른(옛) 테이블에 붙어 있던 인스턴스는 grip DOM·전역 리스너까지 정리 후 새로 생성.
+    if (desktopResizer) destroyDesktopResizer();
 
     var ResizerCtor = getResizerConstructor();
     if (!ResizerCtor) return;
@@ -175,6 +200,7 @@
         saveDesktopWidths(collectCurrentWidths(table));
       }
     });
+    resizerTable = table;
 
     desktopResizeListener = typeof desktopResizer.onResize === 'function' ? desktopResizer.onResize : null;
     isDesktopResizeListenerAttached = !!desktopResizeListener;
@@ -192,7 +218,8 @@
   }
 
   function applyStaticTableState(table) {
-    detachDesktopResizeListener();
+    // 정적/모바일 모드: 리사이저를 완전히 정리(grip DOM + 전역 리스너)해 옛 테이블 잔여 참조를 제거.
+    destroyDesktopResizer();
     normalizeTableInlineWidths(table);
     applyWidthsToCols(table, loadDesktopWidths());
     applySchemaMinimums(table);
@@ -229,24 +256,44 @@
     applyStaticTableState(table);
   }
 
+  function onViewportResize() {
+    clearTimeout(viewportTimer);
+    viewportTimer = window.setTimeout(function () {
+      syncViewportState(false);
+    }, 120);
+  }
+
   function init() {
     var table = getTable();
-    if (!table) return;
+    if (!table) {
+      // 새 fragment 에 표가 없거나(권한/비활성) 옛 표가 사라진 경우 잔여 리사이저 정리.
+      if (desktopResizer) destroyDesktopResizer();
+      return;
+    }
+
+    // 스왑으로 표가 교체됐다면(옛 인스턴스가 다른 표에 묶여 있으면) mode 재판정 전에 강제 재적용.
+    if (desktopResizer && resizerTable !== table) {
+      lastViewportMode = null;
+    }
 
     bindResetButton(table);
     syncViewportState(true);
-
-    window.addEventListener('resize', function () {
-      clearTimeout(viewportTimer);
-      viewportTimer = window.setTimeout(function () {
-        syncViewportState(false);
-      }, 120);
-    });
   }
 
+  // 창 resize debounce 리스너는 전역이라 1회만 등록(스왑마다 누적 방지). 내부에서 현재 표를 조회.
+  if (!window.__FOMS_MEAS_COLUMNS_RESIZE_BOUND) {
+    window.__FOMS_MEAS_COLUMNS_RESIZE_BOUND = true;
+    window.addEventListener('resize', onViewportResize);
+  }
+
+  // entry 동적 로드 대응 readyState 분기 + fragment 스왑 재초기화(리사이저 생명주기는 init 이 관리).
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
   } else {
     init();
+  }
+  if (!window.__FOMS_MEAS_COLUMNS_BOUND) {
+    window.__FOMS_MEAS_COLUMNS_BOUND = true;
+    document.addEventListener('foms:erp-shell-fragment-swapped', init);
   }
 })();

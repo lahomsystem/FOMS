@@ -312,9 +312,14 @@
         });
     }
 
+    // entry 동적 로드 대응 readyState 분기 + fragment 스왑 재초기화(모든 리스너 root/시트 스코프라 per-DOM).
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initMeasurementMobile);
     } else {
         initMeasurementMobile();
+    }
+    if (!window.__FOMS_MEAS_MOBILE_BOUND) {
+        window.__FOMS_MEAS_MOBILE_BOUND = true;
+        document.addEventListener('foms:erp-shell-fragment-swapped', initMeasurementMobile);
     }
 })();

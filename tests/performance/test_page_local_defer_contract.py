@@ -33,21 +33,43 @@ def test_chat_page_route_script_is_deferred() -> None:
     _assert_deferred(html, "channel_chat_pages.chat_scripts_js")
 
 
-def test_measurement_dashboard_external_scripts_are_deferred() -> None:
+def test_measurement_dashboard_uses_single_deferred_entry_not_inline_bundles() -> None:
+    """실측 fragment 는 entry 1개(defer)만 로드하고, 7개 번들 <script src>는 fragment 밖(entry가 순차 로드).
+
+    과거엔 7개가 fragment 안에 있어 erp-shell activateScripts()가 매 스왑 재파싱·재실행(5.8s).
+    이제 measurement-entry.js 가 head.appendChild 로 load-once + foms:erp-shell-fragment-swapped 재init.
+    """
     html = _read("templates/measurement/partials/dashboard_scripts.html")
-    scripts = [
-        "js/runtime/common_utils.js",
+
+    # entry 는 defer 로 1회 로드
+    _assert_deferred(html, "js/measurement/measurement-entry.js")
+
+    # 번들 7개는 fragment 안에 <script src> 로 있으면 안 됨(스왑마다 재실행 방지)
+    bundled = [
         "js/measurement/dashboard.js",
         "js/measurement/mobile.js",
-        "js/runtime/column-resizer.js",
         "js/measurement/dashboard-columns.js",
         "js/measurement/manual-rows.js",
         "js/measurement/image-export.js",
     ]
+    for needle in bundled:
+        assert needle not in html, f"{needle} 는 measurement-entry.js 가 로드해야 함(fragment 재실행 방지)"
 
-    for needle in scripts:
-        _assert_deferred(html, needle)
+    # entry 의 CHAIN 이 7개를 올바른 순서로(common_utils 첫번째, column-resizer 가 dashboard-columns 앞) 순차 로드
+    entry = _read("static/js/measurement/measurement-entry.js")
+    order = [
+        "runtime/common_utils.js",
+        "measurement/dashboard.js",
+        "measurement/mobile.js",
+        "runtime/column-resizer.js",
+        "measurement/dashboard-columns.js",
+        "measurement/manual-rows.js",
+        "measurement/image-export.js",
+    ]
+    positions = [entry.index(name) for name in order]
+    assert positions == sorted(positions), f"measurement-entry CHAIN 순서 위반: {order}"
 
+    # html2canvas 는 여전히 사용 시점 lazy(전역 로드 금지)
     assert "html2canvas" not in html
     export_js = _read("static/js/measurement/image-export.js")
     assert "ensureHtml2canvas" in export_js

@@ -664,9 +664,16 @@
         });
     }
 
+    // 최초 로드: entry 경유 동적 로드라 이미 DOM ready 인 경우가 많음 → readyState 분기.
+    // fragment 스왑: #main-content HTML 교체 후 새 테이블 DOM 에 재초기화. 모든 리스너는
+    // per-DOM(tbody/chevron/route) 또는 dropdown AbortController 로 자기정리라 재실행이 안전.
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initMeasurementDashboard);
     } else {
         initMeasurementDashboard();
+    }
+    if (!window.__FOMS_MEAS_DASHBOARD_BOUND) {
+        window.__FOMS_MEAS_DASHBOARD_BOUND = true;
+        document.addEventListener('foms:erp-shell-fragment-swapped', initMeasurementDashboard);
     }
 })();

@@ -49,12 +49,23 @@ def test_runtime_shell_prefetch_warm_nav_hooks(runtime_shell_src: str) -> None:
     assert "scrollMemory" in runtime_shell_src
 
 
-def test_runtime_shell_does_not_cache_measurement_dashboard(runtime_shell_src: str) -> None:
-    """Measurement rows are date-sensitive; shell cache must not serve stale fragments."""
+def test_runtime_shell_no_fragment_cache_mechanism_present(runtime_shell_src: str) -> None:
+    """warm-cache 강제 우회 메커니즘은 유지(현재 대상 경로는 없음 — 실측은 FRESH_TTL 로 이동).
+
+    실측은 fragment 안에 마크업만 남아(스크립트는 measurement-entry.js 가 load-once) warm-cache 가
+    안전해졌다. 날짜 민감성은 NO_FRAGMENT_CACHE 가 아니라 FRESH_TTL(30s)+focus/bfcache 재검증으로 커버.
+    """
     assert "NO_FRAGMENT_CACHE_PATHS" in runtime_shell_src
-    assert "'/erp/measurement'" in runtime_shell_src
     assert "isFragmentCacheable" in runtime_shell_src
     assert "window.FOMS_ERP_SHELL.isFragmentCacheable" in runtime_shell_src
+
+
+def test_runtime_shell_measurement_uses_fresh_ttl_not_no_cache(runtime_shell_src: str) -> None:
+    """실측은 date-sensitive → NO_CACHE(매 스왑 refetch, 5.8s) 대신 FRESH_TTL(짧은 warm + 재검증)."""
+    fresh_block = runtime_shell_src.split("FRESH_TTL_PATHS")[1].split("]")[0]
+    assert "'/erp/measurement'" in fresh_block, "measurement 는 FRESH_TTL_PATHS 에 있어야 함"
+    no_cache_block = runtime_shell_src.split("NO_FRAGMENT_CACHE_PATHS")[1].split("]")[0]
+    assert "'/erp/measurement'" not in no_cache_block, "measurement 는 더 이상 NO_FRAGMENT_CACHE_PATHS 가 아님"
 
 
 def test_runtime_shell_dashboard_fresh_ttl_and_focus_revalidate(runtime_shell_src: str) -> None:

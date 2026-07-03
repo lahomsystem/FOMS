@@ -322,9 +322,16 @@
         scheduleFull();
     }
 
+    // entry 동적 로드 대응 readyState 분기 + fragment 스왑 재초기화.
+    // tbody click 은 새 tbody(capture)로 per-DOM 재바인딩; module state(manualSeqCounter)는 monotonic 유지,
+    // restoreFromStorage 가 새 렌더에 로컬 수동 행을 복원한다. 전역 listener 없음.
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initManualRows);
     } else {
         initManualRows();
+    }
+    if (!window.__FOMS_MEAS_MANUAL_ROWS_BOUND) {
+        window.__FOMS_MEAS_MANUAL_ROWS_BOUND = true;
+        document.addEventListener('foms:erp-shell-fragment-swapped', initManualRows);
     }
 })();

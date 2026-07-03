@@ -418,10 +418,15 @@
     });
 }
 
+    // entry 동적 로드 대응 readyState 분기 + fragment 스왑 재초기화(표준 이벤트로 통일).
+    // 버튼 바인딩은 exportBtn.dataset.fomsExportBound 로 per-DOM 가드(스왑 시 새 버튼이라 재바인딩).
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initMeasurementImageExport);
     } else {
         initMeasurementImageExport();
     }
-    document.addEventListener('foms:main-content-swapped', initMeasurementImageExport);
+    if (!window.__FOMS_MEAS_IMAGE_EXPORT_BOUND) {
+        window.__FOMS_MEAS_IMAGE_EXPORT_BOUND = true;
+        document.addEventListener('foms:erp-shell-fragment-swapped', initMeasurementImageExport);
+    }
 })();
