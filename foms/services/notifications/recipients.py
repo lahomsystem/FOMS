@@ -14,11 +14,17 @@ resolve 로직은 `foms.api.notifications._build_user_notification_filter`(사�
 물질화하지 않는다. 관리자에게 모든 알림 state 를 만드는 팬아웃은 의도가 아니며,
 관리자는 위 4가지 경로(직접 지정/ALL/팀/이름)로만 state 를 가진다.
 """
-from typing import Dict, Iterable, List, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 
 from sqlalchemy import func
 
-from models import NotificationRecipientSource, NotificationUserState, User
+from models import (
+    NotificationEvent,
+    NotificationEventType,
+    NotificationRecipientSource,
+    NotificationUserState,
+    User,
+)
 
 # 우선순위: 더 구체적인 경로가 낮은 우선순위를 덮어쓴다.
 _SOURCE_ORDER = (
@@ -113,5 +119,38 @@ def ensure_user_states(
         db.add(state)
         created.append(state)
         existing.add(uid)
+    db.flush()
+    return created
+
+
+def fan_out_new_notification(
+    db,
+    notification,
+    actor_user_id: Optional[int] = None,
+) -> List[NotificationUserState]:
+    """새 Notification 의 수신자 state 를 생성하고 'created' audit event 를 기록.
+
+    반드시 `notification` 이 flush 되어 id 가 있는 상태에서 호출한다. state 생성과
+    event 기록은 호출자의 트랜잭션에 그대로 참여한다(별도 commit 하지 않음). 알림 생성과
+    같은 트랜잭션으로 묶여, state 없는 고아 알림 row 가 남지 않게 한다.
+
+    :param db: SQLAlchemy 세션
+    :param notification: id 가 채워진 `models.Notification` 인스턴스
+    :param actor_user_id: 알림을 만든 사용자 id(감사용, 선택)
+    :return: 이번 호출에서 신규 생성된 NotificationUserState 리스트
+    """
+    recipients = resolve_recipients_for_notification(db, notification)
+    source_by_user = dict(recipients)
+    created = ensure_user_states(db, notification, source_by_user)
+    for state in created:
+        db.add(
+            NotificationEvent(
+                notification_id=notification.id,
+                user_state_id=state.id,
+                actor_user_id=actor_user_id,
+                recipient_user_id=state.user_id,
+                event_type=NotificationEventType.CREATED,
+            )
+        )
     db.flush()
     return created

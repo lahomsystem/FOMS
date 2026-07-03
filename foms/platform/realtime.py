@@ -81,6 +81,33 @@ def init_realtime_bootstrap(
             notification_badge_limit
         )(notification_badge_view)
 
+    # 읽음/보관/확인(state 변경) write 엔드포인트 rate limit.
+    notification_read_limit = os.environ.get(
+        "ERP_NOTIFICATION_READ_RATE_LIMIT",
+        "600 per hour",
+    )
+    for endpoint in (
+        "notifications.api_notification_mark_read",
+        "notifications.api_notifications_mark_all_read",
+        "notifications.api_notification_archive",
+        "notifications.api_notifications_archive_all",
+        "notifications.api_notification_ack",
+    ):
+        view = app.view_functions.get(endpoint)
+        if view is not None:
+            app.view_functions[endpoint] = limiter.limit(notification_read_limit)(view)
+
+    # 주문 문맥형 긴급 호출(멘션) rate limit.
+    urgent_mention_limit = os.environ.get(
+        "ERP_URGENT_MENTION_RATE_LIMIT",
+        "30 per hour",
+    )
+    urgent_mention_view = app.view_functions.get("notifications.api_order_urgent_mention")
+    if urgent_mention_view is not None:
+        app.view_functions["notifications.api_order_urgent_mention"] = limiter.limit(
+            urgent_mention_limit
+        )(urgent_mention_view)
+
     socketio = None
     if socketio_available:
         try:

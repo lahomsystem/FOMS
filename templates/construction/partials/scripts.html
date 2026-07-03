@@ -1265,7 +1265,7 @@
 
   async function handleNotificationClick(notificationId, orderId, notificationType, deepTab, deepEventId, deepTargetNo) {
     try {
-      await fetch(`/erp/api/notifications/${notificationId}/read`, { method: 'POST' });
+      await window.FOMSNotificationWrite.fetch(`/erp/api/notifications/${notificationId}/read`, { method: 'POST' });
       loadNotificationBadge(true);
 
       if (orderId) {
@@ -1286,7 +1286,7 @@
 
   async function markAllNotificationsRead() {
     try {
-      const res = await fetch('/erp/api/notifications/read-all', { method: 'POST' });
+      const res = await window.FOMSNotificationWrite.fetch('/erp/api/notifications/read-all', { method: 'POST' });
       const data = await res.json();
       if (data.success) {
         loadNotificationBadge(true);

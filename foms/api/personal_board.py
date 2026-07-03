@@ -16,6 +16,7 @@ from models import (
     ChatMessage,
     ChatRoomMember,
     Notification,
+    NotificationUserState,
     Order,
     OrderEvent,
     OrderTask,
@@ -118,23 +119,19 @@ def _announcements_count(db):
 
 
 def _unread_notifications_count(db, user, user_id):
-    """현재 사용자 대상 미읽음 알림 수."""
+    """현재 사용자 대상 미읽음 알림 수(user_states 기준)."""
     if not user:
         return 0
-    q = db.query(Notification).filter(Notification.is_read == False)  # noqa: E712
-    if user.role == "ADMIN":
-        return q.count()
-    conditions = []
-    if user.team:
-        conditions.append(Notification.target_team == (user.team or "").strip().upper())
-    if user.name:
-        conditions.append(Notification.target_manager_name == (user.name or "").strip())
-    conditions.append(Notification.target_user_id == user_id)
-    conditions.append(Notification.target_type == "ALL")
-    if not conditions:
-        return 0
-    q = q.filter(or_(*conditions))
-    return q.count()
+    return int(
+        db.query(func.count(NotificationUserState.id))
+        .filter(
+            NotificationUserState.user_id == user_id,
+            NotificationUserState.archived_at.is_(None),
+            NotificationUserState.read_at.is_(None),
+        )
+        .scalar()
+        or 0
+    )
 
 
 def _unread_chats_count(db, user_id):
@@ -270,22 +267,28 @@ def _settlement_alerts_count(db, user_id):
 
 
 def _urgent_notifications(db, user, user_id, limit=10):
-    """미읽음 긴급 알림 목록 (브리핑 보드 상단 배너용)."""
+    """미확인 긴급 알림 목록 (브리핑 보드 상단 배너용, user_states 기준).
+
+    긴급 overlay 는 ack(확인) 전까지 유지가 스펙 → read 여부와 무관하게 ack_at IS NULL
+    이고 미보관인 긴급 알림을 보여준다.
+    """
     try:
-        q = db.query(Notification).filter(
-            Notification.is_urgent == True,  # noqa: E712
-            Notification.is_read == False,  # noqa: E712
+        rows = (
+            db.query(Notification)
+            .join(
+                NotificationUserState,
+                NotificationUserState.notification_id == Notification.id,
+            )
+            .filter(
+                NotificationUserState.user_id == user_id,
+                NotificationUserState.archived_at.is_(None),
+                NotificationUserState.ack_at.is_(None),
+                Notification.is_urgent == True,  # noqa: E712
+            )
+            .order_by(Notification.created_at.desc())
+            .limit(limit * 3)
+            .all()
         )
-        if user.role != "ADMIN":
-            conditions = []
-            if user.team:
-                conditions.append(Notification.target_team == (user.team or "").strip().upper())
-            if user.name:
-                conditions.append(Notification.target_manager_name == (user.name or "").strip())
-            conditions.append(Notification.target_user_id == user_id)
-            conditions.append(Notification.target_type == "ALL")
-            q = q.filter(or_(*conditions))
-        rows = q.order_by(Notification.created_at.desc()).limit(limit * 3).all()
         seen = set()
         out = []
         for n in rows:

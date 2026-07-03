@@ -2385,6 +2385,7 @@ _PAC_PARTIALS_SHARED_HTML_ALLOWLIST = frozenset(
         "alpine_layout.html",
         "erp_mobile_bottom_nav.html",
         "erp_mobile_menu_drawer.html",
+        "erp_mobile_notification_panel.html",
         "erp_mobile_queue_card.html",
         "erp_mobile_queue_card_v2.html",
         "erp_mobile_shell.html",

@@ -148,7 +148,7 @@
     sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> 발송 중...';
     resultDiv.classList.add('d-none');
 
-    fetch('/erp/api/notifications/send', {
+    window.FOMSNotificationWrite.fetch('/erp/api/notifications/send', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
