@@ -21,6 +21,7 @@ from foms.api.notifications import (
     invalidate_badge_cache_for_user_ids,
 )
 from foms.services.notifications.realtime_notifications import emit_erp_notification_to_users
+from foms.services.notifications.recipients import fan_out_new_notification
 from foms.services.erp_permissions import erp_edit_required
 from foms.services.erp_policy import (
     can_modify_domain,
@@ -240,6 +241,9 @@ def api_order_transfer_drawing(order_id):
             is_read=False
         )
         db.add(new_notification)
+        db.flush()
+        # 같은 트랜잭션에서 수신자 state + 'created' 이벤트 생성(상태 없는 고아 알림 방지).
+        fan_out_new_notification(db, new_notification, actor_user_id=user_id)
         db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} 도면 전달 완료: {note}"))
         db.commit()
         # 도메인-스코프: 도면 전달 완료는 workflow.stage를 바꾸지 않고 drawing_status만
@@ -252,6 +256,10 @@ def api_order_transfer_drawing(order_id):
         )
 
         invalidate_dashboard_families(DASHBOARD_FAMILY_DRAWING, DASHBOARD_FAMILY_ORDERS)
+
+        # 커밋 후 Web Push enqueue(P1 유형: DRAWING_TRANSFERRED).
+        from foms.services.notifications.push_sender import enqueue_push_for_notification
+        enqueue_push_for_notification(new_notification.id, db=db)
 
         recipient_user_ids = resolve_notification_recipient_user_ids(
             db,

@@ -630,6 +630,8 @@ def test_namespaced_jobs_tasks_shim_preserves_canonical_contract() -> None:
         "geocode_order_address",
         "push_order_to_channeltalk",
         "process_channeltalk_inbound",
+        "send_push_for_notification_task",
+        "run_notification_escalation_task",
     ]
 
     assert namespaced_jobs_tasks.__all__ == expected_public_names
@@ -2385,6 +2387,8 @@ _PAC_PARTIALS_SHARED_HTML_ALLOWLIST = frozenset(
         "alpine_layout.html",
         "erp_mobile_bottom_nav.html",
         "erp_mobile_menu_drawer.html",
+        "erp_mobile_notification_panel.html",
+        "erp_mobile_urgent_call_panel.html",
         "erp_mobile_queue_card.html",
         "erp_mobile_queue_card_v2.html",
         "erp_mobile_shell.html",

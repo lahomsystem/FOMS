@@ -89,13 +89,26 @@
     });
   }
 
+  // SW 등록 SSOT — 전 페이지(데스크톱 포함)에서 이 helper 한 곳만
+  // navigator.serviceWorker.register 를 호출한다(a2hs-prompt / mobile-push 는 경유).
+  // Promise<ServiceWorkerRegistration|null> 을 반환하고, 진행 중/완료된 등록
+  // Promise 를 window 스코프에 캐시해 중복 register 와 fragment 재실행 재등록을 막는다.
+  // offline flag 와 독립적으로 호출 가능(web push 켜기 flow 가 직접 확보).
   window.fomsRegisterServiceWorker = function () {
-    if (!("serviceWorker" in navigator)) return Promise.resolve(false);
-    return navigator.serviceWorker.register("/static/sw.js", { scope: "/" }).then(function () {
-      return true;
-    }).catch(function () {
-      return false;
-    });
+    if (!("serviceWorker" in navigator)) return Promise.resolve(null);
+    if (window.__fomsSwRegistrationPromise) return window.__fomsSwRegistrationPromise;
+    window.__fomsSwRegistrationPromise = navigator.serviceWorker
+      .register("/static/sw.js", { scope: "/" })
+      .then(function (registration) {
+        return registration;
+      })
+      .catch(function (err) {
+        // 실패 시 캐시를 비워 다음 호출에서 재시도 가능하게 한다(무등록 방지).
+        window.__fomsSwRegistrationPromise = null;
+        console.warn("[foms-sync] service worker registration failed", err);
+        return null;
+      });
+    return window.__fomsSwRegistrationPromise;
   };
 
   if (window.__FOMS_SYNC_BOUND) return;

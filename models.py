@@ -1,5 +1,5 @@
 import datetime
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Float, ForeignKey, func, JSON, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Float, ForeignKey, func, JSON, UniqueConstraint, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -552,6 +552,177 @@ class Notification(Base):
             'read_at': format_datetime_kst(self.read_at),
             'created_at': format_datetime_kst(self.created_at)
         }
+
+
+class NotificationEventType:
+    """`notification_events.event_type` 표준 상수 (append-only audit).
+
+    새 이벤트 유형 추가 시 여기에 상수를 정의하고 코드에서 문자열 리터럴 대신 사용한다.
+    """
+
+    CREATED = 'created'
+    STATE_BACKFILLED = 'state_backfilled'
+    REALTIME_ATTEMPTED = 'realtime_attempted'
+    PUSH_ATTEMPTED = 'push_attempted'
+    PUSH_FAILED = 'push_failed'
+    PUSH_QUEUE_UNAVAILABLE = 'push_queue_unavailable'
+    OPENED = 'opened'
+    CLOSED = 'closed'
+    READ = 'read'
+    ARCHIVE = 'archive'
+    ACK = 'ack'
+    ESCALATED = 'escalated'
+    OPERATOR_ESCALATED = 'operator_escalated'
+    RESOLVED = 'resolved'
+    LEGACY_READ_AMBIGUOUS = 'legacy_read_ambiguous'
+
+
+class NotificationDeliveryStatus:
+    """`notification_user_states.last_delivery_status` 표준 상수."""
+
+    PENDING = 'pending'
+    REALTIME_ATTEMPTED = 'realtime_attempted'
+    PUSH_ATTEMPTED = 'push_attempted'
+    PUSH_FAILED = 'push_failed'
+    QUEUE_UNAVAILABLE = 'queue_unavailable'
+    OPENED = 'opened'
+    ACK = 'ack'
+    RESOLVED = 'resolved'
+
+
+class NotificationRecipientSource:
+    """`notification_user_states.recipient_source` 표준 상수.
+
+    공유 Notification row가 사용자에게 도달한 경로를 기록한다.
+    """
+
+    TARGET_USER = 'target_user'
+    TARGET_TEAM = 'target_team'
+    TARGET_MANAGER_NAME = 'target_manager_name'
+    TARGET_ALL = 'target_all'
+    LEGACY_BACKFILL = 'legacy_backfill'
+
+
+class NotificationUserState(Base):
+    """공유 Notification 1건을 수신자별 상태로 감싸는 per-user row.
+
+    하나의 Notification이 여러 사용자에게 도달할 때 각 사용자의 읽음/보관/확인/해결
+    상태를 독립적으로 추적한다. (notification_id, user_id)는 유일하다.
+    """
+
+    __tablename__ = 'notification_user_states'
+
+    id = Column(Integer, primary_key=True)
+    notification_id = Column(
+        Integer, ForeignKey('notifications.id', ondelete='CASCADE'), nullable=False
+    )
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    # 수신 경로: NotificationRecipientSource 상수 중 하나
+    recipient_source = Column(String(30), nullable=False)
+
+    # per-user 상태 타임스탬프 (전부 nullable)
+    read_at = Column(DateTime, nullable=True)
+    archived_at = Column(DateTime, nullable=True)
+    ack_at = Column(DateTime, nullable=True)
+    resolved_at = Column(DateTime, nullable=True)
+    escalated_at = Column(DateTime, nullable=True)
+    last_opened_at = Column(DateTime, nullable=True)
+
+    # 마지막 전달 상태: NotificationDeliveryStatus 상수 중 하나
+    last_delivery_status = Column(
+        String(30), nullable=False, default='pending', server_default='pending'
+    )
+
+    created_at = Column(DateTime, default=datetime.datetime.now, nullable=False)
+    updated_at = Column(
+        DateTime,
+        default=datetime.datetime.now,
+        onupdate=datetime.datetime.now,
+        nullable=False,
+    )
+
+    notification = relationship('Notification', foreign_keys=[notification_id])
+    user = relationship('User', foreign_keys=[user_id])
+
+    __table_args__ = (
+        UniqueConstraint(
+            'notification_id', 'user_id', name='uq_notification_user_states_notif_user'
+        ),
+        Index(
+            'ix_notification_user_states_user_inbox',
+            'user_id',
+            'archived_at',
+            'read_at',
+            'notification_id',
+        ),
+    )
+
+
+class NotificationEvent(Base):
+    """알림 상태 변화의 append-only 감사 로그.
+
+    상태 전이(생성/전달 시도/열람/읽음/보관/확인/해결/에스컬레이션 등)를 불변 기록으로
+    남긴다. 절대 UPDATE/DELETE 하지 않는다(파티션/정리는 별도 정책).
+    """
+
+    __tablename__ = 'notification_events'
+
+    id = Column(Integer, primary_key=True)
+    notification_id = Column(
+        Integer, ForeignKey('notifications.id', ondelete='CASCADE'), nullable=False
+    )
+    user_state_id = Column(
+        Integer, ForeignKey('notification_user_states.id'), nullable=True
+    )
+    actor_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    recipient_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    # NotificationEventType 상수 중 하나
+    event_type = Column(String(40), nullable=False)
+    channel = Column(String(20), nullable=True)
+    endpoint_hash = Column(String(64), nullable=True)
+    request_id = Column(String(64), nullable=True)
+    metadata_json = Column(JSONColumn, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.now, nullable=False)
+
+    __table_args__ = (
+        Index('ix_notification_events_notif_created', 'notification_id', 'created_at'),
+        Index(
+            'ix_notification_events_recipient_type_created',
+            'recipient_user_id',
+            'event_type',
+            'created_at',
+        ),
+        Index('ix_notification_events_actor_created', 'actor_user_id', 'created_at'),
+        Index('ix_notification_events_endpoint_created', 'endpoint_hash', 'created_at'),
+    )
+
+
+class NotificationPushSubscription(Base):
+    """사용자별 Web Push 구독 엔드포인트 (Phase 0A 기반, 발송은 Phase 0B+)."""
+
+    __tablename__ = 'notification_push_subscriptions'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
+    endpoint = Column(Text, nullable=False, unique=True)
+    p256dh = Column(Text, nullable=True)
+    auth = Column(Text, nullable=True)
+    platform = Column(String(30), nullable=True)
+    browser = Column(String(50), nullable=True)
+    device_label = Column(String(100), nullable=True)
+    permission_state = Column(String(20), nullable=True)
+    last_seen_at = Column(DateTime, nullable=True)
+    revoked_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.now, nullable=False)
+    updated_at = Column(
+        DateTime,
+        default=datetime.datetime.now,
+        onupdate=datetime.datetime.now,
+        nullable=False,
+    )
+
+    user = relationship('User', foreign_keys=[user_id])
+
 
 # ============================================
 # ChannelTalk 연동 모델 (Phase 0)

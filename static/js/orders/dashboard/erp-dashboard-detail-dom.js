@@ -544,12 +544,17 @@
                 <div class="card-body py-2">
                   <div class="d-flex align-items-center gap-2 flex-wrap">
                     <span class="fw-semibold text-danger" style="font-size:0.85rem"><i class="fas fa-bell"></i> 동료 호출</span>
-                    <select class="form-select form-select-sm" id="mention-target-${orderId}" style="max-width:180px">
-                      <option value="">-- 대상 선택 --</option>
-                    </select>
-                    <input type="text" class="form-control form-control-sm" id="mention-msg-${orderId}" placeholder="메시지 (선택)" style="max-width:220px">
-                    <button class="btn btn-danger btn-sm" type="button" data-order-id="${orderId}">
-                      <i class="fas fa-paper-plane"></i> 긴급 호출
+                    <div class="d-none d-lg-flex align-items-center gap-2 flex-wrap">
+                      <select class="form-select form-select-sm" id="mention-target-${orderId}" style="max-width:180px">
+                        <option value="">-- 대상 선택 --</option>
+                      </select>
+                      <input type="text" class="form-control form-control-sm" id="mention-msg-${orderId}" placeholder="메시지 (선택)" style="max-width:220px">
+                      <button class="btn btn-danger btn-sm" type="button" data-order-id="${orderId}">
+                        <i class="fas fa-paper-plane"></i> 긴급 호출
+                      </button>
+                    </div>
+                    <button class="btn btn-danger btn-sm d-lg-none" type="button" data-foms-urgent-call data-order-id="${orderId}">
+                      <i class="fas fa-bolt"></i> 긴급 호출
                     </button>
                   </div>
                 </div>
@@ -628,11 +633,11 @@
             // 동료 호출 대상 사용자 목록 로드
             const mentionSelect = document.getElementById(`mention-target-${orderId}`);
             if (mentionSelect && !mentionSelect.dataset.loaded) {
-              fetch('/erp/api/users/list', { credentials: 'same-origin' })
+              fetch('/erp/api/orders/' + orderId + '/urgent-targets', { credentials: 'same-origin' })
                 .then(function(r) { return r.json(); })
                 .then(function(d) {
-                  if (!d.success || !d.users) return;
-                  d.users.forEach(function(u) {
+                  if (!d.success || !d.targets) return;
+                  d.targets.forEach(function(u) {
                     var o = document.createElement('option');
                     o.value = u.id;
                     o.textContent = u.name + (u.team ? ' (' + u.team + ')' : '');
@@ -640,7 +645,7 @@
                   });
                   mentionSelect.dataset.loaded = '1';
                 })
-                .catch(function(e) { console.warn('mention users/list fetch 실패:', e); });
+                .catch(function(e) { console.warn('mention urgent-targets fetch 실패:', e); });
             }
 
             if (attachmentsPending) {
@@ -668,7 +673,7 @@
 
           if (!confirm('선택한 동료에게 긴급 호출을 보내시겠습니까?')) return;
 
-          fetch('/erp/api/orders/' + orderId + '/urgent-mention', {
+          window.FOMSNotificationWrite.fetch('/erp/api/orders/' + orderId + '/urgent-mention', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ target_user_id: parseInt(targetId), message: msg })

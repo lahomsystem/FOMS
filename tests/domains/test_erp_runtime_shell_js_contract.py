@@ -209,4 +209,4 @@ def test_runtime_shell_script_url_is_versioned_for_service_worker_cache() -> Non
 def test_service_worker_cache_version_purges_stale_erp_shell() -> None:
     """SW cache namespace bump removes old unversioned erp-shell.js entries on activate."""
     sw_src = _SERVICE_WORKER.read_text(encoding="utf-8")
-    assert 'CACHE_VERSION = "foms-p2-v7"' in sw_src
+    assert 'CACHE_VERSION = "foms-p2-v8"' in sw_src

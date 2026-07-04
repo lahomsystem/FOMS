@@ -67,4 +67,32 @@
       }));
     }
   });
+
+  // ERP 셸 탭 프래그먼트 스왑 소요(사용자 누름→콘텐츠 교체 완료)를 10% 샘플로 전송.
+  // click→swapped 델타로 측정하므로 라우팅 로직 중복 없이 rum-baseline 안에서 완결된다.
+  if (!window.__FOMS_RUM_SWAP_BOUND) {
+    window.__FOMS_RUM_SWAP_BOUND = true;
+    var lastPressAt = 0;
+    document.addEventListener('pointerdown', function () {
+      lastPressAt = (performance && performance.now) ? performance.now() : Date.now();
+    }, { passive: true, capture: true });
+    // 뒤로가기 스왑은 press→swap 페어가 아님 — 스왑과 무관한 이전 pointerdown 이
+    // popstate 스왑과 짝지어지는 측정 오염을 차단(1:1 리뷰 반영).
+    window.addEventListener('popstate', function () {
+      lastPressAt = 0;
+    });
+    document.addEventListener('foms:erp-shell-fragment-swapped', function () {
+      if (!lastPressAt) { return; }
+      var now = (performance && performance.now) ? performance.now() : Date.now();
+      var delta = now - lastPressAt;
+      lastPressAt = 0; // 1스왑=1측정, 이후 stale 재사용 방지
+      // 유효 범위 밖(음수/과대=뒤로가기·오래된 누름)은 버린다.
+      if (delta <= 0 || delta > 20000) { return; }
+      if (Math.random() >= 0.1) { return; } // 10% 샘플링
+      sendMetric(Object.assign(basePayload(), {
+        metric: 'SWAP',
+        value: Math.round(delta),
+      }));
+    });
+  }
 })();

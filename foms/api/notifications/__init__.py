@@ -1,6 +1,9 @@
 """
-ERP 알림 API: 목록/배지/읽음 처리.
-erp.py에서 분리 (Phase 4-1).
+ERP 알림 API: 목록/배지/읽음/보관/확인 처리.
+
+Phase 0B: 읽음/보관/확인의 SSOT 를 사용자별 `notification_user_states` 로 전환.
+공유 `Notification` row 는 append-only 콘텐츠로만 취급하고, per-user 상태(read/archive/ack)
+는 절대 공유 row 를 오염시키지 않는다. 모든 write 는 same-origin 헤더 guard 를 통과해야 한다.
 """
 import datetime as dt_mod
 import json
@@ -11,14 +14,30 @@ from flask import Blueprint, g, jsonify, request, session
 from sqlalchemy import func, or_
 
 from foms.web.auth import login_required
+from foms.services.datetime_kst import format_datetime_kst
+from foms.services.erp_permissions import is_order_related_to_user
+from foms.services.notifications.recipients import fan_out_new_notification
+from foms.services.request_write_guard import require_same_origin_write
 from db import get_db
-from models import Notification, Order, User
+from models import (
+    Notification,
+    NotificationDeliveryStatus,
+    NotificationEvent,
+    NotificationEventType,
+    NotificationUserState,
+    Order,
+    User,
+)
 
 notifications_bp = Blueprint(
     "notifications",
     __name__,
     url_prefix="/erp/api",
 )
+
+# 알림 write 엔드포인트 공용 same-origin guard 헤더.
+NOTIFICATION_WRITE_HEADER = "X-FOMS-Notification-Write"
+notification_write_guard = require_same_origin_write(NOTIFICATION_WRITE_HEADER)
 
 # 배지 카운트 캐시: user_id -> (count, expiry_unix_ts). DB 부하 감소용.
 _badge_cache = {}
@@ -83,22 +102,6 @@ def resolve_notification_recipient_user_ids(
         return set()
 
     return {int(r[0]) for r in db.query(User.id).filter(or_(*conditions), User.is_active == True).yield_per(500)}
-
-
-def _build_user_notification_filter(user, user_id):
-    """비관리자 사용자의 알림 필터 조건 목록을 반환. ADMIN이면 None (전체 접근)."""
-    if user.role == "ADMIN":
-        return None
-    conditions = []
-    user_team = user.team.upper() if user.team else None
-    user_name = user.name.strip() if user.name else None
-    if user_team:
-        conditions.append(Notification.target_team == user_team)
-    if user_name:
-        conditions.append(Notification.target_manager_name == user_name)
-    conditions.append(Notification.target_user_id == user_id)
-    conditions.append(Notification.target_type == "ALL")
-    return conditions
 
 
 def _ensure_dict(data):
@@ -207,10 +210,50 @@ def _resolve_notification_deep_link(notification, order_structured_data):
     }
 
 
+def _record_event(
+    db, notification_id, event_type, *,
+    user_state_id=None, actor_user_id=None, recipient_user_id=None, metadata=None,
+):
+    """append-only `notification_events` 감사 로그 1건 추가(flush 는 호출자 책임)."""
+    db.add(NotificationEvent(
+        notification_id=notification_id,
+        user_state_id=user_state_id,
+        actor_user_id=actor_user_id,
+        recipient_user_id=recipient_user_id,
+        event_type=event_type,
+        metadata_json=metadata,
+    ))
+
+
+def _owner_state(db, notification_id, user_id):
+    """(notification_id, user_id) owner state row 조회. 없으면 None."""
+    return (
+        db.query(NotificationUserState)
+        .filter(
+            NotificationUserState.notification_id == notification_id,
+            NotificationUserState.user_id == user_id,
+        )
+        .first()
+    )
+
+
+def _user_can_access_order_urgent(user, order):
+    """긴급 호출(멘션/대상조회) 접근 권한: 주문 관련자이거나 ADMIN/MANAGER."""
+    role = str(getattr(user, "role", "") or "").upper()
+    if role in ("ADMIN", "MANAGER"):
+        return True
+    return is_order_related_to_user(order, user)
+
+
+def _urgent_target_payload(u):
+    """긴급 호출 대상 사용자 표시용 dict."""
+    return {"id": u.id, "name": u.name, "team": u.team, "role": u.role}
+
+
 @notifications_bp.route("/notifications", methods=["GET"])
 @login_required
 def api_notifications_list():
-    """현재 사용자의 알림 목록 조회. unread_only, limit 쿼리 지원."""
+    """현재 사용자의 알림 목록 조회(user_states 기준). unread_only, limit 지원."""
     try:
         db = get_db()
         user_id = session.get("user_id")
@@ -222,26 +265,35 @@ def api_notifications_list():
         unread_only = request.args.get("unread_only", "false").lower() == "true"
         limit = int(request.args.get("limit", 20))
 
-        query = db.query(Notification)
-        conds = _build_user_notification_filter(user, user_id)
-
-        if conds is not None:
-            if not conds:
-                return jsonify({"success": True, "notifications": [], "unread_count": 0})
-            query = query.filter(or_(*conds))
-
+        query = (
+            db.query(Notification, NotificationUserState)
+            .join(
+                NotificationUserState,
+                NotificationUserState.notification_id == Notification.id,
+            )
+            .filter(
+                NotificationUserState.user_id == user_id,
+                NotificationUserState.archived_at.is_(None),
+            )
+        )
         if unread_only:
-            query = query.filter(Notification.is_read == False)
+            query = query.filter(NotificationUserState.read_at.is_(None))
 
         query = query.order_by(Notification.created_at.desc()).limit(limit)
-        notifications = query.all()
+        rows = query.all()
 
-        unread_query = db.query(Notification).filter(Notification.is_read == False)
-        if conds is not None and conds:
-            unread_query = unread_query.filter(or_(*conds))
-        unread_count = unread_query.count()
+        unread_count = (
+            db.query(func.count(NotificationUserState.id))
+            .filter(
+                NotificationUserState.user_id == user_id,
+                NotificationUserState.archived_at.is_(None),
+                NotificationUserState.read_at.is_(None),
+            )
+            .scalar()
+            or 0
+        )
 
-        order_ids = list({int(n.order_id) for n in notifications if n.order_id is not None})
+        order_ids = list({int(n.order_id) for (n, _s) in rows if n.order_id is not None})
         order_map = {}
         if order_ids:
             order_rows = db.query(Order.id, Order.structured_data).filter(Order.id.in_(order_ids)).all()  # perf-ok: order_ids from paginated notifications
@@ -249,8 +301,13 @@ def api_notifications_list():
                 order_map[int(oid)] = _ensure_dict(sd)
 
         notif_payloads = []
-        for n in notifications:
+        for n, state in rows:
             row = n.to_dict()
+            # per-user 상태로 덮어쓰기: 공유 row 의 is_read/read_at 은 사용하지 않는다.
+            row["is_read"] = state.read_at is not None
+            row["read_at"] = format_datetime_kst(state.read_at)
+            row["archived_at"] = format_datetime_kst(state.archived_at)
+            row["ack_at"] = format_datetime_kst(state.ack_at)
             sd = order_map.get(n.order_id, {}) if n.order_id else {}
             deep = _resolve_notification_deep_link(n, sd)
             row.update(deep)
@@ -259,7 +316,7 @@ def api_notifications_list():
         return jsonify({
             "success": True,
             "notifications": notif_payloads,
-            "unread_count": unread_count,
+            "unread_count": int(unread_count),
         })
     except Exception as e:
         import traceback
@@ -271,7 +328,7 @@ def api_notifications_list():
 @notifications_bp.route("/notifications/badge", methods=["GET"])
 @login_required
 def api_notifications_badge():
-    """알림 배지 카운트 조회 (읽지 않은 알림 수). 사용자별 30초 캐시로 DB 부하 완화."""
+    """알림 배지 카운트(미읽음 user_states 수). 사용자별 30초 캐시로 DB 부하 완화."""
     try:
         user_id = session.get("user_id")
         if user_id is None:
@@ -282,22 +339,18 @@ def api_notifications_badge():
         if cached is not None and cached[1] > now_ts:
             return jsonify({"success": True, "count": cached[0]})
 
-        user = getattr(g, "current_user", None)
-        if not user:
-            return jsonify({"success": True, "count": 0})
-
         db = get_db()
-        query = db.query(Notification).filter(Notification.is_read == False)
-        conds = _build_user_notification_filter(user, user_id)
-
-        if conds is not None:
-            if not conds:
-                count = 0
-                _badge_cache[user_id] = (count, now_ts + BADGE_CACHE_TTL_SECONDS)
-                return jsonify({"success": True, "count": count})
-            query = query.filter(or_(*conds))
-
-        count = query.count()
+        count = (
+            db.query(func.count(NotificationUserState.id))
+            .filter(
+                NotificationUserState.user_id == user_id,
+                NotificationUserState.archived_at.is_(None),
+                NotificationUserState.read_at.is_(None),
+            )
+            .scalar()
+            or 0
+        )
+        count = int(count)
         _badge_cache[user_id] = (count, now_ts + BADGE_CACHE_TTL_SECONDS)
         return jsonify({"success": True, "count": count})
     except Exception:
@@ -306,20 +359,35 @@ def api_notifications_badge():
 
 @notifications_bp.route("/notifications/<int:notification_id>/read", methods=["POST"])
 @login_required
+@notification_write_guard
 def api_notification_mark_read(notification_id):
-    """알림 읽음 처리."""
+    """알림 읽음 처리(owner state 기준). 없으면 404, 이미 읽음이면 no-op."""
     db = None
     try:
         db = get_db()
         user_id = session.get("user_id")
 
-        notification = db.query(Notification).filter(Notification.id == notification_id).first()
-        if not notification:
+        state = _owner_state(db, notification_id, user_id)
+        if not state:
             return jsonify({"success": False, "message": "알림을 찾을 수 없습니다."}), 404
 
-        notification.is_read = True
-        notification.read_at = dt_mod.datetime.now()
-        notification.read_by_user_id = user_id
+        if state.read_at is None:
+            now = dt_mod.datetime.now()
+            state.read_at = now
+            _record_event(
+                db, notification_id, NotificationEventType.READ,
+                user_state_id=state.id, actor_user_id=user_id, recipient_user_id=user_id,
+            )
+            # 호환 dual-write: USER 전용 소유 알림만 legacy 필드 갱신. 공유 row 는 금지.
+            notification = db.query(Notification).filter(Notification.id == notification_id).first()
+            if (
+                notification is not None
+                and notification.target_type == "USER"
+                and notification.target_user_id == user_id
+            ):
+                notification.is_read = True
+                notification.read_at = now
+                notification.read_by_user_id = user_id
 
         db.commit()
         _invalidate_badge_cache(user_id)
@@ -332,29 +400,37 @@ def api_notification_mark_read(notification_id):
 
 @notifications_bp.route("/notifications/read-all", methods=["POST"])
 @login_required
+@notification_write_guard
 def api_notifications_mark_all_read():
-    """모든 알림 읽음 처리."""
+    """현재 사용자의 미읽음·미보관 user_states 전체 읽음 처리."""
     db = None
     try:
         db = get_db()
         user_id = session.get("user_id")
-        user = getattr(g, "current_user", None)
 
-        if not user:
-            return jsonify({"success": False, "message": "사용자 정보를 찾을 수 없습니다."}), 404
-
-        query = db.query(Notification).filter(Notification.is_read == False)
-        conds = _build_user_notification_filter(user, user_id)
-
-        if conds is not None and conds:
-            query = query.filter(or_(*conds))
-
+        base_filter = (
+            NotificationUserState.user_id == user_id,
+            NotificationUserState.read_at.is_(None),
+            NotificationUserState.archived_at.is_(None),
+        )
+        rep_nid = (
+            db.query(NotificationUserState.notification_id)
+            .filter(*base_filter)
+            .order_by(NotificationUserState.notification_id.desc())
+            .first()
+        )
         now = dt_mod.datetime.now()
-        updated = query.update({
-            Notification.is_read: True,
-            Notification.read_at: now,
-            Notification.read_by_user_id: user_id,
-        }, synchronize_session="fetch")
+        updated = (
+            db.query(NotificationUserState)
+            .filter(*base_filter)
+            .update({NotificationUserState.read_at: now}, synchronize_session=False)
+        )
+        if updated and rep_nid is not None:
+            _record_event(
+                db, int(rep_nid[0]), NotificationEventType.READ,
+                actor_user_id=user_id, recipient_user_id=user_id,
+                metadata={"bulk": True, "count": int(updated)},
+            )
 
         db.commit()
         _invalidate_badge_cache(user_id)
@@ -365,30 +441,126 @@ def api_notifications_mark_all_read():
         return jsonify({"success": False, "message": str(e)}), 500
 
 
+@notifications_bp.route("/notifications/<int:notification_id>/archive", methods=["POST"])
+@login_required
+@notification_write_guard
+def api_notification_archive(notification_id):
+    """알림 보관 처리(owner state 기준). 목록에서 제거된다."""
+    db = None
+    try:
+        db = get_db()
+        user_id = session.get("user_id")
+
+        state = _owner_state(db, notification_id, user_id)
+        if not state:
+            return jsonify({"success": False, "message": "알림을 찾을 수 없습니다."}), 404
+
+        if state.archived_at is None:
+            state.archived_at = dt_mod.datetime.now()
+            _record_event(
+                db, notification_id, NotificationEventType.ARCHIVE,
+                user_state_id=state.id, actor_user_id=user_id, recipient_user_id=user_id,
+            )
+
+        db.commit()
+        _invalidate_badge_cache(user_id)
+        return jsonify({"success": True, "message": "알림을 보관했습니다."})
+    except Exception as e:
+        if db is not None:
+            db.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@notifications_bp.route("/notifications/archive-all", methods=["POST"])
+@login_required
+@notification_write_guard
+def api_notifications_archive_all():
+    """현재 사용자의 미보관 user_states 전체 보관 처리."""
+    db = None
+    try:
+        db = get_db()
+        user_id = session.get("user_id")
+
+        base_filter = (
+            NotificationUserState.user_id == user_id,
+            NotificationUserState.archived_at.is_(None),
+        )
+        rep_nid = (
+            db.query(NotificationUserState.notification_id)
+            .filter(*base_filter)
+            .order_by(NotificationUserState.notification_id.desc())
+            .first()
+        )
+        now = dt_mod.datetime.now()
+        updated = (
+            db.query(NotificationUserState)
+            .filter(*base_filter)
+            .update({NotificationUserState.archived_at: now}, synchronize_session=False)
+        )
+        if updated and rep_nid is not None:
+            _record_event(
+                db, int(rep_nid[0]), NotificationEventType.ARCHIVE,
+                actor_user_id=user_id, recipient_user_id=user_id,
+                metadata={"bulk": True, "count": int(updated)},
+            )
+
+        db.commit()
+        _invalidate_badge_cache(user_id)
+        return jsonify({"success": True, "message": f"{updated}개 알림을 보관했습니다.", "count": updated})
+    except Exception as e:
+        if db is not None:
+            db.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@notifications_bp.route("/notifications/<int:notification_id>/ack", methods=["POST"])
+@login_required
+@notification_write_guard
+def api_notification_ack(notification_id):
+    """긴급(P0) 알림 확인(ack) 처리(owner state 기준). read 와 독립, idempotent."""
+    db = None
+    try:
+        db = get_db()
+        user_id = session.get("user_id")
+
+        state = _owner_state(db, notification_id, user_id)
+        if not state:
+            return jsonify({"success": False, "message": "알림을 찾을 수 없습니다."}), 404
+
+        if state.ack_at is None:
+            state.ack_at = dt_mod.datetime.now()
+            state.last_delivery_status = NotificationDeliveryStatus.ACK
+            _record_event(
+                db, notification_id, NotificationEventType.ACK,
+                user_state_id=state.id, actor_user_id=user_id, recipient_user_id=user_id,
+            )
+
+        db.commit()
+        _invalidate_badge_cache(user_id)
+        return jsonify({"success": True, "message": "긴급 알림을 확인했습니다."})
+    except Exception as e:
+        if db is not None:
+            db.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
 @notifications_bp.route("/notifications/delete-all", methods=["POST"])
 @login_required
+@notification_write_guard
 def api_notifications_delete_all():
-    """현재 사용자 기준으로 보이는 알림 전체 삭제 (목록과 동일 필터)."""
+    """관리자 전용 - 공유 Notification row 하드 삭제(운영 정리용)."""
     db = None
     try:
         db = get_db()
         user_id = session.get("user_id")
         user = getattr(g, "current_user", None)
 
-        if not user:
-            return jsonify({"success": False, "message": "사용자 정보를 찾을 수 없습니다."}), 404
+        if not user or str(getattr(user, "role", "") or "").upper() != "ADMIN":
+            return jsonify({"success": False, "message": "권한이 없습니다."}), 403
 
-        query = db.query(Notification)
-        conds = _build_user_notification_filter(user, user_id)
-
-        if conds is not None and conds:
-            query = query.filter(or_(*conds))
-        elif conds is not None:
-            return jsonify({"success": True, "message": "삭제할 알림이 없습니다.", "count": 0})
-
-        deleted = query.delete(synchronize_session="fetch")
+        deleted = db.query(Notification).delete(synchronize_session="fetch")
         db.commit()
-        _invalidate_badge_cache(user_id)
+        _badge_cache.clear()
         return jsonify({"success": True, "message": f"{deleted}개 알림을 삭제했습니다.", "count": deleted})
     except Exception as e:
         if db is not None:
@@ -402,10 +574,19 @@ def api_notifications_delete_all():
 @notifications_bp.route("/users/list", methods=["GET"])
 @login_required
 def api_users_list_for_mention():
-    """동료 호출 대상 선택용 사용자 목록."""
+    """동료 호출 대상 선택용 사용자 목록(ADMIN/MANAGER 전용)."""
     try:
+        user = getattr(g, "current_user", None)
+        if not user or str(getattr(user, "role", "") or "").upper() not in ("ADMIN", "MANAGER"):
+            return jsonify({"success": False, "message": "권한이 없습니다."}), 403
         db = get_db()
-        users = db.query(User.id, User.name, User.team, User.role).order_by(User.name).limit(500).all()
+        users = (
+            db.query(User.id, User.name, User.team, User.role)
+            .filter(User.is_active == True)
+            .order_by(User.name)
+            .limit(500)
+            .all()
+        )
         return jsonify({
             "success": True,
             "users": [
@@ -417,8 +598,46 @@ def api_users_list_for_mention():
         return jsonify({"success": False, "message": str(e)}), 500
 
 
+@notifications_bp.route("/orders/<int:order_id>/urgent-targets", methods=["GET"])
+@login_required
+def api_order_urgent_targets(order_id):
+    """주문 문맥형 긴급 호출 후보 목록.
+
+    호출자는 주문 관련자이거나 ADMIN/MANAGER 여야 한다(아니면 403). 후보는 주문
+    관련자 + ADMIN/MANAGER(활성만), 자기 자신·inactive 제외, dedupe.
+    """
+    try:
+        db = get_db()
+        user_id = session.get("user_id")
+        user = getattr(g, "current_user", None)
+        if not user:
+            return jsonify({"success": False, "message": "사용자 정보를 찾을 수 없습니다."}), 404
+
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
+
+        if not _user_can_access_order_urgent(user, order):
+            return jsonify({"success": False, "message": "권한이 없습니다."}), 403
+
+        # 활성 사용자 1회 조회 후 파이썬 판정(N+1 없음). 후보는 활성 사용자로 한정되며
+        # 운영 규모상 상한 500 으로 bound(users/list 와 동일 상한).
+        active_users = db.query(User).filter(User.is_active == True).limit(500).all()  # perf-ok: bounded active-user candidate scan
+        targets = []
+        for u in active_users:
+            if u.id == user_id:
+                continue
+            if _user_can_access_order_urgent(u, order):
+                targets.append(_urgent_target_payload(u))
+
+        return jsonify({"success": True, "targets": targets})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
 @notifications_bp.route("/notifications/send", methods=["POST"])
 @login_required
+@notification_write_guard
 def api_notifications_send():
     """관리자/매니저 전용 - 공지/알림 발송.
 
@@ -468,6 +687,7 @@ def api_notifications_send():
         # 전체/팀/개인 발송 시 수신자별 레코드 생성. 각 레코드는 해당 수신자 전용이므로
         # target_type 을 'USER' 로 저장해, 브리핑 보드 등에서 target_user_id 로 1건만 조회되게 함.
         stored_target_type = "USER" if target_type in ("ALL", "TEAM", "USER") else target_type
+        created_notif_ids = []
         for uid in recipient_ids:
             notif = Notification(
                 order_id=int(order_id_val) if order_id_val else None,
@@ -483,9 +703,17 @@ def api_notifications_send():
                 is_read=False,
             )
             db.add(notif)
+            db.flush()
+            # 같은 트랜잭션에서 수신자 state + 'created' 이벤트 생성(고아 알림 방지).
+            fan_out_new_notification(db, notif, actor_user_id=user_id)
+            created_notif_ids.append(notif.id)
 
-        db.flush()
         db.commit()
+
+        # 커밋 후 Web Push enqueue(worker 가 커밋된 row 를 재조회하도록 commit 이후 실행).
+        from foms.services.notifications.push_sender import enqueue_push_for_notification
+        for nid in created_notif_ids:
+            enqueue_push_for_notification(nid, db=db)
 
         invalidate_badge_cache_for_user_ids(recipient_ids)
 
@@ -523,10 +751,12 @@ def api_notifications_send():
 
 @notifications_bp.route("/orders/<int:order_id>/urgent-mention", methods=["POST"])
 @login_required
+@notification_write_guard
 def api_order_urgent_mention(order_id):
     """주문 상세에서 특정 동료를 긴급 호출(멘션).
 
-    Body: { target_user_id: int, message: str (선택) }
+    Body: { target_user_id: int, message: str (선택, 최대 500자) }
+    호출자·대상 모두 주문 관련자이거나 ADMIN/MANAGER 여야 한다.
     """
     db = None
     try:
@@ -540,6 +770,9 @@ def api_order_urgent_mention(order_id):
         if not order:
             return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
 
+        if not _user_can_access_order_urgent(sender, order):
+            return jsonify({"success": False, "message": "이 주문의 긴급 호출 권한이 없습니다."}), 403
+
         data = request.get_json(silent=True) or {}
         target_uid_raw = data.get("target_user_id")
         if not target_uid_raw:
@@ -550,11 +783,19 @@ def api_order_urgent_mention(order_id):
         except (TypeError, ValueError):
             return jsonify({"success": False, "message": "올바르지 않은 사용자입니다."}), 400
 
+        if target_uid == sender_id:
+            return jsonify({"success": False, "message": "자기 자신은 호출할 수 없습니다."}), 400
+
         target_user = db.query(User).filter(User.id == target_uid).first()
-        if not target_user:
+        if not target_user or not target_user.is_active:
             return jsonify({"success": False, "message": "대상 사용자를 찾을 수 없습니다."}), 404
 
+        if not _user_can_access_order_urgent(target_user, order):
+            return jsonify({"success": False, "message": "이 주문과 관련 없는 대상입니다."}), 400
+
         msg = (data.get("message") or "").strip()
+        if len(msg) > 500:
+            return jsonify({"success": False, "message": "메시지는 500자 이내여야 합니다."}), 400
         customer = order.customer_name or f"#{order_id}"
         title = f"[긴급 멘션] {sender.name}님이 #{order_id} {customer} 주문에서 호출했습니다"
 
@@ -571,6 +812,8 @@ def api_order_urgent_mention(order_id):
             is_read=False,
         )
         db.add(notif)
+        db.flush()
+        fan_out_new_notification(db, notif, actor_user_id=sender_id)
         db.commit()
 
         invalidate_badge_cache_for_user_ids([target_uid])
@@ -585,10 +828,26 @@ def api_order_urgent_mention(order_id):
             "created_by_name": str(sender.name or ""),
         }
         emit_erp_notification_to_users([target_uid], payload)
+        _record_event(
+            db, notif.id, NotificationEventType.REALTIME_ATTEMPTED,
+            actor_user_id=sender_id, recipient_user_id=target_uid,
+        )
+        db.commit()
+
+        # 커밋 후 Web Push enqueue. queue 미가용이면 os_push 미보장을 응답으로 노출.
+        from foms.services.notifications.push_sender import enqueue_push_for_notification
+        push_result = enqueue_push_for_notification(notif.id, db=db)
+        os_push = "queued" if push_result.get("enqueued") else (
+            "not_guaranteed"
+            if push_result.get("reason") == "queue_unavailable"
+            else push_result.get("reason")
+        )
 
         return jsonify({
             "success": True,
             "message": f"{target_user.name}님에게 긴급 멘션을 보냈습니다.",
+            "os_push": os_push,
+            "push_reason": push_result.get("reason"),
         })
     except Exception as e:
         import traceback
@@ -609,8 +868,12 @@ __all__ = [
     "api_notifications_badge",
     "api_notification_mark_read",
     "api_notifications_mark_all_read",
+    "api_notification_archive",
+    "api_notifications_archive_all",
+    "api_notification_ack",
     "api_notifications_delete_all",
     "api_users_list_for_mention",
+    "api_order_urgent_targets",
     "api_notifications_send",
     "api_order_urgent_mention",
 ]

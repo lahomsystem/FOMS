@@ -103,8 +103,12 @@ def test_service_worker_registration_is_global_not_shell_gated() -> None:
     shell 게이트로 모바일 한정 유지(동작 무변경).
     """
     a2hs = A2HS_JS.read_text(encoding="utf-8")
+    # SW 등록 SSOT(Phase 3B): a2hs 는 직접 register 대신 sync.js 의 helper 를 경유한다.
+    assert "window.fomsRegisterServiceWorker" in a2hs, (
+        "a2hs 가 등록 SSOT(window.fomsRegisterServiceWorker)를 경유하지 않는다."
+    )
     reg_start = a2hs.index("function registerPwaServiceWorker")
-    reg_end = a2hs.index("}", a2hs.index("navigator.serviceWorker.register", reg_start))
+    reg_end = a2hs.index("}", a2hs.index("fomsRegisterServiceWorker", reg_start))
     reg_body = a2hs[reg_start:reg_end]
     assert "data-erp-mobile-shell" not in reg_body, (
         "registerPwaServiceWorker가 여전히 mobile-shell 게이트로 막혀 있다 "

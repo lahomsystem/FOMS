@@ -1,0 +1,48 @@
+{# 모바일 알림 센터 시트 (Phase 1A + 1B + 2) — 벨 탭 → bottom sheet 알림 목록 + unread badge + deep link.
+   1B: 헤더 모두읽음/모두보관 + 항목 보관, 항목 tap 시 read. 2: 긴급 pinned 항목 ack.
+   모든 write 는 mobile-notification.js 가 window.FOMSNotificationWrite 로 POST (위임 JS 처리 · 인라인 핸들러 금지).
+   Fixed overlay 이므로 .erp-mobile-shell-chrome(display:contents) 밖에 렌더한다. #}
+<div
+  class="offcanvas offcanvas-bottom erp-mobile-notif-sheet"
+  tabindex="-1"
+  id="erp-mobile-notification-sheet"
+  data-foms-notif-sheet
+  aria-labelledby="erp-mobile-notification-sheet-title">
+  <div class="offcanvas-header erp-mobile-notif-sheet__header">
+    <h5 class="offcanvas-title erp-mobile-notif-sheet__title" id="erp-mobile-notification-sheet-title">
+      <i class="fas fa-bell" aria-hidden="true"></i> 알림
+    </h5>
+    <div class="erp-mobile-notif-sheet__actions">
+      <button type="button" class="erp-mobile-notif-sheet__action" data-foms-notif-read-all>
+        <i class="fas fa-check-double" aria-hidden="true"></i> 모두 읽음
+      </button>
+      <button type="button" class="erp-mobile-notif-sheet__action" data-foms-notif-archive-all>
+        <i class="fas fa-box-archive" aria-hidden="true"></i> 모두 보관
+      </button>
+      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="알림 닫기"></button>
+    </div>
+  </div>
+  <div class="offcanvas-body erp-mobile-notif-sheet__body">
+    <section
+      class="erp-mobile-notif-sheet__urgent"
+      data-foms-notif-urgent
+      hidden
+      aria-label="긴급 알림"></section>
+    <div
+      class="erp-mobile-notif-sheet__list"
+      data-foms-notif-list
+      aria-live="polite"
+      aria-atomic="false">
+      <div class="erp-mobile-notif-sheet__placeholder" data-foms-notif-placeholder>
+        <div class="spinner-border spinner-border-sm text-primary" role="status"></div> 로딩 중...
+      </div>
+    </div>
+  </div>
+  {# Phase 3B: 기기(Web Push) 알림 CTA 하단 고정 영역. 내용은 mobile-push.js 가
+     상태(mobile-state)에 따라 렌더한다 — 인라인 버튼/스크립트 없음(위임 JS 처리). #}
+  <div
+    class="erp-mobile-notif-sheet__footer erp-mobile-push-cta"
+    data-foms-push-cta
+    hidden
+    aria-label="기기 알림 설정"></div>
+</div>

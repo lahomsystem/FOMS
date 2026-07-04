@@ -45,11 +45,16 @@
       aria-label="통합 검색">
       <i class="fas fa-search" aria-hidden="true"></i>
     </button>
-    <a
+    <button
       class="erp-mobile-shell-header__notify foms-icon-btn"
-      href="{{ _home_href }}"
-      aria-label="ERP 홈">
+      type="button"
+      data-foms-notif-open
+      aria-label="알림"
+      aria-haspopup="dialog"
+      aria-expanded="false"
+      aria-controls="erp-mobile-notification-sheet">
       <i class="fas fa-bell" aria-hidden="true"></i>
-    </a>
+      <span class="erp-mobile-shell-header__notify-badge" data-foms-notif-badge hidden aria-hidden="true">0</span>
+    </button>
   </div>
 </header>

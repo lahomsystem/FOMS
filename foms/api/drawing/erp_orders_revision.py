@@ -19,6 +19,7 @@ from foms.api.notifications import (
     invalidate_badge_cache_for_user_ids,
 )
 from foms.services.notifications.realtime_notifications import emit_erp_notification_to_users
+from foms.services.notifications.recipients import fan_out_new_notification
 from foms.services.erp_permissions import erp_edit_required
 from foms.services.erp_display import _can_modify_sales_domain, _ensure_dict
 from foms.services.erp_policy import is_drawing_workbench_participant
@@ -134,8 +135,15 @@ def api_order_request_revision(order_id):
             created_by_name=current_user.name
         )
         db.add(new_notification)
+        db.flush()
+        # 같은 트랜잭션에서 수신자 state + 'created' 이벤트 생성(상태 없는 고아 알림 방지).
+        fan_out_new_notification(db, new_notification, actor_user_id=session.get('user_id'))
         db.add(SecurityLog(user_id=session.get('user_id'), message=f"주문 #{order_id} 도면 수정 요청"))
         db.commit()
+
+        # 커밋 후 Web Push enqueue(P1 유형: DRAWING_REVISION).
+        from foms.services.notifications.push_sender import enqueue_push_for_notification
+        enqueue_push_for_notification(new_notification.id, db=db)
 
         recipient_user_ids = resolve_notification_recipient_user_ids(
             db,

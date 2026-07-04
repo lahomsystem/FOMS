@@ -238,7 +238,7 @@
 
         async function readGlobalNotification(id, orderId, notificationType, deepTab, deepEventId, deepTargetNo) {
             try {
-                await fetch(`/erp/api/notifications/${id}/read`, { method: 'POST' });
+                await window.FOMSNotificationWrite.fetch(`/erp/api/notifications/${id}/read`, { method: 'POST' });
                 // Refresh badge
                 loadGlobalNotificationBadge(true);
 
@@ -266,7 +266,7 @@
         async function markAllGlobalNotificationsRead() {
             if (!confirm('모든 알림을 읽음 처리하시겠습니까?')) return;
             try {
-                await fetch('/erp/api/notifications/read-all', { method: 'POST' });
+                await window.FOMSNotificationWrite.fetch('/erp/api/notifications/read-all', { method: 'POST' });
                 loadGlobalNotificationBadge(true);
                 loadGlobalNotifications();
             } catch (e) {
@@ -275,22 +275,22 @@
         }
 
         async function deleteAllGlobalNotifications() {
-            if (!confirm('알림을 모두 삭제하시겠습니까? 삭제된 알림은 복구할 수 없습니다.')) return;
+            if (!confirm('알림을 모두 보관하시겠습니까? 보관하면 목록에서 사라집니다.')) return;
             try {
-                const res = await fetch('/erp/api/notifications/delete-all', { method: 'POST' });
+                const res = await window.FOMSNotificationWrite.fetch('/erp/api/notifications/archive-all', { method: 'POST' });
                 const data = await res.json().catch(function () { return {}; });
                 if (data.success) {
                     loadGlobalNotificationBadge(true);
                     loadGlobalNotifications();
                     if (data.count != null && data.count > 0) {
-                        alert(data.message || data.count + '개 알림을 삭제했습니다.');
+                        alert(data.message || data.count + '개 알림을 보관했습니다.');
                     }
                 } else {
-                    alert(data.message || '삭제에 실패했습니다.');
+                    alert(data.message || '보관에 실패했습니다.');
                 }
             } catch (e) {
                 console.error(e);
-                alert('알림 삭제 중 오류가 발생했습니다.');
+                alert('알림 보관 중 오류가 발생했습니다.');
             }
         }
 
