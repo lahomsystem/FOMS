@@ -18,6 +18,8 @@ import argparse
 import json
 import os
 import sys
+import time
+import traceback
 from datetime import datetime
 
 sys.path.append(
@@ -37,33 +39,77 @@ def _parse_args() -> argparse.Namespace:
         help="스윕을 실행하되 커밋하지 않고 롤백(집계만 확인).",
     )
     parser.add_argument("--json", action="store_true", help="기계 판독용 JSON 요약 출력.")
+    parser.add_argument(
+        "--loop",
+        action="store_true",
+        help="장기 실행 루프 모드: 앱을 1회만 부팅하고 interval 간격으로 스윕을 반복. "
+        "Railway worker 컨테이너 백그라운드 배선용 (start.sh 참조).",
+    )
+    parser.add_argument(
+        "--interval",
+        type=int,
+        default=60,
+        help="--loop 모드 스윕 간격(초, 기본 60, 최소 15).",
+    )
     return parser.parse_args()
+
+
+def _sweep_once(dry_run: bool) -> dict:
+    """단일 스윕 실행 후 결과 dict 반환 (호출측이 app_context 보유)."""
+    db = get_db()
+    try:
+        result = escalate_overdue_urgent(db)
+        if dry_run:
+            db.rollback()
+        else:
+            db.commit()
+        return result
+    except Exception:
+        db.rollback()
+        raise
+
+
+def _print_result(result: dict, as_json: bool) -> None:
+    """스윕 결과를 사람/기계 판독 형식으로 출력."""
+    if as_json:
+        print(json.dumps(result, ensure_ascii=False), flush=True)
+        return
+    ts = datetime.now().strftime("%H:%M:%S")
+    print(
+        f"[{ts}] escalation sweep: checked={result['checked']} "
+        f"escalated={result['escalated']} operator_escalated={result['operator_escalated']} "
+        f"dry_run={result['dry_run']}",
+        flush=True,
+    )
+
+
+def _run_loop(interval: int, dry_run: bool, as_json: bool) -> int:
+    """앱 1회 부팅 후 interval 간격으로 스윕 반복. 스윕 실패는 기록 후 계속."""
+    interval = max(15, interval)
+    print(f"[escalation-loop] started (interval={interval}s)", flush=True)
+    while True:
+        try:
+            with app.app_context():
+                result = _sweep_once(dry_run)
+            result["dry_run"] = bool(dry_run)
+            _print_result(result, as_json)
+        except Exception:
+            # 스윕 1회 실패가 루프를 죽이면 escalation이 통째로 꺼진다.
+            print("[escalation-loop] sweep failed:", flush=True)
+            traceback.print_exc()
+        time.sleep(interval)
 
 
 def run() -> int:
     args = _parse_args()
+    if args.loop:
+        return _run_loop(args.interval, args.dry_run, args.json)
+
     with app.app_context():
-        db = get_db()
-        try:
-            result = escalate_overdue_urgent(db)
-            if args.dry_run:
-                db.rollback()
-            else:
-                db.commit()
-        except Exception:
-            db.rollback()
-            raise
+        result = _sweep_once(args.dry_run)
 
     result["dry_run"] = bool(args.dry_run)
-    if args.json:
-        print(json.dumps(result, ensure_ascii=False))
-    else:
-        ts = datetime.now().strftime("%H:%M:%S")
-        print(
-            f"[{ts}] escalation sweep: checked={result['checked']} "
-            f"escalated={result['escalated']} operator_escalated={result['operator_escalated']} "
-            f"dry_run={result['dry_run']}"
-        )
+    _print_result(result, args.json)
     return 0
 
 
