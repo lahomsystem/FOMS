@@ -1,10 +1,6 @@
 {
   "version": 1,
   "finding_ids": [
-    "fragment-multi-script|templates/shipment/partials/dashboard_scripts.html|1",
-    "fragment-multi-script|templates/wdcalculator/partials/wdcalculator_scripts_config.html|7",
-    "jsonb-path-filter|foms/web/construction/dashboard.py|109",
-    "mobile-queue-row-no-batch|foms/api/fragment.py|56",
-    "mobile-queue-row-no-batch|foms/web/orders/dashboard.py|604"
+    "fragment-multi-script|templates/wdcalculator/partials/wdcalculator_scripts_config.html|7"
   ]
 }

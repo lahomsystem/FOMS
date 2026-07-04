@@ -16,24 +16,20 @@
 
         var __orderDetailPayloadCache = {};
 
-        function getPreloadedOrderDetailPayload(orderId) {
+        /**
+         * 상세 payload를 경량 JSON API에서 lazy fetch (첫 오픈 1회만 요청, 이후 메모리 캐시).
+         * 서버 fragment에 50행분 payload를 선적재하던 것을 제거하고, 패널을 열 때만 가져온다.
+         * 반환 shape는 기존 preload와 동일({success, structured_data, role_assignees}).
+         */
+        async function fetchOrderDetailPayload(orderId) {
           if (__orderDetailPayloadCache[orderId]) {
             return __orderDetailPayloadCache[orderId];
           }
-
-          const payloadEl = document.getElementById(`order-detail-preload-${orderId}`);
-          if (!payloadEl) {
-            return null;
-          }
-
-          try {
-            const payload = JSON.parse(payloadEl.textContent || '{}');
+          const payload = await safeJsonFetch(`/api/orders/${orderId}/detail-payload`, null);
+          if (payload && payload.success) {
             __orderDetailPayloadCache[orderId] = payload;
-            return payload;
-          } catch (e) {
-            console.warn('Order detail preload parse error:', orderId, e);
-            return null;
           }
+          return payload;
         }
 
         async function loadOrderDetail(orderId) {
@@ -65,21 +61,19 @@
           try { performance.mark('erp-detail-load-start:' + orderId); } catch (e) {}
 
           try {
-            const preloaded = getPreloadedOrderDetailPayload(orderId);
-            let structured = null;
+            /** 캐시 미스일 때만 로딩 표시(재오픈/캐시 히트 시 깜빡임 방지) */
+            if (!__orderDetailPayloadCache[orderId]) {
+              container.innerHTML = '<div class="text-muted small">로딩 중...</div>';
+            }
+            const preloaded = await fetchOrderDetailPayload(orderId);
+            let structured = preloaded;
             /** true면 2단에서 GET /attachments 로 패치 */
             let attachmentsPending = true;
             let preloadedAttachmentsPayload = null;
 
-            if (preloaded && preloaded.success) {
-              structured = preloaded;
-              if (preloaded.attachments !== undefined) {
-                attachmentsPending = false;
-                preloadedAttachmentsPayload = preloaded.attachments;
-              }
-            } else {
-              container.innerHTML = '<div class="text-muted small">로딩 중...</div>';
-              structured = await safeJsonFetch(`/api/orders/${orderId}/structured`, { success: false, structured_data: {} });
+            if (preloaded && preloaded.success && preloaded.attachments !== undefined) {
+              attachmentsPending = false;
+              preloadedAttachmentsPayload = preloaded.attachments;
             }
 
             if (!structured || !structured.success) {
@@ -769,7 +763,7 @@
 
           // 주문 상세 collapse: 애니메이션 시작과 동시에 DOM 빌드 → 로딩 지연 제거
           document.querySelectorAll('.collapse[id^="order-detail-collapse-"]').forEach(collapseEl => {
-            // show 시점(애니메이션 시작)에 바로 DOM 빌드 — preloaded payload 사용 시 즉각 완료
+            // show 시점(애니메이션 시작)에 바로 DOM 빌드 — 첫 오픈은 lazy fetch(1회), 이후 메모리 캐시로 즉각
             collapseEl.addEventListener('show.bs.collapse', function () {
               const orderId = this.id.replace('order-detail-collapse-', '');
               loadOrderDetail(parseInt(orderId, 10));

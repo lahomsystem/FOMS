@@ -1007,6 +1007,51 @@
       asHighlightResizeTimer = setTimeout(syncVisibleAsContentHighlights, 120);
     });
 
+    // ───────── 리치 툴바 lazy hydrate ─────────
+    // 툴바(행당 4개 × 100행 = 400개 ≈ 350KB)를 서버에서 렌더하지 않고,
+    // fragment당 1개의 <template id="as-rich-toolbar-template">에서 focus 시점에 clone 삽입한다.
+    // 삽입 위치 계약: 원본 마크업과 동일하게 .as-rich-editor의 first child(= .as-content-input 앞).
+    // 그래야 기존 명령/영업전달 버튼의 btn.closest('.as-rich-editor').querySelector('.as-content-input')
+    // 탐색이 무수정으로 작동한다. 멱등: editor.dataset.toolbarHydrated.
+    function hydrateAsRichToolbar(editor) {
+      if (!editor || editor.dataset.toolbarHydrated === '1') return;
+      const tmpl = document.getElementById('as-rich-toolbar-template');
+      if (!tmpl || !('content' in tmpl)) return;
+      const frag = tmpl.content.cloneNode(true);
+      const toolbar = frag.querySelector('.as-rich-toolbar');
+      if (!toolbar) return;
+      const input = editor.querySelector('.as-content-input[contenteditable="true"]');
+      const tabbed = editor.closest('.as-tabbed-editor');
+      const orderId = (input && input.dataset.orderId)
+        || (tabbed && tabbed.dataset.orderId) || '';
+      // 주문별 가변값 주입: order_id + 영업/전달 활성 상태(.as-tabbed-editor[data-sales-delivery]).
+      const salesBtn = toolbar.querySelector('.as-sales-delivery-btn');
+      if (salesBtn) {
+        if (orderId) salesBtn.dataset.orderId = orderId;
+        const active = !!(tabbed && tabbed.dataset.salesDelivery === '1');
+        salesBtn.dataset.salesDeliveryActive = active ? '1' : '0';
+        salesBtn.textContent = `${active ? '☑' : '☐'} 영업/전달`;
+        salesBtn.classList.toggle('btn-warning', active);
+        salesBtn.classList.toggle('btn-outline-warning', !active);
+      }
+      editor.dataset.toolbarHydrated = '1';
+      editor.insertBefore(toolbar, editor.firstChild);
+    }
+
+    // document 레벨 위임 focusin — 프래그먼트 스왑과 무관하게 한 번만 등록(window 가드).
+    // hydrate 함수는 순수 DOM 조작이라 최초 클로저를 재사용해도 안전.
+    if (!window.__FOMS_AS_TOOLBAR_BOUND) {
+      window.__FOMS_AS_TOOLBAR_BOUND = true;
+      document.addEventListener('focusin', function (e) {
+        const target = e.target;
+        if (!target || !target.closest) return;
+        const input = target.closest('.as-content-input[contenteditable="true"]');
+        if (!input) return;
+        const editor = input.closest('.as-rich-editor');
+        if (editor) hydrateAsRichToolbar(editor);
+      });
+    }
+
     addAsDashboardListener(document, 'mousedown', function (e) {
       const btn = e.target.closest('.as-rich-toolbar button');
       if (!btn) return;

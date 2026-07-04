@@ -54,6 +54,9 @@ def _create_construction_order(**kwargs):
         status=kwargs.get("status", "CONSTRUCTION"),
         manager_name=kwargs.get("manager_name", "Bob"),
         is_erp_order=True,
+        # 운영 진실 정렬: 단계 SQL 필터가 flat erp_stage_code(index)를 읽으므로
+        # workflow.stage와 동일 값을 명시 세팅(안 하면 시공 탭 필터가 걸러 오탐).
+        erp_stage_code=workflow.get("stage"),
         structured_data=sd,
     )
     db_session.add(order)

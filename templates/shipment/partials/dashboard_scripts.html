@@ -1,3 +1,2 @@
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
-<script src="{{ url_for('static', filename='js/shipment/image-export.js') }}" defer></script>
-<script src="{{ url_for('static', filename='js/shipment/dashboard-columns.js') }}" defer></script>
+{# 출고 대시보드 JS는 shipment-entry.js 가 순차 로드 (fragment 재실행 시 스크립트 이중 실행 방지). PNG 캡처 라이브러리는 image-export.js 가 사용 시점 lazy 로드. #}
+<script src="{{ url_for('static', filename='js/shipment/shipment-entry.js') }}?v=20260704a" defer></script>

@@ -1,58 +1,44 @@
-  <style>
+/* ERP 주문 대시보드 그리드/상세 스타일.
+   과거 dashboard_styles.html의 48KB inline <style>을 추출(성능: fragment 재전송 제거).
+   dashboard_main.html에서 ?v= 스탬프 <link>로 1회 로드. 규칙 무변경(1:1 이전). */
+    /* collapse 애니메이션 단축 — 즉각 반응 체감 */
+    #erp-grid .collapsing {
+      transition-duration: 0.15s !important;
+    }
+
     /* ============================================
-       작업 큐 그리드 셀 유틸 클래스 (행당 반복 inline style 제거 → fragment 다이어트)
-       기존 inline 속성과 1:1 동일한 computed style. 50행 × 셀당 인라인 스타일을 클래스로 대체.
+       ERP 토스트 컨테이너 (Phase D-8)
        ============================================ */
-    #erp-grid .erp-grid-th {
-      font-size: 1.1rem;
-      font-weight: 700;
-      color: #495057;
-      background-color: #e9ecef;
+    #erp-toast-container,
+    .erp-toast-container {
+      position: fixed;
+      top: 84px;
+      right: 16px;
+      z-index: 30000;
+      display: grid;
+      gap: 8px;
+      max-width: 320px;
     }
-    #erp-grid .erp-grid-cell {
-      font-size: 1.1rem;
-      color: #495057;
+    .erp-toast {
+      border-radius: 10px;
+      padding: 9px 11px;
+      font-size: 13px;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
     }
-    #erp-grid .erp-grid-cell-strong {
-      font-size: 1.1rem;
-      color: #212529;
-    }
-    #erp-grid .erp-grid-cell-wrap {
-      font-size: 1.1rem;
-      color: #495057;
-      word-break: break-word;
-    }
-    #erp-grid .erp-grid-muted {
-      font-size: 1.1rem;
-    }
-    #erp-grid .erp-grid-badge-lg {
-      font-size: 1.1rem;
-      padding: 0.5em 0.8em;
-    }
-    #erp-grid .erp-grid-badge-stage {
-      font-size: 1.1rem;
-      padding: 0.5em 0.7em;
-    }
-    #erp-grid .erp-grid-badge-sm {
-      font-size: 1rem;
-      padding: 0.4em 0.7em;
-    }
-    #erp-grid .erp-grid-btn-quest {
-      font-size: 1rem;
-      padding: 0.5em 1em;
-    }
-    #erp-grid .erp-grid-chip {
-      cursor: pointer;
-      font-size: 1rem !important;
-      padding: 0.4em 0.7em !important;
-      text-align: center;
-      display: inline-block;
-    }
-    #erp-grid .erp-grid-chip--link {
-      text-decoration: none;
-    }
-    #erp-grid .erp-grid-chip--link i {
-      font-size: 1rem !important;
+    .erp-toast-success { background: #ecfdf5; border: 1px solid #10b981; color: #065f46; }
+    .erp-toast-error { background: #fef2f2; border: 1px solid #ef4444; color: #991b1b; }
+    .erp-toast-info { background: #eff6ff; border: 1px solid #3b82f6; color: #1e3a8a; }
+
+    /* 컬럼 리사이저 (Phase D-8) */
+    .erp-col-resizer {
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 5px;
+      cursor: col-resize;
+      z-index: 100;
+      user-select: none;
     }
 
     /* ============================================
@@ -66,14 +52,24 @@
     .erp-dashboard-workqueue .card {
       overflow: visible !important;
     }
-    /* 작업 큐 그리드 스크롤 영역: 유일한 스크롤 컨테이너 → thead sticky 동작 */
+    /* 작업 큐 그리드 스크롤 영역: 이 컨테이너가 유일한 스크롤 컨테이너 → thead sticky 동작 */
     .erp-grid-scroll-wrap {
       max-height: min(calc(100vh - 280px), 72vh);
       overflow: auto;
       -webkit-overflow-scrolling: touch;
     }
+    /* table-responsive가 overflow를 가지면 sticky가 그 기준을 따름 → erp-grid-scroll-wrap 내부에서만 overflow 제거 */
     .erp-grid-scroll-wrap .table-responsive {
       overflow: visible !important;
+    }
+    /* 일괄 적용 바: 위 스크롤 영역 기준 상단 고정(선택 건 상태 변경 시 하단 주문도 적용 가능) */
+    #erp-grid-bulk-bar {
+      flex: 0 1 auto;
+      align-self: center;
+      background: transparent;
+      padding: 0;
+      margin: 0;
+      box-shadow: none;
     }
 
     .erp-detail-panel {
@@ -139,6 +135,7 @@
       flex: 1;
     }
 
+    /* 작업큐 고객명 옆 라홈 로고 (이름 3글자 정도 크기) */
     .erp-lahom-logo {
       height: 1.25em;
       width: auto;
@@ -230,11 +227,105 @@
       }
     }
 
+    /* ERP Order 주문 상세 - 제품 항목 dw-product-main-card (도면/실측과 동일 레이아웃) */
+    .erp-order-detail .dw-product-main-card {
+      border: 1px solid #dfe7f3;
+      border-radius: 10px;
+      background: #ffffff;
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+    .erp-order-detail .dw-product-main-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .erp-order-detail .dw-product-main-name {
+      font-size: 1.08rem;
+      font-weight: 700;
+      color: #0f2a52;
+    }
+    .erp-order-detail .dw-product-split {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 14px;
+    }
+    @media (max-width: 767px) {
+      .erp-order-detail .dw-product-split {
+        grid-template-columns: 1fr;
+      }
+    }
+    .erp-order-detail .dw-product-info-form .form-control {
+      background: #f3f5fa;
+      border-color: #dbe3f0;
+      color: #394b63;
+    }
+    .erp-order-detail .dw-product-info-form .form-control[readonly] {
+      cursor: copy;
+    }
+    .erp-order-detail .dw-product-info-form .form-control[readonly]:hover {
+      border-color: #9fb6db;
+      background: #eef3fb;
+    }
+    .erp-order-detail .dw-attach-panel {
+      border: 1px solid #dbe4f3;
+      border-radius: 10px;
+      background: #f8fbff;
+      padding: 10px;
+      height: 100%;
+    }
+    .erp-order-detail .dw-attach-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 8px;
+    }
+    .erp-order-detail .dw-attach-grid--single {
+      grid-template-columns: 1fr;
+    }
+    .erp-order-detail .dw-attach-thumb {
+      width: 100%;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #d4deee;
+      cursor: pointer;
+      background: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4px;
+    }
+    .erp-order-detail .dw-attach-thumb:hover {
+      border-color: #0d6efd;
+      box-shadow: 0 2px 8px rgba(13, 110, 253, 0.2);
+    }
+    .erp-order-detail .dw-attach-grid--single .dw-attach-thumb {
+      min-height: 180px;
+    }
+    .erp-order-detail .dw-attach-thumb img {
+      max-width: 100%;
+      max-height: 320px;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      display: block;
+    }
+    .erp-order-detail .dw-attach-name {
+      font-size: 0.78rem;
+      color: #667a94;
+      margin-top: 4px;
+      word-break: break-all;
+    }
+
     /* 가독성 개선 스타일 - 텍스트 크기 증가 */
     #erp-grid {
       font-size: 1rem;
-      border-collapse: separate;
-      border-spacing: 0;
+    }
+
+    #erp-grid thead {
+      position: relative;
+      z-index: 11;
     }
 
     #erp-grid thead th {
@@ -339,19 +430,18 @@
       white-space: nowrap;
     }
 
-    /* 경보 컬럼: 배지 겹침 방지 및 세로 정렬 */
+    /* 경보 컬럼: 체크박스 + 배지 세로 스택 */
     #erp-grid tbody td:nth-child(1) {
-      padding: 0.5rem 0.75rem;
+      padding: 0.35rem 0.5rem;
       vertical-align: top;
     }
 
-    #erp-grid tbody td:nth-child(1) .erp-grid-alert-badges .badge {
-      font-size: 0.85rem !important;
-      padding: 0.35em 0.6em !important;
+    #erp-grid tbody td:nth-child(1) .erp-grid-alert-badges .badge:not(.erp-amount-value) {
+      font-size: 0.7rem !important;
+      padding: 0.2em 0.35em !important;
       margin: 0;
       white-space: nowrap;
       line-height: 1.2;
-      width: fit-content;
     }
 
     /* 단계 컬럼: 배지 겹침 방지 */
@@ -407,10 +497,12 @@
 
       #erp-grid thead th {
         border-right: 1px solid #e9ecef;
-        position: sticky;
+        position: sticky !important;
         top: 0;
-        background-color: #f8f9fa;
-        z-index: 10;
+        background: #f8f9fa !important;
+        background-clip: padding-box;
+        z-index: 12;
+        box-shadow: inset 0 -1px 0 #dee2e6, 0 2px 6px rgba(15, 23, 42, 0.06);
       }
 
       #erp-grid thead th:last-child {
@@ -435,20 +527,21 @@
         border-right: none;
       }
 
-      /* 경보 컬럼 - 최소화 */
+      /* 경보 컬럼 - 최소 폭(체크박스+세로 배지) */
       #erp-grid thead th:nth-child(1),
       #erp-grid tbody td:nth-child(1) {
-        width: 90px;
-        min-width: 90px;
+        width: 1%;
+        min-width: 0;
+        max-width: 7rem;
       }
 
       #erp-grid tbody td:nth-child(1) {
         vertical-align: top;
       }
 
-      #erp-grid tbody td:nth-child(1) .erp-grid-alert-badges .badge {
-        font-size: 0.75rem;
-        padding: 0.25rem 0.4rem;
+      #erp-grid tbody td:nth-child(1) .erp-grid-alert-badges .badge:not(.erp-amount-value) {
+        font-size: 0.7rem;
+        padding: 0.2rem 0.35rem;
       }
 
       /* 단계 컬럼 - 최소화 */
@@ -577,7 +670,6 @@
         display: inline-flex;
       }
     }
-
 
     /* 프로세스 맵 1줄 고정 */
     .erp-process-row {
@@ -1078,6 +1170,343 @@
         flex-shrink: 0 !important;
       }
 
+      .erp-drawing-gateway-card {
+        width: 100%;
+        border: 1px solid #d7e7ff;
+        border-radius: 12px;
+        background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+        padding: 10px 10px 9px;
+        box-shadow: 0 3px 10px rgba(13, 110, 253, 0.08);
+      }
+
+      .erp-drawing-gateway-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+
+      .erp-drawing-gateway-title {
+        font-size: 0.94rem;
+        font-weight: 700;
+        color: #0d6efd;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .erp-drawing-gateway-meta {
+        font-size: 0.8rem;
+        color: #6c757d;
+        line-height: 1.45;
+        margin-bottom: 8px;
+      }
+
+      .erp-drawing-gateway-summary {
+        border: 1px solid #e8eef9;
+        background: #fff;
+        border-radius: 10px;
+        padding: 7px 8px;
+        margin-bottom: 8px;
+      }
+
+      .erp-drawing-gateway-summary-head {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.77rem;
+        color: #6c757d;
+        margin-bottom: 3px;
+      }
+
+      .erp-drawing-gateway-summary-main {
+        font-size: 0.82rem;
+        color: #334155;
+        line-height: 1.45;
+      }
+
+      .erp-drawing-gateway-summary-note {
+        margin-top: 3px;
+        font-size: 0.78rem;
+        color: #b45309;
+        background: #fff7ed;
+        border: 1px solid #fed7aa;
+        border-radius: 8px;
+        padding: 3px 6px;
+      }
+
+      .erp-drawing-gateway-timeline {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 6px;
+      }
+
+      .erp-drawing-gateway-timeline-item {
+        border: 1px solid #e6edf8;
+        background: #f8fbff;
+        border-radius: 9px;
+        padding: 6px 7px;
+      }
+
+      .erp-drawing-gateway-timeline-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 2px;
+        font-size: 0.76rem;
+        color: #64748b;
+      }
+
+      .erp-drawing-gateway-timeline-action {
+        font-size: 0.77rem;
+        font-weight: 700;
+        color: #1d4ed8;
+      }
+
+      .erp-drawing-gateway-timeline-note {
+        font-size: 0.78rem;
+        color: #374151;
+      }
+
+      .erp-drawing-gateway-thumbs {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 8px;
+      }
+
+      .erp-drawing-gateway-thumb {
+        width: 44px;
+        height: 44px;
+        border-radius: 8px;
+        border: 1px solid #dbe5f5;
+        object-fit: cover;
+        cursor: zoom-in;
+        background: #fff;
+      }
+
+      /* 퀘스트 상황판에서는 어떤 이미지도 썸네일 크기로 강제 */
+      .erp-quest-cell .erp-drawing-gateway-card img,
+      .erp-quest-cell .erp-drawing-gateway-card .drawing-gateway-thumb img {
+        width: 44px !important;
+        height: 44px !important;
+        max-width: 44px !important;
+        max-height: 44px !important;
+        object-fit: cover !important;
+        border-radius: 8px;
+      }
+
+      .erp-quest-cell .erp-drawing-gateway-card .drawing-gateway-thumb,
+      .erp-quest-cell .erp-drawing-gateway-card .drawing-gateway-thumb-wrap {
+        width: 44px !important;
+        min-width: 44px !important;
+        max-width: 44px !important;
+        height: 44px !important;
+        overflow: hidden !important;
+      }
+
+      .erp-drawing-gateway-thumb-more {
+        min-width: 44px;
+        height: 44px;
+        border-radius: 8px;
+        border: 1px dashed #bfdbfe;
+        background: #eff6ff;
+        color: #1d4ed8;
+        font-size: 0.75rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 8px;
+      }
+
+      .erp-drawing-gateway-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .erp-drawing-gateway-actions .btn {
+        font-size: 0.8rem;
+        padding: 0.26rem 0.52rem;
+      }
+
+      .erp-drawing-quest-todo {
+        font-size: 0.82rem;
+        color: #1f2937;
+        background: #f8fafc;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 5px 7px;
+        margin-bottom: 8px;
+      }
+
+      .erp-drawing-quest-recent {
+        font-size: 0.78rem;
+        color: #475569;
+        margin-bottom: 8px;
+      }
+
+      .drawing-target-card-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+        gap: 8px;
+      }
+
+      .dw-revision-note-text {
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .drawing-revision-preview-pane {
+        border: 1px solid #dbe5f5;
+        border-radius: 10px;
+        background: #f8fafc;
+        padding: 10px;
+      }
+
+      .drawing-revision-preview-pane__stage {
+        min-height: 220px;
+        max-height: 42vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        border-radius: 8px;
+        background: #fff;
+        border: 1px solid #e5e7eb;
+      }
+
+      .drawing-revision-preview-pane__stage img {
+        max-width: 100%;
+        max-height: 42vh;
+        object-fit: contain;
+      }
+
+      .drawing-target-card {
+        border: 1px solid #dbe5f5;
+        border-radius: 10px;
+        background: #fff;
+        padding: 6px;
+        cursor: pointer;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+      }
+
+      .drawing-target-card:hover {
+        border-color: #8cb8ff;
+        box-shadow: 0 4px 12px rgba(13, 110, 253, 0.12);
+        transform: translateY(-1px);
+      }
+
+      .drawing-target-card.is-active {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.18);
+      }
+
+      .drawing-target-card-thumb {
+        width: 100%;
+        height: 74px;
+        border-radius: 7px;
+        border: 1px solid #e5e7eb;
+        background: #f8fafc;
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        margin-bottom: 5px;
+      }
+
+      .drawing-target-card-thumb img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .drawing-target-card-meta {
+        font-size: 0.76rem;
+        color: #334155;
+        line-height: 1.3;
+      }
+
+      .drawing-target-card-meta .num {
+        font-weight: 700;
+        color: #0d6efd;
+      }
+
+      .drawing-target-selected-pill {
+        position: absolute;
+        top: 6px;
+        left: 6px;
+        background: rgba(13, 110, 253, 0.95);
+        color: #fff;
+        border-radius: 999px;
+        padding: 2px 8px;
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+        box-shadow: 0 2px 8px rgba(13, 110, 253, 0.35);
+      }
+
+      .drawing-target-card.is-active .drawing-target-card-meta .num {
+        color: #084298;
+      }
+
+      @media (max-width: 768px) {
+        .drawing-target-card-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 8px;
+        }
+      }
+
+      .erp-drawing-workbench {
+        display: grid;
+        grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr);
+        gap: 12px;
+      }
+
+      .erp-drawing-workbench-log {
+        background: #fff;
+        border: 1px solid #e5edf8;
+        border-radius: 10px;
+        padding: 10px;
+        min-height: 160px;
+      }
+
+      .erp-drawing-workbench-actions {
+        background: #f8fbff;
+        border: 1px solid #d8e7ff;
+        border-radius: 10px;
+        padding: 10px;
+      }
+
+      .erp-drawing-workbench-actions-sticky {
+        position: sticky;
+        top: 10px;
+      }
+
+      .erp-drawing-workbench-tabs .nav-link {
+        font-size: 0.82rem;
+        padding: 0.32rem 0.55rem;
+      }
+
+      .erp-drawing-workbench-pane {
+        border: 1px solid #e5edf8;
+        border-radius: 8px;
+        background: #fff;
+        padding: 8px;
+        min-height: 124px;
+      }
+
+      @media (max-width: 992px) {
+        .erp-drawing-workbench {
+          grid-template-columns: 1fr;
+        }
+      }
+
       #erp-grid .erp-quest-cell .badge {
         margin-top: 0 !important;
         flex-shrink: 0 !important;
@@ -1261,8 +1690,8 @@
       }
 
       /* 모바일: 경보/단계 배지 작게 */
-      #erp-grid tbody td:nth-child(1) .erp-grid-alert-badges .badge,
-      #erp-grid tbody td:nth-child(2) .badge {
+      #erp-grid tbody td:nth-child(1) .erp-grid-alert-badges .badge:not(.erp-amount-value),
+      #erp-grid tbody td:nth-child(2) .badge:not(.erp-amount-value) {
         font-size: 0.7rem !important;
         padding: 0.2em 0.45em !important;
         line-height: 1.1;
@@ -1327,4 +1756,4 @@
       transform: translateY(-2px);
       box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1) !important;
     }
-  </style>
+

@@ -75,6 +75,9 @@
 
   // ── 5. 드래그 리사이즈 이벤트 ────────────────────────────────
   function bindResizeHandles(table) {
+    // 같은 테이블 노드에 중복 바인딩 방지(스왑 시엔 새 테이블 노드라 dataset 자연 초기화).
+    if (table.dataset.shipResizeBound === '1') return;
+    table.dataset.shipResizeBound = '1';
     var handles = table.querySelectorAll('thead th[data-col-key] .col-resize-handle');
     handles.forEach(function (handle) {
       handle.addEventListener('mousedown', function (e) {
@@ -127,7 +130,8 @@
   // ── 6. 컬럼 폭 초기화 버튼 ──────────────────────────────────
   function bindResetButton(table) {
     var btn = document.getElementById('btn-reset-column-widths');
-    if (!btn) return;
+    if (!btn || btn.dataset.fomsShipResetBound === '1') return;
+    btn.dataset.fomsShipResetBound = '1';
     btn.addEventListener('click', function () {
       clearSavedWidths();
       applyWidthsToCols(table, {});
@@ -152,11 +156,15 @@
     bindResetButton(table);
   }
 
-  // DOM 준비 후 실행
+  // entry 동적 로드 대응 readyState 분기 + fragment 스왑 재초기화(모듈은 1회 로드).
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
   } else {
     init();
+  }
+  if (!window.__FOMS_SHIP_COLUMNS_BOUND) {
+    window.__FOMS_SHIP_COLUMNS_BOUND = true;
+    document.addEventListener('foms:erp-shell-fragment-swapped', init);
   }
 
 })();

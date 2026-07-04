@@ -27,15 +27,16 @@ from models import Order, OrderAttachment, OrderEvent, User
 
 _SEED_BASE = datetime.datetime(2026, 6, 1, 9, 0, 0)
 
-# ⚠ 잔존 N+1 (개선 대상, 프로덕션 코드 미수정 — 회귀 잠금만).
-# warmup(콜드스타트 1회성 쿼리 제외) 후 격리 실측: small(4건)=11, big(12건)=19 → delta=8.
-# = 주문 1건당 SQL 1건 증가(선형). 원인: /erp/dashboard fragment DTO 조립 경로에서
-# system_settings SELECT가 행마다 1회 실행(12건 → 12회 반복 확인). 배치화하면 delta→0.
-# 이 계약은 그 N+1을 "현 값"으로 고정해 **더 나빠지는 것**(예: 2쿼리/행)만 차단한다.
-# 현 delta=8(+8행) + 여유 2 = 예산 10.
-ALLOWED_DELTA = 10
-# 절대 상한: 현 실측 big(19) + 30% ≈ 25.
-ABS_QUERY_CAP = 25
+# N+1 제거 완료(2026-07): DTO 조립 경로의 행당 system_settings SELECT를 배치화했다.
+# 원인은 build_orders_row_dtos가 행마다 resolve_manager_phone_for_queue →
+# load_erp_shipment_settings(SELECT system_settings)를 재조회한 것. 출고 설정
+# 실측담당자 연락처 map을 요청당 1회 로드해 전달(construction/production DTO와 동일 배치)로
+# 제거. warmup 후 격리 실측: small(4건)=8, big(12건)=8 → delta=0(행 수와 무관, 상수).
+# 이 계약은 delta를 0으로 고정해 per-row 회귀(설정/기타 행당 SELECT 재도입)를 차단한다.
+# 기대 delta=0 + 여유 2 = 예산 2.
+ALLOWED_DELTA = 2
+# 절대 상한: 현 실측 big(8) + 여유 ≈ 12.
+ABS_QUERY_CAP = 12
 
 
 @pytest.fixture(autouse=True)

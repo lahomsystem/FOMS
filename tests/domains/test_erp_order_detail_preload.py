@@ -1,5 +1,3 @@
-import json
-
 from db import db_session
 from models import Order, OrderAttachment
 from foms.services.erp_order_detail import (
@@ -83,7 +81,30 @@ def test_attach_order_detail_payloads_fallback_matches_lazy_load_shape() -> None
     assert "attachments" not in row["detail_payload"]
 
 
-def test_erp_dashboard_includes_preloaded_order_detail_payload(login):
+def test_erp_dashboard_no_longer_preloads_order_detail_payload(login):
+    """상세 payload lazy화: 대시보드 fragment는 더 이상 행별 detail preload를 선적재하지 않는다.
+
+    과거엔 50행분 detail_payload JSON을 <script>로 선적재해 fragment가 비대해졌다. 이제
+    상세 패널을 처음 열 때 /api/orders/<id>/detail-payload 로 lazy fetch한다.
+    """
+    order = make_erp_order()
+    db_session.add(order)
+    db_session.commit()
+    order_id = order.id
+
+    response = login.get("/erp/dashboard")
+    body = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    # preload <script>가 fragment에서 제거됐는지(다이어트 핵심) 확인.
+    assert f'order-detail-preload-{order_id}' not in body
+
+
+def test_erp_order_detail_payload_endpoint_returns_slim_payload(login):
+    """상세 lazy fetch 엔드포인트가 preload와 동일 shape(slim structured_data + role_assignees).
+
+    첨부는 기존과 동일하게 2단(/attachments)에서 별도 패치하므로 payload에 포함하지 않는다.
+    """
     order = make_erp_order()
     db_session.add(order)
     db_session.commit()
@@ -102,17 +123,11 @@ def test_erp_dashboard_includes_preloaded_order_detail_payload(login):
     db_session.commit()
     order_id = order.id
 
-    response = login.get("/erp/dashboard")
-    body = response.get_data(as_text=True)
-
+    response = login.get(f"/api/orders/{order_id}/detail-payload")
     assert response.status_code == 200
-    assert f'order-detail-preload-{order_id}' in body
-
-    marker = f'<script type="application/json" id="order-detail-preload-{order_id}">'
-    start = body.index(marker) + len(marker)
-    end = body.index("</script>", start)
-    payload = json.loads(body[start:end])
+    payload = response.get_json()
 
     assert payload["success"] is True
     assert payload["structured_data"]["workflow"]["stage"] == "DRAWING"
-    assert "attachments" not in payload  # Lazy loading in Phase M
+    assert "role_assignees" in payload
+    assert "attachments" not in payload  # 첨부는 2단 lazy patch

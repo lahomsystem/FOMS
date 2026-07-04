@@ -6,7 +6,7 @@ erp.py에서 분리: /erp/construction/dashboard
 import time
 
 from flask import Blueprint, g, make_response, render_template, request
-from sqlalchemy import String, cast, or_
+from sqlalchemy import or_
 
 from foms.web.auth import login_required
 from db import get_db
@@ -106,8 +106,7 @@ def erp_construction_dashboard():
     step_stats = _summary_blob["step_stats"]
     kpis = _summary_blob["kpis"]
 
-    stage_col = cast(Order.structured_data["workflow"]["stage"], String)
-    list_query = apply_construction_stage_sql_filter(query, f_stage, stage_col)
+    list_query = apply_construction_stage_sql_filter(query, f_stage)
 
     page = request.args.get("page", 1, type=int)
     per_page = CONSTRUCTION_DASHBOARD_PAGE_SIZE
