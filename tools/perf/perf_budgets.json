@@ -7,40 +7,40 @@
   },
   "paths": {
     "/erp/dashboard?view=fragment": {
-      "ttfb_warm_median_ms": 322,
-      "body_bytes_max": 876868
+      "ttfb_warm_median_ms": 291,
+      "body_bytes_max": 670381
     },
     "/erp/measurement?view=fragment": {
-      "ttfb_warm_median_ms": 178,
-      "body_bytes_max": 95625
+      "ttfb_warm_median_ms": 259,
+      "body_bytes_max": 100669
     },
     "/erp/drawing-workbench?view=fragment": {
-      "ttfb_warm_median_ms": 381,
-      "body_bytes_max": 56484
+      "ttfb_warm_median_ms": 242,
+      "body_bytes_max": 61528
     },
     "/erp/production/dashboard?view=fragment": {
       "ttfb_warm_median_ms": 246,
-      "body_bytes_max": 750218
+      "body_bytes_max": 566675
     },
     "/erp/shipment?view=fragment": {
-      "ttfb_warm_median_ms": 238,
-      "body_bytes_max": 101958
+      "ttfb_warm_median_ms": 246,
+      "body_bytes_max": 106791
     },
     "/erp/as?view=fragment": {
-      "ttfb_warm_median_ms": 272,
-      "body_bytes_max": 1525036
+      "ttfb_warm_median_ms": 325,
+      "body_bytes_max": 1075496
     },
     "/erp/construction/dashboard?view=fragment": {
-      "ttfb_warm_median_ms": 233,
-      "body_bytes_max": 304710
+      "ttfb_warm_median_ms": 282,
+      "body_bytes_max": 309829
     },
     "/erp/completion?view=fragment": {
-      "ttfb_warm_median_ms": 155,
-      "body_bytes_max": 50417
+      "ttfb_warm_median_ms": 199,
+      "body_bytes_max": 55461
     },
     "/erp/history?view=fragment": {
-      "ttfb_warm_median_ms": 295,
-      "body_bytes_max": 35153
+      "ttfb_warm_median_ms": 334,
+      "body_bytes_max": 40197
     }
   }
 }
