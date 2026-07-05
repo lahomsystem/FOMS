@@ -1,6 +1,6 @@
 """ERP AS 대시보드 (ERP-SLIM-8; canonical, SFC-B11B). /erp/as."""
 import time
-from flask import Blueprint, make_response, render_template, request, redirect, url_for, g
+from flask import Blueprint, abort, make_response, render_template, request, redirect, url_for, g
 from db import get_db
 from models import Order
 from foms.web.auth import login_required
@@ -93,6 +93,41 @@ def _erp_as_tab_for_order(order):
     if _order_is_sales_delivery(order):
         return 'sales_delivery'
     return 'incomplete'
+
+
+@erp_as_page_bp.route('/as/card-detail/<int:order_id>')
+@login_required
+def erp_as_card_detail(order_id: int):
+    """AS 모바일 카드 상세(content-tabs) lazy 렌더 파셜 (D1c).
+
+    닫힌 <details>가 열릴 때 as-dashboard.js가 fetch하는 경량 endpoint.
+    대시보드 카드와 동일한 매크로(render_as_content_tabs·시공자)를 단건 렌더하므로
+    폼/툴바/autosave 배선 계약이 eager 렌더와 완전히 동일하다.
+
+    Args:
+        order_id: 대상 주문 PK.
+
+    Returns:
+        content-tabs 파셜 HTML(text/html). AS 상태가 아니거나 없으면 404.
+    """
+    db = get_db()
+    order = (
+        db.query(Order)
+        .filter(Order.active_filter())
+        .filter(Order.status.in_(['AS', 'AS_RECEIVED', 'AS_COMPLETED']))
+        .filter(Order.id == order_id)
+        .first()
+    )
+    if order is None:
+        abort(404)
+    # 대시보드와 동일한 표시필드 보강(시공자·AS 내용 HTML·영업택배). 썸네일은 상세에 없어 게이트 off.
+    apply_as_dashboard_row_display_fields([order], db, mobile_v2_active=False)
+    current_user = getattr(g, 'current_user', None)
+    return render_template(
+        'cs/partials/as_card_detail_partial.html',
+        r=order,
+        can_edit_erp=can_edit_erp(current_user),
+    )
 
 
 @erp_as_page_bp.route('/as')
