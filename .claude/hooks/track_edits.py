@@ -2,7 +2,9 @@
 
 stdin으로 {"tool_name": "Edit", "tool_input": {"file_path": "..."}, ...} 형태를 받음.
 docs/harness/runtime/EDIT_LOG.md에 변경 파일 기록.
+추가로 `.py` 편집은 Stop 게이트용 pending 상태 파일에 기록한다.
 """
+import json
 import os
 import sys
 from datetime import datetime
@@ -15,6 +17,9 @@ from shared_utils import get_project_root, harness_runtime_path, read_stdin_json
 # 메타 파일은 추적 제외
 EXCLUDE_PREFIXES = ("docs/", ".claude/", ".cursor/", ".git/")
 
+# Stop 게이트가 소비하는 pending 상태 파일명
+PENDING_VERIFY_FILE = ".claude_pending_verify.json"
+
 
 def _to_relative(file_path: str, project_root: str) -> str:
     """절대 경로를 프로젝트 상대 경로로 변환."""
@@ -23,6 +28,38 @@ def _to_relative(file_path: str, project_root: str) -> str:
         return rel.replace("\\", "/")
     except ValueError:
         return file_path.replace("\\", "/")
+
+
+def _update_pending_verify(session_id: str, rel_path: str) -> None:
+    """`.py` 편집을 Stop 게이트용 pending 상태 파일에 merge-append 한다.
+
+    같은 session_id면 files 목록에 추가(중복 제거), 다른 session_id면 교체.
+
+    Args:
+        session_id: Stop 훅 payload의 session_id (없으면 "unknown").
+        rel_path: 프로젝트 상대 경로 형태의 편집된 .py 파일.
+    """
+    pending_path = harness_runtime_path(PENDING_VERIFY_FILE)
+    os.makedirs(os.path.dirname(pending_path), exist_ok=True)
+
+    state = {"session_id": session_id, "files": []}
+    if os.path.exists(pending_path):
+        try:
+            with open(pending_path, "r", encoding="utf-8") as f:
+                loaded = json.load(f)
+            if isinstance(loaded, dict) and loaded.get("session_id") == session_id:
+                state = loaded
+                state.setdefault("files", [])
+        except (OSError, ValueError):
+            state = {"session_id": session_id, "files": []}
+
+    if rel_path not in state["files"]:
+        state["files"].append(rel_path)
+    state["session_id"] = session_id
+    state["updated"] = datetime.now().isoformat(timespec="seconds")
+
+    with open(pending_path, "w", encoding="utf-8") as f:
+        json.dump(state, f, ensure_ascii=False, indent=2)
 
 
 def main():
@@ -40,6 +77,11 @@ def main():
     for prefix in EXCLUDE_PREFIXES:
         if rel_path.startswith(prefix):
             return
+
+    # .py 편집은 Stop 게이트용 pending 상태에 기록
+    if rel_path.endswith(".py"):
+        session_id = payload.get("session_id") or "unknown"
+        _update_pending_verify(session_id, rel_path)
 
     log_path = harness_runtime_path("EDIT_LOG.md")
     os.makedirs(os.path.dirname(log_path), exist_ok=True)

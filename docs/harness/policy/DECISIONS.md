@@ -6,6 +6,12 @@
 
 ---
 
+### [2026-07-05] Claude-main 하네스 업그레이드 (훅 패리티·MCP 정본화·Stop 게이트)
+- **키워드**: claude, harness, hooks, mcp, stop-gate, preflight, classifier, korean-keywords
+- **결정**: Claude Code를 메인 러너로 전환하며 (1) Claude 훅을 Cursor와 패리티로 확장 — `SessionStart`(AI_STATUS/RPI 안내 주입)·`UserPromptSubmit`(task_classifier preflight 자동 주입, low&비RPI는 생략)·`PreCompact`(COMPACT_CHECKPOINT 갱신) 신설, (2) Stop 훅을 조언성 리마인더에서 결정적 게이트로 승격 — `.py` 편집 pending 시 `import app` 실패면 exit 2로 턴 종료 차단, (3) 프로젝트 MCP 정본을 루트 `.mcp.json`으로 이동하고 `postgres`/`context7`만 유지 (`filesystem`·`memory`·`sequential-thinking`·`mcp-reasoner`·`markitdown` 퇴역 — 네이티브 도구/파일 메모리/extended thinking이 대체), (4) task_classifier 레벨 키워드에 한글 동의어 추가(영어 전용이라 한글 프롬프트 전부 low 오분류되던 결함), (5) CLAUDE.md에서 Cursor 러너 라우팅 절 제거(AGENTS.md/.cursor rules 소관). 플러그인 패키징(P5)은 가치 대비 유지비로 defer.
+- **이유**: `.claude/settings.json`의 `mcpServers` 블록은 Claude Code가 인식하는 정본 위치가 아니고, Cursor 훅 8종 대비 Claude 훅 3종만 배선되어 Claude 메인 전환 시 자동 라우팅·체크포인트·검증 게이트가 사라진다. 2026 공식 best practice는 결정적 검증 게이트·MCP 최소화·CLAUDE.md 슬림화를 권고한다.
+- **영향**: `.mcp.json`(신규), `.claude/settings.json`, `.claude/hooks/{session_start,user_prompt_submit,pre_compact}.py`(신규), `.claude/hooks/{track_edits,quality_check,shared_utils}.py`, `tools/harness/task_classifier.py`, `tests/harness/test_claude_stop_gate.py`(신규), `tests/harness/test_task_classifier.py`, `CLAUDE.md`, `docs/harness/bundles/*`(재생성), `docs/specs/2026-07-05-claude-main-harness-upgrade_SPEC.md`, `.gitignore`
+
 ### [2026-06-17] GDM + bespoke specialist agent retirement
 - **키워드**: gdm, retirement, gstack, caveman, cursor, claude, codex, agents
 - **결정**: repo-local GDM(`grand-develop-master`, `GDM_EXECUTION_PLAN`)과 bespoke Cursor/Claude specialist agent 계층을 활성 운영 모델에서 퇴역한다. 앞으로 Cursor IDE, Cursor 내 Claude, Cursor 내 Codex는 `AGENTS.md`/`CLAUDE.md`/`.cursor/rules` 공통 정책, RPI·verify-result 워크플로, gstack skills, caveman response style을 기준으로 운영한다. 역사적 GDM audit/evolution/plan 문서는 archive evidence로 보존하되 현재 진입점으로 안내하지 않는다.

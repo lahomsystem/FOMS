@@ -4,17 +4,46 @@
   },
   "permissions": {
     "allow": [
-      "Bash(python3 -c \":*)",
-      "Bash(curl -s \"https://api.github.com/repos/channel-io/app-sdk/contents/\" --max-time 10)",
-      "Bash(curl -s \"https://api.github.com/search/repositories?q=user:channel-io+app+native&per_page=20\" --max-time 10)",
-      "Bash(curl -s \"https://api.github.com/search/code?q=issueToken+org:channel-io\" --max-time 15 -H \"Accept: application/vnd.github.v3+json\")",
-      "Bash(curl -s \"https://raw.githubusercontent.com/channel-io/app-tutorial/main/README.md\" --max-time 10)",
-      "Bash(curl -s \"https://raw.githubusercontent.com/channel-io/app-examples/main/README.md\" --max-time 10)",
-      "Bash(curl -s \"https://api.github.com/repos/channel-io/app-tutorial/contents/\" --max-time 10 -H \"Accept: application/vnd.github.v3+json\")",
-      "Bash(curl -s \"https://api.github.com/repos/channel-io/app-tutorial/git/trees/main?recursive=1\" --max-time 10 -H \"Accept: application/vnd.github.v3+json\")"
+      "Bash(python -c \"import app; print('APP_OK')\")",
+      "Bash(python tools/harness/verify_result.py:*)",
+      "Bash(python tools/harness/task_classifier.py:*)",
+      "Bash(pytest tests/harness:*)"
     ]
   },
   "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/session_start.py"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/user_prompt_submit.py"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/pre_compact.py"
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Bash",
@@ -52,53 +81,5 @@
         ]
       }
     ]
-  },
-  "mcpServers": {
-    "sequential-thinking": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-sequential-thinking"
-      ]
-    },
-    "mcp-reasoner": {
-      "command": "node",
-      "args": [
-        "C:/Users/USER/mcp-reasoner/dist/index.js"
-      ]
-    },
-    "context7": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@upstash/context7-mcp@latest"
-      ]
-    },
-    "postgres": {
-      "command": "postgres-mcp",
-      "args": [],
-      "env": {
-        "DATABASE_URI": "postgresql://postgres:lahom@localhost:5432/furniture_orders"
-      }
-    },
-    "memory": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-memory"
-      ]
-    },
-    "markitdown": {
-      "command": "C:\\Users\\USER\\.cursor\\mcp-venvs\\markitdown\\Scripts\\markitdown-mcp.exe",
-      "args": []
-    },
-    "filesystem": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-filesystem",
-        "C:/Users/USER/OneDrive/Desktop/SY/program/lahomproject/FOMS"
-      ]
-    }
   }
 }
