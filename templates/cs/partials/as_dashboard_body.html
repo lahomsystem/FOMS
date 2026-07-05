@@ -1,5 +1,5 @@
 {# foms-kv-rollout: erp_mobile_shell → kv-copy.js + queue card foms_order_contact_kv #}
-{% from 'cs/partials/as_card_macros.html' import render_as_rich_toolbar, render_as_content_tabs, render_as_orderer_line, render_as_construction_workers %}
+{% from 'cs/partials/as_card_macros.html' import render_as_rich_toolbar_template, render_as_content_tabs, render_as_orderer_line, render_as_construction_workers %}
 
 <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/cs/as-dashboard-body.css') }}">
 {# 카드 CSS는 body 파셜에 둔다 → fast-tab 프래그먼트 스왑(as_dashboard_fragment.html)에도
@@ -7,6 +7,8 @@
    (head_extra 전용이면 전체 새로고침 전까지 카드 CSS가 누락된다) #}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-as-mobile-card.css') }}?v=20260626b">
 <div class="erp-pro erp-mobile-shell erp-as-dashboard" data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
+  {# AS 리치 툴바 원본 — fragment당 1개. 각 에디터 focusin 시 as-dashboard.js가 여기서 clone-hydrate. #}
+  {{ render_as_rich_toolbar_template() }}
   {% if erp_mobile_v2_enabled %}
     {% include 'partials/shared/erp_mobile_shell.html' %}
     {% include 'cs/partials/as_mobile_v2_camera_bar.html' %}
@@ -462,4 +464,4 @@
 </div>
 
 <div id="as-dashboard-config" class="d-none" data-search-query-compact="{{ (compact_search_q or '')|e }}" data-current-as-tab="{{ (as_tab or 'incomplete')|e }}"></div>
-<script src="{{ url_for('static', filename='js/cs/as-dashboard.js') }}?v=20260629b" defer></script>
+<script src="{{ url_for('static', filename='js/cs/as-dashboard.js') }}?v=20260704a" defer></script>

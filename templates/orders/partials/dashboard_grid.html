@@ -428,7 +428,7 @@
                       <div class="card card-body border-0 bg-light">
                         <div class="fw-bold mb-3 erp-order-detail-title"><i class="fas fa-info-circle"></i> 주문 상세</div>
                         <div id="order-detail-content-{{ o.id }}" class="order-detail-content"></div>
-                        <script type="application/json" id="order-detail-preload-{{ o.id }}">{{ o.detail_payload|tojson }}</script>
+                        {# 상세 payload는 패널 첫 오픈 시 /api/orders/<id>/detail-payload 로 lazy fetch (fragment 다이어트) #}
                       </div>
                     </div>
                   </td>

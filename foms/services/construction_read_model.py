@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from sqlalchemy import String, bindparam, cast, or_, text
+from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Query
 
 from models import Order
@@ -26,14 +26,22 @@ CONSTRUCTION_BROWSE_CAP = 300
 CONSTRUCTION_SEARCH_CAP = 500
 
 
-def apply_construction_stage_sql_filter(query: Query, f_stage: str, stage_col: Any) -> Query:
-    """Coarse workflow stage filter (display module may refine further)."""
+def apply_construction_stage_sql_filter(query: Query, f_stage: str) -> Query:
+    """Coarse workflow stage filter (display module may refine further).
+
+    단계 필터는 flat 컬럼 ``Order.erp_stage_code``(index=True)를 직접 참조한다.
+    JSONB path cast(``structured_data['workflow']['stage']``, 인덱스 없음)를 제거해
+    ``ix_orders_erp_stage_code`` 인덱스 스캔으로 전환한다. erp_stage_code는
+    workflow.stage 원문 그대로(JSON 따옴표 없음)이므로 IN 목록은 따옴표를 제거한다.
+    스코프 값은 기존 JSONB 필터와 1:1 동일(순수 인덱스 전환, 스코프 변경 없음).
+    한글 값(시공/완료)은 운영에 없으나 sync가 원문 복사라 미래 방어로 유지(비용 0).
+    """
     if not f_stage:
         return query
     if f_stage in ("시공대기", "시공중"):
-        return query.filter(stage_col.in_(['"CONSTRUCTION"', '"시공"', '"CONSTRUCTING"']))
+        return query.filter(Order.erp_stage_code.in_(['CONSTRUCTION', '시공', 'CONSTRUCTING']))
     if f_stage == "시공완료":
-        return query.filter(stage_col.in_(['"COMPLETED"', '"완료"', '"AS_WAIT"', '"CS"']))
+        return query.filter(Order.erp_stage_code.in_(['COMPLETED', '완료', 'AS_WAIT', 'CS']))
     return query
 
 

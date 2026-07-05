@@ -19,6 +19,7 @@ from foms.services.erp_mobile_order_display import (
     stage_badge_label,
     stage_badge_modifier,
 )
+from foms.services.estimate_service import build_measurement_manager_phone_map
 
 
 def build_orders_row_dtos(page_orders, page_sds, att_counts, user_map, current_user):
@@ -34,6 +35,10 @@ def build_orders_row_dtos(page_orders, page_sds, att_counts, user_map, current_u
     Returns:
         list[dict]: 원본 enriched와 동일 구조.
     """
+    # N+1 제거: 행마다 resolve_manager_phone_for_queue가 load_erp_shipment_settings를
+    # 재조회(=행당 SELECT system_settings)하던 것을, 출고 설정 실측담당자 연락처 map을
+    # 요청당 1회 로드해 전달한다(construction/production DTO와 동일 배치 패턴).
+    manager_phone_map = build_measurement_manager_phone_map()
     enriched = []
     for o in page_orders:
         sd = page_sds[o.id]
@@ -71,7 +76,9 @@ def build_orders_row_dtos(page_orders, page_sds, att_counts, user_map, current_u
             'measurement_date': (schedule.get('measurement') or {}).get('date'),
             'construction_date': (schedule.get('construction') or {}).get('date'),
             'manager_name': (parties.get('manager') or {}).get('name') or '-',
-            'manager_phone': resolve_manager_phone_for_queue(parties, order=o),
+            'manager_phone': resolve_manager_phone_for_queue(
+                parties, order=o, manager_phone_map=manager_phone_map
+            ),
             'orderer_name': (parties.get('orderer') or {}).get('name') or None,
             'owner_team': responsible_team,
             'stage': stage,

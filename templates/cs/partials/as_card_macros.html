@@ -1,25 +1,33 @@
 {# AS 카드 공용 매크로 — 데스크톱 테이블·모바일 카드·무한스크롤 청크가 공유(SSOT).
    원래 as_dashboard_body.html 인라인 정의였으나, 청크 백엔드 단독 렌더에서 import 가능하도록 분리. #}
-{% macro render_as_rich_toolbar(order_id, is_sales_delivery) -%}
-<div class="as-rich-toolbar" style="background: #f8f9fa; border-bottom: 1px solid #ced4da; padding: 2px 4px; display: flex; gap: 4px;">
-  <button type="button"
-    class="btn btn-sm p-1 as-sales-delivery-btn {{ 'btn-warning' if is_sales_delivery else 'btn-outline-warning' }}"
-    data-order-id="{{ order_id }}"
-    data-sales-delivery-active="{{ '1' if is_sales_delivery else '0' }}"
-    title="영업/전달 분류 토글 후 탭 이동"
-    style="font-size: 0.75rem; font-weight: 600;">{{ '☑' if is_sales_delivery else '☐' }} 영업/전달</button>
-  <button type="button" class="btn btn-sm btn-light p-1 as-rich-command-btn" data-rich-command="bold" title="굵게" style="min-width: 28px; font-weight: bold;">B</button>
-  <button type="button" class="btn btn-sm btn-light p-1 as-rich-command-btn" data-rich-command="foreColor" data-rich-value="red" title="빨간색" style="min-width: 28px; color: red; font-weight: bold;">A</button>
-  <button type="button" class="btn btn-sm btn-light p-1 as-rich-command-btn" data-rich-command="foreColor" data-rich-value="blue" title="파란색" style="min-width: 28px; color: blue; font-weight: bold;">A</button>
-  <button type="button" class="btn btn-sm btn-light p-1 as-rich-command-btn" data-rich-command="clear-format" title="서식 초기화" style="min-width: 28px; color: black;">
-    <i class="fas fa-eraser"></i>
-  </button>
-</div>
+{# 툴바는 정적·반복(행당 4회 × 페이지 100행 = 툴바 400개 ≈ 350KB)이라 payload 비만의 주범이었다.
+   D1a: 인라인 style → as-dashboard-body.css 이전(-225KB).
+   D1b: 행별 렌더 완전 제거 → fragment당 <template id="as-rich-toolbar-template"> 1개만 렌더하고,
+        as-dashboard.js가 .as-content-input focusin(위임) 시 해당 .as-rich-editor에 clone-hydrate 한다.
+        툴바는 focus-within 전까지 어차피 display:none 이므로 시각 영향 없음(멱등: editor.dataset.toolbarHydrated). #}
+{# fragment당 정확히 1개. 주문별 가변값(영업/전달 활성·order_id)은 hydrate 시 JS가 주입한다.
+   기본 상태는 비활성(☐ / btn-outline-warning / data-sales-delivery-active="0"). #}
+{% macro render_as_rich_toolbar_template() -%}
+<template id="as-rich-toolbar-template">
+  <div class="as-rich-toolbar">
+    <button type="button"
+      class="btn btn-sm p-1 as-sales-delivery-btn btn-outline-warning"
+      data-sales-delivery-active="0"
+      title="영업/전달 분류 토글 후 탭 이동">☐ 영업/전달</button>
+    <button type="button" class="btn btn-sm btn-light p-1 as-rich-command-btn" data-rich-command="bold" title="굵게">B</button>
+    <button type="button" class="btn btn-sm btn-light p-1 as-rich-command-btn" data-rich-command="foreColor" data-rich-value="red" title="빨간색">A</button>
+    <button type="button" class="btn btn-sm btn-light p-1 as-rich-command-btn" data-rich-command="foreColor" data-rich-value="blue" title="파란색">A</button>
+    <button type="button" class="btn btn-sm btn-light p-1 as-rich-command-btn" data-rich-command="clear-format" title="서식 초기화">
+      <i class="fas fa-eraser"></i>
+    </button>
+  </div>
+</template>
 {%- endmacro %}
 
 {% macro render_as_content_tabs(order_id, is_sales_delivery, as_content_html, as_content_2_html, min_height='60px') -%}
 {% set initial_tab = '2' if (not as_content_html and as_content_2_html) else '1' %}
-<div class="as-tabbed-editor" data-order-id="{{ order_id }}" data-active-tab="{{ initial_tab }}">
+<div class="as-tabbed-editor" data-order-id="{{ order_id }}" data-active-tab="{{ initial_tab }}"
+  data-sales-delivery="{{ '1' if is_sales_delivery else '0' }}">
   <div class="as-content-tab-buttons" role="tablist" aria-label="주문 #{{ order_id }} AS 내용 탭">
     <button type="button"
       class="as-content-tab-btn{% if initial_tab == '1' %} is-active{% endif %}"
@@ -42,11 +50,11 @@
     data-order-id="{{ order_id }}"
     data-as-tab-panel="1"
     {% if initial_tab != '1' %}hidden{% endif %}>
-    <div class="as-rich-editor" style="border: 1px solid #ced4da; border-radius: 4px; overflow: hidden; background: #fff;">
-      {{ render_as_rich_toolbar(order_id, is_sales_delivery) }}
+    <div class="as-rich-editor">
+      {# 툴바는 focusin 시 as-rich-toolbar-template에서 clone-hydrate(as-dashboard.js). #}
       <div class="erp-pro-input as-content-input" contenteditable="true" data-order-id="{{ order_id }}"
         data-field-name="as_content"
-        style="width: 100%; min-height: {{ min_height }}; max-height: 250px; overflow-y: auto; padding: 8px; border: none; outline: none; white-space: pre-wrap; font-size: 14px;"
+        style="min-height: {{ min_height }};"
         data-placeholder="내용 입력...">{{ as_content_html | safe }}</div>
     </div>
   </div>
@@ -54,11 +62,11 @@
     data-order-id="{{ order_id }}"
     data-as-tab-panel="2"
     {% if initial_tab != '2' %}hidden{% endif %}>
-    <div class="as-rich-editor" style="border: 1px solid #ced4da; border-radius: 4px; overflow: hidden; background: #fff;">
-      {{ render_as_rich_toolbar(order_id, is_sales_delivery) }}
+    <div class="as-rich-editor">
+      {# 툴바는 focusin 시 as-rich-toolbar-template에서 clone-hydrate(as-dashboard.js). #}
       <div class="erp-pro-input as-content-input" contenteditable="true" data-order-id="{{ order_id }}"
         data-field-name="as_content_2"
-        style="width: 100%; min-height: {{ min_height }}; max-height: 250px; overflow-y: auto; padding: 8px; border: none; outline: none; white-space: pre-wrap; font-size: 14px;"
+        style="min-height: {{ min_height }};"
         data-placeholder="내용 입력...">{{ as_content_2_html | safe }}</div>
     </div>
   </div>

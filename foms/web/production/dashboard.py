@@ -50,7 +50,6 @@ from foms.services.erp_display import (
     _erp_has_media,
     _erp_alerts,
 )
-from foms.services.erp_order_detail import attach_order_detail_payloads
 from foms.services.common.erp_shell_http import apply_erp_shell_fragment_headers, wants_erp_shell_tab_body
 
 
@@ -160,7 +159,8 @@ def erp_production_dashboard():
         _r["attachment_preview_items"] = items
         _r["attachment_previews"] = [item["view"] for item in items if item.get("view")]
     process_steps = build_production_process_steps(step_stats)
-    attach_order_detail_payloads(db, enriched)
+    # detail_payload eager 조립 제거: 템플릿 preload가 lazy fetch(/api/orders/<id>/
+    # detail-payload)로 전환되어 이 서버측 계산은 미사용이었다(매 요청 N행 낭비).
 
     template_name = (
         'production/partials/dashboard_fragment.html'

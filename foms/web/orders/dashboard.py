@@ -23,8 +23,6 @@ from foms.services.erp_display import (
 from foms.services.erp_mobile_order_display import (
     batch_resolve_queue_attachment_preview_items,
 )
-from foms.services.erp_order_detail import build_order_detail_payload_map
-from foms.services.erp_quest_display import resolve_order_role_assignees
 from foms.services.erp_order_deeplink import resolve_edit_return_back_endpoint
 from foms.services.orders.status_constants import BULK_ACTION_STATUS
 from foms.services.orders.dashboard_filters import parse_orders_dashboard_filters
@@ -374,29 +372,10 @@ def erp_dashboard():
         row["attachment_preview_items"] = items
         row["attachment_preview_urls"] = [item["view"] for item in items if item.get("view")]
 
-    # §3.1.1 order detail payload assembly — slim structured_data preload.
-    # W2-2(음수캐시 제거): 이 slice는 fingerprint에 페이지 order_ids를 나열해 키가
-    # 페이지마다 달라지고, compute 자체는 0-4ms(structured_data 슬림화)에 불과했다.
-    # Redis get+set 왕복이 계산보다 비싼 음수-가치 캐시였으므로 직접 계산으로 대체한다
-    # (order_detail_payload_assembly slice·TTL_PAYLOAD_ASSEMBLY 참조 제거).
-    _detail_by_id: dict[int, dict] = build_order_detail_payload_map(db, paginated_orders)
-    for row in paginated_orders:
-        oid = row["id"]
-        payload = _detail_by_id.get(oid)
-        if payload is None:
-            payload = build_order_detail_payload_map(db, [row]).get(oid)
-            if payload is None:
-                sd = row.get("structured_data") or {}
-                payload = {
-                    "success": True,
-                    "structured_data": sd,
-                    "role_assignees": resolve_order_role_assignees(
-                        sd,
-                        user_map=user_map,
-                    ),
-                }
-        row["detail_payload"] = payload
-
+    # 상세 payload는 서버 fragment에 선적재하지 않는다(과거 50행분 detail_payload preload가
+    # fragment 크기의 최대 덩어리였음). 패널을 처음 열 때 클라이언트가
+    # /api/orders/<id>/detail-payload 로 lazy fetch한다(erp_orders_structured.
+    # api_get_order_detail_payload → build_order_detail_payload_map 단건 재사용).
     template_name = (
         'orders/partials/dashboard_main.html'
         if wants_erp_shell_tab_body(request)
@@ -598,10 +577,16 @@ def erp_order_mobile_detail(order_id: int):
         flash('주문을 찾을 수 없습니다.', 'warning')
         return redirect(url_for('erp_dashboard.erp_dashboard'))
 
-    from foms.services.erp_mobile_order_display import build_mobile_queue_order_row
+    from foms.services.erp_mobile_order_display import (
+        build_mobile_queue_batch_context,
+        build_mobile_queue_order_row,
+    )
 
     current_user = getattr(g, 'current_user', None)
-    order_row = build_mobile_queue_order_row(db, order, current_user)
+    # 단건이라도 batch_ctx 없이는 ~5쿼리(첨부/미리보기/타임라인/담당자 단건조회) —
+    # shipment/measurement/fragment.py 와 동일 배치 패턴.
+    _batch_ctx = build_mobile_queue_batch_context(db, [order])
+    order_row = build_mobile_queue_order_row(db, order, current_user, batch_ctx=_batch_ctx)
     can_edit_erp_flag = can_edit_erp(current_user)
     return_to = (request.args.get('return_to') or '').strip()
     back_endpoint = resolve_edit_return_back_endpoint(return_to)

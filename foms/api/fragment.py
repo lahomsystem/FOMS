@@ -10,7 +10,10 @@ from db import get_db
 from models import Order
 from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.erp_permissions import can_edit_erp
-from foms.services.erp_mobile_order_display import build_mobile_queue_order_row
+from foms.services.erp_mobile_order_display import (
+    build_mobile_queue_batch_context,
+    build_mobile_queue_order_row,
+)
 from foms.services.feature_flags import is_enabled_for_user
 from foms.services.order_edit_view_context import build_order_edit_get_context
 from foms.services.request_utils import get_preserved_filter_args
@@ -53,7 +56,11 @@ def _order_edit_fragment_response(order_id: int) -> Any:
         cohort_key="FOMS_V3_SHELL_COHORT",
     )
     if split_v2:
-        ctx["mobile_order_row"] = build_mobile_queue_order_row(db, order, user)
+        # 단건 상세라도 build_mobile_queue_order_row는 첨부 카운트/미리보기/타임라인/담당자를
+        # 주문별 단건 조회(행당 ~5쿼리)로 해소한다. shipment/measurement 큐와 동일하게 batch_ctx를
+        # 선행 생성해 고정 수 쿼리로 묶는다(N+1 가드 mobile-queue-row-no-batch 준수).
+        _batch_ctx = build_mobile_queue_batch_context(db, [order])
+        ctx["mobile_order_row"] = build_mobile_queue_order_row(db, order, user, batch_ctx=_batch_ctx)
         template = "orders/partials/order_detail_split_panel.html"
     else:
         template = "partials/shared/foms_order_detail_fragment.html"

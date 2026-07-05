@@ -80,6 +80,11 @@ def process_notification(db, notification, dry_run: bool = False) -> Dict[str, i
 
     created = ensure_user_states(db, notification, source_by_user, read_at_by_user)
     for state in created:
+        # 백필 state 의 생성 시각은 실행 시점이 아니라 원본 알림 시각이 SSOT 다.
+        # 실행 머신 로컬 TZ(naive now)가 DB/워커 TZ 와 다르면 escalation cutoff
+        # 판정이 시간대 차만큼 밀리는 skew 가 생긴다 (2026-07-04 운영에서 확인).
+        state.created_at = notification.created_at
+        state.updated_at = notification.created_at
         db.add(
             NotificationEvent(
                 notification_id=notification.id,

@@ -434,6 +434,37 @@ def api_get_order_structured(order_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+@erp_orders_structured_bp.route('/orders/<int:order_id>/detail-payload', methods=['GET'])
+@login_required
+def api_get_order_detail_payload(order_id: int):
+    """작업 큐 상세 패널용 경량 payload (slim structured_data + role_assignees).
+
+    대시보드 fragment에 50행분 detail_payload를 선적재하던 것을 제거하고, 상세 패널을
+    처음 열 때만 이 엔드포인트로 lazy fetch한다(fragment 크기 대폭 감소). 반환 shape는
+    기존 preload(build_order_detail_payload_map 단건)와 100% 동일해 클라이언트 렌더 로직은
+    변경하지 않는다. 첨부는 기존과 동일하게 2단(/attachments)에서 별도 패치한다.
+    """
+    from foms.services.erp_order_detail import build_order_detail_payload_map
+
+    db = get_db()
+    try:
+        order = (
+            db.query(Order)
+            .filter(Order.id == order_id, Order.not_deleted_filter())
+            .first()
+        )
+        if not order:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+
+        payload = build_order_detail_payload_map(db, [order]).get(order_id)
+        if payload is None:
+            return jsonify({'success': False, 'message': '상세 데이터를 만들 수 없습니다.'}), 500
+        return jsonify(payload)
+    except Exception as e:
+        logger.exception("[ERP_ORDER] detail-payload GET 오류: %s", e)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 @erp_orders_structured_bp.route('/orders/<int:order_id>/structured/fields', methods=['PATCH'])
 @login_required
 @role_required(['ADMIN', 'MANAGER', 'STAFF'])
