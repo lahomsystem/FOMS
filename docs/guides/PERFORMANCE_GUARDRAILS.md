@@ -36,20 +36,31 @@
 ## 스테이징 성능 게이트 (배포 후 검증 / 승격 전 필수)
 
 `tools/perf/staging_perf_gate.py` — 배포된 스테이징(lahom-dev)에 로그인 → 9개 primary
-fragment 경로를 5회 반복 측정(첫 회 웜업 버림) → 커밋된 예산(`tools/perf/perf_budgets.json`)과
+fragment 경로를 반복 측정(첫 회 웜업 버림) → 커밋된 예산(`tools/perf/perf_budgets.json`)과
 비교해 초과 시 exit 1 로 승격을 차단한다. "커밋→푸쉬→사용자가 느려짐 발견" 악순환에서
 **발견 주체를 사용자 → 봇**으로 옮기는 인프라다.
 
 - **언제**: deploy 배포 완료 후 검증 / production 승격 직전 필수. pre-push 기본에는 안 낀다
   (`scripts/ops/pre_push_smoke.ps1 -PerfGate` 로만 실행 — 스테이징이 살아있어야 하는 배포 후 도구).
-- **판정 철학(절대)**: pass/fail 은 **warm 중앙값(median) TTFB·바이트(해압 후)** 만으로 한다.
-  **p95/최댓값은 판정에 절대 넣지 않는다** — 한국↔싱가포르 네트워크 tail(2~9s)이 정상 존재하므로
-  tail 을 게이트에 넣으면 상습 오탐 → 신뢰 상실 → 게이트가 꺼진다. p95 는 리포트 정보로만.
+- **판정 철학 v2(절대) — 창 분산·tail 오염 면역**: 경로 TTFB 대표값은 warm 표본 **최솟값(min)**,
+  판정값은 **`min(path) − min(healthz)` = 델타(dTTFB)** 다.
+  - **왜 min**: 네트워크 tail(2~9s)은 값을 **올리기만** 하므로 min 은 tail 오염에 완전 면역이다.
+    반면 균일 서버 회귀(N+1 추가 등)는 전 표본을 올려 min 도 상승 → 감지가 유지된다.
+    (실전 2회 오탐: median 이 tail 뭉침에 뚫려 정상 창을 FAIL 시킴 → min 이 근본 해결.)
+  - **왜 healthz 델타**: 매 런 시작 시 무인증 `GET /healthz`(순수 liveness, 서버 작업 0) 를
+    반복 측정한 min = 그 창의 **네트워크 베이스 RTT**. 경로 min 에서 이를 빼면 시간대별 베이스
+    RTT 분산(창 분산)이 상쇄돼, 빠른 창에 시드한 예산이 정상 창을 오탐하던 결함이 사라진다.
+  - **median/p95/최댓값은 판정에 절대 넣지 않는다**(리포트 정보용). 정밀 서버 회귀는
+    render_ms_max·바이트·쿼리 계약이 잡는다.
+- **budgets 스키마 v2**: 경로별 판정 키 `ttfb_delta_min_ms`(신규) + `body_bytes_max`(유지).
+  v1 의 `ttfb_warm_median_ms` 는 제거됨. `_global.schema: 2` 표기.
 - **조건부 304 계약**: 각 경로 1회 ETag 에코(If-None-Match) → 304 확인(하트비트 경제성 회귀 감시).
-- **예산 갱신 규칙**: `--seed` 는 현 측정값 + 30% 마진으로 budgets 를 재생성한다.
+- **예산 갱신 규칙**: `--seed` 는 델타 실측 + 마진 `max(delta*1.3, delta+80ms)` 으로 budgets 를
+  재생성한다(델타는 값이 작아 상대 30% 만으로는 빡빡 → 절대 하한 80ms 병행).
   **의도된 성능 변화 때만** 실행하고, budgets diff 는 반드시 리뷰 대상(무단 상향 = 게이트 무력화).
 - **exit**: 0=PASS · 1=FAIL(예산 초과) · 2=크리덴셜 부재/로그인 실패(게이트 SKIP ≠ 실패).
 - 참고: 바이트는 requests 가 gzip/br 자동 해압한 **해압 후** 크기(wire 아님). 네트워크 예외/5xx 1회 재시도.
+  델타 위반 시 1회 재측정 후 재판정(v2 에선 min 면역으로 발동 확률 낮음).
 
 ## 필수 규칙 (리뷰에서 확인)
 

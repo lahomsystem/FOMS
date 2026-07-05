@@ -1,45 +1,46 @@
 {
-  "_comment": "스테이징 성능 게이트 예산(SSOT: tools/perf/staging_perf_gate.py). ttfb_warm_median_ms=warm 중앙값 상한(ms), body_bytes_max=응답 바이트 상한(해압 후, wire 아님). --seed 는 의도된 성능 변화 때만 실행하고 diff 를 리뷰한다.",
+  "_comment": "스테이징 성능 게이트 예산 v2(SSOT: tools/perf/staging_perf_gate.py). 판정값 ttfb_delta_min_ms = min(warm path TTFB) − min(healthz TTFB): min 은 tail(2~9s) 오염 면역, healthz 델타는 시간대별 베이스 RTT(창 분산)를 상쇄한다. body_bytes_max = 응답 바이트 상한(해압 후, wire 아님; 결정적 min 성격). 정밀 서버 회귀는 render_ms_max·bytes·쿼리 계약이 잡는다. --seed 는 의도된 성능 변화 때만 실행하고 diff 를 리뷰한다.",
   "_global": {
+    "schema": 2,
     "render_ms_max": 500,
     "etag_required": true,
     "conditional_304_required": true
   },
   "paths": {
     "/erp/dashboard?view=fragment": {
-      "ttfb_warm_median_ms": 291,
-      "body_bytes_max": 670381
+      "ttfb_delta_min_ms": 167,
+      "body_bytes_max": 669274
     },
     "/erp/measurement?view=fragment": {
-      "ttfb_warm_median_ms": 259,
+      "ttfb_delta_min_ms": 102,
       "body_bytes_max": 100669
     },
     "/erp/drawing-workbench?view=fragment": {
-      "ttfb_warm_median_ms": 242,
+      "ttfb_delta_min_ms": 124,
       "body_bytes_max": 61528
     },
     "/erp/production/dashboard?view=fragment": {
-      "ttfb_warm_median_ms": 246,
+      "ttfb_delta_min_ms": 133,
       "body_bytes_max": 566675
     },
     "/erp/shipment?view=fragment": {
-      "ttfb_warm_median_ms": 246,
-      "body_bytes_max": 106791
+      "ttfb_delta_min_ms": 110,
+      "body_bytes_max": 89257
     },
     "/erp/as?view=fragment": {
-      "ttfb_warm_median_ms": 325,
-      "body_bytes_max": 1075496
+      "ttfb_delta_min_ms": 168,
+      "body_bytes_max": 838670
     },
     "/erp/construction/dashboard?view=fragment": {
-      "ttfb_warm_median_ms": 282,
+      "ttfb_delta_min_ms": 147,
       "body_bytes_max": 309829
     },
     "/erp/completion?view=fragment": {
-      "ttfb_warm_median_ms": 199,
+      "ttfb_delta_min_ms": 81,
       "body_bytes_max": 55461
     },
     "/erp/history?view=fragment": {
-      "ttfb_warm_median_ms": 334,
+      "ttfb_delta_min_ms": 198,
       "body_bytes_max": 40197
     }
   }
