@@ -123,6 +123,21 @@ def test_mobile_push_js_is_replay_safe_and_uses_write_helper() -> None:
     assert "data.success" in push
 
 
+def test_mobile_push_js_denied_guide_and_no_deeplink() -> None:
+    """차단(denied) 안내: 인라인 가이드 토글/패널 + 복귀 자동 재평가 + 딥링크 시도 금지."""
+    push = _read(PUSH_JS)
+    # '허용 방법 보기' 토글 + 인라인 가이드 패널 훅.
+    assert "data-foms-push-guide-toggle" in push
+    assert "data-foms-push-guide" in push
+    # aria-expanded 관리(확장/접기 접근성).
+    assert "aria-expanded" in push
+    # OS 설정에서 켜고 복귀 시 자동 재평가.
+    assert "visibilitychange" in push
+    # 딥링크 시도 금지: 웹/PWA 는 OS 설정 화면을 프로그램적으로 열 수 없다.
+    assert "intent://" not in push
+    assert "app-prefs" not in push
+
+
 def test_notification_panel_exposes_push_cta_hook() -> None:
     """알림 시트 partial 에 push CTA 훅(data-foms-push-cta)이 있고 인라인 script/onclick 금지."""
     panel = _read(PANEL)

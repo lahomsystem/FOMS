@@ -1052,6 +1052,76 @@
       });
     }
 
+    // ───────── 카드 상세(content-tabs) lazy 렌더 (D1c) ─────────
+    // 닫힌 <details> 안 content-tabs(에디터 2패널·시공자)를 서버에서 eager 렌더하지 않고
+    // (100행 × 2패널 폼 ≈ fragment 비만의 잔여 최대 덩어리), 열릴 때
+    // GET /erp/as/card-detail/<id>로 fetch해 placeholder에 주입한다. 멱등: placeholder.dataset.loaded.
+    // 주입 후 폼/autosave 재배선은 window.__fomsAsRebindLazyCard로 위임한다. 이 함수는 매 init마다
+    // 최신 클로저(= 살아있는 AbortController)로 덮어써지므로, 프래그먼트 스왑 뒤 열리는 카드도
+    // 죽은(aborted) signal이 아닌 현재 컨트롤러에 바인딩된다(직접 바인딩이 abort-scoped이므로 핵심).
+    window.__fomsAsRebindLazyCard = function (scope) {
+      if (!scope) return;
+      bindAsContentEditableInputs(scope);
+      bindAsContentAutosaveInputs(scope);
+      bindAsDateAndWorkerInputs(scope);
+      // 검색 모드에서 lazy 오픈된 카드도 매치 탭 자동 선택(1:1 리뷰 MINOR 반영).
+      syncAsContentSearchTabs();
+    };
+
+    function loadAsCardDetail(placeholder) {
+      if (!placeholder || placeholder.dataset.loading === '1') return;
+      const orderId = placeholder.dataset.orderId || '';
+      if (!orderId) return;
+      placeholder.dataset.loading = '1';
+      placeholder.innerHTML = '<div class="erp-as-card-lazy__status text-muted small py-2">불러오는 중...</div>';
+      fetch('/erp/as/card-detail/' + encodeURIComponent(orderId), {
+        headers: { Accept: 'text/html' },
+        credentials: 'same-origin',
+      })
+        .then((res) => {
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          return res.text();
+        })
+        .then((html) => {
+          placeholder.innerHTML = html;
+          placeholder.dataset.loaded = '1';
+          placeholder.dataset.loading = '';
+          if (typeof window.__fomsAsRebindLazyCard === 'function') {
+            window.__fomsAsRebindLazyCard(placeholder);
+          }
+        })
+        .catch(() => {
+          // 조용한 실패 금지: 에러 표시 + 재시도 버튼.
+          placeholder.dataset.loading = '';
+          placeholder.innerHTML =
+            '<div class="erp-as-card-lazy__status text-danger small py-2">' +
+            '내용을 불러오지 못했습니다. ' +
+            '<button type="button" class="btn btn-sm btn-link p-0 align-baseline as-card-lazy-retry">재시도</button>' +
+            '</div>';
+        });
+    }
+
+    // document 1회 위임(window 가드). <details> toggle은 버블하지 않으므로 capture 단계로 수신.
+    if (!window.__FOMS_AS_CARD_LAZY_BOUND) {
+      window.__FOMS_AS_CARD_LAZY_BOUND = true;
+      document.addEventListener('toggle', function (e) {
+        const details = e.target;
+        if (!details || !details.matches || !details.matches('details.erp-as-mobile-card__detail')) return;
+        if (!details.open) return;
+        const placeholder = details.querySelector('[data-as-card-lazy]');
+        if (!placeholder || placeholder.dataset.loaded === '1') return;
+        loadAsCardDetail(placeholder);
+      }, true);
+      document.addEventListener('click', function (e) {
+        const retry = e.target && e.target.closest ? e.target.closest('.as-card-lazy-retry') : null;
+        if (!retry) return;
+        const placeholder = retry.closest('[data-as-card-lazy]');
+        if (!placeholder) return;
+        placeholder.dataset.loaded = '';
+        loadAsCardDetail(placeholder);
+      });
+    }
+
     addAsDashboardListener(document, 'mousedown', function (e) {
       const btn = e.target.closest('.as-rich-toolbar button');
       if (!btn) return;

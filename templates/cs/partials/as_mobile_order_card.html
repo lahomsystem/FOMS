@@ -125,21 +125,12 @@
     {% endif %}
   </footer>
 
+  {# D1c: content-tabs(에디터 2패널·시공자)를 eager 렌더하지 않고 열릴 때 fetch 주입한다.
+     (100행 × 2패널 폼 = fragment 비만의 잔여 최대 덩어리). 주입/재배선은 as-dashboard.js. #}
   <details class="erp-as-mobile-card__detail">
     <summary class="erp-as-mobile-card__detail-toggle">시공·AS 내용</summary>
-    <div class="erp-as-mobile-card__detail-body">
-      <div class="erp-as-mobile-card__detail-row erp-pro-order-card__row">
-        <span class="erp-as-mobile-card__detail-label">시공자</span>
-        <div class="erp-as-mobile-card__detail-value">
-          {{ render_as_construction_workers(r.id, r.construction_workers, can_edit_erp|default(false)) }}
-        </div>
-      </div>
-      <div class="erp-as-mobile-card__detail-row erp-pro-order-card__row erp-pro-order-card__row--full">
-        <span class="erp-as-mobile-card__detail-label">AS 내용</span>
-        <div class="erp-as-mobile-card__content">
-          {{ render_as_content_tabs(r.id, r.is_sales_delivery, r.as_content_html, r.as_content_2_html, '48px') }}
-        </div>
-      </div>
+    <div class="erp-as-mobile-card__detail-body" data-as-card-lazy data-order-id="{{ r.id }}">
+      <div class="erp-as-card-lazy__status text-muted small py-2">여는 중...</div>
     </div>
   </details>
 </article>

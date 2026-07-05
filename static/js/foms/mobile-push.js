@@ -209,15 +209,99 @@
     }
   }
 
+  // 차단(denied) 상태 안내: 웹/PWA 는 OS 알림 설정 화면을 프로그램적으로 열 수 없다
+  // (iOS 설정 URL 스킴 차단, Android 설정 액티비티는 CATEGORY_BROWSABLE 부재로 링크 거부).
+  // 딥링크 시도 대신 플랫폼별 정확한 수동 단계를 안내하고 복귀 시 자동 재평가한다.
+  function guideSteps() {
+    var ua = navigator.userAgent || '';
+    var isAndroid = /android/i.test(ua);
+    var isIos = /iphone|ipad|ipod/i.test(ua);
+    var standalone = isStandalone();
+
+    if (standalone && isIos) {
+      return {
+        title: '아이폰 홈 화면 앱에서 알림 켜기',
+        items: [
+          '설정 앱 → 알림 을 여세요.',
+          '목록에서 이 앱(홈 화면에 추가한 이름)을 선택하세요.',
+          "'알림 허용'을 켜세요."
+        ]
+      };
+    }
+    if (standalone && isAndroid) {
+      return {
+        title: '설치된 앱에서 알림 켜기',
+        items: [
+          '방법1: 홈 화면의 앱 아이콘을 길게 누르고 ⓘ(앱 정보) → 알림 → 허용',
+          '방법2: 기기 설정 → 애플리케이션 → 이 앱 → 알림'
+        ]
+      };
+    }
+    if (isAndroid) {
+      return {
+        title: 'Chrome에서 알림 켜기',
+        items: [
+          '주소창 왼쪽 자물쇠(🔒) 아이콘 → 권한 → 알림 → 허용',
+          '또는 Chrome ⋮ → 설정 → 사이트 설정 → 알림'
+        ]
+      };
+    }
+    return {
+      title: '브라우저에서 알림 켜기',
+      items: ['주소창의 자물쇠 아이콘 → 사이트 설정 → 알림 → 허용']
+    };
+  }
+
+  function buildGuidePanel(guideId) {
+    var wrap = document.createElement('div');
+    wrap.className = 'erp-mobile-push-cta__guide';
+    wrap.setAttribute('data-foms-push-guide', '');
+    wrap.id = guideId;
+    wrap.hidden = true;
+
+    var steps = guideSteps();
+    var title = document.createElement('p');
+    title.className = 'erp-mobile-push-cta__guide-title';
+    title.textContent = steps.title;
+    wrap.appendChild(title);
+
+    var ol = document.createElement('ol');
+    ol.className = 'erp-mobile-push-cta__guide-steps';
+    steps.items.forEach(function (text) {
+      var li = document.createElement('li');
+      li.textContent = text;
+      ol.appendChild(li);
+    });
+    wrap.appendChild(ol);
+
+    var foot = document.createElement('p');
+    foot.className = 'erp-mobile-push-cta__hint';
+    foot.textContent = '허용을 켜고 이 화면으로 돌아오면 자동으로 반영됩니다.';
+    wrap.appendChild(foot);
+    return wrap;
+  }
+
   function renderDenied() {
     var el = clearCta();
     if (!el) return;
     el.hidden = false;
-    appendMessage(
-      el,
-      '기기 알림 권한이 차단되어 있습니다.',
-      '브라우저 설정에서 알림을 허용해 주세요.'
-    );
+    appendMessage(el, '기기 알림 권한이 차단되어 있습니다.');
+
+    var guideId = 'foms-push-guide-panel';
+    var toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'erp-mobile-push-cta__btn erp-mobile-push-cta__btn--guide';
+    toggle.setAttribute('data-foms-push-guide-toggle', '');
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.setAttribute('aria-controls', guideId);
+    var icon = document.createElement('i');
+    icon.className = 'fas fa-circle-question';
+    icon.setAttribute('aria-hidden', 'true');
+    toggle.appendChild(icon);
+    toggle.appendChild(document.createTextNode(' 허용 방법 보기'));
+    el.appendChild(toggle);
+
+    el.appendChild(buildGuidePanel(guideId));
   }
 
   function renderEnable() {
@@ -423,9 +507,30 @@
       else if (action === 'disable') disable();
       return;
     }
+    // 차단 안내 '허용 방법 보기' 토글 — 인라인 가이드 패널 확장/접기(aria-expanded 관리).
+    var guideToggle = e.target.closest('[data-foms-push-guide-toggle]');
+    if (guideToggle) {
+      e.preventDefault();
+      var panel = document.querySelector('[data-foms-push-guide]');
+      if (panel) {
+        var expanded = guideToggle.getAttribute('aria-expanded') === 'true';
+        guideToggle.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+        panel.hidden = expanded;
+      }
+      return;
+    }
     // 벨(시트 opener) 탭 시 최신 권한/구독 상태로 CTA 재평가.
     var opener = e.target.closest('[data-foms-notif-open]');
     if (opener) {
+      refresh();
+    }
+  });
+
+  // OS 설정에서 알림을 켜고 앱으로 복귀하면(가시성 visible) 권한이 더 이상 denied 가
+  // 아닐 수 있으므로 CTA 를 자동 재평가한다(수동 새로고침 불필요).
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState !== 'visible') return;
+    if (window.Notification && Notification.permission !== 'denied') {
       refresh();
     }
   });

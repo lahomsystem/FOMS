@@ -6,11 +6,16 @@
 fragment 경로를 반복 측정 → 커밋된 예산(``perf_budgets.json``)과 비교해 초과 시
 exit 1 로 승격을 차단한다.
 
-판정 철학 (절대 준수):
-  - pass/fail 은 **warm 중앙값(median) TTFB** 와 **바이트(해압 후)** 만으로 한다.
-  - p95/최댓값은 **판정에 절대 넣지 않는다**. 한국↔싱가포르 네트워크 tail(2~9s)이
-    정상적으로 존재하므로, tail 을 게이트에 넣으면 상습 오탐 → 신뢰 상실 → 게이트가
-    꺼진다. p95 는 리포트에 정보로만 싣는다.
+판정 철학 v2 (절대 준수 — 창 분산·tail 오염 면역):
+  - 경로 TTFB 대표값은 warm 표본 **최솟값(min)**. tail(2~9s)은 값을 올리기만 하므로
+    min 은 tail 오염에 완전 면역이고, 균일 서버 회귀(N+1 추가 등)는 전 표본을 올려
+    min 도 상승 → 감지가 유지된다. (median/p95 는 리포트 정보로만 보존; 판정 미사용.)
+  - 매 런 시작 시 무인증 ``GET {base}/healthz`` 를 반복 측정한 **min = 그 창의 네트워크
+    베이스 RTT**. 판정값 = ``ttfb_min(path) − ttfb_min(healthz)`` = **서버+페이로드 델타**로,
+    시간대별 베이스 RTT 분산(창 분산)을 상쇄해 빠른 창에 시드한 예산이 정상 창을
+    오탐하던 실전 결함을 근본 제거한다.
+  - p95/최댓값은 **판정에 절대 넣지 않는다**(정보용). 정밀 서버 회귀는 render_ms·바이트·
+    쿼리 계약이 잡는다.
 
 exit code:
   0 = PASS, 1 = FAIL(예산 초과), 2 = 크리덴셜 부재/로그인 실패(게이트 SKIP ≠ 실패).
@@ -46,12 +51,13 @@ BUDGETS_PATH = ROOT / "tools" / "perf" / "perf_budgets.json"
 EVIDENCE_DIR = ROOT / "docs" / "harness" / "evidence"
 KST = timezone(timedelta(hours=9))
 
-ROUNDS = 7  # 판정: 첫 회 웜업 버림 → warm 표본 6 (tail 1-2발 뭉침에도 median 방어)
-# 시드는 예산의 SSOT라 median 이 tail 에 오염되면 예산이 상습적으로 헐거워진다.
-# 표본을 늘려 median 이 tail(2~9s) 스파이크에 흔들리지 않게 한다(시드는 드물어 비용 무방).
-SEED_ROUNDS = 13  # 첫 회 버림 → warm 표본 12(median 이 최대 5개 tail 오염에도 견딤)
+ROUNDS = 7  # 판정: 첫 회 웜업 버림 → warm 표본 6 (min 은 tail 오염 면역이라 표본 6이면 충분)
+# 시드는 예산의 SSOT. min 은 표본이 많을수록 그 창의 진짜 바닥(서버 최상)에 수렴한다.
+SEED_ROUNDS = 13  # 첫 회 버림 → warm 표본 12(min 이 창의 최상 서버 시간에 안정 수렴)
+HEALTHZ_ROUNDS = 7  # 무인증 /healthz 반복 → min = 그 창의 네트워크 베이스 RTT(델타 차감용)
 SLEEP_S = 0.3
-SEED_MARGIN = 0.30  # 실측 + 30% 여유
+SEED_MARGIN = 0.30  # 델타 실측 + 30% 여유(상대)
+SEED_DELTA_FLOOR_MS = 80  # 델타는 값이 작아(수십~수백ms) 상대 30%가 빡빡 → 절대 하한 마진
 
 # fragment GET 공통 헤더 (shell 요청 계약).
 FRAGMENT_HEADERS = {
@@ -83,19 +89,21 @@ def percentile(values: list[float], pct: float) -> float:
 
 
 def summarize_samples(warm_samples: list[dict[str, Any]]) -> dict[str, Any]:
-    """warm 표본(첫 회 제외 후) → median/p95 TTFB·median bytes·render/etag 요약.
+    """warm 표본(첫 회 제외 후) → min/median/p95 TTFB·median bytes·render/etag 요약.
 
     Args:
         warm_samples: 각 원소는 ``ttfb_ms``·``bytes``·``render_ms``(None 가능)·
             ``etag_present``(bool)·``content_encoding``(str|None) 키를 갖는다.
 
     Returns:
-        판정·리포트에 쓰는 요약 dict. median 만 판정에, p95 는 정보로만.
+        판정·리포트에 쓰는 요약 dict. **min 만 판정에**(healthz 델타 차감 후),
+        median/p95 는 정보로만.
     """
     ttfbs = [float(s["ttfb_ms"]) for s in warm_samples]
     byts = [int(s["bytes"]) for s in warm_samples]
     renders = [float(s["render_ms"]) for s in warm_samples if s.get("render_ms") is not None]
     return {
+        "min_ttfb_ms": int(min(ttfbs)) if ttfbs else 0,
         "median_ttfb_ms": int(statistics.median(ttfbs)) if ttfbs else 0,
         "p95_ttfb_ms": int(percentile(ttfbs, 95)) if ttfbs else 0,
         "max_ttfb_ms": int(max(ttfbs)) if ttfbs else 0,
@@ -110,20 +118,32 @@ def summarize_samples(warm_samples: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def delta_ttfb_ms(summary: dict[str, Any], base_ttfb_ms: int) -> int:
+    """판정값 = ``ttfb_min(path) − ttfb_min(healthz)`` = 창 무관 서버+페이로드 델타.
+
+    tail 은 min 을 못 올리므로 tail 오염 면역이고, healthz 차감이 그 창의 네트워크
+    베이스 RTT(창 분산)를 상쇄한다. 음수(측정 노이즈로 path 가 base 보다 빠른 경우)는
+    0 으로 바닥 처리(예산은 항상 양수 델타 기준으로 시드/판정).
+    """
+    return max(0, int(summary["min_ttfb_ms"]) - int(base_ttfb_ms))
+
+
 def judge_path(
     path: str,
     summary: dict[str, Any],
     cond_304_ok: bool,
     budget: dict[str, Any],
     global_budget: dict[str, Any],
+    base_ttfb_ms: int,
 ) -> dict[str, Any]:
-    """단일 경로 판정 — **median TTFB·bytes 만** 예산과 비교(p95 는 정보용).
+    """단일 경로 판정 — **delta-min TTFB·bytes 만** 예산과 비교(median/p95 는 정보용).
 
     Args:
         summary: ``summarize_samples`` 결과.
         cond_304_ok: 조건부 If-None-Match 가 304 로 접혔는지.
-        budget: 경로별 예산 ``{ttfb_warm_median_ms, body_bytes_max}``.
+        budget: 경로별 예산 ``{ttfb_delta_min_ms, body_bytes_max}``.
         global_budget: 전역 예산(render_ms_max·etag_required·conditional_304_required).
+        base_ttfb_ms: 이 런의 healthz min TTFB(네트워크 베이스, 델타 차감 기준).
 
     Returns:
         판정 row(``passed`` bool + ``reasons`` 목록 + 측정/예산 값).
@@ -134,11 +154,15 @@ def judge_path(
     bad = [s for s in (summary.get("statuses") or []) if s != 200]
     if bad:
         reasons.append(f"non-200 응답 {bad} (세션만료/서버오류 — 측정 무효)")
-    ttfb_budget = budget.get("ttfb_warm_median_ms")
+    delta_budget = budget.get("ttfb_delta_min_ms")
     bytes_budget = budget.get("body_bytes_max")
+    delta = delta_ttfb_ms(summary, base_ttfb_ms)
 
-    if ttfb_budget is not None and summary["median_ttfb_ms"] > ttfb_budget:
-        reasons.append(f"TTFB median {summary['median_ttfb_ms']}ms > budget {ttfb_budget}ms")
+    if delta_budget is not None and delta > delta_budget:
+        reasons.append(
+            f"TTFB delta-min {delta}ms > budget {delta_budget}ms "
+            f"(min {summary['min_ttfb_ms']}ms − healthz base {base_ttfb_ms}ms; 서버+페이로드 회귀)"
+        )
     if bytes_budget is not None and summary["median_bytes"] > bytes_budget:
         reasons.append(f"bytes {summary['median_bytes']} > budget {bytes_budget}")
 
@@ -153,9 +177,12 @@ def judge_path(
 
     return {
         "path": path,
-        "median_ttfb_ms": summary["median_ttfb_ms"],
-        "budget_ttfb_ms": ttfb_budget,
-        "p95_ttfb_ms": summary["p95_ttfb_ms"],
+        "delta_ttfb_ms": delta,
+        "budget_delta_ttfb_ms": delta_budget,
+        "min_ttfb_ms": summary["min_ttfb_ms"],
+        "base_ttfb_ms": base_ttfb_ms,
+        "median_ttfb_ms": summary["median_ttfb_ms"],  # 정보용
+        "p95_ttfb_ms": summary["p95_ttfb_ms"],  # 정보용
         "median_bytes": summary["median_bytes"],
         "budget_bytes": bytes_budget,
         "cond_304": cond_304_ok,
@@ -164,10 +191,22 @@ def judge_path(
     }
 
 
-def seed_budget(summary: dict[str, Any], margin: float = SEED_MARGIN) -> dict[str, int]:
-    """실측 요약 → 경로별 예산(median + margin). ``--seed`` 모드에서만 사용."""
+def seed_budget(
+    summary: dict[str, Any],
+    base_ttfb_ms: int,
+    margin: float = SEED_MARGIN,
+    floor_ms: int = SEED_DELTA_FLOOR_MS,
+) -> dict[str, int]:
+    """실측 요약 → 경로별 예산. ``--seed`` 모드에서만 사용.
+
+    델타 예산 = ``max(delta*(1+margin), delta+floor_ms)``. 델타는 값이 작아(수십~수백ms)
+    상대 마진만으로는 빡빡하므로 절대 하한 마진(floor_ms)을 함께 적용한다.
+    bytes 는 결정적이라 median×(1+margin).
+    """
+    delta = delta_ttfb_ms(summary, base_ttfb_ms)
+    delta_budget = max(int(round(delta * (1 + margin))), delta + floor_ms)
     return {
-        "ttfb_warm_median_ms": int(round(summary["median_ttfb_ms"] * (1 + margin))),
+        "ttfb_delta_min_ms": delta_budget,
         "body_bytes_max": int(round(summary["median_bytes"] * (1 + margin))),
     }
 
@@ -219,6 +258,24 @@ def measure_path(session: requests.Session, base: str, path: str, rounds: int = 
     return {"path": path, "samples": samples, "warm": warm, "cond_304_ok": cond_304_ok}
 
 
+def measure_healthz_base(session: requests.Session, base: str, rounds: int = HEALTHZ_ROUNDS) -> int:
+    """무인증 ``GET {base}/healthz`` 를 rounds 회 → min TTFB = 그 창의 네트워크 베이스 RTT.
+
+    healthz 는 DB·세션·인증을 건드리지 않는 순수 liveness(무거운 서버 작업 0)라, 그
+    min 은 "이 창에서 왕복만으로 드는 최소 시간"에 수렴한다. 경로 min 에서 이 값을 빼면
+    시간대별 베이스 RTT 변동(창 분산)이 상쇄돼 서버+페이로드 순수 델타가 남는다.
+    """
+    url = base.rstrip("/") + "/healthz"
+    ttfbs: list[float] = []
+    for _ in range(rounds):
+        t0 = time.perf_counter()
+        resp = _get_with_retry(session, url, {"Accept": "application/json"})
+        _ = resp.content  # 본문 소비(측정 방법을 경로 측정과 동일하게 맞춤)
+        ttfbs.append((time.perf_counter() - t0) * 1000)
+        time.sleep(SLEEP_S)
+    return int(min(ttfbs)) if ttfbs else 0
+
+
 def _check_conditional_304(session: requests.Session, url: str) -> bool:
     """1회 ETag 에코(If-None-Match) → 304 여부(하트비트 경제성 회귀 감시)."""
     warm_resp = _get_with_retry(session, url, FRAGMENT_HEADERS)
@@ -241,6 +298,8 @@ def run_gate(base: str, user: str, password: str, budgets: dict[str, Any]) -> di
     session.headers["Cookie"] = cookie
     global_budget = budgets.get("_global", {})
     path_budgets = budgets.get("paths", {})
+    # 창 무관 판정의 핵심: 런 시작 시 그 창의 네트워크 베이스 RTT 를 확정한다.
+    base_ttfb_ms = measure_healthz_base(session, base)
 
     rows: list[dict[str, Any]] = []
     raw: list[dict[str, Any]] = []
@@ -248,41 +307,42 @@ def run_gate(base: str, user: str, password: str, budgets: dict[str, Any]) -> di
         measured = measure_path(session, base, path)
         raw.append(measured)
         summary = summarize_samples(measured["warm"])
-        row = judge_path(path, summary, measured["cond_304_ok"], path_budgets.get(path, {}), global_budget)
-        # tail-cluster 오탐 방어: TTFB "만" 위반이면 1회 재측정 후 재판정.
-        # (한국↔SG tail 이 4표본 창에 뭉치면 median 도 오염 — 진짜 회귀는 재측정에서도
-        # 재현되고, tail 뭉침은 연속 재현이 드물다. bytes/ETag/304 위반은 결정적이라 재측정 없음.)
+        row = judge_path(path, summary, measured["cond_304_ok"], path_budgets.get(path, {}), global_budget, base_ttfb_ms)
+        # 재측정 방어(v2 에선 발동 확률 낮음): delta "만" 위반이면 1회 재측정 후 재판정.
+        # min 은 tail 면역이라 이제 tail 뭉침으로는 거의 안 뚫리지만, 순간적 서버 hiccup
+        # (경로 min 이 그 창에서만 높음)을 걸러낸다. bytes/ETag/304 위반은 결정적이라 재측정 없음.
         ttfb_only = row["reasons"] and all("TTFB" in r for r in row["reasons"])
         if not row["passed"] and ttfb_only:
             time.sleep(2.0)
             remeasured = measure_path(session, base, path)
             resummary = summarize_samples(remeasured["warm"])
-            if resummary["median_ttfb_ms"] < summary["median_ttfb_ms"]:
+            if resummary["min_ttfb_ms"] < summary["min_ttfb_ms"]:
                 raw.append(remeasured)
                 summary = resummary
-                row = judge_path(path, summary, remeasured["cond_304_ok"], path_budgets.get(path, {}), global_budget)
+                row = judge_path(path, summary, remeasured["cond_304_ok"], path_budgets.get(path, {}), global_budget, base_ttfb_ms)
                 row["retried"] = True
         row["_summary"] = summary
         rows.append(row)
 
     ok = all(r["passed"] for r in rows)
-    return {"base": base, "ok": ok, "rows": rows, "raw": raw}
+    return {"base": base, "ok": ok, "base_ttfb_ms": base_ttfb_ms, "rows": rows, "raw": raw}
 
 
 def run_seed(base: str, user: str, password: str, prev: dict[str, Any]) -> dict[str, Any]:
-    """--seed: 현 측정값 + 30% 마진으로 budgets 갱신(전역 예산은 보존/기본값)."""
+    """--seed: 델타 실측 + 마진으로 budgets 갱신(v2 스키마, 전역 예산은 보존/기본값)."""
     cookie, _ = fetch_session_cookie(base, user, password)
     session = requests.Session()
     session.headers["Cookie"] = cookie
+    base_ttfb_ms = measure_healthz_base(session, base, rounds=SEED_ROUNDS)
     paths: dict[str, Any] = {}
     prev_paths = prev.get("paths", {})
     loosened: list[str] = []
     for path in FRAGMENT_PATHS:
         measured = measure_path(session, base, path, rounds=SEED_ROUNDS)
         summary = summarize_samples(measured["warm"])
-        new_budget = seed_budget(summary)
+        new_budget = seed_budget(summary, base_ttfb_ms)
         old_budget = prev_paths.get(path) or {}
-        for k in ("ttfb_warm_median_ms", "body_bytes_max"):
+        for k in ("ttfb_delta_min_ms", "body_bytes_max"):
             if old_budget.get(k) is not None and new_budget[k] > old_budget[k]:
                 loosened.append(f"{path} {k}: {old_budget[k]} -> {new_budget[k]}")
         paths[path] = new_budget
@@ -291,17 +351,22 @@ def run_seed(base: str, user: str, password: str, prev: dict[str, Any]) -> dict[
         print("[perf-gate][WARN] --seed 가 기존 예산을 완화합니다(의도된 성능 변화인지 diff 리뷰 필수):")
         for line in loosened:
             print(f"  - {line}")
+    prev_global = prev.get("_global") or {}
     return {
         "_comment": (
-            "스테이징 성능 게이트 예산(SSOT: tools/perf/staging_perf_gate.py). "
-            "ttfb_warm_median_ms=warm 중앙값 상한(ms), body_bytes_max=응답 바이트 상한(해압 후, wire 아님). "
+            "스테이징 성능 게이트 예산 v2(SSOT: tools/perf/staging_perf_gate.py). "
+            "판정값 ttfb_delta_min_ms = min(warm path TTFB) − min(healthz TTFB): "
+            "min 은 tail(2~9s) 오염 면역, healthz 델타는 시간대별 베이스 RTT(창 분산)를 상쇄한다. "
+            "body_bytes_max = 응답 바이트 상한(해압 후, wire 아님; 결정적 min 성격). "
+            "정밀 서버 회귀는 render_ms_max·bytes·쿼리 계약이 잡는다. "
             "--seed 는 의도된 성능 변화 때만 실행하고 diff 를 리뷰한다."
         ),
-        "_global": prev.get("_global", {
-            "render_ms_max": 500,
-            "etag_required": True,
-            "conditional_304_required": True,
-        }),
+        "_global": {
+            "schema": 2,
+            "render_ms_max": prev_global.get("render_ms_max", 500),
+            "etag_required": prev_global.get("etag_required", True),
+            "conditional_304_required": prev_global.get("conditional_304_required", True),
+        },
         "paths": paths,
     }
 
@@ -333,14 +398,28 @@ def archive_result(result: dict[str, Any], keep: int = 20) -> Path:
     return fp
 
 
-def render_table(rows: list[dict[str, Any]]) -> str:
-    """판정 표(경로|median|budget|바이트|budget|304|판정) 텍스트."""
-    header = f"{'PATH':<40} {'medTTFB':>8} {'budget':>7} {'p95':>6} {'bytes':>8} {'budget':>8} {'304':>4} {'RESULT':>6}"
-    lines = [header, "-" * len(header)]
+def render_table(rows: list[dict[str, Any]], base_ttfb_ms: int | None = None) -> str:
+    """판정 표(경로|dTTFB|budget|min|medTTFB|p95|바이트|budget|304|판정) 텍스트.
+
+    dTTFB(delta-min) = min(path) − healthz base 가 판정값. medTTFB·p95 는 정보용.
+    """
+    header = (
+        f"{'PATH':<40} {'dTTFB':>6} {'budget':>7} {'min':>6} "
+        f"{'medTTFB':>8} {'p95':>6} {'bytes':>8} {'budget':>8} {'304':>4} {'RESULT':>6}"
+    )
+    lines: list[str] = []
+    if base_ttfb_ms is not None:
+        lines.append(
+            f"healthz base(min TTFB): {base_ttfb_ms}ms  "
+            f"|  판정값 dTTFB = min(path) − base (창 무관 서버+페이로드 델타)"
+        )
+        lines.append("")
+    lines.extend([header, "-" * len(header)])
     for r in rows:
         lines.append(
-            f"{r['path']:<40} {r['median_ttfb_ms']:>8} {str(r['budget_ttfb_ms']):>7} "
-            f"{r['p95_ttfb_ms']:>6} {r['median_bytes']:>8} {str(r['budget_bytes']):>8} "
+            f"{r['path']:<40} {r['delta_ttfb_ms']:>6} {str(r['budget_delta_ttfb_ms']):>7} "
+            f"{r['min_ttfb_ms']:>6} {r['median_ttfb_ms']:>8} {r['p95_ttfb_ms']:>6} "
+            f"{r['median_bytes']:>8} {str(r['budget_bytes']):>8} "
             f"{('OK' if r['cond_304'] else 'NO'):>4} {('PASS' if r['passed'] else 'FAIL'):>6}"
         )
         for reason in r["reasons"]:
@@ -386,7 +465,7 @@ def main() -> int:
                 print(json.dumps(budgets, ensure_ascii=False, indent=2))
             else:
                 for path, b in budgets["paths"].items():
-                    print(f"  {path:<40} ttfb<={b['ttfb_warm_median_ms']}ms bytes<={b['body_bytes_max']}")
+                    print(f"  {path:<40} dTTFB<={b['ttfb_delta_min_ms']}ms bytes<={b['body_bytes_max']}")
             return 0
 
         result = run_gate(args.base, user, pw, load_budgets())
@@ -398,7 +477,7 @@ def main() -> int:
     if args.json:
         print(json.dumps(result, ensure_ascii=False, indent=2))
     else:
-        print(render_table(result["rows"]))
+        print(render_table(result["rows"], result.get("base_ttfb_ms")))
         print(f"\nevidence: {fp}")
         print("RESULT: " + ("PASS" if result["ok"] else "FAIL"))
     return 0 if result["ok"] else 1
