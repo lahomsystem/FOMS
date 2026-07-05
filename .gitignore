@@ -104,6 +104,7 @@ docs/harness/logs/HOOK_RUNTIME_LOG.txt
 docs/harness/logs/hook_stdin_err.txt
 docs/harness/runtime/.session_stop_idempotency.json
 docs/harness/runtime/.post_task_qc_debounce.json
+docs/harness/runtime/.claude_pending_verify.json
 
 # 브라우저 감리 generated 산출물 (§2.2.1: docs/context/analysis/)
 docs/context/analysis/browser_audit_*/

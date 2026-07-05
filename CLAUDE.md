@@ -27,16 +27,12 @@
 3. **단순 UI 변경/타이포** → 바로 코딩 허용
 4. **대화가 길어지면** → 핵심 요약 후 새 세션 권유
 
-## Cursor 내 Runner 사용 기준
-- **Claude 확장 in Cursor**: 권장 수동 진입점은 `docs/harness/bundles/HARNESS_BUNDLE_CLAUDE.md`이다. Cursor/확장이 이 파일을 자동 로드하는 것은 아니므로, 작업 시작 시 사용자가 직접 열거나 참조한다. 하네스 내부 작업은 `docs/harness/bundles/HARNESS_BUNDLE_CLAUDE_HARNESS.md`를 사용한다. `CLAUDE.md`는 Claude 전용 원문 정책을 수정/검증할 때만 추가로 연다.
-- **Codex 확장/CLI in Cursor**: 권장 수동 진입점은 `docs/harness/bundles/HARNESS_BUNDLE_CODEX.md`이다. Codex 확장 세션은 사용자가 bundle을 직접 열거나 참조해야 하고, `tools/harness/run_codex.ps1`를 사용할 때만 선택된 bundle이 자동으로 prompt에 포함된다. 하네스 내부 작업은 `docs/harness/bundles/HARNESS_BUNDLE_CODEX_HARNESS.md` 또는 `tools/harness/run_codex.ps1` 자동 라우팅을 사용한다.
-- **공통 작업 분류기**: `tools/harness/task_classifier.py`가 Cursor 훅, `run_codex.ps1`, Claude/Codex 플러그인 preflight의 단일 기준이다. 플러그인 창이 Cursor hook을 타지 않는 경우 `python tools/harness/task_classifier.py --profile auto --prompt "..." --json`으로 같은 분류 결과를 확인한다.
-- **Wave 3 자동 분류**: `run_codex.ps1`는 공통 분류기의 `low / medium / high / top` 결과를 사용한다. 기본적으로 `low/medium`은 daily bundle, `high/top`은 harness bundle을 사용한다.
-- **override 형식**: `-AdditionalPrompt "[level=top]"`, `-AdditionalPrompt "[레벨=최상]"`, `-AdditionalPrompt "이번 건 최상으로 진행"`을 지원한다.
-- **고위험 downgrade**: 자동 판정이 `high/top`인데 더 낮은 레벨로 내리면 대화형 재확인 또는 `-AllowRiskyLevelOverride`가 필요하다.
-- **Cursor 기본 에이전트**: 기본은 `docs/harness/bundles/HARNESS_BUNDLE_CURSOR.md`와 `.cursor/rules/*.mdc`, 하네스 내부 작업은 `docs/harness/bundles/HARNESS_BUNDLE_CURSOR_HARNESS.md`를 따른다.
-- **브라우저 역할 분리**: Cursor browser MCP는 탐색·재현·수동 디버깅, gstack browse는 setup 완료 후 반복 가능한 smoke/QA 자동화에 사용한다.
-- **공유 명령 기준**: Cursor 안에서 Claude/Codex 확장을 써도 저장소 공용 명령 예시는 계속 PowerShell 5.x를 기준으로 본다.
+## 하네스 자동 배선 (Claude Code 세션)
+- **분류기 preflight 자동**: `UserPromptSubmit` 훅이 `tools/harness/task_classifier.py` 결과(level/route/RPI)를 자동 주입한다. 수동 확인: `python tools/harness/task_classifier.py --profile auto --prompt "..." --json`.
+- **세션 시작/컴팩트**: `SessionStart` 훅이 AI_STATUS·RPI 안내를 주입하고, `PreCompact` 훅이 `docs/harness/runtime/COMPACT_CHECKPOINT.md`를 갱신한다.
+- **Stop 게이트**: `.py` 편집 세션은 턴 종료 시 `import app` 검증을 자동 통과해야 한다 (실패 시 종료 차단, 근본 수정 후 재시도).
+- **MCP 정본 위치**: 프로젝트 MCP 서버는 루트 `.mcp.json` (postgres, context7만 유지 — 나머지는 네이티브 기능으로 대체되어 퇴역).
+- **하네스 내부 작업 컨텍스트**: 필요 시 `docs/harness/bundles/HARNESS_BUNDLE_CLAUDE_HARNESS.md` 참조. Cursor/Codex 러너 라우팅 상세는 `AGENTS.md` + `.cursor/rules/00-project-context.mdc` 소관 (본 파일에서 중복 제거).
 
 ## 디렉토리 구조
 - `app.py`: Flask 앱 초기화 (최소화, 라우트 추가 금지)

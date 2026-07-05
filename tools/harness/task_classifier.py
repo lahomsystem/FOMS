@@ -107,9 +107,29 @@ CORE_PREFIXES = ("apps/api/", "foms/api/", "migrations/", "services/auth/", "aut
 DEPLOY_EXACT_MATCHES = {"dockerfile", "procfile", "railway.toml", "railway.json"}
 DEPLOY_PREFIXES = (".github/workflows/", "docker/", "deploy/")
 
-AUTH_KEYWORDS = ("auth", "session", "token")
+AUTH_KEYWORDS = (
+    "auth",
+    "session",
+    "token",
+    "인증",
+    "세션",
+    "토큰",
+    "로그인",
+    "권한",
+)
 VERIFICATION_KEYWORDS = ("qa", "browser", "e2e", "screenshot", "smoke", "audit", "test")
-WIDE_SCOPE_KEYWORDS = ("refactor", "architecture", "migration", "multi-file", "broad")
+WIDE_SCOPE_KEYWORDS = (
+    "refactor",
+    "architecture",
+    "migration",
+    "multi-file",
+    "broad",
+    "마이그레이션",
+    "리팩토링",
+    "리팩터",
+    "아키텍처",
+    "스키마",
+)
 TOP_RESOURCE_KEYWORDS = (
     "parallel",
     "research",
@@ -118,7 +138,14 @@ TOP_RESOURCE_KEYWORDS = (
     "canary",
     "release",
     "deep audit",
+    "프로덕션",
+    "운영 배포",
+    "운영배포",
+    "릴리스",
+    "카나리",
+    "벤치마크",
 )
+HARNESS_TEXT_KEYWORDS = ("harness", "하네스")
 
 LEVEL_GUIDANCE = {
     "low": {
@@ -531,6 +558,10 @@ def compute_auto_level(
     if contains_any_keyword(combined_text, AUTH_KEYWORDS):
         add_reason(reasons, "auth keywords")
         level = higher_level(level, "high")
+    prompt_signal_text = " ".join(value for value in (scenario_text, additional_prompt_text) if value)
+    if contains_any_keyword(prompt_signal_text, HARNESS_TEXT_KEYWORDS):
+        add_reason(reasons, "harness keyword")
+        level = higher_level(level, "high")
     if profile == "qa":
         add_reason(reasons, "qa verification flow")
         level = higher_level(level, "medium")
@@ -616,12 +647,15 @@ def classify_task(
     auto_profile = route_kind if route_kind in {"review", "implement", "qa"} else profile
     if auto_profile == "auto":
         auto_profile = "review"
+    level_signal_text = " ".join(
+        dedupe_preserve_order(text for text in (additional_prompt or "", prompt_text or "") if text)
+    ) or None
     auto_level, reason_list = compute_auto_level(
         auto_profile,
         signal_path,
         plan_metadata,
         scenario_label,
-        additional_prompt,
+        level_signal_text,
     )
     override = parse_requested_level_override(additional_prompt)
     resolved_level = override.level or auto_level
