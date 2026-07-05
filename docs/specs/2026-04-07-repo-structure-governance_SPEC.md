@@ -172,6 +172,7 @@ repo root
 - `.gcloudignore`
 - `.gitattributes`
 - `.gitignore`
+- `.mcp.json`
 - `.python-version`
 - `AGENTS.md`
 - `alembic.ini`
