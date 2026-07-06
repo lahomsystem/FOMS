@@ -1,4 +1,5 @@
 # 도면 마법사 v2 — 양식 충실도 + Konva 주석 엔진 + Apple 스타일 UX Spec
+> **3라운드 갱신(dff10365)**: §2 지오메트리는 v3 실측치로 대체됨 — 외곽 (40,40)-(1440,1000) 3px, 페이지 박스 (1374,40)-(1440,89) 외곽 밀착, 표=외곽 3변 공유+상단선 y899, 열 40|123|211|310|399|728|820|1227|1330|1440(C/D 주소라벨 89), 행 899/924/949/974/1000, 헤더 (48,43)·행간 26, DREW 18px. 로고 규칙: '라홈'→lahom, 그 외 전부→haud('없음' 폐지). 빈곳 더블클릭 텍스트 생성 제거(세그 버튼+Ctrl+클릭만). 로고 팝업 race는 450ms 억제 창으로 수정.
 > 작성일: 2026-07-06 | 상태: ✅ 완료 (D/E/F 구현·검증·통합 QA 종료 — 2026-07-06) | 작성: Claude (Advisor)
 > 구현 노트: Konva 9.3.22 vendored(171KB). 앱바는 grid `minmax(0,1fr) auto minmax(max-content,1fr)`(우측 겹침 구조적 차단, 1500px↓ 세그 아이콘-only). 도형 그리기 mouseup은 window 캡처 리스너(캔버스 밖 release 엣지 해결). rect/ellipse는 hit용 극미세 fill(rgba 0,0,0,0.001)+hitStrokeWidth 12. 내보내기 = html2canvas(폼)+Konva toCanvas(pixelRatio 2) 오프스크린 합성 — 실물 PNG 검증 완료.
 > v1: `2026-07-06-drawing-wizard_SPEC.md`. 이번 라운드 정답 기준 = **김유성/KIM HANBI 샘플** (A4 300dpi 3508×2480).
