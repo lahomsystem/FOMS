@@ -22,8 +22,24 @@ DEDUPE_WINDOWS = {
     "manual": 0,
 }
 
+# Group 554075 was explicitly retired from outbound FOMS push on 2026-07-06.
+RETIRED_CHANNEL_GROUP_IDS = frozenset({"554075"})
+
 # ChannelTalk 1메시지당 최대 첨부 수. 채널톡이 10→20으로 상향(2026-06).
 MAX_MANUAL_ATTACHMENTS = 20
+
+
+class ChannelGroupRetiredError(RuntimeError):
+    """Raised when a ChannelTalk push targets a retired team-chat group."""
+
+    def __init__(self, group_id: str) -> None:
+        self.group_id = group_id
+        super().__init__(f"ChannelTalk group {group_id} is retired")
+
+
+def is_retired_channel_group_id(group_id: Any) -> bool:
+    """Return whether outbound push to ``group_id`` has been retired."""
+    return str(group_id or "").strip() in RETIRED_CHANNEL_GROUP_IDS
 
 
 def _build_order_detail_link(order_id: Any) -> str:
@@ -126,14 +142,22 @@ def get_routing_group_id(event_type: str, order_info: Dict[str, Any] = None) -> 
 
     Returns:
         ChannelTalk 그룹 id 문자열.
+
+    Raises:
+        ChannelGroupRetiredError: resolved group id is explicitly retired.
     """
     _ = event_type
     push_kind = (order_info or {}).get("push_kind", "measurement")
     if push_kind == "drawing":
-        return os.environ.get("CHANNEL_GROUP_DRAWING", "229625")
-    if push_kind == "estimate":
-        return os.environ.get("CHANNEL_GROUP_ESTIMATE", "230395")
-    return os.environ.get("CHANNEL_GROUP_MEASUREMENT", "209990")
+        group_id = os.environ.get("CHANNEL_GROUP_DRAWING", "229625")
+    elif push_kind == "estimate":
+        group_id = os.environ.get("CHANNEL_GROUP_ESTIMATE", "230395")
+    else:
+        group_id = os.environ.get("CHANNEL_GROUP_MEASUREMENT", "209990")
+
+    if is_retired_channel_group_id(group_id):
+        raise ChannelGroupRetiredError(str(group_id).strip())
+    return group_id
 
 
 def build_message_template(event_type: str, data: Dict[str, Any]) -> str:
