@@ -1007,7 +1007,8 @@
             lineEl.className = 'erp-est-sum-row erp-est-sum-free-input';
             var labelEl = document.createElement('span');
             labelEl.className = 'erp-est-sum-label';
-            labelEl.textContent = String(row.label || '추가');
+            // 배송 등 자유입력은 출고가에 이미 포함됨을 명시(정보성 표기, 삭제 금지).
+            labelEl.textContent = String(row.label || '추가') + ' (총견적 포함)';
             var valueEl = document.createElement('span');
             valueEl.className = 'erp-est-sum-value erp-est-sum-free-input-val';
             valueEl.textContent = _fmtMoney(amount);
@@ -1018,11 +1019,13 @@
     }
 
     function _applyPaymentInfo(d, pi) {
-        var itemsSubtotal = d.items_subtotal;
-        if (itemsSubtotal == null || itemsSubtotal === '') {
-            itemsSubtotal = Math.max(0, Number(d.total_amount || 0) - Number(d.free_input_amount || 0));
+        // 출고가(grand total) = 품목합 + 배송(자유입력) - 할인. 서버가 shipping_price로 내려준다.
+        // 구버전 payload 폴백: total_amount - discount_amount (동일 공식).
+        var shippingPrice = d.shipping_price;
+        if (shippingPrice == null || shippingPrice === '') {
+            shippingPrice = Math.max(0, Number(d.total_amount || 0) - Number(d.discount_amount || 0));
         }
-        _setText('est-total-amount', _fmtMoney(itemsSubtotal));
+        _setText('est-total-amount', _fmtMoney(shippingPrice));
         _renderFreeInputRows(d.free_input_lines);
 
         const depositRow = document.getElementById('est-deposit-row');
@@ -1033,13 +1036,9 @@
             if (depositRow) depositRow.classList.add('erp-est-hidden');
         }
 
+        // 할인은 출고가에 이미 흡수됨 → 읽기전용 요약에서는 항상 숨긴다(별도 라인 없음).
         const discountRow = document.getElementById('est-discount-row');
-        if (d.discount_amount && d.discount_amount > 0) {
-            _setText('est-discount-amount', _fmtMoney(d.discount_amount));
-            if (discountRow) discountRow.classList.remove('erp-est-hidden');
-        } else {
-            if (discountRow) discountRow.classList.add('erp-est-hidden');
-        }
+        if (discountRow) discountRow.classList.add('erp-est-hidden');
 
         _setText('est-balance-amount', _fmtMoney(d.balance_amount));
 

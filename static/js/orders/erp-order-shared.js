@@ -155,6 +155,7 @@ var erpBuildTotals =
         var deposit = erpCoerceAmount(depositAmount);
         var discount = erpCoerceAmount(discountAmount);
         var balance = Math.max(0, total - deposit - discount);
+        var shippingPrice = Math.max(0, total - discount); // total = itemsSubtotal + freeInput
         return {
             items_total: itemsSubtotal,
             free_input_amount: freeInput,
@@ -163,6 +164,7 @@ var erpBuildTotals =
             discount_amount: discount,
             balance_amount: balance,
             final_amount: balance,
+            shipping_price: shippingPrice,
         };
     };
 window.erpBuildTotals = erpBuildTotals;
@@ -847,6 +849,20 @@ window.erpBindAmountInput = erpBindAmountInput;
 // Shared-form island logic (runs after helper block above in this file).
 let _paymentTogglePending = false;
 
+var erpSumItemsSubtotal =
+    window.erpSumItemsSubtotal ||
+    function erpSumItemsSubtotal(scope) {
+        var root = scope || document.getElementById('erp-items');
+        if (!root) return 0;
+        var sum = 0;
+        root.querySelectorAll('[data-erp="price"]').forEach(function (inp) {
+            var digits = String(inp.value || '').replace(/[^0-9]/g, '');
+            if (digits) sum += parseInt(digits, 10);
+        });
+        return sum;
+    };
+window.erpSumItemsSubtotal = erpSumItemsSubtotal;
+
 function erpRecalcItemsTotal() {
     const itemsWrap = document.getElementById('erp-items');
     const totalEl = document.getElementById('erp-items-total');
@@ -855,12 +871,10 @@ function erpRecalcItemsTotal() {
     const freeInputSection = document.getElementById('erp-free-input-section');
     const cashReceiptSection = document.getElementById('erp-cash-receipt-section');
     if (!itemsWrap || !totalEl) return;
-    let sum = 0;
-    itemsWrap.querySelectorAll('[data-erp="price"]').forEach(inp => {
-        const digits = String(inp.value || '').replace(/[^0-9]/g, '');
-        if (digits) sum += parseInt(digits, 10);
-    });
-    totalEl.textContent = erpFormatMoneyKRW(sum);
+    const sum = erpSumItemsSubtotal(itemsWrap);
+    const totals = erpBuildTotals(sum, erpParseDepositValue(), erpParseDiscountValue(), erpParseFreeInputAmount());
+    totalEl.textContent = erpFormatMoneyKRW(totals.shipping_price);
+    totalEl.dataset.itemsSubtotal = String(sum);
     if (window.ErpItemsMasterDetail?.syncRailTotal) {
         window.ErpItemsMasterDetail.syncRailTotal();
     }
@@ -884,13 +898,18 @@ function erpCalculateRemaining() {
     const totalEl = document.getElementById('erp-items-total');
     const remainingEl = document.getElementById('erp-remaining-amount');
     if (!totalEl || !remainingEl) return;
-    const totalAmount = erpCoerceAmount(totalEl.textContent);
+    const itemsSubtotal = erpSumItemsSubtotal();
     const totals = erpBuildTotals(
-        totalAmount,
+        itemsSubtotal,
         erpParseDepositValue(),
         erpParseDiscountValue(),
         erpParseFreeInputAmount()
     );
+    totalEl.textContent = erpFormatMoneyKRW(totals.shipping_price);
+    totalEl.dataset.itemsSubtotal = String(itemsSubtotal);
+    if (window.ErpItemsMasterDetail?.syncRailTotal) {
+        window.ErpItemsMasterDetail.syncRailTotal();
+    }
     remainingEl.textContent = totals.final_amount > 0 ? erpFormatMoneyKRW(totals.final_amount) : '0원';
 }
 
@@ -3884,7 +3903,11 @@ function erpAppendConversionExtraInputLine(text, value) {
 function erpAppendConversionFreeInputBlock(text, value) {
     const formatted = erpFormatFreeInputForConversion(value);
     if (!formatted) return text;
-    return text + `${formatted}\n`;
+    const withSuffix = formatted
+        .split('\n')
+        .map(function (line) { return line ? `${line}(총견적 포함)` : line; })
+        .join('\n');
+    return text + `${withSuffix}\n`;
 }
 
 function erpReadItemFieldValue(row, key) {
@@ -4033,9 +4056,9 @@ function erpGenerateConversionText() {
         text += '\n';
     });
 
-    // Footer: 채널톡/발주방 공유용 고정 포맷 (담당자 + 출고가 + 예약금 + 잔금)
+    // Footer: 채널톡/발주방 공유용 고정 포맷 (담당자 + 출고가 + 예약금 + 배송 + 잔금)
     const manager = getVal('erp-manager');
-    const itemsTotal = erpCoerceAmount(document.getElementById('erp-items-total')?.textContent);
+    const itemsTotal = erpSumItemsSubtotal();
     const depositAmount = erpParseDepositValue();
     const discountAmount = erpParseDiscountValue();
     const totals = erpBuildTotals(itemsTotal, depositAmount, discountAmount, erpParseFreeInputAmount());
@@ -4044,12 +4067,11 @@ function erpGenerateConversionText() {
     const footerStart = text.length;
     text = erpAppendConversionTextLine(text, '담당자', manager);
     if (text.length > footerStart) text += '\n';
-    text = erpAppendConversionMoneyLine(text, '출고가', totals.items_total);
+    text = erpAppendConversionMoneyLine(text, '출고가', totals.shipping_price);
     text = erpAppendConversionMoneyLine(text, '예약금(선금)', totals.deposit_amount);
-    text = erpAppendConversionMoneyLine(text, '할인', totals.discount_amount);
+    text = erpAppendConversionFreeInputBlock(text, freeInputVal);
     const balanceSuffix = _erpIsBalancePaymentConfirmed() ? '(결제 완)' : '';
     text = erpAppendConversionMoneyLine(text, '잔금', totals.final_amount, balanceSuffix);
-    text = erpAppendConversionFreeInputBlock(text, freeInputVal);
     const cashReceiptVal = getVal('erp-cash-receipt');
     if (erpHasConversionTextValue(cashReceiptVal) && totals.final_amount > 0) {
         text += '\n';

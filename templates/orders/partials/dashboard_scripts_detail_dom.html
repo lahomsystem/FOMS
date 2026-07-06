@@ -600,6 +600,8 @@
                 || (sd.payments || {}).free_input?.raw
                 || '';
               const freeInputAmt = coerceAmount(totals.free_input_amount) || sumFreeInputFromText(freeInputRaw);
+              // 출고가 = max(0, 품목합 + 자유입력(배송) - 할인). 읽기전용 상세는 이 grand total만 노출.
+              const shippingPrice = Math.max(0, itemsTotal + freeInputAmt - discountAmt);
               let remainAmt = coerceAmount(totals.final_amount) || coerceAmount(totals.balance_amount);
               if (!remainAmt) {
                 remainAmt = Math.max(0, itemsTotal + freeInputAmt - depositAmt - discountAmt);
@@ -612,11 +614,12 @@
                 const remainEl = document.getElementById(`erp-remaining-amount-${orderId}-${i}`);
                 const discountSection = document.getElementById(`erp-discount-section-${orderId}-${i}`);
                 const remainSection = document.getElementById(`erp-remaining-section-${orderId}-${i}`);
-                if (totalEl) totalEl.textContent = fmtKRW(itemsTotal);
+                if (totalEl) totalEl.textContent = fmtKRW(shippingPrice);
                 if (depositEl) depositEl.value = depositAmt > 0 ? fmtKRW(depositAmt) : '';
                 if (discountEl) discountEl.value = discountAmt > 0 ? fmtKRW(discountAmt) : '';
                 if (remainEl) remainEl.textContent = fmtKRW(remainAmt);
-                if (discountSection) discountSection.style.display = discountAmt > 0 ? 'flex' : 'none';
+                // 읽기전용 상세: 할인은 출고가에 흡수 — 별도 할인 라인 항상 숨김.
+                if (discountSection) discountSection.style.display = 'none';
                 if (remainSection) remainSection.style.display = itemsTotal > 0 ? 'flex' : 'none';
               });
             })();

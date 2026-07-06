@@ -12,6 +12,7 @@ from foms.services.erp_display import (
     _erp_get_stage,
     _erp_has_media,
     erp_payment_amount_from_structured,
+    erp_shipping_price_from_structured,
 )
 from foms.services.erp_policy import STAGE_LABELS, STAGE_NAME_TO_CODE
 from foms.services.erp_quest_display import (
@@ -312,10 +313,16 @@ def mobile_product_items(
 
 
 def mobile_amount_summary(sd: dict) -> dict[str, Any]:
-    """Amount KV block for mobile detail (items total, deposit, discount, balance)."""
+    """Amount KV block for mobile detail (출고가, deposit, balance).
+
+    읽기전용 요약이므로 표시 금액은 출고가(shipping_price = 품목합 + 자유입력 - 할인)로
+    통일하고, 별도 '할인' 라인은 출고가에 흡수해 숨긴다(discount_label=None). 잔금은
+    기존 SSOT 계산을 그대로 유지한다(품목합 기준 재파생, 값 불변).
+    """
     totals = sd.get("totals") if isinstance(sd.get("totals"), dict) else {}
     pricing = sd.get("pricing") if isinstance(sd.get("pricing"), dict) else {}
     items_total = erp_payment_amount_from_structured(sd)
+    shipping_price = erp_shipping_price_from_structured(sd)
     contract = pricing.get("contract_total") or pricing.get("total") or sd.get("contract_amount")
     deposit_val = _extract_deposit_amount(sd)
     discount_val = _extract_discount_amount(sd)
@@ -334,9 +341,16 @@ def mobile_amount_summary(sd: dict) -> dict[str, Any]:
         except (TypeError, ValueError):
             return str(value)
 
-    items_label = f"{items_total:,}원" if items_total is not None else _fmt(contract) or "-"
+    # 출고가(shipping_price) 우선; 품목합만 구해지면 품목합, 그마저 없으면 계약금액 폴백.
+    if shipping_price is not None:
+        items_label = f"{shipping_price:,}원"
+    elif items_total is not None:
+        items_label = f"{items_total:,}원"
+    else:
+        items_label = _fmt(contract) or "-"
     deposit_label = _fmt(deposit_val) if deposit_val else _fmt(legacy_deposit)
-    discount_label = _fmt(discount_val) if discount_val else None
+    # 읽기전용 요약: 할인은 출고가에 흡수 — 별도 라인 숨김.
+    discount_label = None
     balance_label = _fmt(final_raw)
     if balance_label is None and items_total is not None:
         effective_total = int(items_total or 0) + int(free_input_val or 0)
