@@ -4619,8 +4619,18 @@ function fomsMountErpOrderSurface() {
             syncWorkflowStageByOrderer();
         }
         if (ORDER_ID && ORDER_ID > 0) {
-            // 탭 전환 시에는 이미 부트스트랩을 소비했을 수 있으므로 서버 최신 상태를 재조회한다.
-            await erpLoadStructured();
+            // 미저장 편집이 있으면 서버 재조회로 DOM(사용자 입력)을 덮어쓰지 않는다.
+            // 계산기/견적서 탭 왕복 시 타이핑이 stale 서버 데이터로 파괴되던 버그 차단.
+            // dirty가 아닐 때만 서버 최신 상태를 재조회(타 팀 갱신 반영 유지).
+            var _autosave = window.fomsErpAutosave;
+            var _erpDirty = _autosave && typeof _autosave.isDirty === 'function'
+                ? _autosave.isDirty() : false;
+            if (!_erpDirty) {
+                await erpLoadStructured();
+                if (_autosave && typeof _autosave.recaptureBaseline === 'function') {
+                    _autosave.recaptureBaseline();
+                }
+            }
             erpLoadQuest();
             loadMeasurementPanel();
         }
