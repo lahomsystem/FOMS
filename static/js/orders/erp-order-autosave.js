@@ -622,8 +622,31 @@
     }
   });
 
+  /** 탭 복귀 시 서버 재조회로 DOM을 덮어써도 되는지 판단하기 위한 dirty 신호.
+   *  미저장 편집이 있으면 true → 호출측이 재조회를 스킵해 입력을 보존한다.
+   *  데이터 보존 우선: 불확실하면 dirty로 본다(false negative=유실이 최악). */
+  function isDirty() {
+    try {
+      var payload = collectPayload();
+      if (isEditMode()) {
+        return isEditPayloadDirty(payload);
+      }
+      if (isAddDraftMode()) {
+        // 서버로 아직 flush 안 된 변경이 있으면 dirty(null 비교도 dirty로 안전측).
+        return serverPayloadJson(payload) !== _lastServerJson;
+      }
+    } catch (e) {}
+    return false;
+  }
+
+  /** 탭 복귀 clean 경로에서 erpLoadStructured로 폼이 서버 최신으로 갱신된 뒤,
+   *  edit baseline을 새 상태로 재고정한다(이후 dirty 오판 방지). */
+  function recaptureBaseline() {
+    try { captureEditBaseline(); } catch (e) {}
+  }
+
   window.__ERP_AUTOSAVE_BOUND = true;
-  window.fomsErpAutosave = { clearLocal: clearLocal, saveServer: saveServer, start: start };
+  window.fomsErpAutosave = { clearLocal: clearLocal, saveServer: saveServer, start: start, isDirty: isDirty, recaptureBaseline: recaptureBaseline };
 
   // erp-order-shared.js가 surface를 준비한 뒤 시작. ERP 탭이 늦게 활성화되는
   // 경우(?open=erp-order 아님)도 탭 최초 표시에서 start.

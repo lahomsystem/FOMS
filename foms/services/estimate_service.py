@@ -389,6 +389,9 @@ def extract_estimate_data_from_order(order: Order) -> dict:
     deposit_amount = _extract_deposit_amount(sd)
     discount_amount = _extract_discount_amount(sd)
     balance_amount = _balance_after_payments(total_amount, deposit_amount, discount_amount)
+    # 출고가(grand total): 품목합 + 자유입력(배송 등) - 할인. 예약금은 빼지 않는다.
+    # total_amount == items_subtotal + free_input_amount 이므로 아래는 SPEC 공식과 동일.
+    shipping_price = max(0, total_amount - int(discount_amount or 0))
 
     return {
         "customer_name": customer_name,
@@ -404,6 +407,7 @@ def extract_estimate_data_from_order(order: Order) -> dict:
         "free_input_lines": free_input_lines,
         "free_input_amount": int(free_input_amount or 0),
         "total_amount": total_amount,
+        "shipping_price": shipping_price,
         "deposit_amount": int(deposit_amount or 0),
         "discount_amount": int(discount_amount or 0),
         "balance_amount": balance_amount,

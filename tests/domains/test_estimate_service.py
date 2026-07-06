@@ -248,6 +248,8 @@ def test_extract_estimate_data_applies_discount_to_balance():
     assert data["discount_amount"] == 50000
     assert data["balance_amount"] == 350000
     assert data["final_amount"] == 350000
+    # 출고가 = items_subtotal + free_input - discount = 500000 + 0 - 50000
+    assert data["shipping_price"] == 450000
 
 
 def test_extract_estimate_data_merges_manual_rows_without_total_by_default():
@@ -504,6 +506,8 @@ def test_extract_estimate_data_exposes_free_input_lines_between_subtotal_and_dep
     assert data["items_subtotal"] == 500000
     assert data["free_input_amount"] == 40000
     assert data["total_amount"] == 540000
+    # 출고가 = items_subtotal + free_input - discount = 500000 + 40000 - 0
+    assert data["shipping_price"] == 540000
     assert data["free_input_lines"] == [
         {"label": "운반비", "amount": 30000},
         {"label": "세금", "amount": 10000},

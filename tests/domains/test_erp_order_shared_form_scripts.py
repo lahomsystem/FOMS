@@ -653,7 +653,7 @@ def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
     assert "const itemPrice = getRowVal('price');" in conversion_block
     assert "allExtraInputs" not in conversion_block
     assert "getVal('erp-manager')" in conversion_block
-    assert "erpAppendConversionMoneyLine(text, '출고가', totals.items_total)" in conversion_block
+    assert "erpAppendConversionMoneyLine(text, '출고가', totals.shipping_price)" in conversion_block
     assert "erpAppendConversionMoneyLine(text, '예약금(선금)', totals.deposit_amount)" in conversion_block
     assert "_erpIsBalancePaymentConfirmed()" in conversion_block
     assert "const balanceSuffix = _erpIsBalancePaymentConfirmed() ? '(결제 완)' : '';" in conversion_block
@@ -801,7 +801,7 @@ def test_erp_amount_surfaces_read_modern_payment_deposit_and_stored_final() -> N
     for source in (measurement_desktop,):
         assert "rsd_payment.get('deposit') or rsd_payments.get('deposit', 0)" in source
         assert "rsd_payment.get('discount')" in source
-        assert "rsd_items_total - rsd_deposit - rsd_discount" in source
+        assert "rsd_items_total + rsd_free_input - rsd_deposit - rsd_discount" in source
 
 
 def test_edit_order_matched_estimate_card_uses_order_payment_payload() -> None:

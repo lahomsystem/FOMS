@@ -231,7 +231,7 @@
         <h2 class="foms-detail-section__title" id="foms-detail-amount-title">금액</h2>
       </div>
       {{ foms_kv_list([
-        {'label': '품목 합계', 'value': amount.items_total_label or '-'},
+        {'label': '출고가', 'value': amount.items_total_label or '-'},
         {'label': '계약금', 'value': amount.deposit_label or '-'},
       ] + ([{'label': '할인', 'value': amount.discount_label}] if amount.discount_label else []) + [
         {'label': '잔금', 'value': amount.balance_label or '-'},

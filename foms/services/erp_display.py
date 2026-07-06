@@ -26,6 +26,7 @@ __all__ = [
     "_ensure_dict",
     "_normalize_date_to_yyyymmdd",
     "apply_erp_display_fields",
+    "erp_shipping_price_from_structured",
     "_erp_get_urgent_flag",
     "_erp_get_stage",
     "_erp_has_media",
@@ -291,6 +292,35 @@ def erp_payment_amount_from_structured(sd: dict) -> int | None:
     if not isinstance(items, list) or not items:
         return None
     return sum(_erp_coerce_item_price_krw(it) for it in items)
+
+
+def erp_shipping_price_from_structured(sd: dict) -> int | None:
+    """
+    ERP 주문 structured_data에서 출고가(원)를 산출한다.
+
+    출고가 = max(0, 품목합 + 자유입력(배송 등) - 할인)로, 읽기전용 요약 표면
+    (대시보드 상세·모바일 상세·실측 readonly)이 표시하는 grand total이다.
+    잔금 = 출고가 - 예약금 관계를 유지하며, 저장된 totals.items_total(품목합)은
+    바꾸지 않고 파생만 한다.
+
+    Args:
+        sd: 주문 structured_data(JSONB) 딕셔너리.
+
+    Returns:
+        출고가(원) 정수. 품목합(items_total)을 산출할 수 없으면 None.
+    """
+    items_total = erp_payment_amount_from_structured(sd)
+    if items_total is None:
+        return None
+    # estimate_service를 함수 지역에서 import(모듈 로드 시 순환 import 방지) —
+    # dashboard_control_tower와 동일한 파생 소스 사용.
+    from foms.services.estimate_service import (
+        _extract_discount_amount,
+        _extract_free_input_amount,
+    )
+    free_input = _extract_free_input_amount(sd) if isinstance(sd, dict) else 0
+    discount = _extract_discount_amount(sd) if isinstance(sd, dict) else 0
+    return max(0, int(items_total) + int(free_input or 0) - int(discount or 0))
 
 
 def apply_erp_display_fields(order):

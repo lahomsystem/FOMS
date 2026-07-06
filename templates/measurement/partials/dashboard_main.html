@@ -794,11 +794,15 @@
                     {%- set rsd_payment = rsd.get('payment', {}) %}
                     {%- set rsd_payments = rsd.get('payments', {}) %}
                     {%- set rsd_items_total = rsd_totals.get('items_total', 0) | int %}
+                    {%- set rsd_free_input = rsd_totals.get('free_input_amount', 0) | int %}
                     {%- set rsd_deposit_raw = rsd_payment.get('deposit') or rsd_payments.get('deposit', 0) %}
                     {%- set rsd_deposit = (rsd_deposit_raw.get('amount', 0) if rsd_deposit_raw is mapping else rsd_deposit_raw) | int %}
                     {%- set rsd_discount_raw = rsd_payment.get('discount') or rsd_totals.get('discount_amount', 0) %}
                     {%- set rsd_discount = (rsd_discount_raw.get('amount', 0) if rsd_discount_raw is mapping else rsd_discount_raw) | int %}
-                    {%- set rsd_remain = [0, rsd_items_total - rsd_deposit - rsd_discount] | max %}
+                    {#- 출고가 = max(0, 품목합 + 자유입력(배송) - 할인). 읽기전용 요약 grand total. #}
+                    {%- set rsd_shipping_price = [0, rsd_items_total + rsd_free_input - rsd_discount] | max %}
+                    {#- 잔금 = max(0, 품목합 + 자유입력 - 예약금 - 할인). 출고가-예약금 관계 유지. #}
+                    {%- set rsd_remain = [0, rsd_items_total + rsd_free_input - rsd_deposit - rsd_discount] | max %}
                     <div class="row g-3 mb-3">
                       <div class="col-md-6">
                         <div class="card h-100">
@@ -912,7 +916,7 @@
                               class="d-flex justify-content-between justify-content-md-end align-items-center gap-2 w-100"
                               style="max-width: 16rem;">
                               <span class="fw-bold text-nowrap">출고가</span>
-                              <div class="badge bg-primary text-end erp-amount-value" id="erp-items-total">{% if rsd_items_total > 0 %}{{ "{:,}".format(rsd_items_total) }}원{% else %}0원{% endif %}</div>
+                              <div class="badge bg-primary text-end erp-amount-value" id="erp-items-total">{% if rsd_shipping_price > 0 %}{{ "{:,}".format(rsd_shipping_price) }}원{% else %}0원{% endif %}</div>
                             </div>
                             <div id="erp-deposit-section"
                               class="d-flex justify-content-between justify-content-md-end align-items-center gap-2 w-100"
@@ -925,7 +929,7 @@
                             </div>
                             <div id="erp-discount-section"
                               class="d-flex justify-content-between justify-content-md-end align-items-center gap-2 w-100"
-                              style="max-width: 16rem;{% if rsd_items_total <= 0 %} display: none;{% endif %}">
+                              style="max-width: 16rem; display: none;">
                               <label for="erp-discount-amount"
                                 class="form-label mb-0 fw-bold text-nowrap">할인</label>
                               <input type="text" id="erp-discount-amount" inputmode="numeric" placeholder="0원"
