@@ -1509,6 +1509,7 @@ def test_namespaced_erp_display_shim_preserves_canonical_contract() -> None:
         "_ensure_dict",
         "_normalize_date_to_yyyymmdd",
         "apply_erp_display_fields",
+        "erp_shipping_price_from_structured",
         "_erp_get_urgent_flag",
         "_erp_get_stage",
         "_erp_has_media",
