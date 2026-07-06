@@ -125,6 +125,7 @@
   var lastStrokeColor = '#000000';     // 다음 도형 기본 선 색
   var lastStrokeWidth = 2;             // 다음 도형 기본 선 굵기
   var editingTextarea = null;          // 활성 텍스트 오버레이(있으면 편집 중)
+  var suppressLogoHideUntil = 0;       // 로고 셀 열림 제스처의 같은 native click 억제 창(ms 타임스탬프)
 
   function currentSheet() { return state.sheets[current]; }
   function cloneSheet(s) { return JSON.parse(JSON.stringify(s)); }
@@ -190,7 +191,6 @@
     els.anno = document.getElementById('dws-anno');
     els.logoCell = document.getElementById('dws-logo-cell');
     els.logoImg = document.getElementById('dws-logo-img');
-    els.logoHint = document.getElementById('dws-logo-hint');
     els.logoPopup = document.getElementById('dws-logo-popup');
     els.saveBtn = document.getElementById('dws-btn-save');
     els.zoomRange = document.getElementById('dws-zoom-range');
@@ -214,6 +214,7 @@
     els.transferSubmit = document.getElementById('dws-transfer-submit');
     els.toastHost = document.getElementById('dws-toast-host');
     els.mobileNotice = document.getElementById('dws-mobile-notice');
+    els.modeHint = document.getElementById('dws-mode-hint');
   }
 
   function formCells() { return Array.prototype.slice.call(els.form.querySelectorAll('[data-dws-form-key]')); }
@@ -240,16 +241,11 @@
   }
 
   function renderLogo(logo) {
-    if (logo === 'haud') {
-      els.logoImg.src = '/static/images/haud-logo.png';
-      els.logoImg.hidden = false; els.logoHint.hidden = true;
-    } else if (logo === 'lahom') {
-      els.logoImg.src = '/static/images/lahom-logo.png';
-      els.logoImg.hidden = false; els.logoHint.hidden = true;
-    } else {
-      els.logoImg.hidden = true; els.logoImg.removeAttribute('src');
-      els.logoHint.hidden = !canSave;
-    }
+    // 라홈만 라홈 로고, 그 외 전부('haud'/'none'/빈값/기타)는 하우드 로고
+    // (하위호환: 기존 저장 'none'도 하우드로 렌더).
+    var src = (logo === 'lahom') ? '/static/images/lahom-logo.png' : '/static/images/haud-logo.png';
+    els.logoImg.src = src;
+    els.logoImg.hidden = false;
   }
 
   function syncEditable(el) {
@@ -646,12 +642,31 @@
     if (konvaLayer) {
       konvaLayer.find('.anno').forEach(function (n) { n.draggable(canSave && mode === 'select'); });
     }
+    updateModeHint(mode);
     syncSegActive();
+  }
+
+  /** 모드 무장 시 캔버스 상단 중앙 힌트 pill 표시/문구 갱신(select면 숨김). */
+  function updateModeHint(mode) {
+    if (!els.modeHint) { return; }
+    var msg = '';
+    if (mode === 'text') { msg = '텍스트: 넣을 위치를 클릭 · Esc 취소'; }
+    else if (isShapeType(mode)) { msg = '도형: 드래그해서 그리기 · Esc 취소'; }
+    if (msg) {
+      els.modeHint.textContent = msg;
+      els.modeHint.classList.add('dws-mode-hint-show');
+    } else {
+      els.modeHint.classList.remove('dws-mode-hint-show');
+    }
   }
 
   function onStageMouseDown(e) {
     if (!canSave) { return; }
-    if (editingTextarea) { editingTextarea.blur(); return; }   // 편집 중 바깥 클릭 = 커밋
+    if (editingTextarea) {
+      editingTextarea.blur();                 // 편집 중 바깥 클릭 = 동기 커밋(editingTextarea=null)
+      if (annoMode === 'select') { return; }  // select 모드면 커밋만(같은 클릭으로 다음 액션 없음)
+      // 텍스트/도형 모드면 아래로 계속 진행 — 같은 클릭이 다음 액션을 시작(좌표는 blur 후에도 유효)
+    }
     if (annoMode === 'text') {
       var pt = pointerLogical(e.evt);
       setAnnoMode('select');
@@ -679,11 +694,9 @@
     els.anno.style.pointerEvents = '';
     if (under && els.form.contains(under)) {
       var cell = under.closest('[data-dws-form-key]');
-      if (cell) { cell.focus(); return; }
-      if (under.closest('[data-dws-check]') || under.closest('#dws-logo-cell')) { return; }
+      if (cell) { cell.focus(); }
     }
-    var p = pointerLogical(evt);
-    createTextAt(p.x, p.y);
+    /* 빈 영역 더블클릭은 무동작 — 텍스트 생성 경로는 [텍스트] 버튼 + Ctrl+클릭으로 통일 */
   }
 
   /** 캔버스 빈 영역 클릭을 아래 폼 요소로 투과(폼 셀 편집·체크박스·로고 공존). */
@@ -703,6 +716,9 @@
     }
     var interactive = under.closest('[data-dws-check]') || under.closest('#dws-logo-cell');
     if (interactive) {
+      // 로고 셀 열림 제스처: 같은 제스처의 native click(target=캔버스)이 도큐먼트
+      // 핸들러의 로고 hide 분기를 타서 팝업이 즉시 닫히는 것을 막는다(450ms 창).
+      if (interactive.id === 'dws-logo-cell') { suppressLogoHideUntil = Date.now() + 450; }
       interactive.dispatchEvent(new MouseEvent('click', {
         bubbles: true, cancelable: true, view: window, clientX: evt.clientX, clientY: evt.clientY
       }));
@@ -1501,7 +1517,11 @@
     // 문서 레벨: 메뉴/팝업 바깥 클릭 닫기
     document.addEventListener('click', function (e) {
       if (!e.target.closest('.dws-dropdown')) { closeMenus(); }
-      if (!e.target.closest('#dws-logo-popup') && !e.target.closest('#dws-logo-cell')) { hideLogoPopup(); }
+      if (Date.now() < suppressLogoHideUntil) {
+        /* 로고 셀 열림 제스처의 같은 native click만 무시(이후 바깥 클릭은 정상 닫힘) */
+      } else if (!e.target.closest('#dws-logo-popup') && !e.target.closest('#dws-logo-cell')) {
+        hideLogoPopup();
+      }
     });
 
     // 문서 레벨 붙여넣기: 폼 셀 편집 중이면 plain text, 텍스트 편집 중이면 기본, 아니면 클립보드 이미지 업로드

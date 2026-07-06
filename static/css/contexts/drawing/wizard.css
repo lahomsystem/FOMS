@@ -441,23 +441,23 @@ html, body {
 .dws-form .dws-check,
 .dws-form .dws-c-cd-logo { pointer-events: auto; }
 
-/* ---- 시트 외곽 테두리(검정 3px) (40,38)-(1436,997) --------------------- */
+/* ---- 시트 외곽 테두리(검정 3px) (40,40)-(1440,1000) --------------------- */
 .dws-outer-border {
   position: absolute;
   left: 40px;
-  top: 38px;
-  width: 1396px;
-  height: 959px;
+  top: 40px;
+  width: 1400px;
+  height: 960px;
   border: 3px solid #000;
   pointer-events: none;
   z-index: 1;
 }
 
-/* ---- 헤더 체크리스트(좌상, 박스 없음) 텍스트 시작 (52,50), 줄높이 30px - */
+/* ---- 헤더 체크리스트(좌상, 박스 없음) 텍스트 시작 (48,43), 줄높이 26px - */
 .dws-header {
   position: absolute;
-  left: 52px;
-  top: 50px;
+  left: 48px;
+  top: 43px;
   display: flex;
   flex-direction: column;
   z-index: 4;
@@ -466,10 +466,10 @@ html, body {
   display: flex;
   align-items: center;
   gap: 14px;
-  height: 30px;
+  height: 26px;
   font-size: 22px;
   font-weight: 700;
-  line-height: 30px;
+  line-height: 26px;
   letter-spacing: 1.5px;
   white-space: nowrap;
 }
@@ -493,13 +493,13 @@ html, body {
 }
 .dws-check-on { color: #000; }
 
-/* ---- 페이지 박스(우상) (1368,44)-(1434,92) ------------------------------ */
+/* ---- 페이지 박스(우상) (1374,40)-(1440,89) 외곽 테두리와 상변·우변 밀착 - */
 .dws-pagebox {
   position: absolute;
-  left: 1368px;
-  top: 44px;
+  left: 1374px;
+  top: 40px;
   width: 66px;
-  height: 48px;
+  height: 49px;
   border: 3px solid #000;
   display: flex;
   align-items: center;
@@ -517,39 +517,38 @@ html, body {
   justify-content: center;
 }
 
-/* ---- 하단 표 검정 2.5px 외곽 프레임(오버레이) (40,897)-(1436,997) ------ */
+/* ---- 하단 표 상단 가로선(좌/우/하변은 외곽 테두리 공유) 40→1440 y899 2px  */
 .dws-table-frame {
   position: absolute;
   left: 40px;
-  top: 897px;
-  width: 1396px;
-  height: 100px;
-  border: 2.5px solid #000;
+  top: 899px;
+  width: 1400px;
+  height: 2px;
+  background: #000;
   pointer-events: none;
   z-index: 5;
-  background: transparent;
 }
 
 /* ---- 그리드 라인(검정 1px) ---------------------------------------------- */
 .dws-hline { position: absolute; height: 1px; background: #000; z-index: 2; }
 .dws-vline { position: absolute; width: 1px; background: #000; z-index: 2; }
 
-.dws-hline-ab { left: 40px;  top: 922px; width: 1396px; }  /* A|B (전폭) */
-.dws-hline-bc { left: 40px;  top: 947px; width: 1396px; }  /* B|C (전폭) */
-.dws-hline-cd { left: 310px; top: 972px; width: 414px; }   /* C|D 부분(손잡이/서랍 310–724) */
+.dws-hline-ab { left: 40px;  top: 924px; width: 1400px; }  /* A|B (전폭 40–1440) */
+.dws-hline-bc { left: 40px;  top: 949px; width: 1400px; }  /* B|C (전폭 40–1440) */
+.dws-hline-cd { left: 310px; top: 974px; width: 418px; }   /* C|D 부분(손잡이/서랍 310–728) */
 
-.dws-vline-full { top: 897px; height: 100px; }             /* 전행 관통 897–997 */
-.dws-vline-ab   { top: 897px; height: 50px; }              /* A/B 전용 897–947 */
-.dws-vline-cd   { top: 947px; height: 50px; }              /* C/D 전용 947–997 */
+.dws-vline-full { top: 899px; height: 101px; }             /* 전행 관통 899–1000 */
+.dws-vline-ab   { top: 899px; height: 50px; }              /* A/B 전용 899–949 */
+.dws-vline-cd   { top: 949px; height: 51px; }              /* C/D 전용 949–1000 */
 
-.dws-v-92   { left: 92px; }
-.dws-v-118  { left: 118px; }
-.dws-v-207  { left: 207px; }
+.dws-v-89   { left: 89px; }
+.dws-v-123  { left: 123px; }
+.dws-v-211  { left: 211px; }
 .dws-v-310  { left: 310px; }
-.dws-v-400  { left: 400px; }
-.dws-v-724  { left: 724px; }
+.dws-v-399  { left: 399px; }
+.dws-v-728  { left: 728px; }
 .dws-v-820  { left: 820px; }
-.dws-v-1226 { left: 1226px; }
+.dws-v-1227 { left: 1227px; }
 .dws-v-1330 { left: 1330px; }
 
 /* ---- 표 셀 공통 ---------------------------------------------------------- */
@@ -584,38 +583,38 @@ html, body {
   background: #eaf1ff;
 }
 
-/* ---- 표 A행 (top 897, h 25) --------------------------------------------- */
-.dws-c-a-l1       { left: 40px;   top: 897px; width: 78px;  height: 25px; }
-.dws-c-a-l2       { left: 118px;  top: 897px; width: 89px;  height: 25px; }
-.dws-c-a-l3       { left: 207px;  top: 897px; width: 103px; height: 25px; }
-.dws-c-a-l4       { left: 310px;  top: 897px; width: 90px;  height: 25px; }
-.dws-c-a-product  { left: 400px;  top: 897px; width: 324px; height: 25px; }
-.dws-c-a-l5       { left: 724px;  top: 897px; width: 96px;  height: 25px; }
-.dws-c-a-sitespec { left: 820px;  top: 897px; width: 406px; height: 25px; }
-.dws-c-a-l6       { left: 1226px; top: 897px; width: 104px; height: 25px; }
-.dws-c-a-sales    { left: 1330px; top: 897px; width: 106px; height: 25px; }
+/* ---- 표 A행 (top 899, h 25) --------------------------------------------- */
+.dws-c-a-l1       { left: 40px;   top: 899px; width: 83px;  height: 25px; }
+.dws-c-a-l2       { left: 123px;  top: 899px; width: 88px;  height: 25px; }
+.dws-c-a-l3       { left: 211px;  top: 899px; width: 99px;  height: 25px; }
+.dws-c-a-l4       { left: 310px;  top: 899px; width: 89px;  height: 25px; }
+.dws-c-a-product  { left: 399px;  top: 899px; width: 329px; height: 25px; }
+.dws-c-a-l5       { left: 728px;  top: 899px; width: 92px;  height: 25px; }
+.dws-c-a-sitespec { left: 820px;  top: 899px; width: 407px; height: 25px; }
+.dws-c-a-l6       { left: 1227px; top: 899px; width: 103px; height: 25px; }
+.dws-c-a-sales    { left: 1330px; top: 899px; width: 110px; height: 25px; }
 
-/* ---- 표 B행 (top 922, h 25) --------------------------------------------- */
-.dws-c-b-cdate    { left: 40px;   top: 922px; width: 78px;  height: 25px; }
-.dws-c-b-cname    { left: 118px;  top: 922px; width: 89px;  height: 25px; }
-.dws-c-b-phone    { left: 207px;  top: 922px; width: 103px; height: 25px; }
-.dws-c-b-l1       { left: 310px;  top: 922px; width: 90px;  height: 25px; }
-.dws-c-b-color    { left: 400px;  top: 922px; width: 324px; height: 25px; }
-.dws-c-b-l2       { left: 724px;  top: 922px; width: 96px;  height: 25px; }
-.dws-c-b-w300     { left: 820px;  top: 922px; width: 406px; height: 25px; }
-.dws-c-b-l3       { left: 1226px; top: 922px; width: 104px; height: 25px; }
-.dws-c-b-mphone   { left: 1330px; top: 922px; width: 106px; height: 25px; }
+/* ---- 표 B행 (top 924, h 25) --------------------------------------------- */
+.dws-c-b-cdate    { left: 40px;   top: 924px; width: 83px;  height: 25px; }
+.dws-c-b-cname    { left: 123px;  top: 924px; width: 88px;  height: 25px; }
+.dws-c-b-phone    { left: 211px;  top: 924px; width: 99px;  height: 25px; }
+.dws-c-b-l1       { left: 310px;  top: 924px; width: 89px;  height: 25px; }
+.dws-c-b-color    { left: 399px;  top: 924px; width: 329px; height: 25px; }
+.dws-c-b-l2       { left: 728px;  top: 924px; width: 92px;  height: 25px; }
+.dws-c-b-w300     { left: 820px;  top: 924px; width: 407px; height: 25px; }
+.dws-c-b-l3       { left: 1227px; top: 924px; width: 103px; height: 25px; }
+.dws-c-b-mphone   { left: 1330px; top: 924px; width: 110px; height: 25px; }
 
-/* ---- 표 C/D행 (C top 947, D top 972, h 25 / span h 50) ------------------ */
-.dws-c-cd-addrlabel  { left: 40px;   top: 947px; width: 52px;  height: 50px; }
-.dws-c-cd-addr       { left: 92px;   top: 947px; width: 218px; height: 50px; }
-.dws-c-c-handlelabel { left: 310px;  top: 947px; width: 90px;  height: 25px; }
-.dws-c-c-handle      { left: 400px;  top: 947px; width: 324px; height: 25px; }
-.dws-c-d-drawerlabel { left: 310px;  top: 972px; width: 90px;  height: 25px; }
-.dws-c-d-drawer      { left: 400px;  top: 972px; width: 324px; height: 25px; }
-.dws-c-cd-etclabel   { left: 724px;  top: 947px; width: 96px;  height: 50px; }
-.dws-c-cd-misc       { left: 820px;  top: 947px; width: 406px; height: 50px; }
-.dws-c-cd-logo       { left: 1226px; top: 947px; width: 210px; height: 50px; }
+/* ---- 표 C/D행 (C top 949, D top 974 / span h 51) ------------------------ */
+.dws-c-cd-addrlabel  { left: 40px;   top: 949px; width: 49px;  height: 51px; }
+.dws-c-cd-addr       { left: 89px;   top: 949px; width: 221px; height: 51px; }
+.dws-c-c-handlelabel { left: 310px;  top: 949px; width: 89px;  height: 25px; }
+.dws-c-c-handle      { left: 399px;  top: 949px; width: 329px; height: 25px; }
+.dws-c-d-drawerlabel { left: 310px;  top: 974px; width: 89px;  height: 26px; }
+.dws-c-d-drawer      { left: 399px;  top: 974px; width: 329px; height: 26px; }
+.dws-c-cd-etclabel   { left: 728px;  top: 949px; width: 92px;  height: 51px; }
+.dws-c-cd-misc       { left: 820px;  top: 949px; width: 407px; height: 51px; }
+.dws-c-cd-logo       { left: 1227px; top: 949px; width: 213px; height: 51px; }
 
 /* ---- 로고 셀 ------------------------------------------------------------- */
 .dws-c-cd-logo {
@@ -637,20 +636,18 @@ html, body {
 }
 .dws-logo-img { max-width: 96%; max-height: 88%; object-fit: contain; }
 .dws-logo-img[hidden] { display: none; }
-.dws-logo-hint { font-size: 12px; color: #b7bcc2; }
-.dws-logo-hint[hidden] { display: none; }
 
-/* ---- DREW 라인 (…-1436, 1002-1030) -------------------------------------- */
+/* ---- DREW 라인 (right 1440 정렬, y 1006–1029, 18px) --------------------- */
 .dws-drew {
   position: absolute;
-  left: 836px;
-  top: 1002px;
+  right: 38px;
+  top: 1006px;
   width: 600px;
-  height: 28px;
+  height: 23px;
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 700;
   color: #111418;
 }
@@ -746,6 +743,31 @@ html, body {
 /* ============================================================================
    미니 툴바 / 팝업 / 다이얼로그 / 토스트 / 모바일
    ============================================================================ */
+/* ---- 모드 무장 안내 힌트(플로팅 pill, 캔버스 상단 중앙, 다크 캡슐) -------- */
+.dws-mode-hint {
+  position: fixed;
+  top: 108px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 82;
+  padding: 7px 16px;
+  background: rgba(30, 30, 32, 0.85);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  color: #f5f5f7;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  border: 0.5px solid rgba(255, 255, 255, 0.12);
+  border-radius: 980px;
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.34);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+.dws-mode-hint.dws-mode-hint-show { opacity: 1; }
+
 .dws-minitoolbar {
   position: fixed;
   z-index: 80;

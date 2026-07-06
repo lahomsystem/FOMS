@@ -124,12 +124,15 @@ def _format_construction_date(order: Any, sd: dict[str, Any]) -> str:
 
 
 def _resolve_logo(manager_name: str) -> str:
-    """발주사 로고 키: '하우드'→'haud', '라홈'→'lahom', 그 외 'none' (전달 라우팅 규칙 동일)."""
-    if "하우드" in manager_name:
-        return "haud"
+    """도면 양식 로고 키: 발주사명에 '라홈' 포함 → 'lahom', 그 외 전부 → 'haud'.
+
+    하우드/미지정/기타 발주사는 모두 하우드 로고를 쓴다('없음' 상태 폐지).
+    전달 라우팅 규칙과 별개로, 도면 양식 로고는 라홈만 라홈 로고이고 나머지는
+    전부 하우드 로고로 렌더한다.
+    """
     if "라홈" in manager_name:
         return "lahom"
-    return "none"
+    return "haud"
 
 
 def build_wizard_defaults(order: Any, sd: dict[str, Any], current_user: Any) -> dict[str, Any]:

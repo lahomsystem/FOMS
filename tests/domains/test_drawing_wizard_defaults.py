@@ -108,12 +108,17 @@ def test_defaults_all_blank_when_no_items():
     assert result["customer_name"] == "홍길동"
 
 
-def test_defaults_logo_lahom_and_none():
+def test_defaults_logo_lahom_only_else_haud():
+    """발주사명에 '라홈' 포함 → lahom, 그 외 전부(하우드/기타/미지정) → haud."""
     lahom = build_wizard_defaults(_order(), {"parties": {"manager": {"name": "라홈 이영업"}}}, _user())
-    none_logo = build_wizard_defaults(_order(), {"parties": {"manager": {"name": "김영업"}}}, _user())
+    haud = build_wizard_defaults(_order(), {"parties": {"manager": {"name": "하우드 김성일"}}}, _user())
+    other = build_wizard_defaults(_order(), {"parties": {"manager": {"name": "김성일 실장"}}}, _user())
+    blank = build_wizard_defaults(_order(), {"parties": {}}, _user())
 
     assert lahom["logo"] == "lahom"
-    assert none_logo["logo"] == "none"
+    assert haud["logo"] == "haud"
+    assert other["logo"] == "haud"
+    assert blank["logo"] == "haud"
 
 
 def test_defaults_construction_date_falls_back_to_order_column():

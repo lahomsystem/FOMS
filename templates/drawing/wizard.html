@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>도면 마법사 — 주문 #{{ order.id }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20260706d">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20260706e">
 </head>
 <body>
   <div id="dws-root" data-order-id="{{ order.id }}">
@@ -151,14 +151,14 @@
             <div class="dws-hline dws-hline-bc"></div>
             <div class="dws-hline dws-hline-cd"></div>
             <div class="dws-vline dws-vline-full dws-v-310"></div>
-            <div class="dws-vline dws-vline-full dws-v-400"></div>
-            <div class="dws-vline dws-vline-full dws-v-724"></div>
+            <div class="dws-vline dws-vline-full dws-v-399"></div>
+            <div class="dws-vline dws-vline-full dws-v-728"></div>
             <div class="dws-vline dws-vline-full dws-v-820"></div>
-            <div class="dws-vline dws-vline-full dws-v-1226"></div>
-            <div class="dws-vline dws-vline-ab dws-v-118"></div>
-            <div class="dws-vline dws-vline-ab dws-v-207"></div>
+            <div class="dws-vline dws-vline-full dws-v-1227"></div>
+            <div class="dws-vline dws-vline-ab dws-v-123"></div>
+            <div class="dws-vline dws-vline-ab dws-v-211"></div>
             <div class="dws-vline dws-vline-ab dws-v-1330"></div>
-            <div class="dws-vline dws-vline-cd dws-v-92"></div>
+            <div class="dws-vline dws-vline-cd dws-v-89"></div>
 
             <!-- 표 A행 -->
             <div class="dws-cell dws-cell-label dws-c-a-l1">시공일자</div>
@@ -196,7 +196,6 @@
             <div class="dws-cell dws-c-cd-logo" id="dws-logo-cell" data-dws-logo>
               <div class="dws-logo-box">
                 <img class="dws-logo-img" id="dws-logo-img" alt="발주사 로고" hidden>
-                <span class="dws-logo-hint dws-ui" id="dws-logo-hint" hidden>로고 없음(클릭)</span>
               </div>
             </div>
 
@@ -210,6 +209,9 @@
         </div>
       </div>
     </div>
+
+    <!-- ================= 모드 안내 힌트(플로팅) ================= -->
+    <div class="dws-mode-hint dws-ui" id="dws-mode-hint" aria-live="polite"></div>
 
     <!-- ================= 선택 객체 미니 툴바(플로팅) ================= -->
     <div class="dws-minitoolbar dws-ui" id="dws-minitoolbar" hidden>
@@ -249,7 +251,6 @@
     <div class="dws-popup dws-ui" id="dws-logo-popup" hidden>
       <button type="button" class="dws-popup-item" data-logo="haud">하우드</button>
       <button type="button" class="dws-popup-item" data-logo="lahom">라홈</button>
-      <button type="button" class="dws-popup-item" data-logo="none">없음</button>
     </div>
 
     <!-- ================= 도면 전달 다이얼로그 ================= -->
@@ -290,6 +291,6 @@
 
   <script id="drawing-wizard-config" type="application/json">{{ wizard_config|tojson }}</script>
   <script src="{{ url_for('static', filename='vendor/konva.min.js') }}?v=20260706b" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260706c" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260706e" defer></script>
 </body>
 </html>
