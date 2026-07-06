@@ -39,6 +39,7 @@ _PTC_ROOT_ALLOWLIST: frozenset[str] = frozenset(
         ".gcloudignore",
         ".gitattributes",
         ".gitignore",
+        ".mcp.json",
         ".python-version",
         "AGENTS.md",
         "alembic.ini",
