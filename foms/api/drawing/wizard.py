@@ -51,6 +51,8 @@ _ASSET_RAW_MIMETYPES = {
 }
 _ALLOWED_TEXT_SIZES = (14, 17, 20, 24, 28)
 _ALLOWED_ALIGNS = ('left', 'center')
+_ALLOWED_OBJECT_TYPES = ('text', 'image', 'rect', 'ellipse', 'arrow', 'line')
+_ALLOWED_STROKE_WIDTHS = (1, 2, 3)
 _COLOR_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
 
 _MSG_NOT_FOUND = '주문을 찾을 수 없습니다.'
@@ -131,13 +133,65 @@ def _validate_image_object(obj: dict, order_id: int) -> str | None:
     return None
 
 
+def _validate_rotation(obj: dict) -> str | None:
+    """공통 optional ``rotation``(있으면 -360~360 숫자). 없으면 통과."""
+    if 'rotation' in obj and not _is_number_in_range(obj.get('rotation'), -360, 360):
+        return '객체 회전 값이 올바르지 않습니다.'
+    return None
+
+
+def _validate_stroke(obj: dict) -> str | None:
+    """도형 공통 선 속성: ``stroke`` ``#rrggbb`` + ``strokeWidth`` in (1,2,3)."""
+    stroke = obj.get('stroke')
+    if not isinstance(stroke, str) or not _COLOR_RE.match(stroke):
+        return '도형 선 색상 값이 올바르지 않습니다.'
+    stroke_width = obj.get('strokeWidth')
+    if isinstance(stroke_width, bool) or stroke_width not in _ALLOWED_STROKE_WIDTHS:
+        return '도형 선 굵기 값이 올바르지 않습니다.'
+    return None
+
+
+def _validate_shape_object(obj: dict) -> str | None:
+    """rect/ellipse 필드 검증(높이 범위 + 선 속성). x/y/w 는 공통에서 검증됨."""
+    if not _is_number_in_range(obj.get('h'), 1, 3000):
+        return '도형 높이가 범위를 벗어났습니다.'
+    return _validate_stroke(obj)
+
+
+def _validate_line_object(obj: dict) -> str | None:
+    """arrow/line 필드 검증. ``points`` 숫자 4개(각 -2000~4000) + 선 속성.
+
+    x/y/w 는 요구하지 않으며, 존재하면 숫자인지만 확인한다.
+    """
+    points = obj.get('points')
+    if not isinstance(points, list) or len(points) != 4:
+        return '도형 점 좌표(points)는 숫자 4개여야 합니다.'
+    for coord in points:
+        if not _is_number_in_range(coord, -2000, 4000):
+            return '도형 점 좌표가 범위를 벗어났습니다.'
+    for opt_key in ('x', 'y', 'w'):
+        if opt_key in obj and not _is_number(obj.get(opt_key)):
+            return '도형 좌표 값이 올바르지 않습니다.'
+    return _validate_stroke(obj)
+
+
 def _validate_object(obj, order_id: int) -> str | None:
-    """객체 공통 필드(type/x/y/w) 검증 후 유형별 검증에 위임한다."""
+    """객체 공통 필드(type/rotation)를 검증한 뒤 유형별 검증에 위임한다.
+
+    허용 유형은 6종(text/image/rect/ellipse/arrow/line). text/image/rect/ellipse 는
+    공통 x/y/w 범위를 요구하고, arrow/line 은 ``points`` 기반이라 x/y/w 를 요구하지 않는다.
+    ``rotation`` 은 모든 유형 공통 optional(-360~360).
+    """
     if not isinstance(obj, dict):
         return '객체 형식이 올바르지 않습니다.'
     obj_type = obj.get('type')
-    if obj_type not in ('text', 'image'):
+    if obj_type not in _ALLOWED_OBJECT_TYPES:
         return '지원하지 않는 객체 유형입니다.'
+    rotation_error = _validate_rotation(obj)
+    if rotation_error:
+        return rotation_error
+    if obj_type in ('arrow', 'line'):
+        return _validate_line_object(obj)
     if not _is_number_in_range(obj.get('x'), -2000, 4000):
         return '객체 x 좌표가 범위를 벗어났습니다.'
     if not _is_number_in_range(obj.get('y'), -2000, 4000):
@@ -146,7 +200,9 @@ def _validate_object(obj, order_id: int) -> str | None:
         return '객체 너비가 범위를 벗어났습니다.'
     if obj_type == 'text':
         return _validate_text_object(obj)
-    return _validate_image_object(obj, order_id)
+    if obj_type == 'image':
+        return _validate_image_object(obj, order_id)
+    return _validate_shape_object(obj)
 
 
 def _validate_form(form: dict) -> str | None:

@@ -1,11 +1,13 @@
 /* ============================================================================
- * 도면 마법사 (Drawing Wizard) — 프론트 에디터
+ * 도면 마법사 (Drawing Wizard) — 프론트 에디터 (v2 Konva 주석 엔진)
  *
- * 독립 페이지 에디터. 스테이지(논리 1478x1040) 위에 양식 폼 + 자유 객체(텍스트/
- * 이미지)를 배치하고, 상태를 structured_data['drawing_wizard']에 저장한다.
- * 내보내기는 html2canvas(scale=2)로 PNG 생성 → 다운로드 또는 기존 전달 API 재사용.
+ * 독립 페이지 에디터. 스테이지(논리 1478x1040) 위에 양식 폼(DOM) + 자유 주석
+ * 레이어(Konva Stage)를 배치하고, 상태를 structured_data['drawing_wizard']에 저장한다.
+ * 주석은 텍스트/이미지/사각형/원/화살표/선 6종을 지원하며 선택·이동·리사이즈·회전이
+ * 가능하다. 내보내기는 폼(html2canvas scale=2) + Konva(toCanvas pixelRatio=2)를 오프스크린
+ * 캔버스에 합성해 PNG 생성 → 다운로드 또는 기존 전달 API 재사용.
  *
- * 밴드: config/api → state/history → form render → objects → toolbar →
+ * 밴드: config/api → state/history → form render → anno(Konva) → toolbar →
  *       save/load → export/transfer → init
  * ========================================================================== */
 (function () {
@@ -35,8 +37,11 @@
   var STAGE_W = 1478;
   var STAGE_H = 1040;
   var ALLOWED_SIZES = [14, 17, 20, 24, 28];
+  var ALLOWED_STROKES = [1, 2, 3];
+  var SHAPE_TYPES = ['rect', 'ellipse', 'arrow', 'line'];
   var CHECK_KEYS = ['d_site', 'd_double', 'd_order', 'p_prod', 'p_glass', 'p_light', 'p_handle', 'p_etc'];
   var PRESETS = { SR: '[SR]', EP: '[EP]', DOOR: '[DOOR]', ROD: '[옷봉]' };
+  var ANNO_FONT = '"Malgun Gothic","맑은 고딕","Dotum","돋움",sans-serif';
   var _html2canvasPromise = null;
 
   /**
@@ -79,6 +84,21 @@
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
   function num(v, def) { return (typeof v === 'number' && isFinite(v)) ? v : (def || 0); }
 
+  /* 주석 필드 정규화 헬퍼(직렬화·역직렬화·노드 생성 공용) */
+  function sizeOrDefault(s) { return (ALLOWED_SIZES.indexOf(s) >= 0) ? s : 20; }
+  function colorOrDefault(c) { return /^#[0-9a-fA-F]{6}$/.test(c) ? c : '#000000'; }
+  function strokeOrDefault(s) { return (ALLOWED_STROKES.indexOf(s) >= 0) ? s : 2; }
+  function clampCoord(v) { return clamp(Math.round(num(v)), -2000, 4000); }
+  function clampDim(v) { return clamp(Math.round(num(v, 1)), 1, 3000); }
+  function normalizeRotation(r) { r = Math.round(num(r, 0)); return ((r % 360) + 360) % 360; }
+  function normalizePoints(pts) {
+    var out = [];
+    var src = Array.isArray(pts) ? pts : [];
+    for (var i = 0; i < 4; i++) { out.push(clamp(Math.round(num(src[i])), -2000, 4000)); }
+    return out;
+  }
+  function isShapeType(t) { return SHAPE_TYPES.indexOf(t) >= 0; }
+
   /* ========================================================================
    * [2] state / history
    * ====================================================================== */
@@ -89,12 +109,22 @@
   var canSave = !!CONFIG.can_save;
   var defaults = {};
   var customerName = '';
-  var selected = null;
+  var selected = null;                 // 선택된 주석 객체 id (Konva 노드와 동기)
   var zoom = 1;
   var imageRatioLock = true;
   var undoStack = [];
   var redoStack = [];
   var lastArrowUndoTs = 0;
+
+  /* Konva 런타임 상태 */
+  var konvaStage = null;
+  var konvaLayer = null;
+  var transformer = null;
+  var nodeById = {};                   // objId → Konva 노드
+  var annoMode = 'select';             // 'select'|'text'|'rect'|'ellipse'|'arrow'|'line'
+  var lastStrokeColor = '#000000';     // 다음 도형 기본 선 색
+  var lastStrokeWidth = 2;             // 다음 도형 기본 선 굵기
+  var editingTextarea = null;          // 활성 텍스트 오버레이(있으면 편집 중)
 
   function currentSheet() { return state.sheets[current]; }
   function cloneSheet(s) { return JSON.parse(JSON.stringify(s)); }
@@ -128,7 +158,7 @@
     state.sheets[current] = undoStack.pop();
     deselect();
     renderForm();
-    renderObjects();
+    rebuildAnno();
     markDirty();
   }
 
@@ -138,7 +168,7 @@
     state.sheets[current] = redoStack.pop();
     deselect();
     renderForm();
-    renderObjects();
+    rebuildAnno();
     markDirty();
   }
 
@@ -157,7 +187,7 @@
     els.wrap = document.getElementById('dws-stage-wrap');
     els.stage = document.getElementById('dws-stage');
     els.form = document.getElementById('dws-form');
-    els.objects = document.getElementById('dws-objects');
+    els.anno = document.getElementById('dws-anno');
     els.logoCell = document.getElementById('dws-logo-cell');
     els.logoImg = document.getElementById('dws-logo-img');
     els.logoHint = document.getElementById('dws-logo-hint');
@@ -167,14 +197,17 @@
     els.zoomLabel = document.getElementById('dws-zoom-label');
     els.fileInput = document.getElementById('dws-file-input');
     els.presetMenu = document.getElementById('dws-preset-menu');
+    els.shapeMenu = document.getElementById('dws-shape-menu');
     els.exportMenu = document.getElementById('dws-export-menu');
     els.mt = document.getElementById('dws-minitoolbar');
     els.mtText = document.getElementById('dws-mt-text');
     els.mtImage = document.getElementById('dws-mt-image');
+    els.mtShape = document.getElementById('dws-mt-shape');
     els.mtSize = document.getElementById('dws-mt-size');
     els.mtBold = document.getElementById('dws-mt-bold');
     els.mtAlign = document.getElementById('dws-mt-align');
     els.mtRatio = document.getElementById('dws-mt-ratio');
+    els.mtStroke = document.getElementById('dws-mt-stroke');
     els.transferDialog = document.getElementById('dws-transfer-dialog');
     els.transferNote = document.getElementById('dws-transfer-note');
     els.transferMode = document.getElementById('dws-transfer-mode');
@@ -235,7 +268,7 @@
     markDirty();
   }
 
-  /** 편집 리스너 배선(저장 권한 있을 때만). */
+  /** 편집 리스너 배선(저장 권한 있을 때만). 캔버스가 위에 있어 폼 클릭은 passthrough로 전달됨. */
   function wireFormEditing() {
     if (!canSave) { return; }
     if (els.form.getAttribute('data-dws-wired') === '1') { return; }
@@ -255,188 +288,506 @@
   }
 
   /* ========================================================================
-   * [4] objects render / interactions
+   * [4] anno layer (Konva Stage) — 렌더 / 상호작용 / 그리기 / 편집
    * ====================================================================== */
-  function objEl(id) { return els.objects.querySelector('[data-obj-id="' + id + '"]'); }
 
-  function renderObjects() {
-    els.objects.innerHTML = '';
-    (currentSheet().objects || []).forEach(function (o) {
-      els.objects.appendChild(o.type === 'text' ? buildTextEl(o) : buildImageEl(o));
+  /** Konva Stage/Layer/Transformer 생성 + 스테이지 레벨 이벤트 배선. */
+  function createKonva() {
+    konvaStage = new Konva.Stage({ container: els.anno, width: STAGE_W, height: STAGE_H });
+    konvaLayer = new Konva.Layer();
+    konvaStage.add(konvaLayer);
+
+    transformer = new Konva.Transformer({
+      rotateEnabled: true,
+      keepRatio: false,
+      enabledAnchors: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+      anchorSize: 10,
+      anchorStroke: '#1c62d6',
+      anchorFill: '#ffffff',
+      borderStroke: '#1c62d6',
+      borderStrokeWidth: 1.5,
+      rotateAnchorOffset: 24,
+      rotationSnaps: [0, 45, 90, 135, 180, 225, 270, 315],
+      rotationSnapTolerance: 6,
+      ignoreStroke: true
     });
-    applySelectionStyles();
+    konvaLayer.add(transformer);
+
+    konvaStage.on('mousedown', onStageMouseDown);
+    konvaStage.on('dblclick', onStageDblClick);
   }
 
-  function appendHandles(el, isImage) {
-    ['nw', 'ne', 'sw', 'se'].forEach(function (pos) {
-      var h = document.createElement('div');
-      h.className = 'dws-handle dws-handle-' + pos + ' dws-ui';
-      if (pos === 'se') { h.className += ' dws-resize-handle'; }
-      el.appendChild(h);
-    });
+  /** 네이티브 이벤트 → 스테이지 논리 좌표(줌 역보정). */
+  function pointerLogical(evt) {
+    var rect = els.anno.getBoundingClientRect();
+    return { x: (evt.clientX - rect.left) / zoom, y: (evt.clientY - rect.top) / zoom };
   }
 
-  function buildTextEl(o) {
-    var el = document.createElement('div');
-    el.className = 'dws-obj dws-obj-text';
-    el.setAttribute('data-obj-id', o.id);
-    el.style.left = o.x + 'px';
-    el.style.top = o.y + 'px';
-    el.style.width = o.w + 'px';
-    el.style.fontSize = o.size + 'px';
-    el.style.color = o.color;
-    el.style.fontWeight = o.bold ? '700' : '400';
-    el.style.textAlign = o.align;
-    el.style.zIndex = '20';
-    el.textContent = o.text;
-    appendHandles(el, false);
-    if (canSave) {
-      makeDraggable(el, o);
-      wireResize(el, o);
-      el.addEventListener('dblclick', function (e) { e.stopPropagation(); startEditText(o.id, false); });
+  /* ---- 노드 빌더 ---------------------------------------------------------- */
+  function buildNode(o) {
+    switch (o.type) {
+      case 'text': return buildText(o);
+      case 'image': return buildImage(o);
+      case 'rect': return buildRect(o);
+      case 'ellipse': return buildEllipse(o);
+      case 'arrow': return buildArrow(o);
+      case 'line': return buildLine(o);
+      default: return null;
     }
-    return el;
   }
 
-  function buildImageEl(o) {
-    var el = document.createElement('div');
-    el.className = 'dws-obj dws-obj-image';
-    el.setAttribute('data-obj-id', o.id);
-    el.style.left = o.x + 'px';
-    el.style.top = o.y + 'px';
-    el.style.width = o.w + 'px';
-    el.style.height = o.h + 'px';
-    el.style.zIndex = '10';
-    var img = document.createElement('img');
-    img.src = viewUrl(o.key);
-    img.alt = '';
-    img.draggable = false;
-    el.appendChild(img);
-    appendHandles(el, true);
-    if (canSave) { makeDraggable(el, o); wireResize(el, o); }
-    return el;
+  function tagNode(node, o) {
+    node.setAttr('annoType', o.type);
+    node.setAttr('objId', o.id);
+    wireNode(node);
+    return node;
   }
 
-  function positionObjEl(o) {
-    var el = objEl(o.id);
-    if (!el) { return; }
-    el.style.left = o.x + 'px';
-    el.style.top = o.y + 'px';
-    el.style.width = o.w + 'px';
-    if (o.type === 'image') { el.style.height = o.h + 'px'; }
-  }
-
-  function makeDraggable(el, o) {
-    el.addEventListener('pointerdown', function (e) {
-      if (e.target && e.target.classList && e.target.classList.contains('dws-resize-handle')) { return; }
-      if (el.classList.contains('dws-editing')) { return; }
-      if (e.button !== 0) { return; }
-      selectObject(o.id);
-      var sx = e.clientX, sy = e.clientY, ox = o.x, oy = o.y, moved = false;
-      try { el.setPointerCapture(e.pointerId); } catch (_) { /* noop */ }
-      function mv(ev) {
-        var dx = (ev.clientX - sx) / zoom, dy = (ev.clientY - sy) / zoom;
-        if (!moved && (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5)) { recordUndo(); moved = true; }
-        if (!moved) { return; }
-        o.x = Math.round(ox + dx);
-        o.y = Math.round(oy + dy);
-        el.style.left = o.x + 'px';
-        el.style.top = o.y + 'px';
-        positionMiniToolbar(o.id);
-      }
-      function up() {
-        el.removeEventListener('pointermove', mv);
-        el.removeEventListener('pointerup', up);
-        try { el.releasePointerCapture(e.pointerId); } catch (_) { /* noop */ }
-        if (moved) { markDirty(); }
-      }
-      el.addEventListener('pointermove', mv);
-      el.addEventListener('pointerup', up);
+  function buildText(o) {
+    var node = new Konva.Text({
+      x: num(o.x), y: num(o.y), width: num(o.w, 220), text: String(o.text || ''),
+      fontSize: sizeOrDefault(o.size), fill: colorOrDefault(o.color), fontFamily: ANNO_FONT,
+      fontStyle: o.bold ? 'bold' : 'normal', align: (o.align === 'center') ? 'center' : 'left',
+      lineHeight: 1.25, rotation: num(o.rotation), wrap: 'word', name: 'anno', draggable: canSave
     });
+    tagNode(node, o);
+    node.on('dblclick', function (e) { e.cancelBubble = true; if (canSave) { startEditText(node, false); } });
+    return node;
   }
 
-  function wireResize(el, o) {
-    var h = el.querySelector('.dws-resize-handle');
-    if (!h) { return; }
-    var isText = (o.type === 'text');
-    h.addEventListener('pointerdown', function (e) {
-      e.stopPropagation();
-      if (e.button !== 0) { return; }
-      selectObject(o.id);
-      var sx = e.clientX, sy = e.clientY, ow = o.w, oh = o.h, aspect = ow / (oh || 1), moved = false;
-      try { h.setPointerCapture(e.pointerId); } catch (_) { /* noop */ }
-      function mv(ev) {
-        if (!moved) { recordUndo(); moved = true; }
-        var dx = (ev.clientX - sx) / zoom, dy = (ev.clientY - sy) / zoom;
-        if (isText) {
-          var tw = Math.max(40, Math.round(ow + dx));
-          o.w = tw;
-          el.style.width = tw + 'px';
-          positionMiniToolbar(o.id);
-          return;
-        }
-        var lock = ev.shiftKey ? !imageRatioLock : imageRatioLock;
-        var w = Math.max(20, Math.round(ow + dx));
-        var hgt = lock ? Math.max(20, Math.round(w / aspect)) : Math.max(20, Math.round(oh + dy));
-        o.w = w; o.h = hgt;
-        el.style.width = w + 'px';
-        el.style.height = hgt + 'px';
-        positionMiniToolbar(o.id);
-      }
-      function up() {
-        h.removeEventListener('pointermove', mv);
-        h.removeEventListener('pointerup', up);
-        try { h.releasePointerCapture(e.pointerId); } catch (_) { /* noop */ }
-        if (moved) { markDirty(); }
-      }
-      h.addEventListener('pointermove', mv);
-      h.addEventListener('pointerup', up);
+  function buildImage(o) {
+    var node = new Konva.Image({
+      x: num(o.x), y: num(o.y), width: num(o.w, 200), height: num(o.h, 150),
+      rotation: num(o.rotation), image: undefined, name: 'anno', draggable: canSave
     });
+    tagNode(node, o);
+    if (o.key) {
+      var img = new Image();
+      img.onload = function () { node.image(img); konvaLayer.batchDraw(); };
+      img.onerror = function () { /* 로드 실패 시 빈 프레임 유지 */ };
+      img.src = viewUrl(o.key);
+    }
+    return node;
   }
 
-  function selectObject(id) {
-    selected = id;
-    applySelectionStyles();
-    showMiniToolbar(id);
+  function buildRect(o) {
+    var node = new Konva.Rect({
+      x: num(o.x), y: num(o.y), width: num(o.w, 80), height: num(o.h, 60),
+      stroke: colorOrDefault(o.stroke), strokeWidth: strokeOrDefault(o.strokeWidth),
+      rotation: num(o.rotation), fill: 'rgba(0,0,0,0.001)', hitStrokeWidth: 12,
+      name: 'anno', draggable: canSave
+    });
+    return tagNode(node, o);
+  }
+
+  function buildEllipse(o) {
+    var rx = num(o.w, 80) / 2, ry = num(o.h, 60) / 2;
+    var node = new Konva.Ellipse({
+      x: num(o.x) + rx, y: num(o.y) + ry, radiusX: Math.max(1, rx), radiusY: Math.max(1, ry),
+      stroke: colorOrDefault(o.stroke), strokeWidth: strokeOrDefault(o.strokeWidth),
+      rotation: num(o.rotation), fill: 'rgba(0,0,0,0.001)', hitStrokeWidth: 12,
+      name: 'anno', draggable: canSave
+    });
+    return tagNode(node, o);
+  }
+
+  function buildArrow(o) {
+    var pts = normalizePoints(o.points);
+    var node = new Konva.Arrow({
+      points: pts, stroke: colorOrDefault(o.stroke), strokeWidth: strokeOrDefault(o.strokeWidth),
+      fill: colorOrDefault(o.stroke), pointerLength: 12, pointerWidth: 12,
+      rotation: num(o.rotation), hitStrokeWidth: 12, name: 'anno', draggable: canSave
+    });
+    return tagNode(node, o);
+  }
+
+  function buildLine(o) {
+    var pts = normalizePoints(o.points);
+    var node = new Konva.Line({
+      points: pts, stroke: colorOrDefault(o.stroke), strokeWidth: strokeOrDefault(o.strokeWidth),
+      lineCap: 'round', lineJoin: 'round', rotation: num(o.rotation), hitStrokeWidth: 12,
+      name: 'anno', draggable: canSave
+    });
+    return tagNode(node, o);
+  }
+
+  /** 선택/드래그/변형 이벤트 공통 배선. */
+  function wireNode(node) {
+    if (!canSave) { return; }
+    node.on('mousedown', function (e) {
+      if (annoMode !== 'select') { return; }   // 그리기 모드면 스테이지 핸들러가 처리
+      e.cancelBubble = true;
+      selectById(node.getAttr('objId'));
+    });
+    node.on('dragstart', function () {
+      if (annoMode !== 'select') { node.stopDrag(); return; }
+      recordUndo();
+    });
+    node.on('dragmove', function () { positionMiniToolbar(); });
+    node.on('dragend', function () { commitNode(node); });
+    node.on('transformstart', function () { recordUndo(); });
+    node.on('transform', function () { applyLiveTransform(node); positionMiniToolbar(); });
+    node.on('transformend', function () { commitNode(node); });
+  }
+
+  /** 변형 중 scale → 실제 치수로 정규화(폰트/선굵기 왜곡 방지). */
+  function applyLiveTransform(node) {
+    var t = node.getAttr('annoType');
+    if (t === 'text') {
+      node.width(Math.max(30, node.width() * node.scaleX()));
+      node.scaleX(1); node.scaleY(1);
+    } else if (t === 'ellipse') {
+      node.radiusX(Math.max(4, node.radiusX() * node.scaleX()));
+      node.radiusY(Math.max(4, node.radiusY() * node.scaleY()));
+      node.scaleX(1); node.scaleY(1);
+    } else if (t === 'rect' || t === 'image') {
+      node.width(Math.max(8, node.width() * node.scaleX()));
+      node.height(Math.max(8, node.height() * node.scaleY()));
+      node.scaleX(1); node.scaleY(1);
+    }
+    /* arrow/line: scale/회전은 commit 시 절대 points로 baking */
+  }
+
+  /** 노드 → state 객체 역직렬화(드래그/변형 확정 시). */
+  function commitNode(node) {
+    var o = findObj(node.getAttr('objId'));
+    if (!o) { return; }
+    var t = node.getAttr('annoType');
+    if (t === 'text') {
+      o.x = Math.round(node.x()); o.y = Math.round(node.y());
+      o.w = Math.round(node.width()); o.rotation = normalizeRotation(node.rotation());
+    } else if (t === 'image' || t === 'rect') {
+      o.x = Math.round(node.x()); o.y = Math.round(node.y());
+      o.w = Math.round(node.width()); o.h = Math.round(node.height());
+      o.rotation = normalizeRotation(node.rotation());
+    } else if (t === 'ellipse') {
+      var rx = node.radiusX(), ry = node.radiusY();
+      o.x = Math.round(node.x() - rx); o.y = Math.round(node.y() - ry);
+      o.w = Math.round(rx * 2); o.h = Math.round(ry * 2);
+      o.rotation = normalizeRotation(node.rotation());
+    } else if (t === 'arrow' || t === 'line') {
+      var tr = node.getAbsoluteTransform();
+      var p = node.points();
+      var a = tr.point({ x: p[0], y: p[1] });
+      var b = tr.point({ x: p[2], y: p[3] });
+      node.points([a.x, a.y, b.x, b.y]);
+      node.position({ x: 0, y: 0 }); node.rotation(0); node.scale({ x: 1, y: 1 });
+      o.points = [Math.round(a.x), Math.round(a.y), Math.round(b.x), Math.round(b.y)];
+      o.rotation = 0;
+    }
+    markDirty();
+    konvaLayer.batchDraw();
+    positionMiniToolbar();
+  }
+
+  /** state.objects → Konva 노드 전체 재구성. */
+  function rebuildAnno() {
+    if (!konvaLayer) { return; }
+    transformer.nodes([]);
+    konvaLayer.find('.anno').forEach(function (n) { n.destroy(); });
+    nodeById = {};
+    (currentSheet().objects || []).forEach(function (o) {
+      var node = buildNode(o);
+      if (node) { konvaLayer.add(node); nodeById[o.id] = node; }
+    });
+    konvaLayer.find('.anno').forEach(function (n) { n.draggable(canSave && annoMode === 'select'); });
+    transformer.moveToTop();
+    konvaLayer.batchDraw();
+    if (selected && nodeById[selected]) { selectNode(nodeById[selected]); }
+    else if (selected) { deselect(); }
+  }
+
+  /* ---- 선택 / 미니툴바 ---------------------------------------------------- */
+  function selectById(id) { var node = nodeById[id]; if (node) { selectNode(node); } else { deselect(); } }
+
+  function selectNode(node) {
+    if (!node) { deselect(); return; }
+    selected = node.getAttr('objId');
+    var t = node.getAttr('annoType');
+    transformer.keepRatio(t === 'image' ? imageRatioLock : false);
+    transformer.nodes([node]);
+    transformer.moveToTop();
+    showMiniToolbar(node);
+    konvaLayer.batchDraw();
   }
 
   function deselect() {
     selected = null;
-    applySelectionStyles();
+    if (transformer) { transformer.nodes([]); }
     hideMiniToolbar();
     hideLogoPopup();
+    if (konvaLayer) { konvaLayer.batchDraw(); }
   }
 
-  function applySelectionStyles() {
-    Array.prototype.forEach.call(els.objects.querySelectorAll('.dws-obj'), function (el) {
-      el.classList.toggle('dws-selected', el.getAttribute('data-obj-id') === selected);
+  function showMiniToolbar(node) {
+    if (!canSave || !node) { hideMiniToolbar(); return; }
+    var t = node.getAttr('annoType');
+    var o = findObj(node.getAttr('objId'));
+    if (!o) { hideMiniToolbar(); return; }
+    els.mtText.hidden = (t !== 'text');
+    els.mtImage.hidden = (t !== 'image');
+    els.mtShape.hidden = !isShapeType(t);
+    els.mt.hidden = false;
+    if (t === 'text') { syncTextToolbar(o); }
+    else if (t === 'image') { syncImageToolbar(); }
+    else { syncShapeToolbar(o); }
+    positionMiniToolbar();
+  }
+
+  function hideMiniToolbar() { els.mt.hidden = true; }
+
+  function positionMiniToolbar() {
+    if (els.mt.hidden || !selected) { return; }
+    var node = nodeById[selected];
+    if (!node) { return; }
+    var box = node.getClientRect();
+    var annoRect = els.anno.getBoundingClientRect();
+    var screenTop = annoRect.top + box.y * zoom;
+    var screenBottom = screenTop + box.height * zoom;
+    var screenLeft = annoRect.left + box.x * zoom;
+    var top = screenTop - els.mt.offsetHeight - 8;
+    if (top < 8) { top = screenBottom + 8; }
+    var left = clamp(screenLeft, 8, window.innerWidth - els.mt.offsetWidth - 8);
+    els.mt.style.left = left + 'px';
+    els.mt.style.top = top + 'px';
+  }
+
+  function syncTextToolbar(o) {
+    els.mtSize.value = String(o.size);
+    Array.prototype.forEach.call(els.mtText.querySelectorAll('.dws-swatch'), function (sw) {
+      sw.classList.toggle('dws-active', sw.getAttribute('data-color').toLowerCase() === String(o.color).toLowerCase());
     });
+    els.mtBold.classList.toggle('dws-active', !!o.bold);
+    els.mtAlign.textContent = (o.align === 'center') ? '중' : '좌';
+    els.mtAlign.classList.toggle('dws-active', o.align === 'center');
+  }
+
+  function syncImageToolbar() {
+    els.mtRatio.textContent = '비율고정: ' + (imageRatioLock ? '켬' : '끔');
+  }
+
+  function syncShapeToolbar(o) {
+    Array.prototype.forEach.call(els.mtShape.querySelectorAll('.dws-swatch'), function (sw) {
+      sw.classList.toggle('dws-active', sw.getAttribute('data-shape-color').toLowerCase() === String(o.stroke).toLowerCase());
+    });
+    els.mtStroke.value = String(strokeOrDefault(o.strokeWidth));
+  }
+
+  function updateSelectedText(patch) {
+    var o = findObj(selected);
+    if (!o || o.type !== 'text') { return; }
+    recordUndo();
+    Object.keys(patch).forEach(function (k) { o[k] = patch[k]; });
+    markDirty();
+    rebuildAnno();
+    selectById(o.id);
+  }
+
+  function updateSelectedShape(patch) {
+    var o = findObj(selected);
+    if (!o || !isShapeType(o.type)) { return; }
+    recordUndo();
+    Object.keys(patch).forEach(function (k) { o[k] = patch[k]; });
+    if ('stroke' in patch) { lastStrokeColor = patch.stroke; }
+    if ('strokeWidth' in patch) { lastStrokeWidth = patch.strokeWidth; }
+    markDirty();
+    rebuildAnno();
+    selectById(o.id);
+  }
+
+  /* ---- 삭제 / 이동 -------------------------------------------------------- */
+  function removeObject(id) {
+    var objs = currentSheet().objects, i = -1;
+    objs.some(function (o, idx) { if (o.id === id) { i = idx; return true; } return false; });
+    if (i >= 0) { objs.splice(i, 1); }
+    rebuildAnno();
   }
 
   function deleteSelected() {
     if (!canSave || !selected) { return; }
     recordUndo();
-    var objs = currentSheet().objects;
-    var i = -1;
-    objs.some(function (o, idx) { if (o.id === selected) { i = idx; return true; } return false; });
-    if (i >= 0) { objs.splice(i, 1); }
+    var id = selected;
     deselect();
+    removeObject(id);
     markDirty();
-    renderObjects();
   }
 
-  function addTextObject(x, y) {
+  function moveObjectBy(o, dx, dy) {
+    if (o.type === 'arrow' || o.type === 'line') {
+      o.points = [o.points[0] + dx, o.points[1] + dy, o.points[2] + dx, o.points[3] + dy];
+    } else {
+      o.x += dx; o.y += dy;
+    }
+    var node = nodeById[o.id];
+    if (!node) { return; }
+    if (o.type === 'arrow' || o.type === 'line') { node.points(o.points.slice()); }
+    else if (o.type === 'ellipse') { node.x(node.x() + dx); node.y(node.y() + dy); }
+    else { node.x(o.x); node.y(o.y); }
+    konvaLayer.batchDraw();
+  }
+
+  /* ---- 그리기 모드 -------------------------------------------------------- */
+  /** 세그먼트 컨트롤 active 동기화: annoMode → 세그 버튼(.dws-seg-active). 이미지 버튼은 모드 아님. */
+  function syncSegActive() {
+    var activeId = null;
+    if (annoMode === 'select') { activeId = 'dws-btn-select'; }
+    else if (annoMode === 'text') { activeId = 'dws-btn-add-text'; }
+    else if (isShapeType(annoMode)) { activeId = 'dws-btn-shape'; }
+    ['dws-btn-select', 'dws-btn-add-text', 'dws-btn-shape'].forEach(function (id) {
+      var b = document.getElementById(id);
+      if (b) { b.classList.toggle('dws-seg-active', id === activeId); }
+    });
+  }
+
+  function setAnnoMode(mode) {
+    annoMode = mode;
+    if (mode !== 'select') { deselect(); }
+    if (els.anno) { els.anno.classList.toggle('dws-drawing', mode !== 'select'); }
+    if (konvaLayer) {
+      konvaLayer.find('.anno').forEach(function (n) { n.draggable(canSave && mode === 'select'); });
+    }
+    syncSegActive();
+  }
+
+  function onStageMouseDown(e) {
+    if (!canSave) { return; }
+    if (editingTextarea) { editingTextarea.blur(); return; }   // 편집 중 바깥 클릭 = 커밋
+    if (annoMode === 'text') {
+      var pt = pointerLogical(e.evt);
+      setAnnoMode('select');
+      createTextAt(pt.x, pt.y);
+      return;
+    }
+    if (isShapeType(annoMode)) { startDrawShape(e); return; }
+    /* select 모드 빈 영역 */
+    if (e.target !== konvaStage) { return; }
+    if (e.evt.ctrlKey || e.evt.metaKey) {
+      var cp = pointerLogical(e.evt);
+      createTextAt(cp.x, cp.y);
+      return;
+    }
+    deselect();
+    passthroughToForm(e.evt);
+  }
+
+  function onStageDblClick(e) {
+    if (!canSave || annoMode !== 'select') { return; }
+    if (e.target !== konvaStage) { return; }
+    var evt = e.evt;
+    els.anno.style.pointerEvents = 'none';
+    var under = document.elementFromPoint(evt.clientX, evt.clientY);
+    els.anno.style.pointerEvents = '';
+    if (under && els.form.contains(under)) {
+      var cell = under.closest('[data-dws-form-key]');
+      if (cell) { cell.focus(); return; }
+      if (under.closest('[data-dws-check]') || under.closest('#dws-logo-cell')) { return; }
+    }
+    var p = pointerLogical(evt);
+    createTextAt(p.x, p.y);
+  }
+
+  /** 캔버스 빈 영역 클릭을 아래 폼 요소로 투과(폼 셀 편집·체크박스·로고 공존). */
+  function passthroughToForm(evt) {
+    els.anno.style.pointerEvents = 'none';
+    var under = document.elementFromPoint(evt.clientX, evt.clientY);
+    var range = document.caretRangeFromPoint ? document.caretRangeFromPoint(evt.clientX, evt.clientY) : null;
+    els.anno.style.pointerEvents = '';
+    if (!under || !els.form.contains(under)) { return; }
+    var cell = under.closest('[data-dws-form-key]');
+    if (cell) {
+      cell.focus();
+      if (range && cell.contains(range.startContainer)) {
+        try { var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range); } catch (_) { /* noop */ }
+      }
+      return;
+    }
+    var interactive = under.closest('[data-dws-check]') || under.closest('#dws-logo-cell');
+    if (interactive) {
+      interactive.dispatchEvent(new MouseEvent('click', {
+        bubbles: true, cancelable: true, view: window, clientX: evt.clientX, clientY: evt.clientY
+      }));
+    }
+  }
+
+  function startDrawShape(e) {
+    var start = pointerLogical(e.evt);
+    var mode = annoMode;
+    var draft;
+    var attrs = { stroke: lastStrokeColor, strokeWidth: lastStrokeWidth, name: 'anno-draft', listening: false };
+    if (mode === 'rect') {
+      draft = new Konva.Rect({ x: start.x, y: start.y, width: 1, height: 1, fill: 'rgba(0,0,0,0.001)', stroke: attrs.stroke, strokeWidth: attrs.strokeWidth, name: 'anno-draft', listening: false });
+    } else if (mode === 'ellipse') {
+      draft = new Konva.Ellipse({ x: start.x, y: start.y, radiusX: 1, radiusY: 1, fill: 'rgba(0,0,0,0.001)', stroke: attrs.stroke, strokeWidth: attrs.strokeWidth, name: 'anno-draft', listening: false });
+    } else if (mode === 'arrow') {
+      draft = new Konva.Arrow({ points: [start.x, start.y, start.x, start.y], stroke: attrs.stroke, strokeWidth: attrs.strokeWidth, fill: attrs.stroke, pointerLength: 12, pointerWidth: 12, name: 'anno-draft', listening: false });
+    } else {
+      draft = new Konva.Line({ points: [start.x, start.y, start.x, start.y], stroke: attrs.stroke, strokeWidth: attrs.strokeWidth, lineCap: 'round', name: 'anno-draft', listening: false });
+    }
+    konvaLayer.add(draft);
+    transformer.moveToTop();
+
+    // window 레벨 네이티브 리스너: 포인터가 캔버스를 벗어났다 놓아도 그리기가 확정된다.
+    function move(nativeEvt) {
+      var p = pointerLogical(nativeEvt);
+      if (mode === 'rect' || mode === 'ellipse') {
+        var x = Math.min(start.x, p.x), y = Math.min(start.y, p.y);
+        var w = Math.abs(p.x - start.x), h = Math.abs(p.y - start.y);
+        if (mode === 'rect') { draft.setAttrs({ x: x, y: y, width: Math.max(1, w), height: Math.max(1, h) }); }
+        else { draft.setAttrs({ x: x + w / 2, y: y + h / 2, radiusX: Math.max(1, w / 2), radiusY: Math.max(1, h / 2) }); }
+      } else {
+        draft.points([start.x, start.y, p.x, p.y]);
+      }
+      konvaLayer.batchDraw();
+    }
+    function up(nativeEvt) {
+      window.removeEventListener('mousemove', move, true);
+      window.removeEventListener('mouseup', up, true);
+      finishDrawShape(draft, mode, start, pointerLogical(nativeEvt));
+    }
+    window.addEventListener('mousemove', move, true);
+    window.addEventListener('mouseup', up, true);
+  }
+
+  function finishDrawShape(draft, mode, start, end) {
+    draft.destroy();
+    setAnnoMode('select');
+    var w = Math.abs(end.x - start.x), h = Math.abs(end.y - start.y);
+    var dist = Math.sqrt(Math.pow(end.x - start.x, 2) + Math.pow(end.y - start.y, 2));
+    var tooSmall = (mode === 'rect' || mode === 'ellipse') ? (w < 8 && h < 8) : (dist < 8);
+    if (tooSmall) { konvaLayer.batchDraw(); return; }
+    recordUndo();
+    var o;
+    if (mode === 'rect' || mode === 'ellipse') {
+      o = {
+        id: rid('o-'), type: mode, x: Math.round(Math.min(start.x, end.x)), y: Math.round(Math.min(start.y, end.y)),
+        w: Math.round(w), h: Math.round(h), stroke: lastStrokeColor, strokeWidth: lastStrokeWidth, rotation: 0
+      };
+    } else {
+      o = {
+        id: rid('o-'), type: mode,
+        points: [Math.round(start.x), Math.round(start.y), Math.round(end.x), Math.round(end.y)],
+        stroke: lastStrokeColor, strokeWidth: lastStrokeWidth, rotation: 0
+      };
+    }
+    currentSheet().objects.push(o);
+    markDirty();
+    rebuildAnno();
+    selectById(o.id);
+  }
+
+  /* ---- 텍스트 생성 / 인라인 편집 ------------------------------------------ */
+  function createTextAt(x, y) {
     if (!canSave) { return; }
     recordUndo();
     var o = {
       id: rid('o-'), type: 'text', x: Math.round(x), y: Math.round(y), w: 220,
-      text: '', size: 20, color: '#000000', bold: false, align: 'left'
+      text: '', size: 20, color: '#000000', bold: false, align: 'left', rotation: 0
     };
     currentSheet().objects.push(o);
     markDirty();
-    renderObjects();
-    selectObject(o.id);
-    startEditText(o.id, true);
+    rebuildAnno();
+    selectById(o.id);
+    startEditText(nodeById[o.id], true);
   }
 
   function addPreset(kind) {
@@ -447,46 +798,82 @@
     var n = currentSheet().objects.length;
     var o = {
       id: rid('o-'), type: 'text', x: 340 + (n % 3) * 30, y: 95 + (n % 6) * 46, w: 220,
-      text: label + '\n', size: 20, color: '#000000', bold: true, align: 'left'
+      text: label + '\n', size: 20, color: '#000000', bold: true, align: 'left', rotation: 0
     };
     currentSheet().objects.push(o);
     markDirty();
-    renderObjects();
-    selectObject(o.id);
-    startEditText(o.id, true);
+    rebuildAnno();
+    selectById(o.id);
+    startEditText(nodeById[o.id], true);
   }
 
-  function startEditText(id, skipUndo) {
-    if (!canSave) { return; }
-    var o = findObj(id), el = objEl(id);
-    if (!o || !el) { return; }
-    if (!skipUndo) { recordUndo(); }
-    el.setAttribute('contenteditable', 'plaintext-only');
-    el.classList.add('dws-editing');
-    el.focus();
-    var range = document.createRange();
-    range.selectNodeContents(el);
-    range.collapse(false);
-    var sel = window.getSelection();
-    sel.removeAllRanges();
-    sel.addRange(range);
-    el.addEventListener('blur', function onBlur() {
-      el.removeEventListener('blur', onBlur);
-      el.removeAttribute('contenteditable');
-      el.classList.remove('dws-editing');
-      o.text = el.textContent;
-      if (String(o.text).trim() === '') {
-        var objs = currentSheet().objects, i = -1;
-        objs.some(function (x2, idx) { if (x2.id === o.id) { i = idx; return true; } return false; });
-        if (i >= 0) { objs.splice(i, 1); }
-        if (selected === o.id) { deselect(); }
-        renderObjects();
-      } else {
+  /** Konva 표준 패턴: 노드 절대좌표×zoom 위치에 textarea 오버레이 → blur/Esc 커밋. */
+  function startEditText(node, isNew) {
+    if (!canSave || !node) { return; }
+    if (editingTextarea) { editingTextarea.blur(); }
+    var o = findObj(node.getAttr('objId'));
+    if (!o) { return; }
+    if (!isNew) { recordUndo(); }
+
+    transformer.nodes([]);
+    hideMiniToolbar();
+    node.hide();
+    konvaLayer.batchDraw();
+
+    var annoRect = els.anno.getBoundingClientRect();
+    var pos = node.absolutePosition();
+    var area = document.createElement('textarea');
+    area.className = 'dws-text-overlay';
+    area.value = o.text || '';
+    area.style.left = (annoRect.left + pos.x * zoom) + 'px';
+    area.style.top = (annoRect.top + pos.y * zoom) + 'px';
+    area.style.width = Math.max(40, node.width() * zoom) + 'px';
+    area.style.fontSize = (node.fontSize() * zoom) + 'px';
+    area.style.fontFamily = ANNO_FONT;
+    area.style.fontWeight = o.bold ? '700' : '400';
+    area.style.color = colorOrDefault(o.color);
+    area.style.textAlign = (o.align === 'center') ? 'center' : 'left';
+    document.body.appendChild(area);
+    editingTextarea = area;
+
+    function autoResize() { area.style.height = 'auto'; area.style.height = area.scrollHeight + 'px'; }
+    autoResize();
+    area.focus();
+    area.select();
+
+    var done = false;
+    function commit() {
+      if (done) { return; }
+      done = true;
+      editingTextarea = null;
+      var val = area.value;
+      if (area.parentNode) { area.parentNode.removeChild(area); }
+      var cur = findObj(o.id);
+      if (!cur) { if (node) { node.destroy(); } konvaLayer.batchDraw(); return; }
+      if (String(val).trim() === '') {
+        var wasSelected = (selected === o.id);
+        removeObject(o.id);
+        if (wasSelected) { deselect(); }
         markDirty();
+        return;
       }
+      cur.text = val;
+      node.text(val);
+      node.show();
+      markDirty();
+      if (selected === o.id) { selectById(o.id); }
+      else { konvaLayer.batchDraw(); }
+    }
+
+    area.addEventListener('input', autoResize);
+    area.addEventListener('blur', commit);
+    area.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { e.preventDefault(); area.blur(); }
+      /* Enter = 줄바꿈(멀티라인 유지). 커밋은 blur/Esc. */
     });
   }
 
+  /* ---- 이미지 업로드 / 생성 ----------------------------------------------- */
   function uploadAsset(file) {
     var fd = new FormData();
     fd.append('file', file, file.name || ('paste-' + Date.now() + '.png'));
@@ -512,13 +899,13 @@
           id: rid('o-'), type: 'image',
           x: Math.round((STAGE_W - w) / 2),
           y: Math.round(70 + (730 - h) / 2),
-          w: w, h: h, key: key, natural_w: nw, natural_h: nh
+          w: w, h: h, key: key, natural_w: nw, natural_h: nh, rotation: 0
         };
         if (o.y < 70) { o.y = 70; }
         currentSheet().objects.push(o);
         markDirty();
-        renderObjects();
-        selectObject(o.id);
+        rebuildAnno();
+        selectById(o.id);
       };
       img.onerror = function () { toast('이미지를 불러오지 못했습니다.'); };
       img.src = url;
@@ -528,55 +915,6 @@
   /* ========================================================================
    * [5] toolbar (앱바 · 미니툴바 · 탭 · 줌 · 로고팝업 · 메뉴)
    * ====================================================================== */
-  function showMiniToolbar(id) {
-    if (!canSave) { hideMiniToolbar(); return; }
-    var o = findObj(id);
-    if (!o) { hideMiniToolbar(); return; }
-    els.mtText.hidden = (o.type !== 'text');
-    els.mtImage.hidden = (o.type !== 'image');
-    els.mt.hidden = false;
-    if (o.type === 'text') { syncTextToolbar(o); } else { syncImageToolbar(o); }
-    positionMiniToolbar(id);
-  }
-
-  function hideMiniToolbar() { els.mt.hidden = true; }
-
-  function positionMiniToolbar(id) {
-    if (els.mt.hidden) { return; }
-    var el = objEl(id);
-    if (!el) { return; }
-    var rect = el.getBoundingClientRect();
-    var top = rect.top - els.mt.offsetHeight - 8;
-    if (top < 8) { top = rect.bottom + 8; }
-    var left = clamp(rect.left, 8, window.innerWidth - els.mt.offsetWidth - 8);
-    els.mt.style.left = left + 'px';
-    els.mt.style.top = top + 'px';
-  }
-
-  function syncTextToolbar(o) {
-    els.mtSize.value = String(o.size);
-    Array.prototype.forEach.call(els.mtText.querySelectorAll('.dws-swatch'), function (sw) {
-      sw.classList.toggle('dws-active', sw.getAttribute('data-color').toLowerCase() === String(o.color).toLowerCase());
-    });
-    els.mtBold.classList.toggle('dws-active', !!o.bold);
-    els.mtAlign.textContent = (o.align === 'center') ? '중' : '좌';
-    els.mtAlign.classList.toggle('dws-active', o.align === 'center');
-  }
-
-  function syncImageToolbar() {
-    els.mtRatio.textContent = '비율고정: ' + (imageRatioLock ? '켬' : '끔');
-  }
-
-  function updateSelectedText(patch) {
-    var o = findObj(selected);
-    if (!o || o.type !== 'text') { return; }
-    recordUndo();
-    Object.keys(patch).forEach(function (k) { o[k] = patch[k]; });
-    renderObjects();
-    markDirty();
-    selectObject(o.id);
-  }
-
   function renderTabs() {
     els.tabbar.innerHTML = '';
     state.sheets.forEach(function (s, i) {
@@ -611,13 +949,14 @@
   function switchSheet(i) {
     if (i === current || i < 0 || i >= state.sheets.length) { return; }
     if (document.activeElement && document.activeElement.blur) { document.activeElement.blur(); }
+    setAnnoMode('select');
     current = i;
     deselect();
     undoStack.length = 0;
     redoStack.length = 0;
     renderTabs();
     renderForm();
-    renderObjects();
+    rebuildAnno();
   }
 
   function addSheet() {
@@ -631,7 +970,7 @@
     markDirty();
     renderTabs();
     renderForm();
-    renderObjects();
+    rebuildAnno();
   }
 
   function renameSheet(i) {
@@ -658,7 +997,7 @@
     markDirty();
     renderTabs();
     renderForm();
-    renderObjects();
+    rebuildAnno();
   }
 
   function fitZoom() {
@@ -676,7 +1015,7 @@
     var pct = Math.round(z * 100);
     els.zoomRange.value = String(clamp(pct, 50, 150));
     els.zoomLabel.textContent = pct + '%';
-    if (selected) { positionMiniToolbar(selected); }
+    positionMiniToolbar();
   }
 
   function openLogoPopup() {
@@ -705,6 +1044,7 @@
 
   function closeMenus() {
     if (els.presetMenu) { els.presetMenu.hidden = true; }
+    if (els.shapeMenu) { els.shapeMenu.hidden = true; }
     if (els.exportMenu) { els.exportMenu.hidden = true; }
   }
 
@@ -739,27 +1079,37 @@
    * [6] save / load
    * ====================================================================== */
   function serializeObj(o) {
+    var rot = normalizeRotation(o.rotation);
     if (o.type === 'image') {
       return {
         id: o.id, type: 'image',
-        x: clamp(Math.round(o.x), -2000, 4000),
-        y: clamp(Math.round(o.y), -2000, 4000),
-        w: clamp(Math.round(o.w), 1, 3000),
-        h: clamp(Math.round(o.h), 1, 3000),
-        key: o.key, natural_w: num(o.natural_w, 0), natural_h: num(o.natural_h, 0)
+        x: clampCoord(o.x), y: clampCoord(o.y), w: clampDim(o.w), h: clampDim(o.h),
+        key: o.key, natural_w: num(o.natural_w, 0), natural_h: num(o.natural_h, 0), rotation: rot
       };
     }
-    return {
-      id: o.id, type: 'text',
-      x: clamp(Math.round(o.x), -2000, 4000),
-      y: clamp(Math.round(o.y), -2000, 4000),
-      w: clamp(Math.round(o.w), 1, 3000),
-      text: String(o.text || ''),
-      size: (ALLOWED_SIZES.indexOf(o.size) >= 0) ? o.size : 20,
-      color: /^#[0-9a-fA-F]{6}$/.test(o.color) ? o.color : '#000000',
-      bold: !!o.bold,
-      align: (o.align === 'center') ? 'center' : 'left'
-    };
+    if (o.type === 'rect' || o.type === 'ellipse') {
+      return {
+        id: o.id, type: o.type,
+        x: clampCoord(o.x), y: clampCoord(o.y), w: clampDim(o.w), h: clampDim(o.h),
+        stroke: colorOrDefault(o.stroke), strokeWidth: strokeOrDefault(o.strokeWidth), rotation: rot
+      };
+    }
+    if (o.type === 'arrow' || o.type === 'line') {
+      return {
+        id: o.id, type: o.type, points: normalizePoints(o.points),
+        stroke: colorOrDefault(o.stroke), strokeWidth: strokeOrDefault(o.strokeWidth), rotation: rot
+      };
+    }
+    if (o.type === 'text') {
+      return {
+        id: o.id, type: 'text',
+        x: clampCoord(o.x), y: clampCoord(o.y), w: clampDim(o.w),
+        text: String(o.text || ''), size: sizeOrDefault(o.size),
+        color: colorOrDefault(o.color), bold: !!o.bold,
+        align: (o.align === 'center') ? 'center' : 'left', rotation: rot
+      };
+    }
+    return null;
   }
 
   function serializeForm(f) {
@@ -776,7 +1126,10 @@
     return {
       v: 1,
       sheets: state.sheets.map(function (s) {
-        return { id: s.id, name: s.name, form: serializeForm(s.form), objects: (s.objects || []).map(serializeObj) };
+        return {
+          id: s.id, name: s.name, form: serializeForm(s.form),
+          objects: (s.objects || []).map(serializeObj).filter(function (o) { return !!o; })
+        };
       })
     };
   }
@@ -793,22 +1146,34 @@
     return base;
   }
 
+  /** 저장 상태 → 런타임 객체. v1(text/image, rotation 없음)은 기본값 보충해 무손실 로드. */
   function normalizeObj(o) {
+    var rot = num(o.rotation);
     if (o.type === 'image') {
       return {
         id: o.id || rid('o-'), type: 'image',
         x: num(o.x), y: num(o.y), w: num(o.w, 200), h: num(o.h, 150),
-        key: o.key || '', natural_w: num(o.natural_w, 0), natural_h: num(o.natural_h, 0)
+        key: o.key || '', natural_w: num(o.natural_w, 0), natural_h: num(o.natural_h, 0), rotation: rot
+      };
+    }
+    if (o.type === 'rect' || o.type === 'ellipse') {
+      return {
+        id: o.id || rid('o-'), type: o.type,
+        x: num(o.x), y: num(o.y), w: num(o.w, 80), h: num(o.h, 60),
+        stroke: colorOrDefault(o.stroke), strokeWidth: strokeOrDefault(o.strokeWidth), rotation: rot
+      };
+    }
+    if (o.type === 'arrow' || o.type === 'line') {
+      return {
+        id: o.id || rid('o-'), type: o.type, points: normalizePoints(o.points),
+        stroke: colorOrDefault(o.stroke), strokeWidth: strokeOrDefault(o.strokeWidth), rotation: rot
       };
     }
     return {
       id: o.id || rid('o-'), type: 'text',
       x: num(o.x), y: num(o.y), w: num(o.w, 220),
-      text: String(o.text || ''),
-      size: (ALLOWED_SIZES.indexOf(o.size) >= 0) ? o.size : 20,
-      color: /^#[0-9a-fA-F]{6}$/.test(o.color) ? o.color : '#000000',
-      bold: !!o.bold,
-      align: (o.align === 'center') ? 'center' : 'left'
+      text: String(o.text || ''), size: sizeOrDefault(o.size), color: colorOrDefault(o.color),
+      bold: !!o.bold, align: (o.align === 'center') ? 'center' : 'left', rotation: rot
     };
   }
 
@@ -819,7 +1184,7 @@
         name: s.name || '도면',
         form: serializeForm(mergeFormDefaults(s.form)),
         objects: (s.objects || [])
-          .filter(function (o) { return o && (o.type === 'text' || o.type === 'image'); })
+          .filter(function (o) { return o && ['text', 'image', 'rect', 'ellipse', 'arrow', 'line'].indexOf(o.type) >= 0; })
           .map(normalizeObj)
       };
     });
@@ -850,11 +1215,12 @@
       redoStack.length = 0;
       dirty = false;
       selected = null;
+      setAnnoMode('select');
       applyPermissions();
       wireFormEditing();
       renderTabs();
       renderForm();
-      renderObjects();
+      rebuildAnno();
       updateSaveState();
       fitZoom();
     }, function (err) { console.warn('[dws] load', err); toast('불러오기 오류'); });
@@ -877,6 +1243,7 @@
 
   function save() {
     if (!canSave) { return; }
+    if (editingTextarea) { editingTextarea.blur(); }
     if (document.activeElement && document.activeElement.blur) { document.activeElement.blur(); }
     var body = { state: serializeState(), base_updated_at: baseUpdatedAt };
     els.saveBtn.disabled = true;
@@ -909,22 +1276,37 @@
     return '도면_' + safe(customerName) + '_' + ORDER_ID + '_' + safe(currentSheet().name) + '.png';
   }
 
-  /** 내보내기 준비(선택 해제 + chrome 숨김 + 줌 1.0) → html2canvas → 원복. */
+  /**
+   * 내보내기 합성(§3.5): 폼(html2canvas scale=2) + Konva(toCanvas pixelRatio=2)를
+   * 오프스크린 2956x2080 캔버스에 순서대로 draw → 합성 canvas 반환.
+   */
   function withExportMode() {
+    if (editingTextarea) { editingTextarea.blur(); }
     if (document.activeElement && document.activeElement.blur) { document.activeElement.blur(); }
     var prevZoom = zoom;
     deselect();
     root.classList.add('dws-exporting');
     setZoom(1);
+    els.anno.style.visibility = 'hidden';
+    function restore() {
+      els.anno.style.visibility = '';
+      root.classList.remove('dws-exporting');
+      setZoom(prevZoom);
+    }
     return ensureHtml2canvas().then(function () {
       return window.html2canvas(els.stage, { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false });
-    }).then(function (canvas) {
-      root.classList.remove('dws-exporting');
-      setZoom(prevZoom);
-      return canvas;
+    }).then(function (formCanvas) {
+      var out = document.createElement('canvas');
+      out.width = STAGE_W * 2;
+      out.height = STAGE_H * 2;
+      var ctx = out.getContext('2d');
+      ctx.drawImage(formCanvas, 0, 0, out.width, out.height);
+      var annoCanvas = konvaStage.toCanvas({ pixelRatio: 2 });
+      ctx.drawImage(annoCanvas, 0, 0, out.width, out.height);
+      restore();
+      return out;
     }).catch(function (err) {
-      root.classList.remove('dws-exporting');
-      setZoom(prevZoom);
+      restore();
       throw err;
     });
   }
@@ -1035,8 +1417,11 @@
   function wireStatic() {
     // 앱바 편집 버튼
     document.getElementById('dws-btn-autofill').addEventListener('click', autofill);
+    document.getElementById('dws-btn-select').addEventListener('click', function () {
+      setAnnoMode('select');
+    });
     document.getElementById('dws-btn-add-text').addEventListener('click', function () {
-      addTextObject((STAGE_W - 220) / 2, 340);
+      setAnnoMode(annoMode === 'text' ? 'select' : 'text');
     });
     document.getElementById('dws-btn-undo').addEventListener('click', undo);
     document.getElementById('dws-btn-redo').addEventListener('click', redo);
@@ -1047,6 +1432,13 @@
     presetBtn.addEventListener('click', function (e) { e.stopPropagation(); toggleMenu(els.presetMenu); });
     Array.prototype.forEach.call(els.presetMenu.querySelectorAll('[data-preset]'), function (b) {
       b.addEventListener('click', function () { closeMenus(); addPreset(b.getAttribute('data-preset')); });
+    });
+
+    // 도형 메뉴 → 그리기 모드 진입
+    var shapeBtn = document.getElementById('dws-btn-shape');
+    shapeBtn.addEventListener('click', function (e) { e.stopPropagation(); toggleMenu(els.shapeMenu); });
+    Array.prototype.forEach.call(els.shapeMenu.querySelectorAll('[data-shape]'), function (b) {
+      b.addEventListener('click', function () { closeMenus(); setAnnoMode(b.getAttribute('data-shape')); });
     });
 
     // 이미지 파일 선택
@@ -1080,8 +1472,22 @@
     document.getElementById('dws-mt-del-text').addEventListener('click', deleteSelected);
 
     // 미니 툴바 — 이미지
-    els.mtRatio.addEventListener('click', function () { imageRatioLock = !imageRatioLock; syncImageToolbar(); });
+    els.mtRatio.addEventListener('click', function () {
+      imageRatioLock = !imageRatioLock;
+      if (transformer && selected && nodeById[selected] && nodeById[selected].getAttr('annoType') === 'image') {
+        transformer.keepRatio(imageRatioLock);
+        konvaLayer.batchDraw();
+      }
+      syncImageToolbar();
+    });
     document.getElementById('dws-mt-del-image').addEventListener('click', deleteSelected);
+
+    // 미니 툴바 — 도형
+    Array.prototype.forEach.call(els.mtShape.querySelectorAll('.dws-swatch'), function (sw) {
+      sw.addEventListener('click', function () { updateSelectedShape({ stroke: sw.getAttribute('data-shape-color') }); });
+    });
+    els.mtStroke.addEventListener('change', function () { updateSelectedShape({ strokeWidth: parseInt(els.mtStroke.value, 10) }); });
+    document.getElementById('dws-mt-del-shape').addEventListener('click', deleteSelected);
 
     // 로고 팝업
     Array.prototype.forEach.call(els.logoPopup.querySelectorAll('[data-logo]'), function (b) {
@@ -1092,24 +1498,17 @@
     document.getElementById('dws-transfer-cancel').addEventListener('click', closeTransferDialog);
     els.transferSubmit.addEventListener('click', doTransfer);
 
-    // 스테이지: 빈 곳 더블클릭 = 텍스트 생성, 빈 곳 클릭 = 선택 해제
-    els.stage.addEventListener('dblclick', function (e) {
-      if (!canSave || e.target !== els.stage) { return; }
-      var rect = els.stage.getBoundingClientRect();
-      addTextObject((e.clientX - rect.left) / zoom, (e.clientY - rect.top) / zoom);
-    });
-    els.stage.addEventListener('pointerdown', function (e) { if (e.target === els.stage) { deselect(); } });
-
     // 문서 레벨: 메뉴/팝업 바깥 클릭 닫기
     document.addEventListener('click', function (e) {
       if (!e.target.closest('.dws-dropdown')) { closeMenus(); }
       if (!e.target.closest('#dws-logo-popup') && !e.target.closest('#dws-logo-cell')) { hideLogoPopup(); }
     });
 
-    // 문서 레벨 붙여넣기: 편집 중이면 plain text, 아니면 클립보드 이미지 업로드
+    // 문서 레벨 붙여넣기: 폼 셀 편집 중이면 plain text, 텍스트 편집 중이면 기본, 아니면 클립보드 이미지 업로드
     document.addEventListener('paste', function (e) {
       if (!canSave) { return; }
       var ae = document.activeElement;
+      if (ae && (ae.tagName === 'TEXTAREA' || ae.tagName === 'INPUT')) { return; }
       var cd = e.clipboardData || window.clipboardData;
       if (!cd) { return; }
       if (ae && ae.isContentEditable) {
@@ -1130,12 +1529,17 @@
       }
     });
 
-    // 키보드: 저장 / undo·redo / 삭제 / 화살표 이동
+    // 키보드: 저장 / undo·redo / 삭제 / 화살표 이동 / Esc
     document.addEventListener('keydown', function (e) {
+      var ae = document.activeElement;
+      var editing = !!(ae && (ae.isContentEditable || ae.tagName === 'TEXTAREA' || ae.tagName === 'INPUT' || ae.tagName === 'SELECT'));
       var meta = e.ctrlKey || e.metaKey;
       if (meta && (e.key === 's' || e.key === 'S')) { e.preventDefault(); save(); return; }
-      var ae = document.activeElement;
-      if (ae && ae.isContentEditable) { return; }
+      if (editing) { return; }
+      if (e.key === 'Escape') {
+        if (annoMode !== 'select') { setAnnoMode('select'); } else { deselect(); }
+        return;
+      }
       if (meta && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); if (e.shiftKey) { redo(); } else { undo(); } return; }
       if (meta && (e.key === 'y' || e.key === 'Y')) { e.preventDefault(); redo(); return; }
       if (!selected) { return; }
@@ -1152,15 +1556,14 @@
       var now = Date.now();
       if (now - lastArrowUndoTs > 500) { recordUndo(); }
       lastArrowUndoTs = now;
-      o.x += dx; o.y += dy;
-      positionObjEl(o);
+      moveObjectBy(o, dx, dy);
       markDirty();
-      positionMiniToolbar(selected);
+      positionMiniToolbar();
     });
 
     // 스크롤/리사이즈 시 미니툴바 위치 갱신
-    els.canvas.addEventListener('scroll', function () { if (selected) { positionMiniToolbar(selected); } });
-    window.addEventListener('resize', function () { if (selected) { positionMiniToolbar(selected); } });
+    els.canvas.addEventListener('scroll', function () { positionMiniToolbar(); });
+    window.addEventListener('resize', function () { positionMiniToolbar(); });
 
     // 미저장 이탈 가드
     window.addEventListener('beforeunload', function (e) {
@@ -1186,6 +1589,12 @@
       els.mobileNotice.hidden = false;
       return;
     }
+    if (typeof window.Konva === 'undefined') {
+      console.error('[dws] Konva 라이브러리를 불러오지 못했습니다.');
+      if (els.toastHost) { toast('주석 엔진(Konva)을 불러오지 못했습니다. 새로고침해 주세요.'); }
+      return;
+    }
+    createKonva();
     wireStatic();
     load();
   }

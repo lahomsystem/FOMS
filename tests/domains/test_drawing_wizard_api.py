@@ -352,3 +352,149 @@ def test_asset_raw_requires_login(client):
 
     assert resp.status_code == 302
     assert "/login" in resp.headers["Location"]
+
+
+# ---------------------------------------------------------------------------
+# v2 Konva 주석 엔진 — 신규 도형 타입(rect/ellipse/arrow/line) + rotation 검증
+# ---------------------------------------------------------------------------
+
+
+def _state_with_objects(objects):
+    return {
+        "v": 1,
+        "sheets": [{"id": "s-1", "name": "도면 1", "form": {}, "objects": objects}],
+    }
+
+
+def _put_state(client, order_id, objects):
+    return client.put(
+        f"/api/orders/{order_id}/drawing-wizard",
+        json={"state": _state_with_objects(objects), "base_updated_at": None},
+    )
+
+
+def test_put_then_get_round_trips_shape_objects(client):
+    """rect/ellipse/arrow/line 신규 타입 각 1건 정상 저장 왕복(rotation/points/stroke 보존)."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    objects = [
+        {
+            "id": "o-rect",
+            "type": "rect",
+            "x": 100,
+            "y": 120,
+            "w": 200,
+            "h": 90,
+            "stroke": "#000000",
+            "strokeWidth": 2,
+            "rotation": 15,
+        },
+        {
+            "id": "o-ell",
+            "type": "ellipse",
+            "x": 400,
+            "y": 200,
+            "w": 160,
+            "h": 120,
+            "stroke": "#1c62d6",
+            "strokeWidth": 1,
+            "rotation": 0,
+        },
+        {
+            "id": "o-arr",
+            "type": "arrow",
+            "points": [50, 60, 300, 320],
+            "stroke": "#e03131",
+            "strokeWidth": 3,
+            "rotation": 0,
+        },
+        {
+            "id": "o-line",
+            "type": "line",
+            "points": [10, 20, 400, 20],
+            "stroke": "#000000",
+            "strokeWidth": 2,
+        },
+    ]
+
+    put_resp = _put_state(client, order_id, objects)
+    assert put_resp.status_code == 200, put_resp.get_json()
+
+    state = client.get(f"/api/orders/{order_id}/drawing-wizard").get_json()["data"]["state"]
+    saved = state["sheets"][0]["objects"]
+    assert [o["type"] for o in saved] == ["rect", "ellipse", "arrow", "line"]
+    assert saved[0]["strokeWidth"] == 2
+    assert saved[0]["rotation"] == 15
+    assert saved[1]["stroke"] == "#1c62d6"
+    assert saved[2]["points"] == [50, 60, 300, 320]
+    assert saved[3]["points"] == [10, 20, 400, 20]
+
+
+def test_put_rejects_invalid_shape_stroke_width(client):
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    obj = {
+        "id": "o-1",
+        "type": "rect",
+        "x": 10,
+        "y": 10,
+        "w": 50,
+        "h": 50,
+        "stroke": "#000000",
+        "strokeWidth": 5,
+    }
+
+    resp = _put_state(client, order_id, [obj])
+
+    assert resp.status_code == 400
+
+
+def test_put_rejects_line_with_three_points(client):
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    obj = {
+        "id": "o-1",
+        "type": "arrow",
+        "points": [10, 20, 30],
+        "stroke": "#000000",
+        "strokeWidth": 2,
+    }
+
+    resp = _put_state(client, order_id, [obj])
+
+    assert resp.status_code == 400
+
+
+def test_put_rejects_unsupported_object_type(client):
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    obj = {"id": "o-1", "type": "star", "x": 10, "y": 10, "w": 50, "h": 50}
+
+    resp = _put_state(client, order_id, [obj])
+
+    assert resp.status_code == 400
+
+
+def test_put_rejects_non_numeric_rotation(client):
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    obj = {
+        "id": "o-1",
+        "type": "rect",
+        "x": 10,
+        "y": 10,
+        "w": 50,
+        "h": 50,
+        "stroke": "#000000",
+        "strokeWidth": 2,
+        "rotation": "90",
+    }
+
+    resp = _put_state(client, order_id, [obj])
+
+    assert resp.status_code == 400

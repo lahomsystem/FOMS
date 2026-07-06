@@ -4,23 +4,61 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>도면 마법사 — 주문 #{{ order.id }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20260706a">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20260706d">
 </head>
 <body>
   <div id="dws-root" data-order-id="{{ order.id }}">
 
-    <!-- ================= 앱바 ================= -->
+    <!-- ================= 앱바 (3분할: 타이틀 · 도구 세그먼트 · 액션) ======= -->
     <header class="dws-appbar dws-ui">
-      <div class="dws-appbar-title">
-        도면 마법사 · 주문 #{{ order.id }}
-        <span class="dws-appbar-customer" id="dws-customer">({{ customer_name }})</span>
+
+      <!-- 좌: 타이틀 블록 -->
+      <div class="dws-appbar-left">
+        <div class="dws-appbar-title">도면 마법사 · 주문 #{{ order.id }}</div>
+        <div class="dws-appbar-sub" id="dws-customer">({{ customer_name }})</div>
       </div>
-      <div class="dws-appbar-actions">
+
+      <!-- 중앙: 도구 세그먼트 컨트롤 -->
+      <div class="dws-appbar-center">
+        <div class="dws-seg" role="group" aria-label="주석 도구">
+          <button type="button" class="dws-seg-btn dws-edit-ctl" id="dws-btn-select" title="선택 · 이동">
+            <svg class="dws-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l7.07 17 2.51-7.39L20 10.09 3 3z"/></svg>
+            <span class="dws-seg-label">선택</span>
+          </button>
+          <button type="button" class="dws-seg-btn dws-edit-ctl" id="dws-btn-add-text" title="텍스트 추가">
+            <svg class="dws-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+            <span class="dws-seg-label">텍스트</span>
+          </button>
+          <div class="dws-dropdown dws-seg-slot">
+            <button type="button" class="dws-seg-btn dws-edit-ctl" id="dws-btn-shape" title="도형 그리기">
+              <svg class="dws-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="6" width="17" height="12" rx="2"/></svg>
+              <span class="dws-seg-label">도형</span>
+              <svg class="dws-caret" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="dws-menu" id="dws-shape-menu" hidden>
+              <button type="button" class="dws-menu-item" data-shape="rect">사각형</button>
+              <button type="button" class="dws-menu-item" data-shape="ellipse">원</button>
+              <button type="button" class="dws-menu-item" data-shape="arrow">화살표</button>
+              <button type="button" class="dws-menu-item" data-shape="line">선</button>
+            </div>
+          </div>
+          <label class="dws-seg-btn dws-edit-ctl dws-file-btn" id="dws-file-btn" title="이미지 추가">
+            <svg class="dws-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2.5"/><circle cx="8.5" cy="8.5" r="1.6"/><path d="M21 15l-5-5L5 21"/></svg>
+            <span class="dws-seg-label">이미지</span>
+            <input type="file" id="dws-file-input" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+          </label>
+        </div>
+      </div>
+
+      <!-- 우: 액션 -->
+      <div class="dws-appbar-right">
         <button type="button" class="dws-btn dws-edit-ctl" id="dws-btn-autofill" title="주문 데이터로 폼을 채웁니다">자동 채움</button>
-        <button type="button" class="dws-btn dws-edit-ctl" id="dws-btn-add-text">텍스트 추가</button>
 
         <div class="dws-dropdown">
-          <button type="button" class="dws-btn dws-edit-ctl" id="dws-btn-preset">프리셋 ▾</button>
+          <button type="button" class="dws-btn dws-edit-ctl" id="dws-btn-preset">
+            <span>프리셋</span>
+            <svg class="dws-caret" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
           <div class="dws-menu" id="dws-preset-menu" hidden>
             <button type="button" class="dws-menu-item" data-preset="SR">[SR]</button>
             <button type="button" class="dws-menu-item" data-preset="EP">[EP]</button>
@@ -29,18 +67,19 @@
           </div>
         </div>
 
-        <label class="dws-btn dws-edit-ctl dws-file-btn" id="dws-file-btn">
-          이미지 추가
-          <input type="file" id="dws-file-input" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
-        </label>
+        <span class="dws-appbar-sep"></span>
 
-        <button type="button" class="dws-btn dws-edit-ctl" id="dws-btn-undo" title="실행취소 (Ctrl+Z)">↶</button>
-        <button type="button" class="dws-btn dws-edit-ctl" id="dws-btn-redo" title="재실행 (Ctrl+Y)">↷</button>
+        <button type="button" class="dws-btn dws-icon-btn dws-edit-ctl" id="dws-btn-undo" title="실행취소 (Ctrl+Z)" aria-label="실행취소">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+        </button>
+        <button type="button" class="dws-btn dws-icon-btn dws-edit-ctl" id="dws-btn-redo" title="재실행 (Ctrl+Y)" aria-label="재실행">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        </button>
 
         <span class="dws-appbar-sep"></span>
 
         <div class="dws-zoom">
-          <button type="button" class="dws-btn" id="dws-btn-zoom-fit" title="화면 폭 맞춤">맞춤</button>
+          <button type="button" class="dws-btn dws-btn-plain" id="dws-btn-zoom-fit" title="화면 폭 맞춤">맞춤</button>
           <input type="range" id="dws-zoom-range" min="50" max="150" step="5" value="100" title="줌">
           <span class="dws-zoom-label" id="dws-zoom-label">100%</span>
         </div>
@@ -50,7 +89,10 @@
         <button type="button" class="dws-btn dws-btn-primary dws-edit-ctl" id="dws-btn-save">저장</button>
 
         <div class="dws-dropdown">
-          <button type="button" class="dws-btn" id="dws-btn-export">내보내기 ▾</button>
+          <button type="button" class="dws-btn" id="dws-btn-export">
+            <span>내보내기</span>
+            <svg class="dws-caret" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
           <div class="dws-menu dws-menu-right" id="dws-export-menu" hidden>
             <button type="button" class="dws-menu-item" id="dws-btn-export-png">PNG 다운로드</button>
             <button type="button" class="dws-menu-item dws-edit-ctl" id="dws-btn-export-transfer">도면 전달</button>
@@ -75,7 +117,10 @@
           <!-- ---- 양식 레이어(§6 지오메트리) ---- -->
           <div class="dws-form" id="dws-form">
 
-            <!-- 헤더 체크리스트 박스(좌상) -->
+            <!-- 시트 외곽 테두리(검정 3px, §2) -->
+            <div class="dws-outer-border"></div>
+
+            <!-- 헤더 체크리스트(좌상, 박스 없음) -->
             <div class="dws-header">
               <div class="dws-header-row">
                 <span class="dws-header-lead">도면팀 :</span>
@@ -98,22 +143,22 @@
               <div class="dws-cell-value dws-pageval" data-dws-form-key="page_no"></div>
             </div>
 
-            <!-- 하단 표: 빨강 5px 외곽 프레임(오버레이) -->
+            <!-- 하단 표: 검정 2.5px 외곽 프레임(오버레이) -->
             <div class="dws-table-frame"></div>
 
             <!-- 그리드 라인(검정 1px) -->
             <div class="dws-hline dws-hline-ab"></div>
             <div class="dws-hline dws-hline-bc"></div>
             <div class="dws-hline dws-hline-cd"></div>
-            <div class="dws-vline dws-vline-full dws-v-430"></div>
-            <div class="dws-vline dws-vline-full dws-v-526"></div>
-            <div class="dws-vline dws-vline-full dws-v-778"></div>
-            <div class="dws-vline dws-vline-full dws-v-890"></div>
-            <div class="dws-vline dws-vline-full dws-v-1182"></div>
-            <div class="dws-vline dws-vline-ab dws-v-128"></div>
-            <div class="dws-vline dws-vline-ab dws-v-278"></div>
-            <div class="dws-vline dws-vline-ab dws-v-1292"></div>
-            <div class="dws-vline dws-vline-cd dws-v-64"></div>
+            <div class="dws-vline dws-vline-full dws-v-310"></div>
+            <div class="dws-vline dws-vline-full dws-v-400"></div>
+            <div class="dws-vline dws-vline-full dws-v-724"></div>
+            <div class="dws-vline dws-vline-full dws-v-820"></div>
+            <div class="dws-vline dws-vline-full dws-v-1226"></div>
+            <div class="dws-vline dws-vline-ab dws-v-118"></div>
+            <div class="dws-vline dws-vline-ab dws-v-207"></div>
+            <div class="dws-vline dws-vline-ab dws-v-1330"></div>
+            <div class="dws-vline dws-vline-cd dws-v-92"></div>
 
             <!-- 표 A행 -->
             <div class="dws-cell dws-cell-label dws-c-a-l1">시공일자</div>
@@ -159,8 +204,8 @@
             <div class="dws-drew">DREW :&nbsp;<span class="dws-drew-val" data-dws-form-key="drew"></span></div>
           </div>
 
-          <!-- ---- 자유 객체 레이어 ---- -->
-          <div class="dws-objects" id="dws-objects"></div>
+          <!-- ---- 자유 주석 레이어 (Konva Stage 마운트) ---- -->
+          <div class="dws-anno" id="dws-anno"></div>
 
         </div>
       </div>
@@ -186,6 +231,17 @@
       <div class="dws-mt-group" id="dws-mt-image" hidden>
         <button type="button" class="dws-mt-btn" id="dws-mt-ratio" title="비율 고정">비율고정: 켬</button>
         <button type="button" class="dws-mt-btn dws-mt-del" id="dws-mt-del-image" title="삭제">삭제</button>
+      </div>
+      <div class="dws-mt-group" id="dws-mt-shape" hidden>
+        <button type="button" class="dws-swatch dws-swatch-black" data-shape-color="#000000" title="검정"></button>
+        <button type="button" class="dws-swatch dws-swatch-red" data-shape-color="#e03131" title="빨강"></button>
+        <button type="button" class="dws-swatch dws-swatch-blue" data-shape-color="#1c62d6" title="파랑"></button>
+        <select class="dws-mt-select" id="dws-mt-stroke" title="선 굵기">
+          <option value="1">가늘게</option>
+          <option value="2">보통</option>
+          <option value="3">굵게</option>
+        </select>
+        <button type="button" class="dws-mt-btn dws-mt-del" id="dws-mt-del-shape" title="삭제">삭제</button>
       </div>
     </div>
 
@@ -233,6 +289,7 @@
   </div>
 
   <script id="drawing-wizard-config" type="application/json">{{ wizard_config|tojson }}</script>
-  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260706a" defer></script>
+  <script src="{{ url_for('static', filename='vendor/konva.min.js') }}?v=20260706b" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260706c" defer></script>
 </body>
 </html>
