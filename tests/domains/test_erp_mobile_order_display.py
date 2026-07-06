@@ -243,7 +243,8 @@ def test_mobile_amount_summary_applies_discount_to_balance() -> None:
     }
     summary = display.mobile_amount_summary(sd)
     assert summary["deposit_label"] == "100,000원"
-    assert summary["discount_label"] == "50,000원"
+    # 출고가 재정의(568c9a90): 할인은 출고가에 흡수 → 별도 할인 라벨 숨김(None). 잔금은 불변.
+    assert summary["discount_label"] is None
     assert summary["balance_label"] == "350,000원"
 
 
