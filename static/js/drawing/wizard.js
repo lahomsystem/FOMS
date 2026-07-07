@@ -2316,6 +2316,17 @@
         });
         if (changed) { dirty = true; }   // 값이 실제로 바뀌면 저장 유도(dirty 표시)
       }
+      // 제품별 시트의 페이지 번호가 비어있으면(과거 저장분) 제품 번호(1-base)로 자동 채움.
+      // 사용자가 이미 값을 넣었으면 유지.
+      (function () {
+        var numbered = false;
+        state.sheets.forEach(function (s) {
+          if (!s.form || !isFiniteNum(s.product_index)) { return; }
+          var cur = String(s.form.page_no == null ? '' : s.form.page_no).trim();
+          if (cur === '' || cur === '-') { s.form.page_no = String(s.product_index + 1); numbered = true; }
+        });
+        if (numbered) { dirty = true; }
+      })();
       selected = null;
       setAnnoMode('select');
       applyPermissions();
