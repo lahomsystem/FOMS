@@ -563,3 +563,164 @@ def test_put_rejects_out_of_range_cell_font(client):
     )
 
     assert resp.status_code == 400
+
+
+def test_put_then_get_round_trips_layout_top(client):
+    """form.layout.top(하단 표 상단선 이동) 정상 저장 왕복(값 보존)."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    layout = {
+        "cols": [130, 220, 320, 410, 730, 830, 1230, 1335],
+        "addr": 95,
+        "rows": [925, 950, 975],
+        "top": 760,
+    }
+    form = {"customer_name": "서으뜸", "checks": {}, "layout": layout, "cell_font": 18}
+
+    put_resp = client.put(
+        f"/api/orders/{order_id}/drawing-wizard",
+        json={"state": _state_with_form(form), "base_updated_at": None},
+    )
+    assert put_resp.status_code == 200, put_resp.get_json()
+
+    saved = client.get(f"/api/orders/{order_id}/drawing-wizard").get_json()["data"]["state"]
+    saved_form = saved["sheets"][0]["form"]
+    assert saved_form["layout"]["top"] == 760
+    assert saved_form["layout"] == layout
+
+
+def test_put_rejects_out_of_range_layout_top(client):
+    """layout.top 이 허용 범위(100~980)를 벗어나면(top=50) 400."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    form = {"layout": {"cols": [130, 220, 320], "rows": [925, 950, 975], "top": 50}}
+
+    resp = client.put(
+        f"/api/orders/{order_id}/drawing-wizard",
+        json={"state": _state_with_form(form), "base_updated_at": None},
+    )
+
+    assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# 텍스트 리치 편집 — 글자 단위 스타일 런(runs) 검증
+# ---------------------------------------------------------------------------
+
+
+def _text_obj(text, runs=None, **overrides):
+    obj = {
+        "id": "o-txt",
+        "type": "text",
+        "x": 100,
+        "y": 100,
+        "w": 200,
+        "text": text,
+        "size": 20,
+        "color": "#000000",
+        "bold": False,
+        "align": "left",
+    }
+    obj.update(overrides)
+    if runs is not None:
+        obj["runs"] = runs
+    return obj
+
+
+def test_put_then_get_round_trips_text_runs(client):
+    """글자 단위 색상/굵기 런이 있는 텍스트가 정상 저장 왕복(runs 보존)."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    runs = [
+        {"t": "1420", "c": "#e03131", "b": False},
+        {"t": " EP", "c": "#000000", "b": True},
+    ]
+    obj = _text_obj("1420 EP", runs=runs)
+
+    put_resp = _put_state(client, order_id, [obj])
+    assert put_resp.status_code == 200, put_resp.get_json()
+
+    state = client.get(f"/api/orders/{order_id}/drawing-wizard").get_json()["data"]["state"]
+    saved = state["sheets"][0]["objects"][0]
+    assert saved["runs"] == runs
+    assert saved["text"] == "1420 EP"
+
+
+def test_put_rejects_runs_text_mismatch(client):
+    """런 t 를 이은 문자열이 text 와 다르면 400."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    obj = _text_obj(
+        "1420 EP",
+        runs=[
+            {"t": "1420", "c": "#e03131", "b": False},
+            {"t": " XX", "c": "#000000", "b": False},
+        ],
+    )
+
+    resp = _put_state(client, order_id, [obj])
+
+    assert resp.status_code == 400
+
+
+def test_put_rejects_too_many_runs(client):
+    """런 개수가 60개를 초과하면 400."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    runs = [{"t": "a", "c": "#000000", "b": False} for _ in range(61)]
+    obj = _text_obj("a" * 61, runs=runs)
+
+    resp = _put_state(client, order_id, [obj])
+
+    assert resp.status_code == 400
+
+
+def test_put_rejects_invalid_run_color(client):
+    """런 색상이 #rrggbb 형식이 아니면 400."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    obj = _text_obj(
+        "hi",
+        runs=[{"t": "hi", "c": "red", "b": False}],
+    )
+
+    resp = _put_state(client, order_id, [obj])
+
+    assert resp.status_code == 400
+
+
+def test_put_rejects_run_non_bool_bold(client):
+    """런 굵기(b)가 불리언이 아니면 400."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    obj = _text_obj(
+        "hi",
+        runs=[{"t": "hi", "c": "#000000", "b": "yes"}],
+    )
+
+    resp = _put_state(client, order_id, [obj])
+
+    assert resp.status_code == 400
+
+
+def test_put_accepts_text_without_runs_backward_compat(client):
+    """runs 없는 기존 단색 텍스트는 그대로 통과(하위호환)."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    obj = _text_obj("단색 텍스트", color="#1c62d6", bold=True)
+
+    put_resp = _put_state(client, order_id, [obj])
+    assert put_resp.status_code == 200, put_resp.get_json()
+
+    state = client.get(f"/api/orders/{order_id}/drawing-wizard").get_json()["data"]["state"]
+    saved = state["sheets"][0]["objects"][0]
+    assert "runs" not in saved
+    assert saved["color"] == "#1c62d6"

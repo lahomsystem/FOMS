@@ -670,7 +670,8 @@ html, body {
 .dws-anno.dws-drawing { cursor: crosshair; }
 .dws-anno.dws-drawing canvas { cursor: crosshair; }
 
-/* Konva 텍스트 인라인 편집 오버레이 (위치/폰트/색은 JS가 인라인 지정) */
+/* Konva 텍스트 인라인 편집 오버레이 — contenteditable div (위치/폰트/색은 JS 인라인 지정).
+   리치 편집: 글자 단위 span 색/굵기 유지. wrap 미지원(명시 개행만) → white-space: pre. */
 .dws-text-overlay {
   position: fixed;
   z-index: 90;
@@ -680,10 +681,13 @@ html, body {
   background: #ffffff;
   color: #111418;
   outline: none;
-  resize: none;
-  overflow: hidden;
+  overflow: visible;
   box-sizing: border-box;
+  min-width: 40px;
+  min-height: 1.25em;
   line-height: 1.25;
+  white-space: pre;
+  cursor: text;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
 }
 
@@ -785,6 +789,8 @@ html, body {
 .dws-minitoolbar[hidden] { display: none; }
 .dws-mt-group { display: flex; gap: 6px; align-items: center; }
 .dws-mt-group[hidden] { display: none; }
+/* 편집 중 미니바: 삭제 버튼 숨김(입력 중 오삭제 방지 — 색/굵기/크기/정렬만 노출) */
+.dws-minitoolbar.dws-mt-editing #dws-mt-del-text { display: none; }
 
 .dws-mt-select {
   background: rgba(255, 255, 255, 0.12);

@@ -48,9 +48,10 @@
      cols = A/B 열 내부 x 경계 8개[c1..c8], addr = 주소라벨 경계, rows = 내부 y 경계 3개[r1..r3]. */
   var TBL_X0 = 40, TBL_X1 = 1440, TBL_Y0 = 899, TBL_Y1 = 1000;
   var COL_MIN_GAP = 24, ROW_MIN_GAP = 18;
-  var LAYOUT_DEFAULT = { cols: [123, 211, 310, 399, 728, 820, 1227, 1330], addr: 89, rows: [924, 949, 974] };
+  var TOP_MIN = 120, TOP_MAX = 940;   // 하단 표 상단선(top) 이동 범위(헤더 아래 ~ r1-18 위)
+  var LAYOUT_DEFAULT = { cols: [123, 211, 310, 399, 728, 820, 1227, 1330], addr: 89, rows: [924, 949, 974], top: 899 };
   var CELL_FONT_DEFAULT = 16, CELL_FONT_MIN = 12, CELL_FONT_MAX = 24;
-  /* 경계 드래그 정의: col 8 + addr 1 + row 3. span = 히트존 세로/가로 범위. */
+  /* 경계 드래그 정의: col 8 + addr 1 + row 3 + top 1 = 13. span = 히트존 세로/가로 범위. */
   var DIVIDERS = [
     { kind: 'col', idx: 0, span: 'ab' }, { kind: 'col', idx: 1, span: 'ab' },
     { kind: 'col', idx: 2, span: 'full' }, { kind: 'col', idx: 3, span: 'full' },
@@ -58,7 +59,8 @@
     { kind: 'col', idx: 6, span: 'full' }, { kind: 'col', idx: 7, span: 'ab' },
     { kind: 'addr' },
     { kind: 'row', idx: 0, span: 'full' }, { kind: 'row', idx: 1, span: 'full' },
-    { kind: 'row', idx: 2, span: 'partial' }
+    { kind: 'row', idx: 2, span: 'partial' },
+    { kind: 'top' }
   ];
 
   /**
@@ -130,13 +132,18 @@
 
   /** form.layout → 검증·폴백된 {cols[8], addr, rows[3]}. 이상치는 v3 기본값으로. */
   function sanitizeLayout(raw) {
-    var out = { cols: LAYOUT_DEFAULT.cols.slice(), addr: LAYOUT_DEFAULT.addr, rows: LAYOUT_DEFAULT.rows.slice() };
+    var out = { cols: LAYOUT_DEFAULT.cols.slice(), addr: LAYOUT_DEFAULT.addr, rows: LAYOUT_DEFAULT.rows.slice(), top: LAYOUT_DEFAULT.top };
     if (raw && typeof raw === 'object') {
       if (validBounds(raw.cols, 8, TBL_X0, TBL_X1, COL_MIN_GAP)) { out.cols = raw.cols.map(function (v) { return Math.round(v); }); }
-      if (validBounds(raw.rows, 3, TBL_Y0, TBL_Y1, ROW_MIN_GAP)) { out.rows = raw.rows.map(function (v) { return Math.round(v); }); }
       var a = raw.addr;
       if (isFiniteNum(a) && a >= TBL_X0 + COL_MIN_GAP && a <= out.cols[2] - COL_MIN_GAP) { out.addr = Math.round(a); }
+      var t = raw.top;   // top 먼저(절대범위 120~940). top↔rows 최소간격은 rows 하한=top 으로 강제.
+      if (isFiniteNum(t) && t >= TOP_MIN && t <= TOP_MAX) { out.top = Math.round(t); }
+      // rows 는 표 상단선(top) 아래에서만 유효 — 하한을 top 으로 두어 상단선 이동과 정합(레거시=899).
+      if (validBounds(raw.rows, 3, out.top, TBL_Y1, ROW_MIN_GAP)) { out.rows = raw.rows.map(function (v) { return Math.round(v); }); }
     }
+    // 불변식 강제: top+18 ≤ rows[0] (기본 rows 로 폴백 시 top 이 과도하면 끌어내림).
+    if (out.top > out.rows[0] - ROW_MIN_GAP) { out.top = out.rows[0] - ROW_MIN_GAP; }
     return out;
   }
 
@@ -171,7 +178,9 @@
   var annoMode = 'select';             // 'select'|'text'|'rect'|'ellipse'|'arrow'|'line'
   var lastStrokeColor = '#000000';     // 다음 도형 기본 선 색
   var lastStrokeWidth = 2;             // 다음 도형 기본 선 굵기
-  var editingTextarea = null;          // 활성 텍스트 오버레이(있으면 편집 중)
+  var editingTextarea = null;          // 활성 텍스트 오버레이(있으면 편집 중; contenteditable div)
+  var editCtx = null;                  // 리치 편집 컨텍스트 {id, area, isNew, size, align}
+  var commitActiveEdit = null;         // 활성 편집 즉시 커밋 훅(stage down/save/export 공용)
   var suppressLogoHideUntil = 0;       // 로고 셀 열림 제스처의 같은 native click 억제 창(ms 타임스탬프)
   var textJustOpenedUntil = 0;         // 새 텍스트 오버레이 보호창 — 직후 stage down의 handler-blur 방지
   var lastDownTs = -1000;              // stage mousedown 이중발화 dedupe: 직전 처리 down의 timeStamp
@@ -361,6 +370,7 @@
       handleLabel: g('dws-c-c-handlelabel'), handle: g('dws-c-c-handle'),
       drawerLabel: g('dws-c-d-drawerlabel'), drawer: g('dws-c-d-drawer'),
       etcLabel: g('dws-c-cd-etclabel'), misc: g('dws-c-cd-misc'), logo: g('dws-c-cd-logo'),
+      topFrame: g('dws-table-frame'),
       hAb: g('dws-hline-ab'), hBc: g('dws-hline-bc'), hCd: g('dws-hline-cd'),
       vC1: g('dws-v-123'), vC2: g('dws-v-211'), vC3: g('dws-v-310'), vC4: g('dws-v-399'),
       vC5: g('dws-v-728'), vC6: g('dws-v-820'), vC7: g('dws-v-1227'), vC8: g('dws-v-1330'),
@@ -391,9 +401,9 @@
     var form = (sheet || currentSheet()).form || {};
     var L = sanitizeLayout(form.layout);
     var font = sanitizeCellFont(form.cell_font);
-    var c = L.cols, addr = L.addr, r = L.rows;
+    var c = L.cols, addr = L.addr, r = L.rows, top = L.top;
     var X0 = TBL_X0, X1 = TBL_X1, Y1 = TBL_Y1;
-    var aTop = TBL_Y0, aH = r[0] - TBL_Y0;
+    var aTop = top, aH = r[0] - top;
     var bTop = r[0], bH = r[1] - r[0];
     var cdTop = r[1], cdH = Y1 - r[1];
     var cTop = r[1], cH = r[2] - r[1];
@@ -417,13 +427,15 @@
     setBox(q.drawerLabel, c[2], dTop, c[3] - c[2], dH); setBox(q.drawer, c[3], dTop, c[4] - c[3], dH);
     setBox(q.etcLabel, c[4], cdTop, c[5] - c[4], cdH); setBox(q.misc, c[5], cdTop, c[6] - c[5], cdH);
     setBox(q.logo, c[6], cdTop, X1 - c[6], cdH);
+    // 표 상단 프레임(top 이동 반영 — 좌/우/폭은 CSS 유지, y만 갱신)
+    if (q.topFrame) { q.topFrame.style.top = top + 'px'; }
     // 그리드 라인
     setHLine(q.hAb, X0, r[0], X1 - X0); setHLine(q.hBc, X0, r[1], X1 - X0);
     setHLine(q.hCd, c[2], r[2], c[4] - c[2]);
-    setVLine(q.vC1, c[0], TBL_Y0, r[1] - TBL_Y0); setVLine(q.vC2, c[1], TBL_Y0, r[1] - TBL_Y0);
-    setVLine(q.vC3, c[2], TBL_Y0, Y1 - TBL_Y0); setVLine(q.vC4, c[3], TBL_Y0, Y1 - TBL_Y0);
-    setVLine(q.vC5, c[4], TBL_Y0, Y1 - TBL_Y0); setVLine(q.vC6, c[5], TBL_Y0, Y1 - TBL_Y0);
-    setVLine(q.vC7, c[6], TBL_Y0, Y1 - TBL_Y0); setVLine(q.vC8, c[7], TBL_Y0, r[1] - TBL_Y0);
+    setVLine(q.vC1, c[0], top, r[1] - top); setVLine(q.vC2, c[1], top, r[1] - top);
+    setVLine(q.vC3, c[2], top, Y1 - top); setVLine(q.vC4, c[3], top, Y1 - top);
+    setVLine(q.vC5, c[4], top, Y1 - top); setVLine(q.vC6, c[5], top, Y1 - top);
+    setVLine(q.vC7, c[6], top, Y1 - top); setVLine(q.vC8, c[7], top, r[1] - top);
     setVLine(q.vAddr, addr, r[1], Y1 - r[1]);
     // 폰트(표 셀 전체 동일)
     if (q.cells) { Array.prototype.forEach.call(q.cells, function (el) { el.style.fontSize = font + 'px'; }); }
@@ -436,15 +448,18 @@
   function positionDividers(L) {
     if (!els.divEls) { return; }
     L = L || sanitizeLayout(currentSheet().form.layout);
-    var c = L.cols, addr = L.addr, r = L.rows, r2 = r[1];
+    var c = L.cols, addr = L.addr, r = L.rows, r2 = r[1], topY = L.top;
     els.divEls.forEach(function (item) {
       var d = item.meta, el = item.el;
       if (d.kind === 'col') {
-        el.style.left = (c[d.idx] - 3.5) + 'px'; el.style.top = TBL_Y0 + 'px';
-        el.style.width = '7px'; el.style.height = ((d.span === 'ab') ? (r2 - TBL_Y0) : (TBL_Y1 - TBL_Y0)) + 'px';
+        el.style.left = (c[d.idx] - 3.5) + 'px'; el.style.top = topY + 'px';
+        el.style.width = '7px'; el.style.height = ((d.span === 'ab') ? (r2 - topY) : (TBL_Y1 - topY)) + 'px';
       } else if (d.kind === 'addr') {
         el.style.left = (addr - 3.5) + 'px'; el.style.top = r2 + 'px';
         el.style.width = '7px'; el.style.height = (TBL_Y1 - r2) + 'px';
+      } else if (d.kind === 'top') {
+        el.style.left = TBL_X0 + 'px'; el.style.top = (topY - 3.5) + 'px';
+        el.style.width = (TBL_X1 - TBL_X0) + 'px'; el.style.height = '7px';
       } else {
         var partial = (d.span === 'partial');
         el.style.left = (partial ? c[2] : TBL_X0) + 'px'; el.style.top = (r[d.idx] - 3.5) + 'px';
@@ -462,6 +477,7 @@
   function commitDividerMove(d, logical) {
     var lay = currentSheet().form.layout;
     if (!lay || !lay.cols) { lay = currentSheet().form.layout = sanitizeLayout(lay); }
+    if (!isFiniteNum(lay.top)) { lay.top = LAYOUT_DEFAULT.top; }   // 구 저장분(top 없음) 방어
     var G = COL_MIN_GAP, GR = ROW_MIN_GAP;
     if (d.kind === 'col') {
       var i = d.idx;
@@ -471,9 +487,11 @@
       lay.cols[i] = Math.round(clamp(logical.x, lo, hi));
     } else if (d.kind === 'addr') {
       lay.addr = Math.round(clamp(logical.x, TBL_X0 + G, lay.cols[2] - G));
+    } else if (d.kind === 'top') {
+      lay.top = Math.round(clamp(logical.y, TOP_MIN, lay.rows[0] - GR));   // 위=120, 아래=r1-18
     } else {
       var j = d.idx;
-      var loR = (j === 0 ? TBL_Y0 : lay.rows[j - 1]) + GR;
+      var loR = (j === 0 ? lay.top : lay.rows[j - 1]) + GR;   // r1 상한은 top 아래로만
       var hiR = (j === 2 ? TBL_Y1 : lay.rows[j + 1]) - GR;
       lay.rows[j] = Math.round(clamp(logical.y, loR, hiR));
     }
@@ -483,6 +501,7 @@
     recordUndo();
     if (d.kind === 'col') { commitDividerMove(d, { x: LAYOUT_DEFAULT.cols[d.idx] }); }
     else if (d.kind === 'addr') { commitDividerMove(d, { x: LAYOUT_DEFAULT.addr }); }
+    else if (d.kind === 'top') { commitDividerMove(d, { y: LAYOUT_DEFAULT.top }); }
     else { commitDividerMove(d, { y: LAYOUT_DEFAULT.rows[d.idx] }); }
     markDirty();
     applyFormLayout(currentSheet());
@@ -542,8 +561,11 @@
     els.divEls = [];
     DIVIDERS.forEach(function (meta) {
       var el = document.createElement('div');
-      el.className = 'dws-divider dws-divider-' + (meta.kind === 'row' ? 'row' : 'col');
-      el.title = (meta.kind === 'row') ? '드래그: 행 높이 조절 · 더블클릭: 초기화' : '드래그: 열 너비 조절 · 더블클릭: 초기화';
+      var horizontal = (meta.kind === 'row' || meta.kind === 'top');   // 가로선=행/상단선(row-resize 커서)
+      el.className = 'dws-divider dws-divider-' + (horizontal ? 'row' : 'col');
+      if (meta.kind === 'top') { el.title = '드래그: 표 상단선 이동 · 더블클릭: 초기화'; }
+      else if (meta.kind === 'row') { el.title = '드래그: 행 높이 조절 · 더블클릭: 초기화'; }
+      else { el.title = '드래그: 열 너비 조절 · 더블클릭: 초기화'; }
       wireDivider(el, meta);
       els.dividers.appendChild(el);
       els.divEls.push({ el: el, meta: meta });
@@ -603,6 +625,62 @@
     return { x: (evt.clientX - rect.left) / zoom, y: (evt.clientY - rect.top) / zoom };
   }
 
+  /* ---- 텍스트 스타일 런(글자 단위 색상/굵기) 공용 헬퍼 --------------------
+     스키마: text 객체의 optional runs = [{t, c '#rrggbb', b bool}]. 개행은 t 안의
+     '\n'. text(플레인 합본)=join(runs.t), color/bold=첫 런 값으로 항상 동기(SSOT).
+     runs 없는 객체 = 기존 단색 Konva.Text 경로(무변경). ------------------------ */
+  var MAX_TEXT_RUNS = 60;
+  var _measureCanvas = null;
+
+  /** raw runs → 검증·병합된 [{t,c,b}] 또는 null(런 없음/단일 스타일=단색 경로). */
+  function sanitizeRuns(rawRuns) {
+    if (!Array.isArray(rawRuns) || !rawRuns.length || rawRuns.length > MAX_TEXT_RUNS) { return null; }
+    var out = [];
+    for (var i = 0; i < rawRuns.length; i++) {
+      var r = rawRuns[i];
+      if (!r || typeof r.t !== 'string' || r.t === '') { continue; }
+      var c = colorOrDefault(r.c), b = !!r.b;
+      var last = out[out.length - 1];
+      if (last && last.c === c && last.b === b) { last.t += r.t; }
+      else { out.push({ t: r.t, c: c, b: b }); }
+    }
+    if (out.length <= 1) { return null; }   // 0/1 런 = 단색 경로(상태 비대 방지)
+    var first = out[0];
+    var allSame = out.every(function (x) { return x.c === first.c && x.b === first.b; });
+    return allSame ? null : out;
+  }
+
+  /** runs 불변식 강제: text=join(t), color/bold=첫 런. 무효 런은 제거(단색 폴백). */
+  function syncTextFromRuns(o) {
+    var runs = sanitizeRuns(o.runs);
+    if (!runs) { delete o.runs; return; }
+    o.runs = runs;
+    o.text = runs.map(function (r) { return r.t; }).join('');
+    o.color = runs[0].c;
+    o.bold = !!runs[0].b;
+  }
+
+  /** canvas 2d measureText 로 런 폭 계산(Konva 내부와 동일 엔진 → 렌더 정합). */
+  function measureRunWidth(text, size, bold) {
+    if (!_measureCanvas) { _measureCanvas = document.createElement('canvas'); }
+    var ctx = _measureCanvas.getContext('2d');
+    ctx.font = (bold ? 'bold ' : '') + size + 'px ' + ANNO_FONT;
+    return ctx.measureText(String(text)).width;
+  }
+
+  /** runs → 줄 시퀀스[[{t,c,b}...], ...] ('\n' 기준 분할, 개행 문자는 제거). */
+  function runsToLines(runs) {
+    var lines = [[]];
+    runs.forEach(function (r) {
+      var parts = String(r.t).split('\n');
+      for (var i = 0; i < parts.length; i++) {
+        if (i > 0) { lines.push([]); }
+        if (parts[i] !== '') { lines[lines.length - 1].push({ t: parts[i], c: r.c, b: r.b }); }
+      }
+    });
+    return lines;
+  }
+
   /* ---- 노드 빌더 ---------------------------------------------------------- */
   function buildNode(o) {
     switch (o.type) {
@@ -624,6 +702,7 @@
   }
 
   function buildText(o) {
+    if (o.runs && o.runs.length) { return buildRichText(o); }
     var node = new Konva.Text({
       x: num(o.x), y: num(o.y), width: num(o.w, 220), text: String(o.text || ''),
       fontSize: sizeOrDefault(o.size), fill: colorOrDefault(o.color), fontFamily: ANNO_FONT,
@@ -633,6 +712,39 @@
     tagNode(node, o);
     node.on('dblclick', function (e) { e.cancelBubble = true; if (canSave) { startEditText(node, false); } });
     return node;
+  }
+
+  /** 런 텍스트 = Konva.Group + 줄/런별 Text 조각(글자 단위 색상/굵기). wrap 미지원(명시 개행만). */
+  function buildRichText(o) {
+    var size = sizeOrDefault(o.size);
+    var lineHeight = size * 1.25;
+    var align = (o.align === 'center') ? 'center' : 'left';
+    var lines = runsToLines(o.runs);
+    var lineWidths = lines.map(function (segs) {
+      var w = 0;
+      segs.forEach(function (s) { w += measureRunWidth(s.t, size, s.b); });
+      return w;
+    });
+    var groupWidth = Math.max.apply(null, lineWidths.concat([1]));
+    var group = new Konva.Group({
+      x: num(o.x), y: num(o.y), rotation: num(o.rotation), name: 'anno', draggable: canSave
+    });
+    lines.forEach(function (segs, li) {
+      var xOff = (align === 'center') ? (groupWidth - lineWidths[li]) / 2 : 0;
+      var cursorX = xOff;
+      segs.forEach(function (s) {
+        group.add(new Konva.Text({
+          x: cursorX, y: li * lineHeight, text: s.t, fontSize: size,
+          fill: colorOrDefault(s.c), fontFamily: ANNO_FONT,
+          fontStyle: s.b ? 'bold' : 'normal', lineHeight: 1.25
+        }));
+        cursorX += measureRunWidth(s.t, size, s.b);
+      });
+    });
+    group.setAttr('richWidth', Math.round(groupWidth));
+    tagNode(group, o);
+    group.on('dblclick', function (e) { e.cancelBubble = true; if (canSave) { startEditText(group, false); } });
+    return group;
   }
 
   function buildImage(o) {
@@ -714,6 +826,7 @@
   function applyLiveTransform(node) {
     var t = node.getAttr('annoType');
     if (t === 'text') {
+      if (node.getClassName() === 'Group') { return; }   // 런 텍스트: 회전만(리사이즈 앵커 비활성)
       node.width(Math.max(30, node.width() * node.scaleX()));
       node.scaleX(1); node.scaleY(1);
     } else if (t === 'ellipse') {
@@ -735,7 +848,11 @@
     var t = node.getAttr('annoType');
     if (t === 'text') {
       o.x = Math.round(node.x()); o.y = Math.round(node.y());
-      o.w = Math.round(node.width()); o.rotation = normalizeRotation(node.rotation());
+      o.rotation = normalizeRotation(node.rotation());
+      // 런 텍스트(Group)는 렌더 결과 폭을 w 로 저장(렌더는 무시), 단색은 Konva.Text 폭.
+      o.w = (node.getClassName() === 'Group')
+        ? Math.round(node.getAttr('richWidth') || o.w || 220)
+        : Math.round(node.width());
     } else if (t === 'image' || t === 'rect') {
       o.x = Math.round(node.x()); o.y = Math.round(node.y());
       o.w = Math.round(node.width()); o.h = Math.round(node.height());
@@ -784,7 +901,11 @@
     if (!node) { deselect(); return; }
     selected = node.getAttr('objId');
     var t = node.getAttr('annoType');
+    var o = findObj(selected);
+    var isRich = (t === 'text' && o && o.runs && o.runs.length);
     transformer.keepRatio(t === 'image' ? imageRatioLock : false);
+    // 런 텍스트는 이동·회전만(리사이즈 앵커 비활성) — 단색 텍스트/도형은 코너 앵커 유지.
+    transformer.enabledAnchors(isRich ? [] : ['top-left', 'top-right', 'bottom-left', 'bottom-right']);
     transformer.nodes([node]);
     transformer.moveToTop();
     showMiniToolbar(node);
@@ -817,6 +938,7 @@
   function hideMiniToolbar() { els.mt.hidden = true; }
 
   function positionMiniToolbar() {
+    if (editCtx) { positionEditToolbar(); return; }   // 편집 중이면 오버레이 위 고정 담당
     if (els.mt.hidden || !selected) { return; }
     var node = nodeById[selected];
     if (!node) { return; }
@@ -858,6 +980,8 @@
     if (!o || o.type !== 'text') { return; }
     recordUndo();
     Object.keys(patch).forEach(function (k) { o[k] = patch[k]; });
+    // 선택-모드에서 단색 색/굵기 적용 = 박스 전체 통일 → 런 평탄화(부분 색은 편집모드에서).
+    if (('color' in patch) || ('bold' in patch)) { delete o.runs; }
     markDirty();
     rebuildAnno();
     selectById(o.id);
@@ -956,8 +1080,8 @@
     if (Math.abs(downTs - lastDownTs) < 50 && Math.abs(downX - lastDownX) < 2 && Math.abs(downY - lastDownY) < 2) { return; }
     lastDownTs = downTs; lastDownX = downX; lastDownY = downY;
     if (editingTextarea) {
-      if (Date.now() < textJustOpenedUntil) { return; }   // 방금 연 textarea 보호(blur 없이 무시, 2중 방어)
-      editingTextarea.blur();                 // 편집 중 바깥 클릭 = 동기 커밋(editingTextarea=null)
+      if (Date.now() < textJustOpenedUntil) { return; }   // 방금 연 오버레이 보호(커밋 없이 무시, 2중 방어)
+      if (commitActiveEdit) { commitActiveEdit(); }        // 편집 중 바깥 클릭 = 동기 커밋(editingTextarea=null)
       if (annoMode === 'select') { return; }  // select 모드면 커밋만(같은 클릭으로 다음 액션 없음)
       // 텍스트/도형 모드면 아래로 계속 진행 — 같은 클릭이 다음 액션을 시작(좌표는 blur 후에도 유효)
     }
@@ -1126,10 +1250,168 @@
     startEditText(nodeById[o.id], true);
   }
 
-  /** Konva 표준 패턴: 노드 절대좌표×zoom 위치에 textarea 오버레이 → blur/Esc 커밋. */
+  /* ---- 리치 편집: DOM ↔ 런 변환 헬퍼 ------------------------------------- */
+  /** computed color 문자열('rgb(r,g,b)') → '#rrggbb'. 파싱 실패 시 검정. */
+  function rgbToHex(rgb) {
+    var m = /rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i.exec(String(rgb || ''));
+    if (!m) { return '#000000'; }
+    function h(n) { var s = clamp(parseInt(n, 10) || 0, 0, 255).toString(16); return s.length === 1 ? '0' + s : s; }
+    return '#' + h(m[1]) + h(m[2]) + h(m[3]);
+  }
+  /** computed fontWeight('700'/'bold'/…) → bold 여부(≥600). */
+  function isBoldWeight(w) {
+    if (w === 'bold' || w === 'bolder') { return true; }
+    var n = parseInt(w, 10);
+    return isFinite(n) && n >= 600;
+  }
+
+  /** contenteditable DOM → raw 런 배열([{t,c,b}]). <br>/블록(div/p) 경계는 '\n'. */
+  function extractRuns(rootEl) {
+    var raw = [];
+    function lastChar() {
+      for (var i = raw.length - 1; i >= 0; i--) { if (raw[i].t.length) { return raw[i].t.charAt(raw[i].t.length - 1); } }
+      return '';
+    }
+    function nl() {
+      var last = raw[raw.length - 1];   // 개행 스타일 = 직전 런(스타일 감지에 중립)
+      raw.push({ t: '\n', c: last ? last.c : '#000000', b: last ? last.b : false });
+    }
+    function emit(text, styleEl) {
+      if (!text) { return; }
+      var cs = window.getComputedStyle(styleEl);
+      raw.push({ t: text, c: rgbToHex(cs.color), b: isBoldWeight(cs.fontWeight) });
+    }
+    function walk(node, styleEl) {
+      for (var child = node.firstChild; child; child = child.nextSibling) {
+        if (child.nodeType === 3) {
+          emit(child.nodeValue, styleEl);
+        } else if (child.nodeType === 1) {
+          var tag = child.tagName;
+          if (tag === 'BR') {
+            if (child.nextSibling) { nl(); }   // 블록 끝의 filler <br> 은 무시(중복 개행 방지)
+          } else if (tag === 'DIV' || tag === 'P') {
+            if (raw.length && lastChar() !== '\n') { nl(); }
+            walk(child, child);
+          } else {
+            walk(child, child);   // span/b/font 등 인라인: 스타일은 자기 요소에서
+          }
+        }
+      }
+    }
+    walk(rootEl, rootEl);
+    return raw;
+  }
+
+  /** raw 런에서 첫 유효(개행 제외) 런 — 단색 폴백 시 색/굵기 근거. */
+  function firstStyleRun(raw) {
+    for (var i = 0; i < raw.length; i++) {
+      if (String(raw[i].t).replace(/\n/g, '') !== '') { return raw[i]; }
+    }
+    return null;
+  }
+
+  /** 오버레이 초기 콘텐츠 주입: runs → span 시퀀스, 없으면 플레인. textContent 만(XSS 안전). */
+  function fillOverlay(area, o) {
+    area.textContent = '';
+    if (o.runs && o.runs.length) {
+      o.runs.forEach(function (r) {
+        var parts = String(r.t).split('\n');
+        for (var i = 0; i < parts.length; i++) {
+          if (i > 0) { area.appendChild(document.createElement('br')); }
+          if (parts[i] !== '') {
+            var span = document.createElement('span');
+            span.style.color = colorOrDefault(r.c);
+            span.style.fontWeight = r.b ? '700' : '400';
+            span.textContent = parts[i];   // 사용자 문자열은 textContent 로만 삽입
+            area.appendChild(span);
+          }
+        }
+      });
+    } else {
+      var lines = String(o.text || '').split('\n');
+      for (var j = 0; j < lines.length; j++) {
+        if (j > 0) { area.appendChild(document.createElement('br')); }
+        if (lines[j] !== '') { area.appendChild(document.createTextNode(lines[j])); }
+      }
+    }
+  }
+
+  /* ---- 리치 편집: 선택/스타일 적용 --------------------------------------- */
+  function selectAllIn(area) {
+    var range = document.createRange();
+    range.selectNodeContents(area);
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+  /** 오버레이 내부에 비collapsed 선택이 있으면 true(부분 적용 대상). */
+  function selectionInside(area) {
+    var sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) { return false; }
+    return area.contains(sel.anchorNode) && area.contains(sel.focusNode);
+  }
+  function applyEditStyle(cmd, value) {
+    if (!editCtx) { return; }
+    var area = editCtx.area;
+    area.focus();
+    try { document.execCommand('styleWithCSS', false, true); } catch (_) { /* noop */ }
+    if (!selectionInside(area)) { selectAllIn(area); }   // collapsed/외부 = 전체 적용
+    try { document.execCommand(cmd, false, value); } catch (_) { /* noop */ }
+  }
+  function applyEditColor(color) { applyEditStyle('foreColor', color); syncEditToolbar(); }
+  function applyEditBold() { applyEditStyle('bold', null); syncEditToolbar(); }
+  function setEditFontSize(size) {
+    if (!editCtx) { return; }
+    editCtx.size = sizeOrDefault(size);
+    editCtx.area.style.fontSize = (editCtx.size * zoom) + 'px';
+    editCtx.area.focus();
+    positionEditToolbar();
+  }
+  function setEditAlign(align) {
+    if (!editCtx) { return; }
+    editCtx.align = (align === 'center') ? 'center' : 'left';
+    editCtx.area.style.textAlign = editCtx.align;
+    editCtx.area.focus();
+    syncEditToolbar();
+  }
+
+  /* ---- 리치 편집: 편집 중 미니바(오버레이 위 고정, 삭제 버튼 숨김) -------- */
+  function showEditToolbar() {
+    els.mtText.hidden = false;
+    els.mtImage.hidden = true;
+    els.mtShape.hidden = true;
+    els.mt.hidden = false;
+    els.mt.classList.add('dws-mt-editing');   // CSS: 편집 중 삭제 버튼 숨김
+    syncEditToolbar();
+    positionEditToolbar();
+  }
+  function hideEditToolbar() {
+    els.mt.classList.remove('dws-mt-editing');
+    els.mt.hidden = true;
+  }
+  function positionEditToolbar() {
+    if (!editCtx) { return; }
+    var r = editCtx.area.getBoundingClientRect();
+    var top = r.top - els.mt.offsetHeight - 8;
+    if (top < 8) { top = r.bottom + 8; }
+    var left = clamp(r.left, 8, window.innerWidth - els.mt.offsetWidth - 8);
+    els.mt.style.left = left + 'px';
+    els.mt.style.top = top + 'px';
+  }
+  function syncEditToolbar() {
+    if (!editCtx) { return; }
+    els.mtSize.value = String(editCtx.size);
+    els.mtAlign.textContent = (editCtx.align === 'center') ? '중' : '좌';
+    els.mtAlign.classList.toggle('dws-active', editCtx.align === 'center');
+    // 편집 중 스와치/굵기 활성표시는 caret 스타일로 정확 판별이 어려워 중립(비활성)로 둔다.
+    Array.prototype.forEach.call(els.mtText.querySelectorAll('.dws-swatch'), function (sw) { sw.classList.remove('dws-active'); });
+    els.mtBold.classList.remove('dws-active');
+  }
+
+  /** contenteditable 오버레이 인라인 편집 → blur/Esc 커밋. 커밋 시 DOM→런 추출. */
   function startEditText(node, isNew) {
     if (!canSave || !node) { return; }
-    if (editingTextarea) { editingTextarea.blur(); }
+    if (commitActiveEdit) { commitActiveEdit(); }
     var o = findObj(node.getAttr('objId'));
     if (!o) { return; }
     if (!isNew) { recordUndo(); }
@@ -1141,56 +1423,83 @@
 
     var annoRect = els.anno.getBoundingClientRect();
     var pos = node.absolutePosition();
-    var area = document.createElement('textarea');
+    var size = sizeOrDefault(o.size);
+    var align = (o.align === 'center') ? 'center' : 'left';
+    var area = document.createElement('div');
     area.className = 'dws-text-overlay';
-    area.value = o.text || '';
+    area.setAttribute('contenteditable', 'true');
+    area.setAttribute('spellcheck', 'false');
     area.style.left = (annoRect.left + pos.x * zoom) + 'px';
     area.style.top = (annoRect.top + pos.y * zoom) + 'px';
-    area.style.width = Math.max(40, node.width() * zoom) + 'px';
-    area.style.fontSize = (node.fontSize() * zoom) + 'px';
+    area.style.minWidth = Math.max(40, num(o.w, 40) * zoom) + 'px';
+    area.style.fontSize = (size * zoom) + 'px';
     area.style.fontFamily = ANNO_FONT;
     area.style.fontWeight = o.bold ? '700' : '400';
     area.style.color = colorOrDefault(o.color);
-    area.style.textAlign = (o.align === 'center') ? 'center' : 'left';
+    area.style.textAlign = align;
+    fillOverlay(area, o);
     document.body.appendChild(area);
     editingTextarea = area;
+    editCtx = { id: o.id, area: area, isNew: !!isNew, size: size, align: align };
     textJustOpenedUntil = Date.now() + 450;   // 보호창: 직후 stage down의 handler-blur 방지(2중 방어)
 
-    function autoResize() { area.style.height = 'auto'; area.style.height = area.scrollHeight + 'px'; }
-    autoResize();
+    try { document.execCommand('styleWithCSS', false, true); } catch (_) { /* noop */ }
+    showEditToolbar();
     area.focus();
-    area.select();
+    selectAllIn(area);
 
     var done = false;
     function commit() {
       if (done) { return; }
       done = true;
+      var ctxSize = editCtx ? editCtx.size : size;
+      var ctxAlign = editCtx ? editCtx.align : align;
       editingTextarea = null;
-      var val = area.value;
+      editCtx = null;
+      commitActiveEdit = null;
+      hideEditToolbar();
+      var raw = extractRuns(area);
       if (area.parentNode) { area.parentNode.removeChild(area); }
       var cur = findObj(o.id);
-      if (!cur) { if (node) { node.destroy(); } konvaLayer.batchDraw(); return; }
-      if (String(val).trim() === '') {
+      if (!cur) { node.destroy(); konvaLayer.batchDraw(); return; }
+      var text = raw.map(function (r) { return r.t; }).join('');
+      if (text.trim() === '') {
         var wasSelected = (selected === o.id);
         removeObject(o.id);
         if (wasSelected) { deselect(); }
         markDirty();
         return;
       }
-      cur.text = val;
-      node.text(val);
-      node.show();
+      cur.size = ctxSize;
+      cur.align = ctxAlign;
+      var runs = sanitizeRuns(raw);
+      if (runs) {
+        cur.runs = runs;
+        cur.text = runs.map(function (r) { return r.t; }).join('');
+        cur.color = runs[0].c; cur.bold = !!runs[0].b;
+      } else {
+        delete cur.runs;
+        cur.text = text;
+        var fv = firstStyleRun(raw);
+        if (fv) { cur.color = fv.c; cur.bold = fv.b; }
+      }
       markDirty();
+      rebuildAnno();
       if (selected === o.id) { selectById(o.id); }
       else { konvaLayer.batchDraw(); }
     }
+    commitActiveEdit = commit;
 
-    area.addEventListener('input', autoResize);
-    area.addEventListener('blur', commit);
-    area.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape') { e.preventDefault(); area.blur(); }
-      /* Enter = 줄바꿈(멀티라인 유지). 커밋은 blur/Esc. */
+    area.addEventListener('blur', function (e) {
+      // 미니바(크기 select 등)로 포커스 이동 = 편집 유지(커밋 아님). 그 외 바깥 = 커밋.
+      if (e.relatedTarget && els.mt && els.mt.contains(e.relatedTarget)) { return; }
+      commit();
     });
+    area.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { e.preventDefault(); commit(); return; }
+      /* Enter = 줄바꿈(contenteditable 기본). 커밋은 blur/Esc. */
+    });
+    area.addEventListener('input', function () { positionEditToolbar(); });
   }
 
   /* ---- 이미지 업로드 / 생성 ----------------------------------------------- */
@@ -1422,13 +1731,20 @@
       };
     }
     if (o.type === 'text') {
-      return {
+      var txt = {
         id: o.id, type: 'text',
         x: clampCoord(o.x), y: clampCoord(o.y), w: clampDim(o.w),
         text: String(o.text || ''), size: sizeOrDefault(o.size),
         color: colorOrDefault(o.color), bold: !!o.bold,
         align: (o.align === 'center') ? 'center' : 'left', rotation: rot
       };
+      var runs = sanitizeRuns(o.runs);
+      if (runs) {
+        txt.runs = runs;
+        txt.text = runs.map(function (r) { return r.t; }).join('');   // 서버 계약: join(t)==text
+        txt.color = runs[0].c; txt.bold = !!runs[0].b;
+      }
+      return txt;
     }
     return null;
   }
@@ -1497,12 +1813,14 @@
         stroke: colorOrDefault(o.stroke), strokeWidth: strokeOrDefault(o.strokeWidth), rotation: rot
       };
     }
-    return {
+    var text = {
       id: o.id || rid('o-'), type: 'text',
       x: num(o.x), y: num(o.y), w: num(o.w, 220),
       text: String(o.text || ''), size: sizeOrDefault(o.size), color: colorOrDefault(o.color),
       bold: !!o.bold, align: (o.align === 'center') ? 'center' : 'left', rotation: rot
     };
+    if (o.runs) { text.runs = o.runs; syncTextFromRuns(text); }   // 런 있으면 불변식 동기(text/color/bold)
+    return text;
   }
 
   function normalizeState(st) {
@@ -1571,7 +1889,7 @@
 
   function save() {
     if (!canSave) { return; }
-    if (editingTextarea) { editingTextarea.blur(); }
+    if (commitActiveEdit) { commitActiveEdit(); }
     if (document.activeElement && document.activeElement.blur) { document.activeElement.blur(); }
     var body = { state: serializeState(), base_updated_at: baseUpdatedAt };
     els.saveBtn.disabled = true;
@@ -1609,7 +1927,7 @@
    * 오프스크린 2956x2080 캔버스에 순서대로 draw → 합성 canvas 반환.
    */
   function withExportMode() {
-    if (editingTextarea) { editingTextarea.blur(); }
+    if (commitActiveEdit) { commitActiveEdit(); }
     if (document.activeElement && document.activeElement.blur) { document.activeElement.blur(); }
     var prevZoom = zoom;
     deselect();
@@ -1790,15 +2108,30 @@
     document.getElementById('dws-btn-export-png').addEventListener('click', exportPng);
     document.getElementById('dws-btn-export-transfer').addEventListener('click', openTransferDialog);
 
-    // 미니 툴바 — 텍스트
-    els.mtSize.addEventListener('change', function () { updateSelectedText({ size: parseInt(els.mtSize.value, 10) }); });
+    // 미니 툴바 — 텍스트 (편집 중이면 선택범위/전체에 실시간 적용, 아니면 선택 객체 통일)
+    // 편집 중 미니바 버튼 클릭이 오버레이 포커스/선택을 뺏지 않도록 mousedown 기본동작 차단
+    // (크기 select 는 드롭다운을 열어야 하므로 예외 — blur relatedTarget 로 커밋만 억제).
+    els.mt.addEventListener('mousedown', function (e) {
+      if (!editCtx) { return; }
+      if (e.target === els.mtSize || els.mtSize.contains(e.target)) { return; }
+      e.preventDefault();
+    });
+    els.mtSize.addEventListener('change', function () {
+      var size = parseInt(els.mtSize.value, 10);
+      if (editCtx) { setEditFontSize(size); } else { updateSelectedText({ size: size }); }
+    });
     Array.prototype.forEach.call(els.mtText.querySelectorAll('.dws-swatch'), function (sw) {
-      sw.addEventListener('click', function () { updateSelectedText({ color: sw.getAttribute('data-color') }); });
+      sw.addEventListener('click', function () {
+        var color = sw.getAttribute('data-color');
+        if (editCtx) { applyEditColor(color); } else { updateSelectedText({ color: color }); }
+      });
     });
     els.mtBold.addEventListener('click', function () {
+      if (editCtx) { applyEditBold(); return; }
       var o = findObj(selected); if (o && o.type === 'text') { updateSelectedText({ bold: !o.bold }); }
     });
     els.mtAlign.addEventListener('click', function () {
+      if (editCtx) { setEditAlign(editCtx.align === 'center' ? 'left' : 'center'); return; }
       var o = findObj(selected); if (o && o.type === 'text') { updateSelectedText({ align: o.align === 'center' ? 'left' : 'center' }); }
     });
     document.getElementById('dws-mt-del-text').addEventListener('click', deleteSelected);

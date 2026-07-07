@@ -40,6 +40,7 @@ _MAX_OBJECTS_PER_SHEET = 200
 _MAX_SHEET_NAME_LEN = 50
 _MAX_FORM_VALUE_LEN = 500
 _MAX_TEXT_LEN = 2000
+_MAX_TEXT_RUNS = 60
 _MAX_ASSET_BYTES = 10 * 1024 * 1024
 _ALLOWED_ASSET_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.webp', '.gif')
 _ASSET_RAW_MIMETYPES = {
@@ -58,6 +59,7 @@ _COLOR_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
 # 표 레이아웃(열/행 경계) 승격 값 — 서버는 타입·범위만 검증(증가순·간격은 클라 책임).
 _LAYOUT_X_MIN, _LAYOUT_X_MAX = 41, 1439       # 외곽 40/1440 안쪽
 _LAYOUT_Y_MIN, _LAYOUT_Y_MAX = 900, 999       # 외곽 899/1000 안쪽
+_LAYOUT_TOP_MIN, _LAYOUT_TOP_MAX = 100, 980   # 표 상단선(top) 이동 허용 범위(optional)
 _MAX_LAYOUT_COLS = 12
 _MAX_LAYOUT_ROWS = 6
 _CELL_FONT_MIN, _CELL_FONT_MAX = 10, 28
@@ -106,8 +108,45 @@ def _is_number_in_range(value, low: float, high: float) -> bool:
     return _is_number(value) and low <= value <= high
 
 
+def _validate_text_runs(obj: dict) -> str | None:
+    """optional ``runs``(글자 단위 스타일 런) 검증. 없으면 통과(하위호환 단색 텍스트).
+
+    각 런은 ``{t: str, c: '#rrggbb', b: bool}``. 런 개수 ≤ 60, t 길이 합계 ≤ _MAX_TEXT_LEN,
+    런 t 를 순서대로 이은 문자열이 플레인 합본 ``text`` 와 정확히 일치해야 한다(SSOT).
+    """
+    if 'runs' not in obj:
+        return None
+    runs = obj.get('runs')
+    if not isinstance(runs, list) or len(runs) > _MAX_TEXT_RUNS:
+        return f'텍스트 스타일 런은 최대 {_MAX_TEXT_RUNS}개까지 허용됩니다.'
+    total_len = 0
+    joined = []
+    for run in runs:
+        if not isinstance(run, dict):
+            return '텍스트 스타일 런 형식이 올바르지 않습니다.'
+        run_text = run.get('t')
+        if not isinstance(run_text, str):
+            return '텍스트 스타일 런 내용이 올바르지 않습니다.'
+        total_len += len(run_text)
+        if total_len > _MAX_TEXT_LEN:
+            return f'텍스트 내용이 올바르지 않습니다(최대 {_MAX_TEXT_LEN}자).'
+        run_color = run.get('c')
+        if not isinstance(run_color, str) or not _COLOR_RE.match(run_color):
+            return '텍스트 스타일 런 색상 값이 올바르지 않습니다.'
+        if not isinstance(run.get('b'), bool):
+            return '텍스트 스타일 런 굵기 값이 올바르지 않습니다.'
+        joined.append(run_text)
+    if ''.join(joined) != obj.get('text'):
+        return '텍스트 스타일 런과 본문이 일치하지 않습니다.'
+    return None
+
+
 def _validate_text_object(obj: dict) -> str | None:
-    """텍스트 객체 필드 검증. 정상이면 None, 오류면 메시지."""
+    """텍스트 객체 필드 검증. 정상이면 None, 오류면 메시지.
+
+    ``text``(플레인 합본)·``size``·``color``·``bold``·``align`` 는 필수이며,
+    optional ``runs`` 가 있으면 글자 단위 스타일을 추가 검증한다(하위호환).
+    """
     text = obj.get('text')
     if not isinstance(text, str) or len(text) > _MAX_TEXT_LEN:
         return f'텍스트 내용이 올바르지 않습니다(최대 {_MAX_TEXT_LEN}자).'
@@ -120,7 +159,7 @@ def _validate_text_object(obj: dict) -> str | None:
         return '텍스트 굵기 값이 올바르지 않습니다.'
     if obj.get('align') not in _ALLOWED_ALIGNS:
         return '텍스트 정렬 값이 올바르지 않습니다.'
-    return None
+    return _validate_text_runs(obj)
 
 
 def _validate_image_object(obj: dict, order_id: int) -> str | None:
@@ -215,8 +254,9 @@ def _validate_object(obj, order_id: int) -> str | None:
 def _validate_layout(layout) -> str | None:
     """폼 ``layout``(표 열/행 경계) 구조 검증.
 
-    ``cols``/``rows`` 는 숫자 리스트(각 길이 캡·좌표 범위), ``addr`` 은 optional 숫자.
+    ``cols``/``rows`` 는 숫자 리스트(각 길이 캡·좌표 범위), ``addr``/``top`` 은 optional 숫자.
     증가순·최소간격은 클라이언트 책임이며 서버는 타입·범위만 확인한다(설계서 I-5).
+    ``top`` 은 하단 표 상단선(y) 위치로, 없으면(구 저장분) 통과한다.
     """
     if not isinstance(layout, dict):
         return '폼 layout 형식이 올바르지 않습니다.'
@@ -228,6 +268,8 @@ def _validate_layout(layout) -> str | None:
             return '폼 layout cols 값이 범위를 벗어났습니다.'
     if 'addr' in layout and not _is_number_in_range(layout.get('addr'), _LAYOUT_X_MIN, _LAYOUT_X_MAX):
         return '폼 layout addr 값이 범위를 벗어났습니다.'
+    if 'top' in layout and not _is_number_in_range(layout.get('top'), _LAYOUT_TOP_MIN, _LAYOUT_TOP_MAX):
+        return '폼 layout top 값이 범위를 벗어났습니다.'
     rows = layout.get('rows')
     if not isinstance(rows, list) or len(rows) > _MAX_LAYOUT_ROWS:
         return '폼 layout rows 형식이 올바르지 않습니다.'
