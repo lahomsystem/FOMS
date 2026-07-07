@@ -24,7 +24,7 @@ from foms.web.auth import login_required, get_user_by_id
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.erp_policy import is_drawing_workbench_participant
 from foms.services.storage import get_storage
-from foms.services.drawing_wizard_defaults import build_wizard_defaults
+from foms.services.drawing_wizard_defaults import build_wizard_defaults, resolve_assignee_drew_en
 
 logger = logging.getLogger(__name__)
 
@@ -374,6 +374,7 @@ def api_get_drawing_wizard(order_id):
             'customer_name': customer_name,
             'state': sd.get('drawing_wizard') or None,
             'defaults': build_wizard_defaults(order, sd, current_user),
+            'drew_assignee_en': resolve_assignee_drew_en(sd),
             'can_save': _can_save_wizard(current_user, order),
             'drew_default': current_user.name if current_user else '',
         },

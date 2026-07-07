@@ -19,7 +19,7 @@ from foms.services.erp_template_filters import (
     item_spec_w300_display,
 )
 
-__all__ = ["build_wizard_defaults"]
+__all__ = ["build_wizard_defaults", "resolve_assignee_drew_en"]
 
 _CONSULT_PLACEHOLDER = "상담"
 
@@ -180,6 +180,34 @@ def _resolve_drew(sd: dict[str, Any], current_user: Any) -> str:
         if english:
             return english
     return assignee_name
+
+
+def resolve_assignee_drew_en(sd: dict[str, Any]) -> str:
+    """지정 도면 담당자의 설정 영문명을 반환한다(매핑 성공 시에만).
+
+    ``build_wizard_defaults`` 의 ``_resolve_drew`` 폴백 체인과 달리, "지정된 도면
+    담당자의 영문명이 존재하는가"만 판정한다. 담당자 한글명/현재 사용자명으로는
+    폴백하지 않으며, 다음의 경우 모두 빈 문자열을 반환한다:
+    담당자 미지정 / 설정에 해당 한글명의 영문 매핑이 없음.
+
+    저장된 마법사 시트를 열 때 프론트가 DREW 셀을 담당자 기준 영문명으로 동기화할지
+    판단하는 SSOT다(빈 문자열이면 기존 저장값을 유지).
+
+    Args:
+        sd: 이미 dict로 정규화된 ``structured_data``.
+
+    Returns:
+        영문 매핑이 성공한 담당자 영문명(항상 str). 없으면 빈 문자열.
+    """
+    sd = sd if isinstance(sd, dict) else {}
+    assignee_name = _first_drawing_assignee_name(sd)
+    if not assignee_name:
+        return ""
+    settings = load_erp_shipment_settings() or {}
+    en_map = settings.get("drawing_manager_en") or {}
+    if not isinstance(en_map, dict):
+        return ""
+    return _as_str(en_map.get(assignee_name)).strip()
 
 
 def build_wizard_defaults(order: Any, sd: dict[str, Any], current_user: Any) -> dict[str, Any]:

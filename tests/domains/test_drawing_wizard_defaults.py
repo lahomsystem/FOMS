@@ -5,7 +5,10 @@ DB가 필요 없는 순수 함수 테스트: fake order(SimpleNamespace) + sd(di
 
 from types import SimpleNamespace
 
-from foms.services.drawing_wizard_defaults import build_wizard_defaults
+from foms.services.drawing_wizard_defaults import (
+    build_wizard_defaults,
+    resolve_assignee_drew_en,
+)
 
 
 def _order(**kwargs):
@@ -215,3 +218,31 @@ def test_defaults_drew_falls_back_to_current_user_when_no_assignee(monkeypatch):
     result = build_wizard_defaults(_order(), {}, _user("최상용"))
 
     assert result["drew"] == "최상용"
+
+
+def test_resolve_assignee_drew_en_returns_english_when_mapping_exists(monkeypatch):
+    """담당자 지정 + 영문 매핑 성공 → 영문명 반환."""
+    _patch_drawing_manager_en(monkeypatch, {"김한비": "KIM HANBI"})
+    sd = {"drawing_assignees": [{"id": 7, "name": "김한비"}]}
+
+    assert resolve_assignee_drew_en(sd) == "KIM HANBI"
+
+
+def test_resolve_assignee_drew_en_blank_when_no_mapping(monkeypatch):
+    """담당자 지정됐어도 영문 매핑이 없으면 빈 문자열(한글명 폴백 안 함)."""
+    _patch_drawing_manager_en(monkeypatch, {})
+    sd = {"drawing_assignees": [{"id": 7, "name": "김한비"}]}
+
+    assert resolve_assignee_drew_en(sd) == ""
+
+
+def test_resolve_assignee_drew_en_blank_when_no_assignee(monkeypatch):
+    """담당자 미지정이면 빈 문자열이며 설정 로더는 호출하지 않는다."""
+    from foms.services import drawing_wizard_defaults as mod
+
+    def _boom():
+        raise AssertionError("담당자 미지정 시 설정 로더를 호출하면 안 된다")
+
+    monkeypatch.setattr(mod, "load_erp_shipment_settings", _boom)
+
+    assert resolve_assignee_drew_en({}) == ""

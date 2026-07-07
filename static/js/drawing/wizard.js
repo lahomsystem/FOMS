@@ -1862,6 +1862,14 @@
       undoStack.length = 0;
       redoStack.length = 0;
       dirty = false;
+      // 저장 시트라도 지정 도면담당자의 영문명이 있으면 DREW를 그 값으로 동기화(담당자 기준 SSOT).
+      if (d.drew_assignee_en) {
+        var changed = false;
+        state.sheets.forEach(function (s) {
+          if (s.form && s.form.drew !== d.drew_assignee_en) { s.form.drew = d.drew_assignee_en; changed = true; }
+        });
+        if (changed) { dirty = true; }   // 값이 실제로 바뀌면 저장 유도(dirty 표시)
+      }
       selected = null;
       setAnnoMode('select');
       applyPermissions();
