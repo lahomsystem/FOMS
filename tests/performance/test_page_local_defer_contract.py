@@ -167,6 +167,7 @@ def test_erp_order_shared_scripts_are_deferred_with_preserved_globals() -> None:
 def test_wdcalculator_bootstrap_chunks_are_deferred_before_dom_ready_host() -> None:
     html = _read("templates/wdcalculator/partials/wdcalculator_scripts_config.html")
     host = _read("templates/wdcalculator/partials/wdcalculator_scripts.html")
+    entry = _read("static/js/wdcalculator/wdcalculator-entry.js")
     chunks = [
         "js/wdcalculator/shared.js",
         "js/wdcalculator/unsaved-exit-guard.js",
@@ -176,11 +177,22 @@ def test_wdcalculator_bootstrap_chunks_are_deferred_before_dom_ready_host() -> N
         "js/wdcalculator/spec-width-eval.js",
         "js/wdcalculator/primary-form.js",
         "js/wdcalculator/pricing-core.js",
+        "js/wdcalculator/category-picker.js",
+        "js/wdcalculator/multi-add-picker.js",
     ]
 
+    _assert_deferred(html, "js/wdcalculator/wdcalculator-entry.js")
     for needle in chunks:
-        _assert_deferred(html, needle)
-    assert "document.addEventListener('DOMContentLoaded', function() {" in host
+        assert needle in html
+        assert needle not in _script_tag_containing(html, "js/wdcalculator/wdcalculator-entry.js")
+    positions = [html.index(needle) for needle in chunks]
+    assert positions == sorted(positions), f"WDCalculator chunk order changed: {chunks}"
+    assert html.count("<script src=") == 1
+    assert "WdCalculatorEntry.ready" in host
+    assert "DOMContentLoaded" in host
+    assert "window.__WD_CALCULATOR_CHUNKS_READY = true;" in entry
+    assert "script.async = false;" in entry
+    assert "Promise.all(urls.map(loadScript))" in entry
 
 
 def test_deferred_page_scripts_are_removed_from_global_sync_allowlist() -> None:

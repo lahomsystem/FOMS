@@ -1,5 +1,14 @@
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+(function () {
+function onWdCalculatorDomReady(callback) {
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", callback, { once: true });
+        return;
+    }
+    callback();
+}
+
+function bootWdCalculatorHost() {
     const DEFAULT_COUPON_VALUE = 11000; // 기본 쿠폰 금액
 
     // shared helpers loaded from static/js/wdcalculator/shared.js
@@ -286,5 +295,15 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     })();
 
-});
+}
+
+if (window.WdCalculatorEntry && typeof window.WdCalculatorEntry.ready === "function") {
+    window.WdCalculatorEntry.ready(function (error) {
+        if (error) return;
+        onWdCalculatorDomReady(bootWdCalculatorHost);
+    });
+} else {
+    onWdCalculatorDomReady(bootWdCalculatorHost);
+}
+})();
 </script>
