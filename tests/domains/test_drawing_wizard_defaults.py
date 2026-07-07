@@ -211,6 +211,15 @@ def test_defaults_item_index_selects_single_product():
     assert result["color"] == "블랙"
     assert result["handle"] == "핸들B"
     assert result["site_spec"] == "100×200×300"
+    assert result["page_no"] == "2"  # 제품 번호(1-base) 자동 넘버링
+
+
+def test_defaults_page_no_auto_numbers_by_product_index():
+    """page_no는 제품 시트(item_index 지정)면 번호(1-base), 집계면 '-'."""
+    sd = {"items": [{"product_name": "A"}, {"product_name": "B"}, {"product_name": "C"}]}
+    assert build_wizard_defaults(_order(), sd, _user())["page_no"] == "-"
+    assert build_wizard_defaults(_order(), sd, _user(), item_index=0)["page_no"] == "1"
+    assert build_wizard_defaults(_order(), sd, _user(), item_index=2)["page_no"] == "3"
 
 
 def test_defaults_item_index_out_of_range_falls_back_to_first():

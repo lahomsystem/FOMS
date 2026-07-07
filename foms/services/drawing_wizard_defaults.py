@@ -305,6 +305,7 @@ def build_wizard_defaults(
         "manager_phone": _resolve_manager_phone(order, parties, manager, sales_manager),
         "logo": _resolve_logo(sales_manager),
         "drew": _resolve_drew(sd, current_user),
-        "page_no": "-",
+        # 제품별 시트는 제품 번호(1-base)로 자동 넘버링, 집계(전체)는 '-'.
+        "page_no": str(item_index + 1) if (item_index is not None and 0 <= item_index < len(items)) else "-",
         "checks": {key: False for key in _WIZARD_CHECK_KEYS},
     }
