@@ -3482,12 +3482,34 @@ async function erpDoDirectUploadOne(originalFile, category, itemIndex, preFetche
     return await completeRes.json();
 }
 
-async function erpUploadSelectedAttachments() {
+function erpResolveCommonAttachmentInput(source) {
+    if (source && source.tagName === 'INPUT') {
+        return source;
+    }
+    const shouldUseGalleryInput = !!(
+        source &&
+        source.getAttribute &&
+        source.getAttribute('data-erp-common-attachment-gallery-trigger') === '1'
+    );
+    const galleryInput = shouldUseGalleryInput
+        ? document.getElementById('erp-attachments-gallery-input')
+        : null;
+    return galleryInput || document.getElementById('erp-attachments-input');
+}
+
+function erpOpenCommonAttachmentPicker(input) {
+    if (!input || typeof input.click !== 'function') return false;
+    input.setAttribute('multiple', '');
+    input.multiple = true;
+    input.click();
+    return true;
+}
+
+async function erpUploadSelectedAttachments(source) {
     if (!ERP_ORDER_ENABLED) return;
-    const input = document.getElementById('erp-attachments-input');
+    const input = erpResolveCommonAttachmentInput(source);
     if (!input || !input.files || input.files.length === 0) {
-        if (input && typeof input.click === 'function') {
-            input.click();
+        if (erpOpenCommonAttachmentPicker(input)) {
             return;
         }
         erpAttachmentsSetStatus('업로드할 파일을 선택하세요.', true);
@@ -4427,10 +4449,17 @@ function fomsMountErpOrderSurface() {
         });
     };
 
-    document.getElementById('erp-attachments-upload-btn')?.addEventListener('click', erpUploadSelectedAttachments);
+    document.getElementById('erp-attachments-upload-btn')?.addEventListener('click', function () {
+        erpUploadSelectedAttachments(this);
+    });
     document.getElementById('erp-attachments-input')?.addEventListener('change', function () {
         if (this.files && this.files.length > 0) {
-            erpUploadSelectedAttachments();
+            erpUploadSelectedAttachments(this);
+        }
+    });
+    document.getElementById('erp-attachments-gallery-input')?.addEventListener('change', function () {
+        if (this.files && this.files.length > 0) {
+            erpUploadSelectedAttachments(this);
         }
     });
     erpBindAttachmentPasteUpload();
