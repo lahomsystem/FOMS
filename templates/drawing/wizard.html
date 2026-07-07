@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>도면 마법사 — 주문 #{{ order.id }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20260708b">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20260708c">
 </head>
 <body>
   <div id="dws-root" data-order-id="{{ order.id }}">
@@ -100,6 +100,7 @@
           <div class="dws-menu dws-menu-right" id="dws-export-menu" hidden>
             <button type="button" class="dws-menu-item" id="dws-btn-export-png">PNG 다운로드</button>
             <button type="button" class="dws-menu-item dws-edit-ctl" id="dws-btn-export-transfer">도면 전달</button>
+            <button type="button" class="dws-menu-item" id="dws-btn-version-history">버전 이력…</button>
           </div>
         </div>
       </div>
@@ -314,6 +315,18 @@
       </div>
     </dialog>
 
+    <!-- ================= 버전 이력 다이얼로그 ================= -->
+    <dialog class="dws-dialog dws-ui" id="dws-version-dialog">
+      <div class="dws-dialog-body">
+        <h2 class="dws-dialog-title">버전 이력</h2>
+        <p class="dws-dialog-note">도면을 전달할 때마다 각 시트의 상태가 자동으로 기록됩니다. 이전 버전을 새 시트로 복원해 비교·수정할 수 있습니다.</p>
+        <div class="dws-version-list" id="dws-version-list"></div>
+        <div class="dws-dialog-actions">
+          <button type="button" class="dws-btn" id="dws-version-close">닫기</button>
+        </div>
+      </div>
+    </dialog>
+
     <!-- ================= 모바일 안내 ================= -->
     <div class="dws-mobile-notice" id="dws-mobile-notice" hidden>
       <div class="dws-mobile-notice-box">
@@ -329,6 +342,6 @@
 
   <script id="drawing-wizard-config" type="application/json">{{ wizard_config|tojson }}</script>
   <script src="{{ url_for('static', filename='vendor/konva.min.js') }}?v=20260706b" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260708b" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260708c" defer></script>
 </body>
 </html>

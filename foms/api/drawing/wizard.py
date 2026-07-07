@@ -23,7 +23,7 @@ from werkzeug.datastructures import FileStorage
 from db import get_db
 from models import Order, OrderAttachment
 from foms.web.auth import login_required, get_user_by_id
-from foms.services.datetime_kst import now_utc_naive
+from foms.services.datetime_kst import now_kst, now_utc_naive
 from foms.services.erp_permissions import can_edit_erp
 from foms.services.erp_policy import is_drawing_workbench_participant
 from foms.services.storage import get_storage
@@ -48,6 +48,8 @@ _MAX_FORM_VALUE_LEN = 500
 _MAX_TEXT_LEN = 2000
 _MAX_TEXT_RUNS = 60
 _MAX_ASSET_BYTES = 10 * 1024 * 1024
+# 버전 이력 — 전달 시점 시트 상태 스냅샷 포인터 최대 보관 수(초과 시 오래된 것부터 제거).
+_MAX_VERSIONS = 30
 _ALLOWED_ASSET_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.webp', '.gif')
 _ASSET_RAW_MIMETYPES = {
     '.png': 'image/png',
@@ -100,6 +102,11 @@ def _load_structured_data(order) -> dict:
         except (ValueError, TypeError):
             return {}
     return {}
+
+
+def _versions_prefix(order_id: int) -> str:
+    """주문별 버전 스냅샷 R2 접두사(경로 격리 검증·업로드 폴더 공용, 끝에 ``/``)."""
+    return f"orders/{order_id}/drawing_wizard/versions/"
 
 
 def _can_save_wizard(current_user, order) -> bool:
@@ -544,6 +551,14 @@ def api_put_drawing_wizard(order_id):
                 'server_updated_by_name': saved.get('updated_by_name'),
             }), 409
 
+        # 버전 이력(versions)은 별도 스냅샷 경로가 관리하는 서버 소유 필드다. 클라이언트가
+        # 보낸 state 의 versions 는 신뢰하지 않고 서버 보존값으로 덮어써(없으면 제거) 클라가
+        # 실수로 versions 를 비우는 사고를 차단한다(설계 §4).
+        if isinstance(saved, dict) and isinstance(saved.get('versions'), list):
+            state['versions'] = saved['versions']
+        else:
+            state.pop('versions', None)
+
         state['updated_at'] = now_utc_naive().strftime('%Y-%m-%d %H:%M:%S')
         state['updated_by'] = session.get('user_id')
         state['updated_by_name'] = current_user.name
@@ -778,6 +793,143 @@ def api_post_drawing_wizard_sheet_png(order_id):
                 logger.warning("sheet-png rollback failed: %s", rb_err, exc_info=True)
         logger.error("drawing-wizard sheet-png failed: %s", e, exc_info=True)
         return jsonify({'success': False, 'message': f'오류 발생: {str(e)}'}), 500
+
+
+@erp_orders_drawing_wizard_bp.route('/<int:order_id>/drawing-wizard/version-snapshot', methods=['POST'])
+@login_required
+def api_post_drawing_wizard_version_snapshot(order_id):
+    """전달된 시트 상태를 버전 스냅샷으로 R2에 저장하고 포인터를 sd에 append한다.
+
+    도면 전달(runBatchTransfer) 성공 직후 각 시트에 대해 호출된다. 스냅샷 본문(시트 1장
+    JSON)은 ``orders/<id>/drawing_wizard/versions/v<n>_<sheet_id>.json`` 으로 업로드하고,
+    ``sd['drawing_wizard']['versions']`` 에는 경량 포인터만 append한다(structured_data 비대
+    방지). 30개를 초과하면 가장 오래된 포인터와 R2 파일을 함께 제거한다. ``state.sheets``·
+    ``updated_at`` 는 건드리지 않고 ``versions`` 필드만 갱신하므로 PUT 낙관적 잠금과
+    충돌하지 않는다(설계 §1).
+    """
+    db = None
+    try:
+        db = get_db()
+        order = _load_order(db, order_id)
+        if not order:
+            return jsonify({'success': False, 'message': _MSG_NOT_FOUND}), 404
+
+        current_user = get_user_by_id(session.get('user_id'))
+        if not _can_save_wizard(current_user, order):
+            return jsonify({'success': False, 'message': _MSG_FORBIDDEN}), 403
+
+        data = request.get_json(silent=True) or {}
+        sheet = data.get('sheet')
+        if not isinstance(sheet, dict):
+            return jsonify({'success': False, 'message': '시트 데이터가 없습니다.'}), 400
+
+        sheet_error = _validate_sheet(sheet, order_id)
+        if sheet_error:
+            return jsonify({'success': False, 'message': sheet_error}), 400
+
+        raw_sheet_id = data.get('sheet_id') if isinstance(data.get('sheet_id'), str) else sheet.get('id')
+        sheet_id = re.sub(r'[^A-Za-z0-9_-]', '', str(raw_sheet_id or ''))[:40] or 'sheet'
+        sheet_name = str(data.get('sheet_name') or sheet.get('name') or '도면')[:_MAX_SHEET_NAME_LEN]
+
+        sd = _load_structured_data(order)
+        dw = sd.get('drawing_wizard')
+        if not isinstance(dw, dict):
+            dw = {}
+        versions = dw.get('versions')
+        if not isinstance(versions, list):
+            versions = []
+        next_v = max([p.get('v', 0) for p in versions if isinstance(p, dict)], default=0) + 1
+
+        payload = json.dumps(sheet, ensure_ascii=False).encode('utf-8')
+        filename = f"v{next_v}_{sheet_id}.json"
+        file_obj = FileStorage(stream=io.BytesIO(payload), filename=filename)
+        storage = get_storage()
+        result = storage.upload_file(file_obj, filename, _versions_prefix(order_id).rstrip('/'))
+        if not result.get('success'):
+            return jsonify({'success': False, 'message': '버전 저장에 실패했습니다.'}), 500
+
+        versions.append({
+            'v': next_v,
+            'sheet_id': sheet_id,
+            'sheet_name': sheet_name,
+            'key': result.get('key'),
+            'at': now_kst().strftime('%Y-%m-%d %H:%M'),
+            'by_name': current_user.name if current_user else '',
+        })
+
+        # 30개 초과분(가장 오래된 것부터) 포인터 제거 + R2 파일 삭제(삭제 실패는 로그만).
+        while len(versions) > _MAX_VERSIONS:
+            stale = versions.pop(0)
+            stale_key = stale.get('key') if isinstance(stale, dict) else None
+            if stale_key:
+                try:
+                    storage.delete_file(stale_key)
+                except Exception as del_err:
+                    logger.warning("version-snapshot stale delete failed (%s): %s", stale_key, del_err)
+
+        dw['versions'] = versions
+        sd['drawing_wizard'] = dw
+        order.structured_data = sd
+        flag_modified(order, 'structured_data')
+        db.commit()
+
+        return jsonify({'success': True, 'data': {'v': next_v}})
+    except Exception as e:
+        if db is not None:
+            try:
+                db.rollback()
+            except Exception as rb_err:
+                logger.warning("version-snapshot rollback failed: %s", rb_err, exc_info=True)
+        logger.error("drawing-wizard version-snapshot failed: %s", e, exc_info=True)
+        return jsonify({'success': False, 'message': f'오류 발생: {str(e)}'}), 500
+
+
+@erp_orders_drawing_wizard_bp.route('/<int:order_id>/drawing-wizard/versions', methods=['GET'])
+@login_required
+def api_get_drawing_wizard_versions(order_id):
+    """저장된 버전 스냅샷 포인터 목록을 반환한다(로그인 필요, 열람 전용도 조회 가능)."""
+    db = get_db()
+    order = _load_order(db, order_id)
+    if not order:
+        return jsonify({'success': False, 'message': _MSG_NOT_FOUND}), 404
+    sd = _load_structured_data(order)
+    dw = sd.get('drawing_wizard')
+    versions = dw.get('versions') if isinstance(dw, dict) else None
+    if not isinstance(versions, list):
+        versions = []
+    return jsonify({'success': True, 'data': {'versions': versions}})
+
+
+@erp_orders_drawing_wizard_bp.route('/<int:order_id>/drawing-wizard/version-content', methods=['GET'])
+@login_required
+def api_get_drawing_wizard_version_content(order_id):
+    """버전 스냅샷 파일(시트 1장 JSON)의 내용을 반환한다(접두사·경로 격리 검증).
+
+    ``key`` 는 해당 주문의 버전 접두사(``orders/<id>/drawing_wizard/versions/``)만 허용해
+    경로 traversal·타 주문 참조를 차단한다. 저장 권한은 요구하지 않는다(GET 조회 정책).
+    """
+    key = request.args.get('key') or ''
+    if not key:
+        return jsonify({'success': False, 'message': '버전 키가 없습니다.'}), 400
+    if '..' in key or key.startswith('/'):
+        return jsonify({'success': False, 'message': '비정상적인 경로입니다.'}), 400
+    if not key.startswith(_versions_prefix(order_id)):
+        return jsonify({'success': False, 'message': '버전 키 경로가 올바르지 않습니다.'}), 400
+
+    db = get_db()
+    order = _load_order(db, order_id)
+    if not order:
+        return jsonify({'success': False, 'message': _MSG_NOT_FOUND}), 404
+
+    storage = get_storage()
+    raw = storage.read_file_bytes(key)
+    if raw is None:
+        return jsonify({'success': False, 'message': '버전 파일을 찾을 수 없습니다.'}), 404
+    try:
+        sheet = json.loads(raw.decode('utf-8'))
+    except (ValueError, TypeError, UnicodeDecodeError):
+        return jsonify({'success': False, 'message': '버전 파일을 해석할 수 없습니다.'}), 500
+    return jsonify({'success': True, 'data': {'sheet': sheet}})
 
 
 @erp_orders_drawing_wizard_bp.route('/<int:order_id>/drawing-wizard/asset-raw', methods=['GET'])

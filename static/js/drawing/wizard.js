@@ -300,6 +300,8 @@
     els.transferSheetList = document.getElementById('dws-transfer-sheet-list');
     els.transferSummary = document.getElementById('dws-transfer-summary');
     els.transferSubmit = document.getElementById('dws-transfer-submit');
+    els.versionDialog = document.getElementById('dws-version-dialog');
+    els.versionList = document.getElementById('dws-version-list');
     els.toastHost = document.getElementById('dws-toast-host');
     els.mobileNotice = document.getElementById('dws-mobile-notice');
     els.modeHint = document.getElementById('dws-mode-hint');
@@ -2132,24 +2134,24 @@
     return o;
   }
 
-  function serializeState() {
-    return {
-      v: 1,
-      sheets: state.sheets.map(function (s) {
-        var out = {
-          id: s.id, name: s.name, form: serializeForm(s.form),
-          objects: (s.objects || []).map(serializeObj).filter(function (o) { return !!o; })
-        };
-        // 제품별 시트 승격 값(서버가 그대로 보존): 인덱스·도면탭 첨부 식별자.
-        if (isFiniteNum(s.product_index) && s.product_index >= 0 && s.product_index <= 199) {
-          out.product_index = Math.round(s.product_index);
-        }
-        if (isFiniteNum(s.attachment_id) && s.attachment_id >= 0) {
-          out.attachment_id = Math.round(s.attachment_id);
-        }
-        return out;
-      })
+  /** 시트 1장 → 직렬화 객체(저장·버전 스냅샷 공용). */
+  function serializeSheet(s) {
+    var out = {
+      id: s.id, name: s.name, form: serializeForm(s.form),
+      objects: (s.objects || []).map(serializeObj).filter(function (o) { return !!o; })
     };
+    // 제품별 시트 승격 값(서버가 그대로 보존): 인덱스·도면탭 첨부 식별자.
+    if (isFiniteNum(s.product_index) && s.product_index >= 0 && s.product_index <= 199) {
+      out.product_index = Math.round(s.product_index);
+    }
+    if (isFiniteNum(s.attachment_id) && s.attachment_id >= 0) {
+      out.attachment_id = Math.round(s.attachment_id);
+    }
+    return out;
+  }
+
+  function serializeState() {
+    return { v: 1, sheets: state.sheets.map(serializeSheet) };
   }
 
   function mergeFormDefaults(saved) {
@@ -2612,6 +2614,8 @@
           var msg = files.length + '장 전달됨';
           if (failed.length) { msg += ' · ' + failed.length + '장 실패'; }
           toast(msg);
+          // 전달 성공 = 의미 있는 버전 경계 → 전달된 각 시트 상태를 스냅샷(실패는 무시).
+          snapshotTransferredSheets(indices);
           closeTransferDialog();
         } else {
           toast((tr.data && tr.data.message) || '전달 실패');
@@ -2624,6 +2628,131 @@
     }
 
     step(0);
+  }
+
+  /* ========================================================================
+   * [7b] version history (전달 시점 스냅샷 · 이전 버전 복원)
+   * ====================================================================== */
+
+  /** 전달된 각 시트 상태를 버전 스냅샷으로 저장(비차단, 실패는 console.warn 후 무시). */
+  function snapshotTransferredSheets(indices) {
+    (indices || []).forEach(function (idx) {
+      var s = state.sheets[idx];
+      if (!s) { return; }
+      var payload = { sheet: serializeSheet(s), sheet_id: s.id, sheet_name: s.name };
+      jsonFetch(API_BASE + '/drawing-wizard/version-snapshot', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).then(function (r) {
+        if (r.status !== 200 || !r.data || !r.data.success) {
+          console.warn('[dws] version-snapshot', idx, r.status, r.data);
+        }
+      }, function (err) { console.warn('[dws] version-snapshot', idx, err); });
+    });
+  }
+
+  function openVersionDialog() {
+    closeMenus();
+    renderVersionList([{ __loading: true }]);
+    if (els.versionDialog.showModal) {
+      try { els.versionDialog.showModal(); } catch (_) { els.versionDialog.setAttribute('open', ''); }
+    } else {
+      els.versionDialog.setAttribute('open', '');
+    }
+    jsonFetch(API_BASE + '/drawing-wizard/versions', { headers: { 'Accept': 'application/json' } })
+      .then(function (r) {
+        if (r.status !== 200 || !r.data || !r.data.success || !r.data.data) {
+          renderVersionList([]); toast((r.data && r.data.message) || '버전 목록을 불러오지 못했습니다.'); return;
+        }
+        renderVersionList(r.data.data.versions || []);
+      }, function (err) { console.warn('[dws] versions', err); renderVersionList([]); toast('버전 목록 오류'); });
+  }
+
+  function closeVersionDialog() {
+    if (els.versionDialog.close) {
+      try { els.versionDialog.close(); } catch (_) { els.versionDialog.removeAttribute('open'); }
+    } else {
+      els.versionDialog.removeAttribute('open');
+    }
+  }
+
+  /** 버전 목록 렌더(최신 우선). 라벨/시각/작성자는 textContent 로만 삽입(XSS 안전). */
+  function renderVersionList(versions) {
+    var list = els.versionList;
+    if (!list) { return; }
+    list.textContent = '';
+    if (versions.length === 1 && versions[0] && versions[0].__loading) {
+      var loading = document.createElement('p');
+      loading.className = 'dws-version-empty';
+      loading.textContent = '불러오는 중…';
+      list.appendChild(loading);
+      return;
+    }
+    if (!versions.length) {
+      var empty = document.createElement('p');
+      empty.className = 'dws-version-empty';
+      empty.textContent = '아직 저장된 버전이 없습니다. 도면을 전달하면 버전이 기록됩니다.';
+      list.appendChild(empty);
+      return;
+    }
+    versions.slice().reverse().forEach(function (p) {
+      if (!p || !p.key) { return; }
+      var row = document.createElement('div');
+      row.className = 'dws-version-row';
+      var meta = document.createElement('div');
+      meta.className = 'dws-version-meta';
+      var title = document.createElement('div');
+      title.className = 'dws-version-title';
+      title.textContent = 'v' + (p.v || '?') + ' · ' + (p.sheet_name || '도면');
+      var sub = document.createElement('div');
+      sub.className = 'dws-version-sub';
+      sub.textContent = (p.at || '') + (p.by_name ? (' · ' + p.by_name) : '');
+      meta.appendChild(title);
+      meta.appendChild(sub);
+      row.appendChild(meta);
+      if (canSave) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'dws-btn dws-version-restore';
+        btn.textContent = '새 시트로 복원';
+        btn.addEventListener('click', function () { restoreVersion(p); });
+        row.appendChild(btn);
+      }
+      list.appendChild(row);
+    });
+  }
+
+  /** 버전 스냅샷 내용을 새 시트로 복원(id 재발급·attachment_id/product_index 제거·전환·dirty). */
+  function restoreVersion(p) {
+    if (!canSave) { return; }
+    if (state.sheets.length >= 10) { toast('시트는 최대 10장까지 만들 수 있습니다.'); return; }
+    jsonFetch(API_BASE + '/drawing-wizard/version-content?key=' + encodeURIComponent(p.key),
+      { headers: { 'Accept': 'application/json' } })
+      .then(function (r) {
+        if (r.status !== 200 || !r.data || !r.data.success || !r.data.data || !r.data.data.sheet) {
+          toast((r.data && r.data.message) || '버전 내용을 불러오지 못했습니다.'); return;
+        }
+        if (state.sheets.length >= 10) { toast('시트는 최대 10장까지 만들 수 있습니다.'); return; }
+        var norm = normalizeState({ v: 1, sheets: [r.data.data.sheet] });
+        var sheet = norm.sheets[0];
+        sheet.id = rid('s-');
+        sheet.name = (String(p.sheet_name || sheet.name || '도면')).slice(0, 40) + ' (v' + (p.v || '?') + ' 복원)';
+        delete sheet.attachment_id;
+        delete sheet.product_index;
+        (sheet.objects || []).forEach(function (o) { o.id = rid('o-'); });
+        state.sheets.push(sheet);
+        current = state.sheets.length - 1;
+        undoStack.length = 0;
+        redoStack.length = 0;
+        deselect();
+        markDirty();
+        renderTabs();
+        renderForm();
+        rebuildAnno();
+        syncProductActive();
+        closeVersionDialog();
+        toast('v' + (p.v || '?') + ' 을(를) 새 시트로 복원했습니다.');
+      }, function (err) { console.warn('[dws] version-content', err); toast('버전 복원 오류'); });
   }
 
   /* ========================================================================
@@ -2703,6 +2832,7 @@
     exportBtn.addEventListener('click', function (e) { e.stopPropagation(); toggleMenu(els.exportMenu); });
     document.getElementById('dws-btn-export-png').addEventListener('click', exportPng);
     document.getElementById('dws-btn-export-transfer').addEventListener('click', openTransferDialog);
+    document.getElementById('dws-btn-version-history').addEventListener('click', openVersionDialog);
 
     // 미니 툴바 — 텍스트 (편집 중이면 선택범위/전체에 실시간 적용, 아니면 선택 객체 통일)
     // 편집 중 미니바 버튼 클릭이 오버레이 포커스/선택을 뺏지 않도록 mousedown 기본동작 차단
@@ -2758,6 +2888,9 @@
     // 전달 다이얼로그
     document.getElementById('dws-transfer-cancel').addEventListener('click', closeTransferDialog);
     els.transferSubmit.addEventListener('click', doTransfer);
+
+    // 버전 이력 다이얼로그
+    document.getElementById('dws-version-close').addEventListener('click', closeVersionDialog);
 
     // 문서 레벨: 메뉴/팝업 바깥 클릭 닫기
     document.addEventListener('click', function (e) {

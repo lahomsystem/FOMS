@@ -1190,6 +1190,40 @@ html, body {
   text-overflow: ellipsis;
 }
 
+/* 버전 이력 목록(최신 우선, 각 행 = 메타 + 새 시트로 복원) */
+.dws-version-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 8px;
+  padding: 6px;
+  margin-bottom: 18px;
+}
+.dws-version-empty { font-size: 13px; color: #86868b; padding: 14px 8px; margin: 0; text-align: center; }
+.dws-version-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 6px;
+}
+.dws-version-row:hover { background: rgba(0, 0, 0, 0.04); }
+.dws-version-meta { min-width: 0; }
+.dws-version-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #1d1d1f;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dws-version-sub { font-size: 11px; color: #86868b; margin-top: 2px; }
+.dws-version-restore { flex: 0 0 auto; font-size: 12px; padding: 5px 10px; }
+
 .dws-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
 /* 취소 = plain, 전달 = 파랑 filled(.dws-btn-primary) */
 .dws-dialog-actions .dws-btn:not(.dws-btn-primary) {

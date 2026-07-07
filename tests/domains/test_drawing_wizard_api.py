@@ -5,6 +5,7 @@
 """
 
 import io
+import json
 from datetime import date
 
 from werkzeug.security import generate_password_hash
@@ -1269,3 +1270,183 @@ def test_import_attachment_rejects_non_participant(client):
     )
 
     assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# 버전 이력 — 전달 시점 시트 스냅샷 저장/목록/내용/30캡/PUT 보존/권한
+# ---------------------------------------------------------------------------
+
+_VERSION_SHEET = {"id": "s-1", "name": "도면 1", "form": {}, "objects": []}
+
+
+class _CapturingStorage:
+    """업로드 바이트를 key별로 보관해 read_file_bytes 로 돌려주는 테스트용 스토리지."""
+
+    def __init__(self):
+        self.store = {}
+        self.deleted = []
+        self.folders = []
+
+    def upload_file(self, file_obj, filename, folder):
+        self.folders.append(folder)
+        self.store[f"{folder}/{filename}"] = file_obj.read()
+        return {"success": True, "key": f"{folder}/{filename}"}
+
+    def read_file_bytes(self, key):
+        return self.store.get(key)
+
+    def delete_file(self, key):
+        self.deleted.append(key)
+        self.store.pop(key, None)
+        return True
+
+
+def _snapshot(client, order_id, sheet=None, sheet_id="s-1", sheet_name="도면 1"):
+    return client.post(
+        f"/api/orders/{order_id}/drawing-wizard/version-snapshot",
+        json={"sheet": sheet or _VERSION_SHEET, "sheet_id": sheet_id, "sheet_name": sheet_name},
+    )
+
+
+def test_version_snapshot_uploads_and_appends_pointer(client, monkeypatch):
+    """스냅샷 = 시트 JSON 업로드(versions 폴더) + sd.drawing_wizard.versions 포인터 append."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    storage = _CapturingStorage()
+    monkeypatch.setattr("foms.api.drawing.wizard.get_storage", lambda: storage)
+
+    resp = _snapshot(client, order_id)
+    assert resp.status_code == 200, resp.get_json()
+    assert resp.get_json()["data"]["v"] == 1
+    assert storage.folders == [f"orders/{order_id}/drawing_wizard/versions"]
+
+    expected_key = f"orders/{order_id}/drawing_wizard/versions/v1_s-1.json"
+    assert json.loads(storage.store[expected_key]) == _VERSION_SHEET
+
+    versions = client.get(
+        f"/api/orders/{order_id}/drawing-wizard/versions"
+    ).get_json()["data"]["versions"]
+    assert len(versions) == 1
+    ptr = versions[0]
+    assert ptr["v"] == 1
+    assert ptr["sheet_name"] == "도면 1"
+    assert ptr["key"] == expected_key
+    assert ptr["by_name"]  # 작성자 기록됨
+    assert ptr["at"]       # 시각 기록됨
+
+
+def test_version_content_returns_snapshot_sheet(client, monkeypatch):
+    """version-content 는 스냅샷 파일(시트 JSON)을 그대로 반환한다."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    storage = _CapturingStorage()
+    monkeypatch.setattr("foms.api.drawing.wizard.get_storage", lambda: storage)
+
+    sheet = {"id": "s-1", "name": "도면 1", "form": {"customer_name": "서으뜸"}, "objects": []}
+    _snapshot(client, order_id, sheet=sheet)
+
+    key = f"orders/{order_id}/drawing_wizard/versions/v1_s-1.json"
+    resp = client.get(
+        f"/api/orders/{order_id}/drawing-wizard/version-content",
+        query_string={"key": key},
+    )
+    assert resp.status_code == 200, resp.get_json()
+    assert resp.get_json()["data"]["sheet"] == sheet
+
+
+def test_version_content_rejects_foreign_prefix(client):
+    """versions 접두사 밖 key(assets 등)는 400."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+
+    resp = client.get(
+        f"/api/orders/{order_id}/drawing-wizard/version-content",
+        query_string={"key": f"orders/{order_id}/drawing_wizard/assets/x.png"},
+    )
+
+    assert resp.status_code == 400
+
+
+def test_version_snapshot_caps_at_30_and_deletes_oldest(client, monkeypatch):
+    """포인터 30개 초과 시 가장 오래된 것부터 포인터·R2 파일 제거."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    storage = _CapturingStorage()
+    monkeypatch.setattr("foms.api.drawing.wizard.get_storage", lambda: storage)
+
+    for _ in range(32):
+        assert _snapshot(client, order_id).status_code == 200
+
+    versions = client.get(
+        f"/api/orders/{order_id}/drawing-wizard/versions"
+    ).get_json()["data"]["versions"]
+    assert len(versions) == 30
+    assert [v["v"] for v in versions] == list(range(3, 33))  # v1·v2 밀려남
+    assert storage.deleted == [
+        f"orders/{order_id}/drawing_wizard/versions/v1_s-1.json",
+        f"orders/{order_id}/drawing_wizard/versions/v2_s-1.json",
+    ]
+
+
+def test_put_preserves_server_versions(client, monkeypatch):
+    """versions 없는 state 로 PUT 해도 서버 보존 versions 는 유지된다(클라 삭제 사고 차단)."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    storage = _CapturingStorage()
+    monkeypatch.setattr("foms.api.drawing.wizard.get_storage", lambda: storage)
+
+    first = client.put(
+        f"/api/orders/{order_id}/drawing-wizard",
+        json={"state": _valid_state(order_id), "base_updated_at": None},
+    )
+    assert first.status_code == 200
+    base = first.get_json()["data"]["updated_at"]
+
+    assert _snapshot(client, order_id).status_code == 200
+
+    # 스냅샷은 updated_at 을 건드리지 않으므로 base 로 재저장해도 409 아님.
+    second = client.put(
+        f"/api/orders/{order_id}/drawing-wizard",
+        json={"state": _valid_state(order_id), "base_updated_at": base},
+    )
+    assert second.status_code == 200, second.get_json()
+
+    versions = client.get(
+        f"/api/orders/{order_id}/drawing-wizard/versions"
+    ).get_json()["data"]["versions"]
+    assert len(versions) == 1
+    assert versions[0]["v"] == 1
+
+
+def test_version_snapshot_rejects_invalid_sheet(client):
+    """스냅샷 시트가 스키마 위반이면(문자열 아닌 id) 업로드 전 400."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+
+    resp = _snapshot(client, order_id, sheet={"id": 123, "name": "x", "form": {}, "objects": []})
+
+    assert resp.status_code == 400
+
+
+def test_version_snapshot_rejects_non_participant(client):
+    """비참여자는 스냅샷 저장 403."""
+    order = _erp_order()
+    order_id = order.id
+    _login_non_participant(client)
+
+    resp = _snapshot(client, order_id)
+
+    assert resp.status_code == 403
+
+
+def test_versions_get_requires_login(client):
+    resp = client.get("/api/orders/1/drawing-wizard/versions")
+
+    assert resp.status_code == 302
+    assert "/login" in resp.headers["Location"]
