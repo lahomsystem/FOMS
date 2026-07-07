@@ -518,6 +518,185 @@
         grid-template-columns: 1fr;
       }
     }
+
+    /* 제품 정보 Master-Detail (erporder 룩 통일 — CSS 자체 정의, .dw-items-md 스코프) */
+    .dw-items-md {
+      display: grid;
+      grid-template-columns: 240px minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+      margin-bottom: 10px;
+    }
+
+    .dw-items-md .item-rail {
+      display: flex;
+      flex-direction: column;
+      border: 1px solid #e1e7f0;
+      border-radius: 10px;
+      background: #fff;
+      overflow: hidden;
+      position: sticky;
+      top: 76px;
+      max-height: calc(100vh - 96px);
+    }
+
+    .dw-items-md .item-rail__head {
+      padding: 10px 12px;
+      border-bottom: 1px solid #e8eef8;
+      background: #f7faff;
+    }
+
+    .dw-items-md .item-rail__row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .dw-items-md .item-rail__title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #234579;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .dw-items-md .item-rail__count {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #1d4ed8;
+      background: #e8f0ff;
+      padding: 2px 8px;
+      border-radius: 999px;
+    }
+
+    .dw-items-md .item-rail__list {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .dw-items-md .rail-item {
+      appearance: none;
+      -webkit-appearance: none;
+      font: inherit;
+      text-align: left;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      min-height: 40px;
+      border-radius: 8px;
+      border: 1px solid #e1e7f0;
+      border-left: 3px solid transparent;
+      background: #f8fafc;
+      cursor: pointer;
+      transition: background .15s, border-color .15s, box-shadow .15s;
+    }
+
+    .dw-items-md .rail-item:hover {
+      background: #eef3fb;
+      border-color: #cdd8e8;
+    }
+
+    .dw-items-md .rail-item.is-selected {
+      background: #fff;
+      border-color: #0d6efd;
+      border-left-color: #0d6efd;
+      box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.14);
+    }
+
+    .dw-items-md .rail-item__index {
+      flex-shrink: 0;
+      width: 22px;
+      height: 22px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: #1d4ed8;
+      background: #e8f0ff;
+      border-radius: 999px;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .dw-items-md .rail-item.is-selected .rail-item__index {
+      background: #0d6efd;
+      color: #fff;
+    }
+
+    .dw-items-md .rail-item__main {
+      flex: 1 1 auto;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .dw-items-md .rail-item__name {
+      font-size: 0.86rem;
+      font-weight: 600;
+      color: #1f2d3f;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.3;
+    }
+
+    .dw-items-md .rail-item__spec {
+      font-size: 0.74rem;
+      color: #6c7f99;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.25;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .dw-items-md .rail-item__right {
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      justify-content: center;
+      min-width: 2.5rem;
+    }
+
+    .dw-items-md .rail-item__price {
+      font-size: 0.74rem;
+      font-weight: 600;
+      color: #2d3f56;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .dw-items-md .dw-item-detail {
+      min-width: 0;
+    }
+
+    .dw-items-md .dw-item-detail .dw-product-main-card {
+      margin-bottom: 0;
+    }
+
+    @media (max-width: 992px) {
+      .dw-items-md {
+        grid-template-columns: 1fr;
+      }
+
+      .dw-items-md .item-rail {
+        position: static;
+        max-height: 40vh;
+      }
+    }
   </style>
 
   <div class="erp-pro-card mb-3" style="overflow: visible;">
@@ -599,6 +778,35 @@
         </div>
 
         {% if product_items %}
+        <div class="dw-items-md">
+          <aside class="item-rail" aria-label="제품 항목 목록">
+            <div class="item-rail__head">
+              <div class="item-rail__row">
+                <h2 class="item-rail__title">제품 항목 <span class="item-rail__count">{{ product_items|length }}</span></h2>
+              </div>
+            </div>
+            <div class="item-rail__list" role="listbox">
+              {% for rail_item in product_items %}
+              {% set r_w = rail_item.get('spec_width') or rail_item.get('width') or '' %}
+              {% set r_d = rail_item.get('spec_depth') or rail_item.get('depth') or '' %}
+              {% set r_h = rail_item.get('spec_height') or rail_item.get('height') or '' %}
+              {% set r_spec = [r_w, r_d, r_h] | select | map('string') | join('×') %}
+              {% set r_price = rail_item.get('price') %}
+              <button type="button" class="rail-item{% if loop.first %} is-selected{% endif %}" role="option"
+                aria-selected="{{ 'true' if loop.first else 'false' }}" data-dw-rail-index="{{ loop.index0 }}">
+                <span class="rail-item__index">{{ loop.index }}</span>
+                <span class="rail-item__main">
+                  <span class="rail-item__name">{{ rail_item.get('product_name') or ('제품 항목 ' ~ loop.index) }}</span>
+                  <span class="rail-item__spec">{{ r_spec or '규격 미입력' }}</span>
+                </span>
+                <span class="rail-item__right">
+                  <span class="rail-item__price">{% if r_price is number %}{{ '{:,}'.format(r_price|int) }}원{% elif r_price not in [None, ''] %}{{ r_price }}{% else %}-{% endif %}</span>
+                </span>
+              </button>
+              {% endfor %}
+            </div>
+          </aside>
+          <div class="dw-item-detail">
         {% for item in product_items %}
         {% set item_idx = loop.index0 %}
         {% set item_measurements = item.get('measurement_images') or [] %}
@@ -608,7 +816,7 @@
         {% set price_raw = item.get('price') %}
         {% set location_text = item.get('misc') or '' %}
 
-        <div class="dw-product-main-card">
+        <div class="dw-product-main-card{% if not loop.first %} d-none{% endif %}" data-dw-card-index="{{ loop.index0 }}">
           <div class="dw-product-main-head">
             <div class="dw-product-main-name">{{ item.get('product_name') or ('제품 항목 ' ~ loop.index) }}</div>
             <div class="d-flex align-items-center gap-1">
@@ -698,6 +906,8 @@
           </div>
         </div>
         {% endfor %}
+          </div>
+        </div>
         {% else %}
         <div class="small text-muted">등록된 제품 정보가 없습니다.</div>
         {% endif %}
@@ -1247,6 +1457,30 @@
       window.GlobalImageViewer.open(files, index || 0);
     }
     window.openDrawingGatewayImageViewer = openDrawingGatewayImageViewer;
+
+    // 제품 Master-Detail: rail 클릭 → 해당 상세 카드만 표시 (순수 DOM 토글, 서버 재요청 없음)
+    (function initDwItemsMasterDetail() {
+      const shell = document.querySelector('.dw-items-md');
+      if (!shell) return;
+      const railList = shell.querySelector('.item-rail__list');
+      const cards = Array.from(shell.querySelectorAll('[data-dw-card-index]'));
+      if (!railList || !cards.length) return;
+      function selectIndex(idx) {
+        cards.forEach((card) => {
+          card.classList.toggle('d-none', Number(card.dataset.dwCardIndex) !== idx);
+        });
+        shell.querySelectorAll('.rail-item').forEach((btn) => {
+          const on = Number(btn.dataset.dwRailIndex) === idx;
+          btn.classList.toggle('is-selected', on);
+          btn.setAttribute('aria-selected', on ? 'true' : 'false');
+        });
+      }
+      railList.addEventListener('click', (ev) => {
+        const btn = ev.target.closest('.rail-item');
+        if (!btn || !railList.contains(btn)) return;
+        selectIndex(Number(btn.dataset.dwRailIndex));
+      });
+    })();
 
     // 카드형 선택 UI 함수들
     window.toggleDrawingTargetCard = function (card) {
