@@ -163,6 +163,7 @@
   var canSave = !!CONFIG.can_save;
   var userPresets = [];                // 도면팀 공유 사용자 프리셋 [{label,text}] (전역 SystemSetting)
   var defaults = {};
+  var products = [];                   // 주문 제품 리스트 [{index,name,spec,price}] (좌측 패널 소스)
   var customerName = '';
   var selected = null;                 // 선택된 주석 객체 id (Konva 노드와 동기)
   var zoom = 1;
@@ -251,6 +252,9 @@
   function cacheDom() {
     els.customer = document.getElementById('dws-customer');
     els.readonlyBanner = document.getElementById('dws-readonly-banner');
+    els.products = document.getElementById('dws-products');
+    els.productList = document.getElementById('dws-product-list');
+    els.productToggle = document.getElementById('dws-products-toggle');
     els.tabbar = document.getElementById('dws-tabbar');
     els.canvas = document.getElementById('dws-canvas');
     els.wrap = document.getElementById('dws-stage-wrap');
@@ -1566,8 +1570,106 @@
   }
 
   /* ========================================================================
-   * [5] toolbar (앱바 · 미니툴바 · 탭 · 줌 · 로고팝업 · 메뉴)
+   * [5] toolbar (제품 리스트 · 앱바 · 미니툴바 · 탭 · 줌 · 로고팝업 · 메뉴)
    * ====================================================================== */
+
+  /** 주문 제품 리스트를 좌측 패널에 렌더한다(번호·이름·규격·금액). textContent 만(XSS 안전). */
+  function renderProducts() {
+    if (!els.productList) { return; }
+    els.productList.textContent = '';
+    if (!products.length) {
+      var empty = document.createElement('div');
+      empty.className = 'dws-product-empty';
+      empty.textContent = '제품 없음';
+      els.productList.appendChild(empty);
+      return;
+    }
+    products.forEach(function (p) {
+      var row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'dws-product';
+      row.setAttribute('data-product-index', String(p.index));
+      var num = document.createElement('span');
+      num.className = 'dws-product-num';
+      num.textContent = String(p.index + 1);
+      row.appendChild(num);
+      var body = document.createElement('span');
+      body.className = 'dws-product-body';
+      var name = document.createElement('span');
+      name.className = 'dws-product-name';
+      name.textContent = p.name || ('제품 ' + (p.index + 1));
+      body.appendChild(name);
+      if (p.spec) {
+        var spec = document.createElement('span');
+        spec.className = 'dws-product-spec';
+        spec.textContent = p.spec;
+        body.appendChild(spec);
+      }
+      if (isFiniteNum(p.price)) {
+        var price = document.createElement('span');
+        price.className = 'dws-product-price';
+        price.textContent = p.price.toLocaleString('ko-KR') + '원';
+        body.appendChild(price);
+      }
+      row.appendChild(body);
+      row.addEventListener('click', function () { onProductClick(p.index); });
+      els.productList.appendChild(row);
+    });
+    syncProductActive();
+  }
+
+  /** 현재 시트의 product_index 에 해당하는 제품 행만 활성 하이라이트한다. */
+  function syncProductActive() {
+    if (!els.productList) { return; }
+    var cs = currentSheet();
+    var activeIdx = (cs && isFiniteNum(cs.product_index)) ? cs.product_index : -1;
+    Array.prototype.forEach.call(els.productList.querySelectorAll('.dws-product'), function (el) {
+      var i = parseInt(el.getAttribute('data-product-index'), 10);
+      el.classList.toggle('dws-product-active', i === activeIdx);
+    });
+  }
+
+  /** 제품 클릭 → 그 제품 전용 도면 시트로 전환(없으면 defaults 로드 후 생성). */
+  function onProductClick(idx) {
+    if (!canSave) { toast('열람 전용 — 도면 담당자·도면팀 또는 관리자만 편집할 수 있습니다.'); return; }
+    var cs = currentSheet();
+    if (cs && cs.product_index === idx) { return; }   // 이미 그 제품 시트면 no-op
+    for (var i = 0; i < state.sheets.length; i++) {
+      if (state.sheets[i].product_index === idx) { switchSheet(i); return; }
+    }
+    if (state.sheets.length >= 10) { toast('시트는 최대 10장까지 만들 수 있습니다.'); return; }
+    var prod = products[idx] || {};
+    var name = String(prod.name || ('제품 ' + (idx + 1))).slice(0, 50);
+    jsonFetch(API_BASE + '/drawing-wizard?item=' + idx, { headers: { 'Accept': 'application/json' } }).then(function (r) {
+      var d = (r.status === 200 && r.data && r.data.success && r.data.data && r.data.data.defaults)
+        ? r.data.data.defaults : defaults;
+      var sheet = newSheet(name, d);
+      sheet.product_index = idx;
+      state.sheets.push(sheet);
+      current = state.sheets.length - 1;
+      undoStack.length = 0;
+      redoStack.length = 0;
+      deselect();
+      setAnnoMode('select');
+      markDirty();
+      renderTabs();
+      renderForm();
+      rebuildAnno();
+      syncProductActive();
+    }, function (err) { console.warn('[dws] product defaults', err); toast('제품 기본값을 불러오지 못했습니다.'); });
+  }
+
+  /** 좌측 제품 패널 접기/펼치기 토글. */
+  function toggleProducts() {
+    if (!els.products) { return; }
+    var collapsed = els.products.classList.toggle('dws-products-collapsed');
+    if (els.productToggle) {
+      els.productToggle.textContent = collapsed ? '▸' : '◂';
+      els.productToggle.title = collapsed ? '제품 목록 펼치기' : '제품 목록 접기';
+      els.productToggle.setAttribute('aria-label', els.productToggle.title);
+    }
+  }
+
   function renderTabs() {
     els.tabbar.innerHTML = '';
     state.sheets.forEach(function (s, i) {
@@ -1610,6 +1712,7 @@
     renderTabs();
     renderForm();
     rebuildAnno();
+    syncProductActive();
   }
 
   function addSheet() {
@@ -1624,6 +1727,7 @@
     renderTabs();
     renderForm();
     rebuildAnno();
+    syncProductActive();
   }
 
   function renameSheet(i) {
@@ -1651,6 +1755,7 @@
     renderTabs();
     renderForm();
     rebuildAnno();
+    syncProductActive();
   }
 
   function fitZoom() {
@@ -1900,10 +2005,18 @@
     return {
       v: 1,
       sheets: state.sheets.map(function (s) {
-        return {
+        var out = {
           id: s.id, name: s.name, form: serializeForm(s.form),
           objects: (s.objects || []).map(serializeObj).filter(function (o) { return !!o; })
         };
+        // 제품별 시트 승격 값(서버가 그대로 보존): 인덱스·도면탭 첨부 식별자.
+        if (isFiniteNum(s.product_index) && s.product_index >= 0 && s.product_index <= 199) {
+          out.product_index = Math.round(s.product_index);
+        }
+        if (isFiniteNum(s.attachment_id) && s.attachment_id >= 0) {
+          out.attachment_id = Math.round(s.attachment_id);
+        }
+        return out;
       })
     };
   }
@@ -1957,7 +2070,7 @@
 
   function normalizeState(st) {
     var sheets = ((st && st.sheets) || []).map(function (s) {
-      return {
+      var sheet = {
         id: s.id || rid('s-'),
         name: s.name || '도면',
         form: serializeForm(mergeFormDefaults(s.form)),
@@ -1965,6 +2078,9 @@
           .filter(function (o) { return o && ['text', 'image', 'rect', 'ellipse', 'arrow', 'line'].indexOf(o.type) >= 0; })
           .map(normalizeObj)
       };
+      if (isFiniteNum(s.product_index)) { sheet.product_index = Math.round(s.product_index); }
+      if (isFiniteNum(s.attachment_id)) { sheet.attachment_id = Math.round(s.attachment_id); }
+      return sheet;
     });
     if (!sheets.length) { sheets = [newSheet('도면 1', defaults)]; }
     return { v: 1, sheets: sheets };
@@ -1979,6 +2095,7 @@
       var d = r.data.data;
       canSave = !!d.can_save;
       defaults = d.defaults || {};
+      products = d.products || [];
       customerName = d.customer_name || customerName;
       els.customer.textContent = '(' + customerName + ')';
       if (d.state && d.state.sheets && d.state.sheets.length) {
@@ -2004,6 +2121,7 @@
       setAnnoMode('select');
       applyPermissions();
       wireFormEditing();
+      renderProducts();
       renderTabs();
       renderForm();
       rebuildAnno();
@@ -2031,20 +2149,22 @@
     if (!canSave) { return; }
     if (commitActiveEdit) { commitActiveEdit(); }
     if (document.activeElement && document.activeElement.blur) { document.activeElement.blur(); }
+    var sheet = currentSheet();   // 저장 시점 시트 참조(비동기 PNG 단계 동안 고정)
     var body = { state: serializeState(), base_updated_at: baseUpdatedAt };
     els.saveBtn.disabled = true;
     jsonFetch(API_BASE + '/drawing-wizard', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
     }).then(function (r) {
-      els.saveBtn.disabled = false;
       if (r.status === 200 && r.data && r.data.success) {
         baseUpdatedAt = (r.data.data && r.data.data.updated_at) || baseUpdatedAt;
         dirty = false;
         updateSaveState();
-        toast('저장됨');
+        saveSheetPng(sheet);   // 상태 저장 확정 후 PNG 를 도면 탭에 반영(버튼 재활성은 내부에서)
       } else if (r.status === 409) {
+        els.saveBtn.disabled = false;
         handleConflict(r.data);
       } else {
+        els.saveBtn.disabled = false;
         toast((r.data && r.data.message) || ('저장 실패 (' + r.status + ')'));
       }
     }, function (err) {
@@ -2054,13 +2174,49 @@
     });
   }
 
+  /**
+   * PUT 성공 후 현재 시트를 PNG로 합성해 '도면' 탭(OrderAttachment category='drawing')에
+   * 저장/교체한다. 추가 PUT은 하지 않는다(무한루프 금지) — 반환 attachment_id 는 state 에만
+   * 기록해 다음 저장 때 함께 PUT 되어 같은 첨부를 교체(수정 가능)한다.
+   * @param {Object} sheet 저장 시점의 시트(비동기 동안 참조 고정)
+   */
+  function saveSheetPng(sheet) {
+    withExportMode().then(function (cv) {
+      return new Promise(function (resolve, reject) {
+        cv.toBlob(function (blob) {
+          if (blob) { resolve(blob); } else { reject(new Error('PNG 생성 실패')); }
+        }, 'image/png');
+      });
+    }).then(function (blob) {
+      var fd = new FormData();
+      fd.append('file', blob, sheetPngFilename(sheet));
+      fd.append('sheet_id', String(sheet.id || ''));
+      if (isFiniteNum(sheet.attachment_id)) { fd.append('attachment_id', String(sheet.attachment_id)); }
+      return jsonFetch(API_BASE + '/drawing-wizard/sheet-png', { method: 'POST', body: fd });
+    }).then(function (r) {
+      els.saveBtn.disabled = false;
+      if (r.status === 200 && r.data && r.data.success && r.data.data) {
+        if (isFiniteNum(r.data.data.attachment_id)) { sheet.attachment_id = r.data.data.attachment_id; }
+        toast('저장됨 · 도면 탭에 저장됨');
+      } else {
+        console.warn('[dws] sheet-png', r.status, r.data);
+        toast('저장됨 (도면 이미지 저장 실패)');
+      }
+    }).catch(function (err) {
+      els.saveBtn.disabled = false;
+      console.warn('[dws] sheet-png export', err);
+      toast('저장됨 (도면 이미지 저장 실패)');
+    });
+  }
+
   /* ========================================================================
    * [7] export / transfer
    * ====================================================================== */
-  function exportFilename() {
+  function sheetPngFilename(sheet) {
     var safe = function (s) { return String(s || '').replace(/[\\/:*?"<>|\n\r]/g, '_').trim() || '무제'; };
-    return '도면_' + safe(customerName) + '_' + ORDER_ID + '_' + safe(currentSheet().name) + '.png';
+    return '도면_' + safe(customerName) + '_' + ORDER_ID + '_' + safe((sheet || {}).name) + '.png';
   }
+  function exportFilename() { return sheetPngFilename(currentSheet()); }
 
   /**
    * 내보내기 합성(§3.5): 폼(html2canvas scale=2) + Konva(toCanvas pixelRatio=2)를
@@ -2212,6 +2368,9 @@
     document.getElementById('dws-btn-undo').addEventListener('click', undo);
     document.getElementById('dws-btn-redo').addEventListener('click', redo);
     els.saveBtn.addEventListener('click', save);
+
+    // 좌측 제품 리스트 패널 접기/펼치기
+    if (els.productToggle) { els.productToggle.addEventListener('click', toggleProducts); }
 
     // 프리셋 메뉴 (기본 4개 + 사용자 프리셋 동적 렌더; 항목 배선은 renderPresetMenu 내부)
     var presetBtn = document.getElementById('dws-btn-preset');

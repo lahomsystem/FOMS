@@ -19,7 +19,7 @@ from flask import Blueprint, Response, jsonify, request, session
 from sqlalchemy.orm.attributes import flag_modified
 
 from db import get_db
-from models import Order
+from models import Order, OrderAttachment
 from foms.web.auth import login_required, get_user_by_id
 from foms.services.datetime_kst import now_utc_naive
 from foms.services.erp_permissions import can_edit_erp
@@ -27,6 +27,8 @@ from foms.services.erp_policy import is_drawing_workbench_participant
 from foms.services.storage import get_storage
 from foms.services.drawing_wizard_defaults import build_wizard_defaults, resolve_assignee_drew_en
 from foms.services.drawing_wizard_presets import load_wizard_presets, save_wizard_presets
+from foms.services.erp_product_items import build_product_items_for_order
+from foms.services.erp_display import _erp_coerce_item_price_krw
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +59,10 @@ _ALLOWED_ALIGNS = ('left', 'center')
 _ALLOWED_OBJECT_TYPES = ('text', 'image', 'rect', 'ellipse', 'arrow', 'line')
 _ALLOWED_STROKE_WIDTHS = (1, 2, 3)
 _COLOR_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
+
+# 제품별 도면 시트 — 시트 승격 값·도면 탭 첨부 상수
+_MAX_PRODUCT_INDEX = 199
+_DRAWING_ATTACHMENT_CATEGORY = 'drawing'
 
 # 표 레이아웃(열/행 경계) 승격 값 — 서버는 타입·범위만 검증(증가순·간격은 클라 책임).
 _LAYOUT_X_MIN, _LAYOUT_X_MAX = 41, 1439       # 외곽 40/1440 안쪽
@@ -113,6 +119,51 @@ def _can_manage_presets(current_user) -> bool:
     if (getattr(current_user, 'team', None) or '').strip() == 'DRAWING':
         return True
     return can_edit_erp(current_user)
+
+
+def _parse_item_index(raw) -> int | None:
+    """``?item=N`` 쿼리를 정수 인덱스로 파싱한다. 없거나 음수·비정수면 None(집계 모드)."""
+    if raw is None:
+        return None
+    try:
+        idx = int(raw)
+    except (TypeError, ValueError):
+        return None
+    return idx if idx >= 0 else None
+
+
+def _product_spec(item: dict) -> str:
+    """제품 규격 표시값: width×depth×height(셋 다 있을 때), 아니면 ``spec`` 원문."""
+    width = item.get('width')
+    depth = item.get('depth')
+    height = item.get('height')
+    if width and depth and height:
+        return f"{width}×{depth}×{height}"
+    return str(item.get('spec') or '').strip()
+
+
+def _product_price(item: dict) -> int | None:
+    """제품 금액(원) 정수. 값이 없으면 None(가격 미입력)."""
+    raw = item.get('price')
+    if raw is None or raw == '' or raw is False:
+        return None
+    return _erp_coerce_item_price_krw(item)
+
+
+def _build_products(db, order) -> list[dict]:
+    """마법사 좌측 제품 리스트 소스 [{index, name, spec, price}] 를 구성한다.
+
+    ``build_product_items_for_order`` 정규화 결과(이름/규격/가격)를 재사용한다.
+    """
+    products = []
+    for idx, item in enumerate(build_product_items_for_order(db, order)):
+        products.append({
+            'index': idx,
+            'name': str(item.get('product_name') or '').strip(),
+            'spec': _product_spec(item),
+            'price': _product_price(item),
+        })
+    return products
 
 
 def _is_number(value) -> bool:
@@ -324,13 +375,32 @@ def _validate_form(form: dict) -> str | None:
 
 
 def _validate_sheet(sheet, order_id: int) -> str | None:
-    """개별 시트의 id/name/form/objects 구조를 검증한다."""
+    """개별 시트의 id/name/form/objects 구조를 검증한다.
+
+    제품별 도면 시트 승격 값(optional): ``product_index``(제품 리스트 인덱스,
+    0~199)와 ``attachment_id``(도면 탭 첨부 식별자, 양의 정수)를 허용한다. 둘 다
+    없거나 ``None`` 이면 통과(구 저장분·비-제품 시트).
+    """
     if not isinstance(sheet, dict):
         return '시트 형식이 올바르지 않습니다.'
     if not isinstance(sheet.get('id'), str) or not isinstance(sheet.get('name'), str):
         return '시트 id/이름 형식이 올바르지 않습니다.'
     if len(sheet['name']) > _MAX_SHEET_NAME_LEN:
         return f'시트 이름은 {_MAX_SHEET_NAME_LEN}자를 넘을 수 없습니다.'
+    product_index = sheet.get('product_index')
+    if product_index is not None and (
+        isinstance(product_index, bool)
+        or not isinstance(product_index, int)
+        or not (0 <= product_index <= _MAX_PRODUCT_INDEX)
+    ):
+        return '시트 제품 인덱스 값이 올바르지 않습니다.'
+    attachment_id = sheet.get('attachment_id')
+    if attachment_id is not None and (
+        isinstance(attachment_id, bool)
+        or not isinstance(attachment_id, int)
+        or attachment_id < 0
+    ):
+        return '시트 첨부 식별자 값이 올바르지 않습니다.'
     form = sheet.get('form')
     if not isinstance(form, dict):
         return '시트 폼 형식이 올바르지 않습니다.'
@@ -383,6 +453,7 @@ def api_get_drawing_wizard(order_id):
     sd = _load_structured_data(order)
     current_user = get_user_by_id(session.get('user_id'))
     customer_name = (((sd.get('parties') or {}).get('customer') or {}).get('name')) or '-'
+    item_index = _parse_item_index(request.args.get('item'))
 
     return jsonify({
         'success': True,
@@ -390,7 +461,8 @@ def api_get_drawing_wizard(order_id):
             'order_id': order_id,
             'customer_name': customer_name,
             'state': sd.get('drawing_wizard') or None,
-            'defaults': build_wizard_defaults(order, sd, current_user),
+            'defaults': build_wizard_defaults(order, sd, current_user, item_index=item_index),
+            'products': _build_products(db, order),
             'drew_assignee_en': resolve_assignee_drew_en(sd),
             'can_save': _can_save_wizard(current_user, order),
             'drew_default': current_user.name if current_user else '',
@@ -496,6 +568,109 @@ def api_post_drawing_wizard_asset(order_id):
         })
     except Exception as e:
         logger.error("drawing-wizard asset upload failed: %s", e, exc_info=True)
+        return jsonify({'success': False, 'message': f'오류 발생: {str(e)}'}), 500
+
+
+@erp_orders_drawing_wizard_bp.route('/<int:order_id>/drawing-wizard/sheet-png', methods=['POST'])
+@login_required
+def api_post_drawing_wizard_sheet_png(order_id):
+    """현재 시트 PNG를 주문 '도면' 탭(OrderAttachment category='drawing')에 저장·교체한다.
+
+    multipart ``file``(PNG) + form ``sheet_id`` + optional ``attachment_id``.
+    ``attachment_id`` 가 있고 해당 주문·category='drawing' 첨부가 존재하면 구 파일을
+    삭제한 뒤 같은 row를 교체(수정 가능)하고, 없거나 불일치하면 신규 첨부를 만든다.
+    """
+    db = None
+    try:
+        db = get_db()
+        order = _load_order(db, order_id)
+        if not order:
+            return jsonify({'success': False, 'message': _MSG_NOT_FOUND}), 404
+
+        current_user = get_user_by_id(session.get('user_id'))
+        if not _can_save_wizard(current_user, order):
+            return jsonify({'success': False, 'message': _MSG_FORBIDDEN}), 403
+
+        file = request.files.get('file')
+        if not file or not file.filename:
+            return jsonify({'success': False, 'message': '파일이 없습니다.'}), 400
+
+        ext = os.path.splitext(file.filename)[1].lower()
+        if ext != '.png':
+            return jsonify({'success': False, 'message': 'PNG 파일만 저장할 수 있습니다.'}), 400
+
+        # content_length는 신뢰 불가 → seek/tell로 실제 크기 확인.
+        file.seek(0, 2)
+        size = file.tell()
+        file.seek(0)
+        if size > _MAX_ASSET_BYTES:
+            return jsonify({'success': False, 'message': '이미지 용량이 너무 큽니다(최대 10MB).'}), 400
+
+        # 교체 대상 첨부 조회(주문·category='drawing' 일치할 때만).
+        attachment = None
+        raw_attachment_id = request.form.get('attachment_id')
+        if raw_attachment_id:
+            try:
+                attachment_id = int(raw_attachment_id)
+            except (TypeError, ValueError):
+                attachment_id = None
+            if attachment_id:
+                attachment = db.query(OrderAttachment).filter(
+                    OrderAttachment.id == attachment_id,
+                    OrderAttachment.order_id == order_id,
+                    OrderAttachment.category == _DRAWING_ATTACHMENT_CATEGORY,
+                ).first()
+
+        storage = get_storage()
+        result = storage.upload_file(
+            file, file.filename, f"orders/{order_id}/drawing_wizard/exports"
+        )
+        if not result.get('success'):
+            return jsonify({'success': False, 'message': '파일 업로드에 실패했습니다.'}), 500
+        key = result.get('key')
+
+        if attachment is not None:
+            old_key = attachment.storage_key
+            old_thumb = attachment.thumbnail_key
+            attachment.storage_key = key
+            attachment.filename = file.filename
+            attachment.file_size = size
+            attachment.thumbnail_key = None
+            db.commit()
+            # 교체 성공 후 구 파일 정리(삭제 실패는 로그만 — 저장 자체는 이미 확정).
+            for stale_key in (old_key, old_thumb):
+                if stale_key and stale_key != key:
+                    try:
+                        storage.delete_file(stale_key)
+                    except Exception as del_err:
+                        logger.warning(
+                            "sheet-png stale delete failed (%s): %s", stale_key, del_err
+                        )
+            result_id = attachment.id
+        else:
+            attachment = OrderAttachment(
+                order_id=order_id,
+                filename=file.filename,
+                file_type='image',
+                category=_DRAWING_ATTACHMENT_CATEGORY,
+                item_index=None,
+                file_size=size,
+                storage_key=key,
+                thumbnail_key=None,
+                user_id=session.get('user_id'),
+            )
+            db.add(attachment)
+            db.commit()
+            result_id = attachment.id
+
+        return jsonify({'success': True, 'data': {'attachment_id': result_id, 'key': key}})
+    except Exception as e:
+        if db is not None:
+            try:
+                db.rollback()
+            except Exception as rb_err:
+                logger.warning("sheet-png rollback failed: %s", rb_err, exc_info=True)
+        logger.error("drawing-wizard sheet-png failed: %s", e, exc_info=True)
         return jsonify({'success': False, 'message': f'오류 발생: {str(e)}'}), 500
 
 

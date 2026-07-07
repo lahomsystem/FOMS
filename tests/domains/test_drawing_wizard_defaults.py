@@ -180,6 +180,49 @@ def test_defaults_product_name_joins_nonempty_only():
     assert result["product_name"] == "장A / 장B"
 
 
+def test_defaults_item_index_none_joins_all_names():
+    """item_index 미지정(None, 집계 모드)이면 모든 제품명을 조인한다(기존 동작 유지)."""
+    sd = {"items": [{"product_name": "장A"}, {"product_name": "장B"}]}
+
+    result = build_wizard_defaults(_order(), sd, _user())
+
+    assert result["product_name"] == "장A / 장B"
+
+
+def test_defaults_item_index_selects_single_product():
+    """item_index 지정 시 그 제품 한 건만 기준(product_name도 그 제품명만, 종속 필드도 해당 item)."""
+    sd = {
+        "items": [
+            {"product_name": "장A", "color": "화이트", "handle": "핸들A"},
+            {
+                "product_name": "장B",
+                "color": "블랙",
+                "handle": "핸들B",
+                "width": "100",
+                "depth": "200",
+                "height": "300",
+            },
+        ]
+    }
+
+    result = build_wizard_defaults(_order(), sd, _user(), item_index=1)
+
+    assert result["product_name"] == "장B"
+    assert result["color"] == "블랙"
+    assert result["handle"] == "핸들B"
+    assert result["site_spec"] == "100×200×300"
+
+
+def test_defaults_item_index_out_of_range_falls_back_to_first():
+    """범위를 벗어난 item_index는 items[0]으로 폴백하되, 단일 제품 모드(조인 안 함)를 유지한다."""
+    sd = {"items": [{"product_name": "장A", "color": "화이트"}, {"product_name": "장B"}]}
+
+    result = build_wizard_defaults(_order(), sd, _user(), item_index=99)
+
+    assert result["product_name"] == "장A"
+    assert result["color"] == "화이트"
+
+
 def test_defaults_phone_blank_when_missing():
     sd = {"parties": {"customer": {"name": "홍길동"}}}
 

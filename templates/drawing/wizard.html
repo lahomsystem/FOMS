@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>도면 마법사 — 주문 #{{ order.id }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20260707j">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20260707k">
 </head>
 <body>
   <div id="dws-root" data-order-id="{{ order.id }}">
@@ -113,6 +113,18 @@
     <!-- ================= 시트 탭 바 ================= -->
     <div class="dws-tabbar dws-ui" id="dws-tabbar"></div>
 
+    <!-- ================= 본문 (좌: 제품 리스트 · 우: 캔버스) ============ -->
+    <div class="dws-body">
+
+    <!-- 좌측 제품 리스트 패널(접기 가능) -->
+    <aside class="dws-products dws-ui" id="dws-products">
+      <div class="dws-products-head">
+        <span class="dws-products-title">제품</span>
+        <button type="button" class="dws-products-toggle" id="dws-products-toggle" title="제품 목록 접기" aria-label="제품 목록 접기">◂</button>
+      </div>
+      <div class="dws-product-list" id="dws-product-list"></div>
+    </aside>
+
     <!-- ================= 캔버스(스크롤) ================= -->
     <div class="dws-canvas" id="dws-canvas">
       <div class="dws-stage-wrap" id="dws-stage-wrap">
@@ -217,6 +229,8 @@
       </div>
     </div>
 
+    </div><!-- /.dws-body -->
+
     <!-- ================= 모드 안내 힌트(플로팅) ================= -->
     <div class="dws-mode-hint dws-ui" id="dws-mode-hint" aria-live="polite"></div>
 
@@ -298,6 +312,6 @@
 
   <script id="drawing-wizard-config" type="application/json">{{ wizard_config|tojson }}</script>
   <script src="{{ url_for('static', filename='vendor/konva.min.js') }}?v=20260706b" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260707j" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260707k" defer></script>
 </body>
 </html>

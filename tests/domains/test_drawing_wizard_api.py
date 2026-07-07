@@ -10,7 +10,7 @@ from datetime import date
 from werkzeug.security import generate_password_hash
 
 from db import db_session
-from models import Order, User
+from models import Order, OrderAttachment, User
 
 
 def _login(client, *, username, role, team):
@@ -847,6 +847,287 @@ def test_presets_post_rejects_unprivileged_user(client):
 
 def test_presets_get_requires_login(client):
     resp = client.get(PRESETS_ENDPOINT)
+
+    assert resp.status_code == 302
+    assert "/login" in resp.headers["Location"]
+
+
+# ---------------------------------------------------------------------------
+# 제품별 도면 시트 — 좌측 제품 리스트 · ?item 제품별 defaults · 시트 승격 값
+# ---------------------------------------------------------------------------
+
+
+def test_get_wizard_returns_products_list(client):
+    """GET 응답 data.products = [{index, name, spec, price}] (규격 W×D×H / price int·null)."""
+    _login_participant_admin(client)
+    order = _erp_order(
+        structured_data={
+            "parties": {"customer": {"name": "서으뜸"}},
+            "items": [
+                {
+                    "product_name": "여닫이장",
+                    "color": "화이트",
+                    "width": "3500",
+                    "depth": "620",
+                    "height": "2300",
+                    "price": "1200000",
+                },
+                {"product_name": "수납장", "spec": "현장실측"},
+            ],
+        }
+    )
+    order_id = order.id
+
+    resp = client.get(f"/api/orders/{order_id}/drawing-wizard")
+
+    assert resp.status_code == 200
+    products = resp.get_json()["data"]["products"]
+    assert len(products) == 2
+    assert products[0] == {
+        "index": 0,
+        "name": "여닫이장",
+        "spec": "3500×620×2300",
+        "price": 1200000,
+    }
+    assert products[1]["index"] == 1
+    assert products[1]["name"] == "수납장"
+    assert products[1]["spec"] == "현장실측"
+    assert products[1]["price"] is None
+
+
+def test_get_wizard_item_query_returns_that_products_defaults(client):
+    """?item=N → 해당 제품 한 건 기준 defaults(product_name도 단일), 미지정은 전체 조인."""
+    _login_participant_admin(client)
+    order = _erp_order(
+        structured_data={
+            "parties": {"customer": {"name": "서으뜸"}},
+            "items": [
+                {"product_name": "장A", "color": "화이트"},
+                {"product_name": "장B", "color": "블랙"},
+            ],
+        }
+    )
+    order_id = order.id
+
+    resp = client.get(f"/api/orders/{order_id}/drawing-wizard?item=1")
+    assert resp.status_code == 200
+    d = resp.get_json()["data"]["defaults"]
+    assert d["product_name"] == "장B"
+    assert d["color"] == "블랙"
+
+    resp0 = client.get(f"/api/orders/{order_id}/drawing-wizard")
+    assert resp0.get_json()["data"]["defaults"]["product_name"] == "장A / 장B"
+
+
+def test_put_then_get_round_trips_sheet_product_index_and_attachment_id(client):
+    """시트 승격 값(product_index/attachment_id) 정상 저장 왕복(값 보존)."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    state = {
+        "v": 1,
+        "sheets": [
+            {
+                "id": "s-1",
+                "name": "장B",
+                "form": {},
+                "objects": [],
+                "product_index": 1,
+                "attachment_id": 42,
+            }
+        ],
+    }
+
+    put_resp = client.put(
+        f"/api/orders/{order_id}/drawing-wizard",
+        json={"state": state, "base_updated_at": None},
+    )
+    assert put_resp.status_code == 200, put_resp.get_json()
+
+    saved = client.get(f"/api/orders/{order_id}/drawing-wizard").get_json()["data"]["state"]
+    sheet = saved["sheets"][0]
+    assert sheet["product_index"] == 1
+    assert sheet["attachment_id"] == 42
+
+
+def test_put_rejects_out_of_range_product_index(client):
+    """product_index 가 0~199 범위를 벗어나면 400."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    state = {
+        "v": 1,
+        "sheets": [{"id": "s-1", "name": "S", "form": {}, "objects": [], "product_index": 999}],
+    }
+
+    resp = client.put(
+        f"/api/orders/{order_id}/drawing-wizard",
+        json={"state": state, "base_updated_at": None},
+    )
+
+    assert resp.status_code == 400
+
+
+def test_put_rejects_non_int_attachment_id(client):
+    """attachment_id 가 정수가 아니면 400."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    state = {
+        "v": 1,
+        "sheets": [{"id": "s-1", "name": "S", "form": {}, "objects": [], "attachment_id": "x"}],
+    }
+
+    resp = client.put(
+        f"/api/orders/{order_id}/drawing-wizard",
+        json={"state": state, "base_updated_at": None},
+    )
+
+    assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# 시트 PNG 자동 저장 — '도면' 탭(OrderAttachment category='drawing') 신규/교체
+# ---------------------------------------------------------------------------
+
+
+def _png_file(name="도면_고객_1_장1.png", body=b"\x89PNG\r\n\x1a\nFAKE"):
+    return (io.BytesIO(body), name)
+
+
+def test_sheet_png_creates_then_replaces_drawing_attachment(client, monkeypatch):
+    """신규 생성 → 재저장(같은 attachment_id) 교체 왕복: row 수 불변, storage_key 변경, 구 파일 삭제."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+
+    uploads = {"n": 0}
+    deleted = []
+
+    class DummyStorage:
+        def upload_file(self, file_obj, filename, folder):
+            uploads["n"] += 1
+            return {"success": True, "key": f"{folder}/{uploads['n']}_{filename}"}
+
+        def delete_file(self, key):
+            deleted.append(key)
+            return True
+
+    monkeypatch.setattr("foms.api.drawing.wizard.get_storage", lambda: DummyStorage())
+
+    # 1) 신규 생성
+    resp1 = client.post(
+        f"/api/orders/{order_id}/drawing-wizard/sheet-png",
+        data={"file": _png_file(), "sheet_id": "s-1"},
+        content_type="multipart/form-data",
+    )
+    assert resp1.status_code == 200, resp1.get_json()
+    data1 = resp1.get_json()["data"]
+    aid = data1["attachment_id"]
+    key1 = data1["key"]
+    assert key1.startswith(f"orders/{order_id}/drawing_wizard/exports/")
+
+    db_session.expire_all()
+    rows = (
+        db_session.query(OrderAttachment)
+        .filter_by(order_id=order_id, category="drawing")
+        .all()
+    )
+    assert len(rows) == 1
+    assert rows[0].id == aid
+    assert rows[0].storage_key == key1
+    assert rows[0].file_type == "image"
+
+    # 2) 재저장(교체) — 같은 attachment_id 전달
+    resp2 = client.post(
+        f"/api/orders/{order_id}/drawing-wizard/sheet-png",
+        data={"file": _png_file(body=b"\x89PNG\r\n\x1a\nEDIT"), "sheet_id": "s-1", "attachment_id": str(aid)},
+        content_type="multipart/form-data",
+    )
+    assert resp2.status_code == 200, resp2.get_json()
+    data2 = resp2.get_json()["data"]
+    key2 = data2["key"]
+    assert data2["attachment_id"] == aid   # 같은 첨부 교체
+    assert key2 != key1
+
+    db_session.expire_all()
+    rows2 = (
+        db_session.query(OrderAttachment)
+        .filter_by(order_id=order_id, category="drawing")
+        .all()
+    )
+    assert len(rows2) == 1                  # row 수 불변
+    assert rows2[0].id == aid
+    assert rows2[0].storage_key == key2     # key 변경
+    assert key1 in deleted                  # 구 파일 삭제
+
+
+def test_sheet_png_foreign_attachment_id_creates_new(client, monkeypatch):
+    """attachment_id 가 주문·category 와 불일치하면 신규 첨부를 만든다(교체 아님)."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+
+    class DummyStorage:
+        def upload_file(self, file_obj, filename, folder):
+            return {"success": True, "key": f"{folder}/{filename}"}
+
+        def delete_file(self, key):
+            return True
+
+    monkeypatch.setattr("foms.api.drawing.wizard.get_storage", lambda: DummyStorage())
+
+    resp = client.post(
+        f"/api/orders/{order_id}/drawing-wizard/sheet-png",
+        data={"file": _png_file(), "sheet_id": "s-1", "attachment_id": "999999"},
+        content_type="multipart/form-data",
+    )
+
+    assert resp.status_code == 200, resp.get_json()
+    db_session.expire_all()
+    rows = (
+        db_session.query(OrderAttachment)
+        .filter_by(order_id=order_id, category="drawing")
+        .all()
+    )
+    assert len(rows) == 1
+    assert rows[0].id == resp.get_json()["data"]["attachment_id"]
+
+
+def test_sheet_png_rejects_non_participant(client):
+    order = _erp_order()
+    order_id = order.id
+    _login_non_participant(client)
+
+    resp = client.post(
+        f"/api/orders/{order_id}/drawing-wizard/sheet-png",
+        data={"file": _png_file(), "sheet_id": "s-1"},
+        content_type="multipart/form-data",
+    )
+
+    assert resp.status_code == 403
+
+
+def test_sheet_png_rejects_non_png_extension(client):
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+
+    resp = client.post(
+        f"/api/orders/{order_id}/drawing-wizard/sheet-png",
+        data={"file": (io.BytesIO(b"x"), "plan.jpg"), "sheet_id": "s-1"},
+        content_type="multipart/form-data",
+    )
+
+    assert resp.status_code == 400
+
+
+def test_sheet_png_requires_login(client):
+    resp = client.post(
+        "/api/orders/1/drawing-wizard/sheet-png",
+        data={"file": _png_file(), "sheet_id": "s-1"},
+        content_type="multipart/form-data",
+    )
 
     assert resp.status_code == 302
     assert "/login" in resp.headers["Location"]

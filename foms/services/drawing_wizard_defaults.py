@@ -75,11 +75,11 @@ def _site_spec(item: dict[str, Any]) -> str:
     return _as_str(item.get("spec"))
 
 
-def _spec_w300(items: list[dict[str, Any]]) -> str:
-    """items[0]의 시공 자수(W합/300) 표시값. 없으면 빈칸, 숫자는 ``str()`` 캐스팅."""
-    if not items:
+def _spec_w300(item: dict[str, Any]) -> str:
+    """단일 item의 시공 자수(W합/300) 표시값. 없으면 빈칸, 숫자는 ``str()`` 캐스팅."""
+    if not item:
         return ""
-    value = item_spec_w300_display(items[0])
+    value = item_spec_w300_display(item)
     if value is None or value == "":
         return ""
     return str(value)
@@ -245,7 +245,12 @@ def _resolve_manager_phone(
     return format_phone_no_prefix(raw) or "-"
 
 
-def build_wizard_defaults(order: Any, sd: dict[str, Any], current_user: Any) -> dict[str, Any]:
+def build_wizard_defaults(
+    order: Any,
+    sd: dict[str, Any],
+    current_user: Any,
+    item_index: int | None = None,
+) -> dict[str, Any]:
     """주문 데이터로 도면 마법사 폼 기본값(자동 채움)을 계산한다.
 
     저장된 마법사 상태가 없을 때 최초 로드에서 폼 셀을 채우는 서버 계산
@@ -256,6 +261,11 @@ def build_wizard_defaults(order: Any, sd: dict[str, Any], current_user: Any) -> 
         sd: 이미 dict로 정규화된 ``structured_data``.
         current_user: 현재 사용자(User) 또는 None. ``drew`` 폴백 최종값
             (도면 담당자 미지정 시)에 사용. 담당자 지정 시엔 설정 영문명 매핑이 우선.
+        item_index: 제품별 도면 시트용 선택 인덱스.
+            ``None``(기본/집계 모드)이면 ``product_name`` 은 모든 제품명을 조인하고
+            item 종속 필드(color/site_spec/spec_w300/handle/drawer/misc)는 ``items[0]``
+            기준이다(기존 동작 무변경). 정수를 주면 해당 제품 한 건만을 기준으로 하며
+            (``product_name`` 도 그 제품명만), 범위를 벗어난 인덱스는 0으로 폴백한다.
 
     Returns:
         폼 키→값(str) dict. ``checks`` 만 ``dict[str, bool]``.
@@ -266,7 +276,15 @@ def build_wizard_defaults(order: Any, sd: dict[str, Any], current_user: Any) -> 
     manager = parties.get("manager") or {}
     site = sd.get("site") or {}
     items = _extract_items(sd)
-    item0 = items[0] if items else {}
+    sel_index = 0
+    if item_index is not None and 0 <= item_index < len(items):
+        sel_index = item_index
+    selected_item = items[sel_index] if items else {}
+    # None=집계(전체 조인, 기존 동작), 정수=선택 제품 한 건만.
+    if item_index is None:
+        product_name = _join_product_names(items)
+    else:
+        product_name = _as_str(selected_item.get("product_name")).strip()
 
     sales_manager = _as_str(manager.get("name")) or _as_str(getattr(order, "manager_name", None))
     phone_raw = customer.get("phone")
@@ -276,13 +294,13 @@ def build_wizard_defaults(order: Any, sd: dict[str, Any], current_user: Any) -> 
         "customer_name": _as_str(customer.get("name")),
         "phone": format_phone_no_prefix(phone_raw) if phone_raw else "",
         "address": _as_str(site.get("address_full")) or _as_str(site.get("address_main")),
-        "product_name": _join_product_names(items),
-        "color": _consult_strip(item0.get("color")),
-        "site_spec": _site_spec(item0),
-        "spec_w300": _spec_w300(items),
-        "handle": _consult_strip(item0.get("handle")),
-        "drawer": _consult_strip(item0.get("internal")),
-        "misc": _misc(item0),
+        "product_name": product_name,
+        "color": _consult_strip(selected_item.get("color")),
+        "site_spec": _site_spec(selected_item),
+        "spec_w300": _spec_w300(selected_item),
+        "handle": _consult_strip(selected_item.get("handle")),
+        "drawer": _consult_strip(selected_item.get("internal")),
+        "misc": _misc(selected_item),
         "sales_manager": sales_manager,
         "manager_phone": _resolve_manager_phone(order, parties, manager, sales_manager),
         "logo": _resolve_logo(sales_manager),
