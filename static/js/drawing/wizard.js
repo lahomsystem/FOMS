@@ -161,6 +161,7 @@
   var dirty = false;
   var baseUpdatedAt = null;
   var canSave = !!CONFIG.can_save;
+  var userPresets = [];                // 도면팀 공유 사용자 프리셋 [{label,text}] (전역 SystemSetting)
   var defaults = {};
   var customerName = '';
   var selected = null;                 // 선택된 주석 객체 id (Konva 노드와 동기)
@@ -1251,21 +1252,26 @@
     startEditText(nodeById[o.id], true);
   }
 
-  function addPreset(kind) {
+  /** 프리셋 텍스트를 새 텍스트 객체로 캔버스에 삽입하고 편집 모드 진입(플레인 문자열). */
+  function insertPresetText(text, bold) {
     if (!canSave) { return; }
-    var label = PRESETS[kind];
-    if (!label) { return; }
     recordUndo();
     var n = currentSheet().objects.length;
     var o = {
       id: rid('o-'), type: 'text', x: 340 + (n % 3) * 30, y: 95 + (n % 6) * 46, w: 220,
-      text: label + '\n', size: 20, color: '#000000', bold: true, align: 'left', rotation: 0
+      text: String(text || ''), size: 20, color: '#000000', bold: !!bold, align: 'left', rotation: 0
     };
     currentSheet().objects.push(o);
     markDirty();
     rebuildAnno();
     selectById(o.id);
     startEditText(nodeById[o.id], true);
+  }
+
+  function addPreset(kind) {
+    var label = PRESETS[kind];
+    if (!label) { return; }
+    insertPresetText(label + '\n', true);
   }
 
   /* ---- 리치 편집: DOM ↔ 런 변환 헬퍼 ------------------------------------- */
@@ -1707,6 +1713,114 @@
     }, 2600);
   }
 
+  /* ---- 프리셋 메뉴: 기본 4개(코드 상수) + 사용자 프리셋(전역) 동적 렌더 ---- */
+  var PRESETS_ENDPOINT = '/api/orders/drawing-wizard/presets';
+
+  /** 프리셋 메뉴를 재구성한다. 기본 프리셋은 삭제 불가, 사용자 프리셋만 ×·저장 노출.
+      모든 라벨/본문은 textContent 로만 삽입한다(XSS 안전, innerHTML 금지). */
+  function renderPresetMenu() {
+    var menu = els.presetMenu;
+    if (!menu) { return; }
+    menu.textContent = '';
+
+    Object.keys(PRESETS).forEach(function (kind) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'dws-menu-item';
+      b.setAttribute('data-preset', kind);
+      b.textContent = PRESETS[kind];
+      b.addEventListener('click', function () { closeMenus(); addPreset(kind); });
+      menu.appendChild(b);
+    });
+
+    userPresets.forEach(function (p, idx) {
+      var row = document.createElement('div');
+      row.className = 'dws-preset-row';
+      var ins = document.createElement('button');
+      ins.type = 'button';
+      ins.className = 'dws-menu-item dws-preset-ins';
+      ins.textContent = p.label || p.text;
+      ins.title = p.text;
+      ins.addEventListener('click', function () { closeMenus(); insertPresetText(p.text, false); });
+      row.appendChild(ins);
+      if (canSave) {
+        var del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'dws-preset-del';
+        del.title = '삭제';
+        del.setAttribute('aria-label', '프리셋 삭제');
+        del.textContent = '×';
+        del.addEventListener('click', function (e) { e.stopPropagation(); deleteUserPreset(idx); });
+        row.appendChild(del);
+      }
+      menu.appendChild(row);
+    });
+
+    if (canSave) {
+      var sep = document.createElement('div');
+      sep.className = 'dws-preset-sep';
+      menu.appendChild(sep);
+      var addBtn = document.createElement('button');
+      addBtn.type = 'button';
+      addBtn.className = 'dws-menu-item dws-preset-add';
+      addBtn.textContent = '+ 현재 텍스트를 프리셋으로 저장';
+      addBtn.addEventListener('click', function () { closeMenus(); saveCurrentAsPreset(); });
+      menu.appendChild(addBtn);
+    }
+  }
+
+  /** 전역 프리셋 목록을 로드해 메뉴를 갱신한다(실패 시 기본 프리셋만). */
+  function loadUserPresets() {
+    jsonFetch(PRESETS_ENDPOINT, { headers: { 'Accept': 'application/json' } }).then(function (r) {
+      if (r.status === 200 && r.data && r.data.success && r.data.data) {
+        userPresets = r.data.data.presets || [];
+      } else {
+        userPresets = [];
+      }
+      renderPresetMenu();
+    });
+  }
+
+  /** 프리셋 목록을 서버에 저장(POST)하고 성공 시 메뉴 갱신 + 토스트. */
+  function persistUserPresets(list, okMsg) {
+    jsonFetch(PRESETS_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ presets: list })
+    }).then(function (r) {
+      if (r.status !== 200 || !r.data || !r.data.success) {
+        toast((r.data && r.data.message) || '프리셋 저장에 실패했습니다.');
+        return;
+      }
+      userPresets = (r.data.data && r.data.data.presets) || [];
+      renderPresetMenu();
+      toast(okMsg);
+    });
+  }
+
+  /** 선택된 텍스트(없으면 prompt)를 라벨과 함께 새 프리셋으로 저장. */
+  function saveCurrentAsPreset() {
+    if (!canSave) { return; }
+    var text = '';
+    var o = findObj(selected);
+    if (o && o.type === 'text' && String(o.text || '').trim()) {
+      text = String(o.text).trim();
+    } else {
+      text = String(window.prompt('프리셋으로 저장할 텍스트를 입력하세요.') || '').trim();
+    }
+    if (!text) { return; }
+    var defaultLabel = text.split('\n')[0].slice(0, 20);
+    var label = String(window.prompt('프리셋 이름(라벨)을 입력하세요.', defaultLabel) || '').trim();
+    if (!label) { label = defaultLabel; }
+    persistUserPresets(userPresets.concat([{ label: label, text: text }]), '프리셋을 저장했습니다.');
+  }
+
+  /** 인덱스의 사용자 프리셋을 제외하고 저장(삭제). */
+  function deleteUserPreset(idx) {
+    if (!canSave) { return; }
+    persistUserPresets(userPresets.filter(function (_, i) { return i !== idx; }), '프리셋을 삭제했습니다.');
+  }
+
   function updateSaveState() {
     if (!els.saveBtn) { return; }
     els.saveBtn.classList.toggle('dws-dirty', !!dirty);
@@ -2099,12 +2213,10 @@
     document.getElementById('dws-btn-redo').addEventListener('click', redo);
     els.saveBtn.addEventListener('click', save);
 
-    // 프리셋 메뉴
+    // 프리셋 메뉴 (기본 4개 + 사용자 프리셋 동적 렌더; 항목 배선은 renderPresetMenu 내부)
     var presetBtn = document.getElementById('dws-btn-preset');
     presetBtn.addEventListener('click', function (e) { e.stopPropagation(); toggleMenu(els.presetMenu); });
-    Array.prototype.forEach.call(els.presetMenu.querySelectorAll('[data-preset]'), function (b) {
-      b.addEventListener('click', function () { closeMenus(); addPreset(b.getAttribute('data-preset')); });
-    });
+    renderPresetMenu();
 
     // 도형 메뉴 → 그리기 모드 진입
     var shapeBtn = document.getElementById('dws-btn-shape');
@@ -2302,6 +2414,7 @@
     buildDividers();
     wireStatic();
     load();
+    loadUserPresets();
   }
 
   if (document.readyState === 'loading') {

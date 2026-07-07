@@ -262,6 +262,30 @@ html, body {
 }
 .dws-menu-item:hover { background: rgba(0, 0, 0, 0.05); }
 
+/* ---- 프리셋 메뉴: 사용자 프리셋 행(삽입 + 삭제) / 저장 푸터 ------------- */
+.dws-preset-row { display: flex; align-items: center; gap: 2px; }
+.dws-preset-row .dws-preset-ins {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dws-preset-del {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  background: transparent;
+  color: #86868b;
+  font-size: 16px;
+  line-height: 1;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.dws-preset-del:hover { background: rgba(224, 49, 49, 0.12); color: #e03131; }
+.dws-preset-sep { height: 1px; background: rgba(0, 0, 0, 0.08); margin: 5px 2px; }
+.dws-preset-add { color: #1c62d6; font-weight: 600; }
+
 /* ---- 줌 컨트롤 ----------------------------------------------------------- */
 .dws-zoom { display: flex; align-items: center; gap: 8px; }
 .dws-zoom-label {

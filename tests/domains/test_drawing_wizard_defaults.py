@@ -5,10 +5,28 @@ DB가 필요 없는 순수 함수 테스트: fake order(SimpleNamespace) + sd(di
 
 from types import SimpleNamespace
 
+import pytest
+
+from foms.services import erp_mobile_order_display as _display_mod
 from foms.services.drawing_wizard_defaults import (
     build_wizard_defaults,
     resolve_assignee_drew_en,
 )
+
+
+@pytest.fixture(autouse=True)
+def _stub_manager_phone_lookup(monkeypatch):
+    """담당 연락처 설정 룩업을 기본 '없음'으로 스텁한다(단위 테스트 DB I/O 차단).
+
+    ``build_wizard_defaults`` 는 ``manager.phone`` 이 없을 때 큐 리졸버를 지연
+    import해 호출한다. 기본값은 빈 문자열(매핑 없음)이며, 룩업 성공 케이스는
+    개별 테스트에서 monkeypatch로 이 스텁을 덮어쓴다.
+    """
+    monkeypatch.setattr(
+        _display_mod,
+        "resolve_manager_phone_for_queue",
+        lambda parties, *, manager_name="", order=None, manager_phone_map=None: "",
+    )
 
 
 def _order(**kwargs):
@@ -48,7 +66,7 @@ def test_defaults_maps_full_structured_data():
 
     assert result["construction_date"] == "7월 9일"
     assert result["customer_name"] == "서으뜸"
-    assert result["phone"] == "010-9263-9140"
+    assert result["phone"] == "9263-9140"
     assert result["address"] == "대구 희망로 24길 24"
     assert result["product_name"] == "여단이 붙박이장"
     assert result["color"] == "클린화이트"
@@ -168,6 +186,38 @@ def test_defaults_phone_blank_when_missing():
     result = build_wizard_defaults(_order(), sd, _user())
 
     assert result["phone"] == ""
+
+
+def test_defaults_manager_phone_uses_structured_phone_stripping_010():
+    """parties.manager.phone가 있으면 그 값을 '010' 제거 포맷으로 쓴다(룩업 생략)."""
+    sd = {"parties": {"manager": {"name": "하우드 김성일", "phone": "01011112222"}}}
+
+    result = build_wizard_defaults(_order(), sd, _user())
+
+    assert result["manager_phone"] == "1111-2222"
+
+
+def test_defaults_manager_phone_falls_back_to_queue_lookup(monkeypatch):
+    """manager.phone가 없으면 큐 리졸버 룩업값을 '010' 제거 포맷으로 쓴다."""
+    monkeypatch.setattr(
+        _display_mod,
+        "resolve_manager_phone_for_queue",
+        lambda parties, *, manager_name="", order=None, manager_phone_map=None: "01033334444",
+    )
+    sd = {"parties": {"manager": {"name": "하우드 김성일", "phone": ""}}}
+
+    result = build_wizard_defaults(_order(), sd, _user())
+
+    assert result["manager_phone"] == "3333-4444"
+
+
+def test_defaults_manager_phone_dash_when_no_phone_and_no_lookup():
+    """manager.phone도 룩업도 없으면 '-'를 유지한다(스텁 기본값 = 빈 문자열)."""
+    sd = {"parties": {"manager": {"name": "하우드 김성일", "phone": ""}}}
+
+    result = build_wizard_defaults(_order(), sd, _user())
+
+    assert result["manager_phone"] == "-"
 
 
 def test_defaults_drew_blank_when_no_user():

@@ -724,3 +724,129 @@ def test_put_accepts_text_without_runs_backward_compat(client):
     saved = state["sheets"][0]["objects"][0]
     assert "runs" not in saved
     assert saved["color"] == "#1c62d6"
+
+
+# ---------------------------------------------------------------------------
+# 도면 마법사 사용자 프리셋 — 전역 SystemSetting(도면팀 공유) sanitize + API 왕복
+# ---------------------------------------------------------------------------
+
+from foms.services.drawing_wizard_presets import (  # noqa: E402
+    MAX_LABEL_LEN,
+    MAX_PRESETS,
+    MAX_TEXT_LEN,
+    sanitize_wizard_presets,
+)
+
+PRESETS_ENDPOINT = "/api/orders/drawing-wizard/presets"
+
+
+def _login_preset_denied(client, username="preset-denied"):
+    """프리셋 관리 권한이 없는 사용자(비-ADMIN·비-DRAWING·비-편집팀)."""
+    return _login(client, username=username, role="STAFF", team="PRODUCTION")
+
+
+def test_sanitize_wizard_presets_trims_and_drops_invalid():
+    raw = [
+        {"label": "  SR 컷  ", "text": "  [SR] 60*2440  "},
+        {"label": "무본문", "text": "   "},  # 본문 없음 → 제거
+        "not-a-dict",  # 비-딕트 → 제거
+        {"label": 123, "text": "숫자라벨"},  # 라벨 비문자열 → 제거
+        {"text": "라벨없음"},  # 라벨 없음 → 본문 첫 줄로 자동 라벨
+    ]
+    cleaned = sanitize_wizard_presets(raw)
+    assert cleaned == [
+        {"label": "SR 컷", "text": "[SR] 60*2440"},
+        {"label": "라벨없음", "text": "라벨없음"},
+    ]
+
+
+def test_sanitize_wizard_presets_enforces_length_and_count_caps():
+    over_label = {"label": "L" * (MAX_LABEL_LEN + 1), "text": "본문"}
+    over_text = {"label": "라벨", "text": "T" * (MAX_TEXT_LEN + 1)}
+    assert sanitize_wizard_presets([over_label]) == []
+    assert sanitize_wizard_presets([over_text]) == []
+
+    many = [{"label": f"L{i}", "text": f"본문{i}"} for i in range(MAX_PRESETS + 10)]
+    assert len(sanitize_wizard_presets(many)) == MAX_PRESETS
+
+
+def test_sanitize_wizard_presets_non_list_returns_empty():
+    assert sanitize_wizard_presets(None) == []
+    assert sanitize_wizard_presets("x") == []
+    assert sanitize_wizard_presets({"label": "a", "text": "b"}) == []
+
+
+def test_presets_get_empty_initially(client):
+    _login_participant_admin(client)
+
+    resp = client.get(PRESETS_ENDPOINT)
+
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["success"] is True
+    assert data["data"]["presets"] == []
+
+
+def test_presets_post_then_get_round_trips_globally(client):
+    _login_participant_admin(client)
+
+    post_resp = client.post(
+        PRESETS_ENDPOINT,
+        json={"presets": [{"label": "테스트컷", "text": "[SR] 테스트컷"}]},
+    )
+    assert post_resp.status_code == 200, post_resp.get_json()
+    assert post_resp.get_json()["data"]["presets"] == [
+        {"label": "테스트컷", "text": "[SR] 테스트컷"}
+    ]
+
+    # 전역 저장 → 다른 사용자 세션에서도 동일 목록 조회
+    _login_non_participant(client, username="preset-viewer")
+    get_resp = client.get(PRESETS_ENDPOINT)
+    assert get_resp.status_code == 200
+    assert get_resp.get_json()["data"]["presets"] == [
+        {"label": "테스트컷", "text": "[SR] 테스트컷"}
+    ]
+
+
+def test_presets_post_sanitizes_before_save(client):
+    _login_participant_admin(client)
+
+    resp = client.post(
+        PRESETS_ENDPOINT,
+        json={
+            "presets": [
+                {"label": "  좋은라벨  ", "text": "  유효본문  "},
+                {"label": "빈본문", "text": "   "},
+                {"label": "L" * (MAX_LABEL_LEN + 1), "text": "라벨초과"},
+            ]
+        },
+    )
+
+    assert resp.status_code == 200
+    assert resp.get_json()["data"]["presets"] == [{"label": "좋은라벨", "text": "유효본문"}]
+
+
+def test_presets_post_rejects_non_list_body(client):
+    _login_participant_admin(client)
+
+    resp = client.post(PRESETS_ENDPOINT, json={"presets": "nope"})
+
+    assert resp.status_code == 400
+
+
+def test_presets_post_rejects_unprivileged_user(client):
+    _login_preset_denied(client)
+
+    resp = client.post(
+        PRESETS_ENDPOINT,
+        json={"presets": [{"label": "x", "text": "y"}]},
+    )
+
+    assert resp.status_code == 403
+
+
+def test_presets_get_requires_login(client):
+    resp = client.get(PRESETS_ENDPOINT)
+
+    assert resp.status_code == 302
+    assert "/login" in resp.headers["Location"]

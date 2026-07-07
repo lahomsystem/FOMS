@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>도면 마법사 — 주문 #{{ order.id }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20260707i">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20260707j">
 </head>
 <body>
   <div id="dws-root" data-order-id="{{ order.id }}">
@@ -59,12 +59,8 @@
             <span>프리셋</span>
             <svg class="dws-caret" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
           </button>
-          <div class="dws-menu" id="dws-preset-menu" hidden>
-            <button type="button" class="dws-menu-item" data-preset="SR">[SR]</button>
-            <button type="button" class="dws-menu-item" data-preset="EP">[EP]</button>
-            <button type="button" class="dws-menu-item" data-preset="DOOR">[DOOR]</button>
-            <button type="button" class="dws-menu-item" data-preset="ROD">[옷봉]</button>
-          </div>
+          <!-- 프리셋 메뉴: wizard.js renderPresetMenu 가 기본 4개 + 사용자 프리셋을 동적 렌더 -->
+          <div class="dws-menu" id="dws-preset-menu" hidden></div>
         </div>
 
         <span class="dws-appbar-sep"></span>
@@ -302,6 +298,6 @@
 
   <script id="drawing-wizard-config" type="application/json">{{ wizard_config|tojson }}</script>
   <script src="{{ url_for('static', filename='vendor/konva.min.js') }}?v=20260706b" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260707i" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260707j" defer></script>
 </body>
 </html>

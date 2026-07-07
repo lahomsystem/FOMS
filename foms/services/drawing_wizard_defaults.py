@@ -15,7 +15,7 @@ from typing import Any
 from foms.services.erp_display import _normalize_date_to_yyyymmdd
 from foms.services.erp_shipment_settings import load_erp_shipment_settings
 from foms.services.erp_template_filters import (
-    format_phone_filter,
+    format_phone_no_prefix,
     item_spec_w300_display,
 )
 
@@ -210,6 +210,41 @@ def resolve_assignee_drew_en(sd: dict[str, Any]) -> str:
     return _as_str(en_map.get(assignee_name)).strip()
 
 
+def _resolve_manager_phone(
+    order: Any, parties: dict[str, Any], manager: dict[str, Any], sales_manager: str
+) -> str:
+    """담당(매니저) 연락처를 폴백 체인으로 결정해 '010' 제거 포맷으로 반환한다.
+
+    우선순위: (1) ``parties.manager.phone`` 원문, (2) 없으면 erporder 큐가 쓰는
+    ``resolve_manager_phone_for_queue`` (영업담당 한글명→출고설정 실측담당자
+    연락처 룩업), (3) 둘 다 없으면 '-'. 성공값은 ``format_phone_no_prefix`` 로
+    '010' 접두를 제거해 표기한다.
+
+    설정 로더 I/O를 줄이기 위해 ``manager.phone`` 이 있을 때는 룩업을 건너뛴다.
+    순환 import를 피하려 큐 리졸버는 함수 내부에서 지연 import한다(마법사는 페이지당
+    1회 호출이라 단건 설정 로드는 허용 범위).
+
+    Args:
+        order: Order ORM 인스턴스(룩업 폴백용 ``manager_name`` 참조).
+        parties: ``structured_data.parties`` dict.
+        manager: ``parties.manager`` dict.
+        sales_manager: 이미 계산된 영업담당 한글명.
+
+    Returns:
+        '010' 접두를 제거한 연락처 문자열(예 '9263-9140'). 없으면 '-'.
+    """
+    raw = str(manager.get("phone") or "").strip()
+    if not raw:
+        from foms.services.erp_mobile_order_display import (
+            resolve_manager_phone_for_queue,
+        )
+
+        raw = resolve_manager_phone_for_queue(
+            parties, manager_name=sales_manager, order=order
+        ).strip()
+    return format_phone_no_prefix(raw) or "-"
+
+
 def build_wizard_defaults(order: Any, sd: dict[str, Any], current_user: Any) -> dict[str, Any]:
     """주문 데이터로 도면 마법사 폼 기본값(자동 채움)을 계산한다.
 
@@ -239,7 +274,7 @@ def build_wizard_defaults(order: Any, sd: dict[str, Any], current_user: Any) -> 
     return {
         "construction_date": _format_construction_date(order, sd),
         "customer_name": _as_str(customer.get("name")),
-        "phone": _as_str(format_phone_filter(phone_raw)) if phone_raw else "",
+        "phone": format_phone_no_prefix(phone_raw) if phone_raw else "",
         "address": _as_str(site.get("address_full")) or _as_str(site.get("address_main")),
         "product_name": _join_product_names(items),
         "color": _consult_strip(item0.get("color")),
@@ -249,7 +284,7 @@ def build_wizard_defaults(order: Any, sd: dict[str, Any], current_user: Any) -> 
         "drawer": _consult_strip(item0.get("internal")),
         "misc": _misc(item0),
         "sales_manager": sales_manager,
-        "manager_phone": _as_str(manager.get("phone")) or "-",
+        "manager_phone": _resolve_manager_phone(order, parties, manager, sales_manager),
         "logo": _resolve_logo(sales_manager),
         "drew": _resolve_drew(sd, current_user),
         "page_no": "-",
