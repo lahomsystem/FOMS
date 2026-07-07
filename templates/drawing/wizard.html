@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>도면 마법사 — 주문 #{{ order.id }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20260708d">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20260708e">
 </head>
 <body>
   <div id="dws-root" data-order-id="{{ order.id }}">
@@ -99,7 +99,6 @@
           </button>
           <div class="dws-menu dws-menu-right" id="dws-export-menu" hidden>
             <button type="button" class="dws-menu-item" id="dws-btn-export-png">PNG 다운로드</button>
-            <button type="button" class="dws-menu-item dws-edit-ctl" id="dws-btn-export-transfer">도면 전달</button>
             <button type="button" class="dws-menu-item" id="dws-btn-version-history">버전 이력…</button>
           </div>
         </div>
@@ -299,37 +298,6 @@
       <button type="button" class="dws-popup-item" data-logo="lahom">라홈</button>
     </div>
 
-    <!-- ================= 도면 전달 다이얼로그 ================= -->
-    <dialog class="dws-dialog dws-ui" id="dws-transfer-dialog">
-      <div class="dws-dialog-body">
-        <h2 class="dws-dialog-title">도면 전달</h2>
-        <label class="dws-field">
-          <span class="dws-field-label">메모</span>
-          <textarea class="dws-field-input" id="dws-transfer-note" rows="3" placeholder="전달 메모(선택)"></textarea>
-        </label>
-        <label class="dws-field">
-          <span class="dws-field-label">전달 모드</span>
-          <select class="dws-field-input" id="dws-transfer-mode">
-            <option value="APPEND">기존에 추가</option>
-            <option value="REPLACE_ALL">전체 교체</option>
-          </select>
-        </label>
-        <label class="dws-field dws-field-check">
-          <input type="checkbox" id="dws-transfer-save-first" checked>
-          <span class="dws-field-label">전달 전 저장 (도면 탭 갱신 포함)</span>
-        </label>
-        <div class="dws-field dws-transfer-sheets" id="dws-transfer-sheets" hidden>
-          <span class="dws-field-label">전달할 시트</span>
-          <div class="dws-transfer-sheet-list" id="dws-transfer-sheet-list"></div>
-        </div>
-        <p class="dws-dialog-note" id="dws-transfer-summary">현재 시트 1장이 PNG로 전달됩니다.</p>
-        <div class="dws-dialog-actions">
-          <button type="button" class="dws-btn" id="dws-transfer-cancel">취소</button>
-          <button type="button" class="dws-btn dws-btn-primary" id="dws-transfer-submit">전달</button>
-        </div>
-      </div>
-    </dialog>
-
     <!-- ================= 버전 이력 다이얼로그 ================= -->
     <dialog class="dws-dialog dws-ui" id="dws-version-dialog">
       <div class="dws-dialog-body">
@@ -357,6 +325,6 @@
 
   <script id="drawing-wizard-config" type="application/json">{{ wizard_config|tojson }}</script>
   <script src="{{ url_for('static', filename='vendor/konva.min.js') }}?v=20260706b" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260708d" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260708e" defer></script>
 </body>
 </html>

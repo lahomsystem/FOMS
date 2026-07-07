@@ -5,10 +5,11 @@
  * 레이어(Konva Stage)를 배치하고, 상태를 structured_data['drawing_wizard']에 저장한다.
  * 주석은 텍스트/이미지/사각형/원/화살표/선 6종을 지원하며 선택·이동·리사이즈·회전이
  * 가능하다. 내보내기는 폼(html2canvas scale=2) + Konva(toCanvas pixelRatio=2)를 오프스크린
- * 캔버스에 합성해 PNG 생성 → 다운로드 또는 기존 전달 API 재사용.
+ * 캔버스에 합성해 PNG 생성 → 다운로드. 저장 시 PNG는 '전달 대기함'에 보관되며(도면 탭 저장
+ * 아님), 담당자 전달은 도면 작업실의 일괄 전송이 담당한다.
  *
  * 밴드: config/api → state/history → form render → anno(Konva) → toolbar →
- *       save/load → export/transfer → init
+ *       save/load → export/version → init
  * ========================================================================== */
 (function () {
   'use strict';
@@ -298,14 +299,6 @@
     els.mtAlign = document.getElementById('dws-mt-align');
     els.mtRatio = document.getElementById('dws-mt-ratio');
     els.mtStroke = document.getElementById('dws-mt-stroke');
-    els.transferDialog = document.getElementById('dws-transfer-dialog');
-    els.transferNote = document.getElementById('dws-transfer-note');
-    els.transferMode = document.getElementById('dws-transfer-mode');
-    els.transferSaveFirst = document.getElementById('dws-transfer-save-first');
-    els.transferSheets = document.getElementById('dws-transfer-sheets');
-    els.transferSheetList = document.getElementById('dws-transfer-sheet-list');
-    els.transferSummary = document.getElementById('dws-transfer-summary');
-    els.transferSubmit = document.getElementById('dws-transfer-submit');
     els.versionDialog = document.getElementById('dws-version-dialog');
     els.versionList = document.getElementById('dws-version-list');
     els.toastHost = document.getElementById('dws-toast-host');
@@ -2428,9 +2421,9 @@
   }
 
   /**
-   * PUT 성공 후 현재 시트를 PNG로 합성해 '도면' 탭(OrderAttachment category='drawing')에
-   * 저장/교체한다. 추가 PUT은 하지 않는다(무한루프 금지) — 반환 attachment_id 는 state 에만
-   * 기록해 다음 저장 때 함께 PUT 되어 같은 첨부를 교체(수정 가능)한다.
+   * PUT 성공 후 현재 시트를 PNG로 합성해 '전달 대기함'(structured_data.drawing_wizard.pending)에
+   * 보관한다(주문 '도면' 탭 저장 아님 — 담당자 전달은 도면 작업실의 일괄 전송이 담당).
+   * 같은 시트(sheet_id) 재저장 시 서버가 구 PNG를 교체한다. 추가 PUT은 하지 않는다.
    * @param {Object} sheet 저장 시점의 시트(비동기 동안 참조 고정)
    */
   function saveSheetPng(sheet) {
@@ -2444,13 +2437,12 @@
       var fd = new FormData();
       fd.append('file', blob, sheetPngFilename(sheet));
       fd.append('sheet_id', String(sheet.id || ''));
-      if (isFiniteNum(sheet.attachment_id)) { fd.append('attachment_id', String(sheet.attachment_id)); }
+      fd.append('sheet_name', String((sheet && sheet.name) || ''));
       return jsonFetch(API_BASE + '/drawing-wizard/sheet-png', { method: 'POST', body: fd });
     }).then(function (r) {
       els.saveBtn.disabled = false;
       if (r.status === 200 && r.data && r.data.success && r.data.data) {
-        if (isFiniteNum(r.data.data.attachment_id)) { sheet.attachment_id = r.data.data.attachment_id; }
-        toast('저장됨 · 도면 탭에 저장됨');
+        toast('저장됨 · 전달 대기함에 보관');
       } else {
         console.warn('[dws] sheet-png', r.status, r.data);
         toast('저장됨 (도면 이미지 저장 실패)');
@@ -2528,207 +2520,9 @@
     });
   }
 
-  /** 전달 다이얼로그의 시트 체크박스 목록을 구성한다(기본=현재 시트만 체크, 1장이면 숨김).
-      라벨은 textContent 로만 넣는다(XSS 안전). */
-  function renderTransferSheets() {
-    if (!els.transferSheets || !els.transferSheetList) { return; }
-    els.transferSheetList.textContent = '';
-    if (state.sheets.length <= 1) { els.transferSheets.hidden = true; return; }
-    els.transferSheets.hidden = false;
-    state.sheets.forEach(function (s, i) {
-      var label = document.createElement('label');
-      label.className = 'dws-transfer-sheet';
-      var cb = document.createElement('input');
-      cb.type = 'checkbox';
-      cb.className = 'dws-transfer-sheet-cb';
-      cb.value = String(i);
-      cb.checked = (i === current);
-      label.appendChild(cb);
-      var name = document.createElement('span');
-      name.className = 'dws-transfer-sheet-name';
-      name.textContent = s.name || ('도면 ' + (i + 1));
-      label.appendChild(name);
-      els.transferSheetList.appendChild(label);
-    });
-  }
-
-  /** 전달 요약 문구를 시트 수에 맞춰 갱신한다. */
-  function updateTransferSummary() {
-    if (!els.transferSummary) { return; }
-    els.transferSummary.textContent = (state.sheets.length > 1)
-      ? '체크한 시트가 각각 PNG로 전달됩니다.'
-      : '현재 시트 1장이 PNG로 전달됩니다.';
-  }
-
-  /** 체크된 전달 시트 인덱스 목록(다이얼로그 목록이 숨김이면 현재 시트만). */
-  function selectedTransferSheetIndices() {
-    if (!els.transferSheetList || !els.transferSheets || els.transferSheets.hidden) { return [current]; }
-    var out = [];
-    Array.prototype.forEach.call(els.transferSheetList.querySelectorAll('.dws-transfer-sheet-cb'), function (cb) {
-      if (cb.checked) {
-        var i = parseInt(cb.value, 10);
-        if (i >= 0 && i < state.sheets.length) { out.push(i); }
-      }
-    });
-    return out;
-  }
-
-  function openTransferDialog() {
-    if (!canSave) { return; }
-    if (!state.sheets.length) { toast('전달할 도면이 없습니다.'); return; }
-    closeMenus();
-    renderTransferSheets();
-    updateTransferSummary();
-    if (els.transferDialog.showModal) {
-      try { els.transferDialog.showModal(); } catch (_) { els.transferDialog.setAttribute('open', ''); }
-    } else {
-      els.transferDialog.setAttribute('open', '');
-    }
-  }
-
-  function closeTransferDialog() {
-    if (els.transferDialog.close) {
-      try { els.transferDialog.close(); } catch (_) { els.transferDialog.removeAttribute('open'); }
-    } else {
-      els.transferDialog.removeAttribute('open');
-    }
-  }
-
-  function doTransfer() {
-    if (!canSave || !state.sheets.length) { return; }
-    var note = els.transferNote.value || '';
-    var mode = els.transferMode.value || 'APPEND';
-    var indices = selectedTransferSheetIndices();
-    if (!indices.length) { toast('전달할 시트를 선택하세요.'); return; }
-    var needSave = !!(els.transferSaveFirst && els.transferSaveFirst.checked && dirty);
-    els.transferSubmit.disabled = true;
-    (needSave ? save() : Promise.resolve(true)).then(function (ok) {
-      if (needSave && !ok) {
-        // 저장 실패(409 포함) → 전달 중단(원본 도면을 덮어쓰지 않고 멈춘다).
-        els.transferSubmit.disabled = false;
-        toast('저장에 실패하여 전달을 중단했습니다.');
-        return;
-      }
-      runBatchTransfer(indices, note, mode);
-    });
-  }
-
-  /** canvas → PNG blob Promise. */
-  function canvasToBlob(cv) {
-    return new Promise(function (resolve, reject) {
-      cv.toBlob(function (blob) {
-        if (blob) { resolve(blob); } else { reject(new Error('PNG 생성 실패')); }
-      }, 'image/png');
-    });
-  }
-
-  /** 내보내기 대상 시트로 전환하고 렌더 안정까지 대기(현재 시트면 즉시).
-      switchSheet 는 undo 스택을 초기화하므로 전달 전 저장이 선행돼야 안전하다. */
-  function switchToForExport(idx) {
-    return new Promise(function (resolve) {
-      if (idx === current) { resolve(); return; }
-      switchSheet(idx);
-      // rAF 2회 + 소지연으로 폼 레이아웃·Konva 이미지 로드가 안정된 뒤 캡처.
-      requestAnimationFrame(function () {
-        requestAnimationFrame(function () { setTimeout(resolve, 350); });
-      });
-    });
-  }
-
-  function restoreSheet(idx) {
-    if (idx !== current && idx >= 0 && idx < state.sheets.length) { switchSheet(idx); }
-  }
-
-  /**
-   * 체크된 시트들을 순차로 PNG 합성·gateway 업로드해 files[] 를 모은 뒤,
-   * transfer-drawing 을 1회 호출한다(note/mode 공통). 실패 시트는 건너뛰고 계속하며,
-   * 완료 후 원래 시트로 복귀한다.
-   */
-  function runBatchTransfer(indices, note, mode) {
-    var startSheet = current;
-    var files = [];
-    var failed = [];
-    var total = indices.length;
-
-    function step(k) {
-      if (k >= indices.length) { finalize(); return; }
-      var idx = indices[k];
-      var sheet = state.sheets[idx];
-      toast((k + 1) + '/' + total + ' 생성 중…');
-      switchToForExport(idx).then(function () {
-        return withExportMode();
-      }).then(function (cv) {
-        return canvasToBlob(cv);
-      }).then(function (blob) {
-        var fd = new FormData();
-        fd.append('file', blob, sheetPngFilename(sheet));
-        return jsonFetch(API_BASE + '/drawing-gateway-upload', { method: 'POST', body: fd });
-      }).then(function (up) {
-        if (up.status === 200 && up.data && up.data.success && up.data.file) {
-          files.push({ key: up.data.file.key, filename: up.data.file.filename });
-        } else {
-          failed.push((sheet && sheet.name) || ('도면 ' + (idx + 1)));
-        }
-        step(k + 1);
-      }).catch(function (err) {
-        console.warn('[dws] batch transfer sheet', idx, err);
-        failed.push((sheet && sheet.name) || ('도면 ' + (idx + 1)));
-        step(k + 1);
-      });
-    }
-
-    function finalize() {
-      restoreSheet(startSheet);
-      if (!files.length) {
-        els.transferSubmit.disabled = false;
-        toast('전달할 도면을 생성하지 못했습니다.');
-        return;
-      }
-      jsonFetch(API_BASE + '/transfer-drawing', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ note: note, mode: mode, files: files })
-      }).then(function (tr) {
-        els.transferSubmit.disabled = false;
-        if (tr.status === 200 && tr.data && tr.data.success) {
-          var msg = files.length + '장 전달됨';
-          if (failed.length) { msg += ' · ' + failed.length + '장 실패'; }
-          toast(msg);
-          // 전달 성공 = 의미 있는 버전 경계 → 전달된 각 시트 상태를 스냅샷(실패는 무시).
-          snapshotTransferredSheets(indices);
-          closeTransferDialog();
-        } else {
-          toast((tr.data && tr.data.message) || '전달 실패');
-        }
-      }, function (err) {
-        els.transferSubmit.disabled = false;
-        console.warn('[dws] transfer', err);
-        toast('전달 오류');
-      });
-    }
-
-    step(0);
-  }
-
   /* ========================================================================
-   * [7b] version history (전달 시점 스냅샷 · 이전 버전 복원)
+   * [7b] version history (이전 버전 복원 · 전달 시점 스냅샷은 작업실 일괄 전송이 기록)
    * ====================================================================== */
-
-  /** 전달된 각 시트 상태를 버전 스냅샷으로 저장(비차단, 실패는 console.warn 후 무시). */
-  function snapshotTransferredSheets(indices) {
-    (indices || []).forEach(function (idx) {
-      var s = state.sheets[idx];
-      if (!s) { return; }
-      var payload = { sheet: serializeSheet(s), sheet_id: s.id, sheet_name: s.name };
-      jsonFetch(API_BASE + '/drawing-wizard/version-snapshot', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      }).then(function (r) {
-        if (r.status !== 200 || !r.data || !r.data.success) {
-          console.warn('[dws] version-snapshot', idx, r.status, r.data);
-        }
-      }, function (err) { console.warn('[dws] version-snapshot', idx, err); });
-    });
-  }
 
   function openVersionDialog() {
     closeMenus();
@@ -2913,7 +2707,6 @@
     var exportBtn = document.getElementById('dws-btn-export');
     exportBtn.addEventListener('click', function (e) { e.stopPropagation(); toggleMenu(els.exportMenu); });
     document.getElementById('dws-btn-export-png').addEventListener('click', exportPng);
-    document.getElementById('dws-btn-export-transfer').addEventListener('click', openTransferDialog);
     document.getElementById('dws-btn-version-history').addEventListener('click', openVersionDialog);
 
     // 미니 툴바 — 텍스트 (편집 중이면 선택범위/전체에 실시간 적용, 아니면 선택 객체 통일)
@@ -2977,10 +2770,6 @@
     Array.prototype.forEach.call(els.logoPopup.querySelectorAll('[data-logo]'), function (b) {
       b.addEventListener('click', function (e) { e.stopPropagation(); setLogo(b.getAttribute('data-logo')); hideLogoPopup(); });
     });
-
-    // 전달 다이얼로그
-    document.getElementById('dws-transfer-cancel').addEventListener('click', closeTransferDialog);
-    els.transferSubmit.addEventListener('click', doTransfer);
 
     // 버전 이력 다이얼로그
     document.getElementById('dws-version-close').addEventListener('click', closeVersionDialog);

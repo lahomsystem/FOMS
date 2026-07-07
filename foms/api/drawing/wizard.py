@@ -64,9 +64,8 @@ _ALLOWED_OBJECT_TYPES = ('text', 'image', 'rect', 'ellipse', 'arrow', 'line')
 _ALLOWED_STROKE_WIDTHS = (1, 2, 3)
 _COLOR_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
 
-# 제품별 도면 시트 — 시트 승격 값·도면 탭 첨부 상수
+# 제품별 도면 시트 — 시트 승격 값(제품 리스트 인덱스)
 _MAX_PRODUCT_INDEX = 199
-_DRAWING_ATTACHMENT_CATEGORY = 'drawing'
 # 실측 사진 사이드 참조 — 첨부 category(주문 상세 실측 이미지와 동일 3종)
 _MEASURE_PHOTO_CATEGORIES = ('measurement', 'measure_photo', 'photo')
 
@@ -513,6 +512,7 @@ def api_get_drawing_wizard(order_id):
             'drew_assignee_en': resolve_assignee_drew_en(sd),
             'can_save': _can_save_wizard(current_user, order),
             'drew_default': current_user.name if current_user else '',
+            'pending_count': len(_pending_list(sd)),
         },
     })
 
@@ -695,11 +695,14 @@ def api_post_drawing_wizard_import_attachment(order_id):
 @erp_orders_drawing_wizard_bp.route('/<int:order_id>/drawing-wizard/sheet-png', methods=['POST'])
 @login_required
 def api_post_drawing_wizard_sheet_png(order_id):
-    """현재 시트 PNG를 주문 '도면' 탭(OrderAttachment category='drawing')에 저장·교체한다.
+    """현재 시트 PNG를 '전달 대기'(``structured_data['drawing_wizard']['pending']``)로 보관한다.
 
-    multipart ``file``(PNG) + form ``sheet_id`` + optional ``attachment_id``.
-    ``attachment_id`` 가 있고 해당 주문·category='drawing' 첨부가 존재하면 구 파일을
-    삭제한 뒤 같은 row를 교체(수정 가능)하고, 없거나 불일치하면 신규 첨부를 만든다.
+    multipart ``file``(PNG) + form ``sheet_id`` + optional ``sheet_name``. PNG는
+    ``orders/<id>/drawing_wizard/exports/`` 로 업로드하고, sheet_id 별 pending 항목에
+    ``{key, filename, at(KST), sheet_name}`` 을 기록한다. 저장/전달 분리 원칙에 따라
+    OrderAttachment(주문 '도면' 탭)은 만들지 않으며(전달은 작업실 일괄 전송이 담당),
+    같은 sheet_id 재저장 시 구 R2 파일을 삭제하고 덮어쓴다. ``updated_at`` 을 건드리지
+    않으므로 PUT 낙관적 잠금과 충돌하지 않는다(별도 필드).
     """
     db = None
     try:
@@ -727,20 +730,9 @@ def api_post_drawing_wizard_sheet_png(order_id):
         if size > _MAX_ASSET_BYTES:
             return jsonify({'success': False, 'message': '이미지 용량이 너무 큽니다(최대 10MB).'}), 400
 
-        # 교체 대상 첨부 조회(주문·category='drawing' 일치할 때만).
-        attachment = None
-        raw_attachment_id = request.form.get('attachment_id')
-        if raw_attachment_id:
-            try:
-                attachment_id = int(raw_attachment_id)
-            except (TypeError, ValueError):
-                attachment_id = None
-            if attachment_id:
-                attachment = db.query(OrderAttachment).filter(
-                    OrderAttachment.id == attachment_id,
-                    OrderAttachment.order_id == order_id,
-                    OrderAttachment.category == _DRAWING_ATTACHMENT_CATEGORY,
-                ).first()
+        raw_sheet_id = request.form.get('sheet_id') or ''
+        sheet_id = re.sub(r'[^A-Za-z0-9_-]', '', str(raw_sheet_id))[:40] or 'sheet'
+        sheet_name = str(request.form.get('sheet_name') or sheet_id)[:_MAX_SHEET_NAME_LEN]
 
         storage = get_storage()
         result = storage.upload_file(
@@ -750,41 +742,38 @@ def api_post_drawing_wizard_sheet_png(order_id):
             return jsonify({'success': False, 'message': '파일 업로드에 실패했습니다.'}), 500
         key = result.get('key')
 
-        if attachment is not None:
-            old_key = attachment.storage_key
-            old_thumb = attachment.thumbnail_key
-            attachment.storage_key = key
-            attachment.filename = file.filename
-            attachment.file_size = size
-            attachment.thumbnail_key = None
-            db.commit()
-            # 교체 성공 후 구 파일 정리(삭제 실패는 로그만 — 저장 자체는 이미 확정).
-            for stale_key in (old_key, old_thumb):
-                if stale_key and stale_key != key:
-                    try:
-                        storage.delete_file(stale_key)
-                    except Exception as del_err:
-                        logger.warning(
-                            "sheet-png stale delete failed (%s): %s", stale_key, del_err
-                        )
-            result_id = attachment.id
-        else:
-            attachment = OrderAttachment(
-                order_id=order_id,
-                filename=file.filename,
-                file_type='image',
-                category=_DRAWING_ATTACHMENT_CATEGORY,
-                item_index=None,
-                file_size=size,
-                storage_key=key,
-                thumbnail_key=None,
-                user_id=session.get('user_id'),
-            )
-            db.add(attachment)
-            db.commit()
-            result_id = attachment.id
+        # 전달 대기함(pending)에 기록 — deepcopy(_load_structured_data) + flag_modified.
+        sd = _load_structured_data(order)
+        wiz = sd.get('drawing_wizard')
+        if not isinstance(wiz, dict):
+            wiz = {}
+            sd['drawing_wizard'] = wiz
+        pending = wiz.get('pending')
+        if not isinstance(pending, dict):
+            pending = {}
+            wiz['pending'] = pending
 
-        return jsonify({'success': True, 'data': {'attachment_id': result_id, 'key': key}})
+        # 같은 시트 재저장 → 구 R2 파일 삭제 대상 확보(교체). 커밋 후 정리(삭제 실패는 로그만).
+        old_entry = pending.get(sheet_id)
+        old_key = old_entry.get('key') if isinstance(old_entry, dict) else None
+
+        pending[sheet_id] = {
+            'key': key,
+            'filename': file.filename,
+            'at': now_kst().strftime('%Y-%m-%d %H:%M'),
+            'sheet_name': sheet_name,
+        }
+        order.structured_data = sd
+        flag_modified(order, 'structured_data')
+        db.commit()
+
+        if old_key and old_key != key:
+            try:
+                storage.delete_file(old_key)
+            except Exception as del_err:
+                logger.warning("sheet-png pending stale delete failed (%s): %s", old_key, del_err)
+
+        return jsonify({'success': True, 'data': {'key': key}})
     except Exception as e:
         if db is not None:
             try:
@@ -792,6 +781,160 @@ def api_post_drawing_wizard_sheet_png(order_id):
             except Exception as rb_err:
                 logger.warning("sheet-png rollback failed: %s", rb_err, exc_info=True)
         logger.error("drawing-wizard sheet-png failed: %s", e, exc_info=True)
+        return jsonify({'success': False, 'message': f'오류 발생: {str(e)}'}), 500
+
+
+def _pending_list(sd: dict) -> list[dict]:
+    """``sd['drawing_wizard']['pending']`` (dict) → 목록 [{sheet_id, key, filename, at, sheet_name}].
+
+    key 가 비어있거나 항목이 dict 가 아니면 건너뛴다(방어). 삽입 순서를 그대로 유지한다.
+    """
+    dw = sd.get('drawing_wizard') if isinstance(sd, dict) else None
+    pending = dw.get('pending') if isinstance(dw, dict) else None
+    out = []
+    if isinstance(pending, dict):
+        for sheet_id, entry in pending.items():
+            if not isinstance(entry, dict):
+                continue
+            key = (entry.get('key') or '').strip()
+            if not key:
+                continue
+            out.append({
+                'sheet_id': sheet_id,
+                'key': key,
+                'filename': entry.get('filename') or key.rsplit('/', 1)[-1],
+                'at': entry.get('at') or '',
+                'sheet_name': entry.get('sheet_name') or sheet_id,
+            })
+    return out
+
+
+def _append_sheet_version(storage, order_id: int, sheet: dict, sheet_id: str,
+                          sheet_name: str, versions: list, current_user) -> int | None:
+    """검증된 시트 1장을 버전 스냅샷 파일로 업로드하고 ``versions`` 포인터 리스트에 append한다.
+
+    ``versions`` 를 in-place 로 갱신하며(30개 초과분은 오래된 것부터 R2 삭제), 새 버전
+    번호를 반환한다. 업로드 실패 시 ``versions`` 를 건드리지 않고 ``None`` 을 반환한다.
+    """
+    next_v = max([p.get('v', 0) for p in versions if isinstance(p, dict)], default=0) + 1
+    payload = json.dumps(sheet, ensure_ascii=False).encode('utf-8')
+    filename = f"v{next_v}_{sheet_id}.json"
+    file_obj = FileStorage(stream=io.BytesIO(payload), filename=filename)
+    result = storage.upload_file(file_obj, filename, _versions_prefix(order_id).rstrip('/'))
+    if not result.get('success'):
+        return None
+    versions.append({
+        'v': next_v,
+        'sheet_id': sheet_id,
+        'sheet_name': sheet_name,
+        'key': result.get('key'),
+        'at': now_kst().strftime('%Y-%m-%d %H:%M'),
+        'by_name': current_user.name if current_user else '',
+    })
+    # 30개 초과분(가장 오래된 것부터) 포인터 제거 + R2 파일 삭제(삭제 실패는 로그만).
+    while len(versions) > _MAX_VERSIONS:
+        stale = versions.pop(0)
+        stale_key = stale.get('key') if isinstance(stale, dict) else None
+        if stale_key:
+            try:
+                storage.delete_file(stale_key)
+            except Exception as del_err:
+                logger.warning("version-snapshot stale delete failed (%s): %s", stale_key, del_err)
+    return next_v
+
+
+@erp_orders_drawing_wizard_bp.route('/<int:order_id>/drawing-wizard/pending', methods=['GET'])
+@login_required
+def api_get_drawing_wizard_pending(order_id):
+    """전달 대기 도면 목록 [{sheet_id, key, filename, at, sheet_name}] 을 반환한다(로그인 필요)."""
+    db = get_db()
+    order = _load_order(db, order_id)
+    if not order:
+        return jsonify({'success': False, 'message': _MSG_NOT_FOUND}), 404
+    return jsonify({'success': True, 'data': {'pending': _pending_list(_load_structured_data(order))}})
+
+
+@erp_orders_drawing_wizard_bp.route('/<int:order_id>/drawing-wizard/transfer-pending', methods=['POST'])
+@login_required
+def api_post_drawing_wizard_transfer_pending(order_id):
+    """전달 대기 도면을 담당자에게 전달한다(transfer-drawing 과 동일 효과 + 스냅샷 + pending 비움).
+
+    body ``{note, mode}`` (mode in APPEND/REPLACE_ALL, 기본 APPEND). pending 각 항목을
+    ``files=[{key, filename}]`` 로 조립해 공용 전달 처리(``perform_drawing_transfer``)를
+    호출한다(알림·drawing_current_files·status·히스토리 SSOT 재사용). 전달 성공 후 각 대기
+    시트 상태를 버전 스냅샷으로 저장하고 pending 을 비운다. 응답 ``{success, data:{count, message}}``.
+    """
+    from foms.api.drawing.erp_orders_drawing import perform_drawing_transfer
+
+    db = None
+    try:
+        db = get_db()
+        order = _load_order(db, order_id)
+        if not order:
+            return jsonify({'success': False, 'message': _MSG_NOT_FOUND}), 404
+
+        current_user = get_user_by_id(session.get('user_id'))
+        if not _can_save_wizard(current_user, order):
+            return jsonify({'success': False, 'message': _MSG_FORBIDDEN}), 403
+
+        data = request.get_json(silent=True) or {}
+        note = data.get('note') or ''
+        mode = (data.get('mode') or 'APPEND').upper()
+        if mode not in ('APPEND', 'REPLACE_ALL'):
+            mode = 'APPEND'
+
+        pending_items = _pending_list(_load_structured_data(order))
+        if not pending_items:
+            return jsonify({'success': False, 'message': '전달할 대기 도면이 없습니다.'}), 400
+
+        files = [{'key': p['key'], 'filename': p['filename']} for p in pending_items]
+        payload, status = perform_drawing_transfer(
+            db, order, order_id, current_user, session.get('user_id'),
+            note=note, mode=mode, files=files,
+        )
+        if not payload.get('success'):
+            return jsonify(payload), status
+
+        # 전달 성공(perform_drawing_transfer 가 커밋함) → 각 대기 시트 상태를 버전 스냅샷 저장 + pending 비움.
+        sd_after = copy.deepcopy(order.structured_data or {})
+        dw = sd_after.get('drawing_wizard')
+        if not isinstance(dw, dict):
+            dw = {}
+            sd_after['drawing_wizard'] = dw
+        sheets_by_id = {}
+        for s in (dw.get('sheets') or []):
+            if isinstance(s, dict) and isinstance(s.get('id'), str):
+                sheets_by_id[s['id']] = s
+        versions = dw.get('versions')
+        if not isinstance(versions, list):
+            versions = []
+        storage = get_storage()
+        for item in pending_items:
+            sheet = sheets_by_id.get(item['sheet_id'])
+            if isinstance(sheet, dict):
+                _append_sheet_version(
+                    storage, order_id, sheet, item['sheet_id'], item['sheet_name'],
+                    versions, current_user,
+                )
+        dw['versions'] = versions
+        dw['pending'] = {}
+        sd_after['drawing_wizard'] = dw
+        order.structured_data = sd_after
+        flag_modified(order, 'structured_data')
+        db.commit()
+
+        count = len(files)
+        return jsonify({
+            'success': True,
+            'data': {'count': count, 'message': payload.get('message') or f'{count}장 전달됨'},
+        })
+    except Exception as e:
+        if db is not None:
+            try:
+                db.rollback()
+            except Exception as rb_err:
+                logger.warning("transfer-pending rollback failed: %s", rb_err, exc_info=True)
+        logger.error("drawing-wizard transfer-pending failed: %s", e, exc_info=True)
         return jsonify({'success': False, 'message': f'오류 발생: {str(e)}'}), 500
 
 
@@ -838,34 +981,13 @@ def api_post_drawing_wizard_version_snapshot(order_id):
         versions = dw.get('versions')
         if not isinstance(versions, list):
             versions = []
-        next_v = max([p.get('v', 0) for p in versions if isinstance(p, dict)], default=0) + 1
 
-        payload = json.dumps(sheet, ensure_ascii=False).encode('utf-8')
-        filename = f"v{next_v}_{sheet_id}.json"
-        file_obj = FileStorage(stream=io.BytesIO(payload), filename=filename)
         storage = get_storage()
-        result = storage.upload_file(file_obj, filename, _versions_prefix(order_id).rstrip('/'))
-        if not result.get('success'):
+        next_v = _append_sheet_version(
+            storage, order_id, sheet, sheet_id, sheet_name, versions, current_user
+        )
+        if next_v is None:
             return jsonify({'success': False, 'message': '버전 저장에 실패했습니다.'}), 500
-
-        versions.append({
-            'v': next_v,
-            'sheet_id': sheet_id,
-            'sheet_name': sheet_name,
-            'key': result.get('key'),
-            'at': now_kst().strftime('%Y-%m-%d %H:%M'),
-            'by_name': current_user.name if current_user else '',
-        })
-
-        # 30개 초과분(가장 오래된 것부터) 포인터 제거 + R2 파일 삭제(삭제 실패는 로그만).
-        while len(versions) > _MAX_VERSIONS:
-            stale = versions.pop(0)
-            stale_key = stale.get('key') if isinstance(stale, dict) else None
-            if stale_key:
-                try:
-                    storage.delete_file(stale_key)
-                except Exception as del_err:
-                    logger.warning("version-snapshot stale delete failed (%s): %s", stale_key, del_err)
 
         dw['versions'] = versions
         sd['drawing_wizard'] = dw

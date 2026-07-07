@@ -60,6 +60,59 @@
     });
   }
 
+  function getSelectedPendingOrders() {
+    // 선택된 행 중 전달 대기 도면(data-pending>0)이 있는 주문만. [{id, pending}].
+    return Array.from(document.querySelectorAll('.order-checkbox:checked'))
+      .map(function (cb) {
+        return {
+          id: parseInt(cb.value, 10),
+          pending: parseInt(cb.dataset.pending || '0', 10) || 0,
+        };
+      })
+      .filter(function (o) {
+        return o.pending > 0;
+      });
+  }
+
+  function openBatchTransferModal() {
+    var selectedIds = getSelectedOrderIds();
+    if (selectedIds.length === 0) {
+      alert('주문을 선택해주세요.');
+      return;
+    }
+    var pendingOrders = getSelectedPendingOrders();
+    if (pendingOrders.length === 0) {
+      alert('선택한 주문 중 전달 대기 도면이 있는 주문이 없습니다.');
+      return;
+    }
+
+    var modalEl = document.getElementById('batchTransferModal');
+    if (!modalEl || !window.bootstrap) {
+      return;
+    }
+
+    var summaryEl = document.getElementById('batch-transfer-summary');
+    if (summaryEl) {
+      var totalPending = pendingOrders.reduce(function (acc, o) {
+        return acc + o.pending;
+      }, 0);
+      var skipped = selectedIds.length - pendingOrders.length;
+      var text = '전송 대상 ' + pendingOrders.length + '건 (도면 ' + totalPending + '장)';
+      if (skipped > 0) {
+        text += ' · 대기 없음 ' + skipped + '건 제외';
+      }
+      summaryEl.textContent = text;
+    }
+
+    var progressEl = document.getElementById('batch-transfer-progress');
+    if (progressEl) {
+      progressEl.classList.add('d-none');
+      progressEl.textContent = '';
+    }
+
+    window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
+  }
+
   async function openBatchAssignModal() {
     var selectedIds = getSelectedOrderIds();
     if (selectedIds.length === 0) {
@@ -305,6 +358,7 @@
     window.updateBatchBar = updateBatchBar;
     window.clearAllSelections = clearAllSelections;
     window.openBatchAssignModal = openBatchAssignModal;
+    window.openBatchTransferModal = openBatchTransferModal;
     window.openSingleAssignModal = openSingleAssignModal;
     window.build_sort_url = buildSortUrl;
     window.build_page_url = buildPageUrl;
@@ -400,6 +454,69 @@
           console.error(err);
           alert('저장 중 오류가 발생했습니다.');
         }
+      }, { signal: signal });
+    }
+
+    var runTransferBtn = document.getElementById('btn-run-batch-transfer');
+    if (runTransferBtn) {
+      runTransferBtn.addEventListener('click', async function () {
+        var pendingOrders = getSelectedPendingOrders();
+        if (pendingOrders.length === 0) {
+          alert('전달 대기 도면이 있는 주문이 없습니다.');
+          return;
+        }
+
+        var modeEl = document.getElementById('batch-transfer-mode');
+        var noteEl = document.getElementById('batch-transfer-note');
+        var progressEl = document.getElementById('batch-transfer-progress');
+        var mode = modeEl ? modeEl.value : 'APPEND';
+        var note = noteEl ? noteEl.value : '';
+
+        runTransferBtn.disabled = true;
+        var total = pendingOrders.length;
+        var okCount = 0;
+        var failOrders = [];
+
+        for (var i = 0; i < pendingOrders.length; i++) {
+          var order = pendingOrders[i];
+          if (progressEl) {
+            progressEl.classList.remove('d-none');
+            progressEl.textContent = (i + 1) + '/' + total + ' 전송 중… (주문 #' + order.id + ')';
+          }
+          try {
+            var res = await fetch('/api/orders/' + order.id + '/drawing-wizard/transfer-pending', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ note: note, mode: mode }),
+              signal: signal,
+            });
+            var data = await res.json();
+            if (data && data.success) {
+              okCount += 1;
+            } else {
+              failOrders.push(order.id);
+            }
+          } catch (err) {
+            if (err && err.name === 'AbortError') {
+              runTransferBtn.disabled = false;
+              return;
+            }
+            console.error(err);
+            failOrders.push(order.id);
+          }
+        }
+
+        runTransferBtn.disabled = false;
+        var summary = total + '건 중 ' + okCount + '건 전송 완료';
+        if (failOrders.length > 0) {
+          summary += '\n실패 주문: #' + failOrders.join(', #');
+        }
+        alert(summary);
+        var modalInst = window.bootstrap.Modal.getInstance(document.getElementById('batchTransferModal'));
+        if (modalInst) {
+          modalInst.hide();
+        }
+        window.location.reload();
       }, { signal: signal });
     }
 

@@ -4,14 +4,16 @@
 ``db_session`` 직접 생성 + ``client.session_transaction()`` 로그인.
 """
 
+import copy
 import io
 import json
 from datetime import date
 
+from sqlalchemy.orm.attributes import flag_modified
 from werkzeug.security import generate_password_hash
 
 from db import db_session
-from models import Order, OrderAttachment, User
+from models import Notification, Order, OrderAttachment, User
 
 
 def _login(client, *, username, role, team):
@@ -988,7 +990,7 @@ def test_put_rejects_non_int_attachment_id(client):
 
 
 # ---------------------------------------------------------------------------
-# 시트 PNG 자동 저장 — '도면' 탭(OrderAttachment category='drawing') 신규/교체
+# 시트 PNG 저장 — '전달 대기함'(drawing_wizard.pending) 보관 (OrderAttachment 미생성)
 # ---------------------------------------------------------------------------
 
 
@@ -996,8 +998,54 @@ def _png_file(name="도면_고객_1_장1.png", body=b"\x89PNG\r\n\x1a\nFAKE"):
     return (io.BytesIO(body), name)
 
 
-def test_sheet_png_creates_then_replaces_drawing_attachment(client, monkeypatch):
-    """신규 생성 → 재저장(같은 attachment_id) 교체 왕복: row 수 불변, storage_key 변경, 구 파일 삭제."""
+def test_sheet_png_stores_pending_without_attachment(client, monkeypatch):
+    """sheet-png 저장 = pending 기록 + OrderAttachment(category='drawing') 미생성."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+
+    class DummyStorage:
+        def upload_file(self, file_obj, filename, folder):
+            return {"success": True, "key": f"{folder}/{filename}"}
+
+        def delete_file(self, key):
+            return True
+
+    monkeypatch.setattr("foms.api.drawing.wizard.get_storage", lambda: DummyStorage())
+
+    resp = client.post(
+        f"/api/orders/{order_id}/drawing-wizard/sheet-png",
+        data={"file": _png_file(), "sheet_id": "s-1", "sheet_name": "도면 1"},
+        content_type="multipart/form-data",
+    )
+    assert resp.status_code == 200, resp.get_json()
+    data = resp.get_json()["data"]
+    key = data["key"]
+    assert key.startswith(f"orders/{order_id}/drawing_wizard/exports/")
+    assert "attachment_id" not in data  # 도면 탭 첨부 식별자 없음(분리)
+
+    # 도면 탭(OrderAttachment category='drawing')은 만들어지지 않는다.
+    db_session.expire_all()
+    assert (
+        db_session.query(OrderAttachment)
+        .filter_by(order_id=order_id, category="drawing")
+        .count()
+        == 0
+    )
+
+    # pending 목록에 기록된다.
+    pending = client.get(
+        f"/api/orders/{order_id}/drawing-wizard/pending"
+    ).get_json()["data"]["pending"]
+    assert len(pending) == 1
+    assert pending[0]["sheet_id"] == "s-1"
+    assert pending[0]["key"] == key
+    assert pending[0]["sheet_name"] == "도면 1"
+    assert pending[0]["at"]
+
+
+def test_sheet_png_replace_same_sheet_overwrites_and_deletes_old(client, monkeypatch):
+    """같은 sheet_id 재저장 → pending 1건 유지, key 갱신, 구 R2 파일 삭제."""
     _login_participant_admin(client)
     order = _erp_order()
     order_id = order.id
@@ -1016,83 +1064,27 @@ def test_sheet_png_creates_then_replaces_drawing_attachment(client, monkeypatch)
 
     monkeypatch.setattr("foms.api.drawing.wizard.get_storage", lambda: DummyStorage())
 
-    # 1) 신규 생성
     resp1 = client.post(
         f"/api/orders/{order_id}/drawing-wizard/sheet-png",
         data={"file": _png_file(), "sheet_id": "s-1"},
         content_type="multipart/form-data",
     )
-    assert resp1.status_code == 200, resp1.get_json()
-    data1 = resp1.get_json()["data"]
-    aid = data1["attachment_id"]
-    key1 = data1["key"]
-    assert key1.startswith(f"orders/{order_id}/drawing_wizard/exports/")
+    key1 = resp1.get_json()["data"]["key"]
 
-    db_session.expire_all()
-    rows = (
-        db_session.query(OrderAttachment)
-        .filter_by(order_id=order_id, category="drawing")
-        .all()
-    )
-    assert len(rows) == 1
-    assert rows[0].id == aid
-    assert rows[0].storage_key == key1
-    assert rows[0].file_type == "image"
-
-    # 2) 재저장(교체) — 같은 attachment_id 전달
     resp2 = client.post(
         f"/api/orders/{order_id}/drawing-wizard/sheet-png",
-        data={"file": _png_file(body=b"\x89PNG\r\n\x1a\nEDIT"), "sheet_id": "s-1", "attachment_id": str(aid)},
+        data={"file": _png_file(body=b"\x89PNG\r\n\x1a\nEDIT"), "sheet_id": "s-1"},
         content_type="multipart/form-data",
     )
-    assert resp2.status_code == 200, resp2.get_json()
-    data2 = resp2.get_json()["data"]
-    key2 = data2["key"]
-    assert data2["attachment_id"] == aid   # 같은 첨부 교체
+    key2 = resp2.get_json()["data"]["key"]
     assert key2 != key1
 
-    db_session.expire_all()
-    rows2 = (
-        db_session.query(OrderAttachment)
-        .filter_by(order_id=order_id, category="drawing")
-        .all()
-    )
-    assert len(rows2) == 1                  # row 수 불변
-    assert rows2[0].id == aid
-    assert rows2[0].storage_key == key2     # key 변경
-    assert key1 in deleted                  # 구 파일 삭제
-
-
-def test_sheet_png_foreign_attachment_id_creates_new(client, monkeypatch):
-    """attachment_id 가 주문·category 와 불일치하면 신규 첨부를 만든다(교체 아님)."""
-    _login_participant_admin(client)
-    order = _erp_order()
-    order_id = order.id
-
-    class DummyStorage:
-        def upload_file(self, file_obj, filename, folder):
-            return {"success": True, "key": f"{folder}/{filename}"}
-
-        def delete_file(self, key):
-            return True
-
-    monkeypatch.setattr("foms.api.drawing.wizard.get_storage", lambda: DummyStorage())
-
-    resp = client.post(
-        f"/api/orders/{order_id}/drawing-wizard/sheet-png",
-        data={"file": _png_file(), "sheet_id": "s-1", "attachment_id": "999999"},
-        content_type="multipart/form-data",
-    )
-
-    assert resp.status_code == 200, resp.get_json()
-    db_session.expire_all()
-    rows = (
-        db_session.query(OrderAttachment)
-        .filter_by(order_id=order_id, category="drawing")
-        .all()
-    )
-    assert len(rows) == 1
-    assert rows[0].id == resp.get_json()["data"]["attachment_id"]
+    pending = client.get(
+        f"/api/orders/{order_id}/drawing-wizard/pending"
+    ).get_json()["data"]["pending"]
+    assert len(pending) == 1          # 같은 시트 → 1건 유지(덮어씀)
+    assert pending[0]["key"] == key2  # 최신 key
+    assert key1 in deleted            # 구 파일 삭제
 
 
 def test_sheet_png_rejects_non_participant(client):
@@ -1450,3 +1442,154 @@ def test_versions_get_requires_login(client):
 
     assert resp.status_code == 302
     assert "/login" in resp.headers["Location"]
+
+
+# ---------------------------------------------------------------------------
+# 전달 대기 → 담당자 일괄 전달 (transfer-pending) + transfer-drawing 회귀
+# ---------------------------------------------------------------------------
+
+
+def _order_with_assignee(user_id, *, extra=None):
+    """도면 담당자(drawing_assignee_user_ids)를 지정한 ERP 주문(매니저=하우드 → HAUDD 팀)."""
+    sd = {
+        "parties": {
+            "customer": {"name": "서으뜸"},
+            "manager": {"name": "하우드 김성일"},
+        },
+        "assignments": {"drawing_assignee_user_ids": [user_id]},
+    }
+    if extra:
+        sd.update(extra)
+    return _erp_order(structured_data=sd)
+
+
+def _seed_pending(order):
+    """order.structured_data.drawing_wizard 에 pending 1건 + 대응 시트를 심는다."""
+    order_id = order.id
+    sd = copy.deepcopy(order.structured_data)
+    sd["drawing_wizard"] = {
+        "v": 1,
+        "sheets": [{"id": "s-1", "name": "도면 1", "form": {}, "objects": []}],
+        "pending": {
+            "s-1": {
+                "key": f"orders/{order_id}/drawing_wizard/exports/1_a.png",
+                "filename": "도면_a.png",
+                "at": "2026-07-07 10:00",
+                "sheet_name": "도면 1",
+            }
+        },
+    }
+    order.structured_data = sd
+    flag_modified(order, "structured_data")
+    db_session.commit()
+
+
+def test_transfer_pending_transfers_and_clears(client, monkeypatch):
+    """transfer-pending = pending → drawing_current_files/status=TRANSFERRED + 알림 + pending 비움 + 스냅샷."""
+    user = _login_participant_admin(client)
+    order = _order_with_assignee(user.id)
+    order_id = order.id
+    _seed_pending(order)
+
+    storage = _CapturingStorage()
+    monkeypatch.setattr("foms.api.drawing.wizard.get_storage", lambda: storage)
+
+    resp = client.post(
+        f"/api/orders/{order_id}/drawing-wizard/transfer-pending",
+        json={"note": "확인 부탁", "mode": "APPEND"},
+    )
+    assert resp.status_code == 200, resp.get_json()
+    assert resp.get_json()["data"]["count"] == 1
+
+    db_session.expire_all()
+    sd = db_session.query(Order).filter_by(id=order_id).first().structured_data
+    files = sd.get("drawing_current_files") or []
+    assert len(files) == 1
+    assert files[0]["key"] == f"orders/{order_id}/drawing_wizard/exports/1_a.png"
+    assert sd.get("drawing_status") == "TRANSFERRED"
+    # pending 비워짐, 버전 스냅샷 1건 기록.
+    assert (sd.get("drawing_wizard") or {}).get("pending") == {}
+    assert len((sd.get("drawing_wizard") or {}).get("versions") or []) == 1
+    # 담당자 알림 생성.
+    assert (
+        db_session.query(Notification)
+        .filter_by(order_id=order_id, notification_type="DRAWING_TRANSFERRED")
+        .count()
+        >= 1
+    )
+    # pending 목록도 빈다.
+    pending = client.get(
+        f"/api/orders/{order_id}/drawing-wizard/pending"
+    ).get_json()["data"]["pending"]
+    assert pending == []
+
+
+def test_transfer_pending_empty_returns_400(client):
+    """대기 도면이 없으면 400."""
+    user = _login_participant_admin(client)
+    order = _order_with_assignee(user.id)
+    order_id = order.id
+
+    resp = client.post(
+        f"/api/orders/{order_id}/drawing-wizard/transfer-pending",
+        json={"note": ""},
+    )
+    assert resp.status_code == 400
+    assert "대기" in resp.get_json()["message"]
+
+
+def test_transfer_pending_rejects_non_participant(client):
+    """비참여자는 403(pending 유무 이전에 권한 게이트)."""
+    order = _erp_order()
+    order_id = order.id
+    _login_non_participant(client)
+
+    resp = client.post(
+        f"/api/orders/{order_id}/drawing-wizard/transfer-pending",
+        json={},
+    )
+    assert resp.status_code == 403
+
+
+def test_transfer_drawing_endpoint_regression(client):
+    """공용 함수 추출 후 transfer-drawing 엔드포인트 동작 불변(files/status/history)."""
+    user = _login_participant_admin(client)
+    order = _order_with_assignee(user.id)
+    order_id = order.id
+
+    resp = client.post(
+        f"/api/orders/{order_id}/transfer-drawing",
+        json={
+            "note": "1차 전달",
+            "mode": "APPEND",
+            "files": [
+                {"key": f"orders/{order_id}/drawing_gateway/revisions/a.png", "filename": "a.png"}
+            ],
+        },
+    )
+    assert resp.status_code == 200, resp.get_json()
+    assert resp.get_json()["success"] is True
+
+    db_session.expire_all()
+    sd = db_session.query(Order).filter_by(id=order_id).first().structured_data
+    assert sd.get("drawing_status") == "TRANSFERRED"
+    assert len(sd.get("drawing_current_files") or []) == 1
+    hist = sd.get("drawing_transfer_history") or []
+    assert hist and hist[-1]["action"] == "TRANSFER"
+
+
+def test_transfer_drawing_requires_assignee_regression(client):
+    """도면 담당자 미지정이면 transfer-drawing 400(추출 후에도 동일 게이트)."""
+    _login_participant_admin(client)
+    order = _erp_order()  # assignments 없음
+    order_id = order.id
+
+    resp = client.post(
+        f"/api/orders/{order_id}/transfer-drawing",
+        json={
+            "note": "x",
+            "files": [{"key": f"orders/{order_id}/x/a.png", "filename": "a.png"}],
+        },
+    )
+    assert resp.status_code == 400
+    assert "담당자" in resp.get_json()["message"]

@@ -140,6 +140,53 @@ def test_drawing_workbench_displays_construction_date_column(client, monkeypatch
     assert "2026-07-15" in body
 
 
+def test_drawing_workbench_row_exposes_pending_transfer_badge(client):
+    """전달 대기 도면(drawing_wizard.pending)이 있으면 행에 '대기 N장' 배지 + data-pending 노출."""
+    _login_drawing_admin(client)
+    _drawing_order(
+        {
+            "drawing_wizard": {
+                "pending": {
+                    "sheet-1": {
+                        "key": "orders/1/drawing_wizard/exports/a.png",
+                        "filename": "a.png",
+                        "at": "2026-07-07 10:00",
+                        "sheet_name": "거실",
+                    },
+                    "sheet-2": {
+                        "key": "orders/1/drawing_wizard/exports/b.png",
+                        "filename": "b.png",
+                        "at": "2026-07-07 10:01",
+                        "sheet_name": "주방",
+                    },
+                }
+            }
+        }
+    )
+
+    response = client.get("/erp/drawing-workbench")
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert 'data-pending="2"' in body
+    assert "대기 2장" in body
+    # 편집 권한자(ADMIN) → 일괄 전송 버튼과 다이얼로그가 렌더된다.
+    assert "선택 도면 일괄 전송" in body
+    assert 'id="batchTransferModal"' in body
+    assert 'id="btn-run-batch-transfer"' in body
+
+
+def test_drawing_workbench_row_hides_pending_badge_when_empty(client):
+    """전달 대기 도면이 없으면 data-pending="0" 이고 '대기 N장' 배지는 렌더되지 않는다."""
+    _login_drawing_admin(client)
+    _drawing_order()
+
+    response = client.get("/erp/drawing-workbench")
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert 'data-pending="0"' in body
+    assert "대기 0장" not in body
+
+
 def test_resolve_construction_date_display_normalizes_dict_date():
     order = SimpleNamespace(erp_construction_date="2026-09-10")
     sd = {"schedule": {"construction": {"date": {"year": 2026, "month": 8, "day": 1}}}}
@@ -561,6 +608,20 @@ def test_drawing_workbench_pipeline_stats_stable_under_list_filters(client, monk
 
     status_body = client.get("/erp/drawing-workbench?status=RETURNED").get_data(as_text=True)
     assert _pipeline_total_count(status_body) == 3
+
+
+def test_drawing_workbench_batch_transfer_calls_transfer_pending_in_js() -> None:
+    """일괄 전송 JS는 data-pending>0 주문만 골라 transfer-pending 을 순차 호출한다."""
+    js_path = Path(__file__).resolve().parents[2] / "static" / "js" / "drawing" / "workbench-dashboard.js"
+    source = js_path.read_text(encoding="utf-8")
+    assert "function getSelectedPendingOrders()" in source
+    assert "cb.dataset.pending" in source
+    assert "function openBatchTransferModal()" in source
+    assert "window.openBatchTransferModal = openBatchTransferModal;" in source
+    assert "/drawing-wizard/transfer-pending" in source
+    # note/mode 페이로드 + 실패 집계.
+    assert "JSON.stringify({ note: note, mode: mode })" in source
+    assert "failOrders.push(order.id)" in source
 
 
 def test_drawing_workbench_status_pipeline_clears_quick_filters_in_js() -> None:
