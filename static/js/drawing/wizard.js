@@ -947,7 +947,9 @@
     var screenTop = annoRect.top + box.y * zoom;
     var screenBottom = screenTop + box.height * zoom;
     var screenLeft = annoRect.left + box.x * zoom;
-    var top = screenTop - els.mt.offsetHeight - 8;
+    // 미니바를 회전 핸들(박스 상단 위 ~24px + 핸들 반경) 위로 띄워 회전 앵커를 가리지 않게 한다.
+    var ROTATER_CLEARANCE = 34;
+    var top = screenTop - els.mt.offsetHeight - 8 - ROTATER_CLEARANCE;
     if (top < 8) { top = screenBottom + 8; }
     var left = clamp(screenLeft, 8, window.innerWidth - els.mt.offsetWidth - 8);
     els.mt.style.left = left + 'px';

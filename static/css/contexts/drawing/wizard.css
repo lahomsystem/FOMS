@@ -45,6 +45,10 @@ html, body {
   backdrop-filter: blur(20px) saturate(180%);
   color: #1d1d1f;
   border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  /* stacking context 생성: 드롭다운 메뉴(z-index 60)가 캔버스/시트 위로 뜨게 함
+     (static 이면 앱바가 context 를 못 만들어 메뉴가 도면 레이아웃에 가림) */
+  position: relative;
+  z-index: 90;
 }
 
 .dws-appbar-left {
