@@ -653,11 +653,55 @@ html, body {
 
 /* ---- 캔버스(스크롤) ------------------------------------------------------ */
 .dws-canvas {
+  position: relative;                /* 빈 상태 오버레이(#dws-empty) 절대배치 기준 */
   flex: 1 1 auto;
   min-width: 0;
   overflow: auto;
   padding: 32px 24px;
   background: #f5f5f7;
+}
+
+/* ---- 빈 상태 안내 오버레이(시트 0개) ------------------------------------
+   z-index 50: 스테이지(transform 스택 컨텍스트, z auto)·디바이더(z11)·주석(z10)
+   위를 확실히 덮는다. 시트 ≥1 이면 JS 가 [hidden] 으로 숨김. */
+.dws-empty {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(245, 245, 247, 0.86);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+.dws-empty[hidden] { display: none; }
+.dws-empty-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 420px;
+  padding: 34px 40px;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+}
+.dws-empty-ico { color: #86868b; margin-bottom: 14px; }
+.dws-empty-title {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1d1d1f;
+  letter-spacing: -0.01em;
+}
+.dws-empty-sub {
+  margin: 0 0 20px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #86868b;
 }
 
 .dws-stage-wrap {
@@ -1029,7 +1073,9 @@ html, body {
 
 .dws-minitoolbar {
   position: fixed;
-  z-index: 80;
+  /* z-index 95: 텍스트 편집 오버레이(z90) 위 — 편집 중 프리셋 드롭다운이 오버레이에
+     가리지 않게 한다(미니바는 오버레이와 공간이 겹치지 않아 시각 충돌 없음). */
+  z-index: 95;
   display: flex;
   gap: 6px;
   padding: 6px;
@@ -1046,6 +1092,12 @@ html, body {
 .dws-mt-group[hidden] { display: none; }
 /* 편집 중 미니바: 삭제 버튼 숨김(입력 중 오삭제 방지 — 색/굵기/크기/정렬만 노출) */
 .dws-minitoolbar.dws-mt-editing #dws-mt-del-text { display: none; }
+
+/* 프리셋 삽입 드롭다운: 텍스트 편집 중(.dws-mt-editing)에만 노출 — 선택 모드에선 숨김.
+   메뉴는 아래로 열리며 어두운 미니바 위 라이트 팝오버(.dws-menu 재사용). */
+.dws-mt-preset { display: none; }
+.dws-minitoolbar.dws-mt-editing .dws-mt-preset { display: inline-flex; }
+.dws-mt-preset-menu { min-width: 120px; max-height: 260px; overflow-y: auto; }
 
 .dws-mt-select {
   background: rgba(255, 255, 255, 0.12);

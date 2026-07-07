@@ -200,7 +200,9 @@
   function currentSheet() { return state.sheets[current]; }
   function cloneSheet(s) { return JSON.parse(JSON.stringify(s)); }
   function findObj(id) {
-    var objs = currentSheet().objects || [];
+    var cs = currentSheet();
+    if (!cs) { return null; }
+    var objs = cs.objects || [];
     for (var i = 0; i < objs.length; i++) { if (objs[i].id === id) { return objs[i]; } }
     return null;
   }
@@ -269,6 +271,8 @@
     els.photoGrid = document.getElementById('dws-photo-grid');
     els.tabbar = document.getElementById('dws-tabbar');
     els.canvas = document.getElementById('dws-canvas');
+    els.empty = document.getElementById('dws-empty');
+    els.emptyAdd = document.getElementById('dws-empty-add');
     els.wrap = document.getElementById('dws-stage-wrap');
     els.stage = document.getElementById('dws-stage');
     els.form = document.getElementById('dws-form');
@@ -285,6 +289,8 @@
     els.exportMenu = document.getElementById('dws-export-menu');
     els.mt = document.getElementById('dws-minitoolbar');
     els.mtText = document.getElementById('dws-mt-text');
+    els.mtPresetBtn = document.getElementById('dws-mt-preset-btn');
+    els.mtPresetMenu = document.getElementById('dws-mt-preset-menu');
     els.mtImage = document.getElementById('dws-mt-image');
     els.mtShape = document.getElementById('dws-mt-shape');
     els.mtSize = document.getElementById('dws-mt-size');
@@ -315,18 +321,22 @@
   function checkEls() { return Array.prototype.slice.call(els.form.querySelectorAll('[data-dws-check]')); }
 
   function renderForm() {
-    var form = currentSheet().form || {};
+    var cs = currentSheet();
+    if (!cs) { return; }   // 시트 0개(빈 상태): 빈 안내 오버레이는 renderTabs 가 표시
+    var form = cs.form || {};
     formCells().forEach(function (el) {
       var k = el.getAttribute('data-dws-form-key');
       el.textContent = (form[k] != null) ? String(form[k]) : '';
     });
     renderChecks();
     renderLogo(form.logo);
-    applyFormLayout(currentSheet());
+    applyFormLayout(cs);
   }
 
   function renderChecks() {
-    var checks = (currentSheet().form || {}).checks || {};
+    var cs = currentSheet();
+    if (!cs) { return; }
+    var checks = (cs.form || {}).checks || {};
     checkEls().forEach(function (el) {
       var k = el.getAttribute('data-dws-check');
       var on = !!checks[k];
@@ -346,12 +356,14 @@
   function syncEditable(el) {
     var k = el.getAttribute('data-dws-form-key');
     if (!k) { return; }
-    currentSheet().form[k] = el.textContent;
+    var cs = currentSheet();
+    if (!cs) { return; }
+    cs.form[k] = el.textContent;
     markDirty();
   }
 
   function toggleCheck(key) {
-    if (!canSave) { return; }
+    if (!canSave || !currentSheet()) { return; }
     recordUndo();
     var checks = currentSheet().form.checks || (currentSheet().form.checks = {});
     checks[key] = !checks[key];
@@ -422,7 +434,9 @@
   /** 시트 layout+cell_font → 셀/그리드라인/폰트 style 직접 세팅 + 히트존 재배치. */
   function applyFormLayout(sheet) {
     if (!els.lay) { return; }
-    var form = (sheet || currentSheet()).form || {};
+    var s = sheet || currentSheet();
+    if (!s) { return; }
+    var form = s.form || {};
     var L = sanitizeLayout(form.layout);
     var font = sanitizeCellFont(form.cell_font);
     var c = L.cols, addr = L.addr, r = L.rows, top = L.top;
@@ -471,7 +485,9 @@
   /* ---- 경계선 드래그(열/행 폭 조절) --------------------------------------- */
   function positionDividers(L) {
     if (!els.divEls) { return; }
-    L = L || sanitizeLayout(currentSheet().form.layout);
+    var cs = currentSheet();
+    if (!cs) { return; }
+    L = L || sanitizeLayout(cs.form.layout);
     var c = L.cols, addr = L.addr, r = L.rows, r2 = r[1], topY = L.top;
     els.divEls.forEach(function (item) {
       var d = item.meta, el = item.el;
@@ -534,7 +550,7 @@
   function wireDivider(el, meta) {
     var drag = null, rafPending = false, pendingLogical = null;
     el.addEventListener('pointerdown', function (e) {
-      if (!canSave || annoMode !== 'select') { return; }
+      if (!canSave || annoMode !== 'select' || !currentSheet()) { return; }
       var now = Date.now();
       if (now - (el.__dwsTapTs || 0) < 320) {   // 두 번째 탭 = 초기화(dblclick 합성 억제와 무관)
         el.__dwsTapTs = 0; e.preventDefault(); e.stopPropagation();
@@ -603,7 +619,7 @@
   }
 
   function bumpCellFont(delta) {
-    if (!canSave) { return; }
+    if (!canSave || !currentSheet()) { return; }
     var form = currentSheet().form;
     var cur = sanitizeCellFont(form.cell_font);
     var next = clamp(cur + delta, CELL_FONT_MIN, CELL_FONT_MAX);
@@ -616,7 +632,7 @@
 
   /** 현재 시트의 표 칸 폭·행 높이·상단선·글자 크기를 기본값으로 되돌린다(원상 복구). */
   function resetTableLayout() {
-    if (!canSave) { return; }
+    if (!canSave || !currentSheet()) { return; }
     recordUndo();
     var form = currentSheet().form;
     form.layout = {
@@ -924,7 +940,9 @@
     transformer.nodes([]);
     konvaLayer.find('.anno').forEach(function (n) { n.destroy(); });
     nodeById = {};
-    (currentSheet().objects || []).forEach(function (o) {
+    var cs = currentSheet();
+    if (!cs) { konvaLayer.batchDraw(); return; }   // 빈 상태: 주석 없음
+    (cs.objects || []).forEach(function (o) {
       var node = buildNode(o);
       if (node) { konvaLayer.add(node); nodeById[o.id] = node; }
     });
@@ -1113,7 +1131,7 @@
   }
 
   function onStageMouseDown(e) {
-    if (!canSave) { return; }
+    if (!canSave || !currentSheet()) { return; }
     /* 같은 물리 클릭의 stage 'mousedown' 이중발화 dedupe(플랫폼별 pointer/mouse
        이중 매핑 방어): 50ms·2px 내 중복 down은 같은 제스처로 보고 무시한다. */
     var devt = e.evt || {};
@@ -1156,7 +1174,7 @@
   }
 
   function onStageDblClick(e) {
-    if (!canSave || annoMode !== 'select') { return; }
+    if (!canSave || annoMode !== 'select' || !currentSheet()) { return; }
     if (e.target !== konvaStage) { return; }
     var evt = e.evt;
     els.anno.style.pointerEvents = 'none';
@@ -1237,6 +1255,7 @@
   function finishDrawShape(draft, mode, start, end) {
     draft.destroy();
     setAnnoMode('select');
+    if (!currentSheet()) { konvaLayer.batchDraw(); return; }
     var w = Math.abs(end.x - start.x), h = Math.abs(end.y - start.y);
     var dist = Math.sqrt(Math.pow(end.x - start.x, 2) + Math.pow(end.y - start.y, 2));
     var tooSmall = (mode === 'rect' || mode === 'ellipse') ? (w < 8 && h < 8) : (dist < 8);
@@ -1263,7 +1282,7 @@
 
   /* ---- 텍스트 생성 / 인라인 편집 ------------------------------------------ */
   function createTextAt(x, y) {
-    if (!canSave) { return; }
+    if (!canSave || !currentSheet()) { return; }
     recordUndo();
     var o = {
       id: rid('o-'), type: 'text', x: Math.round(x), y: Math.round(y), w: 220,
@@ -1278,7 +1297,7 @@
 
   /** 프리셋 텍스트를 새 텍스트 객체로 캔버스에 삽입하고 편집 모드 진입(플레인 문자열). */
   function insertPresetText(text, bold) {
-    if (!canSave) { return; }
+    if (!canSave || !currentSheet()) { toast('제품을 선택해 도면을 먼저 시작하세요.'); return; }
     recordUndo();
     var n = currentSheet().objects.length;
     var o = {
@@ -1436,6 +1455,7 @@
   function hideEditToolbar() {
     els.mt.classList.remove('dws-mt-editing');
     els.mt.hidden = true;
+    if (els.mtPresetMenu) { els.mtPresetMenu.hidden = true; }
   }
   function positionEditToolbar() {
     if (!editCtx) { return; }
@@ -1560,9 +1580,10 @@
   /** 업로드된 에셋 key 를 이미지 객체로 캔버스 중앙에 배치한다(원본 natural 비율·undo·dirty).
       이미지 업로드(파일/붙여넣기)와 실측 사진 삽입(import-attachment)의 공용 삽입 파이프라인. */
   function placeImageFromKey(key) {
-    if (!canSave || !key) { return; }
+    if (!canSave || !key || !currentSheet()) { return; }
     var img = new Image();
     img.onload = function () {
+      if (!currentSheet()) { return; }   // 비동기 로드 사이 빈 상태 방어
       var nw = img.naturalWidth || 900, nh = img.naturalHeight || 600;
       var w = Math.min(900, nw);
       var h = Math.round(w * nh / nw) || Math.round(w * 0.66);
@@ -1585,6 +1606,7 @@
 
   function addImageFromFile(file) {
     if (!canSave || !file) { return; }
+    if (!currentSheet()) { toast('제품을 선택해 도면을 먼저 시작하세요.'); return; }
     uploadAsset(file).then(function (r) {
       if (r.status !== 200 || !r.data || !r.data.success || !r.data.data) {
         toast((r.data && r.data.message) || '이미지 업로드 실패');
@@ -1735,6 +1757,7 @@
   /** 실측 사진 썸네일 클릭 → import-attachment 로 에셋 복사 후 캔버스에 삽입(로딩 표시). */
   function onPhotoClick(photo, cell) {
     if (!canSave) { toast('열람 전용 — 도면 담당자·도면팀 또는 관리자만 편집할 수 있습니다.'); return; }
+    if (!currentSheet()) { toast('제품을 선택해 도면을 먼저 시작하세요.'); return; }
     if (!photo || !photo.key || cell.classList.contains('dws-photo-loading')) { return; }
     cell.classList.add('dws-photo-loading');
     jsonFetch(API_BASE + '/drawing-wizard/import-attachment', {
@@ -1766,7 +1789,16 @@
     }
   }
 
+  /** 시트 0개면 빈 안내 오버레이 표시(제품 클릭·+시트로 첫 시트 생성 유도), ≥1이면 숨김.
+      모든 상태 변경 렌더 경로(load·제품클릭·addSheet·switchSheet·복제·삭제·복원)가 renderTabs 를
+      거치므로 여기서 단일 갱신한다. */
+  function updateEmptyOverlay() {
+    if (!els.empty) { return; }
+    els.empty.hidden = (state.sheets.length > 0);
+  }
+
   function renderTabs() {
+    updateEmptyOverlay();
     els.tabbar.innerHTML = '';
     state.sheets.forEach(function (s, i) {
       var tab = document.createElement('button');
@@ -1920,7 +1952,7 @@
   function hideLogoPopup() { if (els.logoPopup) { els.logoPopup.hidden = true; } }
 
   function setLogo(v) {
-    if (!canSave) { return; }
+    if (!canSave || !currentSheet()) { return; }
     recordUndo();
     currentSheet().form.logo = v;
     renderLogo(v);
@@ -1937,6 +1969,7 @@
     if (els.presetMenu) { els.presetMenu.hidden = true; }
     if (els.shapeMenu) { els.shapeMenu.hidden = true; }
     if (els.exportMenu) { els.exportMenu.hidden = true; }
+    if (els.mtPresetMenu) { els.mtPresetMenu.hidden = true; }
   }
 
   function toast(msg) {
@@ -2057,6 +2090,44 @@
   function deleteUserPreset(idx) {
     if (!canSave) { return; }
     persistUserPresets(userPresets.filter(function (_, i) { return i !== idx; }), '프리셋을 삭제했습니다.');
+  }
+
+  /* ---- 텍스트 편집 미니바 프리셋 드롭다운(편집 중 커서 위치에 즉시 삽입) --------
+     앱바 프리셋(새 텍스트 객체 생성)과 별개로, 편집 중 오버레이 커서에 텍스트만 삽입한다.
+     선택 유지: 미니바 mousedown 이 preventDefault 되어(els.mt 핸들러) 오버레이 포커스가
+     유지되므로 execCommand('insertText') 가 캐럿 위치에 정확히 삽입된다. */
+
+  /** 편집 오버레이 커서 위치에 프리셋 텍스트 삽입(편집 유지 — blur/커밋 없음). */
+  function insertPresetIntoEdit(text) {
+    if (!editCtx || !editCtx.area) { return; }
+    editCtx.area.focus();
+    insertPlainText(String(text || ''));   // textContent 경로만(XSS 안전), execCommand insertText
+    positionEditToolbar();
+  }
+
+  /** 편집 미니바 프리셋 메뉴 재구성: 기본 4개(코드 상수) + 사용자 프리셋(전역). 삽입 전용.
+      라벨/본문은 textContent 로만 삽입(XSS 안전, innerHTML 금지). */
+  function renderEditPresetMenu() {
+    var menu = els.mtPresetMenu;
+    if (!menu) { return; }
+    menu.textContent = '';
+    Object.keys(PRESETS).forEach(function (kind) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'dws-menu-item';
+      b.textContent = PRESETS[kind];
+      b.addEventListener('click', function (e) { e.stopPropagation(); insertPresetIntoEdit(PRESETS[kind]); closeMenus(); });
+      menu.appendChild(b);
+    });
+    userPresets.forEach(function (p) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'dws-menu-item dws-preset-ins';
+      b.textContent = p.label || p.text;
+      b.title = p.text;
+      b.addEventListener('click', function (e) { e.stopPropagation(); insertPresetIntoEdit(p.text); closeMenus(); });
+      menu.appendChild(b);
+    });
   }
 
   function updateSaveState() {
@@ -2215,7 +2286,7 @@
       if (isFiniteNum(s.attachment_id)) { sheet.attachment_id = Math.round(s.attachment_id); }
       return sheet;
     });
-    if (!sheets.length) { sheets = [newSheet('도면 1', defaults)]; }
+    // 빈 배열은 그대로 반환 — 기본 시트 자동 생성 없음(제품 클릭/+시트로만 생성).
     return { v: 1, sheets: sheets };
   }
 
@@ -2236,7 +2307,8 @@
         state = normalizeState(d.state);
         baseUpdatedAt = d.state.updated_at || null;
       } else {
-        state = { v: 1, sheets: [newSheet('도면 1', defaults)] };
+        // 저장된 도면 없음 → 빈 상태(기본 시트 자동 생성 안 함). 제품 클릭/+시트로만 시트 생성.
+        state = { v: 1, sheets: [] };
         baseUpdatedAt = null;
       }
       current = 0;
@@ -2291,6 +2363,10 @@
     opts = opts || {};
     var auto = opts.auto === true;
     if (!canSave || saveInFlight) { return Promise.resolve(false); }
+    if (!state.sheets.length) {
+      if (!auto) { toast('저장할 도면이 없습니다. 제품을 선택해 도면을 먼저 만드세요.'); }
+      return Promise.resolve(false);
+    }
     if (!auto) {
       // 수동 저장만 활성 편집을 커밋·blur(자동 저장은 폼 셀 포커스/캐럿을 방해하지 않음).
       if (commitActiveEdit) { commitActiveEdit(); }
@@ -2344,6 +2420,7 @@
   /** 자동 저장 틱: 안전 조건을 모두 만족할 때만 조용히 저장(수동 저장 동작 불변). */
   function tickAutosave() {
     if (!dirty || !canSave || saveInFlight) { return; }
+    if (!state.sheets.length) { return; }          // 빈 상태(시트 0개)는 저장 대상 없음
     if (editingTextarea || editCtx) { return; }   // 주석 텍스트 편집 중이면 보류
     if (annoMode !== 'select') { return; }         // 그리기/도형 모드면 보류
     if (dragActive) { return; }                    // 드래그·변형 진행 중이면 보류
@@ -2431,6 +2508,7 @@
 
   function exportPng() {
     closeMenus();
+    if (!state.sheets.length) { toast('내보낼 도면이 없습니다.'); return; }
     withExportMode().then(function (cv) {
       cv.toBlob(function (blob) {
         if (!blob) { toast('PNG 생성에 실패했습니다.'); return; }
@@ -2497,6 +2575,7 @@
 
   function openTransferDialog() {
     if (!canSave) { return; }
+    if (!state.sheets.length) { toast('전달할 도면이 없습니다.'); return; }
     closeMenus();
     renderTransferSheets();
     updateTransferSummary();
@@ -2516,7 +2595,7 @@
   }
 
   function doTransfer() {
-    if (!canSave) { return; }
+    if (!canSave || !state.sheets.length) { return; }
     var note = els.transferNote.value || '';
     var mode = els.transferMode.value || 'APPEND';
     var indices = selectedTransferSheetIndices();
@@ -2794,6 +2873,9 @@
     document.getElementById('dws-btn-redo').addEventListener('click', redo);
     els.saveBtn.addEventListener('click', function () { save(); });
 
+    // 빈 상태 오버레이 — "빈 시트 추가"(제품 없는 주문 대비). addSheet 는 defaults 로 시트 생성.
+    if (els.emptyAdd) { els.emptyAdd.addEventListener('click', function () { addSheet(); }); }
+
     // 좌측 제품 리스트 패널 접기/펼치기
     if (els.productToggle) { els.productToggle.addEventListener('click', toggleProducts); }
     // 실측 사진 섹션 접기/펼치기
@@ -2861,6 +2943,17 @@
       var o = findObj(selected); if (o && o.type === 'text') { updateSelectedText({ align: o.align === 'center' ? 'left' : 'center' }); }
     });
     document.getElementById('dws-mt-del-text').addEventListener('click', deleteSelected);
+
+    // 미니 툴바 — 텍스트 편집 중 프리셋 삽입 드롭다운(편집 중에만 노출: CSS .dws-mt-editing)
+    // 미니바 mousedown 이 preventDefault(위 els.mt 핸들러) → 버튼/항목 클릭에도 오버레이 포커스 유지.
+    if (els.mtPresetBtn && els.mtPresetMenu) {
+      els.mtPresetBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var willShow = els.mtPresetMenu.hidden;
+        closeMenus();
+        if (willShow) { renderEditPresetMenu(); els.mtPresetMenu.hidden = false; }
+      });
+    }
 
     // 미니 툴바 — 이미지
     els.mtRatio.addEventListener('click', function () {
@@ -2977,7 +3070,7 @@
   }
 
   function autofill() {
-    if (!canSave) { return; }
+    if (!canSave || !currentSheet()) { return; }
     if (!confirm('현재 폼 값을 주문 데이터로 덮어씁니다. 계속할까요?')) { return; }
     recordUndo();
     var form = currentSheet().form;
