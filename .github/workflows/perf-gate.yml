@@ -7,6 +7,11 @@ name: perf-gate (staging)
 on:
   push:
     branches: [deploy]
+    # docs/md-only 푸시는 런타임 성능에 영향 불가 → 배포 대기+실측 스킵.
+    # 예산 파일은 tools/perf/perf_budgets.json(docs 밖)이라 안전.
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
   workflow_dispatch:
 
 permissions:
