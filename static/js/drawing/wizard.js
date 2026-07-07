@@ -172,6 +172,13 @@
   var redoStack = [];
   var lastArrowUndoTs = 0;
 
+  /* 저장 조율 상태 (자동 저장 · 저장+전달 원클릭 공용) */
+  var saveInFlight = false;            // 저장 요청 진행 중(중복 저장·자동 저장 억제)
+  var dragActive = false;             // 노드 드래그/변형·경계선 드래그 진행 중(자동 저장 억제)
+  var AUTOSAVE_INTERVAL_MS = 45000;   // 자동 저장 주기(45초)
+  var autosaveTimer = null;           // setInterval 핸들(단일)
+  var autoConflictWarned = false;     // 자동 저장 409 경고 1회성 플래그(성공 시 해제)
+
   /* Konva 런타임 상태 */
   var konvaStage = null;
   var konvaLayer = null;
@@ -283,6 +290,7 @@
     els.transferDialog = document.getElementById('dws-transfer-dialog');
     els.transferNote = document.getElementById('dws-transfer-note');
     els.transferMode = document.getElementById('dws-transfer-mode');
+    els.transferSaveFirst = document.getElementById('dws-transfer-save-first');
     els.transferSubmit = document.getElementById('dws-transfer-submit');
     els.toastHost = document.getElementById('dws-toast-host');
     els.mobileNotice = document.getElementById('dws-mobile-notice');
@@ -526,6 +534,7 @@
       e.preventDefault(); e.stopPropagation();
       try { el.setPointerCapture(e.pointerId); } catch (_) { /* noop */ }
       drag = { snap: cloneSheet(currentSheet()), moved: false, pid: e.pointerId };
+      dragActive = true;
     });
     el.addEventListener('pointermove', function (e) {
       if (!drag || e.pointerId !== drag.pid) { return; }
@@ -546,7 +555,7 @@
       if (!drag) { return; }
       try { el.releasePointerCapture(drag.pid); } catch (_) { /* noop */ }
       var moved = drag.moved, snap = drag.snap, last = pendingLogical;
-      drag = null; pendingLogical = null;
+      drag = null; pendingLogical = null; dragActive = false;
       if (moved) {
         if (last) { commitDividerMove(meta, last); }   // 마지막 프레임(rAF 미발화분) 확정
         el.__dwsTapTs = 0; pushUndoSnapshot(snap); markDirty(); applyFormLayout(currentSheet());
@@ -557,7 +566,7 @@
       if (!drag) { return; }
       try { el.releasePointerCapture(drag.pid); } catch (_) { /* noop */ }
       var moved = drag.moved, snap = drag.snap;
-      drag = null; pendingLogical = null;
+      drag = null; pendingLogical = null; dragActive = false;
       if (moved) { state.sheets[current] = snap; applyFormLayout(currentSheet()); }   // 취소 = 드래그 시작 상태 복원
     });
   }
@@ -834,13 +843,14 @@
     });
     node.on('dragstart', function () {
       if (annoMode !== 'select') { node.stopDrag(); return; }
+      dragActive = true;
       recordUndo();
     });
     node.on('dragmove', function () { positionMiniToolbar(); });
-    node.on('dragend', function () { commitNode(node); });
-    node.on('transformstart', function () { recordUndo(); });
+    node.on('dragend', function () { dragActive = false; commitNode(node); });
+    node.on('transformstart', function () { dragActive = true; recordUndo(); });
     node.on('transform', function () { applyLiveTransform(node); positionMiniToolbar(); });
-    node.on('transformend', function () { commitNode(node); });
+    node.on('transformend', function () { dragActive = false; commitNode(node); });
   }
 
   /** 변형 중 scale → 실제 치수로 정규화(폰트/선굵기 왜곡 방지). */
@@ -1682,6 +1692,12 @@
       tab.addEventListener('click', function () { switchSheet(i); });
       if (canSave) {
         tab.addEventListener('dblclick', function (e) { e.preventDefault(); renameSheet(i); });
+        var dup = document.createElement('span');
+        dup.className = 'dws-tab-dup';
+        dup.textContent = '⧉';
+        dup.title = '시트 복제';
+        dup.addEventListener('click', function (e) { e.stopPropagation(); duplicateSheet(i); });
+        tab.appendChild(dup);
         var x = document.createElement('span');
         x.className = 'dws-tab-x';
         x.textContent = '×';
@@ -1728,6 +1744,37 @@
     renderForm();
     rebuildAnno();
     syncProductActive();
+  }
+
+  /**
+   * 시트 i 를 깊은 복제해 바로 뒤에 삽입·전환한다.
+   * - attachment_id 삭제: 복제본 저장이 원본 도면 탭 첨부를 교체하는 사고를 차단(핵심).
+   * - product_index 삭제: 제품 매핑 혼동 방지.
+   * - 객체 id 재발급: state 내 id 중복 방지.
+   * @param {number} i 복제할 시트 인덱스
+   */
+  function duplicateSheet(i) {
+    if (!canSave) { return; }
+    if (state.sheets.length >= 10) { toast('시트는 최대 10장까지 만들 수 있습니다.'); return; }
+    var src = state.sheets[i];
+    if (!src) { return; }
+    var copy = JSON.parse(JSON.stringify(src));
+    copy.id = rid('s-');
+    copy.name = String(src.name || '도면').slice(0, 47) + ' 복사';   // ' 복사'(3자) 포함 최대 50자
+    delete copy.attachment_id;
+    delete copy.product_index;
+    (copy.objects || []).forEach(function (o) { o.id = rid('o-'); });
+    state.sheets.splice(i + 1, 0, copy);
+    current = i + 1;
+    undoStack.length = 0;
+    redoStack.length = 0;
+    deselect();
+    markDirty();
+    renderTabs();
+    renderForm();
+    rebuildAnno();
+    syncProductActive();
+    toast('시트를 복제했습니다.');
   }
 
   function renameSheet(i) {
@@ -2145,33 +2192,75 @@
     }
   }
 
-  function save() {
-    if (!canSave) { return; }
-    if (commitActiveEdit) { commitActiveEdit(); }
-    if (document.activeElement && document.activeElement.blur) { document.activeElement.blur(); }
+  /**
+   * 상태를 서버에 저장한다. Promise<boolean> 반환(true = 상태 PUT 성공).
+   * @param {Object} [opts]
+   * @param {boolean} [opts.auto] 자동 저장(주기 타이머)일 때 true. 이 경우
+   *   (a) PNG 도면 탭 갱신 생략(수동 저장 전용), (b) 409 시 confirm 대신 1회성 경고
+   *   토스트 + dirty 유지, (c) 성공 토스트 없음(저장 버튼 dirty 해제로 충분).
+   * @returns {Promise<boolean>}
+   */
+  function save(opts) {
+    opts = opts || {};
+    var auto = opts.auto === true;
+    if (!canSave || saveInFlight) { return Promise.resolve(false); }
+    if (!auto) {
+      // 수동 저장만 활성 편집을 커밋·blur(자동 저장은 폼 셀 포커스/캐럿을 방해하지 않음).
+      if (commitActiveEdit) { commitActiveEdit(); }
+      if (document.activeElement && document.activeElement.blur) { document.activeElement.blur(); }
+    }
+    saveInFlight = true;
     var sheet = currentSheet();   // 저장 시점 시트 참조(비동기 PNG 단계 동안 고정)
     var body = { state: serializeState(), base_updated_at: baseUpdatedAt };
     els.saveBtn.disabled = true;
-    jsonFetch(API_BASE + '/drawing-wizard', {
+    return jsonFetch(API_BASE + '/drawing-wizard', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
     }).then(function (r) {
       if (r.status === 200 && r.data && r.data.success) {
         baseUpdatedAt = (r.data.data && r.data.data.updated_at) || baseUpdatedAt;
         dirty = false;
+        autoConflictWarned = false;   // 저장 성공 → 다음 충돌 시 다시 1회 경고 허용
         updateSaveState();
-        saveSheetPng(sheet);   // 상태 저장 확정 후 PNG 를 도면 탭에 반영(버튼 재활성은 내부에서)
-      } else if (r.status === 409) {
-        els.saveBtn.disabled = false;
-        handleConflict(r.data);
+        if (auto) {
+          els.saveBtn.disabled = false;
+          saveInFlight = false;
+          return true;   // 자동 저장: PNG 도면 탭 갱신 생략, 조용히 성공
+        }
+        // 수동 저장: 상태 확정 후 PNG 를 도면 탭에 반영(버튼 재활성·토스트는 내부에서).
+        return saveSheetPng(sheet).then(function () { saveInFlight = false; return true; });
+      }
+      els.saveBtn.disabled = false;
+      saveInFlight = false;
+      if (r.status === 409) {
+        if (auto) {
+          if (!autoConflictWarned) {
+            autoConflictWarned = true;
+            toast('자동 저장 충돌 — 다른 사용자가 저장했습니다. 수동 저장으로 확인하세요.');
+          }
+          // dirty 유지(이미 true) — 수동 저장으로 충돌을 확인하도록 둔다.
+        } else {
+          handleConflict(r.data);
+        }
       } else {
-        els.saveBtn.disabled = false;
         toast((r.data && r.data.message) || ('저장 실패 (' + r.status + ')'));
       }
+      return false;
     }, function (err) {
       els.saveBtn.disabled = false;
+      saveInFlight = false;
       console.warn('[dws] save', err);
-      toast('저장 오류');
+      if (!auto) { toast('저장 오류'); }
+      return false;
     });
+  }
+
+  /** 자동 저장 틱: 안전 조건을 모두 만족할 때만 조용히 저장(수동 저장 동작 불변). */
+  function tickAutosave() {
+    if (!dirty || !canSave || saveInFlight) { return; }
+    if (editingTextarea || editCtx) { return; }   // 주석 텍스트 편집 중이면 보류
+    if (annoMode !== 'select') { return; }         // 그리기/도형 모드면 보류
+    if (dragActive) { return; }                    // 드래그·변형 진행 중이면 보류
+    save({ auto: true });
   }
 
   /**
@@ -2181,7 +2270,7 @@
    * @param {Object} sheet 저장 시점의 시트(비동기 동안 참조 고정)
    */
   function saveSheetPng(sheet) {
-    withExportMode().then(function (cv) {
+    return withExportMode().then(function (cv) {
       return new Promise(function (resolve, reject) {
         cv.toBlob(function (blob) {
           if (blob) { resolve(blob); } else { reject(new Error('PNG 생성 실패')); }
@@ -2296,7 +2385,21 @@
     if (!canSave) { return; }
     var note = els.transferNote.value || '';
     var mode = els.transferMode.value || 'APPEND';
+    var needSave = !!(els.transferSaveFirst && els.transferSaveFirst.checked && dirty);
     els.transferSubmit.disabled = true;
+    (needSave ? save() : Promise.resolve(true)).then(function (ok) {
+      if (needSave && !ok) {
+        // 저장 실패(409 포함) → 전달 중단(원본 도면을 덮어쓰지 않고 멈춘다).
+        els.transferSubmit.disabled = false;
+        toast('저장에 실패하여 전달을 중단했습니다.');
+        return;
+      }
+      runTransferExport(note, mode);
+    });
+  }
+
+  /** 현재 시트를 PNG로 합성 → gateway 업로드 → transfer-drawing 순차 실행. */
+  function runTransferExport(note, mode) {
     withExportMode().then(function (cv) {
       cv.toBlob(function (blob) {
         if (!blob) { els.transferSubmit.disabled = false; toast('PNG 생성 실패'); return; }
@@ -2367,7 +2470,7 @@
     });
     document.getElementById('dws-btn-undo').addEventListener('click', undo);
     document.getElementById('dws-btn-redo').addEventListener('click', redo);
-    els.saveBtn.addEventListener('click', save);
+    els.saveBtn.addEventListener('click', function () { save(); });
 
     // 좌측 제품 리스트 패널 접기/펼치기
     if (els.productToggle) { els.productToggle.addEventListener('click', toggleProducts); }
@@ -2574,6 +2677,8 @@
     wireStatic();
     load();
     loadUserPresets();
+    // 자동 저장 타이머(단일). 실제 저장 여부는 tickAutosave 내부 게이트가 판단(canSave 포함).
+    if (!autosaveTimer) { autosaveTimer = setInterval(tickAutosave, AUTOSAVE_INTERVAL_MS); }
   }
 
   if (document.readyState === 'loading') {

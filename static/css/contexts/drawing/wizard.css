@@ -376,7 +376,7 @@ html, body {
   font-family: inherit;
   font-size: 13px;
   font-weight: 500;
-  padding: 6px 30px 6px 14px;
+  padding: 6px 50px 6px 14px;
   border-radius: 8px;
   cursor: pointer;
   white-space: nowrap;
@@ -408,6 +408,27 @@ html, body {
   color: #86868b;
 }
 .dws-tab-x:hover { background: rgba(0, 0, 0, 0.08); color: #1d1d1f; }
+
+/* 시트 복제 버튼 — × 왼쪽. 탭이 좁으므로 hover(또는 활성 탭)일 때만 표시. */
+.dws-tab-dup {
+  position: absolute;
+  right: 27px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  line-height: 15px;
+  text-align: center;
+  border-radius: 50%;
+  font-size: 12px;
+  color: #86868b;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease-out, background 120ms ease-out, color 120ms ease-out;
+}
+.dws-tab:hover .dws-tab-dup,
+.dws-tab-active .dws-tab-dup { opacity: 1; pointer-events: auto; }
+.dws-tab-dup:hover { background: rgba(0, 0, 0, 0.08); color: #1d1d1f; }
 
 .dws-tab-add {
   border: 1px solid rgba(0, 0, 0, 0.1);
@@ -1033,6 +1054,9 @@ html, body {
 .dws-dialog-title { margin: 0 0 16px; font-size: 15px; font-weight: 600; color: #1d1d1f; }
 .dws-field { display: block; margin-bottom: 14px; }
 .dws-field-label { display: block; font-size: 12px; font-weight: 500; color: #86868b; margin-bottom: 6px; }
+.dws-field-check { display: flex; flex-direction: row; align-items: center; gap: 8px; cursor: pointer; }
+.dws-field-check input { margin: 0; flex: 0 0 auto; }
+.dws-field-check .dws-field-label { margin-bottom: 0; }
 .dws-field-input {
   width: 100%;
   background: #ffffff;

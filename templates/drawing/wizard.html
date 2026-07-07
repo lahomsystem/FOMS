@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>도면 마법사 — 주문 #{{ order.id }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20260707k">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20260708a">
 </head>
 <body>
   <div id="dws-root" data-order-id="{{ order.id }}">
@@ -289,6 +289,10 @@
             <option value="REPLACE_ALL">전체 교체</option>
           </select>
         </label>
+        <label class="dws-field dws-field-check">
+          <input type="checkbox" id="dws-transfer-save-first" checked>
+          <span class="dws-field-label">전달 전 저장 (도면 탭 갱신 포함)</span>
+        </label>
         <p class="dws-dialog-note">현재 시트 1장이 PNG로 전달됩니다.</p>
         <div class="dws-dialog-actions">
           <button type="button" class="dws-btn" id="dws-transfer-cancel">취소</button>
@@ -312,6 +316,6 @@
 
   <script id="drawing-wizard-config" type="application/json">{{ wizard_config|tojson }}</script>
   <script src="{{ url_for('static', filename='vendor/konva.min.js') }}?v=20260706b" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260707k" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260708a" defer></script>
 </body>
 </html>
