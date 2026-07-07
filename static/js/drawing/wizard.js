@@ -284,6 +284,7 @@
     els.modeHint = document.getElementById('dws-mode-hint');
     els.fontDecBtn = document.getElementById('dws-btn-font-dec');
     els.fontIncBtn = document.getElementById('dws-btn-font-inc');
+    els.tableResetBtn = document.getElementById('dws-btn-table-reset');
     els.dividers = document.getElementById('dws-dividers');
   }
 
@@ -587,6 +588,21 @@
     form.cell_font = next;
     markDirty();
     applyFormLayout(currentSheet());
+  }
+
+  /** 현재 시트의 표 칸 폭·행 높이·상단선·글자 크기를 기본값으로 되돌린다(원상 복구). */
+  function resetTableLayout() {
+    if (!canSave) { return; }
+    recordUndo();
+    var form = currentSheet().form;
+    form.layout = {
+      cols: LAYOUT_DEFAULT.cols.slice(), addr: LAYOUT_DEFAULT.addr,
+      rows: LAYOUT_DEFAULT.rows.slice(), top: LAYOUT_DEFAULT.top
+    };
+    form.cell_font = CELL_FONT_DEFAULT;
+    markDirty();
+    applyFormLayout(currentSheet());   // positionDividers 포함(내부 마지막 호출)
+    toast('표 칸 크기를 기본값으로 되돌렸습니다.');
   }
 
   /* ========================================================================
@@ -2111,6 +2127,7 @@
     // 표 글자 크기(A− / A+)
     if (els.fontDecBtn) { els.fontDecBtn.addEventListener('click', function () { bumpCellFont(-1); }); }
     if (els.fontIncBtn) { els.fontIncBtn.addEventListener('click', function () { bumpCellFont(1); }); }
+    if (els.tableResetBtn) { els.tableResetBtn.addEventListener('click', resetTableLayout); }
 
     // 내보내기 메뉴
     var exportBtn = document.getElementById('dws-btn-export');
