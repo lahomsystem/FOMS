@@ -10,6 +10,7 @@
 """
 
 import copy
+import io
 import json
 import logging
 import os
@@ -17,6 +18,7 @@ import re
 
 from flask import Blueprint, Response, jsonify, request, session
 from sqlalchemy.orm.attributes import flag_modified
+from werkzeug.datastructures import FileStorage
 
 from db import get_db
 from models import Order, OrderAttachment
@@ -63,6 +65,8 @@ _COLOR_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
 # 제품별 도면 시트 — 시트 승격 값·도면 탭 첨부 상수
 _MAX_PRODUCT_INDEX = 199
 _DRAWING_ATTACHMENT_CATEGORY = 'drawing'
+# 실측 사진 사이드 참조 — 첨부 category(주문 상세 실측 이미지와 동일 3종)
+_MEASURE_PHOTO_CATEGORIES = ('measurement', 'measure_photo', 'photo')
 
 # 표 레이아웃(열/행 경계) 승격 값 — 서버는 타입·범위만 검증(증가순·간격은 클라 책임).
 _LAYOUT_X_MIN, _LAYOUT_X_MAX = 41, 1439       # 외곽 40/1440 안쪽
@@ -164,6 +168,41 @@ def _build_products(db, order) -> list[dict]:
             'price': _product_price(item),
         })
     return products
+
+
+def _build_measure_photos(db, order) -> list[dict]:
+    """실측 사진 사이드 참조 소스 [{key, filename, item_index, thumb_url}] 를 구성한다.
+
+    주문 실측 첨부(``measurement``/``measure_photo``/``photo``)를 최신순으로 모아,
+    ``item_index`` 가 제품 범위를 벗어나거나 음수·None 이면 공통(``item_index=None``)으로
+    정규화한다(주문 상세의 common_measure_photos 규칙과 동일). ``thumb_url`` 은
+    ``thumbnail_key`` 우선(없으면 ``storage_key``)으로 ``/api/files/view/`` 경로를 만든다.
+    실측 원본은 읽기만 하며 변경하지 않는다.
+    """
+    order_id = getattr(order, 'id', None)
+    if not order_id:
+        return []
+    product_count = len(build_product_items_for_order(db, order))
+    photos = []
+    for att in db.query(OrderAttachment).filter(
+        OrderAttachment.order_id == order_id,
+        OrderAttachment.category.in_(list(_MEASURE_PHOTO_CATEGORIES)),
+    ).order_by(OrderAttachment.created_at.desc()).all():
+        raw_index = getattr(att, 'item_index', None)
+        try:
+            item_index = int(raw_index) if raw_index is not None else None
+        except (TypeError, ValueError):
+            item_index = None
+        if item_index is not None and not (0 <= item_index < product_count):
+            item_index = None
+        thumb_source = att.thumbnail_key or att.storage_key
+        photos.append({
+            'key': att.storage_key,
+            'filename': att.filename,
+            'item_index': item_index,
+            'thumb_url': f'/api/files/view/{thumb_source}',
+        })
+    return photos
 
 
 def _is_number(value) -> bool:
@@ -463,6 +502,7 @@ def api_get_drawing_wizard(order_id):
             'state': sd.get('drawing_wizard') or None,
             'defaults': build_wizard_defaults(order, sd, current_user, item_index=item_index),
             'products': _build_products(db, order),
+            'measure_photos': _build_measure_photos(db, order),
             'drew_assignee_en': resolve_assignee_drew_en(sd),
             'can_save': _can_save_wizard(current_user, order),
             'drew_default': current_user.name if current_user else '',
@@ -568,6 +608,72 @@ def api_post_drawing_wizard_asset(order_id):
         })
     except Exception as e:
         logger.error("drawing-wizard asset upload failed: %s", e, exc_info=True)
+        return jsonify({'success': False, 'message': f'오류 발생: {str(e)}'}), 500
+
+
+@erp_orders_drawing_wizard_bp.route('/<int:order_id>/drawing-wizard/import-attachment', methods=['POST'])
+@login_required
+def api_post_drawing_wizard_import_attachment(order_id):
+    """실측 첨부를 마법사 에셋 폴더로 복사하고 참조 key를 반환한다(실측 원본 불변).
+
+    실측 사진 키(``orders/<id>/...`` 접두)는 위저드 이미지 격리(``orders/<id>/drawing_wizard/``)
+    규칙에 맞지 않으므로 인라인 참조가 불가능하다. 대신 요청 ``key`` 가 해당 주문의 실측
+    첨부(``measurement``/``measure_photo``/``photo``)에 존재하는지 검증한 뒤, 원본 바이트를
+    읽어 ``orders/<id>/drawing_wizard/assets/`` 로 새로 업로드한다(파일명 유지). OrderAttachment
+    행은 만들지 않으며(위저드 에셋 관행), 실측 원본은 읽기만 하고 변경하지 않는다.
+    """
+    db = None
+    try:
+        db = get_db()
+        order = _load_order(db, order_id)
+        if not order:
+            return jsonify({'success': False, 'message': _MSG_NOT_FOUND}), 404
+
+        current_user = get_user_by_id(session.get('user_id'))
+        if not _can_save_wizard(current_user, order):
+            return jsonify({'success': False, 'message': _MSG_FORBIDDEN}), 403
+
+        data = request.get_json(silent=True) or {}
+        key = data.get('key')
+        if not isinstance(key, str) or not key:
+            return jsonify({'success': False, 'message': '실측 사진 키가 없습니다.'}), 400
+
+        # 해당 주문의 실측 첨부(3종)에 존재하는 key만 허용(타 주문·비실측 category 차단).
+        attachment = db.query(OrderAttachment).filter(
+            OrderAttachment.order_id == order_id,
+            OrderAttachment.storage_key == key,
+            OrderAttachment.category.in_(list(_MEASURE_PHOTO_CATEGORIES)),
+        ).first()
+        if attachment is None:
+            return jsonify({'success': False, 'message': '해당 주문의 실측 사진이 아닙니다.'}), 400
+
+        storage = get_storage()
+        raw = storage.read_file_bytes(key)
+        if raw is None:
+            return jsonify({'success': False, 'message': '실측 사진 원본을 찾을 수 없습니다.'}), 404
+
+        filename = attachment.filename or (key.rsplit('/', 1)[-1] if key else 'measure.png')
+        file_obj = FileStorage(stream=io.BytesIO(raw), filename=filename)
+        result = storage.upload_file(file_obj, filename, f"orders/{order_id}/drawing_wizard/assets")
+        if not result.get('success'):
+            return jsonify({'success': False, 'message': '실측 사진 복사에 실패했습니다.'}), 500
+
+        new_key = result.get('key')
+        return jsonify({
+            'success': True,
+            'data': {
+                'key': new_key,
+                'view_url': f"/api/files/view/{new_key}",
+                'filename': filename,
+            },
+        })
+    except Exception as e:
+        if db is not None:
+            try:
+                db.rollback()
+            except Exception as rb_err:
+                logger.warning("import-attachment rollback failed: %s", rb_err, exc_info=True)
+        logger.error("drawing-wizard import-attachment failed: %s", e, exc_info=True)
         return jsonify({'success': False, 'message': f'오류 발생: {str(e)}'}), 500
 
 

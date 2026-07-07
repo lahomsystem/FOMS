@@ -164,6 +164,7 @@
   var userPresets = [];                // 도면팀 공유 사용자 프리셋 [{label,text}] (전역 SystemSetting)
   var defaults = {};
   var products = [];                   // 주문 제품 리스트 [{index,name,spec,price}] (좌측 패널 소스)
+  var measurePhotos = [];              // 실측 사진 [{key,filename,item_index,thumb_url}] (사이드 참조 소스)
   var customerName = '';
   var selected = null;                 // 선택된 주석 객체 id (Konva 노드와 동기)
   var zoom = 1;
@@ -262,6 +263,10 @@
     els.products = document.getElementById('dws-products');
     els.productList = document.getElementById('dws-product-list');
     els.productToggle = document.getElementById('dws-products-toggle');
+    els.photos = document.getElementById('dws-photos');
+    els.photosTitle = document.getElementById('dws-photos-title');
+    els.photosToggle = document.getElementById('dws-photos-toggle');
+    els.photoGrid = document.getElementById('dws-photo-grid');
     els.tabbar = document.getElementById('dws-tabbar');
     els.canvas = document.getElementById('dws-canvas');
     els.wrap = document.getElementById('dws-stage-wrap');
@@ -291,6 +296,9 @@
     els.transferNote = document.getElementById('dws-transfer-note');
     els.transferMode = document.getElementById('dws-transfer-mode');
     els.transferSaveFirst = document.getElementById('dws-transfer-save-first');
+    els.transferSheets = document.getElementById('dws-transfer-sheets');
+    els.transferSheetList = document.getElementById('dws-transfer-sheet-list');
+    els.transferSummary = document.getElementById('dws-transfer-summary');
     els.transferSubmit = document.getElementById('dws-transfer-submit');
     els.toastHost = document.getElementById('dws-toast-host');
     els.mobileNotice = document.getElementById('dws-mobile-notice');
@@ -1547,6 +1555,32 @@
     return jsonFetch(API_BASE + '/drawing-wizard/asset', { method: 'POST', body: fd });
   }
 
+  /** 업로드된 에셋 key 를 이미지 객체로 캔버스 중앙에 배치한다(원본 natural 비율·undo·dirty).
+      이미지 업로드(파일/붙여넣기)와 실측 사진 삽입(import-attachment)의 공용 삽입 파이프라인. */
+  function placeImageFromKey(key) {
+    if (!canSave || !key) { return; }
+    var img = new Image();
+    img.onload = function () {
+      var nw = img.naturalWidth || 900, nh = img.naturalHeight || 600;
+      var w = Math.min(900, nw);
+      var h = Math.round(w * nh / nw) || Math.round(w * 0.66);
+      recordUndo();
+      var o = {
+        id: rid('o-'), type: 'image',
+        x: Math.round((STAGE_W - w) / 2),
+        y: Math.round(70 + (730 - h) / 2),
+        w: w, h: h, key: key, natural_w: nw, natural_h: nh, rotation: 0
+      };
+      if (o.y < 70) { o.y = 70; }
+      currentSheet().objects.push(o);
+      markDirty();
+      rebuildAnno();
+      selectById(o.id);
+    };
+    img.onerror = function () { toast('이미지를 불러오지 못했습니다.'); };
+    img.src = viewUrl(key);
+  }
+
   function addImageFromFile(file) {
     if (!canSave || !file) { return; }
     uploadAsset(file).then(function (r) {
@@ -1554,28 +1588,7 @@
         toast((r.data && r.data.message) || '이미지 업로드 실패');
         return;
       }
-      var key = r.data.data.key;
-      var url = viewUrl(key);
-      var img = new Image();
-      img.onload = function () {
-        var nw = img.naturalWidth || 900, nh = img.naturalHeight || 600;
-        var w = Math.min(900, nw);
-        var h = Math.round(w * nh / nw) || Math.round(w * 0.66);
-        recordUndo();
-        var o = {
-          id: rid('o-'), type: 'image',
-          x: Math.round((STAGE_W - w) / 2),
-          y: Math.round(70 + (730 - h) / 2),
-          w: w, h: h, key: key, natural_w: nw, natural_h: nh, rotation: 0
-        };
-        if (o.y < 70) { o.y = 70; }
-        currentSheet().objects.push(o);
-        markDirty();
-        rebuildAnno();
-        selectById(o.id);
-      };
-      img.onerror = function () { toast('이미지를 불러오지 못했습니다.'); };
-      img.src = url;
+      placeImageFromKey(r.data.data.key);
     }).catch(function (err) { console.warn('[dws] asset upload', err); toast('이미지 업로드 오류'); });
   }
 
@@ -1628,15 +1641,18 @@
     syncProductActive();
   }
 
-  /** 현재 시트의 product_index 에 해당하는 제품 행만 활성 하이라이트한다. */
+  /** 현재 시트의 product_index 에 해당하는 제품 행만 활성 하이라이트한다.
+      활성 제품이 바뀌면 실측 사진 정렬(현재 제품 우선)도 함께 갱신한다. */
   function syncProductActive() {
-    if (!els.productList) { return; }
-    var cs = currentSheet();
-    var activeIdx = (cs && isFiniteNum(cs.product_index)) ? cs.product_index : -1;
-    Array.prototype.forEach.call(els.productList.querySelectorAll('.dws-product'), function (el) {
-      var i = parseInt(el.getAttribute('data-product-index'), 10);
-      el.classList.toggle('dws-product-active', i === activeIdx);
-    });
+    if (els.productList) {
+      var cs = currentSheet();
+      var activeIdx = (cs && isFiniteNum(cs.product_index)) ? cs.product_index : -1;
+      Array.prototype.forEach.call(els.productList.querySelectorAll('.dws-product'), function (el) {
+        var i = parseInt(el.getAttribute('data-product-index'), 10);
+        el.classList.toggle('dws-product-active', i === activeIdx);
+      });
+    }
+    renderPhotos();
   }
 
   /** 제품 클릭 → 그 제품 전용 도면 시트로 전환(없으면 defaults 로드 후 생성). */
@@ -1677,6 +1693,74 @@
       els.productToggle.textContent = collapsed ? '▸' : '◂';
       els.productToggle.title = collapsed ? '제품 목록 펼치기' : '제품 목록 접기';
       els.productToggle.setAttribute('aria-label', els.productToggle.title);
+    }
+  }
+
+  /** 실측 사진 썸네일 그리드를 렌더한다. 현재 시트가 제품 시트면 그 제품 사진을 상단 우선
+      정렬한다(전체 표시·정렬만). 라벨/alt/title 은 textContent·alt 로만 넣는다(XSS 안전). */
+  function renderPhotos() {
+    if (!els.photos || !els.photoGrid) { return; }
+    els.photos.hidden = !measurePhotos.length;
+    if (els.photosTitle) { els.photosTitle.textContent = '실측 사진 ' + measurePhotos.length; }
+    els.photoGrid.textContent = '';
+    if (!measurePhotos.length) { return; }
+    var cs = currentSheet();
+    var activeIdx = (cs && isFiniteNum(cs.product_index)) ? cs.product_index : -1;
+    var ordered = measurePhotos.slice();
+    if (activeIdx >= 0) {
+      // 안정 정렬(Array.sort ES2019+): 현재 제품 사진을 앞으로, 그 외는 원래 순서 보존.
+      ordered.sort(function (a, b) {
+        return ((a.item_index === activeIdx) ? 0 : 1) - ((b.item_index === activeIdx) ? 0 : 1);
+      });
+    }
+    ordered.forEach(function (photo) {
+      var cell = document.createElement('button');
+      cell.type = 'button';
+      cell.className = 'dws-photo';
+      cell.title = photo.filename || '실측 사진';
+      if (activeIdx >= 0 && photo.item_index === activeIdx) { cell.classList.add('dws-photo-match'); }
+      var img = document.createElement('img');
+      img.className = 'dws-photo-img';
+      img.loading = 'lazy';
+      img.alt = photo.filename || '실측 사진';
+      img.src = photo.thumb_url || '';
+      cell.appendChild(img);
+      cell.addEventListener('click', function () { onPhotoClick(photo, cell); });
+      els.photoGrid.appendChild(cell);
+    });
+  }
+
+  /** 실측 사진 썸네일 클릭 → import-attachment 로 에셋 복사 후 캔버스에 삽입(로딩 표시). */
+  function onPhotoClick(photo, cell) {
+    if (!canSave) { toast('열람 전용 — 도면 담당자·도면팀 또는 관리자만 편집할 수 있습니다.'); return; }
+    if (!photo || !photo.key || cell.classList.contains('dws-photo-loading')) { return; }
+    cell.classList.add('dws-photo-loading');
+    jsonFetch(API_BASE + '/drawing-wizard/import-attachment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ key: photo.key })
+    }).then(function (r) {
+      cell.classList.remove('dws-photo-loading');
+      if (r.status !== 200 || !r.data || !r.data.success || !r.data.data || !r.data.data.key) {
+        toast((r.data && r.data.message) || '실측 사진을 삽입하지 못했습니다.');
+        return;
+      }
+      placeImageFromKey(r.data.data.key);
+    }, function (err) {
+      cell.classList.remove('dws-photo-loading');
+      console.warn('[dws] import-attachment', err);
+      toast('실측 사진 삽입 오류');
+    });
+  }
+
+  /** 실측 사진 섹션 접기/펼치기 토글. */
+  function togglePhotos() {
+    if (!els.photos) { return; }
+    var collapsed = els.photos.classList.toggle('dws-photos-collapsed');
+    if (els.photosToggle) {
+      els.photosToggle.textContent = collapsed ? '▸' : '▾';
+      els.photosToggle.title = collapsed ? '실측 사진 펼치기' : '실측 사진 접기';
+      els.photosToggle.setAttribute('aria-label', els.photosToggle.title);
     }
   }
 
@@ -2143,6 +2227,7 @@
       canSave = !!d.can_save;
       defaults = d.defaults || {};
       products = d.products || [];
+      measurePhotos = d.measure_photos || [];
       customerName = d.customer_name || customerName;
       els.customer.textContent = '(' + customerName + ')';
       if (d.state && d.state.sheets && d.state.sheets.length) {
@@ -2363,9 +2448,56 @@
     });
   }
 
+  /** 전달 다이얼로그의 시트 체크박스 목록을 구성한다(기본=현재 시트만 체크, 1장이면 숨김).
+      라벨은 textContent 로만 넣는다(XSS 안전). */
+  function renderTransferSheets() {
+    if (!els.transferSheets || !els.transferSheetList) { return; }
+    els.transferSheetList.textContent = '';
+    if (state.sheets.length <= 1) { els.transferSheets.hidden = true; return; }
+    els.transferSheets.hidden = false;
+    state.sheets.forEach(function (s, i) {
+      var label = document.createElement('label');
+      label.className = 'dws-transfer-sheet';
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.className = 'dws-transfer-sheet-cb';
+      cb.value = String(i);
+      cb.checked = (i === current);
+      label.appendChild(cb);
+      var name = document.createElement('span');
+      name.className = 'dws-transfer-sheet-name';
+      name.textContent = s.name || ('도면 ' + (i + 1));
+      label.appendChild(name);
+      els.transferSheetList.appendChild(label);
+    });
+  }
+
+  /** 전달 요약 문구를 시트 수에 맞춰 갱신한다. */
+  function updateTransferSummary() {
+    if (!els.transferSummary) { return; }
+    els.transferSummary.textContent = (state.sheets.length > 1)
+      ? '체크한 시트가 각각 PNG로 전달됩니다.'
+      : '현재 시트 1장이 PNG로 전달됩니다.';
+  }
+
+  /** 체크된 전달 시트 인덱스 목록(다이얼로그 목록이 숨김이면 현재 시트만). */
+  function selectedTransferSheetIndices() {
+    if (!els.transferSheetList || !els.transferSheets || els.transferSheets.hidden) { return [current]; }
+    var out = [];
+    Array.prototype.forEach.call(els.transferSheetList.querySelectorAll('.dws-transfer-sheet-cb'), function (cb) {
+      if (cb.checked) {
+        var i = parseInt(cb.value, 10);
+        if (i >= 0 && i < state.sheets.length) { out.push(i); }
+      }
+    });
+    return out;
+  }
+
   function openTransferDialog() {
     if (!canSave) { return; }
     closeMenus();
+    renderTransferSheets();
+    updateTransferSummary();
     if (els.transferDialog.showModal) {
       try { els.transferDialog.showModal(); } catch (_) { els.transferDialog.setAttribute('open', ''); }
     } else {
@@ -2385,6 +2517,8 @@
     if (!canSave) { return; }
     var note = els.transferNote.value || '';
     var mode = els.transferMode.value || 'APPEND';
+    var indices = selectedTransferSheetIndices();
+    if (!indices.length) { toast('전달할 시트를 선택하세요.'); return; }
     var needSave = !!(els.transferSaveFirst && els.transferSaveFirst.checked && dirty);
     els.transferSubmit.disabled = true;
     (needSave ? save() : Promise.resolve(true)).then(function (ok) {
@@ -2394,43 +2528,102 @@
         toast('저장에 실패하여 전달을 중단했습니다.');
         return;
       }
-      runTransferExport(note, mode);
+      runBatchTransfer(indices, note, mode);
     });
   }
 
-  /** 현재 시트를 PNG로 합성 → gateway 업로드 → transfer-drawing 순차 실행. */
-  function runTransferExport(note, mode) {
-    withExportMode().then(function (cv) {
+  /** canvas → PNG blob Promise. */
+  function canvasToBlob(cv) {
+    return new Promise(function (resolve, reject) {
       cv.toBlob(function (blob) {
-        if (!blob) { els.transferSubmit.disabled = false; toast('PNG 생성 실패'); return; }
-        var fd = new FormData();
-        fd.append('file', blob, exportFilename());
-        jsonFetch(API_BASE + '/drawing-gateway-upload', { method: 'POST', body: fd }).then(function (up) {
-          if (up.status !== 200 || !up.data || !up.data.success || !up.data.file) {
-            els.transferSubmit.disabled = false;
-            toast((up.data && up.data.message) || '업로드 실패');
-            return;
-          }
-          var f = up.data.file;
-          jsonFetch(API_BASE + '/transfer-drawing', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ note: note, mode: mode, files: [{ key: f.key, filename: f.filename }] })
-          }).then(function (tr) {
-            els.transferSubmit.disabled = false;
-            if (tr.status === 200 && tr.data && tr.data.success) {
-              toast(tr.data.message || '도면이 전달되었습니다.');
-              closeTransferDialog();
-            } else {
-              toast((tr.data && tr.data.message) || '전달 실패');
-            }
-          }, function (err) { els.transferSubmit.disabled = false; console.warn('[dws] transfer', err); toast('전달 오류'); });
-        }, function (err) { els.transferSubmit.disabled = false; console.warn('[dws] upload', err); toast('업로드 오류'); });
+        if (blob) { resolve(blob); } else { reject(new Error('PNG 생성 실패')); }
       }, 'image/png');
-    }).catch(function (err) {
-      els.transferSubmit.disabled = false;
-      console.warn('[dws] export(transfer)', err);
-      toast('내보내기 실패: ' + ((err && err.message) || ''));
     });
+  }
+
+  /** 내보내기 대상 시트로 전환하고 렌더 안정까지 대기(현재 시트면 즉시).
+      switchSheet 는 undo 스택을 초기화하므로 전달 전 저장이 선행돼야 안전하다. */
+  function switchToForExport(idx) {
+    return new Promise(function (resolve) {
+      if (idx === current) { resolve(); return; }
+      switchSheet(idx);
+      // rAF 2회 + 소지연으로 폼 레이아웃·Konva 이미지 로드가 안정된 뒤 캡처.
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () { setTimeout(resolve, 350); });
+      });
+    });
+  }
+
+  function restoreSheet(idx) {
+    if (idx !== current && idx >= 0 && idx < state.sheets.length) { switchSheet(idx); }
+  }
+
+  /**
+   * 체크된 시트들을 순차로 PNG 합성·gateway 업로드해 files[] 를 모은 뒤,
+   * transfer-drawing 을 1회 호출한다(note/mode 공통). 실패 시트는 건너뛰고 계속하며,
+   * 완료 후 원래 시트로 복귀한다.
+   */
+  function runBatchTransfer(indices, note, mode) {
+    var startSheet = current;
+    var files = [];
+    var failed = [];
+    var total = indices.length;
+
+    function step(k) {
+      if (k >= indices.length) { finalize(); return; }
+      var idx = indices[k];
+      var sheet = state.sheets[idx];
+      toast((k + 1) + '/' + total + ' 생성 중…');
+      switchToForExport(idx).then(function () {
+        return withExportMode();
+      }).then(function (cv) {
+        return canvasToBlob(cv);
+      }).then(function (blob) {
+        var fd = new FormData();
+        fd.append('file', blob, sheetPngFilename(sheet));
+        return jsonFetch(API_BASE + '/drawing-gateway-upload', { method: 'POST', body: fd });
+      }).then(function (up) {
+        if (up.status === 200 && up.data && up.data.success && up.data.file) {
+          files.push({ key: up.data.file.key, filename: up.data.file.filename });
+        } else {
+          failed.push((sheet && sheet.name) || ('도면 ' + (idx + 1)));
+        }
+        step(k + 1);
+      }).catch(function (err) {
+        console.warn('[dws] batch transfer sheet', idx, err);
+        failed.push((sheet && sheet.name) || ('도면 ' + (idx + 1)));
+        step(k + 1);
+      });
+    }
+
+    function finalize() {
+      restoreSheet(startSheet);
+      if (!files.length) {
+        els.transferSubmit.disabled = false;
+        toast('전달할 도면을 생성하지 못했습니다.');
+        return;
+      }
+      jsonFetch(API_BASE + '/transfer-drawing', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note: note, mode: mode, files: files })
+      }).then(function (tr) {
+        els.transferSubmit.disabled = false;
+        if (tr.status === 200 && tr.data && tr.data.success) {
+          var msg = files.length + '장 전달됨';
+          if (failed.length) { msg += ' · ' + failed.length + '장 실패'; }
+          toast(msg);
+          closeTransferDialog();
+        } else {
+          toast((tr.data && tr.data.message) || '전달 실패');
+        }
+      }, function (err) {
+        els.transferSubmit.disabled = false;
+        console.warn('[dws] transfer', err);
+        toast('전달 오류');
+      });
+    }
+
+    step(0);
   }
 
   /* ========================================================================
@@ -2474,6 +2667,8 @@
 
     // 좌측 제품 리스트 패널 접기/펼치기
     if (els.productToggle) { els.productToggle.addEventListener('click', toggleProducts); }
+    // 실측 사진 섹션 접기/펼치기
+    if (els.photosToggle) { els.photosToggle.addEventListener('click', togglePhotos); }
 
     // 프리셋 메뉴 (기본 4개 + 사용자 프리셋 동적 렌더; 항목 배선은 renderPresetMenu 내부)
     var presetBtn = document.getElementById('dws-btn-preset');

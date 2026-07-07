@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>도면 마법사 — 주문 #{{ order.id }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20260708a">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20260708b">
 </head>
 <body>
   <div id="dws-root" data-order-id="{{ order.id }}">
@@ -123,6 +123,15 @@
         <button type="button" class="dws-products-toggle" id="dws-products-toggle" title="제품 목록 접기" aria-label="제품 목록 접기">◂</button>
       </div>
       <div class="dws-product-list" id="dws-product-list"></div>
+
+      <!-- 실측 사진 사이드 참조(클릭 → 캔버스 삽입) -->
+      <div class="dws-photos" id="dws-photos" hidden>
+        <div class="dws-photos-head">
+          <span class="dws-photos-title" id="dws-photos-title">실측 사진</span>
+          <button type="button" class="dws-photos-toggle" id="dws-photos-toggle" title="실측 사진 접기" aria-label="실측 사진 접기">▾</button>
+        </div>
+        <div class="dws-photo-grid" id="dws-photo-grid"></div>
+      </div>
     </aside>
 
     <!-- ================= 캔버스(스크롤) ================= -->
@@ -293,7 +302,11 @@
           <input type="checkbox" id="dws-transfer-save-first" checked>
           <span class="dws-field-label">전달 전 저장 (도면 탭 갱신 포함)</span>
         </label>
-        <p class="dws-dialog-note">현재 시트 1장이 PNG로 전달됩니다.</p>
+        <div class="dws-field dws-transfer-sheets" id="dws-transfer-sheets" hidden>
+          <span class="dws-field-label">전달할 시트</span>
+          <div class="dws-transfer-sheet-list" id="dws-transfer-sheet-list"></div>
+        </div>
+        <p class="dws-dialog-note" id="dws-transfer-summary">현재 시트 1장이 PNG로 전달됩니다.</p>
         <div class="dws-dialog-actions">
           <button type="button" class="dws-btn" id="dws-transfer-cancel">취소</button>
           <button type="button" class="dws-btn dws-btn-primary" id="dws-transfer-submit">전달</button>
@@ -316,6 +329,6 @@
 
   <script id="drawing-wizard-config" type="application/json">{{ wizard_config|tojson }}</script>
   <script src="{{ url_for('static', filename='vendor/konva.min.js') }}?v=20260706b" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260708a" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260708b" defer></script>
 </body>
 </html>

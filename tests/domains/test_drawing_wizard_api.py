@@ -1131,3 +1131,141 @@ def test_sheet_png_requires_login(client):
 
     assert resp.status_code == 302
     assert "/login" in resp.headers["Location"]
+
+
+# ---------------------------------------------------------------------------
+# 실측 사진 사이드 참조 — GET measure_photos 구조 + import-attachment(복사 삽입)
+# ---------------------------------------------------------------------------
+
+
+def _measure_attachment(order_id, filename, storage_key, *, category="measurement",
+                        item_index=None, thumbnail_key=None):
+    att = OrderAttachment(
+        order_id=order_id,
+        filename=filename,
+        file_type="image",
+        category=category,
+        item_index=item_index,
+        storage_key=storage_key,
+        thumbnail_key=thumbnail_key,
+    )
+    db_session.add(att)
+    db_session.commit()
+    return att
+
+
+def test_get_wizard_returns_measure_photos(client):
+    """GET data.measure_photos = [{key, filename, item_index(null=공통), thumb_url}].
+
+    제품 범위 밖 item_index 는 공통(None)으로 정규화되고, thumb_url 은 thumbnail_key 우선.
+    """
+    _login_participant_admin(client)
+    order = _erp_order(
+        structured_data={
+            "parties": {"customer": {"name": "서으뜸"}},
+            "items": [{"product_name": "장A"}, {"product_name": "장B"}],
+        }
+    )
+    order_id = order.id
+    _measure_attachment(
+        order_id, "m0.jpg", f"orders/{order_id}/measurement/m0.jpg",
+        item_index=0, thumbnail_key=f"orders/{order_id}/measurement/thumb_m0.jpg",
+    )
+    # item_index=9 는 제품(2개) 범위 밖 → 공통(None)으로 정규화, 썸네일 없으면 storage_key.
+    _measure_attachment(
+        order_id, "mc.jpg", f"orders/{order_id}/measurement/mc.jpg",
+        category="photo", item_index=9,
+    )
+
+    resp = client.get(f"/api/orders/{order_id}/drawing-wizard")
+    assert resp.status_code == 200
+    photos = resp.get_json()["data"]["measure_photos"]
+    assert len(photos) == 2
+    by_key = {p["key"]: p for p in photos}
+    m0 = by_key[f"orders/{order_id}/measurement/m0.jpg"]
+    assert m0["item_index"] == 0
+    assert m0["filename"] == "m0.jpg"
+    assert m0["thumb_url"] == f"/api/files/view/orders/{order_id}/measurement/thumb_m0.jpg"
+    mc = by_key[f"orders/{order_id}/measurement/mc.jpg"]
+    assert mc["item_index"] is None
+    assert mc["thumb_url"] == f"/api/files/view/orders/{order_id}/measurement/mc.jpg"
+
+
+def test_import_attachment_copies_measure_photo(client, monkeypatch):
+    """실측 첨부 key → drawing_wizard/assets 로 복사, 새 key 반환·원본 첨부 불변."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    src_key = f"orders/{order_id}/measurement/site.png"
+    _measure_attachment(order_id, "site.png", src_key, item_index=0)
+
+    class DummyStorage:
+        def read_file_bytes(self, k):
+            return b"\x89PNG\r\n\x1a\nFAKE" if k == src_key else None
+
+        def upload_file(self, file_obj, filename, folder):
+            return {"success": True, "key": f"{folder}/{filename}"}
+
+    monkeypatch.setattr("foms.api.drawing.wizard.get_storage", lambda: DummyStorage())
+
+    resp = client.post(
+        f"/api/orders/{order_id}/drawing-wizard/import-attachment",
+        json={"key": src_key},
+    )
+    assert resp.status_code == 200, resp.get_json()
+    data = resp.get_json()["data"]
+    new_key = f"orders/{order_id}/drawing_wizard/assets/site.png"
+    assert data["key"] == new_key
+    assert data["view_url"] == f"/api/files/view/{new_key}"
+
+    # 실측 원본 첨부는 그대로(행·storage_key 불변).
+    db_session.expire_all()
+    rows = db_session.query(OrderAttachment).filter_by(order_id=order_id).all()
+    assert len(rows) == 1
+    assert rows[0].storage_key == src_key
+
+
+def test_import_attachment_rejects_foreign_order_key(client):
+    """현재 주문의 실측 첨부에 없는 key(타 주문)면 400."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+
+    resp = client.post(
+        f"/api/orders/{order_id}/drawing-wizard/import-attachment",
+        json={"key": f"orders/{order_id + 999}/measurement/x.png"},
+    )
+
+    assert resp.status_code == 400
+
+
+def test_import_attachment_rejects_non_measure_category(client):
+    """key 는 존재하지만 category 가 실측 3종이 아니면(예: drawing) 400."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    key = f"orders/{order_id}/drawing/plan.png"
+    _measure_attachment(order_id, "plan.png", key, category="drawing")
+
+    resp = client.post(
+        f"/api/orders/{order_id}/drawing-wizard/import-attachment",
+        json={"key": key},
+    )
+
+    assert resp.status_code == 400
+
+
+def test_import_attachment_rejects_non_participant(client):
+    """비참여자는 실측 첨부가 존재해도 403."""
+    order = _erp_order()
+    order_id = order.id
+    key = f"orders/{order_id}/measurement/site.png"
+    _measure_attachment(order_id, "site.png", key, item_index=0)
+    _login_non_participant(client)
+
+    resp = client.post(
+        f"/api/orders/{order_id}/drawing-wizard/import-attachment",
+        json={"key": key},
+    )
+
+    assert resp.status_code == 403
