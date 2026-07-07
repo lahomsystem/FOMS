@@ -182,3 +182,44 @@ def test_detect_regression_threshold_boundary():
     # 정확히 1.5배 → 경계 포함(>=) 이므로 WARN
     v = ra.detect_regression([300.0], [200.0])
     assert v.regressed is True
+
+
+# --- build_rum_report (서비스 함수, Redis 스텁) -------------------------------
+def test_build_rum_report_structure_no_data():
+    """데이터 없음 → metrics 전부 판정 skip, regressed=False, warnings 비어있음."""
+    fake = _FakeRedis()
+    report = ra.build_rum_report(fake, 7)
+    assert report["days"] == 7
+    assert isinstance(report["metrics"], list)
+    assert len(report["metrics"]) == len(ra.ALLOWED_METRICS)
+    assert report["regressed"] is False
+    assert report["warnings"] == []
+    for block in report["metrics"]:
+        assert set(block) == {"metric", "daily", "regression"}
+        assert len(block["daily"]) == 7
+        assert block["regression"]["regressed"] is None
+
+
+def test_build_rum_report_detects_regression_and_warns():
+    """recent 2일 tail 버킷 spike + baseline 5일 저버킷 → SWAP 회귀 WARN."""
+    fake = _FakeRedis()
+    days = 7
+    dates = ra.recent_kst_dates(days)  # 최신 → 과거
+    # recent(최신 2일): b4([2000,5000)) 20표본 → p95 tail. baseline(직전 5일): b0 20표본.
+    for d in dates[: ra.RECENT_WINDOW]:
+        fake.store[ra.build_rum_key(d, "SWAP")] = {"4": "20"}
+    for d in dates[ra.RECENT_WINDOW : ra.RECENT_WINDOW + ra.BASELINE_WINDOW]:
+        fake.store[ra.build_rum_key(d, "SWAP")] = {"0": "20"}
+
+    report = ra.build_rum_report(fake, days)
+    swap = next(b for b in report["metrics"] if b["metric"] == "SWAP")
+    assert swap["regression"]["regressed"] is True
+    assert report["regressed"] is True
+    assert any("SWAP" in w for w in report["warnings"])
+
+
+def test_build_rum_report_clamps_days_to_min_window():
+    """days 가 창 합보다 작으면 RECENT+BASELINE 로 보정된다(판정 표본 확보)."""
+    fake = _FakeRedis()
+    report = ra.build_rum_report(fake, 1)
+    assert report["days"] == ra.RECENT_WINDOW + ra.BASELINE_WINDOW

@@ -172,3 +172,46 @@ def test_defaults_drew_blank_when_no_user():
 
     assert result["drew"] == ""
     assert result["manager_phone"] == "-"
+
+
+def _patch_drawing_manager_en(monkeypatch, en_map):
+    """설정 로더를 monkeypatch해 ``drawing_manager_en`` 매핑만 주입한다 (DB I/O 차단)."""
+    from foms.services import drawing_wizard_defaults as mod
+
+    monkeypatch.setattr(
+        mod, "load_erp_shipment_settings", lambda: {"drawing_manager_en": en_map}
+    )
+
+
+def test_defaults_drew_maps_assignee_korean_to_english(monkeypatch):
+    """도면 담당자 한글명이 설정 영문명으로 매핑되면 DREW는 영문명이 된다."""
+    _patch_drawing_manager_en(monkeypatch, {"김한비": "KIM HANBI"})
+    sd = {"drawing_assignees": [{"id": 7, "name": "김한비"}]}
+
+    result = build_wizard_defaults(_order(), sd, _user("최상용"))
+
+    assert result["drew"] == "KIM HANBI"
+
+
+def test_defaults_drew_falls_back_to_korean_when_no_english_mapping(monkeypatch):
+    """영문 매핑이 없으면 담당자 한글명으로 폴백한다(현재 사용자명 아님)."""
+    _patch_drawing_manager_en(monkeypatch, {})
+    sd = {"drawing_assignees": [{"id": 7, "name": "김한비"}]}
+
+    result = build_wizard_defaults(_order(), sd, _user("최상용"))
+
+    assert result["drew"] == "김한비"
+
+
+def test_defaults_drew_falls_back_to_current_user_when_no_assignee(monkeypatch):
+    """도면 담당자 미지정이면 current_user.name으로 폴백하고 설정 로더는 호출하지 않는다."""
+    from foms.services import drawing_wizard_defaults as mod
+
+    def _boom():
+        raise AssertionError("담당자 미지정 시 설정 로더를 호출하면 안 된다")
+
+    monkeypatch.setattr(mod, "load_erp_shipment_settings", _boom)
+
+    result = build_wizard_defaults(_order(), {}, _user("최상용"))
+
+    assert result["drew"] == "최상용"

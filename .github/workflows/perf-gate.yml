@@ -1,0 +1,49 @@
+name: perf-gate (staging)
+
+# deploy push 마다 자동으로 스테이징 성능 게이트를 돌린다("푸쉬만 하면 봇이 판정").
+# 배포 완료(healthz commit == 이 커밋 SHA)를 기다린 뒤 9 primary fragment 경로를
+# 측정해 커밋된 예산과 비교한다. exit 1(예산 초과) / exit 2(크리덴셜·로그인 실패) 는
+# 모두 job fail → GitHub 이 사용자에게 실패 알림을 보낸다.
+on:
+  push:
+    branches: [deploy]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  perf-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # 게이트 import 체인은 순수 stdlib(erp_navigation_contract) + requests(ept_b8 로그인,
+      # staging_perf_gate) 뿐이라 flask/앱 전체 설치가 불필요하다 → requests 만.
+      - name: Install minimal deps
+        run: python -m pip install --upgrade pip requests
+
+      # 새 컨테이너가 실제 트래픽을 받을 때까지 대기(구버전 재는 레이스 차단).
+      - name: Wait for staging deploy (healthz commit == SHA)
+        run: python tools/perf/wait_staging_deploy.py --sha "${{ github.sha }}" --timeout 600
+
+      - name: Run staging perf gate
+        env:
+          FOMS_STAGING_USERNAME: ${{ secrets.FOMS_STAGING_USERNAME }}
+          FOMS_STAGING_PASSWORD: ${{ secrets.FOMS_STAGING_PASSWORD }}
+        run: python tools/perf/staging_perf_gate.py
+
+      # 판정 evidence 는 CI 에서 커밋하지 않고 artifact 로만 보존(로컬 실행과 무충돌).
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-gate-evidence
+          path: docs/harness/evidence/perf-gate-*.json
+          retention-days: 14
+          if-no-files-found: ignore
