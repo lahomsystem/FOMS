@@ -343,9 +343,9 @@
 
     .dw-product-split {
       display: grid;
-      /* 제품 폼은 왼쪽 460px(규격 3열 수용), 실측 첨부는 나머지 전폭을 차지해
-         도면·사진을 크게 표시(사용자 지정 비율 ≈ 폼 32% : 첨부 68%). */
-      grid-template-columns: minmax(0, 460px) minmax(0, 1fr);
+      /* 폼 우측을 상단 '기본 정보' 카드 우측(컨테이너 중앙)에, 첨부 좌측을
+         '일정' 카드 좌측에 정렬. rail(240px) 오프셋 보정: detail 기준 50%−130px. */
+      grid-template-columns: minmax(0, calc(50% - 130px)) minmax(0, 1fr);
       gap: 14px;
     }
 
