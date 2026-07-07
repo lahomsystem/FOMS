@@ -1,5 +1,5 @@
 {
-  "_comment": "스테이징 성능 게이트 예산 v2(SSOT: tools/perf/staging_perf_gate.py). 판정값 ttfb_delta_min_ms = min(warm path TTFB) − min(healthz TTFB): min 은 tail(2~9s) 오염 면역, healthz 델타는 시간대별 베이스 RTT(창 분산)를 상쇄한다. body_bytes_max = 응답 바이트 상한(해압 후, wire 아님; 결정적 min 성격). 정밀 서버 회귀는 render_ms_max·bytes·쿼리 계약이 잡는다. --seed 는 의도된 성능 변화 때만 실행하고 diff 를 리뷰한다. TTFB 델타 예산의 관측 지점(심판석)은 GitHub Actions 러너 — 시드/보정도 CI 관측값 기준(history 212ms×1.3, 2026-07-07 첫 CI 런).",
+  "_comment": "스테이징 성능 게이트 예산 v2(SSOT: tools/perf/staging_perf_gate.py). 판정값 ttfb_delta_min_ms = min(warm path TTFB) − min(healthz TTFB): min 은 tail(2~9s) 오염 면역, healthz 델타는 시간대별 베이스 RTT(창 분산)를 상쇄한다. body_bytes_max = 응답 바이트 상한(해압 후, wire 아님; 결정적 min 성격). 정밀 서버 회귀는 render_ms_max·bytes·쿼리 계약이 잡는다. --seed 는 의도된 성능 변화 때만 실행하고 diff 를 리뷰한다. TTFB 델타 예산의 관측 지점(심판석)은 GitHub Actions 러너 — 시드/보정도 CI 관측값 기준(history 212ms×1.3, 2026-07-07 첫 CI 런). bytes 예산 중 데이터 가변 탭(measurement=500행 상한 실데이터)은 영업량에 따라 출렁임 — 관측×1.3으로 주기 보정하고, 코드성 비만 회귀는 dTTFB·쿼리 계약·행당 스캐너가 잡는다.",
   "_global": {
     "schema": 2,
     "render_ms_max": 500,
@@ -13,7 +13,7 @@
     },
     "/erp/measurement?view=fragment": {
       "ttfb_delta_min_ms": 102,
-      "body_bytes_max": 100669
+      "body_bytes_max": 217409
     },
     "/erp/drawing-workbench?view=fragment": {
       "ttfb_delta_min_ms": 124,
