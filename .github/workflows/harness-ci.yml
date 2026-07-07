@@ -27,8 +27,8 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel
           pip install -r requirements.txt
 
-      - name: Compile Cursor hooks
-        run: python -m compileall -q .cursor/hooks
+      - name: Compile Cursor + Claude hooks
+        run: python -m compileall -q .cursor/hooks .claude/hooks
 
       - name: Assert PowerShell availability
         run: pwsh -NoProfile -Command '$PSVersionTable.PSVersion.ToString()'

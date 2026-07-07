@@ -3,7 +3,6 @@ from werkzeug.security import generate_password_hash
 from foms.api import measurement as erp_measurement
 from db import db_session
 from models import ChannelDeliveryLog, Order, User
-import foms.services.channel_security as channel_security
 import foms.services.channel_policy as channel_policy
 
 
@@ -25,9 +24,8 @@ def _login_admin(client, username="channel-admin", password="admin"):
     return user
 
 
-def test_build_message_template_renders_manual_push_and_wam_link(monkeypatch):
+def test_build_message_template_renders_manual_push_and_mobile_detail_link(monkeypatch):
     monkeypatch.setenv("FOMS_BASE_URL", "https://example.com")
-    monkeypatch.setattr(channel_security, "generate_wam_short_link_token", lambda order_id=None: "short-123")
 
     message = channel_policy.build_message_template(
         "manual",
@@ -41,12 +39,11 @@ def test_build_message_template_renders_manual_push_and_wam_link(monkeypatch):
     assert "[ERP 푸시]" not in message
     assert "주문 #2762" not in message
     assert message.startswith("발주방 변환 텍스트")
-    assert "https://example.com/w/short-123" in message
+    assert "https://example.com/erp/orders/2762/mobile" in message
 
 
 def test_build_message_template_retry_uses_modify_prefix_only(monkeypatch):
     monkeypatch.setenv("FOMS_BASE_URL", "https://example.com")
-    monkeypatch.setattr(channel_security, "generate_wam_short_link_token", lambda order_id=None: "short-123")
 
     message = channel_policy.build_message_template(
         "manual",
@@ -67,7 +64,6 @@ def test_build_message_template_retry_uses_modify_prefix_only(monkeypatch):
 
 def test_build_message_blocks_resend_includes_modify_prefix_and_full_note(monkeypatch):
     monkeypatch.setenv("FOMS_BASE_URL", "https://example.com")
-    monkeypatch.setattr(channel_security, "generate_wam_short_link_token", lambda order_id=None: "short-123")
 
     blocks = channel_policy.build_message_blocks(
         "manual",
@@ -93,7 +89,6 @@ def test_build_message_blocks_resend_includes_modify_prefix_and_full_note(monkey
 
 def test_build_message_template_resend_preserves_long_multiline_note(monkeypatch):
     monkeypatch.setenv("FOMS_BASE_URL", "https://example.com")
-    monkeypatch.setattr(channel_security, "generate_wam_short_link_token", lambda order_id=None: "short-123")
 
     long_note = "손잡이 오기재 → 푸쉬로 정정, 시공일 7/17 유지"
     message = channel_policy.build_message_template(
@@ -115,7 +110,6 @@ def test_build_message_blocks_one_block_per_line_preserves_line_breaks(monkeypat
     ``\\n`` inside a single block value. Line breaks must be structural (one block per line),
     never collapsed into a single joined block, or the group message clumps together."""
     monkeypatch.setenv("FOMS_BASE_URL", "https://example.com")
-    monkeypatch.setattr(channel_security, "generate_wam_short_link_token", lambda order_id=None: "short-123")
 
     raw_text = "\n".join([
         "고객명 : 채효진",
@@ -154,7 +148,6 @@ def test_build_message_blocks_preserves_blank_lines_between_sections(monkeypatch
     collapse된다. 과거 ``if line.strip()`` 필터가 빈 줄을 통째로 버려 발주방/실측 PUSH가
     다닥 붙어 보였다. 빈 줄은 반드시 non-breaking space block으로 살아남아야 한다."""
     monkeypatch.setenv("FOMS_BASE_URL", "https://example.com")
-    monkeypatch.setattr(channel_security, "generate_wam_short_link_token", lambda order_id=None: "short-123")
 
     source_lines = [
         "고객명 : 김대용",
@@ -195,7 +188,6 @@ def test_build_message_blocks_preserves_blank_lines_between_sections(monkeypatch
 def test_build_message_blocks_preserves_special_characters_in_push_text(monkeypatch):
     """Apostrophes, quotes, and ampersands in ERP conversion text must not be HTML-escaped."""
     monkeypatch.setenv("FOMS_BASE_URL", "https://example.com")
-    monkeypatch.setattr(channel_security, "generate_wam_short_link_token", lambda order_id=None: "short-123")
 
     raw_text = (
         "고객명 : 윤인선\n"
@@ -241,7 +233,6 @@ def test_build_message_blocks_escapes_link_url_attribute(monkeypatch):
 
 def test_build_message_template_preserves_special_characters_in_push_text(monkeypatch):
     monkeypatch.setenv("FOMS_BASE_URL", "https://example.com")
-    monkeypatch.setattr(channel_security, "generate_wam_short_link_token", lambda order_id=None: "short-123")
 
     raw_text = "주  소 : SK Leaders' VIEW 102-203"
     message = channel_policy.build_message_template("manual", {"order_id": 1, "text": raw_text})
@@ -252,7 +243,6 @@ def test_build_message_template_preserves_special_characters_in_push_text(monkey
 
 def test_build_message_blocks_renders_manual_push_link(monkeypatch):
     monkeypatch.setenv("FOMS_BASE_URL", "https://example.com")
-    monkeypatch.setattr(channel_security, "generate_wam_short_link_token", lambda order_id=None: "short-123")
 
     blocks = channel_policy.build_message_blocks(
         "manual",
@@ -268,7 +258,7 @@ def test_build_message_blocks_renders_manual_push_link(monkeypatch):
     assert not any("주문 #2762" in block.get("value", "") for block in blocks)
     link_blocks = [block for block in blocks if block.get("type") == "text" and "주문 보기" in block.get("value", "")]
     assert len(link_blocks) == 1
-    assert '<link type="url" value="https://example.com/w/short-123">주문 보기</link>' in link_blocks[0]["value"]
+    assert '<link type="url" value="https://example.com/erp/orders/2762/mobile">주문 보기</link>' in link_blocks[0]["value"]
 
 
 def test_build_message_template_rejects_auto_event_types():

@@ -1,0 +1,997 @@
+/* ============================================================================
+   도면 마법사 (Drawing Wizard) — 독립 페이지 에디터 스타일
+   - 접두사: dws-
+   - 양식 지오메트리는 스펙 §6(스테이지 1478x1040) 절대 좌표(px)를 명시값으로 구현.
+   - html2canvas 편차 방지를 위해 폰트/색/치수는 상속 대신 명시.
+   - 에디터 chrome 은 .dws-ui 로 일원화(내보내기 시 .dws-exporting 로 숨김).
+   ============================================================================ */
+
+/* ---- base ---------------------------------------------------------------- */
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: #f5f5f7;
+  /* 에디터 크롬 전용 폰트(시트 내부 .dws-form 은 §2.5 Malgun 유지) */
+  font-family: -apple-system, "SF Pro Text", "Segoe UI Variable", "Segoe UI", sans-serif;
+  color: #1d1d1f;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+#dws-root {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ---- 앱바 (반투명 화이트 글래스, 3분할 grid) ----------------------------
+   겹침 원천 차단: 우측 트랙 min = max-content → 콘텐츠 이하로 절대 축소 불가
+   (flex-shrink:0 의 상위 호환). 좌측 트랙 min = 0 → 타이틀 말줄임이 압축 흡수.
+   공간이 넉넉하면 양측 1fr 동률 → 세그먼트 중앙 정렬 유지. */
+.dws-appbar {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(max-content, 1fr);
+  align-items: center;
+  column-gap: 12px;
+  height: 52px;
+  padding: 0 16px;
+  background: rgba(255, 255, 255, 0.82);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  color: #1d1d1f;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.dws-appbar-left {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  line-height: 1.18;
+}
+.dws-appbar-center { display: flex; justify-content: center; }
+.dws-appbar-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.dws-appbar-title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dws-appbar-sub {
+  font-size: 13px;
+  font-weight: 400;
+  color: #86868b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dws-appbar-sep {
+  width: 1px;
+  height: 22px;
+  background: rgba(0, 0, 0, 0.1);
+  margin: 0 2px;
+  flex: 0 0 auto;
+}
+
+/* ---- 도구 세그먼트 컨트롤 (iOS segmented) ------------------------------- */
+.dws-seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  background: #e8e8ed;
+  border-radius: 9px;
+}
+.dws-seg-slot { display: flex; }
+
+.dws-seg-btn {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  color: #1d1d1f;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  padding: 6px 12px;
+  border-radius: 7px;
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+  transition: background 120ms ease-out, box-shadow 120ms ease-out;
+}
+.dws-seg-btn:hover { background: rgba(0, 0, 0, 0.045); }
+.dws-seg-btn.dws-seg-active,
+.dws-seg-btn.dws-seg-active:hover {
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+.dws-seg-label { line-height: 1; }
+.dws-ico { flex: 0 0 auto; display: block; }
+.dws-caret { flex: 0 0 auto; opacity: 0.5; margin-left: 1px; }
+
+/* ---- 버튼 (pill) --------------------------------------------------------- */
+.dws-btn {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: #ffffff;
+  color: #1d1d1f;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  padding: 7px 14px;
+  border-radius: 980px;
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+  transition: background 120ms ease-out, border-color 120ms ease-out, box-shadow 120ms ease-out;
+}
+.dws-btn:hover { background: #f5f5f7; }
+.dws-btn:active { background: #ececef; }
+
+.dws-btn-primary {
+  background: #0071e3;
+  border-color: #0071e3;
+  color: #ffffff;
+  font-weight: 500;
+}
+.dws-btn-primary:hover { background: #0077ed; border-color: #0077ed; }
+.dws-btn-primary:active { background: #006edb; border-color: #006edb; }
+
+/* dirty: 파랑 유지 + 우상단 6px 주황 점 (텍스트 '저장 *' 는 JS 가 관리) */
+.dws-btn.dws-dirty {
+  position: relative;
+  background: #0071e3;
+  border-color: #0071e3;
+  color: #ffffff;
+}
+.dws-btn.dws-dirty::after {
+  content: "";
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ff9f0a;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.92);
+}
+
+/* 아이콘 버튼 (undo/redo) 32px 원형 */
+.dws-icon-btn {
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border-color: transparent;
+  background: transparent;
+  color: #1d1d1f;
+  justify-content: center;
+}
+.dws-icon-btn:hover { background: rgba(0, 0, 0, 0.04); }
+.dws-icon-btn:active { background: rgba(0, 0, 0, 0.08); }
+
+/* plain 텍스트 버튼 (맞춤) */
+.dws-btn-plain {
+  border-color: transparent;
+  background: transparent;
+  color: #0071e3;
+  padding: 6px 10px;
+}
+.dws-btn-plain:hover { background: rgba(0, 113, 227, 0.08); }
+.dws-btn-plain:active { background: rgba(0, 113, 227, 0.14); }
+
+.dws-btn:disabled,
+.dws-btn.dws-disabled,
+.dws-seg-btn:disabled,
+.dws-seg-btn.dws-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.dws-file-btn { position: relative; }
+
+/* ---- 드롭다운 메뉴 (라이트, 글래스) ------------------------------------- */
+.dws-dropdown { position: relative; display: inline-flex; }
+
+.dws-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 140px;
+  background: rgba(255, 255, 255, 0.98);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  padding: 5px;
+  z-index: 60;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.16);
+  animation: dws-pop 140ms ease-out;
+}
+.dws-menu-right { left: auto; right: 0; }
+.dws-menu[hidden] { display: none; }
+
+@keyframes dws-pop {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.dws-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: #1d1d1f;
+  font-family: inherit;
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.dws-menu-item:hover { background: rgba(0, 0, 0, 0.05); }
+
+/* ---- 줌 컨트롤 ----------------------------------------------------------- */
+.dws-zoom { display: flex; align-items: center; gap: 8px; }
+.dws-zoom-label {
+  font-size: 12px;
+  color: #86868b;
+  width: 34px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+#dws-zoom-range {
+  width: 90px;
+  height: 4px;
+  appearance: none;
+  -webkit-appearance: none;
+  background: #d2d2d7;
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+#dws-zoom-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 0.5px solid rgba(0, 0, 0, 0.14);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+}
+#dws-zoom-range::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 0.5px solid rgba(0, 0, 0, 0.14);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+}
+
+/* ---- 앱바 반응형 컴팩트 (겹침 방지 보조 단계) -----------------------------
+   구조적 보장은 grid minmax(max-content,1fr)가 담당. 아래는 좁은 폭에서
+   세그먼트 중앙 정렬을 유지하기 위한 밀도 축소. */
+/* 1단계(≤1500px): 세그 라벨 숨김 — 아이콘만(각 버튼 title 툴팁 유지) */
+@media (max-width: 1500px) {
+  .dws-seg-label { display: none; }
+  .dws-seg-btn { padding: 6px 10px; }
+}
+/* 2단계(≤1340px): 우측 컨트롤 밀도 축소 */
+@media (max-width: 1340px) {
+  .dws-appbar { padding: 0 12px; column-gap: 10px; }
+  .dws-appbar-right { gap: 6px; }
+  .dws-appbar-right .dws-btn { padding: 7px 11px; }
+  .dws-appbar-right .dws-btn-plain { padding: 6px 8px; }
+  .dws-appbar-right .dws-icon-btn { padding: 0; width: 30px; height: 30px; }
+  #dws-zoom-range { width: 72px; }
+}
+
+/* ---- 읽기 전용 배너 (애플풍 앰버) --------------------------------------- */
+.dws-readonly-banner {
+  flex: 0 0 auto;
+  background: #fff4dc;
+  color: #8a6d1a;
+  font-size: 13px;
+  padding: 8px 16px;
+  border-bottom: 1px solid rgba(138, 109, 26, 0.18);
+}
+.dws-readonly-banner[hidden] { display: none; }
+
+/* ---- 시트 탭 바 (pill 탭) ------------------------------------------------ */
+.dws-tabbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 44px;
+  padding: 0 14px;
+  background: #f5f5f7;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+  overflow-x: auto;
+}
+
+.dws-tab {
+  position: relative;
+  border: 0;
+  background: transparent;
+  color: #6e6e73;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 30px 6px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background 120ms ease-out, color 120ms ease-out, box-shadow 120ms ease-out;
+}
+.dws-tab:hover { background: rgba(0, 0, 0, 0.04); }
+.dws-tab-active,
+.dws-tab-active:hover {
+  background: #ffffff;
+  color: #1d1d1f;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.dws-tab-x {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  line-height: 15px;
+  text-align: center;
+  border-radius: 50%;
+  font-size: 13px;
+  color: #86868b;
+}
+.dws-tab-x:hover { background: rgba(0, 0, 0, 0.08); color: #1d1d1f; }
+
+.dws-tab-add {
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: #ffffff;
+  color: #1d1d1f;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 13px;
+  border-radius: 980px;
+  cursor: pointer;
+  white-space: nowrap;
+  margin-left: 4px;
+  transition: background 120ms ease-out;
+}
+.dws-tab-add:hover { background: #f5f5f7; }
+
+/* ---- 캔버스(스크롤) ------------------------------------------------------ */
+.dws-canvas {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 32px 24px;
+  background: #f5f5f7;
+}
+
+.dws-stage-wrap {
+  position: relative;
+  width: 1478px;
+  height: 1040px;
+  margin: 0 auto;
+}
+
+/* 스테이지: 논리 1478x1040 고정, 줌은 CSS 변수 scale */
+.dws-stage {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1478px;
+  height: 1040px;
+  background: #ffffff;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.12);
+  transform: scale(var(--dws-zoom, 1));
+  transform-origin: top left;
+  overflow: hidden;
+}
+
+/* ============================================================================
+   양식 레이어 (§6 지오메트리)
+   ============================================================================ */
+.dws-form {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;             /* 빈 영역 클릭은 스테이지로 전달 */
+  font-family: "Malgun Gothic", "맑은 고딕", "Dotum", "돋움", sans-serif;
+  color: #111418;
+}
+/* 편집 가능한 요소만 포인터 이벤트 회복 */
+.dws-form [data-dws-form-key],
+.dws-form .dws-check,
+.dws-form .dws-c-cd-logo { pointer-events: auto; }
+
+/* ---- 시트 외곽 테두리(검정 3px) (40,40)-(1440,1000) --------------------- */
+.dws-outer-border {
+  position: absolute;
+  left: 40px;
+  top: 40px;
+  width: 1400px;
+  height: 960px;
+  border: 3px solid #000;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ---- 헤더 체크리스트(좌상, 박스 없음) 텍스트 시작 (48,43), 줄높이 26px - */
+.dws-header {
+  position: absolute;
+  left: 48px;
+  top: 43px;
+  display: flex;
+  flex-direction: column;
+  z-index: 4;
+}
+.dws-header-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 26px;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 26px;
+  letter-spacing: 1.5px;
+  white-space: nowrap;
+}
+.dws-header-lead { margin-right: 2px; }
+.dws-chk { display: inline-flex; align-items: center; gap: 5px; }
+
+.dws-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  border: 1.5px solid #000;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0;
+  color: #000;
+  cursor: pointer;
+  background: #fff;
+}
+.dws-check-on { color: #000; }
+
+/* ---- 페이지 박스(우상) (1374,40)-(1440,89) 외곽 테두리와 상변·우변 밀착 - */
+.dws-pagebox {
+  position: absolute;
+  left: 1374px;
+  top: 40px;
+  width: 66px;
+  height: 49px;
+  border: 3px solid #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 4;
+}
+.dws-pageval {
+  font-size: 30px;
+  font-weight: 700;
+  text-align: center;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ---- 하단 표 상단 가로선(좌/우/하변은 외곽 테두리 공유) 40→1440 y899 2px  */
+.dws-table-frame {
+  position: absolute;
+  left: 40px;
+  top: 899px;
+  width: 1400px;
+  height: 2px;
+  background: #000;
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* ---- 그리드 라인(검정 1px) ---------------------------------------------- */
+.dws-hline { position: absolute; height: 1px; background: #000; z-index: 2; }
+.dws-vline { position: absolute; width: 1px; background: #000; z-index: 2; }
+
+.dws-hline-ab { left: 40px;  top: 924px; width: 1400px; }  /* A|B (전폭 40–1440) */
+.dws-hline-bc { left: 40px;  top: 949px; width: 1400px; }  /* B|C (전폭 40–1440) */
+.dws-hline-cd { left: 310px; top: 974px; width: 418px; }   /* C|D 부분(손잡이/서랍 310–728) */
+
+.dws-vline-full { top: 899px; height: 101px; }             /* 전행 관통 899–1000 */
+.dws-vline-ab   { top: 899px; height: 50px; }              /* A/B 전용 899–949 */
+.dws-vline-cd   { top: 949px; height: 51px; }              /* C/D 전용 949–1000 */
+
+.dws-v-89   { left: 89px; }
+.dws-v-123  { left: 123px; }
+.dws-v-211  { left: 211px; }
+.dws-v-310  { left: 310px; }
+.dws-v-399  { left: 399px; }
+.dws-v-728  { left: 728px; }
+.dws-v-820  { left: 820px; }
+.dws-v-1227 { left: 1227px; }
+.dws-v-1330 { left: 1330px; }
+
+/* ---- 표 셀 공통 ---------------------------------------------------------- */
+.dws-cell {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  line-height: 1.2;
+  color: #111418;
+  overflow: hidden;
+  padding: 0 4px;
+  z-index: 3;
+  text-align: center;
+}
+.dws-cell-label { font-weight: 700; }
+.dws-cell-value { font-weight: 400; }
+.dws-cell-red { color: #c92a2a; font-weight: 700; }
+.dws-cell-addr {
+  align-items: flex-start;
+  justify-content: flex-start;
+  text-align: left;
+  padding: 6px 8px;
+  white-space: normal;
+  line-height: 1.3;
+}
+/* 편집 중 값 셀 표시 */
+.dws-cell[contenteditable]:focus {
+  outline: 2px solid #1c62d6;
+  outline-offset: -2px;
+  background: #eaf1ff;
+}
+
+/* ---- 표 A행 (top 899, h 25) --------------------------------------------- */
+.dws-c-a-l1       { left: 40px;   top: 899px; width: 83px;  height: 25px; }
+.dws-c-a-l2       { left: 123px;  top: 899px; width: 88px;  height: 25px; }
+.dws-c-a-l3       { left: 211px;  top: 899px; width: 99px;  height: 25px; }
+.dws-c-a-l4       { left: 310px;  top: 899px; width: 89px;  height: 25px; }
+.dws-c-a-product  { left: 399px;  top: 899px; width: 329px; height: 25px; }
+.dws-c-a-l5       { left: 728px;  top: 899px; width: 92px;  height: 25px; }
+.dws-c-a-sitespec { left: 820px;  top: 899px; width: 407px; height: 25px; }
+.dws-c-a-l6       { left: 1227px; top: 899px; width: 103px; height: 25px; }
+.dws-c-a-sales    { left: 1330px; top: 899px; width: 110px; height: 25px; }
+
+/* ---- 표 B행 (top 924, h 25) --------------------------------------------- */
+.dws-c-b-cdate    { left: 40px;   top: 924px; width: 83px;  height: 25px; }
+.dws-c-b-cname    { left: 123px;  top: 924px; width: 88px;  height: 25px; }
+.dws-c-b-phone    { left: 211px;  top: 924px; width: 99px;  height: 25px; }
+.dws-c-b-l1       { left: 310px;  top: 924px; width: 89px;  height: 25px; }
+.dws-c-b-color    { left: 399px;  top: 924px; width: 329px; height: 25px; }
+.dws-c-b-l2       { left: 728px;  top: 924px; width: 92px;  height: 25px; }
+.dws-c-b-w300     { left: 820px;  top: 924px; width: 407px; height: 25px; }
+.dws-c-b-l3       { left: 1227px; top: 924px; width: 103px; height: 25px; }
+.dws-c-b-mphone   { left: 1330px; top: 924px; width: 110px; height: 25px; }
+
+/* ---- 표 C/D행 (C top 949, D top 974 / span h 51) ------------------------ */
+.dws-c-cd-addrlabel  { left: 40px;   top: 949px; width: 49px;  height: 51px; }
+.dws-c-cd-addr       { left: 89px;   top: 949px; width: 221px; height: 51px; }
+.dws-c-c-handlelabel { left: 310px;  top: 949px; width: 89px;  height: 25px; }
+.dws-c-c-handle      { left: 399px;  top: 949px; width: 329px; height: 25px; }
+.dws-c-d-drawerlabel { left: 310px;  top: 974px; width: 89px;  height: 26px; }
+.dws-c-d-drawer      { left: 399px;  top: 974px; width: 329px; height: 26px; }
+.dws-c-cd-etclabel   { left: 728px;  top: 949px; width: 92px;  height: 51px; }
+.dws-c-cd-misc       { left: 820px;  top: 949px; width: 407px; height: 51px; }
+.dws-c-cd-logo       { left: 1227px; top: 949px; width: 213px; height: 51px; }
+
+/* ---- 로고 셀 ------------------------------------------------------------- */
+.dws-c-cd-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  cursor: pointer;
+  z-index: 3;
+}
+.dws-logo-box {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.dws-logo-img { max-width: 96%; max-height: 88%; object-fit: contain; }
+.dws-logo-img[hidden] { display: none; }
+
+/* ---- DREW 라인 (right 1440 정렬, y 1006–1029, 18px) --------------------- */
+.dws-drew {
+  position: absolute;
+  right: 38px;
+  top: 1006px;
+  width: 600px;
+  height: 23px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  font-size: 18px;
+  font-weight: 700;
+  color: #111418;
+}
+.dws-drew-val { min-width: 40px; display: inline-block; }
+.dws-drew-val[contenteditable]:focus {
+  outline: 2px solid #1c62d6;
+  outline-offset: 1px;
+  background: #eaf1ff;
+}
+
+/* ============================================================================
+   자유 객체 레이어 (텍스트/이미지)
+   ============================================================================ */
+.dws-anno {
+  position: absolute;
+  inset: 0;
+  z-index: 10;                       /* Konva Stage 캔버스가 이벤트 수신 → 빈 영역은 JS passthrough */
+}
+/* 그리기 모드 커서 */
+.dws-anno.dws-drawing { cursor: crosshair; }
+.dws-anno.dws-drawing canvas { cursor: crosshair; }
+
+/* Konva 텍스트 인라인 편집 오버레이 (위치/폰트/색은 JS가 인라인 지정) */
+.dws-text-overlay {
+  position: fixed;
+  z-index: 90;
+  margin: 0;
+  border: 1px solid #1c62d6;
+  padding: 2px 3px;
+  background: #ffffff;
+  color: #111418;
+  outline: none;
+  resize: none;
+  overflow: hidden;
+  box-sizing: border-box;
+  line-height: 1.25;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+}
+
+.dws-obj {
+  position: absolute;
+  pointer-events: auto;
+  cursor: grab;
+}
+.dws-obj:active { cursor: grabbing; }
+
+.dws-obj-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.25;
+  padding: 2px 3px;
+  min-height: 18px;
+  min-width: 24px;
+  font-family: "Malgun Gothic", "맑은 고딕", sans-serif;
+}
+.dws-obj-text.dws-editing {
+  cursor: text;
+  outline: 2px solid #1c62d6;
+  background: rgba(28, 98, 214, 0.06);
+}
+
+.dws-obj-image { line-height: 0; }
+.dws-obj-image img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: fill;
+  pointer-events: none;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+/* 선택 아웃라인 + 코너 핸들 */
+.dws-selected { outline: 2px solid #1c62d6; outline-offset: 1px; z-index: 40 !important; }
+.dws-handle {
+  position: absolute;
+  display: none;
+  width: 8px;
+  height: 8px;
+  background: #1c62d6;
+  border: 1px solid #fff;
+  z-index: 41;
+  pointer-events: none;
+}
+.dws-selected > .dws-handle { display: block; }
+.dws-handle-nw { left: -5px;  top: -5px;    cursor: nwse-resize; }
+.dws-handle-ne { right: -5px; top: -5px;    cursor: nesw-resize; }
+.dws-handle-sw { left: -5px;  bottom: -5px; cursor: nesw-resize; }
+.dws-handle-se { right: -5px; bottom: -5px; cursor: nwse-resize; }
+/* 텍스트 객체는 코너 핸들(장식)만, 이미지 객체는 우하단만 리사이즈 동작 */
+.dws-selected > .dws-resize-handle { pointer-events: auto; }
+
+/* ============================================================================
+   미니 툴바 / 팝업 / 다이얼로그 / 토스트 / 모바일
+   ============================================================================ */
+/* ---- 모드 무장 안내 힌트(플로팅 pill, 캔버스 상단 중앙, 다크 캡슐) -------- */
+.dws-mode-hint {
+  position: fixed;
+  top: 108px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 82;
+  padding: 7px 16px;
+  background: rgba(30, 30, 32, 0.85);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  color: #f5f5f7;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  border: 0.5px solid rgba(255, 255, 255, 0.12);
+  border-radius: 980px;
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.34);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+.dws-mode-hint.dws-mode-hint-show { opacity: 1; }
+
+.dws-minitoolbar {
+  position: fixed;
+  z-index: 80;
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  background: rgba(30, 30, 32, 0.85);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 0.5px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.4);
+  animation: dws-pop 140ms ease-out;
+}
+.dws-minitoolbar[hidden] { display: none; }
+.dws-mt-group { display: flex; gap: 6px; align-items: center; }
+.dws-mt-group[hidden] { display: none; }
+
+.dws-mt-select {
+  background: rgba(255, 255, 255, 0.12);
+  color: #f5f5f7;
+  border: 0.5px solid rgba(255, 255, 255, 0.16);
+  border-radius: 7px;
+  font-family: inherit;
+  font-size: 13px;
+  padding: 5px 6px;
+  cursor: pointer;
+}
+.dws-mt-select option { color: #1d1d1f; }
+.dws-mt-btn {
+  background: rgba(255, 255, 255, 0.12);
+  color: #f5f5f7;
+  border: 0.5px solid rgba(255, 255, 255, 0.16);
+  border-radius: 7px;
+  font-family: inherit;
+  font-size: 13px;
+  padding: 6px 9px;
+  cursor: pointer;
+  min-width: 30px;
+  transition: background 120ms ease-out;
+}
+.dws-mt-btn:hover { background: rgba(255, 255, 255, 0.2); }
+.dws-mt-btn.dws-active { background: #0071e3; border-color: #0071e3; color: #fff; }
+.dws-mt-del { color: #ff8a80; }
+.dws-mt-del:hover { background: rgba(255, 69, 58, 0.22); }
+
+.dws-swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+}
+.dws-swatch-black { background: #000000; }
+.dws-swatch-red   { background: #e03131; }
+.dws-swatch-blue  { background: #1c62d6; }
+.dws-swatch.dws-active {
+  box-shadow: 0 0 0 2px rgba(30, 30, 32, 0.85), 0 0 0 4px rgba(255, 255, 255, 0.9);
+}
+
+.dws-popup {
+  position: fixed;
+  z-index: 85;
+  background: rgba(255, 255, 255, 0.98);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  padding: 5px;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.16);
+  animation: dws-pop 140ms ease-out;
+}
+.dws-popup[hidden] { display: none; }
+.dws-popup-item {
+  display: block;
+  width: 128px;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: #1d1d1f;
+  font-family: inherit;
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.dws-popup-item:hover { background: rgba(0, 0, 0, 0.05); }
+
+/* ---- 다이얼로그 (macOS 시트) -------------------------------------------- */
+.dws-dialog {
+  border: none;
+  border-radius: 14px;
+  padding: 0;
+  width: 420px;
+  max-width: 92vw;
+  background: #ffffff;
+  color: #1d1d1f;
+  box-shadow: 0 24px 68px rgba(0, 0, 0, 0.28);
+}
+.dws-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.35);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+}
+.dws-dialog-body { padding: 22px; }
+.dws-dialog-title { margin: 0 0 16px; font-size: 15px; font-weight: 600; color: #1d1d1f; }
+.dws-field { display: block; margin-bottom: 14px; }
+.dws-field-label { display: block; font-size: 12px; font-weight: 500; color: #86868b; margin-bottom: 6px; }
+.dws-field-input {
+  width: 100%;
+  background: #ffffff;
+  color: #1d1d1f;
+  border: 1px solid #d2d2d7;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 14px;
+  padding: 9px 11px;
+  resize: vertical;
+  transition: border-color 120ms ease-out, box-shadow 120ms ease-out;
+}
+.dws-field-input:focus {
+  outline: none;
+  border-color: #0071e3;
+  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.25);
+}
+.dws-dialog-note { font-size: 12px; color: #86868b; margin: 6px 0 18px; }
+.dws-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
+/* 취소 = plain, 전달 = 파랑 filled(.dws-btn-primary) */
+.dws-dialog-actions .dws-btn:not(.dws-btn-primary) {
+  border-color: transparent;
+  background: transparent;
+  color: #1d1d1f;
+}
+.dws-dialog-actions .dws-btn:not(.dws-btn-primary):hover { background: rgba(0, 0, 0, 0.05); }
+
+.dws-toast-host {
+  position: fixed;
+  left: 50%;
+  bottom: 32px;
+  transform: translateX(-50%);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  pointer-events: none;
+}
+.dws-toast {
+  background: rgba(30, 30, 32, 0.85);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  color: #f5f5f7;
+  font-size: 13px;
+  padding: 10px 18px;
+  border-radius: 980px;
+  border: 0.5px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.16s ease-out, transform 0.16s ease-out;
+}
+.dws-toast.dws-toast-show { opacity: 1; transform: translateY(0); }
+
+/* ---- 모바일 안내 --------------------------------------------------------- */
+.dws-mobile-notice {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(245, 245, 247, 0.96);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.dws-mobile-notice[hidden] { display: none; }
+.dws-mobile-notice-box { text-align: center; color: #1d1d1f; }
+.dws-mobile-notice-box p { font-size: 16px; margin-bottom: 18px; line-height: 1.5; }
+.dws-mobile-notice-box a { text-decoration: none; }
+
+/* ============================================================================
+   표 글자 크기 컨트롤 (앱바) + 표 경계선 드래그 히트존
+   ============================================================================ */
+/* ---- 표 글자 크기(A− / A+) --------------------------------------------- */
+.dws-fontctl { display: inline-flex; align-items: center; gap: 2px; }
+.dws-fontctl .dws-btn {
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  justify-content: center;
+}
+
+/* ---- 표 경계선 드래그 히트존(열/행 폭 조절) -----------------------------
+   Konva 캔버스(z 10) 위에 얹어 히트존만 이벤트 수신. 컨테이너는 통과시키고
+   7px 히트존만 pointer-events:auto → 빈 영역·셀은 캔버스 passthrough 유지.
+   .dws-ui 라 내보내기(.dws-exporting) 시 display:none 으로 PNG 에 미포함. */
+.dws-dividers {
+  position: absolute;
+  inset: 0;
+  z-index: 11;
+  pointer-events: none;
+}
+.dws-divider {
+  position: absolute;
+  pointer-events: auto;
+  background: transparent;
+  touch-action: none;
+  transition: background 100ms ease-out;
+}
+.dws-divider-col { cursor: col-resize; }
+.dws-divider-row { cursor: row-resize; }
+.dws-divider-col:hover,
+.dws-divider-row:hover { background: rgba(28, 98, 214, 0.30); }
+/* 편집 불가·비select(그리기) 모드에서는 비활성 — 도형 드로잉·셀 편집 방해 금지 */
+.dws-dividers-off .dws-divider { pointer-events: none; }
+
+/* ============================================================================
+   내보내기 모드 — 에디터 chrome 숨김(스테이지 내부 .dws-ui 만 영향)
+   ============================================================================ */
+.dws-exporting .dws-ui { display: none !important; }
+.dws-exporting .dws-selected { outline: none !important; }

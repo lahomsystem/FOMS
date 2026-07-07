@@ -267,7 +267,11 @@ ERP Order mobile-v2 tab pane.
                                 <div class="field">
                                     <label class="field__label" for="erp-attachments-input">파일</label>
                                     <input type="file" id="erp-attachments-input" accept="image/*,video/*" multiple data-foms-no-capture class="visually-hidden">
-                                    <button class="foms-btn foms-btn--secondary erp-mobile-attachment-trigger" type="button" id="erp-attachments-upload-btn">
+                                    <input type="file" id="erp-attachments-gallery-input"
+                                        accept="image/*,video/*,.gif,.heic,.heif,.jpg,.jpeg,.png,.webp,.mp4,.mov,.webm"
+                                        multiple data-foms-no-capture class="visually-hidden" tabindex="-1" aria-hidden="true">
+                                    <button class="foms-btn foms-btn--secondary erp-mobile-attachment-trigger" type="button"
+                                        id="erp-attachments-upload-btn" data-erp-common-attachment-gallery-trigger="1">
                                         <i class="fas fa-camera"></i> 사진/동영상 추가
                                     </button>
                                 </div>

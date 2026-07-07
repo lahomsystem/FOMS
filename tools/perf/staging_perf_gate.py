@@ -41,10 +41,26 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-# SSOT: 9 primary 경로는 foms.services.common.erp_navigation_contract 에서 읽는다.
+# SSOT: 9 primary 경로는 foms/services/common/erp_navigation_contract.py 에서 읽는다.
 # (static/js/runtime/erp-shell.js PRIMARY_NAV_PATHS 와 동일 잠금판; 서버 계약과 byte-match)
-from foms.services.common.erp_navigation_contract import ERP_PRIMARY_NAV_PATHS
-from tools.harness.ept_b8_staging_session_from_login import fetch_session_cookie
+# 주의: `from foms...` 패키지 import 는 foms/__init__ 연쇄가 folium 등 앱 전체 의존성을
+# 끌어와 CI(최소 설치: requests 만)에서 ModuleNotFoundError 로 죽는다(첫 자동 런 실증).
+# 모듈 파일을 직접 로드해 패키지 init 을 우회한다 — SSOT 파일은 동일.
+import importlib.util as _ilu
+
+def _load_module_file(name: str, rel_path: str):
+    """패키지 __init__ 연쇄 없이 단일 모듈 파일 로드(CI 최소 의존 유지)."""
+    spec = _ilu.spec_from_file_location(name, ROOT / rel_path)
+    mod = _ilu.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+ERP_PRIMARY_NAV_PATHS = _load_module_file(
+    "erp_navigation_contract", "foms/services/common/erp_navigation_contract.py"
+).ERP_PRIMARY_NAV_PATHS
+fetch_session_cookie = _load_module_file(
+    "ept_b8_staging_session_from_login", "tools/harness/ept_b8_staging_session_from_login.py"
+).fetch_session_cookie
 
 DEFAULT_BASE = "https://lahom-dev.up.railway.app"
 BUDGETS_PATH = ROOT / "tools" / "perf" / "perf_budgets.json"

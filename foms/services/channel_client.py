@@ -91,6 +91,14 @@ def get_attachment_category_for_status(status: str) -> str:
     return _STATUS_TO_ATTACHMENT_CATEGORY.get(status, "")
 
 
+def _build_order_detail_url(order_id: int) -> str:
+    base_url = FOMS_BASE_URL.rstrip("/")
+    try:
+        return f"{base_url}/erp/orders/{int(order_id)}/mobile"
+    except (TypeError, ValueError):
+        return f"{base_url}/erp/orders/{order_id}"
+
+
 def format_order_message(
     customer_name: str,
     status: str,
@@ -125,12 +133,7 @@ def format_order_message(
     if construction_date:
         parts.append(f"시공일: {construction_date}")
 
-    try:
-        from foms.services.channel_security import generate_wam_short_link_token
-
-        parts.append(f"{FOMS_BASE_URL.rstrip('/')}/w/{generate_wam_short_link_token(order_id)}")
-    except Exception:
-        parts.append(f"{FOMS_BASE_URL}/erp/orders/{order_id}")
+    parts.append(_build_order_detail_url(order_id))
 
     return "\n".join(parts)
 

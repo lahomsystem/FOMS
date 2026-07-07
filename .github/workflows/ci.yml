@@ -37,7 +37,8 @@ jobs:
         SECRET_KEY: "ci-secret-key"
         FLASK_ENV: "testing"
       run: |
-        python -m pytest -v --ignore=tests/visual -p no:playwright
+        # tests/harness는 Harness CI job이 전담(이중 실행 제거), -q로 로그 절감
+        python -m pytest -q --ignore=tests/visual --ignore=tests/harness -p no:playwright
 
     - name: Run UI structural tests (no Playwright PNG regression)
       env:
@@ -45,7 +46,7 @@ jobs:
         SECRET_KEY: "ci-secret-key"
         FLASK_ENV: "testing"
       run: |
-        python -m pytest -v \
+        python -m pytest -q \
           tests/visual/test_p1_mockup_structure.py \
           tests/visual/test_p1_mockup_png_baseline.py \
           tests/visual/test_p1_mockup_chrome_parity.py \

@@ -8,6 +8,7 @@ Railway: R2 환경 변수가 있으면 자동으로 R2 사용
 from __future__ import annotations
 
 import io
+import logging
 import os
 import shutil
 import uuid
@@ -34,6 +35,8 @@ try:
     PILLOW_AVAILABLE = True
 except ImportError:
     PILLOW_AVAILABLE = False
+
+logger = logging.getLogger(__name__)
 
 
 class StorageAdapter:
@@ -338,6 +341,31 @@ class StorageAdapter:
         else:
             file_path = os.path.join(self.upload_folder, key)
             return os.path.isfile(file_path)
+
+    def read_file_bytes(self, key: str) -> bytes | None:
+        """storage_key의 원본 바이트를 반환한다(R2/S3=get_object, local=파일 read).
+
+        내보내기(html2canvas)처럼 same-origin 바이트가 필요할 때 사용한다.
+        ``generate_thumbnail_from_storage_key`` 의 읽기 패턴을 미러링한다.
+
+        Args:
+            key: 업로드 시 반환된 스토리지 키.
+
+        Returns:
+            원본 파일 바이트. 없거나 읽기에 실패하면 None.
+        """
+        try:
+            if self.storage_type in ["r2", "s3"]:
+                obj = self.client.get_object(Bucket=self.bucket_name, Key=key)
+                return obj["Body"].read()
+            source_path = os.path.join(self.upload_folder, key)
+            if not os.path.exists(source_path):
+                return None
+            with open(source_path, "rb") as f:
+                return f.read()
+        except Exception:
+            logger.warning("read_file_bytes 실패: key=%s", key, exc_info=True)
+            return None
 
     def get_download_url(self, key, expires_in=3600, response_content_disposition=None):
         """다운로드 URL 생성 (서명된 URL).

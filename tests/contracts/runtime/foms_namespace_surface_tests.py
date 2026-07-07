@@ -1484,6 +1484,7 @@ def test_namespaced_erp_shipment_settings_shim_preserves_canonical_contract() ->
         "ERP_SHIPMENT_SETTINGS_PATH",
         "DEFAULT_ERP_WORKER_CAPACITY",
         "normalize_measurement_managers",
+        "normalize_drawing_manager_en",
         "normalize_erp_shipment_workers",
         "is_order_assigned_to_user_for_construction",
         "is_order_mine_for_user",

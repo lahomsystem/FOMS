@@ -2,6 +2,8 @@
 ERP 출고 설정: DB 기반 로드/저장 및 시공자 목록 정규화.
 erp.py에서 분리 (Phase 4-2). shipment 대시보드·설정 페이지·API에서 공통 사용.
 """
+from __future__ import annotations
+
 import json
 import os
 
@@ -13,6 +15,7 @@ __all__ = [
     "ERP_SHIPMENT_SETTINGS_PATH",
     "DEFAULT_ERP_WORKER_CAPACITY",
     "normalize_measurement_managers",
+    "normalize_drawing_manager_en",
     "normalize_erp_shipment_workers",
     "is_order_assigned_to_user_for_construction",
     "is_order_mine_for_user",
@@ -48,6 +51,43 @@ def normalize_measurement_managers(managers):
             sort_order = 999
         if name:
             normalized.append({'name': name, 'sort_order': sort_order, 'phone': phone})
+    return normalized
+
+
+def normalize_drawing_manager_en(
+    mapping: dict[str, str] | list[dict[str, str]] | None,
+) -> dict[str, str]:
+    """도면담당자 한글명→영문명 매핑 정규화 (도면 마법사 DREW 셀 표기용).
+
+    설정의 ``drawing_manager``(문자열 리스트)와 병렬로 저장되는 하위호환 키.
+    한글 담당자명을 도면 마법사 DREW 셀 기본값으로 넣을 영문명으로 매핑한다.
+    ``drawing_manager`` 자체는 문자열 리스트 그대로 두므로 기존 소비처
+    (datalist·대시보드·quest 표시)는 영향받지 않는다.
+
+    Args:
+        mapping: 표준형은 dict ``{한글명: 영문명}``. 폼 왕복 편의를 위해
+            list ``[{"name": .., "name_en": ..}]`` 형태도 허용한다. 그 외
+            타입은 빈 dict로 정규화한다.
+
+    Returns:
+        빈 한글명·빈 영문명 항목을 제외한 ``dict[str, str]``.
+    """
+    normalized: dict[str, str] = {}
+    if isinstance(mapping, dict):
+        pairs = list(mapping.items())
+    elif isinstance(mapping, list):
+        pairs = [
+            (entry.get('name'), entry.get('name_en'))
+            for entry in mapping
+            if isinstance(entry, dict)
+        ]
+    else:
+        return normalized
+    for raw_name, raw_en in pairs:
+        name = str(raw_name or '').strip()
+        name_en = str(raw_en or '').strip()
+        if name and name_en:
+            normalized[name] = name_en
     return normalized
 
 
@@ -142,6 +182,7 @@ def load_erp_shipment_settings():
     default_settings = {
         'construction_time': [],
         'drawing_manager': [],
+        'drawing_manager_en': {},
         'measurement_manager': [],
         'construction_workers': [],
         'site_extra': []
@@ -153,6 +194,7 @@ def load_erp_shipment_settings():
             return {
                 'construction_time': data.get('construction_time', []),
                 'drawing_manager': data.get('drawing_manager', []),
+                'drawing_manager_en': normalize_drawing_manager_en(data.get('drawing_manager_en', {})),
                 'measurement_manager': normalize_measurement_managers(data.get('measurement_manager', [])),
                 'construction_workers': normalize_erp_shipment_workers(data.get('construction_workers', [])),
                 'site_extra': data.get('site_extra', []),
@@ -175,6 +217,7 @@ def load_erp_shipment_settings():
                 return {
                     'construction_time': data.get('construction_time', []),
                     'drawing_manager': data.get('drawing_manager', []),
+                    'drawing_manager_en': normalize_drawing_manager_en(data.get('drawing_manager_en', {})),
                     'measurement_manager': normalize_measurement_managers(data.get('measurement_manager', [])),
                     'construction_workers': normalize_erp_shipment_workers(data.get('construction_workers', [])),
                     'site_extra': data.get('site_extra', []),

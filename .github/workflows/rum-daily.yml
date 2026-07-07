@@ -1,0 +1,35 @@
+name: rum-daily (production)
+
+# 매일 아침(KST 07:30) production RUM 집계를 조회해 p95 추세·회귀를 리포트한다.
+# 회귀 감지 시 job fail → GitHub 알림. 리포트는 step summary 에 표로 남는다.
+#
+# 주의: schedule 은 **기본 브랜치(production)의 워크플로 파일만** 실행한다. 이 파일이
+# production 에 승격돼야 cron 이 작동한다(deploy 에만 있으면 수동 dispatch 만 가능).
+on:
+  schedule:
+    - cron: "30 22 * * *"  # 22:30 UTC = 07:30 KST
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rum-report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # rum_report_http 는 requests + ept_b8 로그인(requests) 만 쓴다 → requests 만.
+      - name: Install minimal deps
+        run: python -m pip install --upgrade pip requests
+
+      - name: Fetch production RUM report
+        env:
+          FOMS_STAGING_USERNAME: ${{ secrets.FOMS_STAGING_USERNAME }}
+          FOMS_STAGING_PASSWORD: ${{ secrets.FOMS_STAGING_PASSWORD }}
+        run: python tools/perf/rum_report_http.py --days 7

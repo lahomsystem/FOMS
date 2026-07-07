@@ -30,6 +30,7 @@ channel_shortlink_bp = Blueprint("channel_shortlink", __name__)
 
 WAM_SESSION_COOKIE = "wam_session"
 WAM_SESSION_MAX_AGE = 300
+WAM_RETIRED_MESSAGE = "Channel WAM page has been retired. Use the mobile ERP order detail."
 
 
 def _is_api_request() -> bool:
@@ -47,6 +48,10 @@ def _wam_error(message: str, status_code: int, error_code: str):
     if _is_api_request():
         return jsonify(payload), status_code
     return render_template("channel/wam_error.html", message=message), status_code
+
+
+def _wam_retired():
+    return _wam_error(WAM_RETIRED_MESSAGE, 410, "wam_retired")
 
 
 def _ensure_wam_enabled():
@@ -158,18 +163,12 @@ def _verify_api_request_token():
 
 @channel_wam_bp.before_request
 def verify_wam_html_token():
-    gate_error = _ensure_wam_enabled()
-    if gate_error:
-        return gate_error
-    return _verify_html_request_token()
+    return _wam_retired()
 
 
 @channel_wam_api_bp.before_request
 def verify_wam_api_token():
-    gate_error = _ensure_wam_enabled()
-    if gate_error:
-        return gate_error
-    return _verify_api_request_token()
+    return _wam_retired()
 
 
 def _require_wam_scope(scope: str):
@@ -373,24 +372,8 @@ def wam_attachment_download(attachment_id: int):
 
 @channel_shortlink_bp.route("/w/<token>")
 def redirect_short_wam_link(token):
-    gate_error = _ensure_wam_enabled()
-    if gate_error:
-        return gate_error
-
     payload = verify_wam_short_link_token(token)
     if not payload:
         return render_template("channel/wam_error.html", message="Invalid or expired link"), 401
 
-    binding_error = _apply_manager_binding(payload)
-    if binding_error:
-        return binding_error
-
-    entry_ticket = generate_wam_entry_token(
-        payload.get("manager_id") or "wam_viewer",
-        int(payload["order_id"]),
-        scopes=payload.get("scopes"),
-        allowed_sections=payload.get("allowed_sections"),
-        attachment_scope=payload.get("attachment_scope"),
-        mapped_foms_user_id=payload.get("mapped_foms_user_id"),
-    )
-    return redirect(url_for("channel_wam.wam_index", entry_ticket=entry_ticket))
+    return redirect(url_for("erp_dashboard.erp_order_mobile_detail", order_id=int(payload["order_id"])))

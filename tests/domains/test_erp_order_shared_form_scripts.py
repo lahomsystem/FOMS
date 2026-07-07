@@ -770,9 +770,14 @@ def test_common_mobile_attachments_select_upload_immediately() -> None:
     ).read_text(encoding="utf-8")
 
     assert 'class="visually-hidden"' in mobile_partial
+    assert 'id="erp-attachments-gallery-input"' in mobile_partial
+    assert "data-erp-common-attachment-gallery-trigger" in mobile_partial
     assert "사진/동영상 추가" in mobile_partial
-    assert "input.click();" in shared_js
+    assert "erpOpenCommonAttachmentPicker(input)" in shared_js
+    assert "input.setAttribute('multiple', '');" in shared_js
     assert "document.getElementById('erp-attachments-input')?.addEventListener('change'" in shared_js
+    assert "document.getElementById('erp-attachments-gallery-input')?.addEventListener('change'" in shared_js
+    assert "erpUploadSelectedAttachments(this);" in shared_js
 
 
 def test_erp_amount_surfaces_read_modern_payment_deposit_and_stored_final() -> None:

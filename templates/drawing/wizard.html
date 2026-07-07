@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>도면 마법사 — 주문 #{{ order.id }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20260707c">
+</head>
+<body>
+  <div id="dws-root" data-order-id="{{ order.id }}">
+
+    <!-- ================= 앱바 (3분할: 타이틀 · 도구 세그먼트 · 액션) ======= -->
+    <header class="dws-appbar dws-ui">
+
+      <!-- 좌: 타이틀 블록 -->
+      <div class="dws-appbar-left">
+        <div class="dws-appbar-title">도면 마법사 · 주문 #{{ order.id }}</div>
+        <div class="dws-appbar-sub" id="dws-customer">({{ customer_name }})</div>
+      </div>
+
+      <!-- 중앙: 도구 세그먼트 컨트롤 -->
+      <div class="dws-appbar-center">
+        <div class="dws-seg" role="group" aria-label="주석 도구">
+          <button type="button" class="dws-seg-btn dws-edit-ctl" id="dws-btn-select" title="선택 · 이동">
+            <svg class="dws-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l7.07 17 2.51-7.39L20 10.09 3 3z"/></svg>
+            <span class="dws-seg-label">선택</span>
+          </button>
+          <button type="button" class="dws-seg-btn dws-edit-ctl" id="dws-btn-add-text" title="텍스트 추가">
+            <svg class="dws-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+            <span class="dws-seg-label">텍스트</span>
+          </button>
+          <div class="dws-dropdown dws-seg-slot">
+            <button type="button" class="dws-seg-btn dws-edit-ctl" id="dws-btn-shape" title="도형 그리기">
+              <svg class="dws-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="6" width="17" height="12" rx="2"/></svg>
+              <span class="dws-seg-label">도형</span>
+              <svg class="dws-caret" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="dws-menu" id="dws-shape-menu" hidden>
+              <button type="button" class="dws-menu-item" data-shape="rect">사각형</button>
+              <button type="button" class="dws-menu-item" data-shape="ellipse">원</button>
+              <button type="button" class="dws-menu-item" data-shape="arrow">화살표</button>
+              <button type="button" class="dws-menu-item" data-shape="line">선</button>
+            </div>
+          </div>
+          <label class="dws-seg-btn dws-edit-ctl dws-file-btn" id="dws-file-btn" title="이미지 추가">
+            <svg class="dws-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2.5"/><circle cx="8.5" cy="8.5" r="1.6"/><path d="M21 15l-5-5L5 21"/></svg>
+            <span class="dws-seg-label">이미지</span>
+            <input type="file" id="dws-file-input" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+          </label>
+        </div>
+      </div>
+
+      <!-- 우: 액션 -->
+      <div class="dws-appbar-right">
+        <button type="button" class="dws-btn dws-edit-ctl" id="dws-btn-autofill" title="주문 데이터로 폼을 채웁니다">자동 채움</button>
+
+        <div class="dws-dropdown">
+          <button type="button" class="dws-btn dws-edit-ctl" id="dws-btn-preset">
+            <span>프리셋</span>
+            <svg class="dws-caret" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="dws-menu" id="dws-preset-menu" hidden>
+            <button type="button" class="dws-menu-item" data-preset="SR">[SR]</button>
+            <button type="button" class="dws-menu-item" data-preset="EP">[EP]</button>
+            <button type="button" class="dws-menu-item" data-preset="DOOR">[DOOR]</button>
+            <button type="button" class="dws-menu-item" data-preset="ROD">[옷봉]</button>
+          </div>
+        </div>
+
+        <span class="dws-appbar-sep"></span>
+
+        <button type="button" class="dws-btn dws-icon-btn dws-edit-ctl" id="dws-btn-undo" title="실행취소 (Ctrl+Z)" aria-label="실행취소">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+        </button>
+        <button type="button" class="dws-btn dws-icon-btn dws-edit-ctl" id="dws-btn-redo" title="재실행 (Ctrl+Y)" aria-label="재실행">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        </button>
+
+        <span class="dws-appbar-sep"></span>
+
+        <div class="dws-zoom">
+          <button type="button" class="dws-btn dws-btn-plain" id="dws-btn-zoom-fit" title="화면 폭 맞춤">맞춤</button>
+          <input type="range" id="dws-zoom-range" min="50" max="150" step="5" value="100" title="줌">
+          <span class="dws-zoom-label" id="dws-zoom-label">100%</span>
+        </div>
+
+        <div class="dws-fontctl">
+          <button type="button" class="dws-btn dws-edit-ctl" id="dws-btn-font-dec" title="표 글자 작게" aria-label="표 글자 작게">A−</button>
+          <button type="button" class="dws-btn dws-edit-ctl" id="dws-btn-font-inc" title="표 글자 크게" aria-label="표 글자 크게">A+</button>
+        </div>
+
+        <span class="dws-appbar-sep"></span>
+
+        <button type="button" class="dws-btn dws-btn-primary dws-edit-ctl" id="dws-btn-save">저장</button>
+
+        <div class="dws-dropdown">
+          <button type="button" class="dws-btn" id="dws-btn-export">
+            <span>내보내기</span>
+            <svg class="dws-caret" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="dws-menu dws-menu-right" id="dws-export-menu" hidden>
+            <button type="button" class="dws-menu-item" id="dws-btn-export-png">PNG 다운로드</button>
+            <button type="button" class="dws-menu-item dws-edit-ctl" id="dws-btn-export-transfer">도면 전달</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- ================= 읽기 전용 배너 ================= -->
+    <div class="dws-readonly-banner dws-ui" id="dws-readonly-banner" hidden>
+      열람 전용 — 도면 담당자·도면팀 또는 관리자만 편집할 수 있습니다.
+    </div>
+
+    <!-- ================= 시트 탭 바 ================= -->
+    <div class="dws-tabbar dws-ui" id="dws-tabbar"></div>
+
+    <!-- ================= 캔버스(스크롤) ================= -->
+    <div class="dws-canvas" id="dws-canvas">
+      <div class="dws-stage-wrap" id="dws-stage-wrap">
+        <div class="dws-stage" id="dws-stage">
+
+          <!-- ---- 양식 레이어(§6 지오메트리) ---- -->
+          <div class="dws-form" id="dws-form">
+
+            <!-- 시트 외곽 테두리(검정 3px, §2) -->
+            <div class="dws-outer-border"></div>
+
+            <!-- 헤더 체크리스트(좌상, 박스 없음) -->
+            <div class="dws-header">
+              <div class="dws-header-row">
+                <span class="dws-header-lead">도면팀 :</span>
+                <span class="dws-chk"><span class="dws-check" data-dws-check="d_site"></span>현장확인</span>
+                <span class="dws-chk"><span class="dws-check" data-dws-check="d_double"></span>더블체크</span>
+                <span class="dws-chk"><span class="dws-check" data-dws-check="d_order"></span>발주확인</span>
+              </div>
+              <div class="dws-header-row">
+                <span class="dws-header-lead">생산팀 :</span>
+                <span class="dws-chk"><span class="dws-check" data-dws-check="p_prod"></span>생산확인</span>
+                <span class="dws-chk"><span class="dws-check" data-dws-check="p_glass"></span>유리,거울</span>
+                <span class="dws-chk"><span class="dws-check" data-dws-check="p_light"></span>조명</span>
+                <span class="dws-chk"><span class="dws-check" data-dws-check="p_handle"></span>손잡이</span>
+                <span class="dws-chk"><span class="dws-check" data-dws-check="p_etc"></span>부자재</span>
+              </div>
+            </div>
+
+            <!-- 페이지 박스(우상) -->
+            <div class="dws-pagebox">
+              <div class="dws-cell-value dws-pageval" data-dws-form-key="page_no"></div>
+            </div>
+
+            <!-- 하단 표: 검정 2.5px 외곽 프레임(오버레이) -->
+            <div class="dws-table-frame"></div>
+
+            <!-- 그리드 라인(검정 1px) -->
+            <div class="dws-hline dws-hline-ab"></div>
+            <div class="dws-hline dws-hline-bc"></div>
+            <div class="dws-hline dws-hline-cd"></div>
+            <div class="dws-vline dws-vline-full dws-v-310"></div>
+            <div class="dws-vline dws-vline-full dws-v-399"></div>
+            <div class="dws-vline dws-vline-full dws-v-728"></div>
+            <div class="dws-vline dws-vline-full dws-v-820"></div>
+            <div class="dws-vline dws-vline-full dws-v-1227"></div>
+            <div class="dws-vline dws-vline-ab dws-v-123"></div>
+            <div class="dws-vline dws-vline-ab dws-v-211"></div>
+            <div class="dws-vline dws-vline-ab dws-v-1330"></div>
+            <div class="dws-vline dws-vline-cd dws-v-89"></div>
+
+            <!-- 표 A행 -->
+            <div class="dws-cell dws-cell-label dws-c-a-l1">시공일자</div>
+            <div class="dws-cell dws-cell-label dws-c-a-l2">고객명</div>
+            <div class="dws-cell dws-cell-label dws-c-a-l3">연락처</div>
+            <div class="dws-cell dws-cell-label dws-c-a-l4">제품명</div>
+            <div class="dws-cell dws-cell-value dws-c-a-product" data-dws-form-key="product_name"></div>
+            <div class="dws-cell dws-cell-label dws-c-a-l5">현장규격</div>
+            <div class="dws-cell dws-cell-value dws-c-a-sitespec" data-dws-form-key="site_spec"></div>
+            <div class="dws-cell dws-cell-label dws-c-a-l6">영 업 담 당</div>
+            <div class="dws-cell dws-cell-value dws-c-a-sales" data-dws-form-key="sales_manager"></div>
+
+            <!-- 표 B행 -->
+            <div class="dws-cell dws-cell-value dws-c-b-cdate" data-dws-form-key="construction_date"></div>
+            <div class="dws-cell dws-cell-value dws-c-b-cname" data-dws-form-key="customer_name"></div>
+            <div class="dws-cell dws-cell-value dws-c-b-phone" data-dws-form-key="phone"></div>
+            <div class="dws-cell dws-cell-label dws-c-b-l1">색 상</div>
+            <div class="dws-cell dws-cell-value dws-cell-red dws-c-b-color" data-dws-form-key="color"></div>
+            <div class="dws-cell dws-cell-label dws-c-b-l2">시공자수</div>
+            <div class="dws-cell dws-cell-value dws-c-b-w300" data-dws-form-key="spec_w300"></div>
+            <div class="dws-cell dws-cell-label dws-c-b-l3">담당연락처</div>
+            <div class="dws-cell dws-cell-value dws-c-b-mphone" data-dws-form-key="manager_phone"></div>
+
+            <!-- 표 C/D행 -->
+            <div class="dws-cell dws-cell-label dws-c-cd-addrlabel">주 소</div>
+            <div class="dws-cell dws-cell-value dws-cell-addr dws-c-cd-addr" data-dws-form-key="address"></div>
+            <div class="dws-cell dws-cell-label dws-c-c-handlelabel">손잡이</div>
+            <div class="dws-cell dws-cell-value dws-cell-red dws-c-c-handle" data-dws-form-key="handle"></div>
+            <div class="dws-cell dws-cell-label dws-c-d-drawerlabel">서 랍</div>
+            <div class="dws-cell dws-cell-value dws-cell-red dws-c-d-drawer" data-dws-form-key="drawer"></div>
+            <div class="dws-cell dws-cell-label dws-c-cd-etclabel">기타</div>
+            <div class="dws-cell dws-cell-value dws-c-cd-misc" data-dws-form-key="misc"></div>
+
+            <!-- 로고 셀 -->
+            <div class="dws-cell dws-c-cd-logo" id="dws-logo-cell" data-dws-logo>
+              <div class="dws-logo-box">
+                <img class="dws-logo-img" id="dws-logo-img" alt="발주사 로고" hidden>
+              </div>
+            </div>
+
+            <!-- DREW 서명 라인 -->
+            <div class="dws-drew">DREW :&nbsp;<span class="dws-drew-val" data-dws-form-key="drew"></span></div>
+          </div>
+
+          <!-- ---- 자유 주석 레이어 (Konva Stage 마운트) ---- -->
+          <div class="dws-anno" id="dws-anno"></div>
+
+          <!-- ---- 표 경계선 드래그 히트존(열/행 폭 조절, 내보내기 숨김) ---- -->
+          <div class="dws-dividers dws-ui" id="dws-dividers"></div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= 모드 안내 힌트(플로팅) ================= -->
+    <div class="dws-mode-hint dws-ui" id="dws-mode-hint" aria-live="polite"></div>
+
+    <!-- ================= 선택 객체 미니 툴바(플로팅) ================= -->
+    <div class="dws-minitoolbar dws-ui" id="dws-minitoolbar" hidden>
+      <div class="dws-mt-group" id="dws-mt-text" hidden>
+        <select class="dws-mt-select" id="dws-mt-size" title="크기">
+          <option value="14">14</option>
+          <option value="17">17</option>
+          <option value="20">20</option>
+          <option value="24">24</option>
+          <option value="28">28</option>
+        </select>
+        <button type="button" class="dws-swatch dws-swatch-black" data-color="#000000" title="검정"></button>
+        <button type="button" class="dws-swatch dws-swatch-red" data-color="#e03131" title="빨강"></button>
+        <button type="button" class="dws-swatch dws-swatch-blue" data-color="#1c62d6" title="파랑"></button>
+        <button type="button" class="dws-mt-btn" id="dws-mt-bold" title="굵게"><b>B</b></button>
+        <button type="button" class="dws-mt-btn" id="dws-mt-align" title="정렬">좌</button>
+        <button type="button" class="dws-mt-btn dws-mt-del" id="dws-mt-del-text" title="삭제">삭제</button>
+      </div>
+      <div class="dws-mt-group" id="dws-mt-image" hidden>
+        <button type="button" class="dws-mt-btn" id="dws-mt-ratio" title="비율 고정">비율고정: 켬</button>
+        <button type="button" class="dws-mt-btn dws-mt-del" id="dws-mt-del-image" title="삭제">삭제</button>
+      </div>
+      <div class="dws-mt-group" id="dws-mt-shape" hidden>
+        <button type="button" class="dws-swatch dws-swatch-black" data-shape-color="#000000" title="검정"></button>
+        <button type="button" class="dws-swatch dws-swatch-red" data-shape-color="#e03131" title="빨강"></button>
+        <button type="button" class="dws-swatch dws-swatch-blue" data-shape-color="#1c62d6" title="파랑"></button>
+        <select class="dws-mt-select" id="dws-mt-stroke" title="선 굵기">
+          <option value="1">가늘게</option>
+          <option value="2">보통</option>
+          <option value="3">굵게</option>
+        </select>
+        <button type="button" class="dws-mt-btn dws-mt-del" id="dws-mt-del-shape" title="삭제">삭제</button>
+      </div>
+    </div>
+
+    <!-- ================= 로고 선택 팝업 ================= -->
+    <div class="dws-popup dws-ui" id="dws-logo-popup" hidden>
+      <button type="button" class="dws-popup-item" data-logo="haud">하우드</button>
+      <button type="button" class="dws-popup-item" data-logo="lahom">라홈</button>
+    </div>
+
+    <!-- ================= 도면 전달 다이얼로그 ================= -->
+    <dialog class="dws-dialog dws-ui" id="dws-transfer-dialog">
+      <div class="dws-dialog-body">
+        <h2 class="dws-dialog-title">도면 전달</h2>
+        <label class="dws-field">
+          <span class="dws-field-label">메모</span>
+          <textarea class="dws-field-input" id="dws-transfer-note" rows="3" placeholder="전달 메모(선택)"></textarea>
+        </label>
+        <label class="dws-field">
+          <span class="dws-field-label">전달 모드</span>
+          <select class="dws-field-input" id="dws-transfer-mode">
+            <option value="APPEND">기존에 추가</option>
+            <option value="REPLACE_ALL">전체 교체</option>
+          </select>
+        </label>
+        <p class="dws-dialog-note">현재 시트 1장이 PNG로 전달됩니다.</p>
+        <div class="dws-dialog-actions">
+          <button type="button" class="dws-btn" id="dws-transfer-cancel">취소</button>
+          <button type="button" class="dws-btn dws-btn-primary" id="dws-transfer-submit">전달</button>
+        </div>
+      </div>
+    </dialog>
+
+    <!-- ================= 모바일 안내 ================= -->
+    <div class="dws-mobile-notice" id="dws-mobile-notice" hidden>
+      <div class="dws-mobile-notice-box">
+        <p>도면 마법사는 데스크톱 전용 에디터입니다.</p>
+        <a class="dws-btn dws-btn-primary" href="/erp/drawing-workbench">도면 작업실로 돌아가기</a>
+      </div>
+    </div>
+
+    <!-- ================= 토스트 ================= -->
+    <div class="dws-toast-host dws-ui" id="dws-toast-host" aria-live="polite"></div>
+
+  </div>
+
+  <script id="drawing-wizard-config" type="application/json">{{ wizard_config|tojson }}</script>
+  <script src="{{ url_for('static', filename='vendor/konva.min.js') }}?v=20260706b" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260707c" defer></script>
+</body>
+</html>

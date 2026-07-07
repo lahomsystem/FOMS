@@ -17,7 +17,7 @@ from models import Order, OrderAttachment
 from foms.web.auth import login_required, role_required
 from foms.services.channel_client import is_configured
 from foms.services.channel_dispatch import dispatch_order_event
-from foms.services.channel_policy import get_routing_group_id
+from foms.services.channel_policy import ChannelGroupRetiredError, get_routing_group_id
 from foms.services.storage import get_storage
 from foms.services.channel_delivery import (
     check_legacy_only_success_after_cutover,
@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 _MAX_TEXT_LENGTH = 4000
 _MIN_CHANGE_NOTE_LEN = 1
 _MAX_CHANGE_NOTE_LEN = 500
+_RETIRED_GROUP_MESSAGE = '이 채널톡 방(554075)으로의 PUSH 기능은 삭제되었습니다.'
 
 # push_kind → (첨부 category, structured_data 이력 키)
 _PUSH_KIND_CONFIG = {
@@ -109,7 +110,15 @@ def api_channel_push_manual():
             msg = '채널톡 환경변수(CHANNEL_APP_SECRET, CHANNEL_ID)가 서버에 설정되지 않았습니다.'
             return jsonify({'success': False, 'message': msg, 'error': msg}), 503
 
-        group_id = get_routing_group_id('manual', {'push_kind': push_kind})
+        try:
+            group_id = get_routing_group_id('manual', {'push_kind': push_kind})
+        except ChannelGroupRetiredError as exc:
+            logger.info("[채널톡 수동푸쉬] retired group blocked (group_id=%s, push_kind=%s)", exc.group_id, push_kind)
+            return jsonify({
+                'success': False,
+                'message': _RETIRED_GROUP_MESSAGE,
+                'error': _RETIRED_GROUP_MESSAGE,
+            }), 410
         if not group_id:
             env_name = 'CHANNEL_GROUP_DRAWING' if push_kind == 'drawing' else 'CHANNEL_GROUP_MEASUREMENT'
             msg = f'{env_name} 환경변수가 설정되지 않았습니다.'
@@ -299,7 +308,15 @@ def api_channel_push_estimate():
             msg = '채널톡 환경변수(CHANNEL_APP_SECRET, CHANNEL_ID)가 서버에 설정되지 않았습니다.'
             return jsonify({'success': False, 'message': msg, 'error': msg}), 503
 
-        group_id = get_routing_group_id('manual', {'push_kind': 'estimate'})
+        try:
+            group_id = get_routing_group_id('manual', {'push_kind': 'estimate'})
+        except ChannelGroupRetiredError as exc:
+            logger.info("[채널톡 견적서푸쉬] retired group blocked (group_id=%s)", exc.group_id)
+            return jsonify({
+                'success': False,
+                'message': _RETIRED_GROUP_MESSAGE,
+                'error': _RETIRED_GROUP_MESSAGE,
+            }), 410
         if not group_id:
             msg = 'CHANNEL_GROUP_ESTIMATE 환경변수가 설정되지 않았습니다.'
             return jsonify({'success': False, 'message': msg, 'error': msg}), 503

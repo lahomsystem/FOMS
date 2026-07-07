@@ -30,16 +30,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from foms.services.rum_aggregate import (  # noqa: E402
-    ALLOWED_METRICS,
-    build_rum_key,
-    detect_regression,
-    histogram_from_hash,
-    percentile_from_histogram,
-    recent_kst_dates,
+    BASELINE_WINDOW,
+    RECENT_WINDOW,
+    build_rum_report,
 )
-
-RECENT_WINDOW: int = 2
-BASELINE_WINDOW: int = 5
 
 
 def _connect_redis() -> Any | None:
@@ -60,41 +54,6 @@ def _connect_redis() -> Any | None:
         return None
 
 
-def _day_stats(client: Any, date_str: str, metric: str) -> dict[str, Any]:
-    """하루치 히스토그램 → {samples, p50, p95}."""
-    raw = client.hgetall(build_rum_key(date_str, metric))
-    counts = histogram_from_hash(raw)
-    return {
-        "date": date_str,
-        "samples": sum(counts),
-        "p50": percentile_from_histogram(counts, 0.50),
-        "p95": percentile_from_histogram(counts, 0.95),
-    }
-
-
-def collect(client: Any, days: int) -> dict[str, Any]:
-    """메트릭별 최근 days 일 통계와 회귀 판정을 수집한다."""
-    dates = recent_kst_dates(days)  # 최신 → 과거
-    report: dict[str, Any] = {"days": days, "metrics": {}}
-    for metric in sorted(ALLOWED_METRICS):
-        daily = [_day_stats(client, d, metric) for d in dates]
-        recent_p95 = [row["p95"] for row in daily[:RECENT_WINDOW]]
-        baseline_p95 = [
-            row["p95"] for row in daily[RECENT_WINDOW : RECENT_WINDOW + BASELINE_WINDOW]
-        ]
-        verdict = detect_regression(recent_p95, baseline_p95)
-        report["metrics"][metric] = {
-            "daily": daily,
-            "regression": {
-                "regressed": verdict.regressed,
-                "recent_p95": verdict.recent_p95,
-                "baseline_p95": verdict.baseline_p95,
-                "ratio": verdict.ratio,
-            },
-        }
-    return report
-
-
 def _fmt(v: float | None) -> str:
     return "-" if v is None else f"{v:>7.0f}"
 
@@ -102,7 +61,8 @@ def _fmt(v: float | None) -> str:
 def print_report(report: dict[str, Any]) -> bool:
     """사람이 읽는 표 출력. 회귀 WARN 이 하나라도 있으면 True 반환."""
     any_regression = False
-    for metric, block in report["metrics"].items():
+    for block in report["metrics"]:
+        metric = block["metric"]
         print(f"\n== {metric} (최근 {report['days']}일) ==")
         print(f"  {'date':<12} {'samples':>8} {'p50':>8} {'p95':>8}")
         for row in block["daily"]:
@@ -148,13 +108,11 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0  # 조회 불가는 게이트 실패로 취급하지 않음(advisory).
 
-    report = collect(client, days)
+    report = build_rum_report(client, days)
 
     if args.json:
         print(json.dumps(report, ensure_ascii=False, indent=2))
-        any_regression = any(
-            b["regression"]["regressed"] for b in report["metrics"].values()
-        )
+        any_regression = report["regressed"]
     else:
         any_regression = print_report(report)
 

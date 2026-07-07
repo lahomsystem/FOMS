@@ -16,6 +16,17 @@ def test_get_routing_group_id_branches_on_push_kind(monkeypatch) -> None:
     assert channel_policy.get_routing_group_id("manual", {}) == "measure-grp"
 
 
+def test_get_routing_group_id_blocks_retired_group(monkeypatch) -> None:
+    monkeypatch.setenv("CHANNEL_GROUP_MEASUREMENT", "554075")
+
+    try:
+        channel_policy.get_routing_group_id("manual", {"push_kind": "measurement"})
+    except channel_policy.ChannelGroupRetiredError as exc:
+        assert exc.group_id == "554075"
+    else:
+        raise AssertionError("retired ChannelTalk group should be blocked")
+
+
 def test_get_routing_group_id_falls_back_to_production_groups(monkeypatch) -> None:
     monkeypatch.delenv("CHANNEL_GROUP_DRAWING", raising=False)
     monkeypatch.delenv("CHANNEL_GROUP_MEASUREMENT", raising=False)

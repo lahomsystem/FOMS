@@ -231,6 +231,50 @@ def test_push_manual_builds_image_and_video_files_and_dispatches(client, monkeyp
     assert saved.structured_data["channeltalk_push"]["message_id"] == "msg-manual-1"
 
 
+def test_push_manual_rejects_retired_group_before_dispatch(client, monkeypatch):
+    """554075 방으로 라우팅되면 수동 PUSH 기능은 삭제 상태(410)로 끝난다."""
+    _login_admin(client)
+    monkeypatch.setenv("CHANNEL_GROUP_MEASUREMENT", "554075")
+    monkeypatch.setattr(channel_integration, "is_configured", lambda: True)
+
+    def _dispatch_should_not_run(event_type, data, raise_on_error=False):
+        raise AssertionError("retired group must be blocked before dispatch")
+
+    monkeypatch.setattr(channel_integration, "dispatch_order_event", _dispatch_should_not_run)
+
+    response = client.post(
+        "/api/channel/push-manual",
+        json={"order_id": 999999, "text": "전송 금지"},
+    )
+
+    assert response.status_code == 410
+    body = response.get_json()
+    assert body["success"] is False
+    assert "554075" in body["message"]
+
+
+def test_push_manual_rejects_retired_drawing_group_before_dispatch(client, monkeypatch):
+    """발주 PUSH도 554075 방으로 라우팅되면 dispatch 전에 차단된다."""
+    _login_admin(client)
+    monkeypatch.setenv("CHANNEL_GROUP_DRAWING", "554075")
+    monkeypatch.setattr(channel_integration, "is_configured", lambda: True)
+
+    def _dispatch_should_not_run(event_type, data, raise_on_error=False):
+        raise AssertionError("retired drawing group must be blocked before dispatch")
+
+    monkeypatch.setattr(channel_integration, "dispatch_order_event", _dispatch_should_not_run)
+
+    response = client.post(
+        "/api/channel/push-manual",
+        json={"order_id": 999999, "text": "전송 금지", "push_kind": "drawing"},
+    )
+
+    assert response.status_code == 410
+    body = response.get_json()
+    assert body["success"] is False
+    assert "554075" in body["message"]
+
+
 def test_push_manual_drawing_kind_filters_drawing_attachments_and_routes_drawing_group(client, monkeypatch):
     """발주 PUSH(push_kind=drawing)는 도면 첨부만 골라 도면 그룹으로 dispatch한다."""
     _login_admin(client)
@@ -473,6 +517,27 @@ def test_push_estimate_uploads_image_and_dispatches_estimate_group(client, monke
     # 견적서 이력은 영발/발주 이력과 분리된 별도 키에 저장된다.
     assert "channeltalk_push" not in saved.structured_data
     assert "channeltalk_push_drawing" not in saved.structured_data
+
+
+def test_push_estimate_rejects_retired_group_before_upload(client, monkeypatch):
+    """견적서 PUSH 대상이 554075면 스토리지 업로드도 시작하지 않는다."""
+    _login_admin(client)
+    monkeypatch.setenv("CHANNEL_GROUP_ESTIMATE", "554075")
+    monkeypatch.setattr(channel_integration, "is_configured", lambda: True)
+    fake_storage = _FakeEstimateStorage()
+    monkeypatch.setattr(channel_integration, "get_storage", lambda: fake_storage)
+
+    response = client.post(
+        "/api/channel/push-estimate",
+        data={"order_id": "999999", "image": _png_upload()},
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 410
+    body = response.get_json()
+    assert body["success"] is False
+    assert "554075" in body["message"]
+    assert fake_storage.uploaded == []
 
 
 def test_push_estimate_rejects_non_png(client, monkeypatch):

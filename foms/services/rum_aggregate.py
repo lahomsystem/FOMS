@@ -202,6 +202,11 @@ class RegressionVerdict(NamedTuple):
     ratio: float | None
 
 
+# 회귀 판정 창(일): 최근 RECENT_WINDOW 일 p95 vs 직전 BASELINE_WINDOW 일 p95 중앙값.
+RECENT_WINDOW: Final[int] = 2
+BASELINE_WINDOW: Final[int] = 5
+
+
 def detect_regression(
     recent_p95: list[float | None],
     baseline_p95: list[float | None],
@@ -227,3 +232,76 @@ def detect_regression(
         return RegressionVerdict(None, recent_max, base_med, None)
     ratio = recent_max / base_med
     return RegressionVerdict(ratio >= threshold, recent_max, base_med, ratio)
+
+
+def day_stats(redis_client: Any, date_str: str, metric: str) -> dict[str, Any]:
+    """하루치 히스토그램 → ``{date, samples, p50, p95}``.
+
+    Args:
+        redis_client: ``hgetall`` 지원 Redis 클라이언트(조회 전용).
+        date_str: ``YYYY-MM-DD``.
+        metric: ALLOWED_METRICS 원소.
+
+    Returns:
+        일자·표본수·p50·p95(표본 없으면 p50/p95 는 None).
+    """
+    raw = redis_client.hgetall(build_rum_key(date_str, metric))
+    counts = histogram_from_hash(raw)
+    return {
+        "date": date_str,
+        "samples": sum(counts),
+        "p50": percentile_from_histogram(counts, 0.50),
+        "p95": percentile_from_histogram(counts, 0.95),
+    }
+
+
+def build_rum_report(redis_client: Any, days: int = 7) -> dict[str, Any]:
+    """메트릭별 최근 ``days``일 p50/p95 추세 + 회귀 판정을 JSON 직렬화 리포트로 집계.
+
+    CLI(``tools/perf/rum_report.py``)와 admin 엔드포인트(``/api/foms/rum/report``)의
+    **단일 진실원**. 요청 hot path 가 아니라 감시용이라 조회는 메트릭×일자 HGETALL 뿐.
+
+    Args:
+        redis_client: ``hgetall`` 지원 클라이언트(운영은 앱 내부 Redis, CLI 는 REDIS_URL).
+        days: 조회 일수(최소 RECENT_WINDOW+BASELINE_WINDOW 로 보정).
+
+    Returns:
+        ``{days, metrics: [{metric, daily: [...], regression: {...}}], regressed: bool,
+        warnings: [str]}``. ``regressed`` 는 메트릭 중 하나라도 WARN 이면 True.
+    """
+    days = max(RECENT_WINDOW + BASELINE_WINDOW, days)
+    dates = recent_kst_dates(days)  # 최신 → 과거
+    metrics_out: list[dict[str, Any]] = []
+    any_regressed = False
+    warnings: list[str] = []
+    for metric in sorted(ALLOWED_METRICS):
+        daily = [day_stats(redis_client, d, metric) for d in dates]
+        recent_p95 = [row["p95"] for row in daily[:RECENT_WINDOW]]
+        baseline_p95 = [
+            row["p95"] for row in daily[RECENT_WINDOW : RECENT_WINDOW + BASELINE_WINDOW]
+        ]
+        verdict = detect_regression(recent_p95, baseline_p95)
+        if verdict.regressed:
+            any_regressed = True
+            warnings.append(
+                f"{metric}: recent p95 {verdict.recent_p95:.0f}ms vs baseline 중앙값 "
+                f"{verdict.baseline_p95:.0f}ms (x{verdict.ratio:.2f})"
+            )
+        metrics_out.append(
+            {
+                "metric": metric,
+                "daily": daily,
+                "regression": {
+                    "regressed": verdict.regressed,
+                    "recent_p95": verdict.recent_p95,
+                    "baseline_p95": verdict.baseline_p95,
+                    "ratio": verdict.ratio,
+                },
+            }
+        )
+    return {
+        "days": days,
+        "metrics": metrics_out,
+        "regressed": any_regressed,
+        "warnings": warnings,
+    }

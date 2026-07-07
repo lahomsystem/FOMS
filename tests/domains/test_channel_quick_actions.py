@@ -6,7 +6,7 @@ from foms.services.channel_quick_actions import (
     parse_foms_command,
     process_foms_command,
 )
-from foms.services.channel_security import generate_wam_session_token, generate_wam_short_link_token
+from foms.services.channel_security import generate_wam_short_link_token
 
 
 ORDER_CMD = "\uc8fc\ubb38"
@@ -119,7 +119,7 @@ def test_get_order_summary_for_wam_uses_structured_data_for_erp_order(app):
         assert wam_data["status_kr"] != "RECEIVED"
 
 
-def test_channel_wam_page_renders_structured_summary(client, app):
+def test_channel_wam_page_is_retired(client, app):
     with app.app_context():
         order = Order(
             received_date="2026-03-27",
@@ -145,22 +145,14 @@ def test_channel_wam_page_renders_structured_summary(client, app):
         )
         db_session.add(order)
         db_session.commit()
-        token = generate_wam_session_token("wam_viewer", order.id)
 
-    client.set_cookie("wam_session", token, path="/channel/wam")
     response = client.get("/channel/wam/")
-    body = response.get_data(as_text=True)
 
-    assert response.status_code == 200
-    assert "Real Customer" in body
-    assert "010-1234-5678" in body
-    assert "Seoul Teheran-ro 123" in body
-    assert "Kitchen Set" in body
-    assert "Mango" in body
-    assert "2026-03-28" in body
+    assert response.status_code == 410
+    assert "retired" in response.get_data(as_text=True)
 
 
-def test_short_wam_link_redirects_to_entry_ticket_flow(client, app):
+def test_short_wam_link_redirects_to_mobile_erp_detail(client, app):
     with app.app_context():
         order = Order(
             received_date="2026-03-27",
@@ -191,10 +183,5 @@ def test_short_wam_link_redirects_to_entry_ticket_flow(client, app):
     response = client.get(f"/w/{token}", follow_redirects=False)
 
     assert response.status_code == 302
-    assert "/channel/wam/?entry_ticket=" in response.headers["Location"]
+    assert response.headers["Location"].endswith(f"/erp/orders/{order.id}/mobile")
     assert "launch_token=" not in response.headers["Location"]
-
-    final_response = client.get(response.headers["Location"], follow_redirects=True)
-    body = final_response.get_data(as_text=True)
-    assert final_response.status_code == 200
-    assert "Real Customer" in body

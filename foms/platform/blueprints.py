@@ -64,6 +64,7 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
         erp_orders_drawing_bp,
         erp_orders_draftsman_bp,
         erp_orders_revision_bp,
+        erp_orders_drawing_wizard_bp,
     )
     from foms.api.production import erp_orders_production_bp
     from foms.api.construction import erp_orders_construction_bp
@@ -142,6 +143,7 @@ def register_blueprints(app: Flask) -> BlueprintBindings:
     app.register_blueprint(erp_orders_drawing_bp)
     app.register_blueprint(erp_orders_revision_bp)
     app.register_blueprint(erp_orders_draftsman_bp)
+    app.register_blueprint(erp_orders_drawing_wizard_bp)
     app.register_blueprint(erp_orders_production_bp)
     app.register_blueprint(erp_orders_construction_bp)
     app.register_blueprint(erp_orders_cs_bp)
