@@ -46,11 +46,8 @@ def _build_order_detail_link(order_id: Any) -> str:
     erp_url = os.environ.get("FOMS_BASE_URL", "https://lahom-dev.up.railway.app").rstrip("/")
     fallback = f"{erp_url}/edit/{order_id}?open=erp-order"
     try:
-        from foms.services.channel_security import generate_wam_short_link_token
-
-        token = generate_wam_short_link_token(int(order_id))
-        return f"{erp_url}/w/{token}"
-    except Exception:
+        return f"{erp_url}/erp/orders/{int(order_id)}/mobile"
+    except (TypeError, ValueError):
         return fallback
 
 

@@ -1,7 +1,6 @@
 import pytest
 
 import foms.services.channel_client as channel_client
-import foms.services.channel_security as channel_security
 
 
 class _FakeResponse:
@@ -16,9 +15,8 @@ class _FakeResponse:
         return self._data
 
 
-def test_format_order_message_uses_canonical_short_link_import(monkeypatch):
+def test_format_order_message_uses_mobile_erp_detail_link(monkeypatch):
     monkeypatch.setattr(channel_client, "FOMS_BASE_URL", "https://example.com")
-    monkeypatch.setattr(channel_security, "generate_wam_short_link_token", lambda order_id: "short-123")
 
     message = channel_client.format_order_message(
         customer_name="테스터",
@@ -27,7 +25,20 @@ def test_format_order_message_uses_canonical_short_link_import(monkeypatch):
         order_id=2762,
     )
 
-    assert "https://example.com/w/short-123" in message
+    assert "https://example.com/erp/orders/2762/mobile" in message
+
+
+def test_format_order_message_keeps_legacy_fallback_for_bad_order_id(monkeypatch):
+    monkeypatch.setattr(channel_client, "FOMS_BASE_URL", "https://example.com")
+
+    message = channel_client.format_order_message(
+        customer_name="테스터",
+        status="MEASURE",
+        address="서울",
+        order_id="bad-id",
+    )
+
+    assert "https://example.com/erp/orders/bad-id" in message
 
 
 def test_build_channel_bot_name_uses_login_display_name() -> None:
