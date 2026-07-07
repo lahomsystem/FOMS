@@ -55,6 +55,13 @@ _ALLOWED_OBJECT_TYPES = ('text', 'image', 'rect', 'ellipse', 'arrow', 'line')
 _ALLOWED_STROKE_WIDTHS = (1, 2, 3)
 _COLOR_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
 
+# 표 레이아웃(열/행 경계) 승격 값 — 서버는 타입·범위만 검증(증가순·간격은 클라 책임).
+_LAYOUT_X_MIN, _LAYOUT_X_MAX = 41, 1439       # 외곽 40/1440 안쪽
+_LAYOUT_Y_MIN, _LAYOUT_Y_MAX = 900, 999       # 외곽 899/1000 안쪽
+_MAX_LAYOUT_COLS = 12
+_MAX_LAYOUT_ROWS = 6
+_CELL_FONT_MIN, _CELL_FONT_MAX = 10, 28
+
 _MSG_NOT_FOUND = '주문을 찾을 수 없습니다.'
 _MSG_FORBIDDEN = '도면 담당자·도면팀 또는 관리자만 저장할 수 있습니다.'
 
@@ -205,8 +212,34 @@ def _validate_object(obj, order_id: int) -> str | None:
     return _validate_shape_object(obj)
 
 
+def _validate_layout(layout) -> str | None:
+    """폼 ``layout``(표 열/행 경계) 구조 검증.
+
+    ``cols``/``rows`` 는 숫자 리스트(각 길이 캡·좌표 범위), ``addr`` 은 optional 숫자.
+    증가순·최소간격은 클라이언트 책임이며 서버는 타입·범위만 확인한다(설계서 I-5).
+    """
+    if not isinstance(layout, dict):
+        return '폼 layout 형식이 올바르지 않습니다.'
+    cols = layout.get('cols')
+    if not isinstance(cols, list) or len(cols) > _MAX_LAYOUT_COLS:
+        return '폼 layout cols 형식이 올바르지 않습니다.'
+    for col in cols:
+        if not _is_number_in_range(col, _LAYOUT_X_MIN, _LAYOUT_X_MAX):
+            return '폼 layout cols 값이 범위를 벗어났습니다.'
+    if 'addr' in layout and not _is_number_in_range(layout.get('addr'), _LAYOUT_X_MIN, _LAYOUT_X_MAX):
+        return '폼 layout addr 값이 범위를 벗어났습니다.'
+    rows = layout.get('rows')
+    if not isinstance(rows, list) or len(rows) > _MAX_LAYOUT_ROWS:
+        return '폼 layout rows 형식이 올바르지 않습니다.'
+    for row in rows:
+        if not _is_number_in_range(row, _LAYOUT_Y_MIN, _LAYOUT_Y_MAX):
+            return '폼 layout rows 값이 범위를 벗어났습니다.'
+    return None
+
+
 def _validate_form(form: dict) -> str | None:
-    """폼 값은 모두 문자열(≤500자), ``checks`` 만 ``dict[str, bool]`` 허용."""
+    """폼 값은 문자열(≤500자). 예외: ``checks``=dict[str,bool], ``layout``=경계 dict,
+    ``cell_font``=10~28 숫자."""
     for key, value in form.items():
         if key == 'checks':
             if not isinstance(value, dict):
@@ -214,6 +247,15 @@ def _validate_form(form: dict) -> str | None:
             for check_value in value.values():
                 if not isinstance(check_value, bool):
                     return '폼 checks 값은 참/거짓이어야 합니다.'
+            continue
+        if key == 'layout':
+            layout_error = _validate_layout(value)
+            if layout_error:
+                return layout_error
+            continue
+        if key == 'cell_font':
+            if not _is_number_in_range(value, _CELL_FONT_MIN, _CELL_FONT_MAX):
+                return '폼 글자 크기 값이 올바르지 않습니다.'
             continue
         if not isinstance(value, str):
             return '폼 값 형식이 올바르지 않습니다.'

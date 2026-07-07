@@ -14,6 +14,7 @@ from db import get_db
 from foms.services.erp_permissions import can_edit_erp, erp_edit_required
 from foms.services.erp_shipment_settings import (
     load_erp_shipment_settings,
+    normalize_drawing_manager_en,
     normalize_erp_shipment_workers,
     normalize_measurement_managers,
     save_erp_shipment_settings,
@@ -84,6 +85,9 @@ def api_erp_shipment_settings_save():
                     current[key] = cleaned
                 else:
                     current[key] = [str(value).strip() for value in payload[key] if str(value).strip()]
+        # drawing_manager_en: 한글명→영문명 dict (drawing_manager와 병렬 저장, DREW 표기용)
+        if "drawing_manager_en" in payload:
+            current["drawing_manager_en"] = normalize_drawing_manager_en(payload["drawing_manager_en"])
         if save_erp_shipment_settings(current):
             if "construction_workers" in payload:
                 try:

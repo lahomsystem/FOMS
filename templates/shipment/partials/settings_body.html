@@ -59,8 +59,9 @@
             <div class="card-body">
               <ul id="list-drawing_manager" class="list-group list-group-flush mb-2">
                 {% for v in (settings.drawing_manager or []) %}
-                <li class="list-group-item d-flex gap-2 align-items-center px-0">
-                  <input type="text" class="form-control form-control-sm setting-input" data-key="drawing_manager" value="{{ v }}" placeholder="도면담당자">
+                <li class="list-group-item d-flex gap-2 align-items-center px-0 drawing-manager-row">
+                  <input type="text" class="form-control form-control-sm setting-input setting-dm-name" data-key="drawing_manager" value="{{ v }}" placeholder="도면담당자">
+                  <input type="text" class="form-control form-control-sm setting-dm-en" value="{{ (settings.drawing_manager_en or {}).get(v, '') }}" placeholder="영문 이름 (DREW 표기)">
                   <button type="button" class="btn btn-sm btn-outline-danger btn-remove-setting" title="삭제">&times;</button>
                 </li>
                 {% endfor %}
@@ -162,8 +163,8 @@
 <script>
 (function() {
   function collectSettings() {
-    var out = { construction_time: [], drawing_manager: [], measurement_manager: [], construction_workers: [], site_extra: [] };
-    ['construction_time', 'drawing_manager', 'site_extra'].forEach(function(key) {
+    var out = { construction_time: [], drawing_manager: [], drawing_manager_en: {}, measurement_manager: [], construction_workers: [], site_extra: [] };
+    ['construction_time', 'site_extra'].forEach(function(key) {
       var ul = document.getElementById('list-' + key);
       if (!ul) return;
       ul.querySelectorAll('input.setting-input').forEach(function(inp) {
@@ -171,6 +172,19 @@
         if (v) out[key].push(v);
       });
     });
+    // drawing_manager: 이름(문자열 배열, 하위호환) + drawing_manager_en(한글→영문 dict)
+    var dmUl = document.getElementById('list-drawing_manager');
+    if (dmUl) {
+      dmUl.querySelectorAll('li').forEach(function(li) {
+        var nameInp = li.querySelector('.setting-dm-name');
+        var enInp = li.querySelector('.setting-dm-en');
+        var nameVal = nameInp ? nameInp.value.trim() : '';
+        if (!nameVal) return;
+        out.drawing_manager.push(nameVal);
+        var enVal = enInp ? enInp.value.trim() : '';
+        if (enVal) out.drawing_manager_en[nameVal] = enVal;
+      });
+    }
     // measurement_manager: {name, phone, sort_order} 객체 배열로 수집
     var mmUl = document.getElementById('list-measurement_manager');
     if (mmUl) {
@@ -244,6 +258,11 @@
         li.innerHTML = '<input type="text" class="form-control form-control-sm setting-input setting-mm-name" data-key="measurement_manager" value="" placeholder="담당자">' +
           '<input type="text" class="form-control form-control-sm setting-mm-phone" value="" placeholder="전화번호" inputmode="tel" autocomplete="tel">' +
           '<input type="number" class="form-control form-control-sm setting-mm-sort" value="" placeholder="순서" min="0" step="1" title="정렬순서 (숫자가 작을수록 위)">' +
+          '<button type="button" class="btn btn-sm btn-outline-danger btn-remove-setting" title="삭제">&times;</button>';
+      } else if (key === 'drawing_manager') {
+        li.className = 'list-group-item d-flex gap-2 align-items-center px-0 drawing-manager-row';
+        li.innerHTML = '<input type="text" class="form-control form-control-sm setting-input setting-dm-name" data-key="drawing_manager" value="" placeholder="도면담당자">' +
+          '<input type="text" class="form-control form-control-sm setting-dm-en" value="" placeholder="영문 이름 (DREW 표기)">' +
           '<button type="button" class="btn btn-sm btn-outline-danger btn-remove-setting" title="삭제">&times;</button>';
       } else {
         li.innerHTML = '<input type="text" class="form-control form-control-sm setting-input" data-key="' + key + '" value="" placeholder="' + (key === 'construction_time' ? '예: 10:00' : (key === 'site_extra' ? '추가 주소' : key === 'drawing_manager' ? '도면담당자' : '시공자')) + '">' +

@@ -44,6 +44,23 @@
   var ANNO_FONT = '"Malgun Gothic","맑은 고딕","Dotum","돋움",sans-serif';
   var _html2canvasPromise = null;
 
+  /* 하단 표 지오메트리(§6 v3) — 외곽 고정, 내부 경계는 form.layout 로 승격.
+     cols = A/B 열 내부 x 경계 8개[c1..c8], addr = 주소라벨 경계, rows = 내부 y 경계 3개[r1..r3]. */
+  var TBL_X0 = 40, TBL_X1 = 1440, TBL_Y0 = 899, TBL_Y1 = 1000;
+  var COL_MIN_GAP = 24, ROW_MIN_GAP = 18;
+  var LAYOUT_DEFAULT = { cols: [123, 211, 310, 399, 728, 820, 1227, 1330], addr: 89, rows: [924, 949, 974] };
+  var CELL_FONT_DEFAULT = 16, CELL_FONT_MIN = 12, CELL_FONT_MAX = 24;
+  /* 경계 드래그 정의: col 8 + addr 1 + row 3. span = 히트존 세로/가로 범위. */
+  var DIVIDERS = [
+    { kind: 'col', idx: 0, span: 'ab' }, { kind: 'col', idx: 1, span: 'ab' },
+    { kind: 'col', idx: 2, span: 'full' }, { kind: 'col', idx: 3, span: 'full' },
+    { kind: 'col', idx: 4, span: 'full' }, { kind: 'col', idx: 5, span: 'full' },
+    { kind: 'col', idx: 6, span: 'full' }, { kind: 'col', idx: 7, span: 'ab' },
+    { kind: 'addr' },
+    { kind: 'row', idx: 0, span: 'full' }, { kind: 'row', idx: 1, span: 'full' },
+    { kind: 'row', idx: 2, span: 'partial' }
+  ];
+
   /**
    * fetch → {status, data} 로 정규화. 파싱 실패도 안전 폴백.
    * @param {string} url
@@ -98,6 +115,36 @@
     return out;
   }
   function isShapeType(t) { return SHAPE_TYPES.indexOf(t) >= 0; }
+  function isFiniteNum(v) { return typeof v === 'number' && isFinite(v); }
+
+  /** 경계 배열 검증: 길이 정확 + 각 항목 숫자 + 최소간격 오름차순 + 외곽 여유. */
+  function validBounds(arr, len, lo, hi, gap) {
+    if (!Array.isArray(arr) || arr.length !== len) { return false; }
+    var prev = lo;
+    for (var i = 0; i < len; i++) {
+      if (!isFiniteNum(arr[i]) || arr[i] < prev + gap) { return false; }
+      prev = arr[i];
+    }
+    return prev <= hi - gap;
+  }
+
+  /** form.layout → 검증·폴백된 {cols[8], addr, rows[3]}. 이상치는 v3 기본값으로. */
+  function sanitizeLayout(raw) {
+    var out = { cols: LAYOUT_DEFAULT.cols.slice(), addr: LAYOUT_DEFAULT.addr, rows: LAYOUT_DEFAULT.rows.slice() };
+    if (raw && typeof raw === 'object') {
+      if (validBounds(raw.cols, 8, TBL_X0, TBL_X1, COL_MIN_GAP)) { out.cols = raw.cols.map(function (v) { return Math.round(v); }); }
+      if (validBounds(raw.rows, 3, TBL_Y0, TBL_Y1, ROW_MIN_GAP)) { out.rows = raw.rows.map(function (v) { return Math.round(v); }); }
+      var a = raw.addr;
+      if (isFiniteNum(a) && a >= TBL_X0 + COL_MIN_GAP && a <= out.cols[2] - COL_MIN_GAP) { out.addr = Math.round(a); }
+    }
+    return out;
+  }
+
+  /** form.cell_font → 12~24 정수(이상치는 16). */
+  function sanitizeCellFont(v) {
+    if (!isFiniteNum(v)) { return CELL_FONT_DEFAULT; }
+    return clamp(Math.round(v), CELL_FONT_MIN, CELL_FONT_MAX);
+  }
 
   /* ========================================================================
    * [2] state / history
@@ -126,6 +173,10 @@
   var lastStrokeWidth = 2;             // 다음 도형 기본 선 굵기
   var editingTextarea = null;          // 활성 텍스트 오버레이(있으면 편집 중)
   var suppressLogoHideUntil = 0;       // 로고 셀 열림 제스처의 같은 native click 억제 창(ms 타임스탬프)
+  var textJustOpenedUntil = 0;         // 새 텍스트 오버레이 보호창 — 직후 stage down의 handler-blur 방지
+  var lastDownTs = -1000;              // stage mousedown 이중발화 dedupe: 직전 처리 down의 timeStamp
+  var lastDownX = -9999;               // 직전 처리 down의 clientX
+  var lastDownY = -9999;               // 직전 처리 down의 clientY
 
   function currentSheet() { return state.sheets[current]; }
   function cloneSheet(s) { return JSON.parse(JSON.stringify(s)); }
@@ -140,18 +191,25 @@
   function cloneForm(d) {
     d = d || {};
     var f = {};
-    Object.keys(d).forEach(function (k) { if (k !== 'checks') { f[k] = (d[k] == null) ? '' : String(d[k]); } });
+    Object.keys(d).forEach(function (k) {
+      if (k === 'checks' || k === 'layout' || k === 'cell_font') { return; }
+      f[k] = (d[k] == null) ? '' : String(d[k]);
+    });
     var ck = d.checks || {};
     f.checks = {};
     CHECK_KEYS.forEach(function (k) { f.checks[k] = !!ck[k]; });
+    f.layout = sanitizeLayout(d.layout);
+    f.cell_font = sanitizeCellFont(d.cell_font);
     return f;
   }
 
-  function recordUndo() {
-    undoStack.push(cloneSheet(currentSheet()));
+  function pushUndoSnapshot(snap) {
+    undoStack.push(snap);
     if (undoStack.length > 50) { undoStack.shift(); }
     redoStack.length = 0;
   }
+
+  function recordUndo() { pushUndoSnapshot(cloneSheet(currentSheet())); }
 
   function undo() {
     if (!undoStack.length) { return; }
@@ -215,6 +273,9 @@
     els.toastHost = document.getElementById('dws-toast-host');
     els.mobileNotice = document.getElementById('dws-mobile-notice');
     els.modeHint = document.getElementById('dws-mode-hint');
+    els.fontDecBtn = document.getElementById('dws-btn-font-dec');
+    els.fontIncBtn = document.getElementById('dws-btn-font-inc');
+    els.dividers = document.getElementById('dws-dividers');
   }
 
   function formCells() { return Array.prototype.slice.call(els.form.querySelectorAll('[data-dws-form-key]')); }
@@ -228,6 +289,7 @@
     });
     renderChecks();
     renderLogo(form.logo);
+    applyFormLayout(currentSheet());
   }
 
   function renderChecks() {
@@ -281,6 +343,228 @@
       el.addEventListener('click', function () { toggleCheck(el.getAttribute('data-dws-check')); });
     });
     els.logoCell.addEventListener('click', function (e) { e.stopPropagation(); openLogoPopup(); });
+  }
+
+  /* ---- 표 레이아웃 렌더 엔진 (CSS 고정 → JS 주도, 단일 소스=state) -------- */
+  /** 표 셀·그리드라인 DOM 참조를 1회 캐시(정적 DOM, 시트 전환 시 재사용). */
+  function cacheLayoutEls() {
+    var f = els.form;
+    function g(cls) { return f.querySelector('.' + cls); }
+    els.lay = {
+      aL1: g('dws-c-a-l1'), aL2: g('dws-c-a-l2'), aL3: g('dws-c-a-l3'), aL4: g('dws-c-a-l4'),
+      aProduct: g('dws-c-a-product'), aL5: g('dws-c-a-l5'), aSite: g('dws-c-a-sitespec'),
+      aL6: g('dws-c-a-l6'), aSales: g('dws-c-a-sales'),
+      bCdate: g('dws-c-b-cdate'), bCname: g('dws-c-b-cname'), bPhone: g('dws-c-b-phone'),
+      bL1: g('dws-c-b-l1'), bColor: g('dws-c-b-color'), bL2: g('dws-c-b-l2'),
+      bW300: g('dws-c-b-w300'), bL3: g('dws-c-b-l3'), bMphone: g('dws-c-b-mphone'),
+      addrLabel: g('dws-c-cd-addrlabel'), addr: g('dws-c-cd-addr'),
+      handleLabel: g('dws-c-c-handlelabel'), handle: g('dws-c-c-handle'),
+      drawerLabel: g('dws-c-d-drawerlabel'), drawer: g('dws-c-d-drawer'),
+      etcLabel: g('dws-c-cd-etclabel'), misc: g('dws-c-cd-misc'), logo: g('dws-c-cd-logo'),
+      hAb: g('dws-hline-ab'), hBc: g('dws-hline-bc'), hCd: g('dws-hline-cd'),
+      vC1: g('dws-v-123'), vC2: g('dws-v-211'), vC3: g('dws-v-310'), vC4: g('dws-v-399'),
+      vC5: g('dws-v-728'), vC6: g('dws-v-820'), vC7: g('dws-v-1227'), vC8: g('dws-v-1330'),
+      vAddr: g('dws-v-89'),
+      cells: f.querySelectorAll('.dws-cell')
+    };
+  }
+
+  function setBox(el, left, top, width, height) {
+    if (!el) { return; }
+    el.style.left = left + 'px'; el.style.top = top + 'px';
+    el.style.width = width + 'px'; el.style.height = height + 'px';
+  }
+  function setHLine(el, left, top, width) {
+    if (!el) { return; }
+    el.style.left = left + 'px'; el.style.top = top + 'px';
+    el.style.width = width + 'px'; el.style.height = '1px';
+  }
+  function setVLine(el, left, top, height) {
+    if (!el) { return; }
+    el.style.left = left + 'px'; el.style.top = top + 'px';
+    el.style.width = '1px'; el.style.height = height + 'px';
+  }
+
+  /** 시트 layout+cell_font → 셀/그리드라인/폰트 style 직접 세팅 + 히트존 재배치. */
+  function applyFormLayout(sheet) {
+    if (!els.lay) { return; }
+    var form = (sheet || currentSheet()).form || {};
+    var L = sanitizeLayout(form.layout);
+    var font = sanitizeCellFont(form.cell_font);
+    var c = L.cols, addr = L.addr, r = L.rows;
+    var X0 = TBL_X0, X1 = TBL_X1, Y1 = TBL_Y1;
+    var aTop = TBL_Y0, aH = r[0] - TBL_Y0;
+    var bTop = r[0], bH = r[1] - r[0];
+    var cdTop = r[1], cdH = Y1 - r[1];
+    var cTop = r[1], cH = r[2] - r[1];
+    var dTop = r[2], dH = Y1 - r[2];
+    var q = els.lay;
+    // A행 (라벨/값 9칸)
+    setBox(q.aL1, X0, aTop, c[0] - X0, aH); setBox(q.aL2, c[0], aTop, c[1] - c[0], aH);
+    setBox(q.aL3, c[1], aTop, c[2] - c[1], aH); setBox(q.aL4, c[2], aTop, c[3] - c[2], aH);
+    setBox(q.aProduct, c[3], aTop, c[4] - c[3], aH); setBox(q.aL5, c[4], aTop, c[5] - c[4], aH);
+    setBox(q.aSite, c[5], aTop, c[6] - c[5], aH); setBox(q.aL6, c[6], aTop, c[7] - c[6], aH);
+    setBox(q.aSales, c[7], aTop, X1 - c[7], aH);
+    // B행
+    setBox(q.bCdate, X0, bTop, c[0] - X0, bH); setBox(q.bCname, c[0], bTop, c[1] - c[0], bH);
+    setBox(q.bPhone, c[1], bTop, c[2] - c[1], bH); setBox(q.bL1, c[2], bTop, c[3] - c[2], bH);
+    setBox(q.bColor, c[3], bTop, c[4] - c[3], bH); setBox(q.bL2, c[4], bTop, c[5] - c[4], bH);
+    setBox(q.bW300, c[5], bTop, c[6] - c[5], bH); setBox(q.bL3, c[6], bTop, c[7] - c[6], bH);
+    setBox(q.bMphone, c[7], bTop, X1 - c[7], bH);
+    // C/D행 (주소/기타/로고는 C+D 병합, 손잡이·서랍은 각 행)
+    setBox(q.addrLabel, X0, cdTop, addr - X0, cdH); setBox(q.addr, addr, cdTop, c[2] - addr, cdH);
+    setBox(q.handleLabel, c[2], cTop, c[3] - c[2], cH); setBox(q.handle, c[3], cTop, c[4] - c[3], cH);
+    setBox(q.drawerLabel, c[2], dTop, c[3] - c[2], dH); setBox(q.drawer, c[3], dTop, c[4] - c[3], dH);
+    setBox(q.etcLabel, c[4], cdTop, c[5] - c[4], cdH); setBox(q.misc, c[5], cdTop, c[6] - c[5], cdH);
+    setBox(q.logo, c[6], cdTop, X1 - c[6], cdH);
+    // 그리드 라인
+    setHLine(q.hAb, X0, r[0], X1 - X0); setHLine(q.hBc, X0, r[1], X1 - X0);
+    setHLine(q.hCd, c[2], r[2], c[4] - c[2]);
+    setVLine(q.vC1, c[0], TBL_Y0, r[1] - TBL_Y0); setVLine(q.vC2, c[1], TBL_Y0, r[1] - TBL_Y0);
+    setVLine(q.vC3, c[2], TBL_Y0, Y1 - TBL_Y0); setVLine(q.vC4, c[3], TBL_Y0, Y1 - TBL_Y0);
+    setVLine(q.vC5, c[4], TBL_Y0, Y1 - TBL_Y0); setVLine(q.vC6, c[5], TBL_Y0, Y1 - TBL_Y0);
+    setVLine(q.vC7, c[6], TBL_Y0, Y1 - TBL_Y0); setVLine(q.vC8, c[7], TBL_Y0, r[1] - TBL_Y0);
+    setVLine(q.vAddr, addr, r[1], Y1 - r[1]);
+    // 폰트(표 셀 전체 동일)
+    if (q.cells) { Array.prototype.forEach.call(q.cells, function (el) { el.style.fontSize = font + 'px'; }); }
+    if (els.fontDecBtn) { els.fontDecBtn.title = '표 글자 작게 (현재 ' + font + 'px)'; }
+    if (els.fontIncBtn) { els.fontIncBtn.title = '표 글자 크게 (현재 ' + font + 'px)'; }
+    positionDividers(L);
+  }
+
+  /* ---- 경계선 드래그(열/행 폭 조절) --------------------------------------- */
+  function positionDividers(L) {
+    if (!els.divEls) { return; }
+    L = L || sanitizeLayout(currentSheet().form.layout);
+    var c = L.cols, addr = L.addr, r = L.rows, r2 = r[1];
+    els.divEls.forEach(function (item) {
+      var d = item.meta, el = item.el;
+      if (d.kind === 'col') {
+        el.style.left = (c[d.idx] - 3.5) + 'px'; el.style.top = TBL_Y0 + 'px';
+        el.style.width = '7px'; el.style.height = ((d.span === 'ab') ? (r2 - TBL_Y0) : (TBL_Y1 - TBL_Y0)) + 'px';
+      } else if (d.kind === 'addr') {
+        el.style.left = (addr - 3.5) + 'px'; el.style.top = r2 + 'px';
+        el.style.width = '7px'; el.style.height = (TBL_Y1 - r2) + 'px';
+      } else {
+        var partial = (d.span === 'partial');
+        el.style.left = (partial ? c[2] : TBL_X0) + 'px'; el.style.top = (r[d.idx] - 3.5) + 'px';
+        el.style.width = (partial ? (c[4] - c[2]) : (TBL_X1 - TBL_X0)) + 'px'; el.style.height = '7px';
+      }
+    });
+  }
+
+  function dividerLogical(evt) {
+    var rect = els.dividers.getBoundingClientRect();
+    return { x: (evt.clientX - rect.left) / zoom, y: (evt.clientY - rect.top) / zoom };
+  }
+
+  /** 경계 이동을 제약(이웃·외곽 최소간격) 안에서 layout에 반영. logical={x}|{y}. */
+  function commitDividerMove(d, logical) {
+    var lay = currentSheet().form.layout;
+    if (!lay || !lay.cols) { lay = currentSheet().form.layout = sanitizeLayout(lay); }
+    var G = COL_MIN_GAP, GR = ROW_MIN_GAP;
+    if (d.kind === 'col') {
+      var i = d.idx;
+      var lo = (i === 0 ? TBL_X0 : lay.cols[i - 1]) + G;
+      var hi = (i === 7 ? TBL_X1 : lay.cols[i + 1]) - G;
+      if (i === 2) { lo = Math.max(lo, lay.addr + G); }   // c3 은 addr 오른쪽 유지
+      lay.cols[i] = Math.round(clamp(logical.x, lo, hi));
+    } else if (d.kind === 'addr') {
+      lay.addr = Math.round(clamp(logical.x, TBL_X0 + G, lay.cols[2] - G));
+    } else {
+      var j = d.idx;
+      var loR = (j === 0 ? TBL_Y0 : lay.rows[j - 1]) + GR;
+      var hiR = (j === 2 ? TBL_Y1 : lay.rows[j + 1]) - GR;
+      lay.rows[j] = Math.round(clamp(logical.y, loR, hiR));
+    }
+  }
+
+  function resetDivider(d) {
+    recordUndo();
+    if (d.kind === 'col') { commitDividerMove(d, { x: LAYOUT_DEFAULT.cols[d.idx] }); }
+    else if (d.kind === 'addr') { commitDividerMove(d, { x: LAYOUT_DEFAULT.addr }); }
+    else { commitDividerMove(d, { y: LAYOUT_DEFAULT.rows[d.idx] }); }
+    markDirty();
+    applyFormLayout(currentSheet());
+  }
+
+  function wireDivider(el, meta) {
+    var drag = null, rafPending = false, pendingLogical = null;
+    el.addEventListener('pointerdown', function (e) {
+      if (!canSave || annoMode !== 'select') { return; }
+      var now = Date.now();
+      if (now - (el.__dwsTapTs || 0) < 320) {   // 두 번째 탭 = 초기화(dblclick 합성 억제와 무관)
+        el.__dwsTapTs = 0; e.preventDefault(); e.stopPropagation();
+        resetDivider(meta); return;
+      }
+      el.__dwsTapTs = now;
+      e.preventDefault(); e.stopPropagation();
+      try { el.setPointerCapture(e.pointerId); } catch (_) { /* noop */ }
+      drag = { snap: cloneSheet(currentSheet()), moved: false, pid: e.pointerId };
+    });
+    el.addEventListener('pointermove', function (e) {
+      if (!drag || e.pointerId !== drag.pid) { return; }
+      e.preventDefault();
+      pendingLogical = dividerLogical(e);
+      drag.moved = true;
+      if (!rafPending) {
+        rafPending = true;
+        requestAnimationFrame(function () {
+          rafPending = false;
+          if (!drag || !pendingLogical) { return; }
+          commitDividerMove(meta, pendingLogical);
+          applyFormLayout(currentSheet());
+        });
+      }
+    });
+    function finish() {
+      if (!drag) { return; }
+      try { el.releasePointerCapture(drag.pid); } catch (_) { /* noop */ }
+      var moved = drag.moved, snap = drag.snap, last = pendingLogical;
+      drag = null; pendingLogical = null;
+      if (moved) {
+        if (last) { commitDividerMove(meta, last); }   // 마지막 프레임(rAF 미발화분) 확정
+        el.__dwsTapTs = 0; pushUndoSnapshot(snap); markDirty(); applyFormLayout(currentSheet());
+      }
+    }
+    el.addEventListener('pointerup', finish);
+    el.addEventListener('pointercancel', function () {
+      if (!drag) { return; }
+      try { el.releasePointerCapture(drag.pid); } catch (_) { /* noop */ }
+      var moved = drag.moved, snap = drag.snap;
+      drag = null; pendingLogical = null;
+      if (moved) { state.sheets[current] = snap; applyFormLayout(currentSheet()); }   // 취소 = 드래그 시작 상태 복원
+    });
+  }
+
+  function buildDividers() {
+    if (!els.dividers) { return; }
+    els.divEls = [];
+    DIVIDERS.forEach(function (meta) {
+      var el = document.createElement('div');
+      el.className = 'dws-divider dws-divider-' + (meta.kind === 'row' ? 'row' : 'col');
+      el.title = (meta.kind === 'row') ? '드래그: 행 높이 조절 · 더블클릭: 초기화' : '드래그: 열 너비 조절 · 더블클릭: 초기화';
+      wireDivider(el, meta);
+      els.dividers.appendChild(el);
+      els.divEls.push({ el: el, meta: meta });
+    });
+  }
+
+  /** 편집 불가·비select 모드에서 히트존 비활성(도형 드로잉·셀 편집 방해 금지). */
+  function updateDividerState() {
+    if (root) { root.classList.toggle('dws-dividers-off', (!canSave || annoMode !== 'select')); }
+  }
+
+  function bumpCellFont(delta) {
+    if (!canSave) { return; }
+    var form = currentSheet().form;
+    var cur = sanitizeCellFont(form.cell_font);
+    var next = clamp(cur + delta, CELL_FONT_MIN, CELL_FONT_MAX);
+    if (next === cur) { return; }
+    recordUndo();
+    form.cell_font = next;
+    markDirty();
+    applyFormLayout(currentSheet());
   }
 
   /* ========================================================================
@@ -644,6 +928,7 @@
     }
     updateModeHint(mode);
     syncSegActive();
+    updateDividerState();
   }
 
   /** 모드 무장 시 캔버스 상단 중앙 힌트 pill 표시/문구 갱신(select면 숨김). */
@@ -662,22 +947,40 @@
 
   function onStageMouseDown(e) {
     if (!canSave) { return; }
+    /* 같은 물리 클릭의 stage 'mousedown' 이중발화 dedupe(플랫폼별 pointer/mouse
+       이중 매핑 방어): 50ms·2px 내 중복 down은 같은 제스처로 보고 무시한다. */
+    var devt = e.evt || {};
+    var downTs = num(devt.timeStamp);
+    var downX = num(devt.clientX);
+    var downY = num(devt.clientY);
+    if (Math.abs(downTs - lastDownTs) < 50 && Math.abs(downX - lastDownX) < 2 && Math.abs(downY - lastDownY) < 2) { return; }
+    lastDownTs = downTs; lastDownX = downX; lastDownY = downY;
     if (editingTextarea) {
+      if (Date.now() < textJustOpenedUntil) { return; }   // 방금 연 textarea 보호(blur 없이 무시, 2중 방어)
       editingTextarea.blur();                 // 편집 중 바깥 클릭 = 동기 커밋(editingTextarea=null)
       if (annoMode === 'select') { return; }  // select 모드면 커밋만(같은 클릭으로 다음 액션 없음)
       // 텍스트/도형 모드면 아래로 계속 진행 — 같은 클릭이 다음 액션을 시작(좌표는 blur 후에도 유효)
     }
     if (annoMode === 'text') {
-      var pt = pointerLogical(e.evt);
+      /* [근본 수정] mousedown 브라우저 기본동작(비포커스 대상 클릭 → 기존 포커스 해제)이
+         핸들러에서 연 textarea를 즉시 blur→빈 텍스트 삭제한다(실마우스에서만 재현,
+         합성 이벤트는 기본동작 미실행). preventDefault로 포커스 이동을 차단한다. */
+      if (devt.preventDefault) { devt.preventDefault(); }
+      var pt = pointerLogical(devt);
       setAnnoMode('select');
       createTextAt(pt.x, pt.y);
       return;
     }
-    if (isShapeType(annoMode)) { startDrawShape(e); return; }
+    if (isShapeType(annoMode)) {
+      if (devt.preventDefault) { devt.preventDefault(); }  // 드로잉 제스처 중 네이티브 선택/드래그 기본동작 차단
+      startDrawShape(e);
+      return;
+    }
     /* select 모드 빈 영역 */
     if (e.target !== konvaStage) { return; }
-    if (e.evt.ctrlKey || e.evt.metaKey) {
-      var cp = pointerLogical(e.evt);
+    if (devt.ctrlKey || devt.metaKey) {
+      if (devt.preventDefault) { devt.preventDefault(); }  // Ctrl+클릭 텍스트 생성도 동일 보호
+      var cp = pointerLogical(devt);
       createTextAt(cp.x, cp.y);
       return;
     }
@@ -851,6 +1154,7 @@
     area.style.textAlign = (o.align === 'center') ? 'center' : 'left';
     document.body.appendChild(area);
     editingTextarea = area;
+    textJustOpenedUntil = Date.now() + 450;   // 보호창: 직후 stage down의 handler-blur 방지(2중 방어)
 
     function autoResize() { area.style.height = 'auto'; area.style.height = area.scrollHeight + 'px'; }
     autoResize();
@@ -1089,6 +1393,7 @@
     });
     if (els.fileInput) { els.fileInput.disabled = !canSave; }
     els.readonlyBanner.hidden = canSave;
+    updateDividerState();
   }
 
   /* ========================================================================
@@ -1131,10 +1436,15 @@
   function serializeForm(f) {
     f = f || {};
     var o = {};
-    Object.keys(f).forEach(function (k) { if (k !== 'checks') { o[k] = (f[k] == null) ? '' : String(f[k]); } });
+    Object.keys(f).forEach(function (k) {
+      if (k === 'checks' || k === 'layout' || k === 'cell_font') { return; }
+      o[k] = (f[k] == null) ? '' : String(f[k]);
+    });
     o.checks = {};
     var ck = f.checks || {};
     Object.keys(ck).forEach(function (k) { o.checks[k] = !!ck[k]; });
+    o.layout = sanitizeLayout(f.layout);
+    o.cell_font = sanitizeCellFont(f.cell_font);
     return o;
   }
 
@@ -1155,10 +1465,12 @@
     var d = defaults || {};
     Object.keys(d).forEach(function (k) { if (k !== 'checks') { base[k] = d[k]; } });
     saved = saved || {};
-    Object.keys(saved).forEach(function (k) { if (k !== 'checks') { base[k] = saved[k]; } });
+    Object.keys(saved).forEach(function (k) { if (k !== 'checks' && k !== 'layout' && k !== 'cell_font') { base[k] = saved[k]; } });
     var checks = {}, dk = d.checks || {}, sk = saved.checks || {};
     CHECK_KEYS.forEach(function (k) { checks[k] = (k in sk) ? !!sk[k] : !!dk[k]; });
     base.checks = checks;
+    base.layout = sanitizeLayout(saved.layout);
+    base.cell_font = sanitizeCellFont(saved.cell_font);
     return base;
   }
 
@@ -1468,6 +1780,10 @@
     document.getElementById('dws-btn-zoom-fit').addEventListener('click', fitZoom);
     els.zoomRange.addEventListener('input', function () { setZoom((parseInt(els.zoomRange.value, 10) || 100) / 100); });
 
+    // 표 글자 크기(A− / A+)
+    if (els.fontDecBtn) { els.fontDecBtn.addEventListener('click', function () { bumpCellFont(-1); }); }
+    if (els.fontIncBtn) { els.fontIncBtn.addEventListener('click', function () { bumpCellFont(1); }); }
+
     // 내보내기 메뉴
     var exportBtn = document.getElementById('dws-btn-export');
     exportBtn.addEventListener('click', function (e) { e.stopPropagation(); toggleMenu(els.exportMenu); });
@@ -1560,6 +1876,13 @@
         if (annoMode !== 'select') { setAnnoMode('select'); } else { deselect(); }
         return;
       }
+      /* 'T' 단축키(수정자 없음, 한글 자판은 code 기준): 텍스트 모드 무장.
+         Ctrl+T는 Chrome 예약 단축키라 웹페이지가 가로챌 수 없어 무수정자 T로 대체. */
+      if (canSave && !meta && !e.altKey && (e.key === 't' || e.key === 'T' || e.code === 'KeyT')) {
+        e.preventDefault();
+        setAnnoMode('text');
+        return;
+      }
       if (meta && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); if (e.shiftKey) { redo(); } else { undo(); } return; }
       if (meta && (e.key === 'y' || e.key === 'Y')) { e.preventDefault(); redo(); return; }
       if (!selected) { return; }
@@ -1615,6 +1938,8 @@
       return;
     }
     createKonva();
+    cacheLayoutEls();
+    buildDividers();
     wireStatic();
     load();
   }

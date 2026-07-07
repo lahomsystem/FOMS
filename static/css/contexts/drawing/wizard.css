@@ -952,6 +952,45 @@ html, body {
 .dws-mobile-notice-box a { text-decoration: none; }
 
 /* ============================================================================
+   표 글자 크기 컨트롤 (앱바) + 표 경계선 드래그 히트존
+   ============================================================================ */
+/* ---- 표 글자 크기(A− / A+) --------------------------------------------- */
+.dws-fontctl { display: inline-flex; align-items: center; gap: 2px; }
+.dws-fontctl .dws-btn {
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  justify-content: center;
+}
+
+/* ---- 표 경계선 드래그 히트존(열/행 폭 조절) -----------------------------
+   Konva 캔버스(z 10) 위에 얹어 히트존만 이벤트 수신. 컨테이너는 통과시키고
+   7px 히트존만 pointer-events:auto → 빈 영역·셀은 캔버스 passthrough 유지.
+   .dws-ui 라 내보내기(.dws-exporting) 시 display:none 으로 PNG 에 미포함. */
+.dws-dividers {
+  position: absolute;
+  inset: 0;
+  z-index: 11;
+  pointer-events: none;
+}
+.dws-divider {
+  position: absolute;
+  pointer-events: auto;
+  background: transparent;
+  touch-action: none;
+  transition: background 100ms ease-out;
+}
+.dws-divider-col { cursor: col-resize; }
+.dws-divider-row { cursor: row-resize; }
+.dws-divider-col:hover,
+.dws-divider-row:hover { background: rgba(28, 98, 214, 0.30); }
+/* 편집 불가·비select(그리기) 모드에서는 비활성 — 도형 드로잉·셀 편집 방해 금지 */
+.dws-dividers-off .dws-divider { pointer-events: none; }
+
+/* ============================================================================
    내보내기 모드 — 에디터 chrome 숨김(스테이지 내부 .dws-ui 만 영향)
    ============================================================================ */
 .dws-exporting .dws-ui { display: none !important; }

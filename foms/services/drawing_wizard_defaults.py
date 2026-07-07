@@ -13,6 +13,7 @@ from __future__ import annotations
 from typing import Any
 
 from foms.services.erp_display import _normalize_date_to_yyyymmdd
+from foms.services.erp_shipment_settings import load_erp_shipment_settings
 from foms.services.erp_template_filters import (
     format_phone_filter,
     item_spec_w300_display,
@@ -135,6 +136,52 @@ def _resolve_logo(manager_name: str) -> str:
     return "haud"
 
 
+def _first_drawing_assignee_name(sd: dict[str, Any]) -> str:
+    """``sd.drawing_assignees`` 첫 유효 담당자의 한글명(없으면 빈 문자열).
+
+    원소는 ``{"id", "name"}`` dict가 표준이나 문자열 형태도 방어적으로 허용한다.
+    """
+    assignees = sd.get("drawing_assignees") or []
+    if not isinstance(assignees, list):
+        return ""
+    for assignee in assignees:
+        if isinstance(assignee, dict):
+            name = _as_str(assignee.get("name")).strip()
+        else:
+            name = _as_str(assignee).strip()
+        if name:
+            return name
+    return ""
+
+
+def _resolve_drew(sd: dict[str, Any], current_user: Any) -> str:
+    """DREW 셀 기본값을 폴백 체인으로 결정한다.
+
+    우선순위: (1) 도면 담당자 한글명→설정 영문명(``drawing_manager_en``) 매핑,
+    (2) 매핑이 없으면 담당자 한글명, (3) 담당자 미지정이면 ``current_user.name``.
+
+    담당자가 지정돼 있을 때만 설정 로더를 호출한다(레거시 경로 불필요 I/O 방지).
+    ``load_erp_shipment_settings`` 로 로드한 설정을 재사용하며 신규 I/O를 만들지 않는다.
+
+    Args:
+        sd: dict로 정규화된 ``structured_data``.
+        current_user: 현재 사용자(User) 또는 None.
+
+    Returns:
+        DREW 셀에 채울 문자열(항상 str, None은 빈 문자열).
+    """
+    assignee_name = _first_drawing_assignee_name(sd)
+    if not assignee_name:
+        return _as_str(getattr(current_user, "name", None))
+    settings = load_erp_shipment_settings() or {}
+    en_map = settings.get("drawing_manager_en") or {}
+    if isinstance(en_map, dict):
+        english = _as_str(en_map.get(assignee_name)).strip()
+        if english:
+            return english
+    return assignee_name
+
+
 def build_wizard_defaults(order: Any, sd: dict[str, Any], current_user: Any) -> dict[str, Any]:
     """주문 데이터로 도면 마법사 폼 기본값(자동 채움)을 계산한다.
 
@@ -144,7 +191,8 @@ def build_wizard_defaults(order: Any, sd: dict[str, Any], current_user: Any) -> 
     Args:
         order: Order ORM 인스턴스(``erp_construction_date`` / ``manager_name`` 참조).
         sd: 이미 dict로 정규화된 ``structured_data``.
-        current_user: 현재 사용자(User) 또는 None. ``drew`` 기본값에 사용.
+        current_user: 현재 사용자(User) 또는 None. ``drew`` 폴백 최종값
+            (도면 담당자 미지정 시)에 사용. 담당자 지정 시엔 설정 영문명 매핑이 우선.
 
     Returns:
         폼 키→값(str) dict. ``checks`` 만 ``dict[str, bool]``.
@@ -175,7 +223,7 @@ def build_wizard_defaults(order: Any, sd: dict[str, Any], current_user: Any) -> 
         "sales_manager": sales_manager,
         "manager_phone": _as_str(manager.get("phone")) or "-",
         "logo": _resolve_logo(sales_manager),
-        "drew": _as_str(getattr(current_user, "name", None)),
+        "drew": _resolve_drew(sd, current_user),
         "page_no": "-",
         "checks": {key: False for key in _WIZARD_CHECK_KEYS},
     }

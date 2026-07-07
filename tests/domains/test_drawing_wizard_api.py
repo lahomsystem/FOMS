@@ -498,3 +498,68 @@ def test_put_rejects_non_numeric_rotation(client):
     resp = _put_state(client, order_id, [obj])
 
     assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# 표 레이아웃(열/행 폭 조절) + 표 글자 크기 승격 값(form.layout / form.cell_font)
+# ---------------------------------------------------------------------------
+
+
+def _state_with_form(form):
+    return {
+        "v": 1,
+        "sheets": [{"id": "s-1", "name": "도면 1", "form": form, "objects": []}],
+    }
+
+
+def test_put_then_get_round_trips_form_layout_and_cell_font(client):
+    """form.layout(cols/addr/rows) + cell_font 정상 저장 왕복(값 보존)."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    layout = {
+        "cols": [130, 220, 320, 410, 730, 830, 1230, 1335],
+        "addr": 95,
+        "rows": [925, 950, 975],
+    }
+    form = {"customer_name": "서으뜸", "checks": {}, "layout": layout, "cell_font": 20}
+
+    put_resp = client.put(
+        f"/api/orders/{order_id}/drawing-wizard",
+        json={"state": _state_with_form(form), "base_updated_at": None},
+    )
+    assert put_resp.status_code == 200, put_resp.get_json()
+
+    saved = client.get(f"/api/orders/{order_id}/drawing-wizard").get_json()["data"]["state"]
+    saved_form = saved["sheets"][0]["form"]
+    assert saved_form["layout"] == layout
+    assert saved_form["cell_font"] == 20
+
+
+def test_put_rejects_non_numeric_layout_cols(client):
+    """layout.cols 에 문자가 섞이면 400."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    form = {"layout": {"cols": ["x", 220, 320], "addr": 95, "rows": [925, 950, 975]}}
+
+    resp = client.put(
+        f"/api/orders/{order_id}/drawing-wizard",
+        json={"state": _state_with_form(form), "base_updated_at": None},
+    )
+
+    assert resp.status_code == 400
+
+
+def test_put_rejects_out_of_range_cell_font(client):
+    """cell_font 가 허용 범위(10~28)를 벗어나면 400."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+
+    resp = client.put(
+        f"/api/orders/{order_id}/drawing-wizard",
+        json={"state": _state_with_form({"cell_font": 99}), "base_updated_at": None},
+    )
+
+    assert resp.status_code == 400
