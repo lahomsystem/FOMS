@@ -226,6 +226,67 @@ def _build_handoff_thread(history: list[Mapping[str, Any]]) -> list[dict[str, An
     return thread
 
 
+def build_drawing_pending_box(db: Any, *, cap: int = 200) -> list[dict[str, Any]]:
+    """전달 대기함 집계: 목록 필터·페이지·mine 스코프와 무관하게, 도면 마법사 '전달 대기'
+    (``structured_data['drawing_wizard']['pending']``)가 남아있는 활성 ERP 주문을 모은다.
+
+    성능: ``drawing_wizard`` 키가 있는 주문만 후보로 좁힌 뒤(마법사를 쓴 주문은 소수)
+    파이썬에서 pending 길이를 확인한다. 단일 쿼리라 행당 추가 쿼리가 없으며(N+1 예산 계약),
+    최신 pending 시각(``at``) 내림차순으로 정렬한다.
+
+    Args:
+        db: SQLAlchemy 세션.
+        cap: 후보 상한(대기 주문 폭주 대비 안전 캡).
+
+    Returns:
+        ``{order_id, customer_name, count, sheet_names(최대 3), sheet_names_extra, updated_at}``
+        딕셔너리 리스트.
+    """
+    candidates = (
+        db.query(Order)
+        .filter(
+            Order.active_filter(),
+            Order.is_erp_order.is_(True),
+            # 대기함은 마법사 사용 주문(소수)만 후보로 좁히는 존재 필터. flat sync 컬럼 대안은
+            # 동결 범위(마법사/전달 API) 수정을 요구하므로 좁힌 JSONB 존재 필터로 처리한다.  # perf-ok
+            Order.structured_data['drawing_wizard'].as_string().isnot(None),
+        )
+        .with_entities(Order.id, Order.customer_name, Order.structured_data)
+        .order_by(Order.id.desc())
+        .limit(cap)
+        .all()
+    )
+    box: list[dict[str, Any]] = []
+    for order_id, order_customer_name, sd_raw in candidates:
+        sd = _ensure_dict(sd_raw)
+        pending = ((sd.get('drawing_wizard') or {}).get('pending')) or {}
+        if not isinstance(pending, dict):
+            continue
+        entries = [
+            e for e in pending.values()
+            if isinstance(e, dict) and (e.get('key') or '').strip()
+        ]
+        if not entries:
+            continue
+        sheet_names = [str(e.get('sheet_name') or e.get('filename') or '도면') for e in entries]
+        ats = [str(e.get('at') or '') for e in entries if e.get('at')]
+        customer_name = (
+            (((sd.get('parties') or {}).get('customer') or {}).get('name'))
+            or order_customer_name
+            or '-'
+        )
+        box.append({
+            'order_id': int(order_id),
+            'customer_name': customer_name,
+            'count': len(entries),
+            'sheet_names': sheet_names[:3],
+            'sheet_names_extra': max(0, len(sheet_names) - 3),
+            'updated_at': max(ats) if ats else '',
+        })
+    box.sort(key=lambda b: (b.get('updated_at') or '', b.get('order_id')), reverse=True)
+    return box
+
+
 @erp_drawing_workbench_bp.route('/drawing-workbench')
 @login_required
 def erp_drawing_workbench_dashboard():
@@ -494,6 +555,10 @@ def erp_drawing_workbench_dashboard():
     start_idx = (page - 1) * per_page
     rows = rows[start_idx:start_idx + per_page]
 
+    # 전달 대기함: 목록 필터·페이지·mine 스코프와 무관하게 pending 도면이 남은 주문 집계(단일 쿼리).
+    pending_box = build_drawing_pending_box(db)
+    pending_box_count = len(pending_box)
+
     template_name = (
         'drawing/partials/workbench_dashboard_fragment.html'
         if wants_erp_shell_tab_body(request)
@@ -504,6 +569,8 @@ def erp_drawing_workbench_dashboard():
             template_name,
             rows=rows,
             stats=stats,
+            pending_box=pending_box,
+            pending_box_count=pending_box_count,
             pagination={'page': page, 'per_page': per_page, 'total_count': total_count, 'total_pages': total_pages, 'has_prev': page > 1, 'has_next': page < total_pages},
             sort_by=request.args.get('sort') or '',
             filters={'q': q_raw, 'status': status_filter, 'mine': '1' if mine_only else '', 'unread': '1' if unread_only else '', 'due_today': '1' if due_today_only else '', 'assignee': assignee_filter_raw},

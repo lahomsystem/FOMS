@@ -79,6 +79,67 @@
     </div>
   </div>
 
+  <!-- pending 보관함 카드: 마법사 [저장]으로 보관된 도면이 남은 주문을 필터·페이지 무관하게 모아 일괄 전송 -->
+  {% if pending_box %}
+  <div class="erp-pro-card mb-2 dw-pending-box">
+    <div class="erp-pro-card__header py-2 d-flex align-items-center justify-content-between flex-wrap gap-2">
+      <h3 class="erp-pro-card__title mb-0">
+        <i class="fas fa-clock text-warning"></i>
+        전달 대기함
+        <span class="badge bg-warning text-dark ms-2">총 {{ pending_box_count }}건</span>
+      </h3>
+      {% if can_edit_erp %}
+      <div class="d-flex gap-2">
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="dw-pending-select-all">
+          <i class="fas fa-check-double"></i> 전체 선택
+        </button>
+        <button type="button" class="btn btn-sm btn-success" id="dw-pending-transfer-selected">
+          <i class="fas fa-paper-plane"></i> 선택 전송
+        </button>
+      </div>
+      {% endif %}
+    </div>
+    <div class="erp-pro-card__body">
+      <p class="text-muted small mb-2">
+        마법사에서 저장한 <strong>전달 대기 도면</strong>이 있는 주문입니다. 목록 필터·페이지와 무관하게 모두 표시됩니다.
+      </p>
+      <div class="dw-pending-list list-group">
+        {% for p in pending_box %}
+        <div class="dw-pending-item list-group-item d-flex align-items-center gap-2 flex-wrap"
+             data-order-id="{{ p.order_id }}" data-pending-count="{{ p.count }}">
+          {% if can_edit_erp %}
+          <input type="checkbox" class="form-check-input dw-pending-check flex-shrink-0"
+                 value="{{ p.order_id }}" data-pending="{{ p.count }}" aria-label="주문 {{ p.order_id }} 선택">
+          {% endif %}
+          <div class="flex-grow-1">
+            <div class="fw-bold">
+              {{ p.customer_name }}
+              <span class="text-muted small ms-1">#{{ p.order_id }}</span>
+              <span class="badge bg-primary ms-1" title="전달 대기 도면 장수">{{ p.count }}장</span>
+            </div>
+            <div class="small text-muted mt-1">
+              {% for name in p.sheet_names %}<span class="badge bg-light text-dark border me-1">{{ name }}</span>{% endfor %}
+              {% if p.sheet_names_extra %}<span class="small text-muted">외 {{ p.sheet_names_extra }}장</span>{% endif %}
+            </div>
+          </div>
+          <a class="btn btn-sm btn-outline-primary"
+             href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=p.order_id) }}?tab=timeline"
+             title="창구 열기">
+            <i class="fas fa-door-open"></i><span class="d-none d-md-inline ms-1">열기</span>
+          </a>
+          {% if can_edit_erp %}
+          <button type="button" class="btn btn-sm btn-success dw-pending-transfer-one"
+                  data-order-id="{{ p.order_id }}" data-pending="{{ p.count }}">
+            <i class="fas fa-paper-plane"></i> 전송
+          </button>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   {% if erp_mobile_v2_enabled %}
   <section class="foms-shell-body foms-drawing-mobile-dashboard d-lg-none" aria-label="도면 작업 큐">
     {% include 'drawing/partials/drawing_mobile_controls.html' %}

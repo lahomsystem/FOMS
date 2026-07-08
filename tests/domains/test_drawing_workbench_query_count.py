@@ -31,11 +31,13 @@ from models import Order, OrderAttachment, OrderEvent, User
 
 _SEED_BASE = datetime.datetime(2026, 6, 1, 9, 0, 0)
 
-# warmup 후 격리 실측: small(4건)=3, big(12건)=3 → delta=0 (완전 배치, per-row 없음).
+# warmup 후 격리 실측: small(4건)=4, big(12건)=4 → delta=0 (완전 배치, per-row 없음).
+# (전달 대기함 집계 build_drawing_pending_box 가 목록 필터·페이지 무관 단일 쿼리 1개를 상수로
+#  추가한다 — pending 주문 수·행 수와 무관하므로 delta 는 그대로 0.)
 # 여유 +2로 예산 2.
 ALLOWED_DELTA = 2
-# 절대 상한: 현 실측 big(3) + 30% ≈ 4.
-ABS_QUERY_CAP = 4
+# 절대 상한: 현 실측 big(4) + 여유 1 = 5.
+ABS_QUERY_CAP = 5
 
 
 @pytest.fixture(autouse=True)

@@ -9,6 +9,8 @@
   var singleAssignOrderId = 0;
   var filterSubmitTimeout = null;
   var initAbortController = null;
+  // 전송 모달이 소비할 대상 주문 [{id, pending}]. 테이블 일괄전송·전달 대기함 둘 다 여기에 실어 공유한다.
+  var pendingTransferOrders = null;
 
   function isDrawingWorkbenchDashboard() {
     return !!document.querySelector('#main-content .dw-process-map, .dw-process-map');
@@ -74,32 +76,40 @@
       });
   }
 
-  function openBatchTransferModal() {
-    var selectedIds = getSelectedOrderIds();
-    if (selectedIds.length === 0) {
-      alert('주문을 선택해주세요.');
-      return;
-    }
-    var pendingOrders = getSelectedPendingOrders();
-    if (pendingOrders.length === 0) {
-      alert('선택한 주문 중 전달 대기 도면이 있는 주문이 없습니다.');
-      return;
-    }
+  function collectPendingBoxSelected() {
+    // 전달 대기함 카드에서 체크된 주문 [{id, pending}] (pending>0 만).
+    return Array.from(document.querySelectorAll('.dw-pending-check:checked'))
+      .map(function (cb) {
+        return {
+          id: parseInt(cb.value, 10),
+          pending: parseInt(cb.dataset.pending || '0', 10) || 0,
+        };
+      })
+      .filter(function (o) {
+        return o.pending > 0;
+      });
+  }
 
+  function openTransferModalFor(orders, extraSummary) {
+    // 전송 대상 [{id, pending}] 을 실어 공용 전송 모달을 연다. 실행부(runner)는 pendingTransferOrders 를 읽는다.
+    if (!orders || orders.length === 0) {
+      alert('전달 대기 도면이 있는 주문이 없습니다.');
+      return;
+    }
     var modalEl = document.getElementById('batchTransferModal');
     if (!modalEl || !window.bootstrap) {
       return;
     }
+    pendingTransferOrders = orders;
 
     var summaryEl = document.getElementById('batch-transfer-summary');
     if (summaryEl) {
-      var totalPending = pendingOrders.reduce(function (acc, o) {
+      var totalPending = orders.reduce(function (acc, o) {
         return acc + o.pending;
       }, 0);
-      var skipped = selectedIds.length - pendingOrders.length;
-      var text = '전송 대상 ' + pendingOrders.length + '건 (도면 ' + totalPending + '장)';
-      if (skipped > 0) {
-        text += ' · 대기 없음 ' + skipped + '건 제외';
+      var text = '전송 대상 ' + orders.length + '건 (도면 ' + totalPending + '장)';
+      if (extraSummary) {
+        text += extraSummary;
       }
       summaryEl.textContent = text;
     }
@@ -111,6 +121,21 @@
     }
 
     window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
+  }
+
+  function openBatchTransferModal() {
+    var selectedIds = getSelectedOrderIds();
+    if (selectedIds.length === 0) {
+      alert('주문을 선택해주세요.');
+      return;
+    }
+    var pendingOrders = getSelectedPendingOrders();
+    if (pendingOrders.length === 0) {
+      alert('선택한 주문 중 전달 대기 도면이 있는 주문이 없습니다.');
+      return;
+    }
+    var skipped = selectedIds.length - pendingOrders.length;
+    openTransferModalFor(pendingOrders, skipped > 0 ? ' · 대기 없음 ' + skipped + '건 제외' : '');
   }
 
   async function openBatchAssignModal() {
@@ -460,7 +485,8 @@
     var runTransferBtn = document.getElementById('btn-run-batch-transfer');
     if (runTransferBtn) {
       runTransferBtn.addEventListener('click', async function () {
-        var pendingOrders = getSelectedPendingOrders();
+        // 모달을 연 진입점(테이블 일괄전송 or 전달 대기함)이 실어둔 대상. 없으면 테이블 선택으로 폴백.
+        var pendingOrders = pendingTransferOrders || getSelectedPendingOrders();
         if (pendingOrders.length === 0) {
           alert('전달 대기 도면이 있는 주문이 없습니다.');
           return;
@@ -519,6 +545,43 @@
         window.location.reload();
       }, { signal: signal });
     }
+
+    var pendingSelectAllBtn = document.getElementById('dw-pending-select-all');
+    if (pendingSelectAllBtn) {
+      pendingSelectAllBtn.addEventListener('click', function () {
+        var checks = document.querySelectorAll('.dw-pending-check');
+        var allChecked = checks.length > 0 && Array.from(checks).every(function (cb) {
+          return cb.checked;
+        });
+        checks.forEach(function (cb) {
+          cb.checked = !allChecked;
+        });
+      }, { signal: signal });
+    }
+
+    var pendingTransferSelectedBtn = document.getElementById('dw-pending-transfer-selected');
+    if (pendingTransferSelectedBtn) {
+      pendingTransferSelectedBtn.addEventListener('click', function () {
+        var orders = collectPendingBoxSelected();
+        if (orders.length === 0) {
+          alert('전송할 주문을 선택해주세요.');
+          return;
+        }
+        openTransferModalFor(orders, '');
+      }, { signal: signal });
+    }
+
+    document.querySelectorAll('.dw-pending-transfer-one').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = parseInt(btn.dataset.orderId, 10);
+        var pending = parseInt(btn.dataset.pending || '0', 10) || 0;
+        if (!id || pending <= 0) {
+          alert('전달 대기 도면이 없습니다.');
+          return;
+        }
+        openTransferModalFor([{ id: id, pending: pending }], '');
+      }, { signal: signal });
+    });
 
     document.querySelectorAll('.mobile-order-card[data-href]').forEach(function (card) {
       function navigateToCard() {
