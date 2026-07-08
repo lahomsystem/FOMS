@@ -68,6 +68,8 @@
 
 `deploy` / `main` push **직전** 수동 실행: `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` (APP_OK, harness verify, SSOT lint, CI 자주 실패 pytest subset, ~2–5분). **UI/CSS/템플릿 변경 시** 기본 게이트는 PNG visual regression이 아니라 **`test_p1_mockup_*` 구조 테스트**(subset 포함). win32 PNG `--update-snapshots`·`-Visual`은 UI 안정기에만 선택. 머지 직전 전체 pytest: `-Full` (느림). **git push 시 자동 실행 아님** — GitHub Actions `test` job이 담당(PNG visual job 비활성). 상세: [`docs/guides/PRE_PUSH_SMOKE.md`](docs/guides/PRE_PUSH_SMOKE.md).
 
+- **push 후 CI green 확인이 "push 완료"의 정의다(모든 도구·모델 공통)**: `deploy`/`production` 반영 후 `python tools/harness/ci_watch.py`(기본 HEAD·deploy; production은 `... HEAD production`)로 CI 완료를 감시한다. exit 0=green, **exit 1=코드 실패 → 근본 수정 → pre_push_smoke → 재푸시까지가 한 작업 단위**, exit 2=자동 재실행(재폴링), exit 3=gh 미설치/미인증. Claude Code는 push 감지 시 `post_push_watch` 훅이, Cursor는 `afterShellExecution`+`afterAgentResponse` 훅이 이 실행을 자동 리마인드한다.
+
 ## 브랜치·푸시 권한 (절대 규칙)
 
 - **기본 푸시 대상은 `deploy`(스테이징, lahom-dev)** 다. 흐름은 `deploy`(스테이징) → 사용자 검증·승인 → `production`(운영) 승격이다.

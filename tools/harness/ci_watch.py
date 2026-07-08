@@ -1,0 +1,420 @@
+#!/usr/bin/env python
+"""CI 감시·자동 복구 게이트 (크로스플랫폼 정본).
+
+`scripts/ops/ci_watch_recover.sh` 로직을 Python 으로 이식해 3-도구(Claude Code·
+Cursor·기타 CLI) 공통으로 결정적 배선한다. push 후 대상 커밋의 모든 GitHub
+Actions 워크플로 완료를 폴링하고, 실패를 분류해 자동 복구하거나 코드 실패
+로그를 출력한다.
+
+실패 분류·대응:
+  - perf-gate "wait_staging_deploy 타임아웃": Railway 배포가 CI 대기보다 느렸던 것
+    → healthz commit==SHA 확인되면 자동 재실행(배포 완료 후 통과)
+  - perf-gate TTFB/render tail flaky(근소 초과): 네트워크 tail → 자동 재실행 1회
+  - perf-gate bytes 초과: 데이터 가변 탭이면 코드 회귀 아님 → perf_budgets.json
+    관측×1.3 보정값을 "제안"(적용은 사람 확인 — 무한 자동 상향은 회귀 은폐라 금지)
+  - Harness/FOMS CI 실패: 코드 문제 → 실패 스텝·로그 tail 출력(사람/에이전트 수정)
+
+종료 코드 계약:
+    0  전부 green
+    1  코드 실패(에이전트가 근본 수정 후 재푸시 필요) — 실패 워크플로/잡/로그 tail 출력
+    2  자동 재실행 발동(재폴링 필요). --until-final(기본)이면 내부 재폴링 후 0/1 로 수렴
+    3  gh CLI 부재/미인증 — 게이트 불가 사유 출력(fail-open 아님)
+
+사용:
+    python tools/harness/ci_watch.py [SHA] [BRANCH] [--no-until-final] [--healthz URL]
+      SHA    기본 = 현재 HEAD
+      BRANCH 기본 = deploy
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import subprocess
+import sys
+import time
+from typing import Callable
+
+DEFAULT_BRANCH = "deploy"
+DEFAULT_HEALTHZ = "https://lahom-dev.up.railway.app/healthz"
+
+# 폴링 파라미터 (bash 원본과 동일: 30s 초기 대기 + 20s 간격 × 최대 120회 ≈ 40분)
+INITIAL_WAIT_SEC = 30
+POLL_INTERVAL_SEC = 20
+MAX_POLLS = 120
+
+# --until-final 안전 상한: 자동 재실행/배포 대기 라운드 최대치(무한 루프 차단)
+MAX_RERUN_ROUNDS = 3
+
+# gh subprocess sentinel 반환 코드
+_GH_NOT_FOUND = 127
+_GH_TIMEOUT = 124
+
+# 분류 액션 → 종료 코드 매핑용 버킷
+_ACTION_NEEDS_FIX = frozenset({"code_fail", "budget", "unclassified"})
+_ACTION_RERUN = frozenset({"rerun", "wait_deploy"})
+
+
+# ---------------------------------------------------------------------------
+# subprocess seam (테스트에서 monkeypatch 하는 유일한 외부 호출 지점)
+# ---------------------------------------------------------------------------
+def run_gh(args: list[str], timeout: int = 90) -> tuple[int, str, str]:
+    """`gh` CLI 를 실행해 (returncode, stdout, stderr) 를 반환한다.
+
+    파라미터:
+        args: `gh` 뒤에 붙일 인자 리스트.
+        timeout: 초 단위 타임아웃.
+    반환: (returncode, stdout, stderr). gh 미설치는 (127, "", ...),
+          타임아웃은 (124, "", ...) 로 정규화한다(예외를 밖으로 던지지 않음).
+    """
+    try:
+        proc = subprocess.run(
+            ["gh", *args],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+        )
+        return proc.returncode, proc.stdout or "", proc.stderr or ""
+    except FileNotFoundError:
+        return _GH_NOT_FOUND, "", "gh CLI not found on PATH"
+    except subprocess.TimeoutExpired:
+        return _GH_TIMEOUT, "", f"gh timed out after {timeout}s"
+
+
+def current_head_sha() -> str:
+    """`git rev-parse HEAD` 로 현재 HEAD SHA 를 반환한다(실패 시 빈 문자열)."""
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=15,
+        )
+        return proc.stdout.strip() if proc.returncode == 0 else ""
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return ""
+
+
+def check_healthz(url: str, sha_short: str, timeout: int = 10) -> bool:
+    """healthz 엔드포인트의 commit 이 sha_short 로 시작하면 True(배포 완료 확인)."""
+    import urllib.request  # 지연 import: 폴링 hot path 밖
+
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as resp:  # noqa: S310 - 고정 내부 URL
+            data = json.loads(resp.read().decode("utf-8", "replace"))
+        return str(data.get("commit", "")).startswith(sha_short)
+    except Exception:  # noqa: BLE001 - 네트워크/파싱 실패는 "미완"으로 안전 처리
+        return False
+
+
+# ---------------------------------------------------------------------------
+# 전제 조건: gh 준비 상태 (fail-open 아님 — 게이트 불가 사유를 명시)
+# ---------------------------------------------------------------------------
+def gh_ready() -> tuple[bool, str]:
+    """gh CLI 설치·인증 상태를 확인한다.
+
+    반환: (준비됨, 사유). 준비 안 됨이면 사유 문자열에 해결 안내를 담는다.
+    """
+    rc, _out, _err = run_gh(["auth", "status"], timeout=25)
+    if rc == _GH_NOT_FOUND:
+        return False, "gh CLI 미설치 — https://cli.github.com 설치 후 `gh auth login`"
+    if rc == _GH_TIMEOUT:
+        return False, "gh CLI 응답 타임아웃 — 네트워크 확인 후 재시도"
+    if rc != 0:
+        return False, "gh CLI 미인증 — `gh auth login` 후 재시도"
+    return True, ""
+
+
+# ---------------------------------------------------------------------------
+# 워크플로 조회·폴링
+# ---------------------------------------------------------------------------
+def list_runs(branch: str, sha_short: str) -> list[dict]:
+    """대상 브랜치의 최근 run 중 headSha 가 sha_short 로 시작하는 것만 반환한다."""
+    rc, out, _err = run_gh(
+        [
+            "run", "list", "--branch", branch, "--limit", "8",
+            "--json", "headSha,status,conclusion,databaseId,workflowName",
+        ]
+    )
+    if rc != 0 or not out.strip():
+        return []
+    try:
+        data = json.loads(out)
+    except ValueError:
+        return []
+    if not isinstance(data, list):
+        return []
+    return [r for r in data if str(r.get("headSha", "")).startswith(sha_short)]
+
+
+def all_completed(runs: list[dict]) -> bool:
+    """대상 run 이 1개 이상이고 전부 completed 이면 True."""
+    return bool(runs) and all(r.get("status") == "completed" for r in runs)
+
+
+def failures(runs: list[dict]) -> list[dict]:
+    """conclusion 이 failure 인 run 만 반환한다."""
+    return [r for r in runs if r.get("conclusion") == "failure"]
+
+
+def poll_completion(
+    branch: str,
+    sha_short: str,
+    *,
+    sleep_fn: Callable[[float], None] = time.sleep,
+    initial_wait: int = INITIAL_WAIT_SEC,
+    interval: int = POLL_INTERVAL_SEC,
+    max_polls: int = MAX_POLLS,
+) -> list[dict]:
+    """워크플로가 전부 completed 될 때까지 폴링하고 최종 run 목록을 반환한다."""
+    sleep_fn(initial_wait)
+    runs: list[dict] = []
+    for _ in range(max_polls):
+        runs = list_runs(branch, sha_short)
+        if all_completed(runs):
+            break
+        sleep_fn(interval)
+    return runs
+
+
+# ---------------------------------------------------------------------------
+# 실패 분류 (순수 함수 — 테스트 대상)
+# ---------------------------------------------------------------------------
+def classify_perf_gate(log: str) -> tuple[str, dict]:
+    """perf-gate 실패 로그를 카테고리로 분류한다(순수 함수).
+
+    반환: (category, info). category ∈
+      {"deploy_timeout", "flaky", "bytes", "unknown"}.
+      bytes 는 info={"obs", "budget", "suggest", "path"} 를 채운다.
+    """
+    if re.search(r"wait-deploy.*타임아웃|Wait for staging deploy", log):
+        return "deploy_timeout", {}
+    # flaky 는 'ms' 로 bytes 초과와 구분한다(bytes 도 '> budget' 을 포함하므로 순서 중요).
+    if re.search(r"> budget.*ms|render \d+ms > budget", log):
+        return "flaky", {}
+    m = re.search(r"bytes (\d+) > budget (\d+)", log)
+    if m:
+        obs = int(m.group(1))
+        budget = int(m.group(2))
+        path_match = re.search(r"/erp/[a-z/]+\?view=fragment", log)
+        return "bytes", {
+            "obs": obs,
+            "budget": budget,
+            "suggest": int(obs * 1.3),
+            "path": path_match.group(0) if path_match else "(경로 미상)",
+        }
+    return "unknown", {}
+
+
+def exit_code_for(actions: list[str]) -> int:
+    """분류 액션 목록으로 최종 종료 코드를 계산한다.
+
+    우선순위: 에이전트 조치 필요(1) > 자동 재실행/대기(2) > green(0).
+    """
+    if any(a in _ACTION_NEEDS_FIX for a in actions):
+        return 1
+    if any(a in _ACTION_RERUN for a in actions):
+        return 2
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# 실패별 대응
+# ---------------------------------------------------------------------------
+def handle_perf_gate(
+    run_id: int,
+    log: str,
+    sha_short: str,
+    healthz: str,
+    already_rerun: set,
+) -> tuple[str, str]:
+    """perf-gate 실패 1건을 분류·복구한다. 반환: (action, message)."""
+    category, info = classify_perf_gate(log)
+
+    if category == "deploy_timeout":
+        if run_id in already_rerun:
+            return "code_fail", "  원인=배포 타임아웃 재발(재실행 후에도) — 수동 확인 필요"
+        if check_healthz(healthz, sha_short):
+            rc, _out, _err = run_gh(["run", "rerun", str(run_id)])
+            if rc == 0:
+                already_rerun.add(run_id)
+                return "rerun", f"  원인=배포 대기 타임아웃, healthz={sha_short} 배포 완료 → 재실행 요청됨"
+            return "unclassified", "  배포는 완료됐으나 rerun 요청 실패 — 수동 재실행 필요"
+        return "wait_deploy", f"  배포 미완(healthz≠{sha_short}) — 재폴링 대기"
+
+    if category == "flaky":
+        if run_id in already_rerun:
+            return "code_fail", "  원인=TTFB/render tail 재발(재실행 후에도) — 네트워크 아닌 코드 회귀 조사 필요"
+        rc, _out, _err = run_gh(["run", "rerun", str(run_id)])
+        if rc == 0:
+            already_rerun.add(run_id)
+            return "rerun", "  원인=TTFB/render tail flaky(근소 초과) → 재실행 요청됨"
+        return "unclassified", "  flaky 판정했으나 rerun 요청 실패 — 수동 재실행 필요"
+
+    if category == "bytes":
+        return "budget", (
+            f"  원인=bytes 초과(관측 {info['obs']} > budget {info['budget']}). 데이터 가변 탭이면 코드 회귀 아님.\n"
+            f"  ▶ 수정 제안: perf_budgets.json '{info['path']}' body_bytes_max → {info['suggest']} (관측×1.3)\n"
+            f"    (데이터 가변 확인 후 적용. 코드성 비만이면 dTTFB/쿼리 계약이 별도로 잡음)"
+        )
+
+    return "unclassified", f"  원인 미분류 — 로그 확인 필요: gh run view {run_id} --log"
+
+
+def handle_code_fail(run_id: int) -> tuple[str, str]:
+    """비-perf-gate(코드 CI) 실패 1건의 실패 스텝·로그 tail 을 수집한다."""
+    lines = ["  코드 CI 실패 → 실패 스텝/로그(수정 필요):"]
+    _rc, steps_out, _err = run_gh(
+        [
+            "run", "view", str(run_id), "--json", "jobs", "--jq",
+            '.jobs[].steps[]|select(.conclusion=="failure")|"    step: "+.name',
+        ]
+    )
+    if steps_out.strip():
+        lines.append(steps_out.rstrip("\n"))
+    _rc2, log_out, _err2 = run_gh(["run", "view", str(run_id), "--log-failed"])
+    tail = [ln for ln in log_out.splitlines() if re.search(r"error|assert|failed|fail", ln, re.I)][:8]
+    lines.extend("    " + ln.strip() for ln in tail)
+    return "code_fail", "\n".join(lines)
+
+
+def handle_failures(
+    fails: list[dict],
+    sha_short: str,
+    healthz: str,
+    already_rerun: set,
+    printer: Callable[[str], None] = print,
+) -> int:
+    """실패 워크플로들을 분류·대응하고 종료 코드를 반환한다."""
+    actions: list[str] = []
+    for run in fails:
+        run_id = run.get("databaseId")
+        workflow = run.get("workflowName", "")
+        printer(f"----- {workflow} ({run_id}) -----")
+        if "perf-gate" in str(workflow).lower():
+            _rc, log, _err = run_gh(["run", "view", str(run_id), "--log"])
+            action, message = handle_perf_gate(run_id, log, sha_short, healthz, already_rerun)
+        else:
+            action, message = handle_code_fail(run_id)
+        printer(message)
+        actions.append(action)
+    return exit_code_for(actions)
+
+
+# ---------------------------------------------------------------------------
+# 감시 루프
+# ---------------------------------------------------------------------------
+def watch_once(
+    sha: str,
+    branch: str,
+    healthz: str,
+    already_rerun: set,
+    *,
+    sleep_fn: Callable[[float], None] = time.sleep,
+    printer: Callable[[str], None] = print,
+) -> int:
+    """폴링 1회전을 수행하고 종료 코드를 반환한다(재폴링은 watch 가 담당)."""
+    sha_short = sha[:8]
+    printer(f"[ci-watch] target={sha_short} branch={branch}")
+    runs = poll_completion(branch, sha_short, sleep_fn=sleep_fn)
+    if not runs:
+        printer("[ci-watch] 대상 커밋의 워크플로 없음(paths-ignore 등) — green 취급")
+        return 0
+    fails = failures(runs)
+    if not fails:
+        printer("[ci-watch] ALL GREEN ✓")
+        return 0
+    printer(f"[ci-watch] {len(fails)} failed workflow(s):")
+    for run in fails:
+        printer(f" - {run.get('workflowName')}")
+    return handle_failures(fails, sha_short, healthz, already_rerun, printer)
+
+
+def watch(
+    sha: str,
+    branch: str,
+    healthz: str,
+    *,
+    until_final: bool = True,
+    sleep_fn: Callable[[float], None] = time.sleep,
+    printer: Callable[[str], None] = print,
+    max_rounds: int = MAX_RERUN_ROUNDS,
+) -> int:
+    """감시 진입점. until_final 이면 exit 2(재실행/대기)를 자체 재폴링해 0/1 로 수렴한다."""
+    already_rerun: set = set()
+    rounds = 0
+    while True:
+        code = watch_once(sha, branch, healthz, already_rerun, sleep_fn=sleep_fn, printer=printer)
+        if code != 2 or not until_final:
+            return code
+        rounds += 1
+        if rounds > max_rounds:
+            printer(f"[ci-watch] 자동 재실행/배포 대기 {max_rounds}회 초과 — 수동 재폴링 필요")
+            return 2
+        printer(f"[ci-watch] 재실행/배포 대기 발동 → 재폴링(round {rounds})")
+        sleep_fn(POLL_INTERVAL_SEC)
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+def _force_utf8_streams() -> None:
+    """Windows 콘솔(cp949)에서 한글·✓·▶ 출력 시 UnicodeEncodeError 를 막는다."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            try:
+                reconfigure(encoding="utf-8")
+            except (ValueError, OSError):
+                pass
+
+
+def _parse_args(argv: list[str] | None) -> argparse.Namespace:
+    """CLI 인자를 파싱한다(위치 인자 SHA/BRANCH + --until-final 토글)."""
+    parser = argparse.ArgumentParser(
+        prog="ci_watch.py",
+        description="push 후 GitHub Actions CI 완료를 감시하고 실패를 분류·자동 복구한다.",
+    )
+    parser.add_argument("sha", nargs="?", default=None, help="대상 커밋 SHA (기본: 현재 HEAD)")
+    parser.add_argument("branch", nargs="?", default=DEFAULT_BRANCH, help="브랜치 (기본: deploy)")
+    parser.add_argument(
+        "--until-final",
+        dest="until_final",
+        action="store_true",
+        default=True,
+        help="exit 2(재실행/대기)를 자체 재폴링해 최종 0/1 로 수렴 (기본 활성)",
+    )
+    parser.add_argument(
+        "--no-until-final",
+        dest="until_final",
+        action="store_false",
+        help="1회전만 수행하고 exit 0/1/2 를 그대로 반환",
+    )
+    parser.add_argument("--healthz", default=DEFAULT_HEALTHZ, help="배포 확인용 healthz URL")
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    """진입점. gh 준비 확인(불가 시 exit 3) → SHA 결정 → 감시 → 종료 코드 반환."""
+    _force_utf8_streams()
+    args = _parse_args(argv)
+
+    ready, reason = gh_ready()
+    if not ready:
+        print(f"[ci-watch] 게이트 불가: {reason}")
+        return 3
+
+    sha = args.sha or current_head_sha()
+    if not sha:
+        print("[ci-watch] 게이트 불가: HEAD SHA 확인 실패(git 저장소가 아닌 듯)")
+        return 3
+
+    return watch(sha, args.branch, args.healthz, until_final=args.until_final)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

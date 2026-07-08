@@ -30,6 +30,7 @@
 ## 하네스 자동 배선 (Claude Code 세션)
 - **세션 시작/컴팩트**: `SessionStart` 훅이 AI_STATUS·RPI 안내를 주입하고, `PreCompact` 훅이 `docs/harness/runtime/COMPACT_CHECKPOINT.md`를 갱신한다.
 - **Stop 게이트**: `.py` 편집 세션은 턴 종료 시 `import app` 검증을 자동 통과해야 한다 (실패 시 종료 차단, 근본 수정 후 재시도).
+- **push 후 CI 게이트**: `PostToolUse:Bash` 훅 `post_push_watch.py`가 `git push`/`gh pr merge` 성공을 감지하면 `additionalContext`로 `python tools/harness/ci_watch.py` 실행을 주입한다 (push 아닌 명령엔 무출력). CI green 확인이 push 완료의 정의다.
 - **MCP 정본 위치**: 프로젝트 MCP 서버는 루트 `.mcp.json` (postgres, context7만 유지 — 나머지는 네이티브 기능으로 대체되어 퇴역).
 - **하네스 내부 작업 컨텍스트**: Cursor/Codex 러너 라우팅 상세는 `AGENTS.md` + `.cursor/rules/00-project-context.mdc` 소관 (본 파일에서 중복 제거). 상시 커밋 번들은 폐기됨(2026-07-08 재설계 Phase 1b) — 온디맨드 컨텍스트 번들이 필요하면 `python tools/harness/build_context_bundle.py --all`로 생성한다(커밋하지 않음).
 
@@ -123,6 +124,7 @@
 - **브랜치 전략**: `deploy` (스테이징) → `production` (운영)
 - **운영(production) 푸시는 사용자 명시 요청 시에만 (절대 규칙)**: 기본 푸시 대상은 항상 `deploy`(스테이징, lahom-dev)다. `production`(운영) 브랜치로의 push·force-push·reset은 **사용자가 명시적으로 "production 푸시/배포"를 요청했을 때만** 수행한다. **"deploy 푸쉬"는 절대 `production`을 포함하지 않는다.** 스테이징 검증 → 사용자 승인 → 운영 승격 순서를 지키며, 임의 운영 푸시는 금지한다.
 - **푸시 전 스모크**: `deploy`/`main` push **직전** `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` (APP_OK·harness verify·SSOT lint·CI subset·`test_p1_mockup_*` 구조 테스트). **UI/CSS/템플릿 변경** 시 PNG `-Visual`/win32 baseline은 필수 아님(선택). exit 0 확인 후 push. `-Full`은 머지 직전 전체 pytest. 상세: `docs/guides/PRE_PUSH_SMOKE.md`
+- **푸시 후 CI green 확인 (push 완료의 정의)**: push 직후 `python tools/harness/ci_watch.py`(기본 HEAD·deploy; production은 `... HEAD production`)로 CI 완료를 감시한다. exit 0=green, **exit 1=코드 실패 → 근본 수정 → pre_push_smoke → 재푸시까지가 한 작업 단위**, exit 2=자동 재실행(재폴링), exit 3=gh 미설치/미인증. `post_push_watch` 훅이 push 감지 시 이 실행을 자동 리마인드하므로 생략 금지.
 
 ## 셸 환경 (Claude Code 전용)
 - Claude Code는 **bash 셸** 사용 (Unix 문법: `/dev/null`, `&&`, forward slash). **이 절의 예시는 Claude Code에만 적용**; 저장소 README·규칙 문서에 적는 기본 예시는 PowerShell 5.x를 따른다.

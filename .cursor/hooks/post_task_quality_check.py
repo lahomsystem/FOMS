@@ -94,6 +94,44 @@ def _latest_spec_name(project_root: str) -> str | None:
     specs_root = project_root_path / "docs" / "specs"
     return latest_spec.resolve().relative_to(specs_root.resolve()).as_posix()
 
+_CI_GATE_MARKER = ".cursor_ci_gate_pending.json"
+
+
+def _consume_ci_gate_marker(project_root: str) -> str | None:
+    """CI 게이트 마커가 있고 최근(1시간 내)이면 리마인더를 만들고 마커를 삭제한다.
+
+    afterShellExecution(after_shell_execution.py)이 push 성공 시 기록한 마커를
+    소비한다. 삭제로 1회만 발화하며, stale(1시간 초과) 마커는 조용히 정리한다.
+    afterShellExecution 은 관측 전용(에이전트 주입 불가)이므로, 실제 리마인더는
+    주입 가능한 afterAgentResponse 채널(이 훅)에서 방출한다.
+    """
+    path = harness_runtime_path(project_root, _CI_GATE_MARKER)
+    try:
+        if not os.path.isfile(path):
+            return None
+        with open(path, "r", encoding="utf-8") as handle:
+            state = json.load(handle)
+        os.remove(path)  # 1회 발화
+        ts = float(state.get("ts", 0))
+        branch = str(state.get("branch", "deploy"))
+        if (time.time() - ts) > 3600:
+            return None
+        command = (
+            "python tools/harness/ci_watch.py"
+            if branch == "deploy"
+            else f"python tools/harness/ci_watch.py HEAD {branch}"
+        )
+        return (
+            f"[CI-GATE] push 감지 ({branch}). 지금 `{command}`를 실행해 CI 완료를 확인하라. "
+            "exit 1이면 실패 로그를 분석해 근본 수정 후 재푸시까지 완료해야 한다. 이 게이트는 생략 금지."
+        )
+    except Exception as e:  # noqa: BLE001 - fail-open + 기록
+        hook_runtime_log(
+            f"ci_gate marker read fail-open: {e}", project_root=project_root, tag="ci_gate"
+        )
+        return None
+
+
 def main():
     payload = get_payload()
     if not isinstance(payload, dict):
@@ -102,19 +140,21 @@ def main():
     project_root = extract_project_root(payload)
     maybe_log_payload("afterAgentResponse", payload, project_root)
 
+    messages: list[str] = []
+
+    # 1) push 후 CI 감시 게이트(마커 기반, 1회 발화) — 편집 여부와 무관하게 최우선.
+    ci_gate_msg = _consume_ci_gate_marker(project_root)
+    if ci_gate_msg:
+        messages.append(ci_gate_msg)
+
+    # 2) 셀프 체크 리마인더(디바운스 적용) — 편집된 파일이 있을 때만.
     edited_files = _read_recent_edited_files(project_root)
-    if not edited_files:
-        sys.stdout.write(json.dumps({"continue": True}))
-        return
+    if edited_files:
+        fp = _files_fingerprint(edited_files)
+        if _debounce_allows_full_reminder(project_root, fp):
+            file_list_str = "\n".join([f"- {f}" for f in edited_files])
 
-    fp = _files_fingerprint(edited_files)
-    if not _debounce_allows_full_reminder(project_root, fp):
-        sys.stdout.write(json.dumps({"continue": True}, ensure_ascii=False))
-        return
-
-    file_list_str = "\n".join([f"- {f}" for f in edited_files])
-
-    reminder_msg = f"""
+            reminder_msg = f"""
 ---
 [SYSTEM 3: 셀프 체크 리마인더]
 방금 수정한 아래 파일들에 대해 스스로 품질을 점검하세요.
@@ -128,17 +168,22 @@ def main():
 ---
 """
 
-    latest_spec = _latest_spec_name(project_root)
-    if latest_spec:
-        reminder_msg += f"\n4. 현재 작업의 Spec(`docs/specs/{latest_spec}`)이 존재합니다. Spec의 검증 기준도 확인하세요."
+            latest_spec = _latest_spec_name(project_root)
+            if latest_spec:
+                reminder_msg += f"\n4. 현재 작업의 Spec(`docs/specs/{latest_spec}`)이 존재합니다. Spec의 검증 기준도 확인하세요."
 
-    reminder_msg += "\n5. evolution/ 이나 incidents/ 에 새 파일을 추가했다면, `docs/ARCHIVE_INDEX.md`에도 반드시 인덱싱을 추가하세요."
+            reminder_msg += "\n5. evolution/ 이나 incidents/ 에 새 파일을 추가했다면, `docs/ARCHIVE_INDEX.md`에도 반드시 인덱싱을 추가하세요."
 
-    _save_debounce_state(project_root, fp)
+            _save_debounce_state(project_root, fp)
+            messages.append(reminder_msg)
+
+    if not messages:
+        sys.stdout.write(json.dumps({"continue": True}, ensure_ascii=False))
+        return
 
     output = {
         "continue": True,
-        "agentMessage": reminder_msg
+        "agentMessage": "\n".join(messages),
     }
     sys.stdout.write(json.dumps(output, ensure_ascii=False))
 

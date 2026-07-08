@@ -125,6 +125,19 @@ OneDrive 잠금이 있으면 `TEMP`를 `C:\tmp`로 두고, 그래도 실패하�
 - Push 후 **GitHub Actions**가 전체 CI(visual regression 포함)를 계속 실행합니다.
 - AI 에이전트에게 push마다 전체 테스트 suite 실행을 요청하지 마세요. **로컬에서 이 스크립트를 실행**하고, 실패 시에만 에이전트에게 수정을 요청하세요 (토큰·시간 절약).
 
+## push 후: CI 감시·복구 게이트 (push 완료의 정의)
+
+push 직후에는 **CI green 확인까지가 한 작업 단위**입니다. 아래를 실행해 GitHub Actions 완료를 감시합니다.
+
+```powershell
+python tools/harness/ci_watch.py
+```
+
+- 기본 대상은 **현재 HEAD · `deploy`** 브랜치입니다. production 승격 후에는 `python tools/harness/ci_watch.py HEAD production`.
+- 종료 코드: **0**=전부 green / **1**=코드 실패(로그 분석 → 근본 수정 → `pre_push_smoke` → 재푸시) / **2**=자동 재실행 발동(기본 `--until-final` 모드가 내부 재폴링해 0·1로 수렴) / **3**=gh CLI 미설치·미인증(설치·`gh auth login` 후 재시도).
+- 자동 복구: perf-gate **배포 대기 타임아웃**(healthz commit==SHA 확인 후 재실행), **TTFB/render tail flaky**(1회 재실행). **bytes 초과**는 데이터 가변 탭 가능성 때문에 예산 보정값을 *제안*만 하고 자동 상향하지 않습니다.
+- 이 게이트는 3-도구 공통입니다: Claude Code는 `PostToolUse:Bash` 훅(`post_push_watch.py`), Cursor는 `afterShellExecution`+`afterAgentResponse` 훅이 push 감지 시 실행을 리마인드합니다. 로직 SSOT는 `tools/harness/ci_watch.py`이고 `scripts/ops/ci_watch_recover.sh`는 thin wrapper입니다.
+
 ## 실패 시
 
 1. 스크립트 출력의 `[FAIL]` 단계 확인

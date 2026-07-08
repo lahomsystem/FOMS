@@ -31,6 +31,11 @@
         "command": "python .cursor/hooks/guard_shell.py"
       }
     ],
+    "afterShellExecution": [
+      {
+        "command": "python .cursor/hooks/after_shell_execution.py"
+      }
+    ],
     "afterAgentResponse": [
       {
         "command": "python .cursor/hooks/post_task_quality_check.py"
