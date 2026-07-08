@@ -233,11 +233,21 @@ ERP Order mobile-v2 tab pane.
                                 </div>
                                 <div class="erp-mobile-amount-chip erp-amount-value erp-amount-value--balance" id="erp-remaining-amount">0원</div>
                             </div>
+                            <div id="erp-balance-note-toggle-row" class="erp-mobile-amount-row erp-balance-note-toggle-row" style="display: none;">
+                                <span class="erp-mobile-amount-label" aria-hidden="true"></span>
+                                <button type="button" id="erp-balance-note-toggle" class="erp-balance-note-add-btn" title="잔금 메모 추가" aria-label="잔금 메모 추가" aria-expanded="false" aria-controls="erp-balance-note-section">+</button>
+                            </div>
+                            <div id="erp-balance-note-section" class="erp-mobile-amount-row" style="display: none;">
+                                <div class="erp-mobile-amount-label">
+                                    <label for="erp-balance-note">잔금 메모</label>
+                                </div>
+                                <textarea id="erp-balance-note" inputmode="text" placeholder="잔금 메모" maxlength="512" rows="1" data-erp-min-height="40" class="foms-textarea foms-tabular erp-amount-value erp-amount-value--balance-note erp-autosize-textarea erp-flex-textarea text-end" title="잔금 관련 메모. 비어 있으면 PUSH·변환 텍스트에 표시되지 않습니다."></textarea>
+                            </div>
                             <div id="erp-cash-receipt-section" class="erp-mobile-amount-row" style="display: none;">
                                 <div class="erp-mobile-amount-label">
                                     <label for="erp-cash-receipt">현금영수증</label>
                                 </div>
-                                <textarea id="erp-cash-receipt" inputmode="tel" placeholder="연락처 입력" maxlength="512" rows="1" data-erp-min-height="40" class="foms-textarea foms-tabular erp-amount-value erp-amount-value--cash-receipt erp-autosize-textarea erp-flex-textarea text-end" title="현금영수증 발급 연락처(휴대폰 등). 비어 있으면 PUSH·변환 텍스트에 표시되지 않습니다."></textarea>
+                                <textarea id="erp-cash-receipt" inputmode="text" placeholder="연락처 입력" maxlength="512" rows="1" data-erp-min-height="40" class="foms-textarea foms-tabular erp-amount-value erp-amount-value--cash-receipt erp-autosize-textarea erp-flex-textarea text-end" title="현금영수증 발급 연락처(휴대폰 등). 비어 있으면 PUSH·변환 텍스트에 표시되지 않습니다."></textarea>
                             </div>
                         </div>
                         <div class="field__hint" id="erp-status-text"></div>

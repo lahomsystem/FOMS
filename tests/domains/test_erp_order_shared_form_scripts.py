@@ -659,15 +659,22 @@ def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
     assert "const balanceSuffix = _erpIsBalancePaymentConfirmed() ? '(결제 완)' : '';" in conversion_block
     assert "erpAppendConversionMoneyLine(text, '잔금', totals.final_amount, balanceSuffix)" in conversion_block
     assert "erpAppendConversionFreeInputBlock(text, freeInputVal)" in conversion_block
+    assert "erpAppendConversionTextLine(text, '잔금메모', balanceNoteVal)" in conversion_block
     assert "erpAppendConversionTextLine(text, '현금영수증', cashReceiptVal)" in conversion_block
     assert "function erpResolveFreeInputText" in text
     assert "legacyPayments.free_input" in text
     assert "erpHasConversionTextValue(cashReceiptVal) && totals.final_amount > 0" in conversion_block
     assert "function erpResolveCashReceipt" in text
+    assert "function erpResolveBalanceNote" in text
     assert "Object.prototype.hasOwnProperty.call(modernPayment, 'cash_receipt')" in text
     assert "cash_receipt: String(getVal('erp-cash-receipt') || '')" in collect_block
+    assert "balance_note: String(getVal('erp-balance-note') || '').trim()" in collect_block
     assert "cash_receipt: erpResolveCashReceipt(sd)" in text
+    assert "balance_note: erpResolveBalanceNote(sd)" in text
     assert "erp-cash-receipt-section" in text
+    assert "erp-balance-note-section" in text
+    assert "erp-balance-note-toggle" in text
+    assert "window.__ERP_BALANCE_NOTE_BOUND" in text
     assert 'data-payment-type="balance"' in text
     assert "erp-custom-payment-confirmed" in text
     assert "visibleItemIndex += 1" in conversion_block
