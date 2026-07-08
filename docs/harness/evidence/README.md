@@ -13,11 +13,11 @@
 
 ## 재실행
 
-재현 스크립트는 2026-07-08 재설계 Phase 1b에서 원샷 아카이브(`docs/archive/oneoff-scripts/`)로 이관됐다.
+재현 스크립트는 2026-07-08 재설계 Phase 1b에서 원샷 아카이브(`docs/context/archive/oneoff-scripts/`)로 이관됐다.
 
-- GNV B6 HTTP: `docs/archive/oneoff-scripts/gnv_b6_staging_http_evidence.py`
-- GNV B6 브라우저: `docs/archive/oneoff-scripts/gnv_b6_staging_browser_metrics.py`
-- EPT B8: `docs/archive/oneoff-scripts/ept_b8_staging_http_evidence.py`, `docs/archive/oneoff-scripts/ept_b8_staging_full_evidence.ps1` (환경 변수는 `docs/archive/oneoff-scripts/ept_b8_staging_env.example` 참고)
+- GNV B6 HTTP: `docs/context/archive/oneoff-scripts/gnv_b6_staging_http_evidence.py`
+- GNV B6 브라우저: `docs/context/archive/oneoff-scripts/gnv_b6_staging_browser_metrics.py`
+- EPT B8: `docs/context/archive/oneoff-scripts/ept_b8_staging_http_evidence.py`, `docs/context/archive/oneoff-scripts/ept_b8_staging_full_evidence.ps1` (환경 변수는 `docs/context/archive/oneoff-scripts/ept_b8_staging_env.example` 참고)
 
 ## Retention (perf-gate / stress)
 

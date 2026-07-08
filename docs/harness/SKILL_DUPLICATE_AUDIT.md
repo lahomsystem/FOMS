@@ -43,7 +43,7 @@ In FOMS workspace Codex sees global + repo + home `.agents` → repeated `/cavem
 
 ## Cleanup applied
 
-See `docs/archive/oneoff-scripts/cleanup_skill_duplicates.ps1`:
+See `docs/context/archive/oneoff-scripts/cleanup_skill_duplicates.ps1`:
 
 1. Remove `~/.claude/skills/gstack/.agents/` and `.cursor/` (setup artifacts)
 2. Remove `~/.agents/skills/caveman` (redundant home copy)
