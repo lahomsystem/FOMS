@@ -48,7 +48,6 @@
   - Cursor browser MCP: exploration, manual debugging
   - gstack runtime: repeatable QA, smoke, canary, benchmark
 - Upstream `/qa` is a **skill flow**, not a standalone `gstack qa` terminal subcommand.
-- In FOMS, repeatable QA is currently modeled as `run_gstack_qa.ps1` -> `run_codex.ps1` -> `codex exec` + repo-local gstack QA skill.
+- In FOMS, repeatable QA is modeled as gstack browse/qa skills invoked directly in a Claude/Cursor session (the former `run_gstack_qa.ps1` -> `run_codex.ps1` Codex wrapper chain was retired on 2026-07-08; see `docs/harness/policy/DECISIONS.md`).
 - `setup_gstack.ps1 -WhatIf` now validates the repo-local `setup` entrypoint, detects Git Bash from installed Git for Windows, and rejects unusable bare `wsl.exe` false positives.
 - The build-source import intentionally skips compiled non-UTF8 artifacts such as upstream `bin/gstack-global-discover`.
-- `run_codex.ps1` now forces `codex exec -s workspace-write` so wrapper-driven Codex flows do not inherit an overly restrictive global read-only sandbox.

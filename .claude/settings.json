@@ -6,7 +6,6 @@
     "allow": [
       "Bash(python -c \"import app; print('APP_OK')\")",
       "Bash(python tools/harness/verify_result.py:*)",
-      "Bash(python tools/harness/task_classifier.py:*)",
       "Bash(pytest tests/harness:*)"
     ],
     "deny": [
@@ -23,17 +22,6 @@
           {
             "type": "command",
             "command": "python .claude/hooks/session_start.py"
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python .claude/hooks/user_prompt_submit.py"
           }
         ]
       }

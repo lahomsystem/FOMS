@@ -6,6 +6,12 @@
 
 ---
 
+### [2026-07-08] 분류기·Codex 래퍼 퇴역 (하네스 재설계 Phase 1a)
+- **키워드**: harness, classifier, retirement, codex-wrapper, preflight, gstack-qa, phase1a
+- **결정**: `tools/harness/task_classifier.py`(789줄)+preflight 훅(`user_prompt_submit.py`/`before_submit_prompt.py`/`prompt_router.py`)과 `tools/harness/run_codex.ps1`(855줄)을 원자 퇴역한다. QA 래퍼 체인(`run_gstack_qa.ps1`·`gstack_qa_skill.ps1`)도 공동 퇴역 — 소비자가 prompt_router(동시 퇴역)와 문서뿐이고, 실사용 QA는 이 체인을 거치지 않는 gstack browse/qa 스킬(Claude/Cursor 세션 내 Skill 호출) 경로이기 때문이다. 작업 레벨·RPI 판단은 문서 규칙(CLAUDE.md 새 세션 시작 프로토콜)으로 대체하고, 코어 변경 게이트는 Stop 훅·pre_push_smoke·branch protection이 코드로 강제한다. Codex 세컨드 오피니언은 on-demand `gstack-codex` 스킬로 대체한다. `setup_gstack.ps1`(벤더 런타임 점검)·`verify_result.py`·번들 도구는 보존.
+- **이유**: 재설계 보고서 `docs/plans/2026-07-08-harness-control-system-redesign-report.md` §9.1·§9.2 — 분류기는 강제력 0 실측+레벨 오염 33%+RPI 게이트 우회 가능(N1)으로 4자 만장일치 폐기, Codex 래퍼는 90일간 막은 실패 0건·7월 활동 0·PS 레벨 함수 3종 죽은 코드로 만장일치 퇴역. 래퍼가 분류기의 유일한 구조적 소비자라 A+B는 단일 원자 변경으로 실행.
+- **영향**: `tools/harness/{task_classifier,prompt_router}.py`·`tools/harness/{run_codex,run_gstack_qa,gstack_qa_skill}.ps1`·`tests/harness/{test_task_classifier,test_run_codex_levels}.py`·`.claude/hooks/user_prompt_submit.py`·`.cursor/hooks/before_submit_prompt.py` 삭제, `.claude/settings.json`(UserPromptSubmit 배선·allowlist)·`.cursor/hooks.json`(beforeSubmitPrompt)·`tests/harness/test_hooks_smoke.py`·`CLAUDE.md`·`AGENTS.md`·`.cursor/rules/00-project-context.mdc`·`docs/guides/HARNESS_ENGINEERING_OPERATOR_GUIDE.md`·`.agents/skills/gstack/VENDOR.md` 갱신
+
 ### [2026-07-05] Claude-main 하네스 업그레이드 (훅 패리티·MCP 정본화·Stop 게이트)
 - **키워드**: claude, harness, hooks, mcp, stop-gate, preflight, classifier, korean-keywords
 - **결정**: Claude Code를 메인 러너로 전환하며 (1) Claude 훅을 Cursor와 패리티로 확장 — `SessionStart`(AI_STATUS/RPI 안내 주입)·`UserPromptSubmit`(task_classifier preflight 자동 주입, low&비RPI는 생략)·`PreCompact`(COMPACT_CHECKPOINT 갱신) 신설, (2) Stop 훅을 조언성 리마인더에서 결정적 게이트로 승격 — `.py` 편집 pending 시 `import app` 실패면 exit 2로 턴 종료 차단, (3) 프로젝트 MCP 정본을 루트 `.mcp.json`으로 이동하고 `postgres`/`context7`만 유지 (`filesystem`·`memory`·`sequential-thinking`·`mcp-reasoner`·`markitdown` 퇴역 — 네이티브 도구/파일 메모리/extended thinking이 대체), (4) task_classifier 레벨 키워드에 한글 동의어 추가(영어 전용이라 한글 프롬프트 전부 low 오분류되던 결함), (5) CLAUDE.md에서 Cursor 러너 라우팅 절 제거(AGENTS.md/.cursor rules 소관). 플러그인 패키징(P5)은 가치 대비 유지비로 defer.

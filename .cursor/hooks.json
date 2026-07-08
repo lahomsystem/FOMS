@@ -6,11 +6,6 @@
         "command": "python .cursor/hooks/session_start.py"
       }
     ],
-    "beforeSubmitPrompt": [
-      {
-        "command": "python .cursor/hooks/before_submit_prompt.py"
-      }
-    ],
     "sessionEnd": [
       {
         "command": "python .cursor/hooks/session_stop.py sessionEnd"

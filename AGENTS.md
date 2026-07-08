@@ -12,10 +12,7 @@
 - **앱 import 검증 성공 문자열(표준)**: `APP_OK` — `python -c "import app; print('APP_OK')"` 로 확인한다.
 - **브라우저**: 탐색·수동 재현·디버깅은 **Cursor browser MCP**. 반복 가능한 QA·릴리스 스모크용 **gstack browse** 런타임은 로컬 setup가 완료된 경우 사용하고, setup 전에는 미도입으로 본다.
 - **훅 fail-open**: 세션을 막지 않기 위해 예외를 삼키는 방식은 **실패가 로그 등으로 남는 경우에만** 허용한다. **묵시적 무시(조용한 swallow)는 금지**한다.
-- **공통 작업 분류기**: `tools/harness/task_classifier.py`가 Cursor `beforeSubmitPrompt`, Codex 래퍼, Claude/Codex 플러그인 preflight의 단일 분류 기준이다. 출력은 `route_kind`, `level`, `context_mode`, 번들 경로, RPI·사용자 확인 필요 여부를 포함한다.
-- **Wave 3 Codex wrapper**: `tools/harness/run_codex.ps1`는 작업을 `low / medium / high / top` 4단계로 자동 분류한다. 기본적으로 `low/medium`은 daily bundle, `high/top`은 `_HARNESS` bundle을 사용한다.
-- **수동 override**: `-AdditionalPrompt "[level=top]"`, `-AdditionalPrompt "[레벨=최상]"`, `-AdditionalPrompt "이번 건 최상으로 진행"` 같은 형식을 지원한다.
-- **고위험 downgrade 보호**: 자동 판정이 `high/top`인데 사용자가 더 낮은 레벨로 내리면, 대화형 확인이 필요하다. 비대화형 실행(CI 포함)은 `-AllowRiskyLevelOverride` 없이는 진행하지 않는다.
+- **작업 레벨·RPI 판단**: 작업 레벨·RPI 판단은 문서 규칙(CLAUDE.md 새 세션 시작 프로토콜)을 따르고, 코어 변경 게이트는 Stop 훅·pre_push_smoke·branch protection이 코드로 강제한다.
 
 ## 공통 실행 프로토콜 (핵심 코어 변경 시)
 

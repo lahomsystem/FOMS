@@ -28,7 +28,6 @@
 4. **대화가 길어지면** → 핵심 요약 후 새 세션 권유
 
 ## 하네스 자동 배선 (Claude Code 세션)
-- **분류기 preflight 자동**: `UserPromptSubmit` 훅이 `tools/harness/task_classifier.py` 결과(level/route/RPI)를 자동 주입한다. 수동 확인: `python tools/harness/task_classifier.py --profile auto --prompt "..." --json`.
 - **세션 시작/컴팩트**: `SessionStart` 훅이 AI_STATUS·RPI 안내를 주입하고, `PreCompact` 훅이 `docs/harness/runtime/COMPACT_CHECKPOINT.md`를 갱신한다.
 - **Stop 게이트**: `.py` 편집 세션은 턴 종료 시 `import app` 검증을 자동 통과해야 한다 (실패 시 종료 차단, 근본 수정 후 재시도).
 - **MCP 정본 위치**: 프로젝트 MCP 서버는 루트 `.mcp.json` (postgres, context7만 유지 — 나머지는 네이티브 기능으로 대체되어 퇴역).
