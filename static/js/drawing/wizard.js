@@ -270,6 +270,13 @@
     els.photosTitle = document.getElementById('dws-photos-title');
     els.photosToggle = document.getElementById('dws-photos-toggle');
     els.photoGrid = document.getElementById('dws-photo-grid');
+    els.pending = document.getElementById('dws-pending');
+    els.pendingTitle = document.getElementById('dws-pending-title');
+    els.pendingToggle = document.getElementById('dws-pending-toggle');
+    els.pendingGrid = document.getElementById('dws-pending-grid');
+    els.lightbox = document.getElementById('dws-lightbox');
+    els.lightboxImg = document.getElementById('dws-lightbox-img');
+    els.lightboxClose = document.getElementById('dws-lightbox-close');
     els.tabbar = document.getElementById('dws-tabbar');
     els.canvas = document.getElementById('dws-canvas');
     els.empty = document.getElementById('dws-empty');
@@ -1793,6 +1800,86 @@
     }
   }
 
+  /* ---- 저장된 도면(전달 대기) 사이드 미리보기 -------------------------------
+   * pending 목록(GET /drawing-wizard/pending)을 읽어 aside 에 썸네일 그리드로 렌더한다.
+   * 항목 클릭 → 원본(asset-raw) 라이트박스 확대. 표시 전용(structured_data 쓰기 없음).
+   * 로드 시 1회 + 매 save()/saveAll() 성공 직후 refreshPending() 으로 갱신한다.
+   * ------------------------------------------------------------------------ */
+
+  /** 전달 대기 도면 목록을 서버에서 다시 읽어 패널을 렌더한다(try/catch + success 검증). */
+  function refreshPending() {
+    if (!els.pending || !els.pendingGrid) { return; }
+    jsonFetch(API_BASE + '/drawing-wizard/pending', { headers: { 'Accept': 'application/json' } }).then(function (r) {
+      var list = (r.status === 200 && r.data && r.data.success && r.data.data && Array.isArray(r.data.data.pending))
+        ? r.data.data.pending : [];
+      renderPending(list);
+    }, function (err) {
+      console.warn('[dws] pending', err);
+      renderPending([]);
+    });
+  }
+
+  /** 저장된 도면 썸네일 그리드를 렌더한다(항목 없으면 패널 숨김). 각 항목 = asset-raw 썸네일(lazy)
+      + 시트명 + 저장시각. 라벨/alt 는 textContent·alt 로만 삽입한다(XSS 안전, innerHTML 금지). */
+  function renderPending(list) {
+    if (!els.pending || !els.pendingGrid) { return; }
+    var items = Array.isArray(list) ? list : [];
+    els.pending.hidden = !items.length;
+    if (els.pendingTitle) { els.pendingTitle.textContent = '저장된 도면 ' + items.length; }
+    els.pendingGrid.textContent = '';
+    if (!items.length) { return; }
+    items.forEach(function (it) {
+      if (!it || !it.key) { return; }
+      var name = String(it.sheet_name || it.filename || '도면');
+      var cell = document.createElement('button');
+      cell.type = 'button';
+      cell.className = 'dws-pending-item';
+      cell.title = name + (it.at ? (' · ' + it.at) : '');
+      var img = document.createElement('img');
+      img.className = 'dws-pending-thumb';
+      img.loading = 'lazy';
+      img.alt = name;
+      img.src = viewUrl(it.key);
+      var nameEl = document.createElement('span');
+      nameEl.className = 'dws-pending-name';
+      nameEl.textContent = name;
+      var atEl = document.createElement('span');
+      atEl.className = 'dws-pending-at';
+      atEl.textContent = it.at || '';
+      cell.appendChild(img);
+      cell.appendChild(nameEl);
+      cell.appendChild(atEl);
+      cell.addEventListener('click', function () { openLightbox(it.key, name); });
+      els.pendingGrid.appendChild(cell);
+    });
+  }
+
+  /** 저장된 도면 섹션 접기/펼치기 토글. */
+  function togglePending() {
+    if (!els.pending) { return; }
+    var collapsed = els.pending.classList.toggle('dws-pending-collapsed');
+    if (els.pendingToggle) {
+      els.pendingToggle.textContent = collapsed ? '▸' : '▾';
+      els.pendingToggle.title = collapsed ? '저장된 도면 펼치기' : '저장된 도면 접기';
+      els.pendingToggle.setAttribute('aria-label', els.pendingToggle.title);
+    }
+  }
+
+  /** 저장된 도면 원본(asset-raw)을 라이트박스로 확대한다. */
+  function openLightbox(key, alt) {
+    if (!els.lightbox || !els.lightboxImg || !key) { return; }
+    els.lightboxImg.src = viewUrl(key);
+    els.lightboxImg.alt = String(alt || '저장된 도면 미리보기');
+    els.lightbox.hidden = false;
+  }
+
+  /** 라이트박스를 닫고 src 를 비운다(대용량 원본 즉시 해제). */
+  function closeLightbox() {
+    if (!els.lightbox) { return; }
+    els.lightbox.hidden = true;
+    if (els.lightboxImg) { els.lightboxImg.removeAttribute('src'); }
+  }
+
   /** 시트 0개면 빈 안내 오버레이 표시(제품 클릭·+시트로 첫 시트 생성 유도), ≥1이면 숨김.
       모든 상태 변경 렌더 경로(load·제품클릭·addSheet·switchSheet·복제·삭제·복원)가 renderTabs 를
       거치므로 여기서 단일 갱신한다. */
@@ -2348,6 +2435,7 @@
       rebuildAnno();
       updateSaveState();
       fitZoom();
+      refreshPending();   // 저장된 도면(전달 대기) 미리보기 패널 초기 로드
     }, function (err) { console.warn('[dws] load', err); toast('불러오기 오류'); });
   }
 
@@ -2405,7 +2493,11 @@
           return true;   // 자동 저장: PNG 도면 탭 갱신 생략, 조용히 성공
         }
         // 수동 저장: 상태 확정 후 PNG 를 도면 탭에 반영(버튼 재활성·토스트는 내부에서).
-        return saveSheetPng(sheet).then(function () { saveInFlight = false; return true; });
+        return saveSheetPng(sheet).then(function () {
+          saveInFlight = false;
+          refreshPending();   // 전달 대기함에 새 시트 반영 → 미리보기 패널 갱신
+          return true;
+        });
       }
       els.saveBtn.disabled = false;
       saveInFlight = false;
@@ -2572,6 +2664,7 @@
       return eachSheetToBlob(postSheetPngBlob, '일괄 저장').then(function (res) {
         switchSheet(origIdx);
         finishSaveAll();
+        refreshPending();   // 전달 대기함에 저장된 시트들 반영 → 미리보기 패널 갱신
         if (res.fail.length) {
           toast('일괄 저장 완료 · ' + res.ok + '/' + res.total + ' 성공, ' + res.fail.length + '건 실패');
         } else {
@@ -2721,7 +2814,12 @@
         }
       });
     }).catch(function (err) {
-      if (err && err.name === 'AbortError') { return; }   // 사용자가 폴더 선택 취소 — 조용히 종료
+      if (err && err.name === 'AbortError') {
+        // 폴더 선택 취소 또는 브라우저의 특수 폴더 차단(드라이브 루트·Windows·홈 루트·바탕화면·
+        // OneDrive·다운로드) → showDirectoryPicker 는 둘 다 AbortError 로 오므로 안내 토스트로 통일.
+        toast('폴더 선택이 취소되었거나 차단되었습니다. 바탕화면·OneDrive·시스템 폴더는 브라우저가 막습니다 — C:\\도면 같은 일반 폴더를 만들어 지정하세요.');
+        return;
+      }
       switchSheet(origIdx);
       console.warn('[dws] export-all', err);
       toast('일괄 내보내기 실패: ' + ((err && err.message) || '알 수 없는 오류'));
@@ -2902,6 +3000,12 @@
     if (els.productToggle) { els.productToggle.addEventListener('click', toggleProducts); }
     // 실측 사진 섹션 접기/펼치기
     if (els.photosToggle) { els.photosToggle.addEventListener('click', togglePhotos); }
+    // 저장된 도면(전달 대기) 섹션 접기/펼치기 + 썸네일 라이트박스 닫기(닫기 버튼·배경 클릭)
+    if (els.pendingToggle) { els.pendingToggle.addEventListener('click', togglePending); }
+    if (els.lightboxClose) { els.lightboxClose.addEventListener('click', closeLightbox); }
+    if (els.lightbox) {
+      els.lightbox.addEventListener('click', function (e) { if (e.target === els.lightbox) { closeLightbox(); } });
+    }
 
     // 프리셋 메뉴 (기본 4개 + 사용자 프리셋 동적 렌더; 항목 배선은 renderPresetMenu 내부)
     var presetBtn = document.getElementById('dws-btn-preset');
@@ -3041,6 +3145,11 @@
 
     // 키보드: 저장 / undo·redo / 삭제 / 화살표 이동 / Esc
     document.addEventListener('keydown', function (e) {
+      // 라이트박스 열림 시: ESC 로 닫고 다른 단축키는 모달 우선으로 무시.
+      if (els.lightbox && !els.lightbox.hidden) {
+        if (e.key === 'Escape') { e.preventDefault(); closeLightbox(); }
+        return;
+      }
       var ae = document.activeElement;
       var editing = !!(ae && (ae.isContentEditable || ae.tagName === 'TEXTAREA' || ae.tagName === 'INPUT' || ae.tagName === 'SELECT'));
       var meta = e.ctrlKey || e.metaKey;

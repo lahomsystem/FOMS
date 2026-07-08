@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>도면 마법사 — 주문 #{{ order.id }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20260708j">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20260708k">
 </head>
 <body>
   <div id="dws-root" data-order-id="{{ order.id }}">
@@ -134,6 +134,15 @@
           <button type="button" class="dws-photos-toggle" id="dws-photos-toggle" title="실측 사진 접기" aria-label="실측 사진 접기">▾</button>
         </div>
         <div class="dws-photo-grid" id="dws-photo-grid"></div>
+      </div>
+
+      <!-- 저장된 도면(전달 대기) 사이드 미리보기(클릭 → 확대) -->
+      <div class="dws-pending" id="dws-pending" hidden>
+        <div class="dws-pending-head">
+          <span class="dws-pending-title" id="dws-pending-title">저장된 도면</span>
+          <button type="button" class="dws-pending-toggle" id="dws-pending-toggle" title="저장된 도면 접기" aria-label="저장된 도면 접기">▾</button>
+        </div>
+        <div class="dws-pending-grid" id="dws-pending-grid"></div>
       </div>
     </aside>
 
@@ -321,6 +330,12 @@
       </div>
     </div>
 
+    <!-- ================= 저장된 도면 확대 미리보기(라이트박스) ================= -->
+    <div class="dws-lightbox dws-ui" id="dws-lightbox" hidden>
+      <button type="button" class="dws-lightbox-close" id="dws-lightbox-close" title="닫기" aria-label="닫기">✕</button>
+      <img class="dws-lightbox-img" id="dws-lightbox-img" alt="저장된 도면 미리보기">
+    </div>
+
     <!-- ================= 토스트 ================= -->
     <div class="dws-toast-host dws-ui" id="dws-toast-host" aria-live="polite"></div>
 
@@ -328,6 +343,6 @@
 
   <script id="drawing-wizard-config" type="application/json">{{ wizard_config|tojson }}</script>
   <script src="{{ url_for('static', filename='vendor/konva.min.js') }}?v=20260706b" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260708j" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260708k" defer></script>
 </body>
 </html>

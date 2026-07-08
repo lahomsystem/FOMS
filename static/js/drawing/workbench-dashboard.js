@@ -374,6 +374,93 @@
     });
   }
 
+  function ensureThumbLightbox() {
+    var modal = document.getElementById('dw-thumb-lightbox');
+    if (modal) {
+      return modal;
+    }
+    modal = document.createElement('div');
+    modal.id = 'dw-thumb-lightbox';
+    modal.className = 'dw-thumb-lightbox';
+    modal.hidden = true;
+    modal.innerHTML =
+      '<div class="dw-thumb-lightbox__backdrop"></div>' +
+      '<figure class="dw-thumb-lightbox__stage">' +
+      '<img class="dw-thumb-lightbox__img" alt="">' +
+      '<figcaption class="dw-thumb-lightbox__caption"></figcaption>' +
+      '</figure>' +
+      '<button type="button" class="dw-thumb-lightbox__close" aria-label="닫기">&times;</button>';
+    document.body.appendChild(modal);
+    return modal;
+  }
+
+  function openThumbLightbox(url, name) {
+    if (!url) {
+      return;
+    }
+    // 전역 라이트박스(P2 surface bundle)가 로드돼 있으면 재사용(핀치줌·다운로드 지원).
+    if (typeof window.fomsOpenLightboxUrl === 'function') {
+      window.fomsOpenLightboxUrl(url, { filename: name || '도면' });
+      return;
+    }
+    var modal = ensureThumbLightbox();
+    var img = modal.querySelector('.dw-thumb-lightbox__img');
+    var caption = modal.querySelector('.dw-thumb-lightbox__caption');
+    if (img) {
+      img.src = url;
+      img.alt = name || '';
+    }
+    if (caption) {
+      caption.textContent = name || '';
+    }
+    modal.hidden = false;
+    document.documentElement.classList.add('dw-thumb-lightbox-open');
+  }
+
+  function closeThumbLightbox() {
+    var modal = document.getElementById('dw-thumb-lightbox');
+    if (!modal || modal.hidden) {
+      return;
+    }
+    modal.hidden = true;
+    var img = modal.querySelector('.dw-thumb-lightbox__img');
+    if (img) {
+      img.src = '';
+    }
+    document.documentElement.classList.remove('dw-thumb-lightbox-open');
+  }
+
+  function bindPendingThumbLightboxOnce() {
+    if (window.__DW_PENDING_THUMB_BOUND === '1') {
+      return;
+    }
+    window.__DW_PENDING_THUMB_BOUND = '1';
+
+    document.addEventListener('click', function (e) {
+      var thumb = e.target.closest('.dw-pending-thumb');
+      if (thumb) {
+        e.preventDefault();
+        openThumbLightbox(
+          thumb.getAttribute('data-full-src') || thumb.getAttribute('src'),
+          thumb.getAttribute('data-name') || thumb.getAttribute('alt')
+        );
+        return;
+      }
+      if (
+        e.target.closest('.dw-thumb-lightbox__close') ||
+        e.target.classList.contains('dw-thumb-lightbox__backdrop')
+      ) {
+        closeThumbLightbox();
+      }
+    });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        closeThumbLightbox();
+      }
+    });
+  }
+
   function initDrawingWorkbenchDashboard() {
     if (!isDrawingWorkbenchDashboard()) {
       return;
@@ -390,6 +477,7 @@
 
     bindPipelineDelegationOnce();
     bindRowNavigationOnce();
+    bindPendingThumbLightboxOnce();
 
     if (initAbortController) {
       initAbortController.abort();

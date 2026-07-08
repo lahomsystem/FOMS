@@ -133,6 +133,19 @@
             <i class="fas fa-paper-plane"></i> 전송
           </button>
           {% endif %}
+          {% if p.sheets %}
+          <div class="w-100 dw-pending-thumbs" aria-label="전달 대기 도면 미리보기">
+            {% for s in p.sheets %}
+            {% if s.key %}
+            {% set thumb_url = url_for('erp_orders_drawing_wizard.api_get_drawing_wizard_asset_raw', order_id=p.order_id, key=s.key) %}
+            <img class="dw-pending-thumb" src="{{ thumb_url }}" alt="{{ s.name }}" title="{{ s.name }}"
+                 loading="lazy" decoding="async" data-full-src="{{ thumb_url }}" data-name="{{ s.name }}">
+            {% endif %}
+            {% endfor %}
+            {% set thumb_extra = p.count - (p.sheets|length) %}
+            {% if thumb_extra > 0 %}<span class="dw-pending-thumb-more" title="추가 대기 도면">+{{ thumb_extra }}</span>{% endif %}
+          </div>
+          {% endif %}
         </div>
         {% endfor %}
       </div>

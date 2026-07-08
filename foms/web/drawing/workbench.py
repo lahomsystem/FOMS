@@ -54,6 +54,9 @@ erp_drawing_workbench_bp = Blueprint('erp_drawing_workbench', __name__, url_pref
 
 _DRAWING_IMAGE_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.heic', '.heif')
 
+# 전달 대기함 카드 항목당 렌더할 썸네일 상한(대기 장수 폭주 시 DOM/이미지 요청 폭발 방지).
+_PENDING_BOX_THUMB_CAP = 8
+
 
 def _is_drawing_image(filename: str) -> bool:
     """Return True when a drawing filename can be previewed as an image."""
@@ -239,8 +242,8 @@ def build_drawing_pending_box(db: Any, *, cap: int = 200) -> list[dict[str, Any]
         cap: 후보 상한(대기 주문 폭주 대비 안전 캡).
 
     Returns:
-        ``{order_id, customer_name, count, sheet_names(최대 3), sheet_names_extra, updated_at}``
-        딕셔너리 리스트.
+        ``{order_id, customer_name, count, sheet_names(최대 3), sheet_names_extra,
+        sheets(최대 8; ``[{name, key}]`` 썸네일용), updated_at}`` 딕셔너리 리스트.
     """
     candidates = (
         db.query(Order)
@@ -270,6 +273,15 @@ def build_drawing_pending_box(db: Any, *, cap: int = 200) -> list[dict[str, Any]
             continue
         sheet_names = [str(e.get('sheet_name') or e.get('filename') or '도면') for e in entries]
         ats = [str(e.get('at') or '') for e in entries if e.get('at')]
+        # 썸네일용 시트 목록: 이미 로드한 sd 에서만 구성(추가 쿼리 없음 = N+1 예산 유지).
+        # key 는 asset-raw 프록시가 그대로 서빙하는 R2 스토리지 키.
+        sheets = [
+            {
+                'name': str(e.get('sheet_name') or e.get('filename') or '도면'),
+                'key': (e.get('key') or '').strip(),
+            }
+            for e in entries
+        ][:_PENDING_BOX_THUMB_CAP]
         customer_name = (
             (((sd.get('parties') or {}).get('customer') or {}).get('name'))
             or order_customer_name
@@ -281,6 +293,7 @@ def build_drawing_pending_box(db: Any, *, cap: int = 200) -> list[dict[str, Any]
             'count': len(entries),
             'sheet_names': sheet_names[:3],
             'sheet_names_extra': max(0, len(sheet_names) - 3),
+            'sheets': sheets,
             'updated_at': max(ats) if ats else '',
         })
     box.sort(key=lambda b: (b.get('updated_at') or '', b.get('order_id')), reverse=True)

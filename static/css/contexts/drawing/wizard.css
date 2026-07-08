@@ -654,6 +654,130 @@ html, body {
 }
 @keyframes dws-photo-spin { to { transform: rotate(360deg); } }
 
+/* ---- 저장된 도면(전달 대기) 사이드 미리보기 ------------------------------- */
+.dws-pending {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  max-height: 42%;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+.dws-products-collapsed .dws-pending { display: none; }
+.dws-pending-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 34px;
+  padding: 0 8px 0 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+.dws-pending-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1d1d1f;
+  white-space: nowrap;
+}
+.dws-pending-toggle {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: #6e6e73;
+  font-size: 13px;
+  line-height: 1;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.dws-pending-toggle:hover { background: rgba(0, 0, 0, 0.05); color: #1d1d1f; }
+.dws-pending-grid {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 8px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 86px);
+  gap: 10px 8px;
+  align-content: start;
+}
+.dws-pending-collapsed .dws-pending-grid { display: none; }
+.dws-pending-collapsed { max-height: 34px; }
+.dws-pending-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 86px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+  text-align: left;
+}
+.dws-pending-thumb {
+  width: 86px;
+  aspect-ratio: 1478 / 1040;
+  object-fit: cover;
+  display: block;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 8px;
+  background: #ffffff;
+  transition: border-color 120ms ease-out, box-shadow 120ms ease-out;
+}
+.dws-pending-item:hover .dws-pending-thumb {
+  border-color: rgba(28, 98, 214, 0.55);
+  box-shadow: 0 0 0 1px rgba(28, 98, 214, 0.2);
+}
+.dws-pending-name {
+  font-size: 11px;
+  font-weight: 500;
+  color: #1d1d1f;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dws-pending-at { font-size: 10px; color: #86868b; line-height: 1.2; }
+
+/* ---- 저장된 도면 확대 미리보기 오버레이(라이트박스) ---------------------- */
+.dws-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4vmin;
+  background: rgba(0, 0, 0, 0.62);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+}
+.dws-lightbox[hidden] { display: none; }
+.dws-lightbox-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 6px;
+  box-shadow: 0 24px 68px rgba(0, 0, 0, 0.5);
+  background: #ffffff;
+}
+.dws-lightbox-close {
+  position: absolute;
+  top: 18px;
+  right: 22px;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 120ms ease-out;
+}
+.dws-lightbox-close:hover { background: rgba(255, 255, 255, 0.28); }
+
 /* ---- 캔버스(스크롤) ------------------------------------------------------ */
 .dws-canvas {
   position: relative;                /* 빈 상태 오버레이(#dws-empty) 절대배치 기준 */
