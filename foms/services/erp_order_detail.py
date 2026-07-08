@@ -26,6 +26,9 @@ def _slim_structured_data(sd: dict) -> dict:
     return {
         'schedule': sd.get('schedule', {}),
         'items': sd.get('items', []),
+        'payment': sd.get('payment', {}),
+        'payments': sd.get('payments', {}),
+        'totals': sd.get('totals', {}),
         'parties': sd.get('parties', {}),
         'workflow': {
             'stage': workflow.get('stage'),

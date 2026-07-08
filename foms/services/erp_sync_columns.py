@@ -31,6 +31,8 @@ def sync_erp_flat_columns(order, structured_data: dict) -> None:
 
     order.erp_measurement_date = _normalize_date_to_yyyymmdd(meas_raw)
     order.erp_construction_date = _normalize_date_to_yyyymmdd(cons_raw)
+    order.measurement_date = order.erp_measurement_date or ""
+    order.scheduled_date = order.erp_construction_date or ""
 
     workflow = (structured_data.get('workflow') or {})
     stage = workflow.get('stage')

@@ -5,7 +5,28 @@ DB가 필요 없는 순수 함수 테스트: fake order(SimpleNamespace) + sd(di
 
 from types import SimpleNamespace
 
-from foms.services.drawing_wizard_defaults import build_wizard_defaults
+import pytest
+
+from foms.services import erp_mobile_order_display as _display_mod
+from foms.services.drawing_wizard_defaults import (
+    build_wizard_defaults,
+    resolve_assignee_drew_en,
+)
+
+
+@pytest.fixture(autouse=True)
+def _stub_manager_phone_lookup(monkeypatch):
+    """담당 연락처 설정 룩업을 기본 '없음'으로 스텁한다(단위 테스트 DB I/O 차단).
+
+    ``build_wizard_defaults`` 는 ``manager.phone`` 이 없을 때 큐 리졸버를 지연
+    import해 호출한다. 기본값은 빈 문자열(매핑 없음)이며, 룩업 성공 케이스는
+    개별 테스트에서 monkeypatch로 이 스텁을 덮어쓴다.
+    """
+    monkeypatch.setattr(
+        _display_mod,
+        "resolve_manager_phone_for_queue",
+        lambda parties, *, manager_name="", order=None, manager_phone_map=None: "",
+    )
 
 
 def _order(**kwargs):
@@ -45,7 +66,7 @@ def test_defaults_maps_full_structured_data():
 
     assert result["construction_date"] == "7월 9일"
     assert result["customer_name"] == "서으뜸"
-    assert result["phone"] == "010-9263-9140"
+    assert result["phone"] == "9263-9140"
     assert result["address"] == "대구 희망로 24길 24"
     assert result["product_name"] == "여단이 붙박이장"
     assert result["color"] == "클린화이트"
@@ -159,12 +180,96 @@ def test_defaults_product_name_joins_nonempty_only():
     assert result["product_name"] == "장A / 장B"
 
 
+def test_defaults_item_index_none_joins_all_names():
+    """item_index 미지정(None, 집계 모드)이면 모든 제품명을 조인한다(기존 동작 유지)."""
+    sd = {"items": [{"product_name": "장A"}, {"product_name": "장B"}]}
+
+    result = build_wizard_defaults(_order(), sd, _user())
+
+    assert result["product_name"] == "장A / 장B"
+
+
+def test_defaults_item_index_selects_single_product():
+    """item_index 지정 시 그 제품 한 건만 기준(product_name도 그 제품명만, 종속 필드도 해당 item)."""
+    sd = {
+        "items": [
+            {"product_name": "장A", "color": "화이트", "handle": "핸들A"},
+            {
+                "product_name": "장B",
+                "color": "블랙",
+                "handle": "핸들B",
+                "width": "100",
+                "depth": "200",
+                "height": "300",
+            },
+        ]
+    }
+
+    result = build_wizard_defaults(_order(), sd, _user(), item_index=1)
+
+    assert result["product_name"] == "장B"
+    assert result["color"] == "블랙"
+    assert result["handle"] == "핸들B"
+    assert result["site_spec"] == "100×200×300"
+    assert result["page_no"] == "2"  # 제품 번호(1-base) 자동 넘버링
+
+
+def test_defaults_page_no_auto_numbers_by_product_index():
+    """page_no는 제품 시트(item_index 지정)면 번호(1-base), 집계면 '-'."""
+    sd = {"items": [{"product_name": "A"}, {"product_name": "B"}, {"product_name": "C"}]}
+    assert build_wizard_defaults(_order(), sd, _user())["page_no"] == "-"
+    assert build_wizard_defaults(_order(), sd, _user(), item_index=0)["page_no"] == "1"
+    assert build_wizard_defaults(_order(), sd, _user(), item_index=2)["page_no"] == "3"
+
+
+def test_defaults_item_index_out_of_range_falls_back_to_first():
+    """범위를 벗어난 item_index는 items[0]으로 폴백하되, 단일 제품 모드(조인 안 함)를 유지한다."""
+    sd = {"items": [{"product_name": "장A", "color": "화이트"}, {"product_name": "장B"}]}
+
+    result = build_wizard_defaults(_order(), sd, _user(), item_index=99)
+
+    assert result["product_name"] == "장A"
+    assert result["color"] == "화이트"
+
+
 def test_defaults_phone_blank_when_missing():
     sd = {"parties": {"customer": {"name": "홍길동"}}}
 
     result = build_wizard_defaults(_order(), sd, _user())
 
     assert result["phone"] == ""
+
+
+def test_defaults_manager_phone_uses_structured_phone_stripping_010():
+    """parties.manager.phone가 있으면 그 값을 '010' 제거 포맷으로 쓴다(룩업 생략)."""
+    sd = {"parties": {"manager": {"name": "하우드 김성일", "phone": "01011112222"}}}
+
+    result = build_wizard_defaults(_order(), sd, _user())
+
+    assert result["manager_phone"] == "1111-2222"
+
+
+def test_defaults_manager_phone_falls_back_to_queue_lookup(monkeypatch):
+    """manager.phone가 없으면 큐 리졸버 룩업값을 '010' 제거 포맷으로 쓴다."""
+    monkeypatch.setattr(
+        _display_mod,
+        "resolve_manager_phone_for_queue",
+        lambda parties, *, manager_name="", order=None, manager_phone_map=None: "01033334444",
+    )
+    sd = {"parties": {"manager": {"name": "하우드 김성일", "phone": ""}}}
+
+    result = build_wizard_defaults(_order(), sd, _user())
+
+    assert result["manager_phone"] == "3333-4444"
+
+
+def test_defaults_manager_phone_dash_when_no_phone_and_no_lookup():
+    """manager.phone도 룩업도 없으면 '-'를 유지한다(스텁 기본값 = 빈 문자열)."""
+    sd = {"parties": {"manager": {"name": "하우드 김성일", "phone": ""}}}
+
+    result = build_wizard_defaults(_order(), sd, _user())
+
+    assert result["manager_phone"] == "-"
 
 
 def test_defaults_drew_blank_when_no_user():
@@ -215,3 +320,31 @@ def test_defaults_drew_falls_back_to_current_user_when_no_assignee(monkeypatch):
     result = build_wizard_defaults(_order(), {}, _user("최상용"))
 
     assert result["drew"] == "최상용"
+
+
+def test_resolve_assignee_drew_en_returns_english_when_mapping_exists(monkeypatch):
+    """담당자 지정 + 영문 매핑 성공 → 영문명 반환."""
+    _patch_drawing_manager_en(monkeypatch, {"김한비": "KIM HANBI"})
+    sd = {"drawing_assignees": [{"id": 7, "name": "김한비"}]}
+
+    assert resolve_assignee_drew_en(sd) == "KIM HANBI"
+
+
+def test_resolve_assignee_drew_en_blank_when_no_mapping(monkeypatch):
+    """담당자 지정됐어도 영문 매핑이 없으면 빈 문자열(한글명 폴백 안 함)."""
+    _patch_drawing_manager_en(monkeypatch, {})
+    sd = {"drawing_assignees": [{"id": 7, "name": "김한비"}]}
+
+    assert resolve_assignee_drew_en(sd) == ""
+
+
+def test_resolve_assignee_drew_en_blank_when_no_assignee(monkeypatch):
+    """담당자 미지정이면 빈 문자열이며 설정 로더는 호출하지 않는다."""
+    from foms.services import drawing_wizard_defaults as mod
+
+    def _boom():
+        raise AssertionError("담당자 미지정 시 설정 로더를 호출하면 안 된다")
+
+    monkeypatch.setattr(mod, "load_erp_shipment_settings", _boom)
+
+    assert resolve_assignee_drew_en({}) == ""

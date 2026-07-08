@@ -313,6 +313,10 @@ def erp_drawing_workbench_dashboard():
         customer_name = (((sd.get('parties') or {}).get('customer') or {}).get('name')) or '-'
         manager_name = (((sd.get('parties') or {}).get('manager') or {}).get('name')) or '-'
         drawing_files = list(sd.get('drawing_current_files', []) or [])
+        # 전달 대기 도면(마법사 저장분): structured_data['drawing_wizard']['pending'] 길이.
+        # 이미 로드된 sd 에서 계산(추가 쿼리 없음). 작업실 일괄 전송 UI의 행 배지/판별 소스.
+        drawing_wizard = sd.get('drawing_wizard') or {}
+        pending_count = len(drawing_wizard.get('pending') or {})
         history = list(sd.get('drawing_transfer_history', []) or [])
         last_event = history[-1] if history else {}
         assignees = list(sd.get('drawing_assignees', []) or [])
@@ -405,6 +409,7 @@ def erp_drawing_workbench_dashboard():
             'drawing_status': drawing_status,
             'drawing_status_label': _drawing_status_label(drawing_status),
             'file_count': len(drawing_files),
+            'pending_count': pending_count,
             'thumbnail_url': resolve_row_thumbnail_url(
                 o.id, drawing_files, db, mobile_v2_active=mobile_v2_active
             ),
@@ -529,6 +534,9 @@ def erp_drawing_workbench_detail(order_id):
         return redirect(url_for('erp_drawing_workbench.erp_drawing_workbench_dashboard'))
 
     s_data = _ensure_dict(order.structured_data)
+    # 도면 마법사 [저장]본(전달 대기) 목록 — 상세 상단 패널·전달 모달 카드에서 사용.
+    from foms.api.drawing.wizard import _pending_list
+    drawing_pending = _pending_list(s_data)
     stage = _erp_get_stage(order, s_data)
     drawing_status = ((s_data.get('drawing') or {}).get('status') or s_data.get('drawing_status') or 'PENDING').upper()
     drawing_files = list(s_data.get('drawing_current_files', []) or [])
@@ -702,6 +710,7 @@ def erp_drawing_workbench_detail(order_id):
         manager_name=manager_name,
         assignee_text=assignee_text,
         drawing_files=drawing_files,
+        drawing_pending=drawing_pending,
         history=history,
         revision_requests=revision_requests,
         latest_transfer=latest_transfer,

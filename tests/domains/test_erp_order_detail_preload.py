@@ -35,8 +35,17 @@ def make_erp_order():
                     "spec_width": "3000",
                     "spec_depth": "600",
                     "spec_height": "2400",
+                    "price": "1,250,000",
                 }
             ],
+            "payment": {"deposit": "300,000"},
+            "payments": {"deposit": {"amount": "250,000"}},
+            "totals": {
+                "items_total": "1,250,000",
+                "deposit_amount": "300,000",
+                "final_amount": "950,000",
+                "shipping_price": "1,250,000",
+            },
         },
     )
 
@@ -68,6 +77,9 @@ def test_build_order_detail_payload_map_slims_structured_data_without_attachment
 
     assert payload["success"] is True
     assert payload["structured_data"]["workflow"]["stage"] == "DRAWING"
+    assert payload["structured_data"]["payment"]["deposit"] == "300,000"
+    assert payload["structured_data"]["payments"]["deposit"]["amount"] == "250,000"
+    assert payload["structured_data"]["totals"]["final_amount"] == "950,000"
     assert "attachments" not in payload  # Lazy loading in Phase M
 
 

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>도면 마법사 — 주문 #{{ order.id }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20260707c">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20260708l">
 </head>
 <body>
   <div id="dws-root" data-order-id="{{ order.id }}">
@@ -59,12 +59,8 @@
             <span>프리셋</span>
             <svg class="dws-caret" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
           </button>
-          <div class="dws-menu" id="dws-preset-menu" hidden>
-            <button type="button" class="dws-menu-item" data-preset="SR">[SR]</button>
-            <button type="button" class="dws-menu-item" data-preset="EP">[EP]</button>
-            <button type="button" class="dws-menu-item" data-preset="DOOR">[DOOR]</button>
-            <button type="button" class="dws-menu-item" data-preset="ROD">[옷봉]</button>
-          </div>
+          <!-- 프리셋 메뉴: wizard.js renderPresetMenu 가 기본 4개 + 사용자 프리셋을 동적 렌더 -->
+          <div class="dws-menu" id="dws-preset-menu" hidden></div>
         </div>
 
         <span class="dws-appbar-sep"></span>
@@ -87,11 +83,15 @@
         <div class="dws-fontctl">
           <button type="button" class="dws-btn dws-edit-ctl" id="dws-btn-font-dec" title="표 글자 작게" aria-label="표 글자 작게">A−</button>
           <button type="button" class="dws-btn dws-edit-ctl" id="dws-btn-font-inc" title="표 글자 크게" aria-label="표 글자 크게">A+</button>
+          <button type="button" class="dws-btn dws-icon-btn dws-edit-ctl" id="dws-btn-table-reset" title="표 칸 크기 원상 복구" aria-label="표 칸 크기 원상 복구">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+          </button>
         </div>
 
         <span class="dws-appbar-sep"></span>
 
         <button type="button" class="dws-btn dws-btn-primary dws-edit-ctl" id="dws-btn-save">저장</button>
+        <button type="button" class="dws-btn dws-edit-ctl" id="dws-btn-save-all" title="모든 시트를 전달 대기함에 저장">일괄 저장</button>
 
         <div class="dws-dropdown">
           <button type="button" class="dws-btn" id="dws-btn-export">
@@ -100,7 +100,9 @@
           </button>
           <div class="dws-menu dws-menu-right" id="dws-export-menu" hidden>
             <button type="button" class="dws-menu-item" id="dws-btn-export-png">PNG 다운로드</button>
-            <button type="button" class="dws-menu-item dws-edit-ctl" id="dws-btn-export-transfer">도면 전달</button>
+            <button type="button" class="dws-menu-item" id="dws-btn-export-all">일괄 내보내기 (폴더 저장)</button>
+            <div class="dws-menu-sep"></div>
+            <button type="button" class="dws-menu-item" id="dws-btn-version-history">버전 이력…</button>
           </div>
         </div>
       </div>
@@ -113,6 +115,36 @@
 
     <!-- ================= 시트 탭 바 ================= -->
     <div class="dws-tabbar dws-ui" id="dws-tabbar"></div>
+
+    <!-- ================= 본문 (좌: 제품 리스트 · 우: 캔버스) ============ -->
+    <div class="dws-body">
+
+    <!-- 좌측 제품 리스트 패널(접기 가능) -->
+    <aside class="dws-products dws-ui" id="dws-products">
+      <div class="dws-products-head">
+        <span class="dws-products-title">제품</span>
+        <button type="button" class="dws-products-toggle" id="dws-products-toggle" title="제품 목록 접기" aria-label="제품 목록 접기">◂</button>
+      </div>
+      <div class="dws-product-list" id="dws-product-list"></div>
+
+      <!-- 실측 사진 사이드 참조(클릭 → 캔버스 삽입) -->
+      <div class="dws-photos" id="dws-photos" hidden>
+        <div class="dws-photos-head">
+          <span class="dws-photos-title" id="dws-photos-title">실측 사진</span>
+          <button type="button" class="dws-photos-toggle" id="dws-photos-toggle" title="실측 사진 접기" aria-label="실측 사진 접기">▾</button>
+        </div>
+        <div class="dws-photo-grid" id="dws-photo-grid"></div>
+      </div>
+
+      <!-- 저장된 도면(전달 대기) 사이드 미리보기(클릭 → 확대) -->
+      <div class="dws-pending" id="dws-pending" hidden>
+        <div class="dws-pending-head">
+          <span class="dws-pending-title" id="dws-pending-title">저장된 도면</span>
+          <button type="button" class="dws-pending-toggle" id="dws-pending-toggle" title="저장된 도면 접기" aria-label="저장된 도면 접기">▾</button>
+        </div>
+        <div class="dws-pending-grid" id="dws-pending-grid"></div>
+      </div>
+    </aside>
 
     <!-- ================= 캔버스(스크롤) ================= -->
     <div class="dws-canvas" id="dws-canvas">
@@ -216,7 +248,19 @@
 
         </div>
       </div>
+
+      <!-- ===== 빈 상태 안내 오버레이(시트 0개): 제품 클릭/+시트로만 도면 생성 ===== -->
+      <div class="dws-empty dws-ui" id="dws-empty" hidden>
+        <div class="dws-empty-box">
+          <svg class="dws-empty-ico" viewBox="0 0 24 24" width="46" height="46" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+          <p class="dws-empty-title">좌측에서 제품을 선택해 도면을 시작하세요</p>
+          <p class="dws-empty-sub">제품을 클릭하면 해당 제품의 도면 시트가 자동으로 만들어집니다.</p>
+          <button type="button" class="dws-btn dws-edit-ctl" id="dws-empty-add">빈 시트 추가</button>
+        </div>
+      </div>
     </div>
+
+    </div><!-- /.dws-body -->
 
     <!-- ================= 모드 안내 힌트(플로팅) ================= -->
     <div class="dws-mode-hint dws-ui" id="dws-mode-hint" aria-live="polite"></div>
@@ -236,6 +280,11 @@
         <button type="button" class="dws-swatch dws-swatch-blue" data-color="#1c62d6" title="파랑"></button>
         <button type="button" class="dws-mt-btn" id="dws-mt-bold" title="굵게"><b>B</b></button>
         <button type="button" class="dws-mt-btn" id="dws-mt-align" title="정렬">좌</button>
+        <!-- 편집 중에만 노출(CSS .dws-mt-editing): 커서 위치에 프리셋 텍스트 즉시 삽입 -->
+        <div class="dws-dropdown dws-mt-preset" id="dws-mt-preset-wrap">
+          <button type="button" class="dws-mt-btn" id="dws-mt-preset-btn" title="프리셋 삽입">프리셋 ▾</button>
+          <div class="dws-menu dws-mt-preset-menu" id="dws-mt-preset-menu" hidden></div>
+        </div>
         <button type="button" class="dws-mt-btn dws-mt-del" id="dws-mt-del-text" title="삭제">삭제</button>
       </div>
       <div class="dws-mt-group" id="dws-mt-image" hidden>
@@ -261,25 +310,14 @@
       <button type="button" class="dws-popup-item" data-logo="lahom">라홈</button>
     </div>
 
-    <!-- ================= 도면 전달 다이얼로그 ================= -->
-    <dialog class="dws-dialog dws-ui" id="dws-transfer-dialog">
+    <!-- ================= 버전 이력 다이얼로그 ================= -->
+    <dialog class="dws-dialog dws-ui" id="dws-version-dialog">
       <div class="dws-dialog-body">
-        <h2 class="dws-dialog-title">도면 전달</h2>
-        <label class="dws-field">
-          <span class="dws-field-label">메모</span>
-          <textarea class="dws-field-input" id="dws-transfer-note" rows="3" placeholder="전달 메모(선택)"></textarea>
-        </label>
-        <label class="dws-field">
-          <span class="dws-field-label">전달 모드</span>
-          <select class="dws-field-input" id="dws-transfer-mode">
-            <option value="APPEND">기존에 추가</option>
-            <option value="REPLACE_ALL">전체 교체</option>
-          </select>
-        </label>
-        <p class="dws-dialog-note">현재 시트 1장이 PNG로 전달됩니다.</p>
+        <h2 class="dws-dialog-title">버전 이력</h2>
+        <p class="dws-dialog-note">도면을 전달할 때마다 각 시트의 상태가 자동으로 기록됩니다. 이전 버전을 새 시트로 복원해 비교·수정할 수 있습니다.</p>
+        <div class="dws-version-list" id="dws-version-list"></div>
         <div class="dws-dialog-actions">
-          <button type="button" class="dws-btn" id="dws-transfer-cancel">취소</button>
-          <button type="button" class="dws-btn dws-btn-primary" id="dws-transfer-submit">전달</button>
+          <button type="button" class="dws-btn" id="dws-version-close">닫기</button>
         </div>
       </div>
     </dialog>
@@ -292,6 +330,12 @@
       </div>
     </div>
 
+    <!-- ================= 저장된 도면 확대 미리보기(라이트박스) ================= -->
+    <div class="dws-lightbox dws-ui" id="dws-lightbox" hidden>
+      <button type="button" class="dws-lightbox-close" id="dws-lightbox-close" title="닫기" aria-label="닫기">✕</button>
+      <img class="dws-lightbox-img" id="dws-lightbox-img" alt="저장된 도면 미리보기">
+    </div>
+
     <!-- ================= 토스트 ================= -->
     <div class="dws-toast-host dws-ui" id="dws-toast-host" aria-live="polite"></div>
 
@@ -299,6 +343,6 @@
 
   <script id="drawing-wizard-config" type="application/json">{{ wizard_config|tojson }}</script>
   <script src="{{ url_for('static', filename='vendor/konva.min.js') }}?v=20260706b" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260707c" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260708l" defer></script>
 </body>
 </html>

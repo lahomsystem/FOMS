@@ -347,6 +347,82 @@ def test_update_order_field_manager_name_syncs_structured_data_for_erp_order(cli
     assert saved_order.structured_data["parties"]["manager"]["name"] == "Bob"
 
 
+def test_update_order_field_dates_sync_erp_schedule_and_flat_columns(client) -> None:
+    """Regional dashboard inline dates must update ERP schedule and flat indexes."""
+    _login_as_admin(client, "orders-contract-date-erp-order-admin")
+    order = _create_order(
+        is_erp_order=True,
+        is_regional=True,
+        construction_type="협력사 시공",
+        structured_data={"schedule": {"measurement": {}, "construction": {}}},
+    )
+
+    response = client.post(
+        "/api/update_order_field",
+        json={"order_id": order.id, "field": "measurement_date", "value": "2026-07-13"},
+    )
+    assert response.status_code == 200
+
+    response = client.post(
+        "/api/update_order_field",
+        json={"order_id": order.id, "field": "scheduled_date", "value": "2026-07-21"},
+    )
+    assert response.status_code == 200
+
+    db_session.expire_all()
+    saved_order = db_session.get(Order, order.id)
+    assert saved_order is not None
+    assert saved_order.measurement_date == "2026-07-13"
+    assert saved_order.scheduled_date == "2026-07-21"
+    assert saved_order.structured_data["schedule"]["measurement"]["date"] == "2026-07-13"
+    assert saved_order.structured_data["schedule"]["construction"]["date"] == "2026-07-21"
+    assert saved_order.erp_measurement_date == "2026-07-13"
+    assert saved_order.erp_construction_date == "2026-07-21"
+
+
+def test_legacy_edit_dates_sync_erp_flat_columns(client) -> None:
+    """Regional dashboard edit form must not leave ERP flat date columns stale."""
+    _login_as_admin(client, "orders-contract-legacy-edit-date-sync-admin")
+    order = _create_order(
+        is_erp_order=True,
+        is_regional=True,
+        construction_type="하우드 시공",
+        measurement_date="2026-07-01",
+        scheduled_date="2026-07-02",
+        erp_measurement_date="2026-07-01",
+        erp_construction_date="2026-07-02",
+        structured_data={
+            "schedule": {
+                "measurement": {"date": "2026-07-01"},
+                "construction": {"date": "2026-07-02"},
+            }
+        },
+    )
+    order_id = order.id
+
+    response = client.post(
+        f"/edit/{order_id}",
+        data={
+            "is_regional": "on",
+            "construction_type": "하우드 시공",
+            "measurement_date": "2026-07-13",
+            "scheduled_date": "2026-07-21",
+        },
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["status"] == "success"
+
+    db_session.expire_all()
+    saved_order = db_session.get(Order, order_id)
+    assert saved_order is not None
+    assert saved_order.structured_data["schedule"]["measurement"]["date"] == "2026-07-13"
+    assert saved_order.structured_data["schedule"]["construction"]["date"] == "2026-07-21"
+    assert saved_order.erp_measurement_date == "2026-07-13"
+    assert saved_order.erp_construction_date == "2026-07-21"
+
+
 def test_field_update_structured_sync_fields_match_reachable_contract() -> None:
     """Structured sync hints must not advertise unreachable legacy fields."""
     assert field_update_module.STRUCTURED_SYNC_FIELDS <= set(

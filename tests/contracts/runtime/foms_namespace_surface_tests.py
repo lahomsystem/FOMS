@@ -1408,6 +1408,7 @@ def test_namespaced_erp_template_filters_shim_preserves_canonical_contract() -> 
         "strip_product_w_filter",
         "spec_w300_filter",
         "format_phone_filter",
+        "format_phone_no_prefix",
         "spec_w300_value",
         "item_spec_w300_display",
         "item_spec_w300_value",

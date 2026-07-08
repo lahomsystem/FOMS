@@ -34,7 +34,7 @@ _SEED_BASE = datetime.datetime(2026, 6, 1, 9, 0, 0)
 # warmup 후 격리 실측: small(4건)=3, big(12건)=3 → delta=0 (완전 배치, per-row 없음).
 # 여유 +2로 예산 2.
 ALLOWED_DELTA = 2
-# 절대 상한: 현 실측 big(3) + 30% ≈ 4.
+# 절대 상한: 현 실측 big(3) + 여유 1 = 4.
 ABS_QUERY_CAP = 4
 
 

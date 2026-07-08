@@ -10,6 +10,7 @@ __all__ = [
     "strip_product_w_filter",
     "spec_w300_filter",
     "format_phone_filter",
+    "format_phone_no_prefix",
     "spec_w300_value",
     "item_spec_w300_display",
     "item_spec_w300_value",
@@ -108,6 +109,34 @@ def format_phone_filter(value):
     if len(digits) == 10:
         return f"{digits[:3]}-{digits[3:6]}-{digits[6:]}"
     return value
+
+
+def format_phone_no_prefix(value) -> str:
+    """전화번호를 '010-' 접두 없이 표시한다 (도면 마법사 표기용).
+
+    ``format_phone_filter``와 달리 휴대폰 국번(010)을 생략해 국번 뒤 8자리만
+    보여준다. 예: ``01092639140`` -> ``9263-9140``.
+
+    Args:
+        value: 전화번호 원문(문자열/숫자/None).
+
+    Returns:
+        - 11자리이고 '010'으로 시작: ``{국번4}-{번호4}`` (예 '9263-9140')
+        - 그 외 11자리: 3-4-4 (``format_phone_filter``와 동일)
+        - 10자리: 지역번호 유지 3-3-4
+        - 빈 값: '' (format_phone_filter의 '-'와 달리 빈 문자열)
+        - 그 밖의 길이: 원문 그대로.
+    """
+    if not value:
+        return ''
+    digits = re.sub(r'[^0-9]', '', str(value))
+    if len(digits) == 11:
+        if digits.startswith('010'):
+            return f"{digits[3:7]}-{digits[7:]}"
+        return f"{digits[:3]}-{digits[3:7]}-{digits[7:]}"
+    if len(digits) == 10:
+        return f"{digits[:3]}-{digits[3:6]}-{digits[6:]}"
+    return str(value)
 
 
 def spec_w300_value(value):

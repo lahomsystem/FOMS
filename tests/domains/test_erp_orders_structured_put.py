@@ -194,6 +194,45 @@ def test_structured_get_put_round_trips_regional_and_self_measurement_flags(clie
     assert "홍길동" in self_dashboard.get_data(as_text=True)
 
 
+def test_structured_put_syncs_erp_dates_to_legacy_mirrors(client, monkeypatch):
+    """Full ERP Order save must keep regional/legacy date columns in sync."""
+    _login_as_admin(client, username="erp-structured-date-sync")
+    order = _create_order(
+        structured_data={
+            **_structured_payload("서울 테헤란로 123"),
+            "schedule": {
+                "measurement": {"date": "2026-07-01"},
+                "construction": {"date": "2026-07-02"},
+            },
+        }
+    )
+    order_id = order.id
+
+    monkeypatch.setattr(erp_orders_structured, "_handle_stage_transition", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "_record_structured_events", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "_apply_structured_side_effects", lambda *a, **k: None)
+    monkeypatch.setattr(erp_orders_structured, "_finalize_draft_state", lambda *a, **k: False)
+    monkeypatch.setattr(erp_orders_structured, "enqueue_geocode_order_address", lambda *a, **k: None)
+
+    sd = copy.deepcopy(order.structured_data)
+    sd["schedule"]["measurement"]["date"] = "2026-07-13"
+    sd["schedule"]["construction"]["date"] = "2026-07-21"
+
+    response = client.put(
+        f"/api/orders/{order_id}/structured",
+        json={"structured_data": sd, "structured_schema_version": 1},
+    )
+
+    assert response.status_code == 200
+    db_session.expire_all()
+    saved_order = db_session.get(Order, order_id)
+    assert saved_order is not None
+    assert saved_order.erp_measurement_date == "2026-07-13"
+    assert saved_order.erp_construction_date == "2026-07-21"
+    assert saved_order.measurement_date == "2026-07-13"
+    assert saved_order.scheduled_date == "2026-07-21"
+
+
 def test_structured_put_requires_construction_type_for_regional_order(client, monkeypatch):
     """지방주문 저장은 하우드/협력사 구분 없이는 대시보드 매칭을 만들 수 없다."""
     _login_as_admin(client, username="erp-regional-type-required")

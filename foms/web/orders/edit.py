@@ -19,6 +19,7 @@ from foms.web.auth import login_required, role_required, log_access, get_user_by
 from foms.services.erp_permissions import can_edit_erp
 from foms.services.erp_display import _ensure_dict
 from foms.services.erp_order_flags import is_erp_order_record
+from foms.services.erp_sync_columns import sync_erp_flat_columns
 from db import get_db
 from models import Order
 from foms.services.orders.status_constants import STATUS
@@ -254,6 +255,7 @@ def edit_order(order_id):
                     site_address_jsonb_changed = apply_erp_order_site_address_to_sd(sd, flat_addr)
                     setattr(order, 'structured_data', copy.deepcopy(sd))
                     flag_modified(order, 'structured_data')
+                    sync_erp_flat_columns(order, sd)
             if site_address_jsonb_changed and 'address' not in changes:
                 clear_order_geocode_coords(order)
             if bool(getattr(order, 'is_regional', False)):

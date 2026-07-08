@@ -794,8 +794,12 @@ def test_erp_amount_surfaces_read_modern_payment_deposit_and_stored_final() -> N
     for source in (dashboard_js, dashboard_template):
         assert "coerceAmount((sd.payment || {}).deposit)" in source
         assert "coerceAmount((sd.payments || {}).deposit)" in source
+        assert "coerceAmount(totals.deposit_amount)" in source
         assert "coerceAmount((sd.payment || {}).discount)" in source
         assert "coerceAmount((sd.totals || {}).discount_amount)" in source
+        assert "coerceAmount(totals.items_total)" in source
+        assert "s + coerceAmount(it.price)" in source
+        assert "coerceAmount(totals.shipping_price)" in source
         assert "sumFreeInputFromText" in source
         assert "coerceAmount(totals.final_amount)" in source
         assert "itemsTotal + freeInputAmt - depositAmt - discountAmt" in source
@@ -807,6 +811,26 @@ def test_erp_amount_surfaces_read_modern_payment_deposit_and_stored_final() -> N
         assert "rsd_payment.get('deposit') or rsd_payments.get('deposit', 0)" in source
         assert "rsd_payment.get('discount')" in source
         assert "rsd_items_total + rsd_free_input - rsd_deposit - rsd_discount" in source
+
+
+def test_erp_dashboard_selected_orders_can_copy_to_new_order_number() -> None:
+    """ERP 대시보드 선택 바는 선택 주문을 새 주문번호로 복사하는 API를 호출한다."""
+    root = Path(__file__).resolve().parents[2]
+    dashboard_grid = (
+        root / "templates/orders/partials/dashboard_grid.html"
+    ).read_text(encoding="utf-8")
+    dashboard_js = (root / "static/js/orders/dashboard/erp-dashboard-detail-dom.js").read_text(encoding="utf-8")
+    dashboard_template = (
+        root / "templates/orders/partials/dashboard_scripts_detail_dom.html"
+    ).read_text(encoding="utf-8")
+
+    assert 'id="erp-grid-copy-selected"' in dashboard_grid
+    assert "주문 건 복사" in dashboard_grid
+    for source in (dashboard_js, dashboard_template):
+        assert "function selectedOrderIds()" in source
+        assert "fetch('/api/orders/copy'" in source
+        assert "JSON.stringify({ order_ids: orderIds })" in source
+        assert "?open=erp-order" in source
 
 
 def test_edit_order_matched_estimate_card_uses_order_payment_payload() -> None:

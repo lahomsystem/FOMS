@@ -39,6 +39,261 @@ erp_orders_drawing_bp = Blueprint(
 )
 
 
+def perform_drawing_transfer(
+    db, order, order_id, current_user, user_id, *,
+    note='', mode='', files=None, is_retransfer=False,
+    replace_target_key='', replace_target_keys=None,
+    emergency_override=False, override_reason='',
+):
+    """도면 전달 핵심 처리 — ``transfer-drawing`` 및 작업실 ``transfer-pending`` 공용.
+
+    drawing_current_files 갱신·drawing_status='TRANSFERRED'·전달 히스토리 append·담당자
+    알림(fan_out+push+realtime)·SecurityLog·대시보드 캐시 무효화를 한 트랜잭션으로 수행하고
+    커밋한다. 호출측이 ``order``/``current_user``/``user_id`` 를 이미 로드해 전달한다.
+
+    :param files: [{key, filename}] (이미 R2에 업로드된 참조). None/[] 이면 파일 미갱신.
+    :returns: ``(payload_dict, http_status)``. 성공 시 ``payload['success']=True`` (200),
+        검증 실패 시 해당 오류 payload 와 상태코드. 예외는 발생시키지 않고 호출측
+        ``try/except`` 가 롤백한다.
+    """
+    note = note or ''
+    mode = (mode or '').upper()
+    is_retransfer = bool(is_retransfer)
+    replace_target_key = (replace_target_key or '').strip()
+    replace_target_keys = list(replace_target_keys or [])
+    emergency_override = bool(emergency_override)
+    override_reason = (override_reason or '').strip()
+
+    if mode == 'REPLACE_ALL':
+        pass
+    elif replace_target_key and replace_target_key not in replace_target_keys:
+        replace_target_keys = [replace_target_key]
+    elif not replace_target_keys:
+        replace_target_keys = []
+
+    s_data = {}
+    if order.structured_data:
+        if isinstance(order.structured_data, dict):
+            s_data = copy.deepcopy(order.structured_data)
+        elif isinstance(order.structured_data, str):
+            try:
+                s_data = json.loads(order.structured_data)
+            except Exception:
+                s_data = {}
+
+    draw_assignee_ids = get_assignee_ids(order, 'DRAWING_DOMAIN')
+    if not draw_assignee_ids:
+        return {'success': False, 'message': '도면 담당자가 지정되지 않아 전달할 수 없습니다. 먼저 담당자를 지정해주세요.'}, 400
+
+    if not current_user:
+        return {'success': False, 'message': '사용자 정보를 찾을 수 없습니다.'}, 401
+    if current_user.role == 'MANAGER' and emergency_override and override_reason:
+        can_do_transfer = True
+    else:
+        can_do_transfer = is_drawing_workbench_participant(current_user, order)
+    if not can_do_transfer:
+        msg = '도면 전달 권한이 없습니다. (도면 담당자·도면팀 또는 관리자만 가능)'
+        if current_user.role == 'MANAGER':
+            msg += ' (긴급 시 사유와 함께 오버라이드를 사용하세요.)'
+        return {'success': False, 'message': msg}, 403
+
+    drawing_status = ((s_data.get('drawing') or {}).get('status') or s_data.get('drawing_status') or 'PENDING').upper()
+    if not is_retransfer:
+        is_retransfer = drawing_status == 'RETURNED'
+    if (
+        drawing_status == 'RETURNED'
+        and has_pending_unchecked_drawing_revision_requests(s_data)
+        and not (current_user.role == 'MANAGER' and emergency_override and override_reason)
+    ):
+        return {
+            'success': False,
+            'message': '수정 요청이 모두 "반영 완료"로 처리된 뒤에 수정본을 전달할 수 있습니다.',
+        }, 400
+
+    now_str = now_utc_naive().strftime('%Y-%m-%d %H:%M:%S')
+    user_name = current_user.name if current_user else 'Unknown'
+
+    raw_new_files = files or []
+    new_files = []
+    if isinstance(raw_new_files, list):
+        for f in raw_new_files:
+            if not isinstance(f, dict):
+                continue
+            key = (f.get('key') or '').strip()
+            if not key:
+                continue
+            filename = (f.get('filename') or key.rsplit('/', 1)[-1]).strip()
+            new_files.append({
+                'key': key,
+                'filename': filename,
+                'view_url': f"/api/files/view/{key}",
+                'download_url': f"/api/files/download/{key}",
+            })
+
+    old_files = list(s_data.get('drawing_current_files', []) or [])
+    updated_files = list(old_files)
+    replaced_target_numbers = []
+
+    if is_retransfer and not new_files:
+        return {'success': False, 'message': '수정본 재전송 시 도면 파일 업로드가 필요합니다.'}, 400
+
+    if new_files:
+        if mode == 'REPLACE_ALL':
+            # 기존 파일은 타임라인 히스토리에서 계속 참조되므로 R2에서 삭제하지 않음.
+            # drawing_current_files 만 새 파일로 교체한다.
+            for idx, old_file in enumerate(old_files):
+                replaced_target_numbers.append(idx + 1)
+            updated_files = list(new_files)
+        elif replace_target_keys:
+            indices_to_replace = []
+            for target_key in replace_target_keys:
+                for i, f in enumerate(old_files):
+                    if ((f or {}).get('key') or '').strip() == target_key:
+                        indices_to_replace.append((i, target_key))
+                        break
+            if len(indices_to_replace) != len(replace_target_keys):
+                return {'success': False, 'message': '일부 교체 대상 도면을 찾을 수 없습니다. 목록을 새로고침 후 다시 시도해주세요.'}, 400
+            indices_to_replace.sort(key=lambda x: x[0], reverse=True)
+            for idx, target_key in indices_to_replace:
+                replaced_target_numbers.append(idx + 1)
+                # 교체 대상 파일도 히스토리 참조를 위해 R2에서 삭제하지 않음.
+                updated_files.pop(idx)
+            first_index = min([x[0] for x in indices_to_replace])
+            for offset, nf in enumerate(new_files):
+                updated_files.insert(first_index + offset, nf)
+            replaced_target_numbers.sort()
+        else:
+            if is_retransfer and len(old_files) > 1:
+                return {'success': False, 'message': '수정본 재전송 시 교체할 도면 번호를 선택해주세요.'}, 400
+            if is_retransfer:
+                # 수정 재전달 APPEND는 단일 도면일 때 교체로 처리 (이전본 누적 방지)
+                updated_files = list(new_files)
+            else:
+                updated_files = list(old_files) + list(new_files)
+
+        s_data['drawing_current_files'] = updated_files
+        new_keys = [((f or {}).get('key') or '').strip() for f in new_files]
+        new_keys = [k for k in new_keys if k]
+        if new_keys:
+            db.query(OrderAttachment).filter(
+                OrderAttachment.order_id == order_id,
+                OrderAttachment.storage_key.in_(new_keys)
+            ).update(
+                {OrderAttachment.category: 'drawing'},
+                synchronize_session=False
+            )
+
+    transfer_info = {
+        'action': 'TRANSFER',
+        'transferred_at': now_str,
+        'by_user_id': user_id,
+        'by_user_name': user_name,
+        'note': note,
+        'files_count': len(new_files),
+        'files': new_files,
+        'previous_current_files': old_files,  # 취소 시 복원용
+        'mode': (
+            'REPLACE'
+            if is_retransfer and not replace_target_keys and (mode or 'APPEND').upper() == 'APPEND' and len(old_files) <= 1
+            else (mode if mode else ('REPLACE' if replace_target_keys else 'APPEND'))
+        ),
+        'replace_target_keys': replace_target_keys if replace_target_keys else None,
+        'replace_target_numbers': replaced_target_numbers if replaced_target_numbers else None,
+        'replace_target_key': replace_target_keys[0] if len(replace_target_keys) == 1 else None,
+        'replace_target_number': replaced_target_numbers[0] if len(replaced_target_numbers) == 1 else None,
+    }
+
+    if 'drawing_transfer_history' not in s_data:
+        s_data['drawing_transfer_history'] = []
+    history = list(s_data['drawing_transfer_history'])
+    history.append(transfer_info)
+    s_data['drawing_transfer_history'] = history
+    s_data['drawing_status'] = 'TRANSFERRED'
+    s_data['drawing_transferred'] = True
+    s_data['last_drawing_transfer'] = transfer_info
+    order.structured_data = s_data
+    flag_modified(order, 'structured_data')
+
+    manager_name = (((s_data.get('parties') or {}).get('manager') or {}).get('name') or '').strip()
+    customer_name = (((s_data.get('parties') or {}).get('customer') or {}).get('name') or '').strip()
+    target_team = None
+    target_manager_name = None
+    notification_message = f"주문 #{order_id}"
+    if customer_name:
+        notification_message += f" ({customer_name})"
+    notification_message += f" 도면이 준비되었습니다."
+    if note:
+        notification_message += f" 메모: {note}"
+    if '라홈' in manager_name:
+        target_team = 'CS'
+    elif '하우드' in manager_name:
+        target_team = 'HAUDD'
+    else:
+        target_team = 'SALES'
+        target_manager_name = manager_name if manager_name else None
+
+    new_notification = Notification(
+        order_id=order_id,
+        notification_type='DRAWING_TRANSFERRED',
+        target_team=target_team,
+        target_manager_name=target_manager_name,
+        title='도면 전달됨',
+        message=notification_message,
+        created_by_user_id=user_id,
+        created_by_name=user_name,
+        is_read=False
+    )
+    db.add(new_notification)
+    db.flush()
+    # 같은 트랜잭션에서 수신자 state + 'created' 이벤트 생성(상태 없는 고아 알림 방지).
+    fan_out_new_notification(db, new_notification, actor_user_id=user_id)
+    db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} 도면 전달 완료: {note}"))
+    db.commit()
+    # 도메인-스코프: 도면 전달 완료는 workflow.stage를 바꾸지 않고 drawing_status만
+    # 변경 → 도면 대시보드/워크벤치와 주문 목록만 무효화(생산 read-model은 도면
+    # 상태를 읽지 않음).
+    from foms.services.common.dashboard_cache import (
+        DASHBOARD_FAMILY_DRAWING,
+        DASHBOARD_FAMILY_ORDERS,
+        invalidate_dashboard_families,
+    )
+
+    invalidate_dashboard_families(DASHBOARD_FAMILY_DRAWING, DASHBOARD_FAMILY_ORDERS)
+
+    # 커밋 후 Web Push enqueue(P1 유형: DRAWING_TRANSFERRED).
+    from foms.services.notifications.push_sender import enqueue_push_for_notification
+    enqueue_push_for_notification(new_notification.id, db=db)
+
+    recipient_user_ids = resolve_notification_recipient_user_ids(
+        db,
+        target_team=target_team,
+        target_manager_name=target_manager_name,
+        include_admin=True,
+    )
+    invalidate_badge_cache_for_user_ids(recipient_user_ids)
+    emit_erp_notification_to_users(
+        recipient_user_ids,
+        {
+            'notification_id': new_notification.id,
+            'order_id': order_id,
+            'notification_type': 'DRAWING_TRANSFERRED',
+            'title': new_notification.title,
+            'message': new_notification.message,
+        },
+    )
+
+    target_info = "라홈팀" if target_team == 'CS' else (
+        "하우드팀" if target_team == 'HAUDD' else (
+            f"영업팀 - {target_manager_name}" if target_manager_name else "영업팀"
+        )
+    )
+    return {
+        'success': True,
+        'message': f'도면이 전달되었습니다. [{target_info}]에 알림이 전송되었습니다. (확정 대기 상태)',
+        'info': '담당자가 수령 확인을 하면 다음 단계로 진행됩니다.'
+    }, 200
+
+
 @erp_orders_drawing_bp.route('/<int:order_id>/transfer-drawing', methods=['POST'])
 @login_required
 def api_order_transfer_drawing(order_id):
@@ -46,249 +301,48 @@ def api_order_transfer_drawing(order_id):
     db = None
     try:
         data = request.get_json() or {}
-        note = data.get('note', '')
-        is_retransfer = bool(data.get('is_retransfer'))
-        replace_target_key = (data.get('replace_target_key') or '').strip()
-        replace_target_keys = data.get('replace_target_keys') or []
-        mode = (data.get('mode') or '').upper()
-        emergency_override = bool(data.get('emergency_override'))
-        override_reason = (data.get('override_reason') or '').strip()
-
-        if mode == 'REPLACE_ALL':
-            pass
-        elif replace_target_key and replace_target_key not in replace_target_keys:
-            replace_target_keys = [replace_target_key]
-        elif not replace_target_keys:
-            replace_target_keys = []
-
         db = get_db()
         order = db.query(Order).filter(Order.id == order_id).first()
         if not order:
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
 
-        s_data = {}
-        if order.structured_data:
-            if isinstance(order.structured_data, dict):
-                s_data = copy.deepcopy(order.structured_data)
-            elif isinstance(order.structured_data, str):
-                try:
-                    s_data = json.loads(order.structured_data)
-                except Exception:
-                    s_data = {}
-
         current_user = get_user_by_id(session.get('user_id'))
-        user_id = session.get('user_id')
-        draw_assignee_ids = get_assignee_ids(order, 'DRAWING_DOMAIN')
-        if not draw_assignee_ids:
-            return jsonify({'success': False, 'message': '도면 담당자가 지정되지 않아 전달할 수 없습니다. 먼저 담당자를 지정해주세요.'}), 400
 
-        if not current_user:
-            return jsonify({'success': False, 'message': '사용자 정보를 찾을 수 없습니다.'}), 401
-        if current_user.role == 'MANAGER' and emergency_override and override_reason:
-            can_do_transfer = True
-        else:
-            can_do_transfer = is_drawing_workbench_participant(current_user, order)
-        if not can_do_transfer:
-            msg = '도면 전달 권한이 없습니다. (도면 담당자·도면팀 또는 관리자만 가능)'
-            if current_user.role == 'MANAGER':
-                msg += ' (긴급 시 사유와 함께 오버라이드를 사용하세요.)'
-            return jsonify({'success': False, 'message': msg}), 403
-
-        drawing_status = ((s_data.get('drawing') or {}).get('status') or s_data.get('drawing_status') or 'PENDING').upper()
-        if not is_retransfer:
-            is_retransfer = drawing_status == 'RETURNED'
-        if (
-            drawing_status == 'RETURNED'
-            and has_pending_unchecked_drawing_revision_requests(s_data)
-            and not (current_user.role == 'MANAGER' and emergency_override and override_reason)
-        ):
-            return jsonify({
-                'success': False,
-                'message': '수정 요청이 모두 "반영 완료"로 처리된 뒤에 수정본을 전달할 수 있습니다.',
-            }), 400
-
-        now_str = now_utc_naive().strftime('%Y-%m-%d %H:%M:%S')
-        user_name = current_user.name if current_user else 'Unknown'
-
-        raw_new_files = data.get('files', [])
-        new_files = []
-        if isinstance(raw_new_files, list):
-            for f in raw_new_files:
-                if not isinstance(f, dict):
-                    continue
-                key = (f.get('key') or '').strip()
-                if not key:
-                    continue
-                filename = (f.get('filename') or key.rsplit('/', 1)[-1]).strip()
-                new_files.append({
-                    'key': key,
-                    'filename': filename,
-                    'view_url': f"/api/files/view/{key}",
-                    'download_url': f"/api/files/download/{key}",
-                })
-
-        old_files = list(s_data.get('drawing_current_files', []) or [])
-        updated_files = list(old_files)
-        replaced_target_numbers = []
-
-        if is_retransfer and not new_files:
-            return jsonify({'success': False, 'message': '수정본 재전송 시 도면 파일 업로드가 필요합니다.'}), 400
-
-        if new_files:
-            if mode == 'REPLACE_ALL':
-                # 기존 파일은 타임라인 히스토리에서 계속 참조되므로 R2에서 삭제하지 않음.
-                # drawing_current_files 만 새 파일로 교체한다.
-                for idx, old_file in enumerate(old_files):
-                    replaced_target_numbers.append(idx + 1)
-                updated_files = list(new_files)
-            elif replace_target_keys:
-                indices_to_replace = []
-                for target_key in replace_target_keys:
-                    for i, f in enumerate(old_files):
-                        if ((f or {}).get('key') or '').strip() == target_key:
-                            indices_to_replace.append((i, target_key))
-                            break
-                if len(indices_to_replace) != len(replace_target_keys):
-                    return jsonify({'success': False, 'message': '일부 교체 대상 도면을 찾을 수 없습니다. 목록을 새로고침 후 다시 시도해주세요.'}), 400
-                indices_to_replace.sort(key=lambda x: x[0], reverse=True)
-                for idx, target_key in indices_to_replace:
-                    replaced_target_numbers.append(idx + 1)
-                    # 교체 대상 파일도 히스토리 참조를 위해 R2에서 삭제하지 않음.
-                    updated_files.pop(idx)
-                first_index = min([x[0] for x in indices_to_replace])
-                for offset, nf in enumerate(new_files):
-                    updated_files.insert(first_index + offset, nf)
-                replaced_target_numbers.sort()
-            else:
-                if is_retransfer and len(old_files) > 1:
-                    return jsonify({'success': False, 'message': '수정본 재전송 시 교체할 도면 번호를 선택해주세요.'}), 400
-                if is_retransfer:
-                    # 수정 재전달 APPEND는 단일 도면일 때 교체로 처리 (이전본 누적 방지)
-                    updated_files = list(new_files)
-                else:
-                    updated_files = list(old_files) + list(new_files)
-
-            s_data['drawing_current_files'] = updated_files
-            new_keys = [((f or {}).get('key') or '').strip() for f in new_files]
-            new_keys = [k for k in new_keys if k]
-            if new_keys:
-                db.query(OrderAttachment).filter(
-                    OrderAttachment.order_id == order_id,
-                    OrderAttachment.storage_key.in_(new_keys)
-                ).update(
-                    {OrderAttachment.category: 'drawing'},
-                    synchronize_session=False
-                )
-
-        transfer_info = {
-            'action': 'TRANSFER',
-            'transferred_at': now_str,
-            'by_user_id': user_id,
-            'by_user_name': user_name,
-            'note': note,
-            'files_count': len(new_files),
-            'files': new_files,
-            'previous_current_files': old_files,  # 취소 시 복원용
-            'mode': (
-                'REPLACE'
-                if is_retransfer and not replace_target_keys and (mode or 'APPEND').upper() == 'APPEND' and len(old_files) <= 1
-                else (mode if mode else ('REPLACE' if replace_target_keys else 'APPEND'))
-            ),
-            'replace_target_keys': replace_target_keys if replace_target_keys else None,
-            'replace_target_numbers': replaced_target_numbers if replaced_target_numbers else None,
-            'replace_target_key': replace_target_keys[0] if len(replace_target_keys) == 1 else None,
-            'replace_target_number': replaced_target_numbers[0] if len(replaced_target_numbers) == 1 else None,
-        }
-
-        if 'drawing_transfer_history' not in s_data:
-            s_data['drawing_transfer_history'] = []
-        history = list(s_data['drawing_transfer_history'])
-        history.append(transfer_info)
-        s_data['drawing_transfer_history'] = history
-        s_data['drawing_status'] = 'TRANSFERRED'
-        s_data['drawing_transferred'] = True
-        s_data['last_drawing_transfer'] = transfer_info
-        order.structured_data = s_data
-        flag_modified(order, 'structured_data')
-
-        manager_name = (((s_data.get('parties') or {}).get('manager') or {}).get('name') or '').strip()
-        customer_name = (((s_data.get('parties') or {}).get('customer') or {}).get('name') or '').strip()
-        target_team = None
-        target_manager_name = None
-        notification_message = f"주문 #{order_id}"
-        if customer_name:
-            notification_message += f" ({customer_name})"
-        notification_message += f" 도면이 준비되었습니다."
-        if note:
-            notification_message += f" 메모: {note}"
-        if '라홈' in manager_name:
-            target_team = 'CS'
-        elif '하우드' in manager_name:
-            target_team = 'HAUDD'
-        else:
-            target_team = 'SALES'
-            target_manager_name = manager_name if manager_name else None
-
-        new_notification = Notification(
-            order_id=order_id,
-            notification_type='DRAWING_TRANSFERRED',
-            target_team=target_team,
-            target_manager_name=target_manager_name,
-            title='도면 전달됨',
-            message=notification_message,
-            created_by_user_id=user_id,
-            created_by_name=user_name,
-            is_read=False
+        # 도면 마법사 [저장]본(pending) 병합 — 재업로드 없이 저장된 대기 도면을 함께 전달.
+        # pending_sheet_ids 가 오면 해당 대기 시트의 {key, filename} 을 파일 목록에 병합하고,
+        # 전달 성공 후 그 sheet_id 들만 스냅샷 저장 + pending 제거(없으면 기존 동작 100% 불변).
+        from foms.api.drawing.wizard import (
+            _pending_list,
+            _load_structured_data,
+            snapshot_and_clear_pending,
         )
-        db.add(new_notification)
-        db.flush()
-        # 같은 트랜잭션에서 수신자 state + 'created' 이벤트 생성(상태 없는 고아 알림 방지).
-        fan_out_new_notification(db, new_notification, actor_user_id=user_id)
-        db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} 도면 전달 완료: {note}"))
-        db.commit()
-        # 도메인-스코프: 도면 전달 완료는 workflow.stage를 바꾸지 않고 drawing_status만
-        # 변경 → 도면 대시보드/워크벤치와 주문 목록만 무효화(생산 read-model은 도면
-        # 상태를 읽지 않음).
-        from foms.services.common.dashboard_cache import (
-            DASHBOARD_FAMILY_DRAWING,
-            DASHBOARD_FAMILY_ORDERS,
-            invalidate_dashboard_families,
-        )
+        pending_sheet_ids = [str(x) for x in (data.get('pending_sheet_ids') or []) if str(x)]
+        manual_files = list(data.get('files') or [])
+        pending_files = []
+        if pending_sheet_ids:
+            wanted = set(pending_sheet_ids)
+            pending_files = [
+                {'key': p['key'], 'filename': p['filename']}
+                for p in _pending_list(_load_structured_data(order))
+                if p['sheet_id'] in wanted
+            ]
+        # 저장된 대기 도면(primary)을 앞에, 직접 올린 파일(supplementary)을 뒤에 둔다.
+        files = pending_files + manual_files
 
-        invalidate_dashboard_families(DASHBOARD_FAMILY_DRAWING, DASHBOARD_FAMILY_ORDERS)
-
-        # 커밋 후 Web Push enqueue(P1 유형: DRAWING_TRANSFERRED).
-        from foms.services.notifications.push_sender import enqueue_push_for_notification
-        enqueue_push_for_notification(new_notification.id, db=db)
-
-        recipient_user_ids = resolve_notification_recipient_user_ids(
-            db,
-            target_team=target_team,
-            target_manager_name=target_manager_name,
-            include_admin=True,
+        payload, status = perform_drawing_transfer(
+            db, order, order_id, current_user, session.get('user_id'),
+            note=data.get('note', ''),
+            mode=data.get('mode') or '',
+            files=files,
+            is_retransfer=bool(data.get('is_retransfer')),
+            replace_target_key=data.get('replace_target_key') or '',
+            replace_target_keys=data.get('replace_target_keys') or [],
+            emergency_override=bool(data.get('emergency_override')),
+            override_reason=data.get('override_reason') or '',
         )
-        invalidate_badge_cache_for_user_ids(recipient_user_ids)
-        emit_erp_notification_to_users(
-            recipient_user_ids,
-            {
-                'notification_id': new_notification.id,
-                'order_id': order_id,
-                'notification_type': 'DRAWING_TRANSFERRED',
-                'title': new_notification.title,
-                'message': new_notification.message,
-            },
-        )
-
-        target_info = "라홈팀" if target_team == 'CS' else (
-            "하우드팀" if target_team == 'HAUDD' else (
-                f"영업팀 - {target_manager_name}" if target_manager_name else "영업팀"
-            )
-        )
-        return jsonify({
-            'success': True,
-            'message': f'도면이 전달되었습니다. [{target_info}]에 알림이 전송되었습니다. (확정 대기 상태)',
-            'info': '담당자가 수령 확인을 하면 다음 단계로 진행됩니다.'
-        })
+        if payload.get('success') and pending_sheet_ids:
+            snapshot_and_clear_pending(db, order, order_id, current_user, sheet_ids=pending_sheet_ids)
+        return jsonify(payload), status
     except Exception as e:
         if db is not None:
             try:

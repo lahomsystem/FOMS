@@ -17,6 +17,8 @@ def test_sync_erp_flat_columns_returns_early_for_non_erp_order() -> None:
         erp_stage_updated_at="unchanged",
         erp_owner_team_code="legacy",
         erp_phone_digits="unchanged",
+        measurement_date="before",
+        scheduled_date="legacy scheduled",
     )
 
     sync_erp_flat_columns(order, {"workflow": {"stage": "MEASURE"}})
@@ -26,6 +28,8 @@ def test_sync_erp_flat_columns_returns_early_for_non_erp_order() -> None:
     assert order.erp_stage_code == "OLD"
     assert order.erp_drawing_updated_at == "unchanged"
     assert order.erp_stage_updated_at == "unchanged"
+    assert order.measurement_date == "before"
+    assert order.scheduled_date == "legacy scheduled"
 
 
 def test_sync_erp_flat_columns_updates_expected_flat_columns() -> None:
@@ -41,6 +45,8 @@ def test_sync_erp_flat_columns_updates_expected_flat_columns() -> None:
         erp_owner_team_code=None,
         erp_phone_digits=None,
         payment_amount=0,
+        measurement_date="legacy measurement",
+        scheduled_date="legacy scheduled",
     )
     structured_data = {
         "parties": {
@@ -66,6 +72,8 @@ def test_sync_erp_flat_columns_updates_expected_flat_columns() -> None:
     assert order.manager_name == "Manager Kim"
     assert order.erp_measurement_date == "2026-04-08"
     assert order.erp_construction_date == "2026-04-09"
+    assert order.measurement_date == "2026-04-08"
+    assert order.scheduled_date == "2026-04-09"
     assert order.erp_stage_code == "DRAWING"
     assert order.erp_urgent is True
     assert order.erp_drawing_updated_at.isoformat() == "2026-04-08T12:34:56"
@@ -73,3 +81,28 @@ def test_sync_erp_flat_columns_updates_expected_flat_columns() -> None:
     assert order.erp_owner_team_code == "CONSTRUCTION"
     assert order.erp_phone_digits == "01012345678"
     assert order.payment_amount == 500_000
+
+
+def test_sync_erp_flat_columns_clears_legacy_date_mirrors_when_schedule_blank() -> None:
+    order = SimpleNamespace(
+        is_erp_order=True,
+        manager_name="",
+        erp_measurement_date="2026-04-08",
+        erp_construction_date="2026-04-09",
+        erp_stage_code=None,
+        erp_urgent=False,
+        erp_drawing_updated_at=None,
+        erp_stage_updated_at=None,
+        erp_owner_team_code=None,
+        erp_phone_digits=None,
+        payment_amount=0,
+        measurement_date="2026-04-08",
+        scheduled_date="2026-04-09",
+    )
+
+    sync_erp_flat_columns(order, {"schedule": {"measurement": {}, "construction": {}}})
+
+    assert order.erp_measurement_date is None
+    assert order.erp_construction_date is None
+    assert order.measurement_date == ""
+    assert order.scheduled_date == ""

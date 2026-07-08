@@ -201,7 +201,7 @@
             {% for r in rows %}
             <tr class="erp-workbench-row" data-href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=r.id) }}?tab=timeline" style="cursor:pointer;">
               <td onclick="event.stopPropagation();">
-                <input type="checkbox" class="form-check-input order-checkbox" value="{{ r.id }}" onchange="updateBatchBar()">
+                <input type="checkbox" class="form-check-input order-checkbox" value="{{ r.id }}" data-pending="{{ r.pending_count|default(0) }}" onchange="updateBatchBar()">
               </td>
               <td>
                 <div class="fw-bold">{{ r.customer_name }}{% if r.is_self_measurement|default(false) %}
@@ -233,6 +233,13 @@
                 {% if r.drawing_status == 'CONFIRMED' %}{% set badge_cls = 'bg-success' %}{% endif %}
                 <span class="badge {{ badge_cls }}">{{ r.drawing_status_label }}</span>
                 <div class="small text-muted mt-1">파일 {{ r.file_count }}건</div>
+                {% if r.pending_count and r.pending_count > 0 %}
+                <div class="mt-1">
+                  <span class="badge bg-primary" title="마법사에서 저장한 전달 대기 도면">
+                    <i class="fas fa-paper-plane me-1"></i>대기 {{ r.pending_count }}장
+                  </span>
+                </div>
+                {% endif %}
               </td>
               <td>
                 {% if r.target_no %}

@@ -15,11 +15,11 @@ from typing import Any
 from foms.services.erp_display import _normalize_date_to_yyyymmdd
 from foms.services.erp_shipment_settings import load_erp_shipment_settings
 from foms.services.erp_template_filters import (
-    format_phone_filter,
+    format_phone_no_prefix,
     item_spec_w300_display,
 )
 
-__all__ = ["build_wizard_defaults"]
+__all__ = ["build_wizard_defaults", "resolve_assignee_drew_en"]
 
 _CONSULT_PLACEHOLDER = "상담"
 
@@ -75,11 +75,11 @@ def _site_spec(item: dict[str, Any]) -> str:
     return _as_str(item.get("spec"))
 
 
-def _spec_w300(items: list[dict[str, Any]]) -> str:
-    """items[0]의 시공 자수(W합/300) 표시값. 없으면 빈칸, 숫자는 ``str()`` 캐스팅."""
-    if not items:
+def _spec_w300(item: dict[str, Any]) -> str:
+    """단일 item의 시공 자수(W합/300) 표시값. 없으면 빈칸, 숫자는 ``str()`` 캐스팅."""
+    if not item:
         return ""
-    value = item_spec_w300_display(items[0])
+    value = item_spec_w300_display(item)
     if value is None or value == "":
         return ""
     return str(value)
@@ -182,7 +182,75 @@ def _resolve_drew(sd: dict[str, Any], current_user: Any) -> str:
     return assignee_name
 
 
-def build_wizard_defaults(order: Any, sd: dict[str, Any], current_user: Any) -> dict[str, Any]:
+def resolve_assignee_drew_en(sd: dict[str, Any]) -> str:
+    """지정 도면 담당자의 설정 영문명을 반환한다(매핑 성공 시에만).
+
+    ``build_wizard_defaults`` 의 ``_resolve_drew`` 폴백 체인과 달리, "지정된 도면
+    담당자의 영문명이 존재하는가"만 판정한다. 담당자 한글명/현재 사용자명으로는
+    폴백하지 않으며, 다음의 경우 모두 빈 문자열을 반환한다:
+    담당자 미지정 / 설정에 해당 한글명의 영문 매핑이 없음.
+
+    저장된 마법사 시트를 열 때 프론트가 DREW 셀을 담당자 기준 영문명으로 동기화할지
+    판단하는 SSOT다(빈 문자열이면 기존 저장값을 유지).
+
+    Args:
+        sd: 이미 dict로 정규화된 ``structured_data``.
+
+    Returns:
+        영문 매핑이 성공한 담당자 영문명(항상 str). 없으면 빈 문자열.
+    """
+    sd = sd if isinstance(sd, dict) else {}
+    assignee_name = _first_drawing_assignee_name(sd)
+    if not assignee_name:
+        return ""
+    settings = load_erp_shipment_settings() or {}
+    en_map = settings.get("drawing_manager_en") or {}
+    if not isinstance(en_map, dict):
+        return ""
+    return _as_str(en_map.get(assignee_name)).strip()
+
+
+def _resolve_manager_phone(
+    order: Any, parties: dict[str, Any], manager: dict[str, Any], sales_manager: str
+) -> str:
+    """담당(매니저) 연락처를 폴백 체인으로 결정해 '010' 제거 포맷으로 반환한다.
+
+    우선순위: (1) ``parties.manager.phone`` 원문, (2) 없으면 erporder 큐가 쓰는
+    ``resolve_manager_phone_for_queue`` (영업담당 한글명→출고설정 실측담당자
+    연락처 룩업), (3) 둘 다 없으면 '-'. 성공값은 ``format_phone_no_prefix`` 로
+    '010' 접두를 제거해 표기한다.
+
+    설정 로더 I/O를 줄이기 위해 ``manager.phone`` 이 있을 때는 룩업을 건너뛴다.
+    순환 import를 피하려 큐 리졸버는 함수 내부에서 지연 import한다(마법사는 페이지당
+    1회 호출이라 단건 설정 로드는 허용 범위).
+
+    Args:
+        order: Order ORM 인스턴스(룩업 폴백용 ``manager_name`` 참조).
+        parties: ``structured_data.parties`` dict.
+        manager: ``parties.manager`` dict.
+        sales_manager: 이미 계산된 영업담당 한글명.
+
+    Returns:
+        '010' 접두를 제거한 연락처 문자열(예 '9263-9140'). 없으면 '-'.
+    """
+    raw = str(manager.get("phone") or "").strip()
+    if not raw:
+        from foms.services.erp_mobile_order_display import (
+            resolve_manager_phone_for_queue,
+        )
+
+        raw = resolve_manager_phone_for_queue(
+            parties, manager_name=sales_manager, order=order
+        ).strip()
+    return format_phone_no_prefix(raw) or "-"
+
+
+def build_wizard_defaults(
+    order: Any,
+    sd: dict[str, Any],
+    current_user: Any,
+    item_index: int | None = None,
+) -> dict[str, Any]:
     """주문 데이터로 도면 마법사 폼 기본값(자동 채움)을 계산한다.
 
     저장된 마법사 상태가 없을 때 최초 로드에서 폼 셀을 채우는 서버 계산
@@ -193,6 +261,11 @@ def build_wizard_defaults(order: Any, sd: dict[str, Any], current_user: Any) -> 
         sd: 이미 dict로 정규화된 ``structured_data``.
         current_user: 현재 사용자(User) 또는 None. ``drew`` 폴백 최종값
             (도면 담당자 미지정 시)에 사용. 담당자 지정 시엔 설정 영문명 매핑이 우선.
+        item_index: 제품별 도면 시트용 선택 인덱스.
+            ``None``(기본/집계 모드)이면 ``product_name`` 은 모든 제품명을 조인하고
+            item 종속 필드(color/site_spec/spec_w300/handle/drawer/misc)는 ``items[0]``
+            기준이다(기존 동작 무변경). 정수를 주면 해당 제품 한 건만을 기준으로 하며
+            (``product_name`` 도 그 제품명만), 범위를 벗어난 인덱스는 0으로 폴백한다.
 
     Returns:
         폼 키→값(str) dict. ``checks`` 만 ``dict[str, bool]``.
@@ -203,7 +276,15 @@ def build_wizard_defaults(order: Any, sd: dict[str, Any], current_user: Any) -> 
     manager = parties.get("manager") or {}
     site = sd.get("site") or {}
     items = _extract_items(sd)
-    item0 = items[0] if items else {}
+    sel_index = 0
+    if item_index is not None and 0 <= item_index < len(items):
+        sel_index = item_index
+    selected_item = items[sel_index] if items else {}
+    # None=집계(전체 조인, 기존 동작), 정수=선택 제품 한 건만.
+    if item_index is None:
+        product_name = _join_product_names(items)
+    else:
+        product_name = _as_str(selected_item.get("product_name")).strip()
 
     sales_manager = _as_str(manager.get("name")) or _as_str(getattr(order, "manager_name", None))
     phone_raw = customer.get("phone")
@@ -211,19 +292,20 @@ def build_wizard_defaults(order: Any, sd: dict[str, Any], current_user: Any) -> 
     return {
         "construction_date": _format_construction_date(order, sd),
         "customer_name": _as_str(customer.get("name")),
-        "phone": _as_str(format_phone_filter(phone_raw)) if phone_raw else "",
+        "phone": format_phone_no_prefix(phone_raw) if phone_raw else "",
         "address": _as_str(site.get("address_full")) or _as_str(site.get("address_main")),
-        "product_name": _join_product_names(items),
-        "color": _consult_strip(item0.get("color")),
-        "site_spec": _site_spec(item0),
-        "spec_w300": _spec_w300(items),
-        "handle": _consult_strip(item0.get("handle")),
-        "drawer": _consult_strip(item0.get("internal")),
-        "misc": _misc(item0),
+        "product_name": product_name,
+        "color": _consult_strip(selected_item.get("color")),
+        "site_spec": _site_spec(selected_item),
+        "spec_w300": _spec_w300(selected_item),
+        "handle": _consult_strip(selected_item.get("handle")),
+        "drawer": _consult_strip(selected_item.get("internal")),
+        "misc": _misc(selected_item),
         "sales_manager": sales_manager,
-        "manager_phone": _as_str(manager.get("phone")) or "-",
+        "manager_phone": _resolve_manager_phone(order, parties, manager, sales_manager),
         "logo": _resolve_logo(sales_manager),
         "drew": _resolve_drew(sd, current_user),
-        "page_no": "-",
+        # 제품별 시트는 제품 번호(1-base)로 자동 넘버링, 집계(전체)는 '-'.
+        "page_no": str(item_index + 1) if (item_index is not None and 0 <= item_index < len(items)) else "-",
         "checks": {key: False for key in _WIZARD_CHECK_KEYS},
     }

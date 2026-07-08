@@ -1,5 +1,5 @@
 # FOMS 현재 상태
-> 자동 업데이트: 2026-07-06 | **도면 마법사 v2 (Konva 주석 엔진 + 양식 충실도 + Apple 크롬)** — 사용자 스테이징 피드백 6건 반영: Konva 9.3.22 도형(사각형/원/화살표/선)·Transformer·Ctrl+클릭 텍스트, 새 샘플 기준 시트 외곽 테두리·검정 그리드·로고 무테두리, 에디터 UI Apple HIG 리디자인. 근거: `docs/specs/2026-07-06-drawing-wizard-v2_SPEC.md`. 이전: v1 신설 `docs/specs/2026-07-06-drawing-wizard_SPEC.md` (커밋 f0b7f093, deploy 푸시 완료).
+> 자동 업데이트: 2026-07-08 | **도면 마법사 완성 라운드(3~9R, dff10365~e4abecf1 deploy)** — 지오메트리 v3 실측·로고 규칙(라홈 외 전부 하우드)·리치 텍스트(글자 단위 색/굵기, runs)·표 리사이즈(칸/행/상단선 드래그·A±·리셋)·제품별 시트(?item=N defaults)·**저장 시 도면 탭 PNG 자동 저장/교체(sheet-png)**·시트 복제·자동저장(45s, 상태만)·저장+전달 원클릭·실측 사진 사이드 삽입(import-attachment 복사)·시트 일괄 전달·버전 이력(전달 스냅샷 R2+포인터 30캡·복원)·프리셋 전역 저장(SystemSetting)·DREW 영문 자동(drawing_manager_en)·연락처 010 제거·작업실 상세 제품 rail(master-detail). 이전: v2 Konva 엔진 — `docs/specs/2026-07-06-drawing-wizard-v2_SPEC.md`, v1 신설 `2026-07-06-drawing-wizard_SPEC.md`.
 
 ## 스택
 Flask 2.3 + PostgreSQL + R2 + Railway (Web×2, Worker×1)
