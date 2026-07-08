@@ -2662,17 +2662,28 @@
     return String(s == null ? '' : s).replace(/[\\/:*?"<>|\n\r\t]/g, '').trim() || '무제';
   }
 
-  /** 일괄 내보내기 파일명: `고객이름_도면번호_제품이름.png`(도면번호=page_no, 없으면 순번+1). */
+  /** 오늘 날짜 MMDD(예: 7월 8일 → "0708"). 폴더명 접두에 사용. */
+  function todayMMDD() {
+    var d = new Date();
+    return ('0' + (d.getMonth() + 1)).slice(-2) + ('0' + d.getDate()).slice(-2);
+  }
+
+  /** 일괄 내보내기 파일명: `고객이름도면번호.png`(붙여쓰기, 도면번호=page_no, 없으면 순번+1). */
   function exportSheetFilename(sheet, i) {
     var form = (sheet && sheet.form) || {};
     var pageNo = String(form.page_no == null ? '' : form.page_no).trim();
     if (!pageNo) { pageNo = String(i + 1); }
-    return fsSafe(customerName) + '_' + fsSafe(pageNo) + '_' + fsSafe((sheet && sheet.name) || '도면') + '.png';
+    return fsSafe(customerName) + fsSafe(pageNo) + '.png';
+  }
+
+  /** 일괄 내보내기 폴더명: `MMDD 고객이름`(오늘 날짜 + 1칸 공백 + 고객이름). */
+  function exportFolderName() {
+    return todayMMDD() + ' ' + fsSafe(customerName);
   }
 
   /**
    * 일괄 내보내기(X-3): 모든 시트 PNG 를 로컬 폴더에 저장.
-   * File System Access API(showDirectoryPicker) 지원 시 고객이름 서브폴더에 저장, 미지원이면 개별 다운로드.
+   * File System Access API(showDirectoryPicker) 지원 시 `MMDD 고객이름` 서브폴더에 저장, 미지원이면 개별 다운로드.
    * showDirectoryPicker 는 사용자 제스처(버튼 클릭) 안에서 직접 호출해야 하므로 클릭 핸들러에서 진입한다.
    */
   function exportAll() {
@@ -2685,10 +2696,10 @@
     }
   }
 
-  /** 폴더 선택 → 고객이름 서브폴더 생성 → 각 시트 PNG 를 파일로 write. */
+  /** 폴더 선택 → `MMDD 고객이름` 서브폴더 생성 → 각 시트 PNG 를 파일로 write. */
   function exportAllToDirectory() {
     var origIdx = current;
-    var folderName = fsSafe(customerName);
+    var folderName = exportFolderName();
     // showDirectoryPicker 는 제스처 직후 동기 호출(이 함수는 클릭 핸들러 콜스택 내에서 즉시 진입).
     window.showDirectoryPicker({ mode: 'readwrite' }).then(function (dirHandle) {
       return dirHandle.getDirectoryHandle(folderName, { create: true });
