@@ -585,8 +585,8 @@
                 return sum;
               };
               const totals = sd.totals || {};
-              const itemsTotal = Number(totals.items_total) || items.reduce((s, it) => s + (Number(it.price) || 0), 0);
-              const depositAmt = coerceAmount((sd.payment || {}).deposit) || coerceAmount((sd.payments || {}).deposit);
+              const itemsTotal = coerceAmount(totals.items_total) || items.reduce((s, it) => s + coerceAmount(it.price), 0);
+              const depositAmt = coerceAmount((sd.payment || {}).deposit) || coerceAmount((sd.payments || {}).deposit) || coerceAmount(totals.deposit_amount);
               const discountAmt = coerceAmount((sd.payment || {}).discount) || coerceAmount((sd.totals || {}).discount_amount);
               const freeInputRaw = (sd.payment || {}).free_input
                 || (sd.payments || {}).free_input?.value
@@ -594,7 +594,7 @@
                 || '';
               const freeInputAmt = coerceAmount(totals.free_input_amount) || sumFreeInputFromText(freeInputRaw);
               // 출고가 = max(0, 품목합 + 자유입력(배송) - 할인). 읽기전용 상세는 이 grand total만 노출.
-              const shippingPrice = Math.max(0, itemsTotal + freeInputAmt - discountAmt);
+              const shippingPrice = coerceAmount(totals.shipping_price) || Math.max(0, itemsTotal + freeInputAmt - discountAmt);
               let remainAmt = coerceAmount(totals.final_amount) || coerceAmount(totals.balance_amount);
               if (!remainAmt) {
                 remainAmt = Math.max(0, itemsTotal + freeInputAmt - depositAmt - discountAmt);

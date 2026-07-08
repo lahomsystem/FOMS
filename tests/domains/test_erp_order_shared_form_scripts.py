@@ -794,8 +794,12 @@ def test_erp_amount_surfaces_read_modern_payment_deposit_and_stored_final() -> N
     for source in (dashboard_js, dashboard_template):
         assert "coerceAmount((sd.payment || {}).deposit)" in source
         assert "coerceAmount((sd.payments || {}).deposit)" in source
+        assert "coerceAmount(totals.deposit_amount)" in source
         assert "coerceAmount((sd.payment || {}).discount)" in source
         assert "coerceAmount((sd.totals || {}).discount_amount)" in source
+        assert "coerceAmount(totals.items_total)" in source
+        assert "s + coerceAmount(it.price)" in source
+        assert "coerceAmount(totals.shipping_price)" in source
         assert "sumFreeInputFromText" in source
         assert "coerceAmount(totals.final_amount)" in source
         assert "itemsTotal + freeInputAmt - depositAmt - discountAmt" in source
