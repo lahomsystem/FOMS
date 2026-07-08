@@ -307,17 +307,41 @@ def api_order_transfer_drawing(order_id):
             return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
 
         current_user = get_user_by_id(session.get('user_id'))
+
+        # 도면 마법사 [저장]본(pending) 병합 — 재업로드 없이 저장된 대기 도면을 함께 전달.
+        # pending_sheet_ids 가 오면 해당 대기 시트의 {key, filename} 을 파일 목록에 병합하고,
+        # 전달 성공 후 그 sheet_id 들만 스냅샷 저장 + pending 제거(없으면 기존 동작 100% 불변).
+        from foms.api.drawing.wizard import (
+            _pending_list,
+            _load_structured_data,
+            snapshot_and_clear_pending,
+        )
+        pending_sheet_ids = [str(x) for x in (data.get('pending_sheet_ids') or []) if str(x)]
+        manual_files = list(data.get('files') or [])
+        pending_files = []
+        if pending_sheet_ids:
+            wanted = set(pending_sheet_ids)
+            pending_files = [
+                {'key': p['key'], 'filename': p['filename']}
+                for p in _pending_list(_load_structured_data(order))
+                if p['sheet_id'] in wanted
+            ]
+        # 저장된 대기 도면(primary)을 앞에, 직접 올린 파일(supplementary)을 뒤에 둔다.
+        files = pending_files + manual_files
+
         payload, status = perform_drawing_transfer(
             db, order, order_id, current_user, session.get('user_id'),
             note=data.get('note', ''),
             mode=data.get('mode') or '',
-            files=data.get('files', []),
+            files=files,
             is_retransfer=bool(data.get('is_retransfer')),
             replace_target_key=data.get('replace_target_key') or '',
             replace_target_keys=data.get('replace_target_keys') or [],
             emergency_override=bool(data.get('emergency_override')),
             override_reason=data.get('override_reason') or '',
         )
+        if payload.get('success') and pending_sheet_ids:
+            snapshot_and_clear_pending(db, order, order_id, current_user, sheet_ids=pending_sheet_ids)
         return jsonify(payload), status
     except Exception as e:
         if db is not None:

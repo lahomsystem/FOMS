@@ -614,6 +614,9 @@ def erp_drawing_workbench_detail(order_id):
         return redirect(url_for('erp_drawing_workbench.erp_drawing_workbench_dashboard'))
 
     s_data = _ensure_dict(order.structured_data)
+    # 도면 마법사 [저장]본(전달 대기) 목록 — 상세 상단 패널·전달 모달 카드에서 사용.
+    from foms.api.drawing.wizard import _pending_list
+    drawing_pending = _pending_list(s_data)
     stage = _erp_get_stage(order, s_data)
     drawing_status = ((s_data.get('drawing') or {}).get('status') or s_data.get('drawing_status') or 'PENDING').upper()
     drawing_files = list(s_data.get('drawing_current_files', []) or [])
@@ -787,6 +790,7 @@ def erp_drawing_workbench_detail(order_id):
         manager_name=manager_name,
         assignee_text=assignee_text,
         drawing_files=drawing_files,
+        drawing_pending=drawing_pending,
         history=history,
         revision_requests=revision_requests,
         latest_transfer=latest_transfer,

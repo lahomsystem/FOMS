@@ -843,6 +843,67 @@ def _append_sheet_version(storage, order_id: int, sheet: dict, sheet_id: str,
     return next_v
 
 
+def snapshot_and_clear_pending(db, order, order_id, current_user, sheet_ids=None):
+    """전달 성공 후 대기(pending) 시트를 버전 스냅샷으로 저장하고 pending 에서 제거한다(공용).
+
+    ``perform_drawing_transfer`` 가 이미 커밋한 뒤 호출되며, 이 함수가 별도 커밋한다.
+    대상 각 대기 시트의 현재 상태를 ``_append_sheet_version`` 으로 버전 스냅샷하고 pending
+    에서 비운다. ``structured_data`` 는 ``copy.deepcopy`` + ``flag_modified`` 로 갱신한다.
+
+    :param sheet_ids: ``None`` 이면 전체 pending 을 스냅샷+초기화(작업실 일괄 transfer-pending
+        동작 그대로). 리스트면 해당 ``sheet_id`` 들만 스냅샷하고 pending 에서 제거(부분 전달).
+    :returns: 스냅샷한 대기 시트 수(int).
+    """
+    sd_after = copy.deepcopy(order.structured_data or {})
+    dw = sd_after.get('drawing_wizard')
+    if not isinstance(dw, dict):
+        dw = {}
+        sd_after['drawing_wizard'] = dw
+
+    sheets_by_id = {}
+    for s in (dw.get('sheets') or []):
+        if isinstance(s, dict) and isinstance(s.get('id'), str):
+            sheets_by_id[s['id']] = s
+    versions = dw.get('versions')
+    if not isinstance(versions, list):
+        versions = []
+
+    # 스냅샷 대상 = pending 유효 목록(_pending_list) 중 sheet_ids 필터.
+    pending_items = _pending_list(sd_after)
+    if sheet_ids is not None:
+        wanted = {str(sid) for sid in sheet_ids}
+        pending_items = [p for p in pending_items if p['sheet_id'] in wanted]
+
+    storage = get_storage()
+    for item in pending_items:
+        sheet = sheets_by_id.get(item['sheet_id'])
+        if isinstance(sheet, dict):
+            _append_sheet_version(
+                storage, order_id, sheet, item['sheet_id'], item['sheet_name'],
+                versions, current_user,
+            )
+    dw['versions'] = versions
+
+    # pending 비움: None=전체 초기화, 리스트=해당 sheet_id 만 제거.
+    if sheet_ids is None:
+        dw['pending'] = {}
+    else:
+        pending_map = dw.get('pending')
+        if isinstance(pending_map, dict):
+            for sid in sheet_ids:
+                pending_map.pop(str(sid), None)
+                pending_map.pop(sid, None)
+            dw['pending'] = pending_map
+        else:
+            dw['pending'] = {}
+
+    sd_after['drawing_wizard'] = dw
+    order.structured_data = sd_after
+    flag_modified(order, 'structured_data')
+    db.commit()
+    return len(pending_items)
+
+
 @erp_orders_drawing_wizard_bp.route('/<int:order_id>/drawing-wizard/pending', methods=['GET'])
 @login_required
 def api_get_drawing_wizard_pending(order_id):
@@ -895,33 +956,8 @@ def api_post_drawing_wizard_transfer_pending(order_id):
         if not payload.get('success'):
             return jsonify(payload), status
 
-        # 전달 성공(perform_drawing_transfer 가 커밋함) → 각 대기 시트 상태를 버전 스냅샷 저장 + pending 비움.
-        sd_after = copy.deepcopy(order.structured_data or {})
-        dw = sd_after.get('drawing_wizard')
-        if not isinstance(dw, dict):
-            dw = {}
-            sd_after['drawing_wizard'] = dw
-        sheets_by_id = {}
-        for s in (dw.get('sheets') or []):
-            if isinstance(s, dict) and isinstance(s.get('id'), str):
-                sheets_by_id[s['id']] = s
-        versions = dw.get('versions')
-        if not isinstance(versions, list):
-            versions = []
-        storage = get_storage()
-        for item in pending_items:
-            sheet = sheets_by_id.get(item['sheet_id'])
-            if isinstance(sheet, dict):
-                _append_sheet_version(
-                    storage, order_id, sheet, item['sheet_id'], item['sheet_name'],
-                    versions, current_user,
-                )
-        dw['versions'] = versions
-        dw['pending'] = {}
-        sd_after['drawing_wizard'] = dw
-        order.structured_data = sd_after
-        flag_modified(order, 'structured_data')
-        db.commit()
+        # 전달 성공(perform_drawing_transfer 가 커밋함) → 대기 시트 전체를 버전 스냅샷 저장 + pending 비움.
+        snapshot_and_clear_pending(db, order, order_id, current_user, sheet_ids=None)
 
         count = len(files)
         return jsonify({

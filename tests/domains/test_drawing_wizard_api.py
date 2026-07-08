@@ -1593,3 +1593,105 @@ def test_transfer_drawing_requires_assignee_regression(client):
     )
     assert resp.status_code == 400
     assert "담당자" in resp.get_json()["message"]
+
+
+def test_transfer_drawing_merges_pending_sheet_ids(client, monkeypatch):
+    """transfer-drawing + pending_sheet_ids = 저장된 대기 도면을 재업로드 없이 병합 전달 +
+    그 시트만 버전 스냅샷 저장 + pending 제거."""
+    user = _login_participant_admin(client)
+    order = _order_with_assignee(user.id)
+    order_id = order.id
+    _seed_pending(order)
+
+    storage = _CapturingStorage()
+    monkeypatch.setattr("foms.api.drawing.wizard.get_storage", lambda: storage)
+
+    resp = client.post(
+        f"/api/orders/{order_id}/transfer-drawing",
+        json={
+            "note": "대기 포함",
+            "mode": "APPEND",
+            "files": [],
+            "pending_sheet_ids": ["s-1"],
+        },
+    )
+    assert resp.status_code == 200, resp.get_json()
+    assert resp.get_json()["success"] is True
+
+    db_session.expire_all()
+    sd = db_session.query(Order).filter_by(id=order_id).first().structured_data
+    files = sd.get("drawing_current_files") or []
+    assert any(
+        f.get("key") == f"orders/{order_id}/drawing_wizard/exports/1_a.png" for f in files
+    )
+    assert sd.get("drawing_status") == "TRANSFERRED"
+    # 해당 시트 pending 제거 + 버전 스냅샷 1건.
+    assert (sd.get("drawing_wizard") or {}).get("pending") == {}
+    assert len((sd.get("drawing_wizard") or {}).get("versions") or []) == 1
+    # pending 목록도 빈다.
+    pending = client.get(
+        f"/api/orders/{order_id}/drawing-wizard/pending"
+    ).get_json()["data"]["pending"]
+    assert pending == []
+
+
+def test_transfer_drawing_merges_pending_and_manual(client, monkeypatch):
+    """저장된 대기 도면 + 직접 파일을 한 번의 전달로 함께 반영(단일 히스토리)."""
+    user = _login_participant_admin(client)
+    order = _order_with_assignee(user.id)
+    order_id = order.id
+    _seed_pending(order)
+
+    storage = _CapturingStorage()
+    monkeypatch.setattr("foms.api.drawing.wizard.get_storage", lambda: storage)
+
+    resp = client.post(
+        f"/api/orders/{order_id}/transfer-drawing",
+        json={
+            "note": "혼합",
+            "mode": "APPEND",
+            "files": [
+                {"key": f"orders/{order_id}/drawing_gateway/revisions/m.png", "filename": "m.png"}
+            ],
+            "pending_sheet_ids": ["s-1"],
+        },
+    )
+    assert resp.status_code == 200, resp.get_json()
+
+    db_session.expire_all()
+    sd = db_session.query(Order).filter_by(id=order_id).first().structured_data
+    keys = {f.get("key") for f in (sd.get("drawing_current_files") or [])}
+    assert f"orders/{order_id}/drawing_wizard/exports/1_a.png" in keys
+    assert f"orders/{order_id}/drawing_gateway/revisions/m.png" in keys
+    assert (sd.get("drawing_wizard") or {}).get("pending") == {}
+    # 전달 이력은 1건(단일 전달로 병합).
+    hist = [h for h in (sd.get("drawing_transfer_history") or []) if h.get("action") == "TRANSFER"]
+    assert len(hist) == 1
+    assert hist[-1]["files_count"] == 2
+
+
+def test_transfer_drawing_without_pending_unchanged(client):
+    """pending_sheet_ids 미전달 시 기존 manual-only 동작 100% 불변(회귀 가드)."""
+    user = _login_participant_admin(client)
+    order = _order_with_assignee(user.id)
+    order_id = order.id
+    _seed_pending(order)
+
+    resp = client.post(
+        f"/api/orders/{order_id}/transfer-drawing",
+        json={
+            "note": "수동만",
+            "mode": "APPEND",
+            "files": [
+                {"key": f"orders/{order_id}/drawing_gateway/revisions/a.png", "filename": "a.png"}
+            ],
+        },
+    )
+    assert resp.status_code == 200, resp.get_json()
+
+    db_session.expire_all()
+    sd = db_session.query(Order).filter_by(id=order_id).first().structured_data
+    keys = {f.get("key") for f in (sd.get("drawing_current_files") or [])}
+    # 수동 파일만 반영, pending 은 그대로 유지(스냅샷·제거 없음).
+    assert keys == {f"orders/{order_id}/drawing_gateway/revisions/a.png"}
+    assert set((sd.get("drawing_wizard") or {}).get("pending") or {}) == {"s-1"}

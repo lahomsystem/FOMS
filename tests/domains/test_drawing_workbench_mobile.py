@@ -554,6 +554,46 @@ def test_drawing_workbench_multi_file_detail_opens_mobile_list(client, monkeypat
     assert "kitchen.png" in body
 
 
+def test_drawing_workbench_detail_shows_pending_panel(client):
+    """도면 마법사 [저장]본(pending)이 있으면 상세 상단 '전달 대기 도면' 패널 + 전달 모달 카드 노출."""
+    from sqlalchemy.orm.attributes import flag_modified
+
+    user = _login_drawing_admin(client)
+    order = _drawing_order({
+        "assignments": {"drawing_assignee_user_ids": [user.id]},
+        "drawing": {"status": "PENDING"},
+        "drawing_status": "PENDING",
+        "drawing_current_files": [],
+    })
+    sd = order.structured_data
+    sd["drawing_wizard"] = {
+        "v": 1,
+        "sheets": [{"id": "s-1", "name": "정면도", "form": {}, "objects": []}],
+        "pending": {
+            "s-1": {
+                "key": f"orders/{order.id}/drawing_wizard/exports/1_a.png",
+                "filename": "도면_a.png",
+                "at": "2026-07-07 10:00",
+                "sheet_name": "정면도",
+            }
+        },
+    }
+    order.structured_data = sd
+    flag_modified(order, "structured_data")
+    db_session.commit()
+
+    response = client.get(f"/erp/drawing-workbench/{order.id}")
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    # Section A: 상세 상단 대기 패널.
+    assert "전달 대기 도면" in body
+    assert "저장만 되고 아직 전달되지 않았습니다" in body
+    assert "정면도" in body
+    # Section B: 전달 모달 대기 카드(체크박스) + same-origin asset-raw 썸네일.
+    assert "dw-pending-checkbox" in body
+    assert f"/api/orders/{order.id}/drawing-wizard/asset-raw?key=" in body
+
+
 def test_drawing_workbench_valid_drawing_key_opens_mobile_detail(client, monkeypatch):
     monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
     user = _login_drawing_admin(client)

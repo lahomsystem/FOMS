@@ -709,6 +709,76 @@
         max-height: 40vh;
       }
     }
+
+    /* 전달 대기 도면 패널(상세 상단) + 전달 모달 대기 카드 */
+    .dw-pending-panel {
+      border-left: 4px solid #ffc107;
+    }
+
+    .dw-pending-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.6rem;
+    }
+
+    .dw-pending-title {
+      font-weight: 700;
+      font-size: 0.95rem;
+    }
+
+    .dw-pending-sub {
+      font-weight: 400;
+      color: #6c757d;
+      font-size: 0.85rem;
+    }
+
+    .dw-pending-strip {
+      display: flex;
+      gap: 0.6rem;
+      overflow-x: auto;
+      padding-bottom: 0.25rem;
+    }
+
+    .dw-pending-thumb {
+      flex: 0 0 auto;
+      width: 96px;
+      text-align: center;
+    }
+
+    .dw-pending-thumb img {
+      width: 96px;
+      height: 72px;
+      object-fit: cover;
+      border: 1px solid #dee2e6;
+      border-radius: 6px;
+      background: #f8f9fa;
+    }
+
+    .dw-pending-name {
+      font-size: 0.75rem;
+      margin-top: 0.2rem;
+    }
+
+    .dw-pending-at {
+      font-size: 0.7rem;
+      color: #adb5bd;
+    }
+
+    .dw-pending-card {
+      cursor: pointer;
+      margin-bottom: 0;
+    }
+
+    .dw-pending-card-preview img {
+      width: 100%;
+      height: 80px;
+      object-fit: cover;
+      border-radius: 6px;
+      background: #f8f9fa;
+    }
   </style>
 
   <div class="erp-pro-card mb-3" style="overflow: visible;">
@@ -737,6 +807,33 @@
       </div>
     </div>
   </div>
+
+  {% if drawing_pending and can_open_transfer %}
+  <div class="erp-pro-card mb-3 dw-pending-panel">
+    <div class="card-body">
+      <div class="dw-pending-head">
+        <div class="dw-pending-title">
+          <i class="fas fa-clock text-warning"></i> 전달 대기 도면 {{ drawing_pending|length }}장
+          <span class="dw-pending-sub">· 저장만 되고 아직 전달되지 않았습니다</span>
+        </div>
+        <button class="btn btn-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#dwTransferModal">
+          <i class="fas fa-paper-plane"></i> 도면 전달
+        </button>
+      </div>
+      <div class="dw-pending-strip">
+        {% for p in drawing_pending %}
+        <div class="dw-pending-thumb">
+          <img loading="lazy"
+            src="/api/orders/{{ order.id }}/drawing-wizard/asset-raw?key={{ p.key|urlencode }}"
+            alt="{{ p.sheet_name }}">
+          <div class="dw-pending-name text-truncate" title="{{ p.sheet_name }}">{{ p.sheet_name }}</div>
+          <div class="dw-pending-at">{{ p.at }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
 
   <div class="erp-pro-card mb-3">
     <div class="card-body">
@@ -1243,6 +1340,37 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
+        {% if drawing_pending %}
+        <div class="mb-3 dw-transfer-pending-section">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <label class="form-label fw-bold mb-0">
+              <i class="fas fa-clock text-warning"></i> 저장된 도면 (전달 대기) {{ drawing_pending|length }}장
+            </label>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="dw-pending-select-toggle"
+              onclick="toggleAllPendingCards()">전체 해제</button>
+          </div>
+          <div class="row g-2" id="dw-transfer-pending-cards">
+            {% for p in drawing_pending %}
+            <div class="col-6 col-md-4">
+              <label class="dw-pending-card border rounded p-2 text-center d-block" data-sheet-id="{{ p.sheet_id }}"
+                data-key="{{ p.key }}">
+                <div class="dw-pending-card-preview mb-1">
+                  <img loading="lazy"
+                    src="/api/orders/{{ order.id }}/drawing-wizard/asset-raw?key={{ p.key|urlencode }}"
+                    alt="{{ p.sheet_name }}">
+                </div>
+                <div class="small text-truncate" title="{{ p.sheet_name }}">{{ p.sheet_name }}</div>
+                <div class="dw-pending-at">{{ p.at }}</div>
+                <div class="form-check d-flex justify-content-center mt-1 mb-0">
+                  <input type="checkbox" class="form-check-input dw-pending-checkbox" value="{{ p.sheet_id }}" checked>
+                </div>
+              </label>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        <hr>
+        {% endif %}
         <div class="mb-3 small text-muted">
           <strong>추가:</strong> 기존 도면 유지, 새 도면 추가<br>
           <strong>교체:</strong> 선택한 도면만 새 파일로 교체 (다중 선택 가능)<br>
@@ -1298,7 +1426,12 @@
           <textarea id="dw-transfer-note" class="form-control" rows="3" placeholder="전달 메모"></textarea>
         </div>
         <div class="mb-3">
+          {% if drawing_pending %}
+          <label class="form-label fw-bold">직접 파일 추가 (선택)</label>
+          <div class="small text-muted mb-2">전달 대기 도면과 직접 올린 파일을 함께 전달할 수 있습니다.</div>
+          {% else %}
           <label class="form-label fw-bold">도면 파일 (다중 선택 가능)</label>
+          {% endif %}
           <div id="dw-transfer-dropzone" class="border border-dashed rounded p-4 text-center mb-2"
             style="border-color: #adb5bd; cursor: pointer; transition: all 0.2s;" tabindex="0"
             aria-label="도면 전달 파일 업로드 영역. 파일을 클릭, 드래그 또는 붙여넣기로 추가할 수 있습니다.">
@@ -1518,6 +1651,15 @@
           cards[idx]?.classList.remove('selected');
         }
       });
+    };
+
+    // 전달 대기(pending) 카드 전체 선택/해제 토글.
+    window.toggleAllPendingCards = function () {
+      const boxes = document.querySelectorAll('#dw-transfer-pending-cards .dw-pending-checkbox');
+      const toggleBtn = document.getElementById('dw-pending-select-toggle');
+      const anyUnchecked = Array.from(boxes).some(cb => !cb.checked);
+      boxes.forEach(cb => { cb.checked = anyUnchecked; });
+      if (toggleBtn) toggleBtn.textContent = anyUnchecked ? '전체 해제' : '전체 선택';
     };
 
     window.toggleRevisionTargetCard = function (card) {
@@ -2183,12 +2325,16 @@
       const mode = String(document.getElementById('dw-transfer-mode')?.value || 'APPEND').toUpperCase();
       const note = String(document.getElementById('dw-transfer-note')?.value || '').trim();
       const files = document.getElementById('dw-transfer-files')?.files || [];
+      const pendingSheetIds = Array.from(
+        document.querySelectorAll('#dw-transfer-pending-cards .dw-pending-checkbox:checked')
+      ).map(cb => cb.value);
 
-      if (!files.length) {
-        showWorkbenchToast('전달할 도면 파일을 선택해주세요.', 'error');
+      if (!files.length && pendingSheetIds.length === 0) {
+        showWorkbenchToast('전달할 도면이 없습니다. 저장된 대기 도면을 선택하거나 파일을 추가해주세요.', 'error');
         return;
       }
 
+      const totalNew = files.length + pendingSheetIds.length;
       const isRetransfer = (drawingStatus === 'RETURNED') || (mode === 'REPLACE') || (mode === 'REPLACE_ALL');
 
       // Phase 2: 다중 선택 처리
@@ -2205,16 +2351,16 @@
 
       let confirmMsg = '';
       if (mode === 'REPLACE_ALL') {
-        confirmMsg = `기존 도면 ${drawingFiles.length}개를 전부 삭제하고 새 파일로 교체합니다. 진행할까요?`;
+        confirmMsg = `기존 도면 ${drawingFiles.length}개를 전부 삭제하고 새 도면 ${totalNew}장으로 교체합니다. 진행할까요?`;
       } else if (mode === 'REPLACE') {
         if (replaceTargetKeys.length === 1) {
           const targetNo = drawingFiles.findIndex(f => f.key === replaceTargetKeys[0]) + 1;
-          confirmMsg = `${targetNo}번 도면을 새 파일로 교체합니다. 진행할까요?`;
+          confirmMsg = `${targetNo}번 도면을 새 도면 ${totalNew}장으로 교체합니다. 진행할까요?`;
         } else {
-          confirmMsg = `선택한 ${replaceTargetKeys.length}개 도면을 새 파일로 교체합니다. 진행할까요?`;
+          confirmMsg = `선택한 ${replaceTargetKeys.length}개 도면을 새 도면 ${totalNew}장으로 교체합니다. 진행할까요?`;
         }
       } else {
-        confirmMsg = '새 파일을 도면으로 전달합니다. 진행할까요?';
+        confirmMsg = `도면 ${totalNew}장을 전달합니다. 진행할까요?`;
       }
 
       if (!confirm(confirmMsg)) return;
@@ -2226,13 +2372,16 @@
           submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>업로드 중...';
         }
 
-        const createdFiles = await uploadToDrawingCategory(files, '[도면 전달] ' + note);
+        const createdFiles = files.length
+          ? await uploadToDrawingCategory(files, '[도면 전달] ' + note)
+          : [];
         const payload = {
           note: note,
           files: createdFiles,
           mode: mode,
           is_retransfer: isRetransfer,
           replace_target_keys: replaceTargetKeys.length > 0 ? replaceTargetKeys : null,
+          pending_sheet_ids: pendingSheetIds.length > 0 ? pendingSheetIds : null,
         };
         const res = await fetch(`/api/orders/${orderId}/transfer-drawing`, {
           method: 'POST',
@@ -2383,6 +2532,10 @@
     // 모달 열릴 때 초기화
     document.getElementById('dwTransferModal')?.addEventListener('show.bs.modal', function () {
       toggleTransferTargetCards();
+      // 전달 대기 카드: 열 때마다 전체 선택 상태로 초기화(패널 [도면 전달] 진입 포함).
+      document.querySelectorAll('#dw-transfer-pending-cards .dw-pending-checkbox').forEach(cb => { cb.checked = true; });
+      const pToggle = document.getElementById('dw-pending-select-toggle');
+      if (pToggle) pToggle.textContent = '전체 해제';
     });
 
     document.querySelectorAll('.js-revision-check').forEach(btn => {
