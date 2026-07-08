@@ -79,80 +79,6 @@
     </div>
   </div>
 
-  <!-- pending 보관함 카드: 마법사 [저장]으로 보관된 도면이 남은 주문을 필터·페이지 무관하게 모아 일괄 전송 -->
-  {% if pending_box %}
-  <div class="erp-pro-card mb-2 dw-pending-box">
-    <div class="erp-pro-card__header py-2 d-flex align-items-center justify-content-between flex-wrap gap-2">
-      <h3 class="erp-pro-card__title mb-0">
-        <i class="fas fa-clock text-warning"></i>
-        전달 대기함
-        <span class="badge bg-warning text-dark ms-2">총 {{ pending_box_count }}건</span>
-      </h3>
-      {% if can_edit_erp %}
-      <div class="d-flex gap-2">
-        <button type="button" class="btn btn-sm btn-outline-secondary" id="dw-pending-select-all">
-          <i class="fas fa-check-double"></i> 전체 선택
-        </button>
-        <button type="button" class="btn btn-sm btn-success" id="dw-pending-transfer-selected">
-          <i class="fas fa-paper-plane"></i> 선택 전송
-        </button>
-      </div>
-      {% endif %}
-    </div>
-    <div class="erp-pro-card__body">
-      <p class="text-muted small mb-2">
-        마법사에서 저장한 <strong>전달 대기 도면</strong>이 있는 주문입니다. 목록 필터·페이지와 무관하게 모두 표시됩니다.
-      </p>
-      <div class="dw-pending-list list-group">
-        {% for p in pending_box %}
-        <div class="dw-pending-item list-group-item d-flex align-items-center gap-2 flex-wrap"
-             data-order-id="{{ p.order_id }}" data-pending-count="{{ p.count }}">
-          {% if can_edit_erp %}
-          <input type="checkbox" class="form-check-input dw-pending-check flex-shrink-0"
-                 value="{{ p.order_id }}" data-pending="{{ p.count }}" aria-label="주문 {{ p.order_id }} 선택">
-          {% endif %}
-          <div class="flex-grow-1">
-            <div class="fw-bold">
-              {{ p.customer_name }}
-              <span class="text-muted small ms-1">#{{ p.order_id }}</span>
-              <span class="badge bg-primary ms-1" title="전달 대기 도면 장수">{{ p.count }}장</span>
-            </div>
-            <div class="small text-muted mt-1">
-              {% for name in p.sheet_names %}<span class="badge bg-light text-dark border me-1">{{ name }}</span>{% endfor %}
-              {% if p.sheet_names_extra %}<span class="small text-muted">외 {{ p.sheet_names_extra }}장</span>{% endif %}
-            </div>
-          </div>
-          <a class="btn btn-sm btn-outline-primary"
-             href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=p.order_id) }}?tab=timeline"
-             title="창구 열기">
-            <i class="fas fa-door-open"></i><span class="d-none d-md-inline ms-1">열기</span>
-          </a>
-          {% if can_edit_erp %}
-          <button type="button" class="btn btn-sm btn-success dw-pending-transfer-one"
-                  data-order-id="{{ p.order_id }}" data-pending="{{ p.count }}">
-            <i class="fas fa-paper-plane"></i> 전송
-          </button>
-          {% endif %}
-          {% if p.sheets %}
-          <div class="w-100 dw-pending-thumbs" aria-label="전달 대기 도면 미리보기">
-            {% for s in p.sheets %}
-            {% if s.key %}
-            {% set thumb_url = url_for('erp_orders_drawing_wizard.api_get_drawing_wizard_asset_raw', order_id=p.order_id, key=s.key) %}
-            <img class="dw-pending-thumb" src="{{ thumb_url }}" alt="{{ s.name }}" title="{{ s.name }}"
-                 loading="lazy" decoding="async" data-full-src="{{ thumb_url }}" data-name="{{ s.name }}">
-            {% endif %}
-            {% endfor %}
-            {% set thumb_extra = p.count - (p.sheets|length) %}
-            {% if thumb_extra > 0 %}<span class="dw-pending-thumb-more" title="추가 대기 도면">+{{ thumb_extra }}</span>{% endif %}
-          </div>
-          {% endif %}
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-  </div>
-  {% endif %}
-
   {% if erp_mobile_v2_enabled %}
   <section class="foms-shell-body foms-drawing-mobile-dashboard d-lg-none" aria-label="도면 작업 큐">
     {% include 'drawing/partials/drawing_mobile_controls.html' %}
@@ -221,11 +147,6 @@
           <button type="button" class="btn btn-sm btn-primary" onclick="openBatchAssignModal()">
             <i class="fas fa-user-cog"></i> 담당자 일괄 지정
           </button>
-          {% if can_edit_erp %}
-          <button type="button" class="btn btn-sm btn-success" onclick="openBatchTransferModal()">
-            <i class="fas fa-paper-plane"></i> 선택 도면 일괄 전송
-          </button>
-          {% endif %}
           <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearAllSelections()">
             <i class="fas fa-times"></i> 선택 해제
           </button>
@@ -470,44 +391,6 @@
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
         <button type="button" class="btn btn-primary" id="btn-save-single-assign">저장</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- 선택 도면 일괄 전송 모달: 바깥 클릭 시 닫히지 않음 -->
-<div class="modal fade" id="batchTransferModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
-  <div class="modal-dialog modal-dialog-centered modal-fullscreen-md-down">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title"><i class="fas fa-paper-plane"></i> 선택 도면 일괄 전송</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        <p class="text-muted small mb-3">
-          전달 대기 도면이 있는 선택 주문의 도면을 담당자에게 전송합니다.
-          대기 도면이 없는 주문은 자동으로 제외됩니다.
-        </p>
-        <div class="alert alert-light border small py-2 mb-3" id="batch-transfer-summary"></div>
-        <div class="mb-3">
-          <label class="form-label small fw-semibold" for="batch-transfer-mode">전송 모드</label>
-          <select class="form-select" id="batch-transfer-mode">
-            <option value="APPEND" selected>기존에 추가 (APPEND)</option>
-            <option value="REPLACE_ALL">전체 교체 (REPLACE_ALL)</option>
-          </select>
-        </div>
-        <div class="mb-2">
-          <label class="form-label small fw-semibold" for="batch-transfer-note">전달 메모 (선택)</label>
-          <textarea class="form-control" id="batch-transfer-note" rows="3" maxlength="500"
-            placeholder="담당자에게 전달할 메모를 입력하세요"></textarea>
-        </div>
-        <div id="batch-transfer-progress" class="small text-primary d-none"></div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
-        <button type="button" class="btn btn-success" id="btn-run-batch-transfer">
-          <i class="fas fa-paper-plane"></i> 전송
-        </button>
       </div>
     </div>
   </div>

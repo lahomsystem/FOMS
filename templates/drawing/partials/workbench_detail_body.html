@@ -746,6 +746,7 @@
       flex: 0 0 auto;
       width: 96px;
       text-align: center;
+      cursor: pointer;
     }
 
     .dw-pending-thumb img {
@@ -822,7 +823,11 @@
       </div>
       <div class="dw-pending-strip">
         {% for p in drawing_pending %}
-        <div class="dw-pending-thumb">
+        <div class="dw-pending-thumb" data-group-key="dw_pending" data-index="{{ loop.index0 }}"
+          data-view-url="/api/orders/{{ order.id }}/drawing-wizard/asset-raw?key={{ p.key|urlencode }}"
+          data-download-url="/api/orders/{{ order.id }}/drawing-wizard/asset-raw?key={{ p.key|urlencode }}"
+          data-filename="{{ p.sheet_name }}" data-key="{{ p.key }}"
+          onclick="openDrawingGatewayImageViewer(this.dataset.groupKey, Number(this.dataset.index))">
           <img loading="lazy"
             src="/api/orders/{{ order.id }}/drawing-wizard/asset-raw?key={{ p.key|urlencode }}"
             alt="{{ p.sheet_name }}">

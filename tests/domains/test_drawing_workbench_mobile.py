@@ -169,10 +169,6 @@ def test_drawing_workbench_row_exposes_pending_transfer_badge(client):
     body = response.get_data(as_text=True)
     assert 'data-pending="2"' in body
     assert "대기 2장" in body
-    # 편집 권한자(ADMIN) → 일괄 전송 버튼과 다이얼로그가 렌더된다.
-    assert "선택 도면 일괄 전송" in body
-    assert 'id="batchTransferModal"' in body
-    assert 'id="btn-run-batch-transfer"' in body
 
 
 def test_drawing_workbench_row_hides_pending_badge_when_empty(client):
@@ -185,114 +181,6 @@ def test_drawing_workbench_row_hides_pending_badge_when_empty(client):
     body = response.get_data(as_text=True)
     assert 'data-pending="0"' in body
     assert "대기 0장" not in body
-
-
-def test_drawing_pending_box_card_lists_orders_regardless_of_list_filter(client):
-    """전달 대기함 카드는 목록 status 필터(테이블에서 제외되는 주문)와 무관하게 pending 도면을 노출한다."""
-    _login_drawing_admin(client)
-    _drawing_order(
-        {
-            "parties": {"customer": {"name": "대기함 고객"}, "manager": {"name": "담당A"}},
-            "drawing": {"status": "PENDING"},
-            "drawing_status": "PENDING",
-            "drawing_wizard": {
-                "pending": {
-                    "sheet-1": {
-                        "key": "orders/1/drawing_wizard/exports/a.png",
-                        "filename": "a.png",
-                        "at": "2026-07-07 10:00",
-                        "sheet_name": "거실",
-                    },
-                    "sheet-2": {
-                        "key": "orders/1/drawing_wizard/exports/b.png",
-                        "filename": "b.png",
-                        "at": "2026-07-07 10:05",
-                        "sheet_name": "주방",
-                    },
-                }
-            },
-        }
-    )
-
-    # status=CONFIRMED 는 PENDING 주문을 목록 테이블에서 제외하지만 대기함에는 남아야 한다.
-    response = client.get("/erp/drawing-workbench?status=CONFIRMED")
-    assert response.status_code == 200
-    body = response.get_data(as_text=True)
-    assert "dw-pending-box" in body
-    assert "전달 대기함" in body
-    assert "총 1건" in body
-    assert "대기함 고객" in body
-    assert "2장" in body
-    assert "거실" in body
-    assert "주방" in body
-    # 편집 권한자(ADMIN) → 대기함 전송 컨트롤이 렌더된다.
-    assert 'id="dw-pending-transfer-selected"' in body
-    assert "dw-pending-transfer-one" in body
-
-
-def test_drawing_pending_box_hidden_when_no_pending(client):
-    """pending 도면이 없으면 전달 대기함 카드는 렌더되지 않는다(빈 상태=카드 숨김)."""
-    _login_drawing_admin(client)
-    _drawing_order()
-
-    body = client.get("/erp/drawing-workbench").get_data(as_text=True)
-    assert "dw-pending-box" not in body
-    assert "전달 대기함" not in body
-
-
-def test_build_drawing_pending_box_aggregates_sorts_and_ignores_empty(client):
-    """build_drawing_pending_box: pending 있는 주문만, 최신 at 내림차순, sheet_names 최대 3+초과 카운트."""
-    from db import db_session
-    from foms.web.drawing.workbench import build_drawing_pending_box
-
-    _drawing_order(
-        {
-            "parties": {"customer": {"name": "older"}},
-            "drawing_wizard": {
-                "pending": {
-                    "s1": {"key": "k1", "filename": "a.png", "at": "2026-07-07 09:00", "sheet_name": "A"},
-                }
-            },
-        }
-    )
-    _drawing_order(
-        {
-            "parties": {"customer": {"name": "newer"}},
-            "drawing_wizard": {
-                "pending": {
-                    "s1": {"key": "k2", "filename": "b.png", "at": "2026-07-07 12:00", "sheet_name": "B1"},
-                    "s2": {"key": "k3", "filename": "c.png", "at": "2026-07-07 12:05", "sheet_name": "B2"},
-                    "s3": {"key": "k4", "filename": "d.png", "at": "2026-07-07 12:06", "sheet_name": "B3"},
-                    "s4": {"key": "k5", "filename": "e.png", "at": "2026-07-07 12:07", "sheet_name": "B4"},
-                }
-            },
-        }
-    )
-    _drawing_order({"drawing_wizard": {"pending": {}}})  # 빈 pending → 제외
-    _drawing_order()  # drawing_wizard 없음 → 제외
-
-    box = build_drawing_pending_box(db_session)
-
-    assert [b["customer_name"] for b in box] == ["newer", "older"]  # 최신 updated_at 우선
-    newer = box[0]
-    assert newer["count"] == 4
-    assert newer["sheet_names"] == ["B1", "B2", "B3"]  # 최대 3장 표시
-    assert newer["sheet_names_extra"] == 1
-    assert newer["updated_at"] == "2026-07-07 12:07"
-
-
-def test_drawing_workbench_pending_box_transfer_reuses_transfer_pending_in_js() -> None:
-    """대기함 전송 컨트롤은 공용 전송 모달(transfer-pending 러너)을 재사용한다."""
-    js_path = Path(__file__).resolve().parents[2] / "static" / "js" / "drawing" / "workbench-dashboard.js"
-    source = js_path.read_text(encoding="utf-8")
-    assert "function collectPendingBoxSelected()" in source
-    assert "function openTransferModalFor(" in source
-    assert "'.dw-pending-check:checked'" in source
-    assert "dw-pending-transfer-selected" in source
-    assert "dw-pending-transfer-one" in source
-    assert "dw-pending-select-all" in source
-    # 러너는 진입점이 실어둔 대상(pendingTransferOrders)을 우선 소비한다.
-    assert "pendingTransferOrders || getSelectedPendingOrders()" in source
 
 
 def test_resolve_construction_date_display_normalizes_dict_date():
@@ -756,20 +644,6 @@ def test_drawing_workbench_pipeline_stats_stable_under_list_filters(client, monk
 
     status_body = client.get("/erp/drawing-workbench?status=RETURNED").get_data(as_text=True)
     assert _pipeline_total_count(status_body) == 3
-
-
-def test_drawing_workbench_batch_transfer_calls_transfer_pending_in_js() -> None:
-    """일괄 전송 JS는 data-pending>0 주문만 골라 transfer-pending 을 순차 호출한다."""
-    js_path = Path(__file__).resolve().parents[2] / "static" / "js" / "drawing" / "workbench-dashboard.js"
-    source = js_path.read_text(encoding="utf-8")
-    assert "function getSelectedPendingOrders()" in source
-    assert "cb.dataset.pending" in source
-    assert "function openBatchTransferModal()" in source
-    assert "window.openBatchTransferModal = openBatchTransferModal;" in source
-    assert "/drawing-wizard/transfer-pending" in source
-    # note/mode 페이로드 + 실패 집계.
-    assert "JSON.stringify({ note: note, mode: mode })" in source
-    assert "failOrders.push(order.id)" in source
 
 
 def test_drawing_workbench_status_pipeline_clears_quick_filters_in_js() -> None:

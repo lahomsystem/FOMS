@@ -9,8 +9,6 @@
   var singleAssignOrderId = 0;
   var filterSubmitTimeout = null;
   var initAbortController = null;
-  // 전송 모달이 소비할 대상 주문 [{id, pending}]. 테이블 일괄전송·전달 대기함 둘 다 여기에 실어 공유한다.
-  var pendingTransferOrders = null;
 
   function isDrawingWorkbenchDashboard() {
     return !!document.querySelector('#main-content .dw-process-map, .dw-process-map');
@@ -60,82 +58,6 @@
     return Array.from(document.querySelectorAll('.order-checkbox:checked')).map(function (cb) {
       return parseInt(cb.value, 10);
     });
-  }
-
-  function getSelectedPendingOrders() {
-    // 선택된 행 중 전달 대기 도면(data-pending>0)이 있는 주문만. [{id, pending}].
-    return Array.from(document.querySelectorAll('.order-checkbox:checked'))
-      .map(function (cb) {
-        return {
-          id: parseInt(cb.value, 10),
-          pending: parseInt(cb.dataset.pending || '0', 10) || 0,
-        };
-      })
-      .filter(function (o) {
-        return o.pending > 0;
-      });
-  }
-
-  function collectPendingBoxSelected() {
-    // 전달 대기함 카드에서 체크된 주문 [{id, pending}] (pending>0 만).
-    return Array.from(document.querySelectorAll('.dw-pending-check:checked'))
-      .map(function (cb) {
-        return {
-          id: parseInt(cb.value, 10),
-          pending: parseInt(cb.dataset.pending || '0', 10) || 0,
-        };
-      })
-      .filter(function (o) {
-        return o.pending > 0;
-      });
-  }
-
-  function openTransferModalFor(orders, extraSummary) {
-    // 전송 대상 [{id, pending}] 을 실어 공용 전송 모달을 연다. 실행부(runner)는 pendingTransferOrders 를 읽는다.
-    if (!orders || orders.length === 0) {
-      alert('전달 대기 도면이 있는 주문이 없습니다.');
-      return;
-    }
-    var modalEl = document.getElementById('batchTransferModal');
-    if (!modalEl || !window.bootstrap) {
-      return;
-    }
-    pendingTransferOrders = orders;
-
-    var summaryEl = document.getElementById('batch-transfer-summary');
-    if (summaryEl) {
-      var totalPending = orders.reduce(function (acc, o) {
-        return acc + o.pending;
-      }, 0);
-      var text = '전송 대상 ' + orders.length + '건 (도면 ' + totalPending + '장)';
-      if (extraSummary) {
-        text += extraSummary;
-      }
-      summaryEl.textContent = text;
-    }
-
-    var progressEl = document.getElementById('batch-transfer-progress');
-    if (progressEl) {
-      progressEl.classList.add('d-none');
-      progressEl.textContent = '';
-    }
-
-    window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
-  }
-
-  function openBatchTransferModal() {
-    var selectedIds = getSelectedOrderIds();
-    if (selectedIds.length === 0) {
-      alert('주문을 선택해주세요.');
-      return;
-    }
-    var pendingOrders = getSelectedPendingOrders();
-    if (pendingOrders.length === 0) {
-      alert('선택한 주문 중 전달 대기 도면이 있는 주문이 없습니다.');
-      return;
-    }
-    var skipped = selectedIds.length - pendingOrders.length;
-    openTransferModalFor(pendingOrders, skipped > 0 ? ' · 대기 없음 ' + skipped + '건 제외' : '');
   }
 
   async function openBatchAssignModal() {
@@ -374,93 +296,6 @@
     });
   }
 
-  function ensureThumbLightbox() {
-    var modal = document.getElementById('dw-thumb-lightbox');
-    if (modal) {
-      return modal;
-    }
-    modal = document.createElement('div');
-    modal.id = 'dw-thumb-lightbox';
-    modal.className = 'dw-thumb-lightbox';
-    modal.hidden = true;
-    modal.innerHTML =
-      '<div class="dw-thumb-lightbox__backdrop"></div>' +
-      '<figure class="dw-thumb-lightbox__stage">' +
-      '<img class="dw-thumb-lightbox__img" alt="">' +
-      '<figcaption class="dw-thumb-lightbox__caption"></figcaption>' +
-      '</figure>' +
-      '<button type="button" class="dw-thumb-lightbox__close" aria-label="닫기">&times;</button>';
-    document.body.appendChild(modal);
-    return modal;
-  }
-
-  function openThumbLightbox(url, name) {
-    if (!url) {
-      return;
-    }
-    // 전역 라이트박스(P2 surface bundle)가 로드돼 있으면 재사용(핀치줌·다운로드 지원).
-    if (typeof window.fomsOpenLightboxUrl === 'function') {
-      window.fomsOpenLightboxUrl(url, { filename: name || '도면' });
-      return;
-    }
-    var modal = ensureThumbLightbox();
-    var img = modal.querySelector('.dw-thumb-lightbox__img');
-    var caption = modal.querySelector('.dw-thumb-lightbox__caption');
-    if (img) {
-      img.src = url;
-      img.alt = name || '';
-    }
-    if (caption) {
-      caption.textContent = name || '';
-    }
-    modal.hidden = false;
-    document.documentElement.classList.add('dw-thumb-lightbox-open');
-  }
-
-  function closeThumbLightbox() {
-    var modal = document.getElementById('dw-thumb-lightbox');
-    if (!modal || modal.hidden) {
-      return;
-    }
-    modal.hidden = true;
-    var img = modal.querySelector('.dw-thumb-lightbox__img');
-    if (img) {
-      img.src = '';
-    }
-    document.documentElement.classList.remove('dw-thumb-lightbox-open');
-  }
-
-  function bindPendingThumbLightboxOnce() {
-    if (window.__DW_PENDING_THUMB_BOUND === '1') {
-      return;
-    }
-    window.__DW_PENDING_THUMB_BOUND = '1';
-
-    document.addEventListener('click', function (e) {
-      var thumb = e.target.closest('.dw-pending-thumb');
-      if (thumb) {
-        e.preventDefault();
-        openThumbLightbox(
-          thumb.getAttribute('data-full-src') || thumb.getAttribute('src'),
-          thumb.getAttribute('data-name') || thumb.getAttribute('alt')
-        );
-        return;
-      }
-      if (
-        e.target.closest('.dw-thumb-lightbox__close') ||
-        e.target.classList.contains('dw-thumb-lightbox__backdrop')
-      ) {
-        closeThumbLightbox();
-      }
-    });
-
-    document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape') {
-        closeThumbLightbox();
-      }
-    });
-  }
-
   function initDrawingWorkbenchDashboard() {
     if (!isDrawingWorkbenchDashboard()) {
       return;
@@ -470,14 +305,12 @@
     window.updateBatchBar = updateBatchBar;
     window.clearAllSelections = clearAllSelections;
     window.openBatchAssignModal = openBatchAssignModal;
-    window.openBatchTransferModal = openBatchTransferModal;
     window.openSingleAssignModal = openSingleAssignModal;
     window.build_sort_url = buildSortUrl;
     window.build_page_url = buildPageUrl;
 
     bindPipelineDelegationOnce();
     bindRowNavigationOnce();
-    bindPendingThumbLightboxOnce();
 
     if (initAbortController) {
       initAbortController.abort();
@@ -569,107 +402,6 @@
         }
       }, { signal: signal });
     }
-
-    var runTransferBtn = document.getElementById('btn-run-batch-transfer');
-    if (runTransferBtn) {
-      runTransferBtn.addEventListener('click', async function () {
-        // 모달을 연 진입점(테이블 일괄전송 or 전달 대기함)이 실어둔 대상. 없으면 테이블 선택으로 폴백.
-        var pendingOrders = pendingTransferOrders || getSelectedPendingOrders();
-        if (pendingOrders.length === 0) {
-          alert('전달 대기 도면이 있는 주문이 없습니다.');
-          return;
-        }
-
-        var modeEl = document.getElementById('batch-transfer-mode');
-        var noteEl = document.getElementById('batch-transfer-note');
-        var progressEl = document.getElementById('batch-transfer-progress');
-        var mode = modeEl ? modeEl.value : 'APPEND';
-        var note = noteEl ? noteEl.value : '';
-
-        runTransferBtn.disabled = true;
-        var total = pendingOrders.length;
-        var okCount = 0;
-        var failOrders = [];
-
-        for (var i = 0; i < pendingOrders.length; i++) {
-          var order = pendingOrders[i];
-          if (progressEl) {
-            progressEl.classList.remove('d-none');
-            progressEl.textContent = (i + 1) + '/' + total + ' 전송 중… (주문 #' + order.id + ')';
-          }
-          try {
-            var res = await fetch('/api/orders/' + order.id + '/drawing-wizard/transfer-pending', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ note: note, mode: mode }),
-              signal: signal,
-            });
-            var data = await res.json();
-            if (data && data.success) {
-              okCount += 1;
-            } else {
-              failOrders.push(order.id);
-            }
-          } catch (err) {
-            if (err && err.name === 'AbortError') {
-              runTransferBtn.disabled = false;
-              return;
-            }
-            console.error(err);
-            failOrders.push(order.id);
-          }
-        }
-
-        runTransferBtn.disabled = false;
-        var summary = total + '건 중 ' + okCount + '건 전송 완료';
-        if (failOrders.length > 0) {
-          summary += '\n실패 주문: #' + failOrders.join(', #');
-        }
-        alert(summary);
-        var modalInst = window.bootstrap.Modal.getInstance(document.getElementById('batchTransferModal'));
-        if (modalInst) {
-          modalInst.hide();
-        }
-        window.location.reload();
-      }, { signal: signal });
-    }
-
-    var pendingSelectAllBtn = document.getElementById('dw-pending-select-all');
-    if (pendingSelectAllBtn) {
-      pendingSelectAllBtn.addEventListener('click', function () {
-        var checks = document.querySelectorAll('.dw-pending-check');
-        var allChecked = checks.length > 0 && Array.from(checks).every(function (cb) {
-          return cb.checked;
-        });
-        checks.forEach(function (cb) {
-          cb.checked = !allChecked;
-        });
-      }, { signal: signal });
-    }
-
-    var pendingTransferSelectedBtn = document.getElementById('dw-pending-transfer-selected');
-    if (pendingTransferSelectedBtn) {
-      pendingTransferSelectedBtn.addEventListener('click', function () {
-        var orders = collectPendingBoxSelected();
-        if (orders.length === 0) {
-          alert('전송할 주문을 선택해주세요.');
-          return;
-        }
-        openTransferModalFor(orders, '');
-      }, { signal: signal });
-    }
-
-    document.querySelectorAll('.dw-pending-transfer-one').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var id = parseInt(btn.dataset.orderId, 10);
-        var pending = parseInt(btn.dataset.pending || '0', 10) || 0;
-        if (!id || pending <= 0) {
-          alert('전달 대기 도면이 없습니다.');
-          return;
-        }
-        openTransferModalFor([{ id: id, pending: pending }], '');
-      }, { signal: signal });
-    });
 
     document.querySelectorAll('.mobile-order-card[data-href]').forEach(function (card) {
       function navigateToCard() {
