@@ -97,13 +97,30 @@ def erp_measurement_dashboard():
     range_end = _mf.range_end
     range_start_str = _mf.range_start_str
     range_end_str = _mf.range_end_str
+    manager_filter = _mf.manager_filter
 
     # Phase H: 대시보드 운영 화면은 최근 활성 데이터만 조회 (과거 완료건 제외)
-    base_query = db.query(Order).filter(Order.dashboard_active_filter(days=60))
-    base_query = _erp_order_search_filter(base_query, search_q)
-    # 자가실측 상태는 플래그 있는 주문만 포함. 지방주문(is_regional)도 실측 대시보드에 표시.
-    base_query = apply_measurement_dashboard_order_scope(base_query)
-    query = base_query
+    def _build_measurement_base(days: int):
+        """days 창 기준 실측 대시보드 base_query 조립(검색+scope 동일 적용)."""
+        q = db.query(Order).filter(Order.dashboard_active_filter(days=days))
+        q = _erp_order_search_filter(q, search_q)
+        # 자가실측 상태는 플래그 있는 주문만 포함. 지방주문(is_regional)도 실측 대시보드에 표시.
+        return apply_measurement_dashboard_order_scope(q)
+
+    # 패널용 base는 항상 60일 창 유지(패널 fingerprint에 date_from 없음 → 넓히면 캐시 오염).
+    base_query = _build_measurement_base(60)
+    # 리스트 계보 전용: 과거 range 조회 시 완료 60일 컷오프로 완료건이 누락되지 않게 창을 넓힌다.
+    # (_main_fp/_pi_fp에는 date_from/date_to가 포함되어 리스트 캐시는 안전.)
+    list_base_query = base_query
+    if use_range and date_from:
+        try:
+            _df_date = datetime.datetime.strptime(date_from, '%Y-%m-%d').date()
+            _list_days = max(60, (today_kst - _df_date).days + 1)
+        except (ValueError, TypeError):
+            _list_days = 60
+        if _list_days > 60:
+            list_base_query = _build_measurement_base(_list_days)
+    query = list_base_query
 
     if use_range or use_single_day:
         query = query.join(OrderScheduleDate, Order.id == OrderScheduleDate.order_id)
@@ -180,7 +197,7 @@ def erp_measurement_dashboard():
         TTL_PANEL_ROWS,
         lambda: compute_measurement_main_rows_blob(
             db,
-            base_query,
+            list_base_query,
             list_query,
             current_user,
             mine_filter_active,
@@ -195,7 +212,7 @@ def erp_measurement_dashboard():
         slice_name="main_rows",
     )
     rows, row_fallback_added_ids = hydrate_measurement_main_rows(
-        base_query,
+        list_base_query,
         _main_blob,
         selected_date=selected_date,
         use_range=use_range,
@@ -203,6 +220,27 @@ def erp_measurement_dashboard():
         date_from=date_from,
         date_to=date_to,
     )
+
+    # 담당자 필터: rows hydrate 후 Python 적용(담당자 값이 structured_data.parties.manager와
+    # Order.manager_name에 분산되고 normalize_manager_name으로 정규화되므로 SQL 필터는 부정확).
+    # _pi_fp(order_ids 포함) 계산 전에 적용해야 product_items 캐시 키가 올바르게 좁혀진다.
+    def get_manager_name_for_sort(order):
+        if order.is_erp_order and order.structured_data:
+            sd = order.structured_data
+            erp_manager = normalize_manager_name(
+                (sd.get('parties') or {}).get('manager'),
+                order.manager_name,
+            )
+            if erp_manager:
+                return erp_manager
+        return order.manager_name or ''
+
+    if manager_filter:
+        _mf_key = manager_filter.strip().lower()
+        rows = [
+            o for o in rows
+            if (get_manager_name_for_sort(o) or '').strip().lower() == _mf_key
+        ]
 
     _pi_fp = {
         "v": 3,
@@ -235,17 +273,7 @@ def erp_measurement_dashboard():
     for o in rows:
         o.product_items = _pi_by_id.get(str(o.id), [])
 
-    def get_manager_name_for_sort(order):
-        if order.is_erp_order and order.structured_data:
-            sd = order.structured_data
-            erp_manager = normalize_manager_name(
-                (sd.get('parties') or {}).get('manager'),
-                order.manager_name,
-            )
-            if erp_manager:
-                return erp_manager
-        return order.manager_name or ''
-
+    # get_manager_name_for_sort는 담당자 필터 적용 지점(hydrate 직후)에서 이미 정의됨.
     _settings = load_erp_shipment_settings()
     measurement_manager_options = []
     measurement_manager_seen = set()
@@ -335,6 +363,7 @@ def erp_measurement_dashboard():
             date_from=date_from,
             date_to=date_to,
             use_date_range=use_range,
+            manager_filter=manager_filter,
             rows=rows,
             mobile_queue_rows=mobile_queue_rows,
             measurement_panel_dates=measurement_panel_dates,

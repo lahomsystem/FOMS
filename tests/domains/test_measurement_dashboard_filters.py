@@ -89,3 +89,34 @@ def test_panel_window_is_today_plus_14(app):
     # 패널 창은 selected_date와 무관하게 항상 [today, today+14]
     assert f.range_start_str == "2026-06-28"
     assert f.range_end_str == "2026-07-12"
+
+
+def test_range_over_three_months_clamps_date_to(app):
+    # 3개월(92일) 초과 range → date_to를 date_from+92일로 clamp
+    f = _parse(app, "date_from=2026-01-01&date_to=2026-12-31")
+    assert f.use_range is True
+    assert f.date_from == "2026-01-01"
+    assert f.date_to == "2026-04-03"  # 2026-01-01 + 92일
+
+
+def test_range_within_three_months_keeps_date_to(app):
+    # 3개월 이내 range → date_to 원본 유지
+    f = _parse(app, "date_from=2026-07-01&date_to=2026-07-05")
+    assert f.use_range is True
+    assert f.date_to == "2026-07-05"
+
+
+def test_range_exactly_92_days_not_clamped(app):
+    # 정확히 date_from+92일은 캡 경계 → clamp 없음
+    f = _parse(app, "date_from=2026-01-01&date_to=2026-04-03")
+    assert f.use_range is True
+    assert f.date_to == "2026-04-03"
+
+
+def test_manager_filter_parsed_and_stripped(app):
+    f = _parse(app, "manager_filter=%20kim%20")
+    assert f.manager_filter == "kim"
+
+
+def test_manager_filter_default_empty(app):
+    assert _parse(app, "").manager_filter == ""
