@@ -7,6 +7,7 @@ from foms.services.erp_display import get_today_kst
 from foms.services.erp_permissions import can_edit_erp
 from foms.services.jobs.queue import enqueue_geocode_order_address
 from .calendar import calendar_orders_response
+from .copy import copy_orders_response
 from .field_update import update_order_field_response
 from .nearby import nearby_orders_response
 from .regional import update_regional_memo_response, update_regional_status_response
@@ -70,6 +71,14 @@ def bulk_update_order_status():
     return bulk_update_order_status_response(get_today_kst_func=get_today_kst)
 
 
+@orders_bp.route("/orders/copy", methods=["POST"])
+@login_required
+@role_required(["ADMIN", "MANAGER", "STAFF"])
+def copy_orders():
+    """선택 주문을 새 주문번호로 복사."""
+    return copy_orders_response()
+
+
 __all__ = [
     "api_orders",
     "api_orders_nearby",
@@ -77,6 +86,8 @@ __all__ = [
     "bulk_update_order_status",
     "calendar_orders_response",
     "can_edit_erp",
+    "copy_orders",
+    "copy_orders_response",
     "enqueue_geocode_order_address",
     "get_today_kst",
     "nearby_orders_response",

@@ -951,9 +951,16 @@
             const countEl = document.getElementById('erp-grid-selected-count');
             const selectEl = document.getElementById('erp-grid-bulk-status');
             const applyBtn = document.getElementById('erp-grid-bulk-apply');
+            const copyBtn = document.getElementById('erp-grid-copy-selected');
             const selectAll = document.getElementById('erp-grid-select-all');
             const grid = document.getElementById('erp-grid');
             if (!grid || !bulkBar || !countEl || !selectEl || !applyBtn) return;
+
+            function selectedOrderIds() {
+              return Array.from(grid.querySelectorAll('.erp-grid-order-check:checked'))
+                .map(cb => cb.getAttribute('data-order-id'))
+                .filter(Boolean);
+            }
 
             function updateSelectedCount() {
               const checks = grid.querySelectorAll('.erp-grid-order-check:checked');
@@ -996,9 +1003,7 @@
                 alert('변경할 상태를 선택하세요.');
                 return;
               }
-              const orderIds = Array.from(grid.querySelectorAll('.erp-grid-order-check:checked'))
-                .map(cb => cb.getAttribute('data-order-id'))
-                .filter(Boolean);
+              const orderIds = selectedOrderIds();
               if (orderIds.length === 0) {
                 alert('주문을 선택하세요.');
                 return;
@@ -1020,6 +1025,43 @@
                 .catch(() => alert('요청 중 오류가 발생했습니다.'))
                 .finally(() => { applyBtn.disabled = false; });
             });
+
+            if (copyBtn) {
+              copyBtn.addEventListener('click', function () {
+                const orderIds = selectedOrderIds();
+                if (orderIds.length === 0) {
+                  alert('복사할 주문을 선택하세요.');
+                  return;
+                }
+                if (!confirm('선택한 ' + orderIds.length + '건을 새 주문번호로 복사하시겠습니까?')) {
+                  return;
+                }
+                copyBtn.disabled = true;
+                fetch('/api/orders/copy', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                  body: JSON.stringify({ order_ids: orderIds })
+                })
+                  .then(r => r.json().then(data => ({ ok: r.ok, data })))
+                  .then(result => {
+                    const data = result.data || {};
+                    if (!result.ok || !data.success) {
+                      alert(data.message || '주문 복사에 실패했습니다.');
+                      return;
+                    }
+                    const copied = Array.isArray(data.orders) ? data.orders : [];
+                    if (copied.length === 1 && copied[0].new_order_id) {
+                      window.location.href = '/edit/' + encodeURIComponent(copied[0].new_order_id) + '?open=erp-order';
+                      return;
+                    }
+                    const newIds = copied.map(item => '#' + item.new_order_id).join(', ');
+                    alert('주문 복사 완료: ' + newIds);
+                    window.location.reload();
+                  })
+                  .catch(() => alert('요청 중 오류가 발생했습니다.'))
+                  .finally(() => { copyBtn.disabled = false; });
+              });
+            }
           })();
 
           // 실측일/시공일 인라인 편집: 변경 시 확인 후 API 저장 (오입력 방지)
