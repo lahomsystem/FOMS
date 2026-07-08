@@ -2701,7 +2701,9 @@
     var origIdx = current;
     var folderName = exportFolderName();
     // showDirectoryPicker 는 제스처 직후 동기 호출(이 함수는 클릭 핸들러 콜스택 내에서 즉시 진입).
-    window.showDirectoryPicker({ mode: 'readwrite' }).then(function (dirHandle) {
+    // id: 같은 id 로 재호출 시 브라우저가 마지막 선택 폴더를 기억(두 번째부터 그 위치에서 열림).
+    // startIn: 시작 위치를 문서로 유도 — 드라이브 루트/시스템 폴더 선택(브라우저 차단)을 줄인다.
+    window.showDirectoryPicker({ mode: 'readwrite', id: 'dwsExport', startIn: 'documents' }).then(function (dirHandle) {
       return dirHandle.getDirectoryHandle(folderName, { create: true });
     }).then(function (custDir) {
       return eachSheetToBlob(function (blob, sheet, i) {
