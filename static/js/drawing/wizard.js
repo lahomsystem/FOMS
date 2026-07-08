@@ -282,6 +282,7 @@
     els.logoImg = document.getElementById('dws-logo-img');
     els.logoPopup = document.getElementById('dws-logo-popup');
     els.saveBtn = document.getElementById('dws-btn-save');
+    els.saveAllBtn = document.getElementById('dws-btn-save-all');
     els.zoomRange = document.getElementById('dws-zoom-range');
     els.zoomLabel = document.getElementById('dws-zoom-label');
     els.fileInput = document.getElementById('dws-file-input');
@@ -1713,17 +1714,27 @@
     }
   }
 
-  /** 실측 사진 썸네일 그리드를 렌더한다. 현재 시트가 제품 시트면 그 제품 사진을 상단 우선
-      정렬한다(전체 표시·정렬만). 라벨/alt/title 은 textContent·alt 로만 넣는다(XSS 안전). */
+  /** 실측 사진이 현재 제품 시트(activeIdx)에 표시 대상인지 판정.
+      제품 시트면 그 제품(item_index===activeIdx) + 공통(null/음수)만 true. */
+  function photoVisibleFor(photo, activeIdx) {
+    if (activeIdx < 0) { return true; }   // 제품 시트 아님 → 전체 표시
+    var ii = photo.item_index;
+    return ii === activeIdx || ii == null || (isFiniteNum(ii) && ii < 0);
+  }
+
+  /** 실측 사진 썸네일 그리드를 렌더한다. 현재 시트가 제품 시트면 그 제품에 연결된 사진 +
+      공통 사진만 표시하고(다른 제품 사진 숨김), 매칭 사진을 상단 우선 정렬한다. 제품 시트가
+      아니면 전체 표시. 제목 카운트는 필터 후 개수. 라벨/alt/title 은 textContent·alt 로만(XSS 안전). */
   function renderPhotos() {
     if (!els.photos || !els.photoGrid) { return; }
-    els.photos.hidden = !measurePhotos.length;
-    if (els.photosTitle) { els.photosTitle.textContent = '실측 사진 ' + measurePhotos.length; }
-    els.photoGrid.textContent = '';
-    if (!measurePhotos.length) { return; }
     var cs = currentSheet();
     var activeIdx = (cs && isFiniteNum(cs.product_index)) ? cs.product_index : -1;
-    var ordered = measurePhotos.slice();
+    var visible = measurePhotos.filter(function (p) { return photoVisibleFor(p, activeIdx); });
+    els.photos.hidden = !visible.length;
+    if (els.photosTitle) { els.photosTitle.textContent = '실측 사진 ' + visible.length; }
+    els.photoGrid.textContent = '';
+    if (!visible.length) { return; }
+    var ordered = visible.slice();
     if (activeIdx >= 0) {
       // 안정 정렬(Array.sort ES2019+): 현재 제품 사진을 앞으로, 그 외는 원래 순서 보존.
       ordered.sort(function (a, b) {
@@ -2431,38 +2442,153 @@
     save({ auto: true });
   }
 
+  /** 합성 canvas → PNG blob(Promise). 실패 시 reject. */
+  function canvasToPngBlob(cv) {
+    return new Promise(function (resolve, reject) {
+      cv.toBlob(function (blob) {
+        if (blob) { resolve(blob); } else { reject(new Error('PNG 생성 실패')); }
+      }, 'image/png');
+    });
+  }
+
+  /** PNG blob 을 '전달 대기함'(sheet-png)에 POST. 성공 시 true, 실패 시 throw(집계·재시도 판단은 호출측). */
+  function postSheetPngBlob(blob, sheet) {
+    var fd = new FormData();
+    fd.append('file', blob, sheetPngFilename(sheet));
+    fd.append('sheet_id', String((sheet && sheet.id) || ''));
+    fd.append('sheet_name', String((sheet && sheet.name) || ''));
+    return jsonFetch(API_BASE + '/drawing-wizard/sheet-png', { method: 'POST', body: fd }).then(function (r) {
+      if (r.status === 200 && r.data && r.data.success && r.data.data) { return true; }
+      console.warn('[dws] sheet-png', r.status, r.data);
+      throw new Error('sheet-png 저장 실패');
+    });
+  }
+
   /**
-   * PUT 성공 후 현재 시트를 PNG로 합성해 '전달 대기함'(structured_data.drawing_wizard.pending)에
+   * 현재 DOM 이 반영하는 시트를 PNG 로 합성해 '전달 대기함'(structured_data.drawing_wizard.pending)에
    * 보관한다(주문 '도면' 탭 저장 아님 — 담당자 전달은 도면 작업실의 일괄 전송이 담당).
-   * 같은 시트(sheet_id) 재저장 시 서버가 구 PNG를 교체한다. 추가 PUT은 하지 않는다.
+   * 같은 시트(sheet_id) 재저장 시 서버가 구 PNG를 교체한다. 추가 PUT은 하지 않는다(단일·일괄 저장 공용).
    * @param {Object} sheet 저장 시점의 시트(비동기 동안 참조 고정)
+   * @returns {Promise<true>} 실패 시 reject
    */
+  function pushSheetPng(sheet) {
+    return withExportMode().then(canvasToPngBlob).then(function (blob) {
+      return postSheetPngBlob(blob, sheet);
+    });
+  }
+
   function saveSheetPng(sheet) {
-    return withExportMode().then(function (cv) {
-      return new Promise(function (resolve, reject) {
-        cv.toBlob(function (blob) {
-          if (blob) { resolve(blob); } else { reject(new Error('PNG 생성 실패')); }
-        }, 'image/png');
-      });
-    }).then(function (blob) {
-      var fd = new FormData();
-      fd.append('file', blob, sheetPngFilename(sheet));
-      fd.append('sheet_id', String(sheet.id || ''));
-      fd.append('sheet_name', String((sheet && sheet.name) || ''));
-      return jsonFetch(API_BASE + '/drawing-wizard/sheet-png', { method: 'POST', body: fd });
-    }).then(function (r) {
+    return pushSheetPng(sheet).then(function () {
       els.saveBtn.disabled = false;
-      if (r.status === 200 && r.data && r.data.success && r.data.data) {
-        toast('저장됨 · 전달 대기함에 보관');
-      } else {
-        console.warn('[dws] sheet-png', r.status, r.data);
-        toast('저장됨 (도면 이미지 저장 실패)');
-      }
-    }).catch(function (err) {
+      toast('저장됨 · 전달 대기함에 보관');
+    }, function (err) {
       els.saveBtn.disabled = false;
       console.warn('[dws] sheet-png export', err);
       toast('저장됨 (도면 이미지 저장 실패)');
     });
+  }
+
+  var IMG_SETTLE_MS = 4000;
+
+  /** 현재 시트의 Konva 이미지 노드가 모두 로드될 때까지(또는 timeout) 대기한다.
+      시트 전환 직후 이미지가 아직 로드 중이면 합성 PNG 가 빈 프레임이 되므로 배치 렌더 정합용. */
+  function waitForSheetImages(timeoutMs) {
+    return new Promise(function (resolve) {
+      if (!konvaLayer) { resolve(); return; }
+      var imgNodes = [];
+      konvaLayer.find('.anno').forEach(function (n) {
+        if (n.getAttr('annoType') === 'image') { imgNodes.push(n); }
+      });
+      if (!imgNodes.length) { resolve(); return; }
+      var deadline = Date.now() + (timeoutMs || IMG_SETTLE_MS);
+      (function poll() {
+        var pending = imgNodes.some(function (n) { return !n.image(); });
+        if (!pending || Date.now() >= deadline) { resolve(); return; }
+        setTimeout(poll, 60);
+      })();
+    });
+  }
+
+  /**
+   * 모든 시트를 순차로 PNG blob 으로 렌더하며 handler(blob, sheet, i)를 호출한다.
+   * 각 시트: switchSheet → 이미지 로드 대기 → withExportMode → PNG blob → handler(Promise 가능).
+   * 개별 시트 실패는 스킵·집계(전체 중단 없음). 원 시트 복귀는 호출측 책임.
+   * @param {function} handler (blob, sheet, index) → Promise|void
+   * @param {string} label 진행 토스트 접두어("일괄 저장" 등)
+   * @returns {Promise<{ok:number, fail:string[], total:number}>}
+   */
+  function eachSheetToBlob(handler, label) {
+    var total = state.sheets.length;
+    var okCount = 0;
+    var failNames = [];
+    var chain = Promise.resolve();
+    state.sheets.forEach(function (s, i) {
+      chain = chain.then(function () {
+        toast(label + ' ' + (i + 1) + '/' + total + ' 처리 중…');
+        switchSheet(i);
+        return waitForSheetImages(IMG_SETTLE_MS)
+          .then(withExportMode)
+          .then(canvasToPngBlob)
+          .then(function (blob) { return handler(blob, state.sheets[i], i); })
+          .then(function () { okCount += 1; }, function (err) {
+            console.warn('[dws] eachSheetToBlob', i, err);
+            failNames.push((state.sheets[i] && state.sheets[i].name) || ('시트 ' + (i + 1)));
+          });
+      });
+    });
+    return chain.then(function () { return { ok: okCount, fail: failNames, total: total }; });
+  }
+
+  /**
+   * 일괄 저장(X-1): state 전체 PUT 1회 → 모든 시트를 순차로 PNG 합성해 전달 대기함에 보관.
+   * PUT 은 1회만(무한루프 금지). 개별 시트 PNG 실패는 스킵·집계. 완료 후 원 시트 복귀.
+   */
+  function saveAll() {
+    if (!canSave || saveInFlight) { return; }
+    if (!state.sheets.length) {
+      toast('저장할 도면이 없습니다. 제품을 선택해 도면을 먼저 만드세요.');
+      return;
+    }
+    if (commitActiveEdit) { commitActiveEdit(); }
+    if (document.activeElement && document.activeElement.blur) { document.activeElement.blur(); }
+    saveInFlight = true;
+    var origIdx = current;
+    els.saveBtn.disabled = true;
+    if (els.saveAllBtn) { els.saveAllBtn.disabled = true; }
+    var body = { state: serializeState(), base_updated_at: baseUpdatedAt };
+    jsonFetch(API_BASE + '/drawing-wizard', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    }).then(function (r) {
+      if (!(r.status === 200 && r.data && r.data.success)) {
+        finishSaveAll();
+        if (r.status === 409) { handleConflict(r.data); }
+        else { toast((r.data && r.data.message) || ('저장 실패 (' + r.status + ')')); }
+        return;
+      }
+      baseUpdatedAt = (r.data.data && r.data.data.updated_at) || baseUpdatedAt;
+      dirty = false;
+      autoConflictWarned = false;
+      updateSaveState();
+      return eachSheetToBlob(postSheetPngBlob, '일괄 저장').then(function (res) {
+        switchSheet(origIdx);
+        finishSaveAll();
+        if (res.fail.length) {
+          toast('일괄 저장 완료 · ' + res.ok + '/' + res.total + ' 성공, ' + res.fail.length + '건 실패');
+        } else {
+          toast('일괄 저장 완료 · ' + res.total + '개 시트를 전달 대기함에 보관');
+        }
+      });
+    }, function (err) {
+      finishSaveAll();
+      console.warn('[dws] save-all', err);
+      toast('저장 오류');
+    });
+  }
+
+  function finishSaveAll() {
+    saveInFlight = false;
+    els.saveBtn.disabled = false;
+    if (els.saveAllBtn) { els.saveAllBtn.disabled = false; }
   }
 
   /* ========================================================================
@@ -2528,6 +2654,83 @@
     }).catch(function (err) {
       console.warn('[dws] export png', err);
       toast('내보내기 실패: ' + ((err && err.message) || '알 수 없는 오류'));
+    });
+  }
+
+  /** 파일/폴더명 안전화: `/\:*?"<>|` 및 제어문자 제거·trim, 빈 값은 '무제'. */
+  function fsSafe(s) {
+    return String(s == null ? '' : s).replace(/[\\/:*?"<>|\n\r\t]/g, '').trim() || '무제';
+  }
+
+  /** 일괄 내보내기 파일명: `고객이름_도면번호_제품이름.png`(도면번호=page_no, 없으면 순번+1). */
+  function exportSheetFilename(sheet, i) {
+    var form = (sheet && sheet.form) || {};
+    var pageNo = String(form.page_no == null ? '' : form.page_no).trim();
+    if (!pageNo) { pageNo = String(i + 1); }
+    return fsSafe(customerName) + '_' + fsSafe(pageNo) + '_' + fsSafe((sheet && sheet.name) || '도면') + '.png';
+  }
+
+  /**
+   * 일괄 내보내기(X-3): 모든 시트 PNG 를 로컬 폴더에 저장.
+   * File System Access API(showDirectoryPicker) 지원 시 고객이름 서브폴더에 저장, 미지원이면 개별 다운로드.
+   * showDirectoryPicker 는 사용자 제스처(버튼 클릭) 안에서 직접 호출해야 하므로 클릭 핸들러에서 진입한다.
+   */
+  function exportAll() {
+    closeMenus();
+    if (!state.sheets.length) { toast('내보낼 도면이 없습니다.'); return; }
+    if (typeof window.showDirectoryPicker === 'function') {
+      exportAllToDirectory();
+    } else {
+      exportAllFallbackDownloads();
+    }
+  }
+
+  /** 폴더 선택 → 고객이름 서브폴더 생성 → 각 시트 PNG 를 파일로 write. */
+  function exportAllToDirectory() {
+    var origIdx = current;
+    var folderName = fsSafe(customerName);
+    // showDirectoryPicker 는 제스처 직후 동기 호출(이 함수는 클릭 핸들러 콜스택 내에서 즉시 진입).
+    window.showDirectoryPicker({ mode: 'readwrite' }).then(function (dirHandle) {
+      return dirHandle.getDirectoryHandle(folderName, { create: true });
+    }).then(function (custDir) {
+      return eachSheetToBlob(function (blob, sheet, i) {
+        return custDir.getFileHandle(exportSheetFilename(sheet, i), { create: true })
+          .then(function (fh) { return fh.createWritable(); })
+          .then(function (writable) {
+            return Promise.resolve(writable.write(blob)).then(function () { return writable.close(); });
+          });
+      }, '일괄 내보내기').then(function (res) {
+        switchSheet(origIdx);
+        if (res.fail.length) {
+          toast('일괄 내보내기 완료 · ' + res.ok + '/' + res.total + ' 성공, ' + res.fail.length + '건 실패');
+        } else {
+          toast('일괄 내보내기 완료 · "' + folderName + '" 폴더에 ' + res.total + '개 저장');
+        }
+      });
+    }).catch(function (err) {
+      if (err && err.name === 'AbortError') { return; }   // 사용자가 폴더 선택 취소 — 조용히 종료
+      switchSheet(origIdx);
+      console.warn('[dws] export-all', err);
+      toast('일괄 내보내기 실패: ' + ((err && err.message) || '알 수 없는 오류'));
+    });
+  }
+
+  /** 미지원 브라우저 폴백: 각 시트 PNG 를 같은 파일명 규칙으로 개별 다운로드(폴더 없음). */
+  function exportAllFallbackDownloads() {
+    toast('이 브라우저는 폴더 저장을 지원하지 않습니다 — 개별 다운로드로 진행합니다.');
+    var origIdx = current;
+    eachSheetToBlob(function (blob, sheet, i) {
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = exportSheetFilename(sheet, i);
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+    }, '개별 다운로드').then(function (res) {
+      switchSheet(origIdx);
+      toast('개별 다운로드 완료 · ' + res.ok + '/' + res.total + '개');
     });
   }
 
@@ -2677,6 +2880,7 @@
     document.getElementById('dws-btn-undo').addEventListener('click', undo);
     document.getElementById('dws-btn-redo').addEventListener('click', redo);
     els.saveBtn.addEventListener('click', function () { save(); });
+    if (els.saveAllBtn) { els.saveAllBtn.addEventListener('click', saveAll); }
 
     // 빈 상태 오버레이 — "빈 시트 추가"(제품 없는 주문 대비). addSheet 는 defaults 로 시트 생성.
     if (els.emptyAdd) { els.emptyAdd.addEventListener('click', function () { addSheet(); }); }
@@ -2718,6 +2922,8 @@
     var exportBtn = document.getElementById('dws-btn-export');
     exportBtn.addEventListener('click', function (e) { e.stopPropagation(); toggleMenu(els.exportMenu); });
     document.getElementById('dws-btn-export-png').addEventListener('click', exportPng);
+    var exportAllBtn = document.getElementById('dws-btn-export-all');
+    if (exportAllBtn) { exportAllBtn.addEventListener('click', exportAll); }
     document.getElementById('dws-btn-version-history').addEventListener('click', openVersionDialog);
 
     // 미니 툴바 — 텍스트 (편집 중이면 선택범위/전체에 실시간 적용, 아니면 선택 객체 통일)

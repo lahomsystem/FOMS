@@ -262,6 +262,9 @@ html, body {
 }
 .dws-menu-item:hover { background: rgba(0, 0, 0, 0.05); }
 
+/* 메뉴 구분선(내보내기 그룹 ↔ 버전 이력) */
+.dws-menu-sep { height: 1px; background: rgba(0, 0, 0, 0.08); margin: 5px 2px; }
+
 /* ---- 프리셋 메뉴: 사용자 프리셋 행(삽입 + 삭제) / 저장 푸터 ------------- */
 .dws-preset-row { display: flex; align-items: center; gap: 2px; }
 .dws-preset-row .dws-preset-ins {
