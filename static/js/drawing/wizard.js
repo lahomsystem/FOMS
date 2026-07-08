@@ -2761,12 +2761,13 @@
     return ('0' + (d.getMonth() + 1)).slice(-2) + ('0' + d.getDate()).slice(-2);
   }
 
-  /** 일괄 내보내기 파일명: `고객이름도면번호`(붙여쓰기, 확장자 없음, 도면번호=page_no, 없으면 순번+1). */
+  /** 일괄 내보내기 파일명: `고객이름도면번호.png`(붙여쓰기, 도면번호=page_no, 없으면 순번+1).
+      .png 확장자 필수 — 없으면 Windows 가 PNG 로 인식 못 함(탐색기는 알려진 확장자를 기본 숨김). */
   function exportSheetFilename(sheet, i) {
     var form = (sheet && sheet.form) || {};
     var pageNo = String(form.page_no == null ? '' : form.page_no).trim();
     if (!pageNo) { pageNo = String(i + 1); }
-    return fsSafe(customerName) + fsSafe(pageNo);
+    return fsSafe(customerName) + fsSafe(pageNo) + '.png';
   }
 
   /** 일괄 내보내기 폴더명: `MMDD 고객이름`(오늘 날짜 + 1칸 공백 + 고객이름). */
