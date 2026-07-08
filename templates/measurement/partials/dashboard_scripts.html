@@ -48,4 +48,40 @@
     }
     window.openDrawingGatewayImageViewer = openDrawingGatewayImageViewer;
   })();
+  (function () {
+    // 기간 필터 3개월 캡: date_from 선택 시 date_to의 max=+92일 설정, 초과 입력은 자동 보정.
+    function clampMeasurementRange() {
+      var fromInput = document.getElementById('measurement-date-from');
+      var toInput = document.getElementById('measurement-date-to');
+      if (!fromInput || !toInput) return;
+      var maxDays = parseInt(fromInput.getAttribute('data-range-max-days') || '92', 10);
+      function applyMax() {
+        if (!fromInput.value) { toInput.removeAttribute('max'); return; }
+        var start = new Date(fromInput.value + 'T00:00:00');
+        if (isNaN(start.getTime())) return;
+        start.setDate(start.getDate() + maxDays);
+        var maxStr = start.getFullYear() + '-'
+          + String(start.getMonth() + 1).padStart(2, '0') + '-'
+          + String(start.getDate()).padStart(2, '0');
+        toInput.setAttribute('max', maxStr);
+        if (toInput.value && toInput.value > maxStr) { toInput.value = maxStr; }
+      }
+      // 폼 요소 직접 바인딩(프래그먼트 스왑마다 새 DOM → 중복 리스너 없음). 동일 요소 재바인딩만 가드.
+      if (fromInput.dataset.rangeCapBound !== '1') {
+        fromInput.dataset.rangeCapBound = '1';
+        fromInput.addEventListener('change', applyMax);
+      }
+      applyMax();
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', clampMeasurementRange);
+    } else {
+      clampMeasurementRange();
+    }
+    if (!window.__fomsMeasurementRangeCapBound) {
+      window.__fomsMeasurementRangeCapBound = true;
+      document.addEventListener('foms:erp-shell-fragment-swapped', clampMeasurementRange);
+    }
+  })();
 </script>

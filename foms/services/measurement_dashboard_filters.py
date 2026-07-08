@@ -19,6 +19,9 @@ from datetime import date
 
 from foms.services.request_utils import get_search_query_arg
 
+# 기간 조회 최대 창(일). 3개월(92일)을 초과하는 range는 date_to를 date_from+92일로 clamp.
+MEASUREMENT_RANGE_MAX_DAYS = 92
+
 
 @dataclass(frozen=True)
 class MeasurementDashboardFilters:
@@ -35,6 +38,7 @@ class MeasurementDashboardFilters:
     range_end: date
     range_start_str: str
     range_end_str: str
+    manager_filter: str
 
 
 def parse_measurement_dashboard_filters(request, today_kst) -> MeasurementDashboardFilters:
@@ -53,14 +57,20 @@ def parse_measurement_dashboard_filters(request, today_kst) -> MeasurementDashbo
     date_to = (request.args.get('date_to') or '').strip()
     req_date = (request.args.get('date') or '').strip()
     open_map = request.args.get('open_map') == '1'
+    manager_filter = (request.args.get('manager_filter') or '').strip()
 
     use_range = bool(date_from and date_to)
     if use_range:
         try:
-            datetime.datetime.strptime(date_from, '%Y-%m-%d').date()
-            datetime.datetime.strptime(date_to, '%Y-%m-%d').date()
+            _df = datetime.datetime.strptime(date_from, '%Y-%m-%d').date()
+            _dt = datetime.datetime.strptime(date_to, '%Y-%m-%d').date()
         except (ValueError, TypeError):
             use_range = False
+        else:
+            # 기간 최대 3개월(92일) 캡: 초과분은 date_to를 date_from+92일로 clamp.
+            _max_dt = _df + datetime.timedelta(days=MEASUREMENT_RANGE_MAX_DAYS)
+            if _dt > _max_dt:
+                date_to = _max_dt.strftime('%Y-%m-%d')
     use_single_day = bool(req_date) and not use_range
     if use_single_day:
         try:
@@ -90,4 +100,5 @@ def parse_measurement_dashboard_filters(request, today_kst) -> MeasurementDashbo
         range_end=range_end,
         range_start_str=range_start_str,
         range_end_str=range_end_str,
+        manager_filter=manager_filter,
     )

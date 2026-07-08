@@ -57,6 +57,23 @@
           <label class="erp-pro-filter-label">기준 날짜</label>
           <input type="date" class="erp-pro-input" name="date" value="{{ selected_date }}" placeholder="전체">
         </div>
+        <div class="erp-pro-filter-group">
+          <label class="erp-pro-filter-label">기간 <span class="text-muted small">(최대 3개월)</span></label>
+          <div class="d-flex align-items-center gap-1">
+            <input type="date" class="erp-pro-input" name="date_from" id="measurement-date-from" value="{{ date_from }}" data-range-max-days="92">
+            <span class="text-muted">~</span>
+            <input type="date" class="erp-pro-input" name="date_to" id="measurement-date-to" value="{{ date_to }}">
+          </div>
+        </div>
+        <div class="erp-pro-filter-group">
+          <label class="erp-pro-filter-label">담당자</label>
+          <select class="erp-pro-input" name="manager_filter">
+            <option value="">전체</option>
+            {% for opt in measurement_manager_options %}
+            <option value="{{ opt.name }}" {% if manager_filter and manager_filter|lower == opt.name|lower %}selected{% endif %}>{{ opt.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
         <div class="erp-pro-filter-actions">
           <button class="erp-pro-btn erp-pro-btn--primary" type="submit">
             <i class="fas fa-search"></i>
@@ -689,6 +706,8 @@
                 {% for r in rows %}
                 {% set customer = r.customer_name %}
                 {% set orderer = r.orderer_name or '-' %}
+                {# 2공장 플래그: ERP 주문에만 structured_data 존재. notes가 문자열일 수 있어 flags는 or {} 방어. #}
+                {% set is_factory2 = ((r.structured_data or {}).get('flags') or {}).get('factory2') if r.is_erp_order else false %}
                 {% set address = r.address %}
                 {% set phone = r.phone %}
                 {% set meas_time = r.measurement_time %}
@@ -757,7 +776,7 @@
                         aria-expanded="false" title="주문 상세 보기"></i>
                     </span>
                   </td>
-                  <td data-label="발주사" style="border-right: 1px solid #e0e0e0;">{{ orderer or '-' }}</td>
+                  <td data-label="발주사" style="border-right: 1px solid #e0e0e0;">{{ orderer or '-' }}{% if is_factory2 %}<br><span class="badge bg-warning text-dark"><i class="fas fa-industry"></i> 2공장</span>{% endif %}</td>
                   <td class="editable-cell cell-wrap measurement-address-cell" data-field="address" data-label="주소"
                     style="border-right: 1px solid #e0e0e0;">{{ address or '-' }}</td>
                   <td class="editable-cell" data-field="phone" data-label="전화번호"
