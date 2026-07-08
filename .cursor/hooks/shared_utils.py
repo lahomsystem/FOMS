@@ -118,3 +118,28 @@ def hook_runtime_log(message: str, project_root: str | None = None, *, tag: str 
 def safe_except_log(exc: BaseException, context: str, project_root: str | None = None) -> None:
     """예외를 삼키되 HOOK_RUNTIME_LOG에 남김."""
     hook_runtime_log(f"{context}: {type(exc).__name__}: {exc}", project_root=project_root, tag="except")
+
+
+# 로그 포맷·로테이션 SSOT (tools/harness/hook_log_utils.py) 공유 — Claude 훅과 동일 유틸.
+import sys as _sys  # noqa: E402
+
+_TOOLS_HARNESS = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "tools",
+    "harness",
+)
+if _TOOLS_HARNESS not in _sys.path:
+    _sys.path.append(_TOOLS_HARNESS)
+from hook_log_utils import (  # noqa: E402,F401  # type: ignore[import-not-found]
+    HOOK_LOG_MAX_LINES,
+    append_edit_row,
+    append_with_rotation,
+    build_session_header,
+    find_open_session_id,
+    format_session_block,
+    is_within_tree,
+    prepend_session_block,
+    read_recent_edited_files,
+    regenerate_session_log,
+    update_session_block,
+)

@@ -1,8 +1,12 @@
 """Claude Code PostToolUse hook: Edit/Write 후 변경 파일 추적.
 
 stdin으로 {"tool_name": "Edit", "tool_input": {"file_path": "..."}, ...} 형태를 받음.
-docs/harness/runtime/EDIT_LOG.md에 변경 파일 기록.
+docs/harness/runtime/EDIT_LOG.md(테이블 포맷)에 변경 파일 기록.
 추가로 `.py` 편집은 Stop 게이트용 pending 상태 파일에 기록한다.
+
+트리밖 편집(전역 메모리·스크래치패드 등 `../../..` 경로)은 EDIT_LOG·pending
+모두 스킵한다 — commonpath 기반 판정으로 startswith prefix 누수를 차단한다.
+실패해도 fail-open 하되 사유를 CLAUDE_HOOK_LOG에 남긴다.
 """
 import json
 import os
@@ -11,29 +15,37 @@ from datetime import datetime
 
 _dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _dir)
-from shared_utils import get_project_root, harness_runtime_path, read_stdin_json  # type: ignore[import-not-found]
+from shared_utils import (  # type: ignore[import-not-found]  # noqa: E402
+    append_edit_row,
+    get_project_root,
+    harness_runtime_path,
+    hook_log,
+    is_within_tree,
+    read_stdin_json,
+)
 
 
-# 메타 파일은 추적 제외
+# 트리 안 메타 파일은 추적 제외
 EXCLUDE_PREFIXES = ("docs/", ".claude/", ".cursor/", ".git/")
 
 # Stop 게이트가 소비하는 pending 상태 파일명
 PENDING_VERIFY_FILE = ".claude_pending_verify.json"
 
 
-def _to_relative(file_path: str, project_root: str) -> str:
-    """절대 경로를 프로젝트 상대 경로로 변환."""
+def _to_relative(abs_path: str, project_root: str) -> str:
+    """트리 안 절대 경로를 프로젝트 상대 경로(POSIX)로 변환."""
     try:
-        rel = os.path.relpath(file_path, project_root)
+        rel = os.path.relpath(abs_path, project_root)
         return rel.replace("\\", "/")
     except ValueError:
-        return file_path.replace("\\", "/")
+        return abs_path.replace("\\", "/")
 
 
 def _update_pending_verify(session_id: str, rel_path: str) -> None:
     """`.py` 편집을 Stop 게이트용 pending 상태 파일에 merge-append 한다.
 
     같은 session_id면 files 목록에 추가(중복 제거), 다른 session_id면 교체.
+    스키마({session_id, files, updated})는 quality_check가 소비하므로 불변.
 
     Args:
         session_id: Stop 훅 payload의 session_id (없으면 "unknown").
@@ -62,18 +74,25 @@ def _update_pending_verify(session_id: str, rel_path: str) -> None:
         json.dump(state, f, ensure_ascii=False, indent=2)
 
 
-def main():
-    payload = read_stdin_json()
+def _process(payload: dict) -> None:
+    """편집 페이로드를 처리해 EDIT_LOG·pending을 갱신한다(트리밖은 스킵)."""
     tool_input = payload.get("tool_input", {})
     file_path = tool_input.get("file_path", "")
-
     if not file_path:
         return
 
     project_root = get_project_root()
-    rel_path = _to_relative(file_path, project_root)
+    abs_path = file_path if os.path.isabs(file_path) else os.path.join(project_root, file_path)
+    abs_path = os.path.abspath(abs_path)
 
-    # 메타 파일 제외
+    # 트리밖 편집(전역 메모리·스크래치패드 등)은 EDIT_LOG·pending 모두 스킵.
+    if not is_within_tree(project_root, abs_path):
+        hook_log(f"트리밖 편집 스킵: {file_path}", tag="track_edits")
+        return
+
+    rel_path = _to_relative(abs_path, project_root)
+
+    # 트리 안 메타 파일 제외
     for prefix in EXCLUDE_PREFIXES:
         if rel_path.startswith(prefix):
             return
@@ -83,49 +102,17 @@ def main():
         session_id = payload.get("session_id") or "unknown"
         _update_pending_verify(session_id, rel_path)
 
-    log_path = harness_runtime_path("EDIT_LOG.md")
-    os.makedirs(os.path.dirname(log_path), exist_ok=True)
-
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     tool_name = payload.get("tool_name", "unknown")
-    row = f"| {timestamp} | `{rel_path}` | {tool_name} |"
+    append_edit_row(harness_runtime_path("EDIT_LOG.md"), rel_path, tool_name)
 
-    header_lines = [
-        "# Edit Log",
-        "",
-        "> Claude Code Hook(`PostToolUse:Edit|Write`)가 자동 기록합니다.",
-        "",
-        "| Time | File | Tool |",
-        "|------|------|------|",
-    ]
 
-    if not os.path.exists(log_path):
-        with open(log_path, "w", encoding="utf-8") as f:
-            f.write("\n".join(header_lines) + "\n")
-
-    with open(log_path, "r", encoding="utf-8") as f:
-        existing = f.readlines()
-
-    data_rows = [l for l in existing if l.startswith("| 20")]
-
-    # 중복 제거: 최근 5분 이내 동일 파일은 건너뜀
-    last_entries = [r for r in data_rows[-10:] if rel_path in r]
-    if last_entries:
-        last_time_str = last_entries[-1].split("|")[1].strip()
-        try:
-            last_time = datetime.strptime(last_time_str, "%Y-%m-%d %H:%M:%S")
-            if (datetime.now() - last_time).total_seconds() < 300:
-                return
-        except Exception:
-            pass
-
-    data_rows.append(row + "\n")
-    if len(data_rows) > 50:
-        data_rows = data_rows[-50:]
-
-    with open(log_path, "w", encoding="utf-8") as f:
-        f.write("\n".join(header_lines) + "\n")
-        f.writelines(data_rows)
+def main() -> None:
+    """PostToolUse 페이로드를 처리한다. 실패해도 fail-open."""
+    payload = read_stdin_json()
+    try:
+        _process(payload)
+    except Exception as exc:  # noqa: BLE001 - fail-open + 로그
+        hook_log(f"track_edits fail-open: {type(exc).__name__}: {exc}", tag="track_edits")
 
 
 if __name__ == "__main__":

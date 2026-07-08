@@ -14,7 +14,7 @@ def _load_debug():
         return lambda *a, **k: None, lambda: {}
 maybe_log_payload, get_payload = _load_debug()
 
-from shared_utils import extract_project_root, find_key_recursive, harness_runtime_path
+from shared_utils import extract_project_root, find_key_recursive, harness_runtime_path, prepend_session_block
 
 def main():
     input_data = get_payload()
@@ -36,30 +36,9 @@ def main():
     conv_id = str(conv_id)[:8] if conv_id and str(conv_id) != "unknown" else "unknown"
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+    # SESSION_LOG 포맷·로테이션은 공용 유틸에 위임(Claude 훅과 단일 포맷/로테이션 공유).
     session_log = harness_runtime_path(project_root, "SESSION_LOG.md")
-    os.makedirs(os.path.dirname(session_log), exist_ok=True)
-
-    existing = ""
-    if os.path.exists(session_log):
-        with open(session_log, "r", encoding="utf-8") as f:
-            existing = f.read()
-
-    header = "# Session Log\n\n> 이 파일은 Cursor Hooks에 의해 자동 관리됩니다.\n\n## 최근 세션\n\n"
-
-    sessions_part = existing.split("## 최근 세션\n\n")[-1] if "## 최근 세션" in existing else ""
-    session_count = sessions_part.count("### Session:")
-    if session_count > 20:
-        lines = sessions_part.split("\n### Session:")
-        sessions_part = "\n### Session:".join(lines[-20:])
-
-    new_entry = f"### Session: {conv_id}\n"
-    new_entry += f"- **시작**: {timestamp}\n"
-    new_entry += f"- **상태**: 진행중\n"
-    new_entry += f"- **편집 파일**: (기록 중)\n"
-    new_entry += f"- **종료**: -\n\n"
-
-    with open(session_log, "w", encoding="utf-8") as f:
-        f.write(header + new_entry + sessions_part)
+    prepend_session_block(session_log, conv_id, timestamp)
 
     # AI 자동 메모리: 세션 시작 시 안내
     system1_message = (

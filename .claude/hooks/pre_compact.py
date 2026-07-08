@@ -15,6 +15,7 @@ from shared_utils import (  # type: ignore[import-not-found]  # noqa: E402
     get_project_root,
     harness_runtime_path,
     hook_log,
+    read_recent_edited_files,
     read_stdin_json,
 )
 
@@ -22,20 +23,14 @@ from shared_utils import (  # type: ignore[import-not-found]  # noqa: E402
 def _recent_edits(project_root: str) -> list[str]:
     """EDIT_LOG.md 테이블에서 최근 편집 파일 경로를 최대 10개 반환한다.
 
+    파싱·순서(newest-first)는 공용 유틸(`read_recent_edited_files`)에 위임한다.
+
     파라미터:
         project_root: 저장소 루트 절대 경로.
     반환: "- `경로`" 형태 문자열 리스트(가장 최근 10개).
     """
-    edit_log = harness_runtime_path("EDIT_LOG.md")
-    rows: list[str] = []
-    if os.path.exists(edit_log):
-        with open(edit_log, "r", encoding="utf-8") as handle:
-            for line in handle:
-                if line.startswith("| 20") and "`" in line:
-                    parts = line.split("`")
-                    if len(parts) >= 2 and parts[1].strip():
-                        rows.append(f"- `{parts[1]}`")
-    return rows[-10:]
+    files = read_recent_edited_files(harness_runtime_path("EDIT_LOG.md"), limit=10)
+    return [f"- `{name}`" for name in files]
 
 
 def _active_tasks(project_root: str) -> list[str]:

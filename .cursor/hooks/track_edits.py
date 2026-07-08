@@ -1,7 +1,6 @@
 import json
 import os
 import sys
-from datetime import datetime
 
 def _load_debug():
     try:
@@ -14,7 +13,14 @@ def _load_debug():
         return lambda *a, **k: None, lambda: {}
 maybe_log_payload, get_payload = _load_debug()
 
-from shared_utils import extract_project_root, find_key_recursive, harness_runtime_path
+from shared_utils import (
+    append_edit_row,
+    extract_project_root,
+    find_key_recursive,
+    harness_runtime_path,
+    hook_runtime_log,
+    is_within_tree,
+)
 
 def _normalize_uri_to_path(uri):
     if not uri or not isinstance(uri, str):
@@ -67,51 +73,20 @@ def main():
     maybe_log_payload("afterFileEdit", payload, project_root)
 
     file_path = _get_file_path(payload)
-    if "unknown" not in str(file_path):
-        try:
-            abs_path = os.path.abspath(file_path)
-            root = os.path.abspath(project_root)
-            rel = os.path.relpath(abs_path, root)
-            if not rel.startswith(".."):
-                file_path = rel.replace("\\", "/")
-        except Exception:
-            file_path = str(file_path).replace("\\", "/")
+    if "unknown" in str(file_path):
+        sys.stdout.write(json.dumps({"continue": True}))
+        return
 
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # 트리밖 편집(전역 메모리·스크래치패드 등)은 commonpath 판정으로 스킵.
+    abs_path = os.path.abspath(file_path)
+    if not is_within_tree(project_root, abs_path):
+        hook_runtime_log(f"트리밖 편집 스킵: {file_path}", project_root=project_root, tag="track_edits")
+        sys.stdout.write(json.dumps({"continue": True}))
+        return
+    rel_path = os.path.relpath(abs_path, os.path.abspath(project_root)).replace("\\", "/")
 
-    edits = payload.get("edits", payload.get("changes", []))
-    if not isinstance(edits, list):
-        edits = []
-    change_size = sum(len(str(e.get("new_string", ""))) for e in edits if isinstance(e, dict))
-    change_summary = f"{len(edits)} edit(s), ~{change_size} chars"
-
-    edit_log = harness_runtime_path(project_root, "EDIT_LOG.md")
-    os.makedirs(os.path.dirname(edit_log), exist_ok=True)
-
-    entries = []
-    if os.path.exists(edit_log):
-        with open(edit_log, "r", encoding="utf-8") as stream:
-            for line in stream:
-                line = line.rstrip()
-                if line.startswith("- `"):
-                    entries.append(line)
-
-    new_entry = f"- `{file_path}` <- {change_summary} ({timestamp})"
-    entries = [new_entry] + [x for x in entries if x != new_entry]
-    entries = entries[:50]
-
-    header = "\n".join([
-        "# Edit Log",
-        "",
-        "> 이 파일은 Cursor Hooks에 의해 자동 관리됩니다.",
-        "> 최근 50개 편집 기록만 유지합니다.",
-        "",
-        "## 최근 파일 편집",
-        ""
-    ])
-
-    with open(edit_log, "w", encoding="utf-8") as stream:
-        stream.write(header + "\n" + "\n".join(entries) + "\n")
+    # EDIT_LOG 포맷·dedup·캡은 공용 유틸에 위임(Claude 훅과 단일 테이블 포맷).
+    append_edit_row(harness_runtime_path(project_root, "EDIT_LOG.md"), rel_path, "Cursor")
 
     sys.stdout.write(json.dumps({"continue": True}))
 

@@ -27,7 +27,7 @@ def _load_debug():
         return lambda *a, **k: None, lambda: {}
 maybe_log_payload, get_payload = _load_debug()
 
-from shared_utils import extract_project_root, harness_runtime_path, hook_runtime_log
+from shared_utils import extract_project_root, harness_runtime_path, hook_runtime_log, read_recent_edited_files
 
 _DEBOUNCE_FILE = ".post_task_qc_debounce.json"
 _DEBOUNCE_SEC = 900.0
@@ -64,28 +64,8 @@ def _save_debounce_state(project_root: str, fp: str) -> None:
 
 
 def _read_recent_edited_files(project_root, limit=5):
-    edit_log_path = harness_runtime_path(project_root, "EDIT_LOG.md")
-    if not os.path.exists(edit_log_path):
-        return []
-
-    files = []
-    seen = set()
-    with open(edit_log_path, "r", encoding="utf-8") as stream:
-        for line in stream:
-            line = line.strip()
-            if not (line.startswith("- `") and "` <-" in line):
-                continue
-            try:
-                file_name = line.split("`")[1]
-            except Exception:
-                continue
-            if file_name in seen:
-                continue
-            seen.add(file_name)
-            files.append(file_name)
-            if len(files) >= limit:
-                break
-    return files
+    """EDIT_LOG에서 최근 편집 파일을 반환한다(공용 테이블 파서 위임, 레거시 관용)."""
+    return read_recent_edited_files(harness_runtime_path(project_root, "EDIT_LOG.md"), limit=limit)
 
 
 def _load_find_latest_spec():

@@ -8,6 +8,11 @@
       "Bash(python tools/harness/verify_result.py:*)",
       "Bash(python tools/harness/task_classifier.py:*)",
       "Bash(pytest tests/harness:*)"
+    ],
+    "deny": [
+      "Bash(git push origin production*)",
+      "Bash(git push --force*)",
+      "Bash(git push -f *)"
     ]
   },
   "hooks": {
