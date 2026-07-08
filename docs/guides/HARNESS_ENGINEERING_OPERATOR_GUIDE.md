@@ -10,38 +10,28 @@
 - Claude session augmentation: `CLAUDE.md`
 - Cursor enforcement: `.cursor/rules/*.mdc`
 - Shared verification contract: `.agents/workflows/verify-result.md`
-- Generated runner bundles:
-  - `docs/harness/bundles/HARNESS_BUNDLE_CURSOR.md`
-  - `docs/harness/bundles/HARNESS_BUNDLE_CURSOR_HARNESS.md` (harness-internal only)
-  - `docs/harness/bundles/HARNESS_BUNDLE_CLAUDE.md`
-  - `docs/harness/bundles/HARNESS_BUNDLE_CLAUDE_HARNESS.md` (harness-internal only)
-  - `docs/harness/bundles/HARNESS_BUNDLE_CODEX.md`
-  - `docs/harness/bundles/HARNESS_BUNDLE_CODEX_HARNESS.md` (harness-internal only)
+- On-demand context bundles (optional): `build_context_bundle.py --all` regenerates single-file Markdown bundles under `docs/harness/bundles/` from the sources above. **Committed bundles were retired on 2026-07-08 (redesign Phase 1b)** — Cursor/Claude/Codex load the policy files natively, so generate a bundle only when you explicitly want one file to hand to a runner. Generated bundles are not committed.
 
 ## Browser Ownership
 - Cursor browser MCP: exploration, manual debugging, ad-hoc reproduction
 - gstack runtime: repeatable QA, smoke, canary, benchmark
 
-## Bundle Refresh
+## On-Demand Context Bundle (optional)
 ```powershell
 python "tools/harness/build_context_bundle.py" --all
 ```
 
-Use the generated bundle that matches the runner you are about to use.
-
-These bundles are operator-facing reference artifacts. Cursor/Claude/Codex extension sessions do not auto-load them on their own; the operator must open or reference them explicitly.
+Regenerates single-file Markdown context bundles under `docs/harness/bundles/` from `AGENTS.md`, `CLAUDE.md`, the Cursor rules, and the verify-result workflow. Committed bundles were retired on 2026-07-08 (redesign Phase 1b): Cursor/Claude/Codex sessions load `AGENTS.md`/`CLAUDE.md`/`.cursor/rules` natively, so generate a bundle only when you explicitly want one file to hand to a runner. Generated output is not committed. Add `--profile <name>-harness` when you need the harness master plan inlined.
 
 ## Runner Entry Points In Cursor
-- Cursor built-in agent: `docs/harness/bundles/HARNESS_BUNDLE_CURSOR.md`
-- Cursor harness-internal work: `docs/harness/bundles/HARNESS_BUNDLE_CURSOR_HARNESS.md`
-- Claude extension in Cursor: `docs/harness/bundles/HARNESS_BUNDLE_CLAUDE.md`
-- Claude harness-internal work: `docs/harness/bundles/HARNESS_BUNDLE_CLAUDE_HARNESS.md`
-- Codex extension / Codex CLI in Cursor: `docs/harness/bundles/HARNESS_BUNDLE_CODEX.md`
-- Codex harness-internal work: `docs/harness/bundles/HARNESS_BUNDLE_CODEX_HARNESS.md`
+- Cursor built-in agent: `AGENTS.md` + `.cursor/rules/*.mdc` (loaded natively)
+- Claude extension in Cursor: `AGENTS.md` + `CLAUDE.md`
+- Codex extension / Codex CLI in Cursor: `AGENTS.md` (portable baseline)
 - Exploratory/manual browser work: Cursor browser MCP
 - Repeatable smoke/QA browser work: gstack browse/qa skills invoked in a Claude/Cursor session
+- Codex second opinions (review/challenge/consult): on-demand `gstack-codex` skill
 
-The daily bundles are intentionally slimmed for token efficiency. Use the `_HARNESS` variants only when the task itself edits harness architecture, hooks, rules, bundles, or verification flows.
+For harness-internal work that needs the full harness master plan in one file, generate a `*-harness` bundle on demand (see above).
 
 ## Task Level And RPI Judgment
 - The former shared task classifier (`task_classifier.py`), prompt auto-entry hooks, and the Codex wrapper chain (`run_codex.ps1` / `run_gstack_qa.ps1`) were retired on 2026-07-08 (`docs/harness/policy/DECISIONS.md`).
@@ -88,38 +78,36 @@ Phase 2 now includes a pinned upstream documentation snapshot, the exact repo-lo
 ## Vendor Rule
 - Keep upstream gstack content inside `.agents/skills/gstack/`
 - Do not rewrite FOMS policy into vendored upstream files
-- Apply FOMS-specific behavior through wrapper scripts, bundles, rules, and guides
+- Apply FOMS-specific behavior through rules, guides, and skills
 
 ## Verification
 - App import success string: `APP_OK`
 - Shared workflow: `.agents/workflows/verify-result.md`
 - Scripted baseline: `python tools/harness/verify_result.py --json`
-- Harness bundles: regenerate after policy or plan changes
+- Context bundles: optional; regenerate on demand only when you need a single-file dump (`build_context_bundle.py --all`)
 
 ## Daily Use Examples
 ### Cursor built-in agent
-- Start from `docs/harness/bundles/HARNESS_BUNDLE_CURSOR.md`
+- Follow `AGENTS.md` + `.cursor/rules/*.mdc` (loaded natively by Cursor)
 - Use Cursor browser MCP for exploratory or manual browser work
-- For harness-internal changes, switch to `docs/harness/bundles/HARNESS_BUNDLE_CURSOR_HARNESS.md`
 
 ### Claude extension in Cursor
-- Start from `docs/harness/bundles/HARNESS_BUNDLE_CLAUDE.md`
-- Open `CLAUDE.md` only when editing or verifying the Claude-only source policy text
+- Follow `AGENTS.md` + `CLAUDE.md` (Claude-only session policy)
 - After meaningful edits, run `python "tools/harness/verify_result.py" --json`
-- For harness-internal changes, switch to `docs/harness/bundles/HARNESS_BUNDLE_CLAUDE_HARNESS.md`
 
 ### Repeatable QA and Codex second opinions
 - Repeatable QA and release smoke: invoke the **gstack browse/qa skills** inside a Claude/Cursor session (Skill invocation, e.g. `/gstack-qa`, `/gstack-browse`) against the target URL/scenario.
 - Codex second opinions (review/challenge/consult): use the on-demand **`gstack-codex` skill** instead of a standing wrapper.
 
-### Bundle refresh + verification baseline
+### Optional context bundle + verification baseline
 ```powershell
 python "tools/harness/build_context_bundle.py" --all
 python "tools/harness/verify_result.py" --json
 ```
+The bundle step is optional (on-demand single-file dump); the verify-result baseline is the standing check.
 
 ## Fallback Paths
-- Bundle looks stale or runner guidance disagrees: run `python "tools/harness/build_context_bundle.py" --all` first
+- Runner guidance disagrees across tools: `AGENTS.md` is the SSOT — reconcile `CLAUDE.md`/`.cursor/rules` to it (optionally regenerate a single-file view with `python "tools/harness/build_context_bundle.py" --all`)
 - gstack QA skill looks missing: confirm `.agents/skills/gstack/qa/SKILL.md` exists, then re-run `powershell -NoProfile -File "tools/harness/setup_gstack.ps1" -WhatIf`
 - Browser task is exploratory or manual: use Cursor browser MCP, not gstack runtime
 - Git Bash / WSL bridge looks broken: re-run `setup_gstack.ps1 -WhatIf` and inspect shell-bridge output before attempting real setup

@@ -202,34 +202,6 @@ if (Test-Path $ssotPath) {
     Write-StepSkip "tools/design/ssot_lint.py not found"
 }
 
-$bundleBuilder = Join-Path $root "tools\harness\build_context_bundle.py"
-if (Test-Path $bundleBuilder) {
-    Invoke-SmokeStep -Name "Harness bundle drift (regenerate + git diff)" -Action {
-        # Mirror Harness CI 'Check harness bundle drift': regenerate bundles from
-        # sources (AGENTS.md, manifest.yaml profiles, ...) and fail if the committed
-        # HARNESS_BUNDLE_*.md differ. The regenerated files are left in the working
-        # tree so the fix is just `git add` + commit.
-        Invoke-PythonCommand "tools/harness/build_context_bundle.py --all"
-        & git diff --name-only -- docs/harness/bundles/HARNESS_BUNDLE_*.md
-        & git diff --quiet -- docs/harness/bundles/HARNESS_BUNDLE_*.md
-        if ($LASTEXITCODE -ne 0) {
-            throw "harness bundle drift — 위 HARNESS_BUNDLE_*.md를 git add 후 커밋하고 다시 push 하세요 (Harness CI 'Check harness bundle drift'와 동일)."
-        }
-        # Inverse trap: bundles match the working tree, but a bundle SOURCE
-        # (manifest / profile yaml) is uncommitted. CI regenerates from the
-        # committed sources, so an uncommitted source makes CI drift even when
-        # local bundles look clean. This is the most common cause of "push마다
-        # Harness CI 실패": bundle committed, source yaml 미커밋.
-        $dirtySources = @(& git status --porcelain -- tools/harness/manifest.yaml tools/harness/profiles | Where-Object { $_ -ne "" })
-        if ($dirtySources.Count -gt 0) {
-            $dirtySources | ForEach-Object { Write-Host "  uncommitted bundle source: $_" -ForegroundColor Red }
-            throw "harness 번들 소스(manifest.yaml/profiles)가 미커밋 상태 — CI는 커밋된 소스로 재생성하므로 드리프트가 납니다. 위 소스를 커밋한 뒤 push 하세요."
-        }
-    }
-} else {
-    Write-StepSkip "tools/harness/build_context_bundle.py not found"
-}
-
 if ($Full) {
     Invoke-SmokeStep -Name "Full pytest (no visual, no playwright) — SLOW" -Action {
         Invoke-PythonCommand "-m pytest -v --ignore=tests/visual -p no:playwright"

@@ -13,5 +13,5 @@ SSOT: `.cursor/skills/perf-guard/` · `perf-audit/` (git 추적)
 복제 accidentally 생기면:
 
 ```powershell
-powershell -NoProfile -File scripts/ops/prune_duplicate_perf_skills.ps1
+powershell -NoProfile -File docs/archive/oneoff-scripts/prune_duplicate_perf_skills.ps1
 ```

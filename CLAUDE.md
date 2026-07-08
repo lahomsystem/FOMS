@@ -31,7 +31,7 @@
 - **세션 시작/컴팩트**: `SessionStart` 훅이 AI_STATUS·RPI 안내를 주입하고, `PreCompact` 훅이 `docs/harness/runtime/COMPACT_CHECKPOINT.md`를 갱신한다.
 - **Stop 게이트**: `.py` 편집 세션은 턴 종료 시 `import app` 검증을 자동 통과해야 한다 (실패 시 종료 차단, 근본 수정 후 재시도).
 - **MCP 정본 위치**: 프로젝트 MCP 서버는 루트 `.mcp.json` (postgres, context7만 유지 — 나머지는 네이티브 기능으로 대체되어 퇴역).
-- **하네스 내부 작업 컨텍스트**: 필요 시 `docs/harness/bundles/HARNESS_BUNDLE_CLAUDE_HARNESS.md` 참조. Cursor/Codex 러너 라우팅 상세는 `AGENTS.md` + `.cursor/rules/00-project-context.mdc` 소관 (본 파일에서 중복 제거).
+- **하네스 내부 작업 컨텍스트**: Cursor/Codex 러너 라우팅 상세는 `AGENTS.md` + `.cursor/rules/00-project-context.mdc` 소관 (본 파일에서 중복 제거). 상시 커밋 번들은 폐기됨(2026-07-08 재설계 Phase 1b) — 온디맨드 컨텍스트 번들이 필요하면 `python tools/harness/build_context_bundle.py --all`로 생성한다(커밋하지 않음).
 
 ## 디렉토리 구조
 - `app.py`: Flask 앱 초기화 (최소화, 라우트 추가 금지)

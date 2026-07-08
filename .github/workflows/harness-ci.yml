@@ -38,9 +38,3 @@ jobs:
 
       - name: Run verify-result baseline
         run: python tools/harness/verify_result.py --json
-
-      - name: Regenerate harness bundles
-        run: python tools/harness/build_context_bundle.py --all
-
-      - name: Check harness bundle drift
-        run: git diff --exit-code -- docs/harness/bundles/HARNESS_BUNDLE_*.md

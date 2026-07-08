@@ -18,6 +18,12 @@
 - **이유**: `.claude/settings.json`의 `mcpServers` 블록은 Claude Code가 인식하는 정본 위치가 아니고, Cursor 훅 8종 대비 Claude 훅 3종만 배선되어 Claude 메인 전환 시 자동 라우팅·체크포인트·검증 게이트가 사라진다. 2026 공식 best practice는 결정적 검증 게이트·MCP 최소화·CLAUDE.md 슬림화를 권고한다.
 - **영향**: `.mcp.json`(신규), `.claude/settings.json`, `.claude/hooks/{session_start,user_prompt_submit,pre_compact}.py`(신규), `.claude/hooks/{track_edits,quality_check,shared_utils}.py`, `tools/harness/task_classifier.py`, `tests/harness/test_claude_stop_gate.py`(신규), `tests/harness/test_task_classifier.py`, `CLAUDE.md`, `docs/harness/bundles/*`(재생성), `docs/specs/2026-07-05-claude-main-harness-upgrade_SPEC.md`, `.gitignore`
 
+### [2026-06-30] 모바일 안전 업로드 압축 표준
+- **키워드**: 업로드, 모바일, 압축, Presigned, 병렬, R2
+- **결정**: 이미지 압축 동시성과 R2 PUT 업로드 동시성을 분리한다. 모바일/coarse pointer는 압축 1개·업로드 3개, 데스크톱은 압축 2개·업로드 5개를 기본값으로 사용한다. batch presigned session은 `client_id`를 echo 하여 파일명이 중복돼도 frontend가 올바른 session/key를 매칭한다.
+- **이유**: 2026-02-26의 최대 10개 병렬 표준은 direct upload 속도 개선에는 유효했지만, 클라이언트 이미지 압축이 도입된 뒤 모바일에서 CPU/RAM spike와 탭 종료 위험을 만들 수 있다. 압축 후 size로 session을 발급해야 서버 검증과 저장 metadata도 실제 업로드 파일과 일치한다.
+- **영향**: `static/js/runtime/upload-progress.js`, `foms/api/files/direct_upload.py`, ERP/AS/시공/도면/채팅 업로드 UI
+
 ### [2026-06-17] GDM + bespoke specialist agent retirement
 - **키워드**: gdm, retirement, gstack, caveman, cursor, claude, codex, agents
 - **결정**: repo-local GDM(`grand-develop-master`, `GDM_EXECUTION_PLAN`)과 bespoke Cursor/Claude specialist agent 계층을 활성 운영 모델에서 퇴역한다. 앞으로 Cursor IDE, Cursor 내 Claude, Cursor 내 Codex는 `AGENTS.md`/`CLAUDE.md`/`.cursor/rules` 공통 정책, RPI·verify-result 워크플로, gstack skills, caveman response style을 기준으로 운영한다. 역사적 GDM audit/evolution/plan 문서는 archive evidence로 보존하되 현재 진입점으로 안내하지 않는다.
@@ -89,9 +95,3 @@
 - **결정**: 저장소 정리는 raw hook debug 산출물(`HOOK_RAW_DUMP.txt`, `.hook_raw_once`)과 root scratch 파일(`temp_script.js`, `test_scripts.js`, `test.html`)만 제거하고, `AI_STATUS.md`, `AI_CHANGELOG.md`, `SESSION_LOG.md`, `EDIT_LOG.md`, `COMPACT_CHECKPOINT.md` 같은 컨텍스트 메모리 파일은 계속 추적한다.
 - **이유**: raw debug/scratch 파일은 런타임·빌드·테스트 계약과 무관하지만, 컨텍스트 메모리 파일은 현재 하네스가 세션 복원과 상태 파악에 직접 사용하므로 같은 “로그”로 묶어 제거하면 메모리 설계 자체가 바뀐다.
 - **영향**: `.gitignore`, `docs/specs/2026-04-06-harness-tracking-cleanup_SPEC.md`, `docs/context/HOOK_RAW_DUMP.txt`, `docs/context/.hook_raw_once`, `temp_script.js`, `test_scripts.js`, `test.html`
-
-### [2026-06-30] 모바일 안전 업로드 압축 표준
-- **키워드**: 업로드, 모바일, 압축, Presigned, 병렬, R2
-- **결정**: 이미지 압축 동시성과 R2 PUT 업로드 동시성을 분리한다. 모바일/coarse pointer는 압축 1개·업로드 3개, 데스크톱은 압축 2개·업로드 5개를 기본값으로 사용한다. batch presigned session은 `client_id`를 echo 하여 파일명이 중복돼도 frontend가 올바른 session/key를 매칭한다.
-- **이유**: 2026-02-26의 최대 10개 병렬 표준은 direct upload 속도 개선에는 유효했지만, 클라이언트 이미지 압축이 도입된 뒤 모바일에서 CPU/RAM spike와 탭 종료 위험을 만들 수 있다. 압축 후 size로 session을 발급해야 서버 검증과 저장 metadata도 실제 업로드 파일과 일치한다.
-- **영향**: `static/js/runtime/upload-progress.js`, `foms/api/files/direct_upload.py`, ERP/AS/시공/도면/채팅 업로드 UI

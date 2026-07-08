@@ -18,9 +18,9 @@
     "workflow_verify_result"
   ],
   "runner_notes": {
-    "codex_cli": "In Cursor, the Codex extension and Codex CLI share the same baseline through HARNESS_BUNDLE_CODEX.md; AGENTS.md remains the portable policy root. For harness-internal architecture or policy work, switch to HARNESS_BUNDLE_CODEX_HARNESS.md or let `run_codex.ps1` auto-route when reviewing harness files/plans.",
+    "codex_cli": "In Cursor, the Codex extension and Codex CLI share the same baseline through HARNESS_BUNDLE_CODEX.md; AGENTS.md remains the portable policy root. For harness-internal architecture or policy work, switch to HARNESS_BUNDLE_CODEX_HARNESS.md.",
     "browser": "Codex has no first-class browser tool in this harness; use generated repo-local gstack QA skills for repeatable smoke checks and Cursor browser MCP for exploratory/manual web work.",
-    "runner_entry": "Prepare Codex-side generated skills with .agents/skills/gstack/setup --host codex --no-prefix. FOMS wrapper-driven runs use codex exec -s workspace-write.",
+    "runner_entry": "Prepare Codex-side generated skills with .agents/skills/gstack/setup --host codex --no-prefix. FOMS Codex runs use codex exec -s workspace-write.",
     "verification": "Follow verify-result workflow expectations when claiming build, import, or runner setup verification complete. Read the harness master plan separately only for harness-internal work.",
     "pre_push_smoke": "`deploy`/`main` push 직전: `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` (exit 0). UI/CSS/템플릿 변경 시 win32 `--update-snapshots` → PNG 커밋 → `-Visual` 필수(스크립트가 visual 경로·win32 stale 감지). CI가 linux SSOT refresh. 머지·대형 변경 전 `-Full`. 실패 시 push 금지. 상세: `docs/guides/PRE_PUSH_SMOKE.md`."
   }

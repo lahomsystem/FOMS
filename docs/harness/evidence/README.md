@@ -13,6 +13,12 @@
 
 ## 재실행
 
-- GNV B6 HTTP: `tools/harness/gnv_b6_staging_http_evidence.py`
-- GNV B6 브라우저: `tools/harness/gnv_b6_staging_browser_metrics.py`
-- EPT B8: `tools/harness/ept_b8_staging_http_evidence.py`, `tools/harness/ept_b8_staging_full_evidence.ps1` (환경 변수는 `tools/harness/ept_b8_staging_env.example` 참고)
+재현 스크립트는 2026-07-08 재설계 Phase 1b에서 원샷 아카이브(`docs/archive/oneoff-scripts/`)로 이관됐다.
+
+- GNV B6 HTTP: `docs/archive/oneoff-scripts/gnv_b6_staging_http_evidence.py`
+- GNV B6 브라우저: `docs/archive/oneoff-scripts/gnv_b6_staging_browser_metrics.py`
+- EPT B8: `docs/archive/oneoff-scripts/ept_b8_staging_http_evidence.py`, `docs/archive/oneoff-scripts/ept_b8_staging_full_evidence.ps1` (환경 변수는 `docs/archive/oneoff-scripts/ept_b8_staging_env.example` 참고)
+
+## Retention (perf-gate / stress)
+
+`perf-gate-*.json`·`stress-*.json`·`fragment-tail-ttfb-*.json`는 타임스탬프별로 누적된다. **run record·`DECISIONS.md`·실행 계획서가 인용하는 파일과 각 캠페인의 최신 대표 1벌만 보존**하고, 그 외 반복 측정본은 정리 대상이다. `perf-radar-latest.json`처럼 `-latest` 접미사 파일은 항상 최신 1벌만 유지(덮어쓰기)한다. 삭제 전에는 위 "권위" 규칙대로 인용 경로를 grep으로 확인한다.
