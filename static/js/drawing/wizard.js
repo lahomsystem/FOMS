@@ -4054,6 +4054,13 @@
       els.canvas.scrollTop = focalLogicalY * nz - py;
     }, { passive: false });
 
+    // Chrome/Edge 는 '단독 Alt' 누름/뗌을 앱 메뉴(⋮) 단축키로 처리한다 → Alt+휠 줌·Alt+클릭
+    // 시 메뉴가 튀어나온다. 마법사에서 단독 Alt keydown 을 preventDefault 해 메뉴 발동을 막는다.
+    // e.key==='Alt' 단독일 때만 — Alt+화살표(뒤로/앞으로) 등 조합키는 e.key 가 달라 영향 없다.
+    window.addEventListener('keydown', function (e) {
+      if (e.key === 'Alt' && !e.ctrlKey && !e.shiftKey && !e.metaKey) { e.preventDefault(); }
+    });
+
     /* 손가락 네비게이션(태블릿) — 1지 드래그=팬, 2지=핀치 확대(중점 고정).
        touch-action:none 이라 네이티브 스크롤/줌은 꺼져 있고 여기서 전량 구현한다.
        Apple Pencil(touchType 'stylus')은 그리기(pointer 'pen') 담당이라 제외하고,
