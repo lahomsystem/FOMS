@@ -907,13 +907,13 @@ function erpRecalcItemsTotal() {
         cashReceiptSection.style.display = showAmountRows ? '' : 'none';
     }
     if (balanceNoteToggleRow) {
-        balanceNoteToggleRow.style.display = showAmountRows ? '' : 'none';
+        balanceNoteToggleRow.hidden = !showAmountRows;
     }
     if (balanceNoteSection) {
         if (!showAmountRows) {
-            balanceNoteSection.style.display = 'none';
+            balanceNoteSection.hidden = true;
         } else {
-            balanceNoteSection.style.display = erpIsBalanceNoteSectionOpen() ? '' : 'none';
+            balanceNoteSection.hidden = !erpIsBalanceNoteSectionOpen();
         }
     }
     erpUpdateBalanceNoteToggleUi();
@@ -926,11 +926,16 @@ function erpIsBalanceNoteSectionOpen() {
     return section.dataset.erpOpen === '1';
 }
 
-function erpSetBalanceNoteSectionOpen(open) {
+function erpSetBalanceNoteSectionOpen(open, opts) {
+    opts = opts || {};
     const section = document.getElementById('erp-balance-note-section');
     if (!section) return;
     section.dataset.erpOpen = open ? '1' : '0';
-    section.style.display = open ? '' : 'none';
+    section.hidden = !open;
+    if (!open && opts.clearValue !== false) {
+        const noteEl = document.getElementById('erp-balance-note');
+        if (noteEl) noteEl.value = '';
+    }
     erpUpdateBalanceNoteToggleUi();
 }
 
@@ -940,16 +945,19 @@ function erpUpdateBalanceNoteToggleUi() {
     const open = erpIsBalanceNoteSectionOpen();
     toggleBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
     toggleBtn.textContent = open ? '−' : '+';
-    toggleBtn.title = open ? '잔금 메모 숨기기' : '잔금 메모 추가';
+    toggleBtn.title = open ? '잔금 메모 삭제' : '잔금 메모 추가';
+    toggleBtn.setAttribute('aria-label', toggleBtn.title);
 }
 
 function erpToggleBalanceNoteSection() {
-    erpSetBalanceNoteSectionOpen(!erpIsBalanceNoteSectionOpen());
     if (erpIsBalanceNoteSectionOpen()) {
-        const noteEl = document.getElementById('erp-balance-note');
-        if (noteEl && typeof noteEl.focus === 'function') {
-            noteEl.focus();
-        }
+        erpSetBalanceNoteSectionOpen(false, { clearValue: true });
+        return;
+    }
+    erpSetBalanceNoteSectionOpen(true, { clearValue: false });
+    const noteEl = document.getElementById('erp-balance-note');
+    if (noteEl && typeof noteEl.focus === 'function') {
+        noteEl.focus();
     }
 }
 window.erpToggleBalanceNoteSection = erpToggleBalanceNoteSection;
@@ -1849,7 +1857,7 @@ async function erpLoadStructured(bootstrapData, options) {
     const balanceNoteEl = document.getElementById('erp-balance-note');
     if (balanceNoteEl) {
         balanceNoteEl.value = paymentData.balance_note || '';
-        erpSetBalanceNoteSectionOpen(!!paymentData.balance_note);
+        erpSetBalanceNoteSectionOpen(!!paymentData.balance_note, { clearValue: false });
     }
     erpRecalcItemsTotal();
     _erpUpdatePaymentConfirmUI('deposit', paymentData);

@@ -289,6 +289,10 @@
   color: rgba(0, 0, 0, 0.78);
   outline: none;
 }
+#erp-balance-note-section[hidden],
+#erp-balance-note-toggle-row[hidden] {
+  display: none !important;
+}
 
 .erp-items-action-row {
   width: 100%;

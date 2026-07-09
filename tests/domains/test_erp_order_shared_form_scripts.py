@@ -675,6 +675,10 @@ def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
     assert "erp-balance-note-section" in text
     assert "erp-balance-note-toggle" in text
     assert "window.__ERP_BALANCE_NOTE_BOUND" in text
+    assert "section.hidden = !open" in text
+    assert "clearValue: true" in text
+    assert 'id="erp-balance-note-section"' in (root / "templates/orders/partials/erp_order_tab.html").read_text(encoding="utf-8")
+    assert "hidden" in (root / "templates/orders/partials/erp_order_tab.html").read_text(encoding="utf-8")
     assert 'data-payment-type="balance"' in text
     assert "erp-custom-payment-confirmed" in text
     assert "visibleItemIndex += 1" in conversion_block
