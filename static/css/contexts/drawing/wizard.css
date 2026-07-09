@@ -788,6 +788,13 @@ html, body {
   background: #f5f5f7;
 }
 
+/* 이미지 파일 드래그앤드롭 대상 하이라이트(HTML5 DnD; drop 지점에 이미지 배치).
+   inset box-shadow 는 스크롤 콘텐츠와 무관하게 뷰포트 테두리에 고정된다. */
+.dws-canvas.dws-dropzone-active {
+  box-shadow: inset 0 0 0 3px #2f6bff;
+  background: #eef3ff;
+}
+
 /* ---- 빈 상태 안내 오버레이(시트 0개) ------------------------------------
    z-index 50: 스테이지(transform 스택 컨텍스트, z auto)·디바이더(z11)·주석(z10)
    위를 확실히 덮는다. 시트 ≥1 이면 JS 가 [hidden] 으로 숨김. */

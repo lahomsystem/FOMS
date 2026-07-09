@@ -1578,9 +1578,10 @@
     return jsonFetch(API_BASE + '/drawing-wizard/asset', { method: 'POST', body: fd });
   }
 
-  /** 업로드된 에셋 key 를 이미지 객체로 캔버스 중앙에 배치한다(원본 natural 비율·undo·dirty).
-      이미지 업로드(파일/붙여넣기)와 실측 사진 삽입(import-attachment)의 공용 삽입 파이프라인. */
-  function placeImageFromKey(key) {
+  /** 업로드된 에셋 key 를 이미지 객체로 배치한다(원본 natural 비율·undo·dirty).
+      pos(논리 좌표 {x,y}) 가 주어지면 이미지 중심이 그 지점에 오도록, 없으면 캔버스 중앙에 배치.
+      이미지 업로드(파일/붙여넣기/드롭)와 실측 사진 삽입(import-attachment)의 공용 삽입 파이프라인. */
+  function placeImageFromKey(key, pos) {
     if (!canSave || !key || !currentSheet()) { return; }
     var img = new Image();
     img.onload = function () {
@@ -1589,13 +1590,21 @@
       var w = Math.min(900, nw);
       var h = Math.round(w * nh / nw) || Math.round(w * 0.66);
       recordUndo();
+      var x, y;
+      if (pos && isFinite(pos.x) && isFinite(pos.y)) {
+        // 드롭 지점에 이미지 중심을 두고 스테이지 범위로 클램프(y 하한 70 = 헤더 영역 보호).
+        x = clamp(Math.round(pos.x - w / 2), 0, Math.max(0, STAGE_W - w));
+        y = clamp(Math.round(pos.y - h / 2), 70, Math.max(70, STAGE_H - h));
+      } else {
+        x = Math.round((STAGE_W - w) / 2);
+        y = Math.round(70 + (730 - h) / 2);
+        if (y < 70) { y = 70; }
+      }
       var o = {
         id: rid('o-'), type: 'image',
-        x: Math.round((STAGE_W - w) / 2),
-        y: Math.round(70 + (730 - h) / 2),
+        x: x, y: y,
         w: w, h: h, key: key, natural_w: nw, natural_h: nh, rotation: 0
       };
-      if (o.y < 70) { o.y = 70; }
       currentSheet().objects.push(o);
       markDirty();
       rebuildAnno();
@@ -1605,7 +1614,7 @@
     img.src = viewUrl(key);
   }
 
-  function addImageFromFile(file) {
+  function addImageFromFile(file, pos) {
     if (!canSave || !file) { return; }
     if (!currentSheet()) { toast('제품을 선택해 도면을 먼저 시작하세요.'); return; }
     uploadAsset(file).then(function (r) {
@@ -1613,8 +1622,72 @@
         toast((r.data && r.data.message) || '이미지 업로드 실패');
         return;
       }
-      placeImageFromKey(r.data.data.key);
+      placeImageFromKey(r.data.data.key, pos);
     }).catch(function (err) { console.warn('[dws] asset upload', err); toast('이미지 업로드 오류'); });
+  }
+
+  /** 드롭 화면좌표(clientX/Y)를 스테이지 논리좌표로 역산한다.
+      anno 컨테이너 rect + `zoom` 스케일 기준(positionMiniToolbar 의 정매핑
+      screen = annoRect + logical*zoom 의 역). 매핑 불가(사이즈 0 등) 시 null → 중앙 폴백. */
+  function dropLogicalPos(e) {
+    if (!els.anno) { return null; }
+    var r = els.anno.getBoundingClientRect();
+    if (!r.width || !r.height || !zoom) { return null; }
+    var x = (e.clientX - r.left) / zoom;
+    var y = (e.clientY - r.top) / zoom;
+    if (!isFinite(x) || !isFinite(y)) { return null; }
+    return { x: clamp(x, 0, STAGE_W), y: clamp(y, 0, STAGE_H) };
+  }
+
+  /** 캔버스 뷰포트에 이미지 파일 드래그앤드롭 배선(HTML5 DnD, 툴바 [이미지]·Ctrl+V 와 동일 파이프라인).
+      드롭 지점 논리좌표로 배치하며, 여러 파일은 소폭 cascade 로 겹침을 피한다.
+      dragover 는 반드시 preventDefault 해야 drop 이 발화한다. */
+  function bindCanvasDnd() {
+    var zone = els.canvas;
+    if (!zone) { return; }
+    var depth = 0;   // dragenter/leave 균형 카운터(자식 경계 진입에도 하이라이트 유지)
+    function isFileDrag(e) {
+      var t = e.dataTransfer && e.dataTransfer.types;
+      if (!t) { return false; }
+      for (var i = 0; i < t.length; i++) { if (t[i] === 'Files') { return true; } }
+      return false;
+    }
+    function show(on) { zone.classList.toggle('dws-dropzone-active', !!on); }
+    zone.addEventListener('dragenter', function (e) {
+      if (!isFileDrag(e)) { return; }
+      e.preventDefault();
+      depth++;
+      show(true);
+    });
+    zone.addEventListener('dragover', function (e) {
+      if (!isFileDrag(e)) { return; }
+      e.preventDefault();   // 없으면 drop 이 발화하지 않음
+      if (e.dataTransfer) { e.dataTransfer.dropEffect = 'copy'; }
+      show(true);
+    });
+    zone.addEventListener('dragleave', function () {
+      if (depth === 0) { return; }   // depth>0 = 파일 드래그 진행 중(dragenter 에서만 증가)
+      depth--;
+      if (depth === 0) { show(false); }
+    });
+    zone.addEventListener('drop', function (e) {
+      if (!isFileDrag(e)) { return; }
+      e.preventDefault();   // 브라우저의 파일 네비게이션 차단
+      depth = 0;
+      show(false);
+      var files = (e.dataTransfer && e.dataTransfer.files) ? e.dataTransfer.files : [];
+      var base = dropLogicalPos(e);   // null 이면 중앙 폴백
+      var placed = 0, skipped = 0;
+      for (var i = 0; i < files.length; i++) {
+        var f = files[i];
+        if (!f || !f.type || f.type.indexOf('image/') !== 0) { skipped++; continue; }
+        var pos = null;
+        if (base) { var off = placed * 24; pos = { x: base.x + off, y: base.y + off }; }
+        addImageFromFile(f, pos);
+        placed++;
+      }
+      if (placed === 0 && skipped > 0) { toast('이미지 파일만 캔버스에 추가할 수 있습니다.'); }
+    });
   }
 
   /* ========================================================================
@@ -3191,6 +3264,9 @@
     // 스크롤/리사이즈 시 미니툴바 위치 갱신
     els.canvas.addEventListener('scroll', function () { positionMiniToolbar(); });
     window.addEventListener('resize', function () { positionMiniToolbar(); });
+
+    // 캔버스 이미지 파일 드래그앤드롭(드롭 지점 배치). 빈 시트 오버레이 위 드롭도 안내 토스트.
+    bindCanvasDnd();
 
     // 미저장 이탈 가드
     window.addEventListener('beforeunload', function (e) {
