@@ -100,6 +100,18 @@ var erpResolveCashReceipt =
     };
 window.erpResolveCashReceipt = erpResolveCashReceipt;
 
+var erpResolveBalanceNote =
+    window.erpResolveBalanceNote ||
+    function erpResolveBalanceNote(sd) {
+        sd = sd || {};
+        var modernPayment = sd.payment || {};
+        if (Object.prototype.hasOwnProperty.call(modernPayment, 'balance_note')) {
+            return String(modernPayment.balance_note || '').trim();
+        }
+        return '';
+    };
+window.erpResolveBalanceNote = erpResolveBalanceNote;
+
 var erpResolveFreeInputText =
     window.erpResolveFreeInputText ||
     function erpResolveFreeInputText(sd) {
@@ -182,6 +194,7 @@ var _erpNormalizePaymentData =
             discount: Math.max(0, discountAmount),
             free_input: erpResolveFreeInputText(sd),
             cash_receipt: erpResolveCashReceipt(sd),
+            balance_note: erpResolveBalanceNote(sd),
             deposit_confirmed: _erpBoolConfirmed(pay.deposit_confirmed),
             deposit_confirmed_at: pay.deposit_confirmed_at || null,
             deposit_confirmed_by: pay.deposit_confirmed_by || null,
@@ -870,6 +883,8 @@ function erpRecalcItemsTotal() {
     const remainingSection = document.getElementById('erp-remaining-section');
     const freeInputSection = document.getElementById('erp-free-input-section');
     const cashReceiptSection = document.getElementById('erp-cash-receipt-section');
+    const balanceNoteToggleRow = document.getElementById('erp-balance-note-toggle-row');
+    const balanceNoteSection = document.getElementById('erp-balance-note-section');
     if (!itemsWrap || !totalEl) return;
     const sum = erpSumItemsSubtotal(itemsWrap);
     const totals = erpBuildTotals(sum, erpParseDepositValue(), erpParseDiscountValue(), erpParseFreeInputAmount());
@@ -891,8 +906,61 @@ function erpRecalcItemsTotal() {
     if (cashReceiptSection) {
         cashReceiptSection.style.display = showAmountRows ? '' : 'none';
     }
+    if (balanceNoteToggleRow) {
+        balanceNoteToggleRow.hidden = !showAmountRows;
+    }
+    if (balanceNoteSection) {
+        if (!showAmountRows) {
+            balanceNoteSection.hidden = true;
+        } else {
+            balanceNoteSection.hidden = !erpIsBalanceNoteSectionOpen();
+        }
+    }
+    erpUpdateBalanceNoteToggleUi();
     erpCalculateRemaining();
 }
+
+function erpIsBalanceNoteSectionOpen() {
+    const section = document.getElementById('erp-balance-note-section');
+    if (!section) return false;
+    return section.dataset.erpOpen === '1';
+}
+
+function erpSetBalanceNoteSectionOpen(open, opts) {
+    opts = opts || {};
+    const section = document.getElementById('erp-balance-note-section');
+    if (!section) return;
+    section.dataset.erpOpen = open ? '1' : '0';
+    section.hidden = !open;
+    if (!open && opts.clearValue !== false) {
+        const noteEl = document.getElementById('erp-balance-note');
+        if (noteEl) noteEl.value = '';
+    }
+    erpUpdateBalanceNoteToggleUi();
+}
+
+function erpUpdateBalanceNoteToggleUi() {
+    const toggleBtn = document.getElementById('erp-balance-note-toggle');
+    if (!toggleBtn) return;
+    const open = erpIsBalanceNoteSectionOpen();
+    toggleBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    toggleBtn.textContent = open ? '−' : '+';
+    toggleBtn.title = open ? '잔금 메모 삭제' : '잔금 메모 추가';
+    toggleBtn.setAttribute('aria-label', toggleBtn.title);
+}
+
+function erpToggleBalanceNoteSection() {
+    if (erpIsBalanceNoteSectionOpen()) {
+        erpSetBalanceNoteSectionOpen(false, { clearValue: true });
+        return;
+    }
+    erpSetBalanceNoteSectionOpen(true, { clearValue: false });
+    const noteEl = document.getElementById('erp-balance-note');
+    if (noteEl && typeof noteEl.focus === 'function') {
+        noteEl.focus();
+    }
+}
+window.erpToggleBalanceNoteSection = erpToggleBalanceNoteSection;
 
 function erpCalculateRemaining() {
     const totalEl = document.getElementById('erp-items-total');
@@ -1786,7 +1854,12 @@ async function erpLoadStructured(bootstrapData, options) {
     if (cashReceiptEl) {
         cashReceiptEl.value = paymentData.cash_receipt || '';
     }
-    erpCalculateRemaining();
+    const balanceNoteEl = document.getElementById('erp-balance-note');
+    if (balanceNoteEl) {
+        balanceNoteEl.value = paymentData.balance_note || '';
+        erpSetBalanceNoteSectionOpen(!!paymentData.balance_note, { clearValue: false });
+    }
+    erpRecalcItemsTotal();
     _erpUpdatePaymentConfirmUI('deposit', paymentData);
     _erpUpdatePaymentConfirmUI('balance', paymentData);
 
@@ -1971,6 +2044,7 @@ function erpCollectStructured() {
                 discount: totals.discount_amount,
                 free_input: erpBuildFreeInputStoredValue(),
                 cash_receipt: String(getVal('erp-cash-receipt') || ''),
+                balance_note: String(getVal('erp-balance-note') || '').trim(),
                 deposit_confirmed: _erpBoolConfirmed(prev.deposit_confirmed),
                 deposit_confirmed_at: prev.deposit_confirmed_at || null,
                 deposit_confirmed_by: prev.deposit_confirmed_by || null,
@@ -2698,6 +2772,17 @@ ${escapeHtml(sub)}</div>` : ''}`;
         freeInputTextEl.dataset.erpFreeInputTextBound = '1';
         freeInputTextEl.addEventListener('input', erpCalculateRemaining);
         freeInputTextEl.addEventListener('change', erpCalculateRemaining);
+    })();
+
+    (function bindErpBalanceNoteControls() {
+        if (window.__ERP_BALANCE_NOTE_BOUND) return;
+        window.__ERP_BALANCE_NOTE_BOUND = true;
+        const toggleBtn = document.getElementById('erp-balance-note-toggle');
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', function () {
+                erpToggleBalanceNoteSection();
+            });
+        }
     })();
 
 
@@ -4094,6 +4179,8 @@ function erpGenerateConversionText() {
     text = erpAppendConversionFreeInputBlock(text, freeInputVal);
     const balanceSuffix = _erpIsBalancePaymentConfirmed() ? '(결제 완)' : '';
     text = erpAppendConversionMoneyLine(text, '잔금', totals.final_amount, balanceSuffix);
+    const balanceNoteVal = getVal('erp-balance-note');
+    text = erpAppendConversionTextLine(text, '잔금메모', balanceNoteVal);
     const cashReceiptVal = getVal('erp-cash-receipt');
     if (erpHasConversionTextValue(cashReceiptVal) && totals.final_amount > 0) {
         text += '\n';

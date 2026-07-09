@@ -6,11 +6,23 @@
 
 ---
 
+### [2026-07-08] 분류기·Codex 래퍼 퇴역 (하네스 재설계 Phase 1a)
+- **키워드**: harness, classifier, retirement, codex-wrapper, preflight, gstack-qa, phase1a
+- **결정**: `tools/harness/task_classifier.py`(789줄)+preflight 훅(`user_prompt_submit.py`/`before_submit_prompt.py`/`prompt_router.py`)과 `tools/harness/run_codex.ps1`(855줄)을 원자 퇴역한다. QA 래퍼 체인(`run_gstack_qa.ps1`·`gstack_qa_skill.ps1`)도 공동 퇴역 — 소비자가 prompt_router(동시 퇴역)와 문서뿐이고, 실사용 QA는 이 체인을 거치지 않는 gstack browse/qa 스킬(Claude/Cursor 세션 내 Skill 호출) 경로이기 때문이다. 작업 레벨·RPI 판단은 문서 규칙(CLAUDE.md 새 세션 시작 프로토콜)으로 대체하고, 코어 변경 게이트는 Stop 훅·pre_push_smoke·branch protection이 코드로 강제한다. Codex 세컨드 오피니언은 on-demand `gstack-codex` 스킬로 대체한다. `setup_gstack.ps1`(벤더 런타임 점검)·`verify_result.py`·번들 도구는 보존.
+- **이유**: 재설계 보고서 `docs/plans/2026-07-08-harness-control-system-redesign-report.md` §9.1·§9.2 — 분류기는 강제력 0 실측+레벨 오염 33%+RPI 게이트 우회 가능(N1)으로 4자 만장일치 폐기, Codex 래퍼는 90일간 막은 실패 0건·7월 활동 0·PS 레벨 함수 3종 죽은 코드로 만장일치 퇴역. 래퍼가 분류기의 유일한 구조적 소비자라 A+B는 단일 원자 변경으로 실행.
+- **영향**: `tools/harness/{task_classifier,prompt_router}.py`·`tools/harness/{run_codex,run_gstack_qa,gstack_qa_skill}.ps1`·`tests/harness/{test_task_classifier,test_run_codex_levels}.py`·`.claude/hooks/user_prompt_submit.py`·`.cursor/hooks/before_submit_prompt.py` 삭제, `.claude/settings.json`(UserPromptSubmit 배선·allowlist)·`.cursor/hooks.json`(beforeSubmitPrompt)·`tests/harness/test_hooks_smoke.py`·`CLAUDE.md`·`AGENTS.md`·`.cursor/rules/00-project-context.mdc`·`docs/guides/HARNESS_ENGINEERING_OPERATOR_GUIDE.md`·`.agents/skills/gstack/VENDOR.md` 갱신
+
 ### [2026-07-05] Claude-main 하네스 업그레이드 (훅 패리티·MCP 정본화·Stop 게이트)
 - **키워드**: claude, harness, hooks, mcp, stop-gate, preflight, classifier, korean-keywords
 - **결정**: Claude Code를 메인 러너로 전환하며 (1) Claude 훅을 Cursor와 패리티로 확장 — `SessionStart`(AI_STATUS/RPI 안내 주입)·`UserPromptSubmit`(task_classifier preflight 자동 주입, low&비RPI는 생략)·`PreCompact`(COMPACT_CHECKPOINT 갱신) 신설, (2) Stop 훅을 조언성 리마인더에서 결정적 게이트로 승격 — `.py` 편집 pending 시 `import app` 실패면 exit 2로 턴 종료 차단, (3) 프로젝트 MCP 정본을 루트 `.mcp.json`으로 이동하고 `postgres`/`context7`만 유지 (`filesystem`·`memory`·`sequential-thinking`·`mcp-reasoner`·`markitdown` 퇴역 — 네이티브 도구/파일 메모리/extended thinking이 대체), (4) task_classifier 레벨 키워드에 한글 동의어 추가(영어 전용이라 한글 프롬프트 전부 low 오분류되던 결함), (5) CLAUDE.md에서 Cursor 러너 라우팅 절 제거(AGENTS.md/.cursor rules 소관). 플러그인 패키징(P5)은 가치 대비 유지비로 defer.
 - **이유**: `.claude/settings.json`의 `mcpServers` 블록은 Claude Code가 인식하는 정본 위치가 아니고, Cursor 훅 8종 대비 Claude 훅 3종만 배선되어 Claude 메인 전환 시 자동 라우팅·체크포인트·검증 게이트가 사라진다. 2026 공식 best practice는 결정적 검증 게이트·MCP 최소화·CLAUDE.md 슬림화를 권고한다.
 - **영향**: `.mcp.json`(신규), `.claude/settings.json`, `.claude/hooks/{session_start,user_prompt_submit,pre_compact}.py`(신규), `.claude/hooks/{track_edits,quality_check,shared_utils}.py`, `tools/harness/task_classifier.py`, `tests/harness/test_claude_stop_gate.py`(신규), `tests/harness/test_task_classifier.py`, `CLAUDE.md`, `docs/harness/bundles/*`(재생성), `docs/specs/2026-07-05-claude-main-harness-upgrade_SPEC.md`, `.gitignore`
+
+### [2026-06-30] 모바일 안전 업로드 압축 표준
+- **키워드**: 업로드, 모바일, 압축, Presigned, 병렬, R2
+- **결정**: 이미지 압축 동시성과 R2 PUT 업로드 동시성을 분리한다. 모바일/coarse pointer는 압축 1개·업로드 3개, 데스크톱은 압축 2개·업로드 5개를 기본값으로 사용한다. batch presigned session은 `client_id`를 echo 하여 파일명이 중복돼도 frontend가 올바른 session/key를 매칭한다.
+- **이유**: 2026-02-26의 최대 10개 병렬 표준은 direct upload 속도 개선에는 유효했지만, 클라이언트 이미지 압축이 도입된 뒤 모바일에서 CPU/RAM spike와 탭 종료 위험을 만들 수 있다. 압축 후 size로 session을 발급해야 서버 검증과 저장 metadata도 실제 업로드 파일과 일치한다.
+- **영향**: `static/js/runtime/upload-progress.js`, `foms/api/files/direct_upload.py`, ERP/AS/시공/도면/채팅 업로드 UI
 
 ### [2026-06-17] GDM + bespoke specialist agent retirement
 - **키워드**: gdm, retirement, gstack, caveman, cursor, claude, codex, agents
@@ -83,9 +95,3 @@
 - **결정**: 저장소 정리는 raw hook debug 산출물(`HOOK_RAW_DUMP.txt`, `.hook_raw_once`)과 root scratch 파일(`temp_script.js`, `test_scripts.js`, `test.html`)만 제거하고, `AI_STATUS.md`, `AI_CHANGELOG.md`, `SESSION_LOG.md`, `EDIT_LOG.md`, `COMPACT_CHECKPOINT.md` 같은 컨텍스트 메모리 파일은 계속 추적한다.
 - **이유**: raw debug/scratch 파일은 런타임·빌드·테스트 계약과 무관하지만, 컨텍스트 메모리 파일은 현재 하네스가 세션 복원과 상태 파악에 직접 사용하므로 같은 “로그”로 묶어 제거하면 메모리 설계 자체가 바뀐다.
 - **영향**: `.gitignore`, `docs/specs/2026-04-06-harness-tracking-cleanup_SPEC.md`, `docs/context/HOOK_RAW_DUMP.txt`, `docs/context/.hook_raw_once`, `temp_script.js`, `test_scripts.js`, `test.html`
-
-### [2026-06-30] 모바일 안전 업로드 압축 표준
-- **키워드**: 업로드, 모바일, 압축, Presigned, 병렬, R2
-- **결정**: 이미지 압축 동시성과 R2 PUT 업로드 동시성을 분리한다. 모바일/coarse pointer는 압축 1개·업로드 3개, 데스크톱은 압축 2개·업로드 5개를 기본값으로 사용한다. batch presigned session은 `client_id`를 echo 하여 파일명이 중복돼도 frontend가 올바른 session/key를 매칭한다.
-- **이유**: 2026-02-26의 최대 10개 병렬 표준은 direct upload 속도 개선에는 유효했지만, 클라이언트 이미지 압축이 도입된 뒤 모바일에서 CPU/RAM spike와 탭 종료 위험을 만들 수 있다. 압축 후 size로 session을 발급해야 서버 검증과 저장 metadata도 실제 업로드 파일과 일치한다.
-- **영향**: `static/js/runtime/upload-progress.js`, `foms/api/files/direct_upload.py`, ERP/AS/시공/도면/채팅 업로드 UI

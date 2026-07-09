@@ -706,7 +706,7 @@
                 {% for r in rows %}
                 {% set customer = r.customer_name %}
                 {% set orderer = r.orderer_name or '-' %}
-                {# 2공장 플래그: ERP 주문에만 structured_data 존재. notes가 문자열일 수 있어 flags는 or {} 방어. #}
+                {# 라홈시스템(factory2) 플래그: ERP 주문에만 structured_data 존재. notes가 문자열일 수 있어 flags는 or {} 방어. #}
                 {% set is_factory2 = ((r.structured_data or {}).get('flags') or {}).get('factory2') if r.is_erp_order else false %}
                 {% set address = r.address %}
                 {% set phone = r.phone %}
@@ -776,7 +776,7 @@
                         aria-expanded="false" title="주문 상세 보기"></i>
                     </span>
                   </td>
-                  <td data-label="발주사" style="border-right: 1px solid #e0e0e0;">{{ orderer or '-' }}{% if is_factory2 %}<br><span class="badge bg-warning text-dark"><i class="fas fa-industry"></i> 2공장</span>{% endif %}</td>
+                  <td data-label="발주사" style="border-right: 1px solid #e0e0e0;">{{ orderer or '-' }}{% if is_factory2 %}<br><span class="badge bg-warning text-dark"><i class="fas fa-industry"></i> 라홈시스템</span>{% endif %}</td>
                   <td class="editable-cell cell-wrap measurement-address-cell" data-field="address" data-label="주소"
                     style="border-right: 1px solid #e0e0e0;">{{ address or '-' }}</td>
                   <td class="editable-cell" data-field="phone" data-label="전화번호"

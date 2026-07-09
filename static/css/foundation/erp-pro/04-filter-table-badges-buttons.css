@@ -252,6 +252,47 @@
 .erp-amount-value--cash-receipt::placeholder {
   color: rgba(0, 0, 0, 0.45);
 }
+.erp-amount-value--balance-note {
+  background: #F3F6FA;
+  color: #000 !important;
+  border: 0 !important;
+  margin: 0 !important;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.erp-amount-value--balance-note::placeholder {
+  color: rgba(0, 0, 0, 0.45);
+}
+.erp-balance-note-toggle-row {
+  min-height: 0;
+  padding: 0;
+  margin: -0.25rem 0 0;
+}
+.erp-balance-note-add-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  padding: 0;
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  border-radius: 999px;
+  background: #fff;
+  color: rgba(0, 0, 0, 0.55);
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.erp-balance-note-add-btn:hover,
+.erp-balance-note-add-btn:focus-visible {
+  border-color: rgba(0, 0, 0, 0.28);
+  color: rgba(0, 0, 0, 0.78);
+  outline: none;
+}
+#erp-balance-note-section[hidden],
+#erp-balance-note-toggle-row[hidden] {
+  display: none !important;
+}
 
 .erp-items-action-row {
   width: 100%;

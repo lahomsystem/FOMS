@@ -1,0 +1,214 @@
+"""셸 가드 정책 케이스 테이블 테스트 (TDD).
+
+세 계층을 검증한다:
+  1. tools/harness/guard_policy.classify_command 직접 판정 (빠른 단위)
+  2. .claude/hooks/guard_shell.py  (stdin JSON → stdout JSON, 신 PreToolUse 스키마)
+  3. .cursor/hooks/guard_shell.py  (CURSOR_PAYLOAD env → stdout JSON, Cursor 계약)
+
+케이스 테이블(CASES)은 세 계층 모두에서 파라미터라이즈로 재사용된다.
+"""
+
+from __future__ import annotations
+
+import importlib.util
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+CLAUDE_HOOK = ".claude/hooks/guard_shell.py"
+CURSOR_HOOK = ".cursor/hooks/guard_shell.py"
+
+# (expected_decision, command) — 승인 스펙 §9.3 케이스 테이블.
+CASES: list[tuple[str, str]] = [
+    # --- deny -----------------------------------------------------------
+    ("deny", "rm -rf /"),
+    ("deny", "drop database x;"),
+    ("deny", "git push --force origin production"),
+    ("deny", "git push -f origin production"),
+    ("deny", "git push origin production --force"),
+    ("deny", "git push --force-with-lease origin production"),
+    ("deny", "git push origin HEAD:production --force"),
+    ("deny", "git push origin deploy --force"),
+    ("deny", "git reset --hard origin/deploy"),
+    ("deny", "git clean -fdx"),
+    # --- ask ------------------------------------------------------------
+    ("ask", "git push origin production"),
+    ("ask", "git push origin HEAD:production"),
+    ("ask", "git push origin deploy:production"),
+    ("ask", "git reset --hard"),
+    ("ask", "Remove-Item -Recurse -Force x"),
+    ("ask", "pip install requests"),
+    # --- allow ----------------------------------------------------------
+    ("allow", "git push origin deploy"),
+    ("allow", "git push"),
+    ("allow", "echo 'drop table 사용법 메모'"),
+    ("allow", "git commit -F msg.txt"),
+    ("allow", "pip install -r requirements.txt"),
+    ("allow", "pytest tests/harness -q"),
+    ("allow", 'rg "rm -rf" docs/'),
+]
+
+_IDS = [f"{dec}:{cmd}" for dec, cmd in CASES]
+
+
+def _load_policy():
+    """guard_policy 모듈을 저장소 경로에서 직접 로드한다."""
+    module_path = REPO_ROOT / "tools" / "harness" / "guard_policy.py"
+    spec = importlib.util.spec_from_file_location("guard_policy_under_test", module_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _run_claude_hook(command: str) -> str:
+    """Claude 훅을 subprocess 로 실행하고 permissionDecision(또는 'allow')을 반환."""
+    payload = {"tool_name": "Bash", "tool_input": {"command": command}}
+    proc = subprocess.run(
+        [sys.executable, CLAUDE_HOOK],
+        input=json.dumps(payload),
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=30,
+    )
+    assert proc.returncode == 0, f"hook crashed: {proc.stderr}"
+    out = proc.stdout.strip()
+    if not out:
+        return "allow"
+    data = json.loads(out)
+    assert "decision" not in data, "레거시 top-level 'decision' 키가 남아있음"
+    return data["hookSpecificOutput"]["permissionDecision"]
+
+
+def _run_cursor_hook(command: str) -> str:
+    """Cursor 훅을 subprocess 로 실행하고 permission 값을 반환.
+
+    workspace_root 를 실제 저장소로 지정해 공유 정책(tools/harness/guard_policy)이
+    확정적으로 로드되도록 한다(임시 루트는 fail-open 경로로 빠질 수 있음).
+    """
+    import os
+
+    env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
+    env["CURSOR_PAYLOAD"] = json.dumps(
+        {"command": command, "workspace_roots": [str(REPO_ROOT)]}
+    )
+    proc = subprocess.run(
+        [sys.executable, CURSOR_HOOK],
+        cwd=REPO_ROOT,
+        env=env,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=30,
+    )
+    assert proc.returncode == 0, f"hook crashed: {proc.stderr}"
+    data = json.loads(proc.stdout.strip())
+    return data["permission"]
+
+
+# ---------------------------------------------------------------------------
+# 1. 정책 모듈 직접 판정
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("expected,command", CASES, ids=_IDS)
+def test_classify_command(expected: str, command: str) -> None:
+    """classify_command 가 케이스 테이블대로 판정한다."""
+    policy = _load_policy()
+    decision, _label = policy.classify_command(command)
+    assert decision == expected, f"{command!r} → {decision} (기대: {expected})"
+
+
+# ---------------------------------------------------------------------------
+# 2. Claude 훅 (subprocess)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("expected,command", CASES, ids=_IDS)
+def test_claude_hook_decision(expected: str, command: str) -> None:
+    """Claude PreToolUse 훅이 케이스 테이블대로 판정을 출력한다."""
+    assert _run_claude_hook(command) == expected
+
+
+# ---------------------------------------------------------------------------
+# 3. Cursor 훅 (subprocess)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("expected,command", CASES, ids=_IDS)
+def test_cursor_hook_decision(expected: str, command: str) -> None:
+    """Cursor beforeShellExecution 훅이 케이스 테이블대로 판정을 출력한다."""
+    assert _run_cursor_hook(command) == expected
+
+
+# ---------------------------------------------------------------------------
+# 스키마 계약 회귀
+# ---------------------------------------------------------------------------
+
+def test_claude_deny_uses_new_schema() -> None:
+    """deny 는 hookSpecificOutput.permissionDecision 신스키마로 출력(레거시 키 없음)."""
+    payload = {"tool_name": "Bash", "tool_input": {"command": "git push --force origin production"}}
+    proc = subprocess.run(
+        [sys.executable, CLAUDE_HOOK],
+        input=json.dumps(payload),
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=30,
+    )
+    data = json.loads(proc.stdout.strip())
+    assert data["hookSpecificOutput"]["hookEventName"] == "PreToolUse"
+    assert data["hookSpecificOutput"]["permissionDecision"] == "deny"
+    assert "reason" not in data and "decision" not in data
+
+
+def test_claude_allow_emits_nothing() -> None:
+    """allow 는 아무 출력도 하지 않는다(통과)."""
+    payload = {"tool_name": "Bash", "tool_input": {"command": "git status"}}
+    proc = subprocess.run(
+        [sys.executable, CLAUDE_HOOK],
+        input=json.dumps(payload),
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=30,
+    )
+    assert proc.stdout.strip() == ""
+
+
+def test_cursor_deny_stops_continue() -> None:
+    """Cursor deny 는 continue=False 로 실행을 중단한다."""
+    import os
+
+    env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
+    env["CURSOR_PAYLOAD"] = json.dumps(
+        {"command": "git clean -fdx", "workspace_roots": [str(REPO_ROOT)]}
+    )
+    proc = subprocess.run(
+        [sys.executable, CURSOR_HOOK],
+        cwd=REPO_ROOT,
+        env=env,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=30,
+    )
+    data = json.loads(proc.stdout.strip())
+    assert data["permission"] == "deny"
+    assert data["continue"] is False
+
+
+def test_composite_command_takes_max_risk() -> None:
+    """복합 명령은 최고 위험 세그먼트를 채택한다."""
+    policy = _load_policy()
+    decision, _ = policy.classify_command("git status && git push --force origin production")
+    assert decision == "deny"

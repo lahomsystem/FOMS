@@ -13,44 +13,25 @@ sys.path.insert(0, _dir)
 from shared_utils import (  # type: ignore[import-not-found]  # noqa: E402
     harness_runtime_path,
     hook_log,
+    prepend_session_block,
     read_stdin_json,
     write_stdout_json,
 )
 
-SESSION_HEADER = (
-    "# Session Log\n\n"
-    "> 이 파일은 Claude Code Hooks에 의해 자동 관리됩니다.\n\n"
-    "## 최근 세션\n\n"
-)
-
 
 def _record_session(session_id: str) -> None:
-    """SESSION_LOG.md에 세션 시작 항목을 append하고 20개 초과분은 절단한다.
+    """SESSION_LOG.md 맨 위에 새 세션 블록을 삽입하고 최신 20블록만 유지한다.
+
+    포맷·로테이션은 공용 유틸(`hook_log_utils.prepend_session_block`)에 위임한다.
+    기존 `chunks[-20:]` 로테이션은 newest-first 구조에서 최신 세션을 버리는
+    역전 버그가 있어 폐기했다.
 
     파라미터:
         session_id: 세션 식별자 앞 8자.
     반환: 없음.
     """
-    log_path = harness_runtime_path("SESSION_LOG.md")
-    os.makedirs(os.path.dirname(log_path), exist_ok=True)
-    existing = ""
-    if os.path.exists(log_path):
-        with open(log_path, "r", encoding="utf-8") as handle:
-            existing = handle.read()
-    sessions_part = existing.split("## 최근 세션\n\n")[-1] if "## 최근 세션" in existing else ""
-    if sessions_part.count("### Session:") > 20:
-        chunks = sessions_part.split("\n### Session:")
-        sessions_part = "\n### Session:".join(chunks[-20:])
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    new_entry = (
-        f"### Session: {session_id}\n"
-        f"- **시작**: {timestamp}\n"
-        f"- **상태**: 진행중\n"
-        f"- **편집 파일**: (기록 중)\n"
-        f"- **종료**: -\n\n"
-    )
-    with open(log_path, "w", encoding="utf-8") as handle:
-        handle.write(SESSION_HEADER + new_entry + sessions_part)
+    prepend_session_block(harness_runtime_path("SESSION_LOG.md"), session_id, timestamp)
 
 
 def _build_context(source: str) -> str:

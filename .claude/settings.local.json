@@ -2,7 +2,6 @@
   "permissions": {
     "allow": [
       "Bash(python .claude/hooks/guard_shell.py)",
-      "Bash(echo '{\"\"tool_name\"\": \"\"Edit\"\", \"\"tool_input\"\": {\"\"file_path\"\": \"\"c:\\\\\\\\Users\\\\\\\\USER\\\\\\\\OneDrive\\\\\\\\Desktop\\\\\\\\SY\\\\\\\\program\\\\\\\\lahomproject\\\\\\\\FOMS\\\\\\\\app.py\"\"}}')",
       "Bash(python .claude/hooks/track_edits.py)",
       "Bash(python .claude/hooks/session_stop.py)",
       "Bash(wc -l .claude/settings.json .claude/hooks/*.py .claude/commands/*.md)",
@@ -11,8 +10,7 @@
       "Bash(rm -f data/ops_browser_qa.db)",
       "Bash(ls data/*.db)",
       "Bash(powershell -NoProfile -File tools/harness/ptc_workspace_cleanup.ps1 -RecursePyCache)",
-      "Bash(powershell -NoProfile -File tools/harness/ptc_workspace_hygiene_probe.ps1 -RecursePyCache)",
-      "Bash(xargs grep *)"
+      "Bash(powershell -NoProfile -File tools/harness/ptc_workspace_hygiene_probe.ps1 -RecursePyCache)"
     ]
   }
 }

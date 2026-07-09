@@ -155,7 +155,7 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                                 </label>
                                 <label class="form-check form-check-inline mb-0 small">
                                     <input type="checkbox" class="form-check-input" id="erp-factory2" autocomplete="off">
-                                    <span class="form-check-label">2공장</span>
+                                    <span class="form-check-label">라홈시스템</span>
                                 </label>
                             </div>
                             <select class="form-select form-select-sm" id="erp-orderer-select">
@@ -382,9 +382,15 @@ ERP Order Tab Pane (shared between add_order and edit_order)
                             </div>
                             <div class="erp-amount-value erp-amount-value--balance text-end" id="erp-remaining-amount">0원</div>
                         </div>
+                        <div id="erp-balance-note-toggle-row" class="d-flex justify-content-end w-100 erp-balance-note-toggle-row" style="max-width: 16rem;" hidden>
+                            <button type="button" id="erp-balance-note-toggle" class="erp-balance-note-add-btn" title="잔금 메모 추가" aria-label="잔금 메모 추가" aria-expanded="false" aria-controls="erp-balance-note-section">+</button>
+                        </div>
+                        <div id="erp-balance-note-section" class="d-flex justify-content-end align-items-center gap-2 w-100 erp-balance-note-section" style="max-width: 16rem;" hidden>
+                            <input type="text" id="erp-balance-note" inputmode="text" placeholder="잔금 메모" maxlength="512" class="erp-amount-value erp-amount-value--balance-note text-end" title="잔금 관련 메모. 비어 있으면 PUSH·변환 텍스트에 표시되지 않습니다.">
+                        </div>
                         <div id="erp-cash-receipt-section" class="d-flex justify-content-end align-items-center gap-2 w-100" style="max-width: 16rem; display: none;">
                             <label for="erp-cash-receipt" class="form-label mb-0 fw-bold text-nowrap">현금영수증</label>
-                            <input type="text" id="erp-cash-receipt" inputmode="tel" placeholder="연락처 입력" maxlength="512" class="erp-amount-value erp-amount-value--cash-receipt text-end" title="현금영수증 발급 연락처(휴대폰 등). 비어 있으면 PUSH·변환 텍스트에 표시되지 않습니다.">
+                            <input type="text" id="erp-cash-receipt" inputmode="text" placeholder="연락처 입력" maxlength="512" class="erp-amount-value erp-amount-value--cash-receipt text-end" title="현금영수증 발급 연락처(휴대폰 등). 비어 있으면 PUSH·변환 텍스트에 표시되지 않습니다.">
                         </div>
                     </div>
 

@@ -4,6 +4,28 @@ import os
 import sys
 from datetime import datetime
 
+# 로그 포맷·로테이션 SSOT (tools/harness/hook_log_utils.py) 공유.
+_TOOLS_HARNESS = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "tools",
+    "harness",
+)
+if _TOOLS_HARNESS not in sys.path:
+    sys.path.append(_TOOLS_HARNESS)
+from hook_log_utils import (  # noqa: E402  # type: ignore[import-not-found]
+    HOOK_LOG_MAX_LINES,
+    append_edit_row,
+    append_with_rotation,
+    build_session_header,
+    find_open_session_id,
+    format_session_block,
+    is_within_tree,
+    prepend_session_block,
+    read_recent_edited_files,
+    regenerate_session_log,
+    update_session_block,
+)
+
 
 def read_stdin_json() -> dict:
     """stdin에서 Claude Code hook payload(JSON, UTF-8)를 읽어 dict로 반환.
@@ -78,10 +100,8 @@ def hook_log(message: str, tag: str = "hook") -> None:
     """
     try:
         log_path = harness_log_path("CLAUDE_HOOK_LOG.md")
-        os.makedirs(os.path.dirname(log_path), exist_ok=True)
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        with open(log_path, "a", encoding="utf-8") as handle:
-            handle.write(f"- {timestamp} [{tag}] {message}\n")
+        append_with_rotation(log_path, f"- {timestamp} [{tag}] {message}", HOOK_LOG_MAX_LINES)
     except Exception as exc:  # noqa: BLE001 - 로거 최후 폴백
         try:
             sys.stderr.write(f"hook_log failed [{tag}]: {exc}\n")

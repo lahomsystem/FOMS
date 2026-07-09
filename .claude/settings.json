@@ -6,8 +6,12 @@
     "allow": [
       "Bash(python -c \"import app; print('APP_OK')\")",
       "Bash(python tools/harness/verify_result.py:*)",
-      "Bash(python tools/harness/task_classifier.py:*)",
       "Bash(pytest tests/harness:*)"
+    ],
+    "deny": [
+      "Bash(git push origin production*)",
+      "Bash(git push --force*)",
+      "Bash(git push -f *)"
     ]
   },
   "hooks": {
@@ -18,17 +22,6 @@
           {
             "type": "command",
             "command": "python .claude/hooks/session_start.py"
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python .claude/hooks/user_prompt_submit.py"
           }
         ]
       }
@@ -62,6 +55,15 @@
           {
             "type": "command",
             "command": "python .claude/hooks/track_edits.py"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/post_push_watch.py"
           }
         ]
       }

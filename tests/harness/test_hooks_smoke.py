@@ -35,8 +35,6 @@ def _hook_env(
     tmp_path: Path,
     *,
     conversation_id: str = "smokehook",
-    prompt: str | None = None,
-    attachments: list[dict[str, str]] | None = None,
 ) -> dict[str, str]:
     """Provide a minimal Cursor hook payload rooted in a temp workspace."""
     workspace_root = tmp_path.resolve()
@@ -50,8 +48,8 @@ def _hook_env(
         "command": "git status",
         "file_path": str(sample_file),
         "edits": [{"new_string": "updated"}],
-        "prompt": prompt or "status 알려줘",
-        "attachments": attachments or [],
+        "prompt": "status 알려줘",
+        "attachments": [],
     }
     env = os.environ.copy()
     env["CURSOR_PAYLOAD"] = json.dumps(payload)
@@ -138,7 +136,7 @@ def test_post_task_quality_check_message_uses_nested_spec_path(tmp_path: Path) -
     runtime_dir = tmp_path / "docs" / "harness" / "runtime"
     runtime_dir.mkdir(parents=True, exist_ok=True)
     (runtime_dir / "EDIT_LOG.md").write_text(
-        "- `tools/harness/run_codex.ps1` <- updated\n",
+        "- `tools/harness/verify_result.py` <- updated\n",
         encoding="utf-8",
     )
 
@@ -168,155 +166,3 @@ def test_session_start_message_mentions_harness_core_changes(tmp_path: Path) -> 
     assert completed.returncode == 0, completed.stderr
     payload = json.loads(completed.stdout)
     assert "Hooks/Rules/Agents/Verification" in payload["agentMessage"]
-
-
-def test_before_submit_prompt_hook_is_registered() -> None:
-    """The repo should register a beforeSubmitPrompt hook for auto-entry routing."""
-    hooks = _load_hooks_payload()["hooks"]
-    assert "beforeSubmitPrompt" in hooks
-    commands = hooks["beforeSubmitPrompt"]
-    assert commands
-    assert commands[0]["command"] == "python .cursor/hooks/before_submit_prompt.py"
-
-
-def test_before_submit_prompt_routes_harness_implement_request(tmp_path: Path) -> None:
-    """Harness/core implement prompts should receive wrapper-first routing guidance."""
-    target_file = tmp_path / "tools" / "harness" / "run_codex.ps1"
-    target_file.parent.mkdir(parents=True, exist_ok=True)
-    target_file.write_text("# placeholder\n", encoding="utf-8")
-
-    completed = subprocess.run(
-        [sys.executable, ".cursor/hooks/before_submit_prompt.py"],
-        cwd=REPO_ROOT,
-        env=_hook_env(
-            tmp_path,
-            conversation_id="before-submit-implement",
-            prompt="tools/harness/run_codex.ps1 자동 라우팅 구현해",
-            attachments=[{"path": str(target_file)}],
-        ),
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-    assert completed.returncode == 0, completed.stderr
-    payload = json.loads(completed.stdout)
-    assert payload["continue"] is True
-    assert "run_codex.ps1" in payload["agentMessage"]
-    assert "-Profile implement" in payload["agentMessage"]
-    assert "-Plan" in payload["agentMessage"]
-    assert "RPI" in payload["agentMessage"]
-    assert "Shared classification: route=implement, level=high" in payload["agentMessage"]
-    assert "Ask the user for direction before coding" in payload["agentMessage"]
-
-
-def test_before_submit_prompt_prefers_implement_over_url_hint(tmp_path: Path) -> None:
-    """A URL should not override an explicit implementation request."""
-    target_file = tmp_path / "tools" / "harness" / "run_codex.ps1"
-    target_file.parent.mkdir(parents=True, exist_ok=True)
-    target_file.write_text("# placeholder\n", encoding="utf-8")
-
-    completed = subprocess.run(
-        [sys.executable, ".cursor/hooks/before_submit_prompt.py"],
-        cwd=REPO_ROOT,
-        env=_hook_env(
-            tmp_path,
-            conversation_id="before-submit-implement-url",
-            prompt="https://example.com 참고해서 tools/harness/run_codex.ps1 자동 라우팅 구현해",
-            attachments=[{"path": str(target_file)}],
-        ),
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-    assert completed.returncode == 0, completed.stderr
-    payload = json.loads(completed.stdout)
-    assert payload["continue"] is True
-    assert "run_codex.ps1" in payload["agentMessage"]
-    assert "-Profile implement" in payload["agentMessage"]
-    assert "run_gstack_qa.ps1" not in payload["agentMessage"]
-    assert "Shared classification: route=implement" in payload["agentMessage"]
-
-
-def test_before_submit_prompt_review_of_test_file_stays_review(tmp_path: Path) -> None:
-    """Reviewing a test file should not be reclassified as QA."""
-    completed = subprocess.run(
-        [sys.executable, ".cursor/hooks/before_submit_prompt.py"],
-        cwd=REPO_ROOT,
-        env=_hook_env(
-            tmp_path,
-            conversation_id="before-submit-review-test-file",
-            prompt="tests/harness/test_hooks_smoke.py 리뷰해",
-        ),
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-    assert completed.returncode == 0, completed.stderr
-    payload = json.loads(completed.stdout)
-    assert payload["continue"] is True
-    assert "-Profile review" in payload["agentMessage"]
-    assert "run_gstack_qa.ps1" not in payload["agentMessage"]
-    assert "Shared classification: route=review" in payload["agentMessage"]
-
-
-def test_before_submit_prompt_test_file_path_without_qa_words_stays_generic(tmp_path: Path) -> None:
-    """Mentioning a test file path alone should not trigger QA routing."""
-    completed = subprocess.run(
-        [sys.executable, ".cursor/hooks/before_submit_prompt.py"],
-        cwd=REPO_ROOT,
-        env=_hook_env(
-            tmp_path,
-            conversation_id="before-submit-test-file-generic",
-            prompt="tests/harness/test_hooks_smoke.py 열어줘",
-        ),
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-    assert completed.returncode == 0, completed.stderr
-    payload = json.loads(completed.stdout)
-    assert payload["continue"] is True
-    assert "agentMessage" not in payload
-
-
-def test_before_submit_prompt_skips_generic_prompt(tmp_path: Path) -> None:
-    """General prompts should pass through without noisy auto-entry instructions."""
-    completed = subprocess.run(
-        [sys.executable, ".cursor/hooks/before_submit_prompt.py"],
-        cwd=REPO_ROOT,
-        env=_hook_env(
-            tmp_path,
-            conversation_id="before-submit-generic",
-            prompt="현재 상태 요약해줘",
-        ),
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-    assert completed.returncode == 0, completed.stderr
-    payload = json.loads(completed.stdout)
-    assert payload["continue"] is True
-    assert "agentMessage" not in payload
-
-
-def test_before_submit_prompt_routes_qa_request(tmp_path: Path) -> None:
-    """QA prompts with a URL should receive the gstack QA wrapper route."""
-    completed = subprocess.run(
-        [sys.executable, ".cursor/hooks/before_submit_prompt.py"],
-        cwd=REPO_ROOT,
-        env=_hook_env(
-            tmp_path,
-            conversation_id="before-submit-qa",
-            prompt="https://example.com 에서 erp smoke qa 돌려줘",
-        ),
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-    assert completed.returncode == 0, completed.stderr
-    payload = json.loads(completed.stdout)
-    assert payload["continue"] is True
-    assert "run_gstack_qa.ps1" in payload["agentMessage"]
-    assert "https://example.com" in payload["agentMessage"]
-    assert "erp-smoke" in payload["agentMessage"]
-    assert "Shared classification: route=qa, level=medium" in payload["agentMessage"]

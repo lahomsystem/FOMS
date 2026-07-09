@@ -31,13 +31,11 @@ alwaysApply: true
 4. **대화가 길어지면** → 핵심 요약 후 새 세션 권유 (Dumb Zone 회피)
 
 ## Cursor 내 Runner 라우팅
-- **Cursor 기본 에이전트**: 권장 수동 진입점은 `docs/harness/bundles/HARNESS_BUNDLE_CURSOR.md` + 본 `.mdc` 규칙이다. bundle 파일 자체는 Cursor가 자동 주입하지 않으므로, 사용자가 직접 열거나 참조한다. 하네스 내부 작업은 `docs/harness/bundles/HARNESS_BUNDLE_CURSOR_HARNESS.md`를 사용한다.
-- **Claude 확장 in Cursor**: 권장 수동 진입점은 `docs/harness/bundles/HARNESS_BUNDLE_CLAUDE.md`이다. bundle 파일은 자동 로드되지 않으므로, 작업 시작 시 사용자가 직접 열거나 참조한다. 하네스 내부 작업은 `docs/harness/bundles/HARNESS_BUNDLE_CLAUDE_HARNESS.md`를 사용한다. `CLAUDE.md`는 Claude 전용 원문 정책을 수정/검증할 때만 추가로 연다.
-- **Codex 확장/CLI in Cursor**: 권장 수동 진입점은 `docs/harness/bundles/HARNESS_BUNDLE_CODEX.md`이다. Codex 확장 세션은 사용자가 bundle을 직접 열거나 참조해야 하고, `tools/harness/run_codex.ps1`를 사용할 때만 선택된 bundle이 자동으로 prompt에 포함된다. 하네스 내부 작업은 `docs/harness/bundles/HARNESS_BUNDLE_CODEX_HARNESS.md` 또는 `tools/harness/run_codex.ps1` 자동 라우팅을 사용한다. repo-local gstack generated skills가 준비된 경우 `run_codex.ps1` / `run_gstack_qa.ps1` 경로를 우선 사용한다.
-- **공통 작업 분류기**: `tools/harness/task_classifier.py`가 Cursor `beforeSubmitPrompt`, `run_codex.ps1`, Claude/Codex 플러그인 preflight의 단일 분류 기준이다. 플러그인 창이 hook을 타지 않으면 `python tools/harness/task_classifier.py --profile auto --prompt "..." --json` 결과를 기준으로 bundle/RPI/사용자 확인 여부를 맞춘다.
-- **Wave 3 자동 레벨링**: `run_codex.ps1`는 공통 분류기의 `low / medium / high / top` 결과를 사용한다. 기본적으로 `low/medium`은 daily bundle, `high/top`은 harness bundle을 선택한다.
-- **override**: `-AdditionalPrompt "[level=top]"`, `-AdditionalPrompt "[레벨=최상]"`, `-AdditionalPrompt "이번 건 최상으로 진행"`을 지원한다.
-- **고위험 downgrade**: 자동 판정이 `high/top`인데 더 낮게 내리면 대화형 재확인 또는 `-AllowRiskyLevelOverride`가 필요하다.
+- **Cursor 기본 에이전트**: `AGENTS.md` + 본 `.mdc` 규칙을 기준으로 동작한다 (Cursor가 `.mdc`를 네이티브 로드).
+- **Claude 확장 in Cursor**: `AGENTS.md` + `CLAUDE.md`(Claude 전용 세션 규칙)를 기준으로 한다.
+- **Codex 확장/CLI in Cursor**: `AGENTS.md`를 이식 기준으로 따른다. Codex 세컨드 오피니언은 on-demand `gstack-codex` 스킬 경로를 사용한다.
+- **컨텍스트 번들**: 상시 커밋 컨텍스트 번들은 2026-07-08 재설계 Phase 1b에서 폐기됐다. 온디맨드로 묶음 컨텍스트가 필요하면 `python tools/harness/build_context_bundle.py --all`로 생성한다(커밋하지 않음).
+- **작업 레벨·RPI 판단**: 문서 규칙(새 세션 시작 프로토콜, 위 RPI 절)을 따른다. 코어 변경 게이트는 Stop 훅·pre_push_smoke·branch protection이 코드로 강제한다. (구 task_classifier 자동 분류기·Codex 래퍼는 2026-07-08 퇴역 — `docs/harness/policy/DECISIONS.md` 참조)
 - **브라우저 역할**: Cursor browser MCP는 탐색·수동 재현·디버깅, gstack browse는 setup 완료 후 반복 가능한 smoke/QA 자동화 전용이다.
 
 ## 문제 해결 및 디버깅 원칙 (Occam's Razor & Clean Code) - 필수 준수

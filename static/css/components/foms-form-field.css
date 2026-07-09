@@ -1108,6 +1108,20 @@ body.erp-mobile-v2-layout .erp-order-mobile-form .erp-mobile-attachment-controls
     text-align: end;
   }
 
+  body.erp-mobile-v2-layout .erp-order-mobile-form textarea.erp-amount-value--balance-note {
+    text-align: end;
+  }
+
+  body.erp-mobile-v2-layout .erp-order-mobile-form .erp-balance-note-toggle-row {
+    min-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+
+  body.erp-mobile-v2-layout .erp-order-mobile-form .erp-balance-note-add-btn {
+    margin-left: auto;
+  }
+
   body.erp-mobile-v2-layout .erp-order-mobile-form #erp-items textarea[data-erp="spec_width"]::placeholder {
     overflow: hidden;
     text-overflow: ellipsis;

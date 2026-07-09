@@ -14,7 +14,7 @@ def _load_debug():
         return lambda *a, **k: None, lambda: {}
 maybe_log_payload, get_payload = _load_debug()
 
-from shared_utils import extract_project_root, find_key_recursive, harness_runtime_path
+from shared_utils import extract_project_root, find_key_recursive, harness_runtime_path, read_recent_edited_files
 
 def main():
     payload = get_payload()
@@ -32,15 +32,9 @@ def main():
     checkpoint_file = harness_runtime_path(project_root, "COMPACT_CHECKPOINT.md")
     os.makedirs(os.path.dirname(checkpoint_file), exist_ok=True)
 
+    # EDIT_LOG 파싱·순서는 공용 유틸(테이블 포맷·newest-first)에 위임.
     edit_log_path = harness_runtime_path(project_root, "EDIT_LOG.md")
-    recent_edits = []
-    if os.path.exists(edit_log_path):
-        with open(edit_log_path, "r", encoding="utf-8") as f:
-            for line in f:
-                if line.startswith("- `"):
-                    recent_edits.append(line.rstrip())
-                    if len(recent_edits) >= 10:
-                        break
+    recent_edits = [f"- `{name}`" for name in read_recent_edited_files(edit_log_path, limit=10)]
 
     # AI_STATUS.md에서 "진행 중" 섹션 읽기
     ai_status_path = os.path.join(project_root, "docs", "AI_STATUS.md")

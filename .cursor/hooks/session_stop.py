@@ -1,6 +1,5 @@
 import json
 import os
-import re
 import sys
 import time
 from datetime import datetime
@@ -27,9 +26,12 @@ maybe_log_payload, get_payload = _load_debug()
 from shared_utils import (
     extract_project_root,
     find_key_recursive,
+    find_open_session_id,
     harness_runtime_path,
     hook_runtime_log,
+    read_recent_edited_files,
     safe_except_log,
+    update_session_block,
 )
 
 _IDEMP_TTL_SEC = 18.0
@@ -79,70 +81,14 @@ def _mark_idempotency_done(project_root: str, conv_id: str) -> None:
         safe_except_log(e, "idempotency write", project_root)
 
 
-def _read_recent_edited_files(project_root, limit=10):
-    edit_log_path = harness_runtime_path(project_root, "EDIT_LOG.md")
-    if not os.path.exists(edit_log_path):
-        return []
-    files = []
-    seen = set()
-    with open(edit_log_path, "r", encoding="utf-8") as stream:
-        for line in stream:
-            line = line.strip()
-            if not (line.startswith("- `") and "` <-" in line):
-                continue
-            try:
-                file_name = line.split("`")[1]
-            except Exception:
-                continue
-            if file_name in seen:
-                continue
-            seen.add(file_name)
-            files.append(file_name)
-            if len(files) >= limit:
-                break
-    return files
-
-def _replace_or_append_line(block, label, value):
-    pattern = rf"(?m)^- \*\*{re.escape(label)}\*\*: .*$"
-    new_line = f"- **{label}**: {value}"
-    if re.search(pattern, block):
-        return re.sub(pattern, new_line, block, count=1)
-    if not block.endswith("\n"):
-        block += "\n"
-    return block + new_line + "\n"
-
-def _find_target_match(content, conv_id):
-    block_pattern = r"(?ms)(^### Session: (?P<sid>[^\n]+)\n)(?P<body>.*?)(?=^### Session: |\Z)"
-    matches = list(re.finditer(block_pattern, content))
-    if not matches:
-        return None
-    if conv_id != "unknown":
-        for match in matches:
-            if match.group("sid").strip() == conv_id:
-                return match
-    for match in matches:
-        body = match.group("body")
-        if "- **종료**: -" in body or "- **상태**: 진행중" in body:
-            return match
-    return matches[0] if matches else None
-
-
 def _resolve_effective_conv_id(project_root: str, conv_id: str) -> str:
     """payload id가 없으면 SESSION_LOG의 열린 세션 id를 사용해 dedupe 정확도를 높인다."""
     if conv_id and conv_id != "unknown":
         return conv_id
 
     session_log = harness_runtime_path(project_root, "SESSION_LOG.md")
-    if not os.path.isfile(session_log):
-        return conv_id
-
     try:
-        with open(session_log, "r", encoding="utf-8") as stream:
-            content = stream.read()
-        match = _find_target_match(content, "unknown")
-        if not match:
-            return conv_id
-        sid = match.group("sid").strip()
+        sid = find_open_session_id(session_log)
         return sid or conv_id
     except Exception as e:
         safe_except_log(e, "resolve effective conv_id", project_root)
@@ -152,24 +98,15 @@ def _run_session_body(project_root: str, conv_id: str, payload: dict) -> None:
     status = find_key_recursive(payload, ["status"], default="unknown")
     ended_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+    # SESSION_LOG 블록 갱신은 공용 유틸에 위임(새 행 append 금지, Claude 훅과 단일 포맷).
     session_log = harness_runtime_path(project_root, "SESSION_LOG.md")
-    if os.path.exists(session_log):
-        with open(session_log, "r", encoding="utf-8") as stream:
-            content = stream.read()
-
-        edited_files = _read_recent_edited_files(project_root)
-        files_text = ", ".join(f"`{x}`" for x in edited_files) if edited_files else "(없음)"
-
-        match = _find_target_match(content, conv_id)
-        if match:
-            body = match.group("body")
-            body = _replace_or_append_line(body, "상태", status)
-            body = _replace_or_append_line(body, "종료", ended_at)
-            body = _replace_or_append_line(body, "편집 파일", files_text)
-            updated = content[:match.start()] + match.group(1) + body + content[match.end():]
-
-            with open(session_log, "w", encoding="utf-8") as stream:
-                stream.write(updated)
+    edited_files = read_recent_edited_files(harness_runtime_path(project_root, "EDIT_LOG.md"))
+    files_text = ", ".join(f"`{x}`" for x in edited_files) if edited_files else "(없음)"
+    update_session_block(
+        session_log,
+        conv_id,
+        {"상태": status, "종료": ended_at, "편집 파일": files_text},
+    )
 
     try:
         from auto_memory import run as auto_memory_run

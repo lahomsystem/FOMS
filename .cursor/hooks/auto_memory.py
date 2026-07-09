@@ -11,7 +11,7 @@ import os
 import re
 from datetime import datetime
 
-from shared_utils import harness_runtime_path
+from shared_utils import harness_runtime_path, read_recent_edited_files
 
 
 def get_project_root():
@@ -33,30 +33,17 @@ def write_file(path, content):
 
 
 def get_recent_edited_files(project_root, limit=5):
-    """EDIT_LOG.md에서 최근 편집 파일 목록 추출"""
+    """EDIT_LOG.md에서 최근 편집 파일 목록 추출(공용 테이블 파서 + 메타파일 제외)."""
     edit_log = harness_runtime_path(project_root, "EDIT_LOG.md")
-    if not os.path.exists(edit_log):
-        return []
+    # 메타파일 필터 전에 넉넉히 조회한 뒤 limit까지 자른다.
+    names = read_recent_edited_files(edit_log, limit=limit * 4)
     files = []
-    seen = set()
-    with open(edit_log, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line.startswith("- `"):
-                continue
-            try:
-                fname = line.split("`")[1]
-            except IndexError:
-                continue
-            if fname in seen or fname == "unknown":
-                continue
-            # docs/, .cursor/ 등 메타파일 제외
-            if any(fname.startswith(p) for p in ("docs/", ".cursor/", ".agents/", ".git/")):
-                continue
-            seen.add(fname)
-            files.append(fname)
-            if len(files) >= limit:
-                break
+    for fname in names:
+        if any(fname.startswith(p) for p in ("docs/", ".cursor/", ".agents/", ".git/")):
+            continue
+        files.append(fname)
+        if len(files) >= limit:
+            break
     return files
 
 

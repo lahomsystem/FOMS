@@ -1,136 +1,121 @@
-"""Claude Code PreToolUse hook: Bash 명령 실행 전 위험 명령 차단.
+"""Claude Code PreToolUse 훅: Bash 명령 실행 전 위험 명령 차단.
 
-stdin으로 {"tool_name": "Bash", "tool_input": {"command": "..."}} 형태를 받음.
-위험 명령이면 {"decision": "block", "reason": "..."} 출력.
+stdin 으로 {"tool_name": "Bash", "tool_input": {"command": "..."}} 페이로드를 받아
+공유 정책 모듈(tools/harness/guard_policy.py)의 classify_command 로 판정한다.
+
+출력 스키마 (신 PreToolUse 계약):
+  - deny  → hookSpecificOutput.permissionDecision="deny"  (실행 차단)
+  - ask   → hookSpecificOutput.permissionDecision="ask"   (사용자 확인)
+  - allow → 무출력 (통과)
+
+레거시 top-level `decision` 키는 제거되었다(무확인 자동 승인 결함 제거).
+ask/deny 판정은 docs/harness/logs/SHELL_GUARD_LOG.md 에 기록하며,
+로그 실패는 shared_utils.hook_log 로 남긴다(묵시적 삼킴 금지).
 """
-import json
 import os
-import re
 import sys
 from datetime import datetime
 
-# 프로젝트 루트
 _dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, _dir)
-from shared_utils import read_stdin_json, get_project_root, write_stdout_json  # type: ignore[import-not-found]
+if _dir not in sys.path:
+    sys.path.insert(0, _dir)
+from shared_utils import (  # type: ignore[import-not-found]  # noqa: E402
+    get_project_root,
+    harness_log_path,
+    hook_log,
+    read_stdin_json,
+    write_stdout_json,
+)
 
-DANGEROUS_PATTERNS = [
-    (r"rm\s+(-rf|-fr)\s+[/\\]", "rm -rf /"),
-    (r"rm\s+(-rf|-fr)\s+\.\.", "rm -rf .."),
-    (r"drop\s+database", "drop database"),
-    (r"drop\s+table", "drop table"),
-    (r"truncate\s+table", "truncate table"),
-    (r"delete\s+from\s+\w+\s*;?\s*$", "unqualified DELETE"),
-    (r"format\s+[a-z]:", "format drive"),
-    (r"del\s+/s\s+/q\s+[a-z]:\\", "del /s /q"),
-    (r"git\s+push\s+.*--force\s+.*(main|master|deploy|production)", "force push to protected branch"),
-    (r"git\s+reset\s+--hard\s+origin", "reset --hard origin"),
-    (r"git\s+clean\s+-fdx?", "git clean -fd"),
+_LOG_HEADER = [
+    "# Shell Guard Log",
+    "",
+    "> Claude Code Hook(`PreToolUse:Bash`)가 자동 기록합니다. (ask/deny 판정만)",
+    "",
+    "| Time | Decision | Label | Command |",
+    "|------|----------|-------|---------|",
 ]
-
-WARN_PATTERNS = [
-    (r"git\s+push\s+--force", "git push --force"),
-    (r"git\s+reset\s+--hard", "git reset --hard"),
-    (r"git\s+checkout\s+--\s+\.", "git checkout -- ."),
-    (r"pip\s+install\s+(?!-r)", "pip install (not from requirements)"),
-    (r"npm\s+install\s+-g", "npm install -g"),
-    (r"remove-item\s+.+-recurse.+-force", "Remove-Item -Recurse -Force"),
-]
-
-# 일반적인 git 명령은 로그 제외
-GIT_NORMAL_SUBCOMMANDS = {
-    "push", "merge", "checkout", "add", "commit", "status", "fetch", "pull",
-    "stash", "restore", "branch", "log", "diff", "show", "rebase", "revert",
-    "clone", "init", "remote", "config", "tag", "switch", "reset",
-}
+_LOG_CAP = 300
 
 
-def _classify(command: str):
-    lowered = command.lower().strip()
-    for pattern, label in DANGEROUS_PATTERNS:
-        if re.search(pattern, lowered, re.IGNORECASE):
-            return "block", label
-    for pattern, label in WARN_PATTERNS:
-        if re.search(pattern, lowered, re.IGNORECASE):
-            return "warn", label
-    return "allow", ""
+def _load_classifier(project_root: str):
+    """tools/harness 의 guard_policy.classify_command 를 로드한다.
+
+    파라미터:
+        project_root: 저장소 루트 절대 경로.
+    반환: classify_command 콜러블.
+    """
+    harness_dir = os.path.join(project_root, "tools", "harness")
+    if harness_dir not in sys.path:
+        sys.path.insert(0, harness_dir)
+    from guard_policy import classify_command  # type: ignore[import-not-found]
+
+    return classify_command
 
 
-def _is_normal_git(cmd: str, decision: str) -> bool:
-    if decision != "allow" or not cmd:
-        return False
-    parts = cmd.strip().split()
-    if not parts or parts[0].lower() != "git":
-        return False
-    if len(parts) >= 2 and parts[1].lower() in GIT_NORMAL_SUBCOMMANDS:
-        return True
-    return False
+def _log_command(decision: str, label: str, command: str) -> None:
+    """ask/deny 판정을 SHELL_GUARD_LOG.md 에 1행 기록(300행 캡).
+
+    파라미터:
+        decision: "ask" 또는 "deny".
+        label: 판정 사유 요약.
+        command: 정규화된 명령 문자열.
+    반환: 없음. 파일 로그 실패 시 hook_log 로 사유를 남긴다.
+    """
+    try:
+        log_path = harness_log_path("SHELL_GUARD_LOG.md")
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        row = f"| {timestamp} | {decision} | `{label or '-'}` | `{command[:160]}` |\n"
+
+        data_rows: list[str] = []
+        if os.path.exists(log_path):
+            with open(log_path, "r", encoding="utf-8") as handle:
+                data_rows = [ln for ln in handle.readlines() if ln.startswith("| 20")]
+        data_rows.append(row)
+        if len(data_rows) > _LOG_CAP:
+            data_rows = data_rows[-_LOG_CAP:]
+
+        with open(log_path, "w", encoding="utf-8") as handle:
+            handle.write("\n".join(_LOG_HEADER) + "\n")
+            handle.writelines(data_rows)
+    except Exception as exc:  # noqa: BLE001 - fail-open, 단 반드시 기록
+        hook_log(f"SHELL_GUARD_LOG 기록 실패: {exc}", tag="guard_shell")
 
 
-def _log_command(project_root: str, decision: str, pattern: str, command: str):
-    log_path = os.path.join(project_root, "docs", "context", "SHELL_GUARD_LOG.md")
-    os.makedirs(os.path.dirname(log_path), exist_ok=True)
-
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    row = f"| {timestamp} | {decision} | `{pattern or '-'}` | `{command[:160]}` |"
-
-    header_lines = [
-        "# Shell Guard Log",
-        "",
-        "> Claude Code Hook(`PreToolUse:Bash`)가 자동 기록합니다.",
-        "",
-        "| Time | Decision | Pattern | Command |",
-        "|------|----------|---------|---------|",
-    ]
-
-    if not os.path.exists(log_path):
-        with open(log_path, "w", encoding="utf-8") as f:
-            f.write("\n".join(header_lines) + "\n")
-
-    with open(log_path, "r", encoding="utf-8") as f:
-        existing = f.readlines()
-
-    data_rows = [l for l in existing if l.startswith("| 20")]
-    data_rows.append(row + "\n")
-    if len(data_rows) > 300:
-        data_rows = data_rows[-300:]
-
-    with open(log_path, "w", encoding="utf-8") as f:
-        f.write("\n".join(header_lines) + "\n")
-        f.writelines(data_rows)
+def _emit(decision: str, label: str, command: str) -> None:
+    """PreToolUse 신스키마로 판정 결과를 출력한다."""
+    reason = f"[{'차단' if decision == 'deny' else '확인'}] {label}: {command[:100]}"
+    write_stdout_json(
+        {
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": decision,
+                "permissionDecisionReason": reason,
+            }
+        }
+    )
 
 
-def main():
-    payload = read_stdin_json()
-    tool_input = payload.get("tool_input", {})
-    command = tool_input.get("command", "")
+def main() -> None:
+    """PreToolUse 훅 진입점. 실패는 fail-open(allow)하되 hook_log 로 기록."""
+    try:
+        payload = read_stdin_json()
+        command = (payload.get("tool_input") or {}).get("command", "")
+        if not command:
+            return
 
-    if not command:
-        return
+        classify_command = _load_classifier(get_project_root())
+        decision, label = classify_command(command)
 
-    command_clean = re.sub(r"\s+", " ", command.replace("\r", " ").replace("\n", " ").strip())
-    decision, pattern = _classify(command_clean)
-    project_root = get_project_root()
+        if decision == "allow":
+            return
 
-    # 일반 git 명령이 아니면 로그 기록
-    if not _is_normal_git(command_clean, decision):
-        try:
-            _log_command(project_root, decision, pattern, command_clean)
-        except Exception:
-            pass
-
-    if decision == "block":
-        write_stdout_json({
-            "decision": "block",
-            "reason": f"[BLOCKED] 위험 명령 차단 ({pattern}): {command_clean[:100]}"
-        })
-    elif decision == "warn":
-        # 경고만 표시, 차단하지 않음 (Claude Code가 사용자에게 확인)
-        write_stdout_json({
-            "decision": "approve",
-            "reason": f"[WARNING] 주의 필요 명령 ({pattern}): {command_clean[:100]}"
-        })
-    # allow인 경우 아무 출력 없음 = 통과
+        normalized = " ".join(str(command).split())
+        _log_command(decision, label, normalized)
+        _emit(decision, label, normalized)
+    except Exception as exc:  # noqa: BLE001 - 훅 크래시가 세션을 막지 않도록 fail-open
+        hook_log(f"guard_shell 예외 fail-open: {exc}", tag="guard_shell")
 
 
 if __name__ == "__main__":
