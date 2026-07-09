@@ -102,11 +102,18 @@ def run_gh(args: list[str], timeout: int = 90) -> tuple[int, str, str]:
         return _GH_TIMEOUT, "", f"gh timed out after {timeout}s"
 
 
-def current_head_sha() -> str:
-    """`git rev-parse HEAD` 로 현재 HEAD SHA 를 반환한다(실패 시 빈 문자열)."""
+def resolve_ref(ref: str) -> str:
+    """`git rev-parse` 로 리터럴 ref(HEAD/브랜치명/짧은 SHA)를 full commit SHA 로 정규화한다.
+
+    파라미터:
+        ref: 해석할 git ref 문자열(예: "HEAD", "deploy", 짧은/전체 SHA).
+    반환: 40자 full commit SHA. 잘못된 ref·git 부재·타임아웃 시 빈 문자열.
+          `--verify --quiet ... ^{commit}` 이라 유효하지 않은 ref 는 stdout 없이 실패한다.
+          (리터럴 "HEAD" 를 정규화 없이 조회해 "워크플로 없음 → green" 오판하는 false-green 차단.)
+    """
     try:
         proc = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
+            ["git", "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"],
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -116,6 +123,11 @@ def current_head_sha() -> str:
         return proc.stdout.strip() if proc.returncode == 0 else ""
     except (FileNotFoundError, subprocess.TimeoutExpired):
         return ""
+
+
+def current_head_sha() -> str:
+    """현재 HEAD 를 full commit SHA 로 반환한다(실패 시 빈 문자열)."""
+    return resolve_ref("HEAD")
 
 
 def check_healthz(url: str, sha_short: str, timeout: int = 10) -> bool:
@@ -552,10 +564,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[ci-watch] 게이트 불가: {reason}")
         return 3
 
-    sha = args.sha or current_head_sha()
-    if not sha:
-        print("[ci-watch] 게이트 불가: HEAD SHA 확인 실패(git 저장소가 아닌 듯)")
-        return 3
+    if args.sha:
+        sha = resolve_ref(args.sha)
+        if not sha:
+            print(f"[ci-watch] 게이트 불가: ref 해석 실패: {args.sha}(유효한 git ref 아님)")
+            return 3
+    else:
+        sha = current_head_sha()
+        if not sha:
+            print("[ci-watch] 게이트 불가: HEAD SHA 확인 실패(git 저장소가 아닌 듯)")
+            return 3
 
     if args.quick:
         return watch_quick(sha, args.branch, args.healthz)

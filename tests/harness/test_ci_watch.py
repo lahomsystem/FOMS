@@ -441,11 +441,70 @@ def test_rerun_state_ignores_other_sha(mod, tmp_path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# main (gh 부재 → exit 3, fail-open 아님)
+# resolve_ref (리터럴 ref → full SHA 정규화, false-green 차단)
+# ---------------------------------------------------------------------------
+def test_resolve_ref_runs_git_rev_parse(mod, monkeypatch) -> None:
+    """resolve_ref 는 git rev-parse --verify 로 ref 를 full SHA 로 정규화한다."""
+    captured: dict = {}
+
+    class _Proc:
+        returncode = 0
+        stdout = "0123456789abcdef0123456789abcdef01234567\n"
+
+    def fake_run(cmd, **_k):
+        captured["cmd"] = cmd
+        return _Proc()
+
+    monkeypatch.setattr(mod.subprocess, "run", fake_run)
+    sha = mod.resolve_ref("HEAD")
+    assert sha == "0123456789abcdef0123456789abcdef01234567"
+    assert captured["cmd"][:4] == ["git", "rev-parse", "--verify", "--quiet"]
+    assert any("HEAD" in str(part) for part in captured["cmd"])
+
+
+def test_resolve_ref_returns_empty_on_bad_ref(mod, monkeypatch) -> None:
+    """잘못된 ref 는 rev-parse 실패(비-0) → 빈 문자열 반환."""
+
+    class _Proc:
+        returncode = 1
+        stdout = ""
+
+    monkeypatch.setattr(mod.subprocess, "run", lambda *_a, **_k: _Proc())
+    assert mod.resolve_ref("no-such-ref") == ""
+
+
+# ---------------------------------------------------------------------------
+# main (gh 부재 → exit 3, fail-open 아님 / 리터럴 ref 정규화)
 # ---------------------------------------------------------------------------
 def test_main_exit_3_when_gh_absent(mod, monkeypatch) -> None:
     monkeypatch.setattr(mod, "run_gh", lambda *_a, **_k: (mod._GH_NOT_FOUND, "", "not found"))
     assert mod.main([]) == 3
+
+
+def test_main_resolves_literal_head_before_query(mod, monkeypatch) -> None:
+    """args.sha='HEAD' 는 rev-parse 로 정규화 후 조회 — 리터럴 그대로 조회 금지(false-green 방지)."""
+    resolved = "0123456789abcdef0123456789abcdef01234567"
+    monkeypatch.setattr(mod, "gh_ready", lambda: (True, ""))
+    monkeypatch.setattr(mod, "resolve_ref", lambda ref: resolved if ref == "HEAD" else "")
+    captured: dict = {}
+
+    def fake_list_runs(branch, sha_short):
+        captured["branch"] = branch
+        captured["sha_short"] = sha_short
+        return []
+
+    monkeypatch.setattr(mod, "list_runs", fake_list_runs)
+    code = mod.main(["HEAD", "deploy", "--quick"])
+    assert captured["sha_short"] == resolved[:8]
+    assert captured["sha_short"] != "HEAD"
+    assert code == 0  # 조회 성립(빈 목록=green) — 여기선 sha 정규화만 검증
+
+
+def test_main_invalid_ref_exits_3(mod, monkeypatch) -> None:
+    """rev-parse 로 해석 불가한 ref → exit 3(fail-open 아님)."""
+    monkeypatch.setattr(mod, "gh_ready", lambda: (True, ""))
+    monkeypatch.setattr(mod, "resolve_ref", lambda _ref: "")
+    assert mod.main(["bogus-ref", "deploy", "--quick"]) == 3
 
 
 # ---------------------------------------------------------------------------
