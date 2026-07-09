@@ -8,6 +8,8 @@ monkeypatch 해 분류 로직과 종료 코드 계약만 검증한다. 폴링은
 from __future__ import annotations
 
 import importlib.util
+import io
+import sys
 from pathlib import Path
 
 import pytest
@@ -236,6 +238,44 @@ def test_watch_until_final_rerun_then_green(mod, monkeypatch) -> None:
     assert state["round"] == 2
 
 
+def test_watch_once_in_progress_over_poll_ceiling_exits_4(mod, monkeypatch) -> None:
+    """C-1 회귀: 폴링 상한 내 계속 in_progress → false-green(구 exit 0) 대신 exit 4(진행 중).
+
+    구현 전에는 failures()만 집계해 in_progress(conclusion=None)를 ALL GREEN 0 으로 오판했다.
+    """
+    monkeypatch.setattr(
+        mod,
+        "list_runs",
+        lambda *_a, **_k: [
+            {"headSha": "abc12345", "status": "in_progress", "conclusion": None,
+             "databaseId": 5, "workflowName": "FOMS perf-gate"}
+        ],
+    )
+    code = mod.watch_once(
+        "abc12345", "deploy", "http://hz", set(), sleep_fn=_NOOP_SLEEP, printer=_SINK
+    )
+    assert code == 4
+
+
+def test_watch_until_final_round_exhaustion_exits_1(mod, monkeypatch) -> None:
+    """C-3: 배포 영구 미완(wait_deploy 반복) → 라운드 상한 초과 시 exit 2 아닌 exit 1(수렴 실패)."""
+    monkeypatch.setattr(
+        mod,
+        "list_runs",
+        lambda *_a, **_k: [
+            {"headSha": "abc12345", "status": "completed", "conclusion": "failure",
+             "databaseId": 77, "workflowName": "FOMS perf-gate"}
+        ],
+    )
+    monkeypatch.setattr(mod, "run_gh", lambda *_a, **_k: (0, "Wait for staging deploy timeout", ""))
+    monkeypatch.setattr(mod, "check_healthz", lambda *_a, **_k: False)  # 배포 영구 미완 → wait_deploy 반복
+    code = mod.watch(
+        "abc12345", "deploy", "http://hz",
+        until_final=True, sleep_fn=_NOOP_SLEEP, printer=_SINK, max_rounds=2,
+    )
+    assert code == 1
+
+
 def test_watch_no_until_final_returns_2(mod, monkeypatch) -> None:
     monkeypatch.setattr(
         mod,
@@ -281,6 +321,24 @@ def test_poll_completion_waits_for_registration(mod, monkeypatch) -> None:
     runs = mod.poll_completion("deploy", "abc12345", sleep_fn=_NOOP_SLEEP)
     assert mod.all_completed(runs)
     assert calls["n"] >= 3  # 빈 목록 2회 재시도 후 3번째에서 등록
+
+
+# ---------------------------------------------------------------------------
+# list_runs (조회 한도 — 연속 푸시 밀림 방지)
+# ---------------------------------------------------------------------------
+def test_list_runs_uses_limit_20(mod, monkeypatch) -> None:
+    """C-2: 연속 푸시로 대상 SHA run 이 밀리지 않도록 --limit 20 으로 조회한다(구 8)."""
+    captured: dict = {}
+
+    def fake_run_gh(args, **_k):
+        captured["args"] = args
+        return (0, "[]", "")
+
+    monkeypatch.setattr(mod, "run_gh", fake_run_gh)
+    mod.list_runs("deploy", "abc12345")
+    args = captured["args"]
+    assert "--limit" in args
+    assert args[args.index("--limit") + 1] == "20"
 
 
 # ---------------------------------------------------------------------------
@@ -388,3 +446,51 @@ def test_rerun_state_ignores_other_sha(mod, tmp_path) -> None:
 def test_main_exit_3_when_gh_absent(mod, monkeypatch) -> None:
     monkeypatch.setattr(mod, "run_gh", lambda *_a, **_k: (mod._GH_NOT_FOUND, "", "not found"))
     assert mod.main([]) == 3
+
+
+# ---------------------------------------------------------------------------
+# cp949 콘솔 안전성 (_force_utf8_streams — PowerShell 5.x 크래시 방지 계약)
+# ---------------------------------------------------------------------------
+def test_exit4_message_safe_on_cp949_console(mod, monkeypatch) -> None:
+    """cp949 stdout(PowerShell 5.x)에서 exit-4 메시지(—)가 UnicodeEncodeError 없이 출력된다.
+
+    main() 진입 직후 _force_utf8_streams() 호출이 이 크래시를 막는 근거이므로,
+    동일 순서(재구성 → watch_once 기본 printer=print)를 cp949 스트림 위에서 고정한다.
+    main() 을 우회해 watch_once 를 직접 호출하면 크래시하는 것이 확인된 실측 재현이다.
+    """
+    raw_out, raw_err = io.BytesIO(), io.BytesIO()
+    monkeypatch.setattr(sys, "stdout", io.TextIOWrapper(raw_out, encoding="cp949"))
+    monkeypatch.setattr(sys, "stderr", io.TextIOWrapper(raw_err, encoding="cp949"))
+    mod._force_utf8_streams()  # main() 진입 직후와 동일
+    monkeypatch.setattr(
+        mod,
+        "list_runs",
+        lambda *_a, **_k: [
+            {"headSha": "abc12345", "status": "in_progress", "conclusion": None,
+             "databaseId": 5, "workflowName": "FOMS perf-gate"}
+        ],
+    )
+    code = mod.watch_once("abc12345", "deploy", "http://hz", set(), sleep_fn=_NOOP_SLEEP)
+    sys.stdout.flush()
+    assert code == 4
+    assert "폴링 상한 내 미완료" in raw_out.getvalue().decode("utf-8")
+
+
+def test_all_green_check_mark_safe_on_cp949_console(mod, monkeypatch) -> None:
+    """cp949 stdout에서 'ALL GREEN ✓'(U+2713)도 _force_utf8_streams 후 크래시 없이 출력된다."""
+    raw_out, raw_err = io.BytesIO(), io.BytesIO()
+    monkeypatch.setattr(sys, "stdout", io.TextIOWrapper(raw_out, encoding="cp949"))
+    monkeypatch.setattr(sys, "stderr", io.TextIOWrapper(raw_err, encoding="cp949"))
+    mod._force_utf8_streams()
+    monkeypatch.setattr(
+        mod,
+        "list_runs",
+        lambda *_a, **_k: [
+            {"headSha": "abc12345", "status": "completed", "conclusion": "success",
+             "databaseId": 1, "workflowName": "FOMS CI"}
+        ],
+    )
+    code = mod.watch_once("abc12345", "deploy", "http://hz", set(), sleep_fn=_NOOP_SLEEP)
+    sys.stdout.flush()
+    assert code == 0
+    assert "ALL GREEN" in raw_out.getvalue().decode("utf-8")

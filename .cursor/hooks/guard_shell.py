@@ -47,9 +47,20 @@ _LOG_CAP = 300
 
 
 def _sanitize_command(command: str) -> str:
-    """개행/중복 공백을 단일 공백으로 정규화한다."""
-    command = str(command).replace("\r", " ").replace("\n", " ").strip()
-    return re.sub(r"\s+", " ", command)
+    """가로 공백만 정규화하고 개행은 세그먼트 경계로 보존한다.
+
+    CRLF/CR 은 LF 로 통일한다. 개행을 공백으로 뭉개면 guard_policy 의 다줄
+    세그먼트 분리가 무력화되어 다줄 명령의 2번째 줄부터가 첫 명령의 인자로
+    흡수(가드 우회)되므로, classify_command 직전까지 개행을 유지해야 한다.
+    로그/사용자 메시지 표기는 `_display_command` 로 별도 단일 라인 정규화한다.
+    """
+    command = str(command).replace("\r\n", "\n").replace("\r", "\n").strip()
+    return re.sub(r"[ \t]+", " ", command)
+
+
+def _display_command(command: str) -> str:
+    """로그/사용자 메시지 표기용 단일 라인 문자열(개행 포함 공백 정규화)."""
+    return " ".join(str(command).split())
 
 
 def _load_classifier(project_root: str):
@@ -128,9 +139,9 @@ def main() -> None:
         decision, label = "allow", ""
 
     if decision != "allow":
-        _log_command(project_root, decision, label, raw_cmd)
+        _log_command(project_root, decision, label, _display_command(raw_cmd))
 
-    log_cmd = raw_cmd if raw_cmd else "(payload에 command 없음)"
+    log_cmd = _display_command(raw_cmd) if raw_cmd else "(payload에 command 없음)"
 
     if decision == "deny":
         sys.stdout.write(

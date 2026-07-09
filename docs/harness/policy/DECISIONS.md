@@ -6,6 +6,12 @@
 
 ---
 
+### [2026-07-09] 하네스 가드 우회 봉합 + ci_watch false-green 수정
+- **키워드**: harness, guard, bypass, tokenizer, ci_watch, false-green, post-push, adversarial-review
+- **결정**: 07-08 재설계 신규 코드에 대한 적대적 침투 리뷰에서 확정된 결함을 근본 수정. (G-1) `guard_policy`가 개행을 `;`와 동급 세그먼트 경계로 인식 — 다줄 명령 2번째 줄부터 위험 명령이 첫 명령 인자로 흡수되던 우회 봉합. (G-2) `KEY=VAL` prefix·`env/nohup/timeout/xargs` 래퍼·`bash/sh -c` 문자열·서브셸/명령치환 내부 git push를 재귀 전처리(`_unwrap_segment`, 깊이 상한 5)로 실명령 판정. (C-1) `ci_watch` 블로킹 모드가 폴링 상한 도달 시 미완 run을 ALL GREEN(exit 0)으로 오판하던 false-green을 `all_completed` 재확인 후 exit 4로 수정. `post_push_watch`의 부분문자열 push 오탐을 `find_push_segments` 토크나이저 재사용으로 교체. Cursor `_sanitize_command`의 개행 뭉갬도 보존으로 수정해 양 훅 경로 봉합.
+- **이유**: 07-08의 5자 검수는 설계·결정 검수(무엇을 퇴역)였고 구현체 적대 침투는 별도 각도였다 — 같은 각도 반복은 다른 층 결함을 못 잡는다. 셸 문법 변형은 무한이라 문자열 가드는 마찰층이고 최종 벽은 GitHub branch protection(PR 필수, 실동작 확인됨). 이번은 마찰층의 실증된 12종 우회 + CI 게이트 무력화 경로를 메운 것. false positive는 0 유지.
+- **영향**: `tools/harness/guard_policy.py`(+284), `tools/harness/ci_watch.py`, `.claude/hooks/post_push_watch.py`, `.cursor/hooks/guard_shell.py`, `tests/harness/{test_guard_policy,test_ci_watch,test_post_push_hook}.py`, `docs/specs/2026-07-09-harness-guard-bypass-hardening_SPEC.md`. 검증: `pytest tests/harness` 238 passed, 우회 12종+대조군 5종 Advisor 직접 재주입 ALL PASS, `APP_OK`.
+
 ### [2026-07-08] 분류기·Codex 래퍼 퇴역 (하네스 재설계 Phase 1a)
 - **키워드**: harness, classifier, retirement, codex-wrapper, preflight, gstack-qa, phase1a
 - **결정**: `tools/harness/task_classifier.py`(789줄)+preflight 훅(`user_prompt_submit.py`/`before_submit_prompt.py`/`prompt_router.py`)과 `tools/harness/run_codex.ps1`(855줄)을 원자 퇴역한다. QA 래퍼 체인(`run_gstack_qa.ps1`·`gstack_qa_skill.ps1`)도 공동 퇴역 — 소비자가 prompt_router(동시 퇴역)와 문서뿐이고, 실사용 QA는 이 체인을 거치지 않는 gstack browse/qa 스킬(Claude/Cursor 세션 내 Skill 호출) 경로이기 때문이다. 작업 레벨·RPI 판단은 문서 규칙(CLAUDE.md 새 세션 시작 프로토콜)으로 대체하고, 코어 변경 게이트는 Stop 훅·pre_push_smoke·branch protection이 코드로 강제한다. Codex 세컨드 오피니언은 on-demand `gstack-codex` 스킬로 대체한다. `setup_gstack.ps1`(벤더 런타임 점검)·`verify_result.py`·번들 도구는 보존.
@@ -90,8 +96,3 @@
 - **이유**: `docs/context` 한 축에 정책·생성물·런타임 상태·디버그 로그가 섞여 있으면 hook path, bundle output, CI drift, archive semantics가 함께 결합돼 split-brain과 복구 비용이 커진다.
 - **영향**: `tools/harness/*`, `.cursor/hooks/*`, `.claude/hooks/*`, `tests/harness/*`, `.github/workflows/harness-ci.yml`, `.gitignore`, `.gitattributes`, `docs/harness/*`, `docs/context/*`
 
-### [2026-04-06] Harness cleanup tracking boundary
-- **키워드**: harness, cleanup, gitignore, debug, scratch, context
-- **결정**: 저장소 정리는 raw hook debug 산출물(`HOOK_RAW_DUMP.txt`, `.hook_raw_once`)과 root scratch 파일(`temp_script.js`, `test_scripts.js`, `test.html`)만 제거하고, `AI_STATUS.md`, `AI_CHANGELOG.md`, `SESSION_LOG.md`, `EDIT_LOG.md`, `COMPACT_CHECKPOINT.md` 같은 컨텍스트 메모리 파일은 계속 추적한다.
-- **이유**: raw debug/scratch 파일은 런타임·빌드·테스트 계약과 무관하지만, 컨텍스트 메모리 파일은 현재 하네스가 세션 복원과 상태 파악에 직접 사용하므로 같은 “로그”로 묶어 제거하면 메모리 설계 자체가 바뀐다.
-- **영향**: `.gitignore`, `docs/specs/2026-04-06-harness-tracking-cleanup_SPEC.md`, `docs/context/HOOK_RAW_DUMP.txt`, `docs/context/.hook_raw_once`, `temp_script.js`, `test_scripts.js`, `test.html`
