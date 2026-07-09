@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>도면 마법사 — 주문 #{{ order.id }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20260709c">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20260709d">
 </head>
 <body>
   <div id="dws-root" data-order-id="{{ order.id }}">
@@ -329,6 +329,13 @@
       <button type="button" class="dws-align-btn" data-align="bottom" title="아래쪽 정렬" aria-label="아래쪽 정렬">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><line x1="4" y1="20" x2="20" y2="20"/><rect x="7" y="5" width="3.6" height="12" rx="1" fill="currentColor" stroke="none"/><rect x="13.4" y="9" width="3.6" height="8" rx="1" fill="currentColor" stroke="none"/></svg>
       </button>
+      <span class="dws-align-sep"></span>
+      <button type="button" class="dws-align-btn" data-align="hdistribute" title="가로 간격 맞춤" aria-label="가로 간격 맞춤">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><rect x="3" y="6" width="3.4" height="12" rx="1" fill="currentColor" stroke="none"/><rect x="10.3" y="6" width="3.4" height="12" rx="1" fill="currentColor" stroke="none"/><rect x="17.6" y="6" width="3.4" height="12" rx="1" fill="currentColor" stroke="none"/></svg>
+      </button>
+      <button type="button" class="dws-align-btn" data-align="vdistribute" title="세로 간격 맞춤" aria-label="세로 간격 맞춤">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><rect x="6" y="3" width="12" height="3.4" rx="1" fill="currentColor" stroke="none"/><rect x="6" y="10.3" width="12" height="3.4" rx="1" fill="currentColor" stroke="none"/><rect x="6" y="17.6" width="12" height="3.4" rx="1" fill="currentColor" stroke="none"/></svg>
+      </button>
     </div>
 
     <!-- ================= 로고 선택 팝업 ================= -->
@@ -370,6 +377,6 @@
 
   <script id="drawing-wizard-config" type="application/json">{{ wizard_config|tojson }}</script>
   <script src="{{ url_for('static', filename='vendor/konva.min.js') }}?v=20260706b" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260709c" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260709d" defer></script>
 </body>
 </html>
