@@ -811,6 +811,11 @@ html, body {
   background: #f5f5f7;
 }
 
+/* Alt+드래그 캔버스 팬(hand tool) 커서 피드백 — 인라인 style 없이 클래스 토글로.
+   .dws-panning 을 뒤에 두어 팬 진행 중(grabbing)이 pan-ready(grab)보다 우선. */
+.dws-canvas.dws-pan-ready { cursor: grab; }
+.dws-canvas.dws-panning { cursor: grabbing; }
+
 /* 이미지 파일 드래그앤드롭 대상 하이라이트(HTML5 DnD; drop 지점에 이미지 배치).
    inset box-shadow 는 스크롤 콘텐츠와 무관하게 뷰포트 테두리에 고정된다. */
 .dws-canvas.dws-dropzone-active {

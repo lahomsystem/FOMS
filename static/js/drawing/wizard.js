@@ -3608,6 +3608,50 @@
     els.canvas.addEventListener('scroll', function () { positionMiniToolbar(); positionAlignToolbar(); });
     window.addEventListener('resize', function () { positionMiniToolbar(); positionAlignToolbar(); });
 
+    /* Alt+드래그 캔버스 팬(포토샵 hand tool 감각) — els.canvas 스크롤 뷰포트 조작.
+       capture 단계 mousedown 으로 Konva 컨테이너(선택/러버밴드/객체드래그)보다 먼저
+       가로채, altKey 드래그만 스크롤로 소비한다. altKey 아니면 아무것도 안 하므로
+       기존 마퀴/객체드래그/텍스트생성(Ctrl/Cmd+클릭)과 무충돌. */
+    (function wirePan() {
+      var panning = false;
+      var startX = 0, startY = 0, startScrollLeft = 0, startScrollTop = 0;
+      function onPanMove(e) {
+        if (!panning) { return; }
+        // 드래그 방향으로 내용이 따라오는 hand tool 감각(범위 밖이면 브라우저가 clamp).
+        els.canvas.scrollLeft = startScrollLeft - (e.clientX - startX);
+        els.canvas.scrollTop = startScrollTop - (e.clientY - startY);
+        e.preventDefault();
+      }
+      function onPanUp() {
+        if (!panning) { return; }
+        panning = false;
+        window.removeEventListener('mousemove', onPanMove, true);
+        window.removeEventListener('mouseup', onPanUp, true);
+        els.canvas.classList.remove('dws-panning');
+      }
+      // capture=true 필수: 버블 단계면 Konva 가 이미 처리해 stopPropagation 이 무효.
+      els.canvas.addEventListener('mousedown', function (e) {
+        if (!e.altKey) { return; }            // Alt 없으면 기존 선택/러버밴드/객체드래그 그대로
+        e.preventDefault();
+        e.stopPropagation();                  // Konva 로 전파 차단(선택/러버밴드/객체드래그 미발동)
+        panning = true;
+        startX = e.clientX; startY = e.clientY;
+        startScrollLeft = els.canvas.scrollLeft; startScrollTop = els.canvas.scrollTop;
+        els.canvas.classList.add('dws-panning');
+        window.addEventListener('mousemove', onPanMove, true);
+        window.addEventListener('mouseup', onPanUp, true);
+      }, true);
+
+      // Alt 홀드 동안 grab 커서(팬 준비). 창 blur 시 pan-ready 잔류 방지.
+      window.addEventListener('keydown', function (e) {
+        if (e.altKey || e.key === 'Alt') { els.canvas.classList.add('dws-pan-ready'); }
+      });
+      window.addEventListener('keyup', function (e) {
+        if (e.key === 'Alt' || !e.altKey) { els.canvas.classList.remove('dws-pan-ready'); }
+      });
+      window.addEventListener('blur', function () { els.canvas.classList.remove('dws-pan-ready'); });
+    })();
+
     // 캔버스 이미지 파일 드래그앤드롭(드롭 지점 배치). 빈 시트 오버레이 위 드롭도 안내 토스트.
     bindCanvasDnd();
 
