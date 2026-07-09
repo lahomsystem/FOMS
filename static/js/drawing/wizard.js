@@ -46,6 +46,11 @@
   var PEN_MAX_COORDS = 400;            // 스트로크 좌표(x,y 쌍) 상한 = 200점(64KB·200객체 보호)
   var PEN_MIN_STEP_SQ = 4;             // 점 단순화: 직전 점과 논리거리² < 4(=2px) 이면 skip
   var PEN_TENSION = 0.4;               // Konva.Line 곡선 장력(손그림 부드럽게)
+  /* 형광펜(highlighter) — 펜 인프라 확장: 반투명(opacity) + 굵은 폭 + 형광 색. 굵기는 백엔드
+     펜 상한(1~20) 이내로 유지한다(초과분은 penWidthOrDefault 가 클램프). */
+  var HI_WIDTH_DEFAULT = 16;           // 형광펜 기본 굵기(px) — 펜 상한 20 이내
+  var HI_COLOR_DEFAULT = '#ffd400';    // 형광펜 기본 색(노랑)
+  var HI_OPACITY = 0.35;               // 형광펜 반투명도(0<x≤1)
   var CHECK_KEYS = ['d_site', 'd_double', 'd_order', 'p_prod', 'p_glass', 'p_light', 'p_handle', 'p_etc'];
   var PRESETS = { SR: '[SR]', EP: '[EP]', DOOR: '[DOOR]', ROD: '[옷봉]' };
   var ANNO_FONT = '"Malgun Gothic","맑은 고딕","Dotum","돋움",sans-serif';
@@ -130,6 +135,13 @@
 
   /** 펜 굵기 정규화: 1~20 정수(이상치는 기본 4). 팔레트 2/4/7·도형 편집 1~3 모두 포용. */
   function penWidthOrDefault(w) { return clamp(Math.round(num(w, PEN_WIDTH_DEFAULT)), PEN_MIN_WIDTH, PEN_MAX_WIDTH); }
+
+  /** 펜 불투명도 정규화: 반투명(0<x<1)이면 소수 3자리로 보존, 아니면 null(불투명=필드 생략).
+      형광펜은 HI_OPACITY(0.35)로 저장되고 일반 펜은 필드 없음(=1, 하위호환). */
+  function penOpacityOrNull(v) {
+    if (typeof v === 'number' && isFinite(v) && v > 0 && v < 1) { return Math.round(v * 1000) / 1000; }
+    return null;
+  }
 
   /** 펜 획 좌표 정규화: 짝수 길이(불완전 trailing 제거) + 각 좌표 반올림·클램프 + 상한 절단. */
   function normalizePenPoints(pts) {
@@ -216,12 +228,15 @@
   var konvaLayer = null;
   var transformer = null;
   var nodeById = {};                   // objId → Konva 노드
-  var annoMode = 'select';             // 'select'|'text'|'rect'|'ellipse'|'arrow'|'line'|'pen'
+  var annoMode = 'select';             // 'select'|'text'|'rect'|'ellipse'|'arrow'|'line'|'pen'|'eraser'
   var lastStrokeColor = '#000000';     // 다음 도형 기본 선 색
   var lastStrokeWidth = 2;             // 다음 도형 기본 선 굵기
   var penColor = '#e11d1d';            // 펜 색(종이 마크업 관례상 빨강 기본)
   var penWidth = PEN_WIDTH_DEFAULT;    // 펜 굵기(px)
-  var isDrawingPen = false;            // 프리핸드 스트로크 진행 중(터치 팬/핀치 억제 = 팜 리젝션)
+  var penMode = 'pen';                 // 펜 팔레트 서브모드 'pen'|'hi'(형광펜) — 색/굵기/반투명 분기
+  var hiColor = HI_COLOR_DEFAULT;      // 형광펜 색
+  var hiWidth = HI_WIDTH_DEFAULT;      // 형광펜 굵기(px)
+  var isDrawingPen = false;            // 프리핸드/지우개 포인터 스트로크 진행 중(터치 팬/핀치 억제 = 팜 리젝션)
   var lastPointerType = 'mouse';       // 최근 스테이지 pointerdown 입력 종류(pen/mouse/touch) — 손가락 드래그 차단용
   var editingTextarea = null;          // 활성 텍스트 오버레이(있으면 편집 중; contenteditable div)
   var editCtx = null;                  // 리치 편집 컨텍스트 {id, area, isNew, size, align}
@@ -927,7 +942,8 @@
     return tagNode(node, o);
   }
 
-  /** 프리핸드 펜 획 — 가변 points Konva.Line(tension 곡선). arrow/line 과 동일한 이동/변형 경로. */
+  /** 프리핸드 펜 획 — 가변 points Konva.Line(tension 곡선). arrow/line 과 동일한 이동/변형 경로.
+      optional opacity(형광펜=0.35)면 반투명 + multiply 합성으로 겹침을 자연스럽게 한다. */
   function buildPen(o) {
     var pts = normalizePenPoints(o.points);
     var sw = penWidthOrDefault(o.strokeWidth);
@@ -936,6 +952,8 @@
       tension: PEN_TENSION, lineCap: 'round', lineJoin: 'round', rotation: num(o.rotation),
       hitStrokeWidth: Math.max(12, sw), name: 'anno', draggable: canSave
     });
+    var op = penOpacityOrNull(o.opacity);
+    if (op != null) { node.opacity(op); node.globalCompositeOperation('multiply'); }
     return tagNode(node, o);
   }
 
@@ -1381,8 +1399,9 @@
     if (annoMode === 'select') { activeId = 'dws-btn-select'; }
     else if (annoMode === 'text') { activeId = 'dws-btn-add-text'; }
     else if (annoMode === 'pen') { activeId = 'dws-btn-pen'; }
+    else if (annoMode === 'eraser') { activeId = 'dws-btn-eraser'; }
     else if (isShapeType(annoMode)) { activeId = 'dws-btn-shape'; }
-    ['dws-btn-select', 'dws-btn-add-text', 'dws-btn-pen', 'dws-btn-shape'].forEach(function (id) {
+    ['dws-btn-select', 'dws-btn-add-text', 'dws-btn-pen', 'dws-btn-eraser', 'dws-btn-shape'].forEach(function (id) {
       var b = document.getElementById(id);
       if (b) { b.classList.toggle('dws-seg-active', id === activeId); }
     });
@@ -1391,7 +1410,10 @@
   function setAnnoMode(mode) {
     annoMode = mode;
     if (mode !== 'select') { deselect(); }
-    if (els.anno) { els.anno.classList.toggle('dws-drawing', mode !== 'select'); }
+    if (els.anno) {
+      els.anno.classList.toggle('dws-drawing', mode !== 'select');
+      els.anno.classList.toggle('dws-erasing', mode === 'eraser');
+    }
     if (konvaLayer) {
       konvaLayer.find('.anno').forEach(function (n) { n.draggable(canSave && mode === 'select'); });
     }
@@ -1404,18 +1426,33 @@
     updateDividerState();
   }
 
-  /* ---- 펜 팔레트(색·굵기) — 펜 모드일 때만 노출 --------------------------- */
+  /* ---- 펜 팔레트(색·굵기·형광펜 토글) — 펜 모드일 때만 노출 ---------------- */
+  function setPenMode(mode) { penMode = (mode === 'hi') ? 'hi' : 'pen'; syncPenPalette(); updateModeHint(annoMode); }
   function setPenColor(c) { penColor = colorOrDefault(c); syncPenPalette(); }
   function setPenWidth(w) { penWidth = penWidthOrDefault(w); syncPenPalette(); }
+  function setHiColor(c) { hiColor = colorOrDefault(c); syncPenPalette(); }
+  function setHiWidth(w) { hiWidth = penWidthOrDefault(w); syncPenPalette(); }
 
-  /** 팔레트 버튼 active 표시를 현재 penColor/penWidth 로 동기. */
+  /** 팔레트 버튼 active 표시를 현재 penMode/penColor·penWidth/hiColor·hiWidth 로 동기.
+      penMode 에 따라 일반 펜(.dws-pen-only) ↔ 형광펜(.dws-hi-only) 컨트롤을 CSS 로 전환한다. */
   function syncPenPalette() {
     if (!els.penPalette) { return; }
+    var hi = (penMode === 'hi');
+    els.penPalette.classList.toggle('dws-pen-hi', hi);
+    Array.prototype.forEach.call(els.penPalette.querySelectorAll('[data-pen-mode]'), function (b) {
+      b.classList.toggle('dws-active', b.getAttribute('data-pen-mode') === penMode);
+    });
     Array.prototype.forEach.call(els.penPalette.querySelectorAll('[data-pen-color]'), function (b) {
       b.classList.toggle('dws-active', b.getAttribute('data-pen-color').toLowerCase() === String(penColor).toLowerCase());
     });
     Array.prototype.forEach.call(els.penPalette.querySelectorAll('[data-pen-width]'), function (b) {
       b.classList.toggle('dws-active', (parseInt(b.getAttribute('data-pen-width'), 10) || 0) === penWidth);
+    });
+    Array.prototype.forEach.call(els.penPalette.querySelectorAll('[data-hi-color]'), function (b) {
+      b.classList.toggle('dws-active', b.getAttribute('data-hi-color').toLowerCase() === String(hiColor).toLowerCase());
+    });
+    Array.prototype.forEach.call(els.penPalette.querySelectorAll('[data-hi-width]'), function (b) {
+      b.classList.toggle('dws-active', (parseInt(b.getAttribute('data-hi-width'), 10) || 0) === hiWidth);
     });
   }
 
@@ -1424,7 +1461,12 @@
     if (!els.modeHint) { return; }
     var msg = '';
     if (mode === 'text') { msg = '텍스트: 넣을 위치를 클릭 · Esc 취소'; }
-    else if (mode === 'pen') { msg = '펜: 펜슬·마우스로 필기 · 손가락으로 이동/확대 · Esc 종료'; }
+    else if (mode === 'pen') {
+      msg = (penMode === 'hi')
+        ? '형광펜: 펜슬·마우스로 반투명 강조 · 손가락으로 이동/확대 · Esc 종료'
+        : '펜: 펜슬·마우스로 필기 · 손가락으로 이동/확대 · Esc 종료';
+    }
+    else if (mode === 'eraser') { msg = '지우개: 펜슬·마우스로 획 위를 문질러 삭제 · 손가락으로 이동/확대 · Esc 종료'; }
     else if (isShapeType(mode)) { msg = '도형: 드래그해서 그리기 · Esc 취소'; }
     if (msg) {
       els.modeHint.textContent = msg;
@@ -1436,8 +1478,8 @@
 
   function onStageMouseDown(e) {
     if (!canSave || !currentSheet()) { return; }
-    // 펜 모드 그리기는 pointer 핸들러(onStagePointerDown) 전담 — mousedown 은 no-op(러버밴드 이중발동 차단).
-    if (annoMode === 'pen') { return; }
+    // 펜/지우개는 pointer 핸들러(onStagePointerDown) 전담 — mousedown 은 no-op(러버밴드·선택 이중발동 차단).
+    if (annoMode === 'pen' || annoMode === 'eraser') { return; }
     /* 같은 물리 클릭의 stage 'mousedown' 이중발화 dedupe(플랫폼별 pointer/mouse
        이중 매핑 방어): 50ms·2px 내 중복 down은 같은 제스처로 보고 무시한다. */
     var devt = e.evt || {};
@@ -1667,22 +1709,35 @@
   function onStagePointerDown(e) {
     var devt = e.evt || {};
     lastPointerType = devt.pointerType || 'mouse';
+    var pt = devt.pointerType;
+    if (annoMode === 'eraser') {                    // 지우개: 펜슬·마우스로 획 위를 지나며 통째 삭제
+      if (!canSave || !currentSheet()) { return; }
+      if (pt && pt !== 'pen' && pt !== 'mouse') { return; }   // 손가락(touch) → 안 지움(네비/팜 리젝션)
+      if (isDrawingPen) { return; }                 // 이미 포인터 스트로크 진행 중(멀티포인터 방어)
+      startEraseStroke(devt);
+      return;
+    }
     if (annoMode !== 'pen') { return; }            // 펜 모드에서만 pointer 그리기 활성(select/도형은 mouse 경로)
     if (!canSave || !currentSheet()) { return; }
-    var pt = devt.pointerType;
     if (pt && pt !== 'pen' && pt !== 'mouse') { return; }   // 손가락(touch) → 안 그림
     if (isDrawingPen) { return; }                  // 이미 스트로크 진행 중(멀티포인터 방어)
     startPenStroke(devt);
   }
 
-  /** 시트에 pen 객체 1건 push(가변 points). 200개 캡 도달 시 skip(저장 400 예방). */
+  /** 시트에 pen 객체 1건 push(가변 points). 200개 캡 도달 시 skip(저장 400 예방).
+      penMode='hi'(형광펜)면 형광 색·굵기 + 반투명(opacity) 필드를 부여한다. */
   function commitPenObject(points) {
     var cs = currentSheet();
     if (!cs) { return null; }
     var pts = normalizePenPoints(points);
     if (pts.length < 4) { return null; }
     if ((cs.objects || []).length >= 200) { toast('한 시트의 객체가 200개를 넘어 더 그릴 수 없습니다.'); return null; }
-    var o = { id: rid('o-'), type: 'pen', points: pts, stroke: penColor, strokeWidth: penWidth, rotation: 0 };
+    var hi = (penMode === 'hi');
+    var o = {
+      id: rid('o-'), type: 'pen', points: pts,
+      stroke: hi ? hiColor : penColor, strokeWidth: hi ? hiWidth : penWidth, rotation: 0
+    };
+    if (hi) { o.opacity = HI_OPACITY; }
     cs.objects.push(o);
     return o;
   }
@@ -1696,10 +1751,12 @@
     var pointerId = devt.pointerId;
     var recorded = false;   // undo 는 실제 점 추가 시 1회만(단순 탭은 스택 오염 방지)
     var committed = false;
+    var hi = (penMode === 'hi');   // 형광펜: 반투명 굵은 획(라이브 프리뷰도 동일하게 반영)
     var draft = new Konva.Line({
-      points: pts.slice(), stroke: penColor, strokeWidth: penWidth,
+      points: pts.slice(), stroke: hi ? hiColor : penColor, strokeWidth: hi ? hiWidth : penWidth,
       tension: PEN_TENSION, lineCap: 'round', lineJoin: 'round', name: 'anno-draft', listening: false
     });
+    if (hi) { draft.opacity(HI_OPACITY); draft.globalCompositeOperation('multiply'); }
     konvaLayer.add(draft);
     transformer.moveToTop();
     isDrawingPen = true;
@@ -1742,6 +1799,66 @@
       if (committed) { markDirty(); rebuildAnno(); }   // 펜 모드 유지(선택 안 함=연속 필기), draggable=false 재적용
       else { konvaLayer.batchDraw(); }
     }
+    window.addEventListener('pointermove', move, true);
+    window.addEventListener('pointerup', up, true);
+    window.addEventListener('pointercancel', up, true);
+  }
+
+  /* ---- 지우개(획 삭제, GoodNotes식 스트로크 지우개) -----------------------
+     지우개 모드 + pointerType 'pen'|'mouse' 로 pointerdown~move 하며 포인터 아래에 걸리는
+     주석 객체(.anno 노드)를 통째로 삭제한다. 손가락(touch)은 지우지 않고 팬/핀치 네비 유지.
+     한 제스처(down~up) 당 recordUndo 1회로 묶고, 실제 삭제가 있으면 markDirty+rebuildAnno. */
+
+  /** getIntersection 결과(리치 텍스트는 Group 내부 조각) → objId 를 가진 .anno 조상 노드. */
+  function annoNodeFromHit(hit) {
+    var n = hit;
+    while (n && n !== konvaLayer) {
+      if (typeof n.name === 'function' && n.name() === 'anno' && n.getAttr('objId')) { return n; }
+      n = n.getParent();
+    }
+    return null;
+  }
+
+  /** 지우개 스트로크 — 포인터 아래 주석 노드를 즉시 제거(진행형)하고, 제스처 종료 시 state 정리. */
+  function startEraseStroke(devt) {
+    if (devt.preventDefault) { devt.preventDefault(); }
+    var pointerId = devt.pointerId;
+    var recorded = false;   // 첫 삭제 시 1회만 undo 스냅샷(빈 제스처는 스택 오염 방지)
+    var erased = false;
+    isDrawingPen = true;    // 팜 리젝션 재사용: 제스처 중 손가락 네비/핀치 억제
+
+    function eraseAt(nativeEvt) {
+      var hit = konvaStage.getIntersection(pointerLogical(nativeEvt));
+      if (!hit) { return; }
+      var node = annoNodeFromHit(hit);
+      if (!node) { return; }
+      var id = node.getAttr('objId');
+      if (!id) { return; }
+      if (!recorded) { recordUndo(); recorded = true; }   // 첫 삭제 직전 스냅샷(제스처당 1회 undo)
+      spliceObject(id);
+      node.destroy();
+      delete nodeById[id];
+      erased = true;
+      konvaLayer.batchDraw();   // 아래 겹친 획이 다음 판정에서 드러나도록 즉시 반영
+    }
+    function samePointer(nativeEvt) {
+      return pointerId == null || nativeEvt.pointerId == null || nativeEvt.pointerId === pointerId;
+    }
+    function move(nativeEvt) {
+      if (!samePointer(nativeEvt)) { return; }
+      if (nativeEvt.preventDefault) { nativeEvt.preventDefault(); }
+      eraseAt(nativeEvt);
+    }
+    function up(nativeEvt) {
+      if (nativeEvt.type !== 'pointercancel' && !samePointer(nativeEvt)) { return; }
+      window.removeEventListener('pointermove', move, true);
+      window.removeEventListener('pointerup', up, true);
+      window.removeEventListener('pointercancel', up, true);
+      isDrawingPen = false;
+      if (erased) { markDirty(); rebuildAnno(); }   // 지우개 모드 유지(연속 삭제), 선택 복원 없음
+      else { konvaLayer.batchDraw(); }
+    }
+    eraseAt(devt);   // pointerdown 지점 즉시 판정(탭으로도 삭제)
     window.addEventListener('pointermove', move, true);
     window.addEventListener('pointerup', up, true);
     window.addEventListener('pointercancel', up, true);
@@ -2842,10 +2959,13 @@
     if (o.type === 'pen') {
       var penPts = normalizePenPoints(o.points);
       if (penPts.length < 4) { return null; }   // 점 부족 획은 저장에서 제외(서버 400 예방)
-      return {
+      var pen = {
         id: o.id, type: 'pen', points: penPts,
         stroke: colorOrDefault(o.stroke), strokeWidth: penWidthOrDefault(o.strokeWidth), rotation: rot
       };
+      var penOp = penOpacityOrNull(o.opacity);   // 형광펜 반투명 보존(불투명이면 필드 생략)
+      if (penOp != null) { pen.opacity = penOp; }
+      return pen;
     }
     if (o.type === 'text') {
       var txt = {
@@ -2939,10 +3059,13 @@
       };
     }
     if (o.type === 'pen') {
-      return {
+      var pen = {
         id: o.id || rid('o-'), type: 'pen', points: normalizePenPoints(o.points),
         stroke: colorOrDefault(o.stroke), strokeWidth: penWidthOrDefault(o.strokeWidth), rotation: rot
       };
+      var penOp = penOpacityOrNull(o.opacity);   // 형광펜 반투명 로드 보존(누락=불투명)
+      if (penOp != null) { pen.opacity = penOp; }
+      return pen;
     }
     var text = {
       id: o.id || rid('o-'), type: 'text',
@@ -3621,17 +3744,30 @@
       b.addEventListener('click', function () { closeMenus(); setAnnoMode(b.getAttribute('data-shape')); });
     });
 
-    // 펜(프리핸드) 도구 + 팔레트(색·굵기) — 토글 진입, 팔레트는 펜 모드일 때만 노출.
+    // 펜(프리핸드) 도구 + 팔레트(펜/형광펜 토글·색·굵기) — 토글 진입, 팔레트는 펜 모드일 때만 노출.
     var penBtn = document.getElementById('dws-btn-pen');
     if (penBtn) { penBtn.addEventListener('click', function () { closeMenus(); setAnnoMode(annoMode === 'pen' ? 'select' : 'pen'); }); }
     if (els.penPalette) {
+      Array.prototype.forEach.call(els.penPalette.querySelectorAll('[data-pen-mode]'), function (b) {
+        b.addEventListener('click', function () { setPenMode(b.getAttribute('data-pen-mode')); });
+      });
       Array.prototype.forEach.call(els.penPalette.querySelectorAll('[data-pen-color]'), function (b) {
         b.addEventListener('click', function () { setPenColor(b.getAttribute('data-pen-color')); });
       });
       Array.prototype.forEach.call(els.penPalette.querySelectorAll('[data-pen-width]'), function (b) {
         b.addEventListener('click', function () { setPenWidth(parseInt(b.getAttribute('data-pen-width'), 10)); });
       });
+      Array.prototype.forEach.call(els.penPalette.querySelectorAll('[data-hi-color]'), function (b) {
+        b.addEventListener('click', function () { setHiColor(b.getAttribute('data-hi-color')); });
+      });
+      Array.prototype.forEach.call(els.penPalette.querySelectorAll('[data-hi-width]'), function (b) {
+        b.addEventListener('click', function () { setHiWidth(parseInt(b.getAttribute('data-hi-width'), 10)); });
+      });
     }
+
+    // 지우개 도구 — 토글 진입(획/주석 통째 삭제). 팔레트·미니툴바 없음(세그 active 로 표시).
+    var eraserBtn = document.getElementById('dws-btn-eraser');
+    if (eraserBtn) { eraserBtn.addEventListener('click', function () { closeMenus(); setAnnoMode(annoMode === 'eraser' ? 'select' : 'eraser'); }); }
 
     // 이미지 파일 선택
     els.fileInput.addEventListener('change', function () {

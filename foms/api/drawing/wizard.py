@@ -344,7 +344,8 @@ def _validate_pen_object(obj: dict) -> str | None:
     선 색(``#rrggbb``) + 양수 ``strokeWidth``(1~20).
 
     arrow/line 과 달리 점 개수가 가변(스트로크)이라 별도 상한을 둔다. x/y/w 는 요구하지
-    않으며(points 기반), 존재하면 숫자인지만 확인한다.
+    않으며(points 기반), 존재하면 숫자인지만 확인한다. optional ``opacity``(형광펜 반투명)는
+    있으면 0<x≤1 숫자여야 하며, 없으면 통과(하위호환 불투명 펜=1).
     """
     points = obj.get('points')
     if not isinstance(points, list):
@@ -363,6 +364,10 @@ def _validate_pen_object(obj: dict) -> str | None:
     stroke_width = obj.get('strokeWidth')
     if isinstance(stroke_width, bool) or not _is_number_in_range(stroke_width, _PEN_MIN_WIDTH, _PEN_MAX_WIDTH):
         return '펜 선 굵기 값이 올바르지 않습니다.'
+    if 'opacity' in obj:
+        opacity = obj.get('opacity')
+        if not _is_number(opacity) or not (0 < opacity <= 1):
+            return '펜 불투명도 값이 올바르지 않습니다.'
     for opt_key in ('x', 'y', 'w'):
         if opt_key in obj and not _is_number(obj.get(opt_key)):
             return '펜 좌표 값이 올바르지 않습니다.'

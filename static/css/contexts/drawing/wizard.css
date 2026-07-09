@@ -1156,6 +1156,9 @@ html, body {
 /* 그리기 모드 커서 */
 .dws-anno.dws-drawing { cursor: crosshair; }
 .dws-anno.dws-drawing canvas { cursor: crosshair; }
+/* 지우개 모드: 굵은 셀 포인터로 "문질러 지움" 표현(crosshair 대신 cell) */
+.dws-anno.dws-erasing,
+.dws-anno.dws-erasing canvas { cursor: cell; }
 
 /* Konva 텍스트 인라인 편집 오버레이 — contenteditable div (위치/폰트/색은 JS 인라인 지정).
    리치 편집: 글자 단위 span 색/굵기 유지. wrap 미지원(명시 개행만) → white-space: pre. */
@@ -1315,6 +1318,35 @@ html, body {
 .dws-pen-dot-s { width: 4px; height: 4px; }
 .dws-pen-dot-m { width: 8px; height: 8px; }
 .dws-pen-dot-l { width: 13px; height: 13px; }
+.dws-pen-dot-xl { width: 17px; height: 17px; }
+
+/* 펜/형광펜 서브모드 토글(팔레트 좌측) */
+.dws-pen-mode {
+  height: 30px;
+  padding: 0 11px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  background: transparent;
+  color: #f5f5f7;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+}
+.dws-pen-mode.dws-active { background: #0071e3; border-color: #0071e3; color: #ffffff; }
+
+/* 형광펜 색 스와치 */
+.dws-pen-hl-yellow { background: #ffd400; }
+.dws-pen-hl-green  { background: #a3e635; }
+.dws-pen-hl-pink   { background: #f9a8d4; }
+
+/* penMode 에 따른 일반/형광 컨트롤 전환(JS 가 .dws-pen-hi 토글) */
+.dws-pen-palette .dws-hi-only { display: none; }
+.dws-pen-palette.dws-pen-hi .dws-pen-only { display: none; }
+.dws-pen-palette.dws-pen-hi .dws-hi-only { display: inline-flex; }
 
 .dws-minitoolbar {
   position: fixed;

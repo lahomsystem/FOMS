@@ -596,6 +596,89 @@ def test_put_rejects_pen_invalid_stroke_width(client):
 
 
 # ---------------------------------------------------------------------------
+# 형광펜(pen + opacity) — 반투명 강조 획 저장/검증(하위호환 불투명 펜 포함)
+# ---------------------------------------------------------------------------
+
+
+def test_put_then_get_round_trips_highlighter_pen_opacity(client):
+    """형광펜(pen + opacity 0.35)이 정상 저장 왕복(opacity/strokeWidth 보존)."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    obj = {
+        "id": "o-hi",
+        "type": "pen",
+        "points": [10, 20, 30, 40, 60, 80],
+        "stroke": "#ffd400",
+        "strokeWidth": 16,
+        "opacity": 0.35,
+        "rotation": 0,
+    }
+
+    put_resp = _put_state(client, order_id, [obj])
+    assert put_resp.status_code == 200, put_resp.get_json()
+
+    state = client.get(f"/api/orders/{order_id}/drawing-wizard").get_json()["data"]["state"]
+    saved = state["sheets"][0]["objects"][0]
+    assert saved["type"] == "pen"
+    assert saved["opacity"] == 0.35
+    assert saved["strokeWidth"] == 16
+
+
+def test_put_accepts_pen_without_opacity_backward_compat(client):
+    """opacity 없는 일반 펜은 그대로 통과(하위호환, opacity 필드 미부여)."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    obj = {"id": "o-pen", "type": "pen", "points": [10, 20, 30, 40], "stroke": "#000000", "strokeWidth": 4}
+
+    put_resp = _put_state(client, order_id, [obj])
+    assert put_resp.status_code == 200, put_resp.get_json()
+
+    state = client.get(f"/api/orders/{order_id}/drawing-wizard").get_json()["data"]["state"]
+    saved = state["sheets"][0]["objects"][0]
+    assert "opacity" not in saved
+
+
+def test_put_rejects_pen_out_of_range_opacity(client):
+    """pen opacity 가 허용 범위(0<x≤1)를 벗어나면(1.5) 400."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    obj = {
+        "id": "o-hi",
+        "type": "pen",
+        "points": [10, 20, 30, 40],
+        "stroke": "#ffd400",
+        "strokeWidth": 16,
+        "opacity": 1.5,
+    }
+
+    resp = _put_state(client, order_id, [obj])
+
+    assert resp.status_code == 400
+
+
+def test_put_rejects_pen_zero_opacity(client):
+    """pen opacity 0(완전 투명)은 허용하지 않는다 → 400."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    obj = {
+        "id": "o-hi",
+        "type": "pen",
+        "points": [10, 20, 30, 40],
+        "stroke": "#ffd400",
+        "strokeWidth": 16,
+        "opacity": 0,
+    }
+
+    resp = _put_state(client, order_id, [obj])
+
+    assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
 # 표 레이아웃(열/행 폭 조절) + 표 글자 크기 승격 값(form.layout / form.cell_font)
 # ---------------------------------------------------------------------------
 
