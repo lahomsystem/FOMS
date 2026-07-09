@@ -504,6 +504,181 @@ def test_put_rejects_non_numeric_rotation(client):
 
 
 # ---------------------------------------------------------------------------
+# 프리핸드 펜 획(pen) — 가변 points 스트로크 저장/검증
+# ---------------------------------------------------------------------------
+
+
+def test_put_then_get_round_trips_pen_object(client):
+    """pen 획(가변 points + tension 굵기)이 정상 저장 왕복(points/stroke/strokeWidth 보존)."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    obj = {
+        "id": "o-pen",
+        "type": "pen",
+        "points": [100, 100, 120, 140, 160, 130, 200, 180],
+        "stroke": "#e11d1d",
+        "strokeWidth": 7,
+        "rotation": 0,
+    }
+
+    put_resp = _put_state(client, order_id, [obj])
+    assert put_resp.status_code == 200, put_resp.get_json()
+
+    state = client.get(f"/api/orders/{order_id}/drawing-wizard").get_json()["data"]["state"]
+    saved = state["sheets"][0]["objects"][0]
+    assert saved["type"] == "pen"
+    assert saved["points"] == [100, 100, 120, 140, 160, 130, 200, 180]
+    assert saved["stroke"] == "#e11d1d"
+    assert saved["strokeWidth"] == 7
+
+
+def test_put_rejects_pen_with_too_many_points(client):
+    """pen points 가 상한(400 coords)을 초과하면 400."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    # 402 coords(=201점) → 상한 초과
+    points = [10 + (i % 50) for i in range(402)]
+    obj = {"id": "o-pen", "type": "pen", "points": points, "stroke": "#000000", "strokeWidth": 4}
+
+    resp = _put_state(client, order_id, [obj])
+
+    assert resp.status_code == 400
+
+
+def test_put_rejects_pen_with_odd_points(client):
+    """pen points 개수가 홀수(불완전 좌표쌍)면 400."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    obj = {"id": "o-pen", "type": "pen", "points": [10, 20, 30], "stroke": "#000000", "strokeWidth": 4}
+
+    resp = _put_state(client, order_id, [obj])
+
+    assert resp.status_code == 400
+
+
+def test_put_rejects_pen_out_of_range_point(client):
+    """pen 좌표가 허용 범위(-2000~4000)를 벗어나면 400."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    obj = {
+        "id": "o-pen",
+        "type": "pen",
+        "points": [10, 20, 99999, 40],
+        "stroke": "#000000",
+        "strokeWidth": 4,
+    }
+
+    resp = _put_state(client, order_id, [obj])
+
+    assert resp.status_code == 400
+
+
+def test_put_rejects_pen_invalid_stroke_width(client):
+    """pen strokeWidth 가 양수 범위(1~20)를 벗어나면 400."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    obj = {
+        "id": "o-pen",
+        "type": "pen",
+        "points": [10, 20, 30, 40],
+        "stroke": "#000000",
+        "strokeWidth": 99,
+    }
+
+    resp = _put_state(client, order_id, [obj])
+
+    assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# 형광펜(pen + opacity) — 반투명 강조 획 저장/검증(하위호환 불투명 펜 포함)
+# ---------------------------------------------------------------------------
+
+
+def test_put_then_get_round_trips_highlighter_pen_opacity(client):
+    """형광펜(pen + opacity 0.35)이 정상 저장 왕복(opacity/strokeWidth 보존)."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    obj = {
+        "id": "o-hi",
+        "type": "pen",
+        "points": [10, 20, 30, 40, 60, 80],
+        "stroke": "#ffd400",
+        "strokeWidth": 16,
+        "opacity": 0.35,
+        "rotation": 0,
+    }
+
+    put_resp = _put_state(client, order_id, [obj])
+    assert put_resp.status_code == 200, put_resp.get_json()
+
+    state = client.get(f"/api/orders/{order_id}/drawing-wizard").get_json()["data"]["state"]
+    saved = state["sheets"][0]["objects"][0]
+    assert saved["type"] == "pen"
+    assert saved["opacity"] == 0.35
+    assert saved["strokeWidth"] == 16
+
+
+def test_put_accepts_pen_without_opacity_backward_compat(client):
+    """opacity 없는 일반 펜은 그대로 통과(하위호환, opacity 필드 미부여)."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    obj = {"id": "o-pen", "type": "pen", "points": [10, 20, 30, 40], "stroke": "#000000", "strokeWidth": 4}
+
+    put_resp = _put_state(client, order_id, [obj])
+    assert put_resp.status_code == 200, put_resp.get_json()
+
+    state = client.get(f"/api/orders/{order_id}/drawing-wizard").get_json()["data"]["state"]
+    saved = state["sheets"][0]["objects"][0]
+    assert "opacity" not in saved
+
+
+def test_put_rejects_pen_out_of_range_opacity(client):
+    """pen opacity 가 허용 범위(0<x≤1)를 벗어나면(1.5) 400."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    obj = {
+        "id": "o-hi",
+        "type": "pen",
+        "points": [10, 20, 30, 40],
+        "stroke": "#ffd400",
+        "strokeWidth": 16,
+        "opacity": 1.5,
+    }
+
+    resp = _put_state(client, order_id, [obj])
+
+    assert resp.status_code == 400
+
+
+def test_put_rejects_pen_zero_opacity(client):
+    """pen opacity 0(완전 투명)은 허용하지 않는다 → 400."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    obj = {
+        "id": "o-hi",
+        "type": "pen",
+        "points": [10, 20, 30, 40],
+        "stroke": "#ffd400",
+        "strokeWidth": 16,
+        "opacity": 0,
+    }
+
+    resp = _put_state(client, order_id, [obj])
+
+    assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
 # 표 레이아웃(열/행 폭 조절) + 표 글자 크기 승격 값(form.layout / form.cell_font)
 # ---------------------------------------------------------------------------
 
@@ -727,6 +902,59 @@ def test_put_accepts_text_without_runs_backward_compat(client):
     saved = state["sheets"][0]["objects"][0]
     assert "runs" not in saved
     assert saved["color"] == "#1c62d6"
+
+
+# ---------------------------------------------------------------------------
+# 텍스트 자동 폭(autoWidth) — auto(hug) / fixed(word-wrap) 모드 플래그
+# ---------------------------------------------------------------------------
+
+
+def test_put_then_get_round_trips_text_auto_width_flags(client):
+    """autoWidth=True(auto hug)·False(fixed 폭)가 각각 정상 저장 왕복(값 보존)."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    auto_obj = _text_obj("자동폭", autoWidth=True)
+    auto_obj["id"] = "o-auto"
+    fixed_obj = _text_obj("고정폭 텍스트", autoWidth=False, w=180)
+    fixed_obj["id"] = "o-fixed"
+
+    put_resp = _put_state(client, order_id, [auto_obj, fixed_obj])
+    assert put_resp.status_code == 200, put_resp.get_json()
+
+    state = client.get(f"/api/orders/{order_id}/drawing-wizard").get_json()["data"]["state"]
+    saved = state["sheets"][0]["objects"]
+    by_id = {o["id"]: o for o in saved}
+    assert by_id["o-auto"]["autoWidth"] is True
+    assert by_id["o-fixed"]["autoWidth"] is False
+    assert by_id["o-fixed"]["w"] == 180
+
+
+def test_put_accepts_text_without_auto_width_backward_compat(client):
+    """autoWidth 없는 기존 텍스트는 그대로 통과(하위호환, 기본 auto)."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    obj = _text_obj("자동폭 미지정")
+
+    put_resp = _put_state(client, order_id, [obj])
+    assert put_resp.status_code == 200, put_resp.get_json()
+
+    state = client.get(f"/api/orders/{order_id}/drawing-wizard").get_json()["data"]["state"]
+    saved = state["sheets"][0]["objects"][0]
+    assert "autoWidth" not in saved
+
+
+def test_put_rejects_non_bool_auto_width(client):
+    """autoWidth 가 불리언이 아니면 400."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    obj = _text_obj("x", autoWidth="yes")
+
+    resp = _put_state(client, order_id, [obj])
+
+    assert resp.status_code == 400
 
 
 # ---------------------------------------------------------------------------
@@ -1695,3 +1923,147 @@ def test_transfer_drawing_without_pending_unchanged(client):
     # 수동 파일만 반영, pending 은 그대로 유지(스냅샷·제거 없음).
     assert keys == {f"orders/{order_id}/drawing_gateway/revisions/a.png"}
     assert set((sd.get("drawing_wizard") or {}).get("pending") or {}) == {"s-1"}
+
+
+# ---------------------------------------------------------------------------
+# 전달 대기(pending) 저장 도면 삭제 (DELETE .../drawing-wizard/pending/<sheet_id>)
+# ---------------------------------------------------------------------------
+
+
+class _DeletingStorage:
+    """delete_file 호출 key 를 기록하는 테스트용 스토리지(삭제 추적)."""
+
+    def __init__(self):
+        self.deleted = []
+
+    def delete_file(self, key):
+        self.deleted.append(key)
+        return True
+
+
+def _seed_pending_for_delete(order, *, sheet_id="s-1", key=None, objects=None, attachment_id=None):
+    """order.structured_data.drawing_wizard 에 pending 1건 + 대응 시트를 심는다(삭제 테스트용).
+
+    반환값은 pending 항목의 R2 key(삭제 어서션에서 재사용).
+    """
+    order_id = order.id
+    if key is None:
+        key = f"orders/{order_id}/drawing_wizard/exports/a.png"
+    sheet = {
+        "id": sheet_id,
+        "name": "도면 1",
+        "form": {},
+        "objects": objects if objects is not None else [],
+    }
+    if attachment_id is not None:
+        sheet["attachment_id"] = attachment_id
+    sd = copy.deepcopy(order.structured_data or {})
+    sd["drawing_wizard"] = {
+        "v": 1,
+        "sheets": [sheet],
+        "pending": {
+            sheet_id: {
+                "key": key,
+                "filename": "a.png",
+                "at": "2026-07-09 10:00",
+                "sheet_name": "도면 1",
+            }
+        },
+    }
+    order.structured_data = sd
+    flag_modified(order, "structured_data")
+    db_session.commit()
+    return key
+
+
+def test_delete_pending_removes_entry_and_r2_key_but_keeps_objects(client, monkeypatch):
+    """pending 삭제 = 항목 제거 + R2 export 파일 삭제, 단 시트 objects(편집 캔버스)는 보존."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    objects = [
+        {
+            "id": "o-1",
+            "type": "text",
+            "x": 100,
+            "y": 100,
+            "w": 200,
+            "text": "보존",
+            "size": 20,
+            "color": "#000000",
+            "bold": False,
+            "align": "left",
+        }
+    ]
+    key = _seed_pending_for_delete(order, sheet_id="s-1", objects=objects)
+
+    storage = _DeletingStorage()
+    monkeypatch.setattr("foms.api.drawing.wizard.get_storage", lambda: storage)
+
+    resp = client.delete(f"/api/orders/{order_id}/drawing-wizard/pending/s-1")
+    assert resp.status_code == 200, resp.get_json()
+    data = resp.get_json()["data"]
+    assert data["sheet_id"] == "s-1"
+    assert data["deleted_key"] == key
+    assert key in storage.deleted
+
+    db_session.expire_all()
+    sd = db_session.query(Order).filter_by(id=order_id).first().structured_data
+    dw = sd.get("drawing_wizard") or {}
+    assert "s-1" not in (dw.get("pending") or {})
+    # 편집 시트 objects 는 그대로 보존(저장 도면만 취소).
+    assert dw["sheets"][0]["objects"] == objects
+
+
+def test_delete_pending_also_deletes_linked_attachment(client, monkeypatch):
+    """시트에 연결된 도면 탭 첨부(attachment_id)가 있으면 그 OrderAttachment 행·R2 파일도
+    삭제되고 시트에서 attachment_id 가 제거된다."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    att = _measure_attachment(
+        order_id, "att.png", f"orders/{order_id}/drawing/att.png", category="drawing",
+    )
+    att_id = att.id
+    att_key = att.storage_key
+    _seed_pending_for_delete(order, sheet_id="s-1", attachment_id=att_id)
+
+    storage = _DeletingStorage()
+    monkeypatch.setattr("foms.api.drawing.wizard.get_storage", lambda: storage)
+
+    resp = client.delete(f"/api/orders/{order_id}/drawing-wizard/pending/s-1")
+    assert resp.status_code == 200, resp.get_json()
+
+    db_session.expire_all()
+    # OrderAttachment 행 삭제됨.
+    assert db_session.query(OrderAttachment).filter_by(id=att_id).first() is None
+    # att 의 R2 key 삭제 호출됨.
+    assert att_key in storage.deleted
+    # 시트에서 attachment_id 제거됨.
+    sd = db_session.query(Order).filter_by(id=order_id).first().structured_data
+    sheet = (sd.get("drawing_wizard") or {})["sheets"][0]
+    assert "attachment_id" not in sheet
+
+
+def test_delete_pending_missing_returns_404(client):
+    """pending 이 비어있는 주문에서 존재하지 않는 sheet_id 삭제 → 404."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+
+    resp = client.delete(f"/api/orders/{order_id}/drawing-wizard/pending/nope")
+
+    assert resp.status_code == 404
+    assert resp.get_json()["message"] == "삭제할 저장 도면이 없습니다."
+
+
+def test_delete_pending_rejects_non_participant(client):
+    """비참여자는 403(pending 유무 이전에 권한 게이트)."""
+    order = _erp_order()
+    order_id = order.id
+    _seed_pending_for_delete(order, sheet_id="s-1")
+    _login_non_participant(client)
+
+    resp = client.delete(f"/api/orders/{order_id}/drawing-wizard/pending/s-1")
+
+    assert resp.status_code == 403

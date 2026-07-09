@@ -40,6 +40,17 @@
   var ALLOWED_SIZES = [14, 17, 20, 24, 28];
   var ALLOWED_STROKES = [1, 2, 3];
   var SHAPE_TYPES = ['rect', 'ellipse', 'arrow', 'line'];
+  /* 프리핸드 펜(손그림) — 팔레트 굵기 후보 + 허용 범위, 스트로크 좌표 상한(백엔드 _PEN_MAX_POINTS 정합). */
+  var PEN_WIDTHS = [2, 4, 7];
+  var PEN_WIDTH_DEFAULT = 4, PEN_MIN_WIDTH = 1, PEN_MAX_WIDTH = 20;
+  var PEN_MAX_COORDS = 400;            // 스트로크 좌표(x,y 쌍) 상한 = 200점(64KB·200객체 보호)
+  var PEN_MIN_STEP_SQ = 4;             // 점 단순화: 직전 점과 논리거리² < 4(=2px) 이면 skip
+  var PEN_TENSION = 0.4;               // Konva.Line 곡선 장력(손그림 부드럽게)
+  /* 형광펜(highlighter) — 펜 인프라 확장: 반투명(opacity) + 굵은 폭 + 형광 색. 굵기는 백엔드
+     펜 상한(1~20) 이내로 유지한다(초과분은 penWidthOrDefault 가 클램프). */
+  var HI_WIDTH_DEFAULT = 16;           // 형광펜 기본 굵기(px) — 펜 상한 20 이내
+  var HI_COLOR_DEFAULT = '#ffd400';    // 형광펜 기본 색(노랑)
+  var HI_OPACITY = 0.35;               // 형광펜 반투명도(0<x≤1)
   var CHECK_KEYS = ['d_site', 'd_double', 'd_order', 'p_prod', 'p_glass', 'p_light', 'p_handle', 'p_etc'];
   var PRESETS = { SR: '[SR]', EP: '[EP]', DOOR: '[DOOR]', ROD: '[옷봉]' };
   var ANNO_FONT = '"Malgun Gothic","맑은 고딕","Dotum","돋움",sans-serif';
@@ -119,6 +130,36 @@
   }
   function isShapeType(t) { return SHAPE_TYPES.indexOf(t) >= 0; }
   function isFiniteNum(v) { return typeof v === 'number' && isFinite(v); }
+  /* select 모드 미니툴바·이동에서 pen 을 line 처럼 다루기 위한 판별(그리기 세그/힌트에는 미포함). */
+  function isStrokeType(t) { return isShapeType(t) || t === 'pen'; }
+
+  /** 펜 굵기 정규화: 1~20 정수(이상치는 기본 4). 팔레트 2/4/7·도형 편집 1~3 모두 포용. */
+  function penWidthOrDefault(w) { return clamp(Math.round(num(w, PEN_WIDTH_DEFAULT)), PEN_MIN_WIDTH, PEN_MAX_WIDTH); }
+
+  /** 펜 불투명도 정규화: 반투명(0<x<1)이면 소수 3자리로 보존, 아니면 null(불투명=필드 생략).
+      형광펜은 HI_OPACITY(0.35)로 저장되고 일반 펜은 필드 없음(=1, 하위호환). */
+  function penOpacityOrNull(v) {
+    if (typeof v === 'number' && isFinite(v) && v > 0 && v < 1) { return Math.round(v * 1000) / 1000; }
+    return null;
+  }
+
+  /** 펜 획 좌표 정규화: 짝수 길이(불완전 trailing 제거) + 각 좌표 반올림·클램프 + 상한 절단. */
+  function normalizePenPoints(pts) {
+    var src = Array.isArray(pts) ? pts : [];
+    var n = src.length - (src.length % 2);
+    if (n > PEN_MAX_COORDS) { n = PEN_MAX_COORDS; }
+    var out = [];
+    for (var i = 0; i < n; i++) { out.push(clamp(Math.round(num(src[i])), -2000, 4000)); }
+    return out;
+  }
+
+  /** points(x,y 쌍 나열)를 dx/dy 만큼 평행이동한 새 배열(가변 길이 — pen/arrow/line 공용). */
+  function shiftPoints(points, dx, dy) {
+    var out = [];
+    var src = Array.isArray(points) ? points : [];
+    for (var i = 0; i + 1 < src.length; i += 2) { out.push(src[i] + dx, src[i + 1] + dy); }
+    return out;
+  }
 
   /** 경계 배열 검증: 길이 정확 + 각 항목 숫자 + 최소간격 오름차순 + 외곽 여유. */
   function validBounds(arr, len, lo, hi, gap) {
@@ -167,7 +208,8 @@
   var products = [];                   // 주문 제품 리스트 [{index,name,spec,price}] (좌측 패널 소스)
   var measurePhotos = [];              // 실측 사진 [{key,filename,item_index,thumb_url}] (사이드 참조 소스)
   var customerName = '';
-  var selected = null;                 // 선택된 주석 객체 id (Konva 노드와 동기)
+  var selected = null;                 // 주 선택(primary) 주석 객체 id — 단일 선택 경로 호환용(selectedIds 의 마지막)
+  var selectedIds = [];                // 다중 선택 id 배열(SSOT). 단일=길이1, 없음=길이0, 그룹=길이≥2
   var zoom = 1;
   var imageRatioLock = true;
   var undoStack = [];
@@ -186,9 +228,16 @@
   var konvaLayer = null;
   var transformer = null;
   var nodeById = {};                   // objId → Konva 노드
-  var annoMode = 'select';             // 'select'|'text'|'rect'|'ellipse'|'arrow'|'line'
+  var annoMode = 'select';             // 'select'|'text'|'rect'|'ellipse'|'arrow'|'line'|'pen'|'eraser'
   var lastStrokeColor = '#000000';     // 다음 도형 기본 선 색
   var lastStrokeWidth = 2;             // 다음 도형 기본 선 굵기
+  var penColor = '#e11d1d';            // 펜 색(종이 마크업 관례상 빨강 기본)
+  var penWidth = PEN_WIDTH_DEFAULT;    // 펜 굵기(px)
+  var penMode = 'pen';                 // 펜 팔레트 서브모드 'pen'|'hi'(형광펜) — 색/굵기/반투명 분기
+  var hiColor = HI_COLOR_DEFAULT;      // 형광펜 색
+  var hiWidth = HI_WIDTH_DEFAULT;      // 형광펜 굵기(px)
+  var isDrawingPen = false;            // 프리핸드/지우개 포인터 스트로크 진행 중(터치 팬/핀치 억제 = 팜 리젝션)
+  var lastPointerType = 'mouse';       // 최근 스테이지 pointerdown 입력 종류(pen/mouse/touch) — 손가락 드래그 차단용
   var editingTextarea = null;          // 활성 텍스트 오버레이(있으면 편집 중; contenteditable div)
   var editCtx = null;                  // 리치 편집 컨텍스트 {id, area, isNew, size, align}
   var commitActiveEdit = null;         // 활성 편집 즉시 커밋 훅(stage down/save/export 공용)
@@ -266,6 +315,8 @@
     els.products = document.getElementById('dws-products');
     els.productList = document.getElementById('dws-product-list');
     els.productToggle = document.getElementById('dws-products-toggle');
+    els.panelBtn = document.getElementById('dws-btn-panel');
+    els.productsBackdrop = document.getElementById('dws-products-backdrop');
     els.photos = document.getElementById('dws-photos');
     els.photosTitle = document.getElementById('dws-photos-title');
     els.photosToggle = document.getElementById('dws-photos-toggle');
@@ -274,6 +325,7 @@
     els.pendingTitle = document.getElementById('dws-pending-title');
     els.pendingToggle = document.getElementById('dws-pending-toggle');
     els.pendingGrid = document.getElementById('dws-pending-grid');
+    els.delSavedBtn = document.getElementById('dws-btn-delete-saved');
     els.lightbox = document.getElementById('dws-lightbox');
     els.lightboxImg = document.getElementById('dws-lightbox-img');
     els.lightboxClose = document.getElementById('dws-lightbox-close');
@@ -312,10 +364,12 @@
     els.toastHost = document.getElementById('dws-toast-host');
     els.mobileNotice = document.getElementById('dws-mobile-notice');
     els.modeHint = document.getElementById('dws-mode-hint');
+    els.penPalette = document.getElementById('dws-pen-palette');
     els.fontDecBtn = document.getElementById('dws-btn-font-dec');
     els.fontIncBtn = document.getElementById('dws-btn-font-inc');
     els.tableResetBtn = document.getElementById('dws-btn-table-reset');
     els.dividers = document.getElementById('dws-dividers');
+    els.alignToolbar = document.getElementById('dws-aligntoolbar');
   }
 
   function formCells() { return Array.prototype.slice.call(els.form.querySelectorAll('[data-dws-form-key]')); }
@@ -673,7 +727,36 @@
     konvaLayer.add(transformer);
 
     konvaStage.on('mousedown', onStageMouseDown);
+    konvaStage.on('pointerdown', onStagePointerDown);   // 펜슬/마우스 프리핸드 + 입력종류 추적(팜 리젝션)
     konvaStage.on('dblclick', onStageDblClick);
+    wireTransformerGroup();
+  }
+
+  /** 다중 선택(그룹) 이동/변형 배선 — 단일 선택은 노드별 핸들러(wireNode) 소관.
+     shouldOverdrawWholeArea(true) 로 그룹 bbox 영역 드래그=전체 함께 이동, 코너 앵커=그룹 리사이즈/회전.
+     각 핸들러는 isMultiSelect() 게이트로 단일 선택 경로(노드 핸들러)와 이중 처리를 회피한다. */
+  function wireTransformerGroup() {
+    transformer.on('dragstart', function () {
+      if (!isMultiSelect()) { return; }
+      if (lastPointerType === 'touch') { transformer.stopDrag(); return; }   // 손가락 그룹 드래그 금지(팜 리젝션)
+      dragActive = true; recordUndo();
+    });
+    transformer.on('dragmove', function () { if (!isMultiSelect()) { return; } positionAlignToolbar(); });
+    transformer.on('dragend', function () {
+      if (!isMultiSelect()) { return; }
+      dragActive = false;
+      selectedNodes().forEach(commitNode);   // commitNode 내부 markDirty
+      transformer.forceUpdate();             // arrow/line commit 이 노드 내부(points/position) 재설정 → 박스 재계산
+      positionAlignToolbar();
+    });
+    transformer.on('transformstart', function () { if (!isMultiSelect()) { return; } dragActive = true; recordUndo(); });
+    transformer.on('transform', function () { if (!isMultiSelect()) { return; } positionAlignToolbar(); });
+    transformer.on('transformend', function () {
+      if (!isMultiSelect()) { return; }
+      dragActive = false;
+      selectedNodes().forEach(commitNode);   // commitNode 가 residual scale 를 치수로 baking
+      rebuildAnno();   // state 기준 재구성(런텍스트 스냅 정리) + 다중 선택 복원
+    });
   }
 
   /** 네이티브 이벤트 → 스테이지 논리 좌표(줌 역보정). */
@@ -747,6 +830,7 @@
       case 'ellipse': return buildEllipse(o);
       case 'arrow': return buildArrow(o);
       case 'line': return buildLine(o);
+      case 'pen': return buildPen(o);
       default: return null;
     }
   }
@@ -758,15 +842,30 @@
     return node;
   }
 
+  // 텍스트 폭 모드: auto(기본, autoWidth 미지정 또는 true) = 내용에 맞춰 hug(자연폭, 자동
+  // 줄바꿈 없음·명시 '\n'만 개행). fixed(autoWidth===false) = 지정 폭 word-wrap(높이 자동).
   function buildText(o) {
     if (o.runs && o.runs.length) { return buildRichText(o); }
-    var node = new Konva.Text({
-      x: num(o.x), y: num(o.y), width: num(o.w, 220), text: String(o.text || ''),
+    var fixed = (o.autoWidth === false);
+    var cfg = {
+      x: num(o.x), y: num(o.y), text: String(o.text || ''),
       fontSize: sizeOrDefault(o.size), fill: colorOrDefault(o.color), fontFamily: ANNO_FONT,
       fontStyle: o.bold ? 'bold' : 'normal', align: (o.align === 'center') ? 'center' : 'left',
-      lineHeight: 1.25, rotation: num(o.rotation), wrap: 'word', name: 'anno', draggable: canSave
-    });
+      lineHeight: 1.25, rotation: num(o.rotation), name: 'anno', draggable: canSave
+    };
+    if (fixed) {
+      cfg.width = num(o.w, 220); cfg.wrap = 'word';   // 지정 폭에서 word-wrap
+    } else {
+      cfg.wrap = 'none';                              // auto: width 미지정=자연폭 hug
+    }
+    var node = new Konva.Text(cfg);
     tagNode(node, o);
+    if (!fixed) {
+      // auto: 렌더 자연폭을 o.w 에 동기(bbox/직렬화용). 값이 같으면 재대입 skip → 불필요한
+      // dirty·재렌더 루프 방지(rebuild 마다 measureText 는 결정적이라 값 안정적).
+      var natural = Math.max(1, Math.round(node.width()));
+      if (o.w !== natural) { o.w = natural; }
+    }
     node.on('dblclick', function (e) { e.cancelBubble = true; if (canSave) { startEditText(node, false); } });
     return node;
   }
@@ -804,6 +903,10 @@
     return group;
   }
 
+  // 디코드된 이미지 캐시(key→HTMLImageElement). rebuildAnno 는 펜/도형 커밋마다 전 노드를
+  // 재생성하는데, 캐시 없이 매번 new Image()+async 로드하면 로드 전까지 노드가 빈 프레임이라
+  // 획마다 이미지가 깜빡인다. 로드 완료분은 캐시에서 동기 재사용해 깜빡임을 제거한다.
+  var _annoImgCache = {};
   function buildImage(o) {
     var node = new Konva.Image({
       x: num(o.x), y: num(o.y), width: num(o.w, 200), height: num(o.h, 150),
@@ -811,10 +914,16 @@
     });
     tagNode(node, o);
     if (o.key) {
-      var img = new Image();
-      img.onload = function () { node.image(img); konvaLayer.batchDraw(); };
-      img.onerror = function () { /* 로드 실패 시 빈 프레임 유지 */ };
-      img.src = viewUrl(o.key);
+      var cached = _annoImgCache[o.key];
+      if (cached && cached.complete && cached.naturalWidth) {
+        node.image(cached);   // 재빌드 시 동기 반영 → 깜빡임 없음
+      } else {
+        var img = cached || new Image();
+        _annoImgCache[o.key] = img;
+        img.onload = function () { node.image(img); konvaLayer.batchDraw(); };
+        img.onerror = function () { /* 로드 실패 시 빈 프레임 유지 */ };
+        if (!img.src) { img.src = viewUrl(o.key); }
+      }
     }
     return node;
   }
@@ -860,31 +969,58 @@
     return tagNode(node, o);
   }
 
+  /** 프리핸드 펜 획 — 가변 points Konva.Line(tension 곡선). arrow/line 과 동일한 이동/변형 경로.
+      optional opacity(형광펜=0.35)면 반투명 + multiply 합성으로 겹침을 자연스럽게 한다. */
+  function buildPen(o) {
+    var pts = normalizePenPoints(o.points);
+    var sw = penWidthOrDefault(o.strokeWidth);
+    var node = new Konva.Line({
+      points: pts, stroke: colorOrDefault(o.stroke), strokeWidth: sw,
+      tension: PEN_TENSION, lineCap: 'round', lineJoin: 'round', rotation: num(o.rotation),
+      hitStrokeWidth: Math.max(12, sw), name: 'anno', draggable: canSave
+    });
+    var op = penOpacityOrNull(o.opacity);
+    if (op != null) { node.opacity(op); node.globalCompositeOperation('multiply'); }
+    return tagNode(node, o);
+  }
+
   /** 선택/드래그/변형 이벤트 공통 배선. */
   function wireNode(node) {
     if (!canSave) { return; }
     node.on('mousedown', function (e) {
       if (annoMode !== 'select') { return; }   // 그리기 모드면 스테이지 핸들러가 처리
       e.cancelBubble = true;
-      selectById(node.getAttr('objId'));
+      var id = node.getAttr('objId');
+      var devt = e.evt || {};
+      // Shift/Ctrl/Cmd+클릭 = 선택 토글(추가/제거), 일반 클릭 = 단일 선택.
+      if (devt.shiftKey || devt.ctrlKey || devt.metaKey) { toggleInSelection(id); }
+      else { selectSingle(id); }
     });
+    // 아래 드래그/변형 핸들러는 단일 선택 전용 — 다중(그룹)은 transformer 레벨 핸들러가 처리.
     node.on('dragstart', function () {
       if (annoMode !== 'select') { node.stopDrag(); return; }
+      if (lastPointerType === 'touch') { node.stopDrag(); return; }   // 손가락 드래그 금지(팜 리젝션 — 손가락=이동/핀치 전용)
+      if (isMultiSelect()) { return; }
       dragActive = true;
       recordUndo();
     });
-    node.on('dragmove', function () { positionMiniToolbar(); });
-    node.on('dragend', function () { dragActive = false; commitNode(node); });
-    node.on('transformstart', function () { dragActive = true; recordUndo(); });
-    node.on('transform', function () { applyLiveTransform(node); positionMiniToolbar(); });
-    node.on('transformend', function () { dragActive = false; commitNode(node); });
+    node.on('dragmove', function () { if (isMultiSelect()) { return; } positionMiniToolbar(); });
+    node.on('dragend', function () { if (isMultiSelect()) { return; } dragActive = false; commitNode(node); });
+    node.on('transformstart', function () { if (isMultiSelect()) { return; } dragActive = true; recordUndo(); });
+    node.on('transform', function () { if (isMultiSelect()) { return; } applyLiveTransform(node); positionMiniToolbar(); });
+    node.on('transformend', function () { if (isMultiSelect()) { return; } dragActive = false; commitNode(node); });
   }
+
+  // 텍스트가 리사이즈 핸들로 폭 조정되었는지 표시(scaleX≠1 감지). commitNode 텍스트 브랜치가
+  // 소비해 auto→fixed 전환 여부를 결정한다(이동/회전만이면 auto 유지). 회전은 scaleX=1 유지.
+  var _textResizedByHandle = false;
 
   /** 변형 중 scale → 실제 치수로 정규화(폰트/선굵기 왜곡 방지). */
   function applyLiveTransform(node) {
     var t = node.getAttr('annoType');
     if (t === 'text') {
       if (node.getClassName() === 'Group') { return; }   // 런 텍스트: 회전만(리사이즈 앵커 비활성)
+      if (Math.abs(node.scaleX() - 1) > 1e-3) { _textResizedByHandle = true; }   // 폭 조정 감지
       node.width(Math.max(30, node.width() * node.scaleX()));
       node.scaleX(1); node.scaleY(1);
     } else if (t === 'ellipse') {
@@ -903,14 +1039,27 @@
   function commitNode(node) {
     var o = findObj(node.getAttr('objId'));
     if (!o) { return; }
+    // 그룹 변형은 노드에 residual scale 를 남긴다(단일 경로는 transform 중 이미 folding됨=no-op).
+    // 치수 읽기 전에 scale 을 실제 width/height/radius 로 baking 한다.
+    applyLiveTransform(node);
     var t = node.getAttr('annoType');
     if (t === 'text') {
       o.x = Math.round(node.x()); o.y = Math.round(node.y());
       o.rotation = normalizeRotation(node.rotation());
-      // 런 텍스트(Group)는 렌더 결과 폭을 w 로 저장(렌더는 무시), 단색은 Konva.Text 폭.
-      o.w = (node.getClassName() === 'Group')
-        ? Math.round(node.getAttr('richWidth') || o.w || 220)
-        : Math.round(node.width());
+      var resizedByHandle = _textResizedByHandle;
+      _textResizedByHandle = false;   // 소비(이동/회전/드래그 재사용 방지)
+      if (node.getClassName() === 'Group') {
+        // 런 텍스트: 렌더 결과 폭(richWidth) 저장(항상 hug, autoWidth 무관).
+        o.w = Math.round(node.getAttr('richWidth') || o.w || 220);
+      } else if (resizedByHandle) {
+        // 리사이즈 핸들로 폭 지정 = fixed 전환(지정 폭 word-wrap, 높이 자동).
+        o.autoWidth = false;
+        o.w = Math.round(node.width());
+        o.h = Math.round(node.height());
+      } else {
+        // 이동/회전만 = auto 유지(자연폭 동기).
+        o.w = Math.round(node.width());
+      }
     } else if (t === 'image' || t === 'rect') {
       o.x = Math.round(node.x()); o.y = Math.round(node.y());
       o.w = Math.round(node.width()); o.h = Math.round(node.height());
@@ -928,6 +1077,19 @@
       node.points([a.x, a.y, b.x, b.y]);
       node.position({ x: 0, y: 0 }); node.rotation(0); node.scale({ x: 1, y: 1 });
       o.points = [Math.round(a.x), Math.round(a.y), Math.round(b.x), Math.round(b.y)];
+      o.rotation = 0;
+    } else if (t === 'pen') {
+      // 가변 points 전체를 절대 변환으로 baking(드래그/리사이즈/회전 확정) → position/scale/rotation 리셋.
+      var trp = node.getAbsoluteTransform();
+      var pp = node.points();
+      var baked = [];
+      for (var i = 0; i + 1 < pp.length; i += 2) {
+        var qq = trp.point({ x: pp[i], y: pp[i + 1] });
+        baked.push(qq.x, qq.y);
+      }
+      node.points(baked.slice());
+      node.position({ x: 0, y: 0 }); node.rotation(0); node.scale({ x: 1, y: 1 });
+      o.points = baked.map(function (v) { return Math.round(v); });
       o.rotation = 0;
     }
     markDirty();
@@ -950,34 +1112,207 @@
     konvaLayer.find('.anno').forEach(function (n) { n.draggable(canSave && annoMode === 'select'); });
     transformer.moveToTop();
     konvaLayer.batchDraw();
-    if (selected && nodeById[selected]) { selectNode(nodeById[selected]); }
-    else if (selected) { deselect(); }
+    // 다중 선택 복원: 아직 존재하는 노드만 유지, 하나라도 남으면 applySelection, 전부 사라졌으면 해제.
+    var restored = selectedIds.filter(function (id) { return !!nodeById[id]; });
+    if (restored.length) { selectedIds = restored; applySelection(); }
+    else if (selectedIds.length) { deselect(); }
   }
 
-  /* ---- 선택 / 미니툴바 ---------------------------------------------------- */
-  function selectById(id) { var node = nodeById[id]; if (node) { selectNode(node); } else { deselect(); } }
+  /* ---- 선택 / 미니툴바 ----------------------------------------------------
+     selectedIds(배열)가 SSOT. selected(단일 id)는 primary=마지막 선택으로 파생(단일 경로 호환).
+     applySelection() 이 transformer 노드/앵커/그룹드래그 + 미니툴바/정렬툴바 노출을 일괄 동기. */
+  function isMultiSelect() { return selectedIds.length > 1; }
 
-  function selectNode(node) {
-    if (!node) { deselect(); return; }
-    selected = node.getAttr('objId');
-    var t = node.getAttr('annoType');
-    var o = findObj(selected);
-    var isRich = (t === 'text' && o && o.runs && o.runs.length);
-    transformer.keepRatio(t === 'image' ? imageRatioLock : false);
-    // 런 텍스트는 이동·회전만(리사이즈 앵커 비활성) — 단색 텍스트/도형은 코너 앵커 유지.
-    transformer.enabledAnchors(isRich ? [] : ['top-left', 'top-right', 'bottom-left', 'bottom-right']);
-    transformer.nodes([node]);
-    transformer.moveToTop();
-    showMiniToolbar(node);
+  function selectedNodes() {
+    var out = [];
+    for (var i = 0; i < selectedIds.length; i++) {
+      var n = nodeById[selectedIds[i]];
+      if (n) { out.push(n); }
+    }
+    return out;
+  }
+
+  function selectSingle(id) {
+    if (!nodeById[id]) { deselect(); return; }
+    selectedIds = [id];
+    applySelection();
+  }
+
+  function toggleInSelection(id) {
+    if (!nodeById[id]) { return; }
+    var i = selectedIds.indexOf(id);
+    if (i === -1) { selectedIds = selectedIds.concat([id]); }
+    else { selectedIds = selectedIds.slice(0, i).concat(selectedIds.slice(i + 1)); }
+    applySelection();
+  }
+
+  /* 단일 선택 공개 진입점(기존 호출부 호환): 항상 단일 선택으로 설정. */
+  function selectById(id) { selectSingle(id); }
+  function selectNode(node) { if (node) { selectSingle(node.getAttr('objId')); } else { deselect(); } }
+
+  /** selectedIds → transformer/툴바 동기(단일=미니툴바, 다중=정렬툴바+그룹드래그). */
+  function applySelection() {
+    var nodes = selectedNodes();
+    if (nodes.length !== selectedIds.length) {
+      // 사라진 노드 정리(rebuild 등)
+      selectedIds = nodes.map(function (n) { return n.getAttr('objId'); });
+    }
+    selected = selectedIds.length ? selectedIds[selectedIds.length - 1] : null;
+    if (!transformer) { return; }
+    if (!nodes.length) {
+      transformer.shouldOverdrawWholeArea(false);
+      transformer.nodes([]);
+      hideMiniToolbar();
+      hideAlignToolbar();
+      hideLogoPopup();
+      if (konvaLayer) { konvaLayer.batchDraw(); }
+      return;
+    }
+    if (nodes.length === 1) {
+      var node = nodes[0];
+      var t = node.getAttr('annoType');
+      var o = findObj(node.getAttr('objId'));
+      var isRich = (t === 'text' && o && o.runs && o.runs.length);
+      transformer.shouldOverdrawWholeArea(false);
+      transformer.keepRatio(t === 'image' ? imageRatioLock : false);
+      // 런 텍스트는 이동·회전만(리사이즈 앵커 비활성) — 단색 텍스트/도형은 코너 앵커 유지.
+      transformer.enabledAnchors(isRich ? [] : ['top-left', 'top-right', 'bottom-left', 'bottom-right']);
+      transformer.nodes([node]);
+      transformer.moveToTop();
+      hideAlignToolbar();
+      showMiniToolbar(node);
+    } else {
+      // 다중: 그룹 bbox 영역 드래그=함께 이동, 코너 앵커=그룹 리사이즈/회전.
+      // (런 텍스트 포함 시 리사이즈는 richWidth 로 되돌아감 — 이동/정렬은 정상. 문서화된 한계.)
+      transformer.shouldOverdrawWholeArea(true);
+      transformer.keepRatio(false);
+      transformer.enabledAnchors(['top-left', 'top-right', 'bottom-left', 'bottom-right']);
+      transformer.nodes(nodes);
+      transformer.moveToTop();
+      hideMiniToolbar();
+      showAlignToolbar();
+    }
     konvaLayer.batchDraw();
   }
 
   function deselect() {
+    selectedIds = [];
     selected = null;
-    if (transformer) { transformer.nodes([]); }
+    if (transformer) { transformer.shouldOverdrawWholeArea(false); transformer.nodes([]); }
     hideMiniToolbar();
+    hideAlignToolbar();
     hideLogoPopup();
     if (konvaLayer) { konvaLayer.batchDraw(); }
+  }
+
+  /* ---- 정렬 툴바(다중 선택 ≥2 시 노출) ------------------------------------
+     선택 객체들의 axis-aligned bbox 기준으로 각 객체 x/y(또는 arrow/line points)를 이동.
+     회전 객체는 노드 getClientRect bbox 근사로 정렬(브리프 허용). state 갱신 후 rebuild 로 동기. */
+  function showAlignToolbar() { if (!canSave || !els.alignToolbar) { return; } els.alignToolbar.hidden = false; positionAlignToolbar(); }
+  function hideAlignToolbar() { if (els.alignToolbar) { els.alignToolbar.hidden = true; } }
+
+  function positionAlignToolbar() {
+    if (!els.alignToolbar || els.alignToolbar.hidden || selectedIds.length < 2) { return; }
+    var nodes = selectedNodes();
+    if (!nodes.length) { return; }
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    nodes.forEach(function (n) {
+      var b = n.getClientRect();
+      if (b.x < minX) { minX = b.x; }
+      if (b.y < minY) { minY = b.y; }
+      if (b.x + b.width > maxX) { maxX = b.x + b.width; }
+      if (b.y + b.height > maxY) { maxY = b.y + b.height; }
+    });
+    var annoRect = els.anno.getBoundingClientRect();
+    var screenTop = annoRect.top + minY * zoom;
+    var screenBottom = annoRect.top + maxY * zoom;
+    var screenLeft = annoRect.left + minX * zoom;
+    var ROTATER_CLEARANCE = 34;   // 회전 핸들 위로 띄워 앵커를 가리지 않게
+    var top = screenTop - els.alignToolbar.offsetHeight - 8 - ROTATER_CLEARANCE;
+    if (top < 8) { top = screenBottom + 8; }
+    var left = clamp(screenLeft, 8, window.innerWidth - els.alignToolbar.offsetWidth - 8);
+    els.alignToolbar.style.left = left + 'px';
+    els.alignToolbar.style.top = top + 'px';
+  }
+
+  /** 객체 좌표를 dx/dy 만큼 평행이동(state SSOT). arrow/line 은 points, 그 외는 x/y. */
+  function shiftObjectState(o, dx, dy) {
+    if (dx === 0 && dy === 0) { return; }
+    if (o.type === 'arrow' || o.type === 'line' || o.type === 'pen') {
+      o.points = shiftPoints(o.points, dx, dy);
+    } else {
+      o.x = num(o.x) + dx; o.y = num(o.y) + dy;
+    }
+  }
+
+  function alignSelected(kind) {
+    if (kind === 'hdistribute') { distributeSelected('h'); return; }
+    if (kind === 'vdistribute') { distributeSelected('v'); return; }
+    if (!canSave || selectedIds.length < 2) { return; }
+    var items = [];
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    selectedIds.forEach(function (id) {
+      var n = nodeById[id], o = findObj(id);
+      if (!n || !o) { return; }
+      var r = n.getClientRect();   // 논리 좌표 bbox(회전 포함 근사)
+      items.push({ o: o, r: r });
+      if (r.x < minX) { minX = r.x; }
+      if (r.y < minY) { minY = r.y; }
+      if (r.x + r.width > maxX) { maxX = r.x + r.width; }
+      if (r.y + r.height > maxY) { maxY = r.y + r.height; }
+    });
+    if (items.length < 2) { return; }
+    var cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+    recordUndo();
+    items.forEach(function (it) {
+      var r = it.r, dx = 0, dy = 0;
+      switch (kind) {
+        case 'left': dx = minX - r.x; break;
+        case 'hcenter': dx = (cx - r.width / 2) - r.x; break;
+        case 'right': dx = (maxX - r.width) - r.x; break;
+        case 'top': dy = minY - r.y; break;
+        case 'vcenter': dy = (cy - r.height / 2) - r.y; break;
+        case 'bottom': dy = (maxY - r.height) - r.y; break;
+        default: return;
+      }
+      shiftObjectState(it.o, Math.round(dx), Math.round(dy));
+    });
+    markDirty();
+    rebuildAnno();   // state 기준 재구성 + 다중 선택 복원(applySelection)
+  }
+
+  /** 선택 객체의 인접 간격을 균등 분배(양끝 고정). axis='h'(가로)|'v'(세로). 3개 이상 필요. */
+  function distributeSelected(axis) {
+    if (!canSave) { return; }
+    if (selectedIds.length < 3) {
+      if (selectedIds.length === 2) { toast('간격을 맞추려면 3개 이상 선택하세요'); }
+      return;
+    }
+    var horiz = (axis === 'h');
+    var items = [];
+    selectedIds.forEach(function (id) {
+      var n = nodeById[id], o = findObj(id);
+      if (!n || !o) { return; }
+      items.push({ o: o, r: n.getClientRect() });   // 정렬과 동일 기준(회전 근사 bbox)
+    });
+    if (items.length < 3) { return; }
+    // 위치(가로=x, 세로=y) 오름차순 정렬 → 양끝 고정
+    items.sort(function (a, b) { return horiz ? (a.r.x - b.r.x) : (a.r.y - b.r.y); });
+    var first = items[0].r, last = items[items.length - 1].r;
+    var sumSize = 0;
+    items.forEach(function (it) { sumSize += horiz ? it.r.width : it.r.height; });
+    var span = horiz ? ((last.x + last.width) - first.x) : ((last.y + last.height) - first.y);
+    var gap = (span - sumSize) / (items.length - 1);   // 인접 가장자리-가장자리 균등 간격(음수=겹침 허용)
+    var cursor = horiz ? first.x : first.y;
+    recordUndo();
+    items.forEach(function (it) {
+      var r = it.r, size = horiz ? r.width : r.height;
+      if (horiz) { shiftObjectState(it.o, Math.round(cursor - r.x), 0); }
+      else { shiftObjectState(it.o, 0, Math.round(cursor - r.y)); }
+      cursor += size + gap;
+    });
+    markDirty();
+    rebuildAnno();   // state 기준 재구성 + 다중 선택 복원(applySelection)
   }
 
   function showMiniToolbar(node) {
@@ -987,7 +1322,7 @@
     if (!o) { hideMiniToolbar(); return; }
     els.mtText.hidden = (t !== 'text');
     els.mtImage.hidden = (t !== 'image');
-    els.mtShape.hidden = !isShapeType(t);
+    els.mtShape.hidden = !isStrokeType(t);   // pen 도 line 처럼 색/굵기/삭제 툴 노출
     els.mt.hidden = false;
     if (t === 'text') { syncTextToolbar(o); }
     else if (t === 'image') { syncImageToolbar(); }
@@ -1051,42 +1386,49 @@
 
   function updateSelectedShape(patch) {
     var o = findObj(selected);
-    if (!o || !isShapeType(o.type)) { return; }
+    if (!o || !isStrokeType(o.type)) { return; }
     recordUndo();
     Object.keys(patch).forEach(function (k) { o[k] = patch[k]; });
-    if ('stroke' in patch) { lastStrokeColor = patch.stroke; }
-    if ('strokeWidth' in patch) { lastStrokeWidth = patch.strokeWidth; }
+    // 도형 기본값은 도형에서만 계승(pen 편집이 다음 도형 색/굵기로 새지 않게).
+    if (isShapeType(o.type)) {
+      if ('stroke' in patch) { lastStrokeColor = patch.stroke; }
+      if ('strokeWidth' in patch) { lastStrokeWidth = patch.strokeWidth; }
+    }
     markDirty();
     rebuildAnno();
     selectById(o.id);
   }
 
   /* ---- 삭제 / 이동 -------------------------------------------------------- */
-  function removeObject(id) {
+  function spliceObject(id) {
     var objs = currentSheet().objects, i = -1;
     objs.some(function (o, idx) { if (o.id === id) { i = idx; return true; } return false; });
     if (i >= 0) { objs.splice(i, 1); }
-    rebuildAnno();
   }
 
+  function removeObject(id) { spliceObject(id); rebuildAnno(); }
+
+  /** 선택 전체 삭제(단일·다중 공용) — recordUndo 1회로 묶고 rebuild 1회. */
   function deleteSelected() {
-    if (!canSave || !selected) { return; }
+    if (!canSave || !selectedIds.length) { return; }
     recordUndo();
-    var id = selected;
+    var ids = selectedIds.slice();
     deselect();
-    removeObject(id);
+    ids.forEach(spliceObject);
+    rebuildAnno();
     markDirty();
   }
 
   function moveObjectBy(o, dx, dy) {
-    if (o.type === 'arrow' || o.type === 'line') {
-      o.points = [o.points[0] + dx, o.points[1] + dy, o.points[2] + dx, o.points[3] + dy];
+    var isPoints = (o.type === 'arrow' || o.type === 'line' || o.type === 'pen');
+    if (isPoints) {
+      o.points = shiftPoints(o.points, dx, dy);
     } else {
       o.x += dx; o.y += dy;
     }
     var node = nodeById[o.id];
     if (!node) { return; }
-    if (o.type === 'arrow' || o.type === 'line') { node.points(o.points.slice()); }
+    if (isPoints) { node.points(o.points.slice()); }
     else if (o.type === 'ellipse') { node.x(node.x() + dx); node.y(node.y() + dy); }
     else { node.x(o.x); node.y(o.y); }
     konvaLayer.batchDraw();
@@ -1098,8 +1440,10 @@
     var activeId = null;
     if (annoMode === 'select') { activeId = 'dws-btn-select'; }
     else if (annoMode === 'text') { activeId = 'dws-btn-add-text'; }
+    else if (annoMode === 'pen') { activeId = 'dws-btn-pen'; }
+    else if (annoMode === 'eraser') { activeId = 'dws-btn-eraser'; }
     else if (isShapeType(annoMode)) { activeId = 'dws-btn-shape'; }
-    ['dws-btn-select', 'dws-btn-add-text', 'dws-btn-shape'].forEach(function (id) {
+    ['dws-btn-select', 'dws-btn-add-text', 'dws-btn-pen', 'dws-btn-eraser', 'dws-btn-shape'].forEach(function (id) {
       var b = document.getElementById(id);
       if (b) { b.classList.toggle('dws-seg-active', id === activeId); }
     });
@@ -1108,13 +1452,50 @@
   function setAnnoMode(mode) {
     annoMode = mode;
     if (mode !== 'select') { deselect(); }
-    if (els.anno) { els.anno.classList.toggle('dws-drawing', mode !== 'select'); }
+    if (els.anno) {
+      els.anno.classList.toggle('dws-drawing', mode !== 'select');
+      els.anno.classList.toggle('dws-erasing', mode === 'eraser');
+    }
     if (konvaLayer) {
       konvaLayer.find('.anno').forEach(function (n) { n.draggable(canSave && mode === 'select'); });
+    }
+    if (els.penPalette) {
+      els.penPalette.hidden = (mode !== 'pen');
+      if (mode === 'pen') { syncPenPalette(); }
     }
     updateModeHint(mode);
     syncSegActive();
     updateDividerState();
+  }
+
+  /* ---- 펜 팔레트(색·굵기·형광펜 토글) — 펜 모드일 때만 노출 ---------------- */
+  function setPenMode(mode) { penMode = (mode === 'hi') ? 'hi' : 'pen'; syncPenPalette(); updateModeHint(annoMode); }
+  function setPenColor(c) { penColor = colorOrDefault(c); syncPenPalette(); }
+  function setPenWidth(w) { penWidth = penWidthOrDefault(w); syncPenPalette(); }
+  function setHiColor(c) { hiColor = colorOrDefault(c); syncPenPalette(); }
+  function setHiWidth(w) { hiWidth = penWidthOrDefault(w); syncPenPalette(); }
+
+  /** 팔레트 버튼 active 표시를 현재 penMode/penColor·penWidth/hiColor·hiWidth 로 동기.
+      penMode 에 따라 일반 펜(.dws-pen-only) ↔ 형광펜(.dws-hi-only) 컨트롤을 CSS 로 전환한다. */
+  function syncPenPalette() {
+    if (!els.penPalette) { return; }
+    var hi = (penMode === 'hi');
+    els.penPalette.classList.toggle('dws-pen-hi', hi);
+    Array.prototype.forEach.call(els.penPalette.querySelectorAll('[data-pen-mode]'), function (b) {
+      b.classList.toggle('dws-active', b.getAttribute('data-pen-mode') === penMode);
+    });
+    Array.prototype.forEach.call(els.penPalette.querySelectorAll('[data-pen-color]'), function (b) {
+      b.classList.toggle('dws-active', b.getAttribute('data-pen-color').toLowerCase() === String(penColor).toLowerCase());
+    });
+    Array.prototype.forEach.call(els.penPalette.querySelectorAll('[data-pen-width]'), function (b) {
+      b.classList.toggle('dws-active', (parseInt(b.getAttribute('data-pen-width'), 10) || 0) === penWidth);
+    });
+    Array.prototype.forEach.call(els.penPalette.querySelectorAll('[data-hi-color]'), function (b) {
+      b.classList.toggle('dws-active', b.getAttribute('data-hi-color').toLowerCase() === String(hiColor).toLowerCase());
+    });
+    Array.prototype.forEach.call(els.penPalette.querySelectorAll('[data-hi-width]'), function (b) {
+      b.classList.toggle('dws-active', (parseInt(b.getAttribute('data-hi-width'), 10) || 0) === hiWidth);
+    });
   }
 
   /** 모드 무장 시 캔버스 상단 중앙 힌트 pill 표시/문구 갱신(select면 숨김). */
@@ -1122,6 +1503,12 @@
     if (!els.modeHint) { return; }
     var msg = '';
     if (mode === 'text') { msg = '텍스트: 넣을 위치를 클릭 · Esc 취소'; }
+    else if (mode === 'pen') {
+      msg = (penMode === 'hi')
+        ? '형광펜: 펜슬·마우스로 반투명 강조 · 손가락으로 이동/확대 · Esc 종료'
+        : '펜: 펜슬·마우스로 필기 · 손가락으로 이동/확대 · Esc 종료';
+    }
+    else if (mode === 'eraser') { msg = '지우개: 펜슬·마우스로 획 위를 문질러 삭제 · 손가락으로 이동/확대 · Esc 종료'; }
     else if (isShapeType(mode)) { msg = '도형: 드래그해서 그리기 · Esc 취소'; }
     if (msg) {
       els.modeHint.textContent = msg;
@@ -1133,6 +1520,8 @@
 
   function onStageMouseDown(e) {
     if (!canSave || !currentSheet()) { return; }
+    // 펜/지우개는 pointer 핸들러(onStagePointerDown) 전담 — mousedown 은 no-op(러버밴드·선택 이중발동 차단).
+    if (annoMode === 'pen' || annoMode === 'eraser') { return; }
     /* 같은 물리 클릭의 stage 'mousedown' 이중발화 dedupe(플랫폼별 pointer/mouse
        이중 매핑 방어): 50ms·2px 내 중복 down은 같은 제스처로 보고 무시한다. */
     var devt = e.evt || {};
@@ -1163,15 +1552,90 @@
       return;
     }
     /* select 모드 빈 영역 */
-    if (e.target !== konvaStage) { return; }
+    if (e.target !== konvaStage) { return; }   // 다중 선택 bbox(transformer overdraw)는 여기 도달 X
     if (devt.ctrlKey || devt.metaKey) {
       if (devt.preventDefault) { devt.preventDefault(); }  // Ctrl+클릭 텍스트 생성도 동일 보호
       var cp = pointerLogical(devt);
       createTextAt(cp.x, cp.y);
       return;
     }
-    deselect();
-    passthroughToForm(e.evt);
+    // 빈 영역: 드래그=러버밴드 다중 선택 / 순수 클릭=선택 해제 + 폼 투과(이동 임계 4px로 판별).
+    startMarqueeSelect(e);
+  }
+
+  /** 빈 캔버스 드래그=러버밴드 박스로 교차 객체 다중 선택. 순수 클릭(이동<4px)=기존 해제+폼 투과.
+     Shift/Ctrl/Cmd 드래그는 기존 선택에 합집합으로 추가. */
+  function startMarqueeSelect(e) {
+    var devt = e.evt;
+    var startLogical = pointerLogical(devt);
+    var startX = num(devt.clientX), startY = num(devt.clientY);
+    var additive = !!(devt.shiftKey || devt.ctrlKey || devt.metaKey);
+    var moved = false;
+    var rect = null;
+    function ensureRect() {
+      if (rect) { return; }
+      rect = new Konva.Rect({
+        x: startLogical.x, y: startLogical.y, width: 0, height: 0,
+        fill: 'rgba(28,98,214,0.08)', stroke: '#1c62d6', strokeWidth: 1,
+        dash: [4, 3], name: 'anno-marquee', listening: false
+      });
+      konvaLayer.add(rect);
+      transformer.moveToTop();
+    }
+    function move(nativeEvt) {
+      if (!moved) {
+        if (Math.abs(num(nativeEvt.clientX) - startX) < 4 && Math.abs(num(nativeEvt.clientY) - startY) < 4) { return; }
+        moved = true;
+        if (devt.preventDefault) { devt.preventDefault(); }   // 네이티브 텍스트 선택 억제
+        ensureRect();
+      }
+      if (nativeEvt.preventDefault) { nativeEvt.preventDefault(); }
+      var p = pointerLogical(nativeEvt);
+      var x = Math.min(startLogical.x, p.x), y = Math.min(startLogical.y, p.y);
+      var w = Math.abs(p.x - startLogical.x), h = Math.abs(p.y - startLogical.y);
+      rect.setAttrs({ x: x, y: y, width: w, height: h });
+      konvaLayer.batchDraw();
+    }
+    function up(nativeEvt) {
+      window.removeEventListener('mousemove', move, true);
+      window.removeEventListener('mouseup', up, true);
+      if (!moved) {
+        // 순수 클릭: 기존 동작(선택 해제 + 폼 투과)
+        deselect();
+        passthroughToForm(nativeEvt);
+        return;
+      }
+      var box = { x: rect.x(), y: rect.y(), w: rect.width(), h: rect.height() };
+      rect.destroy();
+      rect = null;
+      konvaLayer.batchDraw();
+      var hits = marqueeHits(box);
+      if (additive) {
+        var merged = selectedIds.slice();
+        hits.forEach(function (id) { if (merged.indexOf(id) === -1) { merged.push(id); } });
+        selectedIds = merged;
+      } else {
+        selectedIds = hits;
+      }
+      applySelection();
+    }
+    window.addEventListener('mousemove', move, true);
+    window.addEventListener('mouseup', up, true);
+  }
+
+  /** 러버밴드 박스(논리 좌표)와 AABB 교차하는 객체 id 목록. */
+  function marqueeHits(box) {
+    var out = [];
+    var objs = (currentSheet() && currentSheet().objects) || [];
+    objs.forEach(function (o) {
+      var n = nodeById[o.id];
+      if (!n) { return; }
+      var r = n.getClientRect();
+      if (r.x < box.x + box.w && r.x + r.width > box.x && r.y < box.y + box.h && r.y + r.height > box.y) {
+        out.push(o.id);
+      }
+    });
+    return out;
   }
 
   function onStageDblClick(e) {
@@ -1281,13 +1745,174 @@
     selectById(o.id);
   }
 
+  /* ---- 프리핸드 펜(포인터 이벤트 + 팜 리젝션) -----------------------------
+     펜 모드 + pointerType 'pen'|'mouse' → 스트로크. 'touch'(손가락) → 미그리기(팜 리젝션).
+     입력 종류는 모든 모드에서 추적(lastPointerType) — 손가락 드래그(객체 이동) 차단에 사용. */
+  function onStagePointerDown(e) {
+    var devt = e.evt || {};
+    lastPointerType = devt.pointerType || 'mouse';
+    var pt = devt.pointerType;
+    if (annoMode === 'eraser') {                    // 지우개: 펜슬·마우스로 획 위를 지나며 통째 삭제
+      if (!canSave || !currentSheet()) { return; }
+      if (pt && pt !== 'pen' && pt !== 'mouse') { return; }   // 손가락(touch) → 안 지움(네비/팜 리젝션)
+      if (isDrawingPen) { return; }                 // 이미 포인터 스트로크 진행 중(멀티포인터 방어)
+      startEraseStroke(devt);
+      return;
+    }
+    if (annoMode !== 'pen') { return; }            // 펜 모드에서만 pointer 그리기 활성(select/도형은 mouse 경로)
+    if (!canSave || !currentSheet()) { return; }
+    if (pt && pt !== 'pen' && pt !== 'mouse') { return; }   // 손가락(touch) → 안 그림
+    if (isDrawingPen) { return; }                  // 이미 스트로크 진행 중(멀티포인터 방어)
+    startPenStroke(devt);
+  }
+
+  /** 시트에 pen 객체 1건 push(가변 points). 200개 캡 도달 시 skip(저장 400 예방).
+      penMode='hi'(형광펜)면 형광 색·굵기 + 반투명(opacity) 필드를 부여한다. */
+  function commitPenObject(points) {
+    var cs = currentSheet();
+    if (!cs) { return null; }
+    var pts = normalizePenPoints(points);
+    if (pts.length < 4) { return null; }
+    if ((cs.objects || []).length >= 200) { toast('한 시트의 객체가 200개를 넘어 더 그릴 수 없습니다.'); return null; }
+    var hi = (penMode === 'hi');
+    var o = {
+      id: rid('o-'), type: 'pen', points: pts,
+      stroke: hi ? hiColor : penColor, strokeWidth: hi ? hiWidth : penWidth, rotation: 0
+    };
+    if (hi) { o.opacity = HI_OPACITY; }
+    cs.objects.push(o);
+    return o;
+  }
+
+  /** 프리핸드 스트로크 시작 — 라이브 프리뷰 draft + window pointer 리스너로 점 누적/커밋. */
+  function startPenStroke(devt) {
+    if (devt.preventDefault) { devt.preventDefault(); }   // 브라우저 기본(스크롤·선택) 억제
+    var p = pointerLogical(devt);
+    var pts = [p.x, p.y];
+    var lastPt = p;
+    var pointerId = devt.pointerId;
+    var recorded = false;   // undo 는 실제 점 추가 시 1회만(단순 탭은 스택 오염 방지)
+    var committed = false;
+    var hi = (penMode === 'hi');   // 형광펜: 반투명 굵은 획(라이브 프리뷰도 동일하게 반영)
+    var draft = new Konva.Line({
+      points: pts.slice(), stroke: hi ? hiColor : penColor, strokeWidth: hi ? hiWidth : penWidth,
+      tension: PEN_TENSION, lineCap: 'round', lineJoin: 'round', name: 'anno-draft', listening: false
+    });
+    if (hi) { draft.opacity(HI_OPACITY); draft.globalCompositeOperation('multiply'); }
+    konvaLayer.add(draft);
+    transformer.moveToTop();
+    isDrawingPen = true;
+
+    function samePointer(nativeEvt) {
+      return pointerId == null || nativeEvt.pointerId == null || nativeEvt.pointerId === pointerId;
+    }
+    function move(nativeEvt) {
+      if (!samePointer(nativeEvt)) { return; }   // 다른 포인터(팜 등) 무시
+      if (nativeEvt.preventDefault) { nativeEvt.preventDefault(); }
+      var q = pointerLogical(nativeEvt);
+      var dx = q.x - lastPt.x, dy = q.y - lastPt.y;
+      if (dx * dx + dy * dy < PEN_MIN_STEP_SQ) { return; }   // 점 단순화(2px 미만 skip)
+      if (!recorded) { recordUndo(); recorded = true; }
+      pts.push(q.x, q.y);
+      lastPt = q;
+      draft.points(pts.slice());
+      konvaLayer.batchDraw();
+      if (pts.length >= PEN_MAX_COORDS) {
+        // 상한 도달 → 현재까지 커밋하고 같은 지점부터 새 스트로크로 이어간다(64KB·200객체 보호).
+        var mid = commitPenObject(pts);
+        if (mid) {
+          committed = true;
+          var mn = buildNode(mid);
+          if (mn) { mn.draggable(false); konvaLayer.add(mn); nodeById[mid.id] = mn; }
+          transformer.moveToTop();
+        }
+        pts = [q.x, q.y];
+        draft.points(pts.slice());
+      }
+    }
+    function up(nativeEvt) {
+      if (nativeEvt.type !== 'pointercancel' && !samePointer(nativeEvt)) { return; }
+      window.removeEventListener('pointermove', move, true);
+      window.removeEventListener('pointerup', up, true);
+      window.removeEventListener('pointercancel', up, true);
+      isDrawingPen = false;
+      draft.destroy();
+      if (pts.length >= 4 && commitPenObject(pts)) { committed = true; }
+      if (committed) { markDirty(); rebuildAnno(); }   // 펜 모드 유지(선택 안 함=연속 필기), draggable=false 재적용
+      else { konvaLayer.batchDraw(); }
+    }
+    window.addEventListener('pointermove', move, true);
+    window.addEventListener('pointerup', up, true);
+    window.addEventListener('pointercancel', up, true);
+  }
+
+  /* ---- 지우개(획 삭제, GoodNotes식 스트로크 지우개) -----------------------
+     지우개 모드 + pointerType 'pen'|'mouse' 로 pointerdown~move 하며 포인터 아래에 걸리는
+     주석 객체(.anno 노드)를 통째로 삭제한다. 손가락(touch)은 지우지 않고 팬/핀치 네비 유지.
+     한 제스처(down~up) 당 recordUndo 1회로 묶고, 실제 삭제가 있으면 markDirty+rebuildAnno. */
+
+  /** getIntersection 결과(리치 텍스트는 Group 내부 조각) → objId 를 가진 .anno 조상 노드. */
+  function annoNodeFromHit(hit) {
+    var n = hit;
+    while (n && n !== konvaLayer) {
+      if (typeof n.name === 'function' && n.name() === 'anno' && n.getAttr('objId')) { return n; }
+      n = n.getParent();
+    }
+    return null;
+  }
+
+  /** 지우개 스트로크 — 포인터 아래 주석 노드를 즉시 제거(진행형)하고, 제스처 종료 시 state 정리. */
+  function startEraseStroke(devt) {
+    if (devt.preventDefault) { devt.preventDefault(); }
+    var pointerId = devt.pointerId;
+    var recorded = false;   // 첫 삭제 시 1회만 undo 스냅샷(빈 제스처는 스택 오염 방지)
+    var erased = false;
+    isDrawingPen = true;    // 팜 리젝션 재사용: 제스처 중 손가락 네비/핀치 억제
+
+    function eraseAt(nativeEvt) {
+      var hit = konvaStage.getIntersection(pointerLogical(nativeEvt));
+      if (!hit) { return; }
+      var node = annoNodeFromHit(hit);
+      if (!node) { return; }
+      var id = node.getAttr('objId');
+      if (!id) { return; }
+      if (!recorded) { recordUndo(); recorded = true; }   // 첫 삭제 직전 스냅샷(제스처당 1회 undo)
+      spliceObject(id);
+      node.destroy();
+      delete nodeById[id];
+      erased = true;
+      konvaLayer.batchDraw();   // 아래 겹친 획이 다음 판정에서 드러나도록 즉시 반영
+    }
+    function samePointer(nativeEvt) {
+      return pointerId == null || nativeEvt.pointerId == null || nativeEvt.pointerId === pointerId;
+    }
+    function move(nativeEvt) {
+      if (!samePointer(nativeEvt)) { return; }
+      if (nativeEvt.preventDefault) { nativeEvt.preventDefault(); }
+      eraseAt(nativeEvt);
+    }
+    function up(nativeEvt) {
+      if (nativeEvt.type !== 'pointercancel' && !samePointer(nativeEvt)) { return; }
+      window.removeEventListener('pointermove', move, true);
+      window.removeEventListener('pointerup', up, true);
+      window.removeEventListener('pointercancel', up, true);
+      isDrawingPen = false;
+      if (erased) { markDirty(); rebuildAnno(); }   // 지우개 모드 유지(연속 삭제), 선택 복원 없음
+      else { konvaLayer.batchDraw(); }
+    }
+    eraseAt(devt);   // pointerdown 지점 즉시 판정(탭으로도 삭제)
+    window.addEventListener('pointermove', move, true);
+    window.addEventListener('pointerup', up, true);
+    window.addEventListener('pointercancel', up, true);
+  }
+
   /* ---- 텍스트 생성 / 인라인 편집 ------------------------------------------ */
   function createTextAt(x, y) {
     if (!canSave || !currentSheet()) { return; }
     recordUndo();
     var o = {
-      id: rid('o-'), type: 'text', x: Math.round(x), y: Math.round(y), w: 220,
-      text: '', size: 20, color: '#000000', bold: false, align: 'left', rotation: 0
+      id: rid('o-'), type: 'text', x: Math.round(x), y: Math.round(y), w: 1,
+      text: '', size: 20, color: '#000000', bold: false, align: 'left', rotation: 0, autoWidth: true
     };
     currentSheet().objects.push(o);
     markDirty();
@@ -1302,8 +1927,8 @@
     recordUndo();
     var n = currentSheet().objects.length;
     var o = {
-      id: rid('o-'), type: 'text', x: 340 + (n % 3) * 30, y: 95 + (n % 6) * 46, w: 220,
-      text: String(text || ''), size: 20, color: '#000000', bold: !!bold, align: 'left', rotation: 0
+      id: rid('o-'), type: 'text', x: 340 + (n % 3) * 30, y: 95 + (n % 6) * 46, w: 1,
+      text: String(text || ''), size: 20, color: '#000000', bold: !!bold, align: 'left', rotation: 0, autoWidth: true
     };
     currentSheet().objects.push(o);
     markDirty();
@@ -1500,7 +2125,15 @@
     area.setAttribute('spellcheck', 'false');
     area.style.left = (annoRect.left + pos.x * zoom) + 'px';
     area.style.top = (annoRect.top + pos.y * zoom) + 'px';
-    area.style.minWidth = Math.max(40, num(o.w, 40) * zoom) + 'px';
+    if (o.autoWidth === false) {
+      // fixed: 지정 폭에서 줄바꿈(렌더 word-wrap 과 정합).
+      area.style.width = Math.max(40, num(o.w, 40) * zoom) + 'px';
+      area.style.whiteSpace = 'pre-wrap';
+    } else {
+      // auto: 내용에 맞춰 hug(자동 줄바꿈 없음, 명시 개행만). CSS 기본 white-space:pre.
+      area.style.minWidth = Math.max(40, num(o.w, 40) * zoom) + 'px';
+      area.style.whiteSpace = 'pre';
+    }
     area.style.fontSize = (size * zoom) + 'px';
     area.style.fontFamily = ANNO_FONT;
     area.style.fontWeight = o.bold ? '700' : '400';
@@ -1578,9 +2211,10 @@
     return jsonFetch(API_BASE + '/drawing-wizard/asset', { method: 'POST', body: fd });
   }
 
-  /** 업로드된 에셋 key 를 이미지 객체로 캔버스 중앙에 배치한다(원본 natural 비율·undo·dirty).
-      이미지 업로드(파일/붙여넣기)와 실측 사진 삽입(import-attachment)의 공용 삽입 파이프라인. */
-  function placeImageFromKey(key) {
+  /** 업로드된 에셋 key 를 이미지 객체로 배치한다(원본 natural 비율·undo·dirty).
+      pos(논리 좌표 {x,y}) 가 주어지면 이미지 중심이 그 지점에 오도록, 없으면 캔버스 중앙에 배치.
+      이미지 업로드(파일/붙여넣기/드롭)와 실측 사진 삽입(import-attachment)의 공용 삽입 파이프라인. */
+  function placeImageFromKey(key, pos) {
     if (!canSave || !key || !currentSheet()) { return; }
     var img = new Image();
     img.onload = function () {
@@ -1589,13 +2223,21 @@
       var w = Math.min(900, nw);
       var h = Math.round(w * nh / nw) || Math.round(w * 0.66);
       recordUndo();
+      var x, y;
+      if (pos && isFinite(pos.x) && isFinite(pos.y)) {
+        // 드롭 지점에 이미지 중심을 두고 스테이지 범위로 클램프(y 하한 70 = 헤더 영역 보호).
+        x = clamp(Math.round(pos.x - w / 2), 0, Math.max(0, STAGE_W - w));
+        y = clamp(Math.round(pos.y - h / 2), 70, Math.max(70, STAGE_H - h));
+      } else {
+        x = Math.round((STAGE_W - w) / 2);
+        y = Math.round(70 + (730 - h) / 2);
+        if (y < 70) { y = 70; }
+      }
       var o = {
         id: rid('o-'), type: 'image',
-        x: Math.round((STAGE_W - w) / 2),
-        y: Math.round(70 + (730 - h) / 2),
+        x: x, y: y,
         w: w, h: h, key: key, natural_w: nw, natural_h: nh, rotation: 0
       };
-      if (o.y < 70) { o.y = 70; }
       currentSheet().objects.push(o);
       markDirty();
       rebuildAnno();
@@ -1605,7 +2247,7 @@
     img.src = viewUrl(key);
   }
 
-  function addImageFromFile(file) {
+  function addImageFromFile(file, pos) {
     if (!canSave || !file) { return; }
     if (!currentSheet()) { toast('제품을 선택해 도면을 먼저 시작하세요.'); return; }
     uploadAsset(file).then(function (r) {
@@ -1613,8 +2255,72 @@
         toast((r.data && r.data.message) || '이미지 업로드 실패');
         return;
       }
-      placeImageFromKey(r.data.data.key);
+      placeImageFromKey(r.data.data.key, pos);
     }).catch(function (err) { console.warn('[dws] asset upload', err); toast('이미지 업로드 오류'); });
+  }
+
+  /** 드롭 화면좌표(clientX/Y)를 스테이지 논리좌표로 역산한다.
+      anno 컨테이너 rect + `zoom` 스케일 기준(positionMiniToolbar 의 정매핑
+      screen = annoRect + logical*zoom 의 역). 매핑 불가(사이즈 0 등) 시 null → 중앙 폴백. */
+  function dropLogicalPos(e) {
+    if (!els.anno) { return null; }
+    var r = els.anno.getBoundingClientRect();
+    if (!r.width || !r.height || !zoom) { return null; }
+    var x = (e.clientX - r.left) / zoom;
+    var y = (e.clientY - r.top) / zoom;
+    if (!isFinite(x) || !isFinite(y)) { return null; }
+    return { x: clamp(x, 0, STAGE_W), y: clamp(y, 0, STAGE_H) };
+  }
+
+  /** 캔버스 뷰포트에 이미지 파일 드래그앤드롭 배선(HTML5 DnD, 툴바 [이미지]·Ctrl+V 와 동일 파이프라인).
+      드롭 지점 논리좌표로 배치하며, 여러 파일은 소폭 cascade 로 겹침을 피한다.
+      dragover 는 반드시 preventDefault 해야 drop 이 발화한다. */
+  function bindCanvasDnd() {
+    var zone = els.canvas;
+    if (!zone) { return; }
+    var depth = 0;   // dragenter/leave 균형 카운터(자식 경계 진입에도 하이라이트 유지)
+    function isFileDrag(e) {
+      var t = e.dataTransfer && e.dataTransfer.types;
+      if (!t) { return false; }
+      for (var i = 0; i < t.length; i++) { if (t[i] === 'Files') { return true; } }
+      return false;
+    }
+    function show(on) { zone.classList.toggle('dws-dropzone-active', !!on); }
+    zone.addEventListener('dragenter', function (e) {
+      if (!isFileDrag(e)) { return; }
+      e.preventDefault();
+      depth++;
+      show(true);
+    });
+    zone.addEventListener('dragover', function (e) {
+      if (!isFileDrag(e)) { return; }
+      e.preventDefault();   // 없으면 drop 이 발화하지 않음
+      if (e.dataTransfer) { e.dataTransfer.dropEffect = 'copy'; }
+      show(true);
+    });
+    zone.addEventListener('dragleave', function () {
+      if (depth === 0) { return; }   // depth>0 = 파일 드래그 진행 중(dragenter 에서만 증가)
+      depth--;
+      if (depth === 0) { show(false); }
+    });
+    zone.addEventListener('drop', function (e) {
+      if (!isFileDrag(e)) { return; }
+      e.preventDefault();   // 브라우저의 파일 네비게이션 차단
+      depth = 0;
+      show(false);
+      var files = (e.dataTransfer && e.dataTransfer.files) ? e.dataTransfer.files : [];
+      var base = dropLogicalPos(e);   // null 이면 중앙 폴백
+      var placed = 0, skipped = 0;
+      for (var i = 0; i < files.length; i++) {
+        var f = files[i];
+        if (!f || !f.type || f.type.indexOf('image/') !== 0) { skipped++; continue; }
+        var pos = null;
+        if (base) { var off = placed * 24; pos = { x: base.x + off, y: base.y + off }; }
+        addImageFromFile(f, pos);
+        placed++;
+      }
+      if (placed === 0 && skipped > 0) { toast('이미지 파일만 캔버스에 추가할 수 있습니다.'); }
+    });
   }
 
   /* ========================================================================
@@ -1682,6 +2388,7 @@
 
   /** 제품 클릭 → 그 제품 전용 도면 시트로 전환(없으면 defaults 로드 후 생성). */
   function onProductClick(idx) {
+    closeDrawer();                              // 좁은 화면: 제품 선택 시 드로어 닫힘(데스크톱 무영향)
     if (!canSave) { toast('열람 전용 — 도면 담당자·도면팀 또는 관리자만 편집할 수 있습니다.'); return; }
     var cs = currentSheet();
     if (cs && cs.product_index === idx) { return; }   // 이미 그 제품 시트면 no-op
@@ -1719,6 +2426,24 @@
       els.productToggle.title = collapsed ? '제품 목록 펼치기' : '제품 목록 접기';
       els.productToggle.setAttribute('aria-label', els.productToggle.title);
     }
+  }
+
+  /* 좁은 화면(≤900px) 오프캔버스 드로어. 데스크톱은 관련 CSS 가 미디어쿼리 내부에만
+     있어 dws-drawer-open 클래스가 inert(레이아웃 무영향)하다. 상태는 #dws-root 클래스로 단일화. */
+  function openDrawer() {
+    if (!root) { return; }
+    // 드로어로 열 땐 데스크톱 접힘 상태를 해제(폭은 CSS 로 강제되지만 내부 목록 표시 보장).
+    if (els.products) { els.products.classList.remove('dws-products-collapsed'); }
+    root.classList.add('dws-drawer-open');
+    if (els.panelBtn) { els.panelBtn.setAttribute('aria-expanded', 'true'); }
+  }
+  function closeDrawer() {
+    if (!root) { return; }
+    root.classList.remove('dws-drawer-open');
+    if (els.panelBtn) { els.panelBtn.setAttribute('aria-expanded', 'false'); }
+  }
+  function toggleDrawer() {
+    if (root.classList.contains('dws-drawer-open')) { closeDrawer(); } else { openDrawer(); }
   }
 
   /** 실측 사진이 현재 제품 시트(activeIdx)에 표시 대상인지 판정.
@@ -1800,6 +2525,9 @@
     }
   }
 
+  /* 현재 전달 대기함에 저장된 시트 id 집합(renderPending 이 재구성) — 캔버스 삭제버튼 가시성 판정용. */
+  var pendingSheetIds = new Set();
+
   /* ---- 저장된 도면(전달 대기) 사이드 미리보기 -------------------------------
    * pending 목록(GET /drawing-wizard/pending)을 읽어 aside 에 썸네일 그리드로 렌더한다.
    * 항목 클릭 → 원본(asset-raw) 라이트박스 확대. 표시 전용(structured_data 쓰기 없음).
@@ -1827,9 +2555,10 @@
     els.pending.hidden = !items.length;
     if (els.pendingTitle) { els.pendingTitle.textContent = '저장된 도면 ' + items.length; }
     els.pendingGrid.textContent = '';
-    if (!items.length) { return; }
+    pendingSheetIds = new Set();
     items.forEach(function (it) {
       if (!it || !it.key) { return; }
+      if (it.sheet_id) { pendingSheetIds.add(it.sheet_id); }
       var name = String(it.sheet_name || it.filename || '도면');
       var cell = document.createElement('button');
       cell.type = 'button';
@@ -1846,12 +2575,45 @@
       var atEl = document.createElement('span');
       atEl.className = 'dws-pending-at';
       atEl.textContent = it.at || '';
+      // 저장분 삭제 미니 × (셀은 <button>이므로 버튼 중첩 금지 → span + stopPropagation)
+      var del = document.createElement('span');
+      del.className = 'dws-pending-del';
+      del.textContent = '×';
+      del.title = '삭제';
+      del.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (!confirm('저장된 도면을 삭제할까요? 되돌릴 수 없습니다.')) { return; }
+        deletePending(it.sheet_id);
+      });
       cell.appendChild(img);
       cell.appendChild(nameEl);
       cell.appendChild(atEl);
+      cell.appendChild(del);
       cell.addEventListener('click', function () { openLightbox(it.key, name); });
       els.pendingGrid.appendChild(cell);
     });
+    updateDeleteSavedBtn();
+  }
+
+  /** 전달 대기 도면 1건을 서버에서 삭제한다(DELETE). 성공 시 목록 재조회로 UI 동기화. */
+  function deletePending(sheetId) {
+    if (!sheetId) { return; }
+    jsonFetch(API_BASE + '/drawing-wizard/pending/' + encodeURIComponent(sheetId), { method: 'DELETE' }).then(function (r) {
+      if (r.status === 200 && r.data && r.data.success) {
+        toast('저장된 도면을 삭제했습니다.');
+        refreshPending();          // renderPending 재실행 → pendingSheetIds/버튼 가시성 갱신
+      } else {
+        toast((r.data && r.data.message) || '삭제하지 못했습니다.');
+      }
+    }, function () { toast('삭제 중 오류가 발생했습니다.'); });
+  }
+
+  /** 캔버스 우측상단 '저장분 삭제' 버튼 가시성 — 현재 시트에 저장분 있고 저장 권한일 때만 노출. */
+  function updateDeleteSavedBtn() {
+    if (!els.delSavedBtn) { return; }
+    var cs = currentSheet();
+    var show = !!(canSave && cs && cs.id && pendingSheetIds && pendingSheetIds.has(cs.id));
+    els.delSavedBtn.hidden = !show;
   }
 
   /** 저장된 도면 섹션 접기/펼치기 토글. */
@@ -1938,6 +2700,7 @@
     renderForm();
     rebuildAnno();
     syncProductActive();
+    updateDeleteSavedBtn();
   }
 
   function addSheet() {
@@ -2027,7 +2790,7 @@
     els.wrap.style.width = (STAGE_W * z) + 'px';
     els.wrap.style.height = (STAGE_H * z) + 'px';
     var pct = Math.round(z * 100);
-    els.zoomRange.value = String(clamp(pct, 50, 150));
+    els.zoomRange.value = String(clamp(pct, 50, 250));
     els.zoomLabel.textContent = pct + '%';
     positionMiniToolbar();
   }
@@ -2262,6 +3025,17 @@
         stroke: colorOrDefault(o.stroke), strokeWidth: strokeOrDefault(o.strokeWidth), rotation: rot
       };
     }
+    if (o.type === 'pen') {
+      var penPts = normalizePenPoints(o.points);
+      if (penPts.length < 4) { return null; }   // 점 부족 획은 저장에서 제외(서버 400 예방)
+      var pen = {
+        id: o.id, type: 'pen', points: penPts,
+        stroke: colorOrDefault(o.stroke), strokeWidth: penWidthOrDefault(o.strokeWidth), rotation: rot
+      };
+      var penOp = penOpacityOrNull(o.opacity);   // 형광펜 반투명 보존(불투명이면 필드 생략)
+      if (penOp != null) { pen.opacity = penOp; }
+      return pen;
+    }
     if (o.type === 'text') {
       var txt = {
         id: o.id, type: 'text',
@@ -2276,6 +3050,7 @@
         txt.text = runs.map(function (r) { return r.t; }).join('');   // 서버 계약: join(t)==text
         txt.color = runs[0].c; txt.bold = !!runs[0].b;
       }
+      if (o.autoWidth === false) { txt.autoWidth = false; }   // fixed 폭만 명시 저장(auto=기본, 미지정)
       return txt;
     }
     return null;
@@ -2353,12 +3128,22 @@
         stroke: colorOrDefault(o.stroke), strokeWidth: strokeOrDefault(o.strokeWidth), rotation: rot
       };
     }
+    if (o.type === 'pen') {
+      var pen = {
+        id: o.id || rid('o-'), type: 'pen', points: normalizePenPoints(o.points),
+        stroke: colorOrDefault(o.stroke), strokeWidth: penWidthOrDefault(o.strokeWidth), rotation: rot
+      };
+      var penOp = penOpacityOrNull(o.opacity);   // 형광펜 반투명 로드 보존(누락=불투명)
+      if (penOp != null) { pen.opacity = penOp; }
+      return pen;
+    }
     var text = {
       id: o.id || rid('o-'), type: 'text',
       x: num(o.x), y: num(o.y), w: num(o.w, 220),
       text: String(o.text || ''), size: sizeOrDefault(o.size), color: colorOrDefault(o.color),
       bold: !!o.bold, align: (o.align === 'center') ? 'center' : 'left', rotation: rot
     };
+    if (o.autoWidth === false) { text.autoWidth = false; }   // fixed 폭 로드 보존(미지정=auto 기본)
     if (o.runs) { text.runs = o.runs; syncTextFromRuns(text); }   // 런 있으면 불변식 동기(text/color/bold)
     return text;
   }
@@ -2370,7 +3155,7 @@
         name: s.name || '도면',
         form: serializeForm(mergeFormDefaults(s.form)),
         objects: (s.objects || [])
-          .filter(function (o) { return o && ['text', 'image', 'rect', 'ellipse', 'arrow', 'line'].indexOf(o.type) >= 0; })
+          .filter(function (o) { return o && ['text', 'image', 'rect', 'ellipse', 'arrow', 'line', 'pen'].indexOf(o.type) >= 0; })
           .map(normalizeObj)
       };
       if (isFiniteNum(s.product_index)) { sheet.product_index = Math.round(s.product_index); }
@@ -2425,6 +3210,7 @@
         });
         if (numbered) { dirty = true; }
       })();
+      selectedIds = [];
       selected = null;
       setAnnoMode('select');
       applyPermissions();
@@ -2999,10 +3785,22 @@
 
     // 좌측 제품 리스트 패널 접기/펼치기
     if (els.productToggle) { els.productToggle.addEventListener('click', toggleProducts); }
+    // 좁은 화면 드로어(햄버거) 토글 + 백드롭 탭 닫기 (__DWS_BOUND 스코프라 1회만 바인딩)
+    if (els.panelBtn) { els.panelBtn.addEventListener('click', toggleDrawer); }
+    if (els.productsBackdrop) { els.productsBackdrop.addEventListener('click', closeDrawer); }
     // 실측 사진 섹션 접기/펼치기
     if (els.photosToggle) { els.photosToggle.addEventListener('click', togglePhotos); }
     // 저장된 도면(전달 대기) 섹션 접기/펼치기 + 썸네일 라이트박스 닫기(닫기 버튼·배경 클릭)
     if (els.pendingToggle) { els.pendingToggle.addEventListener('click', togglePending); }
+    // 캔버스 우측상단 '저장분 삭제' — 현재 시트의 전달 대기 도면 삭제(가시성은 updateDeleteSavedBtn 관리)
+    if (els.delSavedBtn) {
+      els.delSavedBtn.addEventListener('click', function () {
+        var cs = currentSheet();
+        if (!cs) { return; }
+        if (!confirm('저장된 도면을 삭제할까요? 되돌릴 수 없습니다.')) { return; }
+        deletePending(cs.id);
+      });
+    }
     if (els.lightboxClose) { els.lightboxClose.addEventListener('click', closeLightbox); }
     if (els.lightbox) {
       els.lightbox.addEventListener('click', function (e) { if (e.target === els.lightbox) { closeLightbox(); } });
@@ -3019,6 +3817,31 @@
     Array.prototype.forEach.call(els.shapeMenu.querySelectorAll('[data-shape]'), function (b) {
       b.addEventListener('click', function () { closeMenus(); setAnnoMode(b.getAttribute('data-shape')); });
     });
+
+    // 펜(프리핸드) 도구 + 팔레트(펜/형광펜 토글·색·굵기) — 토글 진입, 팔레트는 펜 모드일 때만 노출.
+    var penBtn = document.getElementById('dws-btn-pen');
+    if (penBtn) { penBtn.addEventListener('click', function () { closeMenus(); setAnnoMode(annoMode === 'pen' ? 'select' : 'pen'); }); }
+    if (els.penPalette) {
+      Array.prototype.forEach.call(els.penPalette.querySelectorAll('[data-pen-mode]'), function (b) {
+        b.addEventListener('click', function () { setPenMode(b.getAttribute('data-pen-mode')); });
+      });
+      Array.prototype.forEach.call(els.penPalette.querySelectorAll('[data-pen-color]'), function (b) {
+        b.addEventListener('click', function () { setPenColor(b.getAttribute('data-pen-color')); });
+      });
+      Array.prototype.forEach.call(els.penPalette.querySelectorAll('[data-pen-width]'), function (b) {
+        b.addEventListener('click', function () { setPenWidth(parseInt(b.getAttribute('data-pen-width'), 10)); });
+      });
+      Array.prototype.forEach.call(els.penPalette.querySelectorAll('[data-hi-color]'), function (b) {
+        b.addEventListener('click', function () { setHiColor(b.getAttribute('data-hi-color')); });
+      });
+      Array.prototype.forEach.call(els.penPalette.querySelectorAll('[data-hi-width]'), function (b) {
+        b.addEventListener('click', function () { setHiWidth(parseInt(b.getAttribute('data-hi-width'), 10)); });
+      });
+    }
+
+    // 지우개 도구 — 토글 진입(획/주석 통째 삭제). 팔레트·미니툴바 없음(세그 active 로 표시).
+    var eraserBtn = document.getElementById('dws-btn-eraser');
+    if (eraserBtn) { eraserBtn.addEventListener('click', function () { closeMenus(); setAnnoMode(annoMode === 'eraser' ? 'select' : 'eraser'); }); }
 
     // 이미지 파일 선택
     els.fileInput.addEventListener('change', function () {
@@ -3101,6 +3924,13 @@
     els.mtStroke.addEventListener('change', function () { updateSelectedShape({ strokeWidth: parseInt(els.mtStroke.value, 10) }); });
     document.getElementById('dws-mt-del-shape').addEventListener('click', deleteSelected);
 
+    // 정렬 툴바(다중 선택) — 6종 정렬 버튼
+    if (els.alignToolbar) {
+      Array.prototype.forEach.call(els.alignToolbar.querySelectorAll('[data-align]'), function (b) {
+        b.addEventListener('click', function () { alignSelected(b.getAttribute('data-align')); });
+      });
+    }
+
     // 로고 팝업
     Array.prototype.forEach.call(els.logoPopup.querySelectorAll('[data-logo]'), function (b) {
       b.addEventListener('click', function (e) { e.stopPropagation(); setLogo(b.getAttribute('data-logo')); hideLogoPopup(); });
@@ -3169,7 +3999,7 @@
       }
       if (meta && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); if (e.shiftKey) { redo(); } else { undo(); } return; }
       if (meta && (e.key === 'y' || e.key === 'Y')) { e.preventDefault(); redo(); return; }
-      if (!selected) { return; }
+      if (!selectedIds.length) { return; }
       if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteSelected(); return; }
       var step = e.shiftKey ? 10 : 1, dx = 0, dy = 0;
       if (e.key === 'ArrowLeft') { dx = -step; }
@@ -3178,19 +4008,193 @@
       else if (e.key === 'ArrowDown') { dy = step; }
       else { return; }
       e.preventDefault();
-      var o = findObj(selected);
-      if (!o) { return; }
       var now = Date.now();
       if (now - lastArrowUndoTs > 500) { recordUndo(); }
       lastArrowUndoTs = now;
-      moveObjectBy(o, dx, dy);
+      // 단일·다중 공용: 선택 전체를 같은 델타로 이동.
+      selectedIds.forEach(function (id) { var o = findObj(id); if (o) { moveObjectBy(o, dx, dy); } });
       markDirty();
+      if (isMultiSelect() && transformer) { transformer.forceUpdate(); }
       positionMiniToolbar();
+      positionAlignToolbar();
     });
 
-    // 스크롤/리사이즈 시 미니툴바 위치 갱신
-    els.canvas.addEventListener('scroll', function () { positionMiniToolbar(); });
-    window.addEventListener('resize', function () { positionMiniToolbar(); });
+    // 스크롤/리사이즈 시 미니툴바/정렬툴바 위치 갱신
+    els.canvas.addEventListener('scroll', function () { positionMiniToolbar(); positionAlignToolbar(); });
+    window.addEventListener('resize', function () { positionMiniToolbar(); positionAlignToolbar(); });
+
+    /* Space+드래그 캔버스 팬(포토샵 hand tool 감각) — els.canvas 스크롤 뷰포트 조작.
+       Space 를 홀드한 동안만 드래그가 팬으로 소비된다. capture 단계 mousedown 으로
+       Konva 컨테이너(선택/러버밴드/객체드래그)보다 먼저 가로채고, Space 홀드가 아니면
+       아무것도 안 하므로 기존 마퀴/객체드래그/텍스트생성(Ctrl/Cmd+클릭)과 무충돌.
+       폼 셀/텍스트 편집 중 Space 는 절대 가로채지 않는다(정상 입력). */
+    (function wirePan() {
+      var panning = false;
+      var spaceHeld = false;
+      var startX = 0, startY = 0, startScrollLeft = 0, startScrollTop = 0;
+      function isSpaceKey(e) { return e.code === 'Space' || e.key === ' ' || e.key === 'Spacebar'; }
+      function onPanMove(e) {
+        if (!panning) { return; }
+        // 드래그 방향으로 내용이 따라오는 hand tool 감각(범위 밖이면 브라우저가 clamp).
+        els.canvas.scrollLeft = startScrollLeft - (e.clientX - startX);
+        els.canvas.scrollTop = startScrollTop - (e.clientY - startY);
+        e.preventDefault();
+      }
+      function onPanUp() {
+        if (!panning) { return; }
+        panning = false;
+        window.removeEventListener('mousemove', onPanMove, true);
+        window.removeEventListener('mouseup', onPanUp, true);
+        els.canvas.classList.remove('dws-panning');
+      }
+      // capture=true 필수: 버블 단계면 Konva 가 이미 처리해 stopPropagation 이 무효.
+      els.canvas.addEventListener('mousedown', function (e) {
+        if (!spaceHeld) { return; }           // Space 홀드 없으면 기존 선택/러버밴드/객체드래그 그대로
+        e.preventDefault();                   // 텍스트 선택 억제
+        e.stopPropagation();                  // Konva 로 전파 차단(선택/러버밴드/객체드래그 미발동)
+        panning = true;
+        startX = e.clientX; startY = e.clientY;
+        startScrollLeft = els.canvas.scrollLeft; startScrollTop = els.canvas.scrollTop;
+        els.canvas.classList.add('dws-panning');
+        window.addEventListener('mousemove', onPanMove, true);
+        window.addEventListener('mouseup', onPanUp, true);
+      }, true);
+
+      // Space 홀드 동안 grab 커서(팬 준비). 편집 중이면 폼 입력이 정상 통과하도록 무시.
+      window.addEventListener('keydown', function (e) {
+        if (!isSpaceKey(e)) { return; }
+        var ae = document.activeElement;
+        var editing = !!(ae && (ae.isContentEditable || ae.tagName === 'TEXTAREA' || ae.tagName === 'INPUT' || ae.tagName === 'SELECT'));
+        if (editing) { return; }              // 폼 셀/텍스트 편집 중 Space 는 정상 입력(가로채지 않음)
+        spaceHeld = true;
+        e.preventDefault();                   // 페이지 스크롤/포커스 버튼 트리거 방지
+        els.canvas.classList.add('dws-pan-ready');
+      });
+      window.addEventListener('keyup', function (e) {
+        if (!isSpaceKey(e)) { return; }
+        spaceHeld = false;
+        els.canvas.classList.remove('dws-pan-ready');
+        onPanUp();                            // 진행 중 팬 종료
+      });
+      // 창 blur 시 spaceHeld·커서 잔류 방지(Space 뗀 이벤트를 놓친 경우 대비).
+      window.addEventListener('blur', function () {
+        spaceHeld = false;
+        els.canvas.classList.remove('dws-pan-ready');
+        onPanUp();
+      });
+    })();
+
+    /* Alt+휠 = 도면 확대/축소. 일반 휠(Alt 없음)은 기존 스크롤 그대로 관여 안 함.
+       커서 아래 논리점을 고정해(포토샵 감각) 줌 전후 scrollLeft/Top 을 보정한다.
+       setZoom 이 슬라이더(#dws-zoom-range)·라벨을 자동 갱신하므로 별도 DOM 갱신 불필요.
+       __DWS_BOUND 스코프라 1회만 바인딩(idempotent). */
+    els.canvas.addEventListener('wheel', function (e) {
+      if (!e.altKey) { return; }              // 일반 휠 = 기존 스크롤(관여 안 함)
+      e.preventDefault();
+      var rect = els.canvas.getBoundingClientRect();
+      var px = e.clientX - rect.left, py = e.clientY - rect.top;   // 뷰포트 내 커서 좌표
+      var focalLogicalX = (els.canvas.scrollLeft + px) / zoom;     // 커서 아래 논리점(줌 무관)
+      var focalLogicalY = (els.canvas.scrollTop + py) / zoom;
+      var step = 0.1;                                              // 휠 1노치 = 10%p
+      var nz = clamp(zoom + (e.deltaY < 0 ? step : -step), 0.5, 2.5);
+      if (nz === zoom) { return; }            // clamp 경계 도달 → 변화 없음
+      setZoom(nz);
+      // 커서 아래 논리점이 화면상 같은 위치에 남도록 스크롤 보정(범위 밖은 브라우저 clamp).
+      els.canvas.scrollLeft = focalLogicalX * nz - px;
+      els.canvas.scrollTop = focalLogicalY * nz - py;
+    }, { passive: false });
+
+    // Chrome/Edge 는 '단독 Alt' 누름/뗌을 앱 메뉴(⋮) 단축키로 처리한다 → Alt+휠 줌·Alt+클릭
+    // 시 메뉴가 튀어나온다. 마법사에서 단독 Alt keydown 을 preventDefault 해 메뉴 발동을 막는다.
+    // e.key==='Alt' 단독일 때만 — Alt+화살표(뒤로/앞으로) 등 조합키는 e.key 가 달라 영향 없다.
+    window.addEventListener('keydown', function (e) {
+      if (e.key === 'Alt' && !e.ctrlKey && !e.shiftKey && !e.metaKey) { e.preventDefault(); }
+    });
+
+    /* 손가락 네비게이션(태블릿) — 1지 드래그=팬, 2지=핀치 확대(중점 고정).
+       touch-action:none 이라 네이티브 스크롤/줌은 꺼져 있고 여기서 전량 구현한다.
+       Apple Pencil(touchType 'stylus')은 그리기(pointer 'pen') 담당이라 제외하고,
+       펜슬 필기 중(isDrawingPen)에는 팬/핀치를 억제한다(팜 리젝션). capture+stopPropagation
+       으로 Konva 가 손가락 터치를 받지 않게 해 객체 조작·탭을 차단한다. */
+    (function wireTouchNav() {
+      if (!els.canvas) { return; }
+      var mode = 0;               // 0=없음, 1=팬, 2=핀치
+      var startX = 0, startY = 0, startScrollLeft = 0, startScrollTop = 0;
+      var startDist = 1, startZoom = 1, focalLogicalX = 0, focalLogicalY = 0;
+
+      function fingerList(touchList) {
+        var out = [];
+        for (var i = 0; i < touchList.length; i++) {
+          if (touchList[i].touchType === 'stylus') { continue; }   // 펜슬 → 그리기 담당(제외)
+          out.push(touchList[i]);
+        }
+        return out;
+      }
+      function dist(a, b) { var dx = a.clientX - b.clientX, dy = a.clientY - b.clientY; return Math.sqrt(dx * dx + dy * dy); }
+      function midpoint(a, b) { return { x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2 }; }
+
+      function initGesture(fingers) {
+        var rect = els.canvas.getBoundingClientRect();
+        startScrollLeft = els.canvas.scrollLeft; startScrollTop = els.canvas.scrollTop;
+        if (fingers.length >= 2) {
+          mode = 2;
+          startDist = dist(fingers[0], fingers[1]) || 1;
+          startZoom = zoom;
+          var m = midpoint(fingers[0], fingers[1]);
+          focalLogicalX = (startScrollLeft + (m.x - rect.left)) / zoom;
+          focalLogicalY = (startScrollTop + (m.y - rect.top)) / zoom;
+        } else {
+          mode = 1;
+          startX = fingers[0].clientX; startY = fingers[0].clientY;
+        }
+      }
+      function onMove(e) {
+        if (mode === 0) { return; }
+        var fingers = fingerList(e.touches);
+        if (!fingers.length) { return; }
+        // 손가락 수 변화(2↔1) → baseline 재설정(급점프 방지).
+        if ((mode === 2 && fingers.length < 2) || (mode === 1 && fingers.length >= 2)) { initGesture(fingers); }
+        if (e.cancelable) { e.preventDefault(); }
+        e.stopPropagation();
+        if (mode === 2 && fingers.length >= 2) {
+          var rect = els.canvas.getBoundingClientRect();
+          var d = dist(fingers[0], fingers[1]) || 1;
+          var nz = clamp(startZoom * (d / startDist), 0.5, 2.5);
+          setZoom(nz);
+          var m = midpoint(fingers[0], fingers[1]);
+          els.canvas.scrollLeft = focalLogicalX * nz - (m.x - rect.left);
+          els.canvas.scrollTop = focalLogicalY * nz - (m.y - rect.top);
+        } else {
+          els.canvas.scrollLeft = startScrollLeft - (fingers[0].clientX - startX);
+          els.canvas.scrollTop = startScrollTop - (fingers[0].clientY - startY);
+        }
+      }
+      function onEnd(e) {
+        var fingers = fingerList(e.touches);
+        if (!fingers.length) {
+          mode = 0;
+          window.removeEventListener('touchmove', onMove, true);
+          window.removeEventListener('touchend', onEnd, true);
+          window.removeEventListener('touchcancel', onEnd, true);
+        } else {
+          initGesture(fingers);   // 남은 손가락으로 재설정(2→1 전환 이어가기)
+        }
+      }
+      els.canvas.addEventListener('touchstart', function (e) {
+        if (isDrawingPen) { return; }            // 펜슬 필기 중 → 팜 리젝션(팬/핀치 억제)
+        var fingers = fingerList(e.touches);
+        if (!fingers.length) { return; }         // 펜슬 단독 터치 → 그리기 담당(관여 안 함)
+        e.stopPropagation();                     // Konva 로 손가락 터치 전파 차단(객체 조작·탭 방지)
+        if (e.cancelable) { e.preventDefault(); }
+        initGesture(fingers);
+        window.addEventListener('touchmove', onMove, { capture: true, passive: false });
+        window.addEventListener('touchend', onEnd, true);
+        window.addEventListener('touchcancel', onEnd, true);
+      }, { capture: true, passive: false });
+    })();
+
+    // 캔버스 이미지 파일 드래그앤드롭(드롭 지점 배치). 빈 시트 오버레이 위 드롭도 안내 토스트.
+    bindCanvasDnd();
 
     // 미저장 이탈 가드
     window.addEventListener('beforeunload', function (e) {
@@ -3212,10 +4216,9 @@
 
   function init() {
     cacheDom();
-    if (isMobile()) {
-      els.mobileNotice.hidden = false;
-      return;
-    }
+    // 모바일/태블릿도 편집 허용(펜슬 프리핸드 + 두 손가락 팬/핀치). 기존 "데스크톱
+    // 전용" 전체화면 차단(dws-mobile-notice)은 폐지 — 종이 수기 마크업의 태블릿 DX가
+    // 본 기능의 목적이다. 작은 화면 크롬 밀집은 확대/팬으로 흡수(반응형 셸 정돈은 후속).
     if (typeof window.Konva === 'undefined') {
       console.error('[dws] Konva 라이브러리를 불러오지 못했습니다.');
       if (els.toastHost) { toast('주석 엔진(Konva)을 불러오지 못했습니다. 새로고침해 주세요.'); }

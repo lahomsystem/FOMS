@@ -60,8 +60,13 @@ _ASSET_RAW_MIMETYPES = {
 }
 _ALLOWED_TEXT_SIZES = (14, 17, 20, 24, 28)
 _ALLOWED_ALIGNS = ('left', 'center')
-_ALLOWED_OBJECT_TYPES = ('text', 'image', 'rect', 'ellipse', 'arrow', 'line')
+_ALLOWED_OBJECT_TYPES = ('text', 'image', 'rect', 'ellipse', 'arrow', 'line', 'pen')
 _ALLOWED_STROKE_WIDTHS = (1, 2, 3)
+# 프리핸드 펜 획: points(x,y 쌍) 상한 = 200점(=400 coords). 64KB·200객체 캡 보호를 위해
+# 프론트가 점 단순화(거리 threshold) + 상한 도달 시 자동 분할 커밋으로 협조한다.
+_PEN_MAX_POINTS = 400
+# 펜 선 굵기(px) 허용 범위 — 팔레트 2/4/7 + select 모드 도형 편집(1~3)까지 포용하는 양수 범위.
+_PEN_MIN_WIDTH, _PEN_MAX_WIDTH = 1, 20
 _COLOR_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
 
 # 제품별 도면 시트 — 시트 승격 값(제품 리스트 인덱스)
@@ -259,6 +264,8 @@ def _validate_text_object(obj: dict) -> str | None:
 
     ``text``(플레인 합본)·``size``·``color``·``bold``·``align`` 는 필수이며,
     optional ``runs`` 가 있으면 글자 단위 스타일을 추가 검증한다(하위호환).
+    optional ``autoWidth``(bool)는 자동 폭(hug)/고정 폭(word-wrap) 모드 플래그로,
+    있으면 불리언이어야 한다(``w`` 는 auto·fixed 모두 항상 숫자로 저장·검증됨).
     """
     text = obj.get('text')
     if not isinstance(text, str) or len(text) > _MAX_TEXT_LEN:
@@ -272,6 +279,8 @@ def _validate_text_object(obj: dict) -> str | None:
         return '텍스트 굵기 값이 올바르지 않습니다.'
     if obj.get('align') not in _ALLOWED_ALIGNS:
         return '텍스트 정렬 값이 올바르지 않습니다.'
+    if 'autoWidth' in obj and not isinstance(obj['autoWidth'], bool):
+        return '텍스트 자동 폭 값이 올바르지 않습니다.'
     return _validate_text_runs(obj)
 
 
@@ -334,11 +343,46 @@ def _validate_line_object(obj: dict) -> str | None:
     return _validate_stroke(obj)
 
 
+def _validate_pen_object(obj: dict) -> str | None:
+    """프리핸드 펜 획 검증. ``points`` 짝수 개(4~``_PEN_MAX_POINTS``, 각 -2000~4000) +
+    선 색(``#rrggbb``) + 양수 ``strokeWidth``(1~20).
+
+    arrow/line 과 달리 점 개수가 가변(스트로크)이라 별도 상한을 둔다. x/y/w 는 요구하지
+    않으며(points 기반), 존재하면 숫자인지만 확인한다. optional ``opacity``(형광펜 반투명)는
+    있으면 0<x≤1 숫자여야 하며, 없으면 통과(하위호환 불투명 펜=1).
+    """
+    points = obj.get('points')
+    if not isinstance(points, list):
+        return '펜 획 좌표(points) 형식이 올바르지 않습니다.'
+    count = len(points)
+    if count < 4 or count % 2 != 0:
+        return '펜 획 좌표(points)는 짝수 개(최소 4개)여야 합니다.'
+    if count > _PEN_MAX_POINTS:
+        return f'펜 획 좌표가 너무 많습니다(최대 {_PEN_MAX_POINTS}개).'
+    for coord in points:
+        if not _is_number_in_range(coord, -2000, 4000):
+            return '펜 획 좌표가 범위를 벗어났습니다.'
+    stroke = obj.get('stroke')
+    if not isinstance(stroke, str) or not _COLOR_RE.match(stroke):
+        return '펜 선 색상 값이 올바르지 않습니다.'
+    stroke_width = obj.get('strokeWidth')
+    if isinstance(stroke_width, bool) or not _is_number_in_range(stroke_width, _PEN_MIN_WIDTH, _PEN_MAX_WIDTH):
+        return '펜 선 굵기 값이 올바르지 않습니다.'
+    if 'opacity' in obj:
+        opacity = obj.get('opacity')
+        if not _is_number(opacity) or not (0 < opacity <= 1):
+            return '펜 불투명도 값이 올바르지 않습니다.'
+    for opt_key in ('x', 'y', 'w'):
+        if opt_key in obj and not _is_number(obj.get(opt_key)):
+            return '펜 좌표 값이 올바르지 않습니다.'
+    return None
+
+
 def _validate_object(obj, order_id: int) -> str | None:
     """객체 공통 필드(type/rotation)를 검증한 뒤 유형별 검증에 위임한다.
 
-    허용 유형은 6종(text/image/rect/ellipse/arrow/line). text/image/rect/ellipse 는
-    공통 x/y/w 범위를 요구하고, arrow/line 은 ``points`` 기반이라 x/y/w 를 요구하지 않는다.
+    허용 유형은 7종(text/image/rect/ellipse/arrow/line/pen). text/image/rect/ellipse 는
+    공통 x/y/w 범위를 요구하고, arrow/line/pen 은 ``points`` 기반이라 x/y/w 를 요구하지 않는다.
     ``rotation`` 은 모든 유형 공통 optional(-360~360).
     """
     if not isinstance(obj, dict):
@@ -351,6 +395,8 @@ def _validate_object(obj, order_id: int) -> str | None:
         return rotation_error
     if obj_type in ('arrow', 'line'):
         return _validate_line_object(obj)
+    if obj_type == 'pen':
+        return _validate_pen_object(obj)
     if not _is_number_in_range(obj.get('x'), -2000, 4000):
         return '객체 x 좌표가 범위를 벗어났습니다.'
     if not _is_number_in_range(obj.get('y'), -2000, 4000):
@@ -913,6 +959,98 @@ def api_get_drawing_wizard_pending(order_id):
     if not order:
         return jsonify({'success': False, 'message': _MSG_NOT_FOUND}), 404
     return jsonify({'success': True, 'data': {'pending': _pending_list(_load_structured_data(order))}})
+
+
+@erp_orders_drawing_wizard_bp.route('/<int:order_id>/drawing-wizard/pending/<sheet_id>', methods=['DELETE'])
+@login_required
+def api_delete_drawing_wizard_pending(order_id: int, sheet_id: str):
+    """전달 대기(pending) 저장 도면 1건을 삭제한다(R2 export 파일 + 연결 도면탭 첨부 정리).
+
+    ``sd['drawing_wizard']['pending'][sheet_id]`` 항목을 제거하고 그 항목의 export PNG
+    (``entry['key']``)를 R2에서 삭제한다. 해당 시트에 도면 탭 첨부(``attachment_id``)가
+    연결돼 있으면 그 ``OrderAttachment`` 행과 R2 파일도 함께 삭제하고 시트에서
+    ``attachment_id`` 를 떼어낸다. **시트의 ``objects``(편집 중 캔버스)는 절대 건드리지 않는다**
+    (저장 도면만 취소하고 편집 상태는 보존). ``structured_data`` 는 ``copy.deepcopy`` +
+    ``flag_modified`` 로 갱신한다.
+
+    :param order_id: ERP 주문 id.
+    :param sheet_id: 삭제할 pending 시트 식별자.
+    :returns: Flask ``(response, status)`` 튜플. 성공 시 ``{success, data:{sheet_id, deleted_key}}``.
+    """
+    db = None
+    try:
+        db = get_db()
+        order = _load_order(db, order_id)
+        if not order:
+            return jsonify({'success': False, 'message': _MSG_NOT_FOUND}), 404
+
+        current_user = get_user_by_id(session.get('user_id'))
+        if not _can_save_wizard(current_user, order):
+            return jsonify({'success': False, 'message': _MSG_FORBIDDEN}), 403
+
+        sd = copy.deepcopy(order.structured_data or {})
+        dw = sd.get('drawing_wizard') if isinstance(sd, dict) else None
+        pending = dw.get('pending') if isinstance(dw, dict) else None
+        entry = pending.get(sheet_id) if isinstance(pending, dict) else None
+        if not isinstance(entry, dict):
+            return jsonify({'success': False, 'message': '삭제할 저장 도면이 없습니다.'}), 404
+
+        storage = get_storage()
+
+        # 1) export PNG(R2) 삭제 — 파일이 이미 없을 수 있으니 실패는 로그만 남기고 계속.
+        deleted_key = (entry.get('key') or '').strip()
+        if deleted_key:
+            try:
+                storage.delete_file(deleted_key)
+            except Exception as del_err:
+                logger.warning("pending export delete failed (%s): %s", deleted_key, del_err)
+
+        # 2) 연결된 도면 탭 첨부(OrderAttachment) 정리 — 시트의 attachment_id 로 추적.
+        sheet = None
+        for s in (dw.get('sheets') or []):
+            if isinstance(s, dict) and s.get('id') == sheet_id:
+                sheet = s
+                break
+        if isinstance(sheet, dict):
+            attachment_id = sheet.get('attachment_id')
+            if isinstance(attachment_id, int) and not isinstance(attachment_id, bool) and attachment_id > 0:
+                att = db.query(OrderAttachment).filter(
+                    OrderAttachment.id == attachment_id,
+                    OrderAttachment.order_id == order_id,
+                ).first()
+                if att is not None:
+                    att_key = (att.storage_key or '').strip()
+                    if att_key:
+                        try:
+                            storage.delete_file(att_key)
+                        except Exception as att_del_err:
+                            logger.warning(
+                                "pending attachment file delete failed (%s): %s", att_key, att_del_err
+                            )
+                    db.delete(att)
+                    sheet.pop('attachment_id', None)
+
+        # 3) pending 항목 제거 — sheet.objects(편집 캔버스)는 보존한다.
+        pending.pop(sheet_id, None)
+
+        sd['drawing_wizard'] = dw
+        order.structured_data = sd
+        flag_modified(order, 'structured_data')
+        db.commit()
+
+        return jsonify({'success': True, 'data': {'sheet_id': sheet_id, 'deleted_key': deleted_key}})
+    except Exception as e:
+        if db is not None:
+            try:
+                db.rollback()
+            except Exception as rb_err:
+                logger.warning("pending delete rollback failed: %s", rb_err, exc_info=True)
+        logger.exception("drawing-wizard pending delete failed: %s", e)
+        return jsonify({
+            'success': False,
+            'error': 'internal_error',
+            'message': f'오류 발생: {str(e)}',
+        }), 500
 
 
 @erp_orders_drawing_wizard_bp.route('/<int:order_id>/drawing-wizard/transfer-pending', methods=['POST'])
