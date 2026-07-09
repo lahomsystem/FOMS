@@ -105,6 +105,8 @@ docs/harness/logs/hook_stdin_err.txt
 docs/harness/runtime/.session_stop_idempotency.json
 docs/harness/runtime/.post_task_qc_debounce.json
 docs/harness/runtime/.claude_pending_verify.json
+docs/harness/runtime/.cursor_ci_gate_pending.json
+docs/harness/runtime/.ci_watch_rerun_state.json
 
 # 하네스 런타임 로그 (세션마다 재생성; 커밋 금지 — git rm --cached는 전환 커밋에서)
 docs/harness/runtime/SESSION_LOG.md

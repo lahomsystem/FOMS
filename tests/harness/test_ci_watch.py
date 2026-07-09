@@ -252,6 +252,137 @@ def test_watch_no_until_final_returns_2(mod, monkeypatch) -> None:
 
 
 # ---------------------------------------------------------------------------
+# poll_completion (고정 초기 대기 제거 회귀 + 등록 대기)
+# ---------------------------------------------------------------------------
+def test_poll_completion_no_initial_wait(mod, monkeypatch) -> None:
+    """즉시 1차 조회 — 이미 완료면 sleep 을 한 번도 호출하지 않는다(구 30s 초기 대기 제거)."""
+    monkeypatch.setattr(
+        mod, "list_runs", lambda *_a, **_k: [{"status": "completed", "conclusion": "success"}]
+    )
+
+    def _boom(*_a, **_k):
+        raise AssertionError("초기 대기 sleep 이 호출됨 — 30s 고정 대기가 남아 있음")
+
+    runs = mod.poll_completion("deploy", "abc12345", sleep_fn=_boom)
+    assert mod.all_completed(runs)
+
+
+def test_poll_completion_waits_for_registration(mod, monkeypatch) -> None:
+    """워크플로 미등록(빈 목록)이면 짧은 간격 재시도 후 등록되면 완료를 감지한다."""
+    seq = [[], [], [{"status": "completed", "conclusion": "success"}]]
+    calls = {"n": 0}
+
+    def fake_list_runs(*_a, **_k):
+        idx = min(calls["n"], len(seq) - 1)
+        calls["n"] += 1
+        return seq[idx]
+
+    monkeypatch.setattr(mod, "list_runs", fake_list_runs)
+    runs = mod.poll_completion("deploy", "abc12345", sleep_fn=_NOOP_SLEEP)
+    assert mod.all_completed(runs)
+    assert calls["n"] >= 3  # 빈 목록 2회 재시도 후 3번째에서 등록
+
+
+# ---------------------------------------------------------------------------
+# watch_quick (단발 조회 — exit 0/1/4 계약)
+# ---------------------------------------------------------------------------
+def test_quick_all_green(mod, monkeypatch) -> None:
+    monkeypatch.setattr(
+        mod,
+        "list_runs",
+        lambda *_a, **_k: [
+            {"headSha": "abc12345", "status": "completed", "conclusion": "success",
+             "databaseId": 1, "workflowName": "FOMS CI"}
+        ],
+    )
+    assert mod.watch_quick("abc12345", "deploy", "http://hz", printer=_SINK) == 0
+
+
+def test_quick_no_runs_is_green(mod, monkeypatch) -> None:
+    monkeypatch.setattr(mod, "list_runs", lambda *_a, **_k: [])
+    assert mod.watch_quick("deadbeef", "deploy", "http://hz", printer=_SINK) == 0
+
+
+def test_quick_in_progress_exits_4(mod, monkeypatch) -> None:
+    monkeypatch.setattr(
+        mod,
+        "list_runs",
+        lambda *_a, **_k: [
+            {"headSha": "abc12345", "status": "completed", "conclusion": "success",
+             "databaseId": 1, "workflowName": "FOMS CI"},
+            {"headSha": "abc12345", "status": "in_progress", "conclusion": None,
+             "databaseId": 2, "workflowName": "FOMS perf-gate"},
+        ],
+    )
+    assert mod.watch_quick("abc12345", "deploy", "http://hz", printer=_SINK) == 4
+
+
+def test_quick_code_fail_exits_1(mod, monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(
+        mod,
+        "list_runs",
+        lambda *_a, **_k: [
+            {"headSha": "abc12345", "status": "completed", "conclusion": "failure",
+             "databaseId": 7, "workflowName": "FOMS CI"}
+        ],
+    )
+    monkeypatch.setattr(mod, "run_gh", lambda *_a, **_k: (0, "    step: pytest\nassert failed", ""))
+    state_path = str(tmp_path / "rerun_state.json")
+    assert mod.watch_quick("abc12345", "deploy", "http://hz", printer=_SINK, state_path=state_path) == 1
+
+
+def test_quick_perf_rerun_exits_4_and_records_state(mod, monkeypatch, tmp_path) -> None:
+    """perf-gate 배포 타임아웃 → 자동 재실행 트리거 → exit 4 + run_id 상태 파일 기록."""
+    monkeypatch.setattr(
+        mod,
+        "list_runs",
+        lambda *_a, **_k: [
+            {"headSha": "abc12345", "status": "completed", "conclusion": "failure",
+             "databaseId": 99, "workflowName": "FOMS perf-gate"}
+        ],
+    )
+    monkeypatch.setattr(mod, "run_gh", lambda *_a, **_k: (0, "Wait for staging deploy timeout", ""))
+    monkeypatch.setattr(mod, "check_healthz", lambda *_a, **_k: True)
+    state_path = str(tmp_path / "rerun_state.json")
+
+    code = mod.watch_quick("abc12345", "deploy", "http://hz", printer=_SINK, state_path=state_path)
+    assert code == 4
+
+    import json as _json
+
+    saved = _json.loads((tmp_path / "rerun_state.json").read_text(encoding="utf-8"))
+    assert saved["sha"] == "abc12345"
+    assert 99 in saved["rerun_ids"]
+
+
+def test_quick_perf_rerun_second_call_escalates_to_1(mod, monkeypatch, tmp_path) -> None:
+    """상태 파일에 이미 재실행된 run_id 가 있으면 두 번째 quick 은 code_fail(exit 1)로 승격(중복 재실행 방지)."""
+    monkeypatch.setattr(
+        mod,
+        "list_runs",
+        lambda *_a, **_k: [
+            {"headSha": "abc12345", "status": "completed", "conclusion": "failure",
+             "databaseId": 99, "workflowName": "FOMS perf-gate"}
+        ],
+    )
+    monkeypatch.setattr(mod, "run_gh", lambda *_a, **_k: (0, "Wait for staging deploy timeout", ""))
+    monkeypatch.setattr(mod, "check_healthz", lambda *_a, **_k: True)
+    state_path = str(tmp_path / "rerun_state.json")
+    mod._save_rerun_state(state_path, "abc12345", {99})  # 직전 quick 이 이미 재실행함
+
+    code = mod.watch_quick("abc12345", "deploy", "http://hz", printer=_SINK, state_path=state_path)
+    assert code == 1
+
+
+def test_rerun_state_ignores_other_sha(mod, tmp_path) -> None:
+    """상태 파일의 SHA 가 다르면 빈 집합을 반환한다(신규 커밋마다 초기화)."""
+    state_path = str(tmp_path / "rerun_state.json")
+    mod._save_rerun_state(state_path, "oldsha00", {5, 6})
+    assert mod._load_rerun_state(state_path, "newsha11") == set()
+    assert mod._load_rerun_state(state_path, "oldsha00") == {5, 6}
+
+
+# ---------------------------------------------------------------------------
 # main (gh 부재 → exit 3, fail-open 아님)
 # ---------------------------------------------------------------------------
 def test_main_exit_3_when_gh_absent(mod, monkeypatch) -> None:

@@ -84,14 +84,16 @@ def _push_failed(tool_response) -> bool:
 
 
 def _ci_gate_message(branch: str) -> str:
-    """분기별 ci_watch 실행 안내를 담은 CI-GATE 리마인더 문자열을 만든다."""
+    """분기별 ci_watch 실행 안내를 담은 CI-GATE 리마인더 문자열을 만든다(논블로킹)."""
     command = (
         "python tools/harness/ci_watch.py"
         if branch == "deploy"
         else f"python tools/harness/ci_watch.py HEAD {branch}"
     )
     return (
-        f"[CI-GATE] push 감지 ({branch}). 지금 `{command}`를 실행해 CI 완료를 확인하라. "
+        f"[CI-GATE] push 감지 ({branch}). CI 완료 확인은 블로킹 금지 — "
+        f"run_in_background 로 `{command}`를 실행하거나 `{command} --quick`로 즉시 상태만 확인하고 "
+        "작업을 계속하라(exit 0=green, 4=진행 중). "
         "exit 1이면 실패 로그를 분석해 근본 수정 후 pre_push_smoke→재푸시까지 완료해야 한다. "
         "이 게이트는 생략 금지."
     )

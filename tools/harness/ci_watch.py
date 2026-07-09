@@ -14,34 +14,50 @@ Actions 워크플로 완료를 폴링하고, 실패를 분류해 자동 복구�
     관측×1.3 보정값을 "제안"(적용은 사람 확인 — 무한 자동 상향은 회귀 은폐라 금지)
   - Harness/FOMS CI 실패: 코드 문제 → 실패 스텝·로그 tail 출력(사람/에이전트 수정)
 
-종료 코드 계약:
+종료 코드 계약(--until-final, 기본 = 블로킹 감시):
     0  전부 green
     1  코드 실패(에이전트가 근본 수정 후 재푸시 필요) — 실패 워크플로/잡/로그 tail 출력
     2  자동 재실행 발동(재폴링 필요). --until-final(기본)이면 내부 재폴링 후 0/1 로 수렴
     3  gh CLI 부재/미인증 — 게이트 불가 사유 출력(fail-open 아님)
 
+종료 코드 계약(--quick, 단발 조회 = 논블로킹 루프용):
+    0  전부 green
+    1  코드 실패 — 실패 워크플로 + 로그 tail 출력
+    3  gh CLI 부재/미인증
+    4  진행 중(pending 워크플로명 + 경과 초 출력). perf-gate 자동 재실행을
+       트리거한 경우도 4(재실행 중복은 상태 파일로 방지).
+
 사용:
-    python tools/harness/ci_watch.py [SHA] [BRANCH] [--no-until-final] [--healthz URL]
-      SHA    기본 = 현재 HEAD
-      BRANCH 기본 = deploy
+    python tools/harness/ci_watch.py [SHA] [BRANCH] [--quick] [--no-until-final] [--healthz URL]
+      SHA      기본 = 현재 HEAD
+      BRANCH   기본 = deploy
+      --quick  폴링 없이 현재 상태만 1회 조회하고 즉시 종료(exit 0/1/3/4, 블로킹 금지)
 """
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
+import os
 import re
 import subprocess
 import sys
 import time
+from pathlib import Path
 from typing import Callable
 
 DEFAULT_BRANCH = "deploy"
 DEFAULT_HEALTHZ = "https://lahom-dev.up.railway.app/healthz"
 
-# 폴링 파라미터 (bash 원본과 동일: 30s 초기 대기 + 20s 간격 × 최대 120회 ≈ 40분)
-INITIAL_WAIT_SEC = 30
-POLL_INTERVAL_SEC = 20
-MAX_POLLS = 120
+# 폴링 파라미터: 고정 초기 대기 없이 즉시 1차 조회 → 워크플로 등록까지 5s 간격 재시도
+# (최대 60s) → 등록 후 10s 간격 × 최대 240회(≈ 40분 상한). 반응속도 개선(구 30s 초기 대기 제거).
+REGISTER_RETRY_INTERVAL_SEC = 5
+REGISTER_MAX_WAIT_SEC = 60
+POLL_INTERVAL_SEC = 10
+MAX_POLLS = 240
+
+# --quick 재실행 중복 방지 상태 파일(gitignore 대상 — 저장소 docs/harness/runtime 하위)
+RERUN_STATE_FILE = "docs/harness/runtime/.ci_watch_rerun_state.json"
 
 # --until-final 안전 상한: 자동 재실행/배포 대기 라운드 최대치(무한 루프 차단)
 MAX_RERUN_ROUNDS = 3
@@ -137,7 +153,7 @@ def list_runs(branch: str, sha_short: str) -> list[dict]:
     rc, out, _err = run_gh(
         [
             "run", "list", "--branch", branch, "--limit", "8",
-            "--json", "headSha,status,conclusion,databaseId,workflowName",
+            "--json", "headSha,status,conclusion,databaseId,workflowName,createdAt",
         ]
     )
     if rc != 0 or not out.strip():
@@ -166,18 +182,28 @@ def poll_completion(
     sha_short: str,
     *,
     sleep_fn: Callable[[float], None] = time.sleep,
-    initial_wait: int = INITIAL_WAIT_SEC,
     interval: int = POLL_INTERVAL_SEC,
     max_polls: int = MAX_POLLS,
+    register_retry_interval: int = REGISTER_RETRY_INTERVAL_SEC,
+    register_max_wait: int = REGISTER_MAX_WAIT_SEC,
 ) -> list[dict]:
-    """워크플로가 전부 completed 될 때까지 폴링하고 최종 run 목록을 반환한다."""
-    sleep_fn(initial_wait)
-    runs: list[dict] = []
-    for _ in range(max_polls):
+    """워크플로가 전부 completed 될 때까지 폴링하고 최종 run 목록을 반환한다.
+
+    고정 초기 대기 없이 즉시 1차 조회한다(반응속도 개선). 워크플로가 아직
+    미등록(runs 비어 있음)이면 register_retry_interval 간격으로 register_max_wait 까지
+    재시도하고, 등록 후에는 interval 간격으로 전부 완료될 때까지 폴링한다.
+    """
+    runs = list_runs(branch, sha_short)
+    waited = 0
+    while not runs and waited < register_max_wait:
+        sleep_fn(register_retry_interval)
+        waited += register_retry_interval
         runs = list_runs(branch, sha_short)
-        if all_completed(runs):
+    for _ in range(max_polls):
+        if not runs or all_completed(runs):
             break
         sleep_fn(interval)
+        runs = list_runs(branch, sha_short)
     return runs
 
 
@@ -360,6 +386,98 @@ def watch(
 
 
 # ---------------------------------------------------------------------------
+# --quick: 단발 상태 조회(폴링 없음 — 논블로킹 루프용)
+# ---------------------------------------------------------------------------
+def _default_rerun_state_path() -> str:
+    """--quick 재실행 상태 파일의 기본 경로(저장소 docs/harness/runtime 하위)."""
+    return str(Path(__file__).resolve().parents[2] / RERUN_STATE_FILE)
+
+
+def _load_rerun_state(path: str, sha_short: str) -> set:
+    """상태 파일에서 sha_short 에 해당하는 '재실행 완료' run_id 집합을 읽는다.
+
+    파일이 없거나 다른 SHA(직전 커밋)면 빈 집합을 반환한다(신규 커밋마다 초기화).
+    """
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            state = json.load(handle)
+        if str(state.get("sha", "")) != sha_short:
+            return set()
+        return {int(x) for x in state.get("rerun_ids", []) if isinstance(x, (int, str)) and str(x).lstrip("-").isdigit()}
+    except (OSError, ValueError, TypeError, AttributeError):
+        return set()  # 파일 없음/손상 → 초기화(중복 재실행 방지 상태만 잃음, 치명적 아님)
+
+
+def _save_rerun_state(
+    path: str, sha_short: str, rerun_ids: set, printer: Callable[[str], None] = print
+) -> None:
+    """재실행 완료 run_id 집합을 상태 파일에 저장한다(실패는 경고만 — 치명적 아님)."""
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump({"sha": sha_short, "rerun_ids": sorted(rerun_ids)}, handle)
+    except OSError as exc:
+        printer(f"[ci-watch:quick] 재실행 상태 저장 실패(무시): {exc}")
+
+
+def _elapsed_seconds(runs: list[dict]) -> int:
+    """run 목록의 가장 이른 createdAt 이후 경과 초를 반환한다(파싱 실패 시 0)."""
+    stamps: list[datetime.datetime] = []
+    for run in runs:
+        raw = run.get("createdAt")
+        if not raw:
+            continue
+        try:
+            stamps.append(datetime.datetime.fromisoformat(str(raw).replace("Z", "+00:00")))
+        except ValueError:
+            continue
+    if not stamps:
+        return 0
+    now = datetime.datetime.now(datetime.timezone.utc)
+    return max(0, int((now - min(stamps)).total_seconds()))
+
+
+def watch_quick(
+    sha: str,
+    branch: str,
+    healthz: str,
+    *,
+    printer: Callable[[str], None] = print,
+    state_path: str | None = None,
+) -> int:
+    """폴링 없이 현재 CI 상태를 1회 조회하고 즉시 종료한다(논블로킹 루프용).
+
+    반환: 0=전부 green / 1=코드 실패 / 4=진행 중(자동 재실행 트리거 포함).
+    perf-gate 자동 재실행은 여기서도 발동하되, 상태 파일로 중복 재실행을 막는다
+    (이미 재실행한 run 이 또 실패로 보이면 handle_perf_gate 가 code_fail 로 승격 → exit 1).
+    """
+    sha_short = sha[:8]
+    printer(f"[ci-watch:quick] target={sha_short} branch={branch}")
+    runs = list_runs(branch, sha_short)
+    if not runs:
+        printer("[ci-watch:quick] 대상 커밋의 워크플로 없음/미등록 — green 취급")
+        return 0
+    if not all_completed(runs):
+        pending = [r for r in runs if r.get("status") != "completed"]
+        names = ", ".join(sorted({str(r.get("workflowName", "?")) for r in pending})) or "(이름 미상)"
+        printer(f"[ci-watch:quick] 진행 중: {names} (경과 {_elapsed_seconds(runs)}s)")
+        return 4
+    fails = failures(runs)
+    if not fails:
+        printer("[ci-watch:quick] ALL GREEN ✓")
+        return 0
+    printer(f"[ci-watch:quick] {len(fails)} failed workflow(s):")
+    resolved_state_path = state_path or _default_rerun_state_path()
+    already_rerun = _load_rerun_state(resolved_state_path, sha_short)
+    code = handle_failures(fails, sha_short, healthz, already_rerun, printer)
+    _save_rerun_state(resolved_state_path, sha_short, already_rerun, printer)
+    if code == 2:
+        printer("[ci-watch:quick] 자동 재실행/배포 대기 발동 — 진행 중 취급(다음 확인에서 결과 반영)")
+        return 4
+    return code
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 def _force_utf8_streams() -> None:
@@ -394,6 +512,11 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         action="store_false",
         help="1회전만 수행하고 exit 0/1/2 를 그대로 반환",
     )
+    parser.add_argument(
+        "--quick",
+        action="store_true",
+        help="폴링 없이 현재 상태만 1회 조회하고 즉시 종료 (exit 0/1/3/4, 논블로킹 루프용)",
+    )
     parser.add_argument("--healthz", default=DEFAULT_HEALTHZ, help="배포 확인용 healthz URL")
     return parser.parse_args(argv)
 
@@ -413,6 +536,8 @@ def main(argv: list[str] | None = None) -> int:
         print("[ci-watch] 게이트 불가: HEAD SHA 확인 실패(git 저장소가 아닌 듯)")
         return 3
 
+    if args.quick:
+        return watch_quick(sha, args.branch, args.healthz)
     return watch(sha, args.branch, args.healthz, until_final=args.until_final)
 
 

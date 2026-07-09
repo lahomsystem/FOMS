@@ -13,7 +13,6 @@
 | `ept_b8_staging_browser_metrics.py` | `tools/harness/` | EPT-B8(2026-04-17) 스테이징 브라우저 메트릭 재현 |
 | `ept_b8_staging_http_evidence.py` | `tools/harness/` | EPT-B8 스테이징 HTTP 증거 재현 |
 | `ept_b8_staging_full_evidence.ps1` | `tools/harness/` | EPT-B8 전체 증거 수집 오케스트레이션 |
-| `ept_b8_staging_session_from_login.py` | `tools/harness/` | EPT-B8 로그인 세션 부트스트랩 |
 | `ept_b8_staging_env.example` | `tools/harness/` | EPT-B8 재현용 env 예시 |
 | `gnv_b6_staging_browser_metrics.py` | `tools/harness/` | GNV-B6(2026-04-17) 스테이징 브라우저 메트릭 재현 |
 | `gnv_b6_staging_http_evidence.py` | `tools/harness/` | GNV-B6 스테이징 HTTP 증거 재현 |

@@ -127,16 +127,20 @@ OneDrive 잠금이 있으면 `TEMP`를 `C:\tmp`로 두고, 그래도 실패하�
 
 ## push 후: CI 감시·복구 게이트 (push 완료의 정의)
 
-push 직후에는 **CI green 확인까지가 한 작업 단위**입니다. 아래를 실행해 GitHub Actions 완료를 감시합니다.
+push 직후에는 **CI green 확인까지가 한 작업 단위**이나, 확인은 **논블로킹**입니다(블로킹 완주 대기 금지). 아래를 백그라운드로 실행하거나 `--quick`으로 즉시 상태만 확인하고 작업을 계속합니다.
 
 ```powershell
+# 백그라운드 감시(완주까지 자체 재폴링)
 python tools/harness/ci_watch.py
+# 또는 단발 상태 조회(폴링 없이 즉시 종료 — 논블로킹 루프용)
+python tools/harness/ci_watch.py --quick
 ```
 
 - 기본 대상은 **현재 HEAD · `deploy`** 브랜치입니다. production 승격 후에는 `python tools/harness/ci_watch.py HEAD production`.
-- 종료 코드: **0**=전부 green / **1**=코드 실패(로그 분석 → 근본 수정 → `pre_push_smoke` → 재푸시) / **2**=자동 재실행 발동(기본 `--until-final` 모드가 내부 재폴링해 0·1로 수렴) / **3**=gh CLI 미설치·미인증(설치·`gh auth login` 후 재시도).
+- 종료 코드(기본 `--until-final`): **0**=전부 green / **1**=코드 실패(로그 분석 → 근본 수정 → `pre_push_smoke` → 재푸시) / **2**=자동 재실행 발동(내부 재폴링해 0·1로 수렴) / **3**=gh CLI 미설치·미인증(설치·`gh auth login` 후 재시도).
+- **`--quick`(단발 조회)**: 폴링 없이 현재 상태만 1회 조회하고 즉시 종료합니다. **0**=green / **1**=코드 실패 / **3**=gh 불가 / **4**=진행 중(pending 워크플로명·경과 초 출력; perf-gate 자동 재실행을 트리거한 경우도 4, 재실행 중복은 `.ci_watch_rerun_state.json`으로 방지). 반응속도 개선으로 고정 초기 대기(구 30s)를 제거하고 즉시 조회합니다.
 - 자동 복구: perf-gate **배포 대기 타임아웃**(healthz commit==SHA 확인 후 재실행), **TTFB/render tail flaky**(1회 재실행). **bytes 초과**는 데이터 가변 탭 가능성 때문에 예산 보정값을 *제안*만 하고 자동 상향하지 않습니다.
-- 이 게이트는 3-도구 공통입니다: Claude Code는 `PostToolUse:Bash` 훅(`post_push_watch.py`), Cursor는 `afterShellExecution`+`afterAgentResponse` 훅이 push 감지 시 실행을 리마인드합니다. 로직 SSOT는 `tools/harness/ci_watch.py`이고 `scripts/ops/ci_watch_recover.sh`는 thin wrapper입니다.
+- 이 게이트는 3-도구 공통입니다: Claude Code는 `PostToolUse:Bash` 훅(`post_push_watch.py`)이 논블로킹 안내를 주입하고, Cursor는 `afterShellExecution`이 기록한 마커를 `afterAgentResponse`(`post_task_quality_check.py`)가 소비해 **매 턴 `--quick`을 직접 실행**합니다(진행 중이면 마커 유지 → 다음 턴 자동 재확인, 종료 상태면 마커 삭제로 루프 종료). 로직 SSOT는 `tools/harness/ci_watch.py`이고 `scripts/ops/ci_watch_recover.sh`는 thin wrapper입니다.
 
 ## 실패 시
 
