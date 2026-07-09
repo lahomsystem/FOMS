@@ -704,6 +704,7 @@ html, body {
 .dws-pending-collapsed .dws-pending-grid { display: none; }
 .dws-pending-collapsed { max-height: 34px; }
 .dws-pending-item {
+  position: relative;                /* .dws-pending-del 절대배치 기준 */
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -714,6 +715,28 @@ html, body {
   cursor: zoom-in;
   text-align: left;
 }
+
+/* 저장분 삭제 미니 × — 썸네일 우상단, 미니멀 빨강 원형(hover/포커스에만 노출). */
+.dws-pending-del {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  line-height: 17px;
+  text-align: center;
+  border-radius: 50%;
+  font-size: 13px;
+  color: #ffffff;
+  background: rgba(224, 49, 49, 0.92);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease-out, background-color 120ms ease-out;
+}
+.dws-pending-item:hover .dws-pending-del,
+.dws-pending-del:focus { opacity: 1; }
+.dws-pending-del:hover { background: #c92a2a; }
 .dws-pending-thumb {
   width: 86px;
   aspect-ratio: 1478 / 1040;
@@ -844,6 +867,29 @@ html, body {
   height: 1040px;
   margin: 0 auto;
 }
+
+/* 현재 시트의 저장(전달 대기) 도면 삭제 — 캔버스 우상단 빨강 × 버튼(스테이지 위, z 우선). */
+.dws-del-saved {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 60;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  line-height: 28px;
+  text-align: center;
+  border: 0;
+  border-radius: 50%;
+  font-size: 18px;
+  color: #ffffff;
+  background: rgba(224, 49, 49, 0.92);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
+  cursor: pointer;
+  transition: background-color 120ms ease-out, transform 80ms ease-out;
+}
+.dws-del-saved:hover { background: #c92a2a; transform: scale(1.06); }
+.dws-del-saved[hidden] { display: none; }
 
 /* 스테이지: 논리 1478x1040 고정, 줌은 CSS 변수 scale */
 .dws-stage {

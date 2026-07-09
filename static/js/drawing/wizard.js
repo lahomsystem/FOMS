@@ -275,6 +275,7 @@
     els.pendingTitle = document.getElementById('dws-pending-title');
     els.pendingToggle = document.getElementById('dws-pending-toggle');
     els.pendingGrid = document.getElementById('dws-pending-grid');
+    els.delSavedBtn = document.getElementById('dws-btn-delete-saved');
     els.lightbox = document.getElementById('dws-lightbox');
     els.lightboxImg = document.getElementById('dws-lightbox-img');
     els.lightboxClose = document.getElementById('dws-lightbox-close');
@@ -2123,6 +2124,9 @@
     }
   }
 
+  /* 현재 전달 대기함에 저장된 시트 id 집합(renderPending 이 재구성) — 캔버스 삭제버튼 가시성 판정용. */
+  var pendingSheetIds = new Set();
+
   /* ---- 저장된 도면(전달 대기) 사이드 미리보기 -------------------------------
    * pending 목록(GET /drawing-wizard/pending)을 읽어 aside 에 썸네일 그리드로 렌더한다.
    * 항목 클릭 → 원본(asset-raw) 라이트박스 확대. 표시 전용(structured_data 쓰기 없음).
@@ -2150,9 +2154,10 @@
     els.pending.hidden = !items.length;
     if (els.pendingTitle) { els.pendingTitle.textContent = '저장된 도면 ' + items.length; }
     els.pendingGrid.textContent = '';
-    if (!items.length) { return; }
+    pendingSheetIds = new Set();
     items.forEach(function (it) {
       if (!it || !it.key) { return; }
+      if (it.sheet_id) { pendingSheetIds.add(it.sheet_id); }
       var name = String(it.sheet_name || it.filename || '도면');
       var cell = document.createElement('button');
       cell.type = 'button';
@@ -2169,12 +2174,45 @@
       var atEl = document.createElement('span');
       atEl.className = 'dws-pending-at';
       atEl.textContent = it.at || '';
+      // 저장분 삭제 미니 × (셀은 <button>이므로 버튼 중첩 금지 → span + stopPropagation)
+      var del = document.createElement('span');
+      del.className = 'dws-pending-del';
+      del.textContent = '×';
+      del.title = '삭제';
+      del.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (!confirm('저장된 도면을 삭제할까요? 되돌릴 수 없습니다.')) { return; }
+        deletePending(it.sheet_id);
+      });
       cell.appendChild(img);
       cell.appendChild(nameEl);
       cell.appendChild(atEl);
+      cell.appendChild(del);
       cell.addEventListener('click', function () { openLightbox(it.key, name); });
       els.pendingGrid.appendChild(cell);
     });
+    updateDeleteSavedBtn();
+  }
+
+  /** 전달 대기 도면 1건을 서버에서 삭제한다(DELETE). 성공 시 목록 재조회로 UI 동기화. */
+  function deletePending(sheetId) {
+    if (!sheetId) { return; }
+    jsonFetch(API_BASE + '/drawing-wizard/pending/' + encodeURIComponent(sheetId), { method: 'DELETE' }).then(function (r) {
+      if (r.status === 200 && r.data && r.data.success) {
+        toast('저장된 도면을 삭제했습니다.');
+        refreshPending();          // renderPending 재실행 → pendingSheetIds/버튼 가시성 갱신
+      } else {
+        toast((r.data && r.data.message) || '삭제하지 못했습니다.');
+      }
+    }, function () { toast('삭제 중 오류가 발생했습니다.'); });
+  }
+
+  /** 캔버스 우측상단 '저장분 삭제' 버튼 가시성 — 현재 시트에 저장분 있고 저장 권한일 때만 노출. */
+  function updateDeleteSavedBtn() {
+    if (!els.delSavedBtn) { return; }
+    var cs = currentSheet();
+    var show = !!(canSave && cs && cs.id && pendingSheetIds && pendingSheetIds.has(cs.id));
+    els.delSavedBtn.hidden = !show;
   }
 
   /** 저장된 도면 섹션 접기/펼치기 토글. */
@@ -2261,6 +2299,7 @@
     renderForm();
     rebuildAnno();
     syncProductActive();
+    updateDeleteSavedBtn();
   }
 
   function addSheet() {
@@ -3327,6 +3366,15 @@
     if (els.photosToggle) { els.photosToggle.addEventListener('click', togglePhotos); }
     // 저장된 도면(전달 대기) 섹션 접기/펼치기 + 썸네일 라이트박스 닫기(닫기 버튼·배경 클릭)
     if (els.pendingToggle) { els.pendingToggle.addEventListener('click', togglePending); }
+    // 캔버스 우측상단 '저장분 삭제' — 현재 시트의 전달 대기 도면 삭제(가시성은 updateDeleteSavedBtn 관리)
+    if (els.delSavedBtn) {
+      els.delSavedBtn.addEventListener('click', function () {
+        var cs = currentSheet();
+        if (!cs) { return; }
+        if (!confirm('저장된 도면을 삭제할까요? 되돌릴 수 없습니다.')) { return; }
+        deletePending(cs.id);
+      });
+    }
     if (els.lightboxClose) { els.lightboxClose.addEventListener('click', closeLightbox); }
     if (els.lightbox) {
       els.lightbox.addEventListener('click', function (e) { if (e.target === els.lightbox) { closeLightbox(); } });

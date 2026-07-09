@@ -915,6 +915,98 @@ def api_get_drawing_wizard_pending(order_id):
     return jsonify({'success': True, 'data': {'pending': _pending_list(_load_structured_data(order))}})
 
 
+@erp_orders_drawing_wizard_bp.route('/<int:order_id>/drawing-wizard/pending/<sheet_id>', methods=['DELETE'])
+@login_required
+def api_delete_drawing_wizard_pending(order_id: int, sheet_id: str):
+    """전달 대기(pending) 저장 도면 1건을 삭제한다(R2 export 파일 + 연결 도면탭 첨부 정리).
+
+    ``sd['drawing_wizard']['pending'][sheet_id]`` 항목을 제거하고 그 항목의 export PNG
+    (``entry['key']``)를 R2에서 삭제한다. 해당 시트에 도면 탭 첨부(``attachment_id``)가
+    연결돼 있으면 그 ``OrderAttachment`` 행과 R2 파일도 함께 삭제하고 시트에서
+    ``attachment_id`` 를 떼어낸다. **시트의 ``objects``(편집 중 캔버스)는 절대 건드리지 않는다**
+    (저장 도면만 취소하고 편집 상태는 보존). ``structured_data`` 는 ``copy.deepcopy`` +
+    ``flag_modified`` 로 갱신한다.
+
+    :param order_id: ERP 주문 id.
+    :param sheet_id: 삭제할 pending 시트 식별자.
+    :returns: Flask ``(response, status)`` 튜플. 성공 시 ``{success, data:{sheet_id, deleted_key}}``.
+    """
+    db = None
+    try:
+        db = get_db()
+        order = _load_order(db, order_id)
+        if not order:
+            return jsonify({'success': False, 'message': _MSG_NOT_FOUND}), 404
+
+        current_user = get_user_by_id(session.get('user_id'))
+        if not _can_save_wizard(current_user, order):
+            return jsonify({'success': False, 'message': _MSG_FORBIDDEN}), 403
+
+        sd = copy.deepcopy(order.structured_data or {})
+        dw = sd.get('drawing_wizard') if isinstance(sd, dict) else None
+        pending = dw.get('pending') if isinstance(dw, dict) else None
+        entry = pending.get(sheet_id) if isinstance(pending, dict) else None
+        if not isinstance(entry, dict):
+            return jsonify({'success': False, 'message': '삭제할 저장 도면이 없습니다.'}), 404
+
+        storage = get_storage()
+
+        # 1) export PNG(R2) 삭제 — 파일이 이미 없을 수 있으니 실패는 로그만 남기고 계속.
+        deleted_key = (entry.get('key') or '').strip()
+        if deleted_key:
+            try:
+                storage.delete_file(deleted_key)
+            except Exception as del_err:
+                logger.warning("pending export delete failed (%s): %s", deleted_key, del_err)
+
+        # 2) 연결된 도면 탭 첨부(OrderAttachment) 정리 — 시트의 attachment_id 로 추적.
+        sheet = None
+        for s in (dw.get('sheets') or []):
+            if isinstance(s, dict) and s.get('id') == sheet_id:
+                sheet = s
+                break
+        if isinstance(sheet, dict):
+            attachment_id = sheet.get('attachment_id')
+            if isinstance(attachment_id, int) and not isinstance(attachment_id, bool) and attachment_id > 0:
+                att = db.query(OrderAttachment).filter(
+                    OrderAttachment.id == attachment_id,
+                    OrderAttachment.order_id == order_id,
+                ).first()
+                if att is not None:
+                    att_key = (att.storage_key or '').strip()
+                    if att_key:
+                        try:
+                            storage.delete_file(att_key)
+                        except Exception as att_del_err:
+                            logger.warning(
+                                "pending attachment file delete failed (%s): %s", att_key, att_del_err
+                            )
+                    db.delete(att)
+                    sheet.pop('attachment_id', None)
+
+        # 3) pending 항목 제거 — sheet.objects(편집 캔버스)는 보존한다.
+        pending.pop(sheet_id, None)
+
+        sd['drawing_wizard'] = dw
+        order.structured_data = sd
+        flag_modified(order, 'structured_data')
+        db.commit()
+
+        return jsonify({'success': True, 'data': {'sheet_id': sheet_id, 'deleted_key': deleted_key}})
+    except Exception as e:
+        if db is not None:
+            try:
+                db.rollback()
+            except Exception as rb_err:
+                logger.warning("pending delete rollback failed: %s", rb_err, exc_info=True)
+        logger.exception("drawing-wizard pending delete failed: %s", e)
+        return jsonify({
+            'success': False,
+            'error': 'internal_error',
+            'message': f'오류 발생: {str(e)}',
+        }), 500
+
+
 @erp_orders_drawing_wizard_bp.route('/<int:order_id>/drawing-wizard/transfer-pending', methods=['POST'])
 @login_required
 def api_post_drawing_wizard_transfer_pending(order_id):

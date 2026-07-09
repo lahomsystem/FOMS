@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>도면 마법사 — 주문 #{{ order.id }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20260709b">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20260709c">
 </head>
 <body>
   <div id="dws-root" data-order-id="{{ order.id }}">
@@ -149,6 +149,10 @@
     <!-- ================= 캔버스(스크롤) ================= -->
     <div class="dws-canvas" id="dws-canvas">
       <div class="dws-stage-wrap" id="dws-stage-wrap">
+
+        <!-- 현재 시트의 저장(전달 대기) 도면 삭제 — 저장분 있고 편집 권한일 때만 노출(wizard.js) -->
+        <button type="button" class="dws-del-saved" id="dws-btn-delete-saved" title="이 시트의 저장 도면 삭제" aria-label="이 시트의 저장 도면 삭제" hidden>×</button>
+
         <div class="dws-stage" id="dws-stage">
 
           <!-- ---- 양식 레이어(§6 지오메트리) ---- -->
@@ -366,6 +370,6 @@
 
   <script id="drawing-wizard-config" type="application/json">{{ wizard_config|tojson }}</script>
   <script src="{{ url_for('static', filename='vendor/konva.min.js') }}?v=20260706b" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260709b" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260709c" defer></script>
 </body>
 </html>
