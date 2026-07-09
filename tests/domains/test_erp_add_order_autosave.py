@@ -158,7 +158,7 @@ def test_autosave_local_storage_key_scoped_by_user(app) -> None:
     assert 'LS_KEY_PREFIX + ":u" + uid' in js
     assert "purgeLegacyLocalStorage()" in js
     assert "localStorage.removeItem(LEGACY_LS_KEY)" in js
-    assert "erp-order-autosave.js') }}?v=20260702a" in erp_js
+    assert "erp-order-autosave.js') }}?v=20260709a" in erp_js
 
 
 def test_autosave_suspends_after_explicit_save() -> None:
@@ -195,6 +195,14 @@ def test_edit_mode_autosave_wiring() -> None:
     assert "function isEditPayloadDirty(payload)" in js
     assert "if (!isEditPayloadDirty(payload))" in js
     assert "if (!isEditPayloadDirty(snap.payload))" in js
+    assert 'closest(".erp-payment-confirm-btn")' in js
+    assert 'window.addEventListener("beforeunload", function ()' in js
+    assert "saveEditLocal();" in js
+    assert "function restoreSnapshotPayment(sd, set)" in js
+    assert 'set("erp-deposit-amount", formatSnapshotAmount(payment.deposit));' in js
+    assert 'set("erp-free-input-text", freeInputParts.text || "");' in js
+    assert "window.__erpLastStructuredData = sd;" in js
+    assert "erpInvalidateEstimateCache" in js
     # 편집 작업본은 localStorage만(라이브 주문 PUT 금지) — saveServer를 edit에서 호출하지 않음.
     assert "라이브 주문" in js
     # edit_order가 autosave 스크립트를 로드하고 draft 모드를 끈다.
@@ -245,6 +253,75 @@ def test_autosave_consult_defaults_not_meaningful(client, app) -> None:
     )
     assert resp.status_code == 200
     assert resp.get_json()["order_id"] is None  # 상담 기본값은 내용 아님 → draft 미생성
+
+
+def test_autosave_payment_only_content_creates_draft_and_roundtrips(client, app) -> None:
+    """예약금/결제 입력만 있어도 자동저장 draft 생성·복원 대상이어야 한다."""
+    from db import db_session
+    from models import Order
+
+    _login(client, app, "autosave_payment_user")
+    structured = _structured()
+    structured["payment"] = {
+        "deposit": "120,000원",
+        "discount": 3000,
+        "free_input": "추가비 : 15,000",
+        "cash_receipt": "010-7777-8888",
+        "balance_note": "잔금 현장 결제",
+    }
+    structured["totals"] = {"deposit_amount": 120000, "discount_amount": 3000}
+
+    resp = _autosave(client, structured, token="tok-payment-only")
+    assert resp.status_code == 200
+    order_id = resp.get_json()["order_id"]
+    assert order_id
+
+    with app.app_context():
+        order = db_session.query(Order).filter_by(id=order_id).one()
+        payment = order.structured_data["payment"]
+        assert payment["deposit"] == "120,000원"
+        assert payment["free_input"] == "추가비 : 15,000"
+        assert order.payment_amount == 120000
+
+    draft = client.get("/api/orders/erp/draft?draft_token=tok-payment-only").get_json()["draft"]
+    assert draft["has_content"] is True
+    assert draft["order_id"] == order_id
+
+
+def test_autosave_estimate_preview_only_content_creates_draft(client, app) -> None:
+    """견적 수동행만 있어도 이탈 후 재진입 복원 후보로 남겨야 한다."""
+    from db import db_session
+    from models import Order
+
+    _login(client, app, "autosave_estimate_user")
+    structured = _structured()
+    structured["estimate_preview"] = {
+        "manual_rows": [
+            {
+                "id": "manual-1",
+                "after_index": -1,
+                "product_name": "견적 추가품",
+                "spec": "1200x600",
+                "color": "",
+                "quantity": "1",
+                "amount": "88,000",
+            }
+        ]
+    }
+
+    resp = _autosave(client, structured, token="tok-estimate-only")
+    assert resp.status_code == 200
+    order_id = resp.get_json()["order_id"]
+    assert order_id
+
+    with app.app_context():
+        order = db_session.query(Order).filter_by(id=order_id).one()
+        manual_rows = order.structured_data["estimate_preview"]["manual_rows"]
+        assert manual_rows[0]["product_name"] == "견적 추가품"
+
+    draft = client.get("/api/orders/erp/draft?draft_token=tok-estimate-only").get_json()["draft"]
+    assert draft["has_content"] is True
+    assert draft["order_id"] == order_id
 
 
 def test_autosave_empty_does_not_overwrite_existing_content(client, app) -> None:

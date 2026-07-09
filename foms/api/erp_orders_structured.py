@@ -948,12 +948,16 @@ def _structured_has_meaningful_content(
         received_notes: Free-text notes field value.
 
     Returns:
-        True when a customer/site/product/notes signal is present.
+        True when a customer/site/product/payment/estimate/notes signal is present.
     """
     if (received_notes or '').strip():
         return True
     if not isinstance(structured_data, dict):
         return False
+    if _structured_has_payment_content(structured_data):
+        return True
+    if _structured_has_estimate_preview_content(structured_data):
+        return True
     customer = (((structured_data.get('parties') or {}).get('customer')) or {})
     name = (customer.get('name') or '').strip()
     phone = (customer.get('phone') or '').strip()
@@ -974,6 +978,65 @@ def _structured_has_meaningful_content(
         for key in ('product_name', 'spec', 'price'):
             if str(item.get(key) or '').strip():
                 return True
+    return False
+
+
+def _autosave_coerce_amount(value: Any) -> int:
+    if value is None:
+        return 0
+    if isinstance(value, dict):
+        return _autosave_coerce_amount(
+            value.get('amount') or value.get('raw') or value.get('value') or 0
+        )
+    if isinstance(value, (int, float)):
+        return int(value) if value > 0 else 0
+    digits = ''.join(ch for ch in str(value or '') if ch.isdigit())
+    return int(digits) if digits else 0
+
+
+def _autosave_text_value(value: Any) -> str:
+    if value is None:
+        return ''
+    if isinstance(value, dict):
+        return _autosave_text_value(
+            value.get('value') or value.get('raw') or value.get('text') or ''
+        )
+    return str(value or '').strip()
+
+
+def _structured_has_payment_content(structured_data: dict) -> bool:
+    payment = structured_data.get('payment') if isinstance(structured_data.get('payment'), dict) else {}
+    legacy = structured_data.get('payments') if isinstance(structured_data.get('payments'), dict) else {}
+    totals = structured_data.get('totals') if isinstance(structured_data.get('totals'), dict) else {}
+
+    if _autosave_coerce_amount(
+        payment.get('deposit') or legacy.get('deposit') or totals.get('deposit_amount')
+    ) > 0:
+        return True
+    if _autosave_coerce_amount(payment.get('discount') or totals.get('discount_amount')) > 0:
+        return True
+    if _autosave_text_value(payment.get('free_input') or legacy.get('free_input')):
+        return True
+    if _autosave_text_value(payment.get('cash_receipt') or legacy.get('cash_receipt')):
+        return True
+    if _autosave_text_value(payment.get('balance_note')):
+        return True
+    return False
+
+
+def _structured_has_estimate_preview_content(structured_data: dict) -> bool:
+    preview = structured_data.get('estimate_preview')
+    if not isinstance(preview, dict):
+        return False
+    rows = preview.get('manual_rows') or []
+    if not isinstance(rows, list):
+        return False
+    meaningful_keys = ('product_name', 'spec', 'color', 'quantity', 'amount')
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        if any(str(row.get(key) or '').strip() for key in meaningful_keys):
+            return True
     return False
 
 

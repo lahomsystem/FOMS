@@ -201,11 +201,52 @@
     };
   }
 
+  function autosaveCoerceAmount(value) {
+    if (typeof window.erpCoerceAmount === "function") return window.erpCoerceAmount(value);
+    if (value == null) return 0;
+    if (typeof value === "object") return autosaveCoerceAmount(value.amount || value.raw || value.value || 0);
+    if (typeof value === "number") return Number.isFinite(value) && value > 0 ? Math.round(value) : 0;
+    var digits = String(value || "").replace(/[^0-9]/g, "");
+    return digits ? parseInt(digits, 10) : 0;
+  }
+
+  function autosaveTextValue(value) {
+    if (value == null) return "";
+    if (typeof value === "object") return autosaveTextValue(value.value || value.raw || value.text || "");
+    return String(value || "").trim();
+  }
+
+  function hasPaymentContent(sd) {
+    var payment = sd && sd.payment && typeof sd.payment === "object" ? sd.payment : {};
+    var legacy = sd && sd.payments && typeof sd.payments === "object" ? sd.payments : {};
+    var totals = sd && sd.totals && typeof sd.totals === "object" ? sd.totals : {};
+    if (autosaveCoerceAmount(payment.deposit || legacy.deposit || totals.deposit_amount) > 0) return true;
+    if (autosaveCoerceAmount(payment.discount || totals.discount_amount) > 0) return true;
+    if (autosaveTextValue(payment.free_input || legacy.free_input)) return true;
+    if (autosaveTextValue(payment.cash_receipt || legacy.cash_receipt)) return true;
+    if (autosaveTextValue(payment.balance_note)) return true;
+    return false;
+  }
+
+  function hasEstimatePreviewContent(sd) {
+    var preview = sd && sd.estimate_preview && typeof sd.estimate_preview === "object" ? sd.estimate_preview : {};
+    var rows = Array.isArray(preview.manual_rows) ? preview.manual_rows : [];
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i] || {};
+      var keys = ["product_name", "spec", "color", "quantity", "amount"];
+      for (var k = 0; k < keys.length; k++) {
+        if (String(row[keys[k]] || "").trim()) return true;
+      }
+    }
+    return false;
+  }
+
   /** 사람이 의미 있게 입력했는지(서버 draft 생성 가치 판단). 서버와 동일 기준. */
   function hasMeaningfulContent(payload) {
     if ((payload.notes || "").trim()) return true;
     var sd = payload.structured_data;
     if (!sd || typeof sd !== "object") return false;
+    if (hasPaymentContent(sd) || hasEstimatePreviewContent(sd)) return true;
     var cust = (sd.parties && sd.parties.customer) || {};
     var name = (cust.name || "").trim();
     var phone = (cust.phone || "").trim();
@@ -366,6 +407,15 @@
     // 이벤트 위임: 동적 추가되는 품목 행까지 포함.
     pane.addEventListener("input", schedule, true);
     pane.addEventListener("change", schedule, true);
+    pane.addEventListener(
+      "click",
+      function (event) {
+        var target = event.target && event.target.closest && event.target.closest(".erp-payment-confirm-btn");
+        if (!target) return;
+        setTimeout(schedule, 0);
+      },
+      true
+    );
     // 필드 이탈 시 즉시 flush.
     pane.addEventListener(
       "blur",
@@ -380,7 +430,13 @@
       },
       true
     );
-    window.addEventListener("beforeunload", beaconFlush);
+    window.addEventListener("beforeunload", function () {
+      if (isAddDraftMode()) {
+        beaconFlush();
+      } else if (isEditMode()) {
+        saveEditLocal();
+      }
+    });
     // 모바일 백그라운드 전환(앱 전환/전화 수신) 시 flush — beforeunload 미발화 대비.
     document.addEventListener("visibilitychange", function () {
       if (document.visibilityState !== "hidden") return;
@@ -477,6 +533,65 @@
     }
   }
 
+  function normalizeSnapshotPayment(sd) {
+    if (typeof window._erpNormalizePaymentData === "function") return window._erpNormalizePaymentData(sd || {});
+    var payment = sd && sd.payment && typeof sd.payment === "object" ? sd.payment : {};
+    var legacy = sd && sd.payments && typeof sd.payments === "object" ? sd.payments : {};
+    var totals = sd && sd.totals && typeof sd.totals === "object" ? sd.totals : {};
+    return {
+      deposit: autosaveCoerceAmount(payment.deposit || legacy.deposit || totals.deposit_amount),
+      discount: autosaveCoerceAmount(payment.discount || totals.discount_amount),
+      free_input: autosaveTextValue(payment.free_input || legacy.free_input),
+      cash_receipt: autosaveTextValue(payment.cash_receipt || legacy.cash_receipt),
+      balance_note: autosaveTextValue(payment.balance_note),
+      deposit_confirmed: !!payment.deposit_confirmed,
+      deposit_confirmed_at: payment.deposit_confirmed_at || null,
+      deposit_confirmed_by: payment.deposit_confirmed_by || null,
+      deposit_confirmed_by_user_id: payment.deposit_confirmed_by_user_id || null,
+      balance_confirmed: !!payment.balance_confirmed,
+      balance_confirmed_at: payment.balance_confirmed_at || null,
+      balance_confirmed_by: payment.balance_confirmed_by || null,
+      balance_confirmed_by_user_id: payment.balance_confirmed_by_user_id || null,
+    };
+  }
+
+  function formatSnapshotAmount(amount) {
+    if (typeof window.erpFormatDepositDisplay === "function") return window.erpFormatDepositDisplay(amount);
+    var value = autosaveCoerceAmount(amount);
+    return value > 0 ? value.toLocaleString("ko-KR") + "원" : "0원";
+  }
+
+  function splitSnapshotFreeInput(value) {
+    if (typeof window.erpSplitFreeInputForForm === "function") return window.erpSplitFreeInputForForm(value);
+    return { text: String(value || "").trim(), amount: 0 };
+  }
+
+  function restoreSnapshotPayment(sd, set) {
+    var payment = normalizeSnapshotPayment(sd);
+    if (!sd.payment || typeof sd.payment !== "object") sd.payment = {};
+    sd.payment = Object.assign({}, sd.payment, payment);
+
+    set("erp-deposit-amount", formatSnapshotAmount(payment.deposit));
+    set("erp-discount-amount", formatSnapshotAmount(payment.discount));
+
+    var freeInputParts = splitSnapshotFreeInput(payment.free_input);
+    set("erp-free-input-text", freeInputParts.text || "");
+    set(
+      "erp-free-input-amount",
+      autosaveCoerceAmount(freeInputParts.amount) > 0 ? formatSnapshotAmount(freeInputParts.amount) : ""
+    );
+    set("erp-cash-receipt", payment.cash_receipt || "");
+    set("erp-balance-note", payment.balance_note || "");
+
+    if (typeof window.erpSetBalanceNoteSectionOpen === "function") {
+      window.erpSetBalanceNoteSectionOpen(!!payment.balance_note, { clearValue: false });
+    }
+    if (typeof window._erpUpdatePaymentConfirmUI === "function") {
+      window._erpUpdatePaymentConfirmUI("deposit", payment);
+      window._erpUpdatePaymentConfirmUI("balance", payment);
+    }
+  }
+
   /** 서버 draft 없이 localStorage만 있는 경우(오프라인 등) 폼 직접 채움. */
   function applyLocalSnapshot(snap) {
     if (!snap || !snap.payload) return;
@@ -523,6 +638,11 @@
         if (typeof window.erpRecalcItemsTotal === "function") window.erpRecalcItemsTotal();
       }
     }
+    restoreSnapshotPayment(sd, set);
+    window.__erpLastStructuredData = sd;
+    window.__erpStructuredLoadSucceeded = true;
+    if (typeof window.erpRecalcItemsTotal === "function") window.erpRecalcItemsTotal();
+    if (typeof window.erpInvalidateEstimateCache === "function") window.erpInvalidateEstimateCache();
   }
 
   function maybeOfferRestore() {
