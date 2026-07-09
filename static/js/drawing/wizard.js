@@ -3813,13 +3813,16 @@
     els.canvas.addEventListener('scroll', function () { positionMiniToolbar(); positionAlignToolbar(); });
     window.addEventListener('resize', function () { positionMiniToolbar(); positionAlignToolbar(); });
 
-    /* Alt+드래그 캔버스 팬(포토샵 hand tool 감각) — els.canvas 스크롤 뷰포트 조작.
-       capture 단계 mousedown 으로 Konva 컨테이너(선택/러버밴드/객체드래그)보다 먼저
-       가로채, altKey 드래그만 스크롤로 소비한다. altKey 아니면 아무것도 안 하므로
-       기존 마퀴/객체드래그/텍스트생성(Ctrl/Cmd+클릭)과 무충돌. */
+    /* Space+드래그 캔버스 팬(포토샵 hand tool 감각) — els.canvas 스크롤 뷰포트 조작.
+       Space 를 홀드한 동안만 드래그가 팬으로 소비된다. capture 단계 mousedown 으로
+       Konva 컨테이너(선택/러버밴드/객체드래그)보다 먼저 가로채고, Space 홀드가 아니면
+       아무것도 안 하므로 기존 마퀴/객체드래그/텍스트생성(Ctrl/Cmd+클릭)과 무충돌.
+       폼 셀/텍스트 편집 중 Space 는 절대 가로채지 않는다(정상 입력). */
     (function wirePan() {
       var panning = false;
+      var spaceHeld = false;
       var startX = 0, startY = 0, startScrollLeft = 0, startScrollTop = 0;
+      function isSpaceKey(e) { return e.code === 'Space' || e.key === ' ' || e.key === 'Spacebar'; }
       function onPanMove(e) {
         if (!panning) { return; }
         // 드래그 방향으로 내용이 따라오는 hand tool 감각(범위 밖이면 브라우저가 clamp).
@@ -3836,8 +3839,8 @@
       }
       // capture=true 필수: 버블 단계면 Konva 가 이미 처리해 stopPropagation 이 무효.
       els.canvas.addEventListener('mousedown', function (e) {
-        if (!e.altKey) { return; }            // Alt 없으면 기존 선택/러버밴드/객체드래그 그대로
-        e.preventDefault();
+        if (!spaceHeld) { return; }           // Space 홀드 없으면 기존 선택/러버밴드/객체드래그 그대로
+        e.preventDefault();                   // 텍스트 선택 억제
         e.stopPropagation();                  // Konva 로 전파 차단(선택/러버밴드/객체드래그 미발동)
         panning = true;
         startX = e.clientX; startY = e.clientY;
@@ -3847,15 +3850,49 @@
         window.addEventListener('mouseup', onPanUp, true);
       }, true);
 
-      // Alt 홀드 동안 grab 커서(팬 준비). 창 blur 시 pan-ready 잔류 방지.
+      // Space 홀드 동안 grab 커서(팬 준비). 편집 중이면 폼 입력이 정상 통과하도록 무시.
       window.addEventListener('keydown', function (e) {
-        if (e.altKey || e.key === 'Alt') { els.canvas.classList.add('dws-pan-ready'); }
+        if (!isSpaceKey(e)) { return; }
+        var ae = document.activeElement;
+        var editing = !!(ae && (ae.isContentEditable || ae.tagName === 'TEXTAREA' || ae.tagName === 'INPUT' || ae.tagName === 'SELECT'));
+        if (editing) { return; }              // 폼 셀/텍스트 편집 중 Space 는 정상 입력(가로채지 않음)
+        spaceHeld = true;
+        e.preventDefault();                   // 페이지 스크롤/포커스 버튼 트리거 방지
+        els.canvas.classList.add('dws-pan-ready');
       });
       window.addEventListener('keyup', function (e) {
-        if (e.key === 'Alt' || !e.altKey) { els.canvas.classList.remove('dws-pan-ready'); }
+        if (!isSpaceKey(e)) { return; }
+        spaceHeld = false;
+        els.canvas.classList.remove('dws-pan-ready');
+        onPanUp();                            // 진행 중 팬 종료
       });
-      window.addEventListener('blur', function () { els.canvas.classList.remove('dws-pan-ready'); });
+      // 창 blur 시 spaceHeld·커서 잔류 방지(Space 뗀 이벤트를 놓친 경우 대비).
+      window.addEventListener('blur', function () {
+        spaceHeld = false;
+        els.canvas.classList.remove('dws-pan-ready');
+        onPanUp();
+      });
     })();
+
+    /* Alt+휠 = 도면 확대/축소. 일반 휠(Alt 없음)은 기존 스크롤 그대로 관여 안 함.
+       커서 아래 논리점을 고정해(포토샵 감각) 줌 전후 scrollLeft/Top 을 보정한다.
+       setZoom 이 슬라이더(#dws-zoom-range)·라벨을 자동 갱신하므로 별도 DOM 갱신 불필요.
+       __DWS_BOUND 스코프라 1회만 바인딩(idempotent). */
+    els.canvas.addEventListener('wheel', function (e) {
+      if (!e.altKey) { return; }              // 일반 휠 = 기존 스크롤(관여 안 함)
+      e.preventDefault();
+      var rect = els.canvas.getBoundingClientRect();
+      var px = e.clientX - rect.left, py = e.clientY - rect.top;   // 뷰포트 내 커서 좌표
+      var focalLogicalX = (els.canvas.scrollLeft + px) / zoom;     // 커서 아래 논리점(줌 무관)
+      var focalLogicalY = (els.canvas.scrollTop + py) / zoom;
+      var step = 0.1;                                              // 휠 1노치 = 10%p
+      var nz = clamp(zoom + (e.deltaY < 0 ? step : -step), 0.5, 2.5);
+      if (nz === zoom) { return; }            // clamp 경계 도달 → 변화 없음
+      setZoom(nz);
+      // 커서 아래 논리점이 화면상 같은 위치에 남도록 스크롤 보정(범위 밖은 브라우저 clamp).
+      els.canvas.scrollLeft = focalLogicalX * nz - px;
+      els.canvas.scrollTop = focalLogicalY * nz - py;
+    }, { passive: false });
 
     /* 손가락 네비게이션(태블릿) — 1지 드래그=팬, 2지=핀치 확대(중점 고정).
        touch-action:none 이라 네이티브 스크롤/줌은 꺼져 있고 여기서 전량 구현한다.
