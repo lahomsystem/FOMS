@@ -84,6 +84,34 @@ html, body {
   text-overflow: ellipsis;
 }
 
+/* 타이틀 컬럼 래퍼: 좁은 화면에서 햄버거와 가로 배치되어도 제목/부제는 세로 스택 유지.
+   데스크톱에선 .dws-appbar-left(column)의 단일 자식으로 기존 스택 모양 그대로. */
+.dws-appbar-titlewrap {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  line-height: 1.18;
+}
+
+/* 드로어 토글(햄버거) — 좁은 화면(≤900px) 전용. 데스크톱은 display:none 이라 레이아웃 무영향. */
+.dws-appbar-panel-btn {
+  display: none;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #1d1d1f;
+  cursor: pointer;
+}
+.dws-appbar-panel-btn:hover { background: rgba(0, 0, 0, 0.06); }
+.dws-appbar-panel-btn:active { background: rgba(0, 0, 0, 0.1); }
+
 .dws-appbar-sep {
   width: 1px;
   height: 22px;
@@ -347,6 +375,125 @@ html, body {
   #dws-zoom-range { width: 72px; }
 }
 
+/* ============================================================================
+   3단계(≤900px): 모바일/태블릿 세로 반응형 셸 (Phase B)
+   - 좌측 제품 패널 → 오프캔버스 드로어(캔버스 전폭 확보)
+   - 앱바 grid → 가로 스크롤 flex 스트립(세로 줄바꿈 방지). 도구는 아이콘만.
+   - 데스크톱(≥900px) 레이아웃·동작에는 전혀 영향 없음(순수 additive media query).
+   ============================================================================ */
+@media (max-width: 900px) {
+  /* --- 앱바: grid → 가로 스크롤 flex 스트립 --- */
+  .dws-appbar {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 6px;
+    height: 50px;
+    padding: 0 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    /* backdrop-filter 제거: 이게 남아 있으면 fixed 드롭다운 메뉴의 containing block 이
+       앱바가 되어 스크롤 컨테이너(overflow-x)에 세로로 잘린다. 제거하면 메뉴 fixed 가
+       뷰포트 기준으로 탈출해 앱바 아래에 정상 노출된다. 좁은 화면은 글래스 블러 불필요. */
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: rgba(255, 255, 255, 0.98);
+  }
+  .dws-appbar::-webkit-scrollbar { height: 0; }   /* 스와이프 스크롤 — 스크롤바 숨김 */
+
+  .dws-appbar-left {
+    flex: 0 1 auto;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+  }
+  .dws-appbar-panel-btn { display: inline-flex; }
+  .dws-appbar-title { max-width: 40vw; font-size: 14px; }
+
+  .dws-appbar-center { flex: 0 0 auto; }
+  .dws-appbar-right { flex: 0 0 auto; gap: 6px; }
+
+  /* 도구 세그: 아이콘만(라벨은 ≤1500px 규칙으로 이미 숨김) + 터치 타깃 확대 */
+  .dws-seg-btn {
+    min-width: 40px;
+    min-height: 40px;
+    justify-content: center;
+    padding: 6px;
+  }
+
+  /* 앱바 드롭다운(도형/프리셋/내보내기): 가로 스크롤 스트립에 잘리지 않도록
+     뷰포트 기준 fixed 로 앱바 아래 고정 노출(한 번에 하나만 열림). */
+  #dws-shape-menu,
+  #dws-preset-menu,
+  #dws-export-menu {
+    position: fixed;
+    top: 54px;
+    right: 8px;
+    left: auto;
+    max-width: calc(100vw - 16px);
+    max-height: calc(100vh - 66px);
+    overflow-y: auto;
+  }
+
+  /* --- 좌측 제품 패널 → 오프캔버스 드로어 --- (#dws-products ID 로 접힘 상태보다 우선) */
+  #dws-products {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: min(300px, 84vw);
+    flex: none;
+    z-index: 120;
+    transform: translateX(-100%);
+    transition: transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
+    box-shadow: 8px 0 40px rgba(0, 0, 0, 0.18);
+    border-right: 1px solid rgba(0, 0, 0, 0.1);
+  }
+  #dws-root.dws-drawer-open #dws-products { transform: translateX(0); }
+  /* 데스크톱 접기 토글(◂)은 드로어에선 불필요 — 드로어 자체가 열닫 담당 */
+  #dws-products .dws-products-toggle { display: none; }
+
+  /* 드로어 백드롭 — 열림 시에만 노출(캔버스 gesture 차단 겸 탭 닫기) */
+  #dws-root.dws-drawer-open .dws-products-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 115;
+    background: rgba(0, 0, 0, 0.38);
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+  }
+
+  /* --- 펜 팔레트: 하단 고정(캔버스 상단을 가리지 않게) + 좁으면 줄바꿈 --- */
+  .dws-pen-palette {
+    top: auto;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+    max-width: calc(100vw - 16px);
+    flex-wrap: wrap;
+    justify-content: center;
+    row-gap: 8px;
+  }
+}
+
+/* ============================================================================
+   4단계(≤600px): 폰 — 제목 최소화 + 터치 타깃 ≥40px + 앱바 과대 방지
+   ============================================================================ */
+@media (max-width: 600px) {
+  .dws-appbar { height: 54px; }
+  .dws-appbar-sub { display: none; }               /* 부제(고객명) 숨김 → 제목 최소화 */
+  .dws-appbar-title { max-width: 32vw; }
+
+  /* 우측 액션 터치 타깃 ≥40px */
+  .dws-appbar-right .dws-btn { min-height: 40px; }
+  .dws-appbar-right .dws-icon-btn { width: 40px; height: 40px; }
+  .dws-fontctl .dws-btn { width: 40px; height: 40px; }
+
+  #dws-shape-menu,
+  #dws-preset-menu,
+  #dws-export-menu { top: 58px; }
+}
+
 /* ---- 읽기 전용 배너 (애플풍 앰버) --------------------------------------- */
 .dws-readonly-banner {
   flex: 0 0 auto;
@@ -456,6 +603,9 @@ html, body {
   min-height: 0;
   overflow: hidden;
 }
+
+/* 드로어 백드롭 — 데스크톱(≥900px)에선 항상 숨김. 노출은 ≤900px 미디어쿼리에서만. */
+.dws-products-backdrop { display: none; }
 
 /* ---- 좌측 제품 리스트 패널(접기 가능) ----------------------------------- */
 .dws-products {

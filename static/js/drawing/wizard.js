@@ -315,6 +315,8 @@
     els.products = document.getElementById('dws-products');
     els.productList = document.getElementById('dws-product-list');
     els.productToggle = document.getElementById('dws-products-toggle');
+    els.panelBtn = document.getElementById('dws-btn-panel');
+    els.productsBackdrop = document.getElementById('dws-products-backdrop');
     els.photos = document.getElementById('dws-photos');
     els.photosTitle = document.getElementById('dws-photos-title');
     els.photosToggle = document.getElementById('dws-photos-toggle');
@@ -2338,6 +2340,7 @@
 
   /** 제품 클릭 → 그 제품 전용 도면 시트로 전환(없으면 defaults 로드 후 생성). */
   function onProductClick(idx) {
+    closeDrawer();                              // 좁은 화면: 제품 선택 시 드로어 닫힘(데스크톱 무영향)
     if (!canSave) { toast('열람 전용 — 도면 담당자·도면팀 또는 관리자만 편집할 수 있습니다.'); return; }
     var cs = currentSheet();
     if (cs && cs.product_index === idx) { return; }   // 이미 그 제품 시트면 no-op
@@ -2375,6 +2378,24 @@
       els.productToggle.title = collapsed ? '제품 목록 펼치기' : '제품 목록 접기';
       els.productToggle.setAttribute('aria-label', els.productToggle.title);
     }
+  }
+
+  /* 좁은 화면(≤900px) 오프캔버스 드로어. 데스크톱은 관련 CSS 가 미디어쿼리 내부에만
+     있어 dws-drawer-open 클래스가 inert(레이아웃 무영향)하다. 상태는 #dws-root 클래스로 단일화. */
+  function openDrawer() {
+    if (!root) { return; }
+    // 드로어로 열 땐 데스크톱 접힘 상태를 해제(폭은 CSS 로 강제되지만 내부 목록 표시 보장).
+    if (els.products) { els.products.classList.remove('dws-products-collapsed'); }
+    root.classList.add('dws-drawer-open');
+    if (els.panelBtn) { els.panelBtn.setAttribute('aria-expanded', 'true'); }
+  }
+  function closeDrawer() {
+    if (!root) { return; }
+    root.classList.remove('dws-drawer-open');
+    if (els.panelBtn) { els.panelBtn.setAttribute('aria-expanded', 'false'); }
+  }
+  function toggleDrawer() {
+    if (root.classList.contains('dws-drawer-open')) { closeDrawer(); } else { openDrawer(); }
   }
 
   /** 실측 사진이 현재 제품 시트(activeIdx)에 표시 대상인지 판정.
@@ -3714,6 +3735,9 @@
 
     // 좌측 제품 리스트 패널 접기/펼치기
     if (els.productToggle) { els.productToggle.addEventListener('click', toggleProducts); }
+    // 좁은 화면 드로어(햄버거) 토글 + 백드롭 탭 닫기 (__DWS_BOUND 스코프라 1회만 바인딩)
+    if (els.panelBtn) { els.panelBtn.addEventListener('click', toggleDrawer); }
+    if (els.productsBackdrop) { els.productsBackdrop.addEventListener('click', closeDrawer); }
     // 실측 사진 섹션 접기/펼치기
     if (els.photosToggle) { els.photosToggle.addEventListener('click', togglePhotos); }
     // 저장된 도면(전달 대기) 섹션 접기/펼치기 + 썸네일 라이트박스 닫기(닫기 버튼·배경 클릭)

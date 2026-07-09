@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>도면 마법사 — 주문 #{{ order.id }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20260709h">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20260709i">
 </head>
 <body>
   <div id="dws-root" data-order-id="{{ order.id }}">
@@ -12,10 +12,15 @@
     <!-- ================= 앱바 (3분할: 타이틀 · 도구 세그먼트 · 액션) ======= -->
     <header class="dws-appbar dws-ui">
 
-      <!-- 좌: 타이틀 블록 -->
+      <!-- 좌: (좁은 화면) 드로어 토글 + 타이틀 블록 -->
       <div class="dws-appbar-left">
-        <div class="dws-appbar-title">도면 마법사 · 주문 #{{ order.id }}</div>
-        <div class="dws-appbar-sub" id="dws-customer">({{ customer_name }})</div>
+        <button type="button" class="dws-appbar-panel-btn" id="dws-btn-panel" title="제품 목록" aria-label="제품 목록 열기/닫기" aria-expanded="false" aria-controls="dws-products">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <div class="dws-appbar-titlewrap">
+          <div class="dws-appbar-title">도면 마법사 · 주문 #{{ order.id }}</div>
+          <div class="dws-appbar-sub" id="dws-customer">({{ customer_name }})</div>
+        </div>
       </div>
 
       <!-- 중앙: 도구 세그먼트 컨트롤 -->
@@ -153,6 +158,9 @@
         <div class="dws-pending-grid" id="dws-pending-grid"></div>
       </div>
     </aside>
+
+    <!-- 드로어 백드롭(좁은 화면 ≤900px 에서 드로어 열림 시에만 노출; 데스크톱 무영향) -->
+    <div class="dws-products-backdrop" id="dws-products-backdrop" aria-hidden="true"></div>
 
     <!-- ================= 캔버스(스크롤) ================= -->
     <div class="dws-canvas" id="dws-canvas">
@@ -420,6 +428,6 @@
 
   <script id="drawing-wizard-config" type="application/json">{{ wizard_config|tojson }}</script>
   <script src="{{ url_for('static', filename='vendor/konva.min.js') }}?v=20260706b" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260709h" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260709i" defer></script>
 </body>
 </html>
