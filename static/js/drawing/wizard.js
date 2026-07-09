@@ -888,6 +888,10 @@
     return group;
   }
 
+  // 디코드된 이미지 캐시(key→HTMLImageElement). rebuildAnno 는 펜/도형 커밋마다 전 노드를
+  // 재생성하는데, 캐시 없이 매번 new Image()+async 로드하면 로드 전까지 노드가 빈 프레임이라
+  // 획마다 이미지가 깜빡인다. 로드 완료분은 캐시에서 동기 재사용해 깜빡임을 제거한다.
+  var _annoImgCache = {};
   function buildImage(o) {
     var node = new Konva.Image({
       x: num(o.x), y: num(o.y), width: num(o.w, 200), height: num(o.h, 150),
@@ -895,10 +899,16 @@
     });
     tagNode(node, o);
     if (o.key) {
-      var img = new Image();
-      img.onload = function () { node.image(img); konvaLayer.batchDraw(); };
-      img.onerror = function () { /* 로드 실패 시 빈 프레임 유지 */ };
-      img.src = viewUrl(o.key);
+      var cached = _annoImgCache[o.key];
+      if (cached && cached.complete && cached.naturalWidth) {
+        node.image(cached);   // 재빌드 시 동기 반영 → 깜빡임 없음
+      } else {
+        var img = cached || new Image();
+        _annoImgCache[o.key] = img;
+        img.onload = function () { node.image(img); konvaLayer.batchDraw(); };
+        img.onerror = function () { /* 로드 실패 시 빈 프레임 유지 */ };
+        if (!img.src) { img.src = viewUrl(o.key); }
+      }
     }
     return node;
   }
