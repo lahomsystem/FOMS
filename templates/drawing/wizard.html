@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>도면 마법사 — 주문 #{{ order.id }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20260709a">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20260709b">
 </head>
 <body>
   <div id="dws-root" data-order-id="{{ order.id }}">
@@ -76,7 +76,7 @@
 
         <div class="dws-zoom">
           <button type="button" class="dws-btn dws-btn-plain" id="dws-btn-zoom-fit" title="화면 폭 맞춤">맞춤</button>
-          <input type="range" id="dws-zoom-range" min="50" max="150" step="5" value="100" title="줌">
+          <input type="range" id="dws-zoom-range" min="50" max="250" step="5" value="100" title="줌">
           <span class="dws-zoom-label" id="dws-zoom-label">100%</span>
         </div>
 
@@ -304,6 +304,29 @@
       </div>
     </div>
 
+    <!-- ============= 정렬 툴바(다중 선택 ≥2 시 플로팅) ================= -->
+    <div class="dws-aligntoolbar dws-ui" id="dws-aligntoolbar" hidden>
+      <button type="button" class="dws-align-btn" data-align="left" title="왼쪽 정렬" aria-label="왼쪽 정렬">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><line x1="4" y1="4" x2="4" y2="20"/><rect x="7" y="7" width="12" height="3.6" rx="1" fill="currentColor" stroke="none"/><rect x="7" y="13.4" width="8" height="3.6" rx="1" fill="currentColor" stroke="none"/></svg>
+      </button>
+      <button type="button" class="dws-align-btn" data-align="hcenter" title="가로 가운데 정렬" aria-label="가로 가운데 정렬">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="4" x2="12" y2="20"/><rect x="6" y="7" width="12" height="3.6" rx="1" fill="currentColor" stroke="none"/><rect x="8" y="13.4" width="8" height="3.6" rx="1" fill="currentColor" stroke="none"/></svg>
+      </button>
+      <button type="button" class="dws-align-btn" data-align="right" title="오른쪽 정렬" aria-label="오른쪽 정렬">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><line x1="20" y1="4" x2="20" y2="20"/><rect x="5" y="7" width="12" height="3.6" rx="1" fill="currentColor" stroke="none"/><rect x="9" y="13.4" width="8" height="3.6" rx="1" fill="currentColor" stroke="none"/></svg>
+      </button>
+      <span class="dws-align-sep"></span>
+      <button type="button" class="dws-align-btn" data-align="top" title="위쪽 정렬" aria-label="위쪽 정렬">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><line x1="4" y1="4" x2="20" y2="4"/><rect x="7" y="7" width="3.6" height="12" rx="1" fill="currentColor" stroke="none"/><rect x="13.4" y="7" width="3.6" height="8" rx="1" fill="currentColor" stroke="none"/></svg>
+      </button>
+      <button type="button" class="dws-align-btn" data-align="vcenter" title="세로 가운데 정렬" aria-label="세로 가운데 정렬">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><line x1="4" y1="12" x2="20" y2="12"/><rect x="7" y="6" width="3.6" height="12" rx="1" fill="currentColor" stroke="none"/><rect x="13.4" y="8" width="3.6" height="8" rx="1" fill="currentColor" stroke="none"/></svg>
+      </button>
+      <button type="button" class="dws-align-btn" data-align="bottom" title="아래쪽 정렬" aria-label="아래쪽 정렬">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><line x1="4" y1="20" x2="20" y2="20"/><rect x="7" y="5" width="3.6" height="12" rx="1" fill="currentColor" stroke="none"/><rect x="13.4" y="9" width="3.6" height="8" rx="1" fill="currentColor" stroke="none"/></svg>
+      </button>
+    </div>
+
     <!-- ================= 로고 선택 팝업 ================= -->
     <div class="dws-popup dws-ui" id="dws-logo-popup" hidden>
       <button type="button" class="dws-popup-item" data-logo="haud">하우드</button>
@@ -343,6 +366,6 @@
 
   <script id="drawing-wizard-config" type="application/json">{{ wizard_config|tojson }}</script>
   <script src="{{ url_for('static', filename='vendor/konva.min.js') }}?v=20260706b" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260709a" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260709b" defer></script>
 </body>
 </html>

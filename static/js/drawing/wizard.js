@@ -167,7 +167,8 @@
   var products = [];                   // 주문 제품 리스트 [{index,name,spec,price}] (좌측 패널 소스)
   var measurePhotos = [];              // 실측 사진 [{key,filename,item_index,thumb_url}] (사이드 참조 소스)
   var customerName = '';
-  var selected = null;                 // 선택된 주석 객체 id (Konva 노드와 동기)
+  var selected = null;                 // 주 선택(primary) 주석 객체 id — 단일 선택 경로 호환용(selectedIds 의 마지막)
+  var selectedIds = [];                // 다중 선택 id 배열(SSOT). 단일=길이1, 없음=길이0, 그룹=길이≥2
   var zoom = 1;
   var imageRatioLock = true;
   var undoStack = [];
@@ -316,6 +317,7 @@
     els.fontIncBtn = document.getElementById('dws-btn-font-inc');
     els.tableResetBtn = document.getElementById('dws-btn-table-reset');
     els.dividers = document.getElementById('dws-dividers');
+    els.alignToolbar = document.getElementById('dws-aligntoolbar');
   }
 
   function formCells() { return Array.prototype.slice.call(els.form.querySelectorAll('[data-dws-form-key]')); }
@@ -674,6 +676,30 @@
 
     konvaStage.on('mousedown', onStageMouseDown);
     konvaStage.on('dblclick', onStageDblClick);
+    wireTransformerGroup();
+  }
+
+  /** 다중 선택(그룹) 이동/변형 배선 — 단일 선택은 노드별 핸들러(wireNode) 소관.
+     shouldOverdrawWholeArea(true) 로 그룹 bbox 영역 드래그=전체 함께 이동, 코너 앵커=그룹 리사이즈/회전.
+     각 핸들러는 isMultiSelect() 게이트로 단일 선택 경로(노드 핸들러)와 이중 처리를 회피한다. */
+  function wireTransformerGroup() {
+    transformer.on('dragstart', function () { if (!isMultiSelect()) { return; } dragActive = true; recordUndo(); });
+    transformer.on('dragmove', function () { if (!isMultiSelect()) { return; } positionAlignToolbar(); });
+    transformer.on('dragend', function () {
+      if (!isMultiSelect()) { return; }
+      dragActive = false;
+      selectedNodes().forEach(commitNode);   // commitNode 내부 markDirty
+      transformer.forceUpdate();             // arrow/line commit 이 노드 내부(points/position) 재설정 → 박스 재계산
+      positionAlignToolbar();
+    });
+    transformer.on('transformstart', function () { if (!isMultiSelect()) { return; } dragActive = true; recordUndo(); });
+    transformer.on('transform', function () { if (!isMultiSelect()) { return; } positionAlignToolbar(); });
+    transformer.on('transformend', function () {
+      if (!isMultiSelect()) { return; }
+      dragActive = false;
+      selectedNodes().forEach(commitNode);   // commitNode 가 residual scale 를 치수로 baking
+      rebuildAnno();   // state 기준 재구성(런텍스트 스냅 정리) + 다중 선택 복원
+    });
   }
 
   /** 네이티브 이벤트 → 스테이지 논리 좌표(줌 역보정). */
@@ -866,18 +892,24 @@
     node.on('mousedown', function (e) {
       if (annoMode !== 'select') { return; }   // 그리기 모드면 스테이지 핸들러가 처리
       e.cancelBubble = true;
-      selectById(node.getAttr('objId'));
+      var id = node.getAttr('objId');
+      var devt = e.evt || {};
+      // Shift/Ctrl/Cmd+클릭 = 선택 토글(추가/제거), 일반 클릭 = 단일 선택.
+      if (devt.shiftKey || devt.ctrlKey || devt.metaKey) { toggleInSelection(id); }
+      else { selectSingle(id); }
     });
+    // 아래 드래그/변형 핸들러는 단일 선택 전용 — 다중(그룹)은 transformer 레벨 핸들러가 처리.
     node.on('dragstart', function () {
       if (annoMode !== 'select') { node.stopDrag(); return; }
+      if (isMultiSelect()) { return; }
       dragActive = true;
       recordUndo();
     });
-    node.on('dragmove', function () { positionMiniToolbar(); });
-    node.on('dragend', function () { dragActive = false; commitNode(node); });
-    node.on('transformstart', function () { dragActive = true; recordUndo(); });
-    node.on('transform', function () { applyLiveTransform(node); positionMiniToolbar(); });
-    node.on('transformend', function () { dragActive = false; commitNode(node); });
+    node.on('dragmove', function () { if (isMultiSelect()) { return; } positionMiniToolbar(); });
+    node.on('dragend', function () { if (isMultiSelect()) { return; } dragActive = false; commitNode(node); });
+    node.on('transformstart', function () { if (isMultiSelect()) { return; } dragActive = true; recordUndo(); });
+    node.on('transform', function () { if (isMultiSelect()) { return; } applyLiveTransform(node); positionMiniToolbar(); });
+    node.on('transformend', function () { if (isMultiSelect()) { return; } dragActive = false; commitNode(node); });
   }
 
   /** 변형 중 scale → 실제 치수로 정규화(폰트/선굵기 왜곡 방지). */
@@ -903,6 +935,9 @@
   function commitNode(node) {
     var o = findObj(node.getAttr('objId'));
     if (!o) { return; }
+    // 그룹 변형은 노드에 residual scale 를 남긴다(단일 경로는 transform 중 이미 folding됨=no-op).
+    // 치수 읽기 전에 scale 을 실제 width/height/radius 로 baking 한다.
+    applyLiveTransform(node);
     var t = node.getAttr('annoType');
     if (t === 'text') {
       o.x = Math.round(node.x()); o.y = Math.round(node.y());
@@ -950,34 +985,171 @@
     konvaLayer.find('.anno').forEach(function (n) { n.draggable(canSave && annoMode === 'select'); });
     transformer.moveToTop();
     konvaLayer.batchDraw();
-    if (selected && nodeById[selected]) { selectNode(nodeById[selected]); }
-    else if (selected) { deselect(); }
+    // 다중 선택 복원: 아직 존재하는 노드만 유지, 하나라도 남으면 applySelection, 전부 사라졌으면 해제.
+    var restored = selectedIds.filter(function (id) { return !!nodeById[id]; });
+    if (restored.length) { selectedIds = restored; applySelection(); }
+    else if (selectedIds.length) { deselect(); }
   }
 
-  /* ---- 선택 / 미니툴바 ---------------------------------------------------- */
-  function selectById(id) { var node = nodeById[id]; if (node) { selectNode(node); } else { deselect(); } }
+  /* ---- 선택 / 미니툴바 ----------------------------------------------------
+     selectedIds(배열)가 SSOT. selected(단일 id)는 primary=마지막 선택으로 파생(단일 경로 호환).
+     applySelection() 이 transformer 노드/앵커/그룹드래그 + 미니툴바/정렬툴바 노출을 일괄 동기. */
+  function isMultiSelect() { return selectedIds.length > 1; }
 
-  function selectNode(node) {
-    if (!node) { deselect(); return; }
-    selected = node.getAttr('objId');
-    var t = node.getAttr('annoType');
-    var o = findObj(selected);
-    var isRich = (t === 'text' && o && o.runs && o.runs.length);
-    transformer.keepRatio(t === 'image' ? imageRatioLock : false);
-    // 런 텍스트는 이동·회전만(리사이즈 앵커 비활성) — 단색 텍스트/도형은 코너 앵커 유지.
-    transformer.enabledAnchors(isRich ? [] : ['top-left', 'top-right', 'bottom-left', 'bottom-right']);
-    transformer.nodes([node]);
-    transformer.moveToTop();
-    showMiniToolbar(node);
+  function selectedNodes() {
+    var out = [];
+    for (var i = 0; i < selectedIds.length; i++) {
+      var n = nodeById[selectedIds[i]];
+      if (n) { out.push(n); }
+    }
+    return out;
+  }
+
+  function selectSingle(id) {
+    if (!nodeById[id]) { deselect(); return; }
+    selectedIds = [id];
+    applySelection();
+  }
+
+  function toggleInSelection(id) {
+    if (!nodeById[id]) { return; }
+    var i = selectedIds.indexOf(id);
+    if (i === -1) { selectedIds = selectedIds.concat([id]); }
+    else { selectedIds = selectedIds.slice(0, i).concat(selectedIds.slice(i + 1)); }
+    applySelection();
+  }
+
+  /* 단일 선택 공개 진입점(기존 호출부 호환): 항상 단일 선택으로 설정. */
+  function selectById(id) { selectSingle(id); }
+  function selectNode(node) { if (node) { selectSingle(node.getAttr('objId')); } else { deselect(); } }
+
+  /** selectedIds → transformer/툴바 동기(단일=미니툴바, 다중=정렬툴바+그룹드래그). */
+  function applySelection() {
+    var nodes = selectedNodes();
+    if (nodes.length !== selectedIds.length) {
+      // 사라진 노드 정리(rebuild 등)
+      selectedIds = nodes.map(function (n) { return n.getAttr('objId'); });
+    }
+    selected = selectedIds.length ? selectedIds[selectedIds.length - 1] : null;
+    if (!transformer) { return; }
+    if (!nodes.length) {
+      transformer.shouldOverdrawWholeArea(false);
+      transformer.nodes([]);
+      hideMiniToolbar();
+      hideAlignToolbar();
+      hideLogoPopup();
+      if (konvaLayer) { konvaLayer.batchDraw(); }
+      return;
+    }
+    if (nodes.length === 1) {
+      var node = nodes[0];
+      var t = node.getAttr('annoType');
+      var o = findObj(node.getAttr('objId'));
+      var isRich = (t === 'text' && o && o.runs && o.runs.length);
+      transformer.shouldOverdrawWholeArea(false);
+      transformer.keepRatio(t === 'image' ? imageRatioLock : false);
+      // 런 텍스트는 이동·회전만(리사이즈 앵커 비활성) — 단색 텍스트/도형은 코너 앵커 유지.
+      transformer.enabledAnchors(isRich ? [] : ['top-left', 'top-right', 'bottom-left', 'bottom-right']);
+      transformer.nodes([node]);
+      transformer.moveToTop();
+      hideAlignToolbar();
+      showMiniToolbar(node);
+    } else {
+      // 다중: 그룹 bbox 영역 드래그=함께 이동, 코너 앵커=그룹 리사이즈/회전.
+      // (런 텍스트 포함 시 리사이즈는 richWidth 로 되돌아감 — 이동/정렬은 정상. 문서화된 한계.)
+      transformer.shouldOverdrawWholeArea(true);
+      transformer.keepRatio(false);
+      transformer.enabledAnchors(['top-left', 'top-right', 'bottom-left', 'bottom-right']);
+      transformer.nodes(nodes);
+      transformer.moveToTop();
+      hideMiniToolbar();
+      showAlignToolbar();
+    }
     konvaLayer.batchDraw();
   }
 
   function deselect() {
+    selectedIds = [];
     selected = null;
-    if (transformer) { transformer.nodes([]); }
+    if (transformer) { transformer.shouldOverdrawWholeArea(false); transformer.nodes([]); }
     hideMiniToolbar();
+    hideAlignToolbar();
     hideLogoPopup();
     if (konvaLayer) { konvaLayer.batchDraw(); }
+  }
+
+  /* ---- 정렬 툴바(다중 선택 ≥2 시 노출) ------------------------------------
+     선택 객체들의 axis-aligned bbox 기준으로 각 객체 x/y(또는 arrow/line points)를 이동.
+     회전 객체는 노드 getClientRect bbox 근사로 정렬(브리프 허용). state 갱신 후 rebuild 로 동기. */
+  function showAlignToolbar() { if (!canSave || !els.alignToolbar) { return; } els.alignToolbar.hidden = false; positionAlignToolbar(); }
+  function hideAlignToolbar() { if (els.alignToolbar) { els.alignToolbar.hidden = true; } }
+
+  function positionAlignToolbar() {
+    if (!els.alignToolbar || els.alignToolbar.hidden || selectedIds.length < 2) { return; }
+    var nodes = selectedNodes();
+    if (!nodes.length) { return; }
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    nodes.forEach(function (n) {
+      var b = n.getClientRect();
+      if (b.x < minX) { minX = b.x; }
+      if (b.y < minY) { minY = b.y; }
+      if (b.x + b.width > maxX) { maxX = b.x + b.width; }
+      if (b.y + b.height > maxY) { maxY = b.y + b.height; }
+    });
+    var annoRect = els.anno.getBoundingClientRect();
+    var screenTop = annoRect.top + minY * zoom;
+    var screenBottom = annoRect.top + maxY * zoom;
+    var screenLeft = annoRect.left + minX * zoom;
+    var ROTATER_CLEARANCE = 34;   // 회전 핸들 위로 띄워 앵커를 가리지 않게
+    var top = screenTop - els.alignToolbar.offsetHeight - 8 - ROTATER_CLEARANCE;
+    if (top < 8) { top = screenBottom + 8; }
+    var left = clamp(screenLeft, 8, window.innerWidth - els.alignToolbar.offsetWidth - 8);
+    els.alignToolbar.style.left = left + 'px';
+    els.alignToolbar.style.top = top + 'px';
+  }
+
+  /** 객체 좌표를 dx/dy 만큼 평행이동(state SSOT). arrow/line 은 points, 그 외는 x/y. */
+  function shiftObjectState(o, dx, dy) {
+    if (dx === 0 && dy === 0) { return; }
+    if (o.type === 'arrow' || o.type === 'line') {
+      o.points = [o.points[0] + dx, o.points[1] + dy, o.points[2] + dx, o.points[3] + dy];
+    } else {
+      o.x = num(o.x) + dx; o.y = num(o.y) + dy;
+    }
+  }
+
+  function alignSelected(kind) {
+    if (!canSave || selectedIds.length < 2) { return; }
+    var items = [];
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    selectedIds.forEach(function (id) {
+      var n = nodeById[id], o = findObj(id);
+      if (!n || !o) { return; }
+      var r = n.getClientRect();   // 논리 좌표 bbox(회전 포함 근사)
+      items.push({ o: o, r: r });
+      if (r.x < minX) { minX = r.x; }
+      if (r.y < minY) { minY = r.y; }
+      if (r.x + r.width > maxX) { maxX = r.x + r.width; }
+      if (r.y + r.height > maxY) { maxY = r.y + r.height; }
+    });
+    if (items.length < 2) { return; }
+    var cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+    recordUndo();
+    items.forEach(function (it) {
+      var r = it.r, dx = 0, dy = 0;
+      switch (kind) {
+        case 'left': dx = minX - r.x; break;
+        case 'hcenter': dx = (cx - r.width / 2) - r.x; break;
+        case 'right': dx = (maxX - r.width) - r.x; break;
+        case 'top': dy = minY - r.y; break;
+        case 'vcenter': dy = (cy - r.height / 2) - r.y; break;
+        case 'bottom': dy = (maxY - r.height) - r.y; break;
+        default: return;
+      }
+      shiftObjectState(it.o, Math.round(dx), Math.round(dy));
+    });
+    markDirty();
+    rebuildAnno();   // state 기준 재구성 + 다중 선택 복원(applySelection)
   }
 
   function showMiniToolbar(node) {
@@ -1062,19 +1234,22 @@
   }
 
   /* ---- 삭제 / 이동 -------------------------------------------------------- */
-  function removeObject(id) {
+  function spliceObject(id) {
     var objs = currentSheet().objects, i = -1;
     objs.some(function (o, idx) { if (o.id === id) { i = idx; return true; } return false; });
     if (i >= 0) { objs.splice(i, 1); }
-    rebuildAnno();
   }
 
+  function removeObject(id) { spliceObject(id); rebuildAnno(); }
+
+  /** 선택 전체 삭제(단일·다중 공용) — recordUndo 1회로 묶고 rebuild 1회. */
   function deleteSelected() {
-    if (!canSave || !selected) { return; }
+    if (!canSave || !selectedIds.length) { return; }
     recordUndo();
-    var id = selected;
+    var ids = selectedIds.slice();
     deselect();
-    removeObject(id);
+    ids.forEach(spliceObject);
+    rebuildAnno();
     markDirty();
   }
 
@@ -1163,15 +1338,90 @@
       return;
     }
     /* select 모드 빈 영역 */
-    if (e.target !== konvaStage) { return; }
+    if (e.target !== konvaStage) { return; }   // 다중 선택 bbox(transformer overdraw)는 여기 도달 X
     if (devt.ctrlKey || devt.metaKey) {
       if (devt.preventDefault) { devt.preventDefault(); }  // Ctrl+클릭 텍스트 생성도 동일 보호
       var cp = pointerLogical(devt);
       createTextAt(cp.x, cp.y);
       return;
     }
-    deselect();
-    passthroughToForm(e.evt);
+    // 빈 영역: 드래그=러버밴드 다중 선택 / 순수 클릭=선택 해제 + 폼 투과(이동 임계 4px로 판별).
+    startMarqueeSelect(e);
+  }
+
+  /** 빈 캔버스 드래그=러버밴드 박스로 교차 객체 다중 선택. 순수 클릭(이동<4px)=기존 해제+폼 투과.
+     Shift/Ctrl/Cmd 드래그는 기존 선택에 합집합으로 추가. */
+  function startMarqueeSelect(e) {
+    var devt = e.evt;
+    var startLogical = pointerLogical(devt);
+    var startX = num(devt.clientX), startY = num(devt.clientY);
+    var additive = !!(devt.shiftKey || devt.ctrlKey || devt.metaKey);
+    var moved = false;
+    var rect = null;
+    function ensureRect() {
+      if (rect) { return; }
+      rect = new Konva.Rect({
+        x: startLogical.x, y: startLogical.y, width: 0, height: 0,
+        fill: 'rgba(28,98,214,0.08)', stroke: '#1c62d6', strokeWidth: 1,
+        dash: [4, 3], name: 'anno-marquee', listening: false
+      });
+      konvaLayer.add(rect);
+      transformer.moveToTop();
+    }
+    function move(nativeEvt) {
+      if (!moved) {
+        if (Math.abs(num(nativeEvt.clientX) - startX) < 4 && Math.abs(num(nativeEvt.clientY) - startY) < 4) { return; }
+        moved = true;
+        if (devt.preventDefault) { devt.preventDefault(); }   // 네이티브 텍스트 선택 억제
+        ensureRect();
+      }
+      if (nativeEvt.preventDefault) { nativeEvt.preventDefault(); }
+      var p = pointerLogical(nativeEvt);
+      var x = Math.min(startLogical.x, p.x), y = Math.min(startLogical.y, p.y);
+      var w = Math.abs(p.x - startLogical.x), h = Math.abs(p.y - startLogical.y);
+      rect.setAttrs({ x: x, y: y, width: w, height: h });
+      konvaLayer.batchDraw();
+    }
+    function up(nativeEvt) {
+      window.removeEventListener('mousemove', move, true);
+      window.removeEventListener('mouseup', up, true);
+      if (!moved) {
+        // 순수 클릭: 기존 동작(선택 해제 + 폼 투과)
+        deselect();
+        passthroughToForm(nativeEvt);
+        return;
+      }
+      var box = { x: rect.x(), y: rect.y(), w: rect.width(), h: rect.height() };
+      rect.destroy();
+      rect = null;
+      konvaLayer.batchDraw();
+      var hits = marqueeHits(box);
+      if (additive) {
+        var merged = selectedIds.slice();
+        hits.forEach(function (id) { if (merged.indexOf(id) === -1) { merged.push(id); } });
+        selectedIds = merged;
+      } else {
+        selectedIds = hits;
+      }
+      applySelection();
+    }
+    window.addEventListener('mousemove', move, true);
+    window.addEventListener('mouseup', up, true);
+  }
+
+  /** 러버밴드 박스(논리 좌표)와 AABB 교차하는 객체 id 목록. */
+  function marqueeHits(box) {
+    var out = [];
+    var objs = (currentSheet() && currentSheet().objects) || [];
+    objs.forEach(function (o) {
+      var n = nodeById[o.id];
+      if (!n) { return; }
+      var r = n.getClientRect();
+      if (r.x < box.x + box.w && r.x + r.width > box.x && r.y < box.y + box.h && r.y + r.height > box.y) {
+        out.push(o.id);
+      }
+    });
+    return out;
   }
 
   function onStageDblClick(e) {
@@ -2100,7 +2350,7 @@
     els.wrap.style.width = (STAGE_W * z) + 'px';
     els.wrap.style.height = (STAGE_H * z) + 'px';
     var pct = Math.round(z * 100);
-    els.zoomRange.value = String(clamp(pct, 50, 150));
+    els.zoomRange.value = String(clamp(pct, 50, 250));
     els.zoomLabel.textContent = pct + '%';
     positionMiniToolbar();
   }
@@ -2498,6 +2748,7 @@
         });
         if (numbered) { dirty = true; }
       })();
+      selectedIds = [];
       selected = null;
       setAnnoMode('select');
       applyPermissions();
@@ -3174,6 +3425,13 @@
     els.mtStroke.addEventListener('change', function () { updateSelectedShape({ strokeWidth: parseInt(els.mtStroke.value, 10) }); });
     document.getElementById('dws-mt-del-shape').addEventListener('click', deleteSelected);
 
+    // 정렬 툴바(다중 선택) — 6종 정렬 버튼
+    if (els.alignToolbar) {
+      Array.prototype.forEach.call(els.alignToolbar.querySelectorAll('[data-align]'), function (b) {
+        b.addEventListener('click', function () { alignSelected(b.getAttribute('data-align')); });
+      });
+    }
+
     // 로고 팝업
     Array.prototype.forEach.call(els.logoPopup.querySelectorAll('[data-logo]'), function (b) {
       b.addEventListener('click', function (e) { e.stopPropagation(); setLogo(b.getAttribute('data-logo')); hideLogoPopup(); });
@@ -3242,7 +3500,7 @@
       }
       if (meta && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); if (e.shiftKey) { redo(); } else { undo(); } return; }
       if (meta && (e.key === 'y' || e.key === 'Y')) { e.preventDefault(); redo(); return; }
-      if (!selected) { return; }
+      if (!selectedIds.length) { return; }
       if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteSelected(); return; }
       var step = e.shiftKey ? 10 : 1, dx = 0, dy = 0;
       if (e.key === 'ArrowLeft') { dx = -step; }
@@ -3251,19 +3509,20 @@
       else if (e.key === 'ArrowDown') { dy = step; }
       else { return; }
       e.preventDefault();
-      var o = findObj(selected);
-      if (!o) { return; }
       var now = Date.now();
       if (now - lastArrowUndoTs > 500) { recordUndo(); }
       lastArrowUndoTs = now;
-      moveObjectBy(o, dx, dy);
+      // 단일·다중 공용: 선택 전체를 같은 델타로 이동.
+      selectedIds.forEach(function (id) { var o = findObj(id); if (o) { moveObjectBy(o, dx, dy); } });
       markDirty();
+      if (isMultiSelect() && transformer) { transformer.forceUpdate(); }
       positionMiniToolbar();
+      positionAlignToolbar();
     });
 
-    // 스크롤/리사이즈 시 미니툴바 위치 갱신
-    els.canvas.addEventListener('scroll', function () { positionMiniToolbar(); });
-    window.addEventListener('resize', function () { positionMiniToolbar(); });
+    // 스크롤/리사이즈 시 미니툴바/정렬툴바 위치 갱신
+    els.canvas.addEventListener('scroll', function () { positionMiniToolbar(); positionAlignToolbar(); });
+    window.addEventListener('resize', function () { positionMiniToolbar(); positionAlignToolbar(); });
 
     // 캔버스 이미지 파일 드래그앤드롭(드롭 지점 배치). 빈 시트 오버레이 위 드롭도 안내 토스트.
     bindCanvasDnd();
