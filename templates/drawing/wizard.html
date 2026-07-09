@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>도면 마법사 — 주문 #{{ order.id }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20260709e">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20260709f">
 </head>
 <body>
   <div id="dws-root" data-order-id="{{ order.id }}">
@@ -42,6 +42,10 @@
               <button type="button" class="dws-menu-item" data-shape="line">선</button>
             </div>
           </div>
+          <button type="button" class="dws-seg-btn dws-edit-ctl" id="dws-btn-pen" title="펜 · 손그림 (태블릿·펜슬)">
+            <svg class="dws-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+            <span class="dws-seg-label">펜</span>
+          </button>
           <label class="dws-seg-btn dws-edit-ctl dws-file-btn" id="dws-file-btn" title="이미지 추가">
             <svg class="dws-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2.5"/><circle cx="8.5" cy="8.5" r="1.6"/><path d="M21 15l-5-5L5 21"/></svg>
             <span class="dws-seg-label">이미지</span>
@@ -269,6 +273,21 @@
     <!-- ================= 모드 안내 힌트(플로팅) ================= -->
     <div class="dws-mode-hint dws-ui" id="dws-mode-hint" aria-live="polite"></div>
 
+    <!-- ================= 펜 팔레트(색·굵기, 펜 모드 시 노출) ================= -->
+    <div class="dws-pen-palette dws-ui" id="dws-pen-palette" role="group" aria-label="펜 색·굵기" hidden>
+      <div class="dws-pen-group">
+        <button type="button" class="dws-pen-swatch dws-pen-red dws-active" data-pen-color="#e11d1d" title="빨강" aria-label="빨강"></button>
+        <button type="button" class="dws-pen-swatch dws-pen-blue" data-pen-color="#1c62d6" title="파랑" aria-label="파랑"></button>
+        <button type="button" class="dws-pen-swatch dws-pen-black" data-pen-color="#000000" title="검정" aria-label="검정"></button>
+      </div>
+      <span class="dws-pen-sep"></span>
+      <div class="dws-pen-group">
+        <button type="button" class="dws-pen-width" data-pen-width="2" title="가늘게" aria-label="가늘게"><span class="dws-pen-dot dws-pen-dot-s"></span></button>
+        <button type="button" class="dws-pen-width dws-active" data-pen-width="4" title="보통" aria-label="보통"><span class="dws-pen-dot dws-pen-dot-m"></span></button>
+        <button type="button" class="dws-pen-width" data-pen-width="7" title="굵게" aria-label="굵게"><span class="dws-pen-dot dws-pen-dot-l"></span></button>
+      </div>
+    </div>
+
     <!-- ================= 선택 객체 미니 툴바(플로팅) ================= -->
     <div class="dws-minitoolbar dws-ui" id="dws-minitoolbar" hidden>
       <div class="dws-mt-group" id="dws-mt-text" hidden>
@@ -377,6 +396,6 @@
 
   <script id="drawing-wizard-config" type="application/json">{{ wizard_config|tojson }}</script>
   <script src="{{ url_for('static', filename='vendor/konva.min.js') }}?v=20260706b" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260709e" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260709f" defer></script>
 </body>
 </html>

@@ -504,6 +504,98 @@ def test_put_rejects_non_numeric_rotation(client):
 
 
 # ---------------------------------------------------------------------------
+# 프리핸드 펜 획(pen) — 가변 points 스트로크 저장/검증
+# ---------------------------------------------------------------------------
+
+
+def test_put_then_get_round_trips_pen_object(client):
+    """pen 획(가변 points + tension 굵기)이 정상 저장 왕복(points/stroke/strokeWidth 보존)."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    obj = {
+        "id": "o-pen",
+        "type": "pen",
+        "points": [100, 100, 120, 140, 160, 130, 200, 180],
+        "stroke": "#e11d1d",
+        "strokeWidth": 7,
+        "rotation": 0,
+    }
+
+    put_resp = _put_state(client, order_id, [obj])
+    assert put_resp.status_code == 200, put_resp.get_json()
+
+    state = client.get(f"/api/orders/{order_id}/drawing-wizard").get_json()["data"]["state"]
+    saved = state["sheets"][0]["objects"][0]
+    assert saved["type"] == "pen"
+    assert saved["points"] == [100, 100, 120, 140, 160, 130, 200, 180]
+    assert saved["stroke"] == "#e11d1d"
+    assert saved["strokeWidth"] == 7
+
+
+def test_put_rejects_pen_with_too_many_points(client):
+    """pen points 가 상한(400 coords)을 초과하면 400."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    # 402 coords(=201점) → 상한 초과
+    points = [10 + (i % 50) for i in range(402)]
+    obj = {"id": "o-pen", "type": "pen", "points": points, "stroke": "#000000", "strokeWidth": 4}
+
+    resp = _put_state(client, order_id, [obj])
+
+    assert resp.status_code == 400
+
+
+def test_put_rejects_pen_with_odd_points(client):
+    """pen points 개수가 홀수(불완전 좌표쌍)면 400."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    obj = {"id": "o-pen", "type": "pen", "points": [10, 20, 30], "stroke": "#000000", "strokeWidth": 4}
+
+    resp = _put_state(client, order_id, [obj])
+
+    assert resp.status_code == 400
+
+
+def test_put_rejects_pen_out_of_range_point(client):
+    """pen 좌표가 허용 범위(-2000~4000)를 벗어나면 400."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    obj = {
+        "id": "o-pen",
+        "type": "pen",
+        "points": [10, 20, 99999, 40],
+        "stroke": "#000000",
+        "strokeWidth": 4,
+    }
+
+    resp = _put_state(client, order_id, [obj])
+
+    assert resp.status_code == 400
+
+
+def test_put_rejects_pen_invalid_stroke_width(client):
+    """pen strokeWidth 가 양수 범위(1~20)를 벗어나면 400."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    obj = {
+        "id": "o-pen",
+        "type": "pen",
+        "points": [10, 20, 30, 40],
+        "stroke": "#000000",
+        "strokeWidth": 99,
+    }
+
+    resp = _put_state(client, order_id, [obj])
+
+    assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
 # 표 레이아웃(열/행 폭 조절) + 표 글자 크기 승격 값(form.layout / form.cell_font)
 # ---------------------------------------------------------------------------
 

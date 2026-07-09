@@ -60,8 +60,13 @@ _ASSET_RAW_MIMETYPES = {
 }
 _ALLOWED_TEXT_SIZES = (14, 17, 20, 24, 28)
 _ALLOWED_ALIGNS = ('left', 'center')
-_ALLOWED_OBJECT_TYPES = ('text', 'image', 'rect', 'ellipse', 'arrow', 'line')
+_ALLOWED_OBJECT_TYPES = ('text', 'image', 'rect', 'ellipse', 'arrow', 'line', 'pen')
 _ALLOWED_STROKE_WIDTHS = (1, 2, 3)
+# 프리핸드 펜 획: points(x,y 쌍) 상한 = 200점(=400 coords). 64KB·200객체 캡 보호를 위해
+# 프론트가 점 단순화(거리 threshold) + 상한 도달 시 자동 분할 커밋으로 협조한다.
+_PEN_MAX_POINTS = 400
+# 펜 선 굵기(px) 허용 범위 — 팔레트 2/4/7 + select 모드 도형 편집(1~3)까지 포용하는 양수 범위.
+_PEN_MIN_WIDTH, _PEN_MAX_WIDTH = 1, 20
 _COLOR_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
 
 # 제품별 도면 시트 — 시트 승격 값(제품 리스트 인덱스)
@@ -334,11 +339,41 @@ def _validate_line_object(obj: dict) -> str | None:
     return _validate_stroke(obj)
 
 
+def _validate_pen_object(obj: dict) -> str | None:
+    """프리핸드 펜 획 검증. ``points`` 짝수 개(4~``_PEN_MAX_POINTS``, 각 -2000~4000) +
+    선 색(``#rrggbb``) + 양수 ``strokeWidth``(1~20).
+
+    arrow/line 과 달리 점 개수가 가변(스트로크)이라 별도 상한을 둔다. x/y/w 는 요구하지
+    않으며(points 기반), 존재하면 숫자인지만 확인한다.
+    """
+    points = obj.get('points')
+    if not isinstance(points, list):
+        return '펜 획 좌표(points) 형식이 올바르지 않습니다.'
+    count = len(points)
+    if count < 4 or count % 2 != 0:
+        return '펜 획 좌표(points)는 짝수 개(최소 4개)여야 합니다.'
+    if count > _PEN_MAX_POINTS:
+        return f'펜 획 좌표가 너무 많습니다(최대 {_PEN_MAX_POINTS}개).'
+    for coord in points:
+        if not _is_number_in_range(coord, -2000, 4000):
+            return '펜 획 좌표가 범위를 벗어났습니다.'
+    stroke = obj.get('stroke')
+    if not isinstance(stroke, str) or not _COLOR_RE.match(stroke):
+        return '펜 선 색상 값이 올바르지 않습니다.'
+    stroke_width = obj.get('strokeWidth')
+    if isinstance(stroke_width, bool) or not _is_number_in_range(stroke_width, _PEN_MIN_WIDTH, _PEN_MAX_WIDTH):
+        return '펜 선 굵기 값이 올바르지 않습니다.'
+    for opt_key in ('x', 'y', 'w'):
+        if opt_key in obj and not _is_number(obj.get(opt_key)):
+            return '펜 좌표 값이 올바르지 않습니다.'
+    return None
+
+
 def _validate_object(obj, order_id: int) -> str | None:
     """객체 공통 필드(type/rotation)를 검증한 뒤 유형별 검증에 위임한다.
 
-    허용 유형은 6종(text/image/rect/ellipse/arrow/line). text/image/rect/ellipse 는
-    공통 x/y/w 범위를 요구하고, arrow/line 은 ``points`` 기반이라 x/y/w 를 요구하지 않는다.
+    허용 유형은 7종(text/image/rect/ellipse/arrow/line/pen). text/image/rect/ellipse 는
+    공통 x/y/w 범위를 요구하고, arrow/line/pen 은 ``points`` 기반이라 x/y/w 를 요구하지 않는다.
     ``rotation`` 은 모든 유형 공통 optional(-360~360).
     """
     if not isinstance(obj, dict):
@@ -351,6 +386,8 @@ def _validate_object(obj, order_id: int) -> str | None:
         return rotation_error
     if obj_type in ('arrow', 'line'):
         return _validate_line_object(obj)
+    if obj_type == 'pen':
+        return _validate_pen_object(obj)
     if not _is_number_in_range(obj.get('x'), -2000, 4000):
         return '객체 x 좌표가 범위를 벗어났습니다.'
     if not _is_number_in_range(obj.get('y'), -2000, 4000):
