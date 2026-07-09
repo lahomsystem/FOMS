@@ -264,6 +264,8 @@ def _validate_text_object(obj: dict) -> str | None:
 
     ``text``(플레인 합본)·``size``·``color``·``bold``·``align`` 는 필수이며,
     optional ``runs`` 가 있으면 글자 단위 스타일을 추가 검증한다(하위호환).
+    optional ``autoWidth``(bool)는 자동 폭(hug)/고정 폭(word-wrap) 모드 플래그로,
+    있으면 불리언이어야 한다(``w`` 는 auto·fixed 모두 항상 숫자로 저장·검증됨).
     """
     text = obj.get('text')
     if not isinstance(text, str) or len(text) > _MAX_TEXT_LEN:
@@ -277,6 +279,8 @@ def _validate_text_object(obj: dict) -> str | None:
         return '텍스트 굵기 값이 올바르지 않습니다.'
     if obj.get('align') not in _ALLOWED_ALIGNS:
         return '텍스트 정렬 값이 올바르지 않습니다.'
+    if 'autoWidth' in obj and not isinstance(obj['autoWidth'], bool):
+        return '텍스트 자동 폭 값이 올바르지 않습니다.'
     return _validate_text_runs(obj)
 
 

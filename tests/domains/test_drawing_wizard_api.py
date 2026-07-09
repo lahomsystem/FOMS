@@ -905,6 +905,59 @@ def test_put_accepts_text_without_runs_backward_compat(client):
 
 
 # ---------------------------------------------------------------------------
+# 텍스트 자동 폭(autoWidth) — auto(hug) / fixed(word-wrap) 모드 플래그
+# ---------------------------------------------------------------------------
+
+
+def test_put_then_get_round_trips_text_auto_width_flags(client):
+    """autoWidth=True(auto hug)·False(fixed 폭)가 각각 정상 저장 왕복(값 보존)."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    auto_obj = _text_obj("자동폭", autoWidth=True)
+    auto_obj["id"] = "o-auto"
+    fixed_obj = _text_obj("고정폭 텍스트", autoWidth=False, w=180)
+    fixed_obj["id"] = "o-fixed"
+
+    put_resp = _put_state(client, order_id, [auto_obj, fixed_obj])
+    assert put_resp.status_code == 200, put_resp.get_json()
+
+    state = client.get(f"/api/orders/{order_id}/drawing-wizard").get_json()["data"]["state"]
+    saved = state["sheets"][0]["objects"]
+    by_id = {o["id"]: o for o in saved}
+    assert by_id["o-auto"]["autoWidth"] is True
+    assert by_id["o-fixed"]["autoWidth"] is False
+    assert by_id["o-fixed"]["w"] == 180
+
+
+def test_put_accepts_text_without_auto_width_backward_compat(client):
+    """autoWidth 없는 기존 텍스트는 그대로 통과(하위호환, 기본 auto)."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    obj = _text_obj("자동폭 미지정")
+
+    put_resp = _put_state(client, order_id, [obj])
+    assert put_resp.status_code == 200, put_resp.get_json()
+
+    state = client.get(f"/api/orders/{order_id}/drawing-wizard").get_json()["data"]["state"]
+    saved = state["sheets"][0]["objects"][0]
+    assert "autoWidth" not in saved
+
+
+def test_put_rejects_non_bool_auto_width(client):
+    """autoWidth 가 불리언이 아니면 400."""
+    _login_participant_admin(client)
+    order = _erp_order()
+    order_id = order.id
+    obj = _text_obj("x", autoWidth="yes")
+
+    resp = _put_state(client, order_id, [obj])
+
+    assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
 # 도면 마법사 사용자 프리셋 — 전역 SystemSetting(도면팀 공유) sanitize + API 왕복
 # ---------------------------------------------------------------------------
 

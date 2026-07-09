@@ -842,15 +842,30 @@
     return node;
   }
 
+  // 텍스트 폭 모드: auto(기본, autoWidth 미지정 또는 true) = 내용에 맞춰 hug(자연폭, 자동
+  // 줄바꿈 없음·명시 '\n'만 개행). fixed(autoWidth===false) = 지정 폭 word-wrap(높이 자동).
   function buildText(o) {
     if (o.runs && o.runs.length) { return buildRichText(o); }
-    var node = new Konva.Text({
-      x: num(o.x), y: num(o.y), width: num(o.w, 220), text: String(o.text || ''),
+    var fixed = (o.autoWidth === false);
+    var cfg = {
+      x: num(o.x), y: num(o.y), text: String(o.text || ''),
       fontSize: sizeOrDefault(o.size), fill: colorOrDefault(o.color), fontFamily: ANNO_FONT,
       fontStyle: o.bold ? 'bold' : 'normal', align: (o.align === 'center') ? 'center' : 'left',
-      lineHeight: 1.25, rotation: num(o.rotation), wrap: 'word', name: 'anno', draggable: canSave
-    });
+      lineHeight: 1.25, rotation: num(o.rotation), name: 'anno', draggable: canSave
+    };
+    if (fixed) {
+      cfg.width = num(o.w, 220); cfg.wrap = 'word';   // 지정 폭에서 word-wrap
+    } else {
+      cfg.wrap = 'none';                              // auto: width 미지정=자연폭 hug
+    }
+    var node = new Konva.Text(cfg);
     tagNode(node, o);
+    if (!fixed) {
+      // auto: 렌더 자연폭을 o.w 에 동기(bbox/직렬화용). 값이 같으면 재대입 skip → 불필요한
+      // dirty·재렌더 루프 방지(rebuild 마다 measureText 는 결정적이라 값 안정적).
+      var natural = Math.max(1, Math.round(node.width()));
+      if (o.w !== natural) { o.w = natural; }
+    }
     node.on('dblclick', function (e) { e.cancelBubble = true; if (canSave) { startEditText(node, false); } });
     return node;
   }
@@ -996,11 +1011,16 @@
     node.on('transformend', function () { if (isMultiSelect()) { return; } dragActive = false; commitNode(node); });
   }
 
+  // 텍스트가 리사이즈 핸들로 폭 조정되었는지 표시(scaleX≠1 감지). commitNode 텍스트 브랜치가
+  // 소비해 auto→fixed 전환 여부를 결정한다(이동/회전만이면 auto 유지). 회전은 scaleX=1 유지.
+  var _textResizedByHandle = false;
+
   /** 변형 중 scale → 실제 치수로 정규화(폰트/선굵기 왜곡 방지). */
   function applyLiveTransform(node) {
     var t = node.getAttr('annoType');
     if (t === 'text') {
       if (node.getClassName() === 'Group') { return; }   // 런 텍스트: 회전만(리사이즈 앵커 비활성)
+      if (Math.abs(node.scaleX() - 1) > 1e-3) { _textResizedByHandle = true; }   // 폭 조정 감지
       node.width(Math.max(30, node.width() * node.scaleX()));
       node.scaleX(1); node.scaleY(1);
     } else if (t === 'ellipse') {
@@ -1026,10 +1046,20 @@
     if (t === 'text') {
       o.x = Math.round(node.x()); o.y = Math.round(node.y());
       o.rotation = normalizeRotation(node.rotation());
-      // 런 텍스트(Group)는 렌더 결과 폭을 w 로 저장(렌더는 무시), 단색은 Konva.Text 폭.
-      o.w = (node.getClassName() === 'Group')
-        ? Math.round(node.getAttr('richWidth') || o.w || 220)
-        : Math.round(node.width());
+      var resizedByHandle = _textResizedByHandle;
+      _textResizedByHandle = false;   // 소비(이동/회전/드래그 재사용 방지)
+      if (node.getClassName() === 'Group') {
+        // 런 텍스트: 렌더 결과 폭(richWidth) 저장(항상 hug, autoWidth 무관).
+        o.w = Math.round(node.getAttr('richWidth') || o.w || 220);
+      } else if (resizedByHandle) {
+        // 리사이즈 핸들로 폭 지정 = fixed 전환(지정 폭 word-wrap, 높이 자동).
+        o.autoWidth = false;
+        o.w = Math.round(node.width());
+        o.h = Math.round(node.height());
+      } else {
+        // 이동/회전만 = auto 유지(자연폭 동기).
+        o.w = Math.round(node.width());
+      }
     } else if (t === 'image' || t === 'rect') {
       o.x = Math.round(node.x()); o.y = Math.round(node.y());
       o.w = Math.round(node.width()); o.h = Math.round(node.height());
@@ -1881,8 +1911,8 @@
     if (!canSave || !currentSheet()) { return; }
     recordUndo();
     var o = {
-      id: rid('o-'), type: 'text', x: Math.round(x), y: Math.round(y), w: 220,
-      text: '', size: 20, color: '#000000', bold: false, align: 'left', rotation: 0
+      id: rid('o-'), type: 'text', x: Math.round(x), y: Math.round(y), w: 1,
+      text: '', size: 20, color: '#000000', bold: false, align: 'left', rotation: 0, autoWidth: true
     };
     currentSheet().objects.push(o);
     markDirty();
@@ -1897,8 +1927,8 @@
     recordUndo();
     var n = currentSheet().objects.length;
     var o = {
-      id: rid('o-'), type: 'text', x: 340 + (n % 3) * 30, y: 95 + (n % 6) * 46, w: 220,
-      text: String(text || ''), size: 20, color: '#000000', bold: !!bold, align: 'left', rotation: 0
+      id: rid('o-'), type: 'text', x: 340 + (n % 3) * 30, y: 95 + (n % 6) * 46, w: 1,
+      text: String(text || ''), size: 20, color: '#000000', bold: !!bold, align: 'left', rotation: 0, autoWidth: true
     };
     currentSheet().objects.push(o);
     markDirty();
@@ -2095,7 +2125,15 @@
     area.setAttribute('spellcheck', 'false');
     area.style.left = (annoRect.left + pos.x * zoom) + 'px';
     area.style.top = (annoRect.top + pos.y * zoom) + 'px';
-    area.style.minWidth = Math.max(40, num(o.w, 40) * zoom) + 'px';
+    if (o.autoWidth === false) {
+      // fixed: 지정 폭에서 줄바꿈(렌더 word-wrap 과 정합).
+      area.style.width = Math.max(40, num(o.w, 40) * zoom) + 'px';
+      area.style.whiteSpace = 'pre-wrap';
+    } else {
+      // auto: 내용에 맞춰 hug(자동 줄바꿈 없음, 명시 개행만). CSS 기본 white-space:pre.
+      area.style.minWidth = Math.max(40, num(o.w, 40) * zoom) + 'px';
+      area.style.whiteSpace = 'pre';
+    }
     area.style.fontSize = (size * zoom) + 'px';
     area.style.fontFamily = ANNO_FONT;
     area.style.fontWeight = o.bold ? '700' : '400';
@@ -3012,6 +3050,7 @@
         txt.text = runs.map(function (r) { return r.t; }).join('');   // 서버 계약: join(t)==text
         txt.color = runs[0].c; txt.bold = !!runs[0].b;
       }
+      if (o.autoWidth === false) { txt.autoWidth = false; }   // fixed 폭만 명시 저장(auto=기본, 미지정)
       return txt;
     }
     return null;
@@ -3104,6 +3143,7 @@
       text: String(o.text || ''), size: sizeOrDefault(o.size), color: colorOrDefault(o.color),
       bold: !!o.bold, align: (o.align === 'center') ? 'center' : 'left', rotation: rot
     };
+    if (o.autoWidth === false) { text.autoWidth = false; }   // fixed 폭 로드 보존(미지정=auto 기본)
     if (o.runs) { text.runs = o.runs; syncTextFromRuns(text); }   // 런 있으면 불변식 동기(text/color/bold)
     return text;
   }
