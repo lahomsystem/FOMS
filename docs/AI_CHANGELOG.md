@@ -4,6 +4,14 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-07-11 | 모바일 v3 셸(Field OS) C1~C6 — variant 판정 SSOT·페르소나 홈 6종·주문360°·계약 테스트 | feature_flags.py, context_processors.py, templates/partials/v3/*, static/{css,js}/v3/*, order_timeline_v3.py, test_shell_v3_contract.py | deb2ed9b·62f3e3cd·cfdfe65c·02b0366a |
+| 2026-07-09 | 세션 자동 기록 | pr_body_production.txt, commit_msg.txt, test_erp_order_shared_form_scripts.py 외 2개 | 08f6a620 |
+| 2026-07-09 | 세션 자동 기록 | commit_msg.txt, test_erp_order_shared_form_scripts.py, 04-filter-table-badges-buttons.css 외 2개 | 08f6a620 |
+| 2026-07-09 | 세션 자동 기록 | ci_watch.py, test_post_task_ci_gate.py, test_ci_watch.py 외 2개 | bf9fc1f2 |
+| 2026-07-09 | 세션 자동 기록 | commit_msg.txt, test_erp_order_edit_mobile_form.py, test_erp_order_shared_form_scripts.py 외 2개 | bf9fc1f2 |
+| 2026-07-09 | 세션 자동 기록 | test_post_push_hook.py, test_ci_watch.py, CLAUDE.md 외 2개 | bbb065aa |
+| 2026-07-07 | 세션 자동 기록 | wdcalculator_scripts.html, wdcalculator-entry.js, wdcalculator_scripts_config.html | e67c643f |
+| 2026-07-07 | 세션 자동 기록 | erp_order_tab_mobile.html, test_erp_order_shared_form_scripts.py, erp-order-shared.js 외 2개 | be5ab4f1 |
 | 2026-07-06 | 세션 자동 기록 | channel_policy.py, test_channel_integration_smoke.py, test_channel_dispatch.py 외 1개 | 4b3513b8 |
 | 2026-07-04 | 세션 자동 기록 | commit_msg_docs.txt, commit_msg_mytasks.txt | 8d9311e6 |
 | 2026-07-03 | 세션 자동 기록 | _merge_msg_prod.txt, commit_msg.txt, map_view.html 외 2개 | 21e38f32 |
@@ -17,10 +25,3 @@
 | 2026-07-02 | 세션 자동 기록 | measurement_read_model.py, commit_msg_regional_measurement.txt, dashboard.py 외 2개 | 3471502a |
 | 2026-07-02 | 세션 자동 기록 | commit_msg.txt, test_estimate_service.py, estimate_defaults.py 외 1개 | 0fa05f76 |
 | 2026-07-02 | 세션 자동 기록 | test_estimate_service.py, estimate_defaults.py, commit_msg.txt 외 1개 | c40e2ad1 |
-| 2026-07-02 | 세션 자동 기록 | commit_msg.txt, estimate_defaults.py, test_estimate_service.py 외 1개 | c40e2ad1 |
-| 2026-07-02 | 세션 자동 기록 | test_estimate_service.py, estimate_defaults.py, c__Users_USER_AppData_Roaming_Cursor_User_workspaceStorage_533155fc540ce8fdfccbd97527acfc34_images_image-578545de-a496-4e5a-a262-22ff97fc2645.png | f471c0b9 |
-| 2026-07-02 | 세션 자동 기록 | commit_msg.txt, test_erp_order_shared_form_scripts.py, erp_order_js.html 외 2개 | a1e507b6 |
-| 2026-07-02 | 세션 자동 기록 | commit_msg.txt, test_estimate_service.py, estimate-preview.js 외 2개 | 77996b0a |
-| 2026-07-02 | 세션 자동 기록 | commit_msg.txt, dashboard.py, measurement_read_model.py 외 2개 | b22d948d |
-| 2026-07-02 | 세션 자동 기록 | commit_msg.txt, history.py, history_read_model.py 외 2개 | 9c52ecdd |
-| 2026-07-02 | 세션 자동 기록 | commit_msg.txt, dashboard.py, test_dashboard_cache.py 외 2개 | 8ffc9c4a |
