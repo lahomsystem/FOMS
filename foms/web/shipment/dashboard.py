@@ -31,7 +31,7 @@ from foms.services.common.erp_shell_http import (
     wants_erp_shell_tab_body,
 )
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
-from foms.services.feature_flags import is_enabled_for_user
+from foms.services.feature_flags import is_mobile_v2_shell, resolve_shell_variant_cached
 from foms.services.shipment_dashboard_filters import parse_shipment_dashboard_filters
 from foms.services.shipment_read_model import (
     compute_shipment_panel_aggregates,
@@ -378,10 +378,8 @@ def erp_shipment_dashboard():
 
     sort_shipment_rows(rows)
 
-    mobile_v2_active = is_enabled_for_user(
-        "ERP_MOBILE_V2_ENABLED",
-        current_user.id if current_user else None,
-        cohort_key="FOMS_V3_SHELL_COHORT",
+    mobile_v2_active = is_mobile_v2_shell(
+        resolve_shell_variant_cached(current_user.id if current_user else None)
     )
     mobile_queue_rows = build_shipment_mobile_queue_rows(
         db, rows, current_user, mobile_v2_active=mobile_v2_active

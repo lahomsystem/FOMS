@@ -48,7 +48,7 @@ from foms.services.drawing_workbench_display import (
     drawing_thumb_enabled,
     resolve_row_thumbnail_url,
 )
-from foms.services.feature_flags import is_enabled_for_user
+from foms.services.feature_flags import is_mobile_v2_shell, resolve_shell_variant_cached
 
 erp_drawing_workbench_bp = Blueprint('erp_drawing_workbench', __name__, url_prefix='/erp')
 
@@ -245,10 +245,8 @@ def erp_drawing_workbench_dashboard():
     page = max(1, int(request.args.get('page') or '1'))
     per_page = 25
     mine_scope = resolve_mine_scope_for_user(current_user)
-    mobile_v2_active = is_enabled_for_user(
-        "ERP_MOBILE_V2_ENABLED",
-        current_user.id if current_user else None,
-        cohort_key="FOMS_V3_SHELL_COHORT",
+    mobile_v2_active = is_mobile_v2_shell(
+        resolve_shell_variant_cached(current_user.id if current_user else None)
     )
 
     orders_query = (
@@ -523,10 +521,8 @@ def erp_drawing_workbench_detail(order_id):
     """도면 작업실 상세: 도면팀↔주문담당 협업 실행판."""
     db = get_db()
     current_user = getattr(g, 'current_user', None)
-    mobile_v2_active = is_enabled_for_user(
-        "ERP_MOBILE_V2_ENABLED",
-        current_user.id if current_user else None,
-        cohort_key="FOMS_V3_SHELL_COHORT",
+    mobile_v2_active = is_mobile_v2_shell(
+        resolve_shell_variant_cached(current_user.id if current_user else None)
     )
     order = db.query(Order).filter(Order.id == order_id, Order.active_filter(), Order.is_erp_order.is_(True)).first()
     if not order:

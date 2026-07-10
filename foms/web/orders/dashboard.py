@@ -32,7 +32,12 @@ from foms.services.orders.dashboard_read_model import (
     compute_orders_summary_slice,
     compute_orders_attachment_assignee_maps,
 )
-from foms.services.feature_flags import env_bool, env_bool_or_mobile_v2, is_enabled_for_user
+from foms.services.feature_flags import (
+    env_bool,
+    env_bool_or_mobile_v2,
+    is_mobile_v2_shell,
+    resolve_shell_variant_cached,
+)
 from foms.services.foms_split_view import build_split_master_cards, default_split_side_items
 from foms.services.orders.dashboard_control_tower import (
     build_mobile_control_tower,
@@ -383,11 +388,7 @@ def erp_dashboard():
     )
     _t0 = time.perf_counter()
     uid = current_user.id if current_user else None
-    mobile_v2 = is_enabled_for_user(
-        "ERP_MOBILE_V2_ENABLED",
-        uid,
-        cohort_key="FOMS_V3_SHELL_COHORT",
-    )
+    mobile_v2 = is_mobile_v2_shell(resolve_shell_variant_cached(uid))
     split_enabled = mobile_v2 and env_bool_or_mobile_v2(
         "FOMS_TABLET_SPLIT_VIEW_ENABLED",
         mobile_v2_active=mobile_v2,

@@ -14,7 +14,11 @@ from foms.services.erp_mobile_order_display import (
     build_mobile_queue_batch_context,
     build_mobile_queue_order_row,
 )
-from foms.services.feature_flags import is_enabled_for_user
+from foms.services.feature_flags import (
+    is_enabled_for_user,
+    is_mobile_v2_shell,
+    resolve_shell_variant_cached,
+)
 from foms.services.order_edit_view_context import build_order_edit_get_context
 from foms.services.request_utils import get_preserved_filter_args
 from foms.web.auth import get_user_by_id, login_required, role_required
@@ -45,11 +49,7 @@ def _order_edit_fragment_response(order_id: int) -> Any:
     ctx = build_order_edit_get_context(order, user=user)
     ctx["preserved_args"] = get_preserved_filter_args(request.args)
     uid = session.get("user_id")
-    mobile_v2 = is_enabled_for_user(
-        "ERP_MOBILE_V2_ENABLED",
-        uid,
-        cohort_key="FOMS_V3_SHELL_COHORT",
-    )
+    mobile_v2 = is_mobile_v2_shell(resolve_shell_variant_cached(uid))
     split_v2 = mobile_v2 and is_enabled_for_user(
         "FOMS_TABLET_SPLIT_VIEW_ENABLED",
         uid,

@@ -12,7 +12,8 @@ from flask import g, request, session, url_for
 from foms.services.feature_flags import (
     env_bool,
     env_bool_or_mobile_v2,
-    is_enabled_for_user,
+    is_mobile_v2_shell,
+    resolve_shell_variant_cached,
     should_render_new_order_wizard,
     wizard_new_order_enabled,
 )
@@ -112,6 +113,21 @@ def inject_statuses() -> dict[str, Any]:
     }
 
 
+def _current_shell_variant() -> str:
+    """현재 요청 사용자의 shell variant를 요청당 1회 캐시로 반환한다.
+
+    ``g.current_user``에서 uid를 파생해 :func:`resolve_shell_variant_cached`에
+    위임한다. 3개 injector가 공유하는 단일 진입점으로, 요청당 env·쿠키 파싱을
+    1회로 줄여 중복 계산을 제거한다.
+
+    Returns:
+        ``"legacy"``, ``"v2"``, 또는 ``"v3"``.
+    """
+    current_user = getattr(g, "current_user", None)
+    uid = current_user.id if current_user else None
+    return resolve_shell_variant_cached(uid, request)
+
+
 def inject_status_list() -> dict[str, Any]:
     """Inject status lists and current-user context into templates."""
     display_status = {k: v for k, v in STATUS.items() if k != "DELETED"}
@@ -125,12 +141,8 @@ def inject_status_list() -> dict[str, Any]:
         admin_switch_users = _get_admin_switch_users(db, current_user.id)
 
     erp_order_enabled = env_bool("ERP_ORDER_ENABLED", default=True)
-    uid = current_user.id if current_user else None
-    erp_mobile_v2_enabled = is_enabled_for_user(
-        "ERP_MOBILE_V2_ENABLED",
-        uid,
-        cohort_key="FOMS_V3_SHELL_COHORT",
-    )
+    shell_variant = _current_shell_variant()
+    erp_mobile_v2_enabled = is_mobile_v2_shell(shell_variant)
     use_direct_upload_env = env_bool("USE_DIRECT_UPLOAD", default=True)
     try:
         from foms.services.storage import get_storage
@@ -150,6 +162,7 @@ def inject_status_list() -> dict[str, Any]:
         "impersonating_from_id": impersonating_from_id,
         "erp_order_enabled": erp_order_enabled,
         "erp_mobile_v2_enabled": erp_mobile_v2_enabled,
+        "shell_variant": shell_variant,
         "use_direct_upload": use_direct_upload,
     }
 
@@ -195,11 +208,8 @@ def inject_foms_flags() -> dict[str, Any]:
     """Inject v1.1 design feature flags for template cohort rollout."""
     current_user = getattr(g, "current_user", None)
     uid = current_user.id if current_user else None
-    mobile_v2 = is_enabled_for_user(
-        "ERP_MOBILE_V2_ENABLED",
-        uid,
-        cohort_key="FOMS_V3_SHELL_COHORT",
-    )
+    shell_variant = _current_shell_variant()
+    mobile_v2 = is_mobile_v2_shell(shell_variant)
     split_flag = env_bool_or_mobile_v2(
         "FOMS_TABLET_SPLIT_VIEW_ENABLED",
         mobile_v2_active=mobile_v2,
@@ -210,6 +220,7 @@ def inject_foms_flags() -> dict[str, Any]:
     )
     return {
         "flag_mobile_v2": mobile_v2,
+        "shell_variant": shell_variant,
         "flag_tokens_v2": env_bool("FOMS_DESIGN_TOKENS_V2_ENABLED", True),
         # wizard draft/API 활성(코호트·전역 플래그). 실제 /add 렌더·chrome 숨김은 show_new_order_wizard.
         "flag_wizard": wizard_new_order_enabled(uid),
@@ -229,12 +240,7 @@ def inject_foms_flags() -> dict[str, Any]:
 def inject_foms_nav_badges() -> dict[str, Any]:
     """Inject bottom-nav stage badge counts (P1-01, ERP mobile v2 cohort only)."""
     current_user = getattr(g, "current_user", None)
-    uid = current_user.id if current_user else None
-    if not is_enabled_for_user(
-        "ERP_MOBILE_V2_ENABLED",
-        uid,
-        cohort_key="FOMS_V3_SHELL_COHORT",
-    ):
+    if not is_mobile_v2_shell(_current_shell_variant()):
         return {"foms_nav_badges": {}}
     request_mine = erp_mine_only_from_request(request)
     return {

@@ -323,15 +323,16 @@ def erp_measurement_dashboard():
         return redirect(url_for('erp_map.map_view', date=selected_date, status='ALL', dashboard='measurement', q=search_q))
 
     # 모바일 v2 큐: 홈과 동일한 깔끔한 queue-card-v2용 view-model (cohort에서만 계산)
-    from foms.services.feature_flags import is_enabled_for_user
+    from foms.services.feature_flags import (
+        is_mobile_v2_shell,
+        resolve_shell_variant_cached,
+    )
     from foms.services.erp_mobile_order_display import (
         build_mobile_queue_batch_context,
         build_mobile_queue_order_row,
     )
-    mobile_v2_active = is_enabled_for_user(
-        "ERP_MOBILE_V2_ENABLED",
-        current_user.id if current_user else None,
-        cohort_key="FOMS_V3_SHELL_COHORT",
+    mobile_v2_active = is_mobile_v2_shell(
+        resolve_shell_variant_cached(current_user.id if current_user else None)
     )
     mobile_queue_rows = []
     if mobile_v2_active:
