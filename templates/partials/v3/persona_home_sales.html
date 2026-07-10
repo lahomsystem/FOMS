@@ -39,7 +39,7 @@
         {%- if o.address and o.address != '-' %}<span class="addr">{{ o.address }}</span>{% endif -%}
         {%- if o.manager_name and o.manager_name != '-' %}<span>{{ o.manager_name }}</span>{% endif -%}
       </span>
-      <span style="margin-top:2px">
+      <span class="fos-tagrow">
         <span class="fos-stage" data-st="{{ _sc }}">{{ o.stage or '실측' }}</span>
       </span>
     </span>
@@ -60,11 +60,14 @@
 
   {% if _hero %}
   {%- set _hero_phone = (_hero.phone or '')|replace('-', '')|replace(' ', '') -%}
-  <div class="fos-hero">
-    <span class="fos-hero__label">
-      <i class="fas fa-location-dot" aria-hidden="true"></i> 다음 방문
-    </span>
-    <div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap">
+  <div class="fos-hero" data-order-id="{{ _hero.id }}">
+    <div class="fos-hero__top">
+      <span class="fos-hero__label">
+        <i class="fas fa-location-dot" aria-hidden="true"></i> 다음 방문
+      </span>
+      <span class="fos-tl-btn" role="button" data-fos-timeline data-order-id="{{ _hero.id }}" aria-label="주문 진행 타임라인 보기"><i class="fas fa-timeline" aria-hidden="true"></i></span>
+    </div>
+    <div class="fos-hero__titlerow">
       <div class="fos-hero__title">{{ _hero.customer_name or '-' }}</div>
       {% if _hero.stage %}<span class="fos-stage" data-st="{{ _st_map.get(_hero.stage_code, 'received') }}">{{ _hero.stage }}</span>{% endif %}
     </div>
@@ -107,11 +110,11 @@
 
   {% if _upcoming %}
   <details class="fos-sec">
-    <summary class="fos-sec__hd" style="cursor:pointer">예정 · 내일 이후 {{ _upcoming|length }}일</summary>
+    <summary class="fos-sec__hd is-summary">예정 · 내일 이후 {{ _upcoming|length }}일</summary>
     {% for it in _upcoming %}
     <a class="fos-queue-card"
        href="{{ url_for('erp_measurement_dashboard.erp_measurement_dashboard', date=it.date) }}">
-      <span class="fos-queue-card__dot" style="--sc:var(--st-measure)"></span>
+      <span class="fos-queue-card__dot fos-queue-card__dot--st-measure"></span>
       <span class="fos-queue-card__body">
         <span class="fos-queue-card__title">
           <span class="who tnum">{{ it.date }}</span>

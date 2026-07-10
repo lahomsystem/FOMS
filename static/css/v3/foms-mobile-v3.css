@@ -508,3 +508,31 @@
 .px-shipment-daterow{display:flex; align-items:center; justify-content:space-between; gap:8px}
 .px-shipment-today{font-size:10px; font-weight:800; letter-spacing:.04em; color:var(--ink); background:var(--acc); padding:2px 8px; border-radius:99px; white-space:nowrap}
 .px-shipment-herounit{font-size:17px; font-weight:700; color:var(--fos-tx1)}
+
+/* =========================================================================
+   v3.0 QA 결함 보강 (2026-07 실기기 QA)
+   ========================================================================= */
+/* [결함1] 다크 v3 표면 헤딩 dark-on-dark 근본 차단.
+   전역 ERP 스타일(foundation/style.css:122 · style-pro-max.css:74-84)이
+   h1..h6{color:다크}를 강제하는데 .fos-appbar h2/.fos-sheet__hd h3는 color
+   미정의라 그 다크 색이 새어 앱바 페이지 타이틀이 안 보였다 → v3 셸 내 모든
+   헤딩을 셸 그라운드 텍스트색(--fos-tx0 #F1EDE6)으로 고정해 누수를 막는다. */
+.fos-shell-v3 h1,.fos-shell-v3 h2,.fos-shell-v3 h3,
+.fos-shell-v3 h4,.fos-shell-v3 h5,.fos-shell-v3 h6{color:var(--fos-tx0)}
+
+/* [결함2] 히어로 상단 행: 라벨 + 주문 360° 진입 트리거(.fos-tl-btn)를 우측 정렬 */
+.fos-hero__top{display:flex; align-items:flex-start; justify-content:space-between; gap:10px}
+.fos-hero__top .fos-hero__label{flex:1 1 auto; min-width:0}
+
+/* [결함3] v3 파샬 인라인 스타일 → 의미 클래스 이동 (동적 --sc 주입만 예외로 유지) */
+.fos-cardrow{display:flex; align-items:center; gap:8px}
+.fos-cardrow > .fos-queue-card{flex:1 1 auto; min-width:0}
+.fos-hero__titlerow{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap}
+.fos-tagrow{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:2px}
+.fos-quest-tag{font-size:12px; font-weight:800; letter-spacing:.02em; color:var(--acc)}
+.fos-sec__hd.is-summary{cursor:pointer}
+.fos-queue-card__dot--st-cs{--sc:var(--st-cs)}
+.fos-queue-card__dot--st-measure{--sc:var(--st-measure)}
+.px-drawing-tagrow{gap:6px; margin-top:1px}
+.px-production-tagrow{margin-top:3px; align-items:center; gap:7px}
+.fos-hero__big .px-production-job{margin-left:6px}

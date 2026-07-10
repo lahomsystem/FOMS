@@ -29,7 +29,7 @@
         <span>{{ r.turn_label }}</span>
         {% if r.construction_date %}<span class="addr tnum">시공 {{ r.construction_date }}</span>{% endif %}
       </span>
-      <span class="fos-queue-card__meta" style="gap:6px;margin-top:1px">
+      <span class="fos-queue-card__meta px-drawing-tagrow">
         <span class="fos-stage" data-st="{{ _st }}">{{ r.drawing_status_label }}</span>
         {% if r.transfer_round and r.transfer_round > 0 %}<span class="px-drawing-vchip">v{{ r.transfer_round }}</span>{% endif %}
         {% if r.unread_count and r.unread_count > 0 %}<span class="px-drawing-warn">미확인 {{ r.unread_count }}</span>{% endif %}
@@ -61,11 +61,14 @@
 
 <div class="fos-scroll">
   {% if _hero %}
-  <div class="fos-hero{% if _hero.is_overdue %} is-danger{% endif %}">
-    <span class="fos-hero__label">
-      <i class="fas fa-clock" aria-hidden="true"></i>
-      {% if _mine %}다음 할 일{% else %}최근 도면{% endif %}
-    </span>
+  <div class="fos-hero{% if _hero.is_overdue %} is-danger{% endif %}" data-order-id="{{ _hero.id }}">
+    <div class="fos-hero__top">
+      <span class="fos-hero__label">
+        <i class="fas fa-clock" aria-hidden="true"></i>
+        {% if _mine %}다음 할 일{% else %}최근 도면{% endif %}
+      </span>
+      <span class="fos-tl-btn" role="button" data-fos-timeline data-order-id="{{ _hero.id }}" aria-label="주문 진행 타임라인 보기"><i class="fas fa-timeline" aria-hidden="true"></i></span>
+    </div>
     <div class="fos-hero__title">{{ _hero.customer_name }}</div>
     <div class="fos-hero__meta">
       <span>{{ _hero.turn_label }}</span>

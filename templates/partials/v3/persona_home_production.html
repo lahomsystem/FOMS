@@ -48,7 +48,7 @@
       <span class="fos-hero__label">
         <i class="fas fa-industry" aria-hidden="true"></i> {{ _ns.label }}
       </span>
-      <div class="fos-hero__big">{{ _ns.count }}<span class="px-production-job" style="margin-left:6px">건</span></div>
+      <div class="fos-hero__big">{{ _ns.count }}<span class="px-production-job">건</span></div>
       <div class="fos-hero__meta">
         {% if _ns.overdue > 0 %}
           <span class="px-production-warn"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i> 지연 {{ _ns.overdue }}</span>
@@ -104,7 +104,7 @@
               </span>
             {% endif %}
             <span class="px-production-job">#{{ o.id }}{% if o.construction_date %} · 시공 {{ o.construction_date }}{% endif %}</span>
-            <span class="fos-queue-card__meta" style="margin-top:3px; align-items:center; gap:7px">
+            <span class="fos-queue-card__meta px-production-tagrow">
               <span class="fos-stage" data-st="{{ _st }}">{{ o.stage }}</span>
               {% if _dday is not none %}
                 {% if _dday < 0 %}

@@ -41,9 +41,12 @@
       {% set _crew = _crew_names | select | join(', ') %}
       <div class="fos-sec">
         <div class="fos-sec__hd">오늘 첫 현장</div>
-        <div class="fos-hero{% if _hero_danger %} is-danger{% endif %}">
-          <div class="fos-hero__label">
-            <i class="fas fa-hammer" aria-hidden="true"></i> 오늘 시공 {{ _today_rows | length }}건
+        <div class="fos-hero{% if _hero_danger %} is-danger{% endif %}" data-order-id="{{ _hero.id }}">
+          <div class="fos-hero__top">
+            <div class="fos-hero__label">
+              <i class="fas fa-hammer" aria-hidden="true"></i> 오늘 시공 {{ _today_rows | length }}건
+            </div>
+            <span class="fos-tl-btn" role="button" data-fos-timeline data-order-id="{{ _hero.id }}" aria-label="주문 진행 타임라인 보기"><i class="fas fa-timeline" aria-hidden="true"></i></span>
           </div>
           <div class="fos-hero__title">{{ _hero.customer_name or '-' }}</div>
           <div class="fos-hero__meta">

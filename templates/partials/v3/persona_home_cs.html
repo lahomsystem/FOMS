@@ -7,8 +7,8 @@
    현장 교정(스펙 §5-1): 해피콜 스테이지 없음 → CS 홈은 RECEIVED(주문접수) 기반.
    레이아웃: 필터 칩(전체/보류/재확인) → 히어로(가장 오래된 접수) → 접수 대기 큐
              → AS 요약 카드(AS 대시보드 링크). 원탭 콜(tel:) 52px.
-   클래스는 static/css/v3/foms-mobile-v3.css의 .fos-* 만 사용(레이아웃 one-off는
-   sales 홈과 동일하게 인라인 style — v3 파샬 컨벤션). 스크립트 신규 없음
+   클래스는 static/css/v3/foms-mobile-v3.css의 .fos-*/.px-* 만 사용(정적 레이아웃은
+   전부 클래스화 — 인라인 style은 동적 --sc 스테이지색 주입만 예외). 스크립트 신규 없음
    (셸 foms-mobile-v3.js 위임: 칩 is-active 토글).
    ========================================================================= #}
 {%- set _st_map = {
@@ -30,9 +30,8 @@
   {%- set _sc = st_map.get(o.stage_code, 'received') -%}
   {%- set _ph = (o.phone or '') | replace('-', '') | replace(' ', '') -%}
   {%- set _danger = o.alerts and o.alerts.urgent -%}
-  <div style="display:flex; align-items:center; gap:8px">
-    <a class="fos-queue-card{% if _danger %} is-danger{% endif %}"
-       style="flex:1 1 auto; min-width:0; text-decoration:none; color:inherit"
+  <div class="fos-cardrow">
+    <a class="fos-queue-card fos-queue-card--link{% if _danger %} is-danger{% endif %}"
        href="{{ url_for('erp_dashboard.erp_order_mobile_detail', order_id=o.id) }}"
        data-order-id="{{ o.id }}">
       <span class="fos-queue-card__dot" style="--sc:var(--st-{{ _sc }})"></span>
@@ -45,9 +44,9 @@
           {%- if o.received_date %}<span class="tnum">{{ o.received_date }} 접수</span>{% endif -%}
           {%- if o.address and o.address != '-' %}<span class="addr">{{ o.address }}</span>{% endif -%}
         </span>
-        <span style="margin-top:2px; display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+        <span class="fos-tagrow">
           <span class="fos-stage" data-st="{{ _sc }}">{{ o.stage or '주문접수' }}</span>
-          {%- if o.current_quest and o.current_quest.title %}<span style="font-size:12px; font-weight:800; letter-spacing:.02em; color:var(--acc)">{{ o.current_quest.title }}</span>{% endif -%}
+          {%- if o.current_quest and o.current_quest.title %}<span class="fos-quest-tag">{{ o.current_quest.title }}</span>{% endif -%}
         </span>
       </span>
       <span class="fos-queue-card__aside">
@@ -87,12 +86,15 @@
   {% else %}
   {%- set _hero_ph = (_hero.phone or '') | replace('-', '') | replace(' ', '') -%}
   {%- set _hero_danger = _hero.alerts and _hero.alerts.urgent -%}
-  <div class="fos-hero{% if _hero_danger %} is-danger{% endif %}">
-    <span class="fos-hero__label">
-      <i class="fas fa-phone-volume" aria-hidden="true"></i>
-      지금 확인할 접수{% if _hero_danger %} · 긴급{% endif %}
-    </span>
-    <div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap">
+  <div class="fos-hero{% if _hero_danger %} is-danger{% endif %}" data-order-id="{{ _hero.id }}">
+    <div class="fos-hero__top">
+      <span class="fos-hero__label">
+        <i class="fas fa-phone-volume" aria-hidden="true"></i>
+        지금 확인할 접수{% if _hero_danger %} · 긴급{% endif %}
+      </span>
+      <span class="fos-tl-btn" role="button" data-fos-timeline data-order-id="{{ _hero.id }}" aria-label="주문 진행 타임라인 보기"><i class="fas fa-timeline" aria-hidden="true"></i></span>
+    </div>
+    <div class="fos-hero__titlerow">
       <div class="fos-hero__title">{{ _hero.customer_name or '-' }}</div>
       <span class="fos-stage" data-st="{{ _st_map.get(_hero.stage_code, 'received') }}">{{ _hero.stage or '주문접수' }}</span>
     </div>
@@ -101,14 +103,14 @@
       {% if _hero.received_date %}<span class="tnum">{{ _hero.received_date }} 접수</span>{% endif %}
       {% if _hero.phone and _hero.phone != '-' %}<span class="tnum">{{ _hero.phone }}</span>{% endif %}
     </div>
-    <div style="display:flex; gap:8px">
+    <div class="px-sales-btnrow">
       {% if _hero_ph and _hero_ph != '-' %}
       <a class="fos-btn fos-btn--field {% if _hero_danger %}fos-btn--danger{% else %}fos-btn--primary{% endif %}"
-         style="flex:1" href="tel:{{ _hero_ph }}" aria-label="{{ _hero.customer_name or '고객' }} 통화">
+         href="tel:{{ _hero_ph }}" aria-label="{{ _hero.customer_name or '고객' }} 통화">
         <i class="fas fa-phone" aria-hidden="true"></i> 지금 통화
       </a>
       {% endif %}
-      <a class="fos-btn fos-btn--ghost fos-btn--field" style="flex:1"
+      <a class="fos-btn fos-btn--ghost fos-btn--field"
          href="{{ url_for('erp_dashboard.erp_order_mobile_detail', order_id=_hero.id) }}">상세</a>
     </div>
   </div>
@@ -125,9 +127,9 @@
 
   <div class="fos-sec">
     <div class="fos-sec__hd">AS</div>
-    <a class="fos-queue-card" style="text-decoration:none; color:inherit"
+    <a class="fos-queue-card fos-queue-card--link"
        href="{{ url_for('erp_as_page.erp_as_dashboard') }}">
-      <span class="fos-queue-card__dot" style="--sc:var(--st-cs)"></span>
+      <span class="fos-queue-card__dot fos-queue-card__dot--st-cs"></span>
       <span class="fos-queue-card__body">
         <span class="fos-queue-card__title"><span class="who">AS 처리 대기</span></span>
         <span class="fos-queue-card__meta"><span class="tnum">미처리 AS {{ _as_ct }}건</span><span class="addr">눌러서 AS 대시보드</span></span>
