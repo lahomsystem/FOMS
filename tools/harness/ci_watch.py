@@ -16,9 +16,12 @@ Actions 워크플로 완료를 폴링하고, 실패를 분류해 자동 복구�
 
 종료 코드 계약(--until-final, 기본 = 블로킹 감시):
     0  전부 green
-    1  코드 실패(에이전트가 근본 수정 후 재푸시 필요) — 실패 워크플로/잡/로그 tail 출력
-    2  자동 재실행 발동(재폴링 필요). --until-final(기본)이면 내부 재폴링 후 0/1 로 수렴
+    1  코드 실패(에이전트가 근본 수정 후 재푸시 필요) — 실패 워크플로/잡/로그 tail 출력.
+       자동 재실행/배포 대기 라운드 상한(MAX_RERUN_ROUNDS) 초과로 수렴 실패 시에도 1
+       (무한 재폴링 대신 코드 조사 필요로 승격 — 구 2 반환은 계약(0/1 수렴) 위반이었음).
     3  gh CLI 부재/미인증 — 게이트 불가 사유 출력(fail-open 아님)
+    4  폴링 상한(MAX_POLLS) 내 CI 미완료(진행 중) — false-green 방지, 재폴링/재시도 필요.
+    (2 는 --no-until-final 단발 모드에서만 반환: 자동 재실행/배포 대기 발동 → 호출자가 재폴링)
 
 종료 코드 계약(--quick, 단발 조회 = 논블로킹 루프용):
     0  전부 green
@@ -99,11 +102,18 @@ def run_gh(args: list[str], timeout: int = 90) -> tuple[int, str, str]:
         return _GH_TIMEOUT, "", f"gh timed out after {timeout}s"
 
 
-def current_head_sha() -> str:
-    """`git rev-parse HEAD` 로 현재 HEAD SHA 를 반환한다(실패 시 빈 문자열)."""
+def resolve_ref(ref: str) -> str:
+    """`git rev-parse` 로 리터럴 ref(HEAD/브랜치명/짧은 SHA)를 full commit SHA 로 정규화한다.
+
+    파라미터:
+        ref: 해석할 git ref 문자열(예: "HEAD", "deploy", 짧은/전체 SHA).
+    반환: 40자 full commit SHA. 잘못된 ref·git 부재·타임아웃 시 빈 문자열.
+          `--verify --quiet ... ^{commit}` 이라 유효하지 않은 ref 는 stdout 없이 실패한다.
+          (리터럴 "HEAD" 를 정규화 없이 조회해 "워크플로 없음 → green" 오판하는 false-green 차단.)
+    """
     try:
         proc = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
+            ["git", "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"],
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -113,6 +123,11 @@ def current_head_sha() -> str:
         return proc.stdout.strip() if proc.returncode == 0 else ""
     except (FileNotFoundError, subprocess.TimeoutExpired):
         return ""
+
+
+def current_head_sha() -> str:
+    """현재 HEAD 를 full commit SHA 로 반환한다(실패 시 빈 문자열)."""
+    return resolve_ref("HEAD")
 
 
 def check_healthz(url: str, sha_short: str, timeout: int = 10) -> bool:
@@ -149,10 +164,14 @@ def gh_ready() -> tuple[bool, str]:
 # 워크플로 조회·폴링
 # ---------------------------------------------------------------------------
 def list_runs(branch: str, sha_short: str) -> list[dict]:
-    """대상 브랜치의 최근 run 중 headSha 가 sha_short 로 시작하는 것만 반환한다."""
+    """대상 브랜치의 최근 run 중 headSha 가 sha_short 로 시작하는 것만 반환한다.
+
+    --limit 은 20(구 8) — 연속 푸시로 최근 목록이 다른 커밋 run 으로 채워질 때
+    대상 SHA run 이 조회창 밖으로 밀려 "워크플로 없음 → green" 오판하는 것을 막는다.
+    """
     rc, out, _err = run_gh(
         [
-            "run", "list", "--branch", branch, "--limit", "8",
+            "run", "list", "--branch", branch, "--limit", "20",
             "--json", "headSha,status,conclusion,databaseId,workflowName,createdAt",
         ]
     )
@@ -343,13 +362,22 @@ def watch_once(
     sleep_fn: Callable[[float], None] = time.sleep,
     printer: Callable[[str], None] = print,
 ) -> int:
-    """폴링 1회전을 수행하고 종료 코드를 반환한다(재폴링은 watch 가 담당)."""
+    """폴링 1회전을 수행하고 종료 코드를 반환한다(0/1/2/4; 재폴링은 watch 가 담당).
+
+    폴링 상한(MAX_POLLS) 내에 completed 되지 못한 run 이 남았으면 실패 집계로
+    넘어가지 않고 exit 4(진행 중)를 반환해 false-green(구 exit 0 오판)을 막는다.
+    """
     sha_short = sha[:8]
     printer(f"[ci-watch] target={sha_short} branch={branch}")
     runs = poll_completion(branch, sha_short, sleep_fn=sleep_fn)
     if not runs:
         printer("[ci-watch] 대상 커밋의 워크플로 없음(paths-ignore 등) — green 취급")
         return 0
+    if not all_completed(runs):
+        pending = [r for r in runs if r.get("status") != "completed"]
+        names = ", ".join(sorted({str(r.get("workflowName", "?")) for r in pending})) or "(이름 미상)"
+        printer(f"[ci-watch] 폴링 상한 내 미완료(진행 중): {names} — 재폴링/재시도 필요")
+        return 4
     fails = failures(runs)
     if not fails:
         printer("[ci-watch] ALL GREEN ✓")
@@ -370,7 +398,12 @@ def watch(
     printer: Callable[[str], None] = print,
     max_rounds: int = MAX_RERUN_ROUNDS,
 ) -> int:
-    """감시 진입점. until_final 이면 exit 2(재실행/대기)를 자체 재폴링해 0/1 로 수렴한다."""
+    """감시 진입점. until_final 이면 exit 2(재실행/대기)를 자체 재폴링해 0/1/4 로 수렴한다.
+
+    라운드 상한(max_rounds) 초과 시에는 구현상 2 를 그대로 흘리지 않고 exit 1(수렴 실패=
+    코드 조사 필요)로 승격한다 — docstring 계약("0/1 로 수렴")과 일치시키기 위함이다.
+    exit 4(폴링 상한 내 미완)는 재폴링해도 같은 상한에 다시 걸리므로 그대로 전파한다.
+    """
     already_rerun: set = set()
     rounds = 0
     while True:
@@ -379,8 +412,8 @@ def watch(
             return code
         rounds += 1
         if rounds > max_rounds:
-            printer(f"[ci-watch] 자동 재실행/배포 대기 {max_rounds}회 초과 — 수동 재폴링 필요")
-            return 2
+            printer(f"[ci-watch] 자동 재실행/배포 대기 {max_rounds}회 초과 — 수렴 실패, 코드 조사 필요(exit 1)")
+            return 1
         printer(f"[ci-watch] 재실행/배포 대기 발동 → 재폴링(round {rounds})")
         sleep_fn(POLL_INTERVAL_SEC)
 
@@ -531,10 +564,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[ci-watch] 게이트 불가: {reason}")
         return 3
 
-    sha = args.sha or current_head_sha()
-    if not sha:
-        print("[ci-watch] 게이트 불가: HEAD SHA 확인 실패(git 저장소가 아닌 듯)")
-        return 3
+    if args.sha:
+        sha = resolve_ref(args.sha)
+        if not sha:
+            print(f"[ci-watch] 게이트 불가: ref 해석 실패: {args.sha}(유효한 git ref 아님)")
+            return 3
+    else:
+        sha = current_head_sha()
+        if not sha:
+            print("[ci-watch] 게이트 불가: HEAD SHA 확인 실패(git 저장소가 아닌 듯)")
+            return 3
 
     if args.quick:
         return watch_quick(sha, args.branch, args.healthz)

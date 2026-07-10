@@ -1091,8 +1091,8 @@
                                             <th style="width: 100px;">상태</th>
                                             <th style="width: 180px;">진행 단계 체크리스트</th>
                                             <th style="width: 100px;">시공 구분</th>
+                                            <th style="width: 120px;">설치일</th>
                                             <th style="width: 120px;">상차일</th>
-                                            <th style="width: 120px;">담당자</th>
                                             <th style="width: 80px;">작업</th>
                                         </tr>
                                     </thead>
@@ -1203,14 +1203,14 @@
                                                 </span>
                                             </td>
                                             <td>
+                                                <input type="date" class="form-control form-control-sm editable-date"
+                                                       value="{{ order.scheduled_date or '' }}"
+                                                       data-order-id="{{ order.id }}" data-field="scheduled_date">
+                                            </td>
+                                            <td>
                                                 <input type="date" class="form-control form-control-sm inline-edit"
                                                        value="{{ order.shipping_scheduled_date or '' }}"
                                                        data-order-id="{{ order.id }}" data-field="shipping_scheduled_date">
-                                            </td>
-                                            <td>
-                                                <textarea class="form-control form-control-sm auto-resize-textarea"
-                                                          rows="1" style="font-size: 14px; min-height: 32px; resize: none; overflow: hidden;"
-                                                          data-order-id="{{ order.id }}" data-field="manager_name">{{ order.manager_name or '' }}</textarea>
                                             </td>
                                             <td>
                                                 <a href="{{ url_for('order_edit.edit_order', order_id=order.id, return_to='regional_dashboard') }}" class="btn btn-sm btn-outline-primary" title="수정">

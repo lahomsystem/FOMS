@@ -42,17 +42,38 @@ CASES: list[tuple[str, str]] = [
     ("ask", "git reset --hard"),
     ("ask", "Remove-Item -Recurse -Force x"),
     ("ask", "pip install requests"),
+    # --- 우회 봉합: 첫 토큰 디스패치 우회(deny 유지) ---------------------
+    # 개행 세그먼트 우회 (다줄 명령 2번째 줄부터의 위험 명령)
+    ("deny", "git status\ngit push --force origin production"),
+    ("ask", "git status\ngit push origin production"),
+    # KEY=VAL prefix / 환경변수 주입
+    ("deny", "FOO=bar git push --force origin production"),
+    ("deny", "GIT_SSH_COMMAND=ssh git push --force origin production"),
+    # 실행 래퍼
+    ("deny", "env git push --force origin production"),
+    ("deny", "nohup git push --force origin production"),
+    ("deny", "timeout 60 git push --force origin production"),
+    ("deny", "xargs git push --force origin production"),
+    # shell -c "<payload>"
+    ("deny", "bash -c 'git push --force origin production'"),
+    ("deny", 'sh -lc "git push --force origin production"'),
+    # 서브셸 / 명령치환
+    ("deny", "(git push --force origin production)"),
+    ("deny", "$(git push --force origin production)"),
     # --- allow ----------------------------------------------------------
     ("allow", "git push origin deploy"),
     ("allow", "git push"),
     ("allow", "echo 'drop table 사용법 메모'"),
+    ("allow", "echo 'drop table x'"),
     ("allow", "git commit -F msg.txt"),
     ("allow", "pip install -r requirements.txt"),
     ("allow", "pytest tests/harness -q"),
+    ("allow", "python -m pytest tests -q"),
     ("allow", 'rg "rm -rf" docs/'),
+    ("allow", "grep -n 'git push --force' notes.txt"),
 ]
 
-_IDS = [f"{dec}:{cmd}" for dec, cmd in CASES]
+_IDS = [f"{dec}:{cmd}".replace("\n", "\\n") for dec, cmd in CASES]
 
 
 def _load_policy():
@@ -212,3 +233,17 @@ def test_composite_command_takes_max_risk() -> None:
     policy = _load_policy()
     decision, _ = policy.classify_command("git status && git push --force origin production")
     assert decision == "deny"
+
+
+def test_wrapped_bypass_is_not_allowed() -> None:
+    """래퍼/서브셸로 감싼 위험 명령은 allow 로 새지 않는다(대표 표본 직접 확인)."""
+    policy = _load_policy()
+    for command in (
+        "FOO=bar git push --force origin production",
+        "env git push --force origin production",
+        "timeout 60 git push --force origin production",
+        "bash -c 'git push --force origin production'",
+        "$(git push --force origin production)",
+    ):
+        decision, _ = policy.classify_command(command)
+        assert decision != "allow", command

@@ -103,3 +103,62 @@ def test_push_with_string_response_is_gated() -> None:
     assert proc.returncode == 0, proc.stderr
     ctx = json.loads(proc.stdout.strip())["hookSpecificOutput"]["additionalContext"]
     assert "[CI-GATE]" in ctx
+
+
+def test_git_push_production_injects_production() -> None:
+    """진짜 production push 성공은 production 라우팅으로 게이트를 주입한다."""
+    proc = _run_payload(
+        {
+            "tool_name": "Bash",
+            "tool_input": {"command": "git push origin production"},
+            "tool_response": {"stdout": "", "stderr": "To github.com\n   a..b  production -> production"},
+        }
+    )
+    assert proc.returncode == 0, proc.stderr
+    ctx = json.loads(proc.stdout.strip())["hookSpecificOutput"]["additionalContext"]
+    assert "production" in ctx
+    assert "HEAD production" in ctx
+
+
+def test_echo_payload_with_push_string_is_not_gated() -> None:
+    """인용 페이로드 안의 'git push origin production' 은 push 아님(오탐 재현 3회 중 1)."""
+    proc = _run_payload(
+        {
+            "tool_name": "Bash",
+            "tool_input": {
+                "command": (
+                    "echo '{\"tool_input\": {\"command\": \"git push origin production\"}}' "
+                    "| python .claude/hooks/guard_shell.py"
+                )
+            },
+            "tool_response": {"stdout": ""},
+        }
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.strip() == ""
+
+
+def test_python_c_quoted_push_is_not_gated() -> None:
+    """python -c 인용 문자열 안의 push 는 실제 push 명령이 아니므로 미주입."""
+    proc = _run_payload(
+        {
+            "tool_name": "Bash",
+            "tool_input": {"command": "python -c \"print('git push origin production')\""},
+            "tool_response": {"stdout": ""},
+        }
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.strip() == ""
+
+
+def test_dry_run_push_is_not_gated() -> None:
+    """`git push --dry-run` 은 실제 반영 push 가 아니므로 게이트를 주입하지 않는다."""
+    proc = _run_payload(
+        {
+            "tool_name": "Bash",
+            "tool_input": {"command": "git push --dry-run origin deploy"},
+            "tool_response": {"stdout": "To github.com (dry run)"},
+        }
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.strip() == ""

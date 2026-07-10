@@ -5,18 +5,23 @@ stdin 으로 {"tool_name": "Bash", "tool_input": {"command": "..."},
 판단되면 hookSpecificOutput.additionalContext 로 "[CI-GATE] ..." 리마인더를
 주입해, 에이전트가 tools/harness/ci_watch.py 로 CI green 을 확인하도록 강제한다.
 
-성능: push 아닌 Bash 명령엔 문자열 검사만 하고 무출력한다(파일 I/O 없음).
-push 실패(거부/error) 감지 시에도 주입하지 않는다(에이전트가 이미 에러를 본다).
-실패는 fail-open + hook_log(묵시적 삼킴 금지).
+push 판정은 guard_policy.find_push_segments 를 재사용한다(argv 토큰 위치 기반).
+따라서 `echo '...git push...'`·`python -c "..."` 같은 인용 페이로드나 부분문자열은
+push 로 오탐하지 않고, `--dry-run` push 도 게이트하지 않는다. 브랜치 라우팅도
+push 세그먼트의 인자 토큰에서 도출해 명령 문자열의 "production" 단어 오라우팅을 없앤다.
+
+성능: push 아닌 Bash 명령엔 'push'/'merge' 문자열 음성 필터만 하고 무출력한다
+(그때만 guard_policy 토크나이저 로드). push 실패(거부/error) 감지 시에도 주입하지
+않는다(에이전트가 이미 에러를 본다). 실패는 fail-open + hook_log(묵시적 삼킴 금지).
 """
 import os
-import re
 import sys
 
 _dir = os.path.dirname(os.path.abspath(__file__))
 if _dir not in sys.path:
     sys.path.insert(0, _dir)
 from shared_utils import (  # type: ignore[import-not-found]  # noqa: E402
+    get_project_root,
     hook_log,
     read_stdin_json,
     write_stdout_json,
@@ -34,20 +39,43 @@ _FAIL_MARKERS = (
 )
 
 
-def _is_push_command(command: str) -> bool:
-    """명령에 git push 또는 gh pr merge 흔적이 있으면 True(빠른 문자열 검사)."""
+def _might_push(command: str) -> bool:
+    """빠른 음성 필터: 'push'/'merge' 문자열이 아예 없으면 push 아님(토크나이저 생략)."""
     lowered = command.lower()
-    return ("git push" in lowered) or ("pr merge" in lowered)
+    return "push" in lowered or "merge" in lowered
 
 
-def _detect_branch(command: str) -> str:
-    """명령에서 대상 브랜치를 추정한다(production/main/deploy)."""
-    lowered = command.lower()
-    if "pr merge" in lowered:
+def _load_push_finder():
+    """guard_policy.find_push_segments 를 tools/harness 경로에서 로드한다."""
+    harness_dir = os.path.join(get_project_root(), "tools", "harness")
+    if harness_dir not in sys.path:
+        sys.path.insert(0, harness_dir)
+    from guard_policy import find_push_segments  # type: ignore[import-not-found]
+
+    return find_push_segments
+
+
+def _push_route(command: str) -> str | None:
+    """실제 push 세그먼트를 찾아 CI 감시 대상 브랜치를 반환한다.
+
+    push 세그먼트가 없거나 전부 dry-run 이면 None(주입 안 함). production/main
+    대상은 그대로, 그 외(원격만 지정 등)는 기본 deploy 로 라우팅한다.
+
+    파라미터:
+        command: 실행된 원본 명령 문자열.
+    반환: "production"|"main"|"deploy" 또는 None.
+    """
+    segments = [s for s in _load_push_finder()(command) if not s.get("dry_run")]
+    if not segments:
+        return None
+    targets: set[str] = set()
+    for seg in segments:
+        if seg.get("kind") == "gh_merge":
+            return "production"
+        targets.update(seg.get("targets") or [])
+    if "production" in targets:
         return "production"
-    if re.search(r"\bproduction\b", lowered):
-        return "production"
-    if re.search(r"\bmain\b", lowered):
+    if "main" in targets:
         return "main"
     return "deploy"
 
@@ -100,15 +128,17 @@ def _ci_gate_message(branch: str) -> str:
 
 
 def main() -> None:
-    """PostToolUse(Bash) 진입점. push 성공만 감지해 게이트를 주입한다(그 외 무출력)."""
+    """PostToolUse(Bash) 진입점. 실제 push 성공만 감지해 게이트를 주입한다(그 외 무출력)."""
     try:
         payload = read_stdin_json()
         command = (payload.get("tool_input") or {}).get("command", "") or ""
-        if not command or not _is_push_command(command):
+        if not command or not _might_push(command):
+            return
+        branch = _push_route(command)
+        if branch is None:
             return
         if _push_failed(payload.get("tool_response")):
             return
-        branch = _detect_branch(command)
         write_stdout_json(
             {
                 "hookSpecificOutput": {

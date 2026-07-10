@@ -57,18 +57,40 @@ _FORCE_FLAGS: frozenset[str] = frozenset({"-f", "--force"})
 # 위험도 우선순위 (복합 명령에서 최고 위험 채택용).
 _RISK_ORDER = {"allow": 0, "ask": 1, "deny": 2}
 
+#: 선행 환경변수 할당 토큰(`KEY=VAL`) 패턴 — 실제 명령 앞에서 스킵한다.
+_ENV_ASSIGN_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+
+#: timeout 지속시간 인자(`60`, `1.5s`, `2m`, `1h` 등) 패턴.
+_DURATION_RE = re.compile(r"^\d+(?:\.\d+)?[smhd]?$", re.IGNORECASE)
+
+#: 다음 토큰(들)을 그대로 실행하는 단순 래퍼 — 실제 명령까지 토큰을 전진시킨다.
+_SIMPLE_WRAPPERS: frozenset[str] = frozenset({"nohup", "xargs"})
+
+#: `-c`/`-lc`/`-Command` 뒤 문자열을 하위 셸로 실행하는 인터프리터.
+_SHELL_INTERPRETERS: frozenset[str] = frozenset(
+    {"bash", "sh", "zsh", "dash", "ash", "ksh", "pwsh", "powershell"}
+)
+
+#: 인터프리터의 "다음 인자를 명령 문자열로 실행" 플래그(소문자 비교).
+_SHELL_C_FLAGS: frozenset[str] = frozenset({"-c", "-lc", "-lic", "-ic", "-command"})
+
+#: 래퍼/서브셸/`shell -c` 재귀 언랩 최대 깊이 (무한 재귀 방지).
+_MAX_UNWRAP_DEPTH = 5
+
 
 # ---------------------------------------------------------------------------
 # 저수준 파서
 # ---------------------------------------------------------------------------
 
 def _split_segments(command: str) -> list[str]:
-    """복합 셸 명령을 연산자(`&&`,`||`,`;`,`|`) 경계로 분해한다.
+    """복합 셸 명령을 연산자(`&&`,`||`,`;`,`|`) 및 개행(`\\n`) 경계로 분해한다.
 
-    따옴표 내부의 연산자 문자는 분해하지 않는다.
+    개행은 `;` 와 동급의 세그먼트 경계다(다줄 명령의 2번째 줄부터 위험 명령이
+    첫 명령의 인자로 흡수되는 우회를 차단). 따옴표 내부의 연산자/개행은
+    분해하지 않는다.
 
     파라미터:
-        command: 원본 명령 문자열.
+        command: 원본 명령 문자열(호출자가 `\\r\\n`/`\\r`→`\\n` 정규화 후 전달).
     반환: 공백 정리된 비어있지 않은 세그먼트 리스트.
     """
     segments: list[str] = []
@@ -99,7 +121,7 @@ def _split_segments(command: str) -> list[str]:
             buf.append(ch)
             i += 1
             continue
-        if ch == ";":
+        if ch == ";" or ch == "\n":
             segments.append("".join(buf))
             buf = []
             i += 1
@@ -359,8 +381,142 @@ def _classify_npm(tokens: list[str]) -> tuple[str, str]:
 # 세그먼트 · 최상위 판정
 # ---------------------------------------------------------------------------
 
-def _classify_segment(segment: str) -> tuple[str, str]:
-    """단일 명령 세그먼트의 위험도를 판정한다."""
+def _strip_shell_grouping(segment: str) -> str | None:
+    """서브셸 `(...)`·명령치환 `$(...)`·백틱 그룹 문자를 세그먼트 선두/말미에서 제거한다.
+
+    제거가 발생하면 내부 명령 문자열을, 아니면 None 을 반환한다. 그룹 안의
+    위험 명령(`(git push --force origin production)` 등)이 첫 토큰 디스패치를
+    우회하지 못하도록 재귀 판정 대상으로 되돌린다.
+    """
+    inner = segment
+    changed = False
+    while inner.startswith("$("):
+        inner, changed = inner[2:], True
+    while inner and inner[0] in "(`":
+        inner, changed = inner[1:], True
+    while inner and inner[-1] in ")`":
+        inner, changed = inner[:-1], True
+    inner = inner.strip()
+    return inner if (changed and inner) else None
+
+
+def _skip_env_opts(tokens: list[str], i: int) -> int:
+    """`env` 의 옵션(`-i`, `-u NAME` 등)을 건너뛴 다음 토큰 인덱스를 반환한다.
+
+    파라미터:
+        tokens: argv 토큰(따옴표 포함 원본).
+        i: `env` 다음 토큰의 시작 인덱스.
+    반환: 옵션을 소비한 뒤의 인덱스(후속 KEY=VAL 은 상위 루프가 처리).
+    """
+    n = len(tokens)
+    while i < n:
+        tok = _strip_quotes(tokens[i]).lower()
+        if tok in ("-u", "--unset"):
+            i += 2
+            continue
+        if tok.startswith("-"):
+            i += 1
+            continue
+        break
+    return i
+
+
+def _skip_timeout_opts(tokens: list[str], i: int) -> int:
+    """`timeout` 의 옵션(`-s SIG`, `-k DUR`, `--preserve-status`)과 지속시간 인자를 건너뛴다.
+
+    파라미터:
+        tokens: argv 토큰(따옴표 포함 원본).
+        i: `timeout` 다음 토큰의 시작 인덱스.
+    반환: 옵션·지속시간을 소비한 뒤의 실제 명령 시작 인덱스.
+    """
+    n = len(tokens)
+    while i < n:
+        tok = _strip_quotes(tokens[i]).lower()
+        if tok in ("-s", "--signal", "-k", "--kill-after"):
+            i += 2
+            continue
+        if tok.startswith("-"):
+            i += 1
+            continue
+        if _DURATION_RE.match(tok):
+            i += 1
+            continue
+        break
+    return i
+
+
+def _reduce_wrappers(tokens_raw: list[str]) -> list[str] | None:
+    """선행 `KEY=VAL` 할당과 실행 래퍼(`env`/`nohup`/`timeout`/`xargs`)를 벗긴다.
+
+    벗겨낸 뒤 남은 '실제 실행 명령' 토큰 리스트를 반환한다. 벗길 래핑이
+    없으면(일반 명령) None 을 반환해 호출자가 정상 디스패치하도록 한다.
+    """
+    i, n, changed = 0, len(tokens_raw), False
+    while i < n:
+        tok = _strip_quotes(tokens_raw[i])
+        if _ENV_ASSIGN_RE.match(tok):
+            i, changed = i + 1, True
+            continue
+        name = _command_name([tokens_raw[i]])
+        if name == "env":
+            i, changed = _skip_env_opts(tokens_raw, i + 1), True
+            continue
+        if name == "timeout":
+            i, changed = _skip_timeout_opts(tokens_raw, i + 1), True
+            continue
+        if name in _SIMPLE_WRAPPERS:
+            i, changed = i + 1, True
+            continue
+        break
+    if changed and 0 < i < n:
+        return tokens_raw[i:]
+    return None
+
+
+def _shell_c_payload(tokens_raw: list[str]) -> str | None:
+    """`bash|sh|zsh|pwsh|powershell -c/-lc/-Command "<문자열>"` 의 내부 명령 문자열을 반환한다.
+
+    해당 패턴이 아니거나 뒤따르는 문자열이 없으면 None 을 반환한다. 내부
+    문자열은 재귀 분류 대상이 되어 하위 셸에 숨은 위험 명령을 드러낸다.
+    """
+    if not tokens_raw:
+        return None
+    if _command_name([tokens_raw[0]]) not in _SHELL_INTERPRETERS:
+        return None
+    for j in range(1, len(tokens_raw)):
+        tok = _strip_quotes(tokens_raw[j])
+        if tok.lower() in _SHELL_C_FLAGS:
+            return _strip_quotes(tokens_raw[j + 1]) if j + 1 < len(tokens_raw) else None
+        if not tok.startswith("-"):
+            return None
+    return None
+
+
+def _unwrap_segment(segment: str, depth: int) -> tuple[str, str] | None:
+    """서브셸/명령치환/실행 래퍼/`shell -c` 를 벗겨 내부 명령을 재귀 판정한다.
+
+    벗길 래핑이 있으면 (decision, label) 을, 없으면 None(일반 디스패치)을 반환한다.
+    """
+    grouped = _strip_shell_grouping(segment)
+    if grouped is not None:
+        return _classify_command(grouped, depth + 1)
+    tokens_raw = _tokenize(segment)
+    if not tokens_raw:
+        return None
+    reduced = _reduce_wrappers(tokens_raw)
+    if reduced is not None:
+        return _classify_command(" ".join(reduced), depth + 1)
+    payload = _shell_c_payload(tokens_raw)
+    if payload is not None:
+        return _classify_command(payload, depth + 1)
+    return None
+
+
+def _classify_segment(segment: str, depth: int = 0) -> tuple[str, str]:
+    """단일 명령 세그먼트의 위험도를 판정한다(래퍼/서브셸/`shell -c` 언랩 포함)."""
+    unwrapped = _unwrap_segment(segment, depth)
+    if unwrapped is not None:
+        return unwrapped
     tokens_raw = _tokenize(segment)
     if not tokens_raw:
         return "allow", ""
@@ -404,10 +560,42 @@ def _classify_segment(segment: str) -> tuple[str, str]:
     return "allow", ""
 
 
-def classify_command(command: str) -> tuple[str, str]:
-    """셸 명령 전체의 위험도를 판정한다.
+def _classify_command(command: str, depth: int) -> tuple[str, str]:
+    """`classify_command` 의 재귀 본체(래퍼 언랩 깊이 추적).
 
-    복합 명령은 세그먼트로 분해해 각각 판정하고 최고 위험도를 채택한다.
+    개행/연산자로 세그먼트를 분해해 각각 판정하고 최고 위험도를 채택한다.
+
+    파라미터:
+        command: 판정할 명령 문자열(래퍼 언랩 시 하위 명령).
+        depth: 재귀 언랩 깊이(_MAX_UNWRAP_DEPTH 초과 시 보수적으로 ask).
+    반환: (decision, label).
+    """
+    if not command or not isinstance(command, str):
+        return "allow", ""
+    if depth > _MAX_UNWRAP_DEPTH:
+        return "ask", "언랩 깊이 상한 초과(의심 명령)"
+
+    unified = command.replace("\r\n", "\n").replace("\r", "\n")
+    best_decision, best_label = "allow", ""
+    for raw_segment in _split_segments(unified):
+        segment = re.sub(r"\s+", " ", raw_segment).strip()
+        if not segment:
+            continue
+        decision, label = _classify_segment(segment, depth)
+        if _RISK_ORDER[decision] > _RISK_ORDER[best_decision]:
+            best_decision, best_label = decision, label
+            if best_decision == "deny":
+                break
+    return best_decision, best_label
+
+
+def classify_command(command: str) -> tuple[str, str]:
+    """셸 명령 전체의 위험도를 판정한다(공개 API).
+
+    복합 명령은 세그먼트(연산자·개행 경계)로 분해해 각각 판정하고 최고 위험도를
+    채택한다. 선행 환경변수 할당(`KEY=VAL`)·실행 래퍼(`env`/`nohup`/`timeout`/
+    `xargs`)·`shell -c "<문자열>"`·서브셸/명령치환(`(...)`,`$(...)`)은 벗겨 내부
+    명령을 재귀 판정하므로 첫 토큰 디스패치 우회를 차단한다.
 
     파라미터:
         command: 판정할 원본 명령 문자열.
@@ -415,18 +603,76 @@ def classify_command(command: str) -> tuple[str, str]:
         (decision, label) 튜플. decision ∈ {"deny","ask","allow"}.
         label 은 로그/사유용 한글 요약(allow 시 빈 문자열).
     """
+    return _classify_command(command, 0)
+
+
+# ---------------------------------------------------------------------------
+# push 세그먼트 식별 (post_push_watch 등 하네스 도구가 재사용)
+# ---------------------------------------------------------------------------
+
+def _git_push_info(tokens_raw: list[str], push_idx: int) -> dict:
+    """`git push` 세그먼트의 대상 브랜치와 dry-run 여부를 추출한다.
+
+    파라미터:
+        tokens_raw: argv 토큰(따옴표 포함).
+        push_idx: 'push' 서브커맨드 토큰 인덱스.
+    반환: {"kind":"git_push","targets":[브랜치...],"dry_run":bool}.
+    """
+    rest = [_strip_quotes(t) for t in tokens_raw[push_idx + 1:]]
+    dry_run = any(t in ("--dry-run", "-n") for t in rest)
+    positionals = [t for t in rest if not t.startswith("-")]
+    refspecs = positionals[1:] if len(positionals) >= 2 else []
+    return {
+        "kind": "git_push",
+        "targets": [_refspec_dest(r) for r in refspecs],
+        "dry_run": dry_run,
+    }
+
+
+def _gh_merge_info(tokens_raw: list[str]) -> dict | None:
+    """`gh pr merge ...` 세그먼트면 병합 정보를, 아니면 None 을 반환한다."""
+    subs = [_strip_quotes(t).lower() for t in tokens_raw[1:]]
+    if len(subs) >= 2 and subs[0] == "pr" and subs[1] == "merge":
+        return {"kind": "gh_merge", "targets": [], "dry_run": False}
+    return None
+
+
+def _segment_push_info(tokens_raw: list[str]) -> dict | None:
+    """세그먼트 토큰이 실제 push 명령(git push / gh pr merge)이면 정보를, 아니면 None."""
+    if not tokens_raw:
+        return None
+    name = _command_name(tokens_raw)
+    if name == "git":
+        idx = _git_subcommand_index(tokens_raw)
+        if idx is not None and _strip_quotes(tokens_raw[idx]).lower() == "push":
+            return _git_push_info(tokens_raw, idx)
+        return None
+    if name == "gh":
+        return _gh_merge_info(tokens_raw)
+    return None
+
+
+def find_push_segments(command: str) -> list[dict]:
+    """명령의 '실제 실행 세그먼트' 중 push 성격(git push / gh pr merge)만 찾아 반환한다(공개 API).
+
+    부분문자열 매칭 대신 argv 토큰 위치 기반이라 `echo '...git push...'` 같은
+    인용 페이로드나 `python -c "..."` 를 push 로 오탐하지 않는다.
+
+    파라미터:
+        command: 원본 명령 문자열.
+    반환:
+        각 push 세그먼트별 {"kind","targets","dry_run"} 딕셔너리 리스트.
+        push 세그먼트가 없으면 빈 리스트.
+    """
     if not command or not isinstance(command, str):
-        return "allow", ""
-
-    normalized = re.sub(r"\s+", " ", command.replace("\r", " ").replace("\n", " ")).strip()
-    if not normalized:
-        return "allow", ""
-
-    best_decision, best_label = "allow", ""
-    for segment in _split_segments(normalized):
-        decision, label = _classify_segment(segment)
-        if _RISK_ORDER[decision] > _RISK_ORDER[best_decision]:
-            best_decision, best_label = decision, label
-            if best_decision == "deny":
-                break
-    return best_decision, best_label
+        return []
+    unified = command.replace("\r\n", "\n").replace("\r", "\n")
+    results: list[dict] = []
+    for raw_segment in _split_segments(unified):
+        segment = re.sub(r"\s+", " ", raw_segment).strip()
+        if not segment:
+            continue
+        info = _segment_push_info(_tokenize(segment))
+        if info is not None:
+            results.append(info)
+    return results
