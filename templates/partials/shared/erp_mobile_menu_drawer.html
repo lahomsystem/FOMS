@@ -22,6 +22,17 @@
         </a>
       {% endfor %}
         </div>
+        {# v3 셸 자격자가 v2로 복귀 중일 때만 노출되는 "새 모바일(v3)" 진입점.
+           foms-shell-toggle.js가 쿠키(foms_shell_pref=v3) set 후 리로드. #}
+        {% if shell_variant == 'v2' and shell_v3_eligible %}
+        <button type="button"
+                class="erp-mobile-menu-drawer__link erp-mobile-menu-drawer__link--v3"
+                data-foms-shell-toggle="v3"
+                aria-label="새 모바일(v3) 화면으로 전환">
+          <span class="erp-mobile-menu-drawer__icon"><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i></span>
+          <span class="erp-mobile-menu-drawer__label">새 모바일(v3)</span>
+        </button>
+        {% endif %}
         {% if current_user %}
         <div class="erp-mobile-menu-drawer__account">
           <div class="erp-mobile-menu-drawer__account-id">

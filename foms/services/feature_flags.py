@@ -16,6 +16,7 @@ __all__ = [
     "is_cohort_all",
     "is_enabled_for_user",
     "is_mobile_v2_shell",
+    "is_shell_v3_eligible",
     "prefers_mobile_wizard_client",
     "resolve_shell_variant",
     "resolve_shell_variant_cached",
@@ -192,6 +193,25 @@ def resolve_shell_variant(
     if _read_shell_pref_cookie(request) == "v2":
         return "v2"
     return "v3"
+
+
+def is_shell_v3_eligible(user_id: int | None) -> bool:
+    """사용자가 v3 셸 코호트 자격을 갖는지 판정한다(쿠키 무관).
+
+    :func:`resolve_shell_variant`의 2단계 게이트(``FOMS_SHELL_V3_ENABLED`` +
+    ``FOMS_SHELL_V3_COHORT``)만 평가한다. variant는 쿠키(``foms_shell_pref``)로
+    v2로 복귀할 수 있으므로 자격(eligible)과 활성(variant)은 별개다. v2 셸에서
+    "새 모바일(v3)로 전환" 진입점을 자격자에게만 노출하기 위한 헬퍼다.
+
+    Args:
+        user_id: 현재 사용자 id(미인증 시 None).
+
+    Returns:
+        v3 코호트 자격이 있으면 True.
+    """
+    return is_enabled_for_user(
+        "FOMS_SHELL_V3_ENABLED", user_id, cohort_key="FOMS_SHELL_V3_COHORT"
+    )
 
 
 def is_mobile_v2_shell(variant: str) -> bool:

@@ -13,6 +13,7 @@ from foms.services.feature_flags import (
     env_bool,
     env_bool_or_mobile_v2,
     is_mobile_v2_shell,
+    is_shell_v3_eligible,
     resolve_shell_variant_cached,
     should_render_new_order_wizard,
     wizard_new_order_enabled,
@@ -221,6 +222,9 @@ def inject_foms_flags() -> dict[str, Any]:
     return {
         "flag_mobile_v2": mobile_v2,
         "shell_variant": shell_variant,
+        # v3 셸 코호트 자격(쿠키 무관). v2 셸 drawer의 "새 모바일(v3)" 진입점을
+        # 자격자에게만 노출하기 위한 플래그(shell_variant=='v2' && shell_v3_eligible).
+        "shell_v3_eligible": is_shell_v3_eligible(uid),
         "flag_tokens_v2": env_bool("FOMS_DESIGN_TOKENS_V2_ENABLED", True),
         # wizard draft/API 활성(코호트·전역 플래그). 실제 /add 렌더·chrome 숨김은 show_new_order_wizard.
         "flag_wizard": wizard_new_order_enabled(uid),

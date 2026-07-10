@@ -1,0 +1,98 @@
+{# =========================================================================
+   FOMS Field OS v3 — 출고 페르소나 홈 (읽기/표시 전용, v3.0)
+   셸(foms_app_shell_v3.html)의 .fos-content 슬롯에 fos_content_partial로 include.
+   topbar/bottomnav는 셸이 제공 — 이 partial은 스크롤 콘텐츠만 채운다.
+   소비 컨텍스트(기존 shipment 뷰가 이미 내려주는 값): mobile_queue_rows,
+   construction_panel_dates, selected_date, use_date_range, date_from, date_to,
+   today_date. 신규 쿼리 없음 — mobile_queue_rows[].shipment_meta 파생값 재사용.
+   패킹 체크리스트/QR/상차 게이트는 v3.1(비목표) — 여기서는 일정 큐 표시만.
+   ========================================================================= #}
+{# 오늘 상차/시공 카운트 (14일 패널 집계 재사용) #}
+{% set _today_ns = namespace(count=0) %}
+{% for _it in (construction_panel_dates or []) %}
+  {% if _it.date == today_date %}{% set _today_ns.count = _it.count %}{% endif %}
+{% endfor %}
+
+{# 행별 그룹 날짜: 대표 시공/상차일(shipment_meta.primary_date, 뷰에서 파생). 미지정이면 조회일. #}
+{% set _dates = namespace(seen=[]) %}
+{% for o in (mobile_queue_rows or []) %}
+  {% set _gd = (o.shipment_meta or {}).get('primary_date') or selected_date or '' %}
+  {% set _ = o.update({'group_date': _gd}) %}
+  {% if _gd not in _dates.seen %}{% set _ = _dates.seen.append(_gd) %}{% endif %}
+{% endfor %}
+{% set group_dates = _dates.seen|sort %}
+
+<div class="fos-scroll">
+
+  {# 히어로: 오늘 상차 카운트 (글랜서블) #}
+  <div class="fos-hero">
+    <span class="fos-hero__label">
+      <i class="fas fa-truck-loading" aria-hidden="true"></i> 오늘 상차·시공
+    </span>
+    <div class="fos-hero__big tnum">{{ _today_ns.count }}
+      <span class="px-shipment-herounit">건</span>
+    </div>
+    <div class="fos-hero__meta">
+      <span class="tnum">{{ today_date }}</span>
+      <span class="tnum">현재 큐 {{ (mobile_queue_rows or [])|length }}건</span>
+      {% if use_date_range %}
+        <span class="tnum">{{ date_from }} ~ {{ date_to }}</span>
+      {% elif selected_date and selected_date != today_date %}
+        <span class="tnum">조회 {{ selected_date }}</span>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if mobile_queue_rows %}
+    {% for gdate in group_dates %}
+    <div class="fos-sec">
+      <div class="fos-sec__hd px-shipment-daterow">
+        <span class="tnum">{{ gdate or '일정 미지정' }}</span>
+        {% if gdate == today_date %}<span class="px-shipment-today">오늘</span>{% endif %}
+      </div>
+
+      {% for o in mobile_queue_rows %}
+      {% if o.group_date == gdate %}
+      {% set meta = o.shipment_meta or {} %}
+      {% set is_as = meta.is_as %}
+      {% set detail_href = url_for('erp_dashboard.erp_order_mobile_detail', order_id=o.id, return_to='erp_shipment_dashboard') %}
+      <a class="fos-queue-card{% if is_as %} is-danger{% endif %}" href="{{ detail_href }}">
+        <span class="fos-queue-card__dot px-shipment-dot{% if is_as %} is-as{% endif %}"></span>
+        <span class="fos-queue-card__body">
+          <span class="fos-queue-card__title">
+            <span class="who">{{ o.customer_name or '-' }}</span>
+            {% if o.product_subtitle %}<span class="prod">{{ o.product_subtitle }}</span>{% endif %}
+          </span>
+          <span class="fos-queue-card__meta">
+            {% if meta.spec_units %}<span class="tnum">W/300 {{ '%.1f'|format(meta.spec_units) }}</span>{% endif %}
+            {% if meta.construction_time %}<span class="tnum">{{ meta.construction_time }}</span>{% endif %}
+            {% if o.address and o.address != '-' %}<span class="addr">{{ o.address }}</span>{% endif %}
+          </span>
+          <span class="px-shipment-badgerow">
+            {% if is_as %}
+              <span class="px-shipment-badge is-wait">AS</span>
+            {% else %}
+              <span class="px-shipment-badge">상차·시공</span>
+            {% endif %}
+            {% if meta.sales_delivery %}<span class="px-shipment-badge is-wait">영업택배</span>{% endif %}
+            {% if meta.construction_workers %}<span class="px-shipment-crew">시공 {{ meta.construction_workers|join(' · ') }}</span>{% endif %}
+          </span>
+        </span>
+        <span class="fos-queue-card__aside">
+          <span class="fos-tl-btn" role="button" data-fos-timeline data-order-id="{{ o.id }}" aria-label="주문 진행 타임라인 보기"><i class="fas fa-timeline" aria-hidden="true"></i></span>
+          <span class="fos-chevron"><i class="fas fa-chevron-right" aria-hidden="true"></i></span>
+        </span>
+      </a>
+      {% endif %}
+      {% endfor %}
+    </div>
+    {% endfor %}
+  {% else %}
+    <div class="fos-empty">
+      <span class="fos-empty__ic"><i class="fas fa-inbox" aria-hidden="true"></i></span>
+      <span class="fos-empty__title">출고 일정이 없습니다</span>
+      <span class="fos-empty__sub">조회 날짜를 바꾸거나 기존 화면에서 검색해 보세요.</span>
+    </div>
+  {% endif %}
+
+</div>

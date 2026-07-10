@@ -5,5 +5,7 @@
 {% endblock %}
 
 {% block scripts %}
+{% if shell_variant != 'v3' %}
 {% include 'measurement/partials/dashboard_scripts.html' %}
+{% endif %}
 {% endblock %}

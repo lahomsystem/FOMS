@@ -174,6 +174,7 @@ def erp_production_dashboard():
             orders=enriched,
             kpis=kpis,
             process_steps=process_steps,
+            step_stats=step_stats,
             filters={'stage': f_stage, 'q': f_q},
             team_labels=TEAM_LABELS,
             stage_labels=STAGE_LABELS,

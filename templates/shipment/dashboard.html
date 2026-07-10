@@ -1,7 +1,10 @@
 {% extends "shipment/layout.html" %}
 
 {% block head_extra %}
+  {# v3 셸은 자체 CSS(layout_head 배타 로드)만 사용 — v2 출고 모바일 CSS는 v2/legacy에만 로드 #}
+  {% if shell_variant != 'v3' %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-shipment-mobile.css') }}?v=20260626b">
+  {% endif %}
 {% endblock %}
 
 {% block content %}
@@ -9,5 +12,8 @@
 {% endblock %}
 
 {% block scripts %}
+{# v3는 읽기 전용 홈(추가 JS 없음) — v2 출고 대시보드 JS는 v2/legacy에만 로드(배타) #}
+{% if shell_variant != 'v3' %}
 {% include 'shipment/partials/dashboard_scripts.html' %}
+{% endif %}
 {% endblock %}

@@ -12,7 +12,11 @@ from typing import Any
 
 from foms.services.erp_display import _ensure_dict
 from foms.services.as_content_safety import as_content_html_to_text
-from foms.services.shipment_dashboard_helpers import is_as_order, _get_order_spec_units
+from foms.services.shipment_dashboard_helpers import (
+    is_as_order,
+    _get_order_spec_units,
+    _get_order_construction_date,
+)
 from foms.services.erp_mobile_order_display import (
     build_mobile_queue_order_row,
     build_mobile_queue_batch_context,
@@ -163,6 +167,16 @@ def build_shipment_mobile_queue_rows(
                 "is_as": is_as_order(order),
                 "as_content_text": getattr(order, "as_content_text", "") or "",
                 "recommendation_link": getattr(order, "shipment_as_recommendation_link", None),
+                # v3 홈 표시용 파생(추가 쿼리 없음 — 이미 로드된 structured_data/scheduled_date만 사용).
+                # primary_date: 대표 시공일(AS는 as_visit 방문일) → v3 날짜 그룹 헤더 키. schedule_dates
+                # 지연로딩을 피하려 SSOT(sd.schedule.*) + scheduled_date 컬럼만 읽는다(N+1 가드 준수).
+                "primary_date": (
+                    str(((sd.get("schedule") or {}).get("as_visit") or {}).get("date") or "")
+                    if is_as_order(order)
+                    else (_get_order_construction_date(order) or "")
+                ),
+                # sales_delivery(영업택배): structured_data.shipment.sales_delivery is True 계약(field_update.py와 동일).
+                "sales_delivery": shipment.get("sales_delivery") is True,
             }
             mobile_queue_rows.append(row)
     return mobile_queue_rows

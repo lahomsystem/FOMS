@@ -1,0 +1,133 @@
+{# =========================================================================
+   FOMS Field OS v3 — 영업·실측 페르소나 홈 (읽기/표시 전용, v3.0).
+   기존 실측 대시보드 뷰가 내려주는 컨텍스트만 소비한다(새 쿼리·무거운 파생 없음):
+     - mobile_queue_rows  : 선택일(기본=오늘) 실측 큐(build_mobile_queue_order_row)
+     - measurement_panel_dates : 60일 날짜별 건수 패널(내일 이후 예정 섹션 재료)
+     - today_date / erp_mine_only
+   레이아웃: 히어로(다음 방문) → 오늘 방문 큐 → 예정(내일 이후, 접힘 = 날짜별 건수).
+   클래스는 static/css/v3/foms-mobile-v3.css의 .fos-*/.px-sales-* 만 사용.
+   스크립트 신규 없음(셸 foms-mobile-v3.js 위임 + 네이티브 <details>).
+   ========================================================================= #}
+{%- set _st_map = {
+  'RECEIVED': 'received', 'MEASURE': 'measure', 'DRAWING': 'drawing',
+  'CONFIRM': 'confirm', 'PRODUCTION': 'production', 'CONSTRUCTION': 'construction',
+  'CS': 'cs', 'COMPLETED': 'completed', 'AS': 'cs',
+  'AS_RECEIVED': 'cs', 'AS_COMPLETED': 'completed'
+} -%}
+{%- set _weekday = ['월','화','수','목','금','토','일'] -%}
+{%- set _rows = mobile_queue_rows or [] -%}
+{%- set _hero = _rows[0] if _rows else None -%}
+{%- set _upcoming = [] -%}
+{%- for _it in (measurement_panel_dates or []) -%}
+  {%- if _it.date and _it.date > today_date and (_it.count or 0) > 0 -%}
+    {%- set _ = _upcoming.append(_it) -%}
+  {%- endif -%}
+{%- endfor -%}
+
+{%- macro sales_card(o, st_map) -%}
+  {%- set _sc = st_map.get(o.stage_code, 'received') -%}
+  <a class="fos-queue-card"
+     href="{{ url_for('erp_dashboard.erp_order_mobile_detail', order_id=o.id, return_to='erp_measurement_dashboard') }}"
+     data-order-id="{{ o.id }}">
+    <span class="fos-queue-card__dot" style="--sc:var(--st-{{ _sc }})"></span>
+    <span class="fos-queue-card__body">
+      <span class="fos-queue-card__title">
+        <span class="who">{{ o.customer_name or '-' }}</span>
+        {%- if o.product_subtitle %}<span class="prod">{{ o.product_subtitle }}</span>{% endif -%}
+      </span>
+      <span class="fos-queue-card__meta">
+        {%- if o.address and o.address != '-' %}<span class="addr">{{ o.address }}</span>{% endif -%}
+        {%- if o.manager_name and o.manager_name != '-' %}<span>{{ o.manager_name }}</span>{% endif -%}
+      </span>
+      <span style="margin-top:2px">
+        <span class="fos-stage" data-st="{{ _sc }}">{{ o.stage or '실측' }}</span>
+      </span>
+    </span>
+    <span class="fos-queue-card__aside">
+      <span class="fos-tl-btn" role="button" data-fos-timeline data-order-id="{{ o.id }}" aria-label="주문 진행 타임라인 보기"><i class="fas fa-timeline" aria-hidden="true"></i></span>
+      <i class="fas fa-chevron-right fos-chevron" aria-hidden="true"></i>
+    </span>
+  </a>
+{%- endmacro -%}
+
+<div class="fos-scroll" data-persona-home="sales">
+  <div class="fos-appbar">
+    <div>
+      <h2>오늘 동선</h2>
+      <div class="sub tnum">실측 {{ _rows|length }}곳{% if _upcoming %} · 예정 {{ _upcoming|length }}일{% endif %}{% if erp_mine_only %} · 내 담당{% endif %}</div>
+    </div>
+  </div>
+
+  {% if _hero %}
+  {%- set _hero_phone = (_hero.phone or '')|replace('-', '')|replace(' ', '') -%}
+  <div class="fos-hero">
+    <span class="fos-hero__label">
+      <i class="fas fa-location-dot" aria-hidden="true"></i> 다음 방문
+    </span>
+    <div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap">
+      <div class="fos-hero__title">{{ _hero.customer_name or '-' }}</div>
+      {% if _hero.stage %}<span class="fos-stage" data-st="{{ _st_map.get(_hero.stage_code, 'received') }}">{{ _hero.stage }}</span>{% endif %}
+    </div>
+    <div class="fos-hero__meta">
+      {% if _hero.product_subtitle %}<span>{{ _hero.product_subtitle }}</span>{% endif %}
+      {% if _hero.address and _hero.address != '-' %}<span class="addr">{{ _hero.address }}</span>{% endif %}
+    </div>
+    <div class="px-sales-btnrow">
+      {% if _hero.address and _hero.address != '-' %}
+      <a class="fos-btn fos-btn--primary fos-btn--field"
+         href="https://map.kakao.com/?q={{ _hero.address|urlencode }}" target="_blank" rel="noopener">
+        <i class="fas fa-map-location-dot" aria-hidden="true"></i> 지도
+      </a>
+      {% endif %}
+      {% if _hero_phone and _hero_phone != '-' %}
+      <a class="fos-btn fos-btn--ghost fos-btn--field" href="tel:{{ _hero_phone }}" aria-label="{{ _hero.customer_name }} 전화">
+        <i class="fas fa-phone" aria-hidden="true"></i>
+      </a>
+      {% endif %}
+      <a class="fos-btn fos-btn--ghost fos-btn--field"
+         href="{{ url_for('erp_dashboard.erp_order_mobile_detail', order_id=_hero.id, return_to='erp_measurement_dashboard') }}">
+        상세
+      </a>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="fos-sec">
+    <div class="fos-sec__hd">오늘 방문 · {{ _rows|length }}건</div>
+    {% if _rows %}
+      {% for o in _rows %}{{ sales_card(o, _st_map) }}{% endfor %}
+    {% else %}
+    <div class="fos-empty">
+      <span class="fos-empty__ic"><i class="fas fa-ruler-combined" aria-hidden="true"></i></span>
+      <span class="fos-empty__title">오늘 예정된 실측이 없습니다</span>
+      <span class="fos-empty__sub">아래 예정 목록이나 기존 화면에서 전체 일정을 확인하세요.</span>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if _upcoming %}
+  <details class="fos-sec">
+    <summary class="fos-sec__hd" style="cursor:pointer">예정 · 내일 이후 {{ _upcoming|length }}일</summary>
+    {% for it in _upcoming %}
+    <a class="fos-queue-card"
+       href="{{ url_for('erp_measurement_dashboard.erp_measurement_dashboard', date=it.date) }}">
+      <span class="fos-queue-card__dot" style="--sc:var(--st-measure)"></span>
+      <span class="fos-queue-card__body">
+        <span class="fos-queue-card__title">
+          <span class="who tnum">{{ it.date }}</span>
+          <span class="prod">({{ _weekday[it.weekday] if it.weekday is not none else '' }})</span>
+        </span>
+        <span class="fos-queue-card__meta">
+          <span class="tnum">실측 {{ it.count }}건</span>
+          {%- if (it.count_regional or 0) > 0 %}<span>지방 {{ it.count_regional }}</span>{% endif -%}
+          {%- if (it.count_metro or 0) > 0 %}<span>수도권 {{ it.count_metro }}</span>{% endif -%}
+        </span>
+      </span>
+      <span class="fos-queue-card__aside">
+        <i class="fas fa-chevron-right fos-chevron" aria-hidden="true"></i>
+      </span>
+    </a>
+    {% endfor %}
+  </details>
+  {% endif %}
+</div>

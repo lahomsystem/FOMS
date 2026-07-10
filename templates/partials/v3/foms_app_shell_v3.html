@@ -1,0 +1,124 @@
+{# =========================================================================
+   FOMS Field OS v3 — 셸 진입 (shell_variant == 'v3' 게이트로만 include).
+   상단 앱바(페르소나 타이틀 + v2 복귀 토글) + 콘텐츠 슬롯 + v3 bottom nav.
+   콘텐츠 슬롯은 C3에서 임시 빈 상태(.fos-empty) — C4가 페르소나 홈으로 교체.
+   bottom nav 탭 구성·배지는 erp_mobile_shell.html(v2)의 팀별 규칙을 재사용한다
+   (CONSTRUCTION 좁힘 유지). 자산(css/js)은 layout_head.html이 배타 로드한다.
+   ========================================================================= #}
+{% set _endpoint = request.endpoint | default('', true) %}
+{% if erp_sub_nav_active is defined %}
+  {% set _active = erp_sub_nav_active %}
+{% elif 'erp_measurement_dashboard' in _endpoint %}
+  {% set _active = 'measurement' %}
+{% elif 'erp_drawing_workbench' in _endpoint %}
+  {% set _active = 'drawing_workbench' %}
+{% elif 'erp_production' in _endpoint %}
+  {% set _active = 'production' %}
+{% elif 'erp_shipment' in _endpoint %}
+  {% set _active = 'shipment' %}
+{% elif 'erp_as' in _endpoint %}
+  {% set _active = 'as' %}
+{% elif 'erp_construction' in _endpoint %}
+  {% set _active = 'construction' %}
+{% elif 'erp_completion' in _endpoint %}
+  {% set _active = 'completion' %}
+{% elif 'erp_history' in _endpoint %}
+  {% set _active = 'history' %}
+{% else %}
+  {% set _active = 'dashboard' %}
+{% endif %}
+{% set _team = (current_user.team or '') if current_user else '' %}
+{% set _construction_only = _team == 'CONSTRUCTION' %}
+{% set _sales_drawing_cohort = _team in ['SALES', 'DRAWING', 'MEASURE'] %}
+{% set _all_items = [
+  {'id': 'dashboard', 'label': '대시보드', 'icon': 'fas fa-layer-group', 'href': url_for('erp_dashboard.erp_dashboard')},
+  {'id': 'measurement', 'label': '실측', 'icon': 'fas fa-ruler-combined', 'href': url_for('erp_measurement_dashboard.erp_measurement_dashboard')},
+  {'id': 'drawing_workbench', 'label': '도면', 'icon': 'fas fa-drafting-compass', 'href': url_for('erp_drawing_workbench.erp_drawing_workbench_dashboard')},
+  {'id': 'production', 'label': '생산', 'icon': 'fas fa-industry', 'href': url_for('erp_production_page.erp_production_dashboard')},
+  {'id': 'shipment', 'label': '출고', 'icon': 'fas fa-truck-loading', 'href': url_for('erp_shipment_page.erp_shipment_dashboard')},
+  {'id': 'as', 'label': 'AS', 'icon': 'fas fa-wrench', 'href': url_for('erp_as_page.erp_as_dashboard')},
+  {'id': 'construction', 'label': '시공', 'icon': 'fas fa-hammer', 'href': url_for('erp_construction_page.erp_construction_dashboard')},
+  {'id': 'completion', 'label': '완료', 'icon': 'fas fa-clipboard-check', 'href': url_for('erp_completion_page.erp_completion_dashboard')},
+  {'id': 'history', 'label': '이력', 'icon': 'fas fa-history', 'href': url_for('erp_history.history_dashboard')}
+] %}
+{% if _construction_only %}
+  {% set _primary_ids = ['shipment', 'construction', 'completion', 'history'] %}
+{% elif _sales_drawing_cohort %}
+  {% set _primary_ids = ['dashboard', 'measurement', 'drawing_workbench', 'shipment'] %}
+{% else %}
+  {% set _primary_ids = ['dashboard', 'measurement', 'construction', 'shipment'] %}
+{% endif %}
+{% set _primary_items = [] %}
+{% for item in _all_items %}
+  {% if item.id in _primary_ids %}{% set _ = _primary_items.append(item) %}{% endif %}
+{% endfor %}
+{% set _persona_titles = {
+  'CS': '콜·AS 큐', 'SALES': '실측 큐', 'MEASURE': '실측 큐', 'DRAWING': '도면 큐',
+  'PRODUCTION': '생산 큐', 'CONSTRUCTION': '시공 큐', 'SHIPMENT': '출고 큐'
+} %}
+{% set _persona_title = _persona_titles.get(_team, 'FOMS Field OS') %}
+{% set _active_persona = {
+  'CS': 'cs', 'SALES': 'sales', 'MEASURE': 'sales', 'DRAWING': 'drawing',
+  'PRODUCTION': 'production', 'CONSTRUCTION': 'construction', 'SHIPMENT': 'shipment'
+}.get(_team, 'cs') %}
+<div class="fos-shell-v3" data-foms-app-shell-v3 data-active-persona="{{ _active_persona }}">
+  <header class="fos-topbar">
+    <div class="fos-topbar__l">
+      <span class="fos-topbar__title">{{ _persona_title }}</span>
+      {% if current_user %}
+      <span class="fos-topbar__sub">{{ current_user.name }}{% if _team %} · {{ _team }}{% endif %}</span>
+      {% endif %}
+    </div>
+    <button type="button" class="fos-topbar__toggle" data-foms-shell-toggle="v2"
+            aria-label="기존 모바일(v2) 화면으로 전환">
+      <i class="fas fa-rotate-left" aria-hidden="true"></i>
+      <span>기존 화면</span>
+    </button>
+  </header>
+
+  <div class="fos-content" data-foms-v3-content>
+    {# 콘텐츠 슬롯 계약: 페르소나 body가 include 전 {% set fos_content_partial = '...' %}로
+       홈 partial 경로를 지정하면 여기서 렌더한다. 미지정 시 빈 상태 placeholder(페르소나 무관). #}
+    {% if fos_content_partial %}
+      {% include fos_content_partial %}
+    {% else %}
+    <div class="fos-empty">
+      <span class="fos-empty__ic"><i class="fas fa-layer-group" aria-hidden="true"></i></span>
+      <span class="fos-empty__title">{{ _persona_title }} 준비 중</span>
+      <span class="fos-empty__sub">페르소나별 큐 화면을 곧 제공합니다. 기존 화면이 필요하면 우측 상단에서 전환하세요.</span>
+    </div>
+    {% endif %}
+  </div>
+
+  <nav class="fos-bottomnav" aria-label="FOMS v3 주요 메뉴">
+    {% for item in _primary_items %}
+      <a class="{% if _active == item.id %}is-active{% endif %}"
+         href="{{ item.href }}"
+         data-foms-nav-id="{{ item.id }}"
+         aria-current="{% if _active == item.id %}page{% else %}false{% endif %}">
+        <span class="ic"><i class="{{ item.icon }}" aria-hidden="true"></i></span>
+        <span>{{ item.label }}</span>
+        {% set _nav_badge = (foms_nav_badges or {}).get(item.id, 0) %}
+        {% if _nav_badge > 0 %}
+          <span class="fos-nav-badge" aria-label="미처리 {{ _nav_badge }}건">{{ _nav_badge if _nav_badge < 100 else '99+' }}</span>
+        {% endif %}
+      </a>
+    {% endfor %}
+  </nav>
+
+  {# 주문 360° 타임라인 공용 바텀시트(C5) — 카드의 [data-fos-timeline] 진입점이
+     열고, foms-mobile-v3.js가 fragment fetch 결과를 body에 주입한다. 표시 전용. #}
+  <div class="fos-scrim" data-close-sheet></div>
+  <div class="fos-sheet" data-sheet="order360" role="dialog" aria-label="주문 진행 타임라인">
+    <span class="fos-sheet__handle"></span>
+    <div class="fos-sheet__hd">
+      <h3>주문 진행</h3>
+      <button type="button" class="fos-sheet__close" data-close-sheet aria-label="닫기">
+        <i class="fas fa-xmark" aria-hidden="true"></i>
+      </button>
+    </div>
+    <div data-fos-timeline-body>
+      <div class="fos-empty"><span class="fos-empty__sub">불러오는 중…</span></div>
+    </div>
+  </div>
+</div>

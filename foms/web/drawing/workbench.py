@@ -341,13 +341,14 @@ def erp_drawing_workbench_dashboard():
             and is_drawing_workbench_participant(current_user, o)
         )
         can_confirm_row = bool(can_sales and drawing_status == 'TRANSFERRED')
+        transfer_round = sum(1 for h in history if isinstance(h, dict) and h.get('action') == 'TRANSFER')
         turn = _build_drawing_turn(
             drawing_status,
             has_assignee,
             can_transfer_row,
             can_confirm_row,
             len(drawing_files),
-            sum(1 for h in history if isinstance(h, dict) and h.get('action') == 'TRANSFER'),
+            transfer_round,
         )
         if can_confirm_row:
             primary_action = {'label': '수령 확인', 'icon': 'fa-check-double'}
@@ -407,6 +408,7 @@ def erp_drawing_workbench_dashboard():
             'drawing_status': drawing_status,
             'drawing_status_label': _drawing_status_label(drawing_status),
             'file_count': len(drawing_files),
+            'transfer_round': transfer_round,
             'pending_count': pending_count,
             'thumbnail_url': resolve_row_thumbnail_url(
                 o.id, drawing_files, db, mobile_v2_active=mobile_v2_active

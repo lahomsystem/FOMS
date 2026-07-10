@@ -51,6 +51,7 @@ from foms.services.construction_read_model import (
     paginate_construction_orders,
 )
 from foms.services.feature_flags import is_mobile_v2_shell, resolve_shell_variant_cached
+from foms.services.datetime_kst import get_today_kst
 from models import Order
 
 erp_construction_page_bp = Blueprint("erp_construction_page", __name__, url_prefix="/erp")
@@ -225,6 +226,7 @@ def erp_construction_dashboard():
             per_page=per_page,
             total_pages=total_pages,
             total_orders=total_orders,
+            today_iso=get_today_kst().isoformat(),
         )
     )
     apply_ept_b7_render_headers(
