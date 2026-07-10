@@ -1,0 +1,56 @@
+{# =========================================================================
+   FOMS Field OS v3 — 주문 360° 8단계 수직 타임라인 (읽기/표시 전용, v3.0).
+   foms/api/fragment.py:order_timeline_fragment 가 렌더해 바텀시트 body에 주입.
+   소비 컨텍스트: timeline(build_order_timeline 결과) — order_id, customer_name,
+     current_code, current_label, stages[]{code,label,sc,state,when,who,note}.
+   접기/펼치기는 셸 foms-mobile-v3.js 위임(data-tl-toggle) — 신규 스크립트 없음.
+   현재 단계 카드는 is-open으로 펼친 상태로 내려간다(현장 우선 정보).
+   ========================================================================= #}
+{%- set _t = timeline or {} -%}
+{%- set _stages = _t.stages or [] -%}
+<div class="fos-tl-wrap" data-fos-order360="{{ _t.order_id }}">
+  <div class="fos-tl-head-row">
+    <span class="fos-sheet__label">주문 진행 · 360°</span>
+    <span class="fos-tl-cur">{{ _t.customer_name }} · 현재 {{ _t.current_label or '-' }}</span>
+  </div>
+  {% if _stages %}
+  <div class="fos-timeline">
+    {% for s in _stages %}
+    <div class="fos-tl-item{% if s.state == 'done' %} is-done{% elif s.state == 'current' %} is-current{% endif %}"
+         style="--sc:var(--st-{{ s.sc }})">
+      <span class="fos-tl-dot"></span>
+      <div class="fos-tl-card{% if s.state == 'current' %} is-open{% endif %}">
+        <button type="button" class="fos-tl-head" data-tl-toggle
+                aria-label="{{ s.label }} 단계 상세 접기/펼치기">
+          <span class="fos-tl-head__l">
+            <span class="fos-tl-head__title">{{ s.label }}</span>
+            <span class="fos-tl-head__meta">
+              {%- if s.when %}{{ s.when }}{% elif s.state == 'pending' %}대기{% else %}기록 없음{% endif -%}
+              {%- if s.who %} · {{ s.who }}{% endif -%}
+            </span>
+          </span>
+          <span class="fos-tl-caret"><i class="fas fa-chevron-down" aria-hidden="true"></i></span>
+        </button>
+        <div class="fos-tl-body">
+          {% if s.note %}
+          <div class="fos-note">{{ s.note }}</div>
+          {% elif s.state == 'pending' %}
+          <div class="fos-note">아직 진행되지 않은 단계입니다.</div>
+          {% elif s.when %}
+          <div class="fos-note"><span class="k">{{ s.label }}</span>{{ s.when }} 도달{% if s.who %} · {{ s.who }}{% endif %}</div>
+          {% else %}
+          <div class="fos-note">{{ s.label }} 단계 진행 기록.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="fos-empty">
+    <span class="fos-empty__ic"><i class="fas fa-timeline" aria-hidden="true"></i></span>
+    <span class="fos-empty__title">표시할 진행 단계가 없습니다</span>
+    <span class="fos-empty__sub">이 주문은 아직 단계 이력이 기록되지 않았습니다.</span>
+  </div>
+  {% endif %}
+</div>
