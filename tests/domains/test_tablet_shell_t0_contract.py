@@ -101,6 +101,25 @@ def test_grid_geometry_on_base_and_default_hidden() -> None:
     assert "display: none" in base.group(0), "split wrapper must default to hidden"
 
 
+def test_split_base_hide_precedes_opt_in() -> None:
+    """Source-order contract: the base ``.foms-split-enabled { display: none }``
+    must come BEFORE the split-show ``@media`` opt-in block.
+
+    Same specificity means source order decides the cascade; a base hide placed
+    after the opt-in silently blanks the whole 992–1365 band (2026-07-11
+    staging incident — string-presence contracts alone could not see cascade
+    order, only the viewport smoke caught it).
+    """
+    css = _read(SPLIT_CSS)
+    base = re.search(r"\.foms-split-enabled \{[^}]*width: 100%[^}]*\}", css, re.S)
+    assert base is not None, "expected base .foms-split-enabled rule"
+    assert "display: none" in base.group(0)
+    opt_in = css.index(SPLIT_SHOW_QUERIES[0])
+    assert base.start() < opt_in, (
+        "base .foms-split-enabled hide must precede the split-show @media block"
+    )
+
+
 def test_data_foms_shell_escape_hatch_hooks() -> None:
     """Manual override hooks exist and win over the matrix via !important."""
     css = _read(SPLIT_CSS)
