@@ -240,11 +240,11 @@ def test_v3_appbar_title_is_page_persona_not_viewer_team(
 
     assert response.status_code == 200, f"{path} -> {response.status_code}"
     body = response.get_data(as_text=True)
-    assert f'fos-topbar__title">{title}</span>' in body, (
+    assert f'fos-topbar__title">{title}</h1>' in body, (
         f"{path} topbar title != {title!r}"
     )
     if title != "콜·AS 큐":
-        assert 'fos-topbar__title">콜·AS 큐</span>' not in body, (
+        assert 'fos-topbar__title">콜·AS 큐</h1>' not in body, (
             f"{path} still shows team-derived CS title instead of page persona"
         )
 

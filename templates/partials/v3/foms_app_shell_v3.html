@@ -78,7 +78,7 @@
 <div class="fos-shell-v3" data-foms-app-shell-v3 data-active-persona="{{ _active_persona }}">
   <header class="fos-topbar">
     <div class="fos-topbar__l">
-      <span class="fos-topbar__title">{{ _persona_title }}</span>
+      <h1 class="fos-topbar__title">{{ _persona_title }}</h1>
       {% if current_user %}
       <span class="fos-topbar__sub">{{ current_user.name }}{% if _team %} · {{ _team }}{% endif %}</span>
       {% endif %}
