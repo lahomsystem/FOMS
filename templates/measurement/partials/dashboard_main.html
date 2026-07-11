@@ -1,8 +1,4 @@
-{% if shell_variant == 'v3' %}
-{# v3 셸 병렬 분기: 영업·실측 페르소나 홈만 렌더(기존 v2/desktop 마크업 미로드). #}
-{% set fos_content_partial = 'partials/v3/persona_home_sales.html' %}
-{% include 'partials/v3/foms_app_shell_v3.html' %}
-{% else %}
+{% set _fos_desktop_body %}
 <div class="erp-pro erp-mobile-shell erp-measurement-dashboard" data-erp-order-active="{{ 'true' if erp_order_enabled else 'false' }}"
   data-erp-active="{{ 'true' if erp_order_enabled else 'false' }}" data-today-date="{{ today_date }}"
   data-selected-date="{{ selected_date }}" data-search-q="{{ search_q }}"
@@ -1055,4 +1051,11 @@
     </div>
   </div>
 </div>
-{% endif %}{# /shell_variant == 'v3' #}
+{% endset %}{% if shell_variant == 'v3' %}
+<div class="fos-v3-mobile-scope">
+{# v3 셸 병렬 분기: 영업·실측 페르소나 홈만 렌더(기존 v2/desktop 마크업 미로드). #}
+{% set fos_content_partial = 'partials/v3/persona_home_sales.html' %}
+{% include 'partials/v3/foms_app_shell_v3.html' %}
+</div>
+<div class="fos-v3-desktop-fallback">{{ _fos_desktop_body|safe }}</div>
+{% else %}{{ _fos_desktop_body|safe }}{% endif %}{# /shell_variant == 'v3' #}

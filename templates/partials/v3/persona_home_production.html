@@ -97,11 +97,13 @@
               <span class="who">{{ o.customer_name or '-' }}</span>
               {% if o.v3_product_label %}<span class="prod">{{ o.v3_product_label }}</span>{% endif %}
             </span>
-            {% if o.v3_spec_display or o.v3_material %}
+            {% if o.v3_spec_display %}
               <span class="px-production-spec">
-                {{ o.v3_spec_display or '규격 미정' }}
+                {{ o.v3_spec_display }}
                 {% if o.v3_material %}<span class="mat">{{ o.v3_material }}</span>{% endif %}
               </span>
+            {% else %}
+              <span class="px-production-specmuted">규격 미정{% if o.v3_material %} · {{ o.v3_material }}{% endif %}</span>
             {% endif %}
             <span class="px-production-job">#{{ o.id }}{% if o.construction_date %} · 시공 {{ o.construction_date }}{% endif %}</span>
             <span class="fos-queue-card__meta px-production-tagrow">

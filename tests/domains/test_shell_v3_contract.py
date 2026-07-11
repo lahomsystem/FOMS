@@ -48,6 +48,18 @@ PERSONA_ROUTE_MARKERS = [
     ("/erp/shipment", "px-shipment-herounit"),
 ]
 
+# Each route's persona-derived app-bar (topbar) title. The title must follow the
+# PAGE persona, not the viewer's team — the ADMIN test user is team=CS, so before
+# the page-based wiring every route rendered the team title "콜·AS 큐" (defect A).
+PERSONA_APPBAR_TITLES = [
+    ("/erp/dashboard", "콜·접수 큐"),
+    ("/erp/measurement", "오늘 동선"),
+    ("/erp/drawing-workbench", "워크벤치"),
+    ("/erp/production/dashboard", "생산 큐"),
+    ("/erp/construction/dashboard", "오늘 시공"),
+    ("/erp/shipment", "오늘 상차"),
+]
+
 
 def _login_admin(client, username: str = "shell_v3_admin") -> User:
     """Create an ADMIN (team=CS) user and seed a logged-in session.
@@ -210,6 +222,33 @@ def test_v3_domain_routes_render_persona_home(
     assert marker in body, f"{path} missing persona marker {marker!r}"
 
 
+@pytest.mark.parametrize(("path", "title"), PERSONA_APPBAR_TITLES)
+def test_v3_appbar_title_is_page_persona_not_viewer_team(
+    client, monkeypatch, path, title
+) -> None:
+    """App-bar title reflects the page persona, not the CS viewer's team (defect A).
+
+    Contract 7: each domain route renders its own topbar title; the team-derived
+    ``콜·AS 큐`` must not leak onto non-CS persona pages. Unique usernames per param
+    avoid any cross-parametrization user collision.
+    """
+    username = "shell_v3_title_" + path.strip("/").replace("/", "_")
+    user = _login_admin(client, username=username)  # team=CS
+    _enable_v3(monkeypatch, user.id)
+
+    response = client.get(path)
+
+    assert response.status_code == 200, f"{path} -> {response.status_code}"
+    body = response.get_data(as_text=True)
+    assert f'fos-topbar__title">{title}</span>' in body, (
+        f"{path} topbar title != {title!r}"
+    )
+    if title != "콜·AS 큐":
+        assert 'fos-topbar__title">콜·AS 큐</span>' not in body, (
+            f"{path} still shows team-derived CS title instead of page persona"
+        )
+
+
 def test_v3_fragment_tab_swap_returns_persona_shell_slice(client, monkeypatch) -> None:
     """v3 user fragment fetch (shell header + view=fragment) → 200 slice, no doc.
 
@@ -229,3 +268,93 @@ def test_v3_fragment_tab_swap_returns_persona_shell_slice(client, monkeypatch) -
     data = response.get_data()
     assert b"<!DOCTYPE" not in data[:80]
     assert V3_SHELL_MARKER.encode() in data
+
+
+# --- Dual-render (defect [G]) wrapper contract -----------------------------
+# v3 no longer replaces the desktop body server-side; it renders BOTH the v3
+# shell (mobile scope) and the original desktop body (fallback), gated by a
+# 992px CSS breakpoint (v2 parity). Each route exposes a stable DESKTOP-only
+# marker that must live INSIDE the fallback wrapper.
+V3_MOBILE_SCOPE = "fos-v3-mobile-scope"
+V3_DESKTOP_FALLBACK = "fos-v3-desktop-fallback"
+DUAL_RENDER_DESKTOP_MARKERS = [
+    ("/erp/dashboard", "ERP 프로세스 대시보드"),
+    ("/erp/measurement", "erp-measurement-dashboard"),
+    ("/erp/drawing-workbench", "도면 작업실 대시보드"),
+    ("/erp/production/dashboard", "생산 대시보드"),
+    ("/erp/construction/dashboard", "시공 대시보드"),
+    ("/erp/shipment", "shipment-dashboard-columns"),
+]
+
+
+@pytest.mark.parametrize(("path", "desktop_marker"), DUAL_RENDER_DESKTOP_MARKERS)
+def test_v3_dual_render_keeps_desktop_fallback_in_scope(
+    client, monkeypatch, path, desktop_marker
+) -> None:
+    """Contract 8 (defect [G]): v3 response carries BOTH wrappers and the
+    domain's desktop marker sits inside the desktop-fallback wrapper.
+
+    Proves the server no longer takes over the desktop screen for v3 users: the
+    desktop body is still emitted (and CSS-gated to ≥992), not dropped.
+    """
+    username = "shell_v3_dual_" + path.strip("/").replace("/", "_")
+    user = _login_admin(client, username=username)
+    _enable_v3(monkeypatch, user.id)
+
+    response = client.get(path)
+
+    assert response.status_code == 200, f"{path} -> {response.status_code}"
+    body = response.get_data(as_text=True)
+    # (a) both dual-render wrappers present, v3 shell scope before desktop fallback
+    assert V3_MOBILE_SCOPE in body, f"{path} missing {V3_MOBILE_SCOPE}"
+    assert V3_DESKTOP_FALLBACK in body, f"{path} missing {V3_DESKTOP_FALLBACK}"
+    assert body.index(V3_MOBILE_SCOPE) < body.index(V3_DESKTOP_FALLBACK), (
+        f"{path} v3 mobile scope must precede the desktop fallback"
+    )
+    # v3 shell marker still lives inside the mobile scope (not the fallback)
+    assert V3_SHELL_MARKER in body
+    # (b) the domain's desktop marker is INSIDE the fallback wrapper
+    fallback_from = body.index(V3_DESKTOP_FALLBACK)
+    assert desktop_marker in body[fallback_from:], (
+        f"{path} desktop marker {desktop_marker!r} not inside fallback wrapper"
+    )
+
+
+@pytest.mark.parametrize("variant", ["v2", "legacy"])
+def test_non_v3_render_has_no_dual_render_wrappers(
+    client, monkeypatch, variant
+) -> None:
+    """Contract 9 (defect [G]): non-v3 (v2/legacy) responses are unchanged and
+    contain ZERO dual-render wrapper classes (the else path is byte-stable)."""
+    user = _login_admin(client, username=f"shell_no_wrap_{variant}")
+    if variant == "v2":
+        _enable_v2_only(monkeypatch, user.id)
+    else:
+        _enable_legacy(monkeypatch)
+
+    response = client.get("/erp/dashboard")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert V3_MOBILE_SCOPE not in body
+    assert V3_DESKTOP_FALLBACK not in body
+
+
+def test_v3_css_has_dual_render_gates_and_fixed_bottomnav() -> None:
+    """Contract 10 (defects [G]/[H]): the v3 CSS carries the 992px dual-render
+    gate rules and the fixed bottom-nav rule (grep-level contract, since the
+    test client cannot evaluate CSS layout)."""
+    import pathlib
+
+    css = (
+        pathlib.Path(__file__).resolve().parents[2]
+        / "static" / "css" / "v3" / "foms-mobile-v3.css"
+    ).read_text(encoding="utf-8")
+    # [G] breakpoint gates for the two wrappers
+    assert V3_MOBILE_SCOPE in css
+    assert V3_DESKTOP_FALLBACK in css
+    assert "min-width: 992px" in css
+    assert "max-width: 991.98px" in css
+    # [H] bottom nav pinned to the viewport bottom
+    assert ".fos-shell-v3 .fos-bottomnav" in css
+    assert "position: fixed" in css

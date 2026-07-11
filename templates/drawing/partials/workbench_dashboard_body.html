@@ -1,10 +1,6 @@
 {% import 'drawing/partials/workbench_dashboard_macros.html' as wb %}
 {# foms-kv-rollout: erp_mobile_shell → kv-copy.js #}
-{% if shell_variant == 'v3' %}
-{# v3 셸: 도면 페르소나 홈(읽기/표시 전용). v2/legacy는 아래 else 경로 그대로. #}
-{% set fos_content_partial = 'partials/v3/persona_home_drawing.html' %}
-{% include 'partials/v3/foms_app_shell_v3.html' %}
-{% else %}
+{% set _fos_desktop_body %}
 <div class="erp-pro erp-mobile-shell" data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
   {% if erp_mobile_v2_enabled %}
     {% include 'partials/shared/erp_mobile_shell.html' %}
@@ -402,4 +398,11 @@
 </div>
 
 <script src="{{ url_for('static', filename='js/drawing/workbench-dashboard.js') }}" defer></script>
-{% endif %}
+{% endset %}{% if shell_variant == 'v3' %}
+<div class="fos-v3-mobile-scope">
+{# v3 셸: 도면 페르소나 홈(읽기/표시 전용). v2/legacy는 아래 else 경로 그대로. #}
+{% set fos_content_partial = 'partials/v3/persona_home_drawing.html' %}
+{% include 'partials/v3/foms_app_shell_v3.html' %}
+</div>
+<div class="fos-v3-desktop-fallback">{{ _fos_desktop_body|safe }}</div>
+{% else %}{{ _fos_desktop_body|safe }}{% endif %}

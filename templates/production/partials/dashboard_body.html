@@ -1,9 +1,5 @@
 {% set filters = filters or {} %}
-{% if shell_variant == 'v3' %}
-{# v3 Field OS 셸: 생산 페르소나 홈을 콘텐츠 슬롯에 주입(읽기 전용). 기존 v2/legacy 경로 무변경. #}
-{% set fos_content_partial = 'partials/v3/persona_home_production.html' %}
-{% include 'partials/v3/foms_app_shell_v3.html' %}
-{% else %}
+{% set _fos_desktop_body %}
 <div class="container-fluid erp-dashboard erp-pro erp-mobile-shell"
   data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
   {% if erp_mobile_v2_enabled %}
@@ -138,4 +134,11 @@
   <script src="{{ url_for('static', filename='js/orders/order-detail-fragment.js') }}" defer></script>
   {% include 'production/partials/scripts.html' %}
 </div>
-{% endif %}
+{% endset %}{% if shell_variant == 'v3' %}
+<div class="fos-v3-mobile-scope">
+{# v3 Field OS 셸: 생산 페르소나 홈을 콘텐츠 슬롯에 주입(읽기 전용). 기존 v2/legacy 경로 무변경. #}
+{% set fos_content_partial = 'partials/v3/persona_home_production.html' %}
+{% include 'partials/v3/foms_app_shell_v3.html' %}
+</div>
+<div class="fos-v3-desktop-fallback">{{ _fos_desktop_body|safe }}</div>
+{% else %}{{ _fos_desktop_body|safe }}{% endif %}

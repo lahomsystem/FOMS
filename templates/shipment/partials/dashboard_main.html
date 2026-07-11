@@ -1,8 +1,4 @@
-{% if shell_variant == 'v3' %}
-{# v3 셸 병렬 분기: 출고 페르소나 홈만 렌더(전체 화면 takeover). else 경로는 기존 v2/legacy 그대로. #}
-{% set fos_content_partial = 'partials/v3/persona_home_shipment.html' %}
-{% include 'partials/v3/foms_app_shell_v3.html' %}
-{% else %}
+{% set _fos_desktop_body %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/shipment-dashboard-columns.css') }}">
 {# foms-kv-rollout: erp_mobile_shell → kv-copy.js #}
 <div class="erp-pro erp-mobile-shell" data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
@@ -581,4 +577,11 @@
 {% if erp_mobile_v2_enabled %}
   {% include 'partials/shared/foms_attachment_preview_modal.html' %}
 {% endif %}
-{% endif %}{# /shell_variant == 'v3' 병렬 분기 #}
+{% endset %}{% if shell_variant == 'v3' %}
+<div class="fos-v3-mobile-scope">
+{# v3 셸 병렬 분기: 출고 페르소나 홈만 렌더(전체 화면 takeover). else 경로는 기존 v2/legacy 그대로. #}
+{% set fos_content_partial = 'partials/v3/persona_home_shipment.html' %}
+{% include 'partials/v3/foms_app_shell_v3.html' %}
+</div>
+<div class="fos-v3-desktop-fallback">{{ _fos_desktop_body|safe }}</div>
+{% else %}{{ _fos_desktop_body|safe }}{% endif %}{# /shell_variant == 'v3' 병렬 분기 #}

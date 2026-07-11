@@ -52,15 +52,29 @@
 {% for item in _all_items %}
   {% if item.id in _primary_ids %}{% set _ = _primary_items.append(item) %}{% endif %}
 {% endfor %}
+{# 앱바 타이틀·액센트는 '뷰어의 팀'이 아니라 '현재 페이지(페르소나 홈)' 기준으로 배선한다.
+   (근본원인: 과거엔 current_user.team으로 고정 → CS팀이 실측/생산/시공/출고 홈을 봐도
+   앱바가 '콜·AS 큐'로 고정 렌더됐다.) 우선순위:
+   1) 도메인 body가 include 직전 {% set v3_appbar_title %}로 지정한 값,
+   2) 현재 라우트(_active) 파생 기본값, 3) 팀 기반(레거시 최종 폴백). #}
 {% set _persona_titles = {
   'CS': '콜·AS 큐', 'SALES': '실측 큐', 'MEASURE': '실측 큐', 'DRAWING': '도면 큐',
   'PRODUCTION': '생산 큐', 'CONSTRUCTION': '시공 큐', 'SHIPMENT': '출고 큐'
 } %}
-{% set _persona_title = _persona_titles.get(_team, 'FOMS Field OS') %}
-{% set _active_persona = {
+{% set _page_titles = {
+  'dashboard': '콜·접수 큐', 'measurement': '오늘 동선', 'drawing_workbench': '워크벤치',
+  'production': '생산 큐', 'shipment': '오늘 상차', 'construction': '오늘 시공', 'as': 'AS 큐'
+} %}
+{% set _persona_title = v3_appbar_title if (v3_appbar_title is defined and v3_appbar_title)
+  else _page_titles.get(_active, _persona_titles.get(_team, 'FOMS Field OS')) %}
+{% set _page_personas = {
+  'dashboard': 'cs', 'measurement': 'sales', 'drawing_workbench': 'drawing',
+  'production': 'production', 'shipment': 'shipment', 'construction': 'construction', 'as': 'cs'
+} %}
+{% set _active_persona = _page_personas.get(_active, {
   'CS': 'cs', 'SALES': 'sales', 'MEASURE': 'sales', 'DRAWING': 'drawing',
   'PRODUCTION': 'production', 'CONSTRUCTION': 'construction', 'SHIPMENT': 'shipment'
-}.get(_team, 'cs') %}
+}.get(_team, 'cs')) %}
 <div class="fos-shell-v3" data-foms-app-shell-v3 data-active-persona="{{ _active_persona }}">
   <header class="fos-topbar">
     <div class="fos-topbar__l">

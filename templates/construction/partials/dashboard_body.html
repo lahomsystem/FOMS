@@ -1,8 +1,5 @@
 {% set filters = filters or {} %}
-{% if shell_variant == 'v3' %}
-  {% set fos_content_partial = 'partials/v3/persona_home_construction.html' %}
-  {% include 'partials/v3/foms_app_shell_v3.html' %}
-{% else %}
+{% set _fos_desktop_body %}
 <div class="container-fluid erp-dashboard erp-pro erp-mobile-shell"
   data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
   {% if erp_mobile_v2_enabled %}
@@ -137,4 +134,10 @@
   <script src="{{ url_for('static', filename='js/orders/order-detail-fragment.js') }}" defer></script>
   {% include 'construction/partials/scripts.html' %}
 </div>
-{% endif %}
+{% endset %}{% if shell_variant == 'v3' %}
+<div class="fos-v3-mobile-scope">
+  {% set fos_content_partial = 'partials/v3/persona_home_construction.html' %}
+  {% include 'partials/v3/foms_app_shell_v3.html' %}
+</div>
+<div class="fos-v3-desktop-fallback">{{ _fos_desktop_body|safe }}</div>
+{% else %}{{ _fos_desktop_body|safe }}{% endif %}

@@ -53,7 +53,6 @@
 <div class="fos-scroll" data-persona-home="sales">
   <div class="fos-appbar">
     <div>
-      <h2>오늘 동선</h2>
       <div class="sub tnum">실측 {{ _rows|length }}곳{% if _upcoming %} · 예정 {{ _upcoming|length }}일{% endif %}{% if erp_mine_only %} · 내 담당{% endif %}</div>
     </div>
   </div>
@@ -109,7 +108,8 @@
   </div>
 
   {% if _upcoming %}
-  <details class="fos-sec">
+  {# 오늘 방문 0건이면 '예정 · 내일 이후' 접힘 섹션을 자동 펼침(빈 화면 방지, 결함E) #}
+  <details class="fos-sec"{% if not _rows %} open{% endif %}>
     <summary class="fos-sec__hd is-summary">예정 · 내일 이후 {{ _upcoming|length }}일</summary>
     {% for it in _upcoming %}
     <a class="fos-queue-card"

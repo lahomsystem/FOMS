@@ -536,3 +536,49 @@
 .px-drawing-tagrow{gap:6px; margin-top:1px}
 .px-production-tagrow{margin-top:3px; align-items:center; gap:7px}
 .fos-hero__big .px-production-job{margin-left:6px}
+
+/* =========================================================================
+   목업 충실도 결함 보강 (2026-07 v3 스테이징 QA — 결함 B·D)
+   ========================================================================= */
+/* [결함B] 전역 foundation/style.css의 a{color:#007aff}·a:hover{text-decoration:underline}가
+   v3 셸 안으로 새어, 큐 카드 링크(고객명·주소·제품명·날짜)가 애플 블루+밑줄로 렌더되는
+   문제를 근본 차단한다. 시공·생산·출고 홈은 .fos-queue-card(--link 미부여)라 특히 노출됐다.
+   버튼(.fos-btn*)·콜버튼(.fos-callbtn) 등 의도된 액센트 색은 색 리셋에서 제외해 유지. */
+.fos-shell-v3 a{text-decoration:none}
+.fos-shell-v3 a:hover,.fos-shell-v3 a:focus{text-decoration:none}
+.fos-shell-v3 a:not([class*="fos-btn"]):not(.fos-callbtn){color:inherit}
+
+/* [결함D] 생산 카드 규격 강등: 규격 값이 있으면 .px-production-spec(22px 주인공),
+   없으면 이 보조 라벨(13px tx2)로 낮춰 제품명이 주인공이 되게 한다. */
+.px-production-specmuted{font-size:13px; color:var(--fos-tx2); font-weight:600; font-variant-numeric:tabular-nums}
+
+/* =========================================================================
+   [결함G] v3/데스크톱 듀얼 렌더 게이트 (v2 원칙 정합)
+   근본원인: v3 배선이 서버에서 body를 통째 교체({% if v3 %}v3만{% else %}기존{% endif %})
+   해, v3 자격자가 PC(≥992)로 접속하면 데스크톱 대시보드가 사라지고 모바일 v3 다크 큐가
+   렌더됐다. v2 원칙(데스크톱+모바일 둘 다 렌더하고 CSS 브레이크포인트로 한쪽만 표시)에
+   맞춰, 도메인 body는 이제 .fos-v3-mobile-scope(v3 셸)와 .fos-v3-desktop-fallback
+   (기존 데스크톱 body)을 둘 다 렌더한다. 이 파일은 shell_variant=='v3'에서만 로드되므로
+   게이트는 v3 사용자에게만 적용된다(v2/legacy DOM엔 이 wrapper 자체가 없다).
+   ========================================================================= */
+@media (min-width: 992px) { .fos-v3-mobile-scope { display: none; } }
+@media (max-width: 991.98px) { .fos-v3-desktop-fallback { display: none; } }
+
+/* =========================================================================
+   [결함H] v3 하단 nav 화면 고정
+   근본원인: .fos-shell-v3가 min-height:100dvh flex column + .fos-bottomnav가
+   position:static이라, 콘텐츠가 뷰포트보다 길면 셸이 늘어나며 nav가 문서 흐름 끝
+   (화면 밖)으로 밀렸다(390x844에서 nav y≈855). position:fixed로 하단 고정하고,
+   스크롤 콘텐츠 마지막 요소가 nav에 가리지 않도록 .fos-content에 nav 높이(≈68px)+
+   safe-area만큼 하단 패딩을 준다(.fos-sticky-action은 .fos-content 안 in-flow라 같은
+   패딩으로 함께 위로 밀려 nav 위에 앉는다). z-index는 스크림(1040)·시트(1050)보다 낮은
+   1030으로 두어 시트 오픈 시 nav가 딤 아래에 놓인다. <992 범위 한정(≥992는 [결함G]로
+   .fos-v3-mobile-scope가 숨겨져 무관). */
+@media (max-width: 991.98px) {
+  .fos-shell-v3 .fos-bottomnav {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 1030;
+  }
+  .fos-shell-v3 .fos-content {
+    padding-bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+  }
+}
