@@ -14,6 +14,8 @@ Stable markers (chosen by reading the templates):
   - v3 shell JS     : ``js/v3/foms-mobile-v3.js``
   - v3 toggle JS    : ``js/v3/foms-shell-toggle.js`` (v3-eligible only)
   - drawer entry    : ``data-foms-shell-toggle="v3"`` (v2 shell + v3-eligible)
+  - header switch   : ``erp-mobile-shell-header__switch`` (v2 shell header, always
+                      visible for v3-eligible — symmetric with the v3 "기존 화면" btn)
 """
 
 from __future__ import annotations
@@ -32,6 +34,7 @@ V3_CSS_LINK = "css/v3/foms-mobile-v3.css"
 V3_SHELL_JS = "js/v3/foms-mobile-v3.js"
 V3_TOGGLE_JS = "js/v3/foms-shell-toggle.js"
 DRAWER_V3_ENTRY = 'data-foms-shell-toggle="v3"'
+HEADER_V3_SWITCH = "erp-mobile-shell-header__switch"
 
 # 6 domain routes → the persona-home marker that route injects into the v3 slot.
 # Paths verified against blueprint url_for targets (erp_construction uses the
@@ -140,6 +143,8 @@ def test_v3_eligible_with_v2_cookie_returns_v2_shell_with_drawer_entry(
     assert V2_CRITICAL_CSS in body
     assert V3_CSS_LINK not in body
     assert DRAWER_V3_ENTRY in body
+    # Symmetric one-tap switch: v2 shell header exposes the v3 toggle button too.
+    assert HEADER_V3_SWITCH in body
     assert V3_SHELL_MARKER not in body
 
 
@@ -161,6 +166,8 @@ def test_v2_only_user_has_no_v3_assets_or_toggle(client, monkeypatch) -> None:
     assert V3_SHELL_JS not in body
     assert V3_TOGGLE_JS not in body
     assert DRAWER_V3_ENTRY not in body
+    # Non-v3-eligible v2 user: header switch button must be absent too.
+    assert HEADER_V3_SWITCH not in body
     assert V3_SHELL_MARKER not in body
 
 

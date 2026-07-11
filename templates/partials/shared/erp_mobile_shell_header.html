@@ -38,6 +38,18 @@
       <i class="fas fa-user-check" aria-hidden="true"></i>
     </a>
     {% endif %}
+    {# v3 자격자가 v2 셸을 보는 중일 때만: 헤더 우측에 v3 원탭 전환 버튼을 상시 노출.
+       drawer 진입점과 동일한 data-foms-shell-toggle="v3" 를 재사용 → foms-shell-toggle.js
+       위임이 쿠키(foms_shell_pref=v3) set 후 리로드. 기존 헤더 아이콘 버튼 스타일 재사용. #}
+    {% if shell_variant == 'v2' and shell_v3_eligible %}
+    <button
+      class="erp-mobile-shell-header__switch foms-icon-btn"
+      type="button"
+      data-foms-shell-toggle="v3"
+      aria-label="새 모바일(v3) 화면으로 전환">
+      <i class="fas fa-rotate-right" aria-hidden="true"></i>
+    </button>
+    {% endif %}
     <button
       class="erp-mobile-shell-header__search foms-icon-btn"
       type="button"
