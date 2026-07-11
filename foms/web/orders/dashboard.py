@@ -582,6 +582,7 @@ def erp_order_mobile_detail(order_id: int):
         build_mobile_queue_batch_context,
         build_mobile_queue_order_row,
     )
+    from foms.services.order_timeline_v3 import load_order_timeline
 
     current_user = getattr(g, 'current_user', None)
     # 단건이라도 batch_ctx 없이는 ~5쿼리(첨부/미리보기/타임라인/담당자 단건조회) —
@@ -595,6 +596,7 @@ def erp_order_mobile_detail(order_id: int):
     return render_template(
         'orders/mobile_order_detail.html',
         order=order_row,
+        timeline=load_order_timeline(db, order),
         can_edit_erp=can_edit_erp_flag,
         erp_sub_nav_active='dashboard',
         mobile_shell_title='주문 상세',

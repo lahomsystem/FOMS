@@ -1,4 +1,5 @@
 {# C01: FOMS app shell — single mobile chrome entry (mockup shell-header + bottom nav) #}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-order-timeline.css') }}?v=20260711">
 <div
   class="foms-app-shell erp-mobile-shell-chrome"
   data-foms-app-shell
@@ -18,6 +19,7 @@
   <script src="{{ url_for('static', filename='js/foms/mobile-notification.js') }}?v=20260704a" defer></script>
   <script src="{{ url_for('static', filename='js/foms/mobile-push.js') }}?v=20260705a" defer></script>
   <script src="{{ url_for('static', filename='js/foms/urgent-call-sheet.js') }}?v=20260704a" defer></script>
+  <script src="{{ url_for('static', filename='js/foms/foms-order-timeline-sheet.js') }}?v=20260711a" defer></script>
 </div>
 {# Fixed overlays: must NOT live under .erp-mobile-shell-chrome (display:contents) or
    Bootstrap offcanvas z-index breaks vs backdrop → theme toggle taps blocked. #}
@@ -25,3 +27,4 @@
 {% include 'partials/shared/foms_search_overlay.html' %}
 {% include 'partials/shared/erp_mobile_notification_panel.html' %}
 {% include 'partials/shared/erp_mobile_urgent_call_panel.html' %}
+{% include 'partials/shared/erp_mobile_order_timeline_sheet.html' %}

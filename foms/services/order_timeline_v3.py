@@ -169,3 +169,34 @@ def build_order_timeline(order: Any, events: Any, users_map: dict[int, str]) -> 
         "current_label": _STAGE_LABEL.get(current_code, ""),
         "stages": stages,
     }
+
+
+def load_order_timeline(db: Any, order: Any) -> dict[str, Any]:
+    """주문 1건의 OrderEvent 스트림+생성자 이름을 배치 조회해 타임라인을 조립한다.
+
+    fragment 엔드포인트(order_timeline_fragment)와 v2 모바일 상세 페이지가
+    공유하는 유일한 로딩 경로다. OrderEvent는 단일 쿼리(오름차순), 생성자
+    이름은 in_ 배치 조회로 해소한다(N+1 없음).
+
+    Args:
+        db: SQLAlchemy 세션.
+        order: Order ORM 인스턴스.
+
+    Returns:
+        build_order_timeline 결과 dict (order_id, customer_name,
+        current_code, current_label, stages[]).
+    """
+    from models import OrderEvent, User  # 지역 import — 본 모듈 파생 함수의 DB 의존 격리
+
+    events = (
+        db.query(OrderEvent)
+        .filter(OrderEvent.order_id == order.id)
+        .order_by(OrderEvent.created_at.asc())
+        .all()
+    )
+    creator_ids = {ev.created_by_user_id for ev in events if ev.created_by_user_id}
+    users_map: dict[int, str] = {}
+    if creator_ids:
+        users = db.query(User).filter(User.id.in_(creator_ids)).all()  # perf-ok: creator ids from single order event set
+        users_map = {u.id: u.name for u in users}
+    return build_order_timeline(order, events, users_map)

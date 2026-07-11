@@ -16,9 +16,9 @@ from flask import (
 )
 
 from db import get_db
-from models import Order, OrderEvent, User
+from models import Order
 from foms.services.erp_order_flags import is_erp_order_record
-from foms.services.order_timeline_v3 import build_order_timeline
+from foms.services.order_timeline_v3 import load_order_timeline
 from foms.services.erp_permissions import can_edit_erp
 from foms.services.erp_mobile_order_display import (
     build_mobile_queue_batch_context,
@@ -133,8 +133,8 @@ def order_timeline_fragment(order_id: int) -> Any:
     """주문 360° 8단계 타임라인 fragment (FOMS Field OS v3 · 읽기 전용).
 
     로그인 사용자면 누구나 조회 가능(기존 erp_order_mobile_detail·events.py의
-    주문 열람 계약과 동일). ERP 주문·미삭제 건이 아니면 404. OrderEvent는 단일
-    쿼리(오름차순)로 읽고 생성자 이름은 배치 조회로 해소해 N+1을 만들지 않는다.
+    주문 열람 계약과 동일). ERP 주문·미삭제 건이 아니면 404. 이벤트/생성자
+    조회는 load_order_timeline(단일 쿼리+배치 조회, N+1 없음)으로 공용화됐다.
 
     Args:
         order_id: 주문 PK.
@@ -151,19 +151,7 @@ def order_timeline_fragment(order_id: int) -> Any:
     if order is None:
         abort(404)
 
-    events = (
-        db.query(OrderEvent)
-        .filter(OrderEvent.order_id == order_id)
-        .order_by(OrderEvent.created_at.asc())
-        .all()
-    )
-    creator_ids = {ev.created_by_user_id for ev in events if ev.created_by_user_id}
-    users_map: dict[int, str] = {}
-    if creator_ids:
-        users = db.query(User).filter(User.id.in_(creator_ids)).all()  # perf-ok: creator ids from single order event set
-        users_map = {u.id: u.name for u in users}
-
-    timeline = build_order_timeline(order, events, users_map)
+    timeline = load_order_timeline(db, order)
     body = render_template("partials/v3/persona_order360.html", timeline=timeline)
     response = make_response(body)
     response.headers["Cache-Control"] = "no-store"
