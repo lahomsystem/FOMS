@@ -71,6 +71,7 @@ _PTC_RUNTIME_JS_ALLOWLIST: frozenset[str] = frozenset(
         "common_utils.js",
         "erp-mobile-shell.js",
         "erp-shell.js",
+        "foms-shell-mode-boot.js",
         "foms-theme-boot.js",
         "layout-head-init.js",
         "layout-scripts-chat.js",

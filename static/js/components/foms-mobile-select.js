@@ -1,9 +1,9 @@
 /**
  * FOMS 모바일 셀렉트 → 바텀시트 피커 (재사용 · additive · 모바일 전용).
  *
- * 네이티브 <select>는 데이터 소스로 그대로 유지(change 계약·폼 제출 보존). 모바일
- * (<=991.98px)에서 대상 select를 탭하면 네이티브 OS 팝업을 막고 통일된 바텀시트로
- * 옵션을 고른 뒤 value 설정 + input/change 디스패치 → 호스트 로직이 그대로 동작.
+ * 네이티브 <select>는 데이터 소스로 그대로 유지(change 계약·폼 제출 보존). 모바일·터치
+ * 태블릿(<=991.98px 또는 coarse 포인터)에서 대상 select를 탭하면 네이티브 OS 팝업을 막고
+ * 통일된 바텀시트로 옵션을 고른 뒤 value 설정 + input/change 디스패치 → 호스트 로직이 그대로 동작.
  * 동적 추가 행/옵션도 document 위임 + 열 때 live 옵션 읽기로 자동 대응.
  *
  * 대상(opt-in): select.foms-select, select[data-sheet]
@@ -14,7 +14,7 @@
 (function () {
   "use strict";
 
-  var MQ = window.matchMedia("(max-width: 991.98px)");
+  var MQ = window.matchMedia("(max-width: 991.98px), (pointer: coarse)");
   var sheet, backdrop, titleEl, bodyEl, currentSel;
 
   function isTarget(sel) {

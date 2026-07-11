@@ -1,9 +1,14 @@
 /**
  * P1 mockup shell — mobile-home-dashboard / order-detail / wizard header grid.
- * Scoped to erp-mobile-v2-layout; desktop ERP (≥992px) unchanged.
+ * Scoped to erp-mobile-v2-layout; the legacy desktop ERP (≥1366px
+ * landscape / fine-or-none pointer) is unchanged.
  */
 
-@media (max-width: 991.98px) {
+/* Mobile shell surface. Applies to phones (<992) AND tablet portrait
+   (≥992 + portrait + coarse pointer): portrait+coarse ≥992 = tablet portrait
+   → mobile interface (v8 확정 규칙). 이 쿼리는 모바일 셸 스타일을 켜는
+   표시(opt-in) 조건일 뿐이며, 콘텐츠를 가리는 P2-08형 오버레이가 아님. */
+@media (max-width: 991.98px), ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
   body.erp-mobile-v2-layout {
     font-family: var(--foms-font-sans);
     background: var(--foms-surface-overlay);
@@ -657,10 +662,15 @@
   }
 }
 
-/* ≥992px: the mobile single-column queue is for phones only.
-   Hide every mobile-v2-only surface so it never leaks onto the legacy
-   desktop / tablet view (drawing gallery, FAB, any standalone shell body). */
-@media (min-width: 992px) {
+/* Non-mobile 992+: the mobile single-column queue surfaces are for phones and
+   tablet-portrait only. Enumerated (no `not`): 992+ landscape / fine / none is a
+   non-mobile shell (split or desktop), so hide every mobile-v2-only surface there
+   (drawing gallery, FAB, any standalone shell body). 992+ portrait-coarse stays
+   mobile (matches the opt-in block above), so its surfaces are kept. */
+@media
+  ((min-width: 992px) and (orientation: landscape)),
+  ((min-width: 992px) and (pointer: fine)),
+  ((min-width: 992px) and (pointer: none)) {
   body.erp-mobile-v2-layout .foms-mobile-v2-dashboard,
   body.erp-mobile-v2-layout .foms-drawing-mobile-v2,
   body.erp-mobile-v2-layout .foms-shell-fab {
@@ -668,21 +678,108 @@
   }
 }
 
-/* The AS camera bar follows the AS dashboard's md (768px) breakpoint. */
+/* The AS camera bar follows the AS dashboard's md (768px) breakpoint.
+   태블릿 세로(≥992 portrait coarse) 모바일 모드에서도 이 768px 규칙상 숨김이
+   유지된다 (AS md 브레이크포인트 소관, T2에서 재검토). */
 @media (min-width: 768px) {
   body.erp-mobile-v2-layout .foms-as-camera-bar {
     display: none !important;
   }
 }
 
-/* Tablet band (992–1365.98px), mobile-v2 cohort: the tablet master-detail
-   split-view (foms-split-view.css, D03) replaces the legacy desktop ERP
-   dashboard. Hide the legacy chrome + grid here so the two never double up.
-   ≥1366px keeps the legacy dashboard (see foms-split-view.css). */
-@media (min-width: 992px) and (max-width: 1365.98px) {
+/* Legacy desktop chrome hide, mobile-v2 cohort. Enumerated (no `not`) to exactly
+   the shells that are NOT legacy-desktop: the four split combos (992–1365.98
+   landscape / fine / none + ≥1366 landscape-coarse) and tablet-portrait-coarse
+   (mobile). The split-view (foms-split-view.css) or the mobile shell replaces the
+   legacy grid in those, so hiding it stops the double-chrome leak — including the
+   ≥1366 landscape-coarse case the old fixed 992–1365.98 band missed. Only ≥1366
+   fine/none (the desktop shell) is left out, so the legacy dashboard survives
+   exactly there and nowhere else. */
+@media
+  ((min-width: 992px) and (max-width: 1365.98px) and (orientation: landscape)),
+  ((min-width: 992px) and (max-width: 1365.98px) and (pointer: fine)),
+  ((min-width: 992px) and (max-width: 1365.98px) and (pointer: none)),
+  ((min-width: 1366px) and (orientation: landscape) and (pointer: coarse)),
+  ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
   body.erp-mobile-v2-layout
     .erp-mobile-shell[data-erp-mobile-v2='true']
     .foms-shell-desktop-only {
     display: none !important;
   }
+}
+
+/* Escape hatch (manual shell override) — mirrors the SPLIT-surface hatch in
+   foms-split-view.css so all three surfaces are decided by html[data-foms-shell]
+   (defect C: the split file governed only its own surface). foms-shell-mode-boot.js
+   stamps the attribute from localStorage before paint. The full mobile-v2 selector
+   prefix + !important guarantee the user choice beats both the media-query matrix
+   and the existing chrome-hide rules regardless of viewport.
+   NOTE: this restores the desktop-only WRAPPER *and* (W6 rules just below) the inner
+   chrome (.erp-pro-header / .erp-pro-nav / .erp-dashboard-layout / .table-responsive
+   .d-none.d-lg-block) that the mobile opt-in block above hides with !important.
+   Without that inner restore the forced-desktop wrapper is an empty box wherever the
+   opt-in is active (portrait-coarse ≥992). Forcing split at a phone viewport is out of
+   scope (no data-foms-shell="mobile"). */
+html[data-foms-shell="desktop"]
+  body.erp-mobile-v2-layout
+  .erp-mobile-shell[data-erp-mobile-v2='true']
+  .foms-shell-desktop-only {
+  display: block !important;
+}
+
+/* W6: desktop 강제 시 내부 chrome 복원 — 모바일 opt-in 블록(파일 상단 line 25-41)이
+   !important로 숨기는 셀렉터와 1:1 대응. 값은 각 요소의 데스크톱 자연 display와 일치
+   시켜(레이아웃 보존) 빈 래퍼(portrait-coarse ≥992)를 실제 데스크톱 대시보드로 복원한다:
+   .erp-pro-header/.erp-pro-nav = flex (erp-pro/02-base-layout.css),
+   .erp-dashboard-layout = block (contexts/orders/dashboard-grid.css),
+   .table-responsive.d-none.d-lg-block = block (Bootstrap d-lg-block). */
+html[data-foms-shell="desktop"]
+  body.erp-mobile-v2-layout
+  .erp-mobile-shell[data-erp-mobile-v2='true']
+  .erp-pro-header,
+html[data-foms-shell="desktop"]
+  body.erp-mobile-v2-layout
+  .erp-mobile-shell[data-erp-mobile-v2='true']
+  .erp-pro-nav {
+  display: flex !important;
+}
+
+html[data-foms-shell="desktop"]
+  body.erp-mobile-v2-layout
+  .erp-mobile-shell[data-erp-mobile-v2='true']
+  .erp-dashboard-layout,
+html[data-foms-shell="desktop"]
+  body.erp-mobile-v2-layout
+  .erp-mobile-shell[data-erp-mobile-v2='true']
+  .table-responsive.d-none.d-lg-block {
+  display: block !important;
+}
+
+html[data-foms-shell="desktop"] body.erp-mobile-v2-layout .foms-mobile-v2-dashboard,
+html[data-foms-shell="desktop"] body.erp-mobile-v2-layout .foms-drawing-mobile-v2,
+html[data-foms-shell="desktop"] body.erp-mobile-v2-layout .foms-shell-fab,
+html[data-foms-shell="desktop"] body.erp-mobile-v2-layout .erp-mobile-shell-chrome,
+html[data-foms-shell="desktop"] body.erp-mobile-v2-layout .erp-mobile-menu-drawer {
+  display: none !important;
+}
+
+/* Forced split hides the legacy desktop surface; the split grid itself is shown by
+   foms-split-view.css's matching hatch. */
+html[data-foms-shell="split"]
+  body.erp-mobile-v2-layout
+  .erp-mobile-shell[data-erp-mobile-v2='true']
+  .foms-shell-desktop-only {
+  display: none !important;
+}
+
+/* W6: split 강제 시 모바일 표면·chrome도 숨긴다(split = 대형 화면 인터페이스, 모바일
+   하단 nav 불필요). Task 1이 모바일 opt-in을 portrait-coarse까지 확장하므로, 이 은닉이
+   없으면 split 강제가 portrait-coarse에서 모바일 chrome를 누출한다. desktop 해치의
+   모바일 표면 은닉과 동일 목록. (모바일 강제는 비범위 — data-foms-shell="mobile" 없음.) */
+html[data-foms-shell="split"] body.erp-mobile-v2-layout .foms-mobile-v2-dashboard,
+html[data-foms-shell="split"] body.erp-mobile-v2-layout .foms-drawing-mobile-v2,
+html[data-foms-shell="split"] body.erp-mobile-v2-layout .foms-shell-fab,
+html[data-foms-shell="split"] body.erp-mobile-v2-layout .erp-mobile-shell-chrome,
+html[data-foms-shell="split"] body.erp-mobile-v2-layout .erp-mobile-menu-drawer {
+  display: none !important;
 }

@@ -4,7 +4,49 @@ from __future__ import annotations
 
 from typing import Any
 
+from foms.services.common.erp_navigation_contract import (
+    ERP_PRIMARY_NAV_PATHS,
+    ERP_TAB_IDS,
+)
 from foms.services.erp_mobile_order_display import resolve_queue_card_schedule
+
+# Rail labels/icons mirror the erp_mobile_shell.html nav catalog (short rail
+# labels); the path/id ordering is the erp_navigation_contract SSOT (parallel
+# ERP_PRIMARY_NAV_PATHS × ERP_TAB_IDS tuples). No policy is duplicated: this only
+# adds presentation (label + Font Awesome icon) keyed by the contract tab id.
+_RAIL_LABELS: dict[str, str] = {
+    "dashboard": "대시보드",
+    "measurement": "실측",
+    "drawing_workbench": "도면",
+    "production": "생산",
+    "shipment": "출고",
+    "as": "AS",
+    "construction": "시공",
+    "completion": "완료",
+    "history": "이력",
+}
+_RAIL_ICONS: dict[str, str] = {
+    "dashboard": "fas fa-layer-group",
+    "measurement": "fas fa-ruler-combined",
+    "drawing_workbench": "fas fa-drafting-compass",
+    "production": "fas fa-industry",
+    "shipment": "fas fa-truck-loading",
+    "as": "fas fa-wrench",
+    "construction": "fas fa-hammer",
+    "completion": "fas fa-clipboard-check",
+    "history": "fas fa-history",
+}
+# CONSTRUCTION team sees only these stages (mirrors erp_mobile_shell/erp_sub_nav
+# _allowed_ids for CONSTRUCTION) and no calculator.
+_CONSTRUCTION_RAIL_IDS: frozenset[str] = frozenset(
+    {"shipment", "construction", "completion", "history"}
+)
+_CALCULATOR_ITEM: dict[str, str] = {
+    "id": "calculator",
+    "label": "계산기",
+    "icon": "fas fa-calculator",
+    "href": "/wdcalculator",
+}
 
 
 def build_split_master_cards(orders: list[dict[str, Any]], *, active_order_id: int | None = None) -> list[dict[str, Any]]:
@@ -42,9 +84,49 @@ def build_split_master_cards(orders: list[dict[str, Any]], *, active_order_id: i
     return cards
 
 
-def default_split_side_items() -> list[dict[str, str]]:
-    """Minimal side-tab items for ERP dashboard split shell."""
-    return [
-        {"id": "dashboard", "label": "대시", "icon": "fas fa-layer-group", "href": "/erp/dashboard", "active": "true"},
-        {"id": "orders", "label": "주문", "icon": "fas fa-list", "href": "/", "active": ""},
-    ]
+def _is_construction_team(user: Any) -> bool:
+    """Return whether the user belongs to the CONSTRUCTION team (rail scoping).
+
+    Byte-identical to the ``(current_user.team or '') == 'CONSTRUCTION'`` gate in
+    erp_sub_nav.html / erp_mobile_shell.html — no ``.strip()`` (the templates do not
+    strip either), so a whitespace-padded ``team`` is classified the same way on both
+    the rail and the mobile nav, keeping the two in exact lockstep (no ADMIN
+    exception — same as those templates).
+    """
+    if user is None:
+        return False
+    return (getattr(user, "team", None) or "") == "CONSTRUCTION"
+
+
+def build_split_side_items(user: Any = None, *, active_id: str = "dashboard") -> list[dict[str, Any]]:
+    """Build permission-scoped side-rail items for the tablet split shell.
+
+    Non-construction users get all nine ERP primary stages (dashboard→history,
+    ordered per ``erp_navigation_contract``) plus the calculator; CONSTRUCTION-team
+    users get only shipment/construction/completion/history and no calculator —
+    reusing the same permission branch as erp_mobile_shell/erp_sub_nav.
+
+    Args:
+        user: Current user; needs a ``team`` attribute. ``None`` → full menu.
+        active_id: Tab id to highlight as the current tab.
+
+    Returns:
+        Side-tab descriptors with ``id``/``label``/``icon``/``href``/``active``.
+    """
+    construction = _is_construction_team(user)
+    items: list[dict[str, Any]] = []
+    for path, tab_id in zip(ERP_PRIMARY_NAV_PATHS, ERP_TAB_IDS):
+        if construction and tab_id not in _CONSTRUCTION_RAIL_IDS:
+            continue
+        items.append(
+            {
+                "id": tab_id,
+                "label": _RAIL_LABELS[tab_id],
+                "icon": _RAIL_ICONS[tab_id],
+                "href": path,
+                "active": tab_id == active_id,
+            }
+        )
+    if not construction:
+        items.append({**_CALCULATOR_ITEM, "active": active_id == "calculator"})
+    return items

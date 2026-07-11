@@ -38,7 +38,7 @@ from foms.services.feature_flags import (
     is_mobile_v2_shell,
     resolve_shell_variant_cached,
 )
-from foms.services.foms_split_view import build_split_master_cards, default_split_side_items
+from foms.services.foms_split_view import build_split_master_cards, build_split_side_items
 from foms.services.orders.dashboard_control_tower import (
     build_mobile_control_tower,
     build_field_ops_for_day,
@@ -503,7 +503,7 @@ def erp_dashboard():
             paginated_orders,
             active_order_id=int(request.args.get('order') or 0) or None,
         ) if split_enabled else [],
-        side_items=default_split_side_items() if split_enabled else [],
+        side_items=build_split_side_items(current_user) if split_enabled else [],
     )
     _render_ms = (time.perf_counter() - _t0) * 1000.0
     response = make_response(_body)

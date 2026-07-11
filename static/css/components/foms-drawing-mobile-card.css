@@ -290,7 +290,13 @@
   padding-inline: 0.45rem;
 }
 
-@media (max-width: 991.98px) {
+/* Mobile queue surface — shown on phones (<992) AND tablet portrait (≥992 portrait
+   coarse), matching the mobile-shell opt-in in foms-shell.css. The workbench is not
+   split-wired, so landscape tablet + PC keep the legacy desktop table (see the
+   non-mobile hide + tablet-portrait desktop hide blocks below). Enumerated (no
+   `not`); orientation clause uses only `portrait` here (this file is not scoped by
+   the foms-split-view.css portrait-token ban). */
+@media (max-width: 991.98px), ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
   body.erp-mobile-v2-layout .foms-drawing-mobile-dashboard {
     padding: var(--foms-space-3, 12px) var(--foms-space-4, 16px)
       calc(var(--foms-shell-bottom-nav-h, 72px) + var(--foms-space-4, 16px));
@@ -353,6 +359,46 @@
 
   body.erp-mobile-v2-layout .foms-drawing-mobile-dashboard .foms-drawing-queue-card__actions .foms-btn {
     min-height: var(--foms-touch-target-min, 40px);
+  }
+}
+
+/* Non-mobile shells (992+ landscape / fine / none): hide the mobile queue. The
+   workbench is not split-wired, so those bands keep the legacy desktop table; the
+   Bootstrap `d-lg-none` that used to gate this section was width-only and blanked
+   the queue on tablet portrait (≥992 portrait coarse), so the show/hide is now the
+   shell matrix. Enumerated (no `not`), mirrors foms-shell.css's non-mobile
+   surface-hide. Portrait-coarse is excluded here → the queue stays visible there. */
+@media
+  ((min-width: 992px) and (orientation: landscape)),
+  ((min-width: 992px) and (pointer: fine)),
+  ((min-width: 992px) and (pointer: none)) {
+  body.erp-mobile-v2-layout .foms-drawing-mobile-dashboard {
+    display: none !important;
+  }
+}
+
+/* Tablet portrait (≥992 portrait coarse) = mobile interface for the workbench: hide
+   the desktop-only process map + dashboard card (filter form + table + pagination
+   live inside it) so they do not leak over the mobile queue. The inner desktop table
+   is already hidden by foms-shell.css's mobile opt-in, but the wrapping card is not,
+   so hide it here. Scoped to portrait-coarse only: landscape tablet + PC keep the
+   legacy desktop (workbench has no split shell to replace it), phones already hide
+   these via Bootstrap `d-none`. */
+@media ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
+  body.erp-mobile-v2-layout .dw-process-map,
+  body.erp-mobile-v2-layout .erp-drawing-dashboard-desktop-card {
+    display: none !important;
+  }
+
+  /* The mobile queue's two children (controls bar + card list) carry Bootstrap
+     `d-lg-none` (width-only) because the queue partial is shared with the non-cohort
+     legacy fallback, so the class must stay on the markup. Without re-showing them
+     the tablet-portrait dashboard container is an empty box. Both render as a grid
+     (.foms-mobile-filter-bar / .foms-drawing-queue). Scoped inside
+     .foms-drawing-mobile-dashboard so the non-cohort queue (outside it) is untouched. */
+  body.erp-mobile-v2-layout .foms-drawing-mobile-dashboard .foms-mobile-filter-bar--drawing,
+  body.erp-mobile-v2-layout .foms-drawing-mobile-dashboard .foms-drawing-queue {
+    display: grid !important;
   }
 }
 

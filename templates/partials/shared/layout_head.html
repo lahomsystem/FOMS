@@ -39,6 +39,26 @@
       }
     })();
     </script>
+    {# Early shell-mode boot (escape hatch): inline before paint (SSOT copy lives in
+       static/js/runtime/, kept off the render-blocking script guard). Stamps
+       html[data-foms-shell] from localStorage so a manual "데스크톱 보기"/"split"
+       override wins over the CSS shell-selection matrix without a flash. Inline
+       (not a script src) to run pre-paint exactly like the theme boot above. #}
+    <script>
+    (function () {
+      var key = 'foms_shell_mode';
+      try {
+        var mode = localStorage.getItem(key);
+        if (mode === 'desktop' || mode === 'split') {
+          document.documentElement.setAttribute('data-foms-shell', mode);
+        } else {
+          document.documentElement.removeAttribute('data-foms-shell');
+        }
+      } catch (e) {
+        console.warn('[foms-shell-mode-boot] shell mode preference unavailable:', e);
+      }
+    })();
+    </script>
     <title>하우드 ERP</title>
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg', v='20260611d') }}">
     <link rel="icon" type="image/png" href="{{ url_for('favicon', v='20260611d') }}">
@@ -65,7 +85,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-tokens.css') }}?v=20260626a">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-theme-toggle.css') }}?v=20260626a">
     <!-- ERP Pro Dashboard Styles (Modern SaaS Design System) -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/erp-pro.css') }}?v=20260626a">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/erp-pro.css') }}?v=20260711b">
     {# Order edit (/edit/<id>) joins the erp-mobile-v2 shell cohort (see orders/layout.html),
        so it must load the same mobile shell CSS bundle that styles the foms header + surfaces. #}
     {% if shell_variant == 'v2' and (request.path.startswith('/erp') or request.endpoint == 'order_edit.edit_order') %}
@@ -94,7 +114,7 @@
       }
     </style>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" crossorigin="anonymous">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-mobile-surfaces.css') }}?v=20260630e">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-mobile-surfaces.css') }}?v=20260711b">
     {% endif %}
     {# v3 셸 자산(배타 로드): shell_variant=='v3'일 때만 v3 CSS/셸 JS 로드. v2 모바일
        번들과 상호 배타(위 v2 critical CSS는 shell_variant=='v2' 게이트라 v3에서 미로드). #}

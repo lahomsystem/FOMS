@@ -1,25 +1,56 @@
-/* P1-05 tablet split-view shell.
-   3-tier responsive (mobile-v2 cohort), purely width-based:
-     < 992px         → mobile single-column queue (split hidden)
-     992–1365.98px   → tablet master-detail split (THIS shell, legacy hidden)
-     ≥ 1366px        → legacy desktop ERP dashboard (split hidden)
-   D03 (태블릿 가로 split 360+fluid) realized here. The split grid below is
-   orientation-INDEPENDENT: 72+360+detail fits the whole band in both portrait
-   (e.g. iPad Pro 12.9 1024×1366) and landscape, so no orientation gate is used.
+/* P1-05 tablet split-view shell — shell-selection judgment (2026-07-10 T0 overhaul).
+   The mobile-v2 cohort renders three shells (mobile queue / this split / legacy
+   desktop) into one DOM; pure CSS picks exactly one. This file owns the SPLIT
+   surface: it is hidden by default and opted in only when the matrix below selects
+   split, so no other shell leaks the "좌측에서 주문을 선택하세요" detail placeholder.
+
+   Selection matrix (width × orientation × pointer → shell):
+     <992           any         any         → mobile
+     ≥992           portrait    coarse      → mobile (12.9" 세로 1024 포함)
+     992–1365.98    landscape   any         → split
+     992–1365.98    portrait    fine/none   → split (세로 모니터 좁은 창)
+     ≥1366          landscape   coarse      → split (12.9"/13"/Ultra 가로)
+     ≥1366          any         fine/none   → desktop (FHD@125% 노트북 오분류 방지)
+     ≥1366          portrait    coarse      → mobile (실기기 없음, 규칙 일관성)
+   The split-show query is orientation-AWARE (landscape) + pointer-aware, enumerated
+   (no `not`), so it never emits a raw portrait-orientation token (that literal is
+   guarded against by tests/domains/test_p2_gate.py). Portrait tablets fall to the
+   mobile shell — a full
+   usable surface, NOT a blanking overlay. Manual override: html[data-foms-shell]
+   (see escape hatch at end of file) beats the matrix.
+
    The earlier P2-08 orientation overlay (orientation-layout.js +
    foms-orientation-layout.css) hid side-tab+master in portrait, which blanked
    portrait tablets — it was removed. Do NOT re-introduce a portrait band-aid. */
 
 .foms-split-shell {
   display: block;
+  /* Grid geometry lives on the base so the escape hatch (forced split) lays out
+     correctly too; it is inert until `display: grid` is set below. */
+  grid-template-columns: 72px 360px minmax(0, 1fr);
+  min-height: calc(100dvh - 4rem);
+  background: var(--foms-surface-overlay, #f3f4f6);
 }
 
-@media (min-width: 992px) and (max-width: 1365.98px) {
+/* Split shown only when the selection matrix (top of file) picks split.
+   Enumerated (no `not`); emits only "orientation: landscape", never "portrait". */
+@media
+  (min-width: 992px) and (max-width: 1365.98px) and (orientation: landscape),
+  (min-width: 992px) and (max-width: 1365.98px) and (pointer: fine),
+  (min-width: 992px) and (max-width: 1365.98px) and (pointer: none),
+  (min-width: 1366px) and (orientation: landscape) and (pointer: coarse) {
+  .foms-split-enabled {
+    display: block;
+  }
+
   .foms-split-shell {
     display: grid;
-    grid-template-columns: 72px 360px minmax(0, 1fr);
-    min-height: calc(100dvh - 4rem);
-    background: var(--foms-surface-overlay, #f3f4f6);
+    /* Cap the shell to the viewport and clip it so each column (rail / master /
+       detail) scrolls INSIDE its own track. Without this the grid row grows to the
+       tallest column's content, so the rail's own overflow-y:auto never engages and
+       a long permission menu pushes the page instead of scrolling in the rail. */
+    max-height: calc(100dvh - 4rem);
+    overflow: hidden;
   }
 
   .foms-split-shell .erp-mobile-shell-chrome .erp-mobile-bottom-nav {
@@ -34,6 +65,10 @@
     align-items: center;
     padding-top: var(--foms-space-3, 12px);
     gap: 4px;
+    /* Full permission menu (up to 10 rail items) can exceed a short landscape
+       viewport; scroll inside the rail instead of stretching the shell. */
+    min-height: 0;
+    overflow-y: auto;
   }
 
   .foms-split-side-tab__brand {
@@ -53,7 +88,10 @@
     align-items: center;
     justify-content: center;
     gap: 4px;
-    padding: var(--foms-space-3, 12px) 0;
+    padding: var(--foms-space-2, 8px) 0;
+    /* Comfortable 52px stacked-icon rail target; grows only if label wraps. */
+    min-height: 52px;
+    flex-shrink: 0;
     width: 100%;
     font-size: 11px;
     color: var(--foms-text-tertiary, #6b7280);
@@ -108,11 +146,17 @@
   .foms-split-master {
     display: block; /* vertical card list; override inherited flex row */
     border-right: 1px solid var(--foms-border-subtle, #e5e7eb);
+    /* min-height:0 lets this grid column shrink below its content so overflow-y
+       scrolls inside the master track (the shell is now height-capped above). */
+    min-height: 0;
     overflow-y: auto;
     background: var(--foms-surface-base, #fff);
   }
 
   .foms-split-detail {
+    /* Same as master: allow the detail column to scroll internally within the
+       capped shell instead of stretching the grid row. */
+    min-height: 0;
     overflow: auto;
     background: var(--foms-surface-base, #fff);
   }
@@ -178,14 +222,28 @@
 .foms-split-enabled {
   width: 100%;
   min-width: 0;
+  /* Hidden by default; the split-show matrix above is the only opt-in. This flip
+     replaces the former "@media (max-width:991.98px),(min-width:1366px)" hide,
+     which could not express "≥992 portrait coarse → hide" without a raw
+     portrait-orientation token (banned by test_p2_gate) or a `not`. Default-hide
+     covers every non-split combination (mobile / desktop / portrait-coarse)
+     uniformly, so the detail "좌측에서 주문을 선택하세요" placeholder never leaks. */
+  display: none;
 }
 
-/* Outside the tablet band the split shell must not render:
-   < 992px  → mobile single-column queue (dashboard_mobile_v2_body) is the column;
-              the detail "좌측에서 주문을 선택하세요" placeholder must not leak.
-   ≥ 1366px → legacy desktop ERP dashboard owns the surface (no double chrome). */
-@media (max-width: 991.98px), (min-width: 1366px) {
-  body.erp-mobile-v2-layout .foms-split-enabled {
-    display: none !important;
-  }
+/* Escape hatch (manual shell override, plumbed for the future drawer toggle UI).
+   foms-shell-mode-boot.js stamps html[data-foms-shell] from localStorage
+   'foms_shell_mode' before paint. !important guarantees the user choice beats the
+   media-query matrix regardless of viewport. This file governs only the SPLIT
+   surface; the mobile/desktop shells honor the same attribute in foms-shell.css. */
+html[data-foms-shell="desktop"] .foms-split-enabled {
+  display: none !important;
+}
+
+html[data-foms-shell="split"] .foms-split-enabled {
+  display: block !important;
+}
+
+html[data-foms-shell="split"] .foms-split-shell {
+  display: grid !important;
 }
