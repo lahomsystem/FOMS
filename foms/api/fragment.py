@@ -4,7 +4,16 @@ from __future__ import annotations
 
 from typing import Any
 
-from flask import Blueprint, abort, make_response, render_template, request, session
+from flask import (
+    Blueprint,
+    abort,
+    make_response,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 
 from db import get_db
 from models import Order, OrderEvent, User
@@ -25,6 +34,21 @@ from foms.services.request_utils import get_preserved_filter_args
 from foms.web.auth import get_user_by_id, login_required, role_required
 
 foms_fragment_bp = Blueprint("foms_fragment", __name__, url_prefix="/api/foms/fragment")
+
+
+def _is_top_level_document_request() -> bool:
+    """Return whether this is a top-level browser navigation (not a fetch/XHR/HTMX call).
+
+    Browsers set ``Sec-Fetch-Dest: document`` on address-bar loads, link clicks
+    and new-tab/middle-click navigations, but ``empty`` for ``fetch()``/XHR and
+    ``htmx.ajax`` requests. When the header is absent (older browsers / non-
+    conforming clients) we return ``False`` so fragment consumers keep receiving
+    the partial body unchanged (fail-open — the fragment path is preserved).
+
+    Returns:
+        True only when ``Sec-Fetch-Dest`` is exactly ``"document"``.
+    """
+    return request.headers.get("Sec-Fetch-Dest") == "document"
 
 
 def _order_edit_fragment_response(order_id: int) -> Any:
@@ -79,7 +103,27 @@ def _order_edit_fragment_response(order_id: int) -> Any:
 @login_required
 @role_required(["ADMIN", "MANAGER", "STAFF"])
 def order_edit_fragment(order_id: int) -> Any:
-    """HTMX fragment: order edit body for tablet split-view detail pane."""
+    """HTMX fragment: order edit body for tablet split-view detail pane.
+
+    Deep defense (W15): a direct browser navigation to this fragment URL — a
+    new-tab / middle-click on a master card, or an HTMX-miss fallback — would
+    otherwise render an unstyled partial document. When ``Sec-Fetch-Dest`` marks
+    a top-level document request, redirect to the canonical full edit page
+    (preserving query args such as ``open=erp-order``). fetch/XHR/HTMX consumers
+    (``Sec-Fetch-Dest: empty``, or the header absent on older browsers) still
+    receive the fragment body unchanged.
+
+    Args:
+        order_id: Primary key of the order row.
+
+    Returns:
+        302 redirect to the full edit page for top-level document navigations,
+        otherwise the HTML fragment response.
+    """
+    if _is_top_level_document_request():
+        return redirect(
+            url_for("order_edit.edit_order", order_id=order_id, **request.args.to_dict())
+        )
     return _order_edit_fragment_response(order_id)
 
 

@@ -9,13 +9,13 @@
     class="foms-master-card{% if card.active %} is-active{% endif %}"
     data-foms-master-card
     data-order-id="{{ card.order_id }}"
-    data-href="{{ card.detail_href }}"
+    data-fragment-href="{{ card.detail_href }}"
     data-customer="{{ card.title|e }}"
     data-stage="{{ card.stage|default(card.meta, true)|e }}"
     data-phone="{{ card.phone|default('-', true)|e }}"
     data-address="{{ card.address|default('-', true)|e }}"
     data-manager="{{ card.manager|default('-', true)|e }}"
-    href="{{ card.detail_href }}"
+    href="{{ card.edit_href|default(card.detail_href, true) }}"
   >
     <div class="foms-master-card__topline">
       <span class="foms-master-card__stage">{{ card.stage|default(card.meta, true) }}</span>

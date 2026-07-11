@@ -77,7 +77,12 @@ def build_split_master_cards(orders: list[dict[str, Any]], *, active_order_id: i
                 "phone": str(row.get("phone") or "-"),
                 "address": str(row.get("address") or "-"),
                 "manager": str(row.get("manager_name") or "-"),
+                # detail_href = HTMX fragment body (split-shell.js swaps this into the
+                # detail pane). edit_href = canonical full edit page — used as the card
+                # <a href> so a full navigation / new tab / middle-click (or any HTMX
+                # miss) lands on the styled page instead of a raw fragment document (W15).
                 "detail_href": f"/api/foms/fragment/order/{oid}/edit?open=erp-order",
+                "edit_href": f"/edit/{oid}?open=erp-order",
                 "active": active_order_id is not None and oid == active_order_id,
             }
         )
