@@ -1,0 +1,43 @@
+{# W12 — 태블릿 가로(코호트) 실측 특수형 split view 바디.
+   좌: 실측일 순 고객 리스트(300px) / 우: 기존 ERP Order edit fragment 주입 영역.
+   "실측 입력 = 주문 원장 직접 기록" — 별도 입력 화면 없음.
+
+   표시 게이트는 foms-tablet-measurement.css @media (992+ landscape coarse) + JS(MQ)가
+   소유한다. 이 partial 은 dashboard_main.html 안에서 erp_mobile_v2_enabled 게이트로만
+   포함되며, 코호트 밖(폰/세로/데스크톱)에서는 CSS base rule(display:none)로 완전 숨김.
+   NO inline style, NO <script>. #}
+<div class="foms-tablet-measure-split" aria-label="실측 태블릿 작업 화면">
+  {# 실측일 순 정렬: measurement_date 는 문자열(YYYY-MM-DD) 또는 None.
+     None 은 Jinja sort 에서 예외 → 유효 값만 selectattr 로 분리해 정렬 후 미지정 뒤에 붙임. #}
+  {% set _dated = rows|selectattr('measurement_date')|list %}
+  {% set _undated = rows|rejectattr('measurement_date')|list %}
+  {% set _ordered_rows = (_dated|sort(attribute='measurement_date')) + _undated %}
+  <aside class="foms-tablet-measure-list" aria-label="실측 고객 목록">
+    <div class="foms-tablet-measure-list__head">
+      <span class="foms-tablet-measure-list__title">실측 고객</span>
+      <span class="foms-tablet-measure-list__count">{{ rows|length }}건</span>
+    </div>
+    {% if rows %}
+      {% for r in _ordered_rows %}
+      <button type="button" class="foms-tablet-measure-card" data-order-id="{{ r.id }}">
+        <div class="foms-tablet-measure-card__top">
+          <span class="foms-tablet-measure-card__time">{{ r.measurement_time or '-' }}</span>
+          <span class="foms-tablet-measure-card__status">{{ ALL_STATUS.get(r.status, r.status) if r.status else '-' }}</span>
+        </div>
+        <div class="foms-tablet-measure-card__customer">{{ r.customer_name or '-' }}</div>
+        <div class="foms-tablet-measure-card__addr">{{ r.address or '-' }}</div>
+        <div class="foms-tablet-measure-card__product">{{ (r.product or '-')|strip_product_w or '-' }}</div>
+      </button>
+      {% endfor %}
+    {% else %}
+      <div class="foms-mobile-empty foms-tablet-measure-list__empty">
+        <i class="fas fa-inbox" aria-hidden="true"></i>
+        <p class="mb-1">조건에 맞는 실측 일정이 없습니다.</p>
+        <small>날짜/검색 조건을 바꿔 보세요.</small>
+      </div>
+    {% endif %}
+  </aside>
+  <section class="foms-tablet-measure-detail" aria-live="polite" aria-label="실측 주문 원장">
+    <div class="foms-tablet-measure-detail__empty">좌측에서 고객을 선택하세요</div>
+  </section>
+</div>

@@ -29,4 +29,7 @@
    fail-soft(브라우저가 없는 파일을 조용히 건너뜀) — import 라인은 여기서 예약. */
 @import url("../foundation/foms-tablet-landscape.css?v=20260711b");
 @import url("../components/foms-tablet-side-sheet.css?v=20260711a");
+/* 태블릿 실측 특수형(W12) + 생산 칸반(W13 예약, 파일 미생성 시 fail-soft). */
+@import url("../foundation/foms-tablet-measurement.css?v=20260711a");
+@import url("../foundation/foms-tablet-production-kanban.css?v=20260711a");
 

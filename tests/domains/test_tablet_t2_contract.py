@@ -104,12 +104,12 @@ def test_mobile_surfaces_imports_landscape_and_side_sheet() -> None:
 
 
 def test_mobile_surfaces_parent_cachebuster_bumped() -> None:
-    """The mobile-surfaces content changed (W11 bumped the landscape @import a→b) so its
-    layout_head ?v must be bumped past the prior baseline (T0 교훈: 자식 범프=부모 내용
-    변경=부모도 범프). W9=ae → W11=af."""
+    """The mobile-surfaces content changed (W12 added the measurement + kanban @imports) so
+    its layout_head ?v must be bumped past the prior baseline (T0 교훈: 자식 범프=부모 내용
+    변경=부모도 범프). W9=ae → W11=af → W12=ag."""
     layout_head = _read("templates/partials/shared/layout_head.html")
-    assert "foms-mobile-surfaces.css') }}?v=20260711af" in layout_head
-    assert "foms-mobile-surfaces.css') }}?v=20260711ae" not in layout_head
+    assert "foms-mobile-surfaces.css') }}?v=20260711ag" in layout_head
+    assert "foms-mobile-surfaces.css') }}?v=20260711af" not in layout_head
 
 
 # --- (3) row 48px / target 44px token locks --------------------------------
@@ -278,3 +278,205 @@ def test_tile_section_is_token_driven_and_cohort_scoped() -> None:
     css = _norm(_read(LANDSCAPE_CSS))
     assert ".erp-pro-alert { min-height: var(--foms-touch-target-comfortable)" in css
     assert "body.erp-mobile-v2-layout .erp-pro-card--process-map" in css
+
+
+# =====================================================================
+# W13 — 생산 칸반 보드 (태블릿 가로)
+# (docs/plans/2026-07-11-tablet-t2-dashboards-spec.md, 실행 단위 W13)
+# read-model 3버킷 칸반이 태블릿 가로에서 legacy 작업 큐 테이블을 대체. 서버 무변경
+# (dashboard.py `orders` 재소비, 행 stage 버킷으로 Jinja 그룹핑). 열 이동 = 기존
+# production start/complete API. 카드 탭 = tablet-side-sheet 위임 확장.
+# =====================================================================
+
+KANBAN_PARTIAL = "templates/production/partials/tablet_kanban_body.html"
+KANBAN_CSS = "static/css/foundation/foms-tablet-production-kanban.css"
+KANBAN_JS = "static/js/foms/tablet-production-kanban.js"
+PRODUCTION_DASHBOARD_BODY = "templates/production/partials/dashboard_body.html"
+
+
+def test_kanban_partial_exists_with_three_bucket_labels() -> None:
+    """파샬 존재 + read-model 3버킷 라벨(제작대기/제작중/제작완료) + 카드 order-id 소스."""
+    body = _read(KANBAN_PARTIAL)
+    for bucket in ("제작대기", "제작중", "제작완료"):
+        assert bucket in body, f"missing kanban bucket label: {bucket}"
+    assert "foms-kanban-card" in body
+    assert "data-order-id=" in body
+
+
+def test_kanban_groups_read_model_bucket_via_row_stage() -> None:
+    """버킷 접근 방식 판정: 서버 무변경 — 행 dict의 stage(버킷 라벨)로 Jinja selectattr
+    그룹핑(신규 컨텍스트/쿼리 없음)."""
+    body = _norm(_read(KANBAN_PARTIAL))
+    assert "selectattr('stage', 'equalto', '제작대기')" in body
+    assert "selectattr('stage', 'equalto', '제작중')" in body
+    assert "selectattr('stage', 'equalto', '제작완료')" in body
+
+
+def test_kanban_move_buttons_reuse_existing_production_api() -> None:
+    """열 이동 = 신규 API 없이 기존 생산 워크플로 엔드포인트 재사용(production/orders.py)."""
+    js = _read(KANBAN_JS)
+    assert "/api/orders/" in js
+    assert "/production/start" in js
+    assert "/production/complete" in js
+
+
+def test_kanban_js_has_idempotent_guard() -> None:
+    """fragment 재실행/재로드 시 전역 listener 중복 바인딩 방지(perf G4)."""
+    js = _read(KANBAN_JS)
+    assert "window.__FOMS_KANBAN_BOUND" in js
+
+
+def test_kanban_js_wired_in_layout_scripts_deferred() -> None:
+    """칸반 JS는 layout_scripts.html에서 defer + ?v 캐시버스터로 로드(perf G1, W10 전례)."""
+    html = _read(LAYOUT_SCRIPTS)
+    m = re.search(r"<script[^>]*tablet-production-kanban\.js[^>]*>", html)
+    assert m is not None, "tablet-production-kanban.js not wired in layout_scripts.html"
+    tag = m.group(0)
+    assert "defer" in tag, "kanban script must be defer (perf G1)"
+    assert "?v=" in tag, "kanban script must carry a ?v cachebuster"
+
+
+def test_side_sheet_delegation_extended_to_kanban_cards() -> None:
+    """카드 탭 → 상세 시트: side-sheet 위임 셀렉터에 .foms-kanban-card[data-order-id]
+    확장(최소 1줄). 기존 그리드 행 셀렉터도 보존(회귀 금지)."""
+    js = _read(SIDE_SHEET_JS)
+    assert ".foms-kanban-card[data-order-id]" in js
+    assert "#erp-grid tr.erp-main-row[data-order-id]" in js
+
+
+def test_kanban_wired_into_dashboard_body_with_legacy_wrapper() -> None:
+    """dashboard_body.html include 배선 + legacy 큐 배타 래퍼(.foms-production-legacy-queue)."""
+    body = _read(PRODUCTION_DASHBOARD_BODY)
+    assert "production/partials/tablet_kanban_body.html" in body
+    assert "foms-production-legacy-queue" in body
+
+
+def test_kanban_css_exclusivity_couples_hide_and_show_no_blank() -> None:
+    """배타(blank 금지): 기본은 칸반 은닉 / legacy 표시. 태블릿 가로 코호트에서 legacy
+    은닉과 칸반 표시가 **동일 게이트**(코호트 body class + 코어 MQ) 아래 결합 → 어떤
+    조합도 3영역 전부 은닉되지 않는다."""
+    css = _norm(_read(KANBAN_CSS))
+    assert ".foms-kanban { display: none" in css  # 기본 은닉(PC/모바일 fallback)
+    assert CORE_MEDIA_QUERY in css
+    assert "body.erp-mobile-v2-layout .foms-kanban { display: grid" in css
+    assert "body.erp-mobile-v2-layout .foms-production-legacy-queue { display: none" in css
+
+
+def test_kanban_css_hmi_color_only_on_dday_chip() -> None:
+    """HMI 색 규율: 카드/열은 무채색, 상차 D-day 칩만 임박/지연 시 유채색."""
+    css = _norm(_read(KANBAN_CSS))
+    assert ".foms-kanban-chip.is-imminent" in css
+    assert ".foms-kanban-chip.is-overdue" in css
+
+
+def test_kanban_css_is_landscape_only_no_portrait_token() -> None:
+    """세로=모바일 셸 — 이 파일은 landscape 전용(portrait 토큰 금지, split-view 가드 정합)."""
+    css = _read(KANBAN_CSS)
+    assert "orientation: portrait" not in css
+
+
+# =====================================================================
+# W12 — 태블릿 실측 특수형 split view 계약
+# (docs/plans/2026-07-11-tablet-t2-dashboards-spec.md, 실행 단위 W12)
+# 태블릿 가로 코호트: 좌 고객 리스트(300px, 실측일 순) + 우 기존 ERP Order edit fragment.
+# "실측 입력 = 주문 원장 직접 기록". 서버 무변경(dashboard.py `rows` 재소비). fragment 로더는
+# 공용 SSOT(fragment-loader.js)로 추출 — 사이드 시트와 단일 구현 공유(중복 구현 금지).
+# =====================================================================
+
+MEASURE_PARTIAL = "templates/measurement/partials/tablet_split_body.html"
+MEASURE_CSS = "static/css/foundation/foms-tablet-measurement.css"
+MEASURE_JS = "static/js/foms/tablet-measurement.js"
+FRAGMENT_LOADER_JS = "static/js/foms/fragment-loader.js"
+MEASURE_DASHBOARD_MAIN = "templates/measurement/partials/dashboard_main.html"
+
+
+def test_tablet_measure_partial_exists_and_reuses_rows() -> None:
+    """파샬 존재 + split 3영역 클래스 + rows 반복(서버 무변경 재소비) + 카드 order-id 소스 +
+    5개 카드 필드(고객/주소/실측시간/제품/상태) 참조."""
+    body = _read(MEASURE_PARTIAL)
+    assert "foms-tablet-measure-split" in body
+    assert "foms-tablet-measure-list" in body
+    assert "foms-tablet-measure-detail" in body
+    assert "for r in" in body
+    assert "rows" in body
+    assert 'data-order-id="{{ r.id }}"' in body
+    for field in ("customer_name", "address", "measurement_time", "strip_product_w", "ALL_STATUS"):
+        assert field in body, f"missing card field reference: {field}"
+
+
+def test_dashboard_main_includes_tablet_split_cohort_gated() -> None:
+    """dashboard_main.html 이 split 파샬을 erp_mobile_v2_enabled 게이트 안에서 include."""
+    body = _norm(_read(MEASURE_DASHBOARD_MAIN))
+    assert "measurement/partials/tablet_split_body.html" in body
+    assert (
+        "{% if erp_mobile_v2_enabled %} "
+        "{% include 'measurement/partials/tablet_split_body.html' %}"
+    ) in body
+
+
+def test_tablet_measurement_css_exists_exclusive_and_landscape_only() -> None:
+    """CSS 존재 + 코호트 MQ + base-hide 가 opt-in(flex) 앞(T0 순서 계약) + desktop-shell
+    은닉 + 페이지 스코프 + 좌 리스트 300px + portrait 토큰 금지(landscape 전용)."""
+    css = _norm(_read(MEASURE_CSS))
+    assert CORE_MEDIA_QUERY in css
+    base_idx = css.index(".foms-tablet-measure-split { display: none")
+    flex_idx = css.index("display: flex")
+    assert base_idx < flex_idx, "base-hide 규칙이 opt-in(display:flex) 뒤에 있음(순서 계약 위반)"
+    assert ".erp-measurement-desktop-shell { display: none !important" in css
+    assert ".erp-measurement-dashboard" in css
+    assert "300px" in css
+    assert "orientation: portrait" not in css
+
+
+def test_mobile_surfaces_imports_measurement_and_kanban_reserved() -> None:
+    """foms-mobile-surfaces.css 가 W12 measurement + W13 kanban(예약, fail-soft) @import."""
+    css = _read(MOBILE_SURFACES_CSS)
+    assert '@import url("../foundation/foms-tablet-measurement.css?v=' in css
+    assert '@import url("../foundation/foms-tablet-production-kanban.css?v=' in css
+
+
+def test_fragment_loader_module_exists() -> None:
+    """공용 fragment 로더 SSOT: window.FomsFragmentLoader 정의 + activateScripts 식
+    createElement("script") + application/json(type) 보존 + main-content-swapped 디스패치."""
+    js = _read(FRAGMENT_LOADER_JS)
+    assert "window.FomsFragmentLoader" in js
+    assert 'createElement("script")' in js
+    assert "s.type = old.type" in js  # type 보존 → application/json 프리로드 블록 실행 방지
+    assert "foms:main-content-swapped" in js
+
+
+def test_tablet_measurement_js_exists_cohort_and_loader() -> None:
+    """실측 split JS: idempotent 가드 + 코호트 MQ + 공용 로더 사용 + 카드 셀렉터 + edit URL."""
+    js = _read(MEASURE_JS)
+    assert "window.__FOMS_TABLET_MEASURE_BOUND" in js
+    assert "(min-width: 992px) and (orientation: landscape) and (pointer: coarse)" in js
+    assert "window.FomsFragmentLoader" in js
+    assert ".foms-tablet-measure-card" in js
+    assert "/edit?open=erp-order" in js
+
+
+def test_split_and_loader_and_measure_js_wired_deferred() -> None:
+    """layout_scripts.html: fragment-loader/side-sheet/measurement 세 스크립트 모두 defer +
+    ?v=, 그리고 fragment-loader 가 tablet-side-sheet 보다 먼저(defer 순서=정의 순서)."""
+    html = _read(LAYOUT_SCRIPTS)
+    for name in ("fragment-loader.js", "tablet-side-sheet.js", "tablet-measurement.js"):
+        m = re.search(r"<script[^>]*" + re.escape(name) + r"[^>]*>", html)
+        assert m is not None, f"{name} not wired in layout_scripts.html"
+        tag = m.group(0)
+        assert "defer" in tag, f"{name} must be defer (perf G1)"
+        assert "?v=" in tag, f"{name} must carry a ?v cachebuster"
+    assert html.index("fragment-loader.js") < html.index("tablet-side-sheet.js"), (
+        "fragment-loader must load before tablet-side-sheet (shared loader defined first)"
+    )
+
+
+def test_side_sheet_still_uses_shared_loader() -> None:
+    """리팩터 후 사이드 시트는 공용 로더 사용 + 모든 pinned 문자열 보존(회귀 금지)."""
+    js = _read(SIDE_SHEET_JS)
+    assert "window.FomsFragmentLoader" in js
+    assert "window.__FOMS_TABLET_SHEET_BOUND" in js
+    assert "(min-width: 992px) and (orientation: landscape) and (pointer: coarse)" in js
+    assert "/api/foms/fragment/order/" in js
+    assert "/edit?open=erp-order" in js
+    assert "#erp-grid tr.erp-main-row[data-order-id]" in js
+    assert "a, button, input, select, label, textarea" in js

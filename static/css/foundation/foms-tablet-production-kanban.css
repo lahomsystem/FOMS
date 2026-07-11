@@ -1,0 +1,247 @@
+/* FOMS 태블릿 가로 생산 칸반 — W13 (2026-07-11, T2 / 목업 v8).
+
+   태블릿 가로 코호트에서 legacy 생산 작업 큐 테이블(.foms-production-legacy-queue)을
+   read-model 3버킷 칸반(.foms-kanban)으로 대체한다. 열 = production_read_model 버킷
+   (제작대기 / 제작중 / 제작완료). "상차 대기"는 독립 상태가 아니므로 열이 아니라 카드의
+   상차 D-day 칩으로만 표기한다. 마크업/데이터 = 서버 무변경(dashboard.py `orders` 재소비).
+
+   적용 조건 (T0 매트릭스·W9/W11 정합):
+     body.erp-mobile-v2-layout(코호트 게이트)
+     + @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse)
+   = 진짜 터치 태블릿 가로. fine(노트북) 제외 = pointer:coarse 필수. 세로=모바일 셸이므로
+   이 파일은 orientation:portrait 토큰을 쓰지 않는다(landscape 전용, foms-split-view.css
+   portrait 금지 가드와 정합).
+
+   로드: foms-mobile-surfaces.css @import (W12 병렬 예약 — 이 파일에선 미접촉). 코호트
+   번들에서만 로드되므로 PC/폰 무영향.
+
+   ============================================================================
+   배타표 (blank 금지) — 작업 큐 영역의 3중 배타. 어떤 조합도 3개 전부 은닉 없음:
+
+     뷰포트/코호트                | 모바일 큐            | legacy 테이블            | 칸반
+                                  | (.erp-production-    | (.foms-production-       | (.foms-kanban)
+                                  |  mobile-v2 셸)       |  legacy-queue)           |
+     ----------------------------|----------------------|--------------------------|--------------
+     모바일 셸(≤991.98 / 992+     | 표시(foms-shell +    | 은닉(11-queue-family /   | 은닉(기본 none;
+       세로 coarse)              |  11-queue-family)    |  foms-shell)             |  MQ 미매치)
+     PC/데스크톱(≥1366 fine/none) | 은닉(셸 비활성)      | 표시(기본 block)         | 은닉(기본 none)
+     태블릿 가로(≥992 landscape   | 은닉(셸 비활성)      | 은닉 ← W13(아래)         | 표시 ← W13(아래)
+       coarse) 코호트 ON         |                      |                          |
+     태블릿 가로 코호트 OFF       | (셸/body class 없음) | 표시(기본 block)         | 미렌더({% if %})
+
+   핵심 결합(T0 blank 교훈): "legacy 은닉"과 "칸반 표시"는 **동일 게이트**(코호트 body
+   class + 코어 MQ) 아래 한 블록에 둔다 → 테이블이 숨는 순간 반드시 칸반이 나타난다(원자적).
+   기본값은 legacy 표시 / 칸반 은닉이라 미배선·비코호트 경로는 항상 테이블 fallback.
+   ============================================================================ */
+
+/* 기본(비코호트·PC·모바일): 칸반 은닉, legacy 큐 표시. */
+.foms-kanban {
+  display: none;
+}
+
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+
+  /* --- 배타: legacy 큐 은닉 + 칸반 표시(동일 게이트 결합) --- */
+  body.erp-mobile-v2-layout .foms-production-legacy-queue {
+    display: none;
+  }
+  body.erp-mobile-v2-layout .foms-kanban {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--foms-space-3);
+    padding: var(--foms-space-3) var(--foms-space-4) var(--foms-space-6);
+    align-items: start;
+  }
+
+  /* --- 열 --- */
+  body.erp-mobile-v2-layout .foms-kanban-col {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    background: var(--foms-surface-subtle);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-xl);
+    overflow: hidden;
+  }
+  body.erp-mobile-v2-layout .foms-kanban-col__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--foms-space-2);
+    padding: var(--foms-space-3) var(--foms-space-4);
+    background: var(--foms-surface-base);
+    border-bottom: 1px solid var(--foms-border-subtle);
+    position: sticky;
+    top: 0;
+    z-index: var(--foms-z-sticky);
+  }
+  body.erp-mobile-v2-layout .foms-kanban-col__title {
+    font-size: var(--foms-font-size-lg);
+    font-weight: var(--foms-font-weight-bold);
+    color: var(--foms-text-primary);
+  }
+  body.erp-mobile-v2-layout .foms-kanban-col__count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    min-height: 28px;
+    padding: 0 var(--foms-space-2);
+    border-radius: var(--foms-radius-full);
+    background: var(--foms-surface-muted);
+    color: var(--foms-text-secondary);
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-bold);
+  }
+  body.erp-mobile-v2-layout .foms-kanban-col__body {
+    display: grid;
+    gap: var(--foms-space-3);
+    padding: var(--foms-space-3);
+    /* 열 독립 스크롤(내용이 길면 페이지가 아니라 열 내부에서). dvh = 툴바 보정. */
+    min-height: 280px;
+    max-height: calc(100dvh - 240px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  body.erp-mobile-v2-layout .foms-kanban-col__empty {
+    margin: 0;
+    padding: var(--foms-space-6) var(--foms-space-4);
+    color: var(--foms-text-tertiary);
+    font-size: var(--foms-font-size-sm);
+    text-align: center;
+  }
+
+  /* --- 카드 (장갑 대형 카드 — 큰 글자·넉넉한 히트영역, HMI 무채색) --- */
+  body.erp-mobile-v2-layout .foms-kanban-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-2);
+    padding: var(--foms-space-4);
+    background: var(--foms-surface-base);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-lg);
+    box-shadow: var(--foms-shadow-sm);
+    cursor: pointer;
+    min-height: var(--foms-touch-target-min);
+  }
+  body.erp-mobile-v2-layout .foms-kanban-card:focus-visible {
+    outline: none;
+    box-shadow: var(--foms-shadow-focus-ring);
+  }
+  body.erp-mobile-v2-layout .foms-kanban-card__top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--foms-space-2);
+  }
+  body.erp-mobile-v2-layout .foms-kanban-card__customer {
+    font-size: var(--foms-font-size-xl);
+    font-weight: var(--foms-font-weight-bold);
+    line-height: var(--foms-line-height-tight);
+    color: var(--foms-text-primary);
+    word-break: break-word;
+  }
+  /* 2공장(라홈시스템) 배지 — 라우팅 정보. HMI: 저채도 무채 칩(경보 아님). */
+  body.erp-mobile-v2-layout .foms-kanban-card__factory {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px var(--foms-space-2);
+    border-radius: var(--foms-radius-full);
+    background: var(--foms-surface-muted);
+    color: var(--foms-text-secondary);
+    font-size: var(--foms-font-size-xs);
+    font-weight: var(--foms-font-weight-bold);
+    white-space: nowrap;
+  }
+  body.erp-mobile-v2-layout .foms-kanban-card__product {
+    font-size: var(--foms-font-size-base);
+    font-weight: var(--foms-font-weight-medium);
+    color: var(--foms-text-secondary);
+    word-break: break-word;
+  }
+  /* 규격 W×D×H — 카드에서 가장 크게(24px, 자수 크게). 공장 작업자 가독성 최우선. */
+  body.erp-mobile-v2-layout .foms-kanban-card__spec {
+    font-size: var(--foms-font-size-2xl);
+    font-weight: var(--foms-font-weight-bold);
+    line-height: var(--foms-line-height-tight);
+    color: var(--foms-text-primary);
+    letter-spacing: 0.01em;
+  }
+  body.erp-mobile-v2-layout .foms-kanban-card__material {
+    font-size: var(--foms-font-size-sm);
+    color: var(--foms-text-tertiary);
+    word-break: break-word;
+  }
+  body.erp-mobile-v2-layout .foms-kanban-card__foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--foms-space-2);
+    margin-top: var(--foms-space-1);
+  }
+
+  /* --- 상차 D-day 칩: HMI 색 규율 = 정상 무채색, 임박/지연만 유채색 --- */
+  body.erp-mobile-v2-layout .foms-kanban-chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 0 var(--foms-space-3);
+    border-radius: var(--foms-radius-full);
+    background: var(--foms-surface-muted);
+    color: var(--foms-text-secondary);
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-bold);
+    white-space: nowrap;
+  }
+  body.erp-mobile-v2-layout .foms-kanban-chip.is-imminent {
+    background: var(--erp-warning-light);
+    color: var(--foms-color-warning-700);
+  }
+  body.erp-mobile-v2-layout .foms-kanban-chip.is-overdue {
+    background: var(--erp-danger-light);
+    color: var(--foms-color-danger-600);
+  }
+  body.erp-mobile-v2-layout .foms-kanban-chip.is-muted {
+    background: transparent;
+    color: var(--foms-text-tertiary);
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  /* --- 열 이동 버튼 (제작 시작 / 제작 완료) — 큰 터치 타깃, 명확한 액션 어포던스 --- */
+  body.erp-mobile-v2-layout .foms-kanban-move-btn {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--foms-space-2);
+    min-height: var(--foms-touch-target-min);
+    padding: 0 var(--foms-space-4);
+    border: 1px solid transparent;
+    border-radius: var(--foms-radius-md);
+    background: var(--foms-interactive-primary);
+    color: var(--foms-text-inverse);
+    font-size: var(--foms-font-size-base);
+    font-weight: var(--foms-font-weight-bold);
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .foms-kanban-move-btn:hover {
+    background: var(--foms-interactive-primary-hover);
+  }
+  body.erp-mobile-v2-layout .foms-kanban-move-btn:active {
+    background: var(--foms-interactive-primary-active);
+  }
+  body.erp-mobile-v2-layout .foms-kanban-move-btn:focus-visible {
+    outline: none;
+    box-shadow: var(--foms-shadow-focus-ring);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .foms-kanban-card {
+    transition: none !important;
+  }
+}

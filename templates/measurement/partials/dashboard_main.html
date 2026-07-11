@@ -46,6 +46,12 @@
       </a>
     </section>
   {% endif %}
+  {# W12 — 태블릿 가로(코호트) 실측 특수형 split view. 표시는 foms-tablet-measurement.css
+     의 코호트 @media 가 소유(코호트에서 desktop-shell 숨기고 split 표시; 그 외 base
+     display:none 로 완전 무동작 → 폰/세로/데스크톱 동작 불변). #}
+  {% if erp_mobile_v2_enabled %}
+    {% include 'measurement/partials/tablet_split_body.html' %}
+  {% endif %}
   <div class="erp-measurement-desktop-shell">
   <div class="erp-pro-card">
     <div class="erp-pro-card__header erp-pro-card__header--filter">

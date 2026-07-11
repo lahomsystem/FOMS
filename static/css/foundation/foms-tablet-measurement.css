@@ -1,0 +1,178 @@
+/* ==========================================================================
+   W12 — 태블릿 실측 특수형 split view (measurement dashboard).
+   좌: 실측일 순 고객 리스트(300px) / 우: 기존 ERP Order edit fragment.
+   "실측 입력 = 주문 원장 직접 기록" — 별도 입력 화면 없음.
+
+   코호트 게이트(정확·verbatim):
+     @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse)
+     body scope: body.erp-mobile-v2-layout
+     page scope: .erp-measurement-dashboard
+   landscape-only — orientation:portrait 토큰을 절대 쓰지 않는다(세로=모바일 셸;
+   foms-split-view.css / foms-tablet-landscape.css 의 portrait 금지 가드와 정합).
+
+   면(surface) 배타성 표 (T0 교훈: 어떤 조합도 0 surface 금지 — split 표시와
+   desktop-shell 숨김이 같은 @media 블록에서 일어나 blank 로 desync 불가):
+   | combo                          | mobile section | desktop-shell table  | tablet split(NEW) | live surface |
+   |--------------------------------|----------------|----------------------|-------------------|--------------|
+   | <992 (phone)                   | show           | hidden(shell.css !imp)| hidden(base)     | mobile       |
+   | >=992 portrait coarse          | show           | hidden(shell.css !imp)| hidden(base)     | mobile       |
+   | >=992 landscape COARSE(tablet) | hidden(shell)  | hidden(NEW)           | show(NEW)        | split        |
+   | >=992 landscape fine(windowed) | hidden(shell)  | show                  | hidden(base)     | desktop      |
+   | >=992 fine/none (PC)           | hidden(shell)  | show                  | hidden(base)     | desktop      |
+
+   모든 규칙은 body.erp-mobile-v2-layout .erp-measurement-dashboard 하위 스코프 —
+   코호트 밖/PC/폰 100% 무영향. foms 토큰(foms-tokens.css)만 사용(하드코딩 팔레트 금지).
+   ========================================================================== */
+
+/* Base(opt-in 이전 필수 — T0 순서 계약): 어디서든 기본 숨김. 코호트 @media 만이 표시한다. */
+.foms-tablet-measure-split {
+  display: none;
+}
+
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  /* 코호트에서만: split 표시 + desktop-shell 테이블 숨김(같은 블록 → desync 불가). */
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-split {
+    display: flex;
+    flex-direction: row;
+    gap: var(--foms-space-3, 0.75rem);
+    align-items: stretch;
+    min-height: calc(100dvh - 9rem);
+    max-height: calc(100dvh - 9rem);
+    padding: var(--foms-space-3, 0.75rem);
+    box-sizing: border-box;
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .erp-measurement-desktop-shell {
+    display: none !important;
+  }
+
+  /* 좌: 고객 리스트(고정 300px, 내부 스크롤) */
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-list {
+    flex: 0 0 300px;
+    width: 300px;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-2, 0.5rem);
+    padding: var(--foms-space-2, 0.5rem);
+    background: var(--foms-surface-raised, #f7f8fa);
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: var(--foms-radius-md, 8px);
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-list__head {
+    flex-shrink: 0;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--foms-space-2, 0.5rem);
+    padding: var(--foms-space-1, 0.25rem) var(--foms-space-2, 0.5rem);
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-list__title {
+    font-size: var(--foms-font-size-base, 1rem);
+    font-weight: var(--foms-font-weight-semibold, 600);
+    color: var(--foms-text-primary);
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-list__count {
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    color: var(--foms-text-secondary);
+  }
+
+  /* 리스트 카드 = 탭 타깃(버튼). 최소 높이 = 편안한 터치 타깃. */
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-1, 0.25rem);
+    width: 100%;
+    min-height: var(--foms-touch-target-comfortable, 44px);
+    padding: var(--foms-space-2, 0.5rem) var(--foms-space-3, 0.75rem);
+    text-align: left;
+    background: var(--foms-surface-base, #fff);
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: var(--foms-radius-md, 8px);
+    color: var(--foms-text-primary);
+    cursor: pointer;
+    transition: border-color var(--foms-duration-fast, 120ms) var(--foms-ease-standard, ease),
+      background var(--foms-duration-fast, 120ms) var(--foms-ease-standard, ease);
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-card:hover {
+    border-color: var(--foms-interactive-primary, #5a67d8);
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-card.is-active {
+    background: var(--foms-color-brand-50, #f3f4ff);
+    border-color: var(--foms-interactive-primary, #5a67d8);
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-card__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--foms-space-2, 0.5rem);
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-card__time {
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    font-weight: var(--foms-font-weight-semibold, 600);
+    color: var(--foms-text-primary);
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-card__status {
+    font-size: var(--foms-font-size-xs, 0.75rem);
+    color: var(--foms-text-secondary);
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-card__customer {
+    font-size: var(--foms-font-size-base, 1rem);
+    font-weight: var(--foms-font-weight-semibold, 600);
+    color: var(--foms-text-primary);
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-card__addr,
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-card__product {
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    color: var(--foms-text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-card__product {
+    color: var(--foms-text-tertiary);
+  }
+
+  /* 우: 주문 원장(edit fragment) 주입 영역 — 남은 폭 전부, 내부 스크롤. */
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-detail {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    background: var(--foms-surface-base, #fff);
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: var(--foms-radius-md, 8px);
+    padding: var(--foms-space-4, 1rem);
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-detail__empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 12rem;
+    height: 100%;
+    color: var(--foms-text-tertiary);
+    font-size: var(--foms-font-size-base, 1rem);
+    text-align: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .foms-tablet-measure-card {
+    transition: none;
+  }
+}

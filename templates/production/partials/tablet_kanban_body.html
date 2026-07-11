@@ -1,0 +1,83 @@
+{# ============================================================================
+   태블릿 가로 생산 칸반 보드 — W13 (2026-07-11, T2 / 목업 v8)
+
+   태블릿 가로 코호트에서 legacy 생산 작업 큐 테이블을 대체하는 read-model 3열 칸반.
+   열 = production_read_model 버킷(제작대기 / 제작중 / 제작완료). "상차 대기"는 독립
+   상태가 아니므로 열이 아니라 카드의 상차 D-day 칩으로만 표기한다.
+
+   데이터: 서버 무변경. dashboard.py가 넘기는 `orders`(build_production_enriched_rows)의
+   각 행 dict를 소비한다. 버킷 구분값은 행의 `stage`(= '제작대기'|'제작중'|'제작완료',
+   production_dashboard_display._production_stage_label_from_stage 산출)로 템플릿에서
+   직접 접근 가능하므로 Jinja selectattr 그룹핑을 쓴다(신규 쿼리/컨텍스트 없음).
+
+   카드 탭 → 상세: tablet-side-sheet.js(위임 셀렉터에 .foms-kanban-card[data-order-id]
+   확장). 열 이동 버튼 → tablet-production-kanban.js(기존 /api/orders/<id>/production/
+   start|complete fetch + 성공 시 새로고침).
+
+   HMI 색 규율: 카드/열 = 무채색. 상차 D-day 칩만 임박(D-2 이내)/지연 시 유채색.
+   표시/은닉·배타는 foms-tablet-production-kanban.css 소유(코호트 게이트).
+   ============================================================================ #}
+{% set _kanban_columns = [
+  {'bucket': '제작대기', 'rows': orders | selectattr('stage', 'equalto', '제작대기') | list, 'move': 'start', 'move_label': '제작 시작', 'move_icon': 'fa-play'},
+  {'bucket': '제작중', 'rows': orders | selectattr('stage', 'equalto', '제작중') | list, 'move': 'complete', 'move_label': '제작 완료', 'move_icon': 'fa-check'},
+  {'bucket': '제작완료', 'rows': orders | selectattr('stage', 'equalto', '제작완료') | list, 'move': none, 'move_label': none, 'move_icon': none}
+] %}
+<section class="foms-kanban" aria-label="생산 칸반 보드">
+  {% for col in _kanban_columns %}
+  <div class="foms-kanban-col" data-kanban-bucket="{{ col.bucket }}">
+    <header class="foms-kanban-col__head">
+      <span class="foms-kanban-col__title">{{ col.bucket }}</span>
+      <span class="foms-kanban-col__count" aria-label="{{ col.rows|length }}건">{{ col.rows|length }}</span>
+    </header>
+    <div class="foms-kanban-col__body">
+      {% for o in col.rows %}
+      {% set _flags = (o.structured_data.get('flags') if o.structured_data else none) or {} %}
+      <article class="foms-kanban-card" data-order-id="{{ o.id }}" role="button" tabindex="0"
+        aria-label="{{ o.customer_name }} 주문 상세 열기">
+        <div class="foms-kanban-card__top">
+          <span class="foms-kanban-card__customer">{{ o.customer_name }}</span>
+          {% if _flags.get('factory2') %}
+          <span class="foms-kanban-card__factory" title="라홈시스템(2공장) 발주">
+            <i class="fas fa-industry" aria-hidden="true"></i> 2공장
+          </span>
+          {% endif %}
+        </div>
+        {% if o.v3_product_label %}
+        <div class="foms-kanban-card__product">{{ o.v3_product_label }}</div>
+        {% endif %}
+        {% if o.v3_spec_display %}
+        <div class="foms-kanban-card__spec">{{ o.v3_spec_display }}</div>
+        {% endif %}
+        {% if o.v3_material %}
+        <div class="foms-kanban-card__material">{{ o.v3_material }}</div>
+        {% endif %}
+        <div class="foms-kanban-card__foot">
+          {% set _dday = o.construction_dday %}
+          {% if _dday is not none %}
+          <span class="foms-kanban-chip{% if _dday < 0 %} is-overdue{% elif _dday <= 2 %} is-imminent{% endif %}">
+            상차 {% if _dday < 0 %}D+{{ -_dday }}{% elif _dday == 0 %}D-DAY{% else %}D-{{ _dday }}{% endif %}
+          </span>
+          {% endif %}
+          {% if col.move == 'start' %}
+            {% if o.is_sales_approved %}
+            <button type="button" class="foms-kanban-move-btn" data-order-id="{{ o.id }}" data-kanban-action="start">
+              <i class="fas {{ col.move_icon }}" aria-hidden="true"></i> {{ col.move_label }}
+            </button>
+            {% else %}
+            <span class="foms-kanban-chip is-muted">고객 컨펌 전</span>
+            {% endif %}
+          {% elif col.move == 'complete' %}
+            <button type="button" class="foms-kanban-move-btn" data-order-id="{{ o.id }}" data-kanban-action="complete">
+              <i class="fas {{ col.move_icon }}" aria-hidden="true"></i> {{ col.move_label }}
+            </button>
+          {% endif %}
+        </div>
+      </article>
+      {% endfor %}
+      {% if not col.rows %}
+      <p class="foms-kanban-col__empty">해당 없음</p>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</section>

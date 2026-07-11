@@ -29,7 +29,9 @@
   var MQ = window.matchMedia(
     "(min-width: 992px) and (orientation: landscape) and (pointer: coarse)"
   );
-  var ROW_SELECTOR = "#erp-grid tr.erp-main-row[data-order-id]";
+  // W13: 생산 칸반 카드(#erp-grid 밖)도 시트 대상에 포함 — 카드 탭 → 동일 fragment 상세.
+  var ROW_SELECTOR =
+    "#erp-grid tr.erp-main-row[data-order-id], .foms-kanban-card[data-order-id]";
   var INTERACTIVE = "a, button, input, select, label, textarea";
 
   function fragmentUrl(orderId) {
@@ -64,87 +66,19 @@
     sheet.querySelector(".foms-tablet-sheet__close").addEventListener("click", close);
   }
 
-  // runtime/erp-shell.js activateScripts 정책 모방: innerHTML로 주입된 <script>는 실행되지
-  // 않으므로 새 노드로 교체해 재실행한다. type 보존(application/json 데이터 블록 보호).
-  function activateScripts(container) {
-    var nodes = container.querySelectorAll("script");
-    Array.prototype.forEach.call(nodes, function (old) {
-      var s = document.createElement("script");
-      if (old.id) s.id = old.id;
-      if (old.type) s.type = old.type;
-      if (old.nonce) s.nonce = old.nonce;
-      if (old.src) {
-        s.src = old.src;
-        s.async = old.async;
-        s.defer = old.defer;
-        if (old.crossOrigin) s.crossOrigin = old.crossOrigin;
-        if (old.integrity) s.integrity = old.integrity;
-      } else {
-        s.textContent = old.textContent;
-      }
-      old.parentNode.replaceChild(s, old);
-    });
-  }
-
-  function setLoading() {
-    bodyEl.innerHTML =
-      '<div class="foms-tablet-sheet__state" role="status">' +
-      '<span class="foms-tablet-sheet__spinner" aria-hidden="true"></span>' +
-      "<span>주문 상세 로딩 중…</span>" +
-      "</div>";
-  }
-
-  function setError(orderId) {
-    bodyEl.innerHTML =
-      '<div class="foms-tablet-sheet__state foms-tablet-sheet__state--error" role="alert">' +
-      "<p>주문 상세를 불러오지 못했습니다.</p>" +
-      '<button type="button" class="foms-tablet-sheet__retry">다시 시도</button>' +
-      "</div>";
-    var retry = bodyEl.querySelector(".foms-tablet-sheet__retry");
-    if (retry) {
-      retry.addEventListener("click", function () {
-        load(orderId);
-      });
-    }
-  }
-
+  // fragment fetch/주입/스크립트 재실행/staleness 는 공용 로더(fragment-loader.js) 소유.
+  // 이 모듈은 컨테이너(bodyEl)와 URL 만 넘긴다. currentOrderId 는 행 하이라이트 staleness 용.
   function load(orderId) {
     currentOrderId = orderId;
-    setLoading();
-    fetch(fragmentUrl(orderId), {
-      credentials: "same-origin",
-      headers: { "X-Requested-With": "foms-tablet-sheet" },
-    })
-      .then(function (res) {
-        if (!res.ok) throw new Error("fragment HTTP " + res.status);
-        return res.text();
-      })
-      .then(function (html) {
-        // 사이가 더 최신 주문으로 바뀌었으면(빠른 연속 탭) 이 응답은 폐기.
-        if (currentOrderId !== orderId) return;
-        bodyEl.innerHTML = html;
-        activateScripts(bodyEl);
-        try {
-          document.dispatchEvent(
-            new CustomEvent("foms:main-content-swapped", {
-              detail: { source: "tablet-sheet", url: fragmentUrl(orderId) },
-            })
-          );
-          document.dispatchEvent(
-            new CustomEvent("foms:erp-shell-fragment-swapped", {
-              detail: { url: fragmentUrl(orderId) },
-            })
-          );
-        } catch (e) {
-          /* CustomEvent 미지원 환경 무시 */
-        }
-        bodyEl.scrollTop = 0;
-      })
-      .catch(function (err) {
-        if (currentOrderId !== orderId) return;
-        console.error("[foms-tablet-sheet] fragment load failed:", err);
-        setError(orderId);
-      });
+    if (!window.FomsFragmentLoader || typeof window.FomsFragmentLoader.load !== "function") {
+      console.error("[foms-tablet-sheet] FomsFragmentLoader 미로드 — 시트 로드 중단");
+      return;
+    }
+    window.FomsFragmentLoader.load(bodyEl, fragmentUrl(orderId), {
+      requestedWith: "foms-tablet-sheet",
+      source: "tablet-sheet",
+      loadingText: "주문 상세 로딩 중…",
+    });
   }
 
   function markActiveRow(row) {
