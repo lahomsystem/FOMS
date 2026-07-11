@@ -4,6 +4,7 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-07-11 | v3 라이트 테마·QA 7결함·디자인 리뷰·360° 상세 직행 | foms-mobile-v3.css, partials/v3/*, layout_head.html, test_shell_v3_contract.py | 04eab6e6·a1704f63·cedeec24·a1799538 |
 | 2026-07-11 | 모바일 v3 셸(Field OS) C1~C6 — variant 판정 SSOT·페르소나 홈 6종·주문360°·계약 테스트 | feature_flags.py, context_processors.py, templates/partials/v3/*, static/{css,js}/v3/*, order_timeline_v3.py, test_shell_v3_contract.py | deb2ed9b·62f3e3cd·cfdfe65c·02b0366a |
 | 2026-07-09 | 세션 자동 기록 | pr_body_production.txt, commit_msg.txt, test_erp_order_shared_form_scripts.py 외 2개 | 08f6a620 |
 | 2026-07-09 | 세션 자동 기록 | commit_msg.txt, test_erp_order_shared_form_scripts.py, 04-filter-table-badges-buttons.css 외 2개 | 08f6a620 |
