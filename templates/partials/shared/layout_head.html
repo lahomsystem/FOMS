@@ -114,18 +114,18 @@
       }
     </style>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" crossorigin="anonymous">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-mobile-surfaces.css') }}?v=20260711ad">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-mobile-surfaces.css') }}?v=20260711ae">
     {% endif %}
     {# v3 셸 자산(배타 로드): shell_variant=='v3'일 때만 v3 CSS/셸 JS 로드. v2 모바일
        번들과 상호 배타(위 v2 critical CSS는 shell_variant=='v2' 게이트라 v3에서 미로드). #}
     {% if shell_variant == 'v3' %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/v3/foms-mobile-v3.css') }}?v=20260711a">
-    <script src="{{ url_for('static', filename='js/v3/foms-mobile-v3.js') }}?v=20260711a" defer></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/v3/foms-mobile-v3.css') }}?v=20260711b">
+    <script src="{{ url_for('static', filename='js/v3/foms-mobile-v3.js') }}?v=20260711b" defer></script>
     {% endif %}
     {# 셸 토글 JS는 v3 자격자면(v3 활성이든, v2로 복귀해 drawer 진입점을 쓰든) 로드.
        경량·standalone(v3 CSS 의존 없음)·singleton 가드. 비자격/legacy는 미로드. #}
     {% if shell_v3_eligible %}
-    <script src="{{ url_for('static', filename='js/v3/foms-shell-toggle.js') }}?v=20260711a" defer></script>
+    <script src="{{ url_for('static', filename='js/v3/foms-shell-toggle.js') }}?v=20260711b" defer></script>
     {% endif %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/foms/photo-capture.css') }}?v=20260529a">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-sticky-action-bar.css') }}?v=20260614a">

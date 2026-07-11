@@ -1,0 +1,81 @@
+/* FOMS 태블릿 가로 터치 보정 레이어 — W9 (2026-07-11, T2).
+
+   코호트 사용자의 진짜 터치 태블릿 가로에서, T0 fallback으로 표시 중인 legacy PC
+   대시보드 표면(.foms-shell-desktop-only 계열 그리드/필터/테이블)을 목업 v8의 터치
+   스펙으로 보정한다. 마크업 무변경 — CSS만.
+
+   적용 조건 (T0 매트릭스 정합):
+     @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse)
+   = 992+ 가로 + 굵은 포인터 = 진짜 터치 태블릿 가로.
+     - split-배선 페이지(orders)는 이 조합에서 legacy가
+       `.foms-split-enabled ~ .foms-shell-desktop-only` 로 은닉되므로 보정이 no-op.
+     - split-미배선 페이지(construction/production/shipment/measurement/history 등)는
+       legacy fallback이 표시되어 보정이 실제 적용된다(동일 쿼리로 양쪽 커버).
+     - fine 992–1365(노트북 창)은 마우스이므로 제외 — `pointer: coarse` 필수.
+     - 세로(portrait) 방향 토큰은 이 파일에서 쓰지 않는다(세로=모바일 셸, landscape
+       전용). foms-split-view.css의 portrait 금지 가드와 정합.
+
+   스코프: body.erp-mobile-v2-layout(코호트 게이트) + legacy PC 클래스(.erp-pro-*,
+   .erp-dashboard-*, #erp-grid 등)로 한정 → 코호트 OFF / PC / 폰 무영향. 인라인 스타일
+   금지, foms 토큰 소비. (로드: foms-mobile-surfaces.css @import — 코호트 번들에서만.) */
+
+:root {
+  /* iOS/Material HIG 권장 최소 터치 타깃 44px(그리드 행 최소 48px는
+     --foms-touch-target-min, foms-tokens.css). foms 네임스페이스 토큰으로 소비. */
+  --foms-touch-target-comfortable: 44px;
+}
+
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+
+  /* 1) 그리드 데이터 행 ≥48px — table row의 height는 최소 높이로 동작(내용이 크면 증가). */
+  body.erp-mobile-v2-layout .erp-dashboard-workqueue #erp-grid tbody tr.erp-main-row {
+    height: var(--foms-touch-target-min); /* 48px */
+  }
+
+  /* 2) 버튼/링크 타깃 ≥44px (헤더 액션·서브 nav 탭·그리드 버튼·행 열기 아이콘).
+     대상 클래스는 모두 이미 inline-flex 중앙정렬(02-base/04-buttons) → min-*만 얹는다. */
+  body.erp-mobile-v2-layout .erp-pro-btn,
+  body.erp-mobile-v2-layout .erp-pro-nav-item,
+  body.erp-mobile-v2-layout .erp-dashboard-workqueue .btn,
+  body.erp-mobile-v2-layout .erp-dashboard-workqueue .erp-open-btn-icon {
+    min-height: var(--foms-touch-target-comfortable);
+  }
+  /* 아이콘 전용/정사각 타깃은 폭도 확보. */
+  body.erp-mobile-v2-layout .erp-pro-btn--icon,
+  body.erp-mobile-v2-layout .erp-dashboard-workqueue .erp-open-btn-icon {
+    min-width: var(--foms-touch-target-comfortable);
+  }
+
+  /* 3) 필터 입력 44px + 16px(iOS 포커스 확대 방지). 16px는 --foms-font-size-base(1rem).
+     그리드 인라인 날짜 입력도 동일 처리(동일 iOS 줌 문제). */
+  body.erp-mobile-v2-layout .erp-dashboard-filters .form-control,
+  body.erp-mobile-v2-layout .erp-dashboard-filters .form-select,
+  body.erp-mobile-v2-layout .erp-dashboard-workqueue .erp-dashboard-date-input {
+    min-height: var(--foms-touch-target-comfortable);
+    font-size: var(--foms-font-size-base); /* 16px — iOS 포커스 시 자동 확대 방지 */
+  }
+
+  /* 4) 체크박스 24px 상시 (그리드 전체선택·행 선택 + 필터 토글). 필터 체크박스는 인라인
+     width/height: 1.1em 를 달고 있어 !important 로만 덮인다(마크업 무변경 원칙). */
+  body.erp-mobile-v2-layout .erp-dashboard-filters .form-check-input,
+  body.erp-mobile-v2-layout .erp-dashboard-workqueue .form-check-input {
+    width: 24px !important;
+    height: 24px !important;
+  }
+
+  /* 5) 페이지네이션 44px — page-link 를 정사각 터치 타깃으로. */
+  body.erp-mobile-v2-layout .erp-dashboard-workqueue .pagination .page-link {
+    min-width: var(--foms-touch-target-comfortable);
+    min-height: var(--foms-touch-target-comfortable);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* 6) 테이블 헤더 sticky 유지 — 보정이 그리드 스크롤 sticky 헤더를 깨지 않도록 재확인.
+     실제 top offset·배경·z-index는 dashboard-grid.css 의 `#erp-grid thead th` !important
+     규칙이 소유(SSOT); 여기서는 position 계약만 재확인한다. */
+  body.erp-mobile-v2-layout .erp-dashboard-workqueue #erp-grid thead th {
+    position: sticky;
+  }
+}

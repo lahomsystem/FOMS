@@ -25,4 +25,8 @@
 @import url("../components/foms-drawing-mobile-card.css?v=20260711b");
 @import url("../contexts/orders/dashboard-control-tower.css?v=20260614a");
 @import url("../components/foms-as-camera.css?v=20260703a");
+/* 태블릿 가로 터치 보정(W9) + 사이드 시트(W10). W10 파일 미생성 시에도 @import는
+   fail-soft(브라우저가 없는 파일을 조용히 건너뜀) — import 라인은 여기서 예약. */
+@import url("../foundation/foms-tablet-landscape.css?v=20260711a");
+@import url("../components/foms-tablet-side-sheet.css?v=20260711a");
 

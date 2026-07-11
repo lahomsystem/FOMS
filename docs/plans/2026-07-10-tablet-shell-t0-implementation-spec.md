@@ -68,7 +68,13 @@ Worker 7기(W1~W7) + 울트라 재검토 2회(적대·회귀)로 구현 완료. 
 
 검수가 색출·봉합한 결함: ① 992–1365 세로 coarse blank(P2-08 재현 경로) ② ≥1366 가로 coarse 이중 chrome(대시보드 그리드) ③ 글로벌 헤더 이중 chrome(13-bridge, 히어로 기기) ④ 워크벤치 태블릿 세로 큐 실종+카드 누출(d-lg 폭 게이트 함정, 중첩 d-lg-none 포함) ⑤ 이미지 뷰어 인라인 정본 미동기(실서빙 경로) ⑥ 캐시버스터 @import 체인.
 
+## staging 실배포 검증 (2026-07-11, 커밋 4건: fdd4a90a·4134275a·f6de1ab5·14e2e38a)
+
+스모크(1180×820 실뷰포트)가 색출·봉합한 배포 결함: ① split blank — base 은닉이 opt-in @media 뒤(캐스케이드 순서, 계약 테스트+순서 잠금 추가) ② 캐시 체인 — @import 자식만 범프 시 부모 URL 불변으로 1h 미반영(**교훈: 자식 범프 = 부모 내용 변경 = 부모도 범프**) ③ split 미배선 7개 대시보드 992+ 가로 blank — legacy 은닉을 `.foms-split-enabled ~` 형제 조건·`:has()` 로 split-존재 시에만 적용(미배선 페이지 = legacy fallback 계약).
+최종 실측: /erp/dashboard = split+레일 10탭 ✓, construction·production = legacy 정상 ✓, 세로/폰/PC 매트릭스 ✓.
+
 ## 백로그 (후속 착수 순)
+0. **[T2] 출고(shipment) 자체 셸 게이트 정리** — `foms-shipment-mobile.css`의 `@media (max-width:1365.98px)`가 T0 매트릭스와 독립적으로 폭 1365 이하 전부 모바일 UI를 강제(!important). 현행 동작 유지 중(유해하지 않음)이나 T2 출고 이식 시 매트릭스로 통합.
 
 1. **[T2 선결·최우선] 워크벤치 상세**(`workbench_detail_body.html`) — 대시보드와 동일 d-lg 함정: 태블릿 세로에서 모바일 handoff 실종 + `.dw-legacy-detail` 누출.
 2. **[경미] 태블릿 세로 d-lg 드롭 3건** — shipment 모바일 요약 스트립(`dashboard_main.html:135`), completion FAB(`completion_dashboard_body.html:47`), 주문 상세 액션바 JS(`dashboard_scripts_detail_dom.html:548/557`).

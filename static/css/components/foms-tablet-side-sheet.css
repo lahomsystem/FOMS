@@ -1,0 +1,163 @@
+/**
+ * W10 / T2 — 태블릿 사이드 시트 컴포넌트.
+ *
+ * 우측 고정 400px(뷰포트 ≤1200px 은 380px) 슬라이드 인 시트. 스크림 없음(비차단 —
+ * 뒤 legacy 그리드가 계속 보이고 조작 가능). tablet-side-sheet.js 가 DOM 을 1회 생성한다.
+ *
+ * 표시 게이트는 JS(matchMedia: 992+ landscape coarse)가 소유한다. 이 파일의 @media 는
+ * 폭 반응형 조정 전용이며, 세로 차단 오버레이(P2-08형)를 재도입하지 않는다.
+ * (foms-split-view.css 의 orientation:portrait 금지 가드와 무관 — 신규 표시 opt-in 파일,
+ * W5 전례에 따라 별도 파일에서 표시 용도로만 사용.)
+ *
+ * 로드 배선은 W9 소유(foms-mobile-surfaces.css @import + 부모 ?v 체인 범프). 이 파일은
+ * 스타일 정의만 제공한다. foms 토큰(foms-tokens.css)만 사용.
+ */
+
+.foms-tablet-sheet {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 400px;
+  max-width: 92vw;
+  z-index: var(--foms-z-modal, 1070);
+  display: flex;
+  flex-direction: column;
+  background: var(--foms-surface-base, #fff);
+  border-left: 1px solid var(--foms-border-subtle, #dde1e6);
+  box-shadow: var(--foms-shadow-xl);
+  transform: translateX(100%);
+  transition: transform var(--foms-duration-slow, 320ms) var(--foms-ease-standard, cubic-bezier(0.2, 0, 0, 1));
+  will-change: transform;
+}
+
+.foms-tablet-sheet[hidden] {
+  display: none;
+}
+
+.foms-tablet-sheet.is-open {
+  transform: translateX(0);
+}
+
+@media (max-width: 1200px) {
+  .foms-tablet-sheet {
+    width: 380px;
+  }
+}
+
+/* 헤더: 제목 + 닫기(44px 터치 타깃) */
+.foms-tablet-sheet__head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--foms-space-3, 0.75rem);
+  min-height: 56px;
+  padding: var(--foms-space-2, 0.5rem) var(--foms-space-4, 1rem);
+  border-bottom: 1px solid var(--foms-border-subtle, #dde1e6);
+  background: var(--foms-surface-raised, #f7f8fa);
+}
+
+.foms-tablet-sheet__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--foms-font-size-lg, 1.125rem);
+  font-weight: var(--foms-font-weight-semibold, 600);
+  color: var(--foms-text-primary);
+}
+
+.foms-tablet-sheet__close {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--foms-radius-md, 8px);
+  background: transparent;
+  color: var(--foms-text-secondary);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background var(--foms-duration-fast, 120ms) var(--foms-ease-standard, ease),
+    color var(--foms-duration-fast, 120ms) var(--foms-ease-standard, ease);
+}
+
+.foms-tablet-sheet__close:hover {
+  background: var(--foms-interactive-secondary-hover, #dde1e6);
+  color: var(--foms-text-primary);
+}
+
+/* 스크롤 바디: fragment 상세/edit 폼 주입 영역 */
+.foms-tablet-sheet__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: var(--foms-space-4, 1rem);
+}
+
+/* 로딩 / 에러 상태 */
+.foms-tablet-sheet__state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--foms-space-3, 0.75rem);
+  padding: var(--foms-space-10, 2.5rem) var(--foms-space-4, 1rem);
+  color: var(--foms-text-secondary);
+  text-align: center;
+}
+
+.foms-tablet-sheet__spinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid var(--foms-border-subtle, #dde1e6);
+  border-top-color: var(--foms-interactive-primary, #5a67d8);
+  animation: foms-tablet-sheet-spin 0.8s linear infinite;
+}
+
+@keyframes foms-tablet-sheet-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.foms-tablet-sheet__state--error p {
+  margin: 0;
+  color: var(--foms-color-danger-600, #dc2626);
+}
+
+.foms-tablet-sheet__retry {
+  min-height: 44px;
+  padding: 0 var(--foms-space-4, 1rem);
+  border: 1px solid var(--foms-border-default, #c1c7d0);
+  border-radius: var(--foms-radius-md, 8px);
+  background: var(--foms-surface-base, #fff);
+  color: var(--foms-text-primary);
+  font-weight: var(--foms-font-weight-medium, 500);
+  cursor: pointer;
+}
+
+.foms-tablet-sheet__retry:hover {
+  background: var(--foms-interactive-secondary, #eef0f3);
+}
+
+/* 시트가 연 주문 행을 그리드에서 하이라이트(어떤 행이 열렸는지 표시) */
+.erp-main-row.foms-tablet-sheet-active > * {
+  background: var(--foms-surface-accent, #f3f4ff) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .foms-tablet-sheet {
+    transition: none;
+  }
+
+  .foms-tablet-sheet__spinner {
+    animation-duration: 1.6s;
+  }
+}
