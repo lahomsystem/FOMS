@@ -396,3 +396,72 @@ def test_split_shell_rail_internal_scroll_capped() -> None:
     assert "overflow: hidden" in css
     # side-tab (pre-existing) + master + detail each need min-height:0.
     assert _norm(css).count("min-height: 0") >= 3
+
+
+# --- W8: split-UNWIRED page legacy fallback (992+ landscape blank seal) --------
+
+CONSTRUCTION_BODY = "templates/construction/partials/dashboard_body.html"
+ORDERS_DASHBOARD = "templates/orders/partials/dashboard_main.html"
+
+# Every cohort page that ships .foms-shell-desktop-only must also render a mobile
+# surface, otherwise the tablet-portrait hide would blank it (W8 scan). Only orders
+# includes the split shell; the rest are the split-UNWIRED fallback set.
+_SPLIT_UNWIRED_COHORT_BODIES = (
+    CONSTRUCTION_BODY,
+    "templates/production/partials/dashboard_body.html",
+    "templates/shipment/partials/dashboard_main.html",
+    "templates/measurement/partials/dashboard_main.html",
+    "templates/orders/partials/history_dashboard_body.html",
+)
+
+
+def test_shell_legacy_hide_is_split_sibling_gated_on_landscape() -> None:
+    """W8: the 992+ landscape/split legacy-desktop hide fires ONLY when the split
+    markup (.foms-split-enabled) is a preceding sibling, so split-UNWIRED cohort
+    pages keep the legacy desktop instead of collapsing to a blank at 992–1365
+    landscape (staging 2026-07-11: split surface absent AND mobile surface hidden)."""
+    css = _norm(_read(SHELL_CSS))
+    assert (
+        "body.erp-mobile-v2-layout .erp-mobile-shell[data-erp-mobile-v2='true'] "
+        ".foms-split-enabled ~ .foms-shell-desktop-only"
+    ) in css, "split-sibling-gated legacy-desktop hide selector missing"
+
+
+def test_shell_legacy_fallback_contract_comment_present() -> None:
+    """W8: the split-UNWIRED fallback contract is documented in-file so a future edit
+    that reverts to the unconditional hide (which caused the blank) is caught in review."""
+    css = _read(SHELL_CSS)
+    assert "W8 split-UNWIRED fallback contract" in css
+
+
+def test_bridge_header_hide_split_gated_under_has_supports_guard() -> None:
+    """W8: the global-header hide for the split/large-screen arms is gated on
+    body:has(.foms-split-enabled) — the header sits OUTSIDE the .erp-mobile-shell
+    tree so a sibling combinator can't reach it — and the whole thing is wrapped in an
+    @supports selector(:has(*)) guard (legacy browsers keep the header, documented)."""
+    css = _norm(_read(BRIDGE_CSS))
+    assert "@supports selector(:has(*))" in css
+    for suffix in (".layout-header", ".layout-global-nav"):
+        assert (
+            "body.erp-mobile-v2-layout:has(.foms-split-enabled) " + suffix
+        ) in css, f"missing :has-gated header hide for {suffix}"
+    # The tablet-portrait arm stays unconditional (mobile surface guaranteed).
+    assert "(min-width: 992px) and (pointer: coarse) and (orientation: portrait)" in css
+
+
+def test_construction_is_split_unwired_so_fallback_holds() -> None:
+    """W8: construction (and the other fallback-set dashboards) do NOT include the
+    split shell, so the sibling-gated hide never fires there and the legacy desktop is
+    the 992+ landscape fallback. Orders IS split-wired — the contrast proves the gate is
+    meaningful (not vacuously true). If any fallback page later includes the split shell,
+    update this list and confirm the sibling gate still fits."""
+    orders = _read(ORDERS_DASHBOARD)
+    assert "partials/shared/foms_split_shell.html" in orders, (
+        "orders is expected to be the split-wired page"
+    )
+    for rel in _SPLIT_UNWIRED_COHORT_BODIES:
+        body = _read(rel)
+        assert "foms_split_shell.html" not in body, f"{rel} unexpectedly split-wired"
+        assert "foms-split-enabled" not in body, f"{rel} unexpectedly has split markup"
+        # …but each fallback page DOES ship a mobile surface, so tablet portrait is safe.
+        assert "erp_mobile_shell.html" in body, f"{rel} missing mobile shell chrome"

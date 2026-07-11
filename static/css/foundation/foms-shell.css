@@ -687,20 +687,44 @@
   }
 }
 
-/* Legacy desktop chrome hide, mobile-v2 cohort. Enumerated (no `not`) to exactly
-   the shells that are NOT legacy-desktop: the four split combos (992–1365.98
-   landscape / fine / none + ≥1366 landscape-coarse) and tablet-portrait-coarse
-   (mobile). The split-view (foms-split-view.css) or the mobile shell replaces the
-   legacy grid in those, so hiding it stops the double-chrome leak — including the
-   ≥1366 landscape-coarse case the old fixed 992–1365.98 band missed. Only ≥1366
-   fine/none (the desktop shell) is left out, so the legacy dashboard survives
-   exactly there and nowhere else. */
+/* Legacy desktop chrome hide — SPLIT shells (mobile-v2 cohort), split-existence
+   gated. Enumerated (no `not`) to the four split combos: 992–1365.98 landscape /
+   fine / none + ≥1366 landscape-coarse. The legacy grid is hidden ONLY when the
+   split markup (.foms-split-enabled, emitted by foms_split_shell.html) is present
+   as a PRECEDING SIBLING — DOM order verified: the split include sits before the
+   .foms-shell-desktop-only wrapper (orders/partials/dashboard_main.html).
+
+   W8 split-UNWIRED fallback contract: cohort dashboards that do NOT include the
+   split shell (construction / production / measurement / shipment / history — only
+   orders is split-wired today, and only when FOMS_TABLET_SPLIT_VIEW_ENABLED) have
+   no .foms-split-enabled sibling, so the `~` match fails and the legacy desktop
+   SURVIVES at 992+ landscape instead of collapsing to a blank (staging 2026-07-11:
+   the split surface is absent AND the mobile surface is hidden here, so the old
+   unconditional hide left the page empty). This is the explicit fallback until T2
+   ports each page to split — the drawing workbench already relies on it. The inner
+   chrome (.erp-pro-header / .erp-pro-nav / …) lives INSIDE .foms-shell-desktop-only,
+   so hiding the wrapper is sufficient — no separate inner-selector sibling rule. */
 @media
   ((min-width: 992px) and (max-width: 1365.98px) and (orientation: landscape)),
   ((min-width: 992px) and (max-width: 1365.98px) and (pointer: fine)),
   ((min-width: 992px) and (max-width: 1365.98px) and (pointer: none)),
-  ((min-width: 1366px) and (orientation: landscape) and (pointer: coarse)),
-  ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
+  ((min-width: 1366px) and (orientation: landscape) and (pointer: coarse)) {
+  body.erp-mobile-v2-layout
+    .erp-mobile-shell[data-erp-mobile-v2='true']
+    .foms-split-enabled ~ .foms-shell-desktop-only {
+    display: none !important;
+  }
+}
+
+/* Legacy desktop chrome hide — tablet portrait (≥992 portrait coarse = mobile
+   interface). W8 scan verdict: EVERY cohort page that ships .foms-shell-desktop-only
+   also renders a mobile surface (erp_mobile_shell chrome + a .foms-mobile-v2-dashboard
+   body — orders / construction / production / measurement / shipment / history all do),
+   so no split-unwired page can blank at portrait. The legacy chrome is therefore hidden
+   UNCONDITIONALLY here (no split-existence guard needed). Mirrors the mobile opt-in
+   block at the top of this file (which already hides the wrapper + inner chrome at
+   portrait-coarse); kept explicit for the selection-matrix contract + test. */
+@media ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
   body.erp-mobile-v2-layout
     .erp-mobile-shell[data-erp-mobile-v2='true']
     .foms-shell-desktop-only {

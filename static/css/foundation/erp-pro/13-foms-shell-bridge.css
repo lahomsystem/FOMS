@@ -81,21 +81,39 @@
 /* Non-desktop shells (mobile-v2 cohort): the master-detail split-view or the
    mobile shell owns the surface, so the legacy global brand header + nav are hidden
    like on mobile — otherwise the legacy chrome double-stacks over the split shell.
-   Placed after the ≥992 show rule so source order wins. Enumerated (no `not`):
-     - 992–1365.98 (all): split band (landscape) + split narrow-window (fine/none)
-       + tablet-portrait in that width — every sub-1366 tablet/narrow shell.
-     - ≥1366 landscape coarse: iPad 12.9"/13" landscape = split (hero device) — the
-       band the old fixed 992–1365.98 rule missed, leaving double chrome.
-     - ≥992 portrait coarse: tablet portrait = mobile shell (also seals the
-       ≥1366 portrait-coarse leak).
-   Only the true desktop (≥1366 fine/none) is left out, so it alone keeps the legacy
-   header/nav — matching the desktop dashboard that renders there.
+   Placed after the ≥992 show rule so source order wins.
+
+   W8 split-existence gate: the header lives OUTSIDE the .erp-mobile-shell tree, so
+   the preceding-sibling combinator that foms-shell.css uses to gate .foms-shell-
+   desktop-only cannot reach it. body:has(.foms-split-enabled) is the only structural
+   hook, so the split/large-screen arms (992–1365.98 all + ≥1366 landscape-coarse)
+   hide the global header ONLY when the split markup is actually present. Split-UNWIRED
+   cohort pages (construction / production / measurement / shipment / history) keep the
+   global header at 992+ landscape, matching the legacy .foms-shell-desktop-only that
+   foms-shell.css leaves visible there — without this they lost the global header while
+   the legacy desktop was restored (half-chromed page).
+   @supports selector(:has(*)) gate: browsers without :has (pre-2022; below the
+   iPad Safari 15.4+ / Chrome 105+ tablet target) drop the whole block, so a
+   split-wired page keeps its global header and double-stacks it over the split shell
+   — an accepted degradation for that small legacy cohort.
+   The tablet-portrait arm (≥992 portrait coarse = mobile interface) is a SEPARATE,
+   unconditional block below: every cohort page ships a mobile surface (W8 scan), so
+   the header is always hidden there and needs neither :has nor @supports.
    (orientation: portrait is used here intentionally; the P2-08 portrait-token ban
    is scoped to foms-split-view.css, not this bridge file.) */
-@media
-  (min-width: 992px) and (max-width: 1365.98px),
-  (min-width: 1366px) and (orientation: landscape) and (pointer: coarse),
-  (min-width: 992px) and (pointer: coarse) and (orientation: portrait) {
+@supports selector(:has(*)) {
+  @media
+    (min-width: 992px) and (max-width: 1365.98px),
+    (min-width: 1366px) and (orientation: landscape) and (pointer: coarse) {
+    body.erp-mobile-v2-layout:has(.foms-split-enabled) .layout-header,
+    body.erp-mobile-v2-layout:has(.foms-split-enabled) .layout-global-nav,
+    body.erp-mobile-v2-layout:has(.foms-split-enabled) .layout-global-nav.layout-global-nav--erp-v2-suppressed {
+      display: none !important;
+    }
+  }
+}
+
+@media (min-width: 992px) and (pointer: coarse) and (orientation: portrait) {
   body.erp-mobile-v2-layout .layout-header,
   body.erp-mobile-v2-layout .layout-global-nav,
   body.erp-mobile-v2-layout .layout-global-nav.layout-global-nav--erp-v2-suppressed {
