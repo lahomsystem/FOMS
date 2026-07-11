@@ -2,8 +2,12 @@
  * FOMS 태블릿 사이드 시트 (W10 · T2) — 태블릿 가로(코호트)에서 legacy 그리드 행 탭 시
  * 우측 400px 시트에 주문 상세/edit fragment 로드. 페이지 이동/모달 대체.
  *
- * 활성 코호트: (min-width: 992px) and (orientation: landscape) and (pointer: coarse).
- *   미매치(폰/세로/데스크톱) 시 완전 무동작 → 기존 행 클릭·인라인 편집 동작 그대로 보존.
+ * 활성 게이트(SSOT): MQ (min-width: 992px) and (orientation: landscape) and (pointer: coarse)
+ *   **AND** CSS 마커 --foms-tablet-ui:ready 존재. 마커는 foms-tablet-side-sheet.css 가
+ *   body.erp-mobile-v2-layout 에 정의하며, 이 CSS 는 v2 셸 코호트에서만(layout_head 게이트)
+ *   foms-mobile-surfaces.css 번들로 로드된다. 즉 **JS 활성 = CSS 로드 여부에서 파생**(이중
+ *   정의 금지, defect 1). 비-v2(legacy/v3) coarse 태블릿에선 마커 부재 → 완전 무동작 →
+ *   기존 행 클릭·인라인 편집 동작 그대로 보존(preventDefault·미스타일 시트 덤프 방지).
  *
  * 대상 행: #erp-grid tr.erp-main-row[data-order-id]
  *   (컨트롤타워 dashboard_grid / 시공 filters_grid / 생산 filters_grid 3그리드 공유 마크업).
@@ -17,7 +21,8 @@
  *   foms:main-content-swapped / foms:erp-shell-fragment-swapped 디스패치(호스트 재바인딩).
  *   로딩 스피너 + 실패 시 재시도 버튼(에러 무음 금지).
  *
- * 닫기: 시트 밖 탭 · X 버튼 · ESC. 스크림 없음(비차단 — aria-modal=false, 그리드 계속 보임).
+ * 닫기: X 버튼 · ESC 만(비차단 non-modal 패널 표준 — 외부 탭 자동 닫기는 "뒤 그리드 계속
+ *   조작 가능"과 모순이라 제거, defect 6). 스크림 없음(aria-modal=false, 그리드 계속 보임).
  * idempotent: window.__FOMS_TABLET_SHEET_BOUND 싱글턴 가드(perf 가드 G4 — 전역 listener 중복 방지).
  */
 (function () {
@@ -29,6 +34,23 @@
   var MQ = window.matchMedia(
     "(min-width: 992px) and (orientation: landscape) and (pointer: coarse)"
   );
+
+  // 코호트 게이트 = MQ 매치 AND CSS 마커(--foms-tablet-ui:ready). 마커는 시트 CSS가
+  // body.erp-mobile-v2-layout 에 정의(defect 1 — JS 활성이 CSS 로드 여부에서 파생, 이중
+  // 정의 금지). CSS 로드 상태는 페이지 수명 내 불변이라 positive 결과만 캐시한다.
+  var _uiReady = false;
+  function tabletUiReady() {
+    if (_uiReady) return true;
+    var body = document.body;
+    if (!body) return false;
+    var v = window.getComputedStyle(body).getPropertyValue("--foms-tablet-ui");
+    if (v && v.trim() === "ready") _uiReady = true;
+    return _uiReady;
+  }
+  function cohortActive() {
+    return MQ.matches && tabletUiReady();
+  }
+
   // W13: 생산 칸반 카드(#erp-grid 밖)도 시트 대상에 포함 — 카드 탭 → 동일 fragment 상세.
   var ROW_SELECTOR =
     "#erp-grid tr.erp-main-row[data-order-id], .foms-kanban-card[data-order-id]";
@@ -139,9 +161,11 @@
     lastFocus = null;
   }
 
-  // 단일 document 위임: 코호트에서만 동작. 행 탭 → 열기/전환, 시트 밖 탭 → 닫기.
+  // 단일 document 위임: 코호트에서만 동작. 행 탭 → 열기/전환.
+  // (defect 6) 외부 탭 자동 닫기는 제거 — 비차단 non-modal 패널은 뒤 그리드를 계속 조작
+  // 가능해야 하는데, 외부 탭 닫기는 그 조작(다른 행 클릭 등)마다 시트를 닫아 모순. X·ESC만 닫기.
   document.addEventListener("click", function (ev) {
-    if (!MQ.matches) return;
+    if (!cohortActive()) return;
     var target = ev.target;
     if (!target || !target.closest) return;
 
@@ -151,12 +175,6 @@
       if (interactive && row.contains(interactive)) return; // 행 내 액션/링크/입력 보존
       ev.preventDefault();
       open(row.getAttribute("data-order-id"), row);
-      return;
-    }
-
-    // 시트가 열려 있고, 클릭이 시트 내부가 아니면 닫기(시트 밖 탭).
-    if (sheet && !sheet.hidden && !sheet.contains(target)) {
-      close();
     }
   });
 
@@ -166,7 +184,7 @@
 
   // 회전/포인터 변화로 코호트를 벗어나면 열린 시트를 정리.
   function onMqChange() {
-    if (!MQ.matches) close();
+    if (!cohortActive()) close();
   }
   if (typeof MQ.addEventListener === "function") {
     MQ.addEventListener("change", onMqChange);

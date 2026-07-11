@@ -83,9 +83,10 @@ def test_landscape_css_carries_touch_correction_rules() -> None:
     assert "height: 24px !important" in css
     # 5) pagination 44px.
     assert ".pagination .page-link" in css
-    # 6) sticky header preserved.
-    assert "#erp-grid thead th" in css
-    assert "position: sticky" in css
+    # 6) (defect 7) sticky 재선언 규칙은 dead rule 로 제거됨 — sticky top/bg/z-index 및
+    #    position:sticky !important 는 dashboard-grid.css '#erp-grid thead th' 가 SSOT 로
+    #    소유한다. 여기서 문자열 부재를 잠그지는 않는다(무관 규칙 우발 매치로 인한 false-fail
+    #    방지) — 삭제는 diff 로 검증.
 
 
 # --- (2) @import wiring (W9 landscape + W10 side-sheet) --------------------
@@ -104,12 +105,13 @@ def test_mobile_surfaces_imports_landscape_and_side_sheet() -> None:
 
 
 def test_mobile_surfaces_parent_cachebuster_bumped() -> None:
-    """The mobile-surfaces content changed (W12 added the measurement + kanban @imports) so
-    its layout_head ?v must be bumped past the prior baseline (T0 교훈: 자식 범프=부모 내용
-    변경=부모도 범프). W9=ae → W11=af → W12=ag."""
+    """The mobile-surfaces content changed (W12 added the measurement + kanban @imports; W14
+    bumped the landscape + side-sheet child @imports) so its layout_head ?v must be bumped past
+    the prior baseline (T0 교훈: 자식 범프=부모 내용 변경=부모도 범프).
+    W9=ae → W11=af → W12=ag → W14=ah."""
     layout_head = _read("templates/partials/shared/layout_head.html")
-    assert "foms-mobile-surfaces.css') }}?v=20260711ag" in layout_head
-    assert "foms-mobile-surfaces.css') }}?v=20260711af" not in layout_head
+    assert "foms-mobile-surfaces.css') }}?v=20260711ah" in layout_head
+    assert "foms-mobile-surfaces.css') }}?v=20260711ag" not in layout_head
 
 
 # --- (3) row 48px / target 44px token locks --------------------------------
@@ -437,12 +439,14 @@ def test_mobile_surfaces_imports_measurement_and_kanban_reserved() -> None:
 
 def test_fragment_loader_module_exists() -> None:
     """공용 fragment 로더 SSOT: window.FomsFragmentLoader 정의 + activateScripts 식
-    createElement("script") + application/json(type) 보존 + main-content-swapped 디스패치."""
+    createElement("script") + application/json(type) 보존 + erp-shell 재바인딩 디스패치.
+    (defect 5: main-content-swapped 는 fragment 인라인 SSOT 로 이관됨 — 아래 double-dispatch
+    계약 참고. 로더는 인라인이 발화하지 않는 erp-shell-fragment-swapped 만 발화.)"""
     js = _read(FRAGMENT_LOADER_JS)
     assert "window.FomsFragmentLoader" in js
     assert 'createElement("script")' in js
     assert "s.type = old.type" in js  # type 보존 → application/json 프리로드 블록 실행 방지
-    assert "foms:main-content-swapped" in js
+    assert "foms:erp-shell-fragment-swapped" in js
 
 
 def test_tablet_measurement_js_exists_cohort_and_loader() -> None:
@@ -480,3 +484,75 @@ def test_side_sheet_still_uses_shared_loader() -> None:
     assert "/edit?open=erp-order" in js
     assert "#erp-grid tr.erp-main-row[data-order-id]" in js
     assert "a, button, input, select, label, textarea" in js
+
+
+# =====================================================================
+# W14 — 울트라 재검토 결함 7건 봉합 계약
+# (docs/plans/2026-07-11-tablet-t2-dashboards-spec.md W14 브리프)
+# =====================================================================
+
+MEASURE_JS_W14 = "static/js/foms/tablet-measurement.js"
+KANBAN_JS_W14 = "static/js/foms/tablet-production-kanban.js"
+
+
+def test_w14_tablet_ui_gate_marker_is_css_ssot_consumed_by_all_three_js() -> None:
+    """defect 1: JS 활성 게이트를 CSS 로드 여부에서 파생(이중 정의 금지).
+    마커 --foms-tablet-ui:ready 는 시트 CSS 가 body.erp-mobile-v2-layout 에 정의(SSOT)하고,
+    태블릿 JS 3종(side-sheet·measurement·kanban)이 getComputedStyle 로 이를 소비한다.
+    → 비-v2(legacy/v3) coarse 태블릿(CSS 미로드)에서 3종 JS 완전 무동작."""
+    css = _norm(_read(SIDE_SHEET_CSS))
+    assert "body.erp-mobile-v2-layout { --foms-tablet-ui: ready" in css, (
+        "side-sheet CSS 에 게이트 마커(SSOT) 부재"
+    )
+    for rel in (SIDE_SHEET_JS, MEASURE_JS_W14, KANBAN_JS_W14):
+        js = _read(rel)
+        assert "--foms-tablet-ui" in js, f"{rel}: 게이트 마커 미소비"
+        assert "getComputedStyle" in js, f"{rel}: getComputedStyle 로 마커 미조회"
+        assert 'trim() === "ready"' in js, f"{rel}: 마커 값 'ready' 미검사"
+
+
+def test_w14_filter_16px_specificity_override_beats_grid_css() -> None:
+    """defect 2: dashboard-grid.css `#erp-filters-form .form-control{.85rem}`(1,1,0)이
+    `.erp-dashboard-filters .form-control`(0,3,1)을 이기므로, 동일 id 스코프로 16px 재선언해
+    (1,2,1 > 1,1,0) iOS 줌 방지를 실효화한다."""
+    css = _norm(_read(LANDSCAPE_CSS))
+    assert (
+        "body.erp-mobile-v2-layout #erp-filters-form .form-control, "
+        "body.erp-mobile-v2-layout #erp-filters-form .form-select { "
+        "font-size: var(--foms-font-size-base)" in css
+    ), "id-스코프 16px 특이도 재선언 부재"
+
+
+def test_w14_fragment_loader_dedupes_src_scripts_once() -> None:
+    """defect 4: fragment-loader 가 src 스크립트를 1회만 실행(dedupe). erp-order 모듈(~12 src)은
+    singleton + 이벤트 재init 이라 매 로드 재로딩=낭비. 인라인은 매 로드 재실행(데이터 주입)."""
+    js = _read(FRAGMENT_LOADER_JS)
+    assert "activatedFragmentSrc" in js, "src 1회 실행 레지스트리 부재"
+    assert "srcAlreadyLive" in js, "중복 src 판정 헬퍼 부재"
+    # inert 노드 제거(재실행 skip 경로).
+    assert "removeChild(old)" in js
+
+
+def test_w14_fragment_loader_no_double_dispatch_of_main_content_swapped() -> None:
+    """defect 5: fragment 인라인 <script>가 main-content-swapped SSOT 발화(HTMX split flow에도
+    필요, activateScripts 재실행으로 로더 경유 커버). 로더는 이를 중복 발화하지 않는다 —
+    erp-shell-fragment-swapped(인라인 미발화)만 발화."""
+    js = _read(FRAGMENT_LOADER_JS)
+    assert "foms:erp-shell-fragment-swapped" in js
+    assert 'new CustomEvent("foms:main-content-swapped"' not in js
+    assert "new CustomEvent('foms:main-content-swapped'" not in js
+    # fragment 인라인 SSOT 는 여전히 존재(제거 금지 — HTMX split flow 계약).
+    for rel in (
+        "templates/partials/shared/foms_order_detail_fragment.html",
+        "templates/orders/partials/order_detail_split_panel.html",
+    ):
+        assert "foms:main-content-swapped" in _read(rel), f"{rel}: 인라인 SSOT 발화 소실"
+
+
+def test_w14_side_sheet_no_outside_click_auto_close() -> None:
+    """defect 6: 비차단 non-modal 패널 — 외부 탭 자동 닫기 제거(X·ESC만). 뒤 그리드 조작마다
+    시트가 닫히는 모순 제거. Escape 키 닫기와 close 버튼은 보존."""
+    js = _read(SIDE_SHEET_JS)
+    assert "!sheet.contains(target)" not in js, "외부클릭 자동 닫기 잔존"
+    assert 'ev.key === "Escape"' in js, "ESC 닫기 소실"
+    assert "close" in js  # X/ESC close 경로 보존

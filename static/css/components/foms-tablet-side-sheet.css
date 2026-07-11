@@ -13,6 +13,15 @@
  * 스타일 정의만 제공한다. foms 토큰(foms-tokens.css)만 사용.
  */
 
+/* 태블릿 UI 게이트 마커(SSOT) — 태블릿 JS 3종(side-sheet·measurement·kanban)의 활성 조건.
+ * 이 CSS(및 형제 태블릿 CSS)는 foms-mobile-surfaces.css 번들로 v2 셸 코호트에서만 로드되므로,
+ * 이 마커의 존재 = 태블릿 UI CSS 로드됨 = JS가 활성화돼도 되는 지점. JS는 getComputedStyle로
+ * 이 값을 읽어 MQ 매치와 AND 결합한다(defect 1 — JS 게이트를 CSS 로드 여부에서 파생, 이중
+ * 정의 금지). 번들은 원자적 로드라 마커를 시트 CSS 한 곳에 정의하면 3종 JS 모두 커버. */
+body.erp-mobile-v2-layout {
+  --foms-tablet-ui: ready;
+}
+
 .foms-tablet-sheet {
   position: fixed;
   top: 0;
@@ -98,6 +107,24 @@
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding: var(--foms-space-4, 1rem);
+}
+
+/* defect 3 — 400px 시트에 edit 폼(edit_order_body.html) 적합화.
+ * 이 폼은 Bootstrap col-md-* 그리드라 ≥768px 뷰포트(시트는 ≥992 코호트)에서 다중열이 되고,
+ * foms-form-field 의 단일열 완화는 max-991.98 전용이라 좁은 시트에서 폼이 깨진다.
+ * 옵션 (a)(모바일 상세 fragment 교체)는 mobile 상세 라우트가 fragment가 아닌 풀페이지를
+ * 렌더하고 새 fragment 엔드포인트=서버 .py 변경(범위 밖)이라 불가 → 옵션 (b) CSS 평탄화 채택.
+ * 시트 바디 스코프 한정 — W12 실측 우측 패널(.foms-tablet-measure-detail, 넓음)은 무영향. */
+.foms-tablet-sheet__body [class*="col-md-"] {
+  flex: 0 0 100%;
+  max-width: 100%;
+  width: 100%;
+}
+/* col-md-8 mx-auto 중앙정렬 해제(.mx-auto 는 !important 라 동일하게 대응). 100% 폭에선
+ * 시각적 no-op 이지만 의도를 명시. */
+.foms-tablet-sheet__body [class*="col-md-"].mx-auto {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
 }
 
 /* 로딩 / 에러 상태 */

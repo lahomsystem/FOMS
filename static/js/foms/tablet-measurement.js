@@ -2,8 +2,9 @@
  * FOMS 태블릿 실측 특수형 split 동작 (W12) — 태블릿 가로(코호트)에서 좌측 고객 카드 탭 시
  * 우측 detail 패널에 기존 ERP Order edit fragment 로드. "실측 입력 = 주문 원장 직접 기록".
  *
- * 활성 코호트: (min-width: 992px) and (orientation: landscape) and (pointer: coarse).
- *   미매치(폰/세로/데스크톱) 시 완전 무동작(모든 작업이 MQ.matches 게이트 하위).
+ * 활성 게이트(SSOT): MQ (min-width: 992px) and (orientation: landscape) and (pointer: coarse)
+ *   AND CSS 마커 --foms-tablet-ui:ready(foms-tablet-side-sheet.css 정의, v2 셸 번들 로드
+ *   여부에서 파생 — defect 1). 미매치 또는 마커 부재 시 완전 무동작.
  *
  * fragment 로드는 공용 로더(fragment-loader.js) 재사용 — 사이드 시트와 단일 구현 공유.
  * idempotent: window.__FOMS_TABLET_MEASURE_BOUND 싱글턴 가드(perf G4 — 단일 document listener).
@@ -17,6 +18,22 @@
   var MQ = window.matchMedia(
     "(min-width: 992px) and (orientation: landscape) and (pointer: coarse)"
   );
+
+  // 코호트 게이트 = MQ AND CSS 마커(--foms-tablet-ui:ready). 마커는 시트 CSS가
+  // body.erp-mobile-v2-layout 에 정의(v2 번들 로드 여부에서 파생 — defect 1, 이중 정의 금지).
+  var _uiReady = false;
+  function tabletUiReady() {
+    if (_uiReady) return true;
+    var body = document.body;
+    if (!body) return false;
+    var v = window.getComputedStyle(body).getPropertyValue("--foms-tablet-ui");
+    if (v && v.trim() === "ready") _uiReady = true;
+    return _uiReady;
+  }
+  function cohortActive() {
+    return MQ.matches && tabletUiReady();
+  }
+
   var CARD_SELECTOR = ".foms-tablet-measure-card[data-order-id]";
   var LIST_SELECTOR = ".foms-tablet-measure-list";
   var DETAIL_SELECTOR = ".foms-tablet-measure-detail";
@@ -53,7 +70,7 @@
 
   // 단일 document 위임: 코호트에서만 동작. 좌측 카드 탭 → 우측 detail 로드.
   document.addEventListener("click", function (ev) {
-    if (!MQ.matches) return;
+    if (!cohortActive()) return;
     var target = ev.target;
     if (!target || !target.closest) return;
     var card = target.closest(CARD_SELECTOR);
@@ -64,7 +81,7 @@
 
   // 최초 진입/리스트 재렌더 시 첫 카드 자동 선택(빈 detail 방지).
   function autoSelect() {
-    if (!MQ.matches) return;
+    if (!cohortActive()) return;
     var list = document.querySelector(LIST_SELECTOR);
     if (!list) return;
     if (document.querySelector(CARD_SELECTOR + ".is-active")) return; // 이미 선택됨

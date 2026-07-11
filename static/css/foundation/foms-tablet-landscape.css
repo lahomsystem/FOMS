@@ -54,6 +54,14 @@
     min-height: var(--foms-touch-target-comfortable);
     font-size: var(--foms-font-size-base); /* 16px — iOS 포커스 시 자동 확대 방지 */
   }
+  /* 3b) 특이도 대응(T0 캐스케이드 교훈, defect 2): dashboard-grid.css 의
+     `#erp-filters-form .form-control{font-size:.85rem}`(특이도 1,1,0)이 위
+     `.erp-dashboard-filters .form-control`(0,3,1)을 이겨 iOS 줌 방지가 무효화된다.
+     동일 id 스코프(#erp-filters-form)로 16px 를 재선언해(1,2,1 > 1,1,0) 실효화한다. */
+  body.erp-mobile-v2-layout #erp-filters-form .form-control,
+  body.erp-mobile-v2-layout #erp-filters-form .form-select {
+    font-size: var(--foms-font-size-base); /* 16px — iOS 포커스 확대 방지(특이도 승) */
+  }
 
   /* 4) 체크박스 24px 상시 (그리드 전체선택·행 선택 + 필터 토글). 필터 체크박스는 인라인
      width/height: 1.1em 를 달고 있어 !important 로만 덮인다(마크업 무변경 원칙). */
@@ -72,12 +80,12 @@
     justify-content: center;
   }
 
-  /* 6) 테이블 헤더 sticky 유지 — 보정이 그리드 스크롤 sticky 헤더를 깨지 않도록 재확인.
-     실제 top offset·배경·z-index는 dashboard-grid.css 의 `#erp-grid thead th` !important
-     규칙이 소유(SSOT); 여기서는 position 계약만 재확인한다. */
-  body.erp-mobile-v2-layout .erp-dashboard-workqueue #erp-grid thead th {
-    position: sticky;
-  }
+  /* 6) (삭제, defect 7) `#erp-grid thead th { position: sticky }` 재선언은 dead rule 이었다:
+     sticky 의 실효 속성(top offset·배경·z-index)은 dashboard-grid.css 의 `#erp-grid thead th`
+     !important 규칙이 SSOT 로 소유하고, position:sticky 자체도 그 !important 규칙이 이미
+     보장한다. 여기의 무-!important·저특이도 재선언은 아무것도 바꾸지 않으므로 제거.
+     (rule 1 `tr.erp-main-row{height}` 는 유지 — table-row 의 height 는 최소 높이로 동작하는
+      실효 터치 보정이다.) */
 }
 
 /* ============================================================
