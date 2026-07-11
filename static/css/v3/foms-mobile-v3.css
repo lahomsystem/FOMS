@@ -1,27 +1,27 @@
 /* =========================================================================
-   FOMS Field OS v3 — 모바일 셸 (다크 고정, 실기기 뷰포트)
+   FOMS Field OS v3 — 모바일 셸 (라이트, 실기기 뷰포트)
    목업 scratchpad/mockup/foms-mobile-mockup.html <style> 폰 내부(.fos-*, .px-*)
    이식. 갤러리 크롬(폰 프레임·페르소나 스위처·근거 패널)은 제외.
    스테이지 토큰 8단계(해피콜 제거, 스펙 §5-1). @import 금지 — 별도 <link ?v=>.
    ========================================================================= */
 
-/* ---- 1. 그라운드 (다크 고정) + 액센트 + 시맨틱 + 스테이지 8단계 ---------- */
+/* ---- 1. 그라운드 (라이트) + 액센트 + 시맨틱 + 스테이지 8단계 ---------- */
 :root{
-  /* 1.1 다크 그라운드 */
-  --fos-bg0:#131110; --fos-bg1:#1B1917; --fos-bg2:#252220; --fos-bg3:#302C29;
-  --fos-tx0:#F1EDE6; --fos-tx1:#B5AEA3; --fos-tx2:#7C766C; --fos-line:#35312B;
-  /* 1.2 페르소나 액센트 */
-  --acc-cs:#5B9DFF; --acc-sales:#45C86F; --acc-drawing:#2CC9E8;
-  --acc-production:#EAA83C; --acc-construction:#FF7A45; --acc-shipment:#A78BFA;
+  /* 1.1 라이트 그라운드 (웜 페이퍼) */
+  --fos-bg0:#F6F4F0; --fos-bg1:#FFFFFF; --fos-bg2:#EFECE6; --fos-bg3:#FFFFFF;
+  --fos-tx0:#201C17; --fos-tx1:#5F5950; --fos-tx2:#8F887D; --fos-line:#E4E0D8;
+  /* 1.2 페르소나 액센트 (흰 바탕 AA — 텍스트/아이콘용) */
+  --acc-cs:#2563EB; --acc-sales:#15803D; --acc-drawing:#0E7490;
+  --acc-production:#B45309; --acc-construction:#C2410C; --acc-shipment:#6D28D9;
   /* 1.3 시맨틱 */
-  --ok:#3FBF7F; --warn:#F5B83D; --danger:#F26D5E; --info:#5B9DFF;
+  --ok:#047857; --warn:#B45309; --danger:#DC2626; --info:#2563EB;
   /* 1.4 스테이지 배지색 (8단계 — 해피콜 제거) */
-  --st-received:#8A93A6; --st-measure:#45C86F; --st-drawing:#2CC9E8;
-  --st-confirm:#7C8CF8; --st-production:#EAA83C; --st-construction:#FF7A45;
-  --st-cs:#F272B6; --st-completed:#3FBF7F;
+  --st-received:#64748B; --st-measure:#15803D; --st-drawing:#0E7490;
+  --st-confirm:#4F46E5; --st-production:#B45309; --st-construction:#C2410C;
+  --st-cs:#BE185D; --st-completed:#047857;
   /* 기본 액센트(페르소나가 --acc를 재정의) */
   --acc:var(--acc-cs);
-  --ink:#131110; /* 액센트 위 진한 잉크 텍스트 */
+  --ink:#FFFFFF; /* 액센트 위 흰 텍스트 */
 }
 
 /* 활성 페르소나 → 셸 액센트 매핑 (v3 셸 컨테이너에 data-active-persona) */
@@ -77,9 +77,9 @@
 .fos-empty__sub{font-size:13px; color:var(--fos-tx2); max-width:34ch}
 
 /* =========================================================================
-   3. 공용 컴포넌트 라이브러리 (폰 내부 — 다크 고정)
+   3. 공용 컴포넌트 라이브러리 (폰 내부 — 라이트)
    ========================================================================= */
-.fos-screen{display:none; height:100%; flex-direction:column; --acc-ink:#131110}
+.fos-screen{display:none; height:100%; flex-direction:column; --acc-ink:#FFFFFF}
 .fos-screen.is-active{display:flex}
 
 .fos-scroll{flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch;
@@ -111,9 +111,10 @@
 .fos-hero{
   background:linear-gradient(160deg,var(--fos-bg2),var(--fos-bg1));
   border:1px solid var(--fos-line); border-radius:16px; padding:16px;
+  box-shadow:0 1px 2px rgba(32,28,23,.05);
   display:flex; flex-direction:column; gap:12px;
 }
-.fos-hero.is-danger{border-color:color-mix(in srgb,var(--danger) 55%,var(--fos-line)); background:linear-gradient(160deg,color-mix(in srgb,var(--danger) 12%,var(--fos-bg2)),var(--fos-bg1))}
+.fos-hero.is-danger{border-color:color-mix(in srgb,var(--danger) 40%,var(--fos-line)); background:linear-gradient(160deg,color-mix(in srgb,var(--danger) 12%,var(--fos-bg2)),var(--fos-bg1))}
 .fos-hero__label{font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--acc); font-weight:800; display:flex; align-items:center; gap:7px}
 .fos-hero.is-danger .fos-hero__label{color:var(--danger)}
 .fos-hero__title{font-size:22px; font-weight:800; letter-spacing:-.01em}
@@ -124,9 +125,10 @@
 .fos-queue-card{
   display:flex; align-items:center; gap:12px; text-align:left;
   background:var(--fos-bg1); border:1px solid var(--fos-line); border-radius:16px;
+  box-shadow:0 1px 2px rgba(32,28,23,.05);
   padding:13px 12px 13px 14px; position:relative; width:100%; color:inherit; font:inherit;
 }
-.fos-queue-card.is-danger{border-color:color-mix(in srgb,var(--danger) 50%,var(--fos-line))}
+.fos-queue-card.is-danger{border-color:color-mix(in srgb,var(--danger) 40%,var(--fos-line))}
 .fos-queue-card__dot{flex:0 0 auto; width:10px; height:10px; border-radius:50%; background:var(--sc,var(--st-received)); align-self:flex-start; margin-top:5px; box-shadow:0 0 0 3px color-mix(in srgb,var(--sc,var(--st-received)) 22%,transparent)}
 .fos-queue-card__body{flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:5px}
 .fos-queue-card__title{font-size:17px; font-weight:700; letter-spacing:-.01em; display:flex; gap:8px; align-items:baseline; flex-wrap:wrap}
@@ -209,17 +211,18 @@
 .fos-nav-badge[data-tone="acc"]{background:var(--acc); color:var(--ink)}
 
 /* 시트 (실기기 — fixed) */
-.fos-scrim{position:fixed; inset:0; background:rgba(0,0,0,.5); opacity:0; visibility:hidden; transition:opacity .2s; z-index:1040}
+.fos-scrim{position:fixed; inset:0; background:rgba(32,28,23,.35); opacity:0; visibility:hidden; transition:opacity .2s; z-index:1040}
 .fos-scrim.is-open{opacity:1; visibility:visible}
 .fos-sheet{
   position:fixed; left:0; right:0; bottom:0; z-index:1050;
   background:var(--fos-bg3); border-top:1px solid var(--fos-line);
+  box-shadow:0 -8px 24px rgba(32,28,23,.14);
   border-radius:20px 20px 0 0; padding:8px 16px calc(18px + env(safe-area-inset-bottom,0px));
   transform:translateY(102%); transition:transform .26s cubic-bezier(.32,1.25,.4,1);
   max-height:88%; overflow-y:auto; display:flex; flex-direction:column; gap:14px;
 }
 .fos-sheet.is-open{transform:translateY(0)}
-.fos-sheet__handle{width:40px; height:5px; border-radius:99px; background:var(--fos-tx2); margin:2px auto 4px; flex:0 0 auto}
+.fos-sheet__handle{width:40px; height:5px; border-radius:99px; background:var(--fos-bg2); margin:2px auto 4px; flex:0 0 auto}
 .fos-sheet__hd{display:flex; align-items:center; justify-content:space-between; gap:12px}
 .fos-sheet__hd h3{margin:0; font-size:17px; font-weight:800}
 .fos-sheet__close{border:0; background:var(--fos-bg2); color:var(--fos-tx1); width:34px; height:34px; border-radius:10px; cursor:pointer; display:grid; place-items:center}
@@ -260,7 +263,7 @@
   padding:10px 14px; cursor:pointer; text-align:left; color:inherit; font:inherit;
 }
 .fos-check__box{flex:0 0 auto; width:26px; height:26px; border-radius:8px; border:2px solid var(--fos-tx2); display:grid; place-items:center; color:transparent; transition:.14s}
-.fos-check.is-checked .fos-check__box{background:var(--ok); border-color:var(--ok); color:#0c1a12}
+.fos-check.is-checked .fos-check__box{background:var(--ok); border-color:var(--ok); color:#FFFFFF}
 .fos-check__body{flex:1 1 auto; min-width:0}
 .fos-check__label{font-size:15px; font-weight:700}
 .fos-check.is-checked .fos-check__label{color:var(--fos-tx1); text-decoration:line-through; text-decoration-color:var(--fos-tx2)}
@@ -283,7 +286,7 @@
 .fos-swipe.is-disabled .fos-swipe__knob{background:var(--fos-bg3); color:var(--fos-tx2); cursor:not-allowed}
 .fos-swipe.is-done .fos-swipe__fill{width:100%; background:color-mix(in srgb,var(--ok) 32%,var(--fos-bg2))}
 .fos-swipe.is-done .fos-swipe__label{color:var(--ok); padding-left:0}
-.fos-swipe.is-done .fos-swipe__knob{left:auto; right:4px; background:var(--ok); color:#0c1a12}
+.fos-swipe.is-done .fos-swipe__knob{left:auto; right:4px; background:var(--ok); color:#FFFFFF}
 .fos-swipe__fallback{background:none; border:0; color:var(--acc); font:inherit; font-size:12px; font-weight:700; cursor:pointer; padding:6px; align-self:center}
 
 /* progress */
@@ -302,17 +305,17 @@
 }
 .fos-ph svg{position:absolute; inset:0; width:100%; height:100%; opacity:.5}
 .fos-ph__lbl{position:relative; z-index:2; font-size:10.5px; font-weight:700; letter-spacing:.02em;
-  padding:6px 8px; background:linear-gradient(to top,rgba(0,0,0,.55),transparent); color:#F1EDE6; width:100%}
+  padding:6px 8px; background:linear-gradient(to top,rgba(0,0,0,.55),transparent); color:#FFFFFF; width:100%}
 .fos-ph--wide{aspect-ratio:16/9}
 .fos-ph[data-ph="photo"]{--g1:#3a4a63; --g2:#1a2130}
 .fos-ph[data-ph="map"]{--g1:#1f3b38; --g2:#141d20}
 .fos-ph[data-ph="draw"]{--g1:#123847; --g2:#0d1f28}
 .fos-ph[data-ph="blueprint"]{--g1:#0f3a52; --g2:#0a2130}
 .fos-ph[data-ph="wood"]{--g1:#4a3620; --g2:#231810}
-.fos-ph[data-ph="empty"]{--g1:#2a2724; --g2:#1a1816; border-style:dashed}
+.fos-ph[data-ph="empty"]{--g1:#EFECE6; --g2:#F6F4F0; border-style:dashed}
 .fos-ph__req{position:absolute; top:6px; right:6px; z-index:3; font-size:9.5px; font-weight:800; letter-spacing:.03em;
   padding:2px 7px; border-radius:99px; background:var(--danger); color:#fff}
-.fos-ph__req[data-done="1"]{background:var(--ok); color:#0c1a12}
+.fos-ph__req[data-done="1"]{background:var(--ok); color:#FFFFFF}
 
 /* 타임라인 (주문360°) */
 .fos-timeline{position:relative; display:flex; flex-direction:column; gap:0; padding-left:6px}
@@ -323,7 +326,7 @@
   background:var(--fos-bg0); border:3px solid var(--sc,var(--st-received)); z-index:2}
 .fos-tl-item.is-current .fos-tl-dot{box-shadow:0 0 0 4px color-mix(in srgb,var(--sc) 30%,transparent)}
 .fos-tl-item.is-done .fos-tl-dot{background:var(--sc)}
-.fos-tl-card{background:var(--fos-bg1); border:1px solid var(--fos-line); border-radius:14px; overflow:hidden; margin-bottom:10px}
+.fos-tl-card{background:var(--fos-bg1); border:1px solid var(--fos-line); border-radius:14px; box-shadow:0 1px 2px rgba(32,28,23,.05); overflow:hidden; margin-bottom:10px}
 .fos-tl-head{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 14px; cursor:pointer; width:100%; border:0; background:transparent; color:inherit; font:inherit; text-align:left}
 .fos-tl-head__l{display:flex; flex-direction:column; gap:5px; min-width:0}
 .fos-tl-head__title{font-size:15px; font-weight:800}
@@ -359,9 +362,9 @@
 .fos-skeleton__lines{flex:1; display:flex; flex-direction:column; gap:8px}
 .sk{border-radius:7px; background:var(--fos-bg2); position:relative; overflow:hidden}
 .sk::after{content:""; position:absolute; inset:0; transform:translateX(-100%);
-  background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--fos-tx2) 22%,transparent),transparent);
+  background:linear-gradient(90deg,transparent,rgba(248,246,242,.9),transparent);
   animation:shimmer 1.4s infinite}
-.sk--a{height:15px; width:62%} .sk--b{height:12px; width:88%} .fos-skeleton .fos-skeleton__dot{background:var(--fos-bg3)}
+.sk--a{height:15px; width:62%} .sk--b{height:12px; width:88%} .fos-skeleton .fos-skeleton__dot{background:var(--fos-bg2)}
 @keyframes shimmer{100%{transform:translateX(100%)}}
 
 /* 음성 입력 (v3.0 장식 — STT는 v3.1) */
@@ -375,7 +378,7 @@
 
 /* QR 뷰파인더 (v3.0 장식 — 디코더는 v3.1) */
 .fos-qr{position:relative; aspect-ratio:1/1; max-width:230px; margin:0 auto; width:100%;
-  border-radius:18px; overflow:hidden; background:radial-gradient(circle at 50% 40%,#1d2833,#0e1418)}
+  border-radius:18px; overflow:hidden; background:var(--fos-bg2); border:1px solid var(--fos-line)}
 .fos-qr svg.corners{position:absolute; inset:0; width:100%; height:100%}
 .fos-qr__line{position:absolute; left:8%; right:8%; height:2px; top:12%;
   background:linear-gradient(90deg,transparent,var(--acc),transparent);
@@ -406,7 +409,7 @@
   box-shadow:0 0 0 4px rgba(19,17,16,.35)}
 .px-sales-shutter::after{content:""; position:absolute; inset:6px; border-radius:50%; border:2px solid rgba(19,17,16,.45)}
 .px-sales-camhint{position:absolute; z-index:4; top:8px; left:8px; font-size:10.5px; font-weight:700;
-  color:#F1EDE6; background:rgba(19,17,16,.5); padding:3px 9px; border-radius:99px;
+  color:#FFFFFF; background:rgba(19,17,16,.5); padding:3px 9px; border-radius:99px;
   display:flex; gap:5px; align-items:center}
 .px-sales-camhint span{width:6px; height:6px; border-radius:50%; background:var(--danger)}
 .px-sales-gps{display:flex; align-items:center; gap:4px; font-variant-numeric:tabular-nums}
@@ -417,7 +420,7 @@
 .px-drawing-thumb{position:relative;flex:0 0 auto;width:66px;height:50px;border-radius:10px;overflow:hidden;
   border:1px solid var(--fos-line);background:linear-gradient(140deg,#0f3a52,#0a2130)}
 .px-drawing-thumb svg{position:absolute;inset:0;width:100%;height:100%}
-.px-drawing-thumb[data-ph="empty"]{background:linear-gradient(140deg,#2a2724,#1a1816);border-style:dashed}
+.px-drawing-thumb[data-ph="empty"]{background:linear-gradient(140deg,#EFECE6,#F6F4F0);border-style:dashed}
 .px-drawing-thumb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
 .fos-queue-card--link{text-decoration:none}
 .px-drawing-vchip{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:800;letter-spacing:.02em;
@@ -512,11 +515,11 @@
 /* =========================================================================
    v3.0 QA 결함 보강 (2026-07 실기기 QA)
    ========================================================================= */
-/* [결함1] 다크 v3 표면 헤딩 dark-on-dark 근본 차단.
+/* [결함1] v3 표면 헤딩에 전역 ERP 헤딩색 누수 근본 차단.
    전역 ERP 스타일(foundation/style.css:122 · style-pro-max.css:74-84)이
-   h1..h6{color:다크}를 강제하는데 .fos-appbar h2/.fos-sheet__hd h3는 color
-   미정의라 그 다크 색이 새어 앱바 페이지 타이틀이 안 보였다 → v3 셸 내 모든
-   헤딩을 셸 그라운드 텍스트색(--fos-tx0 #F1EDE6)으로 고정해 누수를 막는다. */
+   h1..h6{color:...}를 강제하는데 .fos-appbar h2/.fos-sheet__hd h3는 color
+   미정의라 그 색이 새어 앱바 페이지 타이틀 톤이 어긋났다 → v3 셸 내 모든
+   헤딩을 셸 그라운드 텍스트색(--fos-tx0 #201C17)으로 고정해 누수를 막는다. */
 .fos-shell-v3 h1,.fos-shell-v3 h2,.fos-shell-v3 h3,
 .fos-shell-v3 h4,.fos-shell-v3 h5,.fos-shell-v3 h6{color:var(--fos-tx0)}
 
