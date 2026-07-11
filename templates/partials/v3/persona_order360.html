@@ -53,4 +53,10 @@
     <span class="fos-empty__sub">이 주문은 아직 단계 이력이 기록되지 않았습니다.</span>
   </div>
   {% endif %}
+  {# 시트 → 전체 상세 직행 (F-lite): 시트 닫고 카드 다시 찾을 필요 없이 원탭 이동 #}
+  {% if _t.order_id %}
+  <a class="fos-btn fos-btn--primary" href="{{ url_for('erp_dashboard.erp_order_mobile_detail', order_id=_t.order_id) }}">
+    전체 상세 보기 <i class="fas fa-arrow-right" aria-hidden="true"></i>
+  </a>
+  {% endif %}
 </div>
