@@ -104,11 +104,12 @@ def test_mobile_surfaces_imports_landscape_and_side_sheet() -> None:
 
 
 def test_mobile_surfaces_parent_cachebuster_bumped() -> None:
-    """The mobile-surfaces content changed (new @imports) so its layout_head ?v must
-    be bumped past the T0 baseline (T0 교훈: 자식 범프=부모 내용 변경=부모도 범프)."""
+    """The mobile-surfaces content changed (W11 bumped the landscape @import a→b) so its
+    layout_head ?v must be bumped past the prior baseline (T0 교훈: 자식 범프=부모 내용
+    변경=부모도 범프). W9=ae → W11=af."""
     layout_head = _read("templates/partials/shared/layout_head.html")
-    assert "foms-mobile-surfaces.css') }}?v=20260711ae" in layout_head
-    assert "foms-mobile-surfaces.css') }}?v=20260711ad" not in layout_head
+    assert "foms-mobile-surfaces.css') }}?v=20260711af" in layout_head
+    assert "foms-mobile-surfaces.css') }}?v=20260711ae" not in layout_head
 
 
 # --- (3) row 48px / target 44px token locks --------------------------------
@@ -238,3 +239,42 @@ def test_legacy_grids_expose_order_id_on_main_row() -> None:
         assert 'class="erp-main-row" data-order-id=' in body, (
             f"{rel}: main row missing data-order-id source"
         )
+
+
+# =====================================================================
+# W11 — 요약 타일 스트립 (프로세스맵 경보/스텝 태블릿 타일 시각)
+# (docs/plans/2026-07-11-tablet-t2-dashboards-spec.md, 실행 단위 W11)
+# 마크업 무변경 — 태블릿 가로 코호트에서만 타일 시각 전환(CSS만, --process-map 스코프).
+# 큰 숫자 ≥22px(=2xl 24px), 라벨 12px(=xs), 정상 무채색·경보만 유채색(HMI).
+# =====================================================================
+
+
+def test_tile_pipeline_steps_are_touch_tiles_with_big_number() -> None:
+    """파이프라인 스텝이 태블릿 코호트에서 터치 타일(≥48px, --process-map 스코프) +
+    큰 숫자(2xl ≥22px) + 12px 라벨로 전환된다(마크업 무변경, 수평 strip 유지)."""
+    css = _norm(_read(LANDSCAPE_CSS))
+    assert (
+        ".erp-pro-card--process-map .erp-pro-pipeline__stage "
+        "{ min-height: var(--foms-touch-target-min)" in css
+    )
+    assert ".erp-pro-pipeline__count { font-size: var(--foms-font-size-2xl)" in css
+    assert ".erp-pro-pipeline__label { font-size: var(--foms-font-size-xs)" in css
+
+
+def test_tile_alerts_become_full_width_grid_strip() -> None:
+    """경보 KPI가 카드 헤더 세로 스택 → 전폭 4-타일 그리드 스트립으로 재배치되고,
+    값은 큰 숫자(2xl), 라벨은 12px. 색(danger/warning/info)은 03-card-pipeline.css
+    소유 규칙이 유지(HMI: 정상 무채색·경보만 유채색)."""
+    css = _norm(_read(LANDSCAPE_CSS))
+    assert "with-alerts .erp-pro-alerts { display: grid" in css
+    assert "grid-template-columns: repeat(4, 1fr)" in css
+    assert ".erp-pro-alert__value { font-size: var(--foms-font-size-2xl)" in css
+    assert ".erp-pro-alert__label { font-size: var(--foms-font-size-xs)" in css
+
+
+def test_tile_section_is_token_driven_and_cohort_scoped() -> None:
+    """타일 터치 지오메트리는 foms 토큰 구동(하드코딩 회귀 차단): 경보 타일 최소 높이 =
+    comfortable(44px). W11 규칙도 코호트 게이트(body.erp-mobile-v2-layout) 하위."""
+    css = _norm(_read(LANDSCAPE_CSS))
+    assert ".erp-pro-alert { min-height: var(--foms-touch-target-comfortable)" in css
+    assert "body.erp-mobile-v2-layout .erp-pro-card--process-map" in css

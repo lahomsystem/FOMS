@@ -79,3 +79,92 @@
     position: sticky;
   }
 }
+
+/* ============================================================
+   요약 타일 스트립 — W11 (2026-07-11, T2).
+
+   태블릿 가로 코호트에서 프로세스맵 카드의 경보(KPI)·파이프라인 스텝을 목업 v8의
+   "요약 타일" 시각(큰 숫자 ≥22px, 라벨 12px, 카드형 타일)으로 전환한다.
+   마크업 무변경 — CSS만(--process-map 스코프 한정).
+
+   HMI 색 규율(정상=무채색 / 경보만 유채색)은 기존 마크업이 이미 인코딩한다:
+   파이프라인 스텝 bg = --erp-bg-sidebar(중립), 경보 = danger/warning/info 좌측
+   보더·아이콘·값 색(03-card-pipeline.css 소유). → 색은 손대지 않고 크기/배치만
+   타일화한다(값 배지 배경만 제거해 큰 숫자로).
+
+   재배치 판정:
+     - 경보: 카드 헤더를 세로 스택으로 돌려 경보를 전폭 4-타일 그리드 스트립으로
+       재배치(flex-direction + grid, DOM 이동 없음). ← 완전 재배치 성공.
+     - 파이프라인: 스텝 사이 .erp-pro-pipeline__connector(chevron)가 flex 형제로
+       끼어 있어 CSS grid 균등 컬럼이 불가능(connector가 grid item이 되어 정렬 붕괴).
+       → 그리드 재배치는 포기하고 수평 strip을 유지, "카드화 + 숫자·터치 확대"까지만.
+       (근거: 마크업 무접촉 원칙 하에서 connector 제거·이동 불가) */
+
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+
+  /* 7) 경보 타일 스트립 — 헤더 세로 스택 → 경보 전폭 4-타일 그리드. */
+  body.erp-mobile-v2-layout .erp-pro-card--process-map .erp-pro-card__header--with-alerts {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--erp-space-sm);
+  }
+  body.erp-mobile-v2-layout .erp-pro-card--process-map
+    .erp-pro-card__header--with-alerts .erp-pro-alerts {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--erp-space-sm);
+    width: 100%;
+    margin-left: 0;
+  }
+  /* 경보 = ≥44px 터치 타일, [아이콘] [라벨/큰값 스택] 배치. */
+  body.erp-mobile-v2-layout .erp-pro-card--process-map
+    .erp-pro-card__header--with-alerts .erp-pro-alert {
+    min-height: var(--foms-touch-target-comfortable); /* 44px */
+    padding: 8px 12px;
+    justify-content: flex-start;
+    gap: 10px;
+    border-radius: 12px;
+  }
+  body.erp-mobile-v2-layout .erp-pro-card--process-map
+    .erp-pro-card__header--with-alerts .erp-pro-alert__icon {
+    width: 32px;
+    height: 32px;
+    font-size: var(--foms-font-size-sm); /* 14px */
+    flex: 0 0 auto;
+  }
+  body.erp-mobile-v2-layout .erp-pro-card--process-map
+    .erp-pro-card__header--with-alerts .erp-pro-alert__content {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+  body.erp-mobile-v2-layout .erp-pro-card--process-map
+    .erp-pro-card__header--with-alerts .erp-pro-alert__label {
+    font-size: var(--foms-font-size-xs); /* 12px */
+  }
+  /* 경보 값 = 큰 숫자(≥22px). 배지 배경만 제거, 색은 03-card-pipeline이 유지. */
+  body.erp-mobile-v2-layout .erp-pro-card--process-map
+    .erp-pro-card__header--with-alerts .erp-pro-alert__value {
+    font-size: var(--foms-font-size-2xl); /* 24px ≥ 22 */
+    line-height: 1.1;
+    min-width: 0;
+    height: auto;
+    padding: 0;
+    background: transparent;
+  }
+
+  /* 8) 파이프라인 스텝 타일 — 카드화 + 숫자·터치 확대(수평 strip 유지, 위 재배치 판정). */
+  body.erp-mobile-v2-layout .erp-pro-card--process-map .erp-pro-pipeline__stage {
+    min-height: var(--foms-touch-target-min); /* 48px */
+    min-width: 96px;
+    padding: 10px 12px;
+    border-radius: 12px;
+  }
+  body.erp-mobile-v2-layout .erp-pro-card--process-map .erp-pro-pipeline__count {
+    font-size: var(--foms-font-size-2xl); /* 24px ≥ 22 */
+    line-height: 1.15;
+  }
+  body.erp-mobile-v2-layout .erp-pro-card--process-map .erp-pro-pipeline__label {
+    font-size: var(--foms-font-size-xs); /* 12px */
+  }
+}
