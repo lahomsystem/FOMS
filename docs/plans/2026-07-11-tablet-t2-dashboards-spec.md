@@ -60,6 +60,18 @@ T3 배포 후에도 사용자가 "생산 빼고 태블릿 모드 안 보임"+/er
 
 staging 2차 전수: 풀로드 10페이지(9탭+계산기) 전량 = 크롬 3종 none·레일 flex·pad 72px·active 정확·split 0·hscroll 무 + fragment 체인 8연쇄 = 레일 1개 유지·active 동기·split 0·크롬 숨김 유지. 검증 함정: 헤드리스=진짜 fine → fine-band 규칙 정당 매치로 split 오판 가능, split 검증은 fine/none arm을 `not all`로 끄는 2단 에뮬 필요.
 
+## T5 — 탭별 목업 전용 표면 (2026-07-12, deploy eb354b29~aa63d491, staging 1180 작동 검증)
+
+사용자 "도대체 뭐가 됐다는거야"(공통 크롬만으론 체감 불가) → 목업 v7/v8 persona 표면 구현. Opus 4기 병렬:
+- **도면** = 시트 썸네일 갤러리(`tablet_gallery_body.html`+`foms-tablet-drawing-gallery.css`, rows 기존 thumbnail_url 재사용·쿼리 0, 카드=워크벤치 상세 앵커)
+- **완료** = 8컬럼 금액 그리드(`tablet_completion_grid_body.html`, 출고가=erp_shipping_price_from_structured·잔금=출고가−예약금, 서버렌더+최근 60행 캡, 행 탭=시트)
+- **AS** = 접수/조치후 사진 대조(`tablet_as_compare_body.html`, OrderAttachment created_at vs as_completed_date 매핑·배치 1쿼리, lightbox→GlobalImageViewer 재사용)
+- **시트 파이프라인** = 8단계(STAGE_SEQUENCE SSOT→`data-foms-stage-catalog`+행 `data-stage`, JS 하드코딩 금지, 비대상 행 우아한 생략) + **계산기 표피**(`tablet-skin.css`, 구조·엔진 무변경)
+- 시공 "작업 모드"는 동시 세션(시공 템플릿 수정 중) 충돌로 **보류** — 착수 시 타임라인 300px+도면 대형 뷰어.
+
+작동 체크(f12 디바이스 에뮬 요구)가 잡은 결함 3건: ① tablet-side-sheet.js 내용 변경 후 script ?v 미범프 → 브라우저 1h 캐시 구버전(JS도 캐시 체인 대상) ② 완료 행 role="button"(a11y)이 시트 인터랙티브 가드 [role=button]에 자충돌 → `interactive !== row` ③ 완료 fragment 166K(예산 56K) → 60행 캡+예산 재시드(120K), AS 862K→900K, history dTTFB 276→290(내 변경 전부터 CI 드리프트 277~279).
+실측 노하우 추가: browse 탭 뷰포트 확인 필수(`viewport 1180x820` — 390 폰 크기로 바뀌어 있던 오측정), 시트 JS 게이트=matchMedia라 CSSOM 재작성 외 MediaQueryList.prototype.matches 패치 병행, 연속 push 시 이전 커밋 perf-gate는 배포 추월로 구조적 타임아웃(최신 HEAD 런만 정본).
+
 ## 백로그 (잔여 페이지 — 조사 완료, 착수 판단 대기)
 
 시트/터치 그리드 계약(`#erp-grid tr.erp-main-row[data-order-id]`) 미충족 6페이지 실사 결과:

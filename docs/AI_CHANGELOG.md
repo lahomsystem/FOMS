@@ -4,6 +4,7 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-07-12 | 태블릿 T5: 탭별 목업 표면(도면 갤러리·완료 금액 그리드·AS 전후 대조·시트 파이프라인·계산기 표피) + JS 캐시체인·가드 자충돌·perf 캡 봉합 | tablet_gallery/completion_grid/as_compare body, foms-tablet-*.css, tablet-side-sheet.js, completion_dashboard.py, as_dashboard_display.py, perf_budgets.json | eb354b29~aa63d491 |
 | 2026-07-12 | 모바일 실기능 B라운드 완주(Wave1~3) — 통화기록·공정스텝·패킹·실측캡처·시공게이트·QR·sync큐 + perf 예산 재시드 | foms/api/{orders,production,shipment,measurement,construction}, foms-write/qr-scan.js, perf_budgets.json | 351f1276~3958fa91 |
 | 2026-07-12 | 태블릿 모드 완결: split 퇴출(fine/none 창 전용)+fragment 레일 동기(tablet-rail-nav.js)+foms_split_enabled v2 전용+AS·이력 시트+출고 게이트 통합 | foms-split-view/shell/bridge.css, layout_nav/head, tablet-rail-nav.js, tablet-side-sheet.js, foms-shipment-mobile.css, context_processors.py, orders/dashboard.py | f4942486·a796f23f |
 | 2026-07-12 | 태블릿 가로 크롬 교체+전역 72px 레일(전 /erp) + AS 카메라 바 v3 누출 봉합 | 13-foms-shell-bridge.css, foms-tablet-rail.css/html, layout_nav/layout_head, foms_split_view.py, context_processors.py, as-dashboard-body.css, test_tablet_rail_contract.py | 1c8858fe·6583cfba |
