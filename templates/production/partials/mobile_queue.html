@@ -56,11 +56,8 @@
            반복 렌더 금지(fragment 전송 바이트 예산). 권한 게이트는 서버 SSOT(403 폴백). #}
         {% set _psteps = ((o.structured_data.get('production') if o.structured_data else None) or {}).get('steps') or [] %}
         {% set _pdone = _psteps | selectattr('done') | list | length %}
-        <button type="button" class="foms-prod-steps-open" data-foms-prod-steps-open="{{ o.id }}" aria-label="생산 공정 체크 열기">
-          <span class="foms-prod-steps-open__badge" data-foms-prod-steps-badge="{{ o.id }}">공정 {{ _pdone }}/5</span>
-          <span class="foms-prod-steps-open__caption">공정 체크</span>
-          <i class="fas fa-chevron-right" aria-hidden="true"></i>
-        </button>
+        {# 바이트 예산: 카드당 마크업 최소화 — 배지 텍스트 겸용 버튼 1개(스팬·아이콘 금지). #}
+        <button type="button" class="foms-prod-steps-open" data-foms-prod-steps-open="{{ o.id }}" data-foms-prod-steps-badge="{{ o.id }}" aria-label="생산 공정 체크 열기">공정 {{ _pdone }}/5</button>
       {% endfor %}
     </div>
     {{ render_mobile_pager(_mq_base, _mq_ctx|join('&'), page, total_pages) }}
