@@ -16,6 +16,27 @@
     <span class="erp-mobile-queue-section__count foms-section-header__count">{{ _mq_loaded }} / 전체 {{ total_orders }}건</span>
   </div>
 
+  {# A3: 제작 3버킷 스탯 스트립 (뷰가 내려주는 step_stats 재사용, 신규 쿼리 없음). #}
+  {% set _pstat = step_stats or {} %}
+  {% set _pbuckets = [
+    {'key': '제작대기', 'st': 'confirm'},
+    {'key': '제작중', 'st': 'production'},
+    {'key': '제작완료', 'st': 'completed'}
+  ] %}
+  <div class="foms-v2dh-strip" role="group" aria-label="제작 현황 요약">
+    {% for _b in _pbuckets %}
+      {% set _s = _pstat.get(_b.key, {}) %}
+      <div class="foms-v2dh-stat" data-st="{{ _b.st }}">
+        <span class="foms-v2dh-stat__count">{{ _s.get('count', 0) }}</span>
+        <span class="foms-v2dh-stat__label">{{ _b.key }}</span>
+        <span class="foms-v2dh-stat__flags">
+          {% if _s.get('overdue', 0) > 0 %}<span class="foms-v2dh-flag foms-v2dh-flag--danger"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i> 지연 {{ _s.get('overdue') }}</span>{% endif %}
+          {% if _s.get('imminent', 0) > 0 %}<span class="foms-v2dh-flag foms-v2dh-flag--warn"><i class="fas fa-clock" aria-hidden="true"></i> 임박 {{ _s.get('imminent') }}</span>{% endif %}
+        </span>
+      </div>
+    {% endfor %}
+  </div>
+
   {% if orders %}
     <div class="erp-mobile-queue-section__list foms-mobile-queue-list">
       {% for o in orders %}

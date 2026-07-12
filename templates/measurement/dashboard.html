@@ -1,5 +1,9 @@
 {% extends "measurement/layout.html" %}
 
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-v2-domain-heroes.css') }}?v=20260712a">
+{% endblock %}
+
 {% block content %}
 {% include 'measurement/partials/dashboard_main.html' %}
 {% endblock %}

@@ -1,5 +1,50 @@
 {% from 'partials/shared/erp_mobile_queue_card_v2.html' import render_queue_card_v2 %}
 
+{# A5: 오늘 동선 히어로 — 기본 진입 시 mobile_queue_rows = 당일(today_date) 실측 큐이므로
+   그중 가장 이른(측정 시각) 1건을 파생한다(신규 쿼리 없음). v3 persona_home_sales의 _rows[0]
+   패턴과 동형. 태블릿 split(tablet_split_body.html) 블록은 무터치 — 이 partial 상단만 최소 추가. #}
+{% set _mrows = mobile_queue_rows or [] %}
+{% set _mhero_ns = namespace(row=None, tk='99:99') %}
+{% for _o in _mrows %}
+  {% set _mt = ((_o.structured_data.get('schedule') or {}).get('measurement') or {}).get('time') %}
+  {% set _tk = _mt if _mt else '99:99' %}
+  {% if _mhero_ns.row is none or _tk < _mhero_ns.tk %}{% set _mhero_ns.row = _o %}{% set _mhero_ns.tk = _tk %}{% endif %}
+{% endfor %}
+{% set _mhero = _mhero_ns.row %}
+{% if _mhero %}
+  {% set _mh_time = ((_mhero.structured_data.get('schedule') or {}).get('measurement') or {}).get('time') %}
+  {% set _mh_phone = (_mhero.phone or '')|replace('-', '')|replace(' ', '') %}
+  <div class="foms-v2dh-hero" data-st="measure" aria-label="오늘 동선 다음 실측">
+    <div class="foms-v2dh-hero__eyebrow"><i class="fas fa-route" aria-hidden="true"></i> 오늘 동선 · 다음 실측</div>
+    <div class="foms-v2dh-hero__title">{{ _mhero.customer_name or '-' }}</div>
+    <div class="foms-v2dh-hero__meta">
+      {% if _mh_time %}<span class="foms-v2dh-hero__time"><i class="fas fa-clock" aria-hidden="true"></i> {{ _mh_time }}</span>{% endif %}
+      {% if _mhero.address and _mhero.address != '-' %}<span class="foms-v2dh-hero__addr">{{ _mhero.address }}</span>{% endif %}
+    </div>
+    <div class="foms-v2dh-hero__actions">
+      {% if _mh_phone and _mh_phone != '-' %}
+      <a class="foms-v2dh-btn foms-v2dh-btn--primary" href="tel:{{ _mh_phone }}" aria-label="{{ _mhero.customer_name or '고객' }} 전화"><i class="fas fa-phone" aria-hidden="true"></i> 전화</a>
+      {% endif %}
+      <a class="foms-v2dh-btn" href="{{ url_for('erp_dashboard.erp_order_mobile_detail', order_id=_mhero.id, return_to='erp_measurement_dashboard') }}">상세</a>
+    </div>
+  </div>
+{% else %}
+  {% set _mnext_ns = namespace(date='', count=0) %}
+  {% for _it in (measurement_panel_dates or []) %}
+    {% if _it.date and today_date and _it.date > today_date and (_it.count or 0) > 0 %}
+      {% if not _mnext_ns.date or _it.date < _mnext_ns.date %}{% set _mnext_ns.date = _it.date %}{% set _mnext_ns.count = _it.count %}{% endif %}
+    {% endif %}
+  {% endfor %}
+  <div class="foms-v2dh-status" data-st="measure" aria-label="오늘 예정 실측 없음">
+    <span class="foms-v2dh-status__ic"><i class="fas fa-route" aria-hidden="true"></i></span>
+    <span class="foms-v2dh-status__body">
+      <span class="foms-v2dh-status__title">오늘 예정 실측 없음</span>
+      {% if _mnext_ns.date %}<a class="foms-v2dh-status__next" href="{{ url_for('erp_measurement_dashboard.erp_measurement_dashboard', date=_mnext_ns.date) }}">다음 예정 · {{ _mnext_ns.date }} · {{ _mnext_ns.count }}건</a>
+      {% else %}<span class="foms-v2dh-status__next">예정된 실측 일정 없음</span>{% endif %}
+    </span>
+  </div>
+{% endif %}
+
 <section class="erp-measurement-mobile-list foms-mobile-queue-section" aria-label="실측 모바일 일정">
   <div class="erp-measurement-mobile-list__summary foms-section-header section-header">
     <div>
