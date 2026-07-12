@@ -1118,6 +1118,8 @@ def test_namespaced_context_processors_shim_preserves_canonical_contract() -> No
         "inject_menu",
         "inject_foms_flags",
         "inject_foms_nav_badges",
+        # 2026-07-12 태블릿 시트 파이프라인: 단계 카탈로그 injector 공개 계약 편입.
+        "inject_foms_stage_catalog",
         "register_context_processors",
     ]
 
