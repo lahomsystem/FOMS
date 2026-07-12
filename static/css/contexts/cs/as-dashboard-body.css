@@ -453,3 +453,15 @@
     background: #f1f5f9;
   }
 
+
+/* AS 카메라 바 md(768px)+ 숨김 — 셸-독립 정본 (2026-07-12).
+   원래 foms-shell.css(≥768 hide)가 소유했으나 그 파일은 v2 전용 surfaces 번들
+   (shell_variant=='v2' 게이트)이라 v3 셸 사용자에겐 미로드 → 데스크톱·태블릿
+   가로에서 모바일 인테이크 바가 누출됐다. 이 파일은 AS body 파샬이 셸 변형과
+   무관하게 항상 로드하므로(fragment 포함) 여기가 정본. v2의 동일 규칙은
+   무해한 중복으로 존치. */
+@media (min-width: 768px) {
+  .erp-as-dashboard .foms-as-camera-bar {
+    display: none !important;
+  }
+}
