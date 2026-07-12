@@ -111,6 +111,11 @@ def build_orders_dashboard_queries(db, current_user, is_admin: bool, filters: Or
         _risk_ids = build_risk_order_ids(db, current_user, filters.risk)
         _q = _q.filter(Order.id.in_(_risk_ids))
 
+    # v3→v2 이식(A4): CS 접수 상태 칩 필터(전체/보류/재확인). risk와 동일하게
+    # _q_stats 복제 이전 적용 → 리스트·total·칩 카운트가 모두 같은 집합(SSOT).
+    if filters.status:
+        _q = _q.filter(Order.status == filters.status)
+
     # C. f_team SQL 필터
     if filters.team and not is_admin:
         team_stages = STAGES_REQUIRING_TEAM.get(filters.team)

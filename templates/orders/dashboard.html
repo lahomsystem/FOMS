@@ -1,5 +1,9 @@
 {% extends "orders/layout.html" %}
 
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-v2-cs-hero.css') }}?v=20260712a">
+{% endblock %}
+
 {% block content %}
 {% include 'orders/partials/dashboard_main.html' %}
 {% endblock %}

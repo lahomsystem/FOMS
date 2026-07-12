@@ -467,6 +467,9 @@ def erp_dashboard():
         template_name,
         erp_dashboard_fragment=wants_erp_shell_tab_body(request),
         orders=paginated_orders,
+        # v3→v2 이식(A1): CS 히어로 '기한 경과(접수 후 2일+)' danger 강조 임계 ISO
+        # (기존 today_date 파생 — 신규 쿼리 없음). 템플릿은 received_date < 임계로 판정.
+        cs_overdue_before=(today_date - datetime.timedelta(days=2)).isoformat(),
         kpis=kpis,
         process_steps=process_steps,
         tower_mode=tower_mode,

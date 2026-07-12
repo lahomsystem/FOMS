@@ -44,6 +44,7 @@ class OrdersDashboardFilters:
     field: str
     risk: str
     focus_order_id: Optional[int]
+    status: str
 
 
 def parse_orders_dashboard_filters(request) -> OrdersDashboardFilters:
@@ -86,6 +87,10 @@ def parse_orders_dashboard_filters(request) -> OrdersDashboardFilters:
         f_risk = ''
     # 검색 카드 딥링크(?focus_order=)는 단건 PK를 60일 창·페이지·술어와 무관하게 강제 착지.
     focus_order_id = request.args.get('focus_order', type=int)
+    # v3→v2 이식(A4): CS 접수 상태 칩 필터(전체/보류/재확인). 접수 계열 status만 화이트리스트.
+    f_status = (request.args.get('status') or '').strip().upper()
+    if f_status not in ('RECEIVED', 'ON_HOLD', 'RECHECK'):
+        f_status = ''
 
     return OrdersDashboardFilters(
         stage=f_stage,
@@ -103,4 +108,5 @@ def parse_orders_dashboard_filters(request) -> OrdersDashboardFilters:
         field=f_field,
         risk=f_risk,
         focus_order_id=focus_order_id,
+        status=f_status,
     )

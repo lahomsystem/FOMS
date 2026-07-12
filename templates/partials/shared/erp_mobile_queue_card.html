@@ -99,7 +99,8 @@
     {% endif %}
 
     {% if order.current_quest and order.current_quest.title %}
-      <p class="erp-mobile-queue-card__quest">
+      {# v3→v2 이식(A2): 기존 퀘스트 표기에 액센트 강조 칩 클래스 보강. #}
+      <p class="erp-mobile-queue-card__quest foms-v2h-quest-chip">
         <i class="fas fa-flag-checkered" aria-hidden="true"></i>
         <span>{{ order.current_quest.title }}</span>
       </p>

@@ -50,12 +50,20 @@
 
     <h3 class="queue-card__title foms-queue-card-v2__title">
       {{ order.customer_name or '-' }}
-      {% if order.product_subtitle or order.current_quest %}
+      {% if order.product_subtitle %}
         <span class="queue-card__subtitle foms-queue-card-v2__subtitle">
-          {{ order.product_subtitle or order.current_quest.title }}
+          {{ order.product_subtitle }}
         </span>
       {% endif %}
     </h3>
+
+    {# v3→v2 이식(A2): current_quest 강조 칩(액센트) — 부제 폴백 대신 전용 표기. #}
+    {% if order.current_quest and order.current_quest.title %}
+      <p class="foms-v2h-quest-chip">
+        <i class="fas fa-flag-checkered" aria-hidden="true"></i>
+        <span>{{ order.current_quest.title }}</span>
+      </p>
+    {% endif %}
 
     {% if order.attachments_count is defined and order.attachments_count > 0 %}
       {% set preview_items = order.attachment_preview_items or [] %}

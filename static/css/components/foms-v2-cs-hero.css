@@ -1,0 +1,187 @@
+/* =========================================================================
+   FOMS v3→v2 이식: CS '지금 확인할 접수' 히어로 · 접수 상태 필터 칩 · 퀘스트 강조 칩
+   (A1 + A4 + A2). v2 모바일 대시보드(templates/orders/partials/dashboard_mobile_v2_body.html)
+   와 큐 카드 매크로에서만 사용. 디자인 참고: templates/partials/v3/persona_home_cs.html
+   (히어로·칩·퀘스트 라벨)을 v2 라이트 컨벤션(foms-* 토큰)으로 재현한다.
+   접두: foms-v2h-* (v2 hero). 인라인 스타일 금지, 터치 타깃 44px+.
+   ========================================================================= */
+
+/* ── A1: CS 히어로 "지금 확인할 접수" ─────────────────────────────────── */
+.foms-v2h-hero {
+  margin: var(--foms-space-3) var(--foms-space-1) var(--foms-space-2);
+  padding: var(--foms-space-4);
+  background: var(--foms-surface-raised);
+  border: 1px solid var(--foms-color-neutral-200);
+  border-left: 4px solid var(--foms-color-brand-500);
+  border-radius: var(--foms-radius-lg);
+  box-shadow: var(--foms-shadow-sm);
+}
+
+.foms-v2h-hero.is-danger {
+  border-color: var(--foms-color-danger-500);
+  border-left-color: var(--foms-color-danger-500);
+  background: var(--foms-color-danger-50);
+}
+
+.foms-v2h-hero__label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--foms-space-2);
+  margin: 0 0 var(--foms-space-2);
+  font-size: var(--foms-font-size-xs);
+  font-weight: var(--foms-font-weight-bold);
+  letter-spacing: 0.02em;
+  color: var(--foms-color-brand-600);
+  text-transform: none;
+}
+
+.foms-v2h-hero.is-danger .foms-v2h-hero__label {
+  color: var(--foms-color-danger-600);
+}
+
+.foms-v2h-hero__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--foms-space-2);
+  margin: 0 0 var(--foms-space-2);
+  font-size: var(--foms-font-size-lg);
+  font-weight: var(--foms-font-weight-bold);
+  color: var(--foms-text-primary);
+  line-height: 1.25;
+}
+
+.foms-v2h-hero__subtitle {
+  font-size: var(--foms-font-size-sm);
+  font-weight: var(--foms-font-weight-medium);
+  color: var(--foms-text-secondary);
+}
+
+.foms-v2h-hero__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--foms-space-2) var(--foms-space-4);
+  margin: 0 0 var(--foms-space-3);
+}
+
+.foms-v2h-hero__meta > div {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--foms-space-2);
+  margin: 0;
+}
+
+.foms-v2h-hero__meta dt {
+  margin: 0;
+  font-size: var(--foms-font-size-xs);
+  font-weight: var(--foms-font-weight-medium);
+  color: var(--foms-text-tertiary);
+}
+
+.foms-v2h-hero__meta dd {
+  margin: 0;
+  font-size: var(--foms-font-size-sm);
+  font-weight: var(--foms-font-weight-semibold);
+  color: var(--foms-text-primary);
+}
+
+.foms-v2h-hero__actions {
+  display: flex;
+  gap: var(--foms-space-2);
+}
+
+/* 히어로 CTA는 foms-btn 기반(48px 터치) + 히어로 전용 액센트 오버레이 */
+.foms-v2h-hero__cta {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.foms-v2h-hero__cta--danger {
+  background: var(--foms-interactive-danger);
+  color: #fff;
+}
+
+.foms-v2h-hero__cta--danger:hover {
+  background: var(--foms-color-danger-600);
+}
+
+.foms-v2h-hero__detail {
+  flex: 0 0 auto;
+  border: 1px solid var(--foms-color-neutral-300);
+}
+
+/* ── A4: 접수 상태 필터 칩 행 (히어로 아래) ──────────────────────────── */
+.foms-v2h-chips {
+  display: flex;
+  gap: var(--foms-space-2);
+  margin: 0 0 var(--foms-space-3);
+  padding: 0 var(--foms-space-1) var(--foms-space-1);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.foms-v2h-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.foms-v2h-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--foms-space-2);
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 0 var(--foms-space-4);
+  border: 1px solid var(--foms-color-neutral-200);
+  border-radius: var(--foms-radius-full);
+  background: var(--foms-surface-base);
+  color: var(--foms-text-secondary);
+  font-size: var(--foms-font-size-sm);
+  font-weight: var(--foms-font-weight-medium);
+  text-decoration: none;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.foms-v2h-chip.is-active {
+  background: var(--foms-color-brand-500);
+  border-color: var(--foms-color-brand-500);
+  color: #fff;
+}
+
+.foms-v2h-chip__n {
+  font-weight: var(--foms-font-weight-bold);
+  font-variant-numeric: tabular-nums;
+  color: var(--foms-text-tertiary);
+}
+
+.foms-v2h-chip.is-active .foms-v2h-chip__n {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* ── A2: 큐 카드 current_quest 강조 칩 (액센트 텍스트) ─────────────────── */
+.foms-v2h-quest-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--foms-space-1);
+  max-width: 100%;
+  margin: 0 0 var(--foms-space-2);
+  padding: 2px 8px;
+  border-radius: var(--foms-radius-full);
+  background: var(--foms-color-brand-50);
+  color: var(--foms-color-brand-600);
+  font-size: var(--foms-font-size-xs);
+  font-weight: var(--foms-font-weight-semibold);
+  line-height: 1.4;
+}
+
+.foms-v2h-quest-chip > i {
+  flex-shrink: 0;
+  font-size: 0.85em;
+}
+
+.foms-v2h-quest-chip > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
