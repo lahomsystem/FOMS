@@ -4,6 +4,7 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-07-12 | 모바일 실기능 B라운드 완주(Wave1~3) — 통화기록·공정스텝·패킹·실측캡처·시공게이트·QR·sync큐 + perf 예산 재시드 | foms/api/{orders,production,shipment,measurement,construction}, foms-write/qr-scan.js, perf_budgets.json | 351f1276~3958fa91 |
 | 2026-07-12 | 태블릿 모드 완결: split 퇴출(fine/none 창 전용)+fragment 레일 동기(tablet-rail-nav.js)+foms_split_enabled v2 전용+AS·이력 시트+출고 게이트 통합 | foms-split-view/shell/bridge.css, layout_nav/head, tablet-rail-nav.js, tablet-side-sheet.js, foms-shipment-mobile.css, context_processors.py, orders/dashboard.py | f4942486·a796f23f |
 | 2026-07-12 | 태블릿 가로 크롬 교체+전역 72px 레일(전 /erp) + AS 카메라 바 v3 누출 봉합 | 13-foms-shell-bridge.css, foms-tablet-rail.css/html, layout_nav/layout_head, foms_split_view.py, context_processors.py, as-dashboard-body.css, test_tablet_rail_contract.py | 1c8858fe·6583cfba |
 | 2026-07-12 | v2에 v3 기능 이식 완결(A1~A8) — CS 히어로·퀘스트 칩·상태 필터 칩·생산 3버킷·실측/시공 히어로·헤더 정렬 fix | dashboard_mobile_v2_body, mobile_queue/list, queue_card v1·v2, dashboard_filters, foms-v2-*.css | 147883bc·a13dfc57·645190f2·2545c595 |
