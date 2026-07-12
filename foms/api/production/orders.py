@@ -205,6 +205,34 @@ def api_production_complete(order_id):
         return jsonify({"success": False, "message": str(exc)}), 500
 
 
+@erp_orders_production_bp.route("/<int:order_id>/production/steps", methods=["GET"])
+@login_required
+def api_production_steps_get(order_id: int):
+    """생산 공정 스텝 조회(시트 lazy 로드용).
+
+    sd['production']['steps'] 가 없으면 기본 5단계를 메모리에서 파생만 하고 저장하지
+    않는다(쓰기는 POST 소관). 읽기는 대시보드 열람과 동일하게 @login_required 만 요구
+    — 편집 불가 팀도 진행 현황은 볼 수 있어야 한다.
+    """
+    db = get_db()
+    order = db.get(Order, order_id)
+    if not order or order.status == "DELETED" or order.deleted_at is not None:
+        return jsonify({"success": False, "error": "주문을 찾을 수 없습니다."}), 404
+
+    sd = _ensure_dict(order.structured_data)
+    production = sd.get("production") if isinstance(sd.get("production"), dict) else {}
+    steps = production.get("steps")
+    if not isinstance(steps, list) or not steps:
+        steps = [
+            {"key": key, "label": label, "done": False, "at": None, "by_name": None}
+            for key, label in _PRODUCTION_STEP_DEFS
+        ]
+    done_count = sum(1 for s in steps if isinstance(s, dict) and s.get("done"))
+    return jsonify(
+        {"success": True, "data": {"steps": steps, "done_count": done_count, "total": len(steps)}}
+    )
+
+
 @erp_orders_production_bp.route("/<int:order_id>/production/steps", methods=["POST"])
 @login_required
 @_production_steps_edit_required

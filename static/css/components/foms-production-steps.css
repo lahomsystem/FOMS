@@ -1,31 +1,26 @@
-/* B3 생산 공정 스텝 (모바일 v2 생산 큐 카드 하위 collapse).
-   카드 아래 붙는 접이식 공정 체크리스트: 접힘면 '공정 N/5' 배지 + 5행 체크. */
+/* B3 생산 공정 스텝 (모바일 v2 생산 큐).
+   카드 아래 '공정 N/5' 배지 버튼 1줄 + 페이지 공용 바텀시트의 체크 5행. */
 
-.foms-prod-steps {
+/* --- 카드 배지 버튼(서버 렌더 1줄, 44px 터치 타깃) --------------------------- */
+.foms-prod-steps-open {
+  display: flex;
+  align-items: center;
+  gap: var(--foms-space-2, 8px);
+  width: 100%;
+  min-height: var(--foms-touch-target-min, 44px);
   margin: calc(var(--foms-space-2, 8px) * -1) 0 0;
+  padding: var(--foms-space-2, 8px) var(--foms-space-3, 12px);
   border: 1px solid var(--foms-border-subtle, #e2e6ea);
   border-top: none;
   border-radius: 0 0 var(--foms-radius-lg, 12px) var(--foms-radius-lg, 12px);
   background: var(--foms-surface-base, #fff);
-  overflow: hidden;
-}
-
-.foms-prod-steps__summary {
-  display: flex;
-  align-items: center;
-  gap: var(--foms-space-2, 8px);
-  min-height: var(--foms-touch-target-min, 44px);
-  padding: var(--foms-space-2, 8px) var(--foms-space-3, 12px);
+  color: var(--foms-text-secondary, #64748b);
+  font: inherit;
+  text-align: left;
   cursor: pointer;
-  list-style: none;
-  user-select: none;
 }
 
-.foms-prod-steps__summary::-webkit-details-marker {
-  display: none;
-}
-
-.foms-prod-steps__badge {
+.foms-prod-steps-open__badge {
   font-size: 0.8125rem;
   font-weight: 700;
   color: var(--foms-color-success-700, #1a7a4c);
@@ -36,27 +31,46 @@
   white-space: nowrap;
 }
 
-.foms-prod-steps__caption {
-  font-size: 0.8125rem;
-  color: var(--foms-text-secondary, #64748b);
+.foms-prod-steps-open__caption {
   flex: 1 1 auto;
+  font-size: 0.8125rem;
 }
 
-.foms-prod-steps__chevron {
+.foms-prod-steps-open > .fas {
   color: var(--foms-text-tertiary, #94a3b8);
-  transition: transform 0.18s ease;
   font-size: 0.75rem;
 }
 
-.foms-prod-steps[open] .foms-prod-steps__chevron {
-  transform: rotate(180deg);
+/* --- 바텀시트 ---------------------------------------------------------------- */
+.foms-prod-steps-sheet {
+  --bs-offcanvas-height: auto;
+  max-height: 70vh;
+  border-radius: var(--foms-radius-xl, 16px) var(--foms-radius-xl, 16px) 0 0;
 }
 
+.foms-prod-steps-sheet__count {
+  margin-left: var(--foms-space-2, 8px);
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--foms-color-success-700, #1a7a4c);
+}
+
+/* --- 체크 리스트(시트 안, 행 52px) -------------------------------------------- */
 .foms-prod-steps__list {
   list-style: none;
   margin: 0;
   padding: 0;
-  border-top: 1px solid var(--foms-border-subtle, #e2e6ea);
+}
+
+.foms-prod-steps__loading,
+.foms-prod-steps__error {
+  padding: var(--foms-space-3, 12px);
+  font-size: 0.875rem;
+  color: var(--foms-text-tertiary, #94a3b8);
+}
+
+.foms-prod-steps__error {
+  color: var(--foms-color-danger-600, #d64545);
 }
 
 .foms-prod-steps__row {

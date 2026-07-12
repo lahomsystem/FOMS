@@ -1,0 +1,19 @@
+{# B3 생산 공정 체크 바텀시트 (모바일 v2, 페이지 공용 1개).
+   카드의 data-foms-prod-steps-open 탭 → foms-production-steps.js 가
+   GET /api/orders/<id>/production/steps 를 lazy 로드해 체크 5행을 렌더한다.
+   erp_mobile_order_timeline_sheet.html 의 Bootstrap Offcanvas 패턴 모방. #}
+<div class="offcanvas offcanvas-bottom foms-prod-steps-sheet" tabindex="-1" id="foms-production-steps-sheet"
+  data-foms-prod-steps-sheet aria-labelledby="foms-production-steps-sheet-title">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title" id="foms-production-steps-sheet-title">
+      <i class="fas fa-industry" aria-hidden="true"></i> 생산 공정 체크
+      <span class="foms-prod-steps-sheet__count" data-foms-prod-steps-sheet-count></span>
+    </h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="닫기"></button>
+  </div>
+  <div class="offcanvas-body">
+    <ul class="foms-prod-steps__list" data-foms-prod-steps-sheet-list>
+      <li class="foms-prod-steps__loading" data-foms-prod-steps-loading>불러오는 중...</li>
+    </ul>
+  </div>
+</div>
