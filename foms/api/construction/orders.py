@@ -11,10 +11,11 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from foms.web.auth import get_user_by_id, login_required
 from foms.services.erp_display import _ensure_dict
+from foms.services.feature_flags import env_bool
 from db import get_db
 from foms.services.erp_permissions import erp_construction_edit_required
 from foms.services.erp_sync_columns import sync_erp_flat_columns
-from models import Order, OrderEvent, SecurityLog
+from models import Order, OrderAttachment, OrderEvent, SecurityLog
 
 erp_orders_construction_bp = Blueprint("erp_orders_construction", __name__, url_prefix="/api/orders")
 
@@ -77,6 +78,29 @@ def api_construction_complete(order_id):
         ):
             return jsonify({"success": False, "message": "Order not found"}), 404
 
+        # B5 시공 완료 게이트: FOMS_CONSTRUCTION_GATE_ENABLED 켜졌을 때만 증빙 요건 강제.
+        # 기본 off = 기존 완료 동작 100% 불변(운영 무파괴, 스테이징에서 켜서 검증).
+        if env_bool("FOMS_CONSTRUCTION_GATE_ENABLED", default=False):
+            gate_sd = _ensure_dict(order.structured_data)
+            evidence = ((gate_sd.get("construction") or {}).get("evidence")) or {}
+            missing = []
+            if len(evidence.get("after") or []) < 2:
+                missing.append("after")
+            if not evidence.get("signature_att_id"):
+                missing.append("signature")
+            if missing:
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "error": "완료 요건 미충족",
+                            "message": "완료 요건 미충족",
+                            "data": {"missing": missing},
+                        }
+                    ),
+                    400,
+                )
+
         user_id = session.get("user_id")
         user = get_user_by_id(user_id)
 
@@ -138,6 +162,100 @@ def api_construction_complete(order_id):
     except Exception as exc:
         db.rollback()
         return jsonify({"success": False, "message": str(exc)}), 500
+
+
+@erp_orders_construction_bp.route("/<int:order_id>/construction/evidence", methods=["POST"])
+@login_required
+@erp_construction_edit_required
+def api_construction_evidence(order_id):
+    """시공 완료 증빙(before/after 사진·서명) 참조 등록. (B5 완료 게이트)
+
+    이미 업로드된 첨부(category=construction)를 sd['construction']['evidence']에
+    참조로 연결한다. 사진 바이너리는 기존 멀티파트 업로드 API가 담당하고, 이 API는
+    분류(before/after/signature)만 기록한다.
+
+    Args:
+        order_id: 대상 주문 id (URL path).
+
+    Request JSON:
+        kind: 'before' | 'after' | 'signature'.
+        attachment_id: 이 주문 소속 + category=construction 인 첨부 id.
+
+    Returns:
+        (flask.Response, int): 성공 시 200 ``{success, data: evidence}``,
+        검증 실패 시 400/404, 서버 오류 시 500.
+    """
+    db = get_db()
+    try:
+        order = db.get(Order, order_id)
+        if (
+            not order
+            or getattr(order, "status", None) == "DELETED"
+            or getattr(order, "deleted_at", None) is not None
+        ):
+            return jsonify({"success": False, "error": "주문을 찾을 수 없습니다."}), 404
+
+        payload = request.get_json(silent=True) or {}
+        kind = (payload.get("kind") or "").strip()
+        if kind not in ("before", "after", "signature"):
+            return jsonify({"success": False, "error": "kind 값이 올바르지 않습니다."}), 400
+        try:
+            attachment_id = int(payload.get("attachment_id"))
+        except (TypeError, ValueError):
+            return jsonify({"success": False, "error": "attachment_id 가 필요합니다."}), 400
+
+        attachment = db.get(OrderAttachment, attachment_id)
+        if (
+            not attachment
+            or attachment.order_id != order_id
+            or (attachment.category or "") != "construction"
+        ):
+            return (
+                jsonify({"success": False, "error": "유효한 시공 첨부가 아닙니다."}),
+                400,
+            )
+
+        user_id = session.get("user_id")
+        user = get_user_by_id(user_id)
+
+        sd = copy.deepcopy(_ensure_dict(order.structured_data))
+        construction = sd.get("construction") or {}
+        evidence = construction.get("evidence") or {}
+        before = list(evidence.get("before") or [])
+        after = list(evidence.get("after") or [])
+
+        if kind == "before":
+            if attachment_id not in before:
+                before.append(attachment_id)
+        elif kind == "after":
+            if attachment_id not in after:
+                after.append(attachment_id)
+        else:  # signature
+            evidence["signature_att_id"] = attachment_id
+            evidence["signed_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            evidence["signed_by_name"] = user.name if user else "Unknown"
+
+        evidence["before"] = before
+        evidence["after"] = after
+        construction["evidence"] = evidence
+        sd["construction"] = construction
+
+        setattr(order, "structured_data", sd)
+        flag_modified(order, "structured_data")
+
+        db.add(
+            OrderEvent(
+                order_id=order_id,
+                event_type="CONSTRUCTION_EVIDENCE_ADDED",
+                payload={"kind": kind, "attachment_id": attachment_id},
+                created_by_user_id=user_id,
+            )
+        )
+        db.commit()
+        return jsonify({"success": True, "data": evidence})
+    except Exception as exc:
+        db.rollback()
+        return jsonify({"success": False, "error": str(exc)}), 500
 
 
 @erp_orders_construction_bp.route("/<int:order_id>/construction/fail", methods=["POST"])

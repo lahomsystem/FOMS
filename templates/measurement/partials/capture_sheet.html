@@ -1,0 +1,95 @@
+{# B2 실측 캡처 바텀시트 — 히어로/큐 카드 "캡처" 진입에서 재사용하는 단일 시트.
+   foms-measure-capture.js 가 data-order-id 를 주입하고 열고 닫는다. 서버 렌더 시 항상
+   마크업만 존재(hidden). measurement 하위(partials/shared 아님) → PAC allowlist 무관.
+   사진은 기존 멀티파트 attachments API(category=measurement) 재사용. 카메라 input 은
+   photo-capture.js 가 capture 자동 부착, 갤러리 input 은 data-foms-no-capture 로 opt-out. #}
+<div class="foms-measure-capture-sheet"
+     data-foms-measure-capture-sheet
+     data-order-id=""
+     hidden
+     aria-hidden="true">
+  <div class="foms-measure-capture-sheet__backdrop" data-foms-measure-capture-close></div>
+  <div class="foms-measure-capture-sheet__panel"
+       role="dialog"
+       aria-modal="true"
+       aria-labelledby="foms-measure-capture-title">
+    <div class="foms-measure-capture-sheet__head">
+      <h2 class="foms-measure-capture-sheet__title" id="foms-measure-capture-title">실측 캡처</h2>
+      <button type="button"
+              class="foms-measure-capture-sheet__close"
+              data-foms-measure-capture-close
+              aria-label="닫기">
+        <i class="fas fa-xmark" aria-hidden="true"></i>
+      </button>
+    </div>
+    <p class="foms-measure-capture-sheet__customer" data-foms-measure-capture-customer></p>
+
+    {# 사진 섹션 — 카메라(capture 자동 부착)와 갤러리(no-capture) 입력 분리 #}
+    <section class="foms-measure-capture-section" aria-label="사진">
+      <h3 class="foms-measure-capture-label">사진</h3>
+      <div class="foms-measure-capture-photo__actions">
+        <label class="foms-btn foms-btn--secondary foms-measure-capture-photo__btn">
+          <i class="fas fa-camera" aria-hidden="true"></i> 카메라
+          <input type="file" accept="image/*" multiple data-foms-measure-capture-photo hidden>
+        </label>
+        <label class="foms-btn foms-btn--ghost foms-measure-capture-photo__btn">
+          <i class="fas fa-images" aria-hidden="true"></i> 갤러리
+          <input type="file" accept="image/*" multiple data-foms-no-capture data-foms-measure-capture-photo hidden>
+        </label>
+      </div>
+      <p class="foms-measure-capture-photo__status" data-foms-measure-capture-photo-status aria-live="polite"></p>
+    </section>
+
+    {# 치수 섹션 — W/D/H 스테퍼(±100/±10), 프리셋 칩은 W #}
+    <section class="foms-measure-capture-section" aria-label="치수">
+      <h3 class="foms-measure-capture-label">치수 <span class="foms-measure-capture-unit">(mm)</span></h3>
+      <div class="foms-measure-capture-dims">
+        {% for _dk, _dlabel in [('w', 'W (폭)'), ('d', 'D (깊이)'), ('h', 'H (높이)')] %}
+        <div class="foms-measure-stepper" data-foms-measure-stepper="{{ _dk }}">
+          <span class="foms-measure-stepper__name">{{ _dlabel }}</span>
+          <div class="foms-measure-stepper__row">
+            <button type="button" class="foms-measure-stepper__btn" data-foms-measure-step="-100" aria-label="{{ _dlabel }} 100 감소">−100</button>
+            <button type="button" class="foms-measure-stepper__btn" data-foms-measure-step="-10" aria-label="{{ _dlabel }} 10 감소">−10</button>
+            <output class="foms-measure-stepper__value foms-tabular" data-foms-measure-value>0</output>
+            <button type="button" class="foms-measure-stepper__btn" data-foms-measure-step="10" aria-label="{{ _dlabel }} 10 증가">+10</button>
+            <button type="button" class="foms-measure-stepper__btn" data-foms-measure-step="100" aria-label="{{ _dlabel }} 100 증가">+100</button>
+          </div>
+          {% if _dk == 'w' %}
+          <div class="foms-measure-stepper__presets" aria-label="폭 프리셋">
+            <button type="button" class="foms-measure-preset" data-foms-measure-preset="2400">2400</button>
+            <button type="button" class="foms-measure-preset" data-foms-measure-preset="2700">2700</button>
+            <button type="button" class="foms-measure-preset" data-foms-measure-preset="3000">3000</button>
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    {# 특이사항 섹션 — textarea + 음성 입력(Web Speech API, 미지원 시 버튼 숨김) #}
+    <section class="foms-measure-capture-section" aria-label="특이사항">
+      <div class="foms-measure-capture-note__head">
+        <h3 class="foms-measure-capture-label">특이사항</h3>
+        <button type="button"
+                class="foms-measure-capture-note__mic"
+                data-foms-measure-capture-mic
+                hidden
+                aria-pressed="false"
+                aria-label="음성으로 특이사항 받아쓰기">
+          <i class="fas fa-microphone" aria-hidden="true"></i> 음성
+        </button>
+      </div>
+      <textarea class="foms-measure-capture-note__area"
+                data-foms-measure-capture-note
+                rows="3"
+                maxlength="2000"
+                placeholder="실측 특이사항을 입력하거나 음성으로 받아쓰세요"></textarea>
+      <p class="foms-measure-capture-note__status" data-foms-measure-capture-mic-status aria-live="polite"></p>
+    </section>
+
+    <p class="foms-measure-capture-sheet__error" data-foms-measure-capture-error hidden role="alert"></p>
+    <button type="button"
+            class="foms-btn foms-btn--primary foms-measure-capture-sheet__save"
+            data-foms-measure-capture-save>저장</button>
+  </div>
+</div>

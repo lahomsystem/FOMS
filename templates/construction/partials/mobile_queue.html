@@ -79,7 +79,11 @@
         {% if o.stage == '시공대기' %}
           {% set task_action = {'label': '시공 시작', 'icon': 'fas fa-play', 'data_action': 'startConstruction', 'button_class': 'erp-construction-action'} %}
         {% elif o.stage == '시공중' %}
-          {% set task_action = {'label': '시공 완료', 'icon': 'fas fa-check', 'data_action': 'completeConstruction', 'button_class': 'erp-construction-action'} %}
+          {# B5 완료 게이트: "완료 준비"(증빙 시트) 우선 + 기존 빠른 완료 병존. #}
+          {% set task_actions = [
+            {'label': '완료 준비', 'icon': 'fas fa-clipboard-check', 'data_action': 'openCompleteGate', 'button_class': 'erp-construction-action'},
+            {'label': '시공 완료', 'icon': 'fas fa-check', 'data_action': 'completeConstruction', 'button_class': 'erp-construction-action'}
+          ] %}
         {% elif o.stage == '시공완료' and o.as_received_done %}
           {% set task_actions = [
             {'label': '재 업로드', 'icon': 'fas fa-redo', 'data_action': 'reuploadConstructionPhotos', 'button_class': 'erp-construction-action'},
@@ -103,3 +107,6 @@
     </div>
   {% endif %}
 </section>
+
+{# B5 시공 완료 게이트 바텀시트 (단일 인스턴스, foms-complete-gate.js 제어). #}
+{% include 'construction/partials/complete_gate_sheet.html' %}

@@ -1,0 +1,91 @@
+{# B5 시공 완료 게이트 바텀시트 — 카드 "완료 준비" 진입에서 재사용하는 단일 시트.
+   foms-complete-gate.js 가 data-order-id 를 주입하고 열고 닫는다. before/after 사진 업로드
+   (멀티파트 category=construction → evidence 등록)와 서명 패드(canvas → PNG 업로드 → evidence
+   kind=signature)로 증빙을 모으고, 게이트 충족(after 2장·서명) 시 [시공 완료] 활성 → 기존
+   complete API 호출. 서버 렌더 시 항상 마크업만 존재(hidden).
+   partials/shared 아님(construction 하위) → PAC allowlist 무관. #}
+<div class="foms-cgate-sheet"
+     data-foms-cgate-sheet
+     data-order-id=""
+     hidden
+     aria-hidden="true">
+  <div class="foms-cgate-sheet__backdrop" data-foms-cgate-close></div>
+  <div class="foms-cgate-sheet__panel"
+       role="dialog"
+       aria-modal="true"
+       aria-labelledby="foms-cgate-title">
+    <div class="foms-cgate-sheet__head">
+      <h2 class="foms-cgate-sheet__title" id="foms-cgate-title">시공 완료 준비</h2>
+      <button type="button"
+              class="foms-cgate-sheet__close"
+              data-foms-cgate-close
+              aria-label="닫기">
+        <i class="fas fa-xmark" aria-hidden="true"></i>
+      </button>
+    </div>
+    <p class="foms-cgate-sheet__customer" data-foms-cgate-customer></p>
+
+    <div class="foms-cgate-grid">
+      <section class="foms-cgate-group" aria-label="시공 전 사진">
+        <div class="foms-cgate-group__head">
+          <span class="foms-cgate-group__title">시공 전</span>
+          <span class="foms-cgate-group__count" data-foms-cgate-count="before">0장</span>
+        </div>
+        <div class="foms-cgate-thumbs" data-foms-cgate-thumbs="before"></div>
+        <label class="foms-cgate-upload">
+          <input type="file" accept="image/*" data-foms-cgate-input="before" hidden>
+          <span class="foms-btn foms-btn--secondary foms-cgate-upload__btn">
+            <i class="fas fa-camera" aria-hidden="true"></i> 사진 추가
+          </span>
+        </label>
+      </section>
+
+      <section class="foms-cgate-group" aria-label="시공 후 사진">
+        <div class="foms-cgate-group__head">
+          <span class="foms-cgate-group__title">시공 후</span>
+          <span class="foms-cgate-group__count" data-foms-cgate-count="after">0장</span>
+        </div>
+        <div class="foms-cgate-thumbs" data-foms-cgate-thumbs="after"></div>
+        <label class="foms-cgate-upload">
+          <input type="file" accept="image/*" data-foms-cgate-input="after" hidden>
+          <span class="foms-btn foms-btn--secondary foms-cgate-upload__btn">
+            <i class="fas fa-camera" aria-hidden="true"></i> 사진 추가
+          </span>
+        </label>
+      </section>
+    </div>
+
+    <section class="foms-cgate-sign" aria-label="고객 서명">
+      <div class="foms-cgate-group__head">
+        <span class="foms-cgate-group__title">고객 서명</span>
+        <span class="foms-cgate-sign__state" data-foms-cgate-sign-state>미서명</span>
+      </div>
+      <canvas class="foms-cgate-sign__pad"
+              data-foms-cgate-canvas
+              width="600"
+              height="200"
+              aria-label="서명 패드"></canvas>
+      <div class="foms-cgate-sign__actions">
+        <button type="button" class="foms-btn foms-btn--ghost foms-btn--sm" data-foms-cgate-sign-clear>
+          <i class="fas fa-eraser" aria-hidden="true"></i> 지우기
+        </button>
+        <button type="button" class="foms-btn foms-btn--secondary foms-btn--sm" data-foms-cgate-sign-save>
+          <i class="fas fa-signature" aria-hidden="true"></i> 서명 저장
+        </button>
+      </div>
+    </section>
+
+    <p class="foms-cgate-sheet__gate" data-foms-cgate-status>완료까지: 시공 후 0/2 · 서명 X</p>
+    <p class="foms-cgate-sheet__error" data-foms-cgate-error hidden role="alert"></p>
+
+    <label class="foms-cgate-sheet__field">
+      <span class="foms-cgate-sheet__label">완료 코멘트 (선택)</span>
+      <textarea data-foms-cgate-note rows="2" maxlength="500" placeholder="완료 메모를 남기세요"></textarea>
+    </label>
+
+    <button type="button"
+            class="foms-btn foms-btn--primary foms-cgate-sheet__complete"
+            data-foms-cgate-complete
+            disabled>시공 완료</button>
+  </div>
+</div>

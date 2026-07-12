@@ -1,0 +1,233 @@
+/* B5 시공 완료 게이트 바텀시트 (foms-complete-gate.js 제어). 인라인 스타일 금지 정책 준수. */
+
+.foms-cgate-sheet[hidden] {
+  display: none;
+}
+
+.foms-cgate-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 1080;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.foms-cgate-sheet__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+}
+
+.foms-cgate-sheet__panel {
+  position: relative;
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  max-height: 92vh;
+  overflow-y: auto;
+  background: var(--foms-surface, #fff);
+  color: var(--foms-text, #1f2937);
+  border-top-left-radius: 18px;
+  border-top-right-radius: 18px;
+  padding: 18px 18px calc(18px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -12px 32px rgba(15, 23, 42, 0.24);
+  animation: foms-cgate-slide-up 0.18s ease-out;
+}
+
+@keyframes foms-cgate-slide-up {
+  from { transform: translateY(16px); opacity: 0.6; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.foms-cgate-sheet__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.foms-cgate-sheet__title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.foms-cgate-sheet__close {
+  border: 0;
+  background: transparent;
+  font-size: 1.2rem;
+  line-height: 1;
+  color: var(--foms-text-muted, #6b7280);
+  min-width: 44px;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.foms-cgate-sheet__customer {
+  margin: 0 0 12px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--foms-text-muted, #4b5563);
+}
+
+.foms-cgate-sheet__customer:empty {
+  display: none;
+}
+
+.foms-cgate-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.foms-cgate-group {
+  border: 1.5px solid var(--foms-border, #e5e7eb);
+  border-radius: 12px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.foms-cgate-group__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.foms-cgate-group__title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--foms-text, #374151);
+}
+
+.foms-cgate-group__count {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--foms-primary, #2563eb);
+}
+
+.foms-cgate-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 4px;
+}
+
+.foms-cgate-thumb {
+  width: 46px;
+  height: 46px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--foms-border, #d1d5db);
+  background: #f3f4f6;
+}
+
+.foms-cgate-upload {
+  display: block;
+  margin: 0;
+  cursor: pointer;
+}
+
+.foms-cgate-upload__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  width: 100%;
+}
+
+.foms-cgate-sign {
+  border: 1.5px solid var(--foms-border, #e5e7eb);
+  border-radius: 12px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.foms-cgate-sign__state {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--foms-text-muted, #6b7280);
+}
+
+.foms-cgate-sign__state.is-signed {
+  color: var(--foms-success, #16a34a);
+}
+
+.foms-cgate-sign__pad {
+  width: 100%;
+  height: 160px;
+  border: 1.5px dashed var(--foms-border, #cbd5e1);
+  border-radius: 10px;
+  background: #fff;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.foms-cgate-sign__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.foms-cgate-sheet__gate {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--foms-text, #374151);
+}
+
+.foms-cgate-sheet__error {
+  margin: 0 0 10px;
+  font-size: 0.85rem;
+  color: var(--foms-danger, #dc2626);
+}
+
+.foms-cgate-sheet__error[hidden] {
+  display: none;
+}
+
+.foms-cgate-sheet__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.foms-cgate-sheet__label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--foms-text-muted, #6b7280);
+}
+
+.foms-cgate-sheet__field textarea {
+  width: 100%;
+  border: 1.5px solid var(--foms-border, #d1d5db);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 0.95rem;
+  background: var(--foms-surface, #fff);
+  color: var(--foms-text, #1f2937);
+  resize: vertical;
+}
+
+.foms-cgate-sheet__complete {
+  width: 100%;
+  min-height: 48px;
+  font-weight: 700;
+}
+
+.foms-cgate-sheet__complete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+body.foms-cgate-open {
+  overflow: hidden;
+}

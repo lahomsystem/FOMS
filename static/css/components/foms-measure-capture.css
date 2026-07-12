@@ -1,0 +1,293 @@
+/* B2 실측 캡처 바텀시트 (foms-measure-capture.js 제어). 인라인 스타일 금지 정책 준수. */
+
+.foms-measure-capture-sheet[hidden] {
+  display: none;
+}
+
+.foms-measure-capture-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 1080;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.foms-measure-capture-sheet__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+}
+
+.foms-measure-capture-sheet__panel {
+  position: relative;
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  max-height: 92vh;
+  overflow-y: auto;
+  background: var(--foms-surface, #fff);
+  color: var(--foms-text, #1f2937);
+  border-top-left-radius: 18px;
+  border-top-right-radius: 18px;
+  padding: 18px 18px calc(18px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -12px 32px rgba(15, 23, 42, 0.24);
+  animation: foms-measure-capture-slide-up 0.18s ease-out;
+}
+
+@keyframes foms-measure-capture-slide-up {
+  from { transform: translateY(16px); opacity: 0.6; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.foms-measure-capture-sheet__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.foms-measure-capture-sheet__title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.foms-measure-capture-sheet__close {
+  border: 0;
+  background: transparent;
+  font-size: 1.2rem;
+  line-height: 1;
+  color: var(--foms-text-muted, #6b7280);
+  min-width: 44px;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.foms-measure-capture-sheet__customer {
+  margin: 0 0 12px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--foms-text-muted, #4b5563);
+}
+
+.foms-measure-capture-sheet__customer:empty {
+  display: none;
+}
+
+.foms-measure-capture-section {
+  padding: 14px 0;
+  border-top: 1px solid var(--foms-border, #e5e7eb);
+}
+
+.foms-measure-capture-section:first-of-type {
+  border-top: 0;
+}
+
+.foms-measure-capture-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--foms-text-muted, #6b7280);
+  margin: 0 0 10px;
+}
+
+.foms-measure-capture-unit {
+  font-weight: 500;
+  color: var(--foms-text-muted, #9ca3af);
+}
+
+/* 사진 섹션 */
+.foms-measure-capture-photo__actions {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.foms-measure-capture-photo__btn {
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.foms-measure-capture-photo__status {
+  margin: 8px 0 0;
+  font-size: 0.85rem;
+  color: var(--foms-text-muted, #4b5563);
+  min-height: 1.1em;
+}
+
+/* 치수 스테퍼 */
+.foms-measure-capture-dims {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.foms-measure-stepper__name {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--foms-text, #374151);
+  margin-bottom: 6px;
+}
+
+.foms-measure-stepper__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.foms-measure-stepper__btn {
+  flex: 0 0 auto;
+  min-width: 48px;
+  min-height: 48px;
+  border: 1.5px solid var(--foms-border, #d1d5db);
+  border-radius: 12px;
+  background: var(--foms-surface, #fff);
+  color: var(--foms-text, #374151);
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.foms-measure-stepper__btn:active {
+  background: var(--foms-primary-soft, rgba(37, 99, 235, 0.1));
+  border-color: var(--foms-primary, #2563eb);
+}
+
+.foms-measure-stepper__value {
+  flex: 1 1 auto;
+  text-align: center;
+  min-width: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--foms-text, #111827);
+}
+
+.foms-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.foms-measure-stepper__presets {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.foms-measure-preset {
+  flex: 1 1 0;
+  min-height: 40px;
+  border: 1.5px solid var(--foms-border, #d1d5db);
+  border-radius: 10px;
+  background: var(--foms-surface, #fff);
+  color: var(--foms-text-muted, #4b5563);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.foms-measure-preset:active {
+  border-color: var(--foms-primary, #2563eb);
+  color: var(--foms-primary, #2563eb);
+}
+
+/* 특이사항 */
+.foms-measure-capture-note__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.foms-measure-capture-note__mic {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1.5px solid var(--foms-border, #d1d5db);
+  border-radius: 999px;
+  background: var(--foms-surface, #fff);
+  color: var(--foms-text-muted, #4b5563);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.foms-measure-capture-note__mic[hidden] {
+  display: none;
+}
+
+.foms-measure-capture-note__mic[aria-pressed="true"] {
+  border-color: var(--foms-danger, #dc2626);
+  color: var(--foms-danger, #dc2626);
+  background: rgba(220, 38, 38, 0.08);
+}
+
+.foms-measure-capture-note__area {
+  width: 100%;
+  margin-top: 8px;
+  border: 1.5px solid var(--foms-border, #d1d5db);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 0.95rem;
+  background: var(--foms-surface, #fff);
+  color: var(--foms-text, #1f2937);
+  resize: vertical;
+}
+
+.foms-measure-capture-note__status {
+  margin: 6px 0 0;
+  font-size: 0.82rem;
+  color: var(--foms-text-muted, #6b7280);
+  min-height: 1.1em;
+}
+
+.foms-measure-capture-sheet__error {
+  margin: 12px 0 0;
+  font-size: 0.85rem;
+  color: var(--foms-danger, #dc2626);
+}
+
+.foms-measure-capture-sheet__error[hidden] {
+  display: none;
+}
+
+.foms-measure-capture-sheet__save {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 14px;
+  font-weight: 700;
+}
+
+body.foms-measure-capture-open {
+  overflow: hidden;
+}
+
+/* 카드에 기록된 실측 dims/note 메타 행 */
+.foms-measure-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 6px 12px 10px;
+  font-size: 0.82rem;
+  color: var(--foms-text-muted, #4b5563);
+}
+
+.foms-measure-card-meta__dims {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--foms-text, #374151);
+}
+
+.foms-measure-card-meta__note {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
