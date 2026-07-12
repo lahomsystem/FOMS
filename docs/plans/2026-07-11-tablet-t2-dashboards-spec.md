@@ -50,6 +50,16 @@ staging 검증: 신규 자산 전부 서빙·게이트 마커 ready·콘솔 0·�
 
 검증: 계약 293 passed + staging coarse 에뮬 실측 — 8페이지 전량(as/measurement/drawing/production/construction/completion/history/shipment) 크롬 3종 none·레일 72px·padding 72px·active 정확·hscroll 무, dashboard=split 레일 단독, PC fine 무회귀. 실측 노하우 추가: CSSOM media 재작성 워커는 **CSSImportRule.styleSheet 재귀 필수**(@import 체인 시트는 cssRules로 안 내려감).
 
+## T4 완결 — split 퇴출·fragment 레일 동기 (2026-07-12, deploy f4942486·a796f23f)
+
+T3 배포 후에도 사용자가 "생산 빼고 태블릿 모드 안 보임"+/erp/dashboard 이중 레일 스크린샷 보고. 근본 2중:
+1. **fragment fast-tab ↔ 레일 미통합**: erp-shell.js는 pathname 화이트리스트(FRAGMENT_READY_PATHS)로 임의 `a[href]`를 가로채 `#main-content`만 스왑 — 레일 9링크가 그 목록과 바이트 동일이라 전부 인터셉트. 레일은 layout 소속(#main-content 밖)이라 스왑에 잔존(active stale) 또는 부재(dashboard 첫 진입 후 이동 시 전 페이지 레일 0 = PC UI). fragment body 자체는 full과 동일(생산 칸반 포함 — "생산만 보임"의 이유).
+2. **split 마크업↔CSS 게이트 불일치**: split CSS(foms-split-view.css, base 은닉 포함)는 v2 전용 surfaces 번들로만 로드되는데 마크업은 v2∪v3에 렌더 → v3(스테이징 기본)에서 비스타일 split(사이드탭+카드)이 전 폭에 그대로 흐름(이중 레일 스크린샷의 "둘째 레일" 정체).
+
+수정: ① split-show를 fine/none 992–1365.98 2열거로 축소(landscape·≥1366 coarse arm 제거 — orientation 토큰 소멸), foms-shell 미러·bridge 동기 → **태블릿 coarse landscape = 전 페이지(dashboard 포함) legacy PC + 전역 레일 통일**(목업 v5 "카드 마스터 폐기" 최종 반영) ② `foms_split_enabled`를 shell_variant=='v2' 전용으로(주입부+orders 라우트) ③ 레일 전역화: dashboard 제외 삭제, /wdcalculator 추가(번들 게이트·active 매핑), 레일 표시/크롬 숨김 셀렉터 body 클래스 의존 제거(계산기 미부착) ④ `tablet-rail-nav.js` 신규 — `foms:erp-shell-fragment-swapped`+popstate에서 세그먼트 최장 접두로 active 재부여(pushState→이벤트 순서 검증) ⑤ AS·이력 시트/터치(이력 본행 data-order-id+history-main-row, chevron 무변경, 인터랙티브 가드 확장) ⑥ 출고 1365.98 자체 게이트 → 매트릭스 통합(모바일 UI=폰+태블릿 세로만).
+
+staging 2차 전수: 풀로드 10페이지(9탭+계산기) 전량 = 크롬 3종 none·레일 flex·pad 72px·active 정확·split 0·hscroll 무 + fragment 체인 8연쇄 = 레일 1개 유지·active 동기·split 0·크롬 숨김 유지. 검증 함정: 헤드리스=진짜 fine → fine-band 규칙 정당 매치로 split 오판 가능, split 검증은 fine/none arm을 `not all`로 끄는 2단 에뮬 필요.
+
 ## 백로그 (잔여 페이지 — 조사 완료, 착수 판단 대기)
 
 시트/터치 그리드 계약(`#erp-grid tr.erp-main-row[data-order-id]`) 미충족 6페이지 실사 결과:
