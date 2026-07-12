@@ -18,6 +18,11 @@
   var currentOrderId = null;
   var loading = false;
 
+  // B7: 쓰기(POST)만 공용 래퍼 경유 → 오프라인 시 큐 적재 + sync 배지 갱신. GET은 기존 fetch.
+  function writeFetch(url, opts) {
+    return (window.fomsWriteFetch || fetch)(url, opts);
+  }
+
   function hasOffcanvas() {
     return !!(window.bootstrap && window.bootstrap.Offcanvas);
   }
@@ -155,7 +160,7 @@
     var nextDone = btn.getAttribute('aria-pressed') !== 'true';
     btn.disabled = true;
     try {
-      var res = await fetch('/api/orders/' + encodeURIComponent(currentOrderId) + '/production/steps', {
+      var res = await writeFetch('/api/orders/' + encodeURIComponent(currentOrderId) + '/production/steps', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },

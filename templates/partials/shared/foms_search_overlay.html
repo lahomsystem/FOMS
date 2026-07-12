@@ -34,6 +34,11 @@
   </nav>
 
   <div class="foms-search-overlay__body">
+    {# B4: QR 스캔 진입 — BarcodeDetector 지원 시 foms-qr-scan.js 가 [hidden] 해제. #}
+    <button type="button" class="foms-search-overlay__qr-scan" data-foms-qr-scan-open hidden>
+      <i class="fas fa-qrcode" aria-hidden="true"></i>
+      <span>QR 스캔</span>
+    </button>
     <div id="foms-search-spinner" class="foms-search-overlay__spinner htmx-indicator" aria-hidden="true">
       <span class="spinner-border spinner-border-sm" role="status"></span>
     </div>

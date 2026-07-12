@@ -26,6 +26,8 @@
               <span>패킹</span>
               <span class="foms-packing-badge" data-foms-packing-badge hidden></span>
             </button>
+            {# B4: QR 라벨(새 탭 인쇄). #}
+            <a class="foms-qr-label-link" href="{{ url_for('erp_dashboard.erp_order_label', order_id=o.id) }}" target="_blank" rel="noopener"><i class="fas fa-qrcode" aria-hidden="true"></i><span>QR 라벨</span></a>
           </div>
           {% if has_detail or can_edit_shipment|default(false) %}
           <dl class="erp-shipment-mobile-card__detail" data-shipment-mobile-detail {% if not has_detail %}hidden{% endif %}>

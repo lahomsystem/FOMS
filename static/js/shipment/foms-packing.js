@@ -123,10 +123,14 @@
   }
 
   async function request(orderId, options) {
-    var res = await fetch(apiUrl(orderId), Object.assign({
+    options = options || {};
+    // B7: 쓰기(POST 등)만 공용 래퍼 경유 → 오프라인 시 큐 적재 + sync 배지 갱신. GET은 기존 fetch.
+    var isWrite = (options.method || 'GET').toUpperCase() !== 'GET';
+    var doFetch = (isWrite && window.fomsWriteFetch) ? window.fomsWriteFetch : fetch;
+    var res = await doFetch(apiUrl(orderId), Object.assign({
       credentials: 'same-origin',
       headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    }, options || {}));
+    }, options));
     var data = await res.json().catch(function () { return {}; });
     if (!res.ok || !data.success) {
       throw new Error(data.error || data.message || '요청에 실패했습니다.');

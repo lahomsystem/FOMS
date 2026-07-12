@@ -2,7 +2,7 @@
 import datetime
 import os
 import time
-from flask import Blueprint, flash, make_response, redirect, render_template, request, g, url_for
+from flask import Blueprint, abort, flash, make_response, redirect, render_template, request, g, url_for
 from db import get_db
 from models import Order
 from foms.web.auth import login_required
@@ -609,4 +609,39 @@ def erp_order_mobile_detail(order_id: int):
         mobile_shell_title='주문 상세',
         mobile_shell_show_back=True,
         mobile_shell_back_href=url_for(back_endpoint),
+    )
+
+
+@erp_dashboard_bp.route('/orders/<int:order_id>/label')
+@login_required
+def erp_order_label(order_id: int):
+    """B4: 주문 QR 인쇄 라벨(고객명·주문번호·품목 1줄·QR). 새 탭 인쇄용."""
+    db = get_db()
+    order = (
+        db.query(Order)
+        .filter(Order.id == order_id, Order.not_deleted_filter())
+        .first()
+    )
+    if not order:
+        abort(404)
+
+    sd = _ensure_dict(order.structured_data) if order.structured_data else {}
+    customer_name = (
+        ((sd.get('parties') or {}).get('customer') or {}).get('name')
+        or order.customer_name
+        or '-'
+    )
+    items = sd.get('items') if isinstance(sd.get('items'), list) else []
+    first_item = items[0] if items else {}
+    product_line = (
+        first_item.get('product_name') or first_item.get('name') or order.product or '-'
+    )
+    if len(items) > 1:
+        product_line = f"{product_line} 외 {len(items) - 1}개"
+
+    return render_template(
+        'orders/label.html',
+        order=order,
+        customer_name=customer_name,
+        product_line=product_line,
     )

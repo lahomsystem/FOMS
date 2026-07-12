@@ -68,6 +68,7 @@
         var req = store.getAll();
         req.onsuccess = function () {
           var items = req.result || [];
+          var failed = false; // B7: flush 실패(전송 실패 배지) 신호.
           var chain = Promise.resolve();
           items.forEach(function (item) {
             chain = chain.then(function () {
@@ -78,10 +79,19 @@
                 credentials: "same-origin",
               }).then(function (res) {
                 if (res.ok) store.delete(item.id);
+                else failed = true;
               });
             });
           });
           chain.then(function () {
+            // B7: flush 결과를 sync 배지에 통지(기존 flush 로직 무변경, 이벤트 발행만).
+            try {
+              window.dispatchEvent(new CustomEvent("foms:sync-changed", {
+                detail: { source: "flush", failed: failed },
+              }));
+            } catch (e) {
+              /* CustomEvent 미지원 — 배지 갱신 생략(무해). */
+            }
             resolve(items.length);
           });
         };

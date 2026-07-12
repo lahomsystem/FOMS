@@ -11,6 +11,7 @@ from .call_log import log_call_response
 from .copy import copy_orders_response
 from .field_update import update_order_field_response
 from .nearby import nearby_orders_response
+from .qr import render_order_qr_svg
 from .regional import update_regional_memo_response, update_regional_status_response
 from .status import bulk_update_order_status_response, update_order_status_response
 
@@ -88,6 +89,13 @@ def api_order_call_log(order_id):
     return log_call_response(order_id)
 
 
+@orders_bp.route("/orders/<int:order_id>/qr.svg")
+@login_required
+def api_order_qr_svg(order_id):
+    """주문 모바일 상세 URL QR 코드 SVG (B4)."""
+    return render_order_qr_svg(order_id)
+
+
 __all__ = [
     "api_order_call_log",
     "api_orders",
@@ -103,6 +111,8 @@ __all__ = [
     "log_call_response",
     "get_today_kst",
     "nearby_orders_response",
+    "api_order_qr_svg",
+    "render_order_qr_svg",
     "orders_bp",
     "update_order_field",
     "update_order_field_response",

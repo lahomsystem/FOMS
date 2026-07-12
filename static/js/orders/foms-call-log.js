@@ -14,6 +14,11 @@
 
   var SHEET_SEL = '[data-foms-call-log-sheet]';
 
+  // B7: 공용 쓰기 래퍼(있으면) 경유 → 오프라인 시 큐 적재 + sync 배지 갱신. 없으면 기존 fetch.
+  function writeFetch(url, opts) {
+    return (window.fomsWriteFetch || fetch)(url, opts);
+  }
+
   function getSheet() {
     return document.querySelector(SHEET_SEL);
   }
@@ -96,7 +101,7 @@
     }
     setError(sheet, '');
 
-    fetch('/api/orders/' + encodeURIComponent(orderId) + '/call-log', {
+    writeFetch('/api/orders/' + encodeURIComponent(orderId) + '/call-log', {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
