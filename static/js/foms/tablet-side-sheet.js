@@ -270,7 +270,10 @@
     var row = target.closest(ROW_SELECTOR);
     if (row) {
       var interactive = target.closest(INTERACTIVE);
-      if (interactive && row.contains(interactive)) return; // 행 내 액션/링크/입력 보존
+      // 행 내 액션/링크/입력 보존. 단 행 자신이 인터랙티브 시맨틱(role="button" 등,
+      // 완료 그리드 a11y 행)이어도 그건 시트 트리거 자체이므로 제외 대상이 아니다
+      // (2026-07-12: 완료 행 role="button" ↔ [role="button"] 가드 자충돌 봉합).
+      if (interactive && interactive !== row && row.contains(interactive)) return;
       ev.preventDefault();
       open(row.getAttribute("data-order-id"), row);
     }
