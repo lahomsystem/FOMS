@@ -176,3 +176,41 @@
     font-size: var(--foms-font-size-xs); /* 12px */
   }
 }
+
+/* ============================================================
+   AS · 이력 대시보드 터치 보정 — B1/B2 (2026-07-12, T2 융합 레이어 확장).
+
+   목업 v8 융합 레이어(행 탭 → 사이드 시트 + 터치 보정)를 AS(.erp-as-dashboard)와
+   이력(.erp-history-mobile-shell) legacy 테이블 표면으로 확장한다. W9 의 #erp-grid 한정
+   행/버튼/입력 보정과 동일 수치·토큰을 두 테이블에도 적용(마크업 무변경 — CSS만).
+   행 탭 → 사이드 시트 배선은 tablet-side-sheet.js(위임 셀렉터 확장)가 소유한다.
+   ============================================================ */
+
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+
+  /* 1) 데이터 본행 ≥48px (table-row height 는 최소 높이로 동작 — 내용이 크면 증가). */
+  body.erp-mobile-v2-layout .erp-as-dashboard .erp-pro-table-wrapper tbody tr[data-order-id],
+  body.erp-mobile-v2-layout .erp-history-mobile-shell tr.history-main-row[data-order-id] {
+    height: var(--foms-touch-target-min); /* 48px */
+  }
+
+  /* 2) 행 내 버튼/링크 ≥44px 터치 타깃 (AS 일정/사진/미결 버튼·이력 상세보기 링크). */
+  body.erp-mobile-v2-layout .erp-as-dashboard .erp-pro-table-wrapper .btn,
+  body.erp-mobile-v2-layout .erp-as-dashboard .erp-pro-table-wrapper .erp-as-pending-btn,
+  body.erp-mobile-v2-layout .erp-history-mobile-shell tr.history-main-row .btn {
+    min-height: var(--foms-touch-target-comfortable); /* 44px */
+  }
+
+  /* 3) AS 인라인 날짜 입력 44px + 16px(iOS 포커스 확대 방지). 16px = --foms-font-size-base. */
+  body.erp-mobile-v2-layout .erp-as-dashboard .erp-pro-table-wrapper .erp-pro-input {
+    min-height: var(--foms-touch-target-comfortable);
+    font-size: var(--foms-font-size-base); /* 16px */
+  }
+
+  /* 4) AS 행 체크박스 24px 상시(AS도면 여부). form-check-input 인라인 1.1em → !important 로만
+     덮인다(마크업 무변경 원칙, W9 4)번과 동일 패턴). */
+  body.erp-mobile-v2-layout .erp-as-dashboard .erp-pro-table-wrapper .form-check-input {
+    width: 24px !important;
+    height: 24px !important;
+  }
+}

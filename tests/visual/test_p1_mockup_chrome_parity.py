@@ -21,31 +21,24 @@ def _css(rel: str) -> str:
 
 def test_legacy_layout_header_hidden_on_mobile_and_tablet() -> None:
     """Bridge CSS hides the legacy global header for the v2 cohort on mobile
-    (≤991.98px) and every non-desktop shell (2026-07-11 W7 double-chrome fix): the
-    992–1365.98 tablet band, the ≥1366 landscape-coarse split (iPad 12.9"/13"), and
-    ≥992 portrait-coarse tablet-mobile. Only the true desktop (≥1366 fine/none), where
-    the legacy ERP dashboard renders, keeps it."""
+    (≤991.98px) and every non-desktop shell (2026-07-12 목업 v5 정합): the split arm hides
+    it on the narrow-desktop-window band (992–1365.98 fine/none, keyed on the split
+    markup), the tablet-rail arm hides it on tablet landscape (≥992 landscape coarse,
+    keyed on the rail), and the portrait-coarse arm hides it on tablet portrait. Only the
+    true desktop (≥1366 fine/none), where the legacy ERP dashboard renders, keeps it."""
     css = _css("foundation/erp-pro/13-foms-shell-bridge.css")
     mobile = re.search(r"@media \(max-width: 991\.98px\) \{.*?\n\}", css, re.S)
     assert mobile, "expected a max-width:991.98px media block"
     assert "body.erp-mobile-v2-layout .layout-header" in mobile.group(0)
-    # The non-desktop hide is now an enumerated media list (W7): find the block that
-    # hides the legacy header and assert it carries all three non-desktop arms.
-    hide = re.search(
-        r"@media\s+\(min-width: 992px\) and \(max-width: 1365\.98px\),.*?"
-        r"body\.erp-mobile-v2-layout \.layout-header",
-        css,
-        re.S,
-    )
-    assert hide, "expected the enumerated non-desktop header-hide block"
-    block = hide.group(0)
-    assert "(min-width: 992px) and (max-width: 1365.98px)" in block
-    assert (
-        "(min-width: 1366px) and (orientation: landscape) and (pointer: coarse)" in block
-    )
-    assert (
-        "(min-width: 992px) and (pointer: coarse) and (orientation: portrait)" in block
-    )
+    # Split arm (fine/none 992–1365.98) hides the header when the split markup is present.
+    assert "(min-width: 992px) and (max-width: 1365.98px) and (pointer: fine)" in css
+    assert "(min-width: 992px) and (max-width: 1365.98px) and (pointer: none)" in css
+    assert "body.erp-mobile-v2-layout:has(.foms-split-enabled) .layout-header" in css
+    # Tablet-rail arm (coarse landscape ≥992) hides the header when the rail is present.
+    assert "(min-width: 992px) and (orientation: landscape) and (pointer: coarse)" in css
+    assert "body:has(.foms-tablet-rail) .layout-header" in css
+    # Tablet-portrait-coarse arm hides the header unconditionally (mobile interface).
+    assert "(min-width: 992px) and (pointer: coarse) and (orientation: portrait)" in css
     # No bare/unconditional ≥1366 desktop hide: the true-desktop header must survive.
     assert "(min-width: 1366px) {" not in css
 
@@ -68,31 +61,32 @@ def test_split_hidden_on_mobile_and_desktop() -> None:
 
 
 def test_tablet_split_grid_and_legacy_hidden() -> None:
-    """Split band shows the 72/360/fluid grid — now selected by the enumerated
-    orientation+pointer matrix (landscape / fine / none) rather than a bare width
-    band — and the legacy desktop dashboard chrome is hidden in 992–1365.98px."""
+    """Split band shows the 72/360/fluid grid — now selected by the pointer-aware matrix
+    (fine / none 992–1365.98) rather than a bare width band or the old coarse-landscape
+    arm — and the legacy desktop dashboard chrome is hidden in that same narrow-window
+    band (2026-07-12 목업 v5 정합: coarse tablets keep the legacy PC grid + global rail
+    instead of split)."""
     css = _css("foundation/foms-split-view.css")
     # Grid geometry lives on the base shell; the matrix query flips it to display:grid.
     assert "grid-template-columns: 72px 360px minmax(0, 1fr)" in css
     grid = re.search(
         r"@media\s+\(min-width: 992px\) and \(max-width: 1365\.98px\) and "
-        r"\(orientation: landscape\).*?\.foms-split-shell \{\s*display: grid;",
+        r"\(pointer: fine\).*?\.foms-split-shell \{\s*display: grid;",
         css,
         re.S,
     )
-    assert grid, "expected enumerated split-show query flipping the shell to display:grid"
+    assert grid, "expected pointer-aware split-show query flipping the shell to display:grid"
     shell = _css("foundation/foms-shell.css")
-    # T0 (2026-07-10 exclusivity overhaul): the desktop-hide block is no longer a
-    # bare 992–1365.98 width band — it is the enumerated non-desktop matrix. Anchor
-    # on that enumeration's first (split-landscape) condition; the intent is
-    # unchanged (the split/tablet band still hides the legacy .foms-shell-desktop-only).
+    # The desktop-hide block mirrors the split-show query (fine/none 992–1365.98).
+    # Anchor on the fine arm; the intent is unchanged (the split/tablet narrow window
+    # still hides the legacy .foms-shell-desktop-only — only the coarse arms were dropped).
     legacy = re.search(
         r"@media\s+\(\(min-width: 992px\) and \(max-width: 1365\.98px\) and "
-        r"\(orientation: landscape\)\).*?\.foms-shell-desktop-only.*?display: none !important",
+        r"\(pointer: fine\)\).*?\.foms-shell-desktop-only.*?display: none !important",
         shell,
         re.S,
     )
-    assert legacy, "tablet band must hide .foms-shell-desktop-only (legacy dashboard)"
+    assert legacy, "narrow window must hide .foms-shell-desktop-only (legacy dashboard)"
     # Mobile single-column queue still hidden at >=992px.
     assert "body.erp-mobile-v2-layout .foms-mobile-v2-dashboard" in shell
     master = (ROOT / "templates/partials/shared/foms_master_list.html").read_text(

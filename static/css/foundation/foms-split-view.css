@@ -1,4 +1,4 @@
-/* P1-05 tablet split-view shell — shell-selection judgment (2026-07-10 T0 overhaul).
+/* P1-05 tablet split-view shell — shell-selection judgment (2026-07-12 목업 v5 정합).
    The mobile-v2 cohort renders three shells (mobile queue / this split / legacy
    desktop) into one DOM; pure CSS picks exactly one. This file owns the SPLIT
    surface: it is hidden by default and opted in only when the matrix below selects
@@ -7,17 +7,19 @@
    Selection matrix (width × orientation × pointer → shell):
      <992           any         any         → mobile
      ≥992           portrait    coarse      → mobile (12.9" 세로 1024 포함)
-     992–1365.98    landscape   any         → split
-     992–1365.98    portrait    fine/none   → split (세로 모니터 좁은 창)
-     ≥1366          landscape   coarse      → split (12.9"/13"/Ultra 가로)
+     ≥992           landscape   coarse      → legacy PC surface + 전역 72px 레일 (태블릿 모드)
+     992–1365.98    any         fine/none   → split (좁은 데스크톱 창)
      ≥1366          any         fine/none   → desktop (FHD@125% 노트북 오분류 방지)
-     ≥1366          portrait    coarse      → mobile (실기기 없음, 규칙 일관성)
-   The split-show query is orientation-AWARE (landscape) + pointer-aware, enumerated
-   (no `not`), so it never emits a raw portrait-orientation token (that literal is
-   guarded against by tests/domains/test_p2_gate.py). Portrait tablets fall to the
-   mobile shell — a full
-   usable surface, NOT a blanking overlay. Manual override: html[data-foms-shell]
-   (see escape hatch at end of file) beats the matrix.
+   2026-07-12 목업 v5 정합: 태블릿 가로(coarse landscape)에서 카드형 split 마스터를 폐기하고,
+   전 페이지를 legacy PC 표면 + 전역 72px 레일(foms-tablet-rail.css)로 통일한다. split 은 이제
+   "좁은 데스크톱 창"(마우스/트랙패드 = fine, 또는 pointer 미보고 = none) 전용이다.
+   The split-show query is now pointer-aware ONLY (fine/none), enumerated (no `not`),
+   so it carries no orientation token at all — it can never emit a raw
+   portrait-orientation token (that literal is guarded against by
+   tests/domains/test_p2_gate.py). Coarse-pointer tablets never select split: landscape
+   → legacy PC + rail, portrait → the mobile shell (a full usable surface, NOT a blanking
+   overlay). Manual override: html[data-foms-shell] (see escape hatch at end of file)
+   beats the matrix.
 
    The earlier P2-08 orientation overlay (orientation-layout.js +
    foms-orientation-layout.css) hid side-tab+master in portrait, which blanked
@@ -49,13 +51,16 @@
   display: none;
 }
 
-/* Split shown only when the selection matrix (top of file) picks split.
-   Enumerated (no `not`); emits only "orientation: landscape", never "portrait". */
+/* Split shown only when the selection matrix (top of file) picks split: the two
+   narrow-desktop-window combos (992–1365.98 with a fine or none pointer). Enumerated
+   (no `not`); pointer-aware only — no orientation token at all now, so it can never
+   emit a raw portrait-orientation token (the P2-08 blank-screen cause). Coarse-pointer tablets
+   (both orientations) NO LONGER select split: landscape tablets get the legacy PC
+   surface + the global 72px rail (2026-07-12 목업 v5 정합), portrait tablets get the
+   mobile shell. */
 @media
-  (min-width: 992px) and (max-width: 1365.98px) and (orientation: landscape),
   (min-width: 992px) and (max-width: 1365.98px) and (pointer: fine),
-  (min-width: 992px) and (max-width: 1365.98px) and (pointer: none),
-  (min-width: 1366px) and (orientation: landscape) and (pointer: coarse) {
+  (min-width: 992px) and (max-width: 1365.98px) and (pointer: none) {
   .foms-split-enabled {
     display: block;
   }

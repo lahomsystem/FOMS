@@ -720,27 +720,32 @@
 }
 
 /* Legacy desktop chrome hide — SPLIT shells (mobile-v2 cohort), split-existence
-   gated. Enumerated (no `not`) to the four split combos: 992–1365.98 landscape /
-   fine / none + ≥1366 landscape-coarse. The legacy grid is hidden ONLY when the
-   split markup (.foms-split-enabled, emitted by foms_split_shell.html) is present
+   gated. Enumerated (no `not`) to the two narrow-desktop-window combos where the split
+   surface is actually shown: 992–1365.98 with a fine or none pointer (mirrors
+   foms-split-view.css's split-show query exactly). The legacy grid is hidden ONLY when
+   the split markup (.foms-split-enabled, emitted by foms_split_shell.html) is present
    as a PRECEDING SIBLING — DOM order verified: the split include sits before the
    .foms-shell-desktop-only wrapper (orders/partials/dashboard_main.html).
+
+   2026-07-12 목업 v5 정합: coarse-pointer tablets no longer select split, so this hide
+   no longer fires at the tablet-landscape surface (≥992 landscape-coarse or the former
+   ≥1366 landscape-coarse). The split-wired dashboard therefore KEEPS its legacy PC grid
+   there (the global 72px rail replaces the chrome), exactly like every split-UNWIRED
+   page — the two surfaces are now uniform on tablet landscape.
 
    W8 split-UNWIRED fallback contract: cohort dashboards that do NOT include the
    split shell (construction / production / measurement / shipment / history — only
    orders is split-wired today, and only when FOMS_TABLET_SPLIT_VIEW_ENABLED) have
    no .foms-split-enabled sibling, so the `~` match fails and the legacy desktop
-   SURVIVES at 992+ landscape instead of collapsing to a blank (staging 2026-07-11:
-   the split surface is absent AND the mobile surface is hidden here, so the old
-   unconditional hide left the page empty). This is the explicit fallback until T2
-   ports each page to split — the drawing workbench already relies on it. The inner
-   chrome (.erp-pro-header / .erp-pro-nav / …) lives INSIDE .foms-shell-desktop-only,
-   so hiding the wrapper is sufficient — no separate inner-selector sibling rule. */
+   SURVIVES at the narrow-window band instead of collapsing to a blank (staging
+   2026-07-11: the split surface is absent AND the mobile surface is hidden here, so
+   the old unconditional hide left the page empty). This is the explicit fallback —
+   the drawing workbench already relies on it. The inner chrome (.erp-pro-header /
+   .erp-pro-nav / …) lives INSIDE .foms-shell-desktop-only, so hiding the wrapper is
+   sufficient — no separate inner-selector sibling rule. */
 @media
-  ((min-width: 992px) and (max-width: 1365.98px) and (orientation: landscape)),
   ((min-width: 992px) and (max-width: 1365.98px) and (pointer: fine)),
-  ((min-width: 992px) and (max-width: 1365.98px) and (pointer: none)),
-  ((min-width: 1366px) and (orientation: landscape) and (pointer: coarse)) {
+  ((min-width: 992px) and (max-width: 1365.98px) and (pointer: none)) {
   body.erp-mobile-v2-layout
     .erp-mobile-shell[data-erp-mobile-v2='true']
     .foms-split-enabled ~ .foms-shell-desktop-only {

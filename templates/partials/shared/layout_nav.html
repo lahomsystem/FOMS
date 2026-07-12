@@ -204,10 +204,17 @@
         </nav>
         {% endif %}
 
-        {# T2 태블릿 가로 전역 레일: /erp 전 페이지에 좌측 72px 메뉴 레일을 주입한다.
-           /erp/dashboard 제외 = split 셸이 자체 레일(foms_side_tab.html)을 보유하므로
-           이중 레일을 방지한다. 표시/숨김은 CSS(foms-tablet-rail.css)가 전담 —
-           여기서는 서버 렌더 게이트(erp_mobile_v2 코호트 + /erp)만 결정한다. #}
-        {% if erp_mobile_v2_enabled and request.path.startswith('/erp') and not request.path.startswith('/erp/dashboard') %}
+        {# T2 태블릿 가로 전역 레일: /erp 전 페이지 + /wdcalculator 에 좌측 72px 메뉴 레일을 주입한다.
+           2026-07-12 목업 v5 정합: 태블릿 가로(coarse landscape)에서 split 셸을 퇴출했으므로
+           /erp/dashboard 도 더 이상 자체 카드 레일을 띄우지 않는다 → 이중 레일이 불가능해져
+           과거의 대시보드 제외를 삭제한다. split 은 이제 fine/none 좁은 창 전용이고, 그 창에서는
+           전역 레일이 coarse 전용 media 라 숨으므로(pointer 배타) 여전히 이중 레일은 발생하지 않는다.
+           표시/숨김은 CSS(foms-tablet-rail.css)가 전담 — 여기서는 서버 렌더 게이트
+           (erp_mobile_v2 코호트 ∩ (/erp ∪ /wdcalculator))만 결정한다.
+           레일 active 동기 JS(tablet-rail-nav.js)는 include 직후 defer 로드(레일 부재 시 no-op,
+           singleton 가드) — fragment fast-tab(#main-content 스왑) 이동 후 레일 active 를 재계산한다.
+           (레일은 #main-content 밖 layout 소속이라 스왑에 잔존하므로 active 재부여가 필요하다.) #}
+        {% if erp_mobile_v2_enabled and (request.path.startswith('/erp') or request.path.startswith('/wdcalculator')) %}
         {% include 'partials/shared/foms_tablet_rail.html' %}
+        <script src="{{ url_for('static', filename='js/foms/tablet-rail-nav.js') }}?v=20260712a" defer></script>
         {% endif %}

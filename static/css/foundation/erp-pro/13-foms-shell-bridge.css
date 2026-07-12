@@ -78,20 +78,25 @@
   }
 }
 
-/* Non-desktop shells (mobile-v2 cohort): the master-detail split-view or the
-   mobile shell owns the surface, so the legacy global brand header + nav are hidden
-   like on mobile — otherwise the legacy chrome double-stacks over the split shell.
-   Placed after the ≥992 show rule so source order wins.
+/* Non-desktop shells (mobile-v2 cohort): the master-detail split-view owns the
+   surface, so the legacy global brand header + nav are hidden like on mobile —
+   otherwise the legacy chrome double-stacks over the split shell. Placed after the
+   ≥992 show rule so source order wins.
 
    W8 split-existence gate: the header lives OUTSIDE the .erp-mobile-shell tree, so
    the preceding-sibling combinator that foms-shell.css uses to gate .foms-shell-
    desktop-only cannot reach it. body:has(.foms-split-enabled) is the only structural
-   hook, so the split/large-screen arms (992–1365.98 all + ≥1366 landscape-coarse)
-   hide the global header ONLY when the split markup is actually present. Split-UNWIRED
-   cohort pages (construction / production / measurement / shipment / history) keep the
-   global header at 992+ landscape, matching the legacy .foms-shell-desktop-only that
-   foms-shell.css leaves visible there — without this they lost the global header while
-   the legacy desktop was restored (half-chromed page).
+   hook, so this arm hides the global header ONLY when the split markup is actually
+   present.
+   2026-07-12 목업 v5 정합: the split surface is now a narrow-desktop-window shell —
+   it shows only at 992–1365.98 with a fine/none pointer (mirrors foms-split-view.css's
+   split-show query). So this arm's media is exactly those two combos. The former
+   coarse-arm territory (≥992 landscape-coarse, incl. the old ≥1366 landscape-coarse)
+   is the tablet-landscape "PC + rail" mode: its chrome hide is the SEPARATE
+   :has(.foms-tablet-rail) arm below (rail marker), so ownership never overlaps this
+   :has(.foms-split-enabled) arm. The split-wired dashboard carries BOTH markers, but
+   the two display conditions are pointer-exclusive (fine/none ⊥ coarse), so exactly
+   one chrome-hide arm is ever live — never a double hide, never a gap.
    @supports selector(:has(*)) gate: browsers without :has (pre-2022; below the
    iPad Safari 15.4+ / Chrome 105+ tablet target) drop the whole block, so a
    split-wired page keeps its global header and double-stacks it over the split shell
@@ -103,8 +108,8 @@
    is scoped to foms-split-view.css, not this bridge file.) */
 @supports selector(:has(*)) {
   @media
-    (min-width: 992px) and (max-width: 1365.98px),
-    (min-width: 1366px) and (orientation: landscape) and (pointer: coarse) {
+    (min-width: 992px) and (max-width: 1365.98px) and (pointer: fine),
+    (min-width: 992px) and (max-width: 1365.98px) and (pointer: none) {
     body.erp-mobile-v2-layout:has(.foms-split-enabled) .layout-header,
     body.erp-mobile-v2-layout:has(.foms-split-enabled) .layout-global-nav,
     body.erp-mobile-v2-layout:has(.foms-split-enabled) .layout-global-nav.layout-global-nav--erp-v2-suppressed {
@@ -128,17 +133,25 @@
    three-tier legacy/ERP chrome (global brand header + global text nav + erp_sub_nav
    horizontal icon nav) is REPLACED by the rail + erp-pro-header title bar, so hide all
    three here. Keyed on .foms-tablet-rail existence so ownership never overlaps the
-   :has(.foms-split-enabled) arm above (a page carries exactly one of the two markers).
+   :has(.foms-split-enabled) arm above. The split-wired dashboard can carry BOTH markers
+   at once, but the two arms' media are pointer-exclusive (this rail arm = coarse
+   landscape; the split arm = fine/none 992–1365.98), so at most one chrome-hide arm is
+   ever live for a given viewport — no double ownership, no gap.
    Same @supports selector(:has(*)) gate + same accepted degradation for the pre-2022
    no-:has cohort (they keep the legacy chrome) as the split arm above.
+   Keyed on body:has(.foms-tablet-rail) WITHOUT the erp-mobile-v2-layout class: the rail
+   is server-rendered only for the mobile-v2 cohort on /erp + /wdcalculator, so the
+   marker itself already encodes the cohort gate — and the calculator layout does not
+   attach the body class (its gate is /erp-scoped), so requiring the class would leave
+   the calculator with the rail AND the legacy chrome double-stacked.
    (orientation: landscape is used intentionally; the P2-08 portrait-token ban is scoped
    to foms-split-view.css, not this bridge file.) */
 @supports selector(:has(*)) {
   @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
-    body.erp-mobile-v2-layout:has(.foms-tablet-rail) .layout-header,
-    body.erp-mobile-v2-layout:has(.foms-tablet-rail) .layout-global-nav,
-    body.erp-mobile-v2-layout:has(.foms-tablet-rail) .layout-global-nav.layout-global-nav--erp-v2-suppressed,
-    body.erp-mobile-v2-layout:has(.foms-tablet-rail) .erp-pro-nav {
+    body:has(.foms-tablet-rail) .layout-header,
+    body:has(.foms-tablet-rail) .layout-global-nav,
+    body:has(.foms-tablet-rail) .layout-global-nav.layout-global-nav--erp-v2-suppressed,
+    body:has(.foms-tablet-rail) .erp-pro-nav {
       display: none !important;
     }
   }

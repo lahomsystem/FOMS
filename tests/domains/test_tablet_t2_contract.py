@@ -115,7 +115,7 @@ def test_mobile_surfaces_parent_cachebuster_bumped() -> None:
     the prior baseline (T0 교훈: 자식 범프=부모 내용 변경=부모도 범프).
     W9=ae → W11=af → W12=ag → W14=ah."""
     layout_head = _read("templates/partials/shared/layout_head.html")
-    assert "foms-mobile-surfaces.css') }}?v=20260712a" in layout_head
+    assert "foms-mobile-surfaces.css') }}?v=20260712b" in layout_head
     assert "foms-mobile-surfaces.css') }}?v=20260711ag" not in layout_head
 
 
@@ -590,13 +590,17 @@ def test_w16_tablet_bundle_exists_with_four_imports_shell_independent() -> None:
 
 def test_w16_layout_head_loads_bundle_for_v2_and_v3_cohort() -> None:
     """layout_head 가 foms-tablet-bundle.css 를 erp_mobile_v2_enabled(코호트 공통) 게이트로
-    로드하고 ?v=20260712b 를 가진다. v2 전용(shell_variant=='v2') 게이트가 아님을 검증.
+    로드하고 ?v=20260712c 를 가진다. v2 전용(shell_variant=='v2') 게이트가 아님을 검증.
     (?v 는 2026-07-12 T2 전역 레일 추가로 번들 내용 변경 → 캐시 체인 규칙에 따라 a→b 범프.)"""
     layout_head = _read("templates/partials/shared/layout_head.html")
     idx = layout_head.find("foms-tablet-bundle.css")
     assert idx != -1, "layout_head 에 태블릿 번들 <link> 부재"
-    assert "foms-tablet-bundle.css') }}?v=20260712b" in layout_head
-    window = layout_head[max(0, idx - 200):idx]
+    assert "foms-tablet-bundle.css') }}?v=20260712c" in layout_head
+    # Anchor on the nearest preceding `{% if %}` (the bundle gate) rather than a fixed
+    # char window — the gate string grows over time (2026-07-12: +/wdcalculator arm).
+    gate_start = layout_head.rfind("{% if", 0, idx)
+    assert gate_start != -1, "번들 <link> 앞에 게이트 {% if %} 부재"
+    window = layout_head[gate_start:idx]
     assert "erp_mobile_v2_enabled" in window, "번들 게이트가 erp_mobile_v2_enabled 아님"
     assert "shell_variant == 'v2'" not in window, "번들이 v2 전용 게이트로 로드됨(코호트 미공통)"
 
@@ -611,3 +615,83 @@ def test_w16_surfaces_no_longer_owns_tablet_files() -> None:
         "foms-tablet-production-kanban",
     ):
         assert name not in surfaces, f"surfaces 에 태블릿 파일명 잔존: {name}"
+
+
+# =====================================================================
+# B1/B2 — AS · 이력 대시보드 융합 레이어 확장 계약 (2026-07-12, T2 확장)
+# 목업 v8: 태블릿 가로 전 탭에서 "행 탭 → 우측 사이드 시트 + 터치 보정 그리드".
+# #erp-grid(시공/생산/주문)·칸반만 배선돼 있던 것을 AS(.erp-as-dashboard) + 이력
+# (.erp-history-mobile-shell) legacy 테이블 표면으로 확장. 서버 무변경(이력 본행 <tr> 에
+# data-order-id + history-main-row 클래스만 추가), CSS/JS 확장만.
+# =====================================================================
+
+AS_DASHBOARD_BODY = "templates/cs/partials/as_dashboard_body.html"
+HISTORY_DASHBOARD_BODY = "templates/orders/partials/history_dashboard_body.html"
+
+
+def test_side_sheet_delegation_extended_to_as_and_history_rows() -> None:
+    """행 탭 → 상세 시트: side-sheet 위임 셀렉터에 AS PC 테이블 본행과 이력 본행을 확장.
+    기존 그리드/칸반 소스도 보존(회귀 금지)."""
+    js = _read(SIDE_SHEET_JS)
+    assert ".erp-as-dashboard .erp-pro-table-wrapper tbody tr[data-order-id]" in js
+    assert ".erp-history-mobile-shell tr.history-main-row[data-order-id]" in js
+    # 회귀 금지: 기존 그리드/칸반 소스 보존.
+    assert "#erp-grid tr.erp-main-row[data-order-id]" in js
+    assert ".foms-kanban-card[data-order-id]" in js
+
+
+def test_side_sheet_interactive_guard_covers_role_button_and_form_check() -> None:
+    """인터랙티브 가드 확장: AS 인라인 날짜/체크박스·상세 링크 + 이력 chevron([role=button])
+    클릭이 시트를 열지 않도록 가드에 [role="button"], .form-check 포함(기존 6종도 보존)."""
+    js = _read(SIDE_SHEET_JS)
+    assert 'a, button, input, select, label, textarea, [role="button"], .form-check' in js
+
+
+def test_side_sheet_active_row_cleanup_is_row_type_agnostic() -> None:
+    """B1/B2: 하이라이트 정리 쿼리가 .erp-main-row 한정이면 AS/이력 본행 stale 하이라이트가
+    남는다 → 클래스만으로(.foms-tablet-sheet-active) 매치해 행 타입 무관하게 제거."""
+    js = _read(SIDE_SHEET_JS)
+    assert 'querySelectorAll(".foms-tablet-sheet-active")' in js
+
+
+def test_as_pc_table_main_row_exposes_side_sheet_source() -> None:
+    """AS PC 테이블 본행이 data-order-id 를 노출(side-sheet 행 탭 소스). 마크업은 이미 존재 —
+    이 소스가 사라지면 AS 시트가 무동작하므로 잠근다(템플릿 변경 없음)."""
+    body = _norm(_read(AS_DASHBOARD_BODY))
+    assert 'class="erp-pro-table-wrapper d-none d-md-block"' in body
+    assert '<tr data-order-id="{{ r.id }}">' in body
+
+
+def test_history_main_row_has_side_sheet_source_class_and_order_id() -> None:
+    """이력 본행 <tr> 이 history-main-row + data-order-id 를 가져 side-sheet 위임 대상이 된다.
+    확장행(history-detail-row)과 chevron([role=button]) 확장 UX 는 무변경(회귀 금지 동반 확인)."""
+    body = _norm(_read(HISTORY_DASHBOARD_BODY))
+    assert '<tr class="history-main-row" data-order-id="{{ o.id }}">' in body
+    # 확장행/chevron 계약 보존.
+    assert 'class="history-detail-row"' in body
+    assert "history-chevron" in body
+    assert 'role="button"' in body
+
+
+def test_as_history_touch_correction_rules_token_driven() -> None:
+    """AS/이력 테이블 터치 보정: 본행 ≥48px(--foms-touch-target-min), 버튼 ≥44px
+    (--foms-touch-target-comfortable), AS 인라인 입력 16px(--foms-font-size-base).
+    코호트 게이트(body.erp-mobile-v2-layout) 하위 + foms 토큰 구동(하드코딩 회귀 차단)."""
+    css = _norm(_read(LANDSCAPE_CSS))
+    # 48px 본행 (AS + 이력 동일 규칙).
+    assert (
+        "body.erp-mobile-v2-layout .erp-as-dashboard .erp-pro-table-wrapper tbody "
+        "tr[data-order-id], body.erp-mobile-v2-layout .erp-history-mobile-shell "
+        "tr.history-main-row[data-order-id] { height: var(--foms-touch-target-min)" in css
+    )
+    # 44px 버튼 타깃.
+    assert "min-height: var(--foms-touch-target-comfortable)" in css
+    # 16px AS 인라인 입력(iOS 줌 방지).
+    assert (
+        ".erp-as-dashboard .erp-pro-table-wrapper .erp-pro-input { "
+        "min-height: var(--foms-touch-target-comfortable); "
+        "font-size: var(--foms-font-size-base)" in css
+    )
+    # 코호트 스코프.
+    assert "body.erp-mobile-v2-layout .erp-as-dashboard" in css
+    assert "body.erp-mobile-v2-layout .erp-history-mobile-shell" in css

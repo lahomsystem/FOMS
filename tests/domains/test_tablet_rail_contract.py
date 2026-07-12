@@ -9,7 +9,7 @@ on every /erp page (dashboard split excepted) at the tablet-landscape surface:
   - the rail CSS show/hide contract (base hidden, coarse-landscape media,
     rail-show + #main-content padding co-located in one @supports :has block),
   - the tablet bundle @import,
-  - the cache-chain ?v bumps (bundle → 20260712b, erp-pro.css bumped, bridge
+  - the cache-chain ?v bumps (bundle → 20260712c, erp-pro.css bumped, bridge
     @import 20260712a),
   - the lazy Jinja global registration, and
   - the active-tab-id path resolver.
@@ -20,6 +20,7 @@ future edit that regresses the rail wiring fails fast here.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -38,6 +39,8 @@ def _read(rel: str) -> str:
 LAYOUT_NAV = "templates/partials/shared/layout_nav.html"
 RAIL_PARTIAL = "templates/partials/shared/foms_tablet_rail.html"
 RAIL_CSS = "static/css/foundation/foms-tablet-rail.css"
+RAIL_NAV_JS = "static/js/foms/tablet-rail-nav.js"
+SPLIT_CSS = "static/css/foundation/foms-split-view.css"
 BUNDLE_CSS = "static/css/foundation/foms-tablet-bundle.css"
 LAYOUT_HEAD = "templates/partials/shared/layout_head.html"
 ERP_PRO_CSS = "static/css/foundation/erp-pro.css"
@@ -48,13 +51,35 @@ CONTEXT_PROCESSORS = "foms/services/context_processors.py"
 
 
 def test_layout_nav_includes_rail_with_correct_gate() -> None:
-    """layout_nav.html includes the rail partial gated on v2 cohort ∩ /erp ∩ NOT
-    /erp/dashboard (split shell owns its own rail there → no double rail)."""
+    """layout_nav.html includes the rail partial gated on v2 cohort ∩ (/erp ∪
+    /wdcalculator). The old /erp/dashboard exclusion is GONE (2026-07-12 목업 v5 정합:
+    split no longer shows at the tablet-landscape surface, so the dashboard carries the
+    global rail there without a double rail — at fine/none windows the rail is coarse-only
+    CSS and stays hidden, and the split shell's own rail owns that case)."""
     nav = _read(LAYOUT_NAV)
     assert "partials/shared/foms_tablet_rail.html" in nav
     assert "erp_mobile_v2_enabled" in nav
     assert "request.path.startswith('/erp')" in nav
-    assert "not request.path.startswith('/erp/dashboard')" in nav
+    assert "request.path.startswith('/wdcalculator')" in nav
+    assert "not request.path.startswith('/erp/dashboard')" not in nav
+
+
+def test_rail_nav_js_defer_singleton_and_events() -> None:
+    """The rail active-sync script exists, is loaded deferred from layout_nav (perf G1),
+    guards against double-binding (perf G4), and listens for the ERP fragment-swap +
+    popstate events to re-apply .is-active / aria-current to the matching rail item."""
+    js = _read(RAIL_NAV_JS)
+    assert "__FOMS_TABLET_RAIL_NAV_BOUND" in js
+    assert "foms:erp-shell-fragment-swapped" in js
+    assert "popstate" in js
+    assert "is-active" in js
+    assert "aria-current" in js
+    nav = _read(LAYOUT_NAV)
+    assert "js/foms/tablet-rail-nav.js" in nav
+    # Deferred load (render-blocking sync script is banned by perf guard G1).
+    assert re.search(r"tablet-rail-nav\.js[^>]*\bdefer\b", nav) is not None, (
+        "rail nav script must be loaded with defer"
+    )
 
 
 # --- ② partial root class --------------------------------------------------
@@ -90,12 +115,31 @@ def test_rail_css_base_hidden_and_supports_colocated() -> None:
     # only says "@supports 블록", never the full selector form).
     assert "@supports selector(:has(*))" in css
     supports_block = css.split("@supports selector(:has(*))", 1)[1]
-    assert "body.erp-mobile-v2-layout .foms-tablet-rail" in supports_block
+    assert ".foms-tablet-rail" in supports_block
     assert (
-        "body.erp-mobile-v2-layout:has(.foms-tablet-rail) #main-content" in supports_block
+        "body:has(.foms-tablet-rail) #main-content" in supports_block
     )
     assert "padding-left: 72px" in supports_block
     assert "width: 72px" in supports_block
+
+
+def test_rail_and_split_display_media_are_mutually_exclusive() -> None:
+    """String-level exclusivity (2026-07-12 목업 v5 정합): the global rail shows only on
+    coarse-landscape ≥992, while the split surface shows only on fine/none 992–1365.98
+    windows. The two are pointer-exclusive (coarse ⊥ fine/none), so they never display
+    together — the dashboard, which carries BOTH the split markup and the rail, can never
+    render a double rail."""
+    rail_css = _read(RAIL_CSS)
+    split_css = _read(SPLIT_CSS)
+    # Rail: coarse landscape only.
+    assert (
+        "(min-width: 992px) and (orientation: landscape) and (pointer: coarse)" in rail_css
+    )
+    # Split-show: fine/none only …
+    assert "(min-width: 992px) and (max-width: 1365.98px) and (pointer: fine)" in split_css
+    assert "(min-width: 992px) and (max-width: 1365.98px) and (pointer: none)" in split_css
+    # … and NO coarse-pointer media anywhere in the split file (no overlap with the rail).
+    assert "(pointer: coarse)" not in split_css
 
 
 # --- ④ bundle @import ------------------------------------------------------
@@ -111,16 +155,16 @@ def test_bundle_imports_rail_css() -> None:
 
 
 def test_cache_chain_versions_bumped() -> None:
-    """Cache-chain contract: bundle link ?v=20260712b (content changed = new @import),
+    """Cache-chain contract: bundle link ?v=20260712c (content changed = new @import),
     erp-pro.css link bumped off the old 20260711ad, and erp-pro.css @imports the bridge
-    at ?v=20260712a (bridge content changed = T2 chrome-hide arm added)."""
+    at ?v=20260712b (bridge content changed = T2 chrome-hide arm + rail-key de-scope)."""
     head = _read(LAYOUT_HEAD)
-    assert "foms-tablet-bundle.css') }}?v=20260712b" in head
+    assert "foms-tablet-bundle.css') }}?v=20260712c" in head
     # erp-pro.css link bumped (old value gone, a fresh value present).
     assert "?v=20260711ad" not in head
-    assert "erp-pro.css') }}?v=20260712ae" in head
+    assert "erp-pro.css') }}?v=20260712af" in head
     erp_pro = _read(ERP_PRO_CSS)
-    assert "13-foms-shell-bridge.css?v=20260712a" in erp_pro
+    assert "13-foms-shell-bridge.css?v=20260712b" in erp_pro
 
 
 # --- ⑥ Jinja global registration -------------------------------------------
@@ -173,3 +217,22 @@ def test_build_tablet_rail_items_no_false_active_when_unmatched() -> None:
     user = SimpleNamespace(team="SALES", role="STAFF")
     items = build_tablet_rail_items(user, "/erp/ashley")
     assert all(not it["active"] for it in items)
+
+
+def test_resolve_active_id_maps_calculator() -> None:
+    """The calculator page (/wdcalculator, outside the ERP nav contract) resolves to the
+    explicit ``calculator`` id so the global rail highlights 계산기; a mere string prefix
+    (/wdcalculatorx) does NOT match (segment boundary)."""
+    assert resolve_tablet_rail_active_id("/wdcalculator") == "calculator"
+    assert resolve_tablet_rail_active_id("/wdcalculator/") == "calculator"
+    assert resolve_tablet_rail_active_id("/wdcalculator/embedded") == "calculator"
+    assert resolve_tablet_rail_active_id("/wdcalculatorx") == ""
+
+
+def test_build_tablet_rail_items_highlights_calculator() -> None:
+    """On /wdcalculator the calculator rail item is the highlighted one (non-construction
+    users get a calculator item; its href is /wdcalculator)."""
+    user = SimpleNamespace(team="SALES", role="STAFF")
+    items = build_tablet_rail_items(user, "/wdcalculator")
+    active = [it for it in items if it["active"]]
+    assert [it["id"] for it in active] == ["calculator"]

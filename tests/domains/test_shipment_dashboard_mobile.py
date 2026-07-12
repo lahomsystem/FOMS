@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from werkzeug.security import generate_password_hash
@@ -149,3 +150,34 @@ def test_shipment_dashboard_renders_mobile_v2_queue_card(client, monkeypatch) ->
     assert "시공1" in body
     assert "엘리베이터 사용" in body
     assert 'data-shipment-mobile-detail-field="site_extra"' in body
+
+
+def test_shipment_mobile_gate_follows_shell_matrix() -> None:
+    """셸 매트릭스 통합(2026-07-12): 출고 모바일 UI 게이트는 폭 단독(max-width:
+    1365.98px)이 아니라 폰(<992) + 태블릿 세로(≥992 coarse portrait) 열거식이어야
+    한다. 구 단독 폭 arm이 되살아나면 iPad 가로(1180)에서 출고만 폰 UI가 떠
+    태블릿 모드(PC 표면+레일)가 깨진다(회귀). 태블릿 가로·992–1365 fine/none 창은
+    PC 표면을 유지한다.
+
+    foms-shell.css/foms-split-view.css의 매트릭스 열거와 동일한 tablet-portrait
+    조건을 공유한다(shell 파일은 별도 계약 테스트가 잠근다)."""
+    css = (ROOT / "static/css/components/foms-shipment-mobile.css").read_text(
+        encoding="utf-8"
+    )
+    norm = re.sub(r"\s+", " ", css)
+
+    # 구 폭 단독 게이트 부재 — 폰·태블릿 전부를 폰 UI로 강제하던 회귀 원인.
+    assert "@media (max-width: 1365.98px) {" not in norm
+    assert "@media (min-width: 992px) and (max-width: 1365.98px) {" not in norm
+
+    # 신규 모바일 UI 표시 arm = 폰 + 태블릿 세로 열거.
+    assert (
+        "@media (max-width: 991.98px), "
+        "((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {"
+        in norm
+    )
+    # 신규 밴드 정제 arm(720px 중앙 + 4열 디테일) = 태블릿 세로 전용.
+    assert (
+        "@media ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {"
+        in norm
+    )

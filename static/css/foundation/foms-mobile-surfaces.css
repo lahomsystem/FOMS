@@ -2,7 +2,7 @@
    미버전 @import는 no-cache 재검증 왕복을 만든다(첫 로딩 지연, Wave 4-B). ?v= 를 붙이면
    app_factory 미들웨어가 max-age=3600으로 재작성. 대가는 미버전 배포 시 최대 1h staleness이나,
    해당 자식 편집 시 여기 ?v= 를 함께 올리면 새 URL=캐시 미스로 즉시 반영된다(신선도 계약). */
-@import url("../foundation/foms-shell.css?v=20260712a");
+@import url("../foundation/foms-shell.css?v=20260712b");
 @import url("../components/foms-buttons.css?v=20260703a");
 @import url("../components/foms-form-field.css?v=20260630e");
 @import url("../components/foms-chip-strip.css?v=20260611b");
@@ -12,7 +12,7 @@
 @import url("../components/foms-detail-extras.css?v=20260703a");
 @import url("../components/foms-bottom-nav.css?v=20260703a");
 @import url("../components/foms-search-overlay.css?v=20260703a");
-@import url("../foundation/foms-split-view.css?v=20260711c");
+@import url("../foundation/foms-split-view.css?v=20260712a");
 @import url("../components/foms-kv-row.css?v=20260703a");
 @import url("../components/foms-product-item.css?v=20260703a");
 @import url("../components/foms-mobile-attach-tabs.css?v=20260617b");
@@ -20,7 +20,7 @@
 @import url("../components/foms-lightbox.css?v=20260703a");
 @import url("../components/foms-swipe-actions.css?v=20260703a");
 @import url("../components/foms-a2hs-bar.css?v=20260703a");
-@import url("../components/foms-shipment-mobile.css?v=20260626b");
+@import url("../components/foms-shipment-mobile.css?v=20260712a");
 @import url("../components/foms-drawing-mobile.css?v=20260609b");
 @import url("../components/foms-drawing-mobile-card.css?v=20260711b");
 @import url("../contexts/orders/dashboard-control-tower.css?v=20260614a");

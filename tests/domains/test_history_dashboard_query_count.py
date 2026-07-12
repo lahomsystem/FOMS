@@ -168,3 +168,19 @@ def test_history_dashboard_no_n_plus_one(client):
     assert q_big <= ABS_QUERY_CAP, (
         f"절대 쿼리 상한 초과: big={q_big} > {ABS_QUERY_CAP}"
     )
+
+
+def test_history_main_row_exposes_side_sheet_source(client):
+    """B2 렌더 스모크: 이력 데스크톱 테이블 본행이 태블릿 side-sheet 위임 소스
+    (history-main-row + data-order-id)를 실제로 렌더한다(200 + 본행 소스). 확장행/chevron
+    확장 UX 는 무변경(회귀 방지 동반 확인)."""
+    _login_admin(client)
+    oid = _seed_order(0)
+    resp = _fragment_get(client)
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
+    assert 'class="history-main-row"' in body
+    assert f'data-order-id="{oid}"' in body
+    # 확장행/chevron 보존.
+    assert 'class="history-detail-row"' in body
+    assert "history-chevron" in body

@@ -9,10 +9,13 @@
  *   정의 금지, defect 1). 비-v2(legacy/v3) coarse 태블릿에선 마커 부재 → 완전 무동작 →
  *   기존 행 클릭·인라인 편집 동작 그대로 보존(preventDefault·미스타일 시트 덤프 방지).
  *
- * 대상 행: #erp-grid tr.erp-main-row[data-order-id]
- *   (컨트롤타워 dashboard_grid / 시공 filters_grid / 생산 filters_grid 3그리드 공유 마크업).
- *   행 안의 a/button/input/select/label/textarea 클릭은 제외(closest로 무시) → 인라인
- *   실측일·시공일 편집, 액션 버튼, 첨부 미리보기, 상세 링크, 체크박스 동작 보존.
+ * 대상 행/카드: #erp-grid tr.erp-main-row[data-order-id](컨트롤타워/시공/생산 3그리드 공유),
+ *   생산 칸반 카드(.foms-kanban-card), AS 대시보드 PC 테이블 본행(.erp-as-dashboard
+ *   .erp-pro-table-wrapper tbody tr[data-order-id]), 이력 대시보드 본행(.erp-history-mobile-shell
+ *   tr.history-main-row[data-order-id]) — B1/B2 융합 레이어 확장.
+ *   행 안의 a/button/input/select/label/textarea/[role="button"]/.form-check 클릭은 제외
+ *   (closest로 무시) → 인라인 날짜 편집, 액션 버튼, 첨부 미리보기, 상세 링크, 체크박스,
+ *   이력 chevron(확장 토글, role="button") 동작 보존.
  *
  * 콘텐츠: 기존 fragment 인프라 재사용 — /api/foms/fragment/order/<id>/edit?open=erp-order
  *   (foms/services/foms_split_view.py build_split_master_cards.detail_href 와 동일 URL) fetch →
@@ -52,9 +55,18 @@
   }
 
   // W13: 생산 칸반 카드(#erp-grid 밖)도 시트 대상에 포함 — 카드 탭 → 동일 fragment 상세.
+  // B1/B2(2026-07-12): AS(.erp-as-dashboard PC 테이블 본행) + 이력(.erp-history-mobile-shell
+  // 본행)까지 융합 레이어 확장. 이력 확장행(.history-detail-row)은 클래스가 달라 미포함이고,
+  // chevron 확장 토글은 아래 INTERACTIVE([role="button"])가 제외해 기존 확장 UX가 보존된다.
   var ROW_SELECTOR =
-    "#erp-grid tr.erp-main-row[data-order-id], .foms-kanban-card[data-order-id]";
-  var INTERACTIVE = "a, button, input, select, label, textarea";
+    "#erp-grid tr.erp-main-row[data-order-id], " +
+    ".foms-kanban-card[data-order-id], " +
+    ".erp-as-dashboard .erp-pro-table-wrapper tbody tr[data-order-id], " +
+    ".erp-history-mobile-shell tr.history-main-row[data-order-id]";
+  // 행 내 인터랙티브 요소 클릭은 시트 대상에서 제외(closest 체인). AS 인라인 날짜/체크박스
+  // (.form-check)·상세 링크·이력 chevron([role="button"])까지 커버.
+  var INTERACTIVE =
+    'a, button, input, select, label, textarea, [role="button"], .form-check';
 
   function fragmentUrl(orderId) {
     return "/api/foms/fragment/order/" + encodeURIComponent(orderId) + "/edit?open=erp-order";
@@ -104,7 +116,9 @@
   }
 
   function markActiveRow(row) {
-    var prev = document.querySelectorAll(".erp-main-row.foms-tablet-sheet-active");
+    // 정리 쿼리는 행 타입 무관(#erp-grid 행·AS/이력 본행·칸반 카드) — 클래스만으로 매치해
+    // 다른 표면에 남은 stale 하이라이트까지 확실히 제거한다.
+    var prev = document.querySelectorAll(".foms-tablet-sheet-active");
     Array.prototype.forEach.call(prev, function (el) {
       el.classList.remove("foms-tablet-sheet-active");
     });

@@ -197,7 +197,7 @@
                 {% for item in orders %}
                 {% set o = item._order %}
                 {% set d = item.display_o %}
-                <tr>
+                <tr class="history-main-row" data-order-id="{{ o.id }}">
                   <td>
                     <i class="fas fa-chevron-down history-chevron me-2 text-primary" data-order-id="{{ o.id }}" role="button" aria-expanded="false" title="주문 상세 보기"></i>
                     {{ o.id }}

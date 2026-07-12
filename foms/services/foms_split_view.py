@@ -143,16 +143,24 @@ def resolve_tablet_rail_active_id(path: str) -> str:
     Matches ``path`` against ``ERP_PRIMARY_NAV_PATHS`` on segment boundaries (so
     ``/erp/measurement/42`` maps to ``measurement`` but a hypothetical ``/erp/ashley``
     does NOT falsely match ``/erp/as``) and returns the id of the longest matching
-    prefix. No match → empty string so the global rail renders with no highlighted tab
-    rather than a false ``dashboard`` highlight.
+    prefix. The calculator lives OUTSIDE the ERP nav contract (at ``/wdcalculator``),
+    so it is mapped explicitly to ``"calculator"`` — matching the ``_CALCULATOR_ITEM``
+    href — so the global rail highlights 계산기 on that page. No match → empty string so
+    the global rail renders with no highlighted tab rather than a false ``dashboard``
+    highlight.
 
     Args:
         path: Current request path (e.g. ``request.path``).
 
     Returns:
-        The matching ``ERP_TAB_IDS`` entry, or ``""`` when nothing matches.
+        The matching ``ERP_TAB_IDS`` entry, ``"calculator"`` for the calculator page,
+        or ``""`` when nothing matches.
     """
     normalized = (path or "").rstrip("/")
+    # Calculator is not an ERP_PRIMARY_NAV_PATHS entry; map it explicitly (segment
+    # boundary so /wdcalculatorx does not falsely match).
+    if normalized == "/wdcalculator" or normalized.startswith("/wdcalculator/"):
+        return "calculator"
     best_id = ""
     best_len = -1
     for nav_path, tab_id in zip(ERP_PRIMARY_NAV_PATHS, ERP_TAB_IDS):

@@ -174,8 +174,10 @@ body.erp-mobile-v2-layout {
   background: var(--foms-interactive-secondary, #eef0f3);
 }
 
-/* 시트가 연 주문 행을 그리드에서 하이라이트(어떤 행이 열렸는지 표시) */
-.erp-main-row.foms-tablet-sheet-active > * {
+/* 시트가 연 주문 행을 그리드/테이블에서 하이라이트(어떤 행이 열렸는지 표시).
+   #erp-grid 행 + AS/이력 테이블 본행(tr[data-order-id]) 공통(B1/B2). */
+.erp-main-row.foms-tablet-sheet-active > *,
+tr.foms-tablet-sheet-active > * {
   background: var(--foms-surface-accent, #f3f4ff) !important;
 }
 

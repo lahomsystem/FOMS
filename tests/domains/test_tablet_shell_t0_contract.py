@@ -34,12 +34,19 @@ LAYOUT_HEAD = "templates/partials/shared/layout_head.html"
 IMAGE_VIEWER_JS = "static/js/runtime/layout-scripts-core.js"
 MOBILE_SELECT_JS = "static/js/components/foms-mobile-select.js"
 
-# The four enumerated split-show conditions the matrix must carry (Spec T0-1,
-# L28-30). Enumerated (no `not`); orientation clauses use only `landscape`.
+# The two enumerated split-show conditions the matrix now carries (2026-07-12 목업 v5
+# 정합). Split is a narrow-desktop-window shell only, so the query is pointer-aware
+# (fine/none) with NO orientation token — coarse-pointer tablets get the legacy PC
+# surface + the global 72px rail instead of split.
 SPLIT_SHOW_QUERIES = (
-    "(min-width: 992px) and (max-width: 1365.98px) and (orientation: landscape)",
     "(min-width: 992px) and (max-width: 1365.98px) and (pointer: fine)",
     "(min-width: 992px) and (max-width: 1365.98px) and (pointer: none)",
+)
+
+# The old coarse split-show arms that must NO LONGER appear — they moved to the
+# tablet-landscape "legacy PC surface + global rail" mode.
+SPLIT_SHOW_REMOVED_QUERIES = (
+    "(min-width: 992px) and (max-width: 1365.98px) and (orientation: landscape)",
     "(min-width: 1366px) and (orientation: landscape) and (pointer: coarse)",
 )
 
@@ -59,10 +66,18 @@ def _norm(text: str) -> str:
 
 
 def test_split_show_matrix_queries_present() -> None:
-    """All four enumerated split-show conditions are present verbatim."""
+    """Both enumerated split-show conditions (fine/none 992–1365.98) are present verbatim."""
     css = _read(SPLIT_CSS)
     for query in SPLIT_SHOW_QUERIES:
         assert query in css, f"missing split-show matrix query: {query}"
+
+
+def test_split_show_matrix_removed_coarse_arms() -> None:
+    """The old coarse split-show arms (landscape 992–1365.98 + ≥1366 landscape-coarse)
+    are gone — coarse-pointer tablets no longer select split (2026-07-12 목업 v5 정합)."""
+    css = _read(SPLIT_CSS)
+    for query in SPLIT_SHOW_REMOVED_QUERIES:
+        assert query not in css, f"stale split-show arm still present: {query}"
 
 
 def test_no_unconditional_desktop_hide_query() -> None:
@@ -193,13 +208,20 @@ SHELL_SURFACE_HIDE_QUERIES = (
     "((min-width: 992px) and (pointer: none))",
 )
 
-# Item 3 legacy-desktop hide — four split combos + tablet-portrait-coarse.
+# Item 3 legacy-desktop hide — now the two narrow-window split combos (fine/none,
+# split-sibling gated) + tablet-portrait-coarse (separate block). (2026-07-12 목업 v5
+# 정합: the coarse-landscape and ≥1366 landscape-coarse arms were removed — coarse
+# tablets keep the legacy PC grid + the global rail.)
 SHELL_DESKTOP_HIDE_QUERIES = (
-    "((min-width: 992px) and (max-width: 1365.98px) and (orientation: landscape))",
     "((min-width: 992px) and (max-width: 1365.98px) and (pointer: fine))",
     "((min-width: 992px) and (max-width: 1365.98px) and (pointer: none))",
-    "((min-width: 1366px) and (orientation: landscape) and (pointer: coarse))",
     "((min-width: 992px) and (pointer: coarse) and (orientation: portrait))",
+)
+
+# The coarse-landscape legacy-hide arms that must NO LONGER appear (moved to rail mode).
+SHELL_DESKTOP_HIDE_REMOVED_QUERIES = (
+    "((min-width: 992px) and (max-width: 1365.98px) and (orientation: landscape))",
+    "((min-width: 1366px) and (orientation: landscape) and (pointer: coarse))",
 )
 
 
@@ -226,13 +248,17 @@ def test_shell_surface_hide_three_enumerations_present() -> None:
     assert "@media (min-width: 992px) {" not in css
 
 
-def test_shell_desktop_hide_five_enumerations_present() -> None:
-    """The legacy-desktop hide is the 5-way non-desktop enumeration (four split
-    combos + tablet-portrait-coarse); the old bare 992–1365.98 width band is gone
-    (that band missed ≥1366 landscape-coarse → double chrome, defect A)."""
+def test_shell_desktop_hide_enumerations_present() -> None:
+    """The legacy-desktop hide is now the two narrow-window split combos (fine/none,
+    split-sibling gated) + the tablet-portrait-coarse arm (separate block); the old bare
+    992–1365.98 width band is gone, and the coarse-landscape / ≥1366 landscape-coarse
+    arms were removed (2026-07-12 목업 v5 정합 — coarse tablets keep the legacy PC grid +
+    global rail, so the split-hide must not fire there)."""
     css = _read(SHELL_CSS)
     for query in SHELL_DESKTOP_HIDE_QUERIES:
         assert query in css, f"missing desktop-hide enumeration: {query}"
+    for query in SHELL_DESKTOP_HIDE_REMOVED_QUERIES:
+        assert query not in css, f"stale desktop-hide arm still present: {query}"
     assert "@media (min-width: 992px) and (max-width: 1365.98px) {" not in css
 
 
@@ -325,21 +351,26 @@ DRAWING_CARD_CSS = "static/css/components/foms-drawing-mobile-card.css"
 WORKBENCH_BODY = "templates/drawing/partials/workbench_dashboard_body.html"
 
 
-def test_bridge_header_hide_covers_split_and_tablet_portrait() -> None:
-    """W7 defect 1: the legacy global header/nav hide extends past the fixed
-    992–1365.98 band to the ≥1366 landscape-coarse split (iPad 12.9"/13") and the
-    ≥992 portrait-coarse tablet-mobile shell, so the legacy chrome no longer
-    double-stacks over the split shell. Only ≥1366 fine/none (desktop) keeps it."""
+def test_bridge_header_hide_covers_split_fine_none_and_tablet_portrait() -> None:
+    """2026-07-12 목업 v5 정합: the :has(.foms-split-enabled) header/nav hide now fires
+    only where split is actually shown — the two narrow-desktop-window combos
+    (992–1365.98 fine/none, mirroring the split-show query) — plus the unconditional
+    ≥992 portrait-coarse tablet-mobile arm. The old ≥1366 landscape-coarse split
+    header-hide arm is GONE (coarse landscape is now the global-rail tablet mode, whose
+    chrome hide is the separate :has(.foms-tablet-rail) arm). Only ≥1366 fine/none
+    (desktop) keeps the legacy header."""
     css = _read(BRIDGE_CSS)
-    assert (
-        "(min-width: 1366px) and (orientation: landscape) and (pointer: coarse)" in css
-    ), "missing ≥1366 landscape-coarse (split) header-hide arm"
+    # Split header-hide is now pointer-aware fine/none (mirrors the split-show query).
+    assert "(min-width: 992px) and (max-width: 1365.98px) and (pointer: fine)" in css
+    assert "(min-width: 992px) and (max-width: 1365.98px) and (pointer: none)" in css
     assert (
         "(min-width: 992px) and (pointer: coarse) and (orientation: portrait)" in css
     ), "missing ≥992 portrait-coarse (tablet-mobile) header-hide arm"
-    # The 992–1365.98 band is still enumerated (now one arm of the media list).
-    assert "(min-width: 992px) and (max-width: 1365.98px)" in css
-    # No bare/unconditional ≥1366 desktop hide (that would kill the true-desktop header).
+    # The ≥1366 landscape-coarse SPLIT header-hide arm was removed (the rail arm owns
+    # coarse landscape now); no bare ≥1366 desktop hide either.
+    assert (
+        "(min-width: 1366px) and (orientation: landscape) and (pointer: coarse)" not in css
+    ), "stale ≥1366 landscape-coarse split header-hide arm still present"
     assert "(min-width: 1366px) {" not in css
 
 
@@ -358,9 +389,9 @@ def test_bridge_tablet_rail_arm_replaces_chrome_and_keeps_split_arm() -> None:
         "(min-width: 992px) and (orientation: landscape) and (pointer: coarse)" in css
     ), "missing the T2 tablet-landscape rail chrome-hide media arm"
     # Keyed on the rail marker, hides all three chrome tiers incl. .erp-pro-nav.
-    assert "body.erp-mobile-v2-layout:has(.foms-tablet-rail) .layout-header" in css
-    assert "body.erp-mobile-v2-layout:has(.foms-tablet-rail) .layout-global-nav" in css
-    assert "body.erp-mobile-v2-layout:has(.foms-tablet-rail) .erp-pro-nav" in css
+    assert "body:has(.foms-tablet-rail) .layout-header" in css
+    assert "body:has(.foms-tablet-rail) .layout-global-nav" in css
+    assert "body:has(.foms-tablet-rail) .erp-pro-nav" in css
     # Pre-existing split-enabled arm still present (ownership boundary preserved).
     assert "body.erp-mobile-v2-layout:has(.foms-split-enabled) .layout-header" in css
     # True-desktop header still never killed by a bare ≥1366 hide.
