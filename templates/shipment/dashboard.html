@@ -7,6 +7,12 @@
   {% endif %}
 {% endblock %}
 
+{% block styles %}
+  {% if erp_mobile_v2_enabled %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-packing.css') }}?v=20260712a">
+  {% endif %}
+{% endblock %}
+
 {% block content %}
 {% include 'shipment/partials/dashboard_main.html' %}
 {% endblock %}
@@ -15,5 +21,8 @@
 {# v3는 읽기 전용 홈(추가 JS 없음) — v2 출고 대시보드 JS는 v2/legacy에만 로드(배타) #}
 {% if shell_variant != 'v3' %}
 {% include 'shipment/partials/dashboard_scripts.html' %}
+{% endif %}
+{% if erp_mobile_v2_enabled %}
+<script src="{{ url_for('static', filename='js/shipment/foms-packing.js') }}?v=20260712a" defer></script>
 {% endif %}
 {% endblock %}

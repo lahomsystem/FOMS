@@ -1,0 +1,60 @@
+{# B1 통화 결과 기록 바텀시트 — 히어로/큐 카드 "결과 기록" 진입에서 재사용하는 단일 시트.
+   foms-call-log.js 가 data-order-id 를 주입하고 열고 닫는다. 서버 렌더 시 항상 마크업만
+   존재(hidden). partials/shared 아님(orders 하위) → PAC allowlist 무관. #}
+<div class="foms-call-log-sheet"
+     data-foms-call-log-sheet
+     data-order-id=""
+     hidden
+     aria-hidden="true">
+  <div class="foms-call-log-sheet__backdrop" data-foms-call-log-close></div>
+  <div class="foms-call-log-sheet__panel"
+       role="dialog"
+       aria-modal="true"
+       aria-labelledby="foms-call-log-title">
+    <div class="foms-call-log-sheet__head">
+      <h2 class="foms-call-log-sheet__title" id="foms-call-log-title">통화 결과 기록</h2>
+      <button type="button"
+              class="foms-call-log-sheet__close"
+              data-foms-call-log-close
+              aria-label="닫기">
+        <i class="fas fa-xmark" aria-hidden="true"></i>
+      </button>
+    </div>
+    <p class="foms-call-log-sheet__customer" data-foms-call-log-customer></p>
+    <form class="foms-call-log-sheet__form" data-foms-call-log-form>
+      <fieldset class="foms-call-log-sheet__chips" aria-label="통화 결과">
+        <label class="foms-call-log-chip">
+          <input type="radio" name="call_result" value="connected" checked>
+          <span>통화됨</span>
+        </label>
+        <label class="foms-call-log-chip">
+          <input type="radio" name="call_result" value="no_answer">
+          <span>부재중</span>
+        </label>
+        <label class="foms-call-log-chip">
+          <input type="radio" name="call_result" value="callback">
+          <span>재통화 요청</span>
+        </label>
+        <label class="foms-call-log-chip">
+          <input type="radio" name="call_result" value="schedule_confirmed">
+          <span>일정 확정</span>
+        </label>
+      </fieldset>
+      <label class="foms-call-log-sheet__field">
+        <span class="foms-call-log-sheet__label">메모</span>
+        <textarea name="call_memo"
+                  rows="3"
+                  maxlength="1000"
+                  placeholder="통화 내용을 남기세요"></textarea>
+      </label>
+      <label class="foms-call-log-sheet__field">
+        <span class="foms-call-log-sheet__label">실측일 (선택)</span>
+        <input type="date" name="measurement_date">
+      </label>
+      <p class="foms-call-log-sheet__error" data-foms-call-log-error hidden role="alert"></p>
+      <button type="submit"
+              class="foms-btn foms-btn--primary foms-call-log-sheet__save"
+              data-foms-call-log-save>저장</button>
+    </form>
+  </div>
+</div>

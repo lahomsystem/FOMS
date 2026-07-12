@@ -1,0 +1,129 @@
+/* B3 생산 공정 스텝 (모바일 v2 생산 큐 카드 하위 collapse).
+   카드 아래 붙는 접이식 공정 체크리스트: 접힘면 '공정 N/5' 배지 + 5행 체크. */
+
+.foms-prod-steps {
+  margin: calc(var(--foms-space-2, 8px) * -1) 0 0;
+  border: 1px solid var(--foms-border-subtle, #e2e6ea);
+  border-top: none;
+  border-radius: 0 0 var(--foms-radius-lg, 12px) var(--foms-radius-lg, 12px);
+  background: var(--foms-surface-base, #fff);
+  overflow: hidden;
+}
+
+.foms-prod-steps__summary {
+  display: flex;
+  align-items: center;
+  gap: var(--foms-space-2, 8px);
+  min-height: var(--foms-touch-target-min, 44px);
+  padding: var(--foms-space-2, 8px) var(--foms-space-3, 12px);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.foms-prod-steps__summary::-webkit-details-marker {
+  display: none;
+}
+
+.foms-prod-steps__badge {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--foms-color-success-700, #1a7a4c);
+  background: var(--foms-color-success-50, #e8f7ef);
+  border: 1px solid var(--foms-color-success-200, #b9e6cd);
+  border-radius: var(--foms-radius-full, 999px);
+  padding: 2px 10px;
+  white-space: nowrap;
+}
+
+.foms-prod-steps__caption {
+  font-size: 0.8125rem;
+  color: var(--foms-text-secondary, #64748b);
+  flex: 1 1 auto;
+}
+
+.foms-prod-steps__chevron {
+  color: var(--foms-text-tertiary, #94a3b8);
+  transition: transform 0.18s ease;
+  font-size: 0.75rem;
+}
+
+.foms-prod-steps[open] .foms-prod-steps__chevron {
+  transform: rotate(180deg);
+}
+
+.foms-prod-steps__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--foms-border-subtle, #e2e6ea);
+}
+
+.foms-prod-steps__row {
+  border-bottom: 1px solid var(--foms-border-subtle, #eef1f4);
+}
+
+.foms-prod-steps__row:last-child {
+  border-bottom: none;
+}
+
+.foms-prod-steps__toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--foms-space-3, 12px);
+  width: 100%;
+  min-height: 52px;
+  padding: var(--foms-space-2, 8px) var(--foms-space-3, 12px);
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  color: var(--foms-text-primary, #1f2937);
+  font: inherit;
+}
+
+.foms-prod-steps__toggle:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+.foms-prod-steps__check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: 2px solid var(--foms-border-strong, #cbd5e1);
+  background: var(--foms-surface-base, #fff);
+  color: transparent;
+  font-size: 0.75rem;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.foms-prod-steps__row.is-done .foms-prod-steps__check {
+  background: var(--foms-color-success-500, #22a366);
+  border-color: var(--foms-color-success-500, #22a366);
+  color: #fff;
+}
+
+.foms-prod-steps__label {
+  flex: 0 0 auto;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.foms-prod-steps__row.is-done .foms-prod-steps__label {
+  color: var(--foms-color-success-700, #1a7a4c);
+}
+
+.foms-prod-steps__meta {
+  flex: 1 1 auto;
+  text-align: right;
+  font-size: 0.75rem;
+  color: var(--foms-text-tertiary, #94a3b8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

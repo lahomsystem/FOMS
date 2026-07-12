@@ -1,12 +1,14 @@
 """
 ERP 주문 생산(제작) API. (Phase 4-5f)
-erp.py에서 분리: production/start, production/complete.
+erp.py에서 분리: production/start, production/complete, production/steps.
 """
 
 import copy
 import datetime
+from functools import wraps
+from typing import Any, Callable
 
-from flask import Blueprint, jsonify, session
+from flask import Blueprint, jsonify, request, session
 from sqlalchemy.orm.attributes import flag_modified
 
 from foms.web.auth import get_user_by_id, login_required
@@ -17,6 +19,76 @@ from foms.services.erp_permissions import erp_edit_required
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 
 erp_orders_production_bp = Blueprint("erp_orders_production", __name__, url_prefix="/api/orders")
+
+
+# --- 생산 공정 스텝 권한/스키마 (erp_permissions 통합 후보) --------------------------
+# 아래 _can_edit_production_steps / _production_steps_edit_required 는
+# erp_permissions.erp_construction_edit_required 스타일을 모듈 로컬로 복제한 것이다.
+# 생산 공정 스텝 체크는 ADMIN 또는 team∈(CS,SALES,PRODUCTION) 에게 허용한다.
+# 안정화되면 erp_permissions.py 의 can_edit_* / *_edit_required 계열로 승격(통합) 검토.
+_PRODUCTION_STEPS_EDIT_TEAMS = ("CS", "SALES", "PRODUCTION")
+
+# 생산 공정 기본 5단계(cut/edge/paint/assemble/inspect). 최초 접근 시 서버가 생성한다.
+_PRODUCTION_STEP_DEFS: tuple[tuple[str, str], ...] = (
+    ("cut", "재단"),
+    ("edge", "엣지"),
+    ("paint", "도장"),
+    ("assemble", "조립"),
+    ("inspect", "검수"),
+)
+_PRODUCTION_STEP_KEYS = frozenset(k for k, _ in _PRODUCTION_STEP_DEFS)
+
+
+def _can_edit_production_steps(user: Any) -> bool:
+    """생산 공정 스텝 편집 가능 여부(ADMIN 또는 CS/SALES/PRODUCTION 팀)."""
+    if not user:
+        return False
+    if user.role == "ADMIN":
+        return True
+    return (user.team or "").strip() in _PRODUCTION_STEPS_EDIT_TEAMS
+
+
+def _production_steps_edit_required(f: Callable[..., Any]) -> Callable[..., Any]:
+    """생산 공정 스텝 write 권한 데코레이터(모듈 로컬; erp_permissions 통합 후보)."""
+
+    @wraps(f)
+    def wrapped(*args: Any, **kwargs: Any) -> Any:
+        user = get_user_by_id(session.get("user_id"))
+        if not user:
+            return jsonify({"success": False, "error": "로그인이 필요합니다."}), 401
+        if _can_edit_production_steps(user):
+            return f(*args, **kwargs)
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": "공정 스텝 수정 권한이 없습니다. (관리자, 라홈팀, 영업팀 또는 생산팀만 가능)",
+                }
+            ),
+            403,
+        )
+
+    return wrapped
+
+
+def _ensure_production_steps(sd: dict[str, Any]) -> list[dict[str, Any]]:
+    """sd['production']['steps'] 를 보장한다(없으면 기본 5단계 미체크로 생성) 후 반환.
+
+    :param sd: 수정 대상 structured_data (deepcopy 된 사본이어야 한다).
+    :return: 공정 스텝 리스트(sd 내부 참조와 동일 객체).
+    """
+    production = sd.get("production")
+    if not isinstance(production, dict):
+        production = {}
+        sd["production"] = production
+    steps = production.get("steps")
+    if not isinstance(steps, list) or not steps:
+        steps = [
+            {"key": key, "label": label, "done": False, "at": None, "by_name": None}
+            for key, label in _PRODUCTION_STEP_DEFS
+        ]
+        production["steps"] = steps
+    return steps
 
 
 @erp_orders_production_bp.route("/<int:order_id>/production/start", methods=["POST"])
@@ -131,3 +203,61 @@ def api_production_complete(order_id):
     except Exception as exc:
         db.rollback()
         return jsonify({"success": False, "message": str(exc)}), 500
+
+
+@erp_orders_production_bp.route("/<int:order_id>/production/steps", methods=["POST"])
+@login_required
+@_production_steps_edit_required
+def api_production_steps(order_id: int):
+    """생산 공정 스텝 체크 토글. body {key, done(bool)}.
+
+    최초 접근 시 기본 5단계(cut/edge/paint/assemble/inspect)를 생성한 뒤 해당 key의
+    done 상태를 반영한다(체크 시 at=UTC iso, by_name 기록). JSONB 는 deepcopy+flag_modified.
+    """
+    db = get_db()
+    try:
+        payload = request.get_json(silent=True) or {}
+        key = payload.get("key")
+        done = payload.get("done")
+        if key not in _PRODUCTION_STEP_KEYS or not isinstance(done, bool):
+            return jsonify({"success": False, "error": "key 또는 done 값이 올바르지 않습니다."}), 400
+
+        order = db.get(Order, order_id)
+        if not order or order.status == "DELETED" or order.deleted_at is not None:
+            return jsonify({"success": False, "error": "주문을 찾을 수 없습니다."}), 404
+
+        user = get_user_by_id(session.get("user_id"))
+        sd = copy.deepcopy(_ensure_dict(order.structured_data))
+        steps = _ensure_production_steps(sd)
+        target = next((s for s in steps if s.get("key") == key), None)
+        if target is None:  # 방어: 기본 5단계에는 항상 존재
+            return jsonify({"success": False, "error": "해당 공정을 찾을 수 없습니다."}), 400
+
+        now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        target["done"] = done
+        target["at"] = now_iso if done else None
+        target["by_name"] = (user.name if user else None) if done else None
+
+        order.structured_data = sd
+        flag_modified(order, "structured_data")
+        db.add(
+            OrderEvent(
+                order_id=order_id,
+                event_type="PRODUCTION_STEP_CHECKED",
+                payload={
+                    "key": key,
+                    "done": done,
+                    "domain": "PRODUCTION_DOMAIN",
+                    "action": "PRODUCTION_STEP_CHECKED",
+                },
+                created_by_user_id=session.get("user_id"),
+            )
+        )
+        db.commit()
+        done_count = sum(1 for s in steps if s.get("done"))
+        return jsonify(
+            {"success": True, "data": {"steps": steps, "done_count": done_count, "total": len(steps)}}
+        )
+    except Exception as exc:
+        db.rollback()
+        return jsonify({"success": False, "error": str(exc)}), 500

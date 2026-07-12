@@ -17,6 +17,16 @@
         {% set has_detail = meta.construction_time or meta.drawing_managers or meta.construction_workers or meta.site_extra or meta.spec_units or (meta.is_as and meta.as_content_text) %}
         <div class="erp-shipment-mobile-card{% if has_detail %} erp-shipment-mobile-card--with-detail{% endif %}{% if is_as %} erp-shipment-mobile-card--as{% endif %}">
           {{ render_queue_card_v2(o, can_edit_shipment|default(false), None, '--drawing' if is_as else '--shipment', 'AS' if is_as else '출고', edit_return_to='erp_shipment_dashboard', detail_return_to='erp_shipment_dashboard') }}
+          <div class="erp-shipment-mobile-card__packing">
+            <button type="button"
+                    class="foms-btn foms-btn--secondary foms-btn--sm foms-packing-trigger"
+                    data-foms-packing-trigger
+                    data-order-id="{{ o.id }}">
+              <i class="fas fa-box-open" aria-hidden="true"></i>
+              <span>패킹</span>
+              <span class="foms-packing-badge" data-foms-packing-badge hidden></span>
+            </button>
+          </div>
           {% if has_detail or can_edit_shipment|default(false) %}
           <dl class="erp-shipment-mobile-card__detail" data-shipment-mobile-detail {% if not has_detail %}hidden{% endif %}>
             <div data-shipment-mobile-detail-row="construction_time" {% if not meta.construction_time %}hidden{% endif %}>
@@ -86,6 +96,8 @@
     </div>
   {% endif %}
 </section>
+
+{% include 'shipment/partials/packing_sheet.html' %}
 
 {% if can_edit_shipment|default(false) %}
 <div class="offcanvas offcanvas-bottom" tabindex="-1" id="erp-shipment-mobile-edit-sheet" aria-labelledby="erp-shipment-mobile-edit-title">

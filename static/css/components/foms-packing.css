@@ -1,0 +1,155 @@
+/* 출고 패킹 체크리스트 (B6). 시트 + 카드 트리거 배지. */
+
+/* 카드 트리거 영역 */
+.erp-shipment-mobile-card__packing {
+  display: flex;
+  padding: 0 12px 12px;
+}
+
+.foms-packing-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.foms-packing-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.6;
+  background: rgba(13, 110, 253, 0.12);
+  color: #0d6efd;
+}
+
+.foms-packing-badge--done {
+  background: rgba(25, 135, 84, 0.15);
+  color: #198754;
+}
+
+/* 시트 */
+.foms-packing-sheet {
+  max-height: 88vh;
+}
+
+.foms-packing-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.foms-packing-summary__count {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.foms-packing-summary__done {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(25, 135, 84, 0.15);
+  color: #198754;
+}
+
+.foms-packing-loading {
+  padding: 8px 0;
+  color: #6c757d;
+  font-size: 14px;
+}
+
+.foms-packing-list {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+}
+
+.foms-packing-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 6px 4px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+}
+
+.foms-packing-row:last-child {
+  border-bottom: 0;
+}
+
+.foms-packing-row__check {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  margin: 0;
+  cursor: pointer;
+}
+
+.foms-packing-row__body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.foms-packing-row__label {
+  font-size: 15px;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.foms-packing-row__meta {
+  font-size: 12px;
+  color: #6c757d;
+}
+
+.foms-packing-row--checked .foms-packing-row__label {
+  color: #198754;
+  text-decoration: line-through;
+}
+
+.foms-packing-row__qty {
+  flex: 0 0 auto;
+  font-size: 13px;
+  color: #6c757d;
+}
+
+.foms-packing-add {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.foms-packing-add__label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.foms-packing-add__qty {
+  flex: 0 0 72px;
+  width: 72px;
+}
+
+.foms-packing-add__btn {
+  flex: 0 0 auto;
+}
+
+@media (prefers-color-scheme: dark) {
+  .foms-packing-row {
+    border-bottom-color: rgba(255, 255, 255, 0.12);
+  }
+  .foms-packing-row__meta,
+  .foms-packing-row__qty,
+  .foms-packing-loading {
+    color: #adb5bd;
+  }
+}

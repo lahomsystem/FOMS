@@ -51,6 +51,46 @@
           {% set task_action = {'label': '제작 완료', 'icon': 'fas fa-check-circle', 'badge_only': true, 'button_class': 'foms-production-status'} %}
         {% endif %}
         {{ render_queue_card_v2(o, can_edit_erp|default(false), task_action, '--production', o.stage) }}
+        {# B3: 생산 공정 스텝(카드 접힘면 '공정 N/5' 배지 + collapse 상세 체크 5행).
+           뷰 enriched 행의 structured_data 에서 Jinja 파생(신규 쿼리 없음).
+           권한 게이트는 서버(_production_steps_edit_required)가 SSOT — 비권한 클릭은 403 폴백. #}
+        {% set _prod = (o.structured_data.get('production') if o.structured_data else None) or {} %}
+        {% set _saved_steps = _prod.get('steps') %}
+        {% set _step_defs = [
+             {'key': 'cut', 'label': '재단'},
+             {'key': 'edge', 'label': '엣지'},
+             {'key': 'paint', 'label': '도장'},
+             {'key': 'assemble', 'label': '조립'},
+             {'key': 'inspect', 'label': '검수'}
+        ] %}
+        {% set _step_map = {} %}
+        {% if _saved_steps %}{% for _s in _saved_steps %}{% if _s.get('key') %}{% set _ = _step_map.update({_s.get('key'): _s}) %}{% endif %}{% endfor %}{% endif %}
+        {% set _pns = namespace(done=0) %}
+        {% for _d in _step_defs %}{% if (_step_map.get(_d.key) or {}).get('done') %}{% set _pns.done = _pns.done + 1 %}{% endif %}{% endfor %}
+        <details class="foms-prod-steps" data-foms-prod-steps data-order-id="{{ o.id }}">
+          <summary class="foms-prod-steps__summary">
+            <span class="foms-prod-steps__badge" data-foms-prod-steps-badge>공정 {{ _pns.done }}/5</span>
+            <span class="foms-prod-steps__caption">공정 체크</span>
+            <i class="fas fa-chevron-down foms-prod-steps__chevron" aria-hidden="true"></i>
+          </summary>
+          <ul class="foms-prod-steps__list">
+            {% for _d in _step_defs %}
+              {% set _state = _step_map.get(_d.key) or {} %}
+              {% set _is_done = _state.get('done') %}
+              <li class="foms-prod-steps__row{% if _is_done %} is-done{% endif %}" data-foms-prod-step-row data-step-key="{{ _d.key }}">
+                <button type="button" class="foms-prod-steps__toggle"
+                  data-foms-prod-step-toggle data-order-id="{{ o.id }}" data-step-key="{{ _d.key }}"
+                  aria-pressed="{{ 'true' if _is_done else 'false' }}">
+                  <span class="foms-prod-steps__check" aria-hidden="true"><i class="fas fa-check"></i></span>
+                  <span class="foms-prod-steps__label">{{ _d.label }}</span>
+                  <span class="foms-prod-steps__meta" data-foms-prod-step-meta>
+                    {% if _is_done %}{{ (_state.get('at') or '')[:16]|replace('T', ' ') }}{% if _state.get('by_name') %} · {{ _state.get('by_name') }}{% endif %}{% endif %}
+                  </span>
+                </button>
+              </li>
+            {% endfor %}
+          </ul>
+        </details>
       {% endfor %}
     </div>
     {{ render_mobile_pager(_mq_base, _mq_ctx|join('&'), page, total_pages) }}

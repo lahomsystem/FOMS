@@ -4,9 +4,10 @@ from flask import Blueprint
 
 from foms.web.auth import login_required, role_required
 from foms.services.erp_display import get_today_kst
-from foms.services.erp_permissions import can_edit_erp
+from foms.services.erp_permissions import can_edit_erp, erp_edit_required
 from foms.services.jobs.queue import enqueue_geocode_order_address
 from .calendar import calendar_orders_response
+from .call_log import log_call_response
 from .copy import copy_orders_response
 from .field_update import update_order_field_response
 from .nearby import nearby_orders_response
@@ -79,7 +80,16 @@ def copy_orders():
     return copy_orders_response()
 
 
+@orders_bp.route("/orders/<int:order_id>/call-log", methods=["POST"])
+@login_required
+@erp_edit_required
+def api_order_call_log(order_id):
+    """주문 통화 결과 기록 (B1)."""
+    return log_call_response(order_id)
+
+
 __all__ = [
+    "api_order_call_log",
     "api_orders",
     "api_orders_nearby",
     "bulk_update_order_status_response",
@@ -89,6 +99,8 @@ __all__ = [
     "copy_orders",
     "copy_orders_response",
     "enqueue_geocode_order_address",
+    "erp_edit_required",
+    "log_call_response",
     "get_today_kst",
     "nearby_orders_response",
     "orders_bp",
