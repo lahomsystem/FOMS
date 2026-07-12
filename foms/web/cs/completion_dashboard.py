@@ -111,7 +111,10 @@ def erp_completion_dashboard():
             current_user=user,
             mine_only=erp_mine_only,
         )
-        tablet_completion_rows = _build_tablet_completion_rows(orders)
+        # perf: 태블릿 금액 그리드는 최근 완료건 리뷰가 목적 — 전체(browse 상한 200행)를
+        # 서버렌더하면 fragment 페이로드 +110KB(perf-gate 실측)라 최근 60행으로 캡.
+        # 로더가 완료일 내림차순이므로 [:60] = 최신 60건.
+        tablet_completion_rows = _build_tablet_completion_rows(orders[:60])
 
     template_name = (
         'cs/partials/completion_dashboard_fragment.html'
