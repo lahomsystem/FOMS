@@ -234,7 +234,11 @@ def inject_foms_flags() -> dict[str, Any]:
         # 비활성화하려면 FOMS_ERP_SPEC_CALC_ENABLED=false.
         "flag_spec_calc": env_bool("FOMS_ERP_SPEC_CALC_ENABLED", True),
         "flag_split_view": split_flag,
-        "foms_split_enabled": mobile_v2 and split_flag,
+        # split 셸 마크업은 v2 셸 전용: 그 스타일(foms-split-view.css 기본 은닉 포함)이
+        # v2 전용 surfaces 번들(layout_head shell_variant=='v2' 게이트)로만 로드되므로,
+        # v2∪v3(mobile_v2)로 렌더하면 v3에서 비스타일 split 마크업이 전 폭에 그대로
+        # 흐른다(2026-07-12 staging 이중 레일 실사고 — 마크업↔CSS 게이트 불일치 봉합).
+        "foms_split_enabled": shell_variant == "v2" and split_flag,
         "flag_rum_baseline": env_bool("FOMS_RUM_BASELINE_ENABLED", True),
         "flag_offline_sw": env_bool("FOMS_OFFLINE_SW_ENABLED"),
         "flag_bottom_nav_htmx": env_bool("FOMS_BOTTOM_NAV_HTMX_ENABLED"),
