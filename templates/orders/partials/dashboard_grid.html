@@ -334,6 +334,9 @@
                       {% if o.is_self_measurement|default(false) %}
                       <span class="badge bg-info text-white align-self-start mt-1" title="자가실측" style="width: fit-content;"><i class="fas fa-ruler-combined"></i> 자가실측</span>
                       {% endif %}
+                      {% if o.is_regional|default(false) %}
+                      <span class="badge bg-warning text-dark align-self-start mt-1" title="지방주문" style="width: fit-content;"><i class="fas fa-map-marker-alt"></i> 지방주문</span>
+                      {% endif %}
                     </div>
                   </td>
                   <td data-label="연락처" style="font-size: 1.1rem; color: #495057;">{{ o.phone }}</td>
