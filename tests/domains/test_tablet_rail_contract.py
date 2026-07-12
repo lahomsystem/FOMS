@@ -155,11 +155,11 @@ def test_bundle_imports_rail_css() -> None:
 
 
 def test_cache_chain_versions_bumped() -> None:
-    """Cache-chain contract: bundle link ?v=20260712c (content changed = new @import),
+    """Cache-chain contract: bundle link ?v=20260712d (content changed = new @import),
     erp-pro.css link bumped off the old 20260711ad, and erp-pro.css @imports the bridge
     at ?v=20260712b (bridge content changed = T2 chrome-hide arm + rail-key de-scope)."""
     head = _read(LAYOUT_HEAD)
-    assert "foms-tablet-bundle.css') }}?v=20260712c" in head
+    assert "foms-tablet-bundle.css') }}?v=20260712d" in head
     # erp-pro.css link bumped (old value gone, a fresh value present).
     assert "?v=20260711ad" not in head
     assert "erp-pro.css') }}?v=20260712af" in head

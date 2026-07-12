@@ -1,0 +1,178 @@
+/* FOMS 태블릿 가로 시공 완료 금액 그리드 — W17 (2026-07-12, T2 / 목업 v8 P9).
+
+   태블릿 가로 코호트에서 legacy 완료 대시보드의 "완료·AS 건 사진 리뷰" 리스트를
+   금액 그리드(출고가/예약금/잔금 상주)로 대체한다. Persona = CS(라홈)·경리:
+   사진 검토가 아니라 정산 판단이 본체이므로, 목업 v8 P9 대로 완료일·고객·제품 +
+   금액 3컬럼(출고가/예약금/잔금) + 현금영수증 + 정산 상태의 8컬럼 터치 그리드로 전환.
+
+   데이터: 라우트(foms/web/cs/completion_dashboard.py)가 코호트에서만 서버 렌더로
+   tablet_completion_rows 를 적재한다. 금액은 erp_display SSOT 헬퍼
+   (erp_shipping_price_from_structured / erp_deposit_amount_from_structured)로 이미
+   로드된 structured_data 에서 파생(신규 쿼리·N+1 없음). 잔금 = 출고가 − 예약금 불변식.
+   행 탭 → 상세: tablet-side-sheet.js 위임 셀렉터에 .foms-completion-grid tbody
+   tr[data-order-id] 확장(신규 API 없음, 기존 fragment 상세/정산 재사용).
+
+   적용 조건 (T0 매트릭스·W9/W13 정합):
+     body.erp-mobile-v2-layout(코호트 게이트)
+     + @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse)
+   = 진짜 터치 태블릿 가로. fine(노트북) 제외 = pointer:coarse 필수. 세로=모바일 셸이므로
+   이 파일은 orientation:portrait 토큰을 쓰지 않는다(landscape 전용, split-view 가드 정합).
+
+   로드: foms-tablet-bundle.css @import(셸-독립 번들, 코호트 공통 로드). PC/폰 무영향.
+
+   ============================================================================
+   배타표 (blank 금지) — 완료 대시보드의 표시 영역 배타. 어떤 조합도 두 영역 전부 은닉 없음:
+
+     뷰포트/코호트                | 사진 리뷰 리스트           | 금액 그리드
+                                  | (.foms-completion-        | (.foms-completion-grid)
+                                  |  photo-review)            |
+     ----------------------------|---------------------------|-------------------------
+     PC/데스크톱(비코호트)        | 표시(기본 block)          | 미렌더({% if %}) + CSS 미로드
+     코호트 세로(≤991.98/portrait)| 표시(기본 block)          | 은닉(기본 none; MQ 미매치)
+     코호트 태블릿 가로           | 은닉 ← W17(아래)          | 표시 ← W17(아래)
+       (≥992 landscape coarse)   |                           |
+
+   핵심 결합(T0 blank 교훈): "사진 리뷰 은닉"과 "금액 그리드 표시"는 **동일 게이트**(코호트
+   body class + 코어 MQ) 아래 한 블록에 둔다 → 리스트가 숨는 순간 반드시 그리드가 나타난다.
+   기본값은 그리드 은닉이라 미배선·비코호트·세로 경로는 항상 사진 리뷰 리스트 fallback.
+   ============================================================================ */
+
+/* 기본(비코호트·PC·세로): 그리드 은닉. 사진 리뷰 리스트는 기본 표시(무규칙). */
+.foms-completion-grid {
+  display: none;
+}
+
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+
+  /* --- 배타: 사진 리뷰 리스트 은닉 + 금액 그리드 표시 (동일 게이트 결합) --- */
+  body.erp-mobile-v2-layout .foms-completion-photo-review {
+    display: none;
+  }
+  body.erp-mobile-v2-layout .foms-completion-grid {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    margin: var(--foms-space-3) var(--foms-space-4) var(--foms-space-6);
+    background: var(--foms-surface-base);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-xl);
+    overflow: hidden;
+  }
+
+  /* --- 캡션(정렬·상호작용 안내) --- */
+  body.erp-mobile-v2-layout .foms-completion-grid__caption {
+    flex: none;
+    padding: var(--foms-space-3) var(--foms-space-4);
+    border-bottom: 1px solid var(--foms-border-subtle);
+    color: var(--foms-text-tertiary);
+    font-size: var(--foms-font-size-sm);
+  }
+
+  /* --- 스크롤 컨테이너: 표가 길면 페이지가 아니라 그리드 내부에서 스크롤(dvh=툴바 보정) --- */
+  body.erp-mobile-v2-layout .foms-completion-grid__scroll {
+    flex: 1;
+    min-height: 0;
+    max-height: calc(100dvh - 240px);
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* --- 표 --- */
+  body.erp-mobile-v2-layout .foms-completion-grid__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* 헤더: sticky 상단 고정, 무채색(HMI). */
+  body.erp-mobile-v2-layout .foms-completion-grid__table thead th {
+    position: sticky;
+    top: 0;
+    z-index: var(--foms-z-sticky);
+    padding: var(--foms-space-3) var(--foms-space-4);
+    background: var(--foms-surface-subtle);
+    border-bottom: 1px solid var(--foms-border-subtle);
+    color: var(--foms-text-tertiary);
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-bold);
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  /* 데이터 행: ≥48px 터치 타깃(행 전체가 사이드 시트 열기 탭 대상). */
+  body.erp-mobile-v2-layout .foms-completion-grid__table tbody tr {
+    height: var(--foms-touch-target-min);
+    border-bottom: 1px solid var(--foms-border-subtle);
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .foms-completion-grid__table tbody tr:last-child {
+    border-bottom: 0;
+  }
+  body.erp-mobile-v2-layout .foms-completion-grid__table tbody tr:focus-visible {
+    outline: none;
+    box-shadow: var(--foms-shadow-focus-ring);
+  }
+  /* 정산 발행(완료) 건은 dim — 목업 P9 노트3(발행 후 행 dim). */
+  body.erp-mobile-v2-layout .foms-completion-grid__table tbody tr.is-settled {
+    opacity: 0.6;
+  }
+
+  body.erp-mobile-v2-layout .foms-completion-grid__table tbody td {
+    padding: var(--foms-space-2) var(--foms-space-4);
+    font-size: var(--foms-font-size-base);
+    color: var(--foms-text-secondary);
+    vertical-align: middle;
+  }
+
+  /* 금액 컬럼: 우측 정렬 + tabular-nums(자릿수 정렬). */
+  body.erp-mobile-v2-layout .foms-completion-grid__table th.is-num,
+  body.erp-mobile-v2-layout .foms-completion-grid__table td.is-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  /* 고객·잔금은 강조(가독성). */
+  body.erp-mobile-v2-layout .foms-completion-grid__customer {
+    color: var(--foms-text-primary);
+    font-weight: var(--foms-font-weight-bold);
+  }
+  body.erp-mobile-v2-layout .foms-completion-grid__balance {
+    color: var(--foms-text-primary);
+    font-weight: var(--foms-font-weight-bold);
+  }
+
+  /* --- 정산 상태 배지: HMI 색 규율 = 정상(완료) 무채색, 대기(액션 필요)만 유채색 --- */
+  body.erp-mobile-v2-layout .foms-completion-grid__badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--foms-touch-target-comfortable);
+    padding: 0 var(--foms-space-3);
+    border-radius: var(--foms-radius-full);
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-bold);
+    white-space: nowrap;
+  }
+  body.erp-mobile-v2-layout .foms-completion-grid__badge.is-pending {
+    background: var(--erp-warning-light);
+    color: var(--foms-color-warning-700);
+  }
+  body.erp-mobile-v2-layout .foms-completion-grid__badge.is-settled {
+    background: var(--foms-surface-muted);
+    color: var(--foms-text-secondary);
+  }
+
+  /* --- 빈 상태 --- */
+  body.erp-mobile-v2-layout .foms-completion-grid__empty {
+    margin: 0;
+    padding: var(--foms-space-6) var(--foms-space-4);
+    color: var(--foms-text-tertiary);
+    font-size: var(--foms-font-size-sm);
+    text-align: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .foms-completion-grid__table tbody tr {
+    transition: none !important;
+  }
+}

@@ -36,6 +36,7 @@ __all__ = [
     "inject_menu",
     "inject_foms_flags",
     "inject_foms_nav_badges",
+    "inject_foms_stage_catalog",
     "register_context_processors",
 ]
 
@@ -259,6 +260,41 @@ def inject_foms_nav_badges() -> dict[str, Any]:
     }
 
 
+_FOMS_STAGE_CATALOG: list[dict[str, str]] | None = None
+
+
+def _foms_stage_catalog() -> list[dict[str, str]]:
+    """8단계 워크플로 카탈로그(code+label, 진행 순서)를 1회 빌드 후 캐시해 반환한다.
+
+    순서·표시명 SSOT 는 :data:`foms.services.order_timeline_v3.STAGE_SEQUENCE`
+    (RECEIVED→MEASURE→…→COMPLETED). 태블릿 사이드 시트 파이프라인이 소비하며, JS 에
+    단계 목록을 하드코딩하지 않도록 서버에서 data-* 속성으로 내려보낸다. 상수라 모듈
+    수명 내 1회만 빌드한다(요청마다 재계산 없음).
+
+    Returns:
+        ``[{"code": <표준 코드>, "label": <한글 표시명>}, ...]`` 8원소.
+    """
+    global _FOMS_STAGE_CATALOG
+    if _FOMS_STAGE_CATALOG is None:
+        # Lazy import: order_timeline_v3 는 datetime_kst 만 끌어와 경량이지만, bootstrap
+        # import 순서 리스크를 원천 차단하려 요청 시점(첫 렌더)에 로드한다.
+        from foms.services.order_timeline_v3 import STAGE_SEQUENCE
+
+        _FOMS_STAGE_CATALOG = [
+            {"code": code, "label": label} for code, label, _slug in STAGE_SEQUENCE
+        ]
+    return _FOMS_STAGE_CATALOG
+
+
+def inject_foms_stage_catalog() -> dict[str, Any]:
+    """Inject the 8-stage workflow catalog for the tablet side-sheet pipeline.
+
+    Returns the cached ``foms_stage_catalog`` list (no query, no per-request compute);
+    templates serialize it via ``|tojson`` into ``data-foms-stage-catalog``.
+    """
+    return {"foms_stage_catalog": _foms_stage_catalog()}
+
+
 def _tablet_rail_items() -> list[dict[str, Any]]:
     """Lazy rail-item provider bound to the current request (Jinja global body).
 
@@ -302,4 +338,5 @@ def register_context_processors(app) -> None:
     app.context_processor(inject_menu)
     app.context_processor(inject_foms_flags)
     app.context_processor(inject_foms_nav_badges)
+    app.context_processor(inject_foms_stage_catalog)
     app.context_processor(inject_tablet_rail_helper)

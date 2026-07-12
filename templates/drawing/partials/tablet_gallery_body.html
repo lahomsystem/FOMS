@@ -1,0 +1,58 @@
+{# ============================================================================
+   태블릿 가로 도면 시트 썸네일 갤러리 — W-DRAWING (2026-07-12, T2 / 목업 v8 P3)
+
+   태블릿 가로 코호트에서 도면 작업실 데스크톱 테이블(.foms-drawing-legacy-table)을
+   시트 썸네일 카드 갤러리로 대체한다. 카드 = 썸네일 + 메타(상단 칩행 SLA/수정요청 칩·
+   #주문id / 고객명 / 시공일 배지 / 하단 상태배지·next_action·담당).
+
+   데이터: 서버 무변경. workbench.py가 넘기는 `rows`의 각 행 dict를 그대로 소비한다
+   (id / customer_name / construction_date / assignee_text / drawing_status /
+   drawing_status_label / file_count / pending_count / thumbnail_url / next_action /
+   sla_level / my_todo). 썸네일은 코호트에서 이미 resolve된 r.thumbnail_url만 읽는다
+   (신규 쿼리/뷰 수정 없음).
+
+   카드 탭 → 상세: 기존 워크벤치 상세(erp_drawing_workbench_detail?tab=timeline)로
+   이동하는 <a> 앵커. 신규 JS 없음(CSS-only). 데스크톱 테이블 행과 동일 URL 규약.
+
+   표시/은닉·배타는 foms-tablet-drawing-gallery.css 소유(코호트 게이트). NO inline style,
+   NO script.
+   ============================================================================ #}
+<section class="foms-drawing-gallery" aria-label="도면 시트 갤러리">
+  {% if rows %}
+    {% for r in rows %}
+    <a class="foms-drawing-gallery-card{% if r.my_todo %} is-active{% endif %}"
+       data-order-id="{{ r.id }}"
+       href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=r.id) }}?tab=timeline"
+       aria-label="{{ r.customer_name }} 도면 상세 열기">
+      <div class="foms-drawing-gallery-card__thumb">
+        {% if r.thumbnail_url %}
+        <img class="foms-drawing-gallery-card__img" src="{{ r.thumbnail_url }}" alt="{{ r.customer_name }} 도면 미리보기" loading="lazy">
+        {% endif %}
+        <span class="foms-drawing-gallery-card__thumb-label">{% if r.file_count %}도면 {{ r.file_count }}장{% else %}미작성{% endif %}{% if r.pending_count %} · 대기 {{ r.pending_count }}{% endif %}</span>
+      </div>
+      <div class="foms-drawing-gallery-card__meta">
+        <div class="foms-drawing-gallery-card__top">
+          {% if r.drawing_status == 'RETURNED' %}<span class="foms-drawing-gallery-chip is-urgent">수정 요청</span>{% endif %}
+          {% if r.sla_level == '지연' %}<span class="foms-drawing-gallery-chip is-overdue">지연</span>{% elif r.sla_level == '오늘 마감' %}<span class="foms-drawing-gallery-chip is-imminent">오늘 마감</span>{% endif %}
+          <span class="foms-drawing-gallery-card__id">#{{ r.id }}</span>
+        </div>
+        <div class="foms-drawing-gallery-card__name">{{ r.customer_name }}</div>
+        <div class="foms-drawing-gallery-card__dates">
+          {% set _cparts = (r.construction_date or '').split(',') | map('trim') | select | list %}
+          {% if _cparts %}{% for _d in _cparts %}<span class="foms-drawing-gallery-badge">시공 {{ _d }}</span>{% endfor %}{% else %}<span class="foms-drawing-gallery-badge is-muted">시공일 미정</span>{% endif %}
+        </div>
+        <div class="foms-drawing-gallery-card__foot">
+          <span class="foms-drawing-gallery-status foms-drawing-gallery-status--{{ r.drawing_status|lower }}">{{ r.drawing_status_label }}</span>
+          <span class="foms-drawing-gallery-card__sub">{{ r.next_action }} · {{ r.assignee_text }}</span>
+        </div>
+      </div>
+    </a>
+    {% endfor %}
+  {% else %}
+    <div class="foms-mobile-empty foms-drawing-gallery__empty">
+      <i class="fas fa-drafting-compass" aria-hidden="true"></i>
+      <p class="mb-1">조건에 맞는 도면 작업 건이 없습니다.</p>
+      <small>날짜/검색 조건을 바꿔 보세요.</small>
+    </div>
+  {% endif %}
+</section>

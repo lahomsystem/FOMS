@@ -109,6 +109,107 @@ body.erp-mobile-v2-layout {
   padding: var(--foms-space-4, 1rem);
 }
 
+/* 진행 단계 파이프라인 — 시트 크롬(헤더 아래, 스크롤 바디와 독립). tablet-side-sheet.js 가
+ * 열림마다 8단계(STAGE_SEQUENCE SSOT)를 렌더하고 현재 단계를 강조한다. 단계 파생 불가 행
+ * (AS/이력/칸반 등)은 JS 가 [hidden] 으로 숨긴다(우아한 부재). foms 토큰만 사용. */
+.foms-tablet-sheet__pipe {
+  flex-shrink: 0;
+  padding: var(--foms-space-3, 0.75rem) var(--foms-space-4, 1rem);
+  border-bottom: 1px solid var(--foms-border-subtle, #dde1e6);
+  background: var(--foms-surface-base, #fff);
+}
+
+.foms-tablet-sheet__pipe[hidden] {
+  display: none;
+}
+
+.foms-tablet-pipe {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: flex-start;
+}
+
+.foms-tablet-pipe__step {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--foms-space-1, 0.25rem);
+  font-size: 0.625rem;
+  line-height: var(--foms-line-height-tight, 1.25);
+  font-weight: var(--foms-font-weight-semibold, 600);
+  color: var(--foms-text-tertiary, #6b7380);
+  text-align: center;
+}
+
+/* 연결선: 각 스텝 마커 중앙에서 이전 스텝으로 이어짐(첫 스텝 제외). */
+.foms-tablet-pipe__step::before {
+  content: "";
+  position: absolute;
+  top: 10px; /* 마커 지름(20px)의 중앙 */
+  left: calc(-50% + 11px);
+  width: calc(100% - 22px);
+  height: 2px;
+  background: var(--foms-border-subtle, #dde1e6);
+}
+
+.foms-tablet-pipe__step:first-child::before {
+  display: none;
+}
+
+.foms-tablet-pipe__marker {
+  position: relative;
+  z-index: 1;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--foms-border-default, #c1c7d0);
+  background: var(--foms-surface-raised, #f7f8fa);
+  color: var(--foms-text-tertiary, #6b7380);
+  font-size: 0.625rem;
+  font-weight: var(--foms-font-weight-bold, 700);
+}
+
+.foms-tablet-pipe__label {
+  display: block;
+  white-space: nowrap;
+  letter-spacing: -0.02em;
+}
+
+/* 완료 단계: 성공(녹색) 마커 + 연결선. */
+.foms-tablet-pipe__step.is-done .foms-tablet-pipe__marker {
+  background: var(--foms-color-success-500, #10b981);
+  border-color: var(--foms-color-success-500, #10b981);
+  color: var(--foms-color-neutral-0, #fff);
+}
+
+.foms-tablet-pipe__step.is-done::before {
+  background: var(--foms-color-success-500, #10b981);
+}
+
+/* 현재 단계: 브랜드 마커 + 강조 라벨. 진입 연결선(직전=완료)은 완료색 유지. */
+.foms-tablet-pipe__step.is-now .foms-tablet-pipe__marker {
+  background: var(--foms-interactive-primary, #5a67d8);
+  border-color: var(--foms-interactive-primary, #5a67d8);
+  color: var(--foms-color-neutral-0, #fff);
+}
+
+.foms-tablet-pipe__step.is-now {
+  color: var(--foms-interactive-primary, #5a67d8);
+  font-weight: var(--foms-font-weight-bold, 700);
+}
+
+.foms-tablet-pipe__step.is-now::before {
+  background: var(--foms-color-success-500, #10b981);
+}
+
 /* defect 3 — 400px 시트에 edit 폼(edit_order_body.html) 적합화.
  * 이 폼은 Bootstrap col-md-* 그리드라 ≥768px 뷰포트(시트는 ≥992 코호트)에서 다중열이 되고,
  * foms-form-field 의 단일열 완화는 max-991.98 전용이라 좁은 시트에서 폼이 깨진다.

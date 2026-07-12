@@ -1,0 +1,246 @@
+/* FOMS 태블릿 가로 도면 시트 썸네일 갤러리 — W-DRAWING (2026-07-12, T2 / 목업 v8 P3).
+
+   태블릿 가로 코호트에서 도면 작업실 데스크톱 테이블(.foms-drawing-legacy-table)을
+   시트 썸네일 카드 갤러리(.foms-drawing-gallery)로 대체한다. 카드 = 썸네일 + 메타
+   (SLA/수정요청 칩·#주문id·고객명·시공일 배지·상태배지·next_action·담당). 마크업/데이터
+   = 서버 무변경(workbench.py `rows` 재소비, r.thumbnail_url 등 그대로 소비, 추가 쿼리 없음).
+   카드 탭 = 워크벤치 상세로 이동하는 <a> 앵커(신규 JS 없음, CSS-only).
+
+   적용 조건 (T0 매트릭스·W9/W11/W13 정합):
+     body.erp-mobile-v2-layout(코호트 게이트)
+     + @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse)
+   = 진짜 터치 태블릿 가로. fine(노트북) 제외 = pointer:coarse 필수. 세로=모바일 셸이므로
+   이 파일은 orientation:portrait 토큰을 쓰지 않는다(landscape 전용, foms-split-view.css
+   portrait 금지 가드와 정합).
+
+   로드: foms-tablet-bundle.css @import(W16 셸-독립 번들, 코호트 공통). PC/폰 무영향.
+
+   ============================================================================
+   배타표 (blank 금지) — 도면 작업 큐 영역의 배타. 어떤 조합도 두 영역 전부 은닉 없음:
+
+     뷰포트/코호트                | 갤러리                 | legacy 테이블 영역
+                                  | (foms-drawing-gallery) | (foms-drawing-legacy-table)
+     ----------------------------|------------------------|----------------------------
+     PC/데스크톱(≥1366 fine/none) | 은닉(기본 none)        | 표시(기본 block)
+     태블릿 가로(≥992 landscape   | 표시 ← 아래(동일 게이트)| 은닉 ← 아래(동일 게이트)
+       coarse) 코호트 ON         |                        |
+     태블릿 가로 코호트 OFF       | 미렌더({% if %})       | 표시(기본 block)
+     모바일 셸                    | 미렌더(기본 none)      | 은닉(d-none / foms-shell)
+
+   핵심 결합(T0 blank 교훈): "legacy 은닉"과 "갤러리 표시"는 **동일 게이트**(코호트 body
+   class + 코어 MQ) 아래 한 블록에 둔다 → 테이블이 숨는 순간 반드시 갤러리가 나타난다(원자적).
+   기본값은 legacy 표시 / 갤러리 은닉이라 미배선·비코호트 경로는 항상 테이블 fallback.
+   ============================================================================ */
+
+/* 기본(비코호트·PC·모바일): 갤러리 은닉. legacy 테이블은 기본 표시 유지(순서 계약:
+   base-hide 가 아래 opt-in(display:grid)보다 반드시 먼저). */
+.foms-drawing-gallery {
+  display: none;
+}
+
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+
+  /* --- 배타: legacy 테이블 은닉 + 갤러리 표시(동일 게이트 결합) --- */
+  /* d-none d-lg-block 의 d-lg-block(display:block !important)을 이기려 !important. */
+  body.erp-mobile-v2-layout .foms-drawing-legacy-table {
+    display: none !important;
+  }
+  body.erp-mobile-v2-layout .foms-drawing-gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: var(--foms-space-3);
+    padding: var(--foms-space-3) var(--foms-space-4) var(--foms-space-6);
+    align-content: start;
+  }
+
+  /* --- 카드 (앵커 — 워크벤치 상세로 이동. 큰 히트영역, HMI 무채색) --- */
+  body.erp-mobile-v2-layout .foms-drawing-gallery-card {
+    display: flex;
+    flex-direction: column;
+    text-decoration: none;
+    color: inherit;
+    background: var(--foms-surface-base);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-lg);
+    overflow: hidden;
+    box-shadow: var(--foms-shadow-sm);
+    cursor: pointer;
+    min-height: var(--foms-touch-target-min);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  body.erp-mobile-v2-layout .foms-drawing-gallery-card:hover {
+    border-color: var(--foms-interactive-primary);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-gallery-card:focus-visible {
+    outline: none;
+    box-shadow: var(--foms-shadow-focus-ring);
+  }
+  /* 내 할 일 강조 — 링 + primary 테두리. */
+  body.erp-mobile-v2-layout .foms-drawing-gallery-card.is-active {
+    border-color: var(--foms-interactive-primary);
+    box-shadow: var(--foms-shadow-focus-ring);
+  }
+
+  /* --- 썸네일 (도면 미리보기 or 무채 플레이스홀더) --- */
+  body.erp-mobile-v2-layout .foms-drawing-gallery-card__thumb {
+    position: relative;
+    height: 132px;
+    background: var(--foms-surface-muted);
+    border-bottom: 1px solid var(--foms-border-subtle);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-gallery-card__img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  body.erp-mobile-v2-layout .foms-drawing-gallery-card__thumb-label {
+    position: absolute;
+    left: var(--foms-space-2);
+    bottom: var(--foms-space-2);
+    padding: 2px var(--foms-space-2);
+    border-radius: var(--foms-radius-sm);
+    background: var(--foms-surface-base);
+    color: var(--foms-text-secondary);
+    font-size: var(--foms-font-size-xs);
+    font-weight: var(--foms-font-weight-bold);
+    box-shadow: var(--foms-shadow-sm);
+  }
+
+  /* --- 메타 블록 --- */
+  body.erp-mobile-v2-layout .foms-drawing-gallery-card__meta {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-2);
+    padding: var(--foms-space-3) var(--foms-space-4);
+  }
+
+  /* --- 상단 칩행 --- */
+  body.erp-mobile-v2-layout .foms-drawing-gallery-card__top {
+    display: flex;
+    align-items: center;
+    gap: var(--foms-space-2);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-gallery-card__id {
+    margin-left: auto;
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-bold);
+    color: var(--foms-text-tertiary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* --- 칩: HMI 색 규율 = 정상 무채, 경보(수정요청/지연/임박)만 유채 --- */
+  body.erp-mobile-v2-layout .foms-drawing-gallery-chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 0 var(--foms-space-2);
+    border-radius: var(--foms-radius-full);
+    background: var(--foms-surface-muted);
+    color: var(--foms-text-secondary);
+    font-size: var(--foms-font-size-xs);
+    font-weight: var(--foms-font-weight-bold);
+    white-space: nowrap;
+  }
+  body.erp-mobile-v2-layout .foms-drawing-gallery-chip.is-urgent,
+  body.erp-mobile-v2-layout .foms-drawing-gallery-chip.is-overdue {
+    background: var(--erp-danger-light);
+    color: var(--foms-color-danger-600);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-gallery-chip.is-imminent {
+    background: var(--erp-warning-light);
+    color: var(--foms-color-warning-700);
+  }
+
+  /* --- 고객명(카드에서 가장 크게) --- */
+  body.erp-mobile-v2-layout .foms-drawing-gallery-card__name {
+    font-size: var(--foms-font-size-lg);
+    font-weight: var(--foms-font-weight-bold);
+    line-height: var(--foms-line-height-tight);
+    color: var(--foms-text-primary);
+    word-break: break-word;
+  }
+
+  /* --- 시공일 배지 --- */
+  body.erp-mobile-v2-layout .foms-drawing-gallery-card__dates {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--foms-space-1);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-gallery-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px var(--foms-space-2);
+    border-radius: var(--foms-radius-sm);
+    background: var(--foms-surface-subtle);
+    color: var(--foms-text-secondary);
+    font-size: var(--foms-font-size-xs);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  body.erp-mobile-v2-layout .foms-drawing-gallery-badge.is-muted {
+    color: var(--foms-text-tertiary);
+  }
+
+  /* --- 하단행: 상태배지 + next_action · 담당 --- */
+  body.erp-mobile-v2-layout .foms-drawing-gallery-card__foot {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--foms-space-2);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-gallery-card__sub {
+    flex: 1;
+    font-size: var(--foms-font-size-sm);
+    color: var(--foms-text-tertiary);
+    word-break: break-word;
+  }
+
+  /* --- 상태배지: 기본 무채, 도면 상태별 색(erp/foms 토큰 재사용) --- */
+  body.erp-mobile-v2-layout .foms-drawing-gallery-status {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 0 var(--foms-space-2);
+    border-radius: var(--foms-radius-full);
+    background: var(--foms-surface-muted);
+    color: var(--foms-text-secondary);
+    font-size: var(--foms-font-size-xs);
+    font-weight: var(--foms-font-weight-bold);
+    white-space: nowrap;
+  }
+  body.erp-mobile-v2-layout .foms-drawing-gallery-status--pending {
+    background: var(--erp-warning-light);
+    color: var(--foms-color-warning-700);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-gallery-status--in_progress {
+    background: var(--foms-surface-muted);
+    color: var(--foms-text-secondary);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-gallery-status--transferred {
+    background: var(--erp-info-light);
+    color: var(--foms-color-info-600);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-gallery-status--returned {
+    background: var(--erp-danger-light);
+    color: var(--foms-color-danger-600);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-gallery-status--confirmed {
+    background: var(--erp-success-light);
+    color: var(--foms-color-success-600);
+  }
+
+  /* --- 빈 상태(전폭 중앙정렬, foms-mobile-empty 스타일 위임) --- */
+  body.erp-mobile-v2-layout .foms-drawing-gallery__empty {
+    grid-column: 1 / -1;
+    padding: var(--foms-space-6) var(--foms-space-4);
+    color: var(--foms-text-tertiary);
+    text-align: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .foms-drawing-gallery-card {
+    transition: none !important;
+  }
+}

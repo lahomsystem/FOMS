@@ -1,0 +1,280 @@
+/* ==========================================================================
+   태블릿 가로 AS 전/후 대조 표면 (P8 목업 이식 · 2026-07-12).
+
+   태블릿 가로 코호트에서 legacy AS 데스크톱 테이블(.erp-pro-table-wrapper)을 전/후 대조
+   카드 그리드(.foms-as-compare)로 대체한다. 목업 시트의 "접수 사진 → 조치 후" 대조 패널을
+   카드 안으로 흡수(자족형). 4-타일 요약·서브탭·필터·페이저는 목업이 유지하므로 그대로 둔다
+   (여기서 은닉하지 않음). 마크업/데이터 = 서버 무변경(rows 재소비 + 서비스 사진 보강).
+
+   적용 조건 (T2 매트릭스 정합, verbatim):
+     body.erp-mobile-v2-layout(코호트 게이트)
+     + @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse)
+     + page scope: .erp-as-dashboard
+   fine(노트북) 제외 = pointer:coarse 필수. 세로=모바일 셸이므로 orientation:portrait 토큰을
+   쓰지 않는다(landscape 전용, foms-split-view.css portrait 금지 가드와 정합).
+
+   로드: foms-tablet-bundle.css @import(셸-독립 번들). 코호트 번들에서만 로드 → PC/폰 무영향.
+
+   ==========================================================================
+   배타표 (blank 금지) — AS 표면. 어떤 조합도 두 영역 동시 은닉 없음:
+
+     뷰포트/코호트                 | 모바일 카드 리스트        | 데스크톱 테이블            | 대조 그리드
+                                   | (.erp-as-mobile-list)    | (.erp-pro-table-wrapper)   | (.foms-as-compare)
+     -----------------------------|--------------------------|----------------------------|-------------------
+     모바일(≤991.98/992+ 세로)     | 표시(d-md-none 해제)     | 은닉(d-none d-md-block)    | 은닉(base none)
+     PC/데스크톱(≥992 fine/none)   | 은닉(d-md-none)          | 표시(d-md-block)           | 은닉(base none)
+     태블릿 가로 coarse 코호트 ON  | 은닉(d-md-none)          | 은닉 ← 아래(!important)     | 표시 ← 아래
+     태블릿 가로 코호트 OFF        | 은닉(d-md-none)          | 표시(d-md-block)           | 미렌더({% if %})
+
+   핵심 결합: "테이블 은닉"과 "대조 표시"는 동일 게이트(코호트 body class + 코어 MQ + 페이지
+   스코프) 아래 한 블록 → 테이블이 숨는 순간 반드시 대조가 나타난다(원자적). 기본값은 대조
+   은닉 / 테이블 표시라 미배선·비코호트 경로는 항상 테이블 fallback.
+   데스크톱 테이블은 Bootstrap d-md-block(=block !important)이라 은닉에 !important 필요.
+
+   foms 토큰(foms-tokens.css)만 사용(하드코딩 팔레트 금지).
+   ========================================================================== */
+
+/* Base(opt-in 이전 필수 — 순서 계약): 어디서든 기본 숨김. 코호트 @media 만이 표시한다. */
+.foms-as-compare {
+  display: none;
+}
+
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+
+  /* --- 배타: 데스크톱 테이블 은닉 + 대조 그리드 표시(동일 게이트 결합) --- */
+  body.erp-mobile-v2-layout .erp-as-dashboard .erp-pro-table-wrapper {
+    display: none !important;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+    gap: var(--foms-space-3);
+    padding: var(--foms-space-3) var(--foms-space-4) var(--foms-space-6);
+    align-items: start;
+  }
+
+  /* --- 대조 카드 --- */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-3);
+    min-height: var(--foms-touch-target-min);
+    padding: var(--foms-space-4);
+    background: var(--foms-surface-base);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-xl);
+    box-shadow: var(--foms-shadow-sm);
+  }
+  /* 미결 강조: 좌측 경보 스트립(HMI — 상태 이상만 유채색). */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-card.is-pending {
+    box-shadow: inset 3px 0 0 var(--foms-color-danger-600), var(--foms-shadow-sm);
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-card__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--foms-space-2);
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-card__identity {
+    display: flex;
+    align-items: baseline;
+    gap: var(--foms-space-2);
+    min-width: 0;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-card__customer {
+    font-size: var(--foms-font-size-xl);
+    font-weight: var(--foms-font-weight-bold);
+    line-height: var(--foms-line-height-tight);
+    color: var(--foms-text-primary);
+    word-break: break-word;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-card__id {
+    flex: 0 0 auto;
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-semibold);
+    color: var(--foms-text-secondary);
+    text-decoration: none;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-card__status {
+    flex: 0 0 auto;
+  }
+
+  /* --- 메타 (목업 PC 컬럼: 방문일/접수일/담당/시공자/주소) --- */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-card__meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--foms-space-2) var(--foms-space-4);
+    margin: 0;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-meta--full {
+    grid-column: 1 / -1;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-meta dt {
+    font-size: var(--foms-font-size-xs);
+    font-weight: var(--foms-font-weight-semibold);
+    color: var(--foms-text-tertiary);
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-meta dd {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--foms-space-2);
+    font-size: var(--foms-font-size-base);
+    font-weight: var(--foms-font-weight-medium);
+    color: var(--foms-text-primary);
+    word-break: break-word;
+  }
+
+  /* --- 방문 D-day 칩: HMI 색 규율 = 정상 무채색, 임박(D-2 이내)/지남만 유채색 --- */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-dday {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 0 var(--foms-space-2);
+    border-radius: var(--foms-radius-full);
+    background: var(--foms-surface-muted);
+    color: var(--foms-text-secondary);
+    font-size: var(--foms-font-size-xs);
+    font-weight: var(--foms-font-weight-bold);
+    white-space: nowrap;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-dday.is-imminent {
+    background: var(--erp-warning-light);
+    color: var(--foms-color-warning-700);
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-dday.is-overdue {
+    background: var(--erp-danger-light);
+    color: var(--foms-color-danger-600);
+  }
+
+  /* --- AS 내용 --- */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-card__content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-1);
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-card__content-label {
+    font-size: var(--foms-font-size-xs);
+    font-weight: var(--foms-font-weight-semibold);
+    color: var(--foms-text-tertiary);
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-card__content-body {
+    font-size: var(--foms-font-size-sm);
+    color: var(--foms-text-secondary);
+    word-break: break-word;
+  }
+
+  /* --- 전/후 대조 (목업 "접수 사진 → 조치 후" 2열 포토 그리드) --- */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-card__photos {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--foms-space-3);
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-col {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-2);
+    min-width: 0;
+    padding: var(--foms-space-3);
+    background: var(--foms-surface-subtle);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-lg);
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-col__label {
+    font-size: var(--foms-font-size-xs);
+    font-weight: var(--foms-font-weight-bold);
+    color: var(--foms-text-secondary);
+    letter-spacing: 0.02em;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
+    gap: var(--foms-space-2);
+  }
+  /* 썸네일: 목업 photo aspect 4/3, 탭 = 이미지 뷰어(lightbox → GlobalImageViewer). */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-thumb {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-md);
+    background: var(--foms-surface-muted);
+    cursor: pointer;
+  }
+  /* 빈 상태 placeholder(사진 없음) — 대조 슬롯이 blank 로 무너지지 않게 최소 높이 확보. */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--foms-space-1);
+    min-height: 66px;
+    border: 1px dashed var(--foms-border-subtle);
+    border-radius: var(--foms-radius-md);
+    color: var(--foms-text-tertiary);
+    font-size: var(--foms-font-size-xs);
+  }
+
+  /* --- 카드 하단 액션 (44px 터치 타깃) --- */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-card__foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--foms-space-2);
+    margin-top: auto;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-btn {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--foms-space-2);
+    min-height: var(--foms-touch-target-comfortable);
+    min-width: var(--foms-touch-target-comfortable);
+    padding: 0 var(--foms-space-4);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-md);
+    background: var(--foms-surface-base);
+    color: var(--foms-text-secondary);
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-semibold);
+    text-decoration: none;
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-btn:focus-visible {
+    outline: none;
+    box-shadow: var(--foms-shadow-focus-ring);
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-btn--primary {
+    border-color: transparent;
+    background: var(--foms-interactive-primary);
+    color: var(--foms-text-inverse);
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-btn--primary:hover {
+    background: var(--foms-interactive-primary-hover);
+  }
+
+  /* --- 빈 목록 상태 --- */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-empty-state {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--foms-space-2);
+    padding: var(--foms-space-6);
+    color: var(--foms-text-tertiary);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .foms-as-compare-card {
+    transition: none;
+  }
+}

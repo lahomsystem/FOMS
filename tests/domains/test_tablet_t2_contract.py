@@ -590,12 +590,12 @@ def test_w16_tablet_bundle_exists_with_four_imports_shell_independent() -> None:
 
 def test_w16_layout_head_loads_bundle_for_v2_and_v3_cohort() -> None:
     """layout_head 가 foms-tablet-bundle.css 를 erp_mobile_v2_enabled(코호트 공통) 게이트로
-    로드하고 ?v=20260712c 를 가진다. v2 전용(shell_variant=='v2') 게이트가 아님을 검증.
+    로드하고 ?v=20260712d 를 가진다. v2 전용(shell_variant=='v2') 게이트가 아님을 검증.
     (?v 는 2026-07-12 T2 전역 레일 추가로 번들 내용 변경 → 캐시 체인 규칙에 따라 a→b 범프.)"""
     layout_head = _read("templates/partials/shared/layout_head.html")
     idx = layout_head.find("foms-tablet-bundle.css")
     assert idx != -1, "layout_head 에 태블릿 번들 <link> 부재"
-    assert "foms-tablet-bundle.css') }}?v=20260712c" in layout_head
+    assert "foms-tablet-bundle.css') }}?v=20260712d" in layout_head
     # Anchor on the nearest preceding `{% if %}` (the bundle gate) rather than a fixed
     # char window — the gate string grows over time (2026-07-12: +/wdcalculator arm).
     gate_start = layout_head.rfind("{% if", 0, idx)
@@ -695,3 +695,253 @@ def test_as_history_touch_correction_rules_token_driven() -> None:
     # 코호트 스코프.
     assert "body.erp-mobile-v2-layout .erp-as-dashboard" in css
     assert "body.erp-mobile-v2-layout .erp-history-mobile-shell" in css
+
+
+# =====================================================================
+# W-DRAWING — 도면 시트 썸네일 갤러리 (태블릿 가로)
+# 태블릿 가로 코호트에서 도면 데스크톱 테이블을 카드 갤러리로 대체. 서버 무변경
+# (rows 재소비, r.thumbnail_url 등). 카드 = 워크벤치 상세로 이동하는 앵커(신규 JS 없음).
+# =====================================================================
+
+DRAWING_GALLERY_PARTIAL = "templates/drawing/partials/tablet_gallery_body.html"
+DRAWING_GALLERY_CSS = "static/css/foundation/foms-tablet-drawing-gallery.css"
+DRAWING_DASHBOARD_BODY = "templates/drawing/partials/workbench_dashboard_body.html"
+
+
+def test_drawing_gallery_partial_exists_reuses_rows_and_fields() -> None:
+    body = _read(DRAWING_GALLERY_PARTIAL)
+    assert "foms-drawing-gallery" in body
+    assert "foms-drawing-gallery-card" in body
+    assert "for r in rows" in body
+    assert 'data-order-id="{{ r.id }}"' in body
+    for field in ("customer_name", "construction_date", "drawing_status_label",
+                  "thumbnail_url", "assignee_text", "sla_level"):
+        assert field in body, f"missing card field reference: {field}"
+
+
+def test_drawing_gallery_card_links_to_workbench_detail() -> None:
+    body = _read(DRAWING_GALLERY_PARTIAL)
+    assert "erp_drawing_workbench.erp_drawing_workbench_detail" in body
+    assert "tab=timeline" in body
+
+
+def test_dashboard_body_includes_gallery_cohort_gated_with_legacy_wrapper() -> None:
+    body = _read(DRAWING_DASHBOARD_BODY)
+    assert "foms-drawing-legacy-table" in body
+    norm = _norm(body)
+    assert (
+        "{% if erp_mobile_v2_enabled %} "
+        "{% include 'drawing/partials/tablet_gallery_body.html' %}"
+    ) in norm
+
+
+def test_drawing_gallery_css_exists_exclusive_and_landscape_only() -> None:
+    css = _norm(_read(DRAWING_GALLERY_CSS))
+    assert CORE_MEDIA_QUERY in css
+    base_idx = css.index(".foms-drawing-gallery { display: none")
+    grid_idx = css.index("display: grid")
+    assert base_idx < grid_idx, "base-hide 규칙이 opt-in(display:grid) 뒤에 있음(순서 계약 위반)"
+    assert "body.erp-mobile-v2-layout .foms-drawing-legacy-table { display: none" in css
+    assert "body.erp-mobile-v2-layout .foms-drawing-gallery { display: grid" in css
+    assert "orientation: portrait" not in css
+
+
+def test_drawing_gallery_bundle_import() -> None:
+    bundle = _read(TABLET_BUNDLE_CSS)
+    assert '@import url("foms-tablet-drawing-gallery.css?v=' in bundle
+
+
+# =====================================================================
+# W17 — 시공 완료 금액 그리드 (태블릿 가로)
+# 태블릿 가로 코호트에서 완료 대시보드의 사진 리뷰 리스트를 금액 그리드로 대체
+# (목업 v8 P9). 데이터 = 라우트 서버 렌더(tablet_completion_rows) — 완료 API
+# (foms/api/cs) 는 금액 미반환 + 수정 불가라, 라우트가 erp_display SSOT 헬퍼로 파생.
+# 잔금 = 출고가 − 예약금 불변식. 행 탭 = tablet-side-sheet 위임 확장(신규 API 없음).
+# =====================================================================
+
+COMPLETION_GRID_PARTIAL = "templates/cs/partials/tablet_completion_grid_body.html"
+COMPLETION_GRID_CSS = "static/css/foundation/foms-tablet-completion-grid.css"
+COMPLETION_DASHBOARD_BODY = "templates/cs/partials/completion_dashboard_body.html"
+COMPLETION_ROUTE = "foms/web/cs/completion_dashboard.py"
+
+
+def test_completion_grid_partial_exists_with_mockup_columns() -> None:
+    """파샬 존재 + 목업 P9 8컬럼 헤더(완료일/고객/제품/출고가/예약금/잔금/현금영수증/정산)
+    + 카드 order-id 소스(사이드 시트 행 탭)."""
+    body = _read(COMPLETION_GRID_PARTIAL)
+    for header in ("완료일", "고객", "제품", "출고가", "예약금", "잔금", "현금영수증", "정산"):
+        assert header in body, f"missing grid column header: {header}"
+    assert "foms-completion-grid" in body
+    assert 'data-order-id="{{ row.id }}"' in body
+
+
+def test_completion_grid_uses_derived_amount_fields_not_reparse() -> None:
+    """금액 셀은 라우트에서 1회 파생된 콤마 포맷 문자열을 그대로 출력(문자열 재파싱 금지).
+    잔금 = 출고가 − 예약금 불변식은 라우트에서 계산."""
+    body = _read(COMPLETION_GRID_PARTIAL)
+    for field in ("shipping_price_display", "deposit_display", "balance_display"):
+        assert field in body, f"missing derived amount field: {field}"
+
+
+def test_completion_grid_route_derives_amounts_from_ssot_helpers() -> None:
+    """라우트가 금액 SSOT 헬퍼(erp_shipping_price_from_structured /
+    erp_deposit_amount_from_structured)로 파생하고, 잔금=출고가−예약금 불변식을 계산.
+    코호트(v2∪v3)에서만 서버 적재(PC 서버 쿼리 무추가)."""
+    route = _read(COMPLETION_ROUTE)
+    assert "erp_shipping_price_from_structured" in route
+    assert "erp_deposit_amount_from_structured" in route
+    assert "shipping_price - (deposit or 0)" in route  # 잔금 불변식
+    assert "is_mobile_v2_shell" in route  # 코호트 게이트(서버 적재)
+    assert "tablet_completion_rows" in route
+
+
+def test_completion_grid_css_exclusivity_couples_hide_and_show_no_blank() -> None:
+    """배타(blank 금지): 기본은 그리드 은닉. 태블릿 가로 코호트에서 사진 리뷰 은닉과
+    그리드 표시가 **동일 게이트**(코호트 body class + 코어 MQ) 아래 결합."""
+    css = _norm(_read(COMPLETION_GRID_CSS))
+    base_idx = css.index(".foms-completion-grid { display: none")
+    show_idx = css.index("display: flex")
+    assert base_idx < show_idx, "base-hide 규칙이 opt-in(display:flex) 뒤에 있음(순서 계약 위반)"
+    assert CORE_MEDIA_QUERY in css
+    assert "body.erp-mobile-v2-layout .foms-completion-grid { display: flex" in css
+    assert "body.erp-mobile-v2-layout .foms-completion-photo-review { display: none" in css
+
+
+def test_completion_grid_css_landscape_only_and_touch_token_driven() -> None:
+    """landscape 전용(portrait 토큰 금지) + 터치 보정 토큰 구동: 데이터 행 ≥48px
+    (--foms-touch-target-min), 정산 배지 ≥44px(--foms-touch-target-comfortable).
+    하드코딩 회귀 차단."""
+    css = _norm(_read(COMPLETION_GRID_CSS))
+    assert "orientation: portrait" not in css
+    assert (
+        ".foms-completion-grid__table tbody tr { height: var(--foms-touch-target-min)"
+        in css
+    )
+    assert "var(--foms-touch-target-comfortable)" in css
+
+
+def test_completion_grid_wired_into_body_cohort_gated_with_wrapper() -> None:
+    """body include 배선(erp_mobile_v2_enabled 게이트) + 사진 리뷰 카드 배타 래퍼 클래스
+    (.foms-completion-photo-review)."""
+    body = _norm(_read(COMPLETION_DASHBOARD_BODY))
+    assert "cs/partials/tablet_completion_grid_body.html" in body
+    assert (
+        "{% if erp_mobile_v2_enabled %} "
+        "{% include 'cs/partials/tablet_completion_grid_body.html' %}"
+    ) in body
+    assert "foms-completion-photo-review" in body
+
+
+def test_completion_grid_bundle_import() -> None:
+    """번들이 완료 그리드 CSS 를 @import(신규 @import 만 ?v 부여)."""
+    bundle = _read(TABLET_BUNDLE_CSS)
+    assert '@import url("foms-tablet-completion-grid.css?v=' in bundle
+
+
+def test_side_sheet_delegation_extended_to_completion_grid_rows() -> None:
+    """행 탭 → 상세 시트: side-sheet 위임 셀렉터에 완료 그리드 본행 확장(최소 1줄).
+    기존 그리드/칸반/AS/이력 소스 보존(회귀 금지)."""
+    js = _read(SIDE_SHEET_JS)
+    assert ".foms-completion-grid tbody tr[data-order-id]" in js
+    assert "#erp-grid tr.erp-main-row[data-order-id]" in js
+    assert ".foms-kanban-card[data-order-id]" in js
+
+
+# =====================================================================
+# PIPE — 사이드 시트 상단 진행 단계 파이프라인 (2026-07-12, 태블릿 가로 마감 ①)
+# 컨트롤타워 사이드 시트에 8단계 파이프 복원. 단계 카탈로그(순서·표시명)는 서버가
+# STAGE_SEQUENCE(order_timeline_v3 SSOT)를 그리드 컨테이너의 data-foms-stage-catalog(JSON)로
+# 내려보내고, 현재 단계는 행의 data-stage(=erp_stage_code)에서 읽는다. JS 단계 하드코딩 금지.
+# =====================================================================
+
+CONTROL_TOWER_GRID = "templates/orders/partials/dashboard_grid.html"
+
+
+def test_pipe_catalog_delivered_via_grid_container_data_attr() -> None:
+    """단계 카탈로그는 서버가 그리드 컨테이너의 data-foms-stage-catalog(|tojson)로 내려보낸다
+    (JS 하드코딩 금지). 현재 단계는 행 <tr> 의 data-stage(=o.stage_code)에서 읽는다."""
+    body = _norm(_read(CONTROL_TOWER_GRID))
+    assert "data-foms-stage-catalog='{{ foms_stage_catalog|tojson }}'" in body, (
+        "그리드 컨테이너에 stage 카탈로그 data 속성 부재"
+    )
+    assert 'class="erp-main-row" data-order-id="{{ o.id }}" data-stage="{{ o.stage_code }}"' in body, (
+        "행에 data-stage(현재 단계 소스) 부재"
+    )
+
+
+def test_pipe_catalog_order_matches_stage_sequence_ssot() -> None:
+    """카탈로그 순서·표시명이 STAGE_SEQUENCE(SSOT)와 정확히 정합(8단계, code+label)."""
+    from foms.services.context_processors import _foms_stage_catalog
+    from foms.services.order_timeline_v3 import STAGE_SEQUENCE
+
+    catalog = _foms_stage_catalog()
+    assert len(catalog) == 8, "8단계 워크플로 카탈로그가 아님"
+    assert [code for code, _label, _slug in STAGE_SEQUENCE] == [d["code"] for d in catalog], (
+        "카탈로그 코드 순서가 STAGE_SEQUENCE 와 불일치"
+    )
+    assert [label for _code, label, _slug in STAGE_SEQUENCE] == [d["label"] for d in catalog], (
+        "카탈로그 표시명이 STAGE_SEQUENCE 와 불일치"
+    )
+
+
+def test_pipe_js_renders_from_server_catalog_no_hardcoded_stage_list() -> None:
+    """JS 는 서버 카탈로그(data-foms-stage-catalog)에서 렌더하고 현재 단계를 data-stage 에서
+    읽는다. 단계 코드 목록을 JS 에 하드코딩하지 않는다(RECEIVED/MEASURE 등 부재)."""
+    js = _read(SIDE_SHEET_JS)
+    assert "renderPipe" in js
+    assert '"[data-foms-stage-catalog]"' in js
+    assert 'getAttribute("data-stage")' in js
+    # 단계 목록 하드코딩 금지(카탈로그는 서버 SSOT).
+    for code in ("RECEIVED", "MEASURE", "DRAWING", "CONFIRM", "PRODUCTION", "CONSTRUCTION"):
+        assert code not in js, f"JS 에 단계 코드 하드코딩됨: {code}"
+
+
+def test_pipe_js_graceful_absence_when_stage_not_derivable() -> None:
+    """단계 파생 불가 행(카탈로그 미매치=AS/이력/칸반 등)이면 파이프를 hidden 처리(우아한 부재)."""
+    js = _read(SIDE_SHEET_JS)
+    assert "curIdx < 0" in js
+    assert "pipeEl.hidden = true" in js
+    # 파이프는 idempotent — 열림마다 innerHTML 재구성.
+    assert "pipeEl.innerHTML" in js
+
+
+def test_pipe_css_exists_token_driven_done_and_now_states() -> None:
+    """시트 CSS 에 파이프 스타일: 완료(성공 토큰)·현재(브랜드 토큰) 상태 + 토큰 구동."""
+    css = _read(SIDE_SHEET_CSS)
+    assert ".foms-tablet-sheet__pipe" in css
+    assert ".foms-tablet-pipe__step.is-done" in css
+    assert ".foms-tablet-pipe__step.is-now" in css
+    assert "var(--foms-color-success-500" in css
+    assert "var(--foms-interactive-primary" in css
+
+
+# =====================================================================
+# CALC-SKIN — 계산기 태블릿 표피 (2026-07-12, 태블릿 가로 마감 ②)
+# PC 구조·id·계산엔진 DOM 무변경. 순수 CSS 표피(입력 52px·터치 44px), 코호트 MQ 게이트.
+# =====================================================================
+
+CALC_SKIN_CSS = "static/css/wdcalculator/tablet-skin.css"
+CALC_TEMPLATE = "templates/wdcalculator/calculator.html"
+
+
+def test_calc_skin_css_exists_cohort_gated_and_landscape_only() -> None:
+    """스킨 파일 존재 + 코어 코호트 MQ(min-width:992 landscape coarse) + 페이지 스코프
+    (.wdcalculator-container) + landscape 전용(portrait 토큰 금지)."""
+    css = _read(CALC_SKIN_CSS)
+    assert CORE_MEDIA_QUERY in css, "계산기 스킨에 코어 태블릿 코호트 MQ 부재"
+    assert ".wdcalculator-container" in css, "스킨이 계산기 컨테이너로 스코프되지 않음"
+    assert "orientation: portrait" not in css, "landscape 전용인데 portrait 토큰 존재"
+
+
+def test_calc_skin_css_has_52px_input_and_44px_target() -> None:
+    """목업 표피 스펙: 주 입력 52px + 터치 타깃 44px."""
+    css = _norm(_read(CALC_SKIN_CSS))
+    assert "min-height: 52px" in css, "52px 입력 스펙 부재"
+    assert "min-height: 44px" in css, "44px 터치 타깃 스펙 부재"
+
+
+def test_calc_skin_wired_in_calculator_template_with_cachebuster() -> None:
+    """calculator.html 이 기존 <link> 패턴대로 스킨을 로드하고 ?v=20260712a 캐시버스터를 가진다."""
+    html = _read(CALC_TEMPLATE)
+    m = re.search(r"tablet-skin\.css'\s*\)\s*}}\?v=20260712a", html)
+    assert m is not None, "calculator.html 에 tablet-skin.css ?v=20260712a <link> 부재"

@@ -1,0 +1,69 @@
+/**
+ * WDCalculator 태블릿 가로 표피(skin only) — 2026-07-12 T2.
+ *
+ * PC 구조·id·계산엔진 DOM 무변경. 마크업 수정 없이 순수 CSS 로 터치 표피만 입힌다
+ * (입력 52px · 컬럼 헤더 행 가독성 · 터치 타깃 44px). 기존 WDCalculator 계약(테스트 36종)
+ * 무회귀 — 셀렉터/규칙 추가만 하고 계산 관련 DOM 은 건드리지 않는다.
+ *
+ * 게이트: 대형 터치 태블릿 가로 (min-width:992 landscape coarse). PC(hover/fine)·모바일
+ * (<=991.98px, mobile.css/builder.css `body.wd-calc-mobile`/`wd-builder` 소유)과 완전 분리 —
+ * 미디어 조건이 배타적이라 서로 덮어쓰지 않는다. select 바텀시트 피커는 공용 컴포넌트
+ * (foms-mobile-select)가 이미 coarse 에서 동작하므로 무접촉.
+ *
+ * foms 토큰(foms-tokens.css)만 사용. `.wdcalculator-container` 스코프로 페이지 격리.
+ */
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  /* 주 입력 필드: 52px 높이 + 16px(iOS 줌 방지) — 터치 타이핑 타깃 확대. */
+  .wdcalculator-container .form-control,
+  .wdcalculator-container .form-select {
+    min-height: 52px;
+    font-size: max(16px, var(--foms-font-size-base, 1rem));
+  }
+
+  /* 컴팩트(-sm) 컨트롤(기본 구성/추가 옵션 행): 밀도는 유지하되 44px 터치 하한. */
+  .wdcalculator-container .form-control-sm,
+  .wdcalculator-container .form-select-sm {
+    min-height: 44px;
+    font-size: max(16px, var(--foms-font-size-sm, 0.875rem));
+  }
+
+  /* 기본 구성 행: 컨트롤 높이 토큰을 터치 높이로 상향(구조 무변경, 토큰만 재정의). */
+  .wdcalculator-container #baseComponentsContainer .base-component-row {
+    --base-row-control-h: 44px;
+  }
+
+  /* 추가 옵션 행: wdcalculator_styles.html 가 38px !important 로 고정 → 동일 특이도(!important)로
+     44px 터치 높이로 상향. */
+  .wdcalculator-container .additional-option-item select.form-select-sm,
+  .wdcalculator-container .additional-option-item input.form-control-sm,
+  .wdcalculator-container .additional-option-item .option-name-input,
+  .wdcalculator-container .additional-option-item button.btn-sm {
+    height: 44px !important;
+    min-height: 44px !important;
+    max-height: 44px !important;
+  }
+
+  /* 버튼: 터치 타깃 44px 하한(주 버튼·아이콘 버튼 공통). */
+  .wdcalculator-container .btn {
+    min-height: 44px;
+  }
+
+  /* 라벨/컬럼 헤더 행 가독성: 필드 라벨과 카드 헤더를 태블릿 시거리에 맞게 확대. */
+  .wdcalculator-container .form-label {
+    font-size: var(--foms-font-size-base, 1rem);
+    font-weight: var(--foms-font-weight-medium, 500);
+  }
+  .wdcalculator-container .base-component-row .form-label.small {
+    font-size: var(--foms-font-size-sm, 0.875rem);
+  }
+  .wdcalculator-container .card-header h5,
+  .wdcalculator-container .card-header h6 {
+    font-size: var(--foms-font-size-lg, 1.125rem);
+  }
+
+  /* 저장된 견적 사이드바: 항목/더보기 액션 44px 터치 하한. */
+  .wdcalculator-container .saved-estimates-sidebar .list-group-item .btn,
+  .wdcalculator-container .saved-estimates-sidebar .saved-estimates-more-btn {
+    min-height: 44px;
+  }
+}

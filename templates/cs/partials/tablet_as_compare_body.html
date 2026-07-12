@@ -1,0 +1,129 @@
+{# ============================================================================
+   태블릿 가로 AS 전/후 대조 표면 — P8 목업(AS·CS) 이식.
+
+   목업 P8 은 "PC 컬럼 그리드(main) + 전/후 대조 시트(side-sheet)" 혼합이다. 그런데 태블릿
+   사이드 시트(tablet-side-sheet.js)는 타 워커 소유이며 주문 edit fragment 를 로드하도록
+   고정돼 있어 전/후 대조 패널을 담을 수 없다. 따라서 목업 시트의 "접수 사진 → 조치 후"
+   대조 패널을 main 표면의 카드 안으로 흡수해 **자족적 대조 카드 그리드**로 구현한다
+   (목업 컬럼 = 카드 메타, 목업 시트 대조 = 카드 내 전/후 포토 그리드). 임의 창작 없음.
+
+   데이터: 서버 무변경 재소비(rows). 서비스(as_dashboard_display)가 전/후 사진
+   (as_before_photos / as_after_photos)·방문 D-day(as_visit_dday)를 배치 보강한다(N+1 없음).
+   AS 사진엔 전/후 구분 스키마가 없어 created_at vs as_completed_date 로 매핑(근거: 서비스 docstring).
+
+   표시/은닉·배타(대조 표시 + 기존 데스크톱 테이블 은닉)는 foms-tablet-as-compare.css 소유
+   (코호트 @media). 이 파샬은 as_dashboard_body 안에서 erp_mobile_v2_enabled 게이트로만
+   포함되며, 코호트 밖에선 base 규칙(display:none)으로 완전 무동작.
+
+   이미지 탭 → 기존 GlobalImageViewer 재사용: lightbox.js 가 [data-foms-lightbox-gallery] +
+   [data-foms-lightbox-src] 를 자동 마운트(coarse=모바일 뷰어로 위임). 신규 뷰어/JS 없음.
+   인라인 스타일 금지, 인라인 스크립트 금지.
+   ============================================================================ #}
+<section class="foms-as-compare" aria-label="AS 전/후 대조">
+  {% if rows %}
+    {% for r in rows %}
+    <article class="foms-as-compare-card{% if r.as_pending %} is-pending{% endif %}" data-order-id="{{ r.id }}">
+      <header class="foms-as-compare-card__head">
+        <div class="foms-as-compare-card__identity">
+          <span class="foms-as-compare-card__customer">{{ r.customer_name or '-' }}</span>
+          {% if can_edit_erp|default(false) %}
+          <a class="foms-as-compare-card__id" href="{{ url_for('order_edit.edit_order', order_id=r.id) }}?open=erp-order">#{{ r.id }}</a>
+          {% else %}
+          <span class="foms-as-compare-card__id">#{{ r.id }}</span>
+          {% endif %}
+        </div>
+        <span class="foms-as-compare-card__status foms-stage-badge foms-stage-badge{{ r.stage_badge_modifier }}" role="status">
+          {% if r.as_pending %}미결{% else %}{{ STATUS.get(r.status, r.status) }}{% endif %}
+        </span>
+      </header>
+
+      <dl class="foms-as-compare-card__meta">
+        <div class="foms-as-compare-meta">
+          <dt>방문일</dt>
+          <dd class="foms-tabular">
+            {{ r.as_visit_date or '미정' }}
+            {% if r.as_visit_dday is not none %}
+            <span class="foms-as-compare-dday{% if r.as_visit_dday < 0 %} is-overdue{% elif r.as_visit_dday <= 2 %} is-imminent{% endif %}">
+              {% if r.as_visit_dday < 0 %}D+{{ -r.as_visit_dday }}{% elif r.as_visit_dday == 0 %}D-DAY{% else %}D-{{ r.as_visit_dday }}{% endif %}
+            </span>
+            {% endif %}
+          </dd>
+        </div>
+        <div class="foms-as-compare-meta"><dt>접수일</dt><dd class="foms-tabular">{{ r.as_received_date or '-' }}</dd></div>
+        <div class="foms-as-compare-meta"><dt>담당</dt><dd>{{ r.manager_name or '-' }}</dd></div>
+        <div class="foms-as-compare-meta"><dt>시공자</dt><dd>{{ r.construction_workers_text or '-' }}</dd></div>
+        <div class="foms-as-compare-meta foms-as-compare-meta--full"><dt>주소</dt><dd>{{ r.address or '-' }}</dd></div>
+      </dl>
+
+      {% if r.as_content_html %}
+      <div class="foms-as-compare-card__content">
+        <span class="foms-as-compare-card__content-label">AS 내용</span>
+        <div class="foms-as-compare-card__content-body">{{ r.as_content_html|safe }}</div>
+      </div>
+      {% endif %}
+
+      {% if can_view_as_photos %}
+      <div class="foms-as-compare-card__photos" data-foms-lightbox-gallery>
+        <div class="foms-as-compare-col">
+          <span class="foms-as-compare-col__label">접수 시</span>
+          {% if r.as_before_photos %}
+          <div class="foms-as-compare-grid">
+            {% for p in r.as_before_photos %}
+            <img class="foms-as-compare-thumb" src="{{ p.thumb }}" alt="{{ p.name }}"
+              loading="lazy" decoding="async"
+              data-foms-lightbox-src="{{ p.full }}" data-foms-lightbox-download="{{ p.full }}" data-foms-lightbox-name="{{ p.name }}">
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="foms-as-compare-empty"><i class="fas fa-image" aria-hidden="true"></i><span>사진 없음</span></div>
+          {% endif %}
+        </div>
+        <div class="foms-as-compare-col foms-as-compare-col--after">
+          <span class="foms-as-compare-col__label">조치 후</span>
+          {% if r.as_after_photos %}
+          <div class="foms-as-compare-grid">
+            {% for p in r.as_after_photos %}
+            <img class="foms-as-compare-thumb" src="{{ p.thumb }}" alt="{{ p.name }}"
+              loading="lazy" decoding="async"
+              data-foms-lightbox-src="{{ p.full }}" data-foms-lightbox-download="{{ p.full }}" data-foms-lightbox-name="{{ p.name }}">
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="foms-as-compare-empty"><i class="fas fa-image" aria-hidden="true"></i><span>사진 없음</span></div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      <footer class="foms-as-compare-card__foot" aria-label="AS 빠른 작업">
+        {% if r.address %}
+        <button type="button" class="foms-as-compare-btn find-schedule-btn"
+          data-address="{{ r.address }}" data-order-id="{{ r.id }}"
+          data-lat="{{ r.lat or '' }}" data-lng="{{ r.lng or '' }}"
+          title="주변 일정 찾기">
+          <i class="fas fa-map-marker-alt" aria-hidden="true"></i><span>주변 일정</span>
+        </button>
+        {% endif %}
+        {% if can_view_as_photos %}
+        <button type="button"
+          class="foms-as-compare-btn as-photos-btn{% if not r.has_as_photos %} as-photos-btn--no-photos{% endif %}"
+          data-order-id="{{ r.id }}" title="AS 사진 관리">
+          <i class="fas fa-paperclip" aria-hidden="true"></i><span>사진 관리</span>
+        </button>
+        {% endif %}
+        {% if can_edit_erp|default(false) %}
+        <a class="foms-as-compare-btn foms-as-compare-btn--primary"
+          href="{{ url_for('order_edit.edit_order', order_id=r.id) }}?open=erp-order">
+          <i class="fas fa-pen" aria-hidden="true"></i><span>주문 편집</span>
+        </a>
+        {% endif %}
+      </footer>
+    </article>
+    {% endfor %}
+  {% else %}
+    <div class="foms-as-compare-empty-state">
+      <i class="fas fa-inbox" aria-hidden="true"></i>
+      <p>데이터가 없습니다.</p>
+    </div>
+  {% endif %}
+</section>

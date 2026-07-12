@@ -61,6 +61,7 @@
   var ROW_SELECTOR =
     "#erp-grid tr.erp-main-row[data-order-id], " +
     ".foms-kanban-card[data-order-id], " +
+    ".foms-completion-grid tbody tr[data-order-id], " +
     ".erp-as-dashboard .erp-pro-table-wrapper tbody tr[data-order-id], " +
     ".erp-history-mobile-shell tr.history-main-row[data-order-id]";
   // 행 내 인터랙티브 요소 클릭은 시트 대상에서 제외(closest 체인). AS 인라인 날짜/체크박스
@@ -74,10 +75,12 @@
 
   var sheet = null;
   var headerTitle = null;
+  var pipeEl = null;
   var bodyEl = null;
   var lastFocus = null;
   var currentOrderId = null;
   var hideTimer = null;
+  var _stageCatalog = null;
 
   function ensureSheet() {
     if (sheet) return;
@@ -93,11 +96,87 @@
       '<span class="foms-tablet-sheet__title"></span>' +
       '<button type="button" class="foms-tablet-sheet__close" aria-label="닫기">✕</button>' +
       "</div>" +
+      '<div class="foms-tablet-sheet__pipe" hidden></div>' +
       '<div class="foms-tablet-sheet__body"></div>';
     document.body.appendChild(sheet);
     headerTitle = sheet.querySelector(".foms-tablet-sheet__title");
+    pipeEl = sheet.querySelector(".foms-tablet-sheet__pipe");
     bodyEl = sheet.querySelector(".foms-tablet-sheet__body");
     sheet.querySelector(".foms-tablet-sheet__close").addEventListener("click", close);
+  }
+
+  // 진행 단계 파이프라인(시트 크롬 — 헤더 아래). 8단계 카탈로그(순서·표시명)는 서버가
+  // STAGE_SEQUENCE(order_timeline_v3, SSOT)를 그리드 컨테이너의 data-foms-stage-catalog(JSON)로
+  // 내려보내고, 현재 단계는 탭한 행의 data-stage(=erp_stage_code)에서 읽는다. JS에 단계 목록을
+  // 하드코딩하지 않는다(카탈로그·순서·표시명 전부 서버 SSOT). 카탈로그는 페이지 수명 내 불변 → 캐시.
+  function stageCatalog() {
+    if (_stageCatalog) return _stageCatalog;
+    var host = document.querySelector("[data-foms-stage-catalog]");
+    if (!host) return null;
+    var raw = host.getAttribute("data-foms-stage-catalog");
+    if (!raw) return null;
+    // safeJsonParse 패턴: data-* 속성 + 가드 파싱(인라인 JSON.parse('{{ x|tojson }}') 금지).
+    try {
+      var parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length) {
+        _stageCatalog = parsed;
+        return _stageCatalog;
+      }
+    } catch (e) {
+      // 카탈로그 손상 → 파이프 생략(우아한 부재). 무음 금지 — 경고 로그.
+      console.warn("[foms-tablet-sheet] 단계 카탈로그 파싱 실패 — 파이프 생략", e);
+    }
+    return null;
+  }
+
+  // 시트 열림마다 현재 단계로 파이프를 재구성한다(idempotent). 카탈로그 부재 또는 행의
+  // data-stage 가 카탈로그 코드와 미매치(AS/이력/칸반 등 단계 파생 불가)면 hidden → 파이프 생략.
+  function renderPipe(row) {
+    if (!pipeEl) return;
+    var stageCode = row && row.getAttribute ? row.getAttribute("data-stage") : null;
+    var catalog = stageCode ? stageCatalog() : null;
+    var curIdx = -1;
+    if (stageCode && catalog) {
+      for (var i = 0; i < catalog.length; i++) {
+        if (catalog[i] && catalog[i].code === stageCode) {
+          curIdx = i;
+          break;
+        }
+      }
+    }
+    if (curIdx < 0) {
+      pipeEl.hidden = true;
+      pipeEl.innerHTML = "";
+      return;
+    }
+    var html = ['<ol class="foms-tablet-pipe">'];
+    for (var j = 0; j < catalog.length; j++) {
+      var cls = "foms-tablet-pipe__step";
+      var marker;
+      if (j < curIdx) {
+        cls += " is-done";
+        marker = "✓"; // ✓
+      } else if (j === curIdx) {
+        cls += " is-now";
+        marker = String(j + 1);
+      } else {
+        marker = String(j + 1);
+      }
+      html.push(
+        '<li class="' + cls + '">' +
+          '<span class="foms-tablet-pipe__marker">' + marker + "</span>" +
+          '<span class="foms-tablet-pipe__label"></span>' +
+          "</li>"
+      );
+    }
+    html.push("</ol>");
+    pipeEl.innerHTML = html.join("");
+    // 라벨은 textContent 로 주입(카탈로그가 서버 SSOT이나 텍스트 노드 삽입으로 안전 확보).
+    var labels = pipeEl.querySelectorAll(".foms-tablet-pipe__label");
+    for (var k = 0; k < labels.length; k++) {
+      labels[k].textContent = (catalog[k] && catalog[k].label) || "";
+    }
+    pipeEl.hidden = false;
   }
 
   // fragment fetch/주입/스크립트 재실행/staleness 는 공용 로더(fragment-loader.js) 소유.
@@ -138,6 +217,7 @@
     }
     headerTitle.textContent = "주문 상세";
     markActiveRow(row);
+    renderPipe(row);
     sheet.hidden = false;
     // reflow 확보 후 클래스 부착 → transform 슬라이드 인.
     requestAnimationFrame(function () {
@@ -155,6 +235,10 @@
     if (!sheet || sheet.hidden) return;
     sheet.classList.remove("is-open");
     markActiveRow(null);
+    if (pipeEl) {
+      pipeEl.hidden = true;
+      pipeEl.innerHTML = "";
+    }
     currentOrderId = null;
     if (hideTimer) clearTimeout(hideTimer);
     // 슬라이드 아웃 트랜지션 후 완전히 숨김(reduced-motion이면 트랜지션 0 → 타이머만 사용).

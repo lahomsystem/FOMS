@@ -136,7 +136,7 @@
       </form>
     </div>
 
-    <div class="card-body">
+    <div class="card-body foms-drawing-legacy-table">
       {% if rows %}
       <!-- 일괄 작업 플로팅 바 -->
       <div id="batch-action-bar" class="alert alert-primary d-none align-items-center justify-content-between mb-3" style="position: sticky; top: 70px; z-index: 100;">
@@ -346,6 +346,9 @@
       {% endif %}
     </div>
   </div>
+  {% if erp_mobile_v2_enabled %}
+    {% include 'drawing/partials/tablet_gallery_body.html' %}
+  {% endif %}
   {% if erp_mobile_v2_enabled %}
   <a class="foms-shell-fab" href="{{ url_for('order_pages.add_order', open='erp-order', wizard=1) }}" aria-label="주문 생성">
     <i class="fas fa-plus" aria-hidden="true"></i>

@@ -1,0 +1,59 @@
+{# ============================================================================
+   태블릿 가로 시공 완료 금액 그리드 — W17 (2026-07-12, T2 / 목업 v8 P9)
+
+   태블릿 가로 코호트에서 사진 리뷰 리스트(.foms-completion-photo-review)를 대체하는
+   금액 그리드. Persona = CS(라홈)·경리: 완료일·고객·제품 + 금액 3컬럼(출고가/예약금/
+   잔금) + 현금영수증 + 정산 상태의 8컬럼(목업 v8 P9 컬럼 구성 그대로).
+
+   데이터: 라우트가 코호트에서만 tablet_completion_rows 를 서버 렌더로 넘긴다. 금액은
+   erp_display SSOT 헬퍼로 이미 로드된 structured_data 에서 파생(콤마 포맷 문자열,
+   재파싱 없음). 잔금 = 출고가 − 예약금 불변식(shipping_price_display/deposit_display/
+   balance_display). 행 탭 → 상세: tablet-side-sheet.js(위임 셀렉터에 .foms-completion-grid
+   tbody tr[data-order-id] 확장). 표시/은닉·배타는 foms-tablet-completion-grid.css 소유.
+   XSS: Jinja autoescaping(customer_name/product_summary/cash_receipt 문자열).
+   ============================================================================ #}
+<section class="foms-completion-grid" aria-label="시공 완료 금액 그리드">
+  {% if tablet_completion_rows %}
+  <div class="foms-completion-grid__caption">완료일 내림차순 · 행 탭 = 정산 상세</div>
+  <div class="foms-completion-grid__scroll">
+    <table class="foms-completion-grid__table">
+      <thead>
+        <tr>
+          <th scope="col">완료일</th>
+          <th scope="col">고객</th>
+          <th scope="col">제품</th>
+          <th scope="col" class="is-num">출고가</th>
+          <th scope="col" class="is-num">예약금</th>
+          <th scope="col" class="is-num">잔금</th>
+          <th scope="col">현금영수증</th>
+          <th scope="col">정산</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in tablet_completion_rows %}
+        <tr data-order-id="{{ row.id }}" role="button" tabindex="0"
+          class="{% if row.settlement_issued %}is-settled{% endif %}"
+          aria-label="{{ row.customer_name }} 정산 상세 열기">
+          <td>{{ row.completion_date or '-' }}</td>
+          <td class="foms-completion-grid__customer">{{ row.customer_name }}</td>
+          <td>{{ row.product_summary }}</td>
+          <td class="is-num">{{ row.shipping_price_display }}</td>
+          <td class="is-num">{{ row.deposit_display }}</td>
+          <td class="is-num foms-completion-grid__balance">{{ row.balance_display }}</td>
+          <td>{{ row.cash_receipt or '—' }}</td>
+          <td>
+            {% if row.settlement_issued %}
+            <span class="foms-completion-grid__badge is-settled">완료</span>
+            {% else %}
+            <span class="foms-completion-grid__badge is-pending">대기</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="foms-completion-grid__empty">완료 및 AS 건이 없습니다.</p>
+  {% endif %}
+</section>

@@ -1,7 +1,9 @@
 {# foms-kv-rollout: order grid deeplinks via edit_order + mobile shell kv-copy.js #}
 
     <!-- Middle: Grid -->
-    <div class="erp-dashboard-workqueue">
+    {# data-foms-stage-catalog: 8단계 워크플로 카탈로그(STAGE_SEQUENCE SSOT, code+label). 태블릿
+       사이드 시트 파이프라인이 이 컨테이너에서 읽는다(JS 단계 하드코딩 금지). safeJsonParse 패턴. #}
+    <div class="erp-dashboard-workqueue" data-foms-stage-catalog='{{ foms_stage_catalog|tojson }}'>
       <div class="card">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-3">
@@ -58,7 +60,7 @@
               </thead>
               <tbody>
                 {% for o in orders %}
-                <tr class="erp-main-row" data-order-id="{{ o.id }}">
+                <tr class="erp-main-row" data-order-id="{{ o.id }}" data-stage="{{ o.stage_code }}">
                   <td data-label="경보">
                     <div class="d-flex align-items-center gap-1 erp-grid-alert-cell">
                       {% if can_edit_erp %}<input type="checkbox" class="form-check-input erp-grid-order-check mt-0 flex-shrink-0" data-order-id="{{ o.id }}" aria-label="주문 선택">{% endif %}
