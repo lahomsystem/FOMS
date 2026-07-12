@@ -44,7 +44,8 @@ class OrdersDashboardFilters:
     field: str
     risk: str
     focus_order_id: Optional[int]
-    status: str
+    # v3→v2 이식(A4): 접수 상태 칩 필터. 기본 ''(미적용) — 직접 생성하는 기존 콜사이트 하위호환.
+    status: str = ''
 
 
 def parse_orders_dashboard_filters(request) -> OrdersDashboardFilters:
