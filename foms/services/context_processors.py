@@ -255,6 +255,39 @@ def inject_foms_nav_badges() -> dict[str, Any]:
     }
 
 
+def _tablet_rail_items() -> list[dict[str, Any]]:
+    """Lazy rail-item provider bound to the current request (Jinja global body).
+
+    Reads the request-scoped user (``g.current_user``) and ``request.path`` at call
+    time so the tablet rail partial computes items only when it actually renders
+    (non-/erp and non-tablet pages never invoke it). Delegates all navigation policy
+    to :func:`foms.services.foms_split_view.build_tablet_rail_items`.
+
+    Returns:
+        Rail item descriptors for the current request.
+    """
+    # Lazy import: foms_split_view pulls the erp_display/erp_policy chain, which is not
+    # yet initialized when context_processors is imported during early app bootstrap
+    # (circular import). Importing here (request time) breaks the cycle — same pattern
+    # as the canonical lazy storage import in inject_status_list.
+    from foms.services.foms_split_view import build_tablet_rail_items
+
+    current_user = getattr(g, "current_user", None)
+    return build_tablet_rail_items(current_user, request.path)
+
+
+def inject_tablet_rail_helper() -> dict[str, Any]:
+    """Expose ``foms_tablet_rail_items`` as a lazy Jinja global (T2 tablet rail).
+
+    Returns the callable itself (not its computed result) so the tablet rail partial
+    invokes it only when rendered; pages that never include the partial pay no cost.
+
+    Returns:
+        Mapping with the ``foms_tablet_rail_items`` template callable.
+    """
+    return {"foms_tablet_rail_items": _tablet_rail_items}
+
+
 def register_context_processors(app) -> None:
     """Register all template filters and context processors on the Flask app."""
     app.add_template_filter(parse_json_string_filter, "parse_json_string")
@@ -265,3 +298,4 @@ def register_context_processors(app) -> None:
     app.context_processor(inject_menu)
     app.context_processor(inject_foms_flags)
     app.context_processor(inject_foms_nav_badges)
+    app.context_processor(inject_tablet_rail_helper)

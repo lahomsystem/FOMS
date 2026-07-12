@@ -120,3 +120,26 @@
     display: none !important;
   }
 }
+
+/* T2 tablet-landscape global rail (2026-07-12 목업 정합 공사): on the tablet-landscape
+   surface (≥992 landscape coarse) the split pages are owned by the block above via
+   :has(.foms-split-enabled); the NON-split /erp pages instead render the global 72px
+   rail (.foms-tablet-rail, server-rendered gate = SSOT). When that rail is present the
+   three-tier legacy/ERP chrome (global brand header + global text nav + erp_sub_nav
+   horizontal icon nav) is REPLACED by the rail + erp-pro-header title bar, so hide all
+   three here. Keyed on .foms-tablet-rail existence so ownership never overlaps the
+   :has(.foms-split-enabled) arm above (a page carries exactly one of the two markers).
+   Same @supports selector(:has(*)) gate + same accepted degradation for the pre-2022
+   no-:has cohort (they keep the legacy chrome) as the split arm above.
+   (orientation: landscape is used intentionally; the P2-08 portrait-token ban is scoped
+   to foms-split-view.css, not this bridge file.) */
+@supports selector(:has(*)) {
+  @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+    body.erp-mobile-v2-layout:has(.foms-tablet-rail) .layout-header,
+    body.erp-mobile-v2-layout:has(.foms-tablet-rail) .layout-global-nav,
+    body.erp-mobile-v2-layout:has(.foms-tablet-rail) .layout-global-nav.layout-global-nav--erp-v2-suppressed,
+    body.erp-mobile-v2-layout:has(.foms-tablet-rail) .erp-pro-nav {
+      display: none !important;
+    }
+  }
+}

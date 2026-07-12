@@ -1,0 +1,25 @@
+{# 태블릿 가로(coarse landscape ≥992px) 전역 메뉴 레일 — 2026-07-12 T2 목업 정합 공사.
+   /erp 전 페이지에서 좌측 72px 아이콘 레일을 제공한다. split 셸(/erp/dashboard)은
+   자체 레일(foms_side_tab.html)을 보유하므로 layout_nav.html 의 include 게이트에서
+   /erp/dashboard 를 제외한다(이중 레일 방지).
+   클래스 네임스페이스(foms-tablet-rail-*)는 split 레일(foms-split-side-tab-*)과 분리 —
+   CSS 결합을 원천 차단한다(두 레일은 같은 DOM 에 공존하지 않음).
+   표시/숨김은 순수 CSS(foms-tablet-rail.css)가 소유: 기본 display:none, coarse landscape
+   ≥992px + :has 지원 시에만 노출. 신규 <script> 없음.
+   NOTE: 태블릿 번들(layout_head) 게이트는 order_edit(/edit/<id>)도 포함하나 이 레일
+   include 게이트는 /erp 한정 — 주문 편집 페이지는 이번 범위 밖(의도된 제외).
+   아이템 데이터는 lazy Jinja 전역 foms_tablet_rail_items() 로 획득(호출 시에만 계산). #}
+<nav class="foms-tablet-rail" aria-label="ERP 단계 메뉴">
+  <div class="foms-tablet-rail__brand" aria-hidden="true">F</div>
+  {% for item in foms_tablet_rail_items() %}
+  <a
+    class="foms-tablet-rail__item{% if item.active %} is-active{% endif %}"
+    href="{{ item.href }}"
+    title="{{ item.label }}"
+    {% if item.active %}aria-current="page"{% endif %}
+  >
+    <i class="{{ item.icon }} foms-tablet-rail__icon" aria-hidden="true"></i>
+    <span class="foms-tablet-rail__label">{{ item.label }}</span>
+  </a>
+  {% endfor %}
+</nav>

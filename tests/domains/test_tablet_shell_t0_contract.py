@@ -343,6 +343,30 @@ def test_bridge_header_hide_covers_split_and_tablet_portrait() -> None:
     assert "(min-width: 1366px) {" not in css
 
 
+def test_bridge_tablet_rail_arm_replaces_chrome_and_keeps_split_arm() -> None:
+    """T2 (2026-07-12 목업 정합): a NEW bridge arm hides the three-tier legacy/ERP chrome
+    (global brand header + global text nav + erp_sub_nav ``.erp-pro-nav``) on the
+    tablet-landscape surface (≥992 landscape coarse) when the global rail
+    (``.foms-tablet-rail``) is present, so those pages show rail + erp-pro-header only.
+    The pre-existing ``:has(.foms-split-enabled)`` arm must survive unchanged (split
+    pages own their chrome-hide via that marker — no double ownership)."""
+    css = _read(BRIDGE_CSS)
+    # New arm is @supports selector(:has(*)) gated (same accepted degradation as split).
+    assert "@supports selector(:has(*))" in css
+    # New arm media: coarse landscape ≥992 (distinct from the 1366 split + portrait arms).
+    assert (
+        "(min-width: 992px) and (orientation: landscape) and (pointer: coarse)" in css
+    ), "missing the T2 tablet-landscape rail chrome-hide media arm"
+    # Keyed on the rail marker, hides all three chrome tiers incl. .erp-pro-nav.
+    assert "body.erp-mobile-v2-layout:has(.foms-tablet-rail) .layout-header" in css
+    assert "body.erp-mobile-v2-layout:has(.foms-tablet-rail) .layout-global-nav" in css
+    assert "body.erp-mobile-v2-layout:has(.foms-tablet-rail) .erp-pro-nav" in css
+    # Pre-existing split-enabled arm still present (ownership boundary preserved).
+    assert "body.erp-mobile-v2-layout:has(.foms-split-enabled) .layout-header" in css
+    # True-desktop header still never killed by a bare ≥1366 hide.
+    assert "(min-width: 1366px) {" not in css
+
+
 def test_workbench_mobile_queue_shows_on_tablet_portrait() -> None:
     """W7 defect 2: the drawing workbench mobile queue opts in on phones AND tablet
     portrait (≥992 portrait coarse), matching the shell matrix, instead of the old

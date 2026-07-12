@@ -135,3 +135,48 @@ def build_split_side_items(user: Any = None, *, active_id: str = "dashboard") ->
     if not construction:
         items.append({**_CALCULATOR_ITEM, "active": active_id == "calculator"})
     return items
+
+
+def resolve_tablet_rail_active_id(path: str) -> str:
+    """Resolve the active rail tab id for a request path (longest segment-prefix match).
+
+    Matches ``path`` against ``ERP_PRIMARY_NAV_PATHS`` on segment boundaries (so
+    ``/erp/measurement/42`` maps to ``measurement`` but a hypothetical ``/erp/ashley``
+    does NOT falsely match ``/erp/as``) and returns the id of the longest matching
+    prefix. No match → empty string so the global rail renders with no highlighted tab
+    rather than a false ``dashboard`` highlight.
+
+    Args:
+        path: Current request path (e.g. ``request.path``).
+
+    Returns:
+        The matching ``ERP_TAB_IDS`` entry, or ``""`` when nothing matches.
+    """
+    normalized = (path or "").rstrip("/")
+    best_id = ""
+    best_len = -1
+    for nav_path, tab_id in zip(ERP_PRIMARY_NAV_PATHS, ERP_TAB_IDS):
+        prefix = nav_path.rstrip("/")
+        if normalized == prefix or normalized.startswith(prefix + "/"):
+            if len(prefix) > best_len:
+                best_len = len(prefix)
+                best_id = tab_id
+    return best_id
+
+
+def build_tablet_rail_items(user: Any = None, path: str = "") -> list[dict[str, Any]]:
+    """Build tablet-landscape global rail items for a request path (T2 rail).
+
+    Thin wrapper over :func:`build_split_side_items` that derives the active tab id
+    from ``path`` (:func:`resolve_tablet_rail_active_id`) so the global rail highlights
+    the current ERP surface. Reuses the exact permission scoping + label/icon catalog
+    of the split-shell rail — no navigation policy is duplicated.
+
+    Args:
+        user: Current user; needs a ``team`` attribute. ``None`` → full menu.
+        path: Current request path used to resolve the active tab.
+
+    Returns:
+        Rail item descriptors (``id``/``label``/``icon``/``href``/``active``).
+    """
+    return build_split_side_items(user, active_id=resolve_tablet_rail_active_id(path))

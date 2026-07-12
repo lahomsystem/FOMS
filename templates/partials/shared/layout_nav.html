@@ -203,3 +203,11 @@
             <div id="layout-nav-loading-status" class="visually-hidden" aria-live="polite" aria-atomic="true"></div>
         </nav>
         {% endif %}
+
+        {# T2 태블릿 가로 전역 레일: /erp 전 페이지에 좌측 72px 메뉴 레일을 주입한다.
+           /erp/dashboard 제외 = split 셸이 자체 레일(foms_side_tab.html)을 보유하므로
+           이중 레일을 방지한다. 표시/숨김은 CSS(foms-tablet-rail.css)가 전담 —
+           여기서는 서버 렌더 게이트(erp_mobile_v2 코호트 + /erp)만 결정한다. #}
+        {% if erp_mobile_v2_enabled and request.path.startswith('/erp') and not request.path.startswith('/erp/dashboard') %}
+        {% include 'partials/shared/foms_tablet_rail.html' %}
+        {% endif %}
