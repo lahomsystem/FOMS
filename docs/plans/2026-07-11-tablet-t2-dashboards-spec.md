@@ -42,6 +42,14 @@ staging 검증: 신규 자산 전부 서빙·게이트 마커 ready·콘솔 0·�
 
 사소 발견 2건(수정 대기): ① 시트 바디 좌측 라벨 1~2px 클리핑(시트 좌 패딩 보강) ② construction goto 직후 일회성 `/erp/orders/<id>/mobile` 이탈 관찰(비재현 — 모니터링).
 
+## T3 크롬 교체 완결 (2026-07-12, deploy 1c8858fe·6583cfba)
+
+사용자 "여전히 PC UI" 반복 보고의 근본 원인 확정: 크롬 교체(글로벌 헤더·nav 숨김)가 `:has(.foms-split-enabled)` 게이트, 레일이 split 셸 내부 전용이라 **split 배선 페이지(/erp/dashboard 1곳)에만 발동** — 나머지 8페이지는 4단 크롬+레일 0(계약 테스트가 split 페이지만 잠가 코드·테스트는 green인 채 체감 실패 지속).
+
+수정: ① bridge CSS에 coarse-landscape ≥992 arm 추가 — 키=`body:has(.foms-tablet-rail)`(레일 존재=서버 게이트 SSOT, split arm과 소유 배타), layout-header/global-nav/erp-pro-nav 숨김 ② 전역 레일 `foms_tablet_rail.html`+`foms-tablet-rail.css`(기본 hidden, coarse landscape+@supports :has 동거 표시, fixed 72px + `#main-content` padding-left — body/.container-fluid는 인라인 padding:0 !important 잠금이라 불가) ③ layout_nav.html include 게이트(erp_mobile_v2_enabled+/erp, dashboard 제외=이중 레일 방지) ④ `resolve_tablet_rail_active_id`(세그먼트 경계 최장 접두)+`build_tablet_rail_items` — split 빌더 재사용, lazy Jinja 전역(순환 import→지연 import). 부수 봉합: AS 카메라 바 ≥768 숨김이 v2 전용 foms-shell.css 소속이라 v3에서 데스크톱·태블릿 누출 → 셸-독립 as-dashboard-body.css 정본 이전.
+
+검증: 계약 293 passed + staging coarse 에뮬 실측 — 8페이지 전량(as/measurement/drawing/production/construction/completion/history/shipment) 크롬 3종 none·레일 72px·padding 72px·active 정확·hscroll 무, dashboard=split 레일 단독, PC fine 무회귀. 실측 노하우 추가: CSSOM media 재작성 워커는 **CSSImportRule.styleSheet 재귀 필수**(@import 체인 시트는 cssRules로 안 내려감).
+
 ## 백로그 (잔여 페이지 — 조사 완료, 착수 판단 대기)
 
 시트/터치 그리드 계약(`#erp-grid tr.erp-main-row[data-order-id]`) 미충족 6페이지 실사 결과:
