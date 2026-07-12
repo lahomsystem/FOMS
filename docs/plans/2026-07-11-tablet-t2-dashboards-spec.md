@@ -35,6 +35,13 @@ context_processors·서버 라우트·quest 엔진 수정 금지(칸반도 표�
 
 staging 검증: 신규 자산 전부 서빙·게이트 마커 ready·콘솔 0·기존 매트릭스 무회귀(1180 fine=split/desktop 정상, 특수형·칸반·시트는 coarse 전용이라 실기기에서 발현). 격리 worktree 스모크 250 passed × 3회. CI green.
 
+## staging 직접 실측 (2026-07-11, coarse 에뮬 우회 — matchMedia 프로토타입 패치 + CSSOM mediaText 교체)
+
+전 항목 실구동 통과: ① 사이드 시트(시공 행 탭 → 380px 고정 시트, fragment 87KB 로드, col-md 단일열 평탄화 371px, 비차단·X/ESC) ② 생산 칸반(3버킷 렌더·카드·상차 D-day 칩·빈 열 "해당 없음") ③ 실측 특수형(좌 고객 리스트+우 패널+빈 상태 안내 — staging에 실측 일정 데이터 0건) ④ 터치 보정 수치(행 78px·버튼 44px·페이지네이션 44px·필터 입력 50px/16px — iOS 줌 방지 실효) ⑤ W11 타일(경보 4-타일+파이프라인 타일 렌더) ⑥ fragment 가드(직접 내비게이션→/edit 302·fetch→200) ⑦ 폰 모바일 큐 무회귀.
+측정 노하우: 헤드리스는 pointer:fine — JS 게이트는 `MediaQueryList.prototype.matches` getter 패치(coarse+landscape 쿼리만 true), CSS는 원본 주입 후 `sheet.cssRules[i].media.mediaText='all'` 교체(문자열 치환은 주석 속 "@media" 언급에 파싱 파괴 — 실패 사례).
+
+사소 발견 2건(수정 대기): ① 시트 바디 좌측 라벨 1~2px 클리핑(시트 좌 패딩 보강) ② construction goto 직후 일회성 `/erp/orders/<id>/mobile` 이탈 관찰(비재현 — 모니터링).
+
 ## 백로그 (잔여 페이지 — 조사 완료, 착수 판단 대기)
 
 시트/터치 그리드 계약(`#erp-grid tr.erp-main-row[data-order-id]`) 미충족 6페이지 실사 결과:

@@ -94,15 +94,19 @@ def test_landscape_css_carries_touch_correction_rules() -> None:
 
 
 def test_mobile_surfaces_imports_landscape_and_side_sheet() -> None:
-    """foms-mobile-surfaces.css @imports BOTH the W9 landscape file and the W10
-    side-sheet file. W10 may not exist yet — the import is reserved (fail-soft)."""
-    css = _read(MOBILE_SURFACES_CSS)
-    assert '@import url("../foundation/foms-tablet-landscape.css?v=' in css, (
-        "missing W9 landscape @import"
+    """W16: 태블릿 T2 융합 레이어는 셸-독립 번들(foms-tablet-bundle.css)이 소유한다(v3 코호트
+    미로드 실사고 봉합). 번들이 W9 landscape + W10 side-sheet 를 번들-상대 경로로 @import 하고,
+    surfaces 에는 더 이상 없다(단일 소유=번들)."""
+    bundle = _read(TABLET_BUNDLE_CSS)
+    surfaces = _read(MOBILE_SURFACES_CSS)
+    assert '@import url("foms-tablet-landscape.css?v=' in bundle, (
+        "missing W9 landscape @import in bundle"
     )
-    assert '@import url("../components/foms-tablet-side-sheet.css?v=' in css, (
-        "missing W10 side-sheet @import (reserved line)"
+    assert '@import url("../components/foms-tablet-side-sheet.css?v=' in bundle, (
+        "missing W10 side-sheet @import in bundle"
     )
+    assert "foms-tablet-landscape" not in surfaces
+    assert "foms-tablet-side-sheet" not in surfaces
 
 
 def test_mobile_surfaces_parent_cachebuster_bumped() -> None:
@@ -432,10 +436,14 @@ def test_tablet_measurement_css_exists_exclusive_and_landscape_only() -> None:
 
 
 def test_mobile_surfaces_imports_measurement_and_kanban_reserved() -> None:
-    """foms-mobile-surfaces.css 가 W12 measurement + W13 kanban(예약, fail-soft) @import."""
-    css = _read(MOBILE_SURFACES_CSS)
-    assert '@import url("../foundation/foms-tablet-measurement.css?v=' in css
-    assert '@import url("../foundation/foms-tablet-production-kanban.css?v=' in css
+    """W16: 번들(foms-tablet-bundle.css)이 W12 measurement + W13 kanban 을 @import 하고,
+    surfaces 에는 없다(단일 소유=번들)."""
+    bundle = _read(TABLET_BUNDLE_CSS)
+    surfaces = _read(MOBILE_SURFACES_CSS)
+    assert '@import url("foms-tablet-measurement.css?v=' in bundle
+    assert '@import url("foms-tablet-production-kanban.css?v=' in bundle
+    assert "foms-tablet-measurement" not in surfaces
+    assert "foms-tablet-production-kanban" not in surfaces
 
 
 def test_fragment_loader_module_exists() -> None:
@@ -557,3 +565,48 @@ def test_w14_side_sheet_no_outside_click_auto_close() -> None:
     assert "!sheet.contains(target)" not in js, "외부클릭 자동 닫기 잔존"
     assert 'ev.key === "Escape"' in js, "ESC 닫기 소실"
     assert "close" in js  # X/ESC close 경로 보존
+
+
+# =====================================================================
+# W16 — 태블릿 T2 융합 레이어 셸-독립 번들 이관 계약
+# (v3 코호트 미로드 실사고 봉합: 4종 @import 를 surfaces→foms-tablet-bundle.css 이관,
+#  bundle 을 erp_mobile_v2_enabled(v2∪v3) 게이트로 layout_head 에서 공통 로드.)
+# =====================================================================
+
+
+def test_w16_tablet_bundle_exists_with_four_imports_shell_independent() -> None:
+    """번들 파일 존재 + 4종 @import(번들-상대 경로) + 상단에 셸-독립 사유 주석."""
+    bundle = _read(TABLET_BUNDLE_CSS)
+    for frag in (
+        '@import url("foms-tablet-landscape.css?v=',
+        '@import url("../components/foms-tablet-side-sheet.css?v=',
+        '@import url("foms-tablet-measurement.css?v=',
+        '@import url("foms-tablet-production-kanban.css?v=',
+    ):
+        assert frag in bundle, f"bundle missing @import: {frag}"
+    head = bundle[:600]
+    assert ("직교" in head) or ("셸 변형" in head), "번들 상단 셸-독립 사유 주석 부재"
+
+
+def test_w16_layout_head_loads_bundle_for_v2_and_v3_cohort() -> None:
+    """layout_head 가 foms-tablet-bundle.css 를 erp_mobile_v2_enabled(코호트 공통) 게이트로
+    로드하고 ?v=20260712a 를 가진다. v2 전용(shell_variant=='v2') 게이트가 아님을 검증."""
+    layout_head = _read("templates/partials/shared/layout_head.html")
+    idx = layout_head.find("foms-tablet-bundle.css")
+    assert idx != -1, "layout_head 에 태블릿 번들 <link> 부재"
+    assert "foms-tablet-bundle.css') }}?v=20260712a" in layout_head
+    window = layout_head[max(0, idx - 200):idx]
+    assert "erp_mobile_v2_enabled" in window, "번들 게이트가 erp_mobile_v2_enabled 아님"
+    assert "shell_variant == 'v2'" not in window, "번들이 v2 전용 게이트로 로드됨(코호트 미공통)"
+
+
+def test_w16_surfaces_no_longer_owns_tablet_files() -> None:
+    """surfaces 단일 소유 이관: 4종 태블릿 파일명이 surfaces 에 하나도 없다."""
+    surfaces = _read(MOBILE_SURFACES_CSS)
+    for name in (
+        "foms-tablet-landscape",
+        "foms-tablet-side-sheet",
+        "foms-tablet-measurement",
+        "foms-tablet-production-kanban",
+    ):
+        assert name not in surfaces, f"surfaces 에 태블릿 파일명 잔존: {name}"
