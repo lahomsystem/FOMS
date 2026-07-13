@@ -213,6 +213,50 @@ def test_seed_budget_custom_margin():
 
 
 # ---------------------------------------------------------------------------
+# reconcile_seed_budget: 로컬 seed 는 CI 심판석 TTFB 보존, bytes 만 재시드
+# ---------------------------------------------------------------------------
+def test_reconcile_local_preserves_ci_ttfb_budget():
+    """로컬(on_ci=False) + 이전 ttfb 존재 → ttfb 는 CI 값 보존, bytes 는 new, preserved=True."""
+    new_budget = {"ttfb_delta_min_ms": 198, "body_bytes_max": 12000}
+    old_budget = {"ttfb_delta_min_ms": 276, "body_bytes_max": 9000}
+    merged, preserved = gate.reconcile_seed_budget(new_budget, old_budget, on_ci=False)
+    assert preserved is True
+    assert merged["ttfb_delta_min_ms"] == 276  # CI 심판석 값 보존(로컬 198 오염 차단)
+    assert merged["body_bytes_max"] == 12000   # bytes 는 결정적 → 재시드
+
+
+def test_reconcile_ci_updates_ttfb_budget():
+    """CI(on_ci=True) + 이전 ttfb 존재 → ttfb 갱신(심판석 자격), preserved=False."""
+    new_budget = {"ttfb_delta_min_ms": 198, "body_bytes_max": 12000}
+    old_budget = {"ttfb_delta_min_ms": 276, "body_bytes_max": 9000}
+    merged, preserved = gate.reconcile_seed_budget(new_budget, old_budget, on_ci=True)
+    assert preserved is False
+    assert merged["ttfb_delta_min_ms"] == 198  # CI 러너는 새 측정값을 그대로 반영
+    assert merged["body_bytes_max"] == 12000
+
+
+def test_reconcile_bootstrap_no_prev_ttfb_uses_new():
+    """로컬 + 이전 ttfb 없음(최초 부트스트랩, old={}) → ttfb 는 new, preserved=False."""
+    new_budget = {"ttfb_delta_min_ms": 198, "body_bytes_max": 12000}
+    merged, preserved = gate.reconcile_seed_budget(new_budget, {}, on_ci=False)
+    assert preserved is False
+    assert merged["ttfb_delta_min_ms"] == 198  # 보존할 이전 값 없음 → 부트스트랩
+    assert merged["body_bytes_max"] == 12000
+
+
+def test_is_ci_detects_github_actions_and_ci_env(monkeypatch):
+    """_is_ci(): GITHUB_ACTIONS/CI env 세팅 시 True, 해제 시 False."""
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    monkeypatch.delenv("CI", raising=False)
+    assert gate._is_ci() is False
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    assert gate._is_ci() is True
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    monkeypatch.setenv("CI", "true")
+    assert gate._is_ci() is True
+
+
+# ---------------------------------------------------------------------------
 # 크리덴셜 부재 → exit 2 (SKIP ≠ 실패)
 # ---------------------------------------------------------------------------
 def test_missing_credentials_exit_2(monkeypatch):

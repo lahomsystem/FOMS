@@ -227,6 +227,28 @@ def seed_budget(
     }
 
 
+def reconcile_seed_budget(
+    new_budget: dict[str, int], old_budget: dict[str, Any], on_ci: bool
+) -> tuple[dict[str, int], bool]:
+    """로컬 seed 는 CI 심판석 TTFB 예산을 보존하고 bytes 만 재시드한다.
+
+    TTFB 예산(ttfb_delta_min_ms)의 관측 기준은 CI 러너다. 로컬 머신에서 --seed 를
+    돌리면 로컬 네트워크/CPU 측정값이 CI 심판석 예산을 오염(엄격화/완화)시켜 CI 가
+    오탐/누락한다(실증: b10dd728 history 276→198 오염). on_ci=False 이고 이전 예산에
+    ttfb 값이 있으면 그 값을 보존한다(bytes 는 결정적이라 항상 재시드). on_ci=True(심판석)
+    이거나 이전 ttfb 예산이 없으면(최초 부트스트랩) 새 측정값을 그대로 쓴다.
+
+    Returns:
+        (병합된 예산, ttfb_보존_여부).
+    """
+    merged = dict(new_budget)
+    preserved = False
+    if not on_ci and old_budget.get("ttfb_delta_min_ms") is not None:
+        merged["ttfb_delta_min_ms"] = old_budget["ttfb_delta_min_ms"]
+        preserved = True
+    return merged, preserved
+
+
 # ---------------------------------------------------------------------------
 # 측정 (네트워크) — 재시도 포함
 # ---------------------------------------------------------------------------
@@ -353,11 +375,16 @@ def run_seed(base: str, user: str, password: str, prev: dict[str, Any]) -> dict[
     paths: dict[str, Any] = {}
     prev_paths = prev.get("paths", {})
     loosened: list[str] = []
+    preserved_paths: list[str] = []
+    on_ci = _is_ci()
     for path in FRAGMENT_PATHS:
         measured = measure_path(session, base, path, rounds=SEED_ROUNDS)
         summary = summarize_samples(measured["warm"])
         new_budget = seed_budget(summary, base_ttfb_ms)
         old_budget = prev_paths.get(path) or {}
+        new_budget, preserved = reconcile_seed_budget(new_budget, old_budget, on_ci)
+        if preserved:
+            preserved_paths.append(path)
         for k in ("ttfb_delta_min_ms", "body_bytes_max"):
             if old_budget.get(k) is not None and new_budget[k] > old_budget[k]:
                 loosened.append(f"{path} {k}: {old_budget[k]} -> {new_budget[k]}")
@@ -367,6 +394,11 @@ def run_seed(base: str, user: str, password: str, prev: dict[str, Any]) -> dict[
         print("[perf-gate][WARN] --seed 가 기존 예산을 완화합니다(의도된 성능 변화인지 diff 리뷰 필수):")
         for line in loosened:
             print(f"  - {line}")
+    if preserved_paths:
+        print("[perf-gate][NOTE] 로컬 --seed: TTFB 예산은 CI 심판석 값 보존(bytes 만 재시드). "
+              "ttfb 갱신은 CI(GITHUB_ACTIONS=true)에서만 반영:")
+        for p in preserved_paths:
+            print(f"  - {p}")
     prev_global = prev.get("_global") or {}
     return {
         "_comment": (
@@ -441,6 +473,11 @@ def render_table(rows: list[dict[str, Any]], base_ttfb_ms: int | None = None) ->
         for reason in r["reasons"]:
             lines.append(f"    ↳ {reason}")
     return "\n".join(lines)
+
+
+def _is_ci() -> bool:
+    """GitHub Actions/CI 러너 여부 — TTFB 예산 시드의 심판석 자격 판별."""
+    return os.environ.get("GITHUB_ACTIONS") == "true" or os.environ.get("CI") == "true"
 
 
 def _credentials() -> tuple[str, str] | None:
