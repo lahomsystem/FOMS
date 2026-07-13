@@ -69,6 +69,7 @@ def build_orders_row_dtos(page_orders, page_sds, att_counts, user_map, current_u
             'id': o.id,
             'is_erp_order': o.is_erp_order,
             'is_self_measurement': getattr(o, 'is_self_measurement', False),
+            'is_regional': getattr(o, 'is_regional', False),
             'structured_data': sd,
             'customer_name': (parties.get('customer') or {}).get('name') or '-',
             'phone': (parties.get('customer') or {}).get('phone') or '-',
