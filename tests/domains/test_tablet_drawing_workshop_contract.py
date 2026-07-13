@@ -98,8 +98,12 @@ def test_gallery_card_carries_sheet_url_and_order_id() -> None:
     # 상세 앵커(비-코호트/무 JS fallback) 보존.
     assert "erp_drawing_workbench.erp_drawing_workbench_detail" in body
     assert "tab=timeline" in body
-    # tlabel "시트N·상태".
-    assert "시트 {{ r.file_count }} · {{ r.drawing_status_label }}" in body
+    # tlabel 버전 인지(프레임 03): 시트 N · v{전달회차} · 전달본/전달 대기/상태.
+    assert "시트 {{ r.file_count }}" in body
+    assert "· v{{ r.transfer_round }}" in body
+    assert "in ('TRANSFERRED', 'CONFIRMED') %}전달본" in body
+    assert "{% elif r.pending_count %}전달 대기" in body
+    assert "{{ r.drawing_status_label }}" in body
     # 전달완료 dim.
     assert "is-dim" in body
     assert "'TRANSFERRED', 'CONFIRMED'" in body
@@ -115,7 +119,7 @@ def test_gallery_wires_workshop_js_deferred_with_cachebuster() -> None:
     assert m is not None, "tablet-drawing-gallery.js not wired in gallery partial"
     tag = m.group(0)
     assert "defer" in tag, "gallery script must be defer (perf G1)"
-    assert "?v=20260713a" in tag, "new file must carry ?v=20260713a"
+    assert "?v=20260713b" in tag, "modified file must carry bumped ?v=20260713b"
 
 
 # --- 관리 시트 fragment ------------------------------------------------------
@@ -218,4 +222,41 @@ def test_gallery_css_workshop_shell_size_variants_and_landscape_only() -> None:
     assert "width: 120px" in css
     assert "height: 84px" in css
     # landscape 전용(portrait 토큰 금지, split-view 가드 정합).
+    assert "orientation: portrait" not in css
+
+
+# --- long-press 다중 선택 (프레임 03 note2) ----------------------------------
+
+
+def test_gallery_js_longpress_multiselect_reuses_batch_modal() -> None:
+    js = _read(GALLERY_JS)
+    # long-press(~500ms) 진입 + 이동 취소(스크롤 구분).
+    assert "pointerdown" in js
+    assert "LONG_PRESS_MS = 500" in js
+    assert "MOVE_CANCEL_PX" in js
+    # 포인터/선택 배선 코호트 게이트 = MQ + CSS 마커(--foms-tablet-ui) 파생(비코호트 무동작).
+    assert "orientation: landscape) and (pointer: coarse)" in js
+    assert "--foms-tablet-ui" in js
+    # 선택 상태 = 카드 클래스 + 기존 PC 벌크 체크박스(.order-checkbox) 구동 → 모달 재사용.
+    assert "is-selected" in js
+    assert "is-selecting" in js
+    assert ".order-checkbox" in js
+    assert "openBatchAssignModal" in js
+    # contextual bar = 공용 .foms-tablet-bulk-bar 재사용 + [일괄 배정]/[선택 해제].
+    assert "foms-tablet-bulk-bar" in js
+    assert "일괄 배정" in js
+    assert "선택 해제" in js
+    # 사이드 시트 억제(capture stopPropagation) + long-press 후속 click 소비.
+    assert "stopPropagation" in js
+    assert "consumeNextClick" in js
+
+
+def test_gallery_css_longpress_selection_affordance() -> None:
+    css = _norm(_read(GALLERY_CSS))
+    # 선택 모드 체크 원 + 선택 카드 primary 링.
+    assert ".foms-drawing-gallery.is-selecting" in css
+    assert ".foms-drawing-gallery-card.is-selected" in css
+    # long-press 콜아웃/텍스트 선택 억제(카드가 <a>).
+    assert "-webkit-touch-callout: none" in css
+    # landscape 전용 계약 유지.
     assert "orientation: portrait" not in css

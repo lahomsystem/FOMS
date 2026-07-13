@@ -496,16 +496,8 @@ html, body {
     -webkit-backdrop-filter: blur(2px);
     backdrop-filter: blur(2px);
   }
-
-  /* --- 펜 팔레트: 하단 고정(캔버스 상단을 가리지 않게) + 좁으면 줄바꿈 --- */
-  .dws-pen-palette {
-    top: auto;
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
-    max-width: calc(100vw - 16px);
-    flex-wrap: wrap;
-    justify-content: center;
-    row-gap: 8px;
-  }
+  /* 펜 팔레트 하단 고정은 §미니툴바 근처(기본 .dws-pen-palette 정의 '뒤')로 이동.
+     여기(기본값보다 앞)에 두면 소스 순서상 top:150px 가 이겨 팔레트가 세로로 늘어난다. */
 }
 
 /* ============================================================================
@@ -1529,6 +1521,39 @@ html, body {
 .dws-pen-palette .dws-hi-only { display: none; }
 .dws-pen-palette.dws-pen-hi .dws-pen-only { display: none; }
 .dws-pen-palette.dws-pen-hi .dws-hi-only { display: inline-flex; }
+
+/* ============================================================================
+   터치(coarse) 반응형 — 반드시 기본 .dws-pen-palette(top:150px, 위) '뒤'에 온다.
+   기본값보다 앞(≤900 미디어)에 두면 동일 특이도에서 소스 순서상 기본 top:150px 가
+   이겨, bottom 과 겹쳐 팔레트가 세로로 늘어나는 과제약 버그가 난다(구 ≤900 결함의
+   근본원인). 여기서 재정의해 폰·태블릿 모두 실제로 하단 고정되게 한다.
+   ---------------------------------------------------------------------------
+   [A] 펜 팔레트 하단 고정 — 폰(≤900, 포인터 무관) + 가로 태블릿(>900, coarse) 공통.
+       PC/데스크톱(fine)·좁은 fine 창은 아래 조건에 매칭 안 됨 → 기본 top:150 캡슐 유지.
+   ============================================================================ */
+@media (max-width: 900px), (min-width: 901px) and (pointer: coarse) {
+  .dws-pen-palette {
+    top: auto;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+    max-width: calc(100vw - 16px);
+    flex-wrap: wrap;
+    justify-content: center;
+    row-gap: 8px;
+  }
+}
+
+/* [B] 가로 태블릿(>900, coarse)만: 도구 세그 40px 터치 타깃 + 아이콘 중앙 정렬.
+   좌측 제품 패널은 데스크톱 도킹(기본)을 유지한다 — 여기서 드로어를 강제하지 않는다
+   (넓은 화면이라 도킹이 적합). 폰(≤900)은 위 3단계 블록에서 이미 40px 처리 → 중복 배제.
+   coarse 게이트로 fine-pointer 노트북(1024px 등)은 데스크톱 크기 그대로(무회귀). */
+@media (min-width: 901px) and (pointer: coarse) {
+  .dws-seg-btn {
+    min-width: 40px;
+    min-height: 40px;
+    justify-content: center;
+    padding: 6px;
+  }
+}
 
 .dws-minitoolbar {
   position: fixed;

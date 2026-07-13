@@ -109,7 +109,7 @@
           {% if r.thumbnail_url %}
           <img class="foms-drawing-gallery-card__img" src="{{ r.thumbnail_url }}" alt="{{ r.customer_name }} 도면 미리보기" loading="lazy">
           {% endif %}
-          <span class="foms-drawing-gallery-card__thumb-label">시트 {{ r.file_count }} · {{ r.drawing_status_label }}</span>
+          <span class="foms-drawing-gallery-card__thumb-label">시트 {{ r.file_count }}{% if r.transfer_round %} · v{{ r.transfer_round }}{% endif %} · {% if r.drawing_status in ('TRANSFERRED', 'CONFIRMED') %}전달본{% elif r.pending_count %}전달 대기{% else %}{{ r.drawing_status_label }}{% endif %}</span>
         </div>
         <div class="foms-drawing-gallery-card__meta">
           <div class="foms-drawing-gallery-card__top">
@@ -151,4 +151,4 @@
     {% endif %}
   </section>
 </section>
-<script src="{{ url_for('static', filename='js/foms/tablet-drawing-gallery.js') }}?v=20260713a" defer></script>
+<script src="{{ url_for('static', filename='js/foms/tablet-drawing-gallery.js') }}?v=20260713b" defer></script>
