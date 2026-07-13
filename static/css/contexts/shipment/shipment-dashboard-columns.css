@@ -164,3 +164,230 @@ body.col-resizing-active {
   body.erp-mobile-v2-layout #shipment-dashboard-table tbody tr[data-team-color-index="8"] > td { background-color: #F5D5E5; }
   body.erp-mobile-v2-layout #shipment-dashboard-table tbody tr[data-team-color-index="9"] > td { background-color: #E9E5D5; }
 }
+
+/* =============================================================
+   태블릿 가로 목업 06 — pcbar · 좌측 잔여 스트립 · 팀 그룹헤더 · 밀도 (2026-07-13, W-shipment)
+   ------------------------------------------------------------
+   이 파일은 dashboard_main.html 본문 <link>(shipment 페이지 전용 로드)라 선택자는
+   암묵적으로 shipment-scoped 이며, 아래 신규 규칙은 전부 body.erp-mobile-v2-layout(코호트)
+   + coarse landscape MQ + .erp-dashboard-shipment/#shipment-dashboard-table 스코프 안이라
+   PC(fine)·폰·세로 무영향. base-hide 를 MQ 밖에 먼저 둔다(순서 계약). foms 토큰 소비
+   (전역 로드 파운데이션) + 안전 fallback. 데이터 구동 값(진행률)만 인라인 CSS 변수.
+   ============================================================= */
+
+/* base-hide: 코호트 밖(PC/폰/세로)에서 신규 마크업 완전 은닉. */
+.foms-ship-pcbar,
+.foms-ship-cap-strip { display: none; }
+#shipment-dashboard-table tbody tr.shipment-grp-row { display: none; }
+
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+
+  /* --- PC 크롬 은닉: erp-pro-header(제목/버튼) + 스케줄러 패널 열(잔여 스트립이 대체) ---
+     !important: 마크업 Bootstrap 유틸 특이도 패배 방지(orders/production 전례). */
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .erp-pro-header {
+    display: none !important;
+  }
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .erp-shipment-scheduler-col {
+    display: none !important;
+  }
+
+  /* --- pcbar: 제목 · M/D(요일) 출고·N건 · 밀도 토글 · AS 추천 · 출고 확정 --- */
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .foms-ship-pcbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--foms-space-3, 0.75rem);
+    margin-bottom: var(--foms-space-3, 0.75rem);
+  }
+  body.erp-mobile-v2-layout .foms-ship-pcbar__lead {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: var(--foms-space-2, 0.5rem);
+    min-width: 0;
+  }
+  body.erp-mobile-v2-layout .foms-ship-pcbar__title {
+    margin: 0;
+    font-size: var(--foms-font-size-xl, 1.25rem);
+    font-weight: var(--foms-font-weight-bold, 700);
+    color: var(--foms-text-primary, #1f2733);
+  }
+  body.erp-mobile-v2-layout .foms-ship-pcbar__sub {
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    color: var(--foms-text-tertiary, #6b7380);
+  }
+  body.erp-mobile-v2-layout .foms-ship-pcbar__actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--foms-space-2, 0.5rem);
+  }
+  body.erp-mobile-v2-layout .foms-ship-pcbar__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--foms-space-1, 0.25rem);
+    min-height: var(--foms-touch-target-comfortable, 44px);
+    padding: 0 var(--foms-space-4, 1rem);
+    border: 1px solid var(--foms-border-default, #c7ccd4);
+    border-radius: var(--foms-radius-md, 8px);
+    background: var(--foms-surface-base, #fff);
+    color: var(--foms-text-primary, #1f2733);
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    font-weight: var(--foms-font-weight-semibold, 600);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .foms-ship-pcbar__btn--pri {
+    border-color: transparent;
+    background: var(--foms-interactive-primary, #5a67d8);
+    color: var(--foms-color-neutral-0, #fff);
+  }
+  body.erp-mobile-v2-layout .foms-ship-pcbar__btn[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* --- 좌측 잔여 자수 스트립(260px) — PC 스케줄러 패널의 코호트 대체 --- */
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .foms-ship-cap-strip {
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 260px;
+    max-width: 260px;
+    gap: var(--foms-space-3, 0.75rem);
+    padding: var(--foms-space-2, 0.5rem);
+    align-self: flex-start;
+  }
+  body.erp-mobile-v2-layout .foms-ship-cap-strip__title {
+    font-size: var(--foms-font-size-base, 1rem);
+    font-weight: var(--foms-font-weight-bold, 700);
+    color: var(--foms-text-primary, #1f2733);
+  }
+  body.erp-mobile-v2-layout .foms-ship-cap-strip__list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-2, 0.5rem);
+    max-height: calc(100dvh - 260px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  body.erp-mobile-v2-layout .foms-ship-cap-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: var(--foms-space-2, 0.5rem) var(--foms-space-3, 0.75rem);
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: var(--foms-radius-md, 8px);
+    background: var(--foms-surface-base, #fff);
+    text-decoration: none;
+    color: inherit;
+    min-height: var(--foms-touch-target-min, 48px);
+  }
+  body.erp-mobile-v2-layout .foms-ship-cap-card.is-selected {
+    border-color: var(--foms-interactive-primary, #5a67d8);
+    box-shadow: 0 0 0 1px var(--foms-interactive-primary, #5a67d8);
+  }
+  body.erp-mobile-v2-layout .foms-ship-cap-card__top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--foms-space-2, 0.5rem);
+  }
+  body.erp-mobile-v2-layout .foms-ship-cap-card__date {
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    font-weight: var(--foms-font-weight-semibold, 600);
+    color: var(--foms-text-primary, #1f2733);
+    white-space: nowrap;
+  }
+  body.erp-mobile-v2-layout .foms-ship-cap-card__val {
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    font-variant-numeric: tabular-nums;
+    color: var(--foms-text-secondary, #4a515b);
+  }
+  body.erp-mobile-v2-layout .foms-ship-cap-card__bar {
+    display: block;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--foms-surface-muted, #eceef1);
+    overflow: hidden;
+  }
+  /* 진행률 채움 — 폭은 데이터 구동(인라인 --cap-fill), 색/형태는 CSS. off(주말·휴일·
+     capacity 0)=디밍 회색, ok(정상)=녹색, warn(잔여 임박=alert_capacity)=앰버. */
+  body.erp-mobile-v2-layout .foms-ship-cap-card__bar-fill {
+    display: block;
+    height: 100%;
+    width: var(--cap-fill, 0%);
+    border-radius: 999px;
+    background: var(--foms-text-tertiary, #9aa2ad);
+  }
+  body.erp-mobile-v2-layout .foms-ship-cap-card.is-ok .foms-ship-cap-card__bar-fill {
+    background: var(--foms-color-success-500, #22a06b);
+  }
+  body.erp-mobile-v2-layout .foms-ship-cap-card.is-warn .foms-ship-cap-card__bar-fill {
+    background: var(--foms-color-warning-500, #d9a441);
+  }
+  body.erp-mobile-v2-layout .foms-ship-cap-card.is-off {
+    opacity: 0.55;
+  }
+  body.erp-mobile-v2-layout .foms-ship-cap-strip__settings {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--foms-space-1, 0.25rem);
+    min-height: var(--foms-touch-target-min, 48px);
+    padding: 0 var(--foms-space-3, 0.75rem);
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: var(--foms-radius-md, 8px);
+    background: var(--foms-surface-subtle, #f6f7f9);
+    color: var(--foms-text-secondary, #4a515b);
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    font-weight: var(--foms-font-weight-semibold, 600);
+    text-decoration: none;
+  }
+
+  /* --- 팀 그룹 헤더 행 (목업 06 .grp) — 코호트에서만 table-row. 팀 파스텔은 위
+     tr[data-team-color-index="N"] > td 규칙이 배경 상속(assigned). 미배정(-1)만 fallback. --- */
+  body.erp-mobile-v2-layout #shipment-dashboard-table tbody tr.shipment-grp-row {
+    display: table-row;
+  }
+  body.erp-mobile-v2-layout #shipment-dashboard-table tbody tr.shipment-grp-row > td.shipment-grp-cell {
+    display: flex;
+    align-items: center;
+    gap: var(--foms-space-3, 0.75rem);
+    padding: var(--foms-space-2, 0.5rem) var(--foms-space-3, 0.75rem);
+    border-top: 2px solid var(--foms-border-default, #c7ccd4);
+    font-weight: var(--foms-font-weight-bold, 700);
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    color: var(--foms-text-primary, #1f2733);
+    white-space: nowrap;
+  }
+  /* 미배정 그룹(-1): 파스텔 규칙이 없으므로 배경 fallback(assigned 는 파스텔이 상회). */
+  body.erp-mobile-v2-layout #shipment-dashboard-table tbody tr.shipment-grp-row[data-team-color-index="-1"] > td.shipment-grp-cell {
+    background: var(--foms-surface-subtle, #f6f7f9);
+  }
+  body.erp-mobile-v2-layout #shipment-dashboard-table tbody tr.shipment-grp-row .shipment-grp-remain {
+    color: var(--foms-text-secondary, #4a515b);
+    font-variant-numeric: tabular-nums;
+  }
+  body.erp-mobile-v2-layout #shipment-dashboard-table tbody tr.shipment-grp-row .shipment-grp-count {
+    margin-left: auto;
+    color: var(--foms-text-tertiary, #6b7380);
+    font-weight: var(--foms-font-weight-semibold, 600);
+  }
+
+  /* --- 밀도 토글 40/56 (48=위 tr.shipment-row height baseline). 속성 셀렉터로 baseline
+     특이도를 이겨 재정의(tablet-density-toggle.js 가 #shipment-dashboard-table 에 부착). --- */
+  body.erp-mobile-v2-layout #shipment-dashboard-table[data-foms-density="40"] tbody tr.shipment-row {
+    height: 40px;
+  }
+  body.erp-mobile-v2-layout #shipment-dashboard-table[data-foms-density="40"] tbody tr.shipment-row > td {
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+  body.erp-mobile-v2-layout #shipment-dashboard-table[data-foms-density="56"] tbody tr.shipment-row {
+    height: 56px;
+  }
+  body.erp-mobile-v2-layout #shipment-dashboard-table[data-foms-density="56"] tbody tr.shipment-row > td {
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+}

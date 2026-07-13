@@ -171,6 +171,56 @@ def _compute_tablet_ship_kpis(rows: list) -> dict:
     }
 
 
+def _compute_shipment_team_group_meta(rows: list, worker_settings: list) -> dict:
+    """태블릿 그룹 헤더용 시공팀별 집계(자수 합계·건수·capacity·잔여). 추가 쿼리 없음.
+
+    이미 정렬·로드된 ``rows``와 ``worker_settings``만 사용한다. 그룹 키는 각 행의 첫
+    유효 시공자(raw trim) — ``sort_shipment_rows``/템플릿 파스텔 인덱스와 동일 키다.
+    capacity 는 정규화 이름 매칭으로 찾고, 잔여 = capacity − 그룹 자수합(현재 뷰 기준).
+    설정에 없는 팀(임의 입력)·미배정('')은 capacity/remaining 을 None 으로 둔다.
+
+    Args:
+        rows: 그리드와 동일한 정렬된 Order 리스트.
+        worker_settings: normalize_erp_shipment_workers 결과.
+
+    Returns:
+        {group_key: {'units': '12.5', 'count': 3,
+                     'capacity': '40.0'|None, 'remaining': '27.5'|None}}.
+        group_key 는 raw trim 시공자 문자열('' = 미배정).
+    """
+    cap_by_norm = {
+        _normalize_worker_name(w['name']): float(w.get('capacity') or 0)
+        for w in worker_settings if w.get('name')
+    }
+    acc: dict[str, dict] = {}
+    for r in rows:
+        sd = r.structured_data if isinstance(r.structured_data, dict) else {}
+        workers = (sd.get('shipment') or {}).get('construction_workers') or []
+        key = ''
+        for w in workers:
+            s = str(w or '').strip()
+            if s:
+                key = s
+                break
+        slot = acc.setdefault(key, {'units': 0.0, 'count': 0})
+        slot['units'] += _get_order_spec_units(r)
+        slot['count'] += 1
+    meta: dict[str, dict] = {}
+    for key, slot in acc.items():
+        cap = cap_by_norm.get(_normalize_worker_name(key))
+        entry: dict = {
+            'units': f"{slot['units']:.1f}",
+            'count': slot['count'],
+            'capacity': None,
+            'remaining': None,
+        }
+        if cap is not None:
+            entry['capacity'] = f"{cap:.1f}"
+            entry['remaining'] = f"{cap - slot['units']:.1f}"
+        meta[key] = entry
+    return meta
+
+
 def compute_team_remaining_units_for_date(db, target_date: str | None, worker_settings: list) -> dict[str, float]:
     """target_date의 시공팀별 잔여 자수(capacity - 사용)를 계산한다.
 
@@ -465,6 +515,7 @@ def erp_shipment_dashboard():
     sort_shipment_rows(rows)
 
     tablet_ship_kpis = _compute_tablet_ship_kpis(rows)
+    shipment_team_group_meta = _compute_shipment_team_group_meta(rows, worker_settings)
 
     mobile_v2_active = is_mobile_v2_shell(
         resolve_shell_variant_cached(current_user.id if current_user else None)
@@ -495,6 +546,7 @@ def erp_shipment_dashboard():
         erp_mine_only=mine_only,
         is_construction_team=is_construction,
         tablet_ship_kpis=tablet_ship_kpis,
+        shipment_team_group_meta=shipment_team_group_meta,
     )
     _render_ms = (time.perf_counter() - _t0) * 1000.0
     response = make_response(_body)
