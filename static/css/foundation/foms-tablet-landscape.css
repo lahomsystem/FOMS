@@ -708,8 +708,15 @@
   }
   /* 작업 큐 카드 헤더(제목 "작업 큐/주문 처리 및 퀘스트 관리" + "표시:N" 뱃지 + 벌크/폭초기화)
      은닉 → 그리드 직행. 밀도 토글은 pcbar 로 재배치되어 생존. */
+  /* !important: 마크업의 Bootstrap d-flex(!important) 유틸을 이겨야 한다
+     (2026-07-13 staging 실측 — 무장식 display:none 이 패배해 헤더 잔존). */
   body.erp-mobile-v2-layout .erp-dashboard-orders .erp-dashboard-workqueue-head {
-    display: none;
+    display: none !important;
+  }
+  /* 목업 01 = 단일 헤더(pcbar). 상단 ERP 프로세스 대시보드 헤더(주문 생성·홈)는
+     pcbar(주문 생성)와 레일(대시보드)이 대체하므로 이중 헤더 은닉. */
+  body.erp-mobile-v2-layout .erp-dashboard-orders .erp-pro-header {
+    display: none !important;
   }
 
   /* --- pcbar: 제목 · sub(N건·날짜) · 밀도 토글 · 주문 생성 --- */
