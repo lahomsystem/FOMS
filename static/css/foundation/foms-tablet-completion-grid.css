@@ -399,52 +399,176 @@
      W17 완료 정산 사이드 시트 — 공용 side-sheet(.foms-tablet-sheet__body) 안에 로드되는
      완료 탭 상세 fragment(templates/cs/partials/tablet_completion_sheet.html). 시트는
      <body>에 append 되므로 코호트 MQ + body.erp-mobile-v2-layout 스코프로 충분(완료 탭
-     전용 클래스). 버튼은 ≥44px 터치 타깃.
+     전용 클래스). 클래스는 fragment 의 실제 BEM(.foms-completion-sheet__*)과 1:1 정합:
+     head/customer/meta · amount-grid/amount(+balance 하이라이트) · section-title/badge ·
+     memo · field · cash · photo-grid · issue-result. 버튼/컨트롤은 ≥44px 터치 타깃.
      ========================================================================== */
   body.erp-mobile-v2-layout .foms-completion-sheet {
     display: flex;
     flex-direction: column;
     gap: var(--foms-space-4);
   }
-  body.erp-mobile-v2-layout .foms-completion-sheet__m-head {
-    color: var(--foms-text-primary);
-    font-size: var(--foms-font-size-xl);
-    font-weight: var(--foms-font-weight-bold);
-  }
-  body.erp-mobile-v2-layout .foms-completion-sheet__m-count {
-    color: var(--foms-text-tertiary);
-    font-size: var(--foms-font-size-sm);
-  }
-  /* 잔금 하이라이트 타일(정산 판단의 본체). */
-  body.erp-mobile-v2-layout .foms-completion-sheet__hl-tile {
+
+  /* --- 헤더: 고객명 + 완료일 --- */
+  body.erp-mobile-v2-layout .foms-completion-sheet__head {
     display: flex;
     flex-direction: column;
     gap: var(--foms-space-1);
-    padding: var(--foms-space-4);
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet__customer {
+    margin: 0;
+    color: var(--foms-text-primary);
+    font-size: var(--foms-font-size-xl);
+    font-weight: var(--foms-font-weight-bold);
+    line-height: var(--foms-line-height-tight);
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet__meta {
+    margin: 0;
+    color: var(--foms-text-tertiary);
+    font-size: var(--foms-font-size-sm);
+  }
+
+  /* --- 섹션 공통: 제목/본문 세로 스택 --- */
+  body.erp-mobile-v2-layout .foms-completion-sheet__section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-3);
+    margin: 0;
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet__section-title {
+    display: flex;
+    align-items: center;
+    gap: var(--foms-space-2);
+    margin: 0;
+    color: var(--foms-text-primary);
+    font-size: var(--foms-font-size-base);
+    font-weight: var(--foms-font-weight-bold);
+  }
+
+  /* --- 금액 그리드: 출고가/예약금 2-up + 잔금 풀폭 하이라이트 타일 ---
+     잔금 = 출고가 − 예약금(불변식). 두 피연산자(출고가·예약금)는 상단 2열,
+     결과(잔금)는 아래 full-bleed 브랜드 틴트 타일로 강조 = 정산 판단의 본체. */
+  body.erp-mobile-v2-layout .foms-completion-sheet__amount-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--foms-space-3);
+    margin: 0;
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet__amount {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-1);
+    padding: var(--foms-space-3) var(--foms-space-4);
     background: var(--foms-surface-subtle);
     border: 1px solid var(--foms-border-subtle);
     border-radius: var(--foms-radius-lg);
   }
-  body.erp-mobile-v2-layout .foms-completion-sheet__hl-label {
+  body.erp-mobile-v2-layout .foms-completion-sheet__amount dt {
     color: var(--foms-text-tertiary);
     font-size: var(--foms-font-size-sm);
     font-weight: var(--foms-font-weight-bold);
   }
-  body.erp-mobile-v2-layout .foms-completion-sheet__hl-value {
+  body.erp-mobile-v2-layout .foms-completion-sheet__amount dd {
+    margin: 0;
     color: var(--foms-text-primary);
-    font-size: var(--foms-font-size-2xl);
+    font-size: var(--foms-font-size-xl);
     font-weight: var(--foms-font-weight-bold);
     font-variant-numeric: tabular-nums;
+    text-align: right;
   }
-  body.erp-mobile-v2-layout .foms-completion-sheet__card {
+  /* 잔금 하이라이트 타일(브랜드 틴트 bg + 브랜드 보더 + 2xl 큰 숫자) = 목업 hl-tile. */
+  body.erp-mobile-v2-layout .foms-completion-sheet__amount--balance {
+    grid-column: 1 / -1;
+    background: var(--foms-surface-accent);
+    border-color: var(--foms-interactive-primary);
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet__amount--balance dt {
+    color: var(--foms-text-secondary);
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet__amount--balance dd {
+    font-size: var(--foms-font-size-2xl);
+  }
+
+  /* --- 정산 상태 배지: 대기=warning 틴트(액션 필요), 청구 완료=무채색(HMI 색 규율) --- */
+  body.erp-mobile-v2-layout .foms-completion-sheet__badge {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--foms-space-1) var(--foms-space-3);
+    border-radius: var(--foms-radius-full);
+    font-size: var(--foms-font-size-xs);
+    font-weight: var(--foms-font-weight-bold);
+    line-height: 1;
+    white-space: nowrap;
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet__badge--pending {
+    background: var(--foms-color-warning-50);
+    color: var(--foms-color-warning-700);
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet__badge--issued {
+    background: var(--foms-surface-muted);
+    color: var(--foms-text-secondary);
+  }
+
+  /* --- 비용 청구 메모 리스트 --- */
+  body.erp-mobile-v2-layout .foms-completion-sheet__memo {
     display: flex;
     flex-direction: column;
     gap: var(--foms-space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
   }
-  body.erp-mobile-v2-layout .foms-completion-sheet__card-title {
+  body.erp-mobile-v2-layout .foms-completion-sheet__memo-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--foms-space-1) var(--foms-space-2);
+    padding: var(--foms-space-2) var(--foms-space-3);
+    background: var(--foms-surface-subtle);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-md);
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet__memo-dept {
     color: var(--foms-text-secondary);
     font-size: var(--foms-font-size-sm);
     font-weight: var(--foms-font-weight-bold);
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet__memo-amount {
+    margin-left: auto;
+    color: var(--foms-text-primary);
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-bold);
+    font-variant-numeric: tabular-nums;
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet__memo-reason {
+    flex-basis: 100%;
+    color: var(--foms-text-secondary);
+    font-size: var(--foms-font-size-sm);
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet__memo-by {
+    flex-basis: 100%;
+    color: var(--foms-text-tertiary);
+    font-size: var(--foms-font-size-xs);
+    text-align: right;
+  }
+
+  /* --- 빈 상태 / 시공팀 차단 노트 --- */
+  body.erp-mobile-v2-layout .foms-completion-sheet__empty {
+    margin: 0;
+    padding: var(--foms-space-4);
+    background: var(--foms-surface-subtle);
+    border-radius: var(--foms-radius-md);
+    color: var(--foms-text-tertiary);
+    font-size: var(--foms-font-size-sm);
+    text-align: center;
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet__issue-blocked {
+    margin: 0;
+    padding: var(--foms-space-3) var(--foms-space-4);
+    background: var(--foms-surface-muted);
+    border-radius: var(--foms-radius-md);
+    color: var(--foms-text-secondary);
+    font-size: var(--foms-font-size-sm);
   }
   body.erp-mobile-v2-layout .foms-completion-sheet__photo-grid {
     display: grid;
@@ -457,39 +581,23 @@
     max-width: 100%;
     border-radius: var(--foms-radius-md);
   }
-  body.erp-mobile-v2-layout .foms-completion-sheet__m-foot {
+  /* --- 비용 청구 폼 필드(label/컨트롤 세로 스택) + 제출 버튼 --- */
+  body.erp-mobile-v2-layout .foms-completion-sheet__field {
     display: flex;
-    gap: var(--foms-space-3);
+    flex-direction: column;
+    gap: var(--foms-space-1);
   }
-  body.erp-mobile-v2-layout .foms-completion-sheet__btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+  body.erp-mobile-v2-layout .foms-completion-sheet__field-label {
+    color: var(--foms-text-secondary);
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-bold);
+  }
+  /* 제출: btn btn-primary(부트스트랩) 색은 유지, 터치 타깃·풀폭만 보강. */
+  body.erp-mobile-v2-layout .foms-completion-sheet__issue-submit {
+    width: 100%;
     min-height: var(--foms-touch-target-comfortable);
-    padding: 0 var(--foms-space-4);
-    background: var(--foms-surface-base);
-    border: 1px solid var(--foms-border-subtle);
-    border-radius: var(--foms-radius-md);
-    color: var(--foms-text-primary);
     font-size: var(--foms-font-size-base);
     font-weight: var(--foms-font-weight-bold);
-    cursor: pointer;
-  }
-  /* 현금영수증: API 미배선 → disabled look(타 워커/후속). */
-  body.erp-mobile-v2-layout .foms-completion-sheet__btn--receipt {
-    flex: 1.2;
-    opacity: 0.55;
-    cursor: not-allowed;
-  }
-  body.erp-mobile-v2-layout .foms-completion-sheet__btn--issue {
-    flex: 1.4;
-    background: var(--foms-interactive-primary);
-    border-color: var(--foms-interactive-primary);
-    color: var(--foms-text-inverse);
-  }
-  body.erp-mobile-v2-layout .foms-completion-sheet__btn--issue:disabled {
-    opacity: 0.6;
-    cursor: progress;
   }
   /* 정산 발행 폼(data-foms-settlement-issue) — 필드 ≥44px + font-size:base. */
   body.erp-mobile-v2-layout .foms-completion-sheet form[data-foms-settlement-issue] {
@@ -549,6 +657,21 @@
     color: var(--foms-text-secondary);
     font-size: var(--foms-font-size-sm);
     font-weight: var(--foms-font-weight-bold);
+  }
+  /* 요청 상태 표시: 요청 있음=warning 틴트 칩, 요청 없음=무채색 텍스트. */
+  body.erp-mobile-v2-layout .foms-completion-sheet__cash-req {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--foms-space-1) var(--foms-space-3);
+    border-radius: var(--foms-radius-full);
+    background: var(--foms-color-warning-50);
+    color: var(--foms-color-warning-700);
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-bold);
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet__cash-none {
+    color: var(--foms-text-tertiary);
+    font-size: var(--foms-font-size-sm);
   }
   body.erp-mobile-v2-layout .foms-completion-sheet__cash-issue-btn {
     align-self: flex-start;
