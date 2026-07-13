@@ -51,8 +51,7 @@
     flex: 0 0 300px;
     width: 300px;
     min-height: 0;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
     gap: var(--foms-space-2, 0.5rem);
@@ -80,6 +79,100 @@
   body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-list__count {
     font-size: var(--foms-font-size-sm, 0.875rem);
     color: var(--foms-text-secondary);
+  }
+
+  /* 검색창(mockup master-list__search): 아이콘 + 입력. 표시 카드만 client-side 필터. */
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-list__search {
+    position: relative;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-list__search > i {
+    position: absolute;
+    left: var(--foms-space-3, 0.75rem);
+    color: var(--foms-text-tertiary);
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    pointer-events: none;
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-list__search-input {
+    width: 100%;
+    min-height: var(--foms-touch-target-comfortable, 44px);
+    padding: var(--foms-space-2, 0.5rem) var(--foms-space-3, 0.75rem);
+    padding-left: calc(var(--foms-space-3, 0.75rem) + 1.25rem);
+    background: var(--foms-surface-base, #fff);
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: var(--foms-radius-md, 8px);
+    color: var(--foms-text-primary);
+    font-size: var(--foms-font-size-sm, 0.875rem);
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-list__search-input:focus {
+    outline: none;
+    border-color: var(--foms-interactive-primary, #5a67d8);
+    box-shadow: 0 0 0 3px var(--foms-color-brand-100, rgba(90, 103, 216, 0.18));
+  }
+
+  /* 필터 칩(mockup chips): 전체/오늘/주간/미확정 = 실측일 버킷 필터. */
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-list__chips {
+    flex-shrink: 0;
+    display: flex;
+    gap: var(--foms-space-2, 0.5rem);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-list__chips::-webkit-scrollbar {
+    display: none;
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-chip {
+    flex-shrink: 0;
+    padding: var(--foms-space-1, 0.25rem) var(--foms-space-3, 0.75rem);
+    min-height: var(--foms-touch-target-min, 32px);
+    font-size: var(--foms-font-size-xs, 0.75rem);
+    font-weight: var(--foms-font-weight-medium, 500);
+    color: var(--foms-text-secondary);
+    background: var(--foms-surface-base, #fff);
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: var(--foms-radius-full, 999px);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-chip.is-active {
+    background: var(--foms-color-brand-100, #e0e3ff);
+    border-color: var(--foms-color-brand-300, #b3b9f5);
+    color: var(--foms-color-brand-700, #3a41a8);
+    font-weight: var(--foms-font-weight-semibold, 600);
+  }
+
+  /* 카드 스크롤 영역: head/검색/칩/foot 고정, items 만 내부 스크롤. */
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-list__items {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-2, 0.5rem);
+  }
+
+  /* 하단 "지도로 보기" 버튼(실측 지도 = open_map redirect). */
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-list__foot {
+    flex-shrink: 0;
+    padding-top: var(--foms-space-1, 0.25rem);
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-list__map {
+    width: 100%;
+    justify-content: center;
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-list__empty--filter {
+    margin-top: var(--foms-space-4, 1rem);
   }
 
   /* 리스트 카드 = 탭 타깃(버튼). 최소 높이 = 편안한 터치 타깃. */
@@ -122,28 +215,56 @@
     color: var(--foms-text-primary);
   }
 
-  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-card__status {
-    font-size: var(--foms-font-size-xs, 0.75rem);
-    color: var(--foms-text-secondary);
-  }
-
   body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-card__customer {
     font-size: var(--foms-font-size-base, 1rem);
     font-weight: var(--foms-font-weight-semibold, 600);
     color: var(--foms-text-primary);
   }
 
-  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-card__addr,
   body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-card__product {
     font-size: var(--foms-font-size-sm, 0.875rem);
-    color: var(--foms-text-secondary);
+    color: var(--foms-text-tertiary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-card__product {
+  /* 메타(mockup qc__meta): 📞 전화 · 📍 주소. */
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-card__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--foms-space-1, 0.25rem) var(--foms-space-3, 0.75rem);
+    font-size: var(--foms-font-size-xs, 0.75rem);
     color: var(--foms-text-tertiary);
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-card__meta-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-card__meta-item--addr {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-card__meta-item i {
+    color: var(--foms-text-tertiary);
+    font-size: 0.7em;
+  }
+
+  /* 완료(실측 완료/주문 완료) 카드 dim. */
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-card.is-completed {
+    opacity: 0.55;
+  }
+
+  /* 검색·칩 필터로 숨겨진 카드. */
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-card.is-filtered-out {
+    display: none;
   }
 
   /* 우: 주문 원장(edit fragment) 주입 영역 — 남은 폭 전부, 내부 스크롤. */

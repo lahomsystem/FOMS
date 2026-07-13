@@ -351,6 +351,48 @@ def erp_measurement_dashboard():
                 _row['manager_name'] = _mgr
             mobile_queue_rows.append(_row)
 
+    # 태블릿 가로 코호트 좌측 큐(W12): 스테이지 색배지 + 날짜버킷(오늘/주간/미확정) + 완료 dim.
+    # 이미 로드된 rows만 재사용(신규 쿼리 0). split 표시 게이트(erp_mobile_v2_enabled +
+    # coarse-landscape MQ)와 독립적으로 항상 파생한다 — 코호트 판정이 컨텍스트 프로세서(request
+    # 반영)와 라우트(mobile_v2_active)에서 미세하게 갈릴 수 있어, split 이 렌더되면 배지·버킷이
+    # 항상 존재하도록 무조건 계산한다. 스테이지 색은 SSOT(stage_badge_modifier) 재사용.
+    from foms.services.erp_display import _erp_get_stage
+    from foms.services.erp_mobile_order_display import (
+        stage_badge_label as _stage_badge_label,
+        stage_badge_modifier as _stage_badge_modifier,
+    )
+    tablet_card_view: dict[int, dict] = {}
+    tablet_bucket_counts = {"all": 0, "today": 0, "week": 0, "undated": 0}
+    for _o in rows:
+        _stage = _erp_get_stage(_o, _o.structured_data or {})
+        _mdate_raw = getattr(_o, "measurement_date", None)
+        _days = None
+        if _mdate_raw:
+            try:
+                _d = datetime.datetime.strptime(
+                    str(_mdate_raw).split(",")[0].strip(), "%Y-%m-%d"
+                ).date()
+                _days = (_d - today_kst).days
+            except (ValueError, TypeError):
+                _days = None
+        tablet_card_view[_o.id] = {
+            "stage_modifier": _stage_badge_modifier(_stage),
+            "stage_label": _stage_badge_label(_stage),
+            "days": _days,
+            "completed": bool(
+                getattr(_o, "measurement_completed", False)
+                or getattr(_o, "status", "") in ("COMPLETED", "AS_COMPLETED")
+            ),
+        }
+        tablet_bucket_counts["all"] += 1
+        if _days is None:
+            tablet_bucket_counts["undated"] += 1
+        else:
+            if _days == 0:
+                tablet_bucket_counts["today"] += 1
+            if 0 <= _days <= 6:
+                tablet_bucket_counts["week"] += 1
+
     template_name = (
         'measurement/partials/dashboard_fragment.html'
         if wants_erp_shell_tab_body(request)
@@ -367,6 +409,8 @@ def erp_measurement_dashboard():
             manager_filter=manager_filter,
             rows=rows,
             mobile_queue_rows=mobile_queue_rows,
+            tablet_card_view=tablet_card_view,
+            tablet_bucket_counts=tablet_bucket_counts,
             measurement_panel_dates=measurement_panel_dates,
             measurement_manager_options=measurement_manager_options,
             measurement_manager_color_map=measurement_manager_color_map,

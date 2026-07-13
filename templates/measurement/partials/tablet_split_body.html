@@ -12,30 +12,86 @@
   {% set _dated = rows|selectattr('measurement_date')|list %}
   {% set _undated = rows|rejectattr('measurement_date')|list %}
   {% set _ordered_rows = (_dated|sort(attribute='measurement_date')) + _undated %}
+  {# 좌: 실측 동선 큐(mockup frame02 master-list 정합). head→검색→필터칩→(스크롤)items→foot.
+     스테이지 배지는 SSOT 컴포넌트(.foms-stage-badge{{ modifier }}) 재사용 — 색은 tablet_card_view
+     가 파생(라우트, 신규 쿼리 0). 검색·칩 필터는 tablet-measurement.js 가 표시 카드에만 적용. #}
   <aside class="foms-tablet-measure-list" aria-label="실측 고객 목록">
     <div class="foms-tablet-measure-list__head">
-      <span class="foms-tablet-measure-list__title">실측 고객</span>
+      <span class="foms-tablet-measure-list__title">오늘 동선 큐</span>
       <span class="foms-tablet-measure-list__count">{{ rows|length }}건</span>
     </div>
-    {% if rows %}
-      {% for r in _ordered_rows %}
-      <button type="button" class="foms-tablet-measure-card" data-order-id="{{ r.id }}">
-        <div class="foms-tablet-measure-card__top">
-          <span class="foms-tablet-measure-card__time">{{ r.measurement_time or '-' }}</span>
-          <span class="foms-tablet-measure-card__status">{{ ALL_STATUS.get(r.status, r.status) if r.status else '-' }}</span>
+    <div class="foms-tablet-measure-list__search">
+      <i class="fas fa-magnifying-glass" aria-hidden="true"></i>
+      <input type="search" class="foms-tablet-measure-list__search-input"
+        data-foms-tablet-measure-search placeholder="고객명·주소·초성 검색"
+        aria-label="실측 고객 검색" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="foms-tablet-measure-list__chips" role="group" aria-label="실측 일정 필터">
+      <button type="button" class="foms-tablet-measure-chip is-active" data-measure-bucket="all"
+        aria-pressed="true">전체 {{ (tablet_bucket_counts.all if tablet_bucket_counts else rows|length) }}</button>
+      <button type="button" class="foms-tablet-measure-chip" data-measure-bucket="today"
+        aria-pressed="false">오늘 {{ (tablet_bucket_counts.today if tablet_bucket_counts else 0) }}</button>
+      <button type="button" class="foms-tablet-measure-chip" data-measure-bucket="week"
+        aria-pressed="false">주간 {{ (tablet_bucket_counts.week if tablet_bucket_counts else 0) }}</button>
+      <button type="button" class="foms-tablet-measure-chip" data-measure-bucket="undated"
+        aria-pressed="false">미확정 {{ (tablet_bucket_counts.undated if tablet_bucket_counts else 0) }}</button>
+    </div>
+    <div class="foms-tablet-measure-list__items">
+      {% if rows %}
+        {% for r in _ordered_rows %}
+        {% set _tv = tablet_card_view.get(r.id) if tablet_card_view else None %}
+        {% set _stage_mod = (_tv.stage_modifier if _tv else '--received') %}
+        {% set _stage_lbl = (_tv.stage_label if _tv else (ALL_STATUS.get(r.status, r.status) if r.status else '-')) %}
+        {% set _days = (_tv.days if _tv else None) %}
+        {% set _completed = (_tv.completed if _tv else false) %}
+        <button type="button"
+          class="foms-tablet-measure-card{% if _completed %} is-completed{% endif %}"
+          data-order-id="{{ r.id }}"
+          data-measure-days="{% if _days is not none %}{{ _days }}{% endif %}"
+          data-customer="{{ (r.customer_name or '')|lower }}"
+          data-address="{{ (r.address or '')|lower }}">
+          <div class="foms-tablet-measure-card__top">
+            <span class="foms-stage-badge foms-stage-badge{{ _stage_mod }}">{{ _stage_lbl }}</span>
+            <span class="foms-tablet-measure-card__time">{{ r.measurement_time or '-' }}</span>
+          </div>
+          <div class="foms-tablet-measure-card__customer">{{ r.customer_name or '-' }}</div>
+          <div class="foms-tablet-measure-card__product">{{ (r.product or '-')|strip_product_w or '-' }}</div>
+          <div class="foms-tablet-measure-card__meta">
+            {% if r.phone %}
+            <span class="foms-tablet-measure-card__meta-item">
+              <i class="fas fa-phone" aria-hidden="true"></i>{{ r.phone|format_phone }}
+            </span>
+            {% endif %}
+            {% if r.address %}
+            <span class="foms-tablet-measure-card__meta-item foms-tablet-measure-card__meta-item--addr">
+              <i class="fas fa-location-dot" aria-hidden="true"></i>{{ r.address }}
+            </span>
+            {% endif %}
+          </div>
+        </button>
+        {% endfor %}
+      {% else %}
+        <div class="foms-mobile-empty foms-tablet-measure-list__empty">
+          <i class="fas fa-inbox" aria-hidden="true"></i>
+          <p class="mb-1">조건에 맞는 실측 일정이 없습니다.</p>
+          <small>날짜/검색 조건을 바꿔 보세요.</small>
         </div>
-        <div class="foms-tablet-measure-card__customer">{{ r.customer_name or '-' }}</div>
-        <div class="foms-tablet-measure-card__addr">{{ r.address or '-' }}</div>
-        <div class="foms-tablet-measure-card__product">{{ (r.product or '-')|strip_product_w or '-' }}</div>
-      </button>
-      {% endfor %}
-    {% else %}
-      <div class="foms-mobile-empty foms-tablet-measure-list__empty">
-        <i class="fas fa-inbox" aria-hidden="true"></i>
-        <p class="mb-1">조건에 맞는 실측 일정이 없습니다.</p>
-        <small>날짜/검색 조건을 바꿔 보세요.</small>
+      {% endif %}
+      {# 검색·칩 필터로 0건일 때만 JS 가 표시(초기 hidden). #}
+      <div class="foms-mobile-empty foms-tablet-measure-list__empty foms-tablet-measure-list__empty--filter"
+        data-foms-tablet-measure-filter-empty hidden>
+        <i class="fas fa-filter" aria-hidden="true"></i>
+        <p class="mb-1">검색·필터 조건에 맞는 실측이 없습니다.</p>
+        <small>검색어나 필터 칩을 바꿔 보세요.</small>
       </div>
-    {% endif %}
+    </div>
+    <div class="foms-tablet-measure-list__foot">
+      <a class="foms-btn foms-btn--secondary foms-btn--sm foms-tablet-measure-list__map"
+        href="{{ url_for('erp_measurement_dashboard.erp_measurement_dashboard', date=selected_date, q=search_q or '', open_map=1) }}">
+        <i class="fas fa-map-location-dot" aria-hidden="true"></i>
+        <span>지도로 보기</span>
+      </a>
+    </div>
   </aside>
   <section class="foms-tablet-measure-detail" aria-live="polite" aria-label="실측 주문 원장">
     <div class="foms-tablet-measure-detail__empty">좌측에서 고객을 선택하세요</div>
