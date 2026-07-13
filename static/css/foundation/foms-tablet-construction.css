@@ -182,7 +182,7 @@
     box-shadow: inset 3px 0 0 var(--foms-interactive-primary), var(--foms-shadow-sm);
   }
 
-  /* --- 타임라인 카드 본문 타이포 (목업 07: 시간·상태 행 / 고객명 / 지역 / 품목) --- */
+  /* --- 타임라인 카드 본문 타이포 (목업 07: 상태·시간 행 / 고객명 / 지역 / 품목) --- */
   body.erp-mobile-v2-layout .foms-cwork-card__row {
     display: flex;
     align-items: center;
@@ -190,12 +190,13 @@
     gap: var(--foms-space-2);
     width: 100%;
   }
+  /* 시간 = 목업 07 q-id: 상태 배지가 주(主), 시간은 우측 보조(작고 옅게). 고객명이 카드
+     앵커가 되도록 시간을 대형 볼드에서 보조 텍스트로 낮춘다. */
   body.erp-mobile-v2-layout .foms-cwork-card__time {
-    font-size: var(--foms-font-size-lg);
-    font-weight: var(--foms-font-weight-bold);
-    color: var(--foms-text-primary);
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-semibold);
+    color: var(--foms-text-secondary);
     font-variant-numeric: tabular-nums;
-    letter-spacing: 0.01em;
   }
   body.erp-mobile-v2-layout .foms-cwork-card__time--none {
     font-size: var(--foms-font-size-sm);
@@ -246,9 +247,10 @@
     background: var(--foms-surface-muted);
     color: var(--foms-text-tertiary);
   }
-  /* 진행 중 = 브랜드 강조(현재 작업). */
+  /* 진행 중 = 시공 스테이지 초록(현재 작업) — 목업 07 진행중 배지 색(stage-construction).
+     브랜드 퍼플이 아니라 단계 정체성 색으로 "지금 시공 중"을 표식. */
   body.erp-mobile-v2-layout .foms-cwork-status--active {
-    background: var(--foms-interactive-primary);
+    background: var(--foms-stage-construction);
     color: var(--foms-text-inverse);
   }
   /* 대기 = 중립 무채. */
@@ -351,15 +353,10 @@
     outline: none;
     box-shadow: var(--foms-shadow-focus-ring);
   }
-  /* 전화 = 브랜드 강조(현장 최우선 액션). */
-  body.erp-mobile-v2-layout .foms-cwork-link--call {
-    border-color: transparent;
-    background: var(--foms-interactive-primary);
-    color: var(--foms-text-inverse);
-  }
-  body.erp-mobile-v2-layout .foms-cwork-link--call:hover {
-    background: var(--foms-interactive-primary-hover);
-  }
+  /* 전화·내비 = 둘 다 무채 아웃라인(목업 07: 중립 큰 버튼). 색이 아닌 크기·배치로 강조 —
+     base .foms-cwork-link(surface-base·border-default·text-primary) 를 그대로 쓰고 hover 만
+     무채 강조. 퍼플 채움 제거(현장 최우선은 pcbar 우측 배치·큰 히트영역으로 확보). */
+  body.erp-mobile-v2-layout .foms-cwork-link--call:hover,
   body.erp-mobile-v2-layout .foms-cwork-link--nav:hover {
     background: var(--foms-surface-muted);
   }

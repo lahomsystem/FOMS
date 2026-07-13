@@ -64,15 +64,17 @@
   body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-list__head {
     flex-shrink: 0;
     display: flex;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
     gap: var(--foms-space-2, 0.5rem);
-    padding: var(--foms-space-1, 0.25rem) var(--foms-space-2, 0.5rem);
+    min-height: 56px;
+    padding: 0 var(--foms-space-3, 0.75rem);
+    border-bottom: 1px solid var(--foms-border-subtle, #dde1e6);
   }
 
   body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-list__title {
     font-size: var(--foms-font-size-base, 1rem);
-    font-weight: var(--foms-font-weight-semibold, 600);
+    font-weight: var(--foms-font-weight-bold, 700);
     color: var(--foms-text-primary);
   }
 
@@ -143,9 +145,9 @@
   }
 
   body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-chip.is-active {
-    background: var(--foms-color-brand-100, #e0e3ff);
-    border-color: var(--foms-color-brand-300, #b3b9f5);
-    color: var(--foms-color-brand-700, #3a41a8);
+    background: var(--foms-interactive-primary, #5a67d8);
+    border-color: var(--foms-interactive-primary, #5a67d8);
+    color: var(--foms-text-on-primary, #fff);
     font-weight: var(--foms-font-weight-semibold, 600);
   }
 
@@ -200,6 +202,7 @@
   body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-card.is-active {
     background: var(--foms-color-brand-50, #f3f4ff);
     border-color: var(--foms-interactive-primary, #5a67d8);
+    box-shadow: inset 3px 0 0 var(--foms-interactive-primary, #5a67d8);
   }
 
   body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-card__top {
@@ -289,6 +292,31 @@
     color: var(--foms-text-tertiary);
     font-size: var(--foms-font-size-base, 1rem);
     text-align: center;
+  }
+
+  /* 주입된 ERP Order 편집 폼(PC)의 터치 보정 — 코호트에서만. 목업 frame02 우측 =
+     "실측 치수를 원장에 직접 입력"하는 터치 원장. PC 폼의 컴팩트 입력을 편안한 터치
+     타깃(44px)·16px(iOS 확대 억제)로 키운다. DOM/이벤트 계약 무변경(CSS-only). */
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-detail .form-control,
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-detail .form-select,
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-detail .erp-pro-input,
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-detail select,
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-detail input[type="text"],
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-detail input[type="number"],
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-detail input[type="tel"],
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-detail input[type="date"] {
+    min-height: var(--foms-touch-target-comfortable, 44px);
+    font-size: var(--foms-font-size-base, 1rem);
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-detail textarea {
+    min-height: calc(var(--foms-touch-target-comfortable, 44px) * 1.5);
+    font-size: var(--foms-font-size-base, 1rem);
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-detail .btn,
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-detail .erp-pro-btn {
+    min-height: var(--foms-touch-target-comfortable, 44px);
   }
 }
 

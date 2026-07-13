@@ -50,6 +50,14 @@
   body.erp-mobile-v2-layout .foms-drawing-legacy-table {
     display: none !important;
   }
+  /* PC 프로세스 맵·PC 검색 필터 카드도 코호트에서 은닉 — 목업 v8 P3 = 작업실(갤러리)만
+     표시. 워크숍이 정렬·D-3·전달대기·검색·KPI·크기토글을 전부 대체하므로 상단의 PC
+     프로세스 맵/필터 카드는 중복 크롬. 두 요소 모두 d-lg-block(!important)이라 !important +
+     코호트 스코프로 제압(landscape+coarse 밖 PC/폰 무영향). */
+  body.erp-mobile-v2-layout .dw-process-map,
+  body.erp-mobile-v2-layout .erp-drawing-dashboard-desktop-card {
+    display: none !important;
+  }
   body.erp-mobile-v2-layout .foms-drawing-gallery {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -69,7 +77,7 @@
     border: 1px solid var(--foms-border-subtle);
     border-radius: var(--foms-radius-lg);
     overflow: hidden;
-    box-shadow: var(--foms-shadow-sm);
+    box-shadow: none; /* 목업 v8 P3 갤러리 카드 = 테두리만(플랫). elevation 은 active/focus 링으로. */
     cursor: pointer;
     min-height: var(--foms-touch-target-min);
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
@@ -481,6 +489,14 @@
     color: var(--foms-text-tertiary);
     text-align: center;
   }
+  /* 시트 헤더(목업 side-sheet m-head): 고객명+메타 구획 + 본문과의 구분선. */
+  body.erp-mobile-v2-layout .foms-drawing-sheet__head {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-bottom: var(--foms-space-2);
+    border-bottom: 1px solid var(--foms-border-subtle);
+  }
   body.erp-mobile-v2-layout .foms-drawing-sheet__name {
     font-size: var(--foms-font-size-lg);
     font-weight: var(--foms-font-weight-bold);
@@ -599,7 +615,7 @@
     background: var(--foms-text-tertiary);
   }
   body.erp-mobile-v2-layout .foms-drawing-sheet__event--snapshot .foms-drawing-sheet__event-dot {
-    background: var(--foms-interactive-primary);
+    background: var(--foms-color-success-600); /* 목업 = 전달 스냅샷 = 완료(초록) 시맨틱 */
   }
   body.erp-mobile-v2-layout .foms-drawing-sheet__event-label {
     font-size: var(--foms-font-size-sm);

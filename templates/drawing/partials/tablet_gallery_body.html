@@ -78,20 +78,20 @@
   {# ── KPI 타일 4 (전체 큐 기준 stats, 클릭=필터) ── #}
   <div class="foms-drawing-workshop__kpis" aria-label="도면 요약">
     <a class="foms-drawing-kpi" href="{{ _dw_base }}{% if _dw_q %}?{{ _dw_q[1:] }}{% endif %}">
-      <span class="foms-drawing-kpi__value">{{ stats.total }}</span>
       <span class="foms-drawing-kpi__label">전체</span>
+      <span class="foms-drawing-kpi__value">{{ stats.total }}</span>
     </a>
     <a class="foms-drawing-kpi foms-drawing-kpi--danger" href="{{ _dw_base }}?dday3=1{{ _dw_q }}">
-      <span class="foms-drawing-kpi__value">{{ stats.d3 }}</span>
       <span class="foms-drawing-kpi__label">D-3 이내</span>
+      <span class="foms-drawing-kpi__value">{{ stats.d3 }}</span>
     </a>
     <a class="foms-drawing-kpi foms-drawing-kpi--warning" href="{{ _dw_base }}?pending=1{{ _dw_q }}">
-      <span class="foms-drawing-kpi__value">{{ stats.pending_transfer }}</span>
       <span class="foms-drawing-kpi__label">전달 대기</span>
+      <span class="foms-drawing-kpi__value">{{ stats.pending_transfer }}</span>
     </a>
     <a class="foms-drawing-kpi foms-drawing-kpi--danger" href="{{ _dw_base }}?status=RETURNED{{ _dw_q }}">
-      <span class="foms-drawing-kpi__value">{{ stats.RETURNED }}</span>
       <span class="foms-drawing-kpi__label">수정 요청</span>
+      <span class="foms-drawing-kpi__value">{{ stats.RETURNED }}</span>
     </a>
   </div>
 

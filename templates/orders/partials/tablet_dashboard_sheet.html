@@ -11,21 +11,18 @@
   <div class="foms-tsheet-head">
     <div class="foms-tsheet-head__main">
       <span class="foms-tsheet-head__name">{{ o.customer_name or '-' }}</span>
-      <span class="badge bg-secondary foms-tsheet-head__stage">{{ o.stage_badge_label or o.stage or '-' }}</span>
+      <span class="foms-stage-badge foms-stage-badge{{ o.stage_badge_modifier|default('--received', true) }} foms-tsheet-head__stage">{{ o.stage_badge_label or o.stage or '-' }}</span>
     </div>
     <span class="foms-tsheet-head__count">#{{ o.id }}</span>
   </div>
 
   {# mini-quest: "다음 할 일 — 〈퀘스트〉 (승인: 팀)" #}
+  {# 목업 mini-quest = 브랜드색 단일 배너("다음 할 일 — 〈퀘스트〉 (승인: 팀)"). 승인 상태
+     칩(진행중/완료)은 목업에 없고 하단 승인 버튼이 상태를 대신 표현하므로 배너에서 제외. #}
   {% if q %}
   <div class="foms-tsheet-quest">
-    <span class="foms-tsheet-quest__label">다음 할 일</span>
+    <span class="foms-tsheet-quest__label">다음 할 일 —</span>
     <span class="foms-tsheet-quest__title">{{ q.title or '-' }}</span>
-    {% if q.all_approved %}
-    <span class="badge bg-success">완료</span>
-    {% else %}
-    <span class="badge bg-warning text-dark">진행중</span>
-    {% endif %}
     {% if q.owner_team %}
     <span class="foms-tsheet-quest__team">(승인: {{ team_labels.get(q.owner_team, q.owner_team) }})</span>
     {% endif %}
@@ -44,30 +41,35 @@
     </dl>
   </div>
 
-  {# 카드: 첨부 N — 썸네일 스트립(60×46). 스트립 탭 → 기존 첨부 프리뷰 모달(document.body 위임). #}
+  {# 카드: 첨부 N — 썸네일 스트립(60×46) + 추가 타일(목업 정합). 썸네일 그룹 탭 → 기존 첨부
+     프리뷰 모달(document.body 위임). 추가 타일(점선 +)은 ERP 편집(첨부 관리) 페이지로 이동
+     (허구 동작 금지 — 실제 어포던스). 프리뷰 트리거와 추가 링크를 형제로 분리해 클릭 충돌 방지. #}
   <div class="foms-tsheet-card">
     <div class="foms-tsheet-card__title">첨부 {{ o.attachments_count or 0 }}</div>
-    {% if o.attachment_preview_items %}
-    <div class="foms-tsheet-attach-strip erp-btn-attachments-preview" data-order-id="{{ o.id }}"
-      role="button" tabindex="0" title="첨부 파일 미리보기">
-      {% for it in o.attachment_preview_items %}
-      <img class="foms-tsheet-attach-thumb" src="{{ it.thumb }}" alt="{{ it.label or '첨부' }}" loading="lazy">
-      {% endfor %}
+    <div class="foms-tsheet-attach-strip">
+      {% if o.attachment_preview_items %}
+      <span class="foms-tsheet-attach-thumbs erp-btn-attachments-preview" data-order-id="{{ o.id }}"
+        role="button" tabindex="0" title="첨부 파일 미리보기">
+        {% for it in o.attachment_preview_items %}
+        <img class="foms-tsheet-attach-thumb" src="{{ it.thumb }}" alt="{{ it.label or '첨부' }}" loading="lazy">
+        {% endfor %}
+      </span>
+      {% endif %}
+      <a class="foms-tsheet-attach-add" href="{{ url_for('order_edit.edit_order', order_id=o.id) }}?open=erp-order"
+        title="첨부 추가" aria-label="첨부 추가"><i class="fas fa-plus" aria-hidden="true"></i></a>
     </div>
-    {% else %}
-    <div class="foms-tsheet-empty">첨부 없음</div>
-    {% endif %}
   </div>
 
   {# m-foot: 전화(tel:) · ERP 편집(edit 이동) · 퀘스트 승인(pri, 기존 승인 API 배선) #}
   <div class="foms-tsheet-foot">
+    {# 전화 = 아이콘 전용(목업 정합, flex 1). ERP 편집 = flex 1.4, 퀘스트 승인(--pri) = flex 1.6. #}
     {% if phone_digits and phone_digits != '-' %}
-    <a class="foms-tsheet-foot__btn" href="tel:{{ phone_digits }}"><i class="fas fa-phone"></i> 전화</a>
+    <a class="foms-tsheet-foot__btn foms-tsheet-foot__btn--phone" href="tel:{{ phone_digits }}" aria-label="전화"><i class="fas fa-phone" aria-hidden="true"></i></a>
     {% else %}
-    <span class="foms-tsheet-foot__btn is-disabled" aria-disabled="true"><i class="fas fa-phone"></i> 전화</span>
+    <span class="foms-tsheet-foot__btn foms-tsheet-foot__btn--phone is-disabled" aria-disabled="true" aria-label="전화"><i class="fas fa-phone" aria-hidden="true"></i></span>
     {% endif %}
 
-    <a class="foms-tsheet-foot__btn"
+    <a class="foms-tsheet-foot__btn foms-tsheet-foot__btn--edit"
       href="{{ url_for('order_edit.edit_order', order_id=o.id) }}?open=erp-order"><i class="fas fa-pen"></i> ERP 편집</a>
 
     {% if q and q.all_approved %}

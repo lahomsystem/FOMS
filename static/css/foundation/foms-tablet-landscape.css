@@ -238,21 +238,22 @@
 @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
 
   /* 토글 세그먼트 — coarse landscape 코호트에서만 표시(3버튼 40/48/56). foms 토큰 소비. */
+  /* 세그먼트 컨트롤 = 무채 트랙 + 흰색 융기 활성(목업 .view-toggle: d-2 바탕, 활성=surface+shadow).
+     기존 흰 바탕·보더·브랜드 채움 활성 → 목업 정합. 44px 터치 유지. */
   body.erp-mobile-v2-layout .foms-density-toggle {
     display: inline-flex;
     align-items: stretch;
-    gap: 0;
-    border: 1px solid var(--foms-border-default, #c1c7d0);
+    gap: 2px;
+    padding: 3px;
     border-radius: var(--foms-radius-md, 8px);
-    overflow: hidden;
-    background: var(--foms-surface-base, #fff);
+    background: var(--foms-surface-muted, #eef0f3);
   }
   body.erp-mobile-v2-layout .foms-density-toggle__btn {
     min-width: var(--foms-touch-target-comfortable); /* 44px */
     min-height: var(--foms-touch-target-comfortable); /* 44px */
     padding: 0 var(--foms-space-3, 0.75rem);
     border: none;
-    border-left: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: var(--foms-radius-sm, 6px);
     background: transparent;
     color: var(--foms-text-secondary);
     font-size: var(--foms-font-size-sm, 0.875rem);
@@ -260,12 +261,10 @@
     line-height: 1;
     cursor: pointer;
   }
-  body.erp-mobile-v2-layout .foms-density-toggle__btn:first-child {
-    border-left: none;
-  }
   body.erp-mobile-v2-layout .foms-density-toggle__btn.is-active {
-    background: var(--foms-interactive-primary, #5a67d8);
-    color: var(--foms-color-neutral-0, #fff);
+    background: var(--foms-surface-base, #fff);
+    color: var(--foms-text-primary);
+    box-shadow: var(--foms-shadow-sm);
   }
 
   /* 대시보드 컨트롤타워 그리드 40/56 오버라이드. baseline(#erp-grid tbody tr.erp-main-row,
@@ -336,61 +335,76 @@
   color: var(--foms-text-tertiary, #6b7380);
 }
 
+/* 다음 할 일 배너 = 브랜드색 단일 배너(목업 .mini-quest: accent 바탕 + 브랜드 보더/텍스트).
+   전 텍스트 동일 브랜드색으로 한 문장처럼 읽히게(라벨·제목·팀 색 통일). */
 .foms-tsheet-quest {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   flex-wrap: wrap;
-  gap: var(--foms-space-2, 0.5rem);
+  gap: var(--foms-space-1, 0.25rem);
   padding: var(--foms-space-2, 0.5rem) var(--foms-space-3, 0.75rem);
+  border: 1px solid var(--foms-color-brand-200, #c5c9ff);
   border-radius: var(--foms-radius-md, 8px);
   background: var(--foms-surface-accent, #f3f4ff);
 }
 .foms-tsheet-quest__label {
-  font-size: var(--foms-font-size-xs, 0.75rem);
+  font-size: var(--foms-font-size-sm, 0.875rem);
   font-weight: var(--foms-font-weight-semibold, 600);
-  color: var(--foms-text-tertiary, #6b7380);
+  color: var(--foms-interactive-primary, #5a67d8);
 }
 .foms-tsheet-quest__title {
   font-weight: var(--foms-font-weight-semibold, 600);
-  color: var(--foms-text-primary);
+  color: var(--foms-interactive-primary, #5a67d8);
 }
 .foms-tsheet-quest__team {
   font-size: var(--foms-font-size-sm, 0.875rem);
-  color: var(--foms-text-secondary);
+  color: var(--foms-interactive-primary, #5a67d8);
 }
 
 .foms-tsheet-card {
   border: 1px solid var(--foms-border-subtle, #dde1e6);
-  border-radius: var(--foms-radius-md, 8px);
-  padding: var(--foms-space-3, 0.75rem);
+  border-radius: var(--foms-radius-lg, 12px);
+  padding: var(--foms-space-4, 1rem);
   background: var(--foms-surface-base, #fff);
 }
+/* 카드 제목 = 무채 미세 라벨(목업 .card h5: 13px·ink-3·letter-spacing). 큰 값과 대비. */
 .foms-tsheet-card__title {
   font-size: var(--foms-font-size-sm, 0.875rem);
   font-weight: var(--foms-font-weight-bold, 700);
-  color: var(--foms-text-primary);
+  letter-spacing: 0.04em;
+  color: var(--foms-text-tertiary, #6b7380);
   margin-bottom: var(--foms-space-2, 0.5rem);
 }
 
+/* 요약 kv = 라벨 위·값 아래 세로 스택(목업 .kv: flex-column, 라벨 12px 무채 / 값 굵게).
+   기존 좌우 dt/dd 그리드 → 각 쌍 세로 배치, 쌍 사이 간격만 확보. */
 .foms-tsheet-kv {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: var(--foms-space-1, 0.25rem) var(--foms-space-3, 0.75rem);
   margin: 0;
 }
 .foms-tsheet-kv dt {
-  font-size: var(--foms-font-size-sm, 0.875rem);
+  font-size: var(--foms-font-size-xs, 0.75rem);
   color: var(--foms-text-tertiary, #6b7380);
-  font-weight: var(--foms-font-weight-medium, 500);
+  font-weight: var(--foms-font-weight-semibold, 600);
 }
 .foms-tsheet-kv dd {
-  margin: 0;
+  margin: 0 0 var(--foms-space-2, 0.5rem);
   color: var(--foms-text-primary);
+  font-weight: var(--foms-font-weight-semibold, 600);
   word-break: break-word;
 }
+.foms-tsheet-kv dd:last-child {
+  margin-bottom: 0;
+}
 
-/* 썸네일 스트립 — 60×46 카드. 스트립 전체가 첨부 프리뷰 트리거(erp-btn-attachments-preview). */
+/* 썸네일 스트립 — 60×46 카드 + 추가 타일(목업 정합). 스트립=바깥 flex, 썸네일 그룹(.thumbs)이
+   프리뷰 트리거, 추가 링크(.add)는 형제라 클릭 충돌 없음. 간격 통일(썸네일 내부·타일 사이 동일). */
 .foms-tsheet-attach-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--foms-space-2, 0.5rem);
+}
+.foms-tsheet-attach-thumbs {
   display: flex;
   flex-wrap: wrap;
   gap: var(--foms-space-2, 0.5rem);
@@ -404,6 +418,25 @@
   border: 1px solid var(--foms-border-subtle, #dde1e6);
   background: var(--foms-surface-raised, #f7f8fa);
 }
+/* 추가 타일 = 점선 + (목업 .thumb.add). ERP 편집(첨부 관리)로 이동하는 실제 어포던스. */
+.foms-tsheet-attach-add {
+  width: 60px;
+  height: 46px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px dashed var(--foms-border-default, #c1c7d0);
+  border-radius: var(--foms-radius-sm, 6px);
+  background: var(--foms-surface-subtle, #f7f8fa);
+  color: var(--foms-text-tertiary, #6b7380);
+  text-decoration: none;
+}
+.foms-tsheet-attach-add:hover {
+  border-color: var(--foms-interactive-primary, #5a67d8);
+  color: var(--foms-interactive-primary, #5a67d8);
+}
+/* 빈 상태 안내(공유 — 이력 시트 history_tablet_sheet.html 도 재사용). */
 .foms-tsheet-empty {
   font-size: var(--foms-font-size-sm, 0.875rem);
   color: var(--foms-text-tertiary, #6b7380);
@@ -430,6 +463,13 @@
   font-weight: var(--foms-font-weight-semibold, 600);
   text-decoration: none;
   cursor: pointer;
+}
+/* 하단 버튼 flex 비율(목업 m-foot): 전화 1(base) / ERP 편집 1.4 / 퀘스트 승인 1.6. */
+.foms-tsheet-foot__btn--edit {
+  flex-grow: 1.4;
+}
+.foms-tsheet-foot__btn--pri {
+  flex-grow: 1.6;
 }
 .foms-tsheet-foot__btn--pri:not(:disabled) {
   background: var(--foms-interactive-primary, #5a67d8);
@@ -503,12 +543,12 @@
 }
 .foms-ship-sheet__team-name {
   flex: 1 1 auto;
-  font-weight: var(--foms-font-weight-semibold, 600);
+  font-weight: var(--foms-font-weight-bold, 700);
   color: var(--foms-text-primary);
 }
 .foms-ship-sheet__team-remain {
   flex: 0 0 auto;
-  font-size: var(--foms-font-size-sm, 0.875rem);
+  font-size: var(--foms-font-size-xs, 0.75rem);
   color: var(--foms-text-tertiary, #6b7380);
 }
 /* 선택된 팀 행 강조 — 선택 피드백(primary 보더 + accent 바탕). */
@@ -990,13 +1030,29 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* 페이지네이션(PC 그리드 복제 마크업) — 44px 터치 타깃. */
+/* 페이지네이션(PC 그리드 복제 = Bootstrap .pagination) — 목업 .pagenav/.pg 정합:
+   연결형 → 간격 있는 개별 알약(전 모서리 라운드·보더), 활성=브랜드 채움. 44px 터치 유지. */
+.foms-tablet-workqueue-wrap .pagination {
+  gap: var(--foms-space-1, 0.25rem);
+}
 .foms-tablet-workqueue-wrap .pagination .page-link {
   min-width: var(--foms-touch-target-comfortable, 44px);
   min-height: var(--foms-touch-target-comfortable, 44px);
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  border: 1px solid var(--foms-border-default, #c1c7d0);
+  border-radius: var(--foms-radius-md, 8px);
+  color: var(--foms-text-secondary);
+  font-weight: var(--foms-font-weight-semibold, 600);
+}
+.foms-tablet-workqueue-wrap .pagination .page-item.active .page-link {
+  background: var(--foms-interactive-primary, #5a67d8);
+  border-color: var(--foms-interactive-primary, #5a67d8);
+  color: var(--foms-color-neutral-0, #fff);
+}
+.foms-tablet-workqueue-wrap .pagination .page-item.disabled .page-link {
+  color: var(--foms-text-disabled, #9aa3af);
 }
 
 @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {

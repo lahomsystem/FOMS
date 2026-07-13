@@ -482,11 +482,13 @@
     background: var(--foms-surface-accent);
     border-color: var(--foms-interactive-primary);
   }
+  /* 목업 hl-tile: 라벨·값 모두 브랜드 색(브랜드 틴트 bg 위) = 정산 판단의 시각 앵커. */
   body.erp-mobile-v2-layout .foms-completion-sheet__amount--balance dt {
-    color: var(--foms-text-secondary);
+    color: var(--foms-interactive-primary);
   }
   body.erp-mobile-v2-layout .foms-completion-sheet__amount--balance dd {
     font-size: var(--foms-font-size-2xl);
+    color: var(--foms-interactive-primary);
   }
 
   /* --- 정산 상태 배지: 대기=warning 틴트(액션 필요), 청구 완료=무채색(HMI 색 규율) --- */

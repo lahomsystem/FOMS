@@ -24,6 +24,23 @@
   display: none;
 }
 
+/* 읽기전용 배지(스냅샷 시트 head) — 목업 frame10 head 소프트 배지. 감사 시트의 정의적
+   속성(읽기전용)을 명시. 클래스가 이력 시트 전용이라 파일 스코프 상시 스타일이 안전
+   (타 페이지 누출 없음 — 시트는 코호트에서만 열림). 소프트 무채색 pill = 목업 stage soft. */
+.erp-history-tsheet__readonly-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--foms-space-1, 0.25rem);
+  padding: var(--foms-space-1, 0.25rem) var(--foms-space-2, 0.5rem);
+  border-radius: var(--foms-radius-full, 999px);
+  background: var(--foms-surface-muted, #eef0f3);
+  color: var(--foms-text-secondary, #4b525d);
+  font-size: var(--foms-font-size-xs, 0.75rem);
+  font-weight: var(--foms-font-weight-semibold, 600);
+  line-height: 1;
+  white-space: nowrap;
+}
+
 @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
 
   /* --- PC 크롬 은닉: erp-pro-header(제목/홈 버튼) — pcbar 가 대체. 필터 폼은 유지한다
@@ -94,6 +111,15 @@
     font-weight: var(--foms-font-weight-semibold, 600);
     color: var(--foms-text-primary, #1f2733);
     margin-bottom: var(--foms-space-1, 0.25rem);
+  }
+
+  /* --- chevron 이중 어포던스 제거(목업 frame10 열람 ↗) --- 코호트 가로에선 본행 탭 =
+     읽기전용 사이드 시트가 유일 열람 어포던스다. PC 인라인 확장 chevron(.history-chevron)은
+     사이드 시트와 중복(같은 행을 두 방식으로 여는 혼선)이라 코호트에서만 은닉한다. 마크업·
+     확장행(.history-detail-row)은 보존(계약 테스트 'history-chevron' in body 통과) — 순수
+     표시 은닉이므로 PC(fine)·폰·세로 무영향. --- */
+  body.erp-mobile-v2-layout .erp-history-mobile-shell .history-chevron {
+    display: none;
   }
 
   /* --- 필터바 슬림화(목업 frame10): 코호트에서 PC 필터 카드(높은 카드)를 pcbar 아래

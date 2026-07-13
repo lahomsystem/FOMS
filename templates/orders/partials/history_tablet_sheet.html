@@ -11,14 +11,16 @@
   <div class="foms-tsheet-head">
     <div class="foms-tsheet-head__main">
       <span class="foms-tsheet-head__name">{{ d.customer_name or '-' }}</span>
-      <span class="badge bg-secondary foms-tsheet-head__stage">{{ stage or '-' }}</span>
+      {# 목업 frame10 head 배지 = 읽기전용(감사 화면의 정의적 속성). 최종 상태(stage)는 이력
+         그리드 '단계' 열에서 이미 노출되므로 시트 헤드는 읽기전용을 명시한다. #}
+      <span class="foms-tsheet-head__stage erp-history-tsheet__readonly-badge"><i class="fas fa-lock" aria-hidden="true"></i> 읽기전용</span>
     </div>
     <span class="foms-tsheet-head__count">#{{ o.id }}</span>
   </div>
 
   {# 요약(읽기전용): 연락처 / 현장주소 / 제품 / 완료일(시공일) / 생성일 #}
   <div class="foms-tsheet-card">
-    <div class="foms-tsheet-card__title">요약 · 읽기전용</div>
+    <div class="foms-tsheet-card__title">요약</div>
     <dl class="foms-tsheet-kv">
       <dt>연락처</dt><dd>{{ d.phone or '-' }}</dd>
       <dt>현장 주소</dt><dd>{{ d.address or '-' }}</dd>

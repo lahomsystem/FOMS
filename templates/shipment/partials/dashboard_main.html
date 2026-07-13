@@ -1,5 +1,5 @@
 {% set _fos_desktop_body %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/shipment-dashboard-columns.css') }}?v=20260713o">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/shipment-dashboard-columns.css') }}?v=20260713p">
 {# foms-kv-rollout: erp_mobile_shell → kv-copy.js #}
 <div class="erp-pro erp-mobile-shell erp-dashboard-shipment" data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
   {% if erp_mobile_v2_enabled %}
@@ -64,7 +64,7 @@
   {%- endfor %}
   <div class="foms-ship-pcbar" aria-label="출고 대시보드 요약">
     <div class="foms-ship-pcbar__lead">
-      <h2 class="foms-ship-pcbar__title">{% if selected_date %}{{ selected_date[5:7] }}/{{ selected_date[8:10] }}{% if _ship_wd.label %}({{ _ship_wd.label }}){% endif %} 출고{% else %}출고 대시보드{% endif %}</h2>
+      <h2 class="foms-ship-pcbar__title">{% if selected_date %}{{ selected_date[5:7]|int }}/{{ selected_date[8:10]|int }}{% if _ship_wd.label %}({{ _ship_wd.label }}){% endif %} 출고{% else %}출고 대시보드{% endif %}</h2>
       <span class="foms-ship-pcbar__sub">{{ rows|length }}건</span>
     </div>
     <div class="foms-ship-pcbar__actions">
@@ -294,7 +294,8 @@
           <div class="foms-ship-cap-strip__head">
             {% set _cm = (selected_date or today_date)[5:7]|int %}
             {% set _cd = (selected_date or today_date)[8:10]|int %}
-            <span class="foms-ship-cap-strip__title">{{ _cm }}월 {{ ((_cd - 1) // 7) + 1 }}주 · 잔여 자수</span>
+            <span class="foms-ship-cap-strip__title">{{ _cm }}월 {{ ((_cd - 1) // 7) + 1 }}주</span>
+            <span class="foms-ship-cap-strip__label">잔여 자수</span>
           </div>
           <div class="foms-ship-cap-strip__list">
             {% for item in remaining_panel_dates %}
@@ -308,7 +309,7 @@
             <a class="foms-ship-cap-card is-{{ _state }}{% if item.is_selected %} is-selected{% endif %}"
                href="{{ url_for('erp_shipment_page.erp_shipment_dashboard', date=item.date, q=search_q or '') }}#date-{{ item.date }}">
               <span class="foms-ship-cap-card__top">
-                <span class="foms-ship-cap-card__date">{{ item.date[5:] }}{% if _wd is not none %} ({{ ['월','화','수','목','금','토','일'][_wd] }}){% endif %}</span>
+                <span class="foms-ship-cap-card__date">{{ item.date[5:7]|int }}/{{ item.date[8:10]|int }}{% if _wd is not none %} ({{ ['월','화','수','목','금','토','일'][_wd] }}){% endif %}</span>
                 <span class="foms-ship-cap-card__val">{{ item.used_capacity }}/{{ item.total_capacity }}</span>
               </span>
               <span class="foms-ship-cap-card__bar"><span class="foms-ship-cap-card__bar-fill" style="--cap-fill: {{ _pct|round(0, 'floor')|int }}%"></span></span>
@@ -322,6 +323,12 @@
           {% endif %}
         </aside>
         <div class="col-12 col-lg erp-shipment-table-col">
+          {# 태블릿 가로 그리드 캡션(목업 06 .tablewrap .cap) — 행 탭→배정 시트 안내.
+             base-hidden(.foms-ship-grid-hint) → 코호트 가로에서만 flex. #}
+          <div class="foms-ship-grid-hint" aria-hidden="true">
+            <i class="fas fa-hand-pointer" aria-hidden="true"></i>
+            <span>행 탭 = 배정 시트 · 컬럼 크기 조절 가능</span>
+          </div>
           <div class="table-responsive shipment-table-wrapper">
             <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/dashboard-table-extras.css') }}">
             <table class="table table-sm table-hover align-middle shipment-table erp-mobile-card-table" id="shipment-dashboard-table">
@@ -445,10 +452,15 @@
                   <td class="shipment-grp-cell" colspan="10">
                     <span class="shipment-grp-team">{% if worker_key %}시공 {{ worker_key }}{% else %}미배정{% endif %}</span>
                     <span class="shipment-grp-sum">합계 {{ _gm.get('units', '0.0') }}자</span>
+                    <span class="shipment-grp-count">{{ _gm.get('count', 0) }}건</span>
+                    {# 목업 06: 잔여 capacity(또는 미배정=배정 필요)를 그룹 헤더 우측에 정렬. #}
+                    {% if worker_key %}
                     {% if _gm.get('remaining') is not none %}
                     <span class="shipment-grp-remain">잔여 {{ _gm.get('remaining') }}자</span>
                     {% endif %}
-                    <span class="shipment-grp-count">{{ _gm.get('count', 0) }}건</span>
+                    {% else %}
+                    <span class="shipment-grp-remain shipment-grp-remain--need">배정 필요</span>
+                    {% endif %}
                   </td>
                 </tr>
                 {% endif %}

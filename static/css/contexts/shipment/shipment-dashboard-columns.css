@@ -117,6 +117,11 @@ body.col-resizing-active {
   .tablet-ship-kpis .erp-pro-alert--danger .erp-pro-alert__value {
     color: var(--foms-color-danger-600, #dc2626);
   }
+  /* 목업 06 .tile 은 아이콘이 없다(라벨 위·값 아래 2행뿐). 코호트에서 erp-pro-alert
+     아이콘을 은닉해 목업 타일 위계와 정합(마크업은 공용 컴포넌트라 CSS 로만 은닉). */
+  .tablet-ship-kpis .erp-pro-alert__icon {
+    display: none;
+  }
 }
 
 /* =============================================================
@@ -200,7 +205,8 @@ body.col-resizing-active {
 
 /* base-hide: 코호트 밖(PC/폰/세로)에서 신규 마크업 완전 은닉. */
 .foms-ship-pcbar,
-.foms-ship-cap-strip { display: none; }
+.foms-ship-cap-strip,
+.foms-ship-grid-hint { display: none; }
 #shipment-dashboard-table tbody tr.shipment-grp-row { display: none; }
 
 @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
@@ -212,6 +218,21 @@ body.col-resizing-active {
   }
   body.erp-mobile-v2-layout .erp-dashboard-shipment .erp-shipment-scheduler-col {
     display: none !important;
+  }
+
+  /* --- 그리드 캡션 힌트(목업 06 .tablewrap .cap) — 행 탭→배정 시트 안내 + 리사이즈 힌트.
+     테이블 상단에 얹는 중립 바(surface-subtle). base-hidden → 코호트에서만 flex. --- */
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .foms-ship-grid-hint {
+    display: flex;
+    align-items: center;
+    gap: var(--foms-space-2, 0.5rem);
+    margin-bottom: var(--foms-space-2, 0.5rem);
+    padding: var(--foms-space-2, 0.5rem) var(--foms-space-3, 0.75rem);
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: var(--foms-radius-md, 8px);
+    background: var(--foms-surface-subtle, #f6f7f9);
+    color: var(--foms-text-tertiary, #6b7380);
+    font-size: var(--foms-font-size-sm, 0.875rem);
   }
 
   /* --- pcbar: 제목 · M/D(요일) 출고·N건 · 밀도 토글 · AS 추천 · 출고 확정 --- */
@@ -284,10 +305,23 @@ body.col-resizing-active {
     padding: var(--foms-space-2, 0.5rem);
     align-self: flex-start;
   }
+  /* 스트립 헤드 — 목업 .m-head: 주차 제목(볼드·좌) + "잔여 자수" 라벨(2차색·우) 병기. */
+  body.erp-mobile-v2-layout .foms-ship-cap-strip__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--foms-space-2, 0.5rem);
+  }
   body.erp-mobile-v2-layout .foms-ship-cap-strip__title {
     font-size: var(--foms-font-size-base, 1rem);
     font-weight: var(--foms-font-weight-bold, 700);
     color: var(--foms-text-primary, #1f2733);
+  }
+  body.erp-mobile-v2-layout .foms-ship-cap-strip__label {
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    font-weight: var(--foms-font-weight-semibold, 600);
+    color: var(--foms-text-tertiary, #6b7380);
+    white-space: nowrap;
   }
   body.erp-mobile-v2-layout .foms-ship-cap-strip__list {
     display: flex;
@@ -396,12 +430,17 @@ body.col-resizing-active {
   body.erp-mobile-v2-layout #shipment-dashboard-table tbody tr.shipment-grp-row .shipment-grp-team {
     font-weight: 800;
   }
+  /* 잔여(또는 미배정=배정 필요)를 우측 정렬(목업 06: 팀·합계 좌 / 잔여 우). 건수는 좌 클러스터. */
   body.erp-mobile-v2-layout #shipment-dashboard-table tbody tr.shipment-grp-row .shipment-grp-remain {
+    margin-left: auto;
     color: var(--foms-text-secondary, #4a515b);
     font-variant-numeric: tabular-nums;
   }
+  body.erp-mobile-v2-layout #shipment-dashboard-table tbody tr.shipment-grp-row .shipment-grp-remain--need {
+    color: var(--foms-color-danger-600, #dc2626);
+    font-weight: var(--foms-font-weight-semibold, 600);
+  }
   body.erp-mobile-v2-layout #shipment-dashboard-table tbody tr.shipment-grp-row .shipment-grp-count {
-    margin-left: auto;
     color: var(--foms-text-tertiary, #6b7380);
     font-weight: var(--foms-font-weight-semibold, 600);
   }

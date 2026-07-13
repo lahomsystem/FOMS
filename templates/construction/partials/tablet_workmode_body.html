@@ -26,8 +26,8 @@
           data-order-id="{{ o.id }}"
           data-cwork-date="{{ (o.construction_date or '').split(',')[0].strip()[:10] }}">
           <span class="foms-cwork-card__row">
-            {% if _ctime %}<span class="foms-cwork-card__time">{{ _ctime }}</span>{% else %}<span class="foms-cwork-card__time foms-cwork-card__time--none">시간 미정</span>{% endif %}
             <span class="foms-cwork-status foms-cwork-status--{{ 'done' if o.stage=='시공완료' else 'active' if o.stage=='시공중' else 'wait' }}">{{ o.stage }}</span>
+            {% if _ctime %}<span class="foms-cwork-card__time">{{ _ctime }}</span>{% else %}<span class="foms-cwork-card__time foms-cwork-card__time--none">시간 미정</span>{% endif %}
           </span>
           <span class="foms-cwork-card__name">{{ o.customer_name }}</span>
           <span class="foms-cwork-card__region">{{ o.address }}</span>

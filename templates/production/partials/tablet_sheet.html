@@ -12,13 +12,16 @@
    로드된 표면에선 그 경로로 위임하고, 미로드(생산 대시보드)면 전역 뷰어로 직접 배선한다.
    ============================================================================ #}
 <div class="foms-prod-sheet" data-order-id="{{ order.id }}">
-  <div class="foms-prod-sheet__head">
-    {{ order.customer_name }}
-    {% if order.hold_active %}
-    <span class="foms-prod-sheet__hold-badge" data-tablet-sheet-hold-badge>보류</span>
-    {% endif %}
+  {# 목업 frame05: 고객명 + #id·상차 를 한 줄(titlebar). 보류 배지는 이름 옆 인라인 유지. #}
+  <div class="foms-prod-sheet__titlebar">
+    <div class="foms-prod-sheet__head">
+      {{ order.customer_name }}
+      {% if order.hold_active %}
+      <span class="foms-prod-sheet__hold-badge" data-tablet-sheet-hold-badge>보류</span>
+      {% endif %}
+    </div>
+    <div class="foms-prod-sheet__count">#{{ order.id }} · 상차 {{ order.load_md }}</div>
   </div>
-  <div class="foms-prod-sheet__count">#{{ order.id }} · 상차 {{ order.load_md }}</div>
   {% if order.hold_active and order.hold_reason %}
   <div class="foms-prod-sheet__hold-reason" data-tablet-sheet-hold-reason-view>보류 사유: {{ order.hold_reason }}</div>
   {% endif %}
