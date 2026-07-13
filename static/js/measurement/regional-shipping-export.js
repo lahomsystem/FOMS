@@ -36,8 +36,8 @@
         { key: 'memo', label: '비고', width: 220, align: 'left' }
     ];
 
-    // 실측 export 의 담당자 그룹 여백과 동일(그룹이 바뀔 때만 얇은 간격 행).
-    var GROUP_GAP_HEIGHT = '14px';
+    // 상차일 그룹 라벨 밴드 배경(옅은 인디고). 그룹 경계 + 날짜 안내 겸용.
+    var GROUP_HEADER_BG = '#eef2ff';
 
     // 지역(시/도) 그룹 정렬용. 주소 첫 토큰만 보면 되므로 Kakao API 불필요 —
     // 정규화 맵은 서버 address_converter._normalize_address 의 축약어 맵과 동일 규칙.
@@ -273,21 +273,45 @@
     }
 
     /**
-     * 지역 그룹 사이 여백 행(실측 export 의 담당자 그룹 여백과 동일 규격).
+     * 상차일(YYYY-MM-DD) → 'N월 N일 상차' 라벨. 앞 0 제거.
+     * 빈값/파싱 실패는 '상차일 미정'.
+     * @param {string} shipDate
+     * @returns {string}
+     */
+    function formatShipDateLabel(shipDate) {
+        if (!shipDate) return '상차일 미정';
+        var parts = String(shipDate).split('-');
+        if (parts.length < 3) return '상차일 미정';
+        var month = Number(parts[1]);
+        var day = Number(parts[2]);
+        if (!month || !day) return '상차일 미정';
+        return month + '월 ' + day + '일 상차';
+    }
+
+    /**
+     * 상차일 그룹 맨 위 라벨 밴드 행. 한 셀이 표 전체폭을 span.
+     * 그룹 구분(여백 대체) + 날짜 안내를 겸한다.
      * @param {Document} doc
+     * @param {string} shipDate
      * @returns {HTMLTableRowElement}
      */
-    function buildGroupGapRow(doc) {
+    function buildGroupHeaderRow(doc, shipDate) {
         var tr = doc.createElement('tr');
-        tr.setAttribute('aria-hidden', 'true');
         var td = doc.createElement('td');
         td.colSpan = COLUMNS.length;
-        td.style.height = GROUP_GAP_HEIGHT;
-        td.style.padding = '0';
+        td.textContent = formatShipDateLabel(shipDate);
+        td.style.backgroundColor = GROUP_HEADER_BG;
+        td.style.color = LINE_COLOR;
+        td.style.fontWeight = '800';
+        td.style.fontSize = '24px';
+        td.style.letterSpacing = '0.04em';
+        td.style.padding = '12px 14px';
+        td.style.textAlign = 'left';
         td.style.border = 'none';
+        td.style.borderTop = '1px solid ' + LINE_COLOR;
         td.style.borderBottom = '1px solid ' + LINE_COLOR;
-        td.style.backgroundColor = '#ffffff';
-        td.style.lineHeight = '0';
+        td.style.borderLeft = '1px solid ' + LINE_COLOR;
+        td.style.borderRight = '1px solid ' + LINE_COLOR;
         tr.appendChild(td);
         return tr;
     }
@@ -362,10 +386,10 @@
         var dataNo = 0;
         rows.forEach(function (row) {
             var shipDate = row.shipping_date || '';
-            // 상차일이 바뀌는 경계에만 여백 행 삽입(첫 그룹 앞에는 없음).
-            // 같은 날짜 안에서는 여백 없이 지역순으로 연속. 빈 상차일끼리는 같은 그룹.
-            if (prevShippingDate !== null && shipDate !== prevShippingDate) {
-                tbody.appendChild(buildGroupGapRow(doc));
+            // 상차일이 바뀌는 경계마다 라벨 밴드 행 삽입(첫 그룹 포함 — prev 초기값 null).
+            // 같은 날짜 안에서는 밴드 없이 지역순으로 연속. 빈 상차일끼리는 같은 그룹.
+            if (shipDate !== prevShippingDate) {
+                tbody.appendChild(buildGroupHeaderRow(doc, shipDate));
             }
             prevShippingDate = shipDate;
             dataNo += 1;
