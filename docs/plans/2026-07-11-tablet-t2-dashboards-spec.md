@@ -82,6 +82,16 @@ staging 2차 전수: 풀로드 10페이지(9탭+계산기) 전량 = 크롬 3종 
 
 미구현(사유 명시): 생산 '보류' 동작(상태/API 부재 — disabled), 현금영수증 발행 액션(API 부재 — 요청 상태 표기만). 백로그: long-press 벌크 선택 모드+contextual bar(프레임 12), 계산기 split pane 하이브리드 게이트(프레임 13), 레일 하단 알림·아바타, 상주형(고정) 320px 시트(현행 슬라이드 유지), 실측 마스터 chips 세분(주간/미확정)·지도로 보기.
 
+## T7 — 잔여 PC 크롬 소거 + 미구현 전량 (2026-07-13, deploy c6a278f6·4e37eb66)
+
+사용자 실기기 4지적(대시보드/출고/시공/계산기 "아직 PC", 마법사 나가기 부재, 저장견적 접힘 요구, 미구현 구현) 전량 반영 — Opus 5기 병렬 + Advisor 직접 재검.
+- 대시보드(01): 프로세스맵 밴드·파이프라인·작업큐 헤더·erp-pro-header 태블릿 은닉, 목업형 pcbar(제목·N건·날짜·밀도 토글·주문 생성)+KPI 5타일(`tablet_dashboard_topbar.html`). **재검 적발**: 은닉이 Bootstrap `d-flex`(!important)에 패배 → `!important` 봉합(워커 "✓" 보고와 실화면 불일치 — 병치 대조 필수 재확인).
+- 시공(07): 프로세스맵·파이프라인·필터 은닉 — 워크모드 전체 소유. 출고(06): 저우선 컬럼(`data-col-key`) 숨김·자수 우측정렬·행 48px·팀 파스텔 행 승격·주소는 배정 시트로.
+- 계산기: 저장된 견적 기본 접힘(48px 레일 토글+오버레이+localStorage, `tablet-skin.js`) — 엔진·DOM 계약 무변경. 마법사: 나가기 버튼(dirty 가드 재사용, 목업 04 대조 잔여 0).
+- 신규 API: `POST production/hold`(sd.production.hold 플래그, 전이 없음)·`POST cash-receipt/issue`(settlement.cash_receipt, 409/403) — deepcopy+flag_modified. 레일 하단 알림 벨(`data-foms-notif-open`+배지 SSOT, renderBadge querySelectorAll 근본수정)+아바타(프로필).
+- 프레임 12: `tablet-bulk-select.js`(long-press 500ms→선택 모드+contextual bar, 기존 PC 벌크 재사용, capture-phase stopPropagation으로 시트 충돌 차단, erp-dashboard-entry CHAIN 배선). 프레임 13: split pane 실사 결과 이미 992+ 동작 — coarse arm 명시+44px 보정만.
+- 에뮬 한계 기록: 페이지 스크립트의 matchMedia 인스턴스에는 외부 change 발화 불가 → 로드시점 게이트 JS는 CSS 클래스 수동 부여로 시각 검증+계약 테스트로 잠금.
+
 ## 백로그 (잔여 페이지 — 조사 완료, 착수 판단 대기)
 
 시트/터치 그리드 계약(`#erp-grid tr.erp-main-row[data-order-id]`) 미충족 6페이지 실사 결과:
