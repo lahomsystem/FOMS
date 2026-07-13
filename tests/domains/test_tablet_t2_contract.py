@@ -590,12 +590,12 @@ def test_w16_tablet_bundle_exists_with_four_imports_shell_independent() -> None:
 
 def test_w16_layout_head_loads_bundle_for_v2_and_v3_cohort() -> None:
     """layout_head 가 foms-tablet-bundle.css 를 erp_mobile_v2_enabled(코호트 공통) 게이트로
-    로드하고 ?v=20260713g 를 가진다. v2 전용(shell_variant=='v2') 게이트가 아님을 검증.
-    (?v 는 2026-07-13 T2 Phase 2 도킹 모드로 side-sheet.css 내용 변경 → 캐시 체인 규칙에 따라 f→g 범프.)"""
+    로드하고 ?v=20260713h 를 가진다. v2 전용(shell_variant=='v2') 게이트가 아님을 검증.
+    (?v 는 2026-07-13 태블릿 클린 작업 큐 그리드 신설로 landscape.css 내용 변경 → 캐시 체인 규칙에 따라 g→h 범프.)"""
     layout_head = _read("templates/partials/shared/layout_head.html")
     idx = layout_head.find("foms-tablet-bundle.css")
     assert idx != -1, "layout_head 에 태블릿 번들 <link> 부재"
-    assert "foms-tablet-bundle.css') }}?v=20260713g" in layout_head
+    assert "foms-tablet-bundle.css') }}?v=20260713h" in layout_head
     # Anchor on the nearest preceding `{% if %}` (the bundle gate) rather than a fixed
     # char window — the gate string grows over time (2026-07-12: +/wdcalculator arm).
     gate_start = layout_head.rfind("{% if", 0, idx)
@@ -1048,3 +1048,107 @@ def test_ctower_construction_css_hides_top_chrome_page_scoped() -> None:
     # construction 페이지 컨테이너에 스코프 클래스 부여.
     body = _read(CONSTRUCTION_DASHBOARD_BODY)
     assert "erp-construction-dashboard" in body
+
+
+# =====================================================================
+# T-TQGRID — 컨트롤타워 클린 작업 큐 그리드 (2026-07-13, 목업 프레임 01)
+# T-CTOWER 의 "PC 13열을 CSS 로 4열만 접기"는 목업 정합에 도달하지 못했다(컬럼 순서·경보
+# 열·퀘스트 버튼/날짜 input/로고/결제 뱃지 잔존 — CSS 로 열 재정렬·버튼→plain 변환 불가).
+# 목업 정합 클린 그리드를 템플릿(tablet_workqueue_grid.html)으로 신설하고, PC 그리드는
+# 코호트에서 컨테이너째 은닉한다(셀 내용 무변경 → desktop/fine 보존). 행 탭 = 도크 위임 확장.
+# 서버 무변경(기존 orders DTO 재소비 — 신규 쿼리 0).
+# =====================================================================
+
+WORKQUEUE_GRID_PARTIAL = "templates/orders/partials/tablet_workqueue_grid.html"
+
+
+def test_tqgrid_partial_exists_with_mockup_columns_in_order() -> None:
+    """클린 그리드 파샬: 목업 8열 헤더가 정확한 순서([체크박스]·단계·고객·다음 할 일·제품·
+    실측일·시공일·담당·첨부)로 존재하고, 경보 열/PC data-col-key 는 없다."""
+    body = _read(WORKQUEUE_GRID_PARTIAL)
+    # 헤더 라벨은 순서대로(>LABEL</th> 는 헤더에만 매치 — 상단 주석/셀 주석 불매치).
+    order = ["단계", "고객", "다음 할 일", "제품", "실측일", "시공일", "담당", "첨부"]
+    idxs = [body.index(">" + label + "</th>") for label in order]
+    assert idxs == sorted(idxs), "목업 컬럼 순서 불일치(단계·고객·다음할일·제품·실측일·시공일·담당·첨부)"
+    # 경보 열 없음(PC 그리드 data-col-key/경보 th 부재).
+    assert ">경보</th>" not in body
+    assert "data-col-key" not in body
+    # 벌크 호환 체크박스(첫 열).
+    assert 'class="form-check-input erp-grid-order-check"' in body
+
+
+def test_tqgrid_rows_are_plain_no_inputs_buttons_logos_paybadges() -> None:
+    """셀 plain 계약: 날짜 input·퀘스트 collapse 버튼·라홈 로고·결제 코인 뱃지가 없다
+    (목업: 모든 셀 plain 텍스트/배지). 다음 할 일은 현재 퀘스트 title 을 쓴다."""
+    body = _read(WORKQUEUE_GRID_PARTIAL)
+    assert 'type="date"' not in body, "실측/시공일에 날짜 input 잔존(목업: plain 텍스트)"
+    assert 'data-bs-toggle="collapse"' not in body, "퀘스트 collapse 버튼 잔존(목업: plain 텍스트)"
+    assert "lahom-logo" not in body, "고객 셀에 라홈 로고 잔존(목업: 이름+긴급칩만)"
+    assert "pay-coin" not in body, "고객 셀에 결제 코인 뱃지 잔존(목업: 이름+긴급칩만)"
+    # 다음 할 일 = 현재 퀘스트 title(허구 텍스트 금지 — 실 DTO 필드).
+    assert "o.current_quest.title" in body
+    # 긴급 칩은 urgent 알림일 때만.
+    assert "foms-tqchip-urgent" in body
+    assert "o.alerts.urgent" in body
+
+
+def test_tqgrid_row_exposes_side_sheet_source_and_stage_badge() -> None:
+    """행 계약: PC 그리드와 동일한 erp-main-row + data-order-id/data-stage/data-foms-sheet-url
+    (도크 위임 소스) + 단계 SSOT 색 배지 + wrap 의 stage 카탈로그 data 속성(파이프라인 소스)."""
+    body = _norm(_read(WORKQUEUE_GRID_PARTIAL))
+    assert (
+        'class="erp-main-row foms-tqrow" data-order-id="{{ o.id }}" '
+        'data-stage="{{ o.stage_code }}"' in body
+    ), "행에 도크 위임 소스(erp-main-row + data-order-id/data-stage) 부재"
+    assert (
+        "data-foms-sheet-url=\"{{ url_for('erp_dashboard.erp_dashboard_tablet_sheet'" in body
+    ), "행에 시트 URL(data-foms-sheet-url) 부재"
+    assert "foms-stage-badge foms-stage-badge{{ o.stage_badge_modifier" in body
+    assert (
+        "class=\"foms-tablet-workqueue-wrap\" "
+        "data-foms-stage-catalog='{{ foms_stage_catalog|tojson }}'" in body
+    ), "wrap 에 stage 카탈로그 data 속성(파이프라인 소스) 부재"
+
+
+def test_tqgrid_wired_into_dashboard_main_cohort_gated() -> None:
+    """dashboard_main.html 이 클린 그리드를 erp_mobile_v2_enabled 게이트 안에서 PC 그리드
+    직후에 include(서버 v2∪v3 공통 렌더 — 표시/은닉은 CSS 게이트 소유)."""
+    body = _norm(_read(ORDERS_DASHBOARD_MAIN))
+    assert (
+        "{% if erp_mobile_v2_enabled %} "
+        "{% include 'orders/partials/tablet_workqueue_grid.html' %}"
+    ) in body
+
+
+def test_tqgrid_css_exclusivity_couples_show_and_pc_hide_no_blank() -> None:
+    """배타(blank 금지): base-hide 가 show 앞(순서 계약) + 태블릿 가로 코호트에서 클린 그리드
+    표시와 PC 작업 큐 카드(.erp-dashboard-workqueue) 은닉이 동일 게이트 아래 결합. 행 ≥48px
+    터치 토큰 구동."""
+    css = _norm(_read(LANDSCAPE_CSS))
+    base_idx = css.index(".foms-tablet-workqueue-wrap { display: none")
+    show_idx = css.index(
+        "body.erp-mobile-v2-layout .foms-tablet-workqueue-wrap { display: block"
+    )
+    assert base_idx < show_idx, "base-hide 가 show 뒤에 있음(순서 계약 위반)"
+    assert CORE_MEDIA_QUERY in css
+    assert (
+        "body.erp-mobile-v2-layout .erp-dashboard-orders .erp-dashboard-workqueue "
+        "{ display: none !important" in css
+    ), "PC 작업 큐 카드 코호트 은닉 규칙 부재"
+    # 행 터치 지오메트리 = --foms-touch-target-min(하드코딩 회귀 차단).
+    assert (
+        ".foms-tqgrid tbody tr.foms-tqrow { height: var(--foms-touch-target-min" in css
+    )
+
+
+def test_tqgrid_side_sheet_delegation_and_autoselect_prefers_clean_grid() -> None:
+    """도크 위임: side-sheet.js 셀렉터에 클린 그리드 본행 확장 + autoSelectFirstRow 가 표시 중인
+    클린 그리드를 먼저 조회하고 PC #erp-grid 로 폴백(기존 소스 보존 — 회귀 금지)."""
+    js = _read(SIDE_SHEET_JS)
+    assert ".foms-tablet-workqueue-wrap tr.erp-main-row[data-order-id]" in js
+    assert (
+        'document.querySelector(".foms-tablet-workqueue-wrap '
+        'tr.erp-main-row[data-order-id]") ||' in js
+    ), "autoSelectFirstRow 가 클린 그리드를 우선 조회하지 않음"
+    # 회귀 금지: PC 그리드 소스 보존.
+    assert "#erp-grid tr.erp-main-row[data-order-id]" in js

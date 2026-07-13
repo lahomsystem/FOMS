@@ -131,6 +131,11 @@
 
   <div class="erp-dashboard-layout">
     {% include 'orders/partials/dashboard_grid.html' %}
+    {# 태블릿 가로 코호트 클린 작업 큐 그리드(목업 프레임 01). 서버는 v2∪v3 공통으로 렌더하고,
+       표시/PC 그리드 은닉은 CSS 코호트 게이트(foms-tablet-landscape.css)가 소유한다(PC/폰 무영향). #}
+    {% if erp_mobile_v2_enabled %}
+    {% include 'orders/partials/tablet_workqueue_grid.html' %}
+    {% endif %}
   </div>
   </div>{# /.foms-shell-desktop-only #}
 

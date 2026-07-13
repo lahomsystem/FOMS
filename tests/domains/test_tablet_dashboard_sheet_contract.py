@@ -64,10 +64,10 @@ def test_side_sheet_open_uses_resolved_url() -> None:
 
 
 def test_side_sheet_cachebuster_bumped_to_20260713a() -> None:
-    """side-sheet.js ?v 가 범프(T2 Phase 2 도킹 모드로 JS 내용 변경 → c→d)."""
+    """side-sheet.js ?v 가 범프(태블릿 클린 작업 큐 그리드 셀렉터 확장으로 JS 내용 변경 → d→e)."""
     html = _read(LAYOUT_SCRIPTS)
-    assert "tablet-side-sheet.js') }}?v=20260713d" in html
-    assert "tablet-side-sheet.js') }}?v=20260712b" not in html
+    assert "tablet-side-sheet.js') }}?v=20260713e" in html
+    assert "tablet-side-sheet.js') }}?v=20260713d" not in html
 
 
 # =====================================================================

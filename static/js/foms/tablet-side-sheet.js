@@ -72,6 +72,9 @@
   // 본행)까지 융합 레이어 확장. 이력 확장행(.history-detail-row)은 클래스가 달라 미포함이고,
   // chevron 확장 토글은 아래 INTERACTIVE([role="button"])가 제외해 기존 확장 UX가 보존된다.
   var ROW_SELECTOR =
+    // 컨트롤타워 클린 작업 큐 그리드(태블릿 가로 코호트 표시) 본행 — PC #erp-grid 대체 표면.
+    // 행에 동일한 erp-main-row + data-order-id/data-stage/data-foms-sheet-url 부여(마크업 계약).
+    ".foms-tablet-workqueue-wrap tr.erp-main-row[data-order-id], " +
     "#erp-grid tr.erp-main-row[data-order-id], " +
     ".foms-kanban-card[data-order-id], " +
     ".foms-completion-grid tbody tr[data-order-id], " +
@@ -329,7 +332,11 @@
     ) {
       return;
     }
-    var row = document.querySelector("#erp-grid tr.erp-main-row[data-order-id]");
+    // 태블릿 가로 코호트에선 클린 작업 큐 그리드가 표시되고 PC #erp-grid 는 display:none 이므로
+    // 표시 중인 클린 그리드 첫 행을 먼저 조회하고, 부재 시 PC 그리드로 폴백한다(비-도킹 표면 보존).
+    var row =
+      document.querySelector(".foms-tablet-workqueue-wrap tr.erp-main-row[data-order-id]") ||
+      document.querySelector("#erp-grid tr.erp-main-row[data-order-id]");
     if (!row) return;
     var oid = row.getAttribute("data-order-id");
     if (!oid) return;

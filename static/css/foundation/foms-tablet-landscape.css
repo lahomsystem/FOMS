@@ -847,3 +847,136 @@
     display: none;
   }
 }
+
+/* ============================================================
+   컨트롤타워 클린 작업 큐 그리드 (목업 프레임 01) — tablet_workqueue_grid.html (2026-07-13).
+
+   T-CTOWER 의 "PC 13열을 CSS 로 4열만 접기"는 목업 정합에 도달하지 못했다(컬럼 순서·경보
+   열·퀘스트 버튼/날짜 input/로고/결제 뱃지 잔존 — CSS 로는 열 재정렬·버튼→plain 변환 불가).
+   목업 정합 클린 그리드를 템플릿(tablet_workqueue_grid.html)으로 신설하고, 이 파일이
+   (1) 코호트 표시 게이트 (2) PC 작업 큐 카드 은닉 (3) 그리드 시각을 소유한다.
+
+   .foms-tqgrid 네임스페이스는 이 wrap 안에서만 존재하고 wrap 은 base-hide(코호트 밖 display:none)
+   이므로, 구조/시각 규칙은 base 레벨에 두어도 코호트 밖에선 렌더되지 않는다(PC/폰/세로 무영향
+   — .foms-tsheet-*·.foms-ship-sheet__* 자족 네임스페이스와 동일 패턴). foms 토큰만 소비.
+   ============================================================ */
+
+/* base-hide: 코호트 밖(PC/모바일/세로)에서 클린 그리드 완전 은닉. opt-in(show) 앞(순서 계약). */
+.foms-tablet-workqueue-wrap {
+  display: none;
+}
+
+/* 그리드 구조·시각. */
+.foms-tqgrid {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--foms-surface-base, #fff);
+  font-size: var(--foms-font-size-sm, 0.875rem);
+  color: var(--foms-text-primary);
+}
+.foms-tqgrid thead th {
+  text-align: left;
+  padding: var(--foms-space-2, 0.5rem) var(--foms-space-3, 0.75rem);
+  font-size: var(--foms-font-size-xs, 0.75rem);
+  font-weight: var(--foms-font-weight-semibold, 600);
+  color: var(--foms-text-tertiary, #6b7380);
+  background: var(--foms-surface-raised, #f7f8fa);
+  border-bottom: 1px solid var(--foms-border-default, #c1c7d0);
+  white-space: nowrap;
+}
+.foms-tqgrid tbody td {
+  padding: var(--foms-space-2, 0.5rem) var(--foms-space-3, 0.75rem);
+  border-bottom: 1px solid var(--foms-border-subtle, #dde1e6);
+  vertical-align: middle;
+}
+/* 데이터 행 ≥48px 터치(table-row 의 height 는 최소 높이로 동작). 행 탭 = 도크 갱신. */
+.foms-tqgrid tbody tr.foms-tqrow {
+  height: var(--foms-touch-target-min, 48px);
+  cursor: pointer;
+}
+.foms-tqgrid tbody tr.foms-tqrow:hover {
+  background: var(--foms-surface-raised, #f7f8fa);
+}
+/* 도크 패널에 표시 중인 선택 행 강조(side-sheet.js 가 .foms-tablet-sheet-active 토글). */
+.foms-tqgrid tbody tr.foms-tqrow.foms-tablet-sheet-active {
+  background: var(--foms-surface-accent, #f3f4ff);
+  box-shadow: inset 3px 0 0 0 var(--foms-interactive-primary, #5a67d8);
+}
+
+/* 체크박스 열 — 44px 터치 폭 + 24px 박스(벌크 호환). */
+.foms-tqgrid__chk {
+  width: 44px;
+  text-align: center;
+}
+.foms-tqgrid__chk .form-check-input {
+  width: 24px;
+  height: 24px;
+  margin: 0;
+}
+
+/* 고객 셀 — 이름(굵게) + 긴급 칩(유채, HMI: 경보만 색). 로고/결제 뱃지 없음. */
+.foms-tqcell-customer {
+  min-width: 120px;
+}
+.foms-tqcell-customer__name {
+  font-weight: var(--foms-font-weight-bold, 700);
+}
+.foms-tqchip-urgent {
+  display: inline-block;
+  margin-left: var(--foms-space-1, 0.25rem);
+  padding: 1px 6px;
+  border-radius: var(--foms-radius-sm, 6px);
+  font-size: var(--foms-font-size-xs, 0.75rem);
+  font-weight: var(--foms-font-weight-bold, 700);
+  color: var(--foms-color-neutral-0, #fff);
+  background: var(--foms-color-danger-600, #dc2626);
+  white-space: nowrap;
+}
+
+/* 다음 할 일 — plain 텍스트(버튼 없음). 퀘스트 부재 폴백은 무채 stage 라벨. */
+.foms-tqcell-quest {
+  max-width: 300px;
+}
+.foms-tqcell-muted {
+  color: var(--foms-text-tertiary, #6b7380);
+}
+.foms-tqcell-line + .foms-tqcell-line {
+  margin-top: 2px;
+}
+
+/* 실측/시공일·담당 — nowrap plain 텍스트. */
+.foms-tqcell-date,
+.foms-tqcell-manager {
+  white-space: nowrap;
+}
+
+/* 첨부 — 우측 정렬 숫자(헤더·셀 공통). */
+.foms-tqgrid__attach,
+.foms-tqcell-attach {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 페이지네이션(PC 그리드 복제 마크업) — 44px 터치 타깃. */
+.foms-tablet-workqueue-wrap .pagination .page-link {
+  min-width: var(--foms-touch-target-comfortable, 44px);
+  min-height: var(--foms-touch-target-comfortable, 44px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+
+  /* 클린 그리드 표시 + PC 작업 큐 카드 은닉(동일 게이트 결합 — blank 금지). PC 그리드는
+     컨테이너째 은닉하고(셀 내용 무변경 → desktop/fine 보존), 클린 그리드가 대체한다.
+     PC 컨테이너 = .erp-dashboard-workqueue(dashboard_grid.html:6, 테이블+페이지네이션 포함).
+     !important: 카드 내부 Bootstrap 유틸/특이도 대비(작업 큐 헤더 은닉 전례와 동일). */
+  body.erp-mobile-v2-layout .foms-tablet-workqueue-wrap {
+    display: block;
+  }
+  body.erp-mobile-v2-layout .erp-dashboard-orders .erp-dashboard-workqueue {
+    display: none !important;
+  }
+}

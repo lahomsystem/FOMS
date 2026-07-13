@@ -1,0 +1,133 @@
+{# 태블릿 가로 컨트롤타워 클린 작업 큐 그리드 (목업 프레임 01 "컨트롤 타워").
+   ─────────────────────────────────────────────────────────────────────────────
+   목적: PC 13열 작업 큐(dashboard_grid.html)를 CSS 로 4열만 접던 T-CTOWER 방식은
+   "PC 밀도 이식 = 반대 방향 함정"(목업 경고)을 벗어나지 못했다(컬럼 순서·경보 열·
+   퀘스트 버튼/날짜 input/로고/결제 뱃지가 그대로 남음). CSS 로는 열 재정렬·버튼→plain
+   텍스트 변환이 불가하므로, 목업 정합 클린 그리드를 템플릿 레벨로 신설한다.
+
+   목업 컬럼(좌→우): [체크박스] 단계 · 고객 · 다음 할 일(퀘스트) · 제품 · 실측일 ·
+   시공일 · 담당 · 첨부(우측정렬). 경보 열 없음. 모든 셀 plain(입력/버튼/로고/결제뱃지 없음).
+
+   데이터: PC 그리드와 동일한 표시 DTO(build_orders_row_dtos)의 `orders` 를 재소비한다
+   (신규 쿼리 0). 단계 배지는 SSOT 컴포넌트(.foms-stage-badge{{ modifier }}, foms-buttons.css
+   ← foms-mobile-surfaces.css 로 코호트 로드)로 색을 파생한다.
+
+   표시/은닉: 이 wrap 은 base-hide(display:none)이고, 태블릿 가로 코호트
+   (body.erp-mobile-v2-layout + coarse landscape MQ)에서만 표시된다(같은 게이트가 PC
+   작업 큐 카드를 은닉). 게이트·시각은 foms-tablet-landscape.css 가 소유.
+
+   행 탭 → 도크(우측 상시 패널)는 tablet-side-sheet.js 가 소유한다. 행에 PC 그리드와
+   동일한 erp-main-row 클래스 + data-order-id/data-stage/data-foms-sheet-url 을 부여해
+   기존 위임 셀렉터·파이프라인(data-foms-stage-catalog)이 그대로 이 그리드를 선택한다.
+   컨텍스트: orders(DTO 리스트), can_edit_erp, filters, page/total_pages/total_orders,
+   foms_stage_catalog(컨텍스트 프로세서). #}
+<div class="foms-tablet-workqueue-wrap" data-foms-stage-catalog='{{ foms_stage_catalog|tojson }}'>
+  <table class="foms-tqgrid">
+    <thead>
+      <tr>
+        <th scope="col" class="foms-tqgrid__chk"><span class="visually-hidden">선택</span></th>
+        <th scope="col">단계</th>
+        <th scope="col">고객</th>
+        <th scope="col">다음 할 일</th>
+        <th scope="col">제품</th>
+        <th scope="col">실측일</th>
+        <th scope="col">시공일</th>
+        <th scope="col">담당</th>
+        <th scope="col" class="foms-tqgrid__attach">첨부</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for o in orders %}
+      <tr class="erp-main-row foms-tqrow" data-order-id="{{ o.id }}" data-stage="{{ o.stage_code }}"
+        data-foms-sheet-url="{{ url_for('erp_dashboard.erp_dashboard_tablet_sheet', order_id=o.id) }}">
+        {# 체크박스: 벌크 호환(PC 와 동일 .erp-grid-order-check + data-order-id). 편집 권한 게이트
+           (PC 그리드·벌크 바와 동일 — 읽기 전용 사용자에겐 무의미). #}
+        <td class="foms-tqgrid__chk">
+          {% if can_edit_erp|default(false) %}<input type="checkbox" class="form-check-input erp-grid-order-check"
+            data-order-id="{{ o.id }}" aria-label="주문 선택">{% endif %}
+        </td>
+        {# 단계: SSOT 색 배지(무채 접수 ~ 유채 단계별). #}
+        <td class="foms-tqcell-stage">
+          <span class="foms-stage-badge foms-stage-badge{{ o.stage_badge_modifier|default('--received') }}">{{ o.stage_badge_label or o.stage or '-' }}</span>
+        </td>
+        {# 고객: 이름(굵게) + 긴급 칩만(로고·결제 코인 뱃지 없음 — 목업 정합). #}
+        <td class="foms-tqcell-customer">
+          <span class="foms-tqcell-customer__name">{{ o.customer_name or '-' }}</span>
+          {% if o.alerts.urgent %}<span class="foms-tqchip-urgent">긴급</span>{% endif %}
+        </td>
+        {# 다음 할 일: 현재 퀘스트의 다음 액션(plain 텍스트, 버튼 없음). 퀘스트 부재 행
+           (도면/생산/완료 등)은 무채 단계 라벨로 폴백(허구 텍스트 생성 금지 — 실데이터만). #}
+        <td class="foms-tqcell-quest">
+          {% if o.current_quest and o.current_quest.title %}{{ o.current_quest.title }}{% else %}<span class="foms-tqcell-muted">{{ o.stage or '-' }}</span>{% endif %}
+        </td>
+        {# 제품: plain 텍스트. ERP 주문은 품목별 product_name, 그 외는 product_subtitle 요약. #}
+        <td class="foms-tqcell-product">
+          {% if o.is_erp_order and o.structured_data and o.structured_data.get('items') %}
+          {% for item in o.structured_data.get('items', []) %}<div class="foms-tqcell-line">{{ item.get('product_name') or '-' }}</div>{% endfor %}
+          {% else %}{{ o.product_subtitle or '-' }}{% endif %}
+        </td>
+        {# 실측일: plain 텍스트(input 없음). 콤마 다중일이면 첫 날짜만. #}
+        <td class="foms-tqcell-date">
+          {% set _m = (o.measurement_date or '')|string %}
+          {% set _mparts = (_m.split(',')|map('trim')|list)|select|list %}
+          {{ _mparts[0] if _mparts else '-' }}
+        </td>
+        {# 시공일: plain 텍스트(input 없음). 콤마 다중일이면 첫 날짜만. #}
+        <td class="foms-tqcell-date">
+          {% set _c = (o.construction_date or '')|string %}
+          {% set _cparts = (_c.split(',')|map('trim')|list)|select|list %}
+          {{ _cparts[0] if _cparts else '-' }}
+        </td>
+        {# 담당. #}
+        <td class="foms-tqcell-manager">{{ o.manager_name or '-' }}</td>
+        {# 첨부: 개수 숫자(우측정렬). 없으면 무채 대시. plain(프리뷰 버튼 아님 → 행 탭=도크). #}
+        <td class="foms-tqcell-attach">
+          {% if o.has_media and o.attachments_count %}{{ o.attachments_count }}{% else %}<span class="foms-tqcell-muted">-</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {# 페이지네이션: PC 그리드(dashboard_grid.html)와 동일 마크업 — PC 카드는 코호트에서
+     컨테이너째 은닉되므로 그 안의 페이지네이션도 함께 사라진다. 여기 복제해 클린 그리드에
+     동반한다(동일 라우트·필터 인자). #}
+  {% if total_pages is defined and total_pages > 1 %}
+  <div class="mt-4 mb-2 d-flex flex-column align-items-center">
+    <nav aria-label="Page navigation">
+      <ul class="pagination pagination-sm mb-1">
+        <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('erp_dashboard.erp_dashboard', page=page-1, stage=filters.get('stage') or '', q=filters.get('q') or '', urgent=filters.get('urgent') or '', has_alert=filters.get('has_alert') or '', alert_type=filters.get('alert_type') or '', team=filters.get('team') or '', mine=filters.get('mine') or '') }}" aria-label="Previous">
+            <span aria-hidden="true">&laquo;</span>
+          </a>
+        </li>
+
+        {% set start_page = page - 2 %}
+        {% set end_page = page + 2 %}
+        {% if start_page < 1 %}
+          {% set start_page = 1 %}
+          {% set end_page = start_page + 4 %}
+        {% endif %}
+        {% if end_page > total_pages %}
+          {% set end_page = total_pages %}
+          {% set start_page = end_page - 4 %}
+          {% if start_page < 1 %}{% set start_page = 1 %}{% endif %}
+        {% endif %}
+
+        {% for p in range(start_page, end_page + 1) %}
+        <li class="page-item {% if p == page %}active{% endif %}">
+          <a class="page-link" href="{{ url_for('erp_dashboard.erp_dashboard', page=p, stage=filters.get('stage') or '', q=filters.get('q') or '', urgent=filters.get('urgent') or '', has_alert=filters.get('has_alert') or '', alert_type=filters.get('alert_type') or '', team=filters.get('team') or '', mine=filters.get('mine') or '') }}">{{ p }}</a>
+        </li>
+        {% endfor %}
+
+        <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('erp_dashboard.erp_dashboard', page=page+1, stage=filters.get('stage') or '', q=filters.get('q') or '', urgent=filters.get('urgent') or '', has_alert=filters.get('has_alert') or '', alert_type=filters.get('alert_type') or '', team=filters.get('team') or '', mine=filters.get('mine') or '') }}" aria-label="Next">
+            <span aria-hidden="true">&raquo;</span>
+          </a>
+        </li>
+      </ul>
+    </nav>
+    <div class="text-muted small">총 {{ total_orders }}건 ({{ page }}/{{ total_pages }}페이지)</div>
+  </div>
+  {% endif %}
+</div>
