@@ -69,7 +69,9 @@
     ".erp-history-mobile-shell tr.history-main-row[data-order-id], " +
     // 도면 갤러리 카드(<a>): data-foms-erp-no-shell 로 erp-shell 인터셉트를 끊고
     // 여기서 시트를 연다(카드 자신이 anchor지만 INTERACTIVE 가드는 행 자신을 제외 안 함).
-    ".foms-drawing-gallery-card[data-order-id]";
+    ".foms-drawing-gallery-card[data-order-id], " +
+    // 출고 그리드 본행 — 배정 시트(data-foms-sheet-url 이 전용 fragment 를 가리킴).
+    "#shipment-dashboard-table tbody tr[data-order-id]";
   // 행 내 인터랙티브 요소 클릭은 시트 대상에서 제외(closest 체인). AS 인라인 날짜/체크박스
   // (.form-check)·상세 링크·이력 chevron([role="button"])까지 커버.
   var INTERACTIVE =

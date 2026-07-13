@@ -63,6 +63,7 @@
   {% else %}
   <form class="foms-completion-sheet__section foms-completion-sheet__issue"
         data-foms-settlement-form
+        data-foms-settlement-issue
         data-order-id="{{ order_id }}"
         data-endpoint="/api/orders/{{ order_id }}/settlement/issue"
         method="post"
