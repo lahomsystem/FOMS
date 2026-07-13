@@ -6,6 +6,9 @@
       · tail 오염(표본 절반이 3~5s)에도 min 불변 → PASS 유지(한국↔싱가포르 tail 내성).
       · 균일 +200ms 시프트(서버 회귀)는 min 도 오름 → FAIL(감지 유지).
   - healthz 델타 산식(음수는 0 바닥).
+  - 바이트 판정 = median **wire(전송 압축) 바이트**(실사용 다운로드 비용). 반복 큰 마크업은
+    압축돼 wire 가 안 늘어 오탐 없음(해압 바이트는 정보용). Content-Length 부재 시 해압 폴백
+    (보수적) + wire_degraded 플래그만, FAIL 은 안 함.
   - --seed 마진: max(delta*1.3, delta+80ms).
   - 크리덴셜 부재 → exit 2(게이트 SKIP ≠ 실패).
 """
@@ -22,10 +25,18 @@ from foms.services.common.erp_navigation_contract import ERP_PRIMARY_NAV_PATHS
 GLOBAL_BUDGET = {"render_ms_max": 500, "etag_required": True, "conditional_304_required": True}
 
 
-def _sample(ttfb_ms: int, bytes_: int = 1000, render_ms: float | None = 100.0) -> dict:
+def _sample(
+    ttfb_ms: int,
+    bytes_: int = 1000,
+    render_ms: float | None = 100.0,
+    wire_bytes: int | None = None,
+) -> dict:
+    """표본 픽스처. wire_bytes 미지정 시 bytes_ 와 동일(압축=1:1 기본), wire_measured=True."""
     return {
         "ttfb_ms": ttfb_ms,
         "bytes": bytes_,
+        "wire_bytes": bytes_ if wire_bytes is None else wire_bytes,
+        "wire_measured": True,
         "render_ms": render_ms,
         "etag_present": True,
         "content_encoding": "br",
@@ -130,12 +141,82 @@ def test_healthz_delta_formula_and_negative_floor():
 
 
 def test_bytes_over_budget_fails():
-    """median bytes 가 예산 초과 → FAIL(bytes 는 delta 무관, 결정적)."""
+    """median wire bytes 가 예산 초과 → FAIL(bytes 는 delta 무관, 결정적)."""
     warm = [_sample(400, bytes_=9000), _sample(400, bytes_=9100), _sample(400, bytes_=9050), _sample(400, bytes_=9000)]
     summary = gate.summarize_samples(warm)
     row = gate.judge_path("/x", summary, True, _budget(delta=100, bytes_=5000), GLOBAL_BUDGET, base_ttfb_ms=380)
     assert row["passed"] is False
     assert any("bytes" in r for r in row["reasons"])
+
+
+# ---------------------------------------------------------------------------
+# wire(전송 압축) 바이트 판정 — 재시드 두더지잡기 종결 계약
+# ---------------------------------------------------------------------------
+def test_wire_bytes_judged_not_decompressed_reseed_thrash_ended():
+    """핵심 가치: 해압 90만 바이트여도 wire(압축) 5만이면 예산 이내 → PASS.
+
+    반복 큰 태블릿 마크업(10~15:1 압축)은 해압 바이트만 부풀고 wire 는 거의 안 는다.
+    판정 지표를 wire 로 옮기면 매 커밋 재시드 두더지잡기가 종결된다(해압 판정이면 FAIL).
+    """
+    warm = [_sample(400, bytes_=900000, wire_bytes=50000) for _ in range(4)]
+    summary = gate.summarize_samples(warm)
+    assert summary["median_bytes"] == 900000  # 해압은 거대(정보용)
+    assert summary["median_wire_bytes"] == 50000  # wire 는 작음(판정값)
+    row = gate.judge_path(
+        "/x", summary, True, _budget(delta=100, bytes_=137723), GLOBAL_BUDGET, base_ttfb_ms=380
+    )
+    assert row["passed"] is True, "wire 가 예산 이내면 해압 90만이어도 PASS 여야 한다"
+    assert row["median_wire_bytes"] == 50000
+    assert row["median_bytes"] == 900000  # 해압은 정보로 보존
+
+
+def test_wire_bytes_over_budget_fails():
+    """wire(압축) 바이트가 예산 초과 → FAIL(해압이 작아도 wire 로 판정)."""
+    warm = [_sample(400, bytes_=6000, wire_bytes=9000) for _ in range(4)]
+    summary = gate.summarize_samples(warm)
+    assert summary["median_wire_bytes"] == 9000
+    row = gate.judge_path(
+        "/x", summary, True, _budget(delta=100, bytes_=5000), GLOBAL_BUDGET, base_ttfb_ms=380
+    )
+    assert row["passed"] is False
+    assert any("wire bytes" in r for r in row["reasons"])
+
+
+def test_wire_fallback_flags_degraded_but_does_not_fail():
+    """Content-Length 부재(wire_measured=False) → wire_degraded=True 이나 예산 이내면 PASS.
+
+    폴백=해압값 사용이라 과대추정=보수적(오탐 안전측)이므로 신뢰도 저하 플래그만 남기고
+    FAIL 시키지 않는다(reasons 미추가).
+    """
+    warm = [
+        {
+            "ttfb_ms": 400, "bytes": 3000, "wire_bytes": 3000, "wire_measured": False,
+            "render_ms": 100.0, "etag_present": True, "content_encoding": "br", "status": 200,
+        }
+        for _ in range(4)
+    ]
+    summary = gate.summarize_samples(warm)
+    assert summary["wire_measured_all"] is False
+    row = gate.judge_path(
+        "/x", summary, True, _budget(delta=100, bytes_=5000), GLOBAL_BUDGET, base_ttfb_ms=380
+    )
+    assert row["passed"] is True  # 폴백=보수적, 예산 이내면 통과
+    assert row.get("wire_degraded") is True
+    assert not any("wire" in r for r in row["reasons"])  # 폴백은 reasons 로 FAIL 시키지 않음
+
+
+def test_summarize_wire_falls_back_to_bytes_for_old_samples():
+    """구버전 표본(wire_bytes 키 없음) → median_wire_bytes 가 median_bytes 로 폴백."""
+    warm = [
+        {
+            "ttfb_ms": 400, "bytes": 7000, "render_ms": 100.0,
+            "etag_present": True, "content_encoding": "br", "status": 200,
+        }
+        for _ in range(4)
+    ]
+    summary = gate.summarize_samples(warm)
+    assert summary["median_wire_bytes"] == summary["median_bytes"] == 7000
+    assert summary["wire_measured_all"] is False  # wire_measured 키 부재 → 전부 폴백
 
 
 def test_missing_etag_fails_when_required():

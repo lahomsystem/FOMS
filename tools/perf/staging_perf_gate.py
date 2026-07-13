@@ -16,6 +16,9 @@ exit 1 로 승격을 차단한다.
     오탐하던 실전 결함을 근본 제거한다.
   - p95/최댓값은 **판정에 절대 넣지 않는다**(정보용). 정밀 서버 회귀는 render_ms·바이트·
     쿼리 계약이 잡는다.
+  - 바이트 판정은 **전송(wire, 압축) 바이트** = 실사용 다운로드 비용. 응답은 br/gzip 으로
+    압축 전송되므로 반복 큰 마크업(10~15:1 압축)은 wire 가 거의 안 늘어 오탐하지 않고, 진짜
+    무거운 추가만 잡는다. 해압(decompressed) 바이트는 정보용으로만 보존한다.
 
 exit code:
   0 = PASS, 1 = FAIL(예산 초과), 2 = 크리덴셜 부재/로그인 실패(게이트 SKIP ≠ 실패).
@@ -105,18 +108,22 @@ def percentile(values: list[float], pct: float) -> float:
 
 
 def summarize_samples(warm_samples: list[dict[str, Any]]) -> dict[str, Any]:
-    """warm 표본(첫 회 제외 후) → min/median/p95 TTFB·median bytes·render/etag 요약.
+    """warm 표본(첫 회 제외 후) → min/median/p95 TTFB·median wire/해압 bytes·render/etag 요약.
 
     Args:
-        warm_samples: 각 원소는 ``ttfb_ms``·``bytes``·``render_ms``(None 가능)·
-            ``etag_present``(bool)·``content_encoding``(str|None) 키를 갖는다.
+        warm_samples: 각 원소는 ``ttfb_ms``·``bytes``(해압 후)·``wire_bytes``(전송 압축
+            바이트; 부재 시 ``bytes`` 폴백)·``wire_measured``(bool; Content-Length 로 실측
+            했는지)·``render_ms``(None 가능)·``etag_present``(bool)·``content_encoding``
+            (str|None) 키를 갖는다.
 
     Returns:
-        판정·리포트에 쓰는 요약 dict. **min 만 판정에**(healthz 델타 차감 후),
-        median/p95 는 정보로만.
+        판정·리포트에 쓰는 요약 dict. **min TTFB 만 TTFB 판정에**(healthz 델타 차감 후),
+        바이트 판정은 ``median_wire_bytes``(전송 압축 바이트)로. median/p95 TTFB·해압
+        median_bytes 는 정보로만. ``wire_measured_all`` 이 False 면 일부/전부 폴백(보수적).
     """
     ttfbs = [float(s["ttfb_ms"]) for s in warm_samples]
     byts = [int(s["bytes"]) for s in warm_samples]
+    wires = [int(s.get("wire_bytes", s["bytes"])) for s in warm_samples]
     renders = [float(s["render_ms"]) for s in warm_samples if s.get("render_ms") is not None]
     return {
         "min_ttfb_ms": int(min(ttfbs)) if ttfbs else 0,
@@ -124,6 +131,8 @@ def summarize_samples(warm_samples: list[dict[str, Any]]) -> dict[str, Any]:
         "p95_ttfb_ms": int(percentile(ttfbs, 95)) if ttfbs else 0,
         "max_ttfb_ms": int(max(ttfbs)) if ttfbs else 0,
         "median_bytes": int(statistics.median(byts)) if byts else 0,
+        "median_wire_bytes": int(statistics.median(wires)) if wires else 0,
+        "wire_measured_all": bool(warm_samples) and all(s.get("wire_measured", False) for s in warm_samples),
         "max_render_ms": int(max(renders)) if renders else None,
         "etag_present_all": bool(warm_samples) and all(s.get("etag_present") for s in warm_samples),
         "content_encoding": next((s.get("content_encoding") for s in warm_samples), None),
@@ -152,7 +161,7 @@ def judge_path(
     global_budget: dict[str, Any],
     base_ttfb_ms: int,
 ) -> dict[str, Any]:
-    """단일 경로 판정 — **delta-min TTFB·bytes 만** 예산과 비교(median/p95 는 정보용).
+    """단일 경로 판정 — **delta-min TTFB·wire bytes 만** 예산과 비교(median/p95·해압은 정보용).
 
     Args:
         summary: ``summarize_samples`` 결과.
@@ -179,8 +188,11 @@ def judge_path(
             f"TTFB delta-min {delta}ms > budget {delta_budget}ms "
             f"(min {summary['min_ttfb_ms']}ms − healthz base {base_ttfb_ms}ms; 서버+페이로드 회귀)"
         )
-    if bytes_budget is not None and summary["median_bytes"] > bytes_budget:
-        reasons.append(f"bytes {summary['median_bytes']} > budget {bytes_budget}")
+    if bytes_budget is not None and summary["median_wire_bytes"] > bytes_budget:
+        reasons.append(
+            f"wire bytes {summary['median_wire_bytes']} > budget {bytes_budget} "
+            f"(전송 압축 바이트; 해압 {summary['median_bytes']})"
+        )
 
     render_max = global_budget.get("render_ms_max")
     if render_max is not None and summary["max_render_ms"] is not None:
@@ -191,7 +203,7 @@ def judge_path(
     if global_budget.get("conditional_304_required") and not cond_304_ok:
         reasons.append("조건부 304 실패(하트비트 경제성 회귀)")
 
-    return {
+    row = {
         "path": path,
         "delta_ttfb_ms": delta,
         "budget_delta_ttfb_ms": delta_budget,
@@ -199,12 +211,18 @@ def judge_path(
         "base_ttfb_ms": base_ttfb_ms,
         "median_ttfb_ms": summary["median_ttfb_ms"],  # 정보용
         "p95_ttfb_ms": summary["p95_ttfb_ms"],  # 정보용
-        "median_bytes": summary["median_bytes"],
+        "median_wire_bytes": summary["median_wire_bytes"],  # 판정값(전송 압축 바이트)
+        "median_bytes": summary["median_bytes"],  # 정보용(해압 후 바이트)
         "budget_bytes": bytes_budget,
         "cond_304": cond_304_ok,
         "passed": not reasons,
         "reasons": reasons,
     }
+    # Content-Length 부재로 폴백된 경우: 폴백=해압값이라 과대추정=보수적(오탐 안전측)이므로
+    # FAIL 시키지 않고 경고성 플래그로만 표시(reasons 미추가).
+    if not summary["wire_measured_all"]:
+        row["wire_degraded"] = True
+    return row
 
 
 def seed_budget(
@@ -217,13 +235,13 @@ def seed_budget(
 
     델타 예산 = ``max(delta*(1+margin), delta+floor_ms)``. 델타는 값이 작아(수십~수백ms)
     상대 마진만으로는 빡빡하므로 절대 하한 마진(floor_ms)을 함께 적용한다.
-    bytes 는 결정적이라 median×(1+margin).
+    bytes 는 결정적이라 median wire(전송 압축 바이트)×(1+margin).
     """
     delta = delta_ttfb_ms(summary, base_ttfb_ms)
     delta_budget = max(int(round(delta * (1 + margin))), delta + floor_ms)
     return {
         "ttfb_delta_min_ms": delta_budget,
-        "body_bytes_max": int(round(summary["median_bytes"] * (1 + margin))),
+        "body_bytes_max": int(round(summary["median_wire_bytes"] * (1 + margin))),
     }
 
 
@@ -279,6 +297,12 @@ def measure_path(session: requests.Session, base: str, path: str, rounds: int = 
         t_headers = time.perf_counter()
         body = resp.content  # requests 자동 해압 → len 은 해압 후 바이트(wire 아님)
         t_total = time.perf_counter()
+        # 실사용 다운로드 비용 = 전송(wire, 압축) 바이트. requests 는 본문을 해압해도
+        # 수신 원본 헤더 Content-Length(=압축 wire 크기)를 유지한다. 청크 응답 등으로
+        # 부재하면 해압 len 폴백(과대추정=보수적) + 플래그로 신뢰도 저하만 표시.
+        cl = resp.headers.get("Content-Length")
+        wire_bytes = int(cl) if (cl is not None and cl.isdigit()) else len(body)
+        wire_measured = bool(cl is not None and cl.isdigit())
         render = resp.headers.get("X-FOMS-EPT-B7-RENDER-MS")
         samples.append({
             "round": i + 1,
@@ -286,6 +310,8 @@ def measure_path(session: requests.Session, base: str, path: str, rounds: int = 
             "ttfb_ms": round((t_headers - t0) * 1000),
             "total_ms": round((t_total - t0) * 1000),
             "bytes": len(body),
+            "wire_bytes": wire_bytes,
+            "wire_measured": wire_measured,
             "render_ms": float(render) if render not in (None, "") else None,
             "content_encoding": resp.headers.get("Content-Encoding"),
             "etag_present": bool(resp.headers.get("ETag")),
@@ -405,7 +431,7 @@ def run_seed(base: str, user: str, password: str, prev: dict[str, Any]) -> dict[
             "스테이징 성능 게이트 예산 v2(SSOT: tools/perf/staging_perf_gate.py). "
             "판정값 ttfb_delta_min_ms = min(warm path TTFB) − min(healthz TTFB): "
             "min 은 tail(2~9s) 오염 면역, healthz 델타는 시간대별 베이스 RTT(창 분산)를 상쇄한다. "
-            "body_bytes_max = 응답 바이트 상한(해압 후, wire 아님; 결정적 min 성격). "
+            "body_bytes_max = 전송(wire, 압축) 바이트 상한(실사용 다운로드 비용; 해압은 정보용, 결정적 min 성격). "
             "정밀 서버 회귀는 render_ms_max·bytes·쿼리 계약이 잡는다. "
             "--seed 는 의도된 성능 변화 때만 실행하고 diff 를 리뷰한다."
         ),
@@ -447,13 +473,14 @@ def archive_result(result: dict[str, Any], keep: int = 20) -> Path:
 
 
 def render_table(rows: list[dict[str, Any]], base_ttfb_ms: int | None = None) -> str:
-    """판정 표(경로|dTTFB|budget|min|medTTFB|p95|바이트|budget|304|판정) 텍스트.
+    """판정 표(경로|dTTFB|budget|min|medTTFB|p95|wire|budget|raw|304|판정) 텍스트.
 
     dTTFB(delta-min) = min(path) − healthz base 가 판정값. medTTFB·p95 는 정보용.
+    wire = median 전송(압축) 바이트 = 바이트 판정값. raw = median 해압 바이트(정보용).
     """
     header = (
         f"{'PATH':<40} {'dTTFB':>6} {'budget':>7} {'min':>6} "
-        f"{'medTTFB':>8} {'p95':>6} {'bytes':>8} {'budget':>8} {'304':>4} {'RESULT':>6}"
+        f"{'medTTFB':>8} {'p95':>6} {'wire':>8} {'budget':>8} {'raw':>8} {'304':>4} {'RESULT':>6}"
     )
     lines: list[str] = []
     if base_ttfb_ms is not None:
@@ -461,15 +488,20 @@ def render_table(rows: list[dict[str, Any]], base_ttfb_ms: int | None = None) ->
             f"healthz base(min TTFB): {base_ttfb_ms}ms  "
             f"|  판정값 dTTFB = min(path) − base (창 무관 서버+페이로드 델타)"
         )
+        lines.append(
+            "바이트 판정값 = wire(전송 압축 바이트) = 실사용 다운로드 비용. raw = 해압 바이트(정보용)."
+        )
         lines.append("")
     lines.extend([header, "-" * len(header)])
     for r in rows:
         lines.append(
             f"{r['path']:<40} {r['delta_ttfb_ms']:>6} {str(r['budget_delta_ttfb_ms']):>7} "
             f"{r['min_ttfb_ms']:>6} {r['median_ttfb_ms']:>8} {r['p95_ttfb_ms']:>6} "
-            f"{r['median_bytes']:>8} {str(r['budget_bytes']):>8} "
+            f"{r['median_wire_bytes']:>8} {str(r['budget_bytes']):>8} {r['median_bytes']:>8} "
             f"{('OK' if r['cond_304'] else 'NO'):>4} {('PASS' if r['passed'] else 'FAIL'):>6}"
         )
+        if r.get("wire_degraded"):
+            lines.append("    ↳ wire 측정 폴백(Content-Length 부재 — 해압값 사용, 보수적)")
         for reason in r["reasons"]:
             lines.append(f"    ↳ {reason}")
     return "\n".join(lines)
