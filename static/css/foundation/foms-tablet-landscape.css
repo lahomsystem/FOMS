@@ -582,3 +582,225 @@
   border-color: var(--foms-interactive-primary, #5a67d8);
   color: var(--foms-color-neutral-0, #fff);
 }
+
+/* ============================================================
+   벌크 선택 모드 — 프레임 12 (2026-07-13, T2 목업 융합).
+
+   태블릿 가로 코호트에서 주문 대시보드 그리드 행 long-press → 선택 모드. 컴포넌트 DOM
+   (contextual bar)·long-press·시트 억제 배선은 tablet-bulk-select.js 가 소유하고, 여기(CSS)는
+   (1) contextual bar 표시(coarse landscape 게이트), (2) 선택 행 강조, (3) 선택 모드 체크박스
+   강조만 소유한다. 실제 선택/일괄 실행은 기존 PC 벌크 메커니즘(.erp-grid-order-check +
+   #erp-grid-bulk-bar) 재사용. foms 토큰만 소비, 인라인 스타일 없음.
+   ============================================================ */
+
+/* base-hide: 코호트 밖(PC/모바일/세로)에서는 contextual bar 완전 은닉. opt-in 규칙보다 앞
+   (T0 순서 계약 정합 — 밀도 토글 base-hide 패턴과 동일). */
+.foms-tablet-bulk-bar {
+  display: none;
+}
+
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+
+  /* contextual bar — 상단 중앙 고정 플로팅 툴바(선택 모드에서만; JS 가 hidden 토글). */
+  body.erp-mobile-v2-layout .foms-tablet-bulk-bar:not([hidden]) {
+    display: flex;
+    align-items: center;
+    gap: var(--foms-space-3, 0.75rem);
+    position: fixed;
+    top: var(--foms-space-3, 0.75rem);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1040;
+    padding: var(--foms-space-2, 0.5rem) var(--foms-space-4, 1rem);
+    border: 1px solid var(--foms-border-default, #c1c7d0);
+    border-radius: var(--foms-radius-lg, 12px);
+    background: var(--foms-surface-base, #fff);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+  }
+  body.erp-mobile-v2-layout .foms-tablet-bulk-bar__count {
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    color: var(--foms-text-secondary);
+    white-space: nowrap;
+  }
+  body.erp-mobile-v2-layout .foms-tablet-bulk-bar__count strong {
+    font-size: var(--foms-font-size-lg, 1.125rem);
+    color: var(--foms-text-primary);
+  }
+  /* 액션·해제 버튼 = ≥44px 터치 타깃. */
+  body.erp-mobile-v2-layout .foms-tablet-bulk-bar__action,
+  body.erp-mobile-v2-layout .foms-tablet-bulk-bar__clear {
+    min-height: var(--foms-touch-target-comfortable, 44px);
+    padding: 0 var(--foms-space-3, 0.75rem);
+    border-radius: var(--foms-radius-md, 8px);
+    border: 1px solid var(--foms-border-default, #c1c7d0);
+    background: var(--foms-surface-base, #fff);
+    color: var(--foms-text-primary);
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    font-weight: var(--foms-font-weight-semibold, 600);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .foms-tablet-bulk-bar__action {
+    background: var(--foms-interactive-primary, #5a67d8);
+    border-color: var(--foms-interactive-primary, #5a67d8);
+    color: var(--foms-color-neutral-0, #fff);
+  }
+
+  /* 선택된 행 강조(JS 가 .foms-tablet-bulk-selected 토글). id 포함 특이도로 그리드 기본 배경 승리. */
+  body.erp-mobile-v2-layout .erp-dashboard-workqueue #erp-grid tbody tr.erp-main-row.foms-tablet-bulk-selected {
+    background: var(--foms-surface-accent, #f3f4ff);
+    box-shadow: inset 3px 0 0 0 var(--foms-interactive-primary, #5a67d8);
+  }
+
+  /* 선택 모드 — 체크박스 열 강조(상시 24px 는 W9 4)번이 이미 부여, 여기선 아웃라인만 얹음). */
+  body.erp-mobile-v2-layout.foms-tablet-bulk-mode .erp-dashboard-workqueue #erp-grid .erp-grid-order-check {
+    outline: 2px solid var(--foms-interactive-primary, #5a67d8);
+    outline-offset: 1px;
+  }
+}
+
+/* ============================================================
+   컨트롤타워 상단 바 (목업 프레임 01) — pcbar + KPI 5타일 (2026-07-13, T-CTOWER).
+
+   실기기 지적("아직 태블릿 버전 아님") 봉합: 태블릿 가로 코호트에서 orders 대시보드의
+   PC 잔존 크롬(프로세스맵 경보 헤더 + 파이프라인 본문 + 작업 큐 카드 헤더 + "표시:N" 뱃지)을
+   은닉하고, 목업 01 형식의 얇은 pcbar + KPI 5타일(tablet_dashboard_topbar.html)로 교체한다.
+
+   NOTE(2026-07-13): 파일 상단 W9 주석의 "orders 는 split 은닉으로 no-op" 는 STALE —
+   2026-07-12 목업 v5 정합(foms-split-view.css)으로 coarse landscape 태블릿은 split 을
+   선택하지 않고 legacy PC 표면을 표시한다. 따라서 이 교체는 orders 태블릿 가로에서 실제
+   적용된다.
+
+   W11 의 프로세스맵 "타일 시각" 규칙은 그대로 두되(다른 legacy 페이지 대비 + 계약 테스트
+   보존), orders 에서는 아래 은닉이 특이도(페이지 스코프 .erp-dashboard-orders 추가)로
+   이겨 프로세스맵 밴드를 완전히 숨긴다. 필터바(③)는 process-map 카드의 별도 자식이라 유지.
+   스코프: body.erp-mobile-v2-layout(코호트) + .erp-dashboard-orders(orders 페이지 한정) →
+   construction/PC/폰 무영향. 인라인 스타일 없음, foms 토큰 소비.
+   ============================================================ */
+
+/* base-hide: 코호트 밖(PC/모바일/세로)에서 상단 바 완전 은닉. opt-in(아래 MQ) 앞(순서 계약). */
+.foms-tdash-top {
+  display: none;
+}
+
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+
+  /* --- 상단 바 표시 + PC 프로세스맵/작업큐 헤더 은닉 (동일 게이트 결합) --- */
+  body.erp-mobile-v2-layout .foms-tdash-top {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-3, 0.75rem);
+    margin-bottom: var(--foms-space-3, 0.75rem);
+  }
+
+  /* PC 프로세스맵 밴드(경보 헤더 + 파이프라인 본문) 은닉 — pcbar+타일이 대체. */
+  body.erp-mobile-v2-layout .erp-dashboard-orders .erp-pro-card--process-map .erp-pro-card__header--with-alerts,
+  body.erp-mobile-v2-layout .erp-dashboard-orders .erp-pro-card--process-map .erp-pro-card__body {
+    display: none;
+  }
+  /* process-map 카드 크롬(테두리/그림자/패딩) 제거 — 필터바만 남아 상단 바 아래 flush. */
+  body.erp-mobile-v2-layout .erp-dashboard-orders .erp-pro-card--process-map {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    margin: 0;
+  }
+  /* 작업 큐 카드 헤더(제목 "작업 큐/주문 처리 및 퀘스트 관리" + "표시:N" 뱃지 + 벌크/폭초기화)
+     은닉 → 그리드 직행. 밀도 토글은 pcbar 로 재배치되어 생존. */
+  body.erp-mobile-v2-layout .erp-dashboard-orders .erp-dashboard-workqueue-head {
+    display: none;
+  }
+
+  /* --- pcbar: 제목 · sub(N건·날짜) · 밀도 토글 · 주문 생성 --- */
+  body.erp-mobile-v2-layout .foms-tdash-pcbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--foms-space-3, 0.75rem);
+  }
+  body.erp-mobile-v2-layout .foms-tdash-pcbar__lead {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: var(--foms-space-2, 0.5rem);
+    min-width: 0;
+  }
+  body.erp-mobile-v2-layout .foms-tdash-pcbar__title {
+    margin: 0;
+    font-size: var(--foms-font-size-xl, 1.25rem);
+    font-weight: var(--foms-font-weight-bold, 700);
+    color: var(--foms-text-primary);
+  }
+  body.erp-mobile-v2-layout .foms-tdash-pcbar__sub {
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    color: var(--foms-text-tertiary, #6b7380);
+  }
+  body.erp-mobile-v2-layout .foms-tdash-pcbar__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--foms-space-2, 0.5rem);
+  }
+  body.erp-mobile-v2-layout .foms-tdash-pcbar__create {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--foms-space-1, 0.25rem);
+    min-height: var(--foms-touch-target-comfortable);
+    padding: 0 var(--foms-space-4, 1rem);
+    border-radius: var(--foms-radius-md, 8px);
+    background: var(--foms-interactive-primary, #5a67d8);
+    color: var(--foms-color-neutral-0, #fff);
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    font-weight: var(--foms-font-weight-semibold, 600);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  /* --- KPI 5타일 (전체/긴급/실측D-4/시공D-3/생산D-2) --- */
+  body.erp-mobile-v2-layout .foms-tdash-tiles {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: var(--foms-space-3, 0.75rem);
+  }
+  body.erp-mobile-v2-layout .foms-tdash-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-height: var(--foms-touch-target-min, 48px);
+    padding: var(--foms-space-3, 0.75rem);
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: var(--foms-radius-lg, 12px);
+    background: var(--foms-surface-base, #fff);
+  }
+  body.erp-mobile-v2-layout .foms-tdash-tile__value {
+    font-size: var(--foms-font-size-2xl, 1.5rem);
+    font-weight: var(--foms-font-weight-bold, 700);
+    line-height: 1.1;
+    color: var(--foms-text-primary);
+  }
+  body.erp-mobile-v2-layout .foms-tdash-tile__label {
+    font-size: var(--foms-font-size-xs, 0.75rem);
+    color: var(--foms-text-tertiary, #6b7380);
+  }
+  /* HMI 색 규율(정상=무채/경보만 유채) — 프로세스맵 경보 색과 정합:
+     전체=무채, 긴급=danger, 실측/시공 임박=warning, 생산 임박=info. */
+  body.erp-mobile-v2-layout .foms-tdash-tile--danger {
+    border-color: var(--foms-color-danger-500, #ef4444);
+  }
+  body.erp-mobile-v2-layout .foms-tdash-tile--danger .foms-tdash-tile__value {
+    color: var(--foms-color-danger-600, #dc2626);
+  }
+  body.erp-mobile-v2-layout .foms-tdash-tile--warning {
+    border-color: var(--foms-color-warning-500, #f59e0b);
+  }
+  body.erp-mobile-v2-layout .foms-tdash-tile--warning .foms-tdash-tile__value {
+    color: var(--foms-color-warning-600, #d97706);
+  }
+  body.erp-mobile-v2-layout .foms-tdash-tile--info {
+    border-color: var(--foms-color-info-500, #3b82f6);
+  }
+  body.erp-mobile-v2-layout .foms-tdash-tile--info .foms-tdash-tile__value {
+    color: var(--foms-color-info-600, #2563eb);
+  }
+}

@@ -1,5 +1,5 @@
 {% set _fos_desktop_body %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/shipment-dashboard-columns.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/shipment-dashboard-columns.css') }}?v=20260713a">
 {# foms-kv-rollout: erp_mobile_shell → kv-copy.js #}
 <div class="erp-pro erp-mobile-shell" data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
   {% if erp_mobile_v2_enabled %}
@@ -369,8 +369,9 @@
                 <tr data-order-id="{{ r.id }}" class="shipment-row"
                   data-foms-sheet-url="{{ url_for('erp_shipment_page.erp_shipment_tablet_sheet', order_id=r.id) }}"
                   data-as="{{ 1 if r.status in ('AS', 'AS_RECEIVED', 'AS_COMPLETED') else 0 }}"
+                  data-team-color-index="{{ ns.worker_index }}"
                   data-manager="{{ (r.manager_name or '')|e }}">
-                  <td data-label="상세" style="border-right: 1px solid #e0e0e0;">
+                  <td data-col-key="detail" data-label="상세" style="border-right: 1px solid #e0e0e0;">
                     {% if can_edit_shipment %}
                     <div class="d-flex flex-column gap-1 align-items-start">
                       <a href="{{ url_for('order_edit.edit_order', order_id=r.id, return_to='erp_shipment_dashboard') }}?open=erp-order"
@@ -419,7 +420,7 @@
                     </div>
                     {% endif %}
                   </td>
-                  <td class="cell-wrap" data-label="규격(W/300)" style="border-right: 1px solid #e0e0e0;">
+                  <td class="cell-wrap" data-col-key="spec" data-label="규격(W/300)" style="border-right: 1px solid #e0e0e0;">
                     {% if r.status in ('AS', 'AS_RECEIVED', 'AS_COMPLETED') %}
                     <span class="badge bg-danger mb-1">AS</span>
                     {% else %}
@@ -434,7 +435,7 @@
                     </div>
                     {% endif %}
                   </td>
-                  <td class="shipment-address-cell" data-label="현장주소" style="border-right: 1px solid #e0e0e0;">
+                  <td class="shipment-address-cell" data-col-key="address" data-label="현장주소" style="border-right: 1px solid #e0e0e0;">
                     <div class="shipment-address-block">
                       <div class="cell-wrap shipment-address-text mb-1" title="기본 주소">{{ address or '-' }}</div>
                       <ul class="shipment-site-extra-list mb-0" data-order-id="{{ r.id }}" data-field="site_extra">
@@ -549,7 +550,7 @@
                       {% endif %}
                     </ul>
                   </td>
-                  <td class="shipment-field-cell shipment-worker-cell" data-label="시공자"
+                  <td class="shipment-field-cell shipment-worker-cell" data-col-key="construction_workers" data-label="시공자"
                     style="border-right: 1px solid #e0e0e0;" data-worker-bg-color="{{ worker_bg_color }}"
                     data-worker-text-color="{{ worker_text_color }}">
                     <ul class="shipment-edit-list shipment-workers-list mb-0" data-order-id="{{ r.id }}"
@@ -580,7 +581,7 @@
                       {% endif %}
                     </ul>
                   </td>
-                  <td data-label="담당자">
+                  <td data-col-key="manager" data-label="담당자">
                     {{ r.manager_name or '-' }}
                   </td>
                 </tr>

@@ -23,14 +23,25 @@
         <dd>{{ balance_display }}</dd>
       </div>
     </dl>
-    <p class="foms-completion-sheet__cash">
-      현금영수증:
-      {% if cash_receipt %}
-      <span class="foms-completion-sheet__cash-req">요청 있음 · {{ cash_receipt }}</span>
-      {% else %}
-      <span class="foms-completion-sheet__cash-none">요청 없음</span>
+    <div class="foms-completion-sheet__cash" data-foms-cash-receipt data-order-id="{{ order_id }}">
+      <p class="foms-completion-sheet__cash-line">
+        현금영수증:
+        {% if cash_receipt_issued %}
+        <span class="foms-completion-sheet__cash-issued" data-foms-cash-receipt-badge>발행됨{% if cash_receipt_note %} · {{ cash_receipt_note }}{% endif %}</span>
+        {% elif cash_receipt %}
+        <span class="foms-completion-sheet__cash-req">요청 있음 · {{ cash_receipt }}</span>
+        {% else %}
+        <span class="foms-completion-sheet__cash-none">요청 없음</span>
+        {% endif %}
+      </p>
+      {# 발행 버튼: 요청이 있고 아직 미발행이며 시공팀이 아닐 때만 노출. 배선은
+         tablet-completion-sheet.js(document 위임) 소관 — 여기서는 data-* 만 렌더한다. #}
+      {% if cash_receipt and not cash_receipt_issued and not is_construction_team %}
+      <button type="button" class="foms-completion-sheet__cash-issue-btn"
+              data-foms-cash-receipt-issue data-order-id="{{ order_id }}">현금영수증 발행</button>
       {% endif %}
-    </p>
+      <div class="foms-completion-sheet__cash-result" data-foms-cash-receipt-result role="status" hidden></div>
+    </div>
   </section>
 
   <section class="foms-completion-sheet__section foms-completion-sheet__settlement">

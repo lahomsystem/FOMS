@@ -351,6 +351,11 @@
     font-weight: var(--foms-font-weight-bold);
     white-space: nowrap;
   }
+  /* 발행됨 chip — 완료 상태(무채/성공 계열, 요청 warning 과 시각 구분). */
+  body.erp-mobile-v2-layout .foms-completion-grid__receipt-chip.is-issued {
+    background: var(--foms-surface-muted);
+    color: var(--foms-text-secondary);
+  }
 
   /* --- 페이지네이션: 이전/상태/다음. 링크 ≥44×44px 터치 타깃. --- */
   body.erp-mobile-v2-layout .foms-completion-grid__pagination {
@@ -522,6 +527,59 @@
     color: var(--foms-text-secondary);
   }
   body.erp-mobile-v2-layout .foms-completion-sheet__issue-result.is-error {
+    background: var(--foms-color-danger-50);
+    color: var(--foms-color-danger-600);
+  }
+
+  /* --- 현금영수증 발행: 발행됨 배지 · 발행 버튼 · 결과 노트 --- */
+  body.erp-mobile-v2-layout .foms-completion-sheet__cash {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-2);
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet__cash-line {
+    margin: 0;
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet__cash-issued {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--foms-space-1) var(--foms-space-3);
+    border-radius: var(--foms-radius-full);
+    background: var(--foms-surface-muted);
+    color: var(--foms-text-secondary);
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-bold);
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet__cash-issue-btn {
+    align-self: flex-start;
+    min-height: var(--foms-touch-target-min);
+    padding: 0 var(--foms-space-4);
+    border: 1px solid var(--foms-interactive-primary);
+    border-radius: var(--foms-radius-md);
+    background: var(--foms-interactive-primary);
+    color: var(--foms-text-inverse);
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-bold);
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet__cash-issue-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet__cash-result {
+    padding: var(--foms-space-2) var(--foms-space-3);
+    border-radius: var(--foms-radius-md);
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-bold);
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet__cash-result[hidden] {
+    display: none;
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet__cash-result.is-success {
+    background: var(--foms-surface-muted);
+    color: var(--foms-text-secondary);
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet__cash-result.is-error {
     background: var(--foms-color-danger-50);
     color: var(--foms-color-danger-600);
   }

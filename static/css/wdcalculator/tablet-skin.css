@@ -66,4 +66,82 @@
   .wdcalculator-container .saved-estimates-sidebar .saved-estimates-more-btn {
     min-height: 44px;
   }
+
+  /* ======================================================================
+     저장된 견적 패널 접힘/오버레이 (tablet-skin.js 가 .wdc-tablet-skin /
+     .wdc-saved-open 토글). 기본 접힘 → 입력 폼이 잔여 폭 전부 사용.
+     임베디드(erp-wdc-split.css 자체 오버레이)는 JS 게이트에서 제외되므로 무접촉.
+     특이도: Bootstrap .col-lg-3(0,1,0) < 아래 셀렉터(≥0,3,0) 로 승리.
+     ==================================================================== */
+  .wdcalculator-container:not(.wdcalculator-container--embedded) .wdcalculator-shell.wdc-tablet-skin {
+    position: relative;
+  }
+
+  /* 접힘: 사이드바 → 48px 세로 레일. 카드 숨김·레일만 노출. */
+  .wdcalculator-shell.wdc-tablet-skin .saved-estimates-sidebar {
+    flex: 0 0 48px;
+    width: 48px;
+    max-width: 48px;
+    padding-left: calc(var(--bs-gutter-x, 1.5rem) * 0.5);
+    padding-right: 0;
+  }
+  .wdcalculator-shell.wdc-tablet-skin:not(.wdc-saved-open) .saved-estimates-sidebar .saved-estimates-card {
+    display: none;
+  }
+
+  /* 입력 메인 컬럼: 레일 폭만 제외한 전폭 사용. */
+  .wdcalculator-shell.wdc-tablet-skin .wdcalculator-main-column {
+    flex: 0 0 calc(100% - 48px);
+    width: calc(100% - 48px);
+    max-width: calc(100% - 48px);
+  }
+
+  /* 세로 레일 토글 버튼(접힘 시 노출, 44px 터치 하한). */
+  .wdc-saved-rail {
+    display: none;
+    position: sticky;
+    top: 20px;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 44px;
+    min-height: 168px;
+    padding: 14px 0;
+    border: 1px solid var(--foms-border-color, #dee2e6);
+    border-radius: var(--foms-radius, 0.5rem);
+    background: var(--foms-surface, #fff);
+    color: var(--foms-text-color, #212529);
+    cursor: pointer;
+  }
+  .wdcalculator-shell.wdc-tablet-skin .wdc-saved-rail { display: inline-flex; }
+  .wdc-saved-rail .fa-history { font-size: 1.125rem; color: var(--foms-info, #0dcaf0); }
+  .wdc-saved-rail-label {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    font-weight: var(--foms-font-weight-medium, 500);
+    letter-spacing: 0.02em;
+  }
+
+  /* 펼침(오버레이): 사이드바가 메인 위로 절대배치 — 메인 폭은 그대로 유지. */
+  .wdcalculator-shell.wdc-tablet-skin.wdc-saved-open .saved-estimates-sidebar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 1050;
+    width: min(380px, 72vw);
+    max-width: min(380px, 72vw);
+    height: 100%;
+    padding-right: calc(var(--bs-gutter-x, 1.5rem) * 0.5);
+  }
+  .wdcalculator-shell.wdc-tablet-skin.wdc-saved-open .wdc-saved-rail { display: none; }
+
+  /* 백드롭(펼침 시 바깥 영역 — 탭하면 접힘). */
+  .wdc-saved-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1040;
+    background: rgba(0, 0, 0, 0.35);
+  }
+  .wdc-saved-backdrop[hidden] { display: none; }
 }

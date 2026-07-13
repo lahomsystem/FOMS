@@ -86,13 +86,21 @@
     <div class="foms-kanban-col__body">
       {% for o in col.rows %}
       {% set _flags = (o.structured_data.get('flags') if o.structured_data else none) or {} %}
-      <article class="foms-kanban-card" data-order-id="{{ o.id }}"
+      {% set _prod = (o.structured_data.get('production') if o.structured_data else none) or {} %}
+      {% set _hold = (_prod.get('hold') if _prod else none) or {} %}
+      <article class="foms-kanban-card{% if _hold.get('active') %} is-held{% endif %}" data-order-id="{{ o.id }}"
         data-foms-sheet-url="{{ url_for('erp_production_page.erp_production_tablet_sheet', order_id=o.id) }}"
         data-factory2="{{ 1 if _flags.get('factory2') else 0 }}"
         role="button" tabindex="0"
         aria-label="{{ o.customer_name }} 주문 상세 열기">
         <div class="foms-kanban-card__top">
           <span class="foms-kanban-card__customer">{{ o.customer_name }}</span>
+          {% if _hold.get('active') %}
+          {# HMI 색 규율: 보류는 지연과 함께 유일하게 유채색이 허용된 상태. #}
+          <span class="foms-kanban-card__hold" title="생산 보류{% if _hold.get('reason') %} · {{ _hold.get('reason') }}{% endif %}">
+            <i class="fas fa-pause" aria-hidden="true"></i> 보류
+          </span>
+          {% endif %}
           {% if _flags.get('factory2') %}
           <span class="foms-kanban-card__factory" title="라홈시스템(2공장) 발주">
             <i class="fas fa-industry" aria-hidden="true"></i> 2공장
@@ -139,4 +147,4 @@
   {% endfor %}
   </section>
 </div>
-<script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20260713a" defer></script>
+<script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20260713b" defer></script>

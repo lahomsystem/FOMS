@@ -590,12 +590,12 @@ def test_w16_tablet_bundle_exists_with_four_imports_shell_independent() -> None:
 
 def test_w16_layout_head_loads_bundle_for_v2_and_v3_cohort() -> None:
     """layout_head 가 foms-tablet-bundle.css 를 erp_mobile_v2_enabled(코호트 공통) 게이트로
-    로드하고 ?v=20260713b 를 가진다. v2 전용(shell_variant=='v2') 게이트가 아님을 검증.
+    로드하고 ?v=20260713c 를 가진다. v2 전용(shell_variant=='v2') 게이트가 아님을 검증.
     (?v 는 2026-07-12 T2 전역 레일 추가로 번들 내용 변경 → 캐시 체인 규칙에 따라 a→b 범프.)"""
     layout_head = _read("templates/partials/shared/layout_head.html")
     idx = layout_head.find("foms-tablet-bundle.css")
     assert idx != -1, "layout_head 에 태블릿 번들 <link> 부재"
-    assert "foms-tablet-bundle.css') }}?v=20260713b" in layout_head
+    assert "foms-tablet-bundle.css') }}?v=20260713c" in layout_head
     # Anchor on the nearest preceding `{% if %}` (the bundle gate) rather than a fixed
     # char window — the gate string grows over time (2026-07-12: +/wdcalculator arm).
     gate_start = layout_head.rfind("{% if", 0, idx)
@@ -943,5 +943,103 @@ def test_calc_skin_css_has_52px_input_and_44px_target() -> None:
 def test_calc_skin_wired_in_calculator_template_with_cachebuster() -> None:
     """calculator.html 이 기존 <link> 패턴대로 스킨을 로드하고 ?v=20260712a 캐시버스터를 가진다."""
     html = _read(CALC_TEMPLATE)
-    m = re.search(r"tablet-skin\.css'\s*\)\s*}}\?v=20260712a", html)
-    assert m is not None, "calculator.html 에 tablet-skin.css ?v=20260712a <link> 부재"
+    m = re.search(r"tablet-skin\.css'\s*\)\s*}}\?v=20260713a", html)
+    assert m is not None, "calculator.html 에 tablet-skin.css ?v=20260713a <link> 부재"
+
+
+# =====================================================================
+# T-CTOWER — 컨트롤타워 상단 바 교체 (2026-07-13, 목업 프레임 01)
+# 태블릿 가로 코호트에서 orders 대시보드의 PC 잔존 크롬(프로세스맵 밴드+파이프라인+작업 큐
+# 카드 헤더+"표시:N" 뱃지)을 은닉하고 pcbar+KPI 5타일(tablet_dashboard_topbar.html)로 교체.
+# 서버 무변경(기존 total_orders/kpis/today_iso 재소비 — 신규 쿼리 없음).
+# =====================================================================
+
+CTOWER_TOPBAR_PARTIAL = "templates/orders/partials/tablet_dashboard_topbar.html"
+ORDERS_DASHBOARD_MAIN = "templates/orders/partials/dashboard_main.html"
+CONSTRUCTION_CSS = "static/css/foundation/foms-tablet-construction.css"
+CONSTRUCTION_DASHBOARD_BODY = "templates/construction/partials/dashboard_body.html"
+
+
+def test_ctower_topbar_partial_exists_with_pcbar_and_five_tiles() -> None:
+    """상단 바 파샬: pcbar(제목/sub/밀도 토글 include/주문 생성) + KPI 5타일(전체 + 경보 4상수).
+    신규 쿼리 없이 기존 컨텍스트(total_orders/kpis/today_iso) 재소비."""
+    body = _read(CTOWER_TOPBAR_PARTIAL)
+    assert "foms-tdash-top" in body
+    assert "foms-tdash-pcbar" in body
+    assert "주문 대시보드" in body
+    assert "주문 생성" in body
+    # 밀도 토글 재배치(작업 큐 헤더 → pcbar).
+    assert "partials/shared/foms_density_toggle.html" in body
+    assert "order_pages.add_order" in body
+    # KPI 5타일 = 전체 + 경보 4상수(생산 D-2 는 도면 지연 대신 실데이터 우선).
+    assert "foms-tdash-tiles" in body
+    for field in (
+        "total_orders",
+        "kpis.urgent_count",
+        "kpis.measurement_d4_count",
+        "kpis.construction_d3_count",
+        "kpis.production_d2_count",
+        "today_iso",
+    ):
+        assert field in body, f"topbar 파샬에 컨텍스트 참조 부재: {field}"
+
+
+def test_ctower_topbar_wired_into_dashboard_main_cohort_gated() -> None:
+    """dashboard_main.html 이 상단 바를 erp_mobile_v2_enabled 게이트 안에서 include + orders
+    페이지 스코프 클래스(.erp-dashboard-orders)를 컨테이너에 부여."""
+    body = _norm(_read(ORDERS_DASHBOARD_MAIN))
+    assert "erp-dashboard-orders" in body, "orders 컨테이너 페이지 스코프 클래스 부재"
+    assert (
+        "{% if erp_mobile_v2_enabled %} "
+        "{% include 'orders/partials/tablet_dashboard_topbar.html' %}"
+    ) in body
+
+
+def test_ctower_grid_relocates_density_toggle_and_tags_header() -> None:
+    """작업 큐 카드 헤더에 은닉용 클래스(.erp-dashboard-workqueue-head)를 부여하고, 밀도 토글은
+    이 헤더에서 제거(상단 pcbar 로 재배치 — 헤더째 은닉되므로 여기 두면 토글도 사라진다)."""
+    grid = _read(CONTROL_TOWER_GRID)
+    assert "erp-dashboard-workqueue-head" in grid
+    assert "foms_density_toggle.html" not in grid, "밀도 토글이 그리드 헤더에서 미제거(재배치 실패)"
+
+
+def test_ctower_landscape_css_hides_pc_chrome_and_shows_topbar() -> None:
+    """landscape CSS: 상단 바 base-hide 가 show 앞(순서 계약) + orders 스코프 PC 프로세스맵
+    밴드/파이프라인/작업 큐 헤더 은닉 + pcbar/타일이 코호트 게이트 하위."""
+    css = _norm(_read(LANDSCAPE_CSS))
+    # base-hide 가 opt-in(show) 앞.
+    base_idx = css.index(".foms-tdash-top { display: none")
+    show_idx = css.index("body.erp-mobile-v2-layout .foms-tdash-top { display: flex")
+    assert base_idx < show_idx, "상단 바 base-hide 가 show 뒤에 있음(순서 계약 위반)"
+    # 코어 코호트 MQ 하위.
+    assert CORE_MEDIA_QUERY in css
+    # orders 페이지 스코프 은닉(프로세스맵 밴드 + 파이프라인 본문).
+    assert (
+        ".erp-dashboard-orders .erp-pro-card--process-map .erp-pro-card__header--with-alerts"
+        in css
+    )
+    assert ".erp-dashboard-orders .erp-pro-card--process-map .erp-pro-card__body" in css
+    # 작업 큐 카드 헤더 은닉.
+    assert (
+        "body.erp-mobile-v2-layout .erp-dashboard-orders .erp-dashboard-workqueue-head "
+        "{ display: none" in css
+    )
+    # KPI 5타일 그리드 + 큰 숫자(2xl).
+    assert "grid-template-columns: repeat(5, 1fr)" in css
+    assert ".foms-tdash-tile__value { font-size: var(--foms-font-size-2xl" in css
+
+
+def test_ctower_construction_css_hides_top_chrome_page_scoped() -> None:
+    """construction CSS: 워크모드 위쪽 legacy 상단(.foms-shell-desktop-only)과 프로세스맵
+    카드(.erp-pro-card--process-map)를 코호트 + construction 페이지 스코프로 은닉한다
+    (목업 07: 상단 없음, 워크모드가 페이지 전체 소유). orders 무영향 위해 페이지 스코프 필수."""
+    css = _norm(_read(CONSTRUCTION_CSS))
+    assert CORE_MEDIA_QUERY in css
+    assert (
+        "body.erp-mobile-v2-layout .erp-construction-dashboard .foms-shell-desktop-only, "
+        "body.erp-mobile-v2-layout .erp-construction-dashboard .erp-pro-card--process-map "
+        "{ display: none" in css
+    )
+    # construction 페이지 컨테이너에 스코프 클래스 부여.
+    body = _read(CONSTRUCTION_DASHBOARD_BODY)
+    assert "erp-construction-dashboard" in body

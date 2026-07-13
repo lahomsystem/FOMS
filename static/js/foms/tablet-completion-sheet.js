@@ -200,6 +200,102 @@
       });
   }
 
+  // ---- 현금영수증 발행(발행 버튼) ------------------------------------------
+  // 시트 현금영수증 섹션의 발행 버튼(button[data-foms-cash-receipt-issue]) 클릭 →
+  // POST /api/orders/<id>/cash-receipt/issue (신규 완료 API). 발행은 terminal —
+  // 성공 시 (a) 시트 배지를 "발행됨"으로 교체+버튼 제거, (b) 완료 그리드 해당 행의
+  // 현금영수증 셀을 "발행됨" 칩으로 갱신한다. 응답 = {success, data:{cash_receipt}} / {success,error}.
+  var CASH_ISSUE_BTN = "[data-foms-cash-receipt-issue]";
+
+  function cashResultNode(scope) {
+    return scope ? scope.querySelector("[data-foms-cash-receipt-result]") : null;
+  }
+
+  function showCashResult(scope, message, ok) {
+    var node = cashResultNode(scope);
+    if (!node) return;
+    node.textContent = message;
+    node.classList.remove("is-success", "is-error");
+    node.classList.add(ok ? "is-success" : "is-error");
+    node.hidden = false;
+  }
+
+  function markGridReceiptIssued(orderId) {
+    var row = findGridRow(orderId);
+    if (!row) return;
+    var cell = row.querySelector(".foms-completion-grid__receipt-cell");
+    if (!cell) return;
+    cell.innerHTML =
+      '<span class="foms-completion-grid__receipt-chip is-issued">발행됨</span>';
+  }
+
+  function handleCashIssue(btn) {
+    if (btn.disabled) return;
+    var orderId = btn.getAttribute("data-order-id");
+    if (!orderId) return;
+    var scope = btn.closest("[data-foms-cash-receipt]") || btn.parentNode;
+
+    btn.disabled = true;
+    var origLabel = btn.textContent;
+    btn.textContent = "발행 중…";
+
+    fetch("/api/orders/" + encodeURIComponent(orderId) + "/cash-receipt/issue", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+      },
+      credentials: "same-origin",
+      body: "{}",
+    })
+      .then(function (res) {
+        return res
+          .json()
+          .catch(function () {
+            return { success: false, error: "서버 응답 형식 오류" };
+          })
+          .then(function (data) {
+            return { ok: res.ok, data: data };
+          });
+      })
+      .then(function (r) {
+        if (r.ok && r.data && r.data.success) {
+          // (a) 시트 배지 갱신 + 버튼 제거, (b) 그리드 셀 갱신.
+          var badge = scope ? scope.querySelector("[data-foms-cash-receipt-badge]") : null;
+          var line = scope ? scope.querySelector(".foms-completion-sheet__cash-line") : null;
+          if (badge) {
+            badge.textContent = "발행됨";
+          } else if (line) {
+            var span = document.createElement("span");
+            span.className = "foms-completion-sheet__cash-issued";
+            span.setAttribute("data-foms-cash-receipt-badge", "");
+            span.textContent = "발행됨";
+            // 기존 요청/없음 표시를 교체.
+            var old = line.querySelector(
+              ".foms-completion-sheet__cash-req, .foms-completion-sheet__cash-none"
+            );
+            if (old && old.parentNode) old.parentNode.replaceChild(span, old);
+            else line.appendChild(span);
+          }
+          if (btn.parentNode) btn.parentNode.removeChild(btn);
+          markGridReceiptIssued(orderId);
+          showCashResult(scope, "현금영수증이 발행되었습니다.", true);
+        } else {
+          var msg = (r.data && (r.data.error || r.data.message)) || "현금영수증 발행에 실패했습니다.";
+          btn.disabled = false;
+          btn.textContent = origLabel;
+          showCashResult(scope, msg, false);
+          console.error("[foms-completion-sheet] 현금영수증 발행 실패:", msg, r.data);
+        }
+      })
+      .catch(function (err) {
+        btn.disabled = false;
+        btn.textContent = origLabel;
+        showCashResult(scope, "현금영수증 발행 중 오류가 발생했습니다.", false);
+        console.error("[foms-completion-sheet] 현금영수증 발행 요청 오류:", err);
+      });
+  }
+
   // 단일 document 위임(bind once). 시트는 tablet-side-sheet.js 가 <body>에 나중에 붙이므로
   // capture 없이 bubble 단계 위임으로 충분(form 이 submit 을 버블링).
   document.addEventListener("submit", function (ev) {
@@ -208,5 +304,13 @@
     if (!form.matches(ISSUE_FORM_SELECTOR)) return;
     ev.preventDefault();
     handleIssue(form);
+  });
+
+  document.addEventListener("click", function (ev) {
+    if (!ev.target || !ev.target.closest) return;
+    var btn = ev.target.closest(CASH_ISSUE_BTN);
+    if (!btn) return;
+    ev.preventDefault();
+    handleCashIssue(btn);
   });
 })();

@@ -216,6 +216,24 @@
     font-weight: var(--foms-font-weight-bold);
     white-space: nowrap;
   }
+  /* 보류 배지 — HMI 색 규율상 지연과 함께 유일하게 유채색이 허용된 상태(주의 앰버). */
+  body.erp-mobile-v2-layout .foms-kanban-card__hold {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px var(--foms-space-2);
+    border-radius: var(--foms-radius-full);
+    background: var(--foms-status-warning-bg, #fef3c7);
+    color: var(--foms-status-warning-text, #92400e);
+    font-size: var(--foms-font-size-xs);
+    font-weight: var(--foms-font-weight-bold);
+    white-space: nowrap;
+  }
+  /* 보류 카드 좌측 앰버 액센트 바(카드 자체는 무채 유지). */
+  body.erp-mobile-v2-layout .foms-kanban-card.is-held {
+    box-shadow: inset 3px 0 0 0 var(--foms-status-warning-text, #d97706);
+  }
   body.erp-mobile-v2-layout .foms-kanban-card__product {
     font-size: var(--foms-font-size-base);
     font-weight: var(--foms-font-weight-medium);
@@ -439,6 +457,30 @@
 .foms-prod-sheet__btn--hold[disabled] {
   opacity: 0.55;
   cursor: not-allowed;
+}
+/* 보류 활성 상태: 앰버 아웃라인 버튼(해제 유도). HMI: 보류/지연만 유채색. */
+.foms-prod-sheet__btn--hold.is-active {
+  background: var(--foms-status-warning-bg, #fef3c7);
+  color: var(--foms-status-warning-text, #92400e);
+  border-color: var(--foms-status-warning-text, #d97706);
+}
+/* 시트 헤더 보류 배지 + 보류 사유 라인. */
+.foms-prod-sheet__hold-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: var(--foms-space-2);
+  padding: 2px var(--foms-space-2);
+  border-radius: var(--foms-radius-full);
+  background: var(--foms-status-warning-bg, #fef3c7);
+  color: var(--foms-status-warning-text, #92400e);
+  font-size: var(--foms-font-size-sm);
+  font-weight: var(--foms-font-weight-bold);
+  vertical-align: middle;
+}
+.foms-prod-sheet__hold-reason {
+  margin-top: var(--foms-space-1);
+  font-size: var(--foms-font-size-sm);
+  color: var(--foms-status-warning-text, #92400e);
 }
 .foms-prod-sheet__btn--pri {
   flex: 2;

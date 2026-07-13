@@ -60,6 +60,17 @@
     padding: var(--foms-space-3) var(--foms-space-4) var(--foms-space-6);
   }
 
+  /* --- 워크모드 위쪽 PC 잔존 상단(legacy header/subnav + 프로세스맵 밴드 + 파이프라인 +
+     필터바) 은닉 — 목업 07: 상단 없음(pcbar 는 중앙 뷰어 소유). 워크모드가 페이지 전체를
+     소유한다. legacy 작업 큐 은닉/워크모드 표시(위 배타 블록)와 동일 게이트라 blank 없음.
+     .erp-construction-dashboard 페이지 스코프로 orders(.erp-dashboard-orders)·타 페이지
+     무영향(이 파일은 foms-tablet-bundle.css 로 전역 로드되므로 스코프 필수).
+     .foms-shell-desktop-only 은닉은 desktop 강제 해치(foms-shell.css !important)에 양보한다. --- */
+  body.erp-mobile-v2-layout .erp-construction-dashboard .foms-shell-desktop-only,
+  body.erp-mobile-v2-layout .erp-construction-dashboard .erp-pro-card--process-map {
+    display: none;
+  }
+
   /* ==========================================================================
      좌: 타임라인 (단계 진행) — flex 0 0 300px, 내부 스크롤
      ========================================================================== */

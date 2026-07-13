@@ -104,3 +104,59 @@
   line-height: 1.1;
   text-align: center;
 }
+
+/* --- 하단 액션: spacer(밀어내기) + 알림 + 아바타 --- */
+/* spacer 는 상단 메뉴와 하단 액션 사이를 늘려 알림/아바타를 레일 바닥으로 민다.
+   레일이 넘쳐 스크롤될 만큼 짧은 화면에서는 flex-shrink 로 줄어든다. */
+.foms-tablet-rail__spacer {
+  flex: 1 1 auto;
+  min-height: var(--foms-space-3, 12px);
+}
+
+/* 알림 버튼: 레일 아이템 그래머 재사용(버튼 리셋만 추가) + 배지 앵커. */
+.foms-tablet-rail__notify {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+/* 미읽음 배지: 벨 아이콘 우상단 pill(HMI: 미읽음 알림은 유채 danger 허용). */
+.foms-tablet-rail__notify-badge {
+  position: absolute;
+  top: 2px;
+  right: 14px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--foms-radius-full, 999px);
+  background: var(--foms-color-danger-600, #dc2626);
+  color: #fff;
+  font-size: 10px;
+  font-weight: var(--foms-font-weight-bold, 700);
+  line-height: 16px;
+  text-align: center;
+}
+.foms-tablet-rail__notify-badge[hidden] {
+  display: none;
+}
+
+/* 아바타: 이니셜 원형. 클릭 = 프로필 페이지 이동(링크). */
+.foms-tablet-rail__avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  margin: var(--foms-space-2, 8px) 0 var(--foms-space-3, 12px);
+  border-radius: var(--foms-radius-full, 999px);
+  background: var(--foms-color-brand-50, #eff6ff);
+  color: var(--foms-interactive-primary, #2563eb);
+  font-size: 13px;
+  font-weight: var(--foms-font-weight-bold, 700);
+  text-decoration: none;
+}
+.foms-tablet-rail__avatar:hover {
+  background: var(--foms-color-brand-100, #dbeafe);
+}

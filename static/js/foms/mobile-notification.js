@@ -92,17 +92,19 @@
   }
 
   // ---- badge (shared count) -------------------------------------------------
+  // 페이지에 여러 개의 벨 배지가 있을 수 있다(모바일 셸 헤더 + 태블릿 레일 하단). 공유
+  // 카운트를 모든 [data-foms-notif-badge] 에 렌더한다(단일 querySelector 로는 첫 배지만
+  // 갱신되어 레일 배지가 정지하던 결함의 근본 수정).
   function renderBadge(count) {
-    var badge = document.querySelector('[data-foms-notif-badge]');
-    if (!badge) return;
+    var badges = document.querySelectorAll('[data-foms-notif-badge]');
+    if (!badges.length) return;
     var n = Number(count);
-    if (!Number.isFinite(n) || n <= 0) {
-      badge.hidden = true;
-      badge.textContent = '0';
-      return;
-    }
-    badge.textContent = n > 99 ? '99+' : String(n);
-    badge.hidden = false;
+    var visible = Number.isFinite(n) && n > 0;
+    var text = visible ? (n > 99 ? '99+' : String(n)) : '0';
+    Array.prototype.forEach.call(badges, function (badge) {
+      badge.textContent = text;
+      badge.hidden = !visible;
+    });
   }
 
   function currentBadgeCount() {

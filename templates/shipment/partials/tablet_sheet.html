@@ -3,6 +3,8 @@
 <div class="foms-ship-sheet">
   <div class="foms-ship-sheet__head">{{ customer_name }} 배정</div>
   <div class="foms-ship-sheet__count">{{ product_label }} · 자수 {{ units }}</div>
+  {# 현장주소: 태블릿 가로 그리드에서 저우선 열로 숨기므로 배정 시트에서 노출한다. #}
+  <div class="foms-ship-sheet__count"><i class="fas fa-map-marker-alt" aria-hidden="true"></i> {{ order.address or '-' }}</div>
 
   <div class="foms-ship-sheet__card">
     <div class="foms-ship-sheet__card-title">시공팀{% if construction_date %} · {{ construction_date }}{% endif %}</div>

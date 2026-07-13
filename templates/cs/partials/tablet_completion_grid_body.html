@@ -118,8 +118,10 @@
           <td class="is-num">{{ row.shipping_price_display }}</td>
           <td class="is-num">{{ row.deposit_display }}</td>
           <td class="is-num foms-completion-grid__balance">{{ row.balance_display }}</td>
-          <td>
-            {% if row.cash_receipt_state == 'requested' %}
+          <td class="foms-completion-grid__receipt-cell">
+            {% if row.cash_receipt_state == 'issued' %}
+            <span class="foms-completion-grid__receipt-chip is-issued">발행됨</span>
+            {% elif row.cash_receipt_state == 'requested' %}
             <span class="foms-completion-grid__receipt-chip">발행 요청</span>
             {% else %}—{% endif %}
           </td>
@@ -157,5 +159,5 @@
   </nav>
   {% endif %}
 
-  <script defer src="{{ url_for('static', filename='js/foms/tablet-completion-sheet.js') }}?v=20260713a"></script>
+  <script defer src="{{ url_for('static', filename='js/foms/tablet-completion-sheet.js') }}?v=20260713b"></script>
 </section>

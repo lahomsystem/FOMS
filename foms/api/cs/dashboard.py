@@ -385,4 +385,75 @@ def api_settlement_issue(order_id):
         return jsonify({"success": False, "message": str(e)}), 500
 
 
-__all__ = ["erp_orders_completion_bp", "api_orders_completion", "api_settlement_issue"]
+@erp_orders_completion_bp.route("/<int:order_id>/cash-receipt/issue", methods=["POST"])
+@login_required
+def api_cash_receipt_issue(order_id):
+    """현금영수증 발행 기록. body {note(str, optional)}.
+
+    ``structured_data.settlement.cash_receipt = {issued: True, at, by, note}`` 를 기록한다.
+    발행은 terminal(재발행 없음) — 이미 발행된 건은 409 로 거절한다. 정산 발행과 동일하게
+    시공팀(CONSTRUCTION)은 차단한다. JSONB 는 copy.deepcopy+flag_modified 규약을 따른다.
+
+    Args:
+        order_id: 대상 주문 id.
+
+    Returns:
+        ``{success, data:{cash_receipt}}`` 또는 오류 JSON(400/403/404/409/500).
+    """
+    db = None
+    try:
+        user = get_user_by_id(session.get("user_id"))
+        if user and getattr(user, "team", None) == "CONSTRUCTION":
+            return jsonify({"success": False, "error": "시공팀은 현금영수증을 발행할 수 없습니다."}), 403
+
+        db = get_db()
+        order = db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
+        if not order:
+            return jsonify({"success": False, "error": "주문을 찾을 수 없습니다."}), 404
+        if order.status not in TARGET_STATUSES:
+            return jsonify({"success": False, "error": "완료·AS 건에만 현금영수증을 발행할 수 있습니다."}), 400
+
+        data = request.get_json(silent=True) or {}
+        note_raw = data.get("note")
+        note = note_raw.strip() if isinstance(note_raw, str) else ""
+
+        sd = _ensure_dict(order.structured_data)
+        settlement = sd.get("settlement")
+        if not isinstance(settlement, dict):
+            settlement = {"status": "PENDING", "base_cost": None, "deductions": [], "final_cost": None}
+        existing = settlement.get("cash_receipt")
+        if isinstance(existing, dict) and existing.get("issued"):
+            return jsonify({"success": False, "error": "이미 현금영수증이 발행된 건입니다."}), 409
+
+        user_id = session.get("user_id")
+        issued_by = user.name if user else "Unknown"
+        now_iso = datetime.datetime.now().isoformat()
+        cash_receipt = {"issued": True, "at": now_iso, "by": issued_by, "note": note}
+        settlement["cash_receipt"] = cash_receipt
+        sd["settlement"] = settlement
+        order.structured_data = copy.deepcopy(sd)  # type: ignore[assignment]
+        flag_modified(order, "structured_data")
+
+        db.add(OrderEvent(
+            order_id=order_id,
+            event_type="CASH_RECEIPT_ISSUED",
+            payload={"issued_by": issued_by, "note": note},
+            created_by_user_id=user_id,
+        ))
+        db.add(SecurityLog(user_id=user_id, message=f"주문 #{order_id} 현금영수증 발행"))
+        db.commit()
+        return jsonify({"success": True, "data": {"cash_receipt": cash_receipt}})
+    except Exception as e:
+        if db is not None:
+            db.rollback()
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+__all__ = [
+    "erp_orders_completion_bp",
+    "api_orders_completion",
+    "api_settlement_issue",
+    "api_cash_receipt_issue",
+]

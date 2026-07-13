@@ -350,6 +350,8 @@ def erp_production_tablet_sheet(order_id: int):
         items = []
     construction_date = (((sd.get('schedule') or {}).get('construction') or {}).get('date'))
     notes_raw = sd.get('notes')
+    _prod = sd.get('production') if isinstance(sd.get('production'), dict) else {}
+    _hold = _prod.get('hold') if isinstance(_prod.get('hold'), dict) else {}
     sheet = {
         'id': order.id,
         'customer_name': (((sd.get('parties') or {}).get('customer') or {}).get('name')) or '-',
@@ -358,5 +360,7 @@ def erp_production_tablet_sheet(order_id: int):
         'spec_rows_view': _prod_sheet_spec_rows_view(items),
         'notes_text': notes_raw.strip() if isinstance(notes_raw, str) else '',
         'drawing_thumb': _prod_sheet_drawing_thumb(sd),
+        'hold_active': bool(_hold.get('active')),
+        'hold_reason': (_hold.get('reason') or '').strip() if isinstance(_hold.get('reason'), str) else '',
     }
     return render_template('production/partials/tablet_sheet.html', order=sheet)

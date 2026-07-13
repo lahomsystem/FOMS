@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import pathlib
 import re
 from pathlib import Path
 
@@ -131,11 +132,10 @@ def test_density_css_row_height_overrides_dashboard_and_history() -> None:
 
 
 def test_density_toggle_placed_in_dashboard_pcbar() -> None:
-    body = _read(DASHBOARD_GRID)
-    assert "partials/shared/foms_density_toggle.html" in body
-    assert "set foms_density_target = '#erp-grid'" in body
-    # 기존 "폭 초기화" 버튼과 같은 pcbar.
-    assert "erp-grid-reset-column-widths" in body
+    # 2026-07-13 목업 01 정합: 토글은 태블릿 상단 바 파샬(tablet_dashboard_topbar.html)로 이전.
+    topbar = _read(pathlib.Path("templates/orders/partials/tablet_dashboard_topbar.html"))
+    assert "partials/shared/foms_density_toggle.html" in topbar
+    assert "#erp-grid" in topbar
 
 
 def test_density_toggle_placed_in_history_table_top() -> None:

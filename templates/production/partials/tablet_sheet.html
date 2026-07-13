@@ -12,8 +12,16 @@
    로드된 표면에선 그 경로로 위임하고, 미로드(생산 대시보드)면 전역 뷰어로 직접 배선한다.
    ============================================================================ #}
 <div class="foms-prod-sheet" data-order-id="{{ order.id }}">
-  <div class="foms-prod-sheet__head">{{ order.customer_name }}</div>
+  <div class="foms-prod-sheet__head">
+    {{ order.customer_name }}
+    {% if order.hold_active %}
+    <span class="foms-prod-sheet__hold-badge" data-tablet-sheet-hold-badge>보류</span>
+    {% endif %}
+  </div>
   <div class="foms-prod-sheet__count">#{{ order.id }} · 상차 {{ order.load_md }}</div>
+  {% if order.hold_active and order.hold_reason %}
+  <div class="foms-prod-sheet__hold-reason" data-tablet-sheet-hold-reason-view>보류 사유: {{ order.hold_reason }}</div>
+  {% endif %}
 
   {# ── hl-tile: 총 자수 (W/300) ── #}
   <div class="foms-prod-sheet__hl">
@@ -74,11 +82,15 @@
     {% endif %}
   </section>
 
-  {# ── m-foot: 보류(disabled) + 생산 완료(pri) ── #}
+  {# ── m-foot: 보류 토글 + 생산 완료(pri). 보류는 표시 전용 플래그 토글(워크플로 전이 없음).
+     활성 시 "보류 해제", 비활성 시 "보류"로 라벨을 서버 렌더하고, 클릭 배선/사유 prompt 는
+     tablet-domain-sheets.js(document 위임)가 소유한다. ── #}
   <div class="foms-prod-sheet__foot">
-    <button type="button" class="foms-prod-sheet__btn foms-prod-sheet__btn--hold"
-            disabled title="보류 상태 전환 API 미구현 — 별도 승인 필요"
-            data-tablet-sheet-hold>보류</button>
+    <button type="button"
+            class="foms-prod-sheet__btn foms-prod-sheet__btn--hold{% if order.hold_active %} is-active{% endif %}"
+            data-tablet-sheet-action="production-hold"
+            data-order-id="{{ order.id }}"
+            data-hold-active="{{ 1 if order.hold_active else 0 }}">{{ '보류 해제' if order.hold_active else '보류' }}</button>
     <button type="button" class="foms-prod-sheet__btn foms-prod-sheet__btn--pri"
             data-tablet-sheet-action="production-complete" data-order-id="{{ order.id }}">생산 완료</button>
   </div>

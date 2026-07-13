@@ -85,6 +85,43 @@ def _completion_period_label(period: str) -> str:
     return f"{int(month_part)}월"
 
 
+def _cash_receipt_issued(settlement: dict | None) -> bool:
+    """정산 blob에서 현금영수증 발행 여부를 파생한다.
+
+    발행 기록은 ``settlement.cash_receipt = {issued: True, ...}`` (cash-receipt/issue API).
+
+    Args:
+        settlement: sd["settlement"] dict 또는 None.
+
+    Returns:
+        발행 완료면 True.
+    """
+    if not isinstance(settlement, dict):
+        return False
+    cr = settlement.get("cash_receipt")
+    return bool(isinstance(cr, dict) and cr.get("issued"))
+
+
+def _cash_receipt_state(cash_receipt_text: str, issued: bool) -> str:
+    """현금영수증 상태를 파생한다: 'issued' > 'requested' > 'none'.
+
+    발행 기록(settlement.cash_receipt.issued)이 있으면 'issued', 없고 요청 자유텍스트
+    (payment.cash_receipt)가 있으면 'requested', 둘 다 없으면 'none'.
+
+    Args:
+        cash_receipt_text: payment.cash_receipt 요청 자유텍스트(strip 완료).
+        issued: 발행 완료 여부(_cash_receipt_issued).
+
+    Returns:
+        "issued" | "requested" | "none".
+    """
+    if issued:
+        return "issued"
+    if cash_receipt_text:
+        return "requested"
+    return "none"
+
+
 def _completion_row(order) -> dict:
     """단일 완료 큐 Order → 태블릿 금액 그리드 행 dict.
 
@@ -126,6 +163,7 @@ def _completion_row(order) -> dict:
     settlement_issued = bool(
         isinstance(settlement, dict) and settlement.get("deductions")
     )
+    cash_receipt_issued = _cash_receipt_issued(settlement)
     return {
         "id": order.id,
         "status": order.status,
@@ -139,7 +177,8 @@ def _completion_row(order) -> dict:
         "balance_display": _format_krw(balance),
         "balance_amount": balance,
         "cash_receipt": cash_receipt,
-        "cash_receipt_state": "requested" if cash_receipt else "none",
+        "cash_receipt_state": _cash_receipt_state(cash_receipt, cash_receipt_issued),
+        "cash_receipt_issued": cash_receipt_issued,
         "paid": paid,
         "settlement_issued": settlement_issued,
     }
@@ -432,6 +471,12 @@ def _completion_sheet_context(db, order, user) -> dict:
         if isinstance(payment, dict) else ""
     )
     settlement = sd.get("settlement")
+    cash_receipt_issued = _cash_receipt_issued(settlement)
+    cash_receipt_note = ""
+    if cash_receipt_issued:
+        cr = settlement.get("cash_receipt") if isinstance(settlement, dict) else None
+        if isinstance(cr, dict):
+            cash_receipt_note = str(cr.get("note") or "").strip()
     return {
         "order_id": order.id,
         "customer_name": customer_name,
@@ -440,6 +485,8 @@ def _completion_sheet_context(db, order, user) -> dict:
         "deposit_display": _format_krw(deposit),
         "balance_display": _format_krw(balance),
         "cash_receipt": cash_receipt,
+        "cash_receipt_issued": cash_receipt_issued,
+        "cash_receipt_note": cash_receipt_note,
         "settlement_issued": bool(
             isinstance(settlement, dict) and settlement.get("deductions")
         ),

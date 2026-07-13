@@ -79,6 +79,43 @@
       });
   }
 
+  // 생산 보류 토글 — 표시 전용 플래그(워크플로 전이 없음). 버튼의 data-hold-active 로
+  // 현재 상태를 읽어 반대로 토글한다. 활성화 시 사유를 prompt 로 받는다(취소 시 중단).
+  // 성공 시 시트를 닫고 새로고침해 카드/시트 배지를 재조회한다. 에러 키 = error(생산 API).
+  function productionHold(orderId, btn) {
+    if (!orderId) return;
+    var isActive = btn && btn.getAttribute("data-hold-active") === "1";
+    var nextActive = !isActive;
+    var reason = "";
+    if (nextActive) {
+      reason = window.prompt("보류 사유를 입력하세요. (선택)", "") || "";
+      reason = reason.trim();
+    }
+    fetch("/api/orders/" + encodeURIComponent(orderId) + "/production/hold", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ active: nextActive, reason: reason }),
+    })
+      .then(function (res) {
+        return res.json().catch(function () {
+          return { success: false, error: "서버 응답 형식 오류" };
+        });
+      })
+      .then(function (data) {
+        if (data && data.success) {
+          closeSheet();
+          window.location.reload();
+        } else {
+          window.alert("오류: " + ((data && (data.error || data.message)) || "처리 실패"));
+        }
+      })
+      .catch(function (err) {
+        console.error("[foms-domain-sheets] 생산 보류 토글 실패:", err);
+        window.alert("처리 중 오류가 발생했습니다.");
+      });
+  }
+
   // 출고 배정 — 시공팀/시공시간/현장 메모를 기존 출고 update 엔드포인트로 저장.
   // 입력은 시트 본문(.foms-tablet-sheet__body) 범위에서 조회, 없으면 document 폴백.
   function shipmentAssign(orderId) {
@@ -217,6 +254,11 @@
     if (action === "production-complete") {
       ev.preventDefault();
       productionComplete(orderId);
+      return;
+    }
+    if (action === "production-hold") {
+      ev.preventDefault();
+      productionHold(orderId, actionBtn);
       return;
     }
     if (action === "shipment-assign") {

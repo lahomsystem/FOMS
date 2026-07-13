@@ -6,7 +6,7 @@
     <div class="erp-dashboard-workqueue" data-foms-stage-catalog='{{ foms_stage_catalog|tojson }}'>
       <div class="card">
         <div class="card-body">
-          <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-3">
+          <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-3 erp-dashboard-workqueue-head">
             <div class="d-flex align-items-start gap-3 flex-wrap">
               <div>
                 <h5 class="mb-0 fw-bold text-dark"><i class="fas fa-table text-primary"></i> 작업 큐</h5>
@@ -34,12 +34,9 @@
               <button type="button" class="btn btn-outline-secondary btn-sm" id="erp-grid-reset-column-widths">
                 <i class="fas fa-text-width"></i> 폭 초기화
               </button>
-              {# 공용 밀도 토글 — 코호트(v2∪v3)에서만 렌더(hide/show CSS가 코호트 번들에만 로드되므로
-                 PC 미렌더로 stray 버튼 방지). 실제 표시는 coarse landscape CSS 게이트. #}
-              {% if erp_mobile_v2_enabled %}
-              {% set foms_density_target = '#erp-grid' %}
-              {% include 'partials/shared/foms_density_toggle.html' %}
-              {% endif %}
+              {# 밀도 토글은 태블릿 가로 코호트에서 상단 pcbar(tablet_dashboard_topbar.html)로
+                 재배치됨 — 이 카드 헤더 자체가 코호트에서 은닉되므로 여기 두면 토글도 사라진다.
+                 PC/폰은 pcbar 미표시라 토글도 base-hide 로 은닉(회귀 없음). #}
               <span class="badge bg-primary fs-6 px-3 py-2">표시: <strong>{{ orders|length }}</strong>건</span>
             </div>
           </div>

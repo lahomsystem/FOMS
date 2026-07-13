@@ -95,3 +95,72 @@ body.col-resizing-active {
     grid-template-columns: repeat(4, 1fr);
   }
 }
+
+/* =============================================================
+   태블릿 가로 그리드 — 목업 프레임 06 정합 (2026-07-13, W-shipment)
+   ------------------------------------------------------------
+   코호트 태블릿 가로(body.erp-mobile-v2-layout + coarse landscape ≥992)에서
+   출고 대시보드 테이블을 목업 06 컬럼셋으로 다듬는다:
+     가시 6열 = 고객 · 발주사(대리점) · 제품 · 자수(규격 W/300) · 시간(시공시간) · 도면담당
+     저우선 열 자동 숨김 = 상세(확장 UI) · 현장주소(대형 블록) · 시공자 · 담당자
+   저우선 열은 컬럼 인덱스가 아니라 col/th/td 의 data-col-key(콜그룹 SSOT)로 지목한다.
+   상세·현장주소는 행 탭 → 배정 시트(/erp/shipment/tablet-sheet/<id>)로 접근한다.
+   이 파일은 dashboard_main.html 본문 <link>(full·fragment·전체 사용자)로 로드되지만
+   아래 규칙 전부가 코호트 body 클래스 + 코어 MQ 게이트 안이라 PC(fine)·폰·세로 무영향.
+   ============================================================= */
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+
+  /* 1) 저우선 열 셀 은닉(th + td). data-col-key 로 지목(인덱스 비의존). */
+  body.erp-mobile-v2-layout #shipment-dashboard-table th[data-col-key="detail"],
+  body.erp-mobile-v2-layout #shipment-dashboard-table td[data-col-key="detail"],
+  body.erp-mobile-v2-layout #shipment-dashboard-table th[data-col-key="address"],
+  body.erp-mobile-v2-layout #shipment-dashboard-table td[data-col-key="address"],
+  body.erp-mobile-v2-layout #shipment-dashboard-table th[data-col-key="construction_workers"],
+  body.erp-mobile-v2-layout #shipment-dashboard-table td[data-col-key="construction_workers"],
+  body.erp-mobile-v2-layout #shipment-dashboard-table th[data-col-key="manager"],
+  body.erp-mobile-v2-layout #shipment-dashboard-table td[data-col-key="manager"] {
+    display: none;
+  }
+
+  /* 2) 숨긴 열의 col 폭 회수 — dashboard-columns.js 가 col.style.width(인라인, table-layout:
+     fixed 폭 SSOT)를 세팅하므로 !important 로 상회해 0 으로 접는다(잔여 빈칸 방지). 가시 열은
+     fixed 잔여 폭 비례 분배로 컨테이너를 채운다. */
+  body.erp-mobile-v2-layout #shipment-dashboard-table colgroup col[data-col-key="detail"],
+  body.erp-mobile-v2-layout #shipment-dashboard-table colgroup col[data-col-key="address"],
+  body.erp-mobile-v2-layout #shipment-dashboard-table colgroup col[data-col-key="construction_workers"],
+  body.erp-mobile-v2-layout #shipment-dashboard-table colgroup col[data-col-key="manager"] {
+    width: 0 !important;
+  }
+
+  /* 3) 자수(규격 W/300) 우측 정렬 + tabular-nums(자릿수 정렬). */
+  body.erp-mobile-v2-layout #shipment-dashboard-table th[data-col-key="spec"],
+  body.erp-mobile-v2-layout #shipment-dashboard-table td[data-col-key="spec"] {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  body.erp-mobile-v2-layout #shipment-dashboard-table td[data-col-key="spec"] .shipment-spec-list {
+    align-items: flex-end;
+  }
+
+  /* 4) 데이터 행 ≥48px 터치 타깃(foms-tablet-landscape.css 의 48px 규칙은 #erp-grid
+     전용이라 출고 테이블은 여기서 별도 보정). height 는 최소 높이로 동작. */
+  body.erp-mobile-v2-layout #shipment-dashboard-table tbody tr.shipment-row {
+    height: var(--foms-touch-target-min, 48px);
+  }
+
+  /* 5) 시공팀별 파스텔 그룹 행 유지 — 시공자 열을 숨겨 팀 색(셀 배경)이 사라지므로
+     팀 색을 전체 행 배경으로 승격한다. 템플릿이 tr 에 심는 data-team-color-index
+     (pastel_colors 인덱스, 무배정=-1 은 규칙 없음=미착색)로 지목하며, 팔레트는
+     dashboard_main.html/shipment-dashboard.js 의 pastel_colors 와 동일 값이다.
+     td 직접 지목(특이도)이라 Bootstrap .table 셀 배경(var(--bs-table-bg))을 이긴다. */
+  body.erp-mobile-v2-layout #shipment-dashboard-table tbody tr[data-team-color-index="0"] > td { background-color: #B8D4E3; }
+  body.erp-mobile-v2-layout #shipment-dashboard-table tbody tr[data-team-color-index="1"] > td { background-color: #FFE5CC; }
+  body.erp-mobile-v2-layout #shipment-dashboard-table tbody tr[data-team-color-index="2"] > td { background-color: #E8D5E9; }
+  body.erp-mobile-v2-layout #shipment-dashboard-table tbody tr[data-team-color-index="3"] > td { background-color: #D5E9D5; }
+  body.erp-mobile-v2-layout #shipment-dashboard-table tbody tr[data-team-color-index="4"] > td { background-color: #F0D5D5; }
+  body.erp-mobile-v2-layout #shipment-dashboard-table tbody tr[data-team-color-index="5"] > td { background-color: #D5D5E9; }
+  body.erp-mobile-v2-layout #shipment-dashboard-table tbody tr[data-team-color-index="6"] > td { background-color: #FFF0D5; }
+  body.erp-mobile-v2-layout #shipment-dashboard-table tbody tr[data-team-color-index="7"] > td { background-color: #D5E9E5; }
+  body.erp-mobile-v2-layout #shipment-dashboard-table tbody tr[data-team-color-index="8"] > td { background-color: #F5D5E5; }
+  body.erp-mobile-v2-layout #shipment-dashboard-table tbody tr[data-team-color-index="9"] > td { background-color: #E9E5D5; }
+}

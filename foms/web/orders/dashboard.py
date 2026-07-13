@@ -475,6 +475,9 @@ def erp_dashboard():
         # v3→v2 이식(A1): CS 히어로 '기한 경과(접수 후 2일+)' danger 강조 임계 ISO
         # (기존 today_date 파생 — 신규 쿼리 없음). 템플릿은 received_date < 임계로 판정.
         cs_overdue_before=(today_date - datetime.timedelta(days=2)).isoformat(),
+        # 태블릿 가로 상단 바(tablet_dashboard_topbar.html) sub "N건 · YYYY-MM-DD" 소비.
+        # 기존 build_orders_dashboard_queries 파생값 재사용 — 신규 쿼리 없음.
+        today_iso=today_iso,
         kpis=kpis,
         process_steps=process_steps,
         tower_mode=tower_mode,

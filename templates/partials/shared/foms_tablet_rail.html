@@ -8,7 +8,14 @@
    ≥992px + :has 지원 시에만 노출. 신규 <script> 없음.
    NOTE: 태블릿 번들(layout_head) 게이트는 order_edit(/edit/<id>)도 포함하나 이 레일
    include 게이트는 /erp 한정 — 주문 편집 페이지는 이번 범위 밖(의도된 제외).
-   아이템 데이터는 lazy Jinja 전역 foms_tablet_rail_items() 로 획득(호출 시에만 계산). #}
+   아이템 데이터는 lazy Jinja 전역 foms_tablet_rail_items() 로 획득(호출 시에만 계산).
+
+   하단(spacer 후): 알림 버튼 + 아바타. 신규 스크립트/엔드포인트 없이 기존 훅만 재사용한다.
+   - 알림: 기존 모바일 셸 벨과 동일한 위임 훅(data-foms-notif-open)을 재사용 →
+     mobile-notification.js(v2 셸이 이미 로드)가 알림 시트를 연다. 미읽음 배지는
+     data-foms-notif-badge 로, 전역 SSOT(window.FOMSNotificationBadge)의 공유 폴 카운트를
+     mobile-notification.js 가 모든 벨 배지에 렌더한다(rail 은 추가 폴/스크립트 없음).
+   - 아바타: 이니셜 표시 + 클릭 = 기존 프로필 페이지(auth.profile) 이동(실존 동작만 배선). #}
 <nav class="foms-tablet-rail" aria-label="ERP 단계 메뉴">
   <div class="foms-tablet-rail__brand" aria-hidden="true">F</div>
   {% for item in foms_tablet_rail_items() %}
@@ -22,4 +29,30 @@
     <span class="foms-tablet-rail__label">{{ item.label }}</span>
   </a>
   {% endfor %}
+
+  <div class="foms-tablet-rail__spacer" aria-hidden="true"></div>
+
+  <button
+    type="button"
+    class="foms-tablet-rail__item foms-tablet-rail__notify"
+    data-foms-notif-open
+    aria-label="알림"
+    aria-haspopup="dialog"
+    aria-expanded="false"
+    aria-controls="erp-mobile-notification-sheet"
+    title="알림"
+  >
+    <i class="fas fa-bell foms-tablet-rail__icon" aria-hidden="true"></i>
+    <span class="foms-tablet-rail__label">알림</span>
+    <span class="foms-tablet-rail__notify-badge" data-foms-notif-badge hidden aria-hidden="true">0</span>
+  </button>
+
+  {% if current_user %}
+  <a
+    class="foms-tablet-rail__avatar"
+    href="{{ url_for('auth.profile') }}"
+    title="{{ current_user.name }} — 내 정보"
+    aria-label="내 정보"
+  >{{ (current_user.name or '?')[:2] }}</a>
+  {% endif %}
 </nav>

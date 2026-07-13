@@ -368,3 +368,70 @@ def api_production_defect(order_id: int):
     except Exception as exc:
         db.rollback()
         return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@erp_orders_production_bp.route("/<int:order_id>/production/hold", methods=["POST"])
+@login_required
+@_production_steps_edit_required
+def api_production_hold(order_id: int):
+    """생산 보류 플래그 토글. body {active(bool), reason(str, optional)}.
+
+    ``sd['production']['hold'] = {active, reason, at(UTC iso 또는 None), by_name}`` 를
+    기록한다. 이는 **표시 전용 플래그**이며 워크플로 단계(``workflow.stage``)나
+    ``order.status`` 를 전이시키지 않는다 — 칸반 카드·시트에 보류 배지를 노출하기 위한
+    상태일 뿐이다. active=True 면 at/by_name/reason 을 기록하고, active=False(해제)면
+    at=None, by_name=None, reason="" 로 초기화한다. JSONB 는 copy.deepcopy+flag_modified
+    규약을 따른다. 권한은 생산 공정 스텝과 동일(ADMIN 또는 CS/SALES/PRODUCTION 팀).
+
+    :param order_id: 대상 주문 id.
+    :return: ``{success, data:{hold}}`` 또는 오류 JSON.
+    """
+    db = get_db()
+    try:
+        payload = request.get_json(silent=True) or {}
+        active = payload.get("active")
+        if not isinstance(active, bool):
+            return jsonify({"success": False, "error": "active 값(bool)이 올바르지 않습니다."}), 400
+        reason_raw = payload.get("reason")
+        reason = reason_raw.strip() if isinstance(reason_raw, str) else ""
+
+        order = db.get(Order, order_id)
+        if not order or order.status == "DELETED" or order.deleted_at is not None:
+            return jsonify({"success": False, "error": "주문을 찾을 수 없습니다."}), 404
+
+        user = get_user_by_id(session.get("user_id"))
+        sd = copy.deepcopy(_ensure_dict(order.structured_data))
+        production = sd.get("production")
+        if not isinstance(production, dict):
+            production = {}
+            sd["production"] = production
+
+        now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        hold = {
+            "active": active,
+            "reason": reason if active else "",
+            "at": now_iso if active else None,
+            "by_name": (user.name if user else None) if active else None,
+        }
+        production["hold"] = hold
+
+        order.structured_data = sd
+        flag_modified(order, "structured_data")
+        db.add(
+            OrderEvent(
+                order_id=order_id,
+                event_type="PRODUCTION_HOLD_TOGGLED",
+                payload={
+                    "active": active,
+                    "reason": reason if active else "",
+                    "domain": "PRODUCTION_DOMAIN",
+                    "action": "PRODUCTION_HOLD_TOGGLED",
+                },
+                created_by_user_id=session.get("user_id"),
+            )
+        )
+        db.commit()
+        return jsonify({"success": True, "data": {"hold": hold}})
+    except Exception as exc:
+        db.rollback()
+        return jsonify({"success": False, "error": str(exc)}), 500
