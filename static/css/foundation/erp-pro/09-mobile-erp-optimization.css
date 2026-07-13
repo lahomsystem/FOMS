@@ -260,6 +260,10 @@
     filter: none !important;
     opacity: 0.4 !important;
 }
+/* 라홈 비표준 예약금 힌트: 미확인이어도 황금 동전은 선명하게 */
+.erp-custom-payment-unconfirmed.erp-custom-payment-lahom-hint {
+    opacity: 1 !important;
+}
 
 /* AS 일정찾기 지도 모달
    Leaflet가 같은 div에 .leaflet-container를 붙이며, 타일 레이어 z-index(200) 등을 씀.

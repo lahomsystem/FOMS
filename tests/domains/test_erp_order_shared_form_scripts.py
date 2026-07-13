@@ -58,7 +58,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
     assert payment_urls_idx < channel_push_confirm_idx < erp_order_shared_idx < column_resizer_idx < estimate_preview_idx < estimate_columns_idx
     assert "html2canvas.min.js" not in body
     assert "js/orders/erp-channel-push-confirm.js?v=20260703a" in body
-    assert "js/orders/erp-order-shared.js?v=20260703a" in body
+    assert "js/orders/erp-order-shared.js?v=20260713a" in body
     assert "css/orders/erp-channel-push.css?v=20260701a" in body
     assert "css/orders/erp-items-master-detail.css?v=20260701f" in body
     assert "js/orders/erp-items-master-detail.js?v=20260630c" in body
@@ -681,6 +681,22 @@ def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
     assert "hidden" in (root / "templates/orders/partials/erp_order_tab.html").read_text(encoding="utf-8")
     assert 'data-payment-type="balance"' in text
     assert "erp-custom-payment-confirmed" in text
+    assert "ERP_LAHOM_STANDARD_DEPOSIT_AMOUNTS" in text
+    assert "Object.freeze([50000, 100000, 200000, 300000, 400000])" in text
+    assert "function _erpShouldShowLahomDepositGold(amount)" in text
+    assert 'orderer !== "라홈"' in text
+    assert "function _erpRefreshDepositCoinVisual()" in text
+    assert "라홈 비표준 예약금" in text
+    assert "erp-custom-payment-lahom-hint" in text
+    assert "_erpRefreshDepositCoinVisual()" in text
+    # deposit binder onRecalc must refresh coin; orderer sync too
+    deposit_bind = text.index(
+        "erpBindAmountInput(\n        document.getElementById('erp-deposit-amount')"
+    )
+    assert "_erpRefreshDepositCoinVisual()" in text[deposit_bind : deposit_bind + 350]
+    sync_start = text.index("function syncWorkflowStageByOrderer()")
+    sync_end = text.index("window.syncWorkflowStageByOrderer", sync_start)
+    assert "_erpRefreshDepositCoinVisual()" in text[sync_start:sync_end]
     assert "visibleItemIndex += 1" in conversion_block
     assert "function erpReadScheduleTimeValue(selectId, inputId)" in text
     assert "erpReadScheduleTimeValue('erp-construction-time-select', 'erp-construction-time')" in conversion_block
@@ -706,7 +722,7 @@ def test_shared_erp_amount_input_allows_empty_value_while_deleting() -> None:
     text = (root / "static/js/orders/erp-order-shared.js").read_text(encoding="utf-8")
 
     bind_start = text.index("function erpBindAmountInput(inputEl, parseFn, onRecalc)")
-    bind_end = text.index("erpBindAmountInput(document.getElementById('erp-deposit-amount')", bind_start)
+    bind_end = text.index("document.getElementById('erp-deposit-amount')", bind_start)
     bind_block = text[bind_start:bind_end]
 
     assert "function deleteErpAmountDigitBeforeSuffix(el)" in bind_block

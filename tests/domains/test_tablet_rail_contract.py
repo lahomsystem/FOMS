@@ -162,7 +162,7 @@ def test_cache_chain_versions_bumped() -> None:
     assert "foms-tablet-bundle.css') }}?v=20260713d" in head
     # erp-pro.css link bumped (old value gone, a fresh value present).
     assert "?v=20260711ad" not in head
-    assert "erp-pro.css') }}?v=20260712af" in head
+    assert "erp-pro.css') }}?v=20260713a" in head
     erp_pro = _read(ERP_PRO_CSS)
     assert "13-foms-shell-bridge.css?v=20260712b" in erp_pro
 
