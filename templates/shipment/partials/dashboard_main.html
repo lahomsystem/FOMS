@@ -1,5 +1,5 @@
 {% set _fos_desktop_body %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/shipment-dashboard-columns.css') }}?v=20260713b">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/shipment-dashboard-columns.css') }}?v=20260713o">
 {# foms-kv-rollout: erp_mobile_shell → kv-copy.js #}
 <div class="erp-pro erp-mobile-shell erp-dashboard-shipment" data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
   {% if erp_mobile_v2_enabled %}
@@ -64,8 +64,8 @@
   {%- endfor %}
   <div class="foms-ship-pcbar" aria-label="출고 대시보드 요약">
     <div class="foms-ship-pcbar__lead">
-      <h2 class="foms-ship-pcbar__title">출고 대시보드</h2>
-      <span class="foms-ship-pcbar__sub">{% if selected_date %}{{ selected_date[5:7] }}/{{ selected_date[8:10] }}{% if _ship_wd.label %}({{ _ship_wd.label }}){% endif %} 출고 · {% endif %}{{ rows|length }}건</span>
+      <h2 class="foms-ship-pcbar__title">{% if selected_date %}{{ selected_date[5:7] }}/{{ selected_date[8:10] }}{% if _ship_wd.label %}({{ _ship_wd.label }}){% endif %} 출고{% else %}출고 대시보드{% endif %}</h2>
+      <span class="foms-ship-pcbar__sub">{{ rows|length }}건</span>
     </div>
     <div class="foms-ship-pcbar__actions">
       {% set foms_density_target = '#shipment-dashboard-table' %}

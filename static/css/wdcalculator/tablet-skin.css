@@ -186,7 +186,9 @@
   }
   .wdc-tab-ab__price {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    align-items: baseline;
+    gap: var(--foms-space-2, 0.5rem);
     line-height: 1.2;
     min-width: 0;
   }
@@ -195,7 +197,7 @@
     color: var(--foms-text-secondary, #6c757d);
   }
   .wdc-tab-ab__val {
-    font-size: var(--foms-font-size-lg, 1.125rem);
+    font-size: var(--foms-font-size-xl, 1.25rem);
     font-weight: var(--foms-font-weight-bold, 700);
     color: var(--foms-text-color, #212529);
     white-space: nowrap;

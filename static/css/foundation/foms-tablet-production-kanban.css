@@ -81,7 +81,10 @@
     justify-content: space-between;
     flex-wrap: wrap;
     gap: var(--foms-space-3);
+    min-height: 56px;
     padding: var(--foms-space-3) var(--foms-space-4) 0;
+    background: var(--foms-surface-base);
+    border-bottom: 1px solid var(--foms-border-subtle);
   }
   body.erp-mobile-v2-layout .foms-prod-pcbar__lead {
     display: flex;
@@ -92,7 +95,7 @@
   }
   body.erp-mobile-v2-layout .foms-prod-pcbar__title {
     margin: 0;
-    font-size: var(--foms-font-size-xl);
+    font-size: var(--foms-font-size-lg);
     font-weight: var(--foms-font-weight-bold);
     color: var(--foms-text-primary);
   }
@@ -130,6 +133,7 @@
     padding: var(--foms-space-3) var(--foms-space-4) 0;
   }
   body.erp-mobile-v2-layout .tablet-prod-board .erp-pro-alert {
+    justify-content: flex-start;
     cursor: default;
   }
   body.erp-mobile-v2-layout .tablet-prod-board .erp-pro-alert__content {
@@ -146,6 +150,10 @@
     font-weight: var(--foms-font-weight-bold);
     line-height: var(--foms-line-height-tight);
     color: var(--foms-text-primary);
+  }
+  /* 지연(danger) 타일 값만 경고색 — 나머지 KPI 값은 무채(text-primary) 유지. */
+  body.erp-mobile-v2-layout .tablet-prod-board .erp-pro-alert--danger .erp-pro-alert__value {
+    color: var(--foms-color-danger-600);
   }
 
   /* --- 클라이언트 필터 바 --- */
@@ -189,7 +197,7 @@
     display: flex;
     flex-direction: column;
     min-width: 0;
-    background: var(--foms-surface-subtle);
+    background: var(--foms-surface-muted);
     border: 1px solid var(--foms-border-subtle);
     border-radius: var(--foms-radius-xl);
     overflow: hidden;
@@ -303,6 +311,13 @@
   /* 보류 카드 좌측 앰버 액센트 바(카드 자체는 무채 유지). */
   body.erp-mobile-v2-layout .foms-kanban-card.is-held {
     box-shadow: inset 3px 0 0 0 var(--foms-status-warning-text, #d97706);
+  }
+  /* 사이드 시트가 연 카드 강조 — side-sheet.js 가 .foms-tablet-sheet-active 토글
+     (.foms-tqgrid 행 하이라이트 전례와 동일: 브랜드 액센트 배경 + 좌측 인셋 바). */
+  body.erp-mobile-v2-layout .foms-kanban-card.foms-tablet-sheet-active {
+    border-color: var(--foms-interactive-primary);
+    box-shadow: inset 3px 0 0 0 var(--foms-interactive-primary);
+    background: var(--foms-surface-accent);
   }
   body.erp-mobile-v2-layout .foms-kanban-card__product {
     font-size: var(--foms-font-size-base);
@@ -465,18 +480,18 @@
 .foms-prod-sheet__hl {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: 2px;
   padding: var(--foms-space-4);
-  background: var(--foms-surface-subtle);
+  background: var(--foms-surface-accent);
   border: 1px solid var(--foms-border-subtle);
   border-radius: var(--foms-radius-xl);
 }
 .foms-prod-sheet__hl-value {
-  font-size: 2.4rem;
+  font-size: var(--foms-font-size-2xl);
   font-weight: var(--foms-font-weight-bold);
   line-height: 1.05;
-  color: var(--foms-text-primary);
+  color: var(--foms-interactive-primary);
 }
 .foms-prod-sheet__hl-label {
   font-size: var(--foms-font-size-base);
@@ -516,6 +531,12 @@
   font-weight: var(--foms-font-weight-bold);
   color: var(--foms-text-secondary);
 }
+/* W·수량(2번째 열부터)은 숫자 — 우측정렬 + tabular 정렬로 자릿수 정합. */
+.foms-prod-sheet__spec th:nth-child(n+2),
+.foms-prod-sheet__spec td:nth-child(n+2) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
 
 /* 특이사항 = 문자열 메모, HMI 경고색(빨강) 강조 */
 .foms-prod-sheet__notes {
@@ -551,6 +572,11 @@
   display: flex;
   gap: var(--foms-space-2);
   margin-top: var(--foms-space-2);
+  position: sticky;
+  bottom: 0;
+  padding-top: var(--foms-space-3);
+  background: var(--foms-surface-base);
+  border-top: 1px solid var(--foms-border-subtle);
 }
 .foms-prod-sheet__btn {
   appearance: none;

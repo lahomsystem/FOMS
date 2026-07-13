@@ -309,12 +309,13 @@ def test_compare_partial_has_reschedule_and_as_complete_ctas() -> None:
 
 
 def test_compare_css_hides_pc_chrome_in_cohort() -> None:
-    """코호트에서 PC 헤더/서브탭/필터/pill 은닉(!important — Bootstrap d-md-* 극복)."""
+    """코호트에서 PC 헤더/서브탭/필터 은닉(!important — Bootstrap d-md-* 극복). 요약 4-타일
+    (.erp-as-summary-strip)은 목업이 유지 → 은닉 아니라 4열 그리드 타일로 재정의(2026-07-13 정합)."""
     css = _norm(_read(COMPARE_CSS))
     assert "body.erp-mobile-v2-layout .erp-as-dashboard .erp-pro-header" in css
     assert ".erp-as-desktop-nav" in css
     assert ".erp-as-desktop-filters" in css
-    assert ".erp-as-summary-strip { display: none !important" in css
+    assert ".erp-as-summary-strip { grid-column: 1 / -1; display: grid" in css
 
 
 def test_compare_css_has_pcbar_subtab_and_density_levels() -> None:

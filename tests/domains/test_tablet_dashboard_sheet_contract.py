@@ -64,10 +64,10 @@ def test_side_sheet_open_uses_resolved_url() -> None:
 
 
 def test_side_sheet_cachebuster_bumped_to_20260713a() -> None:
-    """side-sheet.js ?v 가 범프(태블릿 클린 작업 큐 그리드 셀렉터 확장으로 JS 내용 변경 → d→e)."""
+    """side-sheet.js ?v 가 범프(2026-07-13 이중 헤더 제거 headless 게이팅으로 JS 내용 변경 → e→o)."""
     html = _read(LAYOUT_SCRIPTS)
-    assert "tablet-side-sheet.js') }}?v=20260713e" in html
-    assert "tablet-side-sheet.js') }}?v=20260713d" not in html
+    assert "tablet-side-sheet.js') }}?v=20260713o" in html
+    assert "tablet-side-sheet.js') }}?v=20260713e" not in html
 
 
 # =====================================================================

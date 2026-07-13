@@ -179,6 +179,7 @@
   body.erp-mobile-v2-layout .foms-cwork-card.is-active {
     border-color: var(--foms-interactive-primary);
     background: var(--foms-surface-accent);
+    box-shadow: inset 3px 0 0 var(--foms-interactive-primary), var(--foms-shadow-sm);
   }
 
   /* --- 타임라인 카드 본문 타이포 (목업 07: 시간·상태 행 / 고객명 / 지역 / 품목) --- */
@@ -492,6 +493,13 @@
     bottom: 0;
     z-index: var(--foms-z-action-bar);
   }
+  /* 좌측 묶음(시공 불가·AS 접수) — margin-right:auto 로 주요 CTA(시공 완료/시작)를 우측 끝에
+     밀어 파괴적 버튼과 주요 버튼 사이 간격 확보(오탭 방지, 목업 07 액션바 배치). */
+  body.erp-mobile-v2-layout .foms-cwork-actionbar__lead {
+    display: flex;
+    gap: var(--foms-space-3);
+    margin-right: auto;
+  }
 
   /* --- 버튼 (액션 바) — 기본 ≥44px 터치, 주요/큰 버튼은 ≥48px --- */
   body.erp-mobile-v2-layout .foms-cwork-btn {
@@ -569,6 +577,25 @@
     border: 1px solid var(--foms-border-subtle);
     border-radius: var(--foms-radius-xl);
   }
+  /* 우측 패널 정적 헤더 (목업 07: "작업 확인 · 체크·증빙") — 스크롤 리스트 위 컨텍스트 라벨. */
+  body.erp-mobile-v2-layout .foms-cwork-confirm__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--foms-space-2);
+    padding: var(--foms-space-3);
+    border-bottom: 1px solid var(--foms-border-subtle);
+  }
+  body.erp-mobile-v2-layout .foms-cwork-confirm__title {
+    font-size: var(--foms-font-size-lg);
+    font-weight: var(--foms-font-weight-bold);
+    color: var(--foms-text-primary);
+  }
+  body.erp-mobile-v2-layout .foms-cwork-confirm__hint {
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-medium);
+    color: var(--foms-text-tertiary);
+  }
   body.erp-mobile-v2-layout .foms-cwork-confirm__panel {
     display: flex;
     flex-direction: column;
@@ -616,7 +643,7 @@
   body.erp-mobile-v2-layout .foms-cwork-checklist {
     display: flex;
     flex-direction: column;
-    gap: var(--foms-space-2);
+    gap: 0;
     margin: 0;
     padding: 0;
     list-style: none;
@@ -627,12 +654,13 @@
     gap: var(--foms-space-3);
     min-height: var(--foms-touch-target-comfortable);
     padding: var(--foms-space-2) var(--foms-space-3);
-    border-radius: var(--foms-radius-md);
-    background: var(--foms-surface-base);
-    border: 1px solid var(--foms-border-subtle);
+    border-bottom: 1px solid var(--foms-border-subtle);
     color: var(--foms-text-secondary);
     font-size: var(--foms-font-size-base);
     font-weight: var(--foms-font-weight-medium);
+  }
+  body.erp-mobile-v2-layout .foms-cwork-check:last-child {
+    border-bottom: 0;
   }
   body.erp-mobile-v2-layout .foms-cwork-check.is-checked {
     color: var(--foms-text-primary);
@@ -640,9 +668,9 @@
   body.erp-mobile-v2-layout .foms-cwork-check__box {
     position: relative;
     flex: 0 0 auto;
-    width: 22px;
-    height: 22px;
-    border-radius: var(--foms-radius-full);
+    width: 24px;
+    height: 24px;
+    border-radius: 7px;
     border: 2px solid var(--foms-border-default);
     background: transparent;
   }
@@ -654,8 +682,8 @@
   body.erp-mobile-v2-layout .foms-cwork-check.is-checked .foms-cwork-check__box::after {
     content: "";
     position: absolute;
-    left: 7px;
-    top: 3px;
+    left: 8px;
+    top: 4px;
     width: 5px;
     height: 10px;
     border: solid #fff;

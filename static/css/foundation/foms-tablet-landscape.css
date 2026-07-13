@@ -285,6 +285,16 @@
   body.erp-mobile-v2-layout .erp-history-mobile-shell[data-foms-density="56"] tr.history-main-row[data-order-id] {
     height: 56px;
   }
+
+  /* 완료 정산 그리드 40/56 오버라이드. baseline(.foms-completion-grid__table tbody tr, 특이도
+     0,3,2)을 id[data-foms-density](1,4,2)로 이겨 재정의. 48 은 baseline 유지. 밀도 토글이
+     #foms-completion-grid-table 에 data-foms-density 를 부착(2026-07-13 완료 토글 배선). */
+  body.erp-mobile-v2-layout #foms-completion-grid-table[data-foms-density="40"] tbody tr {
+    height: 40px;
+  }
+  body.erp-mobile-v2-layout #foms-completion-grid-table[data-foms-density="56"] tbody tr {
+    height: 56px;
+  }
 }
 
 /* ============================================================
@@ -501,6 +511,11 @@
   font-size: var(--foms-font-size-sm, 0.875rem);
   color: var(--foms-text-tertiary, #6b7380);
 }
+/* 선택된 팀 행 강조 — 선택 피드백(primary 보더 + accent 바탕). */
+.foms-ship-sheet__team:has(input:checked) {
+  border-color: var(--foms-interactive-primary, #5a67d8);
+  background: var(--foms-surface-accent, #f3f4ff);
+}
 /* 잔여 부족(경고) 팀 강조 — HMI 색 규율: 경보만 유채색. */
 .foms-ship-sheet__team.is-short {
   border-color: var(--foms-color-danger-500, #ef4444);
@@ -561,6 +576,10 @@
   display: flex;
   gap: var(--foms-space-2, 0.5rem);
   padding-top: var(--foms-space-2, 0.5rem);
+  position: sticky;
+  bottom: 0;
+  background: var(--foms-surface-base, #fff);
+  border-top: 1px solid var(--foms-border-subtle, #dde1e6);
 }
 .foms-ship-sheet__btn {
   flex: 1 1 0;
@@ -810,14 +829,8 @@
   /* HMI 색 규율(정상=무채/경보만 유채) — 프로세스맵 경보 색과 정합:
      전체=무채, 긴급·도면 지연=danger, 실측/시공 임박=warning. (--info 규칙은 잔존:
      향후 타일/타 코호트 대비 무해 dead-rule.) */
-  body.erp-mobile-v2-layout .foms-tdash-tile--danger {
-    border-color: var(--foms-color-danger-500, #ef4444);
-  }
   body.erp-mobile-v2-layout .foms-tdash-tile--danger .foms-tdash-tile__value {
     color: var(--foms-color-danger-600, #dc2626);
-  }
-  body.erp-mobile-v2-layout .foms-tdash-tile--warning {
-    border-color: var(--foms-color-warning-500, #f59e0b);
   }
   body.erp-mobile-v2-layout .foms-tdash-tile--warning .foms-tdash-tile__value {
     color: var(--foms-color-warning-600, #d97706);
@@ -861,9 +874,15 @@
    — .foms-tsheet-*·.foms-ship-sheet__* 자족 네임스페이스와 동일 패턴). foms 토큰만 소비.
    ============================================================ */
 
-/* base-hide: 코호트 밖(PC/모바일/세로)에서 클린 그리드 완전 은닉. opt-in(show) 앞(순서 계약). */
+/* base-hide: 코호트 밖(PC/모바일/세로)에서 클린 그리드 완전 은닉. opt-in(show) 앞(순서 계약).
+   + 카드 프레이밍: 그리드를 담는 컨테이너 카드(surface-base 바탕 · subtle 보더 · radius,
+   overflow:hidden 로 라운드 코너 클립). wrap 은 코호트 밖 display:none 이라 base 레벨 안전. */
 .foms-tablet-workqueue-wrap {
   display: none;
+  background: var(--foms-surface-base, #fff);
+  border: 1px solid var(--foms-border-subtle, #dde1e6);
+  border-radius: var(--foms-radius-lg, 12px);
+  overflow: hidden;
 }
 
 /* 그리드 구조·시각. */
@@ -875,12 +894,15 @@
   color: var(--foms-text-primary);
 }
 .foms-tqgrid thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   text-align: left;
   padding: var(--foms-space-2, 0.5rem) var(--foms-space-3, 0.75rem);
   font-size: var(--foms-font-size-xs, 0.75rem);
   font-weight: var(--foms-font-weight-semibold, 600);
   color: var(--foms-text-tertiary, #6b7380);
-  background: var(--foms-surface-raised, #f7f8fa);
+  background: var(--foms-surface-base, #fff);
   border-bottom: 1px solid var(--foms-border-default, #c1c7d0);
   white-space: nowrap;
 }
@@ -901,6 +923,16 @@
 .foms-tqgrid tbody tr.foms-tqrow.foms-tablet-sheet-active {
   background: var(--foms-surface-accent, #f3f4ff);
   box-shadow: inset 3px 0 0 0 var(--foms-interactive-primary, #5a67d8);
+}
+
+/* 밀도 토글 40/56 — density-toggle.js 가 대상(.foms-tablet-workqueue-wrap)에 data-foms-density
+   부착. 기본 48 은 위 baseline(.foms-tqgrid tbody tr.foms-tqrow) 유지. wrap[attr] .foms-tqrow
+   (0,3,0) 이 baseline(0,2,2) 을 이겨 재정의(!important 미사용). */
+.foms-tablet-workqueue-wrap[data-foms-density="40"] .foms-tqrow {
+  height: 40px;
+}
+.foms-tablet-workqueue-wrap[data-foms-density="56"] .foms-tqrow {
+  height: 56px;
 }
 
 /* 체크박스 열 — 44px 터치 폭 + 24px 박스(벌크 호환). */
@@ -928,8 +960,8 @@
   border-radius: var(--foms-radius-sm, 6px);
   font-size: var(--foms-font-size-xs, 0.75rem);
   font-weight: var(--foms-font-weight-bold, 700);
-  color: var(--foms-color-neutral-0, #fff);
-  background: var(--foms-color-danger-600, #dc2626);
+  color: var(--foms-color-danger-600, #dc2626);
+  background: var(--foms-color-danger-50, #fef2f2);
   white-space: nowrap;
 }
 

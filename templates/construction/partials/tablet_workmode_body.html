@@ -114,8 +114,10 @@
         {% endif %}
 
         <div class="foms-cwork-actionbar">
-          <button type="button" class="foms-cwork-btn foms-cwork-btn--danger" data-cwork-fail data-order-id="{{ o.id }}">시공 불가</button>
-          <button type="button" class="foms-cwork-btn foms-cwork-btn--ghost erp-construction-action" data-action="openAsAcceptModal" data-order-id="{{ o.id }}">AS 접수</button>
+          <div class="foms-cwork-actionbar__lead">
+            <button type="button" class="foms-cwork-btn foms-cwork-btn--danger" data-cwork-fail data-order-id="{{ o.id }}">시공 불가</button>
+            <button type="button" class="foms-cwork-btn foms-cwork-btn--ghost erp-construction-action" data-action="openAsAcceptModal" data-order-id="{{ o.id }}">AS 접수</button>
+          </div>
           {% if o.stage == '시공대기' %}
             <button type="button" class="foms-cwork-btn foms-cwork-btn--primary foms-cwork-btn--lg erp-construction-action" data-action="startConstruction" data-order-id="{{ o.id }}">시공 시작</button>
           {% else %}
@@ -130,6 +132,10 @@
      실제 업로드·서명·완료는 아래 완료 게이트 시트가 SSOT. 이 패널은 서버 증빙 상태를
      반영해 체크 표식만 보여주고, 사진 슬롯/메모/CTA 는 게이트를 열 뿐이다. #}
   <aside class="foms-cwork-confirm">
+    <div class="foms-cwork-confirm__head">
+      <span class="foms-cwork-confirm__title">작업 확인</span>
+      <span class="foms-cwork-confirm__hint">체크 · 증빙</span>
+    </div>
     {% for o in orders %}
       {% set _cev = ((o.structured_data or {}).get('construction') or {}).get('evidence') or {} %}
       {% set _after_n = (_cev.get('after') or [])|length %}

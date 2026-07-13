@@ -104,6 +104,17 @@
     return fragmentUrl(orderId);
   }
 
+  // 행이 커스텀 시트 URL(data-foms-sheet-url)을 가지면 그 fragment 는 자체 고객 헤더를 렌더한다
+  // (목업 frames 01/03/05/06/09/10 — tablet_dashboard_sheet·tablet_sheet_body·production/tablet_sheet·
+  // shipment/tablet_sheet·tablet_completion_sheet·history_tablet_sheet). 이 경우 크롬 제너릭 헤더 바를
+  // 접어(headless) fragment 헤더가 시트의 유일 헤더가 되게 한다(이중 헤더 제거). URL 부재 행
+  // (#erp-grid·AS 대시보드 → 기본 /edit?open=erp-order fragment)은 자체 헤더가 없으므로 제너릭
+  // "주문 상세" 제목을 유지한다(헤더 없는 시트 방지). resolveSheetUrl 과 동일 신호 = 단일 판정 기준.
+  function rowHasCustomSheet(row) {
+    var explicit = row && row.getAttribute ? row.getAttribute("data-foms-sheet-url") : null;
+    return !!(explicit && explicit.trim());
+  }
+
   var sheet = null;
   var headerTitle = null;
   var pipeEl = null;
@@ -117,6 +128,9 @@
   // 고정. 표시 클래스는 JS 가 부착한다(CSS 무조건 표시 금지 — PC/폰/타 페이지 누출 차단).
   var DOCK_SHEET_CLASS = "foms-tablet-sheet--docked"; // aside 에 부착
   var DOCK_BODY_CLASS = "foms-tablet-dock-active"; // body 에 부착(본문 우측 패딩 스코프)
+  // Headless: 커스텀 시트 fragment 의 자체 고객 헤더를 유일 헤더로 삼기 위해 크롬 제너릭 헤더
+  // 바를 접는 클래스(aside 에 부착). ✕ 는 CSS 가 우상단 플로팅 어포던스로 전환한다(이중 헤더 제거).
+  var HEADLESS_SHEET_CLASS = "foms-tablet-sheet--headless";
   // 현재 도킹 패널에 표시 중인 그리드 행. fragment 스왑(그리드 교체) vs 중복 호출을 isConnected
   // 로 판별해 사용자 선택 클로버·중복 auto-open 을 막는다.
   var selectedRow = null;
@@ -258,7 +272,16 @@
     if (sheet.hidden || !sheet.classList.contains("is-open")) {
       lastFocus = document.activeElement;
     }
-    headerTitle.textContent = "주문 상세";
+    // 이중 헤더 제거: 커스텀 시트(자체 고객 헤더 보유)면 크롬 헤더 바를 접고(headless) 제너릭
+    // 제목을 비운다. 기본 edit fragment(자체 헤더 없음)면 제너릭 "주문 상세" 제목을 유지한다.
+    // (aria-label 은 aside 에 고정 유지 — 시각 제목과 무관하게 접근성 이름 보존.)
+    if (rowHasCustomSheet(row)) {
+      sheet.classList.add(HEADLESS_SHEET_CLASS);
+      headerTitle.textContent = "";
+    } else {
+      sheet.classList.remove(HEADLESS_SHEET_CLASS);
+      headerTitle.textContent = "주문 상세";
+    }
     markActiveRow(row);
     renderPipe(row);
     sheet.hidden = false;

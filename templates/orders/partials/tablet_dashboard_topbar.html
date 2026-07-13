@@ -16,8 +16,10 @@
       <span class="foms-tdash-pcbar__sub">{{ total_orders|default(orders|length, true) }}건{% if today_iso %} · {{ today_iso }}{% endif %}</span>
     </div>
     <div class="foms-tdash-pcbar__actions">
-      {# 밀도 토글 재배치: 작업 큐 카드 헤더 → pcbar 우측(density-toggle.js 문서 위임이라 위치 무관). #}
-      {% set foms_density_target = '#erp-grid' %}
+      {# 밀도 토글 재배치: 작업 큐 카드 헤더 → pcbar 우측(density-toggle.js 문서 위임이라 위치 무관).
+         대상 = 은닉된 PC 그리드(#erp-grid) + 표시 중인 클린 그리드(.foms-tablet-workqueue-wrap)
+         둘 다. 코호트에서 실제 보이는 건 후자라 40/56 이 시각적으로 실효(전자는 은닉 → 무해). #}
+      {% set foms_density_target = '#erp-grid, .foms-tablet-workqueue-wrap' %}
       {% include 'partials/shared/foms_density_toggle.html' %}
       {# 목업 01 pcbar 액션 = [밀도][엑셀 임포트][지도 생성][주문 생성]. 임포트/지도는 기존
          기능 라우트 재사용(신규 API 없음): excel.upload_excel(엑셀 업로드=임포트) ·
@@ -35,24 +37,24 @@
   </div>
   <div class="foms-tdash-tiles" role="group" aria-label="핵심 지표">
     <div class="foms-tdash-tile foms-tdash-tile--total">
-      <span class="foms-tdash-tile__value">{{ total_orders|default(orders|length, true) }}</span>
       <span class="foms-tdash-tile__label">전체</span>
+      <span class="foms-tdash-tile__value">{{ total_orders|default(orders|length, true) }}</span>
     </div>
     <div class="foms-tdash-tile foms-tdash-tile--danger">
-      <span class="foms-tdash-tile__value">{{ kpis.urgent_count|default(0) }}</span>
       <span class="foms-tdash-tile__label">긴급</span>
+      <span class="foms-tdash-tile__value">{{ kpis.urgent_count|default(0) }}</span>
     </div>
     <div class="foms-tdash-tile foms-tdash-tile--warning">
-      <span class="foms-tdash-tile__value">{{ kpis.measurement_d4_count|default(0) }}</span>
       <span class="foms-tdash-tile__label">실측 임박 D-4</span>
+      <span class="foms-tdash-tile__value">{{ kpis.measurement_d4_count|default(0) }}</span>
     </div>
     <div class="foms-tdash-tile foms-tdash-tile--warning">
-      <span class="foms-tdash-tile__value">{{ kpis.construction_d3_count|default(0) }}</span>
       <span class="foms-tdash-tile__label">시공 임박 D-3</span>
+      <span class="foms-tdash-tile__value">{{ kpis.construction_d3_count|default(0) }}</span>
     </div>
     <div class="foms-tdash-tile foms-tdash-tile--danger">
-      <span class="foms-tdash-tile__value">{{ kpis.drawing_overdue_count|default(0) }}</span>
       <span class="foms-tdash-tile__label">도면 지연</span>
+      <span class="foms-tdash-tile__value">{{ kpis.drawing_overdue_count|default(0) }}</span>
     </div>
   </div>
 </section>

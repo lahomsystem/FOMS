@@ -95,4 +95,37 @@
     color: var(--foms-text-primary, #1f2733);
     margin-bottom: var(--foms-space-1, 0.25rem);
   }
+
+  /* --- 필터바 슬림화(목업 frame10): 코호트에서 PC 필터 카드(높은 카드)를 pcbar 아래
+     얇은 검색 바 한 줄로 접는다 — 검색어 · 단계 · 기간 · 검색버튼을 라벨 없이 단일 행에.
+     erp-pro-card 베이스(03-card-pipeline.css: border/shadow/radius + __body padding-lg)를
+     코호트 특이도로 눌러 크롬/패딩 제거. 필터 폼 자체는 유지(이력=필터 게이트, 상단 헤더
+     주석 계약과 정합). PC(fine)·폰·세로 무영향(MQ + .erp-history-mobile-shell 스코프). --- */
+  body.erp-mobile-v2-layout .erp-history-mobile-shell .erp-pro-card--filters {
+    border: none;
+    box-shadow: none;
+    background: transparent;
+    border-radius: 0;
+    margin-bottom: var(--foms-space-3, 0.75rem);
+  }
+  body.erp-mobile-v2-layout .erp-history-mobile-shell .erp-pro-card--filters .erp-pro-card__body {
+    padding: 0;
+  }
+  /* 라벨 은닉 → 컨트롤만 남는 얇은 바(placeholder 텍스트가 라벨 역할 대체). */
+  body.erp-mobile-v2-layout .erp-history-mobile-shell .erp-pro-card--filters .erp-pro-filters__label {
+    display: none;
+  }
+  /* 단일 행: 줄바꿈 없이 한 줄(검색/단계/기간/버튼). Bootstrap gy 세로 거터 무력화. */
+  body.erp-mobile-v2-layout .erp-history-mobile-shell .erp-pro-filters-form .row {
+    flex-wrap: nowrap;
+    align-items: center;
+    --bs-gutter-y: 0;
+  }
+  /* input-group-sm 밀도: 검색/기간 입력·단계 셀렉트는 마크업이 이미 -sm(컴팩트).
+     검색 버튼(고정 높이 없음)만 세로 여백을 줄여 입력과 같은 슬림 높이로 맞춘다. */
+  body.erp-mobile-v2-layout .erp-history-mobile-shell .erp-pro-filters-form .erp-pro-btn {
+    min-height: 0;
+    padding-top: var(--foms-space-1, 0.25rem);
+    padding-bottom: var(--foms-space-1, 0.25rem);
+  }
 }

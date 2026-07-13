@@ -100,6 +100,47 @@ body.erp-mobile-v2-layout {
   color: var(--foms-text-primary);
 }
 
+/* ==========================================================================
+ * Headless 모드 — 커스텀 시트 fragment 자체 헤더 단일화(이중 헤더 제거).
+ *
+ * data-foms-sheet-url 을 가진 행(목업 frames 01/03/05/06/09/10)은 fragment 가 자체 고객
+ * 헤더(.foms-tsheet-head / .foms-drawing-sheet__head / .foms-prod-sheet__head /
+ * .foms-ship-sheet__head / .foms-completion-sheet__head)를 렌더한다. tablet-side-sheet.js 가
+ * 이때 aside 에 .foms-tablet-sheet--headless 를 부착해 크롬 제너릭 헤더 바("주문 상세" + ✕)를
+ * 접고, fragment 헤더가 시트의 유일 헤더가 되게 한다. ✕ 는 바를 예약하지 않도록 우상단 플로팅
+ * 어포던스(position:absolute, fragment 위 z-index)로 전환한다 — 슬라이드/도킹 시트 공통 처리.
+ * 자체 헤더가 없는 기본 edit fragment(#erp-grid·AS 대시보드 → /edit?open=erp-order)는 headless
+ * 미부착 → 제너릭 "주문 상세" 바 유지(헤더 없는 시트 방지). base __close 44px 규칙 뒤에 두어
+ * 특이도 캐스케이드·기존 계약 테스트(close 44px)를 모두 만족한다. */
+.foms-tablet-sheet--headless .foms-tablet-sheet__head {
+  /* 바를 흐름에서 제거 → fragment 헤더/파이프가 시트 최상단을 차지. ✕ 만 우상단에 플로팅. */
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: auto;
+  z-index: 2;
+  min-height: 0;
+  padding: var(--foms-space-2, 0.5rem);
+  gap: 0;
+  background: transparent;
+  border-bottom: none;
+}
+
+.foms-tablet-sheet--headless .foms-tablet-sheet__title {
+  /* 제너릭 제목 은닉 — fragment 가 자체 고객 헤더를 제공한다(aria-label 은 aside 에 유지). */
+  display: none;
+}
+
+.foms-tablet-sheet--headless .foms-tablet-sheet__close {
+  /* fragment 헤더 위에 겹쳐도 읽히도록 배경 칩 + 그림자(44px 터치 타깃은 base 규칙 상속). */
+  background: var(--foms-surface-raised, #f7f8fa);
+  box-shadow: var(--foms-shadow-md, 0 2px 8px rgba(15, 23, 42, 0.16));
+}
+
+.foms-tablet-sheet--headless .foms-tablet-sheet__close:hover {
+  background: var(--foms-interactive-secondary-hover, #dde1e6);
+}
+
 /* 스크롤 바디: fragment 상세/edit 폼 주입 영역 */
 .foms-tablet-sheet__body {
   flex: 1 1 auto;

@@ -22,15 +22,18 @@
 {% set meta = tablet_completion_meta %}
 <section class="foms-completion-grid" aria-label="시공 완료 금액 보드">
   {% if meta %}
-  {# --- pcbar: 제목 · 기간/건수 · 밀도토글(placeholder, 타 워커 소유) · 엑셀 --- #}
+  {# --- pcbar: 제목 · 기간/건수 · 밀도토글(공용 include, 행높이 40/56 CSS는 코호트 landscape.css 소유) · 엑셀 --- #}
   <div class="foms-completion-grid__pcbar">
     <div class="foms-completion-grid__pcbar-head">
       <span class="foms-completion-grid__title">시공 완료</span>
       <span class="foms-completion-grid__sub">{{ meta.page.period_label }} · {{ meta.page.total_count }}건</span>
     </div>
     <div class="foms-completion-grid__pcbar-tools">
-      {# 밀도 토글 컨테이너만 배치 — 동작은 별도 워커 소유(data-density-*). #}
-      <div class="foms-density-toggle" data-density-target="#foms-completion-grid-table" data-density-default="48"></div>
+      {# 밀도 토글: 이력과 동일한 공용 include 패턴 — 대상=완료 그리드 표(id).
+         3버튼(40/48/56) 렌더 + 기본 48 활성. 배선은 tablet-density-toggle.js(document 위임)이
+         선택값을 표의 data-foms-density 로 반영·localStorage 복원. 표시 게이트는 코호트 CSS 소유. #}
+      {% set foms_density_target = '#foms-completion-grid-table' %}
+      {% include 'partials/shared/foms_density_toggle.html' %}
       <a class="foms-completion-grid__excel" href="{{ meta.export_url }}">CSV 내보내기</a>
     </div>
   </div>

@@ -595,7 +595,7 @@ def test_w16_layout_head_loads_bundle_for_v2_and_v3_cohort() -> None:
     layout_head = _read("templates/partials/shared/layout_head.html")
     idx = layout_head.find("foms-tablet-bundle.css")
     assert idx != -1, "layout_head 에 태블릿 번들 <link> 부재"
-    assert "foms-tablet-bundle.css') }}?v=20260713n" in layout_head
+    assert "foms-tablet-bundle.css') }}?v=20260713o" in layout_head
     # Anchor on the nearest preceding `{% if %}` (the bundle gate) rather than a fixed
     # char window — the gate string grows over time (2026-07-12: +/wdcalculator arm).
     gate_start = layout_head.rfind("{% if", 0, idx)
@@ -947,10 +947,10 @@ def test_calc_skin_css_has_52px_input_and_44px_target() -> None:
 
 def test_calc_skin_wired_in_calculator_template_with_cachebuster() -> None:
     """calculator.html 이 기존 <link> 패턴대로 스킨을 로드하고 ?v=20260713f 캐시버스터를 가진다.
-    (2026-07-13 접힘 스킨 수리로 a→e, 이후 하단 고정 최종견적 바 추가로 e→f 범프.)"""
+    (2026-07-13 접힘 스킨 수리로 a→e, 하단 고정 최종견적 바 추가로 e→f, 하단바 가격 정렬 정합으로 f→o 범프.)"""
     html = _read(CALC_TEMPLATE)
-    m = re.search(r"tablet-skin\.css'\s*\)\s*}}\?v=20260713f", html)
-    assert m is not None, "calculator.html 에 tablet-skin.css ?v=20260713f <link> 부재"
+    m = re.search(r"tablet-skin\.css'\s*\)\s*}}\?v=20260713o", html)
+    assert m is not None, "calculator.html 에 tablet-skin.css ?v=20260713o <link> 부재"
 
 
 # =====================================================================
