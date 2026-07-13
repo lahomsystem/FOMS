@@ -941,11 +941,11 @@ def test_calc_skin_css_has_52px_input_and_44px_target() -> None:
 
 
 def test_calc_skin_wired_in_calculator_template_with_cachebuster() -> None:
-    """calculator.html 이 기존 <link> 패턴대로 스킨을 로드하고 ?v=20260713e 캐시버스터를 가진다.
-    (2026-07-13 계산기 저장견적 접힘 스킨 수리로 a→e 범프 — !important 접힘 + 레일 base-hide.)"""
+    """calculator.html 이 기존 <link> 패턴대로 스킨을 로드하고 ?v=20260713f 캐시버스터를 가진다.
+    (2026-07-13 접힘 스킨 수리로 a→e, 이후 하단 고정 최종견적 바 추가로 e→f 범프.)"""
     html = _read(CALC_TEMPLATE)
-    m = re.search(r"tablet-skin\.css'\s*\)\s*}}\?v=20260713e", html)
-    assert m is not None, "calculator.html 에 tablet-skin.css ?v=20260713e <link> 부재"
+    m = re.search(r"tablet-skin\.css'\s*\)\s*}}\?v=20260713f", html)
+    assert m is not None, "calculator.html 에 tablet-skin.css ?v=20260713f <link> 부재"
 
 
 # =====================================================================

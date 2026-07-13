@@ -19,6 +19,10 @@
    실제 노출은 아래 @media 안의 `.wdc-tablet-skin .wdc-saved-rail { display: inline-flex }` 전담. */
 .wdc-saved-rail { display: none; }
 
+/* 하단 고정 최종견적 바도 동일 원칙: tablet-skin.js 가 body 에 상시 주입하므로 파일 스코프
+   기본 은닉, 실제 노출은 아래 @media 안의 `.wdc-tablet-actionbar.wdc-actionbar-active` 전담. */
+.wdc-tablet-actionbar { display: none; }
+
 @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
   /* 주 입력 필드: 52px 높이 + 16px(iOS 줌 방지) — 터치 타이핑 타깃 확대. */
   .wdcalculator-container .form-control,
@@ -151,4 +155,60 @@
     background: rgba(0, 0, 0, 0.35);
   }
   .wdc-saved-backdrop[hidden] { display: none; }
+
+  /* ======================================================================
+     하단 고정 최종견적 바(coarse-landscape 전용). tablet-skin.js 가 body 에 주입한
+     .wdc-tablet-actionbar 에 게이트 진입 시 .wdc-actionbar-active 를 부여해 노출한다.
+     값(#finalPrice)·주 액션(견적 계산/추가)은 JS 가 MIRROR — 계산엔진 DOM 은 이동/복제
+     하지 않는다. 폰(≤991.98)의 자체 하단 바(wd-fab)와는 MQ 배타 → 상호 배제.
+     ==================================================================== */
+  /* 바 높이만큼 스크롤 영역 하단 여백 예약. 태블릿 코호트에선 shared.js 가 shell 높이를
+     뷰포트로 고정 → .wdcalculator-main-scroll 이 실제 스크롤러이므로 컨테이너가 아닌
+     스크롤러에 패딩을 줘야 마지막 카드가 고정 바에 가리지 않는다. 임베디드는 제외. */
+  .wdcalculator-container:not(.wdcalculator-container--embedded) .wdcalculator-main-scroll {
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px) + 1rem);
+  }
+
+  .wdc-tablet-actionbar.wdc-actionbar-active {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1030;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 10px 20px calc(10px + env(safe-area-inset-bottom, 0px));
+    background: var(--foms-surface, #fff);
+    border-top: 1px solid var(--foms-border-color, #dee2e6);
+    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.08);
+  }
+  .wdc-tab-ab__price {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
+    min-width: 0;
+  }
+  .wdc-tab-ab__label {
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    color: var(--foms-text-secondary, #6c757d);
+  }
+  .wdc-tab-ab__val {
+    font-size: var(--foms-font-size-lg, 1.125rem);
+    font-weight: var(--foms-font-weight-bold, 700);
+    color: var(--foms-text-color, #212529);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .wdc-tab-ab__action {
+    flex: 0 0 auto;
+    min-height: 52px;
+    padding-left: 28px;
+    padding-right: 28px;
+    font-size: max(16px, var(--foms-font-size-base, 1rem));
+    font-weight: var(--foms-font-weight-semibold, 600);
+    white-space: nowrap;
+  }
 }
