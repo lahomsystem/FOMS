@@ -218,10 +218,56 @@
     submitFail(btn.getAttribute("data-order-id"));
   });
 
-  // ---- 시트 전환 칩 (도면 다중 프리뷰) --------------------------------------
-  // 새 뷰어를 만들지 않는다. 이미 바인딩된 갤러리 썸네일을 프로그램적으로 클릭해
-  // erp-attachment-preview-open.js → GlobalImageViewer 를 해당 인덱스로 연다
-  // (스와이프·다운로드 등 기존 동작 그대로 재사용).
+  // ---- 대형 스테이지 + 시트 전환 (목업 07 중앙 대형 뷰어) --------------------
+  // 새 뷰어를 만들지 않는다. 숨긴 갤러리 소스(.foms-cwork-drawings)를 재사용한다:
+  //   · 스테이지 탭  → 활성 시트 idx 의 갤러리 이미지를 프로그램 클릭 → erp-attachment-
+  //     preview-open.js → GlobalImageViewer(핀치줌/더블탭/스와이프). (display:none 요소도
+  //     .click() 은 바인딩된 핸들러를 실행한다.)
+  //   · 시트 칩     → 스테이지 이미지를 인플레이스 교체 + 활성 idx 갱신(풀스크린 아님).
+
+  // 패널 내부의 숨긴 갤러리 이미지(시트 원본) 목록.
+  function panelSheetImgs(panel) {
+    return panel
+      ? panel.querySelectorAll(
+          ".foms-cwork-drawings [data-foms-erp-attachment-view-url]"
+        )
+      : [];
+  }
+
+  // 스테이지 → 활성 idx 로 뷰어 오픈(기존 갤러리 바인딩에 위임).
+  function openStageViewer(stage) {
+    var panel = stage.closest(".foms-cwork-viewer__panel");
+    if (!panel) return;
+    var imgs = panelSheetImgs(panel);
+    if (!imgs.length) return;
+    var idx = parseInt(stage.getAttribute("data-cwork-active-idx") || "0", 10);
+    if (isNaN(idx) || idx < 0 || idx >= imgs.length) idx = 0;
+    imgs[idx].click();
+  }
+
+  document.addEventListener("click", function (ev) {
+    if (!cohortActive()) return;
+    var t = ev.target;
+    if (!t || !t.closest) return;
+    var stage = t.closest("[data-cwork-stage-img]");
+    if (!stage) return;
+    ev.preventDefault();
+    openStageViewer(stage);
+  });
+
+  // 스테이지 키보드 접근성(Enter/Space) — role=button 이미지.
+  document.addEventListener("keydown", function (ev) {
+    if (!cohortActive()) return;
+    if (ev.key !== "Enter" && ev.key !== " ") return;
+    var t = ev.target;
+    if (!t || !t.closest) return;
+    var stage = t.closest("[data-cwork-stage-img]");
+    if (!stage) return;
+    ev.preventDefault();
+    openStageViewer(stage);
+  });
+
+  // 시트 칩 → 스테이지 이미지 인플레이스 교체 + 활성 idx 갱신.
   document.addEventListener("click", function (ev) {
     if (!cohortActive()) return;
     var t = ev.target;
@@ -237,12 +283,20 @@
       siblings[i].classList.toggle("is-active", siblings[i] === chip);
     }
     var idx = parseInt(chip.getAttribute("data-cwork-sheet-idx"), 10);
-    var imgs = panel.querySelectorAll(
-      ".foms-cwork-drawings [data-foms-erp-attachment-view-url]"
-    );
+    var imgs = panelSheetImgs(panel);
     if (isNaN(idx) || idx < 0 || idx >= imgs.length) return;
-    // 기존 갤러리 바인딩에 위임 — 새 뷰어 구현 없음.
-    imgs[idx].click();
+    var stage = panel.querySelector("[data-cwork-stage-img]");
+    if (!stage) return;
+    var src =
+      imgs[idx].getAttribute("src") ||
+      imgs[idx].getAttribute("data-foms-erp-attachment-view-url") ||
+      "";
+    if (src) stage.setAttribute("src", src);
+    stage.setAttribute("data-cwork-active-idx", String(idx));
+    stage.setAttribute(
+      "alt",
+      imgs[idx].getAttribute("data-foms-erp-attachment-label") || "도면"
+    );
   });
 
   // ---- 도면 첨부 프리뷰 갤러리 마운트 --------------------------------------
