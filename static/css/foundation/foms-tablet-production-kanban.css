@@ -45,6 +45,12 @@
   display: none;
 }
 
+/* 목업 frame05 pcbar 도 기본 은닉(부모 .tablet-prod-board 가 이미 none 이지만 순서
+   계약·명시성 위해 base-hide → 코호트 가로에서만 flex, foms-tdash-top 전례와 동일). */
+.foms-prod-pcbar {
+  display: none;
+}
+
 @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
 
   /* --- 배타: legacy 큐 은닉 + 보드(칸반 포함) 표시(동일 게이트 결합) --- */
@@ -53,6 +59,70 @@
   }
   body.erp-mobile-v2-layout .tablet-prod-board {
     display: block;
+  }
+
+  /* --- 목업 frame05 정합: PC 잔존 크롬 은닉 (헤더·서브내비·프로세스맵 카드) ---
+     생산 대시보드는 orders 와 달리 은닉 규칙이 없어 PC erp-pro-header·서브내비(.foms-shell-
+     desktop-only 래퍼 내부)와 프로세스맵 카드(.erp-pro-card--process-map: 경보 밴드+파이프라인+
+     PC 필터)가 칸반 위에 잔존했다(gap#1). 목업 frame05 는 이들이 없다 — 얇은 pcbar + 칸반만.
+     스코프: .erp-dashboard-production(생산 페이지 한정) → orders/measurement/shipment/
+     construction/PC/폰 무영향. process-map 은 내부 필터바까지 통째 은닉(칸반이 자체 클라이언트
+     필터 바 보유). !important: 마크업 Bootstrap 유틸(d-flex 등) 특이도 패배 방지(orders 전례). */
+  body.erp-mobile-v2-layout .erp-dashboard-production .foms-shell-desktop-only,
+  body.erp-mobile-v2-layout .erp-dashboard-production .erp-pro-card--process-map {
+    display: none !important;
+  }
+
+  /* --- 목업 frame05 pcbar: 생산 보드 · 전체N건·오늘라인M · 라벨 인쇄(우) ---
+     .tablet-prod-board(base display:none) 내부라 PC/폰 자동 은닉. 코호트 가로에서만 flex. */
+  body.erp-mobile-v2-layout .tablet-prod-board .foms-prod-pcbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--foms-space-3);
+    padding: var(--foms-space-3) var(--foms-space-4) 0;
+  }
+  body.erp-mobile-v2-layout .foms-prod-pcbar__lead {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: var(--foms-space-2);
+    min-width: 0;
+  }
+  body.erp-mobile-v2-layout .foms-prod-pcbar__title {
+    margin: 0;
+    font-size: var(--foms-font-size-xl);
+    font-weight: var(--foms-font-weight-bold);
+    color: var(--foms-text-primary);
+  }
+  body.erp-mobile-v2-layout .foms-prod-pcbar__sub {
+    font-size: var(--foms-font-size-sm);
+    color: var(--foms-text-tertiary);
+  }
+  body.erp-mobile-v2-layout .foms-prod-pcbar__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--foms-space-2);
+  }
+  body.erp-mobile-v2-layout .foms-prod-pcbar__label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--foms-space-1);
+    min-height: var(--foms-touch-target-min);
+    padding: 0 var(--foms-space-4);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-md);
+    background: var(--foms-surface-base);
+    color: var(--foms-text-primary);
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-semibold);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .foms-prod-pcbar__label[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   /* --- 상단 KPI 타일: erp-pro-alert 그래머 재사용 + 세로 스택(near-zero 보강) --- */
@@ -252,6 +322,49 @@
     font-size: var(--foms-font-size-sm);
     color: var(--foms-text-tertiary);
     word-break: break-word;
+  }
+  /* 우상단 클러스터: 주문번호(#id) + 보류/2공장 배지. HMI 무채. */
+  body.erp-mobile-v2-layout .foms-kanban-card__top-right {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: var(--foms-space-2);
+  }
+  body.erp-mobile-v2-layout .foms-kanban-card__id {
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-bold);
+    color: var(--foms-text-tertiary);
+    white-space: nowrap;
+  }
+  /* 카드 메타 행: 자수·발주사·첨부수 — HMI 무채색(정보, 경보 아님). 규격 아래 얇은 구분선. */
+  body.erp-mobile-v2-layout .foms-kanban-card__meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--foms-space-1) var(--foms-space-3);
+    margin-top: var(--foms-space-1);
+    padding-top: var(--foms-space-2);
+    border-top: 1px solid var(--foms-border-subtle);
+    font-size: var(--foms-font-size-sm);
+    color: var(--foms-text-secondary);
+  }
+  body.erp-mobile-v2-layout .foms-kanban-card__units {
+    font-weight: var(--foms-font-weight-bold);
+    color: var(--foms-text-primary);
+    white-space: nowrap;
+  }
+  body.erp-mobile-v2-layout .foms-kanban-card__orderer {
+    color: var(--foms-text-secondary);
+    word-break: break-word;
+  }
+  body.erp-mobile-v2-layout .foms-kanban-card__att {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--foms-text-tertiary);
+    white-space: nowrap;
   }
   body.erp-mobile-v2-layout .foms-kanban-card__foot {
     display: flex;

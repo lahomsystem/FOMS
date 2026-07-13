@@ -27,6 +27,22 @@
    foms-tablet-production-kanban.css 소유 — 기본 none, 태블릿 가로 코호트에서만 block).
    모바일 v2 셸/PC 로의 누출을 이 한 게이트로 차단한다. #}
 <div class="tablet-prod-board">
+  {# ── 목업 frame05 pcbar: 생산 보드 · 전체 N건·오늘 라인 M · [라벨 인쇄] ──
+     기본 은닉(.tablet-prod-board 자체가 base display:none)이며 코호트 가로에서만 노출.
+     카운트는 신규 쿼리 없이 기존 컨텍스트(total_orders / tablet_prod_kpis.today_line) 재소비.
+     라벨 인쇄: 전역(다건) 라벨 라우트가 없어(주문별 /orders/<id>/label 만 존재) disabled 렌더. #}
+  <div class="foms-prod-pcbar">
+    <div class="foms-prod-pcbar__lead">
+      <h2 class="foms-prod-pcbar__title">생산 보드</h2>
+      <span class="foms-prod-pcbar__sub">전체 {{ total_orders|default(orders|length, true) }}건 · 오늘 라인 {{ _kpi.get('today_line', 0) }}</span>
+    </div>
+    <div class="foms-prod-pcbar__actions">
+      <button type="button" class="foms-prod-pcbar__label" disabled
+              title="전역 라벨 인쇄 라우트 미구현 — 주문별 라벨(/orders/&lt;id&gt;/label)만 존재">
+        <i class="fas fa-tag" aria-hidden="true"></i><span>라벨 인쇄</span>
+      </button>
+    </div>
+  </div>
   {# ── 상단 KPI 타일 4종 (W11 erp-pro-alert 그래머 재사용) ── #}
   <div class="erp-pro-alerts" aria-label="생산 요약">
     <div class="erp-pro-alert">
@@ -95,17 +111,21 @@
         aria-label="{{ o.customer_name }} 주문 상세 열기">
         <div class="foms-kanban-card__top">
           <span class="foms-kanban-card__customer">{{ o.customer_name }}</span>
-          {% if _hold.get('active') %}
-          {# HMI 색 규율: 보류는 지연과 함께 유일하게 유채색이 허용된 상태. #}
-          <span class="foms-kanban-card__hold" title="생산 보류{% if _hold.get('reason') %} · {{ _hold.get('reason') }}{% endif %}">
-            <i class="fas fa-pause" aria-hidden="true"></i> 보류
+          <span class="foms-kanban-card__top-right">
+            {# 주문번호(#id) — 목업 frame05 카드 우상단. HMI 무채 소자. #}
+            <span class="foms-kanban-card__id">#{{ o.id }}</span>
+            {% if _hold.get('active') %}
+            {# HMI 색 규율: 보류는 지연과 함께 유일하게 유채색이 허용된 상태. #}
+            <span class="foms-kanban-card__hold" title="생산 보류{% if _hold.get('reason') %} · {{ _hold.get('reason') }}{% endif %}">
+              <i class="fas fa-pause" aria-hidden="true"></i> 보류
+            </span>
+            {% endif %}
+            {% if _flags.get('factory2') %}
+            <span class="foms-kanban-card__factory" title="라홈시스템(2공장) 발주">
+              <i class="fas fa-industry" aria-hidden="true"></i> 2공장
+            </span>
+            {% endif %}
           </span>
-          {% endif %}
-          {% if _flags.get('factory2') %}
-          <span class="foms-kanban-card__factory" title="라홈시스템(2공장) 발주">
-            <i class="fas fa-industry" aria-hidden="true"></i> 2공장
-          </span>
-          {% endif %}
         </div>
         {% if o.v3_product_label %}
         <div class="foms-kanban-card__product">{{ o.v3_product_label }}</div>
@@ -115,6 +135,24 @@
         {% endif %}
         {% if o.v3_material %}
         <div class="foms-kanban-card__material">{{ o.v3_material }}</div>
+        {% endif %}
+        {# ── 목업 frame05 카드 메타: 자수(총 자수 W/300) · 발주사 · 첨부수. HMI 무채 정보행.
+           기존 DTO 필드만 소비: units_display(사이드 시트 SSOT 재사용) / orderer_name / attachments_count. #}
+        {% set _units = o.units_display %}
+        {% if (_units and _units not in ('0.0', '0', '')) or o.orderer_name or o.attachments_count %}
+        <div class="foms-kanban-card__meta">
+          {% if _units and _units not in ('0.0', '0', '') %}
+          <span class="foms-kanban-card__units" title="총 자수 (W/300)">자수 {{ _units }}</span>
+          {% endif %}
+          {% if o.orderer_name %}
+          <span class="foms-kanban-card__orderer" title="발주사">{{ o.orderer_name }}</span>
+          {% endif %}
+          {% if o.attachments_count %}
+          <span class="foms-kanban-card__att" title="첨부 {{ o.attachments_count }}건">
+            <i class="fas fa-paperclip" aria-hidden="true"></i> {{ o.attachments_count }}
+          </span>
+          {% endif %}
+        </div>
         {% endif %}
         <div class="foms-kanban-card__foot">
           {% set _dday = o.construction_dday %}

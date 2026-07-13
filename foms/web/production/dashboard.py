@@ -168,6 +168,13 @@ def erp_production_dashboard():
         items = _queue_preview_items.get(_r["id"], [])
         _r["attachment_preview_items"] = items
         _r["attachment_previews"] = [item["view"] for item in items if item.get("view")]
+        # 태블릿 칸반 카드 총 자수(W/300): 사이드 시트와 동일 SSOT(_prod_sheet_total_units)를
+        # 재사용 — 신규 쿼리 없이 이미 로드된 structured_data.items 에서만 파생(카드 표시용).
+        _card_sd = _r.get("structured_data") or {}
+        _card_items = _card_sd.get("items")
+        _r["units_display"] = _prod_sheet_total_units(
+            _card_items if isinstance(_card_items, list) else []
+        )
     process_steps = build_production_process_steps(step_stats)
     # 태블릿 칸반 상단 KPI 4종: 칸반이 소비하는 동일 `enriched` 행에서만 파생(신규 쿼리 없음).
     tablet_prod_kpis = _compute_tablet_prod_kpis(enriched)
