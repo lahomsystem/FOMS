@@ -130,7 +130,7 @@
      * 한 행(tr.construction-row)에서 캡처에 필요한 값만 추출.
      * 화면에 렌더된 실제 값(편집 중 미저장 날짜/메모 포함)을 읽는다.
      * @param {HTMLTableRowElement} tr
-     * @returns {{customer:string, phone:string, address:string, product:string, shipping_date:string, scheduled_date:string, memo:string}}
+     * @returns {{customer:string, phone:string, address:string, product:string, shipping_date:string, scheduled_date:string, memo:string, is_as_schedule:boolean}}
      */
     function extractRow(tr) {
         // 고객 셀 구조: td > .d-flex.align-items-center > div(outer) > [div(이름+아이콘), small(전화)]
@@ -141,7 +141,12 @@
             var outer = customerWrap.querySelector('div');
             if (outer) {
                 var nameNode = outer.querySelector('div'); // 이름 + 지방주문 아이콘(텍스트 없음)
-                if (nameNode) customer = (nameNode.textContent || '').trim();
+                if (nameNode) {
+                    var nameClone = nameNode.cloneNode(true);
+                    var asBadge = nameClone.querySelector('.regional-as-schedule-badge');
+                    if (asBadge && asBadge.parentNode) asBadge.parentNode.removeChild(asBadge);
+                    customer = (nameClone.textContent || '').trim();
+                }
                 var phoneNode = outer.querySelector('small');
                 if (phoneNode) phone = (phoneNode.textContent || '').trim();
             }
@@ -168,7 +173,8 @@
             product: product,
             shipping_date: shippingInput ? (shippingInput.value || '').trim() : '',
             scheduled_date: scheduledInput ? (scheduledInput.value || '').trim() : '',
-            memo: memoInput ? (memoInput.value || '').trim() : ''
+            memo: memoInput ? (memoInput.value || '').trim() : '',
+            is_as_schedule: tr.getAttribute('data-as-shipping-schedule') === 'true'
         };
     }
 
@@ -258,8 +264,25 @@
      */
     function fillCustomerCell(doc, td, row) {
         var nameDiv = doc.createElement('div');
-        nameDiv.textContent = row.customer || '-';
         nameDiv.style.fontWeight = '700';
+        if (row.is_as_schedule) {
+            var badge = doc.createElement('span');
+            badge.textContent = 'AS';
+            badge.style.display = 'inline-block';
+            badge.style.minWidth = '34px';
+            badge.style.padding = '3px 8px';
+            badge.style.marginRight = '8px';
+            badge.style.borderRadius = '4px';
+            badge.style.border = '1px solid #b02a37';
+            badge.style.backgroundColor = '#dc3545';
+            badge.style.color = '#ffffff';
+            badge.style.fontSize = '16px';
+            badge.style.fontWeight = '800';
+            badge.style.lineHeight = '1.15';
+            badge.style.verticalAlign = 'middle';
+            nameDiv.appendChild(badge);
+        }
+        nameDiv.appendChild(doc.createTextNode(row.customer || '-'));
         td.appendChild(nameDiv);
         if (row.phone) {
             var phoneDiv = doc.createElement('div');

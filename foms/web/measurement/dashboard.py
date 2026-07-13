@@ -464,8 +464,9 @@ def regional_dashboard():
 
     shipping_alerts = []
     for order in all_regional_orders:
+        is_as_rework_shipping = order.status == "AS_RECEIVED"
         if (
-            getattr(order, "measurement_completed", False)
+            (getattr(order, "measurement_completed", False) or is_as_rework_shipping)
             and order.shipping_scheduled_date
             and order.shipping_scheduled_date.strip()
             and order.status not in excluded_from_shipping_buckets
