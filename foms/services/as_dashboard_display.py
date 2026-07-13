@@ -296,6 +296,11 @@ def apply_as_dashboard_row_display_fields(rows, db, *, mobile_v2_active):
             as_pending=bool(r.as_pending),
         )
         r.as_visit_dday = _as_visit_dday(getattr(r, "as_visit_date", None), _today)
+        # 방문 시각(태블릿 대조 표면 방문 블록용) — 이미 로드된 structured_data 재소비(신규 쿼리 0).
+        # api_as_schedule 가 schedule.as_visit.time 에 저장한다(HH:MM 문자열). 없으면 빈 문자열.
+        _schedule = r.structured_data.get("schedule") or {}
+        _as_visit_meta = (_schedule.get("as_visit") or {}) if isinstance(_schedule, dict) else {}
+        r.as_visit_time = str(_as_visit_meta.get("time") or "").strip()
         _cmp = compare_photos.get(r.id) or {"before": [], "after": []}
         r.as_before_photos = _cmp["before"]
         r.as_after_photos = _cmp["after"]

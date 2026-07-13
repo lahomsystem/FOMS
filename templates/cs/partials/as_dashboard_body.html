@@ -469,3 +469,8 @@
 
 <div id="as-dashboard-config" class="d-none" data-search-query-compact="{{ (compact_search_q or '')|e }}" data-current-as-tab="{{ (as_tab or 'incomplete')|e }}"></div>
 <script src="{{ url_for('static', filename='js/cs/as-dashboard.js') }}?v=20260704b" defer></script>
+{# 태블릿 가로 대조 표면 CTA(일정 변경·AS 완료) 배선 — v2 코호트(폰+태블릿)만 로드.
+   표시 게이트는 CSS(coarse landscape)가 소유하므로 폰에선 버튼 은닉·무동작(문서 위임+싱글턴 가드). #}
+{% if erp_mobile_v2_enabled %}
+<script src="{{ url_for('static', filename='js/foms/tablet-as-compare.js') }}?v=20260713a" defer></script>
+{% endif %}

@@ -259,3 +259,104 @@ def test_compare_photos_incomplete_all_before(app) -> None:
     bucket = result[order.id]
     assert len(bucket["before"]) == 1
     assert bucket["after"] == []
+
+
+# --- (6) frame08 크롬: 클린 pcbar + chip 서브탭 + 방문 블록 + CTA -----------
+
+
+def test_compare_partial_has_clean_pcbar() -> None:
+    """pcbar: 제목 + 미완료 N건(as_tab_counts.incomplete) + AS 접수 CTA + 밀도 토글 include."""
+    body = _read(COMPARE_PARTIAL)
+    assert "foms-as-compare-pcbar" in body
+    assert "AS 대시보드" in body
+    assert "as_tab_counts.incomplete" in body
+    assert "foms-as-compare-pcbar__cta" in body
+    assert "AS 접수" in body
+    # 밀도(뷰) 토글 = 공용 컴포넌트 재사용, 대상 = 이 대조 표면.
+    assert "partials/shared/foms_density_toggle.html" in body
+    assert "foms_density_target = '#foms-as-compare-surface'" in body
+
+
+def test_compare_partial_has_chip_subtabs_three_tabs() -> None:
+    """chip 서브탭(영업/배송·미완료·완료) — PC nav-tabs 대체. 세 탭 링크 + 카운트."""
+    body = _read(COMPARE_PARTIAL)
+    assert "foms-as-compare-subtabs" in body
+    assert body.count("foms-as-compare-subtab ") + body.count('foms-as-compare-subtab{') >= 3
+    assert "tab='sales_delivery'" in body
+    assert "tab='incomplete'" in body
+    assert "tab='completed'" in body
+    assert "영업/배송" in body
+
+
+def test_compare_partial_visit_block_reschedule_time_team_link() -> None:
+    """방문 블록: 방문일 재조정 date input + 방문 시각(as_visit_time) + 시공팀
+    (construction_workers_text) + 원 주문 보기 링크."""
+    body = _read(COMPARE_PARTIAL)
+    assert "foms-as-compare-visit__date" in body
+    assert 'data-field="as_visit_date"' in body
+    assert "r.as_visit_time" in body
+    assert "r.construction_workers_text" in body
+    assert "원 주문 보기" in body
+
+
+def test_compare_partial_has_reschedule_and_as_complete_ctas() -> None:
+    """foot: 일정 변경(reschedule) + AS 완료(complete, AS_COMPLETED 전이) CTA."""
+    body = _read(COMPARE_PARTIAL)
+    assert "foms-as-compare-reschedule" in body
+    assert "일정 변경" in body
+    assert "foms-as-compare-complete" in body
+    assert "AS 완료" in body
+
+
+def test_compare_css_hides_pc_chrome_in_cohort() -> None:
+    """코호트에서 PC 헤더/서브탭/필터/pill 은닉(!important — Bootstrap d-md-* 극복)."""
+    css = _norm(_read(COMPARE_CSS))
+    assert "body.erp-mobile-v2-layout .erp-as-dashboard .erp-pro-header" in css
+    assert ".erp-as-desktop-nav" in css
+    assert ".erp-as-desktop-filters" in css
+    assert ".erp-as-summary-strip { display: none !important" in css
+
+
+def test_compare_css_has_pcbar_subtab_and_density_levels() -> None:
+    """pcbar/subtab 스타일 + 밀도(뷰) 3단(40/56 재정의, 48=기본 유지). 코호트 스코프."""
+    css = _norm(_read(COMPARE_CSS))
+    assert ".foms-as-compare-pcbar" in css
+    assert ".foms-as-compare-subtab" in css
+    assert '.foms-as-compare[data-foms-density="40"]' in css
+    assert '.foms-as-compare[data-foms-density="56"]' in css
+
+
+def test_as_dashboard_body_loads_tablet_as_compare_js_cohort_gated() -> None:
+    """CTA 배선 JS 는 v2 코호트 게이트 안에서 defer 로드(폰 무동작, 태블릿 활성)."""
+    body = _norm(_read(AS_DASHBOARD_BODY))
+    assert "js/foms/tablet-as-compare.js" in body
+    js_idx = body.index("js/foms/tablet-as-compare.js")
+    gate_idx = body.rindex("{% if erp_mobile_v2_enabled %}", 0, js_idx)
+    end_idx = body.index("{% endif %}", js_idx)
+    assert gate_idx < js_idx < end_idx
+
+
+def test_service_sets_as_visit_time_from_schedule(app) -> None:
+    """방문 시각 DTO(as_visit_time) = 이미 로드된 structured_data.schedule.as_visit.time 재소비."""
+    from foms.services.as_dashboard_display import apply_as_dashboard_row_display_fields
+
+    order = Order(
+        received_date="2026-01-01",
+        customer_name="방문시각 고객",
+        phone="010-0000-0000",
+        address="Seoul",
+        product="장",
+        status="AS_RECEIVED",
+        as_received_date="2026-01-01",
+        is_erp_order=True,
+        structured_data={
+            "shipment": {"as_content": "<div>x</div>", "construction_workers": ["시공1팀"]},
+            "schedule": {"as_visit": {"date": "2026-01-05", "time": "10:00"}},
+        },
+    )
+    db_session.add(order)
+    db_session.commit()
+
+    apply_as_dashboard_row_display_fields([order], db_session, mobile_v2_active=False)
+    assert order.as_visit_time == "10:00"
+    assert order.construction_workers_text == "시공1팀"
