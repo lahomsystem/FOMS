@@ -1,0 +1,111 @@
+{# ============================================================================
+   태블릿 가로 생산 칸반 "작업 시트" body fragment — W13 (T2 / 목업 v8).
+
+   칸반 카드 탭 → 공용 tablet-side-sheet.js 가 이 fragment 를 우측 사이드 시트로
+   로드한다(data-foms-sheet-url 계약). 읽기 요약(총 자수·규격·특이사항·도면 전달본)
+   + 액션 2개(보류 disabled / 생산 완료). 데이터는 서버 무신규(dashboard.py 라우트가
+   structured_data 에서 파생). NO inline style.
+
+   액션 버튼 배선(생산 완료)은 tablet-domain-sheets.js(document 위임)가 소유하고,
+   이 파일은 data-* 만 렌더한다. 도면 전달본 "탭=확대"는 전역 GlobalImageViewer(SSOT
+   뷰어)로 연결한다(신규 뷰어 없음). 표준 마운터(fomsMountErpAttachmentPreviewGalleries)가
+   로드된 표면에선 그 경로로 위임하고, 미로드(생산 대시보드)면 전역 뷰어로 직접 배선한다.
+   ============================================================================ #}
+<div class="foms-prod-sheet" data-order-id="{{ order.id }}">
+  <div class="foms-prod-sheet__head">{{ order.customer_name }}</div>
+  <div class="foms-prod-sheet__count">#{{ order.id }} · 상차 {{ order.load_md }}</div>
+
+  {# ── hl-tile: 총 자수 (W/300) ── #}
+  <div class="foms-prod-sheet__hl">
+    <span class="foms-prod-sheet__hl-value">{{ order.total_units_display }}</span>
+    <span class="foms-prod-sheet__hl-label">총 자수 <span class="foms-prod-sheet__hl-sub">(W/300)</span></span>
+  </div>
+
+  {# ── 카드: 규격 (품목 / W / 수량) ── #}
+  <section class="foms-prod-sheet__card" aria-label="규격">
+    <div class="foms-prod-sheet__card-title">규격</div>
+    {% if order.spec_rows_view %}
+    <table class="foms-prod-sheet__spec">
+      <thead>
+        <tr><th scope="col">품목</th><th scope="col">W</th><th scope="col">수량</th></tr>
+      </thead>
+      <tbody>
+        {% for r in order.spec_rows_view %}
+        <tr>
+          <td>{{ r.label }}</td>
+          <td>{{ r.w }}</td>
+          <td>{{ r.qty }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="foms-prod-sheet__muted">규격 정보 없음</p>
+    {% endif %}
+  </section>
+
+  {# ── 카드: 특이사항 (문자열 메모 — 빨간 강조) ── #}
+  <section class="foms-prod-sheet__card" aria-label="특이사항">
+    <div class="foms-prod-sheet__card-title">특이사항</div>
+    {% if order.notes_text %}
+    <p class="foms-prod-sheet__notes">{{ order.notes_text }}</p>
+    {% else %}
+    <p class="foms-prod-sheet__muted">특이사항 없음</p>
+    {% endif %}
+  </section>
+
+  {# ── 카드: 도면 전달본 (탭=확대 → 전역 GlobalImageViewer) ── #}
+  <section class="foms-prod-sheet__card" aria-label="도면 전달본">
+    <div class="foms-prod-sheet__card-title">도면 전달본</div>
+    {% if order.drawing_thumb %}
+    <div class="foms-prod-sheet__drawing"
+         data-foms-erp-attachment-preview-gallery
+         data-foms-erp-attachment-preview-readonly="true">
+      <img class="foms-prod-sheet__drawing-thumb"
+           src="{{ order.drawing_thumb.thumb }}"
+           alt="{{ order.drawing_thumb.label }}"
+           loading="lazy" decoding="async" role="button" tabindex="0"
+           data-foms-erp-attachment-view-url="{{ order.drawing_thumb.view }}"
+           data-foms-erp-attachment-download-url="{{ order.drawing_thumb.download }}"
+           data-foms-erp-attachment-label="{{ order.drawing_thumb.label }}">
+    </div>
+    {% else %}
+    <p class="foms-prod-sheet__muted">도면 전달본 없음</p>
+    {% endif %}
+  </section>
+
+  {# ── m-foot: 보류(disabled) + 생산 완료(pri) ── #}
+  <div class="foms-prod-sheet__foot">
+    <button type="button" class="foms-prod-sheet__btn foms-prod-sheet__btn--hold"
+            disabled title="보류 상태 전환 API 미구현 — 별도 승인 필요"
+            data-tablet-sheet-hold>보류</button>
+    <button type="button" class="foms-prod-sheet__btn foms-prod-sheet__btn--pri"
+            data-tablet-sheet-action="production-complete" data-order-id="{{ order.id }}">생산 완료</button>
+  </div>
+</div>
+{# 도면 전달본 썸네일 → 기존 전역 이미지 뷰어 배선(신규 뷰어 없음). 표준 갤러리
+   마운터가 있으면 그 경로로 위임하고, 없으면(생산 대시보드) 전역 GlobalImageViewer로
+   직접 연결한다. fragment-loader 가 매 로드마다 이 인라인을 재실행하며, dataset 가드로
+   중복 바인딩을 막는다. #}
+<script>
+  (function () {
+    "use strict";
+    var gallery = document.querySelector(".foms-prod-sheet [data-foms-erp-attachment-preview-gallery]");
+    if (!gallery) return;
+    if (typeof window.fomsMountErpAttachmentPreviewGalleries === "function") {
+      window.fomsMountErpAttachmentPreviewGalleries(document);
+      return;
+    }
+    var img = gallery.querySelector("[data-foms-erp-attachment-view-url]");
+    if (!img || img.dataset.fomsProdThumbBound === "1") return;
+    img.dataset.fomsProdThumbBound = "1";
+    img.addEventListener("click", function () {
+      if (!(window.GlobalImageViewer && window.GlobalImageViewer.open)) return;
+      window.GlobalImageViewer.open([{
+        view_url: img.getAttribute("data-foms-erp-attachment-view-url") || "",
+        download_url: img.getAttribute("data-foms-erp-attachment-download-url") || "",
+        filename: img.getAttribute("data-foms-erp-attachment-label") || "도면 전달본"
+      }], 0);
+    });
+  })();
+</script>

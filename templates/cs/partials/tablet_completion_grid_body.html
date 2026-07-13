@@ -1,22 +1,98 @@
 {# ============================================================================
-   태블릿 가로 시공 완료 금액 그리드 — W17 (2026-07-12, T2 / 목업 v8 P9)
+   태블릿 가로 시공 완료 금액 보드 — W17 (2026-07-13, T2 / 목업 v8 P9)
 
    태블릿 가로 코호트에서 사진 리뷰 리스트(.foms-completion-photo-review)를 대체하는
-   금액 그리드. Persona = CS(라홈)·경리: 완료일·고객·제품 + 금액 3컬럼(출고가/예약금/
-   잔금) + 현금영수증 + 정산 상태의 8컬럼(목업 v8 P9 컬럼 구성 그대로).
+   정산 보드. Persona = CS(라홈)·경리: pcbar(제목/기간·건수 + 밀도토글 + 엑셀) +
+   필터바(검색/기간/정산/AS 포함) + KPI 4타일 + 금액 8컬럼 그리드(출고가/예약금/잔금 +
+   현금영수증 + 정산) + 페이지네이션.
 
-   데이터: 라우트가 코호트에서만 tablet_completion_rows 를 서버 렌더로 넘긴다. 금액은
-   erp_display SSOT 헬퍼로 이미 로드된 structured_data 에서 파생(콤마 포맷 문자열,
-   재파싱 없음). 잔금 = 출고가 − 예약금 불변식(shipping_price_display/deposit_display/
-   balance_display). 행 탭 → 상세: tablet-side-sheet.js(위임 셀렉터에 .foms-completion-grid
-   tbody tr[data-order-id] 확장). 표시/은닉·배타는 foms-tablet-completion-grid.css 소유.
-   XSS: Jinja autoescaping(customer_name/product_summary/cash_receipt 문자열).
+   데이터: 라우트가 코호트에서만 tablet_completion_rows(≤60) + tablet_completion_meta
+   (kpis/filters/page/export_url)를 서버 렌더로 넘긴다. 금액은 erp_display SSOT 헬퍼로
+   이미 로드된 structured_data 에서 파생(콤마 포맷 문자열, 재파싱 없음). 잔금 = 출고가 −
+   예약금 불변식(shipping_price_display/deposit_display/balance_display).
+   행 탭 → 정산 시트: tablet-side-sheet.js 위임(.foms-completion-grid tbody
+   tr[data-order-id])이 data-foms-sheet-url 을 읽어 공용 사이드 시트에 완료 정산 상세
+   fragment 를 로드한다. 정산 발행 submit 은 tablet-completion-sheet.js(document 위임).
+   표시/은닉·배타·스타일은 foms-tablet-completion-grid.css 소유.
+   XSS: Jinja autoescaping(customer_name/product_summary/cash_receipt 문자열; |safe 금지).
+
+   게이트: 부모(completion_dashboard_body.html)가 {% if erp_mobile_v2_enabled %} 로 include.
+   tablet_completion_meta 도 코호트에서만 세팅되므로 meta 의존 섹션은 {% if meta %} 로 방어.
    ============================================================================ #}
-<section class="foms-completion-grid" aria-label="시공 완료 금액 그리드">
+{% set meta = tablet_completion_meta %}
+<section class="foms-completion-grid" aria-label="시공 완료 금액 보드">
+  {% if meta %}
+  {# --- pcbar: 제목 · 기간/건수 · 밀도토글(placeholder, 타 워커 소유) · 엑셀 --- #}
+  <div class="foms-completion-grid__pcbar">
+    <div class="foms-completion-grid__pcbar-head">
+      <span class="foms-completion-grid__title">시공 완료</span>
+      <span class="foms-completion-grid__sub">{{ meta.page.period_label }} · {{ meta.page.total_count }}건</span>
+    </div>
+    <div class="foms-completion-grid__pcbar-tools">
+      {# 밀도 토글 컨테이너만 배치 — 동작은 별도 워커 소유(data-density-*). #}
+      <div class="foms-density-toggle" data-density-target="#foms-completion-grid-table" data-density-default="48"></div>
+      <a class="foms-completion-grid__excel" href="{{ meta.export_url }}">엑셀 내보내기</a>
+    </div>
+  </div>
+
+  {# --- 필터바: GET 폼(검색/기간/정산/AS). fbar=1 로 필터바 submit 표식(체크 해제=False). --- #}
+  <form class="foms-completion-grid__filterbar" method="get"
+    action="{{ url_for('erp_completion_page.erp_completion_dashboard') }}">
+    <input type="hidden" name="fbar" value="1">
+    <input class="foms-completion-grid__search" type="search" name="q"
+      value="{{ meta.filters.q }}" placeholder="고객·제품·연락처 검색" aria-label="검색">
+    <label class="foms-completion-grid__field">
+      <span class="foms-completion-grid__field-label">기간</span>
+      <select name="period">
+        <option value="" {% if not meta.filters.period %}selected{% endif %}>전체</option>
+        {% for opt in meta.filters.period_options %}
+        <option value="{{ opt.value }}" {% if opt.value == meta.filters.period %}selected{% endif %}>{{ opt.label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="foms-completion-grid__field">
+      <span class="foms-completion-grid__field-label">정산</span>
+      <select name="settlement">
+        <option value="" {% if not meta.filters.settlement %}selected{% endif %}>정산: 전체</option>
+        <option value="pending" {% if meta.filters.settlement == 'pending' %}selected{% endif %}>대기</option>
+        <option value="issued" {% if meta.filters.settlement == 'issued' %}selected{% endif %}>완료</option>
+      </select>
+    </label>
+    <label class="foms-completion-grid__check">
+      <input type="checkbox" name="as_include" value="1" {% if meta.filters.as_include %}checked{% endif %}>
+      <span>AS 완료 포함</span>
+    </label>
+    <button class="foms-completion-grid__apply" type="submit">적용</button>
+    <a class="foms-completion-grid__reset"
+      href="{{ url_for('erp_completion_page.erp_completion_dashboard') }}">초기화</a>
+  </form>
+
+  {# --- KPI 4타일 --- #}
+  <div class="foms-completion-grid__kpis">
+    <div class="foms-completion-grid__kpi">
+      <span class="foms-completion-grid__kpi-label">이번 달 완료</span>
+      <span class="foms-completion-grid__kpi-value">{{ meta.kpis.this_month }}</span>
+    </div>
+    <div class="foms-completion-grid__kpi foms-completion-grid__kpi--warning">
+      <span class="foms-completion-grid__kpi-label">정산 대기</span>
+      <span class="foms-completion-grid__kpi-value">{{ meta.kpis.pending }}</span>
+    </div>
+    <div class="foms-completion-grid__kpi foms-completion-grid__kpi--danger">
+      <span class="foms-completion-grid__kpi-label">미수 합계</span>
+      <span class="foms-completion-grid__kpi-value">₩{{ meta.kpis.unpaid_total_display }}</span>
+    </div>
+    <div class="foms-completion-grid__kpi">
+      <span class="foms-completion-grid__kpi-label">현금영수증 요청</span>
+      <span class="foms-completion-grid__kpi-value">{{ meta.kpis.cash_receipt_requests }}</span>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="foms-completion-grid__caption">완료일 내림차순 · 행 탭 = 정산 시트</div>
+
   {% if tablet_completion_rows %}
-  <div class="foms-completion-grid__caption">완료일 내림차순 · 행 탭 = 정산 상세</div>
   <div class="foms-completion-grid__scroll">
-    <table class="foms-completion-grid__table">
+    <table class="foms-completion-grid__table" id="foms-completion-grid-table" data-foms-density>
       <thead>
         <tr>
           <th scope="col">완료일</th>
@@ -31,16 +107,22 @@
       </thead>
       <tbody>
         {% for row in tablet_completion_rows %}
-        <tr data-order-id="{{ row.id }}" role="button" tabindex="0"
+        <tr data-order-id="{{ row.id }}"
+          data-foms-sheet-url="{{ url_for('erp_completion_page.erp_completion_tablet_sheet', order_id=row.id) }}"
+          role="button" tabindex="0"
           class="{% if row.settlement_issued %}is-settled{% endif %}"
           aria-label="{{ row.customer_name }} 정산 상세 열기">
-          <td>{{ row.completion_date or '-' }}</td>
+          <td>{{ row.completion_date or '-' }}{% if row.is_as %} (AS){% endif %}</td>
           <td class="foms-completion-grid__customer">{{ row.customer_name }}</td>
           <td>{{ row.product_summary }}</td>
           <td class="is-num">{{ row.shipping_price_display }}</td>
           <td class="is-num">{{ row.deposit_display }}</td>
           <td class="is-num foms-completion-grid__balance">{{ row.balance_display }}</td>
-          <td>{{ row.cash_receipt or '—' }}</td>
+          <td>
+            {% if row.cash_receipt_state == 'requested' %}
+            <span class="foms-completion-grid__receipt-chip">발행 요청</span>
+            {% else %}—{% endif %}
+          </td>
           <td>
             {% if row.settlement_issued %}
             <span class="foms-completion-grid__badge is-settled">완료</span>
@@ -56,4 +138,24 @@
   {% else %}
   <p class="foms-completion-grid__empty">완료 및 AS 건이 없습니다.</p>
   {% endif %}
+
+  {% if meta and meta.page.total_pages > 1 %}
+  <nav class="foms-completion-grid__pagination" aria-label="페이지 이동">
+    {% if meta.page.has_prev %}
+    <a class="foms-completion-grid__page-link" rel="prev"
+      href="{{ url_for('erp_completion_page.erp_completion_dashboard', q=meta.filters.q or None, period=meta.filters.period or None, settlement=meta.filters.settlement or None, as_include=('1' if meta.filters.as_include else '0'), fbar='1', page=meta.page.page - 1) }}">이전</a>
+    {% else %}
+    <span class="foms-completion-grid__page-link is-disabled" aria-disabled="true">이전</span>
+    {% endif %}
+    <span class="foms-completion-grid__page-status">{{ meta.page.page }} / {{ meta.page.total_pages }}</span>
+    {% if meta.page.has_next %}
+    <a class="foms-completion-grid__page-link" rel="next"
+      href="{{ url_for('erp_completion_page.erp_completion_dashboard', q=meta.filters.q or None, period=meta.filters.period or None, settlement=meta.filters.settlement or None, as_include=('1' if meta.filters.as_include else '0'), fbar='1', page=meta.page.page + 1) }}">다음</a>
+    {% else %}
+    <span class="foms-completion-grid__page-link is-disabled" aria-disabled="true">다음</span>
+    {% endif %}
+  </nav>
+  {% endif %}
+
+  <script defer src="{{ url_for('static', filename='js/foms/tablet-completion-sheet.js') }}?v=20260713a"></script>
 </section>

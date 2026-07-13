@@ -169,6 +169,369 @@
     font-size: var(--foms-font-size-sm);
     text-align: center;
   }
+
+  /* ==========================================================================
+     W17 보드 크롬 — pcbar / 필터바 / KPI / 페이지네이션. 모두 flex-column 그리드의
+     flex:none 자식(스크롤 영역만 flex:1). 터치 컨트롤은 ≥44px(comfortable) 토큰 구동.
+     ========================================================================== */
+
+  /* --- pcbar: 제목 · 기간/건수 · 밀도토글 · 엑셀 --- */
+  body.erp-mobile-v2-layout .foms-completion-grid__pcbar {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--foms-space-4);
+    padding: var(--foms-space-4);
+    border-bottom: 1px solid var(--foms-border-subtle);
+  }
+  body.erp-mobile-v2-layout .foms-completion-grid__pcbar-head {
+    display: flex;
+    align-items: baseline;
+    gap: var(--foms-space-3);
+    min-width: 0;
+  }
+  body.erp-mobile-v2-layout .foms-completion-grid__title {
+    color: var(--foms-text-primary);
+    font-size: var(--foms-font-size-xl);
+    font-weight: var(--foms-font-weight-bold);
+  }
+  body.erp-mobile-v2-layout .foms-completion-grid__sub {
+    color: var(--foms-text-tertiary);
+    font-size: var(--foms-font-size-sm);
+    white-space: nowrap;
+  }
+  body.erp-mobile-v2-layout .foms-completion-grid__pcbar-tools {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: var(--foms-space-3);
+  }
+  /* 엑셀: ghost 버튼(투명 배경 + subtle 보더), ≥44px 터치 타깃. */
+  body.erp-mobile-v2-layout .foms-completion-grid__excel {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--foms-touch-target-comfortable);
+    padding: 0 var(--foms-space-4);
+    background: transparent;
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-md);
+    color: var(--foms-text-secondary);
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-bold);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  body.erp-mobile-v2-layout .foms-completion-grid__excel:hover {
+    background: var(--foms-surface-subtle);
+    color: var(--foms-text-primary);
+  }
+
+  /* --- 필터바: GET 폼. 입력/셀렉트 ≥44px + font-size:base(iOS zoom 방지, ≥16px). --- */
+  body.erp-mobile-v2-layout .foms-completion-grid__filterbar {
+    flex: none;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--foms-space-3);
+    padding: var(--foms-space-3) var(--foms-space-4);
+    background: var(--foms-surface-subtle);
+    border-bottom: 1px solid var(--foms-border-subtle);
+  }
+  body.erp-mobile-v2-layout .foms-completion-grid__filterbar input[type="search"],
+  body.erp-mobile-v2-layout .foms-completion-grid__filterbar select {
+    min-height: var(--foms-touch-target-comfortable);
+    padding: 0 var(--foms-space-3);
+    background: var(--foms-surface-base);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-md);
+    color: var(--foms-text-primary);
+    font-size: var(--foms-font-size-base);
+  }
+  body.erp-mobile-v2-layout .foms-completion-grid__search {
+    flex: 1 1 220px;
+    min-width: 160px;
+  }
+  body.erp-mobile-v2-layout .foms-completion-grid__field {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--foms-space-2);
+  }
+  body.erp-mobile-v2-layout .foms-completion-grid__field-label {
+    color: var(--foms-text-tertiary);
+    font-size: var(--foms-font-size-sm);
+    white-space: nowrap;
+  }
+  body.erp-mobile-v2-layout .foms-completion-grid__check {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--foms-space-2);
+    min-height: var(--foms-touch-target-comfortable);
+    color: var(--foms-text-secondary);
+    font-size: var(--foms-font-size-sm);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .foms-completion-grid__check input[type="checkbox"] {
+    width: 24px;
+    height: 24px;
+  }
+  /* 적용: primary. 초기화: 텍스트 링크. 둘 다 ≥44px. */
+  body.erp-mobile-v2-layout .foms-completion-grid__apply {
+    min-height: var(--foms-touch-target-comfortable);
+    padding: 0 var(--foms-space-4);
+    background: var(--foms-interactive-primary);
+    border: 1px solid var(--foms-interactive-primary);
+    border-radius: var(--foms-radius-md);
+    color: var(--foms-text-inverse);
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-bold);
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .foms-completion-grid__reset {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--foms-touch-target-comfortable);
+    padding: 0 var(--foms-space-3);
+    color: var(--foms-text-tertiary);
+    font-size: var(--foms-font-size-sm);
+    text-decoration: none;
+  }
+  body.erp-mobile-v2-layout .foms-completion-grid__reset:hover {
+    color: var(--foms-text-primary);
+    text-decoration: underline;
+  }
+
+  /* --- KPI 4타일 --- */
+  body.erp-mobile-v2-layout .foms-completion-grid__kpis {
+    flex: none;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--foms-space-3);
+    padding: var(--foms-space-4);
+    border-bottom: 1px solid var(--foms-border-subtle);
+  }
+  body.erp-mobile-v2-layout .foms-completion-grid__kpi {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-1);
+    padding: var(--foms-space-3) var(--foms-space-4);
+    background: var(--foms-surface-subtle);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-lg);
+  }
+  body.erp-mobile-v2-layout .foms-completion-grid__kpi-label {
+    color: var(--foms-text-tertiary);
+    font-size: var(--foms-font-size-xs);
+    font-weight: var(--foms-font-weight-bold);
+  }
+  body.erp-mobile-v2-layout .foms-completion-grid__kpi-value {
+    color: var(--foms-text-primary);
+    font-size: var(--foms-font-size-2xl);
+    font-weight: var(--foms-font-weight-bold);
+    font-variant-numeric: tabular-nums;
+  }
+  /* HMI 색 규율: 액션 필요(대기/미수)만 유채색. */
+  body.erp-mobile-v2-layout .foms-completion-grid__kpi--warning .foms-completion-grid__kpi-value {
+    color: var(--foms-color-warning-700);
+  }
+  body.erp-mobile-v2-layout .foms-completion-grid__kpi--danger .foms-completion-grid__kpi-value {
+    color: var(--foms-color-danger-600);
+  }
+
+  /* --- 현금영수증 요청 chip(warning tint pill) --- */
+  body.erp-mobile-v2-layout .foms-completion-grid__receipt-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--foms-space-1) var(--foms-space-3);
+    border-radius: var(--foms-radius-full);
+    background: var(--foms-color-warning-50);
+    color: var(--foms-color-warning-700);
+    font-size: var(--foms-font-size-xs);
+    font-weight: var(--foms-font-weight-bold);
+    white-space: nowrap;
+  }
+
+  /* --- 페이지네이션: 이전/상태/다음. 링크 ≥44×44px 터치 타깃. --- */
+  body.erp-mobile-v2-layout .foms-completion-grid__pagination {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--foms-space-3);
+    padding: var(--foms-space-3) var(--foms-space-4);
+    border-top: 1px solid var(--foms-border-subtle);
+  }
+  body.erp-mobile-v2-layout .foms-completion-grid__page-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--foms-touch-target-comfortable);
+    min-width: var(--foms-touch-target-comfortable);
+    padding: 0 var(--foms-space-4);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-md);
+    color: var(--foms-text-secondary);
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-bold);
+    text-decoration: none;
+  }
+  body.erp-mobile-v2-layout .foms-completion-grid__page-link:hover {
+    background: var(--foms-surface-subtle);
+    color: var(--foms-text-primary);
+  }
+  body.erp-mobile-v2-layout .foms-completion-grid__page-link.is-disabled {
+    opacity: 0.4;
+    pointer-events: none;
+  }
+  body.erp-mobile-v2-layout .foms-completion-grid__page-status {
+    color: var(--foms-text-tertiary);
+    font-size: var(--foms-font-size-sm);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ==========================================================================
+     W17 완료 정산 사이드 시트 — 공용 side-sheet(.foms-tablet-sheet__body) 안에 로드되는
+     완료 탭 상세 fragment(templates/cs/partials/tablet_completion_sheet.html). 시트는
+     <body>에 append 되므로 코호트 MQ + body.erp-mobile-v2-layout 스코프로 충분(완료 탭
+     전용 클래스). 버튼은 ≥44px 터치 타깃.
+     ========================================================================== */
+  body.erp-mobile-v2-layout .foms-completion-sheet {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-4);
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet__m-head {
+    color: var(--foms-text-primary);
+    font-size: var(--foms-font-size-xl);
+    font-weight: var(--foms-font-weight-bold);
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet__m-count {
+    color: var(--foms-text-tertiary);
+    font-size: var(--foms-font-size-sm);
+  }
+  /* 잔금 하이라이트 타일(정산 판단의 본체). */
+  body.erp-mobile-v2-layout .foms-completion-sheet__hl-tile {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-1);
+    padding: var(--foms-space-4);
+    background: var(--foms-surface-subtle);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-lg);
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet__hl-label {
+    color: var(--foms-text-tertiary);
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-bold);
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet__hl-value {
+    color: var(--foms-text-primary);
+    font-size: var(--foms-font-size-2xl);
+    font-weight: var(--foms-font-weight-bold);
+    font-variant-numeric: tabular-nums;
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet__card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-2);
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet__card-title {
+    color: var(--foms-text-secondary);
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-bold);
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet__photo-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--foms-space-2);
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet__photo {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    border-radius: var(--foms-radius-md);
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet__m-foot {
+    display: flex;
+    gap: var(--foms-space-3);
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--foms-touch-target-comfortable);
+    padding: 0 var(--foms-space-4);
+    background: var(--foms-surface-base);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-md);
+    color: var(--foms-text-primary);
+    font-size: var(--foms-font-size-base);
+    font-weight: var(--foms-font-weight-bold);
+    cursor: pointer;
+  }
+  /* 현금영수증: API 미배선 → disabled look(타 워커/후속). */
+  body.erp-mobile-v2-layout .foms-completion-sheet__btn--receipt {
+    flex: 1.2;
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet__btn--issue {
+    flex: 1.4;
+    background: var(--foms-interactive-primary);
+    border-color: var(--foms-interactive-primary);
+    color: var(--foms-text-inverse);
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet__btn--issue:disabled {
+    opacity: 0.6;
+    cursor: progress;
+  }
+  /* 정산 발행 폼(data-foms-settlement-issue) — 필드 ≥44px + font-size:base. */
+  body.erp-mobile-v2-layout .foms-completion-sheet form[data-foms-settlement-issue] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-3);
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet form[data-foms-settlement-issue] select,
+  body.erp-mobile-v2-layout .foms-completion-sheet form[data-foms-settlement-issue] input,
+  body.erp-mobile-v2-layout .foms-completion-sheet form[data-foms-settlement-issue] textarea {
+    min-height: var(--foms-touch-target-comfortable);
+    padding: var(--foms-space-2) var(--foms-space-3);
+    background: var(--foms-surface-base);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-md);
+    color: var(--foms-text-primary);
+    font-size: var(--foms-font-size-base);
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet form[data-foms-settlement-issue] textarea {
+    min-height: calc(var(--foms-touch-target-comfortable) * 2);
+    resize: vertical;
+  }
+  /* 발행 결과(성공/실패) — JS가 생성·토글([hidden]). 무음 금지(가시 메시지). */
+  body.erp-mobile-v2-layout .foms-completion-sheet__issue-result {
+    padding: var(--foms-space-3) var(--foms-space-4);
+    border-radius: var(--foms-radius-md);
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-bold);
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet__issue-result[hidden] {
+    display: none;
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet__issue-result.is-success {
+    background: var(--foms-surface-muted);
+    color: var(--foms-text-secondary);
+  }
+  body.erp-mobile-v2-layout .foms-completion-sheet__issue-result.is-error {
+    background: var(--foms-color-danger-50);
+    color: var(--foms-color-danger-600);
+  }
+}
+
+/* 좁은 태블릿 가로(≤1199): KPI 2열 wrap(landscape 전용 — portrait 토큰 금지 유지). */
+@media (min-width: 992px) and (max-width: 1199.98px) and (orientation: landscape) and (pointer: coarse) {
+  body.erp-mobile-v2-layout .foms-completion-grid__kpis {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

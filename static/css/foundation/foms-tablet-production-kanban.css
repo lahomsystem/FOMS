@@ -39,11 +39,72 @@
   display: none;
 }
 
+/* W13 확장: 보드 래퍼(KPI·필터·칸반)는 기본 은닉 — 코호트에서만 노출(아래 MQ).
+   모바일 v2 셸(세로/폰)·PC 어디에도 KPI/필터가 새지 않도록 동일 게이트로 묶는다. */
+.tablet-prod-board {
+  display: none;
+}
+
 @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
 
-  /* --- 배타: legacy 큐 은닉 + 칸반 표시(동일 게이트 결합) --- */
+  /* --- 배타: legacy 큐 은닉 + 보드(칸반 포함) 표시(동일 게이트 결합) --- */
   body.erp-mobile-v2-layout .foms-production-legacy-queue {
     display: none;
+  }
+  body.erp-mobile-v2-layout .tablet-prod-board {
+    display: block;
+  }
+
+  /* --- 상단 KPI 타일: erp-pro-alert 그래머 재사용 + 세로 스택(near-zero 보강) --- */
+  body.erp-mobile-v2-layout .tablet-prod-board .erp-pro-alerts {
+    padding: var(--foms-space-3) var(--foms-space-4) 0;
+  }
+  body.erp-mobile-v2-layout .tablet-prod-board .erp-pro-alert {
+    cursor: default;
+  }
+  body.erp-mobile-v2-layout .tablet-prod-board .erp-pro-alert__content {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+  body.erp-mobile-v2-layout .tablet-prod-board .erp-pro-alert__label {
+    font-size: var(--foms-font-size-sm);
+    color: var(--foms-text-secondary);
+  }
+  body.erp-mobile-v2-layout .tablet-prod-board .erp-pro-alert__value {
+    font-size: var(--foms-font-size-2xl);
+    font-weight: var(--foms-font-weight-bold);
+    line-height: var(--foms-line-height-tight);
+    color: var(--foms-text-primary);
+  }
+
+  /* --- 클라이언트 필터 바 --- */
+  body.erp-mobile-v2-layout .tablet-prod-filter {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--foms-space-2);
+    padding: var(--foms-space-3) var(--foms-space-4);
+  }
+  body.erp-mobile-v2-layout .tablet-prod-filter [data-tablet-prod-search] {
+    flex: 1 1 220px;
+  }
+  body.erp-mobile-v2-layout .tablet-prod-filter [data-tablet-prod-search],
+  body.erp-mobile-v2-layout .tablet-prod-filter select,
+  body.erp-mobile-v2-layout .tablet-prod-filter [data-tablet-prod-reset] {
+    min-height: var(--foms-touch-target-min);
+    padding: 0 var(--foms-space-3);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-md);
+    background: var(--foms-surface-base);
+    color: var(--foms-text-primary);
+    font-size: var(--foms-font-size-base);
+  }
+  body.erp-mobile-v2-layout .tablet-prod-filter [data-tablet-prod-reset] {
+    background: var(--foms-surface-muted);
+    color: var(--foms-text-secondary);
+    font-weight: var(--foms-font-weight-bold);
+    cursor: pointer;
   }
   body.erp-mobile-v2-layout .foms-kanban {
     display: grid;
@@ -244,4 +305,146 @@
   .foms-kanban-card {
     transition: none !important;
   }
+}
+
+/* ============================================================================
+   생산 칸반 사이드 시트 body (.foms-prod-sheet) — W13.
+   tablet-side-sheet.js 가 이 fragment 를 우측 시트에 주입한다. 사이드 시트는
+   태블릿 가로 코호트에서만 활성화되므로 별도 MQ 게이트 없이 스타일한다(비코호트에선
+   시트 자체가 렌더되지 않아 무해). foms 토큰만 소비. NO inline style.
+   ============================================================================ */
+.foms-prod-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--foms-space-3);
+  padding: var(--foms-space-4);
+}
+.foms-prod-sheet__head {
+  font-size: var(--foms-font-size-2xl);
+  font-weight: var(--foms-font-weight-bold);
+  color: var(--foms-text-primary);
+  word-break: break-word;
+}
+.foms-prod-sheet__count {
+  font-size: var(--foms-font-size-sm);
+  color: var(--foms-text-secondary);
+}
+
+/* hl-tile: 총 자수 대형 표기 */
+.foms-prod-sheet__hl {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--foms-space-4);
+  background: var(--foms-surface-subtle);
+  border: 1px solid var(--foms-border-subtle);
+  border-radius: var(--foms-radius-xl);
+}
+.foms-prod-sheet__hl-value {
+  font-size: 2.4rem;
+  font-weight: var(--foms-font-weight-bold);
+  line-height: 1.05;
+  color: var(--foms-text-primary);
+}
+.foms-prod-sheet__hl-label {
+  font-size: var(--foms-font-size-base);
+  color: var(--foms-text-secondary);
+}
+.foms-prod-sheet__hl-sub {
+  color: var(--foms-text-tertiary);
+}
+
+.foms-prod-sheet__card {
+  border: 1px solid var(--foms-border-subtle);
+  border-radius: var(--foms-radius-lg);
+  padding: var(--foms-space-3) var(--foms-space-4);
+  background: var(--foms-surface-base);
+}
+.foms-prod-sheet__card-title {
+  font-size: var(--foms-font-size-sm);
+  font-weight: var(--foms-font-weight-bold);
+  color: var(--foms-text-secondary);
+  margin-bottom: var(--foms-space-2);
+}
+
+.foms-prod-sheet__spec {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--foms-font-size-base);
+}
+.foms-prod-sheet__spec th,
+.foms-prod-sheet__spec td {
+  text-align: left;
+  padding: var(--foms-space-2);
+  border-bottom: 1px solid var(--foms-border-subtle);
+  color: var(--foms-text-primary);
+}
+.foms-prod-sheet__spec th {
+  font-size: var(--foms-font-size-sm);
+  font-weight: var(--foms-font-weight-bold);
+  color: var(--foms-text-secondary);
+}
+
+/* 특이사항 = 문자열 메모, HMI 경고색(빨강) 강조 */
+.foms-prod-sheet__notes {
+  margin: 0;
+  color: var(--foms-color-danger-600);
+  font-weight: var(--foms-font-weight-medium);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.foms-prod-sheet__muted {
+  margin: 0;
+  color: var(--foms-text-tertiary);
+  font-size: var(--foms-font-size-sm);
+}
+
+/* 도면 전달본 썸네일 — 전폭·약 100px·탭=확대 */
+.foms-prod-sheet__drawing {
+  width: 100%;
+}
+.foms-prod-sheet__drawing-thumb {
+  display: block;
+  width: 100%;
+  height: 100px;
+  object-fit: cover;
+  border-radius: var(--foms-radius-md);
+  border: 1px solid var(--foms-border-subtle);
+  background: var(--foms-surface-subtle);
+  cursor: zoom-in;
+}
+
+/* m-foot: 보류 flex:1 / 생산완료 flex:2 primary */
+.foms-prod-sheet__foot {
+  display: flex;
+  gap: var(--foms-space-2);
+  margin-top: var(--foms-space-2);
+}
+.foms-prod-sheet__btn {
+  appearance: none;
+  min-height: var(--foms-touch-target-min);
+  padding: 0 var(--foms-space-4);
+  border: 1px solid transparent;
+  border-radius: var(--foms-radius-md);
+  font-size: var(--foms-font-size-base);
+  font-weight: var(--foms-font-weight-bold);
+  cursor: pointer;
+}
+.foms-prod-sheet__btn--hold {
+  flex: 1;
+  background: var(--foms-surface-muted);
+  color: var(--foms-text-secondary);
+}
+.foms-prod-sheet__btn--hold[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.foms-prod-sheet__btn--pri {
+  flex: 2;
+  background: var(--foms-interactive-primary);
+  color: var(--foms-text-inverse);
+}
+.foms-prod-sheet__btn--pri:hover {
+  background: var(--foms-interactive-primary-hover);
 }

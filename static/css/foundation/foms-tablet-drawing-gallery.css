@@ -38,6 +38,11 @@
   display: none;
 }
 
+/* 작업실 셸(상단 바+필터+KPI+갤러리 래퍼)도 기본 은닉 — 코호트에서만 표시(아래 opt-in). */
+.foms-drawing-workshop {
+  display: none;
+}
+
 @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
 
   /* --- 배타: legacy 테이블 은닉 + 갤러리 표시(동일 게이트 결합) --- */
@@ -236,6 +241,398 @@
     padding: var(--foms-space-6) var(--foms-space-4);
     color: var(--foms-text-tertiary);
     text-align: center;
+  }
+}
+
+/* ============================================================================
+   프레임 03 작업실 셸 — 상단 바 · 필터 바 · KPI 타일 · 카드 크기 토글 · 관리 시트.
+   동일 코호트 게이트(body.erp-mobile-v2-layout + 코어 MQ) 하위. landscape 전용.
+   ============================================================================ */
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+
+  /* --- 작업실 셸: legacy 테이블을 대체(동일 게이트 결합, blank 금지) --- */
+  body.erp-mobile-v2-layout .foms-drawing-workshop {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-3);
+    padding: var(--foms-space-3) var(--foms-space-4) var(--foms-space-2);
+  }
+
+  /* 셸이 갤러리 그리드를 감싸므로 갤러리 패딩은 셸이 소유(중복 상단 패딩 제거). */
+  body.erp-mobile-v2-layout .foms-drawing-workshop .foms-drawing-gallery {
+    padding: 0 0 var(--foms-space-6);
+  }
+
+  /* --- 상단 바 --- */
+  body.erp-mobile-v2-layout .foms-drawing-workshop__bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--foms-space-3);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-workshop__titlewrap {
+    display: flex;
+    align-items: baseline;
+    gap: var(--foms-space-2);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-workshop__title {
+    margin: 0;
+    font-size: var(--foms-font-size-xl);
+    font-weight: var(--foms-font-weight-bold);
+    color: var(--foms-text-primary);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-workshop__sub {
+    font-size: var(--foms-font-size-sm);
+    color: var(--foms-text-tertiary);
+    font-variant-numeric: tabular-nums;
+  }
+  body.erp-mobile-v2-layout .foms-drawing-workshop__tools {
+    display: flex;
+    align-items: center;
+    gap: var(--foms-space-2);
+    flex-wrap: wrap;
+  }
+
+  /* 카드 크기 토글(세그먼트 컨트롤) */
+  body.erp-mobile-v2-layout .foms-drawing-workshop__sizes {
+    display: inline-flex;
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-md);
+    overflow: hidden;
+    background: var(--foms-surface-base);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-workshop__size {
+    min-height: var(--foms-touch-target-comfortable, 44px);
+    padding: 0 var(--foms-space-3);
+    border: none;
+    background: transparent;
+    color: var(--foms-text-secondary);
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-bold);
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .foms-drawing-workshop__size + .foms-drawing-workshop__size {
+    border-left: 1px solid var(--foms-border-subtle);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-workshop__size.is-active {
+    background: var(--foms-interactive-primary);
+    color: var(--foms-text-on-primary, #fff);
+  }
+
+  /* 공용 버튼(ghost/primary) — 작업실 상단 바·필터·시트 공유 */
+  body.erp-mobile-v2-layout .foms-drawing-workshop__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--foms-space-1);
+    min-height: var(--foms-touch-target-comfortable, 44px);
+    padding: 0 var(--foms-space-4);
+    border-radius: var(--foms-radius-md);
+    border: 1px solid transparent;
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-bold);
+    text-decoration: none;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  body.erp-mobile-v2-layout .foms-drawing-workshop__btn--ghost {
+    background: var(--foms-surface-base);
+    border-color: var(--foms-border-subtle);
+    color: var(--foms-text-secondary);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-workshop__btn--primary {
+    background: var(--foms-interactive-primary);
+    color: var(--foms-text-on-primary, #fff);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-workshop__btn[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* --- 필터 바 --- */
+  body.erp-mobile-v2-layout .foms-drawing-workshop__filters {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--foms-space-2);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-workshop__sort {
+    min-height: var(--foms-touch-target-comfortable, 44px);
+    font-size: var(--foms-font-size-base);
+    max-width: 180px;
+  }
+  body.erp-mobile-v2-layout .foms-drawing-workshop__search {
+    flex: 1;
+    min-width: 200px;
+    min-height: var(--foms-touch-target-comfortable, 44px);
+    font-size: var(--foms-font-size-base);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-workshop__check {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--foms-space-1);
+    min-height: var(--foms-touch-target-comfortable, 44px);
+    padding: 0 var(--foms-space-2);
+    font-size: var(--foms-font-size-sm);
+    color: var(--foms-text-secondary);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .foms-drawing-workshop__check input {
+    width: 22px;
+    height: 22px;
+  }
+
+  /* --- KPI 타일 4 (HMI: 정상 무채, 경보만 유채) --- */
+  body.erp-mobile-v2-layout .foms-drawing-workshop__kpis {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--foms-space-2);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-kpi {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: var(--foms-space-2) var(--foms-space-3);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-lg);
+    background: var(--foms-surface-base);
+    text-decoration: none;
+    color: inherit;
+    min-height: var(--foms-touch-target-comfortable, 44px);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-kpi__value {
+    font-size: var(--foms-font-size-2xl);
+    font-weight: var(--foms-font-weight-bold);
+    color: var(--foms-text-primary);
+    font-variant-numeric: tabular-nums;
+    line-height: var(--foms-line-height-tight);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-kpi__label {
+    font-size: var(--foms-font-size-xs);
+    color: var(--foms-text-tertiary);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-kpi--danger .foms-drawing-kpi__value {
+    color: var(--foms-color-danger-600);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-kpi--warning .foms-drawing-kpi__value {
+    color: var(--foms-color-warning-700);
+  }
+
+  /* --- 카드 크기 토글 3단 (작게 220 / 보통 260 / 크게 320) --- */
+  body.erp-mobile-v2-layout .foms-drawing-gallery.is-size-sm {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
+  body.erp-mobile-v2-layout .foms-drawing-gallery.is-size-md {
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  }
+  body.erp-mobile-v2-layout .foms-drawing-gallery.is-size-lg {
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  }
+
+  /* --- 카드 확장: 전달완료 dim · 제품 요약 · 다음 페이지 카드 --- */
+  body.erp-mobile-v2-layout .foms-drawing-gallery-card.is-dim {
+    opacity: 0.55;
+  }
+  body.erp-mobile-v2-layout .foms-drawing-gallery-card__product {
+    font-size: var(--foms-font-size-sm);
+    color: var(--foms-text-secondary);
+    word-break: break-word;
+  }
+  body.erp-mobile-v2-layout .foms-drawing-gallery-card--more {
+    align-items: center;
+    justify-content: center;
+    gap: var(--foms-space-1);
+    min-height: 200px;
+    border-style: dashed;
+    background: var(--foms-surface-muted);
+    color: var(--foms-text-tertiary);
+    text-align: center;
+  }
+  body.erp-mobile-v2-layout .foms-drawing-gallery-card__more-title {
+    font-size: var(--foms-font-size-base);
+    font-weight: var(--foms-font-weight-bold);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-gallery-card__more-sub {
+    font-size: var(--foms-font-size-xs);
+  }
+
+  /* --- 관리 시트 fragment (사이드 시트 바디 안에서 렌더) --- */
+  body.erp-mobile-v2-layout .foms-drawing-sheet {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-3);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-sheet--empty {
+    align-items: center;
+    gap: var(--foms-space-2);
+    padding: var(--foms-space-6) var(--foms-space-4);
+    color: var(--foms-text-tertiary);
+    text-align: center;
+  }
+  body.erp-mobile-v2-layout .foms-drawing-sheet__name {
+    font-size: var(--foms-font-size-lg);
+    font-weight: var(--foms-font-weight-bold);
+    color: var(--foms-text-primary);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-sheet__count {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--foms-space-2);
+    font-size: var(--foms-font-size-sm);
+    color: var(--foms-text-tertiary);
+    font-variant-numeric: tabular-nums;
+  }
+  body.erp-mobile-v2-layout .foms-drawing-sheet__order-link {
+    color: var(--foms-interactive-primary);
+    text-decoration: none;
+    font-weight: var(--foms-font-weight-bold);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-sheet__card {
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-lg);
+    background: var(--foms-surface-base);
+    padding: var(--foms-space-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-2);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-sheet__card-title {
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-bold);
+    color: var(--foms-text-secondary);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-sheet__muted {
+    margin: 0;
+    font-size: var(--foms-font-size-sm);
+    color: var(--foms-text-tertiary);
+  }
+
+  /* 시트 썸네일 스트립 (120×84) */
+  body.erp-mobile-v2-layout .foms-drawing-sheet__strip {
+    display: flex;
+    gap: var(--foms-space-2);
+    overflow-x: auto;
+    padding-bottom: var(--foms-space-1);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-sheet__sheet {
+    flex: 0 0 auto;
+    width: 120px;
+    margin: 0;
+  }
+  body.erp-mobile-v2-layout .foms-drawing-sheet__sheet-thumb {
+    display: block;
+    width: 120px;
+    height: 84px;
+    object-fit: cover;
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-md);
+    background: var(--foms-surface-muted);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-sheet__sheet-label {
+    display: block;
+    margin-top: 2px;
+    font-size: var(--foms-font-size-xs);
+    color: var(--foms-text-tertiary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* 자동 채움 그리드 */
+  body.erp-mobile-v2-layout .foms-drawing-sheet__fills {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--foms-space-2);
+    margin: 0;
+  }
+  body.erp-mobile-v2-layout .foms-drawing-sheet__fill {
+    background: var(--foms-surface-muted);
+    border-radius: var(--foms-radius-md);
+    padding: var(--foms-space-2);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-sheet__fill dt {
+    font-size: var(--foms-font-size-xs);
+    color: var(--foms-text-tertiary);
+    margin-bottom: 2px;
+  }
+  body.erp-mobile-v2-layout .foms-drawing-sheet__fill dd {
+    margin: 0;
+    font-size: var(--foms-font-size-base);
+    font-weight: var(--foms-font-weight-bold);
+    color: var(--foms-text-primary);
+    word-break: break-word;
+  }
+
+  /* 버전 이력 타임라인 */
+  body.erp-mobile-v2-layout .foms-drawing-sheet__timeline {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-2);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-sheet__event {
+    display: flex;
+    gap: var(--foms-space-2);
+    align-items: flex-start;
+  }
+  body.erp-mobile-v2-layout .foms-drawing-sheet__event-dot {
+    width: 8px;
+    height: 8px;
+    margin-top: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: var(--foms-text-tertiary);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-sheet__event--snapshot .foms-drawing-sheet__event-dot {
+    background: var(--foms-interactive-primary);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-sheet__event-label {
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-bold);
+    color: var(--foms-text-primary);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-sheet__event-meta {
+    font-size: var(--foms-font-size-xs);
+    color: var(--foms-text-tertiary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* 시트 하단 액션 */
+  body.erp-mobile-v2-layout .foms-drawing-sheet__foot {
+    display: flex;
+    gap: var(--foms-space-2);
+    margin-top: auto;
+  }
+  body.erp-mobile-v2-layout .foms-drawing-sheet__btn {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--foms-space-1);
+    min-height: var(--foms-touch-target-comfortable, 44px);
+    border-radius: var(--foms-radius-md);
+    border: 1px solid transparent;
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-bold);
+    text-decoration: none;
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .foms-drawing-sheet__btn--ghost {
+    background: var(--foms-surface-base);
+    border-color: var(--foms-border-subtle);
+    color: var(--foms-text-secondary);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-sheet__btn--primary {
+    background: var(--foms-interactive-primary);
+    color: var(--foms-text-on-primary, #fff);
+  }
+  body.erp-mobile-v2-layout .foms-drawing-sheet__btn[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 }
 

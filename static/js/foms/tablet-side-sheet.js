@@ -17,7 +17,10 @@
  *   (closest로 무시) → 인라인 날짜 편집, 액션 버튼, 첨부 미리보기, 상세 링크, 체크박스,
  *   이력 chevron(확장 토글, role="button") 동작 보존.
  *
- * 콘텐츠: 기존 fragment 인프라 재사용 — /api/foms/fragment/order/<id>/edit?open=erp-order
+ * 콘텐츠 URL(SSOT resolveSheetUrl): 탭한 행/카드에 data-foms-sheet-url 이 있으면 그 URL을,
+ *   없으면 아래 기본 edit fragment URL을 시트 본문으로 로드한다(대시보드 목업 시트 등 페이지
+ *   전용 상세가 opt-in). 파이프라인은 URL과 무관하게 행 data-stage 로만 렌더(기존 로직 불변).
+ * 기본 콘텐츠: 기존 fragment 인프라 재사용 — /api/foms/fragment/order/<id>/edit?open=erp-order
  *   (foms/services/foms_split_view.py build_split_master_cards.detail_href 와 동일 URL) fetch →
  *   시트 바디 주입 → 스크립트 재실행(runtime/erp-shell.js activateScripts 정책 모방: type 보존
  *   해 application/json 프리로드 블록이 클래식 스크립트로 실행돼 SyntaxError 나는 것 방지) →
@@ -63,7 +66,10 @@
     ".foms-kanban-card[data-order-id], " +
     ".foms-completion-grid tbody tr[data-order-id], " +
     ".erp-as-dashboard .erp-pro-table-wrapper tbody tr[data-order-id], " +
-    ".erp-history-mobile-shell tr.history-main-row[data-order-id]";
+    ".erp-history-mobile-shell tr.history-main-row[data-order-id], " +
+    // 도면 갤러리 카드(<a>): data-foms-erp-no-shell 로 erp-shell 인터셉트를 끊고
+    // 여기서 시트를 연다(카드 자신이 anchor지만 INTERACTIVE 가드는 행 자신을 제외 안 함).
+    ".foms-drawing-gallery-card[data-order-id]";
   // 행 내 인터랙티브 요소 클릭은 시트 대상에서 제외(closest 체인). AS 인라인 날짜/체크박스
   // (.form-check)·상세 링크·이력 chevron([role="button"])까지 커버.
   var INTERACTIVE =
@@ -71,6 +77,16 @@
 
   function fragmentUrl(orderId) {
     return "/api/foms/fragment/order/" + encodeURIComponent(orderId) + "/edit?open=erp-order";
+  }
+
+  // 시트 본문 URL 해석(SSOT). 탭한 행/카드에 data-foms-sheet-url 이 있으면 그 URL(페이지
+  // 전용 상세 — 예: 컨트롤타워 목업 시트 /erp/dashboard/tablet-sheet/<id>)을 시트 본문으로
+  // 로드하고, 없으면 기존 edit fragment URL 로 폴백한다. 열림/닫힘/active 행/파이프라인 등
+  // 나머지 동작은 불변이며, 파이프라인은 여전히 행의 data-stage 로만 렌더된다(URL 무관).
+  function resolveSheetUrl(orderId, row) {
+    var explicit = row && row.getAttribute ? row.getAttribute("data-foms-sheet-url") : null;
+    if (explicit && explicit.trim()) return explicit.trim();
+    return fragmentUrl(orderId);
   }
 
   var sheet = null;
@@ -181,13 +197,13 @@
 
   // fragment fetch/주입/스크립트 재실행/staleness 는 공용 로더(fragment-loader.js) 소유.
   // 이 모듈은 컨테이너(bodyEl)와 URL 만 넘긴다. currentOrderId 는 행 하이라이트 staleness 용.
-  function load(orderId) {
+  function load(orderId, url) {
     currentOrderId = orderId;
     if (!window.FomsFragmentLoader || typeof window.FomsFragmentLoader.load !== "function") {
       console.error("[foms-tablet-sheet] FomsFragmentLoader 미로드 — 시트 로드 중단");
       return;
     }
-    window.FomsFragmentLoader.load(bodyEl, fragmentUrl(orderId), {
+    window.FomsFragmentLoader.load(bodyEl, url, {
       requestedWith: "foms-tablet-sheet",
       source: "tablet-sheet",
       loadingText: "주문 상세 로딩 중…",
@@ -206,6 +222,7 @@
 
   function open(orderId, row) {
     if (!orderId) return;
+    var sheetUrl = resolveSheetUrl(orderId, row);
     ensureSheet();
     if (hideTimer) {
       clearTimeout(hideTimer);
@@ -223,7 +240,7 @@
     requestAnimationFrame(function () {
       sheet.classList.add("is-open");
     });
-    load(orderId);
+    load(orderId, sheetUrl);
     try {
       sheet.focus({ preventScroll: true });
     } catch (e) {

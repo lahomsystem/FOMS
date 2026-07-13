@@ -53,6 +53,39 @@
       </a>
     </section>
   {% endif %}
+  {# 태블릿 가로 상단 KPI 4종 — 코호트 CSS 게이트(coarse landscape에서만 display:grid). #}
+  {% if tablet_ship_kpis %}
+  <div class="tablet-ship-kpis erp-pro-alerts" aria-label="출고 요약">
+    <div class="erp-pro-alert">
+      <div class="erp-pro-alert__icon"><i class="fas fa-ruler-combined" aria-hidden="true"></i></div>
+      <div class="erp-pro-alert__content">
+        <span class="erp-pro-alert__label">총 자수</span>
+        <span class="erp-pro-alert__value">{{ tablet_ship_kpis.total_units }}</span>
+      </div>
+    </div>
+    <div class="erp-pro-alert">
+      <div class="erp-pro-alert__icon"><i class="fas fa-boxes" aria-hidden="true"></i></div>
+      <div class="erp-pro-alert__content">
+        <span class="erp-pro-alert__label">건수</span>
+        <span class="erp-pro-alert__value">{{ tablet_ship_kpis.order_count }}</span>
+      </div>
+    </div>
+    <div class="erp-pro-alert">
+      <div class="erp-pro-alert__icon"><i class="fas fa-users" aria-hidden="true"></i></div>
+      <div class="erp-pro-alert__content">
+        <span class="erp-pro-alert__label">시공팀</span>
+        <span class="erp-pro-alert__value">{{ tablet_ship_kpis.team_count }}</span>
+      </div>
+    </div>
+    <div class="erp-pro-alert erp-pro-alert--danger">
+      <div class="erp-pro-alert__icon"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i></div>
+      <div class="erp-pro-alert__content">
+        <span class="erp-pro-alert__label">미배정</span>
+        <span class="erp-pro-alert__value">{{ tablet_ship_kpis.unassigned }}</span>
+      </div>
+    </div>
+  </div>
+  {% endif %}
   <div class="erp-pro-card erp-shipment-desktop-shell">
     <div class="erp-pro-card__header erp-pro-card__header--filter{% if erp_mobile_v2_enabled %} erp-shipment-desktop-filter d-none d-md-block{% endif %}">
       <form class="erp-pro-filter-form erp-pro-filter-form--inline-mobile" method="get">
@@ -334,6 +367,7 @@
                 {% set product_display = r.product or '-' %}
 
                 <tr data-order-id="{{ r.id }}" class="shipment-row"
+                  data-foms-sheet-url="{{ url_for('erp_shipment_page.erp_shipment_tablet_sheet', order_id=r.id) }}"
                   data-as="{{ 1 if r.status in ('AS', 'AS_RECEIVED', 'AS_COMPLETED') else 0 }}"
                   data-manager="{{ (r.manager_name or '')|e }}">
                   <td data-label="상세" style="border-right: 1px solid #e0e0e0;">

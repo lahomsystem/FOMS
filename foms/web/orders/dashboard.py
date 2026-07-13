@@ -8,6 +8,7 @@ from models import Order
 from foms.web.auth import login_required
 from sqlalchemy import text
 from foms.services.erp_permissions import can_edit_erp
+from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.erp_policy import (
     STAGE_NAME_TO_CODE,
     STAGE_LABELS,
@@ -516,6 +517,63 @@ def erp_dashboard():
     response = make_response(_body)
     apply_erp_shell_fragment_headers(response, request)
     apply_ept_b7_render_headers(response, route_id="erp_dashboard", render_ms=_render_ms)
+    return response
+
+
+@erp_dashboard_bp.route('/dashboard/tablet-sheet/<int:order_id>')
+@login_required
+def erp_dashboard_tablet_sheet(order_id: int):
+    """태블릿 가로 컨트롤타워 사이드 시트 목업 fragment (읽기 요약 + 액션).
+
+    tablet-side-sheet.js 가 그리드 행의 data-foms-sheet-url 로 이 URL을 시트 본문에 로드한다
+    (edit fragment 대체). 요약 데이터는 대시보드 그리드와 동일한 표시 DTO
+    (build_orders_row_dtos)로 단건 파생 — 신규 쿼리 경로/집계 없음. 파이프라인은 시트
+    크롬(JS)이 행 data-stage 로 렌더하므로 이 fragment 는 포함하지 않는다.
+
+    Args:
+        order_id: 주문 PK.
+
+    Returns:
+        HTML fragment 응답(no-store, X-FOMS-Fragment). 최상위 문서 내비게이션(주소창/새 탭)은
+        정본 edit 페이지로 302(비스타일 partial 노출 방지 — fragment.py 전례).
+    """
+    if request.headers.get("Sec-Fetch-Dest") == "document":
+        return redirect(url_for('order_edit.edit_order', order_id=order_id, open='erp-order'))
+
+    db = get_db()
+    order = db.query(Order).filter(Order.id == order_id, Order.not_deleted_filter()).first()
+    if order is None:
+        abort(404)
+
+    current_user = getattr(g, 'current_user', None)
+    if is_erp_order_record(order) and not can_edit_erp(current_user):
+        abort(403)
+
+    sd = _ensure_dict(order.structured_data)
+    page_sds = {order.id: sd}
+    _maps = compute_orders_attachment_assignee_maps(db, [order], page_sds)
+    att_counts = {int(k): int(v) for k, v in (_maps.get("att_counts") or {}).items()}
+    user_map = {int(k): str(v) for k, v in (_maps.get("user_map") or {}).items()}
+    rows = build_orders_row_dtos([order], page_sds, att_counts, user_map, current_user)
+    row = rows[0]
+    row["attachment_preview_items"] = batch_resolve_queue_attachment_preview_items(
+        db, [order.id]
+    ).get(order.id, [])
+
+    # 대시보드 그리드와 동일 팀 라벨(라홈팀 등) — 목업 미니 퀘스트 "승인: 팀" 표시용.
+    team_labels = {
+        'CS': '라홈팀', 'SALES': '영업팀', 'MEASURE': '실측팀',
+        'DRAWING': '도면팀', 'PRODUCTION': '생산팀', 'CONSTRUCTION': '시공팀',
+    }
+    body = render_template(
+        'orders/partials/tablet_dashboard_sheet.html',
+        o=row,
+        team_labels=team_labels,
+        can_edit_erp=can_edit_erp(current_user),
+    )
+    response = make_response(body)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["X-FOMS-Fragment"] = "1"
     return response
 
 

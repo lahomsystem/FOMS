@@ -72,3 +72,26 @@ body.col-resizing-active {
     display: none;
   }
 }
+
+/* =============================================================
+   태블릿 가로 상단 KPI 타일 게이트 (2026-07-13)
+   ------------------------------------------------------------
+   `.tablet-ship-kpis.erp-pro-alerts` 컨테이너를 기본 숨김하고, 태블릿 가로
+   (min-width:992 + landscape + coarse pointer)에서만 4열 그리드로 노출한다.
+   이 게이트는 전역 로드 파일(dashboard_main.html 본문 <link>, full·fragment 양쪽·
+   전체 사용자)에 둔다 — 코호트 전용 번들(foms-tablet-bundle→landscape)은
+   비코호트 PC에서 미로드라, 거기 두면 `.erp-pro-alerts{display:grid}`(전역)가
+   그대로 노출돼 PC/폰 회귀가 발생하기 때문. 복합 선택자(0,2,0)로 erp-pro-alerts
+   (0,1,0)를 로드 순서와 무관하게 확실히 이긴다. 타일 자체 스타일은 erp-pro-alert*
+   (03-card-pipeline.css)를 그대로 재사용한다.
+   ============================================================= */
+.tablet-ship-kpis.erp-pro-alerts {
+  display: none;
+}
+
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  .tablet-ship-kpis.erp-pro-alerts {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+  }
+}

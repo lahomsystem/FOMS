@@ -1,0 +1,380 @@
+/* FOMS 태블릿 가로 시공 작업 모드 — W14 (2026-07-13, T2 / 목업 v8 정합).
+
+   태블릿 가로 코호트에서 legacy 시공 작업 큐 테이블(.foms-construction-legacy-queue)을
+   3분할 작업 모드(.foms-construction-workmode)로 대체한다. 좌: 타임라인(단계 진행),
+   중: 도면/현장 뷰어, 우: 완료 확인 패널. 마크업/데이터 = 서버 무변경(dashboard.py
+   시공 큐 재소비). 은닉 패널은 HTML `hidden` 속성으로 토글한다 — 이 파일은 `[hidden]` 을
+   절대 덮어쓰지 않는다.
+
+   적용 조건 (T0 매트릭스·W9/W11/W13 정합):
+     body.erp-mobile-v2-layout(코호트 게이트)
+     + @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse)
+   = 진짜 터치 태블릿 가로. fine(노트북) 제외 = pointer:coarse 필수. 세로=모바일 셸이므로
+   이 파일은 세로 방향 미디어 특성을 쓰지 않는다(landscape 전용, foms-split-view.css
+   세로 금지 가드·foms-tablet-production-kanban.css 규율과 정합).
+
+   로드: foms-tablet-bundle.css @import (코호트 게이트 <link> 경유). 코호트 번들에서만
+   로드되므로 PC/폰 무영향.
+
+   ============================================================================
+   배타표 (blank 금지) — 시공 큐 영역의 배타. 어떤 조합도 두 표면이 동시 은닉 없음:
+
+     뷰포트/코호트                | legacy 테이블                | 작업 모드
+                                  | (.foms-construction-         | (.foms-construction-
+                                  |  legacy-queue)               |  workmode)
+     ----------------------------|------------------------------|----------------------
+     모바일 셸(≤991.98 / 992+     | 은닉(셸/queue-family)        | 은닉(기본 none;
+       세로 coarse)              |                              |  MQ 미매치)
+     PC/데스크톱(≥1366 fine/none) | 표시(기본 block)             | 은닉(기본 none)
+     태블릿 가로(≥992 landscape   | 은닉 ← W14(아래)             | 표시 ← W14(아래)
+       coarse) 코호트 ON         |                              |
+     태블릿 가로 코호트 OFF       | 표시(기본 block)             | 미렌더({% if %})
+
+   핵심 결합(T0 blank 교훈): "legacy 은닉"과 "작업 모드 표시"는 **동일 게이트**(코호트 body
+   class + 코어 MQ) 아래 한 블록에 둔다 → 테이블이 숨는 순간 반드시 작업 모드가 나타난다
+   (원자적). 기본값은 legacy 표시 / 작업 모드 은닉이라 미배선·비코호트 경로는 항상 테이블
+   fallback. T0 순서 계약: 아래 base `display: none` 규칙이 코호트 `display: flex` 보다
+   **먼저** 선언된다.
+   ============================================================================ */
+
+/* 기본(비코호트·PC·모바일): 작업 모드 은닉. legacy 테이블은 기존 기본값(block)이 표시. */
+.foms-construction-workmode {
+  display: none;
+}
+
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+
+  /* --- 배타: legacy 큐 은닉 + 작업 모드 표시(동일 게이트 결합) --- */
+  body.erp-mobile-v2-layout .foms-construction-legacy-queue {
+    display: none;
+  }
+  body.erp-mobile-v2-layout .foms-construction-workmode {
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    gap: var(--foms-space-4);
+    /* 3패널 각자 내부 스크롤 — 페이지가 아니라 패널 내부에서 넘침 처리.
+       dvh = 툴바/액션바 보정(약 12rem). */
+    min-height: calc(100dvh - 12rem);
+    max-height: calc(100dvh - 12rem);
+    padding: var(--foms-space-3) var(--foms-space-4) var(--foms-space-6);
+  }
+
+  /* ==========================================================================
+     좌: 타임라인 (단계 진행) — flex 0 0 300px, 내부 스크롤
+     ========================================================================== */
+  body.erp-mobile-v2-layout .foms-cwork-timeline {
+    flex: 0 0 300px;
+    width: 300px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-3);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: var(--foms-space-3);
+    background: var(--foms-surface-subtle);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-xl);
+  }
+  body.erp-mobile-v2-layout .foms-cwork-timeline__title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--foms-space-2);
+    font-size: var(--foms-font-size-lg);
+    font-weight: var(--foms-font-weight-bold);
+    color: var(--foms-text-primary);
+  }
+  body.erp-mobile-v2-layout .foms-cwork-timeline__count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    min-height: 28px;
+    padding: 0 var(--foms-space-2);
+    border-radius: var(--foms-radius-full);
+    background: var(--foms-surface-muted);
+    color: var(--foms-text-secondary);
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-bold);
+  }
+
+  /* --- 단계 칩 (필터/점프) — 터치 타깃 ≥44px --- */
+  body.erp-mobile-v2-layout .foms-cwork-chip {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--foms-space-2);
+    min-height: var(--foms-touch-target-comfortable);
+    padding: 0 var(--foms-space-4);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-full);
+    background: var(--foms-surface-base);
+    color: var(--foms-text-secondary);
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-bold);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .foms-cwork-chip:focus-visible {
+    outline: none;
+    box-shadow: var(--foms-shadow-focus-ring);
+  }
+  body.erp-mobile-v2-layout .foms-cwork-chip.is-active {
+    background: var(--foms-interactive-primary);
+    border-color: var(--foms-interactive-primary);
+    color: var(--foms-text-inverse);
+  }
+
+  /* --- 타임라인 카드 (단계별 주문) — 큰 히트영역, HMI 무채 기본 --- */
+  body.erp-mobile-v2-layout .foms-cwork-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-2);
+    min-height: var(--foms-touch-target-comfortable);
+    padding: var(--foms-space-4);
+    background: var(--foms-surface-base);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-lg);
+    box-shadow: var(--foms-shadow-sm);
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .foms-cwork-card:focus-visible {
+    outline: none;
+    box-shadow: var(--foms-shadow-focus-ring);
+  }
+  /* 선택된 카드 = 브랜드 테두리 + 저채도 브랜드 배경(경보 아님). */
+  body.erp-mobile-v2-layout .foms-cwork-card.is-active {
+    border-color: var(--foms-interactive-primary);
+    background: var(--foms-surface-accent);
+  }
+
+  /* --- 상태 배지 (HMI 색 규율: 무채 기본, 진행/완료만 유의미 대비) --- */
+  body.erp-mobile-v2-layout .foms-cwork-status {
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    min-height: 28px;
+    padding: 0 var(--foms-space-3);
+    border-radius: var(--foms-radius-full);
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-bold);
+    white-space: nowrap;
+  }
+  /* 완료 = 흐린 무채(dim) — 이미 끝난 항목은 뒤로 물러남. */
+  body.erp-mobile-v2-layout .foms-cwork-status--done {
+    background: var(--foms-surface-muted);
+    color: var(--foms-text-tertiary);
+  }
+  /* 진행 중 = 브랜드 강조(현재 작업). */
+  body.erp-mobile-v2-layout .foms-cwork-status--active {
+    background: var(--foms-interactive-primary);
+    color: var(--foms-text-inverse);
+  }
+  /* 대기 = 중립 무채. */
+  body.erp-mobile-v2-layout .foms-cwork-status--wait {
+    background: var(--foms-surface-subtle);
+    border: 1px solid var(--foms-border-subtle);
+    color: var(--foms-text-secondary);
+  }
+
+  /* ==========================================================================
+     중: 뷰어 (도면/현장 사진) — flex 1 1 auto, 내부 스크롤
+     ========================================================================== */
+  body.erp-mobile-v2-layout .foms-cwork-viewer {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-3);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: var(--foms-space-3);
+    background: var(--foms-surface-base);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-xl);
+  }
+  /* 뷰어 상단 바 (주문 요약/규격) — sticky 유지. */
+  body.erp-mobile-v2-layout .foms-cwork-pcbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--foms-space-2);
+    padding: var(--foms-space-3) var(--foms-space-4);
+    background: var(--foms-surface-subtle);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-lg);
+    position: sticky;
+    top: 0;
+    z-index: var(--foms-z-sticky);
+  }
+  /* --- 시트 전환 칩 (도면 다중 프리뷰) — .foms-cwork-chip 토큰 미러 --- */
+  body.erp-mobile-v2-layout .foms-cwork-sheets {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--foms-space-2);
+  }
+  body.erp-mobile-v2-layout .foms-cwork-sheet-chip {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--foms-space-2);
+    min-height: var(--foms-touch-target-comfortable);
+    padding: 0 var(--foms-space-4);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-full);
+    background: var(--foms-surface-base);
+    color: var(--foms-text-secondary);
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-bold);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .foms-cwork-sheet-chip:focus-visible {
+    outline: none;
+    box-shadow: var(--foms-shadow-focus-ring);
+  }
+  body.erp-mobile-v2-layout .foms-cwork-sheet-chip.is-active {
+    background: var(--foms-interactive-primary);
+    border-color: var(--foms-interactive-primary);
+    color: var(--foms-text-inverse);
+  }
+
+  /* 도면 썸네일 그리드 — 자동 채움, 넉넉한 셀. */
+  body.erp-mobile-v2-layout .foms-cwork-drawings {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: var(--foms-space-3);
+    padding: var(--foms-space-1);
+    margin: 0;
+    list-style: none;
+  }
+  /* 뷰어 하단 액션 바 — 주요 액션 정렬, sticky 바닥. */
+  body.erp-mobile-v2-layout .foms-cwork-actionbar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: var(--foms-space-3);
+    margin-top: auto;
+    padding: var(--foms-space-3) var(--foms-space-4);
+    background: var(--foms-surface-subtle);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-lg);
+    position: sticky;
+    bottom: 0;
+    z-index: var(--foms-z-action-bar);
+  }
+
+  /* --- 버튼 (액션 바) — 기본 ≥44px 터치, 주요/큰 버튼은 ≥48px --- */
+  body.erp-mobile-v2-layout .foms-cwork-btn {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--foms-space-2);
+    min-height: var(--foms-touch-target-comfortable);
+    padding: 0 var(--foms-space-4);
+    border: 1px solid var(--foms-border-default);
+    border-radius: var(--foms-radius-md);
+    background: var(--foms-surface-base);
+    color: var(--foms-text-primary);
+    font-size: var(--foms-font-size-base);
+    font-weight: var(--foms-font-weight-bold);
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .foms-cwork-btn:focus-visible {
+    outline: none;
+    box-shadow: var(--foms-shadow-focus-ring);
+  }
+  /* 위험(반려/취소) — danger 유채. HMI: 경보성 액션만 유채. */
+  body.erp-mobile-v2-layout .foms-cwork-btn--danger {
+    border-color: var(--foms-interactive-danger);
+    background: var(--foms-color-danger-50);
+    color: var(--foms-color-danger-600);
+  }
+  body.erp-mobile-v2-layout .foms-cwork-btn--danger:hover {
+    background: var(--foms-interactive-danger);
+    color: var(--foms-text-inverse);
+  }
+  /* 고스트(보조) — 테두리 없는 무채. */
+  body.erp-mobile-v2-layout .foms-cwork-btn--ghost {
+    border-color: transparent;
+    background: transparent;
+    color: var(--foms-text-secondary);
+  }
+  body.erp-mobile-v2-layout .foms-cwork-btn--ghost:hover {
+    background: var(--foms-surface-muted);
+    color: var(--foms-text-primary);
+  }
+  /* 주요(시공 완료 확정) — 브랜드 강조 + ≥48px. */
+  body.erp-mobile-v2-layout .foms-cwork-btn--primary {
+    min-height: var(--foms-touch-target-min);
+    border-color: transparent;
+    background: var(--foms-interactive-primary);
+    color: var(--foms-text-inverse);
+  }
+  body.erp-mobile-v2-layout .foms-cwork-btn--primary:hover {
+    background: var(--foms-interactive-primary-hover);
+  }
+  body.erp-mobile-v2-layout .foms-cwork-btn--primary:active {
+    background: var(--foms-interactive-primary-active);
+  }
+  /* 큰 버튼(장갑 손·주요 액션) — ≥48px + 넓은 히트영역. */
+  body.erp-mobile-v2-layout .foms-cwork-btn--lg {
+    min-height: var(--foms-touch-target-min);
+    padding: 0 var(--foms-space-6);
+    font-size: var(--foms-font-size-lg);
+  }
+
+  /* ==========================================================================
+     우: 완료 확인 패널 — flex 0 0 320px, 내부 스크롤
+     ========================================================================== */
+  body.erp-mobile-v2-layout .foms-cwork-confirm {
+    flex: 0 0 320px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-3);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: var(--foms-space-3);
+    background: var(--foms-surface-subtle);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-xl);
+  }
+  body.erp-mobile-v2-layout .foms-cwork-confirm__panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-3);
+    padding: var(--foms-space-4);
+    background: var(--foms-surface-base);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-lg);
+    box-shadow: var(--foms-shadow-sm);
+  }
+  /* 확인 항목 카드 (체크리스트 행) — 큰 터치 타깃. */
+  body.erp-mobile-v2-layout .foms-cwork-cfcard {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--foms-space-3);
+    min-height: var(--foms-touch-target-comfortable);
+    padding: var(--foms-space-3) var(--foms-space-4);
+    background: var(--foms-surface-subtle);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-md);
+    color: var(--foms-text-primary);
+    font-size: var(--foms-font-size-base);
+    font-weight: var(--foms-font-weight-medium);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .foms-cwork-card,
+  .foms-cwork-chip,
+  .foms-cwork-btn {
+    transition: none !important;
+  }
+}

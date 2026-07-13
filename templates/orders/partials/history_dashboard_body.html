@@ -177,6 +177,12 @@
           <h3 class="erp-pro-card__title foms-section-header__title">
             <i class="fas fa-list"></i> 검색 결과 (총 {{ total_orders }}건)
           </h3>
+          {# 공용 밀도 토글 — 코호트(v2∪v3)에서만 렌더(hide/show CSS가 코호트 번들에만 로드되므로
+             PC 미렌더로 stray 버튼 방지). 실제 표시는 coarse landscape CSS 게이트. #}
+          {% if erp_mobile_v2_enabled %}
+          {% set foms_density_target = '.erp-history-mobile-shell' %}
+          {% include 'partials/shared/foms_density_toggle.html' %}
+          {% endif %}
         </div>
         <div class="erp-pro-card__body p-0 foms-shell-body">
           <div class="table-responsive">

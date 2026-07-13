@@ -239,6 +239,9 @@ def erp_drawing_workbench_dashboard():
     mine_only = erp_mine_only_from_request(request)
     unread_only = (request.args.get('unread') or '').strip() == '1'
     due_today_only = (request.args.get('due_today') or '').strip() == '1'
+    # 태블릿 도면 작업실 필터(추가, 부재 시 무영향): D-3 이내(시공 임박)만 / 전달 대기(마법사 저장분)만.
+    dday3_only = (request.args.get('dday3') or '').strip() == '1'
+    pending_only = (request.args.get('pending') or '').strip() == '1'
     assignee_filter_raw = (request.args.get('assignee') or '').strip()
     assignee_filter = assignee_filter_raw.lower()
     sort_by = (request.args.get('sort') or '').strip().lower()
@@ -396,12 +399,20 @@ def erp_drawing_workbench_dashboard():
         ]).lower()
 
         construction_date = _resolve_construction_date_display(o, sd)
+        # 제품 요약(고객·제품 카드용) — 이미 로드된 sd['items']에서 파생(추가 쿼리 없음).
+        _sd_items = sd.get('items') or []
+        product_summary = ', '.join(
+            str((it.get('product_name') or '').strip())
+            for it in _sd_items
+            if isinstance(it, dict) and (it.get('product_name') or '').strip()
+        )[:60]
 
         rows.append({
             'id': o.id,
             'is_self_measurement': getattr(o, 'is_self_measurement', False),
             'customer_name': customer_name,
             'construction_date': construction_date,
+            'product_summary': product_summary,
             'manager_name': manager_name,
             'assignee_text': assignee_text,
             'measurement_assignee_text': measurement_assignee_text,
@@ -426,6 +437,9 @@ def erp_drawing_workbench_dashboard():
             'sla_level': sla_level,
             'is_overdue': bool(alerts.get('drawing_overdue')),
             'due_today': due_today,
+            # 시공 D-day(영업일 기준, 미정=None) + D-3 이내 플래그(시공 임박순 정렬·KPI·필터 소스).
+            'construction_days': alerts.get('construction_days'),
+            'construction_d3': bool(alerts.get('construction_d3')),
             'unread_count': unchecked_requests,
             'my_todo': my_todo,
             'include_for_mine': include_for_mine,
@@ -433,7 +447,7 @@ def erp_drawing_workbench_dashboard():
         })
 
     # 프로세스 맵 카운트는 목록 필터와 무관하게 전체 큐 기준(파이프라인 bar SSOT).
-    stats = {'total': len(rows), 'WAITING': 0, 'IN_PROGRESS': 0, 'RETURNED': 0, 'TRANSFERRED': 0, 'CONFIRMED': 0, 'overdue': 0, 'unread': 0}
+    stats = {'total': len(rows), 'WAITING': 0, 'IN_PROGRESS': 0, 'RETURNED': 0, 'TRANSFERRED': 0, 'CONFIRMED': 0, 'overdue': 0, 'unread': 0, 'd3': 0, 'pending_transfer': 0}
     for r in rows:
         status = (r.get('drawing_status') or 'WAITING').upper()
         if status == 'PENDING':
@@ -444,6 +458,11 @@ def erp_drawing_workbench_dashboard():
             stats['overdue'] += 1
         if r.get('unread_count', 0) > 0:
             stats['unread'] += 1
+        # 태블릿 KPI 타일 SSOT(전체 큐 기준, 목록 필터와 무관): D-3 이내 / 전달 대기(마법사 저장분).
+        if r.get('construction_d3'):
+            stats['d3'] += 1
+        if int(r.get('pending_count') or 0) > 0:
+            stats['pending_transfer'] += 1
 
     if focus_order_id:
         # 검색 카드 딥링크: 단건만 착지시키고 목록 필터·페이지는 적용하지 않는다.
@@ -457,6 +476,10 @@ def erp_drawing_workbench_dashboard():
             rows = [r for r in rows if r.get('unread_count', 0) > 0]
         if due_today_only:
             rows = [r for r in rows if r.get('due_today')]
+        if dday3_only:
+            rows = [r for r in rows if r.get('construction_d3')]
+        if pending_only:
+            rows = [r for r in rows if int(r.get('pending_count') or 0) > 0]
         if assignee_filter:
             rows = [r for r in rows if assignee_filter in (r.get('assignee_text') or '').lower()]
         if q:
@@ -484,6 +507,12 @@ def erp_drawing_workbench_dashboard():
             rows.sort(key=lambda r: (-int(r.get('unread_count') or 0), -int(r.get('id') or 0)), reverse=reverse)
         elif sort_by == 'id':
             rows.sort(key=lambda r: int(r.get('id') or 0), reverse=reverse)
+        elif sort_by == 'schedule':
+            # 시공일 임박순: 시공 D-day 오름차순(임박·지연 먼저), 미정은 맨 뒤.
+            rows.sort(
+                key=lambda r: (0, r['construction_days']) if r.get('construction_days') is not None else (1, 0),
+                reverse=reverse,
+            )
 
     # 모바일 단일 리스트 무한스크롤: 정렬 무관 '내 차례'를 항상 앞으로(안정 정렬로 그룹 보존).
     rows.sort(key=lambda r: 0 if r.get('my_todo') else 1)
@@ -506,7 +535,7 @@ def erp_drawing_workbench_dashboard():
             stats=stats,
             pagination={'page': page, 'per_page': per_page, 'total_count': total_count, 'total_pages': total_pages, 'has_prev': page > 1, 'has_next': page < total_pages},
             sort_by=request.args.get('sort') or '',
-            filters={'q': q_raw, 'status': status_filter, 'mine': '1' if mine_only else '', 'unread': '1' if unread_only else '', 'due_today': '1' if due_today_only else '', 'assignee': assignee_filter_raw},
+            filters={'q': q_raw, 'status': status_filter, 'mine': '1' if mine_only else '', 'unread': '1' if unread_only else '', 'due_today': '1' if due_today_only else '', 'assignee': assignee_filter_raw, 'dday3': '1' if dday3_only else '', 'pending': '1' if pending_only else ''},
             can_edit_erp=can_edit_erp(current_user),
             erp_order_enabled=True,
             erp_mine_only=mine_only,

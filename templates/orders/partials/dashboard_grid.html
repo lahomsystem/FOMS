@@ -34,6 +34,12 @@
               <button type="button" class="btn btn-outline-secondary btn-sm" id="erp-grid-reset-column-widths">
                 <i class="fas fa-text-width"></i> 폭 초기화
               </button>
+              {# 공용 밀도 토글 — 코호트(v2∪v3)에서만 렌더(hide/show CSS가 코호트 번들에만 로드되므로
+                 PC 미렌더로 stray 버튼 방지). 실제 표시는 coarse landscape CSS 게이트. #}
+              {% if erp_mobile_v2_enabled %}
+              {% set foms_density_target = '#erp-grid' %}
+              {% include 'partials/shared/foms_density_toggle.html' %}
+              {% endif %}
               <span class="badge bg-primary fs-6 px-3 py-2">표시: <strong>{{ orders|length }}</strong>건</span>
             </div>
           </div>
@@ -60,7 +66,7 @@
               </thead>
               <tbody>
                 {% for o in orders %}
-                <tr class="erp-main-row" data-order-id="{{ o.id }}" data-stage="{{ o.stage_code }}">
+                <tr class="erp-main-row" data-order-id="{{ o.id }}" data-stage="{{ o.stage_code }}" data-foms-sheet-url="{{ url_for('erp_dashboard.erp_dashboard_tablet_sheet', order_id=o.id) }}">
                   <td data-label="경보">
                     <div class="d-flex align-items-center gap-1 erp-grid-alert-cell">
                       {% if can_edit_erp %}<input type="checkbox" class="form-check-input erp-grid-order-check mt-0 flex-shrink-0" data-order-id="{{ o.id }}" aria-label="주문 선택">{% endif %}

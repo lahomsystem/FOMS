@@ -22,7 +22,61 @@
   {'bucket': '제작중', 'rows': orders | selectattr('stage', 'equalto', '제작중') | list, 'move': 'complete', 'move_label': '제작 완료', 'move_icon': 'fa-check'},
   {'bucket': '제작완료', 'rows': orders | selectattr('stage', 'equalto', '제작완료') | list, 'move': none, 'move_label': none, 'move_icon': none}
 ] %}
-<section class="foms-kanban" aria-label="생산 칸반 보드">
+{% set _kpi = tablet_prod_kpis or {} %}
+{# 보드 래퍼: KPI·필터·칸반을 동일 코호트 게이트로 원자적 노출(표시/은닉은
+   foms-tablet-production-kanban.css 소유 — 기본 none, 태블릿 가로 코호트에서만 block).
+   모바일 v2 셸/PC 로의 누출을 이 한 게이트로 차단한다. #}
+<div class="tablet-prod-board">
+  {# ── 상단 KPI 타일 4종 (W11 erp-pro-alert 그래머 재사용) ── #}
+  <div class="erp-pro-alerts" aria-label="생산 요약">
+    <div class="erp-pro-alert">
+      <div class="erp-pro-alert__icon"><i class="fas fa-industry" aria-hidden="true"></i></div>
+      <div class="erp-pro-alert__content">
+        <span class="erp-pro-alert__label">오늘 라인</span>
+        <span class="erp-pro-alert__value">{{ _kpi.get('today_line', 0) }}</span>
+      </div>
+    </div>
+    <div class="erp-pro-alert">
+      <div class="erp-pro-alert__icon"><i class="fas fa-truck-ramp-box" aria-hidden="true"></i></div>
+      <div class="erp-pro-alert__content">
+        <span class="erp-pro-alert__label">오늘 상차</span>
+        <span class="erp-pro-alert__value">{{ _kpi.get('today_load', 0) }}</span>
+      </div>
+    </div>
+    <div class="erp-pro-alert erp-pro-alert--danger">
+      <div class="erp-pro-alert__icon"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i></div>
+      <div class="erp-pro-alert__content">
+        <span class="erp-pro-alert__label">지연</span>
+        <span class="erp-pro-alert__value">{{ _kpi.get('delayed', 0) }}</span>
+      </div>
+    </div>
+    <div class="erp-pro-alert">
+      <div class="erp-pro-alert__icon"><i class="fas fa-ruler-combined" aria-hidden="true"></i></div>
+      <div class="erp-pro-alert__content">
+        <span class="erp-pro-alert__label">이번 주 자수</span>
+        <span class="erp-pro-alert__value">{{ _kpi.get('week_units', '0.0') }}</span>
+      </div>
+    </div>
+  </div>
+
+  {# ── 클라이언트 필터 바 (배선은 tablet-domain-sheets.js) ── #}
+  <div class="tablet-prod-filter" role="group" aria-label="칸반 필터">
+    <input type="search" data-tablet-prod-search placeholder="검색" aria-label="주문 검색">
+    <select data-tablet-prod-status aria-label="제작 상태 필터">
+      <option value="" selected>전체</option>
+      <option value="제작대기">제작대기</option>
+      <option value="제작중">제작중</option>
+      <option value="제작완료">제작완료</option>
+    </select>
+    <select data-tablet-prod-factory aria-label="공장 필터">
+      <option value="" selected>전체</option>
+      <option value="1">1공장</option>
+      <option value="2">2공장</option>
+    </select>
+    <button type="button" data-tablet-prod-reset>초기화</button>
+  </div>
+
+  <section class="foms-kanban" aria-label="생산 칸반 보드">
   {% for col in _kanban_columns %}
   <div class="foms-kanban-col" data-kanban-bucket="{{ col.bucket }}">
     <header class="foms-kanban-col__head">
@@ -32,7 +86,10 @@
     <div class="foms-kanban-col__body">
       {% for o in col.rows %}
       {% set _flags = (o.structured_data.get('flags') if o.structured_data else none) or {} %}
-      <article class="foms-kanban-card" data-order-id="{{ o.id }}" role="button" tabindex="0"
+      <article class="foms-kanban-card" data-order-id="{{ o.id }}"
+        data-foms-sheet-url="{{ url_for('erp_production_page.erp_production_tablet_sheet', order_id=o.id) }}"
+        data-factory2="{{ 1 if _flags.get('factory2') else 0 }}"
+        role="button" tabindex="0"
         aria-label="{{ o.customer_name }} 주문 상세 열기">
         <div class="foms-kanban-card__top">
           <span class="foms-kanban-card__customer">{{ o.customer_name }}</span>
@@ -80,4 +137,6 @@
     </div>
   </div>
   {% endfor %}
-</section>
+  </section>
+</div>
+<script src="{{ url_for('static', filename='js/foms/tablet-domain-sheets.js') }}?v=20260713a" defer></script>

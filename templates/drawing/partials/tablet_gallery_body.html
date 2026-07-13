@@ -1,58 +1,154 @@
 {# ============================================================================
-   태블릿 가로 도면 시트 썸네일 갤러리 — W-DRAWING (2026-07-12, T2 / 목업 v8 P3)
+   태블릿 가로 도면 작업실 — 목업 v8 프레임 03 (2026-07-13, W-DRAWING).
 
    태블릿 가로 코호트에서 도면 작업실 데스크톱 테이블(.foms-drawing-legacy-table)을
-   시트 썸네일 카드 갤러리로 대체한다. 카드 = 썸네일 + 메타(상단 칩행 SLA/수정요청 칩·
-   #주문id / 고객명 / 시공일 배지 / 하단 상태배지·next_action·담당).
+   프레임 03 작업실(.foms-drawing-workshop)로 대체한다:
+     상단 바(제목·N건·크기 토글·일괄 배정·마법사) + 필터바(정렬·D-3·전달 대기·검색·초기화)
+     + KPI 타일 4 + 시트 썸네일 카드 갤러리(.foms-drawing-gallery).
 
-   데이터: 서버 무변경. workbench.py가 넘기는 `rows`의 각 행 dict를 그대로 소비한다
-   (id / customer_name / construction_date / assignee_text / drawing_status /
-   drawing_status_label / file_count / pending_count / thumbnail_url / next_action /
-   sla_level / my_todo). 썸네일은 코호트에서 이미 resolve된 r.thumbnail_url만 읽는다
-   (신규 쿼리/뷰 수정 없음).
+   데이터 = 서버 무신규(workbench.py `rows`/`stats`/`pagination`/`filters` 재소비). 카드 탭 =
+   공용 tablet-side-sheet.js 가 data-foms-sheet-url(관리 시트 fragment)을 시트로 로드
+   (상세 이동은 시트 안 '마법사 열기'/'원 주문'으로 이전). href 는 비-코호트/무 JS fallback.
 
-   카드 탭 → 상세: 기존 워크벤치 상세(erp_drawing_workbench_detail?tab=timeline)로
-   이동하는 <a> 앵커. 신규 JS 없음(CSS-only). 데스크톱 테이블 행과 동일 URL 규약.
-
-   표시/은닉·배타는 foms-tablet-drawing-gallery.css 소유(코호트 게이트). NO inline style,
-   NO script.
+   표시/은닉·배타는 foms-tablet-drawing-gallery.css 소유(코호트 게이트). NO inline style.
+   크기 토글·일괄 배정·시트 전달 위임은 tablet-drawing-gallery.js(defer·싱글턴).
    ============================================================================ #}
-<section class="foms-drawing-gallery" aria-label="도면 시트 갤러리">
-  {% if rows %}
-    {% for r in rows %}
-    <a class="foms-drawing-gallery-card{% if r.my_todo %} is-active{% endif %}"
-       data-order-id="{{ r.id }}"
-       href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=r.id) }}?tab=timeline"
-       aria-label="{{ r.customer_name }} 도면 상세 열기">
-      <div class="foms-drawing-gallery-card__thumb">
-        {% if r.thumbnail_url %}
-        <img class="foms-drawing-gallery-card__img" src="{{ r.thumbnail_url }}" alt="{{ r.customer_name }} 도면 미리보기" loading="lazy">
-        {% endif %}
-        <span class="foms-drawing-gallery-card__thumb-label">{% if r.file_count %}도면 {{ r.file_count }}장{% else %}미작성{% endif %}{% if r.pending_count %} · 대기 {{ r.pending_count }}{% endif %}</span>
-      </div>
-      <div class="foms-drawing-gallery-card__meta">
-        <div class="foms-drawing-gallery-card__top">
-          {% if r.drawing_status == 'RETURNED' %}<span class="foms-drawing-gallery-chip is-urgent">수정 요청</span>{% endif %}
-          {% if r.sla_level == '지연' %}<span class="foms-drawing-gallery-chip is-overdue">지연</span>{% elif r.sla_level == '오늘 마감' %}<span class="foms-drawing-gallery-chip is-imminent">오늘 마감</span>{% endif %}
-          <span class="foms-drawing-gallery-card__id">#{{ r.id }}</span>
-        </div>
-        <div class="foms-drawing-gallery-card__name">{{ r.customer_name }}</div>
-        <div class="foms-drawing-gallery-card__dates">
-          {% set _cparts = (r.construction_date or '').split(',') | map('trim') | select | list %}
-          {% if _cparts %}{% for _d in _cparts %}<span class="foms-drawing-gallery-badge">시공 {{ _d }}</span>{% endfor %}{% else %}<span class="foms-drawing-gallery-badge is-muted">시공일 미정</span>{% endif %}
-        </div>
-        <div class="foms-drawing-gallery-card__foot">
-          <span class="foms-drawing-gallery-status foms-drawing-gallery-status--{{ r.drawing_status|lower }}">{{ r.drawing_status_label }}</span>
-          <span class="foms-drawing-gallery-card__sub">{{ r.next_action }} · {{ r.assignee_text }}</span>
-        </div>
-      </div>
-    </a>
-    {% endfor %}
-  {% else %}
-    <div class="foms-mobile-empty foms-drawing-gallery__empty">
-      <i class="fas fa-drafting-compass" aria-hidden="true"></i>
-      <p class="mb-1">조건에 맞는 도면 작업 건이 없습니다.</p>
-      <small>날짜/검색 조건을 바꿔 보세요.</small>
+{% import 'drawing/partials/workbench_dashboard_macros.html' as wb %}
+{% set _dw_base = url_for('erp_drawing_workbench.erp_drawing_workbench_dashboard') %}
+{% set _dw_q = ('&q=' ~ (filters.get('q')|urlencode)) if filters.get('q') else '' %}
+<section class="foms-drawing-workshop" aria-label="도면 작업실">
+
+  {# ── 상단 바 ── #}
+  <header class="foms-drawing-workshop__bar">
+    <div class="foms-drawing-workshop__titlewrap">
+      <h2 class="foms-drawing-workshop__title">도면 작업실</h2>
+      <span class="foms-drawing-workshop__sub">{{ pagination.total_count if pagination else (rows|length) }}건</span>
     </div>
-  {% endif %}
+    <div class="foms-drawing-workshop__tools">
+      <div class="foms-drawing-workshop__sizes" role="group" aria-label="갤러리 카드 크기">
+        <button type="button" class="foms-drawing-workshop__size" data-foms-gallery-size="sm">작게</button>
+        <button type="button" class="foms-drawing-workshop__size is-active" data-foms-gallery-size="md" aria-pressed="true">보통</button>
+        <button type="button" class="foms-drawing-workshop__size" data-foms-gallery-size="lg">크게</button>
+      </div>
+      <button type="button" class="foms-drawing-workshop__btn foms-drawing-workshop__btn--ghost" data-foms-drawing-bulk-assign>
+        <i class="fas fa-users-cog" aria-hidden="true"></i> 도면공 일괄 배정
+      </button>
+      {% if rows %}
+      <a class="foms-drawing-workshop__btn foms-drawing-workshop__btn--primary"
+         href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_wizard', order_id=rows[0].id) }}"
+         title="가장 임박한 도면 마법사 열기">
+        도면 마법사 <span aria-hidden="true">↗</span>
+      </a>
+      {% else %}
+      <button type="button" class="foms-drawing-workshop__btn foms-drawing-workshop__btn--primary" disabled>
+        도면 마법사 <span aria-hidden="true">↗</span>
+      </button>
+      {% endif %}
+    </div>
+  </header>
+
+  {# ── 필터 바 ── #}
+  <form class="foms-drawing-workshop__filters" method="get" role="search">
+    {% if filters.get('status') %}<input type="hidden" name="status" value="{{ filters.status }}">{% endif %}
+    {% if filters.get('mine') == '1' %}<input type="hidden" name="mine" value="1">{% endif %}
+    <select class="foms-drawing-workshop__sort erp-pro-input foms-drawing-workshop__autofilter" name="sort" aria-label="정렬">
+      <option value="schedule" {% if (sort_by or '') in ('', 'schedule') %}selected{% endif %}>시공일 임박순</option>
+      <option value="status" {% if sort_by == 'status' %}selected{% endif %}>상태순</option>
+      <option value="updated_at" {% if sort_by == 'updated_at' %}selected{% endif %}>최근 이벤트순</option>
+      <option value="unread" {% if sort_by == 'unread' %}selected{% endif %}>미확인 많은순</option>
+    </select>
+    <label class="foms-drawing-workshop__check">
+      <input type="checkbox" class="foms-drawing-workshop__autofilter" name="dday3" value="1" {% if filters.get('dday3') == '1' %}checked{% endif %}>
+      <span>D-3 이내만</span>
+    </label>
+    <label class="foms-drawing-workshop__check">
+      <input type="checkbox" class="foms-drawing-workshop__autofilter" name="pending" value="1" {% if filters.get('pending') == '1' %}checked{% endif %}>
+      <span>전달 대기만</span>
+    </label>
+    <input type="search" class="erp-pro-input foms-drawing-workshop__search" name="q"
+           value="{{ filters.get('q') or '' }}" placeholder="고객명·주문번호·담당자 검색" autocomplete="off">
+    <button type="submit" class="foms-drawing-workshop__btn foms-drawing-workshop__btn--ghost" aria-label="검색">
+      <i class="fas fa-search" aria-hidden="true"></i>
+    </button>
+    <a class="foms-drawing-workshop__btn foms-drawing-workshop__btn--ghost" href="{{ _dw_base }}">
+      <i class="fas fa-undo" aria-hidden="true"></i> 초기화
+    </a>
+  </form>
+
+  {# ── KPI 타일 4 (전체 큐 기준 stats, 클릭=필터) ── #}
+  <div class="foms-drawing-workshop__kpis" aria-label="도면 요약">
+    <a class="foms-drawing-kpi" href="{{ _dw_base }}{% if _dw_q %}?{{ _dw_q[1:] }}{% endif %}">
+      <span class="foms-drawing-kpi__value">{{ stats.total }}</span>
+      <span class="foms-drawing-kpi__label">전체</span>
+    </a>
+    <a class="foms-drawing-kpi foms-drawing-kpi--danger" href="{{ _dw_base }}?dday3=1{{ _dw_q }}">
+      <span class="foms-drawing-kpi__value">{{ stats.d3 }}</span>
+      <span class="foms-drawing-kpi__label">D-3 이내</span>
+    </a>
+    <a class="foms-drawing-kpi foms-drawing-kpi--warning" href="{{ _dw_base }}?pending=1{{ _dw_q }}">
+      <span class="foms-drawing-kpi__value">{{ stats.pending_transfer }}</span>
+      <span class="foms-drawing-kpi__label">전달 대기</span>
+    </a>
+    <a class="foms-drawing-kpi foms-drawing-kpi--danger" href="{{ _dw_base }}?status=RETURNED{{ _dw_q }}">
+      <span class="foms-drawing-kpi__value">{{ stats.RETURNED }}</span>
+      <span class="foms-drawing-kpi__label">수정 요청</span>
+    </a>
+  </div>
+
+  {# ── 시트 썸네일 카드 갤러리 ── #}
+  <section class="foms-drawing-gallery" aria-label="도면 시트 갤러리">
+    {% if rows %}
+      {% for r in rows %}
+      <a class="foms-drawing-gallery-card{% if r.my_todo %} is-active{% endif %}{% if r.drawing_status in ('TRANSFERRED', 'CONFIRMED') %} is-dim{% endif %}"
+         data-order-id="{{ r.id }}"
+         data-foms-sheet-url="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_tablet_sheet', order_id=r.id) }}"
+         data-foms-erp-no-shell
+         href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=r.id) }}?tab=timeline"
+         aria-label="{{ r.customer_name }} 관리 시트 열기">
+        <div class="foms-drawing-gallery-card__thumb">
+          {% if r.thumbnail_url %}
+          <img class="foms-drawing-gallery-card__img" src="{{ r.thumbnail_url }}" alt="{{ r.customer_name }} 도면 미리보기" loading="lazy">
+          {% endif %}
+          <span class="foms-drawing-gallery-card__thumb-label">시트 {{ r.file_count }} · {{ r.drawing_status_label }}</span>
+        </div>
+        <div class="foms-drawing-gallery-card__meta">
+          <div class="foms-drawing-gallery-card__top">
+            {% if r.drawing_status == 'RETURNED' %}<span class="foms-drawing-gallery-chip is-urgent">수정 요청</span>{% endif %}
+            {% if r.construction_days is not none %}
+              {% if r.construction_days == 0 %}{% set _dday = 'D-DAY' %}
+              {% elif r.construction_days > 0 %}{% set _dday = 'D-' ~ r.construction_days %}
+              {% else %}{% set _dday = 'D+' ~ (r.construction_days * -1) %}{% endif %}
+              <span class="foms-drawing-gallery-chip{% if r.sla_level == '지연' %} is-overdue{% elif r.construction_d3 %} is-imminent{% endif %}">{{ _dday }}</span>
+            {% endif %}
+            <span class="foms-drawing-gallery-card__id">#{{ r.id }}</span>
+          </div>
+          <div class="foms-drawing-gallery-card__name">{{ r.customer_name }}</div>
+          {% if r.product_summary %}<div class="foms-drawing-gallery-card__product">{{ r.product_summary }}</div>{% endif %}
+          <div class="foms-drawing-gallery-card__dates">
+            {% set _cparts = (r.construction_date or '').split(',') | map('trim') | select | list %}
+            {% if _cparts %}{% for _d in _cparts %}<span class="foms-drawing-gallery-badge">시공 {{ _d }}</span>{% endfor %}{% else %}<span class="foms-drawing-gallery-badge is-muted">시공일 미정</span>{% endif %}
+          </div>
+          <div class="foms-drawing-gallery-card__foot">
+            <span class="foms-drawing-gallery-status foms-drawing-gallery-status--{{ r.drawing_status|lower }}">{{ r.drawing_status_label }}</span>
+            <span class="foms-drawing-gallery-card__sub">{{ r.next_action }} · {{ r.assignee_text }}</span>
+          </div>
+        </div>
+      </a>
+      {% endfor %}
+      {% if pagination and pagination.has_next %}
+      <a class="foms-drawing-gallery-card foms-drawing-gallery-card--more" href="?{{ wb.build_page_url(pagination.page + 1) }}">
+        <i class="fas fa-arrow-right" aria-hidden="true"></i>
+        <span class="foms-drawing-gallery-card__more-title">다음 페이지</span>
+        <span class="foms-drawing-gallery-card__more-sub">전체 {{ pagination.total_count }}건 중 {{ [pagination.page * pagination.per_page, pagination.total_count]|min }}건 표시</span>
+      </a>
+      {% endif %}
+    {% else %}
+      <div class="foms-mobile-empty foms-drawing-gallery__empty">
+        <i class="fas fa-drafting-compass" aria-hidden="true"></i>
+        <p class="mb-1">조건에 맞는 도면 작업 건이 없습니다.</p>
+        <small>날짜/검색 조건을 바꿔 보세요.</small>
+      </div>
+    {% endif %}
+  </section>
 </section>
+<script src="{{ url_for('static', filename='js/foms/tablet-drawing-gallery.js') }}?v=20260713a" defer></script>
