@@ -1637,6 +1637,12 @@ document.addEventListener('DOMContentLoaded', function() {
             const field = e.target.dataset.field;
             const value = e.target.value;
 
+            // 상차일 변경 시 페이지 전체 상차일 배경색 즉시 재적용(전역 재색칠)
+            // (화면 input.value 기준 재색칠 — 서버 저장 완료 대기 불필요)
+            if (field === 'shipping_scheduled_date') {
+                applyShippingDateColors();
+            }
+
             fetch('/api/update_order_field', {
                 method: 'POST',
                 headers: {
@@ -1671,6 +1677,9 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     });
+
+    // 상차일 컬럼 있는 모든 섹션: 상차일별 파스텔 배경색 최초 적용(전역)
+    applyShippingDateColors();
 
     // 인라인 편집 이벤트 처리 (상차완료 섹션 등)
     const inlineEditInputs = document.querySelectorAll('.inline-edit');
@@ -1865,6 +1874,48 @@ function showToast(message, type = 'info') {
             container.remove();
         }
     }, 3000);
+}
+
+/**
+ * 페이지 내 상차일 컬럼이 있는 모든 섹션(상차 예정 알림·진행 중·보류·상차완료·완료)의
+ * 각 행을 상차일별 파스텔 배경색으로 칠한다.
+ * 같은 상차일 = 페이지 어디서나 같은 색, 다른 상차일 = 다른 색, 빈 상차일 = 색 없음(중립).
+ * 시공구분 배경 틴트(!important)를 덮되 좌측 3px 테두리(border-left)는 유지.
+ * 전역 단일 색맵: 페이지 전체 고유 상차일을 오름차순 정렬(YYYY-MM-DD 사전순=시간순)해
+ * 색을 배정하므로 섹션·새로고침 사이에도 날짜→색 매핑이 일관된다.
+ * DOM 읽고 스타일을 덮어쓰므로 여러 번 호출해도 안전(멱등).
+ */
+function applyShippingDateColors() {
+    const PALETTE = [
+        '#e3f2fd', '#f1f8e9', '#fff3e0', '#fce4ec', '#e0f7fa',
+        '#f3e5f5', '#fbe9e7', '#e8f5e9', '#ede7f6', '#fff9c4'
+    ];
+
+    // 카드 스코프 제거 — 페이지 내 모든 시공 행(모든 섹션 공통)을 대상으로 한다.
+    const rows = document.querySelectorAll('tr.construction-row');
+
+    // 1) 페이지 전역 고유 상차일 수집 → 오름차순 정렬 → 날짜별 색 배정(전역 단일 맵).
+    const dateSet = new Set();
+    rows.forEach(function(row) {
+        const input = row.querySelector('input[data-field="shipping_scheduled_date"]');
+        const val = input ? (input.value || '').trim() : '';
+        if (val) dateSet.add(val);
+    });
+    const colorByDate = {};
+    Array.from(dateSet).sort().forEach(function(date, idx) {
+        colorByDate[date] = PALETTE[idx % PALETTE.length];
+    });
+
+    // 2) 각 행에 색 적용(상차일 input 없거나 빈 값=제거해 중립).
+    rows.forEach(function(row) {
+        const input = row.querySelector('input[data-field="shipping_scheduled_date"]');
+        const val = input ? (input.value || '').trim() : '';
+        if (val && colorByDate[val]) {
+            row.style.setProperty('background-color', colorByDate[val], 'important');
+        } else {
+            row.style.removeProperty('background-color');
+        }
+    });
 }
 
 function toggleCompletedOrders() {
@@ -2216,5 +2267,5 @@ function toggleCompletedConstructionType(type) {
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/measurement/regional-shipping-export.js') }}?v=20260622c" defer></script>
+<script src="{{ url_for('static', filename='js/measurement/regional-shipping-export.js') }}?v=20260713a" defer></script>
 {% endblock %}

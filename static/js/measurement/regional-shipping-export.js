@@ -173,8 +173,9 @@
     }
 
     /**
-     * 현재 보이는(필터 통과) 상차 행만 수집 → 지역(시/도)별로 그룹 정렬.
-     * 같은 시/도 안에서는 주소 가나다순으로 묶어 인접 배치.
+     * 현재 보이는(필터 통과) 상차 행만 수집 → 상차일 기준으로 그룹 정렬.
+     * 1차 상차일 오름차순(빈 상차일은 맨 뒤), 2차 지역(시/도) 순서,
+     * 3차 주소 가나다순으로 묶어 인접 배치.
      * @param {HTMLElement} card
      * @returns {Array}
      */
@@ -188,8 +189,18 @@
             rows.push(row);
         });
         rows.sort(function (a, b) {
+            // 1차: 상차일 오름차순(YYYY-MM-DD 사전순=시간순). 빈 상차일은 맨 뒤.
+            var sa = a.shipping_date || '';
+            var sb = b.shipping_date || '';
+            if (sa !== sb) {
+                if (!sa) return 1;
+                if (!sb) return -1;
+                return sa < sb ? -1 : 1;
+            }
+            // 2차: 지역(시/도) 순서.
             var diff = regionIndex(a.region) - regionIndex(b.region);
             if (diff !== 0) return diff;
+            // 3차: 주소 가나다순.
             return a.address.localeCompare(b.address, 'ko');
         });
         return rows;
@@ -347,14 +358,16 @@
         table.appendChild(thead);
 
         var tbody = doc.createElement('tbody');
-        var prevRegion = null;
+        var prevShippingDate = null;
         var dataNo = 0;
         rows.forEach(function (row) {
-            // 시/도가 바뀌는 경계에만 여백 행 삽입(첫 그룹 앞에는 없음).
-            if (prevRegion !== null && row.region !== prevRegion) {
+            var shipDate = row.shipping_date || '';
+            // 상차일이 바뀌는 경계에만 여백 행 삽입(첫 그룹 앞에는 없음).
+            // 같은 날짜 안에서는 여백 없이 지역순으로 연속. 빈 상차일끼리는 같은 그룹.
+            if (prevShippingDate !== null && shipDate !== prevShippingDate) {
                 tbody.appendChild(buildGroupGapRow(doc));
             }
-            prevRegion = row.region;
+            prevShippingDate = shipDate;
             dataNo += 1;
 
             var tr = doc.createElement('tr');
