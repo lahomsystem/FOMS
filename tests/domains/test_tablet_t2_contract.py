@@ -590,12 +590,12 @@ def test_w16_tablet_bundle_exists_with_four_imports_shell_independent() -> None:
 
 def test_w16_layout_head_loads_bundle_for_v2_and_v3_cohort() -> None:
     """layout_head 가 foms-tablet-bundle.css 를 erp_mobile_v2_enabled(코호트 공통) 게이트로
-    로드하고 ?v=20260713d 를 가진다. v2 전용(shell_variant=='v2') 게이트가 아님을 검증.
-    (?v 는 2026-07-12 T2 전역 레일 추가로 번들 내용 변경 → 캐시 체인 규칙에 따라 a→b 범프.)"""
+    로드하고 ?v=20260713g 를 가진다. v2 전용(shell_variant=='v2') 게이트가 아님을 검증.
+    (?v 는 2026-07-13 T2 Phase 2 도킹 모드로 side-sheet.css 내용 변경 → 캐시 체인 규칙에 따라 f→g 범프.)"""
     layout_head = _read("templates/partials/shared/layout_head.html")
     idx = layout_head.find("foms-tablet-bundle.css")
     assert idx != -1, "layout_head 에 태블릿 번들 <link> 부재"
-    assert "foms-tablet-bundle.css') }}?v=20260713d" in layout_head
+    assert "foms-tablet-bundle.css') }}?v=20260713g" in layout_head
     # Anchor on the nearest preceding `{% if %}` (the bundle gate) rather than a fixed
     # char window — the gate string grows over time (2026-07-12: +/wdcalculator arm).
     gate_start = layout_head.rfind("{% if", 0, idx)
@@ -941,10 +941,11 @@ def test_calc_skin_css_has_52px_input_and_44px_target() -> None:
 
 
 def test_calc_skin_wired_in_calculator_template_with_cachebuster() -> None:
-    """calculator.html 이 기존 <link> 패턴대로 스킨을 로드하고 ?v=20260712a 캐시버스터를 가진다."""
+    """calculator.html 이 기존 <link> 패턴대로 스킨을 로드하고 ?v=20260713e 캐시버스터를 가진다.
+    (2026-07-13 계산기 저장견적 접힘 스킨 수리로 a→e 범프 — !important 접힘 + 레일 base-hide.)"""
     html = _read(CALC_TEMPLATE)
-    m = re.search(r"tablet-skin\.css'\s*\)\s*}}\?v=20260713a", html)
-    assert m is not None, "calculator.html 에 tablet-skin.css ?v=20260713a <link> 부재"
+    m = re.search(r"tablet-skin\.css'\s*\)\s*}}\?v=20260713e", html)
+    assert m is not None, "calculator.html 에 tablet-skin.css ?v=20260713e <link> 부재"
 
 
 # =====================================================================
@@ -961,8 +962,8 @@ CONSTRUCTION_DASHBOARD_BODY = "templates/construction/partials/dashboard_body.ht
 
 
 def test_ctower_topbar_partial_exists_with_pcbar_and_five_tiles() -> None:
-    """상단 바 파샬: pcbar(제목/sub/밀도 토글 include/주문 생성) + KPI 5타일(전체 + 경보 4상수).
-    신규 쿼리 없이 기존 컨텍스트(total_orders/kpis/today_iso) 재소비."""
+    """상단 바 파샬: pcbar(제목/sub/밀도 토글 include/엑셀 임포트/지도 생성/주문 생성) + KPI 5타일
+    (전체 + 경보 3 + 도면 지연). 신규 쿼리 없이 기존 컨텍스트(total_orders/kpis/today_iso) 재소비."""
     body = _read(CTOWER_TOPBAR_PARTIAL)
     assert "foms-tdash-top" in body
     assert "foms-tdash-pcbar" in body
@@ -971,14 +972,18 @@ def test_ctower_topbar_partial_exists_with_pcbar_and_five_tiles() -> None:
     # 밀도 토글 재배치(작업 큐 헤더 → pcbar).
     assert "partials/shared/foms_density_toggle.html" in body
     assert "order_pages.add_order" in body
-    # KPI 5타일 = 전체 + 경보 4상수(생산 D-2 는 도면 지연 대신 실데이터 우선).
+    # 목업 01 pcbar = [밀도][엑셀 임포트][지도 생성][주문 생성] — 임포트/지도는 기존 라우트 재사용.
+    assert "엑셀 임포트" in body and "excel.upload_excel" in body
+    assert "지도 생성" in body and "erp_map.map_view" in body
+    # KPI 5타일 = 전체 + 경보(긴급/실측 D-4/시공 D-3) + 도면 지연(drawing_overdue_count).
+    # read-model 이 기존 overdue_cnt 집계를 drawing_overdue_count 로 합산(신규 쿼리 0).
     assert "foms-tdash-tiles" in body
     for field in (
         "total_orders",
         "kpis.urgent_count",
         "kpis.measurement_d4_count",
         "kpis.construction_d3_count",
-        "kpis.production_d2_count",
+        "kpis.drawing_overdue_count",
         "today_iso",
     ):
         assert field in body, f"topbar 파샬에 컨텍스트 참조 부재: {field}"

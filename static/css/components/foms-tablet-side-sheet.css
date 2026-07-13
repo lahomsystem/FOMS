@@ -291,3 +291,53 @@ tr.foms-tablet-sheet-active > * {
     animation-duration: 1.6s;
   }
 }
+
+/* ==========================================================================
+ * 도킹 모드 (T2 Phase 2 — 컨트롤타워 목업 frame 01 "3-pane" 우측 패널).
+ *
+ * 오더 대시보드(.erp-dashboard-orders)를 coarse-landscape 코호트에서 열 때만 시트가
+ * 슬라이드 오버레이가 아니라 상시 우측 320px 도킹 패널로 전환된다: 전체높이 고정, 슬라이드
+ * transform 제거, 항상 표시, 좌측 경계선/그림자 유지(목업 border-left).
+ *
+ * 표시 게이트(누출 차단): CSS 무조건 표시 금지 — MQ(coarse landscape ≥992) **AND**
+ * tablet-side-sheet.js 가 부착하는 클래스(.foms-tablet-sheet--docked on aside,
+ * body.foms-tablet-dock-active)의 이중 게이트로만 활성. JS 는 오더 대시보드에서만 클래스를
+ * 붙이므로 PC(fine)·폰·타 페이지(시공/생산/AS/이력/출고/도면)엔 도킹이 절대 새지 않는다.
+ * (base __close 44px 규칙 뒤에 두어 오버라이드 캐스케이드·기존 계약 테스트를 모두 만족.)
+ *
+ * 본문 우측 공간 예약은 레일 좌측(foms-tablet-rail.css: #main-content padding-left:72px)의
+ * 미러다. body/.container-fluid 는 인라인 padding:0!important 로 잠겨 있어 잠기지 않은 유일한
+ * 콘텐츠 래퍼 #main-content 에 padding-right:320px 를 준다(border-box → 총폭 미증가, 100vw
+ * 컨테이너 가로 스크롤 없음 — 레일과 동일 근거). 레일 padding-left 와 공존해도 무해.
+ * ========================================================================== */
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  .foms-tablet-sheet.foms-tablet-sheet--docked {
+    /* 상시 도킹: 320px 전체높이 우측 고정(position/top/right/bottom 은 기본 규칙 상속),
+       슬라이드 transform/transition 제거. 두 클래스(0,2,0) 특이도로 폭 미디어(380px)·기본
+       transform 을 이긴다. */
+    width: 320px;
+    max-width: 320px;
+    transform: none;
+    transition: none;
+    /* 레일과 동급(action-bar 1040) — 상시 크롬. 모달(1070)·드로어(1060)는 도킹 위에 정상
+       표시(도킹은 우측 예약 영역이라 겹침 없음). */
+    z-index: var(--foms-z-action-bar, 1040);
+  }
+
+  /* 도킹은 항상 표시(JS 가 hidden=false 로 유지하나, 방어적으로 도킹 클래스가 [hidden] 을
+     이긴다 → 도킹 중 시트가 사라지지 않음). */
+  .foms-tablet-sheet.foms-tablet-sheet--docked[hidden] {
+    display: flex;
+  }
+
+  /* 도킹 시 해제 불가 → 닫기(✕) 은닉. ESC no-op 은 JS 소유. 비도킹 페이지는 ✕ 유지. */
+  .foms-tablet-sheet.foms-tablet-sheet--docked .foms-tablet-sheet__close {
+    display: none;
+  }
+
+  /* 본문 우측 320px 예약(레일 좌측 패딩 미러). body 스코프 클래스로 오더 대시보드 도킹
+     활성일 때만 적용 → 타 페이지·비도킹 무영향. */
+  body.foms-tablet-dock-active #main-content {
+    padding-right: 320px;
+  }
+}

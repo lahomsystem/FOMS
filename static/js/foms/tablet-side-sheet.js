@@ -29,6 +29,16 @@
  *
  * 닫기: X 버튼 · ESC 만(비차단 non-modal 패널 표준 — 외부 탭 자동 닫기는 "뒤 그리드 계속
  *   조작 가능"과 모순이라 제거, defect 6). 스크림 없음(aria-modal=false, 그리드 계속 보임).
+ *
+ * 도킹 모드(T2 Phase 2 — 목업 frame 01): 오더 대시보드(.erp-dashboard-orders)를
+ *   coarse-landscape 코호트에서 열면 시트가 슬라이드 오버레이가 아니라 **상시 우측 320px
+ *   도킹 패널**이 된다(전체높이·항상 표시). 이때 그리드 첫 본행을 포커스/스크롤 없이 자동
+ *   선택해 패널을 기본 채우고, 다른 행 탭 시 갱신하며, ✕/ESC 는 no-op(해제 불가). 타 페이지
+ *   (시공/생산/AS/이력/출고/도면)와 PC(fine)·폰은 기존 슬라이드 동작 그대로. fragment 스왑
+ *   (레일 네비 — erp-shell 이 #main-content 교체)마다 도킹을 재평가한다(오더로 진입=도킹+새
+ *   그리드 첫 행 선택, 이탈=도킹 해제·우측 패딩 회수). 도킹 표시/본문 우측 320px 예약은
+ *   foms-tablet-side-sheet.css 가 JS 부착 클래스(.foms-tablet-sheet--docked·body
+ *   .foms-tablet-dock-active) ∩ MQ 로만 활성화(누출 차단).
  * idempotent: window.__FOMS_TABLET_SHEET_BOUND 싱글턴 가드(perf 가드 G4 — 전역 listener 중복 방지).
  */
 (function () {
@@ -99,6 +109,14 @@
   var currentOrderId = null;
   var hideTimer = null;
   var _stageCatalog = null;
+
+  // 도킹 모드(T2 Phase 2): 오더 대시보드 coarse-landscape 에서 시트를 상시 우측 320px 패널로
+  // 고정. 표시 클래스는 JS 가 부착한다(CSS 무조건 표시 금지 — PC/폰/타 페이지 누출 차단).
+  var DOCK_SHEET_CLASS = "foms-tablet-sheet--docked"; // aside 에 부착
+  var DOCK_BODY_CLASS = "foms-tablet-dock-active"; // body 에 부착(본문 우측 패딩 스코프)
+  // 현재 도킹 패널에 표시 중인 그리드 행. fragment 스왑(그리드 교체) vs 중복 호출을 isConnected
+  // 로 판별해 사용자 선택 클로버·중복 auto-open 을 막는다.
+  var selectedRow = null;
 
   function ensureSheet() {
     if (sheet) return;
@@ -220,9 +238,11 @@
       el.classList.remove("foms-tablet-sheet-active");
     });
     if (row) row.classList.add("foms-tablet-sheet-active");
+    selectedRow = row || null; // 도킹 재선택 판별용(스왑 시 detach 감지)
   }
 
-  function open(orderId, row) {
+  // opts.noFocus: 자동 초기화(도킹 첫 행 선택) 경로 — 포커스/스크롤을 훔치지 않는다.
+  function open(orderId, row, opts) {
     if (!orderId) return;
     var sheetUrl = resolveSheetUrl(orderId, row);
     ensureSheet();
@@ -230,7 +250,8 @@
       clearTimeout(hideTimer);
       hideTimer = null;
     }
-    // 시트가 이미 열린 상태에서 다른 행을 탭한 경우 lastFocus를 덮어쓰지 않는다.
+    // 시트가 이미 열린 상태에서 다른 행을 탭한 경우 lastFocus를 덮어쓰지 않는다(도킹은 항상
+    // is-open 이라 자동 초기화 시 lastFocus 도 덮어쓰지 않음).
     if (sheet.hidden || !sheet.classList.contains("is-open")) {
       lastFocus = document.activeElement;
     }
@@ -238,11 +259,12 @@
     markActiveRow(row);
     renderPipe(row);
     sheet.hidden = false;
-    // reflow 확보 후 클래스 부착 → transform 슬라이드 인.
+    // reflow 확보 후 클래스 부착 → transform 슬라이드 인(도킹 CSS 는 transform:none 이라 무시).
     requestAnimationFrame(function () {
       sheet.classList.add("is-open");
     });
     load(orderId, sheetUrl);
+    if (opts && opts.noFocus) return; // 자동 초기화 — 포커스/스크롤 훔치지 않음
     try {
       sheet.focus({ preventScroll: true });
     } catch (e) {
@@ -252,6 +274,7 @@
 
   function close() {
     if (!sheet || sheet.hidden) return;
+    if (isDocked()) return; // 도킹 모드 — ✕/ESC no-op(해제 불가). 비도킹 페이지는 정상 닫힘.
     sheet.classList.remove("is-open");
     markActiveRow(null);
     if (pipeEl) {
@@ -278,6 +301,83 @@
     lastFocus = null;
   }
 
+  // ── 도킹 모드(T2 Phase 2) ──────────────────────────────────────────────────
+  // 오더 대시보드(.erp-dashboard-orders)를 coarse-landscape 코호트에서 열면 시트가 상시 우측
+  // 320px 도킹 패널이 된다. 초기 로드·MQ 변화·fragment 스왑이 모두 reevaluateDock 으로 수렴.
+
+  function isOrdersDashboard() {
+    // 오더 대시보드 스코프 신호 = .erp-dashboard-orders 존재(dashboard_main.html 컨테이너).
+    // fragment 스왑으로 #main-content 가 교체되면 이 존재 여부가 새 페이지를 반영한다.
+    return !!document.querySelector(".erp-dashboard-orders");
+  }
+  function shouldDock() {
+    return cohortActive() && isOrdersDashboard();
+  }
+  function isDocked() {
+    return !!(sheet && sheet.classList.contains(DOCK_SHEET_CLASS));
+  }
+
+  // 도킹 자동 선택: 그리드 첫 본행을 포커스/스크롤 없이 로드해 패널을 기본 채운다. 현재 선택
+  // 행이 여전히 DOM 에 살아있고 같은 주문이면(=스왑 아닌 중복 호출) 유지한다(사용자 선택
+  // 클로버·중복 auto-open 방지). fragment 스왑으로 그리드가 교체되면 옛 selectedRow 가
+  // detach(isConnected=false)돼 새 첫 행을 잡는다.
+  function autoSelectFirstRow() {
+    if (
+      selectedRow &&
+      selectedRow.isConnected &&
+      selectedRow.getAttribute("data-order-id") === currentOrderId
+    ) {
+      return;
+    }
+    var row = document.querySelector("#erp-grid tr.erp-main-row[data-order-id]");
+    if (!row) return;
+    var oid = row.getAttribute("data-order-id");
+    if (!oid) return;
+    open(oid, row, { noFocus: true });
+  }
+
+  // 도킹 활성화(idempotent): 클래스 부착 → 표시 → 첫 행 자동 선택. 이미 도킹이면 클래스/표시는
+  // no-op 이고 autoSelectFirstRow 가 중복 선택을 가드한다.
+  function applyDock() {
+    ensureSheet();
+    if (hideTimer) {
+      clearTimeout(hideTimer);
+      hideTimer = null;
+    }
+    document.body.classList.add(DOCK_BODY_CLASS);
+    sheet.classList.add(DOCK_SHEET_CLASS);
+    sheet.hidden = false;
+    sheet.classList.add("is-open"); // 도킹 CSS 는 transform:none 이라 무의미하나 상태 일관성.
+    autoSelectFirstRow();
+  }
+
+  // 도킹 해제(idempotent): 도킹 상태일 때만 동작 → 비도킹 페이지의 슬라이드 시트엔 무영향.
+  // 페이지 이동(오더→타 페이지)·코호트 이탈 시 클래스 제거·패널 숨김·우측 패딩 회수.
+  function removeDock() {
+    if (!isDocked()) return;
+    document.body.classList.remove(DOCK_BODY_CLASS);
+    sheet.classList.remove(DOCK_SHEET_CLASS);
+    sheet.classList.remove("is-open");
+    markActiveRow(null); // selectedRow=null 로 정리
+    if (pipeEl) {
+      pipeEl.hidden = true;
+      pipeEl.innerHTML = "";
+    }
+    currentOrderId = null;
+    if (hideTimer) {
+      clearTimeout(hideTimer);
+      hideTimer = null;
+    }
+    sheet.hidden = true;
+    if (bodyEl) bodyEl.innerHTML = "";
+  }
+
+  // 단일 판정 경로: 오더 대시보드+코호트면 도킹, 아니면 해제.
+  function reevaluateDock() {
+    if (shouldDock()) applyDock();
+    else removeDock();
+  }
+
   // 단일 document 위임: 코호트에서만 동작. 행 탭 → 열기/전환.
   // (defect 6) 외부 탭 자동 닫기는 제거 — 비차단 non-modal 패널은 뒤 그리드를 계속 조작
   // 가능해야 하는데, 외부 탭 닫기는 그 조작(다른 행 클릭 등)마다 시트를 닫아 모순. X·ESC만 닫기.
@@ -302,13 +402,45 @@
     if (ev.key === "Escape" && sheet && !sheet.hidden) close();
   });
 
-  // 회전/포인터 변화로 코호트를 벗어나면 열린 시트를 정리.
+  // 회전/포인터 변화 재평가: 코호트 진입/오더 대시보드면 도킹, 이탈이면 도킹 해제 + 열린
+  // 슬라이드 시트 정리(비도킹 페이지 원래 동작 보존).
   function onMqChange() {
+    reevaluateDock();
     if (!cohortActive()) close();
   }
   if (typeof MQ.addEventListener === "function") {
     MQ.addEventListener("change", onMqChange);
   } else if (typeof MQ.addListener === "function") {
     MQ.addListener(onMqChange);
+  }
+
+  // fragment 스왑(레일 네비 — erp-shell 이 #main-content 교체) 후 도킹 재평가: 오더 대시보드로
+  // 진입 → (재)도킹 + 새 그리드 첫 행 자동 선택, 타 페이지로 이탈 → 도킹 해제·우측 패딩 회수.
+  // 두 이벤트 모두 document 에 발화(erp-shell.js 는 둘 다, fragment-loader 는 후자만). 시트
+  // 자신의 콘텐츠 로드도 후자를 발화하지만, autoSelectFirstRow 의 selectedRow(isConnected)
+  // 가드가 재선택 루프를 차단한다. 리스너는 IIFE 싱글턴(__FOMS_TABLET_SHEET_BOUND) 내부라
+  // 1회만 바인딩된다(perf 가드 G4 — fragment 재실행/재로드로 중복되지 않음).
+  document.addEventListener("foms:main-content-swapped", reevaluateDock);
+  document.addEventListener("foms:erp-shell-fragment-swapped", reevaluateDock);
+
+  // 초기 도킹: defer 실행 시점에 태블릿 CSS 번들(마커 --foms-tablet-ui:ready)이 아직 적용
+  // 전일 수 있다. 오더 대시보드+MQ 매치인데 마커가 없으면 rAF 로 몇 프레임 재시도(스타일
+  // 적용 후 도킹)하고, 그 외에는 즉시 판정한다. 마커가 끝내 없으면 도킹하지 않는다(안전 축퇴).
+  function initDock(attempt) {
+    attempt = attempt || 0;
+    if (MQ.matches && isOrdersDashboard() && !tabletUiReady() && attempt < 20) {
+      requestAnimationFrame(function () {
+        initDock(attempt + 1);
+      });
+      return;
+    }
+    reevaluateDock();
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function () {
+      initDock(0);
+    });
+  } else {
+    initDock(0);
   }
 })();

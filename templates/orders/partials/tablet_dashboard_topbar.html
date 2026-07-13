@@ -3,12 +3,12 @@
    `.foms-tdash-top` base-hide → 코호트 MQ show). PC/폰/세로에선 완전 은닉.
    신규 쿼리 없이 기존 대시보드 컨텍스트(total_orders / kpis / today_iso) 재소비.
 
-   KPI 5타일 = 전체 + 기존 프로세스맵 경보 4상수(긴급 / 실측 D-4 / 시공 D-3 / 생산 D-2).
-   목업 01은 5번째 타일을 "도면 지연"으로 그리지만, orders read-model
-   (foms/services/orders/dashboard_read_model.py)이 집계하는 실데이터 경보는
-   urgent / measurement_d4 / construction_d3 / production_d2 뿐이다(drawing_overdue
-   집계 키 부재). 실데이터 존재 우선 원칙(브리프)에 따라 5번째는 생산 D-2를 노출한다.
-   색은 03-card-pipeline.css 경보 색과 정합(HMI: 정상=무채, 경보만 유채). #}
+   KPI 5타일 = 전체 + 프로세스맵 경보(긴급 / 실측 D-4 / 시공 D-3) + 도면 지연.
+   목업 01의 5번째 타일 "도면 지연"을 실데이터로 노출한다: read-model
+   (foms/services/orders/dashboard_read_model.py 의 compute_orders_summary_slice)이
+   summary_rows 집계에 이미 존재하던 overdue_cnt(도면 48h+ 정체, DRAWING/CONFIRM 스테이지)를
+   drawing_overdue_count 로 합산한다 — 신규 쿼리 0(urgent_count 등과 동일 소스·패턴).
+   색은 03-card-pipeline.css 경보 색과 정합(HMI: 정상=무채, 경보만 유채 — 도면 지연=danger). #}
 <section class="foms-tdash-top" aria-label="주문 대시보드 요약">
   <div class="foms-tdash-pcbar">
     <div class="foms-tdash-pcbar__lead">
@@ -19,6 +19,15 @@
       {# 밀도 토글 재배치: 작업 큐 카드 헤더 → pcbar 우측(density-toggle.js 문서 위임이라 위치 무관). #}
       {% set foms_density_target = '#erp-grid' %}
       {% include 'partials/shared/foms_density_toggle.html' %}
+      {# 목업 01 pcbar 액션 = [밀도][엑셀 임포트][지도 생성][주문 생성]. 임포트/지도는 기존
+         기능 라우트 재사용(신규 API 없음): excel.upload_excel(엑셀 업로드=임포트) ·
+         erp_map.map_view(주문 위치 지도 페이지). #}
+      <a class="foms-tdash-pcbar__btn" href="{{ url_for('excel.upload_excel') }}">
+        <i class="fas fa-file-excel" aria-hidden="true"></i><span>엑셀 임포트</span>
+      </a>
+      <a class="foms-tdash-pcbar__btn" href="{{ url_for('erp_map.map_view') }}">
+        <i class="fas fa-map-marked-alt" aria-hidden="true"></i><span>지도 생성</span>
+      </a>
       <a class="foms-tdash-pcbar__create" href="{{ url_for('order_pages.add_order', open='erp-order') }}">
         <i class="fas fa-plus" aria-hidden="true"></i><span>주문 생성</span>
       </a>
@@ -41,9 +50,9 @@
       <span class="foms-tdash-tile__value">{{ kpis.construction_d3_count|default(0) }}</span>
       <span class="foms-tdash-tile__label">시공 임박 D-3</span>
     </div>
-    <div class="foms-tdash-tile foms-tdash-tile--info">
-      <span class="foms-tdash-tile__value">{{ kpis.production_d2_count|default(0) }}</span>
-      <span class="foms-tdash-tile__label">생산 임박 D-2</span>
+    <div class="foms-tdash-tile foms-tdash-tile--danger">
+      <span class="foms-tdash-tile__value">{{ kpis.drawing_overdue_count|default(0) }}</span>
+      <span class="foms-tdash-tile__label">도면 지연</span>
     </div>
   </div>
 </section>

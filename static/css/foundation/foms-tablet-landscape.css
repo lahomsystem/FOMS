@@ -763,8 +763,25 @@
     text-decoration: none;
     white-space: nowrap;
   }
+  /* pcbar 고스트 버튼(엑셀 임포트·지도 생성) — create(채움 primary)와 구분되는 보조 액션.
+     기존 기능 라우트 재사용(excel.upload_excel / erp_map.map_view). 48px 터치 타깃. */
+  body.erp-mobile-v2-layout .foms-tdash-pcbar__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--foms-space-1, 0.25rem);
+    min-height: var(--foms-touch-target-comfortable);
+    padding: 0 var(--foms-space-4, 1rem);
+    border-radius: var(--foms-radius-md, 8px);
+    border: 1px solid var(--foms-border-default, #c7ccd4);
+    background: var(--foms-surface-base, #fff);
+    color: var(--foms-text-primary);
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    font-weight: var(--foms-font-weight-semibold, 600);
+    text-decoration: none;
+    white-space: nowrap;
+  }
 
-  /* --- KPI 5타일 (전체/긴급/실측D-4/시공D-3/생산D-2) --- */
+  /* --- KPI 5타일 (전체/긴급/실측D-4/시공D-3/도면지연) --- */
   body.erp-mobile-v2-layout .foms-tdash-tiles {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
@@ -791,7 +808,8 @@
     color: var(--foms-text-tertiary, #6b7380);
   }
   /* HMI 색 규율(정상=무채/경보만 유채) — 프로세스맵 경보 색과 정합:
-     전체=무채, 긴급=danger, 실측/시공 임박=warning, 생산 임박=info. */
+     전체=무채, 긴급·도면 지연=danger, 실측/시공 임박=warning. (--info 규칙은 잔존:
+     향후 타일/타 코호트 대비 무해 dead-rule.) */
   body.erp-mobile-v2-layout .foms-tdash-tile--danger {
     border-color: var(--foms-color-danger-500, #ef4444);
   }
@@ -809,5 +827,23 @@
   }
   body.erp-mobile-v2-layout .foms-tdash-tile--info .foms-tdash-tile__value {
     color: var(--foms-color-info-600, #2563eb);
+  }
+
+  /* --- 목업 01 컬럼 감축: 태블릿 가로 저우선 4열 은닉(연락처·주소·상세·열기).
+     "PC 12컬럼 밀도 그대로 이식 = 반대 방향 함정"(목업 경고)의 근본 회피. 인덱스가 아니라
+     data-col-key(출고 그리드와 동일 SSOT)로 지목. #erp-grid 는 colgroup 없는 table-layout:auto
+     이므로 th+td display:none 이면 열이 완전히 접힌다(출고처럼 col 폭 회수 불요).
+     ERPGridBoundaryResize 는 th 인라인 width 만 세팅(display 미접촉)이라 은닉이 이긴다.
+     colspan="13" 상세 슬라이드 행은 유지 — 접힌 4열은 0폭이라 시각 파손 없음.
+     PC(fine)·폰·세로는 이 MQ 밖 → 13열 전부 표시. 순서=PC 유지(재정렬 없음). --- */
+  body.erp-mobile-v2-layout #erp-grid th[data-col-key="phone"],
+  body.erp-mobile-v2-layout #erp-grid td[data-col-key="phone"],
+  body.erp-mobile-v2-layout #erp-grid th[data-col-key="address"],
+  body.erp-mobile-v2-layout #erp-grid td[data-col-key="address"],
+  body.erp-mobile-v2-layout #erp-grid th[data-col-key="detail"],
+  body.erp-mobile-v2-layout #erp-grid td[data-col-key="detail"],
+  body.erp-mobile-v2-layout #erp-grid th[data-col-key="open"],
+  body.erp-mobile-v2-layout #erp-grid td[data-col-key="open"] {
+    display: none;
   }
 }

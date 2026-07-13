@@ -12,6 +12,13 @@
  *
  * foms 토큰(foms-tokens.css)만 사용. `.wdcalculator-container` 스코프로 페이지 격리.
  */
+
+/* 파일 스코프 기본 은닉: tablet-skin.js 가 .wdc-saved-rail 을 뷰포트 무관하게(비임베디드만
+   게이트) DOM 에 주입한다. 태블릿 가로 coarse 밖(PC fine-pointer·세로·폰)에는 이를 숨길
+   규칙이 없어 유령 레일 버튼이 새므로, @media 밖 파일 스코프에서 기본값을 상시 숨김으로 둔다.
+   실제 노출은 아래 @media 안의 `.wdc-tablet-skin .wdc-saved-rail { display: inline-flex }` 전담. */
+.wdc-saved-rail { display: none; }
+
 @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
   /* 주 입력 필드: 52px 높이 + 16px(iOS 줌 방지) — 터치 타이핑 타깃 확대. */
   .wdcalculator-container .form-control,
@@ -86,7 +93,7 @@
     padding-right: 0;
   }
   .wdcalculator-shell.wdc-tablet-skin:not(.wdc-saved-open) .saved-estimates-sidebar .saved-estimates-card {
-    display: none;
+    display: none !important;
   }
 
   /* 입력 메인 컬럼: 레일 폭만 제외한 전폭 사용. */
