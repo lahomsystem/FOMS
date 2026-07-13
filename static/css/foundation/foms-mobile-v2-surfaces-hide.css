@@ -1,0 +1,32 @@
+/* foms-mobile-v2-surfaces-hide.css — 모바일 v2 서피스 광폭(≥992) 숨김: 셸-독립 정본(v2∪v3 전 코호트).
+ *
+ * WHAT: 모바일 v2 대시보드 바디(.foms-mobile-v2-dashboard = 오늘의 현장/위험 레이더/처리 대기/
+ *   파이프라인 "컨트롤 타워"), 생성 FAB(.foms-shell-fab; 타워 섹션의 형제 노드), 도면 모바일
+ *   갤러리(.foms-drawing-mobile-v2)를 광폭(≥992 landscape/fine/none = 데스크톱·태블릿 가로)에서
+ *   숨긴다. 이 서피스들은 폰·태블릿 세로(coarse portrait) 전용이며, 광폭 셸(split·desktop)에선
+ *   데스크톱 그리드 아래로 누출되면 안 된다.
+ *
+ * WHY(셸-독립 정본): 원 소유자 foms-shell.css 의 동일 규칙(≥992 hide, foms-shell.css:702-711)은
+ *   v2 전용 surfaces 번들(layout_head shell_variant=='v2' 게이트 @import foms-mobile-surfaces.css)
+ *   로만 로드된다 → v3 셸엔 미로드. 그 결과 v3 계정의 데스크톱·태블릿 가로에서 위 서피스가 전 코호트
+ *   대시보드(시공·생산·출고·실측·이력·CS·도면)에서 데스크톱 그리드 아래로 누출됐다(스테이징 실사고 확인).
+ *   이 파일은 layout_head <link>로 erp_mobile_v2_enabled(v2∪v3) 게이트 하에 경로 무관 항상 로드되어
+ *   v3 에서도 규칙이 발화하는 셸-독립 정본이다.
+ *
+ * SCOPE: body.erp-mobile-v2-layout 은 erp_mobile_v2_enabled(v2∪v3) 코호트 모두에서 body 에 부착
+ *   (각 도메인 layout.html)되어 v3 에서도 발화한다. 미디어 조건·스코프·선택자는 foms-shell.css 원본과
+ *   1:1(광폭 정의 무변경). v2 의 동일 규칙은 foms-shell.css 에 무해한 중복으로 존치(belt-and-suspenders,
+ *   v2 회귀 0). 폰(≤991.98)에선 미디어 미매치라 규칙 불활성 → 모바일 바디 정상 표시(코호트 매트릭스 보존).
+ *
+ * cf. AS 카메라 바 v3 누출 봉합(as-dashboard-body.css) · 주문 대시보드 봉합(dashboard-grid.css)
+ *   동일 패턴(셸-독립 정본 복제). */
+@media
+  ((min-width: 992px) and (orientation: landscape)),
+  ((min-width: 992px) and (pointer: fine)),
+  ((min-width: 992px) and (pointer: none)) {
+  body.erp-mobile-v2-layout .foms-mobile-v2-dashboard,
+  body.erp-mobile-v2-layout .foms-drawing-mobile-v2,
+  body.erp-mobile-v2-layout .foms-shell-fab {
+    display: none !important;
+  }
+}

@@ -123,6 +123,15 @@
     {% if erp_mobile_v2_enabled and (request.path.startswith('/erp') or request.endpoint == 'order_edit.edit_order' or request.path.startswith('/wdcalculator')) %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-tablet-bundle.css') }}?v=20260713g">
     {% endif %}
+    {# 모바일 v2 서피스 광폭(≥992) 숨김 — 셸-독립 정본(v2∪v3 공통, 2026-07-13 v3 누출 봉합).
+       v3 은 원 소유 hide 규칙이 담긴 foms-shell.css(shell_variant=='v2' 게이트 @import)를 미로드하므로,
+       전 코호트 대시보드(시공·생산·출고·실측·이력·CS·도면)에서 컨트롤 타워(.foms-mobile-v2-dashboard)·
+       생성 FAB(.foms-shell-fab)·도면 갤러리(.foms-drawing-mobile-v2)가 데스크톱 그리드 아래로 누출됐다.
+       게이트는 erp_mobile_v2_enabled(v2∪v3)만 — 경로 무제한이라 모바일-v2 바디가 렌더될 수 있는 모든
+       페이지에서 로드된다(별도 <link>·자체 ?v 캐시키). cf. AS 카메라바·주문 대시보드 동일 패턴. #}
+    {% if erp_mobile_v2_enabled %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-mobile-v2-surfaces-hide.css') }}?v=20260713a">
+    {% endif %}
     {# v3 셸 자산(배타 로드): shell_variant=='v3'일 때만 v3 CSS/셸 JS 로드. v2 모바일
        번들과 상호 배타(위 v2 critical CSS는 shell_variant=='v2' 게이트라 v3에서 미로드). #}
     {% if shell_variant == 'v3' %}
