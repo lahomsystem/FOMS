@@ -16,6 +16,9 @@ exit 1 로 승격을 차단한다.
     오탐하던 실전 결함을 근본 제거한다.
   - p95/최댓값은 **판정에 절대 넣지 않는다**(정보용). 정밀 서버 회귀는 render_ms·바이트·
     쿼리 계약이 잡는다.
+  - render_ms 도 **min 으로 판정**(TTFB 와 동일 tail 면역). 진짜 render 회귀(N+1·무거운
+    루프)는 전 표본을 올려 min 도 오르지만, CI CPU 경합·GC 로 인한 단일 슬로우 샘플은
+    max 만 올리고 min 은 불변 → 노이즈 면역. max_render_ms 는 정보용으로만 보존.
   - 바이트 판정은 **전송(wire, 압축) 바이트** = 실사용 다운로드 비용. 응답은 br/gzip 으로
     압축 전송되므로 반복 큰 마크업(10~15:1 압축)은 wire 가 거의 안 늘어 오탐하지 않고, 진짜
     무거운 추가만 잡는다. 해압(decompressed) 바이트는 정보용으로만 보존한다.
@@ -118,8 +121,10 @@ def summarize_samples(warm_samples: list[dict[str, Any]]) -> dict[str, Any]:
 
     Returns:
         판정·리포트에 쓰는 요약 dict. **min TTFB 만 TTFB 판정에**(healthz 델타 차감 후),
-        바이트 판정은 ``median_wire_bytes``(전송 압축 바이트)로. median/p95 TTFB·해압
-        median_bytes 는 정보로만. ``wire_measured_all`` 이 False 면 일부/전부 폴백(보수적).
+        바이트 판정은 ``median_wire_bytes``(전송 압축 바이트)로. render 는 ``min_render_ms``
+        로 판정(TTFB 와 동일 tail/노이즈 면역), ``max_render_ms`` 는 정보용. median/p95
+        TTFB·해압 median_bytes 는 정보로만. ``wire_measured_all`` 이 False 면 일부/전부
+        폴백(보수적).
     """
     ttfbs = [float(s["ttfb_ms"]) for s in warm_samples]
     byts = [int(s["bytes"]) for s in warm_samples]
@@ -133,6 +138,7 @@ def summarize_samples(warm_samples: list[dict[str, Any]]) -> dict[str, Any]:
         "median_bytes": int(statistics.median(byts)) if byts else 0,
         "median_wire_bytes": int(statistics.median(wires)) if wires else 0,
         "wire_measured_all": bool(warm_samples) and all(s.get("wire_measured", False) for s in warm_samples),
+        "min_render_ms": int(min(renders)) if renders else None,
         "max_render_ms": int(max(renders)) if renders else None,
         "etag_present_all": bool(warm_samples) and all(s.get("etag_present") for s in warm_samples),
         "content_encoding": next((s.get("content_encoding") for s in warm_samples), None),
@@ -195,9 +201,12 @@ def judge_path(
         )
 
     render_max = global_budget.get("render_ms_max")
-    if render_max is not None and summary["max_render_ms"] is not None:
-        if summary["max_render_ms"] > render_max:
-            reasons.append(f"render {summary['max_render_ms']}ms > budget {render_max}ms")
+    if render_max is not None and summary["min_render_ms"] is not None:
+        if summary["min_render_ms"] > render_max:
+            reasons.append(
+                f"render min {summary['min_render_ms']}ms > budget {render_max}ms "
+                f"(max {summary['max_render_ms']}ms; min 은 CI 노이즈 면역 — 균일 회귀만 잡음)"
+            )
     if global_budget.get("etag_required") and not summary["etag_present_all"]:
         reasons.append("ETag 누락(revalidation 계약 위반)")
     if global_budget.get("conditional_304_required") and not cond_304_ok:
@@ -214,6 +223,8 @@ def judge_path(
         "median_wire_bytes": summary["median_wire_bytes"],  # 판정값(전송 압축 바이트)
         "median_bytes": summary["median_bytes"],  # 정보용(해압 후 바이트)
         "budget_bytes": bytes_budget,
+        "min_render_ms": summary["min_render_ms"],  # render 판정값(노이즈 면역)
+        "max_render_ms": summary["max_render_ms"],  # 정보용(단일 슬로우 샘플 노출)
         "cond_304": cond_304_ok,
         "passed": not reasons,
         "reasons": reasons,

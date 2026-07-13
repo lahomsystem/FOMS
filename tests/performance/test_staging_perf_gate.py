@@ -238,9 +238,10 @@ def test_conditional_304_failure_fails():
 
 
 def test_render_ms_over_budget_fails():
-    """render 헤더가 전역 render_ms_max 초과 → FAIL(정밀 서버 회귀 채널)."""
-    warm = [_sample(400, render_ms=600.0) for _ in range(4)]
+    """render min 이 전역 render_ms_max 초과 → FAIL(균일 render 회귀 감지 유지)."""
+    warm = [_sample(400, render_ms=600.0) for _ in range(4)]  # min_render 600
     summary = gate.summarize_samples(warm)
+    assert summary["min_render_ms"] == 600
     row = gate.judge_path("/x", summary, True, _budget(), GLOBAL_BUDGET, base_ttfb_ms=380)
     assert row["passed"] is False
     assert any("render" in r for r in row["reasons"])
@@ -250,9 +251,36 @@ def test_render_ms_absent_is_not_judged():
     """render 헤더 부재(None)면 render 판정 스킵(오탐 금지)."""
     warm = [_sample(400, render_ms=None) for _ in range(4)]
     summary = gate.summarize_samples(warm)
+    assert summary["min_render_ms"] is None
     assert summary["max_render_ms"] is None
     row = gate.judge_path("/x", summary, True, _budget(), GLOBAL_BUDGET, base_ttfb_ms=380)
     assert row["passed"] is True
+
+
+def test_render_ms_min_immune_to_single_slow_sample_passes():
+    """노이즈 면역 계약: 단일 슬로우 샘플로 max 는 예산 초과여도 min 이 예산 이내 → PASS.
+
+    shipment Phase2 실증(동일 render 코드인데 CI CPU 경합·GC 로 525ms 아웃라이어 1개
+    → max=525 FAIL, min=480 은 예산 이내)의 근본 해결: render 도 min 판정이면 순수
+    측정 노이즈는 게이트를 못 뚫는다(진짜 render 회귀는 전 표본을 올려 min 도 오름).
+    """
+    warm = [_sample(400, render_ms=480.0), _sample(400, render_ms=525.0),
+            _sample(400, render_ms=490.0), _sample(400, render_ms=485.0)]
+    summary = gate.summarize_samples(warm)
+    assert summary["min_render_ms"] == 480  # 판정값(예산 500 이내)
+    assert summary["max_render_ms"] == 525  # 정보용(아웃라이어 노출)
+    row = gate.judge_path("/x", summary, True, _budget(), GLOBAL_BUDGET, base_ttfb_ms=380)
+    assert row["passed"] is True, "min 정상인데 max 슬로우 샘플로 FAIL 나면 노이즈 면역 위반"
+    assert row["min_render_ms"] == 480
+    assert row["max_render_ms"] == 525
+
+
+def test_summarize_render_min_max():
+    """summarize_samples: renders=[480,525,490] → min_render_ms=480, max_render_ms=525."""
+    warm = [_sample(400, render_ms=480.0), _sample(400, render_ms=525.0), _sample(400, render_ms=490.0)]
+    summary = gate.summarize_samples(warm)
+    assert summary["min_render_ms"] == 480
+    assert summary["max_render_ms"] == 525
 
 
 def test_non_200_status_invalidates_measurement():
