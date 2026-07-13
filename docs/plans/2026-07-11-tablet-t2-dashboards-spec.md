@@ -72,6 +72,16 @@ staging 2차 전수: 풀로드 10페이지(9탭+계산기) 전량 = 크롬 3종 
 작동 체크(f12 디바이스 에뮬 요구)가 잡은 결함 3건: ① tablet-side-sheet.js 내용 변경 후 script ?v 미범프 → 브라우저 1h 캐시 구버전(JS도 캐시 체인 대상) ② 완료 행 role="button"(a11y)이 시트 인터랙티브 가드 [role=button]에 자충돌 → `interactive !== row` ③ 완료 fragment 166K(예산 56K) → 60행 캡+예산 재시드(120K), AS 862K→900K, history dTTFB 276→290(내 변경 전부터 CI 드리프트 277~279).
 실측 노하우 추가: browse 탭 뷰포트 확인 필수(`viewport 1180x820` — 390 폰 크기로 바뀌어 있던 오측정), 시트 JS 게이트=matchMedia라 CSSOM 재작성 외 MediaQueryList.prototype.matches 패치 병행, 연속 push 시 이전 커밋 perf-gate는 배포 추월로 구조적 타임아웃(최신 HEAD 런만 정본).
 
+## T6 — 목업 프레임 완전체 + 작업방식 교정 (2026-07-13, deploy 9213f7aa~2ee1fa16)
+
+사용자 지적("니 마음대로 작업하고 다 됐다고 한다") → **작업방식 교정**: 목업 프레임별 전 컴포넌트·기능 인벤토리(에이전트 추출)를 유일한 완료 기준으로 고정, 워커 보고는 인벤토리 체크표(✓/✗+사유) 강제, 검증 = staging 스크린샷 vs 목업 병치 대조, 전 항목 ✓ 전 "완료" 보고 금지.
+
+구현(Opus 5기 병렬): 공용 시트 URL 계약(`data-foms-sheet-url`→전용 fragment, resolveSheetUrl)·밀도 토글 40/48/56·탭별 전용 시트 6종(대시보드 mini-quest/요약/첨부/퀘스트 승인, 도면 관리(시트PNG 썸네일·자동채움·버전 이력·시트 전달), 생산(총자수·spec_rows 미니표·특이사항·전달본·생산완료 API), 출고 배정(팀 라디오+잔여 capacity·시간 chips→shipment/update, 403 분기), 완료 정산(잔금 hl-tile·비용청구 폼→settlement/issue·발행 후 dim), 시공 워크모드 3열(오늘 타임라인 300px+전달본 대형 뷰어+완료 게이트 SSOT 재사용))·전 탭 KPI 타일/필터바·완료 CSV export·도면 크기 토글.
+
+병치 대조가 적발한 통합 결함 4건(전부 봉합): ① 정산 폼 속성 미스매치(템플릿 data-foms-settlement-form vs JS data-foms-settlement-issue) ② 출고 본행 ROW_SELECTOR 누락 ③ 도면 카드(<a>)가 erp-shell 화이트리스트에 걸려 시트 대신 fragment 이동(→data-foms-erp-no-shell) ④ cfcard row flex가 세로 스택 콘텐츠를 min-content로 수축시켜 세로 글자 붕괴(→column).
+
+미구현(사유 명시): 생산 '보류' 동작(상태/API 부재 — disabled), 현금영수증 발행 액션(API 부재 — 요청 상태 표기만). 백로그: long-press 벌크 선택 모드+contextual bar(프레임 12), 계산기 split pane 하이브리드 게이트(프레임 13), 레일 하단 알림·아바타, 상주형(고정) 320px 시트(현행 슬라이드 유지), 실측 마스터 chips 세분(주간/미확정)·지도로 보기.
+
 ## 백로그 (잔여 페이지 — 조사 완료, 착수 판단 대기)
 
 시트/터치 그리드 계약(`#erp-grid tr.erp-main-row[data-order-id]`) 미충족 6페이지 실사 결과:
