@@ -44,6 +44,28 @@ var _erpPaymentIconSrc =
     };
 window._erpPaymentIconSrc = _erpPaymentIconSrc;
 
+/** 라홈 표준 예약금(이 금액들은 미확인 시 회색 동전 유지). */
+var ERP_LAHOM_STANDARD_DEPOSIT_AMOUNTS =
+    window.ERP_LAHOM_STANDARD_DEPOSIT_AMOUNTS ||
+    Object.freeze([50000, 100000, 200000, 300000, 400000]);
+window.ERP_LAHOM_STANDARD_DEPOSIT_AMOUNTS = ERP_LAHOM_STANDARD_DEPOSIT_AMOUNTS;
+
+/**
+ * 발주사 라홈 + 표준 제외 양의 예약금 → 황금 동전 표시 여부.
+ * 확정(deposit_confirmed)과 무관한 시각 힌트만 담당.
+ */
+var _erpShouldShowLahomDepositGold =
+    window._erpShouldShowLahomDepositGold ||
+    function _erpShouldShowLahomDepositGold(amount) {
+        var orderer =
+            typeof getOrdererValue === "function" ? getOrdererValue() : "";
+        if (orderer !== "라홈") return false;
+        var n = erpCoerceAmount(amount);
+        if (n <= 0) return false;
+        return ERP_LAHOM_STANDARD_DEPOSIT_AMOUNTS.indexOf(n) === -1;
+    };
+window._erpShouldShowLahomDepositGold = _erpShouldShowLahomDepositGold;
+
 var erpCoerceAmount =
     window.erpCoerceAmount ||
     function erpCoerceAmount(value) {
@@ -224,6 +246,7 @@ var _erpUpdatePaymentConfirmUI =
         if (isConfirmed) {
             icon.classList.add("erp-custom-payment-confirmed");
             icon.classList.remove("erp-custom-payment-unconfirmed");
+            icon.classList.remove("erp-custom-payment-lahom-hint");
             icon.src = _erpPaymentIconSrc(type, true);
             var byName =
                 type === "deposit"
@@ -244,10 +267,45 @@ var _erpUpdatePaymentConfirmUI =
 
         icon.classList.add("erp-custom-payment-unconfirmed");
         icon.classList.remove("erp-custom-payment-confirmed");
-        icon.src = _erpPaymentIconSrc(type, false);
-        btn.title = "미확인 - 클릭하여 확인 완료 처리";
+        // 라홈 비표준 예약금: 미확인이어도 황금 동전(pay-coin.png) 표시. 확정 상태는 그대로.
+        var useGoldSrc = false;
+        if (type === "deposit") {
+            var depositEl = document.getElementById("erp-deposit-amount");
+            useGoldSrc = _erpShouldShowLahomDepositGold(
+                depositEl ? depositEl.value : 0
+            );
+        }
+        if (useGoldSrc) {
+            icon.classList.add("erp-custom-payment-lahom-hint");
+        } else {
+            icon.classList.remove("erp-custom-payment-lahom-hint");
+        }
+        icon.src = _erpPaymentIconSrc(type, useGoldSrc);
+        btn.title = useGoldSrc
+            ? "라홈 비표준 예약금 - 미확인 (클릭하여 확인 완료 처리)"
+            : "미확인 - 클릭하여 확인 완료 처리";
     };
 window._erpUpdatePaymentConfirmUI = _erpUpdatePaymentConfirmUI;
+
+/** DOM 예약금/발주사 기준 예약금 동전 아이콘만 재동기화(확정 API 무호출). */
+var _erpRefreshDepositCoinVisual =
+    window._erpRefreshDepositCoinVisual ||
+    function _erpRefreshDepositCoinVisual() {
+        var btn = document.querySelector(
+            '.erp-payment-confirm-btn[data-payment-type="deposit"]'
+        );
+        if (!btn) return;
+        var pay =
+            (window.__erpLastStructuredData &&
+                window.__erpLastStructuredData.payment) ||
+            {};
+        _erpUpdatePaymentConfirmUI("deposit", {
+            deposit_confirmed: btn.dataset.confirmed === "1",
+            deposit_confirmed_by: pay.deposit_confirmed_by,
+            deposit_confirmed_at: pay.deposit_confirmed_at,
+        });
+    };
+window._erpRefreshDepositCoinVisual = _erpRefreshDepositCoinVisual;
 
 var escapeHtml =
     window.escapeHtml ||
@@ -423,6 +481,9 @@ var syncWorkflowStageByOrderer =
     window.syncWorkflowStageByOrderer ||
     function syncWorkflowStageByOrderer() {
         erpRefreshSpecCalcForOrderer();
+        if (typeof _erpRefreshDepositCoinVisual === "function") {
+            _erpRefreshDepositCoinVisual();
+        }
         var orderer = (typeof getOrdererValue === "function" ? getOrdererValue() : "").trim();
         if (orderer === "라홈") return;
         var stageEl = document.getElementById("erp-workflow-stage");
@@ -2761,7 +2822,16 @@ ${escapeHtml(sub)}</div>` : ''}`;
             });
         }
     })();
-    erpBindAmountInput(document.getElementById('erp-deposit-amount'), erpParseDepositValue);
+    erpBindAmountInput(
+        document.getElementById('erp-deposit-amount'),
+        erpParseDepositValue,
+        function () {
+            erpCalculateRemaining();
+            if (typeof _erpRefreshDepositCoinVisual === 'function') {
+                _erpRefreshDepositCoinVisual();
+            }
+        }
+    );
     erpBindAmountInput(document.getElementById('erp-discount-amount'), erpParseDiscountValue);
     erpBindAmountInput(document.getElementById('erp-free-input-amount'), erpParseFreeInputAmountFromField);
     erpBindAllPriceInputs(document.getElementById('erp-items'));
