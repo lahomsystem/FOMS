@@ -664,9 +664,14 @@ def test_as_pc_table_main_row_exposes_side_sheet_source() -> None:
 
 def test_history_main_row_has_side_sheet_source_class_and_order_id() -> None:
     """이력 본행 <tr> 이 history-main-row + data-order-id 를 가져 side-sheet 위임 대상이 된다.
-    확장행(history-detail-row)과 chevron([role=button]) 확장 UX 는 무변경(회귀 금지 동반 확인)."""
+    이력은 읽기전용(감사) 화면이므로 편집 fragment 폴백 대신 읽기전용 스냅샷 시트를 명시 지정한다
+    (data-foms-sheet-url → erp_history.history_tablet_sheet). 확장행(history-detail-row)과
+    chevron([role=button]) 확장 UX 는 무변경(회귀 금지 동반 확인)."""
     body = _norm(_read(HISTORY_DASHBOARD_BODY))
-    assert '<tr class="history-main-row" data-order-id="{{ o.id }}">' in body
+    assert '<tr class="history-main-row" data-order-id="{{ o.id }}"' in body
+    # 읽기전용 스냅샷 시트 명시 지정(편집 fragment 폴백 차단 — gap1).
+    assert "data-foms-sheet-url=" in body
+    assert "erp_history.history_tablet_sheet" in body
     # 확장행/chevron 계약 보존.
     assert 'class="history-detail-row"' in body
     assert "history-chevron" in body

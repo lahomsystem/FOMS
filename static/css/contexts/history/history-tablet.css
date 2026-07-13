@@ -1,0 +1,98 @@
+/* =============================================================
+   태블릿 가로 이력(감사) 프레임 — 목업 frame10 정합 (2026-07-13, W-history)
+   ------------------------------------------------------------
+   이력 대시보드는 읽기전용(감사) 화면이다. 이 파일은 history_dashboard_body.html 본문
+   <link>(full·fragment·전체 사용자)로 로드되며, 아래 규칙 전부가 body.erp-mobile-v2-layout
+   (코호트) + coarse landscape MQ + .erp-history-mobile-shell 스코프 안이라 PC(fine)·폰·세로
+   무영향. base-hide 를 MQ 밖에 먼저 둔다(순서 계약). foms 토큰 소비(전역 파운데이션) + fallback.
+
+   담당 범위:
+     - pcbar(.foms-history-pcbar): 제목 "과거 이력 검색" · "읽기전용" 라벨 · N건 · 밀도 토글.
+       코호트에서 PC erp-pro-header 를 은닉하고 이 pcbar 가 대체한다.
+     - 컬럼: 저우선(전화/주소/생성일) 은닉 + 완료일 노출 → 목업 컬럼셋 근사. data-col-key
+       (콜그룹 SSOT 없이 th/td 직접)로 지목(인덱스 비의존).
+     - 읽기전용 스냅샷 시트 제품 항목 간격(시트 본문은 foms-tablet-landscape.css .foms-tsheet-*
+       재사용 — 시트가 body 직속이라 .erp-history-mobile-shell 스코프 밖, body 코호트만 스코프).
+   ============================================================= */
+
+/* base-hide: 코호트 밖(PC/폰/세로)에서 신규 마크업·완료일 컬럼 완전 은닉. opt-in(display) 앞. */
+.foms-history-pcbar {
+  display: none;
+}
+.erp-history-mobile-shell th[data-col-key="completed"],
+.erp-history-mobile-shell td[data-col-key="completed"] {
+  display: none;
+}
+
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+
+  /* --- PC 크롬 은닉: erp-pro-header(제목/홈 버튼) — pcbar 가 대체. 필터 폼은 유지한다
+     (이력은 필터 게이트라 폼 없으면 기본 랜딩에서 조회 불가). !important: 마크업 Bootstrap
+     유틸 특이도 패배 방지(shipment/production 전례). --- */
+  body.erp-mobile-v2-layout .erp-history-mobile-shell .erp-pro-header {
+    display: none !important;
+  }
+
+  /* --- pcbar: 제목 · 읽기전용 · N건 · 밀도 토글(40/48/56) --- */
+  body.erp-mobile-v2-layout .erp-history-mobile-shell .foms-history-pcbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--foms-space-3, 0.75rem);
+    margin-bottom: var(--foms-space-3, 0.75rem);
+  }
+  body.erp-mobile-v2-layout .foms-history-pcbar__lead {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: var(--foms-space-2, 0.5rem);
+    min-width: 0;
+  }
+  body.erp-mobile-v2-layout .foms-history-pcbar__title {
+    margin: 0;
+    font-size: var(--foms-font-size-xl, 1.25rem);
+    font-weight: var(--foms-font-weight-bold, 700);
+    color: var(--foms-text-primary, #1f2733);
+  }
+  body.erp-mobile-v2-layout .foms-history-pcbar__sub {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--foms-space-1, 0.25rem);
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    color: var(--foms-text-tertiary, #6b7380);
+  }
+  body.erp-mobile-v2-layout .foms-history-pcbar__actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--foms-space-2, 0.5rem);
+  }
+
+  /* --- 컬럼: 저우선 열(전화/주소/생성일) 은닉 + 완료일 노출. data-col-key 지목. --- */
+  body.erp-mobile-v2-layout .erp-history-mobile-shell th[data-col-key="phone"],
+  body.erp-mobile-v2-layout .erp-history-mobile-shell td[data-col-key="phone"],
+  body.erp-mobile-v2-layout .erp-history-mobile-shell th[data-col-key="address"],
+  body.erp-mobile-v2-layout .erp-history-mobile-shell td[data-col-key="address"],
+  body.erp-mobile-v2-layout .erp-history-mobile-shell th[data-col-key="created"],
+  body.erp-mobile-v2-layout .erp-history-mobile-shell td[data-col-key="created"] {
+    display: none;
+  }
+  body.erp-mobile-v2-layout .erp-history-mobile-shell th[data-col-key="completed"],
+  body.erp-mobile-v2-layout .erp-history-mobile-shell td[data-col-key="completed"] {
+    display: table-cell;
+  }
+
+  /* --- 읽기전용 스냅샷 시트 제품 항목(시트 본문 = body 직속, landscape.css .foms-tsheet-*
+     재사용. 여기선 항목 스택 간격/이름 강조만). --- */
+  body.erp-mobile-v2-layout .erp-history-tsheet__items {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-3, 0.75rem);
+  }
+  body.erp-mobile-v2-layout .erp-history-tsheet__item-name {
+    font-weight: var(--foms-font-weight-semibold, 600);
+    color: var(--foms-text-primary, #1f2733);
+    margin-bottom: var(--foms-space-1, 0.25rem);
+  }
+}
