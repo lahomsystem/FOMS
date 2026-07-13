@@ -160,6 +160,28 @@
     .status-dropdown.status-as_completed { background-color: #00695c !important; border-color: #004d40; }
     .status-dropdown.status-regional_measured { background-color: #8e24aa !important; border-color: #7b1fa2; }
     .status-dropdown.status-on_hold { background-color: #616161 !important; border-color: #424242; }
+
+    .regional-as-schedule-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 32px;
+        padding: 2px 7px;
+        margin-right: 6px;
+        border-radius: 4px;
+        border: 1px solid #b02a37;
+        background: #dc3545;
+        color: #fff;
+        font-size: 0.72rem;
+        font-weight: 800;
+        line-height: 1.15;
+        letter-spacing: 0;
+        vertical-align: middle;
+    }
+    .shipping-customer-list .regional-as-schedule-badge {
+        margin-right: 4px;
+        font-size: 0.68rem;
+    }
 </style>
 {% endblock %}
 
@@ -270,12 +292,12 @@
                             
                             {% if today_shipping %}
                             <div class="shipping-alert-today">
-                                {% for order in today_shipping %}{{ order.customer_name }}{% if not loop.last %}, {% endif %}{% endfor %} 상차일
+                                {% for order in today_shipping %}{% if order.status == 'AS_RECEIVED' %}<span class="regional-as-schedule-badge" title="AS 재상차 일정">AS</span>{% endif %}{{ order.customer_name }}{% if not loop.last %}, {% endif %}{% endfor %} 상차일
                             </div>
                             {% endif %}
                             {% if tomorrow_shipping %}
                             <div class="shipping-alert-tomorrow">
-                                {% for order in tomorrow_shipping %}{{ order.customer_name }}{% if not loop.last %}, {% endif %}{% endfor %} 상차 D-1
+                                {% for order in tomorrow_shipping %}{% if order.status == 'AS_RECEIVED' %}<span class="regional-as-schedule-badge" title="AS 재상차 일정">AS</span>{% endif %}{{ order.customer_name }}{% if not loop.last %}, {% endif %}{% endfor %} 상차 D-1
                             </div>
                             {% endif %}
                         </div>
@@ -315,7 +337,10 @@
                             </thead>
                             <tbody>
                                 {% for order in shipping_alerts %}
-                                <tr data-order-id="{{ order.id }}" class="construction-row" data-construction-type="{{ order.construction_type or '미지정' }}">
+                                <tr data-order-id="{{ order.id }}"
+                                    class="construction-row{% if order.status == 'AS_RECEIVED' %} regional-as-shipping-row{% endif %}"
+                                    data-construction-type="{{ order.construction_type or '미지정' }}"
+                                    data-as-shipping-schedule="{{ 'true' if order.status == 'AS_RECEIVED' else 'false' }}">
                                     <td>{{ order.id }}</td>
                                     <td>
                                         <textarea class="form-control form-control-sm auto-resize-textarea regional-memo" 
@@ -328,6 +353,9 @@
                                         <div class="d-flex align-items-center gap-2">
                                             <div>
                                                 <div>
+                                                    {% if order.status == 'AS_RECEIVED' %}
+                                                    <span class="regional-as-schedule-badge" title="AS 재상차 일정">AS</span>
+                                                    {% endif %}
                                                     {{ order.customer_name }}
                                                     <i class="fas fa-map-marker-alt text-warning ms-1" title="지방 주문"></i>
                                                 </div>
@@ -1659,6 +1687,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data.success) {
                     // 성공 피드백 (예: 잠시 배경색 변경)
                     e.target.style.backgroundColor = '#d4edda'; // 연한 녹색
+
+                    if (field === 'shipping_scheduled_date') {
+                        setTimeout(() => {
+                            location.reload();
+                        }, 500);
+                        return;
+                    }
+
                     setTimeout(() => {
                         e.target.style.backgroundColor = '';
                     }, 1500);
@@ -1797,7 +1833,7 @@ function updateOrderFieldInline(input) {
             // 성공 메시지 표시
             showToast(`주문 #${orderId}의 ${getFieldDisplayName(field)}이 성공적으로 업데이트되었습니다.`, 'success');
 
-            if (field === 'construction_type') {
+            if (field === 'construction_type' || field === 'shipping_scheduled_date' || field === 'status') {
                 setTimeout(() => {
                     location.reload();
                 }, 500);
@@ -2267,5 +2303,5 @@ function toggleCompletedConstructionType(type) {
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/measurement/regional-shipping-export.js') }}?v=20260713b" defer></script>
+<script src="{{ url_for('static', filename='js/measurement/regional-shipping-export.js') }}?v=20260713c" defer></script>
 {% endblock %}
