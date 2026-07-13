@@ -590,12 +590,12 @@ def test_w16_tablet_bundle_exists_with_four_imports_shell_independent() -> None:
 
 def test_w16_layout_head_loads_bundle_for_v2_and_v3_cohort() -> None:
     """layout_head 가 foms-tablet-bundle.css 를 erp_mobile_v2_enabled(코호트 공통) 게이트로
-    로드하고 ?v=20260713a 를 가진다. v2 전용(shell_variant=='v2') 게이트가 아님을 검증.
+    로드하고 ?v=20260713b 를 가진다. v2 전용(shell_variant=='v2') 게이트가 아님을 검증.
     (?v 는 2026-07-12 T2 전역 레일 추가로 번들 내용 변경 → 캐시 체인 규칙에 따라 a→b 범프.)"""
     layout_head = _read("templates/partials/shared/layout_head.html")
     idx = layout_head.find("foms-tablet-bundle.css")
     assert idx != -1, "layout_head 에 태블릿 번들 <link> 부재"
-    assert "foms-tablet-bundle.css') }}?v=20260713a" in layout_head
+    assert "foms-tablet-bundle.css') }}?v=20260713b" in layout_head
     # Anchor on the nearest preceding `{% if %}` (the bundle gate) rather than a fixed
     # char window — the gate string grows over time (2026-07-12: +/wdcalculator arm).
     gate_start = layout_head.rfind("{% if", 0, idx)

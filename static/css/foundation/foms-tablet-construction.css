@@ -356,10 +356,13 @@
   }
   /* 확인 항목 카드 (체크리스트 행) — 큰 터치 타깃. */
   body.erp-mobile-v2-layout .foms-cwork-cfcard {
+    /* 목업 07 우측 카드 = 제목 위 + 본문(체크리스트/사진/메모) 아래의 세로 스택.
+       row+center 였을 때 제목·리스트가 min-content 로 수축해 세로 글자로 붕괴
+       (2026-07-13 staging 병치 대조 적발). */
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--foms-space-3);
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--foms-space-2);
     min-height: var(--foms-touch-target-comfortable);
     padding: var(--foms-space-3) var(--foms-space-4);
     background: var(--foms-surface-subtle);
