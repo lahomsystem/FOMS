@@ -11,6 +11,7 @@
   window.__FOMS_PACKING_BOUND = true;
 
   var state = { orderId: null, trigger: null, items: [] };
+  var ISSUE_LABELS = { missing: '미입고', damaged: '파손', short: '수량 부족' };
 
   function sheetEl() {
     return document.querySelector('[data-foms-packing-sheet]');
@@ -70,14 +71,25 @@
     return item.by_name + when;
   }
 
+  function issueTemplateContent(el) {
+    var tpl = q(el, '[data-foms-packing-issue-template]');
+    return tpl && tpl.content ? tpl.content : null;
+  }
+
   function renderRows(el, items) {
     var list = q(el, '[data-foms-packing-list]');
     if (!list) return;
+    var tplContent = issueTemplateContent(el);
     list.textContent = '';
     items.forEach(function (item) {
       var li = document.createElement('li');
-      li.className = 'foms-packing-row' + (item.checked ? ' foms-packing-row--checked' : '');
+      li.className = 'foms-packing-row'
+        + (item.checked ? ' foms-packing-row--checked' : '')
+        + (item.issue ? ' foms-packing-row--issue' : '');
       li.dataset.key = item.key;
+
+      var main = document.createElement('div');
+      main.className = 'foms-packing-row__main';
 
       var input = document.createElement('input');
       input.type = 'checkbox';
@@ -92,6 +104,12 @@
       label.className = 'foms-packing-row__label';
       label.textContent = item.label;
       body.appendChild(label);
+      if (item.issue && ISSUE_LABELS[item.issue]) {
+        var issueLabel = document.createElement('span');
+        issueLabel.className = 'foms-packing-row__issue-label';
+        issueLabel.textContent = '누락 · ' + ISSUE_LABELS[item.issue];
+        body.appendChild(issueLabel);
+      }
       var metaText = rowMeta(item);
       if (metaText) {
         var meta = document.createElement('span');
@@ -104,9 +122,20 @@
       qty.className = 'foms-packing-row__qty';
       qty.textContent = '×' + (item.qty || 1);
 
-      li.appendChild(input);
-      li.appendChild(body);
-      li.appendChild(qty);
+      main.appendChild(input);
+      main.appendChild(body);
+      main.appendChild(qty);
+      li.appendChild(main);
+
+      if (tplContent) {
+        var frag = tplContent.cloneNode(true);
+        if (item.issue) {
+          var activeChip = frag.querySelector('[data-foms-packing-issue-chip="' + item.issue + '"]');
+          if (activeChip) activeChip.classList.add('foms-packing-issue-chip--active');
+        }
+        li.appendChild(frag);
+      }
+
       list.appendChild(li);
     });
   }
@@ -193,6 +222,30 @@
     if (trigger) {
       event.preventDefault();
       openSheet(trigger);
+      return;
+    }
+    var issueToggle = event.target.closest('[data-foms-packing-issue-toggle]');
+    if (issueToggle) {
+      event.preventDefault();
+      var toggleRow = issueToggle.closest('.foms-packing-row');
+      var chips = toggleRow ? toggleRow.querySelector('[data-foms-packing-issue-chips]') : null;
+      if (chips) {
+        var show = chips.hidden;
+        chips.hidden = !show;
+        issueToggle.setAttribute('aria-expanded', show ? 'true' : 'false');
+      }
+      return;
+    }
+    var issueChip = event.target.closest('[data-foms-packing-issue-chip]');
+    if (issueChip) {
+      event.preventDefault();
+      var chipRow = issueChip.closest('.foms-packing-row');
+      if (!chipRow) return;
+      // 활성 칩 재클릭 → 해제(null), 그 외 → 해당 사유로 표기.
+      var isActive = issueChip.classList.contains('foms-packing-issue-chip--active');
+      var value = isActive ? null : issueChip.getAttribute('data-foms-packing-issue-chip');
+      postPacking({ updates: [{ key: chipRow.dataset.key, issue: value }] });
+      return;
     }
   });
 

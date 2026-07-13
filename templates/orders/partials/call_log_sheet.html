@@ -40,17 +40,47 @@
           <span>일정 확정</span>
         </label>
       </fieldset>
-      <label class="foms-call-log-sheet__field">
-        <span class="foms-call-log-sheet__label">메모</span>
+      <div class="foms-call-log-sheet__field">
+        <div class="foms-call-log-sheet__field-head">
+          <span class="foms-call-log-sheet__label" id="foms-call-log-memo-label">메모</span>
+          <button type="button"
+                  class="foms-call-log-mic"
+                  data-foms-call-log-mic
+                  hidden
+                  aria-pressed="false"
+                  aria-label="음성으로 메모 받아쓰기">
+            <span class="foms-call-log-mic__icon" aria-hidden="true">🎤</span>
+            <span class="foms-call-log-mic__text">음성</span>
+          </button>
+        </div>
         <textarea name="call_memo"
                   rows="3"
                   maxlength="1000"
+                  aria-labelledby="foms-call-log-memo-label"
                   placeholder="통화 내용을 남기세요"></textarea>
-      </label>
-      <label class="foms-call-log-sheet__field">
-        <span class="foms-call-log-sheet__label">실측일 (선택)</span>
-        <input type="date" name="measurement_date">
-      </label>
+        <p class="foms-call-log-mic__status" data-foms-call-log-mic-status aria-live="polite"></p>
+      </div>
+      <div class="foms-call-log-sheet__field">
+        <span class="foms-call-log-sheet__label" id="foms-call-log-meas-label">실측일 (선택)</span>
+        <div class="foms-call-log-date-chips" role="group" aria-label="실측일 빠른 선택">
+          <button type="button" class="foms-call-log-date-chip"
+                  data-foms-call-log-date-chip data-offset="1" aria-pressed="false">
+            <span class="foms-call-log-date-chip__name">내일</span>
+            <span class="foms-call-log-date-chip__date" data-foms-call-log-date-label></span>
+          </button>
+          <button type="button" class="foms-call-log-date-chip"
+                  data-foms-call-log-date-chip data-offset="2" aria-pressed="false">
+            <span class="foms-call-log-date-chip__name">모레</span>
+            <span class="foms-call-log-date-chip__date" data-foms-call-log-date-label></span>
+          </button>
+          <button type="button" class="foms-call-log-date-chip"
+                  data-foms-call-log-date-chip data-offset="3" aria-pressed="false">
+            <span class="foms-call-log-date-chip__name">3일 후</span>
+            <span class="foms-call-log-date-chip__date" data-foms-call-log-date-label></span>
+          </button>
+        </div>
+        <input type="date" name="measurement_date" aria-labelledby="foms-call-log-meas-label">
+      </div>
       <p class="foms-call-log-sheet__error" data-foms-call-log-error hidden role="alert"></p>
       <button type="submit"
               class="foms-btn foms-btn--primary foms-call-log-sheet__save"

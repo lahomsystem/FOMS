@@ -268,6 +268,32 @@ body.foms-measure-capture-open {
   overflow: hidden;
 }
 
+/* G2: 실측 완료 → 도면팀 전달 sticky (스크롤 패널 하단 고정 바, 2단 확인). */
+.foms-measure-capture-sheet__handoff {
+  position: sticky;
+  bottom: 0;
+  margin: 16px -18px -18px;
+  padding: 12px 18px calc(12px + env(safe-area-inset-bottom, 0px));
+  background: var(--foms-surface, #fff);
+  border-top: 1px solid var(--foms-border, #e5e7eb);
+}
+
+.foms-measure-capture-sheet__handoff-btn {
+  width: 100%;
+  min-height: 48px;
+  font-weight: 700;
+}
+
+.foms-measure-capture-sheet__handoff-btn[data-armed="true"] {
+  background: var(--foms-danger, #dc2626);
+  color: #fff;
+}
+
+.foms-measure-capture-sheet__handoff-btn:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
 /* 카드에 기록된 실측 dims/note 메타 행 */
 .foms-measure-card-meta {
   display: flex;

@@ -1,7 +1,9 @@
 """ERP 출고 패킹 체크리스트 API. (B6)
 
 스키마: ``sd['shipment']['packing']`` =
-``{items:[{key, label, qty, checked, at, by_name}], updated_at}``.
+``{items:[{key, label, qty, checked, at, by_name, issue, issue_at, issue_by_name}],
+updated_at}``. ``issue``는 누락 신고 사유(``missing``/``damaged``/``short`` 또는
+``None`` 해제)로, 화이트리스트 검증을 거친다.
 
 최초 GET 시 저장된 packing이 없으면 ``sd['items']``에서 파생한다(제품별
 "본체 패널 / 도어 / 철물" 3항). 파생 결과는 읽기 시 메모리에만 존재하며,
@@ -40,6 +42,9 @@ _DERIVED_PART_SUFFIXES = (
     ("door", "도어"),
     ("hardware", "철물"),
 )
+
+# 누락 신고 사유 화이트리스트(허용 값 외 요청은 400). None/"" 는 해제로 취급.
+_ALLOWED_ISSUES = frozenset({"missing", "damaged", "short"})
 
 
 def _can_edit_packing(user: Any) -> bool:
@@ -103,6 +108,7 @@ def _derive_packing_items(sd: dict[str, Any]) -> list[dict[str, Any]]:
                     "checked": False,
                     "at": None,
                     "by_name": None,
+                    "issue": None,
                 }
             )
     return derived
@@ -125,9 +131,11 @@ def _load_packing_items(sd: dict[str, Any]) -> tuple[list[dict[str, Any]], bool]
 def _packing_payload(items: list[dict[str, Any]], persisted: bool) -> dict[str, Any]:
     """API 응답 data 블록을 구성한다."""
     checked = sum(1 for it in items if isinstance(it, dict) and it.get("checked"))
+    issues = sum(1 for it in items if isinstance(it, dict) and it.get("issue"))
     return {
         "items": items,
         "checked_count": checked,
+        "issues_count": issues,
         "total": len(items),
         "persisted": persisted,
     }
@@ -161,6 +169,13 @@ def api_shipment_packing_save(order_id: int):
         return jsonify({"success": False, "error": "updates는 배열이어야 합니다."}), 400
     if add is not None and not isinstance(add, dict):
         return jsonify({"success": False, "error": "add는 객체여야 합니다."}), 400
+
+    # 누락 사유(issue) 화이트리스트 검증(허용: missing/damaged/short, 또는 해제용 null/"").
+    for upd in updates or []:
+        if isinstance(upd, dict) and "issue" in upd:
+            issue_val = upd.get("issue")
+            if issue_val not in (None, "") and issue_val not in _ALLOWED_ISSUES:
+                return jsonify({"success": False, "error": "허용되지 않은 issue 값입니다."}), 400
 
     add_label = ""
     add_qty = 1
@@ -203,10 +218,22 @@ def api_shipment_packing_save(order_id: int):
             row = by_key.get(upd.get("key"))
             if row is None:
                 continue
-            checked = bool(upd.get("checked"))
-            row["checked"] = checked
-            row["at"] = now_iso if checked else None
-            row["by_name"] = by_name if checked else None
+            # checked 와 issue 는 독립 필드 — 있는 키만 갱신(부분 업데이트로 서로 덮어쓰지 않음).
+            if "checked" in upd:
+                checked = bool(upd.get("checked"))
+                row["checked"] = checked
+                row["at"] = now_iso if checked else None
+                row["by_name"] = by_name if checked else None
+            if "issue" in upd:
+                issue_val = upd.get("issue")
+                if issue_val in (None, ""):
+                    row["issue"] = None
+                    row["issue_at"] = None
+                    row["issue_by_name"] = None
+                else:
+                    row["issue"] = issue_val
+                    row["issue_at"] = now_iso
+                    row["issue_by_name"] = by_name
 
         if add_label:
             new_key = f"custom_{int(datetime.datetime.now().timestamp() * 1000)}_{len(items)}"
@@ -218,11 +245,13 @@ def api_shipment_packing_save(order_id: int):
                     "checked": False,
                     "at": None,
                     "by_name": None,
+                    "issue": None,
                 }
             )
 
         packing["updated_at"] = now_iso
         checked_count = sum(1 for it in items if it.get("checked"))
+        issues_count = sum(1 for it in items if it.get("issue"))
         total = len(items)
 
         order.structured_data = sd
@@ -231,7 +260,11 @@ def api_shipment_packing_save(order_id: int):
             OrderEvent(
                 order_id=order.id,
                 event_type="PACKING_UPDATED",
-                payload={"checked_count": checked_count, "total": total},
+                payload={
+                    "checked_count": checked_count,
+                    "total": total,
+                    "issues_count": issues_count,
+                },
                 created_by_user_id=getattr(user, "id", None),
             )
         )

@@ -175,3 +175,95 @@
 body.foms-call-log-open {
   overflow: hidden;
 }
+
+/* 실측일 제안 칩 (내일 / 모레 / 3일 후) */
+.foms-call-log-date-chips {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.foms-call-log-date-chip {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 52px;
+  padding: 6px 8px;
+  border: 1.5px solid var(--foms-border, #d1d5db);
+  border-radius: 12px;
+  background: var(--foms-surface, #fff);
+  color: var(--foms-text, #374151);
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+
+.foms-call-log-date-chip__name {
+  font-size: 0.9rem;
+}
+
+.foms-call-log-date-chip__date {
+  font-size: 0.78rem;
+  color: var(--foms-text-muted, #6b7280);
+}
+
+.foms-call-log-date-chip--active {
+  border-color: var(--foms-primary, #2563eb);
+  background: var(--foms-primary-soft, rgba(37, 99, 235, 0.1));
+  color: var(--foms-primary, #2563eb);
+}
+
+.foms-call-log-date-chip--active .foms-call-log-date-chip__date {
+  color: var(--foms-primary, #2563eb);
+}
+
+.foms-call-log-date-chip:focus-visible {
+  outline: 2px solid var(--foms-primary, #2563eb);
+  outline-offset: 2px;
+}
+
+/* 메모 음성 받아쓰기(🎤) */
+.foms-call-log-sheet__field-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.foms-call-log-mic {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1.5px solid var(--foms-border, #d1d5db);
+  border-radius: 10px;
+  background: var(--foms-surface, #fff);
+  color: var(--foms-text, #374151);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.foms-call-log-mic[hidden] {
+  display: none;
+}
+
+.foms-call-log-mic[aria-pressed="true"] {
+  border-color: var(--foms-danger, #dc2626);
+  background: rgba(220, 38, 38, 0.1);
+  color: var(--foms-danger, #dc2626);
+}
+
+.foms-call-log-mic__status {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+  color: var(--foms-text-muted, #6b7280);
+}
+
+.foms-call-log-mic__status:empty {
+  display: none;
+}

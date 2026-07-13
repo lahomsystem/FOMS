@@ -141,3 +141,72 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* --- G3 불량 보고 (ghost 버튼 → 사유 칩 → POST, 최근 이력 1줄) ------------------ */
+.foms-prod-defect {
+  margin-top: var(--foms-space-3, 12px);
+  padding-top: var(--foms-space-3, 12px);
+  border-top: 1px solid var(--foms-border-subtle, #eef1f4);
+}
+
+.foms-prod-defect__recent {
+  margin: 0 0 var(--foms-space-2, 8px);
+  padding: var(--foms-space-2, 8px) var(--foms-space-3, 12px);
+  font-size: 0.8125rem;
+  color: var(--foms-color-danger-700, #b42318);
+  background: var(--foms-color-danger-50, #fef3f2);
+  border-radius: var(--foms-radius-md, 8px);
+}
+
+.foms-prod-defect__recent[hidden] {
+  display: none;
+}
+
+.foms-prod-defect__toggle {
+  width: 100%;
+  min-height: var(--foms-touch-target-min, 44px);
+  color: var(--foms-color-danger-600, #d64545);
+}
+
+.foms-prod-defect__reasons {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--foms-space-2, 8px);
+  margin-top: var(--foms-space-2, 8px);
+}
+
+.foms-prod-defect__reasons[hidden] {
+  display: none;
+}
+
+.foms-prod-defect__chip {
+  min-height: var(--foms-touch-target-min, 44px);
+  padding: 0 var(--foms-space-3, 12px);
+  border: 1.5px solid var(--foms-color-danger-200, #fecdca);
+  border-radius: var(--foms-radius-full, 999px);
+  background: var(--foms-surface-base, #fff);
+  color: var(--foms-color-danger-700, #b42318);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.foms-prod-defect__chip:active {
+  background: var(--foms-color-danger-50, #fef3f2);
+  border-color: var(--foms-color-danger-500, #f04438);
+}
+
+.foms-prod-defect__chip:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+.foms-prod-defect__status {
+  margin: var(--foms-space-2, 8px) 0 0;
+  font-size: 0.8125rem;
+  color: var(--foms-text-tertiary, #94a3b8);
+}
+
+.foms-prod-defect__status[hidden] {
+  display: none;
+}

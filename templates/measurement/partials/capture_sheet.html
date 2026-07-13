@@ -91,5 +91,17 @@
     <button type="button"
             class="foms-btn foms-btn--primary foms-measure-capture-sheet__save"
             data-foms-measure-capture-save>저장</button>
+
+    {# G2: 실측 완료 → 도면팀 전달 sticky. 시트 내 2단 확인(탭 → "한 번 더 탭해 확정" → 확정)
+       후 기존 POST /api/update_order_status {status:'DRAWING'} 재사용(검증된 STAGE_CHANGED 플로우). #}
+    <div class="foms-measure-capture-sheet__handoff">
+      <button type="button"
+              class="foms-btn foms-btn--success foms-measure-capture-sheet__handoff-btn"
+              data-foms-measure-capture-handoff
+              data-armed="false">
+        <i class="fas fa-drafting-compass" aria-hidden="true"></i>
+        <span data-foms-measure-capture-handoff-label>실측 완료 → 도면팀 전달</span>
+      </button>
+    </div>
   </div>
 </div>

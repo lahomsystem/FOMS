@@ -15,5 +15,23 @@
     <ul class="foms-prod-steps__list" data-foms-prod-steps-sheet-list>
       <li class="foms-prod-steps__loading" data-foms-prod-steps-loading>불러오는 중...</li>
     </ul>
+
+    {# G3 불량 보고 — ghost 버튼 → 사유 칩 4개 인라인 노출 → 선택 시 POST. 최근 불량 1줄. #}
+    <div class="foms-prod-defect" data-foms-prod-defect>
+      <p class="foms-prod-defect__recent" data-foms-prod-defect-recent hidden></p>
+      <button type="button" class="foms-btn foms-btn--ghost foms-prod-defect__toggle"
+              data-foms-prod-defect-toggle aria-expanded="false"
+              aria-controls="foms-prod-defect-reasons">
+        <i class="fas fa-triangle-exclamation" aria-hidden="true"></i> 불량 보고
+      </button>
+      <div class="foms-prod-defect__reasons" id="foms-prod-defect-reasons"
+           data-foms-prod-defect-reasons hidden role="group" aria-label="불량 사유 선택">
+        <button type="button" class="foms-prod-defect__chip" data-foms-prod-defect-reason="자재 불량">자재 불량</button>
+        <button type="button" class="foms-prod-defect__chip" data-foms-prod-defect-reason="가공 오류">가공 오류</button>
+        <button type="button" class="foms-prod-defect__chip" data-foms-prod-defect-reason="파손">파손</button>
+        <button type="button" class="foms-prod-defect__chip" data-foms-prod-defect-reason="기타">기타</button>
+      </div>
+      <p class="foms-prod-defect__status" data-foms-prod-defect-status aria-live="polite" hidden></p>
+    </div>
   </div>
 </div>

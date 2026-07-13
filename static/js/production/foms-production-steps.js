@@ -137,6 +137,7 @@
         return;
       }
       renderSteps(data.data || {});
+      renderDefectRecent((data.data || {}).latest_defect);
     } catch (err) {
       console.error('production steps load error:', err);
       setError('공정 정보를 불러오지 못했습니다.');
@@ -145,11 +146,100 @@
     }
   }
 
+  // --- G3 불량 보고 (ghost 버튼 → 사유 칩 → POST, 최근 이력 1줄) ------------------
+  function defectRecentEl() { return document.querySelector('[data-foms-prod-defect-recent]'); }
+  function defectReasonsEl() { return document.querySelector('[data-foms-prod-defect-reasons]'); }
+  function defectToggleEl() { return document.querySelector('[data-foms-prod-defect-toggle]'); }
+  function defectStatusEl() { return document.querySelector('[data-foms-prod-defect-status]'); }
+
+  function renderDefectRecent(latest) {
+    var el = defectRecentEl();
+    if (!el) return;
+    el.textContent = '';
+    if (!latest || !latest.reason) {
+      el.hidden = true;
+      return;
+    }
+    // createElement/textContent 만 사용(사용자 유래 reason/by_name XSS 차단).
+    var head = document.createElement('strong');
+    head.textContent = '최근 불량: ';
+    el.appendChild(head);
+    var body = document.createElement('span');
+    var parts = [latest.reason];
+    var when = latest.at ? formatAt(latest.at) : '';
+    if (when) parts.push(when);
+    if (latest.by_name) parts.push(latest.by_name);
+    body.textContent = parts.join(' · ');
+    el.appendChild(body);
+    el.hidden = false;
+  }
+
+  function collapseDefectReasons() {
+    var reasons = defectReasonsEl();
+    if (reasons) reasons.hidden = true;
+    var toggle = defectToggleEl();
+    if (toggle) toggle.setAttribute('aria-expanded', 'false');
+  }
+
+  function setDefectStatus(msg) {
+    var el = defectStatusEl();
+    if (!el) return;
+    if (msg) {
+      el.textContent = msg;
+      el.hidden = false;
+    } else {
+      el.textContent = '';
+      el.hidden = true;
+    }
+  }
+
+  function resetDefectUi() {
+    collapseDefectReasons();
+    setDefectStatus('');
+    renderDefectRecent(null);
+  }
+
+  function setDefectChipsDisabled(disabled) {
+    var reasons = defectReasonsEl();
+    if (!reasons) return;
+    reasons.querySelectorAll('[data-foms-prod-defect-reason]').forEach(function (b) {
+      b.disabled = disabled;
+    });
+  }
+
+  async function reportDefect(reason) {
+    if (currentOrderId == null || !reason) return;
+    setDefectChipsDisabled(true);
+    setDefectStatus('보고 중...');
+    try {
+      var res = await writeFetch('/api/orders/' + encodeURIComponent(currentOrderId) + '/production/defect', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: reason })
+      });
+      var data = await res.json();
+      if (!res.ok || !data.success) {
+        setDefectStatus('보고 실패: ' + ((data && (data.error || data.message)) || ('HTTP ' + res.status)));
+        return;
+      }
+      renderDefectRecent((data.data && data.data.latest) || null);
+      collapseDefectReasons();
+      setDefectStatus('불량이 보고되었습니다.');
+    } catch (err) {
+      console.error('production defect report error:', err);
+      setDefectStatus('불량 보고 중 오류가 발생했습니다.');
+    } finally {
+      setDefectChipsDisabled(false);
+    }
+  }
+
   function openSheet(orderId) {
     if (!hasOffcanvas()) return;
     var sheet = sheetEl();
     if (!sheet) return;
     currentOrderId = orderId;
+    resetDefectUi();
     window.bootstrap.Offcanvas.getOrCreateInstance(sheet).show();
     loadSteps(orderId);
   }
@@ -200,5 +290,27 @@
     if (!btn) return;
     e.preventDefault();
     toggleStep(btn);
+  });
+
+  // G3 불량 보고 — ghost 토글(사유 칩 펼치기/접기)과 칩 선택(POST) bubble 위임.
+  document.addEventListener('click', function (e) {
+    if (!e.target || !e.target.closest) return;
+    var toggle = e.target.closest('[data-foms-prod-defect-toggle]');
+    if (toggle) {
+      e.preventDefault();
+      var reasons = defectReasonsEl();
+      if (reasons) {
+        var willShow = reasons.hidden;
+        reasons.hidden = !willShow;
+        toggle.setAttribute('aria-expanded', willShow ? 'true' : 'false');
+        if (willShow) setDefectStatus('');
+      }
+      return;
+    }
+    var chip = e.target.closest('[data-foms-prod-defect-reason]');
+    if (chip) {
+      e.preventDefault();
+      reportDefect(chip.getAttribute('data-foms-prod-defect-reason'));
+    }
   });
 })();

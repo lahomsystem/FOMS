@@ -211,3 +211,66 @@ def test_order_event_recorded(client):
     assert events[0].payload["key"] == "inspect"
     assert events[0].payload["done"] is True
     assert events[0].created_by_user_id == user_id
+
+
+def test_defect_report_appends_and_records_event(client):
+    """G3: 화이트리스트 사유 보고 시 defects append + latest 반환 + OrderEvent 기록."""
+    user = _make_user("prod_defect_admin", role="ADMIN")
+    user_name = user.name
+    user_id = user.id
+    _login(client, user)
+    order_id = _make_order().id
+
+    resp = client.post(
+        f"/api/orders/{order_id}/production/defect",
+        json={"reason": "파손"},
+    )
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["success"] is True
+    assert data["data"]["total"] == 1
+    latest = data["data"]["latest"]
+    assert latest["reason"] == "파손"
+    assert latest["at"]  # UTC iso 기록
+    assert latest["by_name"] == user_name
+
+    # 저장 확인(deepcopy+flag_modified 반영) — GET latest_defect 로도 노출.
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    saved_defects = saved.structured_data["production"]["defects"]
+    assert len(saved_defects) == 1
+    assert saved_defects[0]["reason"] == "파손"
+
+    get_resp = client.get(f"/api/orders/{order_id}/production/steps")
+    assert get_resp.get_json()["data"]["latest_defect"]["reason"] == "파손"
+
+    # OrderEvent 기록
+    events = (
+        db_session.query(OrderEvent)
+        .filter(
+            OrderEvent.order_id == order_id,
+            OrderEvent.event_type == "PRODUCTION_DEFECT_REPORTED",
+        )
+        .all()
+    )
+    assert len(events) == 1
+    assert events[0].payload["reason"] == "파손"
+    assert events[0].created_by_user_id == user_id
+
+
+def test_defect_invalid_reason_returns_400(client):
+    """G3: 화이트리스트 밖 사유는 400 이며 저장/이벤트가 남지 않는다."""
+    user = _make_user("prod_defect_admin2", role="ADMIN")
+    _login(client, user)
+    order_id = _make_order().id
+
+    resp = client.post(
+        f"/api/orders/{order_id}/production/defect",
+        json={"reason": "우주선 고장"},
+    )
+    assert resp.status_code == 400
+    assert resp.get_json()["success"] is False
+
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert "defects" not in (saved.structured_data.get("production") or {})

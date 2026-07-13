@@ -9,7 +9,7 @@
 
 {% block styles %}
   {% if erp_mobile_v2_enabled %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-packing.css') }}?v=20260712a">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-packing.css') }}?v=20260713a">
   {% endif %}
 {% endblock %}
 
@@ -23,6 +23,6 @@
 {% include 'shipment/partials/dashboard_scripts.html' %}
 {% endif %}
 {% if erp_mobile_v2_enabled %}
-<script src="{{ url_for('static', filename='js/shipment/foms-packing.js') }}?v=20260712a" defer></script>
+<script src="{{ url_for('static', filename='js/shipment/foms-packing.js') }}?v=20260713a" defer></script>
 {% endif %}
 {% endblock %}

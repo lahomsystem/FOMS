@@ -20,7 +20,9 @@
   var SHEET_SEL = '[data-foms-measure-capture-sheet]';
   var DIM_MIN = 0;
   var DIM_MAX = 9999;
+  var HANDOFF_ARM_MS = 3200;
   var recognition = null;
+  var handoffTimer = null;
 
   function getSheet() {
     return document.querySelector(SHEET_SEL);
@@ -101,6 +103,7 @@
     setError(sheet, '');
     setPhotoStatus(sheet, '');
     setMicStatus(sheet, '');
+    resetHandoff(sheet);
     var saveBtn = sheet.querySelector('[data-foms-measure-capture-save]');
     if (saveBtn) {
       saveBtn.disabled = false;
@@ -121,6 +124,7 @@
       return;
     }
     stopRecognition();
+    resetHandoff(sheet);
     sheet.hidden = true;
     sheet.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('foms-measure-capture-open');
@@ -290,6 +294,86 @@
       });
   }
 
+  // G2: 실측 완료 → 도면팀 전달. 시트 내 2단 확인(1탭 arm → 2탭 확정) 후
+  // 기존 POST /api/update_order_status {status:'DRAWING'} 재사용(STAGE_CHANGED 플로우).
+  function setHandoffLabel(btn, text) {
+    var label = btn && btn.querySelector('[data-foms-measure-capture-handoff-label]');
+    if (label) {
+      label.textContent = text;
+    }
+  }
+
+  function resetHandoff(sheet) {
+    if (handoffTimer) {
+      clearTimeout(handoffTimer);
+      handoffTimer = null;
+    }
+    var btn = sheet && sheet.querySelector('[data-foms-measure-capture-handoff]');
+    if (!btn) {
+      return;
+    }
+    btn.setAttribute('data-armed', 'false');
+    btn.disabled = false;
+    setHandoffLabel(btn, '실측 완료 → 도면팀 전달');
+  }
+
+  function submitHandoff(sheet, btn) {
+    var orderId = sheet.getAttribute('data-order-id');
+    if (!orderId) {
+      return;
+    }
+    if (handoffTimer) {
+      clearTimeout(handoffTimer);
+      handoffTimer = null;
+    }
+    btn.disabled = true;
+    setHandoffLabel(btn, '전달 중...');
+    setError(sheet, '');
+    fetch('/api/update_order_status', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ order_id: parseInt(orderId, 10) || orderId, status: 'DRAWING' })
+    })
+      .then(function (resp) {
+        return resp.json().catch(function () { return {}; }).then(function (data) {
+          return { ok: resp.ok, status: resp.status, data: data };
+        });
+      })
+      .then(function (res) {
+        if (!res.ok || !res.data || res.data.success !== true) {
+          var permDenied = res.status === 401 || res.status === 402 || res.status === 403;
+          var msg = (res.data && (res.data.error || res.data.message)) ||
+            (permDenied ? '도면팀 전달 권한이 없습니다.' : '도면팀 전달에 실패했습니다.');
+          alert(msg);
+          resetHandoff(sheet);
+          return;
+        }
+        closeSheet();
+        window.location.reload();
+      })
+      .catch(function () {
+        alert('네트워크 오류로 도면팀 전달에 실패했습니다.');
+        resetHandoff(sheet);
+      });
+  }
+
+  function armHandoff(sheet, btn) {
+    if (btn.disabled) {
+      return;
+    }
+    if (btn.getAttribute('data-armed') === 'true') {
+      submitHandoff(sheet, btn);
+      return;
+    }
+    btn.setAttribute('data-armed', 'true');
+    setHandoffLabel(btn, '한 번 더 탭해 확정');
+    if (handoffTimer) {
+      clearTimeout(handoffTimer);
+    }
+    handoffTimer = setTimeout(function () { resetHandoff(sheet); }, HANDOFF_ARM_MS);
+  }
+
   document.addEventListener('click', function (ev) {
     if (!ev.target || !ev.target.closest) {
       return;
@@ -339,6 +423,15 @@
       var saveSheet = saveBtn.closest(SHEET_SEL);
       if (saveSheet) {
         submitSheet(saveSheet);
+      }
+      return;
+    }
+    var handoffBtn = ev.target.closest('[data-foms-measure-capture-handoff]');
+    if (handoffBtn) {
+      ev.preventDefault();
+      var handoffSheet = handoffBtn.closest(SHEET_SEL);
+      if (handoffSheet) {
+        armHandoff(handoffSheet, handoffBtn);
       }
     }
   });

@@ -38,6 +38,10 @@ _PRODUCTION_STEP_DEFS: tuple[tuple[str, str], ...] = (
 )
 _PRODUCTION_STEP_KEYS = frozenset(k for k, _ in _PRODUCTION_STEP_DEFS)
 
+# 생산 불량 보고 사유 화이트리스트(시트 칩과 1:1)과 이력 캡(최근 20건 유지).
+_PRODUCTION_DEFECT_REASONS = ("자재 불량", "가공 오류", "파손", "기타")
+_PRODUCTION_DEFECTS_CAP = 20
+
 
 def _can_edit_production_steps(user: Any) -> bool:
     """생산 공정 스텝 편집 가능 여부(ADMIN 또는 CS/SALES/PRODUCTION 팀)."""
@@ -228,8 +232,18 @@ def api_production_steps_get(order_id: int):
             for key, label in _PRODUCTION_STEP_DEFS
         ]
     done_count = sum(1 for s in steps if isinstance(s, dict) and s.get("done"))
+    defects = production.get("defects") if isinstance(production.get("defects"), list) else []
+    latest_defect = defects[-1] if defects else None
     return jsonify(
-        {"success": True, "data": {"steps": steps, "done_count": done_count, "total": len(steps)}}
+        {
+            "success": True,
+            "data": {
+                "steps": steps,
+                "done_count": done_count,
+                "total": len(steps),
+                "latest_defect": latest_defect,
+            },
+        }
     )
 
 
@@ -285,6 +299,71 @@ def api_production_steps(order_id: int):
         done_count = sum(1 for s in steps if s.get("done"))
         return jsonify(
             {"success": True, "data": {"steps": steps, "done_count": done_count, "total": len(steps)}}
+        )
+    except Exception as exc:
+        db.rollback()
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@erp_orders_production_bp.route("/<int:order_id>/production/defect", methods=["POST"])
+@login_required
+@_production_steps_edit_required
+def api_production_defect(order_id: int):
+    """생산 불량 보고. body {reason}.
+
+    reason 은 화이트리스트(_PRODUCTION_DEFECT_REASONS)로 검증한다. 통과 시
+    sd['production']['defects'] 에 {reason, at(UTC iso), by_name} 를 append 하고
+    최근 _PRODUCTION_DEFECTS_CAP(20)건만 유지한다. OrderEvent 'PRODUCTION_DEFECT_REPORTED'
+    를 남기며 JSONB 는 deepcopy+flag_modified 규약을 따른다.
+
+    :param order_id: 대상 주문 id.
+    :return: {success, data:{defects, latest, total}} 또는 오류 JSON.
+    """
+    db = get_db()
+    try:
+        payload = request.get_json(silent=True) or {}
+        reason = payload.get("reason")
+        if reason not in _PRODUCTION_DEFECT_REASONS:
+            return jsonify({"success": False, "error": "불량 사유 값이 올바르지 않습니다."}), 400
+
+        order = db.get(Order, order_id)
+        if not order or order.status == "DELETED" or order.deleted_at is not None:
+            return jsonify({"success": False, "error": "주문을 찾을 수 없습니다."}), 404
+
+        user = get_user_by_id(session.get("user_id"))
+        sd = copy.deepcopy(_ensure_dict(order.structured_data))
+        production = sd.get("production")
+        if not isinstance(production, dict):
+            production = {}
+            sd["production"] = production
+        defects = production.get("defects")
+        if not isinstance(defects, list):
+            defects = []
+
+        now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        entry = {"reason": reason, "at": now_iso, "by_name": (user.name if user else None)}
+        defects.append(entry)
+        if len(defects) > _PRODUCTION_DEFECTS_CAP:
+            defects = defects[-_PRODUCTION_DEFECTS_CAP:]
+        production["defects"] = defects
+
+        order.structured_data = sd
+        flag_modified(order, "structured_data")
+        db.add(
+            OrderEvent(
+                order_id=order_id,
+                event_type="PRODUCTION_DEFECT_REPORTED",
+                payload={
+                    "reason": reason,
+                    "domain": "PRODUCTION_DOMAIN",
+                    "action": "PRODUCTION_DEFECT_REPORTED",
+                },
+                created_by_user_id=session.get("user_id"),
+            )
+        )
+        db.commit()
+        return jsonify(
+            {"success": True, "data": {"defects": defects, "latest": entry, "total": len(defects)}}
         )
     except Exception as exc:
         db.rollback()

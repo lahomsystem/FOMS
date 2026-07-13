@@ -19,6 +19,20 @@
 
     <ul class="foms-packing-list" data-foms-packing-list aria-label="패킹 체크리스트"></ul>
 
+    {# 누락 신고 UI 템플릿 — foms-packing.js 가 각 행에 복제해 삽입한다(누락 ghost 버튼 + 사유 칩 3개). #}
+    <template data-foms-packing-issue-template>
+      <div class="foms-packing-row__issue">
+        <button type="button" class="foms-packing-row__issue-btn"
+                data-foms-packing-issue-toggle aria-expanded="false">누락 신고</button>
+        <div class="foms-packing-issue-chips" data-foms-packing-issue-chips hidden
+             role="group" aria-label="누락 사유 선택">
+          <button type="button" class="foms-packing-issue-chip" data-foms-packing-issue-chip="missing">미입고</button>
+          <button type="button" class="foms-packing-issue-chip" data-foms-packing-issue-chip="damaged">파손</button>
+          <button type="button" class="foms-packing-issue-chip" data-foms-packing-issue-chip="short">수량 부족</button>
+        </div>
+      </div>
+    </template>
+
     <form class="foms-packing-add" data-foms-packing-add autocomplete="off">
       <input type="text" class="form-control foms-packing-add__label" name="label"
              placeholder="항목 추가 (예: 상판 유리)" aria-label="추가 항목 이름">

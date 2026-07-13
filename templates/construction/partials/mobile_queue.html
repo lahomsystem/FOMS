@@ -41,6 +41,14 @@
       {% if _ch_tel and _ch_tel != '-' %}
       <a class="foms-v2dh-btn foms-v2dh-btn--primary" href="tel:{{ _ch_tel }}" aria-label="{{ _chero.customer_name or '고객' }} 전화"><i class="fas fa-phone" aria-hidden="true"></i> 고객 전화</a>
       {% endif %}
+      {# G4: 출발 전 자재 확인 — 기존 출고 패킹 시트 재사용(권한에 CONSTRUCTION 포함).
+         foms-packing.js 의 실제 오픈 계약은 [data-foms-packing-trigger]+data-order-id 이므로
+         그것으로 배선하고, 브리프 명시 마커 data-foms-packing-open 도 함께 부착(전방호환). #}
+      <button type="button" class="foms-v2dh-btn"
+              data-foms-packing-trigger
+              data-foms-packing-open="{{ _chero.id }}"
+              data-order-id="{{ _chero.id }}"
+              aria-label="{{ _chero.customer_name or '현장' }} 자재 확인"><i class="fas fa-box-open" aria-hidden="true"></i> 자재 확인</button>
       <a class="foms-v2dh-btn" href="{{ url_for('erp_dashboard.erp_order_mobile_detail', order_id=_chero.id) }}">현장 상세</a>
     </div>
   </div>
@@ -108,5 +116,5 @@
   {% endif %}
 </section>
 
-{# B5 시공 완료 게이트 바텀시트 (단일 인스턴스, foms-complete-gate.js 제어). #}
-{% include 'construction/partials/complete_gate_sheet.html' %}
+{# G4 출발 전 자재 확인 — 기존 출고 패킹 시트/JS 재사용(무수정 include, foms-packing.js 제어). #}
+{% include 'shipment/partials/packing_sheet.html' %}

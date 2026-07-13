@@ -145,6 +145,68 @@ def test_bad_payload_returns_400(client) -> None:
     assert client.post(_url(order.id), json={"add": {"qty": 1}}).status_code == 400
 
 
+def test_post_sets_and_persists_issue(client) -> None:
+    """누락 사유(issue) 표기 → 저장·재GET 지속, checked 보존, 이벤트 issues_count, 해제."""
+    user = _make_user("packing_issue", "SHIPMENT")
+    _login(client, user)
+    order = _make_order()
+    derived = client.get(_url(order.id)).get_json()["data"]["items"]
+    target_key = derived[0]["key"]
+
+    # 먼저 체크 → 이후 issue-only 업데이트가 checked 를 덮어쓰지 않아야 한다(부분 업데이트 계약).
+    client.post(_url(order.id), json={"updates": [{"key": target_key, "checked": True}]})
+
+    res = client.post(_url(order.id), json={"updates": [{"key": target_key, "issue": "damaged"}]})
+    assert res.status_code == 200
+    data = res.get_json()["data"]
+    assert data["issues_count"] == 1
+    row = next(r for r in data["items"] if r["key"] == target_key)
+    assert row["issue"] == "damaged"
+    assert row["issue_at"]
+    assert row["issue_by_name"] == user.name
+    assert row["checked"] is True  # issue-only 업데이트가 checked 보존
+
+    # 재GET 지속.
+    again = client.get(_url(order.id)).get_json()["data"]
+    again_row = next(r for r in again["items"] if r["key"] == target_key)
+    assert again_row["issue"] == "damaged"
+    assert again_row["checked"] is True
+
+    # OrderEvent payload 에 issues 카운트 포함.
+    events = (
+        db_session.query(OrderEvent)
+        .filter(OrderEvent.order_id == order.id, OrderEvent.event_type == "PACKING_UPDATED")
+        .all()
+    )
+    assert events[-1].payload["issues_count"] == 1
+
+    # 해제(null) → issue 제거, issues_count 0.
+    clr = client.post(_url(order.id), json={"updates": [{"key": target_key, "issue": None}]})
+    assert clr.status_code == 200
+    cleared_data = clr.get_json()["data"]
+    cleared = next(r for r in cleared_data["items"] if r["key"] == target_key)
+    assert cleared["issue"] is None
+    assert cleared_data["issues_count"] == 0
+
+
+def test_post_rejects_invalid_issue(client) -> None:
+    """화이트리스트 밖 issue 값 → 400, 저장 없음."""
+    user = _make_user("packing_bad_issue", "SHIPMENT")
+    _login(client, user)
+    order = _make_order()
+    derived = client.get(_url(order.id)).get_json()["data"]["items"]
+    target_key = derived[0]["key"]
+
+    res = client.post(_url(order.id), json={"updates": [{"key": target_key, "issue": "explode"}]})
+    assert res.status_code == 400
+    assert res.get_json()["success"] is False
+
+    # 잘못된 요청은 커밋 전에 400 → packing 이 저장되지 않아야 한다.
+    db_session.expire_all()
+    fresh = db_session.query(Order).filter(Order.id == order.id).first()
+    assert "packing" not in (fresh.structured_data.get("shipment") or {})
+
+
 def test_post_records_order_event(client) -> None:
     user = _make_user("packing_event", "SHIPMENT")
     _login(client, user)

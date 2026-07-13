@@ -13,6 +13,7 @@
   window.__FOMS_CALL_LOG_BOUND = true;
 
   var SHEET_SEL = '[data-foms-call-log-sheet]';
+  var recognition = null;
 
   // B7: 공용 쓰기 래퍼(있으면) 경유 → 오프라인 시 큐 적재 + sync 배지 갱신. 없으면 기존 fetch.
   function writeFetch(url, opts) {
@@ -37,6 +38,113 @@
     }
   }
 
+  function setMicStatus(sheet, msg) {
+    var el = sheet && sheet.querySelector('[data-foms-call-log-mic-status]');
+    if (el) {
+      el.textContent = msg || '';
+    }
+  }
+
+  function pad2(n) {
+    return (n < 10 ? '0' : '') + n;
+  }
+
+  function toIsoDate(d) {
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+  }
+
+  // 실측일 제안 칩(내일/모레/3일 후) 라벨을 서버 렌더가 아닌 열람 시점 로컬 날짜로 채운다.
+  function populateDateChips(sheet) {
+    var chips = sheet.querySelectorAll('[data-foms-call-log-date-chip]');
+    var base = new Date();
+    base.setHours(0, 0, 0, 0);
+    Array.prototype.forEach.call(chips, function (chip) {
+      var offset = parseInt(chip.getAttribute('data-offset'), 10) || 0;
+      var d = new Date(base.getTime());
+      d.setDate(d.getDate() + offset);
+      chip.setAttribute('data-value', toIsoDate(d));
+      chip.classList.remove('foms-call-log-date-chip--active');
+      chip.setAttribute('aria-pressed', 'false');
+      var lbl = chip.querySelector('[data-foms-call-log-date-label]');
+      if (lbl) {
+        lbl.textContent = (d.getMonth() + 1) + '/' + d.getDate();
+      }
+    });
+  }
+
+  function applyDateChip(sheet, chip) {
+    var input = sheet.querySelector('[name="measurement_date"]');
+    if (input) {
+      input.value = chip.getAttribute('data-value') || '';
+    }
+    var chips = sheet.querySelectorAll('[data-foms-call-log-date-chip]');
+    Array.prototype.forEach.call(chips, function (c) {
+      var active = c === chip;
+      c.classList.toggle('foms-call-log-date-chip--active', active);
+      c.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+  }
+
+  function stopRecognition() {
+    if (recognition) {
+      try {
+        recognition.stop();
+      } catch (_err) {
+        /* stop 중복 호출은 무해 */
+      }
+      recognition = null;
+    }
+  }
+
+  // 메모 음성 받아쓰기(Web Speech API ko-KR). foms-measure-capture.js 패턴 복제.
+  function toggleMic(sheet, mic) {
+    var Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!Rec) {
+      return;
+    }
+    if (recognition) {
+      stopRecognition();
+      mic.setAttribute('aria-pressed', 'false');
+      setMicStatus(sheet, '');
+      return;
+    }
+    var memo = sheet.querySelector('[name="call_memo"]');
+    recognition = new Rec();
+    recognition.lang = 'ko-KR';
+    recognition.interimResults = false;
+    recognition.continuous = false;
+    mic.setAttribute('aria-pressed', 'true');
+    setMicStatus(sheet, '듣는 중...');
+    recognition.onresult = function (ev) {
+      var transcript = '';
+      for (var i = ev.resultIndex; i < ev.results.length; i += 1) {
+        transcript += ev.results[i][0].transcript;
+      }
+      transcript = transcript.trim();
+      if (memo && transcript) {
+        memo.value = memo.value ? (memo.value + ' ' + transcript) : transcript;
+      }
+    };
+    recognition.onerror = function (ev) {
+      // 에러를 삼키지 않고 상태 라벨로 노출.
+      setMicStatus(sheet, '음성 인식 오류: ' + (ev && ev.error ? ev.error : '알 수 없음'));
+      recognition = null;
+      mic.setAttribute('aria-pressed', 'false');
+    };
+    recognition.onend = function () {
+      recognition = null;
+      mic.setAttribute('aria-pressed', 'false');
+      setMicStatus(sheet, '');
+    };
+    try {
+      recognition.start();
+    } catch (err) {
+      setMicStatus(sheet, '음성 인식을 시작할 수 없습니다.');
+      recognition = null;
+      mic.setAttribute('aria-pressed', 'false');
+    }
+  }
+
   function openSheet(orderId, customerName) {
     var sheet = getSheet();
     if (!sheet || !orderId) {
@@ -56,6 +164,13 @@
     if (saveBtn) {
       saveBtn.disabled = false;
     }
+    var mic = sheet.querySelector('[data-foms-call-log-mic]');
+    if (mic) {
+      mic.hidden = !(window.SpeechRecognition || window.webkitSpeechRecognition);
+      mic.setAttribute('aria-pressed', 'false');
+    }
+    setMicStatus(sheet, '');
+    populateDateChips(sheet);
     sheet.hidden = false;
     sheet.setAttribute('aria-hidden', 'false');
     document.body.classList.add('foms-call-log-open');
@@ -66,6 +181,7 @@
     if (!sheet) {
       return;
     }
+    stopRecognition();
     sheet.hidden = true;
     sheet.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('foms-call-log-open');
@@ -142,6 +258,24 @@
       openSheet(opener.getAttribute('data-order-id'), opener.getAttribute('data-customer-name'));
       return;
     }
+    var dateChip = ev.target.closest('[data-foms-call-log-date-chip]');
+    if (dateChip) {
+      ev.preventDefault();
+      var dcSheet = dateChip.closest(SHEET_SEL);
+      if (dcSheet) {
+        applyDateChip(dcSheet, dateChip);
+      }
+      return;
+    }
+    var mic = ev.target.closest('[data-foms-call-log-mic]');
+    if (mic) {
+      ev.preventDefault();
+      var micSheet = mic.closest(SHEET_SEL);
+      if (micSheet) {
+        toggleMic(micSheet, mic);
+      }
+      return;
+    }
     if (ev.target.closest('[data-foms-call-log-close]')) {
       ev.preventDefault();
       closeSheet();
@@ -168,5 +302,22 @@
     if (sheet && !sheet.hidden) {
       closeSheet();
     }
+  });
+
+  // 사용자가 날짜 입력을 직접 바꾸면 제안 칩 하이라이트를 해제(프로그램 setvalue 는 change 미발생).
+  document.addEventListener('change', function (ev) {
+    var input = ev.target && ev.target.closest ? ev.target.closest('[name="measurement_date"]') : null;
+    if (!input) {
+      return;
+    }
+    var sheet = input.closest(SHEET_SEL);
+    if (!sheet) {
+      return;
+    }
+    var chips = sheet.querySelectorAll('[data-foms-call-log-date-chip]');
+    Array.prototype.forEach.call(chips, function (c) {
+      c.classList.remove('foms-call-log-date-chip--active');
+      c.setAttribute('aria-pressed', 'false');
+    });
   });
 })();
