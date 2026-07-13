@@ -57,14 +57,44 @@
     }
   }
 
+  /* ---- 로딩 스켈레톤 (createElement — 텍스트 폴백 유지) -------------- */
+  function buildSkeleton(rows) {
+    var wrap = document.createElement("div");
+    wrap.className = "fos-skeleton-wrap";
+    wrap.setAttribute("role", "status");
+    wrap.setAttribute("aria-label", "불러오는 중");
+    for (var i = 0; i < rows; i++) {
+      var sk = document.createElement("div");
+      sk.className = "fos-skeleton";
+      var dot = document.createElement("span");
+      dot.className = "fos-skeleton__dot";
+      var lines = document.createElement("span");
+      lines.className = "fos-skeleton__lines";
+      var a = document.createElement("span");
+      a.className = "sk sk--a";
+      var b = document.createElement("span");
+      b.className = "sk sk--b";
+      lines.appendChild(a);
+      lines.appendChild(b);
+      sk.appendChild(dot);
+      sk.appendChild(lines);
+      wrap.appendChild(sk);
+    }
+    var fb = document.createElement("span");
+    fb.className = "fos-skeleton-text";
+    fb.textContent = "불러오는 중…";
+    wrap.appendChild(fb);
+    return wrap;
+  }
+
   /* ---- 주문 360° 타임라인 (읽기 전용 fragment fetch) ----------------- */
   function openTimeline(orderId) {
     if (!orderId) return;
     var body = document.querySelector("[data-fos-timeline-body]");
     openSheet("order360");
     if (!body) return;
-    body.innerHTML =
-      '<div class="fos-empty"><span class="fos-empty__sub">불러오는 중…</span></div>';
+    body.textContent = "";
+    body.appendChild(buildSkeleton(3));
     fetch("/api/foms/fragment/order/" + encodeURIComponent(orderId) + "/timeline", {
       headers: { "X-Requested-With": "fetch" },
       credentials: "same-origin",
@@ -95,11 +125,42 @@
     chip.classList.add("is-active");
   }
 
+  /* ---- 옥외 고대비 모드 (localStorage 유지, 직사광 가독) ------------- */
+  var CONTRAST_KEY = "foms_contrast";
+  function readContrast() {
+    try {
+      return window.localStorage.getItem(CONTRAST_KEY) === "high";
+    } catch (err) {
+      return false;
+    }
+  }
+  function applyContrast(on) {
+    var root = document.documentElement;
+    if (on) root.setAttribute("data-foms-contrast", "high");
+    else root.removeAttribute("data-foms-contrast");
+    document.querySelectorAll("[data-foms-contrast-toggle]").forEach(function (b) {
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+  }
+  function toggleContrast() {
+    var next = !readContrast();
+    try {
+      window.localStorage.setItem(CONTRAST_KEY, next ? "high" : "off");
+    } catch (err) {
+      /* 스토리지 불가(사생활 모드 등) — 세션 내 토글만 반영 */
+    }
+    applyContrast(next);
+  }
+
   /* ---- 이벤트 위임 (document 1회) ----------------------------------- */
   document.addEventListener("click", function (e) {
     var t = e.target;
     if (!t || !t.closest) return;
     var el;
+    if ((el = t.closest("[data-foms-contrast-toggle]"))) {
+      toggleContrast();
+      return;
+    }
     if ((el = t.closest("[data-fos-timeline]"))) {
       // 카드(<a>) 내부의 표시 전용 트리거 — 기본 링크 이동을 막고 시트만 연다.
       e.preventDefault();
@@ -134,9 +195,13 @@
     }
   });
 
+  // 부팅 복원: 저장된 고대비 선호를 html·토글 버튼에 반영(defer라 DOM 준비 완료).
+  applyContrast(readContrast());
+
   window.FOMS_SHELL_V3 = {
     openSheet: openSheet,
     closeSheet: closeSheet,
     openTimeline: openTimeline,
+    toggleContrast: toggleContrast,
   };
 })();

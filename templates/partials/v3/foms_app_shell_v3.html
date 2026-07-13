@@ -83,14 +83,28 @@
       <span class="fos-topbar__sub">{{ current_user.name }}{% if _team %} · {{ _team }}{% endif %}</span>
       {% endif %}
     </div>
-    <button type="button" class="fos-topbar__toggle" data-foms-shell-toggle="v2"
-            aria-label="기존 모바일(v2) 화면으로 전환">
-      <i class="fas fa-rotate-left" aria-hidden="true"></i>
-      <span>기존 화면</span>
-    </button>
+    <div class="fos-topbar__r">
+      {# B7 sync 배지: v2 헤더 배지와 동일 계약(data-foms-sync-badge, foms-write.js 3상태 제어).
+         라이트 .fos-sync 스타일 — 기본 hidden, 대기 warn, 실패 danger. #}
+      <span class="fos-sync" data-foms-sync-badge hidden aria-live="polite" aria-label="동기화 대기 상태"></span>
+      <button type="button" class="fos-topbar__toggle" data-foms-shell-toggle="v2"
+              aria-label="기존 모바일(v2) 화면으로 전환">
+        <i class="fas fa-rotate-left" aria-hidden="true"></i>
+        <span>기존 화면</span>
+      </button>
+    </div>
   </header>
 
   <div class="fos-content" data-foms-v3-content>
+    {# E: 옥외 고대비 모드 토글(셸 전용) — 콘텐츠 최상단 우측(앱바 우측 클러스터 무터치).
+       클릭 시 html[data-foms-contrast="high"] 토글 + localStorage(foms_contrast) 유지는 foms-mobile-v3.js. #}
+    <div class="fos-contrast-bar">
+      <button type="button" class="fos-contrast-toggle" data-foms-contrast-toggle
+              aria-pressed="false" aria-label="옥외 고대비 모드 전환">
+        <i class="fas fa-sun" aria-hidden="true"></i>
+        <span>고대비</span>
+      </button>
+    </div>
     {# 콘텐츠 슬롯 계약: 페르소나 body가 include 전 {% set fos_content_partial = '...' %}로
        홈 partial 경로를 지정하면 여기서 렌더한다. 미지정 시 빈 상태 placeholder(페르소나 무관). #}
     {% if fos_content_partial %}

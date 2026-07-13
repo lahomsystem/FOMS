@@ -48,8 +48,28 @@
     var list = listEl();
     if (!list) return;
     list.textContent = '';
+    // 스켈레톤 3행(createElement) + 텍스트 폴백(.foms-prod-steps__loading 유지).
+    for (var i = 0; i < 3; i++) {
+      var row = document.createElement('li');
+      row.className = 'foms-prod-steps__skeleton';
+      row.setAttribute('aria-hidden', 'true');
+      var dot = document.createElement('span');
+      dot.className = 'foms-prod-steps__skeleton-dot';
+      var lines = document.createElement('span');
+      lines.className = 'foms-prod-steps__skeleton-lines';
+      var a = document.createElement('span');
+      a.className = 'foms-prod-steps__sk foms-prod-steps__sk--a';
+      var b = document.createElement('span');
+      b.className = 'foms-prod-steps__sk foms-prod-steps__sk--b';
+      lines.appendChild(a);
+      lines.appendChild(b);
+      row.appendChild(dot);
+      row.appendChild(lines);
+      list.appendChild(row);
+    }
     var li = document.createElement('li');
     li.className = 'foms-prod-steps__loading';
+    li.setAttribute('role', 'status');
     li.textContent = '불러오는 중...';
     list.appendChild(li);
   }

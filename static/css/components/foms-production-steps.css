@@ -41,6 +41,25 @@
   font-size: 0.75rem;
 }
 
+/* --- C: 카드 미니 진행바(버튼 하단 2px, width=done/5) ------------------------- */
+.foms-prod-steps-bar {
+  position: relative;
+  height: 2px;
+  margin: -2px 0 0;
+  border-radius: 0 0 var(--foms-radius-lg, 12px) var(--foms-radius-lg, 12px);
+  background: var(--foms-border-subtle, #e2e6ea);
+  overflow: hidden;
+}
+
+.foms-prod-steps-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--p, 0%);
+  background: var(--st-production, #B45309);
+  transition: width 0.2s ease;
+}
+
 /* --- 바텀시트 ---------------------------------------------------------------- */
 .foms-prod-steps-sheet {
   --bs-offcanvas-height: auto;
@@ -71,6 +90,49 @@
 
 .foms-prod-steps__error {
   color: var(--foms-color-danger-600, #d64545);
+}
+
+/* 로딩 스켈레톤(행 3개 + 텍스트 폴백) — foms-production-steps.js setLoading 주입.
+   라이트 톤(#EFECE6 shape / #F8F6F2 shimmer). */
+.foms-prod-steps__skeleton {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  list-style: none;
+}
+.foms-prod-steps__skeleton-dot {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: #EFECE6;
+}
+.foms-prod-steps__skeleton-lines {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.foms-prod-steps__sk {
+  border-radius: 7px;
+  background: #EFECE6;
+  position: relative;
+  overflow: hidden;
+}
+.foms-prod-steps__sk::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(248, 246, 242, .9), transparent);
+  animation: foms-prod-skeleton-shimmer 1.4s infinite;
+}
+.foms-prod-steps__sk--a { height: 15px; width: 55%; }
+.foms-prod-steps__sk--b { height: 12px; width: 80%; }
+@keyframes foms-prod-skeleton-shimmer { 100% { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) {
+  .foms-prod-steps__sk::after { animation: none; }
 }
 
 .foms-prod-steps__row {

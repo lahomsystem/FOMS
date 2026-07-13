@@ -62,6 +62,8 @@
   cursor:pointer; min-height:44px; white-space:nowrap;
 }
 .fos-topbar__toggle:active{transform:scale(.985)}
+/* 앱바 우측 그룹 (sync 배지 + v2 복귀 토글) */
+.fos-topbar__r{flex:0 0 auto; display:flex; align-items:center; gap:8px}
 
 /* v3 콘텐츠 슬롯 (스크롤 영역 — C4가 페르소나 홈으로 교체) */
 .fos-content{flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; position:relative}
@@ -105,6 +107,14 @@
 .fos-sync[data-sync="ok"]{color:var(--ok)} .fos-sync[data-sync="ok"]::before{background:var(--ok)}
 .fos-sync[data-sync="pending"]{color:var(--warn)} .fos-sync[data-sync="pending"]::before{background:var(--warn); animation:pulse 1.6s ease-in-out infinite}
 .fos-sync[data-sync="error"]{color:var(--danger)} .fos-sync[data-sync="error"]::before{background:var(--danger)}
+/* v3 앱바 sync 배지 — foms-write.js 공용 컨트롤러 3상태 계약(data-foms-sync-badge +
+   .foms-sync-badge--warn/--danger + hidden 속성)을 .fos-sync 라이트 스타일에 매핑.
+   (foms-write.js 는 data-sync 가 아니라 클래스+hidden 으로 상태를 표기한다.) */
+.fos-sync[data-foms-sync-badge][hidden]{display:none}
+.fos-sync.foms-sync-badge--warn{color:var(--warn)}
+.fos-sync.foms-sync-badge--warn::before{background:var(--warn); animation:pulse 1.6s ease-in-out infinite}
+.fos-sync.foms-sync-badge--danger{color:var(--danger)}
+.fos-sync.foms-sync-badge--danger::before{background:var(--danger)}
 @keyframes pulse{50%{opacity:.35}}
 
 /* hero */
@@ -292,7 +302,7 @@
 /* progress */
 .fos-progress{display:flex; flex-direction:column; gap:6px}
 .fos-progress__track{height:10px; border-radius:99px; background:var(--fos-bg2); overflow:hidden}
-.fos-progress__bar{height:100%; border-radius:99px; background:var(--acc); width:60%}
+.fos-progress__bar{height:100%; border-radius:99px; background:var(--acc); width:var(--fos-pct,60%)}
 .fos-progress__lbl{font-size:12px; color:var(--fos-tx1); font-weight:700; font-variant-numeric:tabular-nums; display:flex; justify-content:space-between}
 
 /* 사진 그리드 + 플레이스홀더 */
@@ -366,6 +376,9 @@
   animation:shimmer 1.4s infinite}
 .sk--a{height:15px; width:62%} .sk--b{height:12px; width:88%} .fos-skeleton .fos-skeleton__dot{background:var(--fos-bg2)}
 @keyframes shimmer{100%{transform:translateX(100%)}}
+/* 스켈레톤 래퍼(3행 로딩 + 텍스트 폴백) — foms-mobile-v3.js buildSkeleton 주입 */
+.fos-skeleton-wrap{display:flex; flex-direction:column; gap:10px; padding:4px 0}
+.fos-skeleton-text{font-size:12px; color:var(--fos-tx2); text-align:center}
 
 /* 음성 입력 (v3.0 장식 — STT는 v3.1) */
 .fos-voice{display:flex; align-items:center; gap:12px; background:var(--fos-bg1); border:1px solid var(--fos-line); border-radius:14px; padding:12px 14px; width:100%; cursor:pointer; color:inherit; font:inherit; text-align:left}
@@ -388,7 +401,8 @@
 @keyframes scan{0%,100%{top:14%}50%{top:82%}}
 
 @media (prefers-reduced-motion: reduce){
-  .sk::after,.fos-qr__line,.fos-voice__wave i,.fos-sync[data-sync="pending"]::before{animation:none}
+  .sk::after,.fos-qr__line,.fos-voice__wave i,
+  .fos-sync[data-sync="pending"]::before,.fos-sync.foms-sync-badge--warn::before{animation:none}
   .fos-sheet{transition:none}
 }
 
@@ -584,4 +598,39 @@
   .fos-shell-v3 .fos-content {
     padding-bottom: calc(68px + env(safe-area-inset-bottom, 0px));
   }
+}
+
+/* =========================================================================
+   [E] 옥외 고대비 모드 (킬러 #8, 라이트 기반 번안)
+   콘텐츠 최상단 우측 토글(.fos-contrast-toggle) → html[data-foms-contrast="high"].
+   직사광 가독: 본문 폰트 15→17, tx1/tx2·보더 진하게, 배지/칩 대비 강화.
+   reduced-motion 무관(모션 없음). ========================================= */
+.fos-contrast-bar {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; justify-content: flex-end;
+  padding: 8px 16px 0; pointer-events: none;
+}
+.fos-contrast-toggle {
+  pointer-events: auto;
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 36px; padding: 6px 12px;
+  border: 1px solid var(--fos-line); border-radius: 99px;
+  background: var(--fos-bg1); color: var(--fos-tx1);
+  font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer;
+}
+.fos-contrast-toggle[aria-pressed="true"] {
+  background: var(--fos-tx0); color: var(--fos-bg1); border-color: var(--fos-tx0);
+}
+
+[data-foms-contrast="high"] .fos-shell-v3 {
+  font-size: 17px;            /* 본문 15→17 */
+  --fos-tx1: #3F3A33;         /* 보조 텍스트 진하게 */
+  --fos-tx2: #5F5950;
+  --fos-line: #BDB6AA;        /* 보더 진하게 */
+}
+[data-foms-contrast="high"] .fos-shell-v3 .fos-chip { border-color: var(--fos-tx2); }
+[data-foms-contrast="high"] .fos-shell-v3 .fos-stage,
+[data-foms-contrast="high"] .fos-shell-v3 .px-shipment-badge,
+[data-foms-contrast="high"] .fos-shell-v3 .px-drawing-vchip {
+  border-width: 1.5px; font-weight: 800;
 }

@@ -33,9 +33,42 @@
     box.classList.toggle('d-none', !message);
   }
 
+  // 로딩 스켈레톤(3행 + 텍스트 폴백) — createElement 조립. loader 표시 시 스켈레톤을
+  // 채우고, 숨길 때 비운다(정적 템플릿 텍스트는 JS 실행 전 폴백).
+  function renderPackingSkeleton(loader) {
+    loader.textContent = '';
+    loader.setAttribute('role', 'status');
+    loader.setAttribute('aria-label', '불러오는 중');
+    for (var i = 0; i < 3; i++) {
+      var row = document.createElement('div');
+      row.className = 'foms-packing-skeleton';
+      row.setAttribute('aria-hidden', 'true');
+      var box = document.createElement('span');
+      box.className = 'foms-packing-skeleton__box';
+      var lines = document.createElement('span');
+      lines.className = 'foms-packing-skeleton__lines';
+      var a = document.createElement('span');
+      a.className = 'foms-packing-skeleton__sk foms-packing-skeleton__sk--a';
+      var b = document.createElement('span');
+      b.className = 'foms-packing-skeleton__sk foms-packing-skeleton__sk--b';
+      lines.appendChild(a);
+      lines.appendChild(b);
+      row.appendChild(box);
+      row.appendChild(lines);
+      loader.appendChild(row);
+    }
+    var text = document.createElement('span');
+    text.className = 'foms-packing-loading__text';
+    text.textContent = '불러오는 중...';
+    loader.appendChild(text);
+  }
+
   function setLoading(el, isLoading) {
     var loader = q(el, '[data-foms-packing-loading]');
-    if (loader) loader.hidden = !isLoading;
+    if (!loader) return;
+    loader.hidden = !isLoading;
+    if (isLoading) renderPackingSkeleton(loader);
+    else loader.textContent = '';
   }
 
   function apiUrl(orderId) {

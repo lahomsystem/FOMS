@@ -82,30 +82,32 @@
   // ------------------------------------------------------------------
   var lastFailed = false;
 
-  function badgeEl() {
-    return document.querySelector('[data-foms-sync-badge]');
+  // 배지는 다중 존재 가능(v2 셸 헤더 + v3 앱바). 두 셸이 한 페이지에 공존하진 않지만
+  // querySelectorAll 로 전수 갱신해 셸 종류와 무관하게 동일 3상태 계약을 적용한다.
+  function badgeEls() {
+    return document.querySelectorAll('[data-foms-sync-badge]');
   }
 
   function paint(count) {
-    var el = badgeEl();
-    if (!el) return;
-    if (!count) {
-      lastFailed = false;
-      el.hidden = true;
-      el.textContent = '';
-      el.classList.remove('foms-sync-badge--warn', 'foms-sync-badge--danger');
-      return;
-    }
-    el.hidden = false;
-    if (lastFailed) {
-      el.textContent = '전송 실패';
-      el.classList.add('foms-sync-badge--danger');
-      el.classList.remove('foms-sync-badge--warn');
-    } else {
-      el.textContent = '대기 ' + count + '건';
-      el.classList.add('foms-sync-badge--warn');
-      el.classList.remove('foms-sync-badge--danger');
-    }
+    if (!count) lastFailed = false;
+    badgeEls().forEach(function (el) {
+      if (!count) {
+        el.hidden = true;
+        el.textContent = '';
+        el.classList.remove('foms-sync-badge--warn', 'foms-sync-badge--danger');
+        return;
+      }
+      el.hidden = false;
+      if (lastFailed) {
+        el.textContent = '전송 실패';
+        el.classList.add('foms-sync-badge--danger');
+        el.classList.remove('foms-sync-badge--warn');
+      } else {
+        el.textContent = '대기 ' + count + '건';
+        el.classList.add('foms-sync-badge--warn');
+        el.classList.remove('foms-sync-badge--danger');
+      }
+    });
   }
 
   function refresh() {

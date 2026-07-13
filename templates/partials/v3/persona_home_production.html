@@ -84,6 +84,7 @@
     <div class="fos-sec__hd">{{ _ns.label }} · {{ _loaded }} / 전체 {{ total_orders }}건</div>
 
     {% if orders %}
+      {% set _v3p = namespace(shown=false) %}
       {% for o in orders %}
         {% set _st = 'confirm' if o.stage == '제작대기' else ('production' if o.stage == '제작중' else 'completed') %}
         {% set _dday = o.construction_dday %}
@@ -118,6 +119,20 @@
                 {% endif %}
               {% endif %}
             </span>
+            {# C: 진행중 잡 첫 건에만 공정 진행바+단계 라벨(.fos-progress, 카드당 sd.production.steps 파생). #}
+            {% if o.stage == '제작중' and not _v3p.shown %}
+              {% set _v3p.shown = true %}
+              {% set _psteps = ((o.structured_data.get('production') if o.structured_data else None) or {}).get('steps') or [] %}
+              {% set _pdone = _psteps | selectattr('done') | list | length %}
+              {% set _pnext = _psteps | rejectattr('done') | list | first %}
+              <span class="fos-progress px-production-progress">
+                <span class="fos-progress__track"><span class="fos-progress__bar" style="--fos-pct:{{ [_pdone, 5]|min * 20 }}%"></span></span>
+                <span class="fos-progress__lbl">
+                  <span>{{ (_pnext.label ~ ' 진행 중') if _pnext else '공정 완료' }}</span>
+                  <span class="tnum">{{ [_pdone, 5]|min }}/5</span>
+                </span>
+              </span>
+            {% endif %}
           </span>
           <span class="fos-queue-card__aside">
             <span class="fos-tl-btn" role="button" data-fos-timeline data-order-id="{{ o.id }}" aria-label="주문 진행 타임라인 보기"><i class="fas fa-timeline" aria-hidden="true"></i></span>

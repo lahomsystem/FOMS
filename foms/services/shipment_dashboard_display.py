@@ -158,6 +158,10 @@ def build_shipment_mobile_queue_rows(
             row["manager_name"] = row.get("manager_name") if row.get("manager_name") not in (None, "", "-") else (order.manager_name or "-")
             row["orderer_name"] = row.get("orderer_name") or getattr(order, "orderer_name", None)
             row["product_subtitle"] = row.get("product_subtitle") or (getattr(order, "product", None) or "")
+            # D: 패킹 카운터 파생(추가 쿼리 없음 — 이미 로드된 sd.shipment.packing만). 없으면 present=False.
+            _packing = shipment.get("packing")
+            _packing_items = _packing.get("items") if isinstance(_packing, dict) else None
+            _packing_present = isinstance(_packing_items, list) and len(_packing_items) > 0
             row["shipment_meta"] = {
                 "construction_time": shipment.get("construction_time") or "",
                 "drawing_managers": drawing_managers,
@@ -177,6 +181,14 @@ def build_shipment_mobile_queue_rows(
                 ),
                 # sales_delivery(영업택배): structured_data.shipment.sales_delivery is True 계약(field_update.py와 동일).
                 "sales_delivery": shipment.get("sales_delivery") is True,
+                # D: 패킹 진행 파생(패킹 N/M 라벨·배지 SSOT — v2 큐 + v3 홈 공용).
+                "packing_present": _packing_present,
+                "packing_total": len(_packing_items) if _packing_present else 0,
+                "packing_checked": (
+                    sum(1 for it in _packing_items if isinstance(it, dict) and it.get("checked"))
+                    if _packing_present
+                    else 0
+                ),
             }
             mobile_queue_rows.append(row)
     return mobile_queue_rows

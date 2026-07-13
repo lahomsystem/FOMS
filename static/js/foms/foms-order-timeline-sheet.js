@@ -23,8 +23,36 @@
     return !!(window.bootstrap && window.bootstrap.Offcanvas);
   }
 
-  function loadingHtml() {
-    return '<div class="foms-tl-sheet__loading" data-foms-tl-sheet-loading>불러오는 중...</div>';
+  // 로딩 스켈레톤(3행 + 텍스트 폴백) — createElement 조립. 시트 body(.foms-tl-sheet
+  // 스코프)에 주입되며 스타일은 foms-order-timeline.css 의 .fos-skeleton* 이식본이 담당한다.
+  function buildSkeleton(rows) {
+    var wrap = document.createElement('div');
+    wrap.className = 'fos-skeleton-wrap';
+    wrap.setAttribute('data-foms-tl-sheet-loading', '');
+    wrap.setAttribute('role', 'status');
+    wrap.setAttribute('aria-label', '불러오는 중');
+    for (var i = 0; i < rows; i++) {
+      var sk = document.createElement('div');
+      sk.className = 'fos-skeleton';
+      var dot = document.createElement('span');
+      dot.className = 'fos-skeleton__dot';
+      var lines = document.createElement('span');
+      lines.className = 'fos-skeleton__lines';
+      var a = document.createElement('span');
+      a.className = 'sk sk--a';
+      var b = document.createElement('span');
+      b.className = 'sk sk--b';
+      lines.appendChild(a);
+      lines.appendChild(b);
+      sk.appendChild(dot);
+      sk.appendChild(lines);
+      wrap.appendChild(sk);
+    }
+    var fb = document.createElement('span');
+    fb.className = 'fos-skeleton-text';
+    fb.textContent = '불러오는 중...';
+    wrap.appendChild(fb);
+    return wrap;
   }
 
   function openSheet(id) {
@@ -40,7 +68,8 @@
     if (!body) return;
     if (loading) return;
     loading = true;
-    body.innerHTML = loadingHtml();
+    body.textContent = '';
+    body.appendChild(buildSkeleton(3));
 
     fetch('/api/foms/fragment/order/' + encodeURIComponent(id) + '/timeline', {
       headers: { 'Accept': 'text/html' },

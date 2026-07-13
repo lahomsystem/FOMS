@@ -23,7 +23,7 @@
                     data-foms-packing-trigger
                     data-order-id="{{ o.id }}">
               <i class="fas fa-box-open" aria-hidden="true"></i>
-              <span>패킹</span>
+              <span>패킹{% if meta.packing_present %} {{ meta.packing_checked }}/{{ meta.packing_total }}{% endif %}</span>
               <span class="foms-packing-badge" data-foms-packing-badge hidden></span>
             </button>
             {# B4: QR 라벨(새 탭 인쇄). #}

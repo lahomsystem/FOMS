@@ -65,6 +65,49 @@
   font-size: 14px;
 }
 
+/* 로딩 스켈레톤(3행 + 텍스트 폴백) — foms-packing.js renderPackingSkeleton 주입.
+   라이트 톤(#EFECE6 shape / #F8F6F2 shimmer). */
+.foms-packing-skeleton {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 4px;
+}
+.foms-packing-skeleton__box {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  background: #EFECE6;
+}
+.foms-packing-skeleton__lines {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.foms-packing-skeleton__sk {
+  border-radius: 7px;
+  background: #EFECE6;
+  position: relative;
+  overflow: hidden;
+}
+.foms-packing-skeleton__sk::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(248, 246, 242, .9), transparent);
+  animation: foms-packing-skeleton-shimmer 1.4s infinite;
+}
+.foms-packing-skeleton__sk--a { height: 14px; width: 55%; }
+.foms-packing-skeleton__sk--b { height: 11px; width: 80%; }
+.foms-packing-loading__text { display: block; text-align: center; padding-top: 4px; }
+@keyframes foms-packing-skeleton-shimmer { 100% { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) {
+  .foms-packing-skeleton__sk::after { animation: none; }
+}
+
 .foms-packing-list {
   list-style: none;
   margin: 0 0 16px;

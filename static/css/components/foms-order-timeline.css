@@ -58,6 +58,20 @@
 .foms-tl-sheet .offcanvas-body { padding: 14px 16px calc(20px + env(safe-area-inset-bottom, 0px)); }
 .foms-tl-sheet__loading { padding: 24px; text-align: center; color: #8F887D; font-size: 14px; }
 .foms-tl-sheet__error { padding: 24px; text-align: center; color: #5F5950; font-size: 14px; }
+
+/* 로딩 스켈레톤(3행 + 텍스트 폴백) — foms-order-timeline-sheet.js buildSkeleton 주입.
+   v3 foms-mobile-v3.css 의 .fos-skeleton/.sk 를 시트 스코프로 이식(라이트 #EFECE6/#F8F6F2). */
+.foms-tl-sheet .fos-skeleton-wrap { display: flex; flex-direction: column; gap: 10px; padding: 8px 0; }
+.foms-tl-sheet .fos-skeleton { background: #FFFFFF; border: 1px solid #E4E0D8; border-radius: 16px; padding: 14px; display: flex; align-items: center; gap: 12px; }
+.foms-tl-sheet .fos-skeleton__dot { flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%; background: #EFECE6; }
+.foms-tl-sheet .fos-skeleton__lines { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+.foms-tl-sheet .sk { border-radius: 7px; background: #EFECE6; position: relative; overflow: hidden; }
+.foms-tl-sheet .sk::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, rgba(248, 246, 242, .9), transparent); animation: foms-tl-skeleton-shimmer 1.4s infinite; }
+.foms-tl-sheet .sk--a { height: 15px; width: 62%; }
+.foms-tl-sheet .sk--b { height: 12px; width: 88%; }
+.foms-tl-sheet .fos-skeleton-text { font-size: 12px; color: #8F887D; text-align: center; }
+@keyframes foms-tl-skeleton-shimmer { 100% { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .foms-tl-sheet .sk::after { animation: none; } }
 .foms-tl-sheet.offcanvas-bottom { height: auto; max-height: 82vh; border-radius: 16px 16px 0 0; }
 
 /* ---- 4. 시트 body 주입 fragment(.fos-*) 스코프 이식 -----------------------

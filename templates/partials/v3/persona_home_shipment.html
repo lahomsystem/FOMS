@@ -75,6 +75,7 @@
               <span class="px-shipment-badge">상차·시공</span>
             {% endif %}
             {% if meta.sales_delivery %}<span class="px-shipment-badge is-wait">영업택배</span>{% endif %}
+            {% if meta.packing_present %}<span class="px-shipment-badge">패킹 {{ meta.packing_checked }}/{{ meta.packing_total }}</span>{% endif %}
             {% if meta.construction_workers %}<span class="px-shipment-crew">시공 {{ meta.construction_workers|join(' · ') }}</span>{% endif %}
           </span>
         </span>
