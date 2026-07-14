@@ -4,7 +4,7 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
-| 2026-07-14 | 실기기 QA 5결함(X1~X5): FOUC(fragment CSS 선로드)·실측 캡처 전삭제·히어로 1줄·동선 mine+지도 오버레이·출고 수정 버튼(DOMContentLoaded→위임) | erp-shell.js, layout_scripts.html, measurement(capture 삭제·mobile_list·routes·route-strip), map_generator.py+map.py+erp_map.py, shipment_mobile_queue.html | (이번 push) |
+| 2026-07-14 | 실기기 QA 5결함(X1~X5): FOUC(fragment CSS 선로드)·실측 캡처 전삭제·히어로 1줄·동선 mine+지도 오버레이·출고 수정 버튼(DOMContentLoaded→위임) | erp-shell.js, layout_scripts.html, measurement(capture 삭제·mobile_list·routes·route-strip), map_generator.py+map.py+erp_map.py, shipment_mobile_queue.html | 9fad207e |
 | 2026-07-14 | 세션 자동 기록 | tablet-measure-form.js, pr_body_production.txt, perf-gate.yml 외 2개 | 9be7d305 |
 | 2026-07-14 | 세션 자동 기록 | perf-gate.yml, test_staging_perf_gate.py, staging_perf_gate.py 외 2개 | 93c10b1c |
 | 2026-07-14 | 세션 자동 기록 | test_erp_order_shared_form_scripts.py, erp_order_js.html, erp-order-shared.js 외 2개 | 89cf7b3d |
