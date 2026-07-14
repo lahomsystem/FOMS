@@ -1055,7 +1055,23 @@
 </div>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
+    // ============================================================
+    // erp-shell fragment swap 재실행-안전 배선 (가드 G4).
+    // erp-shell 은 #main-content 를 innerHTML 로 교체한 뒤 activateScripts 로 이 인라인
+    // 스크립트를 재실행하지만, DOMContentLoaded 는 최초 로드에서 이미 발화 완료라 과거 래퍼
+    // 방식은 fragment 진입 시 콜백이 다시 돌지 않아 본체 기능(전화번호 포맷·일괄작업·옵션/
+    // 비고 토글·컬럼필터·리사이즈·행선택)이 전부 사망했다. 즉시 실행 IIFE 로 전환하고 리스너를
+    // 두 부류로 분리한다:
+    //   · per-swap: #main-content 내부 요소 바인딩·DOM 초기화는 매 재실행마다 그대로 실행한다.
+    //     스왑 시 옛 요소는 innerHTML 교체로 제거되므로 새 요소에 재바인딩해도 누적이 없다.
+    //   · once-only: document 위임 리스너는 __ordersIndexOnce(싱글톤) 로 최초 1회만 등록한다.
+    //     재실행마다 재등록하면 document 에 리스너가 누적된다(= G4 위반). 위임 핸들러의 요소
+    //     참조는 closest/matches/getElementById 로 이벤트 시점에 조회한다(클로저 stale 금지).
+    // ============================================================
+    (function () {
+        var __ordersIndexOnce = !window.__FOMS_ORDERS_INDEX_BOUND;
+        window.__FOMS_ORDERS_INDEX_BOUND = true;
+
         // 전화번호 포맷팅 함수
         function formatKoreanPhoneNumber(phoneNumber) {
             if (!phoneNumber) return '';
@@ -1191,8 +1207,8 @@
             return el && window.getComputedStyle(el).display !== 'none';
         }
 
-        // 옵션 토글 버튼 이벤트 (동적 바인딩)
-        document.addEventListener('click', function (e) {
+        // 옵션 토글 버튼 이벤트 — once-only(document 위임, closest 이벤트 시점 조회)
+        if (__ordersIndexOnce) document.addEventListener('click', function (e) {
             var btn = e.target.closest('.toggle-options');
             if (!btn) return;
             e.preventDefault();
@@ -1218,8 +1234,8 @@
             updateToggleAllOptionsButtonState();
         });
 
-        // 비고 토글 버튼 이벤트 (동적 바인딩)
-        document.addEventListener('click', function (e) {
+        // 비고 토글 버튼 이벤트 — once-only(document 위임, closest 이벤트 시점 조회)
+        if (__ordersIndexOnce) document.addEventListener('click', function (e) {
             var btn = e.target.closest('.toggle-notes');
             if (!btn) return;
             e.preventDefault();
@@ -1624,7 +1640,8 @@
             }
         }
 
-        document.addEventListener('change', function (e) {
+        // 체크박스 change — once-only(document 위임, matches/closest 이벤트 시점 조회)
+        if (__ordersIndexOnce) document.addEventListener('change', function (e) {
             if (!e.target.matches('input.order-checkbox')) return;
             var tr = e.target.closest('tr');
             if (tr) tr.classList.toggle('selected', e.target.checked);
@@ -1642,6 +1659,6 @@
         updateToggleAllOptionsButtonState();
         updateToggleAllNotesButtonState();
 
-    }); // End of DOMContentLoaded
+    })(); // End of orders/index fragment-safe IIFE
 </script>
 {% endblock %}

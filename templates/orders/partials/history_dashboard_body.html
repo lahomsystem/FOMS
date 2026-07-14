@@ -389,34 +389,56 @@
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-  document.querySelectorAll('.history-chevron').forEach(function(chevron) {
-    chevron.addEventListener('click', function(e) {
-      e.preventDefault();
-      e.stopPropagation();
-      var orderId = this.dataset.orderId;
-      var detailRow = orderId ? document.getElementById('detail-' + orderId) : null;
-      if (!detailRow) return;
+(function () {
+  // erp-shell fragment swap 시 이 인라인 스크립트는 activateScripts 로 재실행되지만,
+  // DOMContentLoaded 는 최초 로드에서 이미 발화 완료라 과거 래퍼 방식은 fragment 진입 시
+  // chevron 이 재바인딩되지 않아 상세 토글이 사망했다. chevron 은 #main-content 내부 요소
+  // 이므로 per-swap: 매 재실행마다 새 chevron 을 바인딩하되, 요소별 dataset 가드로 동일 요소
+  // 중복 바인딩을 차단한다(재실행·스왑 이벤트 이중 호출에도 idempotent). 요소 참조는 클릭
+  // 시점의 this/getElementById 로 조회하므로 클로저 stale 이 없다.
+  function bindHistoryChevrons() {
+    document.querySelectorAll('.history-chevron').forEach(function(chevron) {
+      if (chevron.dataset.historyChevronBound === '1') return;
+      chevron.dataset.historyChevronBound = '1';
+      chevron.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var orderId = this.dataset.orderId;
+        var detailRow = orderId ? document.getElementById('detail-' + orderId) : null;
+        if (!detailRow) return;
 
-      var isOpen = this.getAttribute('aria-expanded') === 'true';
-      if (isOpen) {
-        detailRow.style.display = 'none';
-        detailRow.setAttribute('aria-hidden', 'true');
-        this.setAttribute('aria-expanded', 'false');
-        this.classList.remove('is-open');
-      } else {
-        detailRow.style.display = 'table-row';
-        detailRow.setAttribute('aria-hidden', 'false');
-        this.setAttribute('aria-expanded', 'true');
-        this.classList.add('is-open');
-        detailRow.querySelectorAll('img.lazy-detail-img[data-src]').forEach(function(img) {
-          img.src = img.dataset.src;
-          img.removeAttribute('data-src');
-        });
-      }
+        var isOpen = this.getAttribute('aria-expanded') === 'true';
+        if (isOpen) {
+          detailRow.style.display = 'none';
+          detailRow.setAttribute('aria-hidden', 'true');
+          this.setAttribute('aria-expanded', 'false');
+          this.classList.remove('is-open');
+        } else {
+          detailRow.style.display = 'table-row';
+          detailRow.setAttribute('aria-hidden', 'false');
+          this.setAttribute('aria-expanded', 'true');
+          this.classList.add('is-open');
+          detailRow.querySelectorAll('img.lazy-detail-img[data-src]').forEach(function(img) {
+            img.src = img.dataset.src;
+            img.removeAttribute('data-src');
+          });
+        }
+      });
     });
-  });
-});
+  }
+
+  // per-swap: 최초 로드는 즉시(또는 파싱 중이면 DOMContentLoaded) 바인딩.
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bindHistoryChevrons);
+  } else {
+    bindHistoryChevrons();
+  }
+  // once-only: 스왑 재바인딩 리스너는 document 에 1회만 등록(싱글톤 가드 → 재실행 누적 차단).
+  if (!window.__FOMS_HISTORY_BODY_BOUND) {
+    window.__FOMS_HISTORY_BODY_BOUND = true;
+    document.addEventListener('foms:erp-shell-fragment-swapped', bindHistoryChevrons);
+  }
+})();
 </script>
 <script src="{{ url_for('static', filename='js/orders/history-mobile.js') }}?v=20260402a" defer></script>
 <script src="{{ url_for('static', filename='js/foms/history-mobile.js') }}?v=20260616" defer></script>

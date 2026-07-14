@@ -6,10 +6,9 @@ from pathlib import Path
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-_SCRIPTS_INCLUDE = _REPO_ROOT / "templates" / "orders" / "partials" / "dashboard_scripts.html"
-_ORDERS_CORE = _REPO_ROOT / "templates" / "orders" / "partials" / "dashboard_scripts_core.html"
-_ORDERS_ATTACHMENTS = _REPO_ROOT / "templates" / "orders" / "partials" / "dashboard_scripts_attachments.html"
-_DETAIL_DOM = _REPO_ROOT / "templates" / "orders" / "partials" / "dashboard_scripts_detail_dom.html"
+_ORDERS_CORE = _REPO_ROOT / "static" / "js" / "orders" / "dashboard" / "erp-dashboard-core.js"
+_ORDERS_ATTACHMENTS = _REPO_ROOT / "static" / "js" / "orders" / "dashboard" / "erp-dashboard-attachments.js"
+_DETAIL_DOM = _REPO_ROOT / "static" / "js" / "orders" / "dashboard" / "erp-dashboard-detail-dom.js"
 _FRAGMENT = _REPO_ROOT / "static" / "js" / "orders" / "order-detail-fragment.js"
 _CONTRACT_DOC = _REPO_ROOT / "docs" / "harness" / "policy" / "order-detail-2phase-contract.md"
 _PRODUCTION_BODY = _REPO_ROOT / "templates" / "production" / "partials" / "dashboard_body.html"
@@ -19,10 +18,14 @@ _CONSTRUCTION_SCRIPTS = _REPO_ROOT / "templates" / "construction" / "partials" /
 
 
 def test_dashboard_scripts_load_fragment_module_before_detail_dom() -> None:
-    text = _SCRIPTS_INCLUDE.read_text(encoding="utf-8")
+    # 라이브 로드 순서는 인라인 partial 이 아니라 erp-dashboard-entry.js CHAIN 이 강제한다:
+    # order-detail-fragment.js(헬퍼) 가 erp-dashboard-detail-dom.js(소비자) 보다 먼저.
+    text = (_REPO_ROOT / "static" / "js" / "orders" / "erp-dashboard-entry.js").read_text(
+        encoding="utf-8"
+    )
 
     fragment_idx = text.index("js/orders/order-detail-fragment.js")
-    detail_dom_idx = text.index("dashboard_scripts_detail_dom.html")
+    detail_dom_idx = text.index("dashboard/erp-dashboard-detail-dom.js")
 
     assert fragment_idx < detail_dom_idx
 

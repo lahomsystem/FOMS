@@ -486,15 +486,21 @@
     }
   }
 
-  document.addEventListener('click', function (e) {
-    var btn = e.target.closest('.erp-construction-action');
-    if (!btn) return;
-    var orderId = btn.getAttribute('data-order-id');
-    var action = btn.getAttribute('data-action');
-    if (!orderId || !action) return;
-    var fn = window[action];
-    if (typeof fn === 'function') fn(orderId);
-  });
+  // fragment 재실행-안전(가드 G4): document 위임은 싱글톤 가드로 1회만 배선(swap마다 누적 방지).
+  // 핸들러는 요소·함수를 이벤트 시점에 조회(closest + window[action])하므로 stale 참조 없음.
+  (function () {
+    if (window.__FOMS_CONSTR_ACTION_CLICK_BOUND) return;
+    window.__FOMS_CONSTR_ACTION_CLICK_BOUND = true;
+    document.addEventListener('click', function (e) {
+      var btn = e.target.closest('.erp-construction-action');
+      if (!btn) return;
+      var orderId = btn.getAttribute('data-order-id');
+      var action = btn.getAttribute('data-action');
+      if (!orderId || !action) return;
+      var fn = window[action];
+      if (typeof fn === 'function') fn(orderId);
+    });
+  })();
 
   async function submitConstructionComplete() {
     const orderId = document.getElementById('erp-cons-complete-order-id').value;
@@ -1039,10 +1045,18 @@
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // Zone 6: 이벤트 리스너 / DOMContentLoaded
+  // Zone 6: 이벤트 리스너 (fragment 재실행-안전 배선, 가드 G4)
   // ═══════════════════════════════════════════════════════════════
+  // erp-shell 이 #main-content 를 swap 하면 이 인라인 스크립트가 재실행된다. 그 시점엔
+  // DOMContentLoaded 가 이미 발화 완료라 콜백으로 감싸면 fragment 진입 시 콜백이 영원히
+  // 실행되지 않는다(→ 필터/상세/승인/알림 배선 전부 사망). 즉시 실행 IIFE 로 전환하되,
+  // (1) #main-content 내부 요소(매 swap 새 노드)는 per-swap 으로 재바인딩하고,
+  // (2) document/body/window 위임·폴링은 __FOMS_CONSTR_SCRIPTS_BOUND 싱글톤으로 1회만 배선한다.
+  //     scripts.html 는 dashboard_body 최하단(모든 대상 요소 뒤)에 include 되므로 즉시 실행
+  //     시점에 per-swap 대상 요소가 이미 존재한다(readyState 가드 불필요).
 
-  document.addEventListener('DOMContentLoaded', () => {
+  (() => {
+    // ── per-swap 구역: 매 재실행 안전(요소가 swap 마다 교체되므로 재바인딩이 정답) ──
     // 브리핑 보드 등에서 focus_order 파라미터로 진입 시 해당 주문 행으로 스크롤 및 하이라이트
     (() => {
       const urlParams = new URLSearchParams(window.location.search);
@@ -1154,6 +1168,12 @@
       });
     });
 
+    // ── once-only 구역: document/body/window 위임·폴링은 싱글톤 가드로 1회만 배선 ──
+    // 요소 참조를 이벤트 시점에 조회(e.target.closest / 핸들러 내부 lookup)하므로 swap 후에도
+    // stale 되지 않는다. per-swap 배선(위쪽)은 이 return 이전에 매 실행 완료된다.
+    if (window.__FOMS_CONSTR_SCRIPTS_BOUND) return;
+    window.__FOMS_CONSTR_SCRIPTS_BOUND = true;
+
     document.body.addEventListener('click', function (e) {
       const approveBtn = e.target.closest('.erp-btn-approve-team');
       if (approveBtn) {
@@ -1179,7 +1199,7 @@
       window.FOMSNotificationBadge.subscribe('erp-construction-page-badge', renderNotificationBadge);
       window.FOMSNotificationBadge.startPolling();
     }
-  });
+  })();
 
   // ═══════════════════════════════════════════════════════════════
   // Zone 7: 알림(Notification) 시스템
@@ -1244,6 +1264,10 @@
   }
 
   (function () {
+    // fragment 재실행-안전(가드 G4): body 위임은 1회만 배선. 알림 item 은 이벤트 시점
+    // closest 조회, handleNotificationClick 은 호출 시점 전역 해석이라 stale 참조 없음.
+    if (window.__FOMS_CONSTR_NOTIF_LIST_CLICK_BOUND) return;
+    window.__FOMS_CONSTR_NOTIF_LIST_CLICK_BOUND = true;
     document.body.addEventListener('click', function (ev) {
       var item = ev.target.closest('#notification-list .notification-item[data-notification-id]');
       if (!item) return;
@@ -1311,13 +1335,20 @@
     return dateStr.split(' ')[0];
   }
 
-  document.addEventListener('click', function (e) {
-    const panel = document.getElementById('notification-panel');
-    const btn = document.getElementById('notification-btn');
-    if (notificationPanelOpen && !panel.contains(e.target) && !btn.contains(e.target)) {
-      toggleNotificationPanel();
-    }
-  });
+  // fragment 재실행-안전(가드 G4): document 위임은 1회만 배선. panel/btn 은 이벤트 시점에
+  // 조회하며, 영속 리스너는 다른 탭 swap 후에도 살아있으므로 요소 부재(null) 방어가 필수다.
+  (function () {
+    if (window.__FOMS_CONSTR_NOTIF_OUTSIDE_CLICK_BOUND) return;
+    window.__FOMS_CONSTR_NOTIF_OUTSIDE_CLICK_BOUND = true;
+    document.addEventListener('click', function (e) {
+      const panel = document.getElementById('notification-panel');
+      const btn = document.getElementById('notification-btn');
+      if (!panel || !btn) return;
+      if (notificationPanelOpen && !panel.contains(e.target) && !btn.contains(e.target)) {
+        toggleNotificationPanel();
+      }
+    });
+  })();
 
 </script>
 

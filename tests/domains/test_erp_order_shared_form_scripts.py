@@ -822,14 +822,11 @@ def test_erp_amount_surfaces_read_modern_payment_deposit_and_stored_final() -> N
     """대시보드/실측 상세 금액 표시도 ERP Order payment.deposit와 final totals를 우선 사용한다."""
     root = Path(__file__).resolve().parents[2]
     dashboard_js = (root / "static/js/orders/dashboard/erp-dashboard-detail-dom.js").read_text(encoding="utf-8")
-    dashboard_template = (
-        root / "templates/orders/partials/dashboard_scripts_detail_dom.html"
-    ).read_text(encoding="utf-8")
     measurement_desktop = (
         root / "templates/measurement/partials/dashboard_main.html"
     ).read_text(encoding="utf-8")
 
-    for source in (dashboard_js, dashboard_template):
+    for source in (dashboard_js,):
         assert "coerceAmount((sd.payment || {}).deposit)" in source
         assert "coerceAmount((sd.payments || {}).deposit)" in source
         assert "coerceAmount(totals.deposit_amount)" in source
@@ -858,13 +855,10 @@ def test_erp_dashboard_selected_orders_can_copy_to_new_order_number() -> None:
         root / "templates/orders/partials/dashboard_grid.html"
     ).read_text(encoding="utf-8")
     dashboard_js = (root / "static/js/orders/dashboard/erp-dashboard-detail-dom.js").read_text(encoding="utf-8")
-    dashboard_template = (
-        root / "templates/orders/partials/dashboard_scripts_detail_dom.html"
-    ).read_text(encoding="utf-8")
 
     assert 'id="erp-grid-copy-selected"' in dashboard_grid
     assert "주문 건 복사" in dashboard_grid
-    for source in (dashboard_js, dashboard_template):
+    for source in (dashboard_js,):
         assert "function selectedOrderIds()" in source
         assert "fetch('/api/orders/copy'" in source
         assert "JSON.stringify({ order_ids: orderIds })" in source
