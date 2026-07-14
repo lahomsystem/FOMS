@@ -17,6 +17,8 @@
 {%- set _weekday = ['월','화','수','목','금','토','일'] -%}
 {%- set _rows = mobile_queue_rows or [] -%}
 {%- set _hero = _rows[0] if _rows else None -%}
+{%- set _done_ns = namespace(n=0) -%}
+{%- for _o in _rows -%}{%- if _o.measurement_completed -%}{%- set _done_ns.n = _done_ns.n + 1 -%}{%- endif -%}{%- endfor -%}
 {%- set _upcoming = [] -%}
 {%- for _it in (measurement_panel_dates or []) -%}
   {%- if _it.date and _it.date > today_date and (_it.count or 0) > 0 -%}
@@ -53,16 +55,31 @@
 <div class="fos-scroll" data-persona-home="sales">
   <div class="fos-appbar">
     <div>
-      <div class="sub tnum">실측 {{ _rows|length }}곳{% if _upcoming %} · 예정 {{ _upcoming|length }}일{% endif %}{% if erp_mine_only %} · 내 담당{% endif %}</div>
+      <div class="sub tnum">실측 {{ _rows|length }}곳{% if _rows %} · 완료 {{ _done_ns.n }} · 남은 {{ _rows|length - _done_ns.n }}{% endif %}{% if _upcoming %} · 예정 {{ _upcoming|length }}일{% endif %}{% if erp_mine_only %} · 내 담당{% endif %}</div>
     </div>
   </div>
 
   {% if _hero %}
   {%- set _hero_phone = (_hero.phone or '')|replace('-', '')|replace(' ', '') -%}
+  {%- set _hero_time = ((_hero.structured_data.get('schedule') or {}).get('measurement') or {}).get('time') if _hero.structured_data else None -%}
+  {%- set _hero_items = (_hero.structured_data.get('items') if _hero.structured_data else None) or [] -%}
+  {%- set _hero_item = _hero_items[0] if _hero_items else {} -%}
+  {%- set _hero_pn = _hero_item.get('product_name') or _hero_item.get('name') -%}
+  {%- set _hero_w = _hero_item.get('spec_width') or _hero_item.get('width') -%}
+  {%- set _hero_d = _hero_item.get('spec_depth') or _hero_item.get('depth') -%}
+  {%- set _hero_h = _hero_item.get('spec_height') or _hero_item.get('height') -%}
+  {%- set _hero_color = _hero_item.get('color') -%}
+  {%- if _hero.lat and _hero.lng -%}
+    {%- set _hero_nav = 'https://map.kakao.com/link/to/' ~ (_hero.customer_name or '방문지')|urlencode ~ ',' ~ _hero.lat|string ~ ',' ~ _hero.lng|string -%}
+  {%- elif _hero.address and _hero.address != '-' -%}
+    {%- set _hero_nav = 'https://map.kakao.com/link/search/' ~ _hero.address|urlencode -%}
+  {%- else -%}
+    {%- set _hero_nav = '' -%}
+  {%- endif -%}
   <div class="fos-hero" data-order-id="{{ _hero.id }}">
     <div class="fos-hero__top">
       <span class="fos-hero__label">
-        <i class="fas fa-location-dot" aria-hidden="true"></i> 다음 방문
+        <i class="fas fa-location-dot" aria-hidden="true"></i> 다음 방문{% if _hero_time %} · <span class="foms-visit-countdown" data-foms-visit-time="{{ _hero_time }}">{{ _hero_time }} 방문</span>{% endif %}
       </span>
       <span class="fos-tl-btn" role="button" data-fos-timeline data-order-id="{{ _hero.id }}" aria-label="주문 진행 타임라인 보기"><i class="fas fa-timeline" aria-hidden="true"></i></span>
     </div>
@@ -70,15 +87,22 @@
       <div class="fos-hero__title">{{ _hero.customer_name or '-' }}</div>
       {% if _hero.stage %}<span class="fos-stage" data-st="{{ _st_map.get(_hero.stage_code, 'received') }}">{{ _hero.stage }}</span>{% endif %}
     </div>
+    {% if _hero_pn or _hero_w or _hero_d or _hero_h or _hero_color %}
+    <div class="foms-hero-spec" aria-label="제품 규격">
+      {% if _hero_pn %}<span class="foms-hero-spec__name">{{ _hero_pn }}</span>{% endif %}
+      {% if _hero_w or _hero_d or _hero_h %}<span class="foms-hero-spec__dims">W{{ _hero_w or '-' }}×D{{ _hero_d or '-' }}×H{{ _hero_h or '-' }}</span>{% endif %}
+      {% if _hero_color %}<span class="foms-hero-spec__color">{{ _hero_color }}</span>{% endif %}
+    </div>
+    {% endif %}
     <div class="fos-hero__meta">
-      {% if _hero.product_subtitle %}<span>{{ _hero.product_subtitle }}</span>{% endif %}
+      {% if not (_hero_pn or _hero_w or _hero_d or _hero_h) and _hero.product_subtitle %}<span>{{ _hero.product_subtitle }}</span>{% endif %}
       {% if _hero.address and _hero.address != '-' %}<span class="addr">{{ _hero.address }}</span>{% endif %}
     </div>
     <div class="px-sales-btnrow">
-      {% if _hero.address and _hero.address != '-' %}
+      {% if _hero_nav %}
       <a class="fos-btn fos-btn--primary fos-btn--field"
-         href="https://map.kakao.com/?q={{ _hero.address|urlencode }}" target="_blank" rel="noopener">
-        <i class="fas fa-map-location-dot" aria-hidden="true"></i> 지도
+         href="{{ _hero_nav }}" target="_blank" rel="noopener">
+        <i class="fas fa-diamond-turn-right" aria-hidden="true"></i> 내비 시작
       </a>
       {% endif %}
       {% if _hero_phone and _hero_phone != '-' %}
@@ -92,6 +116,10 @@
       </a>
     </div>
   </div>
+  {% endif %}
+
+  {% if _rows %}
+  <div class="foms-route-strip" data-foms-route-strip data-route-date="{{ selected_date or today_date }}" hidden aria-label="오늘 동선 지도"></div>
   {% endif %}
 
   <div class="fos-sec">
