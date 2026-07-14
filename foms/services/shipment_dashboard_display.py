@@ -162,6 +162,8 @@ def build_shipment_mobile_queue_rows(
             _packing = shipment.get("packing")
             _packing_items = _packing.get("items") if isinstance(_packing, dict) else None
             _packing_present = isinstance(_packing_items, list) and len(_packing_items) > 0
+            # P6: 출발 보고(상차 완료) 여부 — departed_at 존재 시 카드 라벨을 "출발 보고됨" 배지로 전환.
+            _packing_departed = bool(_packing.get("departed_at")) if isinstance(_packing, dict) else False
             row["shipment_meta"] = {
                 "construction_time": shipment.get("construction_time") or "",
                 "drawing_managers": drawing_managers,
@@ -189,6 +191,8 @@ def build_shipment_mobile_queue_rows(
                     if _packing_present
                     else 0
                 ),
+                # P6: 출발 보고 완료 여부(카드 라벨을 "출발 보고됨"으로 전환).
+                "packing_departed": _packing_departed,
             }
             mobile_queue_rows.append(row)
     return mobile_queue_rows

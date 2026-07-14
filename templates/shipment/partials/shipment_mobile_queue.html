@@ -23,8 +23,12 @@
                     data-foms-packing-trigger
                     data-order-id="{{ o.id }}">
               <i class="fas fa-box-open" aria-hidden="true"></i>
+              {% if meta.packing_departed %}
+              <span class="foms-packing-departed-label">출발 보고됨</span>
+              {% else %}
               <span>패킹{% if meta.packing_present %} {{ meta.packing_checked }}/{{ meta.packing_total }}{% endif %}</span>
-              <span class="foms-packing-badge" data-foms-packing-badge hidden></span>
+              {% endif %}
+              <span class="foms-packing-badge{% if meta.packing_departed %} foms-packing-badge--done{% endif %}" data-foms-packing-badge hidden></span>
             </button>
             {# B4: QR 라벨(새 탭 인쇄). #}
             <a class="foms-qr-label-link" href="{{ url_for('erp_dashboard.erp_order_label', order_id=o.id) }}" target="_blank" rel="noopener"><i class="fas fa-qrcode" aria-hidden="true"></i><span>QR 라벨</span></a>

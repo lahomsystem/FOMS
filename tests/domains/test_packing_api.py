@@ -224,3 +224,83 @@ def test_post_records_order_event(client) -> None:
     assert events[0].payload["checked_count"] == 1
     assert events[0].payload["total"] == 6
     assert events[0].created_by_user_id == user.id
+
+
+def _check_all(client, order_id: int) -> list[dict]:
+    """파생 전 항목을 checked=True 로 저장하고, 저장된 items 를 반환한다(P6 헬퍼)."""
+    derived = client.get(_url(order_id)).get_json()["data"]["items"]
+    updates = [{"key": row["key"], "checked": True} for row in derived]
+    client.post(_url(order_id), json={"updates": updates})
+    return derived
+
+
+def test_departed_gate_requires_all_checked(client) -> None:
+    """P6 서버 게이트: 전 항목 체크 전 출발 보고 → 400, departed 미기록(클라 우회 차단)."""
+    user = _make_user("packing_depart_gate", "SHIPMENT")
+    _login(client, user)
+    order = _make_order()
+    derived = client.get(_url(order.id)).get_json()["data"]["items"]
+    # 6항 중 1항만 체크.
+    client.post(_url(order.id), json={"updates": [{"key": derived[0]["key"], "checked": True}]})
+
+    res = client.post(_url(order.id), json={"departed": True})
+    assert res.status_code == 400
+    assert res.get_json()["success"] is False
+    assert res.get_json()["error"] == "전 항목 체크 후 출발 보고"
+
+    # departed 는 저장되지 않아야 한다.
+    db_session.expire_all()
+    fresh = db_session.query(Order).filter(Order.id == order.id).first()
+    packing = (fresh.structured_data.get("shipment") or {}).get("packing") or {}
+    assert not packing.get("departed_at")
+
+
+def test_departed_success_records_event_and_is_idempotent(client) -> None:
+    """P6 성공: 전 항목 체크 후 출발 보고 → 200 + PACKING_DEPARTED 이벤트, 재보고 멱등(200 갱신)."""
+    user = _make_user("packing_depart_ok", "SHIPMENT")
+    _login(client, user)
+    order = _make_order()
+    _check_all(client, order.id)
+
+    res = client.post(_url(order.id), json={"departed": True})
+    assert res.status_code == 200
+    data = res.get_json()["data"]
+    assert data["departed_at"]
+    assert data["departed_by_name"] == user.name
+
+    events = (
+        db_session.query(OrderEvent)
+        .filter(OrderEvent.order_id == order.id, OrderEvent.event_type == "PACKING_DEPARTED")
+        .all()
+    )
+    assert len(events) == 1
+    assert events[0].payload["checked_count"] == 6
+    assert events[0].payload["total"] == 6
+    assert events[0].created_by_user_id == user.id
+
+    # 멱등 재보고: 다시 200 + departed 재기록.
+    first_at = data["departed_at"]
+    again = client.post(_url(order.id), json={"departed": True})
+    assert again.status_code == 200
+    assert again.get_json()["data"]["departed_at"]
+    # 재기록 이벤트가 하나 더 쌓인다(재보고=갱신).
+    events2 = (
+        db_session.query(OrderEvent)
+        .filter(OrderEvent.order_id == order.id, OrderEvent.event_type == "PACKING_DEPARTED")
+        .all()
+    )
+    assert len(events2) == 2
+    assert first_at is not None
+
+
+def test_departed_exposed_via_get(client) -> None:
+    """P6 GET 노출: 출발 보고 후 GET 응답에 departed_at/departed_by_name 포함."""
+    user = _make_user("packing_depart_get", "SHIPMENT")
+    _login(client, user)
+    order = _make_order()
+    _check_all(client, order.id)
+    client.post(_url(order.id), json={"departed": True})
+
+    data = client.get(_url(order.id)).get_json()["data"]
+    assert data["departed_at"]
+    assert data["departed_by_name"] == user.name

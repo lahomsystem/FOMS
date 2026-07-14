@@ -259,9 +259,67 @@
   color: #dc3545;
 }
 
+/* P6: 출발 보고 상태(헤더) + 상차 완료 sticky 액션 바 */
+.foms-packing-departed {
+  margin-top: 2px;
+  color: #198754;
+  font-weight: 600;
+}
+
+.foms-packing-departed[hidden] {
+  display: none;
+}
+
+.foms-packing-actions {
+  position: sticky;
+  bottom: 0;
+  margin: 8px -16px -16px;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  background: var(--bs-offcanvas-bg, #fff);
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.foms-packing-depart {
+  width: 100%;
+  min-height: 48px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.foms-packing-depart:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* arm(1탭) 상태: 재탭 확정 대기 강조 */
+.foms-packing-depart--armed {
+  animation: foms-packing-depart-pulse 1s ease-in-out infinite;
+}
+
+@keyframes foms-packing-depart-pulse {
+  50% { opacity: 0.72; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .foms-packing-depart--armed { animation: none; }
+}
+
+/* v2 출고 카드: 출발 보고됨 라벨(패킹 N/M 대체) */
+.erp-shipment-mobile-card__packing .foms-packing-departed-label {
+  color: #198754;
+  font-weight: 700;
+}
+
 @media (prefers-color-scheme: dark) {
   .foms-packing-row {
     border-bottom-color: rgba(255, 255, 255, 0.12);
+  }
+  .foms-packing-departed,
+  .erp-shipment-mobile-card__packing .foms-packing-departed-label {
+    color: #2fb872;
+  }
+  .foms-packing-actions {
+    border-top-color: rgba(255, 255, 255, 0.12);
   }
   .foms-packing-row__meta,
   .foms-packing-row__qty,

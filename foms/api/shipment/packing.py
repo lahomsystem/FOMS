@@ -2,15 +2,17 @@
 
 스키마: ``sd['shipment']['packing']`` =
 ``{items:[{key, label, qty, checked, at, by_name, issue, issue_at, issue_by_name}],
-updated_at}``. ``issue``는 누락 신고 사유(``missing``/``damaged``/``short`` 또는
-``None`` 해제)로, 화이트리스트 검증을 거친다.
+updated_at, departed_at, departed_by_name}``. ``issue``는 누락 신고 사유
+(``missing``/``damaged``/``short`` 또는 ``None`` 해제)로, 화이트리스트 검증을 거친다.
+``departed_at``/``departed_by_name``은 "상차 완료 → 출발 보고"(POST ``{departed: true}``)
+로 기록되며, 전 항목 체크가 아니면 서버가 400으로 차단한다(멱등: 재보고 시 갱신).
 
 최초 GET 시 저장된 packing이 없으면 ``sd['items']``에서 파생한다(제품별
 "본체 패널 / 도어 / 철물" 3항). 파생 결과는 읽기 시 메모리에만 존재하며,
 실제 저장은 첫 POST 때 이뤄진다(JSONB 오염 방지).
 
 JSONB 쓰기는 ``copy.deepcopy`` + ``flag_modified`` + ``db.commit()`` 규약을 따르고,
-저장 시 OrderEvent ``PACKING_UPDATED``를 남긴다.
+저장 시 OrderEvent ``PACKING_UPDATED``(출발 보고는 ``PACKING_DEPARTED``)를 남긴다.
 """
 
 from __future__ import annotations
@@ -128,8 +130,13 @@ def _load_packing_items(sd: dict[str, Any]) -> tuple[list[dict[str, Any]], bool]
     return _derive_packing_items(sd), False
 
 
-def _packing_payload(items: list[dict[str, Any]], persisted: bool) -> dict[str, Any]:
-    """API 응답 data 블록을 구성한다."""
+def _packing_payload(
+    items: list[dict[str, Any]],
+    persisted: bool,
+    departed_at: str | None = None,
+    departed_by_name: str | None = None,
+) -> dict[str, Any]:
+    """API 응답 data 블록을 구성한다(출발 보고 상태 departed_* 포함)."""
     checked = sum(1 for it in items if isinstance(it, dict) and it.get("checked"))
     issues = sum(1 for it in items if isinstance(it, dict) and it.get("issue"))
     return {
@@ -138,6 +145,8 @@ def _packing_payload(items: list[dict[str, Any]], persisted: bool) -> dict[str, 
         "issues_count": issues,
         "total": len(items),
         "persisted": persisted,
+        "departed_at": departed_at,
+        "departed_by_name": departed_by_name,
     }
 
 
@@ -151,7 +160,13 @@ def api_shipment_packing_get(order_id: int):
         return jsonify({"success": False, "error": "주문을 찾을 수 없습니다."}), 404
     sd = order.structured_data if isinstance(order.structured_data, dict) else {}
     items, persisted = _load_packing_items(sd)
-    return jsonify({"success": True, "data": _packing_payload(items, persisted)})
+    shipment = sd.get("shipment") if isinstance(sd, dict) else None
+    packing = shipment.get("packing") if isinstance(shipment, dict) else None
+    departed_at = packing.get("departed_at") if isinstance(packing, dict) else None
+    departed_by_name = packing.get("departed_by_name") if isinstance(packing, dict) else None
+    return jsonify(
+        {"success": True, "data": _packing_payload(items, persisted, departed_at, departed_by_name)}
+    )
 
 
 @erp_shipment_bp.route("/api/erp/shipment/packing/<int:order_id>", methods=["POST"])
@@ -163,8 +178,9 @@ def api_shipment_packing_save(order_id: int):
     payload = request.get_json(silent=True) or {}
     updates = payload.get("updates")
     add = payload.get("add")
-    if updates is None and add is None:
-        return jsonify({"success": False, "error": "updates 또는 add가 필요합니다."}), 400
+    departed_flag = bool(payload.get("departed"))
+    if updates is None and add is None and not departed_flag:
+        return jsonify({"success": False, "error": "updates·add·departed 중 하나가 필요합니다."}), 400
     if updates is not None and not isinstance(updates, list):
         return jsonify({"success": False, "error": "updates는 배열이어야 합니다."}), 400
     if add is not None and not isinstance(add, dict):
@@ -254,12 +270,23 @@ def api_shipment_packing_save(order_id: int):
         issues_count = sum(1 for it in items if it.get("issue"))
         total = len(items)
 
+        event_type = "PACKING_UPDATED"
+        if departed_flag:
+            # 서버 게이트: 전 항목 체크 없이는 출발 보고 불가(클라 disabled 우회 차단).
+            if total == 0 or checked_count < total:
+                db.rollback()
+                return jsonify({"success": False, "error": "전 항목 체크 후 출발 보고"}), 400
+            # 멱등: 이미 departed여도 타임스탬프·담당을 재기록(재보고=갱신).
+            packing["departed_at"] = now_iso
+            packing["departed_by_name"] = by_name
+            event_type = "PACKING_DEPARTED"
+
         order.structured_data = sd
         flag_modified(order, "structured_data")
         db.add(
             OrderEvent(
                 order_id=order.id,
-                event_type="PACKING_UPDATED",
+                event_type=event_type,
                 payload={
                     "checked_count": checked_count,
                     "total": total,
@@ -269,7 +296,14 @@ def api_shipment_packing_save(order_id: int):
             )
         )
         db.commit()
-        return jsonify({"success": True, "data": _packing_payload(items, True)})
+        return jsonify(
+            {
+                "success": True,
+                "data": _packing_payload(
+                    items, True, packing.get("departed_at"), packing.get("departed_by_name")
+                ),
+            }
+        )
     except Exception as exc:
         db.rollback()
         logger.exception("[SHIPMENT_PACKING] save error: %s", exc)

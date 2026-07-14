@@ -5,6 +5,8 @@
     <div>
       <h5 class="offcanvas-title" id="foms-packing-sheet-title">출고 패킹</h5>
       <p class="mb-0 small text-muted" data-foms-packing-subtitle>제품별 패킹 항목을 체크하세요.</p>
+      {# P6: 출발 보고 상태 표기("출발 보고됨 · HH:MM · 이름") — foms-packing.js 가 GET departed_* 로 채운다. #}
+      <p class="mb-0 small foms-packing-departed" data-foms-packing-departed role="status" hidden></p>
     </div>
     <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="닫기"></button>
   </div>
@@ -40,5 +42,14 @@
              value="1" min="1" step="1" aria-label="수량">
       <button type="submit" class="foms-btn foms-btn--secondary foms-btn--sm foms-packing-add__btn">추가</button>
     </form>
+
+    {# P6: 상차 완료 → 출발 보고 sticky 액션 바. 전 항목 체크 시에만 활성(foms-packing.js).
+       클릭 → 2단 확인(1탭 arm → "한 번 더 탭해 확정") → POST {departed:true}. #}
+    <div class="foms-packing-actions">
+      <button type="button" class="foms-btn foms-btn--primary foms-packing-depart"
+              data-foms-packing-depart data-armed="false" aria-live="polite" disabled>
+        <span data-foms-packing-depart-label>상차 완료 → 출발 보고</span>
+      </button>
+    </div>
   </div>
 </div>

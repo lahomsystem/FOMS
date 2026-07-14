@@ -12,6 +12,10 @@
 
   var state = { orderId: null, trigger: null, items: [] };
   var ISSUE_LABELS = { missing: '미입고', damaged: '파손', short: '수량 부족' };
+  // P6: 상차 완료 → 출발 보고 2단 확인. 1탭 arm → DEPART_ARM_MS 내 재탭 확정(미확정 시 자동 해제).
+  var DEPART_ARM_MS = 3200;
+  var DEPART_LABEL = '상차 완료 → 출발 보고';
+  var departTimer = null;
 
   function sheetEl() {
     return document.querySelector('[data-foms-packing-sheet]');
@@ -89,6 +93,84 @@
     if (count) count.textContent = checked + ' / ' + total;
     var done = q(el, '[data-foms-packing-done]');
     if (done) done.hidden = !(total > 0 && checked === total);
+  }
+
+  // P6: departed_at ISO → "YYYY. M. D. HH:MM" (ko-KR). 무효 시 빈 문자열.
+  function fmtDepartWhen(iso) {
+    if (!iso) return '';
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('ko-KR') + ' ' +
+      d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function setDepartLabel(btn, text) {
+    var label = btn && btn.querySelector('[data-foms-packing-depart-label]');
+    if (label) label.textContent = text;
+  }
+
+  // arm 해제(타이머 clear + armed 표식 제거). 라벨은 renderDepart/호출부가 세팅.
+  function resetDepartArm(btn) {
+    if (departTimer) { clearTimeout(departTimer); departTimer = null; }
+    if (!btn) return;
+    btn.setAttribute('data-armed', 'false');
+    btn.classList.remove('foms-packing-depart--armed');
+  }
+
+  // 헤더 출발 보고 상태 + sticky 버튼 상태를 데이터로 렌더(전 항목 체크 시에만 활성).
+  function renderDepart(el, checked, total, departedAt, departedByName) {
+    var status = q(el, '[data-foms-packing-departed]');
+    if (status) {
+      if (departedAt) {
+        var when = fmtDepartWhen(departedAt);
+        status.textContent = '출발 보고됨' + (when ? ' · ' + when : '') +
+          (departedByName ? ' · ' + departedByName : '');
+        status.hidden = false;
+      } else {
+        status.textContent = '';
+        status.hidden = true;
+      }
+    }
+    var btn = q(el, '[data-foms-packing-depart]');
+    if (!btn) return;
+    resetDepartArm(btn);
+    if (departedAt) {
+      btn.disabled = true;
+      btn.classList.add('foms-packing-depart--done');
+      setDepartLabel(btn, '출발 보고 완료');
+    } else {
+      btn.disabled = !(total > 0 && checked === total);
+      btn.classList.remove('foms-packing-depart--done');
+      setDepartLabel(btn, DEPART_LABEL);
+    }
+  }
+
+  function armDepart(btn) {
+    if (btn.disabled) return;
+    if (btn.getAttribute('data-armed') === 'true') {
+      submitDepart(btn);
+      return;
+    }
+    btn.setAttribute('data-armed', 'true');
+    btn.classList.add('foms-packing-depart--armed');
+    setDepartLabel(btn, '한 번 더 탭해 확정');
+    if (departTimer) clearTimeout(departTimer);
+    departTimer = setTimeout(function () {
+      resetDepartArm(btn);
+      setDepartLabel(btn, DEPART_LABEL);
+    }, DEPART_ARM_MS);
+  }
+
+  async function submitDepart(btn) {
+    resetDepartArm(btn);
+    btn.disabled = true;
+    setDepartLabel(btn, '보고 중...');
+    var ok = await postPacking({ departed: true });
+    // 성공 시 applyData→renderDepart 가 완료 상태로 전환. 실패 시 재시도 가능하게 복구.
+    if (!ok) {
+      btn.disabled = false;
+      setDepartLabel(btn, DEPART_LABEL);
+    }
   }
 
   function rowMeta(item) {
@@ -182,6 +264,7 @@
     renderRows(el, state.items);
     renderSummary(el, checked, total);
     updateBadge(state.trigger, checked, total);
+    renderDepart(el, checked, total, data.departed_at, data.departed_by_name);
   }
 
   async function request(orderId, options) {
@@ -244,6 +327,8 @@
       if (sub) sub.textContent = '주문 #' + orderId + ' · 제품별 패킹 항목을 체크하세요.';
       var list = q(el, '[data-foms-packing-list]');
       if (list) list.textContent = '';
+      // 이전 주문의 출발 보고 상태가 로드 전까지 잔상으로 남지 않게 초기화.
+      renderDepart(el, 0, 0, null, null);
       var instance = getSheetInstance(el);
       if (instance) instance.show();
     }
@@ -255,6 +340,12 @@
     if (trigger) {
       event.preventDefault();
       openSheet(trigger);
+      return;
+    }
+    var departBtn = event.target.closest('[data-foms-packing-depart]');
+    if (departBtn) {
+      event.preventDefault();
+      armDepart(departBtn);
       return;
     }
     var issueToggle = event.target.closest('[data-foms-packing-issue-toggle]');
