@@ -25,6 +25,7 @@ exit 1 로 승격을 차단한다.
 
 exit code:
   0 = PASS, 1 = FAIL(예산 초과), 2 = 크리덴셜 부재/로그인 실패(게이트 SKIP ≠ 실패).
+  --advisory: 예산 초과여도 exit 0(job fail 대신 경고 어노테이션만) — deploy 푸시용 비블로킹 조기 신호.
 
 크리덴셜은 환경변수로만 읽는다(argv 금지 — 셸 히스토리 유출 방지):
   FOMS_STAGING_USERNAME / FOMS_STAGING_PASSWORD, base 는 --base(기본 lahom-dev).
@@ -523,6 +524,40 @@ def _is_ci() -> bool:
     return os.environ.get("GITHUB_ACTIONS") == "true" or os.environ.get("CI") == "true"
 
 
+def gate_exit_code(ok: bool, advisory: bool) -> int:
+    """판정 결과 → exit code. advisory 면 예산 초과(ok=False)여도 0(비블로킹 조기 신호),
+    아니면 초과 시 1(블로킹). 크리덴셜/네트워크 실패(exit 2)는 caller 가 별도 처리."""
+    if ok:
+        return 0
+    return 0 if advisory else 1
+
+
+def emit_advisory_annotations(result: dict[str, Any]) -> None:
+    """예산 초과를 job fail 대신 GitHub 경고 어노테이션 + step summary 로 방출(비블로킹).
+
+    초과 경로마다 ``::warning::perf-gate ADVISORY: <path> <reasons>`` 를 stdout 에 찍고,
+    $GITHUB_STEP_SUMMARY 파일이 있으면 초과 경로 markdown 표를 append 한다(없으면 스킵).
+    """
+    failed = [r for r in result.get("rows", []) if not r["passed"]]
+    for row in failed:
+        reason = "; ".join(row["reasons"])
+        print(f"::warning::perf-gate ADVISORY: {row['path']} {reason}")
+    summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if not summary_path:
+        return
+    lines = [
+        "",
+        "### perf-gate ADVISORY (비블로킹 조기 신호 — 예산 초과는 별도 커밋으로 재시드/근본수정)",
+        "",
+        "| path | reason |",
+        "| --- | --- |",
+    ]
+    for row in failed:
+        lines.append(f"| {row['path']} | {'; '.join(row['reasons'])} |")
+    with open(summary_path, "a", encoding="utf-8") as fh:
+        fh.write("\n".join(lines) + "\n")
+
+
 def _credentials() -> tuple[str, str] | None:
     """env 크리덴셜 읽기(없으면 None)."""
     user = os.environ.get("FOMS_STAGING_USERNAME", "").strip()
@@ -541,6 +576,7 @@ def main() -> int:
     parser.add_argument("--base", default=DEFAULT_BASE, help="스테이징 origin")
     parser.add_argument("--seed", action="store_true", help="현 측정값+30%% 마진으로 budgets 갱신")
     parser.add_argument("--json", action="store_true", help="JSON 출력")
+    parser.add_argument("--advisory", action="store_true", help="예산 초과를 job fail 대신 경고로 — 비블로킹 조기 신호")
     args = parser.parse_args()
 
     creds = _credentials()
@@ -576,7 +612,9 @@ def main() -> int:
         print(render_table(result["rows"], result.get("base_ttfb_ms")))
         print(f"\nevidence: {fp}")
         print("RESULT: " + ("PASS" if result["ok"] else "FAIL"))
-    return 0 if result["ok"] else 1
+    if not result["ok"] and args.advisory:
+        emit_advisory_annotations(result)
+    return gate_exit_code(result["ok"], args.advisory)
 
 
 if __name__ == "__main__":

@@ -383,3 +383,28 @@ def test_credentials_helper_none_when_blank(monkeypatch):
     monkeypatch.setenv("FOMS_STAGING_USERNAME", "u")
     monkeypatch.setenv("FOMS_STAGING_PASSWORD", "p")
     assert gate._credentials() == ("u", "p")
+
+
+# ---------------------------------------------------------------------------
+# --advisory: deploy 푸시=비블로킹(경고만, exit 0), production 승격=블로킹(exit 1)
+# ---------------------------------------------------------------------------
+def test_gate_exit_code_advisory_maps_fail_to_zero():
+    """advisory: 예산 초과(ok=False)여도 0(비블로킹), advisory 아니면 1(블로킹). PASS 는 항상 0."""
+    assert gate.gate_exit_code(ok=True, advisory=False) == 0
+    assert gate.gate_exit_code(ok=True, advisory=True) == 0
+    assert gate.gate_exit_code(ok=False, advisory=False) == 1
+    assert gate.gate_exit_code(ok=False, advisory=True) == 0
+
+
+def test_advisory_flag_and_emit_helper_exist():
+    """--advisory 플래그와 advisory 방출 헬퍼가 배선되어 있다."""
+    import subprocess
+    import sys
+    # emit 헬퍼 존재
+    assert callable(gate.emit_advisory_annotations)
+    # --advisory 가 argparse 에 노출됨(help 에 등장)
+    out = subprocess.run(
+        [sys.executable, str(gate.ROOT / "tools" / "perf" / "staging_perf_gate.py"), "--help"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30,
+    )
+    assert "--advisory" in out.stdout
