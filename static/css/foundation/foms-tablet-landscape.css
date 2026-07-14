@@ -1113,20 +1113,20 @@
 
   /* 검색 입력: 중립 서브틀 표면 + 서브틀 보더 + 왼쪽 라운드(필 좌단). */
   body.erp-mobile-v2-layout #erp-filters-form .input-group .form-control {
-    background: var(--foms-surface-subtle, #f7f8fa);
-    border: 1px solid var(--foms-border-subtle, #dde1e6);
-    border-right: 0;
-    color: var(--foms-text-primary);
+    background: var(--foms-surface-subtle, #f7f8fa) !important;
+    border: 1px solid var(--foms-border-subtle, #dde1e6) !important;
+    border-right: 0 !important;
+    color: var(--foms-text-primary) !important;
     border-top-left-radius: var(--foms-radius-lg, 12px) !important;
     border-bottom-left-radius: var(--foms-radius-lg, 12px) !important;
   }
   /* 검색 버튼: 솔리드 브랜드 블루 제거 → brand-subtle 통합 아이콘 버튼(필 우단, 44px). */
   body.erp-mobile-v2-layout #erp-filters-form .input-group .btn-primary {
     min-height: var(--foms-touch-target-comfortable, 44px);
-    background: var(--foms-interactive-primary-soft, #f3f4ff);
-    border: 1px solid var(--foms-border-subtle, #dde1e6);
-    border-left: 0;
-    color: var(--foms-interactive-primary, #5a67d8);
+    background: var(--foms-interactive-primary-soft, #f3f4ff) !important;
+    border: 1px solid var(--foms-border-subtle, #dde1e6) !important;
+    border-left: 0 !important;
+    color: var(--foms-interactive-primary, #5a67d8) !important;
     border-top-right-radius: var(--foms-radius-lg, 12px) !important;
     border-bottom-right-radius: var(--foms-radius-lg, 12px) !important;
     box-shadow: none;
@@ -1134,9 +1134,9 @@
   body.erp-mobile-v2-layout #erp-filters-form .input-group .btn-primary:hover,
   body.erp-mobile-v2-layout #erp-filters-form .input-group .btn-primary:focus,
   body.erp-mobile-v2-layout #erp-filters-form .input-group .btn-primary:active {
-    background: var(--foms-surface-accent, #f3f4ff);
-    border-color: var(--foms-border-subtle, #dde1e6);
-    color: var(--foms-interactive-primary, #5a67d8);
+    background: var(--foms-surface-accent, #f3f4ff) !important;
+    border-color: var(--foms-border-subtle, #dde1e6) !important;
+    color: var(--foms-interactive-primary, #5a67d8) !important;
   }
 
   /* 단계/담당팀 select: 필 톤(서브틀 보더·radius-lg·중립 표면·세컨더리 텍스트). */
