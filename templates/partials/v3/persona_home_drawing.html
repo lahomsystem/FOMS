@@ -36,6 +36,12 @@
         {% if r.sla_level == '지연' %}<span class="px-drawing-warn">지연</span>
         {% elif r.sla_level == '오늘 마감' %}<span class="px-drawing-warn">오늘 마감</span>{% endif %}
       </span>
+      {% if r.latest_transfer_line %}
+      <span class="fos-queue-card__meta px-drawing-xfer"><i class="fas fa-paper-plane" aria-hidden="true"></i> {{ r.latest_transfer_line }}</span>
+      {% endif %}
+      {% if r.latest_request_note %}
+      <span class="px-drawing-memo" title="{{ r.latest_request_note }}">{{ r.latest_request_note }}</span>
+      {% endif %}
     </span>
     <span class="fos-queue-card__aside">
       <span class="fos-tl-btn" role="button" data-fos-timeline data-order-id="{{ r.id }}" aria-label="주문 진행 타임라인 보기"><i class="fas fa-timeline" aria-hidden="true"></i></span>

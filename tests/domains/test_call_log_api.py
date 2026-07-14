@@ -5,10 +5,14 @@
 새 쿼리로 결과를 검증한다.
 """
 
+from pathlib import Path
+
 from werkzeug.security import generate_password_hash
 
 from db import db_session
 from models import Order, OrderEvent, User
+
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def _login(client, *, username, role, team):
@@ -161,3 +165,58 @@ def test_call_log_rejects_bad_measurement_date(client, app):
     )
     assert resp.status_code == 400
     assert resp.get_json()["success"] is False
+
+
+def test_cs_no_answer_filter_renders_on_v2_dashboard(client, monkeypatch):
+    """B2: 마지막 통화=no_answer 접수 카드는 파생 data 속성을, A4 칩 행은 '부재중' 클라 필터 칩과
+    정직 힌트를 렌더한다(서버 재조회 없이 로드된 rows 기반)."""
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    uid = _login(client, username="cs-b2-render", role="ADMIN", team="CS")
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(uid))
+
+    order = Order(
+        received_date="2026-07-13",
+        customer_name="부재중 고객",
+        phone="010-1234-5678",
+        address="서울",
+        product="붙박이장",
+        status="RECEIVED",
+        manager_name="Alice",
+        is_erp_order=True,
+        structured_data={
+            "workflow": {"stage": "주문접수"},
+            "parties": {
+                "customer": {"name": "부재중 고객", "phone": "010-1234-5678"},
+                "manager": {"name": "Alice"},
+            },
+            "site": {"address_full": "서울"},
+            "calls": [
+                {
+                    "at": "2026-07-13T05:30:00+00:00",
+                    "by": uid,
+                    "by_name": "CS",
+                    "result": "no_answer",
+                    "memo": "",
+                }
+            ],
+        },
+    )
+    db_session.add(order)
+    db_session.commit()
+
+    # 기본 뷰는 컨트롤 타워 홈 — A1/A4 CS 접수 큐는 view=queue 에서 렌더된다.
+    resp = client.get("/erp/dashboard?view=queue")
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
+    assert 'data-foms-last-call="no_answer"' in body
+    assert "data-foms-lastcall-filter" in body
+    assert "현재 페이지 내 필터" in body
+
+
+def test_cs_no_answer_filter_markers_in_v3_persona_home():
+    """B2: v3 CS 홈에도 동일한 '부재중' 필터 칩·마지막 통화 속성·필터 스코프가 존재한다."""
+    src = (ROOT / "templates/partials/v3/persona_home_cs.html").read_text(encoding="utf-8")
+    assert "data-foms-lastcall-filter" in src
+    assert 'data-foms-last-call="{{ _lc_result }}"' in src
+    assert "data-foms-lastcall-scope" in src
+    assert "현재 페이지 내 필터" in src

@@ -185,3 +185,44 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ── B2: 마지막 통화 배지(큐 카드 헤더) + '부재중' 페이지 필터 칩/힌트 ────── */
+.foms-lastcall-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--foms-radius-full);
+  background: var(--foms-color-neutral-100);
+  color: var(--foms-text-secondary);
+  font-size: var(--foms-font-size-xs);
+  font-weight: var(--foms-font-weight-semibold);
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.foms-lastcall-badge--no-answer {
+  background: var(--foms-color-danger-50);
+  color: var(--foms-color-danger-600);
+}
+
+/* A4 칩 행의 '부재중'은 <button> — <a> 칩과 동일한 외형이 되도록 UA 기본값 정규화. */
+.foms-v2h-chip--filter {
+  appearance: none;
+  -webkit-appearance: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.foms-v2h-filter-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--foms-space-1);
+  margin: calc(var(--foms-space-1) * -1) var(--foms-space-1) var(--foms-space-3);
+  color: var(--foms-text-tertiary);
+  font-size: var(--foms-font-size-xs);
+  font-weight: var(--foms-font-weight-medium);
+}
+
+.foms-v2h-filter-hint > i {
+  font-size: 0.9em;
+}

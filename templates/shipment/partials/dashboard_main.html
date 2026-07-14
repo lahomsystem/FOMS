@@ -352,6 +352,8 @@
                 <col data-col-key="construction_time">
                 <col data-col-key="drawing_managers">
                 <col data-col-key="construction_workers">
+                <col data-col-key="vehicle">
+                <col data-col-key="trip">
                 <col data-col-key="manager">
               </colgroup>
               <thead class="table-light">
@@ -365,6 +367,8 @@
                   <th data-col-key="construction_time" style="border-right: 1px solid #e0e0e0;">시공시간<button class="col-resize-handle" aria-label="컬럼 크기 조절"></button></th>
                   <th data-col-key="drawing_managers" style="border-right: 1px solid #e0e0e0;">도면담당자<button class="col-resize-handle" aria-label="컬럼 크기 조절"></button></th>
                   <th data-col-key="construction_workers" style="border-right: 1px solid #e0e0e0;">시공자<button class="col-resize-handle" aria-label="컬럼 크기 조절"></button></th>
+                  <th data-col-key="vehicle" style="border-right: 1px solid #e0e0e0;">차량</th>
+                  <th data-col-key="trip" style="border-right: 1px solid #e0e0e0;">회차</th>
                   <th data-col-key="manager">담당자<button class="col-resize-handle" aria-label="컬럼 크기 조절"></button></th>
                 </tr>
               </thead>
@@ -404,6 +408,8 @@
                 {% set shipment = sd.get('shipment') or {} %}
                 {% set site_extra = shipment.get('site_extra') or [] %}
                 {% set construction_time = shipment.get('construction_time') or '' %}
+                {% set vehicle = shipment.get('vehicle') or '' %}
+                {% set trip = shipment.get('trip') or '' %}
                 {% set drawing_manager_values = shipment.get('drawing_managers') or [] %}
                 {% set drawing_ns = namespace(values=[]) %}
                 {% for dm in drawing_manager_values %}
@@ -459,7 +465,7 @@
                 {% set grp_ns.prev = _gcomposite %}
                 {% set _gm = shipment_team_group_meta.get(worker_key) or {} %}
                 <tr class="shipment-grp-row" data-team-color-index="{{ ns.worker_index }}" data-grp-key="{{ _gcomposite }}" aria-hidden="true">
-                  <td class="shipment-grp-cell" colspan="10">
+                  <td class="shipment-grp-cell" colspan="12">
                     <span class="shipment-grp-team">{% if worker_key %}시공 {{ worker_key }}{% else %}미배정{% endif %}</span>
                     <span class="shipment-grp-sum">합계 {{ _gm.get('units', '0.0') }}자</span>
                     <span class="shipment-grp-count">{{ _gm.get('count', 0) }}건</span>
@@ -689,6 +695,50 @@
                       {% endif %}
                     </ul>
                   </td>
+                  <td class="shipment-field-cell" data-col-key="vehicle" data-label="차량" style="border-right: 1px solid #e0e0e0;">
+                    <ul
+                      class="shipment-edit-list shipment-text-list-single shipment-vehicle-list mb-0"
+                      data-order-id="{{ r.id }}" data-field="vehicle" data-list-key="vehicle"
+                      data-storage-key="vehicle" data-datalist-id="datalist-vehicle"
+                      data-placeholder="예: 84로3712" data-single="true" data-empty-placeholder="입력">
+                      <li class="shipment-text-row {% if vehicle %}has-value{% else %}is-empty{% endif %}">
+                        <span class="shipment-text-view" data-empty-placeholder="입력">{{ vehicle }}</span>
+                        {% if can_edit_shipment %}
+                        <div class="shipment-text-edit input-group input-group-sm flex-nowrap">
+                          <input type="text" class="form-control form-control-sm shipment-text-input"
+                            data-order-id="{{ r.id }}" data-field="vehicle" value="{{ vehicle }}"
+                            placeholder="예: 84로3712" list="datalist-vehicle">
+                          <button type="button" class="btn btn-sm btn-outline-secondary shipment-btn-load-saved-text-row"
+                            title="저장된 차량번호 불러오기"><i class="fas fa-list"></i></button>
+                          <button type="button" class="btn btn-sm btn-outline-danger btn-remove-shipment-text-row"
+                            title="삭제">&times;</button>
+                        </div>
+                        {% endif %}
+                      </li>
+                    </ul>
+                  </td>
+                  <td class="shipment-field-cell" data-col-key="trip" data-label="회차" style="border-right: 1px solid #e0e0e0;">
+                    <ul
+                      class="shipment-edit-list shipment-text-list-single shipment-trip-list mb-0"
+                      data-order-id="{{ r.id }}" data-field="trip" data-list-key="trip"
+                      data-storage-key="trip" data-datalist-id="datalist-trip"
+                      data-placeholder="예: 1회차 06:30" data-single="true" data-empty-placeholder="입력">
+                      <li class="shipment-text-row {% if trip %}has-value{% else %}is-empty{% endif %}">
+                        <span class="shipment-text-view" data-empty-placeholder="입력">{{ trip }}</span>
+                        {% if can_edit_shipment %}
+                        <div class="shipment-text-edit input-group input-group-sm flex-nowrap">
+                          <input type="text" class="form-control form-control-sm shipment-text-input"
+                            data-order-id="{{ r.id }}" data-field="trip" value="{{ trip }}"
+                            placeholder="예: 1회차 06:30" list="datalist-trip">
+                          <button type="button" class="btn btn-sm btn-outline-secondary shipment-btn-load-saved-text-row"
+                            title="저장된 회차 불러오기"><i class="fas fa-list"></i></button>
+                          <button type="button" class="btn btn-sm btn-outline-danger btn-remove-shipment-text-row"
+                            title="삭제">&times;</button>
+                        </div>
+                        {% endif %}
+                      </li>
+                    </ul>
+                  </td>
                   <td data-col-key="manager" data-label="담당자">
                     {{ r.manager_name or '-' }}
                   </td>
@@ -696,7 +746,7 @@
                 {% endfor %}
                 {% else %}
                 <tr>
-                  <td colspan="10" class="text-center text-muted py-4">데이터가 없습니다.</td>
+                  <td colspan="12" class="text-center text-muted py-4">데이터가 없습니다.</td>
                 </tr>
                 {% endif %}
               </tbody>
@@ -711,9 +761,11 @@
   <datalist id="datalist-construction-time"></datalist>
   <datalist id="datalist-drawing-manager"></datalist>
   <datalist id="datalist-construction-workers"></datalist>
+  <datalist id="datalist-vehicle"></datalist>
+  <datalist id="datalist-trip"></datalist>
 
   <div id="shipment-dashboard-config" class="d-none" data-can-edit="{{ 'true' if can_edit_shipment else 'false' }}" data-selected-date="{{ selected_date|default('', true)|e }}"></div>
-  <script src="{{ url_for('static', filename='js/shipment/shipment-dashboard.js') }}?v=20260713b" defer></script>
+  <script src="{{ url_for('static', filename='js/shipment/shipment-dashboard.js') }}?v=20260714a" defer></script>
   {% endif %}
 </div><!-- end erp-pro -->
 

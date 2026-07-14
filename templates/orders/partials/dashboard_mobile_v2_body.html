@@ -30,9 +30,18 @@
 {% set _cs_hero = _cs_rows[0] if _cs_rows else None %}
 {% set _cs_status_active = request.args.get('status') or '' %}
 
+{#- B2: '부재중' 페이지 필터 칩 카운트 — 로드된 큐 카드(orders) 중 마지막 통화=no_answer 수.
+    페이지네이션 한계는 힌트 라벨로 정직 고지(현재 페이지 내 필터). 서버 쿼리 없음. -#}
+{% set _cs_noanswer = namespace(n=0) %}
+{% for _o in (orders or []) %}
+  {% set _oc = (_o.structured_data or {}).get('calls') %}
+  {% if _oc and _oc[-1].get('result') == 'no_answer' %}{% set _cs_noanswer.n = _cs_noanswer.n + 1 %}{% endif %}
+{% endfor %}
+
 <section
   class="foms-shell-body foms-mobile-v2-dashboard"
   aria-label="모바일 홈 대시보드"
+  data-foms-lastcall-scope
   data-foms-mobile-queue-scroll
   data-next-page="{{ page + 1 if page < total_pages else 0 }}"
   data-total-pages="{{ total_pages }}"
@@ -92,7 +101,13 @@
            href="{{ _base_url }}?view=queue&status=ON_HOLD">보류<span class="foms-v2h-chip__n">{{ _cs_hold_ct }}</span></a>
         <a class="foms-v2h-chip{% if _cs_status_active == 'RECHECK' %} is-active{% endif %}"
            href="{{ _base_url }}?view=queue&status=RECHECK">재확인<span class="foms-v2h-chip__n">{{ _cs_recheck_ct }}</span></a>
+        {#- 클라 토글(서버 nav 아님): 활성 시 마지막 통화≠no_answer 카드 숨김. foms-call-filter.js 소관. -#}
+        <button type="button" class="foms-v2h-chip foms-v2h-chip--filter"
+                data-foms-lastcall-filter aria-pressed="false">부재중<span class="foms-v2h-chip__n">{{ _cs_noanswer.n }}</span></button>
       </nav>
+      <p class="foms-v2h-filter-hint" data-foms-lastcall-hint hidden>
+        <i class="fas fa-circle-info" aria-hidden="true"></i> 현재 페이지 내 필터
+      </p>
     {% endif %}
   {% endif %}
 

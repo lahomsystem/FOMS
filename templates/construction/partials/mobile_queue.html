@@ -19,6 +19,7 @@
   {% set _ch_tel = (_chero.phone or '') | replace('-', '') | replace(' ', '') %}
   {% set _ch_time = ((_chero.structured_data.get('schedule') or {}).get('construction') or {}).get('time') %}
   {% set _cw = (_chero.structured_data.get('shipment') or {}).get('construction_workers') %}
+  {% set _ch_vehicle = (_chero.structured_data.get('shipment') or {}).get('vehicle') %}
   {% set _crew_names = [] %}
   {% if _cw is string %}{% set _ = _crew_names.append(_cw) %}
   {% elif _cw %}
@@ -36,7 +37,7 @@
       {% if _ch_time %}<span class="foms-v2dh-hero__time"><i class="fas fa-clock" aria-hidden="true"></i> {{ _ch_time }}</span>{% endif %}
       {% if _chero.address and _chero.address != '-' %}<span class="foms-v2dh-hero__addr">{{ _chero.address }}</span>{% endif %}
     </div>
-    {% if _crew %}<div class="foms-v2dh-hero__crew"><span class="foms-v2dh-hero__crew-k">투입 인원</span><span class="foms-v2dh-hero__crew-v">{{ _crew }}</span></div>{% endif %}
+    {% if _crew or _ch_vehicle %}<div class="foms-v2dh-hero__crew">{% if _crew %}<span class="foms-v2dh-hero__crew-k">투입 인원</span><span class="foms-v2dh-hero__crew-v">{{ _crew }}</span>{% endif %}{% if _ch_vehicle %}<span class="foms-v2dh-hero__crew-k">차량</span><span class="foms-v2dh-hero__crew-v">{{ _ch_vehicle }}</span>{% endif %}</div>{% endif %}
     <div class="foms-v2dh-hero__actions">
       {% if _ch_tel and _ch_tel != '-' %}
       <a class="foms-v2dh-btn foms-v2dh-btn--primary" href="tel:{{ _ch_tel }}" aria-label="{{ _chero.customer_name or '고객' }} 전화"><i class="fas fa-phone" aria-hidden="true"></i> 고객 전화</a>

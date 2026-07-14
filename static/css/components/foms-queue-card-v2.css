@@ -260,7 +260,6 @@
     min-width: 0;
   }
 
-  body.erp-mobile-v2-layout .erp-measurement-mobile-card__status,
   body.erp-mobile-v2-layout .erp-shipment-mobile-card__status {
     flex: 1 0 100%;
     min-height: 1rem;

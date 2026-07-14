@@ -10,7 +10,9 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
         construction_time: 'erp_shipment_construction_time_list',
         drawing_manager: 'erp_shipment_drawing_manager_list',
         construction_workers: 'erp_shipment_construction_workers_list',
-        site_extra: 'erp_shipment_site_extra_list'
+        site_extra: 'erp_shipment_site_extra_list',
+        vehicle: 'erp_shipment_vehicle_list',
+        trip: 'erp_shipment_trip_list'
       };
       const MAX_SAVED = 20;
 
@@ -188,11 +190,15 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
         fillDatalist('datalist-construction-time', 'construction_time');
         fillDatalist('datalist-drawing-manager', 'drawing_manager');
         fillDatalist('datalist-construction-workers', 'construction_workers');
+        fillDatalist('datalist-vehicle', 'vehicle');
+        fillDatalist('datalist-trip', 'trip');
         applyShipmentWorkerSortAndColors();
       }).catch(function () {
         fillDatalist('datalist-construction-time', 'construction_time');
         fillDatalist('datalist-drawing-manager', 'drawing_manager');
         fillDatalist('datalist-construction-workers', 'construction_workers');
+        fillDatalist('datalist-vehicle', 'vehicle');
+        fillDatalist('datalist-trip', 'trip');
       });
       var shipmentTableEl = document.querySelector('.shipment-table');
       if (shipmentTableEl) {

@@ -379,6 +379,7 @@ def erp_drawing_workbench_dashboard():
         due_today = (alerts.get('measurement_days') == 0 or alerts.get('construction_days') == 0)
 
         latest_request_no = None
+        latest_request_note = ''
         for h in reversed(history):
             if isinstance(h, dict) and h.get('action') == 'REQUEST_REVISION':
                 try:
@@ -386,6 +387,20 @@ def erp_drawing_workbench_dashboard():
                     latest_request_no = int(target_no_raw) if target_no_raw is not None else None
                 except Exception:
                     pass
+                latest_request_note = str(h.get('note') or '').strip()
+                break
+        # 최신 전달(TRANSFER) 요약 1줄: 'vN 전달 · M/D HH:MM · 이름' (이미 로드된 history 파생, 추가 쿼리 없음).
+        latest_transfer_line = ''
+        for h in reversed(history):
+            if isinstance(h, dict) and h.get('action') == 'TRANSFER':
+                _t_at = format_datetime_kst(_history_event_at_raw(h), '%m/%d %H:%M') or ''
+                _t_by = str(h.get('by_user_name') or '').strip()
+                _t_seg = [f'v{transfer_round} 전달' if transfer_round else '전달']
+                if _t_at:
+                    _t_seg.append(_t_at)
+                if _t_by:
+                    _t_seg.append(_t_by)
+                latest_transfer_line = ' · '.join(_t_seg)
                 break
         h_action = (last_event or {}).get('action') or ''
         h_action_label = {
@@ -434,6 +449,8 @@ def erp_drawing_workbench_dashboard():
             'latest_event_at': (last_event or {}).get('transferred_at') or (last_event or {}).get('at') or '-',
             'latest_event_label': h_action_label,
             'latest_event_note': (last_event or {}).get('note') or '',
+            'latest_transfer_line': latest_transfer_line,
+            'latest_request_note': latest_request_note,
             'sla_level': sla_level,
             'is_overdue': bool(alerts.get('drawing_overdue')),
             'due_today': due_today,

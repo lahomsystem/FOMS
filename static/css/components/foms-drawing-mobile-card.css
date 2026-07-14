@@ -236,6 +236,60 @@
   color: var(--foms-color-warning-600, #d97706);
 }
 
+/* 상태 라벨 칩 + 버전 칩(vN, transfer_round 파생) */
+.foms-drawing-queue-card__chip--status {
+  background: var(--foms-color-info-50, #eff6ff);
+  color: var(--foms-color-info-700, #1d4ed8);
+}
+
+.foms-drawing-queue-card__chip--version {
+  background: color-mix(in srgb, var(--foms-color-brand-500, #6366f1) 14%, var(--foms-surface-base, #fff));
+  color: var(--foms-color-brand-700, #434190);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 최신 전달 요약 1줄('vN 전달 · M/D HH:MM · 이름') */
+.foms-drawing-queue-card__xfer {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--foms-text-tertiary, #6b7380);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.foms-drawing-queue-card__xfer > i {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+/* 반려/수정요청 메모 1줄(길면 말줄임) */
+.foms-drawing-queue-card__memo {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  padding: 0.28rem 0.5rem;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  background: var(--foms-color-warning-50, #fffbeb);
+  color: var(--foms-color-warning-700, #b45309);
+}
+
+.foms-drawing-queue-card__memo > i {
+  flex-shrink: 0;
+}
+
+.foms-drawing-queue-card__memo-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .foms-drawing-queue-card__actions {
   grid-column: 1 / -1;
   display: flex;
@@ -285,7 +339,13 @@
   background: var(--foms-color-brand-100, #e0e7ff);
 }
 
-.foms-drawing-queue-card__actions:has(.foms-drawing-queue-card__erp-edit) .foms-btn {
+.foms-drawing-queue-card__actions .foms-drawing-queue-card__wizard {
+  border-color: color-mix(in srgb, var(--foms-color-brand-400, #818cf8) 40%, var(--foms-border-subtle, #dde1e6));
+  color: var(--foms-color-brand-700, #434190);
+}
+
+.foms-drawing-queue-card__actions:has(.foms-drawing-queue-card__erp-edit) .foms-btn,
+.foms-drawing-queue-card__actions:has(.foms-drawing-queue-card__wizard) .foms-btn {
   font-size: 0.78rem;
   padding-inline: 0.45rem;
 }
@@ -431,4 +491,24 @@
 [data-theme='dark'] .foms-drawing-queue-card__chip.is-mine {
   background: rgba(245, 158, 11, 0.18);
   color: var(--foms-color-warning-400, #fbbf24);
+}
+
+[data-theme='dark'] .foms-drawing-queue-card__chip--status {
+  background: rgba(59, 130, 246, 0.18);
+  color: var(--foms-color-info-300, #93c5fd);
+}
+
+[data-theme='dark'] .foms-drawing-queue-card__chip--version {
+  background: rgba(99, 102, 241, 0.2);
+  color: var(--foms-color-brand-300, #a5b4fc);
+}
+
+[data-theme='dark'] .foms-drawing-queue-card__memo {
+  background: rgba(245, 158, 11, 0.16);
+  color: var(--foms-color-warning-300, #fcd34d);
+}
+
+[data-theme='dark'] .foms-drawing-queue-card__actions .foms-drawing-queue-card__wizard {
+  border-color: color-mix(in srgb, var(--foms-interactive-primary) 35%, transparent);
+  color: var(--foms-text-link);
 }

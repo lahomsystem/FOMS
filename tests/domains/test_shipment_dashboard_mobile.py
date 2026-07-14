@@ -56,7 +56,7 @@ def test_shipment_mobile_controls_template_contract() -> None:
     assert "data-shipment-mobile-detail-field" in queue
     assert "syncShipmentMobileDetail" in queue
     assert "js-shipment-as-rec-cancel" in queue
-    for field in ("site_extra", "construction_time", "drawing_managers", "construction_workers"):
+    for field in ("site_extra", "construction_time", "drawing_managers", "construction_workers", "vehicle", "trip"):
         assert field in pc
         assert field in queue
 

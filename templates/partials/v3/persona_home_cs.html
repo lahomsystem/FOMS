@@ -25,12 +25,22 @@
 {%- set _hero = _rows[0] if _rows else None -%}
 {%- set _queue = _rows[1:] if _rows | length > 1 else [] -%}
 {%- set _as_ct = (foms_nav_badges or {}).get('as', 0) -%}
+{#- B2: '부재중' 페이지 필터 카운트 — 렌더되는 접수 대기 큐(_queue) 중 마지막 통화=no_answer 수. -#}
+{%- set _noanswer = namespace(n=0) -%}
+{%- for _o in _queue -%}
+  {%- set _oc = (_o.structured_data or {}).get('calls') -%}
+  {%- if _oc and _oc[-1].get('result') == 'no_answer' %}{% set _noanswer.n = _noanswer.n + 1 %}{% endif -%}
+{%- endfor -%}
 
 {%- macro cs_card(o, st_map) -%}
   {%- set _sc = st_map.get(o.stage_code, 'received') -%}
   {%- set _ph = (o.phone or '') | replace('-', '') | replace(' ', '') -%}
   {%- set _danger = o.alerts and o.alerts.urgent -%}
-  <div class="fos-cardrow">
+  {#- B2: 마지막 통화(sd.calls[-1].result) 파생 — '부재중' 페이지 필터 속성/배지(로드된 rows만). -#}
+  {%- set _lc_calls = (o.structured_data or {}).get('calls') -%}
+  {%- set _last_call = _lc_calls[-1] if _lc_calls else None -%}
+  {%- set _lc_result = _last_call.result if _last_call else '' -%}
+  <div class="fos-cardrow" data-foms-last-call="{{ _lc_result }}">
     <a class="fos-queue-card fos-queue-card--link{% if _danger %} is-danger{% endif %}"
        href="{{ url_for('erp_dashboard.erp_order_mobile_detail', order_id=o.id) }}"
        data-order-id="{{ o.id }}">
@@ -47,6 +57,11 @@
         <span class="fos-tagrow">
           <span class="fos-stage" data-st="{{ _sc }}">{{ o.stage or '주문접수' }}</span>
           {%- if o.current_quest and o.current_quest.title %}<span class="fos-quest-tag">{{ o.current_quest.title }}</span>{% endif -%}
+          {%- if _last_call -%}
+            {%- set _lc_labels = {'connected': '통화됨', 'no_answer': '부재중', 'callback': '콜백', 'schedule_confirmed': '일정확정'} -%}
+            {%- set _lc_md = (_last_call.at[5:7]|int ~ '/' ~ _last_call.at[8:10]|int) if (_last_call.at and _last_call.at|length >= 10) else '' -%}
+            <span class="fos-lastcall-badge fos-lastcall-badge--{{ _lc_result|replace('_', '-') }}">{{ _lc_labels.get(_lc_result, '통화') }}{% if _lc_md %} · {{ _lc_md }}{% endif %}</span>
+          {%- endif -%}
         </span>
       </span>
       <span class="fos-queue-card__aside">
@@ -63,7 +78,7 @@
   </div>
 {%- endmacro -%}
 
-<div class="fos-scroll" data-persona-home="cs">
+<div class="fos-scroll" data-persona-home="cs" data-foms-lastcall-scope>
   <div class="fos-appbar">
     <div>
       <div class="sub tnum">접수 {{ _rows | length }}{% if _hold_ct %} · 보류 {{ _hold_ct }}{% endif %}{% if _as_ct %} · AS {{ _as_ct }}{% endif %}</div>
@@ -74,7 +89,10 @@
     <button class="fos-chip is-active" type="button">전체<span class="n tnum">{{ _rows | length }}</span></button>
     <button class="fos-chip" type="button">보류<span class="n tnum">{{ _hold_ct }}</span></button>
     <button class="fos-chip" type="button">재확인<span class="n tnum">{{ _recheck_ct }}</span></button>
+    {#- 클라 토글(단일 선택 정합은 셸 chipSelect + foms-call-filter.js): 마지막 통화≠no_answer 카드 숨김. -#}
+    <button class="fos-chip fos-chip--filter" type="button" data-foms-lastcall-filter aria-pressed="false">부재중<span class="n tnum">{{ _noanswer.n }}</span></button>
   </div>
+  <p class="fos-filter-hint" data-foms-lastcall-hint hidden><i class="fas fa-circle-info" aria-hidden="true"></i> 현재 페이지 내 필터</p>
 
   {% if not _rows %}
   <div class="fos-empty">

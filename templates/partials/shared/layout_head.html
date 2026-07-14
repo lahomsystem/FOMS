@@ -114,7 +114,7 @@
       }
     </style>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" crossorigin="anonymous">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-mobile-surfaces.css') }}?v=20260712b">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-mobile-surfaces.css') }}?v=20260714a">
     {% endif %}
     {# 태블릿 T2 융합 레이어는 셸 변형과 직교 — v2·v3 공통으로 로드(2026-07-12 v3 미로드 실사고 봉합).
        surfaces 와 별도 <link>·surfaces 직후 위치라 v2 캐스케이드 순변화 0.
@@ -135,7 +135,7 @@
     {# v3 셸 자산(배타 로드): shell_variant=='v3'일 때만 v3 CSS/셸 JS 로드. v2 모바일
        번들과 상호 배타(위 v2 critical CSS는 shell_variant=='v2' 게이트라 v3에서 미로드). #}
     {% if shell_variant == 'v3' %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/v3/foms-mobile-v3.css') }}?v=20260713b">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/v3/foms-mobile-v3.css') }}?v=20260714b">
     <script src="{{ url_for('static', filename='js/v3/foms-mobile-v3.js') }}?v=20260713b" defer></script>
     {# B7 sync 배지 컨트롤러: v3 앱바 [data-foms-sync-badge] 배지를 갱신한다. v2 셸은
        foms_app_shell.html 이 로드하지만 v3 셸은 그 파샬을 include 하지 않으므로 여기서 배타 로드. #}

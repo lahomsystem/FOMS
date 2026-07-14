@@ -65,7 +65,9 @@
           </span>
           <span class="fos-queue-card__meta">
             {% if meta.spec_units %}<span class="tnum">W/300 {{ '%.1f'|format(meta.spec_units) }}</span>{% endif %}
+            {% if meta.trip %}<span class="tnum">{{ meta.trip }}</span>{% endif %}
             {% if meta.construction_time %}<span class="tnum">{{ meta.construction_time }}</span>{% endif %}
+            {% if meta.vehicle %}<span class="tnum">차량 {{ meta.vehicle }}</span>{% endif %}
             {% if o.address and o.address != '-' %}<span class="addr">{{ o.address }}</span>{% endif %}
           </span>
           <span class="px-shipment-badgerow">

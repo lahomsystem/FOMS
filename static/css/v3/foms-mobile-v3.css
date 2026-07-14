@@ -250,6 +250,20 @@
 .fos-chip.is-active{background:var(--acc); color:var(--ink); border-color:transparent}
 .fos-chip .n{font-variant-numeric:tabular-nums; opacity:.8; margin-left:4px}
 
+/* B2: 마지막 통화 배지(접수 대기 카드 태그행) + '부재중' 페이지 필터 힌트 */
+.fos-lastcall-badge{
+  display:inline-flex; align-items:center; padding:2px 8px; border-radius:99px;
+  background:var(--fos-bg2); color:var(--fos-tx1);
+  font-size:11px; font-weight:700; line-height:1.4; white-space:nowrap;
+}
+.fos-lastcall-badge--no-answer{
+  background:color-mix(in srgb,var(--danger) 14%,var(--fos-bg2)); color:var(--danger);
+}
+.fos-filter-hint{
+  display:inline-flex; align-items:center; gap:4px; margin:2px 2px 0;
+  color:var(--fos-tx2); font-size:11px; font-weight:600;
+}
+
 /* 세그먼트 */
 .fos-seg{display:inline-flex; background:var(--fos-bg2); border:1px solid var(--fos-line); border-radius:12px; padding:3px; gap:2px; width:100%}
 .fos-seg button{flex:1; border:0; background:transparent; color:var(--fos-tx1); cursor:pointer; font:inherit; font-weight:700; font-size:13px; padding:9px 6px; border-radius:9px; transition:.14s}
@@ -445,6 +459,12 @@
 .px-drawing-warn::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--warn)}
 .px-drawing-new{display:inline-flex;align-items:center;font-size:11px;font-weight:800;letter-spacing:.02em;
   padding:2px 8px;border-radius:99px;background:color-mix(in srgb,var(--ok) 16%,var(--fos-bg2));color:var(--ok)}
+/* 최신 전달 요약 1줄(vN 전달 · M/D HH:MM · 이름) + 반려/수정요청 메모 1줄(말줄임) */
+.px-drawing-xfer{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--fos-tx2)}
+.px-drawing-xfer i{opacity:.7;margin-right:3px}
+.px-drawing-memo{display:block;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  font-size:12px;font-weight:600;color:var(--warn);border-radius:8px;padding:4px 8px;margin-top:1px;
+  background:color-mix(in srgb,var(--warn) 12%,var(--fos-bg2))}
 .px-drawing-preview{position:relative}
 .px-drawing-pinch{position:absolute;right:10px;bottom:34px;z-index:3;display:inline-flex;align-items:center;gap:6px;
   font-size:11px;font-weight:700;color:#dff4fb;background:rgba(10,25,34,.66);border:1px solid rgba(120,210,240,.35);

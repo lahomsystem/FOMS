@@ -7,7 +7,7 @@
 {% if _is_risk %}
   {# P1 위험 착지: 평탄 워크리스트 — 단계 그룹·긴급 분리 없이 라우트 트리아지(마감/정체 오름차순) 순서 유지. #}
   {% for o in orders %}
-    {{ render_queue_card_v2(o, can_edit_erp|default(false)) }}
+    {{ render_queue_card_v2(o, can_edit_erp|default(false), show_last_call=true) }}
   {% endfor %}
 {% else %}
 {% set _group_by_stage = not (_filters.get('stage') or '') %}
@@ -28,7 +28,7 @@
     <span class="section-header__count foms-section-header__count">{{ _urgent_orders|length }}건</span>
   </div>
   {% for o in _urgent_orders %}
-    {{ render_queue_card_v2(o, can_edit_erp|default(false)) }}
+    {{ render_queue_card_v2(o, can_edit_erp|default(false), show_last_call=true) }}
   {% endfor %}
 {% endif %}
 
@@ -50,7 +50,7 @@
             <span class="section-header__count foms-section-header__count">{{ _stage_orders|length }}건</span>
           </div>
           {% for o in _stage_orders %}
-            {{ render_queue_card_v2(o, can_edit_erp|default(false)) }}
+            {{ render_queue_card_v2(o, can_edit_erp|default(false), show_last_call=true) }}
           {% endfor %}
         {% endif %}
       {% endif %}
@@ -67,7 +67,7 @@
         <span class="section-header__count foms-section-header__count">{{ _ungrouped|length }}건</span>
       </div>
       {% for o in _ungrouped %}
-        {{ render_queue_card_v2(o, can_edit_erp|default(false)) }}
+        {{ render_queue_card_v2(o, can_edit_erp|default(false), show_last_call=true) }}
       {% endfor %}
     {% endif %}
   {% else %}
@@ -76,7 +76,7 @@
       <span class="section-header__count foms-section-header__count">{{ _other_orders|length }}건</span>
     </div>
     {% for o in _other_orders %}
-      {{ render_queue_card_v2(o, can_edit_erp|default(false)) }}
+      {{ render_queue_card_v2(o, can_edit_erp|default(false), show_last_call=true) }}
     {% endfor %}
   {% endif %}
 {% endif %}
