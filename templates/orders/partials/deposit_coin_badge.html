@@ -1,0 +1,15 @@
+{# 예약금 동전 배지 SSOT — 확인됨 / 라홈 비표준 힌트 / 미확인 회색
+   기대 컨텍스트: deposit (raw), deposit_confirmed, orderer_name
+#}
+{% set deposit_val = deposit | coerce_deposit_amount %}
+{% if deposit_val > 0 %}
+  {% set _dep_confirmed = deposit_confirmed | payment_confirmed_bool %}
+  {% set _lahom_gold = (orderer_name or '') | lahom_deposit_gold(deposit_val) %}
+  {% if _dep_confirmed %}
+  <img src="{{ url_for('static', filename='images/pay-coin.png') }}" class="erp-custom-payment-icon erp-custom-payment-confirmed" title="예약금 확인됨" alt="예약금">
+  {% elif _lahom_gold %}
+  <img src="{{ url_for('static', filename='images/pay-coin.png') }}" class="erp-custom-payment-icon erp-custom-payment-unconfirmed erp-custom-payment-lahom-hint" title="라홈 비표준 예약금 - 미확인" alt="예약금">
+  {% else %}
+  <img src="{{ url_for('static', filename='images/pay-coin-gray.png') }}" class="erp-custom-payment-icon erp-custom-payment-unconfirmed" title="예약금 미확인" alt="예약금">
+  {% endif %}
+{% endif %}

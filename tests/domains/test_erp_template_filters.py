@@ -3,10 +3,12 @@
 from flask import Blueprint, Flask
 
 from foms.services.erp_template_filters import (
+    coerce_deposit_amount,
     eval_spec_width_mm,
     format_phone_filter,
     item_spec_w300_display,
     item_spec_w300_value,
+    lahom_deposit_gold,
     payment_confirmed_bool,
     queue_card_schedule_filter,
     register_erp_template_filters,
@@ -37,6 +39,41 @@ def test_phone_and_payment_filters_normalize_values() -> None:
     assert payment_confirmed_bool("false") is False
     assert payment_confirmed_bool(1) is True
     assert payment_confirmed_bool(2) is False
+
+
+def test_lahom_deposit_gold_matches_front_standard_amounts() -> None:
+    """라홈 + 표준 제외 금액만 황금 힌트. 하우드/0/표준은 False."""
+    assert coerce_deposit_amount("150,000원") == 150000
+    assert coerce_deposit_amount({"amount": 250000}) == 250000
+    assert lahom_deposit_gold("라홈", 150000) is True
+    assert lahom_deposit_gold("라홈", 50000) is False
+    assert lahom_deposit_gold("라홈", 100000) is False
+    assert lahom_deposit_gold("라홈", 200000) is False
+    assert lahom_deposit_gold("라홈", 300000) is False
+    assert lahom_deposit_gold("라홈", 400000) is False
+    assert lahom_deposit_gold("라홈", 0) is False
+    assert lahom_deposit_gold("하우드", 150000) is False
+    assert lahom_deposit_gold("라홈시스템", 150000) is False
+
+
+def test_deposit_coin_badge_partial_wires_dashboard_surfaces() -> None:
+    """대시보드 동전 표면은 공용 deposit_coin_badge partial을 쓴다."""
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    grid = (root / "templates/orders/partials/dashboard_grid.html").read_text(encoding="utf-8")
+    meas = (root / "templates/measurement/partials/dashboard_main.html").read_text(
+        encoding="utf-8"
+    )
+    badge = (root / "templates/orders/partials/deposit_coin_badge.html").read_text(
+        encoding="utf-8"
+    )
+    assert "orders/partials/deposit_coin_badge.html" in grid
+    assert "orders/partials/deposit_coin_badge.html" in meas
+    assert "lahom_deposit_gold" in badge
+    assert "coerce_deposit_amount" in badge
+    assert "erp-custom-payment-lahom-hint" in badge
+    assert "pay-coin-gray.png" in badge
 
 
 def test_item_spec_w300_value_sums_spec_rows() -> None:
@@ -103,11 +140,15 @@ def test_register_erp_template_filters_registers_expected_jinja_filters() -> Non
         "item_spec_w300",
         "schedule_datetime_display",
         "payment_confirmed_bool",
+        "coerce_deposit_amount",
+        "lahom_deposit_gold",
         "queue_card_schedule",
     ]:
         assert filter_name in app.jinja_env.filters
 
     assert app.jinja_env.filters["payment_confirmed_bool"]("true") is True
+    assert app.jinja_env.filters["lahom_deposit_gold"]("라홈", 150000) is True
+    assert app.jinja_env.filters["coerce_deposit_amount"]("150,000원") == 150000
     assert app.jinja_env.filters["spec_w300"]("3600") == 12.0
     assert app.jinja_env.filters["item_spec_w300"]({"spec_width": "900"}) == 3.0
     assert app.jinja_env.filters["queue_card_schedule"](
