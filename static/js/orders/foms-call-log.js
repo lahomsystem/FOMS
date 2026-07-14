@@ -96,7 +96,7 @@
     }
   }
 
-  // 메모 음성 받아쓰기(Web Speech API ko-KR). foms-measure-capture.js 패턴 복제.
+  // 메모 음성 받아쓰기(Web Speech API ko-KR).
   function toggleMic(sheet, mic) {
     var Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!Rec) {

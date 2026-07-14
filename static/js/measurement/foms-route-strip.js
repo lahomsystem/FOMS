@@ -163,7 +163,12 @@
     var strip = document.querySelector('[data-foms-route-strip]');
     if (!strip) return;
     var date = strip.getAttribute('data-route-date') || '';
-    fetch('/api/erp/measurement/route?date=' + encodeURIComponent(date))
+    var url = '/api/erp/measurement/route?date=' + encodeURIComponent(date);
+    // '내 주문' 보기가 켜져 있으면 스트립도 내 건만 그린다(대시보드와 동일 predicate).
+    // data-mine 미지정 표면(v3 등)은 기존 동작 유지.
+    var mine = strip.getAttribute('data-mine');
+    if (mine === '1' || mine === '0') url += '&mine=' + mine;
+    fetch(url)
       .then(function (r) { return r.json(); })
       .then(function (data) { buildStrip(strip, data); })
       .catch(function (err) { strip.hidden = true; console.debug('[route-strip] fetch fail', err); });

@@ -19,7 +19,7 @@ from foms.web.auth import login_required, role_required
 import foms.api.measurement as measurement_api
 from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.common.erp_mine_filter import erp_mine_only_from_request
-from foms.services.erp_permissions import is_order_related_to_user
+from foms.services.erp_permissions import build_mine_sql_filter, is_order_related_to_user
 from foms.services.erp_sync_columns import sync_erp_flat_columns
 from foms.services.common.address_converter import FOMSAddressConverter
 from foms.services.order_geocode import reset_order_geocode_on_address_change
@@ -276,6 +276,15 @@ def api_erp_measurement_route():
 
     if manager_filter:
         query = query.filter(Order.manager_name.ilike(f'%{manager_filter}%'))  # perf-ok: ix_orders_manager_name_trgm
+
+    # '내 주문' 필터: 실측 대시보드 뷰(foms.web.measurement.dashboard)와 동일 predicate.
+    # 기본값(파라미터/쿠키 미설정)은 기존 동작 유지 — 필터 미적용.
+    current_user = getattr(g, 'current_user', None)
+    mine_filter_active = erp_mine_only_from_request(request) and current_user
+    if mine_filter_active:
+        mine_conds = build_mine_sql_filter(current_user)
+        if mine_conds:
+            query = query.filter(or_(*mine_conds))
 
     ordered_query = query.order_by(
         Order.measurement_time.asc().nullslast(),

@@ -4,6 +4,10 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
+| 2026-07-14 | 실기기 QA 5결함(X1~X5): FOUC(fragment CSS 선로드)·실측 캡처 전삭제·히어로 1줄·동선 mine+지도 오버레이·출고 수정 버튼(DOMContentLoaded→위임) | erp-shell.js, layout_scripts.html, measurement(capture 삭제·mobile_list·routes·route-strip), map_generator.py+map.py+erp_map.py, shipment_mobile_queue.html | (이번 push) |
+| 2026-07-14 | 세션 자동 기록 | tablet-measure-form.js, pr_body_production.txt, perf-gate.yml 외 2개 | 9be7d305 |
+| 2026-07-14 | 세션 자동 기록 | perf-gate.yml, test_staging_perf_gate.py, staging_perf_gate.py 외 2개 | 93c10b1c |
+| 2026-07-14 | 세션 자동 기록 | test_erp_order_shared_form_scripts.py, erp_order_js.html, erp-order-shared.js 외 2개 | 89cf7b3d |
 | 2026-07-14 | 모바일 W1~W4 소탕(사용자 4분기 확정): 실측 빠른수정 삭제(캡처 유지)·도면 요약 카드(버전·전달·메모·마법사)·출고 차량/회차 신설·CS 부재중 클라 필터 + 카카오 실도로 ETA(route-eta) | measurement/mobile_list+mobile.js, drawing workbench.py+카드/홈, shipment settings.py+display, queue_card_v2, foms-call-filter.js(신규), foms-route-strip.js, measurement/routes.py | 3efa9f40·641b80d5·9b0afb73 |
 | 2026-07-14 | 세션 자동 기록 | test_tablet_t2_contract.py, layout_scripts.html, foms-tablet-measurement.css 외 2개 | f1d77e5f |
 | 2026-07-14 | 세션 자동 기록 | foms_namespace_surface_tests.py, test_erp_template_filters.py, dashboard_main.html 외 2개 | f1d77e5f |
@@ -21,7 +25,3 @@
 | 2026-07-12 | v2에 v3 기능 이식 완결(A1~A8) — CS 히어로·퀘스트 칩·상태 필터 칩·생산 3버킷·실측/시공 히어로·헤더 정렬 fix | dashboard_mobile_v2_body, mobile_queue/list, queue_card v1·v2, dashboard_filters, foms-v2-*.css | 147883bc·a13dfc57·645190f2·2545c595 |
 | 2026-07-11 | v3 라이트 테마·QA 7결함·디자인 리뷰·360° 상세 직행 | foms-mobile-v3.css, partials/v3/*, layout_head.html, test_shell_v3_contract.py | 04eab6e6·a1704f63·cedeec24·a1799538 |
 | 2026-07-11 | 모바일 v3 셸(Field OS) C1~C6 — variant 판정 SSOT·페르소나 홈 6종·주문360°·계약 테스트 | feature_flags.py, context_processors.py, templates/partials/v3/*, static/{css,js}/v3/*, order_timeline_v3.py, test_shell_v3_contract.py | deb2ed9b·62f3e3cd·cfdfe65c·02b0366a |
-| 2026-07-09 | 세션 자동 기록 | pr_body_production.txt, commit_msg.txt, test_erp_order_shared_form_scripts.py 외 2개 | 08f6a620 |
-| 2026-07-09 | 세션 자동 기록 | commit_msg.txt, test_erp_order_shared_form_scripts.py, 04-filter-table-badges-buttons.css 외 2개 | 08f6a620 |
-| 2026-07-09 | 세션 자동 기록 | ci_watch.py, test_post_task_ci_gate.py, test_ci_watch.py 외 2개 | bf9fc1f2 |
-| 2026-07-09 | 세션 자동 기록 | commit_msg.txt, test_erp_order_edit_mobile_form.py, test_erp_order_shared_form_scripts.py 외 2개 | bf9fc1f2 |

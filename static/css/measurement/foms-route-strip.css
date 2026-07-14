@@ -81,6 +81,26 @@
   border: 1px solid #e4e0d8;
 }
 .foms-hero-callbtn:active { transform: scale(0.96); }
+/* 상세 버튼 — 내비(주 버튼)·전화와 한 줄. flex-grow 없이 적정 폭(≥44px 터치). */
+.foms-hero-detailbtn {
+  flex: 0 0 auto;
+  min-height: 52px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 18px;
+  border-radius: 14px;
+  background: #efece6;
+  color: #201c17 !important;
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-decoration: none;
+  border: 1px solid #e4e0d8;
+  white-space: nowrap;
+}
+.foms-hero-detailbtn i { font-size: 0.95rem; }
+.foms-hero-detailbtn:active { transform: scale(0.97); }
 
 /* ---------- 지도 동선 스트립 (SVG는 JS 렌더) ---------- */
 .foms-route-strip {

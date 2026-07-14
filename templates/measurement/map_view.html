@@ -1059,6 +1059,9 @@
         const initialStatus = (dashboardParam === 'measurement') ? 'ALL' : (urlParams.get('status') || 'ALL');
         const initialManager = urlParams.get('manager') || '';
         const initialSearch = urlParams.get('q') || urlParams.get('search') || '';
+        // 동선(route) 오버레이 opt-in + 내 주문(mine) 필터 파라미터 전파 (기본 지도 동작 무변경)
+        const initialRoute = urlParams.get('route') || '';
+        const initialMine = urlParams.get('mine') || '';
 
         // 초기값 설정
         document.getElementById('date-filter').value = initialDate;
@@ -1194,6 +1197,7 @@
                 if (managerFilter) pollParams.set('manager', managerFilter);
                 if (searchQuery) pollParams.set('q', searchQuery);
                 if (dashboardParam) pollParams.set('dashboard', dashboardParam);
+                if (initialMine) pollParams.set('mine', initialMine);
                 const pendingBefore = new Set(
                     currentOrders
                         .filter(function (o) { return o.conversion_status === 'pending'; })
@@ -1257,6 +1261,8 @@
             });
             if (searchQuery) params.set('q', searchQuery);
             if (dashboardParam) params.set('dashboard', dashboardParam);
+            if (initialRoute) params.set('route', initialRoute);
+            if (initialMine) params.set('mine', initialMine);
 
             fetch('/api/generate_map?' + params)
                 .then(function (response) { return response.json(); })

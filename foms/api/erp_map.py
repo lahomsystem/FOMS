@@ -7,7 +7,7 @@ import os
 import threading
 
 
-from flask import Blueprint, request, jsonify, render_template, current_app
+from flask import Blueprint, request, jsonify, render_template, current_app, g
 from sqlalchemy import or_, and_
 
 from db import get_db
@@ -364,12 +364,15 @@ def api_map_data():
         # measurement 모드: map_snapshot 사용, 전체 주문 반환 (2026-03-15)
         if dashboard == 'measurement' and date_filter:
             from foms.api.measurement.map import measurement_map_data_response
+            mine = (request.args.get('mine') or '').strip() == '1'
             return measurement_map_data_response(
                 date_filter=date_filter,
                 search_query=search_query,
                 manager_filter=manager_filter,
                 dashboard=dashboard,
                 limit=limit,
+                mine=mine,
+                current_user=getattr(g, 'current_user', None),
             )
 
         scan_limit = _MAP_SCAN_MAX_LIMIT if date_filter else min(_MAP_SCAN_MAX_LIMIT, max(limit, limit * 3))
@@ -444,6 +447,8 @@ def api_generate_map():
         # measurement 모드: shared query builder 사용 (2026-03-15)
         if dashboard == 'measurement' and date_filter:
             from foms.api.measurement.map import measurement_generate_map_response
+            route_mode = (request.args.get('route') or '').strip() == '1'
+            mine = (request.args.get('mine') or '').strip() == '1'
             return measurement_generate_map_response(
                 date_filter=date_filter,
                 search_query=search_query,
@@ -451,6 +456,9 @@ def api_generate_map():
                 dashboard=dashboard,
                 limit=limit,
                 title=title,
+                route_mode=route_mode,
+                mine=mine,
+                current_user=getattr(g, 'current_user', None),
             )
 
         db = get_db()
