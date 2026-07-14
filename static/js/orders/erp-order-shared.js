@@ -4123,7 +4123,7 @@ function erpSliceConversionTextForChannelPush(text) {
     if (idx >= 0) return raw.slice(idx).trim();
     return raw
         .split('\n')
-        .filter((line) => !/^\s*실측일\s*:/.test(line) && !/^\s*시\s*간\s*:/.test(line))
+        .filter((line) => !/^\s*★★\s*$/.test(line) && !/^\s*실측일\s*:/.test(line) && !/^\s*시\s*간\s*:/.test(line))
         .join('\n')
         .replace(/^\n+/, '')
         .trim();
@@ -4169,9 +4169,12 @@ function erpGenerateConversionText() {
 
     const address = getVal('erp-address');
     const phone = getVal('erp-customer-phone');
+    const factory2Checked = !!document.getElementById('erp-factory2')?.checked;
 
     // Header + customer (값 없는 라인은 제외)
+    // 라홈시스템(factory2) 체크 시 실측일 위에 ★★ 표기
     let text = '';
+    if (factory2Checked) text += '★★\n';
     text = erpAppendConversionTextLine(text, '실측일', measurementDate);
     text = erpAppendConversionTextLine(text, '시   간', measurementTime);
     if (text) text += '\n';
