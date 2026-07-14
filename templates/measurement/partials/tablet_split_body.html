@@ -102,17 +102,33 @@
       </a>
     </div>
   </aside>
-  {# 우: 주문 원장. 컨텍스트 바(상단)·액션바(하단)는 fragment 주입 영역(__scroll) 밖에 두어
-     카드 전환 시 fragment 교체(innerHTML 덮어쓰기)에도 파괴되지 않는다. tablet-measurement.js 가
-     카드 선택 시 data-* 로 채우고, 액션바 버튼은 주입된 fragment 의 실 컨트롤을 트리거한다. #}
+  {# 우: 주문 원장(목업 frame13 "융합·키보드" — ERP Order 편집 = PC 기능 전량, 태블릿 네이티브).
+     3층 고정 크롬(상단 바·탭·하단 액션바)은 fragment 주입 영역(__scroll) 밖에 두어 카드/탭
+     전환 시 콘텐츠 재렌더(innerHTML 덮어쓰기)에도 파괴되지 않는다. tablet-measurement.js 가
+     카드 선택 시 컨텍스트(이름/단계/전화/내비)를 채우고 크롬 클릭을 폼 공개 API 로 위임하며,
+     tablet-measure-form.js 가 상단 바 동적 값(주문번호·자동저장 배지)·탭 콘텐츠·저장을 소유한다. #}
   <section class="foms-tablet-measure-detail" aria-label="실측 주문 원장">
-    <header class="foms-tablet-measure-context" data-foms-tablet-measure-context hidden>
-      <div class="foms-tablet-measure-context__head">
-        <span class="foms-tablet-measure-context__name" data-foms-tablet-measure-context-name></span>
-        <span class="foms-stage-badge foms-stage-badge--received foms-tablet-measure-context__stage"
-          data-foms-tablet-measure-context-stage hidden></span>
+    {# 상단 바(목업 d-head): 고객명 + 단계 배지 + #주문번호 + "✓ 자동저장됨 · 방금" 라이브 배지
+       / 우측 액션: [계산기 같이 보기 토글] [전화] [내비] [Ctrl+S 저장]. #}
+    <header class="foms-tablet-measure-context foms-tmf-topbar" data-foms-tablet-measure-context hidden>
+      <div class="foms-tmf-topbar__idblock">
+        <div class="foms-tablet-measure-context__head foms-tmf-topbar__head">
+          <span class="foms-tablet-measure-context__name foms-tmf-topbar__name" data-foms-tablet-measure-context-name></span>
+          <span class="foms-stage-badge foms-stage-badge--received foms-tablet-measure-context__stage foms-tmf-topbar__stage"
+            data-foms-tablet-measure-context-stage hidden></span>
+        </div>
+        <div class="foms-tmf-topbar__sub">
+          <span class="foms-tmf-topbar__num" data-foms-tmf-ordernum></span>
+          <span class="foms-tmf-topbar__autosave" data-foms-tmf-autosave hidden>
+            <i class="fas fa-check" aria-hidden="true"></i><span data-foms-tmf-autosave-text>자동저장됨</span>
+          </span>
+        </div>
       </div>
-      <div class="foms-tablet-measure-context__actions">
+      <div class="foms-tablet-measure-context__actions foms-tmf-topbar__actions">
+        <button type="button" class="foms-btn foms-btn--secondary foms-tmf-topbar__toggle"
+          data-foms-tmf-calc-toggle aria-pressed="false" hidden>
+          <i class="fas fa-calculator" aria-hidden="true"></i><span>계산기 같이 보기</span>
+        </button>
         <a class="foms-btn foms-btn--secondary foms-tablet-measure-context__btn"
           data-foms-tablet-measure-context-call hidden aria-label="고객에게 전화">
           <i class="fas fa-phone" aria-hidden="true"></i><span>전화</span>
@@ -121,24 +137,43 @@
           data-foms-tablet-measure-context-nav target="_blank" rel="noopener" hidden aria-label="현장 내비게이션">
           <i class="fas fa-location-arrow" aria-hidden="true"></i><span>내비</span>
         </a>
+        <button type="button" class="foms-btn foms-btn--secondary foms-tmf-topbar__kbd" data-foms-tablet-measure-save
+          aria-label="저장 (Ctrl+S)">
+          <span class="foms-tmf-kbd">Ctrl</span><span class="foms-tmf-kbd">S</span><span>저장</span>
+        </button>
       </div>
     </header>
-    {# 전용 실측 폼(tablet-measure-form.js)이 GET /structured 로 이 스크롤 영역에 폼을 렌더한다.
-       컨텍스트 바·액션바는 형제라 재렌더에도 파괴되지 않는다. #}
+    {# 외부 탭(목업 chips): 주문(ERP) | 계산기 | 견적서 — PC edit_order 탭 구조 그대로. #}
+    <nav class="foms-tmf-tabs" data-foms-tmf-tabs role="tablist" aria-label="주문 편집 탭" hidden>
+      <button type="button" class="foms-tmf-tab is-active" data-foms-tmf-tab="order" role="tab" aria-selected="true">주문 (ERP)</button>
+      <button type="button" class="foms-tmf-tab" data-foms-tmf-tab="calc" role="tab" aria-selected="false">계산기</button>
+      <button type="button" class="foms-tmf-tab" data-foms-tmf-tab="estimate" role="tab" aria-selected="false">견적서</button>
+    </nav>
+    {# 전용 폼(tablet-measure-form.js)이 GET /structured 로 이 스크롤 영역에 활성 탭 콘텐츠를 렌더한다.
+       상단 바·탭·액션바는 형제라 재렌더에도 파괴되지 않는다. #}
     <div class="foms-tablet-measure-detail__scroll" aria-live="polite" data-foms-tablet-measure-detail>
       <div class="foms-tablet-measure-detail__empty">좌측에서 고객을 선택하세요</div>
     </div>
+    {# 하단 액션바(목업 action-bar): [변환 텍스트 → 채널톡] · [실측 완료 → 도면] [임시 저장] [저장]. #}
     <footer class="foms-tablet-measure-actions" data-foms-tablet-measure-actions hidden>
       {# 저장 상태(저장 중/저장됨/충돌) — 전용 폼 모듈이 갱신. #}
       <span class="foms-tmf-status foms-tablet-measure-actions__status"
         data-foms-tablet-measure-status hidden aria-live="polite"></span>
-      <button type="button" class="foms-btn foms-btn--secondary foms-tablet-measure-actions__btn"
-        data-foms-tablet-measure-save>
-        <i class="fas fa-floppy-disk" aria-hidden="true"></i><span>저장</span>
+      <button type="button" class="foms-btn foms-btn--secondary foms-tablet-measure-actions__channel"
+        data-foms-tmf-channel>
+        <i class="fas fa-comment-dots" aria-hidden="true"></i><span>변환 텍스트 → 채널톡</span>
       </button>
-      <button type="button" class="foms-btn foms-btn--primary foms-tablet-measure-actions__btn"
+      <button type="button" class="foms-btn foms-btn--secondary foms-tablet-measure-actions__btn"
         data-foms-tablet-measure-complete>
         <i class="fas fa-ruler-combined" aria-hidden="true"></i><span>실측 완료 → 도면 전달</span>
+      </button>
+      <button type="button" class="foms-btn foms-btn--secondary foms-tablet-measure-actions__btn"
+        data-foms-tmf-draft>
+        <i class="fas fa-clock" aria-hidden="true"></i><span>임시 저장</span>
+      </button>
+      <button type="button" class="foms-btn foms-btn--primary foms-tablet-measure-actions__btn"
+        data-foms-tablet-measure-save>
+        <i class="fas fa-floppy-disk" aria-hidden="true"></i><span>저장</span>
       </button>
     </footer>
   </section>

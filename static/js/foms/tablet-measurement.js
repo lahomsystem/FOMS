@@ -58,6 +58,12 @@
   var ACTIONS_SELECTOR = "[data-foms-tablet-measure-actions]";
   var SAVE_BTN_SELECTOR = "[data-foms-tablet-measure-save]";
   var COMPLETE_BTN_SELECTOR = "[data-foms-tablet-measure-complete]";
+  // 목업 frame13 크롬(상단 바 탭·계산기 토글 / 하단 채널톡·임시저장) — 폼 공개 API 로 위임.
+  var TABS_NAV_SELECTOR = "[data-foms-tmf-tabs]";
+  var TAB_SELECTOR = "[data-foms-tmf-tab]";
+  var CALC_TOGGLE_SELECTOR = "[data-foms-tmf-calc-toggle]";
+  var CHANNEL_SELECTOR = "[data-foms-tmf-channel]";
+  var DRAFT_SELECTOR = "[data-foms-tmf-draft]";
 
   // 카드 data-* → 컨텍스트 바 채움. 전화=tel: 링크, 내비=naver map 웹 URL(새 탭).
   // 값이 없으면 해당 버튼/배지를 숨긴다.
@@ -108,6 +114,9 @@
     ctx.hidden = false;
     var actions = section.querySelector(ACTIONS_SELECTOR);
     if (actions) actions.hidden = false;
+    // 외부 탭(주문/계산기/견적서) 크롬 노출 — 탭 활성 상태·계산기 토글 표시는 폼 모듈이 소유.
+    var tabs = section.querySelector(TABS_NAV_SELECTOR);
+    if (tabs) tabs.hidden = false;
   }
 
   // [저장] → 전용 폼 모듈의 명시 저장(read-merge-write PUT + 충돌 가드). 상태 표시는 폼 모듈 소유.
@@ -126,6 +135,29 @@
     } else {
       console.warn("[foms-tablet-measure] FomsTabletMeasureForm 미로드 — 실측 완료 트리거 불가");
     }
+  }
+
+  // 목업 frame13 크롬 → 폼 공개 API 위임(폼 모듈이 렌더·데이터·상태 소유). 미로드 시 무동작(방어).
+  function formApi(name) {
+    return window.FomsTabletMeasureForm && typeof window.FomsTabletMeasureForm[name] === "function"
+      ? window.FomsTabletMeasureForm[name]
+      : null;
+  }
+  function triggerDraft() {
+    var fn = formApi("requestDraft");
+    if (fn) fn();
+  }
+  function triggerChannel() {
+    var fn = formApi("requestChannelPush");
+    if (fn) fn();
+  }
+  function triggerTab(tab) {
+    var fn = formApi("switchTab");
+    if (fn) fn(tab);
+  }
+  function triggerCalcToggle() {
+    var fn = formApi("toggleCalc");
+    if (fn) fn();
   }
 
   function markActive(card) {
@@ -246,8 +278,20 @@
       return;
     }
 
-    // 하단 액션바(주입 영역 밖) — [저장]·[실측 완료]. 컨텍스트 바 전화/내비는 네이티브 <a> 라
-    // 여기서 가로채지 않는다(preventDefault 없음 → tel:/새 탭 정상 동작).
+    // 상단/하단 크롬(주입 영역 밖) — [탭][계산기 토글][저장][실측 완료][임시 저장][채널톡].
+    // 컨텍스트 바 전화/내비는 네이티브 <a> 라 여기서 가로채지 않는다(tel:/새 탭 정상 동작).
+    var tabBtn = target.closest(TAB_SELECTOR);
+    if (tabBtn && tabBtn.closest(DETAIL_SELECTOR)) {
+      ev.preventDefault();
+      triggerTab(tabBtn.getAttribute("data-foms-tmf-tab"));
+      return;
+    }
+    var calcToggleBtn = target.closest(CALC_TOGGLE_SELECTOR);
+    if (calcToggleBtn && calcToggleBtn.closest(DETAIL_SELECTOR)) {
+      ev.preventDefault();
+      triggerCalcToggle();
+      return;
+    }
     var saveBtn = target.closest(SAVE_BTN_SELECTOR);
     if (saveBtn && saveBtn.closest(DETAIL_SELECTOR)) {
       ev.preventDefault();
@@ -258,6 +302,18 @@
     if (completeBtn && completeBtn.closest(DETAIL_SELECTOR)) {
       ev.preventDefault();
       triggerComplete();
+      return;
+    }
+    var draftBtn = target.closest(DRAFT_SELECTOR);
+    if (draftBtn && draftBtn.closest(DETAIL_SELECTOR)) {
+      ev.preventDefault();
+      triggerDraft();
+      return;
+    }
+    var channelBtn = target.closest(CHANNEL_SELECTOR);
+    if (channelBtn && channelBtn.closest(DETAIL_SELECTOR)) {
+      ev.preventDefault();
+      triggerChannel();
       return;
     }
 
@@ -275,6 +331,22 @@
     if (!target.closest(LIST_SELECTOR)) return;
     applyFilters();
   });
+
+  // 키보드 1급(목업 note 3): Ctrl/Cmd+S → 명시 저장(브라우저 저장 대화상자 억제).
+  // 코호트 + 폼 로드(우측 주입 영역에 [data-foms-tmf] 존재) 상태에서만 가로챈다.
+  document.addEventListener(
+    "keydown",
+    function (ev) {
+      if (!cohortActive()) return;
+      var key = ev.key || "";
+      if (!(ev.ctrlKey || ev.metaKey) || (key !== "s" && key !== "S")) return;
+      var detail = document.querySelector(DETAIL_SELECTOR);
+      if (!detail || !detail.querySelector("[data-foms-tmf]")) return;
+      ev.preventDefault();
+      triggerSave();
+    },
+    true
+  );
 
   // 최초 진입/리스트 재렌더 시 첫 카드 자동 선택(빈 detail 방지).
   function autoSelect() {

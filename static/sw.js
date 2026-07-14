@@ -7,7 +7,15 @@
    install/activate/fetch 로직은 무변경. 캐시 버전만 bump 해 구 캐시를 activate 시 purge.
    rollback: CACHE_VERSION 을 "foms-p2-v7" 로 되돌리면 됨(핸들러는 fetch 계약과 독립이라
    무해하게 남지만, 완전 롤백은 이 커밋 revert). */
-var CACHE_VERSION = "foms-p2-v8";
+/* v9: 태블릿 실측 우측 패널 stale-JS 봉합 — 근본원인 = tablet-measurement.js 의 동작이
+   fragment 주입(구)→전용 폼 위임(신)으로 바뀌었는데 ?v 캐시버스터가 20260714a 그대로였다
+   (커밋 52fb78b7→ce57d4f2, 두 커밋 모두 ?v=20260714a). staticCacheFirst 는 같은 ?v 키의
+   캐시본을 즉시 응답(stale-while-revalidate)하므로, 리로드 시 구 fragment-주입 컨트롤러가
+   실행돼 우측 패널에 PC erp_order_tab 폼이 주입됐다. CACHE_VERSION bump 은 activate 시
+   구 foms-p2-* 정적 캐시(오염된 tablet-measurement.js?v=20260714a 포함)를 전량 purge 해
+   다음 로드에서 최신본을 강제 미스→네트워크 취득하게 한다. 재발 방지는 "파일 내용 변경 시
+   ?v 반드시 bump"(SW 신선도 계약) — 본 배포는 폼 전면 재작성으로 관련 ?v 가 함께 bump 된다. */
+var CACHE_VERSION = "foms-p2-v9";
 var STATIC_CACHE = CACHE_VERSION + "-static";
 var API_CACHE = CACHE_VERSION + "-api";
 
