@@ -16,6 +16,9 @@ __all__ = [
     "item_spec_w300_value",
     "schedule_datetime_display",
     "payment_confirmed_bool",
+    "coerce_deposit_amount",
+    "lahom_deposit_gold",
+    "LAHOM_STANDARD_DEPOSIT_AMOUNTS",
     "queue_card_schedule_filter",
     "register_erp_template_filters",
 ]
@@ -210,6 +213,47 @@ def payment_confirmed_bool(val) -> bool:
     return False
 
 
+# 프론트 ERP_LAHOM_STANDARD_DEPOSIT_AMOUNTS 와 byte-match SSOT.
+LAHOM_STANDARD_DEPOSIT_AMOUNTS: frozenset[int] = frozenset(
+    {50000, 100000, 200000, 300000, 400000}
+)
+
+
+def coerce_deposit_amount(value) -> int:
+    """예약금 표시용 금액 정규화(프론트 erpCoerceAmount와 동일 취지)."""
+    if value is None:
+        return 0
+    if isinstance(value, dict):
+        return coerce_deposit_amount(value.get("amount") or value.get("raw") or 0)
+    if isinstance(value, bool):
+        return 0
+    if isinstance(value, (int, float)):
+        n = int(round(value))
+        return n if n > 0 else 0
+    digits = "".join(ch for ch in str(value) if ch.isdigit())
+    if not digits:
+        return 0
+    try:
+        n = int(digits)
+    except ValueError:
+        return 0
+    return n if n > 0 else 0
+
+
+def lahom_deposit_gold(orderer, amount=0) -> bool:
+    """발주사 라홈 + 표준 제외 양의 예약금 → 황금 동전 힌트.
+
+    Jinja: ``{{ orderer_name|lahom_deposit_gold(deposit_val) }}``
+    프론트 ``_erpShouldShowLahomDepositGold`` 와 동일 규칙(확정 상태와 무관).
+    """
+    if str(orderer or "").strip() != "라홈":
+        return False
+    n = coerce_deposit_amount(amount)
+    if n <= 0:
+        return False
+    return n not in LAHOM_STANDARD_DEPOSIT_AMOUNTS
+
+
 def queue_card_schedule_filter(order) -> dict[str, str | None]:
     """Jinja filter: mobile v2 queue card schedule label/value (SSOT)."""
     if isinstance(order, dict):
@@ -230,6 +274,8 @@ def queue_card_schedule_filter(order) -> dict[str, str | None]:
 def register_erp_template_filters(bp):
     """Blueprint에 ERP 템플릿 필터 등록 (Blueprint.add_app_template_filter 사용)"""
     bp.add_app_template_filter(payment_confirmed_bool, 'payment_confirmed_bool')
+    bp.add_app_template_filter(coerce_deposit_amount, 'coerce_deposit_amount')
+    bp.add_app_template_filter(lahom_deposit_gold, 'lahom_deposit_gold')
     bp.add_app_template_filter(split_count_filter, 'split_count')
     bp.add_app_template_filter(split_list_filter, 'split_list')
     bp.add_app_template_filter(strip_product_w_filter, 'strip_product_w')
