@@ -1,5 +1,5 @@
 {% set _fos_desktop_body %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/shipment-dashboard-columns.css') }}?v=20260713p">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/shipment-dashboard-columns.css') }}?v=20260714a">
 {# foms-kv-rollout: erp_mobile_shell → kv-copy.js #}
 <div class="erp-pro erp-mobile-shell erp-dashboard-shipment" data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
   {% if erp_mobile_v2_enabled %}
@@ -68,7 +68,9 @@
       <span class="foms-ship-pcbar__sub">{{ rows|length }}건</span>
     </div>
     <div class="foms-ship-pcbar__actions">
-      {% set foms_density_target = '#shipment-dashboard-table' %}
+      {# 밀도 토글 대상: PC 테이블 + 신규 태블릿 클린 그리드(코호트에서 PC 테이블은 은닉되나
+         data-foms-density 는 무해하게 양쪽에 부착 — frame01 결합 셀렉터 패턴). #}
+      {% set foms_density_target = '#shipment-dashboard-table, #foms-tablet-ship-grid' %}
       {% include 'partials/shared/foms_density_toggle.html' %}
       {% if can_edit_shipment %}
       <button type="button" class="foms-ship-pcbar__btn" data-shipment-as-recommend-open
@@ -323,12 +325,10 @@
           {% endif %}
         </aside>
         <div class="col-12 col-lg erp-shipment-table-col">
-          {# 태블릿 가로 그리드 캡션(목업 06 .tablewrap .cap) — 행 탭→배정 시트 안내.
-             base-hidden(.foms-ship-grid-hint) → 코호트 가로에서만 flex. #}
-          <div class="foms-ship-grid-hint" aria-hidden="true">
-            <i class="fas fa-hand-pointer" aria-hidden="true"></i>
-            <span>행 탭 = 배정 시트 · 컬럼 크기 조절 가능</span>
-          </div>
+          {# 태블릿 가로 클린 그리드(목업 06) — base-hidden, 코호트에서만 표시하며 아래 PC 테이블
+             래퍼(.shipment-table-wrapper)를 코호트에서 은닉한다. 자체 .cap 힌트를 포함하므로
+             기존 별도 .foms-ship-grid-hint 는 제거(중복 제거). #}
+          {% include 'shipment/partials/tablet_ship_grid.html' %}
           <div class="table-responsive shipment-table-wrapper">
             <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/dashboard-table-extras.css') }}">
             <table class="table table-sm table-hover align-middle shipment-table erp-mobile-card-table" id="shipment-dashboard-table">

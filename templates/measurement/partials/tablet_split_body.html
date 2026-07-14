@@ -49,7 +49,14 @@
           data-order-id="{{ r.id }}"
           data-measure-days="{% if _days is not none %}{{ _days }}{% endif %}"
           data-customer="{{ (r.customer_name or '')|lower }}"
-          data-address="{{ (r.address or '')|lower }}">
+          data-address="{{ (r.address or '')|lower }}"
+          {# 컨텍스트 바(우측 상단)용 원본 케이스 값 — 검색용 data-customer/data-address(소문자)와 별도.
+             search 매칭이 소문자 비교라 원본을 덮어쓰면 검색이 깨지므로 raw 속성을 신설한다. #}
+          data-customer-name="{{ r.customer_name or '' }}"
+          data-phone="{{ r.phone or '' }}"
+          data-nav-address="{{ r.address or '' }}"
+          data-stage-label="{{ _stage_lbl }}"
+          data-stage-modifier="{{ _stage_mod }}">
           <div class="foms-tablet-measure-card__top">
             <span class="foms-stage-badge foms-stage-badge{{ _stage_mod }}">{{ _stage_lbl }}</span>
             <span class="foms-tablet-measure-card__time">{{ r.measurement_time or '-' }}</span>
@@ -93,7 +100,39 @@
       </a>
     </div>
   </aside>
-  <section class="foms-tablet-measure-detail" aria-live="polite" aria-label="실측 주문 원장">
-    <div class="foms-tablet-measure-detail__empty">좌측에서 고객을 선택하세요</div>
+  {# 우: 주문 원장. 컨텍스트 바(상단)·액션바(하단)는 fragment 주입 영역(__scroll) 밖에 두어
+     카드 전환 시 fragment 교체(innerHTML 덮어쓰기)에도 파괴되지 않는다. tablet-measurement.js 가
+     카드 선택 시 data-* 로 채우고, 액션바 버튼은 주입된 fragment 의 실 컨트롤을 트리거한다. #}
+  <section class="foms-tablet-measure-detail" aria-label="실측 주문 원장">
+    <header class="foms-tablet-measure-context" data-foms-tablet-measure-context hidden>
+      <div class="foms-tablet-measure-context__head">
+        <span class="foms-tablet-measure-context__name" data-foms-tablet-measure-context-name></span>
+        <span class="foms-stage-badge foms-stage-badge--received foms-tablet-measure-context__stage"
+          data-foms-tablet-measure-context-stage hidden></span>
+      </div>
+      <div class="foms-tablet-measure-context__actions">
+        <a class="foms-btn foms-btn--secondary foms-tablet-measure-context__btn"
+          data-foms-tablet-measure-context-call hidden aria-label="고객에게 전화">
+          <i class="fas fa-phone" aria-hidden="true"></i><span>전화</span>
+        </a>
+        <a class="foms-btn foms-btn--secondary foms-tablet-measure-context__btn"
+          data-foms-tablet-measure-context-nav target="_blank" rel="noopener" hidden aria-label="현장 내비게이션">
+          <i class="fas fa-location-arrow" aria-hidden="true"></i><span>내비</span>
+        </a>
+      </div>
+    </header>
+    <div class="foms-tablet-measure-detail__scroll" aria-live="polite" data-foms-tablet-measure-detail>
+      <div class="foms-tablet-measure-detail__empty">좌측에서 고객을 선택하세요</div>
+    </div>
+    <footer class="foms-tablet-measure-actions" data-foms-tablet-measure-actions hidden>
+      <button type="button" class="foms-btn foms-btn--secondary foms-tablet-measure-actions__btn"
+        data-foms-tablet-measure-save>
+        <i class="fas fa-floppy-disk" aria-hidden="true"></i><span>저장</span>
+      </button>
+      <button type="button" class="foms-btn foms-btn--primary foms-tablet-measure-actions__btn"
+        data-foms-tablet-measure-complete>
+        <i class="fas fa-ruler-combined" aria-hidden="true"></i><span>실측 완료</span>
+      </button>
+    </footer>
   </section>
 </div>

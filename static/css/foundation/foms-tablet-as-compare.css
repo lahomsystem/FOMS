@@ -116,7 +116,7 @@
     padding: var(--foms-space-4);
     background: var(--foms-surface-base);
     border: 1px solid var(--foms-border-subtle);
-    border-radius: var(--foms-radius-xl);
+    border-radius: var(--foms-radius-lg);
     box-shadow: var(--foms-shadow-sm);
   }
   /* 미결 강조: 좌측 경보 스트립(HMI — 상태 이상만 유채색). */
@@ -130,25 +130,35 @@
     justify-content: space-between;
     gap: var(--foms-space-2);
   }
+  /* 목업 m-head 정합: 고객명(16px/700) 위, "#id · 방문 D-day" 메타 아래(2줄 스택). */
   body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-card__identity {
     display: flex;
-    align-items: baseline;
-    gap: var(--foms-space-2);
+    flex-direction: column;
+    gap: 2px;
     min-width: 0;
   }
   body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-card__customer {
-    font-size: var(--foms-font-size-xl);
+    font-size: var(--foms-font-size-base);
     font-weight: var(--foms-font-weight-bold);
     line-height: var(--foms-line-height-tight);
     color: var(--foms-text-primary);
     word-break: break-word;
   }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-card__meta-line {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: var(--foms-space-1);
+    font-size: var(--foms-font-size-xs);
+    color: var(--foms-text-tertiary);
+  }
   body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-card__id {
-    flex: 0 0 auto;
-    font-size: var(--foms-font-size-sm);
     font-weight: var(--foms-font-weight-semibold);
     color: var(--foms-text-secondary);
     text-decoration: none;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-card__hdr-dday {
+    font-variant-numeric: tabular-nums;
   }
   body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-card__status {
     flex: 0 0 auto;
@@ -180,7 +190,7 @@
     display: flex;
     align-items: center;
     gap: var(--foms-space-2);
-    font-size: var(--foms-font-size-base);
+    font-size: var(--foms-font-size-sm);
     font-weight: var(--foms-font-weight-medium);
     color: var(--foms-text-primary);
     word-break: break-word;
@@ -233,15 +243,13 @@
     grid-template-columns: 1fr 1fr;
     gap: var(--foms-space-3);
   }
+  /* 목업 "접수 사진 → 조치 후" = 카드 안 플랫 2열 포토 그리드. 중첩 박스(bg/border) 제거 →
+     사진이 카드 표면에 직접 놓이는 클린 대조(라벨 + 간격만으로 전/후 구분). */
   body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-col {
     display: flex;
     flex-direction: column;
     gap: var(--foms-space-2);
     min-width: 0;
-    padding: var(--foms-space-3);
-    background: var(--foms-surface-subtle);
-    border: 1px solid var(--foms-border-subtle);
-    border-radius: var(--foms-radius-lg);
   }
   body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-col__label {
     font-size: var(--foms-font-size-xs);
@@ -307,10 +315,20 @@
     outline: none;
     box-shadow: var(--foms-shadow-focus-ring);
   }
-  /* 주 CTA(AS 완료) = foot 안에서 자기 행 전폭(order 로 맨 뒤로) → 형제 대비 지배적. */
-  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-btn--primary {
-    flex: 1 1 100%;
+  /* 목업 m-foot 정합: [일정 변경(flex 1) | AS 완료(flex 1.6, primary)] 를 마지막 행에 짝지어
+     1:1.6 지배 비율로 배치. 두 basis 합(≈96%)이 100% 미만이라 flex-wrap 이 둘을 같은 행에 모으고,
+     나머지 보조 칩(주변 일정·사진 관리·주문 편집)은 자연폭으로 위 행에 랩된다. 보조만 있으면(비-edit
+     권한) 그 칩들이 한 행을 채운다. */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-reschedule {
+    flex: 1 1 38%;
+    order: 98;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-btn--primary,
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-btn--done {
+    flex: 1.6 1 58%;
     order: 99;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-btn--primary {
     border-color: transparent;
     background: var(--foms-interactive-primary);
     color: var(--foms-text-inverse);
@@ -445,16 +463,30 @@
     flex-wrap: wrap;
     gap: var(--foms-space-2);
   }
-  /* 방문일 date input(재조정) — ≥44px 터치 타깃 + iOS zoom 방지(≥16px=base). */
+  /* 방문일 date input(재조정) — 목업 "7/12 10:00" 클린 텍스트 정합: 평상시 보더리스(텍스트처럼),
+     hover 시 미묘한 배경, focus 시에만 보더+링. ≥44px 터치 타깃 + iOS zoom 방지(≥16px). */
   body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-visit__date {
     min-height: var(--foms-touch-target-comfortable);
-    padding: 0 var(--foms-space-3);
-    border: 1px solid var(--foms-border-subtle);
+    padding: 0 var(--foms-space-2);
+    border: 1px solid transparent;
     border-radius: var(--foms-radius-md);
-    background: var(--foms-surface-base);
+    background: transparent;
     color: var(--foms-text-primary);
-    font-size: var(--foms-font-size-base);
+    font-size: var(--foms-font-size-lg);
+    font-weight: var(--foms-font-weight-semibold);
     font-variant-numeric: tabular-nums;
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-visit__date:hover {
+    background: var(--foms-surface-muted);
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-visit__date:focus,
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-visit__date:focus-visible {
+    outline: none;
+    border-color: var(--foms-interactive-primary);
+    background: var(--foms-surface-base);
+    box-shadow: var(--foms-shadow-focus-ring);
+    cursor: text;
   }
   body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-visit__detail {
     display: flex;

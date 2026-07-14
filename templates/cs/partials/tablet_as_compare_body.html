@@ -77,11 +77,17 @@
       <header class="foms-as-compare-card__head">
         <div class="foms-as-compare-card__identity">
           <span class="foms-as-compare-card__customer">{{ r.customer_name or '-' }}</span>
-          {% if can_edit_erp|default(false) %}
-          <a class="foms-as-compare-card__id" href="{{ url_for('order_edit.edit_order', order_id=r.id) }}?open=erp-order">#{{ r.id }}</a>
-          {% else %}
-          <span class="foms-as-compare-card__id">#{{ r.id }}</span>
-          {% endif %}
+          {# 목업 m-head 메타("#id · 시공 6/2") 정합: #id + 방문 D-day 요약(글랜스 긴급도). 편집은 아래 방문 블록. #}
+          <span class="foms-as-compare-card__meta-line">
+            {% if can_edit_erp|default(false) %}
+            <a class="foms-as-compare-card__id" href="{{ url_for('order_edit.edit_order', order_id=r.id) }}?open=erp-order">#{{ r.id }}</a>
+            {% else %}
+            <span class="foms-as-compare-card__id">#{{ r.id }}</span>
+            {% endif %}
+            {% if r.as_visit_dday is not none %}
+            <span class="foms-as-compare-card__hdr-dday">· 방문 {% if r.as_visit_dday < 0 %}D+{{ -r.as_visit_dday }}{% elif r.as_visit_dday == 0 %}D-DAY{% else %}D-{{ r.as_visit_dday }}{% endif %}</span>
+            {% endif %}
+          </span>
         </div>
         <span class="foms-as-compare-card__status foms-stage-badge foms-stage-badge{{ r.stage_badge_modifier }}" role="status">
           {% if r.as_pending %}미결{% else %}{{ STATUS.get(r.status, r.status) }}{% endif %}
@@ -102,7 +108,8 @@
               <span class="foms-tabular">{{ r.as_visit_date or '미정' }}</span>
               {% endif %}
               {% if r.as_visit_dday is not none %}
-              <span class="foms-as-compare-dday{% if r.as_visit_dday < 0 %} is-overdue{% elif r.as_visit_dday <= 2 %} is-imminent{% endif %}">
+              {# HMI 색: 지남·D-DAY(<=0)=솔리드 레드, 임박(D-1/D-2)=솔리드 앰버, 그 외=무채색. #}
+              <span class="foms-as-compare-dday{% if r.as_visit_dday <= 0 %} is-overdue{% elif r.as_visit_dday <= 2 %} is-imminent{% endif %}">
                 {% if r.as_visit_dday < 0 %}D+{{ -r.as_visit_dday }}{% elif r.as_visit_dday == 0 %}D-DAY{% else %}D-{{ r.as_visit_dday }}{% endif %}
               </span>
               {% endif %}

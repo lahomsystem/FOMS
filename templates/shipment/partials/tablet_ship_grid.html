@@ -1,0 +1,108 @@
+{# 태블릿 가로 출고 클린 그리드 (목업 프레임 06 "출고 대시보드").
+   ─────────────────────────────────────────────────────────────────────────────
+   목적: PC 10열 출고 테이블(#shipment-dashboard-table)을 CSS 로 6열만 접던 방식은
+   실기기(iPad)에서 컬럼 순서·라벨이 어긋났다(시간·고객 소실, 규격 숫자 무라벨). CSS 로는
+   열 재정렬·input→plain 변환이 불가하므로, 목업 06 정합 클린 그리드를 템플릿 레벨로 신설한다
+   (frame01 tablet_workqueue_grid.html 과 동일 전략).
+
+   목업 컬럼(좌→우): 시간 · 고객 · 발주사 · 제품 · 자수(우측정렬) · 도면담당. 모든 셀 plain
+   (input/button 없음 — PC 인라인 편집기는 PC 전용, 태블릿 편집은 행 탭 → 배정 시트). 행은
+   시공팀별로 묶고 팀 전환 시 그룹 헤더 행(tr.foms-tablet-shipgrid__grp)을 1행 삽입한다:
+   좌 "시공 N팀 · 합계자수" / 우 "잔여 X"(미배정 그룹: 우측 "배정 필요" danger).
+
+   데이터: PC 테이블과 동일한 rows(신규 쿼리 0)를 재소비한다. 팀 합계·잔여는 서버가 준비한
+   shipment_team_group_meta(자수합/건수/capacity/잔여 — dashboard.py _compute_shipment_team_group_meta)
+   를 그대로 읽고, 팀 그룹 키(첫 유효 시공자)·파스텔 인덱스는 PC 테이블/정렬(sort_shipment_rows)과
+   동일 규칙으로 파생한다. 행별 자수는 item_spec_w300 필터 합(그룹 meta 합산과 동일 산식).
+
+   표시/은닉: 이 wrap 은 base-hide(display:none)이고 태블릿 가로 코호트(body.erp-mobile-v2-layout
+   + coarse landscape ≥992)에서만 표시된다(같은 게이트가 PC 테이블 래퍼를 은닉).
+   게이트·시각은 shipment-dashboard-columns.css 가 소유.
+
+   행 탭 → 배정 시트(우측 400px)는 tablet-side-sheet.js(수정 금지)가 소유한다. 그 ROW_SELECTOR 은
+   출고 신규 그리드를 오직 ".foms-tablet-workqueue-wrap tr.erp-main-row[data-order-id]" 로만
+   선택하므로(신규 id #foms-tablet-ship-grid 는 기존 "#shipment-dashboard-table tbody tr" 셀렉터에
+   안 걸림), wrap 에 코드베이스 공용 클린-그리드 훅 클래스 .foms-tablet-workqueue-wrap 를 병기해
+   행 탭 계약을 만족시킨다(JS 무수정). 각 행 data-foms-sheet-url 이 출고 배정 fragment 를 가리킨다.
+   컨텍스트: rows(Order 리스트), shipment_team_group_meta, 필터/템플릿 필터(item_spec_w300 등). #}
+{% set _sg_worker_list = [] %}
+{% for r in rows %}
+{%- set _sd = r.structured_data or {} %}
+{%- set _cw = (_sd.get('shipment') or {}).get('construction_workers') or [] %}
+{%- set _nf = namespace(val='') %}
+{%- for _w in _cw %}{% if _w|string|trim and not _nf.val %}{% set _nf.val = _w|string|trim %}{% endif %}{% endfor %}
+{%- if _nf.val and _nf.val not in _sg_worker_list %}{% set _ = _sg_worker_list.append(_nf.val) %}{% endif %}
+{% endfor %}
+<div class="foms-tablet-shipgrid-wrap foms-tablet-workqueue-wrap" aria-label="출고 배정 그리드">
+  {# 목업 06 .tablewrap .cap — 행 탭→배정 시트 안내(기존 .foms-ship-grid-hint 대체·중복 제거). #}
+  <div class="foms-tablet-shipgrid__cap">
+    <i class="fas fa-hand-pointer" aria-hidden="true"></i><span>행 탭 = 배정 시트</span>
+  </div>
+  <table id="foms-tablet-ship-grid" class="foms-tablet-shipgrid">
+    <thead>
+      <tr>
+        <th scope="col">시간</th>
+        <th scope="col">고객</th>
+        <th scope="col">발주사</th>
+        <th scope="col">제품</th>
+        <th scope="col" class="foms-tablet-shipgrid__num">자수</th>
+        <th scope="col">도면담당</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if rows %}
+      {% set grp_ns = namespace(prev='__START__') %}
+      {% for r in rows %}
+      {%- set sd = r.structured_data or {} %}
+      {%- set shipment = sd.get('shipment') or {} %}
+      {%- set construction_time = shipment.get('construction_time') or '' %}
+      {# 도면담당(빈 값 제거, legacy drawing_manager 폴백). #}
+      {%- set _dm = namespace(values=[]) %}
+      {%- for dm in (shipment.get('drawing_managers') or []) %}{% if dm|string|trim %}{% set _dm.values = _dm.values + [dm|string|trim] %}{% endif %}{% endfor %}
+      {%- if not _dm.values and shipment.get('drawing_manager') %}{% set _dm.values = [shipment.get('drawing_manager')|string|trim] %}{% endif %}
+      {# 팀 그룹 키 = 첫 유효 시공자(정렬/PC 파스텔과 동일 규칙). #}
+      {%- set _wk = namespace(val='') %}
+      {%- for _w in (shipment.get('construction_workers') or []) %}{% if _w|string|trim and not _wk.val %}{% set _wk.val = _w|string|trim %}{% endif %}{% endfor %}
+      {%- set worker_key = _wk.val %}
+      {%- set _wi = namespace(idx=-1) %}
+      {%- for w in _sg_worker_list %}{% if w == worker_key %}{% set _wi.idx = loop.index0 %}{% endif %}{% endfor %}
+      {# 제품/행별 자수(item_spec_w300 필터 합 = 그룹 meta 합산 산식과 동일). #}
+      {%- set erp_items = sd.get('items') or [] %}
+      {%- set _u = namespace(v=0.0) %}
+      {%- for it in erp_items %}{% set _iv = it|item_spec_w300 %}{% if _iv %}{% set _u.v = _u.v + _iv %}{% endif %}{% endfor %}
+      {%- set _is_as = r.status in ('AS', 'AS_RECEIVED', 'AS_COMPLETED') %}
+      {# 시공팀 그룹 헤더(목업 06 .grp) — 팀 전환 시 1행 삽입. 키 = "<AS여부>|<팀 소문자>". #}
+      {%- set _as_int = 1 if _is_as else 0 %}
+      {%- set _gcomposite = _as_int ~ '|' ~ (worker_key|lower) %}
+      {% if _gcomposite != grp_ns.prev %}
+      {% set grp_ns.prev = _gcomposite %}
+      {% set _gm = shipment_team_group_meta.get(worker_key) or {} %}
+      <tr class="foms-tablet-shipgrid__grp" data-team-color-index="{{ _wi.idx }}">
+        <td class="foms-tablet-shipgrid__grp-label" colspan="5">{% if worker_key %}시공 {{ worker_key }}{% else %}미배정{% endif %} · {{ _gm.get('units', '0.0') }}자</td>
+        <td class="foms-tablet-shipgrid__grp-remain{% if not worker_key %} foms-tablet-shipgrid__grp-remain--need{% endif %}">
+          {%- if worker_key %}{% if _gm.get('remaining') is not none %}잔여 {{ _gm.get('remaining') }}{% endif %}{% else %}배정 필요{% endif -%}
+        </td>
+      </tr>
+      {% endif %}
+      <tr class="erp-main-row foms-tablet-shipgrid__row" data-order-id="{{ r.id }}"
+        data-foms-sheet-url="{{ url_for('erp_shipment_page.erp_shipment_tablet_sheet', order_id=r.id) }}">
+        <td class="foms-tablet-shipgrid__time">{{ construction_time or '-' }}</td>
+        <td class="foms-tablet-shipgrid__customer">{{ r.customer_name or '-' }}</td>
+        <td>{{ r.orderer_name or '-' }}</td>
+        <td class="foms-tablet-shipgrid__product">
+          {%- if _is_as %}{{ r.as_content_text or 'AS' }}
+          {%- elif erp_items %}{% for it in erp_items %}<div class="foms-tablet-shipgrid__line">{{ (it.get('product_name') or '-')|strip_product_w or '-' }}</div>{% endfor %}
+          {%- else %}{{ (r.product or '-')|strip_product_w or '-' }}{% endif -%}
+        </td>
+        <td class="foms-tablet-shipgrid__num">{% if _u.v %}{{ '%.1f'|format(_u.v) }}{% else %}-{% endif %}</td>
+        <td>{{ _dm.values|join(', ') or '-' }}</td>
+      </tr>
+      {% endfor %}
+      {% else %}
+      <tr>
+        <td colspan="6" class="foms-tablet-shipgrid__empty">데이터가 없습니다.</td>
+      </tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>

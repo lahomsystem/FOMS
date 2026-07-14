@@ -40,12 +40,123 @@
   var CARD_SELECTOR = ".foms-tablet-measure-card[data-order-id]";
   var LIST_SELECTOR = ".foms-tablet-measure-list";
   var DETAIL_SELECTOR = ".foms-tablet-measure-detail";
+  // fragment 주입 타깃 = detail 안의 스크롤 영역만(컨텍스트 바·액션바는 형제라 innerHTML 교체에도 생존).
+  var INJECT_SELECTOR = "[data-foms-tablet-measure-detail]";
   var CHIP_SELECTOR = ".foms-tablet-measure-chip[data-measure-bucket]";
   var SEARCH_SELECTOR = "[data-foms-tablet-measure-search]";
   var FILTER_EMPTY_SELECTOR = "[data-foms-tablet-measure-filter-empty]";
 
+  // 컨텍스트 바 / 액션바 앵커·컨트롤(카드 선택 시 채움 / fragment 실 컨트롤 트리거).
+  var CONTEXT_SELECTOR = "[data-foms-tablet-measure-context]";
+  var CONTEXT_NAME_SELECTOR = "[data-foms-tablet-measure-context-name]";
+  var CONTEXT_STAGE_SELECTOR = "[data-foms-tablet-measure-context-stage]";
+  var CONTEXT_CALL_SELECTOR = "[data-foms-tablet-measure-context-call]";
+  var CONTEXT_NAV_SELECTOR = "[data-foms-tablet-measure-context-nav]";
+  var ACTIONS_SELECTOR = "[data-foms-tablet-measure-actions]";
+  var SAVE_BTN_SELECTOR = "[data-foms-tablet-measure-save]";
+  var COMPLETE_BTN_SELECTOR = "[data-foms-tablet-measure-complete]";
+  // 주입된 fragment 의 실 컨트롤(트리거 대상 — DOM/이벤트 계약 재사용, fork 금지).
+  var FRAGMENT_SAVE_SELECTOR = "#erp-save-btn";
+  var FRAGMENT_STAGE_SELECTOR = "#erp-workflow-stage";
+
   function fragmentUrl(orderId) {
     return "/api/foms/fragment/order/" + encodeURIComponent(orderId) + "/edit?open=erp-order";
+  }
+
+  // 카드 data-* → 컨텍스트 바 채움. 전화=tel: 링크, 내비=naver map 웹 URL(새 탭).
+  // 값이 없으면 해당 버튼/배지를 숨긴다.
+  function populateContext(card) {
+    var section = document.querySelector(DETAIL_SELECTOR);
+    if (!section) return;
+    var ctx = section.querySelector(CONTEXT_SELECTOR);
+    if (!ctx) return;
+    var name = card.getAttribute("data-customer-name") || "-";
+    var phone = (card.getAttribute("data-phone") || "").trim();
+    var addr = (card.getAttribute("data-nav-address") || "").trim();
+    var stageLbl = (card.getAttribute("data-stage-label") || "").trim();
+    var stageMod = card.getAttribute("data-stage-modifier") || "--received";
+
+    var nameEl = ctx.querySelector(CONTEXT_NAME_SELECTOR);
+    if (nameEl) nameEl.textContent = name;
+
+    var stageEl = ctx.querySelector(CONTEXT_STAGE_SELECTOR);
+    if (stageEl) {
+      stageEl.textContent = stageLbl;
+      stageEl.className =
+        "foms-stage-badge foms-stage-badge" + stageMod + " foms-tablet-measure-context__stage";
+      stageEl.hidden = !stageLbl;
+    }
+
+    var callEl = ctx.querySelector(CONTEXT_CALL_SELECTOR);
+    if (callEl) {
+      if (phone) {
+        callEl.href = "tel:" + phone.replace(/[^0-9+]/g, "");
+        callEl.hidden = false;
+      } else {
+        callEl.removeAttribute("href");
+        callEl.hidden = true;
+      }
+    }
+
+    var navEl = ctx.querySelector(CONTEXT_NAV_SELECTOR);
+    if (navEl) {
+      if (addr) {
+        navEl.href = "https://map.naver.com/v5/search/" + encodeURIComponent(addr);
+        navEl.hidden = false;
+      } else {
+        navEl.removeAttribute("href");
+        navEl.hidden = true;
+      }
+    }
+
+    ctx.hidden = false;
+    var actions = section.querySelector(ACTIONS_SELECTOR);
+    if (actions) actions.hidden = false;
+  }
+
+  // [저장] → 주입 fragment 의 실 저장 버튼(#erp-save-btn) 클릭 트리거 + 짧은 "자동저장됨" 상태.
+  function triggerSave() {
+    var inject = document.querySelector(INJECT_SELECTOR);
+    var btn = inject ? inject.querySelector(FRAGMENT_SAVE_SELECTOR) : null;
+    if (!btn) {
+      console.warn("[foms-tablet-measure] " + FRAGMENT_SAVE_SELECTOR + " 미발견 — 저장 트리거 불가");
+      return;
+    }
+    btn.click();
+    flashSaved();
+  }
+
+  function flashSaved() {
+    var section = document.querySelector(DETAIL_SELECTOR);
+    var btn = section ? section.querySelector(SAVE_BTN_SELECTOR) : null;
+    var label = btn ? btn.querySelector("span") : null;
+    if (!btn || !label) return;
+    if (btn.__prevLabel == null) btn.__prevLabel = label.textContent;
+    label.textContent = "자동저장됨";
+    btn.classList.add("is-saved");
+    window.clearTimeout(btn.__savedTimer);
+    btn.__savedTimer = window.setTimeout(function () {
+      label.textContent = btn.__prevLabel;
+      btn.__prevLabel = null;
+      btn.classList.remove("is-saved");
+    }, 1600);
+  }
+
+  // [실측 완료] → 단일 "다음 단계" 컨트롤이 없으므로(위험한 자동 stage 변경 금지) 주입 fragment 의
+  // 단계(Workflow) select(#erp-workflow-stage)로 스크롤 + 포커스해 사용자가 직접 전환하게 한다.
+  function triggerComplete() {
+    var inject = document.querySelector(INJECT_SELECTOR);
+    var stage = inject ? inject.querySelector(FRAGMENT_STAGE_SELECTOR) : null;
+    if (!stage) {
+      console.warn("[foms-tablet-measure] " + FRAGMENT_STAGE_SELECTOR + " 미발견 — 단계 포커스 불가");
+      return;
+    }
+    try {
+      stage.scrollIntoView({ behavior: "smooth", block: "center" });
+    } catch (e) {
+      stage.scrollIntoView();
+    }
+    stage.focus();
   }
 
   function markActive(card) {
@@ -60,14 +171,16 @@
     if (!card) return;
     var orderId = card.getAttribute("data-order-id");
     if (!orderId) return;
-    var detailEl = document.querySelector(DETAIL_SELECTOR);
-    if (!detailEl) return;
+    // fragment 는 스크롤 영역에만 주입(컨텍스트 바·액션바는 형제 → innerHTML 교체에 생존).
+    var injectEl = document.querySelector(INJECT_SELECTOR);
+    if (!injectEl) return;
     if (!window.FomsFragmentLoader || typeof window.FomsFragmentLoader.load !== "function") {
       console.error("[foms-tablet-measure] FomsFragmentLoader 미로드 — detail 로드 중단");
       return;
     }
     markActive(card);
-    window.FomsFragmentLoader.load(detailEl, fragmentUrl(orderId), {
+    populateContext(card);
+    window.FomsFragmentLoader.load(injectEl, fragmentUrl(orderId), {
       requestedWith: "foms-tablet-measure",
       source: "tablet-measure-detail",
       loadingText: "주문 원장 로딩 중…",
@@ -164,6 +277,21 @@
       ev.preventDefault();
       setActiveChip(chip);
       applyFilters();
+      return;
+    }
+
+    // 하단 액션바(주입 영역 밖) — [저장]·[실측 완료]. 컨텍스트 바 전화/내비는 네이티브 <a> 라
+    // 여기서 가로채지 않는다(preventDefault 없음 → tel:/새 탭 정상 동작).
+    var saveBtn = target.closest(SAVE_BTN_SELECTOR);
+    if (saveBtn && saveBtn.closest(DETAIL_SELECTOR)) {
+      ev.preventDefault();
+      triggerSave();
+      return;
+    }
+    var completeBtn = target.closest(COMPLETE_BTN_SELECTOR);
+    if (completeBtn && completeBtn.closest(DETAIL_SELECTOR)) {
+      ev.preventDefault();
+      triggerComplete();
       return;
     }
 
