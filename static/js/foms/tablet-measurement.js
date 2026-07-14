@@ -1,14 +1,19 @@
 /**
- * FOMS 태블릿 실측 특수형 split 동작 (W12) — 태블릿 가로(코호트)에서 좌측 고객 카드 탭 시
- * 우측 detail 패널에 기존 ERP Order edit fragment 로드. "실측 입력 = 주문 원장 직접 기록".
- * 좌측 큐의 검색창(고객명·주소·초성)·필터칩(전체/오늘/주간/미확정)은 표시 카드만
- * client-side 필터한다(서버 재조회·우측 패널 재로드 없음 — 키 입력마다 fragment 재요청 금지).
+ * FOMS 태블릿 실측 특수형 split 동작 (W12 → W-MEASURE-FORM) — 태블릿 가로(코호트)에서 좌측
+ * 고객 카드 탭 시 우측 detail 패널에 "실측 전용 터치 폼"을 로드한다(목업 frame02).
+ * 이전(W12)의 PC ERP Order edit fragment 주입은 폐기하고, 전용 폼 모듈(tablet-measure-form.js,
+ * window.FomsTabletMeasureForm)에 위임한다. 데이터는 동일 구조화 API(GET/PUT /structured)로
+ * 읽고 쓴다(신규 백엔드 없음). "실측 입력 = 주문 원장 직접 기록"은 유지.
+ *
+ * 이 파일의 책임은 좌측 큐(검색·필터칩·카드 선택·자동선택)와 컨텍스트 바(전화/내비/이름/단계)이며,
+ * 우측 폼의 렌더·저장·단계전환은 전적으로 FomsTabletMeasureForm 이 담당한다(관심사 분리).
+ * 좌측 큐의 검색창(고객명·주소·초성)·필터칩(전체/오늘/주간/미확정)은 표시 카드만 client-side
+ * 필터한다(서버 재조회·우측 패널 재로드 없음).
  *
  * 활성 게이트(SSOT): MQ (min-width: 992px) and (orientation: landscape) and (pointer: coarse)
  *   AND CSS 마커 --foms-tablet-ui:ready(foms-tablet-side-sheet.css 정의, v2 셸 번들 로드
  *   여부에서 파생 — defect 1). 미매치 또는 마커 부재 시 완전 무동작.
  *
- * fragment 로드는 공용 로더(fragment-loader.js) 재사용 — 사이드 시트와 단일 구현 공유.
  * idempotent: window.__FOMS_TABLET_MEASURE_BOUND 싱글턴 가드(perf G4 — document listener
  * (click·input) 중복 바인딩 차단). 필터 상태는 DOM 에서 매번 읽어 리렌더에도 안전.
  */
@@ -40,13 +45,11 @@
   var CARD_SELECTOR = ".foms-tablet-measure-card[data-order-id]";
   var LIST_SELECTOR = ".foms-tablet-measure-list";
   var DETAIL_SELECTOR = ".foms-tablet-measure-detail";
-  // fragment 주입 타깃 = detail 안의 스크롤 영역만(컨텍스트 바·액션바는 형제라 innerHTML 교체에도 생존).
-  var INJECT_SELECTOR = "[data-foms-tablet-measure-detail]";
   var CHIP_SELECTOR = ".foms-tablet-measure-chip[data-measure-bucket]";
   var SEARCH_SELECTOR = "[data-foms-tablet-measure-search]";
   var FILTER_EMPTY_SELECTOR = "[data-foms-tablet-measure-filter-empty]";
 
-  // 컨텍스트 바 / 액션바 앵커·컨트롤(카드 선택 시 채움 / fragment 실 컨트롤 트리거).
+  // 컨텍스트 바 / 액션바 앵커·컨트롤(카드 선택 시 채움 / 전용 폼 모듈 트리거).
   var CONTEXT_SELECTOR = "[data-foms-tablet-measure-context]";
   var CONTEXT_NAME_SELECTOR = "[data-foms-tablet-measure-context-name]";
   var CONTEXT_STAGE_SELECTOR = "[data-foms-tablet-measure-context-stage]";
@@ -55,13 +58,6 @@
   var ACTIONS_SELECTOR = "[data-foms-tablet-measure-actions]";
   var SAVE_BTN_SELECTOR = "[data-foms-tablet-measure-save]";
   var COMPLETE_BTN_SELECTOR = "[data-foms-tablet-measure-complete]";
-  // 주입된 fragment 의 실 컨트롤(트리거 대상 — DOM/이벤트 계약 재사용, fork 금지).
-  var FRAGMENT_SAVE_SELECTOR = "#erp-save-btn";
-  var FRAGMENT_STAGE_SELECTOR = "#erp-workflow-stage";
-
-  function fragmentUrl(orderId) {
-    return "/api/foms/fragment/order/" + encodeURIComponent(orderId) + "/edit?open=erp-order";
-  }
 
   // 카드 data-* → 컨텍스트 바 채움. 전화=tel: 링크, 내비=naver map 웹 URL(새 탭).
   // 값이 없으면 해당 버튼/배지를 숨긴다.
@@ -114,49 +110,22 @@
     if (actions) actions.hidden = false;
   }
 
-  // [저장] → 주입 fragment 의 실 저장 버튼(#erp-save-btn) 클릭 트리거 + 짧은 "자동저장됨" 상태.
+  // [저장] → 전용 폼 모듈의 명시 저장(read-merge-write PUT + 충돌 가드). 상태 표시는 폼 모듈 소유.
   function triggerSave() {
-    var inject = document.querySelector(INJECT_SELECTOR);
-    var btn = inject ? inject.querySelector(FRAGMENT_SAVE_SELECTOR) : null;
-    if (!btn) {
-      console.warn("[foms-tablet-measure] " + FRAGMENT_SAVE_SELECTOR + " 미발견 — 저장 트리거 불가");
-      return;
+    if (window.FomsTabletMeasureForm && typeof window.FomsTabletMeasureForm.requestSave === "function") {
+      window.FomsTabletMeasureForm.requestSave();
+    } else {
+      console.warn("[foms-tablet-measure] FomsTabletMeasureForm 미로드 — 저장 트리거 불가");
     }
-    btn.click();
-    flashSaved();
   }
 
-  function flashSaved() {
-    var section = document.querySelector(DETAIL_SELECTOR);
-    var btn = section ? section.querySelector(SAVE_BTN_SELECTOR) : null;
-    var label = btn ? btn.querySelector("span") : null;
-    if (!btn || !label) return;
-    if (btn.__prevLabel == null) btn.__prevLabel = label.textContent;
-    label.textContent = "자동저장됨";
-    btn.classList.add("is-saved");
-    window.clearTimeout(btn.__savedTimer);
-    btn.__savedTimer = window.setTimeout(function () {
-      label.textContent = btn.__prevLabel;
-      btn.__prevLabel = null;
-      btn.classList.remove("is-saved");
-    }, 1600);
-  }
-
-  // [실측 완료] → 단일 "다음 단계" 컨트롤이 없으므로(위험한 자동 stage 변경 금지) 주입 fragment 의
-  // 단계(Workflow) select(#erp-workflow-stage)로 스크롤 + 포커스해 사용자가 직접 전환하게 한다.
+  // [실측 완료] → 전용 폼 모듈이 2-tap 확인 후 workflow.stage=DRAWING 으로 저장(서버가 단계 전환 처리).
   function triggerComplete() {
-    var inject = document.querySelector(INJECT_SELECTOR);
-    var stage = inject ? inject.querySelector(FRAGMENT_STAGE_SELECTOR) : null;
-    if (!stage) {
-      console.warn("[foms-tablet-measure] " + FRAGMENT_STAGE_SELECTOR + " 미발견 — 단계 포커스 불가");
-      return;
+    if (window.FomsTabletMeasureForm && typeof window.FomsTabletMeasureForm.requestComplete === "function") {
+      window.FomsTabletMeasureForm.requestComplete();
+    } else {
+      console.warn("[foms-tablet-measure] FomsTabletMeasureForm 미로드 — 실측 완료 트리거 불가");
     }
-    try {
-      stage.scrollIntoView({ behavior: "smooth", block: "center" });
-    } catch (e) {
-      stage.scrollIntoView();
-    }
-    stage.focus();
   }
 
   function markActive(card) {
@@ -171,19 +140,16 @@
     if (!card) return;
     var orderId = card.getAttribute("data-order-id");
     if (!orderId) return;
-    // fragment 는 스크롤 영역에만 주입(컨텍스트 바·액션바는 형제 → innerHTML 교체에 생존).
-    var injectEl = document.querySelector(INJECT_SELECTOR);
-    if (!injectEl) return;
-    if (!window.FomsFragmentLoader || typeof window.FomsFragmentLoader.load !== "function") {
-      console.error("[foms-tablet-measure] FomsFragmentLoader 미로드 — detail 로드 중단");
+    if (!window.FomsTabletMeasureForm || typeof window.FomsTabletMeasureForm.load !== "function") {
+      console.error("[foms-tablet-measure] FomsTabletMeasureForm 미로드 — 실측 폼 로드 중단");
       return;
     }
     markActive(card);
     populateContext(card);
-    window.FomsFragmentLoader.load(injectEl, fragmentUrl(orderId), {
-      requestedWith: "foms-tablet-measure",
-      source: "tablet-measure-detail",
-      loadingText: "주문 원장 로딩 중…",
+    // 전용 폼 모듈이 detail 스크롤 영역에 GET /structured 로 폼을 렌더한다(컨텍스트 바·액션바는 형제라 생존).
+    window.FomsTabletMeasureForm.load(orderId, {
+      editUrl: card.getAttribute("data-edit-url") || "",
+      customerName: card.getAttribute("data-customer-name") || "",
     });
   }
 
@@ -323,8 +289,9 @@
   // defer 이므로 DOM 파싱 후 실행 → 초기 1회 자동 선택.
   autoSelect();
 
-  // 셸 탭 스왑 등으로 리스트가 재렌더되면 다시 자동 선택. 단, 이 모듈이 detail 을 로드하며
-  // 스스로 디스패치하는 이벤트(source==='tablet-measure-detail')는 무한 루프 방지 위해 무시.
+  // 셸 탭 스왑 등으로 리스트가 재렌더되면 다시 자동 선택(이미 활성 카드가 있으면 no-op).
+  // 전용 폼 모듈은 plain fetch 로 렌더하므로 이 이벤트를 디스패치하지 않는다(무한 루프 없음);
+  // source 가드는 방어적으로 유지한다.
   document.addEventListener("foms:erp-shell-fragment-swapped", function (ev) {
     if (ev && ev.detail && ev.detail.source === "tablet-measure-detail") return;
     autoSelect();

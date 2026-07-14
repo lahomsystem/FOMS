@@ -393,6 +393,7 @@ def test_kanban_css_is_landscape_only_no_portrait_token() -> None:
 MEASURE_PARTIAL = "templates/measurement/partials/tablet_split_body.html"
 MEASURE_CSS = "static/css/foundation/foms-tablet-measurement.css"
 MEASURE_JS = "static/js/foms/tablet-measurement.js"
+MEASURE_FORM_JS = "static/js/foms/tablet-measure-form.js"
 FRAGMENT_LOADER_JS = "static/js/foms/fragment-loader.js"
 MEASURE_DASHBOARD_MAIN = "templates/measurement/partials/dashboard_main.html"
 
@@ -458,14 +459,52 @@ def test_fragment_loader_module_exists() -> None:
     assert "foms:erp-shell-fragment-swapped" in js
 
 
-def test_tablet_measurement_js_exists_cohort_and_loader() -> None:
-    """실측 split JS: idempotent 가드 + 코호트 MQ + 공용 로더 사용 + 카드 셀렉터 + edit URL."""
+def test_tablet_measurement_js_exists_cohort_and_delegates_to_form() -> None:
+    """실측 split JS(좌측 큐): idempotent 가드 + 코호트 MQ + 카드 셀렉터 + 전용 폼 모듈 위임.
+
+    W-MEASURE-FORM 변경: 우측 패널의 PC ERP Order fragment 주입을 폐기하고 전용 실측 폼 모듈
+    (tablet-measure-form.js, window.FomsTabletMeasureForm)에 위임한다. 따라서 이전에 이 파일에서
+    핀하던 OLD fragment-injection 계약(window.FomsFragmentLoader / '/edit?open=erp-order')은
+    더 이상 실측 split 계약이 아니며, 폼 모듈 위임 계약으로 대체한다."""
     js = _read(MEASURE_JS)
     assert "window.__FOMS_TABLET_MEASURE_BOUND" in js
     assert "(min-width: 992px) and (orientation: landscape) and (pointer: coarse)" in js
-    assert "window.FomsFragmentLoader" in js
     assert ".foms-tablet-measure-card" in js
-    assert "/edit?open=erp-order" in js
+    # 우측 패널 = 전용 실측 폼 모듈 위임(더 이상 ERP fragment 주입이 아님).
+    assert "FomsTabletMeasureForm" in js
+    assert "window.FomsFragmentLoader" not in js, "실측 split 은 더 이상 fragment 로더 미사용(폼 위임)"
+    assert "/edit?open=erp-order" not in js, "실측 split 은 더 이상 fragment edit URL 미사용(구조화 API)"
+
+
+def test_tablet_measurement_form_module_exists_uses_structured_api() -> None:
+    """전용 실측 폼 모듈(tablet-measure-form.js): 싱글턴 가드 + window.FomsTabletMeasureForm API +
+    기존 구조화 API(GET/PUT /api/orders/<id>/structured) read-merge-write + 규격 spec_rows 기록 +
+    사진 읽기전용(attachments GET). 신규 백엔드 없음(목업 frame02 전용 폼)."""
+    js = _read(MEASURE_FORM_JS)
+    assert "window.__FOMS_TABLET_MEASURE_FORM_BOUND" in js
+    assert "window.FomsTabletMeasureForm" in js
+    assert "/api/orders/" in js
+    assert "/structured" in js
+    assert "structured_data" in js
+    assert "structured_schema_version" in js
+    assert "spec_rows" in js
+    assert "/attachments?category=measurement" in js
+    # 실측 완료 = workflow.stage 변경(서버 _handle_stage_transition 이 단계 전환 처리).
+    assert "workflow" in js and "DRAWING" in js
+
+
+def test_tablet_measurement_form_wired_in_layout_scripts_deferred() -> None:
+    """폼 모듈은 layout_scripts.html 에서 defer + ?v 로 로드되고, tablet-measurement.js 보다 먼저
+    로드된다(window.FomsTabletMeasureForm 선정의 보장 — defer 순서=정의 순서)."""
+    html = _read(LAYOUT_SCRIPTS)
+    m = re.search(r"<script[^>]*tablet-measure-form\.js[^>]*>", html)
+    assert m is not None, "tablet-measure-form.js not wired in layout_scripts.html"
+    tag = m.group(0)
+    assert "defer" in tag, "form module script must be defer (perf G1)"
+    assert "?v=" in tag, "form module script must carry a ?v cachebuster"
+    assert html.index("tablet-measure-form.js") < html.index("tablet-measurement.js"), (
+        "form module must load before tablet-measurement.js (FomsTabletMeasureForm defined first)"
+    )
 
 
 def test_split_and_loader_and_measure_js_wired_deferred() -> None:
@@ -595,7 +634,7 @@ def test_w16_layout_head_loads_bundle_for_v2_and_v3_cohort() -> None:
     layout_head = _read("templates/partials/shared/layout_head.html")
     idx = layout_head.find("foms-tablet-bundle.css")
     assert idx != -1, "layout_head 에 태블릿 번들 <link> 부재"
-    assert "foms-tablet-bundle.css') }}?v=20260714a" in layout_head
+    assert "foms-tablet-bundle.css') }}?v=20260714b" in layout_head
     # Anchor on the nearest preceding `{% if %}` (the bundle gate) rather than a fixed
     # char window — the gate string grows over time (2026-07-12: +/wdcalculator arm).
     gate_start = layout_head.rfind("{% if", 0, idx)

@@ -55,6 +55,8 @@
           data-customer-name="{{ r.customer_name or '' }}"
           data-phone="{{ r.phone or '' }}"
           data-nav-address="{{ r.address or '' }}"
+          {# 전용 실측 폼 '사진' 섹션의 'ERP 편집에서 첨부' 링크(url_for SSOT — JS 하드코딩 금지). #}
+          data-edit-url="{{ url_for('order_edit.edit_order', order_id=r.id, return_to='erp_measurement_dashboard') }}?open=erp-order"
           data-stage-label="{{ _stage_lbl }}"
           data-stage-modifier="{{ _stage_mod }}">
           <div class="foms-tablet-measure-card__top">
@@ -121,17 +123,22 @@
         </a>
       </div>
     </header>
+    {# 전용 실측 폼(tablet-measure-form.js)이 GET /structured 로 이 스크롤 영역에 폼을 렌더한다.
+       컨텍스트 바·액션바는 형제라 재렌더에도 파괴되지 않는다. #}
     <div class="foms-tablet-measure-detail__scroll" aria-live="polite" data-foms-tablet-measure-detail>
       <div class="foms-tablet-measure-detail__empty">좌측에서 고객을 선택하세요</div>
     </div>
     <footer class="foms-tablet-measure-actions" data-foms-tablet-measure-actions hidden>
+      {# 저장 상태(저장 중/저장됨/충돌) — 전용 폼 모듈이 갱신. #}
+      <span class="foms-tmf-status foms-tablet-measure-actions__status"
+        data-foms-tablet-measure-status hidden aria-live="polite"></span>
       <button type="button" class="foms-btn foms-btn--secondary foms-tablet-measure-actions__btn"
         data-foms-tablet-measure-save>
         <i class="fas fa-floppy-disk" aria-hidden="true"></i><span>저장</span>
       </button>
       <button type="button" class="foms-btn foms-btn--primary foms-tablet-measure-actions__btn"
         data-foms-tablet-measure-complete>
-        <i class="fas fa-ruler-combined" aria-hidden="true"></i><span>실측 완료</span>
+        <i class="fas fa-ruler-combined" aria-hidden="true"></i><span>실측 완료 → 도면 전달</span>
       </button>
     </footer>
   </section>

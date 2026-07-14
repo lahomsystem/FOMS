@@ -1,5 +1,5 @@
 {% set _fos_desktop_body %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/shipment-dashboard-columns.css') }}?v=20260714a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/shipment-dashboard-columns.css') }}?v=20260714b">
 {# foms-kv-rollout: erp_mobile_shell → kv-copy.js #}
 <div class="erp-pro erp-mobile-shell erp-dashboard-shipment" data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
   {% if erp_mobile_v2_enabled %}
@@ -66,6 +66,16 @@
     <div class="foms-ship-pcbar__lead">
       <h2 class="foms-ship-pcbar__title">{% if selected_date %}{{ selected_date[5:7]|int }}/{{ selected_date[8:10]|int }}{% if _ship_wd.label %}({{ _ship_wd.label }}){% endif %} 출고{% else %}출고 대시보드{% endif %}</h2>
       <span class="foms-ship-pcbar__sub">{{ rows|length }}건</span>
+      {# 태블릿 가로 코호트 전용 컴팩트 필터(기준일+검색) — 목업엔 PC 필터카드가 없으므로 그
+         카드를 코호트에서 은닉(shipment-dashboard-columns.css)하고 이 슬림 컨트롤이 흡수한다.
+         PC 필터폼과 동일한 GET 파라미터(date·q)를 같은 라우트로 제출 → 백엔드 무변경. AS 추천은
+         pcbar actions 에 이미 있어 중복 배치하지 않는다. base-hidden(.foms-ship-pcbar__filter)
+         → 코호트에서만 표시라 PC/폰 렌더 무영향. #}
+      <form class="foms-ship-pcbar__filter" method="get" role="search" aria-label="출고 기준일·검색">
+        <input type="date" class="foms-ship-pcbar__filter-date" name="date" value="{{ selected_date or '' }}" aria-label="기준 날짜">
+        <input type="search" class="foms-ship-pcbar__filter-q" name="q" value="{{ search_q or '' }}" placeholder="검색" aria-label="검색">
+        <button type="submit" class="foms-ship-pcbar__filter-go" aria-label="조회"><i class="fas fa-search" aria-hidden="true"></i></button>
+      </form>
     </div>
     <div class="foms-ship-pcbar__actions">
       {# 밀도 토글 대상: PC 테이블 + 신규 태블릿 클린 그리드(코호트에서 PC 테이블은 은닉되나

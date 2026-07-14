@@ -302,6 +302,7 @@ body.col-resizing-active {
    순서 계약대로 MQ 밖에 먼저 둔다(코호트에서 display:block). PC 테이블 그룹 헤더 행은 마크업에
    잔존하나(PC 테이블 유지) 여기서 상시 은닉 — 코호트 대체 그리드가 자체 그룹 헤더를 렌더한다. */
 .foms-ship-pcbar,
+.foms-ship-pcbar__filter,
 .foms-ship-cap-strip,
 .foms-tablet-shipgrid-wrap { display: none; }
 #shipment-dashboard-table tbody tr.shipment-grp-row { display: none; }
@@ -314,6 +315,11 @@ body.col-resizing-active {
     display: none !important;
   }
   body.erp-mobile-v2-layout .erp-dashboard-shipment .erp-shipment-scheduler-col {
+    display: none !important;
+  }
+  /* PC 필터카드 헤더 은닉(목업엔 없음) — 검색/기준일/조회/AS일정추천 카드. 코호트에선 pcbar
+     컴팩트 필터가 흡수한다. Bootstrap d-md-block(display:block !important) 패배 방지로 !important. */
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .erp-shipment-desktop-filter {
     display: none !important;
   }
 
@@ -378,6 +384,49 @@ body.col-resizing-active {
   body.erp-mobile-v2-layout .foms-ship-pcbar__btn[disabled] {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  /* --- pcbar 컴팩트 필터(기준일+검색) — PC 필터카드 흡수. 슬림 pill(38px·border-subtle·radius-lg).
+     PC 필터폼과 동일 GET 파라미터(date·q) → 백엔드 무변경. --- */
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .foms-ship-pcbar__filter {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--foms-space-2, 0.5rem);
+  }
+  body.erp-mobile-v2-layout .foms-ship-pcbar__filter-date,
+  body.erp-mobile-v2-layout .foms-ship-pcbar__filter-q {
+    height: 38px;
+    min-height: 38px;
+    padding: 0 var(--foms-space-3, 0.75rem);
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: var(--foms-radius-lg, 12px);
+    background: var(--foms-surface-base, #fff);
+    color: var(--foms-text-primary, #1f2733);
+    font-size: var(--foms-font-size-sm, 0.875rem);
+  }
+  body.erp-mobile-v2-layout .foms-ship-pcbar__filter-q {
+    width: 160px;
+    max-width: 34vw;
+  }
+  body.erp-mobile-v2-layout .foms-ship-pcbar__filter-date {
+    font-variant-numeric: tabular-nums;
+  }
+  body.erp-mobile-v2-layout .foms-ship-pcbar__filter-go {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    min-height: 38px;
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: var(--foms-radius-lg, 12px);
+    background: var(--foms-surface-base, #fff);
+    color: var(--foms-text-secondary, #4a515b);
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .foms-ship-pcbar__filter-go:hover {
+    background: var(--foms-surface-subtle, #f6f7f9);
+    color: var(--foms-text-primary, #1f2733);
   }
 
   /* --- 좌측 잔여 자수 스트립(260px) — PC 스케줄러 패널의 코호트 대체 --- */

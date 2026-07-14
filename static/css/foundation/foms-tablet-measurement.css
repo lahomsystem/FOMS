@@ -394,76 +394,282 @@
     color: var(--foms-interactive-primary, #5a67d8);
   }
 
-  /* ── 주입된 ERP Order 편집 폼(PC)의 태블릿 터치 리플로우 — 코호트에서만, CSS-only.
-     목업 frame02 우측 = "실측 치수를 원장에 직접 입력"하는 터치 원장. DOM/이벤트 계약 무변경.
-     .row>.col-* 다열 레이아웃은 Bootstrap md 그리드(≥768px)가 이미 2~3열을 생성하므로
-     display:grid 로 강제하지 않는다(col-md-4 삼중열 붕괴 위험). 대신 터치 타깃·타이포·카드
-     면·세로 리듬만 보정한다. ── */
+  /* ── 전용 실측 폼(tablet-measure-form.js 가 GET /structured 로 렌더) — 코호트에서만.
+     목업 frame02 우측 = "실측 치수를 원장에 직접 입력"하는 터치 원장. 이전 W12 의 PC ERP
+     fragment 주입 리플로우(#erp-order 스코프)는 폐기하고, 전용 .foms-tmf 컴포넌트로 대체한다.
+     52px num-box · 섹션 카드 · 12~16px 라벨(목업 값), foms 토큰만(하드코딩 팔레트 금지). ── */
 
-  /* 입력/선택/텍스트영역: 48px 터치 타깃 + 16px(iOS 확대 억제). */
-  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-detail .form-control,
-  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-detail .form-select,
-  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-detail .erp-pro-input,
-  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-detail select,
-  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-detail input[type="text"],
-  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-detail input[type="number"],
-  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-detail input[type="tel"],
-  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-detail input[type="time"],
-  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-detail input[type="date"] {
-    min-height: var(--foms-touch-target-min, 48px);
+  /* 로딩·안내·빈 상태. */
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__loading,
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__notice {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--foms-space-3, 0.75rem);
+    min-height: 12rem;
+    color: var(--foms-text-tertiary);
     font-size: var(--foms-font-size-base, 1rem);
+    text-align: center;
   }
 
-  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-detail textarea {
-    min-height: calc(var(--foms-touch-target-min, 48px) * 1.5);
-    font-size: var(--foms-font-size-base, 1rem);
+  /* 폼 컨테이너: 섹션 카드 세로 스택. */
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-4, 1rem);
   }
 
-  /* 라벨: semibold 보조색(태블릿 가독). */
-  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-detail .form-label {
+  /* 충돌 배너(다른 곳에서 수정됨). */
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--foms-space-3, 0.75rem);
+    padding: var(--foms-space-3, 0.75rem) var(--foms-space-4, 1rem);
+    border: 1px solid var(--foms-color-warning-500, #f59e0b);
+    border-radius: var(--foms-radius-md, 8px);
+    background: var(--foms-color-warning-50, #fffbeb);
+    color: var(--foms-text-primary);
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    font-weight: var(--foms-font-weight-semibold, 600);
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__banner[hidden] {
+    display: none;
+  }
+
+  /* 섹션 카드. */
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-3, 0.75rem);
+    padding: var(--foms-space-4, 1rem);
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: var(--foms-radius-lg, 12px);
+    background: var(--foms-surface-base, #fff);
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__title {
+    margin: 0;
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    font-weight: var(--foms-font-weight-bold, 700);
+    letter-spacing: 0.02em;
+    color: var(--foms-text-secondary);
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-1, 0.25rem);
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__label,
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__numlabel {
     font-size: var(--foms-font-size-sm, 0.875rem);
     font-weight: var(--foms-font-weight-semibold, 600);
     color: var(--foms-text-secondary);
   }
 
-  /* 버튼 터치 타깃. */
-  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-detail .btn,
-  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-detail .erp-pro-btn {
-    min-height: var(--foms-touch-target-comfortable, 44px);
-  }
-
-  /* 폼 외곽 카드 chrome 평탄화(컨텍스트 바가 헤더 역할 — 이중 카드 방지). */
-  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-detail #erp-order > .card {
-    border: 0;
-    box-shadow: none;
-    background: transparent;
-  }
-
-  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-detail #erp-order > .card > .card-body {
-    padding: 0;
-  }
-
-  /* 내부 섹션 카드(실측 일정 현황·변환 텍스트 등) = 클린 태블릿 카드(surface·radius-lg·여백). */
-  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-detail .card .card {
-    border: 1px solid var(--foms-border-subtle, #dde1e6);
-    border-radius: var(--foms-radius-lg, 12px);
+  /* 일반 입력/텍스트영역: 52px 터치 + 16px(iOS 확대 억제). */
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__input {
+    width: 100%;
+    min-height: 52px;
+    padding: 0 var(--foms-space-3, 0.75rem);
+    border: 1.5px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: var(--foms-radius-md, 8px);
     background: var(--foms-surface-base, #fff);
-    box-shadow: none;
+    color: var(--foms-text-primary);
+    font-size: var(--foms-font-size-base, 1rem);
+    box-sizing: border-box;
   }
 
-  /* 필드 세로 리듬(컴팩트한 PC 폼 → 태블릿 간격). */
-  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-detail .row.g-2 > [class*="col-"],
-  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-detail .row.g-3 > [class*="col-"] {
-    margin-bottom: var(--foms-space-2, 0.5rem);
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__textarea {
+    width: 100%;
+    min-height: calc(52px * 1.6);
+    padding: var(--foms-space-3, 0.75rem);
+    border: 1.5px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: var(--foms-radius-md, 8px);
+    background: var(--foms-surface-base, #fff);
+    color: var(--foms-text-primary);
+    font-size: var(--foms-font-size-base, 1rem);
+    line-height: 1.6;
+    resize: vertical;
+    box-sizing: border-box;
   }
 
-  /* 숫자 입력(규격 W/H/D · 금액) 크게·볼드 — "치수를 원장에 직접 입력". */
-  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-detail [data-erp="spec_width"],
-  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-detail [data-erp="spec_depth"],
-  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-detail [data-erp="spec_height"],
-  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tablet-measure-detail .erp-amount-value {
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__input:focus,
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__textarea:focus,
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__num:focus {
+    outline: none;
+    border-color: var(--foms-interactive-primary, #5a67d8);
+    box-shadow: 0 0 0 3px var(--foms-color-brand-100, rgba(90, 103, 216, 0.18));
+  }
+
+  /* 제품 항목 chips. */
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--foms-space-2, 0.5rem);
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__chip {
+    min-height: var(--foms-touch-target-comfortable, 44px);
+    padding: var(--foms-space-1, 0.25rem) var(--foms-space-4, 1rem);
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: var(--foms-radius-full, 999px);
+    background: var(--foms-surface-base, #fff);
+    color: var(--foms-text-secondary);
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    font-weight: var(--foms-font-weight-semibold, 600);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__chip.is-active {
+    background: var(--foms-interactive-primary, #5a67d8);
+    border-color: var(--foms-interactive-primary, #5a67d8);
+    color: var(--foms-text-on-primary, #fff);
+  }
+
+  /* 규격 W/H/D — 52px 큰 num-box(목업). */
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__spec {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-3, 0.75rem);
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__spec-rowlabel {
+    font-size: var(--foms-font-size-xs, 0.75rem);
+    font-weight: var(--foms-font-weight-semibold, 600);
+    color: var(--foms-text-tertiary);
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__numgrid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--foms-space-3, 0.75rem);
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__numfield {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-1, 0.25rem);
+    min-width: 0;
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__numwrap {
+    display: flex;
+    align-items: center;
+    gap: var(--foms-space-2, 0.5rem);
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__num {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 52px;
+    padding: 0 var(--foms-space-3, 0.75rem);
+    border: 1.5px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: var(--foms-radius-md, 8px);
+    background: var(--foms-surface-base, #fff);
+    color: var(--foms-text-primary);
     font-size: var(--foms-font-size-xl, 1.25rem);
     font-weight: var(--foms-font-weight-bold, 700);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    box-sizing: border-box;
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__unit {
+    flex: 0 0 auto;
+    font-size: var(--foms-font-size-xs, 0.75rem);
+    font-weight: var(--foms-font-weight-semibold, 600);
+    color: var(--foms-text-tertiary);
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__jasu {
+    align-self: flex-end;
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    color: var(--foms-text-secondary);
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__jasu strong {
+    color: var(--foms-interactive-primary, #5a67d8);
+    font-variant-numeric: tabular-nums;
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__jasu[hidden] {
+    display: none;
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__empty-note {
+    color: var(--foms-text-tertiary);
+    font-size: var(--foms-font-size-sm, 0.875rem);
+  }
+
+  /* 사진(읽기전용 strip). */
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__photos {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: var(--foms-space-3, 0.75rem);
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__photo {
+    aspect-ratio: 4 / 3;
+    padding: 0;
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: var(--foms-radius-md, 8px);
+    background: var(--foms-surface-raised, #f7f8fa);
+    overflow: hidden;
+    cursor: zoom-in;
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__photo-video {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    color: var(--foms-text-tertiary);
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__photo-empty,
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__photo-loading {
+    color: var(--foms-text-tertiary);
+    font-size: var(--foms-font-size-sm, 0.875rem);
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__photo-add {
+    align-self: flex-start;
+    gap: var(--foms-space-2, 0.5rem);
+  }
+
+  /* 저장 상태 표시(액션바 좌측). */
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf-status {
+    margin-right: auto;
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    font-weight: var(--foms-font-weight-semibold, 600);
+    color: var(--foms-text-secondary);
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf-status[hidden] {
+    display: none;
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf-status--saved {
+    color: var(--foms-color-success-600, #16a34a);
+  }
+
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf-status--error,
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf-status--conflict {
+    color: var(--foms-color-danger-600, #dc2626);
   }
 }
 

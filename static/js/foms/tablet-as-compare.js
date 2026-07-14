@@ -123,6 +123,17 @@
       });
   }
 
+  // 방문일 오버레이 표시 텍스트 갱신: date input(.foms-as-compare-visit__date) change 시
+  // 겹쳐진 표시 텍스트를 새 값으로 반영한다(저장은 as-dashboard.js .editable-date-as change
+  // 계약이 별도 담당 — 두 리스너는 독립, 충돌 없음). 코호트 밖에선 오버레이 마크업이 CSS 로
+  // 미표시라 무해.
+  function syncVisitDateText(input) {
+    var wrap = input.closest(".foms-as-compare-visit__datewrap");
+    if (!wrap) return;
+    var textEl = wrap.querySelector(".foms-as-compare-visit__datetext-value");
+    if (textEl) textEl.textContent = input.value || "미정";
+  }
+
   // 단일 document 위임(fragment 스왑 무관 · 코호트 밖 무동작).
   document.addEventListener("click", function (ev) {
     var t = ev.target;
@@ -138,5 +149,11 @@
       ev.preventDefault();
       completeAs(complete);
     }
+  });
+
+  document.addEventListener("change", function (ev) {
+    var t = ev.target;
+    if (!t || !t.classList || !t.classList.contains("foms-as-compare-visit__date")) return;
+    syncVisitDateText(t);
   });
 })();

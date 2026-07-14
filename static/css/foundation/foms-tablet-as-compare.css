@@ -39,6 +39,12 @@
   display: none;
 }
 
+/* 방문일 오버레이 표시 텍스트도 base 숨김 → 코호트 밖에선 실제 date input 이 정상 렌더된다
+   (오버레이 모드는 코호트 @media 에서만 활성). 순서 계약 = MQ 앞. */
+.foms-as-compare-visit__datetext {
+  display: none;
+}
+
 @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
 
   /* --- 배타: 데스크톱 테이블 은닉 + 대조 그리드 표시(동일 게이트 결합) --- */
@@ -196,7 +202,7 @@
     word-break: break-word;
   }
 
-  /* --- 방문 D-day 칩: HMI 색 규율 = 정상 무채색, 임박(D-2 이내)/지남만 유채색 --- */
+  /* --- 방문 D-day 칩: 정상(D-3 이상)=무채색, 임박(D-2 이내)·D-DAY·지남=솔리드 레드 --- */
   body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-dday {
     display: inline-flex;
     align-items: center;
@@ -209,12 +215,10 @@
     font-weight: var(--foms-font-weight-bold);
     white-space: nowrap;
   }
-  /* 임박 = 솔리드 앰버(어두운 텍스트로 대비 확보), 지남 = 솔리드 레드(흰 텍스트). 옅은 틴트
-     대신 채운 칩으로 경보 가시성 강화. imminent≠overdue 색 구분 유지(HMI). */
-  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-dday.is-imminent {
-    background: var(--foms-color-warning-500);
-    color: var(--foms-text-primary);
-  }
+  /* 목업 frame08 정합(.chip-dday.hot = SOLID RED): 임박(is-imminent)·D-DAY·지남(is-overdue)
+     전부 동일 솔리드 레드로 통일 — 앰버 티어 폐기(사용자가 목업 규칙 채택). 클래스명은 계약
+     유지, 색만 두 티어 합쳐 레드로 재정의. */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-dday.is-imminent,
   body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-dday.is-overdue {
     background: var(--foms-color-danger-600);
     color: var(--foms-text-inverse);
@@ -286,12 +290,32 @@
     font-size: var(--foms-font-size-xs);
   }
 
-  /* --- 카드 하단 액션 (44px 터치 타깃) --- */
+  /* --- 카드 하단 액션 (44px 터치 타깃) — 2행 명시 스택: row1 보조 칩, row2 짝 --- */
   body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-card__foot {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-2);
+    margin-top: auto;
+  }
+  /* row1: 보조 칩(주변 일정·사진 관리·주문 편집) — 자연폭으로 자유 랩. */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-foot-secondary {
     display: flex;
     flex-wrap: wrap;
     gap: var(--foms-space-2);
-    margin-top: auto;
+  }
+  /* row2: 짝 [일정 변경 | AS 완료] — 자체 flex 컨테이너로 폭 무관 1:1.6 결정적 배치.
+     이전 flex-basis 38/58 + order 방식은 보조 칩이 한 행에 다 들어가면 AS 완료가 단독
+     full-width 로 랩되는 결함이 있었다 → 짝을 별도 컨테이너로 격리해 항상 같은 행에 둔다. */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-foot-pair {
+    display: flex;
+    gap: var(--foms-space-2);
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-foot-pair .foms-as-compare-reschedule {
+    flex: 1 1 0;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-foot-pair .foms-as-compare-btn--primary,
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-foot-pair .foms-as-compare-btn--done {
+    flex: 1.6 1 0;
   }
   body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-btn {
     appearance: none;
@@ -315,19 +339,7 @@
     outline: none;
     box-shadow: var(--foms-shadow-focus-ring);
   }
-  /* 목업 m-foot 정합: [일정 변경(flex 1) | AS 완료(flex 1.6, primary)] 를 마지막 행에 짝지어
-     1:1.6 지배 비율로 배치. 두 basis 합(≈96%)이 100% 미만이라 flex-wrap 이 둘을 같은 행에 모으고,
-     나머지 보조 칩(주변 일정·사진 관리·주문 편집)은 자연폭으로 위 행에 랩된다. 보조만 있으면(비-edit
-     권한) 그 칩들이 한 행을 채운다. */
-  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-reschedule {
-    flex: 1 1 38%;
-    order: 98;
-  }
-  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-btn--primary,
-  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-btn--done {
-    flex: 1.6 1 58%;
-    order: 99;
-  }
+  /* AS 완료 = primary(채움) 시각. 짝 배치(1:1.6)는 위 .foms-as-compare-foot-pair 소유. */
   body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-btn--primary {
     border-color: transparent;
     background: var(--foms-interactive-primary);
@@ -463,30 +475,59 @@
     flex-wrap: wrap;
     gap: var(--foms-space-2);
   }
-  /* 방문일 date input(재조정) — 목업 "7/12 10:00" 클린 텍스트 정합: 평상시 보더리스(텍스트처럼),
-     hover 시 미묘한 배경, focus 시에만 보더+링. ≥44px 터치 타깃 + iOS zoom 방지(≥16px). */
-  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-visit__date {
+  /* 방문일 오버레이 date 패턴(iPad 정합): 표시 텍스트(스타일드) 위에 실제 date input 을
+     opacity:0 으로 겹쳐 네이티브 보더/캘린더 아이콘을 은닉하고 탭 히트영역(≥44px)을 확보한다.
+     CSS 로 벗겨지지 않던 네이티브 크롬 문제의 근본 해결(구조 전환). */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-visit__datewrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--foms-touch-target-comfortable);
+    border-radius: var(--foms-radius-md);
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-visit__datewrap:hover {
+    background: var(--foms-surface-muted);
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-visit__datewrap:focus-within {
+    background: var(--foms-surface-base);
+    box-shadow: var(--foms-shadow-focus-ring);
+  }
+  /* 표시 텍스트: 클린 18px semibold, 보더리스, 캘린더 글리프 왼쪽(12px gap). weekday 없이 YYYY-MM-DD. */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-visit__datetext {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--foms-space-3);
     min-height: var(--foms-touch-target-comfortable);
     padding: 0 var(--foms-space-2);
-    border: 1px solid transparent;
-    border-radius: var(--foms-radius-md);
-    background: transparent;
     color: var(--foms-text-primary);
     font-size: var(--foms-font-size-lg);
     font-weight: var(--foms-font-weight-semibold);
     font-variant-numeric: tabular-nums;
-    cursor: pointer;
+    white-space: nowrap;
   }
-  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-visit__date:hover {
-    background: var(--foms-surface-muted);
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-visit__datetext .fa-calendar-day {
+    color: var(--foms-text-tertiary);
+    font-size: var(--foms-font-size-base);
+  }
+  /* 실제 입력 = 투명 오버레이(전체 히트영역). change 계약(.editable-date-as)은 유지되어 저장 동작. */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-visit__date {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    min-height: var(--foms-touch-target-comfortable);
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    opacity: 0;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
   }
   body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-visit__date:focus,
   body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-visit__date:focus-visible {
     outline: none;
-    border-color: var(--foms-interactive-primary);
-    background: var(--foms-surface-base);
-    box-shadow: var(--foms-shadow-focus-ring);
-    cursor: text;
   }
   body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-visit__detail {
     display: flex;
