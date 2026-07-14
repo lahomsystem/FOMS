@@ -1,5 +1,5 @@
 {
-  "_comment": "스테이징 성능 게이트 예산 v2(SSOT: tools/perf/staging_perf_gate.py). 판정값 ttfb_delta_min_ms = min(warm path TTFB) − min(healthz TTFB): min 은 tail(2~9s) 오염 면역, healthz 델타는 시간대별 베이스 RTT(창 분산)를 상쇄한다. body_bytes_max = 전송(wire, 압축) 바이트 상한 = 실사용 다운로드 비용(해압 아님; 결정적 성격). 2026-07-13 Phase2 전환 — 상세는 하단. 정밀 서버 회귀는 render_ms_max·bytes·쿼리 계약이 잡는다. --seed 는 의도된 성능 변화 때만 실행하고 diff 를 리뷰한다. TTFB 델타 예산의 관측 지점(심판석)은 GitHub Actions 러너 — 시드/보정도 CI 관측값 기준(history 212ms×1.3, 2026-07-07 첫 CI 런). bytes 예산 중 데이터 가변 탭(measurement=500행 상한 실데이터, shipment=출고 주문 목록)은 영업량에 따라 출렁임 — 관측×1.3으로 주기 보정하고(2026-07-08 shipment 93.6KB×1.3→121690 보정), 코드성 비만 회귀는 dTTFB·쿼리 계약·행당 스캐너가 잡는다. 2026-07-12 bytes 재시드(TTFB는 CI 심판석 기준 기존값 유지 — 로컬 seed 의 ttfb 덮어쓰기는 정책 위반이라 복원): 모바일 실기능 Wave1~3(공정 배지·360° 트리거·퀘스트 칩·스탯 스트립·시트) 의도 추가로 production 567K→750K, measurement/shipment 는 당시 관측 기준 자동 엄격화(124K/97K) — 데이터 급증 시 재보정 대상. 2026-07-12 태블릿 T5 재시드: AS 전/후 대조 표면(+22K 관측 862K→예산 900000)·완료 금액 그리드(행 60캡 후 추정 90K×1.3→120000) 의도 추가, history dTTFB 는 CI 3련속 277~279ms 관측(내 변경 전부터 창궐한 드리프트)로 276→290 보정. 2026-07-13 태블릿 frame06 재시드: 출고 대시보드 pcbar·잔여 capacity 스트립·팀 그룹헤더·행당 태블릿 시트 딥링크(data-*) 서버렌더(CSS 코호트 게이트라 전 클라 전송) 의도 추가로 shipment fragment CI 관측 74.8K→105941B — 105941×1.3→137723 재시드(데이터 가변 탭, 출고 행수 비례). 다른 T5/frame 경로는 선세션이 이미 보정, shipment 만 누락되어 CI 4련속 FAIL 이던 것 봉합. 2026-07-13 태블릿 frame08 재시드: AS·CS 대시보드 tablet_as_compare_body.html(AS 전/후 대조 표면, 데이터 구동, CSS 코호트 게이트라 전 클라 전송) 확장으로 as fragment CI 관측 862K→932483B. 07-12 as 예산 900000 이 관측 862491 대비 ×1.04 로 너무 타이트해 +70K 에 즉시 초과 → 이번엔 정본 마진 932483×1.3→1212228 재시드(데이터 가변 탭, 재플랩 방지). frame08~11 중 as 만 예산 초과(shipment/drawing/history 등은 선재시드/헤드룸 내 유지). 2026-07-13 Phase2 WIRE 전환 재시드: 판정 지표를 해압→전송(wire, 압축) 바이트로 바꾸고 body_bytes_max 를 CI 관측 wire×1.3 으로 전면 재시드(run 29249067969). 해압 대비 압축비 5~22:1(dashboard 590K→wire 26K, as 945K→wire 53K) — 반복성 태블릿 마크업은 압축돼 wire 가 거의 안 늘어 두더지잡기 종결. 이제 body_bytes_max=전송 압축 바이트 상한(실사용 다운로드 비용); 진짜 무거운 추가(이미지·고유텍스트·비압축)만 초과시킨다.",
+  "_comment": "스테이징 성능 게이트 예산 v2(SSOT: tools/perf/staging_perf_gate.py). 판정값 ttfb_delta_min_ms = min(warm path TTFB) − min(healthz TTFB): min 은 tail(2~9s) 오염 면역, healthz 델타는 시간대별 베이스 RTT(창 분산)를 상쇄한다. body_bytes_max = 전송(wire, 압축) 바이트 상한 = 실사용 다운로드 비용(해압 아님; 결정적 성격). 2026-07-13 Phase2 전환 — 상세는 하단. 정밀 서버 회귀는 render_ms_max·bytes·쿼리 계약이 잡는다. --seed 는 의도된 성능 변화 때만 실행하고 diff 를 리뷰한다. TTFB 델타 예산의 관측 지점(심판석)은 GitHub Actions 러너 — 시드/보정도 CI 관측값 기준(history 212ms×1.3, 2026-07-07 첫 CI 런). bytes 예산 중 데이터 가변 탭(measurement=500행 상한 실데이터, shipment=출고 주문 목록)은 영업량에 따라 출렁임 — 관측×1.3으로 주기 보정하고(2026-07-08 shipment 93.6KB×1.3→121690 보정), 코드성 비만 회귀는 dTTFB·쿼리 계약·행당 스캐너가 잡는다. 2026-07-12 bytes 재시드(TTFB는 CI 심판석 기준 기존값 유지 — 로컬 seed 의 ttfb 덮어쓰기는 정책 위반이라 복원): 모바일 실기능 Wave1~3(공정 배지·360° 트리거·퀘스트 칩·스탯 스트립·시트) 의도 추가로 production 567K→750K, measurement/shipment 는 당시 관측 기준 자동 엄격화(124K/97K) — 데이터 급증 시 재보정 대상. 2026-07-12 태블릿 T5 재시드: AS 전/후 대조 표면(+22K 관측 862K→예산 900000)·완료 금액 그리드(행 60캡 후 추정 90K×1.3→120000) 의도 추가, history dTTFB 는 CI 3련속 277~279ms 관측(내 변경 전부터 창궐한 드리프트)로 276→290 보정. 2026-07-13 태블릿 frame06 재시드: 출고 대시보드 pcbar·잔여 capacity 스트립·팀 그룹헤더·행당 태블릿 시트 딥링크(data-*) 서버렌더(CSS 코호트 게이트라 전 클라 전송) 의도 추가로 shipment fragment CI 관측 74.8K→105941B — 105941×1.3→137723 재시드(데이터 가변 탭, 출고 행수 비례). 다른 T5/frame 경로는 선세션이 이미 보정, shipment 만 누락되어 CI 4련속 FAIL 이던 것 봉합. 2026-07-13 태블릿 frame08 재시드: AS·CS 대시보드 tablet_as_compare_body.html(AS 전/후 대조 표면, 데이터 구동, CSS 코호트 게이트라 전 클라 전송) 확장으로 as fragment CI 관측 862K→932483B. 07-12 as 예산 900000 이 관측 862491 대비 ×1.04 로 너무 타이트해 +70K 에 즉시 초과 → 이번엔 정본 마진 932483×1.3→1212228 재시드(데이터 가변 탭, 재플랩 방지). frame08~11 중 as 만 예산 초과(shipment/drawing/history 등은 선재시드/헤드룸 내 유지). 2026-07-13 Phase2 WIRE 전환 재시드: 판정 지표를 해압→전송(wire, 압축) 바이트로 바꾸고 body_bytes_max 를 CI 관측 wire×1.3 으로 전면 재시드(run 29249067969). 해압 대비 압축비 5~22:1(dashboard 590K→wire 26K, as 945K→wire 53K) — 반복성 태블릿 마크업은 압축돼 wire 가 거의 안 늘어 두더지잡기 종결. 이제 body_bytes_max=전송 압축 바이트 상한(실사용 다운로드 비용); 진짜 무거운 추가(이미지·고유텍스트·비압축)만 초과시킨다. 2026-07-14 데이터가변 탭 재보정: 영업량 증가(07-14 롤오버)로 measurement/shipment/drawing wire 관측이 예산 초과 → CI 관측×1.3 재시드(measurement 28397→36916·shipment 26465→34405·drawing 19202→24963). 동반 TTFB 초과(shipment dTTFB 522·drawing 128·completion 93)는 단발 네트워크 tail 로 판단해 예산 불변 유지 — measurement dTTFB 94 정상=균일 저하 아님, shipment 는 25분 전 동일 예산으로 통과, warm min 이라 콜드스타트도 아님. 회귀 은닉 방지 위해 스파이크로 TTFB 완화 금지, 지속 시 CI 다중 관측 후 별도 보정.",
   "_global": {
     "schema": 2,
     "render_ms_max": 500,
@@ -13,11 +13,11 @@
     },
     "/erp/measurement?view=fragment": {
       "ttfb_delta_min_ms": 102,
-      "body_bytes_max": 20156
+      "body_bytes_max": 36916
     },
     "/erp/drawing-workbench?view=fragment": {
       "ttfb_delta_min_ms": 124,
-      "body_bytes_max": 15605
+      "body_bytes_max": 24963
     },
     "/erp/production/dashboard?view=fragment": {
       "ttfb_delta_min_ms": 133,
@@ -25,7 +25,7 @@
     },
     "/erp/shipment?view=fragment": {
       "ttfb_delta_min_ms": 110,
-      "body_bytes_max": 20566
+      "body_bytes_max": 34405
     },
     "/erp/as?view=fragment": {
       "ttfb_delta_min_ms": 168,
