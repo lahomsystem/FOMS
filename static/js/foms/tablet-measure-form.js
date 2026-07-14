@@ -1,46 +1,43 @@
 /**
- * FOMS 태블릿 전용 ERP Order 폼 (W-MEASURE-FORM 확장판) — 태블릿 가로(코호트) 실측 split
- * view 우측 패널. 목업 frame13 "융합·키보드"의 ERP Order 편집 = PC 기능 전량을 태블릿
- * 네이티브로 구현한다. 기존 PC ERP Order edit fragment 주입을 대체하되, 데이터는 100%
- * 기존 구조화 API 로 읽고 쓴다(신규 백엔드 없음):
+ * FOMS 태블릿 전용 ERP Order 폼 (W-MEASURE-FORM v2 전 필드 확장판) — 태블릿 가로(코호트)
+ * 실측 split view 우측 패널. 목업 frame13 "융합·키보드"의 ERP Order 편집 = PC 편집 탭의 모든
+ * 입력·데이터 필드 100%를 실측자(현장 작업자) 페르소나로 재구성한 터치 원장. 기존 PC ERP Order
+ * edit fragment 주입을 대체하되, 데이터는 100% 기존 구조화 API로 읽고 쓴다(신규 백엔드 없음):
  *   - 읽기: GET  /api/orders/<id>/structured           (전사 공용 구조화 조회)
  *   - 쓰기: PUT  /api/orders/<id>/structured           (전사 공용 구조화 저장 = PC "저장"과 동일 경로)
- *   - 사진: GET  /api/orders/<id>/attachments?category=measurement (읽기전용 표시만)
+ *   - 사진: GET  /api/orders/<id>/attachments?category=measurement (실측 사진 갤러리)
+ *   - 첨부: POST /api/orders/<id>/attachments           (카메라/갤러리 업로드, 멀티파트)
  *   - 견적: GET  /api/orders/<id>/estimate-preview      (견적서 탭 렌더 데이터)
  *   - 계산기: iframe /wdcalculator?embedded=1&order_id=&customer_name=  (PC split 과 동일 임베드)
- *   - 채널톡: POST /api/channel/push-manual             (변환 텍스트 → 채널톡 수동 푸쉬)
+ *   - 채널톡: POST /api/channel/push-manual             (변환 텍스트 → 채널톡 수동 푸쉬; measurement/drawing)
  *
- * 구성(목업 frame13):
- *   1. 상단 바   : 고객명 + 단계 배지 + #주문번호 + "✓ 자동저장됨 · 방금" 라이브 배지
- *                  + [계산기 같이 보기 토글] + [Ctrl+S 저장]
- *   2. 외부 탭   : 주문(ERP) | 계산기 | 견적서
- *   3. 구조화 폼 : 고객·현장 / 제품 항목 N(규격·자수·제품명·항목추가) / 금액(출고가·예약금·잔금)
- *                  + 현장 메모 + 실측 사진(읽기전용)
- *   4. 하단 액션 : [변환 텍스트 → 채널톡] · [실측 완료 → 도면] [임시 저장] [저장]
- *   5. 계산기 split: 주문 탭에서 토글 시 폼(60%) + 계산기 임베드(40%) 나란히
- *   6. 계산기/견적서 탭: 우측 콘텐츠 전환(계산기=전폭 임베드, 견적서=견적 프리뷰 네이티브 렌더)
+ * 실측자 IA(렌더 순서): ① 현장 컨텍스트(고객·연락처·주소·특이배지) ② 실측 기록(항목 칩·제품명·
+ * 규격 W/D/H 복수행·자수·색상/옵션/손잡이/내부/기타·금액·항목일정·추가입력·항목사진) ③ 현장 사진
+ * (카메라/갤러리 업로드 + 갤러리) ④ 특이사항 3종 + 비고 ⑤ 일정(실측·시공 날짜/시간) ⑥ 주문 정보
+ * (접힘 아코디언: 접수·긴급·자가실측·지방·발주사·담당자·시공담당자·단계) ⑦ 금액(출고가·예약금·자유입력·
+ * 할인·잔금·잔금메모·현금영수증) ⑧ 변환 텍스트/복사 + 채널톡 PUSH(실측/도면).
  *
  * 데이터 무결성(핵심):
- *   - read-merge-write: GET 전체 payload 를 메모리에 보관하고 편집 키만 변형한 뒤 "전체 shape
- *     그대로" PUT 한다 → 폼이 렌더하지 않는 키(도면/견적/채널톡/quests 등)를 절대 덮어쓰지
- *     않는다(서버 _preserve_operational_structured_state 와 이중 방어).
- *   - 규격 W/H/D 는 items[].spec_rows(=출고 W·자수 SSOT)에 직접 기록. 파생값(자수=W/300)은
- *     표시만 클라이언트 계산, 저장하지 않는다(서버 eval_spec_width_mm SSOT).
- *   - 금액(출고가·예약금·잔금)은 저장된 totals/payment 에서 파생 "표시 전용"이다. 가격 산정은
- *     계산기/PC(erpBuildTotals SSOT)가 소유 — 태블릿 실측 폼은 totals 를 재계산해 쓰지 않는다
- *     (잔금 파생·재파싱 금지, 이중계산·clobber 차단).
- *   - PC 폼이 함께 보내는 raw_order_text/received_date/received_time/is_regional/construction_type/
- *     is_self_measurement 는 이 폼이 편집하지 않으므로 PUT payload 에서 생략한다(키 부재=서버 보존).
+ *   - read-merge-write: GET structured_data 전체를 deepClone 해 메모리에 보관하고 편집 키만 변형한 뒤
+ *     "전체 shape 그대로" PUT 한다 → 폼이 렌더하지 않는 최상위 키(도면/견적/채널톡/quests 등)를 절대
+ *     덮어쓰지 않는다(서버 _preserve_operational_structured_state 와 이중 방어).
+ *   - 규격 W/H/D 는 items[].spec_rows(=출고 W·자수 SSOT)에 직접 기록. 자수(W/300) 표시는 클라 계산.
+ *   - 금액(출고가·잔금)은 erpBuildTotals SSOT 를 파일 내부에 자체 미러 구현해 재계산 → structured.totals/
+ *     payment 를 PC 와 동일하게 실어 보낸다(서버 sync_erp_flat_columns 가 파생; 이중계산 아님). payment 의
+ *     *_confirmed* 확정 필드는 GET 값 보존(태블릿에서 토글 API 미사용).
+ *   - top-level 컬럼(received_date/received_time/is_self_measurement/is_regional/construction_type)은
+ *     load 시 baseline 저장 후, baseline 과 다를 때만 payload 에 포함(키 부재=서버 보존). is_regional 또는
+ *     construction_type 변경 시 둘 다 함께 포함(쌍 계약). 지방 ON + 구분 미선택이면 명시 저장 차단(400 방지).
+ *   - order.notes(비고)는 GET 에코 문자열을 그대로 전송 유지.
  *
  * 동시성:
- *   - 명시 저장/실측완료 직전 GET 으로 structured_updated_at 을 baseline 과 비교 → 다른 곳에서
- *     수정됐으면 배너를 띄우고 PUT 을 중단한다(silent overwrite 금지).
- *   - 자동저장/임시저장은 last-write-wins(전체 merge payload 라 무관 필드 clobber 없음).
+ *   - 명시 저장/실측완료 직전 GET 으로 structured_updated_at 을 baseline 과 비교 → 다른 곳에서 수정됐으면
+ *     배너를 띄우고 PUT 을 중단(silent overwrite 금지). 자동/임시 저장은 last-write-wins(전체 merge payload).
  *
- * 재실행 안전(perf G4): window.__FOMS_TABLET_MEASURE_FORM_BOUND 싱글턴 가드 + 위임 이벤트.
+ * 재실행 안전(perf G4): window.__FOMS_TABLET_MEASURE_FORM_BOUND 싱글턴 가드 + 위임 이벤트(1회 바인딩).
  * 이 모듈은 스스로 활성화하지 않는다 — 코호트 게이트를 통과한 tablet-measurement.js 가
- * load()/requestSave()/requestComplete()/requestDraft()/requestChannelPush()/switchTab()/
- * toggleCalc() 로 구동한다(중복 게이트 정의 금지).
+ * load()/requestSave()/requestComplete()/requestDraft()/requestChannelPush()/switchTab()/toggleCalc()
+ * 로 구동한다(중복 게이트 정의 금지). PC 번들(window.erp*)에는 의존하지 않는다(이 페이지 미로드).
  */
 (function () {
   "use strict";
@@ -56,6 +53,45 @@
   // 서버 _handle_stage_transition 이 workflow.stage 변경을 감지해 order.status/OrderEvent/Quest 를 처리한다.
   var NEXT_STAGE_ON_COMPLETE = "DRAWING";
 
+  // PC erp_order_tab.html SSOT 그대로의 select 옵션 목록(하드코딩 금지 원칙 하 마크업 계약 미러).
+  var WORKFLOW_STAGE_OPTIONS = [
+    ["", "-"],
+    ["RECEIVED", "A. 주문접수"],
+    ["MEASURE", "C. 실측"],
+    ["DRAWING", "D. 도면"],
+    ["CONFIRM", "E. 고객컨펌"],
+    ["PRODUCTION", "F. 생산"],
+    ["CONSTRUCTION", "G. 시공"],
+    ["CS", "H. CS"],
+    ["AS_RECEIVED", "AS접수"],
+    ["AS_COMPLETED", "AS완료"],
+    ["COMPLETED", "완료"],
+    ["AS", "AS처리"],
+  ];
+  var CONSTRUCTION_TYPE_OPTIONS = [
+    ["", "하우드/협력사 선택"],
+    ["하우드 시공", "하우드"],
+    ["협력사 시공", "협력사"],
+  ];
+  var ORDERER_SELECT_OPTIONS = [
+    ["라홈", "라홈"],
+    ["하우드", "하우드"],
+  ];
+  var TIME_SELECT_OPTIONS = [
+    ["", "시간 선택"],
+    ["오전", "오전"],
+    ["오후", "오후"],
+    ["종일", "종일"],
+    ["__direct__", "직접 입력"],
+  ];
+  var ATTACHMENT_CATEGORY_OPTIONS = [
+    ["measurement", "실측"],
+    ["drawing", "도면"],
+    ["construction", "시공"],
+    ["as", "AS"],
+  ];
+  var TIME_PRESETS = ["오전", "오후", "종일"];
+
   // 활성 주문 1건의 편집 상태. 카드 전환 시 통째로 교체된다.
   var state = null;
 
@@ -64,6 +100,9 @@
   }
   function attachmentsUrl(id) {
     return "/api/orders/" + encodeURIComponent(id) + "/attachments?category=measurement";
+  }
+  function attachmentsUploadUrl(id) {
+    return "/api/orders/" + encodeURIComponent(id) + "/attachments";
   }
   function estimatePreviewUrl(id) {
     return "/api/orders/" + encodeURIComponent(id) + "/estimate-preview";
@@ -97,7 +136,7 @@
   // 금액 정규화: 숫자/문자열/{amount} dict 모두 정수로. 서버가 예약금을 dict 로 저장한 레거시 방어.
   function coerceAmount(v) {
     if (v == null) return 0;
-    if (typeof v === "object") v = v.amount;
+    if (typeof v === "object") v = v.amount != null ? v.amount : v.raw;
     var n = parseInt(String(v == null ? "" : v).replace(/[^0-9-]/g, ""), 10);
     return isNaN(n) ? 0 : n;
   }
@@ -107,6 +146,12 @@
     } catch (e) {
       return String(n || 0);
     }
+  }
+
+  // 값이 비면 '상담' 기본(PC erpNewItemRow defaultConsult 미러).
+  function defaultConsult(v) {
+    var s = String(v == null ? "" : v).trim();
+    return s ? s : "상담";
   }
 
   // 복합 규격 W(가로) → 총 폭(mm). Python foms.services.erp_template_filters.eval_spec_width_mm 미러.
@@ -141,6 +186,124 @@
     });
     if (!totalW) return "";
     return String(Math.round((totalW / 300) * 10) / 10);
+  }
+
+  // ── 금액/자유입력 SSOT 미러(PC erp-order-shared.js — 이 페이지엔 미로드라 자체 구현) ──────
+  function resolveDepositAmount(sd) {
+    sd = sd || {};
+    var payment = sd.payment || {};
+    var legacy = sd.payments || {};
+    var modern = coerceAmount(payment.deposit);
+    if (modern > 0) return modern;
+    return coerceAmount(legacy.deposit);
+  }
+  function resolveDiscountAmount(sd) {
+    sd = sd || {};
+    var payment = sd.payment || {};
+    var totals = sd.totals || {};
+    var modern = coerceAmount(payment.discount);
+    if (modern > 0) return modern;
+    return coerceAmount(totals.discount_amount);
+  }
+  function resolveCashReceipt(sd) {
+    sd = sd || {};
+    var payment = sd.payment || {};
+    if (Object.prototype.hasOwnProperty.call(payment, "cash_receipt")) {
+      return String(payment.cash_receipt || "").trim();
+    }
+    var legacy = (sd.payments || {}).cash_receipt;
+    if (legacy && typeof legacy === "object") return String(legacy.value || legacy.raw || "").trim();
+    return String(legacy || "").trim();
+  }
+  function resolveBalanceNote(sd) {
+    sd = sd || {};
+    var payment = sd.payment || {};
+    if (Object.prototype.hasOwnProperty.call(payment, "balance_note")) {
+      return String(payment.balance_note || "").trim();
+    }
+    return "";
+  }
+  function resolveFreeInputText(sd) {
+    sd = sd || {};
+    var payment = sd.payment || {};
+    if (Object.prototype.hasOwnProperty.call(payment, "free_input")) {
+      return String(payment.free_input || "").trim();
+    }
+    var legacy = (sd.payments || {}).free_input;
+    if (legacy && typeof legacy === "object") return String(legacy.value || legacy.raw || "").trim();
+    return String(legacy || "").trim();
+  }
+  // 저장된 free_input 문자열 → 폼용 {text, amount}(첫 비공백 라인 파싱). PC erpSplitFreeInputForForm 미러.
+  function splitFreeInputForForm(stored) {
+    var raw = String(stored || "").trim();
+    if (!raw) return { text: "", amount: 0 };
+    var lines = raw.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+    var first = "";
+    for (var i = 0; i < lines.length; i += 1) {
+      var line = String(lines[i] || "").trim();
+      if (line) {
+        first = line;
+        break;
+      }
+    }
+    if (!first) return { text: "", amount: 0 };
+    var colonMatch = first.match(/^(.+?)[:：]\s*(.+)$/);
+    if (colonMatch) {
+      return { text: colonMatch[1].trim(), amount: coerceAmount(colonMatch[2]) };
+    }
+    var asAmount = coerceAmount(first);
+    if (asAmount > 0 && String(first).replace(/[^0-9]/g, "").length >= String(asAmount).length) {
+      return { text: "", amount: asAmount };
+    }
+    return { text: first, amount: 0 };
+  }
+  // 폼 {text, amount} → 저장 free_input 문자열. PC erpBuildFreeInputStoredValue 미러.
+  function buildFreeInputStored(text, amount) {
+    var label = String(text || "").trim();
+    var amt = coerceAmount(amount);
+    if (!label && amt <= 0) return "";
+    if (!label) return formatWon(amt);
+    if (amt <= 0) return label;
+    return label + " : " + formatWon(amt);
+  }
+  // erpBuildTotals SSOT 미러: total = itemsTotal + freeInput; balance = total - deposit - discount;
+  // shipping_price = total - discount(= itemsTotal + freeInput - discount).
+  function buildTotals(itemsTotal, deposit, discount, freeInput) {
+    var itemsSubtotal = coerceAmount(itemsTotal);
+    var free = coerceAmount(freeInput);
+    var total = itemsSubtotal + free;
+    var dep = coerceAmount(deposit);
+    var disc = coerceAmount(discount);
+    var balance = Math.max(0, total - dep - disc);
+    var shipping = Math.max(0, total - disc);
+    return {
+      items_total: itemsSubtotal,
+      free_input_amount: free,
+      contract_total: total,
+      deposit_amount: dep,
+      discount_amount: disc,
+      balance_amount: balance,
+      final_amount: balance,
+      shipping_price: shipping,
+    };
+  }
+
+  // 시공 담당자 문자열 → 배열(개행/콤마 split, trim, 중복 제거). PC erpNormalizeConstructionWorkers 미러.
+  function normalizeConstructionWorkers(value) {
+    var rawValues;
+    if (Array.isArray(value)) rawValues = value;
+    else rawValues = String(value || "").replace(/\n/g, ",").split(",");
+    var workers = [];
+    rawValues.forEach(function (item) {
+      var rawName = item;
+      if (item && typeof item === "object") rawName = item.name || item.text || item.value || "";
+      var name = String(rawName || "").trim();
+      if (name && workers.indexOf(name) === -1) workers.push(name);
+    });
+    return workers;
+  }
+  function formatConstructionWorkers(value) {
+    return normalizeConstructionWorkers(value).join("\n");
   }
 
   // ── DOM 헬퍼 ───────────────────────────────────────────────────────
@@ -218,6 +381,18 @@
   function ensureSite() {
     return ensureObj(state.structured, "site");
   }
+  function ensureFlags() {
+    return ensureObj(state.structured, "flags");
+  }
+  function ensureWorkflow() {
+    return ensureObj(state.structured, "workflow");
+  }
+  function ensureNotesObj() {
+    return ensureObj(state.structured, "notes");
+  }
+  function ensureShipment() {
+    return ensureObj(state.structured, "shipment");
+  }
   function ensureMeasurementSchedule() {
     var sch = ensureObj(state.structured, "schedule");
     return ensureObj(sch, "measurement");
@@ -234,11 +409,29 @@
   function siteAddress() {
     var s = state.structured.site;
     if (!s || typeof s !== "object") return "";
-    return s.address_full || s.address_main || "";
+    var full = s.address_full || s.address_main || "";
+    var detail = s.address_detail || "";
+    return detail ? (full + " " + detail).trim() : full;
   }
   function scheduleValue(group, key) {
     var g = state.structured.schedule && state.structured.schedule[group];
     return g && typeof g === "object" ? g[key] || "" : "";
+  }
+  function flagValue(key) {
+    var f = state.structured.flags;
+    return f && typeof f === "object" ? f[key] : undefined;
+  }
+  function notesValue(key) {
+    var n = state.structured.notes;
+    return n && typeof n === "object" && !Array.isArray(n) ? n[key] || "" : "";
+  }
+  function workflowStage() {
+    var w = state.structured.workflow;
+    return w && typeof w === "object" ? w.stage || "" : "";
+  }
+  function constructionWorkersText() {
+    var sh = state.structured.shipment;
+    return formatConstructionWorkers(sh && typeof sh === "object" ? sh.construction_workers : []);
   }
 
   function itemsList() {
@@ -255,21 +448,83 @@
     return hasItems || hasParties;
   }
 
-  function computeAmounts() {
-    // 표시 전용 파생. 저장된 totals/payment 를 읽고, 없으면 SPEC 공식으로 파생.
-    // 출고가 = 품목합 + 자유입력(배송) − 할인. 잔금 = 출고가 − 예약금.
-    var t = (state.structured && state.structured.totals) || {};
-    var p = (state.structured && state.structured.payment) || {};
-    var itemsTotal = coerceAmount(t.items_total);
-    var freeInput = coerceAmount(t.free_input_amount);
-    var discount = coerceAmount(t.discount_amount != null ? t.discount_amount : p.discount);
-    var shipping =
-      t.shipping_price != null
-        ? coerceAmount(t.shipping_price)
-        : Math.max(0, itemsTotal + freeInput - discount);
-    var deposit = coerceAmount(p.deposit != null ? p.deposit : t.deposit_amount);
-    var balance = Math.max(0, shipping - deposit);
-    return { shipping: shipping, deposit: deposit, balance: balance };
+  // 항목 금액 합계(item.price 는 원문 문자열 보관 → coerce 합산).
+  function sumItemsTotal() {
+    var sum = 0;
+    itemsList().forEach(function (item) {
+      if (item && typeof item === "object") sum += coerceAmount(item.price);
+    });
+    return sum;
+  }
+
+  // 금액 재계산 → structured.totals/payment 갱신(PC 와 동일하게 클라 totals 전송; 이중계산 아님).
+  function recomputeTotals() {
+    if (!state) return buildTotals(0, 0, 0, 0);
+    var a = state.amounts || {};
+    var totals = buildTotals(sumItemsTotal(), a.deposit, a.discount, a.freeAmount);
+    var base = state.paymentBase || {};
+    state.structured.totals = totals;
+    state.structured.payment = {
+      deposit: totals.deposit_amount,
+      discount: totals.discount_amount,
+      free_input: buildFreeInputStored(a.freeText, a.freeAmount),
+      cash_receipt: String(a.cashReceipt || ""),
+      balance_note: String(a.balanceNote || "").trim(),
+      deposit_confirmed: !!base.deposit_confirmed,
+      deposit_confirmed_at: base.deposit_confirmed_at || null,
+      deposit_confirmed_by: base.deposit_confirmed_by || null,
+      deposit_confirmed_by_user_id: base.deposit_confirmed_by_user_id || null,
+      balance_confirmed: !!base.balance_confirmed,
+      balance_confirmed_at: base.balance_confirmed_at || null,
+      balance_confirmed_by: base.balance_confirmed_by || null,
+      balance_confirmed_by_user_id: base.balance_confirmed_by_user_id || null,
+    };
+    return totals;
+  }
+  function getDisplayAmounts() {
+    var t = recomputeTotals();
+    return { shipping: t.shipping_price, deposit: t.deposit_amount, balance: t.balance_amount };
+  }
+
+  // 저장 직전 항목 정규화(PC erpCollectStructured 미러): 상담 기본값, 금액 정수화, spec 파생.
+  function normalizeItemsForSave() {
+    itemsList().forEach(function (item) {
+      if (!item || typeof item !== "object") return;
+      ["option_detail", "handle", "internal", "misc"].forEach(function (k) {
+        item[k] = defaultConsult(item[k]);
+      });
+      var colorRaw = String(item.color == null ? "" : item.color).replace(/(\s+\(SK\))+$/g, "").trim();
+      item.color = colorRaw || "상담";
+      var pd = String(item.price == null ? "" : item.price).replace(/[^0-9]/g, "");
+      item.price = pd ? parseInt(pd, 10) : "";
+      var rows = Array.isArray(item.spec_rows) ? item.spec_rows : [];
+      var kept = [];
+      rows.forEach(function (r) {
+        if (!r || typeof r !== "object") return;
+        var w = String(r.spec_width != null ? r.spec_width : r.w || "").trim();
+        var d = String(r.spec_depth != null ? r.spec_depth : r.d || "").trim();
+        var h = String(r.spec_height != null ? r.spec_height : r.h || "").trim();
+        if (w || d || h) kept.push({ spec_width: w, spec_depth: d, spec_height: h });
+      });
+      if (kept.length) {
+        item.spec_rows = kept;
+        item.spec_width = kept[0].spec_width;
+        item.spec_depth = kept[0].spec_depth;
+        item.spec_height = kept[0].spec_height;
+        var lines = kept
+          .map(function (sr) {
+            return [sr.spec_width, sr.spec_depth, sr.spec_height].filter(Boolean).join("x");
+          })
+          .filter(Boolean);
+        item.spec = lines.join(", ") || String(item.spec || "");
+      } else {
+        item.spec_rows = [];
+        item.spec_width = "";
+        item.spec_depth = "";
+        item.spec_height = "";
+        item.spec = String(item.spec || "");
+      }
+    });
   }
 
   // ── 렌더: 필드 부품 ────────────────────────────────────────────────
@@ -277,14 +532,18 @@
     opts = opts || {};
     var full = opts.full ? " foms-tmf__ffield--full" : "";
     var mode = opts.inputmode ? ' inputmode="' + opts.inputmode + '"' : "";
+    var type = opts.type ? opts.type : "text";
     var ph = opts.placeholder ? ' placeholder="' + escapeHtml(opts.placeholder) + '"' : "";
+    var hidden = opts.hidden ? " hidden" : "";
     return (
       '<div class="foms-tmf__ffield' +
       full +
       '"><label class="foms-tmf__flabel">' +
       escapeHtml(label) +
       "</label>" +
-      '<input class="foms-tmf__finput" type="text" autocomplete="off"' +
+      '<input class="foms-tmf__finput" type="' +
+      type +
+      '" autocomplete="off"' +
       mode +
       ' data-tmf-field="' +
       fieldKey +
@@ -292,33 +551,124 @@
       escapeHtml(value) +
       '"' +
       ph +
+      hidden +
       "></div>"
     );
   }
 
-  function renderCustomerSiteCard() {
+  function textAreaField(label, fieldKey, value, opts) {
+    opts = opts || {};
+    var full = opts.full ? " foms-tmf__ffield--full" : "";
+    var ph = opts.placeholder ? ' placeholder="' + escapeHtml(opts.placeholder) + '"' : "";
+    return (
+      '<div class="foms-tmf__ffield' +
+      full +
+      '"><label class="foms-tmf__flabel">' +
+      escapeHtml(label) +
+      "</label>" +
+      '<textarea class="foms-tmf__textarea" rows="' +
+      (opts.rows || 2) +
+      '" data-tmf-field="' +
+      fieldKey +
+      '"' +
+      ph +
+      ">" +
+      escapeHtml(value) +
+      "</textarea></div>"
+    );
+  }
+
+  function selectField(label, fieldKey, value, options, opts) {
+    opts = opts || {};
+    var full = opts.full ? " foms-tmf__ffield--full" : "";
+    var disabled = opts.disabled ? " disabled" : "";
+    var extraAttr = opts.attr ? " " + opts.attr : "";
+    var optsHtml = options
+      .map(function (o) {
+        var sel = String(o[0]) === String(value == null ? "" : value) ? " selected" : "";
+        return '<option value="' + escapeHtml(o[0]) + '"' + sel + ">" + escapeHtml(o[1]) + "</option>";
+      })
+      .join("");
+    return (
+      '<div class="foms-tmf__ffield' +
+      full +
+      '"><label class="foms-tmf__flabel">' +
+      escapeHtml(label) +
+      "</label>" +
+      '<select class="foms-tmf__finput"' +
+      (fieldKey ? ' data-tmf-field="' + fieldKey + '"' : "") +
+      extraAttr +
+      disabled +
+      ">" +
+      optsHtml +
+      "</select></div>"
+    );
+  }
+
+  function checkboxField(label, fieldKey, checked) {
+    return (
+      '<label class="foms-tmf__check"><input type="checkbox" data-tmf-field="' +
+      fieldKey +
+      '"' +
+      (checked ? " checked" : "") +
+      '><span>' +
+      escapeHtml(label) +
+      "</span></label>"
+    );
+  }
+
+  function amountField(label, amountKey, value, opts) {
+    opts = opts || {};
+    var full = opts.full ? " foms-tmf__ffield--full" : "";
+    var ph = opts.placeholder ? ' placeholder="' + escapeHtml(opts.placeholder) + '"' : "";
+    return (
+      '<div class="foms-tmf__ffield' +
+      full +
+      '"><label class="foms-tmf__flabel">' +
+      escapeHtml(label) +
+      "</label>" +
+      '<input class="foms-tmf__finput foms-tmf__finput--amount" type="text" inputmode="numeric" autocomplete="off" data-tmf-amount="' +
+      amountKey +
+      '" value="' +
+      escapeHtml(value > 0 ? formatWon(value) : "") +
+      '"' +
+      ph +
+      "></div>"
+    );
+  }
+
+  // ── 렌더: ① 현장 컨텍스트(고객·연락처·주소 + 특이 배지) ─────────────
+  function renderBadges() {
+    var out = "";
+    if (String(notesValue("phone_note")).trim()) out += '<span class="foms-tmf__badge">연락처 특이</span>';
+    if (String(notesValue("address_note")).trim()) out += '<span class="foms-tmf__badge">주소 특이</span>';
+    if (String(notesValue("measurement_note")).trim()) out += '<span class="foms-tmf__badge">실측 특이</span>';
+    return out || '<span class="foms-tmf__badge-none">특이사항 없음</span>';
+  }
+  function refreshBadges() {
+    var host = formEl() ? formEl().querySelector("[data-tmf-badges]") : null;
+    if (host) host.innerHTML = renderBadges();
+  }
+
+  function renderContextCard() {
     return (
       '<section class="foms-tmf__section">' +
-      '<h5 class="foms-tmf__title">고객 · 현장</h5>' +
+      '<h5 class="foms-tmf__title">현장 컨텍스트</h5>' +
+      '<div class="foms-tmf__badges" data-tmf-badges>' +
+      renderBadges() +
+      "</div>" +
       '<div class="foms-tmf__formgrid">' +
       textField("고객명", "customer_name", partyValue("customer", "name")) +
       textField("연락처", "customer_phone", partyValue("customer", "phone"), { inputmode: "tel" }) +
-      textField("현장 주소", "site_address", siteAddress(), { full: true }) +
-      textField("발주사", "orderer", partyValue("orderer", "name")) +
-      textField("담당자", "manager", partyValue("manager", "name")) +
-      textField("실측 예정(일)", "measurement_date", scheduleValue("measurement", "date"), {
-        placeholder: "예: 2026-07-11 (여러 날짜는 쉼표로)",
-      }) +
-      textField("실측 예정(시간)", "measurement_time", scheduleValue("measurement", "time"), {
-        placeholder: "예: 오전 / 오후 / 09:30",
-      }) +
-      textField("시공 예정", "construction_date", scheduleValue("construction", "date"), {
-        placeholder: "예: 2026-07-24",
+      textField("현장 주소", "site_address", siteAddress(), {
+        full: true,
+        placeholder: "도로명/지번 주소",
       }) +
       "</div></section>"
     );
   }
 
+  // ── 렌더: ② 실측 기록(항목) ────────────────────────────────────────
   function renderItemChips() {
     var list = itemsList();
     var chips = list
@@ -356,7 +706,17 @@
     var w = escapeHtml(specDim(row, "spec_width", "w"));
     var d = escapeHtml(specDim(row, "spec_depth", "d"));
     var h = escapeHtml(specDim(row, "spec_height", "h"));
-    var rowLabel = rowCount > 1 ? '<div class="foms-tmf__spec-rowlabel">규격 ' + (rowIdx + 1) + "</div>" : "";
+    var rowLabelBar =
+      '<div class="foms-tmf__spec-rowhead">' +
+      '<span class="foms-tmf__spec-rowlabel">규격 ' +
+      (rowIdx + 1) +
+      "</span>" +
+      (rowCount > 1
+        ? '<button type="button" class="foms-tmf__spec-del" data-tmf-del-spec-row="' +
+          rowIdx +
+          '" aria-label="규격 행 삭제"><i class="fas fa-minus" aria-hidden="true"></i></button>'
+        : "") +
+      "</div>";
     function box(dim, label, value) {
       return (
         '<div class="foms-tmf__numfield">' +
@@ -383,9 +743,9 @@
     }
     return (
       '<div class="foms-tmf__spec-row">' +
-      rowLabel +
+      rowLabelBar +
       '<div class="foms-tmf__numgrid">' +
-      box("width", "W (가로)", w) +
+      box("width", "W (가로·총폭)", w) +
       box("depth", "D (깊이)", d) +
       box("height", "H (높이)", h) +
       "</div>" +
@@ -403,6 +763,9 @@
         return renderSpecRow(state.activeItem, rIdx, row, rows.length);
       })
       .join("");
+    var addRow =
+      '<button type="button" class="foms-tmf__spec-add" data-tmf-add-spec-row>' +
+      '<i class="fas fa-plus" aria-hidden="true"></i> 복합 규격 행 추가</button>';
     var jasu = itemJasuDisplay(item);
     var jasuHtml =
       '<div class="foms-tmf__jasu"' +
@@ -410,7 +773,53 @@
       '>자수 (W/300) <strong>' +
       escapeHtml(jasu) +
       "</strong></div>";
-    return rowsHtml + jasuHtml;
+    return rowsHtml + addRow + jasuHtml;
+  }
+
+  function itemFieldRow(label, field, value, opts) {
+    opts = opts || {};
+    var full = opts.full ? " foms-tmf__ffield--full" : "";
+    var ph = opts.placeholder ? ' placeholder="' + escapeHtml(opts.placeholder) + '"' : "";
+    var mode = opts.inputmode ? ' inputmode="' + opts.inputmode + '"' : "";
+    return (
+      '<div class="foms-tmf__ffield' +
+      full +
+      '"><label class="foms-tmf__flabel">' +
+      escapeHtml(label) +
+      "</label>" +
+      '<input class="foms-tmf__finput" type="text" autocomplete="off"' +
+      mode +
+      ' data-tmf-itemfield="' +
+      field +
+      '" value="' +
+      escapeHtml(value) +
+      '"' +
+      ph +
+      "></div>"
+    );
+  }
+
+  function itemPriceRow(value) {
+    var amt = coerceAmount(value);
+    return (
+      '<div class="foms-tmf__ffield"><label class="foms-tmf__flabel">항목 금액 (원)</label>' +
+      '<input class="foms-tmf__finput foms-tmf__finput--amount" type="text" inputmode="numeric" autocomplete="off" ' +
+      'data-tmf-itemfield="price" value="' +
+      escapeHtml(amt > 0 ? formatWon(amt) : "") +
+      '" placeholder="0"></div>'
+    );
+  }
+
+  function renderItemUpload() {
+    // 항목 사진: 카메라(capture)·갤러리(no-capture) 업로드 → OrderAttachment(item_index=활성항목, category=measurement).
+    return (
+      '<div class="foms-tmf__uploads foms-tmf__uploads--item">' +
+      '<label class="foms-tmf__uploadbtn"><i class="fas fa-camera" aria-hidden="true"></i><span>항목 사진 촬영</span>' +
+      '<input type="file" accept="image/*" capture="environment" data-tmf-upload="item" hidden></label>' +
+      '<label class="foms-tmf__uploadbtn"><i class="fas fa-images" aria-hidden="true"></i><span>항목 사진 선택</span>' +
+      '<input type="file" accept="image/*,video/*" multiple data-foms-no-capture data-tmf-upload="item" hidden></label>' +
+      "</div>"
+    );
   }
 
   function renderItemBody() {
@@ -422,25 +831,60 @@
       );
     }
     var item = list[state.activeItem];
+    var head =
+      '<div class="foms-tmf__item-head">' +
+      '<span class="foms-tmf__item-headlabel">항목 ' +
+      (state.activeItem + 1) +
+      " / " +
+      list.length +
+      "</span>" +
+      (list.length > 1
+        ? '<button type="button" class="foms-tmf__item-del" data-tmf-del-item="' +
+          state.activeItem +
+          '"><i class="fas fa-trash" aria-hidden="true"></i> 이 항목 삭제</button>'
+        : "") +
+      "</div>";
     var nameField =
       '<div class="foms-tmf__ffield foms-tmf__ffield--full">' +
       '<label class="foms-tmf__flabel">제품명</label>' +
       '<input class="foms-tmf__finput" type="text" autocomplete="off" data-tmf-field="product_name" value="' +
       escapeHtml((item && item.product_name) || "") +
       '" placeholder="예: 붙박이장 W2400"></div>';
+    var attrs =
+      '<div class="foms-tmf__formgrid">' +
+      itemFieldRow("색상", "color", defaultConsult(item.color), { placeholder: "상담" }) +
+      itemFieldRow("옵션", "option_detail", defaultConsult(item.option_detail), { placeholder: "상담" }) +
+      itemFieldRow("손잡이", "handle", defaultConsult(item.handle), { placeholder: "상담" }) +
+      itemFieldRow("내부", "internal", defaultConsult(item.internal), { placeholder: "상담" }) +
+      itemFieldRow("기타 / 설치위치", "misc", defaultConsult(item.misc), { full: true, placeholder: "상담" }) +
+      itemPriceRow(item.price) +
+      itemFieldRow("항목 실측일", "measurement_date", String(item.measurement_date || ""), {
+        placeholder: "예: 2026-07-11",
+      }) +
+      itemFieldRow("항목 시공일", "construction_date", String(item.construction_date || ""), {
+        placeholder: "예: 2026-07-24",
+      }) +
+      "</div>" +
+      '<div class="foms-tmf__ffield foms-tmf__ffield--full"><label class="foms-tmf__flabel">추가 입력</label>' +
+      '<textarea class="foms-tmf__textarea" rows="2" data-tmf-itemfield="extra_input" placeholder="현장 특이·주의사항">' +
+      escapeHtml(String(item.extra_input || "")) +
+      "</textarea></div>";
     return (
       renderItemChips() +
+      head +
       nameField +
       '<div class="foms-tmf__spec" data-tmf-spec-panel>' +
       renderItemSpec() +
-      "</div>"
+      "</div>" +
+      attrs +
+      renderItemUpload()
     );
   }
 
   function renderItemsCard() {
     return (
       '<section class="foms-tmf__section">' +
-      '<h5 class="foms-tmf__title">제품 항목 ' +
+      '<h5 class="foms-tmf__title">실측 기록 · 제품 항목 ' +
       itemsList().length +
       "</h5>" +
       '<div data-tmf-item-body>' +
@@ -449,49 +893,207 @@
     );
   }
 
-  function renderAmountsCard() {
-    var a = computeAmounts();
+  // ── 렌더: ③ 현장 사진(업로드 + 갤러리) ─────────────────────────────
+  function renderPhotosCard() {
     return (
       '<section class="foms-tmf__section">' +
-      '<h5 class="foms-tmf__title">금액</h5>' +
-      '<div class="foms-tmf__kvgrid">' +
-      '<div class="foms-tmf__kv"><b>출고가 (품목+배송−할인)</b><span>' +
-      formatWon(a.shipping) +
-      "</span></div>" +
-      '<div class="foms-tmf__kv"><b>예약금</b><span>' +
-      formatWon(a.deposit) +
-      "</span></div>" +
-      '<div class="foms-tmf__kv foms-tmf__kv--accent"><b>잔금 = 출고가 − 예약금</b><span>' +
-      formatWon(a.balance) +
-      "</span></div>" +
+      '<h5 class="foms-tmf__title">현장 사진</h5>' +
+      '<div class="foms-tmf__uploads">' +
+      '<select class="foms-tmf__finput foms-tmf__uploadcat" data-tmf-photo-cat aria-label="첨부 분류">' +
+      ATTACHMENT_CATEGORY_OPTIONS.map(function (o) {
+        return '<option value="' + escapeHtml(o[0]) + '">' + escapeHtml(o[1]) + "</option>";
+      }).join("") +
+      "</select>" +
+      '<label class="foms-tmf__uploadbtn"><i class="fas fa-camera" aria-hidden="true"></i><span>카메라 촬영</span>' +
+      '<input type="file" accept="image/*" capture="environment" data-tmf-upload="scene" hidden></label>' +
+      '<label class="foms-tmf__uploadbtn"><i class="fas fa-images" aria-hidden="true"></i><span>갤러리 선택</span>' +
+      '<input type="file" accept="image/*,video/*" multiple data-foms-no-capture data-tmf-upload="scene" hidden></label>' +
       "</div>" +
-      '<p class="foms-tmf__amount-note">금액은 계산기·PC 견적에서 산정됩니다. 여기선 최신 저장값을 표시합니다.</p>' +
+      '<div class="foms-tmf__photos" data-tmf-photos><div class="foms-tmf__photo-loading">사진 불러오는 중…</div></div>' +
       "</section>"
     );
   }
 
+  // ── 렌더: ④ 특이사항 3종 + 비고 ────────────────────────────────────
   function renderNotesCard() {
     return (
       '<section class="foms-tmf__section">' +
-      '<h5 class="foms-tmf__title">현장 메모</h5>' +
-      '<textarea class="foms-tmf__textarea" data-tmf-field="notes" rows="3" ' +
-      'placeholder="현장 특이사항 · 시공 참고 메모">' +
-      escapeHtml(state.notes || "") +
-      "</textarea></section>"
+      '<h5 class="foms-tmf__title">특이사항 · 비고</h5>' +
+      '<div class="foms-tmf__formgrid">' +
+      textAreaField("연락처 특이사항", "phone_note", notesValue("phone_note"), { full: true, rows: 2 }) +
+      textAreaField("주소 특이사항", "address_note", notesValue("address_note"), { full: true, rows: 2 }) +
+      textAreaField("실측 특이사항", "measurement_note", notesValue("measurement_note"), { full: true, rows: 2 }) +
+      textAreaField("비고 (현장 메모)", "notes", state.notes || "", {
+        full: true,
+        rows: 3,
+        placeholder: "현장 특이사항 · 시공 참고 메모",
+      }) +
+      "</div></section>"
     );
   }
 
-  function renderPhotosCard() {
-    var editHref = state.ctx && state.ctx.editUrl ? escapeHtml(state.ctx.editUrl) : "";
+  // ── 렌더: ⑤ 일정(실측·시공 날짜/시간) ──────────────────────────────
+  function scheduleTimeControl(stored) {
+    var s = String(stored || "").trim();
+    if (!s) return { select: "", direct: "", isDirect: false };
+    if (TIME_PRESETS.indexOf(s) !== -1) return { select: s, direct: "", isDirect: false };
+    return { select: "__direct__", direct: s, isDirect: true };
+  }
+
+  function timeControlGroup(label, selectKey, directKey, group) {
+    var ctrl = scheduleTimeControl(scheduleValue(group, "time"));
+    return (
+      selectField(label, selectKey, ctrl.select, TIME_SELECT_OPTIONS) +
+      '<div class="foms-tmf__ffield" data-tmf-time-direct="' +
+      group +
+      '"' +
+      (ctrl.isDirect ? "" : " hidden") +
+      ">" +
+      '<label class="foms-tmf__flabel">' +
+      escapeHtml(label + " (직접 입력)") +
+      "</label>" +
+      '<input class="foms-tmf__finput" type="text" autocomplete="off" data-tmf-field="' +
+      directKey +
+      '" value="' +
+      escapeHtml(ctrl.direct) +
+      '" placeholder="예: 09:30"></div>'
+    );
+  }
+
+  function renderScheduleCard() {
     return (
       '<section class="foms-tmf__section">' +
-      '<h5 class="foms-tmf__title">실측 사진</h5>' +
-      '<div class="foms-tmf__photos" data-tmf-photos><div class="foms-tmf__photo-loading">사진 불러오는 중…</div></div>' +
-      (editHref
-        ? '<a class="foms-tmf__photo-add foms-btn foms-btn--secondary foms-btn--sm" href="' +
-          editHref +
-          '"><i class="fas fa-camera" aria-hidden="true"></i><span>ERP 편집에서 첨부</span></a>'
-        : "") +
+      '<h5 class="foms-tmf__title">일정</h5>' +
+      '<div class="foms-tmf__formgrid">' +
+      textField("실측일", "measurement_date", scheduleValue("measurement", "date"), {
+        placeholder: "예: 2026-07-11 (여러 날짜는 쉼표로)",
+      }) +
+      timeControlGroup("실측시간", "measurement_time_select", "measurement_time", "measurement") +
+      textField("시공일", "construction_date", scheduleValue("construction", "date"), {
+        placeholder: "예: 2026-07-24",
+      }) +
+      timeControlGroup("시공시간", "construction_time_select", "construction_time", "construction") +
+      "</div></section>"
+    );
+  }
+
+  // ── 렌더: ⑥ 주문 정보(접힘 아코디언, 전부 편집) ─────────────────────
+  function renderOrderInfoCard() {
+    var urgent = !!flagValue("urgent");
+    var regional = !!state.top.is_regional;
+    var ordererName = partyValue("orderer", "name");
+    var direct = state.ordererDirect;
+    var selectVal = direct ? "" : ordererName;
+    return (
+      '<details class="foms-tmf__section foms-tmf__acc">' +
+      '<summary class="foms-tmf__acc-summary"><span class="foms-tmf__title">주문 정보 (접수·발주·담당·단계)</span>' +
+      '<i class="fas fa-chevron-down foms-tmf__acc-chev" aria-hidden="true"></i></summary>' +
+      '<div class="foms-tmf__acc-body">' +
+      '<div class="foms-tmf__formgrid">' +
+      textField("접수일", "received_date", state.top.received_date, { type: "date" }) +
+      textField("접수시간", "received_time", state.top.received_time, { type: "time" }) +
+      "</div>" +
+      '<div class="foms-tmf__checkrow">' +
+      checkboxField("긴급 발주", "urgent", urgent) +
+      checkboxField("자가 실측", "self_measurement", !!state.top.is_self_measurement) +
+      checkboxField("지방 주문", "regional", regional) +
+      checkboxField("라홈시스템(2공장)", "factory2", !!flagValue("factory2")) +
+      "</div>" +
+      '<div class="foms-tmf__ffield foms-tmf__ffield--full" data-tmf-urgent-field' +
+      (urgent ? "" : " hidden") +
+      '><label class="foms-tmf__flabel">긴급 사유</label>' +
+      '<input class="foms-tmf__finput" type="text" autocomplete="off" data-tmf-field="urgent_reason" value="' +
+      escapeHtml(flagValue("urgent_reason") || "") +
+      '" placeholder="예: 시공일 임박/현장 변경/자재 이슈"></div>' +
+      '<div data-tmf-ctype-field' +
+      (regional ? "" : " hidden") +
+      ">" +
+      selectField(
+        "지방주문 구분",
+        "construction_type",
+        state.top.construction_type,
+        CONSTRUCTION_TYPE_OPTIONS,
+        { full: true, disabled: !regional }
+      ) +
+      "</div>" +
+      '<div class="foms-tmf__checkrow">' +
+      checkboxField("발주사 직접 입력", "orderer_direct", direct) +
+      "</div>" +
+      '<div class="foms-tmf__formgrid">' +
+      '<div class="foms-tmf__ffield" data-tmf-orderer-wrap="select"' +
+      (direct ? " hidden" : "") +
+      '><label class="foms-tmf__flabel">발주사</label>' +
+      '<select class="foms-tmf__finput" data-tmf-field="orderer_select">' +
+      ORDERER_SELECT_OPTIONS.map(function (o) {
+        var sel = String(o[0]) === String(selectVal) ? " selected" : "";
+        return '<option value="' + escapeHtml(o[0]) + '"' + sel + ">" + escapeHtml(o[1]) + "</option>";
+      }).join("") +
+      "</select></div>" +
+      '<div class="foms-tmf__ffield" data-tmf-orderer-wrap="direct"' +
+      (direct ? "" : " hidden") +
+      '><label class="foms-tmf__flabel">발주사 직접 입력값</label>' +
+      '<input class="foms-tmf__finput" type="text" autocomplete="off" data-tmf-field="orderer" value="' +
+      escapeHtml(direct ? ordererName : "") +
+      '" placeholder="발주사 직접 입력"></div>' +
+      textField("담당자", "manager", partyValue("manager", "name")) +
+      selectField("단계 (Workflow)", "workflow_stage", workflowStage(), WORKFLOW_STAGE_OPTIONS) +
+      "</div>" +
+      textAreaField("시공 담당자 (여러 명은 줄바꿈/쉼표)", "construction_workers", constructionWorkersText(), {
+        full: true,
+        rows: 2,
+        placeholder: "예: 홍길동, 김철수",
+      }) +
+      "</div></details>"
+    );
+  }
+
+  // ── 렌더: ⑦ 금액 ───────────────────────────────────────────────────
+  function renderAmountsCard() {
+    var t = recomputeTotals();
+    var a = state.amounts;
+    return (
+      '<section class="foms-tmf__section">' +
+      '<h5 class="foms-tmf__title">금액</h5>' +
+      '<div class="foms-tmf__kvgrid">' +
+      '<div class="foms-tmf__kv"><b>출고가 (품목+배송−할인)</b><span data-tmf-derived="shipping">' +
+      formatWon(t.shipping_price) +
+      "</span></div>" +
+      '<div class="foms-tmf__kv foms-tmf__kv--accent"><b>잔금 = 출고가 − 예약금</b><span data-tmf-derived="balance">' +
+      formatWon(t.balance_amount) +
+      "</span></div>" +
+      "</div>" +
+      '<div class="foms-tmf__formgrid">' +
+      amountField("예약금 (선금)", "deposit", a.deposit, { placeholder: "0" }) +
+      amountField("할인", "discount", a.discount, { placeholder: "0" }) +
+      textField("자유입력 항목명", "__free_text__", a.freeText, { placeholder: "예: 배송비" }) +
+      amountField("자유입력 금액 (배송비)", "free_amount", a.freeAmount, { placeholder: "0" }) +
+      textField("현금영수증", "__cash_receipt__", a.cashReceipt, { placeholder: "발행 정보/번호" }) +
+      "</div>" +
+      textAreaField("잔금 메모", "__balance_note__", a.balanceNote, { full: true, rows: 2 }) +
+      '<p class="foms-tmf__amount-note">출고가·잔금은 항목 금액·예약금·자유입력·할인으로 자동 계산됩니다.</p>' +
+      "</section>"
+    );
+  }
+
+  // ── 렌더: ⑧ 변환 텍스트 / 채널톡 ───────────────────────────────────
+  function renderConversionCard() {
+    return (
+      '<section class="foms-tmf__section">' +
+      '<h5 class="foms-tmf__title">변환 텍스트 · 채널톡</h5>' +
+      '<div class="foms-tmf__convo-actions">' +
+      '<button type="button" class="foms-btn foms-btn--secondary foms-btn--sm" data-tmf-gen-text>' +
+      '<i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i><span>변환 텍스트 생성</span></button>' +
+      '<button type="button" class="foms-btn foms-btn--secondary foms-btn--sm" data-tmf-copy-text>' +
+      '<i class="fas fa-copy" aria-hidden="true"></i><span>복사</span></button>' +
+      '<button type="button" class="foms-btn foms-btn--secondary foms-btn--sm" data-tmf-push-measurement>' +
+      '<i class="fas fa-comment-dots" aria-hidden="true"></i><span>실측 PUSH (영발)</span></button>' +
+      '<button type="button" class="foms-btn foms-btn--secondary foms-btn--sm" data-tmf-push-drawing>' +
+      '<i class="fas fa-compass-drafting" aria-hidden="true"></i><span>도면 PUSH (발주)</span></button>' +
+      "</div>" +
+      '<textarea class="foms-tmf__textarea foms-tmf__convo-text" data-tmf-conversion rows="6" readonly ' +
+      'placeholder="[변환 텍스트 생성]을 누르면 현재 원장 내용이 채널톡용 텍스트로 만들어집니다.">' +
+      escapeHtml(buildConversionText()) +
+      "</textarea>" +
       "</section>"
     );
   }
@@ -512,11 +1114,14 @@
   function renderOrderTab(inj) {
     var formCol =
       '<div class="foms-tmf__ordercol">' +
-      renderCustomerSiteCard() +
+      renderContextCard() +
       renderItemsCard() +
-      renderAmountsCard() +
-      renderNotesCard() +
       renderPhotosCard() +
+      renderNotesCard() +
+      renderScheduleCard() +
+      renderOrderInfoCard() +
+      renderAmountsCard() +
+      renderConversionCard() +
       "</div>";
     var calcAside = state.calcOpen
       ? '<aside class="foms-tmf__calcpane" data-tmf-calcpane>' +
@@ -668,11 +1273,18 @@
   function refreshItemBody() {
     var host = formEl() ? formEl().querySelector("[data-tmf-item-body]") : null;
     if (host) host.innerHTML = renderItemBody();
-    // 제품 항목 수 라벨 갱신(항목 추가 시).
+    // 제품 항목 수 라벨 갱신(항목 추가/삭제 시).
     var sections = formEl() ? formEl().querySelectorAll(".foms-tmf__title") : [];
     Array.prototype.forEach.call(sections, function (h) {
-      if (/^제품 항목/.test(h.textContent || "")) h.textContent = "제품 항목 " + itemsList().length;
+      if (/^실측 기록 · 제품 항목/.test(h.textContent || "")) {
+        h.textContent = "실측 기록 · 제품 항목 " + itemsList().length;
+      }
     });
+  }
+
+  function refreshSpecPanel() {
+    var host = formEl() ? formEl().querySelector("[data-tmf-spec-panel]") : null;
+    if (host) host.innerHTML = renderItemSpec();
   }
 
   function refreshJasuOnly() {
@@ -687,7 +1299,17 @@
     wrap.hidden = !jasu;
   }
 
-  // ── 사진(읽기전용) ──────────────────────────────────────────────────
+  function updateDerivedAmounts() {
+    var form = formEl();
+    if (!form) return;
+    var t = recomputeTotals();
+    var shipEl = form.querySelector('[data-tmf-derived="shipping"]');
+    var balEl = form.querySelector('[data-tmf-derived="balance"]');
+    if (shipEl) shipEl.textContent = formatWon(t.shipping_price);
+    if (balEl) balEl.textContent = formatWon(t.balance_amount);
+  }
+
+  // ── 사진(갤러리 + 업로드) ───────────────────────────────────────────
   function renderPhotos() {
     var host = formEl() ? formEl().querySelector("[data-tmf-photos]") : null;
     if (!host) return;
@@ -753,16 +1375,91 @@
     if (one && (one.view_url || one.url)) window.open(one.view_url || one.url, "_blank", "noopener");
   }
 
+  // 카메라/갤러리 파일 → 순차 업로드(멀티파트). scene=현장 사진(카테고리 select), item=활성 항목(item_index).
+  function uploadFiles(input) {
+    if (!state || !isEditable()) return;
+    var files = input && input.files ? Array.prototype.slice.call(input.files) : [];
+    if (!files.length) return;
+    var kind = input.getAttribute("data-tmf-upload");
+    var orderId = state.orderId;
+    var form = formEl();
+    var catEl = form ? form.querySelector("[data-tmf-photo-cat]") : null;
+    var category = kind === "item" ? "measurement" : (catEl && catEl.value) || "measurement";
+    var itemIndex = kind === "item" ? state.activeItem : null;
+    var total = files.length;
+    var done = 0;
+    var failed = 0;
+    setStatus("사진 업로드 중… (0/" + total + ")", "saving");
+
+    function uploadOne(i) {
+      if (i >= files.length) {
+        input.value = "";
+        if (!state || state.orderId !== orderId) return;
+        if (failed) setStatus("사진 " + (total - failed) + "/" + total + " 업로드 (실패 " + failed + ")", failed === total ? "error" : "saved");
+        else setStatus("사진 " + total + "장 업로드 완료", "saved");
+        renderPhotos();
+        return;
+      }
+      var fd = new FormData();
+      fd.append("file", files[i]);
+      fd.append("category", category);
+      if (itemIndex != null) fd.append("item_index", String(itemIndex));
+      fetch(attachmentsUploadUrl(orderId), { method: "POST", credentials: "same-origin", body: fd })
+        .then(function (res) {
+          return res.json().then(function (d) {
+            return { ok: res.ok, data: d };
+          });
+        })
+        .then(function (r) {
+          if (!r.data || !r.data.success) failed += 1;
+          done += 1;
+          if (state && state.orderId === orderId) {
+            setStatus("사진 업로드 중… (" + done + "/" + total + ")", "saving");
+          }
+          uploadOne(i + 1);
+        })
+        .catch(function () {
+          failed += 1;
+          done += 1;
+          uploadOne(i + 1);
+        });
+    }
+    uploadOne(0);
+  }
+
   // ── 저장(PUT read-merge-write) ──────────────────────────────────────
+  function normalizedConstructionType() {
+    return String(state.top.construction_type || "").trim();
+  }
+
   function buildPayload() {
-    // 이 폼이 편집하는 키만 담고, 나머지(raw_order_text/received_*/is_regional/construction_type/
-    // is_self_measurement)는 생략한다 → 서버가 키 부재를 보존으로 처리(clobber 방지).
+    recomputeTotals();
+    normalizeItemsForSave();
     var payload = {
       structured_data: state.structured,
       structured_schema_version: state.schemaVersion || 1,
       notes: state.notes != null ? state.notes : "",
     };
     if (state.confidence != null) payload.structured_confidence = state.confidence;
+
+    // top-level 컬럼: baseline 과 다를 때만 포함(키 부재=서버 보존, GET 원값 에코=안전).
+    var b = state.topBaseline;
+    var t = state.top;
+    if (t.received_date !== b.received_date) payload.received_date = t.received_date;
+    if (t.received_time !== b.received_time) payload.received_time = t.received_time;
+    if (t.is_self_measurement !== b.is_self_measurement) payload.is_self_measurement = !!t.is_self_measurement;
+
+    // is_regional / construction_type 쌍 계약: 하나라도 변경 시 둘 다 함께 포함.
+    // 단, 지방 ON + 구분 미선택(무효 쌍)이면 생략(서버 400 방지) — 명시 저장은 사전 가드에서 차단.
+    var regionalChanged = !!t.is_regional !== !!b.is_regional;
+    var ctypeChanged = normalizedConstructionType() !== String(b.construction_type || "").trim();
+    if (regionalChanged || ctypeChanged) {
+      var validPair = !t.is_regional || (t.is_regional && normalizedConstructionType());
+      if (validPair) {
+        payload.is_regional = !!t.is_regional;
+        payload.construction_type = t.is_regional ? normalizedConstructionType() : "";
+      }
+    }
     return payload;
   }
 
@@ -799,6 +1496,21 @@
       .then(function (data) {
         if (data && data.success && state && state.orderId === orderId) {
           state.baselineUpdatedAt = data.structured_updated_at;
+          // top-level baseline 재동기화(서버가 정규화한 값 반영 → 다음 저장 clobber 방지).
+          state.topBaseline = {
+            received_date: data.received_date || "",
+            received_time: data.received_time || "",
+            is_self_measurement: !!data.is_self_measurement,
+            is_regional: !!data.is_regional,
+            construction_type: data.construction_type || "",
+          };
+          state.top = {
+            received_date: state.top.received_date,
+            received_time: state.top.received_time,
+            is_self_measurement: state.top.is_self_measurement,
+            is_regional: state.top.is_regional,
+            construction_type: state.top.construction_type,
+          };
         }
       })
       .catch(function () {});
@@ -827,21 +1539,30 @@
   function saveNow(opts) {
     opts = opts || {};
     if (!state || !isEditable()) return;
+    var explicit = !!opts.explicit;
+    var isComplete = !!opts.complete;
+    var isDraft = !!opts.draft;
+
+    // 지방 ON + 구분 미선택 → 명시 저장/실측완료 차단(서버 쌍 400 방지, PC 미러).
+    if ((explicit || isComplete) && state.top.is_regional && !normalizedConstructionType()) {
+      setStatus("지방주문 구분(하우드/협력사)을 선택해주세요.", "error");
+      var ctypeSel = formEl() ? formEl().querySelector('[data-tmf-field="construction_type"]') : null;
+      if (ctypeSel && typeof ctypeSel.focus === "function") ctypeSel.focus();
+      return;
+    }
+
     if (state.saving) {
       state.pendingSave = true;
       return;
     }
     window.clearTimeout(state.saveTimer);
     var orderId = state.orderId;
-    var explicit = !!opts.explicit;
-    var isComplete = !!opts.complete;
-    var isDraft = !!opts.draft;
 
     // 실측 완료: workflow.stage=DRAWING 을 이 PUT 에만 실어 서버가 단계 전환하게 한다.
     var stageApplied = false;
     var prevStage;
     if (isComplete) {
-      var wf = ensureObj(state.structured, "workflow");
+      var wf = ensureWorkflow();
       prevStage = wf.stage;
       wf.stage = NEXT_STAGE_ON_COMPLETE;
       stageApplied = true;
@@ -912,13 +1633,22 @@
     var sd = state.structured || {};
     var c = (sd.parties && sd.parties.customer) || {};
     var lines = [];
+    if (flagValue("factory2")) lines.push("★★");
     lines.push("[고객] " + (c.name || "") + (c.phone ? " " + c.phone : ""));
     var addr = siteAddress();
     if (addr) lines.push("[현장] " + addr);
     var mDate = scheduleValue("measurement", "date");
-    if (mDate) lines.push("[실측] " + mDate + (scheduleValue("measurement", "time") ? " " + scheduleValue("measurement", "time") : ""));
+    if (mDate) {
+      lines.push(
+        "[실측] " + mDate + (scheduleValue("measurement", "time") ? " " + scheduleValue("measurement", "time") : "")
+      );
+    }
     var cDate = scheduleValue("construction", "date");
-    if (cDate) lines.push("[시공] " + cDate);
+    if (cDate) {
+      lines.push(
+        "[시공] " + cDate + (scheduleValue("construction", "time") ? " " + scheduleValue("construction", "time") : "")
+      );
+    }
     var items = itemsList();
     if (items.length) {
       lines.push("[제품]");
@@ -926,17 +1656,67 @@
         var name = (it && (it.product_name || it.name)) || "제품 " + (i + 1);
         var spec = it && it.spec ? it.spec : "";
         var jasu = itemJasuDisplay(it);
+        var color = defaultConsult(it.color);
         lines.push(
-          "  " + (i + 1) + ". " + name + (spec ? " (" + spec + ")" : "") + (jasu ? " 자수 " + jasu : "")
+          "  " +
+            (i + 1) +
+            ". " +
+            name +
+            (spec ? " (" + spec + ")" : "") +
+            (jasu ? " 자수 " + jasu : "") +
+            (color && color !== "상담" ? " / 색상 " + color : "")
         );
       });
     }
-    var a = computeAmounts();
-    lines.push("[금액] 출고가 " + formatWon(a.shipping) + " / 예약금 " + formatWon(a.deposit) + " / 잔금 " + formatWon(a.balance));
+    var a = getDisplayAmounts();
+    var free = buildFreeInputStored(state.amounts.freeText, state.amounts.freeAmount);
+    if (free) lines.push("[자유입력] " + free);
+    lines.push(
+      "[금액] 출고가 " + formatWon(a.shipping) + " / 예약금 " + formatWon(a.deposit) + " / 잔금 " + formatWon(a.balance)
+    );
+    var cash = String(state.amounts.cashReceipt || "").trim();
+    if (cash) lines.push("[현금영수증] " + cash);
     return lines.join("\n");
   }
 
-  function pushManual(orderId, text, changeNote) {
+  function refreshConversionText() {
+    var form = formEl();
+    var ta = form ? form.querySelector("[data-tmf-conversion]") : null;
+    if (ta) ta.value = buildConversionText();
+    return ta;
+  }
+
+  function copyConversionText() {
+    var ta = refreshConversionText();
+    var text = ta ? ta.value : buildConversionText();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(
+        function () {
+          setStatus("변환 텍스트 복사됨", "saved");
+        },
+        function () {
+          legacyCopy(ta);
+        }
+      );
+      return;
+    }
+    legacyCopy(ta);
+  }
+  function legacyCopy(ta) {
+    try {
+      if (ta && typeof ta.select === "function") {
+        ta.removeAttribute("readonly");
+        ta.select();
+        document.execCommand("copy");
+        ta.setAttribute("readonly", "readonly");
+        setStatus("변환 텍스트 복사됨", "saved");
+        return;
+      }
+    } catch (e) {}
+    setStatus("복사 실패 — 텍스트를 직접 선택해 복사하세요.", "error");
+  }
+
+  function pushManual(orderId, text, pushKind, changeNote) {
     fetch("/api/channel/push-manual", {
       method: "POST",
       credentials: "same-origin",
@@ -944,7 +1724,7 @@
       body: JSON.stringify({
         order_id: orderId,
         text: text,
-        push_kind: "measurement",
+        push_kind: pushKind || "measurement",
         change_note: changeNote || "",
       }),
     })
@@ -964,7 +1744,7 @@
         if (r.status === 400 && /변경/.test(msg)) {
           var note = window.prompt(msg + "\n\n변경 내용을 입력하세요(재전송):", "");
           if (note && note.trim()) {
-            pushManual(orderId, text, note.trim());
+            pushManual(orderId, text, pushKind, note.trim());
             return;
           }
           setStatus("채널톡 전송 취소", "");
@@ -975,6 +1755,12 @@
       .catch(function () {
         if (state && state.orderId === orderId) setStatus("채널톡 전송 실패(네트워크)", "error");
       });
+  }
+
+  function requestPush(pushKind) {
+    if (!state || !isEditable()) return;
+    setStatus("채널톡 전송 중…", "saving");
+    pushManual(state.orderId, buildConversionText(), pushKind, "");
   }
 
   // ── 공개 API(tablet-measurement.js 가 구동) ────────────────────────
@@ -998,14 +1784,53 @@
           if (inj) inj.innerHTML = '<div class="foms-tmf__loading">주문 원장을 불러오지 못했습니다.</div>';
           return;
         }
+        var sd = deepClone(data.structured_data);
+        var payment = sd.payment && typeof sd.payment === "object" ? sd.payment : {};
+        var freeParts = splitFreeInputForForm(resolveFreeInputText(sd));
+        var ordererName = (sd.parties && sd.parties.orderer && sd.parties.orderer.name) || "";
+        ordererName = String(ordererName).trim();
+        var topBase = {
+          received_date: data.received_date || "",
+          received_time: data.received_time || "",
+          is_self_measurement: !!data.is_self_measurement,
+          is_regional: !!data.is_regional,
+          construction_type: data.construction_type || "",
+        };
         state = {
           orderId: orderId,
           ctx: ctx || {},
-          structured: deepClone(data.structured_data),
+          structured: sd,
           notes: data.notes || "",
           schemaVersion: data.structured_schema_version || 1,
           confidence: data.structured_confidence != null ? data.structured_confidence : null,
           baselineUpdatedAt: data.structured_updated_at || null,
+          topBaseline: topBase,
+          top: {
+            received_date: topBase.received_date,
+            received_time: topBase.received_time,
+            is_self_measurement: topBase.is_self_measurement,
+            is_regional: topBase.is_regional,
+            construction_type: topBase.construction_type,
+          },
+          amounts: {
+            deposit: resolveDepositAmount(sd),
+            discount: resolveDiscountAmount(sd),
+            freeText: freeParts.text,
+            freeAmount: freeParts.amount,
+            cashReceipt: resolveCashReceipt(sd),
+            balanceNote: resolveBalanceNote(sd),
+          },
+          paymentBase: {
+            deposit_confirmed: !!payment.deposit_confirmed,
+            deposit_confirmed_at: payment.deposit_confirmed_at || null,
+            deposit_confirmed_by: payment.deposit_confirmed_by || null,
+            deposit_confirmed_by_user_id: payment.deposit_confirmed_by_user_id || null,
+            balance_confirmed: !!payment.balance_confirmed,
+            balance_confirmed_at: payment.balance_confirmed_at || null,
+            balance_confirmed_by: payment.balance_confirmed_by || null,
+            balance_confirmed_by_user_id: payment.balance_confirmed_by_user_id || null,
+          },
+          ordererDirect: !(ordererName === "" || ordererName === "라홈" || ordererName === "하우드"),
           activeItem: 0,
           activeTab: "order",
           calcOpen: false,
@@ -1046,9 +1871,7 @@
   }
 
   function requestChannelPush() {
-    if (!state || !isEditable()) return;
-    setStatus("채널톡 전송 중…", "saving");
-    pushManual(state.orderId, buildConversionText(), "");
+    requestPush("measurement");
   }
 
   function switchTab(tab) {
@@ -1081,17 +1904,29 @@
     return target && target.closest && target.closest("[data-foms-tmf]");
   }
 
+  // input: 텍스트/텍스트영역/숫자 필드(select·checkbox·file 제외 — change 에서 처리).
   document.addEventListener("input", function (ev) {
     if (!state) return;
     var t = ev.target;
     if (!withinForm(t)) return;
+    if (t.tagName === "SELECT") return;
+    if (t.type === "checkbox" || t.type === "radio" || t.type === "file") return;
 
     var field = t.getAttribute("data-tmf-field");
     if (field) {
       applyFieldEdit(field, t);
       return;
     }
-
+    var itemField = t.getAttribute("data-tmf-itemfield");
+    if (itemField) {
+      applyItemFieldEdit(itemField, t);
+      return;
+    }
+    var amount = t.getAttribute("data-tmf-amount");
+    if (amount) {
+      applyAmountEdit(amount, t);
+      return;
+    }
     var spec = t.getAttribute("data-tmf-spec");
     if (spec) {
       applySpecEdit(t, spec);
@@ -1100,12 +1935,60 @@
     }
   });
 
+  // change: select / checkbox / file. + 숫자 필드 blur 시 콤마 재포맷.
+  document.addEventListener("change", function (ev) {
+    if (!state) return;
+    var t = ev.target;
+    if (!withinForm(t)) return;
+
+    if (t.type === "file" && t.getAttribute("data-tmf-upload")) {
+      uploadFiles(t);
+      return;
+    }
+    if (t.tagName === "SELECT" || t.type === "checkbox") {
+      var field = t.getAttribute("data-tmf-field");
+      if (field) applyFieldEdit(field, t);
+      return;
+    }
+    var amount = t.getAttribute("data-tmf-amount");
+    if (amount && (amount === "deposit" || amount === "discount" || amount === "free_amount")) {
+      var stored =
+        amount === "deposit"
+          ? state.amounts.deposit
+          : amount === "discount"
+          ? state.amounts.discount
+          : state.amounts.freeAmount;
+      t.value = stored > 0 ? formatWon(stored) : "";
+    }
+    var itemAmount = t.getAttribute("data-tmf-itemfield");
+    if (itemAmount === "price") {
+      var item = itemsList()[state.activeItem];
+      var n = item ? coerceAmount(item.price) : 0;
+      t.value = n > 0 ? formatWon(n) : "";
+    }
+  });
+
+  function applyOrdererEdit() {
+    var form = formEl();
+    if (!form) return;
+    var direct = form.querySelector('[data-tmf-field="orderer_direct"]');
+    var sel = form.querySelector('[data-tmf-field="orderer_select"]');
+    var inp = form.querySelector('[data-tmf-field="orderer"]');
+    var selWrap = form.querySelector('[data-tmf-orderer-wrap="select"]');
+    var dirWrap = form.querySelector('[data-tmf-orderer-wrap="direct"]');
+    var isDirect = !!(direct && direct.checked);
+    state.ordererDirect = isDirect;
+    if (selWrap) selWrap.hidden = isDirect;
+    if (dirWrap) dirWrap.hidden = !isDirect;
+    var val = isDirect ? (inp ? inp.value.trim() : "") : sel ? sel.value : "";
+    ensureParty("orderer").name = val;
+  }
+
   function applyFieldEdit(field, input) {
     var v = input.value;
     switch (field) {
       case "customer_name":
         ensureParty("customer").name = v;
-        // 좌측 카드/컨텍스트 이름 라이브 반영(서버 재렌더 전 UX).
         var nameEl = chromeQuery("[data-foms-tablet-measure-context-name]");
         if (nameEl) nameEl.textContent = v || "-";
         break;
@@ -1119,21 +2002,18 @@
         if (site.address_detail == null) site.address_detail = "";
         break;
       case "orderer":
-        ensureParty("orderer").name = v;
+      case "orderer_select":
+      case "orderer_direct":
+        applyOrdererEdit();
         break;
       case "manager":
         ensureParty("manager").name = v;
         break;
-      case "measurement_date":
-        ensureMeasurementSchedule().date = v;
+      case "construction_workers":
+        ensureShipment().construction_workers = normalizeConstructionWorkers(v);
         break;
-      case "measurement_time":
-        ensureMeasurementSchedule().time = v;
-        break;
-      case "construction_date":
-        var cs = ensureConstructionSchedule();
-        cs.date = v;
-        if (cs.raw == null) cs.raw = "";
+      case "workflow_stage":
+        ensureWorkflow().stage = v;
         break;
       case "product_name":
         var it = itemsList()[state.activeItem];
@@ -1144,9 +2024,144 @@
       case "notes":
         state.notes = v;
         break;
+      case "phone_note":
+        ensureNotesObj().phone_note = v;
+        refreshBadges();
+        break;
+      case "address_note":
+        ensureNotesObj().address_note = v;
+        refreshBadges();
+        break;
+      case "measurement_note":
+        ensureNotesObj().measurement_note = v;
+        refreshBadges();
+        break;
+      case "measurement_date":
+        ensureMeasurementSchedule().date = v;
+        break;
+      case "measurement_time_select":
+        applyTimeSelect("measurement", input);
+        break;
+      case "measurement_time":
+        ensureMeasurementSchedule().time = v;
+        break;
+      case "construction_date":
+        var cs = ensureConstructionSchedule();
+        cs.date = v;
+        if (cs.raw == null) cs.raw = "";
+        break;
+      case "construction_time_select":
+        applyTimeSelect("construction", input);
+        break;
+      case "construction_time":
+        var cs2 = ensureConstructionSchedule();
+        cs2.time = v;
+        if (cs2.raw == null) cs2.raw = "";
+        break;
+      case "received_date":
+        state.top.received_date = v;
+        break;
+      case "received_time":
+        state.top.received_time = v;
+        break;
+      case "self_measurement":
+        state.top.is_self_measurement = !!input.checked;
+        break;
+      case "regional":
+        applyRegionalToggle(!!input.checked);
+        break;
+      case "construction_type":
+        state.top.construction_type = v;
+        break;
+      case "urgent":
+        applyUrgentToggle(!!input.checked);
+        break;
+      case "urgent_reason":
+        ensureFlags().urgent_reason = v;
+        break;
+      case "factory2":
+        ensureFlags().factory2 = !!input.checked;
+        break;
+      case "__free_text__":
+        state.amounts.freeText = v;
+        recomputeTotals();
+        break;
+      case "__cash_receipt__":
+        state.amounts.cashReceipt = v;
+        recomputeTotals();
+        break;
+      case "__balance_note__":
+        state.amounts.balanceNote = v;
+        recomputeTotals();
+        break;
       default:
         return;
     }
+    scheduleAutosave();
+  }
+
+  function applyTimeSelect(group, select) {
+    var sch = group === "measurement" ? ensureMeasurementSchedule() : ensureConstructionSchedule();
+    var form = formEl();
+    var directWrap = form ? form.querySelector('[data-tmf-time-direct="' + group + '"]') : null;
+    var directInput = form ? form.querySelector('[data-tmf-field="' + group + '_time"]') : null;
+    if (select.value === "__direct__") {
+      if (directWrap) directWrap.hidden = false;
+      sch.time = directInput ? directInput.value : "";
+    } else {
+      if (directWrap) directWrap.hidden = true;
+      sch.time = select.value;
+    }
+    if (group === "construction" && sch.raw == null) sch.raw = "";
+  }
+
+  function applyRegionalToggle(checked) {
+    state.top.is_regional = checked;
+    var form = formEl();
+    var field = form ? form.querySelector("[data-tmf-ctype-field]") : null;
+    var sel = form ? form.querySelector('[data-tmf-field="construction_type"]') : null;
+    if (field) field.hidden = !checked;
+    if (sel) sel.disabled = !checked;
+    if (!checked) {
+      if (sel) sel.value = "";
+      state.top.construction_type = "";
+    }
+  }
+
+  function applyUrgentToggle(checked) {
+    ensureFlags().urgent = checked;
+    var form = formEl();
+    var field = form ? form.querySelector("[data-tmf-urgent-field]") : null;
+    if (field) field.hidden = !checked;
+    if (!checked) {
+      var input = form ? form.querySelector('[data-tmf-field="urgent_reason"]') : null;
+      if (input) input.value = "";
+      ensureFlags().urgent_reason = "";
+    }
+  }
+
+  function applyItemFieldEdit(field, input) {
+    var item = itemsList()[state.activeItem];
+    if (!item || typeof item !== "object") return;
+    if (field === "price") {
+      item.price = input.value;
+      updateDerivedAmounts();
+    } else {
+      item[field] = input.value;
+    }
+    scheduleAutosave();
+  }
+
+  // 숫자 금액 필드(예약금/할인/자유입력 금액). 자유입력 항목명·현금영수증·잔금 메모는 텍스트라
+  // data-tmf-field(__free_text__ 등)로 applyFieldEdit 가 처리한다.
+  function applyAmountEdit(key, input) {
+    var digits = String(input.value || "").replace(/[^0-9]/g, "");
+    var n = digits ? parseInt(digits, 10) : 0;
+    if (key === "deposit") state.amounts.deposit = n;
+    else if (key === "discount") state.amounts.discount = n;
+    else if (key === "free_amount") state.amounts.freeAmount = n;
+    else return;
+    updateDerivedAmounts();
     scheduleAutosave();
   }
 
@@ -1192,11 +2207,82 @@
     if (addItem) {
       ev.preventDefault();
       if (!Array.isArray(state.structured.items)) state.structured.items = [];
-      // PC collect 호환 최소 shape: product_name + spec_rows[1] (price 등은 계산기/PC 산정).
-      state.structured.items.push({ product_name: "", spec_rows: [{}] });
+      // PC collect 호환 최소 shape + 상담 기본값(정규화 저장과 정합).
+      state.structured.items.push({
+        product_name: "",
+        spec_rows: [{}],
+        color: "상담",
+        option_detail: "상담",
+        handle: "상담",
+        internal: "상담",
+        misc: "상담",
+      });
       state.activeItem = state.structured.items.length - 1;
       refreshItemBody();
       scheduleAutosave();
+      return;
+    }
+
+    var delItem = t.closest("[data-tmf-del-item]");
+    if (delItem) {
+      ev.preventDefault();
+      var list = itemsList();
+      if (list.length <= 1) {
+        setStatus("최소 1개 항목이 필요합니다.", "error");
+        return;
+      }
+      var didx = parseInt(delItem.getAttribute("data-tmf-del-item") || "-1", 10);
+      if (didx >= 0 && didx < list.length) {
+        list.splice(didx, 1);
+        if (state.activeItem >= list.length) state.activeItem = list.length - 1;
+        refreshItemBody();
+        updateDerivedAmounts();
+        scheduleAutosave();
+      }
+      return;
+    }
+
+    var addSpec = t.closest("[data-tmf-add-spec-row]");
+    if (addSpec) {
+      ev.preventDefault();
+      var itemA = itemsList()[state.activeItem];
+      if (itemA) {
+        if (!Array.isArray(itemA.spec_rows)) itemA.spec_rows = [];
+        itemA.spec_rows.push({});
+        refreshSpecPanel();
+        scheduleAutosave();
+      }
+      return;
+    }
+
+    var delSpec = t.closest("[data-tmf-del-spec-row]");
+    if (delSpec) {
+      ev.preventDefault();
+      var itemD = itemsList()[state.activeItem];
+      if (itemD && Array.isArray(itemD.spec_rows)) {
+        var sidx = parseInt(delSpec.getAttribute("data-tmf-del-spec-row") || "-1", 10);
+        if (sidx >= 0 && sidx < itemD.spec_rows.length) {
+          itemD.spec_rows.splice(sidx, 1);
+          if (!itemD.spec_rows.length) itemD.spec_rows.push({});
+          // 파생 재계산(첫 행 기준).
+          var f = itemD.spec_rows[0] || {};
+          itemD.spec_width = f.spec_width || "";
+          itemD.spec_depth = f.spec_depth || "";
+          itemD.spec_height = f.spec_height || "";
+          var ln = itemD.spec_rows
+            .map(function (r) {
+              return [r.spec_width, r.spec_depth, r.spec_height]
+                .filter(function (val) {
+                  return val != null && String(val).trim() !== "";
+                })
+                .join("x");
+            })
+            .filter(Boolean);
+          itemD.spec = ln.join(", ");
+          refreshSpecPanel();
+          scheduleAutosave();
+        }
+      }
       return;
     }
 
@@ -1215,6 +2301,32 @@
     if (photo) {
       ev.preventDefault();
       openPhoto(parseInt(photo.getAttribute("data-tmf-photo") || "0", 10));
+      return;
+    }
+
+    var genText = t.closest("[data-tmf-gen-text]");
+    if (genText) {
+      ev.preventDefault();
+      refreshConversionText();
+      setStatus("변환 텍스트 생성됨", "saved");
+      return;
+    }
+    var copyText = t.closest("[data-tmf-copy-text]");
+    if (copyText) {
+      ev.preventDefault();
+      copyConversionText();
+      return;
+    }
+    var pushMeas = t.closest("[data-tmf-push-measurement]");
+    if (pushMeas) {
+      ev.preventDefault();
+      requestPush("measurement");
+      return;
+    }
+    var pushDraw = t.closest("[data-tmf-push-drawing]");
+    if (pushDraw) {
+      ev.preventDefault();
+      requestPush("drawing");
       return;
     }
 
