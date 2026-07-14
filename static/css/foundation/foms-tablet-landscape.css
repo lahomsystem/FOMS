@@ -1068,3 +1068,113 @@
     display: none !important;
   }
 }
+
+/* ============================================================
+   필터바 슬림 필 톤 — W12 (2026-07-13, T7).
+
+   태블릿 가로 코호트에서 legacy PC 필터바(dashboard_filters.html)를 목업 v2의
+   "슬림 중립 필" 톤으로 보정한다. 마크업 무변경 — dashboard_filters.html 은 PC
+   대시보드와 공유되므로 인라인 스타일/구조를 건드리지 않고, 코호트 MQ + 코호트
+   게이트(body.erp-mobile-v2-layout) 스코프의 CSS 만으로 톤을 덮는다.
+
+   목업 정합(artifact filterbar/.f-input/.f-sel/.f-check/ghost btn — 팔레트가
+   FOMS 토큰과 1:1: #f7f8fa=neutral-50=surface-subtle, #ffffff=surface-base,
+   #dde1e6=neutral-200=border-subtle, #4b525d=neutral-600=text-secondary,
+   #6b7380=neutral-500=text-tertiary, #5a67d8=brand-500=interactive-primary,
+   #f3f4ff=brand-50=interactive-primary-soft):
+     - 컨테이너: 인라인 border-top(#e9ecef)·padding(0.75rem 1.25rem) → 중립 표면 +
+       서브틀 디바이더 + 슬림 패딩(!important 로 인라인 격파, 24px 체크박스 전례와 동일).
+     - 검색: input-group 을 하나의 라운드 필로. 입력=surface-subtle, 검색 버튼은
+       솔리드 브랜드 블루(.btn-primary) 제거 → brand-subtle 통합 아이콘 버튼.
+     - select(단계/담당팀): 서브틀 보더 + radius-lg + 중립 표면 + 세컨더리 텍스트
+       (.f-sel 톤). Bootstrap 드롭다운 화살표 배경 이미지는 보존.
+     - 체크(긴급만/경보만/내 담당): 24px 터치(기존 rule 4 유지) + 라벨 톤 통일 +
+       체크 상태 브랜드색.
+     - 초기화(.btn-outline-secondary): 중립 서브틀 필 + 44px 터치.
+
+   특이도: dashboard-grid.css 의 `#erp-filters-form .form-*`(1,1,0) 를 이기려면
+   id 스코프가 필요 → `body.erp-mobile-v2-layout #erp-filters-form ...`(1,2,x)로
+   선언한다(rule 3b 전례와 동일). 인라인·Bootstrap input-group 라운드 리셋 대비는
+   해당 속성에 !important 병행. 전 규칙이 coarse MQ + 코호트 게이트 안 → PC(fine
+   포인터)·폰(<992/portrait)·세로 태블릿 100% 무영향. */
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+
+  /* 컨테이너: 중립 표면 + 서브틀 디바이더 + 슬림 패딩(인라인 격파). */
+  body.erp-mobile-v2-layout .erp-dashboard-filters {
+    background: var(--foms-surface-base, #ffffff) !important;
+    border-top: 1px solid var(--foms-border-subtle, #dde1e6) !important;
+    padding: var(--foms-space-3, 0.75rem) var(--foms-space-4, 1rem) !important;
+  }
+
+  /* 폼 gap: bootstrap .gap-3(1rem !important) → 8px 응집 간격. */
+  body.erp-mobile-v2-layout #erp-filters-form {
+    gap: var(--foms-space-2, 0.5rem) !important;
+  }
+
+  /* 검색 입력: 중립 서브틀 표면 + 서브틀 보더 + 왼쪽 라운드(필 좌단). */
+  body.erp-mobile-v2-layout #erp-filters-form .input-group .form-control {
+    background: var(--foms-surface-subtle, #f7f8fa);
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-right: 0;
+    color: var(--foms-text-primary);
+    border-top-left-radius: var(--foms-radius-lg, 12px) !important;
+    border-bottom-left-radius: var(--foms-radius-lg, 12px) !important;
+  }
+  /* 검색 버튼: 솔리드 브랜드 블루 제거 → brand-subtle 통합 아이콘 버튼(필 우단, 44px). */
+  body.erp-mobile-v2-layout #erp-filters-form .input-group .btn-primary {
+    min-height: var(--foms-touch-target-comfortable, 44px);
+    background: var(--foms-interactive-primary-soft, #f3f4ff);
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-left: 0;
+    color: var(--foms-interactive-primary, #5a67d8);
+    border-top-right-radius: var(--foms-radius-lg, 12px) !important;
+    border-bottom-right-radius: var(--foms-radius-lg, 12px) !important;
+    box-shadow: none;
+  }
+  body.erp-mobile-v2-layout #erp-filters-form .input-group .btn-primary:hover,
+  body.erp-mobile-v2-layout #erp-filters-form .input-group .btn-primary:focus,
+  body.erp-mobile-v2-layout #erp-filters-form .input-group .btn-primary:active {
+    background: var(--foms-surface-accent, #f3f4ff);
+    border-color: var(--foms-border-subtle, #dde1e6);
+    color: var(--foms-interactive-primary, #5a67d8);
+  }
+
+  /* 단계/담당팀 select: 필 톤(서브틀 보더·radius-lg·중립 표면·세컨더리 텍스트). */
+  body.erp-mobile-v2-layout #erp-filters-form .form-select {
+    background-color: var(--foms-surface-base, #ffffff);
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: var(--foms-radius-lg, 12px);
+    color: var(--foms-text-secondary, #4b525d);
+    font-weight: var(--foms-font-weight-semibold, 600);
+  }
+
+  /* 체크 라벨: 톤 통일(세컨더리·semibold·sm). 인라인 font-size:0.9rem → !important. */
+  body.erp-mobile-v2-layout .erp-dashboard-filters .form-check-label {
+    color: var(--foms-text-secondary, #4b525d);
+    font-size: var(--foms-font-size-sm, 0.875rem) !important;
+    font-weight: var(--foms-font-weight-semibold, 600);
+  }
+  /* 체크 상태: 브랜드색(24px 크기는 rule 4 가 소유 — 여기선 색만). */
+  body.erp-mobile-v2-layout .erp-dashboard-filters .form-check-input:checked {
+    background-color: var(--foms-interactive-primary, #5a67d8);
+    border-color: var(--foms-interactive-primary, #5a67d8);
+  }
+
+  /* 초기화: 중립 서브틀 필 + 44px 터치. */
+  body.erp-mobile-v2-layout #erp-filters-form .btn-outline-secondary {
+    min-height: var(--foms-touch-target-comfortable, 44px);
+    display: inline-flex;
+    align-items: center;
+    background: var(--foms-surface-base, #ffffff);
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: var(--foms-radius-lg, 12px);
+    color: var(--foms-text-secondary, #4b525d);
+    font-weight: var(--foms-font-weight-semibold, 600);
+  }
+  body.erp-mobile-v2-layout #erp-filters-form .btn-outline-secondary:hover,
+  body.erp-mobile-v2-layout #erp-filters-form .btn-outline-secondary:focus {
+    background: var(--foms-surface-subtle, #f7f8fa);
+    border-color: var(--foms-border-default, #c1c7d0);
+    color: var(--foms-text-primary);
+  }
+}
