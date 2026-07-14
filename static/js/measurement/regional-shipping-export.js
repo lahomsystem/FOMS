@@ -181,7 +181,8 @@
     /**
      * 현재 보이는(필터 통과) 상차 행만 수집 → 상차일 기준으로 그룹 정렬.
      * 1차 상차일 오름차순(빈 상차일은 맨 뒤), 2차 지역(시/도) 순서,
-     * 3차 주소 가나다순으로 묶어 인접 배치.
+     * 3차 설치일 오름차순(빈 설치일은 그룹 맨 뒤), 4차 주소 가나다순 tiebreak.
+     * (백엔드 regional_dashboard shipping_alerts.sort와 동일 기준 — 화면·이미지 통일.)
      * @param {HTMLElement} card
      * @returns {Array}
      */
@@ -206,7 +207,11 @@
             // 2차: 지역(시/도) 순서.
             var diff = regionIndex(a.region) - regionIndex(b.region);
             if (diff !== 0) return diff;
-            // 3차: 주소 가나다순.
+            // 3차: 설치일 오름차순. 빈 설치일은 그룹 맨 뒤('9999-12-31' 취급).
+            var ia = a.scheduled_date || '9999-12-31';
+            var ib = b.scheduled_date || '9999-12-31';
+            if (ia !== ib) return ia < ib ? -1 : 1;
+            // 4차: 주소 가나다순(동률 tiebreak).
             return a.address.localeCompare(b.address, 'ko');
         });
         return rows;

@@ -430,6 +430,53 @@ def erp_measurement_dashboard():
 dashboards_bp = Blueprint("dashboards", __name__, url_prefix="")
 
 
+# 지방 대시보드 "상차 예정 알림" 지역(시/도) 정렬용 상수.
+# export JS(static/js/measurement/regional-shipping-export.js)의
+# REGION_ORDER/REGION_CANON을 그대로 포팅 — 화면 대시보드와 이미지 저장이
+# 같은 순서를 내도록 한 기준으로 통일한다. 순서가 어긋나면 두 출력이 갈리므로
+# export JS 상수를 정본으로 삼아 동일하게 유지해야 한다.
+_REGIONAL_REGION_ORDER = [
+    "서울", "부산", "대구", "인천", "광주", "대전", "울산", "세종",
+    "경기", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주",
+]
+_REGIONAL_REGION_CANON = {
+    "서울": "서울", "서울특별시": "서울",
+    "부산": "부산", "부산광역시": "부산",
+    "대구": "대구", "대구광역시": "대구",
+    "인천": "인천", "인천광역시": "인천",
+    "광주": "광주", "광주광역시": "광주",
+    "대전": "대전", "대전광역시": "대전",
+    "울산": "울산", "울산광역시": "울산",
+    "세종": "세종", "세종시": "세종", "세종특별자치시": "세종",
+    "경기": "경기", "경기도": "경기",
+    "강원": "강원", "강원도": "강원", "강원특별자치도": "강원",
+    "충북": "충북", "충청북도": "충북",
+    "충남": "충남", "충청남도": "충남",
+    "전북": "전북", "전라북도": "전북", "전북특별자치도": "전북",
+    "전남": "전남", "전라남도": "전남",
+    "경북": "경북", "경상북도": "경북",
+    "경남": "경남", "경상남도": "경남",
+    "제주": "제주", "제주도": "제주", "제주특별자치도": "제주",
+}
+
+
+def _regional_region_index(address: str | None) -> int:
+    """주소 첫 공백토큰 → 시/도(canonical) → 정렬 인덱스. 미인식·빈주소는 999.
+
+    export JS regionOf+regionIndex와 동일 규칙(양쪽 정렬 순서 일치 필수).
+
+    :param address: 주문 주소 문자열(None 가능).
+    :returns: REGION_ORDER 인덱스(0~16), 미인식/빈값은 999.
+    """
+    stripped = str(address).strip() if address else ""
+    if not stripped:
+        return 999
+    canon = _REGIONAL_REGION_CANON.get(stripped.split()[0])
+    if canon is None:
+        return 999
+    return _REGIONAL_REGION_ORDER.index(canon)
+
+
 @dashboards_bp.route("/regional_dashboard")
 @login_required
 def regional_dashboard():
@@ -513,11 +560,26 @@ def regional_dashboard():
         )
     ]
 
-    shipping_alerts.sort(
-        key=lambda x: datetime.datetime.strptime(
-            x.shipping_scheduled_date, "%Y-%m-%d"
-        ).date()
-    )
+    def _shipping_alert_sort_key(order) -> tuple:
+        """상차 예정 알림 정렬 키: 상차일→지역→설치일→주소.
+
+        export JS(regional-shipping-export.js) collectVisibleRows와 동일 기준으로
+        화면·이미지 저장 정렬을 통일한다. 상차일/설치일은 YYYY-MM-DD 문자열 사전순
+        비교(상차일은 필터로 이미 유효). 빈 설치일은 그룹 맨 뒤('9999-12-31'),
+        주소 None은 빈 문자열로 방어한다.
+
+        :param order: Order (문자열 속성 shipping_scheduled_date/scheduled_date/address).
+        :returns: (상차일, 지역인덱스, 설치일키, 주소) 튜플.
+        """
+        scheduled = (order.scheduled_date or "").strip() or "9999-12-31"
+        return (
+            order.shipping_scheduled_date or "",
+            _regional_region_index(order.address),
+            scheduled,
+            order.address or "",
+        )
+
+    shipping_alerts.sort(key=_shipping_alert_sort_key)
     shipping_completed_orders.sort(
         key=lambda x: datetime.datetime.strptime(
             x.shipping_scheduled_date, "%Y-%m-%d"

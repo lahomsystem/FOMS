@@ -178,6 +178,52 @@ def test_as_received_rework_shipping_joins_alerts_sorted_and_badged(client) -> N
     assert "AS 재상차 일정" in as_row_html
 
 
+def test_shipping_alerts_sort_by_install_date_within_same_ship_and_region(client) -> None:
+    """같은 상차일·같은 지역에서 설치일 오름차순, 빈 설치일은 그룹 맨 뒤."""
+    _login_as_admin(client, "regional-bucket-install-sort-admin")
+    today = get_today_kst()
+    ship_date = (today + timedelta(days=2)).strftime("%Y-%m-%d")
+    install_late = (today + timedelta(days=10)).strftime("%Y-%m-%d")
+    install_early = (today + timedelta(days=3)).strftime("%Y-%m-%d")
+
+    # 동일 상차일·동일 지역(부산) — 설치일만 다르게. 빈 설치일 1건 포함.
+    late_order = _create_regional_order(
+        customer_name="Regional Install Sort Late",
+        address="부산광역시 해운대구",
+        status="PRODUCTION",
+        shipping_scheduled_date=ship_date,
+        scheduled_date=install_late,
+    )
+    early_order = _create_regional_order(
+        customer_name="Regional Install Sort Early",
+        address="부산광역시 해운대구",
+        status="PRODUCTION",
+        shipping_scheduled_date=ship_date,
+        scheduled_date=install_early,
+    )
+    empty_order = _create_regional_order(
+        customer_name="Regional Install Sort Empty",
+        address="부산광역시 해운대구",
+        status="PRODUCTION",
+        shipping_scheduled_date=ship_date,
+        scheduled_date="",
+    )
+
+    response = client.get(
+        "/regional_dashboard",
+        query_string={"search_query": "Regional Install Sort"},
+    )
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+
+    alert_ids = _order_row_ids_in_section(body, "상차 예정 알림 (3건)")
+    assert alert_ids == [
+        str(early_order.id),
+        str(late_order.id),
+        str(empty_order.id),
+    ]
+
+
 def test_regional_shipping_export_preserves_as_schedule_badge_contract() -> None:
     """PNG export must carry the AS schedule marker from the rendered row."""
     js = (ROOT / "static/js/measurement/regional-shipping-export.js").read_text(
