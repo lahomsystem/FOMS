@@ -111,6 +111,11 @@ def build_orders_dashboard_queries(db, current_user, is_admin: bool, filters: Or
         _risk_ids = build_risk_order_ids(db, current_user, filters.risk)
         _q = _q.filter(Order.id.in_(_risk_ids))
 
+    # v3→v2 이식(A4): CS 접수 상태 칩 필터(전체/보류/재확인). risk와 동일하게
+    # _q_stats 복제 이전 적용 → 리스트·total·칩 카운트가 모두 같은 집합(SSOT).
+    if filters.status:
+        _q = _q.filter(Order.status == filters.status)
+
     # C. f_team SQL 필터
     if filters.team and not is_admin:
         team_stages = STAGES_REQUIRING_TEAM.get(filters.team)
@@ -236,7 +241,7 @@ def compute_orders_summary_slice(stats_query):
     Returns:
         {"kpis": {...}, "process_steps": [...]} — 원본 closure와 동일 형태.
     """
-    kpis = {'urgent_count': 0, 'measurement_d4_count': 0, 'construction_d3_count': 0, 'production_d2_count': 0, 'today_count': 0}
+    kpis = {'urgent_count': 0, 'measurement_d4_count': 0, 'construction_d3_count': 0, 'production_d2_count': 0, 'drawing_overdue_count': 0, 'today_count': 0}
     step_stats = {k: {'count': 0, 'overdue': 0, 'imminent': 0} for k in [
         '주문접수', '실측', '도면', '고객컨펌', '생산', '시공', 'CS', '완료', 'AS처리'
     ]}
@@ -318,6 +323,10 @@ def compute_orders_summary_slice(stats_query):
         kpis['measurement_d4_count'] += int(row.measurement_d4_cnt or 0)
         kpis['construction_d3_count'] += int(row.construction_d3_cnt or 0)
         kpis['production_d2_count'] += int(row.production_d2_cnt or 0)
+        # 도면 지연(drawing_overdue) 전체 합계 — overdue_cnt 는 이미 summary_rows 집계에
+        # 존재(step_stats['overdue'] 와 동일 소스). DRAWING/CONFIRM 버킷만 비영(0)이라 전 버킷
+        # 합산이 곧 전체 도면 지연 건수(신규 쿼리 없음, urgent_count 등과 동일 패턴).
+        kpis['drawing_overdue_count'] += int(row.overdue_cnt or 0)
         if row.bucket in step_stats:
             step_stats[row.bucket]['count'] = int(row.cnt or 0)
             step_stats[row.bucket]['imminent'] = int(row.imminent_cnt or 0)

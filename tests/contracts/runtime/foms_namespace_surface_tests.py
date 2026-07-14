@@ -1118,6 +1118,8 @@ def test_namespaced_context_processors_shim_preserves_canonical_contract() -> No
         "inject_menu",
         "inject_foms_flags",
         "inject_foms_nav_badges",
+        # 2026-07-12 태블릿 시트 파이프라인: 단계 카탈로그 injector 공개 계약 편입.
+        "inject_foms_stage_catalog",
         "register_context_processors",
     ]
 
@@ -2394,6 +2396,7 @@ _PAC_PARTIALS_SHARED_HTML_ALLOWLIST = frozenset(
         "erp_mobile_bottom_nav.html",
         "erp_mobile_menu_drawer.html",
         "erp_mobile_notification_panel.html",
+        "erp_mobile_order_timeline_sheet.html",
         "erp_mobile_urgent_call_panel.html",
         "erp_mobile_queue_card.html",
         "erp_mobile_queue_card_v2.html",
@@ -2413,6 +2416,8 @@ _PAC_PARTIALS_SHARED_HTML_ALLOWLIST = frozenset(
         "foms_search_results_partial.html",
         "foms_side_tab.html",
         "foms_split_shell.html",
+        "foms_density_toggle.html",
+        "foms_tablet_rail.html",
         "foms_theme_toggle.html",
         "htmx_layout.html",
         "layout_flash.html",

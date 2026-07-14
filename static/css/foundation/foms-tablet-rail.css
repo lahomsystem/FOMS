@@ -1,0 +1,162 @@
+/* 태블릿 가로 전역 메뉴 레일 — 셸-독립 (2026-07-12 T2 목업 정합 공사).
+   /erp 전 페이지(대시보드 split 제외)에서 좌측 72px 아이콘 레일을 제공한다.
+   split 셸 레일(.foms-split-side-tab, foms-split-view.css SSOT)과 시각 스펙은 동일하나
+   클래스 네임스페이스를 분리해 CSS 결합을 차단한다(두 레일은 같은 DOM 에 공존하지 않음).
+
+   표시 계약(겹침 원천 차단):
+   - 기본 display:none (전 조건).
+   - coarse landscape ≥992px + :has 지원 시에만 레일 노출.
+   - 본문 밀어내기(#main-content padding-left)를 레일 노출과 "같은 @supports 블록"에
+     동거시킨다. :has 미지원(2022 이전) 브라우저는 @supports 블록 전체를 드롭하므로
+     레일도 안 뜨고 패딩도 안 붙어 → 레일이 본문을 가리는 겹침 자체가 발생하지 않는다.
+   - 아이템 시각 스타일은 컨테이너가 hidden 이라 전 조건에 둬도 렌더되지 않는다. */
+
+.foms-tablet-rail {
+  display: none;
+}
+
+@supports selector(:has(*)) {
+  @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+    /* 레일 노출: 좌측 고정 72px 세로 아이콘 레일.
+       body 클래스(erp-mobile-v2-layout) 비의존 — 레일은 서버 게이트(코호트 ∩
+       /erp·/wdcalculator)에서만 렌더되므로 마커 존재 자체가 게이트다. 계산기
+       레이아웃은 body 클래스를 안 붙이므로(erp 스코프 게이트) 클래스를 요구하면
+       계산기에서 레일이 DOM에만 있고 영영 숨는다 (2026-07-12 갭 봉합). */
+    .foms-tablet-rail {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: fixed;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 72px;
+      padding-top: var(--foms-space-3, 12px);
+      gap: 4px;
+      /* 짧은 가로 화면에서 메뉴가 넘치면 레일 내부에서 스크롤(본문은 밀지 않음). */
+      overflow-y: auto;
+      background: var(--foms-surface-raised, #fff);
+      border-right: 1px solid var(--foms-border-subtle, #e5e7eb);
+      /* sticky 헤더(1020)·bottom-nav(1030) 위, menu-drawer(1060)·modal(1070) 아래. */
+      z-index: var(--foms-z-action-bar, 1040);
+    }
+
+    /* 본문 밀어내기: body / .container-fluid 는 인라인 style="padding:0 !important" 로
+       잠겨 있어 외부 CSS(!important 포함)로도 이동 불가하다. 잠기지 않은 유일한 콘텐츠
+       래퍼인 #main-content 에 좌측 패딩을 준다. #main-content 는 Bootstrap reboot 의
+       box-sizing:border-box 이므로 padding-left 가 총폭을 늘리지 않아 100vw 컨테이너에서
+       가로 스크롤이 생기지 않는다(전 11개 /erp 레이아웃이 #main-content 를 렌더). */
+    body:has(.foms-tablet-rail) #main-content {
+      padding-left: 72px;
+    }
+  }
+}
+
+/* --- 레일 아이템 (split 레일 시각 스펙 복사, 새 네임스페이스) --- */
+.foms-tablet-rail__brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 56px;
+  font-size: 20px;
+  font-weight: var(--foms-font-weight-bold, 700);
+  color: var(--foms-color-brand-600, #2563eb);
+  margin-bottom: var(--foms-space-4, 16px);
+}
+
+.foms-tablet-rail__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: var(--foms-space-2, 8px) 0;
+  /* 편안한 52px 스택 아이콘 타깃; 라벨 줄바꿈 시에만 커진다. */
+  min-height: 52px;
+  flex-shrink: 0;
+  width: 100%;
+  font-size: 11px;
+  color: var(--foms-text-tertiary, #6b7280);
+  text-decoration: none;
+  position: relative;
+}
+
+.foms-tablet-rail__item.is-active {
+  color: var(--foms-interactive-primary, #2563eb);
+  font-weight: var(--foms-font-weight-semibold, 600);
+  background: var(--foms-color-brand-50, #eff6ff);
+}
+
+.foms-tablet-rail__item.is-active::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--foms-interactive-primary, #2563eb);
+  border-radius: 0 4px 4px 0;
+}
+
+.foms-tablet-rail__icon {
+  font-size: 22px;
+}
+
+.foms-tablet-rail__label {
+  line-height: 1.1;
+  text-align: center;
+}
+
+/* --- 하단 액션: spacer(밀어내기) + 알림 + 아바타 --- */
+/* spacer 는 상단 메뉴와 하단 액션 사이를 늘려 알림/아바타를 레일 바닥으로 민다.
+   레일이 넘쳐 스크롤될 만큼 짧은 화면에서는 flex-shrink 로 줄어든다. */
+.foms-tablet-rail__spacer {
+  flex: 1 1 auto;
+  min-height: var(--foms-space-3, 12px);
+}
+
+/* 알림 버튼: 레일 아이템 그래머 재사용(버튼 리셋만 추가) + 배지 앵커. */
+.foms-tablet-rail__notify {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+/* 미읽음 배지: 벨 아이콘 우상단 pill(HMI: 미읽음 알림은 유채 danger 허용). */
+.foms-tablet-rail__notify-badge {
+  position: absolute;
+  top: 2px;
+  right: 14px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--foms-radius-full, 999px);
+  background: var(--foms-color-danger-600, #dc2626);
+  color: #fff;
+  font-size: 10px;
+  font-weight: var(--foms-font-weight-bold, 700);
+  line-height: 16px;
+  text-align: center;
+}
+.foms-tablet-rail__notify-badge[hidden] {
+  display: none;
+}
+
+/* 아바타: 이니셜 원형. 클릭 = 프로필 페이지 이동(링크). */
+.foms-tablet-rail__avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  margin: var(--foms-space-2, 8px) 0 var(--foms-space-3, 12px);
+  border-radius: var(--foms-radius-full, 999px);
+  background: var(--foms-color-brand-50, #eff6ff);
+  color: var(--foms-interactive-primary, #2563eb);
+  font-size: 13px;
+  font-weight: var(--foms-font-weight-bold, 700);
+  text-decoration: none;
+}
+.foms-tablet-rail__avatar:hover {
+  background: var(--foms-color-brand-100, #dbeafe);
+}

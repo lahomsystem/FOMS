@@ -15,10 +15,14 @@
     list.addEventListener("click", function (ev) {
       var card = ev.target.closest("[data-foms-master-card]");
       if (!card) return;
-      ev.preventDefault();
-      var href = card.getAttribute("data-href");
-      var orderId = card.getAttribute("data-order-id");
+      // data-fragment-href = HTMX fragment body swapped into the detail pane.
+      // The card's <a href> points at the canonical full edit page, so if the
+      // fragment href is missing we do NOT preventDefault — the browser follows
+      // the real href to the styled page instead of dead-clicking (W15).
+      var href = card.getAttribute("data-fragment-href");
       if (!href) return;
+      ev.preventDefault();
+      var orderId = card.getAttribute("data-order-id");
 
       var kv = detail.querySelector("[data-foms-split-detail-kv]");
       if (kv) {

@@ -29,7 +29,13 @@
   display: none;
 }
 
-@media (max-width: 991.98px) {
+/* Mobile chrome opt-in: phones (<992) AND tablet-portrait (≥992 portrait + coarse
+   = 모바일 인터페이스, v8 확정 규칙). foms-shell.css line 11의 opt-in과 동일 열거.
+   이 블록이 chrome wrapper의 `display: contents`(아래)와 하단 nav 고정 geometry를
+   제공하므로 portrait-coarse까지 확장해야 태블릿 세로에서 chrome가 실제로 렌더된다.
+   (아래 992+ 숨김만 3열거로 풀면 base `.erp-mobile-shell-chrome{display:none}`가
+   남아 여전히 숨겨진 채가 되므로, opt-in 확장이 근본 복원의 필수 절반이다.) */
+@media (max-width: 991.98px), ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
   .erp-mobile-shell[data-erp-mobile-v2='true'] {
     background: var(--erp-mobile-color-app-bg);
     padding-bottom: calc(var(--erp-mobile-shell-nav-height) + env(safe-area-inset-bottom, 0px));
@@ -333,7 +339,15 @@
   }
 }
 
-@media (min-width: 992px) {
+/* Non-mobile 992+ 에서만 모바일 chrome(하단 nav)·드로어를 숨긴다: landscape / fine /
+   none = split 또는 desktop 셸이므로 모바일 chrome 불필요. portrait-coarse(태블릿
+   세로 = 모바일 모드)는 3열거에서 제외해 chrome를 유지한다 — foms-shell.css 표면 숨김
+   (line 670)과 동일 패턴. 구 `@media (min-width: 992px)`(단순 폭)는 portrait-coarse까지
+   !important로 죽여 태블릿 세로 하단 nav를 없앴다(그 회귀 봉합). */
+@media
+  ((min-width: 992px) and (orientation: landscape)),
+  ((min-width: 992px) and (pointer: fine)),
+  ((min-width: 992px) and (pointer: none)) {
   .erp-mobile-shell-chrome,
   .erp-mobile-menu-drawer {
     display: none !important;

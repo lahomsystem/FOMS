@@ -1,6 +1,7 @@
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/shipment-dashboard-columns.css') }}">
+{% set _fos_desktop_body %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/shipment-dashboard-columns.css') }}?v=20260714b">
 {# foms-kv-rollout: erp_mobile_shell → kv-copy.js #}
-<div class="erp-pro erp-mobile-shell" data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
+<div class="erp-pro erp-mobile-shell erp-dashboard-shipment" data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
   {% if erp_mobile_v2_enabled %}
     {% include 'partials/shared/erp_mobile_shell.html' %}
   {% endif %}
@@ -51,6 +52,80 @@
         <i class="fas fa-plus" aria-hidden="true"></i>
       </a>
     </section>
+  {% endif %}
+  {# ── 태블릿 가로 pcbar (목업 06) — 선택일 출고 요약 + 밀도 토글 + AS 추천 + 출고 확정.
+     base-hidden(.foms-ship-pcbar) → 코호트 가로에서만 flex(shipment-dashboard-columns.css).
+     코호트에서 PC erp-pro-header 를 은닉하고 이 pcbar 가 대체한다. 신규 쿼리 없음(rows/
+     selected_date/construction_panel_dates 재소비). AS 추천은 기존 위임 트리거(data-*)
+     재사용, 출고 확정은 백엔드 라우트 부재로 disabled. #}
+  {% set _ship_wd = namespace(label='') %}
+  {% for _ci in construction_panel_dates %}
+    {%- if _ci.date == selected_date %}{% set _ship_wd.label = ['월','화','수','목','금','토','일'][_ci.weekday] %}{% endif %}
+  {%- endfor %}
+  <div class="foms-ship-pcbar" aria-label="출고 대시보드 요약">
+    <div class="foms-ship-pcbar__lead">
+      <h2 class="foms-ship-pcbar__title">{% if selected_date %}{{ selected_date[5:7]|int }}/{{ selected_date[8:10]|int }}{% if _ship_wd.label %}({{ _ship_wd.label }}){% endif %} 출고{% else %}출고 대시보드{% endif %}</h2>
+      <span class="foms-ship-pcbar__sub">{{ rows|length }}건</span>
+      {# 태블릿 가로 코호트 전용 컴팩트 필터(기준일+검색) — 목업엔 PC 필터카드가 없으므로 그
+         카드를 코호트에서 은닉(shipment-dashboard-columns.css)하고 이 슬림 컨트롤이 흡수한다.
+         PC 필터폼과 동일한 GET 파라미터(date·q)를 같은 라우트로 제출 → 백엔드 무변경. AS 추천은
+         pcbar actions 에 이미 있어 중복 배치하지 않는다. base-hidden(.foms-ship-pcbar__filter)
+         → 코호트에서만 표시라 PC/폰 렌더 무영향. #}
+      <form class="foms-ship-pcbar__filter" method="get" role="search" aria-label="출고 기준일·검색">
+        <input type="date" class="foms-ship-pcbar__filter-date" name="date" value="{{ selected_date or '' }}" aria-label="기준 날짜">
+        <input type="search" class="foms-ship-pcbar__filter-q" name="q" value="{{ search_q or '' }}" placeholder="검색" aria-label="검색">
+        <button type="submit" class="foms-ship-pcbar__filter-go" aria-label="조회"><i class="fas fa-search" aria-hidden="true"></i></button>
+      </form>
+    </div>
+    <div class="foms-ship-pcbar__actions">
+      {# 밀도 토글 대상: PC 테이블 + 신규 태블릿 클린 그리드(코호트에서 PC 테이블은 은닉되나
+         data-foms-density 는 무해하게 양쪽에 부착 — frame01 결합 셀렉터 패턴). #}
+      {% set foms_density_target = '#shipment-dashboard-table, #foms-tablet-ship-grid' %}
+      {% include 'partials/shared/foms_density_toggle.html' %}
+      {% if can_edit_shipment %}
+      <button type="button" class="foms-ship-pcbar__btn" data-shipment-as-recommend-open
+              title="현재 표시된 출고 건 기준 인근 AS 일정 추천">
+        <i class="fas fa-magic" aria-hidden="true"></i><span>AS 추천</span>
+      </button>
+      <button type="button" class="foms-ship-pcbar__btn foms-ship-pcbar__btn--pri" disabled
+              title="출고 확정 액션/라우트가 아직 없습니다 — 백엔드 미구현">
+        <i class="fas fa-truck-loading" aria-hidden="true"></i><span>출고 확정</span>
+      </button>
+      {% endif %}
+    </div>
+  </div>
+  {# 태블릿 가로 상단 KPI 4종 — 코호트 CSS 게이트(coarse landscape에서만 display:grid). #}
+  {% if tablet_ship_kpis %}
+  <div class="tablet-ship-kpis erp-pro-alerts" aria-label="출고 요약">
+    <div class="erp-pro-alert">
+      <div class="erp-pro-alert__icon"><i class="fas fa-ruler-combined" aria-hidden="true"></i></div>
+      <div class="erp-pro-alert__content">
+        <span class="erp-pro-alert__label">총 자수</span>
+        <span class="erp-pro-alert__value">{{ tablet_ship_kpis.total_units }}</span>
+      </div>
+    </div>
+    <div class="erp-pro-alert">
+      <div class="erp-pro-alert__icon"><i class="fas fa-boxes" aria-hidden="true"></i></div>
+      <div class="erp-pro-alert__content">
+        <span class="erp-pro-alert__label">건수</span>
+        <span class="erp-pro-alert__value">{{ tablet_ship_kpis.order_count }}</span>
+      </div>
+    </div>
+    <div class="erp-pro-alert">
+      <div class="erp-pro-alert__icon"><i class="fas fa-users" aria-hidden="true"></i></div>
+      <div class="erp-pro-alert__content">
+        <span class="erp-pro-alert__label">시공팀</span>
+        <span class="erp-pro-alert__value">{{ tablet_ship_kpis.team_count }}</span>
+      </div>
+    </div>
+    <div class="erp-pro-alert erp-pro-alert--danger">
+      <div class="erp-pro-alert__icon"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i></div>
+      <div class="erp-pro-alert__content">
+        <span class="erp-pro-alert__label">미배정</span>
+        <span class="erp-pro-alert__value">{{ tablet_ship_kpis.unassigned }}</span>
+      </div>
+    </div>
+  </div>
   {% endif %}
   <div class="erp-pro-card erp-shipment-desktop-shell">
     <div class="erp-pro-card__header erp-pro-card__header--filter{% if erp_mobile_v2_enabled %} erp-shipment-desktop-filter d-none d-md-block{% endif %}">
@@ -223,7 +298,47 @@
           </div>
           {% endif %}
         </div>
+        {# ── 태블릿 가로 좌측 잔여 자수 스트립 (목업 06, 260px) — PC 스케줄러 패널을
+           코호트에서 은닉하고 이 클린 스트립이 대체한다. remaining_panel_dates(서버 기존
+           집계, 신규 쿼리 없음) 재소비: 프로그레스 = used/total, ok/warn/off 색은
+           is_weekend·holiday·alert_capacity 로 파생. base-hidden → 코호트 가로에서만 표시. #}
+        <aside class="foms-ship-cap-strip" aria-label="잔여 자수 용량">
+          <div class="foms-ship-cap-strip__head">
+            {% set _cm = (selected_date or today_date)[5:7]|int %}
+            {% set _cd = (selected_date or today_date)[8:10]|int %}
+            <span class="foms-ship-cap-strip__title">{{ _cm }}월 {{ ((_cd - 1) // 7) + 1 }}주</span>
+            <span class="foms-ship-cap-strip__label">잔여 자수</span>
+          </div>
+          <div class="foms-ship-cap-strip__list">
+            {% for item in remaining_panel_dates %}
+            {% set _cap = item.total_capacity or 0 %}
+            {% set _used = item.used_capacity or 0 %}
+            {% set _off = item.is_weekend or item.is_holiday or (_cap <= 0) %}
+            {% set _pct = ((_used / _cap * 100) if _cap > 0 else 0) %}
+            {% set _pct = 100 if _pct > 100 else _pct %}
+            {% set _state = 'off' if _off else ('warn' if item.alert_capacity else 'ok') %}
+            {% set _wd = construction_panel_dates[loop.index0].weekday if loop.index0 < construction_panel_dates|length else none %}
+            <a class="foms-ship-cap-card is-{{ _state }}{% if item.is_selected %} is-selected{% endif %}"
+               href="{{ url_for('erp_shipment_page.erp_shipment_dashboard', date=item.date, q=search_q or '') }}#date-{{ item.date }}">
+              <span class="foms-ship-cap-card__top">
+                <span class="foms-ship-cap-card__date">{{ item.date[5:7]|int }}/{{ item.date[8:10]|int }}{% if _wd is not none %} ({{ ['월','화','수','목','금','토','일'][_wd] }}){% endif %}</span>
+                <span class="foms-ship-cap-card__val">{{ item.used_capacity }}/{{ item.total_capacity }}</span>
+              </span>
+              <span class="foms-ship-cap-card__bar"><span class="foms-ship-cap-card__bar-fill" style="--cap-fill: {{ _pct|round(0, 'floor')|int }}%"></span></span>
+            </a>
+            {% endfor %}
+          </div>
+          {% if not is_construction_team %}
+          <a class="foms-ship-cap-strip__settings" href="{{ url_for('erp_shipment.erp_shipment_settings') }}">
+            <i class="fas fa-cog" aria-hidden="true"></i><span>출고 설정</span>
+          </a>
+          {% endif %}
+        </aside>
         <div class="col-12 col-lg erp-shipment-table-col">
+          {# 태블릿 가로 클린 그리드(목업 06) — base-hidden, 코호트에서만 표시하며 아래 PC 테이블
+             래퍼(.shipment-table-wrapper)를 코호트에서 은닉한다. 자체 .cap 힌트를 포함하므로
+             기존 별도 .foms-ship-grid-hint 는 제거(중복 제거). #}
+          {% include 'shipment/partials/tablet_ship_grid.html' %}
           <div class="table-responsive shipment-table-wrapper">
             <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/shipment/dashboard-table-extras.css') }}">
             <table class="table table-sm table-hover align-middle shipment-table erp-mobile-card-table" id="shipment-dashboard-table">
@@ -237,6 +352,8 @@
                 <col data-col-key="construction_time">
                 <col data-col-key="drawing_managers">
                 <col data-col-key="construction_workers">
+                <col data-col-key="vehicle">
+                <col data-col-key="trip">
                 <col data-col-key="manager">
               </colgroup>
               <thead class="table-light">
@@ -250,6 +367,8 @@
                   <th data-col-key="construction_time" style="border-right: 1px solid #e0e0e0;">시공시간<button class="col-resize-handle" aria-label="컬럼 크기 조절"></button></th>
                   <th data-col-key="drawing_managers" style="border-right: 1px solid #e0e0e0;">도면담당자<button class="col-resize-handle" aria-label="컬럼 크기 조절"></button></th>
                   <th data-col-key="construction_workers" style="border-right: 1px solid #e0e0e0;">시공자<button class="col-resize-handle" aria-label="컬럼 크기 조절"></button></th>
+                  <th data-col-key="vehicle" style="border-right: 1px solid #e0e0e0;">차량</th>
+                  <th data-col-key="trip" style="border-right: 1px solid #e0e0e0;">회차</th>
                   <th data-col-key="manager">담당자<button class="col-resize-handle" aria-label="컬럼 크기 조절"></button></th>
                 </tr>
               </thead>
@@ -275,6 +394,9 @@
                 {% set pastel_colors = ['#B8D4E3', '#FFE5CC', '#E8D5E9', '#D5E9D5', '#F0D5D5', '#D5D5E9', '#FFF0D5',
                 '#D5E9E5', '#F5D5E5', '#E9E5D5'] %}
 
+                {# 그룹 헤더 전환 추적(코호트 태블릿 목업 06 팀 그룹 행). rows 는 (AS여부,
+                   시공자, 담당, id) 정렬이라 팀이 연속 → 전환 시 1행 삽입. #}
+                {% set grp_ns = namespace(prev='__START__') %}
                 {% for r in rows %}
                 {# 백엔드에서 준비된 필드 사용 (ERP Order structured display) #}
                 {% set customer = r.customer_name %}
@@ -286,6 +408,8 @@
                 {% set shipment = sd.get('shipment') or {} %}
                 {% set site_extra = shipment.get('site_extra') or [] %}
                 {% set construction_time = shipment.get('construction_time') or '' %}
+                {% set vehicle = shipment.get('vehicle') or '' %}
+                {% set trip = shipment.get('trip') or '' %}
                 {% set drawing_manager_values = shipment.get('drawing_managers') or [] %}
                 {% set drawing_ns = namespace(values=[]) %}
                 {% for dm in drawing_manager_values %}
@@ -332,10 +456,36 @@
                 {% if item_count == 0 %}{% set item_count = 1 %}{% endif %}
                 {% set product_display = r.product or '-' %}
 
+                {# ── 시공팀 그룹 헤더(목업 06 .grp) — 팀 전환 시 1행 삽입. 서버 렌더,
+                   base-hidden → 코호트 가로에서만 table-row. 팀 파스텔은 data-team-color-index
+                   상속. 키 = "<AS여부>|<팀 소문자>"(shipment-dashboard.js 재배치와 정합). #}
+                {% set _as_int = 1 if r.status in ('AS', 'AS_RECEIVED', 'AS_COMPLETED') else 0 %}
+                {% set _gcomposite = _as_int ~ '|' ~ (worker_key|lower) %}
+                {% if _gcomposite != grp_ns.prev %}
+                {% set grp_ns.prev = _gcomposite %}
+                {% set _gm = shipment_team_group_meta.get(worker_key) or {} %}
+                <tr class="shipment-grp-row" data-team-color-index="{{ ns.worker_index }}" data-grp-key="{{ _gcomposite }}" aria-hidden="true">
+                  <td class="shipment-grp-cell" colspan="12">
+                    <span class="shipment-grp-team">{% if worker_key %}시공 {{ worker_key }}{% else %}미배정{% endif %}</span>
+                    <span class="shipment-grp-sum">합계 {{ _gm.get('units', '0.0') }}자</span>
+                    <span class="shipment-grp-count">{{ _gm.get('count', 0) }}건</span>
+                    {# 목업 06: 잔여 capacity(또는 미배정=배정 필요)를 그룹 헤더 우측에 정렬. #}
+                    {% if worker_key %}
+                    {% if _gm.get('remaining') is not none %}
+                    <span class="shipment-grp-remain">잔여 {{ _gm.get('remaining') }}자</span>
+                    {% endif %}
+                    {% else %}
+                    <span class="shipment-grp-remain shipment-grp-remain--need">배정 필요</span>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endif %}
                 <tr data-order-id="{{ r.id }}" class="shipment-row"
+                  data-foms-sheet-url="{{ url_for('erp_shipment_page.erp_shipment_tablet_sheet', order_id=r.id) }}"
                   data-as="{{ 1 if r.status in ('AS', 'AS_RECEIVED', 'AS_COMPLETED') else 0 }}"
+                  data-team-color-index="{{ ns.worker_index }}"
                   data-manager="{{ (r.manager_name or '')|e }}">
-                  <td data-label="상세" style="border-right: 1px solid #e0e0e0;">
+                  <td data-col-key="detail" data-label="상세" style="border-right: 1px solid #e0e0e0;">
                     {% if can_edit_shipment %}
                     <div class="d-flex flex-column gap-1 align-items-start">
                       <a href="{{ url_for('order_edit.edit_order', order_id=r.id, return_to='erp_shipment_dashboard') }}?open=erp-order"
@@ -384,7 +534,7 @@
                     </div>
                     {% endif %}
                   </td>
-                  <td class="cell-wrap" data-label="규격(W/300)" style="border-right: 1px solid #e0e0e0;">
+                  <td class="cell-wrap" data-col-key="spec" data-label="규격(W/300)" style="border-right: 1px solid #e0e0e0;">
                     {% if r.status in ('AS', 'AS_RECEIVED', 'AS_COMPLETED') %}
                     <span class="badge bg-danger mb-1">AS</span>
                     {% else %}
@@ -399,7 +549,7 @@
                     </div>
                     {% endif %}
                   </td>
-                  <td class="shipment-address-cell" data-label="현장주소" style="border-right: 1px solid #e0e0e0;">
+                  <td class="shipment-address-cell" data-col-key="address" data-label="현장주소" style="border-right: 1px solid #e0e0e0;">
                     <div class="shipment-address-block">
                       <div class="cell-wrap shipment-address-text mb-1" title="기본 주소">{{ address or '-' }}</div>
                       <ul class="shipment-site-extra-list mb-0" data-order-id="{{ r.id }}" data-field="site_extra">
@@ -514,7 +664,7 @@
                       {% endif %}
                     </ul>
                   </td>
-                  <td class="shipment-field-cell shipment-worker-cell" data-label="시공자"
+                  <td class="shipment-field-cell shipment-worker-cell" data-col-key="construction_workers" data-label="시공자"
                     style="border-right: 1px solid #e0e0e0;" data-worker-bg-color="{{ worker_bg_color }}"
                     data-worker-text-color="{{ worker_text_color }}">
                     <ul class="shipment-edit-list shipment-workers-list mb-0" data-order-id="{{ r.id }}"
@@ -545,14 +695,58 @@
                       {% endif %}
                     </ul>
                   </td>
-                  <td data-label="담당자">
+                  <td class="shipment-field-cell" data-col-key="vehicle" data-label="차량" style="border-right: 1px solid #e0e0e0;">
+                    <ul
+                      class="shipment-edit-list shipment-text-list-single shipment-vehicle-list mb-0"
+                      data-order-id="{{ r.id }}" data-field="vehicle" data-list-key="vehicle"
+                      data-storage-key="vehicle" data-datalist-id="datalist-vehicle"
+                      data-placeholder="예: 84로3712" data-single="true" data-empty-placeholder="입력">
+                      <li class="shipment-text-row {% if vehicle %}has-value{% else %}is-empty{% endif %}">
+                        <span class="shipment-text-view" data-empty-placeholder="입력">{{ vehicle }}</span>
+                        {% if can_edit_shipment %}
+                        <div class="shipment-text-edit input-group input-group-sm flex-nowrap">
+                          <input type="text" class="form-control form-control-sm shipment-text-input"
+                            data-order-id="{{ r.id }}" data-field="vehicle" value="{{ vehicle }}"
+                            placeholder="예: 84로3712" list="datalist-vehicle">
+                          <button type="button" class="btn btn-sm btn-outline-secondary shipment-btn-load-saved-text-row"
+                            title="저장된 차량번호 불러오기"><i class="fas fa-list"></i></button>
+                          <button type="button" class="btn btn-sm btn-outline-danger btn-remove-shipment-text-row"
+                            title="삭제">&times;</button>
+                        </div>
+                        {% endif %}
+                      </li>
+                    </ul>
+                  </td>
+                  <td class="shipment-field-cell" data-col-key="trip" data-label="회차" style="border-right: 1px solid #e0e0e0;">
+                    <ul
+                      class="shipment-edit-list shipment-text-list-single shipment-trip-list mb-0"
+                      data-order-id="{{ r.id }}" data-field="trip" data-list-key="trip"
+                      data-storage-key="trip" data-datalist-id="datalist-trip"
+                      data-placeholder="예: 1회차 06:30" data-single="true" data-empty-placeholder="입력">
+                      <li class="shipment-text-row {% if trip %}has-value{% else %}is-empty{% endif %}">
+                        <span class="shipment-text-view" data-empty-placeholder="입력">{{ trip }}</span>
+                        {% if can_edit_shipment %}
+                        <div class="shipment-text-edit input-group input-group-sm flex-nowrap">
+                          <input type="text" class="form-control form-control-sm shipment-text-input"
+                            data-order-id="{{ r.id }}" data-field="trip" value="{{ trip }}"
+                            placeholder="예: 1회차 06:30" list="datalist-trip">
+                          <button type="button" class="btn btn-sm btn-outline-secondary shipment-btn-load-saved-text-row"
+                            title="저장된 회차 불러오기"><i class="fas fa-list"></i></button>
+                          <button type="button" class="btn btn-sm btn-outline-danger btn-remove-shipment-text-row"
+                            title="삭제">&times;</button>
+                        </div>
+                        {% endif %}
+                      </li>
+                    </ul>
+                  </td>
+                  <td data-col-key="manager" data-label="담당자">
                     {{ r.manager_name or '-' }}
                   </td>
                 </tr>
                 {% endfor %}
                 {% else %}
                 <tr>
-                  <td colspan="10" class="text-center text-muted py-4">데이터가 없습니다.</td>
+                  <td colspan="12" class="text-center text-muted py-4">데이터가 없습니다.</td>
                 </tr>
                 {% endif %}
               </tbody>
@@ -567,12 +761,22 @@
   <datalist id="datalist-construction-time"></datalist>
   <datalist id="datalist-drawing-manager"></datalist>
   <datalist id="datalist-construction-workers"></datalist>
+  <datalist id="datalist-vehicle"></datalist>
+  <datalist id="datalist-trip"></datalist>
 
   <div id="shipment-dashboard-config" class="d-none" data-can-edit="{{ 'true' if can_edit_shipment else 'false' }}" data-selected-date="{{ selected_date|default('', true)|e }}"></div>
-  <script src="{{ url_for('static', filename='js/shipment/shipment-dashboard.js') }}?v=20260629a" defer></script>
+  <script src="{{ url_for('static', filename='js/shipment/shipment-dashboard.js') }}?v=20260714a" defer></script>
   {% endif %}
 </div><!-- end erp-pro -->
 
 {% if erp_mobile_v2_enabled %}
   {% include 'partials/shared/foms_attachment_preview_modal.html' %}
 {% endif %}
+{% endset %}{% if shell_variant == 'v3' %}
+<div class="fos-v3-mobile-scope">
+{# v3 셸 병렬 분기: 출고 페르소나 홈만 렌더(전체 화면 takeover). else 경로는 기존 v2/legacy 그대로. #}
+{% set fos_content_partial = 'partials/v3/persona_home_shipment.html' %}
+{% include 'partials/v3/foms_app_shell_v3.html' %}
+</div>
+<div class="fos-v3-desktop-fallback">{{ _fos_desktop_body|safe }}</div>
+{% else %}{{ _fos_desktop_body|safe }}{% endif %}{# /shell_variant == 'v3' 병렬 분기 #}

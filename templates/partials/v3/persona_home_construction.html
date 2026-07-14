@@ -1,0 +1,185 @@
+{# =========================================================================
+   FOMS Field OS v3 — 시공 페르소나 홈 (읽기/표시 전용, v3.0).
+   기존 시공 대시보드 뷰 컨텍스트만 소비(신규 쿼리 없음):
+     orders / process_steps / filters / erp_mine_only / total_orders /
+     page / total_pages / today_iso.
+   완료 게이트·서명·시작/완료 버튼 없음 — 카드 탭은 기존 모바일 상세로 위임.
+   .fos-* / .px-construction-* 클래스는 static/css/v3/foms-mobile-v3.css 이식본.
+   ========================================================================= #}
+{% set _base = url_for('erp_construction_page.erp_construction_dashboard') %}
+{% set _today = (today_iso | default('', true)) %}
+{% set _cur_stage = (filters.stage if filters else '') or '' %}
+{% set _st_map = {'시공대기': 'construction', '시공중': 'construction', '시공완료': 'completed'} %}
+
+{# 오늘 배차: 로드된 큐에서 construction_date == 오늘인 행을 시각 순으로 파생(추가 쿼리 없음) #}
+{% set _today_rows = [] %}
+{% for o in orders %}
+  {% if o.construction_date and (o.construction_date | string)[:10] == _today %}
+    {% set _ = _today_rows.append(o) %}
+  {% endif %}
+{% endfor %}
+{% set _today_rows = _today_rows | sort(attribute='construction_date') %}
+{% set _hero = _today_rows[0] if _today_rows else None %}
+
+{# 오늘 배차 0건일 때 안내할 '다음 시공 예정일'을 로드된 큐에서 파생(추가 쿼리 없음) #}
+{% set _next_ns = namespace(date='') %}
+{% for o in orders %}
+  {% set _cd = (o.construction_date | string)[:10] if o.construction_date else '' %}
+  {% if _cd and _cd > _today %}
+    {% if not _next_ns.date or _cd < _next_ns.date %}{% set _next_ns.date = _cd %}{% endif %}
+  {% endif %}
+{% endfor %}
+
+<div class="fos-screen is-active" data-foms-persona-home="construction">
+  <div class="fos-scroll">
+
+    {# ── 히어로: 오늘 첫 현장 ─────────────────────────────────────────── #}
+    {% if _hero %}
+      {% set _hero_danger = _hero.alerts and _hero.alerts.construction_d3 %}
+      {% set _hero_tel = (_hero.phone or '') | replace('-', '') | replace(' ', '') %}
+      {% set _cw = (_hero.structured_data.get('shipment') or {}).get('construction_workers') %}
+      {% set _veh = (_hero.structured_data.get('shipment') or {}).get('vehicle') %}
+      {% set _crew_names = [] %}
+      {% if _cw is string %}
+        {% set _ = _crew_names.append(_cw) %}
+      {% elif _cw %}
+        {% for w in _cw %}
+          {% if w is string %}{% set _ = _crew_names.append(w) %}
+          {% elif w is mapping %}{% set _ = _crew_names.append(w.get('name') or w.get('username') or '') %}{% endif %}
+        {% endfor %}
+      {% endif %}
+      {% set _crew = _crew_names | select | join(', ') %}
+      <div class="fos-sec">
+        <div class="fos-sec__hd">오늘 첫 현장</div>
+        <div class="fos-hero{% if _hero_danger %} is-danger{% endif %}" data-order-id="{{ _hero.id }}">
+          <div class="fos-hero__top">
+            <div class="fos-hero__label">
+              <i class="fas fa-hammer" aria-hidden="true"></i> 오늘 시공 {{ _today_rows | length }}건
+            </div>
+            <span class="fos-tl-btn" role="button" data-fos-timeline data-order-id="{{ _hero.id }}" aria-label="주문 진행 타임라인 보기"><i class="fas fa-timeline" aria-hidden="true"></i></span>
+          </div>
+          <div class="fos-hero__title">{{ _hero.customer_name or '-' }}</div>
+          <div class="fos-hero__meta">
+            <span class="tnum">{{ _hero.construction_date }}</span>
+            {% if _hero.address and _hero.address != '-' %}<span class="addr">{{ _hero.address }}</span>{% endif %}
+          </div>
+          {% if _crew or _veh %}
+          <div class="px-construction-crew">
+            {% if _crew %}
+            <div>
+              <span class="k">동승 기사</span>
+              <span class="v">{{ _crew }}</span>
+            </div>
+            {% endif %}
+            {% if _veh %}
+            <div>
+              <span class="k">차량</span>
+              <span class="v">{{ _veh }}</span>
+            </div>
+            {% endif %}
+          </div>
+          {% endif %}
+          <div class="px-sales-btnrow">
+            {% if _hero_tel and _hero_tel != '-' %}
+            <a class="fos-btn fos-btn--field fos-btn--primary" href="tel:{{ _hero_tel }}">
+              <i class="fas fa-phone" aria-hidden="true"></i> 고객 전화
+            </a>
+            {% endif %}
+            <a class="fos-btn fos-btn--field" href="{{ url_for('erp_dashboard.erp_order_mobile_detail', order_id=_hero.id) }}">
+              현장 상세
+            </a>
+          </div>
+        </div>
+      </div>
+
+      {# ── 오늘 배차 리스트(순번) ─────────────────────────────────────── #}
+      <div class="fos-sec">
+        <div class="fos-sec__hd">오늘 배차 · {{ _today_rows | length }}건</div>
+        {% for o in _today_rows %}
+          {% set _danger = o.alerts and o.alerts.construction_d3 %}
+          <a class="fos-queue-card{% if _danger %} is-danger{% endif %}"
+             href="{{ url_for('erp_dashboard.erp_order_mobile_detail', order_id=o.id) }}">
+            <span class="px-construction-seq tnum" data-st="{{ _st_map.get(o.stage, 'construction') }}">{{ loop.index }}</span>
+            <span class="fos-queue-card__body">
+              <span class="fos-queue-card__title"><span class="who">{{ o.customer_name or '-' }}</span></span>
+              <span class="fos-queue-card__meta">
+                {% if o.address and o.address != '-' %}<span class="addr">{{ o.address }}</span>{% endif %}
+              </span>
+            </span>
+            <span class="fos-queue-card__aside">
+              <span class="fos-stage" data-st="{{ _st_map.get(o.stage, 'construction') }}">{{ o.stage }}</span>
+              <i class="fas fa-chevron-right fos-chevron" aria-hidden="true"></i>
+            </span>
+          </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      {# 오늘 시공 0건 — 빈 배차 히어로(스펙 §6 P5): '오늘 배차 없음' + 다음 예정 날짜 #}
+      <div class="fos-sec">
+        <div class="fos-sec__hd">오늘 배차</div>
+        <div class="fos-hero">
+          <div class="fos-hero__label"><i class="fas fa-hammer" aria-hidden="true"></i> 오늘 배차 없음</div>
+          <div class="fos-hero__meta">
+            {% if _next_ns.date %}<span class="tnum">다음 시공 예정 · {{ _next_ns.date }}</span>
+            {% else %}<span>예정된 시공 일정이 없습니다</span>{% endif %}
+          </div>
+        </div>
+      </div>
+    {% endif %}
+
+    {# ── 단계 세그먼트(기존 stage 필터 재사용) + 큐 ─────────────────── #}
+    <div class="fos-sec">
+      <div class="fos-sec__hd">시공 큐</div>
+      <div class="fos-chips" role="tablist" aria-label="시공 단계 필터">
+        <a class="fos-chip{% if not _cur_stage %} is-active{% endif %}"
+           href="{{ url_for('erp_construction_page.erp_construction_dashboard', mine=(1 if erp_mine_only else none)) }}"
+           aria-current="{{ 'true' if not _cur_stage else 'false' }}">
+          전체<span class="n tnum">{{ total_orders }}</span>
+        </a>
+        {% for step in process_steps %}
+          <a class="fos-chip{% if _cur_stage == step.label %} is-active{% endif %}"
+             href="{{ url_for('erp_construction_page.erp_construction_dashboard', stage=step.label, mine=(1 if erp_mine_only else none)) }}"
+             aria-current="{{ 'true' if _cur_stage == step.label else 'false' }}">
+            {{ step.display }}<span class="n tnum">{{ step.count }}</span>
+          </a>
+        {% endfor %}
+      </div>
+
+      {% if orders %}
+        {% for o in orders %}
+          {% set _danger = o.alerts and o.alerts.construction_d3 %}
+          {% set _tel = (o.phone or '') | replace('-', '') | replace(' ', '') %}
+          <a class="fos-queue-card{% if _danger %} is-danger{% endif %}"
+             href="{{ url_for('erp_dashboard.erp_order_mobile_detail', order_id=o.id) }}">
+            <span class="fos-queue-card__dot" style="--sc:var(--st-{{ _st_map.get(o.stage, 'construction') }})"></span>
+            <span class="fos-queue-card__body">
+              <span class="fos-queue-card__title"><span class="who">{{ o.customer_name or '-' }}</span></span>
+              <span class="fos-queue-card__meta">
+                {% if o.construction_date %}<span class="tnum">{{ o.construction_date }}</span>{% endif %}
+                {% if o.address and o.address != '-' %}<span class="addr">{{ o.address }}</span>{% endif %}
+              </span>
+            </span>
+            <span class="fos-queue-card__aside">
+              <span class="fos-tl-btn" role="button" data-fos-timeline data-order-id="{{ o.id }}" aria-label="주문 진행 타임라인 보기"><i class="fas fa-timeline" aria-hidden="true"></i></span>
+              <span class="fos-stage" data-st="{{ _st_map.get(o.stage, 'construction') }}">{{ o.stage }}</span>
+              <i class="fas fa-chevron-right fos-chevron" aria-hidden="true"></i>
+            </span>
+          </a>
+        {% endfor %}
+        {% if total_pages and total_pages > 1 and page < total_pages %}
+          <a class="fos-btn fos-btn--block"
+             href="{{ url_for('erp_construction_page.erp_construction_dashboard', stage=(_cur_stage or none), mine=(1 if erp_mine_only else none), page=page + 1) }}">
+            다음 {{ per_page }}건 더보기
+          </a>
+        {% endif %}
+      {% else %}
+        <div class="fos-empty">
+          <span class="fos-empty__ic"><i class="fas fa-inbox" aria-hidden="true"></i></span>
+          <span class="fos-empty__title">조건에 맞는 시공 주문이 없습니다</span>
+          <span class="fos-empty__sub">단계 칩을 바꿔 다른 시공 상태를 확인하세요.</span>
+        </div>
+      {% endif %}
+    </div>
+
+  </div>
+</div>

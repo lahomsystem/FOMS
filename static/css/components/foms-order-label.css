@@ -1,0 +1,71 @@
+/* B4 QR 인쇄 라벨 — 인쇄 전용 소형 스타일(고객명·주문번호·품목·QR). */
+.foms-label-body {
+  margin: 0;
+  padding: 24px;
+  font-family: -apple-system, BlinkMacSystemFont, "Noto Sans KR", "Malgun Gothic", sans-serif;
+  color: #111;
+  background: #fff;
+}
+
+.foms-label {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  max-width: 520px;
+  padding: 16px;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+}
+
+.foms-label__qr-img {
+  display: block;
+  width: 180px;
+  height: 180px;
+}
+
+.foms-label__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.foms-label__order-no {
+  margin: 0;
+  font-size: 14px;
+  color: #666;
+}
+
+.foms-label__customer {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  word-break: break-all;
+}
+
+.foms-label__product {
+  margin: 0;
+  font-size: 15px;
+  color: #333;
+  word-break: break-all;
+}
+
+.foms-label__print {
+  margin-left: auto;
+  align-self: flex-start;
+  min-height: 44px;
+  padding: 10px 18px;
+  border: 1px solid #333;
+  border-radius: 8px;
+  background: #fff;
+  color: #111;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+@media print {
+  .foms-label-body { padding: 0; }
+  .foms-label { border: 0; }
+  .foms-label__print { display: none; }
+}

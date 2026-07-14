@@ -113,6 +113,16 @@ def test_inject_status_list_and_foms_flags_align_with_feature_flags(
 
     assert status_ctx["erp_mobile_v2_enabled"] is True
     assert flags_ctx["flag_mobile_v2"] is True
+    # C2: shell_variant 키가 두 injector에 주입되고, 기존 boolean이 파생 계약
+    # (variant in {"v2","v3"})과 100% 정합해야 한다. v3 미자격이므로 v2.
+    assert status_ctx["shell_variant"] == "v2"
+    assert flags_ctx["shell_variant"] == "v2"
+    assert status_ctx["erp_mobile_v2_enabled"] is (
+        status_ctx["shell_variant"] in ("v2", "v3")
+    )
+    assert flags_ctx["flag_mobile_v2"] is (
+        flags_ctx["shell_variant"] in ("v2", "v3")
+    )
 
 
 @pytest.mark.parametrize("path", ERP_V2_PATHS)

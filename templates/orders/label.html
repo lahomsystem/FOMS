@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>주문 #{{ order.id }} 라벨</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-order-label.css') }}?v=20260712a">
+</head>
+<body class="foms-label-body">
+  <main class="foms-label" data-foms-order-label>
+    <div class="foms-label__qr">
+      <img class="foms-label__qr-img"
+           src="{{ url_for('orders.api_order_qr_svg', order_id=order.id) }}"
+           alt="주문 #{{ order.id }} QR" width="180" height="180">
+    </div>
+    <div class="foms-label__meta">
+      <p class="foms-label__order-no">주문 #{{ order.id }}</p>
+      <p class="foms-label__customer">{{ customer_name }}</p>
+      <p class="foms-label__product">{{ product_line }}</p>
+    </div>
+    <button type="button" class="foms-label__print" data-foms-label-print>인쇄</button>
+  </main>
+  <script>
+    (function () {
+      var btn = document.querySelector('[data-foms-label-print]');
+      if (btn) {
+        btn.addEventListener('click', function () { window.print(); });
+      }
+    })();
+  </script>
+</body>
+</html>

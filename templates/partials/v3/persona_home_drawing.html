@@ -1,0 +1,115 @@
+{# =========================================================================
+   FOMS Field OS v3 — 도면 페르소나 홈 (읽기/표시 전용, v3.0).
+   foms_app_shell_v3.html의 .fos-content 슬롯에 렌더된다(fos_content_partial 계약).
+   소비 컨텍스트(도면 워크벤치 뷰가 이미 내려주는 값만): rows, drawing_thumb_enabled.
+     rows[*]: id, customer_name, construction_date, drawing_status,
+              drawing_status_label, transfer_round, file_count, turn_label,
+              turn_tone, next_action, sla_level, is_overdue, due_today,
+              unread_count, my_todo, thumbnail_url
+   세그먼트(내 작업/대기/전달됨)는 foms-mobile-v3.js의 data-seg/​data-seg-panel
+   클라이언트 토글(서버 왕복 없음). 카드 탭 → 도면 작업실 상세(서버 렌더 링크).
+   ========================================================================= #}
+{% set _mine = rows | selectattr('my_todo') | list %}
+{% set _delivered = rows | rejectattr('my_todo') | selectattr('drawing_status', 'in', ['TRANSFERRED', 'CONFIRMED']) | list %}
+{% set _waiting = rows | rejectattr('my_todo') | rejectattr('drawing_status', 'in', ['TRANSFERRED', 'CONFIRMED']) | list %}
+{% set _hero = _mine[0] if _mine else (rows[0] if rows else none) %}
+
+{% macro drawing_card(r) %}
+  {% set _st = 'confirm' if r.drawing_status in ['TRANSFERRED', 'CONFIRMED'] else 'drawing' %}
+  <a class="fos-queue-card fos-queue-card--link{% if r.is_overdue %} is-danger{% endif %}"
+     href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=r.id) }}"
+     aria-label="주문 {{ r.id }} {{ r.customer_name }} 도면 작업실 열기">
+    <span class="fos-queue-card__dot" style="--sc:var(--st-{{ _st }})"></span>
+    <span class="fos-queue-card__body">
+      <span class="fos-queue-card__title">
+        <span class="who">{{ r.customer_name }}</span>
+        <span class="prod">#{{ r.id }}</span>
+      </span>
+      <span class="fos-queue-card__meta">
+        <span>{{ r.turn_label }}</span>
+        {% if r.construction_date %}<span class="addr tnum">시공 {{ r.construction_date }}</span>{% endif %}
+      </span>
+      <span class="fos-queue-card__meta px-drawing-tagrow">
+        <span class="fos-stage" data-st="{{ _st }}">{{ r.drawing_status_label }}</span>
+        {% if r.transfer_round and r.transfer_round > 0 %}<span class="px-drawing-vchip">v{{ r.transfer_round }}</span>{% endif %}
+        {% if r.unread_count and r.unread_count > 0 %}<span class="px-drawing-warn">미확인 {{ r.unread_count }}</span>{% endif %}
+        {% if r.sla_level == '지연' %}<span class="px-drawing-warn">지연</span>
+        {% elif r.sla_level == '오늘 마감' %}<span class="px-drawing-warn">오늘 마감</span>{% endif %}
+      </span>
+      {% if r.latest_transfer_line %}
+      <span class="fos-queue-card__meta px-drawing-xfer"><i class="fas fa-paper-plane" aria-hidden="true"></i> {{ r.latest_transfer_line }}</span>
+      {% endif %}
+      {% if r.latest_request_note %}
+      <span class="px-drawing-memo" title="{{ r.latest_request_note }}">{{ r.latest_request_note }}</span>
+      {% endif %}
+    </span>
+    <span class="fos-queue-card__aside">
+      <span class="fos-tl-btn" role="button" data-fos-timeline data-order-id="{{ r.id }}" aria-label="주문 진행 타임라인 보기"><i class="fas fa-timeline" aria-hidden="true"></i></span>
+      {% if drawing_thumb_enabled and r.thumbnail_url %}
+      <span class="px-drawing-thumb" data-ph="blueprint"><img src="{{ r.thumbnail_url }}" alt="" loading="lazy" decoding="async"></span>
+      {% else %}
+      <span class="px-drawing-thumb" data-ph="empty" aria-hidden="true">
+        <svg viewBox="0 0 66 50" preserveAspectRatio="none"><g stroke="rgba(120,210,240,.5)" stroke-width="1" fill="none"><rect x="7" y="7" width="52" height="30"/><path d="M42 7 42 37 M7 17 42 17 M7 27 42 27"/></g></svg>
+      </span>
+      {% endif %}
+      <span class="fos-chevron"><i class="fas fa-chevron-right" aria-hidden="true"></i></span>
+    </span>
+  </a>
+{% endmacro %}
+
+<div class="fos-appbar">
+  <div>
+    <div class="sub tnum">내 작업 {{ _mine | length }} · 대기 {{ _waiting | length }} · 전달 {{ _delivered | length }}</div>
+  </div>
+  <span class="fos-sync" data-sync="ok">표시 전용</span>
+</div>
+
+<div class="fos-scroll">
+  {% if _hero %}
+  <div class="fos-hero{% if _hero.is_overdue %} is-danger{% endif %}" data-order-id="{{ _hero.id }}">
+    <div class="fos-hero__top">
+      <span class="fos-hero__label">
+        <i class="fas fa-clock" aria-hidden="true"></i>
+        {% if _mine %}다음 할 일{% else %}최근 도면{% endif %}
+      </span>
+      <span class="fos-tl-btn" role="button" data-fos-timeline data-order-id="{{ _hero.id }}" aria-label="주문 진행 타임라인 보기"><i class="fas fa-timeline" aria-hidden="true"></i></span>
+    </div>
+    <div class="fos-hero__title">{{ _hero.customer_name }}</div>
+    <div class="fos-hero__meta">
+      <span>{{ _hero.turn_label }}</span>
+      {% if _hero.transfer_round and _hero.transfer_round > 0 %}<span class="px-drawing-vchip">v{{ _hero.transfer_round }}</span>{% endif %}
+      {% if _hero.is_overdue %}<span class="px-drawing-warn">마감 지연</span>
+      {% elif _hero.due_today %}<span class="px-drawing-warn">오늘 마감</span>{% endif %}
+    </div>
+    <div class="fos-hero__meta">
+      <span>도면 {{ _hero.file_count }}장{% if _hero.construction_date %} · 시공 {{ _hero.construction_date }}{% endif %}</span>
+    </div>
+    <a class="fos-btn fos-btn--primary fos-btn--block"
+       href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=_hero.id) }}">
+      이어 작업 · 도면 열기 →
+    </a>
+  </div>
+  {% endif %}
+
+  <div class="fos-seg" role="tablist" aria-label="워크벤치 필터">
+    <button type="button" class="is-active" data-seg="mine" role="tab" aria-selected="true">내 작업 <span class="tnum">{{ _mine | length }}</span></button>
+    <button type="button" data-seg="waiting" role="tab" aria-selected="false">대기 <span class="tnum">{{ _waiting | length }}</span></button>
+    <button type="button" data-seg="delivered" role="tab" aria-selected="false">전달됨 <span class="tnum">{{ _delivered | length }}</span></button>
+  </div>
+
+  <div class="fos-seg-panel is-active" data-seg-panel="mine">
+    {% for r in _mine %}{{ drawing_card(r) }}{% else %}
+    <div class="fos-empty"><span class="fos-empty__sub">지금 바로 처리할 도면 작업이 없습니다.</span></div>
+    {% endfor %}
+  </div>
+  <div class="fos-seg-panel" data-seg-panel="waiting">
+    {% for r in _waiting %}{{ drawing_card(r) }}{% else %}
+    <div class="fos-empty"><span class="fos-empty__sub">대기 중인 도면 작업이 없습니다.</span></div>
+    {% endfor %}
+  </div>
+  <div class="fos-seg-panel" data-seg-panel="delivered">
+    {% for r in _delivered %}{{ drawing_card(r) }}{% else %}
+    <div class="fos-empty"><span class="fos-empty__sub">전달·확정된 도면이 없습니다.</span></div>
+    {% endfor %}
+  </div>
+</div>

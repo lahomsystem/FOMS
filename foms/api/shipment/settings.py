@@ -176,6 +176,10 @@ def api_erp_shipment_update(order_id):
                 if isinstance(workers, list)
                 else []
             )
+        if "vehicle" in payload:
+            shipment["vehicle"] = str(payload.get("vehicle", "")).strip()
+        if "trip" in payload:
+            shipment["trip"] = str(payload.get("trip", "")).strip()
 
         structured_data["shipment"] = shipment
         setattr(order, "structured_data", structured_data)

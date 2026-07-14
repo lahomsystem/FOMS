@@ -48,7 +48,7 @@ from foms.services.drawing_workbench_display import (
     drawing_thumb_enabled,
     resolve_row_thumbnail_url,
 )
-from foms.services.feature_flags import is_enabled_for_user
+from foms.services.feature_flags import is_mobile_v2_shell, resolve_shell_variant_cached
 
 erp_drawing_workbench_bp = Blueprint('erp_drawing_workbench', __name__, url_prefix='/erp')
 
@@ -239,16 +239,17 @@ def erp_drawing_workbench_dashboard():
     mine_only = erp_mine_only_from_request(request)
     unread_only = (request.args.get('unread') or '').strip() == '1'
     due_today_only = (request.args.get('due_today') or '').strip() == '1'
+    # 태블릿 도면 작업실 필터(추가, 부재 시 무영향): D-3 이내(시공 임박)만 / 전달 대기(마법사 저장분)만.
+    dday3_only = (request.args.get('dday3') or '').strip() == '1'
+    pending_only = (request.args.get('pending') or '').strip() == '1'
     assignee_filter_raw = (request.args.get('assignee') or '').strip()
     assignee_filter = assignee_filter_raw.lower()
     sort_by = (request.args.get('sort') or '').strip().lower()
     page = max(1, int(request.args.get('page') or '1'))
     per_page = 25
     mine_scope = resolve_mine_scope_for_user(current_user)
-    mobile_v2_active = is_enabled_for_user(
-        "ERP_MOBILE_V2_ENABLED",
-        current_user.id if current_user else None,
-        cohort_key="FOMS_V3_SHELL_COHORT",
+    mobile_v2_active = is_mobile_v2_shell(
+        resolve_shell_variant_cached(current_user.id if current_user else None)
     )
 
     orders_query = (
@@ -343,13 +344,14 @@ def erp_drawing_workbench_dashboard():
             and is_drawing_workbench_participant(current_user, o)
         )
         can_confirm_row = bool(can_sales and drawing_status == 'TRANSFERRED')
+        transfer_round = sum(1 for h in history if isinstance(h, dict) and h.get('action') == 'TRANSFER')
         turn = _build_drawing_turn(
             drawing_status,
             has_assignee,
             can_transfer_row,
             can_confirm_row,
             len(drawing_files),
-            sum(1 for h in history if isinstance(h, dict) and h.get('action') == 'TRANSFER'),
+            transfer_round,
         )
         if can_confirm_row:
             primary_action = {'label': '수령 확인', 'icon': 'fa-check-double'}
@@ -377,6 +379,7 @@ def erp_drawing_workbench_dashboard():
         due_today = (alerts.get('measurement_days') == 0 or alerts.get('construction_days') == 0)
 
         latest_request_no = None
+        latest_request_note = ''
         for h in reversed(history):
             if isinstance(h, dict) and h.get('action') == 'REQUEST_REVISION':
                 try:
@@ -384,6 +387,20 @@ def erp_drawing_workbench_dashboard():
                     latest_request_no = int(target_no_raw) if target_no_raw is not None else None
                 except Exception:
                     pass
+                latest_request_note = str(h.get('note') or '').strip()
+                break
+        # 최신 전달(TRANSFER) 요약 1줄: 'vN 전달 · M/D HH:MM · 이름' (이미 로드된 history 파생, 추가 쿼리 없음).
+        latest_transfer_line = ''
+        for h in reversed(history):
+            if isinstance(h, dict) and h.get('action') == 'TRANSFER':
+                _t_at = format_datetime_kst(_history_event_at_raw(h), '%m/%d %H:%M') or ''
+                _t_by = str(h.get('by_user_name') or '').strip()
+                _t_seg = [f'v{transfer_round} 전달' if transfer_round else '전달']
+                if _t_at:
+                    _t_seg.append(_t_at)
+                if _t_by:
+                    _t_seg.append(_t_by)
+                latest_transfer_line = ' · '.join(_t_seg)
                 break
         h_action = (last_event or {}).get('action') or ''
         h_action_label = {
@@ -397,18 +414,27 @@ def erp_drawing_workbench_dashboard():
         ]).lower()
 
         construction_date = _resolve_construction_date_display(o, sd)
+        # 제품 요약(고객·제품 카드용) — 이미 로드된 sd['items']에서 파생(추가 쿼리 없음).
+        _sd_items = sd.get('items') or []
+        product_summary = ', '.join(
+            str((it.get('product_name') or '').strip())
+            for it in _sd_items
+            if isinstance(it, dict) and (it.get('product_name') or '').strip()
+        )[:60]
 
         rows.append({
             'id': o.id,
             'is_self_measurement': getattr(o, 'is_self_measurement', False),
             'customer_name': customer_name,
             'construction_date': construction_date,
+            'product_summary': product_summary,
             'manager_name': manager_name,
             'assignee_text': assignee_text,
             'measurement_assignee_text': measurement_assignee_text,
             'drawing_status': drawing_status,
             'drawing_status_label': _drawing_status_label(drawing_status),
             'file_count': len(drawing_files),
+            'transfer_round': transfer_round,
             'pending_count': pending_count,
             'thumbnail_url': resolve_row_thumbnail_url(
                 o.id, drawing_files, db, mobile_v2_active=mobile_v2_active
@@ -423,9 +449,14 @@ def erp_drawing_workbench_dashboard():
             'latest_event_at': (last_event or {}).get('transferred_at') or (last_event or {}).get('at') or '-',
             'latest_event_label': h_action_label,
             'latest_event_note': (last_event or {}).get('note') or '',
+            'latest_transfer_line': latest_transfer_line,
+            'latest_request_note': latest_request_note,
             'sla_level': sla_level,
             'is_overdue': bool(alerts.get('drawing_overdue')),
             'due_today': due_today,
+            # 시공 D-day(영업일 기준, 미정=None) + D-3 이내 플래그(시공 임박순 정렬·KPI·필터 소스).
+            'construction_days': alerts.get('construction_days'),
+            'construction_d3': bool(alerts.get('construction_d3')),
             'unread_count': unchecked_requests,
             'my_todo': my_todo,
             'include_for_mine': include_for_mine,
@@ -433,7 +464,7 @@ def erp_drawing_workbench_dashboard():
         })
 
     # 프로세스 맵 카운트는 목록 필터와 무관하게 전체 큐 기준(파이프라인 bar SSOT).
-    stats = {'total': len(rows), 'WAITING': 0, 'IN_PROGRESS': 0, 'RETURNED': 0, 'TRANSFERRED': 0, 'CONFIRMED': 0, 'overdue': 0, 'unread': 0}
+    stats = {'total': len(rows), 'WAITING': 0, 'IN_PROGRESS': 0, 'RETURNED': 0, 'TRANSFERRED': 0, 'CONFIRMED': 0, 'overdue': 0, 'unread': 0, 'd3': 0, 'pending_transfer': 0}
     for r in rows:
         status = (r.get('drawing_status') or 'WAITING').upper()
         if status == 'PENDING':
@@ -444,6 +475,11 @@ def erp_drawing_workbench_dashboard():
             stats['overdue'] += 1
         if r.get('unread_count', 0) > 0:
             stats['unread'] += 1
+        # 태블릿 KPI 타일 SSOT(전체 큐 기준, 목록 필터와 무관): D-3 이내 / 전달 대기(마법사 저장분).
+        if r.get('construction_d3'):
+            stats['d3'] += 1
+        if int(r.get('pending_count') or 0) > 0:
+            stats['pending_transfer'] += 1
 
     if focus_order_id:
         # 검색 카드 딥링크: 단건만 착지시키고 목록 필터·페이지는 적용하지 않는다.
@@ -457,6 +493,10 @@ def erp_drawing_workbench_dashboard():
             rows = [r for r in rows if r.get('unread_count', 0) > 0]
         if due_today_only:
             rows = [r for r in rows if r.get('due_today')]
+        if dday3_only:
+            rows = [r for r in rows if r.get('construction_d3')]
+        if pending_only:
+            rows = [r for r in rows if int(r.get('pending_count') or 0) > 0]
         if assignee_filter:
             rows = [r for r in rows if assignee_filter in (r.get('assignee_text') or '').lower()]
         if q:
@@ -484,6 +524,12 @@ def erp_drawing_workbench_dashboard():
             rows.sort(key=lambda r: (-int(r.get('unread_count') or 0), -int(r.get('id') or 0)), reverse=reverse)
         elif sort_by == 'id':
             rows.sort(key=lambda r: int(r.get('id') or 0), reverse=reverse)
+        elif sort_by == 'schedule':
+            # 시공일 임박순: 시공 D-day 오름차순(임박·지연 먼저), 미정은 맨 뒤.
+            rows.sort(
+                key=lambda r: (0, r['construction_days']) if r.get('construction_days') is not None else (1, 0),
+                reverse=reverse,
+            )
 
     # 모바일 단일 리스트 무한스크롤: 정렬 무관 '내 차례'를 항상 앞으로(안정 정렬로 그룹 보존).
     rows.sort(key=lambda r: 0 if r.get('my_todo') else 1)
@@ -506,7 +552,7 @@ def erp_drawing_workbench_dashboard():
             stats=stats,
             pagination={'page': page, 'per_page': per_page, 'total_count': total_count, 'total_pages': total_pages, 'has_prev': page > 1, 'has_next': page < total_pages},
             sort_by=request.args.get('sort') or '',
-            filters={'q': q_raw, 'status': status_filter, 'mine': '1' if mine_only else '', 'unread': '1' if unread_only else '', 'due_today': '1' if due_today_only else '', 'assignee': assignee_filter_raw},
+            filters={'q': q_raw, 'status': status_filter, 'mine': '1' if mine_only else '', 'unread': '1' if unread_only else '', 'due_today': '1' if due_today_only else '', 'assignee': assignee_filter_raw, 'dday3': '1' if dday3_only else '', 'pending': '1' if pending_only else ''},
             can_edit_erp=can_edit_erp(current_user),
             erp_order_enabled=True,
             erp_mine_only=mine_only,
@@ -523,10 +569,8 @@ def erp_drawing_workbench_detail(order_id):
     """도면 작업실 상세: 도면팀↔주문담당 협업 실행판."""
     db = get_db()
     current_user = getattr(g, 'current_user', None)
-    mobile_v2_active = is_enabled_for_user(
-        "ERP_MOBILE_V2_ENABLED",
-        current_user.id if current_user else None,
-        cohort_key="FOMS_V3_SHELL_COHORT",
+    mobile_v2_active = is_mobile_v2_shell(
+        resolve_shell_variant_cached(current_user.id if current_user else None)
     )
     order = db.query(Order).filter(Order.id == order_id, Order.active_filter(), Order.is_erp_order.is_(True)).first()
     if not order:

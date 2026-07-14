@@ -1,0 +1,586 @@
+/* ==========================================================================
+   태블릿 가로 AS 전/후 대조 표면 (P8 목업 이식 · 2026-07-12).
+
+   태블릿 가로 코호트에서 legacy AS 데스크톱 테이블(.erp-pro-table-wrapper)을 전/후 대조
+   카드 그리드(.foms-as-compare)로 대체한다. 목업 시트의 "접수 사진 → 조치 후" 대조 패널을
+   카드 안으로 흡수(자족형). 4-타일 요약·서브탭·필터·페이저는 목업이 유지하므로 그대로 둔다
+   (여기서 은닉하지 않음). 마크업/데이터 = 서버 무변경(rows 재소비 + 서비스 사진 보강).
+
+   적용 조건 (T2 매트릭스 정합, verbatim):
+     body.erp-mobile-v2-layout(코호트 게이트)
+     + @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse)
+     + page scope: .erp-as-dashboard
+   fine(노트북) 제외 = pointer:coarse 필수. 세로=모바일 셸이므로 orientation:portrait 토큰을
+   쓰지 않는다(landscape 전용, foms-split-view.css portrait 금지 가드와 정합).
+
+   로드: foms-tablet-bundle.css @import(셸-독립 번들). 코호트 번들에서만 로드 → PC/폰 무영향.
+
+   ==========================================================================
+   배타표 (blank 금지) — AS 표면. 어떤 조합도 두 영역 동시 은닉 없음:
+
+     뷰포트/코호트                 | 모바일 카드 리스트        | 데스크톱 테이블            | 대조 그리드
+                                   | (.erp-as-mobile-list)    | (.erp-pro-table-wrapper)   | (.foms-as-compare)
+     -----------------------------|--------------------------|----------------------------|-------------------
+     모바일(≤991.98/992+ 세로)     | 표시(d-md-none 해제)     | 은닉(d-none d-md-block)    | 은닉(base none)
+     PC/데스크톱(≥992 fine/none)   | 은닉(d-md-none)          | 표시(d-md-block)           | 은닉(base none)
+     태블릿 가로 coarse 코호트 ON  | 은닉(d-md-none)          | 은닉 ← 아래(!important)     | 표시 ← 아래
+     태블릿 가로 코호트 OFF        | 은닉(d-md-none)          | 표시(d-md-block)           | 미렌더({% if %})
+
+   핵심 결합: "테이블 은닉"과 "대조 표시"는 동일 게이트(코호트 body class + 코어 MQ + 페이지
+   스코프) 아래 한 블록 → 테이블이 숨는 순간 반드시 대조가 나타난다(원자적). 기본값은 대조
+   은닉 / 테이블 표시라 미배선·비코호트 경로는 항상 테이블 fallback.
+   데스크톱 테이블은 Bootstrap d-md-block(=block !important)이라 은닉에 !important 필요.
+
+   foms 토큰(foms-tokens.css)만 사용(하드코딩 팔레트 금지).
+   ========================================================================== */
+
+/* Base(opt-in 이전 필수 — 순서 계약): 어디서든 기본 숨김. 코호트 @media 만이 표시한다. */
+.foms-as-compare {
+  display: none;
+}
+
+/* 방문일 오버레이 표시 텍스트도 base 숨김 → 코호트 밖에선 실제 date input 이 정상 렌더된다
+   (오버레이 모드는 코호트 @media 에서만 활성). 순서 계약 = MQ 앞. */
+.foms-as-compare-visit__datetext {
+  display: none;
+}
+
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+
+  /* --- 배타: 데스크톱 테이블 은닉 + 대조 그리드 표시(동일 게이트 결합) --- */
+  body.erp-mobile-v2-layout .erp-as-dashboard .erp-pro-table-wrapper {
+    display: none !important;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+    gap: var(--foms-space-3);
+    padding: var(--foms-space-3) var(--foms-space-4) var(--foms-space-6);
+    align-items: start;
+  }
+
+  /* --- frame08: 코호트에서 PC 크롬(헤더/데스크톱 서브탭/필터) 은닉 → 클린 pcbar+chip 서브탭 대체.
+     PC 서브탭/필터 는 Bootstrap d-md-block/d-md-grid(=display !important @≥768) 이라 은닉에
+     !important 필요(orders 프레임 정합). 페이지 스코프(.erp-as-dashboard)로 PC/폰/타 페이지
+     무영향. 대조 그리드(위) 표시와 동일 코호트 게이트 → 크롬 사라짐과 pcbar 등장 원자적.
+     요약 4-타일(.erp-as-summary-strip)은 목업이 유지(파일 상단 주석 계약) → 은닉하지 않고
+     아래에서 타일로 재정의한다. --- */
+  body.erp-mobile-v2-layout .erp-as-dashboard .erp-pro-header,
+  body.erp-mobile-v2-layout .erp-as-dashboard .erp-as-desktop-nav,
+  body.erp-mobile-v2-layout .erp-as-dashboard .erp-as-desktop-filters {
+    display: none !important;
+  }
+
+  /* --- 요약 4-타일 (미완료 탭 버킷 필터) — 목업 frame08 상단 요약. .erp-as-summary-strip 은
+     .foms-as-compare 의 형제(카드 body 직속)라 grid-column 은 부모 비-grid 로 무효(무해)지만,
+     자체를 4열 그리드로 만들어 pill 을 타일화한다. Bootstrap d-md-grid(display:grid !important)
+     와 display 값 동일 → 무충돌. as_tab='incomplete' 에서만 렌더. --- */
+  body.erp-mobile-v2-layout .erp-as-dashboard .erp-as-summary-strip {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--foms-space-3);
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .erp-as-summary-pill {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-1);
+    padding: var(--foms-space-3) var(--foms-space-4);
+    background: var(--foms-surface-base);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-lg);
+    color: var(--foms-text-secondary);
+    text-decoration: none;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .erp-as-summary-pill:focus-visible {
+    outline: none;
+    box-shadow: var(--foms-shadow-focus-ring);
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .erp-as-summary-pill__label {
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-semibold);
+    color: var(--foms-text-tertiary);
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .erp-as-summary-pill__value {
+    font-size: var(--foms-font-size-2xl);
+    font-weight: var(--foms-font-weight-bold);
+    color: var(--foms-text-primary);
+    font-variant-numeric: tabular-nums;
+  }
+  /* 활성 버킷 = 브랜드 강조 타일(현재 필터). */
+  body.erp-mobile-v2-layout .erp-as-dashboard .erp-as-summary-pill.is-active {
+    border-color: var(--foms-interactive-primary);
+    background: var(--foms-surface-accent);
+  }
+
+  /* --- 대조 카드 --- */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-3);
+    min-height: var(--foms-touch-target-min);
+    padding: var(--foms-space-4);
+    background: var(--foms-surface-base);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-lg);
+    box-shadow: var(--foms-shadow-sm);
+  }
+  /* 미결 강조: 좌측 경보 스트립(HMI — 상태 이상만 유채색). */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-card.is-pending {
+    box-shadow: inset 3px 0 0 var(--foms-color-danger-600), var(--foms-shadow-sm);
+  }
+
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-card__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--foms-space-2);
+  }
+  /* 목업 m-head 정합: 고객명(16px/700) 위, "#id · 방문 D-day" 메타 아래(2줄 스택). */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-card__identity {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-card__customer {
+    font-size: var(--foms-font-size-base);
+    font-weight: var(--foms-font-weight-bold);
+    line-height: var(--foms-line-height-tight);
+    color: var(--foms-text-primary);
+    word-break: break-word;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-card__meta-line {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: var(--foms-space-1);
+    font-size: var(--foms-font-size-xs);
+    color: var(--foms-text-tertiary);
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-card__id {
+    font-weight: var(--foms-font-weight-semibold);
+    color: var(--foms-text-secondary);
+    text-decoration: none;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-card__hdr-dday {
+    font-variant-numeric: tabular-nums;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-card__status {
+    flex: 0 0 auto;
+  }
+
+  /* --- 메타 (목업 PC 컬럼: 방문일/접수일/담당/시공자/주소) --- */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-card__meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--foms-space-2) var(--foms-space-4);
+    margin: 0;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-meta--full {
+    grid-column: 1 / -1;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-meta dt {
+    font-size: var(--foms-font-size-xs);
+    font-weight: var(--foms-font-weight-semibold);
+    color: var(--foms-text-tertiary);
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-meta dd {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--foms-space-2);
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-medium);
+    color: var(--foms-text-primary);
+    word-break: break-word;
+  }
+
+  /* --- 방문 D-day 칩: 정상(D-3 이상)=무채색, 임박(D-2 이내)·D-DAY·지남=솔리드 레드 --- */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-dday {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 0 var(--foms-space-2);
+    border-radius: var(--foms-radius-full);
+    background: var(--foms-surface-muted);
+    color: var(--foms-text-secondary);
+    font-size: var(--foms-font-size-xs);
+    font-weight: var(--foms-font-weight-bold);
+    white-space: nowrap;
+  }
+  /* 목업 frame08 정합(.chip-dday.hot = SOLID RED): 임박(is-imminent)·D-DAY·지남(is-overdue)
+     전부 동일 솔리드 레드로 통일 — 앰버 티어 폐기(사용자가 목업 규칙 채택). 클래스명은 계약
+     유지, 색만 두 티어 합쳐 레드로 재정의. */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-dday.is-imminent,
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-dday.is-overdue {
+    background: var(--foms-color-danger-600);
+    color: var(--foms-text-inverse);
+  }
+
+  /* --- AS 내용 --- */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-card__content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-1);
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-card__content-label {
+    font-size: var(--foms-font-size-xs);
+    font-weight: var(--foms-font-weight-semibold);
+    color: var(--foms-text-tertiary);
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-card__content-body {
+    font-size: var(--foms-font-size-sm);
+    color: var(--foms-text-secondary);
+    word-break: break-word;
+  }
+
+  /* --- 전/후 대조 (목업 "접수 사진 → 조치 후" 2열 포토 그리드) --- */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-card__photos {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--foms-space-3);
+  }
+  /* 목업 "접수 사진 → 조치 후" = 카드 안 플랫 2열 포토 그리드. 중첩 박스(bg/border) 제거 →
+     사진이 카드 표면에 직접 놓이는 클린 대조(라벨 + 간격만으로 전/후 구분). */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-col {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-2);
+    min-width: 0;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-col__label {
+    font-size: var(--foms-font-size-xs);
+    font-weight: var(--foms-font-weight-bold);
+    color: var(--foms-text-secondary);
+    letter-spacing: 0.02em;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: var(--foms-space-2);
+  }
+  /* 썸네일: 목업 photo aspect 4/3, 탭 = 이미지 뷰어(lightbox → GlobalImageViewer). */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-thumb {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-md);
+    background: var(--foms-surface-muted);
+    cursor: pointer;
+  }
+  /* 빈 상태 placeholder(사진 없음) — 대조 슬롯이 blank 로 무너지지 않게 최소 높이 확보. */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--foms-space-1);
+    min-height: 66px;
+    border: 1px dashed var(--foms-border-subtle);
+    border-radius: var(--foms-radius-md);
+    color: var(--foms-text-tertiary);
+    font-size: var(--foms-font-size-xs);
+  }
+
+  /* --- 카드 하단 액션 (44px 터치 타깃) — 2행 명시 스택: row1 보조 칩, row2 짝 --- */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-card__foot {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-2);
+    margin-top: auto;
+  }
+  /* row1: 보조 칩(주변 일정·사진 관리·주문 편집) — 자연폭으로 자유 랩. */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-foot-secondary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--foms-space-2);
+  }
+  /* row2: 짝 [일정 변경 | AS 완료] — 자체 flex 컨테이너로 폭 무관 1:1.6 결정적 배치.
+     이전 flex-basis 38/58 + order 방식은 보조 칩이 한 행에 다 들어가면 AS 완료가 단독
+     full-width 로 랩되는 결함이 있었다 → 짝을 별도 컨테이너로 격리해 항상 같은 행에 둔다. */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-foot-pair {
+    display: flex;
+    gap: var(--foms-space-2);
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-foot-pair .foms-as-compare-reschedule {
+    flex: 1 1 0;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-foot-pair .foms-as-compare-btn--primary,
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-foot-pair .foms-as-compare-btn--done {
+    flex: 1.6 1 0;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-btn {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--foms-space-2);
+    min-height: var(--foms-touch-target-comfortable);
+    min-width: var(--foms-touch-target-comfortable);
+    padding: 0 var(--foms-space-4);
+    border: 1px solid var(--foms-border-subtle);
+    border-radius: var(--foms-radius-md);
+    background: var(--foms-surface-base);
+    color: var(--foms-text-secondary);
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-semibold);
+    text-decoration: none;
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-btn:focus-visible {
+    outline: none;
+    box-shadow: var(--foms-shadow-focus-ring);
+  }
+  /* AS 완료 = primary(채움) 시각. 짝 배치(1:1.6)는 위 .foms-as-compare-foot-pair 소유. */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-btn--primary {
+    border-color: transparent;
+    background: var(--foms-interactive-primary);
+    color: var(--foms-text-inverse);
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-btn--primary:hover {
+    background: var(--foms-interactive-primary-hover);
+  }
+
+  /* --- 빈 목록 상태 --- */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-empty-state {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--foms-space-2);
+    padding: var(--foms-space-6);
+    color: var(--foms-text-tertiary);
+  }
+
+  /* ==========================================================================
+     frame08 크롬 — pcbar / chip 서브탭 / 방문 블록 / 완료 버튼 / 밀도(뷰) 3단.
+     pcbar·서브탭은 .foms-as-compare(grid) 의 grid-column:1/-1 자식 → 부모 base-hide 상속
+     (코호트에서만 표시, 별도 base-hide 불요). 터치 컨트롤 ≥44px(comfortable) 토큰 구동.
+     ========================================================================== */
+
+  /* --- pcbar: 제목 · 미완료 N건 · 밀도 토글 · AS 접수 CTA --- */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-pcbar {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--foms-space-3);
+    padding-bottom: var(--foms-space-3);
+    border-bottom: 1px solid var(--foms-border-subtle);
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-pcbar__head {
+    display: flex;
+    align-items: baseline;
+    gap: var(--foms-space-3);
+    min-width: 0;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-pcbar__title {
+    color: var(--foms-text-primary);
+    font-size: var(--foms-font-size-xl);
+    font-weight: var(--foms-font-weight-bold);
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-pcbar__sub {
+    color: var(--foms-text-tertiary);
+    font-size: var(--foms-font-size-sm);
+    white-space: nowrap;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-pcbar__tools {
+    display: flex;
+    align-items: center;
+    gap: var(--foms-space-3);
+  }
+  /* AS 접수 = primary CTA(채움). ≥44px 터치 타깃. */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-pcbar__cta {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--foms-space-2);
+    min-height: var(--foms-touch-target-comfortable);
+    padding: 0 var(--foms-space-4);
+    border: 1px solid transparent;
+    border-radius: var(--foms-radius-md);
+    background: var(--foms-interactive-primary);
+    color: var(--foms-text-inverse);
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-bold);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-pcbar__cta:hover {
+    background: var(--foms-interactive-primary-hover);
+  }
+
+  /* --- chip 서브탭: 영업/배송 · 미완료 · 완료 (PC nav-tabs 대체) --- */
+  /* 세그먼트 컨트롤 트랙 (muted 배경·radius·내부 패딩). 개별 full-radius pill 대신 iOS 형
+     세그먼트 = 활성 세그먼트만 surface-base 썸(그림자). */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-subtabs {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--foms-space-1);
+    padding: var(--foms-space-1);
+    background: var(--foms-surface-muted);
+    border-radius: var(--foms-radius-lg);
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-subtab {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--foms-space-2);
+    min-height: var(--foms-touch-target-comfortable);
+    padding: 0 var(--foms-space-4);
+    border: 0;
+    border-radius: var(--foms-radius-md);
+    background: transparent;
+    color: var(--foms-text-secondary);
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-semibold);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-subtab:focus-visible {
+    outline: none;
+    box-shadow: var(--foms-shadow-focus-ring);
+  }
+  /* 활성 서브탭 = 세그먼트 썸(surface-base + 그림자). 브랜드 채움 제거. */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-subtab.is-active {
+    background: var(--foms-surface-base);
+    color: var(--foms-text-primary);
+    box-shadow: var(--foms-shadow-sm);
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-subtab__count {
+    font-variant-numeric: tabular-nums;
+    font-weight: var(--foms-font-weight-bold);
+  }
+
+  /* --- 방문 블록: 방문일(재조정 date input)+D-day · 시각·시공팀·원 주문 링크 --- */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-visit dd {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--foms-space-2);
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-visit__primary {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--foms-space-2);
+  }
+  /* 방문일 오버레이 date 패턴(iPad 정합): 표시 텍스트(스타일드) 위에 실제 date input 을
+     opacity:0 으로 겹쳐 네이티브 보더/캘린더 아이콘을 은닉하고 탭 히트영역(≥44px)을 확보한다.
+     CSS 로 벗겨지지 않던 네이티브 크롬 문제의 근본 해결(구조 전환). */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-visit__datewrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--foms-touch-target-comfortable);
+    border-radius: var(--foms-radius-md);
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-visit__datewrap:hover {
+    background: var(--foms-surface-muted);
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-visit__datewrap:focus-within {
+    background: var(--foms-surface-base);
+    box-shadow: var(--foms-shadow-focus-ring);
+  }
+  /* 표시 텍스트: 클린 18px semibold, 보더리스, 캘린더 글리프 왼쪽(12px gap). weekday 없이 YYYY-MM-DD. */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-visit__datetext {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--foms-space-3);
+    min-height: var(--foms-touch-target-comfortable);
+    padding: 0 var(--foms-space-2);
+    color: var(--foms-text-primary);
+    font-size: var(--foms-font-size-lg);
+    font-weight: var(--foms-font-weight-semibold);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-visit__datetext .fa-calendar-day {
+    color: var(--foms-text-tertiary);
+    font-size: var(--foms-font-size-base);
+  }
+  /* 실제 입력 = 투명 오버레이(전체 히트영역). change 계약(.editable-date-as)은 유지되어 저장 동작. */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-visit__date {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    min-height: var(--foms-touch-target-comfortable);
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    opacity: 0;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-visit__date:focus,
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-visit__date:focus-visible {
+    outline: none;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-visit__detail {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--foms-space-2) var(--foms-space-3);
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-visit__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--foms-space-1);
+    font-size: var(--foms-font-size-sm);
+    color: var(--foms-text-secondary);
+    white-space: nowrap;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-visit__link {
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-semibold);
+    color: var(--foms-interactive-primary);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-visit__link:hover {
+    text-decoration: underline;
+  }
+
+  /* --- foot: AS 완료(primary, .foms-as-compare-btn--primary 재사용) · 완료됨(비활성 표식) --- */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare-btn--done {
+    opacity: 0.6;
+    cursor: default;
+  }
+
+  /* --- 밀도(뷰) 3단: 카드 썸네일·패딩 압축/확장. 기본(48/속성없음)=위 기본 규칙 유지
+     (중복 SSOT 방지 — 40/56 만 특이도로 재정의, !important 미사용). --- */
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare[data-foms-density="40"] .foms-as-compare-card {
+    padding: var(--foms-space-3);
+    gap: var(--foms-space-2);
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare[data-foms-density="40"] .foms-as-compare-grid {
+    grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare[data-foms-density="56"] .foms-as-compare-card {
+    padding: var(--foms-space-5);
+    gap: var(--foms-space-4);
+  }
+  body.erp-mobile-v2-layout .erp-as-dashboard .foms-as-compare[data-foms-density="56"] .foms-as-compare-grid {
+    /* base(48)=120px 로 상향되었으므로 56(덜 촘촘)은 그보다 커야 단조 증가 유지(40<48<56). */
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .foms-as-compare-card {
+    transition: none;
+  }
+}

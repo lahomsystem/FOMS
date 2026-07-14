@@ -6,6 +6,9 @@
       · tail 오염(표본 절반이 3~5s)에도 min 불변 → PASS 유지(한국↔싱가포르 tail 내성).
       · 균일 +200ms 시프트(서버 회귀)는 min 도 오름 → FAIL(감지 유지).
   - healthz 델타 산식(음수는 0 바닥).
+  - 바이트 판정 = median **wire(전송 압축) 바이트**(실사용 다운로드 비용). 반복 큰 마크업은
+    압축돼 wire 가 안 늘어 오탐 없음(해압 바이트는 정보용). Content-Length 부재 시 해압 폴백
+    (보수적) + wire_degraded 플래그만, FAIL 은 안 함.
   - --seed 마진: max(delta*1.3, delta+80ms).
   - 크리덴셜 부재 → exit 2(게이트 SKIP ≠ 실패).
 """
@@ -22,10 +25,18 @@ from foms.services.common.erp_navigation_contract import ERP_PRIMARY_NAV_PATHS
 GLOBAL_BUDGET = {"render_ms_max": 500, "etag_required": True, "conditional_304_required": True}
 
 
-def _sample(ttfb_ms: int, bytes_: int = 1000, render_ms: float | None = 100.0) -> dict:
+def _sample(
+    ttfb_ms: int,
+    bytes_: int = 1000,
+    render_ms: float | None = 100.0,
+    wire_bytes: int | None = None,
+) -> dict:
+    """표본 픽스처. wire_bytes 미지정 시 bytes_ 와 동일(압축=1:1 기본), wire_measured=True."""
     return {
         "ttfb_ms": ttfb_ms,
         "bytes": bytes_,
+        "wire_bytes": bytes_ if wire_bytes is None else wire_bytes,
+        "wire_measured": True,
         "render_ms": render_ms,
         "etag_present": True,
         "content_encoding": "br",
@@ -130,12 +141,82 @@ def test_healthz_delta_formula_and_negative_floor():
 
 
 def test_bytes_over_budget_fails():
-    """median bytes 가 예산 초과 → FAIL(bytes 는 delta 무관, 결정적)."""
+    """median wire bytes 가 예산 초과 → FAIL(bytes 는 delta 무관, 결정적)."""
     warm = [_sample(400, bytes_=9000), _sample(400, bytes_=9100), _sample(400, bytes_=9050), _sample(400, bytes_=9000)]
     summary = gate.summarize_samples(warm)
     row = gate.judge_path("/x", summary, True, _budget(delta=100, bytes_=5000), GLOBAL_BUDGET, base_ttfb_ms=380)
     assert row["passed"] is False
     assert any("bytes" in r for r in row["reasons"])
+
+
+# ---------------------------------------------------------------------------
+# wire(전송 압축) 바이트 판정 — 재시드 두더지잡기 종결 계약
+# ---------------------------------------------------------------------------
+def test_wire_bytes_judged_not_decompressed_reseed_thrash_ended():
+    """핵심 가치: 해압 90만 바이트여도 wire(압축) 5만이면 예산 이내 → PASS.
+
+    반복 큰 태블릿 마크업(10~15:1 압축)은 해압 바이트만 부풀고 wire 는 거의 안 는다.
+    판정 지표를 wire 로 옮기면 매 커밋 재시드 두더지잡기가 종결된다(해압 판정이면 FAIL).
+    """
+    warm = [_sample(400, bytes_=900000, wire_bytes=50000) for _ in range(4)]
+    summary = gate.summarize_samples(warm)
+    assert summary["median_bytes"] == 900000  # 해압은 거대(정보용)
+    assert summary["median_wire_bytes"] == 50000  # wire 는 작음(판정값)
+    row = gate.judge_path(
+        "/x", summary, True, _budget(delta=100, bytes_=137723), GLOBAL_BUDGET, base_ttfb_ms=380
+    )
+    assert row["passed"] is True, "wire 가 예산 이내면 해압 90만이어도 PASS 여야 한다"
+    assert row["median_wire_bytes"] == 50000
+    assert row["median_bytes"] == 900000  # 해압은 정보로 보존
+
+
+def test_wire_bytes_over_budget_fails():
+    """wire(압축) 바이트가 예산 초과 → FAIL(해압이 작아도 wire 로 판정)."""
+    warm = [_sample(400, bytes_=6000, wire_bytes=9000) for _ in range(4)]
+    summary = gate.summarize_samples(warm)
+    assert summary["median_wire_bytes"] == 9000
+    row = gate.judge_path(
+        "/x", summary, True, _budget(delta=100, bytes_=5000), GLOBAL_BUDGET, base_ttfb_ms=380
+    )
+    assert row["passed"] is False
+    assert any("wire bytes" in r for r in row["reasons"])
+
+
+def test_wire_fallback_flags_degraded_but_does_not_fail():
+    """Content-Length 부재(wire_measured=False) → wire_degraded=True 이나 예산 이내면 PASS.
+
+    폴백=해압값 사용이라 과대추정=보수적(오탐 안전측)이므로 신뢰도 저하 플래그만 남기고
+    FAIL 시키지 않는다(reasons 미추가).
+    """
+    warm = [
+        {
+            "ttfb_ms": 400, "bytes": 3000, "wire_bytes": 3000, "wire_measured": False,
+            "render_ms": 100.0, "etag_present": True, "content_encoding": "br", "status": 200,
+        }
+        for _ in range(4)
+    ]
+    summary = gate.summarize_samples(warm)
+    assert summary["wire_measured_all"] is False
+    row = gate.judge_path(
+        "/x", summary, True, _budget(delta=100, bytes_=5000), GLOBAL_BUDGET, base_ttfb_ms=380
+    )
+    assert row["passed"] is True  # 폴백=보수적, 예산 이내면 통과
+    assert row.get("wire_degraded") is True
+    assert not any("wire" in r for r in row["reasons"])  # 폴백은 reasons 로 FAIL 시키지 않음
+
+
+def test_summarize_wire_falls_back_to_bytes_for_old_samples():
+    """구버전 표본(wire_bytes 키 없음) → median_wire_bytes 가 median_bytes 로 폴백."""
+    warm = [
+        {
+            "ttfb_ms": 400, "bytes": 7000, "render_ms": 100.0,
+            "etag_present": True, "content_encoding": "br", "status": 200,
+        }
+        for _ in range(4)
+    ]
+    summary = gate.summarize_samples(warm)
+    assert summary["median_wire_bytes"] == summary["median_bytes"] == 7000
+    assert summary["wire_measured_all"] is False  # wire_measured 키 부재 → 전부 폴백
 
 
 def test_missing_etag_fails_when_required():
@@ -157,9 +238,10 @@ def test_conditional_304_failure_fails():
 
 
 def test_render_ms_over_budget_fails():
-    """render 헤더가 전역 render_ms_max 초과 → FAIL(정밀 서버 회귀 채널)."""
-    warm = [_sample(400, render_ms=600.0) for _ in range(4)]
+    """render min 이 전역 render_ms_max 초과 → FAIL(균일 render 회귀 감지 유지)."""
+    warm = [_sample(400, render_ms=600.0) for _ in range(4)]  # min_render 600
     summary = gate.summarize_samples(warm)
+    assert summary["min_render_ms"] == 600
     row = gate.judge_path("/x", summary, True, _budget(), GLOBAL_BUDGET, base_ttfb_ms=380)
     assert row["passed"] is False
     assert any("render" in r for r in row["reasons"])
@@ -169,9 +251,36 @@ def test_render_ms_absent_is_not_judged():
     """render 헤더 부재(None)면 render 판정 스킵(오탐 금지)."""
     warm = [_sample(400, render_ms=None) for _ in range(4)]
     summary = gate.summarize_samples(warm)
+    assert summary["min_render_ms"] is None
     assert summary["max_render_ms"] is None
     row = gate.judge_path("/x", summary, True, _budget(), GLOBAL_BUDGET, base_ttfb_ms=380)
     assert row["passed"] is True
+
+
+def test_render_ms_min_immune_to_single_slow_sample_passes():
+    """노이즈 면역 계약: 단일 슬로우 샘플로 max 는 예산 초과여도 min 이 예산 이내 → PASS.
+
+    shipment Phase2 실증(동일 render 코드인데 CI CPU 경합·GC 로 525ms 아웃라이어 1개
+    → max=525 FAIL, min=480 은 예산 이내)의 근본 해결: render 도 min 판정이면 순수
+    측정 노이즈는 게이트를 못 뚫는다(진짜 render 회귀는 전 표본을 올려 min 도 오름).
+    """
+    warm = [_sample(400, render_ms=480.0), _sample(400, render_ms=525.0),
+            _sample(400, render_ms=490.0), _sample(400, render_ms=485.0)]
+    summary = gate.summarize_samples(warm)
+    assert summary["min_render_ms"] == 480  # 판정값(예산 500 이내)
+    assert summary["max_render_ms"] == 525  # 정보용(아웃라이어 노출)
+    row = gate.judge_path("/x", summary, True, _budget(), GLOBAL_BUDGET, base_ttfb_ms=380)
+    assert row["passed"] is True, "min 정상인데 max 슬로우 샘플로 FAIL 나면 노이즈 면역 위반"
+    assert row["min_render_ms"] == 480
+    assert row["max_render_ms"] == 525
+
+
+def test_summarize_render_min_max():
+    """summarize_samples: renders=[480,525,490] → min_render_ms=480, max_render_ms=525."""
+    warm = [_sample(400, render_ms=480.0), _sample(400, render_ms=525.0), _sample(400, render_ms=490.0)]
+    summary = gate.summarize_samples(warm)
+    assert summary["min_render_ms"] == 480
+    assert summary["max_render_ms"] == 525
 
 
 def test_non_200_status_invalidates_measurement():
@@ -213,6 +322,50 @@ def test_seed_budget_custom_margin():
 
 
 # ---------------------------------------------------------------------------
+# reconcile_seed_budget: 로컬 seed 는 CI 심판석 TTFB 보존, bytes 만 재시드
+# ---------------------------------------------------------------------------
+def test_reconcile_local_preserves_ci_ttfb_budget():
+    """로컬(on_ci=False) + 이전 ttfb 존재 → ttfb 는 CI 값 보존, bytes 는 new, preserved=True."""
+    new_budget = {"ttfb_delta_min_ms": 198, "body_bytes_max": 12000}
+    old_budget = {"ttfb_delta_min_ms": 276, "body_bytes_max": 9000}
+    merged, preserved = gate.reconcile_seed_budget(new_budget, old_budget, on_ci=False)
+    assert preserved is True
+    assert merged["ttfb_delta_min_ms"] == 276  # CI 심판석 값 보존(로컬 198 오염 차단)
+    assert merged["body_bytes_max"] == 12000   # bytes 는 결정적 → 재시드
+
+
+def test_reconcile_ci_updates_ttfb_budget():
+    """CI(on_ci=True) + 이전 ttfb 존재 → ttfb 갱신(심판석 자격), preserved=False."""
+    new_budget = {"ttfb_delta_min_ms": 198, "body_bytes_max": 12000}
+    old_budget = {"ttfb_delta_min_ms": 276, "body_bytes_max": 9000}
+    merged, preserved = gate.reconcile_seed_budget(new_budget, old_budget, on_ci=True)
+    assert preserved is False
+    assert merged["ttfb_delta_min_ms"] == 198  # CI 러너는 새 측정값을 그대로 반영
+    assert merged["body_bytes_max"] == 12000
+
+
+def test_reconcile_bootstrap_no_prev_ttfb_uses_new():
+    """로컬 + 이전 ttfb 없음(최초 부트스트랩, old={}) → ttfb 는 new, preserved=False."""
+    new_budget = {"ttfb_delta_min_ms": 198, "body_bytes_max": 12000}
+    merged, preserved = gate.reconcile_seed_budget(new_budget, {}, on_ci=False)
+    assert preserved is False
+    assert merged["ttfb_delta_min_ms"] == 198  # 보존할 이전 값 없음 → 부트스트랩
+    assert merged["body_bytes_max"] == 12000
+
+
+def test_is_ci_detects_github_actions_and_ci_env(monkeypatch):
+    """_is_ci(): GITHUB_ACTIONS/CI env 세팅 시 True, 해제 시 False."""
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    monkeypatch.delenv("CI", raising=False)
+    assert gate._is_ci() is False
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    assert gate._is_ci() is True
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    monkeypatch.setenv("CI", "true")
+    assert gate._is_ci() is True
+
+
+# ---------------------------------------------------------------------------
 # 크리덴셜 부재 → exit 2 (SKIP ≠ 실패)
 # ---------------------------------------------------------------------------
 def test_missing_credentials_exit_2(monkeypatch):
@@ -230,3 +383,28 @@ def test_credentials_helper_none_when_blank(monkeypatch):
     monkeypatch.setenv("FOMS_STAGING_USERNAME", "u")
     monkeypatch.setenv("FOMS_STAGING_PASSWORD", "p")
     assert gate._credentials() == ("u", "p")
+
+
+# ---------------------------------------------------------------------------
+# --advisory: deploy 푸시=비블로킹(경고만, exit 0), production 승격=블로킹(exit 1)
+# ---------------------------------------------------------------------------
+def test_gate_exit_code_advisory_maps_fail_to_zero():
+    """advisory: 예산 초과(ok=False)여도 0(비블로킹), advisory 아니면 1(블로킹). PASS 는 항상 0."""
+    assert gate.gate_exit_code(ok=True, advisory=False) == 0
+    assert gate.gate_exit_code(ok=True, advisory=True) == 0
+    assert gate.gate_exit_code(ok=False, advisory=False) == 1
+    assert gate.gate_exit_code(ok=False, advisory=True) == 0
+
+
+def test_advisory_flag_and_emit_helper_exist():
+    """--advisory 플래그와 advisory 방출 헬퍼가 배선되어 있다."""
+    import subprocess
+    import sys
+    # emit 헬퍼 존재
+    assert callable(gate.emit_advisory_annotations)
+    # --advisory 가 argparse 에 노출됨(help 에 등장)
+    out = subprocess.run(
+        [sys.executable, str(gate.ROOT / "tools" / "perf" / "staging_perf_gate.py"), "--help"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30,
+    )
+    assert "--advisory" in out.stdout

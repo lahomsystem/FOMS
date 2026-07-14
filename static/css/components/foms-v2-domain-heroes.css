@@ -1,0 +1,235 @@
+/* =========================================================================
+   FOMS v2 모바일 — 도메인 히어로/스탯 스트립 (v3 페르소나 홈의 v2 이식본)
+   소비처(각 도메인 모바일 v2 큐 상단):
+     A3) 생산  templates/production/partials/mobile_queue.html   .foms-v2dh-strip
+     A5) 실측  templates/measurement/partials/mobile_list.html   .foms-v2dh-hero (오늘 동선)
+     A6) 시공  templates/construction/partials/mobile_queue.html .foms-v2dh-hero (오늘 배차)
+   v3 CSS(foms-mobile-v3.css)는 로드하지 않는다 — 스테이지 색은 아래 --foms-v2dh-st-*
+   토큰으로 자체 정의(v3 라이트 값과 동일). foms-mobile-surfaces / foms-shell / layout_head
+   자산은 건드리지 않는다(배타). 터치 타깃 44px+.
+   ========================================================================= */
+
+.foms-v2dh-strip,
+.foms-v2dh-hero,
+.foms-v2dh-status {
+  --foms-v2dh-bg0: #F6F4F0;
+  --foms-v2dh-bg1: #FFFFFF;
+  --foms-v2dh-bg2: #EFECE6;
+  --foms-v2dh-tx0: #201C17;
+  --foms-v2dh-tx1: #5F5950;
+  --foms-v2dh-tx2: #8F887D;
+  --foms-v2dh-line: #E4E0D8;
+  --foms-v2dh-danger: #DC2626;
+  --foms-v2dh-warn: #B45309;
+  --foms-v2dh-st-measure: #15803D;
+  --foms-v2dh-st-confirm: #4F46E5;
+  --foms-v2dh-st-production: #B45309;
+  --foms-v2dh-st-construction: #C2410C;
+  --foms-v2dh-st-completed: #047857;
+}
+
+/* data-st 기반 액센트 (히어로/스탯/상태 공용) */
+.foms-v2dh-strip [data-st="measure"],
+[data-st="measure"].foms-v2dh-hero,
+[data-st="measure"].foms-v2dh-status { --foms-v2dh-acc: var(--foms-v2dh-st-measure); }
+.foms-v2dh-strip [data-st="confirm"] { --foms-v2dh-acc: var(--foms-v2dh-st-confirm); }
+.foms-v2dh-strip [data-st="production"],
+[data-st="production"].foms-v2dh-hero,
+[data-st="production"].foms-v2dh-status { --foms-v2dh-acc: var(--foms-v2dh-st-production); }
+.foms-v2dh-strip [data-st="completed"] { --foms-v2dh-acc: var(--foms-v2dh-st-completed); }
+[data-st="construction"].foms-v2dh-hero,
+[data-st="construction"].foms-v2dh-status { --foms-v2dh-acc: var(--foms-v2dh-st-construction); }
+
+/* ---- A3: 생산 3버킷 스탯 스트립 ----------------------------------------- */
+.foms-v2dh-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 12px;
+}
+.foms-v2dh-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-height: 72px;
+  padding: 10px 12px;
+  border: 1px solid var(--foms-v2dh-line);
+  border-top: 3px solid var(--foms-v2dh-acc, var(--foms-v2dh-tx2));
+  border-radius: 12px;
+  background: var(--foms-v2dh-bg1);
+  box-shadow: 0 1px 2px rgba(32, 28, 23, .05);
+}
+.foms-v2dh-stat__count {
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.05;
+  color: var(--foms-v2dh-acc, var(--foms-v2dh-tx0));
+  font-variant-numeric: tabular-nums;
+}
+.foms-v2dh-stat__label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--foms-v2dh-tx1);
+  white-space: nowrap;
+}
+.foms-v2dh-stat__flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+.foms-v2dh-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 1.3;
+  letter-spacing: .01em;
+  white-space: nowrap;
+}
+.foms-v2dh-flag--danger { color: var(--foms-v2dh-danger); }
+.foms-v2dh-flag--warn { color: var(--foms-v2dh-warn); }
+
+/* ---- A5/A6: 도메인 히어로 (오늘 동선 / 오늘 배차) ----------------------- */
+.foms-v2dh-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--foms-v2dh-line);
+  border-left: 4px solid var(--foms-v2dh-acc, var(--foms-v2dh-tx2));
+  border-radius: 14px;
+  background: var(--foms-v2dh-bg1);
+  box-shadow: 0 1px 3px rgba(32, 28, 23, .07);
+}
+.foms-v2dh-hero--danger {
+  border-color: color-mix(in srgb, var(--foms-v2dh-danger) 45%, var(--foms-v2dh-line));
+  border-left-color: var(--foms-v2dh-danger);
+}
+.foms-v2dh-hero__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  color: var(--foms-v2dh-acc, var(--foms-v2dh-tx1));
+  text-transform: uppercase;
+}
+.foms-v2dh-hero__title {
+  font-size: 19px;
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--foms-v2dh-tx0);
+  word-break: break-word;
+}
+.foms-v2dh-hero__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 12px;
+  font-size: 13px;
+  color: var(--foms-v2dh-tx1);
+}
+.foms-v2dh-hero__time {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 800;
+  color: var(--foms-v2dh-tx0);
+  font-variant-numeric: tabular-nums;
+}
+.foms-v2dh-hero__addr { min-width: 0; word-break: break-word; }
+.foms-v2dh-hero__crew {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--foms-v2dh-bg2);
+  font-size: 13px;
+}
+.foms-v2dh-hero__crew-k {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .03em;
+  color: var(--foms-v2dh-tx2);
+  white-space: nowrap;
+}
+.foms-v2dh-hero__crew-v { font-weight: 700; color: var(--foms-v2dh-tx0); word-break: break-word; }
+.foms-v2dh-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+/* 히어로 액션 버튼 (44px+ 터치) */
+.foms-v2dh-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 10px 18px;
+  border: 1px solid var(--foms-v2dh-line);
+  border-radius: 12px;
+  background: var(--foms-v2dh-bg2);
+  color: var(--foms-v2dh-tx0);
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform .12s, filter .12s;
+}
+.foms-v2dh-btn:active { transform: scale(.97); }
+.foms-v2dh-btn--primary {
+  background: var(--foms-v2dh-acc, var(--foms-v2dh-tx0));
+  border-color: transparent;
+  color: #fff;
+}
+.foms-v2dh-btn--primary:hover { filter: brightness(1.06); }
+
+/* ---- 0건 소형 상태 (오늘 예정 없음 · 다음 예정) ------------------------- */
+.foms-v2dh-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--foms-v2dh-line);
+  border-radius: 12px;
+  background: var(--foms-v2dh-bg1);
+}
+.foms-v2dh-status__ic {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  background: var(--foms-v2dh-bg2);
+  color: var(--foms-v2dh-acc, var(--foms-v2dh-tx1));
+  font-size: 17px;
+}
+.foms-v2dh-status__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.foms-v2dh-status__title {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--foms-v2dh-tx0);
+}
+.foms-v2dh-status__next {
+  font-size: 12.5px;
+  color: var(--foms-v2dh-tx1);
+  font-variant-numeric: tabular-nums;
+  text-decoration: none;
+}
+a.foms-v2dh-status__next { color: var(--foms-v2dh-acc, var(--foms-v2dh-tx1)); font-weight: 700; }

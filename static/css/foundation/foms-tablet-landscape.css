@@ -1,0 +1,1180 @@
+/* FOMS 태블릿 가로 터치 보정 레이어 — W9 (2026-07-11, T2).
+
+   코호트 사용자의 진짜 터치 태블릿 가로에서, T0 fallback으로 표시 중인 legacy PC
+   대시보드 표면(.foms-shell-desktop-only 계열 그리드/필터/테이블)을 목업 v8의 터치
+   스펙으로 보정한다. 마크업 무변경 — CSS만.
+
+   적용 조건 (T0 매트릭스 정합):
+     @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse)
+   = 992+ 가로 + 굵은 포인터 = 진짜 터치 태블릿 가로.
+     - split-배선 페이지(orders)는 이 조합에서 legacy가
+       `.foms-split-enabled ~ .foms-shell-desktop-only` 로 은닉되므로 보정이 no-op.
+     - split-미배선 페이지(construction/production/shipment/measurement/history 등)는
+       legacy fallback이 표시되어 보정이 실제 적용된다(동일 쿼리로 양쪽 커버).
+     - fine 992–1365(노트북 창)은 마우스이므로 제외 — `pointer: coarse` 필수.
+     - 세로(portrait) 방향 토큰은 이 파일에서 쓰지 않는다(세로=모바일 셸, landscape
+       전용). foms-split-view.css의 portrait 금지 가드와 정합.
+
+   스코프: body.erp-mobile-v2-layout(코호트 게이트) + legacy PC 클래스(.erp-pro-*,
+   .erp-dashboard-*, #erp-grid 등)로 한정 → 코호트 OFF / PC / 폰 무영향. 인라인 스타일
+   금지, foms 토큰 소비. (로드: foms-mobile-surfaces.css @import — 코호트 번들에서만.) */
+
+:root {
+  /* iOS/Material HIG 권장 최소 터치 타깃 44px(그리드 행 최소 48px는
+     --foms-touch-target-min, foms-tokens.css). foms 네임스페이스 토큰으로 소비. */
+  --foms-touch-target-comfortable: 44px;
+}
+
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+
+  /* 1) 그리드 데이터 행 ≥48px — table row의 height는 최소 높이로 동작(내용이 크면 증가). */
+  body.erp-mobile-v2-layout .erp-dashboard-workqueue #erp-grid tbody tr.erp-main-row {
+    height: var(--foms-touch-target-min); /* 48px */
+  }
+
+  /* 2) 버튼/링크 타깃 ≥44px (헤더 액션·서브 nav 탭·그리드 버튼·행 열기 아이콘).
+     대상 클래스는 모두 이미 inline-flex 중앙정렬(02-base/04-buttons) → min-*만 얹는다. */
+  body.erp-mobile-v2-layout .erp-pro-btn,
+  body.erp-mobile-v2-layout .erp-pro-nav-item,
+  body.erp-mobile-v2-layout .erp-dashboard-workqueue .btn,
+  body.erp-mobile-v2-layout .erp-dashboard-workqueue .erp-open-btn-icon {
+    min-height: var(--foms-touch-target-comfortable);
+  }
+  /* 아이콘 전용/정사각 타깃은 폭도 확보. */
+  body.erp-mobile-v2-layout .erp-pro-btn--icon,
+  body.erp-mobile-v2-layout .erp-dashboard-workqueue .erp-open-btn-icon {
+    min-width: var(--foms-touch-target-comfortable);
+  }
+
+  /* 3) 필터 입력 44px + 16px(iOS 포커스 확대 방지). 16px는 --foms-font-size-base(1rem).
+     그리드 인라인 날짜 입력도 동일 처리(동일 iOS 줌 문제). */
+  body.erp-mobile-v2-layout .erp-dashboard-filters .form-control,
+  body.erp-mobile-v2-layout .erp-dashboard-filters .form-select,
+  body.erp-mobile-v2-layout .erp-dashboard-workqueue .erp-dashboard-date-input {
+    min-height: var(--foms-touch-target-comfortable);
+    font-size: var(--foms-font-size-base); /* 16px — iOS 포커스 시 자동 확대 방지 */
+  }
+  /* 3b) 특이도 대응(T0 캐스케이드 교훈, defect 2): dashboard-grid.css 의
+     `#erp-filters-form .form-control{font-size:.85rem}`(특이도 1,1,0)이 위
+     `.erp-dashboard-filters .form-control`(0,3,1)을 이겨 iOS 줌 방지가 무효화된다.
+     동일 id 스코프(#erp-filters-form)로 16px 를 재선언해(1,2,1 > 1,1,0) 실효화한다. */
+  body.erp-mobile-v2-layout #erp-filters-form .form-control,
+  body.erp-mobile-v2-layout #erp-filters-form .form-select {
+    font-size: var(--foms-font-size-base); /* 16px — iOS 포커스 확대 방지(특이도 승) */
+  }
+
+  /* 4) 체크박스 24px 상시 (그리드 전체선택·행 선택 + 필터 토글). 필터 체크박스는 인라인
+     width/height: 1.1em 를 달고 있어 !important 로만 덮인다(마크업 무변경 원칙). */
+  body.erp-mobile-v2-layout .erp-dashboard-filters .form-check-input,
+  body.erp-mobile-v2-layout .erp-dashboard-workqueue .form-check-input {
+    width: 24px !important;
+    height: 24px !important;
+  }
+
+  /* 5) 페이지네이션 44px — page-link 를 정사각 터치 타깃으로. */
+  body.erp-mobile-v2-layout .erp-dashboard-workqueue .pagination .page-link {
+    min-width: var(--foms-touch-target-comfortable);
+    min-height: var(--foms-touch-target-comfortable);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* 6) (삭제, defect 7) `#erp-grid thead th { position: sticky }` 재선언은 dead rule 이었다:
+     sticky 의 실효 속성(top offset·배경·z-index)은 dashboard-grid.css 의 `#erp-grid thead th`
+     !important 규칙이 SSOT 로 소유하고, position:sticky 자체도 그 !important 규칙이 이미
+     보장한다. 여기의 무-!important·저특이도 재선언은 아무것도 바꾸지 않으므로 제거.
+     (rule 1 `tr.erp-main-row{height}` 는 유지 — table-row 의 height 는 최소 높이로 동작하는
+      실효 터치 보정이다.) */
+}
+
+/* ============================================================
+   요약 타일 스트립 — W11 (2026-07-11, T2).
+
+   태블릿 가로 코호트에서 프로세스맵 카드의 경보(KPI)·파이프라인 스텝을 목업 v8의
+   "요약 타일" 시각(큰 숫자 ≥22px, 라벨 12px, 카드형 타일)으로 전환한다.
+   마크업 무변경 — CSS만(--process-map 스코프 한정).
+
+   HMI 색 규율(정상=무채색 / 경보만 유채색)은 기존 마크업이 이미 인코딩한다:
+   파이프라인 스텝 bg = --erp-bg-sidebar(중립), 경보 = danger/warning/info 좌측
+   보더·아이콘·값 색(03-card-pipeline.css 소유). → 색은 손대지 않고 크기/배치만
+   타일화한다(값 배지 배경만 제거해 큰 숫자로).
+
+   재배치 판정:
+     - 경보: 카드 헤더를 세로 스택으로 돌려 경보를 전폭 4-타일 그리드 스트립으로
+       재배치(flex-direction + grid, DOM 이동 없음). ← 완전 재배치 성공.
+     - 파이프라인: 스텝 사이 .erp-pro-pipeline__connector(chevron)가 flex 형제로
+       끼어 있어 CSS grid 균등 컬럼이 불가능(connector가 grid item이 되어 정렬 붕괴).
+       → 그리드 재배치는 포기하고 수평 strip을 유지, "카드화 + 숫자·터치 확대"까지만.
+       (근거: 마크업 무접촉 원칙 하에서 connector 제거·이동 불가) */
+
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+
+  /* 7) 경보 타일 스트립 — 헤더 세로 스택 → 경보 전폭 4-타일 그리드. */
+  body.erp-mobile-v2-layout .erp-pro-card--process-map .erp-pro-card__header--with-alerts {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--erp-space-sm);
+  }
+  body.erp-mobile-v2-layout .erp-pro-card--process-map
+    .erp-pro-card__header--with-alerts .erp-pro-alerts {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--erp-space-sm);
+    width: 100%;
+    margin-left: 0;
+  }
+  /* 경보 = ≥44px 터치 타일, [아이콘] [라벨/큰값 스택] 배치. */
+  body.erp-mobile-v2-layout .erp-pro-card--process-map
+    .erp-pro-card__header--with-alerts .erp-pro-alert {
+    min-height: var(--foms-touch-target-comfortable); /* 44px */
+    padding: 8px 12px;
+    justify-content: flex-start;
+    gap: 10px;
+    border-radius: 12px;
+  }
+  body.erp-mobile-v2-layout .erp-pro-card--process-map
+    .erp-pro-card__header--with-alerts .erp-pro-alert__icon {
+    width: 32px;
+    height: 32px;
+    font-size: var(--foms-font-size-sm); /* 14px */
+    flex: 0 0 auto;
+  }
+  body.erp-mobile-v2-layout .erp-pro-card--process-map
+    .erp-pro-card__header--with-alerts .erp-pro-alert__content {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+  body.erp-mobile-v2-layout .erp-pro-card--process-map
+    .erp-pro-card__header--with-alerts .erp-pro-alert__label {
+    font-size: var(--foms-font-size-xs); /* 12px */
+  }
+  /* 경보 값 = 큰 숫자(≥22px). 배지 배경만 제거, 색은 03-card-pipeline이 유지. */
+  body.erp-mobile-v2-layout .erp-pro-card--process-map
+    .erp-pro-card__header--with-alerts .erp-pro-alert__value {
+    font-size: var(--foms-font-size-2xl); /* 24px ≥ 22 */
+    line-height: 1.1;
+    min-width: 0;
+    height: auto;
+    padding: 0;
+    background: transparent;
+  }
+
+  /* 8) 파이프라인 스텝 타일 — 카드화 + 숫자·터치 확대(수평 strip 유지, 위 재배치 판정). */
+  body.erp-mobile-v2-layout .erp-pro-card--process-map .erp-pro-pipeline__stage {
+    min-height: var(--foms-touch-target-min); /* 48px */
+    min-width: 96px;
+    padding: 10px 12px;
+    border-radius: 12px;
+  }
+  body.erp-mobile-v2-layout .erp-pro-card--process-map .erp-pro-pipeline__count {
+    font-size: var(--foms-font-size-2xl); /* 24px ≥ 22 */
+    line-height: 1.15;
+  }
+  body.erp-mobile-v2-layout .erp-pro-card--process-map .erp-pro-pipeline__label {
+    font-size: var(--foms-font-size-xs); /* 12px */
+  }
+}
+
+/* ============================================================
+   AS · 이력 대시보드 터치 보정 — B1/B2 (2026-07-12, T2 융합 레이어 확장).
+
+   목업 v8 융합 레이어(행 탭 → 사이드 시트 + 터치 보정)를 AS(.erp-as-dashboard)와
+   이력(.erp-history-mobile-shell) legacy 테이블 표면으로 확장한다. W9 의 #erp-grid 한정
+   행/버튼/입력 보정과 동일 수치·토큰을 두 테이블에도 적용(마크업 무변경 — CSS만).
+   행 탭 → 사이드 시트 배선은 tablet-side-sheet.js(위임 셀렉터 확장)가 소유한다.
+   ============================================================ */
+
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+
+  /* 1) 데이터 본행 ≥48px (table-row height 는 최소 높이로 동작 — 내용이 크면 증가). */
+  body.erp-mobile-v2-layout .erp-as-dashboard .erp-pro-table-wrapper tbody tr[data-order-id],
+  body.erp-mobile-v2-layout .erp-history-mobile-shell tr.history-main-row[data-order-id] {
+    height: var(--foms-touch-target-min); /* 48px */
+  }
+
+  /* 2) 행 내 버튼/링크 ≥44px 터치 타깃 (AS 일정/사진/미결 버튼·이력 상세보기 링크). */
+  body.erp-mobile-v2-layout .erp-as-dashboard .erp-pro-table-wrapper .btn,
+  body.erp-mobile-v2-layout .erp-as-dashboard .erp-pro-table-wrapper .erp-as-pending-btn,
+  body.erp-mobile-v2-layout .erp-history-mobile-shell tr.history-main-row .btn {
+    min-height: var(--foms-touch-target-comfortable); /* 44px */
+  }
+
+  /* 3) AS 인라인 날짜 입력 44px + 16px(iOS 포커스 확대 방지). 16px = --foms-font-size-base. */
+  body.erp-mobile-v2-layout .erp-as-dashboard .erp-pro-table-wrapper .erp-pro-input {
+    min-height: var(--foms-touch-target-comfortable);
+    font-size: var(--foms-font-size-base); /* 16px */
+  }
+
+  /* 4) AS 행 체크박스 24px 상시(AS도면 여부). form-check-input 인라인 1.1em → !important 로만
+     덮인다(마크업 무변경 원칙, W9 4)번과 동일 패턴). */
+  body.erp-mobile-v2-layout .erp-as-dashboard .erp-pro-table-wrapper .form-check-input {
+    width: 24px !important;
+    height: 24px !important;
+  }
+}
+
+/* ============================================================
+   공용 밀도 토글 — 그리드 행 높이 40 / 48(기본) / 56 (2026-07-13, T2 목업 프레임 공통).
+
+   목업 v8 프레임: 태블릿 가로에서 pcbar 우측 세그먼트로 행 높이를 3단 전환한다. 컴포넌트
+   마크업/localStorage 배선은 tablet-density-toggle.js + foms_density_toggle.html 이 소유하고,
+   행 높이 3단은 여기(CSS)가 소유한다. 대상 그리드에 tablet-density-toggle.js 가 부착한
+   data-foms-density="40|48|56" 속성으로 분기한다.
+
+   기본(속성 없음/"48")은 위 W9/B1B2 의 48px baseline(--foms-touch-target-min) 규칙이 그대로
+   담당한다 — 48 오버라이드는 두지 않는다(중복 SSOT 방지). 40/56 만 baseline 을 이기는
+   특이도로 재정의한다(!important 미사용 — id/클래스 체인으로 정직하게 승리).
+
+   표시 게이트: 토글은 coarse landscape 코호트에서만 보이고 그 외 완전 은닉. base-hide 를
+   opt-in(display) 앞에 둔다(T0 순서 계약 정합). ============================================================ */
+
+/* base-hide: 코호트 밖(PC/모바일/세로)에서는 토글을 숨긴다. opt-in 규칙보다 앞. */
+.foms-density-toggle {
+  display: none;
+}
+
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+
+  /* 토글 세그먼트 — coarse landscape 코호트에서만 표시(3버튼 40/48/56). foms 토큰 소비. */
+  /* 세그먼트 컨트롤 = 무채 트랙 + 흰색 융기 활성(목업 .view-toggle: d-2 바탕, 활성=surface+shadow).
+     기존 흰 바탕·보더·브랜드 채움 활성 → 목업 정합. 44px 터치 유지. */
+  body.erp-mobile-v2-layout .foms-density-toggle {
+    display: inline-flex;
+    align-items: stretch;
+    gap: 2px;
+    padding: 3px;
+    border-radius: var(--foms-radius-md, 8px);
+    background: var(--foms-surface-muted, #eef0f3);
+  }
+  body.erp-mobile-v2-layout .foms-density-toggle__btn {
+    min-width: var(--foms-touch-target-comfortable); /* 44px */
+    min-height: var(--foms-touch-target-comfortable); /* 44px */
+    padding: 0 var(--foms-space-3, 0.75rem);
+    border: none;
+    border-radius: var(--foms-radius-sm, 6px);
+    background: transparent;
+    color: var(--foms-text-secondary);
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    font-weight: var(--foms-font-weight-semibold, 600);
+    line-height: 1;
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .foms-density-toggle__btn.is-active {
+    background: var(--foms-surface-base, #fff);
+    color: var(--foms-text-primary);
+    box-shadow: var(--foms-shadow-sm);
+  }
+
+  /* 대시보드 컨트롤타워 그리드 40/56 오버라이드. baseline(#erp-grid tbody tr.erp-main-row,
+     특이도 1,3,3)을 [data-foms-density] 추가로 이겨(1,4,3) 재정의. 48 은 baseline 유지. */
+  body.erp-mobile-v2-layout .erp-dashboard-workqueue #erp-grid[data-foms-density="40"] tbody tr.erp-main-row {
+    height: 40px;
+  }
+  body.erp-mobile-v2-layout .erp-dashboard-workqueue #erp-grid[data-foms-density="56"] tbody tr.erp-main-row {
+    height: 56px;
+  }
+
+  /* 이력 테이블 40/56 오버라이드. baseline(.erp-history-mobile-shell tr.history-main-row
+     [data-order-id], 특이도 0,4,2)을 셸에 붙은 [data-foms-density] 로 이겨(0,5,2) 재정의. */
+  body.erp-mobile-v2-layout .erp-history-mobile-shell[data-foms-density="40"] tr.history-main-row[data-order-id] {
+    height: 40px;
+  }
+  body.erp-mobile-v2-layout .erp-history-mobile-shell[data-foms-density="56"] tr.history-main-row[data-order-id] {
+    height: 56px;
+  }
+
+  /* 완료 정산 그리드 40/56 오버라이드. baseline(.foms-completion-grid__table tbody tr, 특이도
+     0,3,2)을 id[data-foms-density](1,4,2)로 이겨 재정의. 48 은 baseline 유지. 밀도 토글이
+     #foms-completion-grid-table 에 data-foms-density 를 부착(2026-07-13 완료 토글 배선). */
+  body.erp-mobile-v2-layout #foms-completion-grid-table[data-foms-density="40"] tbody tr {
+    height: 40px;
+  }
+  body.erp-mobile-v2-layout #foms-completion-grid-table[data-foms-density="56"] tbody tr {
+    height: 56px;
+  }
+}
+
+/* ============================================================
+   컨트롤타워 사이드 시트 목업 본문 (frame 01) — tablet_dashboard_sheet.html (2026-07-13).
+
+   시트 본문(.foms-tablet-sheet__body)에 로드되는 목업 fragment 의 레이아웃. 시트는 코호트
+   (coarse landscape)에서만 열리므로 스코프 게이트 없이 .foms-tsheet-* 네임스페이스로 자족한다
+   (다른 표면엔 이 클래스가 존재하지 않음). foms 토큰만 소비, 인라인 스타일 없음.
+   ============================================================ */
+
+.foms-tsheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--foms-space-3, 0.75rem);
+}
+
+.foms-tsheet-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--foms-space-2, 0.5rem);
+}
+.foms-tsheet-head__main {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--foms-space-2, 0.5rem);
+  min-width: 0;
+}
+.foms-tsheet-head__name {
+  font-size: var(--foms-font-size-lg, 1.125rem);
+  font-weight: var(--foms-font-weight-bold, 700);
+  color: var(--foms-text-primary);
+}
+.foms-tsheet-head__count {
+  flex-shrink: 0;
+  font-size: var(--foms-font-size-sm, 0.875rem);
+  font-weight: var(--foms-font-weight-semibold, 600);
+  color: var(--foms-text-tertiary, #6b7380);
+}
+
+/* 다음 할 일 배너 = 브랜드색 단일 배너(목업 .mini-quest: accent 바탕 + 브랜드 보더/텍스트).
+   전 텍스트 동일 브랜드색으로 한 문장처럼 읽히게(라벨·제목·팀 색 통일). */
+.foms-tsheet-quest {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--foms-space-1, 0.25rem);
+  padding: var(--foms-space-2, 0.5rem) var(--foms-space-3, 0.75rem);
+  border: 1px solid var(--foms-color-brand-200, #c5c9ff);
+  border-radius: var(--foms-radius-md, 8px);
+  background: var(--foms-surface-accent, #f3f4ff);
+}
+.foms-tsheet-quest__label {
+  font-size: var(--foms-font-size-sm, 0.875rem);
+  font-weight: var(--foms-font-weight-semibold, 600);
+  color: var(--foms-interactive-primary, #5a67d8);
+}
+.foms-tsheet-quest__title {
+  font-weight: var(--foms-font-weight-semibold, 600);
+  color: var(--foms-interactive-primary, #5a67d8);
+}
+.foms-tsheet-quest__team {
+  font-size: var(--foms-font-size-sm, 0.875rem);
+  color: var(--foms-interactive-primary, #5a67d8);
+}
+
+.foms-tsheet-card {
+  border: 1px solid var(--foms-border-subtle, #dde1e6);
+  border-radius: var(--foms-radius-lg, 12px);
+  padding: var(--foms-space-4, 1rem);
+  background: var(--foms-surface-base, #fff);
+}
+/* 카드 제목 = 무채 미세 라벨(목업 .card h5: 13px·ink-3·letter-spacing). 큰 값과 대비. */
+.foms-tsheet-card__title {
+  font-size: var(--foms-font-size-sm, 0.875rem);
+  font-weight: var(--foms-font-weight-bold, 700);
+  letter-spacing: 0.04em;
+  color: var(--foms-text-tertiary, #6b7380);
+  margin-bottom: var(--foms-space-2, 0.5rem);
+}
+
+/* 요약 kv = 라벨 위·값 아래 세로 스택(목업 .kv: flex-column, 라벨 12px 무채 / 값 굵게).
+   기존 좌우 dt/dd 그리드 → 각 쌍 세로 배치, 쌍 사이 간격만 확보. */
+.foms-tsheet-kv {
+  margin: 0;
+}
+.foms-tsheet-kv dt {
+  font-size: var(--foms-font-size-xs, 0.75rem);
+  color: var(--foms-text-tertiary, #6b7380);
+  font-weight: var(--foms-font-weight-semibold, 600);
+}
+.foms-tsheet-kv dd {
+  margin: 0 0 var(--foms-space-2, 0.5rem);
+  color: var(--foms-text-primary);
+  font-weight: var(--foms-font-weight-semibold, 600);
+  word-break: break-word;
+}
+.foms-tsheet-kv dd:last-child {
+  margin-bottom: 0;
+}
+
+/* 썸네일 스트립 — 60×46 카드 + 추가 타일(목업 정합). 스트립=바깥 flex, 썸네일 그룹(.thumbs)이
+   프리뷰 트리거, 추가 링크(.add)는 형제라 클릭 충돌 없음. 간격 통일(썸네일 내부·타일 사이 동일). */
+.foms-tsheet-attach-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--foms-space-2, 0.5rem);
+}
+.foms-tsheet-attach-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--foms-space-2, 0.5rem);
+  cursor: pointer;
+}
+.foms-tsheet-attach-thumb {
+  width: 60px;
+  height: 46px;
+  object-fit: cover;
+  border-radius: var(--foms-radius-sm, 6px);
+  border: 1px solid var(--foms-border-subtle, #dde1e6);
+  background: var(--foms-surface-raised, #f7f8fa);
+}
+/* 추가 타일 = 점선 + (목업 .thumb.add). ERP 편집(첨부 관리)로 이동하는 실제 어포던스. */
+.foms-tsheet-attach-add {
+  width: 60px;
+  height: 46px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px dashed var(--foms-border-default, #c1c7d0);
+  border-radius: var(--foms-radius-sm, 6px);
+  background: var(--foms-surface-subtle, #f7f8fa);
+  color: var(--foms-text-tertiary, #6b7380);
+  text-decoration: none;
+}
+.foms-tsheet-attach-add:hover {
+  border-color: var(--foms-interactive-primary, #5a67d8);
+  color: var(--foms-interactive-primary, #5a67d8);
+}
+/* 빈 상태 안내(공유 — 이력 시트 history_tablet_sheet.html 도 재사용). */
+.foms-tsheet-empty {
+  font-size: var(--foms-font-size-sm, 0.875rem);
+  color: var(--foms-text-tertiary, #6b7380);
+}
+
+.foms-tsheet-foot {
+  display: flex;
+  gap: var(--foms-space-2, 0.5rem);
+  padding-top: var(--foms-space-2, 0.5rem);
+}
+.foms-tsheet-foot__btn {
+  flex: 1 1 0;
+  min-height: var(--foms-touch-target-comfortable, 44px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--foms-space-1, 0.25rem);
+  padding: 0 var(--foms-space-2, 0.5rem);
+  border: 1px solid var(--foms-border-default, #c1c7d0);
+  border-radius: var(--foms-radius-md, 8px);
+  background: var(--foms-surface-base, #fff);
+  color: var(--foms-text-primary);
+  font-size: var(--foms-font-size-sm, 0.875rem);
+  font-weight: var(--foms-font-weight-semibold, 600);
+  text-decoration: none;
+  cursor: pointer;
+}
+/* 하단 버튼 flex 비율(목업 m-foot): 전화 1(base) / ERP 편집 1.4 / 퀘스트 승인 1.6. */
+.foms-tsheet-foot__btn--edit {
+  flex-grow: 1.4;
+}
+.foms-tsheet-foot__btn--pri {
+  flex-grow: 1.6;
+}
+.foms-tsheet-foot__btn--pri:not(:disabled) {
+  background: var(--foms-interactive-primary, #5a67d8);
+  border-color: var(--foms-interactive-primary, #5a67d8);
+  color: var(--foms-color-neutral-0, #fff);
+}
+.foms-tsheet-foot__btn:disabled,
+.foms-tsheet-foot__btn.is-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ============================================================
+   출고 배정 사이드 시트 본문 — shipment/partials/tablet_sheet.html (2026-07-13).
+
+   행 탭 → 사이드 시트에 로드되는 출고 배정 fragment 레이아웃. 시트는 코호트
+   (coarse landscape) 사이드 시트 인프라 안에서만 열리므로 스코프 게이트 없이
+   .foms-ship-sheet* 네임스페이스로 자족한다(다른 표면엔 이 클래스가 없음).
+   foms 토큰만 소비, 인라인 스타일 없음.
+   ============================================================ */
+
+.foms-ship-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--foms-space-3, 0.75rem);
+}
+.foms-ship-sheet__head {
+  font-size: var(--foms-font-size-lg, 1.125rem);
+  font-weight: var(--foms-font-weight-bold, 700);
+  color: var(--foms-text-primary);
+}
+.foms-ship-sheet__count {
+  font-size: var(--foms-font-size-sm, 0.875rem);
+  color: var(--foms-text-tertiary, #6b7380);
+}
+
+.foms-ship-sheet__card {
+  border: 1px solid var(--foms-border-subtle, #dde1e6);
+  border-radius: var(--foms-radius-md, 8px);
+  padding: var(--foms-space-3, 0.75rem);
+  background: var(--foms-surface-base, #fff);
+}
+.foms-ship-sheet__card-title {
+  font-size: var(--foms-font-size-sm, 0.875rem);
+  font-weight: var(--foms-font-weight-bold, 700);
+  color: var(--foms-text-primary);
+  margin-bottom: var(--foms-space-2, 0.5rem);
+}
+
+/* 시공팀 라디오 리스트 — 각 행 ≥44px 터치 타깃. */
+.foms-ship-sheet__teams {
+  display: flex;
+  flex-direction: column;
+  gap: var(--foms-space-2, 0.5rem);
+}
+.foms-ship-sheet__team {
+  display: flex;
+  align-items: center;
+  gap: var(--foms-space-2, 0.5rem);
+  min-height: var(--foms-touch-target-comfortable, 44px);
+  padding: var(--foms-space-2, 0.5rem) var(--foms-space-3, 0.75rem);
+  border: 1px solid var(--foms-border-subtle, #dde1e6);
+  border-radius: var(--foms-radius-md, 8px);
+  cursor: pointer;
+}
+.foms-ship-sheet__team input[type="radio"] {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+.foms-ship-sheet__team-name {
+  flex: 1 1 auto;
+  font-weight: var(--foms-font-weight-bold, 700);
+  color: var(--foms-text-primary);
+}
+.foms-ship-sheet__team-remain {
+  flex: 0 0 auto;
+  font-size: var(--foms-font-size-xs, 0.75rem);
+  color: var(--foms-text-tertiary, #6b7380);
+}
+/* 선택된 팀 행 강조 — 선택 피드백(primary 보더 + accent 바탕). */
+.foms-ship-sheet__team:has(input:checked) {
+  border-color: var(--foms-interactive-primary, #5a67d8);
+  background: var(--foms-surface-accent, #f3f4ff);
+}
+/* 잔여 부족(경고) 팀 강조 — HMI 색 규율: 경보만 유채색. */
+.foms-ship-sheet__team.is-short {
+  border-color: var(--foms-color-danger-500, #ef4444);
+  background: var(--foms-color-danger-50, #fef2f2);
+}
+.foms-ship-sheet__team.is-short .foms-ship-sheet__team-remain {
+  color: var(--foms-color-danger-600, #dc2626);
+  font-weight: var(--foms-font-weight-semibold, 600);
+}
+.foms-ship-sheet__team-warn {
+  flex: 0 0 auto;
+  font-size: var(--foms-font-size-xs, 0.75rem);
+  font-weight: var(--foms-font-weight-bold, 700);
+  color: var(--foms-color-neutral-0, #fff);
+  background: var(--foms-color-danger-600, #dc2626);
+  padding: 0 var(--foms-space-2, 0.5rem);
+  border-radius: var(--foms-radius-sm, 6px);
+}
+.foms-ship-sheet__empty {
+  font-size: var(--foms-font-size-sm, 0.875rem);
+  color: var(--foms-text-tertiary, #6b7380);
+}
+
+/* 시간 칩 + 입력 */
+.foms-ship-sheet__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--foms-space-2, 0.5rem);
+  margin-bottom: var(--foms-space-2, 0.5rem);
+}
+.foms-ship-sheet__chip {
+  min-height: var(--foms-touch-target-comfortable, 44px);
+  padding: 0 var(--foms-space-3, 0.75rem);
+  border: 1px solid var(--foms-border-default, #c1c7d0);
+  border-radius: var(--foms-radius-md, 8px);
+  background: var(--foms-surface-base, #fff);
+  color: var(--foms-text-primary);
+  font-size: var(--foms-font-size-sm, 0.875rem);
+  font-weight: var(--foms-font-weight-semibold, 600);
+  cursor: pointer;
+}
+.foms-ship-sheet__input {
+  display: block;
+  width: 100%;
+  min-height: var(--foms-touch-target-comfortable, 44px);
+  padding: 0 var(--foms-space-3, 0.75rem);
+  border: 1px solid var(--foms-border-default, #c1c7d0);
+  border-radius: var(--foms-radius-md, 8px);
+  background: var(--foms-surface-base, #fff);
+  color: var(--foms-text-primary);
+  font-size: var(--foms-font-size-base, 1rem); /* 16px — iOS 포커스 확대 방지 */
+}
+.foms-ship-sheet__input + .foms-ship-sheet__input {
+  margin-top: var(--foms-space-2, 0.5rem);
+}
+
+.foms-ship-sheet__foot {
+  display: flex;
+  gap: var(--foms-space-2, 0.5rem);
+  padding-top: var(--foms-space-2, 0.5rem);
+  position: sticky;
+  bottom: 0;
+  background: var(--foms-surface-base, #fff);
+  border-top: 1px solid var(--foms-border-subtle, #dde1e6);
+}
+.foms-ship-sheet__btn {
+  flex: 1 1 0;
+  min-height: var(--foms-touch-target-comfortable, 44px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--foms-space-2, 0.5rem);
+  border: 1px solid var(--foms-border-default, #c1c7d0);
+  border-radius: var(--foms-radius-md, 8px);
+  background: var(--foms-surface-base, #fff);
+  color: var(--foms-text-primary);
+  font-size: var(--foms-font-size-sm, 0.875rem);
+  font-weight: var(--foms-font-weight-semibold, 600);
+  cursor: pointer;
+}
+.foms-ship-sheet__btn--pri {
+  background: var(--foms-interactive-primary, #5a67d8);
+  border-color: var(--foms-interactive-primary, #5a67d8);
+  color: var(--foms-color-neutral-0, #fff);
+}
+
+/* ============================================================
+   벌크 선택 모드 — 프레임 12 (2026-07-13, T2 목업 융합).
+
+   태블릿 가로 코호트에서 주문 대시보드 그리드 행 long-press → 선택 모드. 컴포넌트 DOM
+   (contextual bar)·long-press·시트 억제 배선은 tablet-bulk-select.js 가 소유하고, 여기(CSS)는
+   (1) contextual bar 표시(coarse landscape 게이트), (2) 선택 행 강조, (3) 선택 모드 체크박스
+   강조만 소유한다. 실제 선택/일괄 실행은 기존 PC 벌크 메커니즘(.erp-grid-order-check +
+   #erp-grid-bulk-bar) 재사용. foms 토큰만 소비, 인라인 스타일 없음.
+   ============================================================ */
+
+/* base-hide: 코호트 밖(PC/모바일/세로)에서는 contextual bar 완전 은닉. opt-in 규칙보다 앞
+   (T0 순서 계약 정합 — 밀도 토글 base-hide 패턴과 동일). */
+.foms-tablet-bulk-bar {
+  display: none;
+}
+
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+
+  /* contextual bar — 상단 중앙 고정 플로팅 툴바(선택 모드에서만; JS 가 hidden 토글). */
+  body.erp-mobile-v2-layout .foms-tablet-bulk-bar:not([hidden]) {
+    display: flex;
+    align-items: center;
+    gap: var(--foms-space-3, 0.75rem);
+    position: fixed;
+    top: var(--foms-space-3, 0.75rem);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1040;
+    padding: var(--foms-space-2, 0.5rem) var(--foms-space-4, 1rem);
+    border: 1px solid var(--foms-border-default, #c1c7d0);
+    border-radius: var(--foms-radius-lg, 12px);
+    background: var(--foms-surface-base, #fff);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+  }
+  body.erp-mobile-v2-layout .foms-tablet-bulk-bar__count {
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    color: var(--foms-text-secondary);
+    white-space: nowrap;
+  }
+  body.erp-mobile-v2-layout .foms-tablet-bulk-bar__count strong {
+    font-size: var(--foms-font-size-lg, 1.125rem);
+    color: var(--foms-text-primary);
+  }
+  /* 액션·해제 버튼 = ≥44px 터치 타깃. */
+  body.erp-mobile-v2-layout .foms-tablet-bulk-bar__action,
+  body.erp-mobile-v2-layout .foms-tablet-bulk-bar__clear {
+    min-height: var(--foms-touch-target-comfortable, 44px);
+    padding: 0 var(--foms-space-3, 0.75rem);
+    border-radius: var(--foms-radius-md, 8px);
+    border: 1px solid var(--foms-border-default, #c1c7d0);
+    background: var(--foms-surface-base, #fff);
+    color: var(--foms-text-primary);
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    font-weight: var(--foms-font-weight-semibold, 600);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .foms-tablet-bulk-bar__action {
+    background: var(--foms-interactive-primary, #5a67d8);
+    border-color: var(--foms-interactive-primary, #5a67d8);
+    color: var(--foms-color-neutral-0, #fff);
+  }
+
+  /* 선택된 행 강조(JS 가 .foms-tablet-bulk-selected 토글). id 포함 특이도로 그리드 기본 배경 승리. */
+  body.erp-mobile-v2-layout .erp-dashboard-workqueue #erp-grid tbody tr.erp-main-row.foms-tablet-bulk-selected {
+    background: var(--foms-surface-accent, #f3f4ff);
+    box-shadow: inset 3px 0 0 0 var(--foms-interactive-primary, #5a67d8);
+  }
+
+  /* 선택 모드 — 체크박스 열 강조(상시 24px 는 W9 4)번이 이미 부여, 여기선 아웃라인만 얹음). */
+  body.erp-mobile-v2-layout.foms-tablet-bulk-mode .erp-dashboard-workqueue #erp-grid .erp-grid-order-check {
+    outline: 2px solid var(--foms-interactive-primary, #5a67d8);
+    outline-offset: 1px;
+  }
+}
+
+/* ============================================================
+   컨트롤타워 상단 바 (목업 프레임 01) — pcbar + KPI 5타일 (2026-07-13, T-CTOWER).
+
+   실기기 지적("아직 태블릿 버전 아님") 봉합: 태블릿 가로 코호트에서 orders 대시보드의
+   PC 잔존 크롬(프로세스맵 경보 헤더 + 파이프라인 본문 + 작업 큐 카드 헤더 + "표시:N" 뱃지)을
+   은닉하고, 목업 01 형식의 얇은 pcbar + KPI 5타일(tablet_dashboard_topbar.html)로 교체한다.
+
+   NOTE(2026-07-13): 파일 상단 W9 주석의 "orders 는 split 은닉으로 no-op" 는 STALE —
+   2026-07-12 목업 v5 정합(foms-split-view.css)으로 coarse landscape 태블릿은 split 을
+   선택하지 않고 legacy PC 표면을 표시한다. 따라서 이 교체는 orders 태블릿 가로에서 실제
+   적용된다.
+
+   W11 의 프로세스맵 "타일 시각" 규칙은 그대로 두되(다른 legacy 페이지 대비 + 계약 테스트
+   보존), orders 에서는 아래 은닉이 특이도(페이지 스코프 .erp-dashboard-orders 추가)로
+   이겨 프로세스맵 밴드를 완전히 숨긴다. 필터바(③)는 process-map 카드의 별도 자식이라 유지.
+   스코프: body.erp-mobile-v2-layout(코호트) + .erp-dashboard-orders(orders 페이지 한정) →
+   construction/PC/폰 무영향. 인라인 스타일 없음, foms 토큰 소비.
+   ============================================================ */
+
+/* base-hide: 코호트 밖(PC/모바일/세로)에서 상단 바 완전 은닉. opt-in(아래 MQ) 앞(순서 계약). */
+.foms-tdash-top {
+  display: none;
+}
+
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+
+  /* --- 상단 바 표시 + PC 프로세스맵/작업큐 헤더 은닉 (동일 게이트 결합) --- */
+  body.erp-mobile-v2-layout .foms-tdash-top {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-3, 0.75rem);
+    margin-bottom: var(--foms-space-3, 0.75rem);
+  }
+
+  /* PC 프로세스맵 밴드(경보 헤더 + 파이프라인 본문) 은닉 — pcbar+타일이 대체. */
+  body.erp-mobile-v2-layout .erp-dashboard-orders .erp-pro-card--process-map .erp-pro-card__header--with-alerts,
+  body.erp-mobile-v2-layout .erp-dashboard-orders .erp-pro-card--process-map .erp-pro-card__body {
+    display: none;
+  }
+  /* process-map 카드 크롬(테두리/그림자/패딩) 제거 — 필터바만 남아 상단 바 아래 flush. */
+  body.erp-mobile-v2-layout .erp-dashboard-orders .erp-pro-card--process-map {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    margin: 0;
+  }
+  /* 작업 큐 카드 헤더(제목 "작업 큐/주문 처리 및 퀘스트 관리" + "표시:N" 뱃지 + 벌크/폭초기화)
+     은닉 → 그리드 직행. 밀도 토글은 pcbar 로 재배치되어 생존. */
+  /* !important: 마크업의 Bootstrap d-flex(!important) 유틸을 이겨야 한다
+     (2026-07-13 staging 실측 — 무장식 display:none 이 패배해 헤더 잔존). */
+  body.erp-mobile-v2-layout .erp-dashboard-orders .erp-dashboard-workqueue-head {
+    display: none !important;
+  }
+  /* 목업 01 = 단일 헤더(pcbar). 상단 ERP 프로세스 대시보드 헤더(주문 생성·홈)는
+     pcbar(주문 생성)와 레일(대시보드)이 대체하므로 이중 헤더 은닉. */
+  body.erp-mobile-v2-layout .erp-dashboard-orders .erp-pro-header {
+    display: none !important;
+  }
+
+  /* --- pcbar: 제목 · sub(N건·날짜) · 밀도 토글 · 주문 생성 --- */
+  body.erp-mobile-v2-layout .foms-tdash-pcbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--foms-space-3, 0.75rem);
+  }
+  body.erp-mobile-v2-layout .foms-tdash-pcbar__lead {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: var(--foms-space-2, 0.5rem);
+    min-width: 0;
+  }
+  body.erp-mobile-v2-layout .foms-tdash-pcbar__title {
+    margin: 0;
+    font-size: var(--foms-font-size-xl, 1.25rem);
+    font-weight: var(--foms-font-weight-bold, 700);
+    color: var(--foms-text-primary);
+  }
+  body.erp-mobile-v2-layout .foms-tdash-pcbar__sub {
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    color: var(--foms-text-tertiary, #6b7380);
+  }
+  body.erp-mobile-v2-layout .foms-tdash-pcbar__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--foms-space-2, 0.5rem);
+  }
+  body.erp-mobile-v2-layout .foms-tdash-pcbar__create {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--foms-space-1, 0.25rem);
+    min-height: var(--foms-touch-target-comfortable);
+    padding: 0 var(--foms-space-4, 1rem);
+    border-radius: var(--foms-radius-md, 8px);
+    background: var(--foms-interactive-primary, #5a67d8);
+    color: var(--foms-color-neutral-0, #fff);
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    font-weight: var(--foms-font-weight-semibold, 600);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  /* pcbar 고스트 버튼(엑셀 임포트·지도 생성) — create(채움 primary)와 구분되는 보조 액션.
+     기존 기능 라우트 재사용(excel.upload_excel / erp_map.map_view). 48px 터치 타깃. */
+  body.erp-mobile-v2-layout .foms-tdash-pcbar__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--foms-space-1, 0.25rem);
+    min-height: var(--foms-touch-target-comfortable);
+    padding: 0 var(--foms-space-4, 1rem);
+    border-radius: var(--foms-radius-md, 8px);
+    border: 1px solid var(--foms-border-default, #c7ccd4);
+    background: var(--foms-surface-base, #fff);
+    color: var(--foms-text-primary);
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    font-weight: var(--foms-font-weight-semibold, 600);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  /* --- KPI 5타일 (전체/긴급/실측D-4/시공D-3/도면지연) --- */
+  body.erp-mobile-v2-layout .foms-tdash-tiles {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: var(--foms-space-3, 0.75rem);
+  }
+  body.erp-mobile-v2-layout .foms-tdash-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-height: var(--foms-touch-target-min, 48px);
+    padding: var(--foms-space-3, 0.75rem);
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: var(--foms-radius-lg, 12px);
+    background: var(--foms-surface-base, #fff);
+  }
+  body.erp-mobile-v2-layout .foms-tdash-tile__value {
+    font-size: var(--foms-font-size-2xl, 1.5rem);
+    font-weight: var(--foms-font-weight-bold, 700);
+    line-height: 1.1;
+    color: var(--foms-text-primary);
+  }
+  body.erp-mobile-v2-layout .foms-tdash-tile__label {
+    font-size: var(--foms-font-size-xs, 0.75rem);
+    color: var(--foms-text-tertiary, #6b7380);
+  }
+  /* HMI 색 규율(정상=무채/경보만 유채) — 프로세스맵 경보 색과 정합:
+     전체=무채, 긴급·도면 지연=danger, 실측/시공 임박=warning. (--info 규칙은 잔존:
+     향후 타일/타 코호트 대비 무해 dead-rule.) */
+  body.erp-mobile-v2-layout .foms-tdash-tile--danger .foms-tdash-tile__value {
+    color: var(--foms-color-danger-600, #dc2626);
+  }
+  body.erp-mobile-v2-layout .foms-tdash-tile--warning .foms-tdash-tile__value {
+    color: var(--foms-color-warning-600, #d97706);
+  }
+  body.erp-mobile-v2-layout .foms-tdash-tile--info {
+    border-color: var(--foms-color-info-500, #3b82f6);
+  }
+  body.erp-mobile-v2-layout .foms-tdash-tile--info .foms-tdash-tile__value {
+    color: var(--foms-color-info-600, #2563eb);
+  }
+
+  /* --- 목업 01 컬럼 감축: 태블릿 가로 저우선 4열 은닉(연락처·주소·상세·열기).
+     "PC 12컬럼 밀도 그대로 이식 = 반대 방향 함정"(목업 경고)의 근본 회피. 인덱스가 아니라
+     data-col-key(출고 그리드와 동일 SSOT)로 지목. #erp-grid 는 colgroup 없는 table-layout:auto
+     이므로 th+td display:none 이면 열이 완전히 접힌다(출고처럼 col 폭 회수 불요).
+     ERPGridBoundaryResize 는 th 인라인 width 만 세팅(display 미접촉)이라 은닉이 이긴다.
+     colspan="13" 상세 슬라이드 행은 유지 — 접힌 4열은 0폭이라 시각 파손 없음.
+     PC(fine)·폰·세로는 이 MQ 밖 → 13열 전부 표시. 순서=PC 유지(재정렬 없음). --- */
+  body.erp-mobile-v2-layout #erp-grid th[data-col-key="phone"],
+  body.erp-mobile-v2-layout #erp-grid td[data-col-key="phone"],
+  body.erp-mobile-v2-layout #erp-grid th[data-col-key="address"],
+  body.erp-mobile-v2-layout #erp-grid td[data-col-key="address"],
+  body.erp-mobile-v2-layout #erp-grid th[data-col-key="detail"],
+  body.erp-mobile-v2-layout #erp-grid td[data-col-key="detail"],
+  body.erp-mobile-v2-layout #erp-grid th[data-col-key="open"],
+  body.erp-mobile-v2-layout #erp-grid td[data-col-key="open"] {
+    display: none;
+  }
+}
+
+/* ============================================================
+   컨트롤타워 클린 작업 큐 그리드 (목업 프레임 01) — tablet_workqueue_grid.html (2026-07-13).
+
+   T-CTOWER 의 "PC 13열을 CSS 로 4열만 접기"는 목업 정합에 도달하지 못했다(컬럼 순서·경보
+   열·퀘스트 버튼/날짜 input/로고/결제 뱃지 잔존 — CSS 로는 열 재정렬·버튼→plain 변환 불가).
+   목업 정합 클린 그리드를 템플릿(tablet_workqueue_grid.html)으로 신설하고, 이 파일이
+   (1) 코호트 표시 게이트 (2) PC 작업 큐 카드 은닉 (3) 그리드 시각을 소유한다.
+
+   .foms-tqgrid 네임스페이스는 이 wrap 안에서만 존재하고 wrap 은 base-hide(코호트 밖 display:none)
+   이므로, 구조/시각 규칙은 base 레벨에 두어도 코호트 밖에선 렌더되지 않는다(PC/폰/세로 무영향
+   — .foms-tsheet-*·.foms-ship-sheet__* 자족 네임스페이스와 동일 패턴). foms 토큰만 소비.
+   ============================================================ */
+
+/* base-hide: 코호트 밖(PC/모바일/세로)에서 클린 그리드 완전 은닉. opt-in(show) 앞(순서 계약).
+   + 카드 프레이밍: 그리드를 담는 컨테이너 카드(surface-base 바탕 · subtle 보더 · radius,
+   overflow:hidden 로 라운드 코너 클립). wrap 은 코호트 밖 display:none 이라 base 레벨 안전. */
+.foms-tablet-workqueue-wrap {
+  display: none;
+  background: var(--foms-surface-base, #fff);
+  border: 1px solid var(--foms-border-subtle, #dde1e6);
+  border-radius: var(--foms-radius-lg, 12px);
+  overflow: hidden;
+}
+
+/* 그리드 구조·시각. */
+.foms-tqgrid {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--foms-surface-base, #fff);
+  font-size: var(--foms-font-size-sm, 0.875rem);
+  color: var(--foms-text-primary);
+}
+.foms-tqgrid thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  text-align: left;
+  padding: var(--foms-space-2, 0.5rem) var(--foms-space-3, 0.75rem);
+  font-size: var(--foms-font-size-xs, 0.75rem);
+  font-weight: var(--foms-font-weight-semibold, 600);
+  color: var(--foms-text-tertiary, #6b7380);
+  background: var(--foms-surface-base, #fff);
+  border-bottom: 1px solid var(--foms-border-default, #c1c7d0);
+  white-space: nowrap;
+}
+.foms-tqgrid tbody td {
+  padding: var(--foms-space-2, 0.5rem) var(--foms-space-3, 0.75rem);
+  border-bottom: 1px solid var(--foms-border-subtle, #dde1e6);
+  vertical-align: middle;
+}
+/* 데이터 행 ≥48px 터치(table-row 의 height 는 최소 높이로 동작). 행 탭 = 도크 갱신. */
+.foms-tqgrid tbody tr.foms-tqrow {
+  height: var(--foms-touch-target-min, 48px);
+  cursor: pointer;
+}
+.foms-tqgrid tbody tr.foms-tqrow:hover {
+  background: var(--foms-surface-raised, #f7f8fa);
+}
+/* 도크 패널에 표시 중인 선택 행 강조(side-sheet.js 가 .foms-tablet-sheet-active 토글). */
+.foms-tqgrid tbody tr.foms-tqrow.foms-tablet-sheet-active {
+  background: var(--foms-surface-accent, #f3f4ff);
+  box-shadow: inset 3px 0 0 0 var(--foms-interactive-primary, #5a67d8);
+}
+
+/* 밀도 토글 40/56 — density-toggle.js 가 대상(.foms-tablet-workqueue-wrap)에 data-foms-density
+   부착. 기본 48 은 위 baseline(.foms-tqgrid tbody tr.foms-tqrow) 유지. wrap[attr] .foms-tqrow
+   (0,3,0) 이 baseline(0,2,2) 을 이겨 재정의(!important 미사용). */
+.foms-tablet-workqueue-wrap[data-foms-density="40"] .foms-tqrow {
+  height: 40px;
+}
+.foms-tablet-workqueue-wrap[data-foms-density="56"] .foms-tqrow {
+  height: 56px;
+}
+
+/* 체크박스 열 — 44px 터치 폭 + 24px 박스(벌크 호환). */
+.foms-tqgrid__chk {
+  width: 44px;
+  text-align: center;
+}
+.foms-tqgrid__chk .form-check-input {
+  width: 24px;
+  height: 24px;
+  margin: 0;
+}
+
+/* 고객 셀 — 이름(굵게) + 긴급 칩(유채, HMI: 경보만 색). 로고/결제 뱃지 없음. */
+.foms-tqcell-customer {
+  min-width: 120px;
+}
+.foms-tqcell-customer__name {
+  font-weight: var(--foms-font-weight-bold, 700);
+}
+.foms-tqchip-urgent {
+  display: inline-block;
+  margin-left: var(--foms-space-1, 0.25rem);
+  padding: 1px 6px;
+  border-radius: var(--foms-radius-sm, 6px);
+  font-size: var(--foms-font-size-xs, 0.75rem);
+  font-weight: var(--foms-font-weight-bold, 700);
+  color: var(--foms-color-danger-600, #dc2626);
+  background: var(--foms-color-danger-50, #fef2f2);
+  white-space: nowrap;
+}
+
+/* 다음 할 일 — plain 텍스트(버튼 없음). 퀘스트 부재 폴백은 무채 stage 라벨. */
+.foms-tqcell-quest {
+  max-width: 300px;
+}
+.foms-tqcell-muted {
+  color: var(--foms-text-tertiary, #6b7380);
+}
+.foms-tqcell-line + .foms-tqcell-line {
+  margin-top: 2px;
+}
+
+/* 실측/시공일·담당 — nowrap plain 텍스트. */
+.foms-tqcell-date,
+.foms-tqcell-manager {
+  white-space: nowrap;
+}
+
+/* 첨부 — 우측 정렬 숫자(헤더·셀 공통). */
+.foms-tqgrid__attach,
+.foms-tqcell-attach {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 페이지네이션(PC 그리드 복제 = Bootstrap .pagination) — 목업 .pagenav/.pg 정합:
+   연결형 → 간격 있는 개별 알약(전 모서리 라운드·보더), 활성=브랜드 채움. 44px 터치 유지. */
+.foms-tablet-workqueue-wrap .pagination {
+  gap: var(--foms-space-1, 0.25rem);
+}
+.foms-tablet-workqueue-wrap .pagination .page-link {
+  min-width: var(--foms-touch-target-comfortable, 44px);
+  min-height: var(--foms-touch-target-comfortable, 44px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--foms-border-default, #c1c7d0);
+  border-radius: var(--foms-radius-md, 8px);
+  color: var(--foms-text-secondary);
+  font-weight: var(--foms-font-weight-semibold, 600);
+}
+.foms-tablet-workqueue-wrap .pagination .page-item.active .page-link {
+  background: var(--foms-interactive-primary, #5a67d8);
+  border-color: var(--foms-interactive-primary, #5a67d8);
+  color: var(--foms-color-neutral-0, #fff);
+}
+.foms-tablet-workqueue-wrap .pagination .page-item.disabled .page-link {
+  color: var(--foms-text-disabled, #9aa3af);
+}
+
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+
+  /* 클린 그리드 표시 + PC 작업 큐 카드 은닉(동일 게이트 결합 — blank 금지). PC 그리드는
+     컨테이너째 은닉하고(셀 내용 무변경 → desktop/fine 보존), 클린 그리드가 대체한다.
+     PC 컨테이너 = .erp-dashboard-workqueue(dashboard_grid.html:6, 테이블+페이지네이션 포함).
+     !important: 카드 내부 Bootstrap 유틸/특이도 대비(작업 큐 헤더 은닉 전례와 동일). */
+  body.erp-mobile-v2-layout .foms-tablet-workqueue-wrap {
+    display: block;
+  }
+  body.erp-mobile-v2-layout .erp-dashboard-orders .erp-dashboard-workqueue {
+    display: none !important;
+  }
+}
+
+/* ============================================================
+   필터바 슬림 필 톤 — W12 (2026-07-13, T7).
+
+   태블릿 가로 코호트에서 legacy PC 필터바(dashboard_filters.html)를 목업 v2의
+   "슬림 중립 필" 톤으로 보정한다. 마크업 무변경 — dashboard_filters.html 은 PC
+   대시보드와 공유되므로 인라인 스타일/구조를 건드리지 않고, 코호트 MQ + 코호트
+   게이트(body.erp-mobile-v2-layout) 스코프의 CSS 만으로 톤을 덮는다.
+
+   목업 정합(artifact filterbar/.f-input/.f-sel/.f-check/ghost btn — 팔레트가
+   FOMS 토큰과 1:1: #f7f8fa=neutral-50=surface-subtle, #ffffff=surface-base,
+   #dde1e6=neutral-200=border-subtle, #4b525d=neutral-600=text-secondary,
+   #6b7380=neutral-500=text-tertiary, #5a67d8=brand-500=interactive-primary,
+   #f3f4ff=brand-50=interactive-primary-soft):
+     - 컨테이너: 인라인 border-top(#e9ecef)·padding(0.75rem 1.25rem) → 중립 표면 +
+       서브틀 디바이더 + 슬림 패딩(!important 로 인라인 격파, 24px 체크박스 전례와 동일).
+     - 검색: input-group 을 하나의 라운드 필로. 입력=surface-subtle, 검색 버튼은
+       솔리드 브랜드 블루(.btn-primary) 제거 → brand-subtle 통합 아이콘 버튼.
+     - select(단계/담당팀): 서브틀 보더 + radius-lg + 중립 표면 + 세컨더리 텍스트
+       (.f-sel 톤). Bootstrap 드롭다운 화살표 배경 이미지는 보존.
+     - 체크(긴급만/경보만/내 담당): 24px 터치(기존 rule 4 유지) + 라벨 톤 통일 +
+       체크 상태 브랜드색.
+     - 초기화(.btn-outline-secondary): 중립 서브틀 필 + 44px 터치.
+
+   특이도: dashboard-grid.css 의 `#erp-filters-form .form-*`(1,1,0) 를 이기려면
+   id 스코프가 필요 → `body.erp-mobile-v2-layout #erp-filters-form ...`(1,2,x)로
+   선언한다(rule 3b 전례와 동일). 인라인·Bootstrap input-group 라운드 리셋 대비는
+   해당 속성에 !important 병행. 전 규칙이 coarse MQ + 코호트 게이트 안 → PC(fine
+   포인터)·폰(<992/portrait)·세로 태블릿 100% 무영향. */
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+
+  /* 컨테이너: 중립 표면 + 서브틀 디바이더 + 슬림 패딩(인라인 격파). */
+  body.erp-mobile-v2-layout .erp-dashboard-filters {
+    background: var(--foms-surface-base, #ffffff) !important;
+    border-top: 1px solid var(--foms-border-subtle, #dde1e6) !important;
+    padding: var(--foms-space-3, 0.75rem) var(--foms-space-4, 1rem) !important;
+  }
+
+  /* 폼 gap: bootstrap .gap-3(1rem !important) → 8px 응집 간격. */
+  body.erp-mobile-v2-layout #erp-filters-form {
+    gap: var(--foms-space-2, 0.5rem) !important;
+  }
+
+  /* 검색 입력: 중립 서브틀 표면 + 서브틀 보더 + 왼쪽 라운드(필 좌단). */
+  body.erp-mobile-v2-layout #erp-filters-form .input-group .form-control {
+    background: var(--foms-surface-subtle, #f7f8fa) !important;
+    border: 1px solid var(--foms-border-subtle, #dde1e6) !important;
+    border-right: 0 !important;
+    color: var(--foms-text-primary) !important;
+    border-top-left-radius: var(--foms-radius-lg, 12px) !important;
+    border-bottom-left-radius: var(--foms-radius-lg, 12px) !important;
+  }
+  /* 검색 버튼: 솔리드 브랜드 블루 제거 → brand-subtle 통합 아이콘 버튼(필 우단, 44px). */
+  body.erp-mobile-v2-layout #erp-filters-form .input-group .btn-primary {
+    min-height: var(--foms-touch-target-comfortable, 44px);
+    background: var(--foms-interactive-primary-soft, #f3f4ff) !important;
+    border: 1px solid var(--foms-border-subtle, #dde1e6) !important;
+    border-left: 0 !important;
+    color: var(--foms-interactive-primary, #5a67d8) !important;
+    border-top-right-radius: var(--foms-radius-lg, 12px) !important;
+    border-bottom-right-radius: var(--foms-radius-lg, 12px) !important;
+    box-shadow: none;
+  }
+  body.erp-mobile-v2-layout #erp-filters-form .input-group .btn-primary:hover,
+  body.erp-mobile-v2-layout #erp-filters-form .input-group .btn-primary:focus,
+  body.erp-mobile-v2-layout #erp-filters-form .input-group .btn-primary:active {
+    background: var(--foms-surface-accent, #f3f4ff) !important;
+    border-color: var(--foms-border-subtle, #dde1e6) !important;
+    color: var(--foms-interactive-primary, #5a67d8) !important;
+  }
+
+  /* 단계/담당팀 select: 필 톤(서브틀 보더·radius-lg·중립 표면·세컨더리 텍스트). */
+  body.erp-mobile-v2-layout #erp-filters-form .form-select {
+    background-color: var(--foms-surface-base, #ffffff);
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: var(--foms-radius-lg, 12px);
+    color: var(--foms-text-secondary, #4b525d);
+    font-weight: var(--foms-font-weight-semibold, 600);
+  }
+
+  /* 체크 라벨: 톤 통일(세컨더리·semibold·sm). 인라인 font-size:0.9rem → !important. */
+  body.erp-mobile-v2-layout .erp-dashboard-filters .form-check-label {
+    color: var(--foms-text-secondary, #4b525d);
+    font-size: var(--foms-font-size-sm, 0.875rem) !important;
+    font-weight: var(--foms-font-weight-semibold, 600);
+  }
+  /* 체크 상태: 브랜드색(24px 크기는 rule 4 가 소유 — 여기선 색만). */
+  body.erp-mobile-v2-layout .erp-dashboard-filters .form-check-input:checked {
+    background-color: var(--foms-interactive-primary, #5a67d8);
+    border-color: var(--foms-interactive-primary, #5a67d8);
+  }
+
+  /* 초기화: 중립 서브틀 필 + 44px 터치. */
+  body.erp-mobile-v2-layout #erp-filters-form .btn-outline-secondary {
+    min-height: var(--foms-touch-target-comfortable, 44px);
+    display: inline-flex;
+    align-items: center;
+    background: var(--foms-surface-base, #ffffff);
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: var(--foms-radius-lg, 12px);
+    color: var(--foms-text-secondary, #4b525d);
+    font-weight: var(--foms-font-weight-semibold, 600);
+  }
+  body.erp-mobile-v2-layout #erp-filters-form .btn-outline-secondary:hover,
+  body.erp-mobile-v2-layout #erp-filters-form .btn-outline-secondary:focus {
+    background: var(--foms-surface-subtle, #f7f8fa);
+    border-color: var(--foms-border-default, #c1c7d0);
+    color: var(--foms-text-primary);
+  }
+}

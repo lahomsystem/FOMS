@@ -13,8 +13,15 @@ from foms.services.erp_display import (
     _erp_has_media,
     self_measurement_four_checks_done,
 )
-from foms.services.erp_mobile_order_display import resolve_manager_phone_for_queue
+from foms.services.erp_mobile_order_display import (
+    product_subtitle_from_sd,
+    resolve_manager_phone_for_queue,
+)
 from foms.services.estimate_service import build_measurement_manager_phone_map
+from foms.services.production_dashboard_display import (
+    _production_first_item,
+    _production_spec_display,
+)
 from models import OrderAttachment
 
 __all__ = [
@@ -357,6 +364,31 @@ def _display_stage_for_order(order, structured_data):
     return None
 
 
+def _workmode_display_fields(structured_data: dict[str, Any]) -> tuple[str, str]:
+    """v3 workmode 카드용 경량 표시 필드(품목 라벨·규격) 파생. 실패 시 ''.
+
+    기존 SSOT 헬퍼만 재사용한다(신규 쿼리 없음, 이미 로드된 structured_data에서만 파생):
+    - 품목 라벨: ``product_subtitle_from_sd`` (모바일 큐 카드 subtitle SSOT)
+    - 규격 표시: ``_production_spec_display`` (생산 대시보드 첫 항목 W×D×H SSOT)
+
+    Args:
+        structured_data: 주문 structured_data(JSONB) dict. 파생 실패는 ''로 완만히 강등.
+
+    Returns:
+        (workmode_product_label, workmode_spec_display) — 각 파생 실패 시 ''.
+    """
+    try:
+        label = product_subtitle_from_sd(structured_data) or ""
+    except Exception:
+        label = ""
+    try:
+        first_item, _ = _production_first_item(structured_data)
+        spec = _production_spec_display(first_item)
+    except Exception:
+        spec = ""
+    return label, spec
+
+
 def build_construction_row_dtos(orders, att_counts, f_stage):
     """시공 대시보드 표시용 row DTO 조립 (구 erp_construction_dashboard enriched 루프). 동작 보존.
 
@@ -386,6 +418,9 @@ def build_construction_row_dtos(orders, att_counts, f_stage):
             continue
 
         alerts = _erp_alerts(order, structured_data, att_counts.get(order.id, 0))
+        workmode_product_label, workmode_spec_display = _workmode_display_fields(
+            structured_data
+        )
         enriched.append(
             {
                 "id": order.id,
@@ -416,6 +451,9 @@ def build_construction_row_dtos(orders, att_counts, f_stage):
                 "phone": (((structured_data.get("parties") or {}).get("customer") or {}).get("phone")) or "-",
                 "as_received_date": getattr(order, "as_received_date", None) or "",
                 "as_received_done": bool((getattr(order, "as_received_date", None) or "").strip()),
+                # v3 workmode 카드용 표시 필드(파생만; 기존 소비자는 미읽음, ''는 미표시).
+                "workmode_product_label": workmode_product_label,
+                "workmode_spec_display": workmode_spec_display,
             }
         )
     return enriched

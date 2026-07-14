@@ -26,7 +26,7 @@
   {% set erp_sub_nav_active = 'completion' %}
   {% include 'partials/shared/erp_sub_nav.html' %}
 
-  <div class="erp-pro-card mt-3">
+  <div class="erp-pro-card mt-3 foms-completion-photo-review">
     <div class="erp-pro-card__header foms-section-header section-header">
       <h3 class="erp-pro-card__title foms-section-header__title">
         <i class="fas fa-images"></i>
@@ -43,6 +43,11 @@
       </div>
     </div>
   </div>
+  {# 태블릿 가로 코호트 전용 금액 그리드(서버 렌더). 사진 리뷰 리스트와 CSS 배타
+     (foms-tablet-completion-grid.css). PC/legacy 는 미렌더 → 기존 리스트 fallback. #}
+  {% if erp_mobile_v2_enabled %}
+    {% include 'cs/partials/tablet_completion_grid_body.html' %}
+  {% endif %}
   {% if erp_mobile_v2_enabled and not is_construction_team|default(false) %}
   <a class="foms-shell-fab d-lg-none" href="{{ url_for('order_pages.add_order', open='erp-order', wizard=1) }}" aria-label="주문 생성">
     <i class="fas fa-plus" aria-hidden="true"></i>

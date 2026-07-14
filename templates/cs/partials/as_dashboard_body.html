@@ -1,7 +1,7 @@
 {# foms-kv-rollout: erp_mobile_shell → kv-copy.js + queue card foms_order_contact_kv #}
 {% from 'cs/partials/as_card_macros.html' import render_as_rich_toolbar_template, render_as_content_tabs, render_as_orderer_line, render_as_construction_workers %}
 
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/cs/as-dashboard-body.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/cs/as-dashboard-body.css') }}?v=20260712a">
 {# 카드 CSS는 body 파셜에 둔다 → fast-tab 프래그먼트 스왑(as_dashboard_fragment.html)에도
    함께 실려, 탭 이동 첫 진입에서 카드가 원시(미스타일)로 뜨는 FOUC를 막는다.
    (head_extra 전용이면 전체 새로고침 전까지 카드 CSS가 누락된다) #}
@@ -134,6 +134,10 @@
         {% endfor %}
       </div>
       {% endif %}
+      {# 태블릿 가로(코호트) 전/후 대조 표면. 표시/은닉·배타(대조 표시 + 아래 데스크톱 테이블
+         은닉)는 foms-tablet-as-compare.css 코호트 @media 소유. 코호트 밖에선 base display:none
+         으로 완전 무동작 → 폰/세로/데스크톱 동작 불변(데스크톱 테이블 그대로). #}
+      {% if erp_mobile_v2_enabled %}{% include 'cs/partials/tablet_as_compare_body.html' %}{% endif %}
       <!-- PC Table View -->
       <div class="erp-pro-table-wrapper d-none d-md-block">
         <table class="erp-pro-table">
@@ -465,3 +469,8 @@
 
 <div id="as-dashboard-config" class="d-none" data-search-query-compact="{{ (compact_search_q or '')|e }}" data-current-as-tab="{{ (as_tab or 'incomplete')|e }}"></div>
 <script src="{{ url_for('static', filename='js/cs/as-dashboard.js') }}?v=20260704b" defer></script>
+{# 태블릿 가로 대조 표면 CTA(일정 변경·AS 완료) 배선 — v2 코호트(폰+태블릿)만 로드.
+   표시 게이트는 CSS(coarse landscape)가 소유하므로 폰에선 버튼 은닉·무동작(문서 위임+싱글턴 가드). #}
+{% if erp_mobile_v2_enabled %}
+<script src="{{ url_for('static', filename='js/foms/tablet-as-compare.js') }}?v=20260714a" defer></script>
+{% endif %}

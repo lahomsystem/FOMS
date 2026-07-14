@@ -12,7 +12,9 @@ from flask import g, request, session, url_for
 from foms.services.feature_flags import (
     env_bool,
     env_bool_or_mobile_v2,
-    is_enabled_for_user,
+    is_mobile_v2_shell,
+    is_shell_v3_eligible,
+    resolve_shell_variant_cached,
     should_render_new_order_wizard,
     wizard_new_order_enabled,
 )
@@ -34,6 +36,7 @@ __all__ = [
     "inject_menu",
     "inject_foms_flags",
     "inject_foms_nav_badges",
+    "inject_foms_stage_catalog",
     "register_context_processors",
 ]
 
@@ -112,6 +115,21 @@ def inject_statuses() -> dict[str, Any]:
     }
 
 
+def _current_shell_variant() -> str:
+    """현재 요청 사용자의 shell variant를 요청당 1회 캐시로 반환한다.
+
+    ``g.current_user``에서 uid를 파생해 :func:`resolve_shell_variant_cached`에
+    위임한다. 3개 injector가 공유하는 단일 진입점으로, 요청당 env·쿠키 파싱을
+    1회로 줄여 중복 계산을 제거한다.
+
+    Returns:
+        ``"legacy"``, ``"v2"``, 또는 ``"v3"``.
+    """
+    current_user = getattr(g, "current_user", None)
+    uid = current_user.id if current_user else None
+    return resolve_shell_variant_cached(uid, request)
+
+
 def inject_status_list() -> dict[str, Any]:
     """Inject status lists and current-user context into templates."""
     display_status = {k: v for k, v in STATUS.items() if k != "DELETED"}
@@ -125,12 +143,8 @@ def inject_status_list() -> dict[str, Any]:
         admin_switch_users = _get_admin_switch_users(db, current_user.id)
 
     erp_order_enabled = env_bool("ERP_ORDER_ENABLED", default=True)
-    uid = current_user.id if current_user else None
-    erp_mobile_v2_enabled = is_enabled_for_user(
-        "ERP_MOBILE_V2_ENABLED",
-        uid,
-        cohort_key="FOMS_V3_SHELL_COHORT",
-    )
+    shell_variant = _current_shell_variant()
+    erp_mobile_v2_enabled = is_mobile_v2_shell(shell_variant)
     use_direct_upload_env = env_bool("USE_DIRECT_UPLOAD", default=True)
     try:
         from foms.services.storage import get_storage
@@ -150,6 +164,7 @@ def inject_status_list() -> dict[str, Any]:
         "impersonating_from_id": impersonating_from_id,
         "erp_order_enabled": erp_order_enabled,
         "erp_mobile_v2_enabled": erp_mobile_v2_enabled,
+        "shell_variant": shell_variant,
         "use_direct_upload": use_direct_upload,
     }
 
@@ -195,11 +210,8 @@ def inject_foms_flags() -> dict[str, Any]:
     """Inject v1.1 design feature flags for template cohort rollout."""
     current_user = getattr(g, "current_user", None)
     uid = current_user.id if current_user else None
-    mobile_v2 = is_enabled_for_user(
-        "ERP_MOBILE_V2_ENABLED",
-        uid,
-        cohort_key="FOMS_V3_SHELL_COHORT",
-    )
+    shell_variant = _current_shell_variant()
+    mobile_v2 = is_mobile_v2_shell(shell_variant)
     split_flag = env_bool_or_mobile_v2(
         "FOMS_TABLET_SPLIT_VIEW_ENABLED",
         mobile_v2_active=mobile_v2,
@@ -210,6 +222,10 @@ def inject_foms_flags() -> dict[str, Any]:
     )
     return {
         "flag_mobile_v2": mobile_v2,
+        "shell_variant": shell_variant,
+        # v3 셸 코호트 자격(쿠키 무관). v2 셸 drawer의 "새 모바일(v3)" 진입점을
+        # 자격자에게만 노출하기 위한 플래그(shell_variant=='v2' && shell_v3_eligible).
+        "shell_v3_eligible": is_shell_v3_eligible(uid),
         "flag_tokens_v2": env_bool("FOMS_DESIGN_TOKENS_V2_ENABLED", True),
         # wizard draft/API 활성(코호트·전역 플래그). 실제 /add 렌더·chrome 숨김은 show_new_order_wizard.
         "flag_wizard": wizard_new_order_enabled(uid),
@@ -219,7 +235,11 @@ def inject_foms_flags() -> dict[str, Any]:
         # 비활성화하려면 FOMS_ERP_SPEC_CALC_ENABLED=false.
         "flag_spec_calc": env_bool("FOMS_ERP_SPEC_CALC_ENABLED", True),
         "flag_split_view": split_flag,
-        "foms_split_enabled": mobile_v2 and split_flag,
+        # split 셸 마크업은 v2 셸 전용: 그 스타일(foms-split-view.css 기본 은닉 포함)이
+        # v2 전용 surfaces 번들(layout_head shell_variant=='v2' 게이트)로만 로드되므로,
+        # v2∪v3(mobile_v2)로 렌더하면 v3에서 비스타일 split 마크업이 전 폭에 그대로
+        # 흐른다(2026-07-12 staging 이중 레일 실사고 — 마크업↔CSS 게이트 불일치 봉합).
+        "foms_split_enabled": shell_variant == "v2" and split_flag,
         "flag_rum_baseline": env_bool("FOMS_RUM_BASELINE_ENABLED", True),
         "flag_offline_sw": env_bool("FOMS_OFFLINE_SW_ENABLED"),
         "flag_bottom_nav_htmx": env_bool("FOMS_BOTTOM_NAV_HTMX_ENABLED"),
@@ -229,12 +249,7 @@ def inject_foms_flags() -> dict[str, Any]:
 def inject_foms_nav_badges() -> dict[str, Any]:
     """Inject bottom-nav stage badge counts (P1-01, ERP mobile v2 cohort only)."""
     current_user = getattr(g, "current_user", None)
-    uid = current_user.id if current_user else None
-    if not is_enabled_for_user(
-        "ERP_MOBILE_V2_ENABLED",
-        uid,
-        cohort_key="FOMS_V3_SHELL_COHORT",
-    ):
+    if not is_mobile_v2_shell(_current_shell_variant()):
         return {"foms_nav_badges": {}}
     request_mine = erp_mine_only_from_request(request)
     return {
@@ -243,6 +258,74 @@ def inject_foms_nav_badges() -> dict[str, Any]:
             mine_only=True if request_mine else None,
         )
     }
+
+
+_FOMS_STAGE_CATALOG: list[dict[str, str]] | None = None
+
+
+def _foms_stage_catalog() -> list[dict[str, str]]:
+    """8단계 워크플로 카탈로그(code+label, 진행 순서)를 1회 빌드 후 캐시해 반환한다.
+
+    순서·표시명 SSOT 는 :data:`foms.services.order_timeline_v3.STAGE_SEQUENCE`
+    (RECEIVED→MEASURE→…→COMPLETED). 태블릿 사이드 시트 파이프라인이 소비하며, JS 에
+    단계 목록을 하드코딩하지 않도록 서버에서 data-* 속성으로 내려보낸다. 상수라 모듈
+    수명 내 1회만 빌드한다(요청마다 재계산 없음).
+
+    Returns:
+        ``[{"code": <표준 코드>, "label": <한글 표시명>}, ...]`` 8원소.
+    """
+    global _FOMS_STAGE_CATALOG
+    if _FOMS_STAGE_CATALOG is None:
+        # Lazy import: order_timeline_v3 는 datetime_kst 만 끌어와 경량이지만, bootstrap
+        # import 순서 리스크를 원천 차단하려 요청 시점(첫 렌더)에 로드한다.
+        from foms.services.order_timeline_v3 import STAGE_SEQUENCE
+
+        _FOMS_STAGE_CATALOG = [
+            {"code": code, "label": label} for code, label, _slug in STAGE_SEQUENCE
+        ]
+    return _FOMS_STAGE_CATALOG
+
+
+def inject_foms_stage_catalog() -> dict[str, Any]:
+    """Inject the 8-stage workflow catalog for the tablet side-sheet pipeline.
+
+    Returns the cached ``foms_stage_catalog`` list (no query, no per-request compute);
+    templates serialize it via ``|tojson`` into ``data-foms-stage-catalog``.
+    """
+    return {"foms_stage_catalog": _foms_stage_catalog()}
+
+
+def _tablet_rail_items() -> list[dict[str, Any]]:
+    """Lazy rail-item provider bound to the current request (Jinja global body).
+
+    Reads the request-scoped user (``g.current_user``) and ``request.path`` at call
+    time so the tablet rail partial computes items only when it actually renders
+    (non-/erp and non-tablet pages never invoke it). Delegates all navigation policy
+    to :func:`foms.services.foms_split_view.build_tablet_rail_items`.
+
+    Returns:
+        Rail item descriptors for the current request.
+    """
+    # Lazy import: foms_split_view pulls the erp_display/erp_policy chain, which is not
+    # yet initialized when context_processors is imported during early app bootstrap
+    # (circular import). Importing here (request time) breaks the cycle — same pattern
+    # as the canonical lazy storage import in inject_status_list.
+    from foms.services.foms_split_view import build_tablet_rail_items
+
+    current_user = getattr(g, "current_user", None)
+    return build_tablet_rail_items(current_user, request.path)
+
+
+def inject_tablet_rail_helper() -> dict[str, Any]:
+    """Expose ``foms_tablet_rail_items`` as a lazy Jinja global (T2 tablet rail).
+
+    Returns the callable itself (not its computed result) so the tablet rail partial
+    invokes it only when rendered; pages that never include the partial pay no cost.
+
+    Returns:
+        Mapping with the ``foms_tablet_rail_items`` template callable.
+    """
+    return {"foms_tablet_rail_items": _tablet_rail_items}
 
 
 def register_context_processors(app) -> None:
@@ -255,3 +338,5 @@ def register_context_processors(app) -> None:
     app.context_processor(inject_menu)
     app.context_processor(inject_foms_flags)
     app.context_processor(inject_foms_nav_badges)
+    app.context_processor(inject_foms_stage_catalog)
+    app.context_processor(inject_tablet_rail_helper)

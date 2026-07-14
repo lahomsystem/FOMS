@@ -1,7 +1,16 @@
 {% extends "shipment/layout.html" %}
 
 {% block head_extra %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-shipment-mobile.css') }}?v=20260626b">
+  {# v3 셸은 자체 CSS(layout_head 배타 로드)만 사용 — v2 출고 모바일 CSS는 v2/legacy에만 로드 #}
+  {% if shell_variant != 'v3' %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-shipment-mobile.css') }}?v=20260712a">
+  {% endif %}
+{% endblock %}
+
+{% block styles %}
+  {% if erp_mobile_v2_enabled %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-packing.css') }}?v=20260714a">
+  {% endif %}
 {% endblock %}
 
 {% block content %}
@@ -9,5 +18,11 @@
 {% endblock %}
 
 {% block scripts %}
+{# v3는 읽기 전용 홈(추가 JS 없음) — v2 출고 대시보드 JS는 v2/legacy에만 로드(배타) #}
+{% if shell_variant != 'v3' %}
 {% include 'shipment/partials/dashboard_scripts.html' %}
+{% endif %}
+{% if erp_mobile_v2_enabled %}
+<script src="{{ url_for('static', filename='js/shipment/foms-packing.js') }}?v=20260714a" defer></script>
+{% endif %}
 {% endblock %}

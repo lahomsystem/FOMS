@@ -69,7 +69,7 @@ def test_sw_fetch_networkfirst_timeout_cache_fallback_intact() -> None:
 def test_sw_cache_version_bumped() -> None:
     """푸시 핸들러 추가와 함께 CACHE_VERSION 이 bump 됐다(구 캐시 activate 시 purge)."""
     sw = _read(SW)
-    assert 'CACHE_VERSION = "foms-p2-v8"' in sw
+    assert 'CACHE_VERSION = "foms-p2-v9"' in sw
 
 
 # --- 등록 SSOT: 단일 navigator.serviceWorker.register --------------------------

@@ -17,6 +17,11 @@ FOMS_STAGING_USERNAME=... FOMS_STAGING_PASSWORD=... \
 **규칙**: deploy 배포 완료 후 / production 승격 직전 필수 실행. 상세 판정 철학:
 `docs/guides/PERFORMANCE_GUARDRAILS.md` "스테이징 성능 게이트".
 
+**자동 실행(하이브리드)**: CI 가 `deploy` push 에는 **비블로킹 advisory**(`--advisory`, 예산
+초과는 경고만·exit 0 → 무관 커밋 연쇄 fail 방지), **production 승격 PR·수동 dispatch** 에는
+**블로킹**(예산 초과 → job fail)으로 실행한다(`.github/workflows/perf-gate.yml`). 크리덴셜·로그인
+실패(exit 2)는 advisory 무관하게 job fail. 이 로컬 명령은 수동 확인·시드용.
+
 PowerShell(저장소 표준):
 ```powershell
 $env:FOMS_STAGING_USERNAME="..."; $env:FOMS_STAGING_PASSWORD="..."

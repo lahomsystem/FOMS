@@ -236,6 +236,60 @@
   color: var(--foms-color-warning-600, #d97706);
 }
 
+/* 상태 라벨 칩 + 버전 칩(vN, transfer_round 파생) */
+.foms-drawing-queue-card__chip--status {
+  background: var(--foms-color-info-50, #eff6ff);
+  color: var(--foms-color-info-700, #1d4ed8);
+}
+
+.foms-drawing-queue-card__chip--version {
+  background: color-mix(in srgb, var(--foms-color-brand-500, #6366f1) 14%, var(--foms-surface-base, #fff));
+  color: var(--foms-color-brand-700, #434190);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 최신 전달 요약 1줄('vN 전달 · M/D HH:MM · 이름') */
+.foms-drawing-queue-card__xfer {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--foms-text-tertiary, #6b7380);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.foms-drawing-queue-card__xfer > i {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+/* 반려/수정요청 메모 1줄(길면 말줄임) */
+.foms-drawing-queue-card__memo {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  padding: 0.28rem 0.5rem;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  background: var(--foms-color-warning-50, #fffbeb);
+  color: var(--foms-color-warning-700, #b45309);
+}
+
+.foms-drawing-queue-card__memo > i {
+  flex-shrink: 0;
+}
+
+.foms-drawing-queue-card__memo-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .foms-drawing-queue-card__actions {
   grid-column: 1 / -1;
   display: flex;
@@ -285,12 +339,24 @@
   background: var(--foms-color-brand-100, #e0e7ff);
 }
 
-.foms-drawing-queue-card__actions:has(.foms-drawing-queue-card__erp-edit) .foms-btn {
+.foms-drawing-queue-card__actions .foms-drawing-queue-card__wizard {
+  border-color: color-mix(in srgb, var(--foms-color-brand-400, #818cf8) 40%, var(--foms-border-subtle, #dde1e6));
+  color: var(--foms-color-brand-700, #434190);
+}
+
+.foms-drawing-queue-card__actions:has(.foms-drawing-queue-card__erp-edit) .foms-btn,
+.foms-drawing-queue-card__actions:has(.foms-drawing-queue-card__wizard) .foms-btn {
   font-size: 0.78rem;
   padding-inline: 0.45rem;
 }
 
-@media (max-width: 991.98px) {
+/* Mobile queue surface — shown on phones (<992) AND tablet portrait (≥992 portrait
+   coarse), matching the mobile-shell opt-in in foms-shell.css. The workbench is not
+   split-wired, so landscape tablet + PC keep the legacy desktop table (see the
+   non-mobile hide + tablet-portrait desktop hide blocks below). Enumerated (no
+   `not`); orientation clause uses only `portrait` here (this file is not scoped by
+   the foms-split-view.css portrait-token ban). */
+@media (max-width: 991.98px), ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
   body.erp-mobile-v2-layout .foms-drawing-mobile-dashboard {
     padding: var(--foms-space-3, 12px) var(--foms-space-4, 16px)
       calc(var(--foms-shell-bottom-nav-h, 72px) + var(--foms-space-4, 16px));
@@ -356,6 +422,46 @@
   }
 }
 
+/* Non-mobile shells (992+ landscape / fine / none): hide the mobile queue. The
+   workbench is not split-wired, so those bands keep the legacy desktop table; the
+   Bootstrap `d-lg-none` that used to gate this section was width-only and blanked
+   the queue on tablet portrait (≥992 portrait coarse), so the show/hide is now the
+   shell matrix. Enumerated (no `not`), mirrors foms-shell.css's non-mobile
+   surface-hide. Portrait-coarse is excluded here → the queue stays visible there. */
+@media
+  ((min-width: 992px) and (orientation: landscape)),
+  ((min-width: 992px) and (pointer: fine)),
+  ((min-width: 992px) and (pointer: none)) {
+  body.erp-mobile-v2-layout .foms-drawing-mobile-dashboard {
+    display: none !important;
+  }
+}
+
+/* Tablet portrait (≥992 portrait coarse) = mobile interface for the workbench: hide
+   the desktop-only process map + dashboard card (filter form + table + pagination
+   live inside it) so they do not leak over the mobile queue. The inner desktop table
+   is already hidden by foms-shell.css's mobile opt-in, but the wrapping card is not,
+   so hide it here. Scoped to portrait-coarse only: landscape tablet + PC keep the
+   legacy desktop (workbench has no split shell to replace it), phones already hide
+   these via Bootstrap `d-none`. */
+@media ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
+  body.erp-mobile-v2-layout .dw-process-map,
+  body.erp-mobile-v2-layout .erp-drawing-dashboard-desktop-card {
+    display: none !important;
+  }
+
+  /* The mobile queue's two children (controls bar + card list) carry Bootstrap
+     `d-lg-none` (width-only) because the queue partial is shared with the non-cohort
+     legacy fallback, so the class must stay on the markup. Without re-showing them
+     the tablet-portrait dashboard container is an empty box. Both render as a grid
+     (.foms-mobile-filter-bar / .foms-drawing-queue). Scoped inside
+     .foms-drawing-mobile-dashboard so the non-cohort queue (outside it) is untouched. */
+  body.erp-mobile-v2-layout .foms-drawing-mobile-dashboard .foms-mobile-filter-bar--drawing,
+  body.erp-mobile-v2-layout .foms-drawing-mobile-dashboard .foms-drawing-queue {
+    display: grid !important;
+  }
+}
+
 /* Bootstrap .card inherits light --bs-card-bg unless overridden in dark. */
 [data-theme='dark'] body.erp-mobile-v2-layout .foms-drawing-mobile-dashboard .foms-drawing-queue-card.card {
   --bs-card-bg: var(--foms-surface-base);
@@ -385,4 +491,24 @@
 [data-theme='dark'] .foms-drawing-queue-card__chip.is-mine {
   background: rgba(245, 158, 11, 0.18);
   color: var(--foms-color-warning-400, #fbbf24);
+}
+
+[data-theme='dark'] .foms-drawing-queue-card__chip--status {
+  background: rgba(59, 130, 246, 0.18);
+  color: var(--foms-color-info-300, #93c5fd);
+}
+
+[data-theme='dark'] .foms-drawing-queue-card__chip--version {
+  background: rgba(99, 102, 241, 0.2);
+  color: var(--foms-color-brand-300, #a5b4fc);
+}
+
+[data-theme='dark'] .foms-drawing-queue-card__memo {
+  background: rgba(245, 158, 11, 0.16);
+  color: var(--foms-color-warning-300, #fcd34d);
+}
+
+[data-theme='dark'] .foms-drawing-queue-card__actions .foms-drawing-queue-card__wizard {
+  border-color: color-mix(in srgb, var(--foms-interactive-primary) 35%, transparent);
+  color: var(--foms-text-link);
 }

@@ -1,0 +1,216 @@
+/**
+ * WDCalculator 태블릿 가로 표피(skin only) — 2026-07-12 T2.
+ *
+ * PC 구조·id·계산엔진 DOM 무변경. 마크업 수정 없이 순수 CSS 로 터치 표피만 입힌다
+ * (입력 52px · 컬럼 헤더 행 가독성 · 터치 타깃 44px). 기존 WDCalculator 계약(테스트 36종)
+ * 무회귀 — 셀렉터/규칙 추가만 하고 계산 관련 DOM 은 건드리지 않는다.
+ *
+ * 게이트: 대형 터치 태블릿 가로 (min-width:992 landscape coarse). PC(hover/fine)·모바일
+ * (<=991.98px, mobile.css/builder.css `body.wd-calc-mobile`/`wd-builder` 소유)과 완전 분리 —
+ * 미디어 조건이 배타적이라 서로 덮어쓰지 않는다. select 바텀시트 피커는 공용 컴포넌트
+ * (foms-mobile-select)가 이미 coarse 에서 동작하므로 무접촉.
+ *
+ * foms 토큰(foms-tokens.css)만 사용. `.wdcalculator-container` 스코프로 페이지 격리.
+ */
+
+/* 파일 스코프 기본 은닉: tablet-skin.js 가 .wdc-saved-rail 을 뷰포트 무관하게(비임베디드만
+   게이트) DOM 에 주입한다. 태블릿 가로 coarse 밖(PC fine-pointer·세로·폰)에는 이를 숨길
+   규칙이 없어 유령 레일 버튼이 새므로, @media 밖 파일 스코프에서 기본값을 상시 숨김으로 둔다.
+   실제 노출은 아래 @media 안의 `.wdc-tablet-skin .wdc-saved-rail { display: inline-flex }` 전담. */
+.wdc-saved-rail { display: none; }
+
+/* 하단 고정 최종견적 바도 동일 원칙: tablet-skin.js 가 body 에 상시 주입하므로 파일 스코프
+   기본 은닉, 실제 노출은 아래 @media 안의 `.wdc-tablet-actionbar.wdc-actionbar-active` 전담. */
+.wdc-tablet-actionbar { display: none; }
+
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  /* 주 입력 필드: 52px 높이 + 16px(iOS 줌 방지) — 터치 타이핑 타깃 확대. */
+  .wdcalculator-container .form-control,
+  .wdcalculator-container .form-select {
+    min-height: 52px;
+    font-size: max(16px, var(--foms-font-size-base, 1rem));
+  }
+
+  /* 컴팩트(-sm) 컨트롤(기본 구성/추가 옵션 행): 밀도는 유지하되 44px 터치 하한. */
+  .wdcalculator-container .form-control-sm,
+  .wdcalculator-container .form-select-sm {
+    min-height: 44px;
+    font-size: max(16px, var(--foms-font-size-sm, 0.875rem));
+  }
+
+  /* 기본 구성 행: 컨트롤 높이 토큰을 터치 높이로 상향(구조 무변경, 토큰만 재정의). */
+  .wdcalculator-container #baseComponentsContainer .base-component-row {
+    --base-row-control-h: 44px;
+  }
+
+  /* 추가 옵션 행: wdcalculator_styles.html 가 38px !important 로 고정 → 동일 특이도(!important)로
+     44px 터치 높이로 상향. */
+  .wdcalculator-container .additional-option-item select.form-select-sm,
+  .wdcalculator-container .additional-option-item input.form-control-sm,
+  .wdcalculator-container .additional-option-item .option-name-input,
+  .wdcalculator-container .additional-option-item button.btn-sm {
+    height: 44px !important;
+    min-height: 44px !important;
+    max-height: 44px !important;
+  }
+
+  /* 버튼: 터치 타깃 44px 하한(주 버튼·아이콘 버튼 공통). */
+  .wdcalculator-container .btn {
+    min-height: 44px;
+  }
+
+  /* 라벨/컬럼 헤더 행 가독성: 필드 라벨과 카드 헤더를 태블릿 시거리에 맞게 확대. */
+  .wdcalculator-container .form-label {
+    font-size: var(--foms-font-size-base, 1rem);
+    font-weight: var(--foms-font-weight-medium, 500);
+  }
+  .wdcalculator-container .base-component-row .form-label.small {
+    font-size: var(--foms-font-size-sm, 0.875rem);
+  }
+  .wdcalculator-container .card-header h5,
+  .wdcalculator-container .card-header h6 {
+    font-size: var(--foms-font-size-lg, 1.125rem);
+  }
+
+  /* 저장된 견적 사이드바: 항목/더보기 액션 44px 터치 하한. */
+  .wdcalculator-container .saved-estimates-sidebar .list-group-item .btn,
+  .wdcalculator-container .saved-estimates-sidebar .saved-estimates-more-btn {
+    min-height: 44px;
+  }
+
+  /* ======================================================================
+     저장된 견적 패널 접힘/오버레이 (tablet-skin.js 가 .wdc-tablet-skin /
+     .wdc-saved-open 토글). 기본 접힘 → 입력 폼이 잔여 폭 전부 사용.
+     임베디드(erp-wdc-split.css 자체 오버레이)는 JS 게이트에서 제외되므로 무접촉.
+     특이도: Bootstrap .col-lg-3(0,1,0) < 아래 셀렉터(≥0,3,0) 로 승리.
+     ==================================================================== */
+  .wdcalculator-container:not(.wdcalculator-container--embedded) .wdcalculator-shell.wdc-tablet-skin {
+    position: relative;
+  }
+
+  /* 접힘: 사이드바 → 48px 세로 레일. 카드 숨김·레일만 노출. */
+  .wdcalculator-shell.wdc-tablet-skin .saved-estimates-sidebar {
+    flex: 0 0 48px;
+    width: 48px;
+    max-width: 48px;
+    padding-left: calc(var(--bs-gutter-x, 1.5rem) * 0.5);
+    padding-right: 0;
+  }
+  .wdcalculator-shell.wdc-tablet-skin:not(.wdc-saved-open) .saved-estimates-sidebar .saved-estimates-card {
+    display: none !important;
+  }
+
+  /* 입력 메인 컬럼: 레일 폭만 제외한 전폭 사용. */
+  .wdcalculator-shell.wdc-tablet-skin .wdcalculator-main-column {
+    flex: 0 0 calc(100% - 48px);
+    width: calc(100% - 48px);
+    max-width: calc(100% - 48px);
+  }
+
+  /* 세로 레일 토글 버튼(접힘 시 노출, 44px 터치 하한). */
+  .wdc-saved-rail {
+    display: none;
+    position: sticky;
+    top: 20px;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 44px;
+    min-height: 168px;
+    padding: 14px 0;
+    border: 1px solid var(--foms-border-color, #dee2e6);
+    border-radius: var(--foms-radius, 0.5rem);
+    background: var(--foms-surface, #fff);
+    color: var(--foms-text-color, #212529);
+    cursor: pointer;
+  }
+  .wdcalculator-shell.wdc-tablet-skin .wdc-saved-rail { display: inline-flex; }
+  .wdc-saved-rail .fa-history { font-size: 1.125rem; color: var(--foms-info, #0dcaf0); }
+  .wdc-saved-rail-label {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    font-weight: var(--foms-font-weight-medium, 500);
+    letter-spacing: 0.02em;
+  }
+
+  /* 펼침(오버레이): 사이드바가 메인 위로 절대배치 — 메인 폭은 그대로 유지. */
+  .wdcalculator-shell.wdc-tablet-skin.wdc-saved-open .saved-estimates-sidebar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 1050;
+    width: min(380px, 72vw);
+    max-width: min(380px, 72vw);
+    height: 100%;
+    padding-right: calc(var(--bs-gutter-x, 1.5rem) * 0.5);
+  }
+  .wdcalculator-shell.wdc-tablet-skin.wdc-saved-open .wdc-saved-rail { display: none; }
+
+  /* 백드롭(펼침 시 바깥 영역 — 탭하면 접힘). */
+  .wdc-saved-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1040;
+    background: rgba(0, 0, 0, 0.35);
+  }
+  .wdc-saved-backdrop[hidden] { display: none; }
+
+  /* ======================================================================
+     하단 고정 최종견적 바(coarse-landscape 전용). tablet-skin.js 가 body 에 주입한
+     .wdc-tablet-actionbar 에 게이트 진입 시 .wdc-actionbar-active 를 부여해 노출한다.
+     값(#finalPrice)·주 액션(견적 계산/추가)은 JS 가 MIRROR — 계산엔진 DOM 은 이동/복제
+     하지 않는다. 폰(≤991.98)의 자체 하단 바(wd-fab)와는 MQ 배타 → 상호 배제.
+     ==================================================================== */
+  /* 바 높이만큼 스크롤 영역 하단 여백 예약. 태블릿 코호트에선 shared.js 가 shell 높이를
+     뷰포트로 고정 → .wdcalculator-main-scroll 이 실제 스크롤러이므로 컨테이너가 아닌
+     스크롤러에 패딩을 줘야 마지막 카드가 고정 바에 가리지 않는다. 임베디드는 제외. */
+  .wdcalculator-container:not(.wdcalculator-container--embedded) .wdcalculator-main-scroll {
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px) + 1rem);
+  }
+
+  .wdc-tablet-actionbar.wdc-actionbar-active {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1030;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 10px 20px calc(10px + env(safe-area-inset-bottom, 0px));
+    background: var(--foms-surface, #fff);
+    border-top: 1px solid var(--foms-border-color, #dee2e6);
+    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.08);
+  }
+  .wdc-tab-ab__price {
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+    gap: var(--foms-space-2, 0.5rem);
+    line-height: 1.2;
+    min-width: 0;
+  }
+  .wdc-tab-ab__label {
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    color: var(--foms-text-secondary, #6c757d);
+  }
+  .wdc-tab-ab__val {
+    font-size: var(--foms-font-size-xl, 1.25rem);
+    font-weight: var(--foms-font-weight-bold, 700);
+    color: var(--foms-text-color, #212529);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .wdc-tab-ab__action {
+    flex: 0 0 auto;
+    min-height: 52px;
+    padding-left: 28px;
+    padding-right: 28px;
+    font-size: max(16px, var(--foms-font-size-base, 1rem));
+    font-weight: var(--foms-font-weight-semibold, 600);
+    white-space: nowrap;
+  }
+}

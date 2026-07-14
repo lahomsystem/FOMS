@@ -213,7 +213,7 @@
                 {'label': '옵션', 'value': item.option_detail or '-'},
                 {'label': '손잡이', 'value': item.handle or '-'},
                 {'label': '기타·설치', 'value': item.misc or '-'},
-                {'label': '금액', 'value': item.price_label or '-'},
+                {'label': '품목 금액', 'value': item.price_label or '-'},
               ]) }}
               {% if item.attachment_categories %}
                 <div class="product-item__photos foms-product-item__photos">
@@ -312,24 +312,36 @@
       </section>
     {% endif %}
 
+    {% if timeline and timeline.stages %}
+      <section class="foms-detail-section" aria-labelledby="foms-detail-progress-title">
+        <div class="foms-detail-section__head">
+          <h2 class="foms-detail-section__title" id="foms-detail-progress-title">주문 진행</h2>
+        </div>
+        {% include 'orders/partials/order_detail_timeline_stages.html' %}
+      </section>
+    {% endif %}
+
     {% if order.timeline_events %}
       <section class="foms-detail-section" aria-labelledby="foms-detail-timeline-title">
-        <div class="foms-detail-section__head">
-          <h2 class="foms-detail-section__title" id="foms-detail-timeline-title">타임라인</h2>
-        </div>
-        <div class="timeline foms-timeline">
-          {% for ev in order.timeline_events %}
-            <div class="timeline-item foms-timeline-item{% if ev.done %} timeline-item--done foms-timeline-item--done{% endif %}">
-              <div class="timeline-item__dot foms-timeline-item__dot" aria-hidden="true">✓</div>
-              <div class="timeline-item__body foms-timeline-item__body">
-                <h3 class="timeline-item__title foms-timeline-item__title">{{ ev.title }}</h3>
-                {% if ev.meta %}
-                  <span class="timeline-item__meta foms-timeline-item__meta">{{ ev.meta }}</span>
-                {% endif %}
+        <details class="foms-detail-changelog">
+          <summary class="foms-detail-section__head foms-detail-changelog__summary">
+            <h2 class="foms-detail-section__title" id="foms-detail-timeline-title">변경 이력</h2>
+            <span class="foms-detail-section__count">{{ order.timeline_events|length }}건</span>
+          </summary>
+          <div class="timeline foms-timeline">
+            {% for ev in order.timeline_events %}
+              <div class="timeline-item foms-timeline-item{% if ev.done %} timeline-item--done foms-timeline-item--done{% endif %}">
+                <div class="timeline-item__dot foms-timeline-item__dot" aria-hidden="true">✓</div>
+                <div class="timeline-item__body foms-timeline-item__body">
+                  <h3 class="timeline-item__title foms-timeline-item__title">{{ ev.title }}</h3>
+                  {% if ev.meta %}
+                    <span class="timeline-item__meta foms-timeline-item__meta">{{ ev.meta }}</span>
+                  {% endif %}
+                </div>
               </div>
-            </div>
-          {% endfor %}
-        </div>
+            {% endfor %}
+          </div>
+        </details>
       </section>
     {% endif %}
   </div>

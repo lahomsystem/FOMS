@@ -50,7 +50,8 @@ from foms.services.construction_read_model import (
     fetch_construction_attachment_counts,
     paginate_construction_orders,
 )
-from foms.services.feature_flags import is_enabled_for_user
+from foms.services.feature_flags import is_mobile_v2_shell, resolve_shell_variant_cached
+from foms.services.datetime_kst import get_today_kst
 from models import Order
 
 erp_construction_page_bp = Blueprint("erp_construction_page", __name__, url_prefix="/erp")
@@ -192,10 +193,8 @@ def erp_construction_dashboard():
     process_steps = build_construction_process_steps(step_stats)
 
     current_user = getattr(g, "current_user", None)
-    mobile_v2_active = is_enabled_for_user(
-        "ERP_MOBILE_V2_ENABLED",
-        current_user.id if current_user else None,
-        cohort_key="FOMS_V3_SHELL_COHORT",
+    mobile_v2_active = is_mobile_v2_shell(
+        resolve_shell_variant_cached(current_user.id if current_user else None)
     )
     enrich_construction_mobile_rows(
         enriched,
@@ -227,6 +226,7 @@ def erp_construction_dashboard():
             per_page=per_page,
             total_pages=total_pages,
             total_orders=total_orders,
+            today_iso=get_today_kst().isoformat(),
         )
     )
     apply_ept_b7_render_headers(

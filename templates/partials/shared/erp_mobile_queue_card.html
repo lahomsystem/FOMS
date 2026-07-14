@@ -99,7 +99,8 @@
     {% endif %}
 
     {% if order.current_quest and order.current_quest.title %}
-      <p class="erp-mobile-queue-card__quest">
+      {# v3→v2 이식(A2): 기존 퀘스트 표기에 액센트 강조 칩 클래스 보강. #}
+      <p class="erp-mobile-queue-card__quest foms-v2h-quest-chip">
         <i class="fas fa-flag-checkered" aria-hidden="true"></i>
         <span>{{ order.current_quest.title }}</span>
       </p>
@@ -133,6 +134,18 @@
         <i class="fas fa-arrow-right" aria-hidden="true"></i>
         <span>상세</span>
       </button>
+      {# 주문 진행 360° 바텀시트 (v3 기능 이식 — card_v2와 동일 트리거 계약) #}
+      {% if order.id %}
+        <button
+          class="erp-mobile-queue-card__action foms-tl-trigger"
+          type="button"
+          data-foms-tl-open="{{ order.id }}"
+          aria-label="주문 진행 타임라인 열기"
+          title="주문 진행 360°">
+          <i class="fas fa-timeline" aria-hidden="true"></i>
+          <span>진행</span>
+        </button>
+      {% endif %}
       {% if task_action and task_action.data_action %}
         <button
           class="erp-mobile-queue-card__action {{ task_action.button_class or '' }}"

@@ -201,6 +201,7 @@
   var state = { v: 1, sheets: [] };
   var current = 0;
   var dirty = false;
+  var leaving = false;                 // 나가기 버튼 등 의도적 이탈 시 beforeunload 중복 프롬프트 억제
   var baseUpdatedAt = null;
   var canSave = !!CONFIG.can_save;
   var userPresets = [];                // 도면팀 공유 사용자 프리셋 [{label,text}] (전역 SystemSetting)
@@ -3767,6 +3768,9 @@
   }
 
   function wireStatic() {
+    // 앱바 나가기(항상 노출 — 편집 권한 무관, 열람 전용도 복귀 가능)
+    var exitBtn = document.getElementById('dws-btn-exit');
+    if (exitBtn) { exitBtn.addEventListener('click', exitWizard); }
     // 앱바 편집 버튼
     document.getElementById('dws-btn-autofill').addEventListener('click', autofill);
     document.getElementById('dws-btn-select').addEventListener('click', function () {
@@ -4198,8 +4202,23 @@
 
     // 미저장 이탈 가드
     window.addEventListener('beforeunload', function (e) {
-      if (dirty) { e.preventDefault(); e.returnValue = ''; return ''; }
+      if (dirty && !leaving) { e.preventDefault(); e.returnValue = ''; return ''; }
     });
+  }
+
+  /** 나가기 — 도면 작업실 상세로 복귀. 미저장(dirty)이면 확인 후 이동한다(기존 dirty
+   *  가드 재사용). 의도적 이탈이므로 leaving 플래그로 beforeunload 중복 프롬프트를 막는다.
+   *  order id 가 없으면 history.back → 작업실 대시보드 순으로 폴백한다. */
+  function exitWizard() {
+    if (dirty && !confirm('저장하지 않은 변경사항이 있습니다. 저장하지 않고 나가시겠습니까?')) { return; }
+    leaving = true;
+    if (ORDER_ID) {
+      window.location.href = '/erp/drawing-workbench/' + ORDER_ID;
+    } else if (window.history.length > 1) {
+      window.history.back();
+    } else {
+      window.location.href = '/erp/drawing-workbench';
+    }
   }
 
   function autofill() {

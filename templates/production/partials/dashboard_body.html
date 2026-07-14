@@ -1,5 +1,6 @@
 {% set filters = filters or {} %}
-<div class="container-fluid erp-dashboard erp-pro erp-mobile-shell"
+{% set _fos_desktop_body %}
+<div class="container-fluid erp-dashboard erp-pro erp-mobile-shell erp-dashboard-production"
   data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
   {% if erp_mobile_v2_enabled %}
     {% include 'partials/shared/erp_mobile_shell.html' %}
@@ -127,9 +128,25 @@
       </a>
     </section>
   {% endif %}
-  {% include 'production/partials/filters_grid.html' %}
+  {# 작업 큐: 태블릿 가로 코호트에서만 칸반으로 대체(배타·은닉은
+     foms-tablet-production-kanban.css 소유 — legacy 은닉과 칸반 표시가 동일 게이트 결합). #}
+  <div class="foms-production-legacy-queue">
+    {% include 'production/partials/filters_grid.html' %}
+  </div>
+  {% if erp_mobile_v2_enabled %}
+    {% include 'production/partials/tablet_kanban_body.html' %}
+  {% endif %}
   {% include 'production/partials/modals.html' %}
   <script src="{{ url_for('static', filename='js/foms/attachment-preview-modal-bridge.js') }}?v=20260617a" defer></script>
   <script src="{{ url_for('static', filename='js/orders/order-detail-fragment.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/production/foms-production-steps.js') }}?v=20260713b" defer></script>
   {% include 'production/partials/scripts.html' %}
 </div>
+{% endset %}{% if shell_variant == 'v3' %}
+<div class="fos-v3-mobile-scope">
+{# v3 Field OS 셸: 생산 페르소나 홈을 콘텐츠 슬롯에 주입(읽기 전용). 기존 v2/legacy 경로 무변경. #}
+{% set fos_content_partial = 'partials/v3/persona_home_production.html' %}
+{% include 'partials/v3/foms_app_shell_v3.html' %}
+</div>
+<div class="fos-v3-desktop-fallback">{{ _fos_desktop_body|safe }}</div>
+{% else %}{{ _fos_desktop_body|safe }}{% endif %}

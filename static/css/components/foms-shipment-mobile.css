@@ -451,7 +451,18 @@
   color: var(--foms-stage-drawing, #8b5cf6);
 }
 
-@media (max-width: 1365.98px) {
+/* 셸 매트릭스 통합 (2026-07-12): 모바일 UI 표시 arm을 폭 단독 게이트에서 셸
+   매트릭스 열거식으로 재스코프한다. 폰(전 폭) + 태블릿 세로(≥992 coarse portrait)
+   에서만 폰 UI를 띄우고, 태블릿 가로(≥992 coarse landscape)와 992–1365.98 fine/none
+   창은 PC 표면(출고 legacy 데스크톱 대시보드)을 유지한다. iPad Air 가로(1180)에서
+   출고만 폰 UI가 떠 태블릿 모드(PC 표면+레일+터치)가 불가능하던 문제를 봉합.
+   [변경점] 992–1365.98 fine/none 창: 기존 폰 UI → PC 표면으로 통합(의도적).
+   [arm 원래 목적] v2 셸 배경 세팅 + PC 표면(.erp-shipment-desktop-shell) 숨김 +
+   모바일-v2 대시보드/FAB/controls/dates/queue 노출.
+   (orientation: portrait 리터럴은 이 파일에서 허용 — 금지 가드는 foms-split-view.css
+   한정이며 shell/bridge 매트릭스 파일 전례를 따른다.) */
+@media (max-width: 991.98px),
+  ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
   body.erp-mobile-v2-layout .erp-mobile-shell[data-erp-mobile-v2='true'] {
     background: var(--foms-surface-overlay, #f3f4f6);
   }
@@ -497,7 +508,13 @@
   background: linear-gradient(135deg, var(--foms-surface-muted), var(--foms-text-tertiary));
 }
 
-@media (min-width: 992px) and (max-width: 1365.98px) {
+/* 셸 매트릭스 통합 (2026-07-12): 밴드 내 폰 UI 레이아웃 정제(셸 720px 중앙 정렬 +
+   카드 디테일 4열)를, ≥992에서 폰 UI가 실제로 뜨는 태블릿 세로(coarse portrait)에만
+   적용한다. 구 992–1365.98 폭 밴드는 fine/none 창까지 포함했으나 그 창은 위 gate 1
+   에서 PC 표면으로 넘어가 이 정제가 무의미해졌다(태블릿 가로도 PC 표면이라 제외).
+   [arm 원래 목적] 태블릿 폭에서 폰 UI가 화면을 꽉 채우지 않도록 중앙 정렬 + 넓은
+   폭을 살려 카드 디테일을 4열로 확장. */
+@media ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
   body.erp-mobile-v2-layout .erp-shipment-mobile-v2.foms-shell-body {
     max-width: 720px;
     margin: 0 auto;

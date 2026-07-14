@@ -2,12 +2,13 @@
 import datetime
 import os
 import time
-from flask import Blueprint, flash, make_response, redirect, render_template, request, g, url_for
+from flask import Blueprint, abort, flash, make_response, redirect, render_template, request, g, url_for
 from db import get_db
 from models import Order
 from foms.web.auth import login_required
 from sqlalchemy import text
 from foms.services.erp_permissions import can_edit_erp
+from foms.services.erp_order_flags import is_erp_order_record
 from foms.services.erp_policy import (
     STAGE_NAME_TO_CODE,
     STAGE_LABELS,
@@ -32,8 +33,13 @@ from foms.services.orders.dashboard_read_model import (
     compute_orders_summary_slice,
     compute_orders_attachment_assignee_maps,
 )
-from foms.services.feature_flags import env_bool, env_bool_or_mobile_v2, is_enabled_for_user
-from foms.services.foms_split_view import build_split_master_cards, default_split_side_items
+from foms.services.feature_flags import (
+    env_bool,
+    env_bool_or_mobile_v2,
+    is_mobile_v2_shell,
+    resolve_shell_variant_cached,
+)
+from foms.services.foms_split_view import build_split_master_cards, build_split_side_items
 from foms.services.orders.dashboard_control_tower import (
     build_mobile_control_tower,
     build_field_ops_for_day,
@@ -383,12 +389,12 @@ def erp_dashboard():
     )
     _t0 = time.perf_counter()
     uid = current_user.id if current_user else None
-    mobile_v2 = is_enabled_for_user(
-        "ERP_MOBILE_V2_ENABLED",
-        uid,
-        cohort_key="FOMS_V3_SHELL_COHORT",
-    )
-    split_enabled = mobile_v2 and env_bool_or_mobile_v2(
+    shell_variant = resolve_shell_variant_cached(uid)
+    mobile_v2 = is_mobile_v2_shell(shell_variant)
+    # split 셸 마크업은 v2 셸 전용 (context_processors.inject_foms_flags 와 동일 계약):
+    # split CSS 는 v2 전용 surfaces 번들로만 로드되므로 v3 렌더 시 비스타일 마크업이
+    # 전 폭에 노출된다 (2026-07-12 마크업↔CSS 게이트 불일치 봉합).
+    split_enabled = shell_variant == "v2" and env_bool_or_mobile_v2(
         "FOMS_TABLET_SPLIT_VIEW_ENABLED",
         mobile_v2_active=mobile_v2,
     )
@@ -466,6 +472,12 @@ def erp_dashboard():
         template_name,
         erp_dashboard_fragment=wants_erp_shell_tab_body(request),
         orders=paginated_orders,
+        # v3→v2 이식(A1): CS 히어로 '기한 경과(접수 후 2일+)' danger 강조 임계 ISO
+        # (기존 today_date 파생 — 신규 쿼리 없음). 템플릿은 received_date < 임계로 판정.
+        cs_overdue_before=(today_date - datetime.timedelta(days=2)).isoformat(),
+        # 태블릿 가로 상단 바(tablet_dashboard_topbar.html) sub "N건 · YYYY-MM-DD" 소비.
+        # 기존 build_orders_dashboard_queries 파생값 재사용 — 신규 쿼리 없음.
+        today_iso=today_iso,
         kpis=kpis,
         process_steps=process_steps,
         tower_mode=tower_mode,
@@ -502,12 +514,69 @@ def erp_dashboard():
             paginated_orders,
             active_order_id=int(request.args.get('order') or 0) or None,
         ) if split_enabled else [],
-        side_items=default_split_side_items() if split_enabled else [],
+        side_items=build_split_side_items(current_user) if split_enabled else [],
     )
     _render_ms = (time.perf_counter() - _t0) * 1000.0
     response = make_response(_body)
     apply_erp_shell_fragment_headers(response, request)
     apply_ept_b7_render_headers(response, route_id="erp_dashboard", render_ms=_render_ms)
+    return response
+
+
+@erp_dashboard_bp.route('/dashboard/tablet-sheet/<int:order_id>')
+@login_required
+def erp_dashboard_tablet_sheet(order_id: int):
+    """태블릿 가로 컨트롤타워 사이드 시트 목업 fragment (읽기 요약 + 액션).
+
+    tablet-side-sheet.js 가 그리드 행의 data-foms-sheet-url 로 이 URL을 시트 본문에 로드한다
+    (edit fragment 대체). 요약 데이터는 대시보드 그리드와 동일한 표시 DTO
+    (build_orders_row_dtos)로 단건 파생 — 신규 쿼리 경로/집계 없음. 파이프라인은 시트
+    크롬(JS)이 행 data-stage 로 렌더하므로 이 fragment 는 포함하지 않는다.
+
+    Args:
+        order_id: 주문 PK.
+
+    Returns:
+        HTML fragment 응답(no-store, X-FOMS-Fragment). 최상위 문서 내비게이션(주소창/새 탭)은
+        정본 edit 페이지로 302(비스타일 partial 노출 방지 — fragment.py 전례).
+    """
+    if request.headers.get("Sec-Fetch-Dest") == "document":
+        return redirect(url_for('order_edit.edit_order', order_id=order_id, open='erp-order'))
+
+    db = get_db()
+    order = db.query(Order).filter(Order.id == order_id, Order.not_deleted_filter()).first()
+    if order is None:
+        abort(404)
+
+    current_user = getattr(g, 'current_user', None)
+    if is_erp_order_record(order) and not can_edit_erp(current_user):
+        abort(403)
+
+    sd = _ensure_dict(order.structured_data)
+    page_sds = {order.id: sd}
+    _maps = compute_orders_attachment_assignee_maps(db, [order], page_sds)
+    att_counts = {int(k): int(v) for k, v in (_maps.get("att_counts") or {}).items()}
+    user_map = {int(k): str(v) for k, v in (_maps.get("user_map") or {}).items()}
+    rows = build_orders_row_dtos([order], page_sds, att_counts, user_map, current_user)
+    row = rows[0]
+    row["attachment_preview_items"] = batch_resolve_queue_attachment_preview_items(
+        db, [order.id]
+    ).get(order.id, [])
+
+    # 대시보드 그리드와 동일 팀 라벨(라홈팀 등) — 목업 미니 퀘스트 "승인: 팀" 표시용.
+    team_labels = {
+        'CS': '라홈팀', 'SALES': '영업팀', 'MEASURE': '실측팀',
+        'DRAWING': '도면팀', 'PRODUCTION': '생산팀', 'CONSTRUCTION': '시공팀',
+    }
+    body = render_template(
+        'orders/partials/tablet_dashboard_sheet.html',
+        o=row,
+        team_labels=team_labels,
+        can_edit_erp=can_edit_erp(current_user),
+    )
+    response = make_response(body)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["X-FOMS-Fragment"] = "1"
     return response
 
 
@@ -581,6 +650,7 @@ def erp_order_mobile_detail(order_id: int):
         build_mobile_queue_batch_context,
         build_mobile_queue_order_row,
     )
+    from foms.services.order_timeline_v3 import load_order_timeline
 
     current_user = getattr(g, 'current_user', None)
     # 단건이라도 batch_ctx 없이는 ~5쿼리(첨부/미리보기/타임라인/담당자 단건조회) —
@@ -594,9 +664,45 @@ def erp_order_mobile_detail(order_id: int):
     return render_template(
         'orders/mobile_order_detail.html',
         order=order_row,
+        timeline=load_order_timeline(db, order),
         can_edit_erp=can_edit_erp_flag,
         erp_sub_nav_active='dashboard',
         mobile_shell_title='주문 상세',
         mobile_shell_show_back=True,
         mobile_shell_back_href=url_for(back_endpoint),
+    )
+
+
+@erp_dashboard_bp.route('/orders/<int:order_id>/label')
+@login_required
+def erp_order_label(order_id: int):
+    """B4: 주문 QR 인쇄 라벨(고객명·주문번호·품목 1줄·QR). 새 탭 인쇄용."""
+    db = get_db()
+    order = (
+        db.query(Order)
+        .filter(Order.id == order_id, Order.not_deleted_filter())
+        .first()
+    )
+    if not order:
+        abort(404)
+
+    sd = _ensure_dict(order.structured_data) if order.structured_data else {}
+    customer_name = (
+        ((sd.get('parties') or {}).get('customer') or {}).get('name')
+        or order.customer_name
+        or '-'
+    )
+    items = sd.get('items') if isinstance(sd.get('items'), list) else []
+    first_item = items[0] if items else {}
+    product_line = (
+        first_item.get('product_name') or first_item.get('name') or order.product or '-'
+    )
+    if len(items) > 1:
+        product_line = f"{product_line} 외 {len(items) - 1}개"
+
+    return render_template(
+        'orders/label.html',
+        order=order,
+        customer_name=customer_name,
+        product_line=product_line,
     )

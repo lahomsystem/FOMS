@@ -1,4 +1,4 @@
-{% macro render_queue_card_v2(order, can_edit=false, task_action=None, badge_modifier=None, badge_text=None, task_actions=None, edit_return_to=None, detail_return_to=None, edit_label='ERP 편집') -%}
+{% macro render_queue_card_v2(order, can_edit=false, task_action=None, badge_modifier=None, badge_text=None, task_actions=None, edit_return_to=None, detail_return_to=None, edit_label='ERP 편집', show_last_call=false) -%}
   {% set primary_alerts = [] %}
   {% if order.alerts.urgent %}
     {% set _ = primary_alerts.append({'label': '긴급', 'class': 'foms-badge--alert'}) %}
@@ -29,7 +29,13 @@
   {% set badge_label = badge_text or order.stage_badge_label|default(order.stage or '-') %}
   {% set workflow_stage = order.stage_code|default(order.stage|default('')) %}
 
-  <article class="queue-card foms-queue-card-v2" data-order-id="{{ order.id }}" data-workflow-stage="{{ workflow_stage }}">
+  {#- CS '부재중' 페이지 필터(B2): sd.calls[-1].result 파생. 로드된 rows만이라 서버 쿼리 없음.
+      show_last_call 을 넘긴 호출자(주문 CS 큐)만 속성/배지를 렌더 → 타 도메인 큐는 무영향. -#}
+  {% set _lc_calls = (order.structured_data or {}).get('calls') if show_last_call else None %}
+  {% set _last_call = _lc_calls[-1] if _lc_calls else None %}
+  {% set _last_call_result = _last_call.result if _last_call else '' %}
+
+  <article class="queue-card foms-queue-card-v2" data-order-id="{{ order.id }}" data-workflow-stage="{{ workflow_stage }}"{% if show_last_call %} data-foms-last-call="{{ _last_call_result }}"{% endif %}>
     <header class="queue-card__head foms-queue-card-v2__head">
       <span class="foms-stage-badge foms-stage-badge{{ badge_mod }}">{{ badge_label }}</span>
       {% if order.alerts.drawing_overdue or order.alerts.urgent %}
@@ -38,19 +44,37 @@
       {% for alert in primary_alerts[:2] %}
         <span class="foms-badge {{ alert.class }}">{{ alert.label }}</span>
       {% endfor %}
+      {% if _last_call %}
+        {% set _lc_labels = {'connected': '통화됨', 'no_answer': '부재중', 'callback': '콜백', 'schedule_confirmed': '일정확정'} %}
+        {% set _lc_md = (_last_call.at[5:7]|int ~ '/' ~ _last_call.at[8:10]|int) if (_last_call.at and _last_call.at|length >= 10) else '' %}
+        <span class="foms-lastcall-badge foms-lastcall-badge--{{ _last_call_result|replace('_', '-') }}">{{ _lc_labels.get(_last_call_result, '통화') }}{% if _lc_md %} · {{ _lc_md }}{% endif %}</span>
+      {% endif %}
       {% if order.id %}
         <span class="queue-card__time foms-queue-card-v2__time">#{{ order.id }}</span>
+      {% endif %}
+      {% if order.id %}
+        <button type="button" class="foms-tl-trigger" data-foms-tl-open="{{ order.id }}" aria-label="주문 진행 타임라인 열기" title="주문 진행 360°">
+          <i class="fas fa-timeline" aria-hidden="true"></i>
+        </button>
       {% endif %}
     </header>
 
     <h3 class="queue-card__title foms-queue-card-v2__title">
       {{ order.customer_name or '-' }}
-      {% if order.product_subtitle or order.current_quest %}
+      {% if order.product_subtitle %}
         <span class="queue-card__subtitle foms-queue-card-v2__subtitle">
-          {{ order.product_subtitle or order.current_quest.title }}
+          {{ order.product_subtitle }}
         </span>
       {% endif %}
     </h3>
+
+    {# v3→v2 이식(A2): current_quest 강조 칩(액센트) — 부제 폴백 대신 전용 표기. #}
+    {% if order.current_quest and order.current_quest.title %}
+      <p class="foms-v2h-quest-chip">
+        <i class="fas fa-flag-checkered" aria-hidden="true"></i>
+        <span>{{ order.current_quest.title }}</span>
+      </p>
+    {% endif %}
 
     {% if order.attachments_count is defined and order.attachments_count > 0 %}
       {% set preview_items = order.attachment_preview_items or [] %}

@@ -1,0 +1,274 @@
+/* B3 생산 공정 스텝 (모바일 v2 생산 큐).
+   카드 아래 '공정 N/5' 배지 버튼 1줄 + 페이지 공용 바텀시트의 체크 5행. */
+
+/* --- 카드 배지 버튼(서버 렌더 1줄, 44px 터치 타깃) --------------------------- */
+.foms-prod-steps-open {
+  display: flex;
+  align-items: center;
+  gap: var(--foms-space-2, 8px);
+  width: 100%;
+  min-height: var(--foms-touch-target-min, 44px);
+  margin: calc(var(--foms-space-2, 8px) * -1) 0 0;
+  padding: var(--foms-space-2, 8px) var(--foms-space-3, 12px);
+  border: 1px solid var(--foms-border-subtle, #e2e6ea);
+  border-top: none;
+  border-radius: 0 0 var(--foms-radius-lg, 12px) var(--foms-radius-lg, 12px);
+  background: var(--foms-surface-base, #fff);
+  color: var(--foms-text-secondary, #64748b);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.foms-prod-steps-open__badge {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--foms-color-success-700, #1a7a4c);
+  background: var(--foms-color-success-50, #e8f7ef);
+  border: 1px solid var(--foms-color-success-200, #b9e6cd);
+  border-radius: var(--foms-radius-full, 999px);
+  padding: 2px 10px;
+  white-space: nowrap;
+}
+
+.foms-prod-steps-open__caption {
+  flex: 1 1 auto;
+  font-size: 0.8125rem;
+}
+
+.foms-prod-steps-open > .fas {
+  color: var(--foms-text-tertiary, #94a3b8);
+  font-size: 0.75rem;
+}
+
+/* --- C: 카드 미니 진행바(버튼 하단 2px, width=done/5) ------------------------- */
+.foms-prod-steps-bar {
+  position: relative;
+  height: 2px;
+  margin: -2px 0 0;
+  border-radius: 0 0 var(--foms-radius-lg, 12px) var(--foms-radius-lg, 12px);
+  background: var(--foms-border-subtle, #e2e6ea);
+  overflow: hidden;
+}
+
+.foms-prod-steps-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--p, 0%);
+  background: var(--st-production, #B45309);
+  transition: width 0.2s ease;
+}
+
+/* --- 바텀시트 ---------------------------------------------------------------- */
+.foms-prod-steps-sheet {
+  --bs-offcanvas-height: auto;
+  max-height: 70vh;
+  border-radius: var(--foms-radius-xl, 16px) var(--foms-radius-xl, 16px) 0 0;
+}
+
+.foms-prod-steps-sheet__count {
+  margin-left: var(--foms-space-2, 8px);
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--foms-color-success-700, #1a7a4c);
+}
+
+/* --- 체크 리스트(시트 안, 행 52px) -------------------------------------------- */
+.foms-prod-steps__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.foms-prod-steps__loading,
+.foms-prod-steps__error {
+  padding: var(--foms-space-3, 12px);
+  font-size: 0.875rem;
+  color: var(--foms-text-tertiary, #94a3b8);
+}
+
+.foms-prod-steps__error {
+  color: var(--foms-color-danger-600, #d64545);
+}
+
+/* 로딩 스켈레톤(행 3개 + 텍스트 폴백) — foms-production-steps.js setLoading 주입.
+   라이트 톤(#EFECE6 shape / #F8F6F2 shimmer). */
+.foms-prod-steps__skeleton {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  list-style: none;
+}
+.foms-prod-steps__skeleton-dot {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: #EFECE6;
+}
+.foms-prod-steps__skeleton-lines {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.foms-prod-steps__sk {
+  border-radius: 7px;
+  background: #EFECE6;
+  position: relative;
+  overflow: hidden;
+}
+.foms-prod-steps__sk::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(248, 246, 242, .9), transparent);
+  animation: foms-prod-skeleton-shimmer 1.4s infinite;
+}
+.foms-prod-steps__sk--a { height: 15px; width: 55%; }
+.foms-prod-steps__sk--b { height: 12px; width: 80%; }
+@keyframes foms-prod-skeleton-shimmer { 100% { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) {
+  .foms-prod-steps__sk::after { animation: none; }
+}
+
+.foms-prod-steps__row {
+  border-bottom: 1px solid var(--foms-border-subtle, #eef1f4);
+}
+
+.foms-prod-steps__row:last-child {
+  border-bottom: none;
+}
+
+.foms-prod-steps__toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--foms-space-3, 12px);
+  width: 100%;
+  min-height: 52px;
+  padding: var(--foms-space-2, 8px) var(--foms-space-3, 12px);
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  color: var(--foms-text-primary, #1f2937);
+  font: inherit;
+}
+
+.foms-prod-steps__toggle:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+.foms-prod-steps__check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: 2px solid var(--foms-border-strong, #cbd5e1);
+  background: var(--foms-surface-base, #fff);
+  color: transparent;
+  font-size: 0.75rem;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.foms-prod-steps__row.is-done .foms-prod-steps__check {
+  background: var(--foms-color-success-500, #22a366);
+  border-color: var(--foms-color-success-500, #22a366);
+  color: #fff;
+}
+
+.foms-prod-steps__label {
+  flex: 0 0 auto;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.foms-prod-steps__row.is-done .foms-prod-steps__label {
+  color: var(--foms-color-success-700, #1a7a4c);
+}
+
+.foms-prod-steps__meta {
+  flex: 1 1 auto;
+  text-align: right;
+  font-size: 0.75rem;
+  color: var(--foms-text-tertiary, #94a3b8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* --- G3 불량 보고 (ghost 버튼 → 사유 칩 → POST, 최근 이력 1줄) ------------------ */
+.foms-prod-defect {
+  margin-top: var(--foms-space-3, 12px);
+  padding-top: var(--foms-space-3, 12px);
+  border-top: 1px solid var(--foms-border-subtle, #eef1f4);
+}
+
+.foms-prod-defect__recent {
+  margin: 0 0 var(--foms-space-2, 8px);
+  padding: var(--foms-space-2, 8px) var(--foms-space-3, 12px);
+  font-size: 0.8125rem;
+  color: var(--foms-color-danger-700, #b42318);
+  background: var(--foms-color-danger-50, #fef3f2);
+  border-radius: var(--foms-radius-md, 8px);
+}
+
+.foms-prod-defect__recent[hidden] {
+  display: none;
+}
+
+.foms-prod-defect__toggle {
+  width: 100%;
+  min-height: var(--foms-touch-target-min, 44px);
+  color: var(--foms-color-danger-600, #d64545);
+}
+
+.foms-prod-defect__reasons {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--foms-space-2, 8px);
+  margin-top: var(--foms-space-2, 8px);
+}
+
+.foms-prod-defect__reasons[hidden] {
+  display: none;
+}
+
+.foms-prod-defect__chip {
+  min-height: var(--foms-touch-target-min, 44px);
+  padding: 0 var(--foms-space-3, 12px);
+  border: 1.5px solid var(--foms-color-danger-200, #fecdca);
+  border-radius: var(--foms-radius-full, 999px);
+  background: var(--foms-surface-base, #fff);
+  color: var(--foms-color-danger-700, #b42318);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.foms-prod-defect__chip:active {
+  background: var(--foms-color-danger-50, #fef3f2);
+  border-color: var(--foms-color-danger-500, #f04438);
+}
+
+.foms-prod-defect__chip:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+.foms-prod-defect__status {
+  margin: var(--foms-space-2, 8px) 0 0;
+  font-size: 0.8125rem;
+  color: var(--foms-text-tertiary, #94a3b8);
+}
+
+.foms-prod-defect__status[hidden] {
+  display: none;
+}

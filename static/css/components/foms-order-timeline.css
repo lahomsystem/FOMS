@@ -1,0 +1,119 @@
+/* =========================================================================
+   FOMS v2 모바일 — 주문 8단계 스테이지 타임라인 (상세 인라인 + 360° 바텀시트)
+   v3 foms-mobile-v3.css의 .fos-tl-* 서브셋을 v2 자산으로 이식한 파일.
+   v3 CSS는 로드하지 않는다(v2/v3 자산 배타) — 스테이지 색은 아래
+   --foms-st-* 토큰으로 자체 정의(v3 라이트 값과 동일).
+   소비처:
+     1) 상세 페이지 인라인 타임라인 — orders/partials/order_detail_timeline_stages.html (.foms-tl-*)
+     2) 큐 카드 360° 트리거(.foms-tl-trigger) + 바텀시트(.foms-tl-sheet):
+        시트 body에는 기존 fragment(persona_order360.html, .fos-* 클래스)가
+        주입되므로 .foms-tl-sheet 스코프 하위에만 .fos-* 서브셋을 이식한다
+        (전역 오염 금지).
+   ========================================================================= */
+
+/* ---- 1. 스테이지 토큰 8단계 (라이트 — v3 §1.4와 동일 값) ------------------ */
+:root {
+  --foms-st-received: #64748B;
+  --foms-st-measure: #15803D;
+  --foms-st-drawing: #0E7490;
+  --foms-st-confirm: #4F46E5;
+  --foms-st-production: #B45309;
+  --foms-st-construction: #C2410C;
+  --foms-st-cs: #BE185D;
+  --foms-st-completed: #047857;
+}
+
+/* ---- 2. 상세 인라인 8단계 타임라인 (.foms-tl-*, 네이티브 details) --------- */
+.foms-tl { position: relative; display: flex; flex-direction: column; gap: 0; padding-left: 6px; }
+.foms-tl-current { margin: 0 0 10px; font-size: 13px; color: #5F5950; font-weight: 700; }
+.foms-tl-current strong { color: #201C17; }
+.foms-tl-item { position: relative; padding: 0 0 10px 30px; border: 0; background: transparent; }
+.foms-tl-item::before { content: ""; position: absolute; left: 9px; top: 24px; bottom: -2px; width: 2px; background: #E4E0D8; }
+.foms-tl-item:last-child::before { display: none; }
+.foms-tl-dot { position: absolute; left: -28px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; border-radius: 50%; background: #fff; border: 3px solid var(--foms-sc, #64748B); z-index: 2; }
+.foms-tl-item--current .foms-tl-dot { box-shadow: 0 0 0 4px color-mix(in srgb, var(--foms-sc) 30%, transparent); }
+.foms-tl-item--done .foms-tl-dot { background: var(--foms-sc); }
+.foms-tl-summary { position: relative; display: flex; align-items: center; gap: 8px; padding: 10px 12px; cursor: pointer; list-style: none; border-radius: 12px; background: #fff; border: 1px solid #E4E0D8; box-shadow: 0 1px 2px rgba(32, 28, 23, .05); min-height: 44px; }
+.foms-tl-summary::-webkit-details-marker { display: none; }
+.foms-tl-label { font-size: 14px; font-weight: 800; color: #201C17; white-space: nowrap; }
+.foms-tl-now { font-size: 10px; font-weight: 800; color: var(--foms-sc); letter-spacing: .04em; white-space: nowrap; }
+.foms-tl-meta { margin-left: auto; font-size: 12px; color: #5F5950; font-variant-numeric: tabular-nums; text-align: right; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.foms-tl-caret { color: #8F887D; transition: transform .2s; flex: 0 0 auto; font-size: 12px; }
+.foms-tl-item[open] .foms-tl-caret { transform: rotate(180deg); }
+.foms-tl-item--pending .foms-tl-label { color: #8F887D; font-weight: 700; }
+.foms-tl-body { padding: 8px 2px 2px 2px; }
+.foms-tl-note { background: #EFECE6; border: 1px solid #E4E0D8; border-radius: 10px; padding: 10px 12px; font-size: 13px; color: #201C17; line-height: 1.5; }
+
+/* 변경 이력 접힘 섹션 (details 래퍼) */
+.foms-detail-changelog > summary { cursor: pointer; list-style: none; }
+.foms-detail-changelog > summary::-webkit-details-marker { display: none; }
+.foms-detail-changelog__summary { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.foms-detail-changelog__summary::after { content: "⌄"; margin-left: auto; color: #8F887D; transition: transform .2s; }
+.foms-detail-changelog[open] > .foms-detail-changelog__summary::after { transform: rotate(180deg); }
+
+/* ---- 3. 큐 카드 360° 트리거 + 바텀시트 크롬 ------------------------------- */
+.foms-tl-trigger { flex: 0 0 auto; width: 44px; height: 44px; min-width: 44px; border-radius: 12px; display: inline-grid; place-items: center; border: 1px solid #E4E0D8; background: #fff; color: #5F5950; cursor: pointer; margin-left: auto; }
+.foms-tl-trigger:active { transform: scale(.94); }
+.foms-queue-card-v2__head .foms-tl-trigger { margin-left: 8px; }
+.foms-tl-sheet .offcanvas-body { padding: 14px 16px calc(20px + env(safe-area-inset-bottom, 0px)); }
+.foms-tl-sheet__loading { padding: 24px; text-align: center; color: #8F887D; font-size: 14px; }
+.foms-tl-sheet__error { padding: 24px; text-align: center; color: #5F5950; font-size: 14px; }
+
+/* 로딩 스켈레톤(3행 + 텍스트 폴백) — foms-order-timeline-sheet.js buildSkeleton 주입.
+   v3 foms-mobile-v3.css 의 .fos-skeleton/.sk 를 시트 스코프로 이식(라이트 #EFECE6/#F8F6F2). */
+.foms-tl-sheet .fos-skeleton-wrap { display: flex; flex-direction: column; gap: 10px; padding: 8px 0; }
+.foms-tl-sheet .fos-skeleton { background: #FFFFFF; border: 1px solid #E4E0D8; border-radius: 16px; padding: 14px; display: flex; align-items: center; gap: 12px; }
+.foms-tl-sheet .fos-skeleton__dot { flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%; background: #EFECE6; }
+.foms-tl-sheet .fos-skeleton__lines { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+.foms-tl-sheet .sk { border-radius: 7px; background: #EFECE6; position: relative; overflow: hidden; }
+.foms-tl-sheet .sk::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, rgba(248, 246, 242, .9), transparent); animation: foms-tl-skeleton-shimmer 1.4s infinite; }
+.foms-tl-sheet .sk--a { height: 15px; width: 62%; }
+.foms-tl-sheet .sk--b { height: 12px; width: 88%; }
+.foms-tl-sheet .fos-skeleton-text { font-size: 12px; color: #8F887D; text-align: center; }
+@keyframes foms-tl-skeleton-shimmer { 100% { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .foms-tl-sheet .sk::after { animation: none; } }
+.foms-tl-sheet.offcanvas-bottom { height: auto; max-height: 82vh; border-radius: 16px 16px 0 0; }
+
+/* ---- 4. 시트 body 주입 fragment(.fos-*) 스코프 이식 -----------------------
+   persona_order360.html이 쓰는 v3 변수/클래스를 .foms-tl-sheet 하위로만 정의.
+   원본: static/css/v3/foms-mobile-v3.css :70-77, 167-180, 229, 321-347. */
+.foms-tl-sheet {
+  --fos-bg0: #F6F4F0; --fos-bg1: #FFFFFF; --fos-bg2: #EFECE6;
+  --fos-tx0: #201C17; --fos-tx1: #5F5950; --fos-tx2: #8F887D; --fos-line: #E4E0D8;
+  --acc: #C2410C; --ink: #FFFFFF; --danger: #DC2626; --ok: #047857;
+  --st-received: #64748B; --st-measure: #15803D; --st-drawing: #0E7490;
+  --st-confirm: #4F46E5; --st-production: #B45309; --st-construction: #C2410C;
+  --st-cs: #BE185D; --st-completed: #047857;
+  color: var(--fos-tx0);
+}
+.foms-tl-sheet .fos-tl-wrap { display: flex; flex-direction: column; gap: 12px; }
+.foms-tl-sheet .fos-tl-head-row { display: flex; flex-direction: column; gap: 4px; }
+.foms-tl-sheet .fos-tl-cur { font-size: 13px; color: var(--fos-tx1); font-weight: 700; }
+.foms-tl-sheet .fos-sheet__label { font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--fos-tx2); font-weight: 700; }
+.foms-tl-sheet .fos-timeline { position: relative; display: flex; flex-direction: column; gap: 0; padding-left: 6px; }
+.foms-tl-sheet .fos-tl-item { position: relative; padding: 0 0 6px 30px; }
+.foms-tl-sheet .fos-tl-item::before { content: ""; position: absolute; left: 9px; top: 22px; bottom: -4px; width: 2px; background: var(--fos-line); }
+.foms-tl-sheet .fos-tl-item:last-child::before { display: none; }
+.foms-tl-sheet .fos-tl-dot { position: absolute; left: 2px; top: 6px; width: 16px; height: 16px; border-radius: 50%; background: var(--fos-bg0); border: 3px solid var(--sc, var(--st-received)); z-index: 2; }
+.foms-tl-sheet .fos-tl-item.is-current .fos-tl-dot { box-shadow: 0 0 0 4px color-mix(in srgb, var(--sc) 30%, transparent); }
+.foms-tl-sheet .fos-tl-item.is-done .fos-tl-dot { background: var(--sc); }
+.foms-tl-sheet .fos-tl-card { background: var(--fos-bg1); border: 1px solid var(--fos-line); border-radius: 14px; box-shadow: 0 1px 2px rgba(32, 28, 23, .05); overflow: hidden; margin-bottom: 10px; }
+.foms-tl-sheet .fos-tl-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; cursor: pointer; width: 100%; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; }
+.foms-tl-sheet .fos-tl-head__l { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.foms-tl-sheet .fos-tl-head__title { font-size: 15px; font-weight: 800; }
+.foms-tl-sheet .fos-tl-head__meta { font-size: 12px; color: var(--fos-tx1); font-variant-numeric: tabular-nums; }
+.foms-tl-sheet .fos-tl-item.is-current .fos-tl-head__title::after { content: "진행중"; font-size: 10px; font-weight: 800; color: var(--sc); margin-left: 8px; letter-spacing: .04em; }
+.foms-tl-sheet .fos-tl-caret { color: var(--fos-tx2); transition: transform .2s; flex: 0 0 auto; }
+.foms-tl-sheet .fos-tl-card.is-open .fos-tl-caret { transform: rotate(180deg); }
+.foms-tl-sheet .fos-tl-body { display: none; padding: 0 14px 14px; flex-direction: column; gap: 10px; }
+.foms-tl-sheet .fos-tl-card.is-open .fos-tl-body { display: flex; }
+.foms-tl-sheet .fos-note { background: var(--fos-bg2); border: 1px solid var(--fos-line); border-radius: 10px; padding: 11px 12px; font-size: 13px; color: var(--fos-tx0); line-height: 1.5; }
+.foms-tl-sheet .fos-note .k { display: block; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--fos-tx2); font-weight: 700; margin-bottom: 4px; }
+.foms-tl-sheet .fos-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; min-height: 30vh; padding: 40px 24px; text-align: center; color: var(--fos-tx2); }
+.foms-tl-sheet .fos-empty__ic { width: 56px; height: 56px; border-radius: 16px; display: grid; place-items: center; background: var(--fos-bg2); border: 1px solid var(--fos-line); color: var(--fos-tx1); font-size: 24px; }
+.foms-tl-sheet .fos-empty__title { font-size: 16px; font-weight: 700; color: var(--fos-tx1); }
+.foms-tl-sheet .fos-empty__sub { font-size: 13px; color: var(--fos-tx2); max-width: 34ch; }
+.foms-tl-sheet .fos-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--fos-line); background: var(--fos-bg2); color: var(--fos-tx0); border-radius: 12px; padding: 12px 16px; font: inherit; font-weight: 700; font-size: 15px; cursor: pointer; min-height: 48px; transition: transform .12s, filter .12s; text-decoration: none; }
+.foms-tl-sheet .fos-btn:active { transform: scale(.985); }
+.foms-tl-sheet .fos-btn--primary { background: var(--acc); color: var(--ink); border-color: transparent; }
+.foms-tl-sheet .fos-btn--primary:hover { filter: brightness(1.06); }

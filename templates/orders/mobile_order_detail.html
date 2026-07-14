@@ -1,5 +1,9 @@
 {% extends "orders/layout.html" %}
 
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-order-timeline.css') }}?v=20260711">
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid erp-pro erp-mobile-shell foms-detail-page-wrap"
   data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
