@@ -1047,10 +1047,10 @@
   // ═══════════════════════════════════════════════════════════════
   // Zone 6: 이벤트 리스너 (fragment 재실행-안전 배선, 가드 G4)
   // ═══════════════════════════════════════════════════════════════
-  // erp-shell 이 #main-content 를 swap 하면 이 인라인 스크립트가 재실행된다. 그 시점엔
+  // erp-shell 이 메인 콘텐츠 루트 를 swap 하면 이 인라인 스크립트가 재실행된다. 그 시점엔
   // DOMContentLoaded 가 이미 발화 완료라 콜백으로 감싸면 fragment 진입 시 콜백이 영원히
   // 실행되지 않는다(→ 필터/상세/승인/알림 배선 전부 사망). 즉시 실행 IIFE 로 전환하되,
-  // (1) #main-content 내부 요소(매 swap 새 노드)는 per-swap 으로 재바인딩하고,
+  // (1) 메인 콘텐츠 루트 내부 요소(매 swap 새 노드)는 per-swap 으로 재바인딩하고,
   // (2) document/body/window 위임·폴링은 __FOMS_CONSTR_SCRIPTS_BOUND 싱글톤으로 1회만 배선한다.
   //     scripts.html 는 dashboard_body 최하단(모든 대상 요소 뒤)에 include 되므로 즉시 실행
   //     시점에 per-swap 대상 요소가 이미 존재한다(readyState 가드 불필요).

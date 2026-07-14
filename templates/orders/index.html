@@ -1057,12 +1057,12 @@
 <script>
     // ============================================================
     // erp-shell fragment swap 재실행-안전 배선 (가드 G4).
-    // erp-shell 은 #main-content 를 innerHTML 로 교체한 뒤 activateScripts 로 이 인라인
+    // erp-shell 은 메인 콘텐츠 루트 를 innerHTML 로 교체한 뒤 activateScripts 로 이 인라인
     // 스크립트를 재실행하지만, DOMContentLoaded 는 최초 로드에서 이미 발화 완료라 과거 래퍼
     // 방식은 fragment 진입 시 콜백이 다시 돌지 않아 본체 기능(전화번호 포맷·일괄작업·옵션/
     // 비고 토글·컬럼필터·리사이즈·행선택)이 전부 사망했다. 즉시 실행 IIFE 로 전환하고 리스너를
     // 두 부류로 분리한다:
-    //   · per-swap: #main-content 내부 요소 바인딩·DOM 초기화는 매 재실행마다 그대로 실행한다.
+    //   · per-swap: 메인 콘텐츠 루트 내부 요소 바인딩·DOM 초기화는 매 재실행마다 그대로 실행한다.
     //     스왑 시 옛 요소는 innerHTML 교체로 제거되므로 새 요소에 재바인딩해도 누적이 없다.
     //   · once-only: document 위임 리스너는 __ordersIndexOnce(싱글톤) 로 최초 1회만 등록한다.
     //     재실행마다 재등록하면 document 에 리스너가 누적된다(= G4 위반). 위임 핸들러의 요소

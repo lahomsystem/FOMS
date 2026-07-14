@@ -722,10 +722,10 @@
 
     // === Fragment 재실행-안전 배선(가드 G4) ===
     // /erp/production/dashboard 는 erp-shell fragment 네비 대상이다. swap 시 erp-shell 이
-    // #main-content 를 innerHTML 로 교체하고 이 인라인 스크립트를 재실행하지만 DOMContentLoaded
+    // 메인 콘텐츠 루트 를 innerHTML 로 교체하고 이 인라인 스크립트를 재실행하지만 DOMContentLoaded
     // 는 이미 발화 완료라 다시 오지 않는다. DOMContentLoaded 로 감싸면 fragment 진입 시 콜백이
     // 영원히 실행되지 않아 블록 기능이 전부 사망한다. 그래서 즉시 실행하되 리스너별로 분리한다:
-    //   - per-swap(#main-content 내부 요소 바인딩): 요소가 swap 마다 교체되므로 매 재실행 안전.
+    //   - per-swap(메인 콘텐츠 루트 내부 요소 바인딩): 요소가 swap 마다 교체되므로 매 재실행 안전.
     //     스크립트 재실행 자체가 매 swap 이 함수를 호출한다(가드 불필요).
     //   - once-only(document/body 위임 리스너): 싱글톤 가드로 1회만 바인딩하고 핸들러 내부
     //     요소 참조는 이벤트 시점에 조회한다(클로저 stale 금지).
@@ -1161,7 +1161,7 @@
     }
 
     // === Fragment 재실행-안전 배선(가드 G4) ===
-    // 이 스크립트도 #main-content 안에 있어 fragment swap 시 재실행되지만 DOMContentLoaded 는
+    // 이 스크립트도 메인 콘텐츠 루트 안에 있어 fragment swap 시 재실행되지만 DOMContentLoaded 는
     // 다시 오지 않는다. 배지 구독/폴링과 document/body 위임 리스너는 모두 once-only 이므로 싱글톤
     // 가드로 1회만 바인딩한다. 배지 구독은 FOMSNotificationBadge(지연 스크립트) 준비 이후여야 하므로
     // 초기 로드는 DOM 준비 시점(DOMContentLoaded)에 실행하고, swap 재실행 시엔 가드가 즉시 반환한다.
