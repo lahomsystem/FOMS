@@ -7,14 +7,16 @@ from foms.web.auth import login_required
 import datetime
 import hashlib
 import json
-from sqlalchemy import or_, and_
+from sqlalchemy import or_, and_, inspect
 from sqlalchemy.orm import load_only
+from sqlalchemy.orm.attributes import set_committed_value
 from foms.services.common.business_calendar import get_holidays_kr
 from foms.services.erp_permissions import can_edit_erp, is_order_related_to_user
 from foms.services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders, get_today_kst
 from foms.services.shipment_dashboard_helpers import (
     AS_SHIPMENT_STATUSES,
     extract_dashboard_target_dates,
+    is_as_order,
     _normalize_worker_name,
     _get_order_spec_units,
     _get_order_construction_date,
@@ -81,6 +83,35 @@ def _shipment_dashboard_order_scope():
             Order.scheduled_date != '',
         ),
     )
+
+
+def _hydrate_structured_data(db, orders: list) -> None:
+    """structured_data 미로드 주문들에 배치 1쿼리로 JSONB를 주입한다(N+1·dirty 없음).
+
+    panel_query가 load_only에서 structured_data를 deferred 처리하므로, 실제로
+    structured_data가 필요한 부분집합(선택된 rows·집계 miss·mine_only·AS 파생)에만
+    이 헬퍼로 채운다. `id IN (...)` 단일 배치 쿼리로 id→structured_data를 얻어
+    set_committed_value로 committed(clean) 상태로 주입한다 → flush 시 UPDATE가 남지
+    않아 dirty가 아니며 읽기 전용 라우트 계약을 보존한다. 이미 로드된 주문(fallback
+    rows_query 경로 등)은 `inspect().unloaded` 검사로 건너뛴다.
+
+    Args:
+        db: SQLAlchemy 세션.
+        orders: Order 객체 리스트(일부는 structured_data가 deferred 미로드일 수 있음).
+
+    Returns:
+        None. 대상 주문의 structured_data 속성을 in-place로 채운다.
+    """
+    need = [o for o in orders if 'structured_data' in inspect(o).unloaded]
+    if not need:
+        return
+    id_map = dict(
+        db.query(Order.id, Order.structured_data)
+        .filter(Order.id.in_([o.id for o in need]))
+        .all()
+    )
+    for o in need:
+        set_committed_value(o, 'structured_data', id_map.get(o.id))
 
 
 def _erp_order_search_filter(query, q):
@@ -336,10 +367,14 @@ def erp_shipment_dashboard():
         OrderScheduleDate.date <= panel_range_end,
     ).distinct(Order.id)
 
+    # Perf Fix2: panel_orders는 structured_data(64KB JSONB)를 load_only에서 제외해 light
+    # 로드한다. 14일 패널 전량 역직렬화를 없애고, 실제 필요한 부분집합(선택 rows·집계
+    # miss·mine_only·AS 파생)만 _hydrate_structured_data로 배치 주입한다. schedule_dates는
+    # selectinload로 유지 → derive-from-panel 필터·집계 날짜는 DB 관계만 사용(structured_data 불필요).
     panel_orders = panel_query.options(
         load_only(
             Order.id, Order.scheduled_date, Order.as_received_date, Order.as_completed_date,
-            Order.structured_data, Order.status, Order.is_erp_order,
+            Order.status, Order.is_erp_order,
             Order.customer_name, Order.manager_name, Order.phone, Order.address,
             Order.measurement_date,
         ),
@@ -347,15 +382,14 @@ def erp_shipment_dashboard():
     ).order_by(Order.id.desc()).all()
 
     # 시공팀 또는 mine=1일 때만 목록/패널을 담당 주문으로 제한 (의도적 이중 필터: panel_orders + 아래 rows)
+    # is_order_related_to_user는 structured_data가 필요하므로 이 분기 진입 시에만 panel 배치 하이드레이트.
     if mine_only and current_user:
+        _hydrate_structured_data(db, panel_orders)
         panel_orders = [
             o for o in panel_orders
             if is_order_related_to_user(o, current_user)
         ]
-    
-    for o in panel_orders:
-        o.structured_data = _ensure_dict(o.structured_data)  # type: ignore[assignment]
-    
+
     settings = load_erp_shipment_settings()
     worker_settings = normalize_erp_shipment_workers(settings.get('construction_workers', []))
     worker_name_map = {_normalize_worker_name(w['name']): w for w in worker_settings if w.get('name')}
@@ -383,10 +417,18 @@ def erp_shipment_dashboard():
 
     # Batch 3: panel aggregates compute는 compute_shipment_panel_aggregates(read-model)로 분리(동작 보존).
     # cache 키(_agg_key)·fingerprint(_agg_fp)·get_or_compute는 라우트가 유지 → cache hit/miss 불변.
+    def _compute_shipment_aggregates():
+        # 캐시 MISS일 때만 실행 → 이 경로에서만 panel 전량 structured_data가 필요하다.
+        # HIT(핫패스)면 이 closure가 호출되지 않아 JSONB 로드 0.
+        _hydrate_structured_data(db, panel_orders)
+        return compute_shipment_panel_aggregates(
+            panel_orders, range_start, range_end, worker_name_map
+        )
+
     _agg_blob = get_or_compute_dashboard_slice(
         _agg_key,
         TTL_PANEL_ROWS,
-        lambda: compute_shipment_panel_aggregates(panel_orders, range_start, range_end, worker_name_map),
+        _compute_shipment_aggregates,
         page="shipment",
         slice_name="panel_aggregates",
     )
@@ -472,6 +514,10 @@ def erp_shipment_dashboard():
             _derive_from_panel = True
 
     if _derive_from_panel:
+        # AS 주문은 as_visit 스케줄이 없으면 extract_as_visit_dates가 structured_data로
+        # 폴백하므로(N+1 방지) 파생 필터 전에 AS 주문만 배치 하이드레이트. 비AS는
+        # schedule_dates(DB 관계)만 쓰므로 structured_data 불필요.
+        _hydrate_structured_data(db, [o for o in panel_orders if is_as_order(o)])
         if use_single_day:
             rows = [o for o in panel_orders
                     if selected_date in {str(d) for d in extract_dashboard_target_dates(o)}]
@@ -511,6 +557,12 @@ def erp_shipment_dashboard():
                 if is_order_related_to_user(r, current_user)
             ]
     rows = rows[:300]
+
+    # 렌더되는 rows(≤300)만 structured_data 배치 주입. derive-from-panel 경로의 rows는
+    # light(structured_data deferred)이고, fallback rows_query 경로는 이미 로드돼 있어
+    # 헤더의 unloaded 검사로 이중 로드가 방지된다. 이후 enrich/display/kpi/정렬/모바일큐가
+    # 안전하게 structured_data에 접근한다.
+    _hydrate_structured_data(db, rows)
 
     enrich_shipment_rows(rows)
 
