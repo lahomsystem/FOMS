@@ -10,7 +10,9 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
         construction_time: 'erp_shipment_construction_time_list',
         drawing_manager: 'erp_shipment_drawing_manager_list',
         construction_workers: 'erp_shipment_construction_workers_list',
-        site_extra: 'erp_shipment_site_extra_list'
+        site_extra: 'erp_shipment_site_extra_list',
+        vehicle: 'erp_shipment_vehicle_list',
+        trip: 'erp_shipment_trip_list'
       };
       const MAX_SAVED = 20;
 
@@ -134,7 +136,23 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
           if (mA !== mB) return mA.localeCompare(mB);
           return (parseInt(a.dataset.orderId, 10) || 0) - (parseInt(b.dataset.orderId, 10) || 0);
         });
-        rows.forEach(function (tr) { tbody.appendChild(tr); });
+        // 정렬된 .shipment-row 를 재배치하되, 각 (AS여부|팀) 그룹 첫 행 앞에 서버가 심은
+        // 그룹 헤더(.shipment-grp-row)를 다시 끼운다. 헤더는 코호트 태블릿(목업 06)에서만
+        // 보이고 PC 에선 display:none — 재배치는 PC 표시에 무영향(행 순서=서버 정렬 동일).
+        // 키 = "<as>|<팀 소문자>"(dashboard_main.html data-grp-key 와 정합). idempotent.
+        var grpHeadByKey = {};
+        Array.prototype.forEach.call(tbody.querySelectorAll('tr.shipment-grp-row'), function (h) {
+          grpHeadByKey[h.getAttribute('data-grp-key') || ''] = h;
+        });
+        var lastGrpKey = null;
+        rows.forEach(function (tr) {
+          var gk = ((parseInt(tr.dataset.as, 10) || 0)) + '|' + (getFirstWorkerFromRow(tr) || '').trim().toLowerCase();
+          if (gk !== lastGrpKey) {
+            lastGrpKey = gk;
+            if (grpHeadByKey[gk]) tbody.appendChild(grpHeadByKey[gk]);
+          }
+          tbody.appendChild(tr);
+        });
         var workerList = [];
         rows.forEach(function (tr) {
           var w = getFirstWorkerFromRow(tr);
@@ -172,11 +190,15 @@ var __shipDashSelectedDate = (__shipDashCfgEl && __shipDashCfgEl.dataset.selecte
         fillDatalist('datalist-construction-time', 'construction_time');
         fillDatalist('datalist-drawing-manager', 'drawing_manager');
         fillDatalist('datalist-construction-workers', 'construction_workers');
+        fillDatalist('datalist-vehicle', 'vehicle');
+        fillDatalist('datalist-trip', 'trip');
         applyShipmentWorkerSortAndColors();
       }).catch(function () {
         fillDatalist('datalist-construction-time', 'construction_time');
         fillDatalist('datalist-drawing-manager', 'drawing_manager');
         fillDatalist('datalist-construction-workers', 'construction_workers');
+        fillDatalist('datalist-vehicle', 'vehicle');
+        fillDatalist('datalist-trip', 'trip');
       });
       var shipmentTableEl = document.querySelector('.shipment-table');
       if (shipmentTableEl) {

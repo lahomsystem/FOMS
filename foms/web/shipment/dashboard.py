@@ -1,21 +1,25 @@
 """ERP 출고 대시보드 (ERP-SLIM-7; canonical, SFC-B11B). /erp/shipment."""
 import time
-from flask import Blueprint, make_response, render_template, request, redirect, url_for, g
+from flask import Blueprint, abort, make_response, render_template, request, redirect, url_for, g
 from db import get_db
 from models import Order
 from foms.web.auth import login_required
 import datetime
 import hashlib
 import json
-from sqlalchemy import or_, and_
+from sqlalchemy import or_, and_, inspect
 from sqlalchemy.orm import load_only
+from sqlalchemy.orm.attributes import set_committed_value
 from foms.services.common.business_calendar import get_holidays_kr
 from foms.services.erp_permissions import can_edit_erp, is_order_related_to_user
 from foms.services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders, get_today_kst
 from foms.services.shipment_dashboard_helpers import (
     AS_SHIPMENT_STATUSES,
     extract_dashboard_target_dates,
+    is_as_order,
     _normalize_worker_name,
+    _get_order_spec_units,
+    _get_order_construction_date,
 )
 from foms.services.erp_shipment_settings import (
     load_erp_shipment_settings,
@@ -31,7 +35,7 @@ from foms.services.common.erp_shell_http import (
     wants_erp_shell_tab_body,
 )
 from foms.services.common.ept_b7_profile import apply_ept_b7_render_headers
-from foms.services.feature_flags import is_enabled_for_user
+from foms.services.feature_flags import is_mobile_v2_shell, resolve_shell_variant_cached
 from foms.services.shipment_dashboard_filters import parse_shipment_dashboard_filters
 from foms.services.shipment_read_model import (
     compute_shipment_panel_aggregates,
@@ -79,6 +83,35 @@ def _shipment_dashboard_order_scope():
             Order.scheduled_date != '',
         ),
     )
+
+
+def _hydrate_structured_data(db, orders: list) -> None:
+    """structured_data 미로드 주문들에 배치 1쿼리로 JSONB를 주입한다(N+1·dirty 없음).
+
+    panel_query가 load_only에서 structured_data를 deferred 처리하므로, 실제로
+    structured_data가 필요한 부분집합(선택된 rows·집계 miss·mine_only·AS 파생)에만
+    이 헬퍼로 채운다. `id IN (...)` 단일 배치 쿼리로 id→structured_data를 얻어
+    set_committed_value로 committed(clean) 상태로 주입한다 → flush 시 UPDATE가 남지
+    않아 dirty가 아니며 읽기 전용 라우트 계약을 보존한다. 이미 로드된 주문(fallback
+    rows_query 경로 등)은 `inspect().unloaded` 검사로 건너뛴다.
+
+    Args:
+        db: SQLAlchemy 세션.
+        orders: Order 객체 리스트(일부는 structured_data가 deferred 미로드일 수 있음).
+
+    Returns:
+        None. 대상 주문의 structured_data 속성을 in-place로 채운다.
+    """
+    need = [o for o in orders if 'structured_data' in inspect(o).unloaded]
+    if not need:
+        return
+    id_map = dict(
+        db.query(Order.id, Order.structured_data)
+        .filter(Order.id.in_([o.id for o in need]))
+        .all()
+    )
+    for o in need:
+        set_committed_value(o, 'structured_data', id_map.get(o.id))
 
 
 def _erp_order_search_filter(query, q):
@@ -135,6 +168,144 @@ def _pick_shipment_search_focus_date(scoped_orders_query, today_kst):
     if future_or_today:
         return min(future_or_today)
     return max(past_only)
+
+
+def _compute_tablet_ship_kpis(rows: list) -> dict:
+    """태블릿 가로 상단 KPI 4종을 그리드 rows에서 계산한다(추가 쿼리 없음).
+
+    Args:
+        rows: erp_shipment_dashboard가 렌더하는 것과 동일한 Order ORM 객체 리스트.
+
+    Returns:
+        {'total_units': str(1-decimal), 'order_count': int,
+         'team_count': int, 'unassigned': int}.
+        total_units=행별 자수 합, order_count=행 수,
+        team_count=행 전반에서 등장한 고유 시공팀명 수, unassigned=시공자 미배정 행 수.
+    """
+    total_units = 0.0
+    teams: set[str] = set()
+    unassigned = 0
+    for r in rows:
+        total_units += _get_order_spec_units(r)
+        sd = r.structured_data if isinstance(r.structured_data, dict) else {}
+        workers = (sd.get('shipment') or {}).get('construction_workers') or []
+        names = [str(w).strip() for w in workers if str(w or '').strip()]
+        if names:
+            teams.update(names)
+        else:
+            unassigned += 1
+    return {
+        'total_units': f"{total_units:.1f}",
+        'order_count': len(rows),
+        'team_count': len(teams),
+        'unassigned': unassigned,
+    }
+
+
+def _compute_shipment_team_group_meta(rows: list, worker_settings: list) -> dict:
+    """태블릿 그룹 헤더용 시공팀별 집계(자수 합계·건수·capacity·잔여). 추가 쿼리 없음.
+
+    이미 정렬·로드된 ``rows``와 ``worker_settings``만 사용한다. 그룹 키는 각 행의 첫
+    유효 시공자(raw trim) — ``sort_shipment_rows``/템플릿 파스텔 인덱스와 동일 키다.
+    capacity 는 정규화 이름 매칭으로 찾고, 잔여 = capacity − 그룹 자수합(현재 뷰 기준).
+    설정에 없는 팀(임의 입력)·미배정('')은 capacity/remaining 을 None 으로 둔다.
+
+    Args:
+        rows: 그리드와 동일한 정렬된 Order 리스트.
+        worker_settings: normalize_erp_shipment_workers 결과.
+
+    Returns:
+        {group_key: {'units': '12.5', 'count': 3,
+                     'capacity': '40.0'|None, 'remaining': '27.5'|None}}.
+        group_key 는 raw trim 시공자 문자열('' = 미배정).
+    """
+    cap_by_norm = {
+        _normalize_worker_name(w['name']): float(w.get('capacity') or 0)
+        for w in worker_settings if w.get('name')
+    }
+    acc: dict[str, dict] = {}
+    for r in rows:
+        sd = r.structured_data if isinstance(r.structured_data, dict) else {}
+        workers = (sd.get('shipment') or {}).get('construction_workers') or []
+        key = ''
+        for w in workers:
+            s = str(w or '').strip()
+            if s:
+                key = s
+                break
+        slot = acc.setdefault(key, {'units': 0.0, 'count': 0})
+        slot['units'] += _get_order_spec_units(r)
+        slot['count'] += 1
+    meta: dict[str, dict] = {}
+    for key, slot in acc.items():
+        cap = cap_by_norm.get(_normalize_worker_name(key))
+        entry: dict = {
+            'units': f"{slot['units']:.1f}",
+            'count': slot['count'],
+            'capacity': None,
+            'remaining': None,
+        }
+        if cap is not None:
+            entry['capacity'] = f"{cap:.1f}"
+            entry['remaining'] = f"{cap - slot['units']:.1f}"
+        meta[key] = entry
+    return meta
+
+
+def compute_team_remaining_units_for_date(db, target_date: str | None, worker_settings: list) -> dict[str, float]:
+    """target_date의 시공팀별 잔여 자수(capacity - 사용)를 계산한다.
+
+    대시보드 잔여 패널과 동일 정의(잔여 = 팀 capacity - 사용 자수). 사용 자수는 해당
+    날짜의 시공 주문(OrderScheduleDate.kind=='construction') 중 그 팀이 배정된 주문의
+    자수 합이다. target_date의 주문을 1회 조회한다(N+1 없음).
+
+    Args:
+        db: SQLAlchemy 세션.
+        target_date: 'YYYY-MM-DD' 시공일 문자열. None이면 각 팀 잔여=capacity.
+        worker_settings: normalize_erp_shipment_workers 결과 리스트.
+
+    Returns:
+        {팀명: 잔여 자수(float)}.
+    """
+    remaining: dict[str, float] = {
+        w['name']: float(w.get('capacity') or 0)
+        for w in worker_settings if w.get('name')
+    }
+    if not target_date:
+        return remaining
+    from models import OrderScheduleDate
+    name_by_norm = {
+        _normalize_worker_name(w['name']): w['name']
+        for w in worker_settings if w.get('name')
+    }
+    orders_on_date = (
+        db.query(Order)
+        .filter(Order.active_filter())
+        .filter(_shipment_dashboard_order_scope())
+        .join(OrderScheduleDate, Order.id == OrderScheduleDate.order_id)
+        .filter(
+            OrderScheduleDate.kind == 'construction',
+            OrderScheduleDate.date == target_date,
+        )
+        # DISTINCT ON (orders.id): 조인 중복만 제거하고 64KB JSONB(structured_data)를
+        # dedup 키에서 배제. Postgres는 DISTINCT ON 선두 컬럼이 ORDER BY 선두와
+        # 일치해야 하므로 order_by(Order.id)를 명시(집계 전용이라 순서 무관).
+        .order_by(Order.id)
+        .distinct(Order.id)
+        .options(load_only(Order.id, Order.structured_data, Order.is_erp_order))
+        .all()
+    )
+    for o in orders_on_date:
+        sd = o.structured_data if isinstance(o.structured_data, dict) else {}
+        workers = (sd.get('shipment') or {}).get('construction_workers') or []
+        units = _get_order_spec_units(o)
+        seen: set[str] = set()
+        for w in workers:
+            norm = _normalize_worker_name(w)
+            if norm and norm in name_by_norm and norm not in seen:
+                seen.add(norm)
+                remaining[name_by_norm[norm]] -= units
+    return remaining
 
 
 @erp_shipment_page_bp.route('/shipment')
@@ -194,12 +365,16 @@ def erp_shipment_dashboard():
         ),
         OrderScheduleDate.date >= panel_range_start,
         OrderScheduleDate.date <= panel_range_end,
-    ).distinct()
+    ).distinct(Order.id)
 
+    # Perf Fix2: panel_orders는 structured_data(64KB JSONB)를 load_only에서 제외해 light
+    # 로드한다. 14일 패널 전량 역직렬화를 없애고, 실제 필요한 부분집합(선택 rows·집계
+    # miss·mine_only·AS 파생)만 _hydrate_structured_data로 배치 주입한다. schedule_dates는
+    # selectinload로 유지 → derive-from-panel 필터·집계 날짜는 DB 관계만 사용(structured_data 불필요).
     panel_orders = panel_query.options(
         load_only(
             Order.id, Order.scheduled_date, Order.as_received_date, Order.as_completed_date,
-            Order.structured_data, Order.status, Order.is_erp_order,
+            Order.status, Order.is_erp_order,
             Order.customer_name, Order.manager_name, Order.phone, Order.address,
             Order.measurement_date,
         ),
@@ -207,15 +382,14 @@ def erp_shipment_dashboard():
     ).order_by(Order.id.desc()).all()
 
     # 시공팀 또는 mine=1일 때만 목록/패널을 담당 주문으로 제한 (의도적 이중 필터: panel_orders + 아래 rows)
+    # is_order_related_to_user는 structured_data가 필요하므로 이 분기 진입 시에만 panel 배치 하이드레이트.
     if mine_only and current_user:
+        _hydrate_structured_data(db, panel_orders)
         panel_orders = [
             o for o in panel_orders
             if is_order_related_to_user(o, current_user)
         ]
-    
-    for o in panel_orders:
-        o.structured_data = _ensure_dict(o.structured_data)  # type: ignore[assignment]
-    
+
     settings = load_erp_shipment_settings()
     worker_settings = normalize_erp_shipment_workers(settings.get('construction_workers', []))
     worker_name_map = {_normalize_worker_name(w['name']): w for w in worker_settings if w.get('name')}
@@ -243,10 +417,18 @@ def erp_shipment_dashboard():
 
     # Batch 3: panel aggregates compute는 compute_shipment_panel_aggregates(read-model)로 분리(동작 보존).
     # cache 키(_agg_key)·fingerprint(_agg_fp)·get_or_compute는 라우트가 유지 → cache hit/miss 불변.
+    def _compute_shipment_aggregates():
+        # 캐시 MISS일 때만 실행 → 이 경로에서만 panel 전량 structured_data가 필요하다.
+        # HIT(핫패스)면 이 closure가 호출되지 않아 JSONB 로드 0.
+        _hydrate_structured_data(db, panel_orders)
+        return compute_shipment_panel_aggregates(
+            panel_orders, range_start, range_end, worker_name_map
+        )
+
     _agg_blob = get_or_compute_dashboard_slice(
         _agg_key,
         TTL_PANEL_ROWS,
-        lambda: compute_shipment_panel_aggregates(panel_orders, range_start, range_end, worker_name_map),
+        _compute_shipment_aggregates,
         page="shipment",
         slice_name="panel_aggregates",
     )
@@ -332,6 +514,10 @@ def erp_shipment_dashboard():
             _derive_from_panel = True
 
     if _derive_from_panel:
+        # AS 주문은 as_visit 스케줄이 없으면 extract_as_visit_dates가 structured_data로
+        # 폴백하므로(N+1 방지) 파생 필터 전에 AS 주문만 배치 하이드레이트. 비AS는
+        # schedule_dates(DB 관계)만 쓰므로 structured_data 불필요.
+        _hydrate_structured_data(db, [o for o in panel_orders if is_as_order(o)])
         if use_single_day:
             rows = [o for o in panel_orders
                     if selected_date in {str(d) for d in extract_dashboard_target_dates(o)}]
@@ -354,7 +540,7 @@ def erp_shipment_dashboard():
                 rows_query = rows_query.filter(OrderScheduleDate.date >= date_from, OrderScheduleDate.date <= date_to)
             elif use_single_day:
                 rows_query = rows_query.filter(OrderScheduleDate.date == selected_date)
-            rows_query = rows_query.distinct()
+            rows_query = rows_query.distinct(Order.id)
         rows_query = rows_query.options(
             load_only(
                 Order.id, Order.scheduled_date, Order.as_received_date, Order.as_completed_date,
@@ -372,16 +558,23 @@ def erp_shipment_dashboard():
             ]
     rows = rows[:300]
 
+    # 렌더되는 rows(≤300)만 structured_data 배치 주입. derive-from-panel 경로의 rows는
+    # light(structured_data deferred)이고, fallback rows_query 경로는 이미 로드돼 있어
+    # 헤더의 unloaded 검사로 이중 로드가 방지된다. 이후 enrich/display/kpi/정렬/모바일큐가
+    # 안전하게 structured_data에 접근한다.
+    _hydrate_structured_data(db, rows)
+
     enrich_shipment_rows(rows)
 
     apply_erp_display_fields_to_orders(rows)
 
     sort_shipment_rows(rows)
 
-    mobile_v2_active = is_enabled_for_user(
-        "ERP_MOBILE_V2_ENABLED",
-        current_user.id if current_user else None,
-        cohort_key="FOMS_V3_SHELL_COHORT",
+    tablet_ship_kpis = _compute_tablet_ship_kpis(rows)
+    shipment_team_group_meta = _compute_shipment_team_group_meta(rows, worker_settings)
+
+    mobile_v2_active = is_mobile_v2_shell(
+        resolve_shell_variant_cached(current_user.id if current_user else None)
     )
     mobile_queue_rows = build_shipment_mobile_queue_rows(
         db, rows, current_user, mobile_v2_active=mobile_v2_active
@@ -408,9 +601,82 @@ def erp_shipment_dashboard():
         can_edit_erp=can_edit_erp(current_user),
         erp_mine_only=mine_only,
         is_construction_team=is_construction,
+        tablet_ship_kpis=tablet_ship_kpis,
+        shipment_team_group_meta=shipment_team_group_meta,
     )
     _render_ms = (time.perf_counter() - _t0) * 1000.0
     response = make_response(_body)
     apply_erp_shell_fragment_headers(response, request)
     apply_ept_b7_render_headers(response, route_id="erp_shipment_dashboard", render_ms=_render_ms)
+    return response
+
+
+@erp_shipment_page_bp.route('/shipment/tablet-sheet/<int:order_id>')
+@login_required
+def erp_shipment_tablet_sheet(order_id):
+    """태블릿 가로 사이드 시트용 출고 배정 fragment (단건).
+
+    행 탭 시 tablet-domain-sheets.js가 이 URL을 로드해 사이드 시트 본문에 넣는다.
+    저장은 JS가 /api/erp/shipment/update/<id>로 POST하며(construction_workers/
+    construction_time/site_extra), 시공팀 사용자는 그 API가 403으로 막으므로 시트는
+    조회용으로 렌더한다(GET이라 별도 권한 차단 없음). 주문 미존재 시 404.
+    """
+    db = get_db()
+    order = db.query(Order).filter(Order.id == order_id, Order.active_filter()).first()
+    if not order:
+        abort(404)
+
+    order.structured_data = _ensure_dict(order.structured_data)  # type: ignore[assignment]
+    apply_erp_display_fields_to_orders([order])
+
+    sd = order.structured_data if isinstance(order.structured_data, dict) else {}
+    shipment = sd.get('shipment') or {}
+    current_workers = [
+        str(w).strip() for w in (shipment.get('construction_workers') or [])
+        if str(w or '').strip()
+    ]
+    first_current_norm = _normalize_worker_name(current_workers[0]) if current_workers else ''
+    construction_time = str(shipment.get('construction_time') or '')
+    memo_parts = []
+    for value in (shipment.get('site_extra') or []):
+        text_value = (
+            str(value.get('text') or '').strip()
+            if isinstance(value, dict) else str(value or '').strip()
+        )
+        if text_value:
+            memo_parts.append(text_value)
+    site_memo = ' / '.join(memo_parts)
+
+    units = _get_order_spec_units(order)
+    construction_date_raw = _get_order_construction_date(order) or ''
+    target_date = construction_date_raw.split(',')[0].strip() if construction_date_raw else ''
+
+    settings = load_erp_shipment_settings()
+    worker_settings = normalize_erp_shipment_workers(settings.get('construction_workers', []))
+    remaining_by_team = compute_team_remaining_units_for_date(
+        db, target_date or None, worker_settings
+    )
+    teams = []
+    for w in worker_settings:
+        name = w['name']
+        remaining = remaining_by_team.get(name, float(w.get('capacity') or 0))
+        teams.append({
+            'name': name,
+            'remaining': f"{remaining:.1f}",
+            'is_current': bool(first_current_norm) and _normalize_worker_name(name) == first_current_norm,
+            'is_short': remaining < units,
+        })
+
+    response = make_response(render_template(
+        'shipment/partials/tablet_sheet.html',
+        order=order,
+        customer_name=order.customer_name or '-',
+        product_label=order.product or '-',
+        units=f"{units:.1f}",
+        construction_time=construction_time,
+        site_memo=site_memo,
+        construction_date=target_date,
+        teams=teams,
+    ))
+    apply_erp_shell_fragment_headers(response, request)
     return response

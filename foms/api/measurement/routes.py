@@ -336,6 +336,7 @@ def api_erp_measurement_route():
             "measurement_time": o.measurement_time,
             "manager_name": manager_name,
             "status": o.status,
+            "measurement_completed": bool(o.measurement_completed),
             "lat": float(lat),
             "lng": float(lng),
             "geo_status": status
@@ -393,4 +394,55 @@ def api_erp_measurement_route():
         "total_points": len(points),
         "route": route,
         "total_distance_km": round(km_h, 2)
+    })
+
+
+@erp_measurement_bp.route('/route-eta')
+@login_required
+def api_erp_measurement_route_eta():
+    """현재 위치 → 대상 주문까지 카카오 실도로 거리·소요시간 (동선 스트립 캡션 장식용).
+
+    파라미터
+        order_id: 대상 주문 id (int, 필수)
+        from_lat/from_lng: 현재 위치 좌표 (float, 필수)
+
+    반환
+        200 {success:true, data:{distance_km, duration_min}} — 카카오 성공
+        200 {success:false, error} — 좌표 없음/카카오 실패 (장식 요소라 UX 차단 금지, 폴백)
+        400 {success:false, error} — 파라미터 누락/범위 오류
+
+    카카오 호출 실패는 logger.info로 남기되(에러 삼킴 금지) 200 폴백으로 응답한다.
+    """
+    order_id = request.args.get('order_id', type=int)
+    from_lat = request.args.get('from_lat', type=float)
+    from_lng = request.args.get('from_lng', type=float)
+    if order_id is None or from_lat is None or from_lng is None:
+        return jsonify({'success': False, 'error': '필수 파라미터 누락'}), 400
+    if not (-90.0 <= from_lat <= 90.0) or not (-180.0 <= from_lng <= 180.0):
+        return jsonify({'success': False, 'error': '좌표 범위 오류'}), 400
+
+    db = get_db()
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if order is None or order.lat is None or order.lng is None:
+        return jsonify({'success': False, 'error': '대상 좌표 없음'})
+
+    try:
+        result = FOMSAddressConverter().calculate_route(
+            from_lat, from_lng, float(order.lat), float(order.lng), timeout=5
+        )
+    except Exception as e:  # noqa: BLE001 — 장식용 폴백, 아래 logger.info로 기록
+        logger.info('[ROUTE_ETA] 카카오 경로 계산 예외 order=%s: %s', order_id, e)
+        return jsonify({'success': False, 'error': '경로 계산 실패'})
+
+    if not result or result.get('status') != 'success':
+        logger.info('[ROUTE_ETA] 카카오 응답 실패 order=%s: %s',
+                    order_id, (result or {}).get('message'))
+        return jsonify({'success': False, 'error': '경로 계산 실패'})
+
+    return jsonify({
+        'success': True,
+        'data': {
+            'distance_km': result.get('distance_km'),
+            'duration_min': result.get('duration_min'),
+        },
     })

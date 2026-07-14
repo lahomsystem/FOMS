@@ -1,0 +1,43 @@
+{# =========================================================================
+   v2 모바일 주문 상세 — 8단계 수직 스테이지 타임라인 (읽기 전용).
+   소비 컨텍스트: timeline (foms.services.order_timeline_v3.load_order_timeline
+     결과) — order_id, customer_name, current_code, current_label,
+     stages[]{code,label,sc,state,when,who,note}.
+   v3 persona_order360.html의 구조를 v2 컨벤션(foms-tl-*, 네이티브 details)으로
+   이식 — v3 CSS(fos-*)는 로드하지 않는다(자산 배타 유지).
+   접기/펼치기는 네이티브 <details>/<summary> — 신규 JS 없음.
+   현재 단계는 open 상태로 내려간다(현장 우선 정보).
+   스테이지 색은 style="--foms-sc:..." 동적 CSS 변수 주입만 사용(인라인 스타일 예외).
+   ========================================================================= #}
+{%- set _t = timeline or {} -%}
+{%- set _stages = _t.stages or [] -%}
+{% if _stages %}
+<div class="foms-tl" data-foms-tl-stages="{{ _t.order_id }}">
+  <p class="foms-tl-current">현재 단계 · <strong>{{ _t.current_label or '-' }}</strong></p>
+  {% for s in _stages %}
+  <details class="foms-tl-item foms-tl-item--{{ s.state }}" style="--foms-sc:var(--foms-st-{{ s.sc }})"{% if s.state == 'current' %} open{% endif %}>
+    <summary class="foms-tl-summary" aria-label="{{ s.label }} 단계 상세 접기/펼치기">
+      <span class="foms-tl-dot" aria-hidden="true"></span>
+      <span class="foms-tl-label">{{ s.label }}</span>
+      {% if s.state == 'current' %}<span class="foms-tl-now">진행중</span>{% endif %}
+      <span class="foms-tl-meta">
+        {%- if s.when %}{{ s.when }}{% elif s.state == 'pending' %}대기{% else %}기록 없음{% endif -%}
+        {%- if s.who %} · {{ s.who }}{% endif -%}
+      </span>
+      <span class="foms-tl-caret" aria-hidden="true"><i class="fas fa-chevron-down"></i></span>
+    </summary>
+    <div class="foms-tl-body">
+      {% if s.note %}
+      <div class="foms-tl-note">{{ s.note }}</div>
+      {% elif s.state == 'pending' %}
+      <div class="foms-tl-note">아직 진행되지 않은 단계입니다.</div>
+      {% elif s.when %}
+      <div class="foms-tl-note">{{ s.label }} {{ s.when }} 도달{% if s.who %} · {{ s.who }}{% endif %}</div>
+      {% else %}
+      <div class="foms-tl-note">{{ s.label }} 단계 진행 기록.</div>
+      {% endif %}
+    </div>
+  </details>
+  {% endfor %}
+</div>
+{% endif %}

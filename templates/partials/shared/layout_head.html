@@ -39,6 +39,26 @@
       }
     })();
     </script>
+    {# Early shell-mode boot (escape hatch): inline before paint (SSOT copy lives in
+       static/js/runtime/, kept off the render-blocking script guard). Stamps
+       html[data-foms-shell] from localStorage so a manual "데스크톱 보기"/"split"
+       override wins over the CSS shell-selection matrix without a flash. Inline
+       (not a script src) to run pre-paint exactly like the theme boot above. #}
+    <script>
+    (function () {
+      var key = 'foms_shell_mode';
+      try {
+        var mode = localStorage.getItem(key);
+        if (mode === 'desktop' || mode === 'split') {
+          document.documentElement.setAttribute('data-foms-shell', mode);
+        } else {
+          document.documentElement.removeAttribute('data-foms-shell');
+        }
+      } catch (e) {
+        console.warn('[foms-shell-mode-boot] shell mode preference unavailable:', e);
+      }
+    })();
+    </script>
     <title>하우드 ERP</title>
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg', v='20260611d') }}">
     <link rel="icon" type="image/png" href="{{ url_for('favicon', v='20260611d') }}">
@@ -68,7 +88,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/erp-pro.css') }}?v=20260713a">
     {# Order edit (/edit/<id>) joins the erp-mobile-v2 shell cohort (see orders/layout.html),
        so it must load the same mobile shell CSS bundle that styles the foms header + surfaces. #}
-    {% if erp_mobile_v2_enabled and (request.path.startswith('/erp') or request.endpoint == 'order_edit.edit_order') %}
+    {% if shell_variant == 'v2' and (request.path.startswith('/erp') or request.endpoint == 'order_edit.edit_order') %}
     <style id="foms-mobile-v2-critical-css">
       @media (max-width: 991.98px) {
         body.erp-mobile-v2-layout {
@@ -94,7 +114,37 @@
       }
     </style>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" crossorigin="anonymous">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-mobile-surfaces.css') }}?v=20260630e">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-mobile-surfaces.css') }}?v=20260714a">
+    {% endif %}
+    {# 태블릿 T2 융합 레이어는 셸 변형과 직교 — v2·v3 공통으로 로드(2026-07-12 v3 미로드 실사고 봉합).
+       surfaces 와 별도 <link>·surfaces 직후 위치라 v2 캐스케이드 순변화 0.
+       /wdcalculator 추가(2026-07-12 목업 v5 정합): 전역 레일 CSS(foms-tablet-rail.css)가
+       계산기 페이지에서도 로드되도록 게이트에 포함한다. #}
+    {% if erp_mobile_v2_enabled and (request.path.startswith('/erp') or request.endpoint == 'order_edit.edit_order' or request.path.startswith('/wdcalculator')) %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-tablet-bundle.css') }}?v=20260714c">
+    {% endif %}
+    {# 모바일 v2 서피스 광폭(≥992) 숨김 — 셸-독립 정본(v2∪v3 공통, 2026-07-13 v3 누출 봉합).
+       v3 은 원 소유 hide 규칙이 담긴 foms-shell.css(shell_variant=='v2' 게이트 @import)를 미로드하므로,
+       전 코호트 대시보드(시공·생산·출고·실측·이력·CS·도면)에서 컨트롤 타워(.foms-mobile-v2-dashboard)·
+       생성 FAB(.foms-shell-fab)·도면 갤러리(.foms-drawing-mobile-v2)가 데스크톱 그리드 아래로 누출됐다.
+       게이트는 erp_mobile_v2_enabled(v2∪v3)만 — 경로 무제한이라 모바일-v2 바디가 렌더될 수 있는 모든
+       페이지에서 로드된다(별도 <link>·자체 ?v 캐시키). cf. AS 카메라바·주문 대시보드 동일 패턴. #}
+    {% if erp_mobile_v2_enabled %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-mobile-v2-surfaces-hide.css') }}?v=20260713a">
+    {% endif %}
+    {# v3 셸 자산(배타 로드): shell_variant=='v3'일 때만 v3 CSS/셸 JS 로드. v2 모바일
+       번들과 상호 배타(위 v2 critical CSS는 shell_variant=='v2' 게이트라 v3에서 미로드). #}
+    {% if shell_variant == 'v3' %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/v3/foms-mobile-v3.css') }}?v=20260714b">
+    <script src="{{ url_for('static', filename='js/v3/foms-mobile-v3.js') }}?v=20260713b" defer></script>
+    {# B7 sync 배지 컨트롤러: v3 앱바 [data-foms-sync-badge] 배지를 갱신한다. v2 셸은
+       foms_app_shell.html 이 로드하지만 v3 셸은 그 파샬을 include 하지 않으므로 여기서 배타 로드. #}
+    <script src="{{ url_for('static', filename='js/foms/foms-write.js') }}?v=20260713b" defer></script>
+    {% endif %}
+    {# 셸 토글 JS는 v3 자격자면(v3 활성이든, v2로 복귀해 drawer 진입점을 쓰든) 로드.
+       경량·standalone(v3 CSS 의존 없음)·singleton 가드. 비자격/legacy는 미로드. #}
+    {% if shell_v3_eligible %}
+    <script src="{{ url_for('static', filename='js/v3/foms-shell-toggle.js') }}?v=20260711c" defer></script>
     {% endif %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/foms/photo-capture.css') }}?v=20260529a">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-sticky-action-bar.css') }}?v=20260614a">

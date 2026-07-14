@@ -1,0 +1,40 @@
+{# 출고 배정 사이드 시트 본문 (태블릿 가로). tablet-domain-sheets.js가 필드를 읽어
+   /api/erp/shipment/update/<id>로 저장한다. 레이아웃 extends 없는 순수 본문 fragment. #}
+<div class="foms-ship-sheet">
+  <div class="foms-ship-sheet__head">{{ customer_name }} 배정</div>
+  <div class="foms-ship-sheet__count">{{ product_label }} · 자수 {{ units }}</div>
+  {# 현장주소: 태블릿 가로 그리드에서 저우선 열로 숨기므로 배정 시트에서 노출한다. #}
+  <div class="foms-ship-sheet__count"><i class="fas fa-map-marker-alt" aria-hidden="true"></i> {{ order.address or '-' }}</div>
+
+  <div class="foms-ship-sheet__card">
+    <div class="foms-ship-sheet__card-title">시공팀{% if construction_date %} · {{ construction_date }}{% endif %}</div>
+    <div class="tablet-assign-teams foms-ship-sheet__teams">
+      {% for team in teams %}
+      <label class="foms-ship-sheet__team{% if team.is_short %} is-short{% endif %}">
+        <input type="radio" name="tablet-assign-team" value="{{ team.name }}"{% if team.is_current %} checked{% endif %}>
+        <span class="foms-ship-sheet__team-name">{{ team.name }}</span>
+        <span class="foms-ship-sheet__team-remain">잔여 {{ team.remaining }}자수</span>
+        {% if team.is_short %}<span class="foms-ship-sheet__team-warn">경고</span>{% endif %}
+      </label>
+      {% else %}
+      <div class="foms-ship-sheet__empty">등록된 시공팀이 없습니다.</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="foms-ship-sheet__card">
+    <div class="foms-ship-sheet__card-title">시공 시간 · 현장 메모</div>
+    <div class="foms-ship-sheet__chips">
+      <button type="button" class="foms-ship-sheet__chip" data-tablet-time-chip value="09:00">09:00</button>
+      <button type="button" class="foms-ship-sheet__chip" data-tablet-time-chip value="14:00">14:00</button>
+      <button type="button" class="foms-ship-sheet__chip" data-tablet-time-custom-trigger>직접</button>
+    </div>
+    <input type="text" class="foms-ship-sheet__input" data-tablet-assign-time value="{{ construction_time }}" placeholder="예: 10:00" aria-label="시공 시간">
+    <input type="text" class="foms-ship-sheet__input" data-tablet-assign-memo value="{{ site_memo }}" placeholder="현장 메모" aria-label="현장 메모">
+  </div>
+
+  <div class="foms-ship-sheet__foot">
+    <button type="button" class="foms-ship-sheet__btn" data-tablet-sheet-action="sheet-cancel">취소</button>
+    <button type="button" class="foms-ship-sheet__btn foms-ship-sheet__btn--pri" data-tablet-sheet-action="shipment-assign" data-order-id="{{ order.id }}">배정 적용</button>
+  </div>
+</div>

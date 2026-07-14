@@ -34,7 +34,21 @@
         <span>{{ r.turn_label }}</span>
       </span>
 
+      {% if r.latest_transfer_line %}
+      <div class="foms-drawing-queue-card__sub foms-drawing-queue-card__xfer">
+        <i class="fas fa-paper-plane" aria-hidden="true"></i> {{ r.latest_transfer_line }}
+      </div>
+      {% endif %}
+      {% if r.latest_request_note %}
+      <div class="foms-drawing-queue-card__memo" title="{{ r.latest_request_note }}">
+        <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+        <span class="foms-drawing-queue-card__memo-text">{{ r.latest_request_note }}</span>
+      </div>
+      {% endif %}
+
       <div class="foms-drawing-queue-card__chips">
+        {% if r.drawing_status_label %}<span class="foms-drawing-queue-card__chip foms-drawing-queue-card__chip--status">{{ r.drawing_status_label }}</span>{% endif %}
+        {% if r.transfer_round and r.transfer_round > 0 %}<span class="foms-drawing-queue-card__chip foms-drawing-queue-card__chip--version">v{{ r.transfer_round }}</span>{% endif %}
         {% if r.target_no %}<span class="foms-drawing-queue-card__chip">대상 {{ r.target_no }}번</span>{% endif %}
         <span class="foms-drawing-queue-card__chip">도면 {{ r.file_count }}장</span>
         {% if r.unread_count > 0 %}<span class="foms-drawing-queue-card__chip is-alert">미확인 {{ r.unread_count }}</span>{% endif %}
@@ -57,6 +71,13 @@
         class="foms-btn foms-btn--primary foms-btn--sm foms-drawing-queue-card__open-work">
         <i class="fas {{ r.primary_action_icon }}" aria-hidden="true"></i>
         <span class="foms-drawing-queue-card__action-label">{{ r.primary_action_label }}</span>
+      </a>
+      <a href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_wizard', order_id=r.id) }}"
+        target="_blank" rel="noopener"
+        class="foms-btn foms-btn--ghost foms-btn--sm foms-drawing-queue-card__wizard"
+        aria-label="도면 마법사 열기">
+        <i class="fas fa-magic" aria-hidden="true"></i>
+        <span class="foms-drawing-queue-card__action-label">마법사</span>
       </a>
       <button type="button" class="foms-btn foms-btn--ghost foms-btn--sm foms-drawing-queue-card__assignee"
         onclick="event.preventDefault(); event.stopPropagation(); openSingleAssignModal({{ r.id }})" title="담당자 변경">

@@ -12,7 +12,11 @@ from typing import Any
 
 from foms.services.erp_display import _ensure_dict
 from foms.services.as_content_safety import as_content_html_to_text
-from foms.services.shipment_dashboard_helpers import is_as_order, _get_order_spec_units
+from foms.services.shipment_dashboard_helpers import (
+    is_as_order,
+    _get_order_spec_units,
+    _get_order_construction_date,
+)
 from foms.services.erp_mobile_order_display import (
     build_mobile_queue_order_row,
     build_mobile_queue_batch_context,
@@ -154,15 +158,45 @@ def build_shipment_mobile_queue_rows(
             row["manager_name"] = row.get("manager_name") if row.get("manager_name") not in (None, "", "-") else (order.manager_name or "-")
             row["orderer_name"] = row.get("orderer_name") or getattr(order, "orderer_name", None)
             row["product_subtitle"] = row.get("product_subtitle") or (getattr(order, "product", None) or "")
+            # D: 패킹 카운터 파생(추가 쿼리 없음 — 이미 로드된 sd.shipment.packing만). 없으면 present=False.
+            _packing = shipment.get("packing")
+            _packing_items = _packing.get("items") if isinstance(_packing, dict) else None
+            _packing_present = isinstance(_packing_items, list) and len(_packing_items) > 0
+            # P6: 출발 보고(상차 완료) 여부 — departed_at 존재 시 카드 라벨을 "출발 보고됨" 배지로 전환.
+            _packing_departed = bool(_packing.get("departed_at")) if isinstance(_packing, dict) else False
             row["shipment_meta"] = {
                 "construction_time": shipment.get("construction_time") or "",
                 "drawing_managers": drawing_managers,
                 "construction_workers": construction_workers,
+                # 신규 배차 필드(sd.shipment.vehicle 차량번호 / sd.shipment.trip 회차 라벨) —
+                # 로드된 structured_data 에서만 파생(추가 쿼리 없음). v2 카드·v3 홈 공용 표기.
+                "vehicle": str(shipment.get("vehicle") or "").strip(),
+                "trip": str(shipment.get("trip") or "").strip(),
                 "site_extra": site_extra,
                 "spec_units": _get_order_spec_units(order),
                 "is_as": is_as_order(order),
                 "as_content_text": getattr(order, "as_content_text", "") or "",
                 "recommendation_link": getattr(order, "shipment_as_recommendation_link", None),
+                # v3 홈 표시용 파생(추가 쿼리 없음 — 이미 로드된 structured_data/scheduled_date만 사용).
+                # primary_date: 대표 시공일(AS는 as_visit 방문일) → v3 날짜 그룹 헤더 키. schedule_dates
+                # 지연로딩을 피하려 SSOT(sd.schedule.*) + scheduled_date 컬럼만 읽는다(N+1 가드 준수).
+                "primary_date": (
+                    str(((sd.get("schedule") or {}).get("as_visit") or {}).get("date") or "")
+                    if is_as_order(order)
+                    else (_get_order_construction_date(order) or "")
+                ),
+                # sales_delivery(영업택배): structured_data.shipment.sales_delivery is True 계약(field_update.py와 동일).
+                "sales_delivery": shipment.get("sales_delivery") is True,
+                # D: 패킹 진행 파생(패킹 N/M 라벨·배지 SSOT — v2 큐 + v3 홈 공용).
+                "packing_present": _packing_present,
+                "packing_total": len(_packing_items) if _packing_present else 0,
+                "packing_checked": (
+                    sum(1 for it in _packing_items if isinstance(it, dict) and it.get("checked"))
+                    if _packing_present
+                    else 0
+                ),
+                # P6: 출발 보고 완료 여부(카드 라벨을 "출발 보고됨"으로 전환).
+                "packing_departed": _packing_departed,
             }
             mobile_queue_rows.append(row)
     return mobile_queue_rows

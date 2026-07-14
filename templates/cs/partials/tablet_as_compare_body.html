@@ -1,0 +1,237 @@
+{# ============================================================================
+   태블릿 가로 AS 전/후 대조 표면 — P8/frame08 목업(AS·CS) 이식.
+
+   목업 frame08 은 "클린 pcbar + chip 서브탭 + 전/후 대조" 이다. 태블릿 사이드 시트
+   (tablet-side-sheet.js)는 타 워커 소유이며 주문 edit fragment 를 로드하도록 고정돼 전/후
+   대조 패널을 담을 수 없다. 따라서 목업 시트의 "접수 사진 → 조치 후" 대조 패널을 main
+   표면의 카드 안으로 흡수해 **자족적 대조 카드 그리드**로 구현한다(목업 컬럼 = 카드 메타,
+   목업 시트 대조 = 카드 내 전/후 포토 그리드). 임의 창작 없음.
+
+   frame08 크롬(코호트 전용):
+     - pcbar(제목 · 미완료 N건 · 밀도[뷰]토글 · AS 접수 CTA) + chip 서브탭(영업/배송·미완료·완료).
+       둘 다 .foms-as-compare(grid) 의 grid-column:1/-1 자식 → 별도 base-hide 불필요
+       (부모 base-hide 를 그대로 상속, 코호트에서만 표시). PC 서브탭/필터/pill/헤더 은닉은
+       foms-tablet-as-compare.css 코호트 규칙 소유.
+     - 카드 방문 블록: 방문일(재조정 date input)+D-day + 시각·시공팀·원 주문 링크(목업 방문 정보).
+     - 카드 foot: 주변 일정 · 사진 관리 · 일정 변경 · AS 완료 · 주문 편집.
+       일정 변경/AS 완료 배선 = tablet-as-compare.js(as_dashboard_body 에서 defer 로드).
+       AS 완료 = as_completed_date=오늘 저장(field_update SSOT → AS_COMPLETED 전이), 방문일
+       입력은 기존 as-dashboard.js editable-date-as change 배선이 저장(중복 없음).
+
+   데이터: 서버 무변경 재소비(rows). 서비스(as_dashboard_display)가 전/후 사진
+   (as_before_photos / as_after_photos)·방문 D-day(as_visit_dday)·방문 시각(as_visit_time)을
+   배치/재소비로 보강한다(N+1 없음). AS 사진엔 전/후 구분 스키마가 없어 created_at vs
+   as_completed_date 로 매핑(근거: 서비스 docstring).
+
+   표시/은닉·배타(대조 표시 + 기존 데스크톱 테이블 은닉)는 foms-tablet-as-compare.css 소유
+   (코호트 @media). 이 파샬은 as_dashboard_body 안에서 erp_mobile_v2_enabled 게이트로만
+   포함되며, 코호트 밖에선 base 규칙(display:none)으로 완전 무동작.
+
+   이미지 탭 → 기존 GlobalImageViewer 재사용: lightbox.js 가 [data-foms-lightbox-gallery] +
+   [data-foms-lightbox-src] 를 자동 마운트(coarse=모바일 뷰어로 위임). 신규 뷰어 없음.
+   인라인 스타일 금지, 인라인 스크립트 금지(계약 테스트 잠금).
+   ============================================================================ #}
+<section class="foms-as-compare" id="foms-as-compare-surface" aria-label="AS 전/후 대조">
+  {# --- pcbar (grid-column:1/-1): 제목 · 미완료 N건 · 밀도(뷰) 토글 · AS 접수 --- #}
+  <div class="foms-as-compare-pcbar">
+    <div class="foms-as-compare-pcbar__head">
+      <span class="foms-as-compare-pcbar__title">AS 대시보드</span>
+      <span class="foms-as-compare-pcbar__sub">미완료 {{ as_tab_counts.incomplete|default(0) }}건</span>
+    </div>
+    <div class="foms-as-compare-pcbar__tools">
+      {# 공용 밀도 토글(40/48/56) — 카드 밀도(썸네일·패딩) 3단. 대상 = 이 대조 표면. #}
+      {% set foms_density_target = '#foms-as-compare-surface' %}
+      {% include 'partials/shared/foms_density_toggle.html' %}
+      {# AS 접수 = 기존 주문 생성 진입(신규 라우트 없음; AS 는 주문 위에서 접수됨). 페이지 모바일 FAB 와 동일 타깃. #}
+      <a class="foms-as-compare-pcbar__cta" href="{{ url_for('order_pages.add_order', open='erp-order', wizard=1) }}">
+        <i class="fas fa-plus" aria-hidden="true"></i><span>AS 접수</span>
+      </a>
+    </div>
+  </div>
+
+  {# --- chip 서브탭 (grid-column:1/-1): 영업/배송 · 미완료 · 완료 (PC nav-tabs 대체) --- #}
+  <nav class="foms-as-compare-subtabs" aria-label="AS 분류">
+    <a class="foms-as-compare-subtab{% if as_tab == 'sales_delivery' %} is-active{% endif %}"
+      href="{{ url_for('erp_as_page.erp_as_dashboard', tab='sales_delivery', status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}"
+      {% if as_tab == 'sales_delivery' %}aria-current="true"{% endif %}>
+      <i class="fas fa-truck" aria-hidden="true"></i><span>영업/배송</span>
+      <span class="foms-as-compare-subtab__count">{{ as_tab_counts.sales_delivery }}</span>
+    </a>
+    <a class="foms-as-compare-subtab{% if as_tab == 'incomplete' %} is-active{% endif %}"
+      href="{{ url_for('erp_as_page.erp_as_dashboard', tab='incomplete', status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}"
+      {% if as_tab == 'incomplete' %}aria-current="true"{% endif %}>
+      <i class="fas fa-circle-exclamation" aria-hidden="true"></i><span>미완료</span>
+      <span class="foms-as-compare-subtab__count">{{ as_tab_counts.incomplete }}</span>
+    </a>
+    <a class="foms-as-compare-subtab{% if as_tab == 'completed' %} is-active{% endif %}"
+      href="{{ url_for('erp_as_page.erp_as_dashboard', tab='completed', status=status_filter or '', q=search_q or '', sort_dir=sort_dir, mine='1' if erp_mine_only else '') }}"
+      {% if as_tab == 'completed' %}aria-current="true"{% endif %}>
+      <i class="fas fa-circle-check" aria-hidden="true"></i><span>완료</span>
+      <span class="foms-as-compare-subtab__count">{{ as_tab_counts.completed }}</span>
+    </a>
+  </nav>
+
+  {% if rows %}
+    {% for r in rows %}
+    <article class="foms-as-compare-card{% if r.as_pending %} is-pending{% endif %}" data-order-id="{{ r.id }}">
+      <header class="foms-as-compare-card__head">
+        <div class="foms-as-compare-card__identity">
+          <span class="foms-as-compare-card__customer">{{ r.customer_name or '-' }}</span>
+          {# 목업 m-head 메타("#id · 시공 6/2") 정합: #id + 방문 D-day 요약(글랜스 긴급도). 편집은 아래 방문 블록. #}
+          <span class="foms-as-compare-card__meta-line">
+            {% if can_edit_erp|default(false) %}
+            <a class="foms-as-compare-card__id" href="{{ url_for('order_edit.edit_order', order_id=r.id) }}?open=erp-order">#{{ r.id }}</a>
+            {% else %}
+            <span class="foms-as-compare-card__id">#{{ r.id }}</span>
+            {% endif %}
+            {% if r.as_visit_dday is not none %}
+            <span class="foms-as-compare-card__hdr-dday">· 방문 {% if r.as_visit_dday < 0 %}D+{{ -r.as_visit_dday }}{% elif r.as_visit_dday == 0 %}D-DAY{% else %}D-{{ r.as_visit_dday }}{% endif %}</span>
+            {% endif %}
+          </span>
+        </div>
+        <span class="foms-as-compare-card__status foms-stage-badge foms-stage-badge{{ r.stage_badge_modifier }}" role="status">
+          {% if r.as_pending %}미결{% else %}{{ STATUS.get(r.status, r.status) }}{% endif %}
+        </span>
+      </header>
+
+      <dl class="foms-as-compare-card__meta">
+        {# 방문 블록(목업 방문 정보): 방문일(재조정 입력)+D-day · 시각 · 시공팀 · 원 주문 보기. #}
+        <div class="foms-as-compare-meta foms-as-compare-meta--full foms-as-compare-visit">
+          <dt>방문일</dt>
+          <dd>
+            <div class="foms-as-compare-visit__primary">
+              {% if can_edit_erp|default(false) %}
+              {# 오버레이 date 패턴(iPad 정합): 스타일드 표시 텍스트 + 실제 date input(opacity:0,
+                 ≥44px 히트영역)을 겹쳐, CSS 로 벗길 수 없는 네이티브 보더/캘린더 아이콘을 숨기고
+                 탭 시 네이티브 피커를 연다. 저장은 as-dashboard.js 의 .editable-date-as change
+                 계약(data-field=as_visit_date) 무변경. 표시 텍스트 갱신 = tablet-as-compare.js.
+                 오버레이 표시/은닉은 코호트 CSS 소유(base=텍스트 숨김·입력 정상 렌더). #}
+              <span class="foms-as-compare-visit__datewrap">
+                <span class="foms-as-compare-visit__datetext" aria-hidden="true">
+                  <i class="fas fa-calendar-day" aria-hidden="true"></i>
+                  <span class="foms-as-compare-visit__datetext-value">{{ r.as_visit_date or '미정' }}</span>
+                </span>
+                <input type="date" class="erp-pro-input editable-date-as foms-as-compare-visit__date"
+                  value="{{ r.as_visit_date or '' }}" data-order-id="{{ r.id }}" data-field="as_visit_date"
+                  aria-label="주문 #{{ r.id }} AS 방문일">
+              </span>
+              {% else %}
+              <span class="foms-tabular">{{ r.as_visit_date or '미정' }}</span>
+              {% endif %}
+              {% if r.as_visit_dday is not none %}
+              {# 목업 frame08 정합: 임박(D-2 이내)·D-DAY·지남 전부 솔리드 레드(앰버 티어 폐기).
+                 클래스명(is-imminent/is-overdue)은 계약 유지 — 색만 CSS 에서 둘 다 레드로 통일. #}
+              <span class="foms-as-compare-dday{% if r.as_visit_dday <= 0 %} is-overdue{% elif r.as_visit_dday <= 2 %} is-imminent{% endif %}">
+                {% if r.as_visit_dday < 0 %}D+{{ -r.as_visit_dday }}{% elif r.as_visit_dday == 0 %}D-DAY{% else %}D-{{ r.as_visit_dday }}{% endif %}
+              </span>
+              {% endif %}
+            </div>
+            <div class="foms-as-compare-visit__detail">
+              {% if r.as_visit_time %}<span class="foms-as-compare-visit__chip"><i class="fas fa-clock" aria-hidden="true"></i> {{ r.as_visit_time }}</span>{% endif %}
+              {% if r.construction_workers_text %}<span class="foms-as-compare-visit__chip"><i class="fas fa-users" aria-hidden="true"></i> {{ r.construction_workers_text }}</span>{% endif %}
+              {% if can_edit_erp|default(false) %}
+              <a class="foms-as-compare-visit__link" href="{{ url_for('order_edit.edit_order', order_id=r.id) }}?open=erp-order">원 주문 보기 &rarr;</a>
+              {% endif %}
+            </div>
+          </dd>
+        </div>
+        <div class="foms-as-compare-meta"><dt>접수일</dt><dd class="foms-tabular">{{ r.as_received_date or '-' }}</dd></div>
+        <div class="foms-as-compare-meta"><dt>담당</dt><dd>{{ r.manager_name or '-' }}</dd></div>
+        <div class="foms-as-compare-meta foms-as-compare-meta--full"><dt>주소</dt><dd>{{ r.address or '-' }}</dd></div>
+      </dl>
+
+      {% if r.as_content_html %}
+      <div class="foms-as-compare-card__content">
+        <span class="foms-as-compare-card__content-label">AS 내용</span>
+        <div class="foms-as-compare-card__content-body">{{ r.as_content_html|safe }}</div>
+      </div>
+      {% endif %}
+
+      {% if can_view_as_photos %}
+      <div class="foms-as-compare-card__photos" data-foms-lightbox-gallery>
+        <div class="foms-as-compare-col">
+          <span class="foms-as-compare-col__label">접수 시</span>
+          {% if r.as_before_photos %}
+          <div class="foms-as-compare-grid">
+            {% for p in r.as_before_photos %}
+            <img class="foms-as-compare-thumb" src="{{ p.thumb }}" alt="{{ p.name }}"
+              loading="lazy" decoding="async"
+              data-foms-lightbox-src="{{ p.full }}" data-foms-lightbox-download="{{ p.full }}" data-foms-lightbox-name="{{ p.name }}">
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="foms-as-compare-empty"><i class="fas fa-image" aria-hidden="true"></i><span>사진 없음</span></div>
+          {% endif %}
+        </div>
+        <div class="foms-as-compare-col foms-as-compare-col--after">
+          <span class="foms-as-compare-col__label">조치 후</span>
+          {% if r.as_after_photos %}
+          <div class="foms-as-compare-grid">
+            {% for p in r.as_after_photos %}
+            <img class="foms-as-compare-thumb" src="{{ p.thumb }}" alt="{{ p.name }}"
+              loading="lazy" decoding="async"
+              data-foms-lightbox-src="{{ p.full }}" data-foms-lightbox-download="{{ p.full }}" data-foms-lightbox-name="{{ p.name }}">
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="foms-as-compare-empty"><i class="fas fa-image" aria-hidden="true"></i><span>사진 없음</span></div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      <footer class="foms-as-compare-card__foot" aria-label="AS 빠른 작업">
+        {# row1: 보조 칩(주변 일정·사진 관리·주문 편집) — 자연폭으로 자유 랩. #}
+        <div class="foms-as-compare-foot-secondary">
+          {% if r.address %}
+          <button type="button" class="foms-as-compare-btn find-schedule-btn"
+            data-address="{{ r.address }}" data-order-id="{{ r.id }}"
+            data-lat="{{ r.lat or '' }}" data-lng="{{ r.lng or '' }}"
+            title="주변 일정 찾기">
+            <i class="fas fa-map-marker-alt" aria-hidden="true"></i><span>주변 일정</span>
+          </button>
+          {% endif %}
+          {% if can_view_as_photos %}
+          <button type="button"
+            class="foms-as-compare-btn as-photos-btn{% if not r.has_as_photos %} as-photos-btn--no-photos{% endif %}"
+            data-order-id="{{ r.id }}" title="AS 사진 관리">
+            <i class="fas fa-paperclip" aria-hidden="true"></i><span>사진 관리</span>
+          </button>
+          {% endif %}
+          {% if can_edit_erp|default(false) %}
+          <a class="foms-as-compare-btn"
+            href="{{ url_for('order_edit.edit_order', order_id=r.id) }}?open=erp-order">
+            <i class="fas fa-pen" aria-hidden="true"></i><span>주문 편집</span>
+          </a>
+          {% endif %}
+        </div>
+        {# row2: 짝 [일정 변경 | AS 완료] — 자체 flex 컨테이너에서 1:1.6 결정적 배치(폭 무관,
+           단독 full-width 랩 방지). 완료 시 AS 완료 버튼이 완료됨 표식으로 in-place 치환됨. #}
+        {% if can_edit_erp|default(false) %}
+        <div class="foms-as-compare-foot-pair">
+          <button type="button" class="foms-as-compare-btn foms-as-compare-reschedule"
+            data-order-id="{{ r.id }}" title="AS 방문 일정 변경">
+            <i class="fas fa-calendar-day" aria-hidden="true"></i><span>일정 변경</span>
+          </button>
+          {% if r.as_completed_date %}
+          <span class="foms-as-compare-btn foms-as-compare-btn--done" aria-disabled="true" title="AS 완료됨">
+            <i class="fas fa-check" aria-hidden="true"></i><span>완료됨</span>
+          </span>
+          {% else %}
+          <button type="button" class="foms-as-compare-btn foms-as-compare-btn--primary foms-as-compare-complete"
+            data-order-id="{{ r.id }}" title="AS 완료 처리 (완료일=오늘)">
+            <i class="fas fa-check" aria-hidden="true"></i><span>AS 완료</span>
+          </button>
+          {% endif %}
+        </div>
+        {% endif %}
+      </footer>
+    </article>
+    {% endfor %}
+  {% else %}
+    <div class="foms-as-compare-empty-state">
+      <i class="fas fa-inbox" aria-hidden="true"></i>
+      <p>데이터가 없습니다.</p>
+    </div>
+  {% endif %}
+</section>

@@ -1,4 +1,7 @@
 {# C01: FOMS app shell — single mobile chrome entry (mockup shell-header + bottom nav) #}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-order-timeline.css') }}?v=20260713b">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-sync-badge.css') }}?v=20260712a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-qr-scan.css') }}?v=20260712a">
 <div
   class="foms-app-shell erp-mobile-shell-chrome"
   data-foms-app-shell
@@ -15,9 +18,14 @@
   <script src="{{ url_for('static', filename='js/foms/mobile-queue-focus.js') }}?v=20260701a" defer></script>
   <script src="{{ url_for('static', filename='js/foms/mobile-tower.js') }}?v=20260613a" defer></script>
   <script src="{{ url_for('static', filename='js/runtime/erp-mobile-shell.js') }}?v=20260701a" defer></script>
-  <script src="{{ url_for('static', filename='js/foms/mobile-notification.js') }}?v=20260704a" defer></script>
+  <script src="{{ url_for('static', filename='js/foms/mobile-notification.js') }}?v=20260713a" defer></script>
   <script src="{{ url_for('static', filename='js/foms/mobile-push.js') }}?v=20260705a" defer></script>
   <script src="{{ url_for('static', filename='js/foms/urgent-call-sheet.js') }}?v=20260704a" defer></script>
+  <script src="{{ url_for('static', filename='js/foms/foms-order-timeline-sheet.js') }}?v=20260713b" defer></script>
+  {# B7: 공용 쓰기 래퍼 + sync 배지 컨트롤러(fomsWriteFetch / fomsSyncPendingCount). #}
+  <script src="{{ url_for('static', filename='js/foms/foms-write.js') }}?v=20260713b" defer></script>
+  {# B4: QR 스캔 진입(BarcodeDetector 지원 시 버튼 노출, 카메라는 클릭 시 lazy 시작). #}
+  <script src="{{ url_for('static', filename='js/foms/foms-qr-scan.js') }}?v=20260712a" defer></script>
 </div>
 {# Fixed overlays: must NOT live under .erp-mobile-shell-chrome (display:contents) or
    Bootstrap offcanvas z-index breaks vs backdrop → theme toggle taps blocked. #}
@@ -25,3 +33,4 @@
 {% include 'partials/shared/foms_search_overlay.html' %}
 {% include 'partials/shared/erp_mobile_notification_panel.html' %}
 {% include 'partials/shared/erp_mobile_urgent_call_panel.html' %}
+{% include 'partials/shared/erp_mobile_order_timeline_sheet.html' %}

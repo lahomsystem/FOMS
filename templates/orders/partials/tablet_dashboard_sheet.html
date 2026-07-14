@@ -1,0 +1,95 @@
+{# 태블릿 가로 컨트롤타워 사이드 시트 목업 본문 (frame 01).
+   라우트: erp_dashboard.erp_dashboard_tablet_sheet — tablet-side-sheet.js 가 그리드 행의
+   data-foms-sheet-url 로 이 fragment 를 시트 본문(.foms-tablet-sheet__body)에 로드한다.
+   파이프라인 8단계는 시트 크롬(JS renderPipe, 행 data-stage)이 소유하므로 여기엔 없다.
+   컨텍스트: o(단건 표시 DTO — build_orders_row_dtos), team_labels, can_edit_erp. #}
+{% set q = o.current_quest %}
+{% set phone_digits = (o.phone or '')|replace('-', '')|replace(' ', '')|replace('.', '') %}
+<div class="foms-tsheet">
+
+  {# m-head: 고객명 + 단계 배지 · m-count "#id" #}
+  <div class="foms-tsheet-head">
+    <div class="foms-tsheet-head__main">
+      <span class="foms-tsheet-head__name">{{ o.customer_name or '-' }}</span>
+      <span class="foms-stage-badge foms-stage-badge{{ o.stage_badge_modifier|default('--received', true) }} foms-tsheet-head__stage">{{ o.stage_badge_label or o.stage or '-' }}</span>
+    </div>
+    <span class="foms-tsheet-head__count">#{{ o.id }}</span>
+  </div>
+
+  {# mini-quest: "다음 할 일 — 〈퀘스트〉 (승인: 팀)" #}
+  {# 목업 mini-quest = 브랜드색 단일 배너("다음 할 일 — 〈퀘스트〉 (승인: 팀)"). 승인 상태
+     칩(진행중/완료)은 목업에 없고 하단 승인 버튼이 상태를 대신 표현하므로 배너에서 제외. #}
+  {% if q %}
+  <div class="foms-tsheet-quest">
+    <span class="foms-tsheet-quest__label">다음 할 일 —</span>
+    <span class="foms-tsheet-quest__title">{{ q.title or '-' }}</span>
+    {% if q.owner_team %}
+    <span class="foms-tsheet-quest__team">(승인: {{ team_labels.get(q.owner_team, q.owner_team) }})</span>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {# 카드: 요약 (연락처 / 현장 주소 / 제품 / 실측·시공 일정) #}
+  <div class="foms-tsheet-card">
+    <div class="foms-tsheet-card__title">요약</div>
+    <dl class="foms-tsheet-kv">
+      <dt>연락처</dt><dd>{{ o.phone or '-' }}</dd>
+      <dt>현장 주소</dt><dd>{{ o.address or '-' }}</dd>
+      <dt>제품</dt><dd>{{ o.product_subtitle or '-' }}</dd>
+      <dt>실측 일정</dt><dd>{{ o.measurement_date or '-' }}</dd>
+      <dt>시공 일정</dt><dd>{{ o.construction_date or '-' }}</dd>
+    </dl>
+  </div>
+
+  {# 카드: 첨부 N — 썸네일 스트립(60×46) + 추가 타일(목업 정합). 썸네일 그룹 탭 → 기존 첨부
+     프리뷰 모달(document.body 위임). 추가 타일(점선 +)은 ERP 편집(첨부 관리) 페이지로 이동
+     (허구 동작 금지 — 실제 어포던스). 프리뷰 트리거와 추가 링크를 형제로 분리해 클릭 충돌 방지. #}
+  <div class="foms-tsheet-card">
+    <div class="foms-tsheet-card__title">첨부 {{ o.attachments_count or 0 }}</div>
+    <div class="foms-tsheet-attach-strip">
+      {% if o.attachment_preview_items %}
+      <span class="foms-tsheet-attach-thumbs erp-btn-attachments-preview" data-order-id="{{ o.id }}"
+        role="button" tabindex="0" title="첨부 파일 미리보기">
+        {% for it in o.attachment_preview_items %}
+        <img class="foms-tsheet-attach-thumb" src="{{ it.thumb }}" alt="{{ it.label or '첨부' }}" loading="lazy">
+        {% endfor %}
+      </span>
+      {% endif %}
+      <a class="foms-tsheet-attach-add" href="{{ url_for('order_edit.edit_order', order_id=o.id) }}?open=erp-order"
+        title="첨부 추가" aria-label="첨부 추가"><i class="fas fa-plus" aria-hidden="true"></i></a>
+    </div>
+  </div>
+
+  {# m-foot: 전화(tel:) · ERP 편집(edit 이동) · 퀘스트 승인(pri, 기존 승인 API 배선) #}
+  <div class="foms-tsheet-foot">
+    {# 전화 = 아이콘 전용(목업 정합, flex 1). ERP 편집 = flex 1.4, 퀘스트 승인(--pri) = flex 1.6. #}
+    {% if phone_digits and phone_digits != '-' %}
+    <a class="foms-tsheet-foot__btn foms-tsheet-foot__btn--phone" href="tel:{{ phone_digits }}" aria-label="전화"><i class="fas fa-phone" aria-hidden="true"></i></a>
+    {% else %}
+    <span class="foms-tsheet-foot__btn foms-tsheet-foot__btn--phone is-disabled" aria-disabled="true" aria-label="전화"><i class="fas fa-phone" aria-hidden="true"></i></span>
+    {% endif %}
+
+    <a class="foms-tsheet-foot__btn foms-tsheet-foot__btn--edit"
+      href="{{ url_for('order_edit.edit_order', order_id=o.id) }}?open=erp-order"><i class="fas fa-pen"></i> ERP 편집</a>
+
+    {% if q and q.all_approved %}
+    <button type="button" class="foms-tsheet-foot__btn foms-tsheet-foot__btn--pri" disabled>
+      <i class="fas fa-check-circle"></i> 승인 완료
+    </button>
+    {% elif q and q.approval_mode == 'assignee' %}
+      {% if can_edit_erp or q.can_assignee_approve %}
+      <button type="button" class="foms-tsheet-foot__btn foms-tsheet-foot__btn--pri erp-btn-approve-assignee"
+        data-order-id="{{ o.id }}"><i class="fas fa-check"></i> 퀘스트 승인</button>
+      {% else %}
+      <button type="button" class="foms-tsheet-foot__btn foms-tsheet-foot__btn--pri" disabled
+        title="지정 담당자만 승인할 수 있습니다.">퀘스트 승인</button>
+      {% endif %}
+    {% elif q and can_edit_erp and q.owner_team %}
+    <button type="button" class="foms-tsheet-foot__btn foms-tsheet-foot__btn--pri erp-btn-approve-team"
+      data-order-id="{{ o.id }}" data-team="{{ q.owner_team }}"><i class="fas fa-check"></i> 퀘스트 승인</button>
+    {% else %}
+    <button type="button" class="foms-tsheet-foot__btn foms-tsheet-foot__btn--pri" disabled
+      title="{% if not q %}현재 단계 퀘스트가 없습니다.{% else %}승인 권한이 없습니다.{% endif %}">퀘스트 승인</button>
+    {% endif %}
+  </div>
+</div>

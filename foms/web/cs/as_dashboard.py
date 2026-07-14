@@ -13,7 +13,7 @@ from foms.services.erp_permissions import build_mine_sql_filter, can_edit_erp
 from foms.services.erp_display import _ensure_dict, apply_erp_display_fields_to_orders, get_today_kst
 from foms.services.as_content_safety import sanitize_as_content_html
 from foms.services.as_dashboard_display import apply_as_dashboard_row_display_fields
-from foms.services.feature_flags import is_enabled_for_user
+from foms.services.feature_flags import is_mobile_v2_shell, resolve_shell_variant_cached
 from foms.services.common.erp_shell_http import (
     apply_erp_shell_fragment_headers,
     wants_erp_shell_tab_body,
@@ -293,10 +293,8 @@ def erp_as_dashboard():
 
     rows = query.offset((page - 1) * per_page).limit(per_page).all()
 
-    mobile_v2_active = is_enabled_for_user(
-        "ERP_MOBILE_V2_ENABLED",
-        current_user.id if current_user else None,
-        cohort_key="FOMS_V3_SHELL_COHORT",
+    mobile_v2_active = is_mobile_v2_shell(
+        resolve_shell_variant_cached(current_user.id if current_user else None)
     )
     # Batch 5: rows 표시 필드 보강은 apply_as_dashboard_row_display_fields(display 모듈)로 분리(동작 보존, 캐시 아님).
     apply_as_dashboard_row_display_fields(rows, db, mobile_v2_active=mobile_v2_active)

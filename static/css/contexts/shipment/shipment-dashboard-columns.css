@@ -72,3 +72,475 @@ body.col-resizing-active {
     display: none;
   }
 }
+
+/* =============================================================
+   태블릿 가로 상단 KPI 타일 게이트 (2026-07-13)
+   ------------------------------------------------------------
+   `.tablet-ship-kpis.erp-pro-alerts` 컨테이너를 기본 숨김하고, 태블릿 가로
+   (min-width:992 + landscape + coarse pointer)에서만 4열 그리드로 노출한다.
+   이 게이트는 전역 로드 파일(dashboard_main.html 본문 <link>, full·fragment 양쪽·
+   전체 사용자)에 둔다 — 코호트 전용 번들(foms-tablet-bundle→landscape)은
+   비코호트 PC에서 미로드라, 거기 두면 `.erp-pro-alerts{display:grid}`(전역)가
+   그대로 노출돼 PC/폰 회귀가 발생하기 때문. 복합 선택자(0,2,0)로 erp-pro-alerts
+   (0,1,0)를 로드 순서와 무관하게 확실히 이긴다. 타일 자체 스타일은 erp-pro-alert*
+   (03-card-pipeline.css)를 그대로 재사용한다.
+   ============================================================= */
+.tablet-ship-kpis.erp-pro-alerts {
+  display: none;
+}
+
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  .tablet-ship-kpis.erp-pro-alerts {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+  }
+  /* 타일 내부 위계 — 라벨(작게·2차색) 위, 값(크게·볼드) 아래. 미배정(danger 타일)은 값이 붉게.
+     컨테이너/자식은 코호트 게이트와 동일하게 body 스코프 없이 .tablet-ship-kpis 로 지목(erp-pro-alert*
+     기본 스타일을 이김). MQ 안이라 PC/폰/세로 무영향. */
+  .tablet-ship-kpis .erp-pro-alert__content {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+  .tablet-ship-kpis .erp-pro-alert__label {
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    color: var(--foms-text-secondary, #4a515b);
+  }
+  .tablet-ship-kpis .erp-pro-alert__value {
+    font-size: var(--foms-font-size-2xl, 1.5rem);
+    font-weight: var(--foms-font-weight-bold, 700);
+    color: var(--foms-text-primary, #1f2733);
+  }
+  .tablet-ship-kpis .erp-pro-alert {
+    cursor: default;
+  }
+  .tablet-ship-kpis .erp-pro-alert--danger .erp-pro-alert__value {
+    color: var(--foms-color-danger-600, #dc2626);
+  }
+  /* 목업 06 .tile 은 아이콘이 없다(라벨 위·값 아래 2행뿐). 코호트에서 erp-pro-alert
+     아이콘을 은닉해 목업 타일 위계와 정합(마크업은 공용 컴포넌트라 CSS 로만 은닉). */
+  .tablet-ship-kpis .erp-pro-alert__icon {
+    display: none;
+  }
+}
+
+/* =============================================================
+   태블릿 가로 출고 클린 그리드 — 목업 프레임 06 정합 (2026-07-14, W-shipment 지상재구축)
+   ------------------------------------------------------------
+   [은퇴] 기존 "PC 테이블(#shipment-dashboard-table)을 CSS 로 6열만 접기" 방식은 실기기(iPad)
+   에서 컬럼 순서·라벨 정합에 실패했다(CSS 로는 열 재정렬·input→plain 변환 불가 — 시간·고객
+   소실·규격 숫자 무라벨). 아래 규칙들을 은퇴한다: data-col-key 열 은닉(detail/address/
+   construction_workers/manager) · col 폭 0 !important 회수 · 자수(spec) 열 우측정렬 ·
+   tr.shipment-row 48px · tr[data-team-color-index] 데이터 행 배경 파스텔.
+   이제 PC 테이블은 코호트에서 래퍼(.shipment-table-wrapper)째 은닉하고, 목업 06 정합 클린
+   그리드(tablet_ship_grid.html · #foms-tablet-ship-grid)가 대체한다. 컬럼(좌→우): 시간 · 고객 ·
+   발주사 · 제품 · 자수(우측정렬) · 도면담당. 팀 그룹 헤더는 data-team-color-index 파스텔 틴트
+   (SSOT 팔레트 — 템플릿/JS pastel_colors 동일)로 착색한다. 숨긴 상세·현장주소·시공자는 행
+   탭 → 배정 시트로 접근. 전 규칙이 코호트 body 클래스 + 코어 MQ 게이트 안이라 PC(fine)·폰·
+   세로 무영향. wrap base-hide 는 순서 계약대로 MQ 밖(위 .foms-tablet-shipgrid-wrap)에 있다.
+   ============================================================= */
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+
+  /* --- PC 테이블 래퍼 은닉: 클린 그리드가 대체(셀 내용 무변경 → fine/PC 보존).
+     !important: Bootstrap .table-responsive(display:block) + 유틸 특이도 대비(orders 전례). --- */
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .shipment-table-wrapper {
+    display: none !important;
+  }
+
+  /* --- 클린 그리드 카드(목업 06 .tablewrap) 표시 + 프레이밍 --- */
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid-wrap {
+    display: block;
+    background: var(--foms-surface-base, #fff);
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: var(--foms-radius-lg, 12px);
+    overflow: hidden;
+  }
+
+  /* --- 캡션 힌트(목업 .tablewrap .cap) — 행 탭→배정 시트 안내(중립 바). --- */
+  body.erp-mobile-v2-layout .foms-tablet-shipgrid__cap {
+    display: flex;
+    align-items: center;
+    gap: var(--foms-space-2, 0.5rem);
+    padding: var(--foms-space-2, 0.5rem) var(--foms-space-3, 0.75rem);
+    border-bottom: 1px solid var(--foms-border-subtle, #dde1e6);
+    background: var(--foms-surface-subtle, #f6f7f9);
+    color: var(--foms-text-tertiary, #6b7380);
+    font-size: var(--foms-font-size-sm, 0.875rem);
+  }
+
+  /* --- 테이블 구조·시각(목업 .spec) --- */
+  body.erp-mobile-v2-layout #foms-tablet-ship-grid {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    color: var(--foms-text-primary, #1f2733);
+    font-variant-numeric: tabular-nums;
+  }
+  body.erp-mobile-v2-layout #foms-tablet-ship-grid thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    text-align: left;
+    padding: var(--foms-space-2, 0.5rem) var(--foms-space-3, 0.75rem);
+    font-size: var(--foms-font-size-xs, 0.75rem);
+    font-weight: var(--foms-font-weight-semibold, 600);
+    color: var(--foms-text-tertiary, #6b7380);
+    background: var(--foms-surface-base, #fff);
+    border-bottom: 1px solid var(--foms-border-default, #c1c7d0);
+    white-space: nowrap;
+  }
+  body.erp-mobile-v2-layout #foms-tablet-ship-grid tbody td {
+    padding: var(--foms-space-2, 0.5rem) var(--foms-space-3, 0.75rem);
+    border-bottom: 1px solid var(--foms-border-subtle, #dde1e6);
+    vertical-align: middle;
+  }
+
+  /* --- 데이터 행 ≥48px 터치 타깃 + 탭 어포던스 --- */
+  body.erp-mobile-v2-layout #foms-tablet-ship-grid tbody tr.foms-tablet-shipgrid__row {
+    height: var(--foms-touch-target-min, 48px);
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout #foms-tablet-ship-grid tbody tr.foms-tablet-shipgrid__row:hover {
+    background: var(--foms-surface-raised, #f7f8fa);
+  }
+  /* 배정 시트에 표시 중인 선택 행 강조(tablet-side-sheet.js 가 .foms-tablet-sheet-active 토글). */
+  body.erp-mobile-v2-layout #foms-tablet-ship-grid tbody tr.foms-tablet-shipgrid__row.foms-tablet-sheet-active {
+    background: var(--foms-surface-accent, #f3f4ff);
+    box-shadow: inset 3px 0 0 0 var(--foms-interactive-primary, #5a67d8);
+  }
+
+  /* --- 고객(굵게) · 제품 다중 라인 · 자수 우측 정렬(목업 .r) --- */
+  body.erp-mobile-v2-layout #foms-tablet-ship-grid .foms-tablet-shipgrid__customer {
+    font-weight: var(--foms-font-weight-bold, 700);
+  }
+  body.erp-mobile-v2-layout #foms-tablet-ship-grid .foms-tablet-shipgrid__line + .foms-tablet-shipgrid__line {
+    margin-top: 2px;
+  }
+  body.erp-mobile-v2-layout #foms-tablet-ship-grid th.foms-tablet-shipgrid__num,
+  body.erp-mobile-v2-layout #foms-tablet-ship-grid td.foms-tablet-shipgrid__num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  /* --- 팀 그룹 헤더(목업 .grp) — 34px · 볼드 12px · 팀 파스텔 틴트. 잔여(또는 미배정=배정
+     필요) 우측 정렬. 파스텔은 SSOT 팔레트(템플릿/JS pastel_colors 동일 값). --- */
+  body.erp-mobile-v2-layout #foms-tablet-ship-grid tbody tr.foms-tablet-shipgrid__grp > td {
+    height: 34px;
+    padding: 0 var(--foms-space-3, 0.75rem);
+    font-size: var(--foms-font-size-xs, 0.75rem);
+    font-weight: var(--foms-font-weight-bold, 700);
+    color: var(--foms-text-primary, #1f2733);
+    background: var(--foms-surface-muted, #eceef1);
+    border-top: 2px solid var(--foms-border-default, #c1c7d0);
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+  body.erp-mobile-v2-layout #foms-tablet-ship-grid tr.foms-tablet-shipgrid__grp .foms-tablet-shipgrid__grp-label {
+    font-weight: 800;
+  }
+  body.erp-mobile-v2-layout #foms-tablet-ship-grid tr.foms-tablet-shipgrid__grp .foms-tablet-shipgrid__grp-remain {
+    text-align: right;
+    color: var(--foms-text-secondary, #4a515b);
+    font-variant-numeric: tabular-nums;
+  }
+  body.erp-mobile-v2-layout #foms-tablet-ship-grid tr.foms-tablet-shipgrid__grp .foms-tablet-shipgrid__grp-remain--need {
+    color: var(--foms-color-danger-600, #dc2626);
+    font-weight: var(--foms-font-weight-semibold, 600);
+  }
+  /* 팀 파스텔 틴트(SSOT). 미배정(-1)은 아래 danger 틴트(배정 필요 강조). td 직접 지목 특이도로
+     Bootstrap 셀 배경을 이긴다. */
+  body.erp-mobile-v2-layout #foms-tablet-ship-grid tr[data-team-color-index="0"].foms-tablet-shipgrid__grp > td { background-color: #B8D4E3; }
+  body.erp-mobile-v2-layout #foms-tablet-ship-grid tr[data-team-color-index="1"].foms-tablet-shipgrid__grp > td { background-color: #FFE5CC; }
+  body.erp-mobile-v2-layout #foms-tablet-ship-grid tr[data-team-color-index="2"].foms-tablet-shipgrid__grp > td { background-color: #E8D5E9; }
+  body.erp-mobile-v2-layout #foms-tablet-ship-grid tr[data-team-color-index="3"].foms-tablet-shipgrid__grp > td { background-color: #D5E9D5; }
+  body.erp-mobile-v2-layout #foms-tablet-ship-grid tr[data-team-color-index="4"].foms-tablet-shipgrid__grp > td { background-color: #F0D5D5; }
+  body.erp-mobile-v2-layout #foms-tablet-ship-grid tr[data-team-color-index="5"].foms-tablet-shipgrid__grp > td { background-color: #D5D5E9; }
+  body.erp-mobile-v2-layout #foms-tablet-ship-grid tr[data-team-color-index="6"].foms-tablet-shipgrid__grp > td { background-color: #FFF0D5; }
+  body.erp-mobile-v2-layout #foms-tablet-ship-grid tr[data-team-color-index="7"].foms-tablet-shipgrid__grp > td { background-color: #D5E9E5; }
+  body.erp-mobile-v2-layout #foms-tablet-ship-grid tr[data-team-color-index="8"].foms-tablet-shipgrid__grp > td { background-color: #F5D5E5; }
+  body.erp-mobile-v2-layout #foms-tablet-ship-grid tr[data-team-color-index="9"].foms-tablet-shipgrid__grp > td { background-color: #E9E5D5; }
+  body.erp-mobile-v2-layout #foms-tablet-ship-grid tr[data-team-color-index="-1"].foms-tablet-shipgrid__grp > td { background-color: var(--foms-color-danger-50, #fef2f2); }
+
+  /* --- 빈 상태 --- */
+  body.erp-mobile-v2-layout #foms-tablet-ship-grid .foms-tablet-shipgrid__empty {
+    text-align: center;
+    color: var(--foms-text-tertiary, #6b7380);
+    padding: var(--foms-space-6, 1.5rem);
+  }
+
+  /* --- 밀도 토글 40/56 (48 = 위 baseline). density-toggle.js 가 결합 셀렉터 대상
+     #foms-tablet-ship-grid 에 data-foms-density 부착. 속성 셀렉터가 baseline 특이도를 이겨 재정의. --- */
+  body.erp-mobile-v2-layout #foms-tablet-ship-grid[data-foms-density="40"] tbody tr.foms-tablet-shipgrid__row {
+    height: 40px;
+  }
+  body.erp-mobile-v2-layout #foms-tablet-ship-grid[data-foms-density="40"] tbody tr.foms-tablet-shipgrid__row > td {
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+  body.erp-mobile-v2-layout #foms-tablet-ship-grid[data-foms-density="56"] tbody tr.foms-tablet-shipgrid__row {
+    height: 56px;
+  }
+  body.erp-mobile-v2-layout #foms-tablet-ship-grid[data-foms-density="56"] tbody tr.foms-tablet-shipgrid__row > td {
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+}
+
+/* =============================================================
+   태블릿 가로 목업 06 — pcbar · 좌측 잔여 스트립 · PC 크롬 은닉 (2026-07-14, W-shipment)
+   (팀 그룹헤더·밀도는 위 클린 그리드 블록 #foms-tablet-ship-grid 으로 이관됨)
+   ------------------------------------------------------------
+   이 파일은 dashboard_main.html 본문 <link>(shipment 페이지 전용 로드)라 선택자는
+   암묵적으로 shipment-scoped 이며, 아래 신규 규칙은 전부 body.erp-mobile-v2-layout(코호트)
+   + coarse landscape MQ + .erp-dashboard-shipment/#shipment-dashboard-table 스코프 안이라
+   PC(fine)·폰·세로 무영향. base-hide 를 MQ 밖에 먼저 둔다(순서 계약). foms 토큰 소비
+   (전역 로드 파운데이션) + 안전 fallback. 데이터 구동 값(진행률)만 인라인 CSS 변수.
+   ============================================================= */
+
+/* base-hide: 코호트 밖(PC/폰/세로)에서 신규 마크업 완전 은닉. .foms-tablet-shipgrid-wrap 는
+   순서 계약대로 MQ 밖에 먼저 둔다(코호트에서 display:block). PC 테이블 그룹 헤더 행은 마크업에
+   잔존하나(PC 테이블 유지) 여기서 상시 은닉 — 코호트 대체 그리드가 자체 그룹 헤더를 렌더한다. */
+.foms-ship-pcbar,
+.foms-ship-pcbar__filter,
+.foms-ship-cap-strip,
+.foms-tablet-shipgrid-wrap { display: none; }
+#shipment-dashboard-table tbody tr.shipment-grp-row { display: none; }
+
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+
+  /* --- PC 크롬 은닉: erp-pro-header(제목/버튼) + 스케줄러 패널 열(잔여 스트립이 대체) ---
+     !important: 마크업 Bootstrap 유틸 특이도 패배 방지(orders/production 전례). */
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .erp-pro-header {
+    display: none !important;
+  }
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .erp-shipment-scheduler-col {
+    display: none !important;
+  }
+  /* PC 필터카드 헤더 은닉(목업엔 없음) — 검색/기준일/조회/AS일정추천 카드. 코호트에선 pcbar
+     컴팩트 필터가 흡수한다. Bootstrap d-md-block(display:block !important) 패배 방지로 !important. */
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .erp-shipment-desktop-filter {
+    display: none !important;
+  }
+
+  /* [은퇴] 그리드 캡션 힌트(.foms-ship-grid-hint)는 마크업째 제거되고 클린 그리드 자체
+     .foms-tablet-shipgrid__cap 이 대체한다(중복 제거). 관련 코호트 규칙 삭제. */
+
+  /* --- pcbar: 제목 · M/D(요일) 출고·N건 · 밀도 토글 · AS 추천 · 출고 확정 --- */
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .foms-ship-pcbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--foms-space-3, 0.75rem);
+    margin-bottom: var(--foms-space-3, 0.75rem);
+    min-height: 56px;
+    background: var(--foms-surface-base, #fff);
+    border-bottom: 1px solid var(--foms-border-subtle, #dde1e6);
+  }
+  body.erp-mobile-v2-layout .foms-ship-pcbar__lead {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: var(--foms-space-2, 0.5rem);
+    min-width: 0;
+  }
+  body.erp-mobile-v2-layout .foms-ship-pcbar__title {
+    margin: 0;
+    font-size: var(--foms-font-size-xl, 1.25rem);
+    font-weight: var(--foms-font-weight-bold, 700);
+    color: var(--foms-text-primary, #1f2733);
+  }
+  body.erp-mobile-v2-layout .foms-ship-pcbar__sub {
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    color: var(--foms-text-tertiary, #6b7380);
+  }
+  body.erp-mobile-v2-layout .foms-ship-pcbar__actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--foms-space-2, 0.5rem);
+  }
+  body.erp-mobile-v2-layout .foms-ship-pcbar__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--foms-space-1, 0.25rem);
+    min-height: var(--foms-touch-target-comfortable, 44px);
+    padding: 0 var(--foms-space-4, 1rem);
+    border: 1px solid var(--foms-border-default, #c7ccd4);
+    border-radius: var(--foms-radius-md, 8px);
+    background: var(--foms-surface-base, #fff);
+    color: var(--foms-text-primary, #1f2733);
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    font-weight: var(--foms-font-weight-semibold, 600);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .foms-ship-pcbar__btn--pri {
+    border-color: transparent;
+    background: var(--foms-interactive-primary, #5a67d8);
+    color: var(--foms-color-neutral-0, #fff);
+  }
+  body.erp-mobile-v2-layout .foms-ship-pcbar__btn[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* --- pcbar 컴팩트 필터(기준일+검색) — PC 필터카드 흡수. 슬림 pill(38px·border-subtle·radius-lg).
+     PC 필터폼과 동일 GET 파라미터(date·q) → 백엔드 무변경. --- */
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .foms-ship-pcbar__filter {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--foms-space-2, 0.5rem);
+  }
+  body.erp-mobile-v2-layout .foms-ship-pcbar__filter-date,
+  body.erp-mobile-v2-layout .foms-ship-pcbar__filter-q {
+    height: 38px;
+    min-height: 38px;
+    padding: 0 var(--foms-space-3, 0.75rem);
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: var(--foms-radius-lg, 12px);
+    background: var(--foms-surface-base, #fff);
+    color: var(--foms-text-primary, #1f2733);
+    font-size: var(--foms-font-size-sm, 0.875rem);
+  }
+  body.erp-mobile-v2-layout .foms-ship-pcbar__filter-q {
+    width: 160px;
+    max-width: 34vw;
+  }
+  body.erp-mobile-v2-layout .foms-ship-pcbar__filter-date {
+    font-variant-numeric: tabular-nums;
+  }
+  body.erp-mobile-v2-layout .foms-ship-pcbar__filter-go {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    min-height: 38px;
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: var(--foms-radius-lg, 12px);
+    background: var(--foms-surface-base, #fff);
+    color: var(--foms-text-secondary, #4a515b);
+    cursor: pointer;
+  }
+  body.erp-mobile-v2-layout .foms-ship-pcbar__filter-go:hover {
+    background: var(--foms-surface-subtle, #f6f7f9);
+    color: var(--foms-text-primary, #1f2733);
+  }
+
+  /* --- 좌측 잔여 자수 스트립(260px) — PC 스케줄러 패널의 코호트 대체 --- */
+  body.erp-mobile-v2-layout .erp-dashboard-shipment .foms-ship-cap-strip {
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 260px;
+    max-width: 260px;
+    gap: var(--foms-space-3, 0.75rem);
+    padding: var(--foms-space-2, 0.5rem);
+    align-self: flex-start;
+  }
+  /* 스트립 헤드 — 목업 .m-head: 주차 제목(볼드·좌) + "잔여 자수" 라벨(2차색·우) 병기. */
+  body.erp-mobile-v2-layout .foms-ship-cap-strip__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--foms-space-2, 0.5rem);
+  }
+  body.erp-mobile-v2-layout .foms-ship-cap-strip__title {
+    font-size: var(--foms-font-size-base, 1rem);
+    font-weight: var(--foms-font-weight-bold, 700);
+    color: var(--foms-text-primary, #1f2733);
+  }
+  body.erp-mobile-v2-layout .foms-ship-cap-strip__label {
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    font-weight: var(--foms-font-weight-semibold, 600);
+    color: var(--foms-text-tertiary, #6b7380);
+    white-space: nowrap;
+  }
+  body.erp-mobile-v2-layout .foms-ship-cap-strip__list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--foms-space-2, 0.5rem);
+    max-height: calc(100dvh - 260px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  body.erp-mobile-v2-layout .foms-ship-cap-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: var(--foms-space-2, 0.5rem) var(--foms-space-3, 0.75rem);
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: var(--foms-radius-lg, 12px);
+    background: var(--foms-surface-base, #fff);
+    text-decoration: none;
+    color: inherit;
+    min-height: var(--foms-touch-target-min, 48px);
+  }
+  body.erp-mobile-v2-layout .foms-ship-cap-card.is-selected {
+    border-color: var(--foms-interactive-primary, #5a67d8);
+    box-shadow: inset 3px 0 0 var(--foms-interactive-primary, #5a67d8);
+    background: var(--foms-surface-accent, #f3f4ff);
+  }
+  body.erp-mobile-v2-layout .foms-ship-cap-card__top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--foms-space-2, 0.5rem);
+  }
+  body.erp-mobile-v2-layout .foms-ship-cap-card__date {
+    font-size: var(--foms-font-size-base, 1rem);
+    font-weight: var(--foms-font-weight-bold, 700);
+    color: var(--foms-text-primary, #1f2733);
+    white-space: nowrap;
+  }
+  body.erp-mobile-v2-layout .foms-ship-cap-card__val {
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    font-variant-numeric: tabular-nums;
+    color: var(--foms-text-secondary, #4a515b);
+  }
+  body.erp-mobile-v2-layout .foms-ship-cap-card__bar {
+    display: block;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--foms-surface-muted, #eceef1);
+    overflow: hidden;
+  }
+  /* 진행률 채움 — 폭은 데이터 구동(인라인 --cap-fill), 색/형태는 CSS. off(주말·휴일·
+     capacity 0)=디밍 회색, ok(정상)=녹색, warn(잔여 임박=alert_capacity)=앰버. */
+  body.erp-mobile-v2-layout .foms-ship-cap-card__bar-fill {
+    display: block;
+    height: 100%;
+    width: var(--cap-fill, 0%);
+    border-radius: 999px;
+    background: var(--foms-text-tertiary, #9aa2ad);
+  }
+  body.erp-mobile-v2-layout .foms-ship-cap-card.is-ok .foms-ship-cap-card__bar-fill {
+    background: var(--foms-color-success-500, #22a06b);
+  }
+  body.erp-mobile-v2-layout .foms-ship-cap-card.is-warn .foms-ship-cap-card__bar-fill {
+    background: var(--foms-color-warning-500, #d9a441);
+  }
+  body.erp-mobile-v2-layout .foms-ship-cap-card.is-off {
+    opacity: 0.55;
+  }
+  body.erp-mobile-v2-layout .foms-ship-cap-strip__settings {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--foms-space-1, 0.25rem);
+    min-height: var(--foms-touch-target-min, 48px);
+    padding: 0 var(--foms-space-3, 0.75rem);
+    border: 1px solid var(--foms-border-subtle, #dde1e6);
+    border-radius: var(--foms-radius-md, 8px);
+    background: var(--foms-surface-subtle, #f6f7f9);
+    color: var(--foms-text-secondary, #4a515b);
+    font-size: var(--foms-font-size-sm, 0.875rem);
+    font-weight: var(--foms-font-weight-semibold, 600);
+    text-decoration: none;
+  }
+
+  /* [은퇴] PC 테이블 그룹 헤더 행(tr.shipment-grp-row) 표시/스타일 + PC 테이블 밀도
+     (#shipment-dashboard-table[data-foms-density] tr.shipment-row)는 클린 그리드 전환으로 사장.
+     PC 테이블은 코호트에서 래퍼째 은닉되며, 그룹 헤더·밀도는 이제 #foms-tablet-ship-grid 소유
+     (위 클린 그리드 블록). PC 그룹 행 마크업은 잔존하나 base-hide(파일 상단)로 상시 은닉된다. */
+}

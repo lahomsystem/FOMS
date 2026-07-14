@@ -19,9 +19,29 @@
 {% if _filters.get('risk') %}{% set _ = _chip_params.append('risk=' ~ (_filters.risk|urlencode)) %}{% endif %}
 {% if _sort and _sort != 'latest' %}{% set _ = _chip_params.append('sort=' ~ (_sort|urlencode)) %}{% endif %}
 
+{#- v3→v2 이식(A1·A4): CS '지금 확인할 접수' 히어로 + 접수 상태 필터 칩.
+    뷰가 이미 내려준 orders(page DTO)에서 파생만(신규 쿼리 없음). CS inbox =
+    주문접수 계열 status(RECEIVED/ON_HOLD/RECHECK), 오래된 순(id 오름차순). -#}
+{% set _cs_statuses = ['RECEIVED', 'ON_HOLD', 'RECHECK'] %}
+{% set _cs_rows = (orders or []) | selectattr('status', 'in', _cs_statuses) | list | sort(attribute='id') %}
+{% set _cs_total = _cs_rows | length %}
+{% set _cs_hold_ct = _cs_rows | selectattr('status', 'equalto', 'ON_HOLD') | list | length %}
+{% set _cs_recheck_ct = _cs_rows | selectattr('status', 'equalto', 'RECHECK') | list | length %}
+{% set _cs_hero = _cs_rows[0] if _cs_rows else None %}
+{% set _cs_status_active = request.args.get('status') or '' %}
+
+{#- B2: '부재중' 페이지 필터 칩 카운트 — 로드된 큐 카드(orders) 중 마지막 통화=no_answer 수.
+    페이지네이션 한계는 힌트 라벨로 정직 고지(현재 페이지 내 필터). 서버 쿼리 없음. -#}
+{% set _cs_noanswer = namespace(n=0) %}
+{% for _o in (orders or []) %}
+  {% set _oc = (_o.structured_data or {}).get('calls') %}
+  {% if _oc and _oc[-1].get('result') == 'no_answer' %}{% set _cs_noanswer.n = _cs_noanswer.n + 1 %}{% endif %}
+{% endfor %}
+
 <section
   class="foms-shell-body foms-mobile-v2-dashboard"
   aria-label="모바일 홈 대시보드"
+  data-foms-lastcall-scope
   data-foms-mobile-queue-scroll
   data-next-page="{{ page + 1 if page < total_pages else 0 }}"
   data-total-pages="{{ total_pages }}"
@@ -29,6 +49,67 @@
   {% include 'orders/partials/dashboard_mobile_filter_sheet.html' %}
 
   {% if risk_frame %}{% include 'orders/partials/risk_frame.html' %}{% endif %}
+
+  {#- A1: 가장 오래된 접수 히어로 (대상 0건이거나 위험 드릴다운이면 비노출). -#}
+  {% if _cs_hero and not risk_frame %}
+    {% set _hero_phone = (_cs_hero.phone or '')|replace('-', '')|replace(' ', '') %}
+    {% set _hero_has_phone = _hero_phone and _hero_phone != '-' %}
+    {% set _hero_overdue = _cs_hero.received_date and (cs_overdue_before|default('')) and _cs_hero.received_date < cs_overdue_before %}
+    {% set _hero_danger = (_cs_hero.alerts and _cs_hero.alerts.urgent) or _hero_overdue %}
+    <section class="foms-v2h-hero{% if _hero_danger %} is-danger{% endif %}"
+             aria-label="지금 확인할 접수" data-order-id="{{ _cs_hero.id }}">
+      <p class="foms-v2h-hero__label">
+        <i class="fas fa-phone-volume" aria-hidden="true"></i>
+        지금 확인할 접수{% if _hero_danger %} · 지연{% endif %}
+      </p>
+      <h2 class="foms-v2h-hero__title">
+        {{ _cs_hero.customer_name or '-' }}
+        {% if _cs_hero.product_subtitle %}<span class="foms-v2h-hero__subtitle">{{ _cs_hero.product_subtitle }}</span>{% endif %}
+      </h2>
+      <dl class="foms-v2h-hero__meta">
+        {% if _cs_hero.received_date %}<div><dt>접수일</dt><dd class="foms-tabular">{{ _cs_hero.received_date }}</dd></div>{% endif %}
+        {% if _cs_hero.phone and _cs_hero.phone != '-' %}<div><dt>연락처</dt><dd class="foms-tabular">{{ _cs_hero.phone }}</dd></div>{% endif %}
+      </dl>
+      <div class="foms-v2h-hero__actions">
+        {% if _hero_has_phone %}
+          <a class="foms-btn foms-v2h-hero__cta{% if _hero_danger %} foms-v2h-hero__cta--danger{% else %} foms-btn--primary{% endif %}"
+             href="tel:{{ _hero_phone }}" aria-label="{{ _cs_hero.customer_name or '고객' }} 지금 통화">
+            <i class="fas fa-phone" aria-hidden="true"></i> 지금 통화
+          </a>
+        {% endif %}
+        {% if can_edit_erp|default(false) %}
+          <button type="button"
+                  class="foms-btn foms-btn--ghost foms-v2h-hero__log"
+                  data-foms-call-log-open
+                  data-order-id="{{ _cs_hero.id }}"
+                  data-customer-name="{{ _cs_hero.customer_name or '' }}"
+                  aria-label="{{ _cs_hero.customer_name or '고객' }} 통화 결과 기록">
+            <i class="fas fa-clipboard-check" aria-hidden="true"></i> 결과 기록
+          </button>
+        {% endif %}
+        <a class="foms-btn foms-btn--ghost foms-v2h-hero__detail"
+           href="{{ url_for('erp_dashboard.erp_order_mobile_detail', order_id=_cs_hero.id) }}">상세</a>
+      </div>
+    </section>
+
+    {#- A4: 접수 상태 필터 칩(전체/보류/재확인). 서버 렌더 a 태그(status 필터 파라미터). -#}
+    {% if _cs_total %}
+      <nav class="foms-v2h-chips" aria-label="접수 상태 필터">
+        <a class="foms-v2h-chip{% if not _cs_status_active %} is-active{% endif %}"
+           href="{{ _base_url }}?view=queue">전체<span class="foms-v2h-chip__n">{{ _cs_total }}</span></a>
+        <a class="foms-v2h-chip{% if _cs_status_active == 'ON_HOLD' %} is-active{% endif %}"
+           href="{{ _base_url }}?view=queue&status=ON_HOLD">보류<span class="foms-v2h-chip__n">{{ _cs_hold_ct }}</span></a>
+        <a class="foms-v2h-chip{% if _cs_status_active == 'RECHECK' %} is-active{% endif %}"
+           href="{{ _base_url }}?view=queue&status=RECHECK">재확인<span class="foms-v2h-chip__n">{{ _cs_recheck_ct }}</span></a>
+        {#- 클라 토글(서버 nav 아님): 활성 시 마지막 통화≠no_answer 카드 숨김. foms-call-filter.js 소관. -#}
+        <button type="button" class="foms-v2h-chip foms-v2h-chip--filter"
+                data-foms-lastcall-filter aria-pressed="false">부재중<span class="foms-v2h-chip__n">{{ _cs_noanswer.n }}</span></button>
+      </nav>
+      <p class="foms-v2h-filter-hint" data-foms-lastcall-hint hidden>
+        <i class="fas fa-circle-info" aria-hidden="true"></i> 현재 페이지 내 필터
+      </p>
+    {% endif %}
+  {% endif %}
 
   {% if orders %}
     <div class="foms-mobile-queue-list" data-foms-mobile-queue-list>
@@ -68,5 +149,7 @@
     aria-label="주문 생성">
     <i class="fas fa-plus" aria-hidden="true"></i>
   </a>
+
+  {% include 'orders/partials/call_log_sheet.html' %}
 </section>
 {% endif %}

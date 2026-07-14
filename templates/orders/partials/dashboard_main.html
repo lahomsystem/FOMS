@@ -1,5 +1,6 @@
 {% set filters = filters or {} %}
-<div class="container-fluid erp-dashboard erp-pro erp-mobile-shell"
+{% set _fos_desktop_body %}
+<div class="container-fluid erp-dashboard erp-pro erp-mobile-shell erp-dashboard-orders"
   data-user-id="{{ current_user.id }}"
   data-user-team="{{ current_user.team | default('', true) | e }}"
   data-user-name="{{ current_user.name | default('', true) | e }}"
@@ -35,6 +36,12 @@
   </header>
   {% set erp_sub_nav_active = 'dashboard' %}
   {% include 'partials/shared/erp_sub_nav.html' %}
+
+  {# 태블릿 가로 코호트: 목업 01 상단 바(pcbar+KPI 5타일)로 PC 프로세스맵/작업큐 헤더 교체.
+     표시 자체는 CSS 코호트 게이트(foms-tablet-landscape.css)가 소유 — PC/폰 무영향. #}
+  {% if erp_mobile_v2_enabled %}
+    {% include 'orders/partials/tablet_dashboard_topbar.html' %}
+  {% endif %}
 
   <!-- Process Map - Modern Pipeline Design -->
   <div class="erp-pro-card erp-pro-card--process-map">
@@ -124,6 +131,11 @@
 
   <div class="erp-dashboard-layout">
     {% include 'orders/partials/dashboard_grid.html' %}
+    {# 태블릿 가로 코호트 클린 작업 큐 그리드(목업 프레임 01). 서버는 v2∪v3 공통으로 렌더하고,
+       표시/PC 그리드 은닉은 CSS 코호트 게이트(foms-tablet-landscape.css)가 소유한다(PC/폰 무영향). #}
+    {% if erp_mobile_v2_enabled %}
+    {% include 'orders/partials/tablet_workqueue_grid.html' %}
+    {% endif %}
   </div>
   </div>{# /.foms-shell-desktop-only #}
 
@@ -156,3 +168,11 @@
 
       <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/orders/dashboard-gateway-notifications.css') }}">
     </div>
+{% endset %}{% if shell_variant == 'v3' %}
+<div class="fos-v3-mobile-scope">
+{# v3 Field OS 셸: CS 콜/접수 페르소나 홈만 렌더(기존 v2/desktop 마크업·컨테이너 미로드). C4-cs. #}
+{% set fos_content_partial = 'partials/v3/persona_home_cs.html' %}
+{% include 'partials/v3/foms_app_shell_v3.html' %}
+</div>
+<div class="fos-v3-desktop-fallback">{{ _fos_desktop_body|safe }}</div>
+{% else %}{{ _fos_desktop_body|safe }}{% endif %}{# /shell_variant == 'v3' #}

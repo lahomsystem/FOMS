@@ -1,0 +1,14 @@
+{# 주문 진행 360° 타임라인 바텀시트 (모바일 v2). foms-tl-trigger 탭 → foms-order-timeline-sheet.js 가
+   GET /api/foms/fragment/order/<id>/timeline fragment 를 [data-foms-tl-sheet-body]에 주입한다.
+   erp_mobile_notification_panel.html 패턴 모방 · Fixed overlay(.erp-mobile-shell-chrome 밖 렌더). #}
+<div class="offcanvas offcanvas-bottom foms-tl-sheet" tabindex="-1" id="foms-order-timeline-sheet" data-foms-tl-sheet aria-labelledby="foms-order-timeline-sheet-title">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title" id="foms-order-timeline-sheet-title"><i class="fas fa-timeline" aria-hidden="true"></i> 주문 진행</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="닫기"></button>
+  </div>
+  <div class="offcanvas-body">
+    <div data-foms-tl-sheet-body>
+      <div class="foms-tl-sheet__loading" data-foms-tl-sheet-loading>불러오는 중...</div>
+    </div>
+  </div>
+</div>

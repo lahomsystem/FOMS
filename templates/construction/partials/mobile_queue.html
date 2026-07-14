@@ -7,6 +7,70 @@
 {% if erp_mine_only %}{% set _ = _mq_ctx.append('mine=1') %}{% endif %}
 {% set _mq_loaded = [page * per_page, total_orders] | min %}
 
+{# A6: 오늘 배차 히어로 — 오늘(today_iso) 시공 첫 건을 로드된 orders에서 파생(신규 쿼리 없음). #}
+{% set _c_today = today_iso | default('', true) %}
+{% set _disp_today = [] %}
+{% for _o in orders %}
+  {% if _o.construction_date and (_o.construction_date | string)[:10] == _c_today %}{% set _ = _disp_today.append(_o) %}{% endif %}
+{% endfor %}
+{% set _disp_today = _disp_today | sort(attribute='construction_date') %}
+{% set _chero = _disp_today[0] if _disp_today else None %}
+{% if _chero %}
+  {% set _ch_tel = (_chero.phone or '') | replace('-', '') | replace(' ', '') %}
+  {% set _ch_time = ((_chero.structured_data.get('schedule') or {}).get('construction') or {}).get('time') %}
+  {% set _cw = (_chero.structured_data.get('shipment') or {}).get('construction_workers') %}
+  {% set _ch_vehicle = (_chero.structured_data.get('shipment') or {}).get('vehicle') %}
+  {% set _crew_names = [] %}
+  {% if _cw is string %}{% set _ = _crew_names.append(_cw) %}
+  {% elif _cw %}
+    {% for _w in _cw %}
+      {% if _w is string %}{% set _ = _crew_names.append(_w) %}
+      {% elif _w is mapping %}{% set _ = _crew_names.append(_w.get('name') or _w.get('username') or '') %}{% endif %}
+    {% endfor %}
+  {% endif %}
+  {% set _crew = _crew_names | select | join(', ') %}
+  {% set _ch_danger = _chero.alerts and _chero.alerts.construction_d3 %}
+  <div class="foms-v2dh-hero{% if _ch_danger %} foms-v2dh-hero--danger{% endif %}" data-st="construction" aria-label="오늘 배차 첫 현장">
+    <div class="foms-v2dh-hero__eyebrow"><i class="fas fa-hammer" aria-hidden="true"></i> 오늘 배차 · {{ _disp_today | length }}건</div>
+    <div class="foms-v2dh-hero__title">{{ _chero.customer_name or '-' }}</div>
+    <div class="foms-v2dh-hero__meta">
+      {% if _ch_time %}<span class="foms-v2dh-hero__time"><i class="fas fa-clock" aria-hidden="true"></i> {{ _ch_time }}</span>{% endif %}
+      {% if _chero.address and _chero.address != '-' %}<span class="foms-v2dh-hero__addr">{{ _chero.address }}</span>{% endif %}
+    </div>
+    {% if _crew or _ch_vehicle %}<div class="foms-v2dh-hero__crew">{% if _crew %}<span class="foms-v2dh-hero__crew-k">투입 인원</span><span class="foms-v2dh-hero__crew-v">{{ _crew }}</span>{% endif %}{% if _ch_vehicle %}<span class="foms-v2dh-hero__crew-k">차량</span><span class="foms-v2dh-hero__crew-v">{{ _ch_vehicle }}</span>{% endif %}</div>{% endif %}
+    <div class="foms-v2dh-hero__actions">
+      {% if _ch_tel and _ch_tel != '-' %}
+      <a class="foms-v2dh-btn foms-v2dh-btn--primary" href="tel:{{ _ch_tel }}" aria-label="{{ _chero.customer_name or '고객' }} 전화"><i class="fas fa-phone" aria-hidden="true"></i> 고객 전화</a>
+      {% endif %}
+      {# G4: 출발 전 자재 확인 — 기존 출고 패킹 시트 재사용(권한에 CONSTRUCTION 포함).
+         foms-packing.js 의 실제 오픈 계약은 [data-foms-packing-trigger]+data-order-id 이므로
+         그것으로 배선하고, 브리프 명시 마커 data-foms-packing-open 도 함께 부착(전방호환). #}
+      <button type="button" class="foms-v2dh-btn"
+              data-foms-packing-trigger
+              data-foms-packing-open="{{ _chero.id }}"
+              data-order-id="{{ _chero.id }}"
+              aria-label="{{ _chero.customer_name or '현장' }} 자재 확인"><i class="fas fa-box-open" aria-hidden="true"></i> 자재 확인</button>
+      <a class="foms-v2dh-btn" href="{{ url_for('erp_dashboard.erp_order_mobile_detail', order_id=_chero.id) }}">현장 상세</a>
+    </div>
+  </div>
+{% else %}
+  {% set _cnext_ns = namespace(date='') %}
+  {% for _o in orders %}
+    {% set _cd = (_o.construction_date | string)[:10] if _o.construction_date else '' %}
+    {% if _cd and _c_today and _cd > _c_today %}
+      {% if not _cnext_ns.date or _cd < _cnext_ns.date %}{% set _cnext_ns.date = _cd %}{% endif %}
+    {% endif %}
+  {% endfor %}
+  <div class="foms-v2dh-status" data-st="construction" aria-label="오늘 배차 없음">
+    <span class="foms-v2dh-status__ic"><i class="fas fa-hammer" aria-hidden="true"></i></span>
+    <span class="foms-v2dh-status__body">
+      <span class="foms-v2dh-status__title">오늘 배차 없음</span>
+      {% if _cnext_ns.date %}<span class="foms-v2dh-status__next">다음 시공 예정 · {{ _cnext_ns.date }}</span>
+      {% else %}<span class="foms-v2dh-status__next">예정된 시공 일정 없음</span>{% endif %}
+    </span>
+  </div>
+{% endif %}
+
 <section class="erp-mobile-queue-section foms-mobile-queue-section" aria-label="시공 모바일 작업 큐">
   <div class="erp-mobile-queue-section__summary foms-section-header section-header">
     <div>
@@ -24,7 +88,11 @@
         {% if o.stage == '시공대기' %}
           {% set task_action = {'label': '시공 시작', 'icon': 'fas fa-play', 'data_action': 'startConstruction', 'button_class': 'erp-construction-action'} %}
         {% elif o.stage == '시공중' %}
-          {% set task_action = {'label': '시공 완료', 'icon': 'fas fa-check', 'data_action': 'completeConstruction', 'button_class': 'erp-construction-action'} %}
+          {# B5 완료 게이트: "완료 준비"(증빙 시트) 우선 + 기존 빠른 완료 병존. #}
+          {% set task_actions = [
+            {'label': '완료 준비', 'icon': 'fas fa-clipboard-check', 'data_action': 'openCompleteGate', 'button_class': 'erp-construction-action'},
+            {'label': '시공 완료', 'icon': 'fas fa-check', 'data_action': 'completeConstruction', 'button_class': 'erp-construction-action'}
+          ] %}
         {% elif o.stage == '시공완료' and o.as_received_done %}
           {% set task_actions = [
             {'label': '재 업로드', 'icon': 'fas fa-redo', 'data_action': 'reuploadConstructionPhotos', 'button_class': 'erp-construction-action'},
@@ -48,3 +116,6 @@
     </div>
   {% endif %}
 </section>
+
+{# G4 출발 전 자재 확인 — 기존 출고 패킹 시트/JS 재사용(무수정 include, foms-packing.js 제어). #}
+{% include 'shipment/partials/packing_sheet.html' %}

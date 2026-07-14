@@ -88,6 +88,24 @@
   }
 }
 
+/* 태블릿 가로(하이브리드 밴드) "계산기 같이 보기" — coarse landscape arm (프레임 13, 2026-07-13).
+   토글/pane 은 이미 ≥992 게이트로 진짜 터치 태블릿 가로에서도 표시·동작한다(데스크톱 전용
+   아님): 토글은 마크업의 `d-lg-inline-flex`(≥992 표시), split 레이아웃은 위 `@media
+   (min-width:992px)` 블록, JS(erp-wdc-split.js)는 matchMedia 게이트 없이 요소 존재만으로 배선.
+   이 arm 은 (1) coarse landscape 에서 그 지원을 명시적으로 못박고(base 게이트 축소 회귀 방지),
+   (2) 토글·닫기 버튼을 44px 터치 타깃으로 보정한다. split pane 로직·postMessage 는 무변경.
+   foms 토큰 소비(미로드 시 44px 폴백). */
+@media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  .erp-wdc-split-toggle {
+    display: inline-flex !important; /* coarse landscape 에서 토글 표시를 명시 유지(게이트 arm) */
+    align-items: center;
+    min-height: var(--foms-touch-target-comfortable, 44px);
+  }
+  #erpWdcSplitClose {
+    min-height: var(--foms-touch-target-comfortable, 44px);
+  }
+}
+
 /* Embedded WDCalculator: PC calculator is fixed even when iframe width is below Bootstrap lg. */
 .wdcalculator-container--embedded {
   --wdcalculator-shell-height: calc(100vh - 1.5rem);

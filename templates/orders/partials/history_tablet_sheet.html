@@ -1,0 +1,76 @@
+{# 태블릿 가로 이력 읽기전용 스냅샷 시트 — .foms-tablet-sheet__body 주입용 raw HTML fragment.
+   라우트: erp_history.history_tablet_sheet. tablet-side-sheet.js 가 이력 본행의
+   data-foms-sheet-url 로 이 URL을 시트 본문에 로드한다(편집 fragment 대체 — 이력은 감사 화면).
+   편집 입력(readonly 포함) 없음 — 수정은 foot '원 주문 열기'로 정본 주문 페이지에 점프한다.
+   스타일은 foms-tablet-landscape.css 의 .foms-tsheet-* (코호트 번들, 시트가 코호트에서만
+   열리므로 자족)을 재사용하고, 항목 간격만 history-tablet.css 가 보강한다.
+   컨텍스트: o(Order), d(표시 DTO — product_items 포함), stage, completed_date, 정산 표시 문자열. #}
+<div class="foms-tsheet erp-history-tsheet">
+
+  {# head: 고객명 + 최종상태 배지 · #id #}
+  <div class="foms-tsheet-head">
+    <div class="foms-tsheet-head__main">
+      <span class="foms-tsheet-head__name">{{ d.customer_name or '-' }}</span>
+      {# 목업 frame10 head 배지 = 읽기전용(감사 화면의 정의적 속성). 최종 상태(stage)는 이력
+         그리드 '단계' 열에서 이미 노출되므로 시트 헤드는 읽기전용을 명시한다. #}
+      <span class="foms-tsheet-head__stage erp-history-tsheet__readonly-badge"><i class="fas fa-lock" aria-hidden="true"></i> 읽기전용</span>
+    </div>
+    <span class="foms-tsheet-head__count">#{{ o.id }}</span>
+  </div>
+
+  {# 요약(읽기전용): 연락처 / 현장주소 / 제품 / 완료일(시공일) / 생성일 #}
+  <div class="foms-tsheet-card">
+    <div class="foms-tsheet-card__title">요약</div>
+    <dl class="foms-tsheet-kv">
+      <dt>연락처</dt><dd>{{ d.phone or '-' }}</dd>
+      <dt>현장 주소</dt><dd>{{ d.address or '-' }}</dd>
+      <dt>제품</dt><dd>{{ d.product or '-' }}</dd>
+      <dt>완료일</dt><dd>{{ completed_date or '-' }}</dd>
+      <dt>생성일</dt><dd>{{ (o.created_at|format_datetime_kst('%Y-%m-%d')) if o.created_at else '-' }}</dd>
+    </dl>
+  </div>
+
+  {# 정산 요약(읽기전용). 잔금 = 출고가 − 예약금(불변식). 값 부재면 카드 생략. #}
+  {% if has_settlement %}
+  <div class="foms-tsheet-card">
+    <div class="foms-tsheet-card__title">정산</div>
+    <dl class="foms-tsheet-kv">
+      <dt>출고가</dt><dd>{{ shipping_price_display }}</dd>
+      <dt>예약금</dt><dd>{{ deposit_display }}</dd>
+      <dt>잔금</dt><dd>{{ balance_display }}</dd>
+    </dl>
+  </div>
+  {% endif %}
+
+  {# 제품 · 규격 스냅샷(읽기전용 — 편집 입력 없음). 리스트 상세와 동일 product_items 소스. #}
+  {% set product_items_row = d.product_items if d.product_items is defined else [] %}
+  {% if product_items_row %}
+  <div class="foms-tsheet-card">
+    <div class="foms-tsheet-card__title">제품 · 규격 ({{ product_items_row|length }})</div>
+    <div class="erp-history-tsheet__items">
+      {% for prod_item in product_items_row %}
+      <div class="erp-history-tsheet__item">
+        <div class="erp-history-tsheet__item-name">
+          {{ prod_item.get('product_name') or ('제품 항목 ' ~ loop.index) }}{% if prod_item.get('quantity') %} · 수량 {{ prod_item.get('quantity') }}{% endif %}
+        </div>
+        <dl class="foms-tsheet-kv">
+          <dt>규격 W/D/H</dt><dd>{{ prod_item.get('width') or '-' }} / {{ prod_item.get('depth') or '-' }} / {{ prod_item.get('height') or '-' }}</dd>
+          <dt>색상</dt><dd>{{ prod_item.get('color') or '-' }}</dd>
+          {% if prod_item.get('misc') %}<dt>기타 / 설치위치</dt><dd>{{ prod_item.get('misc') }}</dd>{% endif %}
+        </dl>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% else %}
+  <div class="foms-tsheet-empty">구조화된 제품 정보가 없습니다. (레거시 이력이거나 ERP Order 아님)</div>
+  {% endif %}
+
+  {# foot: 원 주문 열기(정본 편집 페이지로 점프 — 수정은 여기서). 시트 내 편집 없음. #}
+  <div class="foms-tsheet-foot">
+    <a class="foms-tsheet-foot__btn foms-tsheet-foot__btn--pri"
+      href="{{ url_for('order_edit.edit_order', order_id=o.id) }}{% if o.is_erp_order %}?open=erp-order{% endif %}">
+      <i class="fas fa-up-right-from-square" aria-hidden="true"></i> 원 주문 열기
+    </a>
+  </div>
+</div>

@@ -62,6 +62,51 @@ fragment 경로를 반복 측정(첫 회 웜업 버림) → 커밋된 예산(`to
 - 참고: 바이트는 requests 가 gzip/br 자동 해압한 **해압 후** 크기(wire 아님). 네트워크 예외/5xx 1회 재시도.
   델타 위반 시 1회 재측정 후 재판정(v2 에선 min 면역으로 발동 확률 낮음).
 
+### 자동화 — 하이브리드 게이트 (`.github/workflows/perf-gate.yml`)
+
+GitHub Actions 가 게이트를 자동 실행하되, 이벤트별로 블로킹 강도를 나눈다. 사람이 게이트를
+떠올릴 필요 없이 **발견 주체를 사용자 → 봇**으로 옮기면서도, 무관 커밋 연쇄 fail 은 막는다.
+
+- **왜 하이브리드**: 판정이 커밋 diff 가 아니라 **CI 시점 staging 상태**라, deploy 마다
+  블로킹하면 한 번 예산 초과 시 그 상태에 무관한 후속 커밋까지 전부 연쇄 fail 한다
+  (비귀속·상태의존). → deploy 는 조기 신호만 주는 advisory, **승격 게이트에서만 하드 차단**하고,
+  예산 재시드/근본수정은 별도 커밋으로 처리한다.
+- **트리거**:
+  - `push: [deploy]` → **비블로킹 advisory**(`staging_perf_gate.py --advisory`). 예산 초과는
+    경고 어노테이션·step summary 로만 뜨고 **exit 0** → 무관 커밋 연쇄 fail 방지.
+  - `pull_request: [production]`(deploy→production 승격 PR) + `workflow_dispatch`(수동) →
+    **블로킹 하드 게이트**(`--advisory` 없음). 예산 초과 → exit 1 → job fail → 승격 차단.
+  - 로컬/PowerShell 수동 실행은 여전히 `/perf-gate`(위 명령) 또는 `pre_push_smoke.ps1 -PerfGate`.
+- **배포 완료 대기(push 만)**: `tools/perf/wait_staging_deploy.py --sha $GITHUB_SHA` 가 스테이징
+  `/healthz` 의 `commit`(Railway `RAILWAY_GIT_COMMIT_SHA`)이 이 커밋과 일치할 때까지
+  15s 간격 폴링(기본 timeout 600s). 구버전 컨테이너를 재는 레이스를 차단한다.
+  PR/dispatch 는 현재 살아있는 staging 을 그대로 측정한다(승격 후보 검증).
+- **concurrency**: `perf-gate-${{ github.ref }}` 그룹 + `cancel-in-progress` 로 빠른 연속 푸시의
+  중복 런을 취소한다(진행 중 런 노이즈·크레딧 낭비 감소).
+- **판정**: 예산 초과(정상 exit 1)는 advisory 모드에선 경고만(exit 0), 승격/수동에선 job fail.
+  단 **exit 2(크리덴셜 부재/로그인 실패)** 는 advisory 무관하게 항상 job fail — 측정 불가는
+  사고로 취급한다(자동화에선 secret 누락도 조용히 통과시키지 않는다).
+- **evidence**: 판정 JSON 을 artifact(`perf-gate-evidence`, 보존 14일)로 업로드만 하고
+  CI 에선 repo 에 커밋하지 않는다(로컬 실행과 무충돌).
+- **필요 secrets**(레포 설정): `FOMS_STAGING_USERNAME`, `FOMS_STAGING_PASSWORD`.
+- **의존 최소**: 게이트 import 체인은 순수 stdlib(`erp_navigation_contract`) + requests
+  (`ept_b8` 로그인)뿐이라 CI 는 `pip install requests` 만 한다(앱 전체 설치 불필요).
+
+### RUM 일일 자동 리포트 (`.github/workflows/rum-daily.yml`)
+
+매일 아침(KST 07:30 = cron `30 22 * * *` UTC) production 의 RUM 집계 p95 추세·회귀를
+조회해 리포트한다(실사용 성능 회귀를 대시보드가 사용자보다 먼저 잡는 그물).
+
+- **경로**: admin 엔드포인트 `GET /api/foms/rum/report`(login_required + role ADMIN 403,
+  Redis 부재 503). 운영 Redis 는 앱 내부에서만 접근되므로 이 엔드포인트가 유일한 외부 조회로.
+  집계·판정 로직은 `foms/services/rum_aggregate.py::build_rum_report`(CLI·엔드포인트 공용 SSOT).
+- **워크플로**: `tools/perf/rum_report_http.py` 가 production 로그인 → report GET →
+  `regressed=true` 면 exit 1(job fail=알림), 결과를 step summary 에 표로 남긴다.
+  `schedule` + `workflow_dispatch`(수동). 같은 `FOMS_STAGING_*` secrets 재사용.
+- **주의(cron 기본 브랜치)**: GitHub 의 `schedule` 은 **기본 브랜치(이 레포=production)의
+  워크플로 파일만** 실행한다. `rum-daily.yml` 이 production 에 승격돼야 매일 자동 실행되며,
+  `deploy` 에만 있으면 수동 dispatch 만 가능하다.
+
 ## 필수 규칙 (리뷰에서 확인)
 
 ### 프론트엔드

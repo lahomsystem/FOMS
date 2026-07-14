@@ -58,7 +58,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
     assert payment_urls_idx < channel_push_confirm_idx < erp_order_shared_idx < column_resizer_idx < estimate_preview_idx < estimate_columns_idx
     assert "html2canvas.min.js" not in body
     assert "js/orders/erp-channel-push-confirm.js?v=20260703a" in body
-    assert "js/orders/erp-order-shared.js?v=20260713a" in body
+    assert "js/orders/erp-order-shared.js?v=20260714b" in body
     assert "css/orders/erp-channel-push.css?v=20260701a" in body
     assert "css/orders/erp-items-master-detail.css?v=20260701f" in body
     assert "js/orders/erp-items-master-detail.js?v=20260630c" in body
@@ -653,6 +653,17 @@ def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
     assert "const itemPrice = getRowVal('price');" in conversion_block
     assert "allExtraInputs" not in conversion_block
     assert "getVal('erp-manager')" in conversion_block
+    assert "factory2Checked" in conversion_block
+    assert "erp-factory2" in conversion_block
+    assert "★★\\n" in conversion_block
+    assert conversion_block.index("if (factory2Checked) text += '★★\\n';") < conversion_block.index(
+        "erpAppendConversionTextLine(text, '실측일', measurementDate)"
+    )
+    slice_start = text.index("function erpSliceConversionTextForChannelPush")
+    slice_end = text.index("function erpGenerateConversionText()", slice_start)
+    slice_block = text[slice_start:slice_end]
+    assert "hasFactory2Stars" in slice_block
+    assert "return `★★\\n${body}`;" in slice_block
     assert "erpAppendConversionMoneyLine(text, '출고가', totals.shipping_price)" in conversion_block
     assert "erpAppendConversionMoneyLine(text, '예약금(선금)', totals.deposit_amount)" in conversion_block
     assert "_erpIsBalancePaymentConfirmed()" in conversion_block
@@ -935,7 +946,7 @@ def test_mobile_attachment_preview_uses_viewport_sized_modal() -> None:
     assert ".erp-order-mobile-form .erp-attachment-preview-actions .btn" not in css_text
     assert "max-width: min(92vw, 36rem)" not in css_text
     assert "../components/foms-form-field.css?v=20260630e" in mobile_bundle
-    assert "foms-mobile-surfaces.css') }}?v=20260630e" in layout_head
+    assert "foms-mobile-surfaces.css') }}?v=20260714a" in layout_head
 
 
 def test_mobile_erp_autosize_textarea_overrides_80px_floor() -> None:

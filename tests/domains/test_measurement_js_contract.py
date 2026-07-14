@@ -41,7 +41,11 @@ def test_manager_dropdown_cleanup_is_centralized():
     assert "closeManagerDropdown();" in content
 
 
-def test_measurement_mobile_edit_contract_is_wired_to_v2_cards():
+def test_measurement_mobile_quick_edit_removed_and_capture_retained():
+    """실측 모바일 카드: 주소/연락처/담당 '빠른 수정' UI는 제거되고 캡처 진입점만 유지된다.
+
+    데스크톱 인라인 편집(dashboard_main)과 공유 큐카드의 전화/지도 어포던스는 무영향이어야 한다.
+    """
     mobile_js = Path("static/js/measurement/mobile.js").read_text(encoding="utf-8")
     mobile_list = Path("templates/measurement/partials/mobile_list.html").read_text(
         encoding="utf-8"
@@ -53,19 +57,30 @@ def test_measurement_mobile_edit_contract_is_wired_to_v2_cards():
         encoding="utf-8"
     )
 
-    assert "data-measurement-mobile-edit-trigger" in mobile_js
-    assert "erp-measurement-mobile-edit-sheet" in mobile_list
-    assert "data-measurement-mobile-edit-trigger" in mobile_list
-    assert "data-measurement-mobile-manager-select-sheet" in mobile_list
+    # 빠른수정 트리거/시트/보조 스팬/핸들러는 모바일 카드·JS에서 완전히 제거된다.
+    assert "data-measurement-mobile-edit-trigger" not in mobile_list
+    assert "data-measurement-mobile-edit-trigger" not in mobile_js
+    assert "erp-measurement-mobile-edit-sheet" not in mobile_list
+    assert "data-measurement-mobile-manager-select-sheet" not in mobile_list
+    assert "data-measurement-mobile-manager-status" not in mobile_list
+    assert "data-measurement-mobile-field" not in mobile_list
+    for field in ('data-field="address"', 'data-field="phone"', 'data-field="manager"'):
+        assert field not in mobile_list
+
+    # 캡처 진입점(버튼 + capture_sheet)은 유지된다.
+    assert "data-foms-measure-capture-open" in mobile_list
+    assert "capture_sheet.html" in mobile_list
+
+    # 공유 큐카드의 전화/지도 어포던스는 빠른수정과 무관 — 그대로 유지.
     assert 'data-queue-card-field="address"' in shared_card
     assert 'data-queue-card-field="phone"' in shared_card
     assert 'data-queue-card-field="manager"' in shared_card
     assert 'has_manager_phone' in shared_card
     assert 'tel:{{ safe_manager_phone }}' in shared_card
-    assert "data-queue-card-call-link" in mobile_js
-    assert "data-queue-card-map-link" in mobile_js
+
+    # 데스크톱 인라인 편집은 무영향 — 여전히 3필드 편집 가능.
     for field in ('data-field="address"', 'data-field="phone"', 'data-field="manager"'):
         assert field in pc_dashboard
-    for field in ('data-field="address"', 'data-field="phone"', 'data-field="manager"'):
-        assert field in mobile_list
+
+    # 카드 렌더는 여전히 실측 대시보드 복귀 컨텍스트를 전달한다.
     assert "edit_return_to='erp_measurement_dashboard'" in mobile_list

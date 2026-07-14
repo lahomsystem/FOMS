@@ -1,3 +1,4 @@
+{% set _fos_desktop_body %}
 <div class="erp-pro erp-mobile-shell erp-measurement-dashboard" data-erp-order-active="{{ 'true' if erp_order_enabled else 'false' }}"
   data-erp-active="{{ 'true' if erp_order_enabled else 'false' }}" data-today-date="{{ today_date }}"
   data-selected-date="{{ selected_date }}" data-search-q="{{ search_q }}"
@@ -44,6 +45,12 @@
         <i class="fas fa-plus" aria-hidden="true"></i>
       </a>
     </section>
+  {% endif %}
+  {# W12 — 태블릿 가로(코호트) 실측 특수형 split view. 표시는 foms-tablet-measurement.css
+     의 코호트 @media 가 소유(코호트에서 desktop-shell 숨기고 split 표시; 그 외 base
+     display:none 로 완전 무동작 → 폰/세로/데스크톱 동작 불변). #}
+  {% if erp_mobile_v2_enabled %}
+    {% include 'measurement/partials/tablet_split_body.html' %}
   {% endif %}
   <div class="erp-measurement-desktop-shell">
   <div class="erp-pro-card">
@@ -1044,3 +1051,11 @@
     </div>
   </div>
 </div>
+{% endset %}{% if shell_variant == 'v3' %}
+<div class="fos-v3-mobile-scope">
+{# v3 셸 병렬 분기: 영업·실측 페르소나 홈만 렌더(기존 v2/desktop 마크업 미로드). #}
+{% set fos_content_partial = 'partials/v3/persona_home_sales.html' %}
+{% include 'partials/v3/foms_app_shell_v3.html' %}
+</div>
+<div class="fos-v3-desktop-fallback">{{ _fos_desktop_body|safe }}</div>
+{% else %}{{ _fos_desktop_body|safe }}{% endif %}{# /shell_variant == 'v3' #}

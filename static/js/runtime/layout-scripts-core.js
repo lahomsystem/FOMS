@@ -498,13 +498,14 @@
         })();
 
         /**
-         * Mobile image-viewing SSOT gate. On mobile (<=768px), all read-only image
-         * viewing routes through GlobalImageViewer (blur backdrop + smooth focal zoom).
-         * Desktop keeps its existing per-surface modals untouched.
+         * Mobile image-viewing SSOT gate. On mobile and touch tablets
+         * (viewport <=991.98px OR a coarse pointer), all read-only image viewing
+         * routes through GlobalImageViewer (blur backdrop + smooth focal zoom).
+         * Desktop (fine pointer wide viewport) keeps its existing per-surface modals untouched.
          */
         window.fomsIsMobileImageViewer = function () {
             try {
-                return !!(window.matchMedia && window.matchMedia('(max-width: 768px)').matches) &&
+                return !!(window.matchMedia && window.matchMedia('(max-width: 991.98px), (pointer: coarse)').matches) &&
                     !!(window.GlobalImageViewer && window.GlobalImageViewer.open);
             } catch (e) {
                 return false;

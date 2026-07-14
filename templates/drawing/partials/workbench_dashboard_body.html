@@ -1,5 +1,6 @@
 {% import 'drawing/partials/workbench_dashboard_macros.html' as wb %}
 {# foms-kv-rollout: erp_mobile_shell → kv-copy.js #}
+{% set _fos_desktop_body %}
 <div class="erp-pro erp-mobile-shell" data-erp-mobile-v2="{{ 'true' if erp_mobile_v2_enabled else 'false' }}">
   {% if erp_mobile_v2_enabled %}
     {% include 'partials/shared/erp_mobile_shell.html' %}
@@ -80,7 +81,7 @@
   </div>
 
   {% if erp_mobile_v2_enabled %}
-  <section class="foms-shell-body foms-drawing-mobile-dashboard d-lg-none" aria-label="도면 작업 큐">
+  <section class="foms-shell-body foms-drawing-mobile-dashboard" aria-label="도면 작업 큐">
     {% include 'drawing/partials/drawing_mobile_controls.html' %}
     {% include 'drawing/partials/workbench_mobile_queue.html' %}
   </section>
@@ -135,7 +136,7 @@
       </form>
     </div>
 
-    <div class="card-body">
+    <div class="card-body foms-drawing-legacy-table">
       {% if rows %}
       <!-- 일괄 작업 플로팅 바 -->
       <div id="batch-action-bar" class="alert alert-primary d-none align-items-center justify-content-between mb-3" style="position: sticky; top: 70px; z-index: 100;">
@@ -346,6 +347,9 @@
     </div>
   </div>
   {% if erp_mobile_v2_enabled %}
+    {% include 'drawing/partials/tablet_gallery_body.html' %}
+  {% endif %}
+  {% if erp_mobile_v2_enabled %}
   <a class="foms-shell-fab" href="{{ url_for('order_pages.add_order', open='erp-order', wizard=1) }}" aria-label="주문 생성">
     <i class="fas fa-plus" aria-hidden="true"></i>
   </a>
@@ -397,3 +401,11 @@
 </div>
 
 <script src="{{ url_for('static', filename='js/drawing/workbench-dashboard.js') }}" defer></script>
+{% endset %}{% if shell_variant == 'v3' %}
+<div class="fos-v3-mobile-scope">
+{# v3 셸: 도면 페르소나 홈(읽기/표시 전용). v2/legacy는 아래 else 경로 그대로. #}
+{% set fos_content_partial = 'partials/v3/persona_home_drawing.html' %}
+{% include 'partials/v3/foms_app_shell_v3.html' %}
+</div>
+<div class="fos-v3-desktop-fallback">{{ _fos_desktop_body|safe }}</div>
+{% else %}{{ _fos_desktop_body|safe }}{% endif %}

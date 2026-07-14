@@ -1,10 +1,12 @@
 {# foms-kv-rollout: order grid deeplinks via edit_order + mobile shell kv-copy.js #}
 
     <!-- Middle: Grid -->
-    <div class="erp-dashboard-workqueue">
+    {# data-foms-stage-catalog: 8단계 워크플로 카탈로그(STAGE_SEQUENCE SSOT, code+label). 태블릿
+       사이드 시트 파이프라인이 이 컨테이너에서 읽는다(JS 단계 하드코딩 금지). safeJsonParse 패턴. #}
+    <div class="erp-dashboard-workqueue" data-foms-stage-catalog='{{ foms_stage_catalog|tojson }}'>
       <div class="card">
         <div class="card-body">
-          <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-3">
+          <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-3 erp-dashboard-workqueue-head">
             <div class="d-flex align-items-start gap-3 flex-wrap">
               <div>
                 <h5 class="mb-0 fw-bold text-dark"><i class="fas fa-table text-primary"></i> 작업 큐</h5>
@@ -32,6 +34,9 @@
               <button type="button" class="btn btn-outline-secondary btn-sm" id="erp-grid-reset-column-widths">
                 <i class="fas fa-text-width"></i> 폭 초기화
               </button>
+              {# 밀도 토글은 태블릿 가로 코호트에서 상단 pcbar(tablet_dashboard_topbar.html)로
+                 재배치됨 — 이 카드 헤더 자체가 코호트에서 은닉되므로 여기 두면 토글도 사라진다.
+                 PC/폰은 pcbar 미표시라 토글도 base-hide 로 은닉(회귀 없음). #}
               <span class="badge bg-primary fs-6 px-3 py-2">표시: <strong>{{ orders|length }}</strong>건</span>
             </div>
           </div>
@@ -40,26 +45,29 @@
           <div class="table-responsive">
             <table class="table table-sm table-hover align-middle erp-dashboard-grid-resizable" id="erp-grid">
               <thead>
+                {# data-col-key: 태블릿 가로 코호트 컬럼 은닉의 인덱스-비의존 지목 앵커(출고
+                   그리드 shipment-dashboard-columns.css 와 동일 패턴). PC(fine)에선 CSS 미발화라
+                   전량 무해·13열 전부 표시. 순서=PC 그대로(재정렬 없음). #}
                 <tr>
-                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;"><div class="d-flex align-items-center gap-1 flex-nowrap">{% if can_edit_erp %}<input type="checkbox" class="form-check-input mt-0" id="erp-grid-select-all" title="전체 선택" aria-label="전체 선택">{% endif %}<span>경보</span></div></th>
-                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">단계</th>
-                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">퀘스트</th>
-                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">고객</th>
-                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">연락처</th>
-                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">주소</th>
-                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">제품</th>
-                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">실측일</th>
-                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">시공일</th>
-                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">담당</th>
-                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">첨부</th>
-                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">상세</th>
-                  <th style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;"></th>
+                  <th data-col-key="alert" style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;"><div class="d-flex align-items-center gap-1 flex-nowrap">{% if can_edit_erp %}<input type="checkbox" class="form-check-input mt-0" id="erp-grid-select-all" title="전체 선택" aria-label="전체 선택">{% endif %}<span>경보</span></div></th>
+                  <th data-col-key="stage" style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">단계</th>
+                  <th data-col-key="quest" style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">퀘스트</th>
+                  <th data-col-key="customer" style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">고객</th>
+                  <th data-col-key="phone" style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">연락처</th>
+                  <th data-col-key="address" style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">주소</th>
+                  <th data-col-key="product" style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">제품</th>
+                  <th data-col-key="measure_date" style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">실측일</th>
+                  <th data-col-key="construction_date" style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">시공일</th>
+                  <th data-col-key="manager" style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">담당</th>
+                  <th data-col-key="attachment" style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">첨부</th>
+                  <th data-col-key="detail" style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;">상세</th>
+                  <th data-col-key="open" style="font-size: 1.1rem; font-weight: 700; color: #495057; background-color: #e9ecef;"></th>
                 </tr>
               </thead>
               <tbody>
                 {% for o in orders %}
-                <tr class="erp-main-row" data-order-id="{{ o.id }}">
-                  <td data-label="경보">
+                <tr class="erp-main-row" data-order-id="{{ o.id }}" data-stage="{{ o.stage_code }}" data-foms-sheet-url="{{ url_for('erp_dashboard.erp_dashboard_tablet_sheet', order_id=o.id) }}">
+                  <td data-col-key="alert" data-label="경보">
                     <div class="d-flex align-items-center gap-1 erp-grid-alert-cell">
                       {% if can_edit_erp %}<input type="checkbox" class="form-check-input erp-grid-order-check mt-0 flex-shrink-0" data-order-id="{{ o.id }}" aria-label="주문 선택">{% endif %}
                       <div class="erp-grid-alert-badges">
@@ -88,9 +96,9 @@
                       </div>
                     </div>
                   </td>
-                  <td data-label="단계"><span class="badge bg-secondary"
+                  <td data-col-key="stage" data-label="단계"><span class="badge bg-secondary"
                       style="font-size: 1.1rem; padding: 0.5em 0.7em;">{{ o.stage }}</span></td>
-                  <td data-label="퀘스트" class="erp-quest-cell erp-wrap">
+                  <td data-col-key="quest" data-label="퀘스트" class="erp-quest-cell erp-wrap">
                     {% if o.current_quest %}
                     <div class="erp-grid-quest-stack">
                       {% if o.current_quest.all_approved %}
@@ -296,7 +304,7 @@
                     {% endif %}
                     {% endif %}
                   </td>
-                  <td data-label="고객" class="fw-bold erp-wrap" style="font-size: 1.1rem; color: #212529; min-width: 120px;">
+                  <td data-col-key="customer" data-label="고객" class="fw-bold erp-wrap" style="font-size: 1.1rem; color: #212529; min-width: 120px;">
                     <div class="d-flex flex-column gap-1">
                       <span class="d-inline-flex align-items-center gap-1 flex-wrap">
                         {{ o.customer_name }}
@@ -331,10 +339,10 @@
                       {% endif %}
                     </div>
                   </td>
-                  <td data-label="연락처" style="font-size: 1.1rem; color: #495057;">{{ o.phone }}</td>
-                  <td data-label="주소" class="erp-wrap"
+                  <td data-col-key="phone" data-label="연락처" style="font-size: 1.1rem; color: #495057;">{{ o.phone }}</td>
+                  <td data-col-key="address" data-label="주소" class="erp-wrap"
                     style="font-size: 1.1rem; color: #495057; word-break: break-word;">{{ o.address }}</td>
-                  <td data-label="제품" class="erp-wrap"
+                  <td data-col-key="product" data-label="제품" class="erp-wrap"
                     style="font-size: 1.1rem; color: #495057; word-break: break-word;">
                     {% if is_erp_order and o.structured_data and o.structured_data.get('items') %}
                     {% set items = o.structured_data.get('items', []) %}
@@ -345,7 +353,7 @@
                     {{ o.product or '-' }}
                     {% endif %}
                   </td>
-                  <td data-label="실측일" class="fw-semibold" style="font-size: 1.1rem; color: #495057;">
+                  <td data-col-key="measure_date" data-label="실측일" class="fw-semibold" style="font-size: 1.1rem; color: #495057;">
                     {% set _m = (o.measurement_date or '') %}
                     {% set _mparts = (_m.split(',')|map('trim')|list)|select|list %}
                     {% if _mparts|length > 1 %}
@@ -366,7 +374,7 @@
                     {% endif %}
                     {% endif %}
                   </td>
-                  <td data-label="시공일" class="fw-semibold" style="font-size: 1.1rem; color: #495057;">
+                  <td data-col-key="construction_date" data-label="시공일" class="fw-semibold" style="font-size: 1.1rem; color: #495057;">
                     {% set _c = (o.construction_date or '') %}
                     {% set _cparts = (_c.split(',')|map('trim')|list)|select|list %}
                     {% if _cparts|length > 1 %}
@@ -387,8 +395,8 @@
                     {% endif %}
                     {% endif %}
                   </td>
-                  <td data-label="담당" style="font-size: 1.1rem; color: #495057;">{{ o.manager_name or '-' }}</td>
-                  <td data-label="첨부">
+                  <td data-col-key="manager" data-label="담당" style="font-size: 1.1rem; color: #495057;">{{ o.manager_name or '-' }}</td>
+                  <td data-col-key="attachment" data-label="첨부">
                     {% if o.has_media %}
                     {% set order_id_att = o.id %}
                     <span class="badge bg-primary text-white fw-bold erp-btn-attachments-preview"
@@ -399,7 +407,7 @@
                     <span class="text-muted" style="font-size: 1.1rem;">-</span>
                     {% endif %}
                   </td>
-                  <td data-label="상세" class="text-center">
+                  <td data-col-key="detail" data-label="상세" class="text-center">
                     {% set order_id_detail = o.id %}
                     {% if can_edit_erp|default(false) %}
                     <a class="badge bg-info text-white fw-bold"
@@ -411,7 +419,7 @@
                     <span class="text-muted small">(수정 권한 없음)</span>
                     {% endif %}
                   </td>
-                  <td data-label="열기" class="text-end erp-cell-actions">
+                  <td data-col-key="open" data-label="열기" class="text-end erp-cell-actions">
                     <button class="erp-open-btn-icon" type="button" data-bs-toggle="collapse"
                       data-bs-target="#order-detail-collapse-{{ o.id }}" aria-expanded="false"
                       aria-controls="order-detail-collapse-{{ o.id }}" title="열기">

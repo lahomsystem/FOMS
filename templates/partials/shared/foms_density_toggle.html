@@ -1,0 +1,12 @@
+{# 공용 밀도 토글 (태블릿 가로 목업 프레임 공통) — 그리드 행 높이 40/48(기본)/56.
+   호출측이 include 전에 foms_density_target(대상 그리드 CSS 셀렉터)을 set 한다:
+     {% set foms_density_target = '#erp-grid' %}
+     {% include 'partials/shared/foms_density_toggle.html' %}
+   표시 게이트/행 높이/활성표시는 foms-tablet-landscape.css + tablet-density-toggle.js 소유
+   (coarse landscape 코호트에서만 보임, 그 외 display:none). 기본 활성=48(부트 시 JS가 복원). #}
+<div class="foms-density-toggle" role="group" aria-label="행 높이"
+  data-density-target="{{ foms_density_target|default('#erp-grid') }}">
+  <button type="button" class="foms-density-toggle__btn" data-density="40" aria-pressed="false" title="촘촘하게 (40px)">40</button>
+  <button type="button" class="foms-density-toggle__btn is-active" data-density="48" aria-pressed="true" title="기본 (48px)">48</button>
+  <button type="button" class="foms-density-toggle__btn" data-density="56" aria-pressed="false" title="넉넉하게 (56px)">56</button>
+</div>

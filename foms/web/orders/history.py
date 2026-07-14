@@ -3,7 +3,7 @@
 import time
 from copy import deepcopy
 
-from flask import Blueprint, make_response, render_template, request, g, url_for
+from flask import Blueprint, abort, make_response, redirect, render_template, request, g, url_for
 from db import get_db
 from models import Order
 from foms.web.auth import login_required
@@ -156,11 +156,16 @@ def history_dashboard():
         
         display_orders.append(display_o)
 
+        # 완료일 = 시공일(structured schedule.construction.date) — 완료 대시보드
+        # (_completion_sheet_context)와 동일 정의. 부재(레거시/미시공)면 None → 템플릿 '-'.
+        completed_date = ((sd.get('schedule') or {}).get('construction') or {}).get('date') or None
+
         enriched.append({
             '_order': o,
             '_sd': sd,
             'stage': stage,
             'display_o': display_o,
+            'completed_date': completed_date,
         })
     
     # N+1 방지를 위해 1번의 쿼리로 전체 표시 주문들의 첨부/제품 항목 매핑
@@ -201,4 +206,78 @@ def history_dashboard():
             'erp_history.history_dashboard',
             **canonical_args,
         )
+    return response
+
+
+@erp_history_bp.route('/tablet-sheet/<int:order_id>')
+@login_required
+def history_tablet_sheet(order_id: int):
+    """태블릿 가로 이력 사이드 시트용 읽기전용 스냅샷 fragment (단건).
+
+    이력 대시보드는 읽기전용(감사) 화면이므로, 행 탭 시 tablet-side-sheet.js 가 편집
+    fragment(/api/foms/fragment/order/<id>/edit) 대신 이 읽기전용 스냅샷을 로드한다
+    (본행 data-foms-sheet-url). 시트에는 편집 입력이 없고, 수정은 foot '원 주문 열기'로
+    정본 주문 페이지에 점프한다. 신규 쿼리 경로/집계 없음 — 리스트와 동일 표시 파이프라인
+    (apply_erp_display_fields + build_product_items_for_orders)을 단건 재사용한다.
+
+    Args:
+        order_id: 주문 PK.
+
+    Returns:
+        HTML fragment 응답(no-store, X-FOMS-Fragment). 최상위 문서 내비게이션(주소창/새 탭)은
+        정본 edit 페이지로 302(비스타일 partial 노출 방지 — dashboard tablet-sheet 전례).
+    """
+    if request.headers.get("Sec-Fetch-Dest") == "document":
+        return redirect(url_for('order_edit.edit_order', order_id=order_id, open='erp-order'))
+
+    db = get_db()
+    order = db.query(Order).filter(Order.id == order_id, Order.not_deleted_filter()).first()
+    if order is None:
+        abort(404)
+
+    from foms.services.erp_display import (
+        _ensure_dict,
+        _erp_get_stage,
+        apply_erp_display_fields,
+        erp_deposit_amount_from_structured,
+        erp_shipping_price_from_structured,
+    )
+    from foms.services.erp_product_items import build_product_items_for_orders
+
+    sd = _ensure_dict(order.structured_data)
+    if is_erp_order_record(order):
+        stage = _erp_get_stage(order, sd)
+    else:
+        stage = STATUS.get(order.status, order.status or "-")
+
+    # ERP Order: Order 행 컬럼이 플레이스홀더인 경우 structured_data 기준 표시용 복제(리스트 동일).
+    display_o = order
+    if is_erp_order_record(order) and order.structured_data:
+        display_o = deepcopy(order)
+        apply_erp_display_fields(display_o)
+    build_product_items_for_orders(db, [display_o])
+
+    # 완료일 = 시공일(schedule.construction.date) — 완료 대시보드와 동일 정의.
+    completed_date = ((sd.get('schedule') or {}).get('construction') or {}).get('date') or None
+
+    # 정산 요약(읽기전용). 잔금 = 출고가 − 예약금(불변식). 값 부재면 '—'.
+    shipping_price = erp_shipping_price_from_structured(sd)
+    deposit = erp_deposit_amount_from_structured(sd)
+    balance = None if shipping_price is None else shipping_price - (deposit or 0)
+
+    def _krw(value):
+        return "—" if value is None else f"{int(value):,}원"
+
+    response = make_response(render_template(
+        'orders/partials/history_tablet_sheet.html',
+        o=order,
+        d=display_o,
+        stage=stage,
+        completed_date=completed_date,
+        shipping_price_display=_krw(shipping_price),
+        deposit_display=_krw(deposit),
+        balance_display=_krw(balance),
+        has_settlement=(shipping_price is not None or deposit is not None),
+    ))
+    apply_erp_shell_fragment_headers(response, request)
     return response

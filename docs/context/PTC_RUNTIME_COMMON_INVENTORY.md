@@ -13,6 +13,7 @@ Contract: each listed file is either **keep** in place, **move** (not applied in
 | `common_utils.js` | keep | Cross-page DOM/helpers shared by ERP shell. |
 | `erp-mobile-shell.js` | keep | Mobile shell wiring for ERP layout. |
 | `erp-shell.js` | keep | Canonical ERP shell fragment navigation/cache/prefetch runtime. Relocated from legacy `static/js/erp/runtime-shell.js` by the 2026-04-17 ERP Order cleanup/rename landing (commit `eaf5a444`). Referenced by `templates/partials/shared/layout_scripts.html` whenever `request.path` starts with `/erp/`. |
+| `foms-shell-mode-boot.js` | keep | Early shell-mode boot (escape hatch). SSOT copy of the pre-paint inline block in `layout_head.html`; stamps `html[data-foms-shell]` from `localStorage.foms_shell_mode` so a manual desktop/split override wins over the CSS shell-selection matrix without a flash. Cross-context runtime primitive (mirrors `foms-theme-boot.js`). |
 | `foms-theme-boot.js` | keep | Early theme boot (FOUC prevention) loaded from `layout_head.html` before paint. Cross-context runtime primitive. |
 | `layout-head-init.js` | keep | Socket.IO loader init + ERP notification socket refresh hooks from `layout_head.html`. Cross-context runtime primitive. |
 | `layout-scripts-chat.js` | keep | Global notification badge/panel + personal briefing board extracted from `layout_scripts.html` (2026-07). Single badge fetch SSOT. |

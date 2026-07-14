@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>도면 마법사 — 주문 #{{ order.id }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20260709l">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/drawing/wizard.css') }}?v=20260713a">
 </head>
 <body>
   <div id="dws-root" data-order-id="{{ order.id }}">
@@ -12,8 +12,12 @@
     <!-- ================= 앱바 (3분할: 타이틀 · 도구 세그먼트 · 액션) ======= -->
     <header class="dws-appbar dws-ui">
 
-      <!-- 좌: (좁은 화면) 드로어 토글 + 타이틀 블록 -->
+      <!-- 좌: 나가기 + (좁은 화면) 드로어 토글 + 타이틀 블록 -->
       <div class="dws-appbar-left">
+        <button type="button" class="dws-appbar-exit" id="dws-btn-exit" title="도면 작업실로 나가기" aria-label="도면 작업실로 나가기">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+          <span class="dws-appbar-exit-label">나가기</span>
+        </button>
         <button type="button" class="dws-appbar-panel-btn" id="dws-btn-panel" title="제품 목록" aria-label="제품 목록 열기/닫기" aria-expanded="false" aria-controls="dws-products">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
         </button>
@@ -428,6 +432,6 @@
 
   <script id="drawing-wizard-config" type="application/json">{{ wizard_config|tojson }}</script>
   <script src="{{ url_for('static', filename='vendor/konva.min.js') }}?v=20260706b" defer></script>
-  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260709l" defer></script>
+  <script src="{{ url_for('static', filename='js/drawing/wizard.js') }}?v=20260709m" defer></script>
 </body>
 </html>

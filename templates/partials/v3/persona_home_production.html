@@ -1,0 +1,151 @@
+{# =========================================================================
+   FOMS Field OS v3 — 생산 페르소나 홈 (읽기/표시 전용, 스펙 §5-3).
+   3버킷(제작대기/제작중/제작완료) 상태 스탯 + 세그(칩) 필터 전환 + 대형 큐 카드.
+   5단계 공정 UI 금지(허구) — process_steps 대신 step_stats 3버킷을 사용한다.
+   소비 컨텍스트: orders(enriched), step_stats, filters, erp_mine_only,
+                 page, per_page, total_pages, total_orders.
+   각 enriched 행의 v3 전용 파생 필드(v3_product_label/v3_spec_display/
+   v3_material/construction_dday)는 production_dashboard_display에서 조립한다.
+   ========================================================================= #}
+{% set _stat = step_stats or {} %}
+{% set _cur = (filters or {}).get('stage') %}
+{% set _q = (filters or {}).get('q') %}
+{% set _mine = 1 if erp_mine_only else none %}
+{% set _endpoint = 'erp_production_page.erp_production_dashboard' %}
+{% set _buckets = [
+  {'key': '제작대기', 'st': 'confirm', 'label': '제작대기'},
+  {'key': '제작중', 'st': 'production', 'label': '제작중'},
+  {'key': '제작완료', 'st': 'completed', 'label': '제작완료'}
+] %}
+{% set _empty_bucket = {'count': 0, 'overdue': 0, 'imminent': 0} %}
+
+{# --- 활성 버킷(또는 전체 집계) 스탯 --- #}
+{% set _ns = namespace(count=0, overdue=0, imminent=0, label='전체', st='production') %}
+{% if _cur and _cur in _stat %}
+  {% set _b = _stat.get(_cur, _empty_bucket) %}
+  {% set _ns.count = _b.get('count', 0) %}
+  {% set _ns.overdue = _b.get('overdue', 0) %}
+  {% set _ns.imminent = _b.get('imminent', 0) %}
+  {% set _ns.label = _cur %}
+  {% for _bk in _buckets %}{% if _bk.key == _cur %}{% set _ns.st = _bk.st %}{% endif %}{% endfor %}
+{% else %}
+  {% for _bk in _buckets %}
+    {% set _b = _stat.get(_bk.key, _empty_bucket) %}
+    {% set _ns.count = _ns.count + _b.get('count', 0) %}
+    {% set _ns.overdue = _ns.overdue + _b.get('overdue', 0) %}
+    {% set _ns.imminent = _ns.imminent + _b.get('imminent', 0) %}
+  {% endfor %}
+{% endif %}
+{% set _loaded = [page * per_page, total_orders] | min if (page and per_page) else (orders | length) %}
+
+<div class="fos-scroll" data-persona-home="production" data-v3-persona="production">
+
+  {# ============ 3버킷 스탯 + 세그(칩) 전환 ============ #}
+  <div class="fos-sec">
+    <div class="fos-sec__hd">제작 현황</div>
+
+    <div class="fos-hero{% if _ns.overdue > 0 %} is-danger{% endif %}">
+      <span class="fos-hero__label">
+        <i class="fas fa-industry" aria-hidden="true"></i> {{ _ns.label }}
+      </span>
+      <div class="fos-hero__big">{{ _ns.count }}<span class="px-production-job">건</span></div>
+      <div class="fos-hero__meta">
+        {% if _ns.overdue > 0 %}
+          <span class="px-production-warn"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i> 지연 {{ _ns.overdue }}</span>
+        {% endif %}
+        {% if _ns.imminent > 0 %}
+          <span class="px-production-warn"><i class="fas fa-clock" aria-hidden="true"></i> 임박 {{ _ns.imminent }}</span>
+        {% endif %}
+        {% if _ns.overdue == 0 and _ns.imminent == 0 %}
+          <span>지연·임박 없음</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="fos-chips" role="tablist" aria-label="제작 단계 필터">
+      <a class="fos-chip{% if not _cur %} is-active{% endif %}"
+         href="{{ url_for(_endpoint, q=_q or none, mine=_mine) }}"
+         role="tab" aria-selected="{{ 'true' if not _cur else 'false' }}">
+        전체<span class="n">{% set _t = 0 %}{% for _bk in _buckets %}{% set _t = _t + _stat.get(_bk.key, _empty_bucket).get('count', 0) %}{% endfor %}{{ _t }}</span>
+      </a>
+      {% for _bk in _buckets %}
+        {% set _bs = _stat.get(_bk.key, _empty_bucket) %}
+        <a class="fos-chip{% if _cur == _bk.key %} is-active{% endif %}"
+           href="{{ url_for(_endpoint, stage=_bk.key, q=_q or none, mine=_mine) }}"
+           role="tab" aria-selected="{{ 'true' if _cur == _bk.key else 'false' }}">
+          {{ _bk.label }}<span class="n">{{ _bs.get('count', 0) }}</span>
+        </a>
+      {% endfor %}
+    </div>
+  </div>
+
+  {# ============ 큐 카드 리스트 ============ #}
+  <div class="fos-sec">
+    <div class="fos-sec__hd">{{ _ns.label }} · {{ _loaded }} / 전체 {{ total_orders }}건</div>
+
+    {% if orders %}
+      {% set _v3p = namespace(shown=false) %}
+      {% for o in orders %}
+        {% set _st = 'confirm' if o.stage == '제작대기' else ('production' if o.stage == '제작중' else 'completed') %}
+        {% set _dday = o.construction_dday %}
+        {% set _overdue = (_dday is not none and _dday < 0) or (o.alerts and o.alerts.urgent) %}
+        <a class="fos-queue-card{% if _overdue %} is-danger{% endif %}"
+           href="{{ url_for('erp_dashboard.erp_order_mobile_detail', order_id=o.id) }}"
+           aria-label="주문 {{ o.customer_name or '고객' }} 상세">
+          <span class="fos-queue-card__dot" style="--sc:var(--st-{{ _st }})"></span>
+          <span class="fos-queue-card__body">
+            <span class="fos-queue-card__title">
+              <span class="who">{{ o.customer_name or '-' }}</span>
+              {% if o.v3_product_label %}<span class="prod">{{ o.v3_product_label }}</span>{% endif %}
+            </span>
+            {% if o.v3_spec_display %}
+              <span class="px-production-spec">
+                {{ o.v3_spec_display }}
+                {% if o.v3_material %}<span class="mat">{{ o.v3_material }}</span>{% endif %}
+              </span>
+            {% else %}
+              <span class="px-production-specmuted">규격 미정{% if o.v3_material %} · {{ o.v3_material }}{% endif %}</span>
+            {% endif %}
+            <span class="px-production-job">#{{ o.id }}{% if o.construction_date %} · 시공 {{ o.construction_date }}{% endif %}</span>
+            <span class="fos-queue-card__meta px-production-tagrow">
+              <span class="fos-stage" data-st="{{ _st }}">{{ o.stage }}</span>
+              {% if _dday is not none %}
+                {% if _dday < 0 %}
+                  <span class="px-production-warn"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i> 시공 D+{{ -_dday }}</span>
+                {% elif _dday == 0 %}
+                  <span class="px-production-warn"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i> 시공 D-DAY</span>
+                {% elif _dday <= 3 %}
+                  <span class="px-production-warn"><i class="fas fa-clock" aria-hidden="true"></i> 시공 D-{{ _dday }}</span>
+                {% endif %}
+              {% endif %}
+            </span>
+            {# C: 진행중 잡 첫 건에만 공정 진행바+단계 라벨(.fos-progress, 카드당 sd.production.steps 파생). #}
+            {% if o.stage == '제작중' and not _v3p.shown %}
+              {% set _v3p.shown = true %}
+              {% set _psteps = ((o.structured_data.get('production') if o.structured_data else None) or {}).get('steps') or [] %}
+              {% set _pdone = _psteps | selectattr('done') | list | length %}
+              {% set _pnext = _psteps | rejectattr('done') | list | first %}
+              <span class="fos-progress px-production-progress">
+                <span class="fos-progress__track"><span class="fos-progress__bar" style="--fos-pct:{{ [_pdone, 5]|min * 20 }}%"></span></span>
+                <span class="fos-progress__lbl">
+                  <span>{{ (_pnext.label ~ ' 진행 중') if _pnext else '공정 완료' }}</span>
+                  <span class="tnum">{{ [_pdone, 5]|min }}/5</span>
+                </span>
+              </span>
+            {% endif %}
+          </span>
+          <span class="fos-queue-card__aside">
+            <span class="fos-tl-btn" role="button" data-fos-timeline data-order-id="{{ o.id }}" aria-label="주문 진행 타임라인 보기"><i class="fas fa-timeline" aria-hidden="true"></i></span>
+            <span class="fos-chevron"><i class="fas fa-chevron-right" aria-hidden="true"></i></span>
+          </span>
+        </a>
+      {% endfor %}
+    {% else %}
+      <div class="fos-empty">
+        <span class="fos-empty__ic"><i class="fas fa-inbox" aria-hidden="true"></i></span>
+        <span class="fos-empty__title">해당 단계 주문이 없습니다</span>
+        <span class="fos-empty__sub">다른 단계 칩을 눌러 확인하세요.</span>
+      </div>
+    {% endif %}
+  </div>
+</div>

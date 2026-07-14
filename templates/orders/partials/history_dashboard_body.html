@@ -1,3 +1,4 @@
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contexts/history/history-tablet.css') }}?v=20260713p">
 <style>
   .history-chevron {
     cursor: pointer;
@@ -89,6 +90,23 @@
   {% endif %}
 
   <div class="foms-shell-desktop-only">
+    {# ── 태블릿 가로 pcbar (목업 frame10) — "과거 이력 검색 · 읽기전용" + 밀도 토글.
+       base-hidden(.foms-history-pcbar) → 코호트 가로에서만 flex(history-tablet.css). 코호트에서
+       PC erp-pro-header 를 은닉하고 이 pcbar 가 대체한다. 신규 쿼리 없음(total_orders 재소비).
+       코호트(v2)에서만 렌더 — 밀도 토글 hide/show CSS 가 코호트 번들에만 로드되므로 PC 미렌더로
+       stray 버튼 방지(기존 밀도 토글 게이트와 동일 이유). #}
+    {% if erp_mobile_v2_enabled %}
+    <div class="foms-history-pcbar" aria-label="과거 이력 검색 요약">
+      <div class="foms-history-pcbar__lead">
+        <h2 class="foms-history-pcbar__title">과거 이력 검색</h2>
+        <span class="foms-history-pcbar__sub"><i class="fas fa-lock" aria-hidden="true"></i> 읽기전용{% if total_orders %} · {{ total_orders }}건{% endif %}</span>
+      </div>
+      <div class="foms-history-pcbar__actions">
+        {% set foms_density_target = '.erp-history-mobile-shell' %}
+        {% include 'partials/shared/foms_density_toggle.html' %}
+      </div>
+    </div>
+    {% endif %}
     <header class="erp-pro-header">
       <h1 class="erp-pro-header__title">
         <i class="fas fa-history"></i>
@@ -177,40 +195,51 @@
           <h3 class="erp-pro-card__title foms-section-header__title">
             <i class="fas fa-list"></i> 검색 결과 (총 {{ total_orders }}건)
           </h3>
+          {# 밀도 토글(40/48/56)은 태블릿 가로 pcbar(.foms-history-pcbar)로 이전 —
+             동일 그리드 대상 2중 렌더 방지. #}
         </div>
         <div class="erp-pro-card__body p-0 foms-shell-body">
           <div class="table-responsive">
             <table class="table table-hover erp-pro-table mb-0">
+              {# data-col-key: 태블릿 가로 코호트에서 저우선 열(전화/주소/생성일) 은닉 +
+                 완료일 노출용 지목자(history-tablet.css). 완료일 열은 base-hidden → 코호트에서만
+                 노출(PC 무변경). PC 헤더 라벨은 그대로 유지(회귀 방지). #}
               <thead>
                 <tr>
-                  <th>ID</th>
-                  <th>단계</th>
-                  <th>고객명</th>
-                  <th>전화번호</th>
-                  <th>주소</th>
-                  <th>제품</th>
-                  <th>생성일</th>
-                  <th>상세</th>
+                  <th data-col-key="id">ID</th>
+                  <th data-col-key="status">단계</th>
+                  <th data-col-key="customer">고객명</th>
+                  <th data-col-key="phone">전화번호</th>
+                  <th data-col-key="address">주소</th>
+                  <th data-col-key="product">제품</th>
+                  <th data-col-key="completed">완료일</th>
+                  <th data-col-key="created">생성일</th>
+                  <th data-col-key="detail">상세</th>
                 </tr>
               </thead>
               <tbody>
                 {% for item in orders %}
                 {% set o = item._order %}
                 {% set d = item.display_o %}
-                <tr>
-                  <td>
+                {# data-foms-sheet-url: 태블릿 가로 코호트에서 본행 탭 → 읽기전용 스냅샷 시트
+                   (편집 fragment 아님). chevron(role=button)·상세보기(a)는 INTERACTIVE 가드가
+                   제외해 기존 확장/새탭 동작 보존. PC/폰은 이 속성을 소비하지 않음(무영향). #}
+                <tr class="history-main-row" data-order-id="{{ o.id }}"
+                  data-foms-sheet-url="{{ url_for('erp_history.history_tablet_sheet', order_id=o.id) }}">
+                  <td data-col-key="id">
                     <i class="fas fa-chevron-down history-chevron me-2 text-primary" data-order-id="{{ o.id }}" role="button" aria-expanded="false" title="주문 상세 보기"></i>
                     {{ o.id }}
                   </td>
-                  <td>
+                  <td data-col-key="status">
                     <span class="erp-pro-badge erp-pro-badge--{{ item.stage|replace(' ', '-') }}">{{ item.stage }}</span>
                   </td>
-                  <td>{{ d.customer_name }}</td>
-                  <td>{{ d.phone }}</td>
-                  <td class="text-truncate" style="max-width: 200px;" title="{{ d.address }}">{{ d.address }}</td>
-                  <td class="text-truncate" style="max-width: 150px;" title="{{ d.product }}">{{ d.product }}</td>
-                  <td>{{ (o.created_at|format_datetime_kst('%Y-%m-%d')) if o.created_at else '-' }}</td>
-                  <td>
+                  <td data-col-key="customer">{{ d.customer_name }}</td>
+                  <td data-col-key="phone">{{ d.phone }}</td>
+                  <td data-col-key="address" class="text-truncate" style="max-width: 200px;" title="{{ d.address }}">{{ d.address }}</td>
+                  <td data-col-key="product" class="text-truncate" style="max-width: 150px;" title="{{ d.product }}">{{ d.product }}</td>
+                  <td data-col-key="completed">{{ item.completed_date or '-' }}</td>
+                  <td data-col-key="created">{{ (o.created_at|format_datetime_kst('%Y-%m-%d')) if o.created_at else '-' }}</td>
+                  <td data-col-key="detail">
                     {% if not is_construction_team|default(false) %}
                     <a href="{{ url_for('order_edit.edit_order', order_id=o.id) }}{% if o.is_erp_order %}?open=erp-order{% endif %}" class="btn btn-sm btn-outline-secondary" target="_blank">
                       상세보기
@@ -221,7 +250,7 @@
                   </td>
                 </tr>
                 <tr class="history-detail-row" id="detail-{{ o.id }}" data-order-id="{{ o.id }}" style="display:none;" aria-hidden="true">
-                  <td colspan="8">
+                  <td colspan="9">
                     {% include 'orders/partials/history_detail_content.html' %}
                   </td>
                 </tr>

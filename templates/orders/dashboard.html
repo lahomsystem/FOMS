@@ -1,5 +1,15 @@
 {% extends "orders/layout.html" %}
 
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-v2-cs-hero.css') }}?v=20260714a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-call-log.css') }}?v=20260712b">
+{% endblock %}
+
 {% block content %}
 {% include 'orders/partials/dashboard_main.html' %}
+{% endblock %}
+
+{% block scripts %}
+<script defer src="{{ url_for('static', filename='js/orders/foms-call-log.js') }}?v=20260712b"></script>
+<script defer src="{{ url_for('static', filename='js/orders/foms-call-filter.js') }}?v=20260714a"></script>
 {% endblock %}

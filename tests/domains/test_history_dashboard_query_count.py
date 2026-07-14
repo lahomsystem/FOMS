@@ -168,3 +168,78 @@ def test_history_dashboard_no_n_plus_one(client):
     assert q_big <= ABS_QUERY_CAP, (
         f"절대 쿼리 상한 초과: big={q_big} > {ABS_QUERY_CAP}"
     )
+
+
+def test_history_main_row_exposes_side_sheet_source(client):
+    """B2 렌더 스모크: 이력 데스크톱 테이블 본행이 태블릿 side-sheet 위임 소스
+    (history-main-row + data-order-id)를 실제로 렌더한다(200 + 본행 소스). 확장행/chevron
+    확장 UX 는 무변경(회귀 방지 동반 확인)."""
+    _login_admin(client)
+    oid = _seed_order(0)
+    resp = _fragment_get(client)
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
+    assert 'class="history-main-row"' in body
+    assert f'data-order-id="{oid}"' in body
+    # 본행이 읽기전용 스냅샷 시트를 명시 지정(편집 fragment 폴백 차단 — gap1).
+    assert f"/erp/history/tablet-sheet/{oid}" in body
+    # 확장행/chevron 보존.
+    assert 'class="history-detail-row"' in body
+    assert "history-chevron" in body
+
+
+def test_history_tablet_sheet_renders_readonly_snapshot(client):
+    """gap1: 이력 본행 탭 → 읽기전용 스냅샷 시트 라우트가 200 + 편집 입력 없이 렌더된다.
+    편집 fragment(<input>/<textarea>/<select>)가 아니라 읽기전용 스냅샷이어야 하며, 수정은
+    '원 주문 열기' 점프로만 가능하다. 완료일(시공일)·요약·정산 스냅샷을 파생 렌더한다."""
+    _login_admin(client)
+    order = Order(
+        received_date="2026-06-01",
+        customer_name="스냅샷고객",
+        phone="010-7777-0001",
+        address="서울시 감사구 1",
+        product="붙박이장",
+        status="COMPLETED",
+        manager_name="이력담당",
+        is_erp_order=True,
+        erp_stage_code="COMPLETED",
+        structured_data={
+            "parties": {"customer": {"name": "스냅샷고객", "phone": "010-7777-0001"}},
+            "schedule": {"construction": {"date": "2026-06-20"}},
+            "items": [
+                {"product_name": "붙박이장", "width": "2400", "depth": "600",
+                 "height": "2400", "color": "화이트"}
+            ],
+        },
+    )
+    db_session.add(order)
+    db_session.commit()
+
+    resp = client.get(f"/erp/history/tablet-sheet/{order.id}")
+    assert resp.status_code == 200, f"sheet -> {resp.status_code}"
+    body = resp.get_data(as_text=True)
+    # 읽기전용 스냅샷 마커 + 파생 필드.
+    assert "읽기전용" in body
+    assert "스냅샷고객" in body
+    assert "붙박이장" in body
+    assert "2026-06-20" in body  # 완료일 = 시공일 파생
+    # 원 주문 점프(수정은 여기서만) + 헤드 #id.
+    assert "원 주문 열기" in body
+    assert f"#{order.id}" in body
+    # 편집 입력 금지(읽기전용 — 편집 fragment 아님).
+    assert "<input" not in body
+    assert "<textarea" not in body
+    assert "<select" not in body
+
+
+def test_history_tablet_sheet_document_nav_redirects_to_edit(client):
+    """주소창/새 탭 직접 진입(Sec-Fetch-Dest=document)은 비스타일 partial 노출 대신
+    정본 edit 페이지로 302 (dashboard tablet-sheet 전례)."""
+    _login_admin(client)
+    oid = _seed_order(0)
+    resp = client.get(
+        f"/erp/history/tablet-sheet/{oid}",
+        headers={"Sec-Fetch-Dest": "document"},
+    )
+    assert resp.status_code in (301, 302)
+    assert f"/order" in resp.headers.get("Location", "") or "edit" in resp.headers.get("Location", "")

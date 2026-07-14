@@ -64,6 +64,21 @@ def test_wizard_page_renders_with_parseable_config(client):
     assert config["can_save"] is True
 
 
+def test_wizard_page_has_exit_button(client):
+    """앱바 좌측 '나가기' 버튼(#dws-btn-exit)이 렌더된다 — 도면 작업실 복귀 진입점."""
+    _login_admin(client)
+    order = _erp_order()
+    order_id = order.id
+
+    resp = client.get(f"/erp/drawing-workbench/{order_id}/wizard")
+
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
+    assert 'id="dws-btn-exit"' in body
+    # 나가기 라벨/접근성 텍스트 존재
+    assert "나가기" in body
+
+
 def test_wizard_page_missing_order_redirects_to_dashboard(client):
     _login_admin(client)
 

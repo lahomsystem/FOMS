@@ -1,9 +1,10 @@
 name: perf-gate (staging)
 
-# deploy push 마다 자동으로 스테이징 성능 게이트를 돌린다("푸쉬만 하면 봇이 판정").
-# 배포 완료(healthz commit == 이 커밋 SHA)를 기다린 뒤 9 primary fragment 경로를
-# 측정해 커밋된 예산과 비교한다. exit 1(예산 초과) / exit 2(크리덴셜·로그인 실패) 는
-# 모두 job fail → GitHub 이 사용자에게 실패 알림을 보낸다.
+# 하이브리드 게이트: deploy 푸시 = 비블로킹 advisory(조기 신호, 캐스케이드 방지) /
+# production 승격 PR·수동 dispatch = 블로킹 하드 게이트. staging 회귀는 advisory 경고로
+# 뜨고, 예산 재시드/근본수정은 별도 커밋으로 처리한다(무관 커밋 연쇄 fail 없음).
+# 판정: 배포된 스테이징(lahom-dev)에 로그인 → 9 primary fragment 경로 측정 → 커밋된 예산 비교.
+# exit 2(크리덴셜·로그인 실패)는 advisory 무관하게 job fail(측정 불가는 사고로 취급).
 on:
   push:
     branches: [deploy]
@@ -12,7 +13,17 @@ on:
     paths-ignore:
       - "docs/**"
       - "**/*.md"
+  pull_request:
+    branches: [production]      # deploy→production 승격 PR = 블로킹 하드 게이트
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
   workflow_dispatch:
+
+# 빠른 연속 푸시의 중복 런은 취소(진행 중 런 노이즈·크레딧 낭비 감소).
+concurrency:
+  group: perf-gate-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -33,11 +44,23 @@ jobs:
       - name: Install minimal deps
         run: python -m pip install --upgrade pip requests brotli
 
-      # 새 컨테이너가 실제 트래픽을 받을 때까지 대기(구버전 재는 레이스 차단).
+      # push 이벤트에서만 이 커밋 SHA 의 배포 완료를 기다린다(구버전 재는 레이스 차단).
+      # PR/dispatch 는 현재 살아있는 staging 을 그대로 측정한다(승격 후보 검증).
       - name: Wait for staging deploy (healthz commit == SHA)
+        if: github.event_name == 'push'
         run: python tools/perf/wait_staging_deploy.py --sha "${{ github.sha }}" --timeout 600
 
-      - name: Run staging perf gate
+      # deploy 푸시 = 비블로킹 advisory(예산 초과는 경고 어노테이션, exit 0 → 캐스케이드 방지).
+      - name: Run staging perf gate (advisory on deploy push)
+        if: github.event_name == 'push'
+        env:
+          FOMS_STAGING_USERNAME: ${{ secrets.FOMS_STAGING_USERNAME }}
+          FOMS_STAGING_PASSWORD: ${{ secrets.FOMS_STAGING_PASSWORD }}
+        run: python tools/perf/staging_perf_gate.py --advisory
+
+      # production 승격 PR / 수동 dispatch = 블로킹 하드 게이트(예산 초과 → exit 1 → job fail).
+      - name: Run staging perf gate (blocking on production promotion / manual)
+        if: github.event_name != 'push'
         env:
           FOMS_STAGING_USERNAME: ${{ secrets.FOMS_STAGING_USERNAME }}
           FOMS_STAGING_PASSWORD: ${{ secrets.FOMS_STAGING_PASSWORD }}

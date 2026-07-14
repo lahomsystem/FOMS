@@ -1,0 +1,160 @@
+{# =========================================================================
+   FOMS Field OS v3 — CS 콜·접수 페르소나 홈 (읽기/표시 전용, v3.0).
+   기존 ERP 대시보드 뷰(foms/web/orders/dashboard.py)가 내려주는 컨텍스트만 소비:
+     · orders          — build_orders_row_dtos row DTO 리스트(라우트가 항상 전달)
+     · foms_nav_badges  — nav 배지 카운트(inject_foms_nav_badges, 전역 주입)
+   신규 쿼리·무거운 파생 없음. 접수 큐는 orders를 status로 필터/정렬만 한다.
+   현장 교정(스펙 §5-1): 해피콜 스테이지 없음 → CS 홈은 RECEIVED(주문접수) 기반.
+   레이아웃: 필터 칩(전체/보류/재확인) → 히어로(가장 오래된 접수) → 접수 대기 큐
+             → AS 요약 카드(AS 대시보드 링크). 원탭 콜(tel:) 52px.
+   클래스는 static/css/v3/foms-mobile-v3.css의 .fos-*/.px-* 만 사용(정적 레이아웃은
+   전부 클래스화 — 인라인 style은 동적 --sc 스테이지색 주입만 예외). 스크립트 신규 없음
+   (셸 foms-mobile-v3.js 위임: 칩 is-active 토글).
+   ========================================================================= #}
+{%- set _st_map = {
+  'RECEIVED': 'received', 'MEASURE': 'measure', 'DRAWING': 'drawing',
+  'CONFIRM': 'confirm', 'PRODUCTION': 'production', 'CONSTRUCTION': 'construction',
+  'CS': 'cs', 'COMPLETED': 'completed', 'AS': 'cs',
+  'AS_RECEIVED': 'cs', 'AS_COMPLETED': 'completed'
+} -%}
+{#- CS inbox = 주문접수 계열 status(해피콜 폐기). 오래된 순(id 오름차순)=대기 오래된 건 최상단. -#}
+{%- set _cs_statuses = ['RECEIVED', 'ON_HOLD', 'RECHECK'] -%}
+{%- set _rows = (orders or []) | selectattr('status', 'in', _cs_statuses) | list | sort(attribute='id') -%}
+{%- set _hold_ct = _rows | selectattr('status', 'equalto', 'ON_HOLD') | list | length -%}
+{%- set _recheck_ct = _rows | selectattr('status', 'equalto', 'RECHECK') | list | length -%}
+{%- set _hero = _rows[0] if _rows else None -%}
+{%- set _queue = _rows[1:] if _rows | length > 1 else [] -%}
+{%- set _as_ct = (foms_nav_badges or {}).get('as', 0) -%}
+{#- B2: '부재중' 페이지 필터 카운트 — 렌더되는 접수 대기 큐(_queue) 중 마지막 통화=no_answer 수. -#}
+{%- set _noanswer = namespace(n=0) -%}
+{%- for _o in _queue -%}
+  {%- set _oc = (_o.structured_data or {}).get('calls') -%}
+  {%- if _oc and _oc[-1].get('result') == 'no_answer' %}{% set _noanswer.n = _noanswer.n + 1 %}{% endif -%}
+{%- endfor -%}
+
+{%- macro cs_card(o, st_map) -%}
+  {%- set _sc = st_map.get(o.stage_code, 'received') -%}
+  {%- set _ph = (o.phone or '') | replace('-', '') | replace(' ', '') -%}
+  {%- set _danger = o.alerts and o.alerts.urgent -%}
+  {#- B2: 마지막 통화(sd.calls[-1].result) 파생 — '부재중' 페이지 필터 속성/배지(로드된 rows만). -#}
+  {%- set _lc_calls = (o.structured_data or {}).get('calls') -%}
+  {%- set _last_call = _lc_calls[-1] if _lc_calls else None -%}
+  {%- set _lc_result = _last_call.result if _last_call else '' -%}
+  <div class="fos-cardrow" data-foms-last-call="{{ _lc_result }}">
+    <a class="fos-queue-card fos-queue-card--link{% if _danger %} is-danger{% endif %}"
+       href="{{ url_for('erp_dashboard.erp_order_mobile_detail', order_id=o.id) }}"
+       data-order-id="{{ o.id }}">
+      <span class="fos-queue-card__dot" style="--sc:var(--st-{{ _sc }})"></span>
+      <span class="fos-queue-card__body">
+        <span class="fos-queue-card__title">
+          <span class="who">{{ o.customer_name or '-' }}</span>
+          {%- if o.product_subtitle %}<span class="prod">{{ o.product_subtitle }}</span>{% endif -%}
+        </span>
+        <span class="fos-queue-card__meta">
+          {%- if o.received_date %}<span class="tnum">{{ o.received_date }} 접수</span>{% endif -%}
+          {%- if o.address and o.address != '-' %}<span class="addr">{{ o.address }}</span>{% endif -%}
+        </span>
+        <span class="fos-tagrow">
+          <span class="fos-stage" data-st="{{ _sc }}">{{ o.stage or '주문접수' }}</span>
+          {%- if o.current_quest and o.current_quest.title %}<span class="fos-quest-tag">{{ o.current_quest.title }}</span>{% endif -%}
+          {%- if _last_call -%}
+            {%- set _lc_labels = {'connected': '통화됨', 'no_answer': '부재중', 'callback': '콜백', 'schedule_confirmed': '일정확정'} -%}
+            {%- set _lc_md = (_last_call.at[5:7]|int ~ '/' ~ _last_call.at[8:10]|int) if (_last_call.at and _last_call.at|length >= 10) else '' -%}
+            <span class="fos-lastcall-badge fos-lastcall-badge--{{ _lc_result|replace('_', '-') }}">{{ _lc_labels.get(_lc_result, '통화') }}{% if _lc_md %} · {{ _lc_md }}{% endif %}</span>
+          {%- endif -%}
+        </span>
+      </span>
+      <span class="fos-queue-card__aside">
+        <span class="fos-tl-btn" role="button" data-fos-timeline data-order-id="{{ o.id }}" aria-label="주문 진행 타임라인 보기"><i class="fas fa-timeline" aria-hidden="true"></i></span>
+        <i class="fas fa-chevron-right fos-chevron" aria-hidden="true"></i>
+      </span>
+    </a>
+    {%- if _ph and _ph != '-' %}
+    <a class="fos-callbtn{% if _danger %} is-danger{% endif %}" href="tel:{{ _ph }}"
+       aria-label="{{ o.customer_name or '고객' }} 통화">
+      <i class="fas fa-phone" aria-hidden="true"></i>
+    </a>
+    {% endif -%}
+  </div>
+{%- endmacro -%}
+
+<div class="fos-scroll" data-persona-home="cs" data-foms-lastcall-scope>
+  <div class="fos-appbar">
+    <div>
+      <div class="sub tnum">접수 {{ _rows | length }}{% if _hold_ct %} · 보류 {{ _hold_ct }}{% endif %}{% if _as_ct %} · AS {{ _as_ct }}{% endif %}</div>
+    </div>
+  </div>
+
+  <div class="fos-chips" role="tablist" aria-label="접수 필터">
+    <button class="fos-chip is-active" type="button">전체<span class="n tnum">{{ _rows | length }}</span></button>
+    <button class="fos-chip" type="button">보류<span class="n tnum">{{ _hold_ct }}</span></button>
+    <button class="fos-chip" type="button">재확인<span class="n tnum">{{ _recheck_ct }}</span></button>
+    {#- 클라 토글(단일 선택 정합은 셸 chipSelect + foms-call-filter.js): 마지막 통화≠no_answer 카드 숨김. -#}
+    <button class="fos-chip fos-chip--filter" type="button" data-foms-lastcall-filter aria-pressed="false">부재중<span class="n tnum">{{ _noanswer.n }}</span></button>
+  </div>
+  <p class="fos-filter-hint" data-foms-lastcall-hint hidden><i class="fas fa-circle-info" aria-hidden="true"></i> 현재 페이지 내 필터</p>
+
+  {% if not _rows %}
+  <div class="fos-empty">
+    <span class="fos-empty__ic"><i class="fas fa-phone-volume" aria-hidden="true"></i></span>
+    <span class="fos-empty__title">처리할 접수가 없습니다</span>
+    <span class="fos-empty__sub">새 주문접수가 들어오면 여기 콜 큐에 표시됩니다.</span>
+  </div>
+  {% else %}
+  {%- set _hero_ph = (_hero.phone or '') | replace('-', '') | replace(' ', '') -%}
+  {%- set _hero_danger = _hero.alerts and _hero.alerts.urgent -%}
+  <div class="fos-hero{% if _hero_danger %} is-danger{% endif %}" data-order-id="{{ _hero.id }}">
+    <div class="fos-hero__top">
+      <span class="fos-hero__label">
+        <i class="fas fa-phone-volume" aria-hidden="true"></i>
+        지금 확인할 접수{% if _hero_danger %} · 긴급{% endif %}
+      </span>
+      <span class="fos-tl-btn" role="button" data-fos-timeline data-order-id="{{ _hero.id }}" aria-label="주문 진행 타임라인 보기"><i class="fas fa-timeline" aria-hidden="true"></i></span>
+    </div>
+    <div class="fos-hero__titlerow">
+      <div class="fos-hero__title">{{ _hero.customer_name or '-' }}</div>
+      <span class="fos-stage" data-st="{{ _st_map.get(_hero.stage_code, 'received') }}">{{ _hero.stage or '주문접수' }}</span>
+    </div>
+    <div class="fos-hero__meta">
+      {% if _hero.product_subtitle %}<span>{{ _hero.product_subtitle }}</span>{% endif %}
+      {% if _hero.received_date %}<span class="tnum">{{ _hero.received_date }} 접수</span>{% endif %}
+      {% if _hero.phone and _hero.phone != '-' %}<span class="tnum">{{ _hero.phone }}</span>{% endif %}
+    </div>
+    <div class="px-sales-btnrow">
+      {% if _hero_ph and _hero_ph != '-' %}
+      <a class="fos-btn fos-btn--field {% if _hero_danger %}fos-btn--danger{% else %}fos-btn--primary{% endif %}"
+         href="tel:{{ _hero_ph }}" aria-label="{{ _hero.customer_name or '고객' }} 통화">
+        <i class="fas fa-phone" aria-hidden="true"></i> 지금 통화
+      </a>
+      {% endif %}
+      <a class="fos-btn fos-btn--ghost fos-btn--field"
+         href="{{ url_for('erp_dashboard.erp_order_mobile_detail', order_id=_hero.id) }}">상세</a>
+    </div>
+  </div>
+
+  <div class="fos-sec">
+    <div class="fos-sec__hd">접수 대기 · {{ _queue | length }}건</div>
+    {% if _queue %}
+      {% for o in _queue %}{{ cs_card(o, _st_map) }}{% endfor %}
+    {% else %}
+    <div class="fos-note">이 외 대기 중인 접수가 없습니다.</div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div class="fos-sec">
+    <div class="fos-sec__hd">AS</div>
+    <a class="fos-queue-card fos-queue-card--link"
+       href="{{ url_for('erp_as_page.erp_as_dashboard') }}">
+      <span class="fos-queue-card__dot fos-queue-card__dot--st-cs"></span>
+      <span class="fos-queue-card__body">
+        <span class="fos-queue-card__title"><span class="who">AS 처리 대기</span></span>
+        <span class="fos-queue-card__meta"><span class="tnum">미처리 AS {{ _as_ct }}건</span><span class="addr">눌러서 AS 대시보드</span></span>
+      </span>
+      <span class="fos-queue-card__aside">
+        <span class="fos-stage" data-st="cs">AS</span>
+        <i class="fas fa-chevron-right fos-chevron" aria-hidden="true"></i>
+      </span>
+    </a>
+  </div>
+</div>

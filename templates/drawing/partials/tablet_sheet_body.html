@@ -1,0 +1,100 @@
+{# ============================================================================
+   태블릿 도면 "관리 시트" fragment — 목업 v8 프레임 03 (2026-07-13, W-DRAWING).
+
+   갤러리 카드 탭 → 공용 tablet-side-sheet.js 가 이 fragment 를 우측 시트로 로드
+   (data-foms-sheet-url 계약). 읽기 전용 허브 + 2개 액션(시트 전달 / 마법사 열기).
+   데이터 = 서버 무신규(마법사 상태·자동채움·버전 스냅샷 재사용). NO inline style,
+   NO 인라인 script (시트 전달 = tablet-drawing-gallery.js document 위임).
+   ============================================================================ #}
+{% if sheet_not_found %}
+<div class="foms-drawing-sheet foms-drawing-sheet--empty">
+  <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+  <p>주문 #{{ order_id }} 을(를) 찾을 수 없습니다.</p>
+</div>
+{% else %}
+<div class="foms-drawing-sheet" data-order-id="{{ order_id }}">
+  <div class="foms-drawing-sheet__head">
+    <div class="foms-drawing-sheet__name">{{ customer_name }}</div>
+    <div class="foms-drawing-sheet__count">
+      <span>#{{ order_id }}</span>
+      {% if construction_md %}<span aria-hidden="true">·</span><span>시공 {{ construction_md }}</span>{% endif %}
+      <a class="foms-drawing-sheet__order-link" href="{{ detail_url }}">원 주문 열기</a>
+    </div>
+  </div>
+
+  {# ── 카드 1: 시트 N · PNG 자동 저장 (썸네일 스트립 120×84) ── #}
+  <section class="foms-drawing-sheet__card" aria-label="시트 목록">
+    <div class="foms-drawing-sheet__card-title">
+      <span><i class="fas fa-layer-group" aria-hidden="true"></i> 시트 {{ sheet_count }} · PNG 자동 저장</span>
+    </div>
+    {% if sheet_strip %}
+    <div class="foms-drawing-sheet__strip">
+      {% for s in sheet_strip %}
+      <figure class="foms-drawing-sheet__sheet">
+        <img class="foms-drawing-sheet__sheet-thumb" src="{{ s.thumb_url }}" alt="{{ s.sheet_name }} 도면 미리보기" loading="lazy">
+        <figcaption class="foms-drawing-sheet__sheet-label">{{ s.sheet_name }}{% if s.at %} · {{ s.at }}{% endif %}</figcaption>
+      </figure>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="foms-drawing-sheet__muted">자동 저장된 시트 PNG가 없습니다. 마법사에서 도면을 저장하세요.</p>
+    {% endif %}
+  </section>
+
+  {# ── 카드 2: 자동 채움 (시공일 / 자수 / 로고) ── #}
+  <section class="foms-drawing-sheet__card" aria-label="자동 채움">
+    <div class="foms-drawing-sheet__card-title">
+      <span><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i> 자동 채움</span>
+    </div>
+    <dl class="foms-drawing-sheet__fills">
+      <div class="foms-drawing-sheet__fill">
+        <dt>시공일</dt><dd>{{ autofill.construction_date }}</dd>
+      </div>
+      <div class="foms-drawing-sheet__fill">
+        <dt>자수</dt><dd>{{ autofill.spec_w300 }}</dd>
+      </div>
+      <div class="foms-drawing-sheet__fill">
+        <dt>로고</dt><dd>{{ autofill.logo }}</dd>
+      </div>
+    </dl>
+  </section>
+
+  {# ── 카드 3: 버전 이력 (전달 스냅샷 · 자동저장 타임라인) ── #}
+  <section class="foms-drawing-sheet__card" aria-label="버전 이력">
+    <div class="foms-drawing-sheet__card-title">
+      <span><i class="fas fa-clock-rotate-left" aria-hidden="true"></i> 버전 이력</span>
+    </div>
+    {% if timeline %}
+    <ol class="foms-drawing-sheet__timeline">
+      {% for ev in timeline %}
+      <li class="foms-drawing-sheet__event foms-drawing-sheet__event--{{ ev.kind }}">
+        <span class="foms-drawing-sheet__event-dot" aria-hidden="true"></span>
+        <div class="foms-drawing-sheet__event-body">
+          <div class="foms-drawing-sheet__event-label">{{ ev.label }} · {{ ev.sheet_name }}</div>
+          <div class="foms-drawing-sheet__event-meta">{{ ev.at }}{% if ev.by %} · {{ ev.by }}{% endif %}</div>
+        </div>
+      </li>
+      {% endfor %}
+    </ol>
+    {% else %}
+    <p class="foms-drawing-sheet__muted">아직 전달·저장 이력이 없습니다.</p>
+    {% endif %}
+  </section>
+
+  {# ── m-foot: 시트 전달 + 마법사 열기 ↗ ── #}
+  <div class="foms-drawing-sheet__foot">
+    {% if can_transfer %}
+    <button type="button"
+            class="foms-drawing-sheet__btn foms-drawing-sheet__btn--ghost foms-drawing-sheet__transfer"
+            data-foms-drawing-transfer
+            data-order-id="{{ order_id }}"
+            {% if not has_pending %}disabled title="전달할 저장 시트가 없습니다"{% endif %}>
+      <i class="fas fa-paper-plane" aria-hidden="true"></i> 시트 전달
+    </button>
+    {% endif %}
+    <a class="foms-drawing-sheet__btn foms-drawing-sheet__btn--primary" href="{{ wizard_url }}">
+      마법사 열기 <span aria-hidden="true">↗</span>
+    </a>
+  </div>
+</div>
+{% endif %}

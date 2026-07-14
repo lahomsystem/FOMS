@@ -18,6 +18,47 @@ from foms.services.erp_sync_columns import sync_erp_flat_columns
 from models import Order, OrderEvent
 
 
+def _sync_erp_stage(order: Order, new_status: str, user_id: Any, db: Any, *, bulk: bool) -> None:
+    """ERP 주문의 workflow.stage 동기화 + STAGE_CHANGED 이벤트 기록 (단건/벌크 공용).
+
+    비ERP 주문이나 structured_data 가 dict 가 아니면 아무것도 하지 않는다.
+    bulk 핸들러의 기존 ERP 블록을 그대로 옮긴 것으로, workflow 는 dict() 셸
+    복사 패턴을 유지한다(기존 동작 보존).
+
+    :param order: status 가 이미 갱신된 주문 ORM 객체.
+    :param new_status: 새 상태 코드(STATUS 키).
+    :param user_id: STAGE_CHANGED 기록용 사용자 id(없으면 None).
+    :param db: 활성 DB 세션(commit 은 호출부 소관).
+    :param bulk: STAGE_CHANGED payload 의 bulk 플래그(단건 False, 벌크 True).
+    """
+    structured_data = getattr(order, "structured_data", None)
+    if not (is_erp_order_record(order) and isinstance(structured_data, dict) and structured_data):
+        return
+    workflow = structured_data.get("workflow") or {}
+    old_stage = (workflow.get("stage") or "").strip()
+    if new_status in STATUS:
+        workflow = dict(workflow)
+        workflow["stage"] = new_status
+        workflow["stage_updated_at"] = datetime.datetime.now().isoformat()
+        structured_data["workflow"] = workflow
+        setattr(order, "structured_data", structured_data)
+        flag_modified(order, "structured_data")
+        sync_erp_flat_columns(order, structured_data)
+    db.add(
+        OrderEvent(
+            order_id=order.id,
+            event_type="STAGE_CHANGED",
+            payload={
+                "from": old_stage,
+                "to": new_status,
+                "manual": True,
+                "bulk": bulk,
+            },
+            created_by_user_id=user_id,
+        )
+    )
+
+
 def update_order_status_response(
     *,
     get_today_kst_func: Callable[[], Any] = get_today_kst,
@@ -39,13 +80,16 @@ def update_order_status_response(
             return jsonify({"success": False, "message": "주문을 찾을 수 없습니다."}), 404
 
         old_status = getattr(order, "status", None) or ""
+        user_id = session.get("user_id")
         order.status = new_status
         if new_status == "AS_RECEIVED" and not getattr(order, "as_received_date", None):
             setattr(order, "as_received_date", get_today_kst_func().strftime("%Y-%m-%d"))
 
+        # ERP 주문이면 workflow.stage 동기화 + STAGE_CHANGED 기록 (bulk 핸들러와 동일 헬퍼).
+        _sync_erp_stage(order, new_status, user_id, db, bulk=False)
+
         db.commit()
 
-        user_id = session.get("user_id")
         old_status_name = STATUS.get(old_status, old_status)
         new_status_name = STATUS.get(new_status, new_status)
         log_access(f"주문 #{order_id} 상태 변경: {old_status_name} → {new_status_name}", user_id)
@@ -119,33 +163,11 @@ def bulk_update_order_status_response(
             if new_status == "AS_RECEIVED" and not getattr(order, "as_received_date", None):
                 setattr(order, "as_received_date", get_today_kst_func().strftime("%Y-%m-%d"))
 
+            # 기존 동작 보존: ERP 주문의 dict 아닌 truthy sd 는 집계/로그 제외(continue).
             structured_data = getattr(order, "structured_data", None)
-            if is_erp_order_record(order) and structured_data:
-                if not isinstance(structured_data, dict):
-                    continue
-                workflow = structured_data.get("workflow") or {}
-                old_stage = (workflow.get("stage") or "").strip()
-                if new_status in STATUS:
-                    workflow = dict(workflow)
-                    workflow["stage"] = new_status
-                    workflow["stage_updated_at"] = datetime.datetime.now().isoformat()
-                    structured_data["workflow"] = workflow
-                    setattr(order, "structured_data", structured_data)
-                    flag_modified(order, "structured_data")
-                    sync_erp_flat_columns(order, structured_data)
-                db.add(
-                    OrderEvent(
-                        order_id=order.id,
-                        event_type="STAGE_CHANGED",
-                        payload={
-                            "from": old_stage,
-                            "to": new_status,
-                            "manual": True,
-                            "bulk": True,
-                        },
-                        created_by_user_id=user_id,
-                    )
-                )
+            if is_erp_order_record(order) and structured_data and not isinstance(structured_data, dict):
+                continue
+            _sync_erp_stage(order, new_status, user_id, db, bulk=True)
 
             log_access(
                 f"주문 #{order.id} 상태 변경: {old_status} → {new_status}",

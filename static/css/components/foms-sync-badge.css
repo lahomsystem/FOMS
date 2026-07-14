@@ -1,0 +1,30 @@
+/* B7 sync 배지 — v2 셸 헤더 타이틀 옆 인라인 소형 배지(foms-write.js 제어).
+   헤더 그리드 칼럼(grid-template-columns) 무변경: __context(text-align:center) 안에서
+   inline-flex 흐름으로 배치해 정렬 결함을 회피한다. 인라인 스타일 금지 정책 준수. */
+
+body.erp-mobile-v2-layout .foms-sync-badge {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  margin-left: 6px;
+  padding: 2px 8px;
+  border-radius: var(--foms-radius-full, 999px);
+  font-size: 11px;
+  font-weight: var(--foms-font-weight-semibold, 600);
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+body.erp-mobile-v2-layout .foms-sync-badge[hidden] {
+  display: none;
+}
+
+body.erp-mobile-v2-layout .foms-sync-badge--warn {
+  background: var(--foms-status-warning-soft, #fef3c7);
+  color: var(--foms-status-warning-strong, #92400e);
+}
+
+body.erp-mobile-v2-layout .foms-sync-badge--danger {
+  background: var(--foms-status-danger-soft, #fee2e2);
+  color: var(--foms-status-danger-strong, #991b1b);
+}

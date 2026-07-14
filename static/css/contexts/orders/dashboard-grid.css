@@ -1757,3 +1757,25 @@
       box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1) !important;
     }
 
+    /* 모바일 v2 대시보드 바디 + FAB — 광폭(≥992 landscape/fine/none) 숨김: 셸-독립 정본(2026-07-13).
+       원 소유자 foms-shell.css(≥992 hide)는 v2 전용 surfaces 번들(layout_head shell_variant=='v2'
+       게이트 @import)이라 v3 셸엔 미로드 → v3 데스크톱·태블릿 가로에서 주문 컨트롤 타워
+       (.foms-mobile-v2-dashboard)와 생성 FAB(.foms-shell-fab; 타워 섹션의 형제 노드)가
+       데스크톱 그리드 아래로 누출됐다. 이 파일은 dashboard_styles.html <link>로 /erp/dashboard 에서
+       셸 무관 항상 로드(v2∪v3∪legacy)되므로 주문 대시보드의 셸-독립 정본이다.
+       body.erp-mobile-v2-layout 은 erp_mobile_v2_enabled(v2∪v3) 코호트 모두에서 body 에
+       부착(orders/layout.html)되어 v3 에서도 발화한다. 미디어 조건·스코프는 원본과 1:1(광폭 정의
+       무변경). v2 의 동일 규칙은 foms-shell.css 에 무해한 중복으로 존치 — 그 파일은 비-주문 코호트
+       대시보드(시공·생산·출고·실측·이력)까지 커버하므로 정본 이전이 아닌 복제다.
+       drawing-mobile-v2 는 이 서피스(주문 대시보드)에 없어 제외. cf. AS 카메라 바 v3 누출
+       봉합(as-dashboard-body.css) 동일 패턴. */
+    @media
+      ((min-width: 992px) and (orientation: landscape)),
+      ((min-width: 992px) and (pointer: fine)),
+      ((min-width: 992px) and (pointer: none)) {
+      body.erp-mobile-v2-layout .foms-mobile-v2-dashboard,
+      body.erp-mobile-v2-layout .foms-shell-fab {
+        display: none !important;
+      }
+    }
+

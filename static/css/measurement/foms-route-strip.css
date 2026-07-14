@@ -1,0 +1,140 @@
+/*
+ * FOMS 실측 "오늘 동선" — 진행 요약 · 히어로(카운트다운/스펙/내비) · 지도 동선 스트립.
+ * 자체 클래스(.foms-visit-*/.foms-hero-*/.foms-route-*)만 사용 → v2(foms-v2dh)·v3(fos)
+ * 히어로 양쪽에 얹어도 안전. 색/획은 여기서 소유(인라인 스타일 금지). 라이트 톤.
+ */
+
+/* ---------- 상단 진행 요약 (실측 N곳 · 완료 N · 남은 N) ---------- */
+.foms-visit-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  font-size: 0.82rem;
+  color: #5f5950;
+  background: #f6f4f0;
+  border: 1px solid #e4e0d8;
+  border-radius: 12px;
+}
+.foms-visit-summary__item b { color: #201c17; font-weight: 800; }
+.foms-visit-summary__item--done b { color: #15803d; }
+.foms-visit-summary__item--left b { color: #b45309; }
+.foms-visit-summary__sep { color: #c8c2b8; }
+
+/* ---------- 히어로: 방문 카운트다운 (data-foms-visit-time 갱신 대상) ---------- */
+.foms-visit-countdown { font-weight: 700; }
+.foms-visit-countdown.is-soon { color: #b45309; }
+.foms-visit-countdown.is-passed { color: #dc2626; }
+
+/* ---------- 히어로: 스펙 라인 (제품 W×D×H 색) — 히어로 글자색 상속 ---------- */
+.foms-hero-spec {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin: 2px 0 6px;
+  font-size: 0.9rem;
+}
+.foms-hero-spec__name { font-weight: 700; }
+.foms-hero-spec__dims { font-variant-numeric: tabular-nums; letter-spacing: 0.01em; opacity: 0.92; }
+.foms-hero-spec__color { opacity: 0.78; }
+
+/* ---------- 히어로: 내비 시작(대형 primary) + 전화 아이콘 (v2 전용) ---------- */
+.foms-hero-navrow {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  margin-top: 10px;
+}
+.foms-hero-nav {
+  flex: 1 1 auto;
+  min-height: 52px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 18px;
+  border-radius: 14px;
+  background: #2563eb;
+  color: #fff !important;
+  font-size: 1.02rem;
+  font-weight: 800;
+  text-decoration: none;
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.28);
+}
+.foms-hero-nav i { font-size: 1.05rem; }
+.foms-hero-nav:active { transform: scale(0.985); }
+.foms-hero-callbtn {
+  flex: 0 0 auto;
+  width: 52px;
+  min-height: 52px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: #efece6;
+  color: #201c17 !important;
+  font-size: 1.1rem;
+  text-decoration: none;
+  border: 1px solid #e4e0d8;
+}
+.foms-hero-callbtn:active { transform: scale(0.96); }
+
+/* ---------- 지도 동선 스트립 (SVG는 JS 렌더) ---------- */
+.foms-route-strip {
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  background: #ffffff;
+  border: 1px solid #e4e0d8;
+  border-radius: 16px;
+  box-shadow: 0 4px 14px rgba(32, 28, 23, 0.05);
+}
+.foms-route-strip[hidden] { display: none; }
+.foms-route-strip__head {
+  margin-bottom: 6px;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #201c17;
+}
+.foms-route-strip__svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 320 / 140;
+  background: #f6f4f0;
+  border-radius: 12px;
+}
+.foms-route-strip__foot {
+  margin-top: 8px;
+  font-size: 0.82rem;
+  color: #5f5950;
+}
+.foms-route-strip__dist { color: #2563eb; font-weight: 700; }
+
+/* SVG 세그먼트/노드 — fill·stroke는 클래스가 소유 */
+.foms-route-seg { stroke: #c9bea8; stroke-width: 3; stroke-linecap: round; fill: none; }
+.foms-route-seg--dashed { stroke: #c7c0b4; stroke-dasharray: 2 7; opacity: 0.9; }
+.foms-route-node__dot { stroke: #ffffff; stroke-width: 2.5; }
+.foms-route-node__label { font-size: 11px; font-weight: 800; fill: #ffffff; }
+.foms-route-node--done .foms-route-node__dot { fill: #15803d; }
+.foms-route-node--current .foms-route-node__dot { fill: #2563eb; stroke-width: 3; }
+.foms-route-node--current .foms-route-node__label { font-size: 12px; }
+.foms-route-node--upcoming .foms-route-node__dot { fill: #ffffff; stroke: #b9b1a2; stroke-width: 2.5; }
+.foms-route-node--upcoming .foms-route-node__label { fill: #8f887d; }
+
+/* ---------- 큐 카드: 실측 완료 배지 ---------- */
+.foms-measure-done {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 0;
+  padding: 3px 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #15803d;
+  background: rgba(21, 128, 61, 0.1);
+  border-radius: 999px;
+}
+.foms-measure-done i { font-size: 0.82rem; }
