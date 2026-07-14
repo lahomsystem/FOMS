@@ -256,7 +256,11 @@ def compute_team_remaining_units_for_date(db, target_date: str | None, worker_se
             OrderScheduleDate.kind == 'construction',
             OrderScheduleDate.date == target_date,
         )
-        .distinct()
+        # DISTINCT ON (orders.id): 조인 중복만 제거하고 64KB JSONB(structured_data)를
+        # dedup 키에서 배제. Postgres는 DISTINCT ON 선두 컬럼이 ORDER BY 선두와
+        # 일치해야 하므로 order_by(Order.id)를 명시(집계 전용이라 순서 무관).
+        .order_by(Order.id)
+        .distinct(Order.id)
         .options(load_only(Order.id, Order.structured_data, Order.is_erp_order))
         .all()
     )
@@ -330,7 +334,7 @@ def erp_shipment_dashboard():
         ),
         OrderScheduleDate.date >= panel_range_start,
         OrderScheduleDate.date <= panel_range_end,
-    ).distinct()
+    ).distinct(Order.id)
 
     panel_orders = panel_query.options(
         load_only(
@@ -490,7 +494,7 @@ def erp_shipment_dashboard():
                 rows_query = rows_query.filter(OrderScheduleDate.date >= date_from, OrderScheduleDate.date <= date_to)
             elif use_single_day:
                 rows_query = rows_query.filter(OrderScheduleDate.date == selected_date)
-            rows_query = rows_query.distinct()
+            rows_query = rows_query.distinct(Order.id)
         rows_query = rows_query.options(
             load_only(
                 Order.id, Order.scheduled_date, Order.as_received_date, Order.as_completed_date,
