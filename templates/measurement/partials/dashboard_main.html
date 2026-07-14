@@ -756,18 +756,12 @@
                       {% set deposit_raw = payment.get('deposit') %}
                       {% if not deposit_raw %}
                         {% set payments = r.structured_data.get('payments', {}) if r.structured_data else {} %}
-                        {% set dep_obj = payments.get('deposit') or {} %}
-                        {% set deposit_raw = dep_obj.get('amount', 0) if dep_obj is mapping else dep_obj %}
+                        {% set deposit_raw = payments.get('deposit') or 0 %}
                       {% endif %}
-                      {% set deposit_val = (deposit_raw.get('amount', 0) if deposit_raw is mapping else deposit_raw)|int %}
                       <span class="erp-payment-badge-row ms-1">
-                        {% if deposit_val > 0 %}
-                          {% if payment.get('deposit_confirmed') | payment_confirmed_bool %}
-                          <img src="{{ url_for('static', filename='images/pay-coin.png') }}" class="erp-custom-payment-icon erp-custom-payment-confirmed" title="예약금 확인됨" alt="예약금">
-                          {% else %}
-                          <img src="{{ url_for('static', filename='images/pay-coin-gray.png') }}" class="erp-custom-payment-icon erp-custom-payment-unconfirmed" title="예약금 미확인" alt="예약금">
-                          {% endif %}
-                        {% endif %}
+                        {% with deposit=deposit_raw, deposit_confirmed=payment.get('deposit_confirmed'), orderer_name=orderer %}
+                        {% include 'orders/partials/deposit_coin_badge.html' %}
+                        {% endwith %}
                         {% if payment.get('balance_confirmed') | payment_confirmed_bool %}
                         <img src="{{ url_for('static', filename='images/pay-bill.png') }}" class="erp-custom-payment-icon erp-custom-payment-confirmed" title="잔금 확인됨" alt="잔금">
                         {% else %}
