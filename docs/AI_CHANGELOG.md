@@ -4,7 +4,7 @@
 
 | 날짜 | 작업 | 수정 파일 | 커밋 |
 |------|------|-----------|------|
-| 2026-07-15 | 실기기 QA Z라운드: 동선 카드 카카오 실지도 전환(JS키 SSOT·SVG 폴백)+fragment 최초진입 로드체인 편입, 출고 카드 통합(패킹·QR·상세·수정버튼을 v2 카드 옵트인 슬롯으로)+수정시트 85vh | foms-route-strip.js/css, measurement-entry.js, geocode_config.py, erp_mobile_queue_card_v2.html(슬롯3), shipment_mobile_queue.html, foms-shipment-mobile.css, layout_head+핀5 | (이번 push) |
+| 2026-07-15 | 실기기 QA Z라운드: 동선 카드 카카오 실지도 전환(JS키 SSOT·SVG 폴백)+fragment 최초진입 로드체인 편입, 출고 카드 통합(패킹·QR·상세·수정버튼을 v2 카드 옵트인 슬롯으로)+수정시트 85vh | foms-route-strip.js/css, measurement-entry.js, geocode_config.py, erp_mobile_queue_card_v2.html(슬롯3), shipment_mobile_queue.html, foms-shipment-mobile.css, layout_head+핀5 | 6cf87088 |
 | 2026-07-14 | fragment 인라인 스크립트 잠복 결함 전량 수술(Y): 시공·생산·주문·이력 DOMContentLoaded 5블록+top-level 누적 6건 → per-swap/once-only 분리, orders dashboard_scripts 고아 체인 7파일 사문 제거(~2,900줄, 테스트는 라이브 트윈 재지정) | construction/production scripts.html, orders/index.html, history_dashboard_body.html, dashboard_scripts_* 삭제 7, 계약 테스트 5종 재지정 | 3a6b9624·a22d5805 |
 | 2026-07-14 | 실기기 QA 5결함(X1~X5): FOUC(fragment CSS 선로드)·실측 캡처 전삭제·히어로 1줄·동선 mine+지도 오버레이·출고 수정 버튼(DOMContentLoaded→위임) | erp-shell.js, layout_scripts.html, measurement(capture 삭제·mobile_list·routes·route-strip), map_generator.py+map.py+erp_map.py, shipment_mobile_queue.html | 9fad207e |
 | 2026-07-14 | 세션 자동 기록 | tablet-measure-form.js, pr_body_production.txt, perf-gate.yml 외 2개 | 9be7d305 |
