@@ -28,6 +28,29 @@ def _apply_mine_filter(orders, *, mine, current_user):
     return [o for o in orders if is_order_related_to_user(o, current_user)]
 
 
+def _enqueue_missing_measurement_geocodes(db, orders) -> None:
+    """좌표 없는 주문을 pending 마킹 후 지오코딩 큐에 넣는다(generate_map과 동일 계보).
+
+    Args:
+        db: SQLAlchemy 세션.
+        orders: 필터 완료된 Order 리스트.
+    """
+    to_geocode = []
+    for order in orders:
+        lat = getattr(order, 'lat', None)
+        lng = getattr(order, 'lng', None)
+        if lat is None or lng is None:
+            addr = extract_address_from_order(order)
+            if addr and addr.strip() and addr.strip() != '-':
+                if getattr(order, 'geocode_status', None) != 'pending':
+                    order.geocode_status = 'pending'
+                    to_geocode.append((order, addr.strip()))
+    for order, _ in to_geocode:
+        enqueue_geocode_order_address(order.id)
+    if to_geocode:
+        db.commit()
+
+
 def measurement_map_data_response(
     *,
     date_filter: str,
@@ -37,8 +60,12 @@ def measurement_map_data_response(
     limit: int,
     mine: bool = False,
     current_user=None,
+    enqueue: bool = False,
 ):
-    """JSON response for `/api/map_data` when `dashboard=measurement` and date is set."""
+    """JSON response for `/api/map_data` when `dashboard=measurement` and date is set.
+
+    ``enqueue``면 좌표 없는 주문의 지오코딩을 트리거한다(카카오 클라 렌더 최초 로드용).
+    """
     db = get_db()
     query = build_measurement_map_query(
         db, date_filter, search_query, manager_filter, dashboard, limit
@@ -46,6 +73,8 @@ def measurement_map_data_response(
     orders = query.all()
     orders = [o for o in orders if not self_measurement_four_checks_done(o)]
     orders = _apply_mine_filter(orders, mine=mine, current_user=current_user)
+    if enqueue:
+        _enqueue_missing_measurement_geocodes(db, orders)
     snapshot = build_measurement_snapshot(orders, manager_filter)
     return jsonify({
         'success': True,
@@ -80,21 +109,7 @@ def measurement_generate_map_response(
     orders = query.all()
     orders = [o for o in orders if not self_measurement_four_checks_done(o)]
     orders = _apply_mine_filter(orders, mine=mine, current_user=current_user)
-
-    to_geocode = []
-    for order in orders:
-        lat = getattr(order, 'lat', None)
-        lng = getattr(order, 'lng', None)
-        if lat is None or lng is None:
-            addr = extract_address_from_order(order)
-            if addr and addr.strip() and addr.strip() != '-':
-                if getattr(order, 'geocode_status', None) != 'pending':
-                    order.geocode_status = 'pending'
-                    to_geocode.append((order, addr.strip()))
-    for order, _ in to_geocode:
-        enqueue_geocode_order_address(order.id)
-    if to_geocode:
-        db.commit()
+    _enqueue_missing_measurement_geocodes(db, orders)
 
     snapshot = build_measurement_snapshot(orders, manager_filter)
     map_generator = FOMSMapGenerator()

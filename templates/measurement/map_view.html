@@ -843,7 +843,165 @@
             margin-bottom: 1rem;
             opacity: 0.5;
         }
+
+        /* ── 카카오 지도 클라이언트 렌더 (folium 폴백과 병행) ─────────────
+           동선 순번 핀·연결선 색은 foms-route-strip.css 팔레트 SSOT
+           (.foms-route-pin/.foms-route-c*/--foms-route-line)를 그대로 쓴다. */
+        .foms-kmap-canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        .foms-kmap-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 9999px;
+            border: 2px solid #fff;
+            font-weight: 600;
+            font-size: 14px;
+            line-height: 1.2;
+            white-space: nowrap;
+            max-width: 190px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+            cursor: pointer;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans KR', sans-serif;
+        }
+
+        .foms-kmap-pill__name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .foms-kmap-pill__dup {
+            padding: 1px 7px;
+            border-radius: 9999px;
+            background: #fff;
+            color: #5a1f38;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .foms-kmap-popup {
+            width: 300px;
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+            font-size: 13px;
+            overflow: hidden;
+        }
+
+        .foms-kmap-popup__head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .foms-kmap-popup__close {
+            border: none;
+            background: none;
+            font-size: 20px;
+            line-height: 1;
+            cursor: pointer;
+            color: #6c757d;
+        }
+
+        .foms-kmap-popup__table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .foms-kmap-popup__table th {
+            text-align: left;
+            padding: 4px 8px 4px 12px;
+            white-space: nowrap;
+            color: #495057;
+            vertical-align: top;
+        }
+
+        .foms-kmap-popup__table td {
+            padding: 4px 12px 4px 0;
+            word-break: break-all;
+        }
+
+        .foms-kmap-popup__actions {
+            padding: 8px 12px;
+            border-top: 1px solid #e9ecef;
+            text-align: right;
+        }
+
+        .foms-kmap-legend {
+            position: absolute;
+            bottom: 14px;
+            left: 14px;
+            z-index: 30;
+            background: #fff;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+            font-size: 12.5px;
+            max-width: 190px;
+        }
+
+        .foms-kmap-legend__toggle {
+            display: block;
+            width: 100%;
+            border: none;
+            background: none;
+            padding: 6px 10px;
+            font-weight: 700;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .foms-kmap-legend__body {
+            padding: 0 10px 8px;
+        }
+
+        .foms-kmap-legend__row {
+            margin: 3px 0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .foms-kmap-legend__row--warn {
+            color: #dc3545;
+        }
+
+        .foms-kmap-legend__dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex: 0 0 auto;
+        }
+
+        .foms-kmap-legend__line {
+            width: 16px;
+            height: 0;
+            border-top: 3px dashed var(--foms-route-line, #6366f1);
+            flex: 0 0 auto;
+        }
+
+        .foms-kmap-legend__sep {
+            border-top: 1px solid #eee;
+            margin: 6px 0;
+        }
+
+        @media (max-width: 768px) {
+            .foms-kmap-pill {
+                font-size: 16px;
+                padding: 8px 14px;
+                min-height: 40px;
+            }
+        }
     </style>
+    <!-- 동선 팔레트 SSOT (순번 핀 .foms-route-pin/.foms-route-c* + --foms-route-line) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/measurement/foms-route-strip.css') }}?v=20260716a">
 </head>
 
 <body>
@@ -929,8 +1087,8 @@
                     onclick="clearGeocodePoll()"></button>
             </div>
 
-            <div id="map-content" style="display: none;">
-                <!-- 지도가 여기에 표시됩니다 -->
+            <div id="map-content" style="display: none;" data-kakao-js-key="{{ kakao_js_key }}">
+                <!-- 지도가 여기에 표시됩니다 (카카오 클라 렌더 · SDK 실패 시 folium 폴백) -->
             </div>
         </div>
 
@@ -1023,6 +1181,8 @@
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js" defer></script>
     <script src="{{ url_for('static', filename='js/runtime/common_utils.js') }}?v=20260327" defer></script>
+    <!-- 카카오 지도 클라이언트 렌더 모듈 (defer: DOMContentLoaded 전에 정의 완료) -->
+    <script src="{{ url_for('static', filename='js/measurement/map-view-kakao.js') }}?v=20260716a" defer></script>
 
     <script>
         let currentOrders = [];
@@ -1236,6 +1396,16 @@
                             if (anyResolved) updateOrderList(currentOrders);
                         }
                         document.getElementById('order-count-badge').textContent = currentOrders.length;
+                        // 카카오 클라 렌더 활성 시 폴링으로 마커도 갱신(뷰포트 유지)
+                        if (window.FomsMapViewKakao && window.FomsMapViewKakao.isActive()) {
+                            const pollMarkers = Array.isArray(data.data) ? data.data : [];
+                            window.FomsMapViewKakao.updateMarkers(
+                                document.getElementById('map-content'), pollMarkers, {
+                                    routeMode: !!initialRoute,
+                                    totalOrders: currentOrders.length,
+                                    routeSkipped: Math.max(0, currentOrders.length - pollMarkers.length)
+                                });
+                        }
                         const stillPending = currentOrders.some(function (o) { return o.conversion_status === 'pending'; });
                         const banner = document.getElementById('geocode-poll-banner');
                         const pollText = document.getElementById('geocode-poll-text');
@@ -1252,7 +1422,85 @@
                 return;
             }
 
-            // ── 최초 로드 / 필터 변경: 지도 전체 재생성 ──────────────────────────
+            // ── 최초 로드 / 필터 변경: 카카오 클라 렌더 우선, SDK 실패 시 folium 폴백 ──
+            const mapContentEl = document.getElementById('map-content');
+            if (window.FomsMapViewKakao && window.FomsMapViewKakao.isUsable(mapContentEl)) {
+                loadMapKakao(mapContentEl, dateFilter, statusFilter, managerFilter, searchQuery);
+                return;
+            }
+            loadMapFolium(dateFilter, statusFilter, managerFilter, searchQuery);
+        }
+
+        // 목록 갱신 + 지오코딩 pending 폴링 배선 (카카오/folium 공용 후처리)
+        function applyOrdersAndPoll(orders) {
+            currentOrders = orders || [];
+            updateOrderList(currentOrders);
+            document.getElementById('order-count-badge').textContent = currentOrders.length;
+
+            // 주소 변환 대기 주문 있으면 15초 후 목록만 조용히 갱신
+            const hasPending = currentOrders.some(function (o) {
+                return o.conversion_status === 'pending';
+            });
+            const banner = document.getElementById('geocode-poll-banner');
+            const pollText = document.getElementById('geocode-poll-text');
+            if (hasPending) {
+                geocodePollRetries = 1;
+                if (banner) banner.style.display = 'block';
+                if (pollText) pollText.textContent = '주소 변환 중... ' + (GEOCODE_POLL_INTERVAL_MS / 1000) + '초 후 갱신 (1/' + GEOCODE_POLL_MAX_RETRIES + ')';
+                geocodePollTimeoutId = setTimeout(function () { loadMap(true); }, GEOCODE_POLL_INTERVAL_MS);
+            } else {
+                clearGeocodePoll();
+            }
+        }
+
+        // 카카오 클라 렌더: /api/map_data(enqueue=1 — generate_map과 동일 지오코딩 트리거)
+        // → 마커·팝업·범례·동선 JS 렌더. SDK 로드 실패 시 folium 경로 자동 폴백.
+        function loadMapKakao(mapContentEl, dateFilter, statusFilter, managerFilter, searchQuery) {
+            const params = new URLSearchParams({ date: dateFilter, status: statusFilter, enqueue: '1' });
+            if (managerFilter) params.set('manager', managerFilter);
+            if (searchQuery) params.set('q', searchQuery);
+            if (dashboardParam) params.set('dashboard', dashboardParam);
+            if (initialMine) params.set('mine', initialMine);
+
+            fetch('/api/map_data?' + params)
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (!data.success) {
+                        clearGeocodePoll();
+                        showError(data.error || '지도를 로드할 수 없습니다.');
+                        currentOrders = [];
+                        updateOrderList([]);
+                        return;
+                    }
+                    const markers = Array.isArray(data.data) ? data.data : [];
+                    const orders = data.orders || [];
+                    // 지도 컨테이너를 먼저 표시(display:none 상태 init = 0-사이즈 타일 공백 방지)
+                    hideLoading();
+                    window.FomsMapViewKakao.render(mapContentEl, markers, {
+                        routeMode: !!initialRoute,
+                        totalOrders: orders.length,
+                        routeSkipped: Math.max(0, orders.length - markers.length)
+                    }).then(function (ok) {
+                        if (!ok) {
+                            console.warn('카카오 지도 SDK 사용 불가 — folium 지도로 폴백합니다.');
+                            showLoading();
+                            loadMapFolium(dateFilter, statusFilter, managerFilter, searchQuery);
+                            return;
+                        }
+                        applyOrdersAndPoll(orders);
+                    });
+                })
+                .catch(function (error) {
+                    console.error('지도 데이터 로드 오류:', error);
+                    clearGeocodePoll();
+                    showError('서버 연결 오류가 발생했습니다.');
+                    currentOrders = [];
+                    updateOrderList([]);
+                });
+        }
+
+        // folium 폴백: 기존 서버 생성 HTML 경로(동작 보존).
+        function loadMapFolium(dateFilter, statusFilter, managerFilter, searchQuery) {
             const params = new URLSearchParams({
                 date: dateFilter,
                 status: statusFilter,
@@ -1273,24 +1521,7 @@
                         setTimeout(cleanupMapOverlays, 200);
                         setTimeout(cleanupMapOverlays, 800);
 
-                        currentOrders = data.orders || [];
-                        updateOrderList(currentOrders);
-                        document.getElementById('order-count-badge').textContent = currentOrders.length;
-
-                        // 주소 변환 대기 주문 있으면 15초 후 목록만 조용히 갱신
-                        const hasPending = (data.orders || []).some(function (o) {
-                            return o.conversion_status === 'pending';
-                        });
-                        const banner = document.getElementById('geocode-poll-banner');
-                        const pollText = document.getElementById('geocode-poll-text');
-                        if (hasPending) {
-                            geocodePollRetries = 1;
-                            if (banner) banner.style.display = 'block';
-                            if (pollText) pollText.textContent = '주소 변환 중... ' + (GEOCODE_POLL_INTERVAL_MS / 1000) + '초 후 갱신 (1/' + GEOCODE_POLL_MAX_RETRIES + ')';
-                            geocodePollTimeoutId = setTimeout(function () { loadMap(true); }, GEOCODE_POLL_INTERVAL_MS);
-                        } else {
-                            clearGeocodePoll();
-                        }
+                        applyOrdersAndPoll(data.orders || []);
                     } else {
                         clearGeocodePoll();
                         showError(data.error || '지도를 로드할 수 없습니다.');

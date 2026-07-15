@@ -16,6 +16,7 @@ from foms.web.auth import login_required
 from foms.services.erp_permissions import erp_edit_required
 from foms.services.erp_display import _normalize_for_search
 from foms.services.common.address_converter import FOMSAddressConverter
+from foms.services.common.geocode_config import KAKAO_JS_API_KEY
 from foms.services.common.map_generator import FOMSMapGenerator
 from foms.services.jobs.queue import enqueue_geocode_order_address
 from foms.services.order_geocode import reset_order_geocode_on_address_change
@@ -327,7 +328,8 @@ def map_view():
     ``apply_erp_shell_fragment_headers``; shell tab fetch / FRAGMENT_READY does not
     target ``/map_view``.
     """
-    return render_template('measurement/map_view.html')
+    # 카카오 지도 클라이언트 렌더용 JS 키(SSOT: geocode_config) — 템플릿 data 속성 주입.
+    return render_template('measurement/map_view.html', kakao_js_key=KAKAO_JS_API_KEY)
 
 
 def _normalize_map_date(value):
@@ -346,16 +348,86 @@ def _normalize_map_date(value):
     return None
 
 
+def _resolve_pending_geocodes(
+    db,
+    payload,
+    *,
+    date_filter,
+    status_filter,
+    dashboard,
+    scan_limit,
+    manager_filter,
+    search_query,
+    result_limit,
+):
+    """payload['to_geocode'] 주문을 RQ 큐에 넣고(불가 시 동기 폴백), 폴백 시 payload 재조립.
+
+    `/api/generate_map`(folium)과 `/api/map_data?enqueue=1`(카카오 클라 렌더)이
+    동일 지오코딩 트리거 계보를 쓰도록 추출한 공용 헬퍼(동작 보존).
+
+    Args:
+        db: SQLAlchemy 세션.
+        payload: `_build_map_payload(..., enqueue_missing=True)` 결과.
+        나머지: 동기 폴백 발생 시 재조회에 필요한 원 쿼리 파라미터.
+
+    Returns:
+        갱신된 payload dict (폴백 미발생 시 입력 그대로).
+    """
+    queued_orders = []
+    used_sync_fallback = False
+    for order in payload['to_geocode']:
+        queued = enqueue_geocode_order_address(order.id)
+        if queued:
+            order.geocode_status = 'pending'
+            queued_orders.append(order)
+        else:
+            from foms.services.jobs.tasks import geocode_order_address
+            try:
+                geocode_order_address(order.id)
+                used_sync_fallback = True
+            except Exception as e:
+                current_app.logger.warning(
+                    "map geocode fallback failed for order_id=%s: %s",
+                    order.id,
+                    e,
+                    exc_info=True,
+                )
+    if queued_orders:
+        db.commit()
+    if used_sync_fallback:
+        db.expire_all()
+        orders = _query_map_orders(
+            db,
+            date_filter=date_filter,
+            status_filter=status_filter,
+            dashboard=dashboard,
+            limit=scan_limit,
+        )
+        payload = _build_map_payload(
+            orders,
+            manager_filter=manager_filter,
+            search_query=search_query,
+            enqueue_missing=False,
+            result_limit=result_limit,
+        )
+    return payload
+
+
 @erp_map_bp.route('/api/map_data')
 @login_required
 def api_map_data():
-    """지도 표시용 주문 데이터 API"""
+    """지도 표시용 주문 데이터 API.
+
+    `enqueue=1`이면 좌표 없는 주문의 지오코딩을 트리거한다(카카오 클라이언트
+    렌더의 최초 로드용 — `/api/generate_map`과 동일 계보, 폴링 호출은 미지정).
+    """
     try:
         date_filter = _normalize_map_date(request.args.get('date'))
         status_filter = request.args.get('status')
         dashboard = request.args.get('dashboard')
         manager_filter = (request.args.get('manager') or '').strip()
         search_query = (request.args.get('q') or request.args.get('search') or '').strip()
+        enqueue = (request.args.get('enqueue') or '').strip() == '1'
         limit = _resolve_map_limit(
             request.args.get('limit'),
             default_limit=500 if dashboard == 'measurement' else 200
@@ -373,6 +445,7 @@ def api_map_data():
                 limit=limit,
                 mine=mine,
                 current_user=getattr(g, 'current_user', None),
+                enqueue=enqueue,
             )
 
         scan_limit = _MAP_SCAN_MAX_LIMIT if date_filter else min(_MAP_SCAN_MAX_LIMIT, max(limit, limit * 3))
@@ -388,9 +461,21 @@ def api_map_data():
             orders,
             manager_filter=manager_filter,
             search_query=search_query,
-            enqueue_missing=False,
+            enqueue_missing=enqueue,
             result_limit=limit,
         )
+        if enqueue:
+            payload = _resolve_pending_geocodes(
+                db,
+                payload,
+                date_filter=date_filter,
+                status_filter=status_filter,
+                dashboard=dashboard,
+                scan_limit=scan_limit,
+                manager_filter=manager_filter,
+                search_query=search_query,
+                result_limit=limit,
+            )
 
         map_data_list = payload.get('map_data', [])
         orders_list = payload.get('orders', [])
@@ -477,43 +562,17 @@ def api_generate_map():
             result_limit=limit,
         )
 
-        queued_orders = []
-        used_sync_fallback = False
-        for order in payload['to_geocode']:
-            queued = enqueue_geocode_order_address(order.id)
-            if queued:
-                order.geocode_status = 'pending'
-                queued_orders.append(order)
-            else:
-                from foms.services.jobs.tasks import geocode_order_address
-                try:
-                    geocode_order_address(order.id)
-                    used_sync_fallback = True
-                except Exception as e:
-                    current_app.logger.warning(
-                        "generate_map fallback geocode failed for order_id=%s: %s",
-                        order.id,
-                        e,
-                        exc_info=True,
-                    )
-        if queued_orders:
-            db.commit()
-        if used_sync_fallback:
-            db.expire_all()
-            orders = _query_map_orders(
-                db,
-                date_filter=date_filter,
-                status_filter=status_filter,
-                dashboard=dashboard,
-                limit=scan_limit,
-            )
-            payload = _build_map_payload(
-                orders,
-                manager_filter=manager_filter,
-                search_query=search_query,
-                enqueue_missing=False,
-                result_limit=limit,
-            )
+        payload = _resolve_pending_geocodes(
+            db,
+            payload,
+            date_filter=date_filter,
+            status_filter=status_filter,
+            dashboard=dashboard,
+            scan_limit=scan_limit,
+            manager_filter=manager_filter,
+            search_query=search_query,
+            result_limit=limit,
+        )
 
         map_generator = FOMSMapGenerator()
 
