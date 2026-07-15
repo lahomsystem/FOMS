@@ -773,15 +773,23 @@
                       <span class="badge bg-info text-white ms-1" title="자가실측"><i class="fas fa-ruler-combined"></i>
                         자가실측</span>
                       {% endif %}
-                      {% if r.is_regional|default(false) %}
-                      <span class="badge bg-warning text-dark ms-1" title="지방주문"><i class="fas fa-map-marker-alt"></i>
-                        지방주문</span>
-                      {% endif %}
                       <i class="fas fa-chevron-down measurement-chevron ms-1" data-order-id="{{ r.id }}" role="button"
                         aria-expanded="false" title="주문 상세 보기"></i>
                     </span>
                   </td>
-                  <td data-label="발주사" style="border-right: 1px solid #e0e0e0;">{{ orderer or '-' }}{% if is_factory2 %}<br><span class="badge bg-warning text-dark"><i class="fas fa-industry"></i> 라홈시스템</span>{% endif %}</td>
+                  <td data-label="발주사" style="border-right: 1px solid #e0e0e0;">
+                    {{ orderer or '-' }}
+                    {% if is_factory2 or r.is_regional|default(false) %}
+                    <div class="d-flex flex-column align-items-start gap-1 mt-1">
+                      {% if is_factory2 %}
+                      <span class="badge bg-warning text-dark"><i class="fas fa-industry"></i> 라홈시스템</span>
+                      {% endif %}
+                      {% if r.is_regional|default(false) %}
+                      <span class="badge bg-success text-white" title="지방주문"><i class="fas fa-map-marker-alt"></i> 지방주문</span>
+                      {% endif %}
+                    </div>
+                    {% endif %}
+                  </td>
                   <td class="editable-cell cell-wrap measurement-address-cell" data-field="address" data-label="주소"
                     style="border-right: 1px solid #e0e0e0;">{{ address or '-' }}</td>
                   <td class="editable-cell" data-field="phone" data-label="전화번호"
