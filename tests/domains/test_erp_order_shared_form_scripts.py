@@ -51,14 +51,26 @@ def _assert_shared_form_script_contract(body: str) -> None:
     payment_urls_idx = body.index("window.__ERP_PAYMENT_ICON_URLS")
     channel_push_confirm_idx = body.index("js/orders/erp-channel-push-confirm.js")
     erp_order_shared_idx = body.index("js/orders/erp-order-shared.js")
+    stage_override_idx = body.index("js/orders/erp-stage-override.js")
     estimate_preview_idx = body.index("js/orders/estimate-preview.js")
     estimate_columns_idx = body.index("js/orders/estimate-table-columns.js")
     column_resizer_idx = body.index("js/runtime/column-resizer.js")
 
-    assert payment_urls_idx < channel_push_confirm_idx < erp_order_shared_idx < column_resizer_idx < estimate_preview_idx < estimate_columns_idx
+    assert (
+        payment_urls_idx
+        < channel_push_confirm_idx
+        < erp_order_shared_idx
+        < stage_override_idx
+        < column_resizer_idx
+        < estimate_preview_idx
+        < estimate_columns_idx
+    )
     assert "html2canvas.min.js" not in body
     assert "js/orders/erp-channel-push-confirm.js?v=20260703a" in body
-    assert "js/orders/erp-order-shared.js?v=20260714b" in body
+    assert "js/orders/erp-order-shared.js?v=20260716a" in body
+    assert "js/orders/erp-stage-override.js?v=20260716a" in body
+    assert "erp_stage_override_modal.html" not in body  # include renders modal markup, not path
+    assert 'id="erpStageOverrideModal"' in body
     assert "css/orders/erp-channel-push.css?v=20260701a" in body
     assert "css/orders/erp-items-master-detail.css?v=20260701f" in body
     assert "js/orders/erp-items-master-detail.js?v=20260630c" in body
