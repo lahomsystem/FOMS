@@ -119,7 +119,7 @@
   {% endif %}
 
   {% if _rows %}
-  <div class="foms-route-strip" data-foms-route-strip data-route-date="{{ selected_date or today_date }}" hidden aria-label="오늘 동선 지도"></div>
+  <div class="foms-route-strip" data-foms-route-strip data-route-date="{{ selected_date or today_date }}" data-kakao-js-key="{{ kakao_js_key }}" hidden aria-label="오늘 동선 지도"></div>
   {% endif %}
 
   <div class="fos-sec">

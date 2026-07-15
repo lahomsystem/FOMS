@@ -1,4 +1,4 @@
-{% macro render_queue_card_v2(order, can_edit=false, task_action=None, badge_modifier=None, badge_text=None, task_actions=None, edit_return_to=None, detail_return_to=None, edit_label='ERP 편집', show_last_call=false) -%}
+{% macro render_queue_card_v2(order, can_edit=false, task_action=None, badge_modifier=None, badge_text=None, task_actions=None, edit_return_to=None, detail_return_to=None, edit_label='ERP 편집', show_last_call=false, detail_slot=None, aux_slot=None, footer_extra_slot=None) -%}
   {% set primary_alerts = [] %}
   {% if order.alerts.urgent %}
     {% set _ = primary_alerts.append({'label': '긴급', 'class': 'foms-badge--alert'}) %}
@@ -169,6 +169,7 @@
       </div>
       {% endif %}
     </dl>
+    {%- if detail_slot and detail_slot|trim %}{{ detail_slot }}{% endif %}
 
     {% set action_list = task_actions if task_actions is not none else [] %}
     {% if task_actions is none and task_action %}
@@ -183,9 +184,16 @@
         and (order.stage_code == 'DRAWING' or order.stage in ['도면', 'DRAWING']) %}
     {% set workflow_actionable = quest_actionable or drawing_actionable %}
     {% set detail_href = url_for('erp_dashboard.erp_order_mobile_detail', order_id=order.id, return_to=detail_return_to) if detail_return_to else url_for('erp_dashboard.erp_order_mobile_detail', order_id=order.id) %}
-
-    <footer class="queue-card__action foms-queue-card-v2__action">
-      {% if order.risk_cta %}
+    {%- if aux_slot and aux_slot|trim %}{{ aux_slot }}{% endif %}
+    {#- 카드 통합 후속(2026-07-15): footer_extra_slot 사용 도메인(출고)은 푸터 본줄을
+        [상세 · ERP 편집 · 슬롯 버튼] 3개로 고정하고, 조건부 워크플로 버튼(리스크 CTA ·
+        task_actions · 퀘스트 승인 · 도면 창구)을 전부 푸터 아래 전용 줄(workflow-row)로
+        내린다 — 4버튼이 nowrap 1라인에 몰려 깨지는 문제의 일반해. 아래 캡처 블록은 기존
+        푸터 마크업을 자구 그대로 옮긴 것으로, 슬롯 미사용 도메인은 본줄 원위치에 그대로
+        재주입되어 렌더 바이트 무변경이다(전화 폴백은 ERP 편집과 상호배타 elif라 슬롯
+        활성 시 도달 불가 — 본줄에 유지). -#}
+    {%- set footer_split = footer_extra_slot and footer_extra_slot|trim %}
+    {%- set footer_flow_pre %}{% if order.risk_cta %}
         <a
           class="foms-btn foms-btn--sm foms-queue-card-v2__risk-cta foms-queue-card-v2__risk-cta--{{ order.risk_cta.tone }}"
           href="{{ order.risk_cta.href }}"
@@ -193,13 +201,8 @@
           aria-label="{{ order.risk_cta.label }}">
           {% if order.risk_cta.icon %}<i class="{{ order.risk_cta.icon }}" aria-hidden="true"></i> {% endif %}{{ order.risk_cta.label }}
         </a>
-      {% endif %}
-      <a
-        class="foms-btn foms-btn--ghost foms-btn--sm"
-        href="{{ detail_href }}">
-        상세
-      </a>
-      {% for action in action_list %}
+      {% endif %}{% endset %}
+    {%- set footer_flow_post %}{% for action in action_list %}
         {% if action.badge_only %}
           <span class="foms-btn foms-btn--secondary foms-btn--sm {{ action.button_class or '' }}" role="status">
             {% if action.icon %}<i class="{{ action.icon }}" aria-hidden="true"></i> {% endif %}{{ action.label }}
@@ -229,7 +232,16 @@
           aria-label="도면 창구 열기">
           <i class="fas fa-drafting-compass" aria-hidden="true"></i> 도면 창구
         </a>
-      {% endif %}
+      {% endif %}{% endset %}
+
+    <footer class="queue-card__action foms-queue-card-v2__action">
+      {% if not footer_split %}{{ footer_flow_pre }}{% endif %}
+      <a
+        class="foms-btn foms-btn--ghost foms-btn--sm"
+        href="{{ detail_href }}">
+        상세
+      </a>
+      {% if not footer_split %}{{ footer_flow_post }}{% endif %}
       {% if can_edit or (order.current_quest and order.current_quest.title) %}
         <a
           class="foms-btn {% if action_list or workflow_actionable %}foms-btn--secondary{% else %}foms-btn--primary{% endif %} foms-btn--sm"
@@ -240,6 +252,10 @@
       {% elif has_phone %}
         <a class="foms-btn foms-btn--primary foms-btn--sm" href="tel:{{ safe_phone }}">전화</a>
       {% endif %}
+      {%- if footer_extra_slot and footer_extra_slot|trim %}{{ footer_extra_slot }}{% endif %}
     </footer>
+    {%- if footer_split and (footer_flow_pre|trim or footer_flow_post|trim) %}
+    <div class="queue-card__workflow-row foms-queue-card-v2__workflow-row">{{ footer_flow_pre }}{{ footer_flow_post }}</div>
+    {%- endif %}
   </article>
 {%- endmacro %}

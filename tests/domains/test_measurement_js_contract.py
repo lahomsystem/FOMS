@@ -41,8 +41,8 @@ def test_manager_dropdown_cleanup_is_centralized():
     assert "closeManagerDropdown();" in content
 
 
-def test_measurement_mobile_quick_edit_removed_and_capture_retained():
-    """실측 모바일 카드: 주소/연락처/담당 '빠른 수정' UI는 제거되고 캡처 진입점만 유지된다.
+def test_measurement_mobile_quick_edit_removed():
+    """실측 모바일 카드: 주소/연락처/담당 '빠른 수정' UI는 제거된다.
 
     데스크톱 인라인 편집(dashboard_main)과 공유 큐카드의 전화/지도 어포던스는 무영향이어야 한다.
     """
@@ -66,10 +66,6 @@ def test_measurement_mobile_quick_edit_removed_and_capture_retained():
     assert "data-measurement-mobile-field" not in mobile_list
     for field in ('data-field="address"', 'data-field="phone"', 'data-field="manager"'):
         assert field not in mobile_list
-
-    # 캡처 진입점(버튼 + capture_sheet)은 유지된다.
-    assert "data-foms-measure-capture-open" in mobile_list
-    assert "capture_sheet.html" in mobile_list
 
     # 공유 큐카드의 전화/지도 어포던스는 빠른수정과 무관 — 그대로 유지.
     assert 'data-queue-card-field="address"' in shared_card

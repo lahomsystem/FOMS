@@ -27,8 +27,6 @@
 {% if _mhero %}
   {% set _mh_time = ((_mhero.structured_data.get('schedule') or {}).get('measurement') or {}).get('time') %}
   {% set _mh_phone = (_mhero.phone or '')|replace('-', '')|replace(' ', '') %}
-  {% set _mh_meas = (_mhero.structured_data.get('measurement') if _mhero.structured_data else None) or {} %}
-  {% set _mh_dims = _mh_meas.get('dims') or {} %}
   {% set _mh_items = (_mhero.structured_data.get('items') if _mhero.structured_data else None) or [] %}
   {% set _mh_item = _mh_items[0] if _mh_items else {} %}
   {% set _mh_pn = _mh_item.get('product_name') or _mh_item.get('name') %}
@@ -61,22 +59,7 @@
     <div class="foms-hero-navrow">
       {% if _mh_nav %}<a class="foms-hero-nav" href="{{ _mh_nav }}" target="_blank" rel="noopener" aria-label="내비 시작"><i class="fas fa-diamond-turn-right" aria-hidden="true"></i> 내비 시작</a>{% endif %}
       {% if _mh_phone and _mh_phone != '-' %}<a class="foms-hero-callbtn" href="tel:{{ _mh_phone }}" aria-label="{{ _mhero.customer_name or '고객' }} 전화"><i class="fas fa-phone" aria-hidden="true"></i></a>{% endif %}
-    </div>
-    <div class="foms-v2dh-hero__actions">
-      <a class="foms-v2dh-btn" href="{{ url_for('erp_dashboard.erp_order_mobile_detail', order_id=_mhero.id, return_to='erp_measurement_dashboard') }}">상세</a>
-      {% if can_edit_erp|default(false) %}
-      <button type="button" class="foms-v2dh-btn foms-measure-capture-open-btn"
-              data-foms-measure-capture-open
-              data-order-id="{{ _mhero.id }}"
-              data-customer-name="{{ _mhero.customer_name or '' }}"
-              data-dim-w="{{ _mh_dims.get('w') or '' }}"
-              data-dim-d="{{ _mh_dims.get('d') or '' }}"
-              data-dim-h="{{ _mh_dims.get('h') or '' }}"
-              data-note="{{ _mh_meas.get('note') or '' }}"
-              aria-label="{{ _mhero.customer_name or '고객' }} 실측 캡처">
-        <i class="fas fa-ruler-combined" aria-hidden="true"></i> 캡처
-      </button>
-      {% endif %}
+      <a class="foms-hero-detailbtn" href="{{ url_for('erp_dashboard.erp_order_mobile_detail', order_id=_mhero.id, return_to='erp_measurement_dashboard') }}" aria-label="{{ _mhero.customer_name or '고객' }} 상세"><i class="fas fa-list-ul" aria-hidden="true"></i> 상세</a>
     </div>
   </div>
 {% else %}
@@ -97,7 +80,10 @@
 {% endif %}
 
 {% if _mrows %}
-<div class="foms-route-strip" data-foms-route-strip data-route-date="{{ selected_date or today_date }}" hidden aria-label="오늘 동선 지도"></div>
+{# data-route-inline: 뷰가 route API와 동일 빌더로 만든 points JSON(자동이스케이프가
+   따옴표를 엔티티 처리 → getAttribute 시 원복). JS는 try/catch 안전 파싱 후 즉시
+   렌더하고, 속성 부재/파싱 실패 시 기존 fetch 경로로 폴백한다. #}
+<div class="foms-route-strip" data-foms-route-strip data-route-date="{{ selected_date or today_date }}" data-mine="{{ '1' if erp_mine_only else '0' }}" data-kakao-js-key="{{ kakao_js_key }}"{% if route_strip_inline %} data-route-inline="{{ route_strip_inline }}"{% endif %} hidden aria-label="오늘 동선 지도"></div>
 {% endif %}
 
 <section class="erp-measurement-mobile-list foms-mobile-queue-section" aria-label="실측 모바일 일정">
@@ -122,33 +108,6 @@
           {% if o.measurement_completed %}
             <div class="foms-measure-done" aria-label="실측 완료"><i class="fas fa-circle-check" aria-hidden="true"></i> 실측 완료</div>
           {% endif %}
-          {% set _cmeas = (o.structured_data.get('measurement') if o.structured_data else None) or {} %}
-          {% set _cdims = _cmeas.get('dims') or {} %}
-          {% set _cnote = _cmeas.get('note') %}
-          {% if _cdims.get('w') or _cdims.get('d') or _cdims.get('h') or _cnote %}
-            <div class="foms-measure-card-meta" aria-label="실측 기록">
-              {% if _cdims.get('w') or _cdims.get('d') or _cdims.get('h') %}
-                <span class="foms-measure-card-meta__dims"><i class="fas fa-ruler-combined" aria-hidden="true"></i> W{{ _cdims.get('w') or '-' }}·D{{ _cdims.get('d') or '-' }}·H{{ _cdims.get('h') or '-' }} 기록됨</span>
-              {% endif %}
-              {% if _cnote %}<span class="foms-measure-card-meta__note">{{ _cnote }}</span>{% endif %}
-            </div>
-          {% endif %}
-          {% if can_edit_erp|default(false) %}
-            <div class="erp-measurement-mobile-card__edit" aria-label="실측 캡처">
-              <button
-                type="button"
-                class="foms-btn foms-btn--ghost foms-btn--sm foms-measure-capture-open-btn"
-                data-foms-measure-capture-open
-                data-order-id="{{ o.id }}"
-                data-customer-name="{{ o.customer_name or '' }}"
-                data-dim-w="{{ _cdims.get('w') or '' }}"
-                data-dim-d="{{ _cdims.get('d') or '' }}"
-                data-dim-h="{{ _cdims.get('h') or '' }}"
-                data-note="{{ _cnote or '' }}">
-                <i class="fas fa-ruler-combined" aria-hidden="true"></i> 캡처
-              </button>
-            </div>
-          {% endif %}
         </div>
       {% endfor %}
     </div>
@@ -160,7 +119,3 @@
     </div>
   {% endif %}
 </section>
-
-{% if can_edit_erp|default(false) %}
-{% include 'measurement/partials/capture_sheet.html' %}
-{% endif %}

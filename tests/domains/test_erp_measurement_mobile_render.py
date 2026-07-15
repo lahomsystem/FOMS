@@ -327,7 +327,9 @@ def test_measurement_dashboard_includes_regional_order(client, monkeypatch):
 
     resp = client.get(f"/erp/measurement?date={today}")
     assert resp.status_code == 200
-    assert "지방 실측 고객" in resp.get_data(as_text=True)
+    body = resp.get_data(as_text=True)
+    assert "지방 실측 고객" in body
+    assert 'class="badge bg-warning text-dark ms-1" title="지방주문"' in body
 
 
 def test_measurement_dashboard_panel_segmented_count_badges(client, monkeypatch):

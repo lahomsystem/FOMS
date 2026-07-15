@@ -773,6 +773,10 @@
                       <span class="badge bg-info text-white ms-1" title="자가실측"><i class="fas fa-ruler-combined"></i>
                         자가실측</span>
                       {% endif %}
+                      {% if r.is_regional|default(false) %}
+                      <span class="badge bg-warning text-dark ms-1" title="지방주문"><i class="fas fa-map-marker-alt"></i>
+                        지방주문</span>
+                      {% endif %}
                       <i class="fas fa-chevron-down measurement-chevron ms-1" data-order-id="{{ r.id }}" role="button"
                         aria-expanded="false" title="주문 상세 보기"></i>
                     </span>
@@ -1043,6 +1047,10 @@
         <a class="btn btn-outline-secondary"
           href="/map_view?date={{ selected_date }}&status=ALL&dashboard=measurement" target="_blank">
           <i class="fas fa-map-marked-alt"></i> 지도(핀) 보기
+        </a>
+        <a class="btn btn-outline-primary"
+          href="/map_view?date={{ selected_date }}&status=ALL&dashboard=measurement&route=1{% if erp_mine_only %}&mine=1{% endif %}" target="_blank">
+          <i class="fas fa-route"></i> 동선 지도 보기
         </a>
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
           <i class="fas fa-times"></i> 닫기

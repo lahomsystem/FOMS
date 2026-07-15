@@ -114,14 +114,14 @@
       }
     </style>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" crossorigin="anonymous">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-mobile-surfaces.css') }}?v=20260714a">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-mobile-surfaces.css') }}?v=20260715b">
     {% endif %}
     {# 태블릿 T2 융합 레이어는 셸 변형과 직교 — v2·v3 공통으로 로드(2026-07-12 v3 미로드 실사고 봉합).
        surfaces 와 별도 <link>·surfaces 직후 위치라 v2 캐스케이드 순변화 0.
        /wdcalculator 추가(2026-07-12 목업 v5 정합): 전역 레일 CSS(foms-tablet-rail.css)가
        계산기 페이지에서도 로드되도록 게이트에 포함한다. #}
     {% if erp_mobile_v2_enabled and (request.path.startswith('/erp') or request.endpoint == 'order_edit.edit_order' or request.path.startswith('/wdcalculator')) %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-tablet-bundle.css') }}?v=20260714c">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/foundation/foms-tablet-bundle.css') }}?v=20260714d">
     {% endif %}
     {# 모바일 v2 서피스 광폭(≥992) 숨김 — 셸-독립 정본(v2∪v3 공통, 2026-07-13 v3 누출 봉합).
        v3 은 원 소유 hide 규칙이 담긴 foms-shell.css(shell_variant=='v2' 게이트 @import)를 미로드하므로,

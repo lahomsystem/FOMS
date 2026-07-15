@@ -7,10 +7,13 @@ from db import get_db
 from models import Order, OrderScheduleDate
 from foms.web.auth import login_required
 import datetime
+import json
 from datetime import date, timedelta
 from sqlalchemy import String, cast, or_, and_, func
 
 from foms.services.common.erp_mine_filter import erp_mine_only_from_request
+from foms.services.common.geocode_config import KAKAO_JS_API_KEY
+from foms.services.measurement_route import build_inline_route_strip_payload
 from foms.services.erp_permissions import (
     build_mine_sql_filter,
     can_edit_erp,
@@ -351,6 +354,23 @@ def erp_measurement_dashboard():
                 _row['manager_name'] = _mgr
             mobile_queue_rows.append(_row)
 
+    # 동선 스트립 서버 인라인: 카드 첫 페인트가 route API 왕복(한국↔싱가포르 tail
+    # 2-9s)을 기다리지 않도록, API와 동일 빌더(SSOT: foms.services.measurement_route)
+    # 로 만든 points 를 data-route-inline 으로 내린다. 스트립 마운트가 존재하는
+    # 조건(모바일 v2 코호트 + 오늘 큐 존재)에서만 계산 — 그 외엔 쿼리·지오코딩 0.
+    route_strip_inline = None
+    if mobile_v2_active and mobile_queue_rows:
+        _inline_payload = build_inline_route_strip_payload(
+            db,
+            date_filter=(selected_date or today_date),
+            current_user=current_user,
+            mine_active=bool(mine_filter_active),
+        )
+        if _inline_payload:
+            route_strip_inline = json.dumps(
+                _inline_payload, ensure_ascii=False, separators=(",", ":")
+            )
+
     # 태블릿 가로 코호트 좌측 큐(W12): 스테이지 색배지 + 날짜버킷(오늘/주간/미확정) + 완료 dim.
     # 이미 로드된 rows만 재사용(신규 쿼리 0). split 표시 게이트(erp_mobile_v2_enabled +
     # coarse-landscape MQ)와 독립적으로 항상 파생한다 — 코호트 판정이 컨텍스트 프로세서(request
@@ -417,6 +437,8 @@ def erp_measurement_dashboard():
             today_date=today_date,
             can_edit_erp=can_edit_erp(current_user),
             erp_mine_only=mine_filter_active,
+            kakao_js_key=KAKAO_JS_API_KEY,
+            route_strip_inline=route_strip_inline,
         )
     )
     apply_erp_shell_fragment_headers(response, request)

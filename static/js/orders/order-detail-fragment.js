@@ -1,6 +1,7 @@
 /**
  * 주문 상세 2단 렌더 공통 첨부 패치 헬퍼.
- * dashboard_scripts_core.html 이후, dashboard_scripts_detail_dom.html 이전에 로드한다.
+ * erp-dashboard-entry.js CHAIN 에서 erp-dashboard-core.js 이후,
+ * erp-dashboard-detail-dom.js(소비자) 이전에 로드한다.
  */
 
 function parseAttachmentsPayload(attachments) {

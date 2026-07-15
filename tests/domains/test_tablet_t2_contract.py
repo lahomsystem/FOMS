@@ -115,7 +115,7 @@ def test_mobile_surfaces_parent_cachebuster_bumped() -> None:
     the prior baseline (T0 교훈: 자식 범프=부모 내용 변경=부모도 범프).
     W9=ae → W11=af → W12=ag → W14=ah."""
     layout_head = _read("templates/partials/shared/layout_head.html")
-    assert "foms-mobile-surfaces.css') }}?v=20260714a" in layout_head
+    assert "foms-mobile-surfaces.css') }}?v=20260715b" in layout_head
     assert "foms-mobile-surfaces.css') }}?v=20260711ag" not in layout_head
 
 
@@ -634,7 +634,7 @@ def test_w16_layout_head_loads_bundle_for_v2_and_v3_cohort() -> None:
     layout_head = _read("templates/partials/shared/layout_head.html")
     idx = layout_head.find("foms-tablet-bundle.css")
     assert idx != -1, "layout_head 에 태블릿 번들 <link> 부재"
-    assert "foms-tablet-bundle.css') }}?v=20260714c" in layout_head
+    assert "foms-tablet-bundle.css') }}?v=20260714d" in layout_head
     # Anchor on the nearest preceding `{% if %}` (the bundle gate) rather than a fixed
     # char window — the gate string grows over time (2026-07-12: +/wdcalculator arm).
     gate_start = layout_head.rfind("{% if", 0, idx)

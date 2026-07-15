@@ -201,12 +201,68 @@ class FOMSMapGenerator:
             'label_prefix': '',
         }
     
-    def create_map(self, order_data, title="주문 지도"):
+    def _route_sort_key(self, order: dict) -> tuple:
+        """방문 동선 정렬 키: 실측 시간 오름차순(빈 값은 뒤), 동시간은 주문 id 오름차순.
+
+        Args:
+            order: 마커 dict (measurement_time / id 사용)
+        Returns:
+            (시간없음 플래그, 시간문자열, 주문id) 튜플
+        """
+        time_raw = str(order.get('measurement_time') or '').strip()
+        has_no_time = 1 if not time_raw else 0
+        try:
+            order_id = int(order.get('id') or 0)
+        except (TypeError, ValueError):
+            order_id = 0
+        return (has_no_time, time_raw, order_id)
+
+    def _is_route_completed(self, status) -> bool:
+        """동선 상 완료(회색 처리) 여부. 완료/AS완료 상태를 완료로 본다."""
+        return str(status or '').upper() in {'COMPLETED', 'AS_COMPLETED'}
+
+    def _build_route_seq_badge(self, seq: int) -> str:
+        """마커 pill 앞에 붙일 방문 순번 원형 배지 HTML을 만든다.
+
+        Args:
+            seq: 방문 순번(1부터)
+        Returns:
+            순번 배지 span HTML 문자열
+        """
+        return (
+            '<span style="display:inline-flex;align-items:center;justify-content:center;'
+            'min-width:20px;height:20px;margin-right:6px;padding:0 5px;border-radius:9999px;'
+            'background:#ffffff;color:#1f2937;font-size:12px;font-weight:800;'
+            'border:1.5px solid rgba(0,0,0,0.18);box-shadow:0 1px 2px rgba(0,0,0,0.2);">'
+            f'{int(seq)}</span>'
+        )
+
+    def _add_route_polyline(self, folium_map, route_points: list) -> None:
+        """방문 순서대로 좌표를 잇는 점선 폴리라인(동선)을 지도에 추가한다.
+
+        Args:
+            folium_map: folium.Map 객체
+            route_points: [[lat, lng], ...] 방문 순서 좌표 리스트
+        """
+        if not route_points or len(route_points) < 2:
+            return
+        folium.PolyLine(
+            locations=route_points,
+            color='#7b2ff7',
+            weight=4,
+            opacity=0.85,
+            dash_array='10,8',
+        ).add_to(folium_map)
+
+    def create_map(self, order_data, title="주문 지도", *, route_mode: bool = False,
+                   route_skipped_count: int = 0):
         """
         주문 데이터로 Folium 지도 생성
-        Args: 
+        Args:
             order_data - List[Dict] with order information including coordinates
             title - 지도 제목
+            route_mode - True면 방문 시간순 순번 배지 + 순서 연결 폴리라인(동선) 오버레이
+            route_skipped_count - 좌표 없어 동선에서 제외된 주문 수(범례 표기용)
         Returns: folium.Map object or None
         """
         if not order_data:
@@ -225,6 +281,10 @@ class FOMSMapGenerator:
         
         # 지도 중심점과 줌 레벨 계산
         render_data = self._prepare_marker_data(valid_data)
+        # 동선 모드: 방문 시간순으로 정렬해 순번·폴리라인이 실제 방문 순서를 따르게 한다.
+        if route_mode:
+            render_data.sort(key=self._route_sort_key)
+        route_points = []
         center = self._calculate_center(render_data)
         zoom_level = self._calculate_zoom_level(render_data)
         
@@ -283,6 +343,14 @@ class FOMSMapGenerator:
             marker_border = marker_theme['border']
             marker_text = marker_theme['text']
             marker_shadow = marker_theme['shadow']
+            # 동선 모드: 순번 배지 준비 + 완료 건은 회색으로 시각 구분
+            route_seq_attr = f' data-route-seq="{idx}"' if route_mode else ''
+            route_badge_html = self._build_route_seq_badge(idx) if route_mode else ''
+            if route_mode and self._is_route_completed(status):
+                marker_bg = '#adb5bd'
+                marker_border = '#ffffff'
+                marker_text = '#ffffff'
+                marker_shadow = 'rgba(0,0,0,0.2)'
             duplicate_group_size = int(order.get('duplicate_group_size') or 0)
             duplicate_group_index = int(order.get('duplicate_group_index') or 0)
             duplicate_group_key_attr = html.escape(str(order.get('duplicate_group_key') or ''), quote=True)
@@ -357,7 +425,7 @@ class FOMSMapGenerator:
                 data-duplicate-group-size="{duplicate_group_size}"
                 data-duplicate-group-index="{duplicate_group_index}"
                 data-route-state="none"
-                data-visual-overlap="false"
+                data-visual-overlap="false"{route_seq_attr}
                 style="
                 background: {marker_bg};
                 color: {marker_text};
@@ -376,9 +444,13 @@ class FOMSMapGenerator:
                 box-shadow: 0 2px 8px {marker_shadow};
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans KR', sans-serif;
                 transition: transform 0.12s ease-out;
-            "><span>{name_display_escaped}</span>{duplicate_marker_badge_html}</div>
+            ">{route_badge_html}<span>{name_display_escaped}</span>{duplicate_marker_badge_html}</div>
             """
-            icon_w = max(80, min(184, len(name_display) * 14 + 24 + (32 if is_duplicate else 0)))
+            icon_w_cap = 214 if route_mode else 184
+            icon_w = max(80, min(
+                icon_w_cap,
+                len(name_display) * 14 + 24 + (32 if is_duplicate else 0) + (30 if route_mode else 0),
+            ))
             icon_h = 36
             
             # DivIcon: 고객명 pill 배지 (Pro · 모바일 시인성)
@@ -397,9 +469,29 @@ class FOMSMapGenerator:
             )
             
             marker.add_to(m)
-        
+            if route_mode:
+                route_points.append([lat, lng])
+
+        # 동선 모드: 방문 순서대로 마커를 잇는 점선 폴리라인 추가
+        if route_mode:
+            self._add_route_polyline(m, route_points)
+
         # 범례 추가
         title_escaped = html.escape(str(title), quote=False)
+        route_legend_extra = ''
+        if route_mode:
+            skipped_note = (
+                f'<div style="margin: 3px 0; color: #dc3545;">좌표 없음 {int(route_skipped_count)}건 제외</div>'
+                if route_skipped_count else ''
+            )
+            route_legend_extra = (
+                '<div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #eee;">'
+                '<div style="margin: 3px 0; font-weight: 700;">방문 동선 (시간순)</div>'
+                '<div style="margin: 3px 0;"><span style="color: #7b2ff7;">━</span> 이동 순서</div>'
+                '<div style="margin: 3px 0;"><span style="color: #adb5bd;">●</span> 완료</div>'
+                f'{skipped_note}'
+                '</div>'
+            )
         legend_html = f"""
         <div style="position: fixed; 
                     bottom: 50px; left: 50px; width: 200px; height: auto; 
@@ -419,6 +511,7 @@ class FOMSMapGenerator:
             <div style="margin: 3px 0;"><span style="color: #fd7e14;">●</span> 보류</div>
             <div style="margin: 3px 0;"><span style="color: {OVERLAP_MARKER_COLOR};">●</span> 동일 주소 중첩</div>
         </div>
+        {route_legend_extra}
         </div>
         """
         
