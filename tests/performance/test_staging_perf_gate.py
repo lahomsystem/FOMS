@@ -62,11 +62,14 @@ def test_budgets_file_exists_and_valid_schema_v2():
     assert isinstance(g["etag_required"], bool)
     assert isinstance(g["conditional_304_required"], bool)
 
-    expected = {gate.fragment_path(p) for p in ERP_PRIMARY_NAV_PATHS}
-    assert set(budgets["paths"]) == expected, "budgets 경로가 nav 계약 9경로와 일치해야 한다"
+    expected_primary = {gate.fragment_path(p) for p in ERP_PRIMARY_NAV_PATHS}
+    assert expected_primary <= set(budgets["paths"]), "budgets 경로가 nav 계약 9경로를 포함해야 한다"
+    assert gate.MEASUREMENT_DATE_CHIP_BUDGET_KEY in budgets["paths"], "날짜칩 클릭 hot path 예산 필수"
     for path, b in budgets["paths"].items():
         assert isinstance(b["ttfb_delta_min_ms"], int) and b["ttfb_delta_min_ms"] > 0, path
         assert isinstance(b["body_bytes_max"], int) and b["body_bytes_max"] > 0, path
+        if "p95_ttfb_delta_ms" in b:
+            assert isinstance(b["p95_ttfb_delta_ms"], int) and b["p95_ttfb_delta_ms"] > 0, path
         # v1 판정 키는 완전히 제거되어야 한다(마이그레이션 회귀 방지).
         assert "ttfb_warm_median_ms" not in b, f"{path}: v1 키 잔존"
 
@@ -114,6 +117,24 @@ def test_tail_contamination_does_not_move_min_stays_pass():
     assert s_tainted["median_ttfb_ms"] > 400  # median 은 오염됨(리포트에만)
     row = gate.judge_path("/x", s_tainted, True, _budget(delta=100), GLOBAL_BUDGET, base_ttfb_ms=380)
     assert row["passed"] is True, "min 정상인데 tail 로 FAIL 나면 v2 tail 면역 계약 위반"
+
+
+def test_optional_p95_budget_catches_interaction_tail_regression():
+    """날짜칩 같은 사용자 interaction path 는 선택적으로 p95 tail 도 예산으로 막는다."""
+    warm = [_sample(400), _sample(410), _sample(420), _sample(2400), _sample(2500), _sample(2600)]
+    summary = gate.summarize_samples(warm)
+    row = gate.judge_path(
+        "/erp/measurement?date=2026-07-20&view=fragment",
+        summary,
+        True,
+        {"ttfb_delta_min_ms": 100, "p95_ttfb_delta_ms": 1500, "body_bytes_max": 5000},
+        GLOBAL_BUDGET,
+        base_ttfb_ms=380,
+    )
+    assert row["delta_ttfb_ms"] == 20
+    assert row["p95_ttfb_delta_ms"] == 2220
+    assert row["passed"] is False
+    assert any("delta-p95" in r for r in row["reasons"])
 
 
 def test_uniform_server_shift_is_detected_fails():
@@ -383,6 +404,29 @@ def test_credentials_helper_none_when_blank(monkeypatch):
     monkeypatch.setenv("FOMS_STAGING_USERNAME", "u")
     monkeypatch.setenv("FOMS_STAGING_PASSWORD", "p")
     assert gate._credentials() == ("u", "p")
+
+
+def test_discover_measurement_date_chip_paths_dedupes_and_normalizes(monkeypatch):
+    """렌더된 날짜칩 href 에서 실제 날짜 이동 fragment 경로를 추출한다."""
+    class _Resp:
+        status_code = 200
+        text = """
+          <a href="/erp/measurement?date=2026-07-20&amp;q=#date-2026-07-20">20</a>
+          <a href="/erp/measurement?date=2026-07-21&amp;q=#date-2026-07-21">21</a>
+          <a href="/erp/measurement?date=2026-07-20&amp;q=#date-2026-07-20">20 duplicate</a>
+        """
+
+    def _fake_get(session, url, headers):
+        assert url == "https://example.test/erp/measurement?view=fragment"
+        return _Resp()
+
+    monkeypatch.setattr(gate, "_get_with_retry", _fake_get)
+    paths = gate.discover_measurement_date_chip_paths(object(), "https://example.test/", max_paths=3)
+
+    assert paths == (
+        "/erp/measurement?date=2026-07-20&view=fragment",
+        "/erp/measurement?date=2026-07-21&view=fragment",
+    )
 
 
 # ---------------------------------------------------------------------------
