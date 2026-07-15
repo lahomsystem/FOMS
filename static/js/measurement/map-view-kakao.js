@@ -53,7 +53,10 @@
     routeMode: false,
     popup: null,
     active: false,
-    everRendered: false // 세션 내 카카오 성공 렌더 이력 — folium 강등 금지 가드
+    everRendered: false, // 세션 내 카카오 성공 렌더 이력 — folium 강등 금지 가드
+    // 주문↔주문 경로 계산(folium 파리티): 출발/도착 선택 + 실도로 폴리라인 + 결과 패널.
+    // line/panel 은 마커 재렌더(clearOverlays)와 독립 수명 — 폴링에도 결과 유지.
+    routeCalc: { start: null, end: null, line: null, panel: null }
   };
 
   function escapeHtml(value) {
@@ -171,6 +174,144 @@
     return s === 'COMPLETED' || s === 'AS_COMPLETED';
   }
 
+  // ---------- 주문↔주문 경로 계산 (folium 파리티: 2건 선택 → 거리·시간·통행료) ----------
+  // 서버 프록시 /api/calculate_route(카카오모빌리티 directions) 경유 — REST 키 비노출.
+  // folium UX(1클릭 출발→2클릭 도착→결과 카드+실도로 폴리라인+초기화)를 팝업 액션
+  // 버튼 시퀀스로 이식(카카오 팝업 구조에 자연스럽게 — 단순 클릭 하이잭 대신).
+  function routeCalcContainer() {
+    return (state.mapEl && state.mapEl.parentNode) || document.getElementById('map-content');
+  }
+
+  function ensureRouteCalcPanel() {
+    if (state.routeCalc.panel && state.routeCalc.panel.isConnected) return state.routeCalc.panel;
+    var panel = document.createElement('div');
+    panel.className = 'foms-kmap-routecalc';
+    routeCalcContainer().appendChild(panel);
+    state.routeCalc.panel = panel;
+    return panel;
+  }
+
+  function setRouteCalcPanel(bodyHtml, withReset) {
+    var panel = ensureRouteCalcPanel();
+    panel.innerHTML =
+      '<div class="foms-kmap-routecalc__head">🚗 경로 계산</div>' + bodyHtml +
+      (withReset ? '<button type="button" class="btn btn-sm btn-secondary foms-kmap-routecalc__reset">초기화</button>' : '');
+    var reset = panel.querySelector('.foms-kmap-routecalc__reset');
+    if (reset) reset.addEventListener('click', resetRouteCalc);
+  }
+
+  // 재렌더 후에도 출발/도착 강조를 pill 에 재적용(마커 id 기준).
+  function applyRouteCalcHighlight() {
+    state.markerItems.forEach(function (item) {
+      var id = String(item.marker.id);
+      item.pill.classList.toggle('foms-kmap-pill--route-start',
+        !!(state.routeCalc.start && String(state.routeCalc.start.id) === id));
+      item.pill.classList.toggle('foms-kmap-pill--route-end',
+        !!(state.routeCalc.end && String(state.routeCalc.end.id) === id));
+    });
+  }
+
+  function resetRouteCalc() {
+    state.routeCalc.start = null;
+    state.routeCalc.end = null;
+    if (state.routeCalc.line) {
+      try { state.routeCalc.line.setMap(null); } catch (e) { /* 정리 실패 무해 */ }
+      state.routeCalc.line = null;
+    }
+    if (state.routeCalc.panel) {
+      state.routeCalc.panel.remove();
+      state.routeCalc.panel = null;
+    }
+    applyRouteCalcHighlight();
+  }
+
+  // 팝업 경로 버튼 라벨(선택 상태 머신 반영). 시작→도착→결과 후에는 새 시작.
+  function routeCalcBtnLabel(m) {
+    if (state.routeCalc.start && !state.routeCalc.end) {
+      return String(state.routeCalc.start.id) === String(m.id) ? '출발 해제' : '도착 지정';
+    }
+    return '경로 시작';
+  }
+
+  function onRouteCalcAction(m) {
+    // 결과 표시 중 3번째 선택 = folium 파리티(리셋 후 새 출발로 시작).
+    if (state.routeCalc.start && state.routeCalc.end) resetRouteCalc();
+    else if (state.routeCalc.start && String(state.routeCalc.start.id) === String(m.id)) {
+      // folium 은 같은 주문 재선택에 alert — 여기선 '출발 해제'로 개선(팝업 라벨과 일치).
+      resetRouteCalc();
+      return;
+    }
+    var sel = { id: m.id, name: m.customer_name || '-', lat: m.latitude, lng: m.longitude };
+    if (!state.routeCalc.start) {
+      state.routeCalc.start = sel;
+      applyRouteCalcHighlight();
+      setRouteCalcPanel(
+        '<div><strong>출발:</strong> ' + escapeHtml(sel.name) + '</div>' +
+        '<div class="foms-kmap-routecalc__hint">도착 주문의 팝업에서 \'도착 지정\'을 눌러주세요.</div>',
+        true
+      );
+      return;
+    }
+    state.routeCalc.end = sel;
+    applyRouteCalcHighlight();
+    runRouteCalc(state.routeCalc.start, sel);
+  }
+
+  function runRouteCalc(start, end) {
+    var maps = window.kakao.maps;
+    setRouteCalcPanel('<div>경로 계산 중... 잠시만 기다려주세요.</div>', false);
+    var qs = 'start_lat=' + encodeURIComponent(start.lat) + '&start_lng=' + encodeURIComponent(start.lng) +
+      '&end_lat=' + encodeURIComponent(end.lat) + '&end_lng=' + encodeURIComponent(end.lng);
+    fetch('/api/calculate_route?' + qs)
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data || !data.success || !data.data) {
+          console.warn('[map-view-kakao] 경로 계산 실패', data && data.error);
+          setRouteCalcPanel(
+            '<div class="foms-kmap-routecalc__error">오류: ' + escapeHtml((data && data.error) || '경로를 계산할 수 없습니다.') + '</div>',
+            true
+          );
+          return;
+        }
+        var rd = data.data;
+        if (state.routeCalc.line) {
+          try { state.routeCalc.line.setMap(null); } catch (e) { /* 무해 */ }
+        }
+        // 실도로 경로(vertexes) 있으면 그대로, 없으면 직선을 점선으로 구분 표기.
+        var path, straightFallback = false;
+        if (Array.isArray(rd.route_coords) && rd.route_coords.length > 1) {
+          path = rd.route_coords.map(function (c) { return new maps.LatLng(c[0], c[1]); });
+        } else {
+          path = [new maps.LatLng(start.lat, start.lng), new maps.LatLng(end.lat, end.lng)];
+          straightFallback = true;
+        }
+        state.routeCalc.line = new maps.Polyline({
+          map: state.map, path: path, strokeWeight: 5,
+          strokeColor: '#ff4757',
+          strokeOpacity: straightFallback ? 0.6 : 0.8,
+          strokeStyle: straightFallback ? 'shortdash' : 'solid'
+        });
+        var b = new maps.LatLngBounds();
+        b.extend(new maps.LatLng(start.lat, start.lng));
+        b.extend(new maps.LatLng(end.lat, end.lng));
+        try { state.map.setBounds(b, 50, 50, 50, 50); } catch (e) { /* fit 실패 무해 */ }
+        var s = rd.summary || {};
+        setRouteCalcPanel(
+          '<div><strong>출발:</strong> ' + escapeHtml(start.name) + '</div>' +
+          '<div><strong>도착:</strong> ' + escapeHtml(end.name) + '</div>' +
+          '<div><strong>거리:</strong> ' + escapeHtml(s.distance_text || ((rd.distance_km != null ? rd.distance_km : '-') + 'km')) + '</div>' +
+          '<div><strong>소요시간:</strong> ' + escapeHtml(s.duration_text || ((rd.duration_min != null ? rd.duration_min : '-') + '분')) + '</div>' +
+          '<div><strong>통행료:</strong> ' + escapeHtml(s.toll_text || ((rd.toll || 0) + '원')) + '</div>' +
+          (straightFallback ? '<div class="foms-kmap-routecalc__hint">실도로 경로 정보가 없어 직선(점선)으로 표시했습니다.</div>' : ''),
+          true
+        );
+      })
+      .catch(function (err) {
+        console.warn('[map-view-kakao] 경로 계산 오류', err);
+        setRouteCalcPanel('<div class="foms-kmap-routecalc__error">오류: 경로 계산에 실패했습니다.</div>', true);
+      });
+  }
+
   // ---------- 팝업 (folium Popup 테이블 패리티 + 목록 연동) ----------
   function closePopup() {
     if (state.popup) { state.popup.setMap(null); state.popup = null; }
@@ -200,12 +341,18 @@
       dupRow +
       '</table>' +
       '<div class="foms-kmap-popup__actions">' +
+      '<button type="button" class="btn btn-sm btn-outline-danger foms-kmap-popup__route">' + routeCalcBtnLabel(m) + '</button>' +
       '<button type="button" class="btn btn-sm btn-primary foms-kmap-popup__detail">주문 상세 보기</button>' +
       '</div>';
     el.querySelector('.foms-kmap-popup__close').addEventListener('click', closePopup);
     el.querySelector('.foms-kmap-popup__detail').addEventListener('click', function () {
       // map_view inline의 selectOrder(우측 목록 선택 + 세부 정보 패널)와 연동.
       if (typeof window.selectOrder === 'function') window.selectOrder(Number(m.id));
+    });
+    // 주문↔주문 경로 계산: 출발/도착 선택(route 모드 순번 핀 팝업에서도 동일 동작).
+    el.querySelector('.foms-kmap-popup__route').addEventListener('click', function () {
+      closePopup();
+      onRouteCalcAction(m);
     });
     state.popup = new window.kakao.maps.CustomOverlay({
       map: state.map, position: position, content: el,
@@ -237,6 +384,7 @@
       rows +
       '</div>' +
       '<div class="foms-kmap-popup__actions">' +
+      '<button type="button" class="btn btn-sm btn-outline-danger foms-kmap-popup__route">' + routeCalcBtnLabel(markersInGroup[0]) + '</button>' +
       '<button type="button" class="btn btn-sm btn-primary foms-kmap-popup__expand">펼쳐 보기</button>' +
       '</div>';
     el.querySelector('.foms-kmap-popup__close').addEventListener('click', closePopup);
@@ -248,6 +396,12 @@
         state.map.setLevel(DUPLICATE_EXPAND_MAX_LEVEL, { anchor: position });
         state.map.panTo(position);
       } catch (e) { /* 지도 조작 실패 무해 */ }
+    });
+    // 그룹 경로 계산: 그룹원은 좌표가 동일해 경로 결과도 동일 — 대표(첫 행) 기준으로
+    // 단순화(행별 시작/도착 버튼은 모바일 행 밀도상 과밀). 이름만 대표 주문으로 표기.
+    el.querySelector('.foms-kmap-popup__route').addEventListener('click', function () {
+      closePopup();
+      onRouteCalcAction(markersInGroup[0]);
     });
     Array.prototype.forEach.call(el.querySelectorAll('button[data-order-id]'), function (btn) {
       btn.addEventListener('click', function () {
@@ -343,19 +497,33 @@
   // panTo는 zoom_changed를 재발화하지 않아 루프가 없다.
   function keepMarkersInView() {
     if (!state.map || !state.markerItems.length) return;
-    var bounds, center;
-    try { bounds = state.map.getBounds(); center = state.map.getCenter(); } catch (e) { return; }
-    var nearest = null, nearestD = Infinity, anyVisible = false;
-    state.markerItems.forEach(function (item) {
-      if (!item.overlay.getMap()) return; // 접힘으로 숨긴 비대표 제외
-      var pos = item.overlay.getPosition();
-      if (bounds.contain(pos)) { anyVisible = true; return; }
-      var dLat = pos.getLat() - center.getLat();
-      var dLng = pos.getLng() - center.getLng();
-      var d = dLat * dLat + dLng * dLng;
-      if (d < nearestD) { nearestD = d; nearest = pos; }
-    });
-    if (!anyVisible && nearest) state.map.panTo(nearest);
+    try {
+      var bounds = state.map.getBounds();
+      var center = state.map.getCenter();
+      // SDK 표기 방어: LatLngBounds 판정 함수 기능 탐지(contain 정본, contains 대비).
+      var containFn = bounds.contain || bounds.contains;
+      if (typeof containFn !== 'function') {
+        console.debug('[kmap] bounds contain API 미탐지 — 팬 보정 생략');
+        return;
+      }
+      var nearest = null, nearestD = Infinity, anyVisible = false, mapped = 0;
+      state.markerItems.forEach(function (item) {
+        if (!item.overlay.getMap()) return; // 접힘으로 숨긴 비대표 제외
+        mapped++;
+        var pos = item.overlay.getPosition();
+        if (containFn.call(bounds, pos)) { anyVisible = true; return; }
+        var dLat = pos.getLat() - center.getLat();
+        var dLng = pos.getLng() - center.getLng();
+        var d = dLat * dLat + dLng * dLng;
+        if (d < nearestD) { nearestD = d; nearest = pos; }
+      });
+      console.debug('[kmap] keepMarkersInView mapped=' + mapped +
+        ' anyVisible=' + anyVisible + ' panTo=' + (!anyVisible && !!nearest));
+      if (!anyVisible && nearest) state.map.panTo(nearest);
+    } catch (e) {
+      // 카카오 이벤트 디스패처가 예외를 삼키면 무증상 미보정이 된다 — 반드시 기록.
+      console.warn('[map-view-kakao] 팬 보정 실패', e);
+    }
   }
 
   // ---------- 범례 (folium legend 패리티: 상태색 + 동선 보조) ----------
@@ -478,6 +646,16 @@
     // 현재 줌 기준 그룹 접기/펼치기 즉시 적용(폴링 재렌더 시 상태 보존).
     applyDuplicateLayout();
 
+    // 경로 계산 선택 보존: 재렌더 후 대상 주문이 사라졌으면 해제, 남았으면 강조 재적용.
+    if (state.routeCalc.start) {
+      var liveIds = {};
+      routeMarkers.forEach(function (m) { liveIds[String(m.id)] = true; });
+      var startGone = !liveIds[String(state.routeCalc.start.id)];
+      var endGone = state.routeCalc.end && !liveIds[String(state.routeCalc.end.id)];
+      if (startGone || endGone) resetRouteCalc();
+      else applyRouteCalcHighlight();
+    }
+
     // 동선 폴리라인(점선) — 색 SSOT: --foms-route-line (동선 카드와 공유).
     if (opts.routeMode && routePath.length >= 2) {
       var lineColor = '';
@@ -536,11 +714,20 @@
     maps.event.addListener(map, 'zoom_changed', function () {
       applyDuplicateLayout();
     });
-    // 팬 보정은 idle(줌/팬 애니메이션 정착 후)에서 판정 — zoom_changed 는 애니메이션
-    // 시작 시점 발화라 getBounds()가 아직 넓어 anyVisible 오판(연속 확대 시 마커
-    // 전멸 미보정 실사고). idle 은 panTo 완료 후에도 발화하지만 그땐 마커가
-    // bounds 안이라 keepMarkersInView 가 no-op → 루프 없음.
-    maps.event.addListener(map, 'idle', keepMarkersInView);
+    // 팬 보정 이중화(Z8): idle(줌/팬 애니메이션 정착 후 1회)이 정본이나, 스테이징
+    // 실측에서 idle 단독 배선이 미보정으로 남는 사례가 있어 bounds_changed
+    // 디바운스(250ms)를 병행 배선한다. keepMarkersInView 는 멱등(보정 후 재진입
+    // 시 anyVisible=true → no-op)이라 이중 발화 부작용이 없고, panTo 가 유발하는
+    // bounds_changed/idle 재발화도 같은 이유로 루프가 되지 않는다.
+    maps.event.addListener(map, 'idle', function () {
+      console.debug('[kmap] idle fired');
+      keepMarkersInView();
+    });
+    var boundsDebounce = null;
+    maps.event.addListener(map, 'bounds_changed', function () {
+      if (boundsDebounce) window.clearTimeout(boundsDebounce);
+      boundsDebounce = window.setTimeout(keepMarkersInView, 250);
+    });
     state.map = map;
     state.mapEl = mapEl;
     return map;
@@ -607,6 +794,40 @@
       } catch (e) {
         console.warn('[map-view-kakao] 마커 갱신 실패', e);
       }
+    },
+    /**
+     * QA 진단 훅(read-only, 운영 무해): 헤드리스 검증이 IIFE 은닉 상태를 볼 수
+     * 있게 지도 레벨·중심·마커 매핑/가시 수를 노출한다. DOM/지도 상태 무변경.
+     */
+    _debug: function () {
+      var out = {
+        level: null, center: null,
+        markerCount: state.markerItems.length,
+        mappedCount: 0, visibleInBounds: 0,
+        routeCalc: {
+          start: state.routeCalc.start ? state.routeCalc.start.id : null,
+          end: state.routeCalc.end ? state.routeCalc.end.id : null,
+          hasLine: !!state.routeCalc.line
+        }
+      };
+      if (!state.map) return out;
+      try {
+        out.level = state.map.getLevel();
+        var c = state.map.getCenter();
+        out.center = { lat: c.getLat(), lng: c.getLng() };
+        var bounds = state.map.getBounds();
+        var containFn = bounds.contain || bounds.contains;
+        state.markerItems.forEach(function (item) {
+          if (!item.overlay.getMap()) return;
+          out.mappedCount++;
+          if (typeof containFn === 'function' && containFn.call(bounds, item.overlay.getPosition())) {
+            out.visibleInBounds++;
+          }
+        });
+      } catch (e) {
+        out.error = String(e);
+      }
+      return out;
     }
   };
 })();
