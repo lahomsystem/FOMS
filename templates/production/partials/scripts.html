@@ -270,15 +270,8 @@
       }
     }
 
-    document.addEventListener('click', function (e) {
-      var btn = e.target.closest('.erp-production-action');
-      if (!btn) return;
-      var orderId = btn.getAttribute('data-order-id');
-      var action = btn.getAttribute('data-action');
-      if (!orderId || !action) return;
-      var fn = window[action];
-      if (typeof fn === 'function') fn(orderId);
-    });
+    // 생산 액션 버튼(.erp-production-action) 클릭 위임은 하단 __fomsProdWireOnce() 로 이관.
+    // (fragment 재실행 시 document 리스너 누적 방지 — 가드 G4)
 
     function renderBadges(alerts) {
       const a = alerts || {};
@@ -727,7 +720,16 @@
       }
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
+    // === Fragment 재실행-안전 배선(가드 G4) ===
+    // /erp/production/dashboard 는 erp-shell fragment 네비 대상이다. swap 시 erp-shell 이
+    // 메인 콘텐츠 루트 를 innerHTML 로 교체하고 이 인라인 스크립트를 재실행하지만 DOMContentLoaded
+    // 는 이미 발화 완료라 다시 오지 않는다. DOMContentLoaded 로 감싸면 fragment 진입 시 콜백이
+    // 영원히 실행되지 않아 블록 기능이 전부 사망한다. 그래서 즉시 실행하되 리스너별로 분리한다:
+    //   - per-swap(메인 콘텐츠 루트 내부 요소 바인딩): 요소가 swap 마다 교체되므로 매 재실행 안전.
+    //     스크립트 재실행 자체가 매 swap 이 함수를 호출한다(가드 불필요).
+    //   - once-only(document/body 위임 리스너): 싱글톤 가드로 1회만 바인딩하고 핸들러 내부
+    //     요소 참조는 이벤트 시점에 조회한다(클로저 stale 금지).
+    function __fomsProdWirePerSwap() {
       // 브리핑 보드 등에서 focus_order 파라미터로 진입 시 해당 주문 행으로 스크롤 및 하이라이트
       (() => {
         const urlParams = new URLSearchParams(window.location.search);
@@ -831,8 +833,25 @@
           }
         });
       });
+    }
 
-      // 이벤트 위임: 퀘스트 승인, 첨부 미리보기 등
+    // once-only: document/body 위임 리스너 (싱글톤 가드로 재실행 시 중복 바인딩 차단)
+    function __fomsProdWireOnce() {
+      if (window.__FOMS_PROD_SCRIPTS_BOUND) return;
+      window.__FOMS_PROD_SCRIPTS_BOUND = true;
+
+      // 생산 액션 버튼(제작 시작/완료 등) 위임 — 핸들러 요소 참조는 클릭 시점 조회
+      document.addEventListener('click', function (e) {
+        var btn = e.target.closest('.erp-production-action');
+        if (!btn) return;
+        var orderId = btn.getAttribute('data-order-id');
+        var action = btn.getAttribute('data-action');
+        if (!orderId || !action) return;
+        var fn = window[action];
+        if (typeof fn === 'function') fn(orderId);
+      });
+
+      // 이벤트 위임: 퀘스트 승인, 첨부 미리보기 등 — 요소 참조는 이벤트 시점 조회
       document.body.addEventListener('click', function (e) {
         // 승인 버튼
         const approveBtn = e.target.closest('.erp-btn-approve-team');
@@ -855,7 +874,15 @@
           }
         }
       });
-    });
+    }
+
+    // 즉시 실행: once-only 는 가드로 1회만, per-swap 은 초기 로드 DOM 준비 후 1회 + swap 재실행마다 자동.
+    __fomsProdWireOnce();
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', __fomsProdWirePerSwap, { once: true });
+    } else {
+      __fomsProdWirePerSwap();
+    }
   </script>
 
   <!-- 알림 패널 -->
@@ -1071,14 +1098,7 @@
       }
     }
 
-    document.body.addEventListener('click', function (ev) {
-      const item = ev.target.closest('#notification-list .notification-item[data-notification-id]');
-      if (!item) return;
-      ev.preventDefault();
-      const id = parseInt(item.getAttribute('data-notification-id'), 10);
-      const orderId = parseInt(item.getAttribute('data-order-id'), 10) || null;
-      handleNotificationClick(id, orderId, item.getAttribute('data-notification-type') || '', item.getAttribute('data-deep-tab') || '', item.getAttribute('data-deep-event-id') || '', item.getAttribute('data-deep-target-no') || '');
-    });
+    // 알림 목록 항목 클릭 위임은 하단 __fomsProdWireOnce2() 로 이관(가드 G4: fragment 재실행 중복 방지).
 
     function toggleNotificationPanel() {
       const panel = document.getElementById('notification-panel');
@@ -1140,20 +1160,44 @@
       return dateStr.split(' ')[0];
     }
 
-    // 페이지 로드 시 배지 업데이트
-    document.addEventListener('DOMContentLoaded', function () {
+    // === Fragment 재실행-안전 배선(가드 G4) ===
+    // 이 스크립트도 메인 콘텐츠 루트 안에 있어 fragment swap 시 재실행되지만 DOMContentLoaded 는
+    // 다시 오지 않는다. 배지 구독/폴링과 document/body 위임 리스너는 모두 once-only 이므로 싱글톤
+    // 가드로 1회만 바인딩한다. 배지 구독은 FOMSNotificationBadge(지연 스크립트) 준비 이후여야 하므로
+    // 초기 로드는 DOM 준비 시점(DOMContentLoaded)에 실행하고, swap 재실행 시엔 가드가 즉시 반환한다.
+    function __fomsProdWireOnce2() {
+      if (window.__FOMS_PROD_SCRIPTS2_BOUND) return;
+      window.__FOMS_PROD_SCRIPTS2_BOUND = true;
+
+      // 알림 목록 항목 클릭 위임(읽음 처리 + 딥링크 이동) — 요소 참조는 이벤트 시점 조회
+      document.body.addEventListener('click', function (ev) {
+        const item = ev.target.closest('#notification-list .notification-item[data-notification-id]');
+        if (!item) return;
+        ev.preventDefault();
+        const id = parseInt(item.getAttribute('data-notification-id'), 10);
+        const orderId = parseInt(item.getAttribute('data-order-id'), 10) || null;
+        handleNotificationClick(id, orderId, item.getAttribute('data-notification-type') || '', item.getAttribute('data-deep-tab') || '', item.getAttribute('data-deep-event-id') || '', item.getAttribute('data-deep-target-no') || '');
+      });
+
+      // 배지 구독 + 폴링 시작 (과거 DOMContentLoaded 콜백)
       if (window.FOMSNotificationBadge && typeof window.FOMSNotificationBadge.subscribe === 'function') {
         window.FOMSNotificationBadge.subscribe('erp-production-page-badge', renderNotificationBadge);
         window.FOMSNotificationBadge.startPolling();
       }
-    });
 
-    // 패널 외부 클릭 시 닫기
-    document.addEventListener('click', function (e) {
-      const panel = document.getElementById('notification-panel');
-      const btn = document.getElementById('notification-btn');
-      if (notificationPanelOpen && !panel.contains(e.target) && !btn.contains(e.target)) {
-        toggleNotificationPanel();
-      }
-    });
+      // 패널 외부 클릭 시 닫기 — 요소 참조는 이벤트 시점 조회
+      document.addEventListener('click', function (e) {
+        const panel = document.getElementById('notification-panel');
+        const btn = document.getElementById('notification-btn');
+        if (notificationPanelOpen && !panel.contains(e.target) && !btn.contains(e.target)) {
+          toggleNotificationPanel();
+        }
+      });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', __fomsProdWireOnce2, { once: true });
+    } else {
+      __fomsProdWireOnce2();
+    }
   </script>

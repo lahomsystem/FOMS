@@ -395,6 +395,113 @@
     return true;
   }
 
+  /**
+   * 전체 스타일 선로드 대기 상한(ms). 초과 시 그냥 swap 진행 — 네비게이션이 느린/
+   * 죽은 CSS 요청에 무한 대기하지 않게 한다(가드 G3 정신: timeout+폴백).
+   */
+  var STYLE_PRELOAD_TIMEOUT_MS = 1500;
+  /** <link ...> 태그 스캔 — 서버(Jinja) 생성 fragment 만 대상이라 정규식이 안전하고, 직후
+   *  innerHTML 이 어차피 전체 파싱하므로 DOMParser 로 640KB 를 재파싱하는 비용을 피한다. */
+  var LINK_TAG_RE = /<link\b[^>]*>/gi;
+
+  /**
+   * fragment HTML(아직 DOM 미삽입)에서 <link rel="stylesheet"> href 를 절대 URL 로 추출.
+   * rel/ href 속성 순서·따옴표 종류 무관. 중복 href 는 1회만.
+   * @param {string} html
+   * @returns {string[]} 절대 href 목록
+   */
+  function extractStylesheetHrefs(html) {
+    if (typeof html !== 'string' || html.indexOf('<link') === -1) {
+      return [];
+    }
+    var hrefs = [];
+    var m;
+    LINK_TAG_RE.lastIndex = 0;
+    while ((m = LINK_TAG_RE.exec(html)) !== null) {
+      var tag = m[0];
+      var relM = /\brel\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(tag);
+      if (!relM) {
+        continue;
+      }
+      var relVal = (relM[1] || relM[2] || relM[3] || '').toLowerCase();
+      if (relVal.split(/\s+/).indexOf('stylesheet') === -1) {
+        continue;
+      }
+      var hrefM = /\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(tag);
+      if (!hrefM) {
+        continue;
+      }
+      var raw = hrefM[1] || hrefM[2] || hrefM[3] || '';
+      if (!raw) {
+        continue;
+      }
+      var abs;
+      try {
+        abs = new URL(raw, window.location.href).href;
+      } catch (e) {
+        continue;
+      }
+      if (hrefs.indexOf(abs) === -1) {
+        hrefs.push(abs);
+      }
+    }
+    return hrefs;
+  }
+
+  /** document.head 에 동일 href(쿼리스트링 포함, 정확 비교) stylesheet link 가 이미 있는가. */
+  function headHasStylesheetHref(absHref) {
+    var links = document.head.querySelectorAll('link[rel~="stylesheet"][href]');
+    for (var i = 0; i < links.length; i++) {
+      if (links[i].href === absHref) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** head 에 stylesheet link 를 추가하고 load/error 를 1회 resolve 로 await. */
+  function preloadStylesheetHref(absHref) {
+    return new Promise(function (resolve) {
+      var link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = absHref;
+      var settled = false;
+      function settle() {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        resolve();
+      }
+      link.addEventListener('load', settle);
+      link.addEventListener('error', settle);
+      document.head.appendChild(link);
+    });
+  }
+
+  /**
+   * fragment 안의 stylesheet 를 innerHTML swap **전에** document.head 로 선로드해 콜드 캐시
+   * FOUC(스타일 미적용 렌더)를 근본 차단한다. 이미 head 에 있는 href 는 skip(중복 바인딩
+   * 방지 → 재실행 idempotent). 전체 대기는 STYLE_PRELOAD_TIMEOUT_MS 상한(Promise.race) —
+   * 초과 시 그냥 진행한다. 모든 swap 진입점(cache-hit / network fetch / popstate 복원)이
+   * 이 함수를 거친다.
+   * @param {string} html
+   * @returns {Promise<void>}
+   */
+  function preloadFragmentStylesheets(html) {
+    var pending = extractStylesheetHrefs(html).filter(function (href) {
+      return !headHasStylesheetHref(href);
+    });
+    if (!pending.length) {
+      return Promise.resolve();
+    }
+    var loaded = Promise.all(pending.map(preloadStylesheetHref));
+    var timeout = new Promise(function (resolve) {
+      window.setTimeout(resolve, STYLE_PRELOAD_TIMEOUT_MS);
+    });
+    return Promise.race([loaded, timeout]);
+  }
+
   function fetchFragment(canonical) {
     var fetchUrl = new URL(canonical.toString());
     fetchUrl.searchParams.set('view', 'fragment');
@@ -515,10 +622,14 @@
       var cached = cacheGet(destKey);
       if (cached) {
         commitShellHistory(canonical);
-        if (applyFragmentToMain(cached, canonical.href)) {
-          afterSwap();
-          return Promise.resolve();
-        }
+        // 스타일 선로드 후 swap — 콜드 캐시라도 FOUC 없이 즉시 정상 렌더.
+        return preloadFragmentStylesheets(cached).then(function () {
+          if (applyFragmentToMain(cached, canonical.href)) {
+            afterSwap();
+            return;
+          }
+          window.location.href = canonical.pathname + canonical.search + canonical.hash;
+        });
       }
     }
 
@@ -527,12 +638,16 @@
       .then(function (payload) {
         var finalUrl = payload.finalUrl || canonical;
         commitShellHistory(finalUrl);
-        if (!applyFragmentToMain(payload.html, finalUrl.href)) {
-          setShellFragmentLoading(false);
-          window.location.href = canonical.pathname + canonical.search + canonical.hash;
-          return;
-        }
-        afterSwap();
+        // 스타일 선로드 후 swap(가드 G3 상한). commitShellHistory 는 위에서 이미 실행 —
+        // inline page 스크립트가 window.location.search 를 읽으므로 swap 전 history 확정.
+        return preloadFragmentStylesheets(payload.html).then(function () {
+          if (!applyFragmentToMain(payload.html, finalUrl.href)) {
+            setShellFragmentLoading(false);
+            window.location.href = canonical.pathname + canonical.search + canonical.hash;
+            return;
+          }
+          afterSwap();
+        });
       })
       .catch(function () {
         setShellFragmentLoading(false);

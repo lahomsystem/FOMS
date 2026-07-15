@@ -241,9 +241,6 @@ def test_app_shell_wires_urgent_call_panel_and_deferred_script() -> None:
 
 def test_urgent_call_entry_points_exist_in_order_and_drawing_surfaces() -> None:
     """긴급 호출 진입점: 주문 상세 카드(모바일) + 도면 workbench 모바일 toolbar."""
-    order_detail = (
-        ROOT / "templates/orders/partials/dashboard_scripts_detail_dom.html"
-    ).read_text(encoding="utf-8")
     order_detail_js = (
         ROOT / "static/js/orders/dashboard/erp-dashboard-detail-dom.js"
     ).read_text(encoding="utf-8")
@@ -251,11 +248,9 @@ def test_urgent_call_entry_points_exist_in_order_and_drawing_surfaces() -> None:
         ROOT / "templates/drawing/partials/workbench_mobile_handoff.html"
     ).read_text(encoding="utf-8")
 
-    # 주문 상세: 모바일 전용(d-lg-none) 긴급 호출 버튼 + order 문맥.
-    assert "data-foms-urgent-call" in order_detail
-    assert 'data-order-id="${orderId}"' in order_detail
-    # 동기화된 인라인 사본(JS)도 동일 진입점을 렌더한다.
+    # 주문 상세: 모바일 전용(d-lg-none) 긴급 호출 버튼 + order 문맥 (라이브 static JS 아일랜드).
     assert "data-foms-urgent-call" in order_detail_js
+    assert 'data-order-id="${orderId}"' in order_detail_js
     # 도면 workbench 모바일 액션바: order.id 문맥.
     assert "data-foms-urgent-call" in drawing
     assert 'data-order-id="{{ order.id }}"' in drawing

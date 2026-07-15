@@ -12,7 +12,6 @@ UPLOAD_SURFACES = [
     ROOT / "templates/construction/partials/scripts.html",
     ROOT / "templates/drawing/partials/workbench_detail_body.html",
     ROOT / "static/js/orders/dashboard/erp-dashboard-drawing.js",
-    ROOT / "templates/orders/partials/dashboard_scripts_drawing.html",
 ]
 
 

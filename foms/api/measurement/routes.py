@@ -5,12 +5,10 @@ HTTP routes for ERP 실측 API (`foms.api.measurement` package).
 import copy
 import datetime
 import logging
-import math
 
 logger = logging.getLogger(__name__)
 
 from flask import Blueprint, g, request, jsonify
-from sqlalchemy import or_, and_, cast, String
 from sqlalchemy.orm.attributes import flag_modified
 
 from db import get_db
@@ -25,6 +23,7 @@ from foms.services.common.address_converter import FOMSAddressConverter
 from foms.services.order_geocode import reset_order_geocode_on_address_change
 from foms.services.measurement_dates import extract_all_measurement_dates
 from foms.services.measurement_read_model import apply_measurement_dashboard_order_scope
+from foms.services.measurement_route import build_measurement_route_payload
 from foms.services.common.business_calendar import get_holidays_kr
 
 
@@ -257,144 +256,29 @@ def api_erp_measurement_update(order_id):
 @erp_measurement_bp.route('/route')
 @login_required
 def api_erp_measurement_route():
-    """ERP 실측 동선 추천 (MVP)"""
+    """ERP 실측 동선 추천 (MVP).
+
+    빌더는 `foms.services.measurement_route`(SSOT) — 실측 대시보드 뷰의
+    서버 인라인(data-route-inline)과 동일 계보의 points 를 반환한다.
+    '내 주문' 필터는 대시보드 뷰(foms.web.measurement.dashboard)와 동일 predicate,
+    기본값(파라미터/쿠키 미설정)은 기존 동작 유지 — 필터 미적용.
+    """
     db = get_db()
     date_filter = request.args.get('date') or measurement_api.get_today_kst().strftime('%Y-%m-%d')
     manager_filter = (request.args.get('manager') or '').strip()
     limit = int(request.args.get('limit', 20))
-    limit = max(1, min(limit, 30))
 
-    query = db.query(Order).filter(Order.active_filter())
-
-    if date_filter:
-        from models import OrderScheduleDate
-        query = query.join(OrderScheduleDate, Order.id == OrderScheduleDate.order_id)
-        query = query.filter(
-            OrderScheduleDate.kind == 'measurement',
-            OrderScheduleDate.date == date_filter
-        ).distinct()
-
-    if manager_filter:
-        query = query.filter(Order.manager_name.ilike(f'%{manager_filter}%'))  # perf-ok: ix_orders_manager_name_trgm
-
-    ordered_query = query.order_by(
-        Order.measurement_time.asc().nullslast(),
-        Order.id.asc(),
+    current_user = getattr(g, 'current_user', None)
+    mine_filter_active = bool(erp_mine_only_from_request(request) and current_user)
+    payload = build_measurement_route_payload(
+        db,
+        date_filter=date_filter,
+        manager_filter=manager_filter,
+        limit=limit,
+        current_user=current_user,
+        mine_active=mine_filter_active,
     )
-    if date_filter:
-        candidate_orders = ordered_query.all()
-        orders = [
-            order
-            for order in candidate_orders
-            if date_filter in extract_all_measurement_dates(order)
-        ][:limit]
-    else:
-        orders = ordered_query.limit(limit).all()
-
-    converter = FOMSAddressConverter()
-    points = []
-    for o in orders:
-        address_to_use = o.address
-        customer_name = o.customer_name
-        phone = o.phone
-        manager_name = o.manager_name
-
-        if o.is_erp_order and o.structured_data:
-            sd = o.structured_data
-            erp_address_full = (sd.get('site') or {}).get('address_full')
-            erp_address_main = (sd.get('site') or {}).get('address_main')
-            erp_address_detail = (sd.get('site') or {}).get('address_detail')
-
-            if erp_address_full and erp_address_full.strip() and erp_address_full != '-':
-                address_to_use = erp_address_full.strip()
-            elif erp_address_main and erp_address_main.strip():
-                if erp_address_detail and erp_address_detail.strip() and erp_address_detail != '-':
-                    address_to_use = f"{erp_address_main.strip()} {erp_address_detail.strip()}"
-                else:
-                    address_to_use = erp_address_main.strip()
-
-            erp_customer_name = ((sd.get('parties') or {}).get('customer') or {}).get('name')
-            if erp_customer_name:
-                customer_name = erp_customer_name
-
-            erp_phone = ((sd.get('parties') or {}).get('customer') or {}).get('phone')
-            if erp_phone:
-                phone = erp_phone
-
-            erp_manager_name = ((sd.get('parties') or {}).get('manager') or {}).get('name')
-            if erp_manager_name:
-                manager_name = erp_manager_name
-
-        lat, lng, status = converter.convert_address(address_to_use)
-        if lat is None or lng is None:
-            continue
-        points.append({
-            "id": o.id,
-            "customer_name": customer_name,
-            "phone": phone,
-            "address": address_to_use,
-            "measurement_time": o.measurement_time,
-            "manager_name": manager_name,
-            "status": o.status,
-            "measurement_completed": bool(o.measurement_completed),
-            "lat": float(lat),
-            "lng": float(lng),
-            "geo_status": status
-        })
-
-    if len(points) <= 1:
-        return jsonify({
-            "success": True,
-            "date": date_filter,
-            "manager": manager_filter,
-            "total_points": len(points),
-            "route": points,
-            "total_distance_km": 0
-        })
-
-    def haversine_km(a, b):
-        R = 6371.0
-        lat1 = math.radians(a["lat"])
-        lon1 = math.radians(a["lng"])
-        lat2 = math.radians(b["lat"])
-        lon2 = math.radians(b["lng"])
-        dlat = lat2 - lat1
-        dlon = lon2 - lon1
-        h = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
-        return 2 * R * math.asin(math.sqrt(h))
-
-    remaining = points[:]
-    route = [remaining.pop(0)]
-    total_km = 0.0
-
-    while remaining:
-        last = route[-1]
-        best_i = 0
-        best_d = float("inf")
-        for i, cand in enumerate(remaining):
-            d = haversine_km(last, cand)
-            if d < best_d:
-                best_d = d
-                best_i = i
-        next_pt = remaining.pop(best_i)
-        total_km += best_d
-        route.append(next_pt)
-
-    km_h = 0.0
-    for i in range(len(route) - 1):
-        a = route[i]
-        b = route[i + 1]
-        d_h = haversine_km(a, b)
-        km_h += d_h
-
-    return jsonify({
-        "success": True,
-        "date": date_filter,
-        "manager": manager_filter,
-        "total_points": len(points),
-        "route": route,
-        "total_distance_km": round(km_h, 2)
-    })
+    return jsonify({"success": True, **payload})
 
 
 @erp_measurement_bp.route('/route-eta')

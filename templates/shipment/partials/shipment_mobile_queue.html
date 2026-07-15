@@ -15,24 +15,10 @@
         {% set meta = o.shipment_meta or {} %}
         {% set is_as = meta.is_as %}
         {% set has_detail = meta.construction_time or meta.drawing_managers or meta.construction_workers or meta.vehicle or meta.trip or meta.site_extra or meta.spec_units or (meta.is_as and meta.as_content_text) %}
-        <div class="erp-shipment-mobile-card{% if has_detail %} erp-shipment-mobile-card--with-detail{% endif %}{% if is_as %} erp-shipment-mobile-card--as{% endif %}">
-          {{ render_queue_card_v2(o, can_edit_shipment|default(false), None, '--drawing' if is_as else '--shipment', 'AS' if is_as else '출고', edit_return_to='erp_shipment_dashboard', detail_return_to='erp_shipment_dashboard') }}
-          <div class="erp-shipment-mobile-card__packing">
-            <button type="button"
-                    class="foms-btn foms-btn--secondary foms-btn--sm foms-packing-trigger"
-                    data-foms-packing-trigger
-                    data-order-id="{{ o.id }}">
-              <i class="fas fa-box-open" aria-hidden="true"></i>
-              {% if meta.packing_departed %}
-              <span class="foms-packing-departed-label">출발 보고됨</span>
-              {% else %}
-              <span>패킹{% if meta.packing_present %} {{ meta.packing_checked }}/{{ meta.packing_total }}{% endif %}</span>
-              {% endif %}
-              <span class="foms-packing-badge{% if meta.packing_departed %} foms-packing-badge--done{% endif %}" data-foms-packing-badge hidden></span>
-            </button>
-            {# B4: QR 라벨(새 탭 인쇄). #}
-            <a class="foms-qr-label-link" href="{{ url_for('erp_dashboard.erp_order_label', order_id=o.id) }}" target="_blank" rel="noopener"><i class="fas fa-qrcode" aria-hidden="true"></i><span>QR 라벨</span></a>
-          </div>
+        {#- 카드 통합(2026-07-15): 패킹/QR·출고 상세 dl·출고 정보 수정을 공용 v2 카드 "밖"에서
+            렌더하던 3블록을, 카드의 옵트인 슬롯(detail_slot/aux_slot/footer_extra_slot)으로
+            카드 "안"에 이식한다. 슬롯을 넘기지 않는 타 도메인은 렌더 결과 무변경. -#}
+        {% set detail_slot %}
           {% if has_detail or can_edit_shipment|default(false) %}
           <dl class="erp-shipment-mobile-card__detail" data-shipment-mobile-detail {% if not has_detail %}hidden{% endif %}>
             <div data-shipment-mobile-detail-row="construction_time" {% if not meta.construction_time %}hidden{% endif %}>
@@ -73,34 +59,57 @@
             {% endif %}
           </dl>
           {% endif %}
-          {% if can_edit_shipment|default(false) %}
-          <div class="erp-shipment-mobile-card__actions">
-            <button
-              type="button"
-              class="foms-btn foms-btn--secondary foms-btn--sm"
-              data-shipment-mobile-edit-trigger
-              data-order-id="{{ o.id }}"
-              data-construction-time="{{ meta.construction_time or '' }}"
-              data-drawing-managers="{{ (meta.drawing_managers or [])|join(', ') }}"
-              data-construction-workers="{{ (meta.construction_workers or [])|join(', ') }}"
-              data-vehicle="{{ meta.vehicle or '' }}"
-              data-trip="{{ meta.trip or '' }}"
-              data-site-extra="{{ (meta.site_extra or [])|join('\n') }}">
-              출고 정보 수정
+        {% endset %}
+        {% set aux_slot %}
+          <div class="erp-shipment-mobile-card__packing">
+            <button type="button"
+                    class="foms-btn foms-btn--secondary foms-btn--sm foms-packing-trigger"
+                    data-foms-packing-trigger
+                    data-order-id="{{ o.id }}">
+              <i class="fas fa-box-open" aria-hidden="true"></i>
+              {% if meta.packing_departed %}
+              <span class="foms-packing-departed-label">출발 보고됨</span>
+              {% else %}
+              <span>패킹{% if meta.packing_present %} {{ meta.packing_checked }}/{{ meta.packing_total }}{% endif %}</span>
+              {% endif %}
+              <span class="foms-packing-badge{% if meta.packing_departed %} foms-packing-badge--done{% endif %}" data-foms-packing-badge hidden></span>
             </button>
-            {% if meta.recommendation_link %}
-            <button
-              type="button"
-              class="foms-btn foms-btn--ghost foms-btn--sm js-shipment-as-rec-cancel"
-              data-shipment-order-id="{{ meta.recommendation_link.shipment_order_id }}"
-              data-as-order-id="{{ meta.recommendation_link.as_order_id }}"
-              data-as-info-id="{{ meta.recommendation_link.as_info_id or '' }}">
-              추천 취소
-            </button>
-            {% endif %}
+            {# B4: QR 라벨(새 탭 인쇄). #}
+            <a class="foms-qr-label-link" href="{{ url_for('erp_dashboard.erp_order_label', order_id=o.id) }}" target="_blank" rel="noopener"><i class="fas fa-qrcode" aria-hidden="true"></i><span>QR 라벨</span></a>
+            {% if can_edit_shipment|default(false) %}
             <span class="erp-shipment-mobile-card__status" data-shipment-mobile-edit-status aria-live="polite"></span>
+            {% endif %}
           </div>
+        {% endset %}
+        {% set footer_extra_slot %}
+          {% if can_edit_shipment|default(false) %}
+          <button
+            type="button"
+            class="foms-btn foms-btn--secondary foms-btn--sm"
+            data-shipment-mobile-edit-trigger
+            data-order-id="{{ o.id }}"
+            data-construction-time="{{ meta.construction_time or '' }}"
+            data-drawing-managers="{{ (meta.drawing_managers or [])|join(', ') }}"
+            data-construction-workers="{{ (meta.construction_workers or [])|join(', ') }}"
+            data-vehicle="{{ meta.vehicle or '' }}"
+            data-trip="{{ meta.trip or '' }}"
+            data-site-extra="{{ (meta.site_extra or [])|join('\n') }}">
+            출고 정보 수정
+          </button>
+          {% if meta.recommendation_link %}
+          <button
+            type="button"
+            class="foms-btn foms-btn--ghost foms-btn--sm js-shipment-as-rec-cancel"
+            data-shipment-order-id="{{ meta.recommendation_link.shipment_order_id }}"
+            data-as-order-id="{{ meta.recommendation_link.as_order_id }}"
+            data-as-info-id="{{ meta.recommendation_link.as_info_id or '' }}">
+            추천 취소
+          </button>
           {% endif %}
+          {% endif %}
+        {% endset %}
+        <div class="erp-shipment-mobile-card{% if has_detail %} erp-shipment-mobile-card--with-detail{% endif %}{% if is_as %} erp-shipment-mobile-card--as{% endif %}">
+          {{ render_queue_card_v2(o, can_edit_shipment|default(false), None, '--drawing' if is_as else '--shipment', 'AS' if is_as else '출고', edit_return_to='erp_shipment_dashboard', detail_return_to='erp_shipment_dashboard', detail_slot=detail_slot, aux_slot=aux_slot, footer_extra_slot=footer_extra_slot) }}
         </div>
       {% endfor %}
     </div>
@@ -125,7 +134,7 @@
     <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="닫기"></button>
   </div>
   <div class="offcanvas-body">
-    <form data-shipment-mobile-edit-form>
+    <form data-shipment-mobile-edit-form data-foms-erp-no-shell="1">
       <input type="hidden" name="order_id">
       <div class="mb-3">
         <label class="form-label">시공시간</label>
@@ -158,13 +167,16 @@
 </div>
 
 <script>
-  document.addEventListener('DOMContentLoaded', function () {
-    var sheetEl = document.getElementById('erp-shipment-mobile-edit-sheet');
-    if (!sheetEl || typeof bootstrap === 'undefined') return;
-    var form = sheetEl.querySelector('[data-shipment-mobile-edit-form]');
-    var errorEl = sheetEl.querySelector('[data-shipment-mobile-edit-error]');
-    var submitBtn = sheetEl.querySelector('[data-shipment-mobile-edit-submit]');
-    var sheet = bootstrap.Offcanvas.getOrCreateInstance(sheetEl);
+  (function () {
+    // Fragment 재실행-안전 배선(가드 G4): erp-shell 이 #main-content 를 swap 하면 이 인라인
+    // 스크립트가 재실행된다. 그 시점엔 DOMContentLoaded 가 이미 지났으므로 과거처럼 감싸면
+    // 콜백이 영원히 실행되지 않는다(→ "출고 정보 수정" 버튼 사망). 즉시 실행 + document 위임
+    // + 싱글톤 가드로 리스너를 1회만 바인딩하고, 요소 참조는 이벤트 시점에 조회한다.
+    if (window.__FOMS_SHIPMENT_MOBILE_EDIT_BOUND) return;
+    window.__FOMS_SHIPMENT_MOBILE_EDIT_BOUND = true;
+
+    // 클릭한 트리거(제출 성공 시 카드 동기화 대상)를 유지. swap 으로 카드가 사라지면 detached
+    // 노드가 되므로 사용처마다 null/존재 확인으로 방어한다.
     var activeTrigger = null;
 
     function splitList(value) {
@@ -178,12 +190,14 @@
       return Array.isArray(values) ? values.join(', ') : String(values || '').trim();
     }
 
-    function setError(message) {
+    function setError(errorEl, message) {
+      if (!errorEl) return;
       errorEl.textContent = message || '';
       errorEl.classList.toggle('d-none', !message);
     }
 
-    function setLoading(isLoading) {
+    function setLoading(submitBtn, isLoading) {
+      if (!submitBtn) return;
       submitBtn.disabled = isLoading;
       submitBtn.textContent = isLoading ? '저장 중...' : '저장';
     }
@@ -218,25 +232,38 @@
       card.classList.toggle('erp-shipment-mobile-card--with-detail', !!detail && !detail.hidden);
     }
 
-    document.querySelectorAll('[data-shipment-mobile-edit-trigger]').forEach(function (trigger) {
-      trigger.addEventListener('click', function () {
-        activeTrigger = trigger;
-        form.elements.order_id.value = trigger.dataset.orderId || '';
-        form.elements.construction_time.value = trigger.dataset.constructionTime || '';
-        form.elements.drawing_managers.value = trigger.dataset.drawingManagers || '';
-        form.elements.construction_workers.value = trigger.dataset.constructionWorkers || '';
-        form.elements.vehicle.value = trigger.dataset.vehicle || '';
-        form.elements.trip.value = trigger.dataset.trip || '';
-        form.elements.site_extra.value = trigger.dataset.siteExtra || '';
-        setError('');
-        sheet.show();
-      });
+    // 트리거 클릭 → 시트 프리필 후 오픈. 시트/폼 DOM 은 swap 마다 교체되므로 클릭 시점에 조회.
+    document.addEventListener('click', function (event) {
+      var trigger = event.target.closest && event.target.closest('[data-shipment-mobile-edit-trigger]');
+      if (!trigger) return;
+      var sheetEl = document.getElementById('erp-shipment-mobile-edit-sheet');
+      if (!sheetEl || typeof bootstrap === 'undefined') return;
+      var form = sheetEl.querySelector('[data-shipment-mobile-edit-form]');
+      if (!form) return;
+      var errorEl = sheetEl.querySelector('[data-shipment-mobile-edit-error]');
+      activeTrigger = trigger;
+      form.elements.order_id.value = trigger.dataset.orderId || '';
+      form.elements.construction_time.value = trigger.dataset.constructionTime || '';
+      form.elements.drawing_managers.value = trigger.dataset.drawingManagers || '';
+      form.elements.construction_workers.value = trigger.dataset.constructionWorkers || '';
+      form.elements.vehicle.value = trigger.dataset.vehicle || '';
+      form.elements.trip.value = trigger.dataset.trip || '';
+      form.elements.site_extra.value = trigger.dataset.siteExtra || '';
+      setError(errorEl, '');
+      bootstrap.Offcanvas.getOrCreateInstance(sheetEl).show();
     });
 
-    form.addEventListener('submit', async function (event) {
+    // 시트 폼 제출 → PC 출고표와 동일 저장 계약(POST). data-foms-erp-no-shell 로 erp-shell 의
+    // GET-폼 shell 네비 가로채기를 배제하므로 이 핸들러만 처리한다. 요소 참조는 제출 시점 조회.
+    document.addEventListener('submit', async function (event) {
+      var form = event.target.closest && event.target.closest('[data-shipment-mobile-edit-form]');
+      if (!form) return;
       event.preventDefault();
       var orderId = form.elements.order_id.value;
       if (!orderId) return;
+      var sheetEl = document.getElementById('erp-shipment-mobile-edit-sheet');
+      var errorEl = form.querySelector('[data-shipment-mobile-edit-error]');
+      var submitBtn = form.querySelector('[data-shipment-mobile-edit-submit]');
       var payload = {
         construction_time: form.elements.construction_time.value.trim(),
         drawing_managers: splitList(form.elements.drawing_managers.value),
@@ -245,8 +272,8 @@
         trip: form.elements.trip.value.trim(),
         site_extra: splitList(form.elements.site_extra.value)
       };
-      setLoading(true);
-      setError('');
+      setLoading(submitBtn, true);
+      setError(errorEl, '');
       try {
         var res = await fetch('/api/erp/shipment/update/' + orderId, {
           method: 'POST',
@@ -270,13 +297,15 @@
           var status = card ? card.querySelector('[data-shipment-mobile-edit-status]') : null;
           if (status) status.textContent = '저장되었습니다.';
         }
-        sheet.hide();
+        if (sheetEl && typeof bootstrap !== 'undefined') {
+          bootstrap.Offcanvas.getOrCreateInstance(sheetEl).hide();
+        }
       } catch (error) {
-        setError(String((error && error.message) || error || '저장 중 오류가 발생했습니다.'));
+        setError(errorEl, String((error && error.message) || error || '저장 중 오류가 발생했습니다.'));
       } finally {
-        setLoading(false);
+        setLoading(submitBtn, false);
       }
     });
-  });
+  })();
 </script>
 {% endif %}
