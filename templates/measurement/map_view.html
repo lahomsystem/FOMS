@@ -242,8 +242,10 @@
             width: 100%;
         }
 
-        #map-content>div,
-        #map-content>div>div {
+        /* :not(.foms-kmap-routecalc): 경로 계산 패널은 지도 좌상단 absolute 오버레이 —
+           이 블록의 !important(relative·100%)가 패널을 지도 밖으로 유배시켰던 실사고. */
+        #map-content>div:not(.foms-kmap-routecalc),
+        #map-content>div>div:not(.foms-kmap-routecalc) {
             height: 100% !important;
             width: 100% !important;
             padding-bottom: 0 !important;
