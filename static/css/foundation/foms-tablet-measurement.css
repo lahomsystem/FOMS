@@ -1080,6 +1080,13 @@
   body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__acc[open] .foms-tmf__acc-chev {
     transform: rotate(180deg);
   }
+  /* 접힘 요약 우측: 내용 유무 배지 + 셰브론 정렬(특이사항·비고 아코디언). */
+  body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__acc-summary-right {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--foms-space-2, 0.5rem);
+    flex: 0 0 auto;
+  }
   body.erp-mobile-v2-layout .erp-measurement-dashboard .foms-tmf__acc-body {
     display: flex;
     flex-direction: column;

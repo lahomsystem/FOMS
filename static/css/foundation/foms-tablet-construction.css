@@ -131,6 +131,38 @@
     gap: var(--foms-space-3);
   }
 
+  /* 타임라인 빈 상태 — 기간 필터 0건/서버 orders 공백일 때 노출(JS 토글). :not([hidden]) 로
+     UA [hidden]:none 를 존중(이 파일의 [hidden] 무간섭 규율). */
+  body.erp-mobile-v2-layout .foms-cwork-timeline__empty:not([hidden]) {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--foms-space-2);
+    padding: var(--foms-space-6) var(--foms-space-4);
+    text-align: center;
+    color: var(--foms-text-tertiary);
+  }
+  body.erp-mobile-v2-layout .foms-cwork-timeline__empty i {
+    font-size: var(--foms-font-size-2xl);
+    color: var(--foms-text-tertiary);
+  }
+  body.erp-mobile-v2-layout .foms-cwork-timeline__empty-title {
+    margin: 0;
+    font-size: var(--foms-font-size-base);
+    font-weight: var(--foms-font-weight-bold);
+    color: var(--foms-text-secondary);
+  }
+  body.erp-mobile-v2-layout .foms-cwork-timeline__empty-hint {
+    margin: 0;
+    font-size: var(--foms-font-size-sm);
+    font-weight: var(--foms-font-weight-medium);
+    color: var(--foms-text-tertiary);
+  }
+  body.erp-mobile-v2-layout .foms-cwork-timeline__empty-hint:empty {
+    display: none;
+  }
+
   /* --- 단계 칩 (필터/점프) — 터치 타깃 ≥44px --- */
   body.erp-mobile-v2-layout .foms-cwork-chip {
     appearance: none;
@@ -284,6 +316,25 @@
     gap: var(--foms-space-3);
     flex: 1 1 auto;
     min-height: 0;
+  }
+  /* 활성 시공 건 0건일 때 중앙 placeholder(JS 토글). :not([hidden]) 로 UA [hidden] 존중. */
+  body.erp-mobile-v2-layout .foms-cwork-viewer__empty:not([hidden]) {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--foms-space-2);
+    color: var(--foms-text-tertiary);
+    font-size: var(--foms-font-size-base);
+    font-weight: var(--foms-font-weight-medium);
+  }
+  body.erp-mobile-v2-layout .foms-cwork-viewer__empty i {
+    font-size: var(--foms-font-size-2xl);
+    color: var(--foms-text-tertiary);
+  }
+  body.erp-mobile-v2-layout .foms-cwork-viewer__empty p {
+    margin: 0;
   }
   /* 뷰어 상단 바 (주문 요약/규격 + 전화·내비) — sticky 유지. */
   body.erp-mobile-v2-layout .foms-cwork-pcbar {
