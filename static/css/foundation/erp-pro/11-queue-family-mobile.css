@@ -4,7 +4,7 @@
   display: none;
 }
 
-@media (max-width: 991.98px) {
+@media (max-width: 991.98px), ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
   .erp-dashboard[data-erp-mobile-v2='true'] .erp-dashboard-filters {
     display: none !important;
   }
@@ -421,13 +421,16 @@
   }
 }
 
+/* 기본 숨김 — 아래 코호트 @media(폰 OR ≥992 세로 coarse 태블릿 = foms-shell.css:11 SSOT)
+   에서만 표시한다. 순수 폭(max-width:991.98)만 쓰면 iPad 세로(1024)에서 desktop-shell 은
+   shell.css:11 로 숨는데 이 모바일 리스트는 미표시 → 히어로/동선지도만 뜨고 리스트 blank. */
 .erp-measurement-mobile-filters,
 .erp-measurement-mobile-dates,
 .erp-measurement-mobile-list {
   display: none;
 }
 
-@media (max-width: 991.98px) {
+@media (max-width: 991.98px), ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
   .erp-measurement-dashboard[data-erp-mobile-v2='true'] #btn-export-image,
   .erp-measurement-dashboard[data-erp-mobile-v2='true'] .erp-measurement-desktop-shell {
     display: none;
@@ -1005,7 +1008,7 @@
   display: none;
 }
 
-@media (max-width: 991.98px) {
+@media (max-width: 991.98px), ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
   .erp-as-dashboard[data-erp-mobile-v2='true'] .erp-as-mobile-controls {
     display: block;
     padding: 0 1rem 1rem;
@@ -1280,7 +1283,7 @@
 }
 
 /* ===== 모바일 작업 큐 번호 페이저 (PC식 1,2,3,4 하단 페이지네이션) ===== */
-@media (max-width: 991.98px) {
+@media (max-width: 991.98px), ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
   /* grid/flex 자식 min-width:auto가 페이저를 칩스트립 폭으로 확장시키지 않도록 */
   .erp-mobile-queue-section .foms-mobile-pager,
   .foms-mobile-queue-section .foms-mobile-pager,

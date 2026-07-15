@@ -91,17 +91,47 @@ function isFileDeliveryRequest(url) {
   return url.searchParams.has("X-Amz-Signature") || url.searchParams.has("Signature");
 }
 
+// 정적 자산 네트워크 취득(캐시 미스/만료 시 공용). 한국↔싱가포르 경로의 tail 구간에서
+// 첫 fetch 가 간헐적으로 reject(TCP reset/혼잡) 하면, 캐시 폴백이 없을 때 기존 코드가
+// undefined 로 resolve → event.respondWith(undefined) → render-blocking CSS 가 통째로
+// 실패(무스타일 렌더)했다(배포 직후 ?v 신규 URL·CACHE_VERSION 범프로 캐시가 비어 특히 빈발).
+// 근본 수정: 캐시 폴백이 없을 때는 요청을 죽이지 말고 짧은 backoff 로 유한 재시도해
+// transient reject 를 흡수하고 성공 시 캐시에 저장한다. 캐시 폴백이 있으면(오프라인/stale)
+// 재시도 없이 즉시 폴백한다(기존 동작 유지). 재시도를 소진해도 폴백이 없으면 정직하게
+// reject 를 전파(브라우저 기본 에러 처리) — 절대 undefined 로 resolve 하지 않는다.
+// 유한 재시도라 respondWith 무한 미해결(G3 무한 스피너)과는 무관하다.
+var STATIC_NETWORK_RETRIES = 2; // 첫 시도 후 최대 2회 추가 재시도
+var STATIC_RETRY_BACKOFF_MS = 400; // 재시도 간 backoff(선형 증가: 400ms, 800ms)
+
+function staticNetwork(request, cache, cached) {
+  var attempt = 0;
+  function attemptFetch() {
+    return fetch(request)
+      .then(function (response) {
+        if (response && response.ok) cache.put(request, response.clone());
+        return response;
+      })
+      .catch(function (err) {
+        // 캐시 폴백이 있으면 즉시 폴백(오프라인/네트워크 단절 정상 경로) — 재시도 불필요.
+        if (cached) return cached;
+        // 폴백이 없으면 transient reject 를 유한 재시도로 흡수(무스타일 렌더 방지).
+        if (attempt < STATIC_NETWORK_RETRIES) {
+          attempt += 1;
+          return new Promise(function (resolve) {
+            setTimeout(resolve, STATIC_RETRY_BACKOFF_MS * attempt);
+          }).then(attemptFetch);
+        }
+        // 재시도 소진 + 폴백 없음 → 정직하게 실패 전파(undefined resolve 금지).
+        throw err;
+      });
+  }
+  return attemptFetch();
+}
+
 function staleWhileRevalidate(request, cacheName) {
   return caches.open(cacheName).then(function (cache) {
     return cache.match(request).then(function (cached) {
-      var network = fetch(request)
-        .then(function (response) {
-          if (response && response.ok) cache.put(request, response.clone());
-          return response;
-        })
-        .catch(function () {
-          return cached;
-        });
+      var network = staticNetwork(request, cache, cached);
       return cached || network;
     });
   });
@@ -129,15 +159,10 @@ function staticCacheFirst(request, cacheName) {
       if (cached && _cacheAgeMs(cached) < STATIC_REVALIDATE_TTL_MS) {
         return cached;
       }
-      // 캐시가 없거나 오래됨 → 캐시본 즉시 응답 + 백그라운드 재검증(stale-while-revalidate).
-      var network = fetch(request)
-        .then(function (response) {
-          if (response && response.ok) cache.put(request, response.clone());
-          return response;
-        })
-        .catch(function () {
-          return cached;
-        });
+      // 캐시본이 있으면(오래됨) 즉시 응답 + 백그라운드 재검증(stale-while-revalidate).
+      // 캐시가 없으면(첫 로드/배포 직후 미스) staticNetwork 가 유한 재시도로 취득한다 —
+      // transient reject 를 undefined 로 삼켜 무스타일 렌더를 유발하던 경로를 봉합한다.
+      var network = staticNetwork(request, cache, cached);
       return cached || network;
     });
   });
