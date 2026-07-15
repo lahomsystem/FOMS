@@ -960,3 +960,7 @@ def test_guard_accidental_stage_regression_unit():
     forward = {"workflow": {"stage": "CONFIRM"}}
     _guard_accidental_stage_regression(old, forward)
     assert forward["workflow"]["stage"] == "CONFIRM"
+
+    skip = {"workflow": {"stage": "PRODUCTION"}}
+    _guard_accidental_stage_regression({"workflow": {"stage": "MEASURE"}}, skip)
+    assert skip["workflow"]["stage"] == "MEASURE"

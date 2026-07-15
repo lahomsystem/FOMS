@@ -427,9 +427,9 @@ def test_shared_erp_order_js_preserves_drawing_operational_state() -> None:
     assert "prevSd.workflow" in workflow_block
     assert "JSON.parse(JSON.stringify(prevWorkflow))" in workflow_block
     assert "getVal('erp-workflow-stage')" in workflow_block
-    # 도면→실측 stale stage 회귀 차단: 알려진 단계끼리만 formRank < prevRank 시 prev 유지.
-    assert "formRank >= 0 && prevRank >= 0 && formRank < prevRank" in workflow_block
-    assert "workflow.stage = formStage || prevStage;" in workflow_block
+    assert "formRank >= 0 && prevRank >= 0" in workflow_block
+    assert "formRank === prevRank + 1" in workflow_block
+    assert "workflow.stage = prevStage;" in workflow_block
 
 
 def test_structured_put_preserves_estimate_preview_state() -> None:

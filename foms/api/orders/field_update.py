@@ -242,6 +242,16 @@ def update_order_field_response(
             value = normalized_construction_type or None
 
         is_erp_order = is_erp_order_record(order)
+        if field == "status" and is_erp_order:
+            from foms.services.orders.stage_override import (
+                OVERRIDE_BLOCK_MESSAGE,
+                current_stage_for_order,
+                requires_privileged_override,
+            )
+
+            if requires_privileged_override(current_stage_for_order(order), value):
+                return jsonify({"success": False, "message": OVERRIDE_BLOCK_MESSAGE}), 403
+
         structured_data: dict[str, Any] = {}
         structured_changed = False
         old_sd_snapshot: dict[str, Any] = {}
@@ -263,6 +273,12 @@ def update_order_field_response(
             pass
         else:
             setattr(order, field, value)
+
+        if field == "status" and is_erp_order and isinstance(structured_data, dict):
+            workflow = ensure_path(structured_data, "workflow")
+            workflow["stage"] = value
+            workflow["stage_updated_at"] = datetime.datetime.now().isoformat()
+            structured_changed = True
 
         if field == "as_completed_date":
             shipment = ensure_path(structured_data, "shipment")

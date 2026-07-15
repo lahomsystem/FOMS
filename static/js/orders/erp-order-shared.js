@@ -2104,9 +2104,13 @@ function erpCollectStructured() {
             };
             var formRank = Object.prototype.hasOwnProperty.call(rank, formStage) ? rank[formStage] : -1;
             var prevRank = Object.prototype.hasOwnProperty.call(rank, prevStage) ? rank[prevStage] : -1;
-            // 알려진 단계끼리만 역행 차단. AS* 등 미매핑(formRank<0)은 폼 값 유지.
-            if (formRank >= 0 && prevRank >= 0 && formRank < prevRank) {
-                workflow.stage = prevStage;
+            // 알려진 단계끼리: 인접 전진(+1)만 허용. 역행·스킵은 서버 단계 유지(override API).
+            if (formRank >= 0 && prevRank >= 0) {
+                if (formRank === prevRank + 1 || formStage === prevStage) {
+                    workflow.stage = formStage || prevStage;
+                } else {
+                    workflow.stage = prevStage;
+                }
             } else {
                 workflow.stage = formStage || prevStage;
             }

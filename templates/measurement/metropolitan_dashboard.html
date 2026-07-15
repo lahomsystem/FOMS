@@ -1376,6 +1376,19 @@ document.addEventListener('DOMContentLoaded', function() {
         const oldStatusName = statusNames[originalValue] || originalValue;
         const newStatusName = statusNames[newStatus] || newStatus;
 
+        // 역행·건너뛰기 → 단계 강제 변경 모달 (일반 status API 차단)
+        if (window.FOMS_STAGE_OVERRIDE && window.FOMS_STAGE_OVERRIDE.interceptStatusChange(
+            orderId, originalValue, newStatus, function (ok) {
+                if (ok) {
+                    location.reload();
+                } else {
+                    dropdown.value = originalValue;
+                }
+            }
+        )) {
+            return;
+        }
+
         // 상태 변경 확인
         if (!confirm(`주문 #${orderId}의 상태를 '${oldStatusName}'에서 '${newStatusName}'(으)로 변경하시겠습니까?`)) {
             // 취소 시 원래 값으로 되돌리기
@@ -1463,4 +1476,10 @@ function toggleCompletedOrders() {
     }
 }
 </script>
-{% endblock %} 
+{% endblock %}
+
+{% block scripts %}
+{% include "orders/partials/erp_stage_override_modal.html" %}
+<script>window.MY_ROLE = {{ (current_user.role if current_user is defined and current_user else '')|tojson }};</script>
+<script src="{{ url_for('static', filename='js/orders/erp-stage-override.js') }}?v=20260716a" defer></script>
+{% endblock %}

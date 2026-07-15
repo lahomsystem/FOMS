@@ -997,7 +997,7 @@
               updateSelectedCount();
             });
 
-            applyBtn.addEventListener('click', function () {
+              applyBtn.addEventListener('click', function () {
               const status = (selectEl.value || '').trim();
               if (!status) {
                 alert('변경할 상태를 선택하세요.');
@@ -1014,9 +1014,12 @@
                 headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 body: JSON.stringify({ order_ids: orderIds, status: status })
               })
-                .then(r => r.json())
-                .then(data => {
+                .then(r => r.json().then(data => ({ ok: r.ok, status: r.status, data })))
+                .then(({ data }) => {
                   if (data.success) {
+                    if (data.blocked_override_required && data.blocked_override_required.length) {
+                      alert((data.message || '') + '\n차단 ID: ' + data.blocked_override_required.join(', '));
+                    }
                     window.location.reload();
                   } else {
                     alert(data.message || '상태 변경에 실패했습니다.');

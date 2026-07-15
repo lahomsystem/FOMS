@@ -94,6 +94,17 @@ function viewOrderDetail(orderId) {
 
 // 주문 상태 업데이트
 function updateOrderStatus(orderId, newStatus) {
+    var fromStatus = '';
+    try {
+        var sel = document.querySelector('.status-dropdown[data-order-id="' + orderId + '"]');
+        if (sel) fromStatus = sel.getAttribute('data-prev-status') || sel.dataset.prevStatus || '';
+    } catch (e) { /* ignore */ }
+    if (window.FOMS_STAGE_OVERRIDE && fromStatus &&
+        window.FOMS_STAGE_OVERRIDE.interceptStatusChange(orderId, fromStatus, newStatus, function (ok) {
+            if (ok) location.reload();
+        })) {
+        return;
+    }
     fetch('/api/update_order_status', {
         method: 'POST',
         headers: {
