@@ -672,12 +672,15 @@ def erp_drawing_workbench_detail(order_id):
     is_drawing_participant = bool(
         current_user and is_drawing_workbench_participant(current_user, order)
     )
-    # 전달 버튼은 도면팀+관리자 전용 — is_drawing_workbench_participant(워크벤치 접근 참여자 판정,
-    # 배정된 비도면팀 직원도 True인 더 넓은 개념)와 별개 축. 배정 로직은 그대로 두고 팀 조건을 추가로 AND.
-    is_transfer_authorized_team = bool(
-        current_user
-        and (current_user.role == 'ADMIN' or (getattr(current_user, 'team', None) or '').strip() == 'DRAWING')
+    # 액션바 4버튼 상호배타 노출: 전달/전달취소=도면팀+관리자, 수정요청/수령확정=영업측+관리자(도면팀 제외).
+    # is_drawing_team(정확히 team=='DRAWING' 리터럴 비교)은 is_drawing_workbench_participant
+    # (워크벤치 접근 참여자 판정, 배정된 비도면팀 직원도 True인 더 넓은 개념)와 별개 축이다.
+    is_admin = bool(current_user and current_user.role == 'ADMIN')
+    is_drawing_team = bool(
+        current_user and (getattr(current_user, 'team', None) or '').strip() == 'DRAWING'
     )
+    # 전달 버튼은 도면팀+관리자 전용. 배정 로직은 그대로 두고 팀 조건을 추가로 AND.
+    is_transfer_authorized_team = bool(is_admin or is_drawing_team)
     can_transfer = bool(has_assignee and is_drawing_participant and is_transfer_authorized_team)
     transfer_gated_by_revision_checklist = bool(
         drawing_status == 'RETURNED'
@@ -686,8 +689,12 @@ def erp_drawing_workbench_detail(order_id):
     can_open_transfer = bool(can_transfer and not transfer_gated_by_revision_checklist)
     can_toggle_revision_check = is_drawing_participant
     can_sales_domain = _can_modify_sales_domain(current_user, order, s_data, False, None)
-    can_request_revision = can_sales_domain
-    can_confirm_receipt = bool(can_sales_domain and drawing_status == 'TRANSFERRED')
+    # 수정요청/수령확정=영업측 전용(도면팀에는 안 보임). 관리자는 예외로 무조건 통과.
+    can_request_revision = bool(is_admin or (can_sales_domain and not is_drawing_team))
+    can_confirm_receipt = bool(
+        (is_admin or (can_sales_domain and not is_drawing_team))
+        and drawing_status == 'TRANSFERRED'
+    )
     can_cancel_transfer = False
     if latest_transfer:
         if current_user is not None and current_user.role == 'ADMIN':
@@ -704,6 +711,9 @@ def erp_drawing_workbench_detail(order_id):
                 )
             except Exception:
                 pass
+    # 전달취소는 표시상 도면팀+관리자로 한정 — self-cancel 레거시 분기(by_user_id 일치)가
+    # 팀 무관하게 통과시키던 문제를 최종 게이트로 봉합(과거 데이터 호환은 위 분기가 유지).
+    can_cancel_transfer = bool(can_cancel_transfer and is_transfer_authorized_team)
 
     customer_name = (((s_data.get('parties') or {}).get('customer') or {}).get('name')) or '-'
     manager_name = (((s_data.get('parties') or {}).get('manager') or {}).get('name')) or (order.manager_name or '-') or '-'

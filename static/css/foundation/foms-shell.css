@@ -549,6 +549,11 @@
 
   /* 팀별 그룹 아코디언(details/summary) — 등록 인원 전체를 팀 헤더 아래로 접어 노출. */
   body.erp-mobile-v2-layout .erp-mobile-urgent-sheet__team {
+    /* flex-shrink:0 필수 — 부모(__targets)가 column flex+overflow-y:auto인데
+       기본 flex-shrink:1이면 펼쳐진 그룹이 남은 공간에 맞춰 눌리고, 이 박스의
+       overflow:hidden이 눌려난 팀원을 조용히 잘라내 스크롤 자체가 안 걸림
+       (아래 팀원 선택 불가 실사고). 그룹은 항상 실제 콘텐츠 높이 그대로 유지. */
+    flex-shrink: 0;
     border: 1px solid var(--foms-border-subtle);
     border-radius: var(--foms-radius-md);
     overflow: hidden;

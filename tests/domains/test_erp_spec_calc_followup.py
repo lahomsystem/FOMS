@@ -225,7 +225,7 @@ def test_form_field_css_chain_cache_busted_for_redesign() -> None:
     surfaces = _read(ROOT / "static/css/foundation/foms-mobile-surfaces.css")
     layout_head = _read(ROOT / "templates/partials/shared/layout_head.html")
     assert "../components/foms-form-field.css?v=20260630e" in surfaces
-    assert "foms-mobile-surfaces.css') }}?v=20260715c" in layout_head
+    assert "foms-mobile-surfaces.css') }}?v=20260715d" in layout_head
 
 
 def test_spec_calc_self_heals_rows_created_before_module_load() -> None:
