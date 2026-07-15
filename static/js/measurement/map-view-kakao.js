@@ -34,6 +34,11 @@
   // 서버 정본 포팅: geocode_config.DEFAULT_CENTER (마커 0건일 때 중심)
   var DEFAULT_CENTER = { lat: 37.5665, lng: 126.9780 };
   var ROUTE_LINE_FALLBACK = '#6366f1'; // --foms-route-line 미해석 시(콜드 CSS) 동일값 폴백
+  // 줌 임계 그룹 접기/펼치기 — folium 파리티: duplicateMarkerZoomThreshold=14
+  // (Leaflet, getZoom()>=14 = 펼침). 카카오 level은 작을수록 확대이고
+  // level 3 ≈ Leaflet z16(≈100m 축척) 앵커 → Leaflet z14 ≈ 카카오 level 5.
+  // 즉 level<=5 = 펼침(개별 분리), level>=6 = 접힘(대표 1개 + xN 뱃지).
+  var DUPLICATE_EXPAND_MAX_LEVEL = 5;
 
   var SDK_IDLE = 0, SDK_LOADING = 1, SDK_READY = 2, SDK_FAILED = 3;
   var sdkState = SDK_IDLE;
@@ -43,7 +48,9 @@
   var state = {
     map: null,
     mapEl: null,
-    overlays: [],   // CustomOverlay + Polyline 정리 목록
+    overlays: [],    // CustomOverlay + Polyline 정리 목록
+    markerItems: [], // {overlay, pill, marker} — 줌 임계 그룹 레이아웃 대상
+    routeMode: false,
     popup: null,
     active: false
   };
@@ -205,6 +212,116 @@
     });
   }
 
+  // 접힌 대표 마커 클릭 팝업: 그룹 내 주문 목록(+각 상세 보기) — folium 팝업 행 파리티 확장.
+  function openGroupPopup(markersInGroup, position) {
+    closePopup();
+    var rows = markersInGroup.map(function (m) {
+      return '<div class="foms-kmap-popup__group-row">' +
+        '<span class="foms-kmap-popup__group-main">' +
+        '<strong>#' + escapeHtml(m.id) + '</strong> ' + escapeHtml(m.customer_name || '-') +
+        (m.measurement_time ? ' · ' + escapeHtml(m.measurement_time) : '') +
+        '</span>' +
+        '<button type="button" class="btn btn-sm btn-outline-primary" data-order-id="' + escapeHtml(m.id) + '">상세</button>' +
+        '</div>';
+    }).join('');
+    var el = document.createElement('div');
+    el.className = 'foms-kmap-popup';
+    el.innerHTML =
+      '<div class="foms-kmap-popup__head">' +
+      '<strong>같은 위치 ' + markersInGroup.length + '건</strong>' +
+      '<button type="button" class="foms-kmap-popup__close" aria-label="닫기">&times;</button>' +
+      '</div>' +
+      '<div class="foms-kmap-popup__group">' +
+      '<div class="foms-kmap-popup__group-addr">' + escapeHtml(markersInGroup[0].address || '-') + '</div>' +
+      rows +
+      '</div>';
+    el.querySelector('.foms-kmap-popup__close').addEventListener('click', closePopup);
+    Array.prototype.forEach.call(el.querySelectorAll('button[data-order-id]'), function (btn) {
+      btn.addEventListener('click', function () {
+        if (typeof window.selectOrder === 'function') {
+          window.selectOrder(Number(btn.getAttribute('data-order-id')));
+        }
+      });
+    });
+    state.popup = new window.kakao.maps.CustomOverlay({
+      map: state.map, position: position, content: el,
+      xAnchor: 0.5, yAnchor: 1.15, zIndex: 60
+    });
+  }
+
+  // ---------- 줌 임계 그룹 접기/펼치기 (folium applyDuplicateMarkerLayout 포팅) ----------
+  function isExpandedView() {
+    if (!state.map || typeof state.map.getLevel !== 'function') return true;
+    return state.map.getLevel() <= DUPLICATE_EXPAND_MAX_LEVEL;
+  }
+
+  function groupMarkersOf(m) {
+    if (!m.__dupKey || m.__dupSize <= 1) return [m];
+    return state.markerItems
+      .filter(function (item) { return item.marker.__dupKey === m.__dupKey; })
+      .map(function (item) { return item.marker; });
+  }
+
+  // 오버레이는 재생성하지 않고 setMap/transform 토글만 수행(줌마다 DOM 재생성 금지).
+  // 접힘: 대표 1개(+xN 뱃지) — route 모드 순번 핀은 방문 순서가 정체성이라 항상 표시
+  // (folium의 routeState forceVisible 파리티). 펼침: folium 격자 지오메트리 그대로.
+  function applyDuplicateLayout() {
+    if (!state.map || !state.markerItems.length) return;
+    var groups = {};
+    state.markerItems.forEach(function (item) {
+      // 리셋: 전원 표시 + 오프셋 제거 (folium 파리티)
+      item.pill.style.transform = '';
+      item.overlay.setZIndex(2);
+      if (!item.overlay.getMap()) item.overlay.setMap(state.map);
+      var key = item.marker.__dupKey;
+      if (key && item.marker.__dupSize > 1) (groups[key] = groups[key] || []).push(item);
+    });
+    var expanded = isExpandedView();
+    Object.keys(groups).forEach(function (key) {
+      var items = groups[key];
+      if (items.length <= 1) return;
+      items.sort(function (a, b) { return a.marker.__dupIndex - b.marker.__dupIndex; });
+
+      if (!expanded) {
+        items.forEach(function (item, position) {
+          var forceVisible = state.routeMode;
+          var isRepresentative = position === 0;
+          if (isRepresentative || forceVisible) {
+            item.overlay.setZIndex(300 + items.length - position);
+          } else {
+            item.overlay.setMap(null);
+          }
+        });
+        return;
+      }
+
+      // 펼침: columns=size<=4?size:3 · spacingX=clamp(88, w*1.1, 240) ·
+      // spacingY=max(52, h*1.35) · dy는 역-Y 계단(+|dx|*0.16) — folium 그대로.
+      var maxWidth = 0, maxHeight = 0;
+      items.forEach(function (item) {
+        var rect = item.pill.getBoundingClientRect();
+        maxWidth = Math.max(maxWidth, rect.width || 0);
+        maxHeight = Math.max(maxHeight, rect.height || 0);
+      });
+      if (!maxWidth) maxWidth = 120;
+      if (!maxHeight) maxHeight = 36;
+      var columns = items.length <= 4 ? items.length : 3;
+      var spacingX = Math.min(240, Math.max(88, Math.round(maxWidth * 1.1)));
+      var spacingY = Math.max(52, Math.round(maxHeight * 1.35));
+      items.forEach(function (item, position) {
+        var row = Math.floor(position / columns);
+        var rowStart = row * columns;
+        var rowCount = Math.min(columns, items.length - rowStart);
+        var column = position % columns;
+        var rowCenter = (rowCount - 1) / 2;
+        var dx = Math.round((column - rowCenter) * spacingX);
+        var dy = -Math.round((row * spacingY) + (Math.abs(dx) * 0.16));
+        item.pill.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)';
+        item.overlay.setZIndex(300 + position);
+      });
+    });
+  }
+
   // ---------- 범례 (folium legend 패리티: 상태색 + 동선 보조) ----------
   function renderLegend(container, opts) {
     var old = container.querySelector('.foms-kmap-legend');
@@ -250,6 +367,7 @@
       try { o.setMap(null); } catch (e) { /* 정리 실패 무해 */ }
     });
     state.overlays = [];
+    state.markerItems = [];
   }
 
   function buildPill(m, opts) {
@@ -278,15 +396,17 @@
     }
     pill.innerHTML = htmlParts;
 
-    // 동일 좌표 중첩 완화: 그룹 내 순번별 수평 부채꼴 오프셋(folium 확장뷰의 경량 대체).
-    if (m.__dupSize > 1) {
-      var offset = (m.__dupIndex - (m.__dupSize + 1) / 2) * 14;
-      pill.style.transform = 'translateX(' + offset + 'px)';
-    }
-
+    // 오프셋/표시 여부는 applyDuplicateLayout(줌 임계 그룹 레이아웃)이 소유.
     pill.addEventListener('click', function (e) {
       e.stopPropagation();
-      openPopup(m, new window.kakao.maps.LatLng(m.latitude, m.longitude));
+      var pos = new window.kakao.maps.LatLng(m.latitude, m.longitude);
+      var group = groupMarkersOf(m);
+      // 접힌 대표 마커: 그룹 내 주문 목록 팝업. 펼침/route 모드: 개별 팝업.
+      if (group.length > 1 && !isExpandedView() && !state.routeMode) {
+        openGroupPopup(group, pos);
+      } else {
+        openPopup(m, pos);
+      }
     });
     return pill;
   }
@@ -302,6 +422,7 @@
     }
 
     annotateDuplicates(routeMarkers);
+    state.routeMode = !!opts.routeMode;
 
     var bounds = new maps.LatLngBounds();
     var routePath = [];
@@ -309,12 +430,17 @@
       var pos = new maps.LatLng(m.latitude, m.longitude);
       bounds.extend(pos);
       if (opts.routeMode) routePath.push(pos);
+      var pill = buildPill(m, opts);
       var overlay = new maps.CustomOverlay({
-        map: state.map, position: pos, content: buildPill(m, opts),
-        xAnchor: 0.5, yAnchor: 1, zIndex: m.__dupSize > 1 ? 3 + (m.__dupSize - m.__dupIndex) : 2
+        map: state.map, position: pos, content: pill,
+        xAnchor: 0.5, yAnchor: 1, zIndex: 2
       });
       state.overlays.push(overlay);
+      state.markerItems.push({ overlay: overlay, pill: pill, marker: m });
     });
+
+    // 현재 줌 기준 그룹 접기/펼치기 즉시 적용(폴링 재렌더 시 상태 보존).
+    applyDuplicateLayout();
 
     // 동선 폴리라인(점선) — 색 SSOT: --foms-route-line (동선 카드와 공유).
     if (opts.routeMode && routePath.length >= 2) {
@@ -368,6 +494,9 @@
     });
     map.addControl(new maps.ZoomControl(), maps.ControlPosition.RIGHT);
     bindAutoRelayout(mapEl, map);
+    // 줌 임계 그룹 접기/펼치기 — 리스너는 지도 인스턴스당 1회(이 생성 분기에서만 부착).
+    // ensureMap 은 기존 인스턴스를 재사용하므로 재렌더/폴링에서 누적되지 않는다.
+    maps.event.addListener(map, 'zoom_changed', applyDuplicateLayout);
     state.map = map;
     state.mapEl = mapEl;
     return map;

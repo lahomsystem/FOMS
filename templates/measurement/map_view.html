@@ -934,6 +934,32 @@
             text-align: right;
         }
 
+        /* 접힌 대표 마커 클릭: 그룹 내 주문 목록 팝업 */
+        .foms-kmap-popup__group {
+            padding: 8px 12px;
+            max-height: 220px;
+            overflow-y: auto;
+        }
+
+        .foms-kmap-popup__group-addr {
+            color: #6c757d;
+            margin-bottom: 6px;
+            word-break: break-all;
+        }
+
+        .foms-kmap-popup__group-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 0;
+            border-top: 1px solid #f1f3f5;
+        }
+
+        .foms-kmap-popup__group-main {
+            min-width: 0;
+        }
+
         .foms-kmap-legend {
             position: absolute;
             bottom: 14px;
@@ -1182,7 +1208,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js" defer></script>
     <script src="{{ url_for('static', filename='js/runtime/common_utils.js') }}?v=20260327" defer></script>
     <!-- 카카오 지도 클라이언트 렌더 모듈 (defer: DOMContentLoaded 전에 정의 완료) -->
-    <script src="{{ url_for('static', filename='js/measurement/map-view-kakao.js') }}?v=20260716a" defer></script>
+    <script src="{{ url_for('static', filename='js/measurement/map-view-kakao.js') }}?v=20260716b" defer></script>
 
     <script>
         let currentOrders = [];
