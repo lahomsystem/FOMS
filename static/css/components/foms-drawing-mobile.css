@@ -437,8 +437,27 @@
     max-width: 86%;
   }
 
-  body.erp-mobile-v2-layout .foms-drawing-thread__msg--right {
-    justify-self: end;
+  body.erp-mobile-v2-layout .foms-drawing-handoff__order-change-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-queue-card__chip.is-order-change {
+    background: #fff3cd;
+    color: #7a5b00;
+    border: 1px solid #f0c36d;
+    font-weight: 600;
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-thread__msg--alert {
+    justify-self: stretch;
+    max-width: 100%;
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-thread__msg--alert .foms-drawing-thread__bubble {
+    background: #fff8e8;
+    border: 1px solid #f0c36d;
   }
 
   body.erp-mobile-v2-layout .foms-drawing-thread__who,

@@ -32,6 +32,7 @@ from foms.services.erp_display import (
     _normalize_date_to_yyyymmdd,
 )
 from foms.services.erp_product_items import build_product_items_for_order
+from foms.services.notifications.drawing_order_change import is_order_change_pending
 from foms.services.common.dashboard_cache import (
     KEY_VERSION,
     TTL_PANEL_ROWS,
@@ -212,14 +213,27 @@ def _build_handoff_thread(history: list[Mapping[str, Any]]) -> list[dict[str, An
         key=lambda item: _history_event_sort_key(item[1], item[0]),
         reverse=True,
     )
+    action_labels = {
+        'TRANSFER': '도면 전달',
+        'REQUEST_REVISION': '수정 요청',
+        'CANCEL_TRANSFER': '전달 취소',
+        'CONFIRM_RECEIPT': '수령 확정',
+        'ERP_ORDER_CHANGED': '주문 변경',
+    }
     for _, event in newest_first:
         action = (event.get('action') or '').upper()
         targets = _event_target_numbers(event)
         target_text = ', '.join(str(n) for n in targets)
+        if action == 'ERP_ORDER_CHANGED':
+            side = 'alert'
+        elif action in ('TRANSFER', 'CANCEL_TRANSFER'):
+            side = 'left'
+        else:
+            side = 'right'
         thread.append({
             **event,
-            'side': 'left' if action in ('TRANSFER', 'CANCEL_TRANSFER') else 'right',
-            'tag': event.get('action_label') or action or '-',
+            'side': side,
+            'tag': event.get('action_label') or action_labels.get(action) or action or '-',
             'target_text': f'{target_text}번 대상' if target_text else '',
             'files': list(event.get('files') or []) if isinstance(event.get('files'), list) else [],
         })
@@ -406,11 +420,14 @@ def erp_drawing_workbench_dashboard():
         h_action_label = {
             'TRANSFER': '도면 전달', 'REQUEST_REVISION': '수정 요청',
             'CANCEL_TRANSFER': '전달 취소', 'CONFIRM_RECEIPT': '수령 확정',
+            'ERP_ORDER_CHANGED': '주문 변경',
         }.get(h_action, h_action or '-')
+        order_change_pending = is_order_change_pending(sd)
         sla_level = '지연' if alerts.get('drawing_overdue') else ('오늘 마감' if due_today else '정상')
         search_hay = ' '.join([
             str(o.id), str(customer_name), str(manager_name), str(assignee_text),
             str((last_event or {}).get('note') or ''),
+            '주문변경' if order_change_pending else '',
         ]).lower()
 
         construction_date = _resolve_construction_date_display(o, sd)
@@ -458,6 +475,7 @@ def erp_drawing_workbench_dashboard():
             'construction_days': alerts.get('construction_days'),
             'construction_d3': bool(alerts.get('construction_d3')),
             'unread_count': unchecked_requests,
+            'order_change_pending': order_change_pending,
             'my_todo': my_todo,
             'include_for_mine': include_for_mine,
             'search_hay': search_hay,
@@ -508,7 +526,12 @@ def erp_drawing_workbench_dashboard():
                 return s in ('WAITING', 'PENDING') if status_filter == 'WAITING' else s == status_filter
             rows = [r for r in rows if _match_status(r.get('drawing_status') or '')]
 
-    rows.sort(key=lambda r: (0 if r.get('my_todo') else 1, 0 if r.get('is_overdue') else 1, -int(r.get('id') or 0)))
+    rows.sort(key=lambda r: (
+        0 if r.get('order_change_pending') else 1,
+        0 if r.get('my_todo') else 1,
+        0 if r.get('is_overdue') else 1,
+        -int(r.get('id') or 0),
+    ))
 
     if sort_by:
         reverse = sort_by.startswith('-')
@@ -596,7 +619,13 @@ def erp_drawing_workbench_detail(order_id):
         history.append({
             **h,
             'event_key': event_key,
-            'action_label': {'TRANSFER': '도면 전달', 'REQUEST_REVISION': '수정 요청', 'CANCEL_TRANSFER': '전달 취소', 'CONFIRM_RECEIPT': '수령 확정'}.get(h_action, h_action or '-'),
+            'action_label': {
+                'TRANSFER': '도면 전달',
+                'REQUEST_REVISION': '수정 요청',
+                'CANCEL_TRANSFER': '전달 취소',
+                'CONFIRM_RECEIPT': '수령 확정',
+                'ERP_ORDER_CHANGED': '주문 변경',
+            }.get(h_action, h_action or '-'),
             'at_text': _history_event_at_text(h),
             'by_text': h.get('by_user_name') or '-',
             'target_no': h.get('target_drawing_number') or h.get('replace_target_number'),
@@ -721,6 +750,12 @@ def erp_drawing_workbench_detail(order_id):
     handoff_thread = _build_handoff_thread(history)
 
     product_items = build_product_items_for_order(db, order)
+    order_change_pending = is_order_change_pending(s_data)
+    latest_order_change_note = ''
+    for h in reversed(history):
+        if h.get('action') == 'ERP_ORDER_CHANGED':
+            latest_order_change_note = str(h.get('note') or '').strip()
+            break
     # 도면 상세 전용: 공통 실측 이미지(항목에 매핑되지 않은 첨부) 수집
     common_measure_photos = []
     for att in db.query(OrderAttachment).filter(
@@ -763,6 +798,8 @@ def erp_drawing_workbench_detail(order_id):
         highlight_event_id=highlight_event_id,
         highlight_target_no=highlight_target_no,
         unread_count=unread_count,
+        order_change_pending=order_change_pending,
+        latest_order_change_note=latest_order_change_note,
         checklist=checklist,
         mobile_handoff_view=handoff_view,
         mobile_handoff_files=handoff_files,

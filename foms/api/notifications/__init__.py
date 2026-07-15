@@ -141,7 +141,7 @@ def _resolve_notification_deep_link(notification, order_structured_data):
     n_type = str(getattr(notification, "notification_type", "") or "").upper()
     oid = getattr(notification, "order_id", None)
 
-    if n_type not in ("DRAWING_TRANSFERRED", "DRAWING_REVISION") or not oid:
+    if n_type not in ("DRAWING_TRANSFERRED", "DRAWING_REVISION", "ERP_ORDER_CHANGED") or not oid:
         return {
             "deep_tab": None,
             "deep_event_id": None,
@@ -149,8 +149,15 @@ def _resolve_notification_deep_link(notification, order_structured_data):
             "deep_link_url": None,
         }
 
-    target_action = "TRANSFER" if n_type == "DRAWING_TRANSFERRED" else "REQUEST_REVISION"
-    target_tab = "timeline" if n_type == "DRAWING_TRANSFERRED" else "requests"
+    if n_type == "ERP_ORDER_CHANGED":
+        target_action = "ERP_ORDER_CHANGED"
+        target_tab = "timeline"
+    elif n_type == "DRAWING_TRANSFERRED":
+        target_action = "TRANSFER"
+        target_tab = "timeline"
+    else:
+        target_action = "REQUEST_REVISION"
+        target_tab = "requests"
     history = list(((order_structured_data or {}).get("drawing_transfer_history", []) or []))
     if not history:
         return {

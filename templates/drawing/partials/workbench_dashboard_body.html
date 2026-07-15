@@ -212,6 +212,11 @@
                 {% if r.my_todo %}
                 <span class="badge bg-primary mt-1">내 할 일</span>
                 {% endif %}
+                {% if r.order_change_pending %}
+                <span class="badge bg-warning text-dark mt-1 dw-order-change-badge" title="ERP 주문 내용이 변경되었습니다">
+                  <i class="fas fa-exclamation-triangle"></i> 주문변경
+                </span>
+                {% endif %}
               </td>
               <td class="fw-semibold" style="font-size: 1rem; color: #495057;">
                 {% set _c = (r.construction_date or '') %}

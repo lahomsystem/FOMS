@@ -390,3 +390,43 @@ def api_drawing_complete_revision(order_id):
     except Exception as e:
         db.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@erp_orders_revision_bp.route('/<int:order_id>/drawing/ack-order-change', methods=['POST'])
+@login_required
+def api_ack_drawing_order_change(order_id):
+    """도면 작업실 — ERP 주문 변경 배지/배너 확인(ack)."""
+    from foms.services.notifications.drawing_order_change import ack_drawing_order_change
+
+    db = get_db()
+    try:
+        order = db.get(Order, order_id)
+        if not order or order.status == "DELETED" or order.deleted_at is not None:
+            return jsonify({'success': False, 'message': '주문을 찾을 수 없습니다.'}), 404
+
+        current_user = get_user_by_id(session.get('user_id'))
+        if not current_user:
+            return jsonify({'success': False, 'message': '사용자를 찾을 수 없습니다.'}), 401
+        if not is_drawing_workbench_participant(current_user, order) and current_user.role != 'ADMIN':
+            return jsonify({'success': False, 'message': '도면 작업 참여자만 확인할 수 있습니다.'}), 403
+
+        changed = ack_drawing_order_change(
+            db,
+            order,
+            actor_user_id=session.get('user_id'),
+            actor_name=current_user.name or '',
+        )
+        if changed:
+            db.commit()
+            from foms.services.common.dashboard_cache import (
+                DASHBOARD_FAMILY_DRAWING,
+                invalidate_dashboard_families,
+            )
+            invalidate_dashboard_families(DASHBOARD_FAMILY_DRAWING)
+        else:
+            db.rollback()
+        return jsonify({'success': True, 'acked': bool(changed)})
+    except Exception as e:
+        db.rollback()
+        logger.exception("ack drawing order-change failed: %s", e)
+        return jsonify({'success': False, 'message': str(e)}), 500

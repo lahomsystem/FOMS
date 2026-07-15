@@ -7,7 +7,7 @@ import datetime
 import json
 import logging
 import time
-from typing import Any, Optional
+from typing import Any, Optional, Tuple
 
 from flask import Blueprint, request, jsonify, session
 
@@ -38,6 +38,10 @@ from foms.services.orders.erp_automation import apply_auto_tasks
 from foms.services.orders.order_text_parser import parse_order_text
 from foms.services.geocode_helpers import extract_address_from_structured_data
 from foms.services.jobs.queue import enqueue_geocode_order_address
+from foms.services.notifications.drawing_order_change import (
+    apply_drawing_order_change_alert,
+    finalize_drawing_order_change_alert,
+)
 from foms.services.order_geocode import reset_order_geocode_on_address_change
 from foms.services.feature_flags import env_bool
 from foms.services.erp_inline_patch import apply_field_patch, is_critical_field
@@ -350,6 +354,51 @@ def _apply_structured_side_effects(db: Session, order_id: int, structured_data: 
         logger.warning("[ERP_ORDER] auto-task apply: %s", e, exc_info=True)
 
 
+def _actor_name(db: Session) -> Tuple[Optional[int], str]:
+    """세션 사용자 id·표시명."""
+    user_id = session.get('user_id')
+    if not user_id:
+        return None, session.get('username') or 'SYSTEM'
+    user = db.query(User).filter(User.id == user_id).first()
+    name = (user.name if user and getattr(user, 'name', None) else None) or session.get('username') or 'SYSTEM'
+    return int(user_id), str(name)
+
+
+def _emit_drawing_order_change_if_needed(
+    db: Session,
+    order: Order,
+    old_sd: dict,
+    new_sd: dict,
+    *,
+    old_notes: Any,
+    new_notes: Any,
+    old_is_regional: Any,
+    new_is_regional: Any,
+    old_construction_type: Any,
+    new_construction_type: Any,
+) -> Tuple[Any, bool]:
+    """도면팀 ERP_ORDER_CHANGED 알림·history 반영. 실패해도 저장은 계속."""
+    try:
+        actor_id, actor_name = _actor_name(db)
+        return apply_drawing_order_change_alert(
+            db,
+            order,
+            old_sd,
+            new_sd,
+            actor_user_id=actor_id,
+            actor_name=actor_name,
+            old_notes=old_notes,
+            new_notes=new_notes,
+            old_is_regional=old_is_regional,
+            new_is_regional=new_is_regional,
+            old_construction_type=old_construction_type,
+            new_construction_type=new_construction_type,
+        )
+    except Exception as e:
+        logger.warning("[ERP_ORDER] drawing order-change alert failed: %s", e, exc_info=True)
+        return None, False
+
+
 def _finalize_draft_state(
     order: Order,
     structured_data: Optional[dict],
@@ -501,6 +550,9 @@ def api_patch_order_structured_fields(order_id: int):
                     }), 409
 
         old_sd = order.structured_data if isinstance(order.structured_data, dict) else {}
+        old_notes = getattr(order, 'notes', None)
+        old_is_regional = getattr(order, 'is_regional', None)
+        old_construction_type = getattr(order, 'construction_type', None)
         structured_data = apply_field_patch(old_sd, field, value)
 
         if field == 'site.address_full':
@@ -518,6 +570,18 @@ def api_patch_order_structured_fields(order_id: int):
 
         now = datetime.datetime.now()
         _record_structured_events(db, order, old_sd, structured_data)
+        drawing_notif, drawing_notif_created = _emit_drawing_order_change_if_needed(
+            db,
+            order,
+            old_sd,
+            structured_data,
+            old_notes=old_notes,
+            new_notes=getattr(order, 'notes', None),
+            old_is_regional=old_is_regional,
+            new_is_regional=getattr(order, 'is_regional', None),
+            old_construction_type=old_construction_type,
+            new_construction_type=getattr(order, 'construction_type', None),
+        )
         order.structured_data = copy.deepcopy(structured_data)
         flag_modified(order, 'structured_data')
         sync_erp_flat_columns(order, structured_data)
@@ -528,6 +592,7 @@ def api_patch_order_structured_fields(order_id: int):
         # 포함해 탭 간 이동이 실제로 일어나므로 전체 무효화를 유지한다.
         from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
         invalidate_all_dashboard_slice_caches()
+        finalize_drawing_order_change_alert(db, drawing_notif, created_new=drawing_notif_created)
 
         return jsonify({
             'success': True,
@@ -577,6 +642,11 @@ def api_put_order_structured(order_id):
 
         _sd_raw: Any = order.structured_data
         old_sd = _sd_raw if isinstance(_sd_raw, dict) else {}
+        old_notes = getattr(order, 'notes', None)
+        old_is_regional = getattr(order, 'is_regional', None)
+        old_construction_type = getattr(order, 'construction_type', None)
+        drawing_notif = None
+        drawing_notif_created = False
 
         # 모든 structured PUT은 실제 저장/승격 경로다. draft row도 여기서만 실제 주문으로 확정된다.
         if structured_data is not None:
@@ -654,6 +724,19 @@ def api_put_order_structured(order_id):
             
             draft_cleared = _finalize_draft_state(order, structured_data, now, old_sd)
 
+            drawing_notif, drawing_notif_created = _emit_drawing_order_change_if_needed(
+                db,
+                order,
+                old_sd,
+                structured_data,
+                old_notes=old_notes,
+                new_notes=getattr(order, 'notes', None),
+                old_is_regional=old_is_regional,
+                new_is_regional=getattr(order, 'is_regional', None),
+                old_construction_type=old_construction_type,
+                new_construction_type=getattr(order, 'construction_type', None),
+            )
+
             order.structured_data = copy.deepcopy(structured_data)
             flag_modified(order, 'structured_data')
             
@@ -679,6 +762,7 @@ def api_put_order_structured(order_id):
         from foms.services.common.dashboard_cache import invalidate_all_dashboard_slice_caches
 
         invalidate_all_dashboard_slice_caches()
+        finalize_drawing_order_change_alert(db, drawing_notif, created_new=drawing_notif_created)
         commit_time = (time.perf_counter() - start_time) * 1000
         logger.info(f"save latency - main_commit: {commit_time:.1f}ms")
 
