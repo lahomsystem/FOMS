@@ -535,8 +535,12 @@
     // 재렌더/폴링에서 누적되지 않는다.
     maps.event.addListener(map, 'zoom_changed', function () {
       applyDuplicateLayout();
-      keepMarkersInView();
     });
+    // 팬 보정은 idle(줌/팬 애니메이션 정착 후)에서 판정 — zoom_changed 는 애니메이션
+    // 시작 시점 발화라 getBounds()가 아직 넓어 anyVisible 오판(연속 확대 시 마커
+    // 전멸 미보정 실사고). idle 은 panTo 완료 후에도 발화하지만 그땐 마커가
+    // bounds 안이라 keepMarkersInView 가 no-op → 루프 없음.
+    maps.event.addListener(map, 'idle', keepMarkersInView);
     state.map = map;
     state.mapEl = mapEl;
     return map;
