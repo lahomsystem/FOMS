@@ -52,7 +52,8 @@
     markerItems: [], // {overlay, pill, marker} — 줌 임계 그룹 레이아웃 대상
     routeMode: false,
     popup: null,
-    active: false
+    active: false,
+    everRendered: false // 세션 내 카카오 성공 렌더 이력 — folium 강등 금지 가드
   };
 
   function escapeHtml(value) {
@@ -234,8 +235,20 @@
       '<div class="foms-kmap-popup__group">' +
       '<div class="foms-kmap-popup__group-addr">' + escapeHtml(markersInGroup[0].address || '-') + '</div>' +
       rows +
+      '</div>' +
+      '<div class="foms-kmap-popup__actions">' +
+      '<button type="button" class="btn btn-sm btn-primary foms-kmap-popup__expand">펼쳐 보기</button>' +
       '</div>';
     el.querySelector('.foms-kmap-popup__close').addEventListener('click', closePopup);
+    // 그룹 중심 확대: 임계 통과(격자 펼침)로 직행 — 중심 고정 줌으로 그룹이
+    // 화면 밖으로 흘러나가는 문제를 앵커 지정으로 원천 회피.
+    el.querySelector('.foms-kmap-popup__expand').addEventListener('click', function () {
+      closePopup();
+      try {
+        state.map.setLevel(DUPLICATE_EXPAND_MAX_LEVEL, { anchor: position });
+        state.map.panTo(position);
+      } catch (e) { /* 지도 조작 실패 무해 */ }
+    });
     Array.prototype.forEach.call(el.querySelectorAll('button[data-order-id]'), function (btn) {
       btn.addEventListener('click', function () {
         if (typeof window.selectOrder === 'function') {
@@ -320,6 +333,29 @@
         item.overlay.setZIndex(300 + position);
       });
     });
+  }
+
+  // 줌 후 보이는 마커가 0개면 최근접 마커로 팬 보정 — 근본 원인 대응:
+  // 확대(중심 고정 줌)로 모든 마커가 뷰포트 밖으로 나가면 카카오는 화면 밖
+  // CustomOverlay DOM을 분리해 사용자에게 "마커 전부 소실"로 보인다(스테이징
+  // 실증: 소실 순간 render/updateMarkers 호출 0 + 축소만으로 대칭 복구).
+  // 이 지도의 목적은 주문 탐색이므로 줌 결과 전멸 시에만 개입한다(팬 조작 불간섭).
+  // panTo는 zoom_changed를 재발화하지 않아 루프가 없다.
+  function keepMarkersInView() {
+    if (!state.map || !state.markerItems.length) return;
+    var bounds, center;
+    try { bounds = state.map.getBounds(); center = state.map.getCenter(); } catch (e) { return; }
+    var nearest = null, nearestD = Infinity, anyVisible = false;
+    state.markerItems.forEach(function (item) {
+      if (!item.overlay.getMap()) return; // 접힘으로 숨긴 비대표 제외
+      var pos = item.overlay.getPosition();
+      if (bounds.contain(pos)) { anyVisible = true; return; }
+      var dLat = pos.getLat() - center.getLat();
+      var dLng = pos.getLng() - center.getLng();
+      var d = dLat * dLat + dLng * dLng;
+      if (d < nearestD) { nearestD = d; nearest = pos; }
+    });
+    if (!anyVisible && nearest) state.map.panTo(nearest);
   }
 
   // ---------- 범례 (folium legend 패리티: 상태색 + 동선 보조) ----------
@@ -494,9 +530,13 @@
     });
     map.addControl(new maps.ZoomControl(), maps.ControlPosition.RIGHT);
     bindAutoRelayout(mapEl, map);
-    // 줌 임계 그룹 접기/펼치기 — 리스너는 지도 인스턴스당 1회(이 생성 분기에서만 부착).
-    // ensureMap 은 기존 인스턴스를 재사용하므로 재렌더/폴링에서 누적되지 않는다.
-    maps.event.addListener(map, 'zoom_changed', applyDuplicateLayout);
+    // 줌 임계 그룹 접기/펼치기 + 마커 전멸 팬 보정 — 리스너는 지도 인스턴스당
+    // 1회(이 생성 분기에서만 부착). ensureMap 은 기존 인스턴스를 재사용하므로
+    // 재렌더/폴링에서 누적되지 않는다.
+    maps.event.addListener(map, 'zoom_changed', function () {
+      applyDuplicateLayout();
+      keepMarkersInView();
+    });
     state.map = map;
     state.mapEl = mapEl;
     return map;
@@ -539,9 +579,16 @@
           if (!ok) { state.active = false; resolve(false); return; }
           try {
             renderInto(container, markers, opts || {});
+            state.everRendered = true;
             resolve(true);
           } catch (e) {
             console.warn('[map-view-kakao] 렌더 실패', e);
+            if (state.everRendered) {
+              // 세션 내 folium 강등 금지(사용자 확정 지시): 카카오 지도를 유지하고
+              // 다음 갱신(폴링/필터 변경 재렌더)에서 복구를 시도한다.
+              resolve(true);
+              return;
+            }
             state.active = false;
             resolve(false);
           }
