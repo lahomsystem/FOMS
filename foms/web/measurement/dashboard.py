@@ -354,10 +354,9 @@ def erp_measurement_dashboard():
                 _row['manager_name'] = _mgr
             mobile_queue_rows.append(_row)
 
-    # 동선 스트립 서버 인라인: 카드 첫 페인트가 route API 왕복(한국↔싱가포르 tail
-    # 2-9s)을 기다리지 않도록, API와 동일 빌더(SSOT: foms.services.measurement_route)
-    # 로 만든 points 를 data-route-inline 으로 내린다. 스트립 마운트가 존재하는
-    # 조건(모바일 v2 코호트 + 오늘 큐 존재)에서만 계산 — 그 외엔 쿼리·지오코딩 0.
+    # 동선 스트립 서버 인라인: HTML 렌더 hot path 에서는 저장 좌표만 사용한다.
+    # 좌표 없는 주문의 주소 변환/외부 지오코딩은 API·백그라운드 계보가 담당한다.
+    # 스트립 마운트가 존재하는 조건(모바일 v2 코호트 + 오늘 큐 존재)에서만 계산.
     route_strip_inline = None
     if mobile_v2_active and mobile_queue_rows:
         _inline_payload = build_inline_route_strip_payload(

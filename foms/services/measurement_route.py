@@ -1,9 +1,9 @@
 """실측 '오늘 동선' 페이로드 빌더 (SSOT).
 
 `/api/erp/measurement/route` API와 실측 대시보드 뷰의 서버 인라인
-(`data-route-inline`)이 동일 계보의 points 를 쓰도록 빌더를 한곳에 모은다.
-분리 이유: 동선 카드 첫 페인트가 route API 왕복(한국↔싱가포르 tail 2-9s)을
-기다리지 않게, 뷰가 렌더 시점에 같은 데이터를 직접 인라인하기 위함.
+(`data-route-inline`)이 동일 계보의 주문/정렬을 쓰도록 빌더를 한곳에 모은다.
+대시보드 서버 인라인은 HTML 렌더 hot path 이므로 저장 좌표만 사용하고,
+주소 변환/외부 지오코딩은 API·백그라운드 계보에만 둔다.
 
 쿼리·points 구성·최근접 이웃 순서 결정은 기존 API 구현을 동작 보존으로
 추출한 것이다(중복 구현 금지).
@@ -11,7 +11,7 @@
 from __future__ import annotations
 
 import math
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy import or_
 
@@ -85,8 +85,72 @@ def _query_route_orders(
     return ordered_query.limit(limit).all()
 
 
+def _route_order_display_fields(o: Order) -> dict[str, Any]:
+    """동선 point 표시 필드 추출(ERP structured_data 우선)."""
+    address_to_use = o.address
+    customer_name = o.customer_name
+    phone = o.phone
+    manager_name = o.manager_name
+
+    if o.is_erp_order and o.structured_data:
+        sd = o.structured_data
+        erp_address_full = (sd.get('site') or {}).get('address_full')
+        erp_address_main = (sd.get('site') or {}).get('address_main')
+        erp_address_detail = (sd.get('site') or {}).get('address_detail')
+
+        if erp_address_full and erp_address_full.strip() and erp_address_full != '-':
+            address_to_use = erp_address_full.strip()
+        elif erp_address_main and erp_address_main.strip():
+            if erp_address_detail and erp_address_detail.strip() and erp_address_detail != '-':
+                address_to_use = f"{erp_address_main.strip()} {erp_address_detail.strip()}"
+            else:
+                address_to_use = erp_address_main.strip()
+
+        erp_customer_name = ((sd.get('parties') or {}).get('customer') or {}).get('name')
+        if erp_customer_name:
+            customer_name = erp_customer_name
+
+        erp_phone = ((sd.get('parties') or {}).get('customer') or {}).get('phone')
+        if erp_phone:
+            phone = erp_phone
+
+        erp_manager_name = ((sd.get('parties') or {}).get('manager') or {}).get('name')
+        if erp_manager_name:
+            manager_name = erp_manager_name
+
+    return {
+        "address": address_to_use,
+        "customer_name": customer_name,
+        "phone": phone,
+        "manager_name": manager_name,
+    }
+
+
+def _point_from_order(
+    o: Order,
+    *,
+    lat: float,
+    lng: float,
+    geo_status: str,
+) -> dict[str, Any]:
+    fields = _route_order_display_fields(o)
+    return {
+        "id": o.id,
+        "customer_name": fields["customer_name"],
+        "phone": fields["phone"],
+        "address": fields["address"],
+        "measurement_time": o.measurement_time,
+        "manager_name": fields["manager_name"],
+        "status": o.status,
+        "measurement_completed": bool(o.measurement_completed),
+        "lat": float(lat),
+        "lng": float(lng),
+        "geo_status": geo_status,
+    }
+
+
 def _build_route_points(orders: list[Order]) -> list[dict[str, Any]]:
-    """주문 → 좌표 points 변환 (ERP structured_data 주소/이름 우선, 지오코딩 실패 제외).
+    """주문 → 좌표 points 변환 (API용: 좌표 없으면 즉시 지오코딩 시도).
 
     Args:
         orders: `_query_route_orders` 결과.
@@ -98,53 +162,24 @@ def _build_route_points(orders: list[Order]) -> list[dict[str, Any]]:
     converter = FOMSAddressConverter()
     points: list[dict[str, Any]] = []
     for o in orders:
-        address_to_use = o.address
-        customer_name = o.customer_name
-        phone = o.phone
-        manager_name = o.manager_name
-
-        if o.is_erp_order and o.structured_data:
-            sd = o.structured_data
-            erp_address_full = (sd.get('site') or {}).get('address_full')
-            erp_address_main = (sd.get('site') or {}).get('address_main')
-            erp_address_detail = (sd.get('site') or {}).get('address_detail')
-
-            if erp_address_full and erp_address_full.strip() and erp_address_full != '-':
-                address_to_use = erp_address_full.strip()
-            elif erp_address_main and erp_address_main.strip():
-                if erp_address_detail and erp_address_detail.strip() and erp_address_detail != '-':
-                    address_to_use = f"{erp_address_main.strip()} {erp_address_detail.strip()}"
-                else:
-                    address_to_use = erp_address_main.strip()
-
-            erp_customer_name = ((sd.get('parties') or {}).get('customer') or {}).get('name')
-            if erp_customer_name:
-                customer_name = erp_customer_name
-
-            erp_phone = ((sd.get('parties') or {}).get('customer') or {}).get('phone')
-            if erp_phone:
-                phone = erp_phone
-
-            erp_manager_name = ((sd.get('parties') or {}).get('manager') or {}).get('name')
-            if erp_manager_name:
-                manager_name = erp_manager_name
-
+        address_to_use = _route_order_display_fields(o)["address"]
         lat, lng, status = converter.convert_address(address_to_use)
         if lat is None or lng is None:
             continue
-        points.append({
-            "id": o.id,
-            "customer_name": customer_name,
-            "phone": phone,
-            "address": address_to_use,
-            "measurement_time": o.measurement_time,
-            "manager_name": manager_name,
-            "status": o.status,
-            "measurement_completed": bool(o.measurement_completed),
-            "lat": float(lat),
-            "lng": float(lng),
-            "geo_status": status
-        })
+        points.append(_point_from_order(o, lat=lat, lng=lng, geo_status=status))
+    return points
+
+
+def _build_route_points_from_stored_coords(orders: list[Order]) -> list[dict[str, Any]]:
+    """대시보드 렌더용 fast path: 저장 좌표만 사용하고 외부 지오코딩은 호출하지 않는다."""
+    points: list[dict[str, Any]] = []
+    for o in orders:
+        lat = getattr(o, "lat", None)
+        lng = getattr(o, "lng", None)
+        if lat is None or lng is None:
+            continue
+        status = getattr(o, "geocode_status", None) or "success"
+        points.append(_point_from_order(o, lat=lat, lng=lng, geo_status=status))
     return points
 
 
@@ -231,8 +266,12 @@ def build_inline_route_strip_payload(
     date_filter: str,
     current_user=None,
     mine_active: bool = False,
-) -> Optional[dict[str, Any]]:
-    """대시보드 서버 인라인용 최소 페이로드 — 2지점 미만이면 None(스트립 비표시).
+) -> dict[str, Any]:
+    """대시보드 서버 인라인용 최소 페이로드.
+
+    HTML 렌더 중에는 `FOMSAddressConverter.convert_address()`를 호출하지 않는다.
+    좌표가 없는 주문은 백그라운드 지오코딩 대상이며, 여기서는 제외한다.
+    2지점 미만이어도 빈/단일 route 를 내려 JS fetch 폴백의 동기 지오코딩 재진입을 막는다.
 
     Args:
         db: SQLAlchemy 세션.
@@ -240,12 +279,13 @@ def build_inline_route_strip_payload(
         current_user / mine_active: '내 주문' 필터 계보(대시보드 뷰와 동일).
 
     Returns:
-        {"route": [{INLINE_POINT_FIELDS...}]} 또는 None.
+        {"route": [{INLINE_POINT_FIELDS...}]}. 2지점 미만이면 JS가 스트립을 숨긴다.
     """
-    payload = build_measurement_route_payload(
-        db, date_filter=date_filter, current_user=current_user, mine_active=mine_active,
+    orders = _query_route_orders(
+        db, date_filter, "", 20, current_user, mine_active,
     )
-    pts = payload.get("route") or []
-    if len(pts) < 2:
-        return None
-    return {"route": [{k: p.get(k) for k in INLINE_POINT_FIELDS} for p in pts]}
+    pts = _build_route_points_from_stored_coords(orders)
+    route = pts
+    if len(pts) > 1:
+        route, _ = _order_nearest_neighbor(pts)
+    return {"route": [{k: p.get(k) for k in INLINE_POINT_FIELDS} for p in route]}
