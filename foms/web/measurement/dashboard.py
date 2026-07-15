@@ -11,6 +11,7 @@ from datetime import date, timedelta
 from sqlalchemy import String, cast, or_, and_, func
 
 from foms.services.common.erp_mine_filter import erp_mine_only_from_request
+from foms.services.common.geocode_config import KAKAO_JS_API_KEY
 from foms.services.erp_permissions import (
     build_mine_sql_filter,
     can_edit_erp,
@@ -417,6 +418,7 @@ def erp_measurement_dashboard():
             today_date=today_date,
             can_edit_erp=can_edit_erp(current_user),
             erp_mine_only=mine_filter_active,
+            kakao_js_key=KAKAO_JS_API_KEY,
         )
     )
     apply_erp_shell_fragment_headers(response, request)

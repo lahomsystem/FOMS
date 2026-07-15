@@ -15,24 +15,10 @@
         {% set meta = o.shipment_meta or {} %}
         {% set is_as = meta.is_as %}
         {% set has_detail = meta.construction_time or meta.drawing_managers or meta.construction_workers or meta.vehicle or meta.trip or meta.site_extra or meta.spec_units or (meta.is_as and meta.as_content_text) %}
-        <div class="erp-shipment-mobile-card{% if has_detail %} erp-shipment-mobile-card--with-detail{% endif %}{% if is_as %} erp-shipment-mobile-card--as{% endif %}">
-          {{ render_queue_card_v2(o, can_edit_shipment|default(false), None, '--drawing' if is_as else '--shipment', 'AS' if is_as else '출고', edit_return_to='erp_shipment_dashboard', detail_return_to='erp_shipment_dashboard') }}
-          <div class="erp-shipment-mobile-card__packing">
-            <button type="button"
-                    class="foms-btn foms-btn--secondary foms-btn--sm foms-packing-trigger"
-                    data-foms-packing-trigger
-                    data-order-id="{{ o.id }}">
-              <i class="fas fa-box-open" aria-hidden="true"></i>
-              {% if meta.packing_departed %}
-              <span class="foms-packing-departed-label">출발 보고됨</span>
-              {% else %}
-              <span>패킹{% if meta.packing_present %} {{ meta.packing_checked }}/{{ meta.packing_total }}{% endif %}</span>
-              {% endif %}
-              <span class="foms-packing-badge{% if meta.packing_departed %} foms-packing-badge--done{% endif %}" data-foms-packing-badge hidden></span>
-            </button>
-            {# B4: QR 라벨(새 탭 인쇄). #}
-            <a class="foms-qr-label-link" href="{{ url_for('erp_dashboard.erp_order_label', order_id=o.id) }}" target="_blank" rel="noopener"><i class="fas fa-qrcode" aria-hidden="true"></i><span>QR 라벨</span></a>
-          </div>
+        {#- 카드 통합(2026-07-15): 패킹/QR·출고 상세 dl·출고 정보 수정을 공용 v2 카드 "밖"에서
+            렌더하던 3블록을, 카드의 옵트인 슬롯(detail_slot/aux_slot/footer_extra_slot)으로
+            카드 "안"에 이식한다. 슬롯을 넘기지 않는 타 도메인은 렌더 결과 무변경. -#}
+        {% set detail_slot %}
           {% if has_detail or can_edit_shipment|default(false) %}
           <dl class="erp-shipment-mobile-card__detail" data-shipment-mobile-detail {% if not has_detail %}hidden{% endif %}>
             <div data-shipment-mobile-detail-row="construction_time" {% if not meta.construction_time %}hidden{% endif %}>
@@ -73,34 +59,57 @@
             {% endif %}
           </dl>
           {% endif %}
-          {% if can_edit_shipment|default(false) %}
-          <div class="erp-shipment-mobile-card__actions">
-            <button
-              type="button"
-              class="foms-btn foms-btn--secondary foms-btn--sm"
-              data-shipment-mobile-edit-trigger
-              data-order-id="{{ o.id }}"
-              data-construction-time="{{ meta.construction_time or '' }}"
-              data-drawing-managers="{{ (meta.drawing_managers or [])|join(', ') }}"
-              data-construction-workers="{{ (meta.construction_workers or [])|join(', ') }}"
-              data-vehicle="{{ meta.vehicle or '' }}"
-              data-trip="{{ meta.trip or '' }}"
-              data-site-extra="{{ (meta.site_extra or [])|join('\n') }}">
-              출고 정보 수정
+        {% endset %}
+        {% set aux_slot %}
+          <div class="erp-shipment-mobile-card__packing">
+            <button type="button"
+                    class="foms-btn foms-btn--secondary foms-btn--sm foms-packing-trigger"
+                    data-foms-packing-trigger
+                    data-order-id="{{ o.id }}">
+              <i class="fas fa-box-open" aria-hidden="true"></i>
+              {% if meta.packing_departed %}
+              <span class="foms-packing-departed-label">출발 보고됨</span>
+              {% else %}
+              <span>패킹{% if meta.packing_present %} {{ meta.packing_checked }}/{{ meta.packing_total }}{% endif %}</span>
+              {% endif %}
+              <span class="foms-packing-badge{% if meta.packing_departed %} foms-packing-badge--done{% endif %}" data-foms-packing-badge hidden></span>
             </button>
-            {% if meta.recommendation_link %}
-            <button
-              type="button"
-              class="foms-btn foms-btn--ghost foms-btn--sm js-shipment-as-rec-cancel"
-              data-shipment-order-id="{{ meta.recommendation_link.shipment_order_id }}"
-              data-as-order-id="{{ meta.recommendation_link.as_order_id }}"
-              data-as-info-id="{{ meta.recommendation_link.as_info_id or '' }}">
-              추천 취소
-            </button>
-            {% endif %}
+            {# B4: QR 라벨(새 탭 인쇄). #}
+            <a class="foms-qr-label-link" href="{{ url_for('erp_dashboard.erp_order_label', order_id=o.id) }}" target="_blank" rel="noopener"><i class="fas fa-qrcode" aria-hidden="true"></i><span>QR 라벨</span></a>
+            {% if can_edit_shipment|default(false) %}
             <span class="erp-shipment-mobile-card__status" data-shipment-mobile-edit-status aria-live="polite"></span>
+            {% endif %}
           </div>
+        {% endset %}
+        {% set footer_extra_slot %}
+          {% if can_edit_shipment|default(false) %}
+          <button
+            type="button"
+            class="foms-btn foms-btn--secondary foms-btn--sm"
+            data-shipment-mobile-edit-trigger
+            data-order-id="{{ o.id }}"
+            data-construction-time="{{ meta.construction_time or '' }}"
+            data-drawing-managers="{{ (meta.drawing_managers or [])|join(', ') }}"
+            data-construction-workers="{{ (meta.construction_workers or [])|join(', ') }}"
+            data-vehicle="{{ meta.vehicle or '' }}"
+            data-trip="{{ meta.trip or '' }}"
+            data-site-extra="{{ (meta.site_extra or [])|join('\n') }}">
+            출고 정보 수정
+          </button>
+          {% if meta.recommendation_link %}
+          <button
+            type="button"
+            class="foms-btn foms-btn--ghost foms-btn--sm js-shipment-as-rec-cancel"
+            data-shipment-order-id="{{ meta.recommendation_link.shipment_order_id }}"
+            data-as-order-id="{{ meta.recommendation_link.as_order_id }}"
+            data-as-info-id="{{ meta.recommendation_link.as_info_id or '' }}">
+            추천 취소
+          </button>
           {% endif %}
+          {% endif %}
+        {% endset %}
+        <div class="erp-shipment-mobile-card{% if has_detail %} erp-shipment-mobile-card--with-detail{% endif %}{% if is_as %} erp-shipment-mobile-card--as{% endif %}">
+          {{ render_queue_card_v2(o, can_edit_shipment|default(false), None, '--drawing' if is_as else '--shipment', 'AS' if is_as else '출고', edit_return_to='erp_shipment_dashboard', detail_return_to='erp_shipment_dashboard', detail_slot=detail_slot, aux_slot=aux_slot, footer_extra_slot=footer_extra_slot) }}
         </div>
       {% endfor %}
     </div>

@@ -7,7 +7,7 @@
  * __fomsMeasurementEntryInstalled 가드로 1회만 하여 listener 누적을 막는다.
  */
 (function () {
-  var MEAS_JS_V = '20260714a';
+  var MEAS_JS_V = '20260715a';
   var CHAIN = [
     '/static/js/runtime/common_utils.js?v=' + MEAS_JS_V,
     '/static/js/measurement/dashboard.js?v=' + MEAS_JS_V,
@@ -15,7 +15,11 @@
     '/static/js/runtime/column-resizer.js?v=' + MEAS_JS_V,
     '/static/js/measurement/dashboard-columns.js?v=' + MEAS_JS_V,
     '/static/js/measurement/manual-rows.js?v=' + MEAS_JS_V,
-    '/static/js/measurement/image-export.js?v=' + MEAS_JS_V
+    '/static/js/measurement/image-export.js?v=' + MEAS_JS_V,
+    // 동선 스트립: 셸 탭(fragment) 최초 진입에서도 로드되도록 CHAIN 편입.
+    // 풀페이지(dashboard.html)의 defer 태그와 이중 로드돼도 __FOMS_ROUTE_STRIP_BOUND
+    // (전역 배선)·dataset.fomsRouteStripInit(마운트 렌더) 가드로 idempotent.
+    '/static/js/measurement/foms-route-strip.js?v=' + MEAS_JS_V
   ];
 
   function loadScript(src) {

@@ -1,4 +1,4 @@
-{% macro render_queue_card_v2(order, can_edit=false, task_action=None, badge_modifier=None, badge_text=None, task_actions=None, edit_return_to=None, detail_return_to=None, edit_label='ERP 편집', show_last_call=false) -%}
+{% macro render_queue_card_v2(order, can_edit=false, task_action=None, badge_modifier=None, badge_text=None, task_actions=None, edit_return_to=None, detail_return_to=None, edit_label='ERP 편집', show_last_call=false, detail_slot=None, aux_slot=None, footer_extra_slot=None) -%}
   {% set primary_alerts = [] %}
   {% if order.alerts.urgent %}
     {% set _ = primary_alerts.append({'label': '긴급', 'class': 'foms-badge--alert'}) %}
@@ -169,6 +169,7 @@
       </div>
       {% endif %}
     </dl>
+    {%- if detail_slot and detail_slot|trim %}{{ detail_slot }}{% endif %}
 
     {% set action_list = task_actions if task_actions is not none else [] %}
     {% if task_actions is none and task_action %}
@@ -183,6 +184,7 @@
         and (order.stage_code == 'DRAWING' or order.stage in ['도면', 'DRAWING']) %}
     {% set workflow_actionable = quest_actionable or drawing_actionable %}
     {% set detail_href = url_for('erp_dashboard.erp_order_mobile_detail', order_id=order.id, return_to=detail_return_to) if detail_return_to else url_for('erp_dashboard.erp_order_mobile_detail', order_id=order.id) %}
+    {%- if aux_slot and aux_slot|trim %}{{ aux_slot }}{% endif %}
 
     <footer class="queue-card__action foms-queue-card-v2__action">
       {% if order.risk_cta %}
@@ -240,6 +242,7 @@
       {% elif has_phone %}
         <a class="foms-btn foms-btn--primary foms-btn--sm" href="tel:{{ safe_phone }}">전화</a>
       {% endif %}
+      {%- if footer_extra_slot and footer_extra_slot|trim %}{{ footer_extra_slot }}{% endif %}
     </footer>
   </article>
 {%- endmacro %}

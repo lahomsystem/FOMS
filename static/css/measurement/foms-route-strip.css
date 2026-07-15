@@ -144,6 +144,42 @@
 .foms-route-node--upcoming .foms-route-node__dot { fill: #ffffff; stroke: #b9b1a2; stroke-width: 2.5; }
 .foms-route-node--upcoming .foms-route-node__label { fill: #8f887d; }
 
+/* ---------- Kakao 실지도 캔버스 + 순번 핀 (SVG 폴백과 동일 슬롯) ---------- */
+.foms-route-strip__visual { position: relative; }
+.foms-route-strip__map {
+  width: 100%;
+  height: 180px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #f6f4f0;
+}
+/* Kakao CustomOverlay 순번 핀 — SVG 노드와 동일 색계(현재=파랑·완료=초록·예정=회색) */
+.foms-route-pin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  color: #ffffff;
+  background: #b9b1a2;
+  border: 2px solid #ffffff;
+  box-shadow: 0 1px 3px rgba(32, 28, 23, 0.35);
+}
+.foms-route-pin--done { background: #15803d; }
+.foms-route-pin--upcoming { background: #b9b1a2; }
+.foms-route-pin--current {
+  min-width: 24px;
+  height: 24px;
+  font-size: 12px;
+  background: #2563eb;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.5);
+}
+
 /* ---------- 큐 카드: 실측 완료 배지 ---------- */
 .foms-measure-done {
   display: inline-flex;
