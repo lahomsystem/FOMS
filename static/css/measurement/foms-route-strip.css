@@ -133,16 +133,30 @@
 }
 .foms-route-strip__dist { color: #2563eb; font-weight: 700; }
 
+/* ---------- 동선 색 팔레트 (SSOT: SVG 노드·카카오 핀·연결선 공용) ----------
+   순번별 8색 순환(.foms-route-c0~c7, JS가 i%8로 부여) — 흰 글자 AA(≥4.5:1) 검증 톤.
+   상태 의미는 색이 아닌 형태로 유지: 현재=링+확대, 완료=✓ 글리프+채도 낮춤.
+   JS는 --foms-route-line(카카오 폴리라인)만 읽고 나머지 색은 전부 CSS 소유. */
+.foms-route-strip { --foms-route-line: #6366f1; }
+.foms-route-c0 { --foms-route-stop: #2563eb; }
+.foms-route-c1 { --foms-route-stop: #c2410c; }
+.foms-route-c2 { --foms-route-stop: #7c3aed; }
+.foms-route-c3 { --foms-route-stop: #0f766e; }
+.foms-route-c4 { --foms-route-stop: #be185d; }
+.foms-route-c5 { --foms-route-stop: #4f46e5; }
+.foms-route-c6 { --foms-route-stop: #b45309; }
+.foms-route-c7 { --foms-route-stop: #0e7490; }
+
 /* SVG 세그먼트/노드 — fill·stroke는 클래스가 소유 */
-.foms-route-seg { stroke: #c9bea8; stroke-width: 3; stroke-linecap: round; fill: none; }
-.foms-route-seg--dashed { stroke: #c7c0b4; stroke-dasharray: 2 7; opacity: 0.9; }
-.foms-route-node__dot { stroke: #ffffff; stroke-width: 2.5; }
+.foms-route-seg { stroke: var(--foms-route-line, #6366f1); stroke-width: 3; stroke-linecap: round; fill: none; }
+.foms-route-seg--dashed { stroke-dasharray: 2 7; opacity: 0.75; }
+.foms-route-node__dot { fill: var(--foms-route-stop, #6366f1); stroke: #ffffff; stroke-width: 2.5; }
 .foms-route-node__label { font-size: 11px; font-weight: 800; fill: #ffffff; }
-.foms-route-node--done .foms-route-node__dot { fill: #15803d; }
-.foms-route-node--current .foms-route-node__dot { fill: #2563eb; stroke-width: 3; }
+.foms-route-node__ring { fill: none; stroke: var(--foms-route-stop, #6366f1); stroke-width: 2; opacity: 0.4; }
+.foms-route-node--current .foms-route-node__dot { stroke-width: 3; }
 .foms-route-node--current .foms-route-node__label { font-size: 12px; }
-.foms-route-node--upcoming .foms-route-node__dot { fill: #ffffff; stroke: #b9b1a2; stroke-width: 2.5; }
-.foms-route-node--upcoming .foms-route-node__label { fill: #8f887d; }
+.foms-route-node--done { filter: saturate(0.4); }
+.foms-route-node--done .foms-route-node__dot { opacity: 0.82; }
 
 /* ---------- Kakao 실지도 캔버스 + 순번 핀 (SVG 폴백과 동일 슬롯) ---------- */
 .foms-route-strip__visual { position: relative; }
@@ -153,7 +167,8 @@
   overflow: hidden;
   background: #f6f4f0;
 }
-/* Kakao CustomOverlay 순번 핀 — SVG 노드와 동일 색계(현재=파랑·완료=초록·예정=회색) */
+/* Kakao CustomOverlay 순번 핀 — SVG 노드와 동일 팔레트(.foms-route-c* 변수 상속).
+   상태 구분은 형태: 현재=이중 링+확대, 완료=✓ 글리프+채도 낮춤. */
 .foms-route-pin {
   display: inline-flex;
   align-items: center;
@@ -166,18 +181,16 @@
   font-weight: 800;
   line-height: 1;
   color: #ffffff;
-  background: #b9b1a2;
+  background: var(--foms-route-stop, #6366f1);
   border: 2px solid #ffffff;
   box-shadow: 0 1px 3px rgba(32, 28, 23, 0.35);
 }
-.foms-route-pin--done { background: #15803d; }
-.foms-route-pin--upcoming { background: #b9b1a2; }
+.foms-route-pin--done { filter: saturate(0.4); opacity: 0.88; }
 .foms-route-pin--current {
   min-width: 24px;
   height: 24px;
   font-size: 12px;
-  background: #2563eb;
-  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.5);
+  box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px var(--foms-route-stop, #6366f1), 0 2px 6px rgba(32, 28, 23, 0.4);
 }
 
 /* ---------- 큐 카드: 실측 완료 배지 ---------- */
