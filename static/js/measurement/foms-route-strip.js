@@ -98,7 +98,13 @@
       var isCurrent = i === currentIdx;
       var done = !!pts[i].measurement_completed;
       var mod = isCurrent ? '--current' : (done ? '--done' : '--upcoming');
-      var g = el('g', { class: 'foms-route-node foms-route-node' + mod });
+      // 순번별 팔레트(.foms-route-c0~c7, CSS SSOT) — 상태 강조는 링/크기/✓가 담당.
+      var g = el('g', { class: 'foms-route-node foms-route-node' + mod + ' foms-route-c' + (i % 8) });
+      if (isCurrent) {
+        g.appendChild(el('circle', {
+          cx: coords[i].x, cy: coords[i].y, r: 15, class: 'foms-route-node__ring'
+        }));
+      }
       g.appendChild(el('circle', {
         cx: coords[i].x, cy: coords[i].y, r: isCurrent ? 11 : 8, class: 'foms-route-node__dot'
       }));
@@ -155,6 +161,32 @@
     document.head.appendChild(s);
   }
 
+  // 컨테이너 크기 변화(콜드 로드 CSS 늦은 도착·창 회전/resize·시트 개폐) 시
+  // relayout + bounds 재fit. 카카오 지도는 0-사이즈로 init 되면 자동 복구가 없어
+  // 관측 기반으로 결정론화한다(첫 observe 콜백이 초기 보정 1회를 겸함).
+  function bindMapAutoRelayout(mapEl, map, bounds) {
+    function refit() {
+      try { map.relayout(); map.setBounds(bounds, 28, 28, 28, 28); } catch (e) { /* relayout 실패 무해 */ }
+    }
+    if (typeof ResizeObserver === 'function') {
+      var lastW = 0, lastH = 0;
+      var ro = new ResizeObserver(function () {
+        if (!mapEl.isConnected) { ro.disconnect(); return; }  // 스왑으로 분리된 옛 지도 정리
+        var w = mapEl.offsetWidth, h = mapEl.offsetHeight;
+        if (w > 0 && h > 0 && (w !== lastW || h !== lastH)) { lastW = w; lastH = h; refit(); }
+      });
+      ro.observe(mapEl);
+      return;
+    }
+    // 구형 브라우저 폴백: rAF 2프레임 보정(레이아웃 확정 후 재fit).
+    var tries = 0;
+    (function poll() {
+      if (!mapEl.isConnected || tries >= 2) return;
+      tries += 1;
+      window.requestAnimationFrame(function () { refit(); poll(); });
+    })();
+  }
+
   // ---------- Kakao 지도 렌더(실지도 위 방문 순서) ----------
   function renderKakaoMap(slot, pts, currentIdx) {
     if (!sdkReady()) return false;
@@ -162,6 +194,9 @@
       var maps = window.kakao.maps;
       var mapEl = document.createElement('div');
       mapEl.className = 'foms-route-strip__map';
+      // 콜드 로드에서 route-strip.css(높이 180px)보다 JS가 먼저 돌면 0-사이즈 init
+      // → 타일 미렌더 공백. init 전 JS 동적 스타일로 높이를 결정론화(CSS와 중복 무해).
+      mapEl.style.height = '180px';
       slot.textContent = '';
       slot.appendChild(mapEl);
 
@@ -177,19 +212,21 @@
       // draggable/zoomable 기본값 유지 → 방문지 탐색 가능. 카드가 짧아(≈180px) 스크롤 하이잭 최소.
       var map = new maps.Map(mapEl, { center: path[centerIdx], level: 5 });
 
-      // 방문 순서 폴리라인(점선, 스트립 색감 유지).
+      // 방문 순서 폴리라인(점선) — 색 SSOT는 CSS 변수 --foms-route-line(strip에서 상속).
+      var lineColor = '';
+      try { lineColor = getComputedStyle(slot).getPropertyValue('--foms-route-line').trim(); } catch (e) { /* 미지원 무해 */ }
       new maps.Polyline({
         map: map, path: path, strokeWeight: 3,
-        strokeColor: '#c9bea8', strokeOpacity: 0.95, strokeStyle: 'shortdash'
+        strokeColor: lineColor || '#6366f1', strokeOpacity: 0.95, strokeStyle: 'shortdash'
       });
 
-      // 순번 오버레이(현재=강조, 완료=✓, 나머지=작게).
+      // 순번 오버레이 — 순번별 팔레트(.foms-route-c*), 현재=이중 링+확대, 완료=✓+저채도.
       for (i = 0; i < pts.length; i++) {
         var isCurrent = i === currentIdx;
         var done = !!pts[i].measurement_completed && !isCurrent;
-        var mod = isCurrent ? 'is-current' : (done ? 'is-done' : 'is-upcoming');
+        var mod = isCurrent ? 'current' : (done ? 'done' : 'upcoming');
         var pin = document.createElement('span');
-        pin.className = 'foms-route-pin foms-route-pin--' + mod;
+        pin.className = 'foms-route-pin foms-route-pin--' + mod + ' foms-route-c' + (i % 8);
         pin.textContent = done ? '✓' : String(i + 1);
         new maps.CustomOverlay({
           map: map, position: path[i], content: pin,
@@ -198,10 +235,7 @@
       }
 
       map.setBounds(bounds, 28, 28, 28, 28);
-      // 슬롯이 방금 붙어 크기 계산이 늦을 수 있어 relayout 후 재fit(타이밍 방어).
-      window.setTimeout(function () {
-        try { map.relayout(); map.setBounds(bounds, 28, 28, 28, 28); } catch (e) { /* relayout 실패 무해 */ }
-      }, 0);
+      bindMapAutoRelayout(mapEl, map, bounds);
       return true;
     } catch (e) {
       console.warn('[route-strip] Kakao 지도 렌더 실패 — SVG 폴백', e);

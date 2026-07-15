@@ -1,4 +1,4 @@
-{% set measurement_js_v = '20260715b' %}
+{% set measurement_js_v = '20260715c' %}
 {# 실측 대시보드 JS는 measurement-entry.js 가 순차 로드 (fragment 재실행 시 스크립트 이중 실행 방지) #}
 <script src="{{ url_for('static', filename='js/measurement/measurement-entry.js') }}?v={{ measurement_js_v }}" defer></script>
 <script>

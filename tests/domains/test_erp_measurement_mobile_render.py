@@ -311,7 +311,10 @@ def test_measurement_dashboard_includes_regional_order(client, monkeypatch):
         is_regional=True,
         is_self_measurement=False,
         construction_type="하우드 시공",
-        structured_data={"items": [{"product_name": "붙박이장"}]},
+        structured_data={
+            "items": [{"product_name": "붙박이장"}],
+            "flags": {"factory2": True},
+        },
     )
     db_session.add(order)
     db_session.flush()
@@ -329,7 +332,16 @@ def test_measurement_dashboard_includes_regional_order(client, monkeypatch):
     assert resp.status_code == 200
     body = resp.get_data(as_text=True)
     assert "지방 실측 고객" in body
-    assert 'class="badge bg-warning text-dark ms-1" title="지방주문"' in body
+    customer_idx = body.index("지방 실측 고객")
+    customer_cell_start = body.rfind('<td data-label="고객"', 0, customer_idx)
+    customer_cell = body[customer_cell_start: body.find("</td>", customer_idx)]
+    assert "지방주문" not in customer_cell
+
+    orderer_cell_start = body.find('data-label="발주사"', customer_idx)
+    orderer_cell = body[orderer_cell_start: body.find("</td>", orderer_cell_start)]
+    assert 'class="d-flex flex-column align-items-start gap-1 mt-1"' in orderer_cell
+    assert "라홈시스템" in orderer_cell
+    assert 'class="badge bg-success text-white" title="지방주문"' in orderer_cell
 
 
 def test_measurement_dashboard_panel_segmented_count_badges(client, monkeypatch):
