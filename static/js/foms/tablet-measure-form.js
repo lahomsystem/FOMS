@@ -481,10 +481,6 @@
     };
     return totals;
   }
-  function getDisplayAmounts() {
-    var t = recomputeTotals();
-    return { shipping: t.shipping_price, deposit: t.deposit_amount, balance: t.balance_amount };
-  }
 
   // 저장 직전 항목 정규화(PC erpCollectStructured 미러): 상담 기본값, 금액 정수화, spec 파생.
   function normalizeItemsForSave() {
@@ -914,11 +910,36 @@
     );
   }
 
-  // ── 렌더: ④ 특이사항 3종 + 비고 ────────────────────────────────────
+  // ── 렌더: ④ 특이사항 3종 + 비고 (기본 접힘 아코디언, 배지로 내용 유무 표시) ─────────
+  // 채워진 필드 수(특이사항 3종 + 비고). 접힘 요약 배지에 노출.
+  function notesFilledCount() {
+    var n = 0;
+    ["phone_note", "address_note", "measurement_note"].forEach(function (k) {
+      if (String(notesValue(k)).trim()) n += 1;
+    });
+    if (String(state && state.notes ? state.notes : "").trim()) n += 1;
+    return n;
+  }
+  function renderNotesBadge() {
+    var n = notesFilledCount();
+    if (n > 0) return '<span class="foms-tmf__badge">작성 ' + n + "</span>";
+    return '<span class="foms-tmf__badge-none">없음</span>';
+  }
+  function refreshNotesBadge() {
+    var host = formEl() ? formEl().querySelector("[data-tmf-notes-badge]") : null;
+    if (host) host.innerHTML = renderNotesBadge();
+  }
   function renderNotesCard() {
     return (
-      '<section class="foms-tmf__section">' +
-      '<h5 class="foms-tmf__title">특이사항 · 비고</h5>' +
+      '<details class="foms-tmf__section foms-tmf__acc" data-tmf-notes-acc>' +
+      '<summary class="foms-tmf__acc-summary"><span class="foms-tmf__title">특이사항 · 비고</span>' +
+      '<span class="foms-tmf__acc-summary-right">' +
+      '<span class="foms-tmf__acc-badge" data-tmf-notes-badge>' +
+      renderNotesBadge() +
+      "</span>" +
+      '<i class="fas fa-chevron-down foms-tmf__acc-chev" aria-hidden="true"></i>' +
+      "</span></summary>" +
+      '<div class="foms-tmf__acc-body">' +
       '<div class="foms-tmf__formgrid">' +
       textAreaField("연락처 특이사항", "phone_note", notesValue("phone_note"), { full: true, rows: 2 }) +
       textAreaField("주소 특이사항", "address_note", notesValue("address_note"), { full: true, rows: 2 }) +
@@ -928,7 +949,7 @@
         rows: 3,
         placeholder: "현장 특이사항 · 시공 참고 메모",
       }) +
-      "</div></section>"
+      "</div></div></details>"
     );
   }
 
@@ -1628,55 +1649,242 @@
     }
   }
 
+  // ── 변환 텍스트 SSOT 미러 (PC static/js/orders/erp-order-shared.js) ─────────────────
+  // 아래 conv* 헬퍼·buildConversionText·sliceConversionTextForChannelPush 는 PC 의
+  //   erpGenerateConversionText / erpAppendConversion* / erpFormatFreeInputForConversion /
+  //   erpSliceConversionTextForChannelPush
+  // 를 문자 단위로 미러한 것이다(동일 입력 structured_data/amounts → PC 와 동일 출력이 계약).
+  // PC 는 DOM input 에서 값을 읽지만 이 페이지엔 PC 번들이 없으므로 state 에서 같은 값을 읽는다.
+  // ★ 동기화 지점: PC 함수가 바뀌면 여기도 함께 고쳐야 한다(라인 주석 = PC 원본 위치).
+
+  // PC erpFormatMoneyKRW (erp-order-shared.js:709)
+  function convFormatMoneyKRW(num) {
+    var n = Number(num);
+    if (!isFinite(n)) return "0원";
+    return Math.round(n).toLocaleString("ko-KR") + "원";
+  }
+  // PC erpHasConversionTextValue (erp-order-shared.js:4046)
+  function convHasValue(value) {
+    return String(value == null ? "" : value).trim().length > 0;
+  }
+  // PC erpGenerateConversionText 내부 formatDateToKorean (erp-order-shared.js:4147)
+  function convFormatDateToKorean(dateStr) {
+    if (!dateStr) return "";
+    var single = function (s) {
+      var t = String(s).trim();
+      var match = t.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (match) return parseInt(match[2], 10) + "월 " + parseInt(match[3], 10) + "일";
+      return t || "";
+    };
+    var parts = String(dateStr).split(",").map(single).filter(Boolean);
+    return parts.length ? parts.join(", ") : dateStr;
+  }
+  // PC erpAppendConversionTextLine (erp-order-shared.js:4050)
+  function convAppendLine(text, label, value) {
+    var raw = String(value == null ? "" : value).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    var trimmed = raw.trim();
+    if (!trimmed) return text;
+    if (trimmed.indexOf("\n") === -1) return text + label + " : " + trimmed + "\n";
+    var lines = trimmed.split("\n");
+    var out = text + label + " : " + String(lines[0] || "").trim() + "\n";
+    for (var i = 1; i < lines.length; i += 1) {
+      var line = lines[i].trim();
+      if (line) out += line + "\n";
+    }
+    return out;
+  }
+  // PC erpAppendConversionExtraInputLine (erp-order-shared.js:4066)
+  function convAppendExtraInputLine(text, value) {
+    var raw = String(value == null ? "" : value).trim();
+    if (!raw) return text;
+    var lines = raw.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+    var first = String(lines[0] || "").trim();
+    if (!first) return text;
+    var out = text + "추가 입력 : " + first + "\n";
+    for (var i = 1; i < lines.length; i += 1) {
+      var line = lines[i].trim();
+      if (line) out += line + "\n";
+    }
+    return out;
+  }
+  // PC erpFormatFreeInputForConversionLine (erp-order-shared.js:812)
+  function convFormatFreeInputLine(line) {
+    var trimmed = String(line == null ? "" : line).trim();
+    if (!trimmed) return "";
+    var colonMatch = trimmed.match(/^(.+?)[:：]\s*(.+)$/);
+    if (colonMatch) {
+      var label = colonMatch[1].trim();
+      var amountPart = colonMatch[2].trim();
+      if (/원$/.test(amountPart)) return label + " : " + amountPart;
+      var amount = coerceAmount(amountPart);
+      if (amount > 0) return label + " : " + convFormatMoneyKRW(amount);
+      return trimmed;
+    }
+    if (/원$/.test(trimmed)) return trimmed;
+    var asAmount = coerceAmount(trimmed);
+    if (asAmount > 0) return convFormatMoneyKRW(asAmount);
+    return trimmed;
+  }
+  // PC erpFormatFreeInputForConversion (erp-order-shared.js:797)
+  function convFormatFreeInputForConversion(value) {
+    var raw = String(value == null ? "" : value).trim();
+    if (!raw) return "";
+    return raw
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n")
+      .split("\n")
+      .map(convFormatFreeInputLine)
+      .filter(function (l) {
+        return !!l;
+      })
+      .join("\n");
+  }
+  // PC erpAppendConversionFreeInputBlock (erp-order-shared.js:4080)
+  function convAppendFreeInputBlock(text, value) {
+    var formatted = convFormatFreeInputForConversion(value);
+    if (!formatted) return text;
+    var withSuffix = formatted
+      .split("\n")
+      .map(function (l) {
+        return l ? l + "(총견적 포함)" : l;
+      })
+      .join("\n");
+    return text + withSuffix + "\n";
+  }
+  // PC erpAppendConversionMoneyLine (erp-order-shared.js:4096)
+  function convAppendMoneyLine(text, label, amount, suffix) {
+    var n = coerceAmount(amount);
+    if (n <= 0) return text;
+    var tail = suffix ? String(suffix) : "";
+    return text + label + " : " + convFormatMoneyKRW(n) + tail + "\n";
+  }
+  // PC erpSliceConversionTextForChannelPush (erp-order-shared.js:4119) — 채널톡 전송용 슬라이스.
+  // 실측일/시간 헤더는 제거하되 라홈시스템(factory2) ★★ 는 유지한다.
+  function sliceConversionTextForChannelPush(text) {
+    var raw = String(text == null ? "" : text).trim();
+    if (!raw) return "";
+    var hasFactory2Stars = raw.split("\n").some(function (line) {
+      return /^\s*★★\s*$/.test(line);
+    });
+    var idx = raw.search(/^고객명\s*:/m);
+    var body = "";
+    if (idx >= 0) {
+      body = raw.slice(idx).trim();
+    } else {
+      body = raw
+        .split("\n")
+        .filter(function (line) {
+          return !/^\s*★★\s*$/.test(line) && !/^\s*실측일\s*:/.test(line) && !/^\s*시\s*간\s*:/.test(line);
+        })
+        .join("\n")
+        .replace(/^\n+/, "")
+        .trim();
+    }
+    if (!hasFactory2Stars) return body;
+    if (!body) return "★★";
+    return "★★\n" + body;
+  }
+
   // ── 채널톡 변환 텍스트 → 수동 푸쉬 ──────────────────────────────────
+  // PC erpGenerateConversionText (erp-order-shared.js:4141) 의 문자 단위 미러.
   function buildConversionText() {
-    var sd = state.structured || {};
-    var c = (sd.parties && sd.parties.customer) || {};
-    var lines = [];
-    if (flagValue("factory2")) lines.push("★★");
-    lines.push("[고객] " + (c.name || "") + (c.phone ? " " + c.phone : ""));
-    var addr = siteAddress();
-    if (addr) lines.push("[현장] " + addr);
-    var mDate = scheduleValue("measurement", "date");
-    if (mDate) {
-      lines.push(
-        "[실측] " + mDate + (scheduleValue("measurement", "time") ? " " + scheduleValue("measurement", "time") : "")
-      );
-    }
-    var cDate = scheduleValue("construction", "date");
-    if (cDate) {
-      lines.push(
-        "[시공] " + cDate + (scheduleValue("construction", "time") ? " " + scheduleValue("construction", "time") : "")
-      );
-    }
+    if (!state) return "";
+    var measurementDate = convFormatDateToKorean(scheduleValue("measurement", "date"));
+    var measurementTime = scheduleValue("measurement", "time");
+
+    var customerName = partyValue("customer", "name");
+    var orderer = String(partyValue("orderer", "name") || "").trim();
+    if (!orderer) orderer = "라홈";
+
+    var constructionDate = scheduleValue("construction", "date");
+    if (!constructionDate) constructionDate = "상담";
+    else constructionDate = convFormatDateToKorean(constructionDate);
+
+    var constructionTime = scheduleValue("construction", "time");
+    var address = siteAddress();
+    var phone = partyValue("customer", "phone");
+    var factory2Checked = !!flagValue("factory2");
+
+    // 헤더 + 고객(값 없는 라인은 제외). factory2 체크 시 실측일 위에 ★★.
+    var text = "";
+    if (factory2Checked) text += "★★\n";
+    text = convAppendLine(text, "실측일", measurementDate);
+    text = convAppendLine(text, "시   간", measurementTime);
+    if (text) text += "\n";
+    text = convAppendLine(text, "고객명", customerName);
+    text = convAppendLine(text, "발주사", orderer);
+    text = convAppendLine(text, "시공일", constructionDate);
+    text = convAppendLine(text, "시공시간", constructionTime);
+    text = convAppendLine(text, "주  소", address);
+    text = convAppendLine(text, "연락처", phone);
+    if (text && text.slice(-2) !== "\n\n") text += "\n";
+
+    // 항목
     var items = itemsList();
-    if (items.length) {
-      lines.push("[제품]");
-      items.forEach(function (it, i) {
-        var name = (it && (it.product_name || it.name)) || "제품 " + (i + 1);
-        var spec = it && it.spec ? it.spec : "";
-        var jasu = itemJasuDisplay(it);
-        var color = defaultConsult(it.color);
-        lines.push(
-          "  " +
-            (i + 1) +
-            ". " +
-            name +
-            (spec ? " (" + spec + ")" : "") +
-            (jasu ? " 자수 " + jasu : "") +
-            (color && color !== "상담" ? " / 색상 " + color : "")
-        );
+    var itemCount = items.length;
+    var visibleItemIndex = 0;
+    items.forEach(function (item) {
+      if (!item || typeof item !== "object") return;
+      var extraInput = item.extra_input;
+      var pName = item.product_name || item.name || "";
+      // PC: rawSpec(=data-erp="spec") || spec 행 W*D*H 를 '*' 로, 행은 ', ' 로. item.spec 이 rawSpec 대응.
+      var rawSpec = String(item.spec == null ? "" : item.spec).trim();
+      var specParts = [];
+      (Array.isArray(item.spec_rows) ? item.spec_rows : []).forEach(function (row) {
+        if (!row || typeof row !== "object") return;
+        var w = String(specDim(row, "spec_width", "w")).trim();
+        var d = String(specDim(row, "spec_depth", "d")).trim();
+        var h = String(specDim(row, "spec_height", "h")).trim();
+        var one = [w, d, h].filter(Boolean).join("*");
+        if (one) specParts.push(one);
       });
-    }
-    var a = getDisplayAmounts();
-    var free = buildFreeInputStored(state.amounts.freeText, state.amounts.freeAmount);
-    if (free) lines.push("[자유입력] " + free);
-    lines.push(
-      "[금액] 출고가 " + formatWon(a.shipping) + " / 예약금 " + formatWon(a.deposit) + " / 잔금 " + formatWon(a.balance)
-    );
-    var cash = String(state.amounts.cashReceipt || "").trim();
-    if (cash) lines.push("[현금영수증] " + cash);
-    return lines.join("\n");
+      var spec = rawSpec || (specParts.length ? specParts.join(", ") : "");
+
+      // PC erpNewItemRow 미러: internal/option/handle/misc 는 defaultConsult, color 는 (SK) 접미어 제거 후 상담 기본.
+      var internal = defaultConsult(item.internal);
+      var color = String(item.color == null ? "" : item.color).replace(/(\s+\(SK\))+$/g, "").trim() || "상담";
+      var option = defaultConsult(item.option_detail);
+      var handle = defaultConsult(item.handle);
+      var misc = defaultConsult(item.misc);
+      var itemPrice = item.price;
+
+      var itemText = "";
+      itemText = convAppendLine(itemText, "제품명", pName);
+      itemText = convAppendLine(itemText, "규 격", spec);
+      itemText = convAppendLine(itemText, "내 부", internal);
+      itemText = convAppendLine(itemText, "색 상", color);
+      itemText = convAppendLine(itemText, "옵 션", option);
+      itemText = convAppendLine(itemText, "손잡이", handle);
+      itemText = convAppendLine(itemText, "기 타", misc);
+      itemText = convAppendMoneyLine(itemText, "항목 견적", itemPrice);
+      itemText = convAppendExtraInputLine(itemText, extraInput);
+      if (!itemText) return;
+      visibleItemIndex += 1;
+      if (itemCount >= 2) text += visibleItemIndex + ".\n";
+      text += itemText;
+      text += "\n";
+    });
+
+    // 푸터: 담당자 + 출고가 + 예약금 + 자유입력 + 잔금(+메모/현금영수증).
+    var manager = partyValue("manager", "name");
+    var a = state.amounts || {};
+    var totals = buildTotals(sumItemsTotal(), a.deposit, a.discount, a.freeAmount);
+    var freeInputVal = buildFreeInputStored(a.freeText, a.freeAmount);
+
+    var footerStart = text.length;
+    text = convAppendLine(text, "담당자", manager);
+    if (text.length > footerStart) text += "\n";
+    text = convAppendMoneyLine(text, "출고가", totals.shipping_price);
+    text = convAppendMoneyLine(text, "예약금(선금)", totals.deposit_amount);
+    text = convAppendFreeInputBlock(text, freeInputVal);
+    var balanceSuffix = state.paymentBase && state.paymentBase.balance_confirmed ? "(결제 완)" : "";
+    text = convAppendMoneyLine(text, "잔금", totals.final_amount, balanceSuffix);
+    text = convAppendLine(text, "잔금메모", a.balanceNote);
+    var cashReceiptVal = a.cashReceipt;
+    if (convHasValue(cashReceiptVal) && totals.final_amount > 0) text += "\n";
+    text = convAppendLine(text, "현금영수증", cashReceiptVal);
+    text = text.replace(/\n+$/, "");
+    return text;
   }
 
   function refreshConversionText() {
@@ -1716,17 +1924,19 @@
     setStatus("복사 실패 — 텍스트를 직접 선택해 복사하세요.", "error");
   }
 
-  function pushManual(orderId, text, pushKind, changeNote) {
+  // PC erpRunChannelPush (erp-order-shared.js:4649) 미러: POST /api/channel/push-manual 로
+  // {order_id, text, push_kind, change_note?} 를 보낸다. text 는 PC 와 동일하게 슬라이스된 변환 텍스트.
+  // 재전송(prev push)은 PC 처럼 서버 400('재전송 시 변경 내용...') 감지 → note 프롬프트 → 재시도로
+  // 처리한다(PC 의 M1 복구 경로). 이 페이지엔 PC 의 client push-state/모달이 없어 서버 구동 흐름만
+  // 미러하며, push 이력은 서버가 structured_data 에 저장하므로 다음 전송의 재전송 판정도 서버가 담당.
+  function pushManual(orderId, text, pushKind, changeNote, resendUsed) {
+    var body = { order_id: orderId, text: text, push_kind: pushKind || "measurement" };
+    if (changeNote) body.change_note = changeNote;
     fetch("/api/channel/push-manual", {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        order_id: orderId,
-        text: text,
-        push_kind: pushKind || "measurement",
-        change_note: changeNote || "",
-      }),
+      body: JSON.stringify(body),
     })
       .then(function (res) {
         return res.json().then(function (d) {
@@ -1736,15 +1946,16 @@
       .then(function (r) {
         if (!state || state.orderId !== orderId) return;
         if (r.data && r.data.success) {
-          setStatus("채널톡 전송 완료", "saved");
+          setStatus(pushKind === "drawing" ? "발주 PUSH 전송 완료" : "영발 PUSH 전송 완료", "saved");
           return;
         }
-        var msg = (r.data && r.data.message) || "채널톡 전송 실패";
-        // 재전송 시 변경 내용 필요(서버 400) → 프롬프트 후 재시도.
-        if (r.status === 400 && /변경/.test(msg)) {
-          var note = window.prompt(msg + "\n\n변경 내용을 입력하세요(재전송):", "");
+        var msg = (r.data && (r.data.error || r.data.message)) || "채널톡 전송 실패";
+        // PC erpIsChannelPushResendNoteRequired 미러: 메시지에 '재전송 시 변경 내용' 포함 = note 필수.
+        if (!resendUsed && String(msg).indexOf("재전송 시 변경 내용") >= 0) {
+          var note = window.prompt("이미 전송된 이력이 있습니다. 변경 내용을 입력하면 재전송합니다.", "");
           if (note && note.trim()) {
-            pushManual(orderId, text, pushKind, note.trim());
+            setStatus("채널톡 재전송 중…", "saving");
+            pushManual(orderId, text, pushKind, note.trim(), true);
             return;
           }
           setStatus("채널톡 전송 취소", "");
@@ -1759,8 +1970,13 @@
 
   function requestPush(pushKind) {
     if (!state || !isEditable()) return;
-    setStatus("채널톡 전송 중…", "saving");
-    pushManual(state.orderId, buildConversionText(), pushKind, "");
+    var text = sliceConversionTextForChannelPush(buildConversionText());
+    if (!text) {
+      setStatus("변환할 내용이 없습니다. 주문 정보를 입력해주세요.", "error");
+      return;
+    }
+    setStatus(pushKind === "drawing" ? "발주 PUSH 전송 중…" : "영발 PUSH 전송 중…", "saving");
+    pushManual(state.orderId, text, pushKind, "", false);
   }
 
   // ── 공개 API(tablet-measurement.js 가 구동) ────────────────────────
@@ -2023,18 +2239,22 @@
         break;
       case "notes":
         state.notes = v;
+        refreshNotesBadge();
         break;
       case "phone_note":
         ensureNotesObj().phone_note = v;
         refreshBadges();
+        refreshNotesBadge();
         break;
       case "address_note":
         ensureNotesObj().address_note = v;
         refreshBadges();
+        refreshNotesBadge();
         break;
       case "measurement_note":
         ensureNotesObj().measurement_note = v;
         refreshBadges();
+        refreshNotesBadge();
         break;
       case "measurement_date":
         ensureMeasurementSchedule().date = v;

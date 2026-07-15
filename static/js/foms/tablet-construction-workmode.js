@@ -97,8 +97,10 @@
     return Math.floor(Date.UTC(y, mo - 1, d) / 86400000);
   }
 
-  // 카드 날짜가 선택 범위에 드는지. 빈/파싱불가 날짜는 모든 필터에서 숨김.
+  // 카드 날짜가 선택 범위에 드는지. "all"은 무조건 노출(과거/미정 포함) — 어제 시공처럼
+  // 미래 범위에 안 걸리는 건까지 볼 수 있는 탈출구. 그 외 범위에서 빈/파싱불가 날짜는 숨김.
   function matchesRange(dateStr, range, todayDC) {
+    if (range === "all") return true;
     if (todayDC === null) return false;
     var dc = dayCountFromStr(dateStr);
     if (dc === null) return false;
@@ -108,33 +110,113 @@
     return false;
   }
 
-  // 칩 클릭 → 활성 칩 전환 + 카드 노출 토글 + 활성 카드 재선정.
+  // 전체 카드에서 today/tomorrow/week/미정 건수를 집계(빈 상태 힌트용).
+  function computeRangeCounts(cards, todayDC) {
+    var c = { today: 0, tomorrow: 0, week: 0, undated: 0 };
+    if (todayDC === null) return c;
+    for (var i = 0; i < cards.length; i++) {
+      var dc = dayCountFromStr(cards[i].getAttribute("data-cwork-date"));
+      if (dc === null) {
+        c.undated++;
+        continue;
+      }
+      if (dc === todayDC) c.today++;
+      if (dc === todayDC + 1) c.tomorrow++;
+      if (dc >= todayDC && dc <= todayDC + 6) c.week++;
+    }
+    return c;
+  }
+
+  var EMPTY_TITLES = {
+    today: "오늘 시공 일정이 없습니다",
+    tomorrow: "내일 시공 일정이 없습니다",
+    week: "이번 주 시공 일정이 없습니다",
+    all: "표시할 시공 건이 없습니다",
+  };
+
+  // 현재 범위 외에서 잡히는 건수를 "· "로 이어 힌트 문자열 생성.
+  function buildEmptyHint(counts, range) {
+    var parts = [];
+    if (range !== "today" && counts.today > 0) parts.push("오늘 " + counts.today + "건");
+    if (range !== "tomorrow" && counts.tomorrow > 0) parts.push("내일 " + counts.tomorrow + "건");
+    if (range !== "week" && counts.week > 0) parts.push("주간 " + counts.week + "건");
+    if (counts.undated > 0) parts.push("일정 미정 " + counts.undated + "건");
+    return parts.join(" · ");
+  }
+
+  // 뷰어/확인 패널 전부 은닉 + 중앙 placeholder 노출(활성 카드 0건일 때).
+  function clearActivePanels(root) {
+    var panels = document.querySelectorAll("[data-cwork-panel]");
+    for (var i = 0; i < panels.length; i++) panels[i].hidden = true;
+    var confs = document.querySelectorAll("[data-cwork-confirm]");
+    for (var j = 0; j < confs.length; j++) confs[j].hidden = true;
+    var vEmpty = root.querySelector("[data-cwork-viewer-empty]");
+    if (vEmpty) vEmpty.hidden = false;
+  }
+
+  // 칩 클릭/초기화 → 활성 칩 전환 + 카드 노출 토글 + 활성 카드 재선정 + 건수/빈상태 동기화.
   function applyRangeFilter(chip) {
+    var root = document.querySelector(".foms-construction-workmode");
+    if (!root || !chip) return; // 워크모드 미존재 페이지에서 no-op.
     var range = chip.getAttribute("data-cwork-range");
     var chips = document.querySelectorAll(".foms-cwork-chip");
     for (var i = 0; i < chips.length; i++) {
       chips[i].classList.toggle("is-active", chips[i] === chip);
     }
     // 기준 "오늘"은 서버가 루트에 심은 값(하드코딩 금지).
-    var root = document.querySelector(".foms-construction-workmode");
-    var todayDC = dayCountFromStr(root ? root.getAttribute("data-cwork-today") : null);
+    var todayDC = dayCountFromStr(root.getAttribute("data-cwork-today"));
 
     var cards = document.querySelectorAll(".foms-cwork-card");
     var firstVisible = null;
-    var activeStillVisible = false;
+    var activeVisible = null;
+    var visibleCount = 0;
     for (var j = 0; j < cards.length; j++) {
       var card = cards[j];
       var visible = matchesRange(card.getAttribute("data-cwork-date"), range, todayDC);
       card.hidden = !visible;
       if (visible) {
+        visibleCount++;
         if (!firstVisible) firstVisible = card;
-        if (card.classList.contains("is-active")) activeStillVisible = true;
+        if (!activeVisible && card.classList.contains("is-active")) activeVisible = card;
       }
     }
-    // 활성 카드가 숨겨졌거나 애초에 없으면 → 첫 노출 카드를 활성화.
-    if (!activeStillVisible && firstVisible) {
-      activateCard(firstVisible.getAttribute("data-order-id"));
+
+    // 건수 배지 = 현재 범위의 노출 건수(서버 orders|length 아님 — "오늘 시공 · N건" 정직화).
+    var countEl = root.querySelector("[data-cwork-count]");
+    if (countEl) countEl.textContent = String(visibleCount);
+
+    var tEmpty = root.querySelector("[data-cwork-empty]");
+    var vEmpty = root.querySelector("[data-cwork-viewer-empty]");
+    if (visibleCount === 0) {
+      // 빈 범위 → 좌 타임라인 빈상태(제목·힌트) + 중앙 placeholder, 모든 패널 은닉.
+      if (tEmpty) {
+        var counts = computeRangeCounts(cards, todayDC);
+        var titleEl = tEmpty.querySelector("[data-cwork-empty-title]");
+        var hintEl = tEmpty.querySelector("[data-cwork-empty-hint]");
+        if (titleEl) titleEl.textContent = EMPTY_TITLES[range] || EMPTY_TITLES.all;
+        if (hintEl) hintEl.textContent = buildEmptyHint(counts, range);
+        tEmpty.hidden = false;
+      }
+      clearActivePanels(root);
+    } else {
+      if (tEmpty) tEmpty.hidden = true;
+      if (vEmpty) vEmpty.hidden = true;
+      // 활성 카드가 여전히 보이면 그 카드를, 아니면 첫 노출 카드를 활성화.
+      // 항상 activateCard 호출 → 직전 0건 상태에서 은닉된 패널도 확실히 복원(idempotent).
+      var target = activeVisible || firstVisible;
+      activateCard(target.getAttribute("data-order-id"));
     }
+  }
+
+  // 초기/컨텐츠 스왑 시 활성 칩(기본 "오늘")의 필터를 적용 — "오늘 시공" 라벨을 정직하게
+  // 반영(로드 시 전 날짜 노출 방지)하고 건수/빈상태를 서버 렌더 직후 즉시 동기화한다.
+  function initRangeFilter() {
+    var root = document.querySelector(".foms-construction-workmode");
+    if (!root) return;
+    var active =
+      root.querySelector(".foms-cwork-chip.is-active[data-cwork-range]") ||
+      root.querySelector(".foms-cwork-chip[data-cwork-range]");
+    if (active) applyRangeFilter(active);
   }
 
   document.addEventListener("click", function (ev) {
@@ -307,10 +389,15 @@
       window.fomsMountErpAttachmentPreviewGalleries(document);
     }
   }
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", mountGalleries);
-  } else {
+  // 갤러리 마운트 + 기본 범위 필터 적용을 DOM 준비/스왑 양쪽에서 재실행.
+  function onReadyOrSwap() {
     mountGalleries();
+    initRangeFilter();
   }
-  document.addEventListener("foms:main-content-swapped", mountGalleries);
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", onReadyOrSwap);
+  } else {
+    onReadyOrSwap();
+  }
+  document.addEventListener("foms:main-content-swapped", onReadyOrSwap);
 })();

@@ -11,12 +11,13 @@
   <aside class="foms-cwork-timeline">
     <div class="foms-cwork-timeline__head">
       <span class="foms-cwork-timeline__title">오늘 시공</span>
-      <span class="foms-cwork-timeline__count">{% if today_iso %}{{ today_iso[5:7]|int }}/{{ today_iso[8:10]|int }} · {% endif %}{{ orders|length }}건</span>
+      <span class="foms-cwork-timeline__count">{% if today_iso %}{{ today_iso[5:7]|int }}/{{ today_iso[8:10]|int }} · {% endif %}<span data-cwork-count>{{ orders|length }}</span>건</span>
     </div>
     <div class="foms-cwork-chips" role="tablist" aria-label="기간 필터">
       <button type="button" class="foms-cwork-chip is-active" data-cwork-range="today">오늘</button>
       <button type="button" class="foms-cwork-chip" data-cwork-range="tomorrow">내일</button>
       <button type="button" class="foms-cwork-chip" data-cwork-range="week">주간</button>
+      <button type="button" class="foms-cwork-chip" data-cwork-range="all">전체</button>
     </div>
     <div class="foms-cwork-timeline__list">
       {% for o in orders %}
@@ -34,6 +35,13 @@
           {% if o.workmode_product_label %}<span class="foms-cwork-card__product">{{ o.workmode_product_label }}{% if o.workmode_spec_display %} · {{ o.workmode_spec_display }}{% endif %}</span>{% endif %}
         </button>
       {% endfor %}
+      {# 빈 상태 — 서버 orders 자체가 비었거나(초기 hidden 해제), 기간 칩 필터 결과가 0건일 때
+         tablet-construction-workmode.js 가 노출하고 제목·힌트(내일/주간 건수)를 채운다. #}
+      <div class="foms-cwork-timeline__empty" data-cwork-empty{% if orders %} hidden{% endif %}>
+        <i class="fas fa-calendar-day" aria-hidden="true"></i>
+        <p class="foms-cwork-timeline__empty-title" data-cwork-empty-title>시공 일정이 없습니다</p>
+        <p class="foms-cwork-timeline__empty-hint" data-cwork-empty-hint></p>
+      </div>
     </div>
   </aside>
 
@@ -126,6 +134,11 @@
         </div>
       </div>
     {% endfor %}
+    {# 활성 시공 건이 없을 때(기간 필터 0건/서버 orders 공백) 중앙 뷰어 placeholder. #}
+    <div class="foms-cwork-viewer__empty" data-cwork-viewer-empty{% if orders %} hidden{% endif %}>
+      <i class="fas fa-drafting-compass" aria-hidden="true"></i>
+      <p>선택된 시공 건이 없습니다</p>
+    </div>
   </section>
 
   {# ── RIGHT: 완료 확인 (체크리스트·완료 사진·현장 메모) ─────
