@@ -80,7 +80,10 @@
 {% endif %}
 
 {% if _mrows %}
-<div class="foms-route-strip" data-foms-route-strip data-route-date="{{ selected_date or today_date }}" data-mine="{{ '1' if erp_mine_only else '0' }}" data-kakao-js-key="{{ kakao_js_key }}" hidden aria-label="오늘 동선 지도"></div>
+{# data-route-inline: 뷰가 route API와 동일 빌더로 만든 points JSON(자동이스케이프가
+   따옴표를 엔티티 처리 → getAttribute 시 원복). JS는 try/catch 안전 파싱 후 즉시
+   렌더하고, 속성 부재/파싱 실패 시 기존 fetch 경로로 폴백한다. #}
+<div class="foms-route-strip" data-foms-route-strip data-route-date="{{ selected_date or today_date }}" data-mine="{{ '1' if erp_mine_only else '0' }}" data-kakao-js-key="{{ kakao_js_key }}"{% if route_strip_inline %} data-route-inline="{{ route_strip_inline }}"{% endif %} hidden aria-label="오늘 동선 지도"></div>
 {% endif %}
 
 <section class="erp-measurement-mobile-list foms-mobile-queue-section" aria-label="실측 모바일 일정">

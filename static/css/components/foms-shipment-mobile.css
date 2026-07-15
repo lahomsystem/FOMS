@@ -499,6 +499,25 @@ body.erp-mobile-v2-layout .erp-shipment-mobile-card .foms-queue-card-v2__action 
   flex: 0 0 auto;
 }
 
+/* ── 카드 통합 후속(2026-07-15): 워크플로 버튼 전용 줄 ──────────────────────────
+   푸터 본줄이 4버튼+(상세·퀘스트 승인/도면 창구·ERP 편집·출고 정보 수정)로 몰려 깨지던
+   것을, 매크로 footer_split 분기가 조건부 워크플로 버튼(퀘스트 승인·도면 창구·리스크
+   CTA·task_actions)을 푸터 아래 전용 줄로 내려 해결한다. 0개면 줄 자체 미렌더.
+   버튼 톤(foms-btn--primary 등)은 매크로 클래스 그대로 유지된다. */
+body.erp-mobile-v2-layout .erp-shipment-mobile-card .foms-queue-card-v2__workflow-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--foms-space-2, 8px);
+  margin-top: var(--foms-space-2, 8px);
+  min-width: 0;
+}
+
+body.erp-mobile-v2-layout .erp-shipment-mobile-card .foms-queue-card-v2__workflow-row .foms-btn {
+  flex: 1 1 auto;
+  min-height: var(--foms-touch-target-min, 44px);
+  min-width: 0;
+}
+
 /* ── 작업 1(2026-07-15): '출고 정보 수정' 바텀시트 높이 ─────────────────────────
    기본 offcanvas-bottom(~30vh)은 6필드+저장 폼을 가려 스크롤 없이 수정이 어렵다.
    85vh로 키우되(safe-area/노치 반영), 내부 offcanvas-body가 스스로 스크롤한다. */

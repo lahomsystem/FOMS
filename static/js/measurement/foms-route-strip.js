@@ -3,6 +3,8 @@
  * v2(mobile_list.html)·v3(persona_home_sales.html) 공용. additive·vanilla·defer.
  * 지도는 Kakao Maps SDK(사용 시점 lazy 로드)로 실지도 위 방문 순서를 그린다.
  * SDK 부재/로드 실패 시 자체 SVG 렌더로 자동 폴백(색/획은 CSS 클래스가 소유).
+ * 데이터는 서버 인라인(data-route-inline, 뷰가 route API와 동일 빌더로 주입) 우선
+ * — API 왕복 없이 즉시 첫 페인트. 미주입 표면(v3 등)은 route API fetch 폴백.
  *
  * 재초기화 계약(셸 프래그먼트 스왑 대응):
  *   - boot(마운트 탐색→렌더)은 스크립트 실행마다 + foms:erp-shell-fragment-swapped 마다 호출.
@@ -283,11 +285,28 @@
     renderRouteVisual(slot, strip.getAttribute('data-kakao-js-key') || '', pts, currentIdx);
   }
 
+  // 서버 인라인 동선(data-route-inline) 안전 파싱 — 실패 시 null(fetch 폴백).
+  function parseInlineRoute(strip) {
+    var raw = strip.getAttribute('data-route-inline');
+    if (!raw) return null;
+    try {
+      var data = JSON.parse(raw);
+      return (data && Array.isArray(data.route)) ? data : null;
+    } catch (e) {
+      console.warn('[route-strip] 인라인 동선 파싱 실패 — fetch 폴백', e);
+      return null;
+    }
+  }
+
   function initRouteStrip() {
     var strip = document.querySelector('[data-foms-route-strip]');
     if (!strip) return;
     if (strip.dataset.fomsRouteStripInit === '1') return;  // 마운트별 idempotent 가드
     strip.dataset.fomsRouteStripInit = '1';
+    // 서버 인라인이 있으면 route API 왕복 없이 즉시 첫 페인트(SVG 선렌더 → SDK 승격).
+    // 미주입 표면(v3 등)은 기존 fetch 경로 유지.
+    var inline = parseInlineRoute(strip);
+    if (inline) { buildStrip(strip, inline); return; }
     var date = strip.getAttribute('data-route-date') || '';
     var url = '/api/erp/measurement/route?date=' + encodeURIComponent(date);
     // '내 주문' 보기가 켜져 있으면 스트립도 내 건만 그린다(대시보드와 동일 predicate).
