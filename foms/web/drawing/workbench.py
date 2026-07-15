@@ -672,7 +672,13 @@ def erp_drawing_workbench_detail(order_id):
     is_drawing_participant = bool(
         current_user and is_drawing_workbench_participant(current_user, order)
     )
-    can_transfer = bool(has_assignee and is_drawing_participant)
+    # 전달 버튼은 도면팀+관리자 전용 — is_drawing_workbench_participant(워크벤치 접근 참여자 판정,
+    # 배정된 비도면팀 직원도 True인 더 넓은 개념)와 별개 축. 배정 로직은 그대로 두고 팀 조건을 추가로 AND.
+    is_transfer_authorized_team = bool(
+        current_user
+        and (current_user.role == 'ADMIN' or (getattr(current_user, 'team', None) or '').strip() == 'DRAWING')
+    )
+    can_transfer = bool(has_assignee and is_drawing_participant and is_transfer_authorized_team)
     transfer_gated_by_revision_checklist = bool(
         drawing_status == 'RETURNED'
         and has_pending_unchecked_drawing_revision_requests(s_data)

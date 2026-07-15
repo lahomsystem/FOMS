@@ -66,6 +66,28 @@
     syncSendState();
   }
 
+  function groupByTeam(items) {
+    // 서버가 팀 표시순→이름순으로 정렬해 보내므로, 최초 등장 순서를 그대로 유지한다.
+    // team_label 이 없거나 비면 '기타' 로 묶는다(조용한 누락 금지).
+    var order = [];
+    var byLabel = {};
+    items.forEach(function (u) {
+      var label = (u && u.team_label && String(u.team_label)) || '기타';
+      if (!byLabel[label]) { byLabel[label] = []; order.push(label); }
+      byLabel[label].push(u);
+    });
+    return order.map(function (label) { return { label: label, members: byLabel[label] }; });
+  }
+
+  function targetButtonHtml(u) {
+    var meta = [u.role].filter(Boolean).map(esc).join(' · ');
+    return '<button type="button" class="erp-mobile-urgent-sheet__target"'
+      + ' data-foms-urgent-target data-target-id="' + esc(u.id) + '" aria-pressed="false">'
+      + '<span class="erp-mobile-urgent-sheet__target-name">' + esc(u.name) + '</span>'
+      + (meta ? '<span class="erp-mobile-urgent-sheet__target-meta">' + meta + '</span>' : '')
+      + '</button>';
+  }
+
   function renderTargets(targets) {
     var container = targetsEl();
     if (!container) return;
@@ -76,13 +98,17 @@
         + '<span>호출할 담당자가 없습니다.</span></div>';
       return;
     }
-    container.innerHTML = items.map(function (u) {
-      var meta = [u.team, u.role].filter(Boolean).map(esc).join(' · ');
-      return '<button type="button" class="erp-mobile-urgent-sheet__target"'
-        + ' data-foms-urgent-target data-target-id="' + esc(u.id) + '" aria-pressed="false">'
-        + '<span class="erp-mobile-urgent-sheet__target-name">' + esc(u.name) + '</span>'
-        + (meta ? '<span class="erp-mobile-urgent-sheet__target-meta">' + meta + '</span>' : '')
-        + '</button>';
+    var groups = groupByTeam(items);
+    var openAll = groups.length <= 1; // 팀이 하나뿐이면 펼쳐 두고, 여러 팀이면 접어 둔다.
+    container.innerHTML = groups.map(function (g) {
+      var buttons = g.members.map(targetButtonHtml).join('');
+      return '<details class="erp-mobile-urgent-sheet__team"' + (openAll ? ' open' : '') + '>'
+        + '<summary class="erp-mobile-urgent-sheet__team-summary">'
+        + '<span class="erp-mobile-urgent-sheet__team-name">' + esc(g.label) + '</span>'
+        + '<span class="erp-mobile-urgent-sheet__team-count">' + g.members.length + '</span>'
+        + '</summary>'
+        + '<div class="erp-mobile-urgent-sheet__team-members">' + buttons + '</div>'
+        + '</details>';
     }).join('');
   }
 
