@@ -59,6 +59,39 @@
       }
     })();
     </script>
+    {# SW 밖 최후 방어(pre-paint 인라인 부트, 테마·shell-mode 부트와 동일 지위 — src 아님이라
+       G1 렌더차단 스크립트 가드와 무관). render-blocking CSS <link> 로드 실패를 1회 자동
+       재시도한다. 근거: 최초 무스타일 렌더가 SW 수정 2회(53f10872 v9 캐시 purge,
+       437263e3 staticNetwork reject 재시도) 후에도 실기기 재발. 잔존 구멍 =
+       (1) sw.js staticNetwork 가 5xx 응답을 그대로 반환(Railway 롤링 재배포 502/503; sw.js
+           HTTP 에러 게이트로도 봉합했으나 이 부트는 SW 기전과 무관한 이중 방어),
+       (2) 구 SW 잔존 창(특히 iOS)엔 새 sw.js 가 활성화 전까지 무력 — SW 밖 방어선 부재.
+       document 레벨 error 캡처(link 의 error 는 버블 안 됨 → capture:true)로 실패한
+       stylesheet 를 원 위치 뒤에 &cssretry=1 붙여 재삽입(캐스케이드 순서 보존, 무한루프 차단).
+       v2/v3/PC 전 코호트 공통(게이트 없음 — CSS 실패는 어디서든 재앙). #}
+    <script>
+    (function () {
+      if (window.__fomsCssRetryBootBound) return;
+      window.__fomsCssRetryBootBound = true;
+      document.addEventListener('error', function (e) {
+        var el = e.target;
+        if (!el || el.tagName !== 'LINK') return;
+        if (el.rel !== 'stylesheet') return;
+        var href = el.getAttribute('href');
+        if (!href || href.indexOf('cssretry=1') !== -1) return; // 이미 재시도본 → 무한루프 금지
+        var retry = document.createElement('link');
+        retry.rel = 'stylesheet';
+        if (el.crossOrigin) retry.crossOrigin = el.crossOrigin;
+        retry.href = href + (href.indexOf('?') === -1 ? '?' : '&') + 'cssretry=1';
+        // 원 link 바로 뒤(원 위치)에 삽입해 캐스케이드 순서를 보존한다.
+        if (el.parentNode) {
+          el.parentNode.insertBefore(retry, el.nextSibling);
+        } else {
+          document.head.appendChild(retry);
+        }
+      }, true);
+    })();
+    </script>
     <title>하우드 ERP</title>
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg', v='20260611d') }}">
     <link rel="icon" type="image/png" href="{{ url_for('favicon', v='20260611d') }}">
