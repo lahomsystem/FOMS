@@ -179,7 +179,10 @@
   // folium UX(1클릭 출발→2클릭 도착→결과 카드+실도로 폴리라인+초기화)를 팝업 액션
   // 버튼 시퀀스로 이식(카카오 팝업 구조에 자연스럽게 — 단순 클릭 하이잭 대신).
   function routeCalcContainer() {
-    return (state.mapEl && state.mapEl.parentNode) || document.getElementById('map-content');
+    // 패널은 카카오 컨테이너(mapEl) 안에 부착 — 카카오가 컨테이너를 position:relative로
+    // 관리하므로 absolute(top/left 14px)가 지도 좌상단에 정확히 앵커된다. parentNode
+    // (#map-content 등)는 비-positioned라 데스크톱에서 패널이 화면 밖으로 흘렀던 실사고.
+    return state.mapEl || document.getElementById('map-content');
   }
 
   function ensureRouteCalcPanel() {

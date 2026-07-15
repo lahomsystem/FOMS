@@ -978,7 +978,8 @@
             position: absolute;
             top: 14px;
             left: 14px;
-            z-index: 35;
+            z-index: 400; /* 카카오 내부 pane·순번 핀(zIndex 300대) 위 */
+            max-width: 260px;
             background: #fff;
             border: 1px solid #dee2e6;
             border-radius: 8px;
@@ -1249,7 +1250,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js" defer></script>
     <script src="{{ url_for('static', filename='js/runtime/common_utils.js') }}?v=20260327" defer></script>
     <!-- 카카오 지도 클라이언트 렌더 모듈 (defer: DOMContentLoaded 전에 정의 완료) -->
-    <script src="{{ url_for('static', filename='js/measurement/map-view-kakao.js') }}?v=20260716e" defer></script>
+    <script src="{{ url_for('static', filename='js/measurement/map-view-kakao.js') }}?v=20260716f" defer></script>
 
     <script>
         let currentOrders = [];
