@@ -3,8 +3,8 @@
 
 취지: "커밋→푸쉬→사용자가 느려짐 발견→분석→패치" 악순환에서 발견 주체를
 사용자 → 봇으로 옮긴다. 배포된 스테이징(lahom-dev)에 로그인 → 9개 primary
-fragment 경로를 반복 측정 → 커밋된 예산(``perf_budgets.json``)과 비교해 초과 시
-exit 1 로 승격을 차단한다.
+fragment 경로와 실측 날짜칩 hot path 를 반복 측정 → 커밋된 예산
+(``perf_budgets.json``)과 비교해 초과 시 exit 1 로 승격을 차단한다.
 
 판정 철학 v2 (절대 준수 — 창 분산·tail 오염 면역):
   - 경로 TTFB 대표값은 warm 표본 **최솟값(min)**. tail(2~9s)은 값을 올리기만 하므로
@@ -33,8 +33,10 @@ exit code:
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import os
+import re
 import statistics
 import sys
 import time
@@ -97,6 +99,13 @@ def fragment_path(primary_path: str) -> str:
 
 
 FRAGMENT_PATHS: tuple[str, ...] = tuple(fragment_path(p) for p in ERP_PRIMARY_NAV_PATHS)
+MEASUREMENT_DATE_CHIP_BUDGET_KEY = "/erp/measurement?date=*&view=fragment"
+MEASUREMENT_DATE_CHIP_DISCOVERY_PATH = "/erp/measurement?view=fragment"
+MEASUREMENT_DATE_CHIP_MAX_PATHS = 3
+_MEASUREMENT_DATE_HREF_RE = re.compile(
+    r"""href=['"][^'"]*/erp/measurement\?[^'"]*\bdate=(\d{4}-\d{2}-\d{2})[^'"]*['"]""",
+    re.I,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -187,13 +196,20 @@ def judge_path(
     if bad:
         reasons.append(f"non-200 응답 {bad} (세션만료/서버오류 — 측정 무효)")
     delta_budget = budget.get("ttfb_delta_min_ms")
+    p95_delta_budget = budget.get("p95_ttfb_delta_ms")
     bytes_budget = budget.get("body_bytes_max")
     delta = delta_ttfb_ms(summary, base_ttfb_ms)
+    p95_delta = max(0, int(summary["p95_ttfb_ms"]) - int(base_ttfb_ms))
 
     if delta_budget is not None and delta > delta_budget:
         reasons.append(
             f"TTFB delta-min {delta}ms > budget {delta_budget}ms "
             f"(min {summary['min_ttfb_ms']}ms − healthz base {base_ttfb_ms}ms; 서버+페이로드 회귀)"
+        )
+    if p95_delta_budget is not None and p95_delta > p95_delta_budget:
+        reasons.append(
+            f"TTFB delta-p95 {p95_delta}ms > budget {p95_delta_budget}ms "
+            f"(p95 {summary['p95_ttfb_ms']}ms − healthz base {base_ttfb_ms}ms; 날짜 이동 tail 회귀)"
         )
     if bytes_budget is not None and summary["median_wire_bytes"] > bytes_budget:
         reasons.append(
@@ -217,6 +233,8 @@ def judge_path(
         "path": path,
         "delta_ttfb_ms": delta,
         "budget_delta_ttfb_ms": delta_budget,
+        "p95_ttfb_delta_ms": p95_delta,
+        "budget_p95_ttfb_delta_ms": p95_delta_budget,
         "min_ttfb_ms": summary["min_ttfb_ms"],
         "base_ttfb_ms": base_ttfb_ms,
         "median_ttfb_ms": summary["median_ttfb_ms"],  # 정보용
@@ -352,6 +370,36 @@ def measure_healthz_base(session: requests.Session, base: str, rounds: int = HEA
     return int(min(ttfbs)) if ttfbs else 0
 
 
+def measurement_date_fragment_path(date_str: str) -> str:
+    """날짜칩 클릭 경로를 shell fragment 측정 경로로 정규화."""
+    return f"/erp/measurement?date={date_str}&view=fragment"
+
+
+def discover_measurement_date_chip_paths(
+    session: requests.Session,
+    base: str,
+    *,
+    max_paths: int = MEASUREMENT_DATE_CHIP_MAX_PATHS,
+) -> tuple[str, ...]:
+    """실측 대시보드에서 실제 날짜칩 링크를 찾아 날짜 이동 hot path 로 측정한다."""
+    url = base.rstrip("/") + MEASUREMENT_DATE_CHIP_DISCOVERY_PATH
+    resp = _get_with_retry(session, url, FRAGMENT_HEADERS)
+    if resp.status_code != 200:
+        return ()
+    text = html.unescape(resp.text or "")
+    paths: list[str] = []
+    seen: set[str] = set()
+    for match in _MEASUREMENT_DATE_HREF_RE.finditer(text):
+        date_str = match.group(1)
+        if date_str in seen:
+            continue
+        seen.add(date_str)
+        paths.append(measurement_date_fragment_path(date_str))
+        if len(paths) >= max_paths:
+            break
+    return tuple(paths)
+
+
 def _check_conditional_304(session: requests.Session, url: str) -> bool:
     """1회 ETag 에코(If-None-Match) → 304 여부(하트비트 경제성 회귀 감시)."""
     warm_resp = _get_with_retry(session, url, FRAGMENT_HEADERS)
@@ -379,11 +427,17 @@ def run_gate(base: str, user: str, password: str, budgets: dict[str, Any]) -> di
 
     rows: list[dict[str, Any]] = []
     raw: list[dict[str, Any]] = []
-    for path in FRAGMENT_PATHS:
+    path_plan: list[tuple[str, dict[str, Any]]] = [
+        (path, path_budgets.get(path, {})) for path in FRAGMENT_PATHS
+    ]
+    for path in discover_measurement_date_chip_paths(session, base):
+        path_plan.append((path, path_budgets.get(MEASUREMENT_DATE_CHIP_BUDGET_KEY, {})))
+
+    for path, budget in path_plan:
         measured = measure_path(session, base, path)
         raw.append(measured)
         summary = summarize_samples(measured["warm"])
-        row = judge_path(path, summary, measured["cond_304_ok"], path_budgets.get(path, {}), global_budget, base_ttfb_ms)
+        row = judge_path(path, summary, measured["cond_304_ok"], budget, global_budget, base_ttfb_ms)
         # 재측정 방어(v2 에선 발동 확률 낮음): delta "만" 위반이면 1회 재측정 후 재판정.
         # min 은 tail 면역이라 이제 tail 뭉침으로는 거의 안 뚫리지만, 순간적 서버 hiccup
         # (경로 min 이 그 창에서만 높음)을 걸러낸다. bytes/ETag/304 위반은 결정적이라 재측정 없음.
@@ -392,10 +446,13 @@ def run_gate(base: str, user: str, password: str, budgets: dict[str, Any]) -> di
             time.sleep(2.0)
             remeasured = measure_path(session, base, path)
             resummary = summarize_samples(remeasured["warm"])
-            if resummary["min_ttfb_ms"] < summary["min_ttfb_ms"]:
+            if (
+                resummary["min_ttfb_ms"] < summary["min_ttfb_ms"]
+                or resummary["p95_ttfb_ms"] < summary["p95_ttfb_ms"]
+            ):
                 raw.append(remeasured)
                 summary = resummary
-                row = judge_path(path, summary, remeasured["cond_304_ok"], path_budgets.get(path, {}), global_budget, base_ttfb_ms)
+                row = judge_path(path, summary, remeasured["cond_304_ok"], budget, global_budget, base_ttfb_ms)
                 row["retried"] = True
         row["_summary"] = summary
         rows.append(row)
@@ -437,6 +494,9 @@ def run_seed(base: str, user: str, password: str, prev: dict[str, Any]) -> dict[
               "ttfb 갱신은 CI(GITHUB_ACTIONS=true)에서만 반영:")
         for p in preserved_paths:
             print(f"  - {p}")
+    for path, old_budget in prev_paths.items():
+        if path not in paths:
+            paths[path] = old_budget
     prev_global = prev.get("_global") or {}
     return {
         "_comment": (
