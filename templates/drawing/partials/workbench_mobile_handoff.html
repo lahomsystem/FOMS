@@ -164,7 +164,17 @@
         <div class="foms-drawing-thread__who">{{ event.by_text }}</div>
         <div class="foms-drawing-thread__bubble">
           <span class="foms-drawing-thread__tag">{{ event.tag }}{% if event.target_text %} · {{ event.target_text }}{% endif %}</span>
-          {% if event.note %}<p>{{ event.note }}</p>{% endif %}
+          {% if event.action == 'ERP_ORDER_CHANGED' and event.changes %}
+          <ul class="foms-drawing-thread__changes">
+            {% for c in event.changes %}
+            <li>
+              <strong>{{ c.label or c.path }}</strong>
+              {% if c.path == 'items' %}변경
+              {% else %}<s>{{ c.from }}</s> → <b>{{ c.to }}</b>{% endif %}
+            </li>
+            {% endfor %}
+          </ul>
+          {% elif event.note %}<p>{{ event.note }}</p>{% endif %}
           {% if event.files %}<small>첨부 {{ event.files|length }}건</small>{% endif %}
         </div>
         <time>{{ event.at_text }}</time>

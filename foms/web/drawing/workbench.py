@@ -768,10 +768,10 @@ def erp_drawing_workbench_detail(order_id):
     product_items = build_product_items_for_order(db, order)
     order_change_pending = is_order_change_pending(s_data)
     latest_order_change_note = ''
-    for h in reversed(history):
-        if h.get('action') == 'ERP_ORDER_CHANGED':
-            latest_order_change_note = str(h.get('note') or '').strip()
-            break
+    order_change_events = [h for h in reversed(history) if h.get('action') == 'ERP_ORDER_CHANGED']
+    for h in order_change_events:
+        latest_order_change_note = str(h.get('note') or '').strip()
+        break
     # 도면 상세 전용: 공통 실측 이미지(항목에 매핑되지 않은 첨부) 수집
     common_measure_photos = []
     for att in db.query(OrderAttachment).filter(
@@ -816,6 +816,7 @@ def erp_drawing_workbench_detail(order_id):
         unread_count=unread_count,
         order_change_pending=order_change_pending,
         latest_order_change_note=latest_order_change_note,
+        order_change_events=order_change_events,
         checklist=checklist,
         mobile_handoff_view=handoff_view,
         mobile_handoff_files=handoff_files,

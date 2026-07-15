@@ -18,16 +18,19 @@
   }
 
   function focusTimeline() {
-    var thread = document.querySelector('.foms-drawing-thread');
-    if (thread && typeof thread.scrollIntoView === 'function') {
-      thread.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    var feed = document.getElementById('dwOrderChangeFeed');
+    if (feed && typeof feed.scrollIntoView === 'function') {
+      feed.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
     }
-    var details = document.querySelector('details.dw-secondary-collapse');
-    if (details) details.open = true;
+    var detailsList = document.querySelectorAll('details.dw-secondary-collapse');
+    if (detailsList && detailsList.length) {
+      detailsList[0].open = true;
+    }
     var target =
+      document.querySelector('.dw-order-change-card.is-pending') ||
       document.querySelector('.foms-drawing-thread__msg--alert') ||
-      document.querySelector('.badge.bg-warning.text-dark') ||
-      document.querySelector("[id*='ERP_ORDER_CHANGED']");
+      document.querySelector('.badge.bg-warning.text-dark');
     if (target && typeof target.scrollIntoView === 'function') {
       target.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
@@ -68,6 +71,16 @@
         document.querySelectorAll('.dw-order-change-badge, .is-order-change').forEach(function (el) {
           el.remove();
         });
+        document.querySelectorAll('.dw-order-change-card.is-pending').forEach(function (card) {
+          card.classList.remove('is-pending');
+          var badge = card.querySelector('.badge.bg-warning');
+          if (badge) {
+            badge.className = 'badge bg-light text-dark border ms-1';
+            badge.textContent = '확인됨';
+          }
+        });
+        var feedHead = document.querySelector('.dw-order-change-feed__head .badge.bg-warning');
+        if (feedHead) feedHead.remove();
         toast('주문 변경을 확인했습니다.');
       })
       .catch(function (err) {

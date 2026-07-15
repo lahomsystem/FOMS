@@ -479,6 +479,9 @@
       background: #fff;
       margin-bottom: 10px;
       overflow: hidden;
+      position: relative;
+      z-index: 1;
+      pointer-events: auto;
     }
 
     .dw-secondary-collapse>summary {
@@ -493,6 +496,9 @@
       gap: 8px;
       font-weight: 600;
       color: #234579;
+      position: relative;
+      z-index: 2;
+      pointer-events: auto;
     }
 
     .dw-secondary-collapse>summary::-webkit-details-marker {
@@ -812,12 +818,93 @@
     }
 
     .dw-order-change-banner {
-      border: 1px solid #f0c36d;
-      background: linear-gradient(180deg, #fff8e8 0%, #fff 100%);
+      border: 1px solid #e0a800;
+      background: #fff8e1;
+      position: relative;
+      z-index: 3;
     }
 
     .dw-order-change-badge {
       letter-spacing: -0.02em;
+    }
+
+    .dw-order-change-feed {
+      border: 1px solid #e0a800;
+      border-radius: 10px;
+      background: #fffdf6;
+      margin-bottom: 12px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .dw-order-change-feed__head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border-bottom: 1px solid #f0d78c;
+      background: #fff3cd;
+      font-weight: 700;
+      color: #5c4500;
+    }
+
+    .dw-order-change-feed__body {
+      padding: 10px 12px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .dw-order-change-card {
+      border: 1px solid #ecd89a;
+      border-radius: 8px;
+      background: #fff;
+      padding: 10px 12px;
+    }
+
+    .dw-order-change-card.is-pending {
+      box-shadow: inset 3px 0 0 #e0a800;
+    }
+
+    .dw-order-change-card__meta {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 6px;
+      margin-bottom: 8px;
+      font-size: 0.82rem;
+      color: #6b5a2a;
+    }
+
+    .dw-order-change-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+
+    .dw-order-change-table th,
+    .dw-order-change-table td {
+      border-top: 1px solid #f0e6c8;
+      padding: 6px 4px;
+      vertical-align: top;
+      text-align: left;
+    }
+
+    .dw-order-change-table th {
+      width: 28%;
+      color: #5c4500;
+      font-weight: 600;
+    }
+
+    .dw-order-change-from {
+      color: #8a6d3b;
+      text-decoration: line-through;
+      margin-right: 0.35rem;
+    }
+
+    .dw-order-change-to {
+      color: #1f3b66;
+      font-weight: 700;
     }
   </style>
 
@@ -854,16 +941,16 @@
     data-ack-url="/api/orders/{{ order.id }}/drawing/ack-order-change">
     <div class="card-body py-3 d-flex flex-wrap align-items-center justify-content-between gap-2">
       <div>
-        <div class="fw-semibold text-warning-emphasis">
-          <i class="fas fa-exclamation-triangle"></i> 주문 내용이 변경되었습니다
+        <div class="fw-semibold">
+          <i class="fas fa-exclamation-triangle text-warning"></i> 주문 내용 변경 — 도면 반영 필요
         </div>
         <div class="small text-muted mt-1">
-          {% if latest_order_change_note %}{{ latest_order_change_note }}{% else %}도면 반영이 필요할 수 있습니다. 타임라인에서 확인하세요.{% endif %}
+          {% if latest_order_change_note %}{{ latest_order_change_note }}{% else %}아래 변경 이력을 확인하고 도면을 수정하세요.{% endif %}
         </div>
       </div>
       <div class="d-flex flex-wrap gap-2">
         <button type="button" class="btn btn-sm btn-warning" data-dw-order-change-focus>
-          타임라인 보기
+          변경 이력 보기
         </button>
         <button type="button" class="btn btn-sm btn-outline-secondary" data-dw-order-change-ack>
           확인함
@@ -871,6 +958,52 @@
       </div>
     </div>
   </div>
+  {% endif %}
+
+  {% if order_change_events %}
+  <section class="dw-order-change-feed" id="dwOrderChangeFeed" aria-label="ERP 주문 변경 이력">
+    <div class="dw-order-change-feed__head">
+      <span><i class="fas fa-clipboard-list"></i> 주문 변경 이력 (누적 {{ order_change_events|length }}건)</span>
+      {% if order_change_pending %}<span class="badge bg-warning text-dark">미확인</span>{% endif %}
+    </div>
+    <div class="dw-order-change-feed__body">
+      {% for h in order_change_events %}
+      <article class="dw-order-change-card{% if not h.acked %} is-pending{% endif %}"
+        id="order-change-{{ h.event_key|replace(':','-') }}">
+        <div class="dw-order-change-card__meta">
+          <span>
+            <strong>{{ h.by_text }}</strong>
+            {% if h.acked %}<span class="badge bg-light text-dark border ms-1">확인됨</span>
+            {% else %}<span class="badge bg-warning text-dark ms-1">확인 필요</span>{% endif %}
+          </span>
+          <time>{{ h.at_text }}</time>
+        </div>
+        {% if h.changes %}
+        <table class="dw-order-change-table">
+          <tbody>
+            {% for c in h.changes %}
+            <tr>
+              <th>{{ c.label or c.path }}</th>
+              <td>
+                {% if c.path == 'items' %}
+                <span class="dw-order-change-to">제품/치수/옵션 변경</span>
+                {% else %}
+                <span class="dw-order-change-from">{{ c.from }}</span>
+                <span aria-hidden="true">→</span>
+                <span class="dw-order-change-to">{{ c.to }}</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% elif h.note %}
+        <div class="small">{{ h.note }}</div>
+        {% endif %}
+      </article>
+      {% endfor %}
+    </div>
+  </section>
   {% endif %}
 
   {% if drawing_pending and can_open_transfer %}
@@ -1169,7 +1302,7 @@
           타임라인/요청/파일비교는 보조 정보로 접어두고 필요 시 열어 확인합니다.
         </div>
 
-        <details class="dw-secondary-collapse" {% if active_tab=='timeline' %}open{% endif %}>
+        <details class="dw-secondary-collapse" {% if active_tab=='timeline' or (order_change_pending and active_tab not in ('requests', 'compare')) %}open{% endif %}>
           <summary>
             <span><i class="fas fa-stream"></i> 타임라인</span>
             <span class="badge bg-light text-dark border">{{ history|length if history else 0 }}</span>
@@ -1177,7 +1310,7 @@
           <div class="dw-secondary-body">
             {% if history %}
             {% for h in history|reverse %}
-            <div class="border rounded p-2 mb-2 bg-white {% if h.is_highlight %}dw-highlight{% endif %}"
+            <div class="border rounded p-2 mb-2 bg-white {% if h.is_highlight %}dw-highlight{% endif %}{% if h.action == 'ERP_ORDER_CHANGED' %} dw-order-change-card{% if not h.acked %} is-pending{% endif %}{% endif %}"
               id="event-{{ h.event_key|replace(':','-') }}">
               <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <div>
@@ -1194,7 +1327,26 @@
               {% if h.target_no %}
               <div class="small mt-1"><span class="badge bg-light text-dark border">{{ h.target_no }}번 대상</span></div>
               {% endif %}
-              {% if h.note %}
+              {% if h.action == 'ERP_ORDER_CHANGED' and h.changes %}
+              <table class="dw-order-change-table mt-2">
+                <tbody>
+                  {% for c in h.changes %}
+                  <tr>
+                    <th>{{ c.label or c.path }}</th>
+                    <td>
+                      {% if c.path == 'items' %}
+                      <span class="dw-order-change-to">제품/치수/옵션 변경</span>
+                      {% else %}
+                      <span class="dw-order-change-from">{{ c.from }}</span>
+                      <span aria-hidden="true">→</span>
+                      <span class="dw-order-change-to">{{ c.to }}</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+              {% elif h.note %}
               <div class="small mt-1">{{ h.note }}</div>
               {% endif %}
               {% if h.files %}
@@ -2748,7 +2900,7 @@
     });
   })();
 </script>
-<script src="{{ url_for('static', filename='js/drawing/order-change-banner.js') }}?v=20260715a" defer></script>
+<script src="{{ url_for('static', filename='js/drawing/order-change-banner.js') }}?v=20260715b" defer></script>
 {% if erp_mobile_v2_enabled %}
 <script src="{{ url_for('static', filename='js/foms/drawing-handoff.js') }}?v=20260609a" defer></script>
 {% endif %}

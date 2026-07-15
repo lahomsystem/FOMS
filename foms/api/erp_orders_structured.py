@@ -28,6 +28,7 @@ from foms.services.orders.status_constants import STATUS
 from foms.web.auth import login_required, role_required
 from foms.services.erp_policy import (
     STAGE_LABELS,
+    STAGE_NAME_TO_CODE,
     check_quest_approvals_complete,
     create_quest_from_template,
 )
@@ -227,6 +228,94 @@ def _merge_preserving_missing(old_value: Any, incoming_value: Any) -> Any:
     return merged
 
 
+# Form PUT 가 stale erp-workflow-stage 로 DRAWING→MEASURE 같은 역행을 쓰면
+# 도면 작업실 목록에서 사라지고 "실측으로 회귀"처럼 보인다. 의도적 롤백은
+# status/stage 전용 API 로만 허용하고, structured PUT 에서는 역행을 차단한다.
+_STAGE_FORWARD_RANK = {
+    "RECEIVED": 0,
+    "주문접수": 0,
+    "MEASURE": 1,
+    "실측": 1,
+    "DRAWING": 2,
+    "도면": 2,
+    "CONFIRM": 3,
+    "고객컨펌": 3,
+    "PRODUCTION": 4,
+    "생산": 4,
+    "CONSTRUCTION": 5,
+    "시공": 5,
+    "CS": 6,
+    "COMPLETED": 7,
+    "완료": 7,
+}
+
+
+def _stage_forward_rank(raw: Any) -> int:
+    """workflow.stage 전방 순위. 미지의 단계는 -1."""
+    text = str(raw or "").strip()
+    if not text:
+        return -1
+    if text in _STAGE_FORWARD_RANK:
+        return _STAGE_FORWARD_RANK[text]
+    mapped = STAGE_NAME_TO_CODE.get(text)
+    if mapped and mapped in _STAGE_FORWARD_RANK:
+        return _STAGE_FORWARD_RANK[mapped]
+    if text in STAGE_LABELS:
+        return _STAGE_FORWARD_RANK.get(text, -1)
+    return -1
+
+
+def _guard_accidental_stage_regression(old_sd: dict, structured_data: dict) -> None:
+    """structured PUT 의 단계 역행(예: DRAWING→MEASURE)을 서버 단계로 복구."""
+    if not isinstance(old_sd, dict) or not isinstance(structured_data, dict):
+        return
+    old_wf = old_sd.get("workflow") if isinstance(old_sd.get("workflow"), dict) else {}
+    new_wf = structured_data.get("workflow") if isinstance(structured_data.get("workflow"), dict) else {}
+    old_stage = old_wf.get("stage")
+    new_stage = new_wf.get("stage")
+    if not old_stage:
+        return
+    if not new_stage:
+        wf = structured_data.setdefault("workflow", {})
+        if isinstance(wf, dict):
+            wf["stage"] = old_stage
+        else:
+            structured_data["workflow"] = {"stage": old_stage}
+        return
+    if old_stage == new_stage:
+        return
+    old_rank = _stage_forward_rank(old_stage)
+    new_rank = _stage_forward_rank(new_stage)
+    if old_rank < 0 or new_rank < 0 or new_rank >= old_rank:
+        return
+    wf = structured_data.setdefault("workflow", {})
+    if not isinstance(wf, dict):
+        structured_data["workflow"] = {"stage": old_stage}
+    else:
+        wf["stage"] = old_stage
+    logger.warning(
+        "[ERP_ORDER] blocked accidental stage regression %s -> %s (kept server stage)",
+        new_stage,
+        old_stage,
+    )
+
+
+def _force_preserve_drawing_transfer_history(old_sd: dict, structured_data: dict) -> None:
+    """drawing_transfer_history 는 누적 감사 로그 — 폼 stale 배열로 덮어쓰지 않음.
+
+    서버(old) 이력을 기본으로 두고, 클라이언트 이력이 더 길 때만(신규 append) 수용한다.
+    같은 길이 stale 스냅샷이 ack 플래그를 되돌리는 것을 막는다.
+    """
+    if not isinstance(old_sd, dict) or not isinstance(structured_data, dict):
+        return
+    old_hist = old_sd.get("drawing_transfer_history")
+    if not isinstance(old_hist, list) or not old_hist:
+        return
+    new_hist = structured_data.get("drawing_transfer_history")
+    if not isinstance(new_hist, list) or len(new_hist) <= len(old_hist):
+        structured_data["drawing_transfer_history"] = copy.deepcopy(old_hist)
+
+
 def _preserve_operational_structured_state(old_sd: dict, structured_data: dict) -> None:
     """Preserve non-form operational state during ERP order full-form saves."""
     if not isinstance(old_sd, dict) or not isinstance(structured_data, dict):
@@ -247,6 +336,9 @@ def _preserve_operational_structured_state(old_sd: dict, structured_data: dict) 
 
     if 'quests' not in structured_data and old_sd.get('quests') is not None:
         structured_data['quests'] = copy.deepcopy(old_sd.get('quests'))
+
+    _force_preserve_drawing_transfer_history(old_sd, structured_data)
+    _guard_accidental_stage_regression(old_sd, structured_data)
 
 
 def _handle_stage_transition(

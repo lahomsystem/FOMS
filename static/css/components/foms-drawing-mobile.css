@@ -437,6 +437,17 @@
     max-width: 86%;
   }
 
+  body.erp-mobile-v2-layout .foms-drawing-thread__changes {
+    margin: 0.4rem 0 0;
+    padding-left: 1.1rem;
+    font-size: 0.82rem;
+    color: var(--foms-text-primary, #1f2937);
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-thread__changes s {
+    color: var(--foms-text-tertiary, #6b7380);
+  }
+
   body.erp-mobile-v2-layout .foms-drawing-handoff__order-change-actions {
     display: flex;
     gap: 0.5rem;
