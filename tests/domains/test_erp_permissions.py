@@ -594,6 +594,9 @@ def test_construction_dashboard_applies_mine_filter_for_construction_team(app, c
         product="주방장",
         status="IN_CONSTRUCTION",
         is_erp_order=True,
+        # 운영 진실: 시공 리스트 스코프가 flat erp_stage_code(index)를 읽으므로
+        # workflow.stage와 동일 값을 명시 세팅(안 하면 스코프가 전부 걸러 오탐).
+        erp_stage_code="CONSTRUCTION",
         structured_data={
             "workflow": {"stage": "CONSTRUCTION"},
             "parties": {"customer": {"name": "내 작업"}, "manager": {"name": "망고"}},
@@ -610,6 +613,7 @@ def test_construction_dashboard_applies_mine_filter_for_construction_team(app, c
         product="주방장",
         status="IN_CONSTRUCTION",
         is_erp_order=True,
+        erp_stage_code="CONSTRUCTION",
         structured_data={
             "workflow": {"stage": "CONSTRUCTION"},
             "parties": {"customer": {"name": "다른 작업"}, "manager": {"name": "망고"}},

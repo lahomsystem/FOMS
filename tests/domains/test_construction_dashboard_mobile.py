@@ -257,6 +257,9 @@ def test_construction_mobile_queue_numbered_pagination(client, monkeypatch):
                 status="CONSTRUCTION",
                 manager_name="Bob",
                 is_erp_order=True,
+                # 운영 진실: 시공 리스트 스코프가 flat erp_stage_code(index)를 읽으므로
+                # workflow.stage와 동일 값을 명시 세팅(안 하면 스코프가 전부 걸러 오탐).
+                erp_stage_code="CONSTRUCTION",
                 structured_data={"workflow": {"stage": "CONSTRUCTION"}},
             )
         )
@@ -280,6 +283,76 @@ def test_construction_mobile_queue_numbered_pagination(client, monkeypatch):
     assert "60 / 전체 60건" in body2
     assert 'aria-current="page"' in body2  # 현재 페이지(2) 표시
     assert "page=1" in body2  # 1페이지로 돌아가는 링크
+
+
+def test_construction_default_browse_scopes_to_construction_over_newer_noncon(client, monkeypatch):
+    """회귀: 최근 접수(비시공) 활성 주문이 1페이지를 채워도 시공 주문이 board에 보여야 한다.
+
+    근본버그: 단계 미선택 기본 뷰가 전체 60일 활성 리스트(모든 단계)의 newest-50 위에서
+    페이지네이션 → 시공 주문이 더 최근 생성된 접수 주문에 밀려 1페이지 밖으로 나가고
+    display 필터가 페이지 안에서 살릴 게 없어 board가 0건이 됐다. 시공 단계 SQL 선스코프로
+    페이지네이션이 시공 주문 위에서 동작하도록 근본 차단한다.
+    """
+    import datetime
+
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    monkeypatch.setenv("FOMS_V3_CONSTRUCTION_THUMB_ENABLED", "false")
+    user = _login_plain_admin(client)
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+
+    from datetime import date
+
+    today = date.today().strftime("%Y-%m-%d")
+    base = datetime.datetime(2026, 6, 1, 9, 0, 0)
+
+    # 오래된 시공 주문(생성 이른) — newest-50 밖으로 밀릴 대상.
+    con = Order(
+        received_date=today,
+        customer_name="시공 스코프 대상",
+        phone="010-7777-8888",
+        address="Seoul",
+        product="붙박이장",
+        status="CONSTRUCTION",
+        manager_name="Bob",
+        is_erp_order=True,
+        erp_stage_code="CONSTRUCTION",
+        created_at=base,
+        structured_data={
+            "workflow": {"stage": "CONSTRUCTION"},
+            "parties": {"customer": {"name": "시공 스코프 대상"}},
+        },
+    )
+    db_session.add(con)
+    db_session.commit()
+    con_id = con.id
+
+    # 최근 접수(비시공) 활성 주문 55건 — 더 최근 created_at 으로 1페이지(50)를 가득 채운다.
+    for i in range(55):
+        db_session.add(
+            Order(
+                received_date=today,
+                customer_name=f"최근 접수 {i}",
+                phone="010-0000-0000",
+                address="Seoul",
+                product="붙박이장",
+                status="RECEIVED",
+                manager_name="Bob",
+                is_erp_order=True,
+                erp_stage_code="RECEIVED",
+                created_at=base + datetime.timedelta(minutes=i + 1),
+                structured_data={"workflow": {"stage": "RECEIVED"}},
+            )
+        )
+    db_session.commit()
+
+    resp = client.get("/erp/construction/dashboard")
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
+    # 시공 스코프 선적용 → 최근 접수 55건이 1페이지를 채워도 시공 주문이 board에 보인다.
+    assert "시공 스코프 대상" in body, "기본 뷰에서 시공 주문이 페이지네이션에 밀려 사라짐(회귀)"
+    assert f'data-order-id="{con_id}"' in body or f"#{con_id}" in body
+    # 비시공(RECEIVED)은 시공 대시보드 리스트에 노출되지 않는다.
+    assert "최근 접수 0" not in body
 
 
 def test_construction_dashboard_renders_v11_badge(client, monkeypatch):

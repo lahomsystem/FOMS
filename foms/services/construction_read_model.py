@@ -25,6 +25,12 @@ CONSTRUCTION_DASHBOARD_PAGE_SIZE = 50
 CONSTRUCTION_BROWSE_CAP = 300
 CONSTRUCTION_SEARCH_CAP = 500
 
+# 시공 표시단계 ↔ flat erp_stage_code(ix_orders_erp_stage_code) 스코프 SSOT.
+# _display_stage_for_order 매핑과 1:1 (시공대기/중=활성 codes, 시공완료=완료 codes).
+CONSTRUCTION_ACTIVE_STAGE_CODES = ['CONSTRUCTION', '시공', 'CONSTRUCTING']
+CONSTRUCTION_DONE_STAGE_CODES = ['COMPLETED', '완료', 'AS_WAIT', 'CS']
+CONSTRUCTION_ALL_STAGE_CODES = CONSTRUCTION_ACTIVE_STAGE_CODES + CONSTRUCTION_DONE_STAGE_CODES
+
 
 def apply_construction_stage_sql_filter(query: Query, f_stage: str) -> Query:
     """Coarse workflow stage filter (display module may refine further).
@@ -39,10 +45,38 @@ def apply_construction_stage_sql_filter(query: Query, f_stage: str) -> Query:
     if not f_stage:
         return query
     if f_stage in ("시공대기", "시공중"):
-        return query.filter(Order.erp_stage_code.in_(['CONSTRUCTION', '시공', 'CONSTRUCTING']))
+        return query.filter(Order.erp_stage_code.in_(CONSTRUCTION_ACTIVE_STAGE_CODES))
     if f_stage == "시공완료":
-        return query.filter(Order.erp_stage_code.in_(['COMPLETED', '완료', 'AS_WAIT', 'CS']))
+        return query.filter(Order.erp_stage_code.in_(CONSTRUCTION_DONE_STAGE_CODES))
     return query
+
+
+def apply_construction_list_scope_filter(query: Query, f_stage: str) -> Query:
+    """시공 대시보드 리스트를 시공 표시단계로 SQL 선(先)스코프한다(페이지네이션 정합).
+
+    근본 원인: 단계 미선택 기본 뷰가 전체 60일 활성 리스트(모든 워크플로 단계)의
+    newest-N 페이지 위에서 동작하면, 시공 단계 주문이 최근 접수 주문에 밀려 1페이지 밖으로
+    나가 board가 0건이 된다(display 필터 ``build_construction_row_dtos``는 이미 로드된 페이지
+    안에서만 시공 단계를 골라내므로, 페이지에 시공 주문이 없으면 살릴 게 없다).
+
+    수정: display 필터가 유지하는 표시단계(시공대기/시공중/시공완료)와 **동일 스코프**를
+    SQL에 선적용해, 페이지네이션이 전체 활성 리스트가 아닌 시공 주문 위에서 동작하게 한다.
+    완료 단계도 포함한다 — 시공 대시보드는 완료 주문을 사진 재업로드·AS 액션과 함께
+    렌더하는 계약(test_construction_mobile_completed_renders_reupload_as_and_edit)을 가진다.
+    신규 무거운 쿼리 없음: 기존 ``ix_orders_erp_stage_code`` 인덱스 IN 필터를 60일 스코프에
+    결합할 뿐이다(스테이지 칩과 동일한 flat 컬럼 경로 재사용).
+
+    Args:
+        query: 60일 활성 ERP 기본 쿼리(mine 필터 등 상위 조건 이미 적용).
+        f_stage: 명시 단계('' 또는 시공대기/시공중/시공완료). 값이 있으면 그 단계로 좁히고,
+            없으면(기본 뷰·검색) 전 시공 단계로 스코프한다.
+
+    Returns:
+        Query: 시공 단계로 스코프된 리스트 쿼리.
+    """
+    if f_stage:
+        return apply_construction_stage_sql_filter(query, f_stage)
+    return query.filter(Order.erp_stage_code.in_(CONSTRUCTION_ALL_STAGE_CODES))
 
 
 def compute_construction_kpis_and_badges(query: Query) -> tuple[dict[str, dict[str, int]], dict[str, int]]:
