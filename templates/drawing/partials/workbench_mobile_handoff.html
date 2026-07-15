@@ -205,6 +205,11 @@
       <i class="fas fa-undo"></i><span>수정요청</span>
     </button>
     {% endif %}
+    {% if can_cancel_revision_request and drawing_status == 'RETURNED' %}
+    <button class="foms-drawing-action-bar__btn" type="button" data-drawing-handoff-action="cancel-revision">
+      <i class="fas fa-rotate-left"></i><span>수정요청 취소</span>
+    </button>
+    {% endif %}
     {% if can_confirm_receipt %}
     <button class="foms-drawing-action-bar__btn foms-drawing-action-bar__btn--primary" type="button" data-drawing-handoff-action="confirm">
       <i class="fas fa-check-double"></i><span>수령 확정</span>

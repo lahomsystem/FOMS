@@ -695,6 +695,8 @@ def erp_drawing_workbench_detail(order_id):
         (is_admin or (can_sales_domain and not is_drawing_team))
         and drawing_status == 'TRANSFERRED'
     )
+    # 수정요청 취소=영업측 전용(전달취소의 대칭축). 상태 게이트(RETURNED)는 템플릿에서 처리.
+    can_cancel_revision_request = bool(is_admin or (can_sales_domain and not is_drawing_team))
     can_cancel_transfer = False
     if latest_transfer:
         if current_user is not None and current_user.role == 'ADMIN':
@@ -835,6 +837,7 @@ def erp_drawing_workbench_detail(order_id):
         can_toggle_revision_check=can_toggle_revision_check,
         can_request_revision=can_request_revision,
         can_confirm_receipt=can_confirm_receipt,
+        can_cancel_revision_request=can_cancel_revision_request,
         can_cancel_transfer=can_cancel_transfer,
         can_edit_erp=can_edit_erp(current_user),
         my_id=current_user.id if current_user else 0,

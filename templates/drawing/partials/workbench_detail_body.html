@@ -1495,6 +1495,11 @@
               <i class="fas fa-times"></i> 전달 취소
             </button>
             {% endif %}
+            {% if can_cancel_revision_request and drawing_status == 'RETURNED' %}
+            <button class="btn btn-outline-warning btn-sm" type="button" id="btn-cancel-revision">
+              <i class="fas fa-rotate-left"></i> 수정요청 취소
+            </button>
+            {% endif %}
           </div>
 
           <div class="bg-white border rounded p-2 mb-2">
@@ -1551,6 +1556,11 @@
   {% if can_confirm_receipt %}
   <button class="btn btn-success" type="button" id="btn-confirm-receipt-mobile">
     <i class="fas fa-check-double"></i> 확정
+  </button>
+  {% endif %}
+  {% if can_cancel_revision_request and drawing_status == 'RETURNED' %}
+  <button class="btn btn-warning" type="button" id="btn-cancel-revision-mobile">
+    <i class="fas fa-rotate-left"></i> 요청취소
   </button>
   {% endif %}
 </div>
@@ -2751,6 +2761,23 @@
       }
     }
 
+    async function cancelRevisionRequest() {
+      if (!confirm('수정 요청을 취소하시겠습니까?\n요청 시 첨부한 참고 파일이 함께 삭제되며, 도면 전달 상태로 복귀합니다.')) return;
+      try {
+        const res = await fetch(`/api/orders/${orderId}/cancel-revision-request`, { method: 'POST' });
+        const data = await res.json();
+        if (!data.success) {
+          showWorkbenchToast(data.message || '수정요청 취소 실패', 'error');
+          return;
+        }
+        showWorkbenchToast(data.message || '수정요청 취소 완료', 'success');
+        window.location.href = `/erp/drawing-workbench/${orderId}?tab=timeline`;
+      } catch (e) {
+        console.error(e);
+        showWorkbenchToast('수정요청 취소 중 오류가 발생했습니다.', 'error');
+      }
+    }
+
     async function toggleRevisionCheck(btn) {
       const requestAt = String(btn.getAttribute('data-request-at') || '');
       const byUserId = String(btn.getAttribute('data-by-user-id') || '');
@@ -2784,6 +2811,8 @@
     document.getElementById('btn-confirm-receipt')?.addEventListener('click', confirmReceipt);
     document.getElementById('btn-confirm-receipt-mobile')?.addEventListener('click', confirmReceipt); // Phase 3: 모바일
     document.getElementById('btn-cancel-transfer')?.addEventListener('click', cancelTransfer);
+    document.getElementById('btn-cancel-revision')?.addEventListener('click', cancelRevisionRequest);
+    document.getElementById('btn-cancel-revision-mobile')?.addEventListener('click', cancelRevisionRequest); // 모바일 하단바
 
     // 모달 열릴 때 초기화
     document.getElementById('dwTransferModal')?.addEventListener('show.bs.modal', function () {
