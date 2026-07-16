@@ -1,8 +1,8 @@
 # WD 계산기 태블릿 가로 v2 — PC 기능 전량 이식 재설계 Spec
 
-- 날짜: 2026-07-16 (v2 — 1차 피드백 6건 반영)
-- 목업: https://claude.ai/code/artifact/e2cf7805-04e5-4acb-aa58-ac7c169afcaa (3프레임, v2)
-- 상태: **사용자 재승인 대기** (승인 후 writing-plans → SDD 구현)
+- 날짜: 2026-07-16 (v3 — 피드백 8건 반영 최종)
+- 목업: https://claude.ai/code/artifact/e2cf7805-04e5-4acb-aa58-ac7c169afcaa (3프레임, v3)
+- 상태: **승인 완료 (2026-07-16)** — 구현 착수
 
 ## 0. 1차 피드백 반영 (2026-07-16)
 
@@ -13,6 +13,9 @@
 4. "직접" → **"MINE"** 리네임 (구성 모드칩·옵션 직접 배지·비고 직접 배지·PC 모드 버튼·행 추가 버튼).
 5. "추가금 추가" → **"직접입력"** 리네임 + 견적서 표기에서 "추가금" 접미사 삭제(입력한 이름만).
 6. 비고를 조정 스트립에서 **정식 섹션으로 승격** (추가 옵션과 동급 — 문구 선택/MINE 직접 입력 행).
+7. **MINE 행 단가 분리**: 제품명이 메인 행 전폭 사용, 방식 드롭다운+단가 입력은 작은
+   서브행으로 분리 (제품명 잘림 방지).
+8. **[견적 계산] 버튼 삭제 (PC·모바일·태블릿 공통)** — §7 E5.
 
 ## 1. 배경 / 문제
 
@@ -59,12 +62,13 @@
 [72 레일][ 워크시트 (flex) ][ 진행 견적 패널 312px ]
           탑바: WD계산기 · 고객명(밑줄 대형) · 견적검색 · 제품설정
           기본 구성 섹션: [모드칩 64|제품/MINE 1fr|W 128|단가 156|✕ 40]
-            - 선택 행: 제품 버튼(시트) | MINE 행: 제품명 + 방식 드롭다운(30cm▾) + 단가
+            - 선택 행: 제품 버튼(시트)
+            - MINE 행: 메인 행 = 제품명(전폭) | 서브행 = 방식 드롭다운(30cm▾)+단가(소형)
             - 행별 직접입력(구 추가금) 서브행: 이름 + 금액, [＋ 직접입력]
           추가 옵션 섹션: [배지 64|옵션 1fr|금액 156|✕ 40]
           비고 섹션(정식): [배지 64|내용 1fr|✕ 40] — 문구 선택 or MINE 직접
           조정 스트립: 할인(−) · 배송(＋,포함☑)
-          액션바: 총견적(대형) · [견적 계산] · [진행 견적에 추가→]
+          액션바: 총견적(대형, 자동 계산 미러) · [진행 견적에 추가→]
 패널:     현재 견적 브레이크다운(라이브) → 진행 견적 스택(단가 토글) → 전체합계+새견적/전체저장
 ```
 
@@ -84,7 +88,7 @@
 | 5 | 행별 선택/직접 토글 `.base-mode-btn` | 행 모드칩 탭 전환 (선택⇄MINE) |
 | 6 | 제품 선택 `.base-product-select` | 제품 시트(3열 그리드, 30cm 단가 병기) |
 | 7 | W 입력 `.base-width-input` | W 셀 (numeric inputmode) |
-| 8 | MINE: 제품명(§7-E1 신설) + 방식 `.base-manual-pricing-type` + `.base-manual-price30/-price1m` | 제품명 입력(1fr) + 방식 드롭다운(30cm▾ 경량 시트) + 단가 입력. 1cm 자동값은 태블릿 표면 미노출(PC 유지) |
+| 8 | MINE: 제품명(§7-E1 신설) + 방식 `.base-manual-pricing-type` + `.base-manual-price30/-price1m` | 메인 행 = 제품명 입력(전폭 1fr) / 서브행 = 방식 드롭다운(30cm▾ 경량 시트)+단가 입력(소형). 1cm 자동값은 태블릿 표면 미노출(PC 유지) |
 | 9 | 행별 직접입력(구 추가금) `.base-add-fee-btn/-fee-name/-fee-amount` | 들여쓴 서브행 + [＋ 직접입력] |
 | 10 | 행 삭제 `.base-remove-btn` | ✕ (클릭 위임) |
 | 11 | 행 단가 표시 | 그린 틴트 셀 = `wdcComputeCurrentEstimateMath` 관찰, 금액만(메타 없음) |
@@ -94,7 +98,7 @@
 | 15 | 비고 `#btnAddNote` + select/직접 textarea 토글 | **정식 비고 섹션** — 행(문구 배지=select / MINE 배지=직접 텍스트) + [＋ 비고 추가], 문구는 시트 피커 |
 | 16 | 쿠폰 할인 `#globalCouponValue` | 스트립 할인 필 (104px) |
 | 17 | 배송비 `#shippingCost` + 포함 `#shippingIncluded` | 스트립 배송 필 + 체크 |
-| 18 | 견적 계산 `#calculateBtn` | 액션바 [견적 계산] |
+| 18 | 견적 계산 `#calculateBtn` | **전 플랫폼 삭제(§7 E5)** — 계산은 전 입력 경로 자동, 태블릿 액션바는 [진행 견적에 추가]만 |
 | 19 | 견적 추가 `#addEstimateBtn` | 액션바 [진행 견적에 추가→] |
 | 20 | 견적 저장 `#saveEstimateBtn` | 패널 [전체 저장] (※cloneNode 교체 위젯 → 미러, 이동 금지) |
 | 21 | 새 견적 `#resetEstimateBtn` | 패널 [새 견적] (※동적 생성 → 미러) |
@@ -124,13 +128,20 @@
   (텍스트만 — 저장 스키마 무영향).
 - **E4. 행별 직접입력 표기**: detail line "{name} 추가금 {amount}" → "{name} {amount}"
   ("추가금" 접미사 삭제). pricing-core/estimate-lifecycle 표시 계층만, 저장 구조 불변.
+- **E5. [견적 계산] 버튼 전 플랫폼 삭제**: 조사 확정 — `calculateEstimate()`는 이미
+  전 입력 경로에서 자동 호출(행 input/change/모드전환/삭제 primary-form.js:723·735·751·776,
+  쿠폰/배송 pricing-core.js:1003-1036, 픽커 multi-add-picker.js:122, 견적 로드/추가
+  estimate-lifecycle.js:1169·1321·1517·1700). 버튼 바인딩은 null 가드
+  (primary-form.js:1258) → **wdcalculator_body.html에서 버튼 제거만으로 안전**.
+  모바일(mobile-enhance)의 calculateBtn 참조는 실사 후 동일 제거/무해화.
+  PC 견적 결과 카드는 유지(자동 갱신되므로 표시 무손상).
 
 ## 8. 라이브 총액 (표시 전용)
 
 - 1차: 기존 검증 패턴 = 엔진 노드(`#finalPrice` 등) MutationObserver 미러.
-- 보강: `wdcComputeAggregateTotals`(순수 함수) 관찰로 입력 즉시 브레이크다운 갱신.
-  **표시 전용** — 엔진 상태·저장 데이터에 무개입, [견적 계산] 버튼 계약 불변.
-  구현 시 엔진 갱신 타이밍 실사 후 보강 범위 확정.
+- 계산이 전 경로 자동(E5 근거)이므로 미러만으로 실시간 성립. 필요시
+  `wdcComputeAggregateTotals`(순수 함수) 관찰 보강 — **표시 전용**, 엔진 상태·저장
+  데이터 무개입.
 
 ## 9. 파일 계획
 
@@ -140,10 +151,11 @@
 - `static/js/wdcalculator/pricing-core.js` / `estimate-lifecycle.js` — §7 E1 표시·E4
   접미사만 (계산 로직 불변)
 - `static/js/wdcalculator/mobile-enhance.js` — E2 확인·E3 라벨 동기 (필요시)
+- `templates/wdcalculator/partials/wdcalculator_body.html` — E5 calculateBtn 제거만
 - `templates/wdcalculator/calculator.html` — ?v 범프 (자체 link — 번들 아님)
 - 계약 테스트: 기존 표형(P11) 구조 테스트 → v2 구조 테스트로 대체 + E1 왕복 테스트
-- 손대지 않는 것: composition.js 부트스트랩 구조 · wdcalculator_body.html 마크업 ·
-  blueprint.py(API/스키마) · 계산 수식 일체
+- 손대지 않는 것: composition.js 부트스트랩 구조 · blueprint.py(API/스키마) ·
+  계산 수식 일체
 
 ## 10. 검증 계획
 
@@ -152,6 +164,8 @@
 - 라운드트립: 견적 추가→전체 저장→검색→불러오기, D/H 센티널 구견적 로드(서브행 노출),
   **MINE 제품명 왕복(저장→재로드 표기) + manualName 없는 구견적 폴백 표기**
 - PC 회귀: 선택/MINE 전환·직접입력(구 추가금)·비고 — 리네임 후 기존 플로우 무손상
+- E5 회귀: 계산 버튼 부재 상태에서 W/제품/옵션/쿠폰/배송 변경 → 총견적 자동 갱신,
+  견적 추가·저장 값 정확(전 플랫폼)
 - 커버리지 표 25항목 체크표(✓/✗+사유) — 전 항목 ✓ 전 "완료" 보고 금지
 
 ## 11. 비범위
