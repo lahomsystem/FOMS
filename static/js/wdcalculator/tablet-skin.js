@@ -2,7 +2,7 @@
  * WDCalculator 태블릿 가로 v2 표면(JS) — 목업 tablet-wdcalculator-v2.html Frame 1~3 그라운드업.
  *
  * 배경: 구판(표형 D/H 그리드)은 D/H 열·48px saved-rail·센티넬 추가금 직렬화를 썼으나,
- * v2 스펙은 (1) D/H 열 전면 삭제(W 기준 가격), (2) 단가 셀 금액만, (3) MINE(구 직접) 행 제품명
+ * v2 스펙은 (1) D/H 열 전면 삭제(W 기준 가격), (2) 단가 셀 금액만, (3) CUSTOM(구 직접) 행 제품명
  * 전폭·방식/단가 서브행 분리, (4) 행별 직접입력(구 추가금) 이름만 표기, (5) 비고 정식 섹션 승격,
  * (6) [견적 계산] 버튼 삭제(전 입력 경로 자동 계산)를 요구한다. 본판은 신규 v2 DOM(워크시트 +
  * 라이브 진행 견적 패널 + 호출형 저장 오버레이)을 구성하고, 은닉 엔진 위젯에 양방향 미러한다.
@@ -13,11 +13,11 @@
  *
  *   | v2 셀              | 미러 대상(은닉 엔진 위젯)                 | 방향/트리거                              |
  *   |--------------------|------------------------------------------|------------------------------------------|
- *   | 모드칩(선택/MINE)   | .base-mode-btn[data-mode]                | 클릭 → 반대 모드 버튼 click + 재빌드     |
+ *   | 모드칩(선택/CUSTOM) | .base-mode-btn[data-mode]                | 클릭 → 반대 모드 버튼 click + 재빌드     |
  *   | 제품(선택)          | .base-product-select                     | 시트 pick → value + change               |
- *   | 제품명(MINE)        | .base-manual-name                        | 입력 → value + input                     |
- *   | 방식(MINE 서브)     | .base-manual-pricing-type                | 시트 pick(30cm/1m) → value + change·재빌드|
- *   | 단가입력(MINE 서브) | .base-manual-price30 / -price1m          | 입력 → value + input                     |
+ *   | 제품명(CUSTOM)      | .base-manual-name                        | 입력 → value + input                     |
+ *   | 방식(CUSTOM 서브)   | .base-manual-pricing-type                | 시트 pick(30cm/1m) → value + change·재빌드|
+ *   | 단가입력(CUSTOM 서브)| .base-manual-price30 / -price1m         | 입력 → value + input                     |
  *   | W                  | .base-width-input                        | 입력 → value + input                     |
  *   | 단가(read-only)     | wdcComputeCurrentEstimateMath([comp])    | 관찰(순수 계산 재호출)                   |
  *   | 직접입력 서브행     | .base-additional-fee-name/-amount        | 입력 → value + input / ✕=remove          |
@@ -72,6 +72,13 @@
     if (node) { node.dispatchEvent(new Event('change', { bubbles: true })); }
   }
   function txt(node) { return node ? (node.textContent || '').trim() : ''; }
+
+  // W textarea auto-grow(단일행→복합식 다행 확장). height=auto→scrollHeight; CSS min-height 가 하한.
+  function autoGrow(ta) {
+    if (!ta) { return; }
+    ta.style.height = 'auto';
+    ta.style.height = ta.scrollHeight + 'px';
+  }
 
   function escapeText(s) {
     var d = document.createElement('div');
@@ -204,8 +211,8 @@
           '<span class="r">단가</span><span></span></div>' +
         '<div class="wdc2-basegrid" data-slot="basegrid"></div>' +
         '<div class="wdc2-addrow">' +
-          '<button type="button" class="wdc2-addrow__a" data-add="base">＋ 구성 행 추가</button>' +
-          '<button type="button" class="wdc2-addrow__a wdc2-addrow__a--mine" data-add="mine">✎ MINE 행 추가</button>' +
+          '<button type="button" class="wdc2-addrow__a" data-add="base">＋ 구성 추가</button>' +
+          '<button type="button" class="wdc2-addrow__a wdc2-addrow__a--mine" data-add="mine">✎ CUSTOM 추가</button>' +
         '</div>' +
       '</section>' +
       '<section class="wdc2-sec wdc2-sec--opt">' +
@@ -253,7 +260,7 @@
     // ============================================================
     var abar = el('div', 'wdc2-abar',
       '<div class="wdc2-abar__total">' +
-        '<span class="wdc2-abar__label">총견적</span>' +
+        '<span class="wdc2-abar__label">최종 견적</span>' +
         '<span class="wdc2-abar__row"><span class="wdc2-abar__val" data-slot="final">0원</span>' +
           '<span class="wdc2-abar__live">실시간 · 할인/배송 반영</span></span>' +
       '</div>' +
@@ -276,7 +283,7 @@
         '<div class="wdc2-bl wdc2-bl--minus"><span>할인</span><b data-slot="discval">−0원</b></div>' +
         '<div class="wdc2-bl"><span>배송비 <span class="wdc2-mut" data-slot="shipnote"></span></span>' +
           '<b data-slot="shipval">+0원</b></div>' +
-        '<div class="wdc2-bl wdc2-bl--total"><span>총견적</span>' +
+        '<div class="wdc2-bl wdc2-bl--total"><span>최종 견적</span>' +
           '<b data-slot="curtotal">0원</b></div>' +
       '</div>' +
       '<div class="wdc2-panel__list">' +
@@ -297,6 +304,9 @@
       '</div>');
     shell.appendChild(panel);
     var estSlot = panel.querySelector('[data-slot="est"]');
+    // v2 컴팩트 진행 견적 카드 컨테이너(은닉 estimatesListContainer 를 스크레이프해 렌더).
+    var qcardsEl = el('div', 'wdc2-qcards');
+    if (estSlot) { estSlot.appendChild(qcardsEl); }
     var unitToggleSlot = panel.querySelector('[data-slot="unittoggle"]');
     var baseValEl = panel.querySelector('[data-slot="baseval"]');
     var optValEl = panel.querySelector('[data-slot="optval"]');
@@ -344,6 +354,7 @@
     function closePicker() {
       picker.hidden = true;
       pickerBackdrop.hidden = true;
+      picker.classList.remove('wdc2-sheetpicker--product');
       document.body.classList.remove('wdc2-sheetpicker-open');
     }
     function openSheet(title, options, curValue, onPick) {
@@ -407,6 +418,126 @@
       return opts;
     }
 
+    // 엔진 행에 직접입력 fee 1건(이름+금액)을 추가하고 v2 그리드 재빌드.
+    // 빈 선택 행이면 buildBaseRow 가 '직접입력 전용 행'으로 재렌더(mode==select && 제품없음 && fee존재).
+    function addDirectInputFee(engineRow, name, amount) {
+      var b = engineRow.querySelector('.base-add-fee-btn');
+      if (b) { b.click(); }
+      window.setTimeout(function () {
+        var items = engineRow.querySelectorAll('.base-additional-fee-item');
+        var last = items.length ? items[items.length - 1] : null;
+        if (last) {
+          var nm = last.querySelector('.base-additional-fee-name');
+          var amt = last.querySelector('.base-additional-fee-amount');
+          if (nm) { nm.value = name; fireInput(nm); }
+          if (amt) { amt.value = amount; fireInput(amt); }
+        }
+        rebuildBaseGrid();
+      }, 0);
+    }
+
+    // 제품 선택 시트(3-세그): [선택(카탈로그)] [CUSTOM] [직접입력].
+    //  - 선택: 카탈로그 그리드(단가 병기) pick → sel.value + change.
+    //  - CUSTOM: 행을 manual 모드로 전환 → 시트 닫고 제품명 입력 포커스.
+    //  - 직접입력: [항목명][금액][추가] → 행에 fee 추가(제품 있으면 서브행, 빈 행이면 직접입력 전용 행).
+    function openProductSheet(engineRow, idx, prodBtn) {
+      var sel = engineRow.querySelector('.base-product-select');
+      if (!sel) { return; }
+      pickerTitle.textContent = '제품 선택';
+      pickerBody.innerHTML = '';
+      picker.classList.add('wdc2-sheetpicker--product');
+
+      var tabs = el('div', 'wdc2-psheet__tabs');
+      var tabCatalog = el('button', 'wdc2-psheet__tab is-active');
+      tabCatalog.type = 'button';
+      tabCatalog.textContent = '선택';
+      var tabCustom = el('button', 'wdc2-psheet__tab');
+      tabCustom.type = 'button';
+      tabCustom.textContent = 'CUSTOM';
+      var tabDirect = el('button', 'wdc2-psheet__tab');
+      tabDirect.type = 'button';
+      tabDirect.textContent = '직접입력';
+      tabs.appendChild(tabCatalog);
+      tabs.appendChild(tabCustom);
+      tabs.appendChild(tabDirect);
+      pickerBody.appendChild(tabs);
+
+      var catalog = el('div', 'wdc2-psheet__grid');
+      productSheetOptions(sel).forEach(function (o) {
+        var btn = el('button', 'wdc2-sheetpicker__opt');
+        btn.type = 'button';
+        btn.setAttribute('role', 'option');
+        if (o.meta) {
+          btn.innerHTML = '<span class="wdc2-sheetpicker__optnm">' + escapeText(o.label) +
+            '</span><span class="wdc2-sheetpicker__optmeta">' + escapeText(o.meta) + '</span>';
+        } else {
+          btn.textContent = o.label;
+        }
+        if (String(o.value) === String(sel.value)) {
+          btn.classList.add('is-selected');
+          btn.setAttribute('aria-selected', 'true');
+        }
+        btn.addEventListener('click', function () {
+          sel.value = o.value;
+          fireChange(sel);
+          var lbl = prodBtn && prodBtn.querySelector('.wdc2-prodbtn__nm');
+          if (lbl) { lbl.textContent = baseProductLabel(engineRow); }
+          closePicker();
+          refreshBasePrices();
+        });
+        catalog.appendChild(btn);
+      });
+      pickerBody.appendChild(catalog);
+
+      var direct = el('div', 'wdc2-psheet__direct');
+      direct.hidden = true;
+      var dName = el('input', 'wdc2-psheet__in');
+      dName.type = 'text';
+      dName.placeholder = '항목명';
+      var dAmt = el('input', 'wdc2-psheet__in');
+      dAmt.type = 'text';
+      dAmt.setAttribute('inputmode', 'numeric');
+      dAmt.placeholder = '금액';
+      var dAdd = el('button', 'wdc2-psheet__addbtn');
+      dAdd.type = 'button';
+      dAdd.textContent = '추가';
+      dAdd.addEventListener('click', function () {
+        var nm = (dName.value || '').trim();
+        var amt = (dAmt.value || '').replace(/[^\d.-]/g, '');
+        if (!nm && !amt) { return; }
+        closePicker();
+        addDirectInputFee(engineRow, nm, amt);
+      });
+      direct.appendChild(dName);
+      direct.appendChild(dAmt);
+      direct.appendChild(dAdd);
+      pickerBody.appendChild(direct);
+
+      function activate(which) {
+        tabCatalog.classList.toggle('is-active', which === 'catalog');
+        tabDirect.classList.toggle('is-active', which === 'direct');
+        catalog.hidden = which !== 'catalog';
+        direct.hidden = which !== 'direct';
+      }
+      tabCatalog.addEventListener('click', function () { activate('catalog'); });
+      tabDirect.addEventListener('click', function () { activate('direct'); });
+      tabCustom.addEventListener('click', function () {
+        closePicker();
+        var b = engineRow.querySelector('.base-mode-btn[data-mode="manual"]');
+        if (b) { b.click(); }
+        window.setTimeout(function () {
+          rebuildBaseGrid();
+          var w = baseGridEl ? baseGridEl.children[idx] : null;
+          var nmIn = w && w.querySelector('.wdc2-dname');
+          if (nmIn) { nmIn.focus(); }
+        }, 0);
+      });
+
+      picker.hidden = false;
+      pickerBackdrop.hidden = false;
+      document.body.classList.add('wdc2-sheetpicker-open');
+    }
+
     // ============================================================
     // 기본 구성 미러 그리드.
     // ============================================================
@@ -465,9 +596,11 @@
       return sub;
     }
 
-    function buildFeeSubs(engineRow, wrap) {
+    function buildFeeSubs(engineRow, wrap, startIdx) {
       var items = engineRow.querySelectorAll('.base-additional-fee-item');
-      Array.prototype.forEach.call(items, function (item) {
+      var start = startIdx || 0;
+      Array.prototype.forEach.call(items, function (item, i) {
+        if (i < start) { return; }   // 직접입력 전용 행: 첫 fee 는 상세 셀 인라인 → 서브행에서 제외.
         var sub = el('div', 'wdc2-subrow wdc2-subfee');
         sub.appendChild(makeTie());
         var nameSrc = item.querySelector('.base-additional-fee-name');
@@ -515,17 +648,46 @@
       wrap.appendChild(addWrap);
     }
 
+    // W 셀 — 엔진 .base-width-input 미러. 복합식('4500+1200') 입력 위해 textarea auto-grow
+    // (아이패드 숫자패드에 '+' 없음, 결함1). Enter=blur(폼 submit 오조작 방지). inputmode numeric 없음.
+    function buildWidthCell(engineRow) {
+      var widthInput = engineRow.querySelector('.base-width-input');
+      var wCell = el('textarea', 'wdc2-win');
+      wCell.rows = 1;
+      wCell.placeholder = 'W';
+      wCell.value = (widthInput && widthInput.value) || '';
+      wCell.addEventListener('input', function () {
+        if (widthInput) { widthInput.value = wCell.value; fireInput(widthInput); }
+        autoGrow(wCell);
+        refreshBasePrices();
+      });
+      wCell.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); wCell.blur(); }
+      });
+      window.setTimeout(function () { autoGrow(wCell); }, 0);   // 초기 다행값 높이 반영.
+      return wCell;
+    }
+
     function buildBaseRow(engineRow, idx) {
       var mode = engineRow.dataset.mode || 'select';
-      var wrap = el('div', 'wdc2-brow-wrap' + (mode === 'manual' ? ' is-mine' : ''));
-      var row = el('div', 'wdc2-brow');
+      var sel = engineRow.querySelector('.base-product-select');
+      var hasProduct = !!(sel && sel.value);
+      var feeItems = engineRow.querySelectorAll('.base-additional-fee-item');
+      // 판정: 빈 선택 행(제품 미선택) + fee 존재 → 직접입력 전용 행으로 렌더.
+      var isDirectOnly = mode === 'select' && !hasProduct && feeItems.length > 0;
+
+      var wrap = el('div', 'wdc2-brow-wrap' + (mode === 'manual' ? ' is-mine' : '') +
+        (isDirectOnly ? ' is-direct' : ''));
+      var row = el('div', 'wdc2-brow' + (isDirectOnly ? ' wdc2-brow--direct' : ''));
       wrap.appendChild(row);
 
       // (a) 모드칩.
-      var chip = el('button', 'wdc2-modechip' + (mode === 'manual' ? ' wdc2-modechip--mine' : ''));
+      var chipLabel = isDirectOnly ? '직접' : (mode === 'manual' ? 'CUSTOM' : '선택');
+      var chip = el('button', 'wdc2-modechip' +
+        (mode === 'manual' ? ' wdc2-modechip--mine' : '') +
+        (isDirectOnly ? ' wdc2-modechip--direct' : ''));
       chip.type = 'button';
-      chip.innerHTML = '<span class="wdc2-modechip__n">' + (idx + 1) + '</span>' +
-        (mode === 'manual' ? 'MINE' : '선택');
+      chip.innerHTML = '<span class="wdc2-modechip__n">' + (idx + 1) + '</span>' + chipLabel;
       chip.addEventListener('click', function () {
         var target = mode === 'manual' ? 'select' : 'manual';
         var b = engineRow.querySelector('.base-mode-btn[data-mode="' + target + '"]');
@@ -534,8 +696,38 @@
       });
       row.appendChild(chip);
 
-      // (b) 제품(선택) / 제품명(MINE).
-      if (mode === 'manual') {
+      // (b) 상세 셀 + (c) W 셀.
+      if (isDirectOnly) {
+        // 직접입력 전용: 첫 fee 를 상세 셀에 인라인([항목명 1fr][금액]). W 셀은 '—' dim.
+        var first = feeItems[0];
+        var dNameSrc = first.querySelector('.base-additional-fee-name');
+        var dAmtSrc = first.querySelector('.base-additional-fee-amount');
+        var dcell = el('div', 'wdc2-directcell');
+        var dName = el('input', 'wdc2-directcell__nm');
+        dName.type = 'text';
+        dName.placeholder = '항목명 입력';
+        dName.value = (dNameSrc && dNameSrc.value) || '';
+        dName.addEventListener('input', function () {
+          if (dNameSrc) { dNameSrc.value = dName.value; fireInput(dNameSrc); }
+        });
+        var dAmt = el('input', 'wdc2-directcell__amt');
+        dAmt.type = 'text';
+        dAmt.setAttribute('inputmode', 'numeric');
+        dAmt.placeholder = '금액';
+        dAmt.value = (dAmtSrc && dAmtSrc.value) || '';
+        dAmt.addEventListener('input', function () {
+          if (dAmtSrc) { dAmtSrc.value = dAmt.value; fireInput(dAmtSrc); }
+          refreshBasePrices();
+        });
+        dcell.appendChild(dName);
+        dcell.appendChild(dAmt);
+        row.appendChild(dcell);
+
+        var wEmpty = el('span', 'wdc2-win-empty');
+        wEmpty.textContent = '—';
+        row.appendChild(wEmpty);
+      } else if (mode === 'manual') {
+        // 제품명(CUSTOM) — 전폭 입력.
         var nameEl = engineRow.querySelector('.base-manual-name');
         var nameCell = el('input', 'wdc2-dname');
         nameCell.type = 'text';
@@ -546,37 +738,19 @@
           if (live) { live.value = nameCell.value; fireInput(live); }
         });
         row.appendChild(nameCell);
+        row.appendChild(buildWidthCell(engineRow));
       } else {
+        // 제품(선택) — 시트 3-세그.
         var prodBtn = el('button', 'wdc2-prodbtn');
         prodBtn.type = 'button';
         prodBtn.innerHTML = '<span class="wdc2-prodbtn__nm">' + escapeText(baseProductLabel(engineRow)) +
           '</span><span class="wdc2-caret">▾</span>';
         prodBtn.addEventListener('click', function () {
-          var sel = engineRow.querySelector('.base-product-select');
-          if (!sel) { return; }
-          openSheet('제품 선택', productSheetOptions(sel), sel.value, function (value) {
-            sel.value = value;
-            fireChange(sel);
-            var lbl = prodBtn.querySelector('.wdc2-prodbtn__nm');
-            if (lbl) { lbl.textContent = baseProductLabel(engineRow); }
-            refreshBasePrices();
-          });
+          openProductSheet(engineRow, idx, prodBtn);
         });
         row.appendChild(prodBtn);
+        row.appendChild(buildWidthCell(engineRow));
       }
-
-      // (c) W — 엔진 .base-width-input 그대로 미러(복합 규격·콤마 미변형).
-      var widthInput = engineRow.querySelector('.base-width-input');
-      var wCell = el('input', 'wdc2-win');
-      wCell.type = 'text';
-      wCell.setAttribute('inputmode', 'numeric');
-      wCell.placeholder = 'W';
-      wCell.value = (widthInput && widthInput.value) || '';
-      wCell.addEventListener('input', function () {
-        if (widthInput) { widthInput.value = wCell.value; fireInput(widthInput); }
-        refreshBasePrices();
-      });
-      row.appendChild(wCell);
 
       // (d) 단가 — READ-ONLY 계산 미러(금액만).
       var priceCell = el('span', 'wdc2-price');
@@ -596,10 +770,13 @@
       row.appendChild(del);
 
       // 서브행.
-      if (mode === 'manual') {
+      if (isDirectOnly) {
+        buildFeeSubs(engineRow, wrap, 1);   // 첫 fee 는 상세 셀 인라인 → 나머지만 서브행.
+      } else if (mode === 'manual') {
         wrap.appendChild(buildManualSub(engineRow));
+        buildFeeSubs(engineRow, wrap, 0);   // 5.2: CUSTOM 행에도 ＋직접입력 노출.
       } else {
-        buildFeeSubs(engineRow, wrap);
+        buildFeeSubs(engineRow, wrap, 0);
       }
       return wrap;
     }
@@ -651,7 +828,7 @@
       var isSel = optIsSelectMode(item);
       var badge = el('button', 'wdc2-obadge' + (isSel ? '' : ' wdc2-obadge--mine'));
       badge.type = 'button';
-      badge.textContent = isSel ? '옵션' : 'MINE';
+      badge.textContent = isSel ? '옵션' : 'CUSTOM';
       badge.addEventListener('click', function () {
         var t = item.querySelector('[data-toggle-direct-input]');
         if (t) { t.click(); }
@@ -746,7 +923,7 @@
       var isSel = noteIsSelectMode(item);
       var badge = el('button', 'wdc2-obadge' + (isSel ? '' : ' wdc2-obadge--mine'));
       badge.type = 'button';
-      badge.textContent = isSel ? '문구' : 'MINE';
+      badge.textContent = isSel ? '문구' : 'CUSTOM';
       badge.addEventListener('click', function () {
         var t = item.querySelector('.toggle-note-type');
         if (t) { t.click(); }   // 엔진 renderNoteItem 재렌더 → notesContainer childList → 옵저버 재빌드
@@ -899,6 +1076,98 @@
       if (panelNewBtn) { panelNewBtn.disabled = !document.getElementById('resetEstimateBtn'); }
     }
 
+    // 단가 표시 토글(SSOT=엔진 체크박스) 미러. display:none 컨테이너라 offsetParent 불가 → 체크상태 직접 읽음.
+    function unitMetaVisible() {
+      var t = document.getElementById('wdUnitPriceMetaToggle');
+      return t ? !!t.checked : true;
+    }
+
+    // 진행 견적 v2 컴팩트 카드 재스크레이프(엔진 estimatesListContainer → .wdc2-qcards).
+    // 헤더: 견적 N · displayName · 이름연필 · 총액 / 본문: 구성(2줄) · 단가메타 · 옵션 / 액션: 수정·삭제 위임.
+    function buildQCards() {
+      if (!qcardsEl) { return; }
+      qcardsEl.innerHTML = '';
+      if (!estContainer) { return; }
+      var cards = estContainer.querySelectorAll('.card[data-estimate-id]');
+      var showUnit = unitMetaVisible();
+      Array.prototype.forEach.call(cards, function (card, i) {
+        var noNode = card.querySelector('.card-header strong');
+        var noText = noNode ? txt(noNode) : ('견적 ' + (i + 1));
+        var nameNode = card.querySelector('.estimate-display-name');
+        var name = nameNode ? txt(nameNode) : '';
+        var totalNode = card.querySelector('.estimate-total-price');
+        var total = totalNode ? txt(totalNode) : '';
+        var baseNode = card.querySelector('.estimate-detail-base');
+        var baseText = baseNode ? txt(baseNode) : '';
+        var optNode = card.querySelector('.estimate-detail-options');
+        var optText = optNode ? txt(optNode) : '';
+        var unitNode = card.querySelector('.wd-estimate-unit-meta');
+        var unitText = unitNode ? txt(unitNode) : '';
+
+        var qc = el('div', 'wdc2-qcard');
+
+        var r1 = el('div', 'wdc2-qcard__r1');
+        var no = el('span', 'wdc2-qcard__no');
+        no.textContent = noText;
+        var nm = el('span', 'wdc2-qcard__nm');
+        nm.textContent = name;
+        nm.title = name;
+        var pen = el('button', 'wdc2-qcard__pen');
+        pen.type = 'button';
+        pen.setAttribute('aria-label', '이름 수정');
+        pen.innerHTML = '<i class="fas fa-pen" aria-hidden="true"></i>';
+        pen.addEventListener('click', function () {
+          var b = card.querySelector('.edit-estimate-name-btn');
+          if (b) { b.click(); }
+        });
+        var amt = el('span', 'wdc2-qcard__amt');
+        amt.textContent = total;
+        r1.appendChild(no);
+        r1.appendChild(nm);
+        r1.appendChild(pen);
+        r1.appendChild(amt);
+        qc.appendChild(r1);
+
+        // 헤더 displayName 과 동일한 본문 라인·'없음' 플레이스홀더는 카드 소음 — 생략.
+        if (baseText && baseText !== name && baseText !== '없음') {
+          var ln = el('div', 'wdc2-qcard__ln');
+          ln.textContent = baseText;
+          qc.appendChild(ln);
+        }
+        if (showUnit && unitText) {
+          var um = el('div', 'wdc2-qcard__unit');
+          um.textContent = unitText;
+          qc.appendChild(um);
+        }
+        if (optText && optText !== '없음') {
+          var op = el('div', 'wdc2-qcard__opt');
+          op.textContent = optText;
+          qc.appendChild(op);
+        }
+
+        var acts = el('div', 'wdc2-qcard__acts');
+        var edit = el('button', 'wdc2-qcard__act');
+        edit.type = 'button';
+        edit.textContent = '수정';
+        edit.addEventListener('click', function () {
+          var b = card.querySelector('.edit-estimate-btn');
+          if (b) { b.click(); }
+        });
+        var del = el('button', 'wdc2-qcard__act wdc2-qcard__act--danger');
+        del.type = 'button';
+        del.textContent = '삭제';
+        del.addEventListener('click', function () {
+          var b = card.querySelector('.delete-estimate-btn');
+          if (b) { b.click(); }
+        });
+        acts.appendChild(edit);
+        acts.appendChild(del);
+        qc.appendChild(acts);
+
+        qcardsEl.appendChild(qc);
+      });
+    }
+
     if (window.MutationObserver) {
       if (finalPriceEl) {
         new MutationObserver(syncFinal).observe(finalPriceEl,
@@ -913,13 +1182,16 @@
           { childList: true, characterData: true, subtree: true });
       }
       if (estContainer) {
-        new MutationObserver(syncEstimates).observe(estContainer,
+        new MutationObserver(function () { syncEstimates(); buildQCards(); }).observe(estContainer,
           { childList: true, characterData: true, subtree: true });
       }
     }
     if (couponInput) { couponInput.addEventListener('input', syncStrip); }
     if (shipCostInput) { shipCostInput.addEventListener('input', syncStrip); }
     if (shipInclInput) { shipInclInput.addEventListener('change', syncStrip); }
+    // 단가 토글 변경 → qcard 단가메타 가시성 재반영(엔진이 childList 를 안 바꿀 수 있어 직접 구독).
+    var unitToggleInput = document.getElementById('wdUnitPriceMetaToggle');
+    if (unitToggleInput) { unitToggleInput.addEventListener('change', buildQCards); }
 
     // 액션/패널 버튼 — cloneNode/동적생성 함정 회피 위해 클릭 시 live lookup.
     if (abarAddBtn) {
@@ -980,12 +1252,14 @@
       syncBreakdown();
       syncStrip();
       syncEstimates();
+      buildQCards();
     }
     function undockFrame() {
       disconnectObservers();
       if (baseGridEl) { baseGridEl.innerHTML = ''; }
       if (optGridEl) { optGridEl.innerHTML = ''; }
       if (noteGridEl) { noteGridEl.innerHTML = ''; }
+      if (qcardsEl) { qcardsEl.innerHTML = ''; }
       restoreAll();
     }
 

@@ -493,7 +493,7 @@
           name = "제품 미선택";
         }
       }
-      var specParts = [mode === "manual" ? "MINE" : "선택"];
+      var specParts = [mode === "manual" ? "CUSTOM" : "선택"];
       if (widthText) specParts.push(widthText);
       if (unitText) specParts.push(unitText);
       return { name: name, spec: specParts.join(" · "), chipHtml: chipHtml };

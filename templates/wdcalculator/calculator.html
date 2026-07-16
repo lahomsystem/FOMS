@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/wdcalculator/builder.css') }}?v=20260612j">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/wdcalculator/category-picker.css') }}?v=20260606a">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/wdcalculator/multi-add-picker.css') }}?v=20260615a">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/wdcalculator/tablet-skin.css') }}?v=20260716b">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/wdcalculator/tablet-skin.css') }}?v=20260716c">
 {% if request.args.get('embedded') == '1' %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/orders/erp-wdc-split.css') }}?v=20260713a">
 {% endif %}
@@ -19,10 +19,10 @@
 {% include 'wdcalculator/partials/wdcalculator_body.html' %}
 {% include 'wdcalculator/partials/wdcalculator_scripts_config.html' %}
 {% include 'wdcalculator/partials/wdcalculator_scripts.html' %}
-<script src="{{ url_for('static', filename='js/wdcalculator/tablet-skin.js') }}?v=20260716b" defer></script>
+<script src="{{ url_for('static', filename='js/wdcalculator/tablet-skin.js') }}?v=20260716c" defer></script>
 {% if request.args.get('embedded') == '1' %}
 <script src="{{ url_for('static', filename='js/wdcalculator/embedded-shell.js') }}?v=20260624a" defer></script>
 {% else %}
-<script src="{{ url_for('static', filename='js/wdcalculator/mobile-enhance.js') }}?v=20260716b" defer></script>
+<script src="{{ url_for('static', filename='js/wdcalculator/mobile-enhance.js') }}?v=20260716c" defer></script>
 {% endif %}
 {% endblock %}

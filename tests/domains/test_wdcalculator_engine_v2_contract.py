@@ -1,7 +1,7 @@
 """WD 계산기 엔진 v2 확장(E1~E5) 구조 계약.
 
 E1: MINE(직접) 행 제품명 필드 + 저장 왕복(compData 보존)
-E3: '직접'→'MINE', '추가금 추가'→'직접입력' 리네임
+E3: '직접'→'CUSTOM', '추가금 추가'→'직접입력' 리네임
 E4: 행별 직접입력 표기에서 '추가금' 접미사 제거(이름 있을 때)
 E5: 견적 계산 버튼 전 플랫폼 삭제(계산은 전 입력 경로 자동)
 """
@@ -24,9 +24,9 @@ def test_e1_manual_name_survives_pricing_normalization():
     assert PRICING.count("manualName") >= 3
 
 
-def test_e3_mode_button_renamed_to_mine():
-    assert 'data-mode="manual">MINE<' in PRIMARY
-    assert 'data-mode="manual">직접<' not in PRIMARY
+def test_e3_mode_button_renamed_to_custom():
+    assert 'data-mode="manual">CUSTOM<' in PRIMARY
+    assert 'data-mode="manual">MINE<' not in PRIMARY
 
 
 def test_e3_fee_button_renamed():

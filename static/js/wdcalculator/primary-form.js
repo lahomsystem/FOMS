@@ -495,7 +495,7 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
             (mode === "select" ? "btn-info" : "btn-outline-info") +
             ' base-mode-btn" data-mode="select">선택</button>\n                                <button type="button" class="btn btn-sm ' +
             (mode === "manual" ? "btn-warning" : "btn-outline-warning") +
-            ' base-mode-btn" data-mode="manual">MINE</button>\n                            </div>\n                        </div>\n\n                        <!-- 선택/직접 상세 영역 (항상 같은 컬럼을 차지해서 남는 공간 제거) -->\n                        <div class="col-12 col-md-6 base-details-area">\n                            <!-- 제품(선택 모드) -->\n                            <div class="base-select-area" style="' +
+            ' base-mode-btn" data-mode="manual">CUSTOM</button>\n                            </div>\n                        </div>\n\n                        <!-- 선택/직접 상세 영역 (항상 같은 컬럼을 차지해서 남는 공간 제거) -->\n                        <div class="col-12 col-md-6 base-details-area">\n                            <!-- 제품(선택 모드) -->\n                            <div class="base-select-area" style="' +
             (mode === "manual" ? "display:none;" : "") +
             '">\n                                <label class="form-label small mb-1">제품</label>\n                                <select class="form-select form-select-sm base-product-select">\n                                    ' +
             getProductsOptionsHtml() +
