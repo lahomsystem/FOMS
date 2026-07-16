@@ -47,10 +47,11 @@ def test_mine_mirror_contract() -> None:
 
 
 def test_t4_direct_mode_cycle_and_render() -> None:
-    # 모드칩 3-사이클 위임 + direct 행 렌더 마커 (T4)
+    # 모드 드롭다운 + direct 행 렌더(상세=항목명, W=금액)
     assert '.base-mode-btn[data-mode="direct"]' in JS
-    assert "wdc2-modechip--direct" in JS
-    assert "wdc2-directcell" in JS
+    assert "wdc2-modedrop--direct" in JS
+    assert "wdc2-direct-amt" in JS
+    assert "openBaseModeSheet" in JS
 
 
 def test_engine_button_mirrors() -> None:

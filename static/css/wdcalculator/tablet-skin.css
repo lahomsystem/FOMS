@@ -223,6 +223,44 @@ html.wdc-tablet-pending .wdcalculator-container {
     color: var(--wdc2-sub);
     cursor: pointer;
   }
+  body.wdc-tablet-v2 .wdc2-modedrop {
+    height: 32px;
+    width: 100%;
+    box-sizing: border-box;
+    border-radius: 8px;
+    border: 1px solid #E0DDD5;
+    background: var(--wdc2-subtle);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 0 4px;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--wdc2-sub);
+    cursor: pointer;
+  }
+  body.wdc-tablet-v2 .wdc2-modedrop__v {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--wdc2-sub);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 36px;
+  }
+  body.wdc-tablet-v2 .wdc2-modedrop--mine {
+    background: var(--wdc2-mine-tint);
+    border-color: #EAD9B8;
+    color: var(--wdc2-mine-ink);
+  }
+  body.wdc-tablet-v2 .wdc2-modedrop--mine .wdc2-modedrop__v { color: var(--wdc2-mine-ink); }
+  body.wdc-tablet-v2 .wdc2-modedrop--direct {
+    background: #F2F6FB;
+    border-color: #D8E2EE;
+    color: #3A6291;
+  }
+  body.wdc-tablet-v2 .wdc2-modedrop--direct .wdc2-modedrop__v { color: #3A6291; }
   body.wdc-tablet-v2 .wdc2-modechip__n { font-size: 12px; color: var(--wdc2-ink); }
   body.wdc-tablet-v2 .wdc2-modechip--mine {
     background: var(--wdc2-mine-tint);
@@ -290,33 +328,20 @@ html.wdc-tablet-pending .wdcalculator-container {
     word-break: break-word;
   }
 
-  /* 직접입력 전용 행: 상세 셀 = [항목명 1fr][금액], W 칸 '—' dim. */
-  body.wdc-tablet-v2 .wdc2-directcell { display: flex; align-items: center; gap: 8px; min-width: 0; }
-  body.wdc-tablet-v2 .wdc2-directcell__nm {
-    flex: 1 1 auto;
-    min-width: 0;
-    height: 44px;
-    border: 1.5px solid var(--wdc2-border-strong);
-    border-radius: 10px;
-    background: var(--wdc2-surface);
-    padding: 0 13px;
-    font-size: 14.5px;
-    font-weight: 700;
-    color: var(--wdc2-ink);
-  }
-  body.wdc-tablet-v2 .wdc2-directcell__amt {
-    flex: none;
-    width: 108px;
-    height: 44px;
-    border: 1.5px solid var(--wdc2-border-strong);
-    border-radius: 10px;
-    background: var(--wdc2-surface);
+  /* 직접입력: 상세=항목명(제품선택과 동일 폭), W=금액(제품선택 W열과 동일 폭). */
+  body.wdc-tablet-v2 .wdc2-direct-amt {
     text-align: right;
-    padding: 0 12px;
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 800;
-    font-variant-numeric: tabular-nums;
-    color: var(--wdc2-ink);
+  }
+  body.wdc-tablet-v2 .wdc2-direct-empty {
+    display: flex;
+    align-items: center;
+    height: 44px;
+    padding: 0 14px;
+    color: #C6C2B8;
+    font-size: 15px;
+    font-weight: 700;
   }
   body.wdc-tablet-v2 .wdc2-win-empty {
     display: flex;

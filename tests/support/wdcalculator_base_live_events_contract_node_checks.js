@@ -301,20 +301,36 @@ function createBaseComponentRow(ids, opts = {}) {
     manualArea.style.display = mode === "manual" ? "" : "none";
 
     row.appendChild(
+        new El("select", {
+            className: "base-mode-select",
+            value: mode,
+            ids,
+        })
+    );
+    row.appendChild(
         new El("button", {
-            className: `base-mode-btn ${mode === "select" ? "btn-info" : "btn-outline-info"}`,
+            className: "base-mode-btn",
             dataset: { mode: "select" },
             ids,
         })
     );
     row.appendChild(
         new El("button", {
-            className: `base-mode-btn ${mode === "manual" ? "btn-warning" : "btn-outline-warning"}`,
+            className: "base-mode-btn",
             dataset: { mode: "manual" },
             ids,
         })
     );
+    row.appendChild(
+        new El("button", {
+            className: "base-mode-btn",
+            dataset: { mode: "direct" },
+            ids,
+        })
+    );
     row.appendChild(new El("button", { className: "base-remove-btn", ids }));
+    const widthCol = row.appendChild(new El("div", { className: "base-width-col", ids }));
+    widthCol.style.display = mode === "direct" ? "none" : "";
     row.appendChild(new El("input", { className: "base-width-input", ids }));
     row.appendChild(
         new El("select", {
@@ -454,7 +470,8 @@ function scenarioModeToggleUpdatesAreasAndClasses() {
     assertEq(row.dataset.mode, "manual", "mode toggle updates row dataset");
     assertEq(row.querySelector(".base-select-area").style.display, "none", "mode toggle hides select area");
     assertEq(row.querySelector(".base-manual-area").style.display, "", "mode toggle shows manual area");
-    assertEq(manualBtn.classList.contains("btn-warning"), true, "mode toggle promotes manual button style");
+    const modeSelect = row.querySelector(".base-mode-select");
+    assertEq(modeSelect ? modeSelect.value : "", "manual", "mode select reflects manual mode");
     assertEq(env.calculateCalls.length, 1, "mode toggle recalculates once");
 }
 

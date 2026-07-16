@@ -13,7 +13,7 @@
  *
  *   | v2 셀              | 미러 대상(은닉 엔진 위젯)                 | 방향/트리거                              |
  *   |--------------------|------------------------------------------|------------------------------------------|
- *   | 모드칩(선택/CUSTOM/직접) | .base-mode-btn[data-mode]           | 클릭 → 3-모드 사이클 click 위임 + 재빌드 |
+ *   | 모드 드롭다운(제품선택/커스텀/직접) | .base-mode-btn[data-mode]     | 시트 pick → click 위임 + 재빌드 |
  *   | 제품(선택)          | .base-product-select                     | 시트 pick → value + change               |
  *   | 제품명(CUSTOM)      | .base-manual-name                        | 입력 → value + input                     |
  *   | 방식(CUSTOM 서브)   | .base-manual-pricing-type                | 시트 pick(30cm/1m) → value + change·재빌드|
@@ -563,6 +563,38 @@
       return notesContainer ? notesContainer.querySelectorAll('.note-item') : [];
     }
 
+    function baseModeLabel(mode) {
+      if (mode === 'direct') { return '직접'; }
+      if (mode === 'manual') { return '커스텀'; }
+      return '제품선택';
+    }
+
+    function setBaseMode(engineRow, targetMode, idx) {
+      var cur = engineRow.dataset.mode || 'select';
+      if (targetMode === cur) { return; }
+      var b = engineRow.querySelector('.base-mode-btn[data-mode="' + targetMode + '"]');
+      if (b) { b.click(); }
+      rebuildBaseGrid();
+      if (targetMode === 'manual') {
+        window.setTimeout(function () {
+          var w = baseGridEl ? baseGridEl.children[idx] : null;
+          var nmIn = w && w.querySelector('.wdc2-dname');
+          if (nmIn) { nmIn.focus(); }
+        }, 0);
+      }
+    }
+
+    function openBaseModeSheet(engineRow, idx) {
+      var cur = engineRow.dataset.mode || 'select';
+      openSheet('모드', [
+        { value: 'select', label: '제품선택' },
+        { value: 'manual', label: '커스텀' },
+        { value: 'direct', label: '직접' },
+      ], cur, function (value) {
+        setBaseMode(engineRow, value, idx);
+      });
+    }
+
     function baseProductLabel(engineRow) {
       var sel = engineRow.querySelector('.base-product-select');
       if (sel && sel.value) {
@@ -682,50 +714,43 @@
 
     function buildBaseRow(engineRow, idx) {
       var mode = engineRow.dataset.mode || 'select';
-      var sel = engineRow.querySelector('.base-product-select');
-      var hasProduct = !!(sel && sel.value);
       var feeItems = engineRow.querySelectorAll('.base-additional-fee-item');
-      // 직접입력 판정: dataset.mode 'direct'(명시, 1차) 우선.
-      // 하위호환 2차: 구판 저장분 — 빈 선택 행(제품 미선택) + fee 존재.
-      var isDirect = mode === 'direct' ||
-        (mode === 'select' && !hasProduct && feeItems.length > 0);
+      var isDirect = mode === 'direct';
 
       var wrap = el('div', 'wdc2-brow-wrap' + (mode === 'manual' ? ' is-mine' : '') +
         (isDirect ? ' is-direct' : ''));
       var row = el('div', 'wdc2-brow' + (isDirect ? ' wdc2-brow--direct' : ''));
       wrap.appendChild(row);
 
-      // (a) 모드칩 — 3-모드 사이클: 선택 → CUSTOM → 직접 → 선택 (dataset.mode 기준 위임).
-      var chipLabel = isDirect ? '직접' : (mode === 'manual' ? 'CUSTOM' : '선택');
-      var chip = el('button', 'wdc2-modechip' +
-        (mode === 'manual' ? ' wdc2-modechip--mine' : '') +
-        (isDirect ? ' wdc2-modechip--direct' : ''));
-      chip.type = 'button';
-      chip.innerHTML = '<span class="wdc2-modechip__n">' + (idx + 1) + '</span>' + chipLabel;
-      chip.addEventListener('click', function () {
-        var target = mode === 'select' ? 'manual' : (mode === 'manual' ? 'direct' : 'select');
-        var b = engineRow.querySelector('.base-mode-btn[data-mode="' + target + '"]');
-        if (b) { b.click(); }
-        rebuildBaseGrid();
+      // (a) 모드 드롭다운 — 제품선택 / 커스텀 / 직접 (3-모드 사이클 토글 제거).
+      var modeDrop = el('button', 'wdc2-modedrop' +
+        (mode === 'manual' ? ' wdc2-modedrop--mine' : '') +
+        (isDirect ? ' wdc2-modedrop--direct' : ''));
+      modeDrop.type = 'button';
+      modeDrop.setAttribute('aria-label', '모드 선택');
+      modeDrop.innerHTML = '<span class="wdc2-modechip__n">' + (idx + 1) + '</span>' +
+        '<span class="wdc2-modedrop__v">' + baseModeLabel(mode) + '</span>' +
+        '<span class="wdc2-caret">▾</span>';
+      modeDrop.addEventListener('click', function () {
+        openBaseModeSheet(engineRow, idx);
       });
-      row.appendChild(chip);
+      row.appendChild(modeDrop);
 
       // (b) 상세 셀 + (c) W 셀.
       if (isDirect) {
-        // 직접입력: 첫 fee 를 상세 셀에 인라인([항목명 1fr][금액]). W 셀은 '—' dim.
-        var dcell = el('div', 'wdc2-directcell');
+        // 직접입력: 제품선택과 동일 그리드 — 상세=항목명(0.7fr), W=금액(0.5fr).
         var first = feeItems.length ? feeItems[0] : null;
         if (first) {
           var dNameSrc = first.querySelector('.base-additional-fee-name');
           var dAmtSrc = first.querySelector('.base-additional-fee-amount');
-          var dName = el('input', 'wdc2-directcell__nm');
+          var dName = el('input', 'wdc2-dname');
           dName.type = 'text';
           dName.placeholder = '항목명 입력';
           dName.value = (dNameSrc && dNameSrc.value) || '';
           dName.addEventListener('input', function () {
             if (dNameSrc) { dNameSrc.value = dName.value; fireInput(dNameSrc); }
           });
-          var dAmt = el('input', 'wdc2-directcell__amt');
+          var dAmt = el('input', 'wdc2-win wdc2-direct-amt');
           dAmt.type = 'text';
           dAmt.setAttribute('inputmode', 'numeric');
           dAmt.placeholder = '금액';
@@ -734,19 +759,16 @@
             if (dAmtSrc) { dAmtSrc.value = dAmt.value; fireInput(dAmtSrc); }
             refreshBasePrices();
           });
-          dcell.appendChild(dName);
-          dcell.appendChild(dAmt);
+          row.appendChild(dName);
+          row.appendChild(dAmt);
         } else {
-          // dataset 'direct' + fee 0건(PC에서 서브행 전부 삭제 등) — 아래 ＋직접입력으로 복구.
-          var dEmpty = el('span', 'wdc2-win-empty');
+          var dEmpty = el('span', 'wdc2-direct-empty');
           dEmpty.textContent = '—';
-          dcell.appendChild(dEmpty);
+          row.appendChild(dEmpty);
+          var wEmpty = el('span', 'wdc2-win-empty');
+          wEmpty.textContent = '—';
+          row.appendChild(wEmpty);
         }
-        row.appendChild(dcell);
-
-        var wEmpty = el('span', 'wdc2-win-empty');
-        wEmpty.textContent = '—';
-        row.appendChild(wEmpty);
       } else if (mode === 'manual') {
         // 제품명(CUSTOM) — 전폭 입력.
         var nameEl = engineRow.querySelector('.base-manual-name');
@@ -790,14 +812,44 @@
       });
       row.appendChild(del);
 
-      // 서브행.
+      // 서브행 — 직접입력 fee·＋직접입력은 사용자가 추가할 때만 표시.
       if (isDirect) {
-        buildFeeSubs(engineRow, wrap, 1);   // 첫 fee 는 상세 셀 인라인 → 나머지만 서브행.
+        if (feeItems.length > 1) {
+          buildFeeSubs(engineRow, wrap, 1);
+        } else {
+          buildFeeSubs(engineRow, wrap, feeItems.length);
+        }
       } else if (mode === 'manual') {
         wrap.appendChild(buildManualSub(engineRow));
-        buildFeeSubs(engineRow, wrap, 0);   // 5.2: CUSTOM 행에도 ＋직접입력 노출.
-      } else {
+        if (feeItems.length > 0) {
+          buildFeeSubs(engineRow, wrap, 0);
+        } else {
+          var addWrapOnly = el('div', 'wdc2-addfee');
+          var addFeeOnly = el('button', 'wdc2-addfee__btn');
+          addFeeOnly.type = 'button';
+          addFeeOnly.innerHTML = '＋ 직접입력';
+          addFeeOnly.addEventListener('click', function () {
+            var b = engineRow.querySelector('.base-add-fee-btn');
+            if (b) { b.click(); }
+            window.setTimeout(rebuildBaseGrid, 0);
+          });
+          addWrapOnly.appendChild(addFeeOnly);
+          wrap.appendChild(addWrapOnly);
+        }
+      } else if (feeItems.length > 0) {
         buildFeeSubs(engineRow, wrap, 0);
+      } else {
+        var addWrapSel = el('div', 'wdc2-addfee');
+        var addFeeSel = el('button', 'wdc2-addfee__btn');
+        addFeeSel.type = 'button';
+        addFeeSel.innerHTML = '＋ 직접입력';
+        addFeeSel.addEventListener('click', function () {
+          var b = engineRow.querySelector('.base-add-fee-btn');
+          if (b) { b.click(); }
+          window.setTimeout(rebuildBaseGrid, 0);
+        });
+        addWrapSel.appendChild(addFeeSel);
+        wrap.appendChild(addWrapSel);
       }
       return wrap;
     }
