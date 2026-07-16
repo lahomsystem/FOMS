@@ -108,7 +108,17 @@ def push_own_commits(
 
     try:
         for sha in ordered:
-            cp = _run(wt, "git", "cherry-pick", sha, check=False)
+            cp = _run(
+                wt,
+                "git",
+                "-c",
+                "user.email=deploy-push@foms.local",
+                "-c",
+                "user.name=FOMS Deploy Push",
+                "cherry-pick",
+                sha,
+                check=False,
+            )
             if cp.returncode != 0:
                 print(
                     f"cherry-pick 충돌: {sha[:8]}\n{cp.stderr}\n"
