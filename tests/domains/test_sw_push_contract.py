@@ -19,6 +19,7 @@ A2HS_JS = ROOT / "static/js/foms/a2hs-prompt.js"
 PUSH_JS = ROOT / "static/js/foms/mobile-push.js"
 PANEL = ROOT / "templates/partials/shared/erp_mobile_notification_panel.html"
 APP_SHELL = ROOT / "templates/partials/shared/foms_app_shell.html"
+LAYOUT_SCRIPTS = ROOT / "templates/partials/shared/layout_scripts.html"
 
 
 def _read(path: Path) -> str:
@@ -148,13 +149,18 @@ def test_notification_panel_exposes_push_cta_hook() -> None:
     assert panel.count("<button") == 3
 
 
-def test_app_shell_wires_mobile_push_deferred_script() -> None:
-    """foms_app_shell 이 mobile-push.js 를 defer 로 로드한다(render-block 금지 / G1)."""
+def test_layout_scripts_wires_mobile_push_deferred_script() -> None:
+    """알림 센터 승격: layout_scripts 가 mobile-push.js 를 defer 로드(PC·모바일 공통).
+
+    foms_app_shell 에는 중복 로드 금지(단일 센터 SSOT).
+    """
+    layout = _read(LAYOUT_SCRIPTS)
     shell = _read(APP_SHELL)
-    assert "js/foms/mobile-push.js" in shell
-    for line in shell.splitlines():
+    assert "js/foms/mobile-push.js" in layout
+    assert "js/foms/mobile-push.js" not in shell
+    for line in layout.splitlines():
         if "mobile-push.js" in line:
             assert "defer" in line, line
             break
     else:  # pragma: no cover
-        raise AssertionError("mobile-push.js script tag missing")
+        raise AssertionError("mobile-push.js script tag missing in layout_scripts")
