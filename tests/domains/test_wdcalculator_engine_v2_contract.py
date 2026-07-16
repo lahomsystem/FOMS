@@ -73,6 +73,16 @@ def test_mobile_manual_name_full_width_guard():
     assert "flex: 0 0 100%" in mobile.split("base-manual-area > .mb-2")[1].split("base-manual-30cm-col")[0]
 
 
+def test_wd_line_container_query_primitive():
+    line = (ROOT / "static/css/wdcalculator/wd-line.css").read_text(encoding="utf-8")
+    calc = (ROOT / "templates/wdcalculator/calculator.html").read_text(encoding="utf-8")
+    assert "container-name: wd-line" in line
+    assert "@container wd-line" in line
+    assert "--wd-line-touch-h" in line
+    assert "wd-line.css" in calc
+    assert "wd-line.css') }}?v=20260716i" in calc or "wd-line.css') }}?v=" in calc
+
+
 def test_t4_direct_mode_serializes_null_product():
     # direct 행은 fees-only — 숨은 select 잔존값 직렬화 금지(제품가 혼입·mode 클로버 방지)
     assert 'mode === "direct"' in PRIMARY

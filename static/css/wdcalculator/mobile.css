@@ -384,7 +384,7 @@
     display: block !important;
     width: 100% !important;
     min-width: 0 !important;
-    min-height: 44px !important;
+    min-height: var(--wd-line-touch-h, 44px) !important;
     box-sizing: border-box !important;
   }
   body.wd-calc-mobile .base-component-row[data-mode="manual"] .base-manual-area > .row > .col-4 {
@@ -396,7 +396,7 @@
   }
   body.wd-calc-mobile .base-component-row[data-mode="manual"] .base-manual-pricing-type {
     width: 100% !important;
-    min-height: 44px !important;
+    min-height: var(--wd-line-touch-h, 44px) !important;
   }
   /* 한 줄에 놓인 칸 사이 간격(전역 규칙이 col padding을 0으로 만들어 붙는 것 보정) */
   body.wd-calc-mobile .base-component-row[data-mode="manual"] .card-body > .row,
