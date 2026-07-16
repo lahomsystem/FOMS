@@ -74,7 +74,7 @@
   text-decoration: none;
 }
 
-@media (max-width: 991.98px) {
+@media (max-width: 991.98px), ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
   body.erp-mobile-v2-layout .foms-drawing-handoff {
     min-height: 100svh;
     background: var(--foms-surface-overlay, #eef0f3);

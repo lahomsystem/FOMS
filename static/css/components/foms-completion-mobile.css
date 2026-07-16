@@ -227,7 +227,7 @@
   word-break: break-word;
 }
 
-@media (max-width: 991.98px) {
+@media (max-width: 991.98px), ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
   .erp-completion[data-erp-mobile-v2='true'] {
     --erp-completion-media-label-size: 0.75rem;
     --erp-completion-media-play-size: 0.75rem;

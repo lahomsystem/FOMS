@@ -1,6 +1,6 @@
 /* P1 mockup — chip pill 스타일 (레이아웃/밴드는 foms-mobile-filter-bar.css SSOT) — v20260611b */
 
-@media (max-width: 991.98px) {
+@media (max-width: 991.98px), ((min-width: 992px) and (pointer: coarse) and (orientation: portrait)) {
   body.erp-mobile-v2-layout .chip,
   body.erp-mobile-v2-layout .foms-chip {
     display: inline-flex;
