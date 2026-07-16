@@ -1,1 +1,5 @@
+{# Shell FOUC 가드: page-local CSS는 fragment에도 동반(erp-shell preload).
+   ?v= 는 production/dashboard.html {% block styles %} 와 동기. #}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-v2-domain-heroes.css') }}?v=20260712a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-production-steps.css') }}?v=20260713b">
 {% include 'production/partials/dashboard_body.html' %}

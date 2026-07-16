@@ -167,3 +167,38 @@ def test_production_mobile_completed_shows_status_not_stage_edit_cta(client, mon
     assert 'aria-label="제작완료 단계 ERP 주문 열기"' not in body
     assert "ERP 편집" in body
     assert "?open=erp-order" in body
+
+
+def test_production_shell_fragment_includes_page_local_css(client, monkeypatch):
+    """FOUC 가드: 셸 fragment에도 heroes/steps CSS link가 실려야 한다."""
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    user = _login_plain_admin(client)
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+
+    root = Path(__file__).resolve().parents[2]
+    dash = (root / "templates/production/dashboard.html").read_text(encoding="utf-8")
+    frag_src = (
+        root / "templates/production/partials/dashboard_fragment.html"
+    ).read_text(encoding="utf-8")
+    for token in (
+        "foms-v2-domain-heroes.css') }}?v=20260712a",
+        "foms-production-steps.css') }}?v=20260713b",
+    ):
+        assert token in dash
+        assert token in frag_src
+
+    full = client.get("/erp/production/dashboard").get_data(as_text=True)
+    assert "foms-v2-domain-heroes.css" in full
+    assert "foms-production-steps.css" in full
+
+    frag_resp = client.get(
+        "/erp/production/dashboard?view=fragment",
+        headers={"X-FOMS-ERP-SHELL": "1"},
+    )
+    assert frag_resp.status_code == 200
+    frag = frag_resp.get_data(as_text=True)
+    assert "foms-v2-domain-heroes.css" in frag
+    assert "foms-production-steps.css" in frag
+    assert "v=20260712a" in frag
+    assert "v=20260713b" in frag
+    assert "<html" not in frag.lower()

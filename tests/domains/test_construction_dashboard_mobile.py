@@ -568,3 +568,44 @@ def test_construction_team_mobile_card_renders_drawing_lightbox(mock_url, client
     assert 'attachment-preview-zoom.js' in body
     assert "/files/const/site.jpg" not in body
     assert 'aria-label="도면' in body
+
+
+def test_construction_shell_fragment_includes_page_local_css(client, monkeypatch):
+    """FOUC 가드: 셸 fragment에도 시공 page-local CSS link가 실려야 한다."""
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    user = _login_as_admin(client)
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+
+    root = Path(__file__).resolve().parents[2]
+    dash = (root / "templates/construction/dashboard.html").read_text(encoding="utf-8")
+    frag_src = (
+        root / "templates/construction/partials/dashboard_fragment.html"
+    ).read_text(encoding="utf-8")
+    for token in (
+        "foms-construction-mobile-card.css') }}",
+        "foms-v2-domain-heroes.css') }}?v=20260712a",
+        "foms-complete-gate.css') }}?v=20260712a",
+        "foms-packing.css') }}?v=20260714a",
+    ):
+        assert token in dash
+        assert token in frag_src
+
+    full = client.get("/erp/construction/dashboard").get_data(as_text=True)
+    assert "foms-v2-domain-heroes.css" in full
+    assert "foms-complete-gate.css" in full
+    assert "foms-packing.css" in full
+    assert "foms-construction-mobile-card.css" in full
+
+    frag_resp = client.get(
+        "/erp/construction/dashboard?view=fragment",
+        headers={"X-FOMS-ERP-SHELL": "1"},
+    )
+    assert frag_resp.status_code == 200
+    frag = frag_resp.get_data(as_text=True)
+    assert "foms-v2-domain-heroes.css" in frag
+    assert "foms-complete-gate.css" in frag
+    assert "foms-packing.css" in frag
+    assert "foms-construction-mobile-card.css" in frag
+    assert "v=20260712a" in frag
+    assert "v=20260714a" in frag
+    assert "<html" not in frag.lower()

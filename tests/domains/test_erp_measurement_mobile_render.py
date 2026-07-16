@@ -399,3 +399,45 @@ def test_measurement_dashboard_scheduler_badge_css_excludes_erp_scheduler_count(
     body = (ROOT / "templates/measurement/partials/dashboard_main.html").read_text(encoding="utf-8")
     assert ".badge-count:not(.erp-scheduler-count)" in body
     assert "erp-scheduler-count--regional" in body
+
+
+def test_measurement_shell_fragment_includes_page_local_css(client, monkeypatch):
+    """FOUC 가드: 셸 fragment(head 없음)에도 page-local CSS link가 실려야 한다.
+
+    X1 preloadFragmentStylesheets는 fragment HTML의 <link rel=stylesheet>만
+    swap 전 head에 선로드한다. 실측 heroes/route-strip가 dashboard.html styles
+    블록에만 있으면 하단탭 첫 진입에서 미스타일로 뜬다(AS/출고와 동일 계약).
+    ?v= 는 dashboard.html styles 블록과 fragment가 동기여야 캐시 드리프트 없다.
+    """
+    monkeypatch.setenv("ERP_MOBILE_V2_ENABLED", "true")
+    user = _login_erp_admin(client)
+    monkeypatch.setenv("FOMS_V3_SHELL_COHORT", str(user.id))
+
+    dash = (ROOT / "templates/measurement/dashboard.html").read_text(encoding="utf-8")
+    frag_src = (
+        ROOT / "templates/measurement/partials/dashboard_fragment.html"
+    ).read_text(encoding="utf-8")
+    for token in (
+        "foms-v2-domain-heroes.css') }}?v=20260712a",
+        "foms-route-strip.css') }}?v=20260716a",
+    ):
+        assert token in dash
+        assert token in frag_src
+
+    full = client.get("/erp/measurement").get_data(as_text=True)
+    assert "foms-v2-domain-heroes.css" in full
+    assert "foms-route-strip.css" in full
+    assert "v=20260712a" in full
+    assert "v=20260716a" in full
+
+    frag_resp = client.get(
+        "/erp/measurement?view=fragment",
+        headers={"X-FOMS-ERP-SHELL": "1"},
+    )
+    assert frag_resp.status_code == 200
+    frag = frag_resp.get_data(as_text=True)
+    assert "foms-v2-domain-heroes.css" in frag
+    assert "foms-route-strip.css" in frag
+    assert "v=20260712a" in frag
+    assert "v=20260716a" in frag
+    assert "<html" not in frag.lower()
