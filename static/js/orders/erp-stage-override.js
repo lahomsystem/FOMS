@@ -102,6 +102,21 @@
   }
 
   var _pending = null;
+  var _modalHideWired = false;
+
+  function settlePendingCancel() {
+    var pending = _pending;
+    if (!pending) return;
+    _pending = null;
+    if (pending.opts && typeof pending.opts.onCancel === 'function') {
+      try {
+        pending.opts.onCancel();
+      } catch (e) { /* ignore */ }
+    }
+    if (typeof pending.reject === 'function') {
+      pending.reject(new Error('cancelled'));
+    }
+  }
 
   function openModal(opts) {
     opts = opts || {};
@@ -138,7 +153,16 @@
     syncModeHint();
 
     return new Promise(function (resolve, reject) {
-      _pending = { orderId: orderId, resolve: resolve, reject: reject, opts: opts };
+      // 이전 미완료 pending 있으면 취소로 정리(드롭다운 revert)
+      settlePendingCancel();
+      _pending = {
+        orderId: orderId,
+        resolve: resolve,
+        reject: reject,
+        opts: opts,
+        fromStage: from,
+        toStage: to
+      };
       if (window.bootstrap && window.bootstrap.Modal) {
         window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
       } else {
@@ -157,6 +181,7 @@
     } else {
       modalEl.classList.remove('show');
       modalEl.style.display = 'none';
+      // bootstrap 없으면 hide 이벤트 없음 → 수동 정리 불필요(성공 시 _pending 이미 null)
     }
   }
 
@@ -211,7 +236,7 @@
           window.__erpLastStructuredData.workflow.stage = to;
         }
         var pending = _pending;
-        _pending = null;
+        _pending = null; // hide.bs.modal 이 cancel로 취급하지 않도록 선제 클리어
         closeModal();
         if (pending && pending.resolve) pending.resolve(res.data);
         if (pending && pending.opts && typeof pending.opts.onSuccess === 'function') {
@@ -252,6 +277,15 @@
     if (submit && submit.getAttribute('data-bound') !== '1') {
       submit.setAttribute('data-bound', '1');
       submit.addEventListener('click', submitOverride);
+    }
+
+    var modalEl = document.getElementById('erpStageOverrideModal');
+    if (modalEl && !_modalHideWired) {
+      _modalHideWired = true;
+      // 취소/ESC/배경 클릭 → pending 정리 + 드롭다운 원복(onCancel/onDone false)
+      modalEl.addEventListener('hide.bs.modal', function () {
+        if (_pending) settlePendingCancel();
+      });
     }
 
     var stageEl = document.getElementById('erp-workflow-stage');
@@ -301,8 +335,13 @@
       onSuccess: function () {
         if (typeof onDone === 'function') onDone(true);
         else window.location.reload();
+      },
+      onCancel: function () {
+        if (typeof onDone === 'function') onDone(false);
       }
-    }).catch(function () {
+    }).catch(function (err) {
+      // hide.bs.modal 취소는 onCancel 으로 이미 처리. 그 외 early reject 만.
+      if (err && String(err.message || '') === 'cancelled') return;
       if (typeof onDone === 'function') onDone(false);
     });
     return true;

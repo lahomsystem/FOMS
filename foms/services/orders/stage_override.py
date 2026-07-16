@@ -2,6 +2,9 @@
 
 structured PUT 가드·status API 잠금·override API가 동일 rank/mode를 쓴다.
 단계 변경은 status/workflow.stage 만 건드리고 도면·이관 이력은 보존한다.
+
+정책: to_stage 는 메인 파이프라인만(AS/DELETED 목표 불가).
+from 이 AS/레거시면 → 메인으로의 jump 는 운영 복구용으로 허용한다.
 """
 
 from __future__ import annotations

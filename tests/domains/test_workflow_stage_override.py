@@ -202,6 +202,106 @@ def test_update_order_field_status_blocks_skip(client):
     assert resp.status_code == 403
 
 
+def test_update_order_status_blocks_skip(client):
+    """인접이 아닌 전진(MEASURE→CONFIRM)도 status API 403."""
+    _login(client, "ov_skip_block", role="ADMIN")
+    order_id = _make_erp_order(status="MEASURE").id
+    resp = client.post(
+        "/api/update_order_status",
+        json={"order_id": order_id, "status": "CONFIRM"},
+    )
+    assert resp.status_code == 403
+    assert OVERRIDE_BLOCK_MESSAGE in (resp.get_json() or {}).get("message", "")
+
+
+def test_override_rejects_as_and_deleted_targets(client):
+    """목표 단계 AS_*/DELETED 는 override 타깃 불가(기존 AS/삭제 API 유지)."""
+    _login(client, "ov_as_tgt", role="ADMIN")
+    order_id = _make_erp_order(status="DRAWING").id
+    for bad in ("AS_RECEIVED", "AS_COMPLETED", "AS", "DELETED"):
+        resp = client.post(
+            f"/api/orders/{order_id}/workflow/stage-override",
+            json={
+                "to_stage": bad,
+                "reason": "잘못된 목표 단계 검증용 사유",
+                "confirm": True,
+            },
+        )
+        assert resp.status_code == 400, bad
+        assert resp.get_json()["success"] is False
+
+
+def test_override_from_as_to_main_allowed(client):
+    """정책(감리#3): AS→메인 파이프라인 강제 복귀는 운영상 허용(jump)."""
+    _login(client, "ov_as_from", role="MANAGER")
+    order = _make_erp_order(status="AS_RECEIVED")
+    order_id = order.id
+    resp = client.post(
+        f"/api/orders/{order_id}/workflow/stage-override",
+        json={
+            "to_stage": "MEASURE",
+            "reason": "AS 오접수 정정 — 실측 단계로 복귀",
+            "confirm": True,
+        },
+    )
+    assert resp.status_code == 200, resp.get_json()
+    data = resp.get_json()["data"]
+    assert data["to"] == "MEASURE"
+    assert data["mode"] == "jump"
+
+
+def test_override_does_not_mutate_quests(client):
+    """강제 변경은 quest/_handle_stage_transition 부수효과 없음 — quests JSON 불변."""
+    from sqlalchemy.orm.attributes import flag_modified
+
+    _login(client, "ov_quest", role="ADMIN")
+    order = _make_erp_order(status="DRAWING")
+    quests = {"DRAWING": {"items": [{"id": "q1", "status": "pending"}]}}
+    sd = dict(order.structured_data or {})
+    sd["quests"] = quests
+    order.structured_data = sd
+    flag_modified(order, "structured_data")
+    db_session.commit()
+    order_id = order.id
+
+    resp = client.post(
+        f"/api/orders/{order_id}/workflow/stage-override",
+        json={
+            "to_stage": "MEASURE",
+            "reason": "퀘스트 불변 검증 — 도면→실측",
+            "confirm": True,
+        },
+    )
+    assert resp.status_code == 200
+    db_session.expire_all()
+    saved = db_session.get(Order, order_id)
+    assert saved.structured_data.get("quests") == quests
+    # STAGE_CHANGED(quest 경로) 없이 STAGE_OVERRIDE 만
+    types = [
+        e.event_type
+        for e in db_session.query(OrderEvent).filter(OrderEvent.order_id == order_id).all()
+    ]
+    assert "STAGE_OVERRIDE" in types
+    assert "STAGE_CHANGED" not in types
+
+
+def test_override_completed_to_past_manager(client):
+    """COMPLETED → 과거 단계: MANAGER+사유 허용(스펙 B)."""
+    _login(client, "ov_done", role="MANAGER")
+    order_id = _make_erp_order(status="COMPLETED").id
+    resp = client.post(
+        f"/api/orders/{order_id}/workflow/stage-override",
+        json={
+            "to_stage": "MEASURE",
+            "reason": "완료 오처리 복구 — 실측 재진행",
+            "confirm": True,
+        },
+    )
+    assert resp.status_code == 200, resp.get_json()
+    assert resp.get_json()["data"]["mode"] == "regress"
+    assert resp.get_json()["data"]["to"] == "MEASURE"
+
+
 def test_js_contract_defer_and_api_path():
     from pathlib import Path
 
@@ -210,6 +310,8 @@ def test_js_contract_defer_and_api_path():
     assert "__FOMS_STAGE_OVERRIDE_BOUND" in js
     assert "/workflow/stage-override" in js
     assert "needsOverride" in js
+    assert "hide.bs.modal" in js
+    assert "settlePendingCancel" in js or "onCancel" in js
 
     erp_js = (root / "templates/orders/partials/erp_order_js.html").read_text(encoding="utf-8")
     assert "erp-stage-override.js" in erp_js

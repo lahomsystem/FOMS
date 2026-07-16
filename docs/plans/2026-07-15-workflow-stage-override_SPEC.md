@@ -87,9 +87,11 @@
 
 - **하지 않음:** structured PUT 역행 허용으로 되돌리기.
 - **하지 않음:** 폼 저장으로 skip/역행.
-- **하지 않음:** AS 접수/완료·DELETED를 override API에 흡수(기존 API 유지).
+- **하지 않음:** AS 접수/완료·DELETED를 override **목표(to_stage)** 로 흡수(기존 AS/삭제 API 유지).
+- **허용(감리 확정 2026-07-16):** AS/레거시 → 메인 파이프라인(from AS → to MEASURE 등) override는 운영 복구용으로 **허용**(mode=`jump`). 일상 AS 처리는 계속 기존 AS API.
 - COMPLETED → 임의 과거 단계: **허용하되** MANAGER+사유(운영 실수 복구용). 더 빡세게 ADMIN only 원하면 승인 시 명시.
 - reason에 비밀번호·개인정보 장문 붙여넣기 금지 안내는 UI placeholder만(서버 PII 필터 없음).
+- STAGE_OVERRIDE payload mode: `regress`|`skip`|`jump`|`advance`(모달에서 인접 전진도 가능)|`same`(400).
 
 ---
 
@@ -130,7 +132,7 @@
 - [x] Step 2: ERP 탭 모달 UI(ADMIN/MANAGER) + defer JS
 - [x] Step 3: 대시보드 status-dropdown 역행/스킵 → 모달 또는 차단 메시지
 - [x] Step 4: pytest(권한·역행·스킵·reason·PUT 가드 회귀) + APP_OK
-- [ ] Step 5: deploy 푸시(승인 후)
+- [x] Step 5: deploy 푸시(승인 후)
 
 ---
 
