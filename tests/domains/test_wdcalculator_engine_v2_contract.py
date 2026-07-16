@@ -28,25 +28,16 @@ def test_e1_manual_name_survives_pricing_normalization():
 
 
 def test_e3_mode_button_renamed_to_custom():
-    assert 'value="manual"' in PRIMARY and ">커스텀</option>" in PRIMARY
-    assert 'data-mode="manual">' in PRIMARY  # 태블릿 skin 위임용 숨김 버튼
+    assert 'data-mode="manual">CUSTOM<' in PRIMARY
     assert 'data-mode="manual">MINE<' not in PRIMARY
-    assert 'data-mode="manual">CUSTOM<' not in PRIMARY
 
 
-def test_t4_direct_mode_three_modes_via_select():
-    # 3-상태 모드: 제품선택 / 커스텀 / 직접 (드롭다운 + 태블릿 위임용 숨김 btn)
-    assert "base-mode-select" in PRIMARY
+def test_t4_direct_mode_three_buttons():
+    # 3-상태 모드 토글: 선택 / CUSTOM / 직접입력 (T4)
     for pin in (
-        'value="select"',
-        ">제품선택</option>",
-        'value="manual"',
-        ">커스텀</option>",
-        'value="direct"',
-        ">직접</option>",
-        'data-mode="select"',
-        'data-mode="manual"',
-        'data-mode="direct"',
+        'data-mode="select">선택<',
+        'data-mode="manual">CUSTOM<',
+        'data-mode="direct">직접입력<',
     ):
         assert pin in PRIMARY, pin
 

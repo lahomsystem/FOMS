@@ -13,7 +13,7 @@
  *
  *   | v2 셀              | 미러 대상(은닉 엔진 위젯)                 | 방향/트리거                              |
  *   |--------------------|------------------------------------------|------------------------------------------|
- *   | 모드 드롭다운(제품선택/커스텀/직접) | .base-mode-btn[data-mode]     | 시트 pick → click 위임 + 재빌드 |
+ *   | 모드칩(제품선택/커스텀/직접 ▾) | .base-mode-btn[data-mode]     | 시트 pick → click 위임 + 재빌드 |
  *   | 제품(선택)          | .base-product-select                     | 시트 pick → value + change               |
  *   | 제품명(CUSTOM)      | .base-manual-name                        | 입력 → value + input                     |
  *   | 방식(CUSTOM 서브)   | .base-manual-pricing-type                | 시트 pick(30cm/1m) → value + change·재빌드|
@@ -569,6 +569,12 @@
       return '제품선택';
     }
 
+    function baseModeChipLabel(mode) {
+      if (mode === 'direct') { return '직접'; }
+      if (mode === 'manual') { return '커스텀'; }
+      return '선택';
+    }
+
     function setBaseMode(engineRow, targetMode, idx) {
       var cur = engineRow.dataset.mode || 'select';
       if (targetMode === cur) { return; }
@@ -722,35 +728,36 @@
       var row = el('div', 'wdc2-brow' + (isDirect ? ' wdc2-brow--direct' : ''));
       wrap.appendChild(row);
 
-      // (a) 모드 드롭다운 — 제품선택 / 커스텀 / 직접 (3-모드 사이클 토글 제거).
-      var modeDrop = el('button', 'wdc2-modedrop' +
-        (mode === 'manual' ? ' wdc2-modedrop--mine' : '') +
-        (isDirect ? ' wdc2-modedrop--direct' : ''));
-      modeDrop.type = 'button';
-      modeDrop.setAttribute('aria-label', '모드 선택');
-      modeDrop.innerHTML = '<span class="wdc2-modechip__n">' + (idx + 1) + '</span>' +
-        '<span class="wdc2-modedrop__v">' + baseModeLabel(mode) + '</span>' +
-        '<span class="wdc2-caret">▾</span>';
-      modeDrop.addEventListener('click', function () {
+      // (a) 모드칩 — 바텀시트에서 제품선택/커스텀/직접 선택(3-사이클 토글 제거).
+      var chipLabel = baseModeChipLabel(mode);
+      var chip = el('button', 'wdc2-modechip' +
+        (mode === 'manual' ? ' wdc2-modechip--mine' : '') +
+        (isDirect ? ' wdc2-modechip--direct' : ''));
+      chip.type = 'button';
+      chip.setAttribute('aria-label', '모드 선택');
+      chip.innerHTML = '<span class="wdc2-modechip__n">' + (idx + 1) + '</span>' +
+        chipLabel + '<span class="wdc2-caret">▾</span>';
+      chip.addEventListener('click', function () {
         openBaseModeSheet(engineRow, idx);
       });
-      row.appendChild(modeDrop);
+      row.appendChild(chip);
 
       // (b) 상세 셀 + (c) W 셀.
       if (isDirect) {
-        // 직접입력: 제품선택과 동일 그리드 — 상세=항목명(0.7fr), W=금액(0.5fr).
+        // 직접입력: 상세+W 2열 span — 내부 7:5 비율(제품선택 그리드와 동일).
+        var dcell = el('div', 'wdc2-directcell wdc2-directcell--span');
         var first = feeItems.length ? feeItems[0] : null;
         if (first) {
           var dNameSrc = first.querySelector('.base-additional-fee-name');
           var dAmtSrc = first.querySelector('.base-additional-fee-amount');
-          var dName = el('input', 'wdc2-dname');
+          var dName = el('input', 'wdc2-directcell__nm');
           dName.type = 'text';
           dName.placeholder = '항목명 입력';
           dName.value = (dNameSrc && dNameSrc.value) || '';
           dName.addEventListener('input', function () {
             if (dNameSrc) { dNameSrc.value = dName.value; fireInput(dNameSrc); }
           });
-          var dAmt = el('input', 'wdc2-win wdc2-direct-amt');
+          var dAmt = el('input', 'wdc2-directcell__amt');
           dAmt.type = 'text';
           dAmt.setAttribute('inputmode', 'numeric');
           dAmt.placeholder = '금액';
@@ -759,16 +766,14 @@
             if (dAmtSrc) { dAmtSrc.value = dAmt.value; fireInput(dAmtSrc); }
             refreshBasePrices();
           });
-          row.appendChild(dName);
-          row.appendChild(dAmt);
+          dcell.appendChild(dName);
+          dcell.appendChild(dAmt);
         } else {
-          var dEmpty = el('span', 'wdc2-direct-empty');
+          var dEmpty = el('span', 'wdc2-directcell__empty');
           dEmpty.textContent = '—';
-          row.appendChild(dEmpty);
-          var wEmpty = el('span', 'wdc2-win-empty');
-          wEmpty.textContent = '—';
-          row.appendChild(wEmpty);
+          dcell.appendChild(dEmpty);
         }
+        row.appendChild(dcell);
       } else if (mode === 'manual') {
         // 제품명(CUSTOM) — 전폭 입력.
         var nameEl = engineRow.querySelector('.base-manual-name');
@@ -812,44 +817,14 @@
       });
       row.appendChild(del);
 
-      // 서브행 — 직접입력 fee·＋직접입력은 사용자가 추가할 때만 표시.
+      // 서브행.
       if (isDirect) {
-        if (feeItems.length > 1) {
-          buildFeeSubs(engineRow, wrap, 1);
-        } else {
-          buildFeeSubs(engineRow, wrap, feeItems.length);
-        }
+        buildFeeSubs(engineRow, wrap, 1);   // 첫 fee 는 상세 셀 인라인 → 나머지만 서브행.
       } else if (mode === 'manual') {
         wrap.appendChild(buildManualSub(engineRow));
-        if (feeItems.length > 0) {
-          buildFeeSubs(engineRow, wrap, 0);
-        } else {
-          var addWrapOnly = el('div', 'wdc2-addfee');
-          var addFeeOnly = el('button', 'wdc2-addfee__btn');
-          addFeeOnly.type = 'button';
-          addFeeOnly.innerHTML = '＋ 직접입력';
-          addFeeOnly.addEventListener('click', function () {
-            var b = engineRow.querySelector('.base-add-fee-btn');
-            if (b) { b.click(); }
-            window.setTimeout(rebuildBaseGrid, 0);
-          });
-          addWrapOnly.appendChild(addFeeOnly);
-          wrap.appendChild(addWrapOnly);
-        }
-      } else if (feeItems.length > 0) {
-        buildFeeSubs(engineRow, wrap, 0);
+        buildFeeSubs(engineRow, wrap, 0);   // 5.2: CUSTOM 행에도 ＋직접입력 노출.
       } else {
-        var addWrapSel = el('div', 'wdc2-addfee');
-        var addFeeSel = el('button', 'wdc2-addfee__btn');
-        addFeeSel.type = 'button';
-        addFeeSel.innerHTML = '＋ 직접입력';
-        addFeeSel.addEventListener('click', function () {
-          var b = engineRow.querySelector('.base-add-fee-btn');
-          if (b) { b.click(); }
-          window.setTimeout(rebuildBaseGrid, 0);
-        });
-        addWrapSel.appendChild(addFeeSel);
-        wrap.appendChild(addWrapSel);
+        buildFeeSubs(engineRow, wrap, 0);
       }
       return wrap;
     }
