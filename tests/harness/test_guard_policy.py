@@ -23,6 +23,8 @@ CLAUDE_HOOK = ".claude/hooks/guard_shell.py"
 CURSOR_HOOK = ".cursor/hooks/guard_shell.py"
 
 # (expected_decision, command) — 승인 스펙 §9.3 케이스 테이블.
+# deploy plain push 는 컨텍스트(project_root) 유무에 따라 달라지므로
+# 공유 테이블에서는 제외하고 전용 테스트로 검증한다.
 CASES: list[tuple[str, str]] = [
     # --- deny -----------------------------------------------------------
     ("deny", "rm -rf /"),
@@ -61,8 +63,7 @@ CASES: list[tuple[str, str]] = [
     ("deny", "(git push --force origin production)"),
     ("deny", "$(git push --force origin production)"),
     # --- allow ----------------------------------------------------------
-    ("allow", "git push origin deploy"),
-    ("allow", "git push"),
+    ("allow", "git push origin deploy --dry-run"),
     ("allow", "echo 'drop table 사용법 메모'"),
     ("allow", "echo 'drop table x'"),
     ("allow", "git commit -F msg.txt"),
@@ -128,10 +129,13 @@ def _run_cursor_hook(command: str) -> str:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
         timeout=30,
     )
     assert proc.returncode == 0, f"hook crashed: {proc.stderr}"
-    data = json.loads(proc.stdout.strip())
+    out = (proc.stdout or "").strip()
+    assert out, f"empty stdout stderr={proc.stderr!r}"
+    data = json.loads(out)
     return data["permission"]
 
 
@@ -247,3 +251,24 @@ def test_wrapped_bypass_is_not_allowed() -> None:
     ):
         decision, _ = policy.classify_command(command)
         assert decision != "allow", command
+
+
+def test_deploy_push_asks_without_project_root() -> None:
+    """project_root 없으면 deploy push 는 ask(세션 범위 확인)."""
+    policy = _load_policy()
+    for command in ("git push origin deploy", "git push", "git push origin HEAD:deploy"):
+        decision, label = policy.classify_command(command)
+        assert decision == "ask", command
+        assert "deploy" in label.lower() or "세션" in label
+
+
+def test_deploy_push_allows_when_scope_empty() -> None:
+    """project_root 있고 origin/deploy..HEAD 비면 allow."""
+    policy = _load_policy()
+    decision, label = policy.classify_command(
+        "git push origin deploy",
+        project_root=str(REPO_ROOT),
+        session_id="test-sess",
+    )
+    assert decision == "allow", label
+    assert label == ""

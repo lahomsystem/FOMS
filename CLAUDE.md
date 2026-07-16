@@ -31,8 +31,15 @@
 - **세션 시작/컴팩트**: `SessionStart` 훅이 AI_STATUS·RPI 안내를 주입하고, `PreCompact` 훅이 `docs/harness/runtime/COMPACT_CHECKPOINT.md`를 갱신한다.
 - **Stop 게이트**: `.py` 편집 세션은 턴 종료 시 `import app` 검증을 자동 통과해야 한다 (실패 시 종료 차단, 근본 수정 후 재시도).
 - **push 후 CI 게이트(논블로킹)**: `PostToolUse:Bash` 훅 `post_push_watch.py`가 `git push`/`gh pr merge` 성공을 감지하면 `additionalContext`로 CI 확인을 주입한다. 확인은 **블로킹 금지** — `python tools/harness/ci_watch.py`는 `run_in_background`로 돌리거나 `--quick`(폴링 없이 단발 조회: exit 0=green·1=코드 실패·4=진행 중·3=gh 불가)으로 즉시 상태만 보고 작업을 계속한다. CI green 확인이 push 완료의 정의이나 완주 대기로 세션을 막지 않는다.
-- **MCP 정본 위치**: 프로젝트 MCP 서버는 루트 `.mcp.json` (postgres, context7만 유지 — 나머지는 네이티브 기능으로 대체되어 퇴역).
+- **MCP 정본 위치**: 프로젝트 MCP 서버는 루트 `.mcp.json` (postgres, context7, youtube — 그 외는 네이티브 기능으로 대체되어 퇴역). youtube는 자막/영상정보 조회(uvx `mcp-youtube-transcript`, 무키), 메타데이터 보조는 `yt-dlp` CLI.
 - **하네스 내부 작업 컨텍스트**: Cursor/Codex 러너 라우팅 상세는 `AGENTS.md` + `.cursor/rules/00-project-context.mdc` 소관 (본 파일에서 중복 제거). 상시 커밋 번들은 폐기됨(2026-07-08 재설계 Phase 1b) — 온디맨드 컨텍스트 번들이 필요하면 `python tools/harness/build_context_bundle.py --all`로 생성한다(커밋하지 않음).
+
+## 스킬·플러그인 우선순위 (2026-07-16 도입)
+- **프로젝트 발췌 스킬 11종**(`.claude/skills/`): diagnosing-bugs·wayfinder·handoff·writing-great-skills(mattpocock) + postgres-patterns·python-testing·database-migrations·error-handling·api-design(ECC 발췌) + redesign-existing-projects·minimalist-ui(taste 발췌). 근거·제외 결정: `docs/harness/policy/DECISIONS.md` 2026-07-16 항목.
+- **superpowers 플러그인**: 방법론 SSOT(brainstorming→writing-plans→SDD). 단 **git 관련 스킬(using-git-worktrees·finishing-a-development-branch)보다 본 파일 Git 규칙이 항상 우선** (production push 금지, cherry-pick 승격, c:/tmp worktree 패턴, 공유 워킹트리 레이스 주의). "단순 UI 변경/타이포 → 바로 코딩" 예외도 brainstorming HARD-GATE보다 우선.
+- **ponytail 플러그인**(기본 lite): 코드 최소화 사다리보다 **본 파일의 docstring 필수·타입힌트 필수 규칙이 우선**. 보안·에러 처리 단순화 금지는 양쪽 일치.
+- **디자인 작업**: 기존 UI 개선·QA는 gstack-design-review가 주력(실브라우저 검증 루프). taste 발췌 2종은 미학 어휘 참조용 — 인라인 스타일 금지·erp-pro.css 체계가 항상 우선.
+- **디버깅**: diagnosing-bugs 스킬(tight feedback loop — 버그를 빨강으로 만드는 단일 명령 먼저)을 본 파일 "디버깅 원칙"과 함께 적용.
 
 ## 디렉토리 구조
 - `app.py`: Flask 앱 초기화 (최소화, 라우트 추가 금지)
@@ -123,6 +130,8 @@
 - **대형 변경**: feature 브랜치에서 작업
 - **브랜치 전략**: `deploy` (스테이징) → `production` (운영)
 - **운영(production) 푸시는 사용자 명시 요청 시에만 (절대 규칙)**: 기본 푸시 대상은 항상 `deploy`(스테이징, lahom-dev)다. `production`(운영) 브랜치로의 push·force-push·reset은 **사용자가 명시적으로 "production 푸시/배포"를 요청했을 때만** 수행한다. **"deploy 푸쉬"는 절대 `production`을 포함하지 않는다.** 스테이징 검증 → 사용자 승인 → 운영 승격 순서를 지키며, 임의 운영 푸시는 금지한다.
+- **deploy push 세션 격리 (ask)**: `git push … deploy` 시 타 세션/미확인 커밋이 범위에 있으면 훅이 ask. (1) 전체 포함 승인 / (2) 자기 몫만 → `python tools/harness/push_own_session_commits.py --session-id <id>`. 설계: `docs/superpowers/specs/2026-07-16-deploy-push-session-isolation-design.md`.
+- **production 승격 = 세션 커밋 cherry-pick 기본 (절대 규칙)**: "커밋 모두 푸쉬"·"전체 푸쉬"·"deploy 전체 승격" 등 명시 지시가 없으면, production 승격은 **이 세션(작업 창)이 만든 커밋만** cherry-pick해 반영한다. deploy HEAD 전체 merge·push 금지 — 여러 LLM 창이 deploy를 공유하므로 타 세션 미검증 커밋이 운영에 혼입된다. 절차: 자기 커밋 SHA를 `git log`로 확정 → `origin/production` 정본 확인(`git ls-remote`) → `c:/tmp` worktree(production 기반)에서 해당 SHA만 cherry-pick → PR로 승격. cherry-pick 충돌 = 타 세션 커밋 의존 신호 → 임의 해결 금지, 사용자에게 포함 여부 확인.
 - **푸시 전 스모크**: `deploy`/`main` push **직전** `powershell -NoProfile -File scripts/ops/pre_push_smoke.ps1` (APP_OK·harness verify·SSOT lint·CI subset·`test_p1_mockup_*` 구조 테스트). **UI/CSS/템플릿 변경** 시 PNG `-Visual`/win32 baseline은 필수 아님(선택). exit 0 확인 후 push. `-Full`은 머지 직전 전체 pytest. 상세: `docs/guides/PRE_PUSH_SMOKE.md`
 - **푸시 후 CI green 확인 (push 완료의 정의)**: push 직후 `python tools/harness/ci_watch.py`(기본 HEAD·deploy; production은 `... HEAD production`)로 CI 완료를 감시한다. exit 0=green, **exit 1=코드 실패 → 근본 수정 → pre_push_smoke → 재푸시까지가 한 작업 단위**, exit 2=자동 재실행(재폴링), exit 3=gh 미설치/미인증. `post_push_watch` 훅이 push 감지 시 이 실행을 자동 리마인드하므로 생략 금지.
 

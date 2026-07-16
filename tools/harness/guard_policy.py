@@ -16,8 +16,11 @@
 """
 from __future__ import annotations
 
+import os
 import re
 import shlex
+import subprocess
+import sys
 
 # ---------------------------------------------------------------------------
 # 상수: 보호 브랜치 · 안전 명령 집합
@@ -56,6 +59,10 @@ _FORCE_FLAGS: frozenset[str] = frozenset({"-f", "--force"})
 
 # 위험도 우선순위 (복합 명령에서 최고 위험 채택용).
 _RISK_ORDER = {"allow": 0, "ask": 1, "deny": 2}
+
+# classify_command 호출 동안 deploy scope 검사용 컨텍스트(재귀 언랩 공유).
+_ctx_project_root: str | None = None
+_ctx_session_id: str | None = None
 
 #: 선행 환경변수 할당 토큰(`KEY=VAL`) 패턴 — 실제 명령 앞에서 스킵한다.
 _ENV_ASSIGN_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
@@ -204,21 +211,73 @@ def _refspec_dest(refspec: str) -> str:
 # git subcommand 판정기
 # ---------------------------------------------------------------------------
 
-def _classify_git_push(tokens: list[str], push_idx: int) -> tuple[str, str]:
-    """`git push` 위험도 판정 (force·production 도달 감지).
+def _current_branch(project_root: str) -> str | None:
+    """현재 체크아웃 브랜치 이름. 실패 시 None."""
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=15,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if proc.returncode != 0:
+        return None
+    name = (proc.stdout or "").strip()
+    return name or None
+
+
+def _classify_deploy_push_scope(
+    project_root: str | None,
+    session_id: str | None,
+) -> tuple[str, str]:
+    """deploy push 세션 범위 판정. 실패 시 ask(묵시 allow 금지)."""
+    if not project_root:
+        return "ask", "deploy 푸시(세션 범위 확인 필요)"
+    try:
+        harness_dir = os.path.dirname(os.path.abspath(__file__))
+        if harness_dir not in sys.path:
+            sys.path.insert(0, harness_dir)
+        from deploy_push_scope import classify_deploy_scope  # type: ignore[import-not-found]
+
+        result = classify_deploy_scope(project_root, session_id)
+    except Exception as exc:  # noqa: BLE001 - 판정 실패는 ask 격상
+        return "ask", f"deploy 푸시 범위 판정 실패({type(exc).__name__})"
+    if result.kind in ("empty", "own"):
+        return "allow", ""
+    return "ask", result.label or "deploy 푸시(세션 확인 필요)"
+
+
+def _classify_git_push(
+    tokens: list[str],
+    push_idx: int,
+    *,
+    project_root: str | None = None,
+    session_id: str | None = None,
+) -> tuple[str, str]:
+    """`git push` 위험도 판정 (force·production·deploy 세션 범위).
 
     파라미터:
         tokens: 따옴표 제거된 argv 토큰.
         push_idx: 'push' 토큰의 인덱스.
+        project_root: 저장소 루트(deploy scope 검사용, 선택).
+        session_id: 현재 세션 id(선택).
     반환: (decision, label).
     """
     rest = tokens[push_idx + 1:]
     has_force = False
+    dry_run = False
     positionals: list[str] = []
     for tok in rest:
         if tok.startswith("-"):
             if tok in _FORCE_FLAGS or tok.startswith("--force"):
                 has_force = True
+            if tok in ("--dry-run", "-n"):
+                dry_run = True
             continue
         if tok.startswith("+"):  # `+refspec` = force push refspec
             has_force = True
@@ -236,6 +295,23 @@ def _classify_git_push(tokens: list[str], push_idx: int) -> tuple[str, str]:
 
     if targets & APPROVAL_REQUIRED_BRANCHES:
         return "ask", "production 푸시(사용자 승인 필요)"
+
+    if dry_run:
+        return "allow", ""
+
+    targets_lower = {t.lower() for t in targets if t}
+    if "deploy" in targets_lower:
+        return _classify_deploy_push_scope(project_root, session_id)
+
+    if not targets:
+        # `git push` / `git push origin` — 현재 브랜치 푸시
+        if project_root is None:
+            return "ask", "deploy 푸시(세션 범위 확인 필요)"
+        branch = _current_branch(project_root)
+        if branch is None or branch.lower() == "deploy":
+            return _classify_deploy_push_scope(project_root, session_id)
+        return "allow", ""
+
     return "allow", ""
 
 
@@ -275,7 +351,12 @@ def _classify_git(tokens: list[str]) -> tuple[str, str]:
         return "allow", ""
     sub = _strip_quotes(tokens[idx]).lower()
     if sub == "push":
-        return _classify_git_push(tokens, idx)
+        return _classify_git_push(
+            tokens,
+            idx,
+            project_root=_ctx_project_root,
+            session_id=_ctx_session_id,
+        )
     if sub == "reset":
         return _classify_git_reset(tokens, idx)
     if sub == "clean":
@@ -589,7 +670,12 @@ def _classify_command(command: str, depth: int) -> tuple[str, str]:
     return best_decision, best_label
 
 
-def classify_command(command: str) -> tuple[str, str]:
+def classify_command(
+    command: str,
+    *,
+    project_root: str | None = None,
+    session_id: str | None = None,
+) -> tuple[str, str]:
     """셸 명령 전체의 위험도를 판정한다(공개 API).
 
     복합 명령은 세그먼트(연산자·개행 경계)로 분해해 각각 판정하고 최고 위험도를
@@ -599,11 +685,19 @@ def classify_command(command: str) -> tuple[str, str]:
 
     파라미터:
         command: 판정할 원본 명령 문자열.
+        project_root: 저장소 루트(deploy 세션 범위 검사용, 선택).
+        session_id: 현재 에이전트 세션 id(선택).
     반환:
         (decision, label) 튜플. decision ∈ {"deny","ask","allow"}.
         label 은 로그/사유용 한글 요약(allow 시 빈 문자열).
     """
-    return _classify_command(command, 0)
+    global _ctx_project_root, _ctx_session_id
+    prev_root, prev_sid = _ctx_project_root, _ctx_session_id
+    _ctx_project_root, _ctx_session_id = project_root, session_id
+    try:
+        return _classify_command(command, 0)
+    finally:
+        _ctx_project_root, _ctx_session_id = prev_root, prev_sid
 
 
 # ---------------------------------------------------------------------------

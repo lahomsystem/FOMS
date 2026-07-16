@@ -33,6 +33,7 @@ def _load_debug():
 maybe_log_payload, get_payload = _load_debug()
 from shared_utils import (  # noqa: E402
     extract_project_root,
+    find_key_recursive,
     harness_runtime_path,
     hook_runtime_log,
 )
@@ -97,7 +98,28 @@ def main() -> None:
 
     try:
         command = payload.get("command") or ""
-        if _is_push_command(command) and not _push_failed(payload.get("output")):
+        output = payload.get("output") or ""
+        session_id = find_key_recursive(
+            payload,
+            ["conversation_id", "conversationId", "session_id", "sessionId", "id"],
+            default="unknown",
+        )
+        # 세션 커밋 레저 (deploy push 격리)
+        try:
+            harness = os.path.join(project_root, "tools", "harness")
+            if harness not in sys.path:
+                sys.path.insert(0, harness)
+            from record_git_commit_ledger import record_head_commit  # type: ignore[import-not-found]
+
+            record_head_commit(project_root, session_id, command, output)
+        except Exception as ledger_exc:  # noqa: BLE001
+            hook_runtime_log(
+                f"commit ledger 기록 실패: {type(ledger_exc).__name__}: {ledger_exc}",
+                project_root=project_root,
+                tag="commit_ledger",
+            )
+
+        if _is_push_command(command) and not _push_failed(output):
             _write_marker(project_root, _detect_branch(command), command)
     except Exception as exc:  # noqa: BLE001 - fail-open + 기록
         hook_runtime_log(
