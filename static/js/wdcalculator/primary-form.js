@@ -491,7 +491,7 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
         return (
             '\n            <div class="card mb-2 border-light base-component-row" data-mode="' +
             mode +
-            '">\n                <div class="card-body py-2">\n                    <!-- 첫 번째 행: 방식, 제품/직접입력, 가로, 삭제 -->\n                    <div class="row g-2 align-items-end">\n                        <!-- 방식 -->\n                        <div class="col-6 col-md-2 base-mode-col">\n                            <label class="form-label small mb-1">방식</label>\n                            <select class="form-select form-select-sm base-mode-select" aria-label="방식">\n                                <option value="select" ' +
+            '">\n                <div class="card-body py-2">\n                    <!-- 첫 번째 행: 방식, 제품/직접입력, 가로, 삭제 -->\n                    <div class="row g-2 align-items-end">\n                        <!-- 방식 -->\n                        <div class="col-6 col-md-3 base-mode-col">\n                            <label class="form-label small mb-1">방식</label>\n                            <select class="form-select form-select-sm base-mode-select" aria-label="방식">\n                                <option value="select" ' +
             (mode === "select" ? "selected" : "") +
             '>제품선택</option>\n                                <option value="manual" ' +
             (mode === "manual" ? "selected" : "") +
@@ -503,7 +503,7 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
             (mode === "manual" ? "btn-warning" : "btn-outline-warning") +
             ' base-mode-btn" data-mode="manual">커스텀</button>\n                                <button type="button" class="btn btn-sm ' +
             (mode === "direct" ? "btn-secondary" : "btn-outline-secondary") +
-            ' base-mode-btn" data-mode="direct">직접</button>\n                            </div>\n                        </div>\n\n                        <!-- 선택/직접 상세 영역 (항상 같은 컬럼을 차지해서 남는 공간 제거) -->\n                        <div class="col-12 col-md-6 base-details-area">\n                            <!-- 제품(선택 모드) -->\n                            <div class="base-select-area" style="' +
+            ' base-mode-btn" data-mode="direct">직접</button>\n                            </div>\n                        </div>\n\n                        <!-- 선택/직접 상세 영역 (항상 같은 컬럼을 차지해서 남는 공간 제거) -->\n                        <div class="col-12 col-md-5 base-details-area">\n                            <!-- 제품(선택 모드) -->\n                            <div class="base-select-area" style="' +
             (mode === "select" ? "" : "display:none;") +
             '">\n                                <label class="form-label small mb-1">제품</label>\n                                <select class="form-select form-select-sm base-product-select">\n                                    ' +
             getProductsOptionsHtml() +
@@ -684,6 +684,39 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
         triggerCalculateEstimate();
     }
 
+    /**
+     * 추가 항목(fee) 빈 행 DOM을 만든다.
+     * @returns {HTMLElement}
+     */
+    function createAdditionalFeeItemEl() {
+        var newItem = documentRef.createElement("div");
+        newItem.className = "row g-2 align-items-end mb-2 base-additional-fee-item";
+        newItem.innerHTML =
+            '<div class="col-12 col-md-5">' +
+            '<input type="text" class="form-control form-control-sm base-additional-fee-name" placeholder="제품명 입력" value="">' +
+            "</div>" +
+            '<div class="col-12 col-md-4">' +
+            '<input type="text" inputmode="numeric" class="form-control form-control-sm base-additional-fee-amount" placeholder="금액 (원)" value="">' +
+            "</div>" +
+            '<div class="col-12 col-md-3 text-end">' +
+            '<button type="button" class="btn btn-sm btn-outline-danger base-remove-fee-btn" title="삭제">' +
+            '<i class="fas fa-times"></i>' +
+            "</button>" +
+            "</div>";
+        return newItem;
+    }
+
+    /**
+     * 직접 모드 진입 시 입력란이 없으면 1행만 즉시 노출(＋직접입력 클릭 없이).
+     * @param {HTMLElement} rowEl
+     */
+    function ensureDirectFeeInputRow(rowEl) {
+        var feesList = rowEl.querySelector(".base-additional-fees-list");
+        if (!feesList) return;
+        if (feesList.querySelector(".base-additional-fee-item")) return;
+        feesList.appendChild(createAdditionalFeeItemEl());
+    }
+
     function applyBaseMode(rowEl, newMode) {
         rowEl.dataset.mode = newMode;
         var selectArea = rowEl.querySelector(".base-select-area");
@@ -712,6 +745,9 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
                 btn.classList.add(mode === newMode ? "btn-secondary" : "btn-outline-secondary");
             }
         });
+        if (newMode === "direct") {
+            ensureDirectFeeInputRow(rowEl);
+        }
         triggerCalculateEstimate();
     }
 
@@ -722,22 +758,7 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
             if (!rowEl) return;
             var feesList = rowEl.querySelector(".base-additional-fees-list");
             if (feesList) {
-                var newItem = documentRef.createElement("div");
-                newItem.className = "row g-2 align-items-end mb-2 base-additional-fee-item";
-                newItem.innerHTML = `
-                    <div class="col-12 col-md-5">
-                        <input type="text" class="form-control form-control-sm base-additional-fee-name" placeholder="제품명 입력" value="">
-                    </div>
-                    <div class="col-12 col-md-4">
-                        <input type="text" inputmode="numeric" class="form-control form-control-sm base-additional-fee-amount" placeholder="금액 (원)" value="">
-                    </div>
-                    <div class="col-12 col-md-3 text-end">
-                        <button type="button" class="btn btn-sm btn-outline-danger base-remove-fee-btn" title="삭제">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                `;
-                feesList.appendChild(newItem);
+                feesList.appendChild(createAdditionalFeeItemEl());
                 triggerCalculateEstimate();
             }
             return;

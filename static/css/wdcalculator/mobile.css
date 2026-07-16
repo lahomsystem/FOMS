@@ -365,14 +365,38 @@
   /* ============================================================
      특정 필드 1줄 묶음 — 전면 세로 적층(상단 .row > col 100% 규칙) 예외
      ============================================================ */
-  /* [기본 구성·직접 모드] 30cm · 1cm · 가로를 한 줄로.
-     단가/30cm/1cm 래퍼(base-details-area/base-manual-area/inner .row)를
-     display:contents로 평탄화 → 30cm·1cm 칸이 바깥 행의 '가로' 칸과
-     같은 flex 줄에 놓인다. (선택 모드는 미적용) */
+  /* [기본 구성·커스텀] 30cm · 1cm · 가로를 한 줄로.
+     단가/30cm/1cm 래퍼를 display:contents로 평탄화하되,
+     제품명(.mb-2)·단가방식(.col-4)은 전폭 행으로 고정해 알약 붕괴 방지. */
   body.wd-calc-mobile .base-component-row[data-mode="manual"] .base-details-area,
   body.wd-calc-mobile .base-component-row[data-mode="manual"] .base-manual-area,
   body.wd-calc-mobile .base-component-row[data-mode="manual"] .base-manual-area > .row {
     display: contents !important;
+  }
+  body.wd-calc-mobile .base-component-row[data-mode="manual"] .base-manual-area > .mb-2 {
+    flex: 0 0 100% !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin-bottom: 8px !important;
+  }
+  body.wd-calc-mobile .base-component-row[data-mode="manual"] .base-manual-name {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 44px !important;
+    box-sizing: border-box !important;
+  }
+  body.wd-calc-mobile .base-component-row[data-mode="manual"] .base-manual-area > .row > .col-4 {
+    flex: 0 0 100% !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin-bottom: 8px !important;
+  }
+  body.wd-calc-mobile .base-component-row[data-mode="manual"] .base-manual-pricing-type {
+    width: 100% !important;
+    min-height: 44px !important;
   }
   /* 한 줄에 놓인 칸 사이 간격(전역 규칙이 col padding을 0으로 만들어 붙는 것 보정) */
   body.wd-calc-mobile .base-component-row[data-mode="manual"] .card-body > .row,

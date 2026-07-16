@@ -59,6 +59,20 @@ def test_apply_base_mode_extracted():
     assert 'e.target.classList.contains("base-mode-select")' in PRIMARY
 
 
+def test_direct_mode_ensures_one_fee_input_row():
+    # 직접 선택 시 ＋직접입력 클릭 없이 입력란 1행 즉시 노출
+    assert "function ensureDirectFeeInputRow(rowEl)" in PRIMARY
+    assert 'if (newMode === "direct")' in PRIMARY
+    assert "ensureDirectFeeInputRow(rowEl)" in PRIMARY
+
+
+def test_mobile_manual_name_full_width_guard():
+    mobile = (ROOT / "static/css/wdcalculator/mobile.css").read_text(encoding="utf-8")
+    assert "base-manual-area > .mb-2" in mobile
+    assert ".base-manual-name" in mobile
+    assert "flex: 0 0 100%" in mobile.split("base-manual-area > .mb-2")[1].split("base-manual-30cm-col")[0]
+
+
 def test_t4_direct_mode_serializes_null_product():
     # direct 행은 fees-only — 숨은 select 잔존값 직렬화 금지(제품가 혼입·mode 클로버 방지)
     assert 'mode === "direct"' in PRIMARY
