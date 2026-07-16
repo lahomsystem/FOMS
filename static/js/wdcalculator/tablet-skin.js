@@ -13,7 +13,7 @@
  *
  *   | v2 셀              | 미러 대상(은닉 엔진 위젯)                 | 방향/트리거                              |
  *   |--------------------|------------------------------------------|------------------------------------------|
- *   | 모드칩(제품선택/커스텀/직접 ▾) | .base-mode-btn[data-mode]     | 시트 pick → click 위임 + 재빌드 |
+ *   | 모드 select(선택/커스텀/직접) | .base-mode-select / .base-mode-btn | change 위임 또는 click 폴백 + 재빌드 |
  *   | 제품(선택)          | .base-product-select                     | 시트 pick → value + change               |
  *   | 제품명(CUSTOM)      | .base-manual-name                        | 입력 → value + input                     |
  *   | 방식(CUSTOM 서브)   | .base-manual-pricing-type                | 시트 pick(30cm/1m) → value + change·재빌드|
@@ -517,8 +517,7 @@
         closePicker();
         // fee 를 먼저 동기 append(모드 클릭의 0건 자동시드와 중복 방지) → direct 모드 명시 전환.
         addDirectInputFee(engineRow, nm, amt);
-        var mb = engineRow.querySelector('.base-mode-btn[data-mode="direct"]');
-        if (mb) { mb.click(); }
+        setBaseMode(engineRow, 'direct', idx);
       });
       direct.appendChild(dName);
       direct.appendChild(dAmt);
@@ -535,14 +534,7 @@
       tabDirect.addEventListener('click', function () { activate('direct'); });
       tabCustom.addEventListener('click', function () {
         closePicker();
-        var b = engineRow.querySelector('.base-mode-btn[data-mode="manual"]');
-        if (b) { b.click(); }
-        window.setTimeout(function () {
-          rebuildBaseGrid();
-          var w = baseGridEl ? baseGridEl.children[idx] : null;
-          var nmIn = w && w.querySelector('.wdc2-dname');
-          if (nmIn) { nmIn.focus(); }
-        }, 0);
+        setBaseMode(engineRow, 'manual', idx);
       });
 
       picker.hidden = false;
@@ -569,17 +561,17 @@
       return '제품선택';
     }
 
-    function baseModeChipLabel(mode) {
-      if (mode === 'direct') { return '직접'; }
-      if (mode === 'manual') { return '커스텀'; }
-      return '선택';
-    }
-
     function setBaseMode(engineRow, targetMode, idx) {
       var cur = engineRow.dataset.mode || 'select';
       if (targetMode === cur) { return; }
-      var b = engineRow.querySelector('.base-mode-btn[data-mode="' + targetMode + '"]');
-      if (b) { b.click(); }
+      var engSel = engineRow.querySelector('.base-mode-select');
+      if (engSel) {
+        engSel.value = targetMode;
+        fireChange(engSel);
+      } else {
+        var b = engineRow.querySelector('.base-mode-btn[data-mode="' + targetMode + '"]');
+        if (b) { b.click(); }
+      }
       rebuildBaseGrid();
       if (targetMode === 'manual') {
         window.setTimeout(function () {
@@ -588,17 +580,6 @@
           if (nmIn) { nmIn.focus(); }
         }, 0);
       }
-    }
-
-    function openBaseModeSheet(engineRow, idx) {
-      var cur = engineRow.dataset.mode || 'select';
-      openSheet('모드', [
-        { value: 'select', label: '제품선택' },
-        { value: 'manual', label: '커스텀' },
-        { value: 'direct', label: '직접' },
-      ], cur, function (value) {
-        setBaseMode(engineRow, value, idx);
-      });
     }
 
     function baseProductLabel(engineRow) {
@@ -728,19 +709,28 @@
       var row = el('div', 'wdc2-brow' + (isDirect ? ' wdc2-brow--direct' : ''));
       wrap.appendChild(row);
 
-      // (a) 모드칩 — 바텀시트에서 제품선택/커스텀/직접 선택(3-사이클 토글 제거).
-      var chipLabel = baseModeChipLabel(mode);
-      var chip = el('button', 'wdc2-modechip' +
-        (mode === 'manual' ? ' wdc2-modechip--mine' : '') +
-        (isDirect ? ' wdc2-modechip--direct' : ''));
-      chip.type = 'button';
-      chip.setAttribute('aria-label', '모드 선택');
-      chip.innerHTML = '<span class="wdc2-modechip__n">' + (idx + 1) + '</span>' +
-        chipLabel + '<span class="wdc2-caret">▾</span>';
-      chip.addEventListener('click', function () {
-        openBaseModeSheet(engineRow, idx);
+      // (a) 모드 — 네이티브 select(선택/커스텀/직접). 엔진 .base-mode-select 우선 위임.
+      var modeCell = el('div', 'wdc2-modesel' +
+        (mode === 'manual' ? ' wdc2-modesel--mine' : '') +
+        (isDirect ? ' wdc2-modesel--direct' : ''));
+      modeCell.innerHTML = '<span class="wdc2-modesel__n">' + (idx + 1) + '</span>';
+      var modeSel = el('select', 'wdc2-modesel__select');
+      [
+        { value: 'select', label: '제품선택' },
+        { value: 'manual', label: '커스텀' },
+        { value: 'direct', label: '직접' },
+      ].forEach(function (o) {
+        var opt = document.createElement('option');
+        opt.value = o.value;
+        opt.textContent = o.label;
+        if (o.value === mode) { opt.selected = true; }
+        modeSel.appendChild(opt);
       });
-      row.appendChild(chip);
+      modeSel.addEventListener('change', function () {
+        setBaseMode(engineRow, modeSel.value, idx);
+      });
+      modeCell.appendChild(modeSel);
+      row.appendChild(modeCell);
 
       // (b) 상세 셀 + (c) W 셀.
       if (isDirect) {
@@ -770,7 +760,7 @@
           dcell.appendChild(dAmt);
         } else {
           var dEmpty = el('span', 'wdc2-directcell__empty');
-          dEmpty.textContent = '—';
+          dEmpty.textContent = '항목 없음';
           dcell.appendChild(dEmpty);
         }
         row.appendChild(dcell);
@@ -1041,12 +1031,9 @@
         addBaseBtn.click();
         window.setTimeout(function () {
           var rows = engineBaseRows();
-          var last = rows.length ? rows[rows.length - 1] : null;
-          if (last) {
-            var mb = last.querySelector('.base-mode-btn[data-mode="manual"]');
-            if (mb) { mb.click(); }
-          }
-          rebuildBaseGrid();
+          var lastIdx = rows.length ? rows.length - 1 : 0;
+          var last = rows.length ? rows[lastIdx] : null;
+          if (last) { setBaseMode(last, 'manual', lastIdx); }
         }, 0);
       } else if (kind === 'opt' && addOptBtn) {
         addOptBtn.click();

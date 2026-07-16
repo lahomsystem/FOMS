@@ -321,7 +321,9 @@ function assertMarkupContract(html, scenario) {
         ["base-width-preview", html.includes("base-width-preview")],
         ["base-width text input", html.includes('type="text" class="form-control form-control-sm base-width-input"')],
         ["base-additional-fees-list", html.includes("base-additional-fees-list")],
+        ["base-mode-select", html.includes("base-mode-select")],
         ["base-mode-btn", html.includes("base-mode-btn")],
+        ["base-mode-btn-hooks", html.includes("base-mode-btn-hooks")],
     ];
     for (const [name, ok] of checks) {
         assertEq(ok, true, `${scenario}: markup includes ${name}`);

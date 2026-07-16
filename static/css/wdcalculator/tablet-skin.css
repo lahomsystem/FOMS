@@ -188,12 +188,12 @@ html.wdc-tablet-pending .wdcalculator-container {
   body.wdc-tablet-v2 .wdc2-sec__t { font-size: 13px; font-weight: 800; letter-spacing: -0.01em; color: var(--wdc2-ink); }
   body.wdc-tablet-v2 .wdc2-sec__c { font-size: 11px; color: var(--wdc2-muted); font-weight: 600; }
 
-  /* 열 헤더 + 행 그리드(기본 구성): 모드 64 | 상세 0.7fr | W(min200) 0.5fr | 단가 156 | ✕ 40.
-     상세 30% 축소·W 확대(결함3: 복합식 우선). 제품명 ellipsis 허용. */
+  /* 열 헤더 + 행 그리드(기본 구성): 모드 108 | 상세 0.7fr | W(min180) 0.5fr | 단가 156 | ✕ 40.
+     모드 select 폭 확보·W 복합식 우선. 제품명 ellipsis 허용. */
   body.wdc-tablet-v2 .wdc2-colhead--base,
   body.wdc-tablet-v2 .wdc2-brow {
     display: grid;
-    grid-template-columns: 64px minmax(0, 0.7fr) minmax(200px, 0.5fr) 156px 40px;
+    grid-template-columns: 108px minmax(0, 0.7fr) minmax(180px, 0.5fr) 156px 40px;
     gap: 0 12px;
     align-items: center;
   }
@@ -204,39 +204,54 @@ html.wdc-tablet-pending .wdcalculator-container {
     font-weight: 700;
     letter-spacing: 0.07em;
   }
+  body.wdc-tablet-v2 .wdc2-colhead > span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   body.wdc-tablet-v2 .wdc2-colhead .r { text-align: right; }
   body.wdc-tablet-v2 .wdc2-brow-wrap { border-top: 1px solid #F0EEE8; padding: 7px 16px; }
   /* W textarea 가변 높이 → 상단 정렬(성장 시 다른 셀이 세로 중앙으로 떠오르지 않게). */
   body.wdc-tablet-v2 .wdc2-brow { min-height: 52px; align-items: start; }
 
-  body.wdc-tablet-v2 .wdc2-modechip {
-    height: 32px;
-    border-radius: 8px;
-    border: 1px solid #E0DDD5;
-    background: var(--wdc2-subtle);
+  body.wdc-tablet-v2 .wdc2-modesel {
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 2px;
-    padding: 0 3px;
-    font-size: 10px;
+    gap: 4px;
+    height: 44px;
+    min-width: 0;
+  }
+  body.wdc-tablet-v2 .wdc2-modesel__n {
+    flex: none;
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--wdc2-ink);
+  }
+  body.wdc-tablet-v2 .wdc2-modesel__select {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: 100%;
+    height: 34px;
+    appearance: auto;
+    -webkit-appearance: menulist;
+    border: 1px solid #E0DDD5;
+    border-radius: 8px;
+    background: var(--wdc2-subtle);
+    padding: 0 6px;
+    font-size: 11.5px;
     font-weight: 700;
     color: var(--wdc2-sub);
     cursor: pointer;
-    min-width: 0;
-    white-space: nowrap;
   }
-  body.wdc-tablet-v2 .wdc2-modechip__n { font-size: 12px; color: var(--wdc2-ink); }
-  body.wdc-tablet-v2 .wdc2-modechip .wdc2-caret {
-    margin-left: auto;
-    flex: none;
-    font-size: 9px;
-    color: #B4B0A6;
-  }
-  body.wdc-tablet-v2 .wdc2-modechip--mine {
+  body.wdc-tablet-v2 .wdc2-modesel--mine .wdc2-modesel__select {
     background: var(--wdc2-mine-tint);
     border-color: #EAD9B8;
     color: var(--wdc2-mine-ink);
+  }
+  body.wdc-tablet-v2 .wdc2-modesel--direct .wdc2-modesel__select {
+    background: #F2F6FB;
+    border-color: #D8E2EE;
+    color: #3A6291;
   }
 
   body.wdc-tablet-v2 .wdc2-prodbtn {
@@ -359,12 +374,6 @@ html.wdc-tablet-pending .wdcalculator-container {
     font-size: 16px;
     font-weight: 700;
   }
-  body.wdc-tablet-v2 .wdc2-modechip--direct {
-    background: #F2F6FB;
-    border-color: #D8E2EE;
-    color: #3A6291;
-  }
-
   /* 단가 — read-only 계산 미러(그린 틴트, 만질 수 없는 값). */
   body.wdc-tablet-v2 .wdc2-price {
     height: 44px;
@@ -401,13 +410,15 @@ html.wdc-tablet-pending .wdcalculator-container {
   body.wdc-tablet-v2 .wdc2-del:hover { background: var(--wdc2-subtle); color: var(--wdc2-danger); }
 
   /* 서브행(직접입력 / MINE 방식·단가). 상세 열~✕ 열 스팬. */
-  /* 서브행은 .wdc2-brow-wrap(블록) 직속이므로 상세 열(64px 모드 + 12px gap)만큼 들여쓴다. */
-  body.wdc-tablet-v2 .wdc2-subrow {
+  /* 서브행은 .wdc2-brow-wrap(블록) 직속이므로 상세 열(108px 모드 + 12px gap)만큼 들여쓴다. */
+  body.wdc-tablet-v2 .wdc2-subrow,
+  body.wdc-tablet-v2 .wdc2-msub {
+    position: static;
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-top: 7px;
-    margin-left: 76px;
+    margin-top: 8px;
+    margin-left: 120px;
   }
   body.wdc-tablet-v2 .wdc2-tie {
     width: 14px;
@@ -484,7 +495,7 @@ html.wdc-tablet-pending .wdcalculator-container {
   }
   body.wdc-tablet-v2 .wdc2-subhint { font-size: 10.5px; color: #9AA0A9; font-weight: 600; }
 
-  body.wdc-tablet-v2 .wdc2-addfee { margin-top: 6px; margin-left: 76px; }
+  body.wdc-tablet-v2 .wdc2-addfee { margin-top: 6px; margin-left: 120px; }
   body.wdc-tablet-v2 .wdc2-addfee__btn {
     border: none;
     background: none;

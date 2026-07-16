@@ -414,7 +414,13 @@
            numeric 키패드 / 중복 총액 제거 / at-a-glance 배지 / 변동 피드백
      ============================================================ */
 
-  /* [A] 방식(선택/직접) btn-group → 진짜 세그먼트: 솔리드 active 색 제거 */
+  /* [A] 방식 select(우선) / legacy btn-group 세그먼트 fallback */
+  body.wd-calc-mobile .base-component-row .base-mode-select,
+  body.wd-calc-mobile .wd-bc-toolbar .base-mode-select {
+    flex: 1; min-width: 0; width: 100%;
+    min-height: 40px; font-weight: var(--foms-font-weight-semibold);
+  }
+  body.wd-calc-mobile .base-mode-btn-hooks { display: none !important; }
   body.wd-calc-mobile .base-component-row .base-mode-btn {
     background: transparent !important; color: var(--foms-text-secondary) !important;
     box-shadow: none !important; border: none !important; font-weight: var(--foms-font-weight-medium) !important;
@@ -427,13 +433,13 @@
   body.wd-calc-mobile .base-component-row .base-mode-btn.btn-info { color: var(--foms-color-brand-700) !important; }
   body.wd-calc-mobile .base-component-row .base-mode-btn.btn-warning { color: var(--foms-color-warning-600) !important; }
 
-  /* [B] 방식 세그 + 삭제 = 편집기 상단 toolbar 한 줄 (JS가 노드 이동) */
+  /* [B] 방식 select(또는 legacy 세그) + 삭제 = 편집기 상단 toolbar 한 줄 (JS가 노드 이동) */
   body.wd-calc-mobile .wd-bc-orphan-col { display: none !important; }
   .wd-bc-toolbar {
-    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    display: flex; align-items: center; gap: var(--foms-space-2);
     margin-bottom: var(--foms-space-3);
   }
-  body.wd-calc-mobile .wd-bc-toolbar .btn-group { width: auto !important; flex: 0 0 auto; margin: 0; }
+  body.wd-calc-mobile .wd-bc-toolbar .btn-group { flex: 1; min-width: 0; width: auto !important; margin: 0; }
   .wd-bc-toolbar .base-remove-btn {
     border: none !important; background: transparent !important; color: var(--foms-color-danger-500) !important;
     min-height: 36px; width: 40px; padding: 0; border-radius: var(--foms-radius-md); flex-shrink: 0;

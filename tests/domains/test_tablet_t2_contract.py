@@ -988,8 +988,8 @@ def test_calc_skin_wired_in_calculator_template_with_cachebuster() -> None:
     """calculator.html 이 기존 <link> 패턴대로 스킨을 로드하고 ?v=20260713f 캐시버스터를 가진다.
     (2026-07-13 접힘 스킨 수리로 a→e, 하단 고정 최종견적 바 추가로 e→f, 하단바 가격 정렬 정합으로 f→o 범프.)"""
     html = _read(CALC_TEMPLATE)
-    m = re.search(r"tablet-skin\.css'\s*\)\s*}}\?v=20260716f", html)
-    assert m is not None, "calculator.html 에 tablet-skin.css ?v=20260716f <link> 부재"
+    m = re.search(r"tablet-skin\.css'\s*\)\s*}}\?v=20260716g", html)
+    assert m is not None, "calculator.html 에 tablet-skin.css ?v=20260716g <link> 부재"
 
 
 # =====================================================================

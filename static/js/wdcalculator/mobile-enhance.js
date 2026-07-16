@@ -463,22 +463,22 @@
         var mp = (row && row.manualPricing) || {};
         if (mp.pricing_type === "1m") {
           var p1m = Number(mp.price_1m) || 0;
-          name = (row && row.manualName) || "직접입력 (1m)";
+          name = (row && row.manualName) || "커스텀 (1m)";
           unitText = "1m " + fmtNum(p1m);
           chipHtml = p1m ? "1m <b>" + fmtNum(p1m) + "원</b>" : "";
         } else {
           var p30 = Number(mp.price_30cm) || 0;
           var p1 = Number(mp.price_1cm) || 0;
-          name = (row && row.manualName) || "직접입력 (30cm)";
+          name = (row && row.manualName) || "커스텀 (30cm)";
           unitText = "30cm " + fmtNum(p30);
           chipHtml = p30 ? "30cm <b>" + fmtNum(p30) + "원</b> · 1cm <b>" + fmtNum(p1) + "원</b>" : "";
         }
       } else if (mode === "direct") {
-        // direct(직접입력) 행 = fees-only: 이름은 fee 항목명으로 표기.
+        // direct(fees-only) 행: 이름은 fee 항목명, 없으면 "직접".
         var feeNames = ((row && row.additionalFees) || [])
           .map(function (f) { return (f && f.name) || ""; })
           .filter(Boolean);
-        name = feeNames.length ? feeNames.join(" · ") : "직접입력";
+        name = feeNames.length ? feeNames.join(" · ") : "직접";
       } else {
         var prod = products.filter(function (p) {
           return String(p.id) === String(row && row.productId);
@@ -499,7 +499,7 @@
           name = "제품 미선택";
         }
       }
-      var specParts = [mode === "direct" ? "직접입력" : mode === "manual" ? "CUSTOM" : "선택"];
+      var specParts = [mode === "direct" ? "직접" : mode === "manual" ? "커스텀" : "제품선택"];
       if (widthText) specParts.push(widthText);
       if (unitText) specParts.push(unitText);
       return { name: name, spec: specParts.join(" · "), chipHtml: chipHtml };
@@ -556,12 +556,17 @@
     function buildBaseToolbar(rowEl) {
       var body = rowEl.querySelector(".card-body");
       if (!body || body.querySelector(".wd-bc-toolbar")) return;
-      var seg = rowEl.querySelector(".btn-group");
+      var modeSelect = rowEl.querySelector(".base-mode-select");
+      var seg = !modeSelect ? rowEl.querySelector(".btn-group") : null;
       var del = rowEl.querySelector(".base-remove-btn");
-      if (!seg && !del) return;
+      if (!modeSelect && !seg && !del) return;
       var toolbar = document.createElement("div");
       toolbar.className = "wd-bc-toolbar";
-      if (seg) {
+      if (modeSelect) {
+        var selectCol = modeSelect.closest('[class*="col-"]');
+        toolbar.appendChild(modeSelect);
+        if (selectCol) selectCol.classList.add("wd-bc-orphan-col");
+      } else if (seg) {
         var segCol = seg.closest('[class*="col-"]');
         toolbar.appendChild(seg);
         if (segCol) segCol.classList.add("wd-bc-orphan-col");
@@ -807,6 +812,8 @@
        change 디스패치. 동적 행/옵션은 body 위임 + 열 때 live 옵션 읽기로 자동 대응. */
     function isMobileSelect(sel) {
       if (!sel || sel.tagName !== "SELECT") return false;
+      // base-mode-select: native picker only — no bottom sheet for mode.
+      if (sel.classList.contains("base-mode-select")) return false;
       return (
         sel.classList.contains("base-product-select") ||
         sel.hasAttribute("data-category-option-select") ||

@@ -491,13 +491,19 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
         return (
             '\n            <div class="card mb-2 border-light base-component-row" data-mode="' +
             mode +
-            '">\n                <div class="card-body py-2">\n                    <!-- 첫 번째 행: 방식, 제품/직접입력, 가로, 삭제 -->\n                    <div class="row g-2 align-items-end">\n                        <!-- 방식 -->\n                        <div class="col-6 col-md-3">\n                            <label class="form-label small mb-1">방식</label>\n                            <div class="btn-group w-100" role="group">\n                                <button type="button" class="btn btn-sm ' +
+            '">\n                <div class="card-body py-2">\n                    <!-- 첫 번째 행: 방식, 제품/직접입력, 가로, 삭제 -->\n                    <div class="row g-2 align-items-end">\n                        <!-- 방식 -->\n                        <div class="col-6 col-md-2 base-mode-col">\n                            <label class="form-label small mb-1">방식</label>\n                            <select class="form-select form-select-sm base-mode-select" aria-label="방식">\n                                <option value="select" ' +
+            (mode === "select" ? "selected" : "") +
+            '>제품선택</option>\n                                <option value="manual" ' +
+            (mode === "manual" ? "selected" : "") +
+            '>커스텀</option>\n                                <option value="direct" ' +
+            (mode === "direct" ? "selected" : "") +
+            '>직접</option>\n                            </select>\n                            <div class="d-none base-mode-btn-hooks" aria-hidden="true">\n                                <button type="button" class="btn btn-sm ' +
             (mode === "select" ? "btn-info" : "btn-outline-info") +
-            ' base-mode-btn" data-mode="select">선택</button>\n                                <button type="button" class="btn btn-sm ' +
+            ' base-mode-btn" data-mode="select">제품선택</button>\n                                <button type="button" class="btn btn-sm ' +
             (mode === "manual" ? "btn-warning" : "btn-outline-warning") +
-            ' base-mode-btn" data-mode="manual">CUSTOM</button>\n                                <button type="button" class="btn btn-sm ' +
+            ' base-mode-btn" data-mode="manual">커스텀</button>\n                                <button type="button" class="btn btn-sm ' +
             (mode === "direct" ? "btn-secondary" : "btn-outline-secondary") +
-            ' base-mode-btn" data-mode="direct">직접입력</button>\n                            </div>\n                        </div>\n\n                        <!-- 선택/직접 상세 영역 (항상 같은 컬럼을 차지해서 남는 공간 제거) -->\n                        <div class="col-12 col-md-5 base-details-area">\n                            <!-- 제품(선택 모드) -->\n                            <div class="base-select-area" style="' +
+            ' base-mode-btn" data-mode="direct">직접</button>\n                            </div>\n                        </div>\n\n                        <!-- 선택/직접 상세 영역 (항상 같은 컬럼을 차지해서 남는 공간 제거) -->\n                        <div class="col-12 col-md-6 base-details-area">\n                            <!-- 제품(선택 모드) -->\n                            <div class="base-select-area" style="' +
             (mode === "select" ? "" : "display:none;") +
             '">\n                                <label class="form-label small mb-1">제품</label>\n                                <select class="form-select form-select-sm base-product-select">\n                                    ' +
             getProductsOptionsHtml() +
@@ -525,7 +531,7 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
             (mode === "direct" ? "display:none;" : "") +
             '">\n                            <label class="form-label small mb-1">가로(mm)</label>\n                            <input type="text" class="form-control form-control-sm base-width-input" inputmode="numeric" placeholder="예: 4470 또는 4120+4121+2354" value="' +
             escapeHtml(String(widthDisplay)) +
-            '">\n                            <div class="form-text small base-width-preview text-muted py-0" aria-live="polite"></div>\n                        </div>\n\n                        <!-- 삭제 -->\n                        <div class="col-6 col-md-1 text-end">\n                            <button type="button" class="btn btn-sm btn-outline-danger base-remove-btn" title="삭제">\n                                <i class="fas fa-times"></i>\n                            </button>\n                        </div>\n                    </div>\n                    \n                    <!-- 두 번째 행: 추가금 입력 (리스트 형태) -->\n                    <div class="mt-2">\n                        <label class="form-label small mb-2">직접입력</label>\n                        <div class="base-additional-fees-list">\n                            ' +
+            '">\n                            <div class="form-text small base-width-preview text-muted py-0" aria-live="polite"></div>\n                        </div>\n\n                        <!-- 삭제 -->\n                        <div class="col-6 col-md-1 text-end">\n                            <button type="button" class="btn btn-sm btn-outline-danger base-remove-btn" title="삭제">\n                                <i class="fas fa-times"></i>\n                            </button>\n                        </div>\n                    </div>\n                    \n                    <!-- 두 번째 행: 추가금 입력 (리스트 형태) -->\n                    <div class="mt-2">\n                        <label class="form-label small mb-2">추가 항목</label>\n                        <div class="base-additional-fees-list">\n                            ' +
             additionalFees
                 .map(function (fee, idx) {
                     return (
@@ -678,6 +684,37 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
         triggerCalculateEstimate();
     }
 
+    function applyBaseMode(rowEl, newMode) {
+        rowEl.dataset.mode = newMode;
+        var selectArea = rowEl.querySelector(".base-select-area");
+        var manualArea = rowEl.querySelector(".base-manual-area");
+        var widthCol = rowEl.querySelector(".base-width-col");
+        if (selectArea) selectArea.style.display = newMode === "select" ? "" : "none";
+        if (manualArea) manualArea.style.display = newMode === "manual" ? "" : "none";
+        // direct = fees-only: W 무의미 — 숨김만(값 파괴하지 않음).
+        if (widthCol) widthCol.style.display = newMode === "direct" ? "none" : "";
+        var modeSelect = rowEl.querySelector(".base-mode-select");
+        if (modeSelect) modeSelect.value = newMode;
+        rowEl.querySelectorAll(".base-mode-btn").forEach(function (btn) {
+            var mode = btn.dataset.mode;
+            btn.classList.remove(
+                "btn-info", "btn-outline-info",
+                "btn-warning", "btn-outline-warning",
+                "btn-secondary", "btn-outline-secondary"
+            );
+            if (mode === "select") {
+                btn.classList.add(mode === newMode ? "btn-info" : "btn-outline-info");
+            }
+            if (mode === "manual") {
+                btn.classList.add(mode === newMode ? "btn-warning" : "btn-outline-warning");
+            }
+            if (mode === "direct") {
+                btn.classList.add(mode === newMode ? "btn-secondary" : "btn-outline-secondary");
+            }
+        });
+        triggerCalculateEstimate();
+    }
+
     function handleBaseComponentsContainerClick(e) {
         var rowEl = e.target.closest(".base-component-row");
 
@@ -719,33 +756,7 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
 
         var modeBtn = e.target.closest(".base-mode-btn");
         if (modeBtn) {
-            var newMode = modeBtn.dataset.mode;
-            rowEl.dataset.mode = newMode;
-            var selectArea = rowEl.querySelector(".base-select-area");
-            var manualArea = rowEl.querySelector(".base-manual-area");
-            var widthCol = rowEl.querySelector(".base-width-col");
-            if (selectArea) selectArea.style.display = newMode === "select" ? "" : "none";
-            if (manualArea) manualArea.style.display = newMode === "manual" ? "" : "none";
-            // direct = fees-only: W 무의미 — 숨김만(값 파괴하지 않음).
-            if (widthCol) widthCol.style.display = newMode === "direct" ? "none" : "";
-            rowEl.querySelectorAll(".base-mode-btn").forEach(function (btn) {
-                var mode = btn.dataset.mode;
-                btn.classList.remove(
-                    "btn-info", "btn-outline-info",
-                    "btn-warning", "btn-outline-warning",
-                    "btn-secondary", "btn-outline-secondary"
-                );
-                if (mode === "select") {
-                    btn.classList.add(mode === newMode ? "btn-info" : "btn-outline-info");
-                }
-                if (mode === "manual") {
-                    btn.classList.add(mode === newMode ? "btn-warning" : "btn-outline-warning");
-                }
-                if (mode === "direct") {
-                    btn.classList.add(mode === newMode ? "btn-secondary" : "btn-outline-secondary");
-                }
-            });
-            triggerCalculateEstimate();
+            applyBaseMode(rowEl, modeBtn.dataset.mode);
             return;
         }
 
@@ -779,6 +790,10 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
     function handleBaseComponentsContainerChange(e) {
         var rowEl = e.target.closest(".base-component-row");
         if (!rowEl) return;
+        if (e.target.classList.contains("base-mode-select")) {
+            applyBaseMode(rowEl, e.target.value || "select");
+            return;
+        }
         if (e.target.classList.contains("base-manual-pricing-type")) {
             var pricingType = e.target.value || "30cm";
             var col30 = rowEl.querySelector(".base-manual-30cm-col");

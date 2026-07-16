@@ -47,10 +47,14 @@ def test_mine_mirror_contract() -> None:
 
 
 def test_t4_direct_mode_cycle_and_render() -> None:
-    # 모드칩 바텀시트 + direct 행 span 레이아웃
-    assert '.base-mode-btn[data-mode="direct"]' in JS
-    assert "openBaseModeSheet" in JS
+    # 네이티브 모드 select + direct 행 span 레이아웃(모드 바텀시트 제거)
+    assert "openBaseModeSheet" not in JS
+    assert "wdc2-modesel" in JS or "wdc2-modesel__select" in JS
     assert "wdc2-directcell--span" in JS
+    assert ".base-mode-select" in JS
+    assert "function setBaseMode" in JS
+    # click 폴백 경로 유지(엔진 select 없을 때)
+    assert ".base-mode-btn[data-mode=" in JS
 
 
 def test_engine_button_mirrors() -> None:

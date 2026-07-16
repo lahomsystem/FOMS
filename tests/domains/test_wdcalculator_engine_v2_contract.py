@@ -28,18 +28,35 @@ def test_e1_manual_name_survives_pricing_normalization():
 
 
 def test_e3_mode_button_renamed_to_custom():
-    assert 'data-mode="manual">CUSTOM<' in PRIMARY
+    # 모드 라벨 SSOT: 커스텀 (레거시 CUSTOM/MINE 문자열 금지)
+    assert 'data-mode="manual">커스텀<' in PRIMARY
+    assert 'data-mode="manual">CUSTOM<' not in PRIMARY
     assert 'data-mode="manual">MINE<' not in PRIMARY
 
 
+def test_base_mode_select_ssot():
+    assert "base-mode-select" in PRIMARY
+    assert ">제품선택<" in PRIMARY
+    assert ">커스텀<" in PRIMARY
+    assert '>직접</option>' in PRIMARY or ">직접<" in PRIMARY
+    assert "base-mode-btn-hooks" in PRIMARY
+    assert "btn-group w-100" not in PRIMARY.split("renderBaseComponentRow")[1].split("function ensureBaseComponentsUI")[0]
+
+
 def test_t4_direct_mode_three_buttons():
-    # 3-상태 모드 토글: 선택 / CUSTOM / 직접입력 (T4)
+    # 숨김 hook 버튼: tablet/legacy click 위임용 — 라벨은 select와 동일
     for pin in (
-        'data-mode="select">선택<',
-        'data-mode="manual">CUSTOM<',
-        'data-mode="direct">직접입력<',
+        'data-mode="select">제품선택<',
+        'data-mode="manual">커스텀<',
+        'data-mode="direct">직접<',
     ):
         assert pin in PRIMARY, pin
+
+
+def test_apply_base_mode_extracted():
+    assert "function applyBaseMode(rowEl, newMode)" in PRIMARY
+    assert "applyBaseMode(rowEl, modeBtn.dataset.mode)" in PRIMARY
+    assert 'e.target.classList.contains("base-mode-select")' in PRIMARY
 
 
 def test_t4_direct_mode_serializes_null_product():
@@ -75,6 +92,7 @@ def test_t5_amount_inputs_converted_to_text():
 
 
 def test_e3_fee_button_renamed():
+    assert "추가 항목" in PRIMARY  # fee section label
     assert "직접입력" in PRIMARY  # base-add-fee-btn 라벨
     assert "추가금 추가" not in PRIMARY
 
