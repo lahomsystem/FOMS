@@ -1,4 +1,8 @@
 {% set filters = filters or {} %}
+{# Shell FOUC 가드: page-local CSS는 fragment(=본 파일)에도 동반.
+   erp-shell preloadFragmentStylesheets가 swap 전 head에 선로드. ?v= = dashboard.html styles. #}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-v2-cs-hero.css') }}?v=20260714a">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/foms-call-log.css') }}?v=20260712b">
 {% set _fos_desktop_body %}
 <div class="container-fluid erp-dashboard erp-pro erp-mobile-shell erp-dashboard-orders"
   data-user-id="{{ current_user.id }}"
