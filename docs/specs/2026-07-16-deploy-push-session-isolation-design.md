@@ -122,7 +122,7 @@
 
 ## 3. Steps — 구현 순서 (고수준)
 
-구현 세부 태스크는 brainstorming 승인 후 `writing-plans`로 `docs/superpowers/plans/`에 분해한다. 고수준만:
+구현 세부 태스크는 brainstorming 승인 후 `writing-plans`로 `docs/plans/`에 분해한다. 고수준만:
 
 1. ledger 모듈 + gitignore + 단위 테스트
 2. deploy_push_scope + 단위 테스트 (오늘 사고 fixture: foreign SHA → ask)

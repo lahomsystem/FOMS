@@ -10,7 +10,7 @@
 - **키워드**: harness, deploy, push, session-isolation, worktree, ledger, multi-agent
 - **결정**: 공유 워킹트리에서 `git push … deploy` 시 `origin/deploy..HEAD`를 세션 레저와 대조한다. 타 세션/미확인 커밋이면 **ask**(deny 아님). 승인 이원화: 전체 포함 / 자기 몫만(`push_own_session_commits.py` = `c:/tmp` 임시 worktree + cherry-pick). 상시 창별 worktree 강제는 하지 않음(Phase 1 선택). production/force 기존 가드 우선.
 - **이유**: 2026-07-16 12:37 사고 — 알림 세션 push에 WD 계산기 커밋 동반. production cherry-pick 규칙만으로는 deploy 오염을 못 막음. 전창 worktree 강제는 OneDrive·공유 PG·머지 비용으로 FOMS에 비효율(찬성/반대/중립 토론 결론).
-- **영향**: `tools/harness/{session_commit_ledger,deploy_push_scope,push_own_session_commits,record_git_commit_ledger}.py`, `guard_policy.py`, Cursor/Claude guard·commit 훅, `AGENTS.md`/`CLAUDE.md`, `docs/superpowers/specs/2026-07-16-deploy-push-session-isolation-design.md`. 검증: harness 관련 126 passed, `APP_OK`.
+- **영향**: `tools/harness/{session_commit_ledger,deploy_push_scope,push_own_session_commits,record_git_commit_ledger}.py`, `guard_policy.py`, Cursor/Claude guard·commit 훅, `AGENTS.md`/`CLAUDE.md`, `docs/specs/2026-07-16-deploy-push-session-isolation-design.md`. 검증: harness 관련 126 passed, `APP_OK`.
 
 ### [2026-07-16] 훅 배선 P0 수리 + 검증 기반 스킬 생태계 개편 (SDD 채용)
 - **키워드**: harness, hooks, CLAUDE_PROJECT_DIR, deadlock, skills, superpowers, sdd, ponytail, ecc, taste, mcp, youtube
