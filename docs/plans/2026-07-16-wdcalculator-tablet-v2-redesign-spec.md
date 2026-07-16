@@ -1,8 +1,18 @@
 # WD 계산기 태블릿 가로 v2 — PC 기능 전량 이식 재설계 Spec
 
-- 날짜: 2026-07-16
-- 목업: https://claude.ai/code/artifact/e2cf7805-04e5-4acb-aa58-ac7c169afcaa (3프레임)
-- 상태: **사용자 승인 대기** (승인 후 writing-plans → SDD 구현)
+- 날짜: 2026-07-16 (v2 — 1차 피드백 6건 반영)
+- 목업: https://claude.ai/code/artifact/e2cf7805-04e5-4acb-aa58-ac7c169afcaa (3프레임, v2)
+- 상태: **사용자 재승인 대기** (승인 후 writing-plans → SDD 구현)
+
+## 0. 1차 피드백 반영 (2026-07-16)
+
+1. MINE 행 단가 입력의 "30cm 단가" 라벨 삭제 — 방식 드롭다운이 이미 표기.
+2. 단가 셀 "×N구간" 메타 삭제 — 금액만.
+3. **직접 입력 행에 제품명 입력 추가 + 견적서 표기 (PC·모바일·태블릿 공통 = 엔진 확장, §7)**.
+   3.1 30cm/1m 방식은 컴팩트 드롭다운(태블릿·모바일 — PC는 기존 select 유지).
+4. "직접" → **"MINE"** 리네임 (구성 모드칩·옵션 직접 배지·비고 직접 배지·PC 모드 버튼·행 추가 버튼).
+5. "추가금 추가" → **"직접입력"** 리네임 + 견적서 표기에서 "추가금" 접미사 삭제(입력한 이름만).
+6. 비고를 조정 스트립에서 **정식 섹션으로 승격** (추가 옵션과 동급 — 문구 선택/MINE 직접 입력 행).
 
 ## 1. 배경 / 문제
 
@@ -23,17 +33,18 @@
 | 1 | 디자인 스킬로 UX/UI 신규 | minimalist(웜 모노크롬+그린 액센트) 어휘로 그라운드업 |
 | 2 | 실사용자 persona | 상담팀: 통화/대면 중 제품+W 입력 90%, 시선 분산 상태에서 총액 상시 가시 |
 | 3 | 한 화면 완결 | 좌 워크시트(입력 전부) + 우 라이브 패널(계산 전부) + 하단 액션바, 무스크롤 목표 |
-| 4 | 입력 폭 위계 | W 128px·18px 볼드 / 제품 1fr / 할인·배송 104px / 비고 칩 |
+| 4 | 입력 폭 위계 | W 128px·18px 볼드 / 제품·제품명 1fr / 할인·배송 104px / 비고 정식 섹션 |
 | 5 | D/H 제거 | 열 삭제. 구견적 센티널은 행별 추가금 서브행으로 자연 노출·보존(§6) |
-| 6 | 직접입력 넓게 | 직접 행은 상세 셀이 [30cm/1m 세그 + 단가 입력 + 1cm 자동] 3필드로 확장 |
+| 6 | 직접입력 넓게 | MINE 행은 상세 셀이 [제품명(1fr) + 방식 드롭다운 + 단가] 3필드로 확장 |
 | 7 | PC 기능 100% | §5 커버리지 표 25항목 — 구현 완료 기준(체크표) |
 | 8 | 디자인 자유 | erp-pro 문법 비의존. 단 신규 CSS는 토큰 변수로 정의(인라인 스타일 금지 준수) |
-| 9 | HTML/CSS/JS 재구현 | tablet-skin.js/css 전면 재작성(v2). 엔진은 READ-ONLY |
+| 9 | HTML/CSS/JS 재구현 | tablet-skin.js/css 전면 재작성(v2). 엔진 코어 무접촉 + §7 확장 4점 |
 
 ## 3. 접근 대안
 
 - **A안(채택): tablet-skin v2 그라운드업** — 신규 DOM + 은닉 엔진 위젯 양방향 미러
-  (T16/T18 검증 패턴 승계). 디자인 자유도 최대, 엔진 무접촉.
+  (T16/T18 검증 패턴 승계). 디자인 자유도 최대. 엔진 코어(계산·저장)는 무접촉,
+  단 §7 확장 4점(MINE 제품명·리네임·표기)만 최소 변경.
 - B안: 현행 표형 CSS 개보수(D/H 제거+스트립화) — 빠르나 "재설계" 지시 미충족,
   레이아웃 위계 재편 불가.
 - C안: 태블릿 전용 독립 페이지 + 엔진 포크 — 계산/저장 로직 이중화, SSOT 위반. 기각.
@@ -47,17 +58,20 @@
 ```
 [72 레일][ 워크시트 (flex) ][ 진행 견적 패널 312px ]
           탑바: WD계산기 · 고객명(밑줄 대형) · 견적검색 · 제품설정
-          기본 구성 섹션: [모드칩 64|제품/직접 1fr|W 128|단가 156|✕ 40]
+          기본 구성 섹션: [모드칩 64|제품/MINE 1fr|W 128|단가 156|✕ 40]
+            - 선택 행: 제품 버튼(시트) | MINE 행: 제품명 + 방식 드롭다운(30cm▾) + 단가
+            - 행별 직접입력(구 추가금) 서브행: 이름 + 금액, [＋ 직접입력]
           추가 옵션 섹션: [배지 64|옵션 1fr|금액 156|✕ 40]
-          조정 스트립: 할인(−) · 배송(＋,포함☑) · 비고 칩
+          비고 섹션(정식): [배지 64|내용 1fr|✕ 40] — 문구 선택 or MINE 직접
+          조정 스트립: 할인(−) · 배송(＋,포함☑)
           액션바: 총견적(대형) · [견적 계산] · [진행 견적에 추가→]
 패널:     현재 견적 브레이크다운(라이브) → 진행 견적 스택(단가 토글) → 전체합계+새견적/전체저장
 ```
 
 시각 언어: **입력칸 = 흰 배경+실선 테두리 / 계산값 = 그린 틴트**(#EFF7F2, 잉크 #0B5C3E).
-웜 본 캔버스(#EDEBE4), 행 높이 56px, 입력 48px, 숫자 tabular-nums. 직접 모드 칩은
-앰버 틴트로 구분. 저장 견적은 우측 오버레이(392px) — 기존 48px 접힘 레일 폐지,
-진입점은 탑바 [견적 검색] 단일화.
+웜 본 캔버스(#EDEBE4), 행 52px·입력 44px, 숫자 tabular-nums. 단가 셀은 금액만
+(×구간·라벨 메타 없음). MINE 모드는 앰버 틴트 배지. 저장 견적은 우측 오버레이(392px)
+— 기존 48px 접힘 레일 폐지, 진입점은 탑바 [견적 검색] 단일화.
 
 ## 5. PC 기능 커버리지 표 (구현 완료 기준 — 전 항목 ✓ 전 "완료" 금지)
 
@@ -67,17 +81,17 @@
 | 2 | 저장 견적 사이드바(검색·목록·새로고침·불러오기) | [견적 검색] → 우측 오버레이 (노드 도킹) |
 | 3 | 제품 설정 링크 | 탑바 버튼 |
 | 4 | 구성 행 추가 `#addBaseComponentBtn` | [＋ 구성 행 추가] / [✎ 직접 입력 행 추가](추가 후 모드 전환) |
-| 5 | 행별 선택/직접 토글 `.base-mode-btn` | 행 모드칩 탭 전환 |
+| 5 | 행별 선택/직접 토글 `.base-mode-btn` | 행 모드칩 탭 전환 (선택⇄MINE) |
 | 6 | 제품 선택 `.base-product-select` | 제품 시트(3열 그리드, 30cm 단가 병기) |
 | 7 | W 입력 `.base-width-input` | W 셀 (numeric inputmode) |
-| 8 | 직접: 방식 `.base-manual-pricing-type` + `.base-manual-price30/-price1/-price1m` | 세그(30cm/1m) + 단가 입력 + 1cm 자동(readonly) 인라인 |
-| 9 | 행별 추가금 `.base-add-fee-btn/-fee-name/-fee-amount` | 들여쓴 서브행 + [＋ 추가금] |
+| 8 | MINE: 제품명(§7-E1 신설) + 방식 `.base-manual-pricing-type` + `.base-manual-price30/-price1m` | 제품명 입력(1fr) + 방식 드롭다운(30cm▾ 경량 시트) + 단가 입력. 1cm 자동값은 태블릿 표면 미노출(PC 유지) |
+| 9 | 행별 직접입력(구 추가금) `.base-add-fee-btn/-fee-name/-fee-amount` | 들여쓴 서브행 + [＋ 직접입력] |
 | 10 | 행 삭제 `.base-remove-btn` | ✕ (클릭 위임) |
-| 11 | 행 단가 표시 | 그린 틴트 셀 = `wdcComputeCurrentEstimateMath` 관찰 + ×N구간 메타 |
+| 11 | 행 단가 표시 | 그린 틴트 셀 = `wdcComputeCurrentEstimateMath` 관찰, 금액만(메타 없음) |
 | 12 | 옵션 행 추가 `#addOptionBtn` | [＋ 옵션 추가] |
 | 13 | 옵션 선택 `[data-category-option-select]` + 직접명 `.option-name-input` + 금액 `[data-option-price]` | 옵션 시트(카테고리›옵션) + 직접 입력 + 금액 셀 |
 | 14 | 옵션 행 삭제 | ✕ |
-| 15 | 비고 `#btnAddNote` + select/직접 textarea 토글 | 비고 칩 + 시트(저장 문구 그리드 + 직접 입력) |
+| 15 | 비고 `#btnAddNote` + select/직접 textarea 토글 | **정식 비고 섹션** — 행(문구 배지=select / MINE 배지=직접 텍스트) + [＋ 비고 추가], 문구는 시트 피커 |
 | 16 | 쿠폰 할인 `#globalCouponValue` | 스트립 할인 필 (104px) |
 | 17 | 배송비 `#shippingCost` + 포함 `#shippingIncluded` | 스트립 배송 필 + 체크 |
 | 18 | 견적 계산 `#calculateBtn` | 액션바 [견적 계산] |
@@ -96,30 +110,51 @@
   자연 노출**(파싱 특별처리 불필요). 사용자가 지우면 소멸, 두면 재직렬화 보존.
 - 0원 추가금은 pricing-core가 가격/표시 skip — 총액 무영향(기존 확인 사항).
 
-## 7. 라이브 총액 (표시 전용)
+## 7. 엔진 확장 (PC·모바일·태블릿 공통 — 유일한 엔진 접촉 지점)
+
+- **E1. MINE 행 제품명**: primary-form.js 직접(manual) 행 템플릿에 제품명 입력
+  (`.base-manual-name`) 추가. `readBaseComponentsFromUI` → `component.manualName`,
+  `ensureBaseComponentsUI` 재렌더 복원, `buildEstimateData` 저장/로드 왕복 포함.
+  표시(기본 견적 detail·진행 견적 카드·저장 견적 카드)는 manualName 우선,
+  없으면 기존 "직접입력(30cm)" 폴백 — **구견적 하위 호환**.
+- **E2. 방식 선택 UI**: PC는 기존 select 유지. 태블릿=경량 시트 드롭다운(30cm▾),
+  모바일=기존 select(이미 컴팩트) 확인만.
+- **E3. 리네임**: PC `.base-mode-btn` "직접"→"MINE", `.base-add-fee-btn`
+  "추가금 추가"→"직접입력", 모바일 토글 라벨 동기. 기능·클래스명·데이터 키 불변
+  (텍스트만 — 저장 스키마 무영향).
+- **E4. 행별 직접입력 표기**: detail line "{name} 추가금 {amount}" → "{name} {amount}"
+  ("추가금" 접미사 삭제). pricing-core/estimate-lifecycle 표시 계층만, 저장 구조 불변.
+
+## 8. 라이브 총액 (표시 전용)
 
 - 1차: 기존 검증 패턴 = 엔진 노드(`#finalPrice` 등) MutationObserver 미러.
 - 보강: `wdcComputeAggregateTotals`(순수 함수) 관찰로 입력 즉시 브레이크다운 갱신.
   **표시 전용** — 엔진 상태·저장 데이터에 무개입, [견적 계산] 버튼 계약 불변.
   구현 시 엔진 갱신 타이밍 실사 후 보강 범위 확정.
 
-## 8. 파일 계획
+## 9. 파일 계획
 
 - `static/js/wdcalculator/tablet-skin.js` — 전면 재작성 (미러 계약 승계 + v2 DOM)
 - `static/css/wdcalculator/tablet-skin.css` — 전면 재작성 (토큰 변수 정의)
+- `static/js/wdcalculator/primary-form.js` — §7 E1(제품명 필드)·E3(리네임)만
+- `static/js/wdcalculator/pricing-core.js` / `estimate-lifecycle.js` — §7 E1 표시·E4
+  접미사만 (계산 로직 불변)
+- `static/js/wdcalculator/mobile-enhance.js` — E2 확인·E3 라벨 동기 (필요시)
 - `templates/wdcalculator/calculator.html` — ?v 범프 (자체 link — 번들 아님)
-- 계약 테스트: 기존 표형(P11) 구조 테스트 → v2 구조 테스트로 대체
-- 손대지 않는 것: primary-form.js · pricing-core.js · estimate-lifecycle.js ·
-  composition.js · mobile-enhance.js · wdcalculator_body.html 마크업 · blueprint.py
+- 계약 테스트: 기존 표형(P11) 구조 테스트 → v2 구조 테스트로 대체 + E1 왕복 테스트
+- 손대지 않는 것: composition.js 부트스트랩 구조 · wdcalculator_body.html 마크업 ·
+  blueprint.py(API/스키마) · 계산 수식 일체
 
-## 9. 검증 계획
+## 10. 검증 계획
 
 - APP_OK + 계약 테스트(v2 구조·미러 계약·게이트 3열거) + pre_push_smoke exit 0
 - coarse landscape 에뮬(CSSOM strip + matchMedia 패치)로 실렌더 확인, PC/폰/embedded 무회귀
-- 라운드트립: 견적 추가→전체 저장→검색→불러오기, D/H 센티널 구견적 로드(서브행 노출)
+- 라운드트립: 견적 추가→전체 저장→검색→불러오기, D/H 센티널 구견적 로드(서브행 노출),
+  **MINE 제품명 왕복(저장→재로드 표기) + manualName 없는 구견적 폴백 표기**
+- PC 회귀: 선택/MINE 전환·직접입력(구 추가금)·비고 — 리네임 후 기존 플로우 무손상
 - 커버리지 표 25항목 체크표(✓/✗+사유) — 전 항목 ✓ 전 "완료" 보고 금지
 
-## 10. 비범위
+## 11. 비범위
 
 - 세로(portrait) 태블릿 계산기 — 모바일 빌더 유지
 - 엔진 리팩터/추가금 편집기 0원 행 노출 개선(기존 FLAG) — 별도 건
