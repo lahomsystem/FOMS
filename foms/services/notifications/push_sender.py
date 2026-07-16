@@ -40,7 +40,14 @@ _TRUTHY = frozenset({"1", "true", "yes", "on"})
 
 # 비긴급 알림 중 push 를 발송하는 P1 유형 기본 집합(env 로 override 가능).
 _DEFAULT_P1_TYPES = frozenset(
-    {"DRAWING_TRANSFERRED", "DRAWING_REVISION", "QUEST_ASSIGNED", "ERP_ORDER_CHANGED"}
+    {
+        "DRAWING_TRANSFERRED",
+        "DRAWING_REVISION",
+        "QUEST_ASSIGNED",
+        "ERP_ORDER_CHANGED",
+        # 에스컬레이션 row 는 is_urgent=False(재진입 방지)이므로 P1 로 OS push 허용.
+        "URGENT_ESCALATION",
+    }
 )
 
 # 이미 더 진행된 상태이면 last_delivery_status 를 push 결과로 덮어쓰지 않는다.
@@ -130,6 +137,8 @@ def _generic_title(urgent: bool, ntype: str) -> str:
         return "도면 알림"
     if ntype == "QUEST_ASSIGNED":
         return "업무 배정 알림"
+    if ntype == "URGENT_ESCALATION":
+        return "에스컬레이션"
     return "새 알림"
 
 
@@ -142,7 +151,11 @@ def _build_payload(notif: Notification) -> Dict[str, Any]:
         "body": (
             "긴급 확인이 필요한 알림이 있습니다."
             if urgent
-            else "확인이 필요한 새 알림이 있습니다."
+            else (
+                "미확인 긴급 알림이 에스컬레이션되었습니다."
+                if ntype == "URGENT_ESCALATION"
+                else "확인이 필요한 새 알림이 있습니다."
+            )
         ),
         "data": {"notification_id": int(notif.id), "deep_link": _deep_link(notif)},
     }

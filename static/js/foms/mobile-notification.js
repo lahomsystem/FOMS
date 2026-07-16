@@ -332,8 +332,10 @@
   }
 
   function setExpanded(state) {
-    var btn = document.querySelector('[data-foms-notif-open]');
-    if (btn) btn.setAttribute('aria-expanded', state ? 'true' : 'false');
+    var buttons = document.querySelectorAll('[data-foms-notif-open]');
+    Array.prototype.forEach.call(buttons, function (btn) {
+      btn.setAttribute('aria-expanded', state ? 'true' : 'false');
+    });
   }
 
   function openSheet() {
@@ -417,4 +419,14 @@
   document.addEventListener('foms:main-content-swapped', function () {
     renderBadge(currentBadgeCount());
   });
+
+  window.FOMSNotificationCenter = {
+    refreshIfOpen: function () {
+      var sheet = getSheet();
+      if (sheet && sheet.classList.contains('show')) {
+        loadList();
+      }
+    },
+    open: openSheet
+  };
 })();

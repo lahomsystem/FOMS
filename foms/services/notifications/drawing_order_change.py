@@ -120,7 +120,57 @@ def should_alert_drawing_team(order: Order, sd: dict) -> bool:
 
 
 def _norm_scalar(value: Any) -> str:
-    """비교용 스칼라 정규화."""
+    """비교용 스칼라 정규화(구조체 금지 — 구조는 format_value_for_display)."""
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "1" if value else "0"
+    if isinstance(value, (int, float)):
+        return str(value)
+    if isinstance(value, (dict, list)):
+        return format_value_for_display(value)
+    return str(value).strip()
+
+
+def format_spec_rows_display(val: Any) -> str:
+    """스펙행 사람 표기. JSON 금지 — ``WxDxH`` (복수 행은 `` / ``)."""
+    if val is None or val == "":
+        return ""
+    raw: Any = val
+    if isinstance(val, str):
+        s = val.strip()
+        if not s or s == "(없음)":
+            return "" if s != "(없음)" else "(없음)"
+        if s.startswith("["):
+            try:
+                raw = json.loads(s)
+            except (TypeError, ValueError, json.JSONDecodeError):
+                return s
+        else:
+            return s
+    if isinstance(raw, dict):
+        raw = [raw]
+    if not isinstance(raw, list):
+        return _norm_scalar_plain(raw)
+
+    lines: List[str] = []
+    for row in raw:
+        if not isinstance(row, dict):
+            piece = _norm_scalar_plain(row)
+            if piece:
+                lines.append(piece)
+            continue
+        w = str(row.get("spec_width") or row.get("w") or row.get("width") or "").strip()
+        d = str(row.get("spec_depth") or row.get("d") or row.get("depth") or "").strip()
+        h = str(row.get("spec_height") or row.get("h") or row.get("height") or "").strip()
+        parts = [p for p in (w, d, h) if p]
+        if parts:
+            lines.append("x".join(parts))
+    return " / ".join(lines)
+
+
+def _norm_scalar_plain(value: Any) -> str:
+    """재귀 없는 스칼라 문자열(format_value_for_display 내부용)."""
     if value is None:
         return ""
     if isinstance(value, bool):
@@ -130,6 +180,130 @@ def _norm_scalar(value: Any) -> str:
     return str(value).strip()
 
 
+_STRUCT_FIELD_LABELS: Dict[str, str] = {
+    "name": "이름",
+    "phone": "전화",
+    "amount": "금액",
+    "raw": "금액",
+    "deposit": "계약금",
+    "balance": "잔금",
+    "total": "합계",
+    "method": "결제방법",
+    "status": "상태",
+    "memo": "메모",
+    "note": "비고",
+    "text": "내용",
+    "special": "특이",
+    "remark": "비고",
+    "phone_note": "연락처 특이사항",
+    "address_note": "주소 특이사항",
+    "measurement_note": "실측 특이사항",
+    "urgent": "긴급",
+    "urgent_reason": "긴급사유",
+    "factory2": "2공장",
+    "self_measure": "자가실측",
+    "special_notes": "특이사항",
+    "special_note": "특이사항",
+}
+
+
+def format_value_for_display(val: Any) -> str:
+    """변경 이력 from/to 표기 SSOT. JSON·dict/list repr 절대 금지."""
+    if val is None:
+        return ""
+    if isinstance(val, bool):
+        return "1" if val else "0"
+    if isinstance(val, (int, float)):
+        return str(val)
+    if isinstance(val, str):
+        s = val.strip()
+        if not s or s == "(없음)":
+            return s
+        if (s.startswith("{") and s.endswith("}")) or (s.startswith("[") and s.endswith("]")):
+            try:
+                parsed = json.loads(s)
+            except (TypeError, ValueError, json.JSONDecodeError):
+                return s
+            formatted = format_value_for_display(parsed)
+            return formatted if formatted else "(구조 변경)"
+        return s
+    if isinstance(val, list):
+        if not val:
+            return ""
+        # 스펙행 형태면 WxDxH
+        if any(
+            isinstance(x, dict)
+            and any(k in x for k in ("spec_width", "spec_depth", "spec_height", "w", "d", "h", "width", "depth", "height"))
+            for x in val
+        ):
+            spec = format_spec_rows_display(val)
+            if spec:
+                return spec
+        parts = [format_value_for_display(x) for x in val]
+        return ", ".join(p for p in parts if p)
+    if isinstance(val, dict):
+        if not val:
+            return ""
+        # 단일 치수 dict
+        if any(k in val for k in ("spec_width", "spec_depth", "spec_height", "w", "d", "h", "width", "depth", "height")):
+            spec = format_spec_rows_display([val])
+            if spec:
+                return spec
+        parts: List[str] = []
+        for key, nested in val.items():
+            nested_s = format_value_for_display(nested)
+            if not nested_s:
+                continue
+            label = (
+                _ITEM_FIELD_LABELS.get(key)
+                or _STRUCT_FIELD_LABELS.get(key)
+                or str(key)
+            )
+            parts.append(f"{label} {nested_s}")
+        return ", ".join(parts)
+    return _norm_scalar_plain(val)
+
+
+def humanize_change_display_value(label: Any, path: Any, value: Any) -> str:
+    """변경 from/to 표시값 — 모든 경로에서 JSON 금지."""
+    if value is None:
+        return "(없음)"
+    text = str(value)
+    if not text.strip():
+        return "(없음)" if not text else text
+    if text == "(없음)":
+        return text
+    formatted = format_value_for_display(text)
+    # format 후에도 JSON 잔존 시 안전 폴백
+    stripped = (formatted or "").lstrip()
+    if stripped.startswith("{") or stripped.startswith("["):
+        return "(구조 변경)"
+    return formatted if formatted else text
+
+
+def humanize_order_change_changes(
+    changes: Optional[Sequence[Any]],
+) -> List[Dict[str, str]]:
+    """history.changes 표시용 복사본(원본 JSON from/to 를 사람 표기로)."""
+    out: List[Dict[str, str]] = []
+    for raw in changes or []:
+        if not isinstance(raw, dict):
+            continue
+        row = {
+            "path": str(raw.get("path") or ""),
+            "label": str(raw.get("label") or ""),
+            "from": humanize_change_display_value(
+                raw.get("label"), raw.get("path"), raw.get("from")
+            ),
+            "to": humanize_change_display_value(
+                raw.get("label"), raw.get("path"), raw.get("to")
+            ),
+        }
+        out.append(row)
+    return out
+
+
+# forward ref: _ITEM_FIELD_LABELS used above — defined immediately below
 _ITEM_FIELD_LABELS: Dict[str, str] = {
     "product_name": "제품명",
     "width": "W(가로)",
@@ -156,19 +330,21 @@ _ITEM_FIELD_LABELS: Dict[str, str] = {
 
 
 def _item_snapshot(item: Any) -> Dict[str, str]:
-    """제품 행에서 도면 관련 키만 추출."""
+    """제품 행에서 도면 관련 키만 추출(표시·비교용 문자열). JSON 덤프 금지."""
     if not isinstance(item, dict):
         return {"_raw": _norm_scalar(item)}
     out: Dict[str, str] = {}
     for key in _ITEM_COMPARE_KEYS:
         if key in item:
             val = item.get(key)
-            if isinstance(val, (list, dict)):
-                out[key] = json.dumps(val, ensure_ascii=False, sort_keys=True, default=str)
+            if key == "spec_rows":
+                out[key] = format_spec_rows_display(val)
+            elif isinstance(val, (list, dict)):
+                out[key] = format_value_for_display(val)
             else:
-                out[key] = _norm_scalar(val)
+                out[key] = _norm_scalar_plain(val)
     if not out:
-        out["_json"] = json.dumps(item, ensure_ascii=False, sort_keys=True, default=str)
+        out["_raw"] = _norm_scalar(item.get("product_name") or item.get("name") or "항목")
     return out
 
 
@@ -237,12 +413,18 @@ def _append_item_field_changes(
         new_snap = _item_snapshot(new_it)
         for key in sorted(set(old_snap) | set(new_snap)):
             label_key = _ITEM_FIELD_LABELS.get(key, key if not key.startswith("_") else "내용")
+            old_v = old_snap.get(key)
+            new_v = new_snap.get(key)
+            # 스펙 문자열과 동일하면 스펙행 행은 중복 — 숨김.
+            if key == "spec_rows":
+                if old_v == old_snap.get("spec") and new_v == new_snap.get("spec"):
+                    continue
             _add_change(
                 changes,
                 f"items.{idx}.{key}",
                 f"{prefix} {label_key}",
-                old_snap.get(key),
-                new_snap.get(key),
+                old_v,
+                new_v,
             )
 
     old_spec = old_sd.get("spec_rows")
@@ -250,23 +432,12 @@ def _append_item_field_changes(
     if json.dumps(old_spec, ensure_ascii=False, sort_keys=True, default=str) != json.dumps(
         new_spec, ensure_ascii=False, sort_keys=True, default=str
     ):
-        # 행 단위 세부가 어려우면 요약이라도 from/to 텍스트로
-        old_s = (
-            json.dumps(old_spec, ensure_ascii=False, sort_keys=True, default=str)
-            if old_spec is not None
-            else ""
-        )
-        new_s = (
-            json.dumps(new_spec, ensure_ascii=False, sort_keys=True, default=str)
-            if new_spec is not None
-            else ""
-        )
         _add_change(
             changes,
             "spec_rows",
             "스펙행",
-            (old_s[:80] + "…") if len(old_s) > 80 else (old_s or "(없음)"),
-            (new_s[:80] + "…") if len(new_s) > 80 else (new_s or "(없음)"),
+            format_spec_rows_display(old_spec) or "(없음)",
+            format_spec_rows_display(new_spec) or "(없음)",
         )
 
 
@@ -298,9 +469,9 @@ def _add_change(
     old: Any,
     new: Any,
 ) -> None:
-    """from≠to 이면 changes에 추가."""
-    old_s = _norm_scalar(old)
-    new_s = _norm_scalar(new)
+    """from≠to 이면 changes에 추가. from/to 는 항상 사람 표기(JSON 금지)."""
+    old_s = format_value_for_display(old)
+    new_s = format_value_for_display(new)
     if old_s == new_s:
         return
     changes.append({
@@ -471,8 +642,8 @@ def compute_drawing_relevant_changes(
                 changes,
                 "notes.object",
                 "비고(상세)",
-                _notes_object_fingerprint(old_sd) or "(없음)",
-                _notes_object_fingerprint(new_sd) or "(없음)",
+                old_notes_obj if isinstance(old_notes_obj, dict) else old_sd.get("notes"),
+                new_notes_obj if isinstance(new_notes_obj, dict) else new_sd.get("notes"),
             )
 
     if _flags_fingerprint(old_sd) != _flags_fingerprint(new_sd):
@@ -516,11 +687,11 @@ def compute_drawing_relevant_changes(
 
 
 def summarize_changes(changes: Sequence[Dict[str, str]], *, max_len: int = NOTE_MAX_LEN) -> str:
-    """타임라인/알림용 한글 요약 (항상 before→after)."""
+    """타임라인/알림용 한글 요약 (항상 before→after, JSON 금지)."""
     if not changes:
         return ""
     parts = []
-    for ch in changes:
+    for ch in humanize_order_change_changes(changes):
         label = ch.get("label") or ch.get("path") or "항목"
         from_v = ch.get("from") or "(없음)"
         to_v = ch.get("to") or "(없음)"

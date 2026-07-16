@@ -20,11 +20,16 @@ from models import (
     NotificationUserState,
     User,
 )
+from foms.services.notifications.escalation import (
+    escalate_overdue_urgent,
+    finalize_escalation_delivery,
+)
 from foms.services.notifications.push_sender import (
+    _generic_title,
+    _should_push,
     enqueue_push_for_notification,
     send_push_for_notification,
 )
-from foms.services.notifications.escalation import escalate_overdue_urgent
 
 WRITE_HEADERS = {"X-FOMS-Notification-Write": "1"}
 FLAG_ENV = "FOMS_WEB_PUSH_ENABLED"
@@ -358,6 +363,8 @@ def test_escalation_stage1_notifies_team_manager(db):
         .first()
         is not None
     )
+    assert result["created_notification_ids"] == [mgr_notif.id]
+    assert result["recipient_user_ids"] == [manager.id]
 
 
 def test_escalation_stage2_operator_escalates_to_admin(db):
@@ -410,6 +417,83 @@ def test_escalation_skips_acked(db):
     assert result["escalated"] == 0
     db.refresh(state)
     assert state.escalated_at is None
+
+
+def test_escalation_p1_gate_and_generic_title():
+    """URGENT_ESCALATION 은 is_urgent=False 여도 P1 push 대상 + 전용 제목."""
+    notif = Notification(
+        notification_type="URGENT_ESCALATION",
+        target_type="USER",
+        title="[에스컬레이션] 확인되지 않은 긴급 알림이 있습니다.",
+        is_urgent=False,
+    )
+    assert _should_push(notif) is True
+    assert _generic_title(False, "URGENT_ESCALATION") == "에스컬레이션"
+
+
+def test_finalize_escalation_delivery_emits_and_enqueues(db, monkeypatch):
+    """commit 후 finalize = badge invalidate + socket emit + push enqueue."""
+    monkeypatch.setenv(FLAG_ENV, "1")
+    import foms.services.jobs.queue as qmod
+
+    class _FakeQueue:
+        def __init__(self):
+            self.enqueued = []
+
+        def enqueue(self, path, *args, **kwargs):
+            self.enqueued.append((path, args, kwargs))
+
+    fake_q = _FakeQueue()
+    monkeypatch.setattr(qmod, "get_rq_queue", lambda: fake_q)
+    monkeypatch.setattr(
+        qmod, "get_rq_runtime_status", lambda: {"state": "reachable", "worker_count": 1}
+    )
+
+    emitted = []
+
+    def _fake_emit(user_ids, payload=None):
+        emitted.append((list(user_ids), dict(payload or {})))
+        return len(list(user_ids))
+
+    monkeypatch.setattr(
+        "foms.services.notifications.realtime_notifications.emit_erp_notification_to_users",
+        _fake_emit,
+    )
+    monkeypatch.setattr(
+        "foms.api.notifications.invalidate_badge_cache_for_user_ids",
+        lambda ids: None,
+    )
+
+    mgr = _mk_user("fin_mgr", "매니저", role="MANAGER", team="CS")
+    esc = _mk_notification(
+        is_urgent=False,
+        ntype="URGENT_ESCALATION",
+        target_user_id=mgr.id,
+        title="[에스컬레이션] 확인되지 않은 긴급 알림이 있습니다.",
+    )
+    _mk_state(esc, mgr)
+    db.flush()
+
+    delivery = finalize_escalation_delivery(
+        db,
+        created_notification_ids=[esc.id],
+        recipient_user_ids=[mgr.id],
+    )
+    assert delivery["pushed"] == 1
+    assert delivery["realtime_sent"] == 1
+    assert delivery["recipients"] == 1
+    assert len(fake_q.enqueued) == 1
+    assert emitted[0][0] == [mgr.id]
+    assert emitted[0][1]["urgent"] is True
+    assert emitted[0][1]["notification_type"] == "URGENT_ESCALATION"
+
+
+def test_finalize_escalation_delivery_empty_noop(db):
+    assert finalize_escalation_delivery(db, [], []) == {
+        "pushed": 0,
+        "realtime_sent": 0,
+        "recipients": 0,
+    }
 
 
 # ---------------------------------------------------------------------------

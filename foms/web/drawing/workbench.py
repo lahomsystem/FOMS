@@ -32,7 +32,10 @@ from foms.services.erp_display import (
     _normalize_date_to_yyyymmdd,
 )
 from foms.services.erp_product_items import build_product_items_for_order
-from foms.services.notifications.drawing_order_change import is_order_change_pending
+from foms.services.notifications.drawing_order_change import (
+    humanize_order_change_changes,
+    is_order_change_pending,
+)
 from foms.services.common.dashboard_cache import (
     KEY_VERSION,
     TTL_PANEL_ROWS,
@@ -230,12 +233,16 @@ def _build_handoff_thread(history: list[Mapping[str, Any]]) -> list[dict[str, An
             side = 'left'
         else:
             side = 'right'
+        changes = event.get('changes')
+        if action == 'ERP_ORDER_CHANGED' and changes:
+            changes = humanize_order_change_changes(changes)
         thread.append({
             **event,
             'side': side,
             'tag': event.get('action_label') or action_labels.get(action) or action or '-',
             'target_text': f'{target_text}번 대상' if target_text else '',
             'files': list(event.get('files') or []) if isinstance(event.get('files'), list) else [],
+            'changes': changes if changes is not None else event.get('changes'),
         })
     return thread
 
@@ -772,8 +779,10 @@ def erp_drawing_workbench_detail(order_id):
     latest_order_change_note = ''
     order_change_events = [h for h in reversed(history) if h.get('action') == 'ERP_ORDER_CHANGED']
     for h in order_change_events:
-        latest_order_change_note = str(h.get('note') or '').strip()
-        break
+        if isinstance(h, dict) and h.get('changes'):
+            h['changes'] = humanize_order_change_changes(h.get('changes'))
+        if not latest_order_change_note:
+            latest_order_change_note = str(h.get('note') or '').strip()
     # 도면 상세 전용: 공통 실측 이미지(항목에 매핑되지 않은 첨부) 수집
     common_measure_photos = []
     for att in db.query(OrderAttachment).filter(

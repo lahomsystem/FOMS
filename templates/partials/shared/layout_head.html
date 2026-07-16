@@ -801,11 +801,11 @@
                         loadNotificationBadge(force);
                     }
                 }
+                if (window.FOMSNotificationCenter && typeof window.FOMSNotificationCenter.refreshIfOpen === 'function') {
+                    window.FOMSNotificationCenter.refreshIfOpen();
+                }
                 const panel = document.getElementById('global-notification-panel');
                 const isPanelVisible = panel && panel.style.display === 'block';
-                if (isPanelVisible && typeof loadGlobalNotifications === 'function') {
-                    loadGlobalNotifications();
-                }
                 if (isPanelVisible && typeof loadNotifications === 'function') {
                     loadNotifications();
                 }

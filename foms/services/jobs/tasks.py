@@ -199,15 +199,24 @@ def run_notification_escalation_task():
     """
     미확인 긴급 알림 에스컬레이션 스윕 (Phase 3C).
     외부 스케줄러/CLI 가 주기 실행(간격 60초 이상 권장). worker context 에서 직접 세션 관리.
+    commit 후 finalize_escalation_delivery 로 badge/realtime/push 배달.
     """
     try:
         from db import db_session
-        from foms.services.notifications.escalation import escalate_overdue_urgent
+        from foms.services.notifications.escalation import (
+            escalate_overdue_urgent,
+            finalize_escalation_delivery,
+        )
 
         db = db_session()
         try:
             result = escalate_overdue_urgent(db)
             db.commit()
+            result["delivery"] = finalize_escalation_delivery(
+                db,
+                created_notification_ids=result.get("created_notification_ids"),
+                recipient_user_ids=result.get("recipient_user_ids"),
+            )
             return result
         except Exception:
             db.rollback()

@@ -236,3 +236,93 @@ def test_deep_link_includes_erp_order_changed(app):
     assert link["deep_tab"] == "timeline"
     assert "/erp/drawing-workbench/4364" in (link["deep_link_url"] or "")
     assert "tab=timeline" in (link["deep_link_url"] or "")
+
+
+def test_compute_changes_spec_rows_human_not_json():
+    """스펙행 변경은 JSON 금지 — WxDxH 사람 표기. 스펙과 동일하면 스펙행 행 생략."""
+    from foms.services.notifications.drawing_order_change import (
+        format_spec_rows_display,
+        humanize_order_change_changes,
+    )
+
+    assert (
+        format_spec_rows_display(
+            [{"spec_depth": "620", "spec_height": "2350", "spec_width": "3920"}]
+        )
+        == "3920x620x2350"
+    )
+    legacy = humanize_order_change_changes(
+        [
+            {
+                "path": "items.0.spec_rows",
+                "label": "항목1 스펙행",
+                "from": '[{"spec_depth": "620", "spec_height": "2350", "spec_width": "3920"}]',
+                "to": '[{"spec_depth": "620", "spec_height": "2350", "spec_width": "4000"}]',
+            }
+        ]
+    )
+    assert legacy[0]["from"] == "3920x620x2350"
+    assert legacy[0]["to"] == "4000x620x2350"
+    assert "{" not in legacy[0]["from"] and "[" not in legacy[0]["to"]
+
+    old = _base_sd()
+    old["items"][0] = {
+        "product_name": "붙박이장",
+        "spec": "3920x620x2350",
+        "spec_width": "3920",
+        "spec_depth": "620",
+        "spec_height": "2350",
+        "spec_rows": [{"spec_width": "3920", "spec_depth": "620", "spec_height": "2350"}],
+    }
+    new = _base_sd()
+    new["items"][0] = {
+        "product_name": "붙박이장",
+        "spec": "4000x620x2350",
+        "spec_width": "4000",
+        "spec_depth": "620",
+        "spec_height": "2350",
+        "spec_rows": [{"spec_width": "4000", "spec_depth": "620", "spec_height": "2350"}],
+    }
+    changes = compute_drawing_relevant_changes(old, new)
+    by_path = {c["path"]: c for c in changes}
+    assert "items.0.spec_rows" not in by_path  # 스펙과 동일 → 중복 숨김
+    assert by_path["items.0.spec"]["from"] == "3920x620x2350"
+    assert by_path["items.0.spec"]["to"] == "4000x620x2350"
+    for c in changes:
+        assert "{" not in c["from"] and "{" not in c["to"]
+        assert not str(c["from"]).lstrip().startswith("[")
+        assert not str(c["to"]).lstrip().startswith("[")
+
+
+def test_all_change_values_forbid_json():
+    """결제·비고·옵션 list 등 모든 from/to 에 JSON 표기 금지."""
+    from foms.services.notifications.drawing_order_change import (
+        format_value_for_display,
+        humanize_order_change_changes,
+    )
+
+    assert format_value_for_display({"amount": 1000, "method": "카드"}) == "금액 1000, 결제방법 카드"
+    assert "{" not in format_value_for_display([{"a": 1}, {"b": 2}])
+
+    old = _base_sd(notes={"address_note": "엘리베이터 없음", "phone_note": "오후만"})
+    new = _base_sd(notes={"address_note": "엘리베이터 있음", "phone_note": "오후만"})
+    changes = compute_drawing_relevant_changes(old, new)
+    for c in changes:
+        for side in ("from", "to"):
+            v = str(c[side])
+            assert not v.lstrip().startswith("{"), c
+            assert not v.lstrip().startswith("["), c
+            assert '"address_note"' not in v
+
+    legacy = humanize_order_change_changes(
+        [
+            {
+                "path": "notes.object",
+                "label": "비고(상세)",
+                "from": '{"phone_note": "a", "address_note": "b"}',
+                "to": '{"phone_note": "a", "address_note": "c"}',
+            }
+        ]
+    )
+    assert "{" not in legacy[0]["from"] and "{" not in legacy[0]["to"]
+    assert "주소 특이사항" in legacy[0]["to"] or "c" in legacy[0]["to"]
