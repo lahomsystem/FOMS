@@ -448,6 +448,12 @@
     color: var(--foms-text-tertiary, #6b7380);
   }
 
+  body.erp-mobile-v2-layout .foms-drawing-handoff__notice.dw-order-change-banner {
+    border-color: #f9a8d4;
+    background: #fff0f6;
+    color: #9d174d;
+  }
+
   body.erp-mobile-v2-layout .foms-drawing-handoff__order-change-actions {
     display: flex;
     gap: 0.5rem;
@@ -455,9 +461,9 @@
   }
 
   body.erp-mobile-v2-layout .foms-drawing-queue-card__chip.is-order-change {
-    background: #fff3cd;
-    color: #7a5b00;
-    border: 1px solid #f0c36d;
+    background: #fce7f3;
+    color: #9d174d;
+    border: 1px solid #f9a8d4;
     font-weight: 600;
   }
 
@@ -467,8 +473,12 @@
   }
 
   body.erp-mobile-v2-layout .foms-drawing-thread__msg--alert .foms-drawing-thread__bubble {
-    background: #fff8e8;
-    border: 1px solid #f0c36d;
+    background: #fff0f6;
+    border: 1px solid #f9a8d4;
+  }
+
+  body.erp-mobile-v2-layout .foms-drawing-thread__changes b {
+    color: #831843;
   }
 
   body.erp-mobile-v2-layout .foms-drawing-thread__who,

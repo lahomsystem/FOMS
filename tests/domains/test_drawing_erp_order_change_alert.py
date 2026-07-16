@@ -45,14 +45,59 @@ def test_compute_changes_detects_address_and_dims():
     changes = compute_drawing_relevant_changes(old, new)
     paths = {c["path"] for c in changes}
     assert "site.address" in paths
-    assert "items" in paths
+    assert "items.0.width" in paths
+    width_ch = next(c for c in changes if c["path"] == "items.0.width")
+    assert width_ch["from"] == "1200"
+    assert width_ch["to"] == "1300"
+    assert "W" in width_ch["label"]
 
 
-def test_compute_changes_empty_when_irrelevant():
+def test_compute_changes_detects_manager():
+    """담당자(parties.manager) 변경은 도면 타임라인에 반드시 잡혀야 함."""
+    old = _base_sd(parties={"manager": {"name": "한용희"}, "customer": {"name": "고객"}})
+    new = _base_sd(parties={"manager": {"name": "꿈돌이"}, "customer": {"name": "고객"}})
+    changes = compute_drawing_relevant_changes(old, new)
+    assert any(c["path"] == "parties.manager.name" for c in changes)
+    mgr = next(c for c in changes if c["path"] == "parties.manager.name")
+    assert mgr["from"] == "한용희"
+    assert mgr["to"] == "꿈돌이"
+    assert mgr["label"] == "담당자"
+
+
+def test_compute_changes_item_option_before_after():
+    """색상·옵션 등도 before→after로 표기."""
+    old = _base_sd()
+    old["items"][0]["color"] = "화이트"
+    old["items"][0]["option"] = "푸쉬"
+    new = _base_sd()
+    new["items"][0]["color"] = "포그그레이"
+    new["items"][0]["option"] = "손잡이형"
+    changes = compute_drawing_relevant_changes(old, new)
+    by_path = {c["path"]: c for c in changes}
+    assert by_path["items.0.color"]["from"] == "화이트"
+    assert by_path["items.0.color"]["to"] == "포그그레이"
+    assert by_path["items.0.option"]["from"] == "푸쉬"
+    assert by_path["items.0.option"]["to"] == "손잡이형"
+    note = summarize_changes(changes)
+    assert "화이트→포그그레이" in note or "색상" in note
+
+
+def test_compute_changes_empty_when_operational_only():
+    """drawing/quest 등 운영 JSON만 바뀌면 주문변경 이력 없음."""
     old = _base_sd()
     new = _base_sd()
-    new["payment"] = {"deposit": 100}
+    new["drawing"] = {"status": "TRANSFERRED", "order_change_pending": True}
+    new["quests"] = {"DRAWING": {"done": True}}
+    new["drawing_transfer_history"] = [{"action": "TRANSFER"}]
     assert compute_drawing_relevant_changes(old, new) == []
+
+
+def test_compute_changes_detects_payment():
+    old = _base_sd()
+    new = _base_sd()
+    new["payment"] = {"deposit": 100000}
+    changes = compute_drawing_relevant_changes(old, new)
+    assert any(c["path"] == "payment" for c in changes)
 
 
 def test_gate_blocks_pending_without_assignee():
@@ -70,10 +115,11 @@ def test_gate_allows_drawing_stage():
 def test_summarize_and_pending_flag():
     changes = [
         {"path": "schedule.construction.date", "label": "시공일", "from": "A", "to": "B"},
-        {"path": "items", "label": "제품/치수/옵션", "from": "이전 스펙", "to": "변경됨"},
+        {"path": "items.0.width", "label": "항목1 W(가로)", "from": "1200", "to": "1300"},
     ]
     note = summarize_changes(changes)
     assert "시공일" in note
+    assert "1200→1300" in note
     sd = _base_sd()
     sd["drawing"]["order_change_pending"] = True
     assert is_order_change_pending(sd) is True

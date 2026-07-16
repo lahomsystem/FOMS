@@ -30,7 +30,7 @@
     var target =
       document.querySelector('.dw-order-change-card.is-pending') ||
       document.querySelector('.foms-drawing-thread__msg--alert') ||
-      document.querySelector('.badge.bg-warning.text-dark');
+      document.querySelector('.dw-order-change-badge');
     if (target && typeof target.scrollIntoView === 'function') {
       target.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
@@ -73,13 +73,15 @@
         });
         document.querySelectorAll('.dw-order-change-card.is-pending').forEach(function (card) {
           card.classList.remove('is-pending');
-          var badge = card.querySelector('.badge.bg-warning');
+          var badge = card.querySelector('.dw-order-change-badge, .badge.bg-warning');
           if (badge) {
             badge.className = 'badge bg-light text-dark border ms-1';
             badge.textContent = '확인됨';
           }
         });
-        var feedHead = document.querySelector('.dw-order-change-feed__head .badge.bg-warning');
+        var feedHead = document.querySelector(
+          '.dw-order-change-feed__head .dw-order-change-badge, .dw-order-change-feed__head .badge.bg-warning'
+        );
         if (feedHead) feedHead.remove();
         toast('주문 변경을 확인했습니다.');
       })

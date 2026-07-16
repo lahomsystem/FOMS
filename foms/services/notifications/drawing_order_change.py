@@ -130,6 +130,31 @@ def _norm_scalar(value: Any) -> str:
     return str(value).strip()
 
 
+_ITEM_FIELD_LABELS: Dict[str, str] = {
+    "product_name": "제품명",
+    "width": "W(가로)",
+    "w": "W(가로)",
+    "spec_width": "W(가로)",
+    "depth": "D(깊이)",
+    "d": "D(깊이)",
+    "spec_depth": "D(깊이)",
+    "height": "H(높이)",
+    "h": "H(높이)",
+    "spec_height": "H(높이)",
+    "color": "색상",
+    "interior": "내부재",
+    "internal": "내부재",
+    "option": "옵션",
+    "options": "옵션",
+    "handle": "손잡이",
+    "material": "자재",
+    "spec": "스펙",
+    "note": "항목비고",
+    "memo": "항목비고",
+    "spec_rows": "스펙행",
+}
+
+
 def _item_snapshot(item: Any) -> Dict[str, str]:
     """제품 행에서 도면 관련 키만 추출."""
     if not isinstance(item, dict):
@@ -137,7 +162,11 @@ def _item_snapshot(item: Any) -> Dict[str, str]:
     out: Dict[str, str] = {}
     for key in _ITEM_COMPARE_KEYS:
         if key in item:
-            out[key] = _norm_scalar(item.get(key))
+            val = item.get(key)
+            if isinstance(val, (list, dict)):
+                out[key] = json.dumps(val, ensure_ascii=False, sort_keys=True, default=str)
+            else:
+                out[key] = _norm_scalar(val)
     if not out:
         out["_json"] = json.dumps(item, ensure_ascii=False, sort_keys=True, default=str)
     return out
@@ -150,6 +179,95 @@ def _items_fingerprint(sd: dict) -> str:
     spec_rows = (sd or {}).get("spec_rows")
     payload = {"items": rows, "spec_rows": spec_rows}
     return json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
+
+
+def _append_item_field_changes(
+    changes: List[Dict[str, str]],
+    old_sd: dict,
+    new_sd: dict,
+) -> None:
+    """제품 행별 치수·옵션 before→after를 changes에 추가."""
+    old_items = old_sd.get("items") if isinstance(old_sd.get("items"), list) else []
+    new_items = new_sd.get("items") if isinstance(new_sd.get("items"), list) else []
+    max_n = max(len(old_items), len(new_items))
+    for idx in range(max_n):
+        old_it = old_items[idx] if idx < len(old_items) else None
+        new_it = new_items[idx] if idx < len(new_items) else None
+        prefix = f"항목{idx + 1}"
+        if old_it is None and isinstance(new_it, dict):
+            name = _norm_scalar(new_it.get("product_name")) or f"#{idx + 1}"
+            changes.append({
+                "path": f"items.{idx}",
+                "label": f"{prefix} 추가",
+                "from": "(없음)",
+                "to": name,
+            })
+            # 신규 행의 주요 값도 from→to로 남겨 도면팀이 스펙을 바로 본다.
+            snap = _item_snapshot(new_it)
+            for key, val in snap.items():
+                if key.startswith("_") or not val:
+                    continue
+                label = _ITEM_FIELD_LABELS.get(key, key)
+                changes.append({
+                    "path": f"items.{idx}.{key}",
+                    "label": f"{prefix} {label}",
+                    "from": "(없음)",
+                    "to": val,
+                })
+            continue
+        if new_it is None and isinstance(old_it, dict):
+            name = _norm_scalar(old_it.get("product_name")) or f"#{idx + 1}"
+            changes.append({
+                "path": f"items.{idx}",
+                "label": f"{prefix} 삭제",
+                "from": name,
+                "to": "(없음)",
+            })
+            continue
+        if not isinstance(old_it, dict) or not isinstance(new_it, dict):
+            _add_change(
+                changes,
+                f"items.{idx}",
+                prefix,
+                old_it,
+                new_it,
+            )
+            continue
+        old_snap = _item_snapshot(old_it)
+        new_snap = _item_snapshot(new_it)
+        for key in sorted(set(old_snap) | set(new_snap)):
+            label_key = _ITEM_FIELD_LABELS.get(key, key if not key.startswith("_") else "내용")
+            _add_change(
+                changes,
+                f"items.{idx}.{key}",
+                f"{prefix} {label_key}",
+                old_snap.get(key),
+                new_snap.get(key),
+            )
+
+    old_spec = old_sd.get("spec_rows")
+    new_spec = new_sd.get("spec_rows")
+    if json.dumps(old_spec, ensure_ascii=False, sort_keys=True, default=str) != json.dumps(
+        new_spec, ensure_ascii=False, sort_keys=True, default=str
+    ):
+        # 행 단위 세부가 어려우면 요약이라도 from/to 텍스트로
+        old_s = (
+            json.dumps(old_spec, ensure_ascii=False, sort_keys=True, default=str)
+            if old_spec is not None
+            else ""
+        )
+        new_s = (
+            json.dumps(new_spec, ensure_ascii=False, sort_keys=True, default=str)
+            if new_spec is not None
+            else ""
+        )
+        _add_change(
+            changes,
+            "spec_rows",
+            "스펙행",
+            (old_s[:80] + "…") if len(old_s) > 80 else (old_s or "(없음)"),
+            (new_s[:80] + "…") if len(new_s) > 80 else (new_s or "(없음)"),
+        )
 
 
 def _flag_note(sd: dict) -> str:
@@ -193,6 +311,61 @@ def _add_change(
     })
 
 
+def _party_name(sd: dict, *keys: str) -> str:
+    """parties 중첩에서 name 추출. keys 예: ('manager',) 또는 ('customer',)."""
+    parties = (sd or {}).get("parties") if isinstance((sd or {}).get("parties"), dict) else {}
+    cur: Any = parties
+    for key in keys:
+        if not isinstance(cur, dict):
+            return ""
+        cur = cur.get(key)
+    if isinstance(cur, dict):
+        return _norm_scalar(cur.get("name") or cur.get("phone") or "")
+    return _norm_scalar(cur)
+
+
+def _party_phone(sd: dict, key: str) -> str:
+    """parties.<key>.phone."""
+    parties = (sd or {}).get("parties") if isinstance((sd or {}).get("parties"), dict) else {}
+    node = parties.get(key) if isinstance(parties.get(key), dict) else {}
+    return _norm_scalar(node.get("phone"))
+
+
+def _shipment_workers(sd: dict) -> str:
+    """시공 담당자 (shipment.construction_workers 또는 parties)."""
+    shipment = (sd or {}).get("shipment") if isinstance((sd or {}).get("shipment"), dict) else {}
+    val = shipment.get("construction_workers")
+    if isinstance(val, list):
+        return ", ".join(_norm_scalar(x) for x in val if _norm_scalar(x))
+    if val is not None and _norm_scalar(val):
+        return _norm_scalar(val)
+    return _party_name(sd, "construction") or _party_name(sd, "construction_workers")
+
+
+def _payment_fingerprint(sd: dict) -> str:
+    """결제 블록 비교용."""
+    payment = (sd or {}).get("payment")
+    if not isinstance(payment, dict):
+        return ""
+    return json.dumps(payment, ensure_ascii=False, sort_keys=True, default=str)
+
+
+def _flags_fingerprint(sd: dict) -> str:
+    """flags 전체(특이사항 텍스트 포함) 비교용."""
+    flags = (sd or {}).get("flags")
+    if not isinstance(flags, dict):
+        return ""
+    return json.dumps(flags, ensure_ascii=False, sort_keys=True, default=str)
+
+
+def _notes_object_fingerprint(sd: dict) -> str:
+    """notes 객체(연락처/주소/실측 비고) 비교용."""
+    notes = (sd or {}).get("notes")
+    if isinstance(notes, dict):
+        return json.dumps(notes, ensure_ascii=False, sort_keys=True, default=str)
+    return _norm_scalar(notes)
+
+
 def compute_drawing_relevant_changes(
     old_sd: dict,
     new_sd: dict,
@@ -204,11 +377,55 @@ def compute_drawing_relevant_changes(
     old_construction_type: Any = None,
     new_construction_type: Any = None,
 ) -> List[Dict[str, str]]:
-    """도면에 영향 주는 필드 diff. 빈 리스트면 알림 불필요."""
+    """ERP Order 폼·주문 내용 diff → 도면 타임라인/알림용.
+
+    도면 작업실에는 ERP에서 바뀐 **주문 내용 전부**가 보여야 한다
+    (담당자·고객·일정·제품·메모·결제 등).
+    제외: drawing/quest/workflow.stage/전달이력 등 운영 전용 JSON
+    (단계 변경은 STAGE 전용 경로 유지).
+    """
     old_sd = old_sd if isinstance(old_sd, dict) else {}
     new_sd = new_sd if isinstance(new_sd, dict) else {}
     changes: List[Dict[str, str]] = []
 
+    # --- 당사자 ---
+    _add_change(
+        changes,
+        "parties.manager.name",
+        "담당자",
+        _party_name(old_sd, "manager"),
+        _party_name(new_sd, "manager"),
+    )
+    _add_change(
+        changes,
+        "parties.customer.name",
+        "고객명",
+        _party_name(old_sd, "customer"),
+        _party_name(new_sd, "customer"),
+    )
+    _add_change(
+        changes,
+        "parties.customer.phone",
+        "연락처",
+        _party_phone(old_sd, "customer"),
+        _party_phone(new_sd, "customer"),
+    )
+    _add_change(
+        changes,
+        "parties.orderer.name",
+        "발주사",
+        _party_name(old_sd, "orderer"),
+        _party_name(new_sd, "orderer"),
+    )
+    _add_change(
+        changes,
+        "shipment.construction_workers",
+        "시공 담당자",
+        _shipment_workers(old_sd),
+        _shipment_workers(new_sd),
+    )
+
+    # --- 주소·일정 ---
     _add_change(
         changes,
         "site.address",
@@ -223,18 +440,70 @@ def compute_drawing_relevant_changes(
     old_cons = old_sched.get("construction") if isinstance(old_sched.get("construction"), dict) else {}
     new_cons = new_sched.get("construction") if isinstance(new_sched.get("construction"), dict) else {}
     _add_change(changes, "schedule.measurement.date", "실측일", old_meas.get("date"), new_meas.get("date"))
+    _add_change(changes, "schedule.measurement.time", "실측시간", old_meas.get("time"), new_meas.get("time"))
     _add_change(changes, "schedule.construction.date", "시공일", old_cons.get("date"), new_cons.get("date"))
+    _add_change(changes, "schedule.construction.time", "시공시간", old_cons.get("time"), new_cons.get("time"))
 
-    if _items_fingerprint(old_sd) != _items_fingerprint(new_sd):
+    # --- 제품/스펙 (필드별 before→after) ---
+    _append_item_field_changes(changes, old_sd, new_sd)
+
+    # --- 메모·플래그·결제·지방 ---
+    _add_change(changes, "notes", "주문비고", old_notes, new_notes)
+    if _notes_object_fingerprint(old_sd) != _notes_object_fingerprint(new_sd):
+        # 세부 필드별 표기 (연락처/주소/실측 비고)
+        old_notes_obj = old_sd.get("notes") if isinstance(old_sd.get("notes"), dict) else {}
+        new_notes_obj = new_sd.get("notes") if isinstance(new_sd.get("notes"), dict) else {}
+        for key, label in (
+            ("phone_note", "연락처 특이사항"),
+            ("address_note", "주소 특이사항"),
+            ("measurement_note", "실측 특이사항"),
+        ):
+            _add_change(
+                changes,
+                f"notes.{key}",
+                label,
+                old_notes_obj.get(key) if isinstance(old_notes_obj, dict) else None,
+                new_notes_obj.get(key) if isinstance(new_notes_obj, dict) else None,
+            )
+        # dict가 아니거나 위 키 외 변경만 있으면 묶음
+        if not any(c.get("path", "").startswith("notes.") for c in changes):
+            _add_change(
+                changes,
+                "notes.object",
+                "비고(상세)",
+                _notes_object_fingerprint(old_sd) or "(없음)",
+                _notes_object_fingerprint(new_sd) or "(없음)",
+            )
+
+    if _flags_fingerprint(old_sd) != _flags_fingerprint(new_sd):
+        old_flags = old_sd.get("flags") if isinstance(old_sd.get("flags"), dict) else {}
+        new_flags = new_sd.get("flags") if isinstance(new_sd.get("flags"), dict) else {}
+        for key, label in (
+            ("urgent", "긴급"),
+            ("urgent_reason", "긴급사유"),
+            ("factory2", "2공장"),
+            ("self_measure", "자가실측"),
+            ("special_notes", "특이사항"),
+            ("special_note", "특이사항"),
+        ):
+            _add_change(changes, f"flags.{key}", label, old_flags.get(key), new_flags.get(key))
+        # 남은 flags 키
+        all_keys = set(old_flags) | set(new_flags)
+        covered = {
+            "urgent", "urgent_reason", "factory2", "self_measure",
+            "special_notes", "special_note", "memo", "remark", "notes",
+        }
+        for key in sorted(all_keys - covered):
+            _add_change(changes, f"flags.{key}", f"플래그({key})", old_flags.get(key), new_flags.get(key))
+
+    if _payment_fingerprint(old_sd) != _payment_fingerprint(new_sd):
         changes.append({
-            "path": "items",
-            "label": "제품/치수/옵션",
-            "from": "이전 스펙",
+            "path": "payment",
+            "label": "결제/금액",
+            "from": "이전",
             "to": "변경됨",
         })
 
-    _add_change(changes, "notes", "메모", old_notes, new_notes)
-    _add_change(changes, "flags.notes", "특이사항", _flag_note(old_sd), _flag_note(new_sd))
     _add_change(changes, "is_regional", "지방주문", old_is_regional, new_is_regional)
     _add_change(
         changes,
@@ -247,16 +516,15 @@ def compute_drawing_relevant_changes(
 
 
 def summarize_changes(changes: Sequence[Dict[str, str]], *, max_len: int = NOTE_MAX_LEN) -> str:
-    """타임라인/알림용 한글 요약."""
+    """타임라인/알림용 한글 요약 (항상 before→after)."""
     if not changes:
         return ""
     parts = []
     for ch in changes:
         label = ch.get("label") or ch.get("path") or "항목"
-        if ch.get("path") == "items":
-            parts.append(f"{label} 변경")
-        else:
-            parts.append(f"{label} {ch.get('from')}→{ch.get('to')}")
+        from_v = ch.get("from") or "(없음)"
+        to_v = ch.get("to") or "(없음)"
+        parts.append(f"{label} {from_v}→{to_v}")
     text = " · ".join(parts)
     if len(text) <= max_len:
         return text

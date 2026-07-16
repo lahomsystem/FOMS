@@ -39,13 +39,12 @@ PC/모바일/태블릿 Web Push·벨·배지·긴급호출은 2026-07-04에 이�
    - `PATCH` structured 필드 (`apply_field_patch` 성공 경로)
    - (해당 시) `update_order_field` 중 structured에 반영되는 도면 관련 필드
 
-2. **도면-relevant 필드 화이트리스트** (변경 시에만):
-   - 주소: `customer.address` / flat address 동기 필드
-   - 일정: `schedule.measurement.date`, `schedule.construction.date`
-   - 스펙: `items` / `spec_rows` / 제품 W·D·H·색상·내부재·옵션·손잡이
-   - 메모: `notes`, `flags` 특이사항 계열, `measurement` 비고
-   - 지방/시공유형: `is_regional`, `construction_type`
-   - (제외) 결제·정산·CS콜로그만 · workflow.stage 단독 변경은 기존 STAGE 경로 유지
+2. **도면 타임라인에 남기는 ERP 필드** (변경 시 before→after):
+   - 당사자: 담당자·고객·연락처·발주사·시공 담당자
+   - 주소·실측/시공 일시
+   - 제품 행별: 제품명·W/D/H·색상·내부재·옵션·손잡이 등 (**필드별 before→after**)
+   - 메모·플래그·결제·지방/시공유형
+   - (제외) drawing/quest/workflow.stage/전달이력 등 운영 JSON · 단계 단독 변경은 STAGE 경로
 
 3. **게이트 (알림·로그·목록 표기 조건)** — 아래 중 하나면 발동:
    - `drawing_status` ∈ {IN_PROGRESS, TRANSFERRED, RETURNED, CONFIRMED} **또는**

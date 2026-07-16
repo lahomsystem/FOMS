@@ -175,6 +175,11 @@
     background: var(--erp-warning-light);
     color: var(--foms-color-warning-700);
   }
+  body.erp-mobile-v2-layout .foms-drawing-gallery-chip.is-order-change {
+    background: #fce7f3;
+    color: #9d174d;
+    border: 1px solid #f9a8d4;
+  }
 
   /* --- 고객명(카드에서 가장 크게) --- */
   body.erp-mobile-v2-layout .foms-drawing-gallery-card__name {

@@ -169,8 +169,7 @@
             {% for c in event.changes %}
             <li>
               <strong>{{ c.label or c.path }}</strong>
-              {% if c.path == 'items' %}변경
-              {% else %}<s>{{ c.from }}</s> → <b>{{ c.to }}</b>{% endif %}
+              <s>{{ c.from }}</s> → <b>{{ c.to }}</b>
             </li>
             {% endfor %}
           </ul>

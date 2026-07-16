@@ -817,21 +817,44 @@
       background: #f8f9fa;
     }
 
+    /* 주문변경 — 밝은 파스텔 핑크 */
     .dw-order-change-banner {
-      border: 1px solid #e0a800;
-      background: #fff8e1;
+      border: 1px solid #f9a8d4;
+      background: #fff0f6;
       position: relative;
       z-index: 3;
     }
 
+    .dw-order-change-banner .dw-order-change-icon {
+      color: #ec4899;
+    }
+
     .dw-order-change-badge {
       letter-spacing: -0.02em;
+      background: #fce7f3 !important;
+      color: #9d174d !important;
+      border: 1px solid #f9a8d4;
+      font-weight: 600;
+    }
+
+    .btn.dw-order-change-btn {
+      background: #f9a8d4;
+      border-color: #f472b6;
+      color: #831843;
+      font-weight: 600;
+    }
+
+    .btn.dw-order-change-btn:hover,
+    .btn.dw-order-change-btn:focus {
+      background: #f472b6;
+      border-color: #ec4899;
+      color: #fff;
     }
 
     .dw-order-change-feed {
-      border: 1px solid #e0a800;
+      border: 1px solid #f9a8d4;
       border-radius: 10px;
-      background: #fffdf6;
+      background: #fff7fa;
       margin-bottom: 12px;
       position: relative;
       z-index: 2;
@@ -843,10 +866,10 @@
       align-items: center;
       gap: 8px;
       padding: 10px 12px;
-      border-bottom: 1px solid #f0d78c;
-      background: #fff3cd;
+      border-bottom: 1px solid #fbcfe8;
+      background: #fce7f3;
       font-weight: 700;
-      color: #5c4500;
+      color: #9d174d;
     }
 
     .dw-order-change-feed__body {
@@ -856,14 +879,14 @@
     }
 
     .dw-order-change-card {
-      border: 1px solid #ecd89a;
+      border: 1px solid #fbcfe8;
       border-radius: 8px;
       background: #fff;
       padding: 10px 12px;
     }
 
     .dw-order-change-card.is-pending {
-      box-shadow: inset 3px 0 0 #e0a800;
+      box-shadow: inset 3px 0 0 #ec4899;
     }
 
     .dw-order-change-card__meta {
@@ -873,7 +896,7 @@
       gap: 6px;
       margin-bottom: 8px;
       font-size: 0.82rem;
-      color: #6b5a2a;
+      color: #a8557a;
     }
 
     .dw-order-change-table {
@@ -884,7 +907,7 @@
 
     .dw-order-change-table th,
     .dw-order-change-table td {
-      border-top: 1px solid #f0e6c8;
+      border-top: 1px solid #fce7f3;
       padding: 6px 4px;
       vertical-align: top;
       text-align: left;
@@ -892,18 +915,18 @@
 
     .dw-order-change-table th {
       width: 28%;
-      color: #5c4500;
+      color: #9d174d;
       font-weight: 600;
     }
 
     .dw-order-change-from {
-      color: #8a6d3b;
+      color: #be6b8a;
       text-decoration: line-through;
       margin-right: 0.35rem;
     }
 
     .dw-order-change-to {
-      color: #1f3b66;
+      color: #831843;
       font-weight: 700;
     }
   </style>
@@ -942,14 +965,14 @@
     <div class="card-body py-3 d-flex flex-wrap align-items-center justify-content-between gap-2">
       <div>
         <div class="fw-semibold">
-          <i class="fas fa-exclamation-triangle text-warning"></i> 주문 내용 변경 — 도면 반영 필요
+          <i class="fas fa-exclamation-triangle dw-order-change-icon"></i> 주문 내용 변경 — 도면 반영 필요
         </div>
         <div class="small text-muted mt-1">
           {% if latest_order_change_note %}{{ latest_order_change_note }}{% else %}아래 변경 이력을 확인하고 도면을 수정하세요.{% endif %}
         </div>
       </div>
       <div class="d-flex flex-wrap gap-2">
-        <button type="button" class="btn btn-sm btn-warning" data-dw-order-change-focus>
+        <button type="button" class="btn btn-sm dw-order-change-btn" data-dw-order-change-focus>
           변경 이력 보기
         </button>
         <button type="button" class="btn btn-sm btn-outline-secondary" data-dw-order-change-ack>
@@ -964,7 +987,7 @@
   <section class="dw-order-change-feed" id="dwOrderChangeFeed" aria-label="ERP 주문 변경 이력">
     <div class="dw-order-change-feed__head">
       <span><i class="fas fa-clipboard-list"></i> 주문 변경 이력 (누적 {{ order_change_events|length }}건)</span>
-      {% if order_change_pending %}<span class="badge bg-warning text-dark">미확인</span>{% endif %}
+      {% if order_change_pending %}<span class="badge dw-order-change-badge">미확인</span>{% endif %}
     </div>
     <div class="dw-order-change-feed__body">
       {% for h in order_change_events %}
@@ -974,7 +997,7 @@
           <span>
             <strong>{{ h.by_text }}</strong>
             {% if h.acked %}<span class="badge bg-light text-dark border ms-1">확인됨</span>
-            {% else %}<span class="badge bg-warning text-dark ms-1">확인 필요</span>{% endif %}
+            {% else %}<span class="badge dw-order-change-badge ms-1">확인 필요</span>{% endif %}
           </span>
           <time>{{ h.at_text }}</time>
         </div>
@@ -985,13 +1008,9 @@
             <tr>
               <th>{{ c.label or c.path }}</th>
               <td>
-                {% if c.path == 'items' %}
-                <span class="dw-order-change-to">제품/치수/옵션 변경</span>
-                {% else %}
                 <span class="dw-order-change-from">{{ c.from }}</span>
                 <span aria-hidden="true">→</span>
                 <span class="dw-order-change-to">{{ c.to }}</span>
-                {% endif %}
               </td>
             </tr>
             {% endfor %}
@@ -1318,7 +1337,7 @@
                   {% if h.action == 'TRANSFER' %}{% set action_badge = 'bg-primary' %}{% endif %}
                   {% if h.action == 'REQUEST_REVISION' %}{% set action_badge = 'bg-danger' %}{% endif %}
                   {% if h.action == 'CONFIRM_RECEIPT' %}{% set action_badge = 'bg-success' %}{% endif %}
-                  {% if h.action == 'ERP_ORDER_CHANGED' %}{% set action_badge = 'bg-warning text-dark' %}{% endif %}
+                  {% if h.action == 'ERP_ORDER_CHANGED' %}{% set action_badge = 'dw-order-change-badge' %}{% endif %}
                   <span class="badge {{ action_badge }}">{{ h.action_label }}</span>
                   <span class="small text-muted ms-2">{{ h.by_text }}</span>
                 </div>
@@ -1334,13 +1353,9 @@
                   <tr>
                     <th>{{ c.label or c.path }}</th>
                     <td>
-                      {% if c.path == 'items' %}
-                      <span class="dw-order-change-to">제품/치수/옵션 변경</span>
-                      {% else %}
                       <span class="dw-order-change-from">{{ c.from }}</span>
                       <span aria-hidden="true">→</span>
                       <span class="dw-order-change-to">{{ c.to }}</span>
-                      {% endif %}
                     </td>
                   </tr>
                   {% endfor %}
@@ -2929,7 +2944,7 @@
     });
   })();
 </script>
-<script src="{{ url_for('static', filename='js/drawing/order-change-banner.js') }}?v=20260715b" defer></script>
+<script src="{{ url_for('static', filename='js/drawing/order-change-banner.js') }}?v=20260716a" defer></script>
 {% if erp_mobile_v2_enabled %}
 <script src="{{ url_for('static', filename='js/foms/drawing-handoff.js') }}?v=20260609a" defer></script>
 {% endif %}
