@@ -33,6 +33,22 @@
 7. 배송비 안내문(체크 해제 시…) 태블릿 표면에서 숨김.
 8. 외곽 라운딩 마감 목업 정합(섹션 12px 보더·시트 desk 톤 패딩·필/카드/입력 라운딩).
 
+## 0.2 실기기 피드백 반영 (2026-07-16 v2.2)
+
+9. **모드 토글 3-상태**: [선택|CUSTOM|직접입력] — PC btn-group 3버튼·태블릿 칩 사이클·모바일
+   동기. 엔진 `data-mode="direct"` 도입(readBaseComponentsFromUI가 dataset.mode 그대로 반환,
+   pricing-core fees-only 폴백이 계산 — 수식 무접촉). **direct 행은 productId:null 직렬화**
+   (은닉 select 잔존값의 제품가 합산·mode 클로버 차단).
+10. **천단위 콤마 전면**(PC·모바일·태블릿): 금액 입력 라이브 콤마 포맷(shared.js
+    wdcFormatAmountInput 문서 위임 1리스너) + 전 파싱 지점 콤마 내성(parsePrice) +
+    type=number→text 전환 7곳. **W(mm)는 의도적 제외** — 콤마가 복합식 항 구분자로 예약
+    (`split(/[+,]/)` — "4,500" 천단위 해석 시 504mm 오계산). 노드 계약 하네스에 shared.js
+    로드 동기 + 콤마 표시 핀 4곳 갱신.
+11. **실기기 2차 4건**: qcard 전 정보 가시(이름 줄바꿈·옵션/비고 라인당 표시·금액 불잘림),
+    액션바 in-flow 전환(전역 레일 72px 겹침 구조적 해소), 스테이지 프레임(radius 18px·desk
+    단차), **FOUC 근본 제거**(calculator.html 인라인 부트 → html.wdc-tablet-pending 파싱
+    시점 선제 은닉 + 3초 fail-open 애니메이션 — 스킨 JS 사망 시 PC 자동 복귀).
+
 ## 1. 배경 / 문제
 
 현행 태블릿 계산기(e1bf823c, 표형 UI)는 모바일 목업 frame11 혈통이다. 사용자 지시:

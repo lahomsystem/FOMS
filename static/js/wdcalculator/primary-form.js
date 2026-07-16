@@ -487,16 +487,22 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
             component.additionalFees ||
             (component.additionalFee ? [{ name: "", amount: component.additionalFee }] : []);
         var manualName = component.manualName != null ? String(component.manualName) : "";
+        // direct(직접입력) 모드: fees 리스트가 본체 — 비어 있으면 빈 아이템 1개 시드(바로 입력 가능).
+        if (mode === "direct" && additionalFees.length === 0) {
+            additionalFees = [{ name: "", amount: "" }];
+        }
 
         return (
             '\n            <div class="card mb-2 border-light base-component-row" data-mode="' +
             mode +
-            '">\n                <div class="card-body py-2">\n                    <!-- 첫 번째 행: 방식, 제품/직접입력, 가로, 삭제 -->\n                    <div class="row g-2 align-items-end">\n                        <!-- 방식 -->\n                        <div class="col-6 col-md-2">\n                            <label class="form-label small mb-1">방식</label>\n                            <div class="btn-group w-100" role="group">\n                                <button type="button" class="btn btn-sm ' +
+            '">\n                <div class="card-body py-2">\n                    <!-- 첫 번째 행: 방식, 제품/직접입력, 가로, 삭제 -->\n                    <div class="row g-2 align-items-end">\n                        <!-- 방식 -->\n                        <div class="col-6 col-md-3">\n                            <label class="form-label small mb-1">방식</label>\n                            <div class="btn-group w-100" role="group">\n                                <button type="button" class="btn btn-sm ' +
             (mode === "select" ? "btn-info" : "btn-outline-info") +
             ' base-mode-btn" data-mode="select">선택</button>\n                                <button type="button" class="btn btn-sm ' +
             (mode === "manual" ? "btn-warning" : "btn-outline-warning") +
-            ' base-mode-btn" data-mode="manual">CUSTOM</button>\n                            </div>\n                        </div>\n\n                        <!-- 선택/직접 상세 영역 (항상 같은 컬럼을 차지해서 남는 공간 제거) -->\n                        <div class="col-12 col-md-6 base-details-area">\n                            <!-- 제품(선택 모드) -->\n                            <div class="base-select-area" style="' +
-            (mode === "manual" ? "display:none;" : "") +
+            ' base-mode-btn" data-mode="manual">CUSTOM</button>\n                                <button type="button" class="btn btn-sm ' +
+            (mode === "direct" ? "btn-secondary" : "btn-outline-secondary") +
+            ' base-mode-btn" data-mode="direct">직접입력</button>\n                            </div>\n                        </div>\n\n                        <!-- 선택/직접 상세 영역 (항상 같은 컬럼을 차지해서 남는 공간 제거) -->\n                        <div class="col-12 col-md-5 base-details-area">\n                            <!-- 제품(선택 모드) -->\n                            <div class="base-select-area" style="' +
+            (mode === "select" ? "" : "display:none;") +
             '">\n                                <label class="form-label small mb-1">제품</label>\n                                <select class="form-select form-select-sm base-product-select">\n                                    ' +
             getProductsOptionsHtml() +
             '\n                                </select>\n                            </div>\n\n                            <!-- 직접입력(직접 모드) -->\n                            <div class="base-manual-area" style="' +
@@ -509,17 +515,19 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
             (manualPricingType === "1m" ? "selected" : "") +
             '>1m</option>\n                                        </select>\n                                    </div>\n                                    <div class="col-5 base-manual-30cm-col" style="' +
             (manualPricingType === "1m" ? "display:none;" : "") +
-            '">\n                                        <label class="form-label small mb-1">30cm(원)</label>\n                                        <input type="number" class="form-control form-control-sm base-manual-price30" min="0" step="1" placeholder="예: 187000" value="' +
-            escapeHtml(String(price30)) +
+            '">\n                                        <label class="form-label small mb-1">30cm(원)</label>\n                                        <input type="text" inputmode="numeric" class="form-control form-control-sm base-manual-price30" placeholder="예: 187,000" value="' +
+            escapeHtml(formatPrice(String(price30))) +
             '">\n                                    </div>\n                                    <div class="col-3 base-manual-1cm-col" style="' +
             (manualPricingType === "1m" ? "display:none;" : "") +
-            '">\n                                        <label class="form-label small mb-1">1cm(자동)</label>\n                                        <input type="number" class="form-control form-control-sm base-manual-price1" min="0" step="10" readonly value="' +
-            escapeHtml(String(price1)) +
+            '">\n                                        <label class="form-label small mb-1">1cm(자동)</label>\n                                        <input type="text" inputmode="numeric" class="form-control form-control-sm base-manual-price1" readonly value="' +
+            escapeHtml(formatPrice(String(price1)) || "0") +
             '">\n                                    </div>\n                                    <div class="col-8 base-manual-1m-col" style="' +
             (manualPricingType === "1m" ? "" : "display:none;") +
-            '">\n                                        <label class="form-label small mb-1">1m(원)</label>\n                                        <input type="number" class="form-control form-control-sm base-manual-price1m" min="0" step="1" placeholder="예: 330000" value="' +
-            escapeHtml(String(price1m)) +
-            '">\n                                    </div>\n                                </div>\n                                \n                            </div>\n                        </div>\n\n                        <!-- 가로 (직접: 마지막 / 선택: 제품 다음) -->\n                        <div class="col-6 col-md-3 base-width-col">\n                            <label class="form-label small mb-1">가로(mm)</label>\n                            <input type="text" class="form-control form-control-sm base-width-input" inputmode="numeric" placeholder="예: 4470 또는 4120+4121+2354" value="' +
+            '">\n                                        <label class="form-label small mb-1">1m(원)</label>\n                                        <input type="text" inputmode="numeric" class="form-control form-control-sm base-manual-price1m" placeholder="예: 330,000" value="' +
+            escapeHtml(formatPrice(String(price1m))) +
+            '">\n                                    </div>\n                                </div>\n                                \n                            </div>\n                        </div>\n\n                        <!-- 가로 (직접: 마지막 / 선택: 제품 다음) -->\n                        <div class="col-6 col-md-3 base-width-col" style="' +
+            (mode === "direct" ? "display:none;" : "") +
+            '">\n                            <label class="form-label small mb-1">가로(mm)</label>\n                            <input type="text" class="form-control form-control-sm base-width-input" inputmode="numeric" placeholder="예: 4470 또는 4120+4121+2354" value="' +
             escapeHtml(String(widthDisplay)) +
             '">\n                            <div class="form-text small base-width-preview text-muted py-0" aria-live="polite"></div>\n                        </div>\n\n                        <!-- 삭제 -->\n                        <div class="col-6 col-md-1 text-end">\n                            <button type="button" class="btn btn-sm btn-outline-danger base-remove-btn" title="삭제">\n                                <i class="fas fa-times"></i>\n                            </button>\n                        </div>\n                    </div>\n                    \n                    <!-- 두 번째 행: 추가금 입력 (리스트 형태) -->\n                    <div class="mt-2">\n                        <label class="form-label small mb-2">직접입력</label>\n                        <div class="base-additional-fees-list">\n                            ' +
             additionalFees
@@ -527,8 +535,8 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
                     return (
                         '\n                                <div class="row g-2 align-items-end mb-2 base-additional-fee-item">\n                                    <div class="col-12 col-md-5">\n                                        <input type="text" class="form-control form-control-sm base-additional-fee-name" placeholder="제품명 입력" value="' +
                         escapeHtml(fee.name || "") +
-                        '">\n                                    </div>\n                        <div class="col-12 col-md-4">\n                                        <input type="number" class="form-control form-control-sm base-additional-fee-amount" min="0" step="1" placeholder="금액 (원)" value="' +
-                        escapeHtml(String(fee.amount || "")) +
+                        '">\n                                    </div>\n                        <div class="col-12 col-md-4">\n                                        <input type="text" inputmode="numeric" class="form-control form-control-sm base-additional-fee-amount" placeholder="금액 (원)" value="' +
+                        escapeHtml(formatPrice(String(fee.amount || ""))) +
                         '">\n                        </div>\n                                    <div class="col-12 col-md-3 text-end">\n                                        <button type="button" class="btn btn-sm btn-outline-danger base-remove-fee-btn" title="삭제">\n                                            <i class="fas fa-times"></i>\n                                        </button>\n                                    </div>\n                                </div>\n                            '
                     );
                 })
@@ -585,7 +593,7 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
                         itemEl.querySelector(".base-additional-fee-name").value.trim()) ||
                     "";
                 var amount =
-                    Number(
+                    parsePrice(
                         itemEl.querySelector(".base-additional-fee-amount") &&
                             itemEl.querySelector(".base-additional-fee-amount").value
                     ) || 0;
@@ -602,7 +610,7 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
                     "30cm";
                 if (pricingType === "1m") {
                     var price1m =
-                        Number(rowEl.querySelector(".base-manual-price1m") && rowEl.querySelector(".base-manual-price1m").value) ||
+                        parsePrice(rowEl.querySelector(".base-manual-price1m") && rowEl.querySelector(".base-manual-price1m").value) ||
                         0;
                     return {
                         mode: mode,
@@ -614,11 +622,11 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
                     };
                 }
                 var price30 =
-                    Number(rowEl.querySelector(".base-manual-price30") && rowEl.querySelector(".base-manual-price30").value) ||
+                    parsePrice(rowEl.querySelector(".base-manual-price30") && rowEl.querySelector(".base-manual-price30").value) ||
                     0;
                 var auto1 = computeAutoPrice1cmFrom30cm(price30);
                 var price1El = rowEl.querySelector(".base-manual-price1");
-                if (price1El) price1El.value = String(auto1);
+                if (price1El) price1El.value = formatPrice(String(auto1)) || "0";
                 return {
                     mode: mode,
                     widthInput: widthInput,
@@ -632,9 +640,13 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
                     },
                 };
             }
+            // direct(직접입력) 행은 fees-only: 숨은 select 잔존값을 직렬화하면 pricing-core 가
+            // 제품가를 합산하고 compData.mode 를 "select" 로 클로버 → productId 는 항상 null.
             var productId =
-                Number(rowEl.querySelector(".base-product-select") && rowEl.querySelector(".base-product-select").value) ||
-                null;
+                mode === "direct"
+                    ? null
+                    : Number(rowEl.querySelector(".base-product-select") && rowEl.querySelector(".base-product-select").value) ||
+                      null;
             return {
                 mode: mode,
                 widthInput: widthInput,
@@ -684,7 +696,7 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
                         <input type="text" class="form-control form-control-sm base-additional-fee-name" placeholder="제품명 입력" value="">
                     </div>
                     <div class="col-12 col-md-4">
-                        <input type="number" class="form-control form-control-sm base-additional-fee-amount" min="0" step="1" placeholder="금액 (원)" value="">
+                        <input type="text" inputmode="numeric" class="form-control form-control-sm base-additional-fee-amount" placeholder="금액 (원)" value="">
                     </div>
                     <div class="col-12 col-md-3 text-end">
                         <button type="button" class="btn btn-sm btn-outline-danger base-remove-fee-btn" title="삭제">
@@ -715,18 +727,33 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
             rowEl.dataset.mode = newMode;
             var selectArea = rowEl.querySelector(".base-select-area");
             var manualArea = rowEl.querySelector(".base-manual-area");
-            if (selectArea) selectArea.style.display = newMode === "manual" ? "none" : "";
+            var widthCol = rowEl.querySelector(".base-width-col");
+            if (selectArea) selectArea.style.display = newMode === "select" ? "" : "none";
             if (manualArea) manualArea.style.display = newMode === "manual" ? "" : "none";
+            // direct = fees-only: W 무의미 — 숨김만(값 파괴하지 않음).
+            if (widthCol) widthCol.style.display = newMode === "direct" ? "none" : "";
             rowEl.querySelectorAll(".base-mode-btn").forEach(function (btn) {
                 var mode = btn.dataset.mode;
-                btn.classList.remove("btn-info", "btn-outline-info", "btn-warning", "btn-outline-warning");
+                btn.classList.remove(
+                    "btn-info", "btn-outline-info",
+                    "btn-warning", "btn-outline-warning",
+                    "btn-secondary", "btn-outline-secondary"
+                );
                 if (mode === "select") {
                     btn.classList.add(mode === newMode ? "btn-info" : "btn-outline-info");
                 }
                 if (mode === "manual") {
                     btn.classList.add(mode === newMode ? "btn-warning" : "btn-outline-warning");
                 }
+                if (mode === "direct") {
+                    btn.classList.add(mode === newMode ? "btn-secondary" : "btn-outline-secondary");
+                }
             });
+            // direct 전환 시 fee 0건이면 빈 아이템 1개 시드(렌더 시드와 동일 UX — 기존 add-fee 경로 재사용).
+            if (newMode === "direct" && !rowEl.querySelector(".base-additional-fee-item")) {
+                var addFeeBtn = rowEl.querySelector(".base-add-fee-btn");
+                if (addFeeBtn) addFeeBtn.click();
+            }
             triggerCalculateEstimate();
             return;
         }
@@ -747,10 +774,10 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
         var rowEl = e.target.closest(".base-component-row");
         if (!rowEl) return;
         if (e.target.classList.contains("base-manual-price30")) {
-            var price30 = Number(e.target.value) || 0;
+            var price30 = parsePrice(e.target.value) || 0;
             var auto1 = computeAutoPrice1cmFrom30cm(price30);
             var price1El = rowEl.querySelector(".base-manual-price1");
-            if (price1El) price1El.value = String(auto1);
+            if (price1El) price1El.value = formatPrice(String(auto1)) || "0";
         }
         if (e.target.classList.contains("base-width-input") && typeof updateBaseWidthPreview === "function") {
             updateBaseWidthPreview(rowEl);
@@ -775,9 +802,9 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
                 if (col1) col1.style.display = "";
                 if (col1m) col1m.style.display = "none";
                 var price30El = rowEl.querySelector(".base-manual-price30");
-                var auto1 = computeAutoPrice1cmFrom30cm(Number(price30El && price30El.value) || 0);
+                var auto1 = computeAutoPrice1cmFrom30cm(parsePrice(price30El && price30El.value) || 0);
                 var price1El = rowEl.querySelector(".base-manual-price1");
-                if (price1El) price1El.value = String(auto1);
+                if (price1El) price1El.value = formatPrice(String(auto1)) || "0";
             }
         }
         triggerCalculateEstimate();
@@ -844,7 +871,8 @@ var WdCalculatorCouponDisplayHelpers = window.WdCalculatorCouponDisplayHelpers |
         if (!value || value === "") {
             return defaultCouponValue;
         }
-        var numValue = parseInt(value, 10);
+        // 콤마 내성: "11,000" → parseInt 단독이면 11 로 오파싱(할인 침묵 축소) — strip 선행.
+        var numValue = parseInt(String(value).replace(/,/g, ""), 10);
         if (isNaN(numValue) || numValue < 0) {
             console.warn("잘못된 쿠폰 값:", value, "기본값 사용:", defaultCouponValue);
             return defaultCouponValue;

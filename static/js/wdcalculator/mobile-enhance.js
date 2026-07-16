@@ -473,6 +473,12 @@
           unitText = "30cm " + fmtNum(p30);
           chipHtml = p30 ? "30cm <b>" + fmtNum(p30) + "원</b> · 1cm <b>" + fmtNum(p1) + "원</b>" : "";
         }
+      } else if (mode === "direct") {
+        // direct(직접입력) 행 = fees-only: 이름은 fee 항목명으로 표기.
+        var feeNames = ((row && row.additionalFees) || [])
+          .map(function (f) { return (f && f.name) || ""; })
+          .filter(Boolean);
+        name = feeNames.length ? feeNames.join(" · ") : "직접입력";
       } else {
         var prod = products.filter(function (p) {
           return String(p.id) === String(row && row.productId);
@@ -493,7 +499,7 @@
           name = "제품 미선택";
         }
       }
-      var specParts = [mode === "manual" ? "CUSTOM" : "선택"];
+      var specParts = [mode === "direct" ? "직접입력" : mode === "manual" ? "CUSTOM" : "선택"];
       if (widthText) specParts.push(widthText);
       if (unitText) specParts.push(unitText);
       return { name: name, spec: specParts.join(" · "), chipHtml: chipHtml };
@@ -611,7 +617,9 @@
         var idxEl = rowEl.querySelector(".wd-bc-idx");
         if (idxEl) idxEl.textContent = String(i + 1);
         var hasProduct = row.mode === "manual" || !!row.productId;
-        var isEmpty = !hasProduct && !(Number(row.widthMm) > 0);
+        // direct(fees-only) 행은 제품·치수 없이도 채워진 상태 — 빈 카드 문구 오표기 방지.
+        var hasFees = ((row && row.additionalFees) || []).length > 0;
+        var isEmpty = !hasProduct && !hasFees && !(Number(row.widthMm) > 0);
         var summaryBtn = rowEl.querySelector(".wd-bc-summary");
         if (summaryBtn) summaryBtn.classList.toggle("wd-bc-empty", isEmpty);
         var nameEl = rowEl.querySelector(".wd-bc-name");

@@ -443,8 +443,8 @@ function scenarioHappyPathHydratesSavedEstimateIntoForm() {
     assertIncludes(env.headerTitle.innerHTML, "견적 수정: 홍길동", "happy path updates header title");
     assertIncludes(env.headerTitle.innerHTML, "수정모드", "happy path keeps edit badge in header");
     assertEq(env.customerName.value, "홍길동", "happy path hydrates customer name");
-    assertEq(env.globalCouponValue.value, 11000, "happy path hydrates coupon discount");
-    assertEq(env.shippingCost.value, 4000, "happy path hydrates shipping cost");
+    assertEq(env.globalCouponValue.value, "11,000", "happy path hydrates coupon discount (T5 콤마 표시)");
+    assertEq(env.shippingCost.value, "4,000", "happy path hydrates shipping cost (T5 콤마 표시)");
     assertEq(env.shippingIncluded.checked, false, "happy path hydrates shipping-included checkbox");
     assertEq(env.saveEstimateBtn.style.display, "block", "happy path shows save button");
     assertEq(env.additionalOptionsContainer.innerHTML, "", "happy path clears additional options container");

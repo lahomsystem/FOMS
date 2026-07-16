@@ -12,6 +12,9 @@ PRIMARY = (ROOT / "static/js/wdcalculator/primary-form.js").read_text(encoding="
 PRICING = (ROOT / "static/js/wdcalculator/pricing-core.js").read_text(encoding="utf-8")
 MOBILE = (ROOT / "static/js/wdcalculator/mobile-enhance.js").read_text(encoding="utf-8")
 BODY = (ROOT / "templates/wdcalculator/partials/wdcalculator_body.html").read_text(encoding="utf-8")
+SHARED = (ROOT / "static/js/wdcalculator/shared.js").read_text(encoding="utf-8")
+LIFECYCLE = (ROOT / "static/js/wdcalculator/estimate-lifecycle.js").read_text(encoding="utf-8")
+SETTINGS_HTML = (ROOT / "templates/wdcalculator/product_settings.html").read_text(encoding="utf-8")
 
 
 def test_e1_manual_name_field_rendered_and_collected():
@@ -27,6 +30,48 @@ def test_e1_manual_name_survives_pricing_normalization():
 def test_e3_mode_button_renamed_to_custom():
     assert 'data-mode="manual">CUSTOM<' in PRIMARY
     assert 'data-mode="manual">MINE<' not in PRIMARY
+
+
+def test_t4_direct_mode_three_buttons():
+    # 3-상태 모드 토글: 선택 / CUSTOM / 직접입력 (T4)
+    for pin in (
+        'data-mode="select">선택<',
+        'data-mode="manual">CUSTOM<',
+        'data-mode="direct">직접입력<',
+    ):
+        assert pin in PRIMARY, pin
+
+
+def test_t4_direct_mode_serializes_null_product():
+    # direct 행은 fees-only — 숨은 select 잔존값 직렬화 금지(제품가 혼입·mode 클로버 방지)
+    assert 'mode === "direct"' in PRIMARY
+
+
+def test_t5_comma_helpers_and_delegated_formatter():
+    # 공용 헬퍼 + 문서 위임 리스너 1개(싱글톤 가드)
+    assert "wdcParseAmount" in SHARED
+    assert "wdcFormatAmountInput" in SHARED
+    assert "__WDC_AMOUNT_COMMA_BOUND" in SHARED
+    # W(mm) 는 콤마 자동포맷 제외(복합식 구분자 예약)
+    assert ".base-width-input" not in SHARED.split("WDC_AMOUNT_INPUT_SELECTOR")[1].split("].join")[0]
+
+
+def test_t5_comma_tolerant_parsing():
+    # 콤마 입력 시 NaN/오파싱 나던 경로들의 strip 내성
+    assert PRICING.count('replace(/,/g, "")') >= 1  # shipping (calculateTotalEstimates)
+    assert LIFECYCLE.count('replace(/,/g, "")') >= 1  # shipping (readShippingState)
+    assert PRIMARY.count("parsePrice(") >= 5  # fee·price30·price1m·자동1cm×2 (+옵션 기존)
+    assert 'replace(/,/g, "")' in PRIMARY  # getCouponValue parseInt strip
+
+
+def test_t5_amount_inputs_converted_to_text():
+    # type="number" 는 콤마 표기 불가 → text + inputmode=numeric 전환
+    assert 'type="number"' not in BODY
+    assert 'id="globalCouponValue"' in BODY and 'inputmode="numeric"' in BODY
+    assert 'type="number"' not in SETTINGS_HTML
+    # JS 렌더 금액 입력도 전환(콤마 표시 필수)
+    assert 'type="number" class="form-control form-control-sm base-manual-price30' not in PRIMARY
+    assert 'type="number" class="form-control form-control-sm base-additional-fee-amount' not in PRIMARY
 
 
 def test_e3_fee_button_renamed():

@@ -1665,12 +1665,14 @@
 
             var couponInput = documentRef.getElementById("globalCouponValue");
             if (couponInput) {
-                couponInput.value = estimateData.coupon_discount || 0;
+                var loadedCoupon = estimateData.coupon_discount || 0;
+                couponInput.value = loadedCoupon ? formatNumber(loadedCoupon) : "0";
             }
 
             var shippingCostInput = documentRef.getElementById("shippingCost");
             if (shippingCostInput) {
-                shippingCostInput.value = estimateData.shipping_cost || 0;
+                var loadedShipping = estimateData.shipping_cost || 0;
+                shippingCostInput.value = loadedShipping ? formatNumber(loadedShipping) : "0";
             }
 
             var shippingIncludedCheckbox = documentRef.getElementById("shippingIncluded");
@@ -1793,7 +1795,9 @@
             var shippingCostInput = documentRef.getElementById("shippingCost");
             var shippingIncludedCheckbox = documentRef.getElementById("shippingIncluded");
             return {
-                shippingCost: shippingCostInput ? parseFloat(shippingCostInput.value) || 0 : 0,
+                shippingCost: shippingCostInput
+                    ? parseFloat(String(shippingCostInput.value).replace(/,/g, "")) || 0
+                    : 0,
                 shippingIncluded: shippingIncludedCheckbox ? shippingIncludedCheckbox.checked : true,
             };
         }

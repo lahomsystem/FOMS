@@ -46,6 +46,13 @@ def test_mine_mirror_contract() -> None:
     assert "base-manual-pricing-type" in JS
 
 
+def test_t4_direct_mode_cycle_and_render() -> None:
+    # 모드칩 3-사이클 위임 + direct 행 렌더 마커 (T4)
+    assert '.base-mode-btn[data-mode="direct"]' in JS
+    assert "wdc2-modechip--direct" in JS
+    assert "wdc2-directcell" in JS
+
+
 def test_engine_button_mirrors() -> None:
     for sel in [
         "addBaseComponentBtn",
@@ -65,6 +72,22 @@ def test_calculate_btn_not_referenced() -> None:
 def test_css_gate_and_tokens() -> None:
     assert "pointer: coarse" in CSS and "landscape" in CSS
     assert "--wdc2-accent" in CSS and "wdc-tablet-v2" in CSS
+
+
+def test_t6_fouc_preemptive_hide_and_failopen() -> None:
+    # 인라인 부트(파싱 시점 선제 은닉) + CSS fail-open(3s) + JS 해제 3자 계약
+    assert "wdc-tablet-pending" in CAL
+    assert "embedded=1" in CAL  # 임베디드는 부여 금지
+    assert "wdc-tablet-pending" in CSS
+    assert "wdc2-failopen" in CSS
+    assert "wdc-tablet-pending" in JS  # clearPending 경로
+
+
+def test_t6_abar_inflow_and_stage_frame() -> None:
+    # 액션바 in-flow(레일 겹침 구조 제거) + 스테이지 프레임(목업 .tab: 18px/1px 보더)
+    assert "mainColumn.appendChild(abar)" in JS
+    assert "border-radius: 18px" in CSS
+    assert "wdc2-qcard__note" in JS and "wdc2-qcard__note" in CSS  # qcard 비고 표시
 
 
 def test_calculator_template_wiring_defer() -> None:

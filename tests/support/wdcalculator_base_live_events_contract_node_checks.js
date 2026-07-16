@@ -9,6 +9,10 @@ const vm = require("vm");
 const repoRoot = path.join(__dirname, "..", "..");
 const helperPath = path.join(repoRoot, "static", "js", "wdcalculator", "primary-form.js");
 const helperSrc = fs.readFileSync(helperPath, "utf8");
+const sharedSrc = fs.readFileSync(
+    path.join(repoRoot, "static", "js", "wdcalculator", "shared.js"),
+    "utf8"
+);
 const templatePath = helperPath;
 const templateSrc = helperSrc;
 
@@ -387,6 +391,7 @@ function buildSandbox(spec = {}) {
     vm.createContext(sandbox);
     vm.runInContext(
         [
+            sharedSrc,
             helperSrc,
             `
             WdCalculatorBaseComponentsUI.configure({
@@ -486,7 +491,7 @@ function scenarioManualPrice30InputAutoSyncsPrice1() {
 
     assertEq(env.computeCalls.length, 1, "manual price30 input calls auto-price helper once");
     assertEq(env.computeCalls[0], 3300, "manual price30 input passes numeric value to helper");
-    assertEq(price1.value, "1100", "manual price30 input auto-syncs 1cm price");
+    assertEq(price1.value, "1,100", "manual price30 input auto-syncs 1cm price (T5 콤마 표시)");
     assertEq(env.calculateCalls.length, 1, "manual price30 input recalculates once");
 }
 
@@ -513,7 +518,7 @@ function scenarioPricingTypeChangeTogglesColumnsAndResyncsAutoPrice() {
     assertEq(col30.style.display, "", "pricing type 30cm restores 30cm column");
     assertEq(col1.style.display, "", "pricing type 30cm restores 1cm column");
     assertEq(col1m.style.display, "none", "pricing type 30cm hides 1m column");
-    assertEq(price1.value, "1200", "pricing type 30cm resyncs 1cm price from 30cm input");
+    assertEq(price1.value, "1,200", "pricing type 30cm resyncs 1cm price from 30cm input (T5 콤마 표시)");
     assertEq(env.calculateCalls.length, 2, "pricing type 30cm recalculates once");
 }
 

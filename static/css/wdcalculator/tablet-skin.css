@@ -19,6 +19,17 @@
 .wdc2-sheetpicker,
 .wdc2-sheetpicker-backdrop { display: none; }
 
+/* FOUC 선제 은닉: calculator.html 인라인 부트가 게이트 매치 시 html 에 부여 —
+   defer 스킨 빌드 전 PC 마크업 플래시 차단. fail-open: 스킨 JS 가 죽어도 3초 후
+   PC 화면 자동 복귀(0s 지속·3s 지연 forwards 애니메이션 — blank 사고 원천 차단). */
+html.wdc-tablet-pending .wdcalculator-container {
+  visibility: hidden;
+  animation: wdc2-failopen 0s 3s forwards;
+}
+@keyframes wdc2-failopen {
+  to { visibility: visible; }
+}
+
 @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
   body.wdc-tablet-v2 {
     /* 스코프 색 토큰(:root 아님 — 코호트 밖 누출 방지). */
@@ -46,19 +57,30 @@
      A. 융합 프레임 레이아웃. shell 은 이미 fixed-height flex(@≥992). 우측 패널을
         shell 내 absolute 로 도킹, 저장 사이드바 컬럼은 은닉(카드 노드 이동).
      ==================================================================== */
+  /* 페이지 배경 = 프레임보다 어두운 desk 톤(스테이지 프레임이 떠 보이는 단차). */
+  body.wdc-tablet-v2 { background: #E4E1D8; }
+
+  /* 스테이지 프레임(목업 .tab 정본): radius 18 + 1px #DDDACF + overflow hidden.
+     shell(row) 이 워크시트+패널+탑바+액션바 전부를 감싸므로 그대로 프레임 컨테이너.
+     overflow:hidden 은 wdcalculator_styles.html @≥992 에 기존재 — radius 클립 공유. */
   body.wdc-tablet-v2 .wdcalculator-container:not(.wdcalculator-container--embedded) .wdcalculator-shell {
     position: relative;
     background: var(--wdc2-desk);
+    margin: 0 14px;
+    border: 1px solid #DDDACF;
+    border-radius: 18px;
+    overflow: hidden;
   }
   body.wdc-tablet-v2 .saved-estimates-sidebar { display: none; }
   body.wdc-tablet-v2 .wdcalculator-main-column {
     flex: 0 0 calc(100% - var(--wdc2-panel-w));
     width: calc(100% - var(--wdc2-panel-w));
     max-width: calc(100% - var(--wdc2-panel-w));
+    padding: 0;   /* bootstrap col gutter 제거 — 액션바가 프레임 모서리를 공유 */
   }
   body.wdc-tablet-v2 .wdcalculator-main-scroll {
     background: var(--wdc2-desk);
-    padding: 0 0 calc(76px + env(safe-area-inset-bottom, 0px));
+    padding: 0;   /* 액션바 in-flow 전환 — fixed 바 클리어런스(76px) 불필요 */
   }
   /* PC 스캐폴딩 은닉: main-scroll 직속 자식 중 topbar·sheet 만 노출(나머지 = 은닉 엔진 카드). */
   body.wdc-tablet-v2 .wdcalculator-main-scroll > :not(.wdc2-topbar):not(.wdc2-sheet) {
@@ -612,17 +634,15 @@
   }
 
   /* ====================================================================
-     D. 하단 액션바(고정).
+     D. 하단 액션바 — main-column flex 하단 in-flow 도킹.
+        (구판 fixed left:0 은 좌측 전역 레일 72px 과 겹쳐 금액 앞자리가 가려짐 —
+         in-flow 는 #main-content 패딩·스테이지 프레임 안이라 구조적으로 겹침 불가.)
      ==================================================================== */
   body.wdc-tablet-v2 .wdc2-abar {
     display: flex;
     align-items: center;
     gap: 12px;
-    position: fixed;
-    left: 0;
-    right: var(--wdc2-panel-w);
-    bottom: 0;
-    z-index: 1030;
+    flex: none;
     height: 64px;
     padding: 0 18px calc(0px + env(safe-area-inset-bottom, 0px));
     background: var(--wdc2-surface);
@@ -731,17 +751,22 @@
     border-radius: 11px;
     padding: 10px 13px;
   }
+  /* r1: [견적 N]----[금액]. 금액 flex:none — 절대 잘리지 않음(결함1: 좌측 레일/폭 부족과 무관). */
   body.wdc-tablet-v2 .wdc2-qcard__r1 { display: flex; align-items: baseline; gap: 8px; }
+  body.wdc-tablet-v2 .wdc2-qcard__grow { flex: 1 1 auto; }
   body.wdc-tablet-v2 .wdc2-qcard__no { flex: none; font-size: 11px; font-weight: 800; color: var(--wdc2-muted); white-space: nowrap; }
+  /* r2: 제품명/구성명 전폭 — 줄바꿈 허용, ellipsis 금지("무몰딩(푸…" 잘림 결함 제거). */
+  body.wdc-tablet-v2 .wdc2-qcard__r2 { display: flex; align-items: flex-start; gap: 4px; margin-top: 2px; }
   body.wdc-tablet-v2 .wdc2-qcard__nm {
     flex: 1 1 auto;
     min-width: 0;
     font-size: 12.5px;
     font-weight: 700;
     color: var(--wdc2-ink);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    line-height: 1.45;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: keep-all;
   }
   body.wdc-tablet-v2 .wdc2-qcard__pen {
     flex: none;
@@ -762,15 +787,12 @@
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
+  /* 구성/옵션/비고 — 라인당 1줄, 클램프·ellipsis 없음(전부 표시, 스택 스크롤이 흡수). */
   body.wdc-tablet-v2 .wdc2-qcard__ln {
     font-size: 11.5px;
     color: var(--wdc2-sub);
     margin-top: 4px;
     line-height: 1.5;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
     overflow-wrap: anywhere;
   }
   body.wdc-tablet-v2 .wdc2-qcard__unit { font-size: 10.5px; color: var(--wdc2-muted); margin-top: 3px; line-height: 1.4; }
@@ -779,9 +801,22 @@
     color: var(--wdc2-sub);
     margin-top: 3px;
     line-height: 1.45;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    overflow-wrap: anywhere;
+  }
+  body.wdc-tablet-v2 .wdc2-qcard__note {
+    font-size: 10.5px;
+    color: var(--wdc2-muted);
+    margin-top: 6px;
+    padding-top: 5px;
+    border-top: 1px dashed #E6E4DE;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+  }
+  /* 연속 비고 라인은 첫 라인만 구분선(: first-of-type 은 태그 기준이라 부정확 — 인접 무효화). */
+  body.wdc-tablet-v2 .wdc2-qcard__note + .wdc2-qcard__note {
+    margin-top: 2px;
+    padding-top: 0;
+    border-top: none;
   }
   body.wdc-tablet-v2 .wdc2-qcard__acts { display: flex; gap: 6px; margin-top: 8px; }
   body.wdc-tablet-v2 .wdc2-qcard__act {
@@ -864,6 +899,11 @@
     padding-bottom: 14px;
   }
   body.wdc-tablet-v2 .wdc2-sheetpicker[hidden] { display: none; }
+  /* 좌측 전역 레일(72px) 공존 시 시트를 작업영역 중앙으로(레일 절반 36px 보정) —
+     레일 CSS 와 동일하게 :has 가용성 전제(@supports 게이트가 레일 노출 자체를 막음). */
+  body.wdc-tablet-v2:has(.foms-tablet-rail) .wdc2-sheetpicker {
+    left: calc(50% + 36px);
+  }
   body.wdc-tablet-v2 .wdc2-sheetpicker__grip {
     width: 44px;
     height: 5px;

@@ -890,7 +890,9 @@
 
             var couponValue = getCouponValue();
             var shippingCostInput = documentRef.getElementById("shippingCost");
-            var shippingCost = shippingCostInput ? parseFloat(shippingCostInput.value) || 0 : 0;
+            var shippingCost = shippingCostInput
+                ? parseFloat(String(shippingCostInput.value).replace(/,/g, "")) || 0
+                : 0;
             var shippingIncludedCheckbox = documentRef.getElementById("shippingIncluded");
             var shippingIncluded = shippingIncludedCheckbox ? shippingIncludedCheckbox.checked : true;
 

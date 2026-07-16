@@ -16,6 +16,29 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const products = safeParseJson('initial-products');
     let editingProductId = null;
+
+    // ---- 금액 천단위 콤마 (이 페이지는 shared.js 미로드 — 자체 최소 구현) ----
+    function stripComma(v) {
+        return String(v == null ? '' : v).replace(/,/g, '');
+    }
+    function fmtComma(v) {
+        var digits = String(v == null ? '' : v).replace(/[^\d]/g, '');
+        return digits ? parseInt(digits, 10).toLocaleString('ko-KR') : '';
+    }
+    // 정수 금액 4필드만 자동포맷. #couponValue 는 % 소수(step 0.1) 가능 → 제외(파싱만 콤마 내성).
+    var AMOUNT_IDS = ['price1m', 'price30cm', 'price1cm', 'additionalOptionPrice'];
+    document.addEventListener('input', function (e) {
+        var t = e.target;
+        if (!t || e.isComposing === true || AMOUNT_IDS.indexOf(t.id) === -1) return;
+        var raw = String(t.value || '');
+        var formatted = fmtComma(raw);
+        if (formatted === raw) return;
+        var caret = t.selectionStart == null ? raw.length : t.selectionStart;
+        var fromEnd = raw.length - caret;
+        t.value = formatted;
+        var pos = Math.max(0, formatted.length - fromEnd);
+        try { t.setSelectionRange(pos, pos); } catch (err) { /* caret 복원 실패 무해 */ }
+    });
     
     const toastElement = document.getElementById('status-toast');
     const toastBody = toastElement.querySelector('.toast-body');
@@ -66,15 +89,15 @@ document.addEventListener('DOMContentLoaded', function() {
             pricing_type: document.getElementById('pricingType').value,
             additional_options: [],  // 추가 옵션은 더 이상 제품에 연결되지 않음
             coupon_type: document.getElementById('couponType').value,
-            coupon_value: parseFloat(document.getElementById('couponValue').value) || 0
+            coupon_value: parseFloat(stripComma(document.getElementById('couponValue').value)) || 0
         };
-        
-        // 가격 정보 추가
+
+        // 가격 정보 추가 (콤마 내성 파싱 — 저장 값은 항상 클린 숫자)
         if (formData.pricing_type === '1m') {
-            formData.price_1m = parseInt(document.getElementById('price1m').value) || 0;
+            formData.price_1m = parseInt(stripComma(document.getElementById('price1m').value), 10) || 0;
         } else if (formData.pricing_type === '30cm') {
-            formData.price_30cm = parseInt(document.getElementById('price30cm').value) || 0;
-            formData.price_1cm = parseInt(document.getElementById('price1cm').value) || 0;
+            formData.price_30cm = parseInt(stripComma(document.getElementById('price30cm').value), 10) || 0;
+            formData.price_1cm = parseInt(stripComma(document.getElementById('price1cm').value), 10) || 0;
         }
         
         // API 호출
@@ -126,10 +149,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('pricingType').dispatchEvent(new Event('change'));
                 
                 if (product.pricing_type === '1m') {
-                    document.getElementById('price1m').value = product.price_1m || 0;
+                    document.getElementById('price1m').value = fmtComma(product.price_1m) || 0;
                 } else if (product.pricing_type === '30cm') {
-                    document.getElementById('price30cm').value = product.price_30cm || 0;
-                    document.getElementById('price1cm').value = product.price_1cm || 0;
+                    document.getElementById('price30cm').value = fmtComma(product.price_30cm) || 0;
+                    document.getElementById('price1cm').value = fmtComma(product.price_1cm) || 0;
                 }
                 
                 document.getElementById('couponType').value = product.coupon_type || 'percentage';
@@ -657,7 +680,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const categoryName = document.getElementById('additionalOptionCategoryName').value.trim();
         const optionName = document.getElementById('additionalOptionName').value.trim();
-        const optionPrice = parseInt(document.getElementById('additionalOptionPrice').value) || 0;
+        const optionPrice = parseInt(stripComma(document.getElementById('additionalOptionPrice').value), 10) || 0;
         
         // 0원 옵션도 허용(예: 기본 구성). 음수만 거부.
         if (!categoryName || !optionName || optionPrice < 0) {
@@ -919,7 +942,7 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('additionalOptionCategoryId').value = categoryId;
             document.getElementById('additionalOptionCategoryName').value = categoryName || category.name;
             document.getElementById('additionalOptionName').value = option.name || '';
-            document.getElementById('additionalOptionPrice').value = option.price || 0;
+            document.getElementById('additionalOptionPrice').value = fmtComma(option.price) || 0;
             
             // 폼으로 스크롤
             document.getElementById('additionalOptionForm').scrollIntoView({ behavior: 'smooth', block: 'start' });

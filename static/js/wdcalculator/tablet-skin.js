@@ -13,7 +13,7 @@
  *
  *   | v2 셀              | 미러 대상(은닉 엔진 위젯)                 | 방향/트리거                              |
  *   |--------------------|------------------------------------------|------------------------------------------|
- *   | 모드칩(선택/CUSTOM) | .base-mode-btn[data-mode]                | 클릭 → 반대 모드 버튼 click + 재빌드     |
+ *   | 모드칩(선택/CUSTOM/직접) | .base-mode-btn[data-mode]           | 클릭 → 3-모드 사이클 click 위임 + 재빌드 |
  *   | 제품(선택)          | .base-product-select                     | 시트 pick → value + change               |
  *   | 제품명(CUSTOM)      | .base-manual-name                        | 입력 → value + input                     |
  *   | 방식(CUSTOM 서브)   | .base-manual-pricing-type                | 시트 pick(30cm/1m) → value + change·재빌드|
@@ -49,6 +49,12 @@
 
   var GATE = '(min-width: 992px) and (orientation: landscape) and (pointer: coarse)';
   var BODY_CLASS = 'wdc-tablet-v2';
+  var PENDING_CLASS = 'wdc-tablet-pending';   // 인라인 부트(calculator.html)가 파싱 시점에 부여
+
+  // FOUC 선제 은닉 해제 — 스킨 발현/미발현 판정 즉시 호출(fail-open 3s 애니메이션보다 빠른 정상 경로).
+  function clearPending() {
+    document.documentElement.classList.remove(PENDING_CLASS);
+  }
 
   function ready(fn) {
     if (document.readyState === 'loading') {
@@ -127,10 +133,12 @@
     // 임베디드(erp-wdc-split)는 자체 저장패널 오버레이를 이미 소유 → 표면 미적용.
     if (!container || !shell || !sidebar ||
         container.classList.contains('wdcalculator-container--embedded')) {
+      clearPending();   // 표면 미적용 경로 — 선제 은닉 즉시 해제
       return;
     }
     var mainScroll = shell.querySelector('.wdcalculator-main-scroll');
-    if (!mainScroll) { return; }
+    if (!mainScroll) { clearPending(); return; }
+    var mainColumn = mainScroll.closest('.wdcalculator-main-column') || shell;
 
     // ============================================================
     // 재부모화 북키핑(역순 복원). nextSibling 앵커로 원위치 보존.
@@ -266,7 +274,8 @@
       '</div>' +
       '<div class="wdc2-abar__grow"></div>' +
       '<button type="button" class="wdc2-abar__add" data-add-estimate>진행 견적에 추가 <span aria-hidden="true">→</span></button>');
-    document.body.appendChild(abar);
+    // in-flow 도킹(main-column flex 하단): fixed 좌표가 전역 레일(72px)과 겹치던 결함의 구조적 제거.
+    mainColumn.appendChild(abar);
     var abarValEl = abar.querySelector('[data-slot="final"]');
     var abarAddBtn = abar.querySelector('[data-add-estimate]');
 
@@ -419,7 +428,7 @@
     }
 
     // 엔진 행에 직접입력 fee 1건(이름+금액)을 추가하고 v2 그리드 재빌드.
-    // 빈 선택 행이면 buildBaseRow 가 '직접입력 전용 행'으로 재렌더(mode==select && 제품없음 && fee존재).
+    // 호출측이 .base-mode-btn[data-mode=direct] click 으로 행을 명시 direct 모드로 전환(T4 일원화).
     function addDirectInputFee(engineRow, name, amount) {
       var b = engineRow.querySelector('.base-add-fee-btn');
       if (b) { b.click(); }
@@ -438,8 +447,8 @@
 
     // 제품 선택 시트(3-세그): [선택(카탈로그)] [CUSTOM] [직접입력].
     //  - 선택: 카탈로그 그리드(단가 병기) pick → sel.value + change.
-    //  - CUSTOM: 행을 manual 모드로 전환 → 시트 닫고 제품명 입력 포커스.
-    //  - 직접입력: [항목명][금액][추가] → 행에 fee 추가(제품 있으면 서브행, 빈 행이면 직접입력 전용 행).
+    //  - CUSTOM: 행을 manual 모드로 전환 → 시트 닫고 행 제품명 입력 포커스.
+    //  - 직접입력: [항목명][금액][추가] → fee 추가 + 행을 direct 모드로 명시 전환(T4 일원화).
     function openProductSheet(engineRow, idx, prodBtn) {
       var sel = engineRow.querySelector('.base-product-select');
       if (!sel) { return; }
@@ -506,7 +515,10 @@
         var amt = (dAmt.value || '').replace(/[^\d.-]/g, '');
         if (!nm && !amt) { return; }
         closePicker();
+        // fee 를 먼저 동기 append(모드 클릭의 0건 자동시드와 중복 방지) → direct 모드 명시 전환.
         addDirectInputFee(engineRow, nm, amt);
+        var mb = engineRow.querySelector('.base-mode-btn[data-mode="direct"]');
+        if (mb) { mb.click(); }
       });
       direct.appendChild(dName);
       direct.appendChild(dAmt);
@@ -673,23 +685,25 @@
       var sel = engineRow.querySelector('.base-product-select');
       var hasProduct = !!(sel && sel.value);
       var feeItems = engineRow.querySelectorAll('.base-additional-fee-item');
-      // 판정: 빈 선택 행(제품 미선택) + fee 존재 → 직접입력 전용 행으로 렌더.
-      var isDirectOnly = mode === 'select' && !hasProduct && feeItems.length > 0;
+      // 직접입력 판정: dataset.mode 'direct'(명시, 1차) 우선.
+      // 하위호환 2차: 구판 저장분 — 빈 선택 행(제품 미선택) + fee 존재.
+      var isDirect = mode === 'direct' ||
+        (mode === 'select' && !hasProduct && feeItems.length > 0);
 
       var wrap = el('div', 'wdc2-brow-wrap' + (mode === 'manual' ? ' is-mine' : '') +
-        (isDirectOnly ? ' is-direct' : ''));
-      var row = el('div', 'wdc2-brow' + (isDirectOnly ? ' wdc2-brow--direct' : ''));
+        (isDirect ? ' is-direct' : ''));
+      var row = el('div', 'wdc2-brow' + (isDirect ? ' wdc2-brow--direct' : ''));
       wrap.appendChild(row);
 
-      // (a) 모드칩.
-      var chipLabel = isDirectOnly ? '직접' : (mode === 'manual' ? 'CUSTOM' : '선택');
+      // (a) 모드칩 — 3-모드 사이클: 선택 → CUSTOM → 직접 → 선택 (dataset.mode 기준 위임).
+      var chipLabel = isDirect ? '직접' : (mode === 'manual' ? 'CUSTOM' : '선택');
       var chip = el('button', 'wdc2-modechip' +
         (mode === 'manual' ? ' wdc2-modechip--mine' : '') +
-        (isDirectOnly ? ' wdc2-modechip--direct' : ''));
+        (isDirect ? ' wdc2-modechip--direct' : ''));
       chip.type = 'button';
       chip.innerHTML = '<span class="wdc2-modechip__n">' + (idx + 1) + '</span>' + chipLabel;
       chip.addEventListener('click', function () {
-        var target = mode === 'manual' ? 'select' : 'manual';
+        var target = mode === 'select' ? 'manual' : (mode === 'manual' ? 'direct' : 'select');
         var b = engineRow.querySelector('.base-mode-btn[data-mode="' + target + '"]');
         if (b) { b.click(); }
         rebuildBaseGrid();
@@ -697,30 +711,37 @@
       row.appendChild(chip);
 
       // (b) 상세 셀 + (c) W 셀.
-      if (isDirectOnly) {
-        // 직접입력 전용: 첫 fee 를 상세 셀에 인라인([항목명 1fr][금액]). W 셀은 '—' dim.
-        var first = feeItems[0];
-        var dNameSrc = first.querySelector('.base-additional-fee-name');
-        var dAmtSrc = first.querySelector('.base-additional-fee-amount');
+      if (isDirect) {
+        // 직접입력: 첫 fee 를 상세 셀에 인라인([항목명 1fr][금액]). W 셀은 '—' dim.
         var dcell = el('div', 'wdc2-directcell');
-        var dName = el('input', 'wdc2-directcell__nm');
-        dName.type = 'text';
-        dName.placeholder = '항목명 입력';
-        dName.value = (dNameSrc && dNameSrc.value) || '';
-        dName.addEventListener('input', function () {
-          if (dNameSrc) { dNameSrc.value = dName.value; fireInput(dNameSrc); }
-        });
-        var dAmt = el('input', 'wdc2-directcell__amt');
-        dAmt.type = 'text';
-        dAmt.setAttribute('inputmode', 'numeric');
-        dAmt.placeholder = '금액';
-        dAmt.value = (dAmtSrc && dAmtSrc.value) || '';
-        dAmt.addEventListener('input', function () {
-          if (dAmtSrc) { dAmtSrc.value = dAmt.value; fireInput(dAmtSrc); }
-          refreshBasePrices();
-        });
-        dcell.appendChild(dName);
-        dcell.appendChild(dAmt);
+        var first = feeItems.length ? feeItems[0] : null;
+        if (first) {
+          var dNameSrc = first.querySelector('.base-additional-fee-name');
+          var dAmtSrc = first.querySelector('.base-additional-fee-amount');
+          var dName = el('input', 'wdc2-directcell__nm');
+          dName.type = 'text';
+          dName.placeholder = '항목명 입력';
+          dName.value = (dNameSrc && dNameSrc.value) || '';
+          dName.addEventListener('input', function () {
+            if (dNameSrc) { dNameSrc.value = dName.value; fireInput(dNameSrc); }
+          });
+          var dAmt = el('input', 'wdc2-directcell__amt');
+          dAmt.type = 'text';
+          dAmt.setAttribute('inputmode', 'numeric');
+          dAmt.placeholder = '금액';
+          dAmt.value = (dAmtSrc && dAmtSrc.value) || '';
+          dAmt.addEventListener('input', function () {
+            if (dAmtSrc) { dAmtSrc.value = dAmt.value; fireInput(dAmtSrc); }
+            refreshBasePrices();
+          });
+          dcell.appendChild(dName);
+          dcell.appendChild(dAmt);
+        } else {
+          // dataset 'direct' + fee 0건(PC에서 서브행 전부 삭제 등) — 아래 ＋직접입력으로 복구.
+          var dEmpty = el('span', 'wdc2-win-empty');
+          dEmpty.textContent = '—';
+          dcell.appendChild(dEmpty);
+        }
         row.appendChild(dcell);
 
         var wEmpty = el('span', 'wdc2-win-empty');
@@ -770,7 +791,7 @@
       row.appendChild(del);
 
       // 서브행.
-      if (isDirectOnly) {
+      if (isDirect) {
         buildFeeSubs(engineRow, wrap, 1);   // 첫 fee 는 상세 셀 인라인 → 나머지만 서브행.
       } else if (mode === 'manual') {
         wrap.appendChild(buildManualSub(engineRow));
@@ -1082,8 +1103,34 @@
       return t ? !!t.checked : true;
     }
 
+    // qcard 라인 스크레이프: 엔진은 옵션/비고를 라인당 <div> 로 렌더(buildOptionsDetailHtml
+    // :687~ / buildNotesHtml :708~ 실사) — 자식 요소가 있으면 그대로 라인 분해. 자식 없는
+    // 결합 문자열은 "…원)" 경계 폴백(lookbehind 미사용 — 구 Safari 정규식 파스 에러 방지).
+    function scrapeLines(node) {
+      var out = [];
+      if (!node) { return out; }
+      var kids = node.children;
+      if (kids && kids.length) {
+        for (var i = 0; i < kids.length; i++) {
+          var t = txt(kids[i]);
+          if (t) { out.push(t); }
+        }
+        return out;
+      }
+      var whole = txt(node);
+      if (!whole || whole === '없음') { return out; }
+      var m = whole.match(/.+?원\)/g);
+      if (m && m.length > 1) {
+        for (var j = 0; j < m.length; j++) { out.push(m[j].replace(/^\s+|\s+$/g, '')); }
+        return out;
+      }
+      out.push(whole);
+      return out;
+    }
+
     // 진행 견적 v2 컴팩트 카드 재스크레이프(엔진 estimatesListContainer → .wdc2-qcards).
-    // 헤더: 견적 N · displayName · 이름연필 · 총액 / 본문: 구성(2줄) · 단가메타 · 옵션 / 액션: 수정·삭제 위임.
+    // r1=[견적N][금액(flex:none — 절대 불잘림)] / r2=이름 전폭 줄바꿈+연필 / 구성·옵션·비고
+    // 라인당 1줄 전부 표시(클램프·ellipsis 없음 — 스택 스크롤이 흡수) / 단가 메타 토글 연동.
     function buildQCards() {
       if (!qcardsEl) { return; }
       qcardsEl.innerHTML = '';
@@ -1094,24 +1141,33 @@
         var noNode = card.querySelector('.card-header strong');
         var noText = noNode ? txt(noNode) : ('견적 ' + (i + 1));
         var nameNode = card.querySelector('.estimate-display-name');
-        var name = nameNode ? txt(nameNode) : '';
+        var name = nameNode ? (nameNode.getAttribute('title') || txt(nameNode)) : '';
         var totalNode = card.querySelector('.estimate-total-price');
         var total = totalNode ? txt(totalNode) : '';
-        var baseNode = card.querySelector('.estimate-detail-base');
-        var baseText = baseNode ? txt(baseNode) : '';
-        var optNode = card.querySelector('.estimate-detail-options');
-        var optText = optNode ? txt(optNode) : '';
+        var baseLines = scrapeLines(card.querySelector('.estimate-detail-base'));
+        var optLines = scrapeLines(card.querySelector('.estimate-detail-options'));
+        var noteLines = scrapeLines(card.querySelector('.estimate-detail-notes'));
         var unitNode = card.querySelector('.wd-estimate-unit-meta');
         var unitText = unitNode ? txt(unitNode) : '';
 
         var qc = el('div', 'wdc2-qcard');
 
+        // r1: [견적 N] ---- [금액] (금액 flex:none — 좌측이 아니라 이름이 양보).
         var r1 = el('div', 'wdc2-qcard__r1');
         var no = el('span', 'wdc2-qcard__no');
         no.textContent = noText;
+        var grow = el('span', 'wdc2-qcard__grow');
+        var amt = el('span', 'wdc2-qcard__amt');
+        amt.textContent = total;
+        r1.appendChild(no);
+        r1.appendChild(grow);
+        r1.appendChild(amt);
+        qc.appendChild(r1);
+
+        // r2: 제품명/구성명 전폭 — 줄바꿈 허용(ellipsis 금지) + 이름수정 연필.
+        var r2 = el('div', 'wdc2-qcard__r2');
         var nm = el('span', 'wdc2-qcard__nm');
         nm.textContent = name;
-        nm.title = name;
         var pen = el('button', 'wdc2-qcard__pen');
         pen.type = 'button';
         pen.setAttribute('aria-label', '이름 수정');
@@ -1120,18 +1176,16 @@
           var b = card.querySelector('.edit-estimate-name-btn');
           if (b) { b.click(); }
         });
-        var amt = el('span', 'wdc2-qcard__amt');
-        amt.textContent = total;
-        r1.appendChild(no);
-        r1.appendChild(nm);
-        r1.appendChild(pen);
-        r1.appendChild(amt);
-        qc.appendChild(r1);
+        r2.appendChild(nm);
+        r2.appendChild(pen);
+        qc.appendChild(r2);
 
-        // 헤더 displayName 과 동일한 본문 라인·'없음' 플레이스홀더는 카드 소음 — 생략.
-        if (baseText && baseText !== name && baseText !== '없음') {
+        var k;
+        for (k = 0; k < baseLines.length; k++) {
+          // 헤더 이름과 동일한 단일 구성 라인은 중복 소음 — 생략.
+          if (baseLines.length === 1 && baseLines[k] === name) { break; }
           var ln = el('div', 'wdc2-qcard__ln');
-          ln.textContent = baseText;
+          ln.textContent = baseLines[k];
           qc.appendChild(ln);
         }
         if (showUnit && unitText) {
@@ -1139,10 +1193,15 @@
           um.textContent = unitText;
           qc.appendChild(um);
         }
-        if (optText && optText !== '없음') {
+        for (k = 0; k < optLines.length; k++) {
           var op = el('div', 'wdc2-qcard__opt');
-          op.textContent = optText;
+          op.textContent = '+ ' + optLines[k];
           qc.appendChild(op);
+        }
+        for (k = 0; k < noteLines.length; k++) {
+          var nt = el('div', 'wdc2-qcard__note');
+          nt.textContent = noteLines[k];
+          qc.appendChild(nt);
         }
 
         var acts = el('div', 'wdc2-qcard__acts');
@@ -1267,14 +1326,16 @@
     // enable / disable — 게이트 진입/이탈.
     // ============================================================
     function enableSkin() {
-      if (document.body.classList.contains('wd-builder')) { return; }   // 폰 셸 우선
-      if (document.body.classList.contains(BODY_CLASS)) { return; }
+      if (document.body.classList.contains('wd-builder')) { clearPending(); return; }   // 폰 셸 우선
+      if (document.body.classList.contains(BODY_CLASS)) { clearPending(); return; }
       document.body.classList.add(BODY_CLASS);
       dockFrame();
       setOpen(false);
+      clearPending();   // v2 발현 완료 — 선제 은닉을 v2 표면이 이어받음
       if (window.requestWdCalculatorLayoutSync) { window.requestWdCalculatorLayoutSync(); }
     }
     function disableSkin() {
+      clearPending();   // 게이트 미매치/이탈 — PC 표시 즉시 복귀
       var wasOn = document.body.classList.contains(BODY_CLASS);
       document.body.classList.remove(BODY_CLASS);
       shell.classList.remove('wdc2-saved-open');
