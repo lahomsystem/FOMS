@@ -42,7 +42,7 @@
 Media query = 셸(헤더/레일). Container query = 행 내부.
 
 ## 3. Steps
-- [x] Step A: Spec + `wd-line.css` + link + 토큰 연결 + 계약 + deploy
+- [x] Step A: Spec + `wd-line.css` + link + 토큰 연결 + 계약 + deploy (`67a04b10`)
 - [ ] Step B: mobile `contents` 해체를 CQ/그리드 zone으로 이전 (후속)
 - [ ] Step C: PC dense row를 Bootstrap col 대신 zone grid로 이전 (후속)
 
