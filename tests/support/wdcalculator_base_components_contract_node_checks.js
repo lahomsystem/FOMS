@@ -565,6 +565,7 @@ function runAll() {
             widthInput: "2000",
             widthMm: 2000,
             additionalFees: [],
+            manualName: "",
             manualPricing: { pricing_type: "1m", price_1m: 400000 },
         },
         "read manual 1m snapshot"
