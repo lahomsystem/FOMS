@@ -463,13 +463,13 @@
         var mp = (row && row.manualPricing) || {};
         if (mp.pricing_type === "1m") {
           var p1m = Number(mp.price_1m) || 0;
-          name = "직접입력 (1m)";
+          name = (row && row.manualName) || "직접입력 (1m)";
           unitText = "1m " + fmtNum(p1m);
           chipHtml = p1m ? "1m <b>" + fmtNum(p1m) + "원</b>" : "";
         } else {
           var p30 = Number(mp.price_30cm) || 0;
           var p1 = Number(mp.price_1cm) || 0;
-          name = "직접입력 (30cm)";
+          name = (row && row.manualName) || "직접입력 (30cm)";
           unitText = "30cm " + fmtNum(p30);
           chipHtml = p30 ? "30cm <b>" + fmtNum(p30) + "원</b> · 1cm <b>" + fmtNum(p1) + "원</b>" : "";
         }
@@ -493,7 +493,7 @@
           name = "제품 미선택";
         }
       }
-      var specParts = [mode === "manual" ? "직접" : "선택"];
+      var specParts = [mode === "manual" ? "MINE" : "선택"];
       if (widthText) specParts.push(widthText);
       if (unitText) specParts.push(unitText);
       return { name: name, spec: specParts.join(" · "), chipHtml: chipHtml };

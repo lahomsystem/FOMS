@@ -486,6 +486,7 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
         var additionalFees =
             component.additionalFees ||
             (component.additionalFee ? [{ name: "", amount: component.additionalFee }] : []);
+        var manualName = component.manualName != null ? String(component.manualName) : "";
 
         return (
             '\n            <div class="card mb-2 border-light base-component-row" data-mode="' +
@@ -494,13 +495,15 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
             (mode === "select" ? "btn-info" : "btn-outline-info") +
             ' base-mode-btn" data-mode="select">선택</button>\n                                <button type="button" class="btn btn-sm ' +
             (mode === "manual" ? "btn-warning" : "btn-outline-warning") +
-            ' base-mode-btn" data-mode="manual">직접</button>\n                            </div>\n                        </div>\n\n                        <!-- 선택/직접 상세 영역 (항상 같은 컬럼을 차지해서 남는 공간 제거) -->\n                        <div class="col-12 col-md-6 base-details-area">\n                            <!-- 제품(선택 모드) -->\n                            <div class="base-select-area" style="' +
+            ' base-mode-btn" data-mode="manual">MINE</button>\n                            </div>\n                        </div>\n\n                        <!-- 선택/직접 상세 영역 (항상 같은 컬럼을 차지해서 남는 공간 제거) -->\n                        <div class="col-12 col-md-6 base-details-area">\n                            <!-- 제품(선택 모드) -->\n                            <div class="base-select-area" style="' +
             (mode === "manual" ? "display:none;" : "") +
             '">\n                                <label class="form-label small mb-1">제품</label>\n                                <select class="form-select form-select-sm base-product-select">\n                                    ' +
             getProductsOptionsHtml() +
             '\n                                </select>\n                            </div>\n\n                            <!-- 직접입력(직접 모드) -->\n                            <div class="base-manual-area" style="' +
             (mode === "manual" ? "" : "display:none;") +
-            '">\n                                <div class="row g-2 align-items-end">\n                                    <div class="col-4">\n                                        <label class="form-label small mb-1">단가 방식</label>\n                                        <select class="form-select form-select-sm base-manual-pricing-type">\n                                            <option value="30cm" ' +
+            '">\n                                <div class="mb-2">\n                                    <label class="form-label small mb-1">제품명</label>\n                                    <input type="text" class="form-control form-control-sm base-manual-name" placeholder="제품명 입력" value="' +
+            escapeHtml(manualName) +
+            '">\n                                </div>\n                                <div class="row g-2 align-items-end">\n                                    <div class="col-4">\n                                        <label class="form-label small mb-1">단가 방식</label>\n                                        <select class="form-select form-select-sm base-manual-pricing-type">\n                                            <option value="30cm" ' +
             (manualPricingType === "30cm" ? "selected" : "") +
             '>30cm/1cm</option>\n                                            <option value="1m" ' +
             (manualPricingType === "1m" ? "selected" : "") +
@@ -518,7 +521,7 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
             escapeHtml(String(price1m)) +
             '">\n                                    </div>\n                                </div>\n                                \n                            </div>\n                        </div>\n\n                        <!-- 가로 (직접: 마지막 / 선택: 제품 다음) -->\n                        <div class="col-6 col-md-3 base-width-col">\n                            <label class="form-label small mb-1">가로(mm)</label>\n                            <input type="text" class="form-control form-control-sm base-width-input" inputmode="numeric" placeholder="예: 4470 또는 4120+4121+2354" value="' +
             escapeHtml(String(widthDisplay)) +
-            '">\n                            <div class="form-text small base-width-preview text-muted py-0" aria-live="polite"></div>\n                        </div>\n\n                        <!-- 삭제 -->\n                        <div class="col-6 col-md-1 text-end">\n                            <button type="button" class="btn btn-sm btn-outline-danger base-remove-btn" title="삭제">\n                                <i class="fas fa-times"></i>\n                            </button>\n                        </div>\n                    </div>\n                    \n                    <!-- 두 번째 행: 추가금 입력 (리스트 형태) -->\n                    <div class="mt-2">\n                        <label class="form-label small mb-2">추가금</label>\n                        <div class="base-additional-fees-list">\n                            ' +
+            '">\n                            <div class="form-text small base-width-preview text-muted py-0" aria-live="polite"></div>\n                        </div>\n\n                        <!-- 삭제 -->\n                        <div class="col-6 col-md-1 text-end">\n                            <button type="button" class="btn btn-sm btn-outline-danger base-remove-btn" title="삭제">\n                                <i class="fas fa-times"></i>\n                            </button>\n                        </div>\n                    </div>\n                    \n                    <!-- 두 번째 행: 추가금 입력 (리스트 형태) -->\n                    <div class="mt-2">\n                        <label class="form-label small mb-2">직접입력</label>\n                        <div class="base-additional-fees-list">\n                            ' +
             additionalFees
                 .map(function (fee, idx) {
                     return (
@@ -530,7 +533,7 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
                     );
                 })
                 .join("") +
-            '\n                        </div>\n                        <div class="mt-2">\n                            <button type="button" class="btn btn-sm btn-outline-primary base-add-fee-btn">\n                                <i class="fas fa-plus"></i> 추가금 추가\n                            </button>\n                        </div>\n                    </div>\n                </div>\n            </div>\n        '
+            '\n                        </div>\n                        <div class="mt-2">\n                            <button type="button" class="btn btn-sm btn-outline-primary base-add-fee-btn">\n                                <i class="fas fa-plus"></i> 직접입력\n                            </button>\n                        </div>\n                    </div>\n                </div>\n            </div>\n        '
         );
     }
 
@@ -591,6 +594,8 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
                 }
             });
             if (mode === "manual") {
+                var manualNameEl = rowEl.querySelector(".base-manual-name");
+                var manualName = (manualNameEl && manualNameEl.value.trim()) || "";
                 var pricingType =
                     (rowEl.querySelector(".base-manual-pricing-type") &&
                         rowEl.querySelector(".base-manual-pricing-type").value) ||
@@ -604,6 +609,7 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
                         widthInput: widthInput,
                         widthMm: widthMm,
                         additionalFees: additionalFees,
+                        manualName: manualName,
                         manualPricing: { pricing_type: "1m", price_1m: price1m },
                     };
                 }
@@ -618,6 +624,7 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
                     widthInput: widthInput,
                     widthMm: widthMm,
                     additionalFees: additionalFees,
+                    manualName: manualName,
                     manualPricing: {
                         pricing_type: "30cm",
                         price_30cm: price30,

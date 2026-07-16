@@ -1,555 +1,937 @@
 /**
- * WDCalculator 태블릿 가로 융합 셸(skin) — 목업 frame11(P11) "표형 UI" 그라운드업 (2026-07-16).
+ * WDCalculator 태블릿 가로 v2 표면(CSS) — 목업 tablet-wdcalculator-v2.html Frame 1~3 정합.
  *
- * tablet-skin.js 가 코호트(coarse landscape ≥992, 비임베디드)에서 목업 프레임을 구성하고,
- * 본 파일이 레이아웃·표피를 소유한다:
- *   - 슬림 pcbar(sticky): WD 계산기 + 이동한 #customerName + 고객 견적 검색 + 제품 설정.
- *   - 본문 .wdc-tf-body: 방식 토글 + 기본 구성 **표형 그리드**(제품|W|D|H|단가|✕) /
- *     [추가 옵션 표형 그리드 | 쿠폰·배송·비고 카드].
- *   - 우측 320px "진행 견적" 패널(shell 내 absolute 상시): 총 견적 hl-tile + 이동한
- *     #estimatesListContainer + foot(새 견적 / 전체 저장).
- *   - 하단 고정 최종견적 바(#finalPrice 미러 + 이동한 #calculateBtn/#addEstimateBtn).
- *   - PC 크롬(헤더·입력 카드·견적 결과 카드·은닉 엔진 컨테이너)은 코호트에서 은닉(DOM 유지 —
- *     엔진이 querySelector·delegated listener·save read 로 소유). 표형 셀은 은닉 엔진 위젯 미러.
- *   - 제품/옵션 시트 피커(.wdc-tf-sheet): 바텀시트.
+ * 발현 키: 게이트 미디어쿼리 `(min-width:992px) and (orientation:landscape) and (pointer:coarse)`
+ * 且 `body.wdc-tablet-v2`(JS 가 게이트 진입 시에만 부여) 이중 조건. PC(fine)·폰(≤991.98)·
+ * 임베디드(erp-wdc-split)·태블릿 세로에는 단 하나의 시각 규칙도 새지 않는다.
  *
- * 게이트: 대형 터치 태블릿 가로(min-width:992 landscape coarse). PC(hover/fine)·모바일
- * (<=991.98px, mobile.css/builder.css 소유)·임베디드(erp-wdc-split 소유)와 미디어/조건 배타.
- * foms 토큰만 사용(fallback 동봉). 저장 견적 좌측 레일은 은퇴(코호트 미표시) — 요소/규칙
- * (.wdc-saved-rail)은 계약 문자열 보존.
+ * 파일 스코프에는 오직 주입 요소의 은닉 가드만 둔다(뷰포트 무관하게 JS 가 DOM 주입 — 코호트
+ * 밖 유령 노출 차단). 실제 스타일/노출은 게이트 블록 전담.
  */
 
-/* 파일 스코프 기본 은닉: JS 가 뷰포트 무관하게 주입하므로(비임베디드만 게이트), 코호트 밖
-   (PC·세로·폰)에서 유령 요소가 새지 않도록 상시 숨김. 노출은 @media 코호트 규칙 전담. */
-.wdc-saved-rail { display: none; }
-.wdc-tablet-actionbar { display: none; }
-.wdc-tablet-pcbar { display: none; }
-.wdc-tablet-rightpanel { display: none; }
-.wdc-tf-body { display: none; }
-.wdc-saved-backdrop { display: none; }
-.wdc-tf-sheet { display: none; }
-.wdc-tf-sheet-backdrop { display: none; }
+/* 파일 스코프 은닉 가드(노출은 게이트 블록에서만). */
+.wdc2-topbar,
+.wdc2-sheet,
+.wdc2-abar,
+.wdc2-panel,
+.wdc2-saved-overlay,
+.wdc2-saved-backdrop,
+.wdc2-sheetpicker,
+.wdc2-sheetpicker-backdrop { display: none; }
 
 @media (min-width: 992px) and (orientation: landscape) and (pointer: coarse) {
+  body.wdc-tablet-v2 {
+    /* 스코프 색 토큰(:root 아님 — 코호트 밖 누출 방지). */
+    --wdc2-desk: #EDEBE4;
+    --wdc2-ink: #1C1E22;
+    --wdc2-line: #E6E4DE;
+    --wdc2-accent: #0F7B52;
+    --wdc2-accent-ink: #0B5C3E;
+    --wdc2-accent-tint: #EFF7F2;
+    --wdc2-mine-tint: #FFF8EC;
+    --wdc2-mine-ink: #8A6A1F;
+    --wdc2-danger: #C2453B;
+    /* 보조 토큰. */
+    --wdc2-surface: #FFFFFF;
+    --wdc2-subtle: #FAF9F6;
+    --wdc2-border-strong: #D9D6CE;
+    --wdc2-muted: #8A8F98;
+    --wdc2-sub: #6E7480;
+    --wdc2-panel-bg: #F7F6F2;
+    --wdc2-panel-w: 312px;
+    --wdc2-overlay-w: 392px;
+  }
+
   /* ====================================================================
-     A. 융합 프레임 레이아웃(frame11). shell 은 이미 fixed-height + flex
-        (wdcalculator_styles @≥992). 우측 패널을 shell 내 absolute 로 도킹.
+     A. 융합 프레임 레이아웃. shell 은 이미 fixed-height flex(@≥992). 우측 패널을
+        shell 내 absolute 로 도킹, 저장 사이드바 컬럼은 은닉(카드 노드 이동).
      ==================================================================== */
-  .wdcalculator-container:not(.wdcalculator-container--embedded) .wdcalculator-shell.wdc-tablet-skin {
+  body.wdc-tablet-v2 .wdcalculator-container:not(.wdcalculator-container--embedded) .wdcalculator-shell {
     position: relative;
+    background: var(--wdc2-desk);
   }
-  .wdcalculator-container { --wdc-rightpanel-w: 320px; }
-
-  .wdcalculator-shell.wdc-tablet-skin .wdcalculator-main-column {
-    flex: 0 0 calc(100% - var(--wdc-rightpanel-w));
-    width: calc(100% - var(--wdc-rightpanel-w));
-    max-width: calc(100% - var(--wdc-rightpanel-w));
+  body.wdc-tablet-v2 .saved-estimates-sidebar { display: none; }
+  body.wdc-tablet-v2 .wdcalculator-main-column {
+    flex: 0 0 calc(100% - var(--wdc2-panel-w));
+    width: calc(100% - var(--wdc2-panel-w));
+    max-width: calc(100% - var(--wdc2-panel-w));
   }
-
-  /* PC 스캐폴딩 은닉: main-scroll 직속 자식 중 pcbar·tfBody 만 노출(나머지 = 은닉 엔진
-     입력/결과 카드 → 은닉). 엔진이 .header-primary·#baseComponentsContainer 등을
-     querySelector·save read 하므로 DOM 은 유지. */
-  .wdcalculator-shell.wdc-tablet-skin .wdcalculator-main-scroll > :not(.wdc-tablet-pcbar):not(.wdc-tf-body) {
+  body.wdc-tablet-v2 .wdcalculator-main-scroll {
+    background: var(--wdc2-desk);
+    padding: 0 0 calc(76px + env(safe-area-inset-bottom, 0px));
+  }
+  /* PC 스캐폴딩 은닉: main-scroll 직속 자식 중 topbar·sheet 만 노출(나머지 = 은닉 엔진 카드). */
+  body.wdc-tablet-v2 .wdcalculator-main-scroll > :not(.wdc2-topbar):not(.wdc2-sheet) {
     display: none !important;
   }
-  .wdcalculator-shell.wdc-tablet-skin .wdc-tf-body { display: block; }
 
   /* ====================================================================
-     B. 슬림 pcbar (main-scroll 상단 sticky).
+     B. 탑바.
      ==================================================================== */
-  .wdcalculator-shell.wdc-tablet-skin .wdc-tablet-pcbar {
+  body.wdc-tablet-v2 .wdc2-topbar {
     display: flex;
     align-items: center;
-    gap: var(--foms-space-3, 0.75rem);
+    gap: 14px;
     position: sticky;
     top: 0;
-    z-index: 20;
-    margin: 0 0 var(--foms-space-3, 0.75rem);
-    padding: var(--foms-space-2, 0.5rem) 0;
-    background: var(--foms-surface, #fff);
-    border-bottom: 1px solid var(--foms-border-color, #dee2e6);
+    z-index: 30;
+    height: 60px;
+    padding: 0 18px;
+    background: var(--wdc2-surface);
+    border-bottom: 1px solid var(--wdc2-line);
   }
-  .wdc-tablet-skin .wdc-tablet-pcbar__title {
-    font-size: var(--foms-font-size-lg, 1.125rem);
-    font-weight: var(--foms-font-weight-bold, 700);
-    color: var(--foms-text-color, #212529);
+  body.wdc-tablet-v2 .wdc2-topbar__title {
+    flex: none;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    color: var(--wdc2-ink);
     white-space: nowrap;
   }
-  .wdc-tablet-skin .wdc-tablet-pcbar__grow { flex: 1 1 auto; }
-  .wdc-tablet-skin .wdc-tablet-pcbar__cust { display: flex; align-items: center; min-width: 0; }
-  .wdc-tablet-skin .wdc-tablet-pcbar__cust .mb-3 {
+  body.wdc-tablet-v2 .wdc2-topbar__grow { flex: 1 1 auto; }
+  body.wdc-tablet-v2 .wdc2-topbar__cust {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    max-width: 420px;
+    flex: 0 1 auto;
+  }
+  body.wdc-tablet-v2 .wdc2-topbar__cust .mb-3 {
     margin: 0 !important;
-    width: min(280px, 30vw);
+    width: min(320px, 30vw);
   }
-  .wdc-tablet-skin .wdc-tablet-pcbar__cust .form-label { display: none; }
-  .wdc-tablet-skin .wdc-tablet-pcbar .form-control {
-    min-height: 44px;
+  body.wdc-tablet-v2 .wdc2-topbar__cust .form-label { display: none; }
+  body.wdc-tablet-v2 .wdc2-topbar__cust .form-control {
     height: 44px;
-    font-size: max(16px, var(--foms-font-size-base, 1rem));
+    min-height: 44px;
+    font-size: 16px;
+    font-weight: 700;
+    border: 0;
+    border-bottom: 2px solid var(--wdc2-ink);
+    border-radius: 0;
+    background: transparent;
+    padding: 0 2px;
   }
-  .wdc-tablet-skin .wdc-tablet-pcbar__search { flex: 0 0 auto; min-height: 44px; white-space: nowrap; }
-  .wdc-tablet-skin .wdc-tablet-pcbar__settings .btn { min-height: 44px; white-space: nowrap; margin: 0 !important; }
+  body.wdc-tablet-v2 .wdc2-topbar__search {
+    flex: none;
+    height: 40px;
+    padding: 0 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    border: 1px solid var(--wdc2-border-strong);
+    border-radius: 9px;
+    background: var(--wdc2-surface);
+    color: #3A3E45;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  body.wdc-tablet-v2 .wdc2-topbar__settings .btn {
+    height: 40px;
+    min-height: 40px;
+    margin: 0 !important;
+    padding: 0 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    border: 1px solid var(--wdc2-border-strong);
+    border-radius: 9px;
+    background: var(--wdc2-surface);
+    color: #3A3E45;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
 
   /* ====================================================================
-     C. 본문 .wdc-tf-body — 목업 표형 카드.
+     C. 시트(워크시트 본문).
      ==================================================================== */
-  .wdc-tablet-skin .wdc-tf-toolbar {
-    display: flex;
-    align-items: center;
-    gap: var(--foms-space-3, 0.75rem);
-    margin: 0 0 var(--foms-space-3, 0.75rem);
-    flex-wrap: wrap;
-  }
-  .wdc-tablet-skin .wdc-tf-toggle {
-    display: inline-flex;
-    background: var(--foms-surface-subtle, #f1f3f5);
-    border: 1px solid var(--foms-border-color, #dee2e6);
-    border-radius: var(--foms-radius-md, 8px);
-    padding: 3px;
-    gap: 3px;
-  }
-  .wdc-tablet-skin .wdc-tf-toggle__btn {
-    min-height: 44px;
-    padding: 0 var(--foms-space-4, 1rem);
-    border: 0;
-    border-radius: var(--foms-radius-sm, 6px);
-    background: transparent;
-    color: var(--foms-text-secondary, #6c757d);
-    font-size: max(15px, var(--foms-font-size-sm, 0.9375rem));
-    font-weight: var(--foms-font-weight-semibold, 600);
-    cursor: pointer;
-    white-space: nowrap;
-  }
-  .wdc-tablet-skin .wdc-tf-toggle__btn.is-active {
-    background: var(--foms-surface, #fff);
-    color: var(--foms-text-color, #212529);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
-  }
-  .wdc-tablet-skin .wdc-tf-hint {
-    font-size: var(--foms-font-size-sm, 0.875rem);
-    color: var(--foms-text-secondary, #6c757d);
-  }
-
-  .wdc-tablet-skin .wdc-tf-card {
-    background: var(--foms-surface, #fff);
-    border: 1px solid var(--foms-border-color, #dee2e6);
-    border-radius: var(--foms-radius-lg, 12px);
-    padding: var(--foms-space-4, 1rem);
-    margin-bottom: var(--foms-space-3, 0.75rem);
-  }
-  .wdc-tablet-skin .wdc-tf-card__title {
-    margin: 0 0 var(--foms-space-3, 0.75rem);
-    font-size: var(--foms-font-size-base, 1rem);
-    font-weight: var(--foms-font-weight-bold, 700);
-    color: var(--foms-text-color, #212529);
-  }
-  .wdc-tablet-skin .wdc-tf-count {
-    color: var(--foms-text-secondary, #6c757d);
-    font-weight: var(--foms-font-weight-semibold, 600);
-  }
-  .wdc-tablet-skin .wdc-tf-row2 {
-    display: flex;
-    gap: var(--foms-space-3, 0.75rem);
-    align-items: stretch;
-  }
-  .wdc-tablet-skin .wdc-tf-card--opt { flex: 1.3 1 0; min-width: 0; }
-  .wdc-tablet-skin .wdc-tf-card--meta { flex: 1 1 0; min-width: 0; }
-
-  /* --- 표형 그리드(기본 구성): 제품 | W | D | H | 단가 | ✕ --- */
-  .wdc-tablet-skin .wdc-tf-grid {
-    display: flex;
-    flex-direction: column;
-    gap: var(--foms-space-2, 0.5rem);
-  }
-  .wdc-tablet-skin .wdc-tf-grid__head,
-  .wdc-tablet-skin .wdc-tf-grid__row {
-    display: grid;
-    grid-template-columns: minmax(0, 1.6fr) 92px 82px 82px 116px 44px;
-    gap: var(--foms-space-2, 0.5rem);
-    align-items: center;
-  }
-  .wdc-tablet-skin .wdc-tf-grid--opt .wdc-tf-grid__row {
-    grid-template-columns: minmax(0, 1fr) 132px 44px;
-  }
-  .wdc-tablet-skin .wdc-tf-grid__head {
-    padding: 0 2px var(--foms-space-1, 0.25rem);
-  }
-  .wdc-tablet-skin .wdc-tf-hcell {
-    font-size: var(--foms-font-size-xs, 0.75rem);
-    font-weight: var(--foms-font-weight-bold, 700);
-    color: var(--foms-text-secondary, #6c757d);
-    letter-spacing: 0.02em;
-    text-align: right;
-  }
-  .wdc-tablet-skin .wdc-tf-hcell--prod { text-align: left; }
-  .wdc-tablet-skin .wdc-tf-hcell--del { text-align: center; }
-
-  /* 셀 공통(목업 num-box) — 주 입력 52px 터치. */
-  .wdc-tablet-skin .wdc-tf-cell {
-    min-height: 52px;
-    border: 1px solid var(--foms-border-color, #dee2e6);
-    border-radius: var(--foms-radius-md, 8px);
-    background: var(--foms-surface, #fff);
-    font-size: max(16px, var(--foms-font-size-base, 1rem));
-    color: var(--foms-text-color, #212529);
-    padding: 0 var(--foms-space-3, 0.75rem);
-    box-sizing: border-box;
-  }
-  /* 숫자 셀(W/D/H/금액): 우측 정렬 tabular. */
-  .wdc-tablet-skin .wdc-tf-cell--num {
-    text-align: right;
-    font-variant-numeric: tabular-nums;
-    width: 100%;
-  }
-  .wdc-tablet-skin .wdc-tf-cell--num:focus,
-  .wdc-tablet-skin .wdc-tf-cell--prodmanual:focus {
-    outline: none;
-    border-color: var(--foms-color-brand-500, #5a67d8);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--foms-color-brand-500, #5a67d8) 18%, transparent);
-  }
-  .wdc-tablet-skin .wdc-tf-cell--prodmanual {
-    text-align: right;
-    font-variant-numeric: tabular-nums;
-    width: 100%;
-  }
-  /* 제품/옵션 셀(버튼): 좌측 라벨 + ▾. */
-  .wdc-tablet-skin .wdc-tf-cell--prod {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--foms-space-2, 0.5rem);
-    text-align: left;
-    cursor: pointer;
-    width: 100%;
-  }
-  .wdc-tablet-skin .wdc-tf-prodlabel {
+  body.wdc-tablet-v2 .wdc2-sheet { display: block; padding: 12px 18px 8px; }
+  body.wdc-tablet-v2 .wdc2-sec {
+    background: var(--wdc2-surface);
+    border: 1px solid var(--wdc2-line);
+    border-radius: 12px;
+    margin-bottom: 10px;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-weight: var(--foms-font-weight-semibold, 600);
   }
-  .wdc-tablet-skin .wdc-tf-caret { flex: 0 0 auto; color: var(--foms-text-secondary, #6c757d); }
-  /* 단가 셀(read-only 계산 미러): 우측 굵게. */
-  .wdc-tablet-skin .wdc-tf-cell--price {
+  body.wdc-tablet-v2 .wdc2-sec__hd {
     display: flex;
     align-items: center;
-    justify-content: flex-end;
-    text-align: right;
-    font-variant-numeric: tabular-nums;
-    font-weight: var(--foms-font-weight-bold, 700);
-    background: var(--foms-surface-subtle, #f8f9fa);
-    border-color: transparent;
+    gap: 10px;
+    padding: 10px 16px 0;
   }
-  /* ✕ 삭제 셀. */
-  .wdc-tablet-skin .wdc-tf-cell--del {
-    min-height: 44px;
-    padding: 0;
+  body.wdc-tablet-v2 .wdc2-sec__t { font-size: 13px; font-weight: 800; letter-spacing: -0.01em; color: var(--wdc2-ink); }
+  body.wdc-tablet-v2 .wdc2-sec__c { font-size: 11px; color: var(--wdc2-muted); font-weight: 600; }
+
+  /* 열 헤더 + 행 그리드(기본 구성): 모드 64 | 상세 1fr | W 128 | 단가 156 | ✕ 40. */
+  body.wdc-tablet-v2 .wdc2-colhead--base,
+  body.wdc-tablet-v2 .wdc2-brow {
+    display: grid;
+    grid-template-columns: 64px minmax(0, 1fr) 128px 156px 40px;
+    gap: 0 12px;
+    align-items: center;
+  }
+  body.wdc-tablet-v2 .wdc2-colhead {
+    padding: 7px 16px 2px;
+    color: #9AA0A9;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+  }
+  body.wdc-tablet-v2 .wdc2-colhead .r { text-align: right; }
+  body.wdc-tablet-v2 .wdc2-brow-wrap { border-top: 1px solid #F0EEE8; padding: 7px 16px; }
+  body.wdc-tablet-v2 .wdc2-brow { min-height: 52px; }
+
+  body.wdc-tablet-v2 .wdc2-modechip {
+    height: 32px;
+    border-radius: 8px;
+    border: 1px solid #E0DDD5;
+    background: var(--wdc2-subtle);
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--foms-danger, #dc3545);
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--wdc2-sub);
+    cursor: pointer;
+  }
+  body.wdc-tablet-v2 .wdc2-modechip__n { font-size: 12px; color: var(--wdc2-ink); }
+  body.wdc-tablet-v2 .wdc2-modechip--mine {
+    background: var(--wdc2-mine-tint);
+    border-color: #EAD9B8;
+    color: var(--wdc2-mine-ink);
+  }
+
+  body.wdc-tablet-v2 .wdc2-prodbtn {
+    height: 44px;
+    border: 1px solid var(--wdc2-border-strong);
+    border-radius: 10px;
+    background: var(--wdc2-surface);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 14px;
+    min-width: 0;
+    cursor: pointer;
+  }
+  body.wdc-tablet-v2 .wdc2-prodbtn__nm {
+    font-size: 15.5px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--wdc2-ink);
+  }
+  body.wdc-tablet-v2 .wdc2-caret { margin-left: auto; color: #B4B0A6; flex: none; font-size: 11px; }
+
+  /* MINE 제품명 — 전폭 입력. */
+  body.wdc-tablet-v2 .wdc2-dname {
+    height: 44px;
+    width: 100%;
+    border: 1.5px solid var(--wdc2-border-strong);
+    border-radius: 10px;
+    background: var(--wdc2-surface);
+    padding: 0 13px;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--wdc2-ink);
+  }
+
+  /* W — 큰 볼드 우측 정렬. */
+  body.wdc-tablet-v2 .wdc2-win {
+    height: 44px;
+    width: 100%;
+    border: 1.5px solid var(--wdc2-border-strong);
+    border-radius: 10px;
+    background: var(--wdc2-surface);
+    text-align: right;
+    padding: 0 12px;
+    font-size: 18px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: var(--wdc2-ink);
+  }
+
+  /* 단가 — read-only 계산 미러(그린 틴트, 만질 수 없는 값). */
+  body.wdc-tablet-v2 .wdc2-price {
+    height: 44px;
+    background: var(--wdc2-accent-tint);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 0 12px;
+  }
+  body.wdc-tablet-v2 .wdc2-price__v {
+    font-size: 16.5px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    color: var(--wdc2-accent-ink);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ✕ 삭제 셀(구성/옵션/비고 공용). */
+  body.wdc-tablet-v2 .wdc2-del {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: none;
     background: transparent;
-    border-color: transparent;
+    color: #C6C2B8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
     cursor: pointer;
-    font-size: var(--foms-font-size-lg, 1.125rem);
+    justify-self: center;
   }
-  .wdc-tablet-skin .wdc-tf-cell--del:hover { background: var(--foms-surface-subtle, #f8f9fa); }
+  body.wdc-tablet-v2 .wdc2-del:hover { background: var(--wdc2-subtle); color: var(--wdc2-danger); }
 
-  /* 행 추가 버튼(칩). */
-  .wdc-tablet-skin .wdc-tf-addwrap { margin-top: var(--foms-space-3, 0.75rem); }
-  .wdc-tablet-skin .wdc-tf-addrow {
-    min-height: 44px;
-    padding: 0 var(--foms-space-4, 1rem);
-    border: 1px dashed var(--foms-border-color, #ced4da);
-    border-radius: var(--foms-radius-md, 8px);
-    background: var(--foms-surface, #fff);
-    color: var(--foms-color-brand-600, #4a55b8);
-    font-size: max(15px, var(--foms-font-size-sm, 0.9375rem));
-    font-weight: var(--foms-font-weight-semibold, 600);
+  /* 서브행(직접입력 / MINE 방식·단가). 상세 열~✕ 열 스팬. */
+  /* 서브행은 .wdc2-brow-wrap(블록) 직속이므로 상세 열(64px 모드 + 12px gap)만큼 들여쓴다. */
+  body.wdc-tablet-v2 .wdc2-subrow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 7px;
+    margin-left: 76px;
+  }
+  body.wdc-tablet-v2 .wdc2-tie {
+    width: 14px;
+    height: 20px;
+    border-left: 1.5px solid #DDDACF;
+    border-bottom: 1.5px solid #DDDACF;
+    border-bottom-left-radius: 8px;
+    margin: -8px 0 8px 8px;
+    flex: none;
+  }
+  body.wdc-tablet-v2 .wdc2-subfee__nm {
+    height: 36px;
+    flex: 1;
+    border: 1px solid var(--wdc2-line);
+    border-radius: 8px;
+    background: var(--wdc2-subtle);
+    padding: 0 11px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #3A3E45;
+  }
+  body.wdc-tablet-v2 .wdc2-subfee__amt {
+    height: 36px;
+    width: 130px;
+    flex: none;
+    border: 1px solid var(--wdc2-line);
+    border-radius: 8px;
+    background: var(--wdc2-surface);
+    text-align: right;
+    padding: 0 11px;
+    font-size: 13.5px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--wdc2-ink);
+  }
+  body.wdc-tablet-v2 .wdc2-subfee__x {
+    flex: none;
+    border: none;
+    background: transparent;
+    color: #C6C2B8;
+    font-size: 14px;
+    padding: 0 4px;
     cursor: pointer;
   }
-  .wdc-tablet-skin .wdc-tf-addrow:hover { background: var(--foms-surface-subtle, #f8f9fa); }
+  body.wdc-tablet-v2 .wdc2-ddrop {
+    height: 36px;
+    flex: none;
+    border: 1px solid var(--wdc2-border-strong);
+    border-radius: 8px;
+    background: var(--wdc2-subtle);
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 0 12px;
+    font-size: 12.5px;
+    font-weight: 800;
+    color: #3A3E45;
+    cursor: pointer;
+  }
+  body.wdc-tablet-v2 .wdc2-ddrop .wdc2-caret { margin-left: 0; }
+  body.wdc-tablet-v2 .wdc2-dinput {
+    height: 36px;
+    width: 110px;
+    flex: none;
+    border: 1.5px solid var(--wdc2-border-strong);
+    border-radius: 8px;
+    background: var(--wdc2-surface);
+    text-align: right;
+    padding: 0 11px;
+    font-size: 14px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: var(--wdc2-ink);
+  }
+  body.wdc-tablet-v2 .wdc2-subhint { font-size: 10.5px; color: #9AA0A9; font-weight: 600; }
 
-  /* --- 쿠폰·배송·비고 메타 카드(이동한 엔진 입력 컴팩트) --- */
-  .wdc-tablet-skin .wdc-tf-card--meta .wdc-tf-slot > .mb-3 { margin-bottom: var(--foms-space-3, 0.75rem) !important; }
-  .wdc-tablet-skin .wdc-tf-card--meta .wdc-tf-slot > .mb-3:last-child { margin-bottom: 0 !important; }
-  .wdc-tablet-skin .wdc-tf-card--meta .form-label {
-    font-size: var(--foms-font-size-sm, 0.875rem);
-    font-weight: var(--foms-font-weight-semibold, 600);
-    margin-bottom: var(--foms-space-1, 0.25rem);
+  body.wdc-tablet-v2 .wdc2-addfee { margin-top: 6px; margin-left: 76px; }
+  body.wdc-tablet-v2 .wdc2-addfee__btn {
+    border: none;
+    background: none;
+    color: var(--wdc2-muted);
+    font-size: 11.5px;
+    font-weight: 700;
+    padding: 1px 0;
+    cursor: pointer;
   }
-  .wdc-tablet-skin .wdc-tf-card--meta .form-control,
-  .wdc-tablet-skin .wdc-tf-card--meta .form-select {
-    min-height: 44px;
-    font-size: max(16px, var(--foms-font-size-base, 1rem));
+
+  /* 행 추가. */
+  body.wdc-tablet-v2 .wdc2-addrow {
+    display: flex;
+    gap: 8px;
+    padding: 8px 16px 11px;
+    border-top: 1px solid #F0EEE8;
   }
-  /* 메타 카드 안 도움말(작은 안내문)은 공간 절약 위해 은닉. */
-  .wdc-tablet-skin .wdc-tf-card--meta .form-text { display: none; }
+  body.wdc-tablet-v2 .wdc2-addrow__a {
+    height: 38px;
+    flex: 1;
+    border: 1.5px dashed #CFCCC2;
+    border-radius: 10px;
+    background: #FCFBF9;
+    color: #54595F;
+    font-size: 12.5px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    cursor: pointer;
+  }
+  body.wdc-tablet-v2 .wdc2-addrow__a--mine {
+    flex: 0 0 176px;
+    color: var(--wdc2-mine-ink);
+    border-color: #E4D6B4;
+    background: #FFFDF6;
+  }
+
+  /* 추가 옵션 행: 배지 64 | 옵션 1fr | 금액 156 | ✕ 40. */
+  body.wdc-tablet-v2 .wdc2-orow {
+    display: grid;
+    grid-template-columns: 64px minmax(0, 1fr) 156px 40px;
+    gap: 0 12px;
+    align-items: center;
+    padding: 7px 16px;
+    border-top: 1px solid #F0EEE8;
+    min-height: 58px;
+  }
+  body.wdc-tablet-v2 .wdc2-sec--opt .wdc2-optgrid .wdc2-orow:first-child,
+  body.wdc-tablet-v2 .wdc2-sec--note .wdc2-notegrid .wdc2-nrow:first-child { border-top: none; }
+
+  /* 비고 행: 배지 64 | 내용 1fr | ✕ 40. */
+  body.wdc-tablet-v2 .wdc2-nrow {
+    display: grid;
+    grid-template-columns: 64px minmax(0, 1fr) 40px;
+    gap: 0 12px;
+    align-items: center;
+    padding: 7px 16px;
+    border-top: 1px solid #F0EEE8;
+    min-height: 58px;
+  }
+
+  body.wdc-tablet-v2 .wdc2-obadge {
+    height: 32px;
+    border-radius: 8px;
+    background: #F2F6FB;
+    border: 1px solid #D8E2EE;
+    color: #3A6291;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+  body.wdc-tablet-v2 .wdc2-obadge--mine {
+    background: var(--wdc2-mine-tint);
+    border-color: #EAD9B8;
+    color: var(--wdc2-mine-ink);
+  }
+  body.wdc-tablet-v2 .wdc2-optbtn {
+    height: 44px;
+    border: 1px solid var(--wdc2-border-strong);
+    border-radius: 10px;
+    background: var(--wdc2-surface);
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 0 14px;
+    min-width: 0;
+    cursor: pointer;
+  }
+  body.wdc-tablet-v2 .wdc2-optbtn__nm {
+    font-size: 14.5px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--wdc2-ink);
+  }
+  body.wdc-tablet-v2 .wdc2-optname {
+    height: 44px;
+    width: 100%;
+    border: 1.5px solid var(--wdc2-border-strong);
+    border-radius: 10px;
+    background: var(--wdc2-surface);
+    padding: 0 13px;
+    font-size: 14.5px;
+    font-weight: 700;
+    color: var(--wdc2-ink);
+  }
+  body.wdc-tablet-v2 .wdc2-oamt {
+    height: 44px;
+    width: 100%;
+    border: 1.5px solid var(--wdc2-border-strong);
+    border-radius: 10px;
+    background: var(--wdc2-surface);
+    text-align: right;
+    padding: 0 12px;
+    font-size: 16px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: var(--wdc2-ink);
+  }
+
+  /* 조정 스트립: 할인 · 배송. */
+  body.wdc-tablet-v2 .wdc2-strip {
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+    margin-bottom: 10px;
+  }
+  body.wdc-tablet-v2 .wdc2-pill {
+    background: var(--wdc2-surface);
+    border: 1px solid var(--wdc2-line);
+    border-radius: 12px;
+    padding: 9px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  body.wdc-tablet-v2 .wdc2-pill__l {
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--wdc2-muted);
+    letter-spacing: 0.04em;
+    flex: none;
+  }
+  body.wdc-tablet-v2 .wdc2-pill__sign { font-size: 14px; font-weight: 800; color: var(--wdc2-danger); }
+  body.wdc-tablet-v2 .wdc2-pill__sign--plus { color: #3A6291; }
+  body.wdc-tablet-v2 .wdc2-pill__field .mb-3 { margin: 0 !important; }
+  body.wdc-tablet-v2 .wdc2-pill__field .form-label,
+  body.wdc-tablet-v2 .wdc2-pill__field .form-text,
+  body.wdc-tablet-v2 .wdc2-pill__chk .form-text { display: none; }
+  body.wdc-tablet-v2 .wdc2-pill__field .form-control {
+    height: 36px;
+    min-height: 36px;
+    width: 104px;
+    border: 1.5px solid var(--wdc2-border-strong);
+    border-radius: 8px;
+    text-align: right;
+    padding: 0 10px;
+    font-size: 15px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+  }
+  body.wdc-tablet-v2 .wdc2-pill__chk { display: flex; align-items: center; }
+  body.wdc-tablet-v2 .wdc2-pill__chk .mb-3 { margin: 0 !important; }
+  body.wdc-tablet-v2 .wdc2-pill__chk .form-check { padding-left: 0; display: flex; align-items: center; gap: 6px; }
+  body.wdc-tablet-v2 .wdc2-pill__chk .form-check-input { margin: 0; width: 19px; height: 19px; }
+  body.wdc-tablet-v2 .wdc2-pill__chk .form-check-label {
+    font-size: 12px;
+    color: #54595F;
+    font-weight: 600;
+    white-space: nowrap;
+  }
 
   /* ====================================================================
-     D. 우측 "진행 견적" 패널 (shell 내 absolute, 상시).
+     D. 하단 액션바(고정).
      ==================================================================== */
-  .wdcalculator-shell.wdc-tablet-skin .wdc-tablet-rightpanel {
+  body.wdc-tablet-v2 .wdc2-abar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: fixed;
+    left: 0;
+    right: var(--wdc2-panel-w);
+    bottom: 0;
+    z-index: 1030;
+    height: 64px;
+    padding: 0 18px calc(0px + env(safe-area-inset-bottom, 0px));
+    background: var(--wdc2-surface);
+    border-top: 1px solid var(--wdc2-line);
+    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.06);
+  }
+  body.wdc-tablet-v2 .wdc2-abar__grow { flex: 1 1 auto; }
+  body.wdc-tablet-v2 .wdc2-abar__label { font-size: 11px; font-weight: 800; color: var(--wdc2-muted); letter-spacing: 0.05em; }
+  body.wdc-tablet-v2 .wdc2-abar__row { display: flex; align-items: baseline; gap: 8px; }
+  body.wdc-tablet-v2 .wdc2-abar__val {
+    font-size: 25px;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    color: var(--wdc2-accent-ink);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  body.wdc-tablet-v2 .wdc2-abar__live { font-size: 10.5px; color: #9AA0A9; }
+  body.wdc-tablet-v2 .wdc2-abar__add {
+    height: 46px;
+    border-radius: 10px;
+    border: none;
+    background: var(--wdc2-accent);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 800;
+    padding: 0 22px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+  }
+
+  /* ====================================================================
+     E. 우측 진행 견적 패널(shell 내 absolute, 상시).
+     ==================================================================== */
+  body.wdc-tablet-v2 .wdc2-panel {
     display: flex;
     flex-direction: column;
     position: absolute;
     top: 0;
     right: 0;
     bottom: 0;
-    width: var(--wdc-rightpanel-w);
+    width: var(--wdc2-panel-w);
     z-index: 1020;
-    background: var(--foms-surface, #fff);
-    border-left: 1px solid var(--foms-border-color, #dee2e6);
+    background: var(--wdc2-panel-bg);
+    border-left: 1px solid var(--wdc2-line);
   }
-  .wdc-tablet-skin .wdc-trp__head {
-    flex: 0 0 auto;
+  body.wdc-tablet-v2 .wdc2-panel__cur {
+    flex: none;
+    background: var(--wdc2-surface);
+    border-bottom: 1px solid var(--wdc2-line);
+    padding: 13px 16px 11px;
+  }
+  body.wdc-tablet-v2 .wdc2-panel__curhd { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  body.wdc-tablet-v2 .wdc2-panel__curhd b { font-size: 12.5px; font-weight: 800; color: var(--wdc2-ink); }
+  body.wdc-tablet-v2 .wdc2-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--wdc2-accent); }
+  body.wdc-tablet-v2 .wdc2-bl {
     display: flex;
-    align-items: baseline;
     justify-content: space-between;
-    gap: var(--foms-space-2, 0.5rem);
-    padding: var(--foms-space-3, 0.75rem) var(--foms-space-4, 1rem);
-    border-bottom: 1px solid var(--foms-border-color, #dee2e6);
+    font-size: 12.5px;
+    color: #54595F;
+    padding: 3px 0;
   }
-  .wdc-tablet-skin .wdc-trp__head h4 {
-    margin: 0;
-    font-size: var(--foms-font-size-lg, 1.125rem);
-    font-weight: var(--foms-font-weight-bold, 700);
-    color: var(--foms-text-color, #212529);
+  body.wdc-tablet-v2 .wdc2-bl b { font-weight: 700; color: var(--wdc2-ink); font-variant-numeric: tabular-nums; }
+  body.wdc-tablet-v2 .wdc2-bl--minus b { color: var(--wdc2-danger); }
+  body.wdc-tablet-v2 .wdc2-mut { color: #9AA0A9; font-size: 11px; }
+  body.wdc-tablet-v2 .wdc2-bl--total {
+    border-top: 1px solid #EFEDE7;
+    margin-top: 6px;
+    padding-top: 8px;
+    font-size: 13px;
   }
-  .wdc-tablet-skin .wdc-trp__count {
-    font-size: var(--foms-font-size-sm, 0.875rem);
-    color: var(--foms-text-secondary, #6c757d);
-    white-space: nowrap;
-  }
-  .wdc-tablet-skin .wdc-trp__tile {
-    flex: 0 0 auto;
+  body.wdc-tablet-v2 .wdc2-bl--total b { font-size: 19px; font-weight: 900; color: var(--wdc2-accent-ink); letter-spacing: -0.01em; }
+
+  body.wdc-tablet-v2 .wdc2-panel__list {
+    flex: 1 1 auto;
+    min-height: 0;
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    margin: var(--foms-space-3, 0.75rem) var(--foms-space-4, 1rem) 0;
-    padding: var(--foms-space-3, 0.75rem) var(--foms-space-4, 1rem);
-    border-radius: var(--foms-radius-lg, 12px);
-    background: var(--foms-surface-accent, #f3f4ff);
-    border: 1px solid color-mix(in srgb, var(--foms-color-brand-500, #5a67d8) 25%, transparent);
+    padding: 11px 14px 0;
   }
-  .wdc-tablet-skin .wdc-trp__tile b {
-    font-size: var(--foms-font-size-sm, 0.875rem);
-    font-weight: var(--foms-font-weight-bold, 700);
-    color: var(--foms-color-brand-600, #4a55b8);
-  }
-  .wdc-tablet-skin .wdc-trp__tile span {
-    font-size: var(--foms-font-size-2xl, 1.5rem);
-    font-weight: var(--foms-font-weight-bold, 700);
-    color: var(--foms-color-brand-600, #4a55b8);
-    font-variant-numeric: tabular-nums;
-  }
-  .wdc-tablet-skin .wdc-trp__body {
+  body.wdc-tablet-v2 .wdc2-panel__lh { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  body.wdc-tablet-v2 .wdc2-panel__lh b { font-size: 12.5px; font-weight: 800; color: var(--wdc2-ink); }
+  body.wdc-tablet-v2 .wdc2-panel__cnt { font-size: 11px; color: var(--wdc2-muted); font-weight: 700; }
+  body.wdc-tablet-v2 .wdc2-panel__grow { flex: 1 1 auto; }
+  body.wdc-tablet-v2 .wdc2-panel__toggle .wd-unit-price-toggle-wrap { gap: 5px !important; }
+  body.wdc-tablet-v2 .wdc2-panel__toggle .form-check-input { margin: 0; }
+  body.wdc-tablet-v2 .wdc2-panel__toggle label { font-size: 10.5px; color: var(--wdc2-muted); font-weight: 700; }
+  body.wdc-tablet-v2 .wdc2-panel__body {
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
     overscroll-behavior: contain;
-    padding: var(--foms-space-3, 0.75rem) var(--foms-space-4, 1rem);
+    padding-bottom: 8px;
   }
-  .wdc-tablet-skin .wdc-trp__body .row.g-3 > [class*="col-"] {
-    flex: 0 0 100% !important;
-    max-width: 100% !important;
+  /* --- 도킹 견적 카드 재스타일(결함1: PC bootstrap row/col·d-flex 마크업이 312px 패널에서
+     min-content 수축 → 글자 세로 붕괴). 엔진 마크업 실사: estimate-lifecycle.js
+     renderEstimatesList(871~)·buildEstimateCardBodyHtml(800~). 목업 Frame 1 qcard 룩 근접. --- */
+  body.wdc-tablet-v2 .wdc2-panel #estimatesListContainer { min-width: 0; }
+  /* bootstrap flex row 해제 — 수축의 원천 차단(카드 = 세로 블록 스택). */
+  body.wdc-tablet-v2 .wdc2-panel #estimatesListContainer .row.g-3 {
+    display: block;
+    margin: 0;
+  }
+  body.wdc-tablet-v2 .wdc2-panel #estimatesListContainer .row.g-3 > [class*="col-"] {
+    display: block;
     width: 100% !important;
+    max-width: 100% !important;
+    flex: none !important;
+    min-width: 0;
+    padding: 0;
+    margin: 0 0 8px;
   }
-  .wdc-tablet-skin .wdc-trp__body .card[data-estimate-id] {
-    margin-bottom: var(--foms-space-3, 0.75rem);
-    border: 1px solid var(--foms-border-color, #dee2e6);
-    border-radius: var(--foms-radius-lg, 12px);
+  /* 전체 합계 카드는 패널 foot 미러가 대체 — 원본 은닉. */
+  body.wdc-tablet-v2 .wdc2-panel #estimatesListContainer #totalEstimatesSummary {
+    display: none !important;
   }
-  .wdc-tablet-skin .wdc-trp__body #totalEstimatesSummary { display: none; }
-  .wdc-tablet-skin .wdc-trp__foot {
-    flex: 0 0 auto;
+  body.wdc-tablet-v2 .wdc2-panel #estimatesListContainer .card[data-estimate-id] {
+    width: 100%;
+    min-width: 0;
+    height: auto !important;   /* .h-100 해제 */
+    border: 1px solid var(--wdc2-line);
+    border-radius: 11px;
+    background: var(--wdc2-surface);
+    overflow: hidden;
+  }
+  /* 헤더(견적 N · 이름 ✎ | 수정/삭제) — 가로 유지, 부족 시 줄바꿈(글자 세로 쌓임 금지). */
+  body.wdc-tablet-v2 .wdc2-panel #estimatesListContainer .card[data-estimate-id] > .card-header {
     display: flex;
-    gap: var(--foms-space-2, 0.5rem);
-    padding: var(--foms-space-3, 0.75rem) var(--foms-space-4, 1rem);
-    border-top: 1px solid var(--foms-border-color, #dee2e6);
-  }
-  .wdc-tablet-skin .wdc-trp__foot .btn { flex: 1 1 0; min-height: 48px; }
-  .wdc-tablet-skin .wdc-trp__foot .wdc-trp__save { flex: 1.4 1 0; }
-  .wdc-tablet-skin .wdc-trp__foot .btn:disabled { opacity: 0.5; }
-
-  /* ====================================================================
-     E. 하단 고정 최종견적 바.
-     ==================================================================== */
-  .wdcalculator-container:not(.wdcalculator-container--embedded) .wdcalculator-shell.wdc-tablet-skin .wdcalculator-main-scroll {
-    padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px) + 1rem);
-  }
-  .wdc-tablet-actionbar.wdc-actionbar-active {
-    display: flex;
-    position: fixed;
-    left: 0;
-    right: var(--wdc-rightpanel-w, 320px);
-    bottom: 0;
-    z-index: 1030;
+    flex-wrap: wrap;
     align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 10px 20px calc(10px + env(safe-area-inset-bottom, 0px));
-    background: var(--foms-surface, #fff);
-    border-top: 1px solid var(--foms-border-color, #dee2e6);
-    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.08);
+    gap: 6px;
+    min-width: 0;
+    padding: 9px 13px 7px;
+    background: transparent;
+    border-bottom: 1px solid #F0EEE8;
   }
-  .wdc-tab-ab__price {
-    display: flex;
-    flex-direction: column;
-    line-height: 1.2;
+  body.wdc-tablet-v2 .wdc2-panel #estimatesListContainer .card[data-estimate-id] > .card-header > .d-flex {
+    flex: 1 1 auto;
     min-width: 0;
   }
-  .wdc-tab-ab__label {
-    font-size: var(--foms-font-size-sm, 0.875rem);
-    color: var(--foms-text-secondary, #6c757d);
+  /* 인라인 max-width:180px 축소(패널 312px — CSS !important 가 인라인 비중요 선언을 이긴다). */
+  body.wdc-tablet-v2 .wdc2-panel #estimatesListContainer .estimate-display-name {
+    max-width: 110px !important;
   }
-  .wdc-tab-ab__val {
-    font-size: var(--foms-font-size-2xl, 1.5rem);
-    font-weight: var(--foms-font-weight-bold, 700);
-    color: var(--foms-text-color, #212529);
-    font-variant-numeric: tabular-nums;
+  /* 우측 액션(수정/삭제) — 무클래스 div: 가로 인라인 고정. */
+  body.wdc-tablet-v2 .wdc2-panel #estimatesListContainer .card[data-estimate-id] > .card-header > div:last-child {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 6px;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
-  .wdc-tab-ab__actions { display: flex; gap: 12px; flex: 0 0 auto; }
-  .wdc-tablet-actionbar .wdc-tab-ab__actions .btn {
-    width: auto !important;
-    margin: 0 !important;
-    min-height: 52px;
-    padding-left: 26px;
-    padding-right: 26px;
-    font-size: max(16px, var(--foms-font-size-base, 1rem));
-    font-weight: var(--foms-font-weight-semibold, 600);
+  body.wdc-tablet-v2 .wdc2-panel #estimatesListContainer .edit-estimate-btn,
+  body.wdc-tablet-v2 .wdc2-panel #estimatesListContainer .delete-estimate-btn {
+    height: 30px;
+    min-width: 40px;
+    border-radius: 8px;
+    border: 1px solid #E0DDD5;
+    background: var(--wdc2-subtle);
+    color: #54595F;
+    font-size: 11.5px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     white-space: nowrap;
+    padding: 0 10px;
+  }
+  body.wdc-tablet-v2 .wdc2-panel #estimatesListContainer .delete-estimate-btn { color: var(--wdc2-danger); }
+  /* 본문(estimate-card-item 블록 흐름 — 인라인 강제 스타일 존치, 레이아웃만 보정). */
+  body.wdc-tablet-v2 .wdc2-panel #estimatesListContainer .card[data-estimate-id] > .card-body {
+    min-width: 0;
+    padding: 9px 13px 11px;
+    overflow-wrap: anywhere;   /* 잔여 긴 토큰(제품명 등) 안전 */
+  }
+  body.wdc-tablet-v2 .wdc2-panel #estimatesListContainer .card-body .d-flex {
+    flex-wrap: wrap;
+    min-width: 0;
   }
 
+  body.wdc-tablet-v2 .wdc2-panel__foot {
+    flex: none;
+    background: var(--wdc2-surface);
+    border-top: 1px solid var(--wdc2-line);
+    padding: 12px 16px 13px;
+  }
+  body.wdc-tablet-v2 .wdc2-panel__sum {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 10px;
+  }
+  body.wdc-tablet-v2 .wdc2-panel__suml { font-size: 11.5px; font-weight: 800; color: var(--wdc2-muted); letter-spacing: 0.04em; }
+  body.wdc-tablet-v2 .wdc2-panel__sumv { font-size: 21px; font-weight: 900; letter-spacing: -0.02em; color: var(--wdc2-ink); font-variant-numeric: tabular-nums; }
+  body.wdc-tablet-v2 .wdc2-panel__btns { display: flex; gap: 8px; }
+  body.wdc-tablet-v2 .wdc2-panel__new {
+    flex: 1 1 0;
+    height: 44px;
+    border-radius: 10px;
+    border: 1.5px solid var(--wdc2-border-strong);
+    background: var(--wdc2-surface);
+    font-size: 13px;
+    font-weight: 800;
+    color: #54595F;
+    cursor: pointer;
+  }
+  body.wdc-tablet-v2 .wdc2-panel__save {
+    flex: 1.4 1 0;
+    height: 44px;
+    border-radius: 10px;
+    border: none;
+    background: var(--wdc2-ink);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+  body.wdc-tablet-v2 .wdc2-panel__new:disabled,
+  body.wdc-tablet-v2 .wdc2-panel__save:disabled { opacity: 0.45; }
+
   /* ====================================================================
-     F. 제품·옵션 시트 피커(바텀시트).
+     F. 공용 바텀시트 피커.
      ==================================================================== */
-  .wdc-tf-sheet-backdrop {
+  body.wdc-tablet-v2 .wdc2-sheetpicker-backdrop {
     display: block;
     position: fixed;
     inset: 0;
     z-index: 2000;
-    background: rgba(0, 0, 0, 0.4);
+    background: rgba(24, 25, 28, 0.34);
   }
-  .wdc-tf-sheet-backdrop[hidden] { display: none; }
-  .wdc-tf-sheet {
+  body.wdc-tablet-v2 .wdc2-sheetpicker-backdrop[hidden] { display: none; }
+  body.wdc-tablet-v2 .wdc2-sheetpicker {
     display: flex;
     flex-direction: column;
     position: fixed;
     left: 50%;
     bottom: 0;
     transform: translateX(-50%);
-    width: min(560px, 96vw);
+    width: min(720px, 96vw);
     max-height: 72vh;
     z-index: 2001;
-    background: var(--foms-surface, #fff);
-    border-radius: var(--foms-radius-lg, 12px) var(--foms-radius-lg, 12px) 0 0;
-    box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.2);
+    background: var(--wdc2-surface);
+    border-radius: 20px 20px 0 0;
+    box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.16);
+    padding-bottom: 14px;
   }
-  .wdc-tf-sheet[hidden] { display: none; }
-  .wdc-tf-sheet__grip {
-    width: 40px;
-    height: 4px;
-    border-radius: 2px;
-    background: var(--foms-border-color, #ced4da);
+  body.wdc-tablet-v2 .wdc2-sheetpicker[hidden] { display: none; }
+  body.wdc-tablet-v2 .wdc2-sheetpicker__grip {
+    width: 44px;
+    height: 5px;
+    border-radius: 3px;
+    background: #DDDACF;
     margin: 10px auto 4px;
-    flex: 0 0 auto;
+    flex: none;
   }
-  .wdc-tf-sheet__head {
+  body.wdc-tablet-v2 .wdc2-sheetpicker__hd {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: var(--foms-space-2, 0.5rem) var(--foms-space-4, 1rem);
-    border-bottom: 1px solid var(--foms-border-color, #dee2e6);
-    flex: 0 0 auto;
+    padding: 8px 22px 12px;
+    border-bottom: 1px solid #F0EEE8;
+    flex: none;
   }
-  .wdc-tf-sheet__title {
-    font-size: var(--foms-font-size-base, 1rem);
-    font-weight: var(--foms-font-weight-bold, 700);
-    color: var(--foms-text-color, #212529);
-  }
-  .wdc-tf-sheet__close {
-    min-width: 44px;
-    min-height: 44px;
-    border: 0;
-    background: transparent;
-    color: var(--foms-text-secondary, #6c757d);
-    font-size: var(--foms-font-size-lg, 1.125rem);
+  body.wdc-tablet-v2 .wdc2-sheetpicker__title { font-size: 16px; font-weight: 800; color: var(--wdc2-ink); }
+  body.wdc-tablet-v2 .wdc2-sheetpicker__close {
+    width: 38px;
+    height: 38px;
+    border-radius: 9px;
+    background: var(--wdc2-subtle);
+    border: 1px solid var(--wdc2-line);
+    color: #54595F;
     cursor: pointer;
   }
-  .wdc-tf-sheet__body {
+  body.wdc-tablet-v2 .wdc2-sheetpicker__body {
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
     overscroll-behavior: contain;
-    padding: var(--foms-space-2, 0.5rem);
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 9px;
+    padding: 14px 22px 6px;
   }
-  .wdc-tf-sheet__opt {
-    display: block;
-    width: 100%;
-    min-height: 52px;
+  body.wdc-tablet-v2 .wdc2-sheetpicker__opt {
+    min-height: 64px;
+    border: 1.5px solid var(--wdc2-line);
+    border-radius: 11px;
+    background: var(--wdc2-surface);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 0 15px;
+    gap: 2px;
     text-align: left;
-    padding: 0 var(--foms-space-4, 1rem);
-    border: 0;
-    border-radius: var(--foms-radius-md, 8px);
-    background: transparent;
-    color: var(--foms-text-color, #212529);
-    font-size: max(16px, var(--foms-font-size-base, 1rem));
+    font-size: 14.5px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    color: var(--wdc2-ink);
     cursor: pointer;
   }
-  .wdc-tf-sheet__opt:hover { background: var(--foms-surface-subtle, #f8f9fa); }
-  .wdc-tf-sheet__opt.is-selected {
-    background: var(--foms-surface-accent, #f3f4ff);
-    color: var(--foms-color-brand-600, #4a55b8);
-    font-weight: var(--foms-font-weight-bold, 700);
+  body.wdc-tablet-v2 .wdc2-sheetpicker__optnm { font-size: 14.5px; font-weight: 800; }
+  body.wdc-tablet-v2 .wdc2-sheetpicker__optmeta { font-size: 11.5px; color: var(--wdc2-muted); font-weight: 600; }
+  body.wdc-tablet-v2 .wdc2-sheetpicker__opt.is-selected {
+    border-color: var(--wdc2-accent);
+    background: var(--wdc2-accent-tint);
+    box-shadow: 0 0 0 3px rgba(15, 123, 82, 0.10);
   }
+  body.wdc-tablet-v2 .wdc2-sheetpicker__opt.is-selected .wdc2-sheetpicker__optmeta { color: var(--wdc2-accent-ink); }
 
   /* ====================================================================
-     G. 저장 견적 오버레이(고객 견적 검색). 사이드바 = 오프캔버스(접힘), 펼침 시 절대배치.
+     G. 저장 견적 오버레이(견적 검색) + 백드롭.
      ==================================================================== */
-  .wdcalculator-shell.wdc-tablet-skin .saved-estimates-sidebar {
-    flex: 0 0 0;
-    width: 0;
-    max-width: 0;
-    padding-left: 0;
-    padding-right: 0;
-    overflow: hidden;
-  }
-  /* rail: 코호트 미표시(요소/규칙은 하위호환·계약 보존). */
-  .wdcalculator-shell.wdc-tablet-skin .wdc-saved-rail {
-    display: none;
-    position: sticky;
-    top: 20px;
-    width: 44px;
-    min-height: 168px;
-  }
-  .wdc-saved-rail .fa-history { color: var(--foms-info, #0dcaf0); }
-  .wdc-saved-rail-label {
-    writing-mode: vertical-rl;
-    text-orientation: mixed;
-    font-size: var(--foms-font-size-sm, 0.875rem);
-  }
-  .wdcalculator-shell.wdc-tablet-skin.wdc-saved-open .saved-estimates-sidebar {
+  body.wdc-tablet-v2 .wdc2-saved-overlay {
+    display: flex;
+    flex-direction: column;
     position: absolute;
     top: 0;
-    left: 0;
+    right: 0;
+    bottom: 0;
+    width: var(--wdc2-overlay-w);
+    max-width: 82vw;
     z-index: 1050;
-    width: min(380px, 72vw);
-    max-width: min(380px, 72vw);
-    height: 100%;
-    padding-left: calc(var(--bs-gutter-x, 1.5rem) * 0.5);
-    padding-right: calc(var(--bs-gutter-x, 1.5rem) * 0.5);
-    overflow: hidden;
+    background: var(--wdc2-surface);
+    border-left: 1px solid var(--wdc2-line);
+    box-shadow: -14px 0 44px rgba(0, 0, 0, 0.12);
+    transform: translateX(100%);
+    transition: transform 0.22s ease;
   }
-  .wdc-tablet-skin .wdc-saved-backdrop {
+  body.wdc-tablet-v2 .wdcalculator-shell.wdc2-saved-open .wdc2-saved-overlay { transform: translateX(0); }
+  body.wdc-tablet-v2 .wdc2-saved-overlay__hd {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 18px 12px;
+    flex: none;
+  }
+  body.wdc-tablet-v2 .wdc2-saved-overlay__hd b { font-size: 16px; font-weight: 800; color: var(--wdc2-ink); }
+  body.wdc-tablet-v2 .wdc2-saved-overlay__close {
+    margin-left: auto;
+    width: 38px;
+    height: 38px;
+    border-radius: 9px;
+    background: var(--wdc2-subtle);
+    border: 1px solid var(--wdc2-line);
+    color: #54595F;
+    cursor: pointer;
+  }
+  body.wdc-tablet-v2 .wdc2-saved-overlay__body { flex: 1 1 auto; min-height: 0; display: flex; padding: 0 14px 14px; }
+  body.wdc-tablet-v2 .wdc2-saved-overlay__body .saved-estimates-card {
+    flex: 1 1 auto;
+    height: 100%;
+    max-height: none !important;
+    border: 0;
+    box-shadow: none;
+  }
+  body.wdc-tablet-v2 .wdc2-saved-overlay__body .card-header { border: 0; padding-top: 0; }
+
+  body.wdc-tablet-v2 .wdc2-saved-backdrop {
     display: block;
-    position: fixed;
+    position: absolute;
     inset: 0;
     z-index: 1040;
-    background: rgba(0, 0, 0, 0.35);
+    background: rgba(24, 25, 28, 0.34);
   }
-  .wdc-tablet-skin .wdc-saved-backdrop[hidden] { display: none; }
+  body.wdc-tablet-v2 .wdc2-saved-backdrop[hidden] { display: none; }
 }
