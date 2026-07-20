@@ -671,19 +671,22 @@
             }
 
             .filters-row {
-                flex-wrap: nowrap;
-                gap: 4px;
+                flex-wrap: wrap;
+                gap: 6px;
                 align-items: center;
             }
 
+            /* 날짜/상태 그룹은 shrink 금지 → wrap으로 다음 줄 */
             .filters-row .filter-group {
                 flex-shrink: 0;
             }
 
+            /* 담당자 칸 max-width 캡 제거 — 좁은 화면에서 입력 붕괴 방지 */
             .filters-row .filter-group.filter-group-manager {
-                flex: 1 1 auto;
-                min-width: 0;
-                max-width: 40%;
+                flex: 1 1 12rem;
+                flex-shrink: 1;
+                min-width: 10rem;
+                max-width: none;
             }
 
             .filters-row .filter-label,
@@ -697,8 +700,11 @@
                 font-size: 0.78rem;
             }
 
+            /* date input: 고정 88px 대신 날짜 문자열 읽을 최소폭 */
             #date-filter {
-                width: 88px;
+                width: auto;
+                min-width: 9.5rem;
+                flex: 1 1 auto;
             }
 
             #status-filter {
@@ -745,6 +751,7 @@
             }
         }
 
+        /* 폰: 날짜 / 담당자+액션 세로 스택 → 입력칸 전폭 */
         @media (max-width: 615px) {
             .header-bar {
                 padding: 5px 8px;
@@ -754,34 +761,53 @@
                 font-size: 0.9rem;
             }
 
+            .filters-row {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 6px;
+            }
+
+            .filters-row .filter-group {
+                width: 100%;
+                flex: 1 1 auto;
+            }
+
             .filters-row .filter-group.filter-group-manager {
-                max-width: 35%;
+                max-width: none;
+                min-width: 0;
+                width: 100%;
             }
 
             #date-filter {
-                width: 82px;
+                width: 100%;
+                min-width: 0;
+                flex: 1 1 auto;
             }
 
             #status-filter {
-                width: 58px;
+                width: auto;
+                min-width: 4.5rem;
+                flex: 1 1 auto;
+            }
+
+            .manager-actions {
+                flex: 1 1 auto;
+                width: 100%;
+            }
+
+            .manager-actions #manager-filter {
+                flex: 1 1 auto;
+                min-width: 0;
             }
         }
 
-        /* 초소형 화면: 2줄 유지하며 입력창 더 축소 */
+        /* 초소형: 라벨·아이콘만 조금 축소 (입력폭은 전폭 유지) */
         @media (max-width: 380px) {
 
             .filters-row .filter-label,
             .filters-row-search .filter-label {
                 min-width: 32px;
                 font-size: 0.7rem;
-            }
-
-            #date-filter {
-                width: 76px;
-            }
-
-            #status-filter {
-                width: 54px;
             }
 
             .btn-header-icon {
