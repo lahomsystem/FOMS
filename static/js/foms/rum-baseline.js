@@ -58,15 +58,22 @@
     } catch (e) { /* unsupported */ }
   }
 
-  window.addEventListener('load', function () {
+  // Navigation Timing: load 핸들러 실행 중 loadEventEnd 는 아직 0 인 브라우저가 있다.
+  // (스펙상 load 이벤트 처리가 끝나야 loadEventEnd 가 채워짐) → setTimeout(0) 후 재측정.
+  function sendLoadMetric() {
     var nav = performance.getEntriesByType('navigation')[0];
-    if (nav && nav.loadEventEnd) {
-      sendMetric(Object.assign(basePayload(), {
-        metric: 'LOAD',
-        value: Math.round(nav.loadEventEnd),
-      }));
-    }
-  });
+    if (!nav) { return; }
+    var value = Math.round(nav.loadEventEnd || nav.duration || 0);
+    if (value <= 0) { return; }
+    sendMetric(Object.assign(basePayload(), { metric: 'LOAD', value: value }));
+  }
+  if (document.readyState === 'complete') {
+    setTimeout(sendLoadMetric, 0);
+  } else {
+    window.addEventListener('load', function () {
+      setTimeout(sendLoadMetric, 0);
+    });
+  }
 
   // ERP 셸 탭 프래그먼트 스왑 소요(사용자 누름→콘텐츠 교체 완료)를 10% 샘플로 전송.
   // click→swapped 델타로 측정하므로 라우팅 로직 중복 없이 rum-baseline 안에서 완결된다.
