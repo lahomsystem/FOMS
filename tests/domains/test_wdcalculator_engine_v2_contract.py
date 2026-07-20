@@ -66,6 +66,12 @@ def test_direct_mode_ensures_one_fee_input_row():
     assert "ensureDirectFeeInputRow(rowEl)" in PRIMARY
 
 
+def test_leave_direct_clears_empty_fee_rows():
+    # 직접 → 제품선택/커스텀 전환 시 빈 fee 입력칸 제거
+    assert "function clearEmptyAdditionalFeeRows(rowEl)" in PRIMARY
+    assert "clearEmptyAdditionalFeeRows(rowEl)" in PRIMARY
+
+
 def test_mobile_manual_name_full_width_guard():
     mobile = (ROOT / "static/css/wdcalculator/mobile.css").read_text(encoding="utf-8")
     assert "base-manual-area > .mb-2" in mobile

@@ -717,6 +717,26 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
         feesList.appendChild(createAdditionalFeeItemEl());
     }
 
+    /**
+     * 직접 모드를 떠날 때 비어 있는 fee 입력 행을 제거한다.
+     * (이름·금액 모두 비어 있으면 제거 — 자동시드 잔존 UI 방지)
+     * @param {HTMLElement} rowEl
+     */
+    function clearEmptyAdditionalFeeRows(rowEl) {
+        var feesList = rowEl.querySelector(".base-additional-fees-list");
+        if (!feesList) return;
+        Array.prototype.slice.call(feesList.querySelectorAll(".base-additional-fee-item")).forEach(function (item) {
+            var nameEl = item.querySelector(".base-additional-fee-name");
+            var amtEl = item.querySelector(".base-additional-fee-amount");
+            var name = (nameEl && nameEl.value && nameEl.value.trim()) || "";
+            var amtRaw = (amtEl && amtEl.value && String(amtEl.value).trim()) || "";
+            var amt = parsePrice(amtRaw) || 0;
+            if (!name && amt <= 0) {
+                item.remove();
+            }
+        });
+    }
+
     function applyBaseMode(rowEl, newMode) {
         rowEl.dataset.mode = newMode;
         var selectArea = rowEl.querySelector(".base-select-area");
@@ -747,6 +767,8 @@ var WdCalculatorBaseComponentsUI = window.WdCalculatorBaseComponentsUI || {};
         });
         if (newMode === "direct") {
             ensureDirectFeeInputRow(rowEl);
+        } else {
+            clearEmptyAdditionalFeeRows(rowEl);
         }
         triggerCalculateEstimate();
     }
