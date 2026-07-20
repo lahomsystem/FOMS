@@ -2,8 +2,9 @@
 
    태블릿 가로 코호트에서 legacy 생산 작업 큐 테이블(.foms-production-legacy-queue)을
    read-model 3버킷 칸반(.foms-kanban)으로 대체한다. 열 = production_read_model 버킷
-   (제작대기 / 제작중 / 제작완료). "상차 대기"는 독립 상태가 아니므로 열이 아니라 카드의
-   상차 D-day 칩으로만 표기한다. 마크업/데이터 = 서버 무변경(dashboard.py `orders` 재소비).
+   (제작대기 / 제작중 / 제작완료). 출고 대기는 독립 상태가 아니므로 열이 아니라 카드의
+   시공 예정일 칩(시공 · M/D · D-n)으로만 표기한다. 마크업/데이터 = 서버 무변경
+   (dashboard.py `orders` 재소비).
 
    적용 조건 (T0 매트릭스·W9/W11 정합):
      body.erp-mobile-v2-layout(코호트 게이트)
@@ -393,10 +394,13 @@
     margin-top: var(--foms-space-1);
   }
 
-  /* --- 상차 D-day 칩: HMI 색 규율 = 정상 무채색, 임박/지연만 유채색 --- */
+  /* --- 시공 예정일 칩(시공 · M/D · D-n): HMI 색 규율 = 정상 무채색, 임박/지연만 유채색 --- */
   body.erp-mobile-v2-layout .foms-kanban-chip {
     display: inline-flex;
+    /* baseline 정렬 금지: min-height(28px) > 내용 높이라 baseline 은 3조각을 위로
+       붙여 칩 안 수직중앙을 깨뜨린다(is-muted 칩 포함). center 유지. */
     align-items: center;
+    gap: var(--foms-space-1);
     min-height: 28px;
     padding: 0 var(--foms-space-3);
     border-radius: var(--foms-radius-full);
@@ -405,6 +409,28 @@
     font-size: var(--foms-font-size-sm);
     font-weight: var(--foms-font-weight-bold);
     white-space: nowrap;
+    /* 폭 안전: 칩은 내용폭 고정(0 0 auto) — 축소를 허용하면 nowrap 내용이 알약
+       배경 밖으로 새고, 잘라내면 D-day 숫자가 사라진다. 이동 버튼도 flex-shrink:0
+       이라 서로를 밀지 않으며, 극단폭에서만 __foot 의 기존 flex-wrap 이 받는다.
+       구분점(·) 문자는 넣지 않고 gap 만으로 3조각을 분리한다(폭 절약). */
+    flex: 0 0 auto;
+  }
+  /* 칩 3조각 위계: 라벨(약) → 날짜(중) → D-day(강).
+     색은 칩이 소유하고 조각은 상속만 한다 → is-imminent/is-overdue 일 때 세 조각이
+     함께 상태색으로 읽힌다(라벨만 무채로 남아 대비가 깨지는 것 방지). */
+  body.erp-mobile-v2-layout .foms-kanban-chip__label {
+    font-size: var(--foms-font-size-xs);
+    font-weight: var(--foms-font-weight-medium);
+    color: var(--foms-text-tertiary);
+  }
+  body.erp-mobile-v2-layout .foms-kanban-chip__date {
+    font-weight: var(--foms-font-weight-semibold);
+    font-variant-numeric: tabular-nums;
+  }
+  body.erp-mobile-v2-layout .foms-kanban-chip__dday {
+    font-weight: var(--foms-font-weight-bold);
+    font-variant-numeric: tabular-nums;
+    color: var(--foms-text-primary);
   }
   body.erp-mobile-v2-layout .foms-kanban-chip.is-imminent {
     background: var(--erp-warning-light);
@@ -413,6 +439,13 @@
   body.erp-mobile-v2-layout .foms-kanban-chip.is-overdue {
     background: var(--erp-danger-light);
     color: var(--foms-color-danger-600);
+  }
+  /* 상태색일 때 조각의 무채 고정을 해제 — 위계는 크기·굵기로만 유지한다. */
+  body.erp-mobile-v2-layout .foms-kanban-chip.is-imminent .foms-kanban-chip__label,
+  body.erp-mobile-v2-layout .foms-kanban-chip.is-imminent .foms-kanban-chip__dday,
+  body.erp-mobile-v2-layout .foms-kanban-chip.is-overdue .foms-kanban-chip__label,
+  body.erp-mobile-v2-layout .foms-kanban-chip.is-overdue .foms-kanban-chip__dday {
+    color: inherit;
   }
   body.erp-mobile-v2-layout .foms-kanban-chip.is-muted {
     background: transparent;
@@ -424,6 +457,8 @@
   /* --- 열 이동 버튼 (제작 시작 / 제작 완료) — 큰 터치 타깃, 명확한 액션 어포던스 --- */
   body.erp-mobile-v2-layout .foms-kanban-move-btn {
     appearance: none;
+    /* 칩이 길어져도(시공 M/D · D-n) 버튼이 눌리거나 라벨이 접히지 않게 고정. */
+    flex-shrink: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
