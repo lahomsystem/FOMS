@@ -59,10 +59,27 @@
     routeCalc: { start: null, end: null, line: null, panel: null }
   };
 
+  // 모바일 게이트 — SSOT(foms-shell.css:11 / map-mobile.css)와 바이트 동일.
+  var MOBILE_GATE = '(max-width: 991.98px), ((min-width: 992px) and (pointer: coarse) and (orientation: portrait))';
+
   function escapeHtml(value) {
     return String(value == null ? '' : value)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function isMobileView() {
+    return !!(window.matchMedia && window.matchMedia(MOBILE_GATE).matches);
+  }
+
+  // 팝업 [주문 상세 보기]: 모바일 시트 훅 우선, 없으면 기존 selectOrder 폴백.
+  function openOrderDetailFromPopup(orderId) {
+    var sheet = window.FomsMapMobileSheet;
+    if (sheet && typeof sheet.openDetail === 'function') {
+      sheet.openDetail(Number(orderId));
+      return;
+    }
+    if (typeof window.selectOrder === 'function') window.selectOrder(Number(orderId));
   }
 
   function sdkReady() {
@@ -325,6 +342,31 @@
     var statusColor = STATUS_COLORS[String(m.status || '').toUpperCase()] || STATUS_FALLBACK_COLOR;
     var dupRow = m.__dupSize > 1
       ? '<tr><th>중복</th><td>' + m.__dupSize + '건 같은 주소</td></tr>' : '';
+    var mobile = isMobileView();
+    // 모바일: 좌표·접수일·중복 행을 걷어낸 컴팩트 카드(나머지는 상세 시트에서 확인).
+    // PC: 기존 folium 파리티 테이블 그대로.
+    var body = mobile
+      ? '<div class="foms-kmap-popup__m-body">' +
+        '<div class="foms-kmap-popup__m-name">' +
+        '<span class="foms-kmap-popup__m-cust">' + escapeHtml(m.customer_name || '-') + '</span>' +
+        '<span class="foms-kmap-popup__m-chip" style="color:' + statusColor + '">' + escapeHtml(m.status || '-') + '</span>' +
+        '</div>' +
+        '<div class="foms-kmap-popup__m-meta">' + escapeHtml(m.measurement_time || '실측 시간 미정') +
+        (m.__dupSize > 1 ? ' · 같은 주소 ' + m.__dupSize + '건' : '') + '</div>' +
+        '<div class="foms-kmap-popup__m-addr" title="' + escapeHtml(m.address || '-') + '">' +
+        escapeHtml(m.address || '-') + '</div>' +
+        '</div>'
+      : '<table class="foms-kmap-popup__table">' +
+        '<tr><th>고객명</th><td>' + escapeHtml(m.customer_name || '-') + '</td></tr>' +
+        '<tr><th>담당자</th><td>' + escapeHtml(m.manager_name || '-') + '</td></tr>' +
+        '<tr><th>연락처</th><td>' + escapeHtml(m.phone || '-') + '</td></tr>' +
+        '<tr><th>주소</th><td>' + escapeHtml(m.address || '-') + '</td></tr>' +
+        '<tr><th>제품</th><td>' + escapeHtml(m.product || '-') + '</td></tr>' +
+        '<tr><th>상태</th><td style="color:' + statusColor + '">' + escapeHtml(m.status || '-') + '</td></tr>' +
+        '<tr><th>접수일</th><td>' + escapeHtml(m.received_date || '-') + '</td></tr>' +
+        '<tr><th>좌표</th><td>' + Number(m.latitude).toFixed(6) + ', ' + Number(m.longitude).toFixed(6) + '</td></tr>' +
+        dupRow +
+        '</table>';
     var el = document.createElement('div');
     el.className = 'foms-kmap-popup';
     el.innerHTML =
@@ -332,25 +374,16 @@
       '<strong>주문 #' + escapeHtml(m.id) + '</strong>' +
       '<button type="button" class="foms-kmap-popup__close" aria-label="닫기">&times;</button>' +
       '</div>' +
-      '<table class="foms-kmap-popup__table">' +
-      '<tr><th>고객명</th><td>' + escapeHtml(m.customer_name || '-') + '</td></tr>' +
-      '<tr><th>담당자</th><td>' + escapeHtml(m.manager_name || '-') + '</td></tr>' +
-      '<tr><th>연락처</th><td>' + escapeHtml(m.phone || '-') + '</td></tr>' +
-      '<tr><th>주소</th><td>' + escapeHtml(m.address || '-') + '</td></tr>' +
-      '<tr><th>제품</th><td>' + escapeHtml(m.product || '-') + '</td></tr>' +
-      '<tr><th>상태</th><td style="color:' + statusColor + '">' + escapeHtml(m.status || '-') + '</td></tr>' +
-      '<tr><th>접수일</th><td>' + escapeHtml(m.received_date || '-') + '</td></tr>' +
-      '<tr><th>좌표</th><td>' + Number(m.latitude).toFixed(6) + ', ' + Number(m.longitude).toFixed(6) + '</td></tr>' +
-      dupRow +
-      '</table>' +
-      '<div class="foms-kmap-popup__actions">' +
+      body +
+      '<div class="foms-kmap-popup__actions' + (mobile ? ' foms-kmap-popup__actions--m' : '') + '">' +
       '<button type="button" class="btn btn-sm btn-outline-danger foms-kmap-popup__route">' + routeCalcBtnLabel(m) + '</button>' +
       '<button type="button" class="btn btn-sm btn-primary foms-kmap-popup__detail">주문 상세 보기</button>' +
       '</div>';
     el.querySelector('.foms-kmap-popup__close').addEventListener('click', closePopup);
     el.querySelector('.foms-kmap-popup__detail').addEventListener('click', function () {
-      // map_view inline의 selectOrder(우측 목록 선택 + 세부 정보 패널)와 연동.
-      if (typeof window.selectOrder === 'function') window.selectOrder(Number(m.id));
+      // 모바일은 상세가 풀시트로 덮으므로 팝업을 먼저 닫는다(PC 동작 무변경).
+      if (isMobileView()) closePopup();
+      openOrderDetailFromPopup(m.id);
     });
     // 주문↔주문 경로 계산: 출발/도착 선택(route 모드 순번 핀 팝업에서도 동일 동작).
     el.querySelector('.foms-kmap-popup__route').addEventListener('click', function () {
@@ -386,7 +419,7 @@
       '<div class="foms-kmap-popup__group-addr">' + escapeHtml(markersInGroup[0].address || '-') + '</div>' +
       rows +
       '</div>' +
-      '<div class="foms-kmap-popup__actions">' +
+      '<div class="foms-kmap-popup__actions' + (isMobileView() ? ' foms-kmap-popup__actions--m' : '') + '">' +
       '<button type="button" class="btn btn-sm btn-outline-danger foms-kmap-popup__route">' + routeCalcBtnLabel(markersInGroup[0]) + '</button>' +
       '<button type="button" class="btn btn-sm btn-primary foms-kmap-popup__expand">펼쳐 보기</button>' +
       '</div>';
@@ -408,9 +441,8 @@
     });
     Array.prototype.forEach.call(el.querySelectorAll('button[data-order-id]'), function (btn) {
       btn.addEventListener('click', function () {
-        if (typeof window.selectOrder === 'function') {
-          window.selectOrder(Number(btn.getAttribute('data-order-id')));
-        }
+        if (isMobileView()) closePopup();
+        openOrderDetailFromPopup(btn.getAttribute('data-order-id'));
       });
     });
     state.popup = new window.kakao.maps.CustomOverlay({
