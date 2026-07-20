@@ -111,6 +111,7 @@
     {% set has_address = order.address and order.address != '-' %}
     {% set copy_summary = (order.customer_name or '') ~ ' / ' ~ (order.phone or '') ~ ' / ' ~ (order.address or '') %}
     {% set amount = order.amount_summary or {} %}
+    {% set is_measure_stage = order.stage_code == 'MEASURE' or order.stage in ['MEASURE', '실측'] %}
 
     <div class="quick-actions foms-quick-actions" role="toolbar" aria-label="빠른 작업">
       {% if has_phone %}
@@ -256,7 +257,7 @@
                   type="button"
                   class="foms-btn foms-btn--primary foms-btn--full erp-mobile-quest-approve-assignee"
                   data-order-id="{{ order.id }}">
-                  담당자 승인
+                  {{ '실측 완료 → 도면 전달' if is_measure_stage else '담당자 승인' }}
                 </button>
               {% endif %}
             {% else %}
@@ -290,6 +291,7 @@
         <div class="foms-detail-section__head">
           <h2 class="foms-detail-section__title" id="foms-detail-drawing-title">도면 작업</h2>
         </div>
+        <p class="mb-0">도면 진행 중 — 실측 내용을 수정하면 도면팀에 변경 내용이 자동 통지됩니다.</p>
         <a class="foms-btn foms-btn--secondary foms-btn--full" href="{{ url_for('erp_drawing_workbench.erp_drawing_workbench_detail', order_id=order.id) }}">
           도면 창구 열기
         </a>
@@ -347,7 +349,20 @@
   </div>
 
   <div class="foms-detail-sticky-cta">
-    <a class="foms-btn foms-btn--primary foms-btn--full" href="{{ url_for('order_edit.edit_order', order_id=order.id, open='erp-order') }}">
+    {% set quest_assignee_approval = (order.current_quest.assignee_approval or {}) if order.current_quest else {} %}
+    {% if is_measure_stage and order.current_quest and order.current_quest.title
+        and order.current_quest.approval_mode == 'assignee'
+        and (can_edit_erp or order.current_quest.can_assignee_approve)
+        and not quest_assignee_approval.get('approved') %}
+      <button
+        type="button"
+        class="foms-btn foms-btn--primary foms-btn--full erp-mobile-quest-approve-assignee"
+        data-order-id="{{ order.id }}">
+        실측 완료 → 도면 전달
+      </button>
+    {% endif %}
+    {# 완료 버튼이 함께 뜨는 실측 단계에서는 편집 링크를 보조 버튼으로 낮춰 CTA 위계를 유지한다. #}
+    <a class="foms-btn {{ 'foms-btn--secondary' if is_measure_stage else 'foms-btn--primary' }} foms-btn--full" href="{{ url_for('order_edit.edit_order', order_id=order.id, open='erp-order') }}">
       ERP 주문 편집
     </a>
   </div>

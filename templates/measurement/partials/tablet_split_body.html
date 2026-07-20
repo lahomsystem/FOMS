@@ -109,7 +109,8 @@
      tablet-measure-form.js 가 상단 바 동적 값(주문번호·자동저장 배지)·탭 콘텐츠·저장을 소유한다. #}
   <section class="foms-tablet-measure-detail" aria-label="실측 주문 원장">
     {# 상단 바(목업 d-head): 고객명 + 단계 배지 + #주문번호 + "✓ 자동저장됨 · 방금" 라이브 배지
-       / 우측 액션: [계산기 같이 보기 토글] [전화] [내비] [Ctrl+S 저장]. #}
+       / 우측 액션: [전화] [내비]. 저장은 하단 액션바 + Ctrl/Cmd+S 단축키가 담당하고,
+       계산기는 외부 탭([계산기])이 담당한다(상단바 토글·저장 버튼 제거 — 중복 진입점 정리). #}
     <header class="foms-tablet-measure-context foms-tmf-topbar" data-foms-tablet-measure-context hidden>
       <div class="foms-tmf-topbar__idblock">
         <div class="foms-tablet-measure-context__head foms-tmf-topbar__head">
@@ -125,10 +126,6 @@
         </div>
       </div>
       <div class="foms-tablet-measure-context__actions foms-tmf-topbar__actions">
-        <button type="button" class="foms-btn foms-btn--secondary foms-tmf-topbar__toggle"
-          data-foms-tmf-calc-toggle aria-pressed="false" hidden>
-          <i class="fas fa-calculator" aria-hidden="true"></i><span>계산기 같이 보기</span>
-        </button>
         <a class="foms-btn foms-btn--secondary foms-tablet-measure-context__btn"
           data-foms-tablet-measure-context-call hidden aria-label="고객에게 전화">
           <i class="fas fa-phone" aria-hidden="true"></i><span>전화</span>
@@ -137,10 +134,6 @@
           data-foms-tablet-measure-context-nav target="_blank" rel="noopener" hidden aria-label="현장 내비게이션">
           <i class="fas fa-location-arrow" aria-hidden="true"></i><span>내비</span>
         </a>
-        <button type="button" class="foms-btn foms-btn--secondary foms-tmf-topbar__kbd" data-foms-tablet-measure-save
-          aria-label="저장 (Ctrl+S)">
-          <span class="foms-tmf-kbd">Ctrl</span><span class="foms-tmf-kbd">S</span><span>저장</span>
-        </button>
       </div>
     </header>
     {# 외부 탭(목업 chips): 주문(ERP) | 계산기 | 견적서 — PC edit_order 탭 구조 그대로. #}
