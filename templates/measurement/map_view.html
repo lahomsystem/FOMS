@@ -650,49 +650,57 @@
             }
         }
 
-        /* 모바일: 2줄 정리, 아이콘 박스 축소, 가독성·사용성 */
+        /* 모바일: 헤더 1줄 (제목 숨김 · 필터/검색 flatten) */
         @media (max-width: 890px) {
             .header-bar {
                 min-height: auto;
                 height: auto;
-                padding: 6px 10px;
+                padding: 6px 8px;
             }
 
             .header-content {
-                flex-direction: column;
-                align-items: stretch;
+                flex-direction: row;
+                align-items: center;
                 gap: 4px;
+                min-height: 0;
+            }
+
+            /* 날짜 필터가 일자 표시 — 긴 제목 줄 제거 */
+            .header-title {
+                display: none;
             }
 
             .header-controls {
-                max-width: 100%;
-                align-items: stretch;
-                gap: 4px;
-            }
-
-            .filters-row {
-                flex-wrap: wrap;
-                gap: 6px;
+                flex-direction: row;
+                flex-wrap: nowrap;
                 align-items: center;
+                gap: 4px;
+                max-width: none;
+                width: 100%;
             }
 
-            /* 날짜/상태 그룹은 shrink 금지 → wrap으로 다음 줄 */
+            /* 두 필터 행을 한 flex 줄로 합침 */
+            .filters-row,
+            .filters-row-search {
+                display: contents;
+            }
+
             .filters-row .filter-group {
                 flex-shrink: 0;
+                display: flex;
+                align-items: center;
+                gap: 2px;
             }
 
-            /* 담당자 칸 max-width 캡 제거 — 좁은 화면에서 입력 붕괴 방지 */
             .filters-row .filter-group.filter-group-manager {
-                flex: 1 1 12rem;
-                flex-shrink: 1;
-                min-width: 10rem;
+                flex: 1 1 0;
+                min-width: 0;
                 max-width: none;
             }
 
             .filters-row .filter-label,
             .filters-row-search .filter-label {
-                min-width: 38px;
-                font-size: 0.75rem;
+                display: none;
             }
 
             .form-select-sm {
@@ -700,32 +708,38 @@
                 font-size: 0.78rem;
             }
 
-            /* date input: 고정 88px 대신 날짜 문자열 읽을 최소폭 */
             #date-filter {
-                width: auto;
-                min-width: 9.5rem;
-                flex: 1 1 auto;
+                width: 7.75rem;
+                min-width: 7.75rem;
+                flex: 0 0 auto;
             }
 
             #status-filter {
-                width: 64px;
+                width: 56px;
             }
 
-            #map-search-input {
-                max-width: none;
-                min-width: 0;
-            }
-
-            .filters-row-search {
+            .manager-actions {
+                width: 100%;
                 gap: 4px;
             }
 
-            /* 아이콘 박스 최대한 축소 */
+            .manager-actions #manager-filter {
+                flex: 1 1 auto;
+                min-width: 0;
+            }
+
+            #map-search-input {
+                flex: 1 1 0;
+                min-width: 0;
+                max-width: none;
+            }
+
             .btn-header-icon {
-                min-width: 24px;
-                height: 24px;
+                min-width: 26px;
+                height: 26px;
                 padding: 2px 4px;
                 font-size: 0.7rem;
+                flex-shrink: 0;
             }
 
             .btn-header {
@@ -751,63 +765,31 @@
             }
         }
 
-        /* 폰: 날짜 / 담당자+액션 세로 스택 → 입력칸 전폭 */
         @media (max-width: 615px) {
             .header-bar {
-                padding: 5px 8px;
-            }
-
-            .header-title {
-                font-size: 0.9rem;
-            }
-
-            .filters-row {
-                flex-direction: column;
-                align-items: stretch;
-                gap: 6px;
-            }
-
-            .filters-row .filter-group {
-                width: 100%;
-                flex: 1 1 auto;
-            }
-
-            .filters-row .filter-group.filter-group-manager {
-                max-width: none;
-                min-width: 0;
-                width: 100%;
+                padding: 4px 6px;
             }
 
             #date-filter {
-                width: 100%;
-                min-width: 0;
-                flex: 1 1 auto;
+                width: 7.25rem;
+                min-width: 7.25rem;
             }
 
-            #status-filter {
-                width: auto;
-                min-width: 4.5rem;
-                flex: 1 1 auto;
+            .form-select-sm {
+                padding: 2px 4px;
+                font-size: 0.72rem;
             }
 
-            .manager-actions {
-                flex: 1 1 auto;
-                width: 100%;
-            }
-
-            .manager-actions #manager-filter {
-                flex: 1 1 auto;
-                min-width: 0;
+            .btn-header-icon {
+                min-width: 24px;
+                height: 24px;
             }
         }
 
-        /* 초소형: 라벨·아이콘만 조금 축소 (입력폭은 전폭 유지) */
         @media (max-width: 380px) {
-
-            .filters-row .filter-label,
-            .filters-row-search .filter-label {
-                min-width: 32px;
-                font-size: 0.7rem;
+            #date-filter {
+                width: 6.75rem;
+                min-width: 6.75rem;
             }
 
             .btn-header-icon {
