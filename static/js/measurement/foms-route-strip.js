@@ -337,10 +337,16 @@
     if (!strip) return;
     if (strip.dataset.fomsRouteStripInit === '1') return;  // 마운트별 idempotent 가드
     strip.dataset.fomsRouteStripInit = '1';
-    // 서버 인라인이 있으면 route API 왕복 없이 즉시 첫 페인트(SVG 선렌더 → SDK 승격).
-    // 미주입 표면(v3 등)은 기존 fetch 경로 유지.
+    // 서버 인라인이 2점 이상(좌표가 이미 캐시된 날)이면 route API 왕복 없이 즉시 렌더.
+    // 좌표 미캐시로 2점 미만이면 여기서 숨기지 말고 fetch 폴백으로 넘어간다 —
+    // build_inline_route_strip_payload 는 저장 좌표만 써서 아직 지오코딩 안 된 날짜엔
+    // 빈 route 를 주지만, route API(build_measurement_route_payload)는 즉시 지오코딩하므로
+    // 오늘 외 날짜(미지오코딩)도 지도가 뜬다. 미주입 표면(v3 등)도 이 fetch 경로를 탄다.
     var inline = parseInlineRoute(strip);
-    if (inline) { buildStrip(strip, inline); return; }
+    if (inline && Array.isArray(inline.route) && inline.route.length >= 2) {
+      buildStrip(strip, inline);
+      return;
+    }
     var date = strip.getAttribute('data-route-date') || '';
     var url = '/api/erp/measurement/route?date=' + encodeURIComponent(date);
     // '내 주문' 보기가 켜져 있으면 스트립도 내 건만 그린다(대시보드와 동일 predicate).
