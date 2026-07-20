@@ -50,3 +50,11 @@ body.foms-edit-embedded html {
   overflow: auto;
   background: #fff;
 }
+
+/* 태블릿 실측 견적서 iframe: 문서 중앙 정렬 — 모바일 arm(<=991.98)의
+   .erp-est-viewport-inner(700px)가 auto 마진 없이 좌측 고정되던 것을 보정.
+   viewport 가 700px 보다 좁으면 margin:auto 는 무해(overflow 스크롤 유지). */
+body.foms-edit-embedded .erp-est-viewport-inner {
+  margin-left: auto;
+  margin-right: auto;
+}

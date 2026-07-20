@@ -147,15 +147,12 @@
     <div class="foms-tablet-measure-detail__scroll" aria-live="polite" data-foms-tablet-measure-detail>
       <div class="foms-tablet-measure-detail__empty">좌측에서 고객을 선택하세요</div>
     </div>
-    {# 하단 액션바(목업 action-bar): [변환 텍스트 → 채널톡] · [실측 완료 → 도면] [임시 저장] [저장]. #}
+    {# 하단 액션바(목업 action-bar): [실측 완료 → 도면] [임시 저장] [저장].
+       채널톡 전송은 주문 탭 내 변환 텍스트 카드의 PUSH 버튼이 담당(하단 중복 버튼은 사용자 지시로 제거). #}
     <footer class="foms-tablet-measure-actions" data-foms-tablet-measure-actions hidden>
       {# 저장 상태(저장 중/저장됨/충돌) — 전용 폼 모듈이 갱신. #}
       <span class="foms-tmf-status foms-tablet-measure-actions__status"
         data-foms-tablet-measure-status hidden aria-live="polite"></span>
-      <button type="button" class="foms-btn foms-btn--secondary foms-tablet-measure-actions__channel"
-        data-foms-tmf-channel>
-        <i class="fas fa-comment-dots" aria-hidden="true"></i><span>변환 텍스트 → 채널톡</span>
-      </button>
       <button type="button" class="foms-btn foms-btn--secondary foms-tablet-measure-actions__btn"
         data-foms-tablet-measure-complete>
         <i class="fas fa-ruler-combined" aria-hidden="true"></i><span>실측 완료 → 도면 전달</span>
