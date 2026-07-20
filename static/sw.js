@@ -57,6 +57,15 @@ self.addEventListener("fetch", function (event) {
 
   if (req.method !== "GET") return;
 
+  // 교차 출처(cross-origin)는 SW 가 절대 가로채지 않는다. 근본 이유: no-cors 교차 출처
+  // 응답은 opaque(status 0)라 staticNetwork 가 이를 transient 서버 오류로 분류해
+  // 400ms+800ms backoff 재시도를 돌고(=요청당 +1.2초), response.ok 가 false 라
+  // cache.put 도 못 해 영구히 캐시되지 않는다. 카카오 지도 타일(mts.daumcdn.net/**.png)이
+  // 정확히 이 경로에 걸려 타일 1장당 37ms → 1243ms(33배)가 됐고, 확대·축소마다 전량
+  // 재발생해 "지도가 계속 재로딩"으로 보였다(로컬 실측 2026-07-21, SW on/off A/B).
+  // 교차 출처 자산은 브라우저 HTTP 캐시가 이미 처리한다(카카오 타일 max-age=21600).
+  if (url.origin !== self.location.origin) return;
+
   if (isFileDeliveryRequest(url)) {
     return;
   }

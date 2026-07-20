@@ -752,6 +752,16 @@
     /** 카카오 렌더가 실제로 활성인지(폴링 갱신 배선용). */
     isActive: function () { return state.active && sdkState !== SDK_FAILED; },
     /**
+     * SDK 선로드(워밍): /api/map_data fetch 시작 전에 SDK 다운로드부터 먼저 시작해
+     * 데이터 fetch 와 병렬화한다(기존엔 fetch 완료 후에야 SDK 다운로드가 시작되는 직렬 워터폴이었다).
+     * loadSdk 는 상태머신(SDK_IDLE/LOADING/READY/FAILED)+waiter 큐라 재호출이 안전하다
+     * (READY 면 즉시, LOADING 이면 합류). 키가 없으면 아무것도 하지 않는다. 렌더는 기존 render() 담당.
+     */
+    warm: function (key) {
+      if (!key) return;
+      loadSdk(key, function () { /* 워밍 전용 — 렌더는 render() 가 담당 */ });
+    },
+    /**
      * 최초/필터 변경 렌더. resolve(false)면 호출부가 folium 폴백.
      * opts: { routeMode }
      */

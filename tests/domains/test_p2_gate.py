@@ -42,6 +42,24 @@ def test_p2_03_offline_sw_and_api() -> None:
     assert "/queue" in offline
 
 
+def test_sw_never_intercepts_cross_origin() -> None:
+    """SW fetch 핸들러는 교차 출처 요청을 가로채지 않는다(이미지 분기보다 먼저 반환).
+
+    회귀 방지 근거(2026-07-21 실측): 교차 출처 no-cors 응답은 opaque(status 0)라
+    staticNetwork 가 transient 오류로 분류 → 400ms+800ms backoff 재시도(+1.2초/요청),
+    response.ok=false 라 cache.put 도 안 돼 영구 미캐시. 카카오 지도 타일이 이 경로에
+    걸려 타일당 37ms→1243ms(33배)가 됐고 확대·축소마다 전량 재발생했다.
+    """
+    sw = (ROOT / "static/sw.js").read_text(encoding="utf-8")
+    guard = "url.origin !== self.location.origin"
+    assert guard in sw, "교차 출처 가드가 sw.js 에서 사라졌다"
+    image_branch = 'if (/\\.(png|jpg|jpeg|webp|gif)(\\?|$)/i.test(url.pathname))'
+    assert image_branch in sw
+    assert sw.index(guard) < sw.index(image_branch), (
+        "교차 출처 가드는 이미지 stale-while-revalidate 분기보다 앞서야 한다"
+    )
+
+
 def test_p2_mobile_queue_attachment_preview_bundle() -> None:
     bundle = (
         ROOT / "templates/partials/shared/foms_mobile_queue_attachment_preview_bundle.html"
