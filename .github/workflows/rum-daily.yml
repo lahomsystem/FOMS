@@ -3,6 +3,10 @@ name: rum-daily (production)
 # 매일 아침(KST 07:30) production RUM 집계를 조회해 p95 추세·회귀를 리포트한다.
 # 회귀 감지 시 job fail → GitHub 알림. 리포트는 step summary 에 표로 남는다.
 #
+# 판정 SSOT: foms/services/rum_aggregate.py
+#   - KST 오늘(미완성) 제외 + 일별 MIN_DAY_SAMPLES + recent/baseline 중앙값
+#   → 아침 cron 오탐·희소 표본 폭주를 차단한다.
+#
 # 주의: schedule 은 **기본 브랜치(production)의 워크플로 파일만** 실행한다. 이 파일이
 # production 에 승격돼야 cron 이 작동한다(deploy 에만 있으면 수동 dispatch 만 가능).
 on:

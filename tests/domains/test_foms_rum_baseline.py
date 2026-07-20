@@ -11,6 +11,10 @@ def test_rum_baseline_script_exists() -> None:
     assert "/api/foms/rum" in js
     assert "sendBeacon" in js
     assert "LCP" in js
+    # LOAD: load 핸들러 안 loadEventEnd=0 레이스 회피(setTimeout 0 후 재측정).
+    assert "metric: 'LOAD'" in js or 'metric: "LOAD"' in js
+    assert "setTimeout" in js
+    assert "loadEventEnd" in js
 
 
 def test_layout_includes_rum_when_flag_on() -> None:
