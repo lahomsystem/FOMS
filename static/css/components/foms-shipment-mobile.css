@@ -415,6 +415,15 @@
   overflow-wrap: anywhere;
 }
 
+/* 시공일 = 출고 카드 상세의 1차 시간 앵커(칩 스크롤 후에도 행 단위로 남음). */
+.erp-shipment-mobile-card__temporal dt {
+  color: var(--foms-text-secondary, #4b5563);
+}
+.erp-shipment-mobile-card__temporal dd {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
 .erp-shipment-mobile-card__full {
   grid-column: 1 / -1;
 }

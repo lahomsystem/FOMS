@@ -197,7 +197,7 @@ def test_shipment_dashboard_fragment_runtime_css(client, monkeypatch):
     assert "foms-packing.css" in frag
     assert "v=20260714a" in frag
     assert "foms-shipment-mobile.css" in frag
-    assert "v=20260715b" in frag
+    assert "v=20260721a" in frag
 
 
 def test_tablet_split_order_detail_fragment_has_wdc_split_css():

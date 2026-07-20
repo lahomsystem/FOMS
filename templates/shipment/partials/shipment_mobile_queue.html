@@ -14,13 +14,19 @@
       {% for o in mobile_queue_rows %}
         {% set meta = o.shipment_meta or {} %}
         {% set is_as = meta.is_as %}
-        {% set has_detail = meta.construction_time or meta.drawing_managers or meta.construction_workers or meta.vehicle or meta.trip or meta.site_extra or meta.spec_units or (meta.is_as and meta.as_content_text) %}
+        {% set has_detail = meta.primary_date or meta.construction_time or meta.drawing_managers or meta.construction_workers or meta.vehicle or meta.trip or meta.site_extra or meta.spec_units or (meta.is_as and meta.as_content_text) %}
         {#- 카드 통합(2026-07-15): 패킹/QR·출고 상세 dl·출고 정보 수정을 공용 v2 카드 "밖"에서
             렌더하던 3블록을, 카드의 옵트인 슬롯(detail_slot/aux_slot/footer_extra_slot)으로
-            카드 "안"에 이식한다. 슬롯을 넘기지 않는 타 도메인은 렌더 결과 무변경. -#}
+            카드 "안"에 이식한다. 슬롯을 넘기지 않는 타 도메인은 렌더 결과 무변경.
+            시공일(2026-07-21): 출고 현장 페르소나는 칩 필터가 스크롤되면 날짜 앵커를 잃음 →
+            상세 첫 칸에 primary_date(읽기전용, shipment/update 화이트리스트 밖)를 고정. -#}
         {% set detail_slot %}
           {% if has_detail or can_edit_shipment|default(false) %}
           <dl class="erp-shipment-mobile-card__detail" data-shipment-mobile-detail {% if not has_detail %}hidden{% endif %}>
+            <div class="erp-shipment-mobile-card__temporal" data-shipment-mobile-detail-row="construction_date" {% if not meta.primary_date %}hidden{% endif %}>
+              <dt>시공일</dt>
+              <dd class="foms-tabular" data-shipment-mobile-detail-field="construction_date">{{ meta.primary_date }}</dd>
+            </div>
             <div data-shipment-mobile-detail-row="construction_time" {% if not meta.construction_time %}hidden{% endif %}>
               <dt>시공시간</dt>
               <dd data-shipment-mobile-detail-field="construction_time">{{ meta.construction_time }}</dd>

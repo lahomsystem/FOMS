@@ -56,9 +56,11 @@ def test_shipment_mobile_controls_template_contract() -> None:
     assert "data-shipment-mobile-detail-field" in queue
     assert "syncShipmentMobileDetail" in queue
     assert "js-shipment-as-rec-cancel" in queue
+    for field in ("site_extra", "construction_time", "construction_date", "drawing_managers", "construction_workers", "vehicle", "trip"):
+        assert field in queue
+    assert "시공일" in queue
     for field in ("site_extra", "construction_time", "drawing_managers", "construction_workers", "vehicle", "trip"):
         assert field in pc
-        assert field in queue
 
 
 def test_shipment_mobile_sections_do_not_expand_viewport() -> None:
@@ -146,6 +148,8 @@ def test_shipment_dashboard_renders_mobile_v2_queue_card(client, monkeypatch) ->
     assert "출고 정보 수정" in body
     assert "출고 모바일 고객" in body
     assert "오전 10:30" in body
+    assert 'data-shipment-mobile-detail-field="construction_date"' in body
+    assert today in body
     assert "도면1" in body
     assert "시공1" in body
     assert "엘리베이터 사용" in body
