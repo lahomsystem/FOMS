@@ -1,7 +1,7 @@
 /*
  * FOMS 지도 보기(map_view) — 카카오 지도 JS SDK 클라이언트 렌더.
  * folium(서버 생성 HTML) 경로의 클라이언트 대체: /api/map_data points JSON으로
- * 마커 pill·팝업·범례·동선(route=1) 오버레이를 그린다. SDK 로드 실패 시
+ * 마커 pill·팝업·동선(route=1) 오버레이를 그린다. SDK 로드 실패 시
  * 호출부(map_view.html inline)가 기존 folium 경로로 자동 폴백한다.
  *
  * 색 SSOT:
@@ -529,44 +529,6 @@
     }
   }
 
-  // ---------- 범례 (folium legend 패리티: 상태색 + 동선 보조) ----------
-  function renderLegend(container, opts) {
-    var old = container.querySelector('.foms-kmap-legend');
-    if (old) old.remove();
-    var entries = [
-      ['#007bff', '접수'], ['#28a745', '실측/확인'], ['#ffc107', '제작중'],
-      ['#17a2b8', '배송'], ['#20c997', '배송완료'], ['#6c757d', '완료'],
-      ['#dc3545', '취소/CS'], ['#fd7e14', '보류/생산'], [OVERLAP_COLOR, '동일 주소 중첩']
-    ];
-    var rows = entries.map(function (e) {
-      return '<div class="foms-kmap-legend__row"><span class="foms-kmap-legend__dot" style="background:' + e[0] + '"></span>' + e[1] + '</div>';
-    }).join('');
-    var routeRows = '';
-    if (opts.routeMode) {
-      routeRows =
-        '<div class="foms-kmap-legend__sep"></div>' +
-        '<div class="foms-kmap-legend__row"><strong>방문 동선 (시간순)</strong></div>' +
-        '<div class="foms-kmap-legend__row"><span class="foms-kmap-legend__line"></span>이동 순서</div>' +
-        '<div class="foms-kmap-legend__row"><span class="foms-kmap-legend__dot" style="background:#adb5bd"></span>완료</div>' +
-        (opts.routeSkipped ? '<div class="foms-kmap-legend__row foms-kmap-legend__row--warn">좌표 없음 ' + opts.routeSkipped + '건 제외</div>' : '');
-    }
-    var legend = document.createElement('div');
-    legend.className = 'foms-kmap-legend';
-    legend.innerHTML =
-      '<button type="button" class="foms-kmap-legend__toggle" aria-expanded="true">범례 <i class="fas fa-chevron-down"></i></button>' +
-      '<div class="foms-kmap-legend__body">' +
-      '<div class="foms-kmap-legend__row"><strong>총 ' + opts.total + '개 주문</strong></div>' +
-      rows + routeRows +
-      '</div>';
-    legend.querySelector('.foms-kmap-legend__toggle').addEventListener('click', function () {
-      var body = legend.querySelector('.foms-kmap-legend__body');
-      var hidden = body.style.display === 'none';
-      body.style.display = hidden ? '' : 'none';
-      this.setAttribute('aria-expanded', hidden ? 'true' : 'false');
-    });
-    container.appendChild(legend);
-  }
-
   // ---------- 마커 렌더 ----------
   function clearOverlays() {
     closePopup();
@@ -739,11 +701,6 @@
   function renderInto(container, markers, opts) {
     ensureMap(container);
     var result = drawMarkers(markers || [], opts);
-    renderLegend(container, {
-      total: opts.totalOrders != null ? opts.totalOrders : result.count,
-      routeMode: opts.routeMode,
-      routeSkipped: opts.routeSkipped || 0
-    });
     if (result.count > 0) {
       state.lastBounds = result.bounds;
       if (!opts.preserveView) {
@@ -764,7 +721,7 @@
     isActive: function () { return state.active && sdkState !== SDK_FAILED; },
     /**
      * 최초/필터 변경 렌더. resolve(false)면 호출부가 folium 폴백.
-     * opts: { routeMode, totalOrders, routeSkipped }
+     * opts: { routeMode }
      */
     render: function (container, markers, opts) {
       return new Promise(function (resolve) {
@@ -789,7 +746,7 @@
         });
       });
     },
-    /** 폴링 갱신: 뷰포트 유지한 채 마커·범례만 재구성. */
+    /** 폴링 갱신: 뷰포트 유지한 채 마커만 재구성. */
     updateMarkers: function (container, markers, opts) {
       if (!this.isActive() || !sdkReady()) return;
       try {
