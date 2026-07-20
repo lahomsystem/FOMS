@@ -117,7 +117,23 @@
         _mobilePreviewDataUrl = url || '';
     }
 
+    function _isEmbeddedEstimate() {
+        try {
+            if (document.body && document.body.classList.contains('foms-edit-embedded')) {
+                return true;
+            }
+            var qs = new URLSearchParams(window.location.search || '');
+            return qs.get('embedded') === '1';
+        } catch (_e) {
+            return false;
+        }
+    }
+
     function _isMobileEstimateView() {
+        // 태블릿 실측 iframe(?embedded=1)은 패널 폭 <992 이어도 PC 견적서(700px) 강제.
+        if (_isEmbeddedEstimate()) {
+            return false;
+        }
         return typeof window.matchMedia === 'function'
             && window.matchMedia(_MOBILE_ESTIMATE_MQ).matches;
     }
@@ -1439,6 +1455,15 @@
             }
             erpLoadEstimatePreview();
         });
+
+        // embedded iframe: CSS가 pane을 강제 표시해도 shown.bs.tab 미발화 시 로드 보장.
+        if (_isEmbeddedEstimate()) {
+            setTimeout(function () {
+                if (!_estimateCacheLoaded) {
+                    erpLoadEstimatePreview();
+                }
+            }, 50);
+        }
     }
 
     if (document.readyState === 'loading') {

@@ -7,7 +7,7 @@
  *   - 쓰기: PUT  /api/orders/<id>/structured           (전사 공용 구조화 저장 = PC "저장"과 동일 경로)
  *   - 사진: GET  /api/orders/<id>/attachments?category=measurement (실측 사진 갤러리)
  *   - 첨부: POST /api/orders/<id>/attachments           (카메라/갤러리 업로드, 멀티파트)
- *   - 견적: GET  /api/orders/<id>/estimate-preview      (견적서 탭 렌더 데이터)
+ *   - 견적: iframe /edit/<id>?open=erp-estimate&embedded=1  (PC 견적서 탭 그대로)
  *   - 계산기: iframe /wdcalculator?embedded=1&order_id=&customer_name=  ([계산기] 탭 전면 임베드)
  *   - 완료: POST /api/orders/<id>/quest/approve  (MEASURE 퀘스트 승인 = 단계 전환 SSOT)
  *   - 채널톡: POST /api/channel/push-manual             (변환 텍스트 → 채널톡 수동 푸쉬; measurement/drawing)
@@ -124,8 +124,12 @@
   function attachmentsUploadUrl(id) {
     return "/api/orders/" + encodeURIComponent(id) + "/attachments";
   }
-  function estimatePreviewUrl(id) {
-    return "/api/orders/" + encodeURIComponent(id) + "/estimate-preview";
+  function estimateIframeSrc(id) {
+    return (
+      "/edit/" +
+      encodeURIComponent(id) +
+      "?open=erp-estimate&embedded=1&return_to=erp_measurement_dashboard"
+    );
   }
   function calcIframeSrc(id, name) {
     return (
@@ -1197,99 +1201,19 @@
       "</div>";
   }
 
-  function estimateFallback() {
-    var editHref = state.ctx && state.ctx.editUrl ? escapeHtml(state.ctx.editUrl) : "";
-    return (
-      '<div class="foms-tmf" data-foms-tmf><div class="foms-tmf__notice">' +
-      "<p>견적서 데이터를 불러오지 못했습니다.</p>" +
-      (editHref
-        ? '<a class="foms-btn foms-btn--secondary" href="' + editHref + '">PC 견적서에서 열기</a>'
-        : "") +
-      "</div></div>"
-    );
-  }
-
-  function renderEstimateView(data) {
-    var editHref = state.ctx && state.ctx.editUrl ? escapeHtml(state.ctx.editUrl) : "";
-    var items = Array.isArray(data.items) ? data.items : [];
-    var rowsHtml = items.length
-      ? items
-          .map(function (it) {
-            var name = escapeHtml(it.product_name || "-");
-            var spec = escapeHtml(it.spec || "");
-            var qty = it.quantity != null ? it.quantity : 1;
-            var amount = formatWon(coerceAmount(it.amount));
-            return (
-              '<tr><td class="foms-tmf__est-name">' +
-              name +
-              (spec ? '<span class="foms-tmf__est-spec">' + spec + "</span>" : "") +
-              "</td><td class=\"foms-tmf__est-qty\">" +
-              escapeHtml(qty) +
-              '</td><td class="foms-tmf__est-amt">' +
-              amount +
-              "</td></tr>"
-            );
-          })
-          .join("")
-      : '<tr><td colspan="3" class="foms-tmf__empty-note">견적 항목이 없습니다.</td></tr>';
-    var shipping = coerceAmount(data.shipping_price != null ? data.shipping_price : data.total_amount);
-    var deposit = coerceAmount(data.deposit_amount);
-    var balance = coerceAmount(data.balance_amount != null ? data.balance_amount : data.final_amount);
-    return (
-      '<div class="foms-tmf" data-foms-tmf>' +
-      '<section class="foms-tmf__section">' +
-      '<div class="foms-tmf__est-hero"><b>총 견적</b><span>' +
-      formatWon(shipping) +
-      "</span></div>" +
-      '<table class="foms-tmf__est-table"><thead><tr><th>품목</th><th>수량</th><th class="foms-tmf__est-amt">금액</th></tr></thead>' +
-      "<tbody>" +
-      rowsHtml +
-      "</tbody></table>" +
-      "</section>" +
-      '<section class="foms-tmf__section">' +
-      '<h5 class="foms-tmf__title">금액 요약</h5>' +
-      '<div class="foms-tmf__kvgrid">' +
-      '<div class="foms-tmf__kv"><b>출고가</b><span>' +
-      formatWon(shipping) +
-      "</span></div>" +
-      '<div class="foms-tmf__kv"><b>예약금</b><span>' +
-      formatWon(deposit) +
-      "</span></div>" +
-      '<div class="foms-tmf__kv foms-tmf__kv--accent"><b>잔금</b><span>' +
-      formatWon(balance) +
-      "</span></div></div>" +
-      (editHref
-        ? '<a class="foms-tmf__photo-add foms-btn foms-btn--secondary foms-btn--sm" href="' +
-          editHref +
-          '"><i class="fas fa-file-invoice" aria-hidden="true"></i><span>PC 견적서(문서·인쇄) 열기</span></a>'
-        : "") +
-      "</section></div>"
-    );
-  }
-
   function renderEstimateTab(inj) {
+    var orderId = state && state.orderId;
+    if (!orderId) {
+      inj.innerHTML =
+        '<div class="foms-tmf" data-foms-tmf><div class="foms-tmf__notice"><p>주문을 선택하세요.</p></div></div>';
+      return;
+    }
     inj.innerHTML =
-      '<div class="foms-tmf" data-foms-tmf><div class="foms-tmf__loading">견적서 불러오는 중…</div></div>';
-    var orderId = state.orderId;
-    fetch(estimatePreviewUrl(orderId), { credentials: "same-origin" })
-      .then(function (res) {
-        return res.json();
-      })
-      .then(function (res) {
-        if (!state || state.orderId !== orderId || state.activeTab !== "estimate") return;
-        var inj2 = injectEl();
-        if (!inj2) return;
-        if (!res || !res.success || !res.data) {
-          inj2.innerHTML = estimateFallback();
-          return;
-        }
-        inj2.innerHTML = renderEstimateView(res.data);
-      })
-      .catch(function () {
-        if (!state || state.orderId !== orderId || state.activeTab !== "estimate") return;
-        var inj3 = injectEl();
-        if (inj3) inj3.innerHTML = estimateFallback();
-      });
+      '<div class="foms-tmf foms-tmf--fullpane" data-foms-tmf>' +
+      '<iframe class="foms-tmf__calcframe foms-tmf__calcframe--full foms-tmf__estframe" src="' +
+      escapeHtml(estimateIframeSrc(orderId)) +
+      '" title="견적서" loading="lazy"></iframe>' +
+      "</div>";
   }
 
   function renderActiveTab() {

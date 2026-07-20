@@ -1,0 +1,52 @@
+/* 태블릿 실측 견적서 iframe (?embedded=1) — 글로벌 크롬 은닉, PC 견적 pane 만.
+   body.foms-edit-embedded 는 orders/layout.html 이 query 로 부여. */
+
+body.foms-edit-embedded .layout-global-nav,
+body.foms-edit-embedded .foms-tablet-rail,
+body.foms-edit-embedded .erp-mobile-shell-chrome,
+body.foms-edit-embedded .erp-mobile-bottom-nav,
+body.foms-edit-embedded .foms-shell-desktop-only {
+  display: none !important;
+}
+
+body.foms-edit-embedded #main-content {
+  padding-left: 0 !important;
+  margin: 0 !important;
+}
+
+body.foms-edit-embedded .foms-detail-page-wrap,
+body.foms-edit-embedded .erp-edit-shell,
+body.foms-edit-embedded .erp-edit-col {
+  max-width: 100% !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* 부모 태블릿 탭(주문/계산기/견적서)과 중복되는 outer 세그먼트 숨김 — pane 만 노출. */
+body.foms-edit-embedded #orderTabs,
+body.foms-edit-embedded .erp-mobile-segment-header {
+  display: none !important;
+}
+
+body.foms-edit-embedded .card {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+body.foms-edit-embedded .tab-content > .tab-pane {
+  display: none !important;
+}
+
+body.foms-edit-embedded .tab-content > #erp-estimate.tab-pane {
+  display: block !important;
+  opacity: 1 !important;
+}
+
+body.foms-edit-embedded,
+body.foms-edit-embedded html {
+  height: 100%;
+  overflow: auto;
+  background: #fff;
+}

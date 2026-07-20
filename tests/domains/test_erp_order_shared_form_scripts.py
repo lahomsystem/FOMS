@@ -76,7 +76,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
     assert "js/orders/erp-items-master-detail.js?v=20260630c" in body
     assert "erp-items-master-detail-shell" in body
     assert 'id="erp-md-rail-list"' in body
-    assert "js/orders/estimate-preview.js?v=20260703b" in body
+    assert "js/orders/estimate-preview.js?v=20260720b" in body
 
     estimate_preview_js = (
         Path(__file__).resolve().parents[2]
@@ -156,14 +156,36 @@ def test_add_order_page_uses_canonical_open_erp_order_deep_link_only(erp_editor_
 
 
 def test_edit_order_page_uses_canonical_open_erp_order_deep_link_only(erp_editor_client) -> None:
-    """Edit surface keeps only the canonical ?open=erp-order branch."""
+    """Edit surface honors ?open=erp-order (and erp-estimate) deep links; legacy erp-beta gone."""
     order = _create_erp_order()
     response = erp_editor_client.get(f"/edit/{order.id}?open=erp-order")
     assert response.status_code == 200
     body = response.get_data(as_text=True)
-    assert "openTarget !== 'erp-order'" in body
+    assert "erp-order" in body
     assert "bootstrap.Tab.getOrCreateInstance(btn).show()" in body
     assert "erp-beta" not in body
+
+
+def test_edit_order_supports_open_erp_estimate_and_embedded_chrome(erp_editor_client) -> None:
+    """태블릿 견적 iframe: ?open=erp-estimate 탭 딥링크 + embedded=1 크롬 은닉 클래스."""
+    order = _create_erp_order()
+    response = erp_editor_client.get(
+        f"/edit/{order.id}?open=erp-estimate&embedded=1"
+    )
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert "erp-estimate" in body
+    assert 'id="erp-estimate-tab"' in body
+    assert "foms-edit-embedded" in body
+    assert "openTarget === 'erp-estimate'" in body or "openTarget == 'erp-estimate'" in body
+
+
+def test_estimate_preview_forces_pc_view_when_embedded() -> None:
+    """태블릿 iframe(embedded=1)에서는 패널 폭과 무관하게 PC 견적 뷰 강제."""
+    text = Path("static/js/orders/estimate-preview.js").read_text(encoding="utf-8")
+    assert "_isEmbeddedEstimate" in text
+    assert "foms-edit-embedded" in text
+    assert "embedded') === '1'" in text or 'embedded") === "1"' in text
 
 
 def test_erp_order_edit_renders_pc_wdc_split_contract(erp_editor_client) -> None:

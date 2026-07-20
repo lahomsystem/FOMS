@@ -13,6 +13,8 @@
 {% set _erp_mobile_v2_surface = request.path.startswith('/erp') or request.endpoint == 'order_edit.edit_order' %}
 {% if erp_mobile_v2_enabled and _erp_mobile_v2_surface %}{% set _ = _body_classes.append('erp-mobile-v2-layout') %}{% endif %}
 {% if show_new_order_wizard %}{% set _ = _body_classes.append('foms-wizard-active') %}{% endif %}
+{# 태블릿 실측 견적 iframe: ?embedded=1 → 글로벌 네비·모바일 크롬 은닉. #}
+{% if request.args.get('embedded') == '1' %}{% set _ = _body_classes.append('foms-edit-embedded') %}{% endif %}
 <body
     class="{{ _body_classes|join(' ') }}"
     style="width: 100% !important; max-width: 100% !important; margin: 0 !important; padding: 0 !important; box-sizing: border-box;">
