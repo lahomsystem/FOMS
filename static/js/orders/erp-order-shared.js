@@ -4186,13 +4186,19 @@ function erpGenerateConversionText() {
     if (factory2Checked) text += '★★\n';
     text = erpAppendConversionTextLine(text, '실측일', measurementDate);
     text = erpAppendConversionTextLine(text, '시   간', measurementTime);
+    // 실측 특이사항 → 실측 블록(실측일/시간) 바로 아래
+    text = erpAppendConversionTextLine(text, '실측 특이사항', getVal('erp-measurement-note'));
     if (text) text += '\n';
     text = erpAppendConversionTextLine(text, '고객명', customerName);
     text = erpAppendConversionTextLine(text, '발주사', orderer);
     text = erpAppendConversionTextLine(text, '시공일', constructionDate);
     text = erpAppendConversionTextLine(text, '시공시간', constructionTime);
     text = erpAppendConversionTextLine(text, '주  소', address);
+    // 주소 특이사항 → 주소 바로 아래
+    text = erpAppendConversionTextLine(text, '주소 특이사항', getVal('erp-address-note'));
     text = erpAppendConversionTextLine(text, '연락처', phone);
+    // 연락처 특이사항 → 연락처 바로 아래
+    text = erpAppendConversionTextLine(text, '연락처 특이사항', getVal('erp-phone-note'));
     if (text && !text.endsWith('\n\n')) text += '\n';
 
     // Items
