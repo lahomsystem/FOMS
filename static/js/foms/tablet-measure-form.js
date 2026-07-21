@@ -1142,7 +1142,9 @@
       "</div>" +
       '<textarea class="foms-tmf__textarea foms-tmf__convo-text" data-tmf-conversion rows="6" readonly ' +
       'placeholder="[변환 텍스트 생성]을 누르면 현재 원장 내용이 채널톡용 텍스트로 만들어집니다.">' +
-      escapeHtml(buildConversionText()) +
+      // 렌더 시점 자동 생성 금지 — 사용자가 [변환 텍스트 생성]을 눌러야만 채워진다.
+      // 이미 생성한 텍스트는 탭 왕복(재렌더)에도 유지되도록 state.convText 에서 복원한다.
+      escapeHtml((state && state.convText) || "") +
       "</textarea>" +
       "</section>"
     );
@@ -1853,7 +1855,9 @@
   function refreshConversionText() {
     var form = formEl();
     var ta = form ? form.querySelector("[data-tmf-conversion]") : null;
-    if (ta) ta.value = buildConversionText();
+    var text = buildConversionText();
+    if (state) state.convText = text; // 재렌더에도 미리보기 유지(=생성한 결과 보존).
+    if (ta) ta.value = text;
     return ta;
   }
 
@@ -2015,6 +2019,7 @@
           ordererDirect: !(ordererName === "" || ordererName === "라홈" || ordererName === "하우드"),
           activeItem: 0,
           activeTab: "order",
+          convText: "", // 변환 텍스트 미리보기 — [변환 텍스트 생성] 클릭 전까지 빈 값.
           photos: [],
           saving: false,
           pendingSave: false,
