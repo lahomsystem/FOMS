@@ -6,11 +6,24 @@ import foms.services.rate_limit as rate_limit
 
 
 class _LimiterSpy:
-    def __init__(self, key_func, *, app, storage_uri, default_limits):
+    def __init__(
+        self,
+        key_func,
+        *,
+        app,
+        storage_uri,
+        default_limits,
+        swallow_errors=None,
+        in_memory_fallback_enabled=None,
+        storage_options=None,
+    ):
         self.key_func = key_func
         self.app = app
         self.storage_uri = storage_uri
         self.default_limits = default_limits
+        self.swallow_errors = swallow_errors
+        self.in_memory_fallback_enabled = in_memory_fallback_enabled
+        self.storage_options = storage_options
 
 
 def test_init_limiter_passes_expected_storage_uri_and_parsed_limits(monkeypatch):
@@ -25,6 +38,10 @@ def test_init_limiter_passes_expected_storage_uri_and_parsed_limits(monkeypatch)
     assert limiter.app is app
     assert limiter.storage_uri == "redis://example"
     assert limiter.default_limits == ["10 per minute", "2 per second"]
+    assert limiter.swallow_errors is True
+    assert limiter.in_memory_fallback_enabled is True
+    assert limiter.storage_options.get("socket_connect_timeout") == 2
+    assert limiter.storage_options.get("socket_timeout") == 2
 
 
 def test_init_limiter_falls_back_to_memory_and_default_limits_when_env_blank(monkeypatch):
@@ -38,6 +55,7 @@ def test_init_limiter_falls_back_to_memory_and_default_limits_when_env_blank(mon
 
     assert limiter.storage_uri == "memory://"
     assert limiter.default_limits == ["5000 per day", "1200 per hour"]
+    assert limiter.storage_options == {}
 
 
 def test_init_limiter_rate_limit_key_precedence(monkeypatch):
@@ -81,3 +99,22 @@ def test_init_limiter_rate_limit_key_precedence(monkeypatch):
 
     with app.test_request_context("/"):
         assert limiter.key_func() == "9.9.9.9"
+
+
+def test_dead_redis_does_not_500_and_falls_back(monkeypatch):
+    """A dead Redis must NOT cause 500s — limiter fails open to in-memory (regression: prod outage 2026-07-21)."""
+    # Point REDIS_URL at a port with nothing listening -> storage errors at request time.
+    monkeypatch.setenv("REDIS_URL", "redis://127.0.0.1:6390")
+    monkeypatch.setenv("FLASK_DEFAULT_RATE_LIMITS", "100 per minute")
+
+    app = Flask(__name__)
+
+    @app.route("/ping")
+    def ping():
+        return "ok"
+
+    rate_limit.init_limiter(app)  # real Limiter with fail-open config
+
+    resp = app.test_client().get("/ping")
+    assert resp.status_code != 500  # fail-open: never 500 on Redis outage
+    assert resp.status_code == 200
