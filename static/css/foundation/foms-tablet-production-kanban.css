@@ -58,8 +58,14 @@
   body.erp-mobile-v2-layout .foms-production-legacy-queue {
     display: none;
   }
+  /* 보드는 완료 정산 그리드(foms-tablet-completion-grid.css:51-60)와 동일한 flex-column
+     크롬/스크롤 분리 골격으로 전환한다: 크롬(pcbar·KPI·필터)은 flex:none, 칸반만 flex:1.
+     완료 그리드처럼 보드 자체에는 명시 height 를 두지 않는다(임의 100dvh 가정 금지) —
+     열 내부 스크롤 캡(아래 __body 의 100dvh−240px)이 페이지 오버플로를 막는 SSOT. */
   body.erp-mobile-v2-layout .tablet-prod-board {
-    display: block;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
   }
 
   /* --- 목업 frame05 정합: PC 잔존 크롬 은닉 (헤더·서브내비·프로세스맵 카드) ---
@@ -77,13 +83,14 @@
   /* --- 목업 frame05 pcbar: 생산 보드 · 전체N건·오늘라인M · 라벨 인쇄(우) ---
      .tablet-prod-board(base display:none) 내부라 PC/폰 자동 은닉. 코호트 가로에서만 flex. */
   body.erp-mobile-v2-layout .tablet-prod-board .foms-prod-pcbar {
+    flex: none;
     display: flex;
     align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
     gap: var(--foms-space-3);
-    min-height: 56px;
-    padding: var(--foms-space-3) var(--foms-space-4) 0;
+    min-height: var(--foms-touch-target-comfortable);
+    padding: var(--foms-space-1) var(--foms-space-4);
     background: var(--foms-surface-base);
     border-bottom: 1px solid var(--foms-border-subtle);
   }
@@ -129,25 +136,52 @@
     cursor: not-allowed;
   }
 
-  /* --- 상단 KPI 타일: erp-pro-alert 그래머 재사용 + 세로 스택(near-zero 보강) --- */
+  /* --- 상단 KPI 슬림 스트립: erp-pro-alert 그래머 재사용, 4타일 1행 인라인 --- */
+  /* 2열 접힘 차단: base 03-card-pipeline.css:162-166 의
+     `@media(max-width:1200px){ .erp-pro-alerts{ repeat(2,1fr) } }`(특이도 0,1,0)가
+     992~1199 태블릿 가로에서 KPI 를 2×2 로 접어 세로 2배로 만든다. 우리 셀렉터
+     (0,3,1) 가 base 를 이겨(!important 불필요) 4열을 강제 → 접힘 완전 제거.
+     margin-bottom:0 로 base 24px 제거, gap 축소로 스트립 밀도만 확보. */
   body.erp-mobile-v2-layout .tablet-prod-board .erp-pro-alerts {
-    padding: var(--foms-space-3) var(--foms-space-4) 0;
+    flex: none;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--foms-space-2);
+    margin-bottom: 0;
+    padding: var(--foms-space-2) var(--foms-space-4);
   }
+  /* 타일 = 얇은 1행(아이콘 + 라벨 + 값 가로 인라인). 정보 표시용(비인터랙티브)이라
+     48px 터치타깃 비적용 — comfortable(44px)로 슬림. */
   body.erp-mobile-v2-layout .tablet-prod-board .erp-pro-alert {
     justify-content: flex-start;
+    gap: var(--foms-space-2);
+    min-height: var(--foms-touch-target-comfortable);
+    padding: var(--foms-space-2) var(--foms-space-3);
     cursor: default;
   }
+  /* 아이콘: 슬림 스트립에 맞춰 축소 + 무채화. base 의 danger 아이콘 red bg
+     (03-card-pipeline.css:228-231)를 여기서 중화 → HMI: 경보는 값만 유채(아래). */
+  body.erp-mobile-v2-layout .tablet-prod-board .erp-pro-alert__icon {
+    width: 24px;
+    height: 24px;
+    font-size: var(--foms-font-size-sm);
+    background: transparent;
+    color: var(--foms-text-tertiary);
+  }
+  /* content: 세로 스택 → 가로 인라인(라벨 값 한 줄). baseline 정렬로 값·라벨 정렬. */
   body.erp-mobile-v2-layout .tablet-prod-board .erp-pro-alert__content {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 2px;
+    flex-direction: row;
+    align-items: baseline;
+    gap: var(--foms-space-2);
+    min-width: 0;
   }
   body.erp-mobile-v2-layout .tablet-prod-board .erp-pro-alert__label {
     font-size: var(--foms-font-size-sm);
     color: var(--foms-text-secondary);
+    white-space: nowrap;
   }
+  /* 값: 스트립에선 2xl → xl 한 단계 낮춤(시인성 위해 bold 유지). */
   body.erp-mobile-v2-layout .tablet-prod-board .erp-pro-alert__value {
-    font-size: var(--foms-font-size-2xl);
+    font-size: var(--foms-font-size-xl);
     font-weight: var(--foms-font-weight-bold);
     line-height: var(--foms-line-height-tight);
     color: var(--foms-text-primary);
@@ -167,11 +201,12 @@
 
   /* --- 클라이언트 필터 바 --- */
   body.erp-mobile-v2-layout .tablet-prod-filter {
+    flex: none;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: var(--foms-space-2);
-    padding: var(--foms-space-3) var(--foms-space-4);
+    padding: var(--foms-space-2) var(--foms-space-4);
   }
   body.erp-mobile-v2-layout .tablet-prod-filter [data-tablet-prod-search] {
     flex: 1 1 220px;
@@ -193,12 +228,16 @@
     font-weight: var(--foms-font-weight-bold);
     cursor: pointer;
   }
+  /* 칸반이 보드의 남는 세로 높이 전부를 차지(flex:1). align-items:stretch 로 3열을
+     같은 높이로 늘려(가장 긴 열 기준) 각 열이 남는 높이를 채운다. */
   body.erp-mobile-v2-layout .foms-kanban {
     display: grid;
+    flex: 1 1 auto;
+    min-height: 0;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: var(--foms-space-3);
     padding: var(--foms-space-3) var(--foms-space-4) var(--foms-space-6);
-    align-items: start;
+    align-items: stretch;
   }
 
   /* --- 열 --- */
@@ -206,6 +245,7 @@
     display: flex;
     flex-direction: column;
     min-width: 0;
+    min-height: 0;
     background: var(--foms-surface-muted);
     border: 1px solid var(--foms-border-subtle);
     border-radius: var(--foms-radius-xl);
@@ -240,8 +280,13 @@
     display: grid;
     gap: var(--foms-space-3);
     padding: var(--foms-space-3);
-    /* 열 독립 스크롤(내용이 길면 페이지가 아니라 열 내부에서). dvh = 툴바 보정. */
-    min-height: 280px;
+    align-content: start;
+    /* 완료 정산 그리드 __scroll(foms-tablet-completion-grid.css:72-77) 이식:
+       flex:1 + min-height:0 으로 stretched 열의 남는 높이를 받고, 완료 그리드와
+       동일한 100dvh−240px 캡으로 페이지가 아닌 열 내부 스크롤을 보장(하드코딩
+       min-height:280px 제거 — flex 가 높이를 소유). dvh = 모바일 툴바 보정. */
+    flex: 1 1 auto;
+    min-height: 0;
     max-height: calc(100dvh - 240px);
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
