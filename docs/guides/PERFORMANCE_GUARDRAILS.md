@@ -102,7 +102,9 @@ GitHub Actions 가 게이트를 자동 실행하되, 이벤트별로 블로킹 �
   집계·판정 로직은 `foms/services/rum_aggregate.py::build_rum_report`(CLI·엔드포인트 공용 SSOT).
 - **워크플로**: `tools/perf/rum_report_http.py` 가 production 로그인 → report GET →
   `regressed=true` 면 exit 1(job fail=알림), 결과를 step summary 에 표로 남긴다.
-  `schedule` + `workflow_dispatch`(수동). 같은 `FOMS_STAGING_*` secrets 재사용.
+  판정은 KST 오늘(미완성) 제외 · 일별 `MIN_DAY_SAMPLES` · recent **지속**(유효 recent 일
+  전부 threshold 초과) · recent/baseline 중앙값 표시. `schedule` + `workflow_dispatch`.
+  같은 `FOMS_STAGING_*` secrets 재사용.
 - **주의(cron 기본 브랜치)**: GitHub 의 `schedule` 은 **기본 브랜치(이 레포=production)의
   워크플로 파일만** 실행한다. `rum-daily.yml` 이 production 에 승격돼야 매일 자동 실행되며,
   `deploy` 에만 있으면 수동 dispatch 만 가능하다.

@@ -4,6 +4,9 @@
 정확 p95가 목적이 아니라 추세 감시이므로 **고정 버킷 히스토그램**(메모리 상수)으로
 집계한다. 요청 hot path 부담을 최소화하기 위해 파이프라인 HINCRBY+EXPIRE 1왕복만 쓴다.
 
+회귀 판정(rum-daily): KST 오늘 제외 · 일별 MIN_DAY_SAMPLES · 유효 recent
+RECENT_WINDOW일 **전부** threshold 초과(지속) · 표시는 중앙값. 아침 cron 오탐 차단.
+
 Key: ``foms:rum:v1:<YYYY-MM-DD>:<metric>`` (Redis Hash, field=bucket index, value=count)
 TTL: 35일. Redis 부재/오류 시 조용히 skip(기존 fail-open 관례).
 
@@ -38,6 +41,12 @@ OPEN_TOP_NOMINAL_MS: Final[int] = 10000
 
 # 회귀 판정 임계치: 최근 p95 가 baseline 중앙값 대비 이 배수 이상이면 WARN.
 REGRESSION_THRESHOLD: Final[float] = 1.5
+
+# 일별 최소 표본. 미만이면 그 날 p95 는 회귀 판정에서 제외(아침 미완성·SWAP 희소 오탐 차단).
+MIN_DAY_SAMPLES: Final[int] = 30
+
+# 회귀 창에서 KST 오늘(미완성)을 제외한다. rum-daily cron(07:30 KST) 오탐 근본 차단.
+SKIP_TODAY_FOR_REGRESSION: Final[bool] = True
 
 _KST: Final[timezone] = timezone(timedelta(hours=9))
 
@@ -191,7 +200,7 @@ class RegressionVerdict(NamedTuple):
 
     Attributes:
         regressed: True=회귀 WARN, False=정상, None=데이터 부족.
-        recent_p95: 최근 구간 대표 p95(최댓값). 데이터 없으면 None.
+        recent_p95: 최근 구간 대표 p95(중앙값). 데이터 없으면 None.
         baseline_p95: baseline 구간 p95 중앙값. 데이터 없으면 None.
         ratio: recent/baseline 비율. 계산 불가 시 None.
     """
@@ -203,8 +212,24 @@ class RegressionVerdict(NamedTuple):
 
 
 # 회귀 판정 창(일): 최근 RECENT_WINDOW 일 p95 vs 직전 BASELINE_WINDOW 일 p95 중앙값.
+# SKIP_TODAY_FOR_REGRESSION 이면 조회 일수 하한 = 1(오늘)+RECENT+BASELINE.
 RECENT_WINDOW: Final[int] = 2
 BASELINE_WINDOW: Final[int] = 5
+
+
+def p95_for_regression(p95: float | None, samples: int) -> float | None:
+    """회귀 판정에 넣을 일별 p95. 표본 부족·결측이면 None.
+
+    Args:
+        p95: 히스토그램 근사 p95(ms).
+        samples: 해당일 표본 수.
+
+    Returns:
+        samples >= MIN_DAY_SAMPLES 이고 p95 가 있을 때만 p95, 아니면 None.
+    """
+    if p95 is None or samples < MIN_DAY_SAMPLES:
+        return None
+    return p95
 
 
 def detect_regression(
@@ -212,7 +237,12 @@ def detect_regression(
     baseline_p95: list[float | None],
     threshold: float = REGRESSION_THRESHOLD,
 ) -> RegressionVerdict:
-    """최근 p95(최댓값)가 baseline p95 중앙값 대비 threshold 배 이상이면 회귀로 판정.
+    """최근 구간이 baseline 대비 지속 회귀면 WARN.
+
+    - 표시용 recent/baseline 대표값: 각 구간 p95 **중앙값**.
+    - 판정: 유효 recent 일이 ``RECENT_WINDOW``개 이상이고, **전부**가
+      ``baseline_중앙값 * threshold`` 이상일 때만 regressed=True.
+      하루만 남거나 하루만 spike면 skip/OK(아침·희소 오탐 차단).
 
     Args:
         recent_p95: 최근 구간(예: 최근 2일) 일별 p95 리스트(None 허용).
@@ -220,18 +250,24 @@ def detect_regression(
         threshold: 회귀 배수(기본 1.5 = +50%).
 
     Returns:
-        RegressionVerdict. 어느 한쪽이라도 유효 표본이 없으면 regressed=None.
+        RegressionVerdict. 유효 recent < RECENT_WINDOW 이거나 baseline 없으면
+        regressed=None.
     """
     recent_vals = [x for x in recent_p95 if x is not None]
     baseline_vals = [x for x in baseline_p95 if x is not None]
     if not recent_vals or not baseline_vals:
         return RegressionVerdict(None, None, None, None)
-    recent_max = max(recent_vals)
+    recent_med = statistics.median(recent_vals)
     base_med = statistics.median(baseline_vals)
     if base_med <= 0:
-        return RegressionVerdict(None, recent_max, base_med, None)
-    ratio = recent_max / base_med
-    return RegressionVerdict(ratio >= threshold, recent_max, base_med, ratio)
+        return RegressionVerdict(None, recent_med, base_med, None)
+    ratio = recent_med / base_med
+    # 하루만 유효하면 "지속"을 주장할 수 없음 → 판정 skip.
+    if len(recent_vals) < RECENT_WINDOW:
+        return RegressionVerdict(None, recent_med, base_med, ratio)
+    cutoff = base_med * threshold
+    sustained = all(v >= cutoff for v in recent_vals)
+    return RegressionVerdict(sustained, recent_med, base_med, ratio)
 
 
 def day_stats(redis_client: Any, date_str: str, metric: str) -> dict[str, Any]:
@@ -255,30 +291,45 @@ def day_stats(redis_client: Any, date_str: str, metric: str) -> dict[str, Any]:
     }
 
 
+def _regression_day_offset() -> int:
+    """회귀 슬라이스 시작 오프셋(0=오늘 포함, 1=오늘 스킵)."""
+    return 1 if SKIP_TODAY_FOR_REGRESSION else 0
+
+
 def build_rum_report(redis_client: Any, days: int = 7) -> dict[str, Any]:
     """메트릭별 최근 ``days``일 p50/p95 추세 + 회귀 판정을 JSON 직렬화 리포트로 집계.
 
     CLI(``tools/perf/rum_report.py``)와 admin 엔드포인트(``/api/foms/rum/report``)의
     **단일 진실원**. 요청 hot path 가 아니라 감시용이라 조회는 메트릭×일자 HGETALL 뿐.
 
+    회귀 창은 기본적으로 KST 오늘을 제외하고(미완성 일 오탐 차단), 일별
+    ``samples < MIN_DAY_SAMPLES`` 인 날의 p95 는 판정에서 뺀다. recent/baseline
+    대표값은 모두 중앙값.
+
     Args:
         redis_client: ``hgetall`` 지원 클라이언트(운영은 앱 내부 Redis, CLI 는 REDIS_URL).
-        days: 조회 일수(최소 RECENT_WINDOW+BASELINE_WINDOW 로 보정).
+        days: 조회 일수(최소 today-skip+RECENT+BASELINE 로 보정).
 
     Returns:
         ``{days, metrics: [{metric, daily: [...], regression: {...}}], regressed: bool,
         warnings: [str]}``. ``regressed`` 는 메트릭 중 하나라도 WARN 이면 True.
     """
-    days = max(RECENT_WINDOW + BASELINE_WINDOW, days)
+    offset = _regression_day_offset()
+    days = max(offset + RECENT_WINDOW + BASELINE_WINDOW, days)
     dates = recent_kst_dates(days)  # 최신 → 과거
     metrics_out: list[dict[str, Any]] = []
     any_regressed = False
     warnings: list[str] = []
     for metric in sorted(ALLOWED_METRICS):
         daily = [day_stats(redis_client, d, metric) for d in dates]
-        recent_p95 = [row["p95"] for row in daily[:RECENT_WINDOW]]
+        window = daily[offset:]
+        recent_rows = window[:RECENT_WINDOW]
+        baseline_rows = window[RECENT_WINDOW : RECENT_WINDOW + BASELINE_WINDOW]
+        recent_p95 = [
+            p95_for_regression(row["p95"], int(row["samples"])) for row in recent_rows
+        ]
         baseline_p95 = [
-            row["p95"] for row in daily[RECENT_WINDOW : RECENT_WINDOW + BASELINE_WINDOW]
+            p95_for_regression(row["p95"], int(row["samples"])) for row in baseline_rows
         ]
         verdict = detect_regression(recent_p95, baseline_p95)
         if verdict.regressed:
@@ -287,6 +338,16 @@ def build_rum_report(redis_client: Any, days: int = 7) -> dict[str, Any]:
                 f"{metric}: recent p95 {verdict.recent_p95:.0f}ms vs baseline 중앙값 "
                 f"{verdict.baseline_p95:.0f}ms (x{verdict.ratio:.2f})"
             )
+        eligible_recent_n = sum(
+            int(row["samples"])
+            for row, p in zip(recent_rows, recent_p95)
+            if p is not None
+        )
+        eligible_baseline_n = sum(
+            int(row["samples"])
+            for row, p in zip(baseline_rows, baseline_p95)
+            if p is not None
+        )
         metrics_out.append(
             {
                 "metric": metric,
@@ -296,6 +357,8 @@ def build_rum_report(redis_client: Any, days: int = 7) -> dict[str, Any]:
                     "recent_p95": verdict.recent_p95,
                     "baseline_p95": verdict.baseline_p95,
                     "ratio": verdict.ratio,
+                    "recent_samples": eligible_recent_n,
+                    "baseline_samples": eligible_baseline_n,
                 },
             }
         )

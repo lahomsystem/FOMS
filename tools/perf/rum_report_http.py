@@ -56,15 +56,15 @@ def _fmt(v: float | None) -> str:
 
 
 def render_summary(report: dict[str, Any]) -> str:
-    """GitHub step summary 용 마크다운 표(메트릭 | recent/baseline p95 | ratio | 판정)."""
+    """GitHub step summary 용 마크다운 표(메트릭 | p95 | samples | ratio | 판정)."""
     verdict = "🔴 회귀 감지" if report.get("regressed") else "🟢 정상"
     lines = [
         f"## RUM 일일 리포트 (최근 {report['days']}일)",
         "",
         f"**판정: {verdict}**",
         "",
-        "| metric | recent p95 (ms) | baseline p95 (ms) | ratio | 판정 |",
-        "| --- | ---: | ---: | ---: | :---: |",
+        "| metric | recent p95 (ms) | baseline p95 (ms) | recent n | baseline n | ratio | 판정 |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | :---: |",
     ]
     for block in report["metrics"]:
         reg = block["regression"]
@@ -78,8 +78,16 @@ def render_summary(report: dict[str, Any]) -> str:
             state = "OK"
         lines.append(
             f"| {block['metric']} | {_fmt(reg['recent_p95'])} | "
-            f"{_fmt(reg['baseline_p95'])} | {ratio_s} | {state} |"
+            f"{_fmt(reg['baseline_p95'])} | "
+            f"{reg.get('recent_samples', 0)} | {reg.get('baseline_samples', 0)} | "
+            f"{ratio_s} | {state} |"
         )
+    # 일별 표본(오탐 판독용) — 메트릭당 한 줄.
+    lines.append("")
+    lines.append("### 일별 samples (최신→과거)")
+    for block in report["metrics"]:
+        parts = [f"{row['date']}={row['samples']}" for row in block.get("daily", [])]
+        lines.append(f"- {block['metric']}: " + ", ".join(parts))
     if report.get("warnings"):
         lines.append("")
         lines.append("### 경고")
