@@ -4119,20 +4119,15 @@ window._erpIsBalancePaymentConfirmed = _erpIsBalancePaymentConfirmed;
 function erpSliceConversionTextForChannelPush(text) {
     const raw = String(text ?? '').trim();
     if (!raw) return '';
-    // 라홈시스템(factory2) ★★는 채널톡에도 유지. 실측일/시간 헤더만 제거.
+    // 라홈시스템(factory2) ★★는 채널톡에도 유지.
+    // 실측일/시간 헤더만 제거 — 실측 특이사항·주소/연락처 특이사항은 유지.
     const hasFactory2Stars = raw.split('\n').some((line) => /^\s*★★\s*$/.test(line));
-    const idx = raw.search(/^고객명\s*:/m);
-    let body = '';
-    if (idx >= 0) {
-        body = raw.slice(idx).trim();
-    } else {
-        body = raw
-            .split('\n')
-            .filter((line) => !/^\s*★★\s*$/.test(line) && !/^\s*실측일\s*:/.test(line) && !/^\s*시\s*간\s*:/.test(line))
-            .join('\n')
-            .replace(/^\n+/, '')
-            .trim();
-    }
+    const body = raw
+        .split('\n')
+        .filter((line) => !/^\s*★★\s*$/.test(line) && !/^\s*실측일\s*:/.test(line) && !/^\s*시\s*간\s*:/.test(line))
+        .join('\n')
+        .replace(/^\n+/, '')
+        .trim();
     if (!hasFactory2Stars) return body;
     if (!body) return '★★';
     return `★★\n${body}`;

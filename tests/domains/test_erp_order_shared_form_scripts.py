@@ -58,7 +58,7 @@ def _assert_shared_form_script_contract(body: str) -> None:
     assert payment_urls_idx < channel_push_confirm_idx < erp_order_shared_idx < column_resizer_idx < estimate_preview_idx < estimate_columns_idx
     assert "html2canvas.min.js" not in body
     assert "js/orders/erp-channel-push-confirm.js?v=20260703a" in body
-    assert "js/orders/erp-order-shared.js?v=20260722a" in body
+    assert "js/orders/erp-order-shared.js?v=20260722b" in body
     assert "css/orders/erp-channel-push.css?v=20260701a" in body
     assert "css/orders/erp-items-master-detail.css?v=20260701f" in body
     assert "js/orders/erp-items-master-detail.js?v=20260630c" in body
@@ -713,6 +713,16 @@ def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
     slice_block = text[slice_start:slice_end]
     assert "hasFactory2Stars" in slice_block
     assert "return `★★\\n${body}`;" in slice_block
+    # 고객명 slice 폐기 — 실측일/시간만 제거해 실측 특이사항이 채널톡에 남는다
+    assert "raw.search(/^고객명" not in slice_block
+    assert "실측일\\s*:" in slice_block
+    assert "시\\s*간\\s*:" in slice_block
+    tablet_js = (root / "static/js/foms/tablet-measure-form.js").read_text(encoding="utf-8")
+    tablet_slice_start = tablet_js.index("function sliceConversionTextForChannelPush")
+    tablet_slice_end = tablet_js.index("function buildConversionText()", tablet_slice_start)
+    tablet_slice = tablet_js[tablet_slice_start:tablet_slice_end]
+    assert "raw.search(/^고객명" not in tablet_slice
+    assert "실측일\\s*:" in tablet_slice
     assert "erpAppendConversionMoneyLine(text, '출고가', totals.shipping_price)" in conversion_block
     assert "erpAppendConversionMoneyLine(text, '예약금(선금)', totals.deposit_amount)" in conversion_block
     assert "_erpIsBalancePaymentConfirmed()" in conversion_block
