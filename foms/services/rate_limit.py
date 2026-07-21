@@ -51,9 +51,17 @@ def init_limiter(app: Any) -> Limiter:
     if not default_limits:
         default_limits = ["5000 per day", "1200 per hour"]
 
+    # Fail open: a Redis outage must degrade to in-memory limiting, never 500s.
+    storage_options = (
+        {"socket_connect_timeout": 2, "socket_timeout": 2} if redis_url else {}
+    )
+
     return Limiter(
         rate_limit_key,
         app=app,
         storage_uri=redis_url or "memory://",
         default_limits=default_limits,
+        storage_options=storage_options,
+        swallow_errors=True,
+        in_memory_fallback_enabled=True,
     )
