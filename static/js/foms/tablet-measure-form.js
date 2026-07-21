@@ -1723,28 +1723,22 @@
     var tail = suffix ? String(suffix) : "";
     return text + label + " : " + convFormatMoneyKRW(n) + tail + "\n";
   }
-  // PC erpSliceConversionTextForChannelPush (erp-order-shared.js:4119) — 채널톡 전송용 슬라이스.
-  // 실측일/시간 헤더는 제거하되 라홈시스템(factory2) ★★ 는 유지한다.
+  // PC erpSliceConversionTextForChannelPush (erp-order-shared.js) — 채널톡 전송용 슬라이스.
+  // 실측일/시간 헤더만 제거. ★★·실측 특이사항·주소/연락처 특이사항은 유지.
   function sliceConversionTextForChannelPush(text) {
     var raw = String(text == null ? "" : text).trim();
     if (!raw) return "";
     var hasFactory2Stars = raw.split("\n").some(function (line) {
       return /^\s*★★\s*$/.test(line);
     });
-    var idx = raw.search(/^고객명\s*:/m);
-    var body = "";
-    if (idx >= 0) {
-      body = raw.slice(idx).trim();
-    } else {
-      body = raw
-        .split("\n")
-        .filter(function (line) {
-          return !/^\s*★★\s*$/.test(line) && !/^\s*실측일\s*:/.test(line) && !/^\s*시\s*간\s*:/.test(line);
-        })
-        .join("\n")
-        .replace(/^\n+/, "")
-        .trim();
-    }
+    var body = raw
+      .split("\n")
+      .filter(function (line) {
+        return !/^\s*★★\s*$/.test(line) && !/^\s*실측일\s*:/.test(line) && !/^\s*시\s*간\s*:/.test(line);
+      })
+      .join("\n")
+      .replace(/^\n+/, "")
+      .trim();
     if (!hasFactory2Stars) return body;
     if (!body) return "★★";
     return "★★\n" + body;
