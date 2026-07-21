@@ -1775,13 +1775,19 @@
     if (factory2Checked) text += "★★\n";
     text = convAppendLine(text, "실측일", measurementDate);
     text = convAppendLine(text, "시   간", measurementTime);
+    // 실측 특이사항 → 실측 블록(실측일/시간) 바로 아래 (PC erpGenerateConversionText 미러)
+    text = convAppendLine(text, "실측 특이사항", notesValue("measurement_note"));
     if (text) text += "\n";
     text = convAppendLine(text, "고객명", customerName);
     text = convAppendLine(text, "발주사", orderer);
     text = convAppendLine(text, "시공일", constructionDate);
     text = convAppendLine(text, "시공시간", constructionTime);
     text = convAppendLine(text, "주  소", address);
+    // 주소 특이사항 → 주소 바로 아래
+    text = convAppendLine(text, "주소 특이사항", notesValue("address_note"));
     text = convAppendLine(text, "연락처", phone);
+    // 연락처 특이사항 → 연락처 바로 아래
+    text = convAppendLine(text, "연락처 특이사항", notesValue("phone_note"));
     if (text && text.slice(-2) !== "\n\n") text += "\n";
 
     // 항목

@@ -696,6 +696,55 @@ def test_shared_erp_order_js_persists_deposit_adjusted_final_totals() -> None:
     assert conversion_block.index("if (factory2Checked) text += '★★\\n';") < conversion_block.index(
         "erpAppendConversionTextLine(text, '실측일', measurementDate)"
     )
+    # 특이사항 3종: 부모 필드 바로 아래 (빈 값이면 helper가 스킵)
+    assert "getVal('erp-measurement-note')" in conversion_block
+    assert "getVal('erp-address-note')" in conversion_block
+    assert "getVal('erp-phone-note')" in conversion_block
+    assert conversion_block.index(
+        "erpAppendConversionTextLine(text, '시   간', measurementTime)"
+    ) < conversion_block.index(
+        "erpAppendConversionTextLine(text, '실측 특이사항', getVal('erp-measurement-note'))"
+    )
+    assert conversion_block.index(
+        "erpAppendConversionTextLine(text, '실측 특이사항', getVal('erp-measurement-note'))"
+    ) < conversion_block.index(
+        "erpAppendConversionTextLine(text, '고객명', customerName)"
+    )
+    assert conversion_block.index(
+        "erpAppendConversionTextLine(text, '주  소', address)"
+    ) < conversion_block.index(
+        "erpAppendConversionTextLine(text, '주소 특이사항', getVal('erp-address-note'))"
+    )
+    assert conversion_block.index(
+        "erpAppendConversionTextLine(text, '주소 특이사항', getVal('erp-address-note'))"
+    ) < conversion_block.index(
+        "erpAppendConversionTextLine(text, '연락처', phone)"
+    )
+    assert conversion_block.index(
+        "erpAppendConversionTextLine(text, '연락처', phone)"
+    ) < conversion_block.index(
+        "erpAppendConversionTextLine(text, '연락처 특이사항', getVal('erp-phone-note'))"
+    )
+    # 태블릿 실측 폼 변환 미러도 동일 배치 (PC SSOT 동기)
+    tablet_js = (root / "static/js/foms/tablet-measure-form.js").read_text(encoding="utf-8")
+    tablet_start = tablet_js.index("function buildConversionText()")
+    tablet_end = tablet_js.index("function refreshConversionText()", tablet_start)
+    tablet_block = tablet_js[tablet_start:tablet_end]
+    assert tablet_block.index('convAppendLine(text, "시   간", measurementTime)') < tablet_block.index(
+        'convAppendLine(text, "실측 특이사항", notesValue("measurement_note"))'
+    )
+    assert tablet_block.index(
+        'convAppendLine(text, "실측 특이사항", notesValue("measurement_note"))'
+    ) < tablet_block.index('convAppendLine(text, "고객명", customerName)')
+    assert tablet_block.index('convAppendLine(text, "주  소", address)') < tablet_block.index(
+        'convAppendLine(text, "주소 특이사항", notesValue("address_note"))'
+    )
+    assert tablet_block.index(
+        'convAppendLine(text, "주소 특이사항", notesValue("address_note"))'
+    ) < tablet_block.index('convAppendLine(text, "연락처", phone)')
+    assert tablet_block.index('convAppendLine(text, "연락처", phone)') < tablet_block.index(
+        'convAppendLine(text, "연락처 특이사항", notesValue("phone_note"))'
+    )
     slice_start = text.index("function erpSliceConversionTextForChannelPush")
     slice_end = text.index("function erpGenerateConversionText()", slice_start)
     slice_block = text[slice_start:slice_end]
